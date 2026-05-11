@@ -2,9 +2,9 @@
 
 > This file is the **session-to-session memory** for Claude Code. Update it at the end of every session before stopping work. Read it at the start of every session before touching code.
 
-**Last session**: 2026-05-11 (Phase 1 — Modbus TCP plugin)
+**Last session**: 2026-05-11 (Phase 1 — editor IDE + page management)
 **Current phase**: Phase 1 in progress
-**Last commit**: feat(sws-plugin-modbus): Modbus TCP polling driver with reconnect
+**Last commit**: feat(sws-editor): working IDE — object creation, properties, drag, page tabs
 
 ---
 
@@ -28,6 +28,8 @@
 - **sws-core project loader**: `Project::load(dir)` parses `project.yaml`; `populate_tags()` seeds TagDb with `Float(0.0)/Uncertain` for every defined tag. Missing file → warning, empty DB.
 - **sws-core project format**: `sources` list with `kind: modbus_tcp` entries; each maps holding registers to tag IDs via `address` + `scale`.
 - **sws-plugin-modbus**: `run(cfg, db)` polls holding registers at `poll_interval_ms`, writes `Float(raw * scale) / Good` into TagDb, marks tags `Bad` on error, reconnects after 5 s.
+- **sws-core TagValue**: `#[serde(untagged)]` — serializes as native JSON (42.5, true, "hello") instead of `{"Float": 42.5}`.
+- **sws-editor IDE**: object creation (rect/text from toolbox), property editing (x/y/w/h/fill/tag/format), drag-to-move, Delete key/button, page tab bar (add/switch/delete pages), WebSocket parsing fixed to match backend wire format.
 
 ## What's in progress
 
@@ -37,7 +39,11 @@
 
 Pick one of these as the next focused work block (each fits 3-4 hours):
 
-1. **Auth skeleton** in `sws-auth` (recommended next):
+1. **Save/load synoptic from backend** (recommended next):
+   - Add `GET /api/synoptics/:name` and `PUT /api/synoptics/:name` endpoints in sws-web
+   - Store synoptic YAML in the project directory
+   - Editor: "Save" button → PUT; on load → GET + populate store
+2. **Auth skeleton** in `sws-auth`:
    - Argon2id password hash/verify
    - Session token (UUID, stored in memory map)
    - Single admin user seeded from `SWS_ADMIN_PASSWORD` env var

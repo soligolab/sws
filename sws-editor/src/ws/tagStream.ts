@@ -1,7 +1,7 @@
-// TODO: implement WSS reconnection with exponential back-off.
+// TODO: exponential back-off reconnection.
 import { useEffect } from "react";
 import { useAppStore } from "@/store";
-import type { TagValue } from "@/types";
+import type { TagQuality } from "@/types";
 
 const WS_URL = import.meta.env.VITE_RUNTIME_WS_URL ?? "wss://localhost:8443/ws/tags";
 
@@ -14,35 +14,38 @@ function getSocket(): WebSocket {
   return socket;
 }
 
-export function useTagStream(tagIds: string[]): void {
-  const updateTagValues = useAppStore((s) => s.updateTagValues);
+// Wire format sent by sws-web /ws/tags
+interface TagUpdate {
+  id: string;
+  state: {
+    value: number | string | boolean;
+    quality: string;
+    timestamp_ms: number;
+  };
+}
+
+export function useTagStream(): void {
+  const updateTagValue = useAppStore((s) => s.updateTagValue);
 
   useEffect(() => {
-    if (tagIds.length === 0) return;
     const ws = getSocket();
 
-    const subscribe = () => {
-      ws.send(JSON.stringify({ type: "subscribe", tags: tagIds }));
-    };
-
-    if (ws.readyState === WebSocket.OPEN) {
-      subscribe();
-    } else {
-      ws.addEventListener("open", subscribe, { once: true });
-    }
-
     const onMessage = (ev: MessageEvent) => {
-      const data = JSON.parse(ev.data as string) as Record<string, TagValue>;
-      updateTagValues(data);
-    };
-    ws.addEventListener("message", onMessage);
-
-    return () => {
-      ws.removeEventListener("message", onMessage);
-      // Unsubscribe only if socket is still alive
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: "unsubscribe", tags: tagIds }));
+      try {
+        const upd = JSON.parse(ev.data as string) as TagUpdate;
+        if (upd?.id && upd?.state) {
+          updateTagValue(upd.id, {
+            value: upd.state.value,
+            quality: upd.state.quality as TagQuality,
+            timestamp_ms: upd.state.timestamp_ms,
+          });
+        }
+      } catch {
+        // ignore malformed frames
       }
     };
-  }, [tagIds.join(","), updateTagValues]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    ws.addEventListener("message", onMessage);
+    return () => ws.removeEventListener("message", onMessage);
+  }, [updateTagValue]);
 }

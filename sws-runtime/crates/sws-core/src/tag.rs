@@ -15,6 +15,7 @@ pub struct Tag {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(untagged)] // serializes as native JSON: true / 42 / 3.14 / "hello"
 pub enum TagValue {
     Bool(bool),
     Int(i64),

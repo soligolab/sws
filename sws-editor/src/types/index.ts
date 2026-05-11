@@ -1,9 +1,9 @@
-export type TagQuality = "good" | "bad" | "uncertain";
+export type TagQuality = "Good" | "Bad" | "Uncertain";
 
-export interface TagValue {
+export interface TagState {
   value: number | string | boolean;
   quality: TagQuality;
-  timestampMs: number;
+  timestamp_ms: number;
 }
 
 export type SynopticObjectType = "rect" | "text" | "image";
@@ -21,7 +21,8 @@ export interface SynopticObject {
   src?: string;
 }
 
-export interface Synoptic {
+export interface SynopticPage {
+  id: string;
   name: string;
   objects: SynopticObject[];
 }
@@ -29,5 +30,4 @@ export interface Synoptic {
 export interface Project {
   name: string;
   version: string;
-  synoptics: string[];
 }
