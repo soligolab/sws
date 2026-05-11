@@ -56,6 +56,14 @@ async fn main() -> anyhow::Result<()> {
         Ok(project) => {
             info!(name = %project.meta.name, tags = project.tags.len(), "project loaded");
             project.populate_tags(&tag_db).await;
+            for source in project.sources {
+                match source {
+                    sws_core::SourceDef::ModbusTcp(cfg) => {
+                        let db = tag_db.clone();
+                        tokio::spawn(async move { sws_plugin_modbus::run(cfg, db).await });
+                    }
+                }
+            }
         }
         Err(e) => {
             warn!("project.yaml not found or invalid — starting with empty tag database: {e:#}");

@@ -5,25 +5,65 @@ use serde::{Deserialize, Serialize};
 use std::path::Path;
 use crate::tag::{TagDb, TagQuality, TagValue};
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProjectMeta {
     pub name: String,
     pub version: String,
 }
 
 /// One tag definition as written in project.yaml.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TagDef {
     pub id: String,
     #[serde(default)]
     pub description: String,
 }
 
+/// Discriminated union of all supported data source types.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "kind")]
+pub enum SourceDef {
+    #[serde(rename = "modbus_tcp")]
+    ModbusTcp(ModbusTcpConfig),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ModbusTcpConfig {
+    pub id: String,
+    pub host: String,
+    #[serde(default = "default_modbus_port")]
+    pub port: u16,
+    #[serde(default = "default_unit_id")]
+    pub unit_id: u8,
+    /// How often to poll all registers, in milliseconds.
+    #[serde(default = "default_poll_interval_ms")]
+    pub poll_interval_ms: u64,
+    pub registers: Vec<RegisterMapping>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RegisterMapping {
+    /// TagId to write the value into.
+    pub tag: String,
+    /// Holding register start address (0-based).
+    pub address: u16,
+    /// Multiply the raw u16 word by this before storing. Default 1.0.
+    #[serde(default = "default_scale")]
+    pub scale: f64,
+}
+
+fn default_modbus_port() -> u16 { 502 }
+fn default_unit_id() -> u8 { 1 }
+fn default_poll_interval_ms() -> u64 { 1000 }
+fn default_scale() -> f64 { 1.0 }
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Project {
     pub meta: ProjectMeta,
     #[serde(default)]
     pub tags: Vec<TagDef>,
+    #[serde(default)]
+    pub sources: Vec<SourceDef>,
 }
 
 impl Project {

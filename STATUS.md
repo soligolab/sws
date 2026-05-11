@@ -2,9 +2,9 @@
 
 > This file is the **session-to-session memory** for Claude Code. Update it at the end of every session before stopping work. Read it at the start of every session before touching code.
 
-**Last session**: 2026-05-11 (Phase 1 — YAML project loader)
+**Last session**: 2026-05-11 (Phase 1 — Modbus TCP plugin)
 **Current phase**: Phase 1 in progress
-**Last commit**: feat(sws-core): YAML project loader populates TagDb on startup
+**Last commit**: feat(sws-plugin-modbus): Modbus TCP polling driver with reconnect
 
 ---
 
@@ -26,6 +26,8 @@
 - **sws-web router**: `GET /api/tags` (JSON snapshot), `GET /api/tags/:id` (single tag or 404), `GET /ws/tags` (WebSocket stream — snapshot on connect + live updates). `TagDb` passed as Axum state.
 - **sws-runtime**: creates `Arc<TagDb>`, loads `project.yaml`, hands DB to `sws_web::router::build()`.
 - **sws-core project loader**: `Project::load(dir)` parses `project.yaml`; `populate_tags()` seeds TagDb with `Float(0.0)/Uncertain` for every defined tag. Missing file → warning, empty DB.
+- **sws-core project format**: `sources` list with `kind: modbus_tcp` entries; each maps holding registers to tag IDs via `address` + `scale`.
+- **sws-plugin-modbus**: `run(cfg, db)` polls holding registers at `poll_interval_ms`, writes `Float(raw * scale) / Good` into TagDb, marks tags `Bad` on error, reconnects after 5 s.
 
 ## What's in progress
 
@@ -35,11 +37,7 @@
 
 Pick one of these as the next focused work block (each fits 3-4 hours):
 
-1. **Modbus TCP plugin** in `sws-plugin-modbus` (recommended next):
-   - Connect to a configurable host:port read from `project.yaml`
-   - Read holding registers and write the values into `TagDb`
-   - Reconnect loop on disconnect
-2. **Auth skeleton** in `sws-auth`:
+1. **Auth skeleton** in `sws-auth` (recommended next):
    - Argon2id password hash/verify
    - Session token (UUID, stored in memory map)
    - Single admin user seeded from `SWS_ADMIN_PASSWORD` env var
