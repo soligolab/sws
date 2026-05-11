@@ -2,9 +2,9 @@
 
 > This file is the **session-to-session memory** for Claude Code. Update it at the end of every session before stopping work. Read it at the start of every session before touching code.
 
-**Last session**: 2026-05-11 (Phase 1 — tag engine)
+**Last session**: 2026-05-11 (Phase 1 — sws-web wired to sws-core)
 **Current phase**: Phase 1 in progress
-**Last commit**: feat(sws-core): in-memory TagDb with broadcast subscription
+**Last commit**: feat(sws-web): wire TagDb to REST and WebSocket endpoints
 
 ---
 
@@ -23,6 +23,8 @@
 - Editor Dockerfile (multi-stage, nginx:alpine serving SPA + reverse-proxying `/api` and `/ws` to runtime)
 - `.claude/settings.json` configured with project-scoped permissions (`acceptEdits` default, allow list for cargo/pnpm/git/filesystem, ask for push/publish, deny for secrets/sudo/ssh)
 - **sws-core tag engine**: `TagId`, `TagValue` (Bool/Int/Float/Str), `TagQuality`, `TagState`, `TagUpdate`, `TagDb` (Arc<RwLock<HashMap>> + tokio broadcast). `cargo test -p sws-core` passes (2 tests).
+- **sws-web router**: `GET /api/tags` (JSON snapshot), `GET /api/tags/:id` (single tag or 404), `GET /ws/tags` (WebSocket stream — snapshot on connect + live updates). `TagDb` passed as Axum state.
+- **sws-runtime**: creates `Arc<TagDb>`, hands it to `sws_web::router::build()`. `/health` and `/metrics` moved into sws-web router.
 
 ## What's in progress
 
@@ -32,12 +34,7 @@
 
 Pick one of these as the next focused work block (each fits 3-4 hours):
 
-1. **Wire `sws-web` to `sws-core`** (recommended next):
-   - Add `Arc<TagDb>` as Axum app state in `sws-web`
-   - Add `/api/tags` REST endpoint (GET list, GET by id)
-   - Add `/ws/tags` WebSocket endpoint that streams `TagUpdate` as JSON
-   - Test from browser via `sws-editor` dev server (Vite proxy already configured for `/api` and `/ws`)
-2. **YAML project loader** in `sws-core/src/project.rs`:
+1. **YAML project loader** in `sws-core/src/project.rs`:
    - Load `project.yaml` from the `--project` path
    - Populate `TagDb` from the tag definitions in the YAML
    - Basic filesystem watch for hot reload (use `notify` crate)

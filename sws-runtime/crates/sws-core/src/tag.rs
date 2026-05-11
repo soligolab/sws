@@ -73,6 +73,10 @@ impl TagDb {
     pub fn subscribe(&self) -> broadcast::Receiver<TagUpdate> {
         self.tx.subscribe()
     }
+
+    pub async fn snapshot(&self) -> HashMap<TagId, TagState> {
+        self.store.read().await.clone()
+    }
 }
 
 #[cfg(test)]

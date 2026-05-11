@@ -1,13 +1,13 @@
 // TODO: load project, start tag engine, connect comm plugins.
 
 use anyhow::Context;
-use axum::{routing::get, Router};
 use clap::Parser;
 use hyper::body::Incoming;
 use hyper_util::rt::{TokioExecutor, TokioIo};
 use hyper_util::server::conn::auto::Builder as ConnBuilder;
 use rcgen::generate_simple_self_signed;
 use std::{net::SocketAddr, path::PathBuf, sync::Arc};
+use sws_core::TagDb;
 use tokio::net::TcpListener;
 use tokio_rustls::{
     rustls::{
@@ -50,10 +50,8 @@ async fn main() -> anyhow::Result<()> {
 
     let acceptor = build_tls_acceptor(&args.config)?;
 
-    let app = Router::new()
-        .route("/health", get(health))
-        // TODO: replace with real Prometheus handle from metrics-exporter-prometheus
-        .route("/metrics", get(|| async { "# SWS metrics placeholder\n" }));
+    let tag_db = Arc::new(TagDb::new(256));
+    let app = sws_web::router::build(tag_db);
 
     let addr: SocketAddr = "0.0.0.0:8443".parse()?;
     let listener = TcpListener::bind(addr).await?;
@@ -79,7 +77,7 @@ async fn main() -> anyhow::Result<()> {
                 Ok(s)  => s,
                 Err(e) => { warn!(%peer, "TLS handshake failed: {e}"); return; }
             };
-            let io      = TokioIo::new(tls_stream);
+            let io = TokioIo::new(tls_stream);
             let hyper_svc = hyper::service::service_fn(move |req: axum::extract::Request<Incoming>| {
                 svc.clone().call(req)
             });
@@ -93,10 +91,6 @@ async fn main() -> anyhow::Result<()> {
     }
 
     Ok(())
-}
-
-async fn health() -> &'static str {
-    "ok"
 }
 
 /// Load `tls.crt`/`tls.key` from `config_dir`.
