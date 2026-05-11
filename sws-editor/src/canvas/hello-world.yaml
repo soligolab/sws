@@ -1,0 +1,15 @@
+name: Hello World
+objects:
+  - id: rect1
+    type: rect
+    x: 100
+    y: 100
+    width: 200
+    height: 100
+    fill: "#4a90d9"
+  - id: display1
+    type: text
+    x: 120
+    y: 160
+    tag: demo.temperature
+    format: "{value:.1f} °C"

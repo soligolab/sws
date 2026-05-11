@@ -1,0 +1,107 @@
+---
+# GitLab CI mirror pipeline for soligolab/sws
+# Mirrors the GitHub Actions workflow for teams using internal GitLab instances.
+
+stages:
+  - lint
+  - build
+  - test
+  - audit
+
+variables:
+  CARGO_HOME: "$CI_PROJECT_DIR/.cargo"
+  RUST_VERSION: "1.75"
+
+default:
+  interruptible: true
+
+# ── Rust ─────────────────────────────────────────────────────────────────────
+
+rust:lint:
+  stage: lint
+  image: "rust:${RUST_VERSION}-bookworm"
+  script:
+    - rustup component add rustfmt clippy
+    - cd sws-runtime
+    - cargo fmt --check
+    - cargo clippy -- -D warnings
+  only:
+    - merge_requests
+    - main
+  changes:
+    - sws-runtime/**/*
+
+rust:build-test:
+  stage: build
+  image: "rust:${RUST_VERSION}-bookworm"
+  script:
+    - cd sws-runtime
+    - cargo build --release
+    - cargo test --workspace
+  artifacts:
+    paths:
+      - sws-runtime/target/release/sws-runtime
+    expire_in: 1 week
+  only:
+    - merge_requests
+    - main
+  changes:
+    - sws-runtime/**/*
+
+rust:audit:
+  stage: audit
+  image: "rust:${RUST_VERSION}-bookworm"
+  script:
+    - cargo install cargo-audit
+    - cd sws-runtime
+    - cargo audit
+  only:
+    - merge_requests
+    - main
+  changes:
+    - sws-runtime/**/*
+
+# ── TypeScript ────────────────────────────────────────────────────────────────
+
+ts:lint:
+  stage: lint
+  image: node:20-bookworm-slim
+  script:
+    - npm install -g pnpm
+    - cd sws-editor
+    - pnpm install --frozen-lockfile
+    - pnpm lint
+    - pnpm type-check
+  only:
+    - merge_requests
+    - main
+  changes:
+    - sws-editor/**/*
+
+ts:build-test:
+  stage: build
+  image: node:20-bookworm-slim
+  script:
+    - npm install -g pnpm
+    - cd sws-editor
+    - pnpm install --frozen-lockfile
+    - pnpm build
+    - pnpm test
+  only:
+    - merge_requests
+    - main
+  changes:
+    - sws-editor/**/*
+
+ts:audit:
+  stage: audit
+  image: node:20-bookworm-slim
+  script:
+    - npm install -g pnpm
+    - cd sws-editor
+    - pnpm audit --audit-level=high
+  only:
+    - merge_requests
+    - main
+  changes:
+    - sws-editor/**/*

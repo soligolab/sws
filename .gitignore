@@ -1,0 +1,33 @@
+# Rust
+/sws-runtime/target/
+*.rs.bk
+Cargo.lock.bak
+
+# Node / pnpm
+sws-editor/node_modules/
+sws-editor/dist/
+sws-editor/dist-types/
+sws-editor/.pnpm-store/
+sws-editor/.vite/
+
+# Secrets and certificates
+*.pem
+*.key
+*.crt
+*.p12
+.env
+.env.local
+.env.*.local
+
+# IDE
+.idea/
+.vscode/
+!.vscode/extensions.json
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build artifacts
+*.log
+sbom.cdx.json

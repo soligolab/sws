@@ -1,0 +1,33 @@
+[package]
+name    = "sws-runtime"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "sws-runtime"
+path = "src/main.rs"
+
+[dependencies]
+tokio.workspace              = true
+axum.workspace               = true
+tower.workspace              = true
+tower-http.workspace         = true
+tracing.workspace            = true
+tracing-subscriber.workspace = true
+serde.workspace              = true
+serde_json.workspace         = true
+rustls.workspace             = true
+tokio-rustls.workspace       = true
+rustls-pemfile.workspace     = true
+hyper.workspace              = true
+hyper-util.workspace         = true
+rcgen.workspace              = true
+clap.workspace               = true
+anyhow.workspace             = true
+
+sws-core      = { path = "../sws-core" }
+sws-web       = { path = "../sws-web" }
+sws-auth      = { path = "../sws-auth" }
+sws-historian = { path = "../sws-historian" }
+sws-audit     = { path = "../sws-audit" }
