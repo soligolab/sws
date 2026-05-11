@@ -1,5 +1,5 @@
 // TODO: add auth header injection once session tokens are implemented.
-import type { ProjectInfo, SynopticPage } from "@/types";
+import type { ProjectInfo, SourceDef, SynopticPage, TagDef } from "@/types";
 
 const BASE_URL = import.meta.env.VITE_RUNTIME_URL ?? "";
 
@@ -13,9 +13,23 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
-  // Project
+  // Project config
   getProject: () =>
     request<ProjectInfo>("/api/project"),
+
+  updateTags: (tags: TagDef[]) =>
+    request<void>("/api/project/tags", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(tags),
+    }),
+
+  updateSources: (sources: SourceDef[]) =>
+    request<void>("/api/project/sources", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(sources),
+    }),
 
   // Synoptics
   listSynoptics: () =>

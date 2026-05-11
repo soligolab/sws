@@ -1,6 +1,6 @@
 // TODO (ADR 0001): evaluate Redux Toolkit as an alternative before M1 freeze.
 import { create } from "zustand";
-import type { ProjectInfo, SynopticObject, SynopticPage, TagState } from "@/types";
+import type { ProjectInfo, SourceDef, SynopticObject, SynopticPage, TagDef, TagState } from "@/types";
 
 function genId(): string {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
@@ -20,6 +20,8 @@ interface AppState {
   snapEnabled: boolean;
 
   setProject: (p: ProjectInfo) => void;
+  updateProjectTags: (tags: TagDef[]) => void;
+  updateProjectSources: (sources: SourceDef[]) => void;
 
   // Page management
   setPages: (pages: SynopticPage[], currentPageId?: string) => void;
@@ -55,6 +57,16 @@ export const useAppStore = create<AppState>((set, get) => ({
   snapEnabled: true,
 
   setProject: (project) => set({ project }),
+
+  updateProjectTags: (tags) =>
+    set((s) => ({
+      project: s.project ? { ...s.project, tags } : s.project,
+    })),
+
+  updateProjectSources: (sources) =>
+    set((s) => ({
+      project: s.project ? { ...s.project, sources } : s.project,
+    })),
 
   setPages: (pages, currentPageId) =>
     set({ pages, currentPageId: currentPageId ?? pages[0]?.id ?? first.id, selectedObjectId: null }),

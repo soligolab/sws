@@ -3,11 +3,11 @@ use axum::{
     extract::{ws::{Message, WebSocket, WebSocketUpgrade}, Path, State},
     http::StatusCode,
     response::IntoResponse,
-    routing::get,
+    routing::{get, put},
     Json, Router,
 };
 use serde::Deserialize;
-use sws_core::{Project, TagDb, TagId, TagQuality, TagState, TagUpdate, TagValue};
+use sws_core::{Project, ProjectMeta, SourceDef, TagDb, TagDef, TagId, TagQuality, TagState, TagUpdate, TagValue};
 use tracing::warn;
 use crate::synoptic::{safe_filename, SynopticPage};
 
@@ -25,8 +25,10 @@ pub fn build(db: Arc<TagDb>, project_dir: Arc<PathBuf>) -> Router {
         // Tag REST
         .route("/api/tags",      get(get_all_tags))
         .route("/api/tags/:id",  get(get_tag).put(write_tag))
-        // Project info
-        .route("/api/project", get(get_project))
+        // Project info + config
+        .route("/api/project",         get(get_project))
+        .route("/api/project/tags",    put(update_project_tags))
+        .route("/api/project/sources", put(update_project_sources))
         // Synoptic REST
         .route("/api/synoptics",      get(list_synoptics))
         .route("/api/synoptics/:name", get(get_synoptic).put(save_synoptic))
@@ -60,13 +62,52 @@ async fn write_tag(
     StatusCode::NO_CONTENT
 }
 
-// ── Project endpoint ─────────────────────────────────────────────────────────
+// ── Project endpoints ─────────────────────────────────────────────────────────
 
 async fn get_project(State(s): State<AppState>) -> impl IntoResponse {
     match Project::load(&s.project_dir) {
         Ok(project) => Json(project).into_response(),
         Err(_)      => StatusCode::NOT_FOUND.into_response(),
     }
+}
+
+/// Read project.yaml (or build a minimal default), apply `f`, write back.
+async fn patch_project<F>(project_dir: &std::path::Path, f: F) -> StatusCode
+where
+    F: FnOnce(&mut Project),
+{
+    let mut project = Project::load(project_dir).unwrap_or_else(|_| Project {
+        meta: ProjectMeta { name: "default".into(), version: "0.1.0".into() },
+        tags: vec![],
+        sources: vec![],
+    });
+    f(&mut project);
+    if let Err(e) = tokio::fs::create_dir_all(project_dir).await {
+        warn!("cannot create project dir: {e}");
+        return StatusCode::INTERNAL_SERVER_ERROR;
+    }
+    let path = project_dir.join("project.yaml");
+    match serde_yaml::to_string(&project) {
+        Ok(yaml) => match tokio::fs::write(&path, yaml).await {
+            Ok(_)  => StatusCode::NO_CONTENT,
+            Err(e) => { warn!("write project.yaml: {e}"); StatusCode::INTERNAL_SERVER_ERROR }
+        },
+        Err(e) => { warn!("serialize project: {e}"); StatusCode::INTERNAL_SERVER_ERROR }
+    }
+}
+
+async fn update_project_tags(
+    State(s): State<AppState>,
+    Json(tags): Json<Vec<TagDef>>,
+) -> StatusCode {
+    patch_project(&s.project_dir, |p| p.tags = tags).await
+}
+
+async fn update_project_sources(
+    State(s): State<AppState>,
+    Json(sources): Json<Vec<SourceDef>>,
+) -> StatusCode {
+    patch_project(&s.project_dir, |p| p.sources = sources).await
 }
 
 // ── Synoptic endpoints ───────────────────────────────────────────────────────

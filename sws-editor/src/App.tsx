@@ -2,11 +2,18 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
 import { AlarmBanner } from "@/components/AlarmBanner";
+import { ConfigView } from "@/config/ConfigView";
 import { EditorShell } from "@/editor/EditorShell";
 import { RuntimeView } from "@/runtime-view/RuntimeView";
 import { useAppStore } from "@/store";
 
-type Mode = "edit" | "view";
+type Mode = "edit" | "view" | "config";
+
+const MODE_LABELS: Record<Mode, string> = {
+  edit:   "Editor",
+  view:   "Runtime",
+  config: "Configurazione",
+};
 
 export function App() {
   const { t } = useTranslation();
@@ -31,23 +38,37 @@ export function App() {
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100vh", fontFamily: "system-ui, sans-serif", color: "#e2e8f0", background: "#0f172a" }}>
       {/* Header */}
-      <header style={{ height: 48, background: "#1e293b", borderBottom: "1px solid #334155", display: "flex", alignItems: "center", padding: "0 16px", gap: 16, flexShrink: 0 }}>
-        <strong style={{ letterSpacing: 1, fontSize: 15 }}>SWS</strong>
-        <span style={{ color: "#475569", flex: 1 }}>
+      <header style={{
+        height: 48,
+        background: "#1e293b",
+        borderBottom: "1px solid #334155",
+        display: "flex",
+        alignItems: "center",
+        padding: "0 16px",
+        gap: 16,
+        flexShrink: 0,
+      }}>
+        <strong style={{ letterSpacing: 1, fontSize: 15, color: "#e2e8f0" }}>SWS</strong>
+        <span style={{ color: "#475569", flex: 1, fontSize: 13 }}>
           {t("app.project")}: {project?.meta.name ?? "—"}
         </span>
         <div style={{ display: "flex", gap: 4 }}>
-          {(["edit", "view"] as Mode[]).map((m) => (
+          {(["edit", "view", "config"] as Mode[]).map((m) => (
             <button
               key={m}
               onClick={() => setMode(m)}
               style={{
-                padding: "4px 12px", borderRadius: 4, border: "none", cursor: "pointer",
+                padding: "5px 14px",
+                borderRadius: 4,
+                border: "none",
+                cursor: "pointer",
                 background: mode === m ? "#3b82f6" : "#334155",
-                color: "#fff", fontWeight: mode === m ? 600 : 400,
+                color: "#fff",
+                fontWeight: mode === m ? 600 : 400,
+                fontSize: 13,
               }}
             >
-              {t(`app.mode.${m}`)}
+              {MODE_LABELS[m]}
             </button>
           ))}
         </div>
@@ -57,9 +78,19 @@ export function App() {
       {/* Alarm banner */}
       <AlarmBanner />
 
-      {/* Page tabs (editor mode) */}
+      {/* Page tabs (editor mode only) */}
       {mode === "edit" && (
-        <div style={{ display: "flex", alignItems: "center", background: "#0f172a", borderBottom: "1px solid #334155", padding: "0 8px", gap: 2, flexShrink: 0, height: 32, overflowX: "auto" }}>
+        <div style={{
+          display: "flex",
+          alignItems: "center",
+          background: "#0f172a",
+          borderBottom: "1px solid #334155",
+          padding: "0 8px",
+          gap: 2,
+          flexShrink: 0,
+          height: 32,
+          overflowX: "auto",
+        }}>
           {pages.map((p) => (
             <button
               key={p.id}
@@ -84,7 +115,9 @@ export function App() {
 
       {/* Main area */}
       <main style={{ display: "flex", flex: 1, overflow: "hidden" }}>
-        {mode === "edit" ? <EditorShell /> : <RuntimeView />}
+        {mode === "edit"   && <EditorShell />}
+        {mode === "view"   && <RuntimeView />}
+        {mode === "config" && <ConfigView />}
       </main>
     </div>
   );

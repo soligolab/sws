@@ -26,3 +26,6 @@ and this project adheres to [CalVer](https://calver.org/) (`YYYY.MM[.patch]`).
 - `sws-editor`: RuntimeView operator page-navigation tab bar
 - `sws-web`: `GET /api/project` endpoint exposes full project JSON (meta + tags + sources)
 - `sws-web`: SynopticObject extended with x2, y2, stroke, stroke_width, target_page; SynopticPage gains background field
+- `sws-web`: `PUT /api/project/tags` and `PUT /api/project/sources` — update respective sections in project.yaml (creates file if absent)
+- `sws-editor`: ConfigView with two tabs — Variabili (tag CRUD with live value column) and Protocolli (Modbus TCP CRUD with inline register mapping table)
+- `sws-editor`: "Configurazione" mode added to header alongside Editor and Runtime

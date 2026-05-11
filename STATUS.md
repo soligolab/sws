@@ -2,9 +2,9 @@
 
 > This file is the **session-to-session memory** for Claude Code. Update it at the end of every session before stopping work. Read it at the start of every session before touching code.
 
-**Last session**: 2026-05-11 (Phase 1 — complete editor: object palette, grid, project tree, runtime nav)
+**Last session**: 2026-05-11 (Phase 1 — protocol + variable configuration UI)
 **Current phase**: Phase 1 in progress
-**Last commit**: feat(editor): complete object palette, canvas grid, project tree, runtime page nav
+**Last commit**: feat(config): tag and Modbus TCP source CRUD with backend persistence
 
 ---
 
@@ -47,6 +47,14 @@
 - **Navbutton**: navigates to target page in view mode via `onNavigate` callback
 - **Page background**: configurable per page, applied to canvas SVG background
 
+- **ConfigView** (mode "Configurazione" in header):
+  - Tab *Variabili*: CRUD tabella tag (ID + descrizione), valore live se runtime attivo, PUT /api/project/tags
+  - Tab *Protocolli*: CRUD sorgenti Modbus TCP, ogni sorgente mostra host/port/unit_id/poll_interval con mappatura registri inline (tag → indirizzo → scala × float), PUT /api/project/sources
+  - Pulsanti OPC-UA e MQTT presenti ma disabilitati (prossimamente)
+- **sws-web**: `PUT /api/project/tags` e `PUT /api/project/sources` — leggono project.yaml, aggiornano il campo, riscrivono; creano la directory se mancante
+- **store**: `updateProjectTags`, `updateProjectSources` per aggiornamento ottimistico dopo salvataggio
+- **App.tsx**: terza modalità "Configurazione" nel header
+
 ## What's in progress
 
 - (nothing — all clean)
@@ -59,9 +67,9 @@ Pick one of these as the next focused work block (each fits 3-4 hours):
    - Argon2id password hash/verify
    - Session token (UUID, stored in memory map)
    - Single admin user seeded from `SWS_ADMIN_PASSWORD` env var
-2. **Alarm engine stub** in `sws-core`: alarm conditions on tags, alarm list in the editor and runtime
+2. **Alarm engine stub** in `sws-core`: alarm conditions on tags, alarm list in editor and runtime
 3. **Historian stub**: ring-buffer in `sws-historian`, exposed as `GET /api/history/:tag?from=&to=`
-4. **Protocol configuration UI**: form to add/edit Modbus TCP sources and tag mappings, saves to project.yaml
+4. **Hot-reload per nuovi tag**: dopo `PUT /api/project/tags`, seedare i nuovi tag nel TagDb senza restart
 
 ## Blockers / questions for the maintainer
 
