@@ -1,0 +1,791 @@
+import { useRef } from "react";
+import type { SynopticObject, TagState } from "@/types";
+
+// ── Canvas props ──────────────────────────────────────────────────────────────
+
+interface SvgCanvasProps {
+  objects: SynopticObject[];
+  tagValues?: Record<string, TagState>;
+  background?: string;
+  selectedId?: string | null;
+  gridSize?: number;
+  snapEnabled?: boolean;
+  onSelect?: (id: string | null) => void;
+  onMove?: (id: string, patch: Partial<SynopticObject>) => void;
+  onWriteTag?: (tagId: string, value: string | number | boolean) => void;
+  onNavigate?: (pageId: string) => void;
+}
+
+interface DragState {
+  objId: string;
+  offsetX: number;
+  offsetY: number;
+  dx2?: number;
+  dy2?: number;
+}
+
+// ── SVG geometry helpers ──────────────────────────────────────────────────────
+
+/** Convert polar angle (degrees from North/12-o'clock, clockwise) to Cartesian. */
+function polar(cx: number, cy: number, r: number, angleDeg: number) {
+  const rad = ((angleDeg - 90) * Math.PI) / 180;
+  return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) };
+}
+
+/** SVG arc path from startAngle to endAngle (clockwise, degrees from North). */
+function arcPath(cx: number, cy: number, r: number, startDeg: number, endDeg: number): string {
+  const s = polar(cx, cy, r, startDeg);
+  const e = polar(cx, cy, r, endDeg);
+  const sweep = ((endDeg - startDeg) + 360) % 360;
+  const largeArc = sweep > 180 ? 1 : 0;
+  return `M ${s.x.toFixed(2)} ${s.y.toFixed(2)} A ${r} ${r} 0 ${largeArc} 1 ${e.x.toFixed(2)} ${e.y.toFixed(2)}`;
+}
+
+function clamp(v: number, lo: number, hi: number) {
+  return Math.max(lo, Math.min(hi, v));
+}
+
+// ── Quality helpers ───────────────────────────────────────────────────────────
+
+function qualityColor(quality: TagState["quality"]): string {
+  if (quality === "Good") return "#22c55e";
+  if (quality === "Bad")  return "#ef4444";
+  return "#eab308";
+}
+
+/** Determine fill color based on value vs thresholds. Returns null to use default. */
+function thresholdColor(
+  value: number,
+  alarmLow?: number, warnLow?: number, warnHigh?: number, alarmHigh?: number,
+): string | null {
+  if (alarmHigh !== undefined && value >= alarmHigh) return "#ef4444";
+  if (alarmLow  !== undefined && value <= alarmLow)  return "#ef4444";
+  if (warnHigh  !== undefined && value >= warnHigh)  return "#eab308";
+  if (warnLow   !== undefined && value <= warnLow)   return "#eab308";
+  return null;
+}
+
+function formatValue(value: number | string | boolean, format?: string): string {
+  if (format && typeof value === "number") {
+    const m = format.match(/\{value:\.(\d+)f\}/);
+    if (m) return format.replace(/\{value:[^}]+\}/, value.toFixed(Number(m[1])));
+  }
+  return String(value);
+}
+
+// ── Quality dot overlay ───────────────────────────────────────────────────────
+
+function QDot({ x, y, quality }: { x: number; y: number; quality: TagState["quality"] }) {
+  return <circle cx={x} cy={y} r={5} fill={qualityColor(quality)} style={{ pointerEvents: "none" }} />;
+}
+
+// ── SvgCanvas root ────────────────────────────────────────────────────────────
+
+export function SvgCanvas({
+  objects,
+  tagValues = {},
+  background = "#1a1a2e",
+  selectedId,
+  gridSize = 10,
+  snapEnabled = true,
+  onSelect,
+  onMove,
+  onWriteTag,
+  onNavigate,
+}: SvgCanvasProps) {
+  const dragRef = useRef<DragState | null>(null);
+
+  const snap = (v: number) =>
+    snapEnabled && gridSize > 0 ? Math.round(v / gridSize) * gridSize : v;
+
+  const handleMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
+    if (!dragRef.current || !onMove) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const newX = snap(e.clientX - rect.left - dragRef.current.offsetX);
+    const newY = snap(e.clientY - rect.top  - dragRef.current.offsetY);
+    const patch: Partial<SynopticObject> = { x: newX, y: newY };
+    if (dragRef.current.dx2 !== undefined) {
+      patch.x2 = newX + dragRef.current.dx2!;
+      patch.y2 = newY + dragRef.current.dy2!;
+    }
+    onMove(dragRef.current.objId, patch);
+  };
+
+  const endDrag = () => { dragRef.current = null; };
+
+  const startDrag = (e: React.MouseEvent<SVGElement>, obj: SynopticObject) => {
+    const svgEl = (e.currentTarget as SVGElement).ownerSVGElement!;
+    const rect = svgEl.getBoundingClientRect();
+    const ds: DragState = {
+      objId:   obj.id,
+      offsetX: e.clientX - rect.left - obj.x,
+      offsetY: e.clientY - rect.top  - obj.y,
+    };
+    if (obj.type === "line") {
+      ds.dx2 = (obj.x2 ?? obj.x + 100) - obj.x;
+      ds.dy2 = (obj.y2 ?? obj.y)        - obj.y;
+    }
+    dragRef.current = ds;
+  };
+
+  return (
+    <svg
+      width="100%" height="100%"
+      style={{ background, display: "block", userSelect: "none" }}
+      onClick={() => onSelect?.(null)}
+      onMouseMove={handleMouseMove}
+      onMouseUp={endDrag}
+      onMouseLeave={endDrag}
+    >
+      {gridSize > 0 && (
+        <defs>
+          <pattern id="sws-grid" width={gridSize} height={gridSize} patternUnits="userSpaceOnUse">
+            <path
+              d={`M ${gridSize} 0 L 0 0 0 ${gridSize}`}
+              fill="none" stroke="#1e293b" strokeWidth="0.5"
+            />
+          </pattern>
+        </defs>
+      )}
+      {gridSize > 0 && <rect width="100%" height="100%" fill="url(#sws-grid)" />}
+
+      {objects.map((obj) => (
+        <SvgObject
+          key={obj.id}
+          obj={obj}
+          tagValues={tagValues}
+          selected={selectedId === obj.id}
+          isEditMode={!!onMove}
+          onSelect={onSelect}
+          onStartDrag={onMove ? startDrag : undefined}
+          onWriteTag={onWriteTag}
+          onNavigate={onNavigate}
+        />
+      ))}
+    </svg>
+  );
+}
+
+// ── Per-object props ──────────────────────────────────────────────────────────
+
+interface ObjProps {
+  obj: SynopticObject;
+  tagValues: Record<string, TagState>;
+  selected: boolean;
+  isEditMode: boolean;
+  onSelect?: (id: string | null) => void;
+  onStartDrag?: (e: React.MouseEvent<SVGElement>, obj: SynopticObject) => void;
+  onWriteTag?: (tagId: string, value: string | number | boolean) => void;
+  onNavigate?: (pageId: string) => void;
+}
+
+function SvgObject(p: ObjProps) {
+  const { obj, tagValues, selected, isEditMode, onSelect, onStartDrag, onWriteTag, onNavigate } = p;
+
+  const handleMouseDown = (e: React.MouseEvent<SVGElement>) => {
+    e.stopPropagation();
+    onSelect?.(obj.id);
+    onStartDrag?.(e, obj);
+  };
+
+  const editCursor = selected ? "grab" : "pointer";
+
+  /** Selection bounding rect for edit mode */
+  const selRect = (x: number, y: number, w: number, h: number) =>
+    selected
+      ? <rect x={x - 3} y={y - 3} width={w + 6} height={h + 6}
+          fill="none" stroke="#facc15" strokeWidth={1} strokeDasharray="4 2"
+          style={{ pointerEvents: "none" }} />
+      : null;
+
+  // ── RECT ────────────────────────────────────────────────────────────────────
+
+  if (obj.type === "rect") {
+    const w = obj.width ?? 100; const h = obj.height ?? 50;
+    const tv = obj.tag ? tagValues[obj.tag] : undefined;
+    return (
+      <>
+        <rect x={obj.x} y={obj.y} width={w} height={h}
+          fill={obj.fill ?? "#555"}
+          stroke={selected ? "#facc15" : (obj.stroke ?? "none")}
+          strokeWidth={selected ? 2 : (obj.stroke_width ?? 0)}
+          style={{ cursor: editCursor }}
+          onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()} />
+        {tv && <QDot x={obj.x + w - 8} y={obj.y + 8} quality={tv.quality} />}
+      </>
+    );
+  }
+
+  // ── ELLIPSE ─────────────────────────────────────────────────────────────────
+
+  if (obj.type === "ellipse") {
+    const w = obj.width ?? 100; const h = obj.height ?? 60;
+    const tv = obj.tag ? tagValues[obj.tag] : undefined;
+    return (
+      <>
+        {selRect(obj.x, obj.y, w, h)}
+        <ellipse cx={obj.x + w / 2} cy={obj.y + h / 2} rx={w / 2} ry={h / 2}
+          fill={obj.fill ?? "#4a90d9"}
+          stroke={obj.stroke ?? "none"} strokeWidth={obj.stroke_width ?? 0}
+          style={{ cursor: editCursor }}
+          onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()} />
+        {tv && <QDot x={obj.x + w - 8} y={obj.y + 8} quality={tv.quality} />}
+      </>
+    );
+  }
+
+  // ── LINE ────────────────────────────────────────────────────────────────────
+
+  if (obj.type === "line") {
+    const x2 = obj.x2 ?? obj.x + 100; const y2 = obj.y2 ?? obj.y;
+    return (
+      <>
+        <line x1={obj.x} y1={obj.y} x2={x2} y2={y2}
+          stroke={obj.stroke ?? "#e2e8f0"} strokeWidth={obj.stroke_width ?? 2}
+          style={{ cursor: editCursor }}
+          onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()} />
+        {selected && <>
+          <circle cx={obj.x} cy={obj.y} r={4} fill="#facc15" style={{ pointerEvents: "none" }} />
+          <circle cx={x2} cy={y2} r={4} fill="#facc15" style={{ pointerEvents: "none" }} />
+        </>}
+      </>
+    );
+  }
+
+  // ── TEXT ────────────────────────────────────────────────────────────────────
+
+  if (obj.type === "text") {
+    const tv = obj.tag ? tagValues[obj.tag] : undefined;
+    const label = tv != null ? formatValue(tv.value, obj.format) : (obj.tag ?? "text");
+    return (
+      <>
+        {selRect(obj.x - 4, obj.y - 14, 120, 20)}
+        <text x={obj.x} y={obj.y} fill={obj.fill ?? "#fff"} fontSize={obj.stroke_width ?? 14}
+          style={{ cursor: editCursor }}
+          onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()}>
+          {label}
+        </text>
+        {tv && <QDot x={obj.x - 8} y={obj.y - 4} quality={tv.quality} />}
+      </>
+    );
+  }
+
+  // ── BUTTON ──────────────────────────────────────────────────────────────────
+
+  if (obj.type === "button") {
+    const w = obj.width ?? 120; const h = obj.height ?? 40;
+    return (
+      <g style={{ cursor: isEditMode ? editCursor : "pointer" }}
+        onMouseDown={isEditMode ? handleMouseDown : undefined}
+        onClick={(e) => {
+          e.stopPropagation();
+          if (!isEditMode && obj.tag) onWriteTag?.(obj.tag, obj.write_value ?? true);
+          else if (isEditMode) onSelect?.(obj.id);
+        }}>
+        <rect x={obj.x} y={obj.y} width={w} height={h} rx={6}
+          fill={obj.fill ?? "#3b82f6"}
+          stroke={selected ? "#facc15" : "#2563eb"} strokeWidth={selected ? 2 : 1} />
+        <text x={obj.x + w / 2} y={obj.y + h / 2 + 5}
+          textAnchor="middle" fill="#fff" fontSize={14} fontWeight={600}
+          style={{ pointerEvents: "none" }}>
+          {obj.label ?? "Button"}
+        </text>
+      </g>
+    );
+  }
+
+  // ── NAVBUTTON ───────────────────────────────────────────────────────────────
+
+  if (obj.type === "navbutton") {
+    const w = obj.width ?? 140; const h = obj.height ?? 36;
+    return (
+      <g style={{ cursor: isEditMode ? editCursor : "pointer" }}
+        onMouseDown={isEditMode ? handleMouseDown : undefined}
+        onClick={(e) => {
+          e.stopPropagation();
+          if (!isEditMode && obj.target_page) onNavigate?.(obj.target_page);
+          else if (isEditMode) onSelect?.(obj.id);
+        }}>
+        <rect x={obj.x} y={obj.y} width={w} height={h} rx={4}
+          fill={obj.fill ?? "#0f172a"}
+          stroke={selected ? "#facc15" : "#3b82f6"} strokeWidth={selected ? 2 : 1.5} />
+        <text x={obj.x + 10} y={obj.y + h / 2 + 5} fill="#3b82f6" fontSize={14}
+          style={{ pointerEvents: "none" }}>▶</text>
+        <text x={obj.x + 28} y={obj.y + h / 2 + 5} fill="#e2e8f0" fontSize={13}
+          style={{ pointerEvents: "none" }}>
+          {obj.label ?? "Go to page"}
+        </text>
+      </g>
+    );
+  }
+
+  // ── LED INDICATOR ───────────────────────────────────────────────────────────
+
+  if (obj.type === "led") {
+    const r = (obj.width ?? 24) / 2;
+    const cx = obj.x + r; const cy = obj.y + r;
+    const tv = obj.tag ? tagValues[obj.tag] : undefined;
+    const onVal = obj.on_value ?? true;
+    const isOn = tv != null && (
+      typeof onVal === "boolean" ? Boolean(tv.value) === onVal
+      : String(tv.value) === String(onVal)
+    );
+    const ledColor = tv == null
+      ? "#334155"
+      : tv.quality === "Bad"
+        ? "#ef4444"
+        : isOn ? (obj.on_color ?? "#22c55e") : (obj.off_color ?? "#334155");
+    const glowColor = isOn ? (obj.on_color ?? "#22c55e") : "transparent";
+
+    return (
+      <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()}
+         style={{ cursor: editCursor }}>
+        {selected && <circle cx={cx} cy={cy} r={r + 4} fill="none" stroke="#facc15" strokeWidth={1} />}
+        {/* Glow ring */}
+        {isOn && <circle cx={cx} cy={cy} r={r + 3} fill={glowColor} opacity={0.25} style={{ pointerEvents: "none" }} />}
+        {/* LED body */}
+        <circle cx={cx} cy={cy} r={r} fill={ledColor} />
+        {/* Highlight */}
+        <circle cx={cx - r * 0.25} cy={cy - r * 0.25} r={r * 0.3} fill="white" opacity={0.3}
+          style={{ pointerEvents: "none" }} />
+        {/* Label */}
+        {obj.label && (
+          <text x={cx} y={obj.y + r * 2 + 14} textAnchor="middle" fill="#94a3b8" fontSize={11}
+            style={{ pointerEvents: "none" }}>
+            {obj.label}
+          </text>
+        )}
+      </g>
+    );
+  }
+
+  // ── PROGRESS BAR ────────────────────────────────────────────────────────────
+
+  if (obj.type === "progress_bar") {
+    const w = obj.width ?? 200; const h = obj.height ?? 28;
+    const tv = obj.tag ? tagValues[obj.tag] : undefined;
+    const min = obj.min ?? 0; const max = obj.max ?? 100;
+    const rawVal = tv ? Number(tv.value) : min;
+    const pct = clamp((rawVal - min) / (max - min), 0, 1);
+    const barColor =
+      thresholdColor(rawVal, obj.alarm_low, obj.warn_low, obj.warn_high, obj.alarm_high)
+      ?? (obj.fill ?? "#3b82f6");
+    const barW = Math.round(pct * w);
+
+    return (
+      <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()}
+         style={{ cursor: editCursor }}>
+        {selRect(obj.x, obj.y, w, h)}
+        {/* Track */}
+        <rect x={obj.x} y={obj.y} width={w} height={h} rx={4} fill="#1e293b" />
+        {/* Fill */}
+        {barW > 0 && (
+          <rect x={obj.x} y={obj.y} width={barW} height={h} rx={4} fill={barColor} />
+        )}
+        {/* Border */}
+        <rect x={obj.x} y={obj.y} width={w} height={h} rx={4}
+          fill="none" stroke="#334155" strokeWidth={1} style={{ pointerEvents: "none" }} />
+        {/* Value text */}
+        {obj.show_value !== false && (
+          <text x={obj.x + w / 2} y={obj.y + h / 2 + 4}
+            textAnchor="middle" fill="#e2e8f0" fontSize={11} fontWeight={600}
+            style={{ pointerEvents: "none" }}>
+            {rawVal.toFixed(1)}{obj.unit ? ` ${obj.unit}` : ""}
+          </text>
+        )}
+        {/* Warn/alarm markers */}
+        {obj.warn_high !== undefined && (
+          <line
+            x1={obj.x + ((obj.warn_high - min) / (max - min)) * w}
+            y1={obj.y} x2={obj.x + ((obj.warn_high - min) / (max - min)) * w} y2={obj.y + h}
+            stroke="#eab308" strokeWidth={1.5} strokeDasharray="3 2"
+            style={{ pointerEvents: "none" }} />
+        )}
+        {obj.alarm_high !== undefined && (
+          <line
+            x1={obj.x + ((obj.alarm_high - min) / (max - min)) * w}
+            y1={obj.y} x2={obj.x + ((obj.alarm_high - min) / (max - min)) * w} y2={obj.y + h}
+            stroke="#ef4444" strokeWidth={1.5} strokeDasharray="3 2"
+            style={{ pointerEvents: "none" }} />
+        )}
+        {/* Quality dot */}
+        {tv && <QDot x={obj.x + w - 8} y={obj.y + 8} quality={tv.quality} />}
+        {/* Label */}
+        {obj.label && (
+          <text x={obj.x} y={obj.y - 4} fill="#94a3b8" fontSize={11}
+            style={{ pointerEvents: "none" }}>
+            {obj.label}
+          </text>
+        )}
+      </g>
+    );
+  }
+
+  // ── GAUGE ───────────────────────────────────────────────────────────────────
+
+  if (obj.type === "gauge") {
+    const w = obj.width ?? 160; const h = obj.height ?? 140;
+    const cx = obj.x + w / 2;
+    const cy = obj.y + h * 0.62;
+    const R = Math.min(w * 0.38, h * 0.52);
+    const START = -135; const END = 135; // degrees from North, clockwise
+    const tv = obj.tag ? tagValues[obj.tag] : undefined;
+    const min = obj.min ?? 0; const max = obj.max ?? 100;
+    const rawVal = tv ? Number(tv.value) : min;
+    const pct = clamp((rawVal - min) / (max - min), 0, 1);
+    const valueAngle = START + pct * 270;
+    const arcColor =
+      thresholdColor(rawVal, obj.alarm_low, obj.warn_low, obj.warn_high, obj.alarm_high)
+      ?? (obj.fill ?? "#22c55e");
+
+    const needleTip  = polar(cx, cy, R * 0.82, valueAngle);
+    const needleBase = polar(cx, cy, R * 0.12, valueAngle + 180);
+
+    // Threshold tick helpers
+    const thresholdTick = (value: number, color: string) => {
+      const pct2 = clamp((value - min) / (max - min), 0, 1);
+      const angle = START + pct2 * 270;
+      const inner = polar(cx, cy, R - 8, angle);
+      const outer = polar(cx, cy, R + 2, angle);
+      return <line key={`t${value}`} x1={inner.x} y1={inner.y} x2={outer.x} y2={outer.y}
+        stroke={color} strokeWidth={2} style={{ pointerEvents: "none" }} />;
+    };
+
+    return (
+      <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()}
+         style={{ cursor: editCursor }}>
+        {selRect(obj.x, obj.y, w, h)}
+        {/* Background arc */}
+        <path d={arcPath(cx, cy, R, START, END)}
+          fill="none" stroke="#334155" strokeWidth={10} strokeLinecap="round"
+          style={{ pointerEvents: "none" }} />
+        {/* Value arc */}
+        {pct > 0 && (
+          <path d={arcPath(cx, cy, R, START, valueAngle)}
+            fill="none" stroke={arcColor} strokeWidth={10} strokeLinecap="round"
+            style={{ pointerEvents: "none" }} />
+        )}
+        {/* Threshold ticks */}
+        {obj.warn_low  !== undefined && thresholdTick(obj.warn_low,  "#eab308")}
+        {obj.warn_high !== undefined && thresholdTick(obj.warn_high, "#eab308")}
+        {obj.alarm_low  !== undefined && thresholdTick(obj.alarm_low,  "#ef4444")}
+        {obj.alarm_high !== undefined && thresholdTick(obj.alarm_high, "#ef4444")}
+        {/* Needle */}
+        <line x1={needleBase.x} y1={needleBase.y} x2={needleTip.x} y2={needleTip.y}
+          stroke="#e2e8f0" strokeWidth={2} strokeLinecap="round"
+          style={{ pointerEvents: "none" }} />
+        {/* Hub */}
+        <circle cx={cx} cy={cy} r={6} fill="#e2e8f0" style={{ pointerEvents: "none" }} />
+        <circle cx={cx} cy={cy} r={3} fill="#0f172a" style={{ pointerEvents: "none" }} />
+        {/* Min / max labels */}
+        {(() => {
+          const minP = polar(cx, cy, R + 14, START);
+          const maxP = polar(cx, cy, R + 14, END);
+          return <>
+            <text x={minP.x} y={minP.y + 4} textAnchor="middle" fill="#64748b" fontSize={10}
+              style={{ pointerEvents: "none" }}>{min}</text>
+            <text x={maxP.x} y={maxP.y + 4} textAnchor="middle" fill="#64748b" fontSize={10}
+              style={{ pointerEvents: "none" }}>{max}</text>
+          </>;
+        })()}
+        {/* Value display */}
+        <text x={cx} y={cy + R * 0.35} textAnchor="middle"
+          fill="#e2e8f0" fontSize={20} fontWeight={700}
+          style={{ pointerEvents: "none" }}>
+          {typeof rawVal === "number" ? rawVal.toFixed(1) : rawVal}
+        </text>
+        {obj.unit && (
+          <text x={cx} y={cy + R * 0.35 + 16} textAnchor="middle" fill="#94a3b8" fontSize={11}
+            style={{ pointerEvents: "none" }}>{obj.unit}</text>
+        )}
+        {/* Label */}
+        {obj.label && (
+          <text x={cx} y={obj.y + 14} textAnchor="middle" fill="#94a3b8" fontSize={11}
+            style={{ pointerEvents: "none" }}>{obj.label}</text>
+        )}
+        {/* Quality dot */}
+        {tv && <QDot x={obj.x + w - 10} y={obj.y + 10} quality={tv.quality} />}
+      </g>
+    );
+  }
+
+  // ── SLIDER ──────────────────────────────────────────────────────────────────
+
+  if (obj.type === "slider") {
+    const w = obj.width ?? 200; const h = obj.height ?? 50;
+    const tv = obj.tag ? tagValues[obj.tag] : undefined;
+    const min = obj.min ?? 0; const max = obj.max ?? 100;
+    const rawVal = tv ? Number(tv.value) : min;
+    const trackY = obj.y + h / 2;
+
+    if (isEditMode) {
+      // Edit mode: static SVG preview, draggable
+      return (
+        <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()}
+           style={{ cursor: editCursor }}>
+          {selRect(obj.x, obj.y, w, h)}
+          {obj.label && <text x={obj.x + w / 2} y={obj.y + 12} textAnchor="middle"
+            fill="#94a3b8" fontSize={11} style={{ pointerEvents: "none" }}>{obj.label}</text>}
+          <rect x={obj.x} y={trackY - 3} width={w} height={6} rx={3} fill="#334155" />
+          <rect x={obj.x} y={trackY - 3} width={w * 0.5} height={6} rx={3} fill="#3b82f6" />
+          <circle cx={obj.x + w * 0.5} cy={trackY} r={10}
+            fill="#3b82f6" stroke="#1d4ed8" strokeWidth={2} />
+          <text x={obj.x} y={obj.y + h + 2} fill="#64748b" fontSize={10}
+            style={{ pointerEvents: "none" }}>{min}</text>
+          <text x={obj.x + w} y={obj.y + h + 2} textAnchor="end" fill="#64748b" fontSize={10}
+            style={{ pointerEvents: "none" }}>{max}</text>
+        </g>
+      );
+    }
+
+    // View mode: foreignObject with native range input
+    const foH = h + (obj.label ? 20 : 0);
+    return (
+      <foreignObject x={obj.x} y={obj.y} width={w} height={foH}>
+        <div
+          style={{ display: "flex", flexDirection: "column", gap: 2, padding: "4px 0" }}
+        >
+          {obj.label && (
+            <span style={{ color: "#94a3b8", fontSize: 11, textAlign: "center" }}>
+              {obj.label}
+            </span>
+          )}
+          <input
+            type="range"
+            min={min} max={max} step={obj.step ?? 1} value={rawVal}
+            onChange={(e) => onWriteTag?.(obj.tag!, Number(e.target.value))}
+            style={{ width: "100%", accentColor: obj.fill ?? "#3b82f6", cursor: "pointer" }}
+          />
+          {obj.show_value !== false && (
+            <span style={{ color: "#e2e8f0", fontSize: 12, textAlign: "center" }}>
+              {rawVal.toFixed(obj.step && obj.step < 1 ? 2 : 0)}{obj.unit ? ` ${obj.unit}` : ""}
+            </span>
+          )}
+        </div>
+      </foreignObject>
+    );
+  }
+
+  // ── CHECKBOX ────────────────────────────────────────────────────────────────
+
+  if (obj.type === "checkbox") {
+    const w = obj.width ?? 180; const h = obj.height ?? 32;
+    const tv = obj.tag ? tagValues[obj.tag] : undefined;
+    const checkedVal = obj.checked_value ?? true;
+    const isChecked = tv != null && String(tv.value) === String(checkedVal);
+
+    if (isEditMode) {
+      return (
+        <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()}
+           style={{ cursor: editCursor }}>
+          {selRect(obj.x, obj.y, w, h)}
+          <rect x={obj.x + 2} y={obj.y + h / 2 - 9} width={18} height={18} rx={3}
+            fill="#334155" stroke="#64748b" strokeWidth={1.5} />
+          <path d={`M ${obj.x + 6} ${obj.y + h / 2} L ${obj.x + 10} ${obj.y + h / 2 + 4} L ${obj.x + 16} ${obj.y + h / 2 - 4}`}
+            stroke="#64748b" strokeWidth={1.5} fill="none" strokeLinecap="round" strokeLinejoin="round" />
+          <text x={obj.x + 28} y={obj.y + h / 2 + 5} fill="#e2e8f0" fontSize={13}>
+            {obj.label ?? "Checkbox"}
+          </text>
+        </g>
+      );
+    }
+
+    // View mode: foreignObject
+    return (
+      <foreignObject x={obj.x} y={obj.y} width={w} height={h}>
+        <div
+          style={{ display: "flex", alignItems: "center", gap: 8, height: "100%", cursor: obj.read_only ? "default" : "pointer" }}
+          onClick={() => {
+            if (obj.read_only || !obj.tag) return;
+            onWriteTag?.(obj.tag, isChecked ? (obj.unchecked_value ?? false) : checkedVal);
+          }}
+        >
+          <div style={{
+            width: 18, height: 18, borderRadius: 3, flexShrink: 0,
+            background: isChecked ? (obj.fill ?? "#3b82f6") : "transparent",
+            border: `2px solid ${isChecked ? (obj.fill ?? "#3b82f6") : "#64748b"}`,
+            display: "flex", alignItems: "center", justifyContent: "center",
+          }}>
+            {isChecked && (
+              <svg width="12" height="12" viewBox="0 0 12 12">
+                <path d="M2 6 L5 9 L10 3" stroke="white" strokeWidth="2" fill="none"
+                  strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            )}
+          </div>
+          <span style={{ color: "#e2e8f0", fontSize: 13, userSelect: "none" }}>
+            {obj.label ?? ""}
+          </span>
+          {tv && tv.quality !== "Good" && (
+            <span style={{ width: 6, height: 6, borderRadius: "50%", flexShrink: 0,
+              background: qualityColor(tv.quality), display: "inline-block" }} />
+          )}
+        </div>
+      </foreignObject>
+    );
+  }
+
+  // ── RADIO ───────────────────────────────────────────────────────────────────
+
+  if (obj.type === "radio") {
+    const opts = obj.options ?? [];
+    const w = obj.width ?? 180;
+    const isH = obj.orientation === "horizontal";
+    const itemW = isH ? Math.floor(w / Math.max(opts.length, 1)) : w;
+    const itemH = 28;
+    const totalH = obj.height ?? (isH ? itemH + (obj.label ? 20 : 0) : opts.length * itemH + (obj.label ? 20 : 0));
+    const tv = obj.tag ? tagValues[obj.tag] : undefined;
+    const currentVal = tv ? tv.value : null;
+
+    if (isEditMode) {
+      return (
+        <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()}
+           style={{ cursor: editCursor }}>
+          {selRect(obj.x, obj.y, w, totalH)}
+          {obj.label && <text x={obj.x} y={obj.y + 12} fill="#94a3b8" fontSize={11}>{obj.label}</text>}
+          {opts.map((opt, i) => {
+            const ox = isH ? obj.x + i * itemW : obj.x;
+            const oy = obj.y + (obj.label ? 20 : 0) + (isH ? 0 : i * itemH);
+            return (
+              <g key={i}>
+                <circle cx={ox + 9} cy={oy + 9} r={8} fill="transparent" stroke="#64748b" strokeWidth={1.5} />
+                {i === 0 && <circle cx={ox + 9} cy={oy + 9} r={4} fill="#3b82f6" />}
+                <text x={ox + 24} y={oy + 14} fill="#e2e8f0" fontSize={13}>{opt.label}</text>
+              </g>
+            );
+          })}
+        </g>
+      );
+    }
+
+    // View mode: foreignObject
+    return (
+      <foreignObject x={obj.x} y={obj.y} width={w} height={totalH}>
+        <div
+          style={{ display: "flex", flexDirection: "column", gap: 2 }}
+        >
+          {obj.label && (
+            <span style={{ color: "#94a3b8", fontSize: 11, marginBottom: 4 }}>{obj.label}</span>
+          )}
+          <div style={{ display: "flex", flexDirection: isH ? "row" : "column", gap: isH ? 12 : 4 }}>
+            {opts.map((opt, i) => (
+              <label key={i} style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
+                <input
+                  type="radio"
+                  name={obj.id}
+                  checked={currentVal !== null && String(currentVal) === String(opt.value)}
+                  onChange={() => onWriteTag?.(obj.tag!, opt.value as string | number | boolean)}
+                  style={{ accentColor: obj.fill ?? "#3b82f6", cursor: "pointer" }}
+                />
+                <span style={{ color: "#e2e8f0", fontSize: 13, userSelect: "none" }}>
+                  {opt.label}
+                </span>
+              </label>
+            ))}
+          </div>
+        </div>
+      </foreignObject>
+    );
+  }
+
+  // ── DATA TABLE ──────────────────────────────────────────────────────────────
+
+  if (obj.type === "table") {
+    const rows = obj.table_rows ?? [];
+    const w = obj.width ?? 300;
+    const rowH = 24;
+    const headerH = 26;
+    const totalH = obj.height ?? (headerH + rows.length * rowH + 2);
+    const colLabel = w * 0.42;
+    const colValue = w * 0.43;
+
+    return (
+      <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()}
+         style={{ cursor: editCursor }}>
+        {selRect(obj.x, obj.y, w, totalH)}
+        {/* Outer border */}
+        <rect x={obj.x} y={obj.y} width={w} height={totalH} rx={4}
+          fill="#1e293b" stroke={selected ? "#facc15" : "#334155"} strokeWidth={selected ? 2 : 1} />
+        {/* Header */}
+        <rect x={obj.x} y={obj.y} width={w} height={headerH} rx={4}
+          fill="#0f172a" style={{ pointerEvents: "none" }} />
+        <rect x={obj.x} y={obj.y + 4} width={w} height={headerH - 4}
+          fill="#0f172a" style={{ pointerEvents: "none" }} />
+        <text x={obj.x + 10} y={obj.y + 17}
+          fill="#64748b" fontSize={11} fontWeight={700} letterSpacing={0.5}
+          style={{ pointerEvents: "none" }}>
+          {obj.label ?? "DATI"}
+        </text>
+        <text x={obj.x + colLabel + 10} y={obj.y + 17}
+          fill="#64748b" fontSize={11} fontWeight={700}
+          style={{ pointerEvents: "none" }}>
+          VALORE
+        </text>
+        <text x={obj.x + colLabel + colValue + 4} y={obj.y + 17}
+          fill="#64748b" fontSize={11} fontWeight={700}
+          style={{ pointerEvents: "none" }}>
+          Q
+        </text>
+        {/* Column dividers */}
+        <line x1={obj.x + colLabel} y1={obj.y} x2={obj.x + colLabel} y2={obj.y + totalH}
+          stroke="#334155" strokeWidth={1} style={{ pointerEvents: "none" }} />
+        <line x1={obj.x + colLabel + colValue} y1={obj.y}
+          x2={obj.x + colLabel + colValue} y2={obj.y + totalH}
+          stroke="#334155" strokeWidth={1} style={{ pointerEvents: "none" }} />
+        {/* Rows */}
+        {rows.map((row, i) => {
+          const ry = obj.y + headerH + i * rowH;
+          const tv = tagValues[row.tag];
+          const valText = tv != null ? formatValue(tv.value, row.format) : "—";
+          const isEven = i % 2 === 0;
+          return (
+            <g key={i}>
+              {isEven && (
+                <rect x={obj.x + 1} y={ry} width={w - 2} height={rowH}
+                  fill="#ffffff08" style={{ pointerEvents: "none" }} />
+              )}
+              <text x={obj.x + 8} y={ry + 16} fill="#cbd5e1" fontSize={12}
+                style={{ pointerEvents: "none" }}>
+                {row.label}
+              </text>
+              <text x={obj.x + colLabel + 8} y={ry + 16}
+                fill={tv ? (tv.quality === "Good" ? "#e2e8f0" : tv.quality === "Bad" ? "#ef4444" : "#eab308") : "#475569"}
+                fontSize={12} style={{ pointerEvents: "none" }}>
+                {valText}
+              </text>
+              {tv && (
+                <circle cx={obj.x + colLabel + colValue + 10} cy={ry + rowH / 2} r={4}
+                  fill={qualityColor(tv.quality)} style={{ pointerEvents: "none" }} />
+              )}
+              {i < rows.length - 1 && (
+                <line x1={obj.x} y1={ry + rowH} x2={obj.x + w} y2={ry + rowH}
+                  stroke="#1e293b" strokeWidth={1} style={{ pointerEvents: "none" }} />
+              )}
+            </g>
+          );
+        })}
+        {/* Empty state */}
+        {rows.length === 0 && (
+          <text x={obj.x + w / 2} y={obj.y + headerH + 20}
+            textAnchor="middle" fill="#475569" fontSize={12}
+            style={{ pointerEvents: "none" }}>
+            Nessuna riga — configura nelle proprietà
+          </text>
+        )}
+      </g>
+    );
+  }
+
+  // ── IMAGE ───────────────────────────────────────────────────────────────────
+
+  if (obj.type === "image" && obj.src) {
+    return (
+      <image href={obj.src} x={obj.x} y={obj.y}
+        width={obj.width ?? 100} height={obj.height ?? 100}
+        style={{ cursor: editCursor }}
+        onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()} />
+    );
+  }
+
+  return null;
+}

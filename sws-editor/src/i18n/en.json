@@ -1,0 +1,17 @@
+{
+  "app": {
+    "title": "SWS Editor",
+    "mode": {
+      "edit": "Edit",
+      "view": "View"
+    },
+    "project": "Project",
+    "user": "User"
+  },
+  "canvas": {
+    "empty": "No objects on this page."
+  },
+  "alarm": {
+    "noAlarms": "No active alarms"
+  }
+}
