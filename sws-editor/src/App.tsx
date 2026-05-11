@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { api } from "@/api/client";
 import { AlarmBanner } from "@/components/AlarmBanner";
 import { EditorShell } from "@/editor/EditorShell";
 import { RuntimeView } from "@/runtime-view/RuntimeView";
@@ -11,12 +12,23 @@ export function App() {
   const { t } = useTranslation();
   const [mode, setMode] = useState<Mode>("edit");
 
-  const pages         = useAppStore((s) => s.pages);
-  const currentPageId = useAppStore((s) => s.currentPageId);
-  const addPage       = useAppStore((s) => s.addPage);
-  const deletePage    = useAppStore((s) => s.deletePage);
+  const pages          = useAppStore((s) => s.pages);
+  const currentPageId  = useAppStore((s) => s.currentPageId);
+  const addPage        = useAppStore((s) => s.addPage);
+  const deletePage     = useAppStore((s) => s.deletePage);
   const setCurrentPage = useAppStore((s) => s.setCurrentPage);
-  const project       = useAppStore((s) => s.project);
+  const setPages       = useAppStore((s) => s.setPages);
+  const project        = useAppStore((s) => s.project);
+
+  useEffect(() => {
+    api.listSynoptics()
+      .then(async (names) => {
+        if (names.length === 0) return;
+        const loaded = await Promise.all(names.map((n) => api.getSynoptic(n)));
+        setPages(loaded, loaded[0].id);
+      })
+      .catch(() => {});
+  }, []);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100vh", fontFamily: "system-ui, sans-serif", color: "#e2e8f0", background: "#0f172a" }}>

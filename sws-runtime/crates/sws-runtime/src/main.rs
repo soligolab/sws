@@ -70,7 +70,7 @@ async fn main() -> anyhow::Result<()> {
         }
     }
 
-    let app = sws_web::router::build(tag_db);
+    let app = sws_web::router::build(tag_db, Arc::new(args.project.clone()));
 
     let addr: SocketAddr = "0.0.0.0:8443".parse()?;
     let listener = TcpListener::bind(addr).await?;

@@ -1,3 +1,4 @@
+import { api } from "@/api/client";
 import { SvgCanvas } from "@/canvas/SvgCanvas";
 import { useAppStore } from "@/store";
 import { useTagStream } from "@/ws/tagStream";
@@ -11,9 +12,13 @@ export function RuntimeView() {
 
   const objects = pages.find((p) => p.id === currentPageId)?.objects ?? [];
 
+  const handleWriteTag = (tagId: string, value: string | number | boolean) => {
+    api.writeTag(tagId, value).catch(console.error);
+  };
+
   return (
     <div style={{ flex: 1, overflow: "hidden" }}>
-      <SvgCanvas objects={objects} tagValues={tagValues} />
+      <SvgCanvas objects={objects} tagValues={tagValues} onWriteTag={handleWriteTag} />
     </div>
   );
 }

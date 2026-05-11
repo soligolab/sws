@@ -6,7 +6,7 @@ export interface TagState {
   timestamp_ms: number;
 }
 
-export type SynopticObjectType = "rect" | "text" | "image";
+export type SynopticObjectType = "rect" | "text" | "image" | "button";
 
 export interface SynopticObject {
   id: string;
@@ -19,6 +19,8 @@ export interface SynopticObject {
   tag?: string;
   format?: string;
   src?: string;
+  label?: string;
+  write_value?: string | number | boolean;
 }
 
 export interface SynopticPage {

@@ -2,9 +2,9 @@
 
 > This file is the **session-to-session memory** for Claude Code. Update it at the end of every session before stopping work. Read it at the start of every session before touching code.
 
-**Last session**: 2026-05-11 (Phase 1 — editor IDE + page management)
+**Last session**: 2026-05-11 (Phase 1 — synoptic persistence, tag write, button object, quality indicator)
 **Current phase**: Phase 1 in progress
-**Last commit**: feat(sws-editor): working IDE — object creation, properties, drag, page tabs
+**Last commit**: feat: synoptic save/load, tag write endpoint, button object, quality indicator
 
 ---
 
@@ -29,24 +29,28 @@
 - **sws-core project format**: `sources` list with `kind: modbus_tcp` entries; each maps holding registers to tag IDs via `address` + `scale`.
 - **sws-plugin-modbus**: `run(cfg, db)` polls holding registers at `poll_interval_ms`, writes `Float(raw * scale) / Good` into TagDb, marks tags `Bad` on error, reconnects after 5 s.
 - **sws-core TagValue**: `#[serde(untagged)]` — serializes as native JSON (42.5, true, "hello") instead of `{"Float": 42.5}`.
-- **sws-editor IDE**: object creation (rect/text from toolbox), property editing (x/y/w/h/fill/tag/format), drag-to-move, Delete key/button, page tab bar (add/switch/delete pages), WebSocket parsing fixed to match backend wire format.
+- **sws-editor IDE**: object creation (rect/text/button from toolbox), property editing (x/y/w/h/fill/tag/format/label/write_value), drag-to-move, Delete key/button, page tab bar (add/switch/delete pages), WebSocket parsing fixed to match backend wire format.
+- **sws-web synoptic endpoints**: `GET /api/synoptics` (list names), `GET /api/synoptics/:name` (load), `PUT /api/synoptics/:name` (save as YAML); `safe_filename()` prevents path traversal.
+- **sws-web tag write**: `PUT /api/tags/:id` with `{ value }` body → `TagDb.set(..., Good)`.
+- **Editor Save button**: saves current page to backend via PUT.
+- **Editor load on mount**: `App.tsx` calls `listSynoptics()` + `getSynoptic()` for each and populates Zustand store.
+- **Button object**: rendered as a rounded rect+label in SVG; in view mode clicking writes `write_value` to the bound tag; edit mode is drag/select only.
+- **Quality indicator**: colored dot (green=Good, red=Bad, yellow=Uncertain) overlaid on each canvas object with a bound tag that has a live value.
 
 ## What's in progress
 
-- (nothing — tag engine committed cleanly)
+- (nothing — all clean)
 
 ## Next session should
 
 Pick one of these as the next focused work block (each fits 3-4 hours):
 
-1. **Save/load synoptic from backend** (recommended next):
-   - Add `GET /api/synoptics/:name` and `PUT /api/synoptics/:name` endpoints in sws-web
-   - Store synoptic YAML in the project directory
-   - Editor: "Save" button → PUT; on load → GET + populate store
-2. **Auth skeleton** in `sws-auth`:
+1. **Auth skeleton** in `sws-auth`:
    - Argon2id password hash/verify
    - Session token (UUID, stored in memory map)
    - Single admin user seeded from `SWS_ADMIN_PASSWORD` env var
+2. **Runtime page navigation**: page-tab bar in view mode (RuntimeView) so operators can switch screens
+3. **Historian stub**: ring-buffer in `sws-historian`, exposed as `GET /api/history/:tag?from=&to=`
 
 ## Blockers / questions for the maintainer
 

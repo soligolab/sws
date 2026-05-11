@@ -1,5 +1,6 @@
-import { useAppStore } from "@/store";
+import { api } from "@/api/client";
 import { SvgCanvas } from "@/canvas/SvgCanvas";
+import { useAppStore } from "@/store";
 import type { SynopticObject } from "@/types";
 
 const PANEL: React.CSSProperties = {
@@ -31,10 +32,17 @@ export function EditorShell() {
     return { x: 60 + (n % 6) * 25, y: 60 + Math.floor(n / 6) * 25 };
   };
 
+  const currentPage = pages.find((p) => p.id === currentPageId);
+
+  const handleSave = () => {
+    if (currentPage) api.saveSynoptic(currentPage).catch(console.error);
+  };
+
   const handleAdd = (type: SynopticObject["type"]) => {
     const { x, y } = nextPos();
-    if (type === "rect") addObject({ type, x, y, width: 150, height: 80, fill: "#4a90d9" });
-    if (type === "text") addObject({ type, x, y: y + 14, tag: "", format: "{value}" });
+    if (type === "rect")   addObject({ type, x, y, width: 150, height: 80, fill: "#4a90d9" });
+    if (type === "text")   addObject({ type, x, y: y + 14, tag: "", format: "{value}" });
+    if (type === "button") addObject({ type, x, y, width: 120, height: 40, fill: "#3b82f6", label: "Button", write_value: true });
   };
 
   return (
@@ -53,7 +61,7 @@ export function EditorShell() {
         <span style={{ fontSize: 11, fontWeight: 700, color: "#64748b", letterSpacing: 1 }}>
           OBJECTS
         </span>
-        {(["rect", "text"] as const).map((t) => (
+        {(["rect", "text", "button"] as const).map((t) => (
           <button
             key={t}
             onClick={() => handleAdd(t)}
@@ -77,6 +85,18 @@ export function EditorShell() {
         >
           + image
         </button>
+        <div style={{ marginTop: "auto", borderTop: "1px solid #334155", paddingTop: 8 }}>
+          <button
+            onClick={handleSave}
+            style={{
+              width: "100%", background: "#166534", color: "#bbf7d0",
+              border: "1px solid #15803d", borderRadius: 4,
+              padding: "5px 8px", cursor: "pointer", fontSize: 13,
+            }}
+          >
+            Save
+          </button>
+        </div>
       </aside>
 
       {/* Canvas */}
@@ -160,6 +180,22 @@ function PropertiesForm({
       </>}
       {field("Tag binding", textInput("tag", "e.g. pump1.speed"))}
       {obj.type === "text" && field("Format", textInput("format", "{value:.1f} unit"))}
+      {obj.type === "button" && <>
+        {field("Label", textInput("label", "Button"))}
+        {field("Write value",
+          <input
+            type="text"
+            style={INPUT}
+            placeholder="true / 1 / text"
+            value={obj.write_value !== undefined ? String(obj.write_value) : ""}
+            onChange={(e) => {
+              const raw = e.target.value;
+              const v = raw === "true" ? true : raw === "false" ? false : isNaN(Number(raw)) ? raw : Number(raw);
+              onChange({ write_value: v });
+            }}
+          />
+        )}
+      </>}
       <button
         onClick={onDelete}
         style={{

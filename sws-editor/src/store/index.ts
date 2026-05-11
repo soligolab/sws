@@ -20,6 +20,7 @@ interface AppState {
   setProject: (p: Project) => void;
 
   // Page management
+  setPages: (pages: SynopticPage[], currentPageId?: string) => void;
   addPage: () => void;
   deletePage: (id: string) => void;
   renamePage: (id: string, name: string) => void;
@@ -45,6 +46,9 @@ export const useAppStore = create<AppState>((set, get) => ({
   tagValues: {},
 
   setProject: (project) => set({ project }),
+
+  setPages: (pages, currentPageId) =>
+    set({ pages, currentPageId: currentPageId ?? pages[0]?.id ?? first.id, selectedObjectId: null }),
 
   addPage: () => {
     const page = makePage(`Page ${get().pages.length + 1}`);

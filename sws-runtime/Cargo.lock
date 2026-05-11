@@ -2944,6 +2944,7 @@ version = "0.1.0-dev"
 dependencies = [
  "anyhow",
  "serde",
+ "sws-core",
  "sws-plugin-api",
  "tokio",
  "tokio-modbus",
@@ -3004,6 +3005,7 @@ dependencies = [
  "sws-auth",
  "sws-core",
  "sws-historian",
+ "sws-plugin-modbus",
  "sws-web",
  "tokio",
  "tokio-rustls 0.26.4",
@@ -3021,6 +3023,7 @@ dependencies = [
  "axum 0.7.9",
  "serde",
  "serde_json",
+ "serde_yaml",
  "sws-core",
  "tokio",
  "tower 0.4.13",
