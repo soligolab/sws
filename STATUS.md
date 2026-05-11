@@ -2,9 +2,9 @@
 
 > This file is the **session-to-session memory** for Claude Code. Update it at the end of every session before stopping work. Read it at the start of every session before touching code.
 
-**Last session**: 2026-05-11 (Phase 1 — protocol + variable configuration UI)
+**Last session**: 2026-05-11 (Phase 1 — extended object palette: gauge, slider, checkbox, radio, LED, progress bar, table)
 **Current phase**: Phase 1 in progress
-**Last commit**: feat(config): tag and Modbus TCP source CRUD with backend persistence
+**Last commit**: feat(editor): add gauge, slider, checkbox, radio, LED, progress bar, table objects
 
 ---
 
@@ -54,6 +54,16 @@
 - **sws-web**: `PUT /api/project/tags` e `PUT /api/project/sources` — leggono project.yaml, aggiornano il campo, riscrivono; creano la directory se mancante
 - **store**: `updateProjectTags`, `updateProjectSources` per aggiornamento ottimistico dopo salvataggio
 - **App.tsx**: terza modalità "Configurazione" nel header
+- **sws-editor: object palette estesa** — 7 nuovi tipi SCADA ispirati ad atvise:
+  - `gauge`: arco 270° con needle SVG, soglie cromatiche (warn/alarm), tick marks, qualità dot
+  - `slider`: `<input type="range">` in view mode, SVG statico in edit mode
+  - `checkbox`: div + checkmark SVG in view mode, box SVG in edit mode; on/off value configurabili
+  - `radio`: radio HTML in view mode, cerchi SVG in edit mode; lista opzioni editabile
+  - `led`: cerchi concentrici con glow ring on/off, colori configurabili
+  - `progress_bar`: rettangolo riempito con marcatori soglia, valore opzionale
+  - `table`: righe dati con tag/etichetta/formato editabili, zebra-shading, qualità dot
+- **LeftPanel**: tutti i 7 nuovi tipi in palette
+- **EditorShell**: defaults per ogni tipo in `handleAddObject`; `ObjectProps` esteso con sezioni per-tipo; `RadioOptionsEditor` e `TableRowsEditor` sub-component
 
 ## What's in progress
 
