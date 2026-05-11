@@ -2,7 +2,7 @@ import { api } from "@/api/client";
 import { SvgCanvas } from "@/canvas/SvgCanvas";
 import { LeftPanel } from "@/editor/LeftPanel";
 import { useAppStore } from "@/store";
-import type { SynopticObject } from "@/types";
+import type { RadioOption, SynopticObject, TableRow } from "@/types";
 
 // ── Shared styles ─────────────────────────────────────────────────────────────
 
@@ -71,6 +71,29 @@ export function EditorShell() {
         break;
       case "navbutton":
         addObject({ type, x, y, width: 140, height: 36, label: "Vai alla pagina" });
+        break;
+      case "checkbox":
+        addObject({ type, x, y, width: 120, height: 30, label: "Checkbox", checked_value: true, unchecked_value: false });
+        break;
+      case "radio":
+        addObject({ type, x, y, width: 160, height: 80, label: "Radio", orientation: "vertical",
+          options: [{ label: "Opzione 1", value: "1" }, { label: "Opzione 2", value: "2" }] });
+        break;
+      case "slider":
+        addObject({ type, x, y, width: 200, height: 40, min: 0, max: 100, step: 1, orientation: "horizontal" });
+        break;
+      case "gauge":
+        addObject({ type, x, y, width: 180, height: 180, min: 0, max: 100, label: "Gauge" });
+        break;
+      case "led":
+        addObject({ type, x, y, width: 40, height: 40, on_value: true, on_color: "#22c55e", off_color: "#374151" });
+        break;
+      case "progress_bar":
+        addObject({ type, x, y, width: 200, height: 30, min: 0, max: 100, fill: "#3b82f6", show_value: true });
+        break;
+      case "table":
+        addObject({ type, x, y, width: 300, height: 120,
+          table_rows: [{ label: "Tag 1", tag: "", format: "{value:.1f}" }] });
         break;
     }
   };
@@ -234,7 +257,8 @@ function ObjectProps({
     </div>
   );
 
-  const isShape = obj.type === "rect" || obj.type === "ellipse" || obj.type === "button" || obj.type === "navbutton";
+  const BOX_TYPES = ["rect", "ellipse", "button", "navbutton", "checkbox", "radio", "slider", "gauge", "led", "progress_bar", "table"];
+  const isShape = BOX_TYPES.includes(obj.type);
   const hasStroke = obj.type === "rect" || obj.type === "ellipse" || obj.type === "line";
 
   return (
@@ -320,6 +344,167 @@ function ObjectProps({
         </>
       )}
 
+      {/* Gauge */}
+      {obj.type === "gauge" && (
+        <>
+          {field("Etichetta", textInput("label", "Gauge"))}
+          {field("Tag", textInput("tag", "es. pump1.speed"))}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+            <div><div style={LABEL}>Min</div>{numInput("min", 0)}</div>
+            <div><div style={LABEL}>Max</div>{numInput("max", 100)}</div>
+          </div>
+          {field("Unità", textInput("unit", ""))}
+          <div style={{ fontSize: 10, color: "#475569", marginTop: 4, marginBottom: 2, fontWeight: 700 }}>SOGLIE</div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+            <div><div style={LABEL}>Warn Low</div>{numInput("warn_low", 0)}</div>
+            <div><div style={LABEL}>Warn High</div>{numInput("warn_high", 0)}</div>
+            <div><div style={LABEL}>Alarm Low</div>{numInput("alarm_low", 0)}</div>
+            <div><div style={LABEL}>Alarm High</div>{numInput("alarm_high", 0)}</div>
+          </div>
+          {field("Mostra valore",
+            <input type="checkbox" checked={!!obj.show_value}
+              onChange={(e) => onChange({ show_value: e.target.checked })} />
+          )}
+        </>
+      )}
+
+      {/* Slider */}
+      {obj.type === "slider" && (
+        <>
+          {field("Tag", textInput("tag", "es. pump1.speed"))}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6 }}>
+            <div><div style={LABEL}>Min</div>{numInput("min", 0)}</div>
+            <div><div style={LABEL}>Max</div>{numInput("max", 100)}</div>
+            <div><div style={LABEL}>Step</div>{numInput("step", 1)}</div>
+          </div>
+          {field("Orientamento",
+            <select
+              style={{ ...INPUT, cursor: "pointer" }}
+              value={obj.orientation ?? "horizontal"}
+              onChange={(e) => onChange({ orientation: e.target.value as "horizontal" | "vertical" })}
+            >
+              <option value="horizontal">Orizzontale</option>
+              <option value="vertical">Verticale</option>
+            </select>
+          )}
+          {field("Mostra valore",
+            <input type="checkbox" checked={!!obj.show_value}
+              onChange={(e) => onChange({ show_value: e.target.checked })} />
+          )}
+          {field("Solo lettura",
+            <input type="checkbox" checked={!!obj.read_only}
+              onChange={(e) => onChange({ read_only: e.target.checked })} />
+          )}
+        </>
+      )}
+
+      {/* Checkbox */}
+      {obj.type === "checkbox" && (
+        <>
+          {field("Etichetta", textInput("label", "Checkbox"))}
+          {field("Tag", textInput("tag", "es. pump1.run"))}
+          {field("Valore ON",
+            <input type="text" style={INPUT} placeholder="true / 1 / testo"
+              value={obj.checked_value !== undefined ? String(obj.checked_value) : ""}
+              onChange={(e) => {
+                const raw = e.target.value;
+                const v = raw === "true" ? true : raw === "false" ? false
+                  : isNaN(Number(raw)) || raw.trim() === "" ? raw : Number(raw);
+                onChange({ checked_value: v });
+              }} />
+          )}
+          {field("Valore OFF",
+            <input type="text" style={INPUT} placeholder="false / 0 / testo"
+              value={obj.unchecked_value !== undefined ? String(obj.unchecked_value) : ""}
+              onChange={(e) => {
+                const raw = e.target.value;
+                const v = raw === "true" ? true : raw === "false" ? false
+                  : isNaN(Number(raw)) || raw.trim() === "" ? raw : Number(raw);
+                onChange({ unchecked_value: v });
+              }} />
+          )}
+          {field("Solo lettura",
+            <input type="checkbox" checked={!!obj.read_only}
+              onChange={(e) => onChange({ read_only: e.target.checked })} />
+          )}
+        </>
+      )}
+
+      {/* Radio */}
+      {obj.type === "radio" && (
+        <>
+          {field("Etichetta", textInput("label", "Radio"))}
+          {field("Tag", textInput("tag", "es. pump1.mode"))}
+          {field("Orientamento",
+            <select
+              style={{ ...INPUT, cursor: "pointer" }}
+              value={obj.orientation ?? "vertical"}
+              onChange={(e) => onChange({ orientation: e.target.value as "horizontal" | "vertical" })}
+            >
+              <option value="vertical">Verticale</option>
+              <option value="horizontal">Orizzontale</option>
+            </select>
+          )}
+          <RadioOptionsEditor
+            options={(obj.options as RadioOption[] | undefined) ?? []}
+            onChange={(opts) => onChange({ options: opts as SynopticObject["options"] })}
+          />
+        </>
+      )}
+
+      {/* LED */}
+      {obj.type === "led" && (
+        <>
+          {field("Etichetta", textInput("label", ""))}
+          {field("Tag", textInput("tag", "es. pump1.run"))}
+          {field("Valore ON",
+            <input type="text" style={INPUT} placeholder="true / 1 / testo"
+              value={obj.on_value !== undefined ? String(obj.on_value) : ""}
+              onChange={(e) => {
+                const raw = e.target.value;
+                const v = raw === "true" ? true : raw === "false" ? false
+                  : isNaN(Number(raw)) || raw.trim() === "" ? raw : Number(raw);
+                onChange({ on_value: v });
+              }} />
+          )}
+          {field("Colore ON",  colorInput("on_color",  "#22c55e"))}
+          {field("Colore OFF", colorInput("off_color", "#374151"))}
+        </>
+      )}
+
+      {/* Progress bar */}
+      {obj.type === "progress_bar" && (
+        <>
+          {field("Etichetta", textInput("label", ""))}
+          {field("Tag", textInput("tag", "es. tank1.level"))}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+            <div><div style={LABEL}>Min</div>{numInput("min", 0)}</div>
+            <div><div style={LABEL}>Max</div>{numInput("max", 100)}</div>
+          </div>
+          {field("Unità", textInput("unit", ""))}
+          {field("Colore barra", colorInput("fill", "#3b82f6"))}
+          <div style={{ fontSize: 10, color: "#475569", marginTop: 4, marginBottom: 2, fontWeight: 700 }}>SOGLIE</div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+            <div><div style={LABEL}>Warn Low</div>{numInput("warn_low", 0)}</div>
+            <div><div style={LABEL}>Warn High</div>{numInput("warn_high", 0)}</div>
+            <div><div style={LABEL}>Alarm Low</div>{numInput("alarm_low", 0)}</div>
+            <div><div style={LABEL}>Alarm High</div>{numInput("alarm_high", 0)}</div>
+          </div>
+          {field("Mostra valore",
+            <input type="checkbox" checked={!!obj.show_value}
+              onChange={(e) => onChange({ show_value: e.target.checked })} />
+          )}
+        </>
+      )}
+
+      {/* Table */}
+      {obj.type === "table" && (
+        <TableRowsEditor
+          rows={(obj.table_rows as TableRow[] | undefined) ?? []}
+          onChange={(rows) => onChange({ table_rows: rows as SynopticObject["table_rows"] })}
+        />
+      )}
+
       <button
         onClick={onDelete}
         style={{
@@ -332,5 +517,109 @@ function ObjectProps({
         Elimina oggetto
       </button>
     </>
+  );
+}
+
+// ── RadioOptionsEditor ────────────────────────────────────────────────────────
+
+function RadioOptionsEditor({
+  options,
+  onChange,
+}: {
+  options: RadioOption[];
+  onChange: (opts: RadioOption[]) => void;
+}) {
+  const update = (i: number, patch: Partial<RadioOption>) =>
+    onChange(options.map((o, idx) => (idx === i ? { ...o, ...patch } : o)));
+
+  const parseVal = (raw: string): string | number | boolean =>
+    raw === "true" ? true : raw === "false" ? false
+      : raw.trim() !== "" && !isNaN(Number(raw)) ? Number(raw) : raw;
+
+  return (
+    <div>
+      <div style={{ fontSize: 10, color: "#475569", marginTop: 4, marginBottom: 4, fontWeight: 700 }}>
+        OPZIONI RADIO
+      </div>
+      {options.map((opt, i) => (
+        <div key={i} style={{ display: "flex", gap: 4, marginBottom: 4, alignItems: "center" }}>
+          <input
+            type="text"
+            placeholder="Etichetta"
+            style={{ ...INPUT, flex: 1 }}
+            value={opt.label}
+            onChange={(e) => update(i, { label: e.target.value })}
+          />
+          <input
+            type="text"
+            placeholder="Valore"
+            style={{ ...INPUT, flex: 1 }}
+            value={String(opt.value)}
+            onChange={(e) => update(i, { value: parseVal(e.target.value) })}
+          />
+          <button
+            style={{ background: "transparent", border: "none", color: "#ef4444", cursor: "pointer", fontSize: 14, padding: "0 2px" }}
+            onClick={() => onChange(options.filter((_, idx) => idx !== i))}
+          >
+            ×
+          </button>
+        </div>
+      ))}
+      <button
+        style={{ ...INPUT, cursor: "pointer", color: "#64748b", borderStyle: "dashed", width: "100%" }}
+        onClick={() => onChange([...options, { label: `Opzione ${options.length + 1}`, value: String(options.length + 1) }])}
+      >
+        + Aggiungi opzione
+      </button>
+    </div>
+  );
+}
+
+// ── TableRowsEditor ───────────────────────────────────────────────────────────
+
+function TableRowsEditor({
+  rows,
+  onChange,
+}: {
+  rows: TableRow[];
+  onChange: (rows: TableRow[]) => void;
+}) {
+  const update = (i: number, patch: Partial<TableRow>) =>
+    onChange(rows.map((r, idx) => (idx === i ? { ...r, ...patch } : r)));
+
+  return (
+    <div>
+      <div style={{ fontSize: 10, color: "#475569", marginTop: 4, marginBottom: 4, fontWeight: 700 }}>
+        RIGHE TABELLA
+      </div>
+      {rows.map((row, i) => (
+        <div key={i} style={{ background: "#0f172a", borderRadius: 4, padding: "6px 8px", marginBottom: 6 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+            <span style={{ fontSize: 11, color: "#64748b" }}>Riga {i + 1}</span>
+            <button
+              style={{ background: "transparent", border: "none", color: "#ef4444", cursor: "pointer", fontSize: 13 }}
+              onClick={() => onChange(rows.filter((_, idx) => idx !== i))}
+            >
+              ×
+            </button>
+          </div>
+          <div style={LABEL}>Etichetta</div>
+          <input type="text" style={{ ...INPUT, marginBottom: 4 }} value={row.label}
+            onChange={(e) => update(i, { label: e.target.value })} />
+          <div style={LABEL}>Tag</div>
+          <input type="text" style={{ ...INPUT, marginBottom: 4 }} placeholder="es. pump1.speed" value={row.tag}
+            onChange={(e) => update(i, { tag: e.target.value })} />
+          <div style={LABEL}>Formato</div>
+          <input type="text" style={INPUT} placeholder="{value:.1f}" value={row.format ?? ""}
+            onChange={(e) => update(i, { format: e.target.value || undefined })} />
+        </div>
+      ))}
+      <button
+        style={{ ...INPUT, cursor: "pointer", color: "#64748b", borderStyle: "dashed", width: "100%" }}
+        onClick={() => onChange([...rows, { label: `Tag ${rows.length + 1}`, tag: "", format: "{value:.1f}" }])}
+      >
+        + Aggiungi riga
+      </button>
+    </div>
   );
 }

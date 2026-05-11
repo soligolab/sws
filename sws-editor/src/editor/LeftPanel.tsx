@@ -156,13 +156,20 @@ function PagesSection() {
 // ── Objects palette section ───────────────────────────────────────────────────
 
 const OBJECT_TYPES: { type: SynopticObject["type"]; label: string; disabled?: boolean }[] = [
-  { type: "rect",      label: "Rettangolo" },
-  { type: "ellipse",   label: "Ellisse" },
-  { type: "line",      label: "Linea" },
-  { type: "text",      label: "Testo" },
-  { type: "button",    label: "Bottone" },
-  { type: "navbutton", label: "Nav page" },
-  { type: "image",     label: "Immagine", disabled: true },
+  { type: "rect",         label: "Rettangolo" },
+  { type: "ellipse",      label: "Ellisse" },
+  { type: "line",         label: "Linea" },
+  { type: "text",         label: "Testo" },
+  { type: "button",       label: "Bottone" },
+  { type: "navbutton",    label: "Nav page" },
+  { type: "checkbox",     label: "Checkbox" },
+  { type: "radio",        label: "Radio" },
+  { type: "slider",       label: "Slider" },
+  { type: "gauge",        label: "Gauge" },
+  { type: "led",          label: "LED" },
+  { type: "progress_bar", label: "Progress" },
+  { type: "table",        label: "Tabella" },
+  { type: "image",        label: "Immagine", disabled: true },
 ];
 
 function ObjectPalette({ onAdd }: { onAdd: (type: SynopticObject["type"]) => void }) {
