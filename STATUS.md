@@ -2,9 +2,9 @@
 
 > This file is the **session-to-session memory** for Claude Code. Update it at the end of every session before stopping work. Read it at the start of every session before touching code.
 
-**Last session**: 2026-05-11 (Phase 1 — sws-web wired to sws-core)
+**Last session**: 2026-05-11 (Phase 1 — YAML project loader)
 **Current phase**: Phase 1 in progress
-**Last commit**: feat(sws-web): wire TagDb to REST and WebSocket endpoints
+**Last commit**: feat(sws-core): YAML project loader populates TagDb on startup
 
 ---
 
@@ -24,7 +24,8 @@
 - `.claude/settings.json` configured with project-scoped permissions (`acceptEdits` default, allow list for cargo/pnpm/git/filesystem, ask for push/publish, deny for secrets/sudo/ssh)
 - **sws-core tag engine**: `TagId`, `TagValue` (Bool/Int/Float/Str), `TagQuality`, `TagState`, `TagUpdate`, `TagDb` (Arc<RwLock<HashMap>> + tokio broadcast). `cargo test -p sws-core` passes (2 tests).
 - **sws-web router**: `GET /api/tags` (JSON snapshot), `GET /api/tags/:id` (single tag or 404), `GET /ws/tags` (WebSocket stream — snapshot on connect + live updates). `TagDb` passed as Axum state.
-- **sws-runtime**: creates `Arc<TagDb>`, hands it to `sws_web::router::build()`. `/health` and `/metrics` moved into sws-web router.
+- **sws-runtime**: creates `Arc<TagDb>`, loads `project.yaml`, hands DB to `sws_web::router::build()`.
+- **sws-core project loader**: `Project::load(dir)` parses `project.yaml`; `populate_tags()` seeds TagDb with `Float(0.0)/Uncertain` for every defined tag. Missing file → warning, empty DB.
 
 ## What's in progress
 
@@ -34,14 +35,14 @@
 
 Pick one of these as the next focused work block (each fits 3-4 hours):
 
-1. **YAML project loader** in `sws-core/src/project.rs`:
-   - Load `project.yaml` from the `--project` path
-   - Populate `TagDb` from the tag definitions in the YAML
-   - Basic filesystem watch for hot reload (use `notify` crate)
-3. **Modbus TCP plugin stub** in `sws-plugin-modbus`:
-   - Connect to a configurable host:port
-   - Read a holding register range and write the values into `TagDb`
+1. **Modbus TCP plugin** in `sws-plugin-modbus` (recommended next):
+   - Connect to a configurable host:port read from `project.yaml`
+   - Read holding registers and write the values into `TagDb`
    - Reconnect loop on disconnect
+2. **Auth skeleton** in `sws-auth`:
+   - Argon2id password hash/verify
+   - Session token (UUID, stored in memory map)
+   - Single admin user seeded from `SWS_ADMIN_PASSWORD` env var
 
 ## Blockers / questions for the maintainer
 

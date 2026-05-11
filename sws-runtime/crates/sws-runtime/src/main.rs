@@ -51,6 +51,17 @@ async fn main() -> anyhow::Result<()> {
     let acceptor = build_tls_acceptor(&args.config)?;
 
     let tag_db = Arc::new(TagDb::new(256));
+
+    match sws_core::project::Project::load(&args.project) {
+        Ok(project) => {
+            info!(name = %project.meta.name, tags = project.tags.len(), "project loaded");
+            project.populate_tags(&tag_db).await;
+        }
+        Err(e) => {
+            warn!("project.yaml not found or invalid — starting with empty tag database: {e:#}");
+        }
+    }
+
     let app = sws_web::router::build(tag_db);
 
     let addr: SocketAddr = "0.0.0.0:8443".parse()?;
