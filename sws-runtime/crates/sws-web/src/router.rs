@@ -7,7 +7,7 @@ use axum::{
     Json, Router,
 };
 use serde::Deserialize;
-use sws_core::{TagDb, TagId, TagQuality, TagState, TagUpdate, TagValue};
+use sws_core::{Project, TagDb, TagId, TagQuality, TagState, TagUpdate, TagValue};
 use tracing::warn;
 use crate::synoptic::{safe_filename, SynopticPage};
 
@@ -25,6 +25,8 @@ pub fn build(db: Arc<TagDb>, project_dir: Arc<PathBuf>) -> Router {
         // Tag REST
         .route("/api/tags",      get(get_all_tags))
         .route("/api/tags/:id",  get(get_tag).put(write_tag))
+        // Project info
+        .route("/api/project", get(get_project))
         // Synoptic REST
         .route("/api/synoptics",      get(list_synoptics))
         .route("/api/synoptics/:name", get(get_synoptic).put(save_synoptic))
@@ -56,6 +58,15 @@ async fn write_tag(
 ) -> StatusCode {
     s.db.set(id, body.value, TagQuality::Good).await;
     StatusCode::NO_CONTENT
+}
+
+// ── Project endpoint ─────────────────────────────────────────────────────────
+
+async fn get_project(State(s): State<AppState>) -> impl IntoResponse {
+    match Project::load(&s.project_dir) {
+        Ok(project) => Json(project).into_response(),
+        Err(_)      => StatusCode::NOT_FOUND.into_response(),
+    }
 }
 
 // ── Synoptic endpoints ───────────────────────────────────────────────────────

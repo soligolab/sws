@@ -1,5 +1,5 @@
 // TODO: add auth header injection once session tokens are implemented.
-import type { SynopticPage } from "@/types";
+import type { ProjectInfo, SynopticPage } from "@/types";
 
 const BASE_URL = import.meta.env.VITE_RUNTIME_URL ?? "";
 
@@ -13,6 +13,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
+  // Project
+  getProject: () =>
+    request<ProjectInfo>("/api/project"),
+
   // Synoptics
   listSynoptics: () =>
     request<string[]>("/api/synoptics"),

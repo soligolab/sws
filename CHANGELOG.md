@@ -19,3 +19,10 @@ and this project adheres to [CalVer](https://calver.org/) (`YYYY.MM[.patch]`).
 - `sws-web`: REST API — `GET/PUT /api/tags/:id`, `GET /api/tags`, `GET/PUT /api/synoptics/:name`, `GET /api/synoptics`; WebSocket stream `GET /ws/tags`
 - `sws-runtime`: HTTPS server on 0.0.0.0:8443 with self-signed TLS via rcgen, project loading, graceful shutdown
 - `sws-editor`: full IDE shell — rect/text/button objects, drag-to-move, property panel, page tab bar, Save button (PUT synoptic), load synoptics on mount, quality indicator dots, tag write via button click in view mode
+- `sws-editor`: complete object palette — ellipse, line (with endpoint drag), navbutton (page navigation)
+- `sws-editor`: canvas SVG grid with configurable size and snap-to-grid
+- `sws-editor`: LeftPanel project tree — pages, object palette, live tag browser with quality dots, protocol source viewer
+- `sws-editor`: page properties panel (name, background color) when no object selected
+- `sws-editor`: RuntimeView operator page-navigation tab bar
+- `sws-web`: `GET /api/project` endpoint exposes full project JSON (meta + tags + sources)
+- `sws-web`: SynopticObject extended with x2, y2, stroke, stroke_width, target_page; SynopticPage gains background field

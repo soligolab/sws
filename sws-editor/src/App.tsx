@@ -14,8 +14,6 @@ export function App() {
 
   const pages          = useAppStore((s) => s.pages);
   const currentPageId  = useAppStore((s) => s.currentPageId);
-  const addPage        = useAppStore((s) => s.addPage);
-  const deletePage     = useAppStore((s) => s.deletePage);
   const setCurrentPage = useAppStore((s) => s.setCurrentPage);
   const setPages       = useAppStore((s) => s.setPages);
   const project        = useAppStore((s) => s.project);
@@ -36,7 +34,7 @@ export function App() {
       <header style={{ height: 48, background: "#1e293b", borderBottom: "1px solid #334155", display: "flex", alignItems: "center", padding: "0 16px", gap: 16, flexShrink: 0 }}>
         <strong style={{ letterSpacing: 1, fontSize: 15 }}>SWS</strong>
         <span style={{ color: "#475569", flex: 1 }}>
-          {t("app.project")}: {project?.name ?? "—"}
+          {t("app.project")}: {project?.meta.name ?? "—"}
         </span>
         <div style={{ display: "flex", gap: 4 }}>
           {(["edit", "view"] as Mode[]).map((m) => (
@@ -59,51 +57,28 @@ export function App() {
       {/* Alarm banner */}
       <AlarmBanner />
 
-      {/* Page tabs (editor mode only) */}
+      {/* Page tabs (editor mode) */}
       {mode === "edit" && (
-        <div style={{ display: "flex", alignItems: "center", background: "#0f172a", borderBottom: "1px solid #334155", padding: "0 8px", gap: 2, flexShrink: 0, height: 34 }}>
+        <div style={{ display: "flex", alignItems: "center", background: "#0f172a", borderBottom: "1px solid #334155", padding: "0 8px", gap: 2, flexShrink: 0, height: 32, overflowX: "auto" }}>
           {pages.map((p) => (
-            <div
+            <button
               key={p.id}
-              style={{ display: "flex", alignItems: "center", gap: 4 }}
+              onClick={() => setCurrentPage(p.id)}
+              style={{
+                background: p.id === currentPageId ? "#1e293b" : "transparent",
+                color: p.id === currentPageId ? "#e2e8f0" : "#64748b",
+                border: p.id === currentPageId ? "1px solid #334155" : "1px solid transparent",
+                borderBottom: p.id === currentPageId ? "1px solid #1e293b" : "1px solid transparent",
+                borderRadius: "4px 4px 0 0",
+                padding: "3px 12px",
+                cursor: "pointer",
+                fontSize: 13,
+                whiteSpace: "nowrap",
+              }}
             >
-              <button
-                onClick={() => setCurrentPage(p.id)}
-                style={{
-                  background: p.id === currentPageId ? "#1e293b" : "transparent",
-                  color: p.id === currentPageId ? "#e2e8f0" : "#64748b",
-                  border: p.id === currentPageId ? "1px solid #334155" : "1px solid transparent",
-                  borderBottom: p.id === currentPageId ? "1px solid #1e293b" : "1px solid transparent",
-                  borderRadius: "4px 4px 0 0", padding: "3px 10px",
-                  cursor: "pointer", fontSize: 13,
-                }}
-              >
-                {p.name}
-              </button>
-              {pages.length > 1 && (
-                <button
-                  onClick={() => deletePage(p.id)}
-                  title="Delete page"
-                  style={{
-                    background: "transparent", color: "#475569", border: "none",
-                    cursor: "pointer", fontSize: 11, padding: "0 2px", lineHeight: 1,
-                  }}
-                >
-                  ×
-                </button>
-              )}
-            </div>
+              {p.name}
+            </button>
           ))}
-          <button
-            onClick={addPage}
-            title="Add page"
-            style={{
-              background: "transparent", color: "#64748b", border: "1px dashed #334155",
-              borderRadius: 4, padding: "2px 8px", cursor: "pointer", fontSize: 13, marginLeft: 4,
-            }}
-          >
-            +
-          </button>
         </div>
       )}
 

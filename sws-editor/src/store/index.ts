@@ -1,6 +1,6 @@
 // TODO (ADR 0001): evaluate Redux Toolkit as an alternative before M1 freeze.
 import { create } from "zustand";
-import type { Project, SynopticObject, SynopticPage, TagState } from "@/types";
+import type { ProjectInfo, SynopticObject, SynopticPage, TagState } from "@/types";
 
 function genId(): string {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
@@ -11,19 +11,22 @@ function makePage(name: string): SynopticPage {
 }
 
 interface AppState {
-  project: Project | null;
+  project: ProjectInfo | null;
   pages: SynopticPage[];
   currentPageId: string;
   selectedObjectId: string | null;
   tagValues: Record<string, TagState>;
+  gridSize: number;
+  snapEnabled: boolean;
 
-  setProject: (p: Project) => void;
+  setProject: (p: ProjectInfo) => void;
 
   // Page management
   setPages: (pages: SynopticPage[], currentPageId?: string) => void;
   addPage: () => void;
   deletePage: (id: string) => void;
   renamePage: (id: string, name: string) => void;
+  updatePageProps: (id: string, patch: Partial<Pick<SynopticPage, "name" | "background">>) => void;
   setCurrentPage: (id: string) => void;
 
   // Object CRUD (operates on current page)
@@ -34,6 +37,10 @@ interface AppState {
 
   // Tag values from WebSocket
   updateTagValue: (id: string, state: TagState) => void;
+
+  // Canvas settings
+  setGridSize: (size: number) => void;
+  setSnapEnabled: (enabled: boolean) => void;
 }
 
 const first = makePage("Page 1");
@@ -44,6 +51,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   currentPageId: first.id,
   selectedObjectId: null,
   tagValues: {},
+  gridSize: 10,
+  snapEnabled: true,
 
   setProject: (project) => set({ project }),
 
@@ -68,6 +77,9 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   renamePage: (id, name) =>
     set((s) => ({ pages: s.pages.map((p) => (p.id === id ? { ...p, name } : p)) })),
+
+  updatePageProps: (id, patch) =>
+    set((s) => ({ pages: s.pages.map((p) => (p.id === id ? { ...p, ...patch } : p)) })),
 
   setCurrentPage: (id) => set({ currentPageId: id, selectedObjectId: null }),
 
@@ -104,6 +116,9 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   updateTagValue: (id, state) =>
     set((s) => ({ tagValues: { ...s.tagValues, [id]: state } })),
+
+  setGridSize: (gridSize) => set({ gridSize }),
+  setSnapEnabled: (snapEnabled) => set({ snapEnabled }),
 }));
 
 export type { AppState, SynopticObject };
