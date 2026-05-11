@@ -1,0 +1,63 @@
+[workspace]
+resolver = "2"
+members = ["crates/*"]
+
+[workspace.package]
+version      = "0.1.0-dev"
+edition      = "2021"
+rust-version = "1.75"
+license      = "AGPL-3.0-only"
+authors      = ["Soligo Lab <hello@soligolab.example>"]
+repository   = "https://github.com/soligolab/sws"
+homepage     = "https://soligolab.example"
+
+[workspace.dependencies]
+# Async runtime
+tokio            = { version = "1.36",  features = ["full"] }
+
+# Web framework
+axum             = { version = "0.7",   features = ["ws"] }
+tower            = "0.4"
+tower-http       = { version = "0.5",   features = ["cors", "trace"] }
+
+# Tracing / logging
+tracing              = "0.1"
+tracing-subscriber   = { version = "0.3", features = ["json", "env-filter"] }
+
+# Serialization
+serde       = { version = "1", features = ["derive"] }
+serde_yaml  = "0.9"
+serde_json  = "1"
+
+# TLS (pure Rust, no OpenSSL)
+rustls        = "0.23"
+tokio-rustls  = "0.26"
+rcgen         = "0.13"
+hyper          = { version = "1",   features = ["http1", "http2"] }
+hyper-util     = { version = "0.1", features = ["tokio", "server", "server-auto"] }
+rustls-pemfile = "2"
+
+# Auth
+argon2 = "0.5"
+
+# CLI
+clap = { version = "4", features = ["derive"] }
+
+# Protocols
+tokio-modbus = "0.6"
+async-opcua  = "0.18"
+rumqttc      = "0.24"
+rumqttd      = "0.19"
+
+# Python scripting
+pyo3 = { version = "0.23", features = ["auto-initialize"] }
+
+# Observability
+metrics                      = "0.23"
+metrics-exporter-prometheus  = "0.15"
+
+# Plugin ABI
+abi_stable = "0.11"
+
+# Error handling
+anyhow = "1"

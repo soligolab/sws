@@ -1,0 +1,13 @@
+[package]
+name    = "sws-plugin-opcua"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+tokio.workspace       = true
+async-opcua.workspace = true
+serde.workspace       = true
+tracing.workspace     = true
+anyhow.workspace      = true
+sws-plugin-api = { path = "../sws-plugin-api" }
