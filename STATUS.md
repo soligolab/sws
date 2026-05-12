@@ -2,9 +2,9 @@
 
 > This file is the **session-to-session memory** for Claude Code. Update it at the end of every session before stopping work. Read it at the start of every session before touching code.
 
-**Last session**: 2026-05-12 (Phase 1 — object palette completata; in attesa: tag dropdown, tipo variabile, MQTT)
-**Current phase**: Phase 1 in progress
-**Last commit**: feat(types): extend SynopticObject and Rust struct with new SCADA object fields
+**Last session**: 2026-05-12 (Phase 1 — handoff completato: tag dropdown, data_type, plugin MQTT)
+**Current phase**: Phase 1 in progress (Phase 3 MQTT happy-path anticipato)
+**Last commit**: docs: handoff note — tag dropdown, data_type, MQTT next
 
 ---
 
@@ -64,47 +64,13 @@
   - `table`: righe dati con tag/etichetta/formato editabili, zebra-shading, qualità dot
 - **LeftPanel**: tutti i 7 nuovi tipi in palette
 - **EditorShell**: defaults per ogni tipo in `handleAddObject`; `ObjectProps` esteso con sezioni per-tipo; `RadioOptionsEditor` e `TableRowsEditor` sub-component
+- **TagInput component** (`sws-editor/src/components/TagInput.tsx`): `<input list>` + `<datalist>` con autocomplete dei tag definiti nel progetto. Usato in `ObjectProps` (tutti i campi Tag), `TableRowsEditor` (righe tabella), `ModbusSourceCard` (mapping registri), `MqttSourceCard` (mapping topic).
+- **TagDef.data_type**: nuovo campo `"bool" | "int" | "float" | "string"` (default `"float"`) in Rust `TagDef` e TS `TagDef`. `populate_tags()` semina il `TagValue` iniziale corretto. ConfigView Variabili: nuova colonna "Tipo" con select.
+- **sws-plugin-mqtt**: subscribe loop con `rumqttc::AsyncClient`, exact-topic match, riconnessione 5 s, decoding payload euristico (bool/int/float/string) o via `json_path` dot-separated.
+- **SourceDef::Mqtt** variant in `sws-core` con `MqttConfig { id, host, port (def 1883), client_id, topics }` e `TopicMapping { tag, topic, json_path? }`. `sws-runtime/main.rs` spawn task MQTT per ogni `mqtt` source.
+- **MqttSourceCard** in ConfigView (host/port/client_id + tabella topic↔tag con TagInput e JSON path opz.). `LeftPanel` SourcesSection renderizza anche MQTT. Pulsante "+ Aggiungi MQTT" attivo.
 
-## What's in progress
-
-> **HANDOFF NOTE — 2026-05-12**
-> Sessione interrotta mentre si stava per implementare tre funzionalità nuove.
-> Il codice è pulito e committato. La prossima sessione riprende da zero con questo blocco:
-
-### Tre feature da implementare (riprendi da qui)
-
-#### 1. Tag dropdown nell'editor degli oggetti
-In `sws-editor/src/editor/EditorShell.tsx`, nel componente `ObjectProps`,
-i campi "Tag" sono attualmente `<input type="text">`. Sostituirli con un ibrido
-`<input list="taglist"> + <datalist>` che suggerisca i tag definiti nel progetto.
-I tag vengono da `useAppStore(s => s.project?.tags ?? [])`.
-Farlo in un helper `TagInput` riusabile (import da `@/store` e uso in `ObjectProps`).
-Anche nel `ModbusSourceCard` (registro → tag) e nel futuro `MqttTopicCard`.
-
-#### 2. Tipo variabile (TagDef)
-Aggiungere un campo `data_type: "bool" | "int" | "float" | "string"` a `TagDef`:
-- **Rust** `sws-runtime/crates/sws-core/src/project.rs`: aggiungere `#[serde(default = "default_data_type")] pub data_type: String` (default `"float"`)
-- Nella `populate_tags()`: usare `data_type` per scegliere il `TagValue` iniziale corretto (Bool/Int/Float/Str)
-- **TypeScript** `sws-editor/src/types/index.ts`: `TagDef { id, description, data_type?: "bool"|"int"|"float"|"string" }`
-- **ConfigView** `sws-editor/src/config/ConfigView.tsx` `TagsTab`: aggiungere colonna "Tipo" con `<select>` (Bool/Int/Float/Stringa) accanto a ID e Descrizione
-- **PUT /api/project/tags** (`router.rs`): già generico, nessuna modifica server necessaria
-
-#### 3. Plugin MQTT
-**Backend** (`sws-runtime/crates/sws-plugin-mqtt/src/lib.rs`):
-- Struttura config già scaffoldata, dipendenze `rumqttc = "0.24"` già in workspace
-- Implementare `pub async fn run(cfg: MqttConfig, db: Arc<TagDb>)` con `rumqttc::AsyncClient`
-- Config MQTT: `id, host, port (default 1883), client_id, topics: Vec<TopicMapping>`
-- `TopicMapping { tag, topic, json_path? }` — se `json_path` è presente, parsare il payload JSON e estrarre il campo (es. `"temperature"` da `{"temperature": 42.5}`)
-- Riconnessione automatica con backoff (come Modbus, già implementato lì come riferimento)
-- Aggiungere `MqttConfig` e `MqttSource` a `sws-core/src/project.rs` (nuovo variant `SourceDef::Mqtt`)
-- Aggiungere match arm `SourceDef::Mqtt(cfg)` in `sws-runtime/crates/sws-runtime/src/main.rs`
-
-**Frontend** (`sws-editor/src/`):
-- `types/index.ts`: aggiungere `MqttSource { kind: "mqtt", id, host, port, client_id, topics: TopicMapping[] }` e `TopicMapping { tag, topic, json_path? }` + aggiornare `SourceDef = ModbusTcpSource | MqttSource`
-- `config/ConfigView.tsx`: aggiungere `MqttSourceCard` (simile a `ModbusSourceCard`) con host/port/client_id e tabella topic↔tag. Attivare il pulsante "Aggiungi MQTT" (era disabilitato).
-- `LeftPanel.tsx` `SourcesSection`: aggiungere rendering per `kind === "mqtt"`
-
-## Next session should (vecchia lista)
+## Next session should
 
 Pick one of these as the next focused work block (each fits 3-4 hours):
 
