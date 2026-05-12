@@ -2905,6 +2905,7 @@ dependencies = [
  "serde",
  "tokio",
  "tracing",
+ "uuid",
 ]
 
 [[package]]
@@ -2948,6 +2949,7 @@ dependencies = [
  "sws-plugin-api",
  "tokio",
  "tokio-modbus",
+ "tokio-util",
  "tracing",
 ]
 
@@ -2959,8 +2961,11 @@ dependencies = [
  "rumqttc",
  "rumqttd",
  "serde",
+ "serde_json",
+ "sws-core",
  "sws-plugin-api",
  "tokio",
+ "tokio-util",
  "tracing",
 ]
 
@@ -2982,6 +2987,7 @@ version = "0.1.0-dev"
 dependencies = [
  "anyhow",
  "pyo3",
+ "serde",
  "sws-core",
  "tokio",
  "tracing",
@@ -3005,7 +3011,7 @@ dependencies = [
  "sws-auth",
  "sws-core",
  "sws-historian",
- "sws-plugin-modbus",
+ "sws-pyscript",
  "sws-web",
  "tokio",
  "tokio-rustls 0.26.4",
@@ -3024,8 +3030,14 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_yaml",
+ "sws-auth",
  "sws-core",
+ "sws-historian",
+ "sws-plugin-modbus",
+ "sws-plugin-mqtt",
+ "sws-pyscript",
  "tokio",
+ "tokio-util",
  "tower 0.4.13",
  "tower-http",
  "tracing",

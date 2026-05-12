@@ -10,3 +10,4 @@ argon2.workspace  = true
 serde.workspace   = true
 tracing.workspace = true
 anyhow.workspace  = true
+uuid.workspace    = true

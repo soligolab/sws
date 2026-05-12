@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { api } from "@/api/client";
+import { api, AuthError } from "@/api/client";
 import { AlarmBanner } from "@/components/AlarmBanner";
+import { LoginScreen } from "@/components/LoginScreen";
 import { ConfigView } from "@/config/ConfigView";
 import { EditorShell } from "@/editor/EditorShell";
 import { RuntimeView } from "@/runtime-view/RuntimeView";
@@ -19,21 +20,38 @@ export function App() {
   const { t } = useTranslation();
   const [mode, setMode] = useState<Mode>("edit");
 
+  const authToken      = useAppStore((s) => s.authToken);
+  const authUser       = useAppStore((s) => s.authUser);
+  const clearAuth      = useAppStore((s) => s.clearAuth);
   const pages          = useAppStore((s) => s.pages);
   const currentPageId  = useAppStore((s) => s.currentPageId);
   const setCurrentPage = useAppStore((s) => s.setCurrentPage);
   const setPages       = useAppStore((s) => s.setPages);
   const project        = useAppStore((s) => s.project);
 
+  // Only fetch project data once authenticated; otherwise every call would
+  // 401 and the user would land in a fail loop.
   useEffect(() => {
+    if (!authToken) return;
     api.listSynoptics()
       .then(async (names) => {
         if (names.length === 0) return;
         const loaded = await Promise.all(names.map((n) => api.getSynoptic(n)));
         setPages(loaded, loaded[0].id);
       })
-      .catch(() => {});
-  }, []);
+      .catch((e) => {
+        if (e instanceof AuthError) clearAuth();
+      });
+  }, [authToken]);
+
+  const handleLogout = async () => {
+    try { await api.logout(); } catch { /* ignore */ }
+    clearAuth();
+  };
+
+  if (!authToken) {
+    return <LoginScreen />;
+  }
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100vh", fontFamily: "system-ui, sans-serif", color: "#e2e8f0", background: "#0f172a" }}>
@@ -72,7 +90,24 @@ export function App() {
             </button>
           ))}
         </div>
-        <span style={{ color: "#475569", fontSize: 13 }}>{t("app.user")}: admin</span>
+        <span style={{ color: "#475569", fontSize: 13 }}>
+          {t("app.user")}: {authUser ?? "—"}
+        </span>
+        <button
+          onClick={handleLogout}
+          title="Esci dalla sessione"
+          style={{
+            padding: "4px 10px",
+            background: "#334155",
+            color: "#cbd5e1",
+            border: "1px solid #475569",
+            borderRadius: 4,
+            cursor: "pointer",
+            fontSize: 12,
+          }}
+        >
+          Esci
+        </button>
       </header>
 
       {/* Alarm banner */}

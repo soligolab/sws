@@ -1,7 +1,19 @@
 import { useEffect, useState } from "react";
 import { api } from "@/api/client";
+import { TagInput } from "@/components/TagInput";
 import { useAppStore } from "@/store";
-import type { ModbusTcpSource, RegisterMapping, SourceDef, TagDef } from "@/types";
+import type {
+  AlarmCondition,
+  AlarmDef,
+  AlarmSeverity,
+  ModbusTcpSource,
+  MqttSource,
+  RegisterMapping,
+  SourceDef,
+  TagDataType,
+  TagDef,
+  TopicMapping,
+} from "@/types";
 
 // ── Shared styles ─────────────────────────────────────────────────────────────
 
@@ -142,10 +154,12 @@ function SaveBar({
   onSave,
   saving,
   saved,
+  savedNotice = "✓ Salvato — modifiche applicate immediatamente.",
 }: {
   onSave: () => void;
   saving: boolean;
   saved: boolean;
+  savedNotice?: string;
 }) {
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 16 }}>
@@ -154,7 +168,7 @@ function SaveBar({
       </button>
       {saved && (
         <span style={{ fontSize: 12, color: "#22c55e" }}>
-          ✓ Salvato — riavvia il runtime per applicare le modifiche alle sorgenti.
+          {savedNotice}
         </span>
       )}
     </div>
@@ -178,7 +192,7 @@ function TagsTab() {
   }, [storeProject?.tags?.length]);
 
   const addTag = () =>
-    setTags((prev) => [...prev, { id: "", description: "" }]);
+    setTags((prev) => [...prev, { id: "", description: "", data_type: "float" }]);
 
   const updateTag = (idx: number, patch: Partial<TagDef>) =>
     setTags((prev) => prev.map((t, i) => (i === idx ? { ...t, ...patch } : t)));
@@ -212,8 +226,9 @@ function TagsTab() {
       <table style={S.table}>
         <thead>
           <tr>
-            <th style={{ ...S.th, width: "35%" }}>ID variabile</th>
-            <th style={{ ...S.th, width: "40%" }}>Descrizione</th>
+            <th style={{ ...S.th, width: "30%" }}>ID variabile</th>
+            <th style={{ ...S.th, width: "33%" }}>Descrizione</th>
+            <th style={{ ...S.th, width: "12%" }}>Tipo</th>
             <th style={{ ...S.th, width: "15%" }}>Valore live</th>
             <th style={S.th} />
           </tr>
@@ -239,6 +254,18 @@ function TagsTab() {
                     value={tag.description}
                     onChange={(e) => updateTag(i, { description: e.target.value })}
                   />
+                </td>
+                <td style={S.td}>
+                  <select
+                    style={{ ...S.input, cursor: "pointer" }}
+                    value={tag.data_type ?? "float"}
+                    onChange={(e) => updateTag(i, { data_type: e.target.value as TagDataType })}
+                  >
+                    <option value="bool">Bool</option>
+                    <option value="int">Int</option>
+                    <option value="float">Float</option>
+                    <option value="string">Stringa</option>
+                  </select>
                 </td>
                 <td style={{ ...S.td, textAlign: "center" }}>
                   {tv != null ? (
@@ -286,6 +313,21 @@ function emptyModbus(): ModbusTcpSource {
 
 function emptyRegister(): RegisterMapping {
   return { tag: "", address: 0, scale: 1 };
+}
+
+function emptyMqtt(): MqttSource {
+  return {
+    kind: "mqtt",
+    id: `mqtt-${genId()}`,
+    host: "broker.local",
+    port: 1883,
+    client_id: `sws-${genId()}`,
+    topics: [],
+  };
+}
+
+function emptyTopic(): TopicMapping {
+  return { tag: "", topic: "", json_path: undefined };
 }
 
 function ModbusSourceCard({
@@ -427,12 +469,11 @@ function ModbusSourceCard({
               {source.registers.map((r, i) => (
                 <tr key={i} style={{ background: i % 2 === 0 ? "transparent" : "#0f172a33" }}>
                   <td style={S.td}>
-                    <input
+                    <TagInput
                       style={S.inputSm}
                       placeholder="pump1.speed"
                       value={r.tag}
-                      onChange={(e) => setRegister(i, { tag: e.target.value })}
-                      spellCheck={false}
+                      onChange={(v) => setRegister(i, { tag: v })}
                     />
                   </td>
                   <td style={S.td}>
@@ -473,6 +514,169 @@ function ModbusSourceCard({
   );
 }
 
+// ── MQTT card ─────────────────────────────────────────────────────────────────
+
+function MqttSourceCard({
+  source,
+  onChange,
+  onDelete,
+}: {
+  source: MqttSource;
+  onChange: (s: MqttSource) => void;
+  onDelete: () => void;
+}) {
+  const [open, setOpen] = useState(true);
+
+  const setField = <K extends keyof MqttSource>(k: K, v: MqttSource[K]) =>
+    onChange({ ...source, [k]: v });
+
+  const setTopic = (idx: number, patch: Partial<TopicMapping>) =>
+    onChange({
+      ...source,
+      topics: source.topics.map((t, i) => (i === idx ? { ...t, ...patch } : t)),
+    });
+
+  const addTopic = () =>
+    onChange({ ...source, topics: [...source.topics, emptyTopic()] });
+
+  const removeTopic = (idx: number) =>
+    onChange({ ...source, topics: source.topics.filter((_, i) => i !== idx) });
+
+  return (
+    <div style={S.card}>
+      <div style={S.cardHead} onClick={() => setOpen((v) => !v)}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <span style={{ fontSize: 11, color: "#a855f7", fontWeight: 700, letterSpacing: 1 }}>
+            MQTT
+          </span>
+          <span style={{ fontWeight: 600, color: "#e2e8f0" }}>{source.id}</span>
+          <span style={{ color: "#64748b", fontSize: 12 }}>
+            {source.host}:{source.port} — {source.topics.length} topic
+          </span>
+        </div>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button
+            style={S.btn("danger")}
+            onClick={(e) => { e.stopPropagation(); onDelete(); }}
+          >
+            Elimina
+          </button>
+          <span style={{ color: "#475569", fontSize: 14 }}>{open ? "▲" : "▼"}</span>
+        </div>
+      </div>
+
+      {open && (
+        <div style={{ padding: "14px 16px" }}>
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr 90px 1fr",
+            gap: 12,
+            marginBottom: 16,
+          }}>
+            <div>
+              <label style={{ fontSize: 11, color: "#64748b", display: "block", marginBottom: 3 }}>ID sorgente</label>
+              <input
+                style={S.input}
+                value={source.id}
+                onChange={(e) => setField("id", e.target.value)}
+                spellCheck={false}
+              />
+            </div>
+            <div>
+              <label style={{ fontSize: 11, color: "#64748b", display: "block", marginBottom: 3 }}>Host / IP</label>
+              <input
+                style={S.input}
+                value={source.host}
+                onChange={(e) => setField("host", e.target.value)}
+                spellCheck={false}
+              />
+            </div>
+            <div>
+              <label style={{ fontSize: 11, color: "#64748b", display: "block", marginBottom: 3 }}>Porta</label>
+              <input
+                style={S.input}
+                type="number"
+                min={1} max={65535}
+                value={source.port}
+                onChange={(e) => setField("port", Number(e.target.value))}
+              />
+            </div>
+            <div>
+              <label style={{ fontSize: 11, color: "#64748b", display: "block", marginBottom: 3 }}>Client ID</label>
+              <input
+                style={S.input}
+                value={source.client_id}
+                onChange={(e) => setField("client_id", e.target.value)}
+                spellCheck={false}
+              />
+            </div>
+          </div>
+
+          <div style={{ marginBottom: 6, fontSize: 12, color: "#64748b", fontWeight: 600, letterSpacing: 0.5 }}>
+            MAPPATURA TOPIC
+          </div>
+          <table style={{ ...S.table, marginBottom: 8 }}>
+            <thead>
+              <tr>
+                <th style={{ ...S.th, width: "30%" }}>Variabile (ID tag)</th>
+                <th style={{ ...S.th, width: "40%" }}>Topic MQTT</th>
+                <th style={{ ...S.th, width: "25%" }}>JSON path (opz.)</th>
+                <th style={S.th} />
+              </tr>
+            </thead>
+            <tbody>
+              {source.topics.length === 0 && (
+                <tr>
+                  <td colSpan={4} style={{ ...S.td, color: "#475569", textAlign: "center", padding: 12 }}>
+                    Nessun topic — aggiungi una mappatura.
+                  </td>
+                </tr>
+              )}
+              {source.topics.map((t, i) => (
+                <tr key={i} style={{ background: i % 2 === 0 ? "transparent" : "#0f172a33" }}>
+                  <td style={S.td}>
+                    <TagInput
+                      style={S.inputSm}
+                      placeholder="pump1.speed"
+                      value={t.tag}
+                      onChange={(v) => setTopic(i, { tag: v })}
+                    />
+                  </td>
+                  <td style={S.td}>
+                    <input
+                      style={S.inputSm}
+                      placeholder="plant/floor1/temperature"
+                      value={t.topic}
+                      onChange={(e) => setTopic(i, { topic: e.target.value })}
+                      spellCheck={false}
+                    />
+                  </td>
+                  <td style={S.td}>
+                    <input
+                      style={S.inputSm}
+                      placeholder="es. temperature"
+                      value={t.json_path ?? ""}
+                      onChange={(e) => setTopic(i, { json_path: e.target.value || undefined })}
+                      spellCheck={false}
+                    />
+                  </td>
+                  <td style={{ ...S.td, textAlign: "right" }}>
+                    <button style={S.btn("danger")} onClick={() => removeTopic(i)}>✕</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+
+          <button style={S.btn("ghost")} onClick={addTopic}>
+            + Aggiungi topic
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── PROTOCOLS tab ─────────────────────────────────────────────────────────────
 
 function ProtocolsTab() {
@@ -489,6 +693,9 @@ function ProtocolsTab() {
 
   const addModbus = () =>
     setSources((prev) => [...prev, emptyModbus()]);
+
+  const addMqtt = () =>
+    setSources((prev) => [...prev, emptyMqtt()]);
 
   const updateSource = (idx: number, updated: SourceDef) =>
     setSources((prev) => prev.map((s, i) => (i === idx ? updated : s)));
@@ -508,18 +715,17 @@ function ProtocolsTab() {
     }
   };
 
-  const modbusSources = sources.filter((s): s is ModbusTcpSource => s.kind === "modbus_tcp");
-
   return (
     <div style={S.section}>
       <div style={S.sectionTitle}>SORGENTI DATI / PROTOCOLLI</div>
       <div style={S.notice}>
-        Configura le connessioni ai dispositivi di campo. Al momento è supportato
-        <strong> Modbus TCP</strong> (lettura registri holding). OPC-UA e MQTT sono pianificati.
-        Dopo il salvataggio, <strong>riavvia il runtime</strong> per attivare nuove connessioni.
+        Configura le connessioni ai dispositivi di campo. Supportati: <strong>Modbus TCP</strong>
+        (lettura registri holding) e <strong>MQTT</strong> (sottoscrizione topic). OPC-UA pianificato.
+        Le sorgenti vengono ricollegate <strong>in tempo reale</strong> al salvataggio (niente
+        riavvio del runtime).
       </div>
 
-      {modbusSources.length === 0 && (
+      {sources.length === 0 && (
         <div style={{ color: "#475569", fontSize: 13, marginBottom: 16 }}>
           Nessuna sorgente configurata.
         </div>
@@ -536,6 +742,16 @@ function ProtocolsTab() {
             />
           );
         }
+        if (src.kind === "mqtt") {
+          return (
+            <MqttSourceCard
+              key={i}
+              source={src}
+              onChange={(updated) => updateSource(i, updated)}
+              onDelete={() => removeSource(i)}
+            />
+          );
+        }
         return null;
       })}
 
@@ -543,12 +759,213 @@ function ProtocolsTab() {
         <button style={S.btn("ghost")} onClick={addModbus}>
           + Aggiungi Modbus TCP
         </button>
+        <button style={S.btn("ghost")} onClick={addMqtt}>
+          + Aggiungi MQTT
+        </button>
         <button style={{ ...S.btn("ghost"), opacity: 0.4, cursor: "not-allowed" }} disabled>
           + OPC-UA (prossimamente)
         </button>
-        <button style={{ ...S.btn("ghost"), opacity: 0.4, cursor: "not-allowed" }} disabled>
-          + MQTT (prossimamente)
-        </button>
+      </div>
+
+      <SaveBar
+        onSave={handleSave}
+        saving={saving}
+        saved={saved}
+        savedNotice="✓ Salvato — sorgenti ricollegate al volo."
+      />
+    </div>
+  );
+}
+
+// ── ALARMS tab ────────────────────────────────────────────────────────────────
+
+function emptyAlarm(): AlarmDef {
+  return {
+    id: `alm-${genId()}`,
+    tag: "",
+    condition: { kind: "above", threshold: 0 },
+    message: "",
+    severity: "Warning",
+  };
+}
+
+function AlarmsTab() {
+  const storeProject        = useAppStore((s) => s.project);
+  const updateProjectAlarms = useAppStore((s) => s.updateProjectAlarms);
+  const liveAlarms          = useAppStore((s) => s.alarms);
+
+  const [alarms, setAlarms] = useState<AlarmDef[]>(storeProject?.alarms ?? []);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved]   = useState(false);
+
+  useEffect(() => {
+    if (storeProject?.alarms) setAlarms(storeProject.alarms);
+  }, [storeProject?.alarms?.length]);
+
+  const addAlarm = () =>
+    setAlarms((prev) => [...prev, emptyAlarm()]);
+
+  const updateAlarm = (idx: number, patch: Partial<AlarmDef>) =>
+    setAlarms((prev) => prev.map((a, i) => (i === idx ? { ...a, ...patch } : a)));
+
+  const updateCondition = (idx: number, cond: AlarmCondition) =>
+    updateAlarm(idx, { condition: cond });
+
+  const removeAlarm = (idx: number) =>
+    setAlarms((prev) => prev.filter((_, i) => i !== idx));
+
+  const handleSave = async () => {
+    const valid = alarms.filter((a) => a.id.trim() !== "" && a.tag.trim() !== "");
+    setSaving(true);
+    try {
+      await api.updateAlarms(valid);
+      updateProjectAlarms(valid);
+      setAlarms(valid);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 4000);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div style={S.section}>
+      <div style={S.sectionTitle}>ALLARMI</div>
+      <div style={S.notice}>
+        Ogni allarme osserva una variabile e si attiva quando la condizione è
+        soddisfatta. Condizioni disponibili: <em>above</em> / <em>below</em>
+        (soglia numerica) e <em>bool_equals</em> (per tag booleani). Lo stato
+        attivo è mostrato nella barra in alto della UI.
+      </div>
+
+      <table style={S.table}>
+        <thead>
+          <tr>
+            <th style={{ ...S.th, width: "16%" }}>ID</th>
+            <th style={{ ...S.th, width: "18%" }}>Tag</th>
+            <th style={{ ...S.th, width: "10%" }}>Condizione</th>
+            <th style={{ ...S.th, width: "14%" }}>Valore / soglia</th>
+            <th style={{ ...S.th, width: "12%" }}>Severità</th>
+            <th style={{ ...S.th, width: "20%" }}>Messaggio</th>
+            <th style={{ ...S.th, width: "6%" }}>Stato</th>
+            <th style={S.th} />
+          </tr>
+        </thead>
+        <tbody>
+          {alarms.length === 0 && (
+            <tr>
+              <td colSpan={8} style={{ ...S.td, color: "#475569", textAlign: "center", padding: 12 }}>
+                Nessun allarme definito.
+              </td>
+            </tr>
+          )}
+          {alarms.map((alm, i) => {
+            const live = liveAlarms[alm.id];
+            return (
+              <tr key={i} style={{ background: i % 2 === 0 ? "transparent" : "#0f172a" }}>
+                <td style={S.td}>
+                  <input
+                    style={S.inputSm}
+                    value={alm.id}
+                    onChange={(e) => updateAlarm(i, { id: e.target.value })}
+                    spellCheck={false}
+                  />
+                </td>
+                <td style={S.td}>
+                  <TagInput
+                    style={S.inputSm}
+                    placeholder="es. boiler.t"
+                    value={alm.tag}
+                    onChange={(v) => updateAlarm(i, { tag: v })}
+                  />
+                </td>
+                <td style={S.td}>
+                  <select
+                    style={{ ...S.inputSm, cursor: "pointer" }}
+                    value={alm.condition.kind}
+                    onChange={(e) => {
+                      const kind = e.target.value as AlarmCondition["kind"];
+                      if (kind === "above" || kind === "below") {
+                        updateCondition(i, { kind, threshold: 0 });
+                      } else {
+                        updateCondition(i, { kind: "bool_equals", value: true });
+                      }
+                    }}
+                  >
+                    <option value="above">above</option>
+                    <option value="below">below</option>
+                    <option value="bool_equals">bool_equals</option>
+                  </select>
+                </td>
+                <td style={S.td}>
+                  {alm.condition.kind === "bool_equals" ? (
+                    <select
+                      style={{ ...S.inputSm, cursor: "pointer" }}
+                      value={alm.condition.value ? "true" : "false"}
+                      onChange={(e) =>
+                        updateCondition(i, { kind: "bool_equals", value: e.target.value === "true" })
+                      }
+                    >
+                      <option value="true">true</option>
+                      <option value="false">false</option>
+                    </select>
+                  ) : (
+                    <input
+                      style={S.inputSm}
+                      type="number"
+                      step="any"
+                      value={alm.condition.threshold}
+                      onChange={(e) => {
+                        const kind = alm.condition.kind as "above" | "below";
+                        updateCondition(i, { kind, threshold: Number(e.target.value) });
+                      }}
+                    />
+                  )}
+                </td>
+                <td style={S.td}>
+                  <select
+                    style={{ ...S.inputSm, cursor: "pointer" }}
+                    value={alm.severity ?? "Warning"}
+                    onChange={(e) => updateAlarm(i, { severity: e.target.value as AlarmSeverity })}
+                  >
+                    <option value="Info">Info</option>
+                    <option value="Warning">Warning</option>
+                    <option value="Critical">Critical</option>
+                  </select>
+                </td>
+                <td style={S.td}>
+                  <input
+                    style={S.inputSm}
+                    placeholder="es. Temperatura alta"
+                    value={alm.message}
+                    onChange={(e) => updateAlarm(i, { message: e.target.value })}
+                  />
+                </td>
+                <td style={{ ...S.td, textAlign: "center" }}>
+                  {live ? (
+                    <span style={{
+                      fontSize: 11, fontWeight: 600,
+                      color: live.active
+                        ? (live.acknowledged ? "#eab308" : "#ef4444")
+                        : "#64748b",
+                    }}>
+                      {live.active ? (live.acknowledged ? "ACK" : "ON") : "—"}
+                    </span>
+                  ) : (
+                    <span style={{ color: "#334155", fontSize: 11 }}>—</span>
+                  )}
+                </td>
+                <td style={{ ...S.td, textAlign: "right" }}>
+                  <button style={S.btn("danger")} onClick={() => removeAlarm(i)}>✕</button>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+
+      <div style={{ marginTop: 10, display: "flex", gap: 8 }}>
+        <button style={S.btn("ghost")} onClick={addAlarm}>+ Aggiungi allarme</button>
       </div>
 
       <SaveBar onSave={handleSave} saving={saving} saved={saved} />
@@ -558,7 +975,13 @@ function ProtocolsTab() {
 
 // ── Main ConfigView ───────────────────────────────────────────────────────────
 
-type ConfigTab = "tags" | "protocols";
+type ConfigTab = "tags" | "protocols" | "alarms";
+
+const TAB_LABELS: Record<ConfigTab, string> = {
+  tags:      "Variabili",
+  protocols: "Protocolli",
+  alarms:    "Allarmi",
+};
 
 export function ConfigView() {
   const [tab, setTab] = useState<ConfigTab>("tags");
@@ -567,9 +990,9 @@ export function ConfigView() {
     <div style={S.page}>
       {/* Tab bar */}
       <div style={S.tabBar}>
-        {(["tags", "protocols"] as ConfigTab[]).map((t) => (
+        {(["tags", "protocols", "alarms"] as ConfigTab[]).map((t) => (
           <button key={t} style={S.tab(tab === t)} onClick={() => setTab(t)}>
-            {t === "tags" ? "Variabili" : "Protocolli"}
+            {TAB_LABELS[t]}
           </button>
         ))}
       </div>
@@ -578,6 +1001,7 @@ export function ConfigView() {
       <div style={S.body}>
         {tab === "tags"      && <TagsTab />}
         {tab === "protocols" && <ProtocolsTab />}
+        {tab === "alarms"    && <AlarmsTab />}
       </div>
     </div>
   );

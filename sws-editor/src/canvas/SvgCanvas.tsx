@@ -1,4 +1,5 @@
 import { useRef } from "react";
+import { TrendCanvas } from "@/canvas/TrendCanvas";
 import type { SynopticObject, TagState } from "@/types";
 
 // ── Canvas props ──────────────────────────────────────────────────────────────
@@ -13,6 +14,8 @@ interface SvgCanvasProps {
   onSelect?: (id: string | null) => void;
   onMove?: (id: string, patch: Partial<SynopticObject>) => void;
   onWriteTag?: (tagId: string, value: string | number | boolean) => void;
+  /** View-mode dispatcher for on_press / on_release Python scripts. */
+  onScript?: (code: string) => void;
   onNavigate?: (pageId: string) => void;
 }
 
@@ -46,6 +49,41 @@ function clamp(v: number, lo: number, hi: number) {
 }
 
 // ── Quality helpers ───────────────────────────────────────────────────────────
+
+/**
+ * Stable sort by z_index (default 0). Objects with the same z keep their
+ * original array order (later in the array → drawn on top within the tier).
+ * SVG paints in document order, so the returned array matches "back-to-front".
+ */
+function sortByZ(objects: SynopticObject[]): SynopticObject[] {
+  return objects
+    .map((o, i) => ({ o, i }))
+    .sort((a, b) => {
+      const za = a.o.z_index ?? 0;
+      const zb = b.o.z_index ?? 0;
+      if (za !== zb) return za - zb;
+      return a.i - b.i;
+    })
+    .map((x) => x.o);
+}
+
+/**
+ * Resolve runtime visibility for an object.
+ * If `visible_tag` is bound and present in tagValues, its value drives the
+ * decision (truthy → visible). Otherwise the static `visible` flag wins
+ * (default true). Edit mode uses this only to dim hidden objects; runtime
+ * mode skips them entirely.
+ */
+function isObjectVisible(obj: SynopticObject, tagValues: Record<string, TagState>): boolean {
+  if (obj.visible_tag && tagValues[obj.visible_tag]) {
+    const v = tagValues[obj.visible_tag].value;
+    if (typeof v === "boolean") return v;
+    if (typeof v === "number")  return v !== 0;
+    if (typeof v === "string")  return v.trim().length > 0;
+    return Boolean(v);
+  }
+  return obj.visible !== false;
+}
 
 function qualityColor(quality: TagState["quality"]): string {
   if (quality === "Good") return "#22c55e";
@@ -91,6 +129,7 @@ export function SvgCanvas({
   onSelect,
   onMove,
   onWriteTag,
+  onScript,
   onNavigate,
 }: SvgCanvasProps) {
   const dragRef = useRef<DragState | null>(null);
@@ -149,19 +188,37 @@ export function SvgCanvas({
       )}
       {gridSize > 0 && <rect width="100%" height="100%" fill="url(#sws-grid)" />}
 
-      {objects.map((obj) => (
-        <SvgObject
-          key={obj.id}
-          obj={obj}
-          tagValues={tagValues}
-          selected={selectedId === obj.id}
-          isEditMode={!!onMove}
-          onSelect={onSelect}
-          onStartDrag={onMove ? startDrag : undefined}
-          onWriteTag={onWriteTag}
-          onNavigate={onNavigate}
-        />
-      ))}
+      {sortByZ(objects).map((obj) => {
+        // Visibility: in view mode, skip non-visible objects entirely.
+        // In edit mode, always render so the designer can still select them
+        // (rendered at reduced opacity to signal "hidden at runtime").
+        const visible = isObjectVisible(obj, tagValues);
+        const inEdit = !!onMove;
+        if (!visible && !inEdit) return null;
+        const gStyle = !visible && inEdit ? { opacity: 0.35 } : undefined;
+        // Press/release dispatch (view mode only). Doesn't interfere with the
+        // per-type click handlers inside SvgObject — both can fire.
+        const onPress   = !inEdit && obj.on_press && onScript
+          ? () => onScript(obj.on_press!)
+          : undefined;
+        const onRelease = !inEdit && obj.on_release && onScript
+          ? () => onScript(obj.on_release!)
+          : undefined;
+        return (
+          <g key={obj.id} style={gStyle} onMouseDown={onPress} onMouseUp={onRelease}>
+            <SvgObject
+              obj={obj}
+              tagValues={tagValues}
+              selected={selectedId === obj.id}
+              isEditMode={inEdit}
+              onSelect={onSelect}
+              onStartDrag={onMove ? startDrag : undefined}
+              onWriteTag={onWriteTag}
+              onNavigate={onNavigate}
+            />
+          </g>
+        );
+      })}
     </svg>
   );
 }
@@ -256,16 +313,39 @@ function SvgObject(p: ObjProps) {
 
   if (obj.type === "text") {
     const tv = obj.tag ? tagValues[obj.tag] : undefined;
-    const label = tv != null ? formatValue(tv.value, obj.format) : (obj.tag ?? "text");
+    // Precedence: bound tag → format template (default "{value}");
+    //             otherwise → static `text` field; otherwise → placeholder.
+    const content = tv != null
+      ? formatValue(tv.value, obj.format ?? "{value}")
+      : (obj.text ?? obj.tag ?? "Testo");
+    const size      = obj.font_size ?? 14;
+    const family    = obj.font_family ?? undefined;
+    const weight    = obj.font_weight ?? "normal";
+    const style     = obj.font_style ?? "normal";
+    const anchor    = obj.text_anchor ?? "start";
+    const colour    = obj.color ?? obj.fill ?? "#e2e8f0";
+    // Selection rect is a rough estimate — SVG text has no width attr without measuring.
+    const approxW   = Math.max(40, content.length * size * 0.6);
+    const dx        = anchor === "middle" ? -approxW / 2 : anchor === "end" ? -approxW : 0;
     return (
       <>
-        {selRect(obj.x - 4, obj.y - 14, 120, 20)}
-        <text x={obj.x} y={obj.y} fill={obj.fill ?? "#fff"} fontSize={obj.stroke_width ?? 14}
+        {selRect(obj.x + dx - 2, obj.y - size + 2, approxW + 4, size + 6)}
+        <text
+          x={obj.x}
+          y={obj.y}
+          fill={colour}
+          fontSize={size}
+          fontFamily={family}
+          fontWeight={weight as any}
+          fontStyle={style}
+          textAnchor={anchor}
           style={{ cursor: editCursor }}
-          onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()}>
-          {label}
+          onMouseDown={handleMouseDown}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {content}
         </text>
-        {tv && <QDot x={obj.x - 8} y={obj.y - 4} quality={tv.quality} />}
+        {tv && <QDot x={obj.x - 10} y={obj.y - size / 2} quality={tv.quality} />}
       </>
     );
   }
@@ -771,6 +851,51 @@ function SvgObject(p: ObjProps) {
             style={{ pointerEvents: "none" }}>
             Nessuna riga — configura nelle proprietà
           </text>
+        )}
+      </g>
+    );
+  }
+
+  // ── TREND ───────────────────────────────────────────────────────────────────
+
+  if (obj.type === "trend") {
+    const w = obj.width ?? 360;
+    const h = obj.height ?? 180;
+    // Edit mode: static placeholder (no polling, no canvas — drag-friendly).
+    // View mode: full TrendCanvas with polling. The handleMouseDown captures
+    // clicks even in view mode so the operator can still "select" if needed.
+    return (
+      <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()}
+         style={{ cursor: editCursor }}>
+        {selRect(obj.x, obj.y, w, h)}
+        {isEditMode ? (
+          <>
+            <rect x={obj.x} y={obj.y} width={w} height={h} rx={4}
+              fill="#0f172a" stroke={selected ? "#facc15" : "#334155"}
+              strokeWidth={selected ? 2 : 1} />
+            <text x={obj.x + w / 2} y={obj.y + h / 2 - 6}
+              textAnchor="middle" fill="#64748b" fontSize={12}
+              style={{ pointerEvents: "none" }}>
+              Trend{obj.tag ? ` — ${obj.tag}` : ""}
+            </text>
+            <text x={obj.x + w / 2} y={obj.y + h / 2 + 10}
+              textAnchor="middle" fill="#475569" fontSize={10}
+              style={{ pointerEvents: "none" }}>
+              {obj.window_s ?? 60}s · autofit
+            </text>
+          </>
+        ) : (
+          <foreignObject x={obj.x} y={obj.y} width={w} height={h}>
+            <TrendCanvas
+              tag={obj.tag ?? ""}
+              windowS={obj.window_s ?? 60}
+              width={w}
+              height={h}
+              lineColor={obj.line_color ?? "#3b82f6"}
+              yMin={obj.y_min}
+              yMax={obj.y_max}
+            />
+          </foreignObject>
         )}
       </g>
     );

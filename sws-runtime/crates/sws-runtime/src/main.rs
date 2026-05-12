@@ -7,7 +7,11 @@ use hyper_util::rt::{TokioExecutor, TokioIo};
 use hyper_util::server::conn::auto::Builder as ConnBuilder;
 use rcgen::generate_simple_self_signed;
 use std::{net::SocketAddr, path::PathBuf, sync::Arc};
-use sws_core::TagDb;
+use sws_auth::AuthState;
+use sws_core::{AlarmDb, TagDb, TagWriteBus};
+use sws_historian::Historian;
+use sws_pyscript::Engine as PyEngine;
+use sws_web::SourceSupervisor;
 use tokio::net::TcpListener;
 use tokio_rustls::{
     rustls::{
@@ -50,27 +54,71 @@ async fn main() -> anyhow::Result<()> {
 
     let acceptor = build_tls_acceptor(&args.config)?;
 
-    let tag_db = Arc::new(TagDb::new(256));
+    let tag_db    = Arc::new(TagDb::new(256));
+    let bus       = Arc::new(TagWriteBus::new());
+    let alarm_db  = Arc::new(AlarmDb::new(64));
+    // 5_000 samples × ~100 tags ≈ a few MB. Adjust per-tag cap when we learn
+    // realistic project sizes — for now this is the PoC sizing.
+    let historian = Arc::new(Historian::new(5_000));
+    let py_engine = PyEngine::new(tag_db.clone(), bus.clone());
+    let supervisor = SourceSupervisor::new(tag_db.clone(), bus.clone());
+
+    // Admin credentials must be provided via env. The runtime refuses to
+    // start with an empty password — that is the "no default credentials"
+    // commitment in docs/CONTEXT.md §6.
+    let admin_user = std::env::var("SWS_ADMIN_USER").unwrap_or_else(|_| "admin".into());
+    let admin_pwd  = std::env::var("SWS_ADMIN_PASSWORD")
+        .context("SWS_ADMIN_PASSWORD is required on first start (no default password)")?;
+    let auth = AuthState::new(admin_user, &admin_pwd)?;
 
     match sws_core::project::Project::load(&args.project) {
         Ok(project) => {
-            info!(name = %project.meta.name, tags = project.tags.len(), "project loaded");
+            info!(
+                name = %project.meta.name,
+                tags = project.tags.len(),
+                alarms = project.alarms.len(),
+                "project loaded",
+            );
             project.populate_tags(&tag_db).await;
-            for source in project.sources {
-                match source {
-                    sws_core::SourceDef::ModbusTcp(cfg) => {
-                        let db = tag_db.clone();
-                        tokio::spawn(async move { sws_plugin_modbus::run(cfg, db).await });
-                    }
-                }
-            }
+            alarm_db.load(project.alarms).await;
+            supervisor.reload(project.sources).await;
         }
         Err(e) => {
             warn!("project.yaml not found or invalid — starting with empty tag database: {e:#}");
         }
     }
 
-    let app = sws_web::router::build(tag_db, Arc::new(args.project.clone()));
+    // Alarm evaluator: every TagDb update is fed to AlarmDb, which re-evaluates
+    // the alarms watching that tag and broadcasts any transitions.
+    {
+        let adb = alarm_db.clone();
+        let mut tag_rx = tag_db.subscribe();
+        tokio::spawn(async move {
+            loop {
+                match tag_rx.recv().await {
+                    Ok(update) => adb.evaluate(&update.id, &update.state).await,
+                    Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
+                        warn!("alarm evaluator lagged by {n}");
+                    }
+                    Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
+                }
+            }
+        });
+    }
+
+    // Historian recorder: append every TagDb update to the per-tag ring buffer.
+    historian.clone().spawn_recorder(tag_db.clone());
+
+    let app = sws_web::router::build(
+        tag_db,
+        bus,
+        alarm_db,
+        historian,
+        py_engine,
+        auth,
+        supervisor.clone(),
+        Arc::new(args.project.clone()),
+    );
 
     let addr: SocketAddr = "0.0.0.0:8443".parse()?;
     let listener = TcpListener::bind(addr).await?;
