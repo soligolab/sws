@@ -7,6 +7,7 @@ use hyper_util::rt::{TokioExecutor, TokioIo};
 use hyper_util::server::conn::auto::Builder as ConnBuilder;
 use rcgen::generate_simple_self_signed;
 use std::{net::SocketAddr, path::PathBuf, sync::Arc};
+use sws_auth::AuthState;
 use sws_core::{AlarmDb, TagDb, TagWriteBus};
 use sws_historian::Historian;
 use sws_pyscript::Engine as PyEngine;
@@ -59,6 +60,14 @@ async fn main() -> anyhow::Result<()> {
     // realistic project sizes — for now this is the PoC sizing.
     let historian = Arc::new(Historian::new(5_000));
     let py_engine = PyEngine::new(tag_db.clone(), bus.clone());
+
+    // Admin credentials must be provided via env. The runtime refuses to
+    // start with an empty password — that is the "no default credentials"
+    // commitment in docs/CONTEXT.md §6.
+    let admin_user = std::env::var("SWS_ADMIN_USER").unwrap_or_else(|_| "admin".into());
+    let admin_pwd  = std::env::var("SWS_ADMIN_PASSWORD")
+        .context("SWS_ADMIN_PASSWORD is required on first start (no default password)")?;
+    let auth = AuthState::new(admin_user, &admin_pwd)?;
 
     match sws_core::project::Project::load(&args.project) {
         Ok(project) => {
@@ -116,6 +125,7 @@ async fn main() -> anyhow::Result<()> {
         alarm_db,
         historian,
         py_engine,
+        auth,
         Arc::new(args.project.clone()),
     );
 

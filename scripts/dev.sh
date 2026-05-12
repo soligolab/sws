@@ -27,6 +27,19 @@ CONFIG_DIR="$RUN_DIR/config"
 PROJECT_DIR="$RUN_DIR/project"
 LOG_DIR="$RUN_DIR/logs"
 
+# pyo3-build-config defaults to /usr/bin/python which isn't present on Debian
+# Bookworm (only /usr/bin/python3). Point it at python3 explicitly so cargo
+# build/check work out of the box.
+if [ -z "${PYO3_PYTHON:-}" ] && command -v python3 >/dev/null 2>&1; then
+  export PYO3_PYTHON=python3
+fi
+
+# Admin credentials for the runtime. Override via environment if you have
+# something stronger; the default is fine for local dev only.
+: "${SWS_ADMIN_USER:=admin}"
+: "${SWS_ADMIN_PASSWORD:=admin}"
+export SWS_ADMIN_USER SWS_ADMIN_PASSWORD
+
 mkdir -p "$CONFIG_DIR" "$PROJECT_DIR" "$LOG_DIR"
 
 # ── Seed an example project.yaml if there is none ────────────────────────────

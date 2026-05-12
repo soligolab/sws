@@ -1,5 +1,6 @@
 // TODO: exponential back-off reconnection.
 import { useEffect } from "react";
+import { getAuthToken } from "@/api/client";
 import { useAppStore } from "@/store";
 import type { TagQuality } from "@/types";
 
@@ -9,20 +10,34 @@ import type { TagQuality } from "@/types";
  * the Vite proxy upgrades `/ws/*` to the runtime; in production nginx
  * serves both the SPA and the WS on the same origin. An explicit override
  * via `VITE_RUNTIME_WS_URL` is still honoured.
+ *
+ * Auth: browsers can't set Authorization on the WebSocket upgrade, so we
+ * pass the session token as the `?token=...` query param, which the
+ * runtime's auth middleware accepts.
  */
-function defaultWsUrl(path: string): string {
-  if (typeof window === "undefined") return `ws://localhost/${path}`;
-  const proto = window.location.protocol === "https:" ? "wss" : "ws";
-  return `${proto}://${window.location.host}${path}`;
+function buildWsUrl(path: string): string {
+  const base = import.meta.env.VITE_RUNTIME_WS_URL
+    ?? (typeof window === "undefined"
+          ? `ws://localhost${path}`
+          : `${window.location.protocol === "https:" ? "wss" : "ws"}://${window.location.host}${path}`);
+  const token = getAuthToken();
+  if (!token) return base;
+  return `${base}${base.includes("?") ? "&" : "?"}token=${encodeURIComponent(token)}`;
 }
 
-const WS_URL = import.meta.env.VITE_RUNTIME_WS_URL ?? defaultWsUrl("/ws/tags");
-
 let socket: WebSocket | null = null;
+let currentToken: string | null = null;
 
 function getSocket(): WebSocket {
+  const token = getAuthToken();
+  // Drop a socket opened under a different token (e.g. login/logout cycle).
+  if (socket && currentToken !== token) {
+    try { socket.close(); } catch { /* ignore */ }
+    socket = null;
+  }
   if (!socket || socket.readyState === WebSocket.CLOSED) {
-    socket = new WebSocket(WS_URL);
+    currentToken = token;
+    socket = new WebSocket(buildWsUrl("/ws/tags"));
   }
   return socket;
 }

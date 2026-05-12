@@ -1,5 +1,6 @@
 // TODO (ADR 0001): evaluate Redux Toolkit as an alternative before M1 freeze.
 import { create } from "zustand";
+import { setAuthToken } from "@/api/client";
 import type {
   AlarmDef,
   AlarmState,
@@ -11,6 +12,31 @@ import type {
   TagState,
 } from "@/types";
 
+// ── Auth persistence ────────────────────────────────────────────────────
+// Persist the session token in localStorage so a page refresh doesn't kick
+// the operator back to the login screen. Username + token only — no secrets.
+
+const AUTH_KEY = "sws.auth";
+
+function readPersistedAuth(): { token: string; username: string } | null {
+  try {
+    const raw = typeof localStorage !== "undefined" ? localStorage.getItem(AUTH_KEY) : null;
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (typeof parsed?.token === "string" && typeof parsed?.username === "string") {
+      return parsed;
+    }
+  } catch { /* ignore */ }
+  return null;
+}
+
+function writePersistedAuth(payload: { token: string; username: string } | null) {
+  try {
+    if (payload) localStorage.setItem(AUTH_KEY, JSON.stringify(payload));
+    else         localStorage.removeItem(AUTH_KEY);
+  } catch { /* ignore */ }
+}
+
 function genId(): string {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 }
@@ -20,6 +46,10 @@ function makePage(name: string): SynopticPage {
 }
 
 interface AppState {
+  // Auth
+  authToken: string | null;
+  authUser: string | null;
+
   project: ProjectInfo | null;
   pages: SynopticPage[];
   currentPageId: string;
@@ -28,6 +58,9 @@ interface AppState {
   alarms: Record<string, AlarmState>;
   gridSize: number;
   snapEnabled: boolean;
+
+  setAuth: (token: string, username: string) => void;
+  clearAuth: () => void;
 
   setProject: (p: ProjectInfo) => void;
   updateProjectTags: (tags: TagDef[]) => void;
@@ -62,7 +95,15 @@ interface AppState {
 
 const first = makePage("Page 1");
 
+// Hydrate persisted auth at module load time so api.client picks up the
+// token before the first network request fires.
+const persisted = readPersistedAuth();
+if (persisted) setAuthToken(persisted.token);
+
 export const useAppStore = create<AppState>((set, get) => ({
+  authToken: persisted?.token ?? null,
+  authUser:  persisted?.username ?? null,
+
   project: null,
   pages: [first],
   currentPageId: first.id,
@@ -71,6 +112,18 @@ export const useAppStore = create<AppState>((set, get) => ({
   alarms: {},
   gridSize: 10,
   snapEnabled: true,
+
+  setAuth: (token, username) => {
+    setAuthToken(token);
+    writePersistedAuth({ token, username });
+    set({ authToken: token, authUser: username });
+  },
+
+  clearAuth: () => {
+    setAuthToken(null);
+    writePersistedAuth(null);
+    set({ authToken: null, authUser: null });
+  },
 
   setProject: (project) => set({ project }),
 

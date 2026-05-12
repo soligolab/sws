@@ -1,12 +1,14 @@
 use std::{collections::HashMap, path::PathBuf, sync::Arc};
 use axum::{
-    extract::{ws::{Message, WebSocket, WebSocketUpgrade}, Path, Query, State},
-    http::StatusCode,
-    response::IntoResponse,
-    routing::{get, put},
+    extract::{ws::{Message, WebSocket, WebSocketUpgrade}, Path, Query, Request, State},
+    http::{header, StatusCode},
+    middleware::{self, Next},
+    response::{IntoResponse, Response},
+    routing::{get, post, put},
     Json, Router,
 };
 use serde::Deserialize;
+use sws_auth::{AuthState, Credentials, LoginOk};
 use sws_core::{
     AlarmDb, AlarmDef, AlarmState, Project, ProjectMeta, SourceDef, TagDb, TagDef, TagId,
     TagQuality, TagState, TagUpdate, TagValue, TagWriteBus, WriteError,
@@ -23,6 +25,7 @@ pub struct AppState {
     pub alarms: Arc<AlarmDb>,
     pub historian: Arc<Historian>,
     pub py: PyEngine,
+    pub auth: Arc<AuthState>,
     pub project_dir: Arc<PathBuf>,
 }
 
@@ -32,22 +35,24 @@ pub fn build(
     alarms: Arc<AlarmDb>,
     historian: Arc<Historian>,
     py: PyEngine,
+    auth: Arc<AuthState>,
     project_dir: Arc<PathBuf>,
 ) -> Router {
-    let state = AppState { db, bus, alarms, historian, py, project_dir };
-    Router::new()
-        .route("/health",  get(|| async { "ok" }))
-        .route("/metrics", get(|| async { "# SWS metrics placeholder\n" }))
+    let state = AppState { db, bus, alarms, historian, py, auth, project_dir };
+
+    // Routes that require a valid session (Bearer token in Authorization
+    // header for HTTP, or ?token=... query param for WS upgrade).
+    let protected = Router::new()
         // Tag REST
         .route("/api/tags",      get(get_all_tags))
         .route("/api/tags/:id",  get(get_tag).put(write_tag))
         // Alarm REST
         .route("/api/alarms",         get(get_alarms))
-        .route("/api/alarms/:id/ack", axum::routing::post(ack_alarm))
+        .route("/api/alarms/:id/ack", post(ack_alarm))
         // Historian
         .route("/api/history/:tag", get(get_history))
         // Python script execution (fires from press/release handlers)
-        .route("/api/script/exec", axum::routing::post(exec_script))
+        .route("/api/script/exec", post(exec_script))
         // Project info + config
         .route("/api/project",         get(get_project))
         .route("/api/project/tags",    put(update_project_tags))
@@ -59,8 +64,107 @@ pub fn build(
         // WebSocket
         .route("/ws/tags",   get(ws_tags_handler))
         .route("/ws/alarms", get(ws_alarms_handler))
-        .with_state(state)
+        // Whoami: lightweight health-check for the session
+        .route("/api/auth/whoami", get(whoami))
+        .route("/api/auth/logout", post(logout))
+        .route_layer(middleware::from_fn_with_state(state.clone(), require_auth));
+
+    // Always-open routes: liveness probes + login.
+    let open = Router::new()
+        .route("/health",  get(|| async { "ok" }))
+        .route("/metrics", get(|| async { "# SWS metrics placeholder\n" }))
+        .route("/api/auth/login", post(login));
+
+    open.merge(protected).with_state(state)
 }
+
+// ── Auth middleware ──────────────────────────────────────────────────────────
+
+/// Look up a bearer token in either the `Authorization: Bearer ...` header
+/// or the `?token=...` query string (the latter is for browser WebSocket
+/// upgrades, which cannot set custom headers). Inserts the resolved
+/// username into request extensions for downstream handlers.
+async fn require_auth(
+    State(s): State<AppState>,
+    mut req: Request,
+    next: Next,
+) -> Response {
+    let token = req
+        .headers()
+        .get(header::AUTHORIZATION)
+        .and_then(|h| h.to_str().ok())
+        .and_then(|s| s.strip_prefix("Bearer "))
+        .map(|t| t.to_string())
+        .or_else(|| {
+            let uri = req.uri();
+            let q = uri.query().unwrap_or("");
+            url_form_decode(q).into_iter()
+                .find(|(k, _)| k == "token")
+                .map(|(_, v)| v)
+        });
+
+    let Some(token) = token else {
+        return StatusCode::UNAUTHORIZED.into_response();
+    };
+    let Some(user) = s.auth.validate(&token).await else {
+        return StatusCode::UNAUTHORIZED.into_response();
+    };
+    req.extensions_mut().insert(AuthUser(user));
+    next.run(req).await
+}
+
+#[derive(Clone, Debug)]
+pub struct AuthUser(pub String);
+
+/// Minimal application/x-www-form-urlencoded parser — only handles the
+/// shape we need (`k=v&k2=v2`) without pulling in a dep.
+fn url_form_decode(q: &str) -> Vec<(String, String)> {
+    q.split('&')
+        .filter(|p| !p.is_empty())
+        .filter_map(|p| {
+            let mut it = p.splitn(2, '=');
+            let k = it.next()?.to_string();
+            let v = it.next().unwrap_or("").to_string();
+            Some((k, v))
+        })
+        .collect()
+}
+
+// ── Auth endpoints ───────────────────────────────────────────────────────────
+
+async fn login(
+    State(s): State<AppState>,
+    Json(creds): Json<Credentials>,
+) -> Response {
+    match s.auth.login(&creds).await {
+        Some(ok) => Json(ok).into_response(),
+        None     => StatusCode::UNAUTHORIZED.into_response(),
+    }
+}
+
+async fn logout(
+    State(s): State<AppState>,
+    req: Request,
+) -> StatusCode {
+    let token = req.headers().get(header::AUTHORIZATION)
+        .and_then(|h| h.to_str().ok())
+        .and_then(|h| h.strip_prefix("Bearer "));
+    if let Some(t) = token { s.auth.logout(t).await; }
+    StatusCode::NO_CONTENT
+}
+
+#[derive(serde::Serialize)]
+struct Whoami { username: String }
+
+async fn whoami(req: Request) -> Json<Whoami> {
+    // require_auth has already inserted AuthUser; missing here would be a bug.
+    let user = req.extensions().get::<AuthUser>().cloned()
+        .map(|u| u.0).unwrap_or_default();
+    Json(Whoami { username: user })
+}
+
+#[allow(dead_code)]
+fn _force_login_ok_used(_: LoginOk) {}
 
 // ── Tag endpoints ────────────────────────────────────────────────────────────
 
