@@ -2,9 +2,9 @@
 
 > This file is the **session-to-session memory** for Claude Code. Update it at the end of every session before stopping work. Read it at the start of every session before touching code.
 
-**Last session**: 2026-05-11 (Phase 1 — extended object palette: gauge, slider, checkbox, radio, LED, progress bar, table)
+**Last session**: 2026-05-12 (Phase 1 — object palette completata; in attesa: tag dropdown, tipo variabile, MQTT)
 **Current phase**: Phase 1 in progress
-**Last commit**: feat(editor): add gauge, slider, checkbox, radio, LED, progress bar, table objects
+**Last commit**: feat(types): extend SynopticObject and Rust struct with new SCADA object fields
 
 ---
 
@@ -67,9 +67,44 @@
 
 ## What's in progress
 
-- (nothing — all clean)
+> **HANDOFF NOTE — 2026-05-12**
+> Sessione interrotta mentre si stava per implementare tre funzionalità nuove.
+> Il codice è pulito e committato. La prossima sessione riprende da zero con questo blocco:
 
-## Next session should
+### Tre feature da implementare (riprendi da qui)
+
+#### 1. Tag dropdown nell'editor degli oggetti
+In `sws-editor/src/editor/EditorShell.tsx`, nel componente `ObjectProps`,
+i campi "Tag" sono attualmente `<input type="text">`. Sostituirli con un ibrido
+`<input list="taglist"> + <datalist>` che suggerisca i tag definiti nel progetto.
+I tag vengono da `useAppStore(s => s.project?.tags ?? [])`.
+Farlo in un helper `TagInput` riusabile (import da `@/store` e uso in `ObjectProps`).
+Anche nel `ModbusSourceCard` (registro → tag) e nel futuro `MqttTopicCard`.
+
+#### 2. Tipo variabile (TagDef)
+Aggiungere un campo `data_type: "bool" | "int" | "float" | "string"` a `TagDef`:
+- **Rust** `sws-runtime/crates/sws-core/src/project.rs`: aggiungere `#[serde(default = "default_data_type")] pub data_type: String` (default `"float"`)
+- Nella `populate_tags()`: usare `data_type` per scegliere il `TagValue` iniziale corretto (Bool/Int/Float/Str)
+- **TypeScript** `sws-editor/src/types/index.ts`: `TagDef { id, description, data_type?: "bool"|"int"|"float"|"string" }`
+- **ConfigView** `sws-editor/src/config/ConfigView.tsx` `TagsTab`: aggiungere colonna "Tipo" con `<select>` (Bool/Int/Float/Stringa) accanto a ID e Descrizione
+- **PUT /api/project/tags** (`router.rs`): già generico, nessuna modifica server necessaria
+
+#### 3. Plugin MQTT
+**Backend** (`sws-runtime/crates/sws-plugin-mqtt/src/lib.rs`):
+- Struttura config già scaffoldata, dipendenze `rumqttc = "0.24"` già in workspace
+- Implementare `pub async fn run(cfg: MqttConfig, db: Arc<TagDb>)` con `rumqttc::AsyncClient`
+- Config MQTT: `id, host, port (default 1883), client_id, topics: Vec<TopicMapping>`
+- `TopicMapping { tag, topic, json_path? }` — se `json_path` è presente, parsare il payload JSON e estrarre il campo (es. `"temperature"` da `{"temperature": 42.5}`)
+- Riconnessione automatica con backoff (come Modbus, già implementato lì come riferimento)
+- Aggiungere `MqttConfig` e `MqttSource` a `sws-core/src/project.rs` (nuovo variant `SourceDef::Mqtt`)
+- Aggiungere match arm `SourceDef::Mqtt(cfg)` in `sws-runtime/crates/sws-runtime/src/main.rs`
+
+**Frontend** (`sws-editor/src/`):
+- `types/index.ts`: aggiungere `MqttSource { kind: "mqtt", id, host, port, client_id, topics: TopicMapping[] }` e `TopicMapping { tag, topic, json_path? }` + aggiornare `SourceDef = ModbusTcpSource | MqttSource`
+- `config/ConfigView.tsx`: aggiungere `MqttSourceCard` (simile a `ModbusSourceCard`) con host/port/client_id e tabella topic↔tag. Attivare il pulsante "Aggiungi MQTT" (era disabilitato).
+- `LeftPanel.tsx` `SourcesSection`: aggiungere rendering per `kind === "mqtt"`
+
+## Next session should (vecchia lista)
 
 Pick one of these as the next focused work block (each fits 3-4 hours):
 
