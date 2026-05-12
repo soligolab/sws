@@ -2,9 +2,9 @@
 
 > This file is the **session-to-session memory** for Claude Code. Update it at the end of every session before stopping work. Read it at the start of every session before touching code.
 
-**Last session**: 2026-05-11 (Phase 1 — extended object palette: gauge, slider, checkbox, radio, LED, progress bar, table)
-**Current phase**: Phase 1 in progress
-**Last commit**: feat(editor): add gauge, slider, checkbox, radio, LED, progress bar, table objects
+**Last session**: 2026-05-12 (script sandbox + hot-reload sorgenti — supervisor con cancellation)
+**Current phase**: Phase 2 quasi conclusa. Riprende domani con #3 historian polish.
+**Last commit**: feat: script sandbox — timeout, stdout/stderr, optional RestrictedPython
 
 ---
 
@@ -64,22 +64,44 @@
   - `table`: righe dati con tag/etichetta/formato editabili, zebra-shading, qualità dot
 - **LeftPanel**: tutti i 7 nuovi tipi in palette
 - **EditorShell**: defaults per ogni tipo in `handleAddObject`; `ObjectProps` esteso con sezioni per-tipo; `RadioOptionsEditor` e `TableRowsEditor` sub-component
-
-## What's in progress
-
-- (nothing — all clean)
+- **TagInput component** (`sws-editor/src/components/TagInput.tsx`): `<input list>` + `<datalist>` con autocomplete dei tag definiti nel progetto. Usato in `ObjectProps` (tutti i campi Tag), `TableRowsEditor` (righe tabella), `ModbusSourceCard` (mapping registri), `MqttSourceCard` (mapping topic).
+- **TagDef.data_type**: nuovo campo `"bool" | "int" | "float" | "string"` (default `"float"`) in Rust `TagDef` e TS `TagDef`. `populate_tags()` semina il `TagValue` iniziale corretto. ConfigView Variabili: nuova colonna "Tipo" con select.
+- **sws-plugin-mqtt**: subscribe loop con `rumqttc::AsyncClient`, exact-topic match, riconnessione 5 s, decoding payload euristico (bool/int/float/string) o via `json_path` dot-separated.
+- **SourceDef::Mqtt** variant in `sws-core` con `MqttConfig { id, host, port (def 1883), client_id, topics }` e `TopicMapping { tag, topic, json_path? }`. `sws-runtime/main.rs` spawn task MQTT per ogni `mqtt` source.
+- **MqttSourceCard** in ConfigView (host/port/client_id + tabella topic↔tag con TagInput e JSON path opz.). `LeftPanel` SourcesSection renderizza anche MQTT. Pulsante "+ Aggiungi MQTT" attivo.
+- **TagWriteBus** (`sws-core`): registry mpsc tag→plugin. `PUT /api/tags/:id` instrada al plugin owner; fallback diretto a TagDb per tag virtuali. Modbus plugin scrive `write_single_register` con scala inversa + clamp u16. Test unitari coprono routing e NoWriter.
+- **Alarm engine** (`sws-core/alarm.rs`): `AlarmDef` + `AlarmCondition::{Above, Below, BoolEquals}` + `AlarmSeverity` + `AlarmDb` con broadcast. Evaluator task in `sws-runtime` consuma il broadcast TagDb e re-valuta gli alarm. `GET /api/alarms`, `POST /api/alarms/:id/ack`, `WS /ws/alarms`. Configurato via `project.yaml`: campo `alarms: [...]` (backwards compatible).
+- **AlarmBanner live**: hook `useAlarmStream` (snapshot HTTP + WS), badge active/unack, tinta per severità, messaggio più recente, pulsante ACK inline.
+- **Hot-reload tag**: `PUT /api/project/tags` esegue diff con `TagDb` corrente — seed nuovi, evict orfani, valori esistenti preservati. Niente restart per CRUD variabili.
+- **Hot-reload alarm**: `PUT /api/project/alarms` invoca `AlarmDb::load` completo dopo il persist. In-flight active alarms si resettano; il prossimo update li rivaluta.
+- **ConfigView tab "Allarmi"**: CRUD `AlarmDef` con TagInput autocomplete, select condizione (above/below/bool_equals), soglia o bool, severità, messaggio, e colonna stato live (ON / ACK / —).
+- **LICENSE**: file AGPL-3.0 completo già presente in repo, Q7 in OPEN_QUESTIONS marcato come deciso.
+- **Historian** (`sws-historian`): `Historian` ring-buffer in-memory (5000 samples × tag), `record()`/`query(from,to)`/`spawn_recorder(tag_db)`. SQLite stays a stub. Unit-tested.
+- **GET /api/history/:tag**: query string `from`/`to`/`limit`; ritorna `Vec<Sample>` (ts_ms + value + quality).
+- **Trend object** nell'editor: `<foreignObject>` con `<canvas>` 2D. Poll ogni 2 s, autofit Y, badge valore corrente, edit-mode placeholder statico per drag senza fetch. Property panel: tag, window_s, y_min/y_max (entrambi 0 → autofit), line_color.
+- **Z-index / visibility cross-cutting**: ogni `SynopticObject` ha `z_index` (sort prima del render, ties per ordine array), `visible` statico e `visible_tag` (override truthy via tag). UI nella properties panel con pulsanti ▲/▼ per bump del z-index e TagInput per il binding visibilità.
+- **Event handler Python**: campi `on_press` e `on_release` su ogni oggetto. `sws-pyscript::Engine` con PyO3 0.23, esegue gli script in `spawn_blocking`. Bindings: `tags.read(id) -> bool|int|float|str|None`, `tags.write(id, value)` (routing via TagWriteBus → fallback TagDb). `POST /api/script/exec` dal `RuntimeView` su mousedown/mouseup. **Sandboxing rinviato** (Q1 OPEN_QUESTIONS).
+- **Bug fix**: Rust `SynopticObject` non aveva `window_s/y_min/y_max/line_color` per il trend — venivano persi al salvataggio. Aggiunti.
+- **Auth skeleton** (`sws-auth` + `sws-web`): Argon2id hash/verify, in-memory session map `token → username`, `POST /api/auth/login` / `POST /api/auth/logout` / `GET /api/auth/whoami`. Middleware `require_auth` su tutti gli `/api/*` (eccetto login) e su `/ws/*` (token via `?token=...` per il WS upgrade). Admin credenziali seeded da `SWS_ADMIN_USER` / `SWS_ADMIN_PASSWORD` env (runtime rifiuta lo start con password vuota).
+- **Frontend auth**: store `authToken/authUser` con persistenza `localStorage`, `LoginScreen` mostrato senza token, `Authorization: Bearer` automatico su tutte le richieste, WS riapre con nuovo `?token=...` se cambia il token (login/logout), header con "Esci".
+- **dev.sh**: esporta `PYO3_PYTHON=python3` (Debian non ha `/usr/bin/python` di default → pyo3-build-config falliva) e `SWS_ADMIN_USER=admin` / `SWS_ADMIN_PASSWORD=admin` per dev locale.
+- **Text object esteso**: campo `text` statico, `font_size`, `font_family`, `font_weight` (string o number), `font_style`, `text_anchor` (start/middle/end), `color`. Precedenza render: tag+format vince sul testo statico. UI in ObjectProps con select per peso/stile/anchor + color picker.
+- **Campo `name` su ogni oggetto**: alias human-friendly distinto dall'id auto-generato. Mostrato nella nuova `ObjectsSection` del LeftPanel.
+- **ObjectsSection (LeftPanel)**: lista oggetti pagina corrente con click per selezionare, ✎/doubleclick per rinominare inline, ⧉ per duplicare (clone con `(copia)`, offset +20px, selezionato), × per eliminare.
+- **Bug fix**: il vecchio rendering text usava `stroke_width` come fontSize (misuso storico) — ora usa `font_size` con default 14. Aggiunti i campi mancanti al Rust `SynopticObject` per sopravvivere al round-trip YAML.
 
 ## Next session should
 
 Pick one of these as the next focused work block (each fits 3-4 hours):
 
-1. **Auth skeleton** in `sws-auth`:
-   - Argon2id password hash/verify
-   - Session token (UUID, stored in memory map)
-   - Single admin user seeded from `SWS_ADMIN_PASSWORD` env var
-2. **Alarm engine stub** in `sws-core`: alarm conditions on tags, alarm list in editor and runtime
-3. **Historian stub**: ring-buffer in `sws-historian`, exposed as `GET /api/history/:tag?from=&to=`
-4. **Hot-reload per nuovi tag**: dopo `PUT /api/project/tags`, seedare i nuovi tag nel TagDb senza restart
+> Sessione interrotta a fine #2. Si riprende domani da #3 in questo ordine.
+
+1. **Historian polish**: persistenza su SQLite (`sws-historian::sqlite`), decimazione per range lunghi, axis labels e tooltip nel TrendCanvas.
+2. **MQTT write path + demo-driver multi-waveform**: publish on tag-write tramite TagWriteBus; estendere `demo-sine.py` a multiple forme d'onda.
+3. **Editor UX polish**: undo/redo, multi-select, copy/paste, allineamento oggetti.
+4. **Auth polish**: session TTL, refresh, rate limit, RBAC ruoli, cookie httponly.
+5. **Symbol library starter**: cartella `sws-symbols/`, oggetto `symbol` che referenzia SVG di pompe/valvole/motori con stile guidato da tag.
+6. **Demo PX30**: container ARM64, deploy effettivo su Rockchip, gotcha hardware/network documentati.
 
 ## Blockers / questions for the maintainer
 

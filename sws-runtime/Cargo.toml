@@ -14,6 +14,7 @@ homepage     = "https://soligolab.example"
 [workspace.dependencies]
 # Async runtime
 tokio            = { version = "1.36",  features = ["full"] }
+tokio-util       = { version = "0.7" }
 
 # Web framework
 axum             = { version = "0.7",   features = ["ws"] }
@@ -38,7 +39,8 @@ hyper-util     = { version = "0.1", features = ["tokio", "server", "server-auto"
 rustls-pemfile = "2"
 
 # Auth
-argon2 = "0.5"
+argon2 = { version = "0.5", features = ["std"] }
+uuid   = { version = "1", features = ["v4"] }
 
 # CLI
 clap = { version = "4", features = ["derive"] }

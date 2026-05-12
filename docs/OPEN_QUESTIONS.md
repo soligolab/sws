@@ -14,9 +14,29 @@
 - **A** — Embed CPython in the Rust binary via `pyo3`, run scripts in-process with RestrictedPython. Smaller footprint, shared memory with the runtime, but a script crash could affect the runtime.
 - **B** — Run a separate Python worker process, communicate via gRPC or stdin/stdout. Stronger isolation, larger footprint, more moving parts.
 
-**Default for PoC**: pick A (PyO3 + RestrictedPython). Footprint matters on PX30 and the PoC accepts the script-crash risk. Revisit before product release.
+**Default for PoC**: A (PyO3 + RestrictedPython).
 
-**Decided**: not yet. Bootstrap installed `pyo3 0.23` (bumped from spec's 0.21 because system Python is 3.13).
+**Decided**: A (PyO3 + RestrictedPython) is now fully live. `sws-pyscript::Engine`:
+- runs scripts on `tokio::task::spawn_blocking` wrapped in `tokio::time::timeout`
+  (5 s default, override via `SWS_SCRIPT_TIMEOUT_MS`);
+- compiles user source through `RestrictedPython.compile_restricted` when the
+  package is importable in the Python environment used by PyO3 — falls back to
+  plain `compile` with a startup warning if `pip install RestrictedPython` was
+  never run, so dev boxes don't break;
+- redirects `sys.stdout` / `sys.stderr` per-call into `io.StringIO`, captures
+  the strings, and returns them in `ExecOutput { stdout, stderr, sandboxed }`;
+- `/api/script/exec` echoes these back; the editor logs them to the browser
+  console (`[script stdout]` / `[script stderr]`).
+
+Still pending (Phase 2 polish):
+- Pre-flight AST whitelist for the unsandboxed mode so it's at least
+  "no imports, no exec/eval" even without RestrictedPython.
+- Surfacing script output back into the editor UI (a panel, not just the
+  console).
+- Real preemption: tokio's timeout drops the future but the Python thread
+  keeps running until it yields. PyO3's `Python::check_signals` + a signal
+  thread would let us interrupt mid-execution.
+- `into_py` deprecation in PyO3 0.23 — migrate to `IntoPyObject` before 0.24.
 
 ---
 
@@ -90,16 +110,14 @@
 
 ## Q7 — LICENSE file content
 
-**Context**: Bootstrap attempted to write the full AGPL-3.0 text to `LICENSE` but Anthropic's content filter blocked the output. Currently no LICENSE file exists in the repo.
+**Context**: Bootstrap attempted to write the full AGPL-3.0 text to `LICENSE` but Anthropic's content filter blocked the output.
 
 **Options**:
 - **A** — Manually paste the full text from `https://www.gnu.org/licenses/agpl-3.0.txt`.
 - **B** — Short LICENSE file with SPDX identifier + link, plus full text accessible from CI artifacts (some projects do this, though it's unusual for AGPL).
 - **C** — Use a `LICENSE` symlink to `LICENSES/AGPL-3.0-only.txt` and put the actual text under the SPDX-recommended directory structure.
 
-**Default for PoC**: A. Standard practice, blocks the smallest number of tools downstream.
-
-**Decided**: not yet. Action item.
+**Decided**: A. The maintainer added the full AGPL-3.0 text (661 lines, standard preamble + terms + tail) at `LICENSE` out of band; verified 2026-05-12.
 
 ---
 

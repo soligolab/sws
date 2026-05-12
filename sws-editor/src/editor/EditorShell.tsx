@@ -1,6 +1,7 @@
 import { api } from "@/api/client";
 import { SvgCanvas } from "@/canvas/SvgCanvas";
 import { LeftPanel } from "@/editor/LeftPanel";
+import { TagInput } from "@/components/TagInput";
 import { useAppStore } from "@/store";
 import type { RadioOption, SynopticObject, TableRow } from "@/types";
 
@@ -64,7 +65,7 @@ export function EditorShell() {
         addObject({ type, x, y, x2: x + 120, y2: y, stroke: "#e2e8f0", stroke_width: 2 });
         break;
       case "text":
-        addObject({ type, x, y: y + 14, tag: "", format: "{value}" });
+        addObject({ type, x, y: y + 14, text: "Testo", font_size: 14, color: "#e2e8f0", text_anchor: "start" });
         break;
       case "button":
         addObject({ type, x, y, width: 120, height: 40, fill: "#3b82f6", label: "Bottone", write_value: true });
@@ -94,6 +95,10 @@ export function EditorShell() {
       case "table":
         addObject({ type, x, y, width: 300, height: 120,
           table_rows: [{ label: "Tag 1", tag: "", format: "{value:.1f}" }] });
+        break;
+      case "trend":
+        addObject({ type, x, y, width: 360, height: 180,
+          tag: "", window_s: 60, line_color: "#3b82f6" });
         break;
     }
   };
@@ -240,6 +245,15 @@ function ObjectProps({
     />
   );
 
+  const tagInput = (placeholder?: string) => (
+    <TagInput
+      style={INPUT}
+      placeholder={placeholder}
+      value={obj.tag ?? ""}
+      onChange={(v) => onChange({ tag: v })}
+    />
+  );
+
   const colorInput = (key: keyof SynopticObject, fallback: string) => (
     <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
       <input
@@ -257,12 +271,20 @@ function ObjectProps({
     </div>
   );
 
-  const BOX_TYPES = ["rect", "ellipse", "button", "navbutton", "checkbox", "radio", "slider", "gauge", "led", "progress_bar", "table"];
+  const BOX_TYPES = ["rect", "ellipse", "button", "navbutton", "checkbox", "radio", "slider", "gauge", "led", "progress_bar", "table", "trend"];
   const isShape = BOX_TYPES.includes(obj.type);
   const hasStroke = obj.type === "rect" || obj.type === "ellipse" || obj.type === "line";
 
   return (
     <>
+      {field("Nome",
+        <input
+          type="text" style={INPUT}
+          placeholder={obj.type}
+          value={obj.name ?? ""}
+          onChange={(e) => onChange({ name: e.target.value || undefined })}
+        />
+      )}
       {field("ID",   <span style={{ fontSize: 11, color: "#64748b" }}>{obj.id}</span>)}
       {field("Tipo", <span style={{ fontSize: 11, color: "#64748b" }}>{obj.type}</span>)}
 
@@ -301,8 +323,76 @@ function ObjectProps({
       )}
 
       {/* Tag binding */}
-      {obj.type !== "navbutton" && field("Tag", textInput("tag", "es. pump1.speed"))}
-      {obj.type === "text" && field("Formato", textInput("format", "{value:.1f} unit"))}
+      {obj.type !== "navbutton" && field("Tag", tagInput("es. pump1.speed"))}
+
+      {/* Text object: static content + typography */}
+      {obj.type === "text" && (
+        <>
+          {field("Testo (statico)", textInput("text", "Es. Temperatura caldaia"))}
+          {field("Formato (se bound)", textInput("format", "{value:.1f} °C"))}
+          <p style={{ fontSize: 10, color: "#475569", margin: "0 0 4px" }}>
+            Se è impostato un Tag, vince il formato (usa <code>{"{value}"}</code>); altrimenti viene
+            mostrato il testo statico.
+          </p>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+            <div><div style={LABEL}>Dimensione (px)</div>{numInput("font_size", 14)}</div>
+            <div>
+              <div style={LABEL}>Allineamento</div>
+              <select
+                style={{ ...INPUT, cursor: "pointer" }}
+                value={obj.text_anchor ?? "start"}
+                onChange={(e) => onChange({ text_anchor: e.target.value as "start" | "middle" | "end" })}
+              >
+                <option value="start">Sinistra</option>
+                <option value="middle">Centro</option>
+                <option value="end">Destra</option>
+              </select>
+            </div>
+          </div>
+          {field("Font family",
+            <input
+              type="text" style={INPUT}
+              placeholder="es. system-ui, sans-serif"
+              value={obj.font_family ?? ""}
+              onChange={(e) => onChange({ font_family: e.target.value || undefined })}
+              spellCheck={false}
+            />
+          )}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+            <div>
+              <div style={LABEL}>Peso</div>
+              <select
+                style={{ ...INPUT, cursor: "pointer" }}
+                value={String(obj.font_weight ?? "normal")}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  const n = Number(v);
+                  onChange({ font_weight: Number.isFinite(n) && v.match(/^\d+$/) ? n : v });
+                }}
+              >
+                <option value="normal">Normal (400)</option>
+                <option value="bold">Bold (700)</option>
+                <option value="300">300</option>
+                <option value="500">500</option>
+                <option value="600">600</option>
+                <option value="800">800</option>
+              </select>
+            </div>
+            <div>
+              <div style={LABEL}>Stile</div>
+              <select
+                style={{ ...INPUT, cursor: "pointer" }}
+                value={obj.font_style ?? "normal"}
+                onChange={(e) => onChange({ font_style: e.target.value as "normal" | "italic" })}
+              >
+                <option value="normal">Normal</option>
+                <option value="italic">Italic</option>
+              </select>
+            </div>
+          </div>
+          {field("Colore testo", colorInput("color", "#e2e8f0"))}
+        </>
+      )}
 
       {/* Button label + write value */}
       {obj.type === "button" && (
@@ -348,7 +438,7 @@ function ObjectProps({
       {obj.type === "gauge" && (
         <>
           {field("Etichetta", textInput("label", "Gauge"))}
-          {field("Tag", textInput("tag", "es. pump1.speed"))}
+          {field("Tag", tagInput("es. pump1.speed"))}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
             <div><div style={LABEL}>Min</div>{numInput("min", 0)}</div>
             <div><div style={LABEL}>Max</div>{numInput("max", 100)}</div>
@@ -371,7 +461,7 @@ function ObjectProps({
       {/* Slider */}
       {obj.type === "slider" && (
         <>
-          {field("Tag", textInput("tag", "es. pump1.speed"))}
+          {field("Tag", tagInput("es. pump1.speed"))}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6 }}>
             <div><div style={LABEL}>Min</div>{numInput("min", 0)}</div>
             <div><div style={LABEL}>Max</div>{numInput("max", 100)}</div>
@@ -402,7 +492,7 @@ function ObjectProps({
       {obj.type === "checkbox" && (
         <>
           {field("Etichetta", textInput("label", "Checkbox"))}
-          {field("Tag", textInput("tag", "es. pump1.run"))}
+          {field("Tag", tagInput("es. pump1.run"))}
           {field("Valore ON",
             <input type="text" style={INPUT} placeholder="true / 1 / testo"
               value={obj.checked_value !== undefined ? String(obj.checked_value) : ""}
@@ -434,7 +524,7 @@ function ObjectProps({
       {obj.type === "radio" && (
         <>
           {field("Etichetta", textInput("label", "Radio"))}
-          {field("Tag", textInput("tag", "es. pump1.mode"))}
+          {field("Tag", tagInput("es. pump1.mode"))}
           {field("Orientamento",
             <select
               style={{ ...INPUT, cursor: "pointer" }}
@@ -456,7 +546,7 @@ function ObjectProps({
       {obj.type === "led" && (
         <>
           {field("Etichetta", textInput("label", ""))}
-          {field("Tag", textInput("tag", "es. pump1.run"))}
+          {field("Tag", tagInput("es. pump1.run"))}
           {field("Valore ON",
             <input type="text" style={INPUT} placeholder="true / 1 / testo"
               value={obj.on_value !== undefined ? String(obj.on_value) : ""}
@@ -476,7 +566,7 @@ function ObjectProps({
       {obj.type === "progress_bar" && (
         <>
           {field("Etichetta", textInput("label", ""))}
-          {field("Tag", textInput("tag", "es. tank1.level"))}
+          {field("Tag", tagInput("es. tank1.level"))}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
             <div><div style={LABEL}>Min</div>{numInput("min", 0)}</div>
             <div><div style={LABEL}>Max</div>{numInput("max", 100)}</div>
@@ -504,6 +594,85 @@ function ObjectProps({
           onChange={(rows) => onChange({ table_rows: rows as SynopticObject["table_rows"] })}
         />
       )}
+
+      {/* Trend */}
+      {obj.type === "trend" && (
+        <>
+          {field("Tag", tagInput("es. boiler.t"))}
+          {field("Finestra (s)", numInput("window_s", 60))}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+            <div><div style={LABEL}>Y min</div>{numInput("y_min", 0)}</div>
+            <div><div style={LABEL}>Y max</div>{numInput("y_max", 100)}</div>
+          </div>
+          <p style={{ fontSize: 10, color: "#475569", margin: "2px 0 0" }}>
+            Lascia Y min/max a 0 per autofit.
+          </p>
+          {field("Colore linea", colorInput("line_color", "#3b82f6"))}
+        </>
+      )}
+
+      {/* ── Cross-cutting: layer, visibility, event scripts ─────────── */}
+      <div style={{ fontSize: 10, color: "#475569", marginTop: 8, marginBottom: 2, fontWeight: 700, letterSpacing: 0.5 }}>
+        LIVELLO E VISIBILITÀ
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr auto auto", gap: 4, alignItems: "end" }}>
+        <div><div style={LABEL}>z-index</div>{numInput("z_index", 0)}</div>
+        <button
+          title="Porta indietro (-1)"
+          onClick={() => onChange({ z_index: (obj.z_index ?? 0) - 1 })}
+          style={{ ...INPUT, cursor: "pointer", padding: "3px 8px", height: 26 }}
+        >▼</button>
+        <button
+          title="Porta avanti (+1)"
+          onClick={() => onChange({ z_index: (obj.z_index ?? 0) + 1 })}
+          style={{ ...INPUT, cursor: "pointer", padding: "3px 8px", height: 26 }}
+        >▲</button>
+      </div>
+      <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#cbd5e1", marginTop: 4, cursor: "pointer" }}>
+        <input
+          type="checkbox"
+          checked={obj.visible !== false}
+          onChange={(e) => onChange({ visible: e.target.checked })}
+          style={{ accentColor: "#3b82f6" }}
+        />
+        Visibile (statico)
+      </label>
+      <div>
+        <div style={LABEL}>Tag visibilità (override)</div>
+        <TagInput
+          style={INPUT}
+          placeholder="es. valvola.aperta"
+          value={obj.visible_tag ?? ""}
+          onChange={(v) => onChange({ visible_tag: v || undefined })}
+        />
+      </div>
+
+      <div style={{ fontSize: 10, color: "#475569", marginTop: 8, marginBottom: 2, fontWeight: 700, letterSpacing: 0.5 }}>
+        EVENTI (PYTHON)
+      </div>
+      <div>
+        <div style={LABEL}>On press</div>
+        <textarea
+          style={{ ...INPUT, height: 56, fontFamily: "ui-monospace, monospace", fontSize: 11, resize: "vertical" }}
+          placeholder='es. tags.write("pump1.run", True)'
+          value={obj.on_press ?? ""}
+          onChange={(e) => onChange({ on_press: e.target.value || undefined })}
+          spellCheck={false}
+        />
+      </div>
+      <div>
+        <div style={LABEL}>On release</div>
+        <textarea
+          style={{ ...INPUT, height: 56, fontFamily: "ui-monospace, monospace", fontSize: 11, resize: "vertical" }}
+          placeholder='es. tags.write("pump1.run", False)'
+          value={obj.on_release ?? ""}
+          onChange={(e) => onChange({ on_release: e.target.value || undefined })}
+          spellCheck={false}
+        />
+      </div>
+      <p style={{ fontSize: 10, color: "#475569", margin: "0 0 4px" }}>
+        Bindings disponibili: <code>tags.read(id)</code>, <code>tags.write(id, value)</code>, <code>print(...)</code>.
+      </p>
 
       <button
         onClick={onDelete}
@@ -607,8 +776,14 @@ function TableRowsEditor({
           <input type="text" style={{ ...INPUT, marginBottom: 4 }} value={row.label}
             onChange={(e) => update(i, { label: e.target.value })} />
           <div style={LABEL}>Tag</div>
-          <input type="text" style={{ ...INPUT, marginBottom: 4 }} placeholder="es. pump1.speed" value={row.tag}
-            onChange={(e) => update(i, { tag: e.target.value })} />
+          <div style={{ marginBottom: 4 }}>
+            <TagInput
+              style={INPUT}
+              placeholder="es. pump1.speed"
+              value={row.tag}
+              onChange={(v) => update(i, { tag: v })}
+            />
+          </div>
           <div style={LABEL}>Formato</div>
           <input type="text" style={INPUT} placeholder="{value:.1f}" value={row.format ?? ""}
             onChange={(e) => update(i, { format: e.target.value || undefined })} />
