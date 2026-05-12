@@ -29,6 +29,7 @@ anyhow.workspace             = true
 sws-core          = { path = "../sws-core" }
 sws-web           = { path = "../sws-web" }
 sws-plugin-modbus = { path = "../sws-plugin-modbus" }
+sws-plugin-mqtt   = { path = "../sws-plugin-mqtt" }
 sws-auth      = { path = "../sws-auth" }
 sws-historian = { path = "../sws-historian" }
 sws-audit     = { path = "../sws-audit" }

@@ -98,9 +98,13 @@ export interface Project {
 
 // ── Project tree types (from GET /api/project) ────────────────────────────
 
+export type TagDataType = "bool" | "int" | "float" | "string";
+
 export interface TagDef {
   id: string;
   description: string;
+  /** Storage type. Optional in the wire format; defaults to "float" server-side. */
+  data_type?: TagDataType;
 }
 
 export interface RegisterMapping {
@@ -119,7 +123,23 @@ export interface ModbusTcpSource {
   registers: RegisterMapping[];
 }
 
-export type SourceDef = ModbusTcpSource;
+export interface TopicMapping {
+  tag: string;
+  topic: string;
+  /** Optional dot-separated JSON path to extract a field from the payload. */
+  json_path?: string;
+}
+
+export interface MqttSource {
+  kind: "mqtt";
+  id: string;
+  host: string;
+  port: number;
+  client_id: string;
+  topics: TopicMapping[];
+}
+
+export type SourceDef = ModbusTcpSource | MqttSource;
 
 export interface ProjectInfo {
   meta: { name: string; version: string };

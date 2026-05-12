@@ -1,7 +1,16 @@
 import { useEffect, useState } from "react";
 import { api } from "@/api/client";
+import { TagInput } from "@/components/TagInput";
 import { useAppStore } from "@/store";
-import type { ModbusTcpSource, RegisterMapping, SourceDef, TagDef } from "@/types";
+import type {
+  ModbusTcpSource,
+  MqttSource,
+  RegisterMapping,
+  SourceDef,
+  TagDataType,
+  TagDef,
+  TopicMapping,
+} from "@/types";
 
 // ── Shared styles ─────────────────────────────────────────────────────────────
 
@@ -178,7 +187,7 @@ function TagsTab() {
   }, [storeProject?.tags?.length]);
 
   const addTag = () =>
-    setTags((prev) => [...prev, { id: "", description: "" }]);
+    setTags((prev) => [...prev, { id: "", description: "", data_type: "float" }]);
 
   const updateTag = (idx: number, patch: Partial<TagDef>) =>
     setTags((prev) => prev.map((t, i) => (i === idx ? { ...t, ...patch } : t)));
@@ -212,8 +221,9 @@ function TagsTab() {
       <table style={S.table}>
         <thead>
           <tr>
-            <th style={{ ...S.th, width: "35%" }}>ID variabile</th>
-            <th style={{ ...S.th, width: "40%" }}>Descrizione</th>
+            <th style={{ ...S.th, width: "30%" }}>ID variabile</th>
+            <th style={{ ...S.th, width: "33%" }}>Descrizione</th>
+            <th style={{ ...S.th, width: "12%" }}>Tipo</th>
             <th style={{ ...S.th, width: "15%" }}>Valore live</th>
             <th style={S.th} />
           </tr>
@@ -239,6 +249,18 @@ function TagsTab() {
                     value={tag.description}
                     onChange={(e) => updateTag(i, { description: e.target.value })}
                   />
+                </td>
+                <td style={S.td}>
+                  <select
+                    style={{ ...S.input, cursor: "pointer" }}
+                    value={tag.data_type ?? "float"}
+                    onChange={(e) => updateTag(i, { data_type: e.target.value as TagDataType })}
+                  >
+                    <option value="bool">Bool</option>
+                    <option value="int">Int</option>
+                    <option value="float">Float</option>
+                    <option value="string">Stringa</option>
+                  </select>
                 </td>
                 <td style={{ ...S.td, textAlign: "center" }}>
                   {tv != null ? (
@@ -286,6 +308,21 @@ function emptyModbus(): ModbusTcpSource {
 
 function emptyRegister(): RegisterMapping {
   return { tag: "", address: 0, scale: 1 };
+}
+
+function emptyMqtt(): MqttSource {
+  return {
+    kind: "mqtt",
+    id: `mqtt-${genId()}`,
+    host: "broker.local",
+    port: 1883,
+    client_id: `sws-${genId()}`,
+    topics: [],
+  };
+}
+
+function emptyTopic(): TopicMapping {
+  return { tag: "", topic: "", json_path: undefined };
 }
 
 function ModbusSourceCard({
@@ -427,12 +464,11 @@ function ModbusSourceCard({
               {source.registers.map((r, i) => (
                 <tr key={i} style={{ background: i % 2 === 0 ? "transparent" : "#0f172a33" }}>
                   <td style={S.td}>
-                    <input
+                    <TagInput
                       style={S.inputSm}
                       placeholder="pump1.speed"
                       value={r.tag}
-                      onChange={(e) => setRegister(i, { tag: e.target.value })}
-                      spellCheck={false}
+                      onChange={(v) => setRegister(i, { tag: v })}
                     />
                   </td>
                   <td style={S.td}>
@@ -473,6 +509,169 @@ function ModbusSourceCard({
   );
 }
 
+// ── MQTT card ─────────────────────────────────────────────────────────────────
+
+function MqttSourceCard({
+  source,
+  onChange,
+  onDelete,
+}: {
+  source: MqttSource;
+  onChange: (s: MqttSource) => void;
+  onDelete: () => void;
+}) {
+  const [open, setOpen] = useState(true);
+
+  const setField = <K extends keyof MqttSource>(k: K, v: MqttSource[K]) =>
+    onChange({ ...source, [k]: v });
+
+  const setTopic = (idx: number, patch: Partial<TopicMapping>) =>
+    onChange({
+      ...source,
+      topics: source.topics.map((t, i) => (i === idx ? { ...t, ...patch } : t)),
+    });
+
+  const addTopic = () =>
+    onChange({ ...source, topics: [...source.topics, emptyTopic()] });
+
+  const removeTopic = (idx: number) =>
+    onChange({ ...source, topics: source.topics.filter((_, i) => i !== idx) });
+
+  return (
+    <div style={S.card}>
+      <div style={S.cardHead} onClick={() => setOpen((v) => !v)}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <span style={{ fontSize: 11, color: "#a855f7", fontWeight: 700, letterSpacing: 1 }}>
+            MQTT
+          </span>
+          <span style={{ fontWeight: 600, color: "#e2e8f0" }}>{source.id}</span>
+          <span style={{ color: "#64748b", fontSize: 12 }}>
+            {source.host}:{source.port} — {source.topics.length} topic
+          </span>
+        </div>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button
+            style={S.btn("danger")}
+            onClick={(e) => { e.stopPropagation(); onDelete(); }}
+          >
+            Elimina
+          </button>
+          <span style={{ color: "#475569", fontSize: 14 }}>{open ? "▲" : "▼"}</span>
+        </div>
+      </div>
+
+      {open && (
+        <div style={{ padding: "14px 16px" }}>
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr 90px 1fr",
+            gap: 12,
+            marginBottom: 16,
+          }}>
+            <div>
+              <label style={{ fontSize: 11, color: "#64748b", display: "block", marginBottom: 3 }}>ID sorgente</label>
+              <input
+                style={S.input}
+                value={source.id}
+                onChange={(e) => setField("id", e.target.value)}
+                spellCheck={false}
+              />
+            </div>
+            <div>
+              <label style={{ fontSize: 11, color: "#64748b", display: "block", marginBottom: 3 }}>Host / IP</label>
+              <input
+                style={S.input}
+                value={source.host}
+                onChange={(e) => setField("host", e.target.value)}
+                spellCheck={false}
+              />
+            </div>
+            <div>
+              <label style={{ fontSize: 11, color: "#64748b", display: "block", marginBottom: 3 }}>Porta</label>
+              <input
+                style={S.input}
+                type="number"
+                min={1} max={65535}
+                value={source.port}
+                onChange={(e) => setField("port", Number(e.target.value))}
+              />
+            </div>
+            <div>
+              <label style={{ fontSize: 11, color: "#64748b", display: "block", marginBottom: 3 }}>Client ID</label>
+              <input
+                style={S.input}
+                value={source.client_id}
+                onChange={(e) => setField("client_id", e.target.value)}
+                spellCheck={false}
+              />
+            </div>
+          </div>
+
+          <div style={{ marginBottom: 6, fontSize: 12, color: "#64748b", fontWeight: 600, letterSpacing: 0.5 }}>
+            MAPPATURA TOPIC
+          </div>
+          <table style={{ ...S.table, marginBottom: 8 }}>
+            <thead>
+              <tr>
+                <th style={{ ...S.th, width: "30%" }}>Variabile (ID tag)</th>
+                <th style={{ ...S.th, width: "40%" }}>Topic MQTT</th>
+                <th style={{ ...S.th, width: "25%" }}>JSON path (opz.)</th>
+                <th style={S.th} />
+              </tr>
+            </thead>
+            <tbody>
+              {source.topics.length === 0 && (
+                <tr>
+                  <td colSpan={4} style={{ ...S.td, color: "#475569", textAlign: "center", padding: 12 }}>
+                    Nessun topic — aggiungi una mappatura.
+                  </td>
+                </tr>
+              )}
+              {source.topics.map((t, i) => (
+                <tr key={i} style={{ background: i % 2 === 0 ? "transparent" : "#0f172a33" }}>
+                  <td style={S.td}>
+                    <TagInput
+                      style={S.inputSm}
+                      placeholder="pump1.speed"
+                      value={t.tag}
+                      onChange={(v) => setTopic(i, { tag: v })}
+                    />
+                  </td>
+                  <td style={S.td}>
+                    <input
+                      style={S.inputSm}
+                      placeholder="plant/floor1/temperature"
+                      value={t.topic}
+                      onChange={(e) => setTopic(i, { topic: e.target.value })}
+                      spellCheck={false}
+                    />
+                  </td>
+                  <td style={S.td}>
+                    <input
+                      style={S.inputSm}
+                      placeholder="es. temperature"
+                      value={t.json_path ?? ""}
+                      onChange={(e) => setTopic(i, { json_path: e.target.value || undefined })}
+                      spellCheck={false}
+                    />
+                  </td>
+                  <td style={{ ...S.td, textAlign: "right" }}>
+                    <button style={S.btn("danger")} onClick={() => removeTopic(i)}>✕</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+
+          <button style={S.btn("ghost")} onClick={addTopic}>
+            + Aggiungi topic
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── PROTOCOLS tab ─────────────────────────────────────────────────────────────
 
 function ProtocolsTab() {
@@ -489,6 +688,9 @@ function ProtocolsTab() {
 
   const addModbus = () =>
     setSources((prev) => [...prev, emptyModbus()]);
+
+  const addMqtt = () =>
+    setSources((prev) => [...prev, emptyMqtt()]);
 
   const updateSource = (idx: number, updated: SourceDef) =>
     setSources((prev) => prev.map((s, i) => (i === idx ? updated : s)));
@@ -508,18 +710,16 @@ function ProtocolsTab() {
     }
   };
 
-  const modbusSources = sources.filter((s): s is ModbusTcpSource => s.kind === "modbus_tcp");
-
   return (
     <div style={S.section}>
       <div style={S.sectionTitle}>SORGENTI DATI / PROTOCOLLI</div>
       <div style={S.notice}>
-        Configura le connessioni ai dispositivi di campo. Al momento è supportato
-        <strong> Modbus TCP</strong> (lettura registri holding). OPC-UA e MQTT sono pianificati.
+        Configura le connessioni ai dispositivi di campo. Supportati: <strong>Modbus TCP</strong>
+        (lettura registri holding) e <strong>MQTT</strong> (sottoscrizione topic). OPC-UA pianificato.
         Dopo il salvataggio, <strong>riavvia il runtime</strong> per attivare nuove connessioni.
       </div>
 
-      {modbusSources.length === 0 && (
+      {sources.length === 0 && (
         <div style={{ color: "#475569", fontSize: 13, marginBottom: 16 }}>
           Nessuna sorgente configurata.
         </div>
@@ -536,6 +736,16 @@ function ProtocolsTab() {
             />
           );
         }
+        if (src.kind === "mqtt") {
+          return (
+            <MqttSourceCard
+              key={i}
+              source={src}
+              onChange={(updated) => updateSource(i, updated)}
+              onDelete={() => removeSource(i)}
+            />
+          );
+        }
         return null;
       })}
 
@@ -543,11 +753,11 @@ function ProtocolsTab() {
         <button style={S.btn("ghost")} onClick={addModbus}>
           + Aggiungi Modbus TCP
         </button>
-        <button style={{ ...S.btn("ghost"), opacity: 0.4, cursor: "not-allowed" }} disabled>
-          + OPC-UA (prossimamente)
+        <button style={S.btn("ghost")} onClick={addMqtt}>
+          + Aggiungi MQTT
         </button>
         <button style={{ ...S.btn("ghost"), opacity: 0.4, cursor: "not-allowed" }} disabled>
-          + MQTT (prossimamente)
+          + OPC-UA (prossimamente)
         </button>
       </div>
 

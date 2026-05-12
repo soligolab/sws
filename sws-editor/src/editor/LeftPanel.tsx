@@ -284,12 +284,18 @@ function SourcesSection({ project }: { project: ProjectInfo | null }) {
             <div style={{ fontSize: 10, color: "#64748b", marginBottom: 2 }}>
               {src.kind === "modbus_tcp"
                 ? `Modbus TCP — ${src.host}:${src.port} | unit ${src.unit_id}`
-                : src.kind}
+                : `MQTT — ${src.host}:${src.port}`}
             </div>
             {src.kind === "modbus_tcp" && src.registers.map((r) => (
               <div key={r.tag} style={{ fontSize: 10, color: "#475569", paddingLeft: 8 }}>
                 {r.tag} @ reg {r.address}
                 {r.scale !== 1 ? ` × ${r.scale}` : ""}
+              </div>
+            ))}
+            {src.kind === "mqtt" && src.topics.map((t, i) => (
+              <div key={`${t.tag}-${i}`} style={{ fontSize: 10, color: "#475569", paddingLeft: 8 }}>
+                {t.tag} ← {t.topic}
+                {t.json_path ? ` ($.${t.json_path})` : ""}
               </div>
             ))}
           </div>

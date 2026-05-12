@@ -1,6 +1,7 @@
 import { api } from "@/api/client";
 import { SvgCanvas } from "@/canvas/SvgCanvas";
 import { LeftPanel } from "@/editor/LeftPanel";
+import { TagInput } from "@/components/TagInput";
 import { useAppStore } from "@/store";
 import type { RadioOption, SynopticObject, TableRow } from "@/types";
 
@@ -240,6 +241,15 @@ function ObjectProps({
     />
   );
 
+  const tagInput = (placeholder?: string) => (
+    <TagInput
+      style={INPUT}
+      placeholder={placeholder}
+      value={obj.tag ?? ""}
+      onChange={(v) => onChange({ tag: v })}
+    />
+  );
+
   const colorInput = (key: keyof SynopticObject, fallback: string) => (
     <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
       <input
@@ -301,7 +311,7 @@ function ObjectProps({
       )}
 
       {/* Tag binding */}
-      {obj.type !== "navbutton" && field("Tag", textInput("tag", "es. pump1.speed"))}
+      {obj.type !== "navbutton" && field("Tag", tagInput("es. pump1.speed"))}
       {obj.type === "text" && field("Formato", textInput("format", "{value:.1f} unit"))}
 
       {/* Button label + write value */}
@@ -348,7 +358,7 @@ function ObjectProps({
       {obj.type === "gauge" && (
         <>
           {field("Etichetta", textInput("label", "Gauge"))}
-          {field("Tag", textInput("tag", "es. pump1.speed"))}
+          {field("Tag", tagInput("es. pump1.speed"))}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
             <div><div style={LABEL}>Min</div>{numInput("min", 0)}</div>
             <div><div style={LABEL}>Max</div>{numInput("max", 100)}</div>
@@ -371,7 +381,7 @@ function ObjectProps({
       {/* Slider */}
       {obj.type === "slider" && (
         <>
-          {field("Tag", textInput("tag", "es. pump1.speed"))}
+          {field("Tag", tagInput("es. pump1.speed"))}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6 }}>
             <div><div style={LABEL}>Min</div>{numInput("min", 0)}</div>
             <div><div style={LABEL}>Max</div>{numInput("max", 100)}</div>
@@ -402,7 +412,7 @@ function ObjectProps({
       {obj.type === "checkbox" && (
         <>
           {field("Etichetta", textInput("label", "Checkbox"))}
-          {field("Tag", textInput("tag", "es. pump1.run"))}
+          {field("Tag", tagInput("es. pump1.run"))}
           {field("Valore ON",
             <input type="text" style={INPUT} placeholder="true / 1 / testo"
               value={obj.checked_value !== undefined ? String(obj.checked_value) : ""}
@@ -434,7 +444,7 @@ function ObjectProps({
       {obj.type === "radio" && (
         <>
           {field("Etichetta", textInput("label", "Radio"))}
-          {field("Tag", textInput("tag", "es. pump1.mode"))}
+          {field("Tag", tagInput("es. pump1.mode"))}
           {field("Orientamento",
             <select
               style={{ ...INPUT, cursor: "pointer" }}
@@ -456,7 +466,7 @@ function ObjectProps({
       {obj.type === "led" && (
         <>
           {field("Etichetta", textInput("label", ""))}
-          {field("Tag", textInput("tag", "es. pump1.run"))}
+          {field("Tag", tagInput("es. pump1.run"))}
           {field("Valore ON",
             <input type="text" style={INPUT} placeholder="true / 1 / testo"
               value={obj.on_value !== undefined ? String(obj.on_value) : ""}
@@ -476,7 +486,7 @@ function ObjectProps({
       {obj.type === "progress_bar" && (
         <>
           {field("Etichetta", textInput("label", ""))}
-          {field("Tag", textInput("tag", "es. tank1.level"))}
+          {field("Tag", tagInput("es. tank1.level"))}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
             <div><div style={LABEL}>Min</div>{numInput("min", 0)}</div>
             <div><div style={LABEL}>Max</div>{numInput("max", 100)}</div>
@@ -607,8 +617,14 @@ function TableRowsEditor({
           <input type="text" style={{ ...INPUT, marginBottom: 4 }} value={row.label}
             onChange={(e) => update(i, { label: e.target.value })} />
           <div style={LABEL}>Tag</div>
-          <input type="text" style={{ ...INPUT, marginBottom: 4 }} placeholder="es. pump1.speed" value={row.tag}
-            onChange={(e) => update(i, { tag: e.target.value })} />
+          <div style={{ marginBottom: 4 }}>
+            <TagInput
+              style={INPUT}
+              placeholder="es. pump1.speed"
+              value={row.tag}
+              onChange={(v) => update(i, { tag: v })}
+            />
+          </div>
           <div style={LABEL}>Formato</div>
           <input type="text" style={INPUT} placeholder="{value:.1f}" value={row.format ?? ""}
             onChange={(e) => update(i, { format: e.target.value || undefined })} />

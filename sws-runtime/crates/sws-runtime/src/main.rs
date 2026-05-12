@@ -62,6 +62,10 @@ async fn main() -> anyhow::Result<()> {
                         let db = tag_db.clone();
                         tokio::spawn(async move { sws_plugin_modbus::run(cfg, db).await });
                     }
+                    sws_core::SourceDef::Mqtt(cfg) => {
+                        let db = tag_db.clone();
+                        tokio::spawn(async move { sws_plugin_mqtt::run(cfg, db).await });
+                    }
                 }
             }
         }
