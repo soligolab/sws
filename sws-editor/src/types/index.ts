@@ -8,12 +8,34 @@ export interface TagState {
 
 export type SynopticObjectType =
   | "rect"
+  | "ellipse"
+  | "line"
   | "text"
   | "image"
+  // Controls
   | "button"
-  | "line"
-  | "ellipse"
-  | "navbutton";
+  | "navbutton"
+  | "checkbox"
+  | "radio"
+  | "slider"
+  // Displays
+  | "gauge"
+  | "led"
+  | "progress_bar"
+  | "table";
+
+/** One option in a radio-group. */
+export interface RadioOption {
+  label: string;
+  value: string | number | boolean;
+}
+
+/** One row in a data table object. */
+export interface TableRow {
+  label: string;
+  tag: string;
+  format?: string;
+}
 
 export interface SynopticObject {
   id: string;
@@ -35,6 +57,31 @@ export interface SynopticObject {
   stroke_width?: number;
   // Page navigation
   target_page?: string;
+  // Numeric range (gauge, slider, progress_bar)
+  min?: number;
+  max?: number;
+  unit?: string;
+  step?: number;
+  // Alarm / warning thresholds
+  warn_low?: number;
+  warn_high?: number;
+  alarm_low?: number;
+  alarm_high?: number;
+  // LED indicator
+  on_value?: string | number | boolean;
+  on_color?: string;
+  off_color?: string;
+  // Shared display flags
+  show_value?: boolean;
+  read_only?: boolean;
+  orientation?: "horizontal" | "vertical";
+  // Checkbox
+  checked_value?: string | number | boolean;
+  unchecked_value?: string | number | boolean;
+  // Radio options
+  options?: RadioOption[];
+  // Data table rows
+  table_rows?: TableRow[];
 }
 
 export interface SynopticPage {

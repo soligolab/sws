@@ -3,6 +3,7 @@ use serde_json::Value;
 
 /// Mirror of the TypeScript SynopticPage / SynopticObject types in sws-editor.
 /// Used for JSON API and YAML persistence.
+/// Fields use skip_serializing_if so YAML files stay compact.
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SynopticPage {
@@ -20,25 +21,52 @@ pub struct SynopticObject {
     pub obj_type: String,
     pub x: f64,
     pub y: f64,
-    #[serde(skip_serializing_if = "Option::is_none")] pub width:        Option<f64>,
-    #[serde(skip_serializing_if = "Option::is_none")] pub height:       Option<f64>,
-    #[serde(skip_serializing_if = "Option::is_none")] pub fill:         Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")] pub tag:          Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")] pub format:       Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")] pub src:          Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")] pub label:        Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")] pub write_value:  Option<Value>,
-    // Line/stroke fields
-    #[serde(skip_serializing_if = "Option::is_none")] pub x2:           Option<f64>,
-    #[serde(skip_serializing_if = "Option::is_none")] pub y2:           Option<f64>,
-    #[serde(skip_serializing_if = "Option::is_none")] pub stroke:       Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")] pub stroke_width: Option<f64>,
+    // Geometry
+    #[serde(skip_serializing_if = "Option::is_none")] pub width:          Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub height:         Option<f64>,
+    // Appearance
+    #[serde(skip_serializing_if = "Option::is_none")] pub fill:           Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub stroke:         Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub stroke_width:   Option<f64>,
+    // Line endpoint
+    #[serde(skip_serializing_if = "Option::is_none")] pub x2:             Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub y2:             Option<f64>,
+    // Tag binding
+    #[serde(skip_serializing_if = "Option::is_none")] pub tag:            Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub format:         Option<String>,
+    // Text / label
+    #[serde(skip_serializing_if = "Option::is_none")] pub label:          Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub src:            Option<String>,
+    // Control write
+    #[serde(skip_serializing_if = "Option::is_none")] pub write_value:    Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub checked_value:  Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub unchecked_value: Option<Value>,
     // Navigation
-    #[serde(skip_serializing_if = "Option::is_none")] pub target_page:  Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub target_page:    Option<String>,
+    // Numeric range
+    #[serde(skip_serializing_if = "Option::is_none")] pub min:            Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub max:            Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub unit:           Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub step:           Option<f64>,
+    // Thresholds
+    #[serde(skip_serializing_if = "Option::is_none")] pub warn_low:       Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub warn_high:      Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub alarm_low:      Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub alarm_high:     Option<f64>,
+    // LED
+    #[serde(skip_serializing_if = "Option::is_none")] pub on_value:       Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub on_color:       Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub off_color:      Option<String>,
+    // Flags
+    #[serde(skip_serializing_if = "Option::is_none")] pub show_value:     Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub read_only:      Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub orientation:    Option<String>,
+    // Radio options / table rows (generic JSON arrays)
+    #[serde(skip_serializing_if = "Option::is_none")] pub options:        Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub table_rows:     Option<Value>,
 }
 
-/// Sanitize a page name to a safe filename stem (keep most printable chars,
-/// only strip path-separators and null bytes to prevent traversal).
+/// Sanitize a page name to a safe filename stem.
 pub fn safe_filename(name: &str) -> String {
     name.chars()
         .map(|c| match c {
