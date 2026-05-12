@@ -4,7 +4,14 @@ import { api } from "@/api/client";
 import { useAppStore } from "@/store";
 import type { AlarmState } from "@/types";
 
-const WS_URL = import.meta.env.VITE_ALARMS_WS_URL ?? "wss://localhost:8443/ws/alarms";
+/** Same-origin WS URL — see tagStream.ts for the rationale. */
+function defaultWsUrl(path: string): string {
+  if (typeof window === "undefined") return `ws://localhost/${path}`;
+  const proto = window.location.protocol === "https:" ? "wss" : "ws";
+  return `${proto}://${window.location.host}${path}`;
+}
+
+const WS_URL = import.meta.env.VITE_ALARMS_WS_URL ?? defaultWsUrl("/ws/alarms");
 
 let socket: WebSocket | null = null;
 

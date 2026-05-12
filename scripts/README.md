@@ -17,15 +17,24 @@ dev server.
 ./scripts/dev.sh editor   # only the editor (assumes runtime already up)
 ```
 
-### First-run gotcha
+### Access from another device on the LAN
 
-The runtime serves with a self-signed certificate. Browsers reject WebSocket
-connections to `wss://` endpoints with untrusted certs **without showing a
-prompt** — so the AlarmBanner and live tag stream stay silent.
+`dev.sh` binds Vite to `0.0.0.0:5173` so any browser on the same Wi-Fi /
+LAN can hit `http://<your-host-ip>:5173` (the script prints the URL in
+the info banner). The frontend builds WebSocket URLs from
+`window.location`, so all `/api` and `/ws/*` traffic goes through Vite,
+which proxies on the server side to the runtime on `localhost:8443`.
 
-**Fix once per browser**: open `https://localhost:8443/health` in the same
-browser you'll use for the editor and click through the cert warning. After
-that, `wss://localhost:8443/ws/tags` and `/ws/alarms` will work.
+That means the remote browser **never sees the self-signed certificate**
+and there is no extra cert-acceptance step.
+
+If you launch the editor by hand without `dev.sh`, pass
+`--host 0.0.0.0` to `pnpm dev` for the same effect.
+
+The runtime itself still listens on `0.0.0.0:8443`, so a remote browser
+that wants to hit the HTTPS endpoint directly (e.g. for raw `curl`
+testing from another box) can — that path does require accepting the
+cert.
 
 ### Verifying it's alive
 

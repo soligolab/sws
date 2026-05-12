@@ -3,7 +3,20 @@ import { useEffect } from "react";
 import { useAppStore } from "@/store";
 import type { TagQuality } from "@/types";
 
-const WS_URL = import.meta.env.VITE_RUNTIME_WS_URL ?? "wss://localhost:8443/ws/tags";
+/**
+ * Derive the WebSocket URL from `window.location` so it works whether the
+ * browser is on the same machine or another host on the LAN. In dev mode
+ * the Vite proxy upgrades `/ws/*` to the runtime; in production nginx
+ * serves both the SPA and the WS on the same origin. An explicit override
+ * via `VITE_RUNTIME_WS_URL` is still honoured.
+ */
+function defaultWsUrl(path: string): string {
+  if (typeof window === "undefined") return `ws://localhost/${path}`;
+  const proto = window.location.protocol === "https:" ? "wss" : "ws";
+  return `${proto}://${window.location.host}${path}`;
+}
+
+const WS_URL = import.meta.env.VITE_RUNTIME_WS_URL ?? defaultWsUrl("/ws/tags");
 
 let socket: WebSocket | null = null;
 

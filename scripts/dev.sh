@@ -102,8 +102,11 @@ start_editor() {
     echo "[editor] installing deps with $PNPM install…"
     $PNPM install
   fi
-  echo "[editor] starting Vite dev server on http://localhost:5173"
-  exec $PNPM dev
+  echo "[editor] starting Vite dev server on http://0.0.0.0:5173 (LAN-accessible)"
+  # --host 0.0.0.0 binds to all interfaces so a phone/tablet on the same Wi-Fi
+  # can hit http://<this-host>:5173. Vite proxies /api and /ws/* to the local
+  # runtime, so remote browsers never need to accept the self-signed cert.
+  exec $PNPM dev --host 0.0.0.0
 }
 
 # ── Modes ────────────────────────────────────────────────────────────────────
@@ -143,17 +146,22 @@ case "${1:-both}" in
       sleep 0.5
     done
 
+    # Best-effort LAN IP for the info banner — first non-loopback v4.
+    LAN_IP="$(hostname -I 2>/dev/null | awk '{print $1}')"
+    [ -z "$LAN_IP" ] && LAN_IP="<your-host-ip>"
+
     cat <<MSG
 
 ────────────────────────────────────────────────────────────────────
 SWS dev environment ready.
 
-Runtime : https://localhost:8443        (self-signed cert!)
-Editor  : http://localhost:5173         (after Vite finishes booting)
+Runtime (HTTPS) : https://localhost:8443     (loopback only)
+Editor  (local) : http://localhost:5173
+Editor  (LAN)   : http://$LAN_IP:5173        ← open this from your phone/tablet
 
-First time only: open https://localhost:8443/health in the browser
-and accept the self-signed certificate, otherwise the WebSocket
-streams (/ws/tags, /ws/alarms) will fail to connect.
+The editor's Vite dev server proxies /api and /ws/* to the runtime,
+so the remote browser never talks to port 8443 directly — no need
+to accept the self-signed certificate from the remote device.
 
 Quick test write:
   curl -k -X PUT https://localhost:8443/api/tags/counter \\
