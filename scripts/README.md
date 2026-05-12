@@ -73,3 +73,32 @@ rm -rf .run && ./scripts/dev.sh
 
 Ctrl-C in the `both` mode kills both processes. In split mode use Ctrl-C
 in each terminal.
+
+## `demo-sine.py` — driving a Trend with a sine wave
+
+Quick way to put movement on a `trend` object during the demo. Logs in,
+then writes `offset + amplitude * sin(2π · t / period)` to a tag every
+`--interval` seconds via `PUT /api/tags/:id`. No deps beyond Python's
+stdlib.
+
+The dev seed already creates a `sine` tag, so the default invocation
+just works:
+
+```sh
+./scripts/demo-sine.py
+```
+
+To visualize it: in the editor (Editor mode) drop a **Trend** object,
+set its **Tag** to `sine`, set the **Finestra** to ~30 s, save the
+synoptic, switch to **Runtime** mode. You should see the wave scroll.
+
+Common tweaks:
+
+```sh
+./scripts/demo-sine.py --tag flow --period 20 --amplitude 25 --offset 50
+./scripts/demo-sine.py --interval 0.05      # 20 Hz, smoother trace
+./scripts/demo-sine.py --password mypw      # if you override admin password
+```
+
+Stop with Ctrl-C. The script auto-reauthenticates on a 401 (so it
+survives a runtime restart) and exits cleanly on Ctrl-C.

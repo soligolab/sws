@@ -59,6 +59,9 @@ tags:
   - id: pump.running
     description: Demo bool flag
     data_type: bool
+  - id: sine
+    description: Demo sine wave (drive with scripts/demo-sine.py)
+    data_type: float
 
 # No sources for dev. Write values manually with curl:
 #   curl -k -X PUT https://localhost:8443/api/tags/counter \
