@@ -2,9 +2,9 @@
 
 > This file is the **session-to-session memory** for Claude Code. Update it at the end of every session before stopping work. Read it at the start of every session before touching code.
 
-**Last session**: 2026-05-12 (loose ends — LICENSE chiuso, hot-reload tag/alarm, Alarmi ConfigView CRUD)
-**Current phase**: Phase 1 → 2 transition. Phase 1 funzionalmente completa salvo demo PX30. Alarm engine end-to-end + UI completa.
-**Last commit**: docs: STATUS + CHANGELOG — Modbus write + alarm engine
+**Last session**: 2026-05-12 (Historian + trend chart — ring-buffer in-memory, GET /api/history, object trend Canvas 2D)
+**Current phase**: Phase 2 territory aperto. Historian stub end-to-end; Phase 1 funzionalmente chiusa salvo demo PX30.
+**Last commit**: docs: close Q7 LICENSE, refresh STATUS + CHANGELOG
 
 ---
 
@@ -76,18 +76,18 @@
 - **Hot-reload alarm**: `PUT /api/project/alarms` invoca `AlarmDb::load` completo dopo il persist. In-flight active alarms si resettano; il prossimo update li rivaluta.
 - **ConfigView tab "Allarmi"**: CRUD `AlarmDef` con TagInput autocomplete, select condizione (above/below/bool_equals), soglia o bool, severità, messaggio, e colonna stato live (ON / ACK / —).
 - **LICENSE**: file AGPL-3.0 completo già presente in repo, Q7 in OPEN_QUESTIONS marcato come deciso.
+- **Historian** (`sws-historian`): `Historian` ring-buffer in-memory (5000 samples × tag), `record()`/`query(from,to)`/`spawn_recorder(tag_db)`. SQLite stays a stub. Unit-tested.
+- **GET /api/history/:tag**: query string `from`/`to`/`limit`; ritorna `Vec<Sample>` (ts_ms + value + quality).
+- **Trend object** nell'editor: `<foreignObject>` con `<canvas>` 2D. Poll ogni 2 s, autofit Y, badge valore corrente, edit-mode placeholder statico per drag senza fetch. Property panel: tag, window_s, y_min/y_max (entrambi 0 → autofit), line_color.
 
 ## Next session should
 
 Pick one of these as the next focused work block (each fits 3-4 hours):
 
-1. **Historian stub** in `sws-historian`: ring-buffer per tag, esposto come `GET /api/history/:tag?from=&to=`. Aggiungere object `trend` (Canvas 2D) nell'editor.
-2. **Auth skeleton** in `sws-auth`:
-   - Argon2id password hash/verify
-   - Session token (UUID, stored in memory map)
-   - Single admin user seeded from `SWS_ADMIN_PASSWORD` env var
-3. **MQTT write path**: simmetrico a Modbus — `publish` su tag-write tramite TagWriteBus. Topic per direzione "write".
-4. **Hot-reload sorgenti** (Modbus/MQTT): spawn/kill task quando cambia `PUT /api/project/sources`. Richiede `JoinHandle` registry + select su `cancel`.
+1. **Auth skeleton** in `sws-auth`: Argon2id hash/verify, session UUID in memory, admin password da `SWS_ADMIN_PASSWORD`. Senza questo il runtime resta aperto.
+2. **MQTT write path**: simmetrico a Modbus — `publish` su tag-write tramite TagWriteBus. Topic per direzione "write".
+3. **Hot-reload sorgenti** (Modbus/MQTT): spawn/kill task quando cambia `PUT /api/project/sources`. Richiede `JoinHandle` registry + cancel.
+4. **Historian polish**: persistenza su SQLite (`sws-historian::sqlite`), decimazione per range lunghi, axis labels e tooltip nel TrendCanvas.
 5. **Demo PX30**: provare l'intero giro su hardware reale; documentare gotcha in `docs/`.
 
 ## Blockers / questions for the maintainer
