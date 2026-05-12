@@ -2,9 +2,9 @@
 
 > This file is the **session-to-session memory** for Claude Code. Update it at the end of every session before stopping work. Read it at the start of every session before touching code.
 
-**Last session**: 2026-05-12 (Phase 1 — handoff completato: tag dropdown, data_type, plugin MQTT)
-**Current phase**: Phase 1 in progress (Phase 3 MQTT happy-path anticipato)
-**Last commit**: docs: handoff note — tag dropdown, data_type, MQTT next
+**Last session**: 2026-05-12 (Phase 1 chiusa funzionalmente — Modbus write path; alarm engine stub end-to-end)
+**Current phase**: Phase 1 → 2 transition. Phase 1 exit ("write to PLC from a browser tab") tecnicamente fattibile; alarm engine è Phase 2 anticipato.
+**Last commit**: feat: Modbus write path via TagWriteBus
 
 ---
 
@@ -69,18 +69,23 @@
 - **sws-plugin-mqtt**: subscribe loop con `rumqttc::AsyncClient`, exact-topic match, riconnessione 5 s, decoding payload euristico (bool/int/float/string) o via `json_path` dot-separated.
 - **SourceDef::Mqtt** variant in `sws-core` con `MqttConfig { id, host, port (def 1883), client_id, topics }` e `TopicMapping { tag, topic, json_path? }`. `sws-runtime/main.rs` spawn task MQTT per ogni `mqtt` source.
 - **MqttSourceCard** in ConfigView (host/port/client_id + tabella topic↔tag con TagInput e JSON path opz.). `LeftPanel` SourcesSection renderizza anche MQTT. Pulsante "+ Aggiungi MQTT" attivo.
+- **TagWriteBus** (`sws-core`): registry mpsc tag→plugin. `PUT /api/tags/:id` instrada al plugin owner; fallback diretto a TagDb per tag virtuali. Modbus plugin scrive `write_single_register` con scala inversa + clamp u16. Test unitari coprono routing e NoWriter.
+- **Alarm engine** (`sws-core/alarm.rs`): `AlarmDef` + `AlarmCondition::{Above, Below, BoolEquals}` + `AlarmSeverity` + `AlarmDb` con broadcast. Evaluator task in `sws-runtime` consuma il broadcast TagDb e re-valuta gli alarm. `GET /api/alarms`, `POST /api/alarms/:id/ack`, `WS /ws/alarms`. Configurato via `project.yaml`: campo `alarms: [...]` (backwards compatible).
+- **AlarmBanner live**: hook `useAlarmStream` (snapshot HTTP + WS), badge active/unack, tinta per severità, messaggio più recente, pulsante ACK inline.
 
 ## Next session should
 
 Pick one of these as the next focused work block (each fits 3-4 hours):
 
-1. **Auth skeleton** in `sws-auth`:
+1. **Historian stub** in `sws-historian`: ring-buffer per tag, esposto come `GET /api/history/:tag?from=&to=`. Aggiungere object `trend` (Canvas 2D) nell'editor. (Era #5 della tripla precedente.)
+2. **Auth skeleton** in `sws-auth`:
    - Argon2id password hash/verify
    - Session token (UUID, stored in memory map)
    - Single admin user seeded from `SWS_ADMIN_PASSWORD` env var
-2. **Alarm engine stub** in `sws-core`: alarm conditions on tags, alarm list in editor and runtime
-3. **Historian stub**: ring-buffer in `sws-historian`, exposed as `GET /api/history/:tag?from=&to=`
-4. **Hot-reload per nuovi tag**: dopo `PUT /api/project/tags`, seedare i nuovi tag nel TagDb senza restart
+3. **ConfigView Alarmi tab**: CRUD per `AlarmDef` (al momento si edita a mano in `project.yaml`). Aggiungere `PUT /api/project/alarms`.
+4. **Hot-reload tag/alarm** dopo `PUT /api/project/{tags,alarms}`: diff con stato corrente e seed/rimozione senza restart. Sorgenti restano fuori scope.
+5. **MQTT write path**: simmetrico a Modbus — `publish` su tag-write tramite TagWriteBus. Topic configurato per direzione "write".
+6. **LICENSE file** (Q7): testo AGPL-3.0 completo nel repo.
 
 ## Blockers / questions for the maintainer
 
