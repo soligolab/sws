@@ -31,3 +31,6 @@ Thumbs.db
 # Build artifacts
 *.log
 sbom.cdx.json
+
+# Local dev runtime state (created by scripts/dev.sh)
+/.run/

@@ -54,3 +54,6 @@ and this project adheres to [CalVer](https://calver.org/) (`YYYY.MM[.patch]`).
 - `sws-web`: `GET /api/history/:tag?from=&to=&limit=` returns `Vec<Sample>` (ts_ms + value + quality)
 - `sws-runtime`: builds the Historian and starts its recorder alongside the alarm evaluator
 - `sws-editor`: new `trend` SynopticObject — line chart in a `<foreignObject>` rendering an HTML canvas. Properties: `tag`, `window_s`, optional `y_min`/`y_max` (autofit when both zero), `line_color`. In edit mode shows a static placeholder; in runtime polls `/api/history` every 2 s and redraws. Added to LeftPanel palette and EditorShell defaults/property panel.
+- `scripts/dev.sh`: one-stop local-dev launcher — creates writable `.run/{config,project,logs}` under the repo root, seeds an example `project.yaml` (two tags + one alarm), builds + starts the runtime, and launches the Vite dev server. Modes: `both` (default) / `runtime` / `editor`. Documented in `scripts/README.md`.
+- `.gitignore`: ignore `/.run/` (local dev state — TLS cert, project, logs)
+- `CLAUDE.md`: points to `scripts/dev.sh` so future sessions know how to bring the stack up
