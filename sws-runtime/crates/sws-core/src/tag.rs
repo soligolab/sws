@@ -72,6 +72,13 @@ impl TagDb {
         self.store.read().await.get(id).cloned()
     }
 
+    /// Remove a tag from the store. Returns `true` if the tag existed.
+    /// Used by hot-reload to evict orphans after a project edit.
+    /// Note: no "removed" event is broadcast — clients reconcile on next snapshot.
+    pub async fn remove(&self, id: &str) -> bool {
+        self.store.write().await.remove(id).is_some()
+    }
+
     pub fn subscribe(&self) -> broadcast::Receiver<TagUpdate> {
         self.tx.subscribe()
     }

@@ -8,8 +8,8 @@ use axum::{
 };
 use serde::Deserialize;
 use sws_core::{
-    AlarmDb, AlarmState, Project, ProjectMeta, SourceDef, TagDb, TagDef, TagId, TagQuality,
-    TagState, TagUpdate, TagValue, TagWriteBus, WriteError,
+    AlarmDb, AlarmDef, AlarmState, Project, ProjectMeta, SourceDef, TagDb, TagDef, TagId,
+    TagQuality, TagState, TagUpdate, TagValue, TagWriteBus, WriteError,
 };
 use tracing::warn;
 use crate::synoptic::{safe_filename, SynopticPage};
@@ -42,6 +42,7 @@ pub fn build(
         .route("/api/project",         get(get_project))
         .route("/api/project/tags",    put(update_project_tags))
         .route("/api/project/sources", put(update_project_sources))
+        .route("/api/project/alarms",  put(update_project_alarms))
         // Synoptic REST
         .route("/api/synoptics",      get(list_synoptics))
         .route("/api/synoptics/:name", get(get_synoptic).put(save_synoptic))
@@ -165,14 +166,57 @@ async fn update_project_tags(
     State(s): State<AppState>,
     Json(tags): Json<Vec<TagDef>>,
 ) -> StatusCode {
-    patch_project(&s.project_dir, |p| p.tags = tags).await
+    // Compute diff against current TagDb so newly-defined tags get seeded
+    // and orphans get evicted — no runtime restart required.
+    let current_ids: std::collections::HashSet<TagId> =
+        s.db.snapshot().await.into_keys().collect();
+    let new_ids: std::collections::HashSet<TagId> =
+        tags.iter().map(|t| t.id.clone()).collect();
+
+    let to_add: Vec<TagDef> = tags.iter()
+        .filter(|t| !current_ids.contains(&t.id))
+        .cloned()
+        .collect();
+    let to_remove: Vec<TagId> = current_ids
+        .difference(&new_ids)
+        .cloned()
+        .collect();
+
+    let status = patch_project(&s.project_dir, |p| p.tags = tags).await;
+    if status != StatusCode::NO_CONTENT {
+        return status;
+    }
+    for t in &to_add {
+        s.db.set(t.id.clone(), t.initial_value(), TagQuality::Uncertain).await;
+    }
+    for id in &to_remove {
+        s.db.remove(id).await;
+    }
+    status
 }
 
 async fn update_project_sources(
     State(s): State<AppState>,
     Json(sources): Json<Vec<SourceDef>>,
 ) -> StatusCode {
+    // Source hot-reload requires spawn/kill of plugin tasks — deferred to a
+    // later session. For now the UI continues to show the "restart" notice.
     patch_project(&s.project_dir, |p| p.sources = sources).await
+}
+
+async fn update_project_alarms(
+    State(s): State<AppState>,
+    Json(alarms): Json<Vec<AlarmDef>>,
+) -> StatusCode {
+    // Hot-reload: AlarmDb::load fully replaces the registry (clear + insert).
+    // In-flight active alarms are reset; the next TagDb update will re-evaluate
+    // and re-fire any still-tripped conditions.
+    let clone = alarms.clone();
+    let status = patch_project(&s.project_dir, |p| p.alarms = alarms).await;
+    if status == StatusCode::NO_CONTENT {
+        s.alarms.load(clone).await;
+    }
+    status
 }
 
 // ── Synoptic endpoints ───────────────────────────────────────────────────────

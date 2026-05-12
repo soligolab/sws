@@ -24,6 +24,19 @@ pub struct TagDef {
     pub data_type: String,
 }
 
+impl TagDef {
+    /// Initial `TagValue` to seed the TagDb with for this definition.
+    /// Used at startup (`populate_tags`) and on hot-reload of newly-added tags.
+    pub fn initial_value(&self) -> TagValue {
+        match self.data_type.as_str() {
+            "bool"   => TagValue::Bool(false),
+            "int"    => TagValue::Int(0),
+            "string" => TagValue::Str(String::new()),
+            _        => TagValue::Float(0.0),
+        }
+    }
+}
+
 /// Discriminated union of all supported data source types.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "kind")]
@@ -117,13 +130,7 @@ impl Project {
     /// will overwrite this as soon as they get a real reading.
     pub async fn populate_tags(&self, db: &TagDb) {
         for tag in &self.tags {
-            let initial = match tag.data_type.as_str() {
-                "bool"   => TagValue::Bool(false),
-                "int"    => TagValue::Int(0),
-                "string" => TagValue::Str(String::new()),
-                _        => TagValue::Float(0.0), // default + unknown → float
-            };
-            db.set(tag.id.clone(), initial, TagQuality::Uncertain).await;
+            db.set(tag.id.clone(), tag.initial_value(), TagQuality::Uncertain).await;
         }
     }
 }

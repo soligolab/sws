@@ -1,6 +1,7 @@
 // TODO (ADR 0001): evaluate Redux Toolkit as an alternative before M1 freeze.
 import { create } from "zustand";
 import type {
+  AlarmDef,
   AlarmState,
   ProjectInfo,
   SourceDef,
@@ -31,6 +32,7 @@ interface AppState {
   setProject: (p: ProjectInfo) => void;
   updateProjectTags: (tags: TagDef[]) => void;
   updateProjectSources: (sources: SourceDef[]) => void;
+  updateProjectAlarms: (alarms: AlarmDef[]) => void;
 
   // Page management
   setPages: (pages: SynopticPage[], currentPageId?: string) => void;
@@ -80,6 +82,11 @@ export const useAppStore = create<AppState>((set, get) => ({
   updateProjectSources: (sources) =>
     set((s) => ({
       project: s.project ? { ...s.project, sources } : s.project,
+    })),
+
+  updateProjectAlarms: (alarms) =>
+    set((s) => ({
+      project: s.project ? { ...s.project, alarms } : s.project,
     })),
 
   setPages: (pages, currentPageId) =>

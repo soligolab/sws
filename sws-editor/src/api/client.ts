@@ -1,5 +1,5 @@
 // TODO: add auth header injection once session tokens are implemented.
-import type { AlarmState, ProjectInfo, SourceDef, SynopticPage, TagDef } from "@/types";
+import type { AlarmDef, AlarmState, ProjectInfo, SourceDef, SynopticPage, TagDef } from "@/types";
 
 const BASE_URL = import.meta.env.VITE_RUNTIME_URL ?? "";
 
@@ -29,6 +29,13 @@ export const api = {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(sources),
+    }),
+
+  updateAlarms: (alarms: AlarmDef[]) =>
+    request<void>("/api/project/alarms", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(alarms),
     }),
 
   // Synoptics

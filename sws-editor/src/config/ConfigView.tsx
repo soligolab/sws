@@ -3,6 +3,9 @@ import { api } from "@/api/client";
 import { TagInput } from "@/components/TagInput";
 import { useAppStore } from "@/store";
 import type {
+  AlarmCondition,
+  AlarmDef,
+  AlarmSeverity,
   ModbusTcpSource,
   MqttSource,
   RegisterMapping,
@@ -151,10 +154,12 @@ function SaveBar({
   onSave,
   saving,
   saved,
+  savedNotice = "✓ Salvato — modifiche applicate immediatamente.",
 }: {
   onSave: () => void;
   saving: boolean;
   saved: boolean;
+  savedNotice?: string;
 }) {
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 16 }}>
@@ -163,7 +168,7 @@ function SaveBar({
       </button>
       {saved && (
         <span style={{ fontSize: 12, color: "#22c55e" }}>
-          ✓ Salvato — riavvia il runtime per applicare le modifiche alle sorgenti.
+          {savedNotice}
         </span>
       )}
     </div>
@@ -761,6 +766,207 @@ function ProtocolsTab() {
         </button>
       </div>
 
+      <SaveBar
+        onSave={handleSave}
+        saving={saving}
+        saved={saved}
+        savedNotice="✓ Salvato — riavvia il runtime per applicare le modifiche alle sorgenti."
+      />
+    </div>
+  );
+}
+
+// ── ALARMS tab ────────────────────────────────────────────────────────────────
+
+function emptyAlarm(): AlarmDef {
+  return {
+    id: `alm-${genId()}`,
+    tag: "",
+    condition: { kind: "above", threshold: 0 },
+    message: "",
+    severity: "Warning",
+  };
+}
+
+function AlarmsTab() {
+  const storeProject        = useAppStore((s) => s.project);
+  const updateProjectAlarms = useAppStore((s) => s.updateProjectAlarms);
+  const liveAlarms          = useAppStore((s) => s.alarms);
+
+  const [alarms, setAlarms] = useState<AlarmDef[]>(storeProject?.alarms ?? []);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved]   = useState(false);
+
+  useEffect(() => {
+    if (storeProject?.alarms) setAlarms(storeProject.alarms);
+  }, [storeProject?.alarms?.length]);
+
+  const addAlarm = () =>
+    setAlarms((prev) => [...prev, emptyAlarm()]);
+
+  const updateAlarm = (idx: number, patch: Partial<AlarmDef>) =>
+    setAlarms((prev) => prev.map((a, i) => (i === idx ? { ...a, ...patch } : a)));
+
+  const updateCondition = (idx: number, cond: AlarmCondition) =>
+    updateAlarm(idx, { condition: cond });
+
+  const removeAlarm = (idx: number) =>
+    setAlarms((prev) => prev.filter((_, i) => i !== idx));
+
+  const handleSave = async () => {
+    const valid = alarms.filter((a) => a.id.trim() !== "" && a.tag.trim() !== "");
+    setSaving(true);
+    try {
+      await api.updateAlarms(valid);
+      updateProjectAlarms(valid);
+      setAlarms(valid);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 4000);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div style={S.section}>
+      <div style={S.sectionTitle}>ALLARMI</div>
+      <div style={S.notice}>
+        Ogni allarme osserva una variabile e si attiva quando la condizione è
+        soddisfatta. Condizioni disponibili: <em>above</em> / <em>below</em>
+        (soglia numerica) e <em>bool_equals</em> (per tag booleani). Lo stato
+        attivo è mostrato nella barra in alto della UI.
+      </div>
+
+      <table style={S.table}>
+        <thead>
+          <tr>
+            <th style={{ ...S.th, width: "16%" }}>ID</th>
+            <th style={{ ...S.th, width: "18%" }}>Tag</th>
+            <th style={{ ...S.th, width: "10%" }}>Condizione</th>
+            <th style={{ ...S.th, width: "14%" }}>Valore / soglia</th>
+            <th style={{ ...S.th, width: "12%" }}>Severità</th>
+            <th style={{ ...S.th, width: "20%" }}>Messaggio</th>
+            <th style={{ ...S.th, width: "6%" }}>Stato</th>
+            <th style={S.th} />
+          </tr>
+        </thead>
+        <tbody>
+          {alarms.length === 0 && (
+            <tr>
+              <td colSpan={8} style={{ ...S.td, color: "#475569", textAlign: "center", padding: 12 }}>
+                Nessun allarme definito.
+              </td>
+            </tr>
+          )}
+          {alarms.map((alm, i) => {
+            const live = liveAlarms[alm.id];
+            return (
+              <tr key={i} style={{ background: i % 2 === 0 ? "transparent" : "#0f172a" }}>
+                <td style={S.td}>
+                  <input
+                    style={S.inputSm}
+                    value={alm.id}
+                    onChange={(e) => updateAlarm(i, { id: e.target.value })}
+                    spellCheck={false}
+                  />
+                </td>
+                <td style={S.td}>
+                  <TagInput
+                    style={S.inputSm}
+                    placeholder="es. boiler.t"
+                    value={alm.tag}
+                    onChange={(v) => updateAlarm(i, { tag: v })}
+                  />
+                </td>
+                <td style={S.td}>
+                  <select
+                    style={{ ...S.inputSm, cursor: "pointer" }}
+                    value={alm.condition.kind}
+                    onChange={(e) => {
+                      const kind = e.target.value as AlarmCondition["kind"];
+                      if (kind === "above" || kind === "below") {
+                        updateCondition(i, { kind, threshold: 0 });
+                      } else {
+                        updateCondition(i, { kind: "bool_equals", value: true });
+                      }
+                    }}
+                  >
+                    <option value="above">above</option>
+                    <option value="below">below</option>
+                    <option value="bool_equals">bool_equals</option>
+                  </select>
+                </td>
+                <td style={S.td}>
+                  {alm.condition.kind === "bool_equals" ? (
+                    <select
+                      style={{ ...S.inputSm, cursor: "pointer" }}
+                      value={alm.condition.value ? "true" : "false"}
+                      onChange={(e) =>
+                        updateCondition(i, { kind: "bool_equals", value: e.target.value === "true" })
+                      }
+                    >
+                      <option value="true">true</option>
+                      <option value="false">false</option>
+                    </select>
+                  ) : (
+                    <input
+                      style={S.inputSm}
+                      type="number"
+                      step="any"
+                      value={alm.condition.threshold}
+                      onChange={(e) => {
+                        const kind = alm.condition.kind as "above" | "below";
+                        updateCondition(i, { kind, threshold: Number(e.target.value) });
+                      }}
+                    />
+                  )}
+                </td>
+                <td style={S.td}>
+                  <select
+                    style={{ ...S.inputSm, cursor: "pointer" }}
+                    value={alm.severity ?? "Warning"}
+                    onChange={(e) => updateAlarm(i, { severity: e.target.value as AlarmSeverity })}
+                  >
+                    <option value="Info">Info</option>
+                    <option value="Warning">Warning</option>
+                    <option value="Critical">Critical</option>
+                  </select>
+                </td>
+                <td style={S.td}>
+                  <input
+                    style={S.inputSm}
+                    placeholder="es. Temperatura alta"
+                    value={alm.message}
+                    onChange={(e) => updateAlarm(i, { message: e.target.value })}
+                  />
+                </td>
+                <td style={{ ...S.td, textAlign: "center" }}>
+                  {live ? (
+                    <span style={{
+                      fontSize: 11, fontWeight: 600,
+                      color: live.active
+                        ? (live.acknowledged ? "#eab308" : "#ef4444")
+                        : "#64748b",
+                    }}>
+                      {live.active ? (live.acknowledged ? "ACK" : "ON") : "—"}
+                    </span>
+                  ) : (
+                    <span style={{ color: "#334155", fontSize: 11 }}>—</span>
+                  )}
+                </td>
+                <td style={{ ...S.td, textAlign: "right" }}>
+                  <button style={S.btn("danger")} onClick={() => removeAlarm(i)}>✕</button>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+
+      <div style={{ marginTop: 10, display: "flex", gap: 8 }}>
+        <button style={S.btn("ghost")} onClick={addAlarm}>+ Aggiungi allarme</button>
+      </div>
+
       <SaveBar onSave={handleSave} saving={saving} saved={saved} />
     </div>
   );
@@ -768,7 +974,13 @@ function ProtocolsTab() {
 
 // ── Main ConfigView ───────────────────────────────────────────────────────────
 
-type ConfigTab = "tags" | "protocols";
+type ConfigTab = "tags" | "protocols" | "alarms";
+
+const TAB_LABELS: Record<ConfigTab, string> = {
+  tags:      "Variabili",
+  protocols: "Protocolli",
+  alarms:    "Allarmi",
+};
 
 export function ConfigView() {
   const [tab, setTab] = useState<ConfigTab>("tags");
@@ -777,9 +989,9 @@ export function ConfigView() {
     <div style={S.page}>
       {/* Tab bar */}
       <div style={S.tabBar}>
-        {(["tags", "protocols"] as ConfigTab[]).map((t) => (
+        {(["tags", "protocols", "alarms"] as ConfigTab[]).map((t) => (
           <button key={t} style={S.tab(tab === t)} onClick={() => setTab(t)}>
-            {t === "tags" ? "Variabili" : "Protocolli"}
+            {TAB_LABELS[t]}
           </button>
         ))}
       </div>
@@ -788,6 +1000,7 @@ export function ConfigView() {
       <div style={S.body}>
         {tab === "tags"      && <TagsTab />}
         {tab === "protocols" && <ProtocolsTab />}
+        {tab === "alarms"    && <AlarmsTab />}
       </div>
     </div>
   );
