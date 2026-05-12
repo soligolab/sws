@@ -14,9 +14,20 @@
 - **A** — Embed CPython in the Rust binary via `pyo3`, run scripts in-process with RestrictedPython. Smaller footprint, shared memory with the runtime, but a script crash could affect the runtime.
 - **B** — Run a separate Python worker process, communicate via gRPC or stdin/stdout. Stronger isolation, larger footprint, more moving parts.
 
-**Default for PoC**: pick A (PyO3 + RestrictedPython). Footprint matters on PX30 and the PoC accepts the script-crash risk. Revisit before product release.
+**Default for PoC**: A (PyO3 + RestrictedPython).
 
-**Decided**: not yet. Bootstrap installed `pyo3 0.23` (bumped from spec's 0.21 because system Python is 3.13).
+**Decided in part**: A is now live. `sws-pyscript::Engine` uses `pyo3 0.23` (auto-initialize feature, system Python is 3.13), runs scripts on `tokio::task::spawn_blocking`, and exposes a `tags` global with `read(id) / write(id, value)`. Synoptic objects gain `on_press` and `on_release` Python source fields that the editor dispatches via `POST /api/script/exec`.
+
+**Still open**: **sandboxing**. Scripts currently run with full Python privileges — no RestrictedPython, no import restrictions, no per-script timeout. This is acceptable while:
+1. Auth is not yet in place (the whole API is open on the LAN).
+2. Projects come from the maintainer only (no third-party content).
+
+Action items before product release:
+- Wrap script execution in RestrictedPython (or a hand-rolled AST whitelist).
+- Add a wall-clock timeout per `Engine::execute` call.
+- Redirect Python `print` / `stderr` back to the API response so the editor can show script output.
+
+Also TODO: `into_py` deprecation in PyO3 0.23 — migrate to `IntoPyObject` before 0.24.
 
 ---
 
