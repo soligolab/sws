@@ -90,16 +90,14 @@
 
 ## Q7 — LICENSE file content
 
-**Context**: Bootstrap attempted to write the full AGPL-3.0 text to `LICENSE` but Anthropic's content filter blocked the output. Currently no LICENSE file exists in the repo.
+**Context**: Bootstrap attempted to write the full AGPL-3.0 text to `LICENSE` but Anthropic's content filter blocked the output.
 
 **Options**:
 - **A** — Manually paste the full text from `https://www.gnu.org/licenses/agpl-3.0.txt`.
 - **B** — Short LICENSE file with SPDX identifier + link, plus full text accessible from CI artifacts (some projects do this, though it's unusual for AGPL).
 - **C** — Use a `LICENSE` symlink to `LICENSES/AGPL-3.0-only.txt` and put the actual text under the SPDX-recommended directory structure.
 
-**Default for PoC**: A. Standard practice, blocks the smallest number of tools downstream.
-
-**Decided**: not yet. Action item.
+**Decided**: A. The maintainer added the full AGPL-3.0 text (661 lines, standard preamble + terms + tail) at `LICENSE` out of band; verified 2026-05-12.
 
 ---
 
