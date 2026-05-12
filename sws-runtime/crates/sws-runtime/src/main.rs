@@ -7,7 +7,7 @@ use hyper_util::rt::{TokioExecutor, TokioIo};
 use hyper_util::server::conn::auto::Builder as ConnBuilder;
 use rcgen::generate_simple_self_signed;
 use std::{net::SocketAddr, path::PathBuf, sync::Arc};
-use sws_core::{TagDb, TagWriteBus};
+use sws_core::{AlarmDb, TagDb, TagWriteBus};
 use tokio::net::TcpListener;
 use tokio_rustls::{
     rustls::{
@@ -50,13 +50,20 @@ async fn main() -> anyhow::Result<()> {
 
     let acceptor = build_tls_acceptor(&args.config)?;
 
-    let tag_db = Arc::new(TagDb::new(256));
-    let bus    = Arc::new(TagWriteBus::new());
+    let tag_db   = Arc::new(TagDb::new(256));
+    let bus      = Arc::new(TagWriteBus::new());
+    let alarm_db = Arc::new(AlarmDb::new(64));
 
     match sws_core::project::Project::load(&args.project) {
         Ok(project) => {
-            info!(name = %project.meta.name, tags = project.tags.len(), "project loaded");
+            info!(
+                name = %project.meta.name,
+                tags = project.tags.len(),
+                alarms = project.alarms.len(),
+                "project loaded",
+            );
             project.populate_tags(&tag_db).await;
+            alarm_db.load(project.alarms).await;
             for source in project.sources {
                 match source {
                     sws_core::SourceDef::ModbusTcp(cfg) => {
@@ -76,7 +83,25 @@ async fn main() -> anyhow::Result<()> {
         }
     }
 
-    let app = sws_web::router::build(tag_db, bus, Arc::new(args.project.clone()));
+    // Alarm evaluator: every TagDb update is fed to AlarmDb, which re-evaluates
+    // the alarms watching that tag and broadcasts any transitions.
+    {
+        let adb = alarm_db.clone();
+        let mut tag_rx = tag_db.subscribe();
+        tokio::spawn(async move {
+            loop {
+                match tag_rx.recv().await {
+                    Ok(update) => adb.evaluate(&update.id, &update.state).await,
+                    Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
+                        warn!("alarm evaluator lagged by {n}");
+                    }
+                    Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
+                }
+            }
+        });
+    }
+
+    let app = sws_web::router::build(tag_db, bus, alarm_db, Arc::new(args.project.clone()));
 
     let addr: SocketAddr = "0.0.0.0:8443".parse()?;
     let listener = TcpListener::bind(addr).await?;

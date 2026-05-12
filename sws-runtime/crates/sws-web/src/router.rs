@@ -8,8 +8,8 @@ use axum::{
 };
 use serde::Deserialize;
 use sws_core::{
-    Project, ProjectMeta, SourceDef, TagDb, TagDef, TagId, TagQuality, TagState, TagUpdate,
-    TagValue, TagWriteBus, WriteError,
+    AlarmDb, AlarmState, Project, ProjectMeta, SourceDef, TagDb, TagDef, TagId, TagQuality,
+    TagState, TagUpdate, TagValue, TagWriteBus, WriteError,
 };
 use tracing::warn;
 use crate::synoptic::{safe_filename, SynopticPage};
@@ -18,17 +18,26 @@ use crate::synoptic::{safe_filename, SynopticPage};
 pub struct AppState {
     pub db: Arc<TagDb>,
     pub bus: Arc<TagWriteBus>,
+    pub alarms: Arc<AlarmDb>,
     pub project_dir: Arc<PathBuf>,
 }
 
-pub fn build(db: Arc<TagDb>, bus: Arc<TagWriteBus>, project_dir: Arc<PathBuf>) -> Router {
-    let state = AppState { db, bus, project_dir };
+pub fn build(
+    db: Arc<TagDb>,
+    bus: Arc<TagWriteBus>,
+    alarms: Arc<AlarmDb>,
+    project_dir: Arc<PathBuf>,
+) -> Router {
+    let state = AppState { db, bus, alarms, project_dir };
     Router::new()
         .route("/health",  get(|| async { "ok" }))
         .route("/metrics", get(|| async { "# SWS metrics placeholder\n" }))
         // Tag REST
         .route("/api/tags",      get(get_all_tags))
         .route("/api/tags/:id",  get(get_tag).put(write_tag))
+        // Alarm REST
+        .route("/api/alarms",         get(get_alarms))
+        .route("/api/alarms/:id/ack", axum::routing::post(ack_alarm))
         // Project info + config
         .route("/api/project",         get(get_project))
         .route("/api/project/tags",    put(update_project_tags))
@@ -37,7 +46,8 @@ pub fn build(db: Arc<TagDb>, bus: Arc<TagWriteBus>, project_dir: Arc<PathBuf>) -
         .route("/api/synoptics",      get(list_synoptics))
         .route("/api/synoptics/:name", get(get_synoptic).put(save_synoptic))
         // WebSocket
-        .route("/ws/tags", get(ws_tags_handler))
+        .route("/ws/tags",   get(ws_tags_handler))
+        .route("/ws/alarms", get(ws_alarms_handler))
         .with_state(state)
 }
 
@@ -78,6 +88,44 @@ async fn write_tag(
     }
 }
 
+// ── Alarm endpoints ──────────────────────────────────────────────────────────
+
+async fn get_alarms(State(s): State<AppState>) -> Json<Vec<AlarmState>> {
+    Json(s.alarms.snapshot().await)
+}
+
+async fn ack_alarm(State(s): State<AppState>, Path(id): Path<String>) -> StatusCode {
+    if s.alarms.ack(&id).await { StatusCode::NO_CONTENT } else { StatusCode::NOT_FOUND }
+}
+
+async fn ws_alarms_handler(ws: WebSocketUpgrade, State(s): State<AppState>) -> impl IntoResponse {
+    ws.on_upgrade(move |socket| handle_alarms_ws(socket, s.alarms))
+}
+
+async fn handle_alarms_ws(mut socket: WebSocket, alarms: Arc<AlarmDb>) {
+    // Send the current snapshot first so a fresh client sees the full state,
+    // then forward live broadcasts.
+    for state in alarms.snapshot().await {
+        if let Ok(text) = serde_json::to_string(&state) {
+            if socket.send(Message::Text(text)).await.is_err() { return; }
+        }
+    }
+    let mut rx = alarms.subscribe();
+    loop {
+        match rx.recv().await {
+            Ok(state) => {
+                if let Ok(text) = serde_json::to_string(&state) {
+                    if socket.send(Message::Text(text)).await.is_err() { break; }
+                }
+            }
+            Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
+                warn!("ws/alarms subscriber lagged by {n}");
+            }
+            Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
+        }
+    }
+}
+
 // ── Project endpoints ─────────────────────────────────────────────────────────
 
 async fn get_project(State(s): State<AppState>) -> impl IntoResponse {
@@ -96,6 +144,7 @@ where
         meta: ProjectMeta { name: "default".into(), version: "0.1.0".into() },
         tags: vec![],
         sources: vec![],
+        alarms: vec![],
     });
     f(&mut project);
     if let Err(e) = tokio::fs::create_dir_all(project_dir).await {

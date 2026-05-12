@@ -145,4 +145,31 @@ export interface ProjectInfo {
   meta: { name: string; version: string };
   tags: TagDef[];
   sources: SourceDef[];
+  alarms?: AlarmDef[];
+}
+
+// ── Alarm types ───────────────────────────────────────────────────────────
+
+export type AlarmSeverity = "Info" | "Warning" | "Critical";
+
+export type AlarmCondition =
+  | { kind: "above"; threshold: number }
+  | { kind: "below"; threshold: number }
+  | { kind: "bool_equals"; value: boolean };
+
+export interface AlarmDef {
+  id: string;
+  tag: string;
+  condition: AlarmCondition;
+  message: string;
+  severity?: AlarmSeverity;
+}
+
+export interface AlarmState {
+  def: AlarmDef;
+  active: boolean;
+  acknowledged: boolean;
+  activated_at_ms: number | null;
+  ack_at_ms: number | null;
+  last_value: number | string | boolean | null;
 }

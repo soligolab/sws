@@ -3,6 +3,7 @@
 use anyhow::Context;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
+use crate::alarm::AlarmDef;
 use crate::tag::{TagDb, TagQuality, TagValue};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -96,6 +97,8 @@ pub struct Project {
     pub tags: Vec<TagDef>,
     #[serde(default)]
     pub sources: Vec<SourceDef>,
+    #[serde(default)]
+    pub alarms: Vec<AlarmDef>,
 }
 
 impl Project {

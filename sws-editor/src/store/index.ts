@@ -1,6 +1,14 @@
 // TODO (ADR 0001): evaluate Redux Toolkit as an alternative before M1 freeze.
 import { create } from "zustand";
-import type { ProjectInfo, SourceDef, SynopticObject, SynopticPage, TagDef, TagState } from "@/types";
+import type {
+  AlarmState,
+  ProjectInfo,
+  SourceDef,
+  SynopticObject,
+  SynopticPage,
+  TagDef,
+  TagState,
+} from "@/types";
 
 function genId(): string {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
@@ -16,6 +24,7 @@ interface AppState {
   currentPageId: string;
   selectedObjectId: string | null;
   tagValues: Record<string, TagState>;
+  alarms: Record<string, AlarmState>;
   gridSize: number;
   snapEnabled: boolean;
 
@@ -40,6 +49,10 @@ interface AppState {
   // Tag values from WebSocket
   updateTagValue: (id: string, state: TagState) => void;
 
+  // Alarms
+  setAlarms: (list: AlarmState[]) => void;
+  updateAlarm: (state: AlarmState) => void;
+
   // Canvas settings
   setGridSize: (size: number) => void;
   setSnapEnabled: (enabled: boolean) => void;
@@ -53,6 +66,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   currentPageId: first.id,
   selectedObjectId: null,
   tagValues: {},
+  alarms: {},
   gridSize: 10,
   snapEnabled: true,
 
@@ -128,6 +142,12 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   updateTagValue: (id, state) =>
     set((s) => ({ tagValues: { ...s.tagValues, [id]: state } })),
+
+  setAlarms: (list) =>
+    set({ alarms: Object.fromEntries(list.map((a) => [a.def.id, a])) }),
+
+  updateAlarm: (state) =>
+    set((s) => ({ alarms: { ...s.alarms, [state.def.id]: state } })),
 
   setGridSize: (gridSize) => set({ gridSize }),
   setSnapEnabled: (snapEnabled) => set({ snapEnabled }),
