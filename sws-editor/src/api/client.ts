@@ -1,5 +1,13 @@
 // TODO: add auth header injection once session tokens are implemented.
-import type { AlarmDef, AlarmState, ProjectInfo, SourceDef, SynopticPage, TagDef } from "@/types";
+import type {
+  AlarmDef,
+  AlarmState,
+  ProjectInfo,
+  Sample,
+  SourceDef,
+  SynopticPage,
+  TagDef,
+} from "@/types";
 
 const BASE_URL = import.meta.env.VITE_RUNTIME_URL ?? "";
 
@@ -66,4 +74,16 @@ export const api = {
 
   ackAlarm: (id: string) =>
     request<void>(`/api/alarms/${encodeURIComponent(id)}/ack`, { method: "POST" }),
+
+  // Historian
+  getHistory: (tag: string, opts?: { fromMs?: number; toMs?: number; limit?: number }) => {
+    const params = new URLSearchParams();
+    if (opts?.fromMs !== undefined) params.set("from", String(opts.fromMs));
+    if (opts?.toMs   !== undefined) params.set("to",   String(opts.toMs));
+    if (opts?.limit  !== undefined) params.set("limit", String(opts.limit));
+    const qs = params.toString();
+    return request<Sample[]>(
+      `/api/history/${encodeURIComponent(tag)}${qs ? "?" + qs : ""}`,
+    );
+  },
 };

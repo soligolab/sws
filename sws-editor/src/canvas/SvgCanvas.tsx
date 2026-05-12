@@ -1,4 +1,5 @@
 import { useRef } from "react";
+import { TrendCanvas } from "@/canvas/TrendCanvas";
 import type { SynopticObject, TagState } from "@/types";
 
 // ── Canvas props ──────────────────────────────────────────────────────────────
@@ -771,6 +772,51 @@ function SvgObject(p: ObjProps) {
             style={{ pointerEvents: "none" }}>
             Nessuna riga — configura nelle proprietà
           </text>
+        )}
+      </g>
+    );
+  }
+
+  // ── TREND ───────────────────────────────────────────────────────────────────
+
+  if (obj.type === "trend") {
+    const w = obj.width ?? 360;
+    const h = obj.height ?? 180;
+    // Edit mode: static placeholder (no polling, no canvas — drag-friendly).
+    // View mode: full TrendCanvas with polling. The handleMouseDown captures
+    // clicks even in view mode so the operator can still "select" if needed.
+    return (
+      <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()}
+         style={{ cursor: editCursor }}>
+        {selRect(obj.x, obj.y, w, h)}
+        {isEditMode ? (
+          <>
+            <rect x={obj.x} y={obj.y} width={w} height={h} rx={4}
+              fill="#0f172a" stroke={selected ? "#facc15" : "#334155"}
+              strokeWidth={selected ? 2 : 1} />
+            <text x={obj.x + w / 2} y={obj.y + h / 2 - 6}
+              textAnchor="middle" fill="#64748b" fontSize={12}
+              style={{ pointerEvents: "none" }}>
+              Trend{obj.tag ? ` — ${obj.tag}` : ""}
+            </text>
+            <text x={obj.x + w / 2} y={obj.y + h / 2 + 10}
+              textAnchor="middle" fill="#475569" fontSize={10}
+              style={{ pointerEvents: "none" }}>
+              {obj.window_s ?? 60}s · autofit
+            </text>
+          </>
+        ) : (
+          <foreignObject x={obj.x} y={obj.y} width={w} height={h}>
+            <TrendCanvas
+              tag={obj.tag ?? ""}
+              windowS={obj.window_s ?? 60}
+              width={w}
+              height={h}
+              lineColor={obj.line_color ?? "#3b82f6"}
+              yMin={obj.y_min}
+              yMax={obj.y_max}
+            />
+          </foreignObject>
         )}
       </g>
     );

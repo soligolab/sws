@@ -96,6 +96,10 @@ export function EditorShell() {
         addObject({ type, x, y, width: 300, height: 120,
           table_rows: [{ label: "Tag 1", tag: "", format: "{value:.1f}" }] });
         break;
+      case "trend":
+        addObject({ type, x, y, width: 360, height: 180,
+          tag: "", window_s: 60, line_color: "#3b82f6" });
+        break;
     }
   };
 
@@ -267,7 +271,7 @@ function ObjectProps({
     </div>
   );
 
-  const BOX_TYPES = ["rect", "ellipse", "button", "navbutton", "checkbox", "radio", "slider", "gauge", "led", "progress_bar", "table"];
+  const BOX_TYPES = ["rect", "ellipse", "button", "navbutton", "checkbox", "radio", "slider", "gauge", "led", "progress_bar", "table", "trend"];
   const isShape = BOX_TYPES.includes(obj.type);
   const hasStroke = obj.type === "rect" || obj.type === "ellipse" || obj.type === "line";
 
@@ -513,6 +517,22 @@ function ObjectProps({
           rows={(obj.table_rows as TableRow[] | undefined) ?? []}
           onChange={(rows) => onChange({ table_rows: rows as SynopticObject["table_rows"] })}
         />
+      )}
+
+      {/* Trend */}
+      {obj.type === "trend" && (
+        <>
+          {field("Tag", tagInput("es. boiler.t"))}
+          {field("Finestra (s)", numInput("window_s", 60))}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+            <div><div style={LABEL}>Y min</div>{numInput("y_min", 0)}</div>
+            <div><div style={LABEL}>Y max</div>{numInput("y_max", 100)}</div>
+          </div>
+          <p style={{ fontSize: 10, color: "#475569", margin: "2px 0 0" }}>
+            Lascia Y min/max a 0 per autofit.
+          </p>
+          {field("Colore linea", colorInput("line_color", "#3b82f6"))}
+        </>
       )}
 
       <button

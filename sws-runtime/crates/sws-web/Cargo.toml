@@ -14,4 +14,5 @@ serde_json.workspace  = true
 serde_yaml.workspace  = true
 tracing.workspace     = true
 anyhow.workspace      = true
-sws-core = { path = "../sws-core" }
+sws-core      = { path = "../sws-core" }
+sws-historian = { path = "../sws-historian" }

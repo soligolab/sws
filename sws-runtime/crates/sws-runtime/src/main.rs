@@ -8,6 +8,7 @@ use hyper_util::server::conn::auto::Builder as ConnBuilder;
 use rcgen::generate_simple_self_signed;
 use std::{net::SocketAddr, path::PathBuf, sync::Arc};
 use sws_core::{AlarmDb, TagDb, TagWriteBus};
+use sws_historian::Historian;
 use tokio::net::TcpListener;
 use tokio_rustls::{
     rustls::{
@@ -50,9 +51,12 @@ async fn main() -> anyhow::Result<()> {
 
     let acceptor = build_tls_acceptor(&args.config)?;
 
-    let tag_db   = Arc::new(TagDb::new(256));
-    let bus      = Arc::new(TagWriteBus::new());
-    let alarm_db = Arc::new(AlarmDb::new(64));
+    let tag_db    = Arc::new(TagDb::new(256));
+    let bus       = Arc::new(TagWriteBus::new());
+    let alarm_db  = Arc::new(AlarmDb::new(64));
+    // 5_000 samples × ~100 tags ≈ a few MB. Adjust per-tag cap when we learn
+    // realistic project sizes — for now this is the PoC sizing.
+    let historian = Arc::new(Historian::new(5_000));
 
     match sws_core::project::Project::load(&args.project) {
         Ok(project) => {
@@ -101,7 +105,16 @@ async fn main() -> anyhow::Result<()> {
         });
     }
 
-    let app = sws_web::router::build(tag_db, bus, alarm_db, Arc::new(args.project.clone()));
+    // Historian recorder: append every TagDb update to the per-tag ring buffer.
+    historian.clone().spawn_recorder(tag_db.clone());
+
+    let app = sws_web::router::build(
+        tag_db,
+        bus,
+        alarm_db,
+        historian,
+        Arc::new(args.project.clone()),
+    );
 
     let addr: SocketAddr = "0.0.0.0:8443".parse()?;
     let listener = TcpListener::bind(addr).await?;

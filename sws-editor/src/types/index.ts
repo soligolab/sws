@@ -22,7 +22,8 @@ export type SynopticObjectType =
   | "gauge"
   | "led"
   | "progress_bar"
-  | "table";
+  | "table"
+  | "trend";
 
 /** One option in a radio-group. */
 export interface RadioOption {
@@ -82,6 +83,21 @@ export interface SynopticObject {
   options?: RadioOption[];
   // Data table rows
   table_rows?: TableRow[];
+  // Trend chart
+  /** Seconds of history to render in the window. */
+  window_s?: number;
+  /** Y-axis auto-fit when omitted; otherwise hard min/max. */
+  y_min?: number;
+  y_max?: number;
+  line_color?: string;
+}
+
+// ── Historian sample (wire shape from GET /api/history/:tag) ──────────────
+
+export interface Sample {
+  ts_ms: number;
+  value: number | string | boolean;
+  quality: TagQuality;
 }
 
 export interface SynopticPage {

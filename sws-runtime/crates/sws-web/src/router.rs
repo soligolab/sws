@@ -1,6 +1,6 @@
 use std::{collections::HashMap, path::PathBuf, sync::Arc};
 use axum::{
-    extract::{ws::{Message, WebSocket, WebSocketUpgrade}, Path, State},
+    extract::{ws::{Message, WebSocket, WebSocketUpgrade}, Path, Query, State},
     http::StatusCode,
     response::IntoResponse,
     routing::{get, put},
@@ -11,6 +11,7 @@ use sws_core::{
     AlarmDb, AlarmDef, AlarmState, Project, ProjectMeta, SourceDef, TagDb, TagDef, TagId,
     TagQuality, TagState, TagUpdate, TagValue, TagWriteBus, WriteError,
 };
+use sws_historian::{Historian, Sample};
 use tracing::warn;
 use crate::synoptic::{safe_filename, SynopticPage};
 
@@ -19,6 +20,7 @@ pub struct AppState {
     pub db: Arc<TagDb>,
     pub bus: Arc<TagWriteBus>,
     pub alarms: Arc<AlarmDb>,
+    pub historian: Arc<Historian>,
     pub project_dir: Arc<PathBuf>,
 }
 
@@ -26,9 +28,10 @@ pub fn build(
     db: Arc<TagDb>,
     bus: Arc<TagWriteBus>,
     alarms: Arc<AlarmDb>,
+    historian: Arc<Historian>,
     project_dir: Arc<PathBuf>,
 ) -> Router {
-    let state = AppState { db, bus, alarms, project_dir };
+    let state = AppState { db, bus, alarms, historian, project_dir };
     Router::new()
         .route("/health",  get(|| async { "ok" }))
         .route("/metrics", get(|| async { "# SWS metrics placeholder\n" }))
@@ -38,6 +41,8 @@ pub fn build(
         // Alarm REST
         .route("/api/alarms",         get(get_alarms))
         .route("/api/alarms/:id/ack", axum::routing::post(ack_alarm))
+        // Historian
+        .route("/api/history/:tag", get(get_history))
         // Project info + config
         .route("/api/project",         get(get_project))
         .route("/api/project/tags",    put(update_project_tags))
@@ -87,6 +92,30 @@ async fn write_tag(
             StatusCode::SERVICE_UNAVAILABLE
         }
     }
+}
+
+// ── Historian endpoints ──────────────────────────────────────────────────────
+
+#[derive(Deserialize)]
+struct HistoryQuery {
+    from: Option<u64>,
+    to:   Option<u64>,
+    /// If provided, returns at most the last `limit` samples in the range.
+    limit: Option<usize>,
+}
+
+async fn get_history(
+    State(s): State<AppState>,
+    Path(tag): Path<String>,
+    Query(q): Query<HistoryQuery>,
+) -> Json<Vec<Sample>> {
+    let mut samples = s.historian.query(&tag, q.from, q.to).await;
+    if let Some(n) = q.limit {
+        if samples.len() > n {
+            samples = samples.split_off(samples.len() - n);
+        }
+    }
+    Json(samples)
 }
 
 // ── Alarm endpoints ──────────────────────────────────────────────────────────
