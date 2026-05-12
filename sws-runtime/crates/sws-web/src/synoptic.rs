@@ -64,6 +64,18 @@ pub struct SynopticObject {
     // Radio options / table rows (generic JSON arrays)
     #[serde(skip_serializing_if = "Option::is_none")] pub options:        Option<Value>,
     #[serde(skip_serializing_if = "Option::is_none")] pub table_rows:     Option<Value>,
+    // Trend chart
+    #[serde(skip_serializing_if = "Option::is_none")] pub window_s:       Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub y_min:          Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub y_max:          Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub line_color:     Option<String>,
+    // Layer / visibility (cross-cutting)
+    #[serde(skip_serializing_if = "Option::is_none")] pub z_index:        Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub visible:        Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub visible_tag:    Option<String>,
+    // Event handlers (Python source executed by sws-pyscript on press/release)
+    #[serde(skip_serializing_if = "Option::is_none")] pub on_press:       Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub on_release:     Option<String>,
 }
 
 /// Sanitize a page name to a safe filename stem.

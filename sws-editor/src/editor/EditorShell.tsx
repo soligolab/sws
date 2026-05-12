@@ -535,6 +535,69 @@ function ObjectProps({
         </>
       )}
 
+      {/* ── Cross-cutting: layer, visibility, event scripts ─────────── */}
+      <div style={{ fontSize: 10, color: "#475569", marginTop: 8, marginBottom: 2, fontWeight: 700, letterSpacing: 0.5 }}>
+        LIVELLO E VISIBILITÀ
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr auto auto", gap: 4, alignItems: "end" }}>
+        <div><div style={LABEL}>z-index</div>{numInput("z_index", 0)}</div>
+        <button
+          title="Porta indietro (-1)"
+          onClick={() => onChange({ z_index: (obj.z_index ?? 0) - 1 })}
+          style={{ ...INPUT, cursor: "pointer", padding: "3px 8px", height: 26 }}
+        >▼</button>
+        <button
+          title="Porta avanti (+1)"
+          onClick={() => onChange({ z_index: (obj.z_index ?? 0) + 1 })}
+          style={{ ...INPUT, cursor: "pointer", padding: "3px 8px", height: 26 }}
+        >▲</button>
+      </div>
+      <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#cbd5e1", marginTop: 4, cursor: "pointer" }}>
+        <input
+          type="checkbox"
+          checked={obj.visible !== false}
+          onChange={(e) => onChange({ visible: e.target.checked })}
+          style={{ accentColor: "#3b82f6" }}
+        />
+        Visibile (statico)
+      </label>
+      <div>
+        <div style={LABEL}>Tag visibilità (override)</div>
+        <TagInput
+          style={INPUT}
+          placeholder="es. valvola.aperta"
+          value={obj.visible_tag ?? ""}
+          onChange={(v) => onChange({ visible_tag: v || undefined })}
+        />
+      </div>
+
+      <div style={{ fontSize: 10, color: "#475569", marginTop: 8, marginBottom: 2, fontWeight: 700, letterSpacing: 0.5 }}>
+        EVENTI (PYTHON)
+      </div>
+      <div>
+        <div style={LABEL}>On press</div>
+        <textarea
+          style={{ ...INPUT, height: 56, fontFamily: "ui-monospace, monospace", fontSize: 11, resize: "vertical" }}
+          placeholder='es. tags.write("pump1.run", True)'
+          value={obj.on_press ?? ""}
+          onChange={(e) => onChange({ on_press: e.target.value || undefined })}
+          spellCheck={false}
+        />
+      </div>
+      <div>
+        <div style={LABEL}>On release</div>
+        <textarea
+          style={{ ...INPUT, height: 56, fontFamily: "ui-monospace, monospace", fontSize: 11, resize: "vertical" }}
+          placeholder='es. tags.write("pump1.run", False)'
+          value={obj.on_release ?? ""}
+          onChange={(e) => onChange({ on_release: e.target.value || undefined })}
+          spellCheck={false}
+        />
+      </div>
+      <p style={{ fontSize: 10, color: "#475569", margin: "0 0 4px" }}>
+        Bindings disponibili: <code>tags.read(id)</code>, <code>tags.write(id, value)</code>, <code>print(...)</code>.
+      </p>
+
       <button
         onClick={onDelete}
         style={{

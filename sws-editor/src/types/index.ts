@@ -90,6 +90,18 @@ export interface SynopticObject {
   y_min?: number;
   y_max?: number;
   line_color?: string;
+  // ── Layer / visibility (cross-cutting) ────────────────────────────────
+  /** Render order. Higher draws on top. Default 0; ties broken by array order. */
+  z_index?: number;
+  /** Static visibility flag (default true). Overridden by `visible_tag` when set. */
+  visible?: boolean;
+  /** Tag id whose truthy value controls visibility. Non-zero / non-empty / true → visible. */
+  visible_tag?: string;
+  // ── Event handlers (Python via POST /api/script/exec) ─────────────────
+  /** Python code executed on mousedown in runtime mode. */
+  on_press?: string;
+  /** Python code executed on mouseup in runtime mode. */
+  on_release?: string;
 }
 
 // ── Historian sample (wire shape from GET /api/history/:tag) ──────────────

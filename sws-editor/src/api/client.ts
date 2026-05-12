@@ -86,4 +86,12 @@ export const api = {
       `/api/history/${encodeURIComponent(tag)}${qs ? "?" + qs : ""}`,
     );
   },
+
+  // Script execution (object on_press / on_release handlers)
+  execScript: (code: string) =>
+    request<{ ok: boolean; error?: string }>("/api/script/exec", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code }),
+    }),
 };

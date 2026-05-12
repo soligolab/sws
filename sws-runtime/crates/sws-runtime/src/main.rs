@@ -9,6 +9,7 @@ use rcgen::generate_simple_self_signed;
 use std::{net::SocketAddr, path::PathBuf, sync::Arc};
 use sws_core::{AlarmDb, TagDb, TagWriteBus};
 use sws_historian::Historian;
+use sws_pyscript::Engine as PyEngine;
 use tokio::net::TcpListener;
 use tokio_rustls::{
     rustls::{
@@ -57,6 +58,7 @@ async fn main() -> anyhow::Result<()> {
     // 5_000 samples × ~100 tags ≈ a few MB. Adjust per-tag cap when we learn
     // realistic project sizes — for now this is the PoC sizing.
     let historian = Arc::new(Historian::new(5_000));
+    let py_engine = PyEngine::new(tag_db.clone(), bus.clone());
 
     match sws_core::project::Project::load(&args.project) {
         Ok(project) => {
@@ -113,6 +115,7 @@ async fn main() -> anyhow::Result<()> {
         bus,
         alarm_db,
         historian,
+        py_engine,
         Arc::new(args.project.clone()),
     );
 

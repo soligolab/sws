@@ -18,6 +18,12 @@ export function RuntimeView() {
     api.writeTag(tagId, value).catch(console.error);
   };
 
+  const handleScript = (code: string) => {
+    api.execScript(code).then((r) => {
+      if (!r.ok && r.error) console.warn("[script]", r.error);
+    }).catch(console.error);
+  };
+
   return (
     <div style={{ display: "flex", flexDirection: "column", flex: 1, overflow: "hidden" }}>
       {/* Page navigation bar */}
@@ -62,6 +68,7 @@ export function RuntimeView() {
           tagValues={tagValues}
           background={currentPage?.background}
           onWriteTag={handleWriteTag}
+          onScript={handleScript}
           onNavigate={setCurrentPage}
         />
       </div>

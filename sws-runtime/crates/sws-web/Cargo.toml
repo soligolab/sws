@@ -16,3 +16,4 @@ tracing.workspace     = true
 anyhow.workspace      = true
 sws-core      = { path = "../sws-core" }
 sws-historian = { path = "../sws-historian" }
+sws-pyscript  = { path = "../sws-pyscript" }

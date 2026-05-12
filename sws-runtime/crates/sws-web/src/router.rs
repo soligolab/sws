@@ -12,6 +12,7 @@ use sws_core::{
     TagQuality, TagState, TagUpdate, TagValue, TagWriteBus, WriteError,
 };
 use sws_historian::{Historian, Sample};
+use sws_pyscript::Engine as PyEngine;
 use tracing::warn;
 use crate::synoptic::{safe_filename, SynopticPage};
 
@@ -21,6 +22,7 @@ pub struct AppState {
     pub bus: Arc<TagWriteBus>,
     pub alarms: Arc<AlarmDb>,
     pub historian: Arc<Historian>,
+    pub py: PyEngine,
     pub project_dir: Arc<PathBuf>,
 }
 
@@ -29,9 +31,10 @@ pub fn build(
     bus: Arc<TagWriteBus>,
     alarms: Arc<AlarmDb>,
     historian: Arc<Historian>,
+    py: PyEngine,
     project_dir: Arc<PathBuf>,
 ) -> Router {
-    let state = AppState { db, bus, alarms, historian, project_dir };
+    let state = AppState { db, bus, alarms, historian, py, project_dir };
     Router::new()
         .route("/health",  get(|| async { "ok" }))
         .route("/metrics", get(|| async { "# SWS metrics placeholder\n" }))
@@ -43,6 +46,8 @@ pub fn build(
         .route("/api/alarms/:id/ack", axum::routing::post(ack_alarm))
         // Historian
         .route("/api/history/:tag", get(get_history))
+        // Python script execution (fires from press/release handlers)
+        .route("/api/script/exec", axum::routing::post(exec_script))
         // Project info + config
         .route("/api/project",         get(get_project))
         .route("/api/project/tags",    put(update_project_tags))
@@ -91,6 +96,34 @@ async fn write_tag(
             warn!("write_tag: {e}");
             StatusCode::SERVICE_UNAVAILABLE
         }
+    }
+}
+
+// ── Script execution ─────────────────────────────────────────────────────────
+//
+// NOTE: scripts run with full Python privileges — no RestrictedPython yet
+// (Q1 in docs/OPEN_QUESTIONS.md). Once auth lands this endpoint will be
+// gated; for now the assumption is that the LAN is private.
+
+#[derive(Deserialize)]
+struct ScriptBody {
+    code: String,
+}
+
+#[derive(serde::Serialize)]
+struct ScriptResult {
+    ok: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    error: Option<String>,
+}
+
+async fn exec_script(
+    State(s): State<AppState>,
+    Json(body): Json<ScriptBody>,
+) -> Json<ScriptResult> {
+    match s.py.execute(body.code).await {
+        Ok(()) => Json(ScriptResult { ok: true,  error: None }),
+        Err(e) => Json(ScriptResult { ok: false, error: Some(e) }),
     }
 }
 
