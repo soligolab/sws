@@ -5,17 +5,15 @@ use std::{collections::HashMap, sync::Arc, time::Duration};
 use sws_core::{ModbusTcpConfig, TagDb, TagQuality, TagValue, TagWriteBus, WriteRequest};
 use tokio::sync::mpsc;
 use tokio_modbus::prelude::*;
+use tokio_util::sync::CancellationToken;
 use tracing::{info, warn};
 
-/// Runs the Modbus TCP polling loop forever, reconnecting on any error.
-/// Also accepts write requests via `bus`: each tag in `cfg.registers` is
-/// registered as routable. Writes are issued as Modbus
-/// write-single-register commands (raw_u16 = value / scale, clamped).
-/// Designed to be spawned as a detached Tokio task.
-pub async fn run(cfg: ModbusTcpConfig, db: Arc<TagDb>, bus: Arc<TagWriteBus>) {
+/// Runs the Modbus TCP polling loop until `cancel` fires, reconnecting on any
+/// error. Each tag in `cfg.registers` is registered with the write bus so a
+/// `PUT /api/tags/:id` is forwarded as `write_single_register` (raw_u16 =
+/// value / scale, clamped).
+pub async fn run(cfg: ModbusTcpConfig, db: Arc<TagDb>, bus: Arc<TagWriteBus>, cancel: CancellationToken) {
     // One mpsc channel feeds all write requests for the tags this source owns.
-    // We size the buffer generously — writes are rare compared to reads, but
-    // a burst from the UI shouldn't drop messages silently.
     let (write_tx, mut write_rx) = mpsc::channel::<WriteRequest>(32);
     for reg in &cfg.registers {
         bus.register(reg.tag.clone(), write_tx.clone()).await;
@@ -28,14 +26,28 @@ pub async fn run(cfg: ModbusTcpConfig, db: Arc<TagDb>, bus: Arc<TagWriteBus>) {
         .collect();
 
     loop {
-        match session(&cfg, &db, &routes, &mut write_rx).await {
-            Ok(()) => break, // clean exit — shouldn't happen in normal operation
-            Err(e) => {
-                warn!(source = %cfg.id, "Modbus error: {e:#} — marking tags Bad, retry in 5 s");
-                for reg in &cfg.registers {
-                    db.set(reg.tag.clone(), TagValue::Float(0.0), TagQuality::Bad).await;
+        if cancel.is_cancelled() {
+            info!(source = %cfg.id, "Modbus task cancelled");
+            return;
+        }
+        tokio::select! {
+            biased;
+            _ = cancel.cancelled() => {
+                info!(source = %cfg.id, "Modbus task cancelled");
+                return;
+            }
+            res = session(&cfg, &db, &routes, &mut write_rx, cancel.clone()) => match res {
+                Ok(()) => return, // clean exit (cancellation)
+                Err(e) => {
+                    warn!(source = %cfg.id, "Modbus error: {e:#} — marking tags Bad, retry in 5 s");
+                    for reg in &cfg.registers {
+                        db.set(reg.tag.clone(), TagValue::Float(0.0), TagQuality::Bad).await;
+                    }
+                    tokio::select! {
+                        _ = cancel.cancelled() => return,
+                        _ = tokio::time::sleep(Duration::from_secs(5)) => {}
+                    }
                 }
-                tokio::time::sleep(Duration::from_secs(5)).await;
             }
         }
     }
@@ -46,6 +58,7 @@ async fn session(
     db: &TagDb,
     routes: &HashMap<String, (u16, f64)>,
     write_rx: &mut mpsc::Receiver<WriteRequest>,
+    cancel: CancellationToken,
 ) -> anyhow::Result<()> {
     let addr: std::net::SocketAddr = format!("{}:{}", cfg.host, cfg.port)
         .parse()
@@ -64,6 +77,10 @@ async fn session(
 
     loop {
         tokio::select! {
+            // Stop quickly when the supervisor cancels us — don't wait for the
+            // next tick or a write request.
+            _ = cancel.cancelled() => return Ok(()),
+
             // Periodic read — every register, in declaration order.
             _ = ticker.tick() => {
                 for reg in &cfg.registers {

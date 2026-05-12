@@ -16,6 +16,7 @@ use sws_core::{
 use sws_historian::{Historian, Sample};
 use sws_pyscript::{Engine as PyEngine, ExecOutput};
 use tracing::warn;
+use crate::source_supervisor::SourceSupervisor;
 use crate::synoptic::{safe_filename, SynopticPage};
 
 #[derive(Clone)]
@@ -26,6 +27,7 @@ pub struct AppState {
     pub historian: Arc<Historian>,
     pub py: PyEngine,
     pub auth: Arc<AuthState>,
+    pub supervisor: Arc<SourceSupervisor>,
     pub project_dir: Arc<PathBuf>,
 }
 
@@ -36,9 +38,10 @@ pub fn build(
     historian: Arc<Historian>,
     py: PyEngine,
     auth: Arc<AuthState>,
+    supervisor: Arc<SourceSupervisor>,
     project_dir: Arc<PathBuf>,
 ) -> Router {
-    let state = AppState { db, bus, alarms, historian, py, auth, project_dir };
+    let state = AppState { db, bus, alarms, historian, py, auth, supervisor, project_dir };
 
     // Routes that require a valid session (Bearer token in Authorization
     // header for HTTP, or ?token=... query param for WS upgrade).
@@ -377,9 +380,15 @@ async fn update_project_sources(
     State(s): State<AppState>,
     Json(sources): Json<Vec<SourceDef>>,
 ) -> StatusCode {
-    // Source hot-reload requires spawn/kill of plugin tasks — deferred to a
-    // later session. For now the UI continues to show the "restart" notice.
-    patch_project(&s.project_dir, |p| p.sources = sources).await
+    // Hot-reload: persist first, then diff against the supervisor's current
+    // set. New/removed sources are spawned/cancelled in-place — no runtime
+    // restart needed.
+    let clone = sources.clone();
+    let status = patch_project(&s.project_dir, |p| p.sources = sources).await;
+    if status == StatusCode::NO_CONTENT {
+        s.supervisor.reload(clone).await;
+    }
+    status
 }
 
 async fn update_project_alarms(

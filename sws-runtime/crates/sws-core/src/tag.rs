@@ -138,6 +138,16 @@ impl TagWriteBus {
         self.routes.write().await.insert(tag_id, sender);
     }
 
+    /// Drop all routes for the given tag ids. Called by the source supervisor
+    /// when a plugin is being stopped — leaves the bus in a state where the
+    /// next write to an unowned tag falls back to the direct TagDb path.
+    pub async fn unregister_many(&self, tag_ids: &[TagId]) {
+        let mut routes = self.routes.write().await;
+        for id in tag_ids {
+            routes.remove(id);
+        }
+    }
+
     /// Forward a write to the plugin that owns the tag.
     /// Returns `NoWriter` if the tag is not registered (caller decides fallback).
     pub async fn write(&self, tag_id: &str, value: TagValue) -> Result<(), WriteError> {

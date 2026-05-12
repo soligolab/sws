@@ -11,6 +11,7 @@ use sws_auth::AuthState;
 use sws_core::{AlarmDb, TagDb, TagWriteBus};
 use sws_historian::Historian;
 use sws_pyscript::Engine as PyEngine;
+use sws_web::SourceSupervisor;
 use tokio::net::TcpListener;
 use tokio_rustls::{
     rustls::{
@@ -60,6 +61,7 @@ async fn main() -> anyhow::Result<()> {
     // realistic project sizes — for now this is the PoC sizing.
     let historian = Arc::new(Historian::new(5_000));
     let py_engine = PyEngine::new(tag_db.clone(), bus.clone());
+    let supervisor = SourceSupervisor::new(tag_db.clone(), bus.clone());
 
     // Admin credentials must be provided via env. The runtime refuses to
     // start with an empty password — that is the "no default credentials"
@@ -79,19 +81,7 @@ async fn main() -> anyhow::Result<()> {
             );
             project.populate_tags(&tag_db).await;
             alarm_db.load(project.alarms).await;
-            for source in project.sources {
-                match source {
-                    sws_core::SourceDef::ModbusTcp(cfg) => {
-                        let db  = tag_db.clone();
-                        let wb  = bus.clone();
-                        tokio::spawn(async move { sws_plugin_modbus::run(cfg, db, wb).await });
-                    }
-                    sws_core::SourceDef::Mqtt(cfg) => {
-                        let db = tag_db.clone();
-                        tokio::spawn(async move { sws_plugin_mqtt::run(cfg, db).await });
-                    }
-                }
-            }
+            supervisor.reload(project.sources).await;
         }
         Err(e) => {
             warn!("project.yaml not found or invalid — starting with empty tag database: {e:#}");
@@ -126,6 +116,7 @@ async fn main() -> anyhow::Result<()> {
         historian,
         py_engine,
         auth,
+        supervisor.clone(),
         Arc::new(args.project.clone()),
     );
 

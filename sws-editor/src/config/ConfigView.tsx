@@ -721,7 +721,8 @@ function ProtocolsTab() {
       <div style={S.notice}>
         Configura le connessioni ai dispositivi di campo. Supportati: <strong>Modbus TCP</strong>
         (lettura registri holding) e <strong>MQTT</strong> (sottoscrizione topic). OPC-UA pianificato.
-        Dopo il salvataggio, <strong>riavvia il runtime</strong> per attivare nuove connessioni.
+        Le sorgenti vengono ricollegate <strong>in tempo reale</strong> al salvataggio (niente
+        riavvio del runtime).
       </div>
 
       {sources.length === 0 && (
@@ -770,7 +771,7 @@ function ProtocolsTab() {
         onSave={handleSave}
         saving={saving}
         saved={saved}
-        savedNotice="✓ Salvato — riavvia il runtime per applicare le modifiche alle sorgenti."
+        savedNotice="✓ Salvato — sorgenti ricollegate al volo."
       />
     </div>
   );

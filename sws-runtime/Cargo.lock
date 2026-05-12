@@ -2949,6 +2949,7 @@ dependencies = [
  "sws-plugin-api",
  "tokio",
  "tokio-modbus",
+ "tokio-util",
  "tracing",
 ]
 
@@ -2964,6 +2965,7 @@ dependencies = [
  "sws-core",
  "sws-plugin-api",
  "tokio",
+ "tokio-util",
  "tracing",
 ]
 
@@ -3009,8 +3011,6 @@ dependencies = [
  "sws-auth",
  "sws-core",
  "sws-historian",
- "sws-plugin-modbus",
- "sws-plugin-mqtt",
  "sws-pyscript",
  "sws-web",
  "tokio",
@@ -3033,8 +3033,11 @@ dependencies = [
  "sws-auth",
  "sws-core",
  "sws-historian",
+ "sws-plugin-modbus",
+ "sws-plugin-mqtt",
  "sws-pyscript",
  "tokio",
+ "tokio-util",
  "tower 0.4.13",
  "tower-http",
  "tracing",

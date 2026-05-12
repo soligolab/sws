@@ -9,23 +9,39 @@
 use std::{sync::Arc, time::Duration};
 use rumqttc::{AsyncClient, Event, MqttOptions, Packet, QoS};
 use sws_core::{MqttConfig, TagDb, TagQuality, TagValue};
+use tokio_util::sync::CancellationToken;
 use tracing::{info, warn};
 
-/// Runs the MQTT subscription loop forever, reconnecting on any error.
-/// Designed to be spawned as a detached Tokio task.
-pub async fn run(cfg: MqttConfig, db: Arc<TagDb>) {
+/// Runs the MQTT subscription loop until `cancel` fires, reconnecting on any error.
+pub async fn run(cfg: MqttConfig, db: Arc<TagDb>, cancel: CancellationToken) {
     loop {
-        if let Err(e) = run_session(&cfg, &db).await {
-            warn!(source = %cfg.id, "MQTT session ended: {e:#} — retry in 5 s");
-            for topic in &cfg.topics {
-                db.set(topic.tag.clone(), TagValue::Float(0.0), TagQuality::Bad).await;
+        if cancel.is_cancelled() {
+            info!(source = %cfg.id, "MQTT task cancelled");
+            return;
+        }
+        tokio::select! {
+            biased;
+            _ = cancel.cancelled() => {
+                info!(source = %cfg.id, "MQTT task cancelled");
+                return;
             }
-            tokio::time::sleep(Duration::from_secs(5)).await;
+            res = run_session(&cfg, &db, cancel.clone()) => {
+                if let Err(e) = res {
+                    warn!(source = %cfg.id, "MQTT session ended: {e:#} — retry in 5 s");
+                    for topic in &cfg.topics {
+                        db.set(topic.tag.clone(), TagValue::Float(0.0), TagQuality::Bad).await;
+                    }
+                    tokio::select! {
+                        _ = cancel.cancelled() => return,
+                        _ = tokio::time::sleep(Duration::from_secs(5)) => {}
+                    }
+                }
+            }
         }
     }
 }
 
-async fn run_session(cfg: &MqttConfig, db: &TagDb) -> anyhow::Result<()> {
+async fn run_session(cfg: &MqttConfig, db: &TagDb, cancel: CancellationToken) -> anyhow::Result<()> {
     let mut opts = MqttOptions::new(&cfg.client_id, &cfg.host, cfg.port);
     opts.set_keep_alive(Duration::from_secs(10));
     let (client, mut eventloop) = AsyncClient::new(opts, 32);
@@ -44,10 +60,10 @@ async fn run_session(cfg: &MqttConfig, db: &TagDb) -> anyhow::Result<()> {
     );
 
     loop {
-        let event = eventloop
-            .poll()
-            .await
-            .map_err(|e| anyhow::anyhow!("eventloop: {e}"))?;
+        let event = tokio::select! {
+            _ = cancel.cancelled() => return Ok(()),
+            res = eventloop.poll() => res.map_err(|e| anyhow::anyhow!("eventloop: {e}"))?,
+        };
 
         if let Event::Incoming(Packet::Publish(p)) = event {
             for topic in &cfg.topics {

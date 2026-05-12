@@ -6,6 +6,7 @@ license.workspace = true
 
 [dependencies]
 tokio.workspace      = true
+tokio-util.workspace = true
 rumqttc.workspace    = true
 rumqttd.workspace    = true
 serde.workspace      = true

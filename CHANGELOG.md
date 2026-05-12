@@ -86,6 +86,15 @@ and this project adheres to [CalVer](https://calver.org/) (`YYYY.MM[.patch]`).
 - `POST /api/script/exec` response now includes `stdout`, `stderr` and `sandboxed` alongside `ok`/`error`. The editor's `RuntimeView` script dispatcher pipes them to `console.log` / `console.warn` so you can see `print(...)` and tracebacks from the browser devtools.
 - `requirements.txt` at the repo root documenting the optional RestrictedPython dep.
 
+### Added (source hot-reload)
+- `sws-web::SourceSupervisor` (new module) owns a `HashMap<source_id, RunningSource>` mapping each `SourceDef` to a `JoinHandle` + `CancellationToken` + cached config JSON + owned-tag list. `reload(desired)` diffs the new list against the running set: stops sources whose id disappeared or whose JSON config changed, starts the rest. Stopping a source cancels its task, joins with a 2 s timeout, then releases its tag routes from `TagWriteBus`.
+- `sws-plugin-modbus::run(cfg, db, bus, cancel)` and `sws-plugin-mqtt::run(cfg, db, cancel)` now take a `CancellationToken`. Both reconnect loops and inner sessions `select!` on `cancel.cancelled()` so cancellation lands within one network read / one poll cycle.
+- `sws-core::TagWriteBus::unregister_many(ids)` to drop routes on plugin stop.
+- `sws-web::AppState` gains `supervisor: Arc<SourceSupervisor>`. `PUT /api/project/sources` now persists then calls `supervisor.reload(new)` — no runtime restart for Modbus/MQTT config edits.
+- `sws-runtime`: startup spawns plugins via the supervisor instead of bare `tokio::spawn`. Reload re-uses the same path. The plugin crates moved from `sws-runtime` deps to `sws-web` deps (the supervisor lives there now).
+- ConfigView ProtocolsTab notice updated: "Le sorgenti vengono ricollegate in tempo reale al salvataggio (niente riavvio del runtime)."
+- `tokio-util` added to the workspace dependencies (gives `CancellationToken`).
+
 ### Added (cross-cutting object properties)
 - `SynopticObject` gains `z_index`, `visible`, `visible_tag`, `on_press`, `on_release` in both Rust (`sws-web/synoptic.rs`) and TypeScript (`sws-editor/src/types`). Trend fields (`window_s`, `y_min`, `y_max`, `line_color`) added to the Rust struct too — they were dropped on save before.
 - `sws-editor/src/canvas/SvgCanvas.tsx`: objects sorted by `z_index` (ties by array order) before SVG render, so layering is declarative. `isObjectVisible()` evaluates `visible_tag` (truthy coercion for bool/number/string) and falls back to the static `visible !== false`. In runtime mode, hidden objects are not rendered; in edit mode they're shown at 35% opacity so the designer can still select them.
