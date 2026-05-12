@@ -7,18 +7,22 @@ use axum::{
     Json, Router,
 };
 use serde::Deserialize;
-use sws_core::{Project, ProjectMeta, SourceDef, TagDb, TagDef, TagId, TagQuality, TagState, TagUpdate, TagValue};
+use sws_core::{
+    Project, ProjectMeta, SourceDef, TagDb, TagDef, TagId, TagQuality, TagState, TagUpdate,
+    TagValue, TagWriteBus, WriteError,
+};
 use tracing::warn;
 use crate::synoptic::{safe_filename, SynopticPage};
 
 #[derive(Clone)]
 pub struct AppState {
     pub db: Arc<TagDb>,
+    pub bus: Arc<TagWriteBus>,
     pub project_dir: Arc<PathBuf>,
 }
 
-pub fn build(db: Arc<TagDb>, project_dir: Arc<PathBuf>) -> Router {
-    let state = AppState { db, project_dir };
+pub fn build(db: Arc<TagDb>, bus: Arc<TagWriteBus>, project_dir: Arc<PathBuf>) -> Router {
+    let state = AppState { db, bus, project_dir };
     Router::new()
         .route("/health",  get(|| async { "ok" }))
         .route("/metrics", get(|| async { "# SWS metrics placeholder\n" }))
@@ -58,8 +62,20 @@ async fn write_tag(
     Path(id): Path<String>,
     Json(body): Json<WriteTagBody>,
 ) -> StatusCode {
-    s.db.set(id, body.value, TagQuality::Good).await;
-    StatusCode::NO_CONTENT
+    // Prefer routing through a plugin (so the value is pushed to the device).
+    // If no plugin owns the tag (purely virtual / scripted tags), fall back to
+    // setting the TagDb directly so the UI write path keeps working.
+    match s.bus.write(&id, body.value.clone()).await {
+        Ok(()) => StatusCode::ACCEPTED,
+        Err(WriteError::NoWriter(_)) => {
+            s.db.set(id, body.value, TagQuality::Good).await;
+            StatusCode::NO_CONTENT
+        }
+        Err(e @ WriteError::ChannelClosed(_)) => {
+            warn!("write_tag: {e}");
+            StatusCode::SERVICE_UNAVAILABLE
+        }
+    }
 }
 
 // ── Project endpoints ─────────────────────────────────────────────────────────

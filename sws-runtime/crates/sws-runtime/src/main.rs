@@ -7,7 +7,7 @@ use hyper_util::rt::{TokioExecutor, TokioIo};
 use hyper_util::server::conn::auto::Builder as ConnBuilder;
 use rcgen::generate_simple_self_signed;
 use std::{net::SocketAddr, path::PathBuf, sync::Arc};
-use sws_core::TagDb;
+use sws_core::{TagDb, TagWriteBus};
 use tokio::net::TcpListener;
 use tokio_rustls::{
     rustls::{
@@ -51,6 +51,7 @@ async fn main() -> anyhow::Result<()> {
     let acceptor = build_tls_acceptor(&args.config)?;
 
     let tag_db = Arc::new(TagDb::new(256));
+    let bus    = Arc::new(TagWriteBus::new());
 
     match sws_core::project::Project::load(&args.project) {
         Ok(project) => {
@@ -59,8 +60,9 @@ async fn main() -> anyhow::Result<()> {
             for source in project.sources {
                 match source {
                     sws_core::SourceDef::ModbusTcp(cfg) => {
-                        let db = tag_db.clone();
-                        tokio::spawn(async move { sws_plugin_modbus::run(cfg, db).await });
+                        let db  = tag_db.clone();
+                        let wb  = bus.clone();
+                        tokio::spawn(async move { sws_plugin_modbus::run(cfg, db, wb).await });
                     }
                     sws_core::SourceDef::Mqtt(cfg) => {
                         let db = tag_db.clone();
@@ -74,7 +76,7 @@ async fn main() -> anyhow::Result<()> {
         }
     }
 
-    let app = sws_web::router::build(tag_db, Arc::new(args.project.clone()));
+    let app = sws_web::router::build(tag_db, bus, Arc::new(args.project.clone()));
 
     let addr: SocketAddr = "0.0.0.0:8443".parse()?;
     let listener = TcpListener::bind(addr).await?;
