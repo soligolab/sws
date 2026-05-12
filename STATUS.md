@@ -2,9 +2,9 @@
 
 > This file is the **session-to-session memory** for Claude Code. Update it at the end of every session before stopping work. Read it at the start of every session before touching code.
 
-**Last session**: 2026-05-12 (cross-cutting object props — z-index, visibility, Python event handlers via PyO3)
-**Current phase**: Phase 2 in pieno. Synoptic objects ora layerable, condizionabili a tag e scriptabili in Python. Sandboxing rinviato.
-**Last commit**: feat: LAN-accessible dev server, WS URLs go through Vite proxy
+**Last session**: 2026-05-12 (auth skeleton — Argon2id, session token, Bearer middleware, LoginScreen)
+**Current phase**: Phase 2. Auth chiude il gap che teneva `/api/script/exec` aperto. RBAC/expiry/RestrictedPython restano per dopo.
+**Last commit**: docs: STATUS + CHANGELOG + Q1 — z-index/visibility/Python events
 
 ---
 
@@ -82,13 +82,16 @@
 - **Z-index / visibility cross-cutting**: ogni `SynopticObject` ha `z_index` (sort prima del render, ties per ordine array), `visible` statico e `visible_tag` (override truthy via tag). UI nella properties panel con pulsanti ▲/▼ per bump del z-index e TagInput per il binding visibilità.
 - **Event handler Python**: campi `on_press` e `on_release` su ogni oggetto. `sws-pyscript::Engine` con PyO3 0.23, esegue gli script in `spawn_blocking`. Bindings: `tags.read(id) -> bool|int|float|str|None`, `tags.write(id, value)` (routing via TagWriteBus → fallback TagDb). `POST /api/script/exec` dal `RuntimeView` su mousedown/mouseup. **Sandboxing rinviato** (Q1 OPEN_QUESTIONS).
 - **Bug fix**: Rust `SynopticObject` non aveva `window_s/y_min/y_max/line_color` per il trend — venivano persi al salvataggio. Aggiunti.
+- **Auth skeleton** (`sws-auth` + `sws-web`): Argon2id hash/verify, in-memory session map `token → username`, `POST /api/auth/login` / `POST /api/auth/logout` / `GET /api/auth/whoami`. Middleware `require_auth` su tutti gli `/api/*` (eccetto login) e su `/ws/*` (token via `?token=...` per il WS upgrade). Admin credenziali seeded da `SWS_ADMIN_USER` / `SWS_ADMIN_PASSWORD` env (runtime rifiuta lo start con password vuota).
+- **Frontend auth**: store `authToken/authUser` con persistenza `localStorage`, `LoginScreen` mostrato senza token, `Authorization: Bearer` automatico su tutte le richieste, WS riapre con nuovo `?token=...` se cambia il token (login/logout), header con "Esci".
+- **dev.sh**: esporta `PYO3_PYTHON=python3` (Debian non ha `/usr/bin/python` di default → pyo3-build-config falliva) e `SWS_ADMIN_USER=admin` / `SWS_ADMIN_PASSWORD=admin` per dev locale.
 
 ## Next session should
 
 Pick one of these as the next focused work block (each fits 3-4 hours):
 
-1. **Auth skeleton** in `sws-auth`: Argon2id hash/verify, session UUID in memory, admin password da `SWS_ADMIN_PASSWORD`. **Sempre più urgente** — ora `/api/script/exec` accetta Python arbitrario senza autenticazione.
-2. **Script sandboxing**: RestrictedPython + timeout per `Engine::execute` + cattura stdout/stderr → response. Vedi Q1 in OPEN_QUESTIONS.
+1. **Script sandboxing**: RestrictedPython + timeout per `Engine::execute` + cattura stdout/stderr → response. Vedi Q1 in OPEN_QUESTIONS.
+2. **Auth polish**: session expiry (TTL configurabile), refresh, rate limit sul login, multi-user con ruoli (Viewer/Operator/Supervisor/Admin). Cookie httponly oltre al Bearer.
 3. **MQTT write path**: simmetrico a Modbus — `publish` su tag-write tramite TagWriteBus.
 4. **Hot-reload sorgenti** (Modbus/MQTT): spawn/kill task quando cambia `PUT /api/project/sources`. Richiede `JoinHandle` registry + cancel.
 5. **Historian polish**: persistenza su SQLite (`sws-historian::sqlite`), decimazione per range lunghi, axis labels e tooltip nel TrendCanvas.
