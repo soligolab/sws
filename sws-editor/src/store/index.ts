@@ -79,6 +79,7 @@ interface AppState {
   selectObject: (id: string | null) => void;
   addObject: (partial: Omit<SynopticObject, "id">) => void;
   updateObject: (id: string, patch: Partial<SynopticObject>) => void;
+  duplicateObject: (id: string) => void;
   deleteObject: (id: string) => void;
 
   // Tag values from WebSocket
@@ -189,6 +190,31 @@ export const useAppStore = create<AppState>((set, get) => ({
           : p
       ),
     })),
+
+  // Duplicate: clone the object with a fresh id, offset by +20px so it's
+  // visually distinct, append at the end (so it draws on top within its
+  // z-index tier), and select the copy.
+  duplicateObject: (id) => {
+    const { pages, currentPageId } = get();
+    const page = pages.find((p) => p.id === currentPageId);
+    const src  = page?.objects.find((o) => o.id === id);
+    if (!page || !src) return;
+    const copy: SynopticObject = {
+      ...src,
+      id: genId(),
+      name: src.name ? `${src.name} (copia)` : undefined,
+      x: (src.x ?? 0) + 20,
+      y: (src.y ?? 0) + 20,
+      x2: src.x2 != null ? src.x2 + 20 : undefined,
+      y2: src.y2 != null ? src.y2 + 20 : undefined,
+    };
+    set((s) => ({
+      pages: s.pages.map((p) =>
+        p.id === currentPageId ? { ...p, objects: [...p.objects, copy] } : p
+      ),
+      selectedObjectId: copy.id,
+    }));
+  },
 
   deleteObject: (id) =>
     set((s) => ({

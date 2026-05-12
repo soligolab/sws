@@ -198,6 +198,117 @@ function ObjectPalette({ onAdd }: { onAdd: (type: SynopticObject["type"]) => voi
   );
 }
 
+// ── Objects-on-page section ──────────────────────────────────────────────────
+
+function ObjectsSection() {
+  const pages          = useAppStore((s) => s.pages);
+  const currentPageId  = useAppStore((s) => s.currentPageId);
+  const selectedId     = useAppStore((s) => s.selectedObjectId);
+  const selectObject   = useAppStore((s) => s.selectObject);
+  const updateObject   = useAppStore((s) => s.updateObject);
+  const duplicateObject = useAppStore((s) => s.duplicateObject);
+  const deleteObject   = useAppStore((s) => s.deleteObject);
+
+  const [renaming, setRenaming] = useState<string | null>(null);
+  const [draft, setDraft]       = useState("");
+
+  const objects = pages.find((p) => p.id === currentPageId)?.objects ?? [];
+
+  const startRename = (id: string, name: string) => {
+    setRenaming(id);
+    setDraft(name);
+  };
+  const commitRename = () => {
+    if (renaming) {
+      updateObject(renaming, { name: draft.trim() || undefined });
+    }
+    setRenaming(null);
+    setDraft("");
+  };
+
+  return (
+    <Section title={`OGGETTI PAGINA (${objects.length})`} defaultOpen={false}>
+      <div style={{ ...S.body, maxHeight: 280 }}>
+        {objects.length === 0 && (
+          <p style={{ padding: "8px 12px", fontSize: 11, color: "#475569", margin: 0 }}>
+            Nessun oggetto su questa pagina. Aggiungili dalla palette qui sopra.
+          </p>
+        )}
+        {objects.map((o) => {
+          const isSel = o.id === selectedId;
+          const isRen = o.id === renaming;
+          const label = o.name?.trim() || `${o.type}·${o.id.slice(-4)}`;
+          return (
+            <div
+              key={o.id}
+              onClick={() => !isRen && selectObject(o.id)}
+              style={{
+                ...S.row(isSel),
+                gap: 4,
+                paddingRight: 4,
+              }}
+            >
+              <span style={{
+                fontSize: 9, color: "#475569", width: 38, flexShrink: 0,
+                textTransform: "uppercase", letterSpacing: 0.5,
+              }}>
+                {o.type.slice(0, 5)}
+              </span>
+              {isRen ? (
+                <input
+                  type="text"
+                  value={draft}
+                  autoFocus
+                  onClick={(e) => e.stopPropagation()}
+                  onChange={(e) => setDraft(e.target.value)}
+                  onBlur={commitRename}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") commitRename();
+                    else if (e.key === "Escape") { setRenaming(null); setDraft(""); }
+                  }}
+                  style={{
+                    flex: 1, minWidth: 0,
+                    background: "#0f172a", color: "#e2e8f0",
+                    border: "1px solid #334155", borderRadius: 3,
+                    padding: "1px 4px", fontSize: 11,
+                  }}
+                />
+              ) : (
+                <span
+                  onDoubleClick={(e) => { e.stopPropagation(); startRename(o.id, o.name ?? ""); }}
+                  title="Doppio click per rinominare"
+                  style={{
+                    flex: 1, minWidth: 0,
+                    overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                    fontSize: 11,
+                  }}
+                >
+                  {label}
+                </span>
+              )}
+              <button
+                style={S.iconBtn}
+                title="Rinomina"
+                onClick={(e) => { e.stopPropagation(); startRename(o.id, o.name ?? ""); }}
+              >✎</button>
+              <button
+                style={S.iconBtn}
+                title="Duplica"
+                onClick={(e) => { e.stopPropagation(); duplicateObject(o.id); }}
+              >⧉</button>
+              <button
+                style={{ ...S.iconBtn, color: "#ef4444" }}
+                title="Elimina"
+                onClick={(e) => { e.stopPropagation(); deleteObject(o.id); }}
+              >×</button>
+            </div>
+          );
+        })}
+      </div>
+    </Section>
+  );
+}
+
 // ── Tags section ──────────────────────────────────────────────────────────────
 
 function TagsSection() {
@@ -371,6 +482,7 @@ export function LeftPanel({ onAddObject, onSave }: LeftPanelProps) {
       <div style={{ overflowY: "auto" as const, flex: 1 }}>
         <PagesSection />
         <ObjectPalette onAdd={onAddObject} />
+        <ObjectsSection />
         <TagsSection />
         <SourcesSection project={project} />
       </div>

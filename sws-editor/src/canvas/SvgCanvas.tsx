@@ -313,16 +313,39 @@ function SvgObject(p: ObjProps) {
 
   if (obj.type === "text") {
     const tv = obj.tag ? tagValues[obj.tag] : undefined;
-    const label = tv != null ? formatValue(tv.value, obj.format) : (obj.tag ?? "text");
+    // Precedence: bound tag → format template (default "{value}");
+    //             otherwise → static `text` field; otherwise → placeholder.
+    const content = tv != null
+      ? formatValue(tv.value, obj.format ?? "{value}")
+      : (obj.text ?? obj.tag ?? "Testo");
+    const size      = obj.font_size ?? 14;
+    const family    = obj.font_family ?? undefined;
+    const weight    = obj.font_weight ?? "normal";
+    const style     = obj.font_style ?? "normal";
+    const anchor    = obj.text_anchor ?? "start";
+    const colour    = obj.color ?? obj.fill ?? "#e2e8f0";
+    // Selection rect is a rough estimate — SVG text has no width attr without measuring.
+    const approxW   = Math.max(40, content.length * size * 0.6);
+    const dx        = anchor === "middle" ? -approxW / 2 : anchor === "end" ? -approxW : 0;
     return (
       <>
-        {selRect(obj.x - 4, obj.y - 14, 120, 20)}
-        <text x={obj.x} y={obj.y} fill={obj.fill ?? "#fff"} fontSize={obj.stroke_width ?? 14}
+        {selRect(obj.x + dx - 2, obj.y - size + 2, approxW + 4, size + 6)}
+        <text
+          x={obj.x}
+          y={obj.y}
+          fill={colour}
+          fontSize={size}
+          fontFamily={family}
+          fontWeight={weight as any}
+          fontStyle={style}
+          textAnchor={anchor}
           style={{ cursor: editCursor }}
-          onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()}>
-          {label}
+          onMouseDown={handleMouseDown}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {content}
         </text>
-        {tv && <QDot x={obj.x - 8} y={obj.y - 4} quality={tv.quality} />}
+        {tv && <QDot x={obj.x - 10} y={obj.y - size / 2} quality={tv.quality} />}
       </>
     );
   }

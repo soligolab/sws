@@ -71,6 +71,14 @@ and this project adheres to [CalVer](https://calver.org/) (`YYYY.MM[.patch]`).
 - `scripts/dev.sh`: exports `PYO3_PYTHON=python3` (Debian Bookworm ships `python3` but not `python`, which pyo3-build-config defaults to) and `SWS_ADMIN_USER=admin` / `SWS_ADMIN_PASSWORD=admin` for local dev convenience. Production deployments must override these.
 - `Cargo.toml` workspace: `argon2` upgraded to `features = ["std"]` so `OsRng` is available via `password_hash::rand_core::OsRng`. Added `uuid = { version = "1", features = ["v4"] }`.
 
+### Added (text object + object list)
+- `SynopticObject` gains an optional `name` field (human-friendly label) plus a full typography block for the `text` type: `text` (static content), `font_size`, `font_family`, `font_weight` (string or number), `font_style` (normal/italic), `text_anchor` (start/middle/end), `color`. Rendered by SvgCanvas via the matching SVG attributes; legacy use of `stroke_width` as fontSize is gone.
+- Text rendering precedence: bound `tag` → `format` template (default `{value}`); otherwise the static `text` field; otherwise a "Testo" placeholder.
+- EditorShell ObjectProps gains a "Nome" field at the top of every object, plus a dedicated text-styling block (size + alignment, font family, weight + style, colour).
+- Zustand store: `duplicateObject(id)` clones an object with a fresh id, +20px offset, name suffix `(copia)`, and selects the copy.
+- LeftPanel: new "OGGETTI PAGINA" accordion section listing every object on the current page. Click to select, double-click or ✎ to rename inline, ⧉ to duplicate, × to delete. Type prefix shown for quick scanning.
+- Rust `SynopticObject`: matching fields added so trends/text/etc. survive YAML save-then-reload round-trips.
+
 ### Added (cross-cutting object properties)
 - `SynopticObject` gains `z_index`, `visible`, `visible_tag`, `on_press`, `on_release` in both Rust (`sws-web/synoptic.rs`) and TypeScript (`sws-editor/src/types`). Trend fields (`window_s`, `y_min`, `y_max`, `line_color`) added to the Rust struct too — they were dropped on save before.
 - `sws-editor/src/canvas/SvgCanvas.tsx`: objects sorted by `z_index` (ties by array order) before SVG render, so layering is declarative. `isObjectVisible()` evaluates `visible_tag` (truthy coercion for bool/number/string) and falls back to the static `visible !== false`. In runtime mode, hidden objects are not rendered; in edit mode they're shown at 35% opacity so the designer can still select them.

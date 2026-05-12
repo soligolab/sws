@@ -17,6 +17,7 @@ pub struct SynopticPage {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SynopticObject {
     pub id: String,
+    #[serde(skip_serializing_if = "Option::is_none")] pub name:           Option<String>,
     #[serde(rename = "type")]
     pub obj_type: String,
     pub x: f64,
@@ -76,6 +77,14 @@ pub struct SynopticObject {
     // Event handlers (Python source executed by sws-pyscript on press/release)
     #[serde(skip_serializing_if = "Option::is_none")] pub on_press:       Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")] pub on_release:     Option<String>,
+    // Text object styling
+    #[serde(skip_serializing_if = "Option::is_none")] pub text:           Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub font_size:      Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub font_family:    Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub font_weight:    Option<Value>, // string ("bold") or number (700)
+    #[serde(skip_serializing_if = "Option::is_none")] pub font_style:     Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub text_anchor:    Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub color:          Option<String>,
 }
 
 /// Sanitize a page name to a safe filename stem.

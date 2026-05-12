@@ -65,7 +65,7 @@ export function EditorShell() {
         addObject({ type, x, y, x2: x + 120, y2: y, stroke: "#e2e8f0", stroke_width: 2 });
         break;
       case "text":
-        addObject({ type, x, y: y + 14, tag: "", format: "{value}" });
+        addObject({ type, x, y: y + 14, text: "Testo", font_size: 14, color: "#e2e8f0", text_anchor: "start" });
         break;
       case "button":
         addObject({ type, x, y, width: 120, height: 40, fill: "#3b82f6", label: "Bottone", write_value: true });
@@ -277,6 +277,14 @@ function ObjectProps({
 
   return (
     <>
+      {field("Nome",
+        <input
+          type="text" style={INPUT}
+          placeholder={obj.type}
+          value={obj.name ?? ""}
+          onChange={(e) => onChange({ name: e.target.value || undefined })}
+        />
+      )}
       {field("ID",   <span style={{ fontSize: 11, color: "#64748b" }}>{obj.id}</span>)}
       {field("Tipo", <span style={{ fontSize: 11, color: "#64748b" }}>{obj.type}</span>)}
 
@@ -316,7 +324,75 @@ function ObjectProps({
 
       {/* Tag binding */}
       {obj.type !== "navbutton" && field("Tag", tagInput("es. pump1.speed"))}
-      {obj.type === "text" && field("Formato", textInput("format", "{value:.1f} unit"))}
+
+      {/* Text object: static content + typography */}
+      {obj.type === "text" && (
+        <>
+          {field("Testo (statico)", textInput("text", "Es. Temperatura caldaia"))}
+          {field("Formato (se bound)", textInput("format", "{value:.1f} °C"))}
+          <p style={{ fontSize: 10, color: "#475569", margin: "0 0 4px" }}>
+            Se è impostato un Tag, vince il formato (usa <code>{"{value}"}</code>); altrimenti viene
+            mostrato il testo statico.
+          </p>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+            <div><div style={LABEL}>Dimensione (px)</div>{numInput("font_size", 14)}</div>
+            <div>
+              <div style={LABEL}>Allineamento</div>
+              <select
+                style={{ ...INPUT, cursor: "pointer" }}
+                value={obj.text_anchor ?? "start"}
+                onChange={(e) => onChange({ text_anchor: e.target.value as "start" | "middle" | "end" })}
+              >
+                <option value="start">Sinistra</option>
+                <option value="middle">Centro</option>
+                <option value="end">Destra</option>
+              </select>
+            </div>
+          </div>
+          {field("Font family",
+            <input
+              type="text" style={INPUT}
+              placeholder="es. system-ui, sans-serif"
+              value={obj.font_family ?? ""}
+              onChange={(e) => onChange({ font_family: e.target.value || undefined })}
+              spellCheck={false}
+            />
+          )}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+            <div>
+              <div style={LABEL}>Peso</div>
+              <select
+                style={{ ...INPUT, cursor: "pointer" }}
+                value={String(obj.font_weight ?? "normal")}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  const n = Number(v);
+                  onChange({ font_weight: Number.isFinite(n) && v.match(/^\d+$/) ? n : v });
+                }}
+              >
+                <option value="normal">Normal (400)</option>
+                <option value="bold">Bold (700)</option>
+                <option value="300">300</option>
+                <option value="500">500</option>
+                <option value="600">600</option>
+                <option value="800">800</option>
+              </select>
+            </div>
+            <div>
+              <div style={LABEL}>Stile</div>
+              <select
+                style={{ ...INPUT, cursor: "pointer" }}
+                value={obj.font_style ?? "normal"}
+                onChange={(e) => onChange({ font_style: e.target.value as "normal" | "italic" })}
+              >
+                <option value="normal">Normal</option>
+                <option value="italic">Italic</option>
+              </select>
+            </div>
+          </div>
+          {field("Colore testo", colorInput("color", "#e2e8f0"))}
+        </>
+      )}
 
       {/* Button label + write value */}
       {obj.type === "button" && (

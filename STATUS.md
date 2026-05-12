@@ -2,9 +2,9 @@
 
 > This file is the **session-to-session memory** for Claude Code. Update it at the end of every session before stopping work. Read it at the start of every session before touching code.
 
-**Last session**: 2026-05-12 (auth skeleton — Argon2id, session token, Bearer middleware, LoginScreen)
-**Current phase**: Phase 2. Auth chiude il gap che teneva `/api/script/exec` aperto. RBAC/expiry/RestrictedPython restano per dopo.
-**Last commit**: docs: STATUS + CHANGELOG + Q1 — z-index/visibility/Python events
+**Last session**: 2026-05-12 (text object esteso + ObjectsSection nel LeftPanel con rename/dup/delete)
+**Current phase**: Phase 2. Editor sempre più "completo" dal punto di vista UX. Sandboxing Python ancora la priorità.
+**Last commit**: docs: STATUS + CHANGELOG — auth skeleton landed
 
 ---
 
@@ -85,6 +85,10 @@
 - **Auth skeleton** (`sws-auth` + `sws-web`): Argon2id hash/verify, in-memory session map `token → username`, `POST /api/auth/login` / `POST /api/auth/logout` / `GET /api/auth/whoami`. Middleware `require_auth` su tutti gli `/api/*` (eccetto login) e su `/ws/*` (token via `?token=...` per il WS upgrade). Admin credenziali seeded da `SWS_ADMIN_USER` / `SWS_ADMIN_PASSWORD` env (runtime rifiuta lo start con password vuota).
 - **Frontend auth**: store `authToken/authUser` con persistenza `localStorage`, `LoginScreen` mostrato senza token, `Authorization: Bearer` automatico su tutte le richieste, WS riapre con nuovo `?token=...` se cambia il token (login/logout), header con "Esci".
 - **dev.sh**: esporta `PYO3_PYTHON=python3` (Debian non ha `/usr/bin/python` di default → pyo3-build-config falliva) e `SWS_ADMIN_USER=admin` / `SWS_ADMIN_PASSWORD=admin` per dev locale.
+- **Text object esteso**: campo `text` statico, `font_size`, `font_family`, `font_weight` (string o number), `font_style`, `text_anchor` (start/middle/end), `color`. Precedenza render: tag+format vince sul testo statico. UI in ObjectProps con select per peso/stile/anchor + color picker.
+- **Campo `name` su ogni oggetto**: alias human-friendly distinto dall'id auto-generato. Mostrato nella nuova `ObjectsSection` del LeftPanel.
+- **ObjectsSection (LeftPanel)**: lista oggetti pagina corrente con click per selezionare, ✎/doubleclick per rinominare inline, ⧉ per duplicare (clone con `(copia)`, offset +20px, selezionato), × per eliminare.
+- **Bug fix**: il vecchio rendering text usava `stroke_width` come fontSize (misuso storico) — ora usa `font_size` con default 14. Aggiunti i campi mancanti al Rust `SynopticObject` per sopravvivere al round-trip YAML.
 
 ## Next session should
 

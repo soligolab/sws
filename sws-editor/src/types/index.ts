@@ -40,6 +40,8 @@ export interface TableRow {
 
 export interface SynopticObject {
   id: string;
+  /** Optional human-friendly name shown in the page object list. Defaults to type+suffix when omitted. */
+  name?: string;
   type: SynopticObjectType;
   x: number;
   y: number;
@@ -51,6 +53,17 @@ export interface SynopticObject {
   src?: string;
   label?: string;
   write_value?: string | number | boolean;
+  // ── Text object ──────────────────────────────────────────────────────────
+  /** Static text content. If `tag` is also set, `format` wins. */
+  text?: string;
+  font_size?: number;
+  font_family?: string;
+  /** "normal" | "bold" | number (100-900). */
+  font_weight?: string | number;
+  font_style?: "normal" | "italic";
+  text_anchor?: "start" | "middle" | "end";
+  /** Text fill colour (preferred over `fill` for the text object). */
+  color?: string;
   // Line / stroke
   x2?: number;
   y2?: number;
