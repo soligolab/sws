@@ -20,6 +20,8 @@ export function RuntimeView() {
 
   const handleScript = (code: string) => {
     api.execScript(code).then((r) => {
+      if (r.stdout) console.log("[script stdout]", r.stdout.trimEnd());
+      if (r.stderr) console.warn("[script stderr]", r.stderr.trimEnd());
       if (!r.ok && r.error) console.warn("[script]", r.error);
     }).catch(console.error);
   };

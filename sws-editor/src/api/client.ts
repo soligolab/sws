@@ -121,7 +121,13 @@ export const api = {
 
   // Script execution (object on_press / on_release handlers)
   execScript: (code: string) =>
-    request<{ ok: boolean; error?: string }>("/api/script/exec", {
+    request<{
+      ok: boolean;
+      stdout: string;
+      stderr: string;
+      sandboxed: boolean;
+      error?: string;
+    }>("/api/script/exec", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ code }),

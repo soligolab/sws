@@ -2,9 +2,9 @@
 
 > This file is the **session-to-session memory** for Claude Code. Update it at the end of every session before stopping work. Read it at the start of every session before touching code.
 
-**Last session**: 2026-05-12 (text object esteso + ObjectsSection nel LeftPanel con rename/dup/delete)
-**Current phase**: Phase 2. Editor sempre più "completo" dal punto di vista UX. Sandboxing Python ancora la priorità.
-**Last commit**: docs: STATUS + CHANGELOG — auth skeleton landed
+**Last session**: 2026-05-12 (script sandboxing — RestrictedPython opzionale, timeout, capture stdout/stderr)
+**Current phase**: Phase 2. Q1 (Python embedding) ora definitivamente chiusa lato architettura.
+**Last commit**: feat: rich text object + page-objects list in LeftPanel
 
 ---
 
@@ -94,12 +94,13 @@
 
 Pick one of these as the next focused work block (each fits 3-4 hours):
 
-1. **Script sandboxing**: RestrictedPython + timeout per `Engine::execute` + cattura stdout/stderr → response. Vedi Q1 in OPEN_QUESTIONS.
-2. **Auth polish**: session expiry (TTL configurabile), refresh, rate limit sul login, multi-user con ruoli (Viewer/Operator/Supervisor/Admin). Cookie httponly oltre al Bearer.
-3. **MQTT write path**: simmetrico a Modbus — `publish` su tag-write tramite TagWriteBus.
-4. **Hot-reload sorgenti** (Modbus/MQTT): spawn/kill task quando cambia `PUT /api/project/sources`. Richiede `JoinHandle` registry + cancel.
-5. **Historian polish**: persistenza su SQLite (`sws-historian::sqlite`), decimazione per range lunghi, axis labels e tooltip nel TrendCanvas.
-6. **Demo PX30**: provare l'intero giro su hardware reale; documentare gotcha in `docs/`.
+1. **Hot-reload sorgenti** (Modbus/MQTT): spawn/kill task quando cambia `PUT /api/project/sources`. Richiede `JoinHandle` registry + cancel.
+2. **Historian polish**: persistenza su SQLite (`sws-historian::sqlite`), decimazione per range lunghi, axis labels e tooltip nel TrendCanvas.
+3. **MQTT write path + demo-driver multi-waveform**: publish on tag-write tramite TagWriteBus; estendere `demo-sine.py` a multiple forme d'onda.
+4. **Editor UX polish**: undo/redo, multi-select, copy/paste, allineamento oggetti.
+5. **Auth polish**: session TTL, refresh, rate limit, RBAC ruoli, cookie httponly.
+6. **Symbol library starter**: cartella `sws-symbols/`, oggetto `symbol` che referenzia SVG di pompe/valvole/motori con stile guidato da tag.
+7. **Demo PX30**: container ARM64, deploy effettivo su Rockchip, gotcha hardware/network documentati.
 
 ## Blockers / questions for the maintainer
 

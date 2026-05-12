@@ -14,7 +14,7 @@ use sws_core::{
     TagQuality, TagState, TagUpdate, TagValue, TagWriteBus, WriteError,
 };
 use sws_historian::{Historian, Sample};
-use sws_pyscript::Engine as PyEngine;
+use sws_pyscript::{Engine as PyEngine, ExecOutput};
 use tracing::warn;
 use crate::synoptic::{safe_filename, SynopticPage};
 
@@ -214,9 +214,16 @@ struct ScriptBody {
     code: String,
 }
 
-#[derive(serde::Serialize)]
+#[derive(serde::Serialize, Default)]
 struct ScriptResult {
     ok: bool,
+    /// Captured stdout from the script (empty string if none).
+    stdout: String,
+    /// Captured stderr — including the formatted traceback when the script raised.
+    stderr: String,
+    /// True when the script ran through RestrictedPython.
+    sandboxed: bool,
+    /// Human-readable error string on failure / timeout.
     #[serde(skip_serializing_if = "Option::is_none")]
     error: Option<String>,
 }
@@ -226,8 +233,13 @@ async fn exec_script(
     Json(body): Json<ScriptBody>,
 ) -> Json<ScriptResult> {
     match s.py.execute(body.code).await {
-        Ok(()) => Json(ScriptResult { ok: true,  error: None }),
-        Err(e) => Json(ScriptResult { ok: false, error: Some(e) }),
+        Ok(ExecOutput { stdout, stderr, sandboxed }) => Json(ScriptResult {
+            ok: true, stdout, stderr, sandboxed, error: None,
+        }),
+        Err(e) => Json(ScriptResult {
+            ok: false, error: Some(e), sandboxed: s.py.is_sandboxed(),
+            ..Default::default()
+        }),
     }
 }
 

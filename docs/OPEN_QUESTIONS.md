@@ -16,18 +16,27 @@
 
 **Default for PoC**: A (PyO3 + RestrictedPython).
 
-**Decided in part**: A is now live. `sws-pyscript::Engine` uses `pyo3 0.23` (auto-initialize feature, system Python is 3.13), runs scripts on `tokio::task::spawn_blocking`, and exposes a `tags` global with `read(id) / write(id, value)`. Synoptic objects gain `on_press` and `on_release` Python source fields that the editor dispatches via `POST /api/script/exec`.
+**Decided**: A (PyO3 + RestrictedPython) is now fully live. `sws-pyscript::Engine`:
+- runs scripts on `tokio::task::spawn_blocking` wrapped in `tokio::time::timeout`
+  (5 s default, override via `SWS_SCRIPT_TIMEOUT_MS`);
+- compiles user source through `RestrictedPython.compile_restricted` when the
+  package is importable in the Python environment used by PyO3 — falls back to
+  plain `compile` with a startup warning if `pip install RestrictedPython` was
+  never run, so dev boxes don't break;
+- redirects `sys.stdout` / `sys.stderr` per-call into `io.StringIO`, captures
+  the strings, and returns them in `ExecOutput { stdout, stderr, sandboxed }`;
+- `/api/script/exec` echoes these back; the editor logs them to the browser
+  console (`[script stdout]` / `[script stderr]`).
 
-**Still open**: **sandboxing**. Scripts currently run with full Python privileges — no RestrictedPython, no import restrictions, no per-script timeout. This is acceptable while:
-1. Auth is not yet in place (the whole API is open on the LAN).
-2. Projects come from the maintainer only (no third-party content).
-
-Action items before product release:
-- Wrap script execution in RestrictedPython (or a hand-rolled AST whitelist).
-- Add a wall-clock timeout per `Engine::execute` call.
-- Redirect Python `print` / `stderr` back to the API response so the editor can show script output.
-
-Also TODO: `into_py` deprecation in PyO3 0.23 — migrate to `IntoPyObject` before 0.24.
+Still pending (Phase 2 polish):
+- Pre-flight AST whitelist for the unsandboxed mode so it's at least
+  "no imports, no exec/eval" even without RestrictedPython.
+- Surfacing script output back into the editor UI (a panel, not just the
+  console).
+- Real preemption: tokio's timeout drops the future but the Python thread
+  keeps running until it yields. PyO3's `Python::check_signals` + a signal
+  thread would let us interrupt mid-execution.
+- `into_py` deprecation in PyO3 0.23 — migrate to `IntoPyObject` before 0.24.
 
 ---
 

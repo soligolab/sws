@@ -1,24 +1,91 @@
 //! PyO3 bridge for user scripts attached to synoptic objects.
 //!
-//! PoC scope:
-//! - Synchronous Python execution via `Python::with_gil` on a
-//!   `spawn_blocking` worker, so the async runtime stays unblocked.
-//! - Exposes a single object `tags` with `read(id)` and `write(id, value)`.
-//! - `print(...)` falls through to the runtime stdout (visible in
-//!   `.run/logs/runtime.log` when launched via scripts/dev.sh).
+//! Execution model:
+//! - User source runs on `tokio::task::spawn_blocking`, wrapped in a
+//!   `tokio::time::timeout` (default 5 s, override via `SWS_SCRIPT_TIMEOUT_MS`).
+//! - A Python harness wraps the user source: it compiles it (restricted
+//!   if RestrictedPython is importable, plain `compile` otherwise),
+//!   redirects `sys.stdout` / `sys.stderr` into in-memory `StringIO`s,
+//!   execs in a fresh globals dict with `tags` injected, then hands the
+//!   captures back to Rust through globals.
+//! - The result includes `stdout`, `stderr`, and an `error` traceback if
+//!   any. A timeout returns `Err(...)` with a clear message.
 //!
-//! Out of scope for the PoC (Q1 in docs/OPEN_QUESTIONS.md):
-//! - Sandboxing via RestrictedPython — scripts run with full Python
-//!   privileges. Projects must come from trusted sources until this lands.
-//! - Per-script timeouts.
-//! - Capturing stdout/stderr back to the API caller.
+//! Sandboxing:
+//! - If `RestrictedPython` is installed in the Python environment used by
+//!   PyO3 at startup, scripts are compiled with `compile_restricted` and
+//!   exec'd against `safe_builtins`. This blocks `import`, attribute
+//!   access on `_`-prefixed names, exec/eval, file I/O via builtins.
+//! - If it is not installed, the engine logs a warning at startup and
+//!   falls back to unrestricted `compile`. Same API surface, no safety.
+//! - Install: `pip install RestrictedPython` (also documented in the
+//!   project README / OPEN_QUESTIONS Q1).
 
-use std::{ffi::CString, sync::Arc};
+use std::{
+    ffi::CString,
+    sync::{atomic::{AtomicBool, Ordering}, Arc},
+    time::Duration,
+};
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
+use serde::Serialize;
 use sws_core::{TagDb, TagQuality, TagValue, TagWriteBus};
 use tokio::runtime::Handle;
 use tracing::{info, warn};
+
+const DEFAULT_TIMEOUT_MS: u64 = 5_000;
+
+/// Wraps the user source in stdout/stderr capture + restricted compile.
+/// The user source is injected as `__sws_user_source__` (a Python str)
+/// alongside `__sws_sandbox__` (a bool flag) and `tags` (the API).
+///
+/// We compile-then-exec here (instead of letting PyO3 `py.run` the user
+/// source directly) for two reasons:
+///   1. The wrapper can isolate stdout/stderr per call without leaking
+///      Python state across threads.
+///   2. When RestrictedPython is available we route compilation through
+///      `compile_restricted`, which rejects unsafe AST nodes (import,
+///      attribute access on dunders, exec/eval, …).
+const HARNESS: &str = r#"
+import io, sys, traceback
+__sws_out__ = io.StringIO()
+__sws_err__ = io.StringIO()
+__sws_error__ = None
+__sws_compiled__ = None
+
+if __sws_sandbox__:
+    from RestrictedPython import compile_restricted, safe_builtins
+    __sws_globals__ = {
+        '__builtins__': safe_builtins,
+        '_getattr_':   getattr,
+        '_getitem_':   lambda o, k: o[k],
+        '_write_':     lambda x: x,
+        'tags':        tags,
+    }
+    try:
+        __sws_compiled__ = compile_restricted(__sws_user_source__, '<inline>', 'exec')
+    except SyntaxError as _e:
+        __sws_error__ = f'SyntaxError: {_e}'
+else:
+    __sws_globals__ = {'__builtins__': __builtins__, 'tags': tags}
+    try:
+        __sws_compiled__ = compile(__sws_user_source__, '<inline>', 'exec')
+    except SyntaxError as _e:
+        __sws_error__ = f'SyntaxError: {_e}'
+
+if __sws_compiled__ is not None:
+    _orig_out, _orig_err = sys.stdout, sys.stderr
+    sys.stdout, sys.stderr = __sws_out__, __sws_err__
+    try:
+        exec(__sws_compiled__, __sws_globals__, {})
+    except BaseException:
+        __sws_error__ = traceback.format_exc()
+    finally:
+        sys.stdout, sys.stderr = _orig_out, _orig_err
+
+__sws_stdout_capture__ = __sws_out__.getvalue()
+__sws_stderr_capture__ = __sws_err__.getvalue()
+"#;
 
 #[pyclass]
 struct TagApi {
@@ -82,51 +149,112 @@ fn py_to_tagvalue(any: &Bound<'_, PyAny>) -> PyResult<TagValue> {
 }
 
 /// Owns the bindings the runtime exposes to scripts. Cloneable cheaply
-/// (just two Arcs); each `execute` call runs in its own GIL session.
+/// (two Arcs + a bool flag); each `execute` call runs in its own GIL session.
 #[derive(Clone)]
 pub struct Engine {
     db: Arc<TagDb>,
     bus: Arc<TagWriteBus>,
+    sandbox: Arc<AtomicBool>,
+    timeout: Duration,
+}
+
+#[derive(Debug, Clone, Serialize, Default)]
+pub struct ExecOutput {
+    pub stdout: String,
+    pub stderr: String,
+    /// Sandboxing flag for this run — informational, mostly for the UI.
+    pub sandboxed: bool,
 }
 
 impl Engine {
     pub fn new(db: Arc<TagDb>, bus: Arc<TagWriteBus>) -> Self {
-        Self { db, bus }
+        let timeout_ms = std::env::var("SWS_SCRIPT_TIMEOUT_MS")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(DEFAULT_TIMEOUT_MS);
+        let sandbox = probe_restricted_python();
+        if sandbox {
+            info!(timeout_ms, "pyscript: RestrictedPython available — scripts will run sandboxed");
+        } else {
+            warn!(timeout_ms, "pyscript: RestrictedPython NOT available — scripts run with full \
+                privileges (install with `pip install RestrictedPython` to enable sandboxing)");
+        }
+        Self {
+            db,
+            bus,
+            sandbox: Arc::new(AtomicBool::new(sandbox)),
+            timeout: Duration::from_millis(timeout_ms),
+        }
     }
 
-    /// Execute a snippet of Python in a fresh global dict with `tags` injected.
-    /// Returns `Ok(())` on success or `Err(...)` with the Python error as a
-    /// string. Runs on a blocking worker so the async runtime keeps moving.
-    pub async fn execute(&self, code: String) -> Result<(), String> {
-        let handle = Handle::current();
-        let db = self.db.clone();
-        let bus = self.bus.clone();
+    /// True if scripts are compiled+exec'd through RestrictedPython.
+    pub fn is_sandboxed(&self) -> bool { self.sandbox.load(Ordering::Relaxed) }
 
-        let result = tokio::task::spawn_blocking(move || {
-            Python::with_gil(|py| -> PyResult<()> {
-                let api = Py::new(py, TagApi { db, bus, handle })?;
-                let globals = PyDict::new(py);
-                globals.set_item("tags", api)?;
-                let c_code = CString::new(code).map_err(|_| {
-                    PyErr::new::<pyo3::exceptions::PyValueError, _>("script contains NUL byte")
-                })?;
-                py.run(c_code.as_c_str(), Some(&globals), None)?;
-                Ok(())
-            })
-        })
-        .await
-        .map_err(|e| format!("python task panicked: {e}"))?;
+    /// Execute `code` and return its captured stdout/stderr.
+    /// On a Python error, returns Err(msg) with the formatted traceback.
+    /// On a wall-clock timeout (`SWS_SCRIPT_TIMEOUT_MS`), returns Err(...).
+    pub async fn execute(&self, code: String) -> Result<ExecOutput, String> {
+        let handle  = Handle::current();
+        let db      = self.db.clone();
+        let bus     = self.bus.clone();
+        let sandbox = self.is_sandboxed();
+        let timeout = self.timeout;
 
-        match result {
-            Ok(()) => {
-                info!("python script ran cleanly");
-                Ok(())
+        let work = tokio::task::spawn_blocking(move || {
+            run_in_python(db, bus, handle, sandbox, code)
+        });
+
+        match tokio::time::timeout(timeout, work).await {
+            Ok(Ok(Ok(out)))  => {
+                info!(stdout_bytes = out.stdout.len(), "python script ran cleanly");
+                Ok(out)
             }
-            Err(e) => {
-                let msg = Python::with_gil(|py| e.value(py).to_string());
+            Ok(Ok(Err(msg))) => {
                 warn!("python script failed: {msg}");
                 Err(msg)
             }
+            Ok(Err(e))       => Err(format!("python task panicked: {e}")),
+            Err(_)           => Err(format!("script timed out after {} ms", timeout.as_millis())),
         }
     }
+}
+
+fn probe_restricted_python() -> bool {
+    Python::with_gil(|py| py.import("RestrictedPython").is_ok())
+}
+
+fn run_in_python(
+    db: Arc<TagDb>,
+    bus: Arc<TagWriteBus>,
+    handle: Handle,
+    sandbox: bool,
+    user_source: String,
+) -> Result<ExecOutput, String> {
+    Python::with_gil(|py| -> PyResult<ExecOutput> {
+        let api = Py::new(py, TagApi { db, bus, handle })?;
+        let globals = PyDict::new(py);
+        globals.set_item("tags", api)?;
+        globals.set_item("__sws_user_source__", user_source)?;
+        globals.set_item("__sws_sandbox__", sandbox)?;
+
+        let c_code = CString::new(HARNESS)
+            .expect("HARNESS contains a NUL byte — should not happen");
+        py.run(c_code.as_c_str(), Some(&globals), None)?;
+
+        let stdout = globals.get_item("__sws_stdout_capture__")?
+            .map(|v| v.extract::<String>().unwrap_or_default())
+            .unwrap_or_default();
+        let stderr = globals.get_item("__sws_stderr_capture__")?
+            .map(|v| v.extract::<String>().unwrap_or_default())
+            .unwrap_or_default();
+        let error: Option<String> = globals.get_item("__sws_error__")?
+            .and_then(|v| if v.is_none() { None } else { v.extract::<String>().ok() });
+
+        if let Some(err) = error {
+            return Err(PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(err));
+        }
+
+        Ok(ExecOutput { stdout, stderr, sandboxed: sandbox })
+    })
+    .map_err(|e| Python::with_gil(|py| e.value(py).to_string()))
 }
