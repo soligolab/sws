@@ -1554,6 +1554,7 @@ export function ConfigView() {
   const [tab, setTab] = useState<ConfigTab>("tags");
   const authRole = useAppStore((s) => s.authRole);
   const isAdmin = authRole === "Admin";
+  const project = useAppStore((s) => s.project);
 
   // Hide the Utenti tab for non-admins; if the URL/state ever sneaks them
   // onto it, bounce back to tags.
@@ -1564,6 +1565,13 @@ export function ConfigView() {
   const visibleTabs: ConfigTab[] = isAdmin
     ? ["tags", "protocols", "alarms", "users"]
     : ["tags", "protocols", "alarms"];
+
+  // Guard: tags/protocols/alarms tabs all initialise their local state from
+  // store.project. If project hasn't loaded yet, rendering them would show
+  // empty inputs over a populated YAML and a subsequent save would wipe the
+  // file. The Utenti tab is independent (it queries /api/auth/users) so it
+  // stays available even before the project is loaded.
+  const projectLoading = project === null && tab !== "users";
 
   return (
     <div style={S.page}>
@@ -1578,10 +1586,18 @@ export function ConfigView() {
 
       {/* Content */}
       <div style={S.body}>
-        {tab === "tags"      && <TagsTab />}
-        {tab === "protocols" && <ProtocolsTab />}
-        {tab === "alarms"    && <AlarmsTab />}
-        {tab === "users"     && isAdmin && <UsersTab />}
+        {projectLoading ? (
+          <div style={{ color: "#64748b", fontSize: 13, padding: 24 }}>
+            Caricamento progetto…
+          </div>
+        ) : (
+          <>
+            {tab === "tags"      && <TagsTab />}
+            {tab === "protocols" && <ProtocolsTab />}
+            {tab === "alarms"    && <AlarmsTab />}
+            {tab === "users"     && isAdmin && <UsersTab />}
+          </>
+        )}
       </div>
     </div>
   );

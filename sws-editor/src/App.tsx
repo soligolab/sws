@@ -43,12 +43,24 @@ export function App() {
   const setCurrentPage = useAppStore((s) => s.setCurrentPage);
   const setPages       = useAppStore((s) => s.setPages);
   const project        = useAppStore((s) => s.project);
+  const setProject     = useAppStore((s) => s.setProject);
 
   // Only fetch project data once authenticated AND past the must-change-pwd
   // gate; otherwise every call would 401/403 and the user would land in a
-  // fail loop.
+  // fail loop. Project is loaded here (not in LeftPanel) so it's available
+  // in Configurazione mode too — without this, ProtocolsTab/TagsTab/
+  // AlarmsTab would render empty inputs and a save would overwrite real
+  // on-disk state with blanks.
   useEffect(() => {
     if (!authToken || mustChangePassword) return;
+
+    api.getProject()
+      .then(setProject)
+      .catch((e) => {
+        if (e instanceof AuthError) clearAuth();
+        else if (e instanceof PasswordChangeRequiredError) setMustChangePassword(true);
+      });
+
     api.listSynoptics()
       .then(async (names) => {
         if (names.length === 0) return;
