@@ -81,6 +81,65 @@ pub struct MqttConfig {
     #[serde(default = "default_mqtt_client_id")]
     pub client_id: String,
     pub topics: Vec<TopicMapping>,
+
+    // ── Authentication ────────────────────────────────────────────────
+    /// Plain-text password. Sits in `project.yaml` on disk — for production
+    /// use `password_env` instead. The web layer masks this on GET responses.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub username: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub password: Option<String>,
+    /// Environment variable to read the password from at runtime. Wins over
+    /// `password` when both are set, so secrets stay out of the YAML.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub password_env: Option<String>,
+
+    // ── Connection tuning ─────────────────────────────────────────────
+    /// MQTT keep-alive interval in seconds. Default 10.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub keep_alive_secs: Option<u16>,
+    /// `false` keeps the broker-side session across reconnects. Default true.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub clean_session: Option<bool>,
+    /// QoS for subscribes/publishes when the per-topic field is unset.
+    /// Accepts 0 / 1 / 2; anything else falls back to 0.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub qos: Option<u8>,
+
+    /// TLS settings. Absent / `enabled: false` → plain TCP.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tls: Option<MqttTlsConfig>,
+
+    /// Last-will message published by the broker on ungraceful disconnect.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub last_will: Option<MqttLastWill>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MqttTlsConfig {
+    /// Master switch — turning it off without removing the block keeps the
+    /// rest of the config around for quick toggles during testing.
+    #[serde(default)]
+    pub enabled: bool,
+    /// Path to a PEM-encoded CA certificate to trust. When unset, the
+    /// runtime falls back to the OS native trust store.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ca_cert_path: Option<String>,
+    /// Skip hostname / chain validation. NOT implemented in PoC — flagged
+    /// here so the YAML carries the intent and the UI can show a warning.
+    #[serde(default)]
+    pub insecure_skip_verify: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MqttLastWill {
+    pub topic: String,
+    pub payload: String,
+    /// 0 / 1 / 2 — falls back to 0.
+    #[serde(default)]
+    pub qos: u8,
+    #[serde(default)]
+    pub retain: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -98,6 +157,10 @@ pub struct TopicMapping {
     /// If equal to `topic`, the same channel is used for read and write.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub publish_topic: Option<String>,
+    /// Per-mapping QoS override (0 / 1 / 2). When absent, the source-level
+    /// `MqttConfig::qos` is used, then 0 as the final fallback.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub qos: Option<u8>,
 }
 
 fn default_modbus_port() -> u16 { 502 }

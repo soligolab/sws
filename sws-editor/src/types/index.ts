@@ -201,6 +201,22 @@ export interface TopicMapping {
   json_path?: string;
   /** When set, a PUT /api/tags/:tag publishes the value to this topic (raw string payload). */
   publish_topic?: string;
+  /** Per-mapping QoS override (0 / 1 / 2). Falls back to MqttSource.qos. */
+  qos?: number;
+}
+
+export interface MqttTlsConfig {
+  enabled: boolean;
+  ca_cert_path?: string;
+  /** Skip hostname/chain validation. Not implemented yet — UI shows a warning. */
+  insecure_skip_verify?: boolean;
+}
+
+export interface MqttLastWill {
+  topic: string;
+  payload: string;
+  qos: number;
+  retain: boolean;
 }
 
 export interface MqttSource {
@@ -210,6 +226,20 @@ export interface MqttSource {
   port: number;
   client_id: string;
   topics: TopicMapping[];
+  // ── Authentication ─────────────────────────────────────────────────
+  username?: string;
+  /** Server echoes "********" when a stored password is non-empty. Sending
+   *  that exact string back means "leave unchanged"; an empty string clears it. */
+  password?: string;
+  /** Name of the env var the runtime reads at startup to resolve the password. */
+  password_env?: string;
+  // ── Connection tuning ──────────────────────────────────────────────
+  keep_alive_secs?: number;
+  clean_session?: boolean;
+  /** 0 / 1 / 2 — falls back to 0. */
+  qos?: number;
+  tls?: MqttTlsConfig;
+  last_will?: MqttLastWill;
 }
 
 export type SourceDef = ModbusTcpSource | MqttSource;

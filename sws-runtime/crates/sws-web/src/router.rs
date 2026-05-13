@@ -364,10 +364,31 @@ async fn handle_alarms_ws(mut socket: WebSocket, alarms: Arc<AlarmDb>) {
 
 // ── Project endpoints ─────────────────────────────────────────────────────────
 
+/// Marker the API substitutes for stored MQTT passwords on GET responses.
+/// The PUT handler treats this exact string as "keep the previous value"
+/// so a round-trip GET → edit → PUT through the editor doesn't accidentally
+/// wipe a secret the operator can't see.
+const MASKED_PASSWORD: &str = "********";
+
 async fn get_project(State(s): State<AppState>) -> impl IntoResponse {
     match Project::load(&s.project_dir) {
-        Ok(project) => Json(project).into_response(),
-        Err(_)      => StatusCode::NOT_FOUND.into_response(),
+        Ok(mut project) => {
+            mask_project_secrets(&mut project);
+            Json(project).into_response()
+        }
+        Err(_) => StatusCode::NOT_FOUND.into_response(),
+    }
+}
+
+/// Replace any sensitive field on the project with the placeholder
+/// constant before it's serialised to the caller.
+fn mask_project_secrets(project: &mut Project) {
+    for src in &mut project.sources {
+        if let SourceDef::Mqtt(c) = src {
+            if c.password.is_some() {
+                c.password = Some(MASKED_PASSWORD.to_string());
+            }
+        }
     }
 }
 
@@ -433,8 +454,27 @@ async fn update_project_tags(
 
 async fn update_project_sources(
     State(s): State<AppState>,
-    Json(sources): Json<Vec<SourceDef>>,
+    Json(mut sources): Json<Vec<SourceDef>>,
 ) -> StatusCode {
+    // Restore masked secrets: any MQTT source whose password came back as
+    // the placeholder string is interpreted as "leave unchanged" — we look
+    // the previous value up from the on-disk project. Without this round
+    // a normal edit through the UI would wipe stored passwords.
+    let previous = Project::load(&s.project_dir).ok();
+    if let Some(prev) = previous.as_ref() {
+        for src in &mut sources {
+            if let SourceDef::Mqtt(new_cfg) = src {
+                if matches!(&new_cfg.password, Some(p) if p == MASKED_PASSWORD) {
+                    let prev_pw = prev.sources.iter().find_map(|s| match s {
+                        SourceDef::Mqtt(c) if c.id == new_cfg.id => c.password.clone(),
+                        _ => None,
+                    });
+                    new_cfg.password = prev_pw;
+                }
+            }
+        }
+    }
+
     // Hot-reload: persist first, then diff against the supervisor's current
     // set. New/removed sources are spawned/cancelled in-place — no runtime
     // restart needed.

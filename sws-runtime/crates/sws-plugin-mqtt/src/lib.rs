@@ -59,15 +59,90 @@ async fn run_session(
     cancel: CancellationToken,
 ) -> anyhow::Result<()> {
     let mut opts = MqttOptions::new(&cfg.client_id, &cfg.host, cfg.port);
-    opts.set_keep_alive(Duration::from_secs(10));
+    opts.set_keep_alive(Duration::from_secs(u64::from(cfg.keep_alive_secs.unwrap_or(10))));
+    if let Some(clean) = cfg.clean_session {
+        opts.set_clean_session(clean);
+    }
+
+    // Credentials: an explicit `password_env` wins (so secrets don't have to
+    // sit in project.yaml). If the env var is unset we fall through to the
+    // plain `password` field and finally log a warning if neither is present
+    // alongside a non-empty username.
+    if let Some(user) = cfg.username.clone() {
+        let password = cfg.password_env
+            .as_deref()
+            .and_then(|name| match std::env::var(name) {
+                Ok(v)  => Some(v),
+                Err(_) => {
+                    warn!(source = %cfg.id, env = %name,
+                          "MQTT password_env not set in process environment");
+                    None
+                }
+            })
+            .or_else(|| cfg.password.clone());
+        match password {
+            Some(p) => opts.set_credentials(user, p),
+            None    => {
+                warn!(source = %cfg.id, %user, "MQTT username set without password — broker may reject");
+                opts.set_credentials(user, "")
+            }
+        };
+    }
+
+    // TLS — when enabled, attach a Transport::Tls with the CA bytes the
+    // operator provides. We deliberately don't fall back to a default trust
+    // store: the PoC keeps the security boundary explicit, and rumqttc 0.24
+    // has no built-in "native trust store" variant anyway.
+    if let Some(tls) = &cfg.tls {
+        if tls.enabled {
+            if tls.insecure_skip_verify {
+                warn!(source = %cfg.id,
+                    "MQTT TLS insecure_skip_verify=true is not yet implemented; \
+                     proceeding with full chain validation");
+            }
+            let path = tls.ca_cert_path.as_ref().ok_or_else(|| anyhow::anyhow!(
+                "MQTT TLS enabled but ca_cert_path is empty — provide a PEM-encoded \
+                 CA file to trust"
+            ))?;
+            let ca = std::fs::read(path)
+                .map_err(|e| anyhow::anyhow!("read CA cert {path}: {e}"))?;
+            opts.set_transport(rumqttc::Transport::Tls(rumqttc::TlsConfiguration::Simple {
+                ca,
+                alpn: None,
+                client_auth: None,
+            }));
+        }
+    }
+
+    // Last will: published by the broker on ungraceful disconnect.
+    if let Some(lw) = &cfg.last_will {
+        opts.set_last_will(rumqttc::LastWill::new(
+            &lw.topic,
+            lw.payload.clone(),
+            qos_from_u8(lw.qos),
+            lw.retain,
+        ));
+    }
+
     let (client, mut eventloop) = AsyncClient::new(opts, 32);
 
+    // Subscribe with per-topic QoS, falling back to the source-level QoS,
+    // then to 0.
+    let source_qos = qos_from_u8(cfg.qos.unwrap_or(0));
     for topic in &cfg.topics {
+        let qos = topic.qos.map(qos_from_u8).unwrap_or(source_qos);
         client
-            .subscribe(&topic.topic, QoS::AtMostOnce)
+            .subscribe(&topic.topic, qos)
             .await
             .map_err(|e| anyhow::anyhow!("subscribe '{}': {e}", topic.topic))?;
     }
+
+    // Per-tag publish_qos lookup so we don't iterate cfg.topics on every write.
+    let pub_qos: std::collections::HashMap<String, QoS> = cfg.topics.iter()
+        .filter_map(|t| t.publish_topic.as_ref().map(|_| {
+            (t.tag.clone(), t.qos.map(qos_from_u8).unwrap_or(source_qos))
+        }))
+        .collect();
 
     // Register the writable tags on the bus. We use ONE mpsc channel for all
     // writers from this source; the receiver is select'd against the
@@ -95,8 +170,9 @@ async fn run_session(
             // Outbound: a tag write came in via the bus → publish to the mapped topic.
             Some((tag, value)) = write_rx.recv() => {
                 let Some((_, pt)) = writers.iter().find(|(t, _)| t == &tag) else { continue };
+                let qos = pub_qos.get(&tag).copied().unwrap_or(source_qos);
                 let payload = stringify(&value);
-                if let Err(e) = client.publish(pt, QoS::AtMostOnce, false, payload.clone()).await {
+                if let Err(e) = client.publish(pt, qos, false, payload.clone()).await {
                     warn!(source = %cfg.id, %tag, %pt, "MQTT publish failed: {e}");
                 } else {
                     // Echo back into TagDb so the UI updates immediately, before
@@ -168,5 +244,15 @@ fn tagvalue_from_json(v: &serde_json::Value) -> TagValue {
         }
         serde_json::Value::String(s) => TagValue::Str(s.clone()),
         _ => TagValue::Str(v.to_string()),
+    }
+}
+
+/// QoS conversion. MQTT defines only 0 / 1 / 2; anything else falls back to 0
+/// rather than fail — broker-side rejection on bad QoS is just noise here.
+fn qos_from_u8(v: u8) -> QoS {
+    match v {
+        1 => QoS::AtLeastOnce,
+        2 => QoS::ExactlyOnce,
+        _ => QoS::AtMostOnce,
     }
 }
