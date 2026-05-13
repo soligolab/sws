@@ -19,7 +19,7 @@ import type {
 
 const AUTH_KEY = "sws.auth";
 
-type PersistedAuth = { token: string; username: string; role?: string };
+type PersistedAuth = { token: string; username: string; role?: string; must_change_password?: boolean };
 
 function readPersistedAuth(): PersistedAuth | null {
   try {
@@ -75,6 +75,9 @@ interface AppState {
   authToken: string | null;
   authUser: string | null;
   authRole: Role | null;
+  /** True while the server insists the current account changes its password.
+   *  The App shell renders ChangePasswordScreen until this clears. */
+  mustChangePassword: boolean;
 
   project: ProjectInfo | null;
   pages: SynopticPage[];
@@ -97,7 +100,8 @@ interface AppState {
   gridSize: number;
   snapEnabled: boolean;
 
-  setAuth: (token: string, username: string, role: Role) => void;
+  setAuth: (token: string, username: string, role: Role, mustChangePassword?: boolean) => void;
+  setMustChangePassword: (flag: boolean) => void;
   clearAuth: () => void;
 
   setProject: (p: ProjectInfo) => void;
@@ -193,6 +197,7 @@ export const useAppStore = create<AppState>((set, get) => {
     authToken: persisted?.token ?? null,
     authUser:  persisted?.username ?? null,
     authRole:  isRole(persisted?.role) ? (persisted!.role as Role) : null,
+    mustChangePassword: persisted?.must_change_password === true,
 
     project: null,
     pages: [first],
@@ -208,16 +213,29 @@ export const useAppStore = create<AppState>((set, get) => {
     gridSize: 10,
     snapEnabled: true,
 
-    setAuth: (token, username, role) => {
+    setAuth: (token, username, role, mustChangePassword = false) => {
       setAuthToken(token);
-      writePersistedAuth({ token, username, role });
-      set({ authToken: token, authUser: username, authRole: role });
+      writePersistedAuth({ token, username, role, must_change_password: mustChangePassword });
+      set({ authToken: token, authUser: username, authRole: role, mustChangePassword });
+    },
+
+    setMustChangePassword: (flag) => {
+      const { authToken, authUser, authRole } = get();
+      if (authToken && authUser && authRole) {
+        writePersistedAuth({
+          token: authToken,
+          username: authUser,
+          role: authRole,
+          must_change_password: flag,
+        });
+      }
+      set({ mustChangePassword: flag });
     },
 
     clearAuth: () => {
       setAuthToken(null);
       writePersistedAuth(null);
-      set({ authToken: null, authUser: null, authRole: null });
+      set({ authToken: null, authUser: null, authRole: null, mustChangePassword: false });
     },
 
     setProject: (project) => set({ project }),

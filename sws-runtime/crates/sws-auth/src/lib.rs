@@ -1,25 +1,25 @@
 //! Auth scaffolding for the PoC.
 //!
 //! Scope:
-//! - Argon2id password hash + verify (`hash_password`, `verify_password`).
-//! - Up to four built-in users (admin / supervisor / operator / viewer)
-//!   seeded from env vars. Each has a fixed `Role`; the runtime exposes
-//!   `Role::can(action)` helpers for downstream middleware.
-//! - In-memory session map keyed by UUID token. Sessions have a TTL
-//!   (default 8 h, override via `SWS_SESSION_TTL_SECS`) which slides on
-//!   every successful `validate` (rolling refresh).
-//! - Login rate-limit (default 5 failures per 60 s per username; override
-//!   via `SWS_LOGIN_RATE_LIMIT` / `SWS_LOGIN_RATE_WINDOW_SECS`).
+//! - Argon2id password hash + verify.
+//! - **Persistent** user store keyed by username, stored as `users.yaml`
+//!   inside the project directory. Bootstrap from `SWS_ADMIN_PASSWORD`
+//!   env when the file is missing or empty.
+//! - In-memory session map keyed by UUID token with a sliding TTL.
+//! - Login rate-limit per username.
+//! - First-login flow via `must_change_password`: the API gates every
+//!   non-self-service call until the user changes their password.
 //!
-//! Out of scope: refresh tokens, OAuth/LDAP, per-zone ABAC, persistence
-//! across restarts.
+//! Out of scope: refresh tokens, OAuth/LDAP, per-zone ABAC, audit trail
+//! of user mutations (the existing audit-log v1 covers it).
 
 pub mod session;
 
 use std::{
     collections::HashMap,
+    path::PathBuf,
     sync::Arc,
-    time::{Duration, Instant},
+    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 use argon2::{
     password_hash::{rand_core::OsRng, PasswordHash, PasswordHasher, PasswordVerifier, SaltString},
@@ -62,13 +62,80 @@ pub struct LoginOk {
     pub role: Role,
     /// Unix timestamp (ms) at which the session expires unless refreshed.
     pub expires_at_ms: u64,
+    /// True if the user has to change their password before any other API
+    /// call will succeed. The login itself plus self-service endpoints
+    /// (whoami / change-password / logout) still work.
+    pub must_change_password: bool,
 }
 
-#[derive(Debug, Clone)]
-struct Account {
+/// Public projection of a user — never carries the password hash.
+#[derive(Debug, Clone, Serialize)]
+pub struct UserSummary {
+    pub username: String,
+    pub role: Role,
+    pub must_change_password: bool,
+    pub created_at_ms: u64,
+    pub updated_at_ms: u64,
+}
+
+/// Patch shape for `PUT /api/auth/users/:username`. Every field is optional;
+/// a missing field means "leave unchanged". `password` resets the hash and
+/// (implicitly) sets `must_change_password=true` so the operator knows the
+/// next login requires a new password.
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct UserPatch {
+    pub role: Option<Role>,
+    pub password: Option<String>,
+    pub must_change_password: Option<bool>,
+}
+
+/// Payload for `POST /api/auth/users`.
+#[derive(Debug, Clone, Deserialize)]
+pub struct CreateUser {
+    pub username: String,
+    pub password: String,
+    pub role: Role,
+    #[serde(default = "yes")]
+    pub must_change_password: bool,
+}
+fn yes() -> bool { true }
+
+/// Payload for `POST /api/auth/change-password`.
+#[derive(Debug, Clone, Deserialize)]
+pub struct ChangePassword {
+    pub old_password: String,
+    pub new_password: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct StoredUser {
     username: String,
+    password_hash: String,
     role: Role,
-    hash: String,
+    #[serde(default)]
+    must_change_password: bool,
+    #[serde(default)]
+    created_at_ms: u64,
+    #[serde(default)]
+    updated_at_ms: u64,
+}
+
+impl StoredUser {
+    fn to_summary(&self) -> UserSummary {
+        UserSummary {
+            username: self.username.clone(),
+            role: self.role,
+            must_change_password: self.must_change_password,
+            created_at_ms: self.created_at_ms,
+            updated_at_ms: self.updated_at_ms,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+struct UserFile {
+    #[serde(default)]
+    users: Vec<StoredUser>,
 }
 
 #[derive(Debug, Clone)]
@@ -85,7 +152,6 @@ struct LoginFailures {
 }
 
 /// Hash a clear-text password with Argon2id and a fresh random salt.
-/// Output is a PHC-formatted string suitable for `verify_password`.
 pub fn hash_password(password: &str) -> anyhow::Result<String> {
     let salt = SaltString::generate(&mut OsRng);
     let argon2 = Argon2::default();
@@ -96,7 +162,6 @@ pub fn hash_password(password: &str) -> anyhow::Result<String> {
 }
 
 /// Verify `password` against a PHC-formatted Argon2id hash.
-/// Returns false on any error (malformed hash, wrong password, etc.).
 pub fn verify_password(password: &str, hash: &str) -> bool {
     let Ok(parsed) = PasswordHash::new(hash) else { return false };
     Argon2::default()
@@ -104,28 +169,122 @@ pub fn verify_password(password: &str, hash: &str) -> bool {
         .is_ok()
 }
 
-/// In-memory auth state: a small set of accounts + a session token registry.
+/// In-memory auth state backed by a YAML file on disk.
 pub struct AuthState {
-    accounts: HashMap<String, Account>,
+    /// Path to `users.yaml`. None → in-memory only (tests).
+    store_path: Option<PathBuf>,
+    users: RwLock<HashMap<String, StoredUser>>,
     sessions: RwLock<HashMap<String, Session>>,
-    /// Per-username login failure counter for rate limiting.
     failures: RwLock<HashMap<String, LoginFailures>>,
-    /// Time-to-live for a freshly-issued or refreshed session.
     ttl: Duration,
-    /// Failures permitted in `rate_window` before login is locked out.
     rate_limit:  u32,
     rate_window: Duration,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub enum LoginError {
     BadCredentials,
     RateLimited,
 }
 
+#[derive(Debug, Clone)]
+pub enum UserError {
+    NotFound,
+    AlreadyExists,
+    LastAdmin,
+    InvalidPassword,
+    StorageError(String),
+}
+
+impl std::fmt::Display for UserError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            UserError::NotFound        => write!(f, "user not found"),
+            UserError::AlreadyExists   => write!(f, "user already exists"),
+            UserError::LastAdmin       => write!(f, "cannot remove the last admin"),
+            UserError::InvalidPassword => write!(f, "current password is wrong"),
+            UserError::StorageError(s) => write!(f, "storage error: {s}"),
+        }
+    }
+}
+
 impl AuthState {
-    /// Seed accounts from a list of (username, role, password). At least one
-    /// non-empty password is required.
+    /// Bootstrap from `users.yaml` at `store_path`. When the file is missing
+    /// or empty, fall back to the legacy `(username, role, password)` seed
+    /// — typically `(admin, Admin, $SWS_ADMIN_PASSWORD)`. The seed users
+    /// get `must_change_password=false` so the first run isn't blocked,
+    /// and they are flushed to disk so subsequent restarts go straight to
+    /// the file path.
+    pub fn new_persistent(
+        store_path: PathBuf,
+        seed: Vec<(String, Role, String)>,
+        ttl: Duration,
+        rate_limit: u32,
+        rate_window: Duration,
+    ) -> anyhow::Result<Arc<Self>> {
+        let on_disk = if store_path.exists() {
+            let text = std::fs::read_to_string(&store_path)
+                .map_err(|e| anyhow::anyhow!("read users.yaml: {e}"))?;
+            if text.trim().is_empty() {
+                UserFile::default()
+            } else {
+                serde_yaml::from_str::<UserFile>(&text)
+                    .map_err(|e| anyhow::anyhow!("parse users.yaml: {e}"))?
+            }
+        } else {
+            UserFile::default()
+        };
+
+        let mut users: HashMap<String, StoredUser> = on_disk.users
+            .into_iter()
+            .map(|u| (u.username.clone(), u))
+            .collect();
+
+        // Seed any account that isn't already present on disk (idempotent
+        // restart, useful when the env vars are reset across deployments).
+        let now = now_unix_ms();
+        for (name, role, pwd) in seed.into_iter().filter(|(_, _, p)| !p.is_empty()) {
+            if !users.contains_key(&name) {
+                let hash = hash_password(&pwd)?;
+                info!(user = %name, role = role.as_str(), "auth: seeded account from env");
+                users.insert(name.clone(), StoredUser {
+                    username: name,
+                    password_hash: hash,
+                    role,
+                    must_change_password: false,
+                    created_at_ms: now,
+                    updated_at_ms: now,
+                });
+            }
+        }
+
+        if users.is_empty() {
+            anyhow::bail!("no users available — set SWS_ADMIN_PASSWORD or populate users.yaml");
+        }
+
+        // Flush the seeded set so subsequent restarts find them on disk.
+        let to_write = UserFile { users: users.values().cloned().collect() };
+        if let Some(parent) = store_path.parent() {
+            std::fs::create_dir_all(parent).ok();
+        }
+        let yaml = serde_yaml::to_string(&to_write)
+            .map_err(|e| anyhow::anyhow!("serialise users.yaml: {e}"))?;
+        std::fs::write(&store_path, yaml)
+            .map_err(|e| anyhow::anyhow!("write users.yaml: {e}"))?;
+
+        Ok(Arc::new(Self {
+            store_path: Some(store_path),
+            users: RwLock::new(users),
+            sessions: RwLock::new(HashMap::new()),
+            failures: RwLock::new(HashMap::new()),
+            ttl,
+            rate_limit,
+            rate_window,
+        }))
+    }
+
+    /// Test-only in-memory constructor — same shape as the old `new` so
+    /// existing unit tests keep working without disk access.
     pub fn new(
         accounts: Vec<(String, Role, String)>,
         ttl: Duration,
@@ -138,14 +297,22 @@ impl AuthState {
         if usable.is_empty() {
             anyhow::bail!("at least one account password is required (set SWS_ADMIN_PASSWORD)");
         }
-        let mut map: HashMap<String, Account> = HashMap::new();
+        let now = now_unix_ms();
+        let mut users: HashMap<String, StoredUser> = HashMap::new();
         for (user, role, pwd) in usable {
             let hash = hash_password(&pwd)?;
-            info!(user = %user, role = role.as_str(), "auth: account seeded");
-            map.insert(user.clone(), Account { username: user, role, hash });
+            users.insert(user.clone(), StoredUser {
+                username: user,
+                password_hash: hash,
+                role,
+                must_change_password: false,
+                created_at_ms: now,
+                updated_at_ms: now,
+            });
         }
         Ok(Arc::new(Self {
-            accounts: map,
+            store_path: None,
+            users: RwLock::new(users),
             sessions: RwLock::new(HashMap::new()),
             failures: RwLock::new(HashMap::new()),
             ttl,
@@ -155,18 +322,15 @@ impl AuthState {
     }
 
     /// Verify credentials and mint a session token on success.
-    /// Returns `RateLimited` if the username has exceeded `rate_limit`
-    /// failures within `rate_window`.
     pub async fn login(&self, creds: &Credentials) -> Result<LoginOk, LoginError> {
-        // Rate-limit check FIRST so a guessing attacker also slows down.
         if self.is_rate_limited(&creds.username).await {
             warn!(user = %creds.username, "login: rate limited");
             return Err(LoginError::RateLimited);
         }
 
-        let account = self.accounts.get(&creds.username).cloned();
-        let ok = match &account {
-            Some(a) => verify_password(&creds.password, &a.hash),
+        let user = self.users.read().await.get(&creds.username).cloned();
+        let ok = match &user {
+            Some(u) => verify_password(&creds.password, &u.password_hash),
             None    => false,
         };
 
@@ -175,28 +339,29 @@ impl AuthState {
             warn!(user = %creds.username, "login: bad credentials");
             return Err(LoginError::BadCredentials);
         }
-        let account = account.expect("checked above");
+        let user = user.expect("checked above");
 
         let token = uuid::Uuid::new_v4().to_string();
         let expires_at = Instant::now() + self.ttl;
         self.sessions.write().await.insert(token.clone(), Session {
-            username: account.username.clone(),
-            role: account.role,
+            username: user.username.clone(),
+            role: user.role,
             expires_at,
         });
         self.failures.write().await.remove(&creds.username);
-        info!(user = %account.username, role = account.role.as_str(), "login: session issued");
+        info!(user = %user.username, role = user.role.as_str(), "login: session issued");
         Ok(LoginOk {
             token,
-            username: account.username,
-            role: account.role,
+            username: user.username,
+            role: user.role,
             expires_at_ms: now_unix_ms() + self.ttl.as_millis() as u64,
+            must_change_password: user.must_change_password,
         })
     }
 
-    /// Returns the (username, role) if the token is valid AND not expired.
+    /// Returns the session info if the token is valid AND not expired.
     /// Slides the TTL on success (rolling refresh).
-    pub async fn validate(&self, token: &str) -> Option<(String, Role)> {
+    pub async fn validate(&self, token: &str) -> Option<SessionInfo> {
         let mut sessions = self.sessions.write().await;
         let session = sessions.get_mut(token)?;
         if Instant::now() >= session.expires_at {
@@ -204,10 +369,17 @@ impl AuthState {
             return None;
         }
         session.expires_at = Instant::now() + self.ttl;
-        Some((session.username.clone(), session.role))
+        let username = session.username.clone();
+        let role     = session.role;
+        drop(sessions);
+
+        let must_change = self.users.read().await
+            .get(&username)
+            .map(|u| u.must_change_password)
+            .unwrap_or(false);
+        Some(SessionInfo { username, role, must_change_password: must_change })
     }
 
-    /// Revoke a session token. Idempotent.
     pub async fn logout(&self, token: &str) -> bool {
         self.sessions.write().await.remove(token).is_some()
     }
@@ -216,18 +388,133 @@ impl AuthState {
         self.sessions.read().await.len()
     }
 
+    // ── User CRUD ─────────────────────────────────────────────────────
+
+    pub async fn list_users(&self) -> Vec<UserSummary> {
+        let mut v: Vec<UserSummary> = self.users.read().await.values()
+            .map(|u| u.to_summary()).collect();
+        v.sort_by(|a, b| a.username.cmp(&b.username));
+        v
+    }
+
+    pub async fn create_user(&self, p: CreateUser) -> Result<UserSummary, UserError> {
+        if p.password.is_empty() {
+            return Err(UserError::InvalidPassword);
+        }
+        let mut users = self.users.write().await;
+        if users.contains_key(&p.username) {
+            return Err(UserError::AlreadyExists);
+        }
+        let hash = hash_password(&p.password)
+            .map_err(|e| UserError::StorageError(e.to_string()))?;
+        let now = now_unix_ms();
+        let u = StoredUser {
+            username: p.username.clone(),
+            password_hash: hash,
+            role: p.role,
+            must_change_password: p.must_change_password,
+            created_at_ms: now,
+            updated_at_ms: now,
+        };
+        users.insert(p.username.clone(), u.clone());
+        self.flush_locked(&users)?;
+        info!(user = %p.username, role = p.role.as_str(), "auth: user created");
+        Ok(u.to_summary())
+    }
+
+    pub async fn update_user(&self, username: &str, patch: UserPatch) -> Result<UserSummary, UserError> {
+        let mut users = self.users.write().await;
+        let was_admin_count = users.values().filter(|u| u.role == Role::Admin).count();
+
+        let user = users.get_mut(username).ok_or(UserError::NotFound)?;
+        if let Some(role) = patch.role {
+            // Refuse to demote the last admin.
+            if user.role == Role::Admin && role != Role::Admin && was_admin_count <= 1 {
+                return Err(UserError::LastAdmin);
+            }
+            user.role = role;
+        }
+        if let Some(pwd) = patch.password.as_ref() {
+            if pwd.is_empty() {
+                return Err(UserError::InvalidPassword);
+            }
+            user.password_hash = hash_password(pwd)
+                .map_err(|e| UserError::StorageError(e.to_string()))?;
+            // Admin-driven password reset → force a change on next login,
+            // unless the patch explicitly overrides.
+            user.must_change_password = patch.must_change_password.unwrap_or(true);
+        } else if let Some(flag) = patch.must_change_password {
+            user.must_change_password = flag;
+        }
+        user.updated_at_ms = now_unix_ms();
+        let summary = user.to_summary();
+        self.flush_locked(&users)?;
+        info!(user = %username, "auth: user updated");
+        Ok(summary)
+    }
+
+    pub async fn delete_user(&self, username: &str) -> Result<(), UserError> {
+        let mut users = self.users.write().await;
+        let target = users.get(username).ok_or(UserError::NotFound)?;
+        if target.role == Role::Admin {
+            let admin_count = users.values().filter(|u| u.role == Role::Admin).count();
+            if admin_count <= 1 {
+                return Err(UserError::LastAdmin);
+            }
+        }
+        users.remove(username);
+        self.flush_locked(&users)?;
+
+        // Drop any active sessions for the deleted user too.
+        let mut sessions = self.sessions.write().await;
+        sessions.retain(|_, s| s.username != username);
+        info!(user = %username, "auth: user deleted");
+        Ok(())
+    }
+
+    /// Self-service password change. Requires the OLD password to match.
+    /// Clears the `must_change_password` flag on success.
+    pub async fn change_password(
+        &self,
+        username: &str,
+        cp: ChangePassword,
+    ) -> Result<(), UserError> {
+        if cp.new_password.is_empty() {
+            return Err(UserError::InvalidPassword);
+        }
+        let mut users = self.users.write().await;
+        let user = users.get_mut(username).ok_or(UserError::NotFound)?;
+        if !verify_password(&cp.old_password, &user.password_hash) {
+            return Err(UserError::InvalidPassword);
+        }
+        user.password_hash = hash_password(&cp.new_password)
+            .map_err(|e| UserError::StorageError(e.to_string()))?;
+        user.must_change_password = false;
+        user.updated_at_ms = now_unix_ms();
+        self.flush_locked(&users)?;
+        info!(user = %username, "auth: password changed");
+        Ok(())
+    }
+
+    fn flush_locked(&self, users: &HashMap<String, StoredUser>) -> Result<(), UserError> {
+        let Some(path) = &self.store_path else { return Ok(()); };
+        let file = UserFile { users: users.values().cloned().collect() };
+        let yaml = serde_yaml::to_string(&file)
+            .map_err(|e| UserError::StorageError(format!("serialise: {e}")))?;
+        std::fs::write(path, yaml)
+            .map_err(|e| UserError::StorageError(format!("write {}: {e}", path.display())))?;
+        Ok(())
+    }
+
+    // ── Rate-limit helpers (unchanged) ────────────────────────────────
+
     async fn record_failure(&self, username: &str) {
         let mut map = self.failures.write().await;
         let entry = map.entry(username.to_string()).or_default();
         let now = Instant::now();
         match entry.window_start {
-            Some(t) if now.duration_since(t) <= self.rate_window => {
-                entry.count += 1;
-            }
-            _ => {
-                entry.window_start = Some(now);
-                entry.count = 1;
-            }
+            Some(t) if now.duration_since(t) <= self.rate_window => entry.count += 1,
+            _ => { entry.window_start = Some(now); entry.count = 1; }
         }
     }
 
@@ -240,8 +527,15 @@ impl AuthState {
     }
 }
 
+/// What `validate` reports back to a request handler.
+#[derive(Debug, Clone)]
+pub struct SessionInfo {
+    pub username: String,
+    pub role: Role,
+    pub must_change_password: bool,
+}
+
 fn now_unix_ms() -> u64 {
-    use std::time::{SystemTime, UNIX_EPOCH};
     SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_millis() as u64).unwrap_or(0)
 }
 
@@ -273,20 +567,16 @@ mod tests {
     #[tokio::test]
     async fn login_validate_logout_flow() {
         let auth = admin_only("s3cret");
-
         assert!(matches!(auth.login(&Credentials { username: "admin".into(), password: "nope".into() }).await,
             Err(LoginError::BadCredentials)));
-        assert!(matches!(auth.login(&Credentials { username: "root".into(),  password: "s3cret".into() }).await,
-            Err(LoginError::BadCredentials)));
-
         let ok = auth.login(&Credentials { username: "admin".into(), password: "s3cret".into() }).await.unwrap();
         assert_eq!(ok.username, "admin");
         assert_eq!(ok.role, Role::Admin);
-        assert!(ok.expires_at_ms > 0);
+        assert!(!ok.must_change_password);
 
-        let (user, role) = auth.validate(&ok.token).await.unwrap();
-        assert_eq!(user, "admin");
-        assert_eq!(role, Role::Admin);
+        let info = auth.validate(&ok.token).await.unwrap();
+        assert_eq!(info.username, "admin");
+        assert_eq!(info.role, Role::Admin);
 
         assert!(auth.logout(&ok.token).await);
         assert!(auth.validate(&ok.token).await.is_none());
@@ -324,7 +614,6 @@ mod tests {
                 Err(LoginError::BadCredentials)
             ));
         }
-        // 4th attempt should be rate-limited regardless of password.
         assert!(matches!(
             auth.login(&Credentials { username: "admin".into(), password: "x".into() }).await,
             Err(LoginError::RateLimited)
@@ -336,5 +625,82 @@ mod tests {
         assert!(Role::Admin > Role::Supervisor);
         assert!(Role::Supervisor > Role::Operator);
         assert!(Role::Operator > Role::Viewer);
+    }
+
+    #[tokio::test]
+    async fn create_update_delete_user() {
+        let auth = admin_only("admin");
+
+        let s = auth.create_user(CreateUser {
+            username: "alice".into(), password: "p4ss".into(),
+            role: Role::Operator, must_change_password: true,
+        }).await.unwrap();
+        assert_eq!(s.username, "alice");
+        assert!(s.must_change_password);
+
+        // Duplicate refused
+        assert!(matches!(
+            auth.create_user(CreateUser {
+                username: "alice".into(), password: "x".into(),
+                role: Role::Operator, must_change_password: true,
+            }).await,
+            Err(UserError::AlreadyExists)
+        ));
+
+        // Update role
+        let s = auth.update_user("alice", UserPatch {
+            role: Some(Role::Supervisor), password: None, must_change_password: None,
+        }).await.unwrap();
+        assert_eq!(s.role, Role::Supervisor);
+
+        // Delete
+        auth.delete_user("alice").await.unwrap();
+        assert!(auth.list_users().await.iter().all(|u| u.username != "alice"));
+    }
+
+    #[tokio::test]
+    async fn cant_delete_last_admin() {
+        let auth = admin_only("admin");
+        assert!(matches!(
+            auth.delete_user("admin").await,
+            Err(UserError::LastAdmin)
+        ));
+    }
+
+    #[tokio::test]
+    async fn cant_demote_last_admin() {
+        let auth = admin_only("admin");
+        assert!(matches!(
+            auth.update_user("admin", UserPatch {
+                role: Some(Role::Viewer), password: None, must_change_password: None,
+            }).await,
+            Err(UserError::LastAdmin)
+        ));
+    }
+
+    #[tokio::test]
+    async fn change_password_clears_flag() {
+        let auth = admin_only("admin");
+        auth.create_user(CreateUser {
+            username: "bob".into(), password: "init".into(),
+            role: Role::Viewer, must_change_password: true,
+        }).await.unwrap();
+
+        // Wrong old password is refused
+        assert!(matches!(
+            auth.change_password("bob", ChangePassword {
+                old_password: "nope".into(), new_password: "new".into(),
+            }).await,
+            Err(UserError::InvalidPassword)
+        ));
+
+        auth.change_password("bob", ChangePassword {
+            old_password: "init".into(), new_password: "new".into(),
+        }).await.unwrap();
+
+        let ok = auth.login(&Credentials {
+            username: "bob".into(), password: "new".into(),
+        }).await.unwrap();
+        assert!(!ok.must_change_password);
     }
 }

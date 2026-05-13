@@ -23,6 +23,37 @@ export class AuthError extends Error {
   constructor() { super("unauthorized"); this.name = "AuthError"; }
 }
 
+/** Server signals an authenticated user must change their password before
+ *  reaching any non-self-service endpoint. The runtime returns 403 with
+ *  `{ error: "password_change_required" }`; the UI lifts the
+ *  ChangePasswordScreen in response. */
+export class PasswordChangeRequiredError extends Error {
+  constructor() { super("password change required"); this.name = "PasswordChangeRequiredError"; }
+}
+
+export type UserRole = "Viewer" | "Operator" | "Supervisor" | "Admin";
+
+export interface UserSummary {
+  username: string;
+  role: UserRole;
+  must_change_password: boolean;
+  created_at_ms: number;
+  updated_at_ms: number;
+}
+
+export interface CreateUserBody {
+  username: string;
+  password: string;
+  role: UserRole;
+  must_change_password?: boolean;
+}
+
+export interface UpdateUserBody {
+  role?: UserRole;
+  password?: string;
+  must_change_password?: boolean;
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const headers = new Headers(init?.headers);
   if (TOKEN) headers.set("Authorization", `Bearer ${TOKEN}`);
@@ -32,7 +63,22 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     // bounce back to the login screen without showing a generic 401 toast.
     throw new AuthError();
   }
-  if (!res.ok) throw new Error(`API ${path}: ${res.status} ${res.statusText}`);
+  if (res.status === 403) {
+    // The runtime gates everything but auth self-service when the session
+    // user still has `must_change_password`. Peek at the JSON envelope so
+    // the UI can react with a forced-change screen instead of a toast.
+    let bodyText = "";
+    try { bodyText = await res.text(); } catch { /* ignore */ }
+    if (bodyText.includes("password_change_required")) {
+      throw new PasswordChangeRequiredError();
+    }
+    throw new Error(`API ${path}: 403 Forbidden${bodyText ? ` — ${bodyText}` : ""}`);
+  }
+  if (!res.ok) {
+    let bodyText = "";
+    try { bodyText = await res.text(); } catch { /* ignore */ }
+    throw new Error(`API ${path}: ${res.status} ${res.statusText}${bodyText ? ` — ${bodyText}` : ""}`);
+  }
   if (res.status === 204 || res.headers.get("content-length") === "0") {
     return undefined as T;
   }
@@ -45,8 +91,9 @@ export const api = {
     request<{
       token: string;
       username: string;
-      role: "Viewer" | "Operator" | "Supervisor" | "Admin";
+      role: UserRole;
       expires_at_ms: number;
+      must_change_password: boolean;
     }>("/api/auth/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -57,7 +104,38 @@ export const api = {
     request<void>("/api/auth/logout", { method: "POST" }),
 
   whoami: () =>
-    request<{ username: string; role: string }>("/api/auth/whoami"),
+    request<{ username: string; role: UserRole; must_change_password: boolean }>(
+      "/api/auth/whoami",
+    ),
+
+  changePassword: (oldPassword: string, newPassword: string) =>
+    request<void>("/api/auth/change-password", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ old_password: oldPassword, new_password: newPassword }),
+    }),
+
+  // User management (Admin only)
+  listUsers: () => request<UserSummary[]>("/api/auth/users"),
+
+  createUser: (body: CreateUserBody) =>
+    request<UserSummary>("/api/auth/users", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }),
+
+  updateUser: (username: string, body: UpdateUserBody) =>
+    request<UserSummary>(`/api/auth/users/${encodeURIComponent(username)}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }),
+
+  deleteUser: (username: string) =>
+    request<void>(`/api/auth/users/${encodeURIComponent(username)}`, {
+      method: "DELETE",
+    }),
 
   // Project config
   getProject: () =>

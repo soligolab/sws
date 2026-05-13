@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { api, AuthError } from "@/api/client";
+import { api, AuthError, PasswordChangeRequiredError } from "@/api/client";
 import { AlarmBanner } from "@/components/AlarmBanner";
+import { ChangePasswordScreen } from "@/components/ChangePasswordScreen";
 import { LoginScreen } from "@/components/LoginScreen";
 import { ConfigView } from "@/config/ConfigView";
 import { EditorShell } from "@/editor/EditorShell";
@@ -20,20 +21,23 @@ export function App() {
   const { t } = useTranslation();
   const [mode, setMode] = useState<Mode>("edit");
 
-  const authToken      = useAppStore((s) => s.authToken);
-  const authUser       = useAppStore((s) => s.authUser);
-  const authRole       = useAppStore((s) => s.authRole);
-  const clearAuth      = useAppStore((s) => s.clearAuth);
+  const authToken             = useAppStore((s) => s.authToken);
+  const authUser              = useAppStore((s) => s.authUser);
+  const authRole              = useAppStore((s) => s.authRole);
+  const mustChangePassword    = useAppStore((s) => s.mustChangePassword);
+  const setMustChangePassword = useAppStore((s) => s.setMustChangePassword);
+  const clearAuth             = useAppStore((s) => s.clearAuth);
   const pages          = useAppStore((s) => s.pages);
   const currentPageId  = useAppStore((s) => s.currentPageId);
   const setCurrentPage = useAppStore((s) => s.setCurrentPage);
   const setPages       = useAppStore((s) => s.setPages);
   const project        = useAppStore((s) => s.project);
 
-  // Only fetch project data once authenticated; otherwise every call would
-  // 401 and the user would land in a fail loop.
+  // Only fetch project data once authenticated AND past the must-change-pwd
+  // gate; otherwise every call would 401/403 and the user would land in a
+  // fail loop.
   useEffect(() => {
-    if (!authToken) return;
+    if (!authToken || mustChangePassword) return;
     api.listSynoptics()
       .then(async (names) => {
         if (names.length === 0) return;
@@ -42,8 +46,9 @@ export function App() {
       })
       .catch((e) => {
         if (e instanceof AuthError) clearAuth();
+        else if (e instanceof PasswordChangeRequiredError) setMustChangePassword(true);
       });
-  }, [authToken]);
+  }, [authToken, mustChangePassword]);
 
   const handleLogout = async () => {
     try { await api.logout(); } catch { /* ignore */ }
@@ -52,6 +57,10 @@ export function App() {
 
   if (!authToken) {
     return <LoginScreen />;
+  }
+
+  if (mustChangePassword) {
+    return <ChangePasswordScreen />;
   }
 
   return (

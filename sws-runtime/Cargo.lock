@@ -2964,6 +2964,7 @@ dependencies = [
  "anyhow",
  "argon2",
  "serde",
+ "serde_yaml",
  "tokio",
  "tracing",
  "uuid",

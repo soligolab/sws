@@ -108,7 +108,8 @@ async fn main() -> anyhow::Result<()> {
     let ttl_secs    = std::env::var("SWS_SESSION_TTL_SECS").ok().and_then(|s| s.parse().ok()).unwrap_or(8 * 3600);
     let rate_limit  = std::env::var("SWS_LOGIN_RATE_LIMIT").ok().and_then(|s| s.parse().ok()).unwrap_or(5);
     let rate_window = std::env::var("SWS_LOGIN_RATE_WINDOW_SECS").ok().and_then(|s| s.parse().ok()).unwrap_or(60);
-    let auth = AuthState::new(
+    let auth = AuthState::new_persistent(
+        args.project.join("users.yaml"),
         accounts,
         std::time::Duration::from_secs(ttl_secs),
         rate_limit,

@@ -52,13 +52,16 @@ pub fn build(
 ) -> Router {
     let state = AppState { db, bus, alarms, historian, py, auth, supervisor, functions, project_dir };
 
-    // Routes that need Admin privileges (PUT /api/project/* — schema edits).
-    // Layered THEN added under the auth-required group below.
+    // Routes that need Admin privileges (PUT /api/project/* — schema edits,
+    // plus the multi-user CRUD).
     let admin_routes = Router::new()
-        .route("/api/project/tags",      put(update_project_tags))
-        .route("/api/project/sources",   put(update_project_sources))
-        .route("/api/project/alarms",    put(update_project_alarms))
-        .route("/api/project/functions", put(update_project_functions))
+        .route("/api/project/tags",       put(update_project_tags))
+        .route("/api/project/sources",    put(update_project_sources))
+        .route("/api/project/alarms",     put(update_project_alarms))
+        .route("/api/project/functions",  put(update_project_functions))
+        .route("/api/auth/users",         get(list_users).post(create_user))
+        .route("/api/auth/users/:username",
+            axum::routing::put(update_user).delete(delete_user))
         .route_layer(middleware::from_fn(require_admin));
 
     // Routes that need Operator+ (tag writes, alarm ACK, script exec,
@@ -87,16 +90,26 @@ pub fn build(
         .route("/api/synoptics/:name", get(get_synoptic))
         // WebSocket streams
         .route("/ws/tags",   get(ws_tags_handler))
-        .route("/ws/alarms", get(ws_alarms_handler))
-        // Session introspection / teardown
-        .route("/api/auth/whoami", get(whoami))
-        .route("/api/auth/logout", post(logout));
+        .route("/ws/alarms", get(ws_alarms_handler));
 
-    // Compose: everything below the auth wall.
-    let protected = Router::new()
-        .merge(read_routes)
+    // The "blocking" set — all routes above plus all the operator/admin
+    // routes — is gated by the must_change_password flag in addition to
+    // the role checks. A user flagged for password change can still hit
+    // the self-service endpoints below.
+    let blocking = read_routes
         .merge(operator_routes)
         .merge(admin_routes)
+        .route_layer(middleware::from_fn(require_password_changed));
+
+    // Self-service endpoints: any authenticated user, including one with
+    // must_change_password=true, can hit these.
+    let self_service = Router::new()
+        .route("/api/auth/whoami",          get(whoami))
+        .route("/api/auth/logout",          post(logout))
+        .route("/api/auth/change-password", post(change_password));
+
+    let protected = blocking
+        .merge(self_service)
         .route_layer(middleware::from_fn_with_state(state.clone(), require_auth));
 
     // Always-open routes: liveness probes + login.
@@ -136,10 +149,15 @@ async fn require_auth(
     let Some(token) = token else {
         return StatusCode::UNAUTHORIZED.into_response();
     };
-    let Some((user, role)) = s.auth.validate(&token).await else {
+    let Some(info) = s.auth.validate(&token).await else {
         return StatusCode::UNAUTHORIZED.into_response();
     };
-    req.extensions_mut().insert(AuthUser { username: user, role });
+    let must_change = info.must_change_password;
+    req.extensions_mut().insert(AuthUser {
+        username: info.username,
+        role: info.role,
+        must_change_password: must_change,
+    });
     next.run(req).await
 }
 
@@ -147,6 +165,27 @@ async fn require_auth(
 pub struct AuthUser {
     pub username: String,
     pub role: Role,
+    pub must_change_password: bool,
+}
+
+/// When the user is flagged "must change password", any API call other
+/// than the self-service trio (`/api/auth/change-password`, `whoami`,
+/// `logout`) is rejected with 403 + a sentinel error code so the
+/// frontend can route to the dedicated screen. This middleware must run
+/// AFTER `require_auth`.
+async fn require_password_changed(req: Request, next: Next) -> Response {
+    if let Some(user) = req.extensions().get::<AuthUser>() {
+        if user.must_change_password {
+            return (
+                StatusCode::FORBIDDEN,
+                axum::Json(serde_json::json!({
+                    "error":  "password_change_required",
+                    "detail": "you must change your password before using the API",
+                })),
+            ).into_response();
+        }
+    }
+    next.run(req).await
 }
 
 /// Reject the request if the caller's role is below `min`. Must run
@@ -211,17 +250,112 @@ async fn logout(
 }
 
 #[derive(serde::Serialize)]
-struct Whoami { username: String, role: Role }
+struct Whoami {
+    username: String,
+    role: Role,
+    must_change_password: bool,
+}
 
 async fn whoami(req: Request) -> Json<Whoami> {
     // require_auth has already inserted AuthUser; missing here would be a bug.
     let user = req.extensions().get::<AuthUser>().cloned()
-        .unwrap_or(AuthUser { username: String::new(), role: Role::Viewer });
-    Json(Whoami { username: user.username, role: user.role })
+        .unwrap_or(AuthUser { username: String::new(), role: Role::Viewer, must_change_password: false });
+    Json(Whoami {
+        username: user.username,
+        role: user.role,
+        must_change_password: user.must_change_password,
+    })
 }
 
 #[allow(dead_code)]
 fn _force_login_ok_used(_: LoginOk) {}
+
+// ── User CRUD (admin) ────────────────────────────────────────────────────────
+
+async fn list_users(State(s): State<AppState>) -> Json<Vec<sws_auth::UserSummary>> {
+    Json(s.auth.list_users().await)
+}
+
+async fn create_user(
+    State(s): State<AppState>,
+    Json(body): Json<sws_auth::CreateUser>,
+) -> Response {
+    match s.auth.create_user(body).await {
+        Ok(u)  => (StatusCode::CREATED, Json(u)).into_response(),
+        Err(e) => user_error_to_response(e),
+    }
+}
+
+async fn update_user(
+    State(s): State<AppState>,
+    Path(username): Path<String>,
+    Json(patch): Json<sws_auth::UserPatch>,
+) -> Response {
+    match s.auth.update_user(&username, patch).await {
+        Ok(u)  => Json(u).into_response(),
+        Err(e) => user_error_to_response(e),
+    }
+}
+
+async fn delete_user(
+    State(s): State<AppState>,
+    Path(username): Path<String>,
+    req: Request,
+) -> Response {
+    // Forbid an admin from deleting their own currently-logged-in account —
+    // this would lock the operator out of their own session immediately.
+    if let Some(caller) = req.extensions().get::<AuthUser>() {
+        if caller.username == username {
+            return (StatusCode::CONFLICT,
+                    Json(serde_json::json!({"error": "cannot_delete_self"})))
+                .into_response();
+        }
+    }
+    match s.auth.delete_user(&username).await {
+        Ok(())  => StatusCode::NO_CONTENT.into_response(),
+        Err(e)  => user_error_to_response(e),
+    }
+}
+
+async fn change_password(
+    State(s): State<AppState>,
+    req: Request,
+) -> Response {
+    let user = match req.extensions().get::<AuthUser>().cloned() {
+        Some(u) => u,
+        None    => return StatusCode::UNAUTHORIZED.into_response(),
+    };
+    // Re-read the JSON body manually since we already consumed `req` for
+    // extensions. axum 0.7 doesn't let us pass both req and Json by value
+    // without re-architecting the handler — extract the body manually.
+    let bytes = match axum::body::to_bytes(req.into_body(), 64 * 1024).await {
+        Ok(b)  => b,
+        Err(e) => return (StatusCode::BAD_REQUEST, format!("body: {e}")).into_response(),
+    };
+    let body: sws_auth::ChangePassword = match serde_json::from_slice(&bytes) {
+        Ok(b)  => b,
+        Err(e) => return (StatusCode::BAD_REQUEST, format!("json: {e}")).into_response(),
+    };
+    match s.auth.change_password(&user.username, body).await {
+        Ok(()) => StatusCode::NO_CONTENT.into_response(),
+        Err(e) => user_error_to_response(e),
+    }
+}
+
+fn user_error_to_response(e: sws_auth::UserError) -> Response {
+    use sws_auth::UserError::*;
+    let (code, msg) = match &e {
+        NotFound          => (StatusCode::NOT_FOUND,           "not_found"),
+        AlreadyExists     => (StatusCode::CONFLICT,            "already_exists"),
+        LastAdmin         => (StatusCode::CONFLICT,            "last_admin"),
+        InvalidPassword   => (StatusCode::UNPROCESSABLE_ENTITY,"invalid_password"),
+        StorageError(_)   => (StatusCode::INTERNAL_SERVER_ERROR,"storage_error"),
+    };
+    (code, Json(serde_json::json!({
+        "error":  msg,
+        "detail": e.to_string(),
+    }))).into_response()
+}
 
 // ── Tag endpoints ────────────────────────────────────────────────────────────
 

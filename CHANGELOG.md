@@ -224,6 +224,37 @@ Symbol library
   plus `ATTRIBUTION.md` documenting the licence chain and the
   procedure for adding more (e.g. from Wikimedia Commons P&ID).
 
+### Added (BL-003 — CodeMirror Python editor for FunctionDef bodies)
+- `sws-editor` gains `PythonEditor` (`src/components/PythonEditor.tsx`): a CodeMirror 6 wrap with `@codemirror/lang-python`, one-dark theme, line numbers, history/undo, indent-with-tab, bracket matching, and a stable `forwardRef` API exposing `insertAtCursor(text)` + `focus()`. External `value` syncs are dispatched only on diff so the cursor doesn't jump while the user is typing.
+- `src/editor/FunctionEditor.tsx` is a brand-new full-screen pane: header (name chip + "● modifiche non salvate" indicator + "Inserisci template…" snippet dropdown + Save + Close), 280 px left aside (name / description / params list), and a flex-1 right column hosting `PythonEditor`. Six built-in snippets: increment, toggle, conditional, reset_many, diagnostic, function skeleton.
+- Dirty tracking via `JSON.stringify(fn)` snapshot at last persist; Save is disabled while clean. Errors from the server PUT surface in a red banner.
+- `EditorShell` now branches at the top: when `selectedFunctionId` is set, it renders `<LeftPanel/> + <FunctionEditor/>` full-width, hiding the canvas + properties panel until the user clicks Close. The old inline FunctionEditor (~125 lines of textarea + sub-form) was removed.
+- Bundle grew to 738 KB / 232 KB gzipped — accepted because the language pack + history extensions live in the same chunk.
+
+### Added (BL-002 — MQTT auth, TLS, last-will, QoS, password masking)
+- `MqttConfig` (sws-core) gains `username`, `password`, `password_env`, `keep_alive_secs`, `clean_session`, `qos`, `tls: MqttTlsConfig`, and `last_will: MqttLastWill`. `TopicMapping` gains a per-topic `qos` override. All fields are `#[serde(default, skip_serializing_if = …)]` so existing `project.yaml` files load unchanged.
+- New types `MqttTlsConfig { enabled, ca_cert_path, insecure_skip_verify }` and `MqttLastWill { topic, payload, qos, retain }` exported from `sws-core::lib`.
+- `sws-plugin-mqtt::run_session` resolves credentials in order `password_env > password > none`, calls `set_keep_alive` / `set_clean_session` / `set_credentials` / `set_last_will` on the `MqttOptions`, and wires `Transport::Tls(TlsConfiguration::Simple { ca, alpn: None, client_auth: None })` when TLS is enabled. **rumqttc 0.24 has no `Native` variant**, so a CA cert path is mandatory when TLS is on; otherwise the session refuses to start with an explanatory anyhow error. Subscribe loop and the publish-from-write path both honour the resolved QoS (per-topic > source-level fallback > AtMostOnce).
+- `sws-web` masks MQTT passwords on `GET /api/project`: every `MqttSource.password` is replaced by the literal sentinel `"********"` before serialising. On `PUT /api/project/sources`, the runtime loads the previous project from disk and, for each incoming MQTT source whose password equals the sentinel, copies the old hash back in. Empty string clears the password; any other value overwrites.
+- `MqttSourceCard` (ConfigView → Protocolli) reworked with collapsible sections: Autenticazione (username + password input with "lascia ******** per non modificare" hint + `password_env`), Connessione (keep_alive_secs / clean_session / default QoS), TLS (enabled + ca_cert_path + insecure_skip_verify with warning), Last Will (topic / payload / qos / retain). Topic table grows a per-row QoS column.
+
+### Added (BL-001 — persistent multi-user store with admin CRUD)
+- `sws-auth` rewritten on top of a persistent `UserStore` backed by `users.yaml` in the project directory. New constructor `AuthState::new_persistent(store_path, seed, ttl, rate_limit, rate_window)` loads the YAML if present, otherwise seeds from the existing env-var path and writes the file. Admin accounts seeded from env start with `must_change_password: false`; manually-created accounts default to `true`.
+- New types: `UserSummary { username, role, must_change_password, created_at_ms, updated_at_ms }`, `UserPatch { role?, password?, must_change_password? }`, `CreateUser { username, password, role, must_change_password (default true) }`, `ChangePassword { old_password, new_password }`, `SessionInfo { username, role, must_change_password }`. `LoginOk` extended with `must_change_password`.
+- New CRUD methods on `AuthState`: `list_users` / `create_user` / `update_user` / `delete_user` / `change_password`. Last-admin protection: `delete_user` and `update_user` (when demoting) refuse if the target is the only `Admin`. Self-delete is rejected at the router level with `cannot_delete_self`. `change_password` verifies the old hash and clears `must_change_password`. Every mutation persists via `flush_locked`.
+- `sws-web` router gains:
+  - `GET /api/auth/users`, `POST /api/auth/users`, `PUT /api/auth/users/:username`, `DELETE /api/auth/users/:username` — Admin only.
+  - `POST /api/auth/change-password` — any authenticated session; bypasses the blocking middleware.
+  - `whoami` now echoes `must_change_password`.
+- New `require_password_changed` middleware in front of every non-self-service route: returns HTTP 403 with `{ "error": "password_change_required", "detail": "..." }` whenever the session user still has the flag.
+- `AuthState::new_persistent` is now the only constructor `sws-runtime/main.rs` uses (the in-memory `AuthState::new` is retained for unit tests).
+- `sws-editor`:
+  - `api.client.ts` extended with `changePassword`, `listUsers`, `createUser`, `updateUser`, `deleteUser`, plus a `PasswordChangeRequiredError` typed error that the request helper raises whenever it sees a 403 with the sentinel envelope. `login` / `whoami` response types include `must_change_password`.
+  - Zustand store: `mustChangePassword` flag persisted in `localStorage` alongside token+role; `setAuth(token, user, role, mustChangePassword?)` and `setMustChangePassword(flag)`. `clearAuth` resets it.
+  - New `ChangePasswordScreen` component (`src/components/ChangePasswordScreen.tsx`): three-field form (old / new / confirm) with client-side checks (length, match, must differ). Renders in place of the App shell while `mustChangePassword === true`.
+  - New "Utenti" tab in ConfigView (Admin only): per-row role select, "forza cambio pwd" toggle, inline reset-password field + button, "Elimina" with self-delete guard, plus a "+ Nuovo utente" form (username / password / role / "forza cambio al primo accesso" checkbox).
+- Test coverage: 11 unit tests in `sws-auth` (incl. `create_update_delete_user`, `cant_delete_last_admin`, `cant_demote_last_admin`, `change_password_clears_flag`), 22 in the whole workspace.
+
 ### Added (PX30 deploy artefacts)
 - `compose.yaml` at the repo root orchestrating `sws-runtime` + `sws-editor` containers with sensible defaults: mounts `.run/{config,project,db}` from the host, surfaces all auth/TTL/rate-limit/Python-timeout/historian env knobs, healthchecks both services, requires `SWS_ADMIN_PASSWORD` to be set in the environment.
 - `scripts/build-images.sh` — multi-arch (`linux/amd64,linux/arm64`) build via `docker buildx`. `--push` to a registry or default to OCI archives under `.run/oci/` for offline transfer to the SBC. Documents the one-time `tonistiigi/binfmt` + `buildx create` setup.

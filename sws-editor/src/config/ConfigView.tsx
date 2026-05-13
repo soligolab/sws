@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { api } from "@/api/client";
+import { api, type CreateUserBody, type UpdateUserBody, type UserRole, type UserSummary } from "@/api/client";
 import { TagInput } from "@/components/TagInput";
 import { useAppStore } from "@/store";
 import type {
@@ -1263,22 +1263,313 @@ function AlarmsTab() {
 
 // ── Main ConfigView ───────────────────────────────────────────────────────────
 
-type ConfigTab = "tags" | "protocols" | "alarms";
+// ── USERS tab ─────────────────────────────────────────────────────────────────
+// Admin-only CRUD over `/api/auth/users`. Reset-password uses the same PUT
+// as a role change — there's no dedicated "reset" endpoint, just a `password`
+// field on UpdateUserBody. Non-admins never see this tab (the bar hides it).
+
+const ROLES: UserRole[] = ["Viewer", "Operator", "Supervisor", "Admin"];
+
+function UsersTab() {
+  const authUser = useAppStore((s) => s.authUser);
+  const [users, setUsers] = useState<UserSummary[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [busy,  setBusy]  = useState(false);
+
+  // New-user form state
+  const [newUser, setNewUser] = useState<CreateUserBody>({
+    username: "", password: "", role: "Operator", must_change_password: true,
+  });
+
+  // Per-row "reset password" buffer keyed by username.
+  const [resetBuf, setResetBuf] = useState<Record<string, string>>({});
+
+  const refresh = async () => {
+    setError(null);
+    try {
+      const list = await api.listUsers();
+      setUsers(list);
+    } catch (e: any) {
+      setError(`Errore nel caricamento utenti: ${String(e?.message ?? e)}`);
+    }
+  };
+
+  useEffect(() => { void refresh(); }, []);
+
+  const fmtDate = (ms: number) => {
+    if (!ms) return "—";
+    const d = new Date(ms);
+    return d.toLocaleString();
+  };
+
+  const onCreate = async () => {
+    setError(null);
+    if (!newUser.username.trim() || !newUser.password) {
+      setError("Username e password sono obbligatori.");
+      return;
+    }
+    setBusy(true);
+    try {
+      await api.createUser({
+        username: newUser.username.trim(),
+        password: newUser.password,
+        role: newUser.role,
+        must_change_password: newUser.must_change_password ?? true,
+      });
+      setNewUser({ username: "", password: "", role: "Operator", must_change_password: true });
+      await refresh();
+    } catch (e: any) {
+      const msg = String(e?.message ?? "");
+      if (msg.includes("409") || msg.includes("already_exists")) {
+        setError(`L'utente "${newUser.username}" esiste già.`);
+      } else {
+        setError(`Errore nella creazione: ${msg}`);
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const onPatch = async (username: string, patch: UpdateUserBody) => {
+    setError(null);
+    setBusy(true);
+    try {
+      await api.updateUser(username, patch);
+      await refresh();
+    } catch (e: any) {
+      const msg = String(e?.message ?? "");
+      if (msg.includes("409") || msg.includes("last_admin")) {
+        setError("Non puoi rimuovere l'ultimo amministratore.");
+      } else if (msg.includes("400") || msg.includes("invalid_password")) {
+        setError("Password non valida.");
+      } else {
+        setError(`Errore nell'aggiornamento: ${msg}`);
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const onResetPassword = async (username: string) => {
+    const pwd = resetBuf[username];
+    if (!pwd) return;
+    await onPatch(username, { password: pwd, must_change_password: true });
+    setResetBuf((prev) => ({ ...prev, [username]: "" }));
+  };
+
+  const onDelete = async (username: string) => {
+    if (username === authUser) {
+      setError("Non puoi eliminare il tuo stesso utente.");
+      return;
+    }
+    if (!confirm(`Eliminare l'utente "${username}"?`)) return;
+    setError(null);
+    setBusy(true);
+    try {
+      await api.deleteUser(username);
+      await refresh();
+    } catch (e: any) {
+      const msg = String(e?.message ?? "");
+      if (msg.includes("409") || msg.includes("last_admin")) {
+        setError("Non puoi eliminare l'ultimo amministratore.");
+      } else if (msg.includes("cannot_delete_self")) {
+        setError("Non puoi eliminare il tuo stesso utente.");
+      } else {
+        setError(`Errore nell'eliminazione: ${msg}`);
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div>
+      <div style={S.section}>
+        <div style={S.sectionTitle}>UTENTI</div>
+        <p style={{ color: "#94a3b8", fontSize: 12, marginTop: 0 }}>
+          Gli utenti sono salvati in <code>users.yaml</code> nella cartella del progetto.
+          La password viene cifrata con Argon2id; il file non contiene mai testo in chiaro.
+        </p>
+
+        {error && (
+          <div style={{ color: "#fca5a5", background: "#7f1d1d33", padding: "8px 10px", borderRadius: 4, marginBottom: 12, fontSize: 13 }}>
+            {error}
+          </div>
+        )}
+
+        {users === null ? (
+          <div style={{ color: "#64748b", fontSize: 13 }}>Caricamento…</div>
+        ) : (
+          <table style={S.table}>
+            <thead>
+              <tr>
+                <th style={S.th}>Utente</th>
+                <th style={S.th}>Ruolo</th>
+                <th style={S.th}>Cambio pwd</th>
+                <th style={S.th}>Aggiornato</th>
+                <th style={S.th}>Reset password</th>
+                <th style={S.th}></th>
+              </tr>
+            </thead>
+            <tbody>
+              {users.map((u) => {
+                const isSelf = u.username === authUser;
+                return (
+                  <tr key={u.username}>
+                    <td style={S.td}>
+                      <strong>{u.username}</strong>
+                      {isSelf && <span style={{ marginLeft: 6, color: "#64748b", fontSize: 11 }}>(tu)</span>}
+                    </td>
+                    <td style={S.td}>
+                      <select
+                        value={u.role}
+                        disabled={busy}
+                        onChange={(e) => onPatch(u.username, { role: e.target.value as UserRole })}
+                        style={S.input}
+                      >
+                        {ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
+                      </select>
+                    </td>
+                    <td style={S.td}>
+                      <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12 }}>
+                        <input
+                          type="checkbox"
+                          checked={u.must_change_password}
+                          disabled={busy}
+                          onChange={(e) => onPatch(u.username, { must_change_password: e.target.checked })}
+                        />
+                        forza
+                      </label>
+                    </td>
+                    <td style={S.td}>
+                      <span style={{ color: "#94a3b8", fontSize: 12 }}>{fmtDate(u.updated_at_ms)}</span>
+                    </td>
+                    <td style={S.td}>
+                      <div style={{ display: "flex", gap: 6 }}>
+                        <input
+                          type="password"
+                          value={resetBuf[u.username] ?? ""}
+                          placeholder="nuova password"
+                          onChange={(e) => setResetBuf((prev) => ({ ...prev, [u.username]: e.target.value }))}
+                          style={{ ...S.inputSm, minWidth: 140 }}
+                        />
+                        <button
+                          type="button"
+                          disabled={busy || !(resetBuf[u.username] ?? "").length}
+                          onClick={() => onResetPassword(u.username)}
+                          style={S.btn("primary")}
+                        >
+                          Reset
+                        </button>
+                      </div>
+                    </td>
+                    <td style={S.td}>
+                      <button
+                        type="button"
+                        disabled={busy || isSelf}
+                        onClick={() => onDelete(u.username)}
+                        style={S.btn("danger")}
+                        title={isSelf ? "Non puoi eliminare il tuo stesso utente" : "Elimina utente"}
+                      >
+                        Elimina
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      <div style={S.section}>
+        <div style={S.sectionTitle}>NUOVO UTENTE</div>
+        <div style={{
+          display: "grid",
+          gridTemplateColumns: "1fr 1fr 130px auto",
+          gap: 8,
+          alignItems: "end",
+        }}>
+          <div>
+            <label style={{ fontSize: 11, color: "#94a3b8", display: "block", marginBottom: 4 }}>Username</label>
+            <input
+              type="text"
+              value={newUser.username}
+              onChange={(e) => setNewUser((s) => ({ ...s, username: e.target.value }))}
+              style={S.input}
+              placeholder="es. operatore2"
+            />
+          </div>
+          <div>
+            <label style={{ fontSize: 11, color: "#94a3b8", display: "block", marginBottom: 4 }}>Password iniziale</label>
+            <input
+              type="password"
+              value={newUser.password}
+              onChange={(e) => setNewUser((s) => ({ ...s, password: e.target.value }))}
+              style={S.input}
+            />
+          </div>
+          <div>
+            <label style={{ fontSize: 11, color: "#94a3b8", display: "block", marginBottom: 4 }}>Ruolo</label>
+            <select
+              value={newUser.role}
+              onChange={(e) => setNewUser((s) => ({ ...s, role: e.target.value as UserRole }))}
+              style={S.input}
+            >
+              {ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
+            </select>
+          </div>
+          <button
+            type="button"
+            onClick={onCreate}
+            disabled={busy || !newUser.username.trim() || !newUser.password}
+            style={S.btn("success")}
+          >
+            + Crea
+          </button>
+        </div>
+        <label style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, color: "#94a3b8", marginTop: 8 }}>
+          <input
+            type="checkbox"
+            checked={newUser.must_change_password ?? true}
+            onChange={(e) => setNewUser((s) => ({ ...s, must_change_password: e.target.checked }))}
+          />
+          Forza cambio password al primo accesso (consigliato)
+        </label>
+      </div>
+    </div>
+  );
+}
+
+type ConfigTab = "tags" | "protocols" | "alarms" | "users";
 
 const TAB_LABELS: Record<ConfigTab, string> = {
   tags:      "Variabili",
   protocols: "Protocolli",
   alarms:    "Allarmi",
+  users:     "Utenti",
 };
 
 export function ConfigView() {
   const [tab, setTab] = useState<ConfigTab>("tags");
+  const authRole = useAppStore((s) => s.authRole);
+  const isAdmin = authRole === "Admin";
+
+  // Hide the Utenti tab for non-admins; if the URL/state ever sneaks them
+  // onto it, bounce back to tags.
+  useEffect(() => {
+    if (tab === "users" && !isAdmin) setTab("tags");
+  }, [tab, isAdmin]);
+
+  const visibleTabs: ConfigTab[] = isAdmin
+    ? ["tags", "protocols", "alarms", "users"]
+    : ["tags", "protocols", "alarms"];
 
   return (
     <div style={S.page}>
       {/* Tab bar */}
       <div style={S.tabBar}>
-        {(["tags", "protocols", "alarms"] as ConfigTab[]).map((t) => (
+        {visibleTabs.map((t) => (
           <button key={t} style={S.tab(tab === t)} onClick={() => setTab(t)}>
             {TAB_LABELS[t]}
           </button>
@@ -1290,6 +1581,7 @@ export function ConfigView() {
         {tab === "tags"      && <TagsTab />}
         {tab === "protocols" && <ProtocolsTab />}
         {tab === "alarms"    && <AlarmsTab />}
+        {tab === "users"     && isAdmin && <UsersTab />}
       </div>
     </div>
   );

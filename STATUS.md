@@ -2,9 +2,9 @@
 
 > This file is the **session-to-session memory** for Claude Code. Update it at the end of every session before stopping work. Read it at the start of every session before touching code.
 
-**Last session**: 2026-05-13 (reusable Python functions + symbol library doubled)
-**Current phase**: Phase 2. Funzioni Python a livello progetto, simboli x14 (10 builtin + 4 vendored).
-**Last commit**: chore: PX30 deploy — compose, multi-arch build script, deploy doc
+**Last session**: 2026-05-13 (BL-003 + BL-002 + BL-001 autonomous block — CodeMirror editor, MQTT auth/TLS/QoS, persistent multi-user store)
+**Current phase**: Phase 2. Backlog svuotato: editor Python a tutto schermo, MQTT con auth/TLS, gestione utenti multi-account.
+**Last commit**: feat: BL-001 — persistent multi-user store with admin CRUD (in arrivo)
 
 ---
 
@@ -89,12 +89,20 @@
 - **Campo `name` su ogni oggetto**: alias human-friendly distinto dall'id auto-generato. Mostrato nella nuova `ObjectsSection` del LeftPanel.
 - **ObjectsSection (LeftPanel)**: lista oggetti pagina corrente con click per selezionare, ✎/doubleclick per rinominare inline, ⧉ per duplicare (clone con `(copia)`, offset +20px, selezionato), × per eliminare.
 - **Bug fix**: il vecchio rendering text usava `stroke_width` come fontSize (misuso storico) — ora usa `font_size` con default 14. Aggiunti i campi mancanti al Rust `SynopticObject` per sopravvivere al round-trip YAML.
+- **CodeMirror Python editor (BL-003)**: `PythonEditor` con `@codemirror/lang-python`, tema one-dark, line numbers, history/undo. `FunctionEditor` full-screen (header + aside parametri + editor): apre quando in LeftPanel si seleziona una function, snippet dropdown (increment/toggle/conditional/reset_many/diagnostic/skeleton), indicatore "modifiche non salvate", save bloccato finché clean.
+- **MQTT esteso (BL-002)**: `MqttConfig` con `username/password/password_env` (env wins), `keep_alive_secs`, `clean_session`, `qos` (default 0), `tls: MqttTlsConfig { enabled, ca_cert_path, insecure_skip_verify }` — rumqttc 0.24 richiede `ca_cert_path` obbligatorio per TLS (no Native variant). `last_will: MqttLastWill { topic, payload, qos, retain }`. Per-topic `qos` opzionale. `MqttSourceCard` in ConfigView: sezioni Autenticazione / Connessione / TLS / Last Will, collassabili.
+- **Password masking (BL-002)**: `GET /api/project` maschera le password MQTT come `"********"`; `PUT /api/project/sources` carica il project precedente dal disco e conserva la vecchia password se l'incoming contiene la sentinel.
+- **Persistent user store (BL-001)**: `sws-auth` ora persiste in `users.yaml` (project dir). `AuthState::new_persistent(path, seed, ...)` carica esistenti o seeda dagli env. Admin seeded → `must_change_password: false`. Endpoint admin-only: `GET/POST /api/auth/users`, `PUT/DELETE /api/auth/users/:username`. Self-service: `POST /api/auth/change-password`. Middleware `require_password_changed` blocca tutto tranne whoami/logout/change-password con 403 + `{ error: "password_change_required" }`.
+- **Frontend BL-001**: `ChangePasswordScreen` mostrato al posto dell'app quando `mustChangePassword === true`. Nuova tab *Utenti* in ConfigView (solo Admin) con tabella ruolo/forza-cambio-pwd/reset-pwd/elimina + form "+ Nuovo utente".
+- **Test coverage**: 11 unit test in sws-auth (incl. last-admin protection, demote-last-admin protection, change-password clears flag, create/update/delete CRUD); 22 unit test totali nel workspace.
 
 ## Backlog / reminders
 
 > Reminders raccolti fuori sessione. Da promuovere a "Next session should" quando si pianifica il prossimo blocco di lavoro. Ogni voce ha un id stabile (`BL-NNN`) per riferimento.
 
-- **BL-001 — Gestione utenti multi-account nella vista Configurazione (admin-only)**
+> **2026-05-13 — BL-001, BL-002, BL-003 chiusi in blocco autonomo.** Si veda la sezione "What's working" sopra. Le descrizioni di backlog sotto restano come riferimento storico.
+
+- **BL-001 ✅ DONE — Gestione utenti multi-account nella vista Configurazione (admin-only)**
   - **Goal**: in modalità *Configurazione*, un utente con ruolo `admin` deve poter vedere l'elenco degli account, crearne di nuovi, assegnare il ruolo (Viewer / Operator / Supervisor / Admin — i 4 ruoli RBAC esistenti) e forzare il cambio password al primo login del nuovo utente.
   - **Backend (`sws-auth` + `sws-web`)**:
     - Sostituire l'attuale singolo admin seeded da env con uno store utenti persistente (file su disco YAML/JSON nella project dir, oppure SQLite locale — decidere in OPEN_QUESTIONS se la scelta non è ovvia). L'admin seeded resta come bootstrap quando lo store è vuoto.
@@ -116,7 +124,7 @@
     - Integrazione: login → must_change_password → blocca API → change-password → sblocca.
   - **Out of scope** (volutamente non in BL-001): LDAP/OAuth, password policy (lunghezza/complessità), lockout dopo N tentativi falliti, 2FA, audit completo delle modifiche utente (basta audit-log v1 esistente). Vanno in BL successive se servono.
 
-- **BL-002 — Estendere la configurazione MQTT (Configurazione → Protocolli)**
+- **BL-002 ✅ DONE — Estendere la configurazione MQTT (Configurazione → Protocolli)**
   - **Motivo**: la `MqttConfig` attuale ([sws-runtime/crates/sws-core/src/project.rs:75-84](sws-runtime/crates/sws-core/src/project.rs#L75-L84)) espone solo `id / host / port / client_id / topics`. Manca tutto il resto, in particolare le credenziali — bloccante per provare broker pubblici con auth (es. https://freemqtt.com/en).
   - **Campi da aggiungere a `MqttConfig`** (tutti `#[serde(default, skip_serializing_if = ...)]` per restare retrocompatibili con i project.yaml esistenti):
     - `username: Option<String>` e `password: Option<String>` → `opts.set_credentials(u, p)` su `rumqttc::MqttOptions`.
@@ -137,7 +145,7 @@
     - Sezione "Topic": colonna `qos` opzionale per ogni mapping.
   - **Test di accettazione**: configurare un broker freemqtt.com con utente+password, vedere arrivare valori in un tag, scrivere via `PUT /api/tags/:id` e vederli pubblicati. Annotare in `STATUS.md` come "verificato su broker pubblico".
 
-- **BL-003 — Editor Python decente per `on_press` / `on_release` e funzioni di progetto**
+- **BL-003 ✅ DONE — Editor Python decente per `on_press` / `on_release` e funzioni di progetto**
   - **Motivo**: oggi i campi di codice Python sono `<textarea>` minuscole nella properties panel — niente syntax highlighting, niente indentazione automatica, e l'utente segnala che il ritorno a capo non funziona bene. Vale per sia gli handler per-oggetto (`on_press`, `on_release`) sia le nuove funzioni Python a livello progetto (vedi commit "reusable Python functions + symbol library doubled").
   - **Obiettivo UX**:
     - **Per le funzioni di progetto**: aprire un editor a tutto schermo nello spazio principale di lavoro (al posto del canvas, come una vista alternativa) invece che dentro una proprietà laterale. Salvataggio esplicito + indicatore "modifiche non salvate".

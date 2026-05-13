@@ -24,7 +24,7 @@ export function LoginScreen() {
     setBusy(true);
     try {
       const res = await api.login(username, password);
-      setAuth(res.token, res.username, res.role);
+      setAuth(res.token, res.username, res.role, res.must_change_password);
     } catch (e: any) {
       // 429 = rate-limited; show a dedicated message so the user knows
       // to wait rather than retry immediately.
