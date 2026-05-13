@@ -1,8 +1,10 @@
+import { useEffect } from "react";
 import { api } from "@/api/client";
 import { SvgCanvas } from "@/canvas/SvgCanvas";
 import { LeftPanel } from "@/editor/LeftPanel";
 import { TagInput } from "@/components/TagInput";
 import { useAppStore } from "@/store";
+import type { AlignMode } from "@/store";
 import type { RadioOption, SynopticObject, TableRow } from "@/types";
 
 // ── Shared styles ─────────────────────────────────────────────────────────────
@@ -34,18 +36,62 @@ export function EditorShell() {
   const pages           = useAppStore((s) => s.pages);
   const currentPageId   = useAppStore((s) => s.currentPageId);
   const selectedId      = useAppStore((s) => s.selectedObjectId);
+  const selectedIds     = useAppStore((s) => s.selectedObjectIds);
   const tagValues       = useAppStore((s) => s.tagValues);
   const gridSize        = useAppStore((s) => s.gridSize);
   const snapEnabled     = useAppStore((s) => s.snapEnabled);
   const addObject       = useAppStore((s) => s.addObject);
   const updateObject    = useAppStore((s) => s.updateObject);
   const deleteObject    = useAppStore((s) => s.deleteObject);
+  const deleteSelection = useAppStore((s) => s.deleteSelection);
   const selectObject    = useAppStore((s) => s.selectObject);
+  const toggleSelection = useAppStore((s) => s.toggleSelection);
+  const duplicateSelection = useAppStore((s) => s.duplicateSelection);
+  const copySelection   = useAppStore((s) => s.copySelection);
+  const pasteClipboard  = useAppStore((s) => s.pasteClipboard);
+  const alignSelection  = useAppStore((s) => s.alignSelection);
+  const undo            = useAppStore((s) => s.undo);
+  const redo            = useAppStore((s) => s.redo);
   const updatePageProps = useAppStore((s) => s.updatePageProps);
 
   const currentPage = pages.find((p) => p.id === currentPageId);
   const objects     = currentPage?.objects ?? [];
   const selected    = objects.find((o) => o.id === selectedId) ?? null;
+  const multi       = selectedIds.length > 1;
+
+  const handleSelect = (id: string | null, shift?: boolean) => {
+    if (id === null) { selectObject(null); return; }
+    if (shift) toggleSelection(id);
+    else       selectObject(id);
+  };
+
+  // Document-level keyboard shortcuts. Skipped when typing in a form field
+  // so renaming an object doesn't trigger delete-on-backspace.
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement | null)?.tagName ?? "";
+      const inField = tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT";
+      if (inField) return;
+      const ctrl = e.ctrlKey || e.metaKey;
+      const ids  = useAppStore.getState().selectedObjectIds;
+      if ((e.key === "Delete" || e.key === "Backspace") && ids.length > 0) {
+        e.preventDefault(); deleteSelection();
+      } else if (ctrl && (e.key === "z" || e.key === "Z") && !e.shiftKey) {
+        e.preventDefault(); undo();
+      } else if ((ctrl && (e.key === "y" || e.key === "Y")) ||
+                 (ctrl && e.shiftKey && (e.key === "z" || e.key === "Z"))) {
+        e.preventDefault(); redo();
+      } else if (ctrl && (e.key === "c" || e.key === "C") && ids.length > 0) {
+        e.preventDefault(); copySelection();
+      } else if (ctrl && (e.key === "v" || e.key === "V")) {
+        e.preventDefault(); pasteClipboard();
+      } else if (ctrl && (e.key === "d" || e.key === "D") && ids.length > 0) {
+        e.preventDefault(); duplicateSelection();
+      }
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [deleteSelection, undo, redo, copySelection, pasteClipboard, duplicateSelection]);
 
   const nextPos = () => {
     const n = objects.length;
@@ -108,16 +154,7 @@ export function EditorShell() {
   };
 
   return (
-    <div
-      style={{ display: "flex", flex: 1, overflow: "hidden" }}
-      tabIndex={-1}
-      onKeyDown={(e) => {
-        const tag = (e.target as HTMLElement).tagName;
-        if ((e.key === "Delete" || e.key === "Backspace") && selectedId && tag !== "INPUT" && tag !== "TEXTAREA") {
-          deleteObject(selectedId);
-        }
-      }}
-    >
+    <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
       {/* Left panel: project tree + object palette + settings */}
       <LeftPanel onAddObject={handleAddObject} onSave={handleSave} />
 
@@ -128,9 +165,10 @@ export function EditorShell() {
           tagValues={tagValues}
           background={currentPage?.background}
           selectedId={selectedId}
+          selectedIds={selectedIds}
           gridSize={gridSize}
           snapEnabled={snapEnabled}
-          onSelect={selectObject}
+          onSelect={handleSelect}
           onMove={(id, patch) => updateObject(id, patch)}
         />
       </div>
@@ -140,7 +178,14 @@ export function EditorShell() {
         <span style={{ fontSize: 11, fontWeight: 700, color: "#64748b", letterSpacing: 1 }}>
           PROPRIETÀ
         </span>
-        {selected ? (
+        {multi ? (
+          <MultiSelectionProps
+            count={selectedIds.length}
+            onAlign={alignSelection}
+            onDuplicate={duplicateSelection}
+            onDelete={deleteSelection}
+          />
+        ) : selected ? (
           <ObjectProps
             obj={selected}
             pages={pages.filter((p) => p.id !== currentPageId)}
@@ -201,6 +246,83 @@ function PageProps({
       </div>
       <p style={{ fontSize: 11, color: "#475569", margin: 0 }}>
         Seleziona un oggetto sul canvas per modificarne le proprietà.
+      </p>
+    </>
+  );
+}
+
+// ── Multi-selection properties (alignment toolbar) ────────────────────────────
+
+function MultiSelectionProps({
+  count,
+  onAlign,
+  onDuplicate,
+  onDelete,
+}: {
+  count: number;
+  onAlign: (mode: AlignMode) => void;
+  onDuplicate: () => void;
+  onDelete: () => void;
+}) {
+  const btn: React.CSSProperties = {
+    background: "#0f172a",
+    border: "1px solid #334155",
+    borderRadius: 4,
+    color: "#cbd5e1",
+    cursor: "pointer",
+    fontSize: 13,
+    padding: "6px 0",
+    flex: 1,
+  };
+  return (
+    <>
+      <div style={{ fontSize: 11, color: "#475569", marginBottom: 4 }}>
+        Selezione multipla
+      </div>
+      <div style={{ fontSize: 13, color: "#e2e8f0", marginBottom: 4 }}>
+        {count} oggetti selezionati
+      </div>
+
+      <div style={{ fontSize: 10, color: "#475569", marginTop: 4, fontWeight: 700, letterSpacing: 0.5 }}>
+        ALLINEA ORIZZONTALE
+      </div>
+      <div style={{ display: "flex", gap: 4 }}>
+        <button style={btn} title="Allinea a sinistra"   onClick={() => onAlign("left")}>⇤</button>
+        <button style={btn} title="Centra orizzontale"   onClick={() => onAlign("center-x")}>↔</button>
+        <button style={btn} title="Allinea a destra"     onClick={() => onAlign("right")}>⇥</button>
+      </div>
+
+      <div style={{ fontSize: 10, color: "#475569", marginTop: 6, fontWeight: 700, letterSpacing: 0.5 }}>
+        ALLINEA VERTICALE
+      </div>
+      <div style={{ display: "flex", gap: 4 }}>
+        <button style={btn} title="Allinea in alto"      onClick={() => onAlign("top")}>⤒</button>
+        <button style={btn} title="Centra verticale"     onClick={() => onAlign("middle-y")}>↕</button>
+        <button style={btn} title="Allinea in basso"     onClick={() => onAlign("bottom")}>⤓</button>
+      </div>
+
+      <div style={{ fontSize: 10, color: "#475569", marginTop: 6, fontWeight: 700, letterSpacing: 0.5 }}>
+        DISTRIBUISCI (≥3 oggetti)
+      </div>
+      <div style={{ display: "flex", gap: 4 }}>
+        <button style={btn} title="Distribuisci orizzontale" onClick={() => onAlign("distribute-x")}>⇔</button>
+        <button style={btn} title="Distribuisci verticale"   onClick={() => onAlign("distribute-y")}>⇕</button>
+      </div>
+
+      <div style={{ height: 1, background: "#334155", margin: "8px 0" }} />
+
+      <div style={{ display: "flex", gap: 4 }}>
+        <button style={{ ...btn, background: "#1e3a8a", color: "#bfdbfe" }} onClick={onDuplicate}>
+          Duplica
+        </button>
+        <button style={{ ...btn, background: "#7f1d1d", color: "#fca5a5", borderColor: "#991b1b" }} onClick={onDelete}>
+          Elimina
+        </button>
+      </div>
+
+      <p style={{ fontSize: 10, color: "#475569", marginTop: 8 }}>
+        Shift+click per aggiungere/togliere dalla selezione. Ctrl-C/V, Ctrl-D,
+        Ctrl-Z/Y, Canc come scorciatoie.
       </p>
     </>
   );

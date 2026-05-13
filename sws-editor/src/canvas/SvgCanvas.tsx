@@ -9,9 +9,12 @@ interface SvgCanvasProps {
   tagValues?: Record<string, TagState>;
   background?: string;
   selectedId?: string | null;
+  /** Full multi-selection set. Falls back to `selectedId` when not provided. */
+  selectedIds?: string[];
   gridSize?: number;
   snapEnabled?: boolean;
-  onSelect?: (id: string | null) => void;
+  /** Single-select (replace) when shift is false; toggle into the set when true. */
+  onSelect?: (id: string | null, shift?: boolean) => void;
   onMove?: (id: string, patch: Partial<SynopticObject>) => void;
   onWriteTag?: (tagId: string, value: string | number | boolean) => void;
   /** View-mode dispatcher for on_press / on_release Python scripts. */
@@ -124,6 +127,7 @@ export function SvgCanvas({
   tagValues = {},
   background = "#1a1a2e",
   selectedId,
+  selectedIds,
   gridSize = 10,
   snapEnabled = true,
   onSelect,
@@ -132,6 +136,10 @@ export function SvgCanvas({
   onScript,
   onNavigate,
 }: SvgCanvasProps) {
+  // Resolved selection set: prefer the explicit array, fall back to the
+  // legacy single-id prop, then to "nothing selected".
+  const selIds = selectedIds ?? (selectedId ? [selectedId] : []);
+  const selSet = new Set(selIds);
   const dragRef = useRef<DragState | null>(null);
 
   const snap = (v: number) =>
@@ -209,7 +217,7 @@ export function SvgCanvas({
             <SvgObject
               obj={obj}
               tagValues={tagValues}
-              selected={selectedId === obj.id}
+              selected={selSet.has(obj.id)}
               isEditMode={inEdit}
               onSelect={onSelect}
               onStartDrag={onMove ? startDrag : undefined}
@@ -230,7 +238,7 @@ interface ObjProps {
   tagValues: Record<string, TagState>;
   selected: boolean;
   isEditMode: boolean;
-  onSelect?: (id: string | null) => void;
+  onSelect?: (id: string | null, shift?: boolean) => void;
   onStartDrag?: (e: React.MouseEvent<SVGElement>, obj: SynopticObject) => void;
   onWriteTag?: (tagId: string, value: string | number | boolean) => void;
   onNavigate?: (pageId: string) => void;
@@ -241,8 +249,11 @@ function SvgObject(p: ObjProps) {
 
   const handleMouseDown = (e: React.MouseEvent<SVGElement>) => {
     e.stopPropagation();
-    onSelect?.(obj.id);
-    onStartDrag?.(e, obj);
+    onSelect?.(obj.id, e.shiftKey);
+    // Don't start a drag when the user is just shift-clicking to extend
+    // a multi-selection; otherwise the position would jump on the very
+    // first click in the additive flow.
+    if (!e.shiftKey) onStartDrag?.(e, obj);
   };
 
   const editCursor = selected ? "grab" : "pointer";

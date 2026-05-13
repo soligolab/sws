@@ -489,6 +489,8 @@ export function LeftPanel({ onAddObject, onSave }: LeftPanelProps) {
 
       <CanvasSettings />
 
+      <UndoRedoBar />
+
       <div style={{ padding: "8px 10px", borderTop: "1px solid #334155", flexShrink: 0 }}>
         <button
           onClick={onSave}
@@ -502,6 +504,35 @@ export function LeftPanel({ onAddObject, onSave }: LeftPanelProps) {
           Salva
         </button>
       </div>
+    </div>
+  );
+}
+
+function UndoRedoBar() {
+  const undo = useAppStore((s) => s.undo);
+  const redo = useAppStore((s) => s.redo);
+  const past = useAppStore((s) => s.past.length);
+  const future = useAppStore((s) => s.future.length);
+
+  const btn = (enabled: boolean): React.CSSProperties => ({
+    flex: 1,
+    background: enabled ? "#0f172a" : "#1e293b",
+    color: enabled ? "#cbd5e1" : "#475569",
+    border: "1px solid #334155",
+    borderRadius: 4,
+    padding: "4px 0",
+    cursor: enabled ? "pointer" : "not-allowed",
+    fontSize: 12,
+  });
+
+  return (
+    <div style={{ padding: "6px 10px", borderTop: "1px solid #334155", flexShrink: 0, display: "flex", gap: 6 }}>
+      <button style={btn(past > 0)} onClick={undo} disabled={past === 0} title="Ctrl-Z">
+        ↶ Annulla
+      </button>
+      <button style={btn(future > 0)} onClick={redo} disabled={future === 0} title="Ctrl-Y / Ctrl-Shift-Z">
+        ↷ Rifai
+      </button>
     </div>
   );
 }
