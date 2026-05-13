@@ -2,9 +2,17 @@
 
 > This file is the **session-to-session memory** for Claude Code. Update it at the end of every session before stopping work. Read it at the start of every session before touching code.
 
-**Last session**: 2026-05-13 (seed demo nel repo + import/export progetto ZIP dall'IDE)
-**Current phase**: Phase 2. Demo working out-of-the-box su fresh clone, import/export progetto per backup/condivisione.
-**Last commit**: feat: project import/export (ZIP) + seed demo into examples/ (in arrivo)
+**Last session**: 2026-05-13 (seed demo nel repo + import/export progetto ZIP dall'IDE — pushato su origin/main)
+**Current phase**: Phase 2. Demo working out-of-the-box su fresh clone, import/export progetto per backup/condivisione, pannello log live, gestione utenti multi-account.
+**Last commit**: `b455f6b` feat: project import/export (ZIP) + seed demo into examples/
+
+### Cosa è andato online in queste sessioni (in ordine di commit)
+- `3631c37` BL-002 — MQTT auth/TLS/last-will/QoS + password masking
+- `964e67b` BL-003 — CodeMirror Python editor full-screen per FunctionDef
+- `dda777e` BL-001 — persistent multi-user store + admin CRUD + must_change_password gate
+- `375c1cc` Runtime log panel (drawer in basso, filtri, highlight) + demo MQTT echo
+- `e4a61f5` Fix `/api/auth/users` 404: App.tsx ora carica `/api/project` in tutte le modalità
+- `b455f6b` Project import/export ZIP + seed `examples/demo/` in repo
 
 ---
 
@@ -170,14 +178,29 @@
 
 ## Next session should
 
+Stato di partenza per la sessione di domani:
+- Branch `main` pulito (working tree clean), allineato a `origin/main`.
+- 24 unit test workspace verdi (`PYO3_PYTHON=python3 cargo test --manifest-path sws-runtime/Cargo.toml --workspace`).
+- Frontend builda a 748 KB / 235 KB gzipped (`cd sws-editor && pnpm type-check && pnpm build`).
+- `./scripts/dev.sh` parte. Demo seedato in `.run/project/`: 5 tag, MQTT echo su `broker.freemqtt.com`, alarm counter_high, 2 funzioni Python, synoptic con buttons UP/DOWN, MQTT LED ON/OFF, slider, gauge, pump symbol.
+- Sessioni in-memory: ogni restart del runtime richiede re-login. `must_change_password` setup → primo accesso a un account creato in UI mostra `ChangePasswordScreen`.
+
+Per pickup veloce, prova: login `admin/admin` → bottone "Esporta" in header → scarica un ZIP per verificare che è tutto in piedi.
+
 Pick one of these as the next focused work block (each fits 3-4 hours):
 
-1. **Demo PX30 reale**: usa `scripts/build-images.sh` per le immagini multi-arch, segui `docs/DEPLOY_PX30.md` passo passo, prova sul Rockchip con un PLC vero. Documenta i bug che emergono — è l'exit criterion di Phase 1.
-2. **Historian polish v2**: decimazione per range lunghi (>5000 samples), read-fallback a SQLite per range fuori dal ring buffer, prune periodica del db.
-3. **Symbol library v2**: tilt/rotation, ulteriori simboli (compressor, heat exchanger, level sensor), packaging come asset cartella `sws-symbols/` (vs inline TSX).
-4. **Selection rectangle**: drag su area vuota per selezione multipla rettangolare.
-5. **Auth polish v2**: refresh token, cookie httponly oltre al Bearer, LDAP/OAuth plugin, UI per CRUD account multi-utente.
-6. **Script preemption** (Q1 follow-up): `Python::check_signals` + thread di interrupt per davvero terminare gli script che superano il timeout.
+1. **Demo PX30 reale**: usa `scripts/build-images.sh` per le immagini multi-arch, segui `docs/DEPLOY_PX30.md` passo passo, prova sul Rockchip con un PLC vero. Documenta i bug che emergono — è l'exit criterion di Phase 1. **Bloccante: serve hardware fisico.**
+2. **Historian polish v2**: decimazione per range lunghi (>5000 samples), read-fallback a SQLite per range fuori dal ring buffer, prune periodica del db. Niente blocker, file di partenza `sws-runtime/crates/sws-historian/src/lib.rs`.
+3. **Symbol library v2**: tilt/rotation, simboli aggiuntivi (compressor, heat exchanger, level sensor), packaging come asset cartella `sws-symbols/` (vs inline TSX in `sws-editor/src/symbols/library.tsx`).
+4. **Selection rectangle**: drag su area vuota della SVG canvas per selezione multipla rettangolare. File principale: `sws-editor/src/canvas/SvgCanvas.tsx`. Convive con selectedObjectIds esistente.
+5. **Auth polish v2**: refresh token, cookie httponly oltre al Bearer, LDAP/OAuth plugin. Lo schema utenti persistente è già pronto (BL-001).
+6. **Script preemption** (OPEN_QUESTIONS Q1 follow-up): `Python::check_signals` + thread di interrupt per davvero terminare gli script che superano `SWS_SCRIPT_TIMEOUT_MS`. Oggi il timeout c'è ma è "best effort" — uno script con loop infinito non viene preempted.
+7. **Multi-pagina synoptic UX**: oggi solo "Page 1" nella demo. Crea pagina 2/3 via LeftPanel, verifica che il navbutton funzioni, prova export → import (deve preservare tutte le pagine, replace mode garantisce la sincronia).
+8. **Log panel persistenza** (BL-of-the-day): scrivere i log anche su file in `.run/logs/runtime.log` con rotazione, oltre al ring buffer in memoria. Hook in `sws-runtime/main.rs` accanto al subscriber già composto.
+
+### Bug aperti / da verificare a mano
+- Nessuno noto al momento del commit. La fix del 404 utenti (`e4a61f5`) è stata validata via curl + via UI in Configurazione → Utenti.
+- Da verificare a freddo: `rm -rf .run/project && ./scripts/dev.sh` deve seedare `examples/demo/` (test non eseguito per via del permission gate su `rm -rf`, ma il codice è una `if [ ! -f ... ]; then cp -r ...; fi` lineare).
 
 ## Blockers / questions for the maintainer
 
