@@ -22,6 +22,7 @@ export function App() {
 
   const authToken      = useAppStore((s) => s.authToken);
   const authUser       = useAppStore((s) => s.authUser);
+  const authRole       = useAppStore((s) => s.authRole);
   const clearAuth      = useAppStore((s) => s.clearAuth);
   const pages          = useAppStore((s) => s.pages);
   const currentPageId  = useAppStore((s) => s.currentPageId);
@@ -92,6 +93,21 @@ export function App() {
         </div>
         <span style={{ color: "#475569", fontSize: 13 }}>
           {t("app.user")}: {authUser ?? "—"}
+          {authRole && (
+            <span style={{
+              marginLeft: 6,
+              padding: "1px 6px",
+              borderRadius: 3,
+              background: authRole === "Admin" ? "#7c2d12"
+                : authRole === "Supervisor" ? "#7e22ce"
+                : authRole === "Operator" ? "#1e3a8a" : "#334155",
+              color: "#e2e8f0",
+              fontSize: 11,
+              fontWeight: 600,
+            }}>
+              {authRole}
+            </span>
+          )}
         </span>
         <button
           onClick={handleLogout}

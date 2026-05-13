@@ -41,7 +41,12 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 export const api = {
   // Auth
   login: (username: string, password: string) =>
-    request<{ token: string; username: string }>("/api/auth/login", {
+    request<{
+      token: string;
+      username: string;
+      role: "Viewer" | "Operator" | "Supervisor" | "Admin";
+      expires_at_ms: number;
+    }>("/api/auth/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ username, password }),
@@ -51,7 +56,7 @@ export const api = {
     request<void>("/api/auth/logout", { method: "POST" }),
 
   whoami: () =>
-    request<{ username: string }>("/api/auth/whoami"),
+    request<{ username: string; role: string }>("/api/auth/whoami"),
 
   // Project config
   getProject: () =>

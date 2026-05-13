@@ -18,7 +18,9 @@ import type {
 
 const AUTH_KEY = "sws.auth";
 
-function readPersistedAuth(): { token: string; username: string } | null {
+type PersistedAuth = { token: string; username: string; role?: string };
+
+function readPersistedAuth(): PersistedAuth | null {
   try {
     const raw = typeof localStorage !== "undefined" ? localStorage.getItem(AUTH_KEY) : null;
     if (!raw) return null;
@@ -30,7 +32,11 @@ function readPersistedAuth(): { token: string; username: string } | null {
   return null;
 }
 
-function writePersistedAuth(payload: { token: string; username: string } | null) {
+function isRole(s: unknown): s is Role {
+  return s === "Viewer" || s === "Operator" || s === "Supervisor" || s === "Admin";
+}
+
+function writePersistedAuth(payload: PersistedAuth | null) {
   try {
     if (payload) localStorage.setItem(AUTH_KEY, JSON.stringify(payload));
     else         localStorage.removeItem(AUTH_KEY);
@@ -61,10 +67,13 @@ export type AlignMode =
   | "top"  | "middle-y" | "bottom"
   | "distribute-x" | "distribute-y";
 
+export type Role = "Viewer" | "Operator" | "Supervisor" | "Admin";
+
 interface AppState {
   // Auth
   authToken: string | null;
   authUser: string | null;
+  authRole: Role | null;
 
   project: ProjectInfo | null;
   pages: SynopticPage[];
@@ -84,7 +93,7 @@ interface AppState {
   gridSize: number;
   snapEnabled: boolean;
 
-  setAuth: (token: string, username: string) => void;
+  setAuth: (token: string, username: string, role: Role) => void;
   clearAuth: () => void;
 
   setProject: (p: ProjectInfo) => void;
@@ -168,6 +177,7 @@ export const useAppStore = create<AppState>((set, get) => {
   return {
     authToken: persisted?.token ?? null,
     authUser:  persisted?.username ?? null,
+    authRole:  isRole(persisted?.role) ? (persisted!.role as Role) : null,
 
     project: null,
     pages: [first],
@@ -182,16 +192,16 @@ export const useAppStore = create<AppState>((set, get) => {
     gridSize: 10,
     snapEnabled: true,
 
-    setAuth: (token, username) => {
+    setAuth: (token, username, role) => {
       setAuthToken(token);
-      writePersistedAuth({ token, username });
-      set({ authToken: token, authUser: username });
+      writePersistedAuth({ token, username, role });
+      set({ authToken: token, authUser: username, authRole: role });
     },
 
     clearAuth: () => {
       setAuthToken(null);
       writePersistedAuth(null);
-      set({ authToken: null, authUser: null });
+      set({ authToken: null, authUser: null, authRole: null });
     },
 
     setProject: (project) => set({ project }),

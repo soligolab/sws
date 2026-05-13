@@ -8,7 +8,7 @@ use axum::{
     Json, Router,
 };
 use serde::Deserialize;
-use sws_auth::{AuthState, Credentials, LoginOk};
+use sws_auth::{AuthState, Credentials, LoginError, LoginOk, Role};
 use sws_core::{
     AlarmDb, AlarmDef, AlarmState, Project, ProjectMeta, SourceDef, TagDb, TagDef, TagId,
     TagQuality, TagState, TagUpdate, TagValue, TagWriteBus, WriteError,
@@ -43,33 +43,49 @@ pub fn build(
 ) -> Router {
     let state = AppState { db, bus, alarms, historian, py, auth, supervisor, project_dir };
 
-    // Routes that require a valid session (Bearer token in Authorization
-    // header for HTTP, or ?token=... query param for WS upgrade).
-    let protected = Router::new()
-        // Tag REST
-        .route("/api/tags",      get(get_all_tags))
-        .route("/api/tags/:id",  get(get_tag).put(write_tag))
-        // Alarm REST
-        .route("/api/alarms",         get(get_alarms))
-        .route("/api/alarms/:id/ack", post(ack_alarm))
-        // Historian
-        .route("/api/history/:tag", get(get_history))
-        // Python script execution (fires from press/release handlers)
-        .route("/api/script/exec", post(exec_script))
-        // Project info + config
-        .route("/api/project",         get(get_project))
+    // Routes that need Admin privileges (PUT /api/project/* — schema edits).
+    // Layered THEN added under the auth-required group below.
+    let admin_routes = Router::new()
         .route("/api/project/tags",    put(update_project_tags))
         .route("/api/project/sources", put(update_project_sources))
         .route("/api/project/alarms",  put(update_project_alarms))
-        // Synoptic REST
-        .route("/api/synoptics",      get(list_synoptics))
-        .route("/api/synoptics/:name", get(get_synoptic).put(save_synoptic))
-        // WebSocket
+        .route_layer(middleware::from_fn(require_admin));
+
+    // Routes that need Operator+ (tag writes, alarm ACK, script exec,
+    // synoptic save). Viewers can read everything but can't change state.
+    let operator_routes = Router::new()
+        .route("/api/tags/:id",        put(write_tag))
+        .route("/api/alarms/:id/ack",  post(ack_alarm))
+        .route("/api/script/exec",     post(exec_script))
+        .route("/api/synoptics/:name", put(save_synoptic))
+        .route_layer(middleware::from_fn(require_operator));
+
+    // Routes any authenticated user (incl. Viewer) can hit.
+    let read_routes = Router::new()
+        // Tag REST (reads)
+        .route("/api/tags",      get(get_all_tags))
+        .route("/api/tags/:id",  get(get_tag))
+        // Alarm REST (reads)
+        .route("/api/alarms",    get(get_alarms))
+        // Historian
+        .route("/api/history/:tag", get(get_history))
+        // Project info (read)
+        .route("/api/project",   get(get_project))
+        // Synoptic REST (reads)
+        .route("/api/synoptics",       get(list_synoptics))
+        .route("/api/synoptics/:name", get(get_synoptic))
+        // WebSocket streams
         .route("/ws/tags",   get(ws_tags_handler))
         .route("/ws/alarms", get(ws_alarms_handler))
-        // Whoami: lightweight health-check for the session
+        // Session introspection / teardown
         .route("/api/auth/whoami", get(whoami))
-        .route("/api/auth/logout", post(logout))
+        .route("/api/auth/logout", post(logout));
+
+    // Compose: everything below the auth wall.
+    let protected = Router::new()
+        .merge(read_routes)
+        .merge(operator_routes)
+        .merge(admin_routes)
         .route_layer(middleware::from_fn_with_state(state.clone(), require_auth));
 
     // Always-open routes: liveness probes + login.
@@ -109,15 +125,41 @@ async fn require_auth(
     let Some(token) = token else {
         return StatusCode::UNAUTHORIZED.into_response();
     };
-    let Some(user) = s.auth.validate(&token).await else {
+    let Some((user, role)) = s.auth.validate(&token).await else {
         return StatusCode::UNAUTHORIZED.into_response();
     };
-    req.extensions_mut().insert(AuthUser(user));
+    req.extensions_mut().insert(AuthUser { username: user, role });
     next.run(req).await
 }
 
 #[derive(Clone, Debug)]
-pub struct AuthUser(pub String);
+pub struct AuthUser {
+    pub username: String,
+    pub role: Role,
+}
+
+/// Reject the request if the caller's role is below `min`. Must run
+/// AFTER `require_auth` so the `AuthUser` extension is populated.
+fn check_role(req: &Request, min: Role) -> Option<StatusCode> {
+    let Some(user) = req.extensions().get::<AuthUser>() else {
+        return Some(StatusCode::UNAUTHORIZED);
+    };
+    if user.role < min { Some(StatusCode::FORBIDDEN) } else { None }
+}
+
+async fn require_operator(req: Request, next: Next) -> Response {
+    if let Some(code) = check_role(&req, Role::Operator) {
+        return code.into_response();
+    }
+    next.run(req).await
+}
+
+async fn require_admin(req: Request, next: Next) -> Response {
+    if let Some(code) = check_role(&req, Role::Admin) {
+        return code.into_response();
+    }
+    next.run(req).await
+}
 
 /// Minimal application/x-www-form-urlencoded parser — only handles the
 /// shape we need (`k=v&k2=v2`) without pulling in a dep.
@@ -140,8 +182,9 @@ async fn login(
     Json(creds): Json<Credentials>,
 ) -> Response {
     match s.auth.login(&creds).await {
-        Some(ok) => Json(ok).into_response(),
-        None     => StatusCode::UNAUTHORIZED.into_response(),
+        Ok(ok)  => Json(ok).into_response(),
+        Err(LoginError::BadCredentials) => StatusCode::UNAUTHORIZED.into_response(),
+        Err(LoginError::RateLimited)    => StatusCode::TOO_MANY_REQUESTS.into_response(),
     }
 }
 
@@ -157,13 +200,13 @@ async fn logout(
 }
 
 #[derive(serde::Serialize)]
-struct Whoami { username: String }
+struct Whoami { username: String, role: Role }
 
 async fn whoami(req: Request) -> Json<Whoami> {
     // require_auth has already inserted AuthUser; missing here would be a bug.
     let user = req.extensions().get::<AuthUser>().cloned()
-        .map(|u| u.0).unwrap_or_default();
-    Json(Whoami { username: user })
+        .unwrap_or(AuthUser { username: String::new(), role: Role::Viewer });
+    Json(Whoami { username: user.username, role: user.role })
 }
 
 #[allow(dead_code)]

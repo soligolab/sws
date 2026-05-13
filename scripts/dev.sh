@@ -40,6 +40,12 @@ fi
 : "${SWS_ADMIN_PASSWORD:=admin}"
 export SWS_ADMIN_USER SWS_ADMIN_PASSWORD
 
+# Optional accounts for the other RBAC roles. Set non-empty to enable.
+: "${SWS_SUPERVISOR_PASSWORD:=supervisor}"
+: "${SWS_OPERATOR_PASSWORD:=operator}"
+: "${SWS_VIEWER_PASSWORD:=viewer}"
+export SWS_SUPERVISOR_PASSWORD SWS_OPERATOR_PASSWORD SWS_VIEWER_PASSWORD
+
 # Historian SQLite persistence path. Set to empty to disable (RAM only).
 : "${SWS_HISTORIAN_DB:=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/.run/historian.db}"
 export SWS_HISTORIAN_DB

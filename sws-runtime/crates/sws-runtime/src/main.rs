@@ -7,7 +7,7 @@ use hyper_util::rt::{TokioExecutor, TokioIo};
 use hyper_util::server::conn::auto::Builder as ConnBuilder;
 use rcgen::generate_simple_self_signed;
 use std::{net::SocketAddr, path::PathBuf, sync::Arc};
-use sws_auth::AuthState;
+use sws_auth::{AuthState, Role};
 use sws_core::{AlarmDb, TagDb, TagWriteBus};
 use sws_historian::{sqlite::SqliteStore, Historian};
 use sws_pyscript::Engine as PyEngine;
@@ -81,12 +81,36 @@ async fn main() -> anyhow::Result<()> {
     let supervisor = SourceSupervisor::new(tag_db.clone(), bus.clone());
 
     // Admin credentials must be provided via env. The runtime refuses to
-    // start with an empty password — that is the "no default credentials"
-    // commitment in docs/CONTEXT.md §6.
+    // start without one — "no default credentials" commitment in
+    // docs/CONTEXT.md §6. Supervisor / operator / viewer passwords are
+    // optional; missing roles just aren't seeded.
     let admin_user = std::env::var("SWS_ADMIN_USER").unwrap_or_else(|_| "admin".into());
     let admin_pwd  = std::env::var("SWS_ADMIN_PASSWORD")
         .context("SWS_ADMIN_PASSWORD is required on first start (no default password)")?;
-    let auth = AuthState::new(admin_user, &admin_pwd)?;
+    let mut accounts: Vec<(String, Role, String)> = vec![
+        (admin_user, Role::Admin, admin_pwd),
+    ];
+    if let Ok(pwd) = std::env::var("SWS_SUPERVISOR_PASSWORD") {
+        let user = std::env::var("SWS_SUPERVISOR_USER").unwrap_or_else(|_| "supervisor".into());
+        accounts.push((user, Role::Supervisor, pwd));
+    }
+    if let Ok(pwd) = std::env::var("SWS_OPERATOR_PASSWORD") {
+        let user = std::env::var("SWS_OPERATOR_USER").unwrap_or_else(|_| "operator".into());
+        accounts.push((user, Role::Operator, pwd));
+    }
+    if let Ok(pwd) = std::env::var("SWS_VIEWER_PASSWORD") {
+        let user = std::env::var("SWS_VIEWER_USER").unwrap_or_else(|_| "viewer".into());
+        accounts.push((user, Role::Viewer, pwd));
+    }
+    let ttl_secs    = std::env::var("SWS_SESSION_TTL_SECS").ok().and_then(|s| s.parse().ok()).unwrap_or(8 * 3600);
+    let rate_limit  = std::env::var("SWS_LOGIN_RATE_LIMIT").ok().and_then(|s| s.parse().ok()).unwrap_or(5);
+    let rate_window = std::env::var("SWS_LOGIN_RATE_WINDOW_SECS").ok().and_then(|s| s.parse().ok()).unwrap_or(60);
+    let auth = AuthState::new(
+        accounts,
+        std::time::Duration::from_secs(ttl_secs),
+        rate_limit,
+        std::time::Duration::from_secs(rate_window),
+    )?;
 
     match sws_core::project::Project::load(&args.project) {
         Ok(project) => {
