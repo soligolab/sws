@@ -170,6 +170,7 @@ const OBJECT_TYPES: { type: SynopticObject["type"]; label: string; disabled?: bo
   { type: "progress_bar", label: "Progress" },
   { type: "table",        label: "Tabella" },
   { type: "trend",        label: "Trend" },
+  { type: "symbol",       label: "Simbolo" },
   { type: "image",        label: "Immagine", disabled: true },
 ];
 

@@ -23,7 +23,12 @@ export type SynopticObjectType =
   | "led"
   | "progress_bar"
   | "table"
-  | "trend";
+  | "trend"
+  // SCADA symbols (pump/valve/motor/tank/fan from the built-in library)
+  | "symbol";
+
+/** Identifier of a built-in SCADA symbol from `@/symbols/library`. */
+export type SymbolId = "pump" | "valve" | "motor" | "tank" | "fan";
 
 /** One option in a radio-group. */
 export interface RadioOption {
@@ -117,6 +122,19 @@ export interface SynopticObject {
   on_press?: string;
   /** Python code executed on mouseup in runtime mode. */
   on_release?: string;
+  // ── Built-in SCADA symbol (type === "symbol") ─────────────────────────
+  /** Which symbol from the built-in library this object renders. */
+  symbol_id?: SymbolId;
+  /** Override the "off" / "idle" state colour. */
+  state_off_color?: string;
+  /** Override the "on" / "running" state colour. */
+  state_on_color?: string;
+  /** Override the alarm state colour. */
+  state_alarm_color?: string;
+  /** Tag id whose truthy value flips off→on. Falsy/missing → off. */
+  state_tag?: string;
+  /** Tag id whose truthy value forces the alarm style (overrides state_tag). */
+  alarm_tag?: string;
 }
 
 // ── Historian sample (wire shape from GET /api/history/:tag) ──────────────

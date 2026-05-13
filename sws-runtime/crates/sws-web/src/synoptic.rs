@@ -86,6 +86,13 @@ pub struct SynopticObject {
     #[serde(skip_serializing_if = "Option::is_none")] pub font_style:     Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")] pub text_anchor:    Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")] pub color:          Option<String>,
+    // Built-in SCADA symbol (type === "symbol")
+    #[serde(skip_serializing_if = "Option::is_none")] pub symbol_id:        Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub state_off_color:  Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub state_on_color:   Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub state_alarm_color: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub state_tag:        Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub alarm_tag:        Option<String>,
 }
 
 /// Sanitize a page name to a safe filename stem.

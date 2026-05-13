@@ -146,6 +146,11 @@ export function EditorShell() {
         addObject({ type, x, y, width: 360, height: 180,
           tag: "", window_s: 60, line_color: "#3b82f6" });
         break;
+      case "symbol":
+        addObject({ type, x, y, width: 80, height: 80,
+          symbol_id: "pump",
+          state_off_color: "#64748b", state_on_color: "#22c55e", state_alarm_color: "#ef4444" });
+        break;
     }
   };
 
@@ -393,7 +398,7 @@ function ObjectProps({
     </div>
   );
 
-  const BOX_TYPES = ["rect", "ellipse", "button", "navbutton", "checkbox", "radio", "slider", "gauge", "led", "progress_bar", "table", "trend"];
+  const BOX_TYPES = ["rect", "ellipse", "button", "navbutton", "checkbox", "radio", "slider", "gauge", "led", "progress_bar", "table", "trend", "symbol"];
   const isShape = BOX_TYPES.includes(obj.type);
   const hasStroke = obj.type === "rect" || obj.type === "ellipse" || obj.type === "line";
 
@@ -763,6 +768,42 @@ function ObjectProps({
           >
             + Aggiungi tag
           </button>
+        </>
+      )}
+
+      {/* Symbol (built-in SCADA library) */}
+      {obj.type === "symbol" && (
+        <>
+          {field("Simbolo",
+            <select
+              style={{ ...INPUT, cursor: "pointer" }}
+              value={obj.symbol_id ?? "pump"}
+              onChange={(e) => onChange({ symbol_id: e.target.value as any })}
+            >
+              <option value="pump">Pompa</option>
+              <option value="valve">Valvola</option>
+              <option value="motor">Motore</option>
+              <option value="tank">Serbatoio</option>
+              <option value="fan">Ventola</option>
+            </select>
+          )}
+          {field("Tag stato (truthy → ON)",
+            <TagInput
+              style={INPUT} placeholder="es. pump1.running"
+              value={obj.state_tag ?? ""}
+              onChange={(v) => onChange({ state_tag: v || undefined })}
+            />
+          )}
+          {field("Tag allarme (truthy → ALARM)",
+            <TagInput
+              style={INPUT} placeholder="es. pump1.fault"
+              value={obj.alarm_tag ?? ""}
+              onChange={(v) => onChange({ alarm_tag: v || undefined })}
+            />
+          )}
+          {field("Colore OFF",   colorInput("state_off_color",   "#64748b"))}
+          {field("Colore ON",    colorInput("state_on_color",    "#22c55e"))}
+          {field("Colore ALARM", colorInput("state_alarm_color", "#ef4444"))}
         </>
       )}
 

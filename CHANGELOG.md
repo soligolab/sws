@@ -144,6 +144,15 @@ and this project adheres to [CalVer](https://calver.org/) (`YYYY.MM[.patch]`).
 - `LoginScreen` distinguishes 401 (bad creds) from 429 (rate-limited) and shows different messages.
 - `scripts/dev.sh` pre-seeds passwords for all four roles (`admin/supervisor/operator/viewer`) for local testing.
 
+### Added (symbol library starter)
+- New `symbol` SynopticObject type that renders one of five built-in SCADA symbols: **pump**, **valve**, **motor**, **tank**, **fan**.
+- Library lives in `sws-editor/src/symbols/library.tsx`. Each entry exports a render function `(state, off, on, alarm) → JSX` drawing inside a 100×100 viewBox; the canvas scales to the object's width × height.
+- State resolution: `alarm_tag` truthy → `alarm`, else `state_tag` truthy → `on`, else `off`. Per-object colour overrides (`state_off_color`, `state_on_color`, `state_alarm_color`) default to grey / green / red.
+- Fan symbol uses a CSS `@keyframes sws-fan-spin` (registered in `index.html`) to rotate the rotor when in the `on` state.
+- ObjectProps gains a "Simbolo" select, two TagInputs for state/alarm bindings, and three colour pickers for state overrides.
+- LeftPanel palette adds a "+ Simbolo" button.
+- Rust `SynopticObject` mirrors the new fields (`symbol_id`, `state_tag`, `alarm_tag`, `state_*_color`) so YAML save/reload preserves them.
+
 ### Added (cross-cutting object properties)
 - `SynopticObject` gains `z_index`, `visible`, `visible_tag`, `on_press`, `on_release` in both Rust (`sws-web/synoptic.rs`) and TypeScript (`sws-editor/src/types`). Trend fields (`window_s`, `y_min`, `y_max`, `line_color`) added to the Rust struct too — they were dropped on save before.
 - `sws-editor/src/canvas/SvgCanvas.tsx`: objects sorted by `z_index` (ties by array order) before SVG render, so layering is declarative. `isObjectVisible()` evaluates `visible_tag` (truthy coercion for bool/number/string) and falls back to the static `visible !== false`. In runtime mode, hidden objects are not rendered; in edit mode they're shown at 35% opacity so the designer can still select them.

@@ -1,5 +1,6 @@
 import { useRef } from "react";
 import { TrendCanvas } from "@/canvas/TrendCanvas";
+import { SYMBOLS } from "@/symbols/library";
 import type { SynopticObject, TagState } from "@/types";
 
 // ── Canvas props ──────────────────────────────────────────────────────────────
@@ -908,6 +909,64 @@ function SvgObject(p: ObjProps) {
             />
           </foreignObject>
         )}
+      </g>
+    );
+  }
+
+  // ── SYMBOL ──────────────────────────────────────────────────────────────────
+  // Built-in SCADA symbol rendered inside a 100×100 design viewBox, scaled to
+  // the object's width × height. State (off/on/alarm) is derived from tags:
+  //   - alarm_tag truthy → alarm
+  //   - state_tag truthy → on
+  //   - otherwise        → off
+
+  if (obj.type === "symbol") {
+    const meta = obj.symbol_id ? SYMBOLS[obj.symbol_id] : undefined;
+    const w = obj.width  ?? meta?.defaultWidth  ?? 80;
+    const h = obj.height ?? meta?.defaultHeight ?? 80;
+
+    if (!meta) {
+      return (
+        <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()}
+           style={{ cursor: editCursor }}>
+          {selRect(obj.x, obj.y, w, h)}
+          <rect x={obj.x} y={obj.y} width={w} height={h} rx={4}
+            fill="#0f172a" stroke={selected ? "#facc15" : "#7f1d1d"} strokeWidth={selected ? 2 : 1} />
+          <text x={obj.x + w / 2} y={obj.y + h / 2 + 4}
+            textAnchor="middle" fill="#fca5a5" fontSize={11}
+            style={{ pointerEvents: "none" }}>
+            simbolo?
+          </text>
+        </g>
+      );
+    }
+
+    const truthy = (id?: string) => {
+      if (!id) return false;
+      const tv = tagValues[id];
+      if (!tv) return false;
+      const v = tv.value;
+      if (typeof v === "boolean") return v;
+      if (typeof v === "number")  return v !== 0;
+      if (typeof v === "string")  return v.trim().length > 0;
+      return Boolean(v);
+    };
+    const state =
+      truthy(obj.alarm_tag) ? "alarm" :
+      truthy(obj.state_tag) ? "on" : "off";
+
+    return (
+      <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()}
+         style={{ cursor: editCursor }}>
+        {selRect(obj.x, obj.y, w, h)}
+        <svg x={obj.x} y={obj.y} width={w} height={h} viewBox="0 0 100 100">
+          {meta.render({
+            state,
+            off:   obj.state_off_color   ?? "#64748b",
+            on:    obj.state_on_color    ?? "#22c55e",
+            alarm: obj.state_alarm_color ?? "#ef4444",
+          })}
+        </svg>
       </g>
     );
   }
