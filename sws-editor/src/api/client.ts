@@ -2,6 +2,7 @@ import type {
   AlarmDef,
   AlarmState,
   FunctionDef,
+  LogEvent,
   ProjectInfo,
   Sample,
   SourceDef,
@@ -197,6 +198,9 @@ export const api = {
 
   ackAlarm: (id: string) =>
     request<void>(`/api/alarms/${encodeURIComponent(id)}/ack`, { method: "POST" }),
+
+  // Runtime logs (Operator+)
+  getLogs: () => request<LogEvent[]>("/api/logs"),
 
   // Historian
   getHistory: (tag: string, opts?: { fromMs?: number; toMs?: number; limit?: number }) => {

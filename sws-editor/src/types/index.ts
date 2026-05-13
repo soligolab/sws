@@ -300,3 +300,16 @@ export interface AlarmState {
   ack_at_ms: number | null;
   last_value: number | string | boolean | null;
 }
+
+// ── Runtime log stream (from GET /api/logs + WS /ws/logs) ─────────────────
+
+export type LogLevel = "TRACE" | "DEBUG" | "INFO" | "WARN" | "ERROR";
+
+export interface LogEvent {
+  ts_ms: number;
+  level: LogLevel;
+  target: string;
+  message: string;
+  /** Free-form structured fields the runtime emitter attached. */
+  fields?: Record<string, string | number | boolean>;
+}

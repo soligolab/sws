@@ -2,9 +2,9 @@
 
 > This file is the **session-to-session memory** for Claude Code. Update it at the end of every session before stopping work. Read it at the start of every session before touching code.
 
-**Last session**: 2026-05-13 (BL-003 + BL-002 + BL-001 autonomous block — CodeMirror editor, MQTT auth/TLS/QoS, persistent multi-user store)
-**Current phase**: Phase 2. Backlog svuotato: editor Python a tutto schermo, MQTT con auth/TLS, gestione utenti multi-account.
-**Last commit**: feat: BL-001 — persistent multi-user store with admin CRUD (in arrivo)
+**Last session**: 2026-05-13 (demo MQTT button+LED, runtime log panel — bottom drawer con filtri/highlight/livelli)
+**Current phase**: Phase 2. Pannello log live nell'editor + demo round-trip MQTT su broker freemqtt.com.
+**Last commit**: feat: demo MQTT echo + runtime log panel (in arrivo)
 
 ---
 
@@ -95,6 +95,8 @@
 - **Persistent user store (BL-001)**: `sws-auth` ora persiste in `users.yaml` (project dir). `AuthState::new_persistent(path, seed, ...)` carica esistenti o seeda dagli env. Admin seeded → `must_change_password: false`. Endpoint admin-only: `GET/POST /api/auth/users`, `PUT/DELETE /api/auth/users/:username`. Self-service: `POST /api/auth/change-password`. Middleware `require_password_changed` blocca tutto tranne whoami/logout/change-password con 403 + `{ error: "password_change_required" }`.
 - **Frontend BL-001**: `ChangePasswordScreen` mostrato al posto dell'app quando `mustChangePassword === true`. Nuova tab *Utenti* in ConfigView (solo Admin) con tabella ruolo/forza-cambio-pwd/reset-pwd/elimina + form "+ Nuovo utente".
 - **Test coverage**: 11 unit test in sws-auth (incl. last-admin protection, demote-last-admin protection, change-password clears flag, create/update/delete CRUD); 22 unit test totali nel workspace.
+- **LogBus + pannello log**: `sws-core::LogBus` (ring 1000 + `tokio::broadcast`) + `sws-runtime/log_layer.rs` (custom `tracing_subscriber::Layer`) catturano ogni evento `tracing::info!/warn!/error!`. `GET /api/logs` per snapshot, `GET /ws/logs` per tail live — entrambi in `operator_routes` (Operator+). Pannello `LogPanel` come drawer in fondo all'editor (toggle "Log" nell'header, stato persistito in `localStorage`): timestamp ms, colore per livello, filtri checkbox per i 5 livelli (TRACE/DEBUG off di default), filtro substring sul target, ricerca full-text con `<mark>` di highlight, Pausa per congelare la vista, Cancella, auto-scroll che si stacca se l'utente scrolla su. Viewer vede solo un messaggio "permesso insufficiente". 24 unit test totali nel workspace (+2 per LogBus).
+- **Demo MQTT round-trip**: `.run/project/project.yaml` ha due nuovi tag bool (`demo.button`, `demo.led`) mappati sul topic `sws/demo/echo` di `broker.freemqtt.com`. Pulsante "MQTT Echo" scrive `demo.button=true` → plugin pubblica → broker rimbalza → entrambi i tag ricevono il valore → la LED si accende. Niente bridging esterno, dimostra il publish/subscribe completo via MQTT 3.1.1.
 
 ## Backlog / reminders
 

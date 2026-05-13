@@ -3,11 +3,13 @@ import { useTranslation } from "react-i18next";
 import { api, AuthError, PasswordChangeRequiredError } from "@/api/client";
 import { AlarmBanner } from "@/components/AlarmBanner";
 import { ChangePasswordScreen } from "@/components/ChangePasswordScreen";
+import { LogPanel } from "@/components/LogPanel";
 import { LoginScreen } from "@/components/LoginScreen";
 import { ConfigView } from "@/config/ConfigView";
 import { EditorShell } from "@/editor/EditorShell";
 import { RuntimeView } from "@/runtime-view/RuntimeView";
 import { useAppStore } from "@/store";
+import { useLogStream } from "@/ws/logStream";
 
 type Mode = "edit" | "view" | "config";
 
@@ -17,9 +19,18 @@ const MODE_LABELS: Record<Mode, string> = {
   config: "Configurazione",
 };
 
+const LOG_PANEL_KEY = "sws.logPanel.open";
+
 export function App() {
   const { t } = useTranslation();
   const [mode, setMode] = useState<Mode>("edit");
+  const [logOpen, setLogOpen] = useState<boolean>(() => {
+    try { return localStorage.getItem(LOG_PANEL_KEY) === "1"; } catch { return false; }
+  });
+
+  // Stream runtime logs whenever the user is Operator+. The hook is a no-op
+  // for Viewer / unauthenticated states.
+  useLogStream();
 
   const authToken             = useAppStore((s) => s.authToken);
   const authUser              = useAppStore((s) => s.authUser);
@@ -119,6 +130,25 @@ export function App() {
           )}
         </span>
         <button
+          onClick={() => {
+            const next = !logOpen;
+            setLogOpen(next);
+            try { localStorage.setItem(LOG_PANEL_KEY, next ? "1" : "0"); } catch { /* ignore */ }
+          }}
+          title={logOpen ? "Nascondi pannello log" : "Mostra pannello log"}
+          style={{
+            padding: "4px 10px",
+            background: logOpen ? "#1e3a8a" : "#334155",
+            color: "#cbd5e1",
+            border: "1px solid #475569",
+            borderRadius: 4,
+            cursor: "pointer",
+            fontSize: 12,
+          }}
+        >
+          Log
+        </button>
+        <button
           onClick={handleLogout}
           title="Esci dalla sessione"
           style={{
@@ -179,6 +209,12 @@ export function App() {
         {mode === "view"   && <RuntimeView />}
         {mode === "config" && <ConfigView />}
       </main>
+
+      {/* Log drawer (bottom) */}
+      <LogPanel open={logOpen} onClose={() => {
+        setLogOpen(false);
+        try { localStorage.setItem(LOG_PANEL_KEY, "0"); } catch { /* ignore */ }
+      }} />
     </div>
   );
 }

@@ -5,6 +5,7 @@ import type {
   AlarmDef,
   AlarmState,
   FunctionDef,
+  LogEvent,
   ProjectInfo,
   SourceDef,
   SynopticObject,
@@ -12,6 +13,11 @@ import type {
   TagDef,
   TagState,
 } from "@/types";
+
+// Cap the in-memory log list. The runtime keeps ~1000 events in its ring,
+// but a long-running browser session will accumulate many more from the WS
+// stream; trim aggressively so React stays responsive.
+const LOG_LIMIT = 2000;
 
 // ── Auth persistence ────────────────────────────────────────────────────
 // Persist the session token in localStorage so a page refresh doesn't kick
@@ -97,6 +103,9 @@ interface AppState {
 
   tagValues: Record<string, TagState>;
   alarms: Record<string, AlarmState>;
+  /** Recent runtime log events streamed from /ws/logs. Capped at LOG_LIMIT.
+   *  Oldest first; new events append. */
+  logs: LogEvent[];
   gridSize: number;
   snapEnabled: boolean;
 
@@ -160,6 +169,11 @@ interface AppState {
   setAlarms: (list: AlarmState[]) => void;
   updateAlarm: (state: AlarmState) => void;
 
+  // Logs
+  setLogs: (list: LogEvent[]) => void;
+  appendLog: (ev: LogEvent) => void;
+  clearLogs: () => void;
+
   // Canvas settings
   setGridSize: (size: number) => void;
   setSnapEnabled: (enabled: boolean) => void;
@@ -210,6 +224,7 @@ export const useAppStore = create<AppState>((set, get) => {
     clipboard: [],
     tagValues: {},
     alarms: {},
+    logs: [],
     gridSize: 10,
     snapEnabled: true,
 
@@ -697,6 +712,22 @@ export const useAppStore = create<AppState>((set, get) => {
 
     updateAlarm: (state) =>
       set((s) => ({ alarms: { ...s.alarms, [state.def.id]: state } })),
+
+    setLogs: (list) => {
+      // Snapshot replaces the current list but stays within the cap.
+      const trimmed = list.length > LOG_LIMIT ? list.slice(list.length - LOG_LIMIT) : list;
+      set({ logs: trimmed });
+    },
+
+    appendLog: (ev) =>
+      set((s) => {
+        const next = s.logs.length >= LOG_LIMIT
+          ? [...s.logs.slice(s.logs.length - LOG_LIMIT + 1), ev]
+          : [...s.logs, ev];
+        return { logs: next };
+      }),
+
+    clearLogs: () => set({ logs: [] }),
 
     setGridSize: (gridSize) => set({ gridSize }),
     setSnapEnabled: (snapEnabled) => set({ snapEnabled }),

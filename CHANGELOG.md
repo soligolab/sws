@@ -224,6 +224,28 @@ Symbol library
   plus `ATTRIBUTION.md` documenting the licence chain and the
   procedure for adding more (e.g. from Wikimedia Commons P&ID).
 
+### Added (runtime log panel + MQTT echo demo)
+
+Live runtime logs in the editor: every `tracing::{info,warn,error}!` event is
+captured into an in-memory ring + broadcast and streamed to a bottom-drawer
+panel in the editor.
+
+Backend
+- New `sws-core::logbus` module: `LogBus` (1000-entry `VecDeque` + `tokio::sync::broadcast::Sender`), `LogEvent { ts_ms, level, target, message, fields }`, `DEFAULT_LOG_CAPACITY = 1000`. Two unit tests cover ring eviction and live broadcast.
+- New `sws-runtime/log_layer.rs`: `LogBusLayer` impl of `tracing_subscriber::Layer` with a `FieldVisitor` that splits the message from structured fields (bool/i64/u64/f64/str/debug). The fmt-to-stdout JSON layer continues to run in parallel — both subscribers see every event.
+- `sws-runtime/main.rs` constructs `Arc<LogBus>` before subscriber init, composes `registry().with(env_filter).with(fmt::layer().json()).with(LogBusLayer::new(...))`, and threads the bus into `sws_web::router::build(...)`.
+- `sws-web::AppState.logs: Arc<LogBus>`. New routes `GET /api/logs` (snapshot) and `GET /ws/logs` (snapshot-then-tail) sit in `operator_routes` so Viewer is gated out. The WS handler swallows `RecvError::Lagged` silently to avoid "log about logs" feedback loops.
+
+Frontend
+- New `LogEvent` + `LogLevel` types in `src/types/index.ts`. `api.client.getLogs()` and a new `src/ws/logStream.ts` (mirrors `alarmStream.ts`) drain `/api/logs` then attach a WS to `/ws/logs?token=…`. The hook is a no-op for Viewer / unauthenticated states so no socket gets opened.
+- Zustand store gains `logs: LogEvent[]` (capped at 2000 client-side) plus `setLogs` / `appendLog` / `clearLogs`.
+- New `src/components/LogPanel.tsx`: bottom drawer, 240 px high, fixed-flex layout. Header bar with Pausa (freezes a snapshot for inspection), Cancella, free-text search (case-insensitive, regex-escaped `<mark>` highlight of matches), target substring filter, and 5 colour-coded level toggles (TRACE/DEBUG off by default — too chatty for the PoC). List uses monospace cells (timestamp / level / target / message), auto-scrolls to bottom unless the user scrolls up, and falls back to either "nessun log" or "permesso insufficiente" empty states.
+- `App.tsx` adds a "Log" toggle button next to the mode tabs (open/closed state persisted in `localStorage` as `sws.logPanel.open`) and renders the panel below `<main>`. `useLogStream()` is mounted at the App level so the snapshot survives mode switches.
+
+Demo project — MQTT round-trip
+- `.run/project/project.yaml` gains two bool tags (`demo.button`, `demo.led`) and two new MQTT topic mappings on `sws/demo/echo` (publish on the button tag, subscribe on both). Pressing the button writes `demo.button=true` → rumqttc publishes → broker.freemqtt.com echoes → both tags receive `true` → LED lights up. No external bridge required.
+- `.run/project/synoptics/Page 1.yaml` gets a "MQTT Echo" button + a green LED indicator placed next to the existing slider.
+
 ### Added (BL-003 — CodeMirror Python editor for FunctionDef bodies)
 - `sws-editor` gains `PythonEditor` (`src/components/PythonEditor.tsx`): a CodeMirror 6 wrap with `@codemirror/lang-python`, one-dark theme, line numbers, history/undo, indent-with-tab, bracket matching, and a stable `forwardRef` API exposing `insertAtCursor(text)` + `focus()`. External `value` syncs are dispatched only on diff so the cursor doesn't jump while the user is typing.
 - `src/editor/FunctionEditor.tsx` is a brand-new full-screen pane: header (name chip + "● modifiche non salvate" indicator + "Inserisci template…" snippet dropdown + Save + Close), 280 px left aside (name / description / params list), and a flex-1 right column hosting `PythonEditor`. Six built-in snippets: increment, toggle, conditional, reset_many, diagnostic, function skeleton.

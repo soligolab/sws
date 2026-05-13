@@ -1,5 +1,7 @@
 // TODO: load project, start tag engine, connect comm plugins.
 
+mod log_layer;
+
 use anyhow::Context;
 use clap::Parser;
 use hyper::body::Incoming;
@@ -8,7 +10,7 @@ use hyper_util::server::conn::auto::Builder as ConnBuilder;
 use rcgen::generate_simple_self_signed;
 use std::{net::SocketAddr, path::PathBuf, sync::Arc};
 use sws_auth::{AuthState, Role};
-use sws_core::{AlarmDb, TagDb, TagWriteBus};
+use sws_core::{AlarmDb, LogBus, TagDb, TagWriteBus, DEFAULT_LOG_CAPACITY};
 use sws_historian::{sqlite::SqliteStore, Historian};
 use sws_pyscript::Engine as PyEngine;
 use sws_web::SourceSupervisor;
@@ -22,7 +24,9 @@ use tokio_rustls::{
 };
 use tower::Service;
 use tracing::{info, warn};
-use tracing_subscriber::{fmt, EnvFilter};
+use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
+
+use crate::log_layer::LogBusLayer;
 
 #[derive(Parser, Debug)]
 #[command(name = "sws-runtime", about = "Soligo Web SCADA runtime")]
@@ -40,9 +44,15 @@ struct Args {
 async fn main() -> anyhow::Result<()> {
     let args = Args::parse();
 
-    fmt()
-        .json()
-        .with_env_filter(EnvFilter::from_default_env())
+    // LogBus is built first so the tracing subscriber can hold an Arc clone.
+    // Anything emitted by tracing from here on is captured in-memory in addition
+    // to the JSON-to-stdout fmt layer.
+    let log_bus = Arc::new(LogBus::new(DEFAULT_LOG_CAPACITY));
+
+    tracing_subscriber::registry()
+        .with(EnvFilter::from_default_env())
+        .with(fmt::layer().json())
+        .with(LogBusLayer::new(log_bus.clone()))
         .init();
 
     info!(
@@ -174,6 +184,7 @@ async fn main() -> anyhow::Result<()> {
         supervisor.clone(),
         functions,
         Arc::new(args.project.clone()),
+        log_bus,
     );
 
     let addr: SocketAddr = "0.0.0.0:8443".parse()?;

@@ -10,8 +10,8 @@ use axum::{
 use serde::Deserialize;
 use sws_auth::{AuthState, Credentials, LoginError, LoginOk, Role};
 use sws_core::{
-    AlarmDb, AlarmDef, AlarmState, FunctionDef, Project, ProjectMeta, SourceDef, TagDb, TagDef,
-    TagId, TagQuality, TagState, TagUpdate, TagValue, TagWriteBus, WriteError,
+    AlarmDb, AlarmDef, AlarmState, FunctionDef, LogBus, LogEvent, Project, ProjectMeta, SourceDef,
+    TagDb, TagDef, TagId, TagQuality, TagState, TagUpdate, TagValue, TagWriteBus, WriteError,
     MAX_FUNCTION_CODE_BYTES,
 };
 use sws_historian::{Historian, Sample};
@@ -37,6 +37,7 @@ pub struct AppState {
     pub supervisor: Arc<SourceSupervisor>,
     pub functions: FunctionsRegistry,
     pub project_dir: Arc<PathBuf>,
+    pub logs: Arc<LogBus>,
 }
 
 pub fn build(
@@ -49,8 +50,9 @@ pub fn build(
     supervisor: Arc<SourceSupervisor>,
     functions: FunctionsRegistry,
     project_dir: Arc<PathBuf>,
+    logs: Arc<LogBus>,
 ) -> Router {
-    let state = AppState { db, bus, alarms, historian, py, auth, supervisor, functions, project_dir };
+    let state = AppState { db, bus, alarms, historian, py, auth, supervisor, functions, project_dir, logs };
 
     // Routes that need Admin privileges (PUT /api/project/* — schema edits,
     // plus the multi-user CRUD).
@@ -72,6 +74,10 @@ pub fn build(
         .route("/api/script/exec",     post(exec_script))
         .route("/api/script/run/:name", post(run_function))
         .route("/api/synoptics/:name", put(save_synoptic))
+        // Logs — read-only but Operator+ so the audit surface stays
+        // narrow (logs may include schema/secret hints).
+        .route("/api/logs",            get(get_logs))
+        .route("/ws/logs",             get(ws_logs_handler))
         .route_layer(middleware::from_fn(require_operator));
 
     // Routes any authenticated user (incl. Viewer) can hit.
@@ -816,6 +822,41 @@ async fn handle_ws(mut socket: WebSocket, db: Arc<TagDb>) {
             }
             Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
                 warn!("ws/tags subscriber lagged by {n}");
+            }
+            Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
+        }
+    }
+}
+
+// ── Log streaming ────────────────────────────────────────────────────────────
+
+async fn get_logs(State(s): State<AppState>) -> Json<Vec<LogEvent>> {
+    Json(s.logs.snapshot())
+}
+
+async fn ws_logs_handler(ws: WebSocketUpgrade, State(s): State<AppState>) -> impl IntoResponse {
+    ws.on_upgrade(move |socket| handle_logs_ws(socket, s.logs))
+}
+
+async fn handle_logs_ws(mut socket: WebSocket, logs: Arc<LogBus>) {
+    // Snapshot first so a fresh client sees recent history before the live tail.
+    for ev in logs.snapshot() {
+        if let Ok(text) = serde_json::to_string(&ev) {
+            if socket.send(Message::Text(text)).await.is_err() { return; }
+        }
+    }
+    let mut rx = logs.subscribe();
+    loop {
+        match rx.recv().await {
+            Ok(ev) => {
+                if let Ok(text) = serde_json::to_string(&ev) {
+                    if socket.send(Message::Text(text)).await.is_err() { break; }
+                }
+            }
+            Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => {
+                // Lagged subscribers silently miss events — the snapshot
+                // already covered everything up to subscribe-time and we
+                // don't emit a "log about logs" to avoid a feedback loop.
             }
             Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
         }
