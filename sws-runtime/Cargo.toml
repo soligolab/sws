@@ -16,6 +16,9 @@ homepage     = "https://soligolab.example"
 tokio            = { version = "1.36",  features = ["full"] }
 tokio-util       = { version = "0.7" }
 
+# Historian persistence
+rusqlite         = { version = "0.32",  features = ["bundled"] }
+
 # Web framework
 axum             = { version = "0.7",   features = ["ws"] }
 tower            = "0.4"

@@ -40,6 +40,10 @@ fi
 : "${SWS_ADMIN_PASSWORD:=admin}"
 export SWS_ADMIN_USER SWS_ADMIN_PASSWORD
 
+# Historian SQLite persistence path. Set to empty to disable (RAM only).
+: "${SWS_HISTORIAN_DB:=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/.run/historian.db}"
+export SWS_HISTORIAN_DB
+
 mkdir -p "$CONFIG_DIR" "$PROJECT_DIR" "$LOG_DIR"
 
 # ── Seed an example project.yaml if there is none ────────────────────────────

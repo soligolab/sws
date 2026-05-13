@@ -887,7 +887,7 @@ function SvgObject(p: ObjProps) {
         ) : (
           <foreignObject x={obj.x} y={obj.y} width={w} height={h}>
             <TrendCanvas
-              tag={obj.tag ?? ""}
+              tags={[obj.tag ?? "", ...(obj.extra_tags ?? [])].filter(Boolean)}
               windowS={obj.window_s ?? 60}
               width={w}
               height={h}

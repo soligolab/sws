@@ -607,7 +607,40 @@ function ObjectProps({
           <p style={{ fontSize: 10, color: "#475569", margin: "2px 0 0" }}>
             Lascia Y min/max a 0 per autofit.
           </p>
-          {field("Colore linea", colorInput("line_color", "#3b82f6"))}
+          {field("Colore linea principale", colorInput("line_color", "#3b82f6"))}
+
+          {/* Multi-tag overlay: extra series share the same axes */}
+          <div style={{ fontSize: 10, color: "#475569", marginTop: 6, marginBottom: 2, fontWeight: 700, letterSpacing: 0.5 }}>
+            ALTRI TAG (OVERLAY)
+          </div>
+          {(obj.extra_tags ?? []).map((t, i) => (
+            <div key={i} style={{ display: "flex", gap: 4, marginBottom: 4, alignItems: "center" }}>
+              <TagInput
+                style={{ ...INPUT, flex: 1 }}
+                placeholder="es. boiler.pressure"
+                value={t}
+                onChange={(v) => {
+                  const next = [...(obj.extra_tags ?? [])];
+                  next[i] = v;
+                  onChange({ extra_tags: next });
+                }}
+              />
+              <button
+                title="Rimuovi"
+                style={{ background: "transparent", border: "none", color: "#ef4444", cursor: "pointer", fontSize: 14, padding: "0 4px" }}
+                onClick={() => {
+                  const next = (obj.extra_tags ?? []).filter((_, j) => j !== i);
+                  onChange({ extra_tags: next.length ? next : undefined });
+                }}
+              >×</button>
+            </div>
+          ))}
+          <button
+            style={{ ...INPUT, cursor: "pointer", color: "#64748b", borderStyle: "dashed", width: "100%" }}
+            onClick={() => onChange({ extra_tags: [...(obj.extra_tags ?? []), ""] })}
+          >
+            + Aggiungi tag
+          </button>
         </>
       )}
 

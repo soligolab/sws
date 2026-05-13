@@ -2,9 +2,9 @@
 
 > This file is the **session-to-session memory** for Claude Code. Update it at the end of every session before stopping work. Read it at the start of every session before touching code.
 
-**Last session**: 2026-05-12 (script sandbox + hot-reload sorgenti — supervisor con cancellation)
-**Current phase**: Phase 2 quasi conclusa. Riprende domani con #3 historian polish.
-**Last commit**: feat: script sandbox — timeout, stdout/stderr, optional RestrictedPython
+**Last session**: 2026-05-13 (#3 historian polish — SQLite, axis labels, tooltip, multi-tag overlay)
+**Current phase**: Phase 2. Trend object ora ha persistenza e UX professionale.
+**Last commit**: feat: source hot-reload — supervisor with cancellation tokens
 
 ---
 
@@ -94,14 +94,12 @@
 
 Pick one of these as the next focused work block (each fits 3-4 hours):
 
-> Sessione interrotta a fine #2. Si riprende domani da #3 in questo ordine.
-
-1. **Historian polish**: persistenza su SQLite (`sws-historian::sqlite`), decimazione per range lunghi, axis labels e tooltip nel TrendCanvas.
-2. **MQTT write path + demo-driver multi-waveform**: publish on tag-write tramite TagWriteBus; estendere `demo-sine.py` a multiple forme d'onda.
-3. **Editor UX polish**: undo/redo, multi-select, copy/paste, allineamento oggetti.
-4. **Auth polish**: session TTL, refresh, rate limit, RBAC ruoli, cookie httponly.
-5. **Symbol library starter**: cartella `sws-symbols/`, oggetto `symbol` che referenzia SVG di pompe/valvole/motori con stile guidato da tag.
-6. **Demo PX30**: container ARM64, deploy effettivo su Rockchip, gotcha hardware/network documentati.
+1. **MQTT write path + demo-driver multi-waveform**: publish on tag-write tramite TagWriteBus; estendere `demo-sine.py` a multiple forme d'onda.
+2. **Editor UX polish**: undo/redo, multi-select, copy/paste, allineamento oggetti.
+3. **Auth polish**: session TTL, refresh, rate limit, RBAC ruoli, cookie httponly.
+4. **Symbol library starter**: cartella `sws-symbols/`, oggetto `symbol` che referenzia SVG di pompe/valvole/motori con stile guidato da tag.
+5. **Demo PX30**: container ARM64, deploy effettivo su Rockchip, gotcha hardware/network documentati.
+6. **Historian polish v2** (rinviato): decimazione per range lunghi (>5000 samples), read-fallback a SQLite per range fuori dal ring buffer, prune periodica del db.
 
 ## Blockers / questions for the maintainer
 

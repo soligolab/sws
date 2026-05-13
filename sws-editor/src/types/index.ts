@@ -103,6 +103,8 @@ export interface SynopticObject {
   y_min?: number;
   y_max?: number;
   line_color?: string;
+  /** Additional tags to overlay on the same trend (multi-series). */
+  extra_tags?: string[];
   // ── Layer / visibility (cross-cutting) ────────────────────────────────
   /** Render order. Higher draws on top. Default 0; ties broken by array order. */
   z_index?: number;

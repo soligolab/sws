@@ -1,1 +1,154 @@
-//! TODO: SQLite-backed historian — ring-buffer writes, range queries, decimation.
+//! SQLite append-only log behind the in-memory ring buffer.
+//!
+//! Layout: one row per sample, indexed by (tag, ts_ms). The Historian
+//! writes every sample here as well as into RAM; on startup it loads the
+//! most-recent `max_per_tag` samples per tag back into RAM so the trend
+//! object has data immediately after a runtime restart.
+//!
+//! Reads for trend queries still go to the in-memory ring (fast, no I/O
+//! on the hot path). Falling back to SQLite for ranges older than the
+//! ring's window is a follow-up.
+//!
+//! All rusqlite calls run on `tokio::task::spawn_blocking` because the
+//! library is sync; the wrapper hides the boilerplate.
+
+use std::{path::PathBuf, sync::Arc};
+use rusqlite::{params, Connection, OptionalExtension};
+use sws_core::{TagQuality, TagValue};
+use tokio::{sync::Mutex, task};
+use tracing::{info, warn};
+
+use crate::Sample;
+
+const SCHEMA: &str = r#"
+CREATE TABLE IF NOT EXISTS samples (
+    tag       TEXT    NOT NULL,
+    ts_ms     INTEGER NOT NULL,
+    value     TEXT    NOT NULL,  -- JSON-encoded TagValue
+    quality   TEXT    NOT NULL,  -- "Good" | "Bad" | "Uncertain"
+    PRIMARY KEY (tag, ts_ms)
+) WITHOUT ROWID;
+CREATE INDEX IF NOT EXISTS idx_samples_ts ON samples(ts_ms);
+"#;
+
+/// Thin async wrapper around a single SQLite connection.
+/// The PoC uses one connection serialised by a tokio Mutex — write rate is
+/// low enough (one record per tag update) that contention is not a concern.
+#[derive(Clone)]
+pub struct SqliteStore {
+    conn: Arc<Mutex<Connection>>,
+    path: PathBuf,
+}
+
+impl SqliteStore {
+    /// Open (creating if absent) a SQLite db at `path` and prepare the schema.
+    pub async fn open(path: impl Into<PathBuf>) -> anyhow::Result<Self> {
+        let path = path.into();
+        let path_for_open = path.clone();
+        let conn = task::spawn_blocking(move || -> anyhow::Result<Connection> {
+            if let Some(parent) = path_for_open.parent() {
+                std::fs::create_dir_all(parent).ok();
+            }
+            let c = Connection::open(&path_for_open)?;
+            // WAL mode keeps reads (restore) unblocked by writes (recording).
+            c.pragma_update(None, "journal_mode", &"WAL")?;
+            c.pragma_update(None, "synchronous", &"NORMAL")?;
+            c.execute_batch(SCHEMA)?;
+            Ok(c)
+        }).await??;
+        info!(path = %path.display(), "historian: SQLite store opened");
+        Ok(Self { conn: Arc::new(Mutex::new(conn)), path })
+    }
+
+    pub fn path(&self) -> &std::path::Path { &self.path }
+
+    /// Append one sample. Best-effort: errors are logged, not propagated, so
+    /// a transient disk hiccup never breaks the live tag stream.
+    pub async fn append(&self, tag: &str, sample: &Sample) {
+        let conn = self.conn.clone();
+        let tag = tag.to_string();
+        let ts = sample.ts_ms as i64;
+        let value = serde_json::to_string(&sample.value)
+            .unwrap_or_else(|_| "null".to_string());
+        let quality = match sample.quality {
+            TagQuality::Good      => "Good",
+            TagQuality::Bad       => "Bad",
+            TagQuality::Uncertain => "Uncertain",
+        };
+        let res = task::spawn_blocking(move || -> rusqlite::Result<()> {
+            let c = conn.blocking_lock();
+            c.execute(
+                "INSERT OR REPLACE INTO samples (tag, ts_ms, value, quality) VALUES (?1, ?2, ?3, ?4)",
+                params![tag, ts, value, quality],
+            )?;
+            Ok(())
+        }).await;
+        match res {
+            Ok(Ok(())) => {}
+            Ok(Err(e)) => warn!("historian: sqlite append failed: {e}"),
+            Err(e)     => warn!("historian: sqlite append task panicked: {e}"),
+        }
+    }
+
+    /// Load up to `limit` most-recent samples per tag from SQLite.
+    /// Returns a map `tag → samples` (chronological order within each).
+    pub async fn restore_recent(&self, limit: usize)
+        -> anyhow::Result<Vec<(String, Vec<Sample>)>>
+    {
+        let conn = self.conn.clone();
+        let out = task::spawn_blocking(move || -> rusqlite::Result<Vec<(String, Vec<Sample>)>> {
+            let c = conn.blocking_lock();
+
+            // Distinct tags first
+            let mut tags: Vec<String> = Vec::new();
+            {
+                let mut stmt = c.prepare("SELECT DISTINCT tag FROM samples")?;
+                let rows = stmt.query_map([], |r| r.get::<_, String>(0))?;
+                for r in rows { tags.push(r?); }
+            }
+
+            let mut out: Vec<(String, Vec<Sample>)> = Vec::with_capacity(tags.len());
+            for tag in tags {
+                let mut stmt = c.prepare(
+                    "SELECT ts_ms, value, quality
+                       FROM samples
+                      WHERE tag = ?1
+                      ORDER BY ts_ms DESC
+                      LIMIT ?2"
+                )?;
+                let rows = stmt.query_map(params![tag, limit as i64], |r| {
+                    Ok((r.get::<_, i64>(0)?, r.get::<_, String>(1)?, r.get::<_, String>(2)?))
+                })?;
+                let mut samples: Vec<Sample> = Vec::new();
+                for r in rows {
+                    let (ts, value_json, q) = r?;
+                    let value: TagValue = serde_json::from_str(&value_json)
+                        .unwrap_or(TagValue::Float(0.0));
+                    let quality = match q.as_str() {
+                        "Good" => TagQuality::Good,
+                        "Bad"  => TagQuality::Bad,
+                        _      => TagQuality::Uncertain,
+                    };
+                    samples.push(Sample { ts_ms: ts as u64, value, quality });
+                }
+                // Restore chronological order (we fetched DESC for the LIMIT)
+                samples.reverse();
+                out.push((tag, samples));
+            }
+            Ok(out)
+        }).await??;
+        Ok(out)
+    }
+
+    /// Sample count across all tags (mostly for /metrics later).
+    pub async fn total_samples(&self) -> anyhow::Result<i64> {
+        let conn = self.conn.clone();
+        let n = task::spawn_blocking(move || -> rusqlite::Result<i64> {
+            let c = conn.blocking_lock();
+            c.query_row("SELECT COUNT(*) FROM samples", [], |r| r.get(0))
+                .optional()
+                .map(|v| v.unwrap_or(0))
+        }).await??;
+        Ok(n)
+    }
+}

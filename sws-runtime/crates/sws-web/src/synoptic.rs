@@ -70,6 +70,7 @@ pub struct SynopticObject {
     #[serde(skip_serializing_if = "Option::is_none")] pub y_min:          Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")] pub y_max:          Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")] pub line_color:     Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub extra_tags:     Option<Vec<String>>,
     // Layer / visibility (cross-cutting)
     #[serde(skip_serializing_if = "Option::is_none")] pub z_index:        Option<i32>,
     #[serde(skip_serializing_if = "Option::is_none")] pub visible:        Option<bool>,

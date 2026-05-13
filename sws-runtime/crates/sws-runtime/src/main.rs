@@ -9,7 +9,7 @@ use rcgen::generate_simple_self_signed;
 use std::{net::SocketAddr, path::PathBuf, sync::Arc};
 use sws_auth::AuthState;
 use sws_core::{AlarmDb, TagDb, TagWriteBus};
-use sws_historian::Historian;
+use sws_historian::{sqlite::SqliteStore, Historian};
 use sws_pyscript::Engine as PyEngine;
 use sws_web::SourceSupervisor;
 use tokio::net::TcpListener;
@@ -59,7 +59,24 @@ async fn main() -> anyhow::Result<()> {
     let alarm_db  = Arc::new(AlarmDb::new(64));
     // 5_000 samples × ~100 tags ≈ a few MB. Adjust per-tag cap when we learn
     // realistic project sizes — for now this is the PoC sizing.
-    let historian = Arc::new(Historian::new(5_000));
+    // SQLite persistence is opt-in via SWS_HISTORIAN_DB. If unset, the
+    // historian is RAM-only (current PoC default).
+    let historian = match std::env::var("SWS_HISTORIAN_DB").ok() {
+        Some(path) if !path.is_empty() => match SqliteStore::open(&path).await {
+            Ok(store) => match Historian::with_sqlite(5_000, store).await {
+                Ok(h) => Arc::new(h),
+                Err(e) => {
+                    warn!("historian: SQLite restore failed ({e}), starting empty");
+                    Arc::new(Historian::new(5_000))
+                }
+            },
+            Err(e) => {
+                warn!("historian: cannot open SQLite at {path} ({e}), falling back to RAM-only");
+                Arc::new(Historian::new(5_000))
+            }
+        },
+        _ => Arc::new(Historian::new(5_000)),
+    };
     let py_engine = PyEngine::new(tag_db.clone(), bus.clone());
     let supervisor = SourceSupervisor::new(tag_db.clone(), bus.clone());
 
