@@ -310,6 +310,146 @@ function ObjectsSection() {
   );
 }
 
+// ── Functions section ─────────────────────────────────────────────────────────
+//
+// Lists every project-level Python function. Click a row to open its editor
+// in the right-side properties panel. Each row has inline rename, duplicate,
+// and delete. After every CRUD verb we call `onFunctionsChanged()` so the
+// host can persist the new list to PUT /api/project/functions.
+
+function FunctionsSection({ onFunctionsChanged }: { onFunctionsChanged: () => void }) {
+  const project          = useAppStore((s) => s.project);
+  const selectedFnId     = useAppStore((s) => s.selectedFunctionId);
+  const selectFunction   = useAppStore((s) => s.selectFunction);
+  const addFunction      = useAppStore((s) => s.addFunction);
+  const duplicateFunction = useAppStore((s) => s.duplicateFunction);
+  const renameFunction   = useAppStore((s) => s.renameFunction);
+  const deleteFunction   = useAppStore((s) => s.deleteFunction);
+
+  const [renaming, setRenaming] = useState<string | null>(null);
+  const [draft, setDraft]       = useState("");
+
+  const functions = project?.functions ?? [];
+
+  const handleAdd = () => {
+    addFunction();
+    onFunctionsChanged();
+  };
+  const handleDuplicate = (id: string) => {
+    duplicateFunction(id);
+    onFunctionsChanged();
+  };
+  const handleDelete = (id: string) => {
+    deleteFunction(id);
+    onFunctionsChanged();
+  };
+  const startRename = (id: string, name: string) => {
+    setRenaming(id);
+    setDraft(name);
+  };
+  const commitRename = () => {
+    if (renaming) {
+      const next = draft.trim();
+      if (next) renameFunction(renaming, next);
+      onFunctionsChanged();
+    }
+    setRenaming(null);
+    setDraft("");
+  };
+
+  return (
+    <Section title={`FUNZIONI (${functions.length})`} defaultOpen={false}>
+      <div style={{ ...S.body, maxHeight: 240 }}>
+        {functions.length === 0 && (
+          <p style={{ padding: "8px 12px", fontSize: 11, color: "#475569", margin: 0 }}>
+            Nessuna funzione. Crea una funzione qui sotto e collegala agli
+            eventi degli oggetti.
+          </p>
+        )}
+        {functions.map((f) => {
+          const isSel = f.id === selectedFnId;
+          const isRen = f.id === renaming;
+          return (
+            <div
+              key={f.id}
+              onClick={() => !isRen && selectFunction(f.id)}
+              style={{ ...S.row(isSel), gap: 4, paddingRight: 4 }}
+              title={f.description ?? f.name}
+            >
+              <span style={{
+                fontSize: 9, color: "#22c55e", width: 24, flexShrink: 0,
+                textTransform: "uppercase", letterSpacing: 0.5,
+              }}>
+                fn
+              </span>
+              {isRen ? (
+                <input
+                  type="text"
+                  value={draft}
+                  autoFocus
+                  onClick={(e) => e.stopPropagation()}
+                  onChange={(e) => setDraft(e.target.value)}
+                  onBlur={commitRename}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") commitRename();
+                    else if (e.key === "Escape") { setRenaming(null); setDraft(""); }
+                  }}
+                  style={{
+                    flex: 1, minWidth: 0,
+                    background: "#0f172a", color: "#e2e8f0",
+                    border: "1px solid #334155", borderRadius: 3,
+                    padding: "1px 4px", fontSize: 11,
+                  }}
+                />
+              ) : (
+                <span
+                  onDoubleClick={(e) => { e.stopPropagation(); startRename(f.id, f.name); }}
+                  style={{
+                    flex: 1, minWidth: 0,
+                    overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                    fontSize: 11,
+                  }}
+                >
+                  {f.name}
+                </span>
+              )}
+              <button
+                style={S.iconBtn}
+                title="Rinomina"
+                onClick={(e) => { e.stopPropagation(); startRename(f.id, f.name); }}
+              >✎</button>
+              <button
+                style={S.iconBtn}
+                title="Duplica"
+                onClick={(e) => { e.stopPropagation(); handleDuplicate(f.id); }}
+              >⧉</button>
+              <button
+                style={{ ...S.iconBtn, color: "#ef4444" }}
+                title="Elimina"
+                onClick={(e) => { e.stopPropagation(); handleDelete(f.id); }}
+              >×</button>
+            </div>
+          );
+        })}
+        <div style={{ padding: "4px 8px" }}>
+          <button
+            onClick={handleAdd}
+            style={{
+              ...S.objBtn,
+              flex: "none",
+              width: "100%",
+              borderStyle: "dashed",
+              color: "#64748b",
+            }}
+          >
+            + Nuova funzione
+          </button>
+        </div>
+      </div>
+    </Section>
+  );
+}
+
 // ── Tags section ──────────────────────────────────────────────────────────────
 
 function TagsSection() {
@@ -466,9 +606,12 @@ function CanvasSettings() {
 interface LeftPanelProps {
   onAddObject: (type: SynopticObject["type"]) => void;
   onSave: () => void;
+  /** Fires after a CRUD verb on the in-memory functions list so the host
+   *  can push the new list to `PUT /api/project/functions`. */
+  onFunctionsChanged: () => void;
 }
 
-export function LeftPanel({ onAddObject, onSave }: LeftPanelProps) {
+export function LeftPanel({ onAddObject, onSave, onFunctionsChanged }: LeftPanelProps) {
   const project    = useAppStore((s) => s.project);
   const setProject = useAppStore((s) => s.setProject);
 
@@ -484,6 +627,7 @@ export function LeftPanel({ onAddObject, onSave }: LeftPanelProps) {
         <PagesSection />
         <ObjectPalette onAdd={onAddObject} />
         <ObjectsSection />
+        <FunctionsSection onFunctionsChanged={onFunctionsChanged} />
         <TagsSection />
         <SourcesSection project={project} />
       </div>

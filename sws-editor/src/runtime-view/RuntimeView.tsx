@@ -18,11 +18,15 @@ export function RuntimeView() {
     api.writeTag(tagId, value).catch(console.error);
   };
 
-  const handleScript = (code: string) => {
-    api.execScript(code).then((r) => {
-      if (r.stdout) console.log("[script stdout]", r.stdout.trimEnd());
-      if (r.stderr) console.warn("[script stderr]", r.stderr.trimEnd());
-      if (!r.ok && r.error) console.warn("[script]", r.error);
+  // Dispatcher for object on_press_fn / on_release_fn handlers. Resolves
+  // the named function server-side; per-binding param overrides ride along
+  // as a plain JSON object. The server returns the same shape as
+  // /api/script/exec so the console logging is identical.
+  const handleScript = (fn: string, args: Record<string, string | number | boolean>) => {
+    api.runFunction(fn, args).then((r) => {
+      if (r.stdout) console.log(`[${fn} stdout]`, r.stdout.trimEnd());
+      if (r.stderr) console.warn(`[${fn} stderr]`, r.stderr.trimEnd());
+      if (!r.ok && r.error) console.warn(`[${fn}]`, r.error);
     }).catch(console.error);
   };
 

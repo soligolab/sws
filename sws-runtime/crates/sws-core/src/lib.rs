@@ -4,8 +4,8 @@ pub mod tag;
 
 pub use alarm::{AlarmCondition, AlarmDb, AlarmDef, AlarmSeverity, AlarmState};
 pub use project::{
-    ModbusTcpConfig, MqttConfig, Project, ProjectMeta, RegisterMapping, SourceDef, TagDef,
-    TopicMapping,
+    FunctionDef, FunctionParam, ModbusTcpConfig, MqttConfig, Project, ProjectMeta, RegisterMapping,
+    SourceDef, TagDef, TopicMapping, MAX_FUNCTION_CODE_BYTES,
 };
 pub use tag::{
     Tag, TagDb, TagId, TagQuality, TagState, TagUpdate, TagValue, TagWriteBus, WriteError,

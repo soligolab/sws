@@ -2975,6 +2975,7 @@ version = "0.1.0-dev"
 dependencies = [
  "anyhow",
  "serde",
+ "serde_json",
  "serde_yaml",
  "tokio",
  "tracing",
@@ -3051,6 +3052,7 @@ dependencies = [
  "anyhow",
  "pyo3",
  "serde",
+ "serde_json",
  "sws-core",
  "tokio",
  "tracing",

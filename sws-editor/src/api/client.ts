@@ -1,6 +1,7 @@
 import type {
   AlarmDef,
   AlarmState,
+  FunctionDef,
   ProjectInfo,
   Sample,
   SourceDef,
@@ -83,6 +84,13 @@ export const api = {
       body: JSON.stringify(alarms),
     }),
 
+  updateFunctions: (functions: FunctionDef[]) =>
+    request<void>("/api/project/functions", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(functions),
+    }),
+
   // Synoptics
   listSynoptics: () =>
     request<string[]>("/api/synoptics"),
@@ -124,7 +132,12 @@ export const api = {
     );
   },
 
-  // Script execution (object on_press / on_release handlers)
+  // Script execution
+  //
+  // `execScript` runs a raw Python body. Today it stays available for
+  // ad-hoc tooling (the FunctionEditor "Esegui" button) but synoptic
+  // objects no longer carry inline code — they reference a named
+  // FunctionDef and call `runFunction` instead.
   execScript: (code: string) =>
     request<{
       ok: boolean;
@@ -136,5 +149,18 @@ export const api = {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ code }),
+    }),
+
+  runFunction: (name: string, args?: Record<string, string | number | boolean>) =>
+    request<{
+      ok: boolean;
+      stdout: string;
+      stderr: string;
+      sandboxed: boolean;
+      error?: string;
+    }>(`/api/script/run/${encodeURIComponent(name)}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ args: args ?? {} }),
     }),
 };

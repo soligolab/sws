@@ -10,14 +10,21 @@ use axum::{
 use serde::Deserialize;
 use sws_auth::{AuthState, Credentials, LoginError, LoginOk, Role};
 use sws_core::{
-    AlarmDb, AlarmDef, AlarmState, Project, ProjectMeta, SourceDef, TagDb, TagDef, TagId,
-    TagQuality, TagState, TagUpdate, TagValue, TagWriteBus, WriteError,
+    AlarmDb, AlarmDef, AlarmState, FunctionDef, Project, ProjectMeta, SourceDef, TagDb, TagDef,
+    TagId, TagQuality, TagState, TagUpdate, TagValue, TagWriteBus, WriteError,
+    MAX_FUNCTION_CODE_BYTES,
 };
 use sws_historian::{Historian, Sample};
 use sws_pyscript::{Engine as PyEngine, ExecOutput};
+use tokio::sync::RwLock;
 use tracing::warn;
 use crate::source_supervisor::SourceSupervisor;
 use crate::synoptic::{safe_filename, SynopticPage};
+
+/// Resolved function registry keyed by name. Hot-swapped on every
+/// `PUT /api/project/functions` so the run endpoint always sees the
+/// latest body without a restart.
+pub type FunctionsRegistry = Arc<RwLock<HashMap<String, FunctionDef>>>;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -28,6 +35,7 @@ pub struct AppState {
     pub py: PyEngine,
     pub auth: Arc<AuthState>,
     pub supervisor: Arc<SourceSupervisor>,
+    pub functions: FunctionsRegistry,
     pub project_dir: Arc<PathBuf>,
 }
 
@@ -39,16 +47,18 @@ pub fn build(
     py: PyEngine,
     auth: Arc<AuthState>,
     supervisor: Arc<SourceSupervisor>,
+    functions: FunctionsRegistry,
     project_dir: Arc<PathBuf>,
 ) -> Router {
-    let state = AppState { db, bus, alarms, historian, py, auth, supervisor, project_dir };
+    let state = AppState { db, bus, alarms, historian, py, auth, supervisor, functions, project_dir };
 
     // Routes that need Admin privileges (PUT /api/project/* — schema edits).
     // Layered THEN added under the auth-required group below.
     let admin_routes = Router::new()
-        .route("/api/project/tags",    put(update_project_tags))
-        .route("/api/project/sources", put(update_project_sources))
-        .route("/api/project/alarms",  put(update_project_alarms))
+        .route("/api/project/tags",      put(update_project_tags))
+        .route("/api/project/sources",   put(update_project_sources))
+        .route("/api/project/alarms",    put(update_project_alarms))
+        .route("/api/project/functions", put(update_project_functions))
         .route_layer(middleware::from_fn(require_admin));
 
     // Routes that need Operator+ (tag writes, alarm ACK, script exec,
@@ -57,6 +67,7 @@ pub fn build(
         .route("/api/tags/:id",        put(write_tag))
         .route("/api/alarms/:id/ack",  post(ack_alarm))
         .route("/api/script/exec",     post(exec_script))
+        .route("/api/script/run/:name", post(run_function))
         .route("/api/synoptics/:name", put(save_synoptic))
         .route_layer(middleware::from_fn(require_operator));
 
@@ -370,6 +381,7 @@ where
         tags: vec![],
         sources: vec![],
         alarms: vec![],
+        functions: vec![],
     });
     f(&mut project);
     if let Err(e) = tokio::fs::create_dir_all(project_dir).await {
@@ -447,6 +459,104 @@ async fn update_project_alarms(
         s.alarms.load(clone).await;
     }
     status
+}
+
+/// Validate + persist + hot-swap the reusable Python functions list.
+/// Rejects unsafe param names and oversized code bodies before writing.
+async fn update_project_functions(
+    State(s): State<AppState>,
+    Json(functions): Json<Vec<FunctionDef>>,
+) -> Response {
+    // 1. Code-size cap — keeps `project.yaml` from ballooning.
+    for f in &functions {
+        if f.code.len() > MAX_FUNCTION_CODE_BYTES {
+            return (StatusCode::PAYLOAD_TOO_LARGE,
+                format!("function '{}' code is {} bytes; max {}",
+                    f.name, f.code.len(), MAX_FUNCTION_CODE_BYTES)).into_response();
+        }
+    }
+
+    // 2. Param-name validation — must be a Python identifier, not a keyword.
+    for f in &functions {
+        for p in &f.params {
+            if !is_valid_python_identifier(&p.name) {
+                return (StatusCode::UNPROCESSABLE_ENTITY,
+                    format!("function '{}': param '{}' is not a valid Python identifier",
+                        f.name, p.name)).into_response();
+            }
+        }
+    }
+
+    // 3. Unique names — the registry is keyed by `name`; duplicates collapse
+    //    silently otherwise.
+    let mut seen = std::collections::HashSet::new();
+    for f in &functions {
+        if !seen.insert(f.name.as_str()) {
+            return (StatusCode::UNPROCESSABLE_ENTITY,
+                format!("duplicate function name '{}'", f.name)).into_response();
+        }
+    }
+
+    let clone = functions.clone();
+    let status = patch_project(&s.project_dir, |p| p.functions = functions).await;
+    if status == StatusCode::NO_CONTENT {
+        let mut map = s.functions.write().await;
+        map.clear();
+        for f in clone { map.insert(f.name.clone(), f); }
+    }
+    status.into_response()
+}
+
+#[derive(Deserialize, Default)]
+struct RunBody {
+    #[serde(default)]
+    args: serde_json::Map<String, serde_json::Value>,
+}
+
+/// Execute a named function with the provided argument bindings.
+/// Returns the same shape as `/api/script/exec` so callers share a path.
+async fn run_function(
+    State(s): State<AppState>,
+    Path(name): Path<String>,
+    body: Option<Json<RunBody>>,
+) -> Response {
+    let code = {
+        let map = s.functions.read().await;
+        match map.get(&name) {
+            Some(f) => f.code.clone(),
+            None    => return (StatusCode::NOT_FOUND,
+                format!("no function named '{name}'")).into_response(),
+        }
+    };
+    let args = body.map(|Json(b)| b.args).unwrap_or_default();
+    match s.py.execute_with_args(code, args).await {
+        Ok(ExecOutput { stdout, stderr, sandboxed }) => Json(ScriptResult {
+            ok: true, stdout, stderr, sandboxed, error: None,
+        }).into_response(),
+        Err(e) => Json(ScriptResult {
+            ok: false, error: Some(e), sandboxed: s.py.is_sandboxed(),
+            ..Default::default()
+        }).into_response(),
+    }
+}
+
+/// Tight Python-identifier check used for FunctionParam.name. Rejects the
+/// hard-coded keyword list (a subset of `keyword.kwlist` — covers everything
+/// you'd reasonably shadow as a parameter).
+fn is_valid_python_identifier(s: &str) -> bool {
+    if s.is_empty() { return false; }
+    let mut chars = s.chars();
+    let first = chars.next().unwrap();
+    if !(first.is_ascii_alphabetic() || first == '_') { return false; }
+    if !chars.all(|c| c.is_ascii_alphanumeric() || c == '_') { return false; }
+    const KEYWORDS: &[&str] = &[
+        "False", "None", "True", "and", "as", "assert", "async", "await",
+        "break", "class", "continue", "def", "del", "elif", "else", "except",
+        "finally", "for", "from", "global", "if", "import", "in", "is",
+        "lambda", "nonlocal", "not", "or", "pass", "raise", "return", "try",
+        "while", "with", "yield", "match", "case",
+    ];
+    !KEYWORDS.contains(&s)
 }
 
 // ── Synoptic endpoints ───────────────────────────────────────────────────────

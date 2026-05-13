@@ -5,7 +5,7 @@ import { LeftPanel } from "@/editor/LeftPanel";
 import { TagInput } from "@/components/TagInput";
 import { useAppStore } from "@/store";
 import type { AlignMode } from "@/store";
-import type { RadioOption, SynopticObject, TableRow } from "@/types";
+import type { FunctionDef, RadioOption, SynopticObject, TableRow } from "@/types";
 
 // ── Shared styles ─────────────────────────────────────────────────────────────
 
@@ -37,6 +37,9 @@ export function EditorShell() {
   const currentPageId   = useAppStore((s) => s.currentPageId);
   const selectedId      = useAppStore((s) => s.selectedObjectId);
   const selectedIds     = useAppStore((s) => s.selectedObjectIds);
+  const selectedFnId    = useAppStore((s) => s.selectedFunctionId);
+  const project         = useAppStore((s) => s.project);
+  const updateFunction  = useAppStore((s) => s.updateFunction);
   const tagValues       = useAppStore((s) => s.tagValues);
   const gridSize        = useAppStore((s) => s.gridSize);
   const snapEnabled     = useAppStore((s) => s.snapEnabled);
@@ -58,6 +61,16 @@ export function EditorShell() {
   const objects     = currentPage?.objects ?? [];
   const selected    = objects.find((o) => o.id === selectedId) ?? null;
   const multi       = selectedIds.length > 1;
+  const functions   = project?.functions ?? [];
+  const selectedFn  = functions.find((f) => f.id === selectedFnId) ?? null;
+
+  // Persist the whole `project.functions` list to the server. Called by the
+  // FunctionEditor's save button and by FunctionsSection's CRUD verbs (so
+  // add/rename/delete take effect for the run endpoint without a refresh).
+  const persistFunctions = () => {
+    const list = useAppStore.getState().project?.functions ?? [];
+    api.updateFunctions(list).catch(console.error);
+  };
 
   const handleSelect = (id: string | null, shift?: boolean) => {
     if (id === null) { selectObject(null); return; }
@@ -161,7 +174,11 @@ export function EditorShell() {
   return (
     <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
       {/* Left panel: project tree + object palette + settings */}
-      <LeftPanel onAddObject={handleAddObject} onSave={handleSave} />
+      <LeftPanel
+        onAddObject={handleAddObject}
+        onSave={handleSave}
+        onFunctionsChanged={persistFunctions}
+      />
 
       {/* Canvas */}
       <div style={{ flex: 1, overflow: "hidden" }}>
@@ -178,12 +195,20 @@ export function EditorShell() {
         />
       </div>
 
-      {/* Properties panel */}
-      <aside style={{ ...PANEL, width: 240, borderLeft: "1px solid #334155" }}>
+      {/* Properties panel — switches between four views depending on what's
+          selected: a function, multiple objects, a single object, or nothing
+          (page properties). */}
+      <aside style={{ ...PANEL, width: 280, borderLeft: "1px solid #334155" }}>
         <span style={{ fontSize: 11, fontWeight: 700, color: "#64748b", letterSpacing: 1 }}>
           PROPRIETÀ
         </span>
-        {multi ? (
+        {selectedFn ? (
+          <FunctionEditor
+            fn={selectedFn}
+            onPatch={(patch) => updateFunction(selectedFn.id, patch)}
+            onPersist={persistFunctions}
+          />
+        ) : multi ? (
           <MultiSelectionProps
             count={selectedIds.length}
             onAlign={alignSelection}
@@ -194,6 +219,7 @@ export function EditorShell() {
           <ObjectProps
             obj={selected}
             pages={pages.filter((p) => p.id !== currentPageId)}
+            functions={functions}
             onChange={(patch) => updateObject(selected.id, patch)}
             onDelete={() => deleteObject(selected.id)}
           />
@@ -338,11 +364,13 @@ function MultiSelectionProps({
 function ObjectProps({
   obj,
   pages,
+  functions,
   onChange,
   onDelete,
 }: {
   obj: SynopticObject;
   pages: { id: string; name: string }[];
+  functions: FunctionDef[];
   onChange: (p: Partial<SynopticObject>) => void;
   onDelete: () => void;
 }) {
@@ -844,30 +872,25 @@ function ObjectProps({
       </div>
 
       <div style={{ fontSize: 10, color: "#475569", marginTop: 8, marginBottom: 2, fontWeight: 700, letterSpacing: 0.5 }}>
-        EVENTI (PYTHON)
+        EVENTI (FUNZIONI)
       </div>
-      <div>
-        <div style={LABEL}>On press</div>
-        <textarea
-          style={{ ...INPUT, height: 56, fontFamily: "ui-monospace, monospace", fontSize: 11, resize: "vertical" }}
-          placeholder='es. tags.write("pump1.run", True)'
-          value={obj.on_press ?? ""}
-          onChange={(e) => onChange({ on_press: e.target.value || undefined })}
-          spellCheck={false}
-        />
-      </div>
-      <div>
-        <div style={LABEL}>On release</div>
-        <textarea
-          style={{ ...INPUT, height: 56, fontFamily: "ui-monospace, monospace", fontSize: 11, resize: "vertical" }}
-          placeholder='es. tags.write("pump1.run", False)'
-          value={obj.on_release ?? ""}
-          onChange={(e) => onChange({ on_release: e.target.value || undefined })}
-          spellCheck={false}
-        />
-      </div>
+      <EventFunctionPicker
+        label="On press"
+        fnName={obj.on_press_fn}
+        args={obj.on_press_args}
+        functions={functions}
+        onChange={(fn, args) => onChange({ on_press_fn: fn, on_press_args: args })}
+      />
+      <EventFunctionPicker
+        label="On release"
+        fnName={obj.on_release_fn}
+        args={obj.on_release_args}
+        functions={functions}
+        onChange={(fn, args) => onChange({ on_release_fn: fn, on_release_args: args })}
+      />
       <p style={{ fontSize: 10, color: "#475569", margin: "0 0 4px" }}>
-        Bindings disponibili: <code>tags.read(id)</code>, <code>tags.write(id, value)</code>, <code>print(...)</code>.
+        Definisci le funzioni nel pannello laterale (sezione FUNZIONI). I valori
+        dei parametri sono sostituiti per binding; lascia vuoto per usare il default.
       </p>
 
       <button
@@ -992,5 +1015,210 @@ function TableRowsEditor({
         + Aggiungi riga
       </button>
     </div>
+  );
+}
+
+// ── EventFunctionPicker ───────────────────────────────────────────────────────
+// Per-event row in ObjectProps: a select for the function name + one input
+// row per declared parameter, bound to the on_*_args record on the object.
+
+function EventFunctionPicker({
+  label,
+  fnName,
+  args,
+  functions,
+  onChange,
+}: {
+  label: string;
+  fnName: string | undefined;
+  args: Record<string, string | number | boolean> | undefined;
+  functions: FunctionDef[];
+  onChange: (
+    fn: string | undefined,
+    args: Record<string, string | number | boolean> | undefined,
+  ) => void;
+}) {
+  const fn = functions.find((f) => f.name === fnName);
+
+  const setArg = (paramName: string, raw: string) => {
+    const v: string | number | boolean =
+      raw === "true"  ? true :
+      raw === "false" ? false :
+      raw.trim() !== "" && !isNaN(Number(raw)) ? Number(raw) :
+      raw;
+    const next = { ...(args ?? {}), [paramName]: v };
+    onChange(fnName, next);
+  };
+
+  return (
+    <div style={{ marginBottom: 6 }}>
+      <div style={LABEL}>{label}</div>
+      <select
+        style={{ ...INPUT, cursor: "pointer" }}
+        value={fnName ?? ""}
+        onChange={(e) => {
+          const v = e.target.value || undefined;
+          // Clear args when the function changes — old keys probably don't apply.
+          onChange(v, v ? undefined : undefined);
+        }}
+      >
+        <option value="">— nessuna —</option>
+        {functions.map((f) => (
+          <option key={f.id} value={f.name}>{f.name}</option>
+        ))}
+      </select>
+      {fn && fn.params.length > 0 && (
+        <div style={{ marginTop: 4, paddingLeft: 6, borderLeft: "2px solid #334155" }}>
+          {fn.params.map((p) => {
+            const v = (args ?? {})[p.name];
+            return (
+              <div key={p.name} style={{ marginTop: 2 }}>
+                <div style={{ ...LABEL, fontSize: 10 }}>
+                  {p.name}
+                  {p.default !== undefined && (
+                    <span style={{ color: "#475569" }}> (default: {String(p.default)})</span>
+                  )}
+                </div>
+                <input
+                  type="text"
+                  style={{ ...INPUT, fontSize: 12 }}
+                  placeholder={p.default !== undefined ? String(p.default) : ""}
+                  value={v === undefined ? "" : String(v)}
+                  onChange={(e) => setArg(p.name, e.target.value)}
+                />
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── FunctionEditor ────────────────────────────────────────────────────────────
+// Right-side panel shown when a project-level FunctionDef is selected from
+// the LeftPanel FUNZIONI section. Edits the name / description / params /
+// code; calls onPersist when the maintainer presses Salva.
+
+function FunctionEditor({
+  fn,
+  onPatch,
+  onPersist,
+}: {
+  fn: FunctionDef;
+  onPatch: (patch: Partial<FunctionDef>) => void;
+  onPersist: () => void;
+}) {
+  const setParam = (idx: number, patch: Partial<{ name: string; default: string | number | boolean | undefined }>) => {
+    const next = fn.params.map((p, i) => (i === idx ? { ...p, ...patch } : p));
+    onPatch({ params: next });
+  };
+  const addParam = () =>
+    onPatch({ params: [...fn.params, { name: `arg${fn.params.length + 1}` }] });
+  const removeParam = (idx: number) =>
+    onPatch({ params: fn.params.filter((_, i) => i !== idx) });
+
+  return (
+    <>
+      <div style={{ fontSize: 11, color: "#475569", marginBottom: 4 }}>
+        Funzione Python (project-level)
+      </div>
+      <div>
+        <div style={LABEL}>Nome</div>
+        <input
+          type="text"
+          style={INPUT}
+          value={fn.name}
+          onChange={(e) => onPatch({ name: e.target.value })}
+          spellCheck={false}
+        />
+      </div>
+      <div>
+        <div style={LABEL}>Descrizione (opz.)</div>
+        <input
+          type="text"
+          style={INPUT}
+          value={fn.description ?? ""}
+          onChange={(e) => onPatch({ description: e.target.value || undefined })}
+        />
+      </div>
+
+      <div style={{ fontSize: 10, color: "#475569", marginTop: 4, fontWeight: 700, letterSpacing: 0.5 }}>
+        PARAMETRI
+      </div>
+      {fn.params.length === 0 && (
+        <p style={{ fontSize: 11, color: "#475569", margin: "2px 0" }}>
+          Nessun parametro — la funzione viene chiamata "nuda".
+        </p>
+      )}
+      {fn.params.map((p, i) => {
+        const defStr = p.default === undefined ? "" : String(p.default);
+        return (
+          <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto", gap: 4, marginBottom: 4 }}>
+            <input
+              type="text"
+              placeholder="nome"
+              style={{ ...INPUT, fontSize: 12 }}
+              value={p.name}
+              onChange={(e) => setParam(i, { name: e.target.value })}
+              spellCheck={false}
+            />
+            <input
+              type="text"
+              placeholder="default (opz.)"
+              style={{ ...INPUT, fontSize: 12 }}
+              value={defStr}
+              onChange={(e) => {
+                const raw = e.target.value;
+                if (raw === "") { setParam(i, { default: undefined }); return; }
+                const v: string | number | boolean =
+                  raw === "true"  ? true :
+                  raw === "false" ? false :
+                  raw.trim() !== "" && !isNaN(Number(raw)) ? Number(raw) :
+                  raw;
+                setParam(i, { default: v });
+              }}
+            />
+            <button
+              style={{ background: "transparent", border: "none", color: "#ef4444", cursor: "pointer", fontSize: 14, padding: "0 4px" }}
+              onClick={() => removeParam(i)}
+              title="Rimuovi parametro"
+            >×</button>
+          </div>
+        );
+      })}
+      <button
+        style={{ ...INPUT, cursor: "pointer", color: "#64748b", borderStyle: "dashed", width: "100%" }}
+        onClick={addParam}
+      >
+        + Aggiungi parametro
+      </button>
+
+      <div style={{ fontSize: 10, color: "#475569", marginTop: 8, fontWeight: 700, letterSpacing: 0.5 }}>
+        CODICE PYTHON
+      </div>
+      <textarea
+        style={{ ...INPUT, minHeight: 220, fontFamily: "ui-monospace, monospace", fontSize: 11, resize: "vertical" }}
+        value={fn.code}
+        onChange={(e) => onPatch({ code: e.target.value })}
+        spellCheck={false}
+      />
+      <p style={{ fontSize: 10, color: "#475569", margin: "0 0 4px" }}>
+        Bindings: <code>tags.read(id)</code>, <code>tags.write(id, value)</code>, <code>print(...)</code>.
+        Parametri disponibili come variabili globali.
+      </p>
+
+      <button
+        onClick={onPersist}
+        style={{
+          background: "#166534", color: "#bbf7d0",
+          border: "1px solid #15803d", borderRadius: 4,
+          padding: "6px 0", cursor: "pointer", fontSize: 13, fontWeight: 600,
+          marginTop: 4,
+        }}
+      >
+        Salva funzioni
+      </button>
+    </>
   );
 }

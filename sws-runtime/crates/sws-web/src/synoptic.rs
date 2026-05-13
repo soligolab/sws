@@ -75,9 +75,15 @@ pub struct SynopticObject {
     #[serde(skip_serializing_if = "Option::is_none")] pub z_index:        Option<i32>,
     #[serde(skip_serializing_if = "Option::is_none")] pub visible:        Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")] pub visible_tag:    Option<String>,
-    // Event handlers (Python source executed by sws-pyscript on press/release)
-    #[serde(skip_serializing_if = "Option::is_none")] pub on_press:       Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")] pub on_release:     Option<String>,
+    // Event handlers — function name to invoke on press/release.
+    // Previous inline-Python `on_press` / `on_release` strings are now
+    // function references resolved against `Project.functions` at run time.
+    // (The legacy raw-code form is intentionally not honoured anymore.)
+    #[serde(skip_serializing_if = "Option::is_none")] pub on_press_fn:    Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub on_release_fn:  Option<String>,
+    /// Per-binding overrides for the picked function's parameters.
+    #[serde(skip_serializing_if = "Option::is_none")] pub on_press_args:  Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub on_release_args: Option<Value>,
     // Text object styling
     #[serde(skip_serializing_if = "Option::is_none")] pub text:           Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")] pub font_size:      Option<f64>,
@@ -94,6 +100,10 @@ pub struct SynopticObject {
     #[serde(skip_serializing_if = "Option::is_none")] pub state_tag:        Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")] pub alarm_tag:        Option<String>,
 }
+
+// Note: `symbol_kind` and `symbol_path` are NOT stored on the object —
+// they are properties of the SymbolMeta registry on the editor side.
+// The object carries only `symbol_id`; the renderer looks the kind up.
 
 /// Sanitize a page name to a safe filename stem.
 pub fn safe_filename(name: &str) -> String {

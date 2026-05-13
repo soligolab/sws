@@ -2,9 +2,9 @@
 
 > This file is the **session-to-session memory** for Claude Code. Update it at the end of every session before stopping work. Read it at the start of every session before touching code.
 
-**Last session**: 2026-05-13 (#8 PX30 deploy — compose + buildx multi-arch + DEPLOY doc)
-**Current phase**: Phase 2 chiusa (8 polish steps consecutivi). Pronti per demo PX30 reale.
-**Last commit**: feat: symbol library — pump, valve, motor, tank, fan
+**Last session**: 2026-05-13 (reusable Python functions + symbol library doubled)
+**Current phase**: Phase 2. Funzioni Python a livello progetto, simboli x14 (10 builtin + 4 vendored).
+**Last commit**: chore: PX30 deploy — compose, multi-arch build script, deploy doc
 
 ---
 
@@ -89,6 +89,53 @@
 - **Campo `name` su ogni oggetto**: alias human-friendly distinto dall'id auto-generato. Mostrato nella nuova `ObjectsSection` del LeftPanel.
 - **ObjectsSection (LeftPanel)**: lista oggetti pagina corrente con click per selezionare, ✎/doubleclick per rinominare inline, ⧉ per duplicare (clone con `(copia)`, offset +20px, selezionato), × per eliminare.
 - **Bug fix**: il vecchio rendering text usava `stroke_width` come fontSize (misuso storico) — ora usa `font_size` con default 14. Aggiunti i campi mancanti al Rust `SynopticObject` per sopravvivere al round-trip YAML.
+
+## Backlog / reminders
+
+> Reminders raccolti fuori sessione. Da promuovere a "Next session should" quando si pianifica il prossimo blocco di lavoro. Ogni voce ha un id stabile (`BL-NNN`) per riferimento.
+
+- **BL-001 — Gestione utenti multi-account nella vista Configurazione (admin-only)**
+  - **Goal**: in modalità *Configurazione*, un utente con ruolo `admin` deve poter vedere l'elenco degli account, crearne di nuovi, assegnare il ruolo (Viewer / Operator / Supervisor / Admin — i 4 ruoli RBAC esistenti) e forzare il cambio password al primo login del nuovo utente.
+  - **Backend (`sws-auth` + `sws-web`)**:
+    - Sostituire l'attuale singolo admin seeded da env con uno store utenti persistente (file su disco YAML/JSON nella project dir, oppure SQLite locale — decidere in OPEN_QUESTIONS se la scelta non è ovvia). L'admin seeded resta come bootstrap quando lo store è vuoto.
+    - Modello `User { username, password_hash (Argon2id), role, must_change_password: bool, created_at, updated_at }`.
+    - Endpoint (tutti gated da `role == admin` via middleware):
+      - `GET /api/auth/users` — lista (senza hash).
+      - `POST /api/auth/users` — crea con password iniziale + `must_change_password: true` di default.
+      - `PUT /api/auth/users/:username` — aggiorna ruolo, reset `must_change_password`, reset password.
+      - `DELETE /api/auth/users/:username` — rifiuta se è l'ultimo admin.
+    - Endpoint self-service (qualsiasi utente loggato): `POST /api/auth/change-password` (old + new); pulisce `must_change_password` se vero.
+    - Login: il `POST /api/auth/login` ritorna anche `must_change_password` nella risposta; finché è true, tutte le altre API rispondono 403 con un codice che il frontend riconosce.
+  - **Frontend (`sws-editor`)**:
+    - Nuova tab *Utenti* in `ConfigView`, visibile solo se `authUser.role === "admin"`.
+    - Lista utenti con colonne: username, ruolo, "deve cambiare pw", azioni (modifica ruolo, forza cambio pw, reset pw, elimina).
+    - Form "Nuovo utente": username, password iniziale, ruolo, checkbox "deve cambiare al primo login" (default on).
+    - Schermata `ChangePasswordScreen` mostrata al posto dell'app se `authState.mustChangePassword === true` dopo il login.
+  - **Test**:
+    - Unit: hashing/verify, "ultimo admin non eliminabile", flag `must_change_password` resettato dopo change.
+    - Integrazione: login → must_change_password → blocca API → change-password → sblocca.
+  - **Out of scope** (volutamente non in BL-001): LDAP/OAuth, password policy (lunghezza/complessità), lockout dopo N tentativi falliti, 2FA, audit completo delle modifiche utente (basta audit-log v1 esistente). Vanno in BL successive se servono.
+
+- **BL-002 — Estendere la configurazione MQTT (Configurazione → Protocolli)**
+  - **Motivo**: la `MqttConfig` attuale ([sws-runtime/crates/sws-core/src/project.rs:75-84](sws-runtime/crates/sws-core/src/project.rs#L75-L84)) espone solo `id / host / port / client_id / topics`. Manca tutto il resto, in particolare le credenziali — bloccante per provare broker pubblici con auth (es. https://freemqtt.com/en).
+  - **Campi da aggiungere a `MqttConfig`** (tutti `#[serde(default, skip_serializing_if = ...)]` per restare retrocompatibili con i project.yaml esistenti):
+    - `username: Option<String>` e `password: Option<String>` → `opts.set_credentials(u, p)` su `rumqttc::MqttOptions`.
+    - `keep_alive_secs: Option<u16>` (default attuale hardcoded a 10, vedi [sws-plugin-mqtt/src/lib.rs:62](sws-runtime/crates/sws-plugin-mqtt/src/lib.rs#L62)).
+    - `clean_session: Option<bool>` → `opts.set_clean_session(...)`.
+    - `tls: Option<MqttTlsConfig>` con almeno `{ enabled: bool, ca_cert_path: Option<String>, insecure_skip_verify: bool }`. Quando `enabled`, port di default → 8883; usa `rumqttc::Transport::Tls`. Verificare il feature flag `rustls-tls` di `rumqttc` (probabilmente da aggiungere in `Cargo.toml` del plugin).
+    - `last_will: Option<LastWill>` con `{ topic, payload, qos, retain }` → `opts.set_last_will(...)`.
+    - `qos: Option<u8>` a livello sorgente (0/1/2) e/o `qos` per singolo `TopicMapping` → oggi è hardcoded `AtMostOnce` su subscribe (vedi [sws-plugin-mqtt/src/lib.rs:67](sws-runtime/crates/sws-plugin-mqtt/src/lib.rs#L67)) e probabilmente anche su publish. Mettere il default su `AtLeastOnce`.
+  - **Sicurezza segreti**: la `password` finisce in `project.yaml` (sul disco, dentro `.run/`). Per il PoC è accettabile, ma:
+    - Aggiungere supporto a `password_env: Option<String>` come alternativa: se valorizzato, leggere la password da quella env var a runtime invece che dal file. Permette di tenere il file pulito per la demo PX30.
+    - Marcare `project.yaml` come file con segreti in `docs/CONTEXT.md` / `README` se non già fatto.
+    - In `GET /api/project` mascherare le password (`"********"` o omettere il campo); il `PUT` deve gestire il "campo vuoto = lascia invariato" vs "campo nuovo = sovrascrivi".
+  - **Frontend (`sws-editor` → `MqttSourceCard` in ConfigView)**:
+    - Sezione "Autenticazione": username, password (input type=password, placeholder "lascia vuoto per non modificare" in edit), bottone "Mostra".
+    - Sezione "Connessione": keep_alive_secs, clean_session, qos di default.
+    - Sezione "TLS": enabled, ca_cert_path (textbox path lato server), insecure_skip_verify (con warning).
+    - Sezione "Last Will": topic, payload, qos, retain (collassabile).
+    - Sezione "Topic": colonna `qos` opzionale per ogni mapping.
+  - **Test di accettazione**: configurare un broker freemqtt.com con utente+password, vedere arrivare valori in un tag, scrivere via `PUT /api/tags/:id` e vederli pubblicati. Annotare in `STATUS.md` come "verificato su broker pubblico".
 
 ## Next session should
 

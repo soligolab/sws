@@ -79,6 +79,9 @@ async fn main() -> anyhow::Result<()> {
     };
     let py_engine = PyEngine::new(tag_db.clone(), bus.clone());
     let supervisor = SourceSupervisor::new(tag_db.clone(), bus.clone());
+    // Empty registry — populated below from project.yaml (if present).
+    let functions: sws_web::router::FunctionsRegistry =
+        Arc::new(tokio::sync::RwLock::new(std::collections::HashMap::new()));
 
     // Admin credentials must be provided via env. The runtime refuses to
     // start without one — "no default credentials" commitment in
@@ -118,11 +121,21 @@ async fn main() -> anyhow::Result<()> {
                 name = %project.meta.name,
                 tags = project.tags.len(),
                 alarms = project.alarms.len(),
+                functions = project.functions.len(),
                 "project loaded",
             );
             project.populate_tags(&tag_db).await;
             alarm_db.load(project.alarms).await;
             supervisor.reload(project.sources).await;
+            // Seed the function registry. Duplicates from project.yaml are
+            // silently last-wins; PUT /api/project/functions enforces unique
+            // names from then on.
+            {
+                let mut map = functions.write().await;
+                for f in project.functions {
+                    map.insert(f.name.clone(), f);
+                }
+            }
         }
         Err(e) => {
             warn!("project.yaml not found or invalid — starting with empty tag database: {e:#}");
@@ -158,6 +171,7 @@ async fn main() -> anyhow::Result<()> {
         py_engine,
         auth,
         supervisor.clone(),
+        functions,
         Arc::new(args.project.clone()),
     );
 

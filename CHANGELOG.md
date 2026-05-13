@@ -153,6 +153,77 @@ and this project adheres to [CalVer](https://calver.org/) (`YYYY.MM[.patch]`).
 - LeftPanel palette adds a "+ Simbolo" button.
 - Rust `SynopticObject` mirrors the new fields (`symbol_id`, `state_tag`, `alarm_tag`, `state_*_color`) so YAML save/reload preserves them.
 
+### Added (reusable Python functions + expanded symbol library)
+
+Object event handlers used to carry inline Python — same write-pump-on
+snippet got copy-pasted into every button. They now reference a
+project-level `FunctionDef` that lives in `project.yaml`. The symbol
+palette doubles to 14 entries.
+
+Project-level Python functions
+- `sws-core::FunctionDef { id, name, description?, code, params: [{name, default?}] }`
+  added to `Project.functions: Vec<FunctionDef>` with `#[serde(default)]`.
+  Re-exported from `sws-core::lib`. Code body is capped at 64 KB.
+- `sws-pyscript::Engine::execute_with_args(code, args)` extends the
+  Python harness with a `__sws_args__` dict merged into globals. Names
+  inside `args` become plain Python locals; values are coerced to
+  bool/int/float/str. `execute(code)` now delegates with an empty dict.
+- `sws-web` gains `AppState.functions: Arc<RwLock<HashMap<String, FunctionDef>>>`
+  hot-swapped on every `PUT /api/project/functions` (Admin), so a rename
+  takes effect for the next call without a restart. Validates param
+  names against a Python identifier regex + keyword denylist; rejects
+  duplicate function names; honours the 64 KB code cap (413 on overflow).
+- `POST /api/script/run/:name` (Operator) accepts `{ args?: {...} }`,
+  looks the function body up by name in the registry, then runs it
+  through `Engine::execute_with_args`. Returns the same shape as
+  `/api/script/exec`. 404 if the name is gone; otherwise 200 with
+  stdout/stderr/sandboxed flags.
+
+Object semantics (breaking — accepted, the PoC has few stored handlers)
+- `SynopticObject.on_press` / `on_release` renamed to `on_press_fn` /
+  `on_release_fn` to avoid silent inline-code → function-name
+  reinterpretation. New companion fields `on_press_args` /
+  `on_release_args` carry the per-binding parameter overrides.
+- `SvgCanvas` dispatcher signature changed: `onScript(fn, args)`
+  instead of `onScript(code)`.
+- `RuntimeView.handleScript` now calls `api.runFunction(fn, args)`.
+  `api.execScript(code)` stays available for ad-hoc tooling.
+
+Editor UX
+- Zustand store learns `selectedFunctionId` (mutually exclusive with
+  object selection) plus `addFunction` / `duplicateFunction` /
+  `updateFunction` / `renameFunction` / `deleteFunction` /
+  `selectFunction`. `updateProjectFunctions(list)` replaces the
+  whole list (used by the GET /api/project bootstrap).
+- New `LeftPanel.FunctionsSection` accordion: lists every function,
+  with inline rename (✎ / double-click), duplicate (⧉), and delete
+  (×). Click a row to open its `FunctionEditor` in the right panel.
+- `EditorShell.FunctionEditor` lets you edit name, description,
+  params (name + default), and the Python body in a 220-line monospace
+  textarea. "Salva funzioni" button calls `api.updateFunctions(...)`.
+- `EditorShell.EventFunctionPicker` replaces the old EVENTI textareas
+  on each object: two `<select>` dropdowns populated from
+  `project.functions`, followed by an auto-generated form with one
+  input per declared parameter, bound to `on_press_args` /
+  `on_release_args`. Selecting a different function clears the
+  arg overrides.
+
+Symbol library
+- Six new builtins (`compressor`, `level_sensor`, `flow_meter`,
+  `pressure_indicator`, `breaker`, `mixer`) in
+  `sws-editor/src/symbols/library.tsx`, each in 100×100 viewBox with
+  the same `(state, off, on, alarm) → JSX` contract as the previous
+  five.
+- New `SymbolKind = "builtin" | "vendored"` flag. Vendored entries
+  carry a `path` under `/symbols/` and are rendered via
+  `<image href>` + a coloured 14×14 status badge in the top-right
+  corner (so we don't tint the SVG itself — keeps CC-BY derivative-
+  work concerns out of the picture).
+- `sws-editor/public/symbols/` ships four CC0 1.0 SVGs authored for
+  the project (`heat_exchanger`, `separator`, `reactor`, `filter`)
+  plus `ATTRIBUTION.md` documenting the licence chain and the
+  procedure for adding more (e.g. from Wikimedia Commons P&ID).
+
 ### Added (PX30 deploy artefacts)
 - `compose.yaml` at the repo root orchestrating `sws-runtime` + `sws-editor` containers with sensible defaults: mounts `.run/{config,project,db}` from the host, surfaces all auth/TTL/rate-limit/Python-timeout/historian env knobs, healthchecks both services, requires `SWS_ADMIN_PASSWORD` to be set in the environment.
 - `scripts/build-images.sh` — multi-arch (`linux/amd64,linux/arm64`) build via `docker buildx`. `--push` to a registry or default to OCI archives under `.run/oci/` for offline transfer to the SBC. Documents the one-time `tonistiigi/binfmt` + `buildx create` setup.

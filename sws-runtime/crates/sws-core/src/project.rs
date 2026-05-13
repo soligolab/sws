@@ -108,6 +108,40 @@ fn default_data_type() -> String { "float".to_string() }
 fn default_mqtt_port() -> u16 { 1883 }
 fn default_mqtt_client_id() -> String { "sws-runtime".to_string() }
 
+/// One named parameter on a `FunctionDef`. Parameters become Python locals
+/// when the function runs. Default is a JSON value so we can carry the
+/// natural type (bool / int / float / string) without a tagged union.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FunctionParam {
+    /// Identifier — validated server-side to match `^[A-Za-z_][A-Za-z0-9_]*$`
+    /// and reject Python keywords.
+    pub name: String,
+    /// Used when the caller doesn't pass a value for this parameter.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub default: Option<serde_json::Value>,
+}
+
+/// A reusable Python function authored at the project level. Objects on
+/// the synoptic reference these by `name` (via their `on_press_fn` /
+/// `on_release_fn` fields) instead of carrying inline code.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FunctionDef {
+    /// Stable id, generated client-side. Not the same as `name` so renames
+    /// don't break object references in flight (they break only after save).
+    pub id: String,
+    /// Display name — also the lookup key used by the run endpoint.
+    pub name: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    /// Python source — capped at `MAX_FUNCTION_CODE_BYTES` at the API layer.
+    pub code: String,
+    #[serde(default)]
+    pub params: Vec<FunctionParam>,
+}
+
+/// Hard cap on `FunctionDef::code.len()` enforced by the web layer.
+pub const MAX_FUNCTION_CODE_BYTES: usize = 64 * 1024;
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Project {
     pub meta: ProjectMeta,
@@ -117,6 +151,8 @@ pub struct Project {
     pub sources: Vec<SourceDef>,
     #[serde(default)]
     pub alarms: Vec<AlarmDef>,
+    #[serde(default)]
+    pub functions: Vec<FunctionDef>,
 }
 
 impl Project {

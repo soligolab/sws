@@ -27,8 +27,14 @@ export type SynopticObjectType =
   // SCADA symbols (pump/valve/motor/tank/fan from the built-in library)
   | "symbol";
 
-/** Identifier of a built-in SCADA symbol from `@/symbols/library`. */
-export type SymbolId = "pump" | "valve" | "motor" | "tank" | "fan";
+/** Identifier of a SCADA symbol — either a hand-rolled JSX builtin or a
+ *  vendored SVG file. The library at `@/symbols/library` maps ids to metadata
+ *  (label, render function for builtins, asset path for vendored ones). */
+export type SymbolId = string;
+
+/** Source category for a SymbolMeta entry. Builtin = JSX in library.tsx,
+ *  vendored = SVG file under `public/symbols/`. */
+export type SymbolKind = "builtin" | "vendored";
 
 /** One option in a radio-group. */
 export interface RadioOption {
@@ -117,11 +123,15 @@ export interface SynopticObject {
   visible?: boolean;
   /** Tag id whose truthy value controls visibility. Non-zero / non-empty / true → visible. */
   visible_tag?: string;
-  // ── Event handlers (Python via POST /api/script/exec) ─────────────────
-  /** Python code executed on mousedown in runtime mode. */
-  on_press?: string;
-  /** Python code executed on mouseup in runtime mode. */
-  on_release?: string;
+  // ── Event handlers (Python functions via POST /api/script/run/:name) ──
+  /** Name of a project-level FunctionDef to invoke on mousedown in runtime mode. */
+  on_press_fn?: string;
+  /** Name of a project-level FunctionDef to invoke on mouseup in runtime mode. */
+  on_release_fn?: string;
+  /** Per-binding overrides for the on_press function's parameter values. */
+  on_press_args?: Record<string, string | number | boolean>;
+  /** Per-binding overrides for the on_release function's parameter values. */
+  on_release_args?: Record<string, string | number | boolean>;
   // ── Built-in SCADA symbol (type === "symbol") ─────────────────────────
   /** Which symbol from the built-in library this object renders. */
   symbol_id?: SymbolId;
@@ -209,6 +219,30 @@ export interface ProjectInfo {
   tags: TagDef[];
   sources: SourceDef[];
   alarms?: AlarmDef[];
+  functions?: FunctionDef[];
+}
+
+// ── Reusable Python functions ──────────────────────────────────────────────
+
+/** One parameter on a `FunctionDef`. The `default` is whatever JSON the
+ *  user authored; the server-side validator enforces a Python-identifier
+ *  name and rejects keywords. */
+export interface FunctionParam {
+  name: string;
+  default?: string | number | boolean;
+}
+
+/** A reusable Python function authored at the project level. Objects
+ *  reference it by `name` in their on_press_fn / on_release_fn fields. */
+export interface FunctionDef {
+  /** Stable client-generated id (survives renames of `name`). */
+  id: string;
+  /** Display name — also the lookup key used by the run endpoint. */
+  name: string;
+  description?: string;
+  /** Python source — capped at 64 KB by the server. */
+  code: string;
+  params: FunctionParam[];
 }
 
 // ── Alarm types ───────────────────────────────────────────────────────────

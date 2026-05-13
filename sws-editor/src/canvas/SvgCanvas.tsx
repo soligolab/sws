@@ -18,8 +18,11 @@ interface SvgCanvasProps {
   onSelect?: (id: string | null, shift?: boolean) => void;
   onMove?: (id: string, patch: Partial<SynopticObject>) => void;
   onWriteTag?: (tagId: string, value: string | number | boolean) => void;
-  /** View-mode dispatcher for on_press / on_release Python scripts. */
-  onScript?: (code: string) => void;
+  /** View-mode dispatcher for on_press / on_release function bindings.
+   *  Called with the function NAME and the per-binding argument overrides
+   *  (possibly empty). Returns void; the caller is responsible for the
+   *  fetch + console logging. */
+  onScript?: (fn: string, args: Record<string, string | number | boolean>) => void;
   onNavigate?: (pageId: string) => void;
 }
 
@@ -205,13 +208,15 @@ export function SvgCanvas({
         const inEdit = !!onMove;
         if (!visible && !inEdit) return null;
         const gStyle = !visible && inEdit ? { opacity: 0.35 } : undefined;
-        // Press/release dispatch (view mode only). Doesn't interfere with the
-        // per-type click handlers inside SvgObject — both can fire.
-        const onPress   = !inEdit && obj.on_press && onScript
-          ? () => onScript(obj.on_press!)
+        // Press/release dispatch (view mode only). Each handler resolves the
+        // referenced function and forwards the per-binding parameter
+        // overrides. Doesn't interfere with the per-type click handlers
+        // inside SvgObject — both can fire.
+        const onPress   = !inEdit && obj.on_press_fn && onScript
+          ? () => onScript(obj.on_press_fn!, obj.on_press_args ?? {})
           : undefined;
-        const onRelease = !inEdit && obj.on_release && onScript
-          ? () => onScript(obj.on_release!)
+        const onRelease = !inEdit && obj.on_release_fn && onScript
+          ? () => onScript(obj.on_release_fn!, obj.on_release_args ?? {})
           : undefined;
         return (
           <g key={obj.id} style={gStyle} onMouseDown={onPress} onMouseUp={onRelease}>
@@ -955,18 +960,38 @@ function SvgObject(p: ObjProps) {
       truthy(obj.alarm_tag) ? "alarm" :
       truthy(obj.state_tag) ? "on" : "off";
 
+    const badgeColor =
+      state === "alarm" ? (obj.state_alarm_color ?? "#ef4444") :
+      state === "on"    ? (obj.state_on_color    ?? "#22c55e") :
+                          (obj.state_off_color   ?? "#64748b");
+
     return (
       <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()}
          style={{ cursor: editCursor }}>
         {selRect(obj.x, obj.y, w, h)}
-        <svg x={obj.x} y={obj.y} width={w} height={h} viewBox="0 0 100 100">
-          {meta.render({
-            state,
-            off:   obj.state_off_color   ?? "#64748b",
-            on:    obj.state_on_color    ?? "#22c55e",
-            alarm: obj.state_alarm_color ?? "#ef4444",
-          })}
-        </svg>
+        {meta.kind === "builtin" && meta.render ? (
+          <svg x={obj.x} y={obj.y} width={w} height={h} viewBox="0 0 100 100">
+            {meta.render({
+              state,
+              off:   obj.state_off_color   ?? "#64748b",
+              on:    obj.state_on_color    ?? "#22c55e",
+              alarm: obj.state_alarm_color ?? "#ef4444",
+            })}
+          </svg>
+        ) : (
+          // Vendored SVG branch: load the asset from /symbols/ and overlay
+          // a small coloured status badge top-right (we don't tint the SVG
+          // itself to keep CC-BY derivative-work concerns out of the picture).
+          <image href={meta.path} x={obj.x} y={obj.y} width={w} height={h}
+            preserveAspectRatio="xMidYMid meet" />
+        )}
+        {/* Status badge — drawn on top of either branch, gated on a bound tag.
+            14×14 circle in the top-right corner of the bounding box. */}
+        {(obj.state_tag || obj.alarm_tag) && (
+          <circle cx={obj.x + w - 7} cy={obj.y + 7} r={6}
+            fill={badgeColor} stroke="#0f172a" strokeWidth={1}
+            style={{ pointerEvents: "none" }} />
+        )}
       </g>
     );
   }

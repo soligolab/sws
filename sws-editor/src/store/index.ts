@@ -4,6 +4,7 @@ import { setAuthToken } from "@/api/client";
 import type {
   AlarmDef,
   AlarmState,
+  FunctionDef,
   ProjectInfo,
   SourceDef,
   SynopticObject,
@@ -82,6 +83,9 @@ interface AppState {
   selectedObjectId: string | null;
   /** Full selection set. Length === 0 → nothing selected; 1 → single; >1 → multi. */
   selectedObjectIds: string[];
+  /** Currently-focused FunctionDef.id (when editing a function). Mutually
+   *  exclusive with object selection — selecting one clears the other. */
+  selectedFunctionId: string | null;
   /** Snapshot stacks for undo/redo. Each entry is a full clone of `pages`. */
   past: SynopticPage[][];
   future: SynopticPage[][];
@@ -100,6 +104,17 @@ interface AppState {
   updateProjectTags: (tags: TagDef[]) => void;
   updateProjectSources: (sources: SourceDef[]) => void;
   updateProjectAlarms: (alarms: AlarmDef[]) => void;
+  updateProjectFunctions: (functions: FunctionDef[]) => void;
+
+  // ── Function CRUD (project-level reusable Python). All mutations push to
+  //    `past` for undo and need to be persisted with api.updateFunctions
+  //    by the caller — the store keeps the project tree in memory only.
+  addFunction: () => string;        // returns the new id
+  duplicateFunction: (id: string) => string | null;
+  updateFunction: (id: string, patch: Partial<FunctionDef>) => void;
+  renameFunction: (id: string, name: string) => void;
+  deleteFunction: (id: string) => void;
+  selectFunction: (id: string | null) => void;
 
   // Page management
   setPages: (pages: SynopticPage[], currentPageId?: string) => void;
@@ -184,6 +199,7 @@ export const useAppStore = create<AppState>((set, get) => {
     currentPageId: first.id,
     selectedObjectId: null,
     selectedObjectIds: [],
+    selectedFunctionId: null,
     past: [],
     future: [],
     clipboard: [],
@@ -214,6 +230,87 @@ export const useAppStore = create<AppState>((set, get) => {
 
     updateProjectAlarms: (alarms) =>
       set((s) => ({ project: s.project ? { ...s.project, alarms } : s.project })),
+
+    updateProjectFunctions: (functions) =>
+      set((s) => ({ project: s.project ? { ...s.project, functions } : s.project })),
+
+    // ── Function CRUD ──────────────────────────────────────────────────────
+    // Mutations live in the in-memory `project.functions`; the caller is
+    // responsible for persisting via `api.updateFunctions(...)`. We DON'T
+    // push history snapshots here — undo only tracks page edits.
+
+    addFunction: () => {
+      const id = genId();
+      const fn: FunctionDef = {
+        id,
+        name: `funzione_${id.slice(-4)}`,
+        description: undefined,
+        code: '# scrivi qui il corpo della funzione\n',
+        params: [],
+      };
+      set((s) => ({
+        project: s.project
+          ? { ...s.project, functions: [...(s.project.functions ?? []), fn] }
+          : s.project,
+        selectedFunctionId: id,
+        selectedObjectId: null,
+        selectedObjectIds: [],
+      }));
+      return id;
+    },
+
+    duplicateFunction: (id) => {
+      const { project } = get();
+      const src = project?.functions?.find((f) => f.id === id);
+      if (!src) return null;
+      const copyId = genId();
+      const copy: FunctionDef = {
+        ...src,
+        id: copyId,
+        name: `${src.name}_copia`,
+        params: src.params.map((p) => ({ ...p })),
+      };
+      set((s) => ({
+        project: s.project
+          ? { ...s.project, functions: [...(s.project.functions ?? []), copy] }
+          : s.project,
+        selectedFunctionId: copyId,
+      }));
+      return copyId;
+    },
+
+    updateFunction: (id, patch) =>
+      set((s) => ({
+        project: s.project
+          ? {
+              ...s.project,
+              functions: (s.project.functions ?? []).map((f) =>
+                f.id === id ? { ...f, ...patch } : f),
+            }
+          : s.project,
+      })),
+
+    renameFunction: (id, name) =>
+      set((s) => ({
+        project: s.project
+          ? {
+              ...s.project,
+              functions: (s.project.functions ?? []).map((f) =>
+                f.id === id ? { ...f, name } : f),
+            }
+          : s.project,
+      })),
+
+    deleteFunction: (id) =>
+      set((s) => ({
+        project: s.project
+          ? {
+              ...s.project,
+              functions: (s.project.functions ?? []).filter((f) => f.id !== id),
+            }
+          : s.project,
+        selectedFunctionId: s.selectedFunctionId === id ? null : s.selectedFunctionId,
+      })),
 
     setPages: (pages, currentPageId) =>
       set({
@@ -263,10 +360,16 @@ export const useAppStore = create<AppState>((set, get) => {
       currentPageId: id,
       selectedObjectId: null,
       selectedObjectIds: [],
+      selectedFunctionId: null,
     }),
 
     selectObject: (id) =>
-      set({ selectedObjectId: id, selectedObjectIds: id ? [id] : [] }),
+      set({
+        selectedObjectId: id,
+        selectedObjectIds: id ? [id] : [],
+        // Selecting an object closes the function editor on the right panel.
+        selectedFunctionId: null,
+      }),
 
     toggleSelection: (id) => set((s) => {
       const has = s.selectedObjectIds.includes(id);
@@ -276,6 +379,7 @@ export const useAppStore = create<AppState>((set, get) => {
       return {
         selectedObjectIds: ids,
         selectedObjectId: ids.length === 1 ? ids[0] : null,
+        selectedFunctionId: null,
       };
     }),
 
@@ -283,10 +387,19 @@ export const useAppStore = create<AppState>((set, get) => {
       set({
         selectedObjectIds: [...ids],
         selectedObjectId: ids.length === 1 ? ids[0] : null,
+        selectedFunctionId: null,
       }),
 
     clearSelection: () =>
-      set({ selectedObjectId: null, selectedObjectIds: [] }),
+      set({ selectedObjectId: null, selectedObjectIds: [], selectedFunctionId: null }),
+
+    selectFunction: (id) =>
+      set({
+        selectedFunctionId: id,
+        // Editing a function preempts the object/page properties panel.
+        selectedObjectId: null,
+        selectedObjectIds: [],
+      }),
 
     addObject: (partial) => {
       pushHistory();

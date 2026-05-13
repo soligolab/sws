@@ -27,6 +27,12 @@
   the strings, and returns them in `ExecOutput { stdout, stderr, sandboxed }`;
 - `/api/script/exec` echoes these back; the editor logs them to the browser
   console (`[script stdout]` / `[script stderr]`).
+- `Engine::execute_with_args(code, args)` injects per-call argument bindings
+  into the Python globals (bool/int/float/str). Used by the new project-level
+  function feature: `POST /api/script/run/:name` looks up a `FunctionDef`
+  by name in `AppState.functions` and runs its `code` with the caller's
+  argument overrides. Synoptic objects' `on_press_fn` / `on_release_fn`
+  reference these functions instead of carrying inline code.
 
 Still pending (Phase 2 polish):
 - Pre-flight AST whitelist for the unsandboxed mode so it's at least
