@@ -618,16 +618,17 @@ function MqttSourceCard({
           <table style={{ ...S.table, marginBottom: 8 }}>
             <thead>
               <tr>
-                <th style={{ ...S.th, width: "30%" }}>Variabile (ID tag)</th>
-                <th style={{ ...S.th, width: "40%" }}>Topic MQTT</th>
-                <th style={{ ...S.th, width: "25%" }}>JSON path (opz.)</th>
+                <th style={{ ...S.th, width: "20%" }}>Variabile (ID tag)</th>
+                <th style={{ ...S.th, width: "30%" }}>Topic in (subscribe)</th>
+                <th style={{ ...S.th, width: "20%" }}>JSON path (opz.)</th>
+                <th style={{ ...S.th, width: "25%" }}>Topic out (publish, opz.)</th>
                 <th style={S.th} />
               </tr>
             </thead>
             <tbody>
               {source.topics.length === 0 && (
                 <tr>
-                  <td colSpan={4} style={{ ...S.td, color: "#475569", textAlign: "center", padding: 12 }}>
+                  <td colSpan={5} style={{ ...S.td, color: "#475569", textAlign: "center", padding: 12 }}>
                     Nessun topic — aggiungi una mappatura.
                   </td>
                 </tr>
@@ -657,6 +658,15 @@ function MqttSourceCard({
                       placeholder="es. temperature"
                       value={t.json_path ?? ""}
                       onChange={(e) => setTopic(i, { json_path: e.target.value || undefined })}
+                      spellCheck={false}
+                    />
+                  </td>
+                  <td style={S.td}>
+                    <input
+                      style={S.inputSm}
+                      placeholder="es. plant/floor1/cmd"
+                      value={t.publish_topic ?? ""}
+                      onChange={(e) => setTopic(i, { publish_topic: e.target.value || undefined })}
                       spellCheck={false}
                     />
                   </td>

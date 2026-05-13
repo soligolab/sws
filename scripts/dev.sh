@@ -66,6 +66,18 @@ tags:
   - id: sine
     description: Demo sine wave (drive with scripts/demo-sine.py)
     data_type: float
+  - id: cosine
+    description: Demo cosine — for multi-tag trend (demo-driver.py)
+    data_type: float
+  - id: triangle
+    description: Demo triangle (demo-driver.py)
+    data_type: float
+  - id: ramp
+    description: Demo sawtooth ramp (demo-driver.py)
+    data_type: float
+  - id: noise
+    description: Demo uniform noise (demo-driver.py)
+    data_type: float
 
 # No sources for dev. Write values manually with curl:
 #   curl -k -X PUT https://localhost:8443/api/tags/counter \

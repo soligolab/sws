@@ -171,6 +171,8 @@ export interface TopicMapping {
   topic: string;
   /** Optional dot-separated JSON path to extract a field from the payload. */
   json_path?: string;
+  /** When set, a PUT /api/tags/:tag publishes the value to this topic (raw string payload). */
+  publish_topic?: string;
 }
 
 export interface MqttSource {

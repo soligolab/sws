@@ -2,9 +2,9 @@
 
 > This file is the **session-to-session memory** for Claude Code. Update it at the end of every session before stopping work. Read it at the start of every session before touching code.
 
-**Last session**: 2026-05-13 (#3 historian polish — SQLite, axis labels, tooltip, multi-tag overlay)
-**Current phase**: Phase 2. Trend object ora ha persistenza e UX professionale.
-**Last commit**: feat: source hot-reload — supervisor with cancellation tokens
+**Last session**: 2026-05-13 (#3 historian polish + #4 MQTT write + multi-waveform demo driver)
+**Current phase**: Phase 2. Trend con persistenza+tooltip, MQTT bidirezionale, demo driver multi-onda.
+**Last commit**: feat: historian SQLite persistence + trend axes, tooltip, multi-tag
 
 ---
 
@@ -94,12 +94,11 @@
 
 Pick one of these as the next focused work block (each fits 3-4 hours):
 
-1. **MQTT write path + demo-driver multi-waveform**: publish on tag-write tramite TagWriteBus; estendere `demo-sine.py` a multiple forme d'onda.
-2. **Editor UX polish**: undo/redo, multi-select, copy/paste, allineamento oggetti.
-3. **Auth polish**: session TTL, refresh, rate limit, RBAC ruoli, cookie httponly.
-4. **Symbol library starter**: cartella `sws-symbols/`, oggetto `symbol` che referenzia SVG di pompe/valvole/motori con stile guidato da tag.
-5. **Demo PX30**: container ARM64, deploy effettivo su Rockchip, gotcha hardware/network documentati.
-6. **Historian polish v2** (rinviato): decimazione per range lunghi (>5000 samples), read-fallback a SQLite per range fuori dal ring buffer, prune periodica del db.
+1. **Editor UX polish**: undo/redo, multi-select, copy/paste, allineamento oggetti.
+2. **Auth polish**: session TTL, refresh, rate limit, RBAC ruoli, cookie httponly.
+3. **Symbol library starter**: cartella `sws-symbols/`, oggetto `symbol` che referenzia SVG di pompe/valvole/motori con stile guidato da tag.
+4. **Demo PX30**: container ARM64, deploy effettivo su Rockchip, gotcha hardware/network documentati.
+5. **Historian polish v2** (rinviato): decimazione per range lunghi (>5000 samples), read-fallback a SQLite per range fuori dal ring buffer, prune periodica del db.
 
 ## Blockers / questions for the maintainer
 

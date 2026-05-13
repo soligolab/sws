@@ -108,6 +108,14 @@ and this project adheres to [CalVer](https://calver.org/) (`YYYY.MM[.patch]`).
   - X domain now bounded by the configured window (instead of the data's own span), so axes don't jump when a tag is briefly empty.
 - `SynopticObject.extra_tags?: string[]` (Rust + TS) holds the additional series for the trend object. ObjectProps gains an "ALTRI TAG (OVERLAY)" repeater with TagInput autocomplete + remove × + "+ Aggiungi tag" button.
 
+### Added (MQTT write path + multi-waveform driver)
+- `TopicMapping.publish_topic: Option<String>` (Rust + TS). When set, the tag registers on `TagWriteBus`; a write — via `PUT /api/tags/:id`, an object's `on_press` script, a button, anywhere — is forwarded to the topic as a raw string payload (`true` / `42.5` / …). Subscribe and publish topics can be the same channel or different.
+- `sws-plugin-mqtt::run(cfg, db, bus, cancel)`: new bus param. The session loop now `select!`s on cancel + write_rx + eventloop.poll, so an outbound write doesn't starve subscribe traffic and a long subscribe doesn't starve writes. `stringify(TagValue)` produces the payload.
+- `SourceSupervisor` passes the bus to the MQTT plugin too (was Modbus-only before).
+- ConfigView Protocolli tab: new "Topic out (publish, opz.)" column in `MqttSourceCard`, optional per row.
+- `scripts/demo-driver.py` — multi-tag, multi-waveform driver. Each `--gen` is a `key=value` list with at least `tag=…`; `wave=` picks among `sin` / `cos` / `tri` / `saw` / `square` (with `duty`) / `random` / `step` (with `step_low` / `step_high` / `step_at`). All generators share one asyncio loop. Re-auths on 401.
+- `scripts/dev.sh` pre-seed: added demo tags `cosine`, `triangle`, `ramp`, `noise` so the multi-waveform demo runs against the default project.yaml.
+
 ### Added (cross-cutting object properties)
 - `SynopticObject` gains `z_index`, `visible`, `visible_tag`, `on_press`, `on_release` in both Rust (`sws-web/synoptic.rs`) and TypeScript (`sws-editor/src/types`). Trend fields (`window_s`, `y_min`, `y_max`, `line_color`) added to the Rust struct too — they were dropped on save before.
 - `sws-editor/src/canvas/SvgCanvas.tsx`: objects sorted by `z_index` (ties by array order) before SVG render, so layering is declarative. `isObjectVisible()` evaluates `visible_tag` (truthy coercion for bool/number/string) and falls back to the static `visible !== false`. In runtime mode, hidden objects are not rendered; in edit mode they're shown at 35% opacity so the designer can still select them.

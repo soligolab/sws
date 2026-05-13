@@ -93,6 +93,11 @@ pub struct TopicMapping {
     /// and the field at `json_path` is extracted (e.g. "temperature" → root.temperature).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub json_path: Option<String>,
+    /// Optional outbound topic. When set, a `PUT /api/tags/:id` for `tag` is
+    /// forwarded to this topic as a raw string payload (`true` / `42.5` / `…`).
+    /// If equal to `topic`, the same channel is used for read and write.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub publish_topic: Option<String>,
 }
 
 fn default_modbus_port() -> u16 { 502 }
