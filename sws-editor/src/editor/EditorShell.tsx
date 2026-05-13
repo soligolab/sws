@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { api } from "@/api/client";
 import { SvgCanvas } from "@/canvas/SvgCanvas";
 import { LeftPanel } from "@/editor/LeftPanel";
+import { FunctionEditor } from "@/editor/FunctionEditor";
 import { TagInput } from "@/components/TagInput";
 import { useAppStore } from "@/store";
 import type { AlignMode } from "@/store";
@@ -171,6 +172,33 @@ export function EditorShell() {
     if (currentPage) api.saveSynoptic(currentPage).catch(console.error);
   };
 
+  // When a project-level function is selected, take over the whole main
+  // area with the full-screen FunctionEditor. The LeftPanel stays on the
+  // left (so the user can keep navigating between functions) but canvas
+  // and properties panel are hidden.
+  const persistFunctionsAsync = async () => {
+    const list = useAppStore.getState().project?.functions ?? [];
+    await api.updateFunctions(list);
+  };
+
+  if (selectedFn) {
+    return (
+      <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
+        <LeftPanel
+          onAddObject={handleAddObject}
+          onSave={handleSave}
+          onFunctionsChanged={persistFunctions}
+        />
+        <FunctionEditor
+          fn={selectedFn}
+          onPatch={(patch) => updateFunction(selectedFn.id, patch)}
+          onPersist={persistFunctionsAsync}
+          onClose={() => useAppStore.getState().selectFunction(null)}
+        />
+      </div>
+    );
+  }
+
   return (
     <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
       {/* Left panel: project tree + object palette + settings */}
@@ -195,20 +223,13 @@ export function EditorShell() {
         />
       </div>
 
-      {/* Properties panel — switches between four views depending on what's
-          selected: a function, multiple objects, a single object, or nothing
-          (page properties). */}
+      {/* Properties panel — switches between three views depending on what's
+          selected: multiple objects, a single object, or nothing (page). */}
       <aside style={{ ...PANEL, width: 280, borderLeft: "1px solid #334155" }}>
         <span style={{ fontSize: 11, fontWeight: 700, color: "#64748b", letterSpacing: 1 }}>
           PROPRIETÀ
         </span>
-        {selectedFn ? (
-          <FunctionEditor
-            fn={selectedFn}
-            onPatch={(patch) => updateFunction(selectedFn.id, patch)}
-            onPersist={persistFunctions}
-          />
-        ) : multi ? (
+        {multi ? (
           <MultiSelectionProps
             count={selectedIds.length}
             onAlign={alignSelection}
@@ -1095,130 +1116,4 @@ function EventFunctionPicker({
   );
 }
 
-// ── FunctionEditor ────────────────────────────────────────────────────────────
-// Right-side panel shown when a project-level FunctionDef is selected from
-// the LeftPanel FUNZIONI section. Edits the name / description / params /
-// code; calls onPersist when the maintainer presses Salva.
-
-function FunctionEditor({
-  fn,
-  onPatch,
-  onPersist,
-}: {
-  fn: FunctionDef;
-  onPatch: (patch: Partial<FunctionDef>) => void;
-  onPersist: () => void;
-}) {
-  const setParam = (idx: number, patch: Partial<{ name: string; default: string | number | boolean | undefined }>) => {
-    const next = fn.params.map((p, i) => (i === idx ? { ...p, ...patch } : p));
-    onPatch({ params: next });
-  };
-  const addParam = () =>
-    onPatch({ params: [...fn.params, { name: `arg${fn.params.length + 1}` }] });
-  const removeParam = (idx: number) =>
-    onPatch({ params: fn.params.filter((_, i) => i !== idx) });
-
-  return (
-    <>
-      <div style={{ fontSize: 11, color: "#475569", marginBottom: 4 }}>
-        Funzione Python (project-level)
-      </div>
-      <div>
-        <div style={LABEL}>Nome</div>
-        <input
-          type="text"
-          style={INPUT}
-          value={fn.name}
-          onChange={(e) => onPatch({ name: e.target.value })}
-          spellCheck={false}
-        />
-      </div>
-      <div>
-        <div style={LABEL}>Descrizione (opz.)</div>
-        <input
-          type="text"
-          style={INPUT}
-          value={fn.description ?? ""}
-          onChange={(e) => onPatch({ description: e.target.value || undefined })}
-        />
-      </div>
-
-      <div style={{ fontSize: 10, color: "#475569", marginTop: 4, fontWeight: 700, letterSpacing: 0.5 }}>
-        PARAMETRI
-      </div>
-      {fn.params.length === 0 && (
-        <p style={{ fontSize: 11, color: "#475569", margin: "2px 0" }}>
-          Nessun parametro — la funzione viene chiamata "nuda".
-        </p>
-      )}
-      {fn.params.map((p, i) => {
-        const defStr = p.default === undefined ? "" : String(p.default);
-        return (
-          <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto", gap: 4, marginBottom: 4 }}>
-            <input
-              type="text"
-              placeholder="nome"
-              style={{ ...INPUT, fontSize: 12 }}
-              value={p.name}
-              onChange={(e) => setParam(i, { name: e.target.value })}
-              spellCheck={false}
-            />
-            <input
-              type="text"
-              placeholder="default (opz.)"
-              style={{ ...INPUT, fontSize: 12 }}
-              value={defStr}
-              onChange={(e) => {
-                const raw = e.target.value;
-                if (raw === "") { setParam(i, { default: undefined }); return; }
-                const v: string | number | boolean =
-                  raw === "true"  ? true :
-                  raw === "false" ? false :
-                  raw.trim() !== "" && !isNaN(Number(raw)) ? Number(raw) :
-                  raw;
-                setParam(i, { default: v });
-              }}
-            />
-            <button
-              style={{ background: "transparent", border: "none", color: "#ef4444", cursor: "pointer", fontSize: 14, padding: "0 4px" }}
-              onClick={() => removeParam(i)}
-              title="Rimuovi parametro"
-            >×</button>
-          </div>
-        );
-      })}
-      <button
-        style={{ ...INPUT, cursor: "pointer", color: "#64748b", borderStyle: "dashed", width: "100%" }}
-        onClick={addParam}
-      >
-        + Aggiungi parametro
-      </button>
-
-      <div style={{ fontSize: 10, color: "#475569", marginTop: 8, fontWeight: 700, letterSpacing: 0.5 }}>
-        CODICE PYTHON
-      </div>
-      <textarea
-        style={{ ...INPUT, minHeight: 220, fontFamily: "ui-monospace, monospace", fontSize: 11, resize: "vertical" }}
-        value={fn.code}
-        onChange={(e) => onPatch({ code: e.target.value })}
-        spellCheck={false}
-      />
-      <p style={{ fontSize: 10, color: "#475569", margin: "0 0 4px" }}>
-        Bindings: <code>tags.read(id)</code>, <code>tags.write(id, value)</code>, <code>print(...)</code>.
-        Parametri disponibili come variabili globali.
-      </p>
-
-      <button
-        onClick={onPersist}
-        style={{
-          background: "#166534", color: "#bbf7d0",
-          border: "1px solid #15803d", borderRadius: 4,
-          padding: "6px 0", cursor: "pointer", fontSize: 13, fontWeight: 600,
-          marginTop: 4,
-        }}
-      >
-        Salva funzioni
-      </button>
-    </>
-  );
-}
+// FunctionEditor moved out to its own file. Imported at the top of this file.

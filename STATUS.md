@@ -137,6 +137,25 @@
     - Sezione "Topic": colonna `qos` opzionale per ogni mapping.
   - **Test di accettazione**: configurare un broker freemqtt.com con utente+password, vedere arrivare valori in un tag, scrivere via `PUT /api/tags/:id` e vederli pubblicati. Annotare in `STATUS.md` come "verificato su broker pubblico".
 
+- **BL-003 — Editor Python decente per `on_press` / `on_release` e funzioni di progetto**
+  - **Motivo**: oggi i campi di codice Python sono `<textarea>` minuscole nella properties panel — niente syntax highlighting, niente indentazione automatica, e l'utente segnala che il ritorno a capo non funziona bene. Vale per sia gli handler per-oggetto (`on_press`, `on_release`) sia le nuove funzioni Python a livello progetto (vedi commit "reusable Python functions + symbol library doubled").
+  - **Obiettivo UX**:
+    - **Per le funzioni di progetto**: aprire un editor a tutto schermo nello spazio principale di lavoro (al posto del canvas, come una vista alternativa) invece che dentro una proprietà laterale. Salvataggio esplicito + indicatore "modifiche non salvate".
+    - **Per gli handler per-oggetto** (`on_press` / `on_release`): mantenere il campo nella properties panel come anteprima/riepilogo a 1-2 righe, ma con un pulsante "Apri editor" che apre lo stesso editor a tutto schermo (o un modal grande, almeno 600×400) sul singolo handler.
+  - **Componente editor**:
+    - Usare **CodeMirror 6** con `@codemirror/lang-python` (più leggero di Monaco; bundle ~120 KB vs ~3 MB per Monaco). Conferma in `pnpm-lock.yaml` che non c'è già Monaco da altre parti — se sì, riusarlo. Decisione minore, lascio aperto.
+    - Funzionalità minime: syntax highlight Python, indentazione automatica (4 spazi), bracket matching, line numbers, find/replace, font monospace.
+    - Tema chiaro/scuro coerente col resto dell'app.
+  - **Template / snippet preconfigurati**: dropdown "Inserisci template…" sopra l'editor con esempi che usano l'API `tags.read` / `tags.write` esistente ([sws-runtime/crates/sws-pyscript/src/lib.rs](sws-runtime/crates/sws-pyscript/src/lib.rs)). Inserire come testo nel cursore, sovrascrive selezione. Set iniziale:
+    - **Incremento tag**: `v = tags.read("counter") or 0\ntags.write("counter", v + 1)` ← l'esempio richiesto.
+    - **Toggle booleano**: `tags.write("light", not (tags.read("light") or False))`.
+    - **Scrittura condizionale**: leggi A, se sopra soglia scrivi B.
+    - **Reset multi-tag**: scrivi 0 a una lista di tag.
+    - **Print/log diagnostico**: `print(...)` (lo stdout va già al pannello browser console via [sws-pyscript ExecOutput](sws-runtime/crates/sws-pyscript/src/lib.rs), vedi OPEN_QUESTIONS Q1).
+    - Per le funzioni di progetto, aggiungere anche un template "scheletro di funzione con parametri" (la firma del `FunctionDef` esistente — vedi `parameters` in [project.rs](sws-runtime/crates/sws-core/src/project.rs)).
+  - **Bug del "ritorno a capo" da investigare**: la textarea attuale potrebbe avere un handler `onKeyDown` che intercetta Enter (es. per "salva al primo enter") — controllare prima di rimpiazzare il componente, perché lo stesso bug potrebbe esistere anche in altri campi multi-linea.
+  - **Out of scope**: autocomplete dei nomi tag dentro il codice Python (sarebbe figo ma è LSP-grade, troppo lavoro per il PoC), linting Python lato client, debugger. Vanno in BL successive.
+
 ## Next session should
 
 Pick one of these as the next focused work block (each fits 3-4 hours):
