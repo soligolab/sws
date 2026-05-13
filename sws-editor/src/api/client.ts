@@ -170,6 +170,37 @@ export const api = {
       body: JSON.stringify(functions),
     }),
 
+  // Project import / export (Admin)
+  //
+  // Both endpoints speak `application/zip`. We expose the raw `Response`
+  // for export so the caller can read the Content-Disposition header
+  // before turning the body into a Blob for download.
+  exportProjectZip: async (): Promise<Response> => {
+    const headers = new Headers();
+    if (getAuthToken()) headers.set("Authorization", `Bearer ${getAuthToken()}`);
+    const res = await fetch(`${BASE_URL}/api/project/export`, { headers });
+    if (res.status === 401) throw new AuthError();
+    if (res.status === 403) throw new Error(`API /api/project/export: 403 Forbidden`);
+    if (!res.ok) throw new Error(`API /api/project/export: ${res.status} ${res.statusText}`);
+    return res;
+  },
+
+  importProjectZip: async (file: Blob): Promise<void> => {
+    const headers = new Headers({ "Content-Type": "application/zip" });
+    if (getAuthToken()) headers.set("Authorization", `Bearer ${getAuthToken()}`);
+    const res = await fetch(`${BASE_URL}/api/project/import`, {
+      method: "PUT",
+      headers,
+      body: file,
+    });
+    if (res.status === 401) throw new AuthError();
+    if (!res.ok) {
+      let body = "";
+      try { body = await res.text(); } catch { /* ignore */ }
+      throw new Error(`API /api/project/import: ${res.status} ${res.statusText}${body ? ` — ${body}` : ""}`);
+    }
+  },
+
   // Synoptics
   listSynoptics: () =>
     request<string[]>("/api/synoptics"),

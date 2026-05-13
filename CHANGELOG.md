@@ -224,6 +224,30 @@ Symbol library
   plus `ATTRIBUTION.md` documenting the licence chain and the
   procedure for adding more (e.g. from Wikimedia Commons P&ID).
 
+### Added (project import/export + seeded demo)
+
+Round-trip a complete SWS project as a single ZIP from the editor —
+backups, sharing demos, snapshotting. Plus the dev project ships in the
+repo so a fresh clone starts with a working canvas.
+
+Demo seed
+- New `examples/demo/{project.yaml, synoptics/Page 1.yaml}` — versioned snapshot of the dev project (5 tags incl. `demo.button` / `demo.led`, MQTT echo on broker.freemqtt.com, alarm, two Python functions, 11+ canvas objects: counter buttons, MQTT LED ON/OFF, slider, gauge, pump symbol).
+- `scripts/dev.sh` copies `examples/demo/` into `.run/project/` only when `project.yaml` is missing. Subsequent runs keep maintainer edits. The inline heredoc remains as a last-resort fallback when `examples/demo/` is absent (e.g., shallow checkout).
+- `examples/README.md` documents the seed contract and the recommended workflow for refreshing the snapshot from the editor.
+
+Backend (sws-web)
+- New `zip = "2"` dep (default features off — no flate2/miniz). Files inside the bundle use `CompressionMethod::Stored` since a project is a handful of small YAML files where compression saves nothing.
+- Two new routes in `admin_routes`:
+  - `GET /api/project/export` → `export_project_zip` builds a ZIP in memory: `manifest.json` + `project.yaml` (MQTT passwords stripped to `None`) + `synoptics/<safe_filename(name)>.yaml` per page. Response carries `Content-Type: application/zip` and `Content-Disposition: attachment; filename="sws-project-<name>-<utc>.zip"`. `users.yaml` is **never** included.
+  - `PUT /api/project/import` → `import_project_zip` parses the ZIP from the raw request body, validates `format_version`, replaces `project.yaml` and synoptics on disk (replace mode — orphans deleted), and hot-reloads in sequence (TagDb diff, AlarmDb.load, supervisor.reload, functions registry swap). Defensive: any leftover `"********"` password sentinel is scrubbed to `None`.
+- Self-rolled `unix_to_ymdhm` for the export filename so we don't pull in `chrono` just for `YYYY-MM-DDTHH-MM`.
+
+Frontend (sws-editor)
+- `api.exportProjectZip()` returns the raw `Response` so the caller can read `Content-Disposition` before turning the body into a Blob.
+- `api.importProjectZip(file: Blob)` PUTs the raw ZIP bytes.
+- New `src/components/ProjectIO.tsx`: header buttons "Esporta" / "Importa" + a hidden `<input type="file" accept=".zip">`. Admin-only — renders `null` for other roles. Confirm dialog before import warns about destructive replace + missing MQTT passwords. After import, refreshes project + synoptics from the server so the UI shows the new state.
+- App.tsx wires `<ProjectIO />` between the mode tabs and the "Log" button.
+
 ### Added (runtime log panel + MQTT echo demo)
 
 Live runtime logs in the editor: every `tracing::{info,warn,error}!` event is

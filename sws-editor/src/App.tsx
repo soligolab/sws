@@ -5,6 +5,7 @@ import { AlarmBanner } from "@/components/AlarmBanner";
 import { ChangePasswordScreen } from "@/components/ChangePasswordScreen";
 import { LogPanel } from "@/components/LogPanel";
 import { LoginScreen } from "@/components/LoginScreen";
+import { ProjectIO } from "@/components/ProjectIO";
 import { ConfigView } from "@/config/ConfigView";
 import { EditorShell } from "@/editor/EditorShell";
 import { RuntimeView } from "@/runtime-view/RuntimeView";
@@ -141,6 +142,7 @@ export function App() {
             </span>
           )}
         </span>
+        <ProjectIO />
         <button
           onClick={() => {
             const next = !logOpen;

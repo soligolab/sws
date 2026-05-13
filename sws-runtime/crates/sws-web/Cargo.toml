@@ -15,6 +15,11 @@ serde_json.workspace   = true
 serde_yaml.workspace   = true
 tracing.workspace      = true
 anyhow.workspace       = true
+# Project import/export uses an in-memory ZIP. `default-features = false`
+# strips deflate / xz / zstd codecs — the bundle is a handful of small
+# YAML files so we store them uncompressed (`CompressionMethod::Stored`)
+# and avoid pulling in flate2/miniz_oxide and friends.
+zip = { version = "2", default-features = false }
 sws-core          = { path = "../sws-core" }
 sws-historian     = { path = "../sws-historian" }
 sws-pyscript      = { path = "../sws-pyscript" }

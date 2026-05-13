@@ -2,9 +2,9 @@
 
 > This file is the **session-to-session memory** for Claude Code. Update it at the end of every session before stopping work. Read it at the start of every session before touching code.
 
-**Last session**: 2026-05-13 (demo MQTT button+LED, runtime log panel — bottom drawer con filtri/highlight/livelli)
-**Current phase**: Phase 2. Pannello log live nell'editor + demo round-trip MQTT su broker freemqtt.com.
-**Last commit**: feat: demo MQTT echo + runtime log panel (in arrivo)
+**Last session**: 2026-05-13 (seed demo nel repo + import/export progetto ZIP dall'IDE)
+**Current phase**: Phase 2. Demo working out-of-the-box su fresh clone, import/export progetto per backup/condivisione.
+**Last commit**: feat: project import/export (ZIP) + seed demo into examples/ (in arrivo)
 
 ---
 
@@ -97,6 +97,8 @@
 - **Test coverage**: 11 unit test in sws-auth (incl. last-admin protection, demote-last-admin protection, change-password clears flag, create/update/delete CRUD); 22 unit test totali nel workspace.
 - **LogBus + pannello log**: `sws-core::LogBus` (ring 1000 + `tokio::broadcast`) + `sws-runtime/log_layer.rs` (custom `tracing_subscriber::Layer`) catturano ogni evento `tracing::info!/warn!/error!`. `GET /api/logs` per snapshot, `GET /ws/logs` per tail live — entrambi in `operator_routes` (Operator+). Pannello `LogPanel` come drawer in fondo all'editor (toggle "Log" nell'header, stato persistito in `localStorage`): timestamp ms, colore per livello, filtri checkbox per i 5 livelli (TRACE/DEBUG off di default), filtro substring sul target, ricerca full-text con `<mark>` di highlight, Pausa per congelare la vista, Cancella, auto-scroll che si stacca se l'utente scrolla su. Viewer vede solo un messaggio "permesso insufficiente". 24 unit test totali nel workspace (+2 per LogBus).
 - **Demo MQTT round-trip**: `.run/project/project.yaml` ha due nuovi tag bool (`demo.button`, `demo.led`) mappati sul topic `sws/demo/echo` di `broker.freemqtt.com`. Pulsante "MQTT Echo" scrive `demo.button=true` → plugin pubblica → broker rimbalza → entrambi i tag ricevono il valore → la LED si accende. Niente bridging esterno, dimostra il publish/subscribe completo via MQTT 3.1.1.
+- **Demo seedato nel repo**: `examples/demo/{project.yaml, synoptics/Page 1.yaml}` è uno snapshot versionato del progetto dev (5 tag, MQTT echo, alarm, 2 funzioni Python, synoptic con 11+ oggetti incl. buttons UP/DOWN, MQTT LED ON/OFF, slider, gauge, pump symbol). `scripts/dev.sh` lo copia in `.run/project/` solo se `project.yaml` non esiste, così un fresh clone parte con un editor pieno e i clone esistenti non vengono trampled.
+- **Project import/export (Admin)**: due bottoni "Esporta" / "Importa" in header (solo Admin). Bundle ZIP `{manifest.json, project.yaml, synoptics/<page>.yaml}` con `format_version: "1.0"`. Le password MQTT sono **strippate** (mai esportate); le re-immetti in Configurazione → Protocolli dopo l'import. Replace mode con confirm dialog: synoptic orfani vengono eliminati. Hot-reload completo dopo import (TagDb diff, AlarmDb.load, supervisor.reload, functions registry swap) — niente restart. Endpoints `GET /api/project/export` + `PUT /api/project/import`, entrambi in `admin_routes` con `require_admin` + `require_password_changed` + `require_auth`.
 
 ## Backlog / reminders
 
