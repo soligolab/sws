@@ -2,9 +2,9 @@
 
 > This file is the **session-to-session memory** for Claude Code. Update it at the end of every session before stopping work. Read it at the start of every session before touching code.
 
-**Last session**: 2026-05-13 (#7 symbol library starter — pump, valve, motor, tank, fan)
-**Current phase**: Phase 2. SWS adesso sembra davvero uno SCADA in pagina.
-**Last commit**: feat: auth polish — TTL, rolling refresh, rate limit, 4-role RBAC
+**Last session**: 2026-05-13 (#8 PX30 deploy — compose + buildx multi-arch + DEPLOY doc)
+**Current phase**: Phase 2 chiusa (8 polish steps consecutivi). Pronti per demo PX30 reale.
+**Last commit**: feat: symbol library — pump, valve, motor, tank, fan
 
 ---
 
@@ -94,11 +94,12 @@
 
 Pick one of these as the next focused work block (each fits 3-4 hours):
 
-1. **Demo PX30**: container ARM64, deploy effettivo su Rockchip, gotcha hardware/network documentati.
-3. **Historian polish v2** (rinviato): decimazione per range lunghi (>5000 samples), read-fallback a SQLite per range fuori dal ring buffer, prune periodica del db.
-4. **Symbol library v2** (rinviato): tilt/rotation, ulteriori simboli (compressor, heat exchanger, level sensor), packaging come asset cartella `sws-symbols/` (vs inline TSX).
-4. **Selection rectangle** (rinviato): drag su area vuota per selezione multipla rettangolare.
-5. **Auth polish v2** (rinviato): refresh token, cookie httponly oltre al Bearer, LDAP/OAuth plugin, UI per CRUD account multi-utente.
+1. **Demo PX30 reale**: usa `scripts/build-images.sh` per le immagini multi-arch, segui `docs/DEPLOY_PX30.md` passo passo, prova sul Rockchip con un PLC vero. Documenta i bug che emergono — è l'exit criterion di Phase 1.
+2. **Historian polish v2**: decimazione per range lunghi (>5000 samples), read-fallback a SQLite per range fuori dal ring buffer, prune periodica del db.
+3. **Symbol library v2**: tilt/rotation, ulteriori simboli (compressor, heat exchanger, level sensor), packaging come asset cartella `sws-symbols/` (vs inline TSX).
+4. **Selection rectangle**: drag su area vuota per selezione multipla rettangolare.
+5. **Auth polish v2**: refresh token, cookie httponly oltre al Bearer, LDAP/OAuth plugin, UI per CRUD account multi-utente.
+6. **Script preemption** (Q1 follow-up): `Python::check_signals` + thread di interrupt per davvero terminare gli script che superano il timeout.
 
 ## Blockers / questions for the maintainer
 
