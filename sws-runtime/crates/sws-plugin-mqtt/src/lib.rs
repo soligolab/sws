@@ -12,7 +12,7 @@ use rumqttc::{AsyncClient, Event, MqttOptions, Packet, QoS};
 use sws_core::{MqttConfig, TagDb, TagQuality, TagValue, TagWriteBus, WriteRequest};
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
-use tracing::{info, warn};
+use tracing::{debug, info, warn};
 
 /// Runs the MQTT subscription + publish loop until `cancel` fires,
 /// reconnecting on any error. Tags with a `publish_topic` set in their
@@ -186,11 +186,28 @@ async fn run_session(
             res = eventloop.poll() => {
                 let event = res.map_err(|e| anyhow::anyhow!("eventloop: {e}"))?;
                 if let Event::Incoming(Packet::Publish(p)) = event {
+                    let mut matched = false;
                     for topic in &cfg.topics {
                         if topic.topic == p.topic {
                             let value = decode_payload(&p.payload, topic.json_path.as_deref());
+                            debug!(
+                                source = %cfg.id,
+                                tag = %topic.tag,
+                                topic = %p.topic,
+                                value = %stringify(&value),
+                                "MQTT recv",
+                            );
                             db.set(topic.tag.clone(), value, TagQuality::Good).await;
+                            matched = true;
                         }
+                    }
+                    if !matched {
+                        // Unsubscribed topic — quiet by default, useful with RUST_LOG=trace.
+                        tracing::trace!(
+                            source = %cfg.id,
+                            topic = %p.topic,
+                            "MQTT recv (no mapping)",
+                        );
                     }
                 }
             }

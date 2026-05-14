@@ -51,7 +51,18 @@ export function LogPanel({ open, onClose }: LogPanelProps) {
     return source.filter((ev) => {
       if (!levels.has(ev.level)) return false;
       if (t && !ev.target.toLowerCase().includes(t)) return false;
-      if (s && !ev.message.toLowerCase().includes(s)) return false;
+      if (s) {
+        const hay =
+          ev.message.toLowerCase() +
+          "\n" +
+          (ev.fields
+            ? Object.entries(ev.fields)
+                .map(([k, v]) => `${k}=${v}`)
+                .join(" ")
+                .toLowerCase()
+            : "");
+        if (!hay.includes(s)) return false;
+      }
       return true;
     });
   }, [source, levels, search, targetFilter]);
@@ -162,12 +173,26 @@ export function LogPanel({ open, onClose }: LogPanelProps) {
 }
 
 function LogRow({ ev, search }: { ev: LogEvent; search: string }) {
+  const fieldEntries = ev.fields ? Object.entries(ev.fields) : [];
   return (
     <div style={rowStyle}>
       <span style={tsCell}>{formatTs(ev.ts_ms)}</span>
       <span style={{ ...lvCell, color: LEVEL_COLOR[ev.level] }}>{ev.level.padEnd(5)}</span>
       <span style={tgtCell}>{ev.target}</span>
-      <span style={msgCell}>{highlight(ev.message, search)}</span>
+      <span style={msgCell}>
+        {highlight(ev.message, search)}
+        {fieldEntries.length > 0 && (
+          <span style={fieldsStyle}>
+            {fieldEntries.map(([k, v]) => (
+              <span key={k} style={fieldChip}>
+                <span style={fieldKey}>{k}</span>
+                <span style={fieldEq}>=</span>
+                <span style={fieldVal}>{highlight(String(v), search)}</span>
+              </span>
+            ))}
+          </span>
+        )}
+      </span>
     </div>
   );
 }
@@ -270,6 +295,35 @@ const msgCell: React.CSSProperties = {
   whiteSpace: "pre-wrap",
   wordBreak: "break-word",
   flex: 1,
+};
+
+const fieldsStyle: React.CSSProperties = {
+  marginLeft: 8,
+  display: "inline-flex",
+  flexWrap: "wrap",
+  gap: 6,
+};
+
+const fieldChip: React.CSSProperties = {
+  fontSize: 11,
+  background: "#1e293b",
+  border: "1px solid #334155",
+  borderRadius: 3,
+  padding: "0 5px",
+  whiteSpace: "nowrap",
+};
+
+const fieldKey: React.CSSProperties = {
+  color: "#94a3b8",
+};
+
+const fieldEq: React.CSSProperties = {
+  color: "#64748b",
+  margin: "0 2px",
+};
+
+const fieldVal: React.CSSProperties = {
+  color: "#e2e8f0",
 };
 
 const bodyEmpty: React.CSSProperties = {
