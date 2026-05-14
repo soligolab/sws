@@ -2,8 +2,8 @@
 
 > This file is the **session-to-session memory** for Claude Code. Update it at the end of every session before stopping work. Read it at the start of every session before touching code.
 
-**Last session**: 2026-05-14 (widget Image abilitato + simboli custom con gestione licenze in ConfigView → Risorse)
-**Current phase**: Phase 2. Demo working out-of-the-box su fresh clone, import/export progetto per backup/condivisione, pannello log live, gestione utenti multi-account.
+**Last session**: 2026-05-14 (sessione 2 della giornata: persistenza log su file con rotazione giornaliera in `<project>/../logs`)
+**Current phase**: Phase 2. Demo working out-of-the-box su fresh clone, import/export progetto per backup/condivisione, pannello log live + persistenza su disco, gestione utenti multi-account.
 **Last commit**: vedi sotto
 
 ### Cosa è andato online in queste sessioni (in ordine di commit)
@@ -13,6 +13,8 @@
 - `375c1cc` Runtime log panel (drawer in basso, filtri, highlight) + demo MQTT echo
 - `e4a61f5` Fix `/api/auth/users` 404: App.tsx ora carica `/api/project` in tutte le modalità
 - `b455f6b` Project import/export ZIP + seed `examples/demo/` in repo
+- `05ffc74` Widget Image abilitato + simboli custom con tracking licenza
+- (questa sessione) Log persistence su disco — `runtime-YYYY-MM-DD.jsonl` rotato per data, retention 7 gg configurabile
 
 ---
 
@@ -113,6 +115,8 @@
 - **Tab "Risorse" in ConfigView**: elenco simboli già aggiunti con tabella url/licenza/autore + pulsante rimuovi. Form di aggiunta: URL SVG, etichetta, licenza (select CC0/CC-BY/Apache/MIT/BSD/PD), autore, fonte. L'id viene derivato automaticamente dall'etichetta. Salvataggio via `PUT /api/project/custom-symbols`.
 - **SymbolSelect component**: il dropdown "Simbolo" in EditorShell ora include un gruppo `<optgroup>` "Simboli progetto" con i simboli custom. I simboli custom hanno `symbol_id` prefissato `custom:`. Canvas li renderizza come `<image href={url}>` con badge stato (stesso meccanismo dei simboli vendored).
 - **SvgCanvas/RuntimeView**: `customSymbols` passato come prop sia all'editor sia alla view runtime — i simboli custom appaiono anche in modalità operatore.
+- **Log persistence su file** (`sws-runtime/log_file.rs`): nuovo modulo che si sottoscrive a `LogBus` (broadcast `LogEvent`) e scrive ogni evento come riga JSONL in `<logs_dir>/runtime-YYYY-MM-DD.jsonl`. Rotazione per data UTC: alla prima riga di un nuovo giorno chiude il file precedente e apre quello nuovo. CLI `--logs <path>` (default: `<project>/../logs` — sibling del project dir, dev.sh già crea `.run/logs/`). Retention via `SWS_LOG_RETENTION_DAYS` (default 7); allo startup elimina i `runtime-*.jsonl` con data < cutoff (mantiene la giornata di cutoff). Errori del writer (disk full, dir non scrivibile, etc.) escono su `stderr` con `eprintln!` — mai via `tracing` — per evitare feedback loop attraverso `LogBus`. Subscribe sincrono prima di `tokio::spawn` per non perdere i primi eventi. Format file = identico a `GET /api/logs` (stesso `LogEvent` JSON), così `tail -f *.jsonl | jq .` mostra ciò che vede l'editor. Nessuna modifica frontend: i file servono per post-mortem dopo crash/restart e per container deploy dove podman/journald wrappano. Coabita con `dev.sh` che già redirige stdout in `.run/logs/runtime.log` (nome distinto, no collisione).
+- **Test coverage**: workspace ora a 30 unit test (4 nuovi in `sws-runtime`: `date_from_ts_ms_is_deterministic`, `date_minus_days_handles_month_and_year_boundaries`, `prune_old_keeps_recent_and_removes_old`, `writer_appends_jsonl_lines`).
 
 ## Backlog / reminders
 
@@ -184,13 +188,12 @@
 
 ## Next session should
 
-Stato di partenza per la sessione di domani (2026-05-14, commit post-Risorse):
-- Branch `main` pulito, allineato a `origin/main`.
-- 24 unit test workspace verdi (`PYO3_PYTHON=python3 cargo test --manifest-path sws-runtime/Cargo.toml --workspace`).
+Stato di partenza per la prossima sessione:
+- Branch `main` pulito (a meno del commit di questa sessione pending).
+- **30 unit test** workspace verdi (`PYO3_PYTHON=python3 cargo test --manifest-path sws-runtime/Cargo.toml --workspace`).
 - Frontend builda OK (`cd sws-editor && pnpm type-check && pnpm build`).
 - `./scripts/dev.sh` parte. Demo seedato in `.run/project/`.
-- Login `admin/admin` → Configurazione → tab "Risorse" per testare il form aggiunta simboli.
-- Trascinare un widget "Immagine" nel synoptic → nel pannello proprietà incollare URL di un PNG → deve apparire nel canvas.
+- **Da verificare al primo restart dev.sh**: in `.run/logs/` deve apparire `runtime-YYYY-MM-DD.jsonl` accanto al `runtime.log` (stdout redirect di dev.sh). Aprilo: deve contenere `{"ts_ms":…,"level":"INFO",…}` per ogni evento, identico a `GET /api/logs`.
 
 Pick one of these as the next focused work block (each fits 3-4 hours):
 
@@ -201,11 +204,12 @@ Pick one of these as the next focused work block (each fits 3-4 hours):
 5. **Auth polish v2**: refresh token, cookie httponly oltre al Bearer, LDAP/OAuth plugin. Lo schema utenti persistente è già pronto (BL-001).
 6. **Script preemption** (OPEN_QUESTIONS Q1 follow-up): `Python::check_signals` + thread di interrupt per davvero terminare gli script che superano `SWS_SCRIPT_TIMEOUT_MS`. Oggi il timeout c'è ma è "best effort" — uno script con loop infinito non viene preempted.
 7. **Multi-pagina synoptic UX**: oggi solo "Page 1" nella demo. Crea pagina 2/3 via LeftPanel, verifica che il navbutton funzioni, prova export → import (deve preservare tutte le pagine, replace mode garantisce la sincronia).
-8. **Log panel persistenza** (BL-of-the-day): scrivere i log anche su file in `.run/logs/runtime.log` con rotazione, oltre al ring buffer in memoria. Hook in `sws-runtime/main.rs` accanto al subscriber già composto.
+8. **Log file v2** (follow-up del task appena chiuso): (a) compressione gzip dei file ruotati (`runtime-YYYY-MM-DD.jsonl.gz`); (b) endpoint `GET /api/logs/files` per listare i file storici; (c) format-aware reader nel pannello log che pesca dal disco quando si scrolla oltre il ring buffer.
 
 ### Bug aperti / da verificare a mano
 - Nessuno noto al momento del commit. La fix del 404 utenti (`e4a61f5`) è stata validata via curl + via UI in Configurazione → Utenti.
 - Da verificare a freddo: `rm -rf .run/project && ./scripts/dev.sh` deve seedare `examples/demo/` (test non eseguito per via del permission gate su `rm -rf`, ma il codice è una `if [ ! -f ... ]; then cp -r ...; fi` lineare).
+- Da verificare al prossimo restart dev.sh: il writer log JSONL crea effettivamente `.run/logs/runtime-YYYY-MM-DD.jsonl` (unit test passano, ma il path live va confermato a vista). Test manuale di retention: `touch -d '2020-01-01' .run/logs/runtime-2020-01-01.jsonl; ./scripts/dev.sh` → file rimosso da `prune_old`.
 
 ## Blockers / questions for the maintainer
 

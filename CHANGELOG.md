@@ -8,6 +8,7 @@ and this project adheres to [CalVer](https://calver.org/) (`YYYY.MM[.patch]`).
 ## [Unreleased]
 
 ### Added
+- `sws-runtime`: persistenza log su file con rotazione giornaliera. Nuovo modulo `log_file` che si sottoscrive a `LogBus` (broadcast) e scrive ogni evento come riga JSONL in `<logs_dir>/runtime-YYYY-MM-DD.jsonl`. La directory default è `<project>/../logs` (sibling del project dir), override via flag CLI `--logs <path>`. Retention configurabile via `SWS_LOG_RETENTION_DAYS` (default 7 giorni); i file più vecchi del cutoff vengono eliminati allo startup. Formato file = identico al wire format di `GET /api/logs` / `WS /ws/logs`, così `cat runtime-*.jsonl | jq .` mostra lo stesso shape che vede il pannello log dell'editor. Errori del writer escono su stderr per evitare feedback loop attraverso il subscriber tracing. Una nuova dipendenza workspace (`time` 0.3, già presente come transitive). 4 unit test (date_from_ts_ms, date_minus_days con leap year + year boundary, prune_old, writer end-to-end via TestDir helper RAII).
 - `sws-editor`: widget `image` abilitato in palette — campo URL in properties panel, rendering `<image>` SVG già funzionante
 - `sws-editor`: tab "Risorse" in ConfigView — aggiunta/rimozione simboli SVG custom con registrazione obbligatoria licenza (CC0/CC-BY/Apache-2.0/MIT/BSD/Public domain), autore e fonte
 - `sws-core`: tipo `CustomSymbol { id, label, url, attribution }` + campo `custom_symbols` in `Project`; incluso in export/import ZIP

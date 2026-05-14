@@ -27,6 +27,7 @@ tower-http       = { version = "0.5",   features = ["cors", "trace"] }
 # Tracing / logging
 tracing              = "0.1"
 tracing-subscriber   = { version = "0.3", features = ["json", "env-filter"] }
+time                 = { version = "0.3", default-features = false, features = ["std"] }
 
 # Serialization
 serde       = { version = "1", features = ["derive"] }

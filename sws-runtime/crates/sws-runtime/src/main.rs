@@ -1,5 +1,6 @@
 // TODO: load project, start tag engine, connect comm plugins.
 
+mod log_file;
 mod log_layer;
 
 use anyhow::Context;
@@ -38,6 +39,11 @@ struct Args {
     /// SWS project root directory
     #[arg(long, default_value = "/var/sws/projects/default")]
     project: PathBuf,
+
+    /// Directory where rotating JSONL log files are written.
+    /// Defaults to `<project>/../logs` (sibling of the project dir).
+    #[arg(long)]
+    logs: Option<PathBuf>,
 }
 
 #[tokio::main]
@@ -55,10 +61,28 @@ async fn main() -> anyhow::Result<()> {
         .with(LogBusLayer::new(log_bus.clone()))
         .init();
 
+    // Mirror every captured event onto disk as JSONL, rotated by date.
+    // Independent of the stdout fmt layer so the file survives orchestrator
+    // log-capture quirks (podman/journald wrap policies). Errors inside the
+    // writer go to stderr to avoid feedback loops via tracing → LogBus.
+    let logs_dir = args.logs.clone().unwrap_or_else(|| {
+        args.project
+            .parent()
+            .unwrap_or(args.project.as_path())
+            .join("logs")
+    });
+    let retention_days = std::env::var("SWS_LOG_RETENTION_DAYS")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(7u32);
+    log_file::spawn_file_writer(log_bus.clone(), logs_dir.clone(), retention_days);
+
     info!(
-        version = env!("CARGO_PKG_VERSION"),
-        config  = %args.config.display(),
-        project = %args.project.display(),
+        version    = env!("CARGO_PKG_VERSION"),
+        config     = %args.config.display(),
+        project    = %args.project.display(),
+        logs       = %logs_dir.display(),
+        retention  = retention_days,
         "SWS runtime starting"
     );
 
