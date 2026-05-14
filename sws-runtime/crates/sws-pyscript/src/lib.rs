@@ -73,6 +73,12 @@ else:
     except SyntaxError as _e:
         __sws_error__ = f'SyntaxError: {_e}'
 
+# Inject per-call arguments as plain globals. `__sws_args__` is always a
+# dict (possibly empty). Param-name safety is enforced server-side at PUT
+# /api/project/functions so we don't have to filter keywords here.
+if isinstance(__sws_args__, dict):
+    __sws_globals__.update(__sws_args__)
+
 if __sws_compiled__ is not None:
     _orig_out, _orig_err = sys.stdout, sys.stderr
     sys.stdout, sys.stderr = __sws_out__, __sws_err__
@@ -194,6 +200,18 @@ impl Engine {
     /// On a Python error, returns Err(msg) with the formatted traceback.
     /// On a wall-clock timeout (`SWS_SCRIPT_TIMEOUT_MS`), returns Err(...).
     pub async fn execute(&self, code: String) -> Result<ExecOutput, String> {
+        self.execute_with_args(code, serde_json::Map::new()).await
+    }
+
+    /// Same as `execute` but additionally injects `args` as Python globals
+    /// before running the body. Each value is converted to its natural
+    /// Python type (bool / int / float / str); other JSON shapes are
+    /// coerced to their string form.
+    pub async fn execute_with_args(
+        &self,
+        code: String,
+        args: serde_json::Map<String, serde_json::Value>,
+    ) -> Result<ExecOutput, String> {
         let handle  = Handle::current();
         let db      = self.db.clone();
         let bus     = self.bus.clone();
@@ -201,7 +219,7 @@ impl Engine {
         let timeout = self.timeout;
 
         let work = tokio::task::spawn_blocking(move || {
-            run_in_python(db, bus, handle, sandbox, code)
+            run_in_python(db, bus, handle, sandbox, code, args)
         });
 
         match tokio::time::timeout(timeout, work).await {
@@ -229,6 +247,7 @@ fn run_in_python(
     handle: Handle,
     sandbox: bool,
     user_source: String,
+    args: serde_json::Map<String, serde_json::Value>,
 ) -> Result<ExecOutput, String> {
     Python::with_gil(|py| -> PyResult<ExecOutput> {
         let api = Py::new(py, TagApi { db, bus, handle })?;
@@ -236,6 +255,7 @@ fn run_in_python(
         globals.set_item("tags", api)?;
         globals.set_item("__sws_user_source__", user_source)?;
         globals.set_item("__sws_sandbox__", sandbox)?;
+        globals.set_item("__sws_args__", json_map_to_pydict(py, &args)?)?;
 
         let c_code = CString::new(HARNESS)
             .expect("HARNESS contains a NUL byte — should not happen");
@@ -257,4 +277,32 @@ fn run_in_python(
         Ok(ExecOutput { stdout, stderr, sandboxed: sandbox })
     })
     .map_err(|e| Python::with_gil(|py| e.value(py).to_string()))
+}
+
+/// Convert a `serde_json::Map` into a Python dict whose values use the
+/// natural Python type for each scalar (bool / int / float / str). Lists,
+/// nested objects and null all collapse to their string form — we expect
+/// the function param contract to be scalars-only (validated server-side).
+#[allow(deprecated)]
+fn json_map_to_pydict<'py>(
+    py: Python<'py>,
+    map: &serde_json::Map<String, serde_json::Value>,
+) -> PyResult<Bound<'py, PyDict>> {
+    let out = PyDict::new(py);
+    for (k, v) in map {
+        let py_v: PyObject = match v {
+            serde_json::Value::Bool(b)   => b.into_py(py),
+            serde_json::Value::Number(n) => {
+                if let Some(i) = n.as_i64() { i.into_py(py) }
+                else if let Some(f) = n.as_f64() { f.into_py(py) }
+                else { n.to_string().into_py(py) }
+            }
+            serde_json::Value::String(s) => s.clone().into_py(py),
+            // Null / array / object — fall back to a string rendering so the
+            // function script can still see *something*.
+            other => other.to_string().into_py(py),
+        };
+        out.set_item(k, py_v)?;
+    }
+    Ok(out)
 }

@@ -16,6 +16,9 @@ homepage     = "https://soligolab.example"
 tokio            = { version = "1.36",  features = ["full"] }
 tokio-util       = { version = "0.7" }
 
+# Historian persistence
+rusqlite         = { version = "0.32",  features = ["bundled"] }
+
 # Web framework
 axum             = { version = "0.7",   features = ["ws"] }
 tower            = "0.4"
@@ -24,6 +27,7 @@ tower-http       = { version = "0.5",   features = ["cors", "trace"] }
 # Tracing / logging
 tracing              = "0.1"
 tracing-subscriber   = { version = "0.3", features = ["json", "env-filter"] }
+time                 = { version = "0.3", default-features = false, features = ["std"] }
 
 # Serialization
 serde       = { version = "1", features = ["derive"] }

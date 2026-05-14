@@ -7,7 +7,39 @@ and this project adheres to [CalVer](https://calver.org/) (`YYYY.MM[.patch]`).
 
 ## [Unreleased]
 
+### Fixed
+- `sws-editor`: il bottone "Salva" del LeftPanel salvava SOLO la pagina synoptic corrente, ignorando tag/sources/alarms/funzioni Python/custom_symbols + tutte le altre pagine. Modifiche fatte nel `FunctionEditor` o nelle altre pagine andavano perse silenziosamente se l'utente cliccava "Salva" senza essere passato dalla tab specifica di ConfigView / dal bottone "Salva funzioni". Ora "Salva tutto" persiste in parallelo: ogni `SynopticPage` + (se Admin) `PUT /api/project/{tags,sources,alarms,functions,custom-symbols}` via `Promise.allSettled` con feedback chip "Salvataggio…" / "✓ Salvato" / "❌ Errore — clicca per ritentare" + tooltip con il dettaglio dell'errore.
+
 ### Added
+- `sws-editor`: cross-cutting `rotation/flip_h/flip_v/opacity` su rect, ellipse, text, image, gauge, led, progress_bar, table, button, navbutton, symbol. Sezione "TRASFORMAZIONE" nell'ObjectProps panel (slider + numeric + reset per rotazione/opacità, checkbox flip). `applyTransform` helper in `SvgCanvas`; selection rect e quality dot restano axis-aligned.
+- `sws-editor`: `bindings: Record<string, string>` su `SynopticObject` — mappa generica prop→tag per binding live a runtime. `resolveObject` in `SvgCanvas` sovrascrive i valori statici con il valore live del tag al momento del render.
+- `sws-runtime`: campi `opacity` e `bindings` su `SynopticObject` Rust (serde round-trip, skip_serializing_if per compattezza YAML).
+- `sws-editor`: componente `BindableInput` — toggle 🔗/🔓 accanto a ogni campo del pannello proprietà. Click sul lucchetto aperto mostra un `TagInput` per associare la proprietà a un tag live; il lucchetto chiuso rimuove il binding. Sezione "BINDING ATTIVI" in fondo al pannello mostra tutti i binding attivi del widget con pulsante × per rimozione rapida.
+- Demo: Page 2 welcome (id `mp472aq9q3yzc` — fixa il navbutton orfano in Page 1) + Page 3 "Demo Binding" (oggetti rect/ellipse/text/button/navbutton/led/gauge/progress_bar/image/symbol/table con `bindings.rotation=demo.rotation` e `bindings.opacity=demo.opacity`; 2 slider per pilotarli). 4 nuovi tag: `demo.rotation`, `demo.opacity`, `demo.label`, `demo.fill_color`.
+- `sws-editor`: `BindableInput` copertura completa — tutti i campi rimanenti ora hanno il toggle, inclusi x/y/width/height/x2/y2, font_family, soglie gauge e progress_bar (warn_low/warn_high/alarm_low/alarm_high), slider min/max/step, checkbox/radio/LED label, trend (window_s/y_min/y_max/line_color), colori stato symbol, z_index.
+- `sws-editor`: sezione "BINDING RAPIDO" in `MultiSelectionProps` — select prop + TagInput + "Applica"/"Rimuovi" per applicare o togliere lo stesso prop→tag binding a tutti gli oggetti multi-selezionati in un click.
+- `sws-editor`: rotation + flip per gli oggetti `symbol`. Sezione properties con slider -180°/+180° + numeric input + reset, checkbox flip orizzontale/verticale. Trasform SVG applicata solo al visual del simbolo (selection rect e status badge restano axis-aligned per leggibilità). Persistenza YAML round-trip garantita dai nuovi campi `rotation/flip_h/flip_v` sul `SynopticObject` Rust.
+- `sws-editor`: rinomina pagine — doppio click sul nome o icona ✎ apre input inline; Enter conferma, Esc annulla. Conferma sul × delete con messaggio "annullabile con Ctrl-Z" che richiama l'undo già esistente.
+- `sws-editor`: navbutton con `target_page` puntante a pagina eliminata → bordo rosso del select + chip warning "⚠ pagina inesistente: <id>" + testo esplicativo. Prima sparivano silenziosamente; ora sono visibili e correggibili.
+
+### Fixed (continued)
+- `sws-runtime`: pannello log sempre vuoto da quando è stato introdotto. `EnvFilter::from_default_env()` con `RUST_LOG` non settata torna un filtro vuoto che rifiuta TUTTI gli eventi → niente arrivava al `LogBus`, niente al pannello, niente sul disco (anche il `stdout` capture di `dev.sh` era 0 byte e nessuno lo notava). Fix: fallback a `EnvFilter::new("info")` quando l'env var manca. Override via `RUST_LOG=debug` etc. continua a funzionare.
+- `sws-editor`: il pannello log mostrava solo `target` e `message`, scartando i `fields` strutturati (es. la riga "MQTT publish" perdeva `tag`, `topic`, `payload`). Ora i fields appaiono come chip `key=value` inline dopo il messaggio; sono inclusi anche nella ricerca testuale.
+- `sws-plugin-mqtt`: aggiunto `debug!` su match in entrata con `tag/topic/value` → con `RUST_LOG=sws_plugin_mqtt=debug,info` (o `RUST_LOG=debug`) si vede ogni payload ricevuto, non solo quelli pubblicati. Topic non mappati restano a livello `trace` per non spammare.
+
+### Added
+- `sws-runtime`: persistenza log su file con rotazione giornaliera. Nuovo modulo `log_file` che si sottoscrive a `LogBus` (broadcast) e scrive ogni evento come riga JSONL in `<logs_dir>/runtime-YYYY-MM-DD.jsonl`. La directory default è `<project>/../logs` (sibling del project dir), override via flag CLI `--logs <path>`. Retention configurabile via `SWS_LOG_RETENTION_DAYS` (default 7 giorni); i file più vecchi del cutoff vengono eliminati allo startup. Formato file = identico al wire format di `GET /api/logs` / `WS /ws/logs`, così `cat runtime-*.jsonl | jq .` mostra lo stesso shape che vede il pannello log dell'editor. Errori del writer escono su stderr per evitare feedback loop attraverso il subscriber tracing. Una nuova dipendenza workspace (`time` 0.3, già presente come transitive). 4 unit test (date_from_ts_ms, date_minus_days con leap year + year boundary, prune_old, writer end-to-end via TestDir helper RAII).
+- `sws-editor`: widget `image` abilitato in palette — campo URL in properties panel, rendering `<image>` SVG già funzionante
+- `sws-editor`: tab "Risorse" in ConfigView — aggiunta/rimozione simboli SVG custom con registrazione obbligatoria licenza (CC0/CC-BY/Apache-2.0/MIT/BSD/Public domain), autore e fonte
+- `sws-core`: tipo `CustomSymbol { id, label, url, attribution }` + campo `custom_symbols` in `Project`; incluso in export/import ZIP
+- `sws-web`: `PUT /api/project/custom-symbols` (Admin-only) — persiste in `project.yaml`
+- `sws-editor`: `SymbolSelect` component con gruppo `<optgroup>` "Simboli progetto" che mostra i simboli custom accanto ai 15 built-in
+- `sws-editor`: `SvgCanvas` accetta prop `customSymbols`; simboli con `symbol_id: "custom:<id>"` renderizzati come `<image href>` con badge stato
+
+### Fixed
+- `sws-editor`: gauge non selezionabile/draggabile — aggiunto `<rect fill="transparent">` come hit-area nel bounding box del gauge (il `<g>` SVG non riceve eventi se tutti i figli hanno `pointerEvents: none`)
+
+
 - Monorepo scaffold: `sws-runtime/` (Rust workspace) and `sws-editor/` (Vite + React)
 - Community files: CONTRIBUTING, CODE_OF_CONDUCT, SECURITY
 - GitHub Actions CI pipeline with DCO check, lint, build, test, SBOM, audit
@@ -94,6 +126,217 @@ and this project adheres to [CalVer](https://calver.org/) (`YYYY.MM[.patch]`).
 - `sws-runtime`: startup spawns plugins via the supervisor instead of bare `tokio::spawn`. Reload re-uses the same path. The plugin crates moved from `sws-runtime` deps to `sws-web` deps (the supervisor lives there now).
 - ConfigView ProtocolsTab notice updated: "Le sorgenti vengono ricollegate in tempo reale al salvataggio (niente riavvio del runtime)."
 - `tokio-util` added to the workspace dependencies (gives `CancellationToken`).
+
+### Added (historian polish)
+- `sws-historian::sqlite::SqliteStore` — bundled-SQLite (rusqlite) append-only log behind the in-memory ring buffer. Schema: `samples(tag TEXT, ts_ms INTEGER, value TEXT, quality TEXT)` with `WITHOUT ROWID` primary key on `(tag, ts_ms)` and an index on `ts_ms`. WAL mode + `synchronous=NORMAL` so writes don't block reads. All I/O via `tokio::task::spawn_blocking`.
+- `Historian::with_sqlite(max_per_tag, store)` builds a historian backed by SQLite — restores up to `max_per_tag` most-recent samples per tag into RAM at startup, then write-through on every `record()`. RAM-only mode remains the default when no store is attached.
+- `sws-runtime` reads `SWS_HISTORIAN_DB` at startup; if set to a writable path, opens the SQLite store and restores. `scripts/dev.sh` defaults it to `.run/historian.db` so trends survive a runtime restart during demos.
+- `rusqlite = "0.32"` with `features = ["bundled"]` added to the workspace (no system SQLite dep — cc compiles the included source).
+- `TrendCanvas` rewritten for multi-tag overlay + axes + tooltip:
+  - Props: `tags: string[]` (was single `tag`). Each entry gets a colour — first uses the configured `lineColor`, rest pull from a 6-colour palette.
+  - Right-edge Y-axis with 5 numeric ticks; bottom-edge X-axis with 4 HH:MM:SS ticks (local time). 4×4 grid divisions.
+  - Top-left legend with colour swatches when >1 series.
+  - Mouse hover: vertical crosshair, dots on the nearest sample of each series, floating tooltip box with the hover timestamp and per-series values.
+  - X domain now bounded by the configured window (instead of the data's own span), so axes don't jump when a tag is briefly empty.
+- `SynopticObject.extra_tags?: string[]` (Rust + TS) holds the additional series for the trend object. ObjectProps gains an "ALTRI TAG (OVERLAY)" repeater with TagInput autocomplete + remove × + "+ Aggiungi tag" button.
+
+### Added (MQTT write path + multi-waveform driver)
+- `TopicMapping.publish_topic: Option<String>` (Rust + TS). When set, the tag registers on `TagWriteBus`; a write — via `PUT /api/tags/:id`, an object's `on_press` script, a button, anywhere — is forwarded to the topic as a raw string payload (`true` / `42.5` / …). Subscribe and publish topics can be the same channel or different.
+- `sws-plugin-mqtt::run(cfg, db, bus, cancel)`: new bus param. The session loop now `select!`s on cancel + write_rx + eventloop.poll, so an outbound write doesn't starve subscribe traffic and a long subscribe doesn't starve writes. `stringify(TagValue)` produces the payload.
+- `SourceSupervisor` passes the bus to the MQTT plugin too (was Modbus-only before).
+- ConfigView Protocolli tab: new "Topic out (publish, opz.)" column in `MqttSourceCard`, optional per row.
+- `scripts/demo-driver.py` — multi-tag, multi-waveform driver. Each `--gen` is a `key=value` list with at least `tag=…`; `wave=` picks among `sin` / `cos` / `tri` / `saw` / `square` (with `duty`) / `random` / `step` (with `step_low` / `step_high` / `step_at`). All generators share one asyncio loop. Re-auths on 401.
+- `scripts/dev.sh` pre-seed: added demo tags `cosine`, `triangle`, `ramp`, `noise` so the multi-waveform demo runs against the default project.yaml.
+
+### Added (editor UX — undo/redo, multi-select, clipboard, align)
+- Zustand store rewrite around three new concepts:
+  - `past[]` / `future[]` snapshot stacks (deep-cloned `pages` snapshots, capped at 50). Every page-mutating action (`addObject`, `updateObject`, `addPage`, `deletePage`, …) pushes a snapshot before mutating, and clears `future`. `undo()` / `redo()` swap snapshots and clear the selection.
+  - `selectedObjectIds: string[]` alongside the legacy `selectedObjectId`. New actions: `toggleSelection`, `selectMany`, `clearSelection`, `deleteSelection`, `duplicateSelection`. The properties panel auto-switches into a multi-select view at length > 1.
+  - `clipboard: SynopticObject[]` cut/paste buffer with `copySelection` / `pasteClipboard`. Paste offsets +20 px and appends a "(incolla)" suffix to copied names.
+- Multi-select on canvas: shift-click an object to toggle it into the selection (regular click still replaces). Drag is suppressed during a shift-click so the position doesn't snap to the cursor.
+- Document-level keyboard shortcuts (registered via `useEffect` in EditorShell, ignored while typing in INPUT/TEXTAREA/SELECT):
+  - `Ctrl/Cmd-Z` undo, `Ctrl/Cmd-Y` or `Ctrl/Cmd-Shift-Z` redo
+  - `Ctrl/Cmd-C` copy, `Ctrl/Cmd-V` paste, `Ctrl/Cmd-D` duplicate
+  - `Backspace` / `Delete` delete the selection
+- New `MultiSelectionProps` panel (right sidebar when N > 1): alignment toolbar (left / center-x / right, top / middle-y / bottom), distribute (horizontal / vertical, ≥3 objects), plus inline Duplicate and Delete buttons.
+- `alignSelection(mode: AlignMode)` action computes per-object deltas from the selection bounding box and applies them in a single history step; line endpoints (`x2`, `y2`) move along with the anchor.
+- `LeftPanel` gains an "Annulla / Rifai" bar above the Save button, with buttons that auto-disable when the corresponding stack is empty.
+
+### Added (auth polish: TTL, refresh, rate limit, RBAC roles)
+- `sws-auth::Role` enum (`Viewer` < `Operator` < `Supervisor` < `Admin`, derive `Ord`) so middleware can `if user.role < required` cheaply.
+- `AuthState::new(accounts, ttl, rate_limit, rate_window)`: multiple accounts seeded at startup, each with its own role. Login returns `LoginOk { token, username, role, expires_at_ms }`. `validate()` checks expiry AND slides the TTL on every hit (rolling refresh).
+- Login rate limit per username: `record_failure` accumulates within `rate_window`; after `rate_limit` consecutive failures `login` returns `LoginError::RateLimited` (HTTP 429) until the window expires. Successful login resets the counter.
+- `sws-runtime` reads `SWS_ADMIN_PASSWORD` (required), `SWS_SUPERVISOR_PASSWORD`, `SWS_OPERATOR_PASSWORD`, `SWS_VIEWER_PASSWORD` (optional). Tunables: `SWS_SESSION_TTL_SECS` (default 28800 = 8 h), `SWS_LOGIN_RATE_LIMIT` (5), `SWS_LOGIN_RATE_WINDOW_SECS` (60).
+- `sws-web` router split into three role tiers, all behind `require_auth`:
+  - **read** (Viewer+): `GET /api/tags`, `GET /api/alarms`, `GET /api/history/:tag`, `GET /api/project`, `GET /api/synoptics/*`, both WS streams, `whoami`/`logout`.
+  - **operator** (Operator+): `PUT /api/tags/:id`, `POST /api/alarms/:id/ack`, `POST /api/script/exec`, `PUT /api/synoptics/:name`.
+  - **admin** (Admin only): `PUT /api/project/{tags,sources,alarms}` (schema edits).
+- `AuthUser` extension now carries `{username, role}`. `whoami` echoes the role; `LoginScreen` stores it, `api.client.ts` types it strictly.
+- Editor header shows the current role as a small coloured badge (red Admin → blue Operator → grey Viewer); `localStorage` persists username+role so the badge survives reloads.
+- `LoginScreen` distinguishes 401 (bad creds) from 429 (rate-limited) and shows different messages.
+- `scripts/dev.sh` pre-seeds passwords for all four roles (`admin/supervisor/operator/viewer`) for local testing.
+
+### Added (symbol library starter)
+- New `symbol` SynopticObject type that renders one of five built-in SCADA symbols: **pump**, **valve**, **motor**, **tank**, **fan**.
+- Library lives in `sws-editor/src/symbols/library.tsx`. Each entry exports a render function `(state, off, on, alarm) → JSX` drawing inside a 100×100 viewBox; the canvas scales to the object's width × height.
+- State resolution: `alarm_tag` truthy → `alarm`, else `state_tag` truthy → `on`, else `off`. Per-object colour overrides (`state_off_color`, `state_on_color`, `state_alarm_color`) default to grey / green / red.
+- Fan symbol uses a CSS `@keyframes sws-fan-spin` (registered in `index.html`) to rotate the rotor when in the `on` state.
+- ObjectProps gains a "Simbolo" select, two TagInputs for state/alarm bindings, and three colour pickers for state overrides.
+- LeftPanel palette adds a "+ Simbolo" button.
+- Rust `SynopticObject` mirrors the new fields (`symbol_id`, `state_tag`, `alarm_tag`, `state_*_color`) so YAML save/reload preserves them.
+
+### Added (reusable Python functions + expanded symbol library)
+
+Object event handlers used to carry inline Python — same write-pump-on
+snippet got copy-pasted into every button. They now reference a
+project-level `FunctionDef` that lives in `project.yaml`. The symbol
+palette doubles to 14 entries.
+
+Project-level Python functions
+- `sws-core::FunctionDef { id, name, description?, code, params: [{name, default?}] }`
+  added to `Project.functions: Vec<FunctionDef>` with `#[serde(default)]`.
+  Re-exported from `sws-core::lib`. Code body is capped at 64 KB.
+- `sws-pyscript::Engine::execute_with_args(code, args)` extends the
+  Python harness with a `__sws_args__` dict merged into globals. Names
+  inside `args` become plain Python locals; values are coerced to
+  bool/int/float/str. `execute(code)` now delegates with an empty dict.
+- `sws-web` gains `AppState.functions: Arc<RwLock<HashMap<String, FunctionDef>>>`
+  hot-swapped on every `PUT /api/project/functions` (Admin), so a rename
+  takes effect for the next call without a restart. Validates param
+  names against a Python identifier regex + keyword denylist; rejects
+  duplicate function names; honours the 64 KB code cap (413 on overflow).
+- `POST /api/script/run/:name` (Operator) accepts `{ args?: {...} }`,
+  looks the function body up by name in the registry, then runs it
+  through `Engine::execute_with_args`. Returns the same shape as
+  `/api/script/exec`. 404 if the name is gone; otherwise 200 with
+  stdout/stderr/sandboxed flags.
+
+Object semantics (breaking — accepted, the PoC has few stored handlers)
+- `SynopticObject.on_press` / `on_release` renamed to `on_press_fn` /
+  `on_release_fn` to avoid silent inline-code → function-name
+  reinterpretation. New companion fields `on_press_args` /
+  `on_release_args` carry the per-binding parameter overrides.
+- `SvgCanvas` dispatcher signature changed: `onScript(fn, args)`
+  instead of `onScript(code)`.
+- `RuntimeView.handleScript` now calls `api.runFunction(fn, args)`.
+  `api.execScript(code)` stays available for ad-hoc tooling.
+
+Editor UX
+- Zustand store learns `selectedFunctionId` (mutually exclusive with
+  object selection) plus `addFunction` / `duplicateFunction` /
+  `updateFunction` / `renameFunction` / `deleteFunction` /
+  `selectFunction`. `updateProjectFunctions(list)` replaces the
+  whole list (used by the GET /api/project bootstrap).
+- New `LeftPanel.FunctionsSection` accordion: lists every function,
+  with inline rename (✎ / double-click), duplicate (⧉), and delete
+  (×). Click a row to open its `FunctionEditor` in the right panel.
+- `EditorShell.FunctionEditor` lets you edit name, description,
+  params (name + default), and the Python body in a 220-line monospace
+  textarea. "Salva funzioni" button calls `api.updateFunctions(...)`.
+- `EditorShell.EventFunctionPicker` replaces the old EVENTI textareas
+  on each object: two `<select>` dropdowns populated from
+  `project.functions`, followed by an auto-generated form with one
+  input per declared parameter, bound to `on_press_args` /
+  `on_release_args`. Selecting a different function clears the
+  arg overrides.
+
+Symbol library
+- Six new builtins (`compressor`, `level_sensor`, `flow_meter`,
+  `pressure_indicator`, `breaker`, `mixer`) in
+  `sws-editor/src/symbols/library.tsx`, each in 100×100 viewBox with
+  the same `(state, off, on, alarm) → JSX` contract as the previous
+  five.
+- New `SymbolKind = "builtin" | "vendored"` flag. Vendored entries
+  carry a `path` under `/symbols/` and are rendered via
+  `<image href>` + a coloured 14×14 status badge in the top-right
+  corner (so we don't tint the SVG itself — keeps CC-BY derivative-
+  work concerns out of the picture).
+- `sws-editor/public/symbols/` ships four CC0 1.0 SVGs authored for
+  the project (`heat_exchanger`, `separator`, `reactor`, `filter`)
+  plus `ATTRIBUTION.md` documenting the licence chain and the
+  procedure for adding more (e.g. from Wikimedia Commons P&ID).
+
+### Added (project import/export + seeded demo)
+
+Round-trip a complete SWS project as a single ZIP from the editor —
+backups, sharing demos, snapshotting. Plus the dev project ships in the
+repo so a fresh clone starts with a working canvas.
+
+Demo seed
+- New `examples/demo/{project.yaml, synoptics/Page 1.yaml}` — versioned snapshot of the dev project (5 tags incl. `demo.button` / `demo.led`, MQTT echo on broker.freemqtt.com, alarm, two Python functions, 11+ canvas objects: counter buttons, MQTT LED ON/OFF, slider, gauge, pump symbol).
+- `scripts/dev.sh` copies `examples/demo/` into `.run/project/` only when `project.yaml` is missing. Subsequent runs keep maintainer edits. The inline heredoc remains as a last-resort fallback when `examples/demo/` is absent (e.g., shallow checkout).
+- `examples/README.md` documents the seed contract and the recommended workflow for refreshing the snapshot from the editor.
+
+Backend (sws-web)
+- New `zip = "2"` dep (default features off — no flate2/miniz). Files inside the bundle use `CompressionMethod::Stored` since a project is a handful of small YAML files where compression saves nothing.
+- Two new routes in `admin_routes`:
+  - `GET /api/project/export` → `export_project_zip` builds a ZIP in memory: `manifest.json` + `project.yaml` (MQTT passwords stripped to `None`) + `synoptics/<safe_filename(name)>.yaml` per page. Response carries `Content-Type: application/zip` and `Content-Disposition: attachment; filename="sws-project-<name>-<utc>.zip"`. `users.yaml` is **never** included.
+  - `PUT /api/project/import` → `import_project_zip` parses the ZIP from the raw request body, validates `format_version`, replaces `project.yaml` and synoptics on disk (replace mode — orphans deleted), and hot-reloads in sequence (TagDb diff, AlarmDb.load, supervisor.reload, functions registry swap). Defensive: any leftover `"********"` password sentinel is scrubbed to `None`.
+- Self-rolled `unix_to_ymdhm` for the export filename so we don't pull in `chrono` just for `YYYY-MM-DDTHH-MM`.
+
+Frontend (sws-editor)
+- `api.exportProjectZip()` returns the raw `Response` so the caller can read `Content-Disposition` before turning the body into a Blob.
+- `api.importProjectZip(file: Blob)` PUTs the raw ZIP bytes.
+- New `src/components/ProjectIO.tsx`: header buttons "Esporta" / "Importa" + a hidden `<input type="file" accept=".zip">`. Admin-only — renders `null` for other roles. Confirm dialog before import warns about destructive replace + missing MQTT passwords. After import, refreshes project + synoptics from the server so the UI shows the new state.
+- App.tsx wires `<ProjectIO />` between the mode tabs and the "Log" button.
+
+### Added (runtime log panel + MQTT echo demo)
+
+Live runtime logs in the editor: every `tracing::{info,warn,error}!` event is
+captured into an in-memory ring + broadcast and streamed to a bottom-drawer
+panel in the editor.
+
+Backend
+- New `sws-core::logbus` module: `LogBus` (1000-entry `VecDeque` + `tokio::sync::broadcast::Sender`), `LogEvent { ts_ms, level, target, message, fields }`, `DEFAULT_LOG_CAPACITY = 1000`. Two unit tests cover ring eviction and live broadcast.
+- New `sws-runtime/log_layer.rs`: `LogBusLayer` impl of `tracing_subscriber::Layer` with a `FieldVisitor` that splits the message from structured fields (bool/i64/u64/f64/str/debug). The fmt-to-stdout JSON layer continues to run in parallel — both subscribers see every event.
+- `sws-runtime/main.rs` constructs `Arc<LogBus>` before subscriber init, composes `registry().with(env_filter).with(fmt::layer().json()).with(LogBusLayer::new(...))`, and threads the bus into `sws_web::router::build(...)`.
+- `sws-web::AppState.logs: Arc<LogBus>`. New routes `GET /api/logs` (snapshot) and `GET /ws/logs` (snapshot-then-tail) sit in `operator_routes` so Viewer is gated out. The WS handler swallows `RecvError::Lagged` silently to avoid "log about logs" feedback loops.
+
+Frontend
+- New `LogEvent` + `LogLevel` types in `src/types/index.ts`. `api.client.getLogs()` and a new `src/ws/logStream.ts` (mirrors `alarmStream.ts`) drain `/api/logs` then attach a WS to `/ws/logs?token=…`. The hook is a no-op for Viewer / unauthenticated states so no socket gets opened.
+- Zustand store gains `logs: LogEvent[]` (capped at 2000 client-side) plus `setLogs` / `appendLog` / `clearLogs`.
+- New `src/components/LogPanel.tsx`: bottom drawer, 240 px high, fixed-flex layout. Header bar with Pausa (freezes a snapshot for inspection), Cancella, free-text search (case-insensitive, regex-escaped `<mark>` highlight of matches), target substring filter, and 5 colour-coded level toggles (TRACE/DEBUG off by default — too chatty for the PoC). List uses monospace cells (timestamp / level / target / message), auto-scrolls to bottom unless the user scrolls up, and falls back to either "nessun log" or "permesso insufficiente" empty states.
+- `App.tsx` adds a "Log" toggle button next to the mode tabs (open/closed state persisted in `localStorage` as `sws.logPanel.open`) and renders the panel below `<main>`. `useLogStream()` is mounted at the App level so the snapshot survives mode switches.
+
+Demo project — MQTT round-trip
+- `.run/project/project.yaml` gains two bool tags (`demo.button`, `demo.led`) and two new MQTT topic mappings on `sws/demo/echo` (publish on the button tag, subscribe on both). Pressing the button writes `demo.button=true` → rumqttc publishes → broker.freemqtt.com echoes → both tags receive `true` → LED lights up. No external bridge required.
+- `.run/project/synoptics/Page 1.yaml` gets a "MQTT Echo" button + a green LED indicator placed next to the existing slider.
+
+### Added (BL-003 — CodeMirror Python editor for FunctionDef bodies)
+- `sws-editor` gains `PythonEditor` (`src/components/PythonEditor.tsx`): a CodeMirror 6 wrap with `@codemirror/lang-python`, one-dark theme, line numbers, history/undo, indent-with-tab, bracket matching, and a stable `forwardRef` API exposing `insertAtCursor(text)` + `focus()`. External `value` syncs are dispatched only on diff so the cursor doesn't jump while the user is typing.
+- `src/editor/FunctionEditor.tsx` is a brand-new full-screen pane: header (name chip + "● modifiche non salvate" indicator + "Inserisci template…" snippet dropdown + Save + Close), 280 px left aside (name / description / params list), and a flex-1 right column hosting `PythonEditor`. Six built-in snippets: increment, toggle, conditional, reset_many, diagnostic, function skeleton.
+- Dirty tracking via `JSON.stringify(fn)` snapshot at last persist; Save is disabled while clean. Errors from the server PUT surface in a red banner.
+- `EditorShell` now branches at the top: when `selectedFunctionId` is set, it renders `<LeftPanel/> + <FunctionEditor/>` full-width, hiding the canvas + properties panel until the user clicks Close. The old inline FunctionEditor (~125 lines of textarea + sub-form) was removed.
+- Bundle grew to 738 KB / 232 KB gzipped — accepted because the language pack + history extensions live in the same chunk.
+
+### Added (BL-002 — MQTT auth, TLS, last-will, QoS, password masking)
+- `MqttConfig` (sws-core) gains `username`, `password`, `password_env`, `keep_alive_secs`, `clean_session`, `qos`, `tls: MqttTlsConfig`, and `last_will: MqttLastWill`. `TopicMapping` gains a per-topic `qos` override. All fields are `#[serde(default, skip_serializing_if = …)]` so existing `project.yaml` files load unchanged.
+- New types `MqttTlsConfig { enabled, ca_cert_path, insecure_skip_verify }` and `MqttLastWill { topic, payload, qos, retain }` exported from `sws-core::lib`.
+- `sws-plugin-mqtt::run_session` resolves credentials in order `password_env > password > none`, calls `set_keep_alive` / `set_clean_session` / `set_credentials` / `set_last_will` on the `MqttOptions`, and wires `Transport::Tls(TlsConfiguration::Simple { ca, alpn: None, client_auth: None })` when TLS is enabled. **rumqttc 0.24 has no `Native` variant**, so a CA cert path is mandatory when TLS is on; otherwise the session refuses to start with an explanatory anyhow error. Subscribe loop and the publish-from-write path both honour the resolved QoS (per-topic > source-level fallback > AtMostOnce).
+- `sws-web` masks MQTT passwords on `GET /api/project`: every `MqttSource.password` is replaced by the literal sentinel `"********"` before serialising. On `PUT /api/project/sources`, the runtime loads the previous project from disk and, for each incoming MQTT source whose password equals the sentinel, copies the old hash back in. Empty string clears the password; any other value overwrites.
+- `MqttSourceCard` (ConfigView → Protocolli) reworked with collapsible sections: Autenticazione (username + password input with "lascia ******** per non modificare" hint + `password_env`), Connessione (keep_alive_secs / clean_session / default QoS), TLS (enabled + ca_cert_path + insecure_skip_verify with warning), Last Will (topic / payload / qos / retain). Topic table grows a per-row QoS column.
+
+### Added (BL-001 — persistent multi-user store with admin CRUD)
+- `sws-auth` rewritten on top of a persistent `UserStore` backed by `users.yaml` in the project directory. New constructor `AuthState::new_persistent(store_path, seed, ttl, rate_limit, rate_window)` loads the YAML if present, otherwise seeds from the existing env-var path and writes the file. Admin accounts seeded from env start with `must_change_password: false`; manually-created accounts default to `true`.
+- New types: `UserSummary { username, role, must_change_password, created_at_ms, updated_at_ms }`, `UserPatch { role?, password?, must_change_password? }`, `CreateUser { username, password, role, must_change_password (default true) }`, `ChangePassword { old_password, new_password }`, `SessionInfo { username, role, must_change_password }`. `LoginOk` extended with `must_change_password`.
+- New CRUD methods on `AuthState`: `list_users` / `create_user` / `update_user` / `delete_user` / `change_password`. Last-admin protection: `delete_user` and `update_user` (when demoting) refuse if the target is the only `Admin`. Self-delete is rejected at the router level with `cannot_delete_self`. `change_password` verifies the old hash and clears `must_change_password`. Every mutation persists via `flush_locked`.
+- `sws-web` router gains:
+  - `GET /api/auth/users`, `POST /api/auth/users`, `PUT /api/auth/users/:username`, `DELETE /api/auth/users/:username` — Admin only.
+  - `POST /api/auth/change-password` — any authenticated session; bypasses the blocking middleware.
+  - `whoami` now echoes `must_change_password`.
+- New `require_password_changed` middleware in front of every non-self-service route: returns HTTP 403 with `{ "error": "password_change_required", "detail": "..." }` whenever the session user still has the flag.
+- `AuthState::new_persistent` is now the only constructor `sws-runtime/main.rs` uses (the in-memory `AuthState::new` is retained for unit tests).
+- `sws-editor`:
+  - `api.client.ts` extended with `changePassword`, `listUsers`, `createUser`, `updateUser`, `deleteUser`, plus a `PasswordChangeRequiredError` typed error that the request helper raises whenever it sees a 403 with the sentinel envelope. `login` / `whoami` response types include `must_change_password`.
+  - Zustand store: `mustChangePassword` flag persisted in `localStorage` alongside token+role; `setAuth(token, user, role, mustChangePassword?)` and `setMustChangePassword(flag)`. `clearAuth` resets it.
+  - New `ChangePasswordScreen` component (`src/components/ChangePasswordScreen.tsx`): three-field form (old / new / confirm) with client-side checks (length, match, must differ). Renders in place of the App shell while `mustChangePassword === true`.
+  - New "Utenti" tab in ConfigView (Admin only): per-row role select, "forza cambio pwd" toggle, inline reset-password field + button, "Elimina" with self-delete guard, plus a "+ Nuovo utente" form (username / password / role / "forza cambio al primo accesso" checkbox).
+- Test coverage: 11 unit tests in `sws-auth` (incl. `create_update_delete_user`, `cant_delete_last_admin`, `cant_demote_last_admin`, `change_password_clears_flag`), 22 in the whole workspace.
+
+### Added (PX30 deploy artefacts)
+- `compose.yaml` at the repo root orchestrating `sws-runtime` + `sws-editor` containers with sensible defaults: mounts `.run/{config,project,db}` from the host, surfaces all auth/TTL/rate-limit/Python-timeout/historian env knobs, healthchecks both services, requires `SWS_ADMIN_PASSWORD` to be set in the environment.
+- `scripts/build-images.sh` — multi-arch (`linux/amd64,linux/arm64`) build via `docker buildx`. `--push` to a registry or default to OCI archives under `.run/oci/` for offline transfer to the SBC. Documents the one-time `tonistiigi/binfmt` + `buildx create` setup.
+- `docs/DEPLOY_PX30.md` — end-to-end recipe for getting SWS on a Rockchip PX30 (or any ARM64 SBC): prerequisites, image build, load on the board, seed project.yaml with a Modbus source, login, plus an optional systemd unit. Lists the known PX30-specific gotchas (missing `/usr/bin/python` on Debian Bookworm, clock skew on coldstart, fussy PLC source ports, OOM under heavy debug logging, SD card wear with historian persistence).
 
 ### Added (cross-cutting object properties)
 - `SynopticObject` gains `z_index`, `visible`, `visible_tag`, `on_press`, `on_release` in both Rust (`sws-web/synoptic.rs`) and TypeScript (`sws-editor/src/types`). Trend fields (`window_s`, `y_min`, `y_max`, `line_color`) added to the Rust struct too — they were dropped on save before.

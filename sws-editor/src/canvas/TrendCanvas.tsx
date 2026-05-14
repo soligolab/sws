@@ -1,20 +1,33 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "@/api/client";
 import type { Sample } from "@/types";
 
 /**
- * Polls GET /api/history/:tag every `pollMs` and draws a basic line chart
- * on a 2D canvas. Bool samples are coerced to 0/1, strings parsed to f64
- * where possible. Y-axis: hard `[yMin, yMax]` if both > 0, else autofit.
+ * Multi-tag trend chart on a 2D canvas. Polls GET /api/history/:tag for each
+ * series every `pollMs`, re-fits the axes, and redraws.
  *
- * Out of scope: zoom/pan, multi-tag overlay, decimation. PoC just needs
- * "operator can see the trend during the demo."
+ * Drawing:
+ * - Background frame + grid (4 horizontal divisions).
+ * - One line per series in its assigned colour.
+ * - Y-axis labels on the right (5 ticks with numeric values).
+ * - X-axis labels along the bottom (4 ticks as HH:MM:SS, local time).
+ * - Top-left legend listing each tag with its colour swatch.
+ * - On mouse hover: crosshair line + per-series value box at the nearest
+ *   sample timestamp.
+ *
+ * Bool samples are coerced to 0/1; strings are parsed to f64 best-effort.
+ * Y range: hard `[yMin, yMax]` if both > 0 (config), otherwise autofit.
  */
+
+const PALETTE = ["#3b82f6", "#22c55e", "#eab308", "#ef4444", "#a855f7", "#06b6d4"];
+
 interface TrendCanvasProps {
-  tag: string;
+  /** Tag IDs to plot. First entry uses lineColor (if given) or the palette. */
+  tags: string[];
   windowS: number;
   width: number;
   height: number;
+  /** Colour for the first series. Other series fall back to the palette. */
   lineColor?: string;
   yMin?: number;
   yMax?: number;
@@ -28,48 +41,79 @@ function sampleToNumber(v: Sample["value"]): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+function fmtTime(ts: number): string {
+  const d = new Date(ts);
+  const pad = (n: number) => n.toString().padStart(2, "0");
+  return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
+
+function fmtValue(v: number): string {
+  // Compact-ish: integers as-is, decimals to 2 dp.
+  if (Number.isInteger(v)) return v.toString();
+  if (Math.abs(v) >= 1000) return v.toFixed(0);
+  return v.toFixed(2);
+}
+
 export function TrendCanvas({
-  tag,
+  tags,
   windowS,
   width,
   height,
-  lineColor = "#3b82f6",
+  lineColor,
   yMin,
   yMax,
   pollMs = 2000,
 }: TrendCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const [samples, setSamples] = useState<Sample[]>([]);
+  // One Sample[] per tag, indexed parallel to `tags`.
+  const [series, setSeries] = useState<Sample[][]>(() => tags.map(() => []));
+  const [hoverX, setHoverX] = useState<number | null>(null);
 
-  // Polling loop — fetches the last `windowS` seconds of data.
+  const colors = useMemo(() => tags.map((_, i) => {
+    if (i === 0 && lineColor) return lineColor;
+    return PALETTE[i % PALETTE.length];
+  }), [tags, lineColor]);
+
+  // Reset state when the tag list shape changes (otherwise lengths drift).
   useEffect(() => {
-    if (!tag) return;
+    setSeries(tags.map(() => []));
+  }, [tags.join(",")]);
+
+  // Polling: fetch each series in parallel; abort old responses on unmount.
+  useEffect(() => {
+    if (tags.length === 0 || tags.every((t) => !t)) return;
     let cancelled = false;
 
     const tick = async () => {
       const now = Date.now();
+      const fromMs = now - windowS * 1000;
       try {
-        const data = await api.getHistory(tag, { fromMs: now - windowS * 1000, toMs: now });
-        if (!cancelled) setSamples(data);
+        const data = await Promise.all(
+          tags.map((t) => t ? api.getHistory(t, { fromMs, toMs: now }) : Promise.resolve([] as Sample[]))
+        );
+        if (!cancelled) setSeries(data);
       } catch {
-        // Runtime offline / endpoint missing — keep last data; the canvas
-        // will just stop refreshing rather than going blank.
+        // Runtime offline or one of the tags missing — keep last data.
       }
     };
-
     tick();
     const id = setInterval(tick, pollMs);
     return () => { cancelled = true; clearInterval(id); };
-  }, [tag, windowS, pollMs]);
+  }, [tags.join(","), windowS, pollMs]);
 
-  // Redraw whenever samples change or the size shifts.
+  // Layout constants for the plot area
+  const PAD_TOP    = 6 + (tags.length > 1 ? 14 : 0); // legend space when multi-tag
+  const PAD_BOTTOM = 18;
+  const PAD_LEFT   = 6;
+  const PAD_RIGHT  = 48;
+
+  // Drawing pass — runs on every state change.
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    // Match backing store to CSS pixels for crisp lines on HiDPI.
     const dpr = window.devicePixelRatio || 1;
     canvas.width  = Math.round(width  * dpr);
     canvas.height = Math.round(height * dpr);
@@ -82,88 +126,215 @@ export function TrendCanvas({
     ctx.lineWidth = 1;
     ctx.strokeRect(0.5, 0.5, width - 1, height - 1);
 
-    if (samples.length < 2) {
+    const hasAnyData = series.some((s) => s.length >= 2);
+    if (!hasAnyData) {
       ctx.fillStyle = "#475569";
       ctx.font = "11px system-ui, sans-serif";
       ctx.textAlign = "center";
-      ctx.fillText(
-        tag ? "In attesa di campioni…" : "Tag non configurato",
-        width / 2,
-        height / 2,
-      );
+      const msg = tags.length === 0 || tags.every((t) => !t)
+        ? "Tag non configurato"
+        : "In attesa di campioni…";
+      ctx.fillText(msg, width / 2, height / 2);
       return;
     }
 
-    // Map samples → (x in [0..width], y in [0..height])
-    const tMin = samples[0].ts_ms;
-    const tMax = samples[samples.length - 1].ts_ms;
+    // X domain: union of all series' time ranges, but bounded by the
+    // configured window so axes don't jump around when one tag is empty.
+    const now = Date.now();
+    const tMin = now - windowS * 1000;
+    const tMax = now;
     const tSpan = Math.max(1, tMax - tMin);
 
-    const points: { x: number; y: number | null }[] = [];
+    // Y domain: per-canvas, computed from numeric samples across all series.
     let vMin = Number.POSITIVE_INFINITY;
     let vMax = Number.NEGATIVE_INFINITY;
-    for (const s of samples) {
-      const n = sampleToNumber(s.value);
+    for (const s of series) for (const p of s) {
+      const n = sampleToNumber(p.value);
       if (n !== null) {
         if (n < vMin) vMin = n;
         if (n > vMax) vMax = n;
       }
     }
     const autoFit = !(yMin !== undefined && yMax !== undefined && (yMin !== 0 || yMax !== 0));
-    const yLo = autoFit ? vMin : yMin!;
-    const yHi = autoFit ? vMax : yMax!;
+    let yLo = autoFit ? vMin : yMin!;
+    let yHi = autoFit ? vMax : yMax!;
+    if (!Number.isFinite(yLo) || !Number.isFinite(yHi)) { yLo = 0; yHi = 1; }
+    if (yLo === yHi) { yLo -= 0.5; yHi += 0.5; }
     const ySpan = Math.max(1e-9, yHi - yLo);
-    const pad = 6;
-    const plotW = width - pad * 2;
-    const plotH = height - pad * 2;
 
-    for (const s of samples) {
-      const n = sampleToNumber(s.value);
-      const x = pad + ((s.ts_ms - tMin) / tSpan) * plotW;
-      const y = n === null ? null : pad + plotH - ((n - yLo) / ySpan) * plotH;
-      points.push({ x, y });
-    }
+    const plotW = width  - PAD_LEFT - PAD_RIGHT;
+    const plotH = height - PAD_TOP  - PAD_BOTTOM;
+    const xAt = (ts: number) => PAD_LEFT + ((ts - tMin) / tSpan) * plotW;
+    const yAt = (v: number)  => PAD_TOP  + plotH - ((v - yLo) / ySpan) * plotH;
 
-    // Y-axis grid: 3 horizontal lines, no labels (Phase 2 polish)
+    // ── Grid ──
     ctx.strokeStyle = "#1e293b";
     ctx.lineWidth = 1;
+    // Horizontal grid (4 divisions)
     for (let i = 1; i < 4; i++) {
-      const y = pad + (plotH * i) / 4;
+      const y = PAD_TOP + (plotH * i) / 4;
       ctx.beginPath();
-      ctx.moveTo(pad, y);
-      ctx.lineTo(width - pad, y);
+      ctx.moveTo(PAD_LEFT, y);
+      ctx.lineTo(PAD_LEFT + plotW, y);
+      ctx.stroke();
+    }
+    // Vertical grid (4 divisions)
+    for (let i = 1; i < 4; i++) {
+      const x = PAD_LEFT + (plotW * i) / 4;
+      ctx.beginPath();
+      ctx.moveTo(x, PAD_TOP);
+      ctx.lineTo(x, PAD_TOP + plotH);
       ctx.stroke();
     }
 
-    // Line
-    ctx.strokeStyle = lineColor;
-    ctx.lineWidth = 1.5;
-    ctx.lineJoin = "round";
-    ctx.beginPath();
-    let pen = false;
-    for (const p of points) {
-      if (p.y === null) { pen = false; continue; }
-      if (!pen) { ctx.moveTo(p.x, p.y); pen = true; }
-      else      { ctx.lineTo(p.x, p.y); }
+    // ── Y axis labels (right edge) ──
+    ctx.fillStyle = "#64748b";
+    ctx.font = "10px ui-monospace, monospace";
+    ctx.textAlign = "left";
+    ctx.textBaseline = "middle";
+    for (let i = 0; i <= 4; i++) {
+      const v = yHi - (ySpan * i) / 4;
+      const y = PAD_TOP + (plotH * i) / 4;
+      ctx.fillText(fmtValue(v), PAD_LEFT + plotW + 4, y);
     }
-    ctx.stroke();
 
-    // Current-value badge top-right
-    const last = samples[samples.length - 1];
-    const lastN = sampleToNumber(last.value);
-    if (lastN !== null) {
-      const txt = `${lastN.toFixed(2)}`;
-      ctx.font = "11px system-ui, sans-serif";
-      ctx.textAlign = "right";
-      ctx.fillStyle = "#94a3b8";
-      ctx.fillText(txt, width - pad, pad + 11);
+    // ── X axis labels (bottom) ──
+    ctx.textAlign = "center";
+    ctx.textBaseline = "top";
+    for (let i = 0; i <= 4; i++) {
+      const ts = tMin + (tSpan * i) / 4;
+      const x = PAD_LEFT + (plotW * i) / 4;
+      // Skip leftmost label if too close to edge
+      const align = i === 0 ? "left" : i === 4 ? "right" : "center";
+      ctx.textAlign = align as CanvasTextAlign;
+      ctx.fillText(fmtTime(ts), x, PAD_TOP + plotH + 3);
     }
-  }, [samples, width, height, lineColor, yMin, yMax, tag]);
+
+    // ── Lines (one per series) ──
+    series.forEach((points, idx) => {
+      if (points.length < 1) return;
+      ctx.strokeStyle = colors[idx];
+      ctx.lineWidth = 1.5;
+      ctx.lineJoin = "round";
+      ctx.beginPath();
+      let pen = false;
+      for (const p of points) {
+        const n = sampleToNumber(p.value);
+        if (n === null) { pen = false; continue; }
+        const x = xAt(p.ts_ms);
+        const y = yAt(n);
+        if (!pen) { ctx.moveTo(x, y); pen = true; }
+        else      { ctx.lineTo(x, y); }
+      }
+      ctx.stroke();
+    });
+
+    // ── Legend (top-left, when >1 series) ──
+    if (tags.length > 1) {
+      ctx.font = "10px system-ui, sans-serif";
+      ctx.textBaseline = "middle";
+      ctx.textAlign = "left";
+      let cx = PAD_LEFT + 2;
+      const cy = PAD_TOP - 8;
+      tags.forEach((t, idx) => {
+        if (!t) return;
+        ctx.fillStyle = colors[idx];
+        ctx.fillRect(cx, cy - 4, 8, 8);
+        ctx.fillStyle = "#cbd5e1";
+        const label = t;
+        ctx.fillText(label, cx + 12, cy);
+        const w = ctx.measureText(label).width;
+        cx += 12 + w + 12;
+      });
+    }
+
+    // ── Hover crosshair + per-series tooltip ──
+    if (hoverX !== null && hoverX >= PAD_LEFT && hoverX <= PAD_LEFT + plotW) {
+      // Vertical crosshair
+      ctx.strokeStyle = "#475569";
+      ctx.setLineDash([3, 3]);
+      ctx.beginPath();
+      ctx.moveTo(hoverX, PAD_TOP);
+      ctx.lineTo(hoverX, PAD_TOP + plotH);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      const tsAtHover = tMin + ((hoverX - PAD_LEFT) / plotW) * tSpan;
+
+      // For each series, snap to the nearest sample
+      const hits: { tag: string; color: string; value: number; y: number }[] = [];
+      series.forEach((points, idx) => {
+        if (!points.length) return;
+        let best: Sample | null = null;
+        let bestDt = Infinity;
+        for (const p of points) {
+          const dt = Math.abs(p.ts_ms - tsAtHover);
+          if (dt < bestDt) { bestDt = dt; best = p; }
+        }
+        if (!best) return;
+        const n = sampleToNumber(best.value);
+        if (n === null) return;
+        const y = yAt(n);
+        hits.push({ tag: tags[idx] ?? "", color: colors[idx], value: n, y });
+        // Dot on the sample
+        ctx.fillStyle = colors[idx];
+        ctx.beginPath();
+        ctx.arc(xAt(best.ts_ms), y, 3, 0, Math.PI * 2);
+        ctx.fill();
+      });
+
+      // Tooltip box
+      if (hits.length > 0) {
+        ctx.font = "11px ui-monospace, monospace";
+        const tsLabel = fmtTime(tsAtHover);
+        const lines = [tsLabel, ...hits.map((h) => `${h.tag}: ${fmtValue(h.value)}`)];
+        const lineH = 14;
+        const boxW = Math.max(...lines.map((l) => ctx.measureText(l).width)) + 16;
+        const boxH = lines.length * lineH + 8;
+        // Place to the right of the cursor unless we'd clip
+        let bx = hoverX + 8;
+        if (bx + boxW > PAD_LEFT + plotW) bx = hoverX - boxW - 8;
+        const by = Math.max(PAD_TOP + 2, Math.min(PAD_TOP + plotH - boxH - 2, PAD_TOP + 8));
+        ctx.fillStyle = "#0f172aee";
+        ctx.strokeStyle = "#334155";
+        ctx.fillRect(bx, by, boxW, boxH);
+        ctx.strokeRect(bx + 0.5, by + 0.5, boxW - 1, boxH - 1);
+        ctx.textAlign = "left";
+        ctx.textBaseline = "top";
+        lines.forEach((line, i) => {
+          if (i === 0) {
+            ctx.fillStyle = "#94a3b8";
+          } else {
+            ctx.fillStyle = hits[i - 1].color;
+          }
+          ctx.fillText(line, bx + 8, by + 4 + i * lineH);
+        });
+      }
+    }
+
+    // ── Current-value badge (top-right corner of plot area) ──
+    if (hoverX === null) {
+      const last = series.map((s) => s[s.length - 1]).filter(Boolean);
+      const lastN = last.length === 1 ? sampleToNumber(last[0].value) : null;
+      if (lastN !== null && tags.length === 1) {
+        ctx.fillStyle = "#94a3b8";
+        ctx.font = "11px ui-monospace, monospace";
+        ctx.textAlign = "right";
+        ctx.textBaseline = "top";
+        ctx.fillText(fmtValue(lastN), PAD_LEFT + plotW - 4, PAD_TOP + 4);
+      }
+    }
+  }, [series, width, height, colors, yMin, yMax, hoverX, tags.join(","), windowS]);
 
   return (
     <canvas
       ref={canvasRef}
       style={{ width, height, display: "block" }}
+      onMouseMove={(e) => {
+        const rect = e.currentTarget.getBoundingClientRect();
+        setHoverX(e.clientX - rect.left);
+      }}
+      onMouseLeave={() => setHoverX(null)}
     />
   );
 }
