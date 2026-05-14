@@ -2,7 +2,7 @@
 
 > This file is the **session-to-session memory** for Claude Code. Update it at the end of every session before stopping work. Read it at the start of every session before touching code.
 
-**Last session**: 2026-05-14 (sessione 3: fix Salva tutto + multi-page UX + symbol rotation. Pianificato il task "universal binding" — vedi docs/plans/.)
+**Last session**: 2026-05-14 (sessione 4: Phase 1 del piano universal binding — cross-cutting transform + bindings data model)
 **Current phase**: Phase 2. Demo working out-of-the-box su fresh clone, import/export progetto per backup/condivisione, pannello log live + persistenza su disco, gestione utenti multi-account.
 **Last commit**: vedi sotto
 
@@ -121,6 +121,7 @@
 - **"Salva tutto" (sostituisce il vecchio "Salva")**: il bottone in `LeftPanel` ora persiste in parallelo OGNI synoptic page + (se Admin) tag, sources, alarms, funzioni Python, custom symbols. Prima salvava SOLO la pagina corrente — modifiche al `FunctionEditor` o ad altre pagine andavano perse se l'utente non passava dalla tab giusta di ConfigView. Feedback chip: "Salvataggio…" / "✓ Salvato" (2 s) / "❌ Errore — clicca per ritentare" con tooltip + banner dettaglio errori. Non-Admin (Operator+): salva solo le synoptic; gli endpoint admin-only vengono saltati silenziosamente.
 - **Multi-page UX**: rinomina pagina via doppio click o icona ✎ con input inline (Enter/Esc), conferma su delete che ricorda l'undo (Ctrl-Z). Navbutton con `target_page` puntante a pagina eliminata → bordo rosso + chip warning "⚠ pagina inesistente" + opzione disabilitata nel select per non perdere l'id originale.
 - **Symbol rotation + flip**: nuove proprietà `rotation` (deg), `flip_h`, `flip_v` sui simboli (built-in, vendored, custom). Slider -180/+180 + numeric + reset; checkbox flip h/v; trasformata SVG `rotate(R cx cy) scale(±1 ±1)` applicata solo al visual. Selection rect e status badge restano axis-aligned. Round-trip YAML garantito da `SynopticObject` Rust esteso.
+- **Cross-cutting transform + bindings (Phase 1)**: `rotation/flip_h/flip_v/opacity` estesi a tutti i tipi visivi (rect/ellipse/text/image/gauge/led/progress_bar/table/button/navbutton/symbol); helper `applyTransform` + `resolveObject` in `SvgCanvas.tsx`; sezione "TRASFORMAZIONE" in ObjectProps panel; rotation/flip rimossi dal blocco symbol-specifico. Campo `bindings: Record<string,string>` aggiunto a TS `SynopticObject` e Rust mirror.
 
 ## Backlog / reminders
 
@@ -190,17 +191,15 @@
   - **Bug del "ritorno a capo" da investigare**: la textarea attuale potrebbe avere un handler `onKeyDown` che intercetta Enter (es. per "salva al primo enter") — controllare prima di rimpiazzare il componente, perché lo stesso bug potrebbe esistere anche in altri campi multi-linea.
   - **Out of scope**: autocomplete dei nomi tag dentro il codice Python (sarebbe figo ma è LSP-grade, troppo lavoro per il PoC), linting Python lato client, debugger. Vanno in BL successive.
 
-## Next session should — APPROVED PLAN, DA ESEGUIRE
+## Next session should — CONTINUARE IL PIANO UNIVERSAL BINDING
 
 > **Pick up from**: [docs/plans/2026-05-14_universal_binding.md](docs/plans/2026-05-14_universal_binding.md)
 >
-> Piano approvato dal maintainer 2026-05-14 ma esecuzione deferita per fine giornata. La prossima sessione apre quel file e parte direttamente dalla Phase 1. Riassunto del task:
+> **Phase 1 COMPLETATA** (cross-cutting transform + bindings data model). Prossimi step:
 >
-> 1. **Cross-cutting transform** — aggiungere `rotation/flip_h/flip_v/opacity` come proprietà uniformi su rect/ellipse/text/image/gauge/led/progress_bar/table/button/navbutton/symbol (escludi line/slider/checkbox/radio/trend). Una sezione "TRASFORMAZIONE" in ObjectProps sopra "LIVELLO E VISIBILITÀ".
-> 2. **Universal tag binding** — nuovo campo `bindings: Record<string, string>` su `SynopticObject` + helper `resolveObject(obj, tagValues)` al render-time. Nuovo componente `<BindableInput>` che wrappa ogni input del pannello proprietà con un toggle 🔗/🔓. Lista "BINDING ATTIVI" in fondo al pannello per audit.
-> 3. **Demo Page 2 + Page 3** — Page 2 di benvenuto (fixa il navbutton orfano già su Page 1), Page 3 "Demo Binding" con un oggetto per tipo, tutti agganciati a `demo.rotation/demo.opacity/demo.label/demo.fill_color`, slider per pilotarli. Nuovi tag in `examples/demo/project.yaml`.
->
-> Stima: 5-6 ore, divisibile in 2 sessioni (P1+P2 lunga, P3+P4 corta).
+> 2. **Phase 2 — BindableInput component**: nuovo `sws-editor/src/components/BindableInput.tsx` con toggle 🔗/🔓; integrare in ObjectProps per ogni input del pannello (ogni `field()` call). Sezione "BINDING ATTIVI" in fondo al pannello per audit.
+> 3. **Phase 3 — Demo Page 2 + Page 3**: Page 2 welcome (id=`mp472aq9q3yzc` — fixa navbutton orfano di Page 1), Page 3 con oggetto per tipo agganciato a `demo.rotation/demo.opacity`. 4 nuovi tag in `examples/demo/project.yaml`.
+> 4. **Phase 4 — Docs + tests**: cargo test 30+ green, pnpm type-check + build, CHANGELOG, STATUS.
 
 ### Altri candidati di backlog (alternativa al piano sopra)
 

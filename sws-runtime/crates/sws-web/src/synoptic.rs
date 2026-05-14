@@ -99,12 +99,16 @@ pub struct SynopticObject {
     #[serde(skip_serializing_if = "Option::is_none")] pub state_alarm_color: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")] pub state_tag:        Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")] pub alarm_tag:        Option<String>,
-    /// Rotation in degrees around the bounding-box centre (symbol only).
+    /// Rotation in degrees around the bounding-box centre.
     #[serde(skip_serializing_if = "Option::is_none")] pub rotation:         Option<f64>,
-    /// Mirror along the vertical axis (symbol only).
+    /// Mirror along the vertical axis.
     #[serde(skip_serializing_if = "Option::is_none")] pub flip_h:           Option<bool>,
-    /// Mirror along the horizontal axis (symbol only).
+    /// Mirror along the horizontal axis.
     #[serde(skip_serializing_if = "Option::is_none")] pub flip_v:           Option<bool>,
+    /// Opacity 0..1 (default 1).
+    #[serde(skip_serializing_if = "Option::is_none")] pub opacity:          Option<f64>,
+    /// Generic prop-to-tag bindings. Keys are SynopticObject prop names.
+    #[serde(skip_serializing_if = "Option::is_none")] pub bindings:         Option<std::collections::HashMap<String, String>>,
 }
 
 // Note: `symbol_kind` and `symbol_path` are NOT stored on the object —

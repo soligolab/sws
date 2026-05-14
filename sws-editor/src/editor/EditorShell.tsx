@@ -52,6 +52,13 @@ const BUILTIN_SYMBOLS = [
   { id: "filter",            label: "Filtro" },
 ];
 
+/** Object types that support rotation/flip/opacity in the canvas. */
+const SUPPORTS_TRANSFORM = new Set([
+  "rect", "ellipse", "text", "image",
+  "gauge", "led", "progress_bar", "table",
+  "button", "navbutton", "symbol",
+]);
+
 function SymbolSelect({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   const customSymbols = useAppStore((s) => s.customSymbols);
   return (
@@ -961,8 +968,15 @@ function ObjectProps({
           {field("Colore OFF",   colorInput("state_off_color",   "#64748b"))}
           {field("Colore ON",    colorInput("state_on_color",    "#22c55e"))}
           {field("Colore ALARM", colorInput("state_alarm_color", "#ef4444"))}
-          {/* Rotazione e flip — solo per i symbol. Rotazione attorno al centro
-              del bounding box; flip orizzontale/verticale via scale(±1). */}
+        </>
+      )}
+
+      {/* ── Cross-cutting: rotation / flip / opacity ──────────────── */}
+      {SUPPORTS_TRANSFORM.has(obj.type) && (
+        <>
+          <div style={{ fontSize: 10, color: "#475569", marginTop: 8, marginBottom: 2, fontWeight: 700, letterSpacing: 0.5 }}>
+            TRASFORMAZIONE
+          </div>
           {field("Rotazione (gradi)",
             <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
               <input
@@ -1005,6 +1019,29 @@ function ObjectProps({
               Flip verticale
             </label>
           </div>
+          {field("Opacità (0–1)",
+            <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+              <input
+                type="range"
+                min={0} max={1} step={0.05}
+                value={obj.opacity ?? 1}
+                onChange={(e) => onChange({ opacity: Number(e.target.value) })}
+                style={{ flex: 1 }}
+              />
+              <input
+                type="number"
+                min={0} max={1} step={0.05}
+                value={obj.opacity ?? 1}
+                onChange={(e) => onChange({ opacity: Number(e.target.value) })}
+                style={{ ...INPUT, width: 64 }}
+              />
+              <button
+                title="Resetta a 1"
+                onClick={() => onChange({ opacity: undefined })}
+                style={{ ...INPUT, cursor: "pointer", padding: "3px 6px", width: 28 }}
+              >↺</button>
+            </div>
+          )}
         </>
       )}
 

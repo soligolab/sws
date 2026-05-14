@@ -145,12 +145,17 @@ export interface SynopticObject {
   state_tag?: string;
   /** Tag id whose truthy value forces the alarm style (overrides state_tag). */
   alarm_tag?: string;
-  /** Rotation in degrees, applied around the bounding-box centre. Symbol only. */
+  /** Rotation in degrees, applied around the bounding-box centre. */
   rotation?: number;
-  /** Mirror along the vertical axis (left↔right). Symbol only. */
+  /** Mirror along the vertical axis (left↔right). */
   flip_h?: boolean;
-  /** Mirror along the horizontal axis (top↔bottom). Symbol only. */
+  /** Mirror along the horizontal axis (top↔bottom). */
   flip_v?: boolean;
+  /** Opacity 0..1, default 1. Applies to all visual types. */
+  opacity?: number;
+  /** Generic prop-to-tag bindings. At render time the resolver overrides the
+   *  static value with the live tag value. Keys are SynopticObject prop names. */
+  bindings?: Record<string, string>;
 }
 
 // ── Historian sample (wire shape from GET /api/history/:tag) ──────────────
