@@ -81,6 +81,65 @@ pub struct MqttConfig {
     #[serde(default = "default_mqtt_client_id")]
     pub client_id: String,
     pub topics: Vec<TopicMapping>,
+
+    // ── Authentication ────────────────────────────────────────────────
+    /// Plain-text password. Sits in `project.yaml` on disk — for production
+    /// use `password_env` instead. The web layer masks this on GET responses.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub username: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub password: Option<String>,
+    /// Environment variable to read the password from at runtime. Wins over
+    /// `password` when both are set, so secrets stay out of the YAML.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub password_env: Option<String>,
+
+    // ── Connection tuning ─────────────────────────────────────────────
+    /// MQTT keep-alive interval in seconds. Default 10.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub keep_alive_secs: Option<u16>,
+    /// `false` keeps the broker-side session across reconnects. Default true.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub clean_session: Option<bool>,
+    /// QoS for subscribes/publishes when the per-topic field is unset.
+    /// Accepts 0 / 1 / 2; anything else falls back to 0.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub qos: Option<u8>,
+
+    /// TLS settings. Absent / `enabled: false` → plain TCP.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tls: Option<MqttTlsConfig>,
+
+    /// Last-will message published by the broker on ungraceful disconnect.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub last_will: Option<MqttLastWill>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MqttTlsConfig {
+    /// Master switch — turning it off without removing the block keeps the
+    /// rest of the config around for quick toggles during testing.
+    #[serde(default)]
+    pub enabled: bool,
+    /// Path to a PEM-encoded CA certificate to trust. When unset, the
+    /// runtime falls back to the OS native trust store.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ca_cert_path: Option<String>,
+    /// Skip hostname / chain validation. NOT implemented in PoC — flagged
+    /// here so the YAML carries the intent and the UI can show a warning.
+    #[serde(default)]
+    pub insecure_skip_verify: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MqttLastWill {
+    pub topic: String,
+    pub payload: String,
+    /// 0 / 1 / 2 — falls back to 0.
+    #[serde(default)]
+    pub qos: u8,
+    #[serde(default)]
+    pub retain: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -93,6 +152,15 @@ pub struct TopicMapping {
     /// and the field at `json_path` is extracted (e.g. "temperature" → root.temperature).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub json_path: Option<String>,
+    /// Optional outbound topic. When set, a `PUT /api/tags/:id` for `tag` is
+    /// forwarded to this topic as a raw string payload (`true` / `42.5` / `…`).
+    /// If equal to `topic`, the same channel is used for read and write.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub publish_topic: Option<String>,
+    /// Per-mapping QoS override (0 / 1 / 2). When absent, the source-level
+    /// `MqttConfig::qos` is used, then 0 as the final fallback.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub qos: Option<u8>,
 }
 
 fn default_modbus_port() -> u16 { 502 }
@@ -103,6 +171,60 @@ fn default_data_type() -> String { "float".to_string() }
 fn default_mqtt_port() -> u16 { 1883 }
 fn default_mqtt_client_id() -> String { "sws-runtime".to_string() }
 
+/// One named parameter on a `FunctionDef`. Parameters become Python locals
+/// when the function runs. Default is a JSON value so we can carry the
+/// natural type (bool / int / float / string) without a tagged union.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FunctionParam {
+    /// Identifier — validated server-side to match `^[A-Za-z_][A-Za-z0-9_]*$`
+    /// and reject Python keywords.
+    pub name: String,
+    /// Used when the caller doesn't pass a value for this parameter.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub default: Option<serde_json::Value>,
+}
+
+/// A reusable Python function authored at the project level. Objects on
+/// the synoptic reference these by `name` (via their `on_press_fn` /
+/// `on_release_fn` fields) instead of carrying inline code.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FunctionDef {
+    /// Stable id, generated client-side. Not the same as `name` so renames
+    /// don't break object references in flight (they break only after save).
+    pub id: String,
+    /// Display name — also the lookup key used by the run endpoint.
+    pub name: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    /// Python source — capped at `MAX_FUNCTION_CODE_BYTES` at the API layer.
+    pub code: String,
+    #[serde(default)]
+    pub params: Vec<FunctionParam>,
+}
+
+/// Hard cap on `FunctionDef::code.len()` enforced by the web layer.
+pub const MAX_FUNCTION_CODE_BYTES: usize = 64 * 1024;
+
+/// Attribution record for a user-imported SVG symbol.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CustomSymbolAttribution {
+    pub author: String,
+    pub source: String,
+    pub license: String,
+}
+
+/// A user-supplied SVG symbol stored in project.yaml.
+/// Rendered via `<image href>` like a vendored symbol; state badge overlaid.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CustomSymbol {
+    /// Stable slug, generated client-side (e.g. "my_pump_v2").
+    pub id: String,
+    pub label: String,
+    /// Absolute URL or path served by the runtime.
+    pub url: String,
+    pub attribution: CustomSymbolAttribution,
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Project {
     pub meta: ProjectMeta,
@@ -112,6 +234,10 @@ pub struct Project {
     pub sources: Vec<SourceDef>,
     #[serde(default)]
     pub alarms: Vec<AlarmDef>,
+    #[serde(default)]
+    pub functions: Vec<FunctionDef>,
+    #[serde(default)]
+    pub custom_symbols: Vec<CustomSymbol>,
 }
 
 impl Project {

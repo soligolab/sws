@@ -1,5 +1,8 @@
 // TODO: load project, start tag engine, connect comm plugins.
 
+mod log_file;
+mod log_layer;
+
 use anyhow::Context;
 use clap::Parser;
 use hyper::body::Incoming;
@@ -7,9 +10,9 @@ use hyper_util::rt::{TokioExecutor, TokioIo};
 use hyper_util::server::conn::auto::Builder as ConnBuilder;
 use rcgen::generate_simple_self_signed;
 use std::{net::SocketAddr, path::PathBuf, sync::Arc};
-use sws_auth::AuthState;
-use sws_core::{AlarmDb, TagDb, TagWriteBus};
-use sws_historian::Historian;
+use sws_auth::{AuthState, Role};
+use sws_core::{AlarmDb, LogBus, TagDb, TagWriteBus, DEFAULT_LOG_CAPACITY};
+use sws_historian::{sqlite::SqliteStore, Historian};
 use sws_pyscript::Engine as PyEngine;
 use sws_web::SourceSupervisor;
 use tokio::net::TcpListener;
@@ -22,7 +25,9 @@ use tokio_rustls::{
 };
 use tower::Service;
 use tracing::{info, warn};
-use tracing_subscriber::{fmt, EnvFilter};
+use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
+
+use crate::log_layer::LogBusLayer;
 
 #[derive(Parser, Debug)]
 #[command(name = "sws-runtime", about = "Soligo Web SCADA runtime")]
@@ -34,21 +39,56 @@ struct Args {
     /// SWS project root directory
     #[arg(long, default_value = "/var/sws/projects/default")]
     project: PathBuf,
+
+    /// Directory where rotating JSONL log files are written.
+    /// Defaults to `<project>/../logs` (sibling of the project dir).
+    #[arg(long)]
+    logs: Option<PathBuf>,
 }
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let args = Args::parse();
 
-    fmt()
-        .json()
-        .with_env_filter(EnvFilter::from_default_env())
+    // LogBus is built first so the tracing subscriber can hold an Arc clone.
+    // Anything emitted by tracing from here on is captured in-memory in addition
+    // to the JSON-to-stdout fmt layer.
+    let log_bus = Arc::new(LogBus::new(DEFAULT_LOG_CAPACITY));
+
+    // `from_default_env()` with RUST_LOG unset yields an empty filter that
+    // rejects every event — that silently disabled the log panel until now.
+    // Fall back to INFO so dev.sh and the container both produce logs out
+    // of the box; power users still override with RUST_LOG=debug etc.
+    let env_filter = EnvFilter::try_from_default_env()
+        .unwrap_or_else(|_| EnvFilter::new("info"));
+    tracing_subscriber::registry()
+        .with(env_filter)
+        .with(fmt::layer().json())
+        .with(LogBusLayer::new(log_bus.clone()))
         .init();
 
+    // Mirror every captured event onto disk as JSONL, rotated by date.
+    // Independent of the stdout fmt layer so the file survives orchestrator
+    // log-capture quirks (podman/journald wrap policies). Errors inside the
+    // writer go to stderr to avoid feedback loops via tracing → LogBus.
+    let logs_dir = args.logs.clone().unwrap_or_else(|| {
+        args.project
+            .parent()
+            .unwrap_or(args.project.as_path())
+            .join("logs")
+    });
+    let retention_days = std::env::var("SWS_LOG_RETENTION_DAYS")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(7u32);
+    log_file::spawn_file_writer(log_bus.clone(), logs_dir.clone(), retention_days);
+
     info!(
-        version = env!("CARGO_PKG_VERSION"),
-        config  = %args.config.display(),
-        project = %args.project.display(),
+        version    = env!("CARGO_PKG_VERSION"),
+        config     = %args.config.display(),
+        project    = %args.project.display(),
+        logs       = %logs_dir.display(),
+        retention  = retention_days,
         "SWS runtime starting"
     );
 
@@ -59,17 +99,62 @@ async fn main() -> anyhow::Result<()> {
     let alarm_db  = Arc::new(AlarmDb::new(64));
     // 5_000 samples × ~100 tags ≈ a few MB. Adjust per-tag cap when we learn
     // realistic project sizes — for now this is the PoC sizing.
-    let historian = Arc::new(Historian::new(5_000));
+    // SQLite persistence is opt-in via SWS_HISTORIAN_DB. If unset, the
+    // historian is RAM-only (current PoC default).
+    let historian = match std::env::var("SWS_HISTORIAN_DB").ok() {
+        Some(path) if !path.is_empty() => match SqliteStore::open(&path).await {
+            Ok(store) => match Historian::with_sqlite(5_000, store).await {
+                Ok(h) => Arc::new(h),
+                Err(e) => {
+                    warn!("historian: SQLite restore failed ({e}), starting empty");
+                    Arc::new(Historian::new(5_000))
+                }
+            },
+            Err(e) => {
+                warn!("historian: cannot open SQLite at {path} ({e}), falling back to RAM-only");
+                Arc::new(Historian::new(5_000))
+            }
+        },
+        _ => Arc::new(Historian::new(5_000)),
+    };
     let py_engine = PyEngine::new(tag_db.clone(), bus.clone());
     let supervisor = SourceSupervisor::new(tag_db.clone(), bus.clone());
+    // Empty registry — populated below from project.yaml (if present).
+    let functions: sws_web::router::FunctionsRegistry =
+        Arc::new(tokio::sync::RwLock::new(std::collections::HashMap::new()));
 
     // Admin credentials must be provided via env. The runtime refuses to
-    // start with an empty password — that is the "no default credentials"
-    // commitment in docs/CONTEXT.md §6.
+    // start without one — "no default credentials" commitment in
+    // docs/CONTEXT.md §6. Supervisor / operator / viewer passwords are
+    // optional; missing roles just aren't seeded.
     let admin_user = std::env::var("SWS_ADMIN_USER").unwrap_or_else(|_| "admin".into());
     let admin_pwd  = std::env::var("SWS_ADMIN_PASSWORD")
         .context("SWS_ADMIN_PASSWORD is required on first start (no default password)")?;
-    let auth = AuthState::new(admin_user, &admin_pwd)?;
+    let mut accounts: Vec<(String, Role, String)> = vec![
+        (admin_user, Role::Admin, admin_pwd),
+    ];
+    if let Ok(pwd) = std::env::var("SWS_SUPERVISOR_PASSWORD") {
+        let user = std::env::var("SWS_SUPERVISOR_USER").unwrap_or_else(|_| "supervisor".into());
+        accounts.push((user, Role::Supervisor, pwd));
+    }
+    if let Ok(pwd) = std::env::var("SWS_OPERATOR_PASSWORD") {
+        let user = std::env::var("SWS_OPERATOR_USER").unwrap_or_else(|_| "operator".into());
+        accounts.push((user, Role::Operator, pwd));
+    }
+    if let Ok(pwd) = std::env::var("SWS_VIEWER_PASSWORD") {
+        let user = std::env::var("SWS_VIEWER_USER").unwrap_or_else(|_| "viewer".into());
+        accounts.push((user, Role::Viewer, pwd));
+    }
+    let ttl_secs    = std::env::var("SWS_SESSION_TTL_SECS").ok().and_then(|s| s.parse().ok()).unwrap_or(8 * 3600);
+    let rate_limit  = std::env::var("SWS_LOGIN_RATE_LIMIT").ok().and_then(|s| s.parse().ok()).unwrap_or(5);
+    let rate_window = std::env::var("SWS_LOGIN_RATE_WINDOW_SECS").ok().and_then(|s| s.parse().ok()).unwrap_or(60);
+    let auth = AuthState::new_persistent(
+        args.project.join("users.yaml"),
+        accounts,
+        std::time::Duration::from_secs(ttl_secs),
+        rate_limit,
+        std::time::Duration::from_secs(rate_window),
+    )?;
 
     match sws_core::project::Project::load(&args.project) {
         Ok(project) => {
@@ -77,11 +162,21 @@ async fn main() -> anyhow::Result<()> {
                 name = %project.meta.name,
                 tags = project.tags.len(),
                 alarms = project.alarms.len(),
+                functions = project.functions.len(),
                 "project loaded",
             );
             project.populate_tags(&tag_db).await;
             alarm_db.load(project.alarms).await;
             supervisor.reload(project.sources).await;
+            // Seed the function registry. Duplicates from project.yaml are
+            // silently last-wins; PUT /api/project/functions enforces unique
+            // names from then on.
+            {
+                let mut map = functions.write().await;
+                for f in project.functions {
+                    map.insert(f.name.clone(), f);
+                }
+            }
         }
         Err(e) => {
             warn!("project.yaml not found or invalid — starting with empty tag database: {e:#}");
@@ -117,7 +212,9 @@ async fn main() -> anyhow::Result<()> {
         py_engine,
         auth,
         supervisor.clone(),
+        functions,
         Arc::new(args.project.clone()),
+        log_bus,
     );
 
     let addr: SocketAddr = "0.0.0.0:8443".parse()?;

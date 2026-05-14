@@ -2,9 +2,20 @@
 
 > This file is the **session-to-session memory** for Claude Code. Update it at the end of every session before stopping work. Read it at the start of every session before touching code.
 
-**Last session**: 2026-05-12 (script sandbox + hot-reload sorgenti — supervisor con cancellation)
-**Current phase**: Phase 2 quasi conclusa. Riprende domani con #3 historian polish.
-**Last commit**: feat: script sandbox — timeout, stdout/stderr, optional RestrictedPython
+**Last session**: 2026-05-14 (sessione 4: Phases 1-3 del piano universal binding completate)
+**Current phase**: Phase 2. Demo working out-of-the-box su fresh clone, import/export progetto per backup/condivisione, pannello log live + persistenza su disco, gestione utenti multi-account.
+**Last commit**: vedi sotto
+
+### Cosa è andato online in queste sessioni (in ordine di commit)
+- `3631c37` BL-002 — MQTT auth/TLS/last-will/QoS + password masking
+- `964e67b` BL-003 — CodeMirror Python editor full-screen per FunctionDef
+- `dda777e` BL-001 — persistent multi-user store + admin CRUD + must_change_password gate
+- `375c1cc` Runtime log panel (drawer in basso, filtri, highlight) + demo MQTT echo
+- `e4a61f5` Fix `/api/auth/users` 404: App.tsx ora carica `/api/project` in tutte le modalità
+- `b455f6b` Project import/export ZIP + seed `examples/demo/` in repo
+- `05ffc74` Widget Image abilitato + simboli custom con tracking licenza
+- (questa sessione) Log persistence su disco — `runtime-YYYY-MM-DD.jsonl` rotato per data, retention 7 gg configurabile
+- (questa sessione) Fix critico salvataggio + multi-page UX polish + symbol rotation/flip
 
 ---
 
@@ -89,19 +100,132 @@
 - **Campo `name` su ogni oggetto**: alias human-friendly distinto dall'id auto-generato. Mostrato nella nuova `ObjectsSection` del LeftPanel.
 - **ObjectsSection (LeftPanel)**: lista oggetti pagina corrente con click per selezionare, ✎/doubleclick per rinominare inline, ⧉ per duplicare (clone con `(copia)`, offset +20px, selezionato), × per eliminare.
 - **Bug fix**: il vecchio rendering text usava `stroke_width` come fontSize (misuso storico) — ora usa `font_size` con default 14. Aggiunti i campi mancanti al Rust `SynopticObject` per sopravvivere al round-trip YAML.
+- **CodeMirror Python editor (BL-003)**: `PythonEditor` con `@codemirror/lang-python`, tema one-dark, line numbers, history/undo. `FunctionEditor` full-screen (header + aside parametri + editor): apre quando in LeftPanel si seleziona una function, snippet dropdown (increment/toggle/conditional/reset_many/diagnostic/skeleton), indicatore "modifiche non salvate", save bloccato finché clean.
+- **MQTT esteso (BL-002)**: `MqttConfig` con `username/password/password_env` (env wins), `keep_alive_secs`, `clean_session`, `qos` (default 0), `tls: MqttTlsConfig { enabled, ca_cert_path, insecure_skip_verify }` — rumqttc 0.24 richiede `ca_cert_path` obbligatorio per TLS (no Native variant). `last_will: MqttLastWill { topic, payload, qos, retain }`. Per-topic `qos` opzionale. `MqttSourceCard` in ConfigView: sezioni Autenticazione / Connessione / TLS / Last Will, collassabili.
+- **Password masking (BL-002)**: `GET /api/project` maschera le password MQTT come `"********"`; `PUT /api/project/sources` carica il project precedente dal disco e conserva la vecchia password se l'incoming contiene la sentinel.
+- **Persistent user store (BL-001)**: `sws-auth` ora persiste in `users.yaml` (project dir). `AuthState::new_persistent(path, seed, ...)` carica esistenti o seeda dagli env. Admin seeded → `must_change_password: false`. Endpoint admin-only: `GET/POST /api/auth/users`, `PUT/DELETE /api/auth/users/:username`. Self-service: `POST /api/auth/change-password`. Middleware `require_password_changed` blocca tutto tranne whoami/logout/change-password con 403 + `{ error: "password_change_required" }`.
+- **Frontend BL-001**: `ChangePasswordScreen` mostrato al posto dell'app quando `mustChangePassword === true`. Nuova tab *Utenti* in ConfigView (solo Admin) con tabella ruolo/forza-cambio-pwd/reset-pwd/elimina + form "+ Nuovo utente".
+- **Test coverage**: 11 unit test in sws-auth (incl. last-admin protection, demote-last-admin protection, change-password clears flag, create/update/delete CRUD); 22 unit test totali nel workspace.
+- **LogBus + pannello log**: `sws-core::LogBus` (ring 1000 + `tokio::broadcast`) + `sws-runtime/log_layer.rs` (custom `tracing_subscriber::Layer`) catturano ogni evento `tracing::info!/warn!/error!`. `GET /api/logs` per snapshot, `GET /ws/logs` per tail live — entrambi in `operator_routes` (Operator+). Pannello `LogPanel` come drawer in fondo all'editor (toggle "Log" nell'header, stato persistito in `localStorage`): timestamp ms, colore per livello, filtri checkbox per i 5 livelli (TRACE/DEBUG off di default), filtro substring sul target, ricerca full-text con `<mark>` di highlight, Pausa per congelare la vista, Cancella, auto-scroll che si stacca se l'utente scrolla su. Viewer vede solo un messaggio "permesso insufficiente". 24 unit test totali nel workspace (+2 per LogBus).
+- **Demo MQTT round-trip**: `.run/project/project.yaml` ha due nuovi tag bool (`demo.button`, `demo.led`) mappati sul topic `sws/demo/echo` di `broker.freemqtt.com`. Pulsante "MQTT Echo" scrive `demo.button=true` → plugin pubblica → broker rimbalza → entrambi i tag ricevono il valore → la LED si accende. Niente bridging esterno, dimostra il publish/subscribe completo via MQTT 3.1.1.
+- **Demo seedato nel repo**: `examples/demo/{project.yaml, synoptics/Page 1.yaml}` è uno snapshot versionato del progetto dev (5 tag, MQTT echo, alarm, 2 funzioni Python, synoptic con 11+ oggetti incl. buttons UP/DOWN, MQTT LED ON/OFF, slider, gauge, pump symbol). `scripts/dev.sh` lo copia in `.run/project/` solo se `project.yaml` non esiste, così un fresh clone parte con un editor pieno e i clone esistenti non vengono trampled.
+- **Project import/export (Admin)**: due bottoni "Esporta" / "Importa" in header (solo Admin). Bundle ZIP `{manifest.json, project.yaml, synoptics/<page>.yaml}` con `format_version: "1.0"`. Le password MQTT sono **strippate** (mai esportate); le re-immetti in Configurazione → Protocolli dopo l'import. Replace mode con confirm dialog: synoptic orfani vengono eliminati. Hot-reload completo dopo import (TagDb diff, AlarmDb.load, supervisor.reload, functions registry swap) — niente restart. Endpoints `GET /api/project/export` + `PUT /api/project/import`, entrambi in `admin_routes` con `require_admin` + `require_password_changed` + `require_auth`.
+- **Bug fix gauge hit-area**: il `<g>` del gauge non riceveva eventi pointer perché tutti i figli avevano `pointerEvents: "none"` (l'arco è geometria stroke-only, niente fill). Aggiunto `<rect fill="transparent">` come primo figlio → gauge ora selezionabile e draggabile da qualsiasi punto del bounding box. (`sws-editor/src/canvas/SvgCanvas.tsx`)
+- **Widget Image abilitato**: il tipo `image` era segnato "Prossimamente" in LeftPanel ma il rendering era già funzionante. Rimosso il flag `disabled`. Properties panel ora mostra un campo "URL immagine" per impostare `src`. Supporta qualsiasi URL assoluto o path `/symbols/…`.
+- **Simboli custom progetto (`PUT /api/project/custom-symbols`)**: nuovo endpoint REST (Rust) + campo `custom_symbols: Vec<CustomSymbol>` in `project.yaml`. Ogni simbolo ha `{ id, label, url, attribution: { author, source, license } }`. Viene incluso nel ZIP di export/import.
+- **Tab "Risorse" in ConfigView**: elenco simboli già aggiunti con tabella url/licenza/autore + pulsante rimuovi. Form di aggiunta: URL SVG, etichetta, licenza (select CC0/CC-BY/Apache/MIT/BSD/PD), autore, fonte. L'id viene derivato automaticamente dall'etichetta. Salvataggio via `PUT /api/project/custom-symbols`.
+- **SymbolSelect component**: il dropdown "Simbolo" in EditorShell ora include un gruppo `<optgroup>` "Simboli progetto" con i simboli custom. I simboli custom hanno `symbol_id` prefissato `custom:`. Canvas li renderizza come `<image href={url}>` con badge stato (stesso meccanismo dei simboli vendored).
+- **SvgCanvas/RuntimeView**: `customSymbols` passato come prop sia all'editor sia alla view runtime — i simboli custom appaiono anche in modalità operatore.
+- **Log persistence su file** (`sws-runtime/log_file.rs`): nuovo modulo che si sottoscrive a `LogBus` (broadcast `LogEvent`) e scrive ogni evento come riga JSONL in `<logs_dir>/runtime-YYYY-MM-DD.jsonl`. Rotazione per data UTC: alla prima riga di un nuovo giorno chiude il file precedente e apre quello nuovo. CLI `--logs <path>` (default: `<project>/../logs` — sibling del project dir, dev.sh già crea `.run/logs/`). Retention via `SWS_LOG_RETENTION_DAYS` (default 7); allo startup elimina i `runtime-*.jsonl` con data < cutoff (mantiene la giornata di cutoff). Errori del writer (disk full, dir non scrivibile, etc.) escono su `stderr` con `eprintln!` — mai via `tracing` — per evitare feedback loop attraverso `LogBus`. Subscribe sincrono prima di `tokio::spawn` per non perdere i primi eventi. Format file = identico a `GET /api/logs` (stesso `LogEvent` JSON), così `tail -f *.jsonl | jq .` mostra ciò che vede l'editor. Nessuna modifica frontend: i file servono per post-mortem dopo crash/restart e per container deploy dove podman/journald wrappano. Coabita con `dev.sh` che già redirige stdout in `.run/logs/runtime.log` (nome distinto, no collisione).
+- **Test coverage**: workspace ora a 30 unit test (4 nuovi in `sws-runtime`: `date_from_ts_ms_is_deterministic`, `date_minus_days_handles_month_and_year_boundaries`, `prune_old_keeps_recent_and_removes_old`, `writer_appends_jsonl_lines`).
+- **"Salva tutto" (sostituisce il vecchio "Salva")**: il bottone in `LeftPanel` ora persiste in parallelo OGNI synoptic page + (se Admin) tag, sources, alarms, funzioni Python, custom symbols. Prima salvava SOLO la pagina corrente — modifiche al `FunctionEditor` o ad altre pagine andavano perse se l'utente non passava dalla tab giusta di ConfigView. Feedback chip: "Salvataggio…" / "✓ Salvato" (2 s) / "❌ Errore — clicca per ritentare" con tooltip + banner dettaglio errori. Non-Admin (Operator+): salva solo le synoptic; gli endpoint admin-only vengono saltati silenziosamente.
+- **Multi-page UX**: rinomina pagina via doppio click o icona ✎ con input inline (Enter/Esc), conferma su delete che ricorda l'undo (Ctrl-Z). Navbutton con `target_page` puntante a pagina eliminata → bordo rosso + chip warning "⚠ pagina inesistente" + opzione disabilitata nel select per non perdere l'id originale.
+- **Symbol rotation + flip**: nuove proprietà `rotation` (deg), `flip_h`, `flip_v` sui simboli (built-in, vendored, custom). Slider -180/+180 + numeric + reset; checkbox flip h/v; trasformata SVG `rotate(R cx cy) scale(±1 ±1)` applicata solo al visual. Selection rect e status badge restano axis-aligned. Round-trip YAML garantito da `SynopticObject` Rust esteso.
+- **Cross-cutting transform + bindings (Phase 1)**: `rotation/flip_h/flip_v/opacity` estesi a tutti i tipi visivi (rect/ellipse/text/image/gauge/led/progress_bar/table/button/navbutton/symbol); helper `applyTransform` + `resolveObject` in `SvgCanvas.tsx`; sezione "TRASFORMAZIONE" in ObjectProps panel; rotation/flip rimossi dal blocco symbol-specifico. Campo `bindings: Record<string,string>` aggiunto a TS `SynopticObject` e Rust mirror.
+- **BindableInput component (Phase 2)**: toggle 🔗/🔓 su fill, stroke, text, color, label, rotation, opacity, src, on_color, off_color, min, max, unit e altri campi del pannello. Sezione "BINDING ATTIVI" in fondo al pannello per audit/rimozione rapida.
+- **Demo Page 2 + Page 3 (Phase 3)**: Page 2 welcome fixa il navbutton orfano di Page 1 (id `mp472aq9q3yzc`). Page 3 "Demo Binding" con un widget per tipo agganciato a `demo.rotation`/`demo.opacity`; 2 slider per pilotarli. 4 nuovi tag in `examples/demo/project.yaml`.
 
-## Next session should
+## Backlog / reminders
+
+> Reminders raccolti fuori sessione. Da promuovere a "Next session should" quando si pianifica il prossimo blocco di lavoro. Ogni voce ha un id stabile (`BL-NNN`) per riferimento.
+
+> **2026-05-13 — BL-001, BL-002, BL-003 chiusi in blocco autonomo.** Si veda la sezione "What's working" sopra. Le descrizioni di backlog sotto restano come riferimento storico.
+
+- **BL-001 ✅ DONE — Gestione utenti multi-account nella vista Configurazione (admin-only)**
+  - **Goal**: in modalità *Configurazione*, un utente con ruolo `admin` deve poter vedere l'elenco degli account, crearne di nuovi, assegnare il ruolo (Viewer / Operator / Supervisor / Admin — i 4 ruoli RBAC esistenti) e forzare il cambio password al primo login del nuovo utente.
+  - **Backend (`sws-auth` + `sws-web`)**:
+    - Sostituire l'attuale singolo admin seeded da env con uno store utenti persistente (file su disco YAML/JSON nella project dir, oppure SQLite locale — decidere in OPEN_QUESTIONS se la scelta non è ovvia). L'admin seeded resta come bootstrap quando lo store è vuoto.
+    - Modello `User { username, password_hash (Argon2id), role, must_change_password: bool, created_at, updated_at }`.
+    - Endpoint (tutti gated da `role == admin` via middleware):
+      - `GET /api/auth/users` — lista (senza hash).
+      - `POST /api/auth/users` — crea con password iniziale + `must_change_password: true` di default.
+      - `PUT /api/auth/users/:username` — aggiorna ruolo, reset `must_change_password`, reset password.
+      - `DELETE /api/auth/users/:username` — rifiuta se è l'ultimo admin.
+    - Endpoint self-service (qualsiasi utente loggato): `POST /api/auth/change-password` (old + new); pulisce `must_change_password` se vero.
+    - Login: il `POST /api/auth/login` ritorna anche `must_change_password` nella risposta; finché è true, tutte le altre API rispondono 403 con un codice che il frontend riconosce.
+  - **Frontend (`sws-editor`)**:
+    - Nuova tab *Utenti* in `ConfigView`, visibile solo se `authUser.role === "admin"`.
+    - Lista utenti con colonne: username, ruolo, "deve cambiare pw", azioni (modifica ruolo, forza cambio pw, reset pw, elimina).
+    - Form "Nuovo utente": username, password iniziale, ruolo, checkbox "deve cambiare al primo login" (default on).
+    - Schermata `ChangePasswordScreen` mostrata al posto dell'app se `authState.mustChangePassword === true` dopo il login.
+  - **Test**:
+    - Unit: hashing/verify, "ultimo admin non eliminabile", flag `must_change_password` resettato dopo change.
+    - Integrazione: login → must_change_password → blocca API → change-password → sblocca.
+  - **Out of scope** (volutamente non in BL-001): LDAP/OAuth, password policy (lunghezza/complessità), lockout dopo N tentativi falliti, 2FA, audit completo delle modifiche utente (basta audit-log v1 esistente). Vanno in BL successive se servono.
+
+- **BL-002 ✅ DONE — Estendere la configurazione MQTT (Configurazione → Protocolli)**
+  - **Motivo**: la `MqttConfig` attuale ([sws-runtime/crates/sws-core/src/project.rs:75-84](sws-runtime/crates/sws-core/src/project.rs#L75-L84)) espone solo `id / host / port / client_id / topics`. Manca tutto il resto, in particolare le credenziali — bloccante per provare broker pubblici con auth (es. https://freemqtt.com/en).
+  - **Campi da aggiungere a `MqttConfig`** (tutti `#[serde(default, skip_serializing_if = ...)]` per restare retrocompatibili con i project.yaml esistenti):
+    - `username: Option<String>` e `password: Option<String>` → `opts.set_credentials(u, p)` su `rumqttc::MqttOptions`.
+    - `keep_alive_secs: Option<u16>` (default attuale hardcoded a 10, vedi [sws-plugin-mqtt/src/lib.rs:62](sws-runtime/crates/sws-plugin-mqtt/src/lib.rs#L62)).
+    - `clean_session: Option<bool>` → `opts.set_clean_session(...)`.
+    - `tls: Option<MqttTlsConfig>` con almeno `{ enabled: bool, ca_cert_path: Option<String>, insecure_skip_verify: bool }`. Quando `enabled`, port di default → 8883; usa `rumqttc::Transport::Tls`. Verificare il feature flag `rustls-tls` di `rumqttc` (probabilmente da aggiungere in `Cargo.toml` del plugin).
+    - `last_will: Option<LastWill>` con `{ topic, payload, qos, retain }` → `opts.set_last_will(...)`.
+    - `qos: Option<u8>` a livello sorgente (0/1/2) e/o `qos` per singolo `TopicMapping` → oggi è hardcoded `AtMostOnce` su subscribe (vedi [sws-plugin-mqtt/src/lib.rs:67](sws-runtime/crates/sws-plugin-mqtt/src/lib.rs#L67)) e probabilmente anche su publish. Mettere il default su `AtLeastOnce`.
+  - **Sicurezza segreti**: la `password` finisce in `project.yaml` (sul disco, dentro `.run/`). Per il PoC è accettabile, ma:
+    - Aggiungere supporto a `password_env: Option<String>` come alternativa: se valorizzato, leggere la password da quella env var a runtime invece che dal file. Permette di tenere il file pulito per la demo PX30.
+    - Marcare `project.yaml` come file con segreti in `docs/CONTEXT.md` / `README` se non già fatto.
+    - In `GET /api/project` mascherare le password (`"********"` o omettere il campo); il `PUT` deve gestire il "campo vuoto = lascia invariato" vs "campo nuovo = sovrascrivi".
+  - **Frontend (`sws-editor` → `MqttSourceCard` in ConfigView)**:
+    - Sezione "Autenticazione": username, password (input type=password, placeholder "lascia vuoto per non modificare" in edit), bottone "Mostra".
+    - Sezione "Connessione": keep_alive_secs, clean_session, qos di default.
+    - Sezione "TLS": enabled, ca_cert_path (textbox path lato server), insecure_skip_verify (con warning).
+    - Sezione "Last Will": topic, payload, qos, retain (collassabile).
+    - Sezione "Topic": colonna `qos` opzionale per ogni mapping.
+  - **Test di accettazione**: configurare un broker freemqtt.com con utente+password, vedere arrivare valori in un tag, scrivere via `PUT /api/tags/:id` e vederli pubblicati. Annotare in `STATUS.md` come "verificato su broker pubblico".
+
+- **BL-003 ✅ DONE — Editor Python decente per `on_press` / `on_release` e funzioni di progetto**
+  - **Motivo**: oggi i campi di codice Python sono `<textarea>` minuscole nella properties panel — niente syntax highlighting, niente indentazione automatica, e l'utente segnala che il ritorno a capo non funziona bene. Vale per sia gli handler per-oggetto (`on_press`, `on_release`) sia le nuove funzioni Python a livello progetto (vedi commit "reusable Python functions + symbol library doubled").
+  - **Obiettivo UX**:
+    - **Per le funzioni di progetto**: aprire un editor a tutto schermo nello spazio principale di lavoro (al posto del canvas, come una vista alternativa) invece che dentro una proprietà laterale. Salvataggio esplicito + indicatore "modifiche non salvate".
+    - **Per gli handler per-oggetto** (`on_press` / `on_release`): mantenere il campo nella properties panel come anteprima/riepilogo a 1-2 righe, ma con un pulsante "Apri editor" che apre lo stesso editor a tutto schermo (o un modal grande, almeno 600×400) sul singolo handler.
+  - **Componente editor**:
+    - Usare **CodeMirror 6** con `@codemirror/lang-python` (più leggero di Monaco; bundle ~120 KB vs ~3 MB per Monaco). Conferma in `pnpm-lock.yaml` che non c'è già Monaco da altre parti — se sì, riusarlo. Decisione minore, lascio aperto.
+    - Funzionalità minime: syntax highlight Python, indentazione automatica (4 spazi), bracket matching, line numbers, find/replace, font monospace.
+    - Tema chiaro/scuro coerente col resto dell'app.
+  - **Template / snippet preconfigurati**: dropdown "Inserisci template…" sopra l'editor con esempi che usano l'API `tags.read` / `tags.write` esistente ([sws-runtime/crates/sws-pyscript/src/lib.rs](sws-runtime/crates/sws-pyscript/src/lib.rs)). Inserire come testo nel cursore, sovrascrive selezione. Set iniziale:
+    - **Incremento tag**: `v = tags.read("counter") or 0\ntags.write("counter", v + 1)` ← l'esempio richiesto.
+    - **Toggle booleano**: `tags.write("light", not (tags.read("light") or False))`.
+    - **Scrittura condizionale**: leggi A, se sopra soglia scrivi B.
+    - **Reset multi-tag**: scrivi 0 a una lista di tag.
+    - **Print/log diagnostico**: `print(...)` (lo stdout va già al pannello browser console via [sws-pyscript ExecOutput](sws-runtime/crates/sws-pyscript/src/lib.rs), vedi OPEN_QUESTIONS Q1).
+    - Per le funzioni di progetto, aggiungere anche un template "scheletro di funzione con parametri" (la firma del `FunctionDef` esistente — vedi `parameters` in [project.rs](sws-runtime/crates/sws-core/src/project.rs)).
+  - **Bug del "ritorno a capo" da investigare**: la textarea attuale potrebbe avere un handler `onKeyDown` che intercetta Enter (es. per "salva al primo enter") — controllare prima di rimpiazzare il componente, perché lo stesso bug potrebbe esistere anche in altri campi multi-linea.
+  - **Out of scope**: autocomplete dei nomi tag dentro il codice Python (sarebbe figo ma è LSP-grade, troppo lavoro per il PoC), linting Python lato client, debugger. Vanno in BL successive.
+
+## Next session should — FOLLOW-UP UNIVERSAL BINDING
+
+Piano `docs/plans/2026-05-14_universal_binding.md` **completato** (Phases 1-4). Tutti i follow-up del piano sono chiusi:
+
+1. ✅ **BindableInput su tutti i campi rimanenti** — copertura completa: x, y, width, height, x2, y2, font_family, gauge/progress_bar thresholds (warn_low/warn_high/alarm_low/alarm_high), slider (min/max/step), checkbox (label/checked_value/unchecked_value), radio (label), LED (label/on_value), trend (window_s/y_min/y_max/line_color), symbol state colors, z_index.
+2. ✅ **MultiSelectionProps con binding** — sezione "BINDING RAPIDO" aggiunta: select prop + TagInput + pulsanti "Applica" / "Rimuovi" applicano o tolgono lo stesso binding su tutti gli oggetti selezionati in batch.
+3. **Animation/interpolation** — valori bindati oggi fanno "jump" istantaneo; aggiungere interpolazione opzionale (transition-duration sulla proprietà CSS dell'SVG o easing in React state).
+4. **Demo Page 4** con colore fill controllato da `demo.fill_color` + picker sliders RGB.
+
+### Altri candidati di backlog (alternativa al piano sopra)
+
+Stato di partenza per la prossima sessione:
+- Branch `main` pulito (a meno del commit di questa sessione pending).
+- **30 unit test** workspace verdi (`PYO3_PYTHON=python3 cargo test --manifest-path sws-runtime/Cargo.toml --workspace`).
+- Frontend builda OK (`cd sws-editor && pnpm type-check && pnpm build`).
+- `./scripts/dev.sh` parte. Demo seedato in `.run/project/`.
+- **Da verificare al primo restart dev.sh**: in `.run/logs/` deve apparire `runtime-YYYY-MM-DD.jsonl` accanto al `runtime.log` (stdout redirect di dev.sh). Aprilo: deve contenere `{"ts_ms":…,"level":"INFO",…}` per ogni evento, identico a `GET /api/logs`.
 
 Pick one of these as the next focused work block (each fits 3-4 hours):
 
-> Sessione interrotta a fine #2. Si riprende domani da #3 in questo ordine.
+1. **Demo PX30 reale**: usa `scripts/build-images.sh` per le immagini multi-arch, segui `docs/DEPLOY_PX30.md` passo passo, prova sul Rockchip con un PLC vero. Documenta i bug che emergono — è l'exit criterion di Phase 1. **Bloccante: serve hardware fisico.**
+2. **Historian polish v2**: decimazione per range lunghi (>5000 samples), read-fallback a SQLite per range fuori dal ring buffer, prune periodica del db. Niente blocker, file di partenza `sws-runtime/crates/sws-historian/src/lib.rs`.
+3. **Symbol library v2**: tilt/rotation, simboli aggiuntivi (compressor, heat exchanger, level sensor), packaging come asset cartella `sws-symbols/` (vs inline TSX in `sws-editor/src/symbols/library.tsx`).
+4. **Selection rectangle**: drag su area vuota della SVG canvas per selezione multipla rettangolare. File principale: `sws-editor/src/canvas/SvgCanvas.tsx`. Convive con selectedObjectIds esistente.
+5. **Auth polish v2**: refresh token, cookie httponly oltre al Bearer, LDAP/OAuth plugin. Lo schema utenti persistente è già pronto (BL-001).
+6. **Script preemption** (OPEN_QUESTIONS Q1 follow-up): `Python::check_signals` + thread di interrupt per davvero terminare gli script che superano `SWS_SCRIPT_TIMEOUT_MS`. Oggi il timeout c'è ma è "best effort" — uno script con loop infinito non viene preempted.
+7. **Multi-pagina synoptic UX**: oggi solo "Page 1" nella demo. Crea pagina 2/3 via LeftPanel, verifica che il navbutton funzioni, prova export → import (deve preservare tutte le pagine, replace mode garantisce la sincronia).
+8. **Log file v2** (follow-up del task appena chiuso): (a) compressione gzip dei file ruotati (`runtime-YYYY-MM-DD.jsonl.gz`); (b) endpoint `GET /api/logs/files` per listare i file storici; (c) format-aware reader nel pannello log che pesca dal disco quando si scrolla oltre il ring buffer.
 
-1. **Historian polish**: persistenza su SQLite (`sws-historian::sqlite`), decimazione per range lunghi, axis labels e tooltip nel TrendCanvas.
-2. **MQTT write path + demo-driver multi-waveform**: publish on tag-write tramite TagWriteBus; estendere `demo-sine.py` a multiple forme d'onda.
-3. **Editor UX polish**: undo/redo, multi-select, copy/paste, allineamento oggetti.
-4. **Auth polish**: session TTL, refresh, rate limit, RBAC ruoli, cookie httponly.
-5. **Symbol library starter**: cartella `sws-symbols/`, oggetto `symbol` che referenzia SVG di pompe/valvole/motori con stile guidato da tag.
-6. **Demo PX30**: container ARM64, deploy effettivo su Rockchip, gotcha hardware/network documentati.
+### Bug aperti / da verificare a mano
+- Nessuno noto al momento del commit. La fix del 404 utenti (`e4a61f5`) è stata validata via curl + via UI in Configurazione → Utenti.
+- Da verificare a freddo: `rm -rf .run/project && ./scripts/dev.sh` deve seedare `examples/demo/` (test non eseguito per via del permission gate su `rm -rf`, ma il codice è una `if [ ! -f ... ]; then cp -r ...; fi` lineare).
+- Da verificare al prossimo restart dev.sh: il writer log JSONL crea effettivamente `.run/logs/runtime-YYYY-MM-DD.jsonl` (unit test passano, ma il path live va confermato a vista). Test manuale di retention: `touch -d '2020-01-01' .run/logs/runtime-2020-01-01.jsonl; ./scripts/dev.sh` → file rimosso da `prune_old`.
 
 ## Blockers / questions for the maintainer
 

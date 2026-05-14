@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  SWS jacketed reactor — vessel with an agitator shaft & impeller,
+  external heating/cooling jacket.
+  Original work by the SWS project, dedicated to the public domain
+  (CC0 1.0). See ATTRIBUTION.md.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 100" width="80" height="100">
+  <!-- jacket -->
+  <rect x="4" y="22" width="72" height="68" rx="10" ry="10"
+        fill="#0f172a" stroke="#94a3b8" stroke-width="2"/>
+  <!-- inner vessel -->
+  <rect x="14" y="30" width="52" height="52" rx="6" ry="6"
+        fill="#1e293b" stroke="#cbd5e1" stroke-width="2"/>
+  <!-- top dome -->
+  <path d="M14 30 Q40 14 66 30" fill="#1e293b" stroke="#cbd5e1" stroke-width="2"/>
+  <!-- drive motor housing -->
+  <rect x="34" y="2" width="12" height="14" fill="#1e293b" stroke="#cbd5e1" stroke-width="2"/>
+  <!-- agitator shaft -->
+  <line x1="40" y1="16" x2="40" y2="70" stroke="#cbd5e1" stroke-width="3"/>
+  <!-- impeller blades -->
+  <line x1="22" y1="70" x2="58" y2="70" stroke="#cbd5e1" stroke-width="3" stroke-linecap="round"/>
+  <line x1="30" y1="62" x2="50" y2="78" stroke="#cbd5e1" stroke-width="2" stroke-linecap="round"/>
+  <line x1="30" y1="78" x2="50" y2="62" stroke="#cbd5e1" stroke-width="2" stroke-linecap="round"/>
+  <!-- jacket inlet/outlet -->
+  <rect x="76" y="32" width="4" height="10" fill="#1e293b" stroke="#94a3b8" stroke-width="1.5"/>
+  <rect x="76" y="78" width="4" height="10" fill="#1e293b" stroke="#94a3b8" stroke-width="1.5"/>
+</svg>

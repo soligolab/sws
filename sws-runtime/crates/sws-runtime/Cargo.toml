@@ -25,6 +25,7 @@ hyper-util.workspace         = true
 rcgen.workspace              = true
 clap.workspace               = true
 anyhow.workspace             = true
+time.workspace               = true
 
 sws-core      = { path = "../sws-core" }
 sws-web       = { path = "../sws-web" }

@@ -102,3 +102,35 @@ Common tweaks:
 
 Stop with Ctrl-C. The script auto-reauthenticates on a 401 (so it
 survives a runtime restart) and exits cleanly on Ctrl-C.
+
+## `demo-driver.py` — multi-tag, multi-waveform driver
+
+Superset of `demo-sine.py`. Pass `--gen` once per generator (each is a
+comma-separated `key=value` list with at least `tag=NAME`). All
+generators share one asyncio loop so they tick together.
+
+```sh
+./scripts/demo-driver.py \
+  --gen 'tag=sine,wave=sin,period=10,amp=50,offset=50' \
+  --gen 'tag=cosine,wave=cos,period=8' \
+  --gen 'tag=triangle,wave=tri,period=12,amp=30,offset=20' \
+  --gen 'tag=ramp,wave=saw,period=20' \
+  --gen 'tag=noise,wave=random,amp=10,offset=50'
+```
+
+Waveforms: `sin`, `cos`, `tri`, `saw`, `square` (with optional `duty`),
+`random`, `step` (with `step_low`, `step_high`, `step_at`). Other keys:
+`period`, `amplitude` / `amp`, `offset`, `interval`, `phase`.
+
+Drop one **Trend** object in the editor, set its **Tag** to `sine`, then
+add `cosine`, `triangle`, `ramp`, `noise` to **ALTRI TAG (OVERLAY)** —
+five lines on the same axes.
+
+## MQTT write path
+
+A `TopicMapping` now also accepts an optional **Topic out (publish)** in
+the ConfigView Protocolli tab. When set, a write to that tag (via
+`PUT /api/tags/:id`, an object's `on_press` script, or a button) is
+forwarded to the configured topic as a raw string payload
+(`true` / `42.5` / etc.). Subscribe and publish topics can be the same
+channel or different ones.

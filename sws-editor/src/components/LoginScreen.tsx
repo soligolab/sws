@@ -24,9 +24,13 @@ export function LoginScreen() {
     setBusy(true);
     try {
       const res = await api.login(username, password);
-      setAuth(res.token, res.username);
-    } catch (e) {
-      setError("Credenziali non valide.");
+      setAuth(res.token, res.username, res.role, res.must_change_password);
+    } catch (e: any) {
+      // 429 = rate-limited; show a dedicated message so the user knows
+      // to wait rather than retry immediately.
+      const msg = String(e?.message ?? "");
+      if (msg.includes("429")) setError("Troppi tentativi. Riprova fra un minuto.");
+      else setError("Credenziali non valide.");
       console.warn("login failed:", e);
     } finally {
       setBusy(false);

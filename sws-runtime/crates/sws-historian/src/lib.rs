@@ -1,15 +1,20 @@
-//! In-memory ring-buffer historian for the PoC.
+//! In-memory ring-buffer historian for the PoC, optionally backed by SQLite
+//! for durability across restarts.
 //!
 //! Each tag gets its own bounded `VecDeque<Sample>`. Older samples are dropped
 //! when the cap is hit. Range queries filter by `[from_ms, to_ms]`. A spawned
 //! recorder task subscribes to `TagDb`'s broadcast and appends every update.
 //!
-//! Out of scope (Phase 2 polish):
+//! When a `SqliteStore` is attached via `Historian::with_sqlite(...)`:
+//! - Every `record()` is also persisted (best-effort, non-blocking on errors).
+//! - On startup, `Historian::restore_from_sqlite()` reloads up to `max_per_tag`
+//!   recent samples per tag from disk into the in-memory ring.
+//!
+//! Out of scope (later polish):
 //! - Deadband / on-change-only filtering — we record every update; plugins
 //!   are expected to deduplicate at source if needed.
-//! - Persistence — `sws-historian::sqlite` stays a stub; durable storage is
-//!   a product-phase concern.
 //! - Decimation for long-range queries; we just slice the buffer.
+//! - Read-fallback to SQLite for ranges older than the in-memory window.
 
 pub mod sqlite;
 
@@ -20,7 +25,9 @@ use std::{
 use serde::{Deserialize, Serialize};
 use sws_core::{TagDb, TagId, TagQuality, TagState, TagValue};
 use tokio::sync::RwLock;
-use tracing::warn;
+use tracing::{info, warn};
+
+use crate::sqlite::SqliteStore;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Sample {
@@ -32,6 +39,7 @@ pub struct Sample {
 pub struct Historian {
     buffers: RwLock<HashMap<TagId, VecDeque<Sample>>>,
     max_per_tag: usize,
+    store: Option<SqliteStore>,
 }
 
 impl Historian {
@@ -39,21 +47,47 @@ impl Historian {
         Self {
             buffers: RwLock::new(HashMap::new()),
             max_per_tag,
+            store: None,
         }
     }
 
-    /// Append a sample for `tag`. Drops the oldest if the cap is hit.
-    pub async fn record(&self, tag: &str, state: &TagState) {
-        let mut buf = self.buffers.write().await;
-        let q = buf.entry(tag.to_string()).or_insert_with(VecDeque::new);
-        if q.len() >= self.max_per_tag {
-            q.pop_front();
+    /// Attach a SQLite store and seed the in-memory ring from disk.
+    /// Returns the new Historian so the runtime can build it inline.
+    pub async fn with_sqlite(max_per_tag: usize, store: SqliteStore) -> anyhow::Result<Self> {
+        let mut h = Self::new(max_per_tag);
+        let restored = store.restore_recent(max_per_tag).await?;
+        let total: usize = restored.iter().map(|(_, v)| v.len()).sum();
+        {
+            let mut buf = h.buffers.write().await;
+            for (tag, samples) in restored {
+                let q: VecDeque<Sample> = samples.into_iter().collect();
+                buf.insert(tag, q);
+            }
         }
-        q.push_back(Sample {
+        info!(samples = total, "historian: restored from SQLite");
+        h.store = Some(store);
+        Ok(h)
+    }
+
+    /// Append a sample for `tag`. Drops the oldest if the cap is hit.
+    /// Also persists to SQLite (best-effort) when a store is attached.
+    pub async fn record(&self, tag: &str, state: &TagState) {
+        let sample = Sample {
             ts_ms: state.timestamp_ms,
             value: state.value.clone(),
             quality: state.quality.clone(),
-        });
+        };
+        {
+            let mut buf = self.buffers.write().await;
+            let q = buf.entry(tag.to_string()).or_insert_with(VecDeque::new);
+            if q.len() >= self.max_per_tag {
+                q.pop_front();
+            }
+            q.push_back(sample.clone());
+        }
+        if let Some(store) = &self.store {
+            store.append(tag, &sample).await;
+        }
     }
 
     /// Return samples in `[from, to]` (inclusive). `None` bounds mean unbounded.

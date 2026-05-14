@@ -1,6 +1,9 @@
 import type {
   AlarmDef,
   AlarmState,
+  CustomSymbol,
+  FunctionDef,
+  LogEvent,
   ProjectInfo,
   Sample,
   SourceDef,
@@ -22,6 +25,37 @@ export class AuthError extends Error {
   constructor() { super("unauthorized"); this.name = "AuthError"; }
 }
 
+/** Server signals an authenticated user must change their password before
+ *  reaching any non-self-service endpoint. The runtime returns 403 with
+ *  `{ error: "password_change_required" }`; the UI lifts the
+ *  ChangePasswordScreen in response. */
+export class PasswordChangeRequiredError extends Error {
+  constructor() { super("password change required"); this.name = "PasswordChangeRequiredError"; }
+}
+
+export type UserRole = "Viewer" | "Operator" | "Supervisor" | "Admin";
+
+export interface UserSummary {
+  username: string;
+  role: UserRole;
+  must_change_password: boolean;
+  created_at_ms: number;
+  updated_at_ms: number;
+}
+
+export interface CreateUserBody {
+  username: string;
+  password: string;
+  role: UserRole;
+  must_change_password?: boolean;
+}
+
+export interface UpdateUserBody {
+  role?: UserRole;
+  password?: string;
+  must_change_password?: boolean;
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const headers = new Headers(init?.headers);
   if (TOKEN) headers.set("Authorization", `Bearer ${TOKEN}`);
@@ -31,7 +65,22 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     // bounce back to the login screen without showing a generic 401 toast.
     throw new AuthError();
   }
-  if (!res.ok) throw new Error(`API ${path}: ${res.status} ${res.statusText}`);
+  if (res.status === 403) {
+    // The runtime gates everything but auth self-service when the session
+    // user still has `must_change_password`. Peek at the JSON envelope so
+    // the UI can react with a forced-change screen instead of a toast.
+    let bodyText = "";
+    try { bodyText = await res.text(); } catch { /* ignore */ }
+    if (bodyText.includes("password_change_required")) {
+      throw new PasswordChangeRequiredError();
+    }
+    throw new Error(`API ${path}: 403 Forbidden${bodyText ? ` — ${bodyText}` : ""}`);
+  }
+  if (!res.ok) {
+    let bodyText = "";
+    try { bodyText = await res.text(); } catch { /* ignore */ }
+    throw new Error(`API ${path}: ${res.status} ${res.statusText}${bodyText ? ` — ${bodyText}` : ""}`);
+  }
   if (res.status === 204 || res.headers.get("content-length") === "0") {
     return undefined as T;
   }
@@ -41,7 +90,13 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 export const api = {
   // Auth
   login: (username: string, password: string) =>
-    request<{ token: string; username: string }>("/api/auth/login", {
+    request<{
+      token: string;
+      username: string;
+      role: UserRole;
+      expires_at_ms: number;
+      must_change_password: boolean;
+    }>("/api/auth/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ username, password }),
@@ -51,7 +106,38 @@ export const api = {
     request<void>("/api/auth/logout", { method: "POST" }),
 
   whoami: () =>
-    request<{ username: string }>("/api/auth/whoami"),
+    request<{ username: string; role: UserRole; must_change_password: boolean }>(
+      "/api/auth/whoami",
+    ),
+
+  changePassword: (oldPassword: string, newPassword: string) =>
+    request<void>("/api/auth/change-password", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ old_password: oldPassword, new_password: newPassword }),
+    }),
+
+  // User management (Admin only)
+  listUsers: () => request<UserSummary[]>("/api/auth/users"),
+
+  createUser: (body: CreateUserBody) =>
+    request<UserSummary>("/api/auth/users", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }),
+
+  updateUser: (username: string, body: UpdateUserBody) =>
+    request<UserSummary>(`/api/auth/users/${encodeURIComponent(username)}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }),
+
+  deleteUser: (username: string) =>
+    request<void>(`/api/auth/users/${encodeURIComponent(username)}`, {
+      method: "DELETE",
+    }),
 
   // Project config
   getProject: () =>
@@ -77,6 +163,51 @@ export const api = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(alarms),
     }),
+
+  updateFunctions: (functions: FunctionDef[]) =>
+    request<void>("/api/project/functions", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(functions),
+    }),
+
+  updateCustomSymbols: (symbols: CustomSymbol[]) =>
+    request<void>("/api/project/custom-symbols", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(symbols),
+    }),
+
+  // Project import / export (Admin)
+  //
+  // Both endpoints speak `application/zip`. We expose the raw `Response`
+  // for export so the caller can read the Content-Disposition header
+  // before turning the body into a Blob for download.
+  exportProjectZip: async (): Promise<Response> => {
+    const headers = new Headers();
+    if (getAuthToken()) headers.set("Authorization", `Bearer ${getAuthToken()}`);
+    const res = await fetch(`${BASE_URL}/api/project/export`, { headers });
+    if (res.status === 401) throw new AuthError();
+    if (res.status === 403) throw new Error(`API /api/project/export: 403 Forbidden`);
+    if (!res.ok) throw new Error(`API /api/project/export: ${res.status} ${res.statusText}`);
+    return res;
+  },
+
+  importProjectZip: async (file: Blob): Promise<void> => {
+    const headers = new Headers({ "Content-Type": "application/zip" });
+    if (getAuthToken()) headers.set("Authorization", `Bearer ${getAuthToken()}`);
+    const res = await fetch(`${BASE_URL}/api/project/import`, {
+      method: "PUT",
+      headers,
+      body: file,
+    });
+    if (res.status === 401) throw new AuthError();
+    if (!res.ok) {
+      let body = "";
+      try { body = await res.text(); } catch { /* ignore */ }
+      throw new Error(`API /api/project/import: ${res.status} ${res.statusText}${body ? ` — ${body}` : ""}`);
+    }
+  },
 
   // Synoptics
   listSynoptics: () =>
@@ -107,6 +238,9 @@ export const api = {
   ackAlarm: (id: string) =>
     request<void>(`/api/alarms/${encodeURIComponent(id)}/ack`, { method: "POST" }),
 
+  // Runtime logs (Operator+)
+  getLogs: () => request<LogEvent[]>("/api/logs"),
+
   // Historian
   getHistory: (tag: string, opts?: { fromMs?: number; toMs?: number; limit?: number }) => {
     const params = new URLSearchParams();
@@ -119,7 +253,12 @@ export const api = {
     );
   },
 
-  // Script execution (object on_press / on_release handlers)
+  // Script execution
+  //
+  // `execScript` runs a raw Python body. Today it stays available for
+  // ad-hoc tooling (the FunctionEditor "Esegui" button) but synoptic
+  // objects no longer carry inline code — they reference a named
+  // FunctionDef and call `runFunction` instead.
   execScript: (code: string) =>
     request<{
       ok: boolean;
@@ -131,5 +270,18 @@ export const api = {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ code }),
+    }),
+
+  runFunction: (name: string, args?: Record<string, string | number | boolean>) =>
+    request<{
+      ok: boolean;
+      stdout: string;
+      stderr: string;
+      sandboxed: boolean;
+      error?: string;
+    }>(`/api/script/run/${encodeURIComponent(name)}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ args: args ?? {} }),
     }),
 };

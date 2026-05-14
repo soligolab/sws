@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  SWS cyclonic separator — vertical vessel with conical bottom.
+  Original work by the SWS project, dedicated to the public domain
+  (CC0 1.0). See ATTRIBUTION.md.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 70 100" width="70" height="100">
+  <!-- straight body -->
+  <path d="M10 14 L60 14 L60 56 L48 96 L22 96 L10 56 Z"
+        fill="#1e293b" stroke="#cbd5e1" stroke-width="2"
+        stroke-linejoin="round"/>
+  <!-- top inlet (tangential) -->
+  <rect x="4" y="22" width="14" height="10" fill="#1e293b" stroke="#cbd5e1" stroke-width="2"/>
+  <!-- vortex finder -->
+  <line x1="35" y1="4" x2="35" y2="36" stroke="#cbd5e1" stroke-width="3"/>
+  <ellipse cx="35" cy="8" rx="10" ry="3" fill="#1e293b" stroke="#cbd5e1" stroke-width="2"/>
+  <!-- underflow -->
+  <rect x="30" y="94" width="10" height="6" fill="#1e293b" stroke="#cbd5e1" stroke-width="2"/>
+</svg>

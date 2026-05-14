@@ -124,7 +124,7 @@ impl SourceSupervisor {
             SourceDef::Mqtt(cfg) => {
                 info!(source = %id_for_log, "starting MQTT task");
                 tokio::spawn(async move {
-                    sws_plugin_mqtt::run(cfg, db, cancel_for_task).await;
+                    sws_plugin_mqtt::run(cfg, db, bus, cancel_for_task).await;
                 })
             }
         };

@@ -1,0 +1,83 @@
+# Compose file for SWS — runtime + editor (nginx + Vite-built SPA).
+#
+# Usage:
+#     SWS_ADMIN_PASSWORD=changeme docker compose up
+#     # or with podman:
+#     SWS_ADMIN_PASSWORD=changeme podman compose up
+#
+# On a Rockchip / ARM64 board this works as-is when the host has a
+# container runtime; image tags must match the host architecture
+# (use `scripts/build-images.sh` for a multi-arch build).
+#
+# Volumes:
+#     ./.run/config   → /var/sws/config   (TLS cert)
+#     ./.run/project  → /var/sws/projects/default
+#     ./.run/db       → /var/sws/db       (historian SQLite)
+#
+# Ports:
+#     8443/tcp   → runtime HTTPS (REST + WS)
+#     5173/tcp   → editor (Vite preview / nginx) — change for production
+
+services:
+  runtime:
+    image: ghcr.io/soligolab/sws-runtime:latest
+    build:
+      context: ./sws-runtime
+      dockerfile: docker/Dockerfile
+    container_name: sws-runtime
+    restart: unless-stopped
+    ports:
+      - "8443:8443"
+    environment:
+      # Required — runtime refuses to start without it.
+      SWS_ADMIN_PASSWORD: "${SWS_ADMIN_PASSWORD:?set SWS_ADMIN_PASSWORD before starting}"
+      # Optional accounts. Empty / unset → role disabled.
+      SWS_SUPERVISOR_PASSWORD: "${SWS_SUPERVISOR_PASSWORD:-}"
+      SWS_OPERATOR_PASSWORD:   "${SWS_OPERATOR_PASSWORD:-}"
+      SWS_VIEWER_PASSWORD:     "${SWS_VIEWER_PASSWORD:-}"
+      # Session + login tuning.
+      SWS_SESSION_TTL_SECS:        "${SWS_SESSION_TTL_SECS:-28800}"
+      SWS_LOGIN_RATE_LIMIT:        "${SWS_LOGIN_RATE_LIMIT:-5}"
+      SWS_LOGIN_RATE_WINDOW_SECS:  "${SWS_LOGIN_RATE_WINDOW_SECS:-60}"
+      # Python script timeout (ms).
+      SWS_SCRIPT_TIMEOUT_MS:       "${SWS_SCRIPT_TIMEOUT_MS:-5000}"
+      # Historian persistence — drop to "" to disable.
+      SWS_HISTORIAN_DB:            "${SWS_HISTORIAN_DB:-/var/sws/db/historian.db}"
+      # Tracing
+      RUST_LOG:                    "${RUST_LOG:-info}"
+    volumes:
+      - ./.run/config:/var/sws/config
+      - ./.run/project:/var/sws/projects/default
+      - ./.run/db:/var/sws/db
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsk https://localhost:8443/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  editor:
+    image: ghcr.io/soligolab/sws-editor:latest
+    build:
+      context: ./sws-editor
+      dockerfile: docker/Dockerfile
+    container_name: sws-editor
+    restart: unless-stopped
+    ports:
+      - "5173:8443"
+    depends_on:
+      - runtime
+    # The editor nginx proxies /api + /ws to the runtime container via
+    # the compose DNS name. In production it serves the static SPA over
+    # HTTPS with the same TLS cert the runtime uses (mounted RO below).
+    volumes:
+      - ./.run/config:/etc/nginx/tls:ro
+    environment:
+      SWS_RUNTIME_HOST: "runtime"
+      SWS_RUNTIME_PORT: "8443"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- --no-check-certificate https://localhost:8443/ || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 5s

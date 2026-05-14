@@ -40,9 +40,29 @@ fi
 : "${SWS_ADMIN_PASSWORD:=admin}"
 export SWS_ADMIN_USER SWS_ADMIN_PASSWORD
 
+# Optional accounts for the other RBAC roles. Set non-empty to enable.
+: "${SWS_SUPERVISOR_PASSWORD:=supervisor}"
+: "${SWS_OPERATOR_PASSWORD:=operator}"
+: "${SWS_VIEWER_PASSWORD:=viewer}"
+export SWS_SUPERVISOR_PASSWORD SWS_OPERATOR_PASSWORD SWS_VIEWER_PASSWORD
+
+# Historian SQLite persistence path. Set to empty to disable (RAM only).
+: "${SWS_HISTORIAN_DB:=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/.run/historian.db}"
+export SWS_HISTORIAN_DB
+
 mkdir -p "$CONFIG_DIR" "$PROJECT_DIR" "$LOG_DIR"
 
-# ── Seed an example project.yaml if there is none ────────────────────────────
+# ── Seed an example project from examples/demo/ on first run ─────────────────
+# Snapshot of the MQTT echo + buttons + LED + gauge + pump demo. Subsequent
+# runs keep the maintainer's local edits (this only fires when project.yaml
+# is missing — i.e., on a fresh clone or after `rm -rf .run/project`).
+
+if [ ! -f "$PROJECT_DIR/project.yaml" ] && [ -d "$REPO_ROOT/examples/demo" ]; then
+  cp -r "$REPO_ROOT/examples/demo/." "$PROJECT_DIR/"
+  echo "[dev.sh] seeded $PROJECT_DIR from $REPO_ROOT/examples/demo"
+fi
+
+# ── Last-resort minimal fallback if examples/demo/ is absent ─────────────────
 
 if [ ! -f "$PROJECT_DIR/project.yaml" ]; then
   cat > "$PROJECT_DIR/project.yaml" <<'YAML'
@@ -61,6 +81,18 @@ tags:
     data_type: bool
   - id: sine
     description: Demo sine wave (drive with scripts/demo-sine.py)
+    data_type: float
+  - id: cosine
+    description: Demo cosine — for multi-tag trend (demo-driver.py)
+    data_type: float
+  - id: triangle
+    description: Demo triangle (demo-driver.py)
+    data_type: float
+  - id: ramp
+    description: Demo sawtooth ramp (demo-driver.py)
+    data_type: float
+  - id: noise
+    description: Demo uniform noise (demo-driver.py)
     data_type: float
 
 # No sources for dev. Write values manually with curl:
