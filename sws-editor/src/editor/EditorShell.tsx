@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api } from "@/api/client";
 import { SvgCanvas } from "@/canvas/SvgCanvas";
 import { LeftPanel } from "@/editor/LeftPanel";
@@ -206,8 +206,55 @@ export function EditorShell() {
     }
   };
 
-  const handleSave = () => {
-    if (currentPage) api.saveSynoptic(currentPage).catch(console.error);
+  // Persist EVERYTHING in one shot: all synoptic pages + project sections
+  // (tags / sources / alarms / functions / custom_symbols). Each section maps
+  // to a separate `PUT /api/project/*` endpoint — patch-style on the backend
+  // (loads from disk, overwrites one field, rewrites the YAML). Admin-only
+  // endpoints are skipped for non-Admin so the call doesn't 403.
+  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "ok" | "error">("idle");
+  const [saveError, setSaveError]   = useState<string | null>(null);
+  const saveOkTimer = useRef<number | null>(null);
+
+  const handleSave = async () => {
+    if (saveStatus === "saving") return;
+    if (saveOkTimer.current !== null) {
+      window.clearTimeout(saveOkTimer.current);
+      saveOkTimer.current = null;
+    }
+    setSaveStatus("saving");
+    setSaveError(null);
+
+    const state = useAppStore.getState();
+    const role  = state.authRole;
+    const isAdmin = role === "Admin";
+
+    const tasks: Promise<unknown>[] = [];
+    // Synoptic pages: every page is persisted, not just the current one.
+    // Operator+ can write synoptics; Viewer is gated upstream.
+    for (const page of state.pages) {
+      tasks.push(api.saveSynoptic(page));
+    }
+    // Project-level sections: admin-only on the server.
+    if (isAdmin && state.project) {
+      tasks.push(api.updateTags(state.project.tags ?? []));
+      tasks.push(api.updateSources(state.project.sources ?? []));
+      tasks.push(api.updateAlarms(state.project.alarms ?? []));
+      tasks.push(api.updateFunctions(state.project.functions ?? []));
+      tasks.push(api.updateCustomSymbols(state.customSymbols ?? []));
+    }
+
+    const results = await Promise.allSettled(tasks);
+    const failed  = results.filter((r) => r.status === "rejected") as PromiseRejectedResult[];
+    if (failed.length === 0) {
+      setSaveStatus("ok");
+      saveOkTimer.current = window.setTimeout(() => setSaveStatus("idle"), 2000);
+    } else {
+      const msg = failed
+        .map((f) => (f.reason instanceof Error ? f.reason.message : String(f.reason)))
+        .join("; ");
+      setSaveError(msg);
+      setSaveStatus("error");
+    }
   };
 
   // When a project-level function is selected, take over the whole main
@@ -226,6 +273,8 @@ export function EditorShell() {
           onAddObject={handleAddObject}
           onSave={handleSave}
           onFunctionsChanged={persistFunctions}
+          saveStatus={saveStatus}
+          saveError={saveError}
         />
         <FunctionEditor
           fn={selectedFn}
@@ -631,23 +680,40 @@ function ObjectProps({
       )}
 
       {/* NavButton */}
-      {obj.type === "navbutton" && (
-        <>
-          {field("Etichetta", textInput("label", "Vai alla pagina"))}
-          {field("Pagina di destinazione",
-            <select
-              style={{ ...INPUT, cursor: "pointer" }}
-              value={obj.target_page ?? ""}
-              onChange={(e) => onChange({ target_page: e.target.value || undefined })}
-            >
-              <option value="">— seleziona —</option>
-              {pages.map((p) => (
-                <option key={p.id} value={p.id}>{p.name}</option>
-              ))}
-            </select>
-          )}
-        </>
-      )}
+      {obj.type === "navbutton" && (() => {
+        const targetMissing = !!obj.target_page && !pages.some((p) => p.id === obj.target_page);
+        return (
+          <>
+            {field("Etichetta", textInput("label", "Vai alla pagina"))}
+            {field("Pagina di destinazione",
+              <select
+                style={{
+                  ...INPUT,
+                  cursor: "pointer",
+                  borderColor: targetMissing ? "#dc2626" : (INPUT.border ? undefined : "#334155"),
+                }}
+                value={obj.target_page ?? ""}
+                onChange={(e) => onChange({ target_page: e.target.value || undefined })}
+              >
+                <option value="">— seleziona —</option>
+                {pages.map((p) => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+                {targetMissing && (
+                  <option value={obj.target_page} disabled>
+                    ⚠ pagina inesistente: {obj.target_page}
+                  </option>
+                )}
+              </select>
+            )}
+            {targetMissing && (
+              <div style={{ fontSize: 11, color: "#fca5a5", marginTop: -4 }}>
+                La pagina di destinazione è stata eliminata. Seleziona un'altra pagina o rimuovi il navbutton.
+              </div>
+            )}
+          </>
+        );
+      })()}
 
       {/* Gauge */}
       {obj.type === "gauge" && (
@@ -895,6 +961,50 @@ function ObjectProps({
           {field("Colore OFF",   colorInput("state_off_color",   "#64748b"))}
           {field("Colore ON",    colorInput("state_on_color",    "#22c55e"))}
           {field("Colore ALARM", colorInput("state_alarm_color", "#ef4444"))}
+          {/* Rotazione e flip — solo per i symbol. Rotazione attorno al centro
+              del bounding box; flip orizzontale/verticale via scale(±1). */}
+          {field("Rotazione (gradi)",
+            <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+              <input
+                type="range"
+                min={-180} max={180} step={1}
+                value={obj.rotation ?? 0}
+                onChange={(e) => onChange({ rotation: Number(e.target.value) || 0 })}
+                style={{ flex: 1 }}
+              />
+              <input
+                type="number"
+                value={obj.rotation ?? 0}
+                onChange={(e) => onChange({ rotation: Number(e.target.value) || 0 })}
+                style={{ ...INPUT, width: 64 }}
+              />
+              <button
+                title="Resetta a 0°"
+                onClick={() => onChange({ rotation: undefined })}
+                style={{ ...INPUT, cursor: "pointer", padding: "3px 6px", width: 28 }}
+              >↺</button>
+            </div>
+          )}
+          <div style={{ display: "flex", gap: 12, marginTop: 4 }}>
+            <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#cbd5e1", cursor: "pointer" }}>
+              <input
+                type="checkbox"
+                checked={!!obj.flip_h}
+                onChange={(e) => onChange({ flip_h: e.target.checked || undefined })}
+                style={{ accentColor: "#3b82f6" }}
+              />
+              Flip orizzontale
+            </label>
+            <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#cbd5e1", cursor: "pointer" }}>
+              <input
+                type="checkbox"
+                checked={!!obj.flip_v}
+                onChange={(e) => onChange({ flip_v: e.target.checked || undefined })}
+                style={{ accentColor: "#3b82f6" }}
+              />
+              Flip verticale
+            </label>
+          </div>
         </>
       )}
 

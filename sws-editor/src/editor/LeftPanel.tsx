@@ -110,6 +110,23 @@ function PagesSection() {
   const setCurrentPage = useAppStore((s) => s.setCurrentPage);
   const addPage       = useAppStore((s) => s.addPage);
   const deletePage    = useAppStore((s) => s.deletePage);
+  const renamePage    = useAppStore((s) => s.renamePage);
+
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingValue, setEditingValue] = useState("");
+
+  const beginRename = (id: string, name: string) => {
+    setEditingId(id);
+    setEditingValue(name);
+  };
+  const commitRename = () => {
+    if (editingId) {
+      const v = editingValue.trim();
+      if (v) renamePage(editingId, v);
+    }
+    setEditingId(null);
+    setEditingValue("");
+  };
 
   return (
     <Section title="PAGINE">
@@ -118,19 +135,60 @@ function PagesSection() {
           <div
             key={p.id}
             style={{ ...S.row(p.id === currentPageId), justifyContent: "space-between" }}
-            onClick={() => setCurrentPage(p.id)}
+            onClick={() => editingId !== p.id && setCurrentPage(p.id)}
+            onDoubleClick={() => beginRename(p.id, p.name)}
+            title="Doppio click per rinominare"
           >
-            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-              {p.name}
-            </span>
-            {pages.length > 1 && (
-              <button
-                style={S.iconBtn}
-                title="Elimina pagina"
-                onClick={(e) => { e.stopPropagation(); deletePage(p.id); }}
-              >
-                ×
-              </button>
+            {editingId === p.id ? (
+              <input
+                autoFocus
+                value={editingValue}
+                onChange={(e) => setEditingValue(e.target.value)}
+                onBlur={commitRename}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") commitRename();
+                  else if (e.key === "Escape") { setEditingId(null); setEditingValue(""); }
+                }}
+                onClick={(e) => e.stopPropagation()}
+                style={{
+                  flex: 1,
+                  background: "#0f172a",
+                  color: "#e2e8f0",
+                  border: "1px solid #475569",
+                  borderRadius: 3,
+                  padding: "1px 4px",
+                  fontSize: 12,
+                }}
+              />
+            ) : (
+              <>
+                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {p.name}
+                </span>
+                <span style={{ display: "flex", gap: 2 }}>
+                  <button
+                    style={S.iconBtn}
+                    title="Rinomina"
+                    onClick={(e) => { e.stopPropagation(); beginRename(p.id, p.name); }}
+                  >
+                    ✎
+                  </button>
+                  {pages.length > 1 && (
+                    <button
+                      style={S.iconBtn}
+                      title="Elimina pagina"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (window.confirm(`Eliminare la pagina "${p.name}"? L'azione è annullabile con Ctrl-Z.`)) {
+                          deletePage(p.id);
+                        }
+                      }}
+                    >
+                      ×
+                    </button>
+                  )}
+                </span>
+              </>
             )}
           </div>
         ))}
@@ -609,9 +667,15 @@ interface LeftPanelProps {
   /** Fires after a CRUD verb on the in-memory functions list so the host
    *  can push the new list to `PUT /api/project/functions`. */
   onFunctionsChanged: () => void;
+  /** "Salva" button feedback. Defaults to "idle" if omitted (back-compat). */
+  saveStatus?: "idle" | "saving" | "ok" | "error";
+  saveError?: string | null;
 }
 
-export function LeftPanel({ onAddObject, onSave, onFunctionsChanged }: LeftPanelProps) {
+export function LeftPanel({
+  onAddObject, onSave, onFunctionsChanged,
+  saveStatus = "idle", saveError = null,
+}: LeftPanelProps) {
   const project    = useAppStore((s) => s.project);
   const setProject = useAppStore((s) => s.setProject);
 
@@ -639,15 +703,33 @@ export function LeftPanel({ onAddObject, onSave, onFunctionsChanged }: LeftPanel
       <div style={{ padding: "8px 10px", borderTop: "1px solid #334155", flexShrink: 0 }}>
         <button
           onClick={onSave}
+          disabled={saveStatus === "saving"}
+          title={saveStatus === "error" ? (saveError ?? "Errore di salvataggio") : "Salva tutto: pagine, tag, sorgenti, allarmi, funzioni, simboli"}
           style={{
             width: "100%",
-            background: "#166534", color: "#bbf7d0",
-            border: "1px solid #15803d", borderRadius: 4,
-            padding: "6px 0", cursor: "pointer", fontSize: 13, fontWeight: 600,
+            background:
+              saveStatus === "error" ? "#7f1d1d" :
+              saveStatus === "ok"    ? "#166534" :
+              saveStatus === "saving"? "#374151" :
+                                       "#166534",
+            color: "#bbf7d0",
+            border: "1px solid " + (saveStatus === "error" ? "#991b1b" : "#15803d"),
+            borderRadius: 4,
+            padding: "6px 0",
+            cursor: saveStatus === "saving" ? "wait" : "pointer",
+            fontSize: 13, fontWeight: 600,
           }}
         >
-          Salva
+          {saveStatus === "saving" ? "Salvataggio…" :
+           saveStatus === "ok"     ? "✓ Salvato"   :
+           saveStatus === "error"  ? "❌ Errore — clicca per ritentare" :
+                                     "Salva tutto"}
         </button>
+        {saveStatus === "error" && saveError && (
+          <div style={{ marginTop: 6, fontSize: 11, color: "#fca5a5", wordBreak: "break-word" }}>
+            {saveError}
+          </div>
+        )}
       </div>
     </div>
   );
