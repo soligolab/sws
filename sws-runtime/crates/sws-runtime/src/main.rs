@@ -55,8 +55,14 @@ async fn main() -> anyhow::Result<()> {
     // to the JSON-to-stdout fmt layer.
     let log_bus = Arc::new(LogBus::new(DEFAULT_LOG_CAPACITY));
 
+    // `from_default_env()` with RUST_LOG unset yields an empty filter that
+    // rejects every event — that silently disabled the log panel until now.
+    // Fall back to INFO so dev.sh and the container both produce logs out
+    // of the box; power users still override with RUST_LOG=debug etc.
+    let env_filter = EnvFilter::try_from_default_env()
+        .unwrap_or_else(|_| EnvFilter::new("info"));
     tracing_subscriber::registry()
-        .with(EnvFilter::from_default_env())
+        .with(env_filter)
         .with(fmt::layer().json())
         .with(LogBusLayer::new(log_bus.clone()))
         .init();
