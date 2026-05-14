@@ -2,7 +2,7 @@
 
 > This file is the **session-to-session memory** for Claude Code. Update it at the end of every session before stopping work. Read it at the start of every session before touching code.
 
-**Last session**: 2026-05-14 (sessione 2 della giornata: persistenza log su file con rotazione giornaliera in `<project>/../logs`)
+**Last session**: 2026-05-14 (sessione 3: fix Salva tutto + multi-page UX + symbol rotation. Pianificato il task "universal binding" — vedi docs/plans/.)
 **Current phase**: Phase 2. Demo working out-of-the-box su fresh clone, import/export progetto per backup/condivisione, pannello log live + persistenza su disco, gestione utenti multi-account.
 **Last commit**: vedi sotto
 
@@ -190,7 +190,19 @@
   - **Bug del "ritorno a capo" da investigare**: la textarea attuale potrebbe avere un handler `onKeyDown` che intercetta Enter (es. per "salva al primo enter") — controllare prima di rimpiazzare il componente, perché lo stesso bug potrebbe esistere anche in altri campi multi-linea.
   - **Out of scope**: autocomplete dei nomi tag dentro il codice Python (sarebbe figo ma è LSP-grade, troppo lavoro per il PoC), linting Python lato client, debugger. Vanno in BL successive.
 
-## Next session should
+## Next session should — APPROVED PLAN, DA ESEGUIRE
+
+> **Pick up from**: [docs/plans/2026-05-14_universal_binding.md](docs/plans/2026-05-14_universal_binding.md)
+>
+> Piano approvato dal maintainer 2026-05-14 ma esecuzione deferita per fine giornata. La prossima sessione apre quel file e parte direttamente dalla Phase 1. Riassunto del task:
+>
+> 1. **Cross-cutting transform** — aggiungere `rotation/flip_h/flip_v/opacity` come proprietà uniformi su rect/ellipse/text/image/gauge/led/progress_bar/table/button/navbutton/symbol (escludi line/slider/checkbox/radio/trend). Una sezione "TRASFORMAZIONE" in ObjectProps sopra "LIVELLO E VISIBILITÀ".
+> 2. **Universal tag binding** — nuovo campo `bindings: Record<string, string>` su `SynopticObject` + helper `resolveObject(obj, tagValues)` al render-time. Nuovo componente `<BindableInput>` che wrappa ogni input del pannello proprietà con un toggle 🔗/🔓. Lista "BINDING ATTIVI" in fondo al pannello per audit.
+> 3. **Demo Page 2 + Page 3** — Page 2 di benvenuto (fixa il navbutton orfano già su Page 1), Page 3 "Demo Binding" con un oggetto per tipo, tutti agganciati a `demo.rotation/demo.opacity/demo.label/demo.fill_color`, slider per pilotarli. Nuovi tag in `examples/demo/project.yaml`.
+>
+> Stima: 5-6 ore, divisibile in 2 sessioni (P1+P2 lunga, P3+P4 corta).
+
+### Altri candidati di backlog (alternativa al piano sopra)
 
 Stato di partenza per la prossima sessione:
 - Branch `main` pulito (a meno del commit di questa sessione pending).
