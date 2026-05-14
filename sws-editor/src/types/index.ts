@@ -145,6 +145,12 @@ export interface SynopticObject {
   state_tag?: string;
   /** Tag id whose truthy value forces the alarm style (overrides state_tag). */
   alarm_tag?: string;
+  /** Rotation in degrees, applied around the bounding-box centre. Symbol only. */
+  rotation?: number;
+  /** Mirror along the vertical axis (left↔right). Symbol only. */
+  flip_h?: boolean;
+  /** Mirror along the horizontal axis (top↔bottom). Symbol only. */
+  flip_v?: boolean;
 }
 
 // ── Historian sample (wire shape from GET /api/history/:tag) ──────────────

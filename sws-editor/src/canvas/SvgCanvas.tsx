@@ -976,32 +976,50 @@ function SvgObject(p: ObjProps) {
       state === "on"    ? (obj.state_on_color    ?? "#22c55e") :
                           (obj.state_off_color   ?? "#64748b");
 
+    // Rotation + flip transform, applied to the symbol visual only.
+    // The selection rect stays axis-aligned and the status badge stays
+    // anchored to the pre-transform top-right corner so it remains
+    // legible at any orientation.
+    const cx = obj.x + w / 2;
+    const cy = obj.y + h / 2;
+    const rot = obj.rotation ?? 0;
+    const sx  = obj.flip_h ? -1 : 1;
+    const sy  = obj.flip_v ? -1 : 1;
+    const hasTransform = rot !== 0 || sx !== 1 || sy !== 1;
+    const symbolTransform = hasTransform
+      ? `rotate(${rot} ${cx} ${cy}) translate(${cx} ${cy}) scale(${sx} ${sy}) translate(${-cx} ${-cy})`
+      : undefined;
+
     return (
       <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()}
          style={{ cursor: editCursor }}>
         {selRect(obj.x, obj.y, w, h)}
-        {customEntry ? (
-          // Custom symbol: loaded by URL, same badge convention as vendored.
-          <image href={customEntry.url} x={obj.x} y={obj.y} width={w} height={h}
-            preserveAspectRatio="xMidYMid meet" style={{ pointerEvents: "none" }} />
-        ) : meta!.kind === "builtin" && meta!.render ? (
-          <svg x={obj.x} y={obj.y} width={w} height={h} viewBox="0 0 100 100">
-            {meta!.render({
-              state,
-              off:   obj.state_off_color   ?? "#64748b",
-              on:    obj.state_on_color    ?? "#22c55e",
-              alarm: obj.state_alarm_color ?? "#ef4444",
-            })}
-          </svg>
-        ) : (
-          // Vendored SVG branch: load the asset from /symbols/ and overlay
-          // a small coloured status badge top-right (we don't tint the SVG
-          // itself to keep CC-BY derivative-work concerns out of the picture).
-          <image href={meta!.path} x={obj.x} y={obj.y} width={w} height={h}
-            preserveAspectRatio="xMidYMid meet" style={{ pointerEvents: "none" }} />
-        )}
+        <g transform={symbolTransform}>
+          {customEntry ? (
+            // Custom symbol: loaded by URL, same badge convention as vendored.
+            <image href={customEntry.url} x={obj.x} y={obj.y} width={w} height={h}
+              preserveAspectRatio="xMidYMid meet" style={{ pointerEvents: "none" }} />
+          ) : meta!.kind === "builtin" && meta!.render ? (
+            <svg x={obj.x} y={obj.y} width={w} height={h} viewBox="0 0 100 100">
+              {meta!.render({
+                state,
+                off:   obj.state_off_color   ?? "#64748b",
+                on:    obj.state_on_color    ?? "#22c55e",
+                alarm: obj.state_alarm_color ?? "#ef4444",
+              })}
+            </svg>
+          ) : (
+            // Vendored SVG branch: load the asset from /symbols/ and overlay
+            // a small coloured status badge top-right (we don't tint the SVG
+            // itself to keep CC-BY derivative-work concerns out of the picture).
+            <image href={meta!.path} x={obj.x} y={obj.y} width={w} height={h}
+              preserveAspectRatio="xMidYMid meet" style={{ pointerEvents: "none" }} />
+          )}
+        </g>
         {/* Status badge — drawn on top of either branch, gated on a bound tag.
-            14×14 circle in the top-right corner of the bounding box. */}
+            14×14 circle in the top-right corner of the bounding box. Stays
+            outside the rotation/flip transform so it doesn't move when the
+            symbol orientation changes. */}
         {(obj.state_tag || obj.alarm_tag) && (
           <circle cx={obj.x + w - 7} cy={obj.y + 7} r={6}
             fill={badgeColor} stroke="#0f172a" strokeWidth={1}

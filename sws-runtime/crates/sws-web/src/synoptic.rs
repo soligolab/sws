@@ -99,6 +99,12 @@ pub struct SynopticObject {
     #[serde(skip_serializing_if = "Option::is_none")] pub state_alarm_color: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")] pub state_tag:        Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")] pub alarm_tag:        Option<String>,
+    /// Rotation in degrees around the bounding-box centre (symbol only).
+    #[serde(skip_serializing_if = "Option::is_none")] pub rotation:         Option<f64>,
+    /// Mirror along the vertical axis (symbol only).
+    #[serde(skip_serializing_if = "Option::is_none")] pub flip_h:           Option<bool>,
+    /// Mirror along the horizontal axis (symbol only).
+    #[serde(skip_serializing_if = "Option::is_none")] pub flip_v:           Option<bool>,
 }
 
 // Note: `symbol_kind` and `symbol_path` are NOT stored on the object —
