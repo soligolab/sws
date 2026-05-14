@@ -205,6 +205,26 @@ pub struct FunctionDef {
 /// Hard cap on `FunctionDef::code.len()` enforced by the web layer.
 pub const MAX_FUNCTION_CODE_BYTES: usize = 64 * 1024;
 
+/// Attribution record for a user-imported SVG symbol.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CustomSymbolAttribution {
+    pub author: String,
+    pub source: String,
+    pub license: String,
+}
+
+/// A user-supplied SVG symbol stored in project.yaml.
+/// Rendered via `<image href>` like a vendored symbol; state badge overlaid.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CustomSymbol {
+    /// Stable slug, generated client-side (e.g. "my_pump_v2").
+    pub id: String,
+    pub label: String,
+    /// Absolute URL or path served by the runtime.
+    pub url: String,
+    pub attribution: CustomSymbolAttribution,
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Project {
     pub meta: ProjectMeta,
@@ -216,6 +236,8 @@ pub struct Project {
     pub alarms: Vec<AlarmDef>,
     #[serde(default)]
     pub functions: Vec<FunctionDef>,
+    #[serde(default)]
+    pub custom_symbols: Vec<CustomSymbol>,
 }
 
 impl Project {

@@ -31,6 +31,43 @@ const INPUT: React.CSSProperties = {
   boxSizing: "border-box",
 };
 
+// ── SymbolSelect ─────────────────────────────────────────────────────────────
+// Dropdown che mostra sia i simboli built-in sia i simboli custom del progetto.
+
+const BUILTIN_SYMBOLS = [
+  { id: "pump",              label: "Pompa" },
+  { id: "valve",             label: "Valvola" },
+  { id: "motor",             label: "Motore" },
+  { id: "tank",              label: "Serbatoio" },
+  { id: "fan",               label: "Ventola" },
+  { id: "compressor",        label: "Compressore" },
+  { id: "level_sensor",      label: "Sensore livello" },
+  { id: "flow_meter",        label: "Misuratore portata" },
+  { id: "pressure_indicator",label: "Indicatore pressione" },
+  { id: "breaker",           label: "Interruttore" },
+  { id: "mixer",             label: "Miscelatore" },
+  { id: "heat_exchanger",    label: "Scambiatore" },
+  { id: "separator",         label: "Separatore" },
+  { id: "reactor",           label: "Reattore" },
+  { id: "filter",            label: "Filtro" },
+];
+
+function SymbolSelect({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const customSymbols = useAppStore((s) => s.customSymbols);
+  return (
+    <select style={{ ...INPUT, cursor: "pointer" }} value={value} onChange={(e) => onChange(e.target.value)}>
+      <optgroup label="Libreria built-in">
+        {BUILTIN_SYMBOLS.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
+      </optgroup>
+      {customSymbols.length > 0 && (
+        <optgroup label="Simboli progetto">
+          {customSymbols.map((s) => <option key={s.id} value={`custom:${s.id}`}>{s.label}</option>)}
+        </optgroup>
+      )}
+    </select>
+  );
+}
+
 // ── EditorShell ───────────────────────────────────────────────────────────────
 
 export function EditorShell() {
@@ -40,6 +77,7 @@ export function EditorShell() {
   const selectedIds     = useAppStore((s) => s.selectedObjectIds);
   const selectedFnId    = useAppStore((s) => s.selectedFunctionId);
   const project         = useAppStore((s) => s.project);
+  const customSymbols   = useAppStore((s) => s.customSymbols);
   const updateFunction  = useAppStore((s) => s.updateFunction);
   const tagValues       = useAppStore((s) => s.tagValues);
   const gridSize        = useAppStore((s) => s.gridSize);
@@ -218,6 +256,7 @@ export function EditorShell() {
           selectedIds={selectedIds}
           gridSize={gridSize}
           snapEnabled={snapEnabled}
+          customSymbols={customSymbols}
           onSelect={handleSelect}
           onMove={(id, patch) => updateObject(id, patch)}
         />
@@ -820,21 +859,24 @@ function ObjectProps({
         </>
       )}
 
-      {/* Symbol (built-in SCADA library) */}
+      {/* Image (external URL) */}
+      {obj.type === "image" && (
+        <>
+          {field("URL immagine",
+            <input
+              style={INPUT} placeholder="https://… o /symbols/…"
+              value={obj.src ?? ""}
+              onChange={(e) => onChange({ src: e.target.value || undefined })}
+            />
+          )}
+        </>
+      )}
+
+      {/* Symbol (built-in SCADA library + custom project symbols) */}
       {obj.type === "symbol" && (
         <>
           {field("Simbolo",
-            <select
-              style={{ ...INPUT, cursor: "pointer" }}
-              value={obj.symbol_id ?? "pump"}
-              onChange={(e) => onChange({ symbol_id: e.target.value as any })}
-            >
-              <option value="pump">Pompa</option>
-              <option value="valve">Valvola</option>
-              <option value="motor">Motore</option>
-              <option value="tank">Serbatoio</option>
-              <option value="fan">Ventola</option>
-            </select>
+            <SymbolSelect value={obj.symbol_id ?? "pump"} onChange={(v) => onChange({ symbol_id: v as any })} />
           )}
           {field("Tag stato (truthy → ON)",
             <TagInput

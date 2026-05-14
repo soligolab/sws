@@ -2,9 +2,9 @@
 
 > This file is the **session-to-session memory** for Claude Code. Update it at the end of every session before stopping work. Read it at the start of every session before touching code.
 
-**Last session**: 2026-05-13 (seed demo nel repo + import/export progetto ZIP dall'IDE — pushato su origin/main)
+**Last session**: 2026-05-14 (widget Image abilitato + simboli custom con gestione licenze in ConfigView → Risorse)
 **Current phase**: Phase 2. Demo working out-of-the-box su fresh clone, import/export progetto per backup/condivisione, pannello log live, gestione utenti multi-account.
-**Last commit**: `b455f6b` feat: project import/export (ZIP) + seed demo into examples/
+**Last commit**: vedi sotto
 
 ### Cosa è andato online in queste sessioni (in ordine di commit)
 - `3631c37` BL-002 — MQTT auth/TLS/last-will/QoS + password masking
@@ -107,6 +107,12 @@
 - **Demo MQTT round-trip**: `.run/project/project.yaml` ha due nuovi tag bool (`demo.button`, `demo.led`) mappati sul topic `sws/demo/echo` di `broker.freemqtt.com`. Pulsante "MQTT Echo" scrive `demo.button=true` → plugin pubblica → broker rimbalza → entrambi i tag ricevono il valore → la LED si accende. Niente bridging esterno, dimostra il publish/subscribe completo via MQTT 3.1.1.
 - **Demo seedato nel repo**: `examples/demo/{project.yaml, synoptics/Page 1.yaml}` è uno snapshot versionato del progetto dev (5 tag, MQTT echo, alarm, 2 funzioni Python, synoptic con 11+ oggetti incl. buttons UP/DOWN, MQTT LED ON/OFF, slider, gauge, pump symbol). `scripts/dev.sh` lo copia in `.run/project/` solo se `project.yaml` non esiste, così un fresh clone parte con un editor pieno e i clone esistenti non vengono trampled.
 - **Project import/export (Admin)**: due bottoni "Esporta" / "Importa" in header (solo Admin). Bundle ZIP `{manifest.json, project.yaml, synoptics/<page>.yaml}` con `format_version: "1.0"`. Le password MQTT sono **strippate** (mai esportate); le re-immetti in Configurazione → Protocolli dopo l'import. Replace mode con confirm dialog: synoptic orfani vengono eliminati. Hot-reload completo dopo import (TagDb diff, AlarmDb.load, supervisor.reload, functions registry swap) — niente restart. Endpoints `GET /api/project/export` + `PUT /api/project/import`, entrambi in `admin_routes` con `require_admin` + `require_password_changed` + `require_auth`.
+- **Bug fix gauge hit-area**: il `<g>` del gauge non riceveva eventi pointer perché tutti i figli avevano `pointerEvents: "none"` (l'arco è geometria stroke-only, niente fill). Aggiunto `<rect fill="transparent">` come primo figlio → gauge ora selezionabile e draggabile da qualsiasi punto del bounding box. (`sws-editor/src/canvas/SvgCanvas.tsx`)
+- **Widget Image abilitato**: il tipo `image` era segnato "Prossimamente" in LeftPanel ma il rendering era già funzionante. Rimosso il flag `disabled`. Properties panel ora mostra un campo "URL immagine" per impostare `src`. Supporta qualsiasi URL assoluto o path `/symbols/…`.
+- **Simboli custom progetto (`PUT /api/project/custom-symbols`)**: nuovo endpoint REST (Rust) + campo `custom_symbols: Vec<CustomSymbol>` in `project.yaml`. Ogni simbolo ha `{ id, label, url, attribution: { author, source, license } }`. Viene incluso nel ZIP di export/import.
+- **Tab "Risorse" in ConfigView**: elenco simboli già aggiunti con tabella url/licenza/autore + pulsante rimuovi. Form di aggiunta: URL SVG, etichetta, licenza (select CC0/CC-BY/Apache/MIT/BSD/PD), autore, fonte. L'id viene derivato automaticamente dall'etichetta. Salvataggio via `PUT /api/project/custom-symbols`.
+- **SymbolSelect component**: il dropdown "Simbolo" in EditorShell ora include un gruppo `<optgroup>` "Simboli progetto" con i simboli custom. I simboli custom hanno `symbol_id` prefissato `custom:`. Canvas li renderizza come `<image href={url}>` con badge stato (stesso meccanismo dei simboli vendored).
+- **SvgCanvas/RuntimeView**: `customSymbols` passato come prop sia all'editor sia alla view runtime — i simboli custom appaiono anche in modalità operatore.
 
 ## Backlog / reminders
 
@@ -178,14 +184,13 @@
 
 ## Next session should
 
-Stato di partenza per la sessione di domani:
-- Branch `main` pulito (working tree clean), allineato a `origin/main`.
+Stato di partenza per la sessione di domani (2026-05-14, commit post-Risorse):
+- Branch `main` pulito, allineato a `origin/main`.
 - 24 unit test workspace verdi (`PYO3_PYTHON=python3 cargo test --manifest-path sws-runtime/Cargo.toml --workspace`).
-- Frontend builda a 748 KB / 235 KB gzipped (`cd sws-editor && pnpm type-check && pnpm build`).
-- `./scripts/dev.sh` parte. Demo seedato in `.run/project/`: 5 tag, MQTT echo su `broker.freemqtt.com`, alarm counter_high, 2 funzioni Python, synoptic con buttons UP/DOWN, MQTT LED ON/OFF, slider, gauge, pump symbol.
-- Sessioni in-memory: ogni restart del runtime richiede re-login. `must_change_password` setup → primo accesso a un account creato in UI mostra `ChangePasswordScreen`.
-
-Per pickup veloce, prova: login `admin/admin` → bottone "Esporta" in header → scarica un ZIP per verificare che è tutto in piedi.
+- Frontend builda OK (`cd sws-editor && pnpm type-check && pnpm build`).
+- `./scripts/dev.sh` parte. Demo seedato in `.run/project/`.
+- Login `admin/admin` → Configurazione → tab "Risorse" per testare il form aggiunta simboli.
+- Trascinare un widget "Immagine" nel synoptic → nel pannello proprietà incollare URL di un PNG → deve apparire nel canvas.
 
 Pick one of these as the next focused work block (each fits 3-4 hours):
 

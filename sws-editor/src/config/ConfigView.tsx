@@ -1541,13 +1541,155 @@ function UsersTab() {
   );
 }
 
-type ConfigTab = "tags" | "protocols" | "alarms" | "users";
+// ── ResourcesTab ─────────────────────────────────────────────────────────────
+
+const LICENSE_OPTIONS = ["CC0 1.0", "CC-BY 4.0", "Apache-2.0", "MIT", "BSD-2-Clause", "Public domain"];
+
+const EMPTY_FORM = { label: "", url: "", author: "", source: "", license: "CC0 1.0" };
+
+function ResourcesTab() {
+  const customSymbols          = useAppStore((s) => s.customSymbols);
+  const updateProjectCustomSymbols = useAppStore((s) => s.updateProjectCustomSymbols);
+  const [form, setForm] = useState(EMPTY_FORM);
+  const [saving, setSaving] = useState(false);
+  const [error, setError]   = useState<string | null>(null);
+
+  const persist = async (next: typeof customSymbols) => {
+    setSaving(true); setError(null);
+    try {
+      await api.updateCustomSymbols(next);
+      updateProjectCustomSymbols(next);
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const add = async () => {
+    if (!form.label.trim() || !form.url.trim()) return;
+    const id = form.label.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
+    if (customSymbols.some((s) => s.id === id)) {
+      setError(`Esiste già un simbolo con id "${id}"`);
+      return;
+    }
+    const next = [
+      ...customSymbols,
+      { id, label: form.label.trim(), url: form.url.trim(),
+        attribution: { author: form.author.trim(), source: form.source.trim(), license: form.license } },
+    ];
+    await persist(next);
+    if (!error) setForm(EMPTY_FORM);
+  };
+
+  const remove = (id: string) => persist(customSymbols.filter((s) => s.id !== id));
+
+  const inp: React.CSSProperties = {
+    background: "#0f172a", border: "1px solid #334155", borderRadius: 4,
+    color: "#e2e8f0", padding: "4px 8px", fontSize: 13, width: "100%", boxSizing: "border-box",
+  };
+  const lbl: React.CSSProperties = { fontSize: 11, color: "#64748b", marginBottom: 2 };
+
+  return (
+    <div style={{ padding: 24, display: "flex", flexDirection: "column", gap: 24, maxWidth: 700 }}>
+
+      {/* Simboli già aggiunti */}
+      <section>
+        <div style={{ fontSize: 13, fontWeight: 700, color: "#94a3b8", marginBottom: 12 }}>
+          SIMBOLI PROGETTO ({customSymbols.length})
+        </div>
+        {customSymbols.length === 0 ? (
+          <div style={{ color: "#475569", fontSize: 13 }}>Nessun simbolo custom aggiunto.</div>
+        ) : (
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+            <thead>
+              <tr style={{ color: "#64748b", borderBottom: "1px solid #334155" }}>
+                {["Etichetta", "URL", "Licenza", "Autore / fonte", ""].map((h) => (
+                  <th key={h} style={{ textAlign: "left", padding: "4px 8px", fontWeight: 600 }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {customSymbols.map((s) => (
+                <tr key={s.id} style={{ borderBottom: "1px solid #1e293b" }}>
+                  <td style={{ padding: "6px 8px", color: "#e2e8f0" }}>{s.label}</td>
+                  <td style={{ padding: "6px 8px", color: "#94a3b8", maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    <a href={s.url} target="_blank" rel="noopener noreferrer" style={{ color: "#3b82f6" }}>{s.url}</a>
+                  </td>
+                  <td style={{ padding: "6px 8px", color: "#94a3b8" }}>{s.attribution.license}</td>
+                  <td style={{ padding: "6px 8px", color: "#64748b" }}>{s.attribution.author}{s.attribution.source ? ` / ${s.attribution.source}` : ""}</td>
+                  <td style={{ padding: "6px 8px" }}>
+                    <button
+                      onClick={() => remove(s.id)}
+                      style={{ background: "transparent", border: "1px solid #7f1d1d", borderRadius: 4, color: "#fca5a5", cursor: "pointer", padding: "2px 8px", fontSize: 12 }}
+                    >Rimuovi</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </section>
+
+      {/* Form aggiunta */}
+      <section style={{ background: "#1e293b", border: "1px solid #334155", borderRadius: 6, padding: 16 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: "#94a3b8", marginBottom: 12 }}>
+          AGGIUNGI SIMBOLO SVG
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: "8px 12px", alignItems: "start" }}>
+          <div>
+            <div style={lbl}>Etichetta *</div>
+            <input style={inp} placeholder="es. Pompa centrifuga" value={form.label} onChange={(e) => setForm((f) => ({ ...f, label: e.target.value }))} />
+          </div>
+          <div>
+            <div style={lbl}>URL SVG * (https://… oppure /symbols/…)</div>
+            <input style={inp} placeholder="https://example.com/pump.svg" value={form.url} onChange={(e) => setForm((f) => ({ ...f, url: e.target.value }))} />
+          </div>
+          <div>
+            <div style={lbl}>Licenza *</div>
+            <select style={{ ...inp, cursor: "pointer" }} value={form.license} onChange={(e) => setForm((f) => ({ ...f, license: e.target.value }))}>
+              {LICENSE_OPTIONS.map((l) => <option key={l} value={l}>{l}</option>)}
+            </select>
+          </div>
+          <div>
+            <div style={lbl}>Autore</div>
+            <input style={inp} placeholder="es. Wikimedia Commons / Mario Rossi" value={form.author} onChange={(e) => setForm((f) => ({ ...f, author: e.target.value }))} />
+          </div>
+          <div style={{ gridColumn: "1 / -1" }}>
+            <div style={lbl}>URL fonte (per attribuzione CC-BY)</div>
+            <input style={inp} placeholder="https://commons.wikimedia.org/wiki/…" value={form.source} onChange={(e) => setForm((f) => ({ ...f, source: e.target.value }))} />
+          </div>
+        </div>
+        {error && <div style={{ color: "#fca5a5", fontSize: 12, marginTop: 8 }}>{error}</div>}
+        <div style={{ marginTop: 12, display: "flex", alignItems: "center", gap: 12 }}>
+          <button
+            onClick={add}
+            disabled={saving || !form.label.trim() || !form.url.trim()}
+            style={{
+              background: "#3b82f6", border: "none", borderRadius: 4, color: "#fff",
+              cursor: saving ? "wait" : "pointer", padding: "6px 20px", fontSize: 13,
+              opacity: (!form.label.trim() || !form.url.trim()) ? 0.5 : 1,
+            }}
+          >{saving ? "Salvataggio…" : "Aggiungi al progetto"}</button>
+          <span style={{ fontSize: 11, color: "#475569" }}>
+            Confermando accetti di rispettare i termini della licenza selezionata.
+          </span>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+// ── ConfigView root ───────────────────────────────────────────────────────────
+
+type ConfigTab = "tags" | "protocols" | "alarms" | "users" | "resources";
 
 const TAB_LABELS: Record<ConfigTab, string> = {
   tags:      "Variabili",
   protocols: "Protocolli",
   alarms:    "Allarmi",
   users:     "Utenti",
+  resources: "Risorse",
 };
 
 export function ConfigView() {
@@ -1563,15 +1705,14 @@ export function ConfigView() {
   }, [tab, isAdmin]);
 
   const visibleTabs: ConfigTab[] = isAdmin
-    ? ["tags", "protocols", "alarms", "users"]
-    : ["tags", "protocols", "alarms"];
+    ? ["tags", "protocols", "alarms", "users", "resources"]
+    : ["tags", "protocols", "alarms", "resources"];
 
   // Guard: tags/protocols/alarms tabs all initialise their local state from
   // store.project. If project hasn't loaded yet, rendering them would show
   // empty inputs over a populated YAML and a subsequent save would wipe the
-  // file. The Utenti tab is independent (it queries /api/auth/users) so it
-  // stays available even before the project is loaded.
-  const projectLoading = project === null && tab !== "users";
+  // file. The Utenti and Risorse tabs are independent so they stay available.
+  const projectLoading = project === null && tab !== "users" && tab !== "resources";
 
   return (
     <div style={S.page}>
@@ -1596,6 +1737,7 @@ export function ConfigView() {
             {tab === "protocols" && <ProtocolsTab />}
             {tab === "alarms"    && <AlarmsTab />}
             {tab === "users"     && isAdmin && <UsersTab />}
+            {tab === "resources" && <ResourcesTab />}
           </>
         )}
       </div>

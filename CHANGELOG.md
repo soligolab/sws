@@ -8,6 +8,17 @@ and this project adheres to [CalVer](https://calver.org/) (`YYYY.MM[.patch]`).
 ## [Unreleased]
 
 ### Added
+- `sws-editor`: widget `image` abilitato in palette — campo URL in properties panel, rendering `<image>` SVG già funzionante
+- `sws-editor`: tab "Risorse" in ConfigView — aggiunta/rimozione simboli SVG custom con registrazione obbligatoria licenza (CC0/CC-BY/Apache-2.0/MIT/BSD/Public domain), autore e fonte
+- `sws-core`: tipo `CustomSymbol { id, label, url, attribution }` + campo `custom_symbols` in `Project`; incluso in export/import ZIP
+- `sws-web`: `PUT /api/project/custom-symbols` (Admin-only) — persiste in `project.yaml`
+- `sws-editor`: `SymbolSelect` component con gruppo `<optgroup>` "Simboli progetto" che mostra i simboli custom accanto ai 15 built-in
+- `sws-editor`: `SvgCanvas` accetta prop `customSymbols`; simboli con `symbol_id: "custom:<id>"` renderizzati come `<image href>` con badge stato
+
+### Fixed
+- `sws-editor`: gauge non selezionabile/draggabile — aggiunto `<rect fill="transparent">` come hit-area nel bounding box del gauge (il `<g>` SVG non riceve eventi se tutti i figli hanno `pointerEvents: none`)
+
+
 - Monorepo scaffold: `sws-runtime/` (Rust workspace) and `sws-editor/` (Vite + React)
 - Community files: CONTRIBUTING, CODE_OF_CONDUCT, SECURITY
 - GitHub Actions CI pipeline with DCO check, lint, build, test, SBOM, audit

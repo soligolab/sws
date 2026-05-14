@@ -4,6 +4,7 @@ import { setAuthToken } from "@/api/client";
 import type {
   AlarmDef,
   AlarmState,
+  CustomSymbol,
   FunctionDef,
   LogEvent,
   ProjectInfo,
@@ -86,6 +87,7 @@ interface AppState {
   mustChangePassword: boolean;
 
   project: ProjectInfo | null;
+  customSymbols: CustomSymbol[];
   pages: SynopticPage[];
   currentPageId: string;
   /** Primary selection — `null` when nothing or many. Equals `selectedObjectIds[0]` when one. */
@@ -118,6 +120,7 @@ interface AppState {
   updateProjectSources: (sources: SourceDef[]) => void;
   updateProjectAlarms: (alarms: AlarmDef[]) => void;
   updateProjectFunctions: (functions: FunctionDef[]) => void;
+  updateProjectCustomSymbols: (symbols: CustomSymbol[]) => void;
 
   // ── Function CRUD (project-level reusable Python). All mutations push to
   //    `past` for undo and need to be persisted with api.updateFunctions
@@ -214,6 +217,7 @@ export const useAppStore = create<AppState>((set, get) => {
     mustChangePassword: persisted?.must_change_password === true,
 
     project: null,
+    customSymbols: [],
     pages: [first],
     currentPageId: first.id,
     selectedObjectId: null,
@@ -253,7 +257,7 @@ export const useAppStore = create<AppState>((set, get) => {
       set({ authToken: null, authUser: null, authRole: null, mustChangePassword: false });
     },
 
-    setProject: (project) => set({ project }),
+    setProject: (project) => set({ project, customSymbols: project.custom_symbols ?? [] }),
 
     updateProjectTags: (tags) =>
       set((s) => ({ project: s.project ? { ...s.project, tags } : s.project })),
@@ -266,6 +270,12 @@ export const useAppStore = create<AppState>((set, get) => {
 
     updateProjectFunctions: (functions) =>
       set((s) => ({ project: s.project ? { ...s.project, functions } : s.project })),
+
+    updateProjectCustomSymbols: (symbols) =>
+      set((s) => ({
+        customSymbols: symbols,
+        project: s.project ? { ...s.project, custom_symbols: symbols } : s.project,
+      })),
 
     // ── Function CRUD ──────────────────────────────────────────────────────
     // Mutations live in the in-memory `project.functions`; the caller is

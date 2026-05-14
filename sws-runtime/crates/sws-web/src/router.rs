@@ -11,9 +11,9 @@ use axum::{
 use serde::Deserialize;
 use sws_auth::{AuthState, Credentials, LoginError, LoginOk, Role};
 use sws_core::{
-    AlarmDb, AlarmDef, AlarmState, FunctionDef, LogBus, LogEvent, Project, ProjectMeta, SourceDef,
-    TagDb, TagDef, TagId, TagQuality, TagState, TagUpdate, TagValue, TagWriteBus, WriteError,
-    MAX_FUNCTION_CODE_BYTES,
+    AlarmDb, AlarmDef, AlarmState, CustomSymbol, FunctionDef, LogBus, LogEvent, Project,
+    ProjectMeta, SourceDef, TagDb, TagDef, TagId, TagQuality, TagState, TagUpdate, TagValue,
+    TagWriteBus, WriteError, MAX_FUNCTION_CODE_BYTES,
 };
 use sws_historian::{Historian, Sample};
 use sws_pyscript::{Engine as PyEngine, ExecOutput};
@@ -58,10 +58,11 @@ pub fn build(
     // Routes that need Admin privileges (PUT /api/project/* — schema edits,
     // plus the multi-user CRUD).
     let admin_routes = Router::new()
-        .route("/api/project/tags",       put(update_project_tags))
-        .route("/api/project/sources",    put(update_project_sources))
-        .route("/api/project/alarms",     put(update_project_alarms))
-        .route("/api/project/functions",  put(update_project_functions))
+        .route("/api/project/tags",           put(update_project_tags))
+        .route("/api/project/sources",        put(update_project_sources))
+        .route("/api/project/alarms",         put(update_project_alarms))
+        .route("/api/project/functions",      put(update_project_functions))
+        .route("/api/project/custom-symbols", put(update_project_custom_symbols))
         // Bulk project export/import (single ZIP carrying project.yaml +
         // every synoptic). Destructive on the import side — Admin only.
         .route("/api/project/export",     get(export_project_zip))
@@ -548,6 +549,7 @@ where
         sources: vec![],
         alarms: vec![],
         functions: vec![],
+        custom_symbols: vec![],
     });
     f(&mut project);
     if let Err(e) = tokio::fs::create_dir_all(project_dir).await {
@@ -690,6 +692,13 @@ async fn update_project_functions(
         for f in clone { map.insert(f.name.clone(), f); }
     }
     status.into_response()
+}
+
+async fn update_project_custom_symbols(
+    State(s): State<AppState>,
+    Json(symbols): Json<Vec<CustomSymbol>>,
+) -> StatusCode {
+    patch_project(&s.project_dir, |p| p.custom_symbols = symbols).await
 }
 
 // ── Project import / export (Admin only) ─────────────────────────────────────

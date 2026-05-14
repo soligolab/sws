@@ -167,6 +167,19 @@ export interface Project {
   version: string;
 }
 
+export interface CustomSymbolAttribution {
+  author: string;
+  source: string;
+  license: string;
+}
+
+export interface CustomSymbol {
+  id: string;
+  label: string;
+  url: string;
+  attribution: CustomSymbolAttribution;
+}
+
 // ── Project tree types (from GET /api/project) ────────────────────────────
 
 export type TagDataType = "bool" | "int" | "float" | "string";
@@ -250,6 +263,7 @@ export interface ProjectInfo {
   sources: SourceDef[];
   alarms?: AlarmDef[];
   functions?: FunctionDef[];
+  custom_symbols?: CustomSymbol[];
 }
 
 // ── Reusable Python functions ──────────────────────────────────────────────

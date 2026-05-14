@@ -1,7 +1,7 @@
 import { useRef } from "react";
 import { TrendCanvas } from "@/canvas/TrendCanvas";
 import { SYMBOLS } from "@/symbols/library";
-import type { SynopticObject, TagState } from "@/types";
+import type { CustomSymbol, SynopticObject, TagState } from "@/types";
 
 // ── Canvas props ──────────────────────────────────────────────────────────────
 
@@ -14,6 +14,8 @@ interface SvgCanvasProps {
   selectedIds?: string[];
   gridSize?: number;
   snapEnabled?: boolean;
+  /** Custom symbols defined in the project (persisted in project.yaml). */
+  customSymbols?: CustomSymbol[];
   /** Single-select (replace) when shift is false; toggle into the set when true. */
   onSelect?: (id: string | null, shift?: boolean) => void;
   onMove?: (id: string, patch: Partial<SynopticObject>) => void;
@@ -134,6 +136,7 @@ export function SvgCanvas({
   selectedIds,
   gridSize = 10,
   snapEnabled = true,
+  customSymbols = [],
   onSelect,
   onMove,
   onWriteTag,
@@ -225,6 +228,7 @@ export function SvgCanvas({
               tagValues={tagValues}
               selected={selSet.has(obj.id)}
               isEditMode={inEdit}
+              customSymbols={customSymbols}
               onSelect={onSelect}
               onStartDrag={onMove ? startDrag : undefined}
               onWriteTag={onWriteTag}
@@ -244,6 +248,7 @@ interface ObjProps {
   tagValues: Record<string, TagState>;
   selected: boolean;
   isEditMode: boolean;
+  customSymbols: CustomSymbol[];
   onSelect?: (id: string | null, shift?: boolean) => void;
   onStartDrag?: (e: React.MouseEvent<SVGElement>, obj: SynopticObject) => void;
   onWriteTag?: (tagId: string, value: string | number | boolean) => void;
@@ -251,7 +256,7 @@ interface ObjProps {
 }
 
 function SvgObject(p: ObjProps) {
-  const { obj, tagValues, selected, isEditMode, onSelect, onStartDrag, onWriteTag, onNavigate } = p;
+  const { obj, tagValues, selected, isEditMode, customSymbols, onSelect, onStartDrag, onWriteTag, onNavigate } = p;
 
   const handleMouseDown = (e: React.MouseEvent<SVGElement>) => {
     e.stopPropagation();
@@ -552,6 +557,8 @@ function SvgObject(p: ObjProps) {
       <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()}
          style={{ cursor: editCursor }}>
         {selRect(obj.x, obj.y, w, h)}
+        {/* Invisible hit-area: <g> ha no own geometry, senza questo rect il click cade nel vuoto */}
+        <rect x={obj.x} y={obj.y} width={w} height={h} fill="transparent" />
         {/* Background arc */}
         <path d={arcPath(cx, cy, R, START, END)}
           fill="none" stroke="#334155" strokeWidth={10} strokeLinecap="round"
@@ -926,11 +933,15 @@ function SvgObject(p: ObjProps) {
   //   - otherwise        → off
 
   if (obj.type === "symbol") {
-    const meta = obj.symbol_id ? SYMBOLS[obj.symbol_id] : undefined;
+    const isCustom = obj.symbol_id?.startsWith("custom:");
+    const customEntry = isCustom
+      ? customSymbols.find((s) => s.id === obj.symbol_id!.slice(7))
+      : undefined;
+    const meta = !isCustom && obj.symbol_id ? SYMBOLS[obj.symbol_id] : undefined;
     const w = obj.width  ?? meta?.defaultWidth  ?? 80;
     const h = obj.height ?? meta?.defaultHeight ?? 80;
 
-    if (!meta) {
+    if (!meta && !customEntry) {
       return (
         <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()}
            style={{ cursor: editCursor }}>
@@ -969,9 +980,13 @@ function SvgObject(p: ObjProps) {
       <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()}
          style={{ cursor: editCursor }}>
         {selRect(obj.x, obj.y, w, h)}
-        {meta.kind === "builtin" && meta.render ? (
+        {customEntry ? (
+          // Custom symbol: loaded by URL, same badge convention as vendored.
+          <image href={customEntry.url} x={obj.x} y={obj.y} width={w} height={h}
+            preserveAspectRatio="xMidYMid meet" style={{ pointerEvents: "none" }} />
+        ) : meta!.kind === "builtin" && meta!.render ? (
           <svg x={obj.x} y={obj.y} width={w} height={h} viewBox="0 0 100 100">
-            {meta.render({
+            {meta!.render({
               state,
               off:   obj.state_off_color   ?? "#64748b",
               on:    obj.state_on_color    ?? "#22c55e",
@@ -982,8 +997,8 @@ function SvgObject(p: ObjProps) {
           // Vendored SVG branch: load the asset from /symbols/ and overlay
           // a small coloured status badge top-right (we don't tint the SVG
           // itself to keep CC-BY derivative-work concerns out of the picture).
-          <image href={meta.path} x={obj.x} y={obj.y} width={w} height={h}
-            preserveAspectRatio="xMidYMid meet" />
+          <image href={meta!.path} x={obj.x} y={obj.y} width={w} height={h}
+            preserveAspectRatio="xMidYMid meet" style={{ pointerEvents: "none" }} />
         )}
         {/* Status badge — drawn on top of either branch, gated on a bound tag.
             14×14 circle in the top-right corner of the bounding box. */}

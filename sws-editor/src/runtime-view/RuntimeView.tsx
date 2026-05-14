@@ -8,6 +8,7 @@ export function RuntimeView() {
   const currentPageId  = useAppStore((s) => s.currentPageId);
   const setCurrentPage = useAppStore((s) => s.setCurrentPage);
   const tagValues      = useAppStore((s) => s.tagValues);
+  const customSymbols  = useAppStore((s) => s.customSymbols);
 
   useTagStream();
 
@@ -73,6 +74,7 @@ export function RuntimeView() {
           objects={objects}
           tagValues={tagValues}
           background={currentPage?.background}
+          customSymbols={customSymbols}
           onWriteTag={handleWriteTag}
           onScript={handleScript}
           onNavigate={setCurrentPage}

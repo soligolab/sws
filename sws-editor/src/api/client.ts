@@ -1,6 +1,7 @@
 import type {
   AlarmDef,
   AlarmState,
+  CustomSymbol,
   FunctionDef,
   LogEvent,
   ProjectInfo,
@@ -168,6 +169,13 @@ export const api = {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(functions),
+    }),
+
+  updateCustomSymbols: (symbols: CustomSymbol[]) =>
+    request<void>("/api/project/custom-symbols", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(symbols),
     }),
 
   // Project import / export (Admin)
