@@ -15,6 +15,7 @@
 - `b455f6b` Project import/export ZIP + seed `examples/demo/` in repo
 - `05ffc74` Widget Image abilitato + simboli custom con tracking licenza
 - (questa sessione) Log persistence su disco — `runtime-YYYY-MM-DD.jsonl` rotato per data, retention 7 gg configurabile
+- (questa sessione) Fix critico salvataggio + multi-page UX polish + symbol rotation/flip
 
 ---
 
@@ -117,6 +118,9 @@
 - **SvgCanvas/RuntimeView**: `customSymbols` passato come prop sia all'editor sia alla view runtime — i simboli custom appaiono anche in modalità operatore.
 - **Log persistence su file** (`sws-runtime/log_file.rs`): nuovo modulo che si sottoscrive a `LogBus` (broadcast `LogEvent`) e scrive ogni evento come riga JSONL in `<logs_dir>/runtime-YYYY-MM-DD.jsonl`. Rotazione per data UTC: alla prima riga di un nuovo giorno chiude il file precedente e apre quello nuovo. CLI `--logs <path>` (default: `<project>/../logs` — sibling del project dir, dev.sh già crea `.run/logs/`). Retention via `SWS_LOG_RETENTION_DAYS` (default 7); allo startup elimina i `runtime-*.jsonl` con data < cutoff (mantiene la giornata di cutoff). Errori del writer (disk full, dir non scrivibile, etc.) escono su `stderr` con `eprintln!` — mai via `tracing` — per evitare feedback loop attraverso `LogBus`. Subscribe sincrono prima di `tokio::spawn` per non perdere i primi eventi. Format file = identico a `GET /api/logs` (stesso `LogEvent` JSON), così `tail -f *.jsonl | jq .` mostra ciò che vede l'editor. Nessuna modifica frontend: i file servono per post-mortem dopo crash/restart e per container deploy dove podman/journald wrappano. Coabita con `dev.sh` che già redirige stdout in `.run/logs/runtime.log` (nome distinto, no collisione).
 - **Test coverage**: workspace ora a 30 unit test (4 nuovi in `sws-runtime`: `date_from_ts_ms_is_deterministic`, `date_minus_days_handles_month_and_year_boundaries`, `prune_old_keeps_recent_and_removes_old`, `writer_appends_jsonl_lines`).
+- **"Salva tutto" (sostituisce il vecchio "Salva")**: il bottone in `LeftPanel` ora persiste in parallelo OGNI synoptic page + (se Admin) tag, sources, alarms, funzioni Python, custom symbols. Prima salvava SOLO la pagina corrente — modifiche al `FunctionEditor` o ad altre pagine andavano perse se l'utente non passava dalla tab giusta di ConfigView. Feedback chip: "Salvataggio…" / "✓ Salvato" (2 s) / "❌ Errore — clicca per ritentare" con tooltip + banner dettaglio errori. Non-Admin (Operator+): salva solo le synoptic; gli endpoint admin-only vengono saltati silenziosamente.
+- **Multi-page UX**: rinomina pagina via doppio click o icona ✎ con input inline (Enter/Esc), conferma su delete che ricorda l'undo (Ctrl-Z). Navbutton con `target_page` puntante a pagina eliminata → bordo rosso + chip warning "⚠ pagina inesistente" + opzione disabilitata nel select per non perdere l'id originale.
+- **Symbol rotation + flip**: nuove proprietà `rotation` (deg), `flip_h`, `flip_v` sui simboli (built-in, vendored, custom). Slider -180/+180 + numeric + reset; checkbox flip h/v; trasformata SVG `rotate(R cx cy) scale(±1 ±1)` applicata solo al visual. Selection rect e status badge restano axis-aligned. Round-trip YAML garantito da `SynopticObject` Rust esteso.
 
 ## Backlog / reminders
 

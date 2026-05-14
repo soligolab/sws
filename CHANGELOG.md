@@ -8,6 +8,14 @@ and this project adheres to [CalVer](https://calver.org/) (`YYYY.MM[.patch]`).
 ## [Unreleased]
 
 ### Fixed
+- `sws-editor`: il bottone "Salva" del LeftPanel salvava SOLO la pagina synoptic corrente, ignorando tag/sources/alarms/funzioni Python/custom_symbols + tutte le altre pagine. Modifiche fatte nel `FunctionEditor` o nelle altre pagine andavano perse silenziosamente se l'utente cliccava "Salva" senza essere passato dalla tab specifica di ConfigView / dal bottone "Salva funzioni". Ora "Salva tutto" persiste in parallelo: ogni `SynopticPage` + (se Admin) `PUT /api/project/{tags,sources,alarms,functions,custom-symbols}` via `Promise.allSettled` con feedback chip "Salvataggio…" / "✓ Salvato" / "❌ Errore — clicca per ritentare" + tooltip con il dettaglio dell'errore.
+
+### Added
+- `sws-editor`: rotation + flip per gli oggetti `symbol`. Sezione properties con slider -180°/+180° + numeric input + reset, checkbox flip orizzontale/verticale. Trasform SVG applicata solo al visual del simbolo (selection rect e status badge restano axis-aligned per leggibilità). Persistenza YAML round-trip garantita dai nuovi campi `rotation/flip_h/flip_v` sul `SynopticObject` Rust.
+- `sws-editor`: rinomina pagine — doppio click sul nome o icona ✎ apre input inline; Enter conferma, Esc annulla. Conferma sul × delete con messaggio "annullabile con Ctrl-Z" che richiama l'undo già esistente.
+- `sws-editor`: navbutton con `target_page` puntante a pagina eliminata → bordo rosso del select + chip warning "⚠ pagina inesistente: <id>" + testo esplicativo. Prima sparivano silenziosamente; ora sono visibili e correggibili.
+
+### Fixed (continued)
 - `sws-runtime`: pannello log sempre vuoto da quando è stato introdotto. `EnvFilter::from_default_env()` con `RUST_LOG` non settata torna un filtro vuoto che rifiuta TUTTI gli eventi → niente arrivava al `LogBus`, niente al pannello, niente sul disco (anche il `stdout` capture di `dev.sh` era 0 byte e nessuno lo notava). Fix: fallback a `EnvFilter::new("info")` quando l'env var manca. Override via `RUST_LOG=debug` etc. continua a funzionare.
 - `sws-editor`: il pannello log mostrava solo `target` e `message`, scartando i `fields` strutturati (es. la riga "MQTT publish" perdeva `tag`, `topic`, `payload`). Ora i fields appaiono come chip `key=value` inline dopo il messaggio; sono inclusi anche nella ricerca testuale.
 - `sws-plugin-mqtt`: aggiunto `debug!` su match in entrata con `tag/topic/value` → con `RUST_LOG=sws_plugin_mqtt=debug,info` (o `RUST_LOG=debug`) si vede ogni payload ricevuto, non solo quelli pubblicati. Topic non mappati restano a livello `trace` per non spammare.
