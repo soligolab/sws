@@ -4,6 +4,7 @@ import { SvgCanvas } from "@/canvas/SvgCanvas";
 import { LeftPanel } from "@/editor/LeftPanel";
 import { FunctionEditor } from "@/editor/FunctionEditor";
 import { TagInput } from "@/components/TagInput";
+import { BindableInput } from "@/components/BindableInput";
 import { useAppStore } from "@/store";
 import type { AlignMode } from "@/store";
 import type { FunctionDef, RadioOption, SynopticObject, TableRow } from "@/types";
@@ -583,13 +584,13 @@ function ObjectProps({
 
       {/* Fill */}
       {(obj.type === "rect" || obj.type === "ellipse" || obj.type === "button" || obj.type === "navbutton") &&
-        field("Colore", colorInput("fill", "#4a90d9"))}
+        field("Colore", <BindableInput obj={obj} propName="fill" onChange={onChange}>{colorInput("fill", "#4a90d9")}</BindableInput>)}
 
       {/* Stroke */}
       {hasStroke && (
         <>
-          {field("Bordo", colorInput("stroke", "#e2e8f0"))}
-          {field("Spessore bordo", numInput("stroke_width", 1))}
+          {field("Bordo", <BindableInput obj={obj} propName="stroke" onChange={onChange}>{colorInput("stroke", "#e2e8f0")}</BindableInput>)}
+          {field("Spessore bordo", <BindableInput obj={obj} propName="stroke_width" onChange={onChange}>{numInput("stroke_width", 1)}</BindableInput>)}
         </>
       )}
 
@@ -599,14 +600,14 @@ function ObjectProps({
       {/* Text object: static content + typography */}
       {obj.type === "text" && (
         <>
-          {field("Testo (statico)", textInput("text", "Es. Temperatura caldaia"))}
-          {field("Formato (se bound)", textInput("format", "{value:.1f} °C"))}
+          {field("Testo (statico)", <BindableInput obj={obj} propName="text" onChange={onChange}>{textInput("text", "Es. Temperatura caldaia")}</BindableInput>)}
+          {field("Formato (se bound)", <BindableInput obj={obj} propName="format" onChange={onChange}>{textInput("format", "{value:.1f} °C")}</BindableInput>)}
           <p style={{ fontSize: 10, color: "#475569", margin: "0 0 4px" }}>
             Se è impostato un Tag, vince il formato (usa <code>{"{value}"}</code>); altrimenti viene
             mostrato il testo statico.
           </p>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
-            <div><div style={LABEL}>Dimensione (px)</div>{numInput("font_size", 14)}</div>
+            <div><div style={LABEL}>Dimensione (px)</div><BindableInput obj={obj} propName="font_size" onChange={onChange}>{numInput("font_size", 14)}</BindableInput></div>
             <div>
               <div style={LABEL}>Allineamento</div>
               <select
@@ -661,27 +662,29 @@ function ObjectProps({
               </select>
             </div>
           </div>
-          {field("Colore testo", colorInput("color", "#e2e8f0"))}
+          {field("Colore testo", <BindableInput obj={obj} propName="color" onChange={onChange}>{colorInput("color", "#e2e8f0")}</BindableInput>)}
         </>
       )}
 
       {/* Button label + write value */}
       {obj.type === "button" && (
         <>
-          {field("Etichetta", textInput("label", "Bottone"))}
+          {field("Etichetta", <BindableInput obj={obj} propName="label" onChange={onChange}>{textInput("label", "Bottone")}</BindableInput>)}
           {field("Valore scrittura",
-            <input
-              type="text"
-              style={INPUT}
-              placeholder="true / 1 / testo"
-              value={obj.write_value !== undefined ? String(obj.write_value) : ""}
-              onChange={(e) => {
-                const raw = e.target.value;
-                const v = raw === "true" ? true : raw === "false" ? false
-                  : isNaN(Number(raw)) || raw.trim() === "" ? raw : Number(raw);
-                onChange({ write_value: v });
-              }}
-            />
+            <BindableInput obj={obj} propName="write_value" onChange={onChange}>
+              <input
+                type="text"
+                style={INPUT}
+                placeholder="true / 1 / testo"
+                value={obj.write_value !== undefined ? String(obj.write_value) : ""}
+                onChange={(e) => {
+                  const raw = e.target.value;
+                  const v = raw === "true" ? true : raw === "false" ? false
+                    : isNaN(Number(raw)) || raw.trim() === "" ? raw : Number(raw);
+                  onChange({ write_value: v });
+                }}
+              />
+            </BindableInput>
           )}
         </>
       )}
@@ -691,7 +694,7 @@ function ObjectProps({
         const targetMissing = !!obj.target_page && !pages.some((p) => p.id === obj.target_page);
         return (
           <>
-            {field("Etichetta", textInput("label", "Vai alla pagina"))}
+            {field("Etichetta", <BindableInput obj={obj} propName="label" onChange={onChange}>{textInput("label", "Vai alla pagina")}</BindableInput>)}
             {field("Pagina di destinazione",
               <select
                 style={{
@@ -725,13 +728,13 @@ function ObjectProps({
       {/* Gauge */}
       {obj.type === "gauge" && (
         <>
-          {field("Etichetta", textInput("label", "Gauge"))}
+          {field("Etichetta", <BindableInput obj={obj} propName="label" onChange={onChange}>{textInput("label", "Gauge")}</BindableInput>)}
           {field("Tag", tagInput("es. pump1.speed"))}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
-            <div><div style={LABEL}>Min</div>{numInput("min", 0)}</div>
-            <div><div style={LABEL}>Max</div>{numInput("max", 100)}</div>
+            <div><div style={LABEL}>Min</div><BindableInput obj={obj} propName="min" onChange={onChange}>{numInput("min", 0)}</BindableInput></div>
+            <div><div style={LABEL}>Max</div><BindableInput obj={obj} propName="max" onChange={onChange}>{numInput("max", 100)}</BindableInput></div>
           </div>
-          {field("Unità", textInput("unit", ""))}
+          {field("Unità", <BindableInput obj={obj} propName="unit" onChange={onChange}>{textInput("unit", "")}</BindableInput>)}
           <div style={{ fontSize: 10, color: "#475569", marginTop: 4, marginBottom: 2, fontWeight: 700 }}>SOGLIE</div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
             <div><div style={LABEL}>Warn Low</div>{numInput("warn_low", 0)}</div>
@@ -845,22 +848,22 @@ function ObjectProps({
                 onChange({ on_value: v });
               }} />
           )}
-          {field("Colore ON",  colorInput("on_color",  "#22c55e"))}
-          {field("Colore OFF", colorInput("off_color", "#374151"))}
+          {field("Colore ON",  <BindableInput obj={obj} propName="on_color" onChange={onChange}>{colorInput("on_color",  "#22c55e")}</BindableInput>)}
+          {field("Colore OFF", <BindableInput obj={obj} propName="off_color" onChange={onChange}>{colorInput("off_color", "#374151")}</BindableInput>)}
         </>
       )}
 
       {/* Progress bar */}
       {obj.type === "progress_bar" && (
         <>
-          {field("Etichetta", textInput("label", ""))}
+          {field("Etichetta", <BindableInput obj={obj} propName="label" onChange={onChange}>{textInput("label", "")}</BindableInput>)}
           {field("Tag", tagInput("es. tank1.level"))}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
-            <div><div style={LABEL}>Min</div>{numInput("min", 0)}</div>
-            <div><div style={LABEL}>Max</div>{numInput("max", 100)}</div>
+            <div><div style={LABEL}>Min</div><BindableInput obj={obj} propName="min" onChange={onChange}>{numInput("min", 0)}</BindableInput></div>
+            <div><div style={LABEL}>Max</div><BindableInput obj={obj} propName="max" onChange={onChange}>{numInput("max", 100)}</BindableInput></div>
           </div>
-          {field("Unità", textInput("unit", ""))}
-          {field("Colore barra", colorInput("fill", "#3b82f6"))}
+          {field("Unità", <BindableInput obj={obj} propName="unit" onChange={onChange}>{textInput("unit", "")}</BindableInput>)}
+          {field("Colore barra", <BindableInput obj={obj} propName="fill" onChange={onChange}>{colorInput("fill", "#3b82f6")}</BindableInput>)}
           <div style={{ fontSize: 10, color: "#475569", marginTop: 4, marginBottom: 2, fontWeight: 700 }}>SOGLIE</div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
             <div><div style={LABEL}>Warn Low</div>{numInput("warn_low", 0)}</div>
@@ -936,11 +939,13 @@ function ObjectProps({
       {obj.type === "image" && (
         <>
           {field("URL immagine",
-            <input
-              style={INPUT} placeholder="https://… o /symbols/…"
-              value={obj.src ?? ""}
-              onChange={(e) => onChange({ src: e.target.value || undefined })}
-            />
+            <BindableInput obj={obj} propName="src" onChange={onChange}>
+              <input
+                style={INPUT} placeholder="https://… o /symbols/…"
+                value={obj.src ?? ""}
+                onChange={(e) => onChange({ src: e.target.value || undefined })}
+              />
+            </BindableInput>
           )}
         </>
       )}
@@ -978,26 +983,28 @@ function ObjectProps({
             TRASFORMAZIONE
           </div>
           {field("Rotazione (gradi)",
-            <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
-              <input
-                type="range"
-                min={-180} max={180} step={1}
-                value={obj.rotation ?? 0}
-                onChange={(e) => onChange({ rotation: Number(e.target.value) || 0 })}
-                style={{ flex: 1 }}
-              />
-              <input
-                type="number"
-                value={obj.rotation ?? 0}
-                onChange={(e) => onChange({ rotation: Number(e.target.value) || 0 })}
-                style={{ ...INPUT, width: 64 }}
-              />
-              <button
-                title="Resetta a 0°"
-                onClick={() => onChange({ rotation: undefined })}
-                style={{ ...INPUT, cursor: "pointer", padding: "3px 6px", width: 28 }}
-              >↺</button>
-            </div>
+            <BindableInput obj={obj} propName="rotation" onChange={onChange}>
+              <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+                <input
+                  type="range"
+                  min={-180} max={180} step={1}
+                  value={obj.rotation ?? 0}
+                  onChange={(e) => onChange({ rotation: Number(e.target.value) || 0 })}
+                  style={{ flex: 1 }}
+                />
+                <input
+                  type="number"
+                  value={obj.rotation ?? 0}
+                  onChange={(e) => onChange({ rotation: Number(e.target.value) || 0 })}
+                  style={{ ...INPUT, width: 64 }}
+                />
+                <button
+                  title="Resetta a 0°"
+                  onClick={() => onChange({ rotation: undefined })}
+                  style={{ ...INPUT, cursor: "pointer", padding: "3px 6px", width: 28 }}
+                >↺</button>
+              </div>
+            </BindableInput>
           )}
           <div style={{ display: "flex", gap: 12, marginTop: 4 }}>
             <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#cbd5e1", cursor: "pointer" }}>
@@ -1020,27 +1027,29 @@ function ObjectProps({
             </label>
           </div>
           {field("Opacità (0–1)",
-            <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
-              <input
-                type="range"
-                min={0} max={1} step={0.05}
-                value={obj.opacity ?? 1}
-                onChange={(e) => onChange({ opacity: Number(e.target.value) })}
-                style={{ flex: 1 }}
-              />
-              <input
-                type="number"
-                min={0} max={1} step={0.05}
-                value={obj.opacity ?? 1}
-                onChange={(e) => onChange({ opacity: Number(e.target.value) })}
-                style={{ ...INPUT, width: 64 }}
-              />
-              <button
-                title="Resetta a 1"
-                onClick={() => onChange({ opacity: undefined })}
-                style={{ ...INPUT, cursor: "pointer", padding: "3px 6px", width: 28 }}
-              >↺</button>
-            </div>
+            <BindableInput obj={obj} propName="opacity" onChange={onChange}>
+              <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+                <input
+                  type="range"
+                  min={0} max={1} step={0.05}
+                  value={obj.opacity ?? 1}
+                  onChange={(e) => onChange({ opacity: Number(e.target.value) })}
+                  style={{ flex: 1 }}
+                />
+                <input
+                  type="number"
+                  min={0} max={1} step={0.05}
+                  value={obj.opacity ?? 1}
+                  onChange={(e) => onChange({ opacity: Number(e.target.value) })}
+                  style={{ ...INPUT, width: 64 }}
+                />
+                <button
+                  title="Resetta a 1"
+                  onClick={() => onChange({ opacity: undefined })}
+                  style={{ ...INPUT, cursor: "pointer", padding: "3px 6px", width: 28 }}
+                >↺</button>
+              </div>
+            </BindableInput>
           )}
         </>
       )}
@@ -1102,6 +1111,31 @@ function ObjectProps({
         Definisci le funzioni nel pannello laterale (sezione FUNZIONI). I valori
         dei parametri sono sostituiti per binding; lascia vuoto per usare il default.
       </p>
+
+      {/* ── Binding attivi (audit) ───────────────────────────────────── */}
+      {obj.bindings && Object.keys(obj.bindings).length > 0 && (
+        <>
+          <div style={{ fontSize: 10, color: "#475569", marginTop: 8, marginBottom: 2, fontWeight: 700, letterSpacing: 0.5 }}>
+            BINDING ATTIVI
+          </div>
+          {Object.entries(obj.bindings).map(([prop, tagId]) => (
+            <div key={prop} style={{ display: "flex", gap: 4, alignItems: "center", fontSize: 12, marginBottom: 2 }}>
+              <span style={{ color: "#64748b", flex: "0 0 auto" }}>{prop}</span>
+              <span style={{ color: "#475569" }}>→</span>
+              <span style={{ color: "#3b82f6", flex: 1 }}>{tagId || "(nessun tag)"}</span>
+              <button
+                title="Rimuovi binding"
+                onClick={() => {
+                  const next = { ...obj.bindings! };
+                  delete next[prop];
+                  onChange({ bindings: Object.keys(next).length > 0 ? next : undefined });
+                }}
+                style={{ ...LABEL, cursor: "pointer", background: "transparent", border: "none", color: "#ef4444", padding: "0 4px" }}
+              >×</button>
+            </div>
+          ))}
+        </>
+      )}
 
       <button
         onClick={onDelete}

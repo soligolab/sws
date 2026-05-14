@@ -2,7 +2,7 @@
 
 > This file is the **session-to-session memory** for Claude Code. Update it at the end of every session before stopping work. Read it at the start of every session before touching code.
 
-**Last session**: 2026-05-14 (sessione 4: Phase 1 del piano universal binding — cross-cutting transform + bindings data model)
+**Last session**: 2026-05-14 (sessione 4: Phases 1-3 del piano universal binding completate)
 **Current phase**: Phase 2. Demo working out-of-the-box su fresh clone, import/export progetto per backup/condivisione, pannello log live + persistenza su disco, gestione utenti multi-account.
 **Last commit**: vedi sotto
 
@@ -122,6 +122,8 @@
 - **Multi-page UX**: rinomina pagina via doppio click o icona ✎ con input inline (Enter/Esc), conferma su delete che ricorda l'undo (Ctrl-Z). Navbutton con `target_page` puntante a pagina eliminata → bordo rosso + chip warning "⚠ pagina inesistente" + opzione disabilitata nel select per non perdere l'id originale.
 - **Symbol rotation + flip**: nuove proprietà `rotation` (deg), `flip_h`, `flip_v` sui simboli (built-in, vendored, custom). Slider -180/+180 + numeric + reset; checkbox flip h/v; trasformata SVG `rotate(R cx cy) scale(±1 ±1)` applicata solo al visual. Selection rect e status badge restano axis-aligned. Round-trip YAML garantito da `SynopticObject` Rust esteso.
 - **Cross-cutting transform + bindings (Phase 1)**: `rotation/flip_h/flip_v/opacity` estesi a tutti i tipi visivi (rect/ellipse/text/image/gauge/led/progress_bar/table/button/navbutton/symbol); helper `applyTransform` + `resolveObject` in `SvgCanvas.tsx`; sezione "TRASFORMAZIONE" in ObjectProps panel; rotation/flip rimossi dal blocco symbol-specifico. Campo `bindings: Record<string,string>` aggiunto a TS `SynopticObject` e Rust mirror.
+- **BindableInput component (Phase 2)**: toggle 🔗/🔓 su fill, stroke, text, color, label, rotation, opacity, src, on_color, off_color, min, max, unit e altri campi del pannello. Sezione "BINDING ATTIVI" in fondo al pannello per audit/rimozione rapida.
+- **Demo Page 2 + Page 3 (Phase 3)**: Page 2 welcome fixa il navbutton orfano di Page 1 (id `mp472aq9q3yzc`). Page 3 "Demo Binding" con un widget per tipo agganciato a `demo.rotation`/`demo.opacity`; 2 slider per pilotarli. 4 nuovi tag in `examples/demo/project.yaml`.
 
 ## Backlog / reminders
 
@@ -191,15 +193,14 @@
   - **Bug del "ritorno a capo" da investigare**: la textarea attuale potrebbe avere un handler `onKeyDown` che intercetta Enter (es. per "salva al primo enter") — controllare prima di rimpiazzare il componente, perché lo stesso bug potrebbe esistere anche in altri campi multi-linea.
   - **Out of scope**: autocomplete dei nomi tag dentro il codice Python (sarebbe figo ma è LSP-grade, troppo lavoro per il PoC), linting Python lato client, debugger. Vanno in BL successive.
 
-## Next session should — CONTINUARE IL PIANO UNIVERSAL BINDING
+## Next session should — FOLLOW-UP UNIVERSAL BINDING
 
-> **Pick up from**: [docs/plans/2026-05-14_universal_binding.md](docs/plans/2026-05-14_universal_binding.md)
->
-> **Phase 1 COMPLETATA** (cross-cutting transform + bindings data model). Prossimi step:
->
-> 2. **Phase 2 — BindableInput component**: nuovo `sws-editor/src/components/BindableInput.tsx` con toggle 🔗/🔓; integrare in ObjectProps per ogni input del pannello (ogni `field()` call). Sezione "BINDING ATTIVI" in fondo al pannello per audit.
-> 3. **Phase 3 — Demo Page 2 + Page 3**: Page 2 welcome (id=`mp472aq9q3yzc` — fixa navbutton orfano di Page 1), Page 3 con oggetto per tipo agganciato a `demo.rotation/demo.opacity`. 4 nuovi tag in `examples/demo/project.yaml`.
-> 4. **Phase 4 — Docs + tests**: cargo test 30+ green, pnpm type-check + build, CHANGELOG, STATUS.
+Piano `docs/plans/2026-05-14_universal_binding.md` **completato** (Phases 1-3). Prossimi follow-up indicati nel piano "Out of scope":
+
+1. **BindableInput su tutti i campi rimanenti** — oggi solo i campi più importanti hanno il toggle 🔗/🔓; completare la copertura su tutti i field() call in ObjectProps (vedi lista "exclusions" nel piano).
+2. **MultiSelectionProps con binding** — oggi la multi-select edita solo geometry; aggiungere binding dalla multi-select view (o restare single-select-only per il binding).
+3. **Animation/interpolation** — valori bindati oggi fanno "jump" istantaneo; aggiungere interpolazione opzionale (transition-duration sulla proprietà CSS dell'SVG o easing in React state).
+4. **Demo Page 4** con colore fill controllato da `demo.fill_color` + picker sliders RGB.
 
 ### Altri candidati di backlog (alternativa al piano sopra)
 

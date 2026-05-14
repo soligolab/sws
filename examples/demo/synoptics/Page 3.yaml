@@ -1,0 +1,351 @@
+id: page3
+name: Page 3
+background: "#0f172a"
+objects:
+# ── Navigation ────────────────────────────────────────────────────────────────
+- id: p3_nav_p1
+  type: navbutton
+  x: 20
+  y: 12
+  width: 150
+  height: 32
+  label: "← Page 1"
+  target_page: mp2n48800ucav
+
+- id: p3_nav_p2
+  type: navbutton
+  x: 180
+  y: 12
+  width: 150
+  height: 32
+  label: "← Page 2"
+  target_page: mp472aq9q3yzc
+
+- id: p3_title
+  type: text
+  x: 400
+  y: 28
+  text: "Demo Binding — rotazione e opacità live"
+  font_size: 15
+  font_weight: "bold"
+  text_anchor: middle
+  color: "#94a3b8"
+
+# ── Sliders (controlli — NON ruotati, fissi) ──────────────────────────────────
+- id: p3_rot_label
+  type: text
+  x: 20
+  y: 68
+  text: "Rotazione (0-360°)"
+  font_size: 12
+  color: "#64748b"
+
+- id: p3_rot_slider
+  type: slider
+  x: 20
+  y: 80
+  width: 220
+  height: 44
+  tag: demo.rotation
+  min: 0
+  max: 360
+  step: 1
+  show_value: true
+  unit: "°"
+
+- id: p3_opa_label
+  type: text
+  x: 260
+  y: 68
+  text: "Opacità (0-1)"
+  font_size: 12
+  color: "#64748b"
+
+- id: p3_opa_slider
+  type: slider
+  x: 260
+  y: 80
+  width: 180
+  height: 44
+  tag: demo.opacity
+  min: 0
+  max: 1
+  step: 0.05
+  show_value: true
+
+# ── Status text (legge i tag live) ────────────────────────────────────────────
+- id: p3_rot_val
+  type: text
+  x: 460
+  y: 92
+  tag: demo.rotation
+  format: "Rot: {value:.0f}°"
+  font_size: 12
+  color: "#3b82f6"
+
+- id: p3_opa_val
+  type: text
+  x: 570
+  y: 92
+  tag: demo.opacity
+  format: "Opa: {value:.2f}"
+  font_size: 12
+  color: "#22c55e"
+
+# ── Grid di oggetti — riga 1 ──────────────────────────────────────────────────
+# (col 1) Rect
+- id: p3_rect
+  type: rect
+  x: 30
+  y: 145
+  width: 90
+  height: 60
+  fill: "#3b82f6"
+  bindings:
+    rotation: demo.rotation
+    opacity: demo.opacity
+    fill: demo.fill_color
+
+- id: p3_rect_lbl
+  type: text
+  x: 75
+  y: 220
+  text: "rect"
+  font_size: 10
+  text_anchor: middle
+  color: "#475569"
+
+# (col 2) Ellipse
+- id: p3_ellipse
+  type: ellipse
+  x: 150
+  y: 145
+  width: 90
+  height: 60
+  fill: "#8b5cf6"
+  bindings:
+    rotation: demo.rotation
+    opacity: demo.opacity
+
+- id: p3_ellipse_lbl
+  type: text
+  x: 195
+  y: 220
+  text: "ellipse"
+  font_size: 10
+  text_anchor: middle
+  color: "#475569"
+
+# (col 3) Text
+- id: p3_text
+  type: text
+  x: 295
+  y: 180
+  text: "Testo"
+  font_size: 18
+  font_weight: "bold"
+  color: "#f59e0b"
+  bindings:
+    rotation: demo.rotation
+    opacity: demo.opacity
+    text: demo.label
+
+- id: p3_text_lbl
+  type: text
+  x: 295
+  y: 220
+  text: "text"
+  font_size: 10
+  color: "#475569"
+
+# (col 4) Button
+- id: p3_button
+  type: button
+  x: 370
+  y: 145
+  width: 100
+  height: 40
+  label: "Click"
+  fill: "#059669"
+  bindings:
+    rotation: demo.rotation
+    opacity: demo.opacity
+    label: demo.label
+
+- id: p3_button_lbl
+  type: text
+  x: 420
+  y: 220
+  text: "button"
+  font_size: 10
+  text_anchor: middle
+  color: "#475569"
+
+# (col 5) NavButton
+- id: p3_navbutton
+  type: navbutton
+  x: 490
+  y: 145
+  width: 120
+  height: 36
+  label: "Page 1"
+  target_page: mp2n48800ucav
+  bindings:
+    rotation: demo.rotation
+    opacity: demo.opacity
+
+- id: p3_navbutton_lbl
+  type: text
+  x: 550
+  y: 220
+  text: "navbutton"
+  font_size: 10
+  text_anchor: middle
+  color: "#475569"
+
+# (col 6) LED
+- id: p3_led
+  type: led
+  x: 640
+  y: 149
+  width: 36
+  height: 36
+  tag: demo.rotation
+  on_value: 0
+  on_color: "#22c55e"
+  off_color: "#334155"
+  bindings:
+    rotation: demo.rotation
+    opacity: demo.opacity
+
+- id: p3_led_lbl
+  type: text
+  x: 658
+  y: 220
+  text: "led"
+  font_size: 10
+  text_anchor: middle
+  color: "#475569"
+
+# ── Grid di oggetti — riga 2 ──────────────────────────────────────────────────
+# (col 1) Gauge
+- id: p3_gauge
+  type: gauge
+  x: 20
+  y: 250
+  width: 140
+  height: 120
+  tag: demo.rotation
+  min: 0
+  max: 360
+  unit: "°"
+  label: "Rotation"
+  bindings:
+    rotation: demo.rotation
+    opacity: demo.opacity
+
+- id: p3_gauge_lbl
+  type: text
+  x: 90
+  y: 380
+  text: "gauge"
+  font_size: 10
+  text_anchor: middle
+  color: "#475569"
+
+# (col 2) Progress bar
+- id: p3_pbar
+  type: progress_bar
+  x: 180
+  y: 290
+  width: 180
+  height: 28
+  tag: demo.rotation
+  min: 0
+  max: 360
+  unit: "°"
+  bindings:
+    rotation: demo.rotation
+    opacity: demo.opacity
+
+- id: p3_pbar_lbl
+  type: text
+  x: 270
+  y: 335
+  text: "progress_bar"
+  font_size: 10
+  text_anchor: middle
+  color: "#475569"
+
+# (col 3) Image
+- id: p3_image
+  type: image
+  x: 390
+  y: 250
+  width: 80
+  height: 80
+  src: "/symbols/iso_valve_gate.svg"
+  bindings:
+    rotation: demo.rotation
+    opacity: demo.opacity
+
+- id: p3_image_lbl
+  type: text
+  x: 430
+  y: 340
+  text: "image"
+  font_size: 10
+  text_anchor: middle
+  color: "#475569"
+
+# (col 4) Symbol
+- id: p3_symbol
+  type: symbol
+  x: 490
+  y: 250
+  width: 80
+  height: 80
+  symbol_id: pump
+  state_tag: demo.rotation
+  bindings:
+    rotation: demo.rotation
+    opacity: demo.opacity
+
+- id: p3_symbol_lbl
+  type: text
+  x: 530
+  y: 340
+  text: "symbol"
+  font_size: 10
+  text_anchor: middle
+  color: "#475569"
+
+# (col 5) Table
+- id: p3_table
+  type: table
+  x: 590
+  y: 250
+  width: 200
+  height: 120
+  label: "TAG LIVE"
+  table_rows:
+  - label: "Rotazione"
+    tag: demo.rotation
+    format: "{value:.0f}°"
+  - label: "Opacità"
+    tag: demo.opacity
+    format: "{value:.2f}"
+  - label: "Label"
+    tag: demo.label
+  bindings:
+    rotation: demo.rotation
+    opacity: demo.opacity
+
+- id: p3_table_lbl
+  type: text
+  x: 690
+  y: 380
+  text: "table"
+  font_size: 10
+  text_anchor: middle
+  color: "#475569"

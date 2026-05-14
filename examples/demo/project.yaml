@@ -17,6 +17,18 @@ tags:
 - id: demo.led
   description: LED demo (subscribe a sws/demo/echo — echo loop dal broker)
   data_type: bool
+- id: demo.rotation
+  description: Pilota la rotazione di tutti gli oggetti in Page 3 (gradi 0-360)
+  data_type: float
+- id: demo.opacity
+  description: Pilota l'opacità degli oggetti in Page 3 (0-1)
+  data_type: float
+- id: demo.label
+  description: Etichetta dinamica per i widget di Page 3
+  data_type: string
+- id: demo.fill_color
+  description: Colore fill (#RRGGBB) per oggetti Page 3
+  data_type: string
 sources:
 - kind: mqtt
   id: mqtt-sws
