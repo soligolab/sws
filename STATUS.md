@@ -195,10 +195,10 @@
 
 ## Next session should — FOLLOW-UP UNIVERSAL BINDING
 
-Piano `docs/plans/2026-05-14_universal_binding.md` **completato** (Phases 1-3). Prossimi follow-up indicati nel piano "Out of scope":
+Piano `docs/plans/2026-05-14_universal_binding.md` **completato** (Phases 1-4). Tutti i follow-up del piano sono chiusi:
 
-1. **BindableInput su tutti i campi rimanenti** — oggi solo i campi più importanti hanno il toggle 🔗/🔓; completare la copertura su tutti i field() call in ObjectProps (vedi lista "exclusions" nel piano).
-2. **MultiSelectionProps con binding** — oggi la multi-select edita solo geometry; aggiungere binding dalla multi-select view (o restare single-select-only per il binding).
+1. ✅ **BindableInput su tutti i campi rimanenti** — copertura completa: x, y, width, height, x2, y2, font_family, gauge/progress_bar thresholds (warn_low/warn_high/alarm_low/alarm_high), slider (min/max/step), checkbox (label/checked_value/unchecked_value), radio (label), LED (label/on_value), trend (window_s/y_min/y_max/line_color), symbol state colors, z_index.
+2. ✅ **MultiSelectionProps con binding** — sezione "BINDING RAPIDO" aggiunta: select prop + TagInput + pulsanti "Applica" / "Rimuovi" applicano o tolgono lo stesso binding su tutti gli oggetti selezionati in batch.
 3. **Animation/interpolation** — valori bindati oggi fanno "jump" istantaneo; aggiungere interpolazione opzionale (transition-duration sulla proprietà CSS dell'SVG o easing in React state).
 4. **Demo Page 4** con colore fill controllato da `demo.fill_color` + picker sliders RGB.
 

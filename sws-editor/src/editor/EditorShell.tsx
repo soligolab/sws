@@ -331,6 +331,19 @@ export function EditorShell() {
             onAlign={alignSelection}
             onDuplicate={duplicateSelection}
             onDelete={deleteSelection}
+            onBind={(prop, tagId) => {
+              selectedIds.forEach((id) => {
+                const o = objects.find((ob) => ob.id === id);
+                if (!o) return;
+                if (!tagId) {
+                  const next = { ...(o.bindings ?? {}) };
+                  delete next[prop];
+                  updateObject(id, { bindings: Object.keys(next).length > 0 ? next : undefined });
+                } else {
+                  updateObject(id, { bindings: { ...(o.bindings ?? {}), [prop]: tagId } });
+                }
+              });
+            }}
           />
         ) : selected ? (
           <ObjectProps
@@ -406,12 +419,17 @@ function MultiSelectionProps({
   onAlign,
   onDuplicate,
   onDelete,
+  onBind,
 }: {
   count: number;
   onAlign: (mode: AlignMode) => void;
   onDuplicate: () => void;
   onDelete: () => void;
+  onBind: (prop: string, tagId: string) => void;
 }) {
+  const [bindProp, setBindProp] = useState("opacity");
+  const [bindTag,  setBindTag]  = useState("");
+
   const btn: React.CSSProperties = {
     background: "#0f172a",
     border: "1px solid #334155",
@@ -465,6 +483,56 @@ function MultiSelectionProps({
         </button>
         <button style={{ ...btn, background: "#7f1d1d", color: "#fca5a5", borderColor: "#991b1b" }} onClick={onDelete}>
           Elimina
+        </button>
+      </div>
+
+      <div style={{ height: 1, background: "#334155", margin: "8px 0" }} />
+
+      <div style={{ fontSize: 10, color: "#475569", fontWeight: 700, letterSpacing: 0.5 }}>
+        BINDING RAPIDO
+      </div>
+      <p style={{ fontSize: 10, color: "#475569", margin: "2px 0 4px" }}>
+        Applica/rimuovi lo stesso binding su tutti gli oggetti selezionati.
+      </p>
+      <div style={{ display: "flex", gap: 4, marginBottom: 4 }}>
+        <select
+          value={bindProp}
+          onChange={(e) => setBindProp(e.target.value)}
+          style={{ ...btn, flex: "0 0 auto", width: 100, padding: "4px 4px", fontSize: 12 }}
+        >
+          <option value="opacity">opacity</option>
+          <option value="rotation">rotation</option>
+          <option value="fill">fill</option>
+          <option value="visible">visible</option>
+          <option value="x">x</option>
+          <option value="y">y</option>
+          <option value="width">width</option>
+          <option value="height">height</option>
+          <option value="label">label</option>
+          <option value="color">color</option>
+          <option value="text">text</option>
+        </select>
+        <TagInput
+          style={{ flex: 1, background: "#0f172a", color: "#e2e8f0", border: "1px solid #334155", borderRadius: 4, padding: "3px 6px", fontSize: 12 }}
+          placeholder="tag…"
+          value={bindTag}
+          onChange={setBindTag}
+        />
+      </div>
+      <div style={{ display: "flex", gap: 4 }}>
+        <button
+          style={{ ...btn, background: "#1e3a5f", color: "#93c5fd", borderColor: "#1e40af" }}
+          disabled={!bindProp || !bindTag}
+          onClick={() => { if (bindProp && bindTag) onBind(bindProp, bindTag); }}
+        >
+          Applica
+        </button>
+        <button
+          style={{ ...btn, background: "#1e293b", color: "#94a3b8" }}
+          disabled={!bindProp}
+          onClick={() => { if (bindProp) onBind(bindProp, ""); }}
+        >
+          Rimuovi
         </button>
       </div>
 
@@ -562,23 +630,23 @@ function ObjectProps({
 
       {/* Position */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
-        <div><div style={LABEL}>X</div>{numInput("x", 0)}</div>
-        <div><div style={LABEL}>Y</div>{numInput("y", 0)}</div>
+        <div><div style={LABEL}>X</div><BindableInput obj={obj} propName="x" onChange={onChange}>{numInput("x", 0)}</BindableInput></div>
+        <div><div style={LABEL}>Y</div><BindableInput obj={obj} propName="y" onChange={onChange}>{numInput("y", 0)}</BindableInput></div>
       </div>
 
       {/* Size (shapes) */}
       {isShape && (
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
-          <div><div style={LABEL}>W</div>{numInput("width", 100)}</div>
-          <div><div style={LABEL}>H</div>{numInput("height", 50)}</div>
+          <div><div style={LABEL}>W</div><BindableInput obj={obj} propName="width" onChange={onChange}>{numInput("width", 100)}</BindableInput></div>
+          <div><div style={LABEL}>H</div><BindableInput obj={obj} propName="height" onChange={onChange}>{numInput("height", 50)}</BindableInput></div>
         </div>
       )}
 
       {/* Line endpoint */}
       {obj.type === "line" && (
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
-          <div><div style={LABEL}>X2</div>{numInput("x2", obj.x + 100)}</div>
-          <div><div style={LABEL}>Y2</div>{numInput("y2", obj.y)}</div>
+          <div><div style={LABEL}>X2</div><BindableInput obj={obj} propName="x2" onChange={onChange}>{numInput("x2", obj.x + 100)}</BindableInput></div>
+          <div><div style={LABEL}>Y2</div><BindableInput obj={obj} propName="y2" onChange={onChange}>{numInput("y2", obj.y)}</BindableInput></div>
         </div>
       )}
 
@@ -622,13 +690,15 @@ function ObjectProps({
             </div>
           </div>
           {field("Font family",
-            <input
-              type="text" style={INPUT}
-              placeholder="es. system-ui, sans-serif"
-              value={obj.font_family ?? ""}
-              onChange={(e) => onChange({ font_family: e.target.value || undefined })}
-              spellCheck={false}
-            />
+            <BindableInput obj={obj} propName="font_family" onChange={onChange}>
+              <input
+                type="text" style={INPUT}
+                placeholder="es. system-ui, sans-serif"
+                value={obj.font_family ?? ""}
+                onChange={(e) => onChange({ font_family: e.target.value || undefined })}
+                spellCheck={false}
+              />
+            </BindableInput>
           )}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
             <div>
@@ -737,10 +807,10 @@ function ObjectProps({
           {field("Unità", <BindableInput obj={obj} propName="unit" onChange={onChange}>{textInput("unit", "")}</BindableInput>)}
           <div style={{ fontSize: 10, color: "#475569", marginTop: 4, marginBottom: 2, fontWeight: 700 }}>SOGLIE</div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
-            <div><div style={LABEL}>Warn Low</div>{numInput("warn_low", 0)}</div>
-            <div><div style={LABEL}>Warn High</div>{numInput("warn_high", 0)}</div>
-            <div><div style={LABEL}>Alarm Low</div>{numInput("alarm_low", 0)}</div>
-            <div><div style={LABEL}>Alarm High</div>{numInput("alarm_high", 0)}</div>
+            <div><div style={LABEL}>Warn Low</div><BindableInput obj={obj} propName="warn_low" onChange={onChange}>{numInput("warn_low", 0)}</BindableInput></div>
+            <div><div style={LABEL}>Warn High</div><BindableInput obj={obj} propName="warn_high" onChange={onChange}>{numInput("warn_high", 0)}</BindableInput></div>
+            <div><div style={LABEL}>Alarm Low</div><BindableInput obj={obj} propName="alarm_low" onChange={onChange}>{numInput("alarm_low", 0)}</BindableInput></div>
+            <div><div style={LABEL}>Alarm High</div><BindableInput obj={obj} propName="alarm_high" onChange={onChange}>{numInput("alarm_high", 0)}</BindableInput></div>
           </div>
           {field("Mostra valore",
             <input type="checkbox" checked={!!obj.show_value}
@@ -754,9 +824,9 @@ function ObjectProps({
         <>
           {field("Tag", tagInput("es. pump1.speed"))}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6 }}>
-            <div><div style={LABEL}>Min</div>{numInput("min", 0)}</div>
-            <div><div style={LABEL}>Max</div>{numInput("max", 100)}</div>
-            <div><div style={LABEL}>Step</div>{numInput("step", 1)}</div>
+            <div><div style={LABEL}>Min</div><BindableInput obj={obj} propName="min" onChange={onChange}>{numInput("min", 0)}</BindableInput></div>
+            <div><div style={LABEL}>Max</div><BindableInput obj={obj} propName="max" onChange={onChange}>{numInput("max", 100)}</BindableInput></div>
+            <div><div style={LABEL}>Step</div><BindableInput obj={obj} propName="step" onChange={onChange}>{numInput("step", 1)}</BindableInput></div>
           </div>
           {field("Orientamento",
             <select
@@ -782,27 +852,31 @@ function ObjectProps({
       {/* Checkbox */}
       {obj.type === "checkbox" && (
         <>
-          {field("Etichetta", textInput("label", "Checkbox"))}
+          {field("Etichetta", <BindableInput obj={obj} propName="label" onChange={onChange}>{textInput("label", "Checkbox")}</BindableInput>)}
           {field("Tag", tagInput("es. pump1.run"))}
           {field("Valore ON",
-            <input type="text" style={INPUT} placeholder="true / 1 / testo"
-              value={obj.checked_value !== undefined ? String(obj.checked_value) : ""}
-              onChange={(e) => {
-                const raw = e.target.value;
-                const v = raw === "true" ? true : raw === "false" ? false
-                  : isNaN(Number(raw)) || raw.trim() === "" ? raw : Number(raw);
-                onChange({ checked_value: v });
-              }} />
+            <BindableInput obj={obj} propName="checked_value" onChange={onChange}>
+              <input type="text" style={INPUT} placeholder="true / 1 / testo"
+                value={obj.checked_value !== undefined ? String(obj.checked_value) : ""}
+                onChange={(e) => {
+                  const raw = e.target.value;
+                  const v = raw === "true" ? true : raw === "false" ? false
+                    : isNaN(Number(raw)) || raw.trim() === "" ? raw : Number(raw);
+                  onChange({ checked_value: v });
+                }} />
+            </BindableInput>
           )}
           {field("Valore OFF",
-            <input type="text" style={INPUT} placeholder="false / 0 / testo"
-              value={obj.unchecked_value !== undefined ? String(obj.unchecked_value) : ""}
-              onChange={(e) => {
-                const raw = e.target.value;
-                const v = raw === "true" ? true : raw === "false" ? false
-                  : isNaN(Number(raw)) || raw.trim() === "" ? raw : Number(raw);
-                onChange({ unchecked_value: v });
-              }} />
+            <BindableInput obj={obj} propName="unchecked_value" onChange={onChange}>
+              <input type="text" style={INPUT} placeholder="false / 0 / testo"
+                value={obj.unchecked_value !== undefined ? String(obj.unchecked_value) : ""}
+                onChange={(e) => {
+                  const raw = e.target.value;
+                  const v = raw === "true" ? true : raw === "false" ? false
+                    : isNaN(Number(raw)) || raw.trim() === "" ? raw : Number(raw);
+                  onChange({ unchecked_value: v });
+                }} />
+            </BindableInput>
           )}
           {field("Solo lettura",
             <input type="checkbox" checked={!!obj.read_only}
@@ -814,7 +888,7 @@ function ObjectProps({
       {/* Radio */}
       {obj.type === "radio" && (
         <>
-          {field("Etichetta", textInput("label", "Radio"))}
+          {field("Etichetta", <BindableInput obj={obj} propName="label" onChange={onChange}>{textInput("label", "Radio")}</BindableInput>)}
           {field("Tag", tagInput("es. pump1.mode"))}
           {field("Orientamento",
             <select
@@ -836,17 +910,19 @@ function ObjectProps({
       {/* LED */}
       {obj.type === "led" && (
         <>
-          {field("Etichetta", textInput("label", ""))}
+          {field("Etichetta", <BindableInput obj={obj} propName="label" onChange={onChange}>{textInput("label", "")}</BindableInput>)}
           {field("Tag", tagInput("es. pump1.run"))}
           {field("Valore ON",
-            <input type="text" style={INPUT} placeholder="true / 1 / testo"
-              value={obj.on_value !== undefined ? String(obj.on_value) : ""}
-              onChange={(e) => {
-                const raw = e.target.value;
-                const v = raw === "true" ? true : raw === "false" ? false
-                  : isNaN(Number(raw)) || raw.trim() === "" ? raw : Number(raw);
-                onChange({ on_value: v });
-              }} />
+            <BindableInput obj={obj} propName="on_value" onChange={onChange}>
+              <input type="text" style={INPUT} placeholder="true / 1 / testo"
+                value={obj.on_value !== undefined ? String(obj.on_value) : ""}
+                onChange={(e) => {
+                  const raw = e.target.value;
+                  const v = raw === "true" ? true : raw === "false" ? false
+                    : isNaN(Number(raw)) || raw.trim() === "" ? raw : Number(raw);
+                  onChange({ on_value: v });
+                }} />
+            </BindableInput>
           )}
           {field("Colore ON",  <BindableInput obj={obj} propName="on_color" onChange={onChange}>{colorInput("on_color",  "#22c55e")}</BindableInput>)}
           {field("Colore OFF", <BindableInput obj={obj} propName="off_color" onChange={onChange}>{colorInput("off_color", "#374151")}</BindableInput>)}
@@ -866,10 +942,10 @@ function ObjectProps({
           {field("Colore barra", <BindableInput obj={obj} propName="fill" onChange={onChange}>{colorInput("fill", "#3b82f6")}</BindableInput>)}
           <div style={{ fontSize: 10, color: "#475569", marginTop: 4, marginBottom: 2, fontWeight: 700 }}>SOGLIE</div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
-            <div><div style={LABEL}>Warn Low</div>{numInput("warn_low", 0)}</div>
-            <div><div style={LABEL}>Warn High</div>{numInput("warn_high", 0)}</div>
-            <div><div style={LABEL}>Alarm Low</div>{numInput("alarm_low", 0)}</div>
-            <div><div style={LABEL}>Alarm High</div>{numInput("alarm_high", 0)}</div>
+            <div><div style={LABEL}>Warn Low</div><BindableInput obj={obj} propName="warn_low" onChange={onChange}>{numInput("warn_low", 0)}</BindableInput></div>
+            <div><div style={LABEL}>Warn High</div><BindableInput obj={obj} propName="warn_high" onChange={onChange}>{numInput("warn_high", 0)}</BindableInput></div>
+            <div><div style={LABEL}>Alarm Low</div><BindableInput obj={obj} propName="alarm_low" onChange={onChange}>{numInput("alarm_low", 0)}</BindableInput></div>
+            <div><div style={LABEL}>Alarm High</div><BindableInput obj={obj} propName="alarm_high" onChange={onChange}>{numInput("alarm_high", 0)}</BindableInput></div>
           </div>
           {field("Mostra valore",
             <input type="checkbox" checked={!!obj.show_value}
@@ -890,15 +966,15 @@ function ObjectProps({
       {obj.type === "trend" && (
         <>
           {field("Tag", tagInput("es. boiler.t"))}
-          {field("Finestra (s)", numInput("window_s", 60))}
+          {field("Finestra (s)", <BindableInput obj={obj} propName="window_s" onChange={onChange}>{numInput("window_s", 60)}</BindableInput>)}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
-            <div><div style={LABEL}>Y min</div>{numInput("y_min", 0)}</div>
-            <div><div style={LABEL}>Y max</div>{numInput("y_max", 100)}</div>
+            <div><div style={LABEL}>Y min</div><BindableInput obj={obj} propName="y_min" onChange={onChange}>{numInput("y_min", 0)}</BindableInput></div>
+            <div><div style={LABEL}>Y max</div><BindableInput obj={obj} propName="y_max" onChange={onChange}>{numInput("y_max", 100)}</BindableInput></div>
           </div>
           <p style={{ fontSize: 10, color: "#475569", margin: "2px 0 0" }}>
             Lascia Y min/max a 0 per autofit.
           </p>
-          {field("Colore linea principale", colorInput("line_color", "#3b82f6"))}
+          {field("Colore linea principale", <BindableInput obj={obj} propName="line_color" onChange={onChange}>{colorInput("line_color", "#3b82f6")}</BindableInput>)}
 
           {/* Multi-tag overlay: extra series share the same axes */}
           <div style={{ fontSize: 10, color: "#475569", marginTop: 6, marginBottom: 2, fontWeight: 700, letterSpacing: 0.5 }}>
@@ -970,9 +1046,9 @@ function ObjectProps({
               onChange={(v) => onChange({ alarm_tag: v || undefined })}
             />
           )}
-          {field("Colore OFF",   colorInput("state_off_color",   "#64748b"))}
-          {field("Colore ON",    colorInput("state_on_color",    "#22c55e"))}
-          {field("Colore ALARM", colorInput("state_alarm_color", "#ef4444"))}
+          {field("Colore OFF",   <BindableInput obj={obj} propName="state_off_color"   onChange={onChange}>{colorInput("state_off_color",   "#64748b")}</BindableInput>)}
+          {field("Colore ON",    <BindableInput obj={obj} propName="state_on_color"    onChange={onChange}>{colorInput("state_on_color",    "#22c55e")}</BindableInput>)}
+          {field("Colore ALARM", <BindableInput obj={obj} propName="state_alarm_color" onChange={onChange}>{colorInput("state_alarm_color", "#ef4444")}</BindableInput>)}
         </>
       )}
 
@@ -1059,7 +1135,7 @@ function ObjectProps({
         LIVELLO E VISIBILITÀ
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr auto auto", gap: 4, alignItems: "end" }}>
-        <div><div style={LABEL}>z-index</div>{numInput("z_index", 0)}</div>
+        <div><div style={LABEL}>z-index</div><BindableInput obj={obj} propName="z_index" onChange={onChange}>{numInput("z_index", 0)}</BindableInput></div>
         <button
           title="Porta indietro (-1)"
           onClick={() => onChange({ z_index: (obj.z_index ?? 0) - 1 })}
