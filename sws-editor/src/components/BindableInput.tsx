@@ -73,6 +73,8 @@ export function BindableInput({ obj, propName, onChange, children }: Props) {
       <button
         style={{
           ...BTN,
+          position: "relative",
+          zIndex: 1,
           color: isBound ? "#3b82f6" : "#475569",
           borderColor: isBound ? "#1d4ed8" : "#334155",
         }}

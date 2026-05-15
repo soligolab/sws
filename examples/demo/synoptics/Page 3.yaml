@@ -21,6 +21,15 @@ objects:
   label: "← Page 2"
   target_page: mp472aq9q3yzc
 
+- id: p3_nav_p4
+  type: navbutton
+  x: 340
+  y: 12
+  width: 170
+  height: 32
+  label: "Page 4 (Fill) →"
+  target_page: page4
+
 - id: p3_title
   type: text
   x: 400

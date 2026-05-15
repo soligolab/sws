@@ -628,25 +628,42 @@ function ObjectProps({
       {field("ID",   <span style={{ fontSize: 11, color: "#64748b" }}>{obj.id}</span>)}
       {field("Tipo", <span style={{ fontSize: 11, color: "#64748b" }}>{obj.type}</span>)}
 
-      {/* Position */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
-        <div><div style={LABEL}>X</div><BindableInput obj={obj} propName="x" onChange={onChange}>{numInput("x", 0)}</BindableInput></div>
-        <div><div style={LABEL}>Y</div><BindableInput obj={obj} propName="y" onChange={onChange}>{numInput("y", 0)}</BindableInput></div>
-      </div>
-
-      {/* Size (shapes) */}
-      {isShape && (
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
-          <div><div style={LABEL}>W</div><BindableInput obj={obj} propName="width" onChange={onChange}>{numInput("width", 100)}</BindableInput></div>
-          <div><div style={LABEL}>H</div><BindableInput obj={obj} propName="height" onChange={onChange}>{numInput("height", 50)}</BindableInput></div>
+      {/* Position + Size — usa field() a larghezza piena per evitare overflow
+          del pulsante BindableInput nelle celle strette del grid 2-colonne. */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 6px" }}>
+        <div>
+          <div style={LABEL}>X</div>
+          <BindableInput obj={obj} propName="x" onChange={onChange}>{numInput("x", 0)}</BindableInput>
         </div>
-      )}
+        <div>
+          <div style={LABEL}>Y</div>
+          <BindableInput obj={obj} propName="y" onChange={onChange}>{numInput("y", 0)}</BindableInput>
+        </div>
+        {isShape && (
+          <>
+            <div>
+              <div style={LABEL}>W</div>
+              <BindableInput obj={obj} propName="width" onChange={onChange}>{numInput("width", 100)}</BindableInput>
+            </div>
+            <div>
+              <div style={LABEL}>H</div>
+              <BindableInput obj={obj} propName="height" onChange={onChange}>{numInput("height", 50)}</BindableInput>
+            </div>
+          </>
+        )}
+      </div>
 
       {/* Line endpoint */}
       {obj.type === "line" && (
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
-          <div><div style={LABEL}>X2</div><BindableInput obj={obj} propName="x2" onChange={onChange}>{numInput("x2", obj.x + 100)}</BindableInput></div>
-          <div><div style={LABEL}>Y2</div><BindableInput obj={obj} propName="y2" onChange={onChange}>{numInput("y2", obj.y)}</BindableInput></div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 6px" }}>
+          <div>
+            <div style={LABEL}>X2</div>
+            <BindableInput obj={obj} propName="x2" onChange={onChange}>{numInput("x2", obj.x + 100)}</BindableInput>
+          </div>
+          <div>
+            <div style={LABEL}>Y2</div>
+            <BindableInput obj={obj} propName="y2" onChange={onChange}>{numInput("y2", obj.y)}</BindableInput>
+          </div>
         </div>
       )}
 

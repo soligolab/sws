@@ -199,8 +199,9 @@ Piano `docs/plans/2026-05-14_universal_binding.md` **completato** (Phases 1-4). 
 
 1. ✅ **BindableInput su tutti i campi rimanenti** — copertura completa: x, y, width, height, x2, y2, font_family, gauge/progress_bar thresholds (warn_low/warn_high/alarm_low/alarm_high), slider (min/max/step), checkbox (label/checked_value/unchecked_value), radio (label), LED (label/on_value), trend (window_s/y_min/y_max/line_color), symbol state colors, z_index.
 2. ✅ **MultiSelectionProps con binding** — sezione "BINDING RAPIDO" aggiunta: select prop + TagInput + pulsanti "Applica" / "Rimuovi" applicano o tolgono lo stesso binding su tutti gli oggetti selezionati in batch.
-3. **Animation/interpolation** — valori bindati oggi fanno "jump" istantaneo; aggiungere interpolazione opzionale (transition-duration sulla proprietà CSS dell'SVG o easing in React state).
-4. **Demo Page 4** con colore fill controllato da `demo.fill_color` + picker sliders RGB.
+3. ✅ **Bug fix BindableInput in grid 2-colonne** — pulsante 🔗 non cliccabile su X/Y/W/H e altri campi in layout a 2 colonne. Causa: cella sorella (DOM order successivo, stesso stacking context) copriva il pulsante. Fix: `position: relative; zIndex: 1` sul button in BindableInput.tsx.
+4. ✅ **Demo Page 4 "Fill Color"** — nuova pagina con 6 pulsanti colore preset (rosso/verde/blu/arancio/viola/teal) che scrivono un hex in `demo.fill_color`. Anteprima live: rect, ellipse, button, progress_bar con `bindings.fill = demo.fill_color`. Nota che il tag è condiviso con Page 3 (il rect lì cambia colore anch'esso). Nav da Page 3 → Page 4 aggiunta.
+5. **Animation/interpolation** — valori bindati oggi fanno "jump" istantaneo; aggiungere interpolazione opzionale (transition-duration sulla proprietà CSS dell'SVG o easing in React state).
 
 ### Altri candidati di backlog (alternativa al piano sopra)
 
