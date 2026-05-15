@@ -102,7 +102,10 @@ export function EditorShell() {
   const alignSelection  = useAppStore((s) => s.alignSelection);
   const undo            = useAppStore((s) => s.undo);
   const redo            = useAppStore((s) => s.redo);
-  const updatePageProps = useAppStore((s) => s.updatePageProps);
+  const updatePageProps  = useAppStore((s) => s.updatePageProps);
+  const saveSerial       = useAppStore((s) => s.saveSerial);
+  const saveStatus       = useAppStore((s) => s.saveStatus);
+  const storeSaveStatus  = useAppStore((s) => s.setSaveStatus);
 
   const currentPage = pages.find((p) => p.id === currentPageId);
   const objects     = currentPage?.objects ?? [];
@@ -219,8 +222,6 @@ export function EditorShell() {
   // to a separate `PUT /api/project/*` endpoint — patch-style on the backend
   // (loads from disk, overwrites one field, rewrites the YAML). Admin-only
   // endpoints are skipped for non-Admin so the call doesn't 403.
-  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "ok" | "error">("idle");
-  const [saveError, setSaveError]   = useState<string | null>(null);
   const saveOkTimer = useRef<number | null>(null);
 
   const handleSave = async () => {
@@ -229,8 +230,7 @@ export function EditorShell() {
       window.clearTimeout(saveOkTimer.current);
       saveOkTimer.current = null;
     }
-    setSaveStatus("saving");
-    setSaveError(null);
+    storeSaveStatus("saving", null);
 
     const state = useAppStore.getState();
     const role  = state.authRole;
@@ -254,16 +254,20 @@ export function EditorShell() {
     const results = await Promise.allSettled(tasks);
     const failed  = results.filter((r) => r.status === "rejected") as PromiseRejectedResult[];
     if (failed.length === 0) {
-      setSaveStatus("ok");
-      saveOkTimer.current = window.setTimeout(() => setSaveStatus("idle"), 2000);
+      storeSaveStatus("ok");
+      saveOkTimer.current = window.setTimeout(() => storeSaveStatus("idle"), 2000);
     } else {
       const msg = failed
         .map((f) => (f.reason instanceof Error ? f.reason.message : String(f.reason)))
         .join("; ");
-      setSaveError(msg);
-      setSaveStatus("error");
+      storeSaveStatus("error", msg);
     }
   };
+
+  // Respond to save requests from the header dropdown (incSaveSerial).
+  useEffect(() => {
+    if (saveSerial > 0) handleSave();
+  }, [saveSerial]);
 
   // When a project-level function is selected, take over the whole main
   // area with the full-screen FunctionEditor. The LeftPanel stays on the
@@ -279,10 +283,7 @@ export function EditorShell() {
       <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
         <LeftPanel
           onAddObject={handleAddObject}
-          onSave={handleSave}
           onFunctionsChanged={persistFunctions}
-          saveStatus={saveStatus}
-          saveError={saveError}
         />
         <FunctionEditor
           fn={selectedFn}
@@ -299,7 +300,6 @@ export function EditorShell() {
       {/* Left panel: project tree + object palette + settings */}
       <LeftPanel
         onAddObject={handleAddObject}
-        onSave={handleSave}
         onFunctionsChanged={persistFunctions}
       />
 

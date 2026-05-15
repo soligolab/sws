@@ -111,6 +111,13 @@ interface AppState {
   gridSize: number;
   snapEnabled: boolean;
 
+  /** Incremented by incSaveSerial() to trigger a save in EditorShell. */
+  saveSerial: number;
+  saveStatus: "idle" | "saving" | "ok" | "error";
+  saveError: string | null;
+  incSaveSerial: () => void;
+  setSaveStatus: (s: "idle" | "saving" | "ok" | "error", e?: string | null) => void;
+
   setAuth: (token: string, username: string, role: Role, mustChangePassword?: boolean) => void;
   setMustChangePassword: (flag: boolean) => void;
   clearAuth: () => void;
@@ -231,6 +238,9 @@ export const useAppStore = create<AppState>((set, get) => {
     logs: [],
     gridSize: 10,
     snapEnabled: true,
+    saveSerial: 0,
+    saveStatus: "idle",
+    saveError: null,
 
     setAuth: (token, username, role, mustChangePassword = false) => {
       setAuthToken(token);
@@ -741,6 +751,9 @@ export const useAppStore = create<AppState>((set, get) => {
 
     setGridSize: (gridSize) => set({ gridSize }),
     setSnapEnabled: (snapEnabled) => set({ snapEnabled }),
+
+    incSaveSerial: () => set((s) => ({ saveSerial: s.saveSerial + 1 })),
+    setSaveStatus: (saveStatus, saveError = null) => set({ saveStatus, saveError }),
   };
 });
 

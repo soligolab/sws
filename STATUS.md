@@ -2,7 +2,7 @@
 
 > This file is the **session-to-session memory** for Claude Code. Update it at the end of every session before stopping work. Read it at the start of every session before touching code.
 
-**Last session**: 2026-05-14 (sessione 4: Phases 1-3 del piano universal binding completate)
+**Last session**: 2026-05-15 (sessione 5: header dropdown menu + simboli selezionabili + demo Page 3 completa)
 **Current phase**: Phase 2. Demo working out-of-the-box su fresh clone, import/export progetto per backup/condivisione, pannello log live + persistenza su disco, gestione utenti multi-account.
 **Last commit**: vedi sotto
 
@@ -14,8 +14,9 @@
 - `e4a61f5` Fix `/api/auth/users` 404: App.tsx ora carica `/api/project` in tutte le modalità
 - `b455f6b` Project import/export ZIP + seed `examples/demo/` in repo
 - `05ffc74` Widget Image abilitato + simboli custom con tracking licenza
-- (questa sessione) Log persistence su disco — `runtime-YYYY-MM-DD.jsonl` rotato per data, retention 7 gg configurabile
-- (questa sessione) Fix critico salvataggio + multi-page UX polish + symbol rotation/flip
+- (sessione 2026-05-14) Log persistence su disco — `runtime-YYYY-MM-DD.jsonl` rotato per data, retention 7 gg configurabile
+- (sessione 2026-05-14) Fix critico salvataggio + multi-page UX polish + symbol rotation/flip
+- (sessione 2026-05-15) Header dropdown menu (Salva/Esporta/Importa/Esci) + Grid dropdown + fix symbol hit-area + BindableInput z-index fix + Demo Page 3 Showcase completa
 
 ---
 
@@ -201,7 +202,10 @@ Piano `docs/plans/2026-05-14_universal_binding.md` **completato** (Phases 1-4). 
 2. ✅ **MultiSelectionProps con binding** — sezione "BINDING RAPIDO" aggiunta: select prop + TagInput + pulsanti "Applica" / "Rimuovi" applicano o tolgono lo stesso binding su tutti gli oggetti selezionati in batch.
 3. ✅ **Bug fix BindableInput in grid 2-colonne** — pulsante 🔗 non cliccabile su X/Y/W/H e altri campi in layout a 2 colonne. Causa: cella sorella (DOM order successivo, stesso stacking context) copriva il pulsante. Fix: `position: relative; zIndex: 1` sul button in BindableInput.tsx.
 4. ✅ **Demo Page 4 "Fill Color"** — nuova pagina con 6 pulsanti colore preset (rosso/verde/blu/arancio/viola/teal) che scrivono un hex in `demo.fill_color`. Anteprima live: rect, ellipse, button, progress_bar con `bindings.fill = demo.fill_color`. Nota che il tag è condiviso con Page 3 (il rect lì cambia colore anch'esso). Nav da Page 3 → Page 4 aggiunta.
-5. **Animation/interpolation** — valori bindati oggi fanno "jump" istantaneo; aggiungere interpolazione opzionale (transition-duration sulla proprietà CSS dell'SVG o easing in React state).
+5. ✅ **Header dropdown Menu** — "☰ Menu" con Salva (+ feedback cromatico), Esporta, Importa, Esci; "Griglia ▾" con size + snap (edit mode only). `saveSerial/saveStatus/saveError` nel store Zustand. Old standalone Esci button + ProjectIO rimossi.
+6. ✅ **Fix symbol hit-area** — `<rect fill="transparent">` come hit-area; simboli ora selezionabili.
+7. ✅ **Demo Page 3 "Showcase"** — tutti i 15 tipi widget con bindings demo.*.
+8. **Animation/interpolation** — valori bindati oggi fanno "jump" istantaneo; aggiungere interpolazione opzionale (transition-duration sulla proprietà CSS dell'SVG o easing in React state).
 
 ### Altri candidati di backlog (alternativa al piano sopra)
 

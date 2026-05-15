@@ -7,7 +7,16 @@ and this project adheres to [CalVer](https://calver.org/) (`YYYY.MM[.patch]`).
 
 ## [Unreleased]
 
+### Added
+- `sws-editor`: menu a tendina **"☰ Menu"** nell'header (sempre visibile) — Salva tutto (solo edit, con feedback cromatico: grigio/verde/rosso a seconda dello stato), Esporta progetto, Importa progetto (Admin), Esci. Lo stato del salvataggio (`saveSerial`/`saveStatus`/`saveError`) è spostato nel Zustand store così il pulsante riflette la risposta senza prop drilling.
+- `sws-editor`: menu a tendina **"Griglia"** nell'header (solo modalità edit) — selettore dimensione (Off/5/10/20/40 px) e checkbox snap. Sostituisce le impostazioni griglia che erano nel fondo del LeftPanel.
+- Demo: **Page 3 "Showcase"** completa con un esemplare di ogni tipo di widget (rect, ellipse, line, text, button, navbutton, led, progress_bar, gauge, slider, checkbox, radio, table, symbol, image) e tag demo.* multipli (`demo.visible`, `demo.on`, `demo.value`, `demo.color`, `demo.font_size`, `demo.min`, `demo.max`) aggiornati in `examples/demo/project.yaml`. Ogni widget ha bindings su almeno rotation, opacity e una proprietà tipo-specifica.
+
 ### Fixed
+- `sws-editor`: oggetti `symbol` non selezionabili nell'area di lavoro quando aggiunti dal pannello sinistro. Causa: `<g>` SVG non genera un bounding box per pointer events e tutti i figli visivi avevano `pointerEvents: "none"`. Fix: rimosso `onMouseDown` dal `<g>`, aggiunto `<rect fill="transparent">` come hit-area con le stesse dimensioni del bounding box (stesso pattern già usato per il gauge). Ora i simboli sono selezionabili, draggabili e ridimensionabili da qualsiasi punto del bounding box.
+- `sws-editor` `BindableInput`: il pulsante 🔗/🔓 non era cliccabile nelle celle strette di layout a 2 colonne (es. X/Y/W/H). Causa: la cella sorella (successiva nel DOM, stesso stacking context statico) copriva l'eventuale overflow del pulsante intercettandone i click. Fix: `position: relative; zIndex: 1` sul button — crea un positioned element con z-index > 0 che sovrasta le celle statiche adiacenti.
+
+### Fixed (previous session)
 - `sws-editor`: il bottone "Salva" del LeftPanel salvava SOLO la pagina synoptic corrente, ignorando tag/sources/alarms/funzioni Python/custom_symbols + tutte le altre pagine. Modifiche fatte nel `FunctionEditor` o nelle altre pagine andavano perse silenziosamente se l'utente cliccava "Salva" senza essere passato dalla tab specifica di ConfigView / dal bottone "Salva funzioni". Ora "Salva tutto" persiste in parallelo: ogni `SynopticPage` + (se Admin) `PUT /api/project/{tags,sources,alarms,functions,custom-symbols}` via `Promise.allSettled` con feedback chip "Salvataggio…" / "✓ Salvato" / "❌ Errore — clicca per ritentare" + tooltip con il dettaglio dell'errore.
 
 ### Added

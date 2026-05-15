@@ -29,6 +29,27 @@ tags:
 - id: demo.fill_color
   description: Colore fill (#RRGGBB) per oggetti Page 3
   data_type: string
+- id: demo.visible
+  description: Visibilità live (true/false) — controlla visible su binding
+  data_type: bool
+- id: demo.on
+  description: Stato ON (true/false) — per LED, checkbox, symbol state
+  data_type: bool
+- id: demo.value
+  description: Valore numerico generico (0-100) — per gauge, progress_bar, text
+  data_type: float
+- id: demo.color
+  description: Colore CSS stringa (#RRGGBB) — per colori secondari
+  data_type: string
+- id: demo.font_size
+  description: Dimensione font (8-32) — per text objects
+  data_type: float
+- id: demo.min
+  description: Valore minimo (0-50) — per min binding su gauge/progress_bar/slider
+  data_type: float
+- id: demo.max
+  description: Valore massimo (50-200) — per max binding su gauge/progress_bar/slider
+  data_type: float
 sources:
 - kind: mqtt
   id: mqtt-sws

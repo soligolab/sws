@@ -1050,9 +1050,13 @@ function SvgObject(p: ObjProps) {
                           (obj.state_off_color   ?? "#64748b");
 
     return (
-      <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()}
-         style={{ cursor: editCursor }}>
+      <g style={{ cursor: editCursor }}>
         {selRect(obj.x, obj.y, w, h)}
+        {/* Transparent hit-area so the symbol is always clickable/draggable even when
+            all visual children have pointerEvents:"none" (same fix as gauge). */}
+        <rect x={obj.x} y={obj.y} width={w} height={h} fill="transparent"
+          onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()}
+          style={{ cursor: editCursor }} />
         {applyTransform(obj, w, h,
           customEntry ? (
             <image href={customEntry.url} x={obj.x} y={obj.y} width={w} height={h}
