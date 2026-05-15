@@ -1,0 +1,3 @@
+id: demo-items
+label: "Demo items"
+description: "Demo con 4 pagine: counter + MQTT echo, welcome, showcase widget con binding, fill color dinamico."

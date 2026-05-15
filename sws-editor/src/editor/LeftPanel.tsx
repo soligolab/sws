@@ -616,66 +616,14 @@ function SourcesSection({ project }: { project: ProjectInfo | null }) {
   );
 }
 
-// ── Canvas settings ───────────────────────────────────────────────────────────
-
-function CanvasSettings() {
-  const gridSize    = useAppStore((s) => s.gridSize);
-  const snapEnabled = useAppStore((s) => s.snapEnabled);
-  const setGridSize = useAppStore((s) => s.setGridSize);
-  const setSnap     = useAppStore((s) => s.setSnapEnabled);
-
-  return (
-    <div style={{ padding: "8px 10px", borderTop: "1px solid #334155", flexShrink: 0 }}>
-      <div style={{ fontSize: 10, color: "#475569", letterSpacing: 1, marginBottom: 4, fontWeight: 700 }}>
-        GRIGLIA
-      </div>
-      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-        <label style={{ fontSize: 11, color: "#64748b", flex: 1 }}>
-          Dimensione
-        </label>
-        <select
-          value={gridSize}
-          onChange={(e) => setGridSize(Number(e.target.value))}
-          style={{
-            background: "#0f172a", color: "#e2e8f0", border: "1px solid #334155",
-            borderRadius: 4, padding: "2px 4px", fontSize: 12, width: 60,
-          }}
-        >
-          {[0, 5, 10, 20, 40].map((n) => (
-            <option key={n} value={n}>{n === 0 ? "Off" : `${n}px`}</option>
-          ))}
-        </select>
-      </div>
-      <label style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 4, cursor: "pointer" }}>
-        <input
-          type="checkbox"
-          checked={snapEnabled}
-          onChange={(e) => setSnap(e.target.checked)}
-          style={{ accentColor: "#3b82f6" }}
-        />
-        <span style={{ fontSize: 11, color: "#64748b" }}>Snap alla griglia</span>
-      </label>
-    </div>
-  );
-}
-
 // ── Main LeftPanel export ─────────────────────────────────────────────────────
 
 interface LeftPanelProps {
   onAddObject: (type: SynopticObject["type"]) => void;
-  onSave: () => void;
-  /** Fires after a CRUD verb on the in-memory functions list so the host
-   *  can push the new list to `PUT /api/project/functions`. */
   onFunctionsChanged: () => void;
-  /** "Salva" button feedback. Defaults to "idle" if omitted (back-compat). */
-  saveStatus?: "idle" | "saving" | "ok" | "error";
-  saveError?: string | null;
 }
 
-export function LeftPanel({
-  onAddObject, onSave, onFunctionsChanged,
-  saveStatus = "idle", saveError = null,
-}: LeftPanelProps) {
+export function LeftPanel({ onAddObject, onFunctionsChanged }: LeftPanelProps) {
   const project    = useAppStore((s) => s.project);
   const setProject = useAppStore((s) => s.setProject);
 
@@ -696,41 +644,7 @@ export function LeftPanel({
         <SourcesSection project={project} />
       </div>
 
-      <CanvasSettings />
-
       <UndoRedoBar />
-
-      <div style={{ padding: "8px 10px", borderTop: "1px solid #334155", flexShrink: 0 }}>
-        <button
-          onClick={onSave}
-          disabled={saveStatus === "saving"}
-          title={saveStatus === "error" ? (saveError ?? "Errore di salvataggio") : "Salva tutto: pagine, tag, sorgenti, allarmi, funzioni, simboli"}
-          style={{
-            width: "100%",
-            background:
-              saveStatus === "error" ? "#7f1d1d" :
-              saveStatus === "ok"    ? "#166534" :
-              saveStatus === "saving"? "#374151" :
-                                       "#166534",
-            color: "#bbf7d0",
-            border: "1px solid " + (saveStatus === "error" ? "#991b1b" : "#15803d"),
-            borderRadius: 4,
-            padding: "6px 0",
-            cursor: saveStatus === "saving" ? "wait" : "pointer",
-            fontSize: 13, fontWeight: 600,
-          }}
-        >
-          {saveStatus === "saving" ? "Salvataggio…" :
-           saveStatus === "ok"     ? "✓ Salvato"   :
-           saveStatus === "error"  ? "❌ Errore — clicca per ritentare" :
-                                     "Salva tutto"}
-        </button>
-        {saveStatus === "error" && saveError && (
-          <div style={{ marginTop: 6, fontSize: 11, color: "#fca5a5", wordBreak: "break-word" }}>
-            {saveError}
-          </div>
-        )}
-      </div>
     </div>
   );
 }

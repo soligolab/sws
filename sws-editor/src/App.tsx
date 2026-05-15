@@ -1,11 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { api, AuthError, PasswordChangeRequiredError } from "@/api/client";
+import { api, AuthError, NoProjectError, PasswordChangeRequiredError } from "@/api/client";
 import { AlarmBanner } from "@/components/AlarmBanner";
 import { ChangePasswordScreen } from "@/components/ChangePasswordScreen";
 import { LogPanel } from "@/components/LogPanel";
 import { LoginScreen } from "@/components/LoginScreen";
-import { ProjectIO } from "@/components/ProjectIO";
+import { WelcomeScreen } from "@/components/WelcomeScreen";
 import { ConfigView } from "@/config/ConfigView";
 import { EditorShell } from "@/editor/EditorShell";
 import { RuntimeView } from "@/runtime-view/RuntimeView";
@@ -13,6 +13,270 @@ import { useAppStore } from "@/store";
 import { useLogStream } from "@/ws/logStream";
 
 type Mode = "edit" | "view" | "config";
+
+// ── Shared header-button style ────────────────────────────────────────────────
+
+const HDR_BTN: React.CSSProperties = {
+  padding: "4px 10px",
+  background: "#334155",
+  color: "#cbd5e1",
+  border: "1px solid #475569",
+  borderRadius: 4,
+  cursor: "pointer",
+  fontSize: 12,
+  whiteSpace: "nowrap",
+};
+
+const DROP_PANEL: React.CSSProperties = {
+  position: "absolute",
+  right: 0,
+  top: "calc(100% + 4px)",
+  background: "#1e293b",
+  border: "1px solid #334155",
+  borderRadius: 6,
+  padding: "4px 0",
+  minWidth: 180,
+  zIndex: 100,
+  boxShadow: "0 4px 16px rgba(0,0,0,0.4)",
+};
+
+const DROP_ITEM: React.CSSProperties = {
+  display: "block",
+  width: "100%",
+  textAlign: "left",
+  background: "transparent",
+  border: "none",
+  color: "#cbd5e1",
+  padding: "7px 14px",
+  fontSize: 13,
+  cursor: "pointer",
+};
+
+const DROP_SEP: React.CSSProperties = {
+  height: 1,
+  background: "#334155",
+  margin: "4px 0",
+};
+
+// ── GridDropdown (edit mode only) ─────────────────────────────────────────────
+
+function GridDropdown() {
+  const [open, setOpen] = useState(false);
+  const ref             = useRef<HTMLDivElement>(null);
+  const gridSize        = useAppStore((s) => s.gridSize);
+  const snapEnabled     = useAppStore((s) => s.snapEnabled);
+  const setGridSize     = useAppStore((s) => s.setGridSize);
+  const setSnap         = useAppStore((s) => s.setSnapEnabled);
+
+  // Close on outside click
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open]);
+
+  const label = gridSize === 0 ? "Griglia: Off" : `Griglia: ${gridSize}px`;
+
+  return (
+    <div ref={ref} style={{ position: "relative" }}>
+      <button style={HDR_BTN} onClick={() => setOpen((v) => !v)}>
+        {label} ▾
+      </button>
+      {open && (
+        <div style={DROP_PANEL}>
+          <div style={{ padding: "6px 14px 2px", fontSize: 11, color: "#64748b", fontWeight: 700, letterSpacing: 0.5 }}>
+            GRIGLIA
+          </div>
+          <div style={{ padding: "4px 14px 6px", display: "flex", flexDirection: "column", gap: 6 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ fontSize: 12, color: "#94a3b8", flex: 1 }}>Dimensione</span>
+              <select
+                value={gridSize}
+                onChange={(e) => setGridSize(Number(e.target.value))}
+                style={{ background: "#0f172a", color: "#e2e8f0", border: "1px solid #334155", borderRadius: 4, padding: "2px 6px", fontSize: 12, cursor: "pointer" }}
+              >
+                {[0, 5, 10, 20, 40].map((n) => (
+                  <option key={n} value={n}>{n === 0 ? "Off" : `${n}px`}</option>
+                ))}
+              </select>
+            </div>
+            <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+              <input
+                type="checkbox"
+                checked={snapEnabled}
+                onChange={(e) => setSnap(e.target.checked)}
+                style={{ accentColor: "#3b82f6" }}
+              />
+              <span style={{ fontSize: 12, color: "#94a3b8" }}>Snap alla griglia</span>
+            </label>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── MainMenu (always visible) ─────────────────────────────────────────────────
+
+function MainMenu({ mode, onLogout, onCloseProject }: { mode: Mode; onLogout: () => void; onCloseProject: () => void }) {
+  const [open, setOpen]       = useState(false);
+  const ref                   = useRef<HTMLDivElement>(null);
+  const authRole              = useAppStore((s) => s.authRole);
+  const saveStatus            = useAppStore((s) => s.saveStatus);
+  const saveError             = useAppStore((s) => s.saveError);
+  const incSaveSerial         = useAppStore((s) => s.incSaveSerial);
+  const setProject            = useAppStore((s) => s.setProject);
+  const setPages              = useAppStore((s) => s.setPages);
+  const fileInputRef          = useRef<HTMLInputElement>(null);
+  const [ioBusy, setIoBusy]   = useState<"export" | "import" | null>(null);
+  const [ioStatus, setIoStat] = useState<string | null>(null);
+
+  // Close on outside click
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open]);
+
+  const handleExport = async () => {
+    setIoBusy("export"); setIoStat(null);
+    try {
+      const res      = await api.exportProjectZip();
+      const cd       = res.headers.get("content-disposition");
+      const filename = (/filename="([^"]+)"/.exec(cd ?? "") ?? [])[1]
+        ?? (() => { const d = new Date(); const p = (n: number) => String(n).padStart(2,"0"); return `sws-project-${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}.zip`; })();
+      const blob = await res.blob();
+      const url  = URL.createObjectURL(blob);
+      const a    = Object.assign(document.createElement("a"), { href: url, download: filename });
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      setIoStat(`✓ ${filename}`);
+    } catch (e: any) { setIoStat(`Errore: ${e?.message ?? e}`); }
+    finally { setIoBusy(null); setTimeout(() => setIoStat(null), 5000); }
+  };
+
+  const handleImport = async (file: File) => {
+    if (!confirm(
+      "Sostituire l'intero progetto corrente?\n" +
+      "I synoptic non inclusi nel bundle saranno eliminati.\n" +
+      "Le password MQTT non sono incluse: dovrai re-immetterle dopo l'import."
+    )) return;
+    setIoBusy("import"); setIoStat(null);
+    try {
+      await api.importProjectZip(file);
+      const project = await api.getProject();
+      setProject(project);
+      const names = await api.listSynoptics();
+      if (names.length > 0) {
+        const pages = await Promise.all(names.map((n) => api.getSynoptic(n)));
+        setPages(pages, pages[0].id);
+      }
+      setIoStat(`✓ Importato ${file.name}`);
+    } catch (e: any) { setIoStat(`Errore: ${e?.message ?? e}`); }
+    finally { setIoBusy(null); setTimeout(() => setIoStat(null), 6000); }
+  };
+
+  const saveBtnLabel =
+    saveStatus === "saving" ? "Salvataggio…" :
+    saveStatus === "ok"     ? "✓ Salvato"   :
+    saveStatus === "error"  ? "❌ Errore salvataggio" :
+                              "Salva tutto";
+
+  const saveBtnColor =
+    saveStatus === "error" ? "#fca5a5" :
+    saveStatus === "ok"    ? "#86efac" :
+    saveStatus === "saving"? "#94a3b8" :
+                             "#cbd5e1";
+
+  return (
+    <div ref={ref} style={{ position: "relative" }}>
+      <button
+        style={{
+          ...HDR_BTN,
+          background: saveStatus === "saving" ? "#374151" : saveStatus === "ok" ? "#166534" : saveStatus === "error" ? "#7f1d1d" : "#334155",
+          color: saveBtnColor,
+          borderColor: saveStatus === "error" ? "#991b1b" : saveStatus === "ok" ? "#15803d" : "#475569",
+          minWidth: 90,
+        }}
+        onClick={() => setOpen((v) => !v)}
+        title={saveStatus === "error" ? (saveError ?? "Errore") : "Menu principale"}
+      >
+        ☰ Menu {saveStatus === "saving" ? "⟳" : saveStatus === "ok" ? "✓" : saveStatus === "error" ? "⚠" : ""}
+      </button>
+      {open && (
+        <div style={DROP_PANEL}>
+          {mode === "edit" && (
+            <>
+              <button
+                style={{ ...DROP_ITEM, color: saveStatus === "error" ? "#fca5a5" : saveStatus === "ok" ? "#86efac" : "#cbd5e1" }}
+                disabled={saveStatus === "saving"}
+                onClick={() => { incSaveSerial(); setOpen(false); }}
+              >
+                {saveBtnLabel}
+              </button>
+              {saveStatus === "error" && saveError && (
+                <div style={{ padding: "2px 14px 6px", fontSize: 11, color: "#fca5a5", wordBreak: "break-word" }}>
+                  {saveError}
+                </div>
+              )}
+              <div style={DROP_SEP} />
+            </>
+          )}
+          {authRole === "Admin" && (
+            <>
+              <button
+                style={{ ...DROP_ITEM, color: ioBusy === "export" ? "#94a3b8" : "#cbd5e1" }}
+                disabled={ioBusy !== null}
+                onClick={() => { handleExport(); setOpen(false); }}
+              >
+                {ioBusy === "export" ? "Esporto…" : "Esporta progetto"}
+              </button>
+              <button
+                style={{ ...DROP_ITEM, color: ioBusy === "import" ? "#94a3b8" : "#cbd5e1" }}
+                disabled={ioBusy !== null}
+                onClick={() => { fileInputRef.current?.click(); setOpen(false); }}
+              >
+                {ioBusy === "import" ? "Importo…" : "Importa progetto"}
+              </button>
+              <div style={DROP_SEP} />
+            </>
+          )}
+          <button
+            style={DROP_ITEM}
+            onClick={() => { onCloseProject(); setOpen(false); }}
+          >
+            Chiudi progetto
+          </button>
+          <div style={DROP_SEP} />
+          <button
+            style={DROP_ITEM}
+            onClick={() => { onLogout(); setOpen(false); }}
+          >
+            Esci
+          </button>
+          {ioStatus && (
+            <div style={{ padding: "4px 14px", fontSize: 11, color: ioStatus.startsWith("✓") ? "#86efac" : "#fca5a5" }}>
+              {ioStatus}
+            </div>
+          )}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".zip,application/zip"
+            style={{ display: "none" }}
+            onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) handleImport(f); }}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
 
 const MODE_LABELS: Record<Mode, string> = {
   edit:   "Editor",
@@ -33,12 +297,14 @@ export function App() {
   // for Viewer / unauthenticated states.
   useLogStream();
 
-  const authToken             = useAppStore((s) => s.authToken);
-  const authUser              = useAppStore((s) => s.authUser);
-  const authRole              = useAppStore((s) => s.authRole);
-  const mustChangePassword    = useAppStore((s) => s.mustChangePassword);
-  const setMustChangePassword = useAppStore((s) => s.setMustChangePassword);
-  const clearAuth             = useAppStore((s) => s.clearAuth);
+  const authToken              = useAppStore((s) => s.authToken);
+  const authUser               = useAppStore((s) => s.authUser);
+  const authRole               = useAppStore((s) => s.authRole);
+  const mustChangePassword     = useAppStore((s) => s.mustChangePassword);
+  const setMustChangePassword  = useAppStore((s) => s.setMustChangePassword);
+  const clearAuth              = useAppStore((s) => s.clearAuth);
+  const noActiveProject        = useAppStore((s) => s.noActiveProject);
+  const setNoActiveProject     = useAppStore((s) => s.setNoActiveProject);
   const pages          = useAppStore((s) => s.pages);
   const currentPageId  = useAppStore((s) => s.currentPageId);
   const setCurrentPage = useAppStore((s) => s.setCurrentPage);
@@ -46,21 +312,31 @@ export function App() {
   const project        = useAppStore((s) => s.project);
   const setProject     = useAppStore((s) => s.setProject);
 
-  // Only fetch project data once authenticated AND past the must-change-pwd
-  // gate; otherwise every call would 401/403 and the user would land in a
-  // fail loop. Project is loaded here (not in LeftPanel) so it's available
-  // in Configurazione mode too — without this, ProtocolsTab/TagsTab/
-  // AlarmsTab would render empty inputs and a save would overwrite real
-  // on-disk state with blanks.
+  // Mount flow:
+  //   1. If no token → try GET /api/project to detect 503 (no project open).
+  //      503 → WelcomeScreen.  Any other error → LoginScreen.
+  //   2. If token present → same call. 200 → load project. 401 → clear auth.
+  //      503 → WelcomeScreen (project was closed externally).
   useEffect(() => {
-    if (!authToken || mustChangePassword) return;
+    if (mustChangePassword) return;
 
     api.getProject()
-      .then(setProject)
+      .then((p) => {
+        setNoActiveProject(false);
+        setProject(p);
+      })
       .catch((e) => {
-        if (e instanceof AuthError) clearAuth();
-        else if (e instanceof PasswordChangeRequiredError) setMustChangePassword(true);
+        if (e instanceof NoProjectError) {
+          setNoActiveProject(true);
+          clearAuth();
+        } else if (e instanceof AuthError) {
+          clearAuth();
+        } else if (e instanceof PasswordChangeRequiredError) {
+          setMustChangePassword(true);
+        }
       });
+
+    if (!authToken) return;
 
     api.listSynoptics()
       .then(async (names) => {
@@ -78,6 +354,25 @@ export function App() {
     try { await api.logout(); } catch { /* ignore */ }
     clearAuth();
   };
+
+  const handleCloseProject = async () => {
+    try { await api.closeProject(); } catch { /* ignore */ }
+    clearAuth();
+    setNoActiveProject(true);
+  };
+
+  // Show WelcomeScreen when runtime has no active project.
+  if (noActiveProject) {
+    return (
+      <WelcomeScreen
+        onProjectOpened={() => {
+          // open_project invalidates all sessions → go to LoginScreen.
+          setNoActiveProject(false);
+          clearAuth();
+        }}
+      />
+    );
+  }
 
   if (!authToken) {
     return <LoginScreen />;
@@ -142,7 +437,7 @@ export function App() {
             </span>
           )}
         </span>
-        <ProjectIO />
+        {mode === "edit" && <GridDropdown />}
         <button
           onClick={() => {
             const next = !logOpen;
@@ -162,21 +457,7 @@ export function App() {
         >
           Log
         </button>
-        <button
-          onClick={handleLogout}
-          title="Esci dalla sessione"
-          style={{
-            padding: "4px 10px",
-            background: "#334155",
-            color: "#cbd5e1",
-            border: "1px solid #475569",
-            borderRadius: 4,
-            cursor: "pointer",
-            fontSize: 12,
-          }}
-        >
-          Esci
-        </button>
+        <MainMenu mode={mode} onLogout={handleLogout} onCloseProject={handleCloseProject} />
       </header>
 
       {/* Alarm banner */}

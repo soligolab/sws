@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { TrendCanvas } from "@/canvas/TrendCanvas";
 import { SYMBOLS } from "@/symbols/library";
 import type { CustomSymbol, SynopticObject, TagState } from "@/types";
@@ -18,6 +18,8 @@ interface SvgCanvasProps {
   customSymbols?: CustomSymbol[];
   /** Single-select (replace) when shift is false; toggle into the set when true. */
   onSelect?: (id: string | null, shift?: boolean) => void;
+  /** Called with the full set of ids enclosed by a drag-selection rectangle. */
+  onSelectMany?: (ids: string[]) => void;
   onMove?: (id: string, patch: Partial<SynopticObject>) => void;
   onWriteTag?: (tagId: string, value: string | number | boolean) => void;
   /** View-mode dispatcher for on_press / on_release function bindings.
@@ -34,6 +36,14 @@ interface DragState {
   offsetY: number;
   dx2?: number;
   dy2?: number;
+}
+
+/** Coordinates of an in-progress drag-selection rectangle (SVG space). */
+interface SelRect {
+  startX: number;
+  startY: number;
+  curX: number;
+  curY: number;
 }
 
 // ── SVG geometry helpers ──────────────────────────────────────────────────────
@@ -123,6 +133,20 @@ function formatValue(value: number | string | boolean, format?: string): string 
 // ── Binding resolver ─────────────────────────────────────────────────────────
 
 /**
+ * Returns a CSS `transition` style for the four CSS-animatable visual props
+ * (fill / stroke / opacity / transform) when the object has a positive
+ * `transition_duration_ms`. Returns undefined otherwise — the spread becomes
+ * a no-op. Easing is fixed to `ease-out` (good for snap-to-target feel).
+ */
+function transitionStyle(obj: SynopticObject): React.CSSProperties | undefined {
+  const ms = obj.transition_duration_ms;
+  if (!ms || ms <= 0) return undefined;
+  return {
+    transition: `fill ${ms}ms ease-out, stroke ${ms}ms ease-out, opacity ${ms}ms ease-out, transform ${ms}ms ease-out`,
+  };
+}
+
+/**
  * Applies `obj.bindings` overrides: for each entry whose tag has a live value,
  * replaces the corresponding top-level prop with the live value.
  * Boolean-typed props (visible, flip_h, flip_v) are coerced via truthy logic.
@@ -160,14 +184,18 @@ function applyTransform(obj: SynopticObject, w: number, h: number, content: Reac
   const opacity = obj.opacity  ?? 1;
   const hasRotFlip = rot !== 0 || sx !== 1 || sy !== 1;
   const hasOpacity = opacity < 1;
-  if (!hasRotFlip && !hasOpacity) return content;
+  const txStyle    = transitionStyle(obj);
+  // Wrap when there is geometry to apply OR when a transition is active —
+  // the latter case ensures binding-driven rotation/opacity changes animate
+  // smoothly even if the static values are defaults (rot=0, opacity=1).
+  if (!hasRotFlip && !hasOpacity && !txStyle) return content;
   const cx = obj.x + w / 2;
   const cy = obj.y + h / 2;
   const transform = hasRotFlip
     ? `rotate(${rot} ${cx} ${cy}) translate(${cx} ${cy}) scale(${sx} ${sy}) translate(${-cx} ${-cy})`
     : undefined;
   return (
-    <g transform={transform} opacity={hasOpacity ? opacity : undefined}>
+    <g transform={transform} opacity={hasOpacity ? opacity : undefined} style={txStyle}>
       {content}
     </g>
   );
@@ -191,6 +219,7 @@ export function SvgCanvas({
   snapEnabled = true,
   customSymbols = [],
   onSelect,
+  onSelectMany,
   onMove,
   onWriteTag,
   onScript,
@@ -200,27 +229,108 @@ export function SvgCanvas({
   // legacy single-id prop, then to "nothing selected".
   const selIds = selectedIds ?? (selectedId ? [selectedId] : []);
   const selSet = new Set(selIds);
+
+  // Object drag state
   const dragRef = useRef<DragState | null>(null);
+
+  // Selection-rectangle drag state. `selDragRef` tracks the active drag for
+  // event handlers (always up-to-date); `selRect` drives the visual overlay.
+  const selDragRef     = useRef<SelRect | null>(null);
+  const [selRect, setSelRect] = useState<SelRect | null>(null);
+  // Set to true when a rect-selection just completed so the SVG onClick
+  // (which fires on every mouseup) does not deselect the result.
+  const suppressClick  = useRef(false);
 
   const snap = (v: number) =>
     snapEnabled && gridSize > 0 ? Math.round(v / gridSize) * gridSize : v;
 
-  const handleMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
-    if (!dragRef.current || !onMove) return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    const newX = snap(e.clientX - rect.left - dragRef.current.offsetX);
-    const newY = snap(e.clientY - rect.top  - dragRef.current.offsetY);
-    const patch: Partial<SynopticObject> = { x: newX, y: newY };
-    if (dragRef.current.dx2 !== undefined) {
-      patch.x2 = newX + dragRef.current.dx2!;
-      patch.y2 = newY + dragRef.current.dy2!;
+  /** Compute the bounding box of an object in SVG space.
+   *  Lines use the min/max of their two endpoints; other types use x/y/w/h. */
+  const objBBox = (obj: SynopticObject): { x1: number; y1: number; x2: number; y2: number } => {
+    if (obj.type === "line") {
+      const lx1 = Math.min(obj.x ?? 0, obj.x2 ?? obj.x ?? 0);
+      const ly1 = Math.min(obj.y ?? 0, obj.y2 ?? obj.y ?? 0);
+      const lx2 = Math.max(obj.x ?? 0, obj.x2 ?? obj.x ?? 0);
+      const ly2 = Math.max(obj.y ?? 0, obj.y2 ?? obj.y ?? 0);
+      return { x1: lx1, y1: ly1, x2: lx2, y2: ly2 };
     }
-    onMove(dragRef.current.objId, patch);
+    const ox = obj.x ?? 0;
+    const oy = obj.y ?? 0;
+    return { x1: ox, y1: oy, x2: ox + (obj.width ?? 0), y2: oy + (obj.height ?? 0) };
   };
 
-  const endDrag = () => { dragRef.current = null; };
+  const handleSvgMouseDown = (e: React.MouseEvent<SVGSVGElement>) => {
+    // Only start a selection rect in edit mode with left button.
+    if (!onMove || e.button !== 0) return;
+    // If an object drag is already active, ignore (startDrag sets dragRef first
+    // because child handlers fire before parent handlers in React).
+    if (dragRef.current) return;
+    const svgRect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX - svgRect.left;
+    const y = e.clientY - svgRect.top;
+    selDragRef.current = { startX: x, startY: y, curX: x, curY: y };
+  };
+
+  const handleMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
+    const svgRect = e.currentTarget.getBoundingClientRect();
+    if (dragRef.current && onMove) {
+      // Object drag
+      const newX = snap(e.clientX - svgRect.left - dragRef.current.offsetX);
+      const newY = snap(e.clientY - svgRect.top  - dragRef.current.offsetY);
+      const patch: Partial<SynopticObject> = { x: newX, y: newY };
+      if (dragRef.current.dx2 !== undefined) {
+        patch.x2 = newX + dragRef.current.dx2!;
+        patch.y2 = newY + dragRef.current.dy2!;
+      }
+      onMove(dragRef.current.objId, patch);
+    } else if (selDragRef.current) {
+      // Selection rect update
+      const updated: SelRect = {
+        ...selDragRef.current,
+        curX: e.clientX - svgRect.left,
+        curY: e.clientY - svgRect.top,
+      };
+      selDragRef.current = updated;
+      setSelRect(updated);
+    }
+  };
+
+  const endDrag = () => {
+    dragRef.current = null;
+
+    const rect = selDragRef.current;
+    selDragRef.current = null;
+    setSelRect(null);
+
+    if (!rect || !onSelectMany) return;
+    const dx = Math.abs(rect.curX - rect.startX);
+    const dy = Math.abs(rect.curY - rect.startY);
+    if (dx < 5 && dy < 5) return; // treat as click, let onClick handle it
+
+    const x1 = Math.min(rect.startX, rect.curX);
+    const y1 = Math.min(rect.startY, rect.curY);
+    const x2 = Math.max(rect.startX, rect.curX);
+    const y2 = Math.max(rect.startY, rect.curY);
+
+    const ids = objects
+      .filter((obj) => {
+        const bb = objBBox(obj);
+        // Intersection: rect overlaps bounding box (not just touch)
+        return bb.x2 > x1 && bb.x1 < x2 && bb.y2 > y1 && bb.y1 < y2;
+      })
+      .map((o) => o.id);
+
+    if (ids.length > 0) {
+      suppressClick.current = true;
+      onSelectMany(ids);
+    }
+  };
 
   const startDrag = (e: React.MouseEvent<SVGElement>, obj: SynopticObject) => {
+    // Object drag wins: cancel any pending selection rect.
+    selDragRef.current = null;
+    setSelRect(null);
+
     const svgEl = (e.currentTarget as SVGElement).ownerSVGElement!;
     const rect = svgEl.getBoundingClientRect();
     const ds: DragState = {
@@ -239,7 +349,11 @@ export function SvgCanvas({
     <svg
       width="100%" height="100%"
       style={{ background, display: "block", userSelect: "none" }}
-      onClick={() => onSelect?.(null)}
+      onMouseDown={handleSvgMouseDown}
+      onClick={() => {
+        if (suppressClick.current) { suppressClick.current = false; return; }
+        onSelect?.(null);
+      }}
       onMouseMove={handleMouseMove}
       onMouseUp={endDrag}
       onMouseLeave={endDrag}
@@ -290,6 +404,21 @@ export function SvgCanvas({
           </g>
         );
       })}
+
+      {selRect && (() => {
+        const rx = Math.min(selRect.startX, selRect.curX);
+        const ry = Math.min(selRect.startY, selRect.curY);
+        const rw = Math.abs(selRect.curX - selRect.startX);
+        const rh = Math.abs(selRect.curY - selRect.startY);
+        return (
+          <rect
+            x={rx} y={ry} width={rw} height={rh}
+            fill="rgba(59,130,246,0.1)" stroke="#3b82f6"
+            strokeWidth={1} strokeDasharray="4 2"
+            pointerEvents="none"
+          />
+        );
+      })()}
     </svg>
   );
 }
@@ -343,7 +472,7 @@ function SvgObject(p: ObjProps) {
             fill={obj.fill ?? "#555"}
             stroke={selected ? "#facc15" : (obj.stroke ?? "none")}
             strokeWidth={selected ? 2 : (obj.stroke_width ?? 0)}
-            style={{ cursor: editCursor }}
+            style={{ cursor: editCursor, ...transitionStyle(obj) }}
             onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()} />
         )}
         {tv && <QDot x={obj.x + w - 8} y={obj.y + 8} quality={tv.quality} />}
@@ -363,7 +492,7 @@ function SvgObject(p: ObjProps) {
           <ellipse cx={obj.x + w / 2} cy={obj.y + h / 2} rx={w / 2} ry={h / 2}
             fill={obj.fill ?? "#4a90d9"}
             stroke={obj.stroke ?? "none"} strokeWidth={obj.stroke_width ?? 0}
-            style={{ cursor: editCursor }}
+            style={{ cursor: editCursor, ...transitionStyle(obj) }}
             onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()} />
         )}
         {tv && <QDot x={obj.x + w - 8} y={obj.y + 8} quality={tv.quality} />}
@@ -379,7 +508,7 @@ function SvgObject(p: ObjProps) {
       <>
         <line x1={obj.x} y1={obj.y} x2={x2} y2={y2}
           stroke={obj.stroke ?? "#e2e8f0"} strokeWidth={obj.stroke_width ?? 2}
-          style={{ cursor: editCursor }}
+          style={{ cursor: editCursor, ...transitionStyle(obj) }}
           onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()} />
         {selected && <>
           <circle cx={obj.x} cy={obj.y} r={4} fill="#facc15" style={{ pointerEvents: "none" }} />
@@ -420,7 +549,7 @@ function SvgObject(p: ObjProps) {
             fontWeight={weight as any}
             fontStyle={style}
             textAnchor={anchor}
-            style={{ cursor: editCursor }}
+            style={{ cursor: editCursor, ...transitionStyle(obj) }}
             onMouseDown={handleMouseDown}
             onClick={(e) => e.stopPropagation()}
           >
@@ -447,7 +576,8 @@ function SvgObject(p: ObjProps) {
         {applyTransform(obj, w, h, <>
           <rect x={obj.x} y={obj.y} width={w} height={h} rx={6}
             fill={obj.fill ?? "#3b82f6"}
-            stroke={selected ? "#facc15" : "#2563eb"} strokeWidth={selected ? 2 : 1} />
+            stroke={selected ? "#facc15" : "#2563eb"} strokeWidth={selected ? 2 : 1}
+            style={transitionStyle(obj)} />
           <text x={obj.x + w / 2} y={obj.y + h / 2 + 5}
             textAnchor="middle" fill="#fff" fontSize={14} fontWeight={600}
             style={{ pointerEvents: "none" }}>
@@ -473,7 +603,8 @@ function SvgObject(p: ObjProps) {
         {applyTransform(obj, w, h, <>
           <rect x={obj.x} y={obj.y} width={w} height={h} rx={4}
             fill={obj.fill ?? "#0f172a"}
-            stroke={selected ? "#facc15" : "#3b82f6"} strokeWidth={selected ? 2 : 1.5} />
+            stroke={selected ? "#facc15" : "#3b82f6"} strokeWidth={selected ? 2 : 1.5}
+            style={transitionStyle(obj)} />
           <text x={obj.x + 10} y={obj.y + h / 2 + 5} fill="#3b82f6" fontSize={14}
             style={{ pointerEvents: "none" }}>▶</text>
           <text x={obj.x + 28} y={obj.y + h / 2 + 5} fill="#e2e8f0" fontSize={13}
@@ -512,7 +643,7 @@ function SvgObject(p: ObjProps) {
           {/* Glow ring */}
           {isOn && <circle cx={cx} cy={cy} r={r + 3} fill={glowColor} opacity={0.25} style={{ pointerEvents: "none" }} />}
           {/* LED body */}
-          <circle cx={cx} cy={cy} r={r} fill={ledColor} />
+          <circle cx={cx} cy={cy} r={r} fill={ledColor} style={transitionStyle(obj)} />
           {/* Highlight */}
           <circle cx={cx - r * 0.25} cy={cy - r * 0.25} r={r * 0.3} fill="white" opacity={0.3}
             style={{ pointerEvents: "none" }} />
@@ -550,7 +681,8 @@ function SvgObject(p: ObjProps) {
           <rect x={obj.x} y={obj.y} width={w} height={h} rx={4} fill="#1e293b" />
           {/* Fill */}
           {barW > 0 && (
-            <rect x={obj.x} y={obj.y} width={barW} height={h} rx={4} fill={barColor} />
+            <rect x={obj.x} y={obj.y} width={barW} height={h} rx={4} fill={barColor}
+              style={transitionStyle(obj)} />
           )}
           {/* Border */}
           <rect x={obj.x} y={obj.y} width={w} height={h} rx={4}
@@ -637,7 +769,7 @@ function SvgObject(p: ObjProps) {
           {pct > 0 && (
             <path d={arcPath(cx, cy, R, START, valueAngle)}
               fill="none" stroke={arcColor} strokeWidth={10} strokeLinecap="round"
-              style={{ pointerEvents: "none" }} />
+              style={{ pointerEvents: "none", ...transitionStyle(obj) }} />
           )}
           {/* Threshold ticks */}
           {obj.warn_low  !== undefined && thresholdTick(obj.warn_low,  "#eab308")}
@@ -1050,9 +1182,13 @@ function SvgObject(p: ObjProps) {
                           (obj.state_off_color   ?? "#64748b");
 
     return (
-      <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()}
-         style={{ cursor: editCursor }}>
+      <g style={{ cursor: editCursor }}>
         {selRect(obj.x, obj.y, w, h)}
+        {/* Transparent hit-area so the symbol is always clickable/draggable even when
+            all visual children have pointerEvents:"none" (same fix as gauge). */}
+        <rect x={obj.x} y={obj.y} width={w} height={h} fill="transparent"
+          onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()}
+          style={{ cursor: editCursor }} />
         {applyTransform(obj, w, h,
           customEntry ? (
             <image href={customEntry.url} x={obj.x} y={obj.y} width={w} height={h}
@@ -1076,7 +1212,7 @@ function SvgObject(p: ObjProps) {
         {(obj.state_tag || obj.alarm_tag) && (
           <circle cx={obj.x + w - 7} cy={obj.y + 7} r={6}
             fill={badgeColor} stroke="#0f172a" strokeWidth={1}
-            style={{ pointerEvents: "none" }} />
+            style={{ pointerEvents: "none", ...transitionStyle(obj) }} />
         )}
       </g>
     );

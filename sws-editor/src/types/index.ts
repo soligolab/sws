@@ -153,6 +153,9 @@ export interface SynopticObject {
   flip_v?: boolean;
   /** Opacity 0..1, default 1. Applies to all visual types. */
   opacity?: number;
+  /** Optional CSS transition duration in ms for CSS-animatable bound props
+   *  (fill, stroke, opacity, transform). 0 or undefined → no animation. */
+  transition_duration_ms?: number;
   /** Generic prop-to-tag bindings. At render time the resolver overrides the
    *  static value with the live tag value. Keys are SynopticObject prop names. */
   bindings?: Record<string, string>;
@@ -326,6 +329,20 @@ export interface AlarmState {
   last_value: number | string | boolean | null;
 }
 
+// ── Multi-project management ──────────────────────────────────────────────
+
+export interface ProjectListEntry {
+  name: string;
+  has_project_yaml: boolean;
+  last_modified_ms: number | null;
+}
+
+export interface TemplateEntry {
+  id: string;
+  label: string;
+  description?: string;
+}
+
 // ── Runtime log stream (from GET /api/logs + WS /ws/logs) ─────────────────
 
 export type LogLevel = "TRACE" | "DEBUG" | "INFO" | "WARN" | "ERROR";
@@ -337,4 +354,9 @@ export interface LogEvent {
   message: string;
   /** Free-form structured fields the runtime emitter attached. */
   fields?: Record<string, string | number | boolean>;
+}
+
+export interface LogFileEntry {
+  date: string;       // "YYYY-MM-DD"
+  size_bytes: number;
 }

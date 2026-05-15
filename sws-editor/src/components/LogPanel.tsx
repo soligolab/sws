@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { api } from "@/api/client";
 import { useAppStore } from "@/store";
-import type { LogEvent, LogLevel } from "@/types";
+import type { LogEvent, LogFileEntry, LogLevel } from "@/types";
 
 const LEVELS: LogLevel[] = ["TRACE", "DEBUG", "INFO", "WARN", "ERROR"];
 
@@ -37,13 +38,48 @@ export function LogPanel({ open, onClose }: LogPanelProps) {
   /** Frozen snapshot used while paused so the visible list stays still. */
   const [pausedSnapshot, setPausedSnapshot] = useState<LogEvent[]>([]);
 
+  // ── Historical log browser ──────────────────────────────────────────
+  const [logFiles,     setLogFiles]     = useState<LogFileEntry[]>([]);
+  const [selDate,      setSelDate]      = useState<string>("");
+  const [histEvents,   setHistEvents]   = useState<LogEvent[] | null>(null);
+  const [histLoading,  setHistLoading]  = useState(false);
+  const [histError,    setHistError]    = useState<string | null>(null);
+
+  const isHistMode = histEvents !== null;
+
+  useEffect(() => {
+    if (!open) return;
+    api.listLogFiles().then(setLogFiles).catch(() => setLogFiles([]));
+  }, [open]);
+
+  // Refresh file list whenever we switch back to live mode (a new file may
+  // have been rotated in since the panel opened).
+  const switchToLive = () => {
+    setHistEvents(null);
+    setHistError(null);
+    api.listLogFiles().then(setLogFiles).catch(() => {});
+  };
+
+  const loadHistFile = async () => {
+    if (!selDate) return;
+    setHistLoading(true); setHistError(null);
+    try {
+      const events = await api.getLogFile(selDate);
+      setHistEvents(events);
+    } catch (e: any) {
+      setHistError(e?.message ?? "Errore caricamento storico.");
+    } finally {
+      setHistLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (paused) setPausedSnapshot(logs);
     // When un-paused we drop the snapshot — the visible list catches up
     // to whatever `logs` looks like now.
   }, [paused]);  // eslint-disable-line react-hooks/exhaustive-deps
 
-  const source = paused ? pausedSnapshot : logs;
+  const source = isHistMode ? histEvents! : (paused ? pausedSnapshot : logs);
 
   const filtered = useMemo(() => {
     const s = search.trim().toLowerCase();
@@ -90,19 +126,56 @@ export function LogPanel({ open, onClose }: LogPanelProps) {
     <div style={panelStyle}>
       {/* ── Header bar ───────────────────────────────────────────────── */}
       <div style={headerStyle}>
-        <strong style={{ fontSize: 12, color: "#e2e8f0", letterSpacing: 0.5 }}>
-          LOG
+        <strong style={{ fontSize: 12, color: isHistMode ? "#f59e0b" : "#e2e8f0", letterSpacing: 0.5 }}>
+          {isHistMode ? `LOG ${selDate}` : "LOG"}
         </strong>
         <span style={{ color: "#64748b", fontSize: 11 }}>
           {filtered.length}/{source.length}
         </span>
 
-        <button onClick={() => setPaused((p) => !p)} style={btn(paused ? "#7e22ce" : "#334155")}>
-          {paused ? "▶ Riprendi" : "⏸ Pausa"}
-        </button>
-        <button onClick={clearLogs} style={btn("#334155")}>
-          Cancella
-        </button>
+        {/* Historical file picker */}
+        {logFiles.length > 0 && !isHistMode && (
+          <>
+            <select
+              value={selDate}
+              onChange={(e) => setSelDate(e.target.value)}
+              style={{ ...inputStyle, cursor: "pointer", maxWidth: 140 }}
+            >
+              <option value="">Storico…</option>
+              {logFiles.map((f) => (
+                <option key={f.date} value={f.date}>
+                  {f.date} ({(f.size_bytes / 1024).toFixed(0)} KB)
+                </option>
+              ))}
+            </select>
+            <button
+              onClick={loadHistFile}
+              disabled={!selDate || histLoading}
+              style={btn("#334155")}
+            >
+              {histLoading ? "…" : "Carica"}
+            </button>
+          </>
+        )}
+        {isHistMode && (
+          <button onClick={switchToLive} style={btn("#0f766e")}>
+            ← Live
+          </button>
+        )}
+        {histError && (
+          <span style={{ color: "#ef4444", fontSize: 11 }}>{histError}</span>
+        )}
+
+        {!isHistMode && (
+          <>
+            <button onClick={() => setPaused((p) => !p)} style={btn(paused ? "#7e22ce" : "#334155")}>
+              {paused ? "▶ Riprendi" : "⏸ Pausa"}
+            </button>
+            <button onClick={clearLogs} style={btn("#334155")}>
+              Cancella
+            </button>
+          </>
+        )}
 
         <input
           type="text"

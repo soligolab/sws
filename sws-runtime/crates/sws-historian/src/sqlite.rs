@@ -140,6 +140,56 @@ impl SqliteStore {
         Ok(out)
     }
 
+    /// Fetch all samples for a tag in `[from_ms, to_ms]` (inclusive),
+    /// ordered chronologically. Used by `Historian::query` as a fallback
+    /// for ranges older than the in-memory ring.
+    pub async fn query_range(&self, tag: &str, from_ms: u64, to_ms: u64) -> Vec<Sample> {
+        let conn  = self.conn.clone();
+        let tag   = tag.to_string();
+        let res = task::spawn_blocking(move || -> rusqlite::Result<Vec<Sample>> {
+            let c = conn.blocking_lock();
+            let mut stmt = c.prepare(
+                "SELECT ts_ms, value, quality
+                   FROM samples
+                  WHERE tag = ?1 AND ts_ms >= ?2 AND ts_ms <= ?3
+                  ORDER BY ts_ms ASC",
+            )?;
+            let rows = stmt.query_map(
+                params![tag, from_ms as i64, to_ms as i64],
+                |r| Ok((r.get::<_, i64>(0)?, r.get::<_, String>(1)?, r.get::<_, String>(2)?)),
+            )?;
+            let mut samples = Vec::new();
+            for r in rows {
+                let (ts, value_json, q) = r?;
+                let value: TagValue = serde_json::from_str(&value_json)
+                    .unwrap_or(TagValue::Float(0.0));
+                let quality = match q.as_str() {
+                    "Good" => TagQuality::Good,
+                    "Bad"  => TagQuality::Bad,
+                    _      => TagQuality::Uncertain,
+                };
+                samples.push(Sample { ts_ms: ts as u64, value, quality });
+            }
+            Ok(samples)
+        }).await;
+        match res {
+            Ok(Ok(v)) => v,
+            Ok(Err(e)) => { warn!("historian: query_range db error: {e}"); vec![] }
+            Err(e)     => { warn!("historian: query_range task panicked: {e}"); vec![] }
+        }
+    }
+
+    /// Delete all samples older than `cutoff_ms`.
+    /// Returns the number of rows deleted.
+    pub async fn prune_older_than_ms(&self, cutoff_ms: u64) -> anyhow::Result<usize> {
+        let conn = self.conn.clone();
+        let n = task::spawn_blocking(move || -> rusqlite::Result<usize> {
+            let c = conn.blocking_lock();
+            Ok(c.execute("DELETE FROM samples WHERE ts_ms < ?1", params![cutoff_ms as i64])?)
+        }).await??;
+        Ok(n)
+    }
+
     /// Sample count across all tags (mostly for /metrics later).
     pub async fn total_samples(&self) -> anyhow::Result<i64> {
         let conn = self.conn.clone();

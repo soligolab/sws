@@ -4,11 +4,14 @@ import type {
   CustomSymbol,
   FunctionDef,
   LogEvent,
+  LogFileEntry,
   ProjectInfo,
+  ProjectListEntry,
   Sample,
   SourceDef,
   SynopticPage,
   TagDef,
+  TemplateEntry,
 } from "@/types";
 
 const BASE_URL = import.meta.env.VITE_RUNTIME_URL ?? "";
@@ -31,6 +34,12 @@ export class AuthError extends Error {
  *  ChangePasswordScreen in response. */
 export class PasswordChangeRequiredError extends Error {
   constructor() { super("password change required"); this.name = "PasswordChangeRequiredError"; }
+}
+
+/** Server returned 503 — no project is currently open.
+ *  The WelcomeScreen should be shown so the user can pick or create one. */
+export class NoProjectError extends Error {
+  constructor() { super("no active project"); this.name = "NoProjectError"; }
 }
 
 export type UserRole = "Viewer" | "Operator" | "Supervisor" | "Admin";
@@ -64,6 +73,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     // Surface as a typed error so the UI can drop the stored token and
     // bounce back to the login screen without showing a generic 401 toast.
     throw new AuthError();
+  }
+  if (res.status === 503) {
+    // Runtime has no active project. The WelcomeScreen should take over.
+    throw new NoProjectError();
   }
   if (res.status === 403) {
     // The runtime gates everything but auth self-service when the session
@@ -240,6 +253,8 @@ export const api = {
 
   // Runtime logs (Operator+)
   getLogs: () => request<LogEvent[]>("/api/logs"),
+  listLogFiles: () => request<LogFileEntry[]>("/api/logs/files"),
+  getLogFile: (date: string) => request<LogEvent[]>(`/api/logs/file?date=${encodeURIComponent(date)}`),
 
   // Historian
   getHistory: (tag: string, opts?: { fromMs?: number; toMs?: number; limit?: number }) => {
@@ -284,4 +299,47 @@ export const api = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ args: args ?? {} }),
     }),
+
+  // Multi-project management (pre-auth — no Bearer needed)
+  listProjects: () =>
+    request<ProjectListEntry[]>("/api/projects"),
+
+  createProject: (req: { name: string; template?: string }) =>
+    request<{ name: string }>("/api/projects", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(req),
+    }),
+
+  openProject: (name: string) =>
+    request<{ name: string; must_login: boolean }>(
+      `/api/projects/${encodeURIComponent(name)}/open`,
+      { method: "POST" },
+    ),
+
+  closeProject: () =>
+    request<void>("/api/projects/close", { method: "POST" }),
+
+  // Template gallery (pre-auth)
+  listTemplates: () =>
+    request<TemplateEntry[]>("/api/templates"),
+
+  // Upload a project ZIP to create a new project (pre-auth).
+  // `name` is optional — falls back to the name in manifest.json inside the ZIP.
+  uploadProjectZip: async (file: Blob, name?: string): Promise<{ name: string }> => {
+    const url = name
+      ? `${BASE_URL}/api/projects/upload?name=${encodeURIComponent(name)}`
+      : `${BASE_URL}/api/projects/upload`;
+    const headers = new Headers({ "Content-Type": "application/zip" });
+    if (TOKEN) headers.set("Authorization", `Bearer ${TOKEN}`);
+    const res = await fetch(url, { method: "POST", headers, body: file });
+    if (res.status === 409) throw new Error("Esiste già un progetto con questo nome.");
+    if (res.status === 503) throw new NoProjectError();
+    if (!res.ok) {
+      let body = "";
+      try { body = await res.text(); } catch { /* ignore */ }
+      throw new Error(`Upload ZIP: ${res.status} ${res.statusText}${body ? ` — ${body}` : ""}`);
+    }
+    return res.json();
+  },
 };
