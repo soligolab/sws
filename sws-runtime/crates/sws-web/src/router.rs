@@ -1216,14 +1216,42 @@ async fn save_synoptic(
         warn!("cannot create synoptics dir: {e}");
         return StatusCode::INTERNAL_SERVER_ERROR;
     }
-    let path = dir.join(format!("{}.yaml", safe_filename(&name)));
-    match serde_yaml::to_string(&page) {
-        Ok(yaml) => match tokio::fs::write(&path, yaml).await {
-            Ok(_) => StatusCode::NO_CONTENT,
-            Err(e) => { warn!("write {}: {e}", path.display()); StatusCode::INTERNAL_SERVER_ERROR }
-        },
-        Err(e) => { warn!("serialize synoptic: {e}"); StatusCode::INTERNAL_SERVER_ERROR }
+    let new_filename = format!("{}.yaml", safe_filename(&name));
+    let path = dir.join(&new_filename);
+    let yaml = match serde_yaml::to_string(&page) {
+        Ok(y) => y,
+        Err(e) => { warn!("serialize synoptic: {e}"); return StatusCode::INTERNAL_SERVER_ERROR; }
+    };
+    if let Err(e) = tokio::fs::write(&path, yaml).await {
+        warn!("write {}: {e}", path.display());
+        return StatusCode::INTERNAL_SERVER_ERROR;
     }
+
+    // Remove any stale files that share this page's `id` but have a different
+    // filename — left behind when the user renames a page.
+    if let Ok(mut entries) = tokio::fs::read_dir(&dir).await {
+        while let Ok(Some(entry)) = entries.next_entry().await {
+            let fname = entry.file_name();
+            let fname_str = fname.to_string_lossy();
+            if !fname_str.ends_with(".yaml") || fname_str == new_filename.as_str() {
+                continue;
+            }
+            // Only remove if this stale file has the same internal id.
+            if let Ok(text) = tokio::fs::read_to_string(entry.path()).await {
+                #[derive(serde::Deserialize)]
+                struct IdOnly { id: String }
+                if let Ok(p) = serde_yaml::from_str::<IdOnly>(&text) {
+                    if p.id == page.id {
+                        if let Err(e) = tokio::fs::remove_file(entry.path()).await {
+                            warn!("save_synoptic: cannot remove stale {:?}: {e}", entry.path());
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    StatusCode::NO_CONTENT
 }
 
 // ── WebSocket ────────────────────────────────────────────────────────────────
