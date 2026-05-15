@@ -318,6 +318,8 @@ export interface AlarmDef {
   condition: AlarmCondition;
   message: string;
   severity?: AlarmSeverity;
+  /** Optional webhook URL. POSTed with AlarmWebhookPayload JSON when the alarm goes ACTIVE. */
+  notify_url?: string;
 }
 
 export interface AlarmState {

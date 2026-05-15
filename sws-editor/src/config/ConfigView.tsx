@@ -1228,6 +1228,12 @@ function AlarmsTab() {
                     value={alm.message}
                     onChange={(e) => updateAlarm(i, { message: e.target.value })}
                   />
+                  <input
+                    style={{ ...S.inputSm, marginTop: 4, fontSize: 11 }}
+                    placeholder="🔔 URL webhook (opz.)"
+                    value={alm.notify_url ?? ""}
+                    onChange={(e) => updateAlarm(i, { notify_url: e.target.value || undefined })}
+                  />
                 </td>
                 <td style={{ ...S.td, textAlign: "center" }}>
                   {live ? (
