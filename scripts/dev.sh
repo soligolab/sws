@@ -195,6 +195,8 @@ case "${1:-both}" in
     echo "[runtime] starting in background; logs → $LOG_DIR/runtime.log"
     "$REPO_ROOT/sws-runtime/target/debug/sws-runtime" \
       --config "$CONFIG_DIR" \
+      --projects-root "$PROJECTS_ROOT" \
+      --templates-root "$TEMPLATES_ROOT" \
       --project "$PROJECT_DIR" \
       > "$LOG_DIR/runtime.log" 2>&1 &
     RUNTIME_PID=$!
