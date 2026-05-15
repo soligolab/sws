@@ -2,7 +2,7 @@
 
 > This file is the **session-to-session memory** for Claude Code. Update it at the end of every session before stopping work. Read it at the start of every session before touching code.
 
-**Last session**: 2026-05-15 (sessione 8: Multi-Project IDE — Phase A1 frontend complete)
+**Last session**: 2026-05-15 (sessione 9: Historian v2 + Selection rectangle)
 **Current phase**: Phase 2. Demo working out-of-the-box su fresh clone, import/export progetto per backup/condivisione, pannello log live + persistenza su disco, gestione utenti multi-account.
 **Last commit**: vedi sotto
 
@@ -100,9 +100,10 @@
 - **Hot-reload alarm**: `PUT /api/project/alarms` invoca `AlarmDb::load` completo dopo il persist. In-flight active alarms si resettano; il prossimo update li rivaluta.
 - **ConfigView tab "Allarmi"**: CRUD `AlarmDef` con TagInput autocomplete, select condizione (above/below/bool_equals), soglia o bool, severità, messaggio, e colonna stato live (ON / ACK / —).
 - **LICENSE**: file AGPL-3.0 completo già presente in repo, Q7 in OPEN_QUESTIONS marcato come deciso.
-- **Historian** (`sws-historian`): `Historian` ring-buffer in-memory (5000 samples × tag), `record()`/`query(from,to)`/`spawn_recorder(tag_db)`. SQLite stays a stub. Unit-tested.
+- **Historian v2** (`sws-historian`): Ring-buffer in-memory (5000 samples × tag) + optional SQLite backing. `query()` falls back to SQLite for ranges older than the ring (prepends the gap). Uniform-stride decimation when result > 1000 samples (keeps first + last). `prune_older_than_ms()` deletes SQLite rows outside the retention window. Runtime spawns a 24 h prune task; retention controlled via `SWS_HISTORIAN_RETENTION_DAYS` (default 30). 7 unit tests in `sws-historian` (incl. decimation, ring-drop, SQLite-fallback shape).
 - **GET /api/history/:tag**: query string `from`/`to`/`limit`; ritorna `Vec<Sample>` (ts_ms + value + quality).
 - **Trend object** nell'editor: `<foreignObject>` con `<canvas>` 2D. Poll ogni 2 s, autofit Y, badge valore corrente, edit-mode placeholder statico per drag senza fetch. Property panel: tag, window_s, y_min/y_max (entrambi 0 → autofit), line_color.
+- **Selection rectangle** (`SvgCanvas.tsx`): drag on empty canvas background (left-button, edit mode only) draws a blue dashed rect overlay and selects all objects whose bounding boxes intersect it. Lines use min/max of their two endpoints for the bbox. A `suppressClick` ref prevents the SVG `onClick` from deselecting immediately after a successful rect-selection. Wired via `onSelectMany` prop → `store.selectMany()` in `EditorShell.tsx`. Compatible with existing shift-click multi-select.
 - **Z-index / visibility cross-cutting**: ogni `SynopticObject` ha `z_index` (sort prima del render, ties per ordine array), `visible` statico e `visible_tag` (override truthy via tag). UI nella properties panel con pulsanti ▲/▼ per bump del z-index e TagInput per il binding visibilità.
 - **Event handler Python**: campi `on_press` e `on_release` su ogni oggetto. `sws-pyscript::Engine` con PyO3 0.23, esegue gli script in `spawn_blocking`. Bindings: `tags.read(id) -> bool|int|float|str|None`, `tags.write(id, value)` (routing via TagWriteBus → fallback TagDb). `POST /api/script/exec` dal `RuntimeView` su mousedown/mouseup. **Sandboxing rinviato** (Q1 OPEN_QUESTIONS).
 - **Bug fix**: Rust `SynopticObject` non aveva `window_s/y_min/y_max/line_color` per il trend — venivano persi al salvataggio. Aggiunti.
@@ -213,8 +214,8 @@
 **Prossimi candidati** (scegli uno per la prossima sessione):
 
 1. **Bug fix rename-page** — quando l'utente rinomina una synoptic, il backend scrive un nuovo file YAML ma non cancella il vecchio. Fix: in `save_synoptic` (router.rs) scansionare la dir e rimuovere i `.yaml` con lo stesso `id` interno ma nome file diverso.
-2. **Historian polish v2** — decimazione per range lunghi, read-fallback a SQLite, prune periodica.
-3. **Selection rectangle** — drag su area vuota per selezione multipla rettangolare (`SvgCanvas.tsx`).
+2. ✅ **Historian polish v2** — decimazione per range lunghi, read-fallback a SQLite, prune periodica. **DONE questa sessione.**
+3. ✅ **Selection rectangle** — drag su area vuota per selezione multipla rettangolare (`SvgCanvas.tsx`). **DONE questa sessione.**
 4. **Demo PX30** — build multi-arch + deploy su hardware fisico. Bloccante: serve hardware.
 5. Qualsiasi altra voce dall'elenco "Altri candidati di backlog" in fondo al file.
 

@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { TrendCanvas } from "@/canvas/TrendCanvas";
 import { SYMBOLS } from "@/symbols/library";
 import type { CustomSymbol, SynopticObject, TagState } from "@/types";
@@ -18,6 +18,8 @@ interface SvgCanvasProps {
   customSymbols?: CustomSymbol[];
   /** Single-select (replace) when shift is false; toggle into the set when true. */
   onSelect?: (id: string | null, shift?: boolean) => void;
+  /** Called with the full set of ids enclosed by a drag-selection rectangle. */
+  onSelectMany?: (ids: string[]) => void;
   onMove?: (id: string, patch: Partial<SynopticObject>) => void;
   onWriteTag?: (tagId: string, value: string | number | boolean) => void;
   /** View-mode dispatcher for on_press / on_release function bindings.
@@ -34,6 +36,14 @@ interface DragState {
   offsetY: number;
   dx2?: number;
   dy2?: number;
+}
+
+/** Coordinates of an in-progress drag-selection rectangle (SVG space). */
+interface SelRect {
+  startX: number;
+  startY: number;
+  curX: number;
+  curY: number;
 }
 
 // ── SVG geometry helpers ──────────────────────────────────────────────────────
@@ -209,6 +219,7 @@ export function SvgCanvas({
   snapEnabled = true,
   customSymbols = [],
   onSelect,
+  onSelectMany,
   onMove,
   onWriteTag,
   onScript,
@@ -218,27 +229,108 @@ export function SvgCanvas({
   // legacy single-id prop, then to "nothing selected".
   const selIds = selectedIds ?? (selectedId ? [selectedId] : []);
   const selSet = new Set(selIds);
+
+  // Object drag state
   const dragRef = useRef<DragState | null>(null);
+
+  // Selection-rectangle drag state. `selDragRef` tracks the active drag for
+  // event handlers (always up-to-date); `selRect` drives the visual overlay.
+  const selDragRef     = useRef<SelRect | null>(null);
+  const [selRect, setSelRect] = useState<SelRect | null>(null);
+  // Set to true when a rect-selection just completed so the SVG onClick
+  // (which fires on every mouseup) does not deselect the result.
+  const suppressClick  = useRef(false);
 
   const snap = (v: number) =>
     snapEnabled && gridSize > 0 ? Math.round(v / gridSize) * gridSize : v;
 
-  const handleMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
-    if (!dragRef.current || !onMove) return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    const newX = snap(e.clientX - rect.left - dragRef.current.offsetX);
-    const newY = snap(e.clientY - rect.top  - dragRef.current.offsetY);
-    const patch: Partial<SynopticObject> = { x: newX, y: newY };
-    if (dragRef.current.dx2 !== undefined) {
-      patch.x2 = newX + dragRef.current.dx2!;
-      patch.y2 = newY + dragRef.current.dy2!;
+  /** Compute the bounding box of an object in SVG space.
+   *  Lines use the min/max of their two endpoints; other types use x/y/w/h. */
+  const objBBox = (obj: SynopticObject): { x1: number; y1: number; x2: number; y2: number } => {
+    if (obj.type === "line") {
+      const lx1 = Math.min(obj.x ?? 0, obj.x2 ?? obj.x ?? 0);
+      const ly1 = Math.min(obj.y ?? 0, obj.y2 ?? obj.y ?? 0);
+      const lx2 = Math.max(obj.x ?? 0, obj.x2 ?? obj.x ?? 0);
+      const ly2 = Math.max(obj.y ?? 0, obj.y2 ?? obj.y ?? 0);
+      return { x1: lx1, y1: ly1, x2: lx2, y2: ly2 };
     }
-    onMove(dragRef.current.objId, patch);
+    const ox = obj.x ?? 0;
+    const oy = obj.y ?? 0;
+    return { x1: ox, y1: oy, x2: ox + (obj.width ?? 0), y2: oy + (obj.height ?? 0) };
   };
 
-  const endDrag = () => { dragRef.current = null; };
+  const handleSvgMouseDown = (e: React.MouseEvent<SVGSVGElement>) => {
+    // Only start a selection rect in edit mode with left button.
+    if (!onMove || e.button !== 0) return;
+    // If an object drag is already active, ignore (startDrag sets dragRef first
+    // because child handlers fire before parent handlers in React).
+    if (dragRef.current) return;
+    const svgRect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX - svgRect.left;
+    const y = e.clientY - svgRect.top;
+    selDragRef.current = { startX: x, startY: y, curX: x, curY: y };
+  };
+
+  const handleMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
+    const svgRect = e.currentTarget.getBoundingClientRect();
+    if (dragRef.current && onMove) {
+      // Object drag
+      const newX = snap(e.clientX - svgRect.left - dragRef.current.offsetX);
+      const newY = snap(e.clientY - svgRect.top  - dragRef.current.offsetY);
+      const patch: Partial<SynopticObject> = { x: newX, y: newY };
+      if (dragRef.current.dx2 !== undefined) {
+        patch.x2 = newX + dragRef.current.dx2!;
+        patch.y2 = newY + dragRef.current.dy2!;
+      }
+      onMove(dragRef.current.objId, patch);
+    } else if (selDragRef.current) {
+      // Selection rect update
+      const updated: SelRect = {
+        ...selDragRef.current,
+        curX: e.clientX - svgRect.left,
+        curY: e.clientY - svgRect.top,
+      };
+      selDragRef.current = updated;
+      setSelRect(updated);
+    }
+  };
+
+  const endDrag = () => {
+    dragRef.current = null;
+
+    const rect = selDragRef.current;
+    selDragRef.current = null;
+    setSelRect(null);
+
+    if (!rect || !onSelectMany) return;
+    const dx = Math.abs(rect.curX - rect.startX);
+    const dy = Math.abs(rect.curY - rect.startY);
+    if (dx < 5 && dy < 5) return; // treat as click, let onClick handle it
+
+    const x1 = Math.min(rect.startX, rect.curX);
+    const y1 = Math.min(rect.startY, rect.curY);
+    const x2 = Math.max(rect.startX, rect.curX);
+    const y2 = Math.max(rect.startY, rect.curY);
+
+    const ids = objects
+      .filter((obj) => {
+        const bb = objBBox(obj);
+        // Intersection: rect overlaps bounding box (not just touch)
+        return bb.x2 > x1 && bb.x1 < x2 && bb.y2 > y1 && bb.y1 < y2;
+      })
+      .map((o) => o.id);
+
+    if (ids.length > 0) {
+      suppressClick.current = true;
+      onSelectMany(ids);
+    }
+  };
 
   const startDrag = (e: React.MouseEvent<SVGElement>, obj: SynopticObject) => {
+    // Object drag wins: cancel any pending selection rect.
+    selDragRef.current = null;
+    setSelRect(null);
+
     const svgEl = (e.currentTarget as SVGElement).ownerSVGElement!;
     const rect = svgEl.getBoundingClientRect();
     const ds: DragState = {
@@ -257,7 +349,11 @@ export function SvgCanvas({
     <svg
       width="100%" height="100%"
       style={{ background, display: "block", userSelect: "none" }}
-      onClick={() => onSelect?.(null)}
+      onMouseDown={handleSvgMouseDown}
+      onClick={() => {
+        if (suppressClick.current) { suppressClick.current = false; return; }
+        onSelect?.(null);
+      }}
       onMouseMove={handleMouseMove}
       onMouseUp={endDrag}
       onMouseLeave={endDrag}
@@ -308,6 +404,21 @@ export function SvgCanvas({
           </g>
         );
       })}
+
+      {selRect && (() => {
+        const rx = Math.min(selRect.startX, selRect.curX);
+        const ry = Math.min(selRect.startY, selRect.curY);
+        const rw = Math.abs(selRect.curX - selRect.startX);
+        const rh = Math.abs(selRect.curY - selRect.startY);
+        return (
+          <rect
+            x={rx} y={ry} width={rw} height={rh}
+            fill="rgba(59,130,246,0.1)" stroke="#3b82f6"
+            strokeWidth={1} strokeDasharray="4 2"
+            pointerEvents="none"
+          />
+        );
+      })()}
     </svg>
   );
 }

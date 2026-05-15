@@ -8,6 +8,17 @@ and this project adheres to [CalVer](https://calver.org/) (`YYYY.MM[.patch]`).
 ## [Unreleased]
 
 ### Added
+- **Historian v2** (`sws-historian`):
+  - SQLite fallback for `query()`: when `from_ms` precedes the oldest in-memory sample, the missing range is fetched from SQLite (`store.query_range()`) and prepended — trend widget can now scroll back beyond the ring-buffer window.
+  - Uniform-stride decimation: when a query returns > 1 000 samples the result is thinned to exactly 1 000 points (first and last always preserved) to keep trend rendering fast for wide time windows.
+  - `Historian::prune_older_than_ms(cutoff_ms)`: deletes SQLite rows outside the retention window (no-op when no store is attached). 7 unit tests in `sws-historian`.
+  - Runtime prune task in `sws-runtime/main.rs`: spawned after the recorder, runs once at startup then every 24 h. Retention controlled via `SWS_HISTORIAN_RETENTION_DAYS` (default 30).
+- **Selection rectangle** (`SvgCanvas.tsx`):
+  - Drag on empty canvas background (left-button, edit mode only) draws a blue dashed selection rect overlay.
+  - On release, all objects whose bounding boxes intersect the rect are selected (`onSelectMany`). Lines use the AABB of their two endpoints.
+  - A `suppressClick` ref prevents the SVG `onClick` from deselecting immediately after a successful rect-selection completes.
+  - Wired via `onSelectMany` prop → `store.selectMany()` in `EditorShell.tsx`. Compatible with existing shift-click multi-select flow.
+
 - **Multi-Project IDE — Phase A2 (upload ZIP)**:
   - Backend: `POST /api/projects/upload` (pre-auth). Accetta body `application/zip`, legge `manifest.json` per il nome (sovrascrivibile con `?name=`), estrae il contenuto in `projects_root/<name>/`. Rifiuta path traversal. Rollback su errore. 201 `{"name"}` o 409.
   - Frontend: `api.uploadProjectZip(file, name?)` + terzo tab "Da ZIP" nella `NewProjectModal` (file picker, nome auto-filled, fallback al manifest).

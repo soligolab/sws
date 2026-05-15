@@ -97,6 +97,7 @@ export function EditorShell() {
   const selectObject    = useAppStore((s) => s.selectObject);
   const toggleSelection = useAppStore((s) => s.toggleSelection);
   const duplicateSelection = useAppStore((s) => s.duplicateSelection);
+  const selectMany      = useAppStore((s) => s.selectMany);
   const copySelection   = useAppStore((s) => s.copySelection);
   const pasteClipboard  = useAppStore((s) => s.pasteClipboard);
   const alignSelection  = useAppStore((s) => s.alignSelection);
@@ -315,6 +316,7 @@ export function EditorShell() {
           snapEnabled={snapEnabled}
           customSymbols={customSymbols}
           onSelect={handleSelect}
+          onSelectMany={selectMany}
           onMove={(id, patch) => updateObject(id, patch)}
         />
       </div>

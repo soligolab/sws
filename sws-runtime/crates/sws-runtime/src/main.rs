@@ -235,6 +235,27 @@ async fn main() -> anyhow::Result<()> {
     // Historian recorder: append every TagDb update to the per-tag ring buffer.
     historian.clone().spawn_recorder(tag_db.clone());
 
+    // Historian SQLite pruning: run once at startup then every 24 h.
+    // Only effective when SWS_HISTORIAN_DB is set (no-op on RAM-only mode).
+    {
+        let historian_prune = historian.clone();
+        let retention_days: u64 = std::env::var("SWS_HISTORIAN_RETENTION_DAYS")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(30);
+        tokio::spawn(async move {
+            loop {
+                let now_ms = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map(|d| d.as_millis() as u64)
+                    .unwrap_or(0);
+                let cutoff_ms = now_ms.saturating_sub(retention_days * 24 * 3600 * 1_000);
+                historian_prune.prune_older_than_ms(cutoff_ms).await;
+                tokio::time::sleep(std::time::Duration::from_secs(24 * 3600)).await;
+            }
+        });
+    }
+
     let app = sws_web::router::build(
         tag_db,
         bus,
