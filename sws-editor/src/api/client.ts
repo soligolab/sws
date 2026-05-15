@@ -4,6 +4,7 @@ import type {
   CustomSymbol,
   FunctionDef,
   LogEvent,
+  LogFileEntry,
   ProjectInfo,
   ProjectListEntry,
   Sample,
@@ -252,6 +253,8 @@ export const api = {
 
   // Runtime logs (Operator+)
   getLogs: () => request<LogEvent[]>("/api/logs"),
+  listLogFiles: () => request<LogFileEntry[]>("/api/logs/files"),
+  getLogFile: (date: string) => request<LogEvent[]>(`/api/logs/file?date=${encodeURIComponent(date)}`),
 
   // Historian
   getHistory: (tag: string, opts?: { fromMs?: number; toMs?: number; limit?: number }) => {

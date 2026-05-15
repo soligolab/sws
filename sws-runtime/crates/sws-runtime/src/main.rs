@@ -269,6 +269,7 @@ async fn main() -> anyhow::Result<()> {
         Arc::new(args.projects_root.clone()),
         Arc::new(args.templates_root.clone()),
         log_bus,
+        Arc::new(logs_dir),
     );
 
     let addr: SocketAddr = "0.0.0.0:8443".parse()?;

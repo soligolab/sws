@@ -355,3 +355,8 @@ export interface LogEvent {
   /** Free-form structured fields the runtime emitter attached. */
   fields?: Record<string, string | number | boolean>;
 }
+
+export interface LogFileEntry {
+  date: string;       // "YYYY-MM-DD"
+  size_bytes: number;
+}

@@ -47,6 +47,7 @@ pub struct AppState {
     pub projects_root: Arc<PathBuf>,
     pub templates_root: Arc<PathBuf>,
     pub logs: Arc<LogBus>,
+    pub logs_dir: Arc<PathBuf>,
 }
 
 /// Resolve the active project directory or return 503. Used at the top
@@ -68,8 +69,9 @@ pub fn build(
     projects_root: Arc<PathBuf>,
     templates_root: Arc<PathBuf>,
     logs: Arc<LogBus>,
+    logs_dir: Arc<PathBuf>,
 ) -> Router {
-    let state = AppState { db, bus, alarms, historian, py, auth, supervisor, functions, project_dir, projects_root, templates_root, logs };
+    let state = AppState { db, bus, alarms, historian, py, auth, supervisor, functions, project_dir, projects_root, templates_root, logs, logs_dir };
 
     // Routes that need Admin privileges (PUT /api/project/* — schema edits,
     // plus the multi-user CRUD).
@@ -99,6 +101,8 @@ pub fn build(
         // Logs — read-only but Operator+ so the audit surface stays
         // narrow (logs may include schema/secret hints).
         .route("/api/logs",            get(get_logs))
+        .route("/api/logs/files",      get(list_log_files))
+        .route("/api/logs/file",       get(get_log_file))
         .route("/ws/logs",             get(ws_logs_handler))
         .route_layer(middleware::from_fn(require_operator));
 
@@ -1287,6 +1291,67 @@ async fn handle_ws(mut socket: WebSocket, db: Arc<TagDb>) {
 
 async fn get_logs(State(s): State<AppState>) -> Json<Vec<LogEvent>> {
     Json(s.logs.snapshot())
+}
+
+/// `GET /api/logs/files` — list available historical JSONL files in logs_dir.
+/// Returns `[{ date: "YYYY-MM-DD", size_bytes }]` sorted newest-first.
+async fn list_log_files(State(s): State<AppState>) -> Response {
+    #[derive(serde::Serialize)]
+    struct FileEntry { date: String, size_bytes: u64 }
+
+    let dir = s.logs_dir.as_path();
+    let mut out: Vec<FileEntry> = Vec::new();
+
+    if let Ok(mut rd) = tokio::fs::read_dir(dir).await {
+        while let Ok(Some(entry)) = rd.next_entry().await {
+            let fname = entry.file_name();
+            let fname_str = fname.to_string_lossy();
+            // Match "runtime-YYYY-MM-DD.jsonl"
+            if let Some(date) = fname_str
+                .strip_prefix("runtime-")
+                .and_then(|s| s.strip_suffix(".jsonl"))
+            {
+                // Validate date format: YYYY-MM-DD (10 chars, digits and dashes)
+                if date.len() == 10 && date.chars().all(|c| c.is_ascii_digit() || c == '-') {
+                    let size_bytes = entry.metadata().await.map(|m| m.len()).unwrap_or(0);
+                    out.push(FileEntry { date: date.to_string(), size_bytes });
+                }
+            }
+        }
+    }
+
+    out.sort_by(|a, b| b.date.cmp(&a.date)); // newest first
+    Json(out).into_response()
+}
+
+/// `GET /api/logs/file?date=YYYY-MM-DD` — parse and return a historical log file.
+async fn get_log_file(
+    State(s): State<AppState>,
+    Query(q): Query<std::collections::HashMap<String, String>>,
+) -> Response {
+    let date = match q.get("date") {
+        Some(d) if d.len() == 10 && d.chars().all(|c| c.is_ascii_digit() || c == '-') => d.clone(),
+        _ => return (StatusCode::BAD_REQUEST, "missing or invalid ?date=YYYY-MM-DD").into_response(),
+    };
+    let path = s.logs_dir.join(format!("runtime-{date}.jsonl"));
+    let text = match tokio::fs::read_to_string(&path).await {
+        Ok(t)  => t,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+            return (StatusCode::NOT_FOUND, "log file not found").into_response();
+        }
+        Err(e) => {
+            warn!("get_log_file: read {}: {e}", path.display());
+            return (StatusCode::INTERNAL_SERVER_ERROR, "cannot read log file").into_response();
+        }
+    };
+
+    let events: Vec<LogEvent> = text
+        .lines()
+        .filter(|l| !l.is_empty())
+        .filter_map(|line| serde_json::from_str(line).ok())
+        .collect();
+
+    Json(events).into_response()
 }
 
 async fn ws_logs_handler(ws: WebSocketUpgrade, State(s): State<AppState>) -> impl IntoResponse {
