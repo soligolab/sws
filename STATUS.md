@@ -2,7 +2,7 @@
 
 > This file is the **session-to-session memory** for Claude Code. Update it at the end of every session before stopping work. Read it at the start of every session before touching code.
 
-**Last session**: 2026-05-15 (sessione 9: Historian v2 + Selection rectangle)
+**Last session**: 2026-05-15 (sessione 10: rename-page fix + log file v2 + dev.sh bug)
 **Current phase**: Phase 2. Demo working out-of-the-box su fresh clone, import/export progetto per backup/condivisione, pannello log live + persistenza su disco, gestione utenti multi-account.
 **Last commit**: vedi sotto
 
@@ -100,6 +100,9 @@
 - **Hot-reload alarm**: `PUT /api/project/alarms` invoca `AlarmDb::load` completo dopo il persist. In-flight active alarms si resettano; il prossimo update li rivaluta.
 - **ConfigView tab "Allarmi"**: CRUD `AlarmDef` con TagInput autocomplete, select condizione (above/below/bool_equals), soglia o bool, severità, messaggio, e colonna stato live (ON / ACK / —).
 - **LICENSE**: file AGPL-3.0 completo già presente in repo, Q7 in OPEN_QUESTIONS marcato come deciso.
+- **Log file v2** — `GET /api/logs/files` lista i file JSONL storici con data e dimensione; `GET /api/logs/file?date=YYYY-MM-DD` legge e restituisce gli eventi di un file storico come `Vec<LogEvent>`. LogPanel aggiornato: dropdown date + pulsante "Carica", modalità storica (header ambra, sorgente statica), "← Live" per tornare al ring live. Tutti i filtri (livelli, cerca, target) funzionano anche sullo storico.
+- **Fix dev.sh both-mode** — il ramo `both` non passava `--projects-root` e `--templates-root` al runtime; la WelcomeScreen vedeva sempre zero progetti e zero template. Fix: aggiunti i due flag al blocco di lancio in background.
+- **Fix rename-page** — `save_synoptic` ora rimuove il file YAML stale quando una pagina viene rinominata (confronto per `id` interno, non per nome file).
 - **Historian v2** (`sws-historian`): Ring-buffer in-memory (5000 samples × tag) + optional SQLite backing. `query()` falls back to SQLite for ranges older than the ring (prepends the gap). Uniform-stride decimation when result > 1000 samples (keeps first + last). `prune_older_than_ms()` deletes SQLite rows outside the retention window. Runtime spawns a 24 h prune task; retention controlled via `SWS_HISTORIAN_RETENTION_DAYS` (default 30). 7 unit tests in `sws-historian` (incl. decimation, ring-drop, SQLite-fallback shape).
 - **GET /api/history/:tag**: query string `from`/`to`/`limit`; ritorna `Vec<Sample>` (ts_ms + value + quality).
 - **Trend object** nell'editor: `<foreignObject>` con `<canvas>` 2D. Poll ogni 2 s, autofit Y, badge valore corrente, edit-mode placeholder statico per drag senza fetch. Property panel: tag, window_s, y_min/y_max (entrambi 0 → autofit), line_color.
@@ -213,7 +216,7 @@
 
 **Prossimi candidati** (scegli uno per la prossima sessione):
 
-1. **Bug fix rename-page** — quando l'utente rinomina una synoptic, il backend scrive un nuovo file YAML ma non cancella il vecchio. Fix: in `save_synoptic` (router.rs) scansionare la dir e rimuovere i `.yaml` con lo stesso `id` interno ma nome file diverso.
+1. ✅ **Bug fix rename-page** — `save_synoptic` ora rimuove il file YAML stale dopo una rinomina. **DONE questa sessione.**
 2. ✅ **Historian polish v2** — decimazione per range lunghi, read-fallback a SQLite, prune periodica. **DONE questa sessione.**
 3. ✅ **Selection rectangle** — drag su area vuota per selezione multipla rettangolare (`SvgCanvas.tsx`). **DONE questa sessione.**
 4. **Demo PX30** — build multi-arch + deploy su hardware fisico. Bloccante: serve hardware.
@@ -255,7 +258,7 @@ Pick one of these as the next focused work block (each fits 3-4 hours):
 8. **Log file v2** (follow-up del task appena chiuso): (a) compressione gzip dei file ruotati (`runtime-YYYY-MM-DD.jsonl.gz`); (b) endpoint `GET /api/logs/files` per listare i file storici; (c) format-aware reader nel pannello log che pesca dal disco quando si scrolla oltre il ring buffer.
 
 ### Bug aperti / da verificare a mano
-- **Rinomina pagina lascia dietro il vecchio file** — quando l'utente cambia `name` di una synoptic, il backend salva un nuovo `<safe_filename(name)>.yaml` ma non cancella il vecchio. Risultato: due file YAML con lo stesso `id` interno → il LeftPanel mostra la pagina duplicata e cancellandone una elimina entrambe (stesso slug). Workaround manuale: cancellare il file orfano da disco. Fix proprio: dentro `save_synoptic` ([sws-runtime/crates/sws-web/src/router.rs](sws-runtime/crates/sws-web/src/router.rs)) iterare la dir e rimuovere i `.yaml` con `id` uguale al payload ma filename diverso. BL candidato per una prossima sessione.
+- ✅ **Rinomina pagina lascia dietro il vecchio file** — risolto: `save_synoptic` ora rimuove i `.yaml` stale con lo stesso `id` interno ma filename diverso. (commit `ff32e40`)
 - Nessun altro noto al momento del commit. La fix del 404 utenti (`e4a61f5`) è stata validata via curl + via UI in Configurazione → Utenti.
 - Da verificare a freddo: `rm -rf .run/project && ./scripts/dev.sh` deve seedare `examples/demo/` (test non eseguito per via del permission gate su `rm -rf`, ma il codice è una `if [ ! -f ... ]; then cp -r ...; fi` lineare).
 - Da verificare al prossimo restart dev.sh: il writer log JSONL crea effettivamente `.run/logs/runtime-YYYY-MM-DD.jsonl` (unit test passano, ma il path live va confermato a vista). Test manuale di retention: `touch -d '2020-01-01' .run/logs/runtime-2020-01-01.jsonl; ./scripts/dev.sh` → file rimosso da `prune_old`.

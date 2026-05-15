@@ -8,6 +8,12 @@ and this project adheres to [CalVer](https://calver.org/) (`YYYY.MM[.patch]`).
 ## [Unreleased]
 
 ### Added
+- **Log file v2** — historical log browser in the log panel:
+  - `GET /api/logs/files` (Operator+): lists `runtime-YYYY-MM-DD.jsonl` files in `logs_dir` sorted newest-first with `size_bytes`.
+  - `GET /api/logs/file?date=YYYY-MM-DD` (Operator+): reads a historical JSONL file and returns `Vec<LogEvent>`.
+  - `AppState` gains `logs_dir: Arc<PathBuf>`; passed from `main.rs`.
+  - `LogPanel` updated: when log files exist a date dropdown + "Carica" button appear. Loading a file enters "hist mode" (amber header, static source). "← Live" returns to the ring buffer and refreshes the file list. All filters (levels, search, target) apply to historical data.
+
 - **Historian v2** (`sws-historian`):
   - SQLite fallback for `query()`: when `from_ms` precedes the oldest in-memory sample, the missing range is fetched from SQLite (`store.query_range()`) and prepended — trend widget can now scroll back beyond the ring-buffer window.
   - Uniform-stride decimation: when a query returns > 1 000 samples the result is thinned to exactly 1 000 points (first and last always preserved) to keep trend rendering fast for wide time windows.
