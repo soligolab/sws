@@ -19,6 +19,7 @@
 - (sessione 2026-05-15) Header dropdown menu (Salva/Esporta/Importa/Esci) + Grid dropdown + fix symbol hit-area + BindableInput z-index fix + Demo Page 3 Showcase completa
 - (sessione 2026-05-15, blocco 2) Universal binding follow-up #8 — `transition_duration_ms` per-oggetto per animazione CSS dei prop bindati (fill/stroke/opacity/transform). UI in ObjectProps TRASFORMAZIONE + batch in MultiSelectionProps. Rust mirror per round-trip YAML.
 - (sessione 2026-05-15, blocco 3) Pulizia demo — `examples/demo/synoptics/{Page 1..Page 4}.yaml` riscritte con id stabili `page1..page4` (prima random `mp2n48800ucav`, `mp472aq9q3yzc`). Ogni pagina ha un header coerente con due navbutton `◀ Precedente` / `Successiva ▶` per navigazione circolare (1↔2↔3↔4↔1) + titolo. `.run/project/synoptics/` rifresh completo (cancellati 5 file inclusi `Page 3.yaml` + `Page 3 – Showcase.yaml` duplicati con stesso id). Vecchi navbutton orfani rimossi da Page 1; p3_navbutton (widget showcase) ora punta correttamente a `page1`.
+- (sessione 2026-05-15, blocco 7) **Multi-Project IDE — Phase A2 (upload ZIP)**. Backend: `POST /api/projects/upload` pre-auth in `projects.rs` (manifest.json per nome, `?name=` override, estrae ZIP in `projects_root/<name>/`, rollback su errore). Frontend: `api.uploadProjectZip()` + tab "Da ZIP" nella `NewProjectModal` con file picker, nome auto-filled dal filename, fallback al manifest.
 - (sessione 2026-05-15, blocco 6) **Multi-Project IDE — Phase A1 frontend complete**. `NoProjectError` + API wrapping (`listProjects/createProject/openProject/closeProject/listTemplates`), `noActiveProject` in store, `WelcomeScreen` (lista + modal nuovo progetto + template gallery), mount flow `App.tsx` (503→WelcomeScreen, 401→LoginScreen, 200→app), "Chiudi progetto" nel MainMenu. `pnpm type-check` + `pnpm build` verdi.
 - (sessione 2026-05-15, blocco 4) **Multi-Project IDE — Phase A1 foundations**. Piano completo in `/home/ut1/.claude/plans/prosegui-il-lavoro-quali-snoopy-muffin.md` (stima totale 6-8h, splittato A1+A2). Solo le fondamenta non-breaking sono in questa sessione: `examples/demo/` → `examples/templates/demo-items/` (git rename + `template.yaml`), `sws-core::TagDb::clear()`, `sws-auth::AuthState::{swap_store, clear, empty}` + `store_path: RwLock<Option<PathBuf>>`. Tutto il resto (AppState refactor, nuovi endpoint `/api/projects/*`, WelcomeScreen, MainMenu Apri/Chiudi, dev.sh migration a `.run/projects/dev/`, upload ZIP) rinviato.
 - (sessione 2026-05-15, blocco 5) **Multi-Project IDE — Phase A1 backend complete**. Backend pronto end-to-end (frontend ancora vecchio, WelcomeScreen rinviata).
@@ -205,15 +206,17 @@
   - **Bug del "ritorno a capo" da investigare**: la textarea attuale potrebbe avere un handler `onKeyDown` che intercetta Enter (es. per "salva al primo enter") — controllare prima di rimpiazzare il componente, perché lo stesso bug potrebbe esistere anche in altri campi multi-linea.
   - **Out of scope**: autocomplete dei nomi tag dentro il codice Python (sarebbe figo ma è LSP-grade, troppo lavoro per il PoC), linting Python lato client, debugger. Vanno in BL successive.
 
-## Next session should — MULTI-PROJECT IDE Phase A2 (upload ZIP) o candidati alternativi
+## Next session should — candidati aperti (Multi-Project IDE completo)
 
-**Phase A1 completata** (backend blocco 5 + frontend blocco 6): WelcomeScreen, modal Nuovo Progetto con tab Vuoto/Da template, mount flow 503→WelcomeScreen, "Chiudi progetto" nel MainMenu. Build verde.
+**Multi-Project IDE Phase A1+A2 completati** (sessione 2026-05-15, blocchi 5-7). Flusso completo: WelcomeScreen → crea (Vuoto / Da template / Da ZIP) → apri → login → app. "Chiudi progetto" riporta a WelcomeScreen. Build + cargo check verdi.
 
-**Phase A2** (~2h): upload ZIP nella WelcomeScreen.
-- Backend: `POST /api/projects` con body `application/zip` (o un endpoint separato `POST /api/projects/:name/from-zip`) che estrae l'archivio in `projects_root/<name>/`, poi apre il progetto.
-- Frontend: terzo tab "Da ZIP" nella `NewProjectModal` in `WelcomeScreen.tsx` con `<input type=file accept=".zip">` + upload multipart.
+**Prossimi candidati** (scegli uno per la prossima sessione):
 
-**Alternativa**: qualsiasi voce dall'elenco "Altri candidati di backlog" in fondo a questo file.
+1. **Bug fix rename-page** — quando l'utente rinomina una synoptic, il backend scrive un nuovo file YAML ma non cancella il vecchio. Fix: in `save_synoptic` (router.rs) scansionare la dir e rimuovere i `.yaml` con lo stesso `id` interno ma nome file diverso.
+2. **Historian polish v2** — decimazione per range lunghi, read-fallback a SQLite, prune periodica.
+3. **Selection rectangle** — drag su area vuota per selezione multipla rettangolare (`SvgCanvas.tsx`).
+4. **Demo PX30** — build multi-arch + deploy su hardware fisico. Bloccante: serve hardware.
+5. Qualsiasi altra voce dall'elenco "Altri candidati di backlog" in fondo al file.
 
 ---
 

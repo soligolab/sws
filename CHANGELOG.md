@@ -8,6 +8,10 @@ and this project adheres to [CalVer](https://calver.org/) (`YYYY.MM[.patch]`).
 ## [Unreleased]
 
 ### Added
+- **Multi-Project IDE — Phase A2 (upload ZIP)**:
+  - Backend: `POST /api/projects/upload` (pre-auth). Accetta body `application/zip`, legge `manifest.json` per il nome (sovrascrivibile con `?name=`), estrae il contenuto in `projects_root/<name>/`. Rifiuta path traversal. Rollback su errore. 201 `{"name"}` o 409.
+  - Frontend: `api.uploadProjectZip(file, name?)` + terzo tab "Da ZIP" nella `NewProjectModal` (file picker, nome auto-filled, fallback al manifest).
+
 - **Multi-project IDE — Phase A1 frontend complete**:
   - `NoProjectError` in `api/client.ts`: 503 dal runtime (nessun progetto aperto) diventa un errore tipizzato che il mount flow di `App.tsx` gestisce in modo dedicato.
   - Nuovi metodi API in `api/client.ts`: `listProjects()`, `createProject()`, `openProject()`, `closeProject()`, `listTemplates()`. Tutti pre-auth (nessun token richiesto).
