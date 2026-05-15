@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { api, AuthError, PasswordChangeRequiredError } from "@/api/client";
+import { api, AuthError, NoProjectError, PasswordChangeRequiredError } from "@/api/client";
 import { AlarmBanner } from "@/components/AlarmBanner";
 import { ChangePasswordScreen } from "@/components/ChangePasswordScreen";
 import { LogPanel } from "@/components/LogPanel";
 import { LoginScreen } from "@/components/LoginScreen";
+import { WelcomeScreen } from "@/components/WelcomeScreen";
 import { ConfigView } from "@/config/ConfigView";
 import { EditorShell } from "@/editor/EditorShell";
 import { RuntimeView } from "@/runtime-view/RuntimeView";
@@ -120,7 +121,7 @@ function GridDropdown() {
 
 // ── MainMenu (always visible) ─────────────────────────────────────────────────
 
-function MainMenu({ mode, onLogout }: { mode: Mode; onLogout: () => void }) {
+function MainMenu({ mode, onLogout, onCloseProject }: { mode: Mode; onLogout: () => void; onCloseProject: () => void }) {
   const [open, setOpen]       = useState(false);
   const ref                   = useRef<HTMLDivElement>(null);
   const authRole              = useAppStore((s) => s.authRole);
@@ -248,6 +249,13 @@ function MainMenu({ mode, onLogout }: { mode: Mode; onLogout: () => void }) {
           )}
           <button
             style={DROP_ITEM}
+            onClick={() => { onCloseProject(); setOpen(false); }}
+          >
+            Chiudi progetto
+          </button>
+          <div style={DROP_SEP} />
+          <button
+            style={DROP_ITEM}
             onClick={() => { onLogout(); setOpen(false); }}
           >
             Esci
@@ -289,12 +297,14 @@ export function App() {
   // for Viewer / unauthenticated states.
   useLogStream();
 
-  const authToken             = useAppStore((s) => s.authToken);
-  const authUser              = useAppStore((s) => s.authUser);
-  const authRole              = useAppStore((s) => s.authRole);
-  const mustChangePassword    = useAppStore((s) => s.mustChangePassword);
-  const setMustChangePassword = useAppStore((s) => s.setMustChangePassword);
-  const clearAuth             = useAppStore((s) => s.clearAuth);
+  const authToken              = useAppStore((s) => s.authToken);
+  const authUser               = useAppStore((s) => s.authUser);
+  const authRole               = useAppStore((s) => s.authRole);
+  const mustChangePassword     = useAppStore((s) => s.mustChangePassword);
+  const setMustChangePassword  = useAppStore((s) => s.setMustChangePassword);
+  const clearAuth              = useAppStore((s) => s.clearAuth);
+  const noActiveProject        = useAppStore((s) => s.noActiveProject);
+  const setNoActiveProject     = useAppStore((s) => s.setNoActiveProject);
   const pages          = useAppStore((s) => s.pages);
   const currentPageId  = useAppStore((s) => s.currentPageId);
   const setCurrentPage = useAppStore((s) => s.setCurrentPage);
@@ -302,21 +312,31 @@ export function App() {
   const project        = useAppStore((s) => s.project);
   const setProject     = useAppStore((s) => s.setProject);
 
-  // Only fetch project data once authenticated AND past the must-change-pwd
-  // gate; otherwise every call would 401/403 and the user would land in a
-  // fail loop. Project is loaded here (not in LeftPanel) so it's available
-  // in Configurazione mode too — without this, ProtocolsTab/TagsTab/
-  // AlarmsTab would render empty inputs and a save would overwrite real
-  // on-disk state with blanks.
+  // Mount flow:
+  //   1. If no token → try GET /api/project to detect 503 (no project open).
+  //      503 → WelcomeScreen.  Any other error → LoginScreen.
+  //   2. If token present → same call. 200 → load project. 401 → clear auth.
+  //      503 → WelcomeScreen (project was closed externally).
   useEffect(() => {
-    if (!authToken || mustChangePassword) return;
+    if (mustChangePassword) return;
 
     api.getProject()
-      .then(setProject)
+      .then((p) => {
+        setNoActiveProject(false);
+        setProject(p);
+      })
       .catch((e) => {
-        if (e instanceof AuthError) clearAuth();
-        else if (e instanceof PasswordChangeRequiredError) setMustChangePassword(true);
+        if (e instanceof NoProjectError) {
+          setNoActiveProject(true);
+          clearAuth();
+        } else if (e instanceof AuthError) {
+          clearAuth();
+        } else if (e instanceof PasswordChangeRequiredError) {
+          setMustChangePassword(true);
+        }
       });
+
+    if (!authToken) return;
 
     api.listSynoptics()
       .then(async (names) => {
@@ -334,6 +354,25 @@ export function App() {
     try { await api.logout(); } catch { /* ignore */ }
     clearAuth();
   };
+
+  const handleCloseProject = async () => {
+    try { await api.closeProject(); } catch { /* ignore */ }
+    clearAuth();
+    setNoActiveProject(true);
+  };
+
+  // Show WelcomeScreen when runtime has no active project.
+  if (noActiveProject) {
+    return (
+      <WelcomeScreen
+        onProjectOpened={() => {
+          // open_project invalidates all sessions → go to LoginScreen.
+          setNoActiveProject(false);
+          clearAuth();
+        }}
+      />
+    );
+  }
 
   if (!authToken) {
     return <LoginScreen />;
@@ -418,7 +457,7 @@ export function App() {
         >
           Log
         </button>
-        <MainMenu mode={mode} onLogout={handleLogout} />
+        <MainMenu mode={mode} onLogout={handleLogout} onCloseProject={handleCloseProject} />
       </header>
 
       {/* Alarm banner */}

@@ -8,6 +8,15 @@ and this project adheres to [CalVer](https://calver.org/) (`YYYY.MM[.patch]`).
 ## [Unreleased]
 
 ### Added
+- **Multi-project IDE — Phase A1 frontend complete**:
+  - `NoProjectError` in `api/client.ts`: 503 dal runtime (nessun progetto aperto) diventa un errore tipizzato che il mount flow di `App.tsx` gestisce in modo dedicato.
+  - Nuovi metodi API in `api/client.ts`: `listProjects()`, `createProject()`, `openProject()`, `closeProject()`, `listTemplates()`. Tutti pre-auth (nessun token richiesto).
+  - Nuovi tipi `ProjectListEntry` e `TemplateEntry` in `types/index.ts`.
+  - `noActiveProject: boolean` nello store Zustand + `setNoActiveProject()`.
+  - `WelcomeScreen` (`components/WelcomeScreen.tsx`): lista dei progetti con ultima modifica, click per aprire, modal "+ Nuovo progetto" con due tab (Vuoto / Da template — la seconda mostra i template da `GET /api/templates`). Dopo `openProject()` il backend invalida tutte le sessioni → l'utente viene mandato alla LoginScreen.
+  - `App.tsx` mount flow aggiornato: al boot chiama `GET /api/project` — 503 → WelcomeScreen (clearAuth), 401 → LoginScreen, 200 → app normale. Compatibile con `--project` legacy (il progetto è già aperto al boot, comportamento invariato).
+  - `MainMenu` aggiornato: nuovi item "Chiudi progetto" (chiama `/api/projects/close` + redirect a WelcomeScreen) e separatore sopra "Esci".
+
 - **Multi-project IDE — Phase A1 backend complete (frontend ancora vecchio, UI welcome rinviata)**:
   - `sws-runtime` nuovi CLI args: `--projects-root <dir>` (default `/var/sws/projects`), `--templates-root <dir>` (default `/var/sws/templates`). Il flag legacy `--project <path>` ora è opzionale: quando valorizzato fa auto-open di quel progetto al boot (backwards compat per dev.sh e container operator).
   - `AppState.project_dir` da `Arc<PathBuf>` immutabile a `Arc<RwLock<Option<PathBuf>>>` (nuovo type alias `ActiveProjectDir`). Helper `active_dir(state) -> Result<PathBuf, StatusCode>` usato in tutti i handler che leggevano `state.project_dir`: returnano 503 SERVICE_UNAVAILABLE quando nessun progetto è attivo.

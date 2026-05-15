@@ -2,7 +2,7 @@
 
 > This file is the **session-to-session memory** for Claude Code. Update it at the end of every session before stopping work. Read it at the start of every session before touching code.
 
-**Last session**: 2026-05-15 (sessione 7: avvio Multi-Project IDE — Phase A1 foundations committed, refactor/UI rinviato a sessione successiva)
+**Last session**: 2026-05-15 (sessione 8: Multi-Project IDE — Phase A1 frontend complete)
 **Current phase**: Phase 2. Demo working out-of-the-box su fresh clone, import/export progetto per backup/condivisione, pannello log live + persistenza su disco, gestione utenti multi-account.
 **Last commit**: vedi sotto
 
@@ -19,6 +19,7 @@
 - (sessione 2026-05-15) Header dropdown menu (Salva/Esporta/Importa/Esci) + Grid dropdown + fix symbol hit-area + BindableInput z-index fix + Demo Page 3 Showcase completa
 - (sessione 2026-05-15, blocco 2) Universal binding follow-up #8 — `transition_duration_ms` per-oggetto per animazione CSS dei prop bindati (fill/stroke/opacity/transform). UI in ObjectProps TRASFORMAZIONE + batch in MultiSelectionProps. Rust mirror per round-trip YAML.
 - (sessione 2026-05-15, blocco 3) Pulizia demo — `examples/demo/synoptics/{Page 1..Page 4}.yaml` riscritte con id stabili `page1..page4` (prima random `mp2n48800ucav`, `mp472aq9q3yzc`). Ogni pagina ha un header coerente con due navbutton `◀ Precedente` / `Successiva ▶` per navigazione circolare (1↔2↔3↔4↔1) + titolo. `.run/project/synoptics/` rifresh completo (cancellati 5 file inclusi `Page 3.yaml` + `Page 3 – Showcase.yaml` duplicati con stesso id). Vecchi navbutton orfani rimossi da Page 1; p3_navbutton (widget showcase) ora punta correttamente a `page1`.
+- (sessione 2026-05-15, blocco 6) **Multi-Project IDE — Phase A1 frontend complete**. `NoProjectError` + API wrapping (`listProjects/createProject/openProject/closeProject/listTemplates`), `noActiveProject` in store, `WelcomeScreen` (lista + modal nuovo progetto + template gallery), mount flow `App.tsx` (503→WelcomeScreen, 401→LoginScreen, 200→app), "Chiudi progetto" nel MainMenu. `pnpm type-check` + `pnpm build` verdi.
 - (sessione 2026-05-15, blocco 4) **Multi-Project IDE — Phase A1 foundations**. Piano completo in `/home/ut1/.claude/plans/prosegui-il-lavoro-quali-snoopy-muffin.md` (stima totale 6-8h, splittato A1+A2). Solo le fondamenta non-breaking sono in questa sessione: `examples/demo/` → `examples/templates/demo-items/` (git rename + `template.yaml`), `sws-core::TagDb::clear()`, `sws-auth::AuthState::{swap_store, clear, empty}` + `store_path: RwLock<Option<PathBuf>>`. Tutto il resto (AppState refactor, nuovi endpoint `/api/projects/*`, WelcomeScreen, MainMenu Apri/Chiudi, dev.sh migration a `.run/projects/dev/`, upload ZIP) rinviato.
 - (sessione 2026-05-15, blocco 5) **Multi-Project IDE — Phase A1 backend complete**. Backend pronto end-to-end (frontend ancora vecchio, WelcomeScreen rinviata).
   - `AppState.project_dir` → `Arc<RwLock<Option<PathBuf>>>` con helper `active_dir(state)`. Tutti i ~10 handler che lo usavano (get_project, patch_project callsites, list_synoptics, save_synoptic, import/export ZIP, custom_symbols) ritornano 503 quando il progetto è chiuso.
@@ -204,21 +205,15 @@
   - **Bug del "ritorno a capo" da investigare**: la textarea attuale potrebbe avere un handler `onKeyDown` che intercetta Enter (es. per "salva al primo enter") — controllare prima di rimpiazzare il componente, perché lo stesso bug potrebbe esistere anche in altri campi multi-linea.
   - **Out of scope**: autocomplete dei nomi tag dentro il codice Python (sarebbe figo ma è LSP-grade, troppo lavoro per il PoC), linting Python lato client, debugger. Vanno in BL successive.
 
-## Next session should — MULTI-PROJECT IDE Phase A1 frontend
+## Next session should — MULTI-PROJECT IDE Phase A2 (upload ZIP) o candidati alternativi
 
-Piano completo: `/home/ut1/.claude/plans/prosegui-il-lavoro-quali-snoopy-muffin.md` (decisioni: `~/.sws/projects/` come root, auth per-progetto, 3 flussi creazione: vuoto / da template / da ZIP).
+**Phase A1 completata** (backend blocco 5 + frontend blocco 6): WelcomeScreen, modal Nuovo Progetto con tab Vuoto/Da template, mount flow 503→WelcomeScreen, "Chiudi progetto" nel MainMenu. Build verde.
 
-**Backend Phase A1 completato** (commit "Multi-Project IDE — Phase A1 backend complete"): nuovi CLI args, AppState con `RwLock<Option<PathBuf>>`, handler che ritornano 503 quando il progetto è chiuso, endpoint `GET/POST /api/projects`, `POST /api/projects/:name/open`, `POST /api/projects/close`, `GET /api/templates`. Module nuovi `projects.rs` + `templates.rs`. dev.sh migra `.run/project/` → `.run/projects/dev/` + nuovi flag. 33 unit test verdi.
+**Phase A2** (~2h): upload ZIP nella WelcomeScreen.
+- Backend: `POST /api/projects` con body `application/zip` (o un endpoint separato `POST /api/projects/:name/from-zip`) che estrae l'archivio in `projects_root/<name>/`, poi apre il progetto.
+- Frontend: terzo tab "Da ZIP" nella `NewProjectModal` in `WelcomeScreen.tsx` con `<input type=file accept=".zip">` + upload multipart.
 
-**Resta da fare** per chiudere Phase A1 (~3-4h, frontend):
-
-1. **Frontend api wrapping** ([sws-editor/src/api/index.ts](sws-editor/src/api/index.ts)): aggiungi `listProjects()`, `createProject({ name, template? })`, `listTemplates()`, `openProject(name)`, `closeProject()`. Nessuna autenticazione richiesta per queste.
-2. **Frontend store** ([sws-editor/src/store/index.ts](sws-editor/src/store/index.ts)): nuovo flag `noActiveProject: boolean` (true se il mount-fetch ritorna 503 o nessun token). `recentProjects` in localStorage.
-3. **WelcomeScreen** (`sws-editor/src/screens/WelcomeScreen.tsx`, nuovo): lista da `/api/projects` con click → openProject() → login. Pulsante "+ Nuovo progetto" → modal a 2 tab (Vuoto / Da template). ZIP upload rinviato a Phase A2.
-4. **App.tsx mount flow**: prima di tutto fetch `/api/auth/whoami` con eventuale token → se 503 (no active project) → WelcomeScreen senza login; se 401 → login screen; altrimenti carica project normalmente.
-5. **MainMenu** ([sws-editor/src/App.tsx](sws-editor/src/App.tsx) ~riga 123-249): aggiungi "Apri progetto…" (chiama closeProject + redirect a welcome) e "Chiudi progetto" sopra "Salva tutto".
-
-**Phase A2 (sessione successiva ancora)**: upload ZIP — `POST /api/projects/upload` (nuovo da ZIP) + `PUT /api/projects/:name/upload` (sovrascrivi). Rinomina header "Importa" → "Sovrascrivi con file…". Modal multipart + conferma client-side.
+**Alternativa**: qualsiasi voce dall'elenco "Altri candidati di backlog" in fondo a questo file.
 
 ---
 

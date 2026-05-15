@@ -329,6 +329,20 @@ export interface AlarmState {
   last_value: number | string | boolean | null;
 }
 
+// ── Multi-project management ──────────────────────────────────────────────
+
+export interface ProjectListEntry {
+  name: string;
+  has_project_yaml: boolean;
+  last_modified_ms: number | null;
+}
+
+export interface TemplateEntry {
+  id: string;
+  label: string;
+  description?: string;
+}
+
 // ── Runtime log stream (from GET /api/logs + WS /ws/logs) ─────────────────
 
 export type LogLevel = "TRACE" | "DEBUG" | "INFO" | "WARN" | "ERROR";

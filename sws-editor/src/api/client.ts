@@ -5,10 +5,12 @@ import type {
   FunctionDef,
   LogEvent,
   ProjectInfo,
+  ProjectListEntry,
   Sample,
   SourceDef,
   SynopticPage,
   TagDef,
+  TemplateEntry,
 } from "@/types";
 
 const BASE_URL = import.meta.env.VITE_RUNTIME_URL ?? "";
@@ -31,6 +33,12 @@ export class AuthError extends Error {
  *  ChangePasswordScreen in response. */
 export class PasswordChangeRequiredError extends Error {
   constructor() { super("password change required"); this.name = "PasswordChangeRequiredError"; }
+}
+
+/** Server returned 503 — no project is currently open.
+ *  The WelcomeScreen should be shown so the user can pick or create one. */
+export class NoProjectError extends Error {
+  constructor() { super("no active project"); this.name = "NoProjectError"; }
 }
 
 export type UserRole = "Viewer" | "Operator" | "Supervisor" | "Admin";
@@ -64,6 +72,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     // Surface as a typed error so the UI can drop the stored token and
     // bounce back to the login screen without showing a generic 401 toast.
     throw new AuthError();
+  }
+  if (res.status === 503) {
+    // Runtime has no active project. The WelcomeScreen should take over.
+    throw new NoProjectError();
   }
   if (res.status === 403) {
     // The runtime gates everything but auth self-service when the session
@@ -284,4 +296,28 @@ export const api = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ args: args ?? {} }),
     }),
+
+  // Multi-project management (pre-auth — no Bearer needed)
+  listProjects: () =>
+    request<ProjectListEntry[]>("/api/projects"),
+
+  createProject: (req: { name: string; template?: string }) =>
+    request<{ name: string }>("/api/projects", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(req),
+    }),
+
+  openProject: (name: string) =>
+    request<{ name: string; must_login: boolean }>(
+      `/api/projects/${encodeURIComponent(name)}/open`,
+      { method: "POST" },
+    ),
+
+  closeProject: () =>
+    request<void>("/api/projects/close", { method: "POST" }),
+
+  // Template gallery (pre-auth)
+  listTemplates: () =>
+    request<TemplateEntry[]>("/api/templates"),
 };

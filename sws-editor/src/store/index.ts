@@ -85,6 +85,9 @@ interface AppState {
   /** True while the server insists the current account changes its password.
    *  The App shell renders ChangePasswordScreen until this clears. */
   mustChangePassword: boolean;
+  /** True when the runtime has no active project (GET /api/project → 503).
+   *  The App shell renders WelcomeScreen until a project is opened. */
+  noActiveProject: boolean;
 
   project: ProjectInfo | null;
   customSymbols: CustomSymbol[];
@@ -121,6 +124,7 @@ interface AppState {
   setAuth: (token: string, username: string, role: Role, mustChangePassword?: boolean) => void;
   setMustChangePassword: (flag: boolean) => void;
   clearAuth: () => void;
+  setNoActiveProject: (flag: boolean) => void;
 
   setProject: (p: ProjectInfo) => void;
   updateProjectTags: (tags: TagDef[]) => void;
@@ -222,6 +226,7 @@ export const useAppStore = create<AppState>((set, get) => {
     authUser:  persisted?.username ?? null,
     authRole:  isRole(persisted?.role) ? (persisted!.role as Role) : null,
     mustChangePassword: persisted?.must_change_password === true,
+    noActiveProject: false,
 
     project: null,
     customSymbols: [],
@@ -266,6 +271,8 @@ export const useAppStore = create<AppState>((set, get) => {
       writePersistedAuth(null);
       set({ authToken: null, authUser: null, authRole: null, mustChangePassword: false });
     },
+
+    setNoActiveProject: (flag) => set({ noActiveProject: flag }),
 
     setProject: (project) => set({ project, customSymbols: project.custom_symbols ?? [] }),
 
