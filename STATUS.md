@@ -2,7 +2,7 @@
 
 > This file is the **session-to-session memory** for Claude Code. Update it at the end of every session before stopping work. Read it at the start of every session before touching code.
 
-**Last session**: 2026-05-15 (sessione 10: rename-page fix + log file v2 + dev.sh bug)
+**Last session**: 2026-05-16 (sessione 11: alarm webhook + re-auth modal)
 **Current phase**: Phase 2. Demo working out-of-the-box su fresh clone, import/export progetto per backup/condivisione, pannello log live + persistenza su disco, gestione utenti multi-account.
 **Last commit**: vedi sotto
 
@@ -18,6 +18,9 @@
 - (sessione 2026-05-14) Fix critico salvataggio + multi-page UX polish + symbol rotation/flip
 - (sessione 2026-05-15) Header dropdown menu (Salva/Esporta/Importa/Esci) + Grid dropdown + fix symbol hit-area + BindableInput z-index fix + Demo Page 3 Showcase completa
 - (sessione 2026-05-15, blocco 2) Universal binding follow-up #8 — `transition_duration_ms` per-oggetto per animazione CSS dei prop bindati (fill/stroke/opacity/transform). UI in ObjectProps TRASFORMAZIONE + batch in MultiSelectionProps. Rust mirror per round-trip YAML.
+- (sessione 2026-05-16) **Alarm webhook notifications** — `notify_url?: string` aggiunto ad `AlarmDef` (Rust + TS). Dispatcher task in `main.rs`: subscribe to `AlarmDb.subscribe()`, HTTP POST via `reqwest 0.12 rustls-tls` (5 s timeout, best-effort) su ogni transizione ACTIVE. Payload: `{id, message, severity, tag, ts_ms, value}`. UI in ConfigView: input URL sotto il campo messaggio. `reqwest` aggiunto a workspace Cargo.toml.
+- (sessione 2026-05-16) **Re-auth modal** — quando il token scade mid-session viene mostrato un overlay modale "Sessione scaduta" che chiede solo la password (username pre-compilato). Su successo il nuovo token viene salvato e il lavoro in corso è preservato (Zustand store intatto). Su dismiss → logout + LoginScreen. Implementazione: `reAuthNeeded` store flag, evento DOM `sws:session-expired` da `api/client.ts` quando 401+TOKEN, listener in `App.tsx`, componente `ReAuthModal.tsx`.
+- (sessione 2026-05-16) **dev.sh bug fix** — il ramo `both` non passava `--projects-root` e `--templates-root`; la WelcomeScreen vedeva sempre zero progetti e zero template.
 - (sessione 2026-05-15, blocco 3) Pulizia demo — `examples/demo/synoptics/{Page 1..Page 4}.yaml` riscritte con id stabili `page1..page4` (prima random `mp2n48800ucav`, `mp472aq9q3yzc`). Ogni pagina ha un header coerente con due navbutton `◀ Precedente` / `Successiva ▶` per navigazione circolare (1↔2↔3↔4↔1) + titolo. `.run/project/synoptics/` rifresh completo (cancellati 5 file inclusi `Page 3.yaml` + `Page 3 – Showcase.yaml` duplicati con stesso id). Vecchi navbutton orfani rimossi da Page 1; p3_navbutton (widget showcase) ora punta correttamente a `page1`.
 - (sessione 2026-05-15, blocco 7) **Multi-Project IDE — Phase A2 (upload ZIP)**. Backend: `POST /api/projects/upload` pre-auth in `projects.rs` (manifest.json per nome, `?name=` override, estrae ZIP in `projects_root/<name>/`, rollback su errore). Frontend: `api.uploadProjectZip()` + tab "Da ZIP" nella `NewProjectModal` con file picker, nome auto-filled dal filename, fallback al manifest.
 - (sessione 2026-05-15, blocco 6) **Multi-Project IDE — Phase A1 frontend complete**. `NoProjectError` + API wrapping (`listProjects/createProject/openProject/closeProject/listTemplates`), `noActiveProject` in store, `WelcomeScreen` (lista + modal nuovo progetto + template gallery), mount flow `App.tsx` (503→WelcomeScreen, 401→LoginScreen, 200→app), "Chiudi progetto" nel MainMenu. `pnpm type-check` + `pnpm build` verdi.

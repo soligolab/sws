@@ -5,6 +5,7 @@ import { AlarmBanner } from "@/components/AlarmBanner";
 import { ChangePasswordScreen } from "@/components/ChangePasswordScreen";
 import { LogPanel } from "@/components/LogPanel";
 import { LoginScreen } from "@/components/LoginScreen";
+import { ReAuthModal } from "@/components/ReAuthModal";
 import { WelcomeScreen } from "@/components/WelcomeScreen";
 import { ConfigView } from "@/config/ConfigView";
 import { EditorShell } from "@/editor/EditorShell";
@@ -305,12 +306,21 @@ export function App() {
   const clearAuth              = useAppStore((s) => s.clearAuth);
   const noActiveProject        = useAppStore((s) => s.noActiveProject);
   const setNoActiveProject     = useAppStore((s) => s.setNoActiveProject);
+  const reAuthNeeded           = useAppStore((s) => s.reAuthNeeded);
+  const setReAuthNeeded        = useAppStore((s) => s.setReAuthNeeded);
   const pages          = useAppStore((s) => s.pages);
   const currentPageId  = useAppStore((s) => s.currentPageId);
   const setCurrentPage = useAppStore((s) => s.setCurrentPage);
   const setPages       = useAppStore((s) => s.setPages);
   const project        = useAppStore((s) => s.project);
   const setProject     = useAppStore((s) => s.setProject);
+
+  // Listen for mid-session token expiry fired by api/client.ts
+  useEffect(() => {
+    const handler = () => { if (authToken) setReAuthNeeded(true); };
+    window.addEventListener("sws:session-expired", handler);
+    return () => window.removeEventListener("sws:session-expired", handler);
+  }, [authToken, setReAuthNeeded]);
 
   // Mount flow:
   //   1. If no token → try GET /api/project to detect 503 (no project open).
@@ -510,6 +520,9 @@ export function App() {
         setLogOpen(false);
         try { localStorage.setItem(LOG_PANEL_KEY, "0"); } catch { /* ignore */ }
       }} />
+
+      {/* Re-auth overlay — session expired mid-use */}
+      {reAuthNeeded && <ReAuthModal />}
     </div>
   );
 }

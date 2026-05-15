@@ -8,6 +8,16 @@ and this project adheres to [CalVer](https://calver.org/) (`YYYY.MM[.patch]`).
 ## [Unreleased]
 
 ### Added
+- **Re-auth modal** — when the Bearer token expires mid-session a modal overlay "Sessione scaduta" appears over the editor instead of redirecting to the full login screen. The user re-enters only their password (username pre-filled from the store). On success the new token is stored and the editor state is preserved. On dismiss the session is cleared and the normal LoginScreen is shown.
+  - `api/client.ts`: fires `sws:session-expired` CustomEvent when a request returns 401 and a token was present.
+  - `store/index.ts`: new `reAuthNeeded: boolean` flag and `setReAuthNeeded()` action.
+  - `App.tsx`: listens for the event and sets `reAuthNeeded`; renders `<ReAuthModal>` overlay.
+  - New `components/ReAuthModal.tsx`.
+
+- **Alarm webhook notifications** — `AlarmDef` gains `notify_url?: string`. When an alarm transitions to ACTIVE and `notify_url` is set, a best-effort HTTP POST is fired within 5 s (reqwest 0.12, rustls-tls). Payload: `{id, message, severity, tag, ts_ms, value}`. Errors are logged as warnings (never fatal). UI: `ConfigView` shows a URL input below the message field in the alarm table row.
+  - `reqwest 0.12` added to workspace and `sws-runtime` Cargo.toml (rustls-tls + json features).
+  - Alarm webhook dispatcher task spawned in `sws-runtime/main.rs` (subscribes to `AlarmDb.subscribe()` broadcast).
+
 - **Log file v2** — historical log browser in the log panel:
   - `GET /api/logs/files` (Operator+): lists `runtime-YYYY-MM-DD.jsonl` files in `logs_dir` sorted newest-first with `size_bytes`.
   - `GET /api/logs/file?date=YYYY-MM-DD` (Operator+): reads a historical JSONL file and returns `Vec<LogEvent>`.

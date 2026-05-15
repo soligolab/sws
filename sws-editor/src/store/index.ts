@@ -121,8 +121,12 @@ interface AppState {
   incSaveSerial: () => void;
   setSaveStatus: (s: "idle" | "saving" | "ok" | "error", e?: string | null) => void;
 
+  /** True when the session token expired mid-session. Shows ReAuthModal overlay. */
+  reAuthNeeded: boolean;
+
   setAuth: (token: string, username: string, role: Role, mustChangePassword?: boolean) => void;
   setMustChangePassword: (flag: boolean) => void;
+  setReAuthNeeded: (v: boolean) => void;
   clearAuth: () => void;
   setNoActiveProject: (flag: boolean) => void;
 
@@ -227,6 +231,7 @@ export const useAppStore = create<AppState>((set, get) => {
     authRole:  isRole(persisted?.role) ? (persisted!.role as Role) : null,
     mustChangePassword: persisted?.must_change_password === true,
     noActiveProject: false,
+    reAuthNeeded: false,
 
     project: null,
     customSymbols: [],
@@ -252,6 +257,8 @@ export const useAppStore = create<AppState>((set, get) => {
       writePersistedAuth({ token, username, role, must_change_password: mustChangePassword });
       set({ authToken: token, authUser: username, authRole: role, mustChangePassword });
     },
+
+    setReAuthNeeded: (v) => set({ reAuthNeeded: v }),
 
     setMustChangePassword: (flag) => {
       const { authToken, authUser, authRole } = get();

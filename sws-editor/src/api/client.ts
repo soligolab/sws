@@ -70,8 +70,9 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   if (TOKEN) headers.set("Authorization", `Bearer ${TOKEN}`);
   const res = await fetch(`${BASE_URL}${path}`, { ...init, headers });
   if (res.status === 401) {
-    // Surface as a typed error so the UI can drop the stored token and
-    // bounce back to the login screen without showing a generic 401 toast.
+    // If we had a token, the session expired mid-use — signal the UI to show
+    // a re-auth overlay rather than fully clearing and redirecting.
+    if (TOKEN) window.dispatchEvent(new CustomEvent("sws:session-expired"));
     throw new AuthError();
   }
   if (res.status === 503) {
