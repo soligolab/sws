@@ -1,4 +1,4 @@
-//! Multi-project endpoints — list / create / open / close.
+//! Multi-project endpoints — list / create / open / close / upload-zip.
 //!
 //! Pre-auth: these endpoints run outside the auth middleware so the
 //! WelcomeScreen can show a project picker without a session token. Once
@@ -7,13 +7,17 @@
 use crate::router::{active_dir, AppState};
 use crate::templates::copy_dir_all;
 use axum::{
-    extract::{Path, State},
+    body::Bytes,
+    extract::{Path, Query, State},
     http::StatusCode,
     response::{IntoResponse, Response},
     Json,
 };
 use serde::{Deserialize, Serialize};
-use std::path::{Path as StdPath, PathBuf};
+use std::{
+    io::{Cursor, Read},
+    path::{Path as StdPath, PathBuf},
+};
 use sws_core::{Project, ProjectMeta};
 use tracing::{info, warn};
 
@@ -273,6 +277,136 @@ pub async fn close_project(State(s): State<AppState>) -> Response {
     *s.project_dir.write().await = None;
     info!("project closed");
     StatusCode::NO_CONTENT.into_response()
+}
+
+// ── Upload from ZIP ───────────────────────────────────────────────────────────
+
+#[derive(Deserialize, Default)]
+pub struct UploadQuery {
+    /// Optional project name override. When absent the name is read from the
+    /// ZIP's `manifest.json`; if `manifest.json` is missing the upload is
+    /// rejected with 400.
+    #[serde(default)]
+    pub name: Option<String>,
+}
+
+// Minimal manifest — we only need `name` to derive the folder name.
+#[derive(serde::Deserialize)]
+struct UploadManifest {
+    name: String,
+}
+
+/// `POST /api/projects/upload` — create a new project by uploading an SWS
+/// export ZIP (same format as `GET /api/project/export`).
+///
+/// - Body: raw `application/zip` bytes.
+/// - Query param `?name=<override>` is optional; falls back to `manifest.json`.
+/// - Returns 201 `{"name": "..."}` on success, 409 if the folder exists.
+/// - Pre-auth: no session token required.
+pub async fn upload_project_zip(
+    State(s): State<AppState>,
+    Query(q): Query<UploadQuery>,
+    body: Bytes,
+) -> Response {
+    // 1. Parse the ZIP.
+    let mut archive = match zip::ZipArchive::new(Cursor::new(body.as_ref())) {
+        Ok(a)  => a,
+        Err(e) => return (StatusCode::BAD_REQUEST, format!("not a valid zip: {e}")).into_response(),
+    };
+
+    // 2. Determine the project name.
+    let raw_name = match q.name.filter(|n| !n.trim().is_empty()) {
+        Some(n) => n,
+        None => {
+            // Read manifest.json from the archive.
+            match read_zip_entry(&mut archive, "manifest.json") {
+                Ok(Some(bytes)) => match serde_json::from_slice::<UploadManifest>(&bytes) {
+                    Ok(m) => m.name,
+                    Err(e) => return (StatusCode::BAD_REQUEST,
+                        format!("manifest.json parse error: {e}")).into_response(),
+                },
+                Ok(None) => return (StatusCode::BAD_REQUEST,
+                    "ZIP has no manifest.json — supply ?name= query param").into_response(),
+                Err(e) => return (StatusCode::BAD_REQUEST,
+                    format!("zip read error: {e}")).into_response(),
+            }
+        }
+    };
+
+    let safe_name = match safe_project_name(&raw_name) {
+        Ok(n) => n,
+        Err(msg) => return (StatusCode::BAD_REQUEST, msg).into_response(),
+    };
+
+    // 3. Reject if the folder already exists.
+    let target = s.projects_root.join(&safe_name);
+    if tokio::fs::try_exists(&target).await.unwrap_or(false) {
+        return (StatusCode::CONFLICT, "project already exists").into_response();
+    }
+    if let Err(e) = tokio::fs::create_dir_all(&target).await {
+        warn!("upload_project_zip: mkdir {}: {e}", target.display());
+        return (StatusCode::INTERNAL_SERVER_ERROR, "cannot create project dir").into_response();
+    }
+
+    // 4. Extract every file from the ZIP into the project folder.
+    //    We trust the manifest.json name and skip it; everything else lands at
+    //    its relative path under `target`. We refuse `..` components.
+    let file_names: Vec<String> = archive.file_names().map(|n| n.to_string()).collect();
+    for entry_name in &file_names {
+        if entry_name == "manifest.json" {
+            continue; // metadata only — not needed on disk
+        }
+        // Safety: reject traversal paths.
+        if entry_name.contains("..") || entry_name.starts_with('/') {
+            warn!("upload_project_zip: skipping suspicious entry '{entry_name}'");
+            continue;
+        }
+        let dest = target.join(entry_name);
+        // Ensure parent dirs exist (e.g. synoptics/).
+        if let Some(parent) = dest.parent() {
+            if let Err(e) = tokio::fs::create_dir_all(parent).await {
+                warn!("upload_project_zip: mkdir {}: {e}", parent.display());
+                let _ = tokio::fs::remove_dir_all(&target).await;
+                return (StatusCode::INTERNAL_SERVER_ERROR, "cannot create subdirectory")
+                    .into_response();
+            }
+        }
+        match read_zip_entry(&mut archive, entry_name) {
+            Ok(Some(bytes)) => {
+                if let Err(e) = tokio::fs::write(&dest, bytes).await {
+                    warn!("upload_project_zip: write {entry_name}: {e}");
+                    let _ = tokio::fs::remove_dir_all(&target).await;
+                    return (StatusCode::INTERNAL_SERVER_ERROR, "write failed").into_response();
+                }
+            }
+            Ok(None) => { /* entry disappeared between listing and reading — skip */ }
+            Err(e) => {
+                warn!("upload_project_zip: read {entry_name}: {e}");
+                let _ = tokio::fs::remove_dir_all(&target).await;
+                return (StatusCode::INTERNAL_SERVER_ERROR, "zip read failed").into_response();
+            }
+        }
+    }
+
+    info!(name = %safe_name, "project created from uploaded ZIP");
+    (StatusCode::CREATED, Json(serde_json::json!({ "name": safe_name }))).into_response()
+}
+
+/// Read a named entry from a ZipArchive into a byte vector.
+/// Returns `Ok(None)` if the entry does not exist.
+fn read_zip_entry<R: Read + std::io::Seek>(
+    archive: &mut zip::ZipArchive<R>,
+    name: &str,
+) -> zip::result::ZipResult<Option<Vec<u8>>> {
+    match archive.by_name(name) {
+        Ok(mut entry) => {
+            let mut buf = Vec::new();
+            entry.read_to_end(&mut buf)?;
+            Ok(Some(buf))
+        }
+        Err(zip::result::ZipError::FileNotFound) => Ok(None),
+        Err(e) => Err(e),
+    }
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────

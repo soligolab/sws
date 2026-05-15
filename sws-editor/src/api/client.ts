@@ -320,4 +320,23 @@ export const api = {
   // Template gallery (pre-auth)
   listTemplates: () =>
     request<TemplateEntry[]>("/api/templates"),
+
+  // Upload a project ZIP to create a new project (pre-auth).
+  // `name` is optional — falls back to the name in manifest.json inside the ZIP.
+  uploadProjectZip: async (file: Blob, name?: string): Promise<{ name: string }> => {
+    const url = name
+      ? `${BASE_URL}/api/projects/upload?name=${encodeURIComponent(name)}`
+      : `${BASE_URL}/api/projects/upload`;
+    const headers = new Headers({ "Content-Type": "application/zip" });
+    if (TOKEN) headers.set("Authorization", `Bearer ${TOKEN}`);
+    const res = await fetch(url, { method: "POST", headers, body: file });
+    if (res.status === 409) throw new Error("Esiste già un progetto con questo nome.");
+    if (res.status === 503) throw new NoProjectError();
+    if (!res.ok) {
+      let body = "";
+      try { body = await res.text(); } catch { /* ignore */ }
+      throw new Error(`Upload ZIP: ${res.status} ${res.statusText}${body ? ` — ${body}` : ""}`);
+    }
+    return res.json();
+  },
 };

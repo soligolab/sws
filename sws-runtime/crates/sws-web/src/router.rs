@@ -150,6 +150,8 @@ pub fn build(
             post(crate::projects::open_project))
         .route("/api/projects/close",
             post(crate::projects::close_project))
+        .route("/api/projects/upload",
+            post(crate::projects::upload_project_zip))
         .route("/api/templates",
             get(crate::templates::list_templates));
 
