@@ -36,12 +36,28 @@ struct Args {
     #[arg(long, default_value = "/var/sws/config")]
     config: PathBuf,
 
-    /// SWS project root directory
-    #[arg(long, default_value = "/var/sws/projects/default")]
-    project: PathBuf,
+    /// Root directory containing all projects (one subfolder per project).
+    /// The editor's WelcomeScreen lists subfolders of this path; create /
+    /// open / close operate inside it.
+    #[arg(long, default_value = "/var/sws/projects")]
+    projects_root: PathBuf,
+
+    /// Root directory containing bundled project templates (one subfolder
+    /// per template, each with `template.yaml` + project files).
+    /// Used by `GET /api/templates` and copied into new projects when the
+    /// user picks a template in the WelcomeScreen.
+    #[arg(long, default_value = "/var/sws/templates")]
+    templates_root: PathBuf,
+
+    /// Legacy single-project flag. When set, the runtime auto-opens this
+    /// project at boot (backwards compat for dev.sh and operator containers).
+    /// When unset, the runtime starts with no active project — the
+    /// WelcomeScreen lists candidates from `--projects-root`.
+    #[arg(long)]
+    project: Option<PathBuf>,
 
     /// Directory where rotating JSONL log files are written.
-    /// Defaults to `<project>/../logs` (sibling of the project dir).
+    /// Defaults to `<projects_root>/logs`.
     #[arg(long)]
     logs: Option<PathBuf>,
 }
@@ -72,10 +88,7 @@ async fn main() -> anyhow::Result<()> {
     // log-capture quirks (podman/journald wrap policies). Errors inside the
     // writer go to stderr to avoid feedback loops via tracing → LogBus.
     let logs_dir = args.logs.clone().unwrap_or_else(|| {
-        args.project
-            .parent()
-            .unwrap_or(args.project.as_path())
-            .join("logs")
+        args.projects_root.join("logs")
     });
     let retention_days = std::env::var("SWS_LOG_RETENTION_DAYS")
         .ok()
@@ -84,11 +97,13 @@ async fn main() -> anyhow::Result<()> {
     log_file::spawn_file_writer(log_bus.clone(), logs_dir.clone(), retention_days);
 
     info!(
-        version    = env!("CARGO_PKG_VERSION"),
-        config     = %args.config.display(),
-        project    = %args.project.display(),
-        logs       = %logs_dir.display(),
-        retention  = retention_days,
+        version        = env!("CARGO_PKG_VERSION"),
+        config         = %args.config.display(),
+        projects_root  = %args.projects_root.display(),
+        templates_root = %args.templates_root.display(),
+        project        = ?args.project.as_ref().map(|p| p.display().to_string()),
+        logs           = %logs_dir.display(),
+        retention      = retention_days,
         "SWS runtime starting"
     );
 
@@ -148,39 +163,55 @@ async fn main() -> anyhow::Result<()> {
     let ttl_secs    = std::env::var("SWS_SESSION_TTL_SECS").ok().and_then(|s| s.parse().ok()).unwrap_or(8 * 3600);
     let rate_limit  = std::env::var("SWS_LOGIN_RATE_LIMIT").ok().and_then(|s| s.parse().ok()).unwrap_or(5);
     let rate_window = std::env::var("SWS_LOGIN_RATE_WINDOW_SECS").ok().and_then(|s| s.parse().ok()).unwrap_or(60);
-    let auth = AuthState::new_persistent(
-        args.project.join("users.yaml"),
-        accounts,
-        std::time::Duration::from_secs(ttl_secs),
-        rate_limit,
-        std::time::Duration::from_secs(rate_window),
-    )?;
+    let ttl = std::time::Duration::from_secs(ttl_secs);
+    let rate_window_dur = std::time::Duration::from_secs(rate_window);
 
-    match sws_core::project::Project::load(&args.project) {
-        Ok(project) => {
-            info!(
-                name = %project.meta.name,
-                tags = project.tags.len(),
-                alarms = project.alarms.len(),
-                functions = project.functions.len(),
-                "project loaded",
-            );
-            project.populate_tags(&tag_db).await;
-            alarm_db.load(project.alarms).await;
-            supervisor.reload(project.sources).await;
-            // Seed the function registry. Duplicates from project.yaml are
-            // silently last-wins; PUT /api/project/functions enforces unique
-            // names from then on.
-            {
-                let mut map = functions.write().await;
-                for f in project.functions {
-                    map.insert(f.name.clone(), f);
+    // Active project handle — None until the user opens one (or until
+    // --project auto-opens below for legacy single-project deploys).
+    let active_dir: sws_web::router::ActiveProjectDir =
+        Arc::new(tokio::sync::RwLock::new(None));
+
+    // Auth state: empty until a project is opened. When --project is set,
+    // we swap to its users.yaml; otherwise the WelcomeScreen does it via
+    // POST /api/projects/:name/open later.
+    let auth = AuthState::empty(ttl, rate_limit, rate_window_dur);
+
+    if let Some(project_path) = args.project.clone() {
+        // Legacy auto-open path: bootstrap exactly as the single-project
+        // runtime did, then mark this dir as active.
+        match sws_core::project::Project::load(&project_path) {
+            Ok(project) => {
+                info!(
+                    name = %project.meta.name,
+                    tags = project.tags.len(),
+                    alarms = project.alarms.len(),
+                    functions = project.functions.len(),
+                    "project loaded (legacy --project auto-open)",
+                );
+                project.populate_tags(&tag_db).await;
+                alarm_db.load(project.alarms).await;
+                supervisor.reload(project.sources).await;
+                // Seed the function registry. Duplicates from project.yaml
+                // are silently last-wins; PUT /api/project/functions
+                // enforces unique names from then on.
+                {
+                    let mut map = functions.write().await;
+                    for f in project.functions {
+                        map.insert(f.name.clone(), f);
+                    }
                 }
             }
+            Err(e) => {
+                warn!("project.yaml not found or invalid — starting with empty tag database: {e:#}");
+            }
         }
-        Err(e) => {
-            warn!("project.yaml not found or invalid — starting with empty tag database: {e:#}");
+        // Swap auth to point at this project's users.yaml, seeded from env.
+        if let Err(e) = auth.swap_store(project_path.join("users.yaml"), accounts).await {
+            anyhow::bail!("failed to bootstrap auth from --project: {e}");
         }
+        *active_dir.write().await = Some(project_path);
+    } else {
+        info!("no --project specified — starting with no active project (WelcomeScreen will list /api/projects)");
     }
 
     // Alarm evaluator: every TagDb update is fed to AlarmDb, which re-evaluates
@@ -213,7 +244,9 @@ async fn main() -> anyhow::Result<()> {
         auth,
         supervisor.clone(),
         functions,
-        Arc::new(args.project.clone()),
+        active_dir,
+        Arc::new(args.projects_root.clone()),
+        Arc::new(args.templates_root.clone()),
         log_bus,
     );
 

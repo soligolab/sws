@@ -1,34 +1,34 @@
 id: page3
-name: "Page 3 – Showcase"
+name: Page 3
 background: "#0f172a"
 objects:
 
-# ── Navigation ────────────────────────────────────────────────────────────────
-- id: p3_nav_p1
+# ── Navigation header (uniforme su tutte le 4 pagine) ────────────────────────
+- id: p3_nav_prev
   type: navbutton
   x: 20
-  y: 10
-  width: 150
+  y: 12
+  width: 130
   height: 32
-  label: "← Page 1"
-  target_page: mp2n48800ucav
+  label: "◀ Precedente"
+  target_page: page2
 
-- id: p3_nav_p2
+- id: p3_nav_next
   type: navbutton
-  x: 180
-  y: 10
-  width: 150
+  x: 160
+  y: 12
+  width: 130
   height: 32
-  label: "← Page 2"
-  target_page: mp472aq9q3yzc
+  label: "Successiva ▶"
+  target_page: page4
 
 - id: p3_title
   type: text
   x: 400
   y: 30
-  text: "Demo Showcase — tutti i widget con binding"
-  font_size: 14
-  font_weight: "bold"
+  text: "Page 3 — Showcase widget con binding"
+  font_size: 16
+  font_weight: bold
   text_anchor: middle
   color: "#94a3b8"
 
@@ -304,7 +304,7 @@ objects:
   width: 120
   height: 36
   label: "Page 1"
-  target_page: mp2n48800ucav
+  target_page: page1
   bindings:
     label: demo.label
     opacity: demo.opacity

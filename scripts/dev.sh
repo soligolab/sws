@@ -24,8 +24,23 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 RUN_DIR="$REPO_ROOT/.run"
 CONFIG_DIR="$RUN_DIR/config"
-PROJECT_DIR="$RUN_DIR/project"
+# Multi-project layout (since 2026-05-15): projects live as subfolders of
+# PROJECTS_ROOT, and the runtime can open/close them at runtime via
+# /api/projects/*. The "dev" project keeps the same content the old
+# .run/project/ used to hold; if you upgrade in-place, the migration block
+# below moves it over.
+PROJECTS_ROOT="$RUN_DIR/projects"
+TEMPLATES_ROOT="$REPO_ROOT/examples/templates"
+PROJECT_DIR="$PROJECTS_ROOT/dev"
 LOG_DIR="$RUN_DIR/logs"
+
+# In-place migration: if the legacy single-project layout (.run/project/)
+# exists and the new multi-project layout doesn't, move it over.
+if [ -d "$RUN_DIR/project" ] && [ ! -d "$PROJECT_DIR" ]; then
+  mkdir -p "$PROJECTS_ROOT"
+  mv "$RUN_DIR/project" "$PROJECT_DIR"
+  echo "[dev.sh] migrated .run/project/ → .run/projects/dev/"
+fi
 
 # pyo3-build-config defaults to /usr/bin/python which isn't present on Debian
 # Bookworm (only /usr/bin/python3). Point it at python3 explicitly so cargo
@@ -50,19 +65,26 @@ export SWS_SUPERVISOR_PASSWORD SWS_OPERATOR_PASSWORD SWS_VIEWER_PASSWORD
 : "${SWS_HISTORIAN_DB:=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/.run/historian.db}"
 export SWS_HISTORIAN_DB
 
-mkdir -p "$CONFIG_DIR" "$PROJECT_DIR" "$LOG_DIR"
+mkdir -p "$CONFIG_DIR" "$PROJECTS_ROOT" "$PROJECT_DIR" "$LOG_DIR"
 
-# ── Seed an example project from examples/demo/ on first run ─────────────────
+# ── Seed an example project from examples/templates/demo-items/ on first run ─
 # Snapshot of the MQTT echo + buttons + LED + gauge + pump demo. Subsequent
 # runs keep the maintainer's local edits (this only fires when project.yaml
-# is missing — i.e., on a fresh clone or after `rm -rf .run/project`).
+# is missing — i.e., on a fresh clone or after `rm -rf .run/projects`).
 
-if [ ! -f "$PROJECT_DIR/project.yaml" ] && [ -d "$REPO_ROOT/examples/demo" ]; then
-  cp -r "$REPO_ROOT/examples/demo/." "$PROJECT_DIR/"
-  echo "[dev.sh] seeded $PROJECT_DIR from $REPO_ROOT/examples/demo"
+DEMO_TEMPLATE_DIR="$REPO_ROOT/examples/templates/demo-items"
+if [ ! -f "$PROJECT_DIR/project.yaml" ] && [ -d "$DEMO_TEMPLATE_DIR" ]; then
+  # Copy everything except the template.yaml metadata file (only relevant
+  # in template gallery context, not inside a live project).
+  for entry in "$DEMO_TEMPLATE_DIR"/*; do
+    name="$(basename "$entry")"
+    [ "$name" = "template.yaml" ] && continue
+    cp -r "$entry" "$PROJECT_DIR/"
+  done
+  echo "[dev.sh] seeded $PROJECT_DIR from $DEMO_TEMPLATE_DIR"
 fi
 
-# ── Last-resort minimal fallback if examples/demo/ is absent ─────────────────
+# ── Last-resort minimal fallback if the template is absent ───────────────────
 
 if [ ! -f "$PROJECT_DIR/project.yaml" ]; then
   cat > "$PROJECT_DIR/project.yaml" <<'YAML'
@@ -131,10 +153,14 @@ start_runtime() {
   echo "[runtime] building (cargo build)…"
   (cd "$REPO_ROOT/sws-runtime" && cargo build --quiet -p sws-runtime)
   echo "[runtime] starting on https://localhost:8443"
-  echo "[runtime] config  = $CONFIG_DIR"
-  echo "[runtime] project = $PROJECT_DIR"
+  echo "[runtime] config         = $CONFIG_DIR"
+  echo "[runtime] projects_root  = $PROJECTS_ROOT"
+  echo "[runtime] templates_root = $TEMPLATES_ROOT"
+  echo "[runtime] auto-open      = $PROJECT_DIR (legacy --project flag)"
   exec "$REPO_ROOT/sws-runtime/target/debug/sws-runtime" \
     --config "$CONFIG_DIR" \
+    --projects-root "$PROJECTS_ROOT" \
+    --templates-root "$TEMPLATES_ROOT" \
     --project "$PROJECT_DIR"
 }
 

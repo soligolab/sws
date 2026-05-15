@@ -27,6 +27,12 @@ use crate::synoptic::{safe_filename, SynopticPage};
 /// latest body without a restart.
 pub type FunctionsRegistry = Arc<RwLock<HashMap<String, FunctionDef>>>;
 
+/// Mutable handle on the currently-active project directory. `None` means
+/// "no project open" — handlers that need a project dir gate on this and
+/// return 503. Wrapped in RwLock so `open`/`close` can swap it in-place
+/// without rebuilding the whole AppState.
+pub type ActiveProjectDir = Arc<RwLock<Option<PathBuf>>>;
+
 #[derive(Clone)]
 pub struct AppState {
     pub db: Arc<TagDb>,
@@ -37,8 +43,16 @@ pub struct AppState {
     pub auth: Arc<AuthState>,
     pub supervisor: Arc<SourceSupervisor>,
     pub functions: FunctionsRegistry,
-    pub project_dir: Arc<PathBuf>,
+    pub project_dir: ActiveProjectDir,
+    pub projects_root: Arc<PathBuf>,
+    pub templates_root: Arc<PathBuf>,
     pub logs: Arc<LogBus>,
+}
+
+/// Resolve the active project directory or return 503. Used at the top
+/// of every handler that needs a project dir (most of them).
+pub async fn active_dir(state: &AppState) -> Result<PathBuf, StatusCode> {
+    state.project_dir.read().await.clone().ok_or(StatusCode::SERVICE_UNAVAILABLE)
 }
 
 pub fn build(
@@ -50,10 +64,12 @@ pub fn build(
     auth: Arc<AuthState>,
     supervisor: Arc<SourceSupervisor>,
     functions: FunctionsRegistry,
-    project_dir: Arc<PathBuf>,
+    project_dir: ActiveProjectDir,
+    projects_root: Arc<PathBuf>,
+    templates_root: Arc<PathBuf>,
     logs: Arc<LogBus>,
 ) -> Router {
-    let state = AppState { db, bus, alarms, historian, py, auth, supervisor, functions, project_dir, logs };
+    let state = AppState { db, bus, alarms, historian, py, auth, supervisor, functions, project_dir, projects_root, templates_root, logs };
 
     // Routes that need Admin privileges (PUT /api/project/* — schema edits,
     // plus the multi-user CRUD).
@@ -124,11 +140,25 @@ pub fn build(
         .merge(self_service)
         .route_layer(middleware::from_fn_with_state(state.clone(), require_auth));
 
-    // Always-open routes: liveness probes + login.
+    // Pre-auth project lifecycle endpoints — the WelcomeScreen calls these
+    // before any session token exists. They operate on `projects_root` and
+    // `templates_root` only (no AuthState dependency).
+    let project_lifecycle = Router::new()
+        .route("/api/projects",
+            get(crate::projects::list_projects).post(crate::projects::create_project))
+        .route("/api/projects/:name/open",
+            post(crate::projects::open_project))
+        .route("/api/projects/close",
+            post(crate::projects::close_project))
+        .route("/api/templates",
+            get(crate::templates::list_templates));
+
+    // Always-open routes: liveness probes + login + project lifecycle.
     let open = Router::new()
         .route("/health",  get(|| async { "ok" }))
         .route("/metrics", get(|| async { "# SWS metrics placeholder\n" }))
-        .route("/api/auth/login", post(login));
+        .route("/api/auth/login", post(login))
+        .merge(project_lifecycle);
 
     open.merge(protected).with_state(state)
 }
@@ -516,8 +546,12 @@ async fn handle_alarms_ws(mut socket: WebSocket, alarms: Arc<AlarmDb>) {
 /// wipe a secret the operator can't see.
 const MASKED_PASSWORD: &str = "********";
 
-async fn get_project(State(s): State<AppState>) -> impl IntoResponse {
-    match Project::load(&s.project_dir) {
+async fn get_project(State(s): State<AppState>) -> Response {
+    let dir = match active_dir(&s).await {
+        Ok(d) => d,
+        Err(code) => return code.into_response(),
+    };
+    match Project::load(&dir) {
         Ok(mut project) => {
             mask_project_secrets(&mut project);
             Json(project).into_response()
@@ -586,7 +620,8 @@ async fn update_project_tags(
         .cloned()
         .collect();
 
-    let status = patch_project(&s.project_dir, |p| p.tags = tags).await;
+    let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c };
+    let status = patch_project(&dir, |p| p.tags = tags).await;
     if status != StatusCode::NO_CONTENT {
         return status;
     }
@@ -603,11 +638,12 @@ async fn update_project_sources(
     State(s): State<AppState>,
     Json(mut sources): Json<Vec<SourceDef>>,
 ) -> StatusCode {
+    let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c };
     // Restore masked secrets: any MQTT source whose password came back as
     // the placeholder string is interpreted as "leave unchanged" — we look
     // the previous value up from the on-disk project. Without this round
     // a normal edit through the UI would wipe stored passwords.
-    let previous = Project::load(&s.project_dir).ok();
+    let previous = Project::load(&dir).ok();
     if let Some(prev) = previous.as_ref() {
         for src in &mut sources {
             if let SourceDef::Mqtt(new_cfg) = src {
@@ -626,7 +662,7 @@ async fn update_project_sources(
     // set. New/removed sources are spawned/cancelled in-place — no runtime
     // restart needed.
     let clone = sources.clone();
-    let status = patch_project(&s.project_dir, |p| p.sources = sources).await;
+    let status = patch_project(&dir, |p| p.sources = sources).await;
     if status == StatusCode::NO_CONTENT {
         s.supervisor.reload(clone).await;
     }
@@ -640,8 +676,9 @@ async fn update_project_alarms(
     // Hot-reload: AlarmDb::load fully replaces the registry (clear + insert).
     // In-flight active alarms are reset; the next TagDb update will re-evaluate
     // and re-fire any still-tripped conditions.
+    let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c };
     let clone = alarms.clone();
-    let status = patch_project(&s.project_dir, |p| p.alarms = alarms).await;
+    let status = patch_project(&dir, |p| p.alarms = alarms).await;
     if status == StatusCode::NO_CONTENT {
         s.alarms.load(clone).await;
     }
@@ -684,8 +721,9 @@ async fn update_project_functions(
         }
     }
 
+    let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
     let clone = functions.clone();
-    let status = patch_project(&s.project_dir, |p| p.functions = functions).await;
+    let status = patch_project(&dir, |p| p.functions = functions).await;
     if status == StatusCode::NO_CONTENT {
         let mut map = s.functions.write().await;
         map.clear();
@@ -698,7 +736,8 @@ async fn update_project_custom_symbols(
     State(s): State<AppState>,
     Json(symbols): Json<Vec<CustomSymbol>>,
 ) -> StatusCode {
-    patch_project(&s.project_dir, |p| p.custom_symbols = symbols).await
+    let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c };
+    patch_project(&dir, |p| p.custom_symbols = symbols).await
 }
 
 // ── Project import / export (Admin only) ─────────────────────────────────────
@@ -721,8 +760,9 @@ struct BundleManifest {
 }
 
 async fn export_project_zip(State(s): State<AppState>) -> Response {
+    let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
     // 1. Load the project from disk and strip MQTT passwords.
-    let mut project = match Project::load(&s.project_dir) {
+    let mut project = match Project::load(&dir) {
         Ok(p)  => p,
         Err(e) => {
             warn!("export: cannot load project: {e}");
@@ -736,7 +776,7 @@ async fn export_project_zip(State(s): State<AppState>) -> Response {
     }
 
     // 2. Load every synoptic page from disk.
-    let pages = match load_all_synoptics(&synoptics_dir(&s)).await {
+    let pages = match load_all_synoptics(&synoptics_dir_at(&dir)).await {
         Ok(v)  => v,
         Err(e) => {
             warn!("export: cannot read synoptics: {e}");
@@ -836,6 +876,7 @@ async fn load_all_synoptics(dir: &std::path::Path) -> std::io::Result<Vec<Synopt
 }
 
 async fn import_project_zip(State(s): State<AppState>, body: Bytes) -> Response {
+    let active_project_dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
     // 1. Parse the ZIP from raw bytes.
     let mut archive = match zip::ZipArchive::new(Cursor::new(body.as_ref())) {
         Ok(a)  => a,
@@ -899,7 +940,7 @@ async fn import_project_zip(State(s): State<AppState>, body: Bytes) -> Response 
     }
 
     // 5. Atomically replace on disk.
-    let project_dir: &std::path::Path = s.project_dir.as_path();
+    let project_dir: &std::path::Path = active_project_dir.as_path();
     if let Err(e) = tokio::fs::create_dir_all(project_dir).await {
         warn!("import: cannot create project dir: {e}");
         return (StatusCode::INTERNAL_SERVER_ERROR, "cannot create project dir").into_response();
@@ -915,7 +956,7 @@ async fn import_project_zip(State(s): State<AppState>, body: Bytes) -> Response 
         return (StatusCode::INTERNAL_SERVER_ERROR, "write project.yaml").into_response();
     }
 
-    let syn_dir = synoptics_dir(&s);
+    let syn_dir = synoptics_dir_at(project_dir);
     if let Err(e) = tokio::fs::create_dir_all(&syn_dir).await {
         warn!("import: cannot create synoptics dir: {e}");
         return (StatusCode::INTERNAL_SERVER_ERROR, "cannot create synoptics dir").into_response();
@@ -1121,12 +1162,14 @@ fn is_valid_python_identifier(s: &str) -> bool {
 
 // ── Synoptic endpoints ───────────────────────────────────────────────────────
 
-fn synoptics_dir(state: &AppState) -> PathBuf {
-    state.project_dir.join("synoptics")
+/// Compute the synoptics directory for a given project root.
+pub fn synoptics_dir_at(project_dir: &std::path::Path) -> PathBuf {
+    project_dir.join("synoptics")
 }
 
-async fn list_synoptics(State(s): State<AppState>) -> Json<Vec<String>> {
-    let dir = synoptics_dir(&s);
+async fn list_synoptics(State(s): State<AppState>) -> Response {
+    let project_dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
+    let dir = synoptics_dir_at(&project_dir);
     let mut names = Vec::new();
     if let Ok(mut entries) = tokio::fs::read_dir(&dir).await {
         while let Ok(Some(entry)) = entries.next_entry().await {
@@ -1139,14 +1182,15 @@ async fn list_synoptics(State(s): State<AppState>) -> Json<Vec<String>> {
         }
     }
     names.sort();
-    Json(names)
+    Json(names).into_response()
 }
 
 async fn get_synoptic(
     State(s): State<AppState>,
     Path(name): Path<String>,
-) -> impl IntoResponse {
-    let path = synoptics_dir(&s).join(format!("{}.yaml", safe_filename(&name)));
+) -> Response {
+    let project_dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
+    let path = synoptics_dir_at(&project_dir).join(format!("{}.yaml", safe_filename(&name)));
     match tokio::fs::read_to_string(&path).await {
         Ok(text) => match serde_yaml::from_str::<SynopticPage>(&text) {
             Ok(page) => Json(page).into_response(),
@@ -1163,8 +1207,9 @@ async fn save_synoptic(
     State(s): State<AppState>,
     Path(name): Path<String>,
     Json(page): Json<SynopticPage>,
-) -> impl IntoResponse {
-    let dir = synoptics_dir(&s);
+) -> StatusCode {
+    let project_dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c };
+    let dir = synoptics_dir_at(&project_dir);
     if let Err(e) = tokio::fs::create_dir_all(&dir).await {
         warn!("cannot create synoptics dir: {e}");
         return StatusCode::INTERNAL_SERVER_ERROR;

@@ -344,6 +344,11 @@ export function EditorShell() {
                 }
               });
             }}
+            onSetTransitionDuration={(ms) => {
+              selectedIds.forEach((id) => {
+                updateObject(id, { transition_duration_ms: ms });
+              });
+            }}
           />
         ) : selected ? (
           <ObjectProps
@@ -420,15 +425,18 @@ function MultiSelectionProps({
   onDuplicate,
   onDelete,
   onBind,
+  onSetTransitionDuration,
 }: {
   count: number;
   onAlign: (mode: AlignMode) => void;
   onDuplicate: () => void;
   onDelete: () => void;
   onBind: (prop: string, tagId: string) => void;
+  onSetTransitionDuration: (ms: number | undefined) => void;
 }) {
   const [bindProp, setBindProp] = useState("opacity");
   const [bindTag,  setBindTag]  = useState("");
+  const [batchTxMs, setBatchTxMs] = useState(300);
 
   const btn: React.CSSProperties = {
     background: "#0f172a",
@@ -533,6 +541,36 @@ function MultiSelectionProps({
           onClick={() => { if (bindProp) onBind(bindProp, ""); }}
         >
           Rimuovi
+        </button>
+      </div>
+
+      <div style={{ height: 1, background: "#334155", margin: "8px 0" }} />
+
+      <div style={{ fontSize: 10, color: "#475569", fontWeight: 700, letterSpacing: 0.5 }}>
+        DURATA TRANSIZIONE
+      </div>
+      <p style={{ fontSize: 10, color: "#475569", margin: "2px 0 4px" }}>
+        Applica la stessa durata di animazione (ms) a tutti gli oggetti selezionati. 0 = disattiva.
+      </p>
+      <div style={{ display: "flex", gap: 4, marginBottom: 4 }}>
+        <input
+          type="number"
+          min={0} max={5000} step={50}
+          value={batchTxMs}
+          onChange={(e) => setBatchTxMs(Number(e.target.value) || 0)}
+          style={{ flex: 1, background: "#0f172a", color: "#e2e8f0", border: "1px solid #334155", borderRadius: 4, padding: "3px 6px", fontSize: 12 }}
+        />
+        <button
+          style={{ ...btn, background: "#1e3a5f", color: "#93c5fd", borderColor: "#1e40af", flex: "0 0 auto", padding: "4px 10px" }}
+          onClick={() => onSetTransitionDuration(batchTxMs > 0 ? batchTxMs : undefined)}
+        >
+          Applica
+        </button>
+        <button
+          style={{ ...btn, background: "#1e293b", color: "#94a3b8", flex: "0 0 auto", padding: "4px 10px" }}
+          onClick={() => onSetTransitionDuration(undefined)}
+        >
+          Off
         </button>
       </div>
 
@@ -1144,6 +1182,32 @@ function ObjectProps({
               </div>
             </BindableInput>
           )}
+          {field("Durata transizione (ms)",
+            <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+              <input
+                type="range"
+                min={0} max={2000} step={50}
+                value={obj.transition_duration_ms ?? 0}
+                onChange={(e) => onChange({ transition_duration_ms: Number(e.target.value) || undefined })}
+                style={{ flex: 1 }}
+              />
+              <input
+                type="number"
+                min={0} max={5000} step={50}
+                value={obj.transition_duration_ms ?? 0}
+                onChange={(e) => onChange({ transition_duration_ms: Number(e.target.value) || undefined })}
+                style={{ ...INPUT, width: 64 }}
+              />
+              <button
+                title="Disattiva animazione"
+                onClick={() => onChange({ transition_duration_ms: undefined })}
+                style={{ ...INPUT, cursor: "pointer", padding: "3px 6px", width: 28 }}
+              >↺</button>
+            </div>
+          )}
+          <p style={{ fontSize: 10, color: "#475569", margin: "0 0 4px" }}>
+            0 = nessuna animazione. Anima fill/stroke/opacity/rotazione bindati. Testo, font-size, src e geometrie restano discreti.
+          </p>
         </>
       )}
 

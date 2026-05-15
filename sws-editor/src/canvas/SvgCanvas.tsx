@@ -123,6 +123,20 @@ function formatValue(value: number | string | boolean, format?: string): string 
 // ── Binding resolver ─────────────────────────────────────────────────────────
 
 /**
+ * Returns a CSS `transition` style for the four CSS-animatable visual props
+ * (fill / stroke / opacity / transform) when the object has a positive
+ * `transition_duration_ms`. Returns undefined otherwise — the spread becomes
+ * a no-op. Easing is fixed to `ease-out` (good for snap-to-target feel).
+ */
+function transitionStyle(obj: SynopticObject): React.CSSProperties | undefined {
+  const ms = obj.transition_duration_ms;
+  if (!ms || ms <= 0) return undefined;
+  return {
+    transition: `fill ${ms}ms ease-out, stroke ${ms}ms ease-out, opacity ${ms}ms ease-out, transform ${ms}ms ease-out`,
+  };
+}
+
+/**
  * Applies `obj.bindings` overrides: for each entry whose tag has a live value,
  * replaces the corresponding top-level prop with the live value.
  * Boolean-typed props (visible, flip_h, flip_v) are coerced via truthy logic.
@@ -160,14 +174,18 @@ function applyTransform(obj: SynopticObject, w: number, h: number, content: Reac
   const opacity = obj.opacity  ?? 1;
   const hasRotFlip = rot !== 0 || sx !== 1 || sy !== 1;
   const hasOpacity = opacity < 1;
-  if (!hasRotFlip && !hasOpacity) return content;
+  const txStyle    = transitionStyle(obj);
+  // Wrap when there is geometry to apply OR when a transition is active —
+  // the latter case ensures binding-driven rotation/opacity changes animate
+  // smoothly even if the static values are defaults (rot=0, opacity=1).
+  if (!hasRotFlip && !hasOpacity && !txStyle) return content;
   const cx = obj.x + w / 2;
   const cy = obj.y + h / 2;
   const transform = hasRotFlip
     ? `rotate(${rot} ${cx} ${cy}) translate(${cx} ${cy}) scale(${sx} ${sy}) translate(${-cx} ${-cy})`
     : undefined;
   return (
-    <g transform={transform} opacity={hasOpacity ? opacity : undefined}>
+    <g transform={transform} opacity={hasOpacity ? opacity : undefined} style={txStyle}>
       {content}
     </g>
   );
@@ -343,7 +361,7 @@ function SvgObject(p: ObjProps) {
             fill={obj.fill ?? "#555"}
             stroke={selected ? "#facc15" : (obj.stroke ?? "none")}
             strokeWidth={selected ? 2 : (obj.stroke_width ?? 0)}
-            style={{ cursor: editCursor }}
+            style={{ cursor: editCursor, ...transitionStyle(obj) }}
             onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()} />
         )}
         {tv && <QDot x={obj.x + w - 8} y={obj.y + 8} quality={tv.quality} />}
@@ -363,7 +381,7 @@ function SvgObject(p: ObjProps) {
           <ellipse cx={obj.x + w / 2} cy={obj.y + h / 2} rx={w / 2} ry={h / 2}
             fill={obj.fill ?? "#4a90d9"}
             stroke={obj.stroke ?? "none"} strokeWidth={obj.stroke_width ?? 0}
-            style={{ cursor: editCursor }}
+            style={{ cursor: editCursor, ...transitionStyle(obj) }}
             onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()} />
         )}
         {tv && <QDot x={obj.x + w - 8} y={obj.y + 8} quality={tv.quality} />}
@@ -379,7 +397,7 @@ function SvgObject(p: ObjProps) {
       <>
         <line x1={obj.x} y1={obj.y} x2={x2} y2={y2}
           stroke={obj.stroke ?? "#e2e8f0"} strokeWidth={obj.stroke_width ?? 2}
-          style={{ cursor: editCursor }}
+          style={{ cursor: editCursor, ...transitionStyle(obj) }}
           onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()} />
         {selected && <>
           <circle cx={obj.x} cy={obj.y} r={4} fill="#facc15" style={{ pointerEvents: "none" }} />
@@ -420,7 +438,7 @@ function SvgObject(p: ObjProps) {
             fontWeight={weight as any}
             fontStyle={style}
             textAnchor={anchor}
-            style={{ cursor: editCursor }}
+            style={{ cursor: editCursor, ...transitionStyle(obj) }}
             onMouseDown={handleMouseDown}
             onClick={(e) => e.stopPropagation()}
           >
@@ -447,7 +465,8 @@ function SvgObject(p: ObjProps) {
         {applyTransform(obj, w, h, <>
           <rect x={obj.x} y={obj.y} width={w} height={h} rx={6}
             fill={obj.fill ?? "#3b82f6"}
-            stroke={selected ? "#facc15" : "#2563eb"} strokeWidth={selected ? 2 : 1} />
+            stroke={selected ? "#facc15" : "#2563eb"} strokeWidth={selected ? 2 : 1}
+            style={transitionStyle(obj)} />
           <text x={obj.x + w / 2} y={obj.y + h / 2 + 5}
             textAnchor="middle" fill="#fff" fontSize={14} fontWeight={600}
             style={{ pointerEvents: "none" }}>
@@ -473,7 +492,8 @@ function SvgObject(p: ObjProps) {
         {applyTransform(obj, w, h, <>
           <rect x={obj.x} y={obj.y} width={w} height={h} rx={4}
             fill={obj.fill ?? "#0f172a"}
-            stroke={selected ? "#facc15" : "#3b82f6"} strokeWidth={selected ? 2 : 1.5} />
+            stroke={selected ? "#facc15" : "#3b82f6"} strokeWidth={selected ? 2 : 1.5}
+            style={transitionStyle(obj)} />
           <text x={obj.x + 10} y={obj.y + h / 2 + 5} fill="#3b82f6" fontSize={14}
             style={{ pointerEvents: "none" }}>▶</text>
           <text x={obj.x + 28} y={obj.y + h / 2 + 5} fill="#e2e8f0" fontSize={13}
@@ -512,7 +532,7 @@ function SvgObject(p: ObjProps) {
           {/* Glow ring */}
           {isOn && <circle cx={cx} cy={cy} r={r + 3} fill={glowColor} opacity={0.25} style={{ pointerEvents: "none" }} />}
           {/* LED body */}
-          <circle cx={cx} cy={cy} r={r} fill={ledColor} />
+          <circle cx={cx} cy={cy} r={r} fill={ledColor} style={transitionStyle(obj)} />
           {/* Highlight */}
           <circle cx={cx - r * 0.25} cy={cy - r * 0.25} r={r * 0.3} fill="white" opacity={0.3}
             style={{ pointerEvents: "none" }} />
@@ -550,7 +570,8 @@ function SvgObject(p: ObjProps) {
           <rect x={obj.x} y={obj.y} width={w} height={h} rx={4} fill="#1e293b" />
           {/* Fill */}
           {barW > 0 && (
-            <rect x={obj.x} y={obj.y} width={barW} height={h} rx={4} fill={barColor} />
+            <rect x={obj.x} y={obj.y} width={barW} height={h} rx={4} fill={barColor}
+              style={transitionStyle(obj)} />
           )}
           {/* Border */}
           <rect x={obj.x} y={obj.y} width={w} height={h} rx={4}
@@ -637,7 +658,7 @@ function SvgObject(p: ObjProps) {
           {pct > 0 && (
             <path d={arcPath(cx, cy, R, START, valueAngle)}
               fill="none" stroke={arcColor} strokeWidth={10} strokeLinecap="round"
-              style={{ pointerEvents: "none" }} />
+              style={{ pointerEvents: "none", ...transitionStyle(obj) }} />
           )}
           {/* Threshold ticks */}
           {obj.warn_low  !== undefined && thresholdTick(obj.warn_low,  "#eab308")}
@@ -1080,7 +1101,7 @@ function SvgObject(p: ObjProps) {
         {(obj.state_tag || obj.alarm_tag) && (
           <circle cx={obj.x + w - 7} cy={obj.y + 7} r={6}
             fill={badgeColor} stroke="#0f172a" strokeWidth={1}
-            style={{ pointerEvents: "none" }} />
+            style={{ pointerEvents: "none", ...transitionStyle(obj) }} />
         )}
       </g>
     );

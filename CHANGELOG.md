@@ -8,6 +8,40 @@ and this project adheres to [CalVer](https://calver.org/) (`YYYY.MM[.patch]`).
 ## [Unreleased]
 
 ### Added
+- **Multi-project IDE — Phase A1 backend complete (frontend ancora vecchio, UI welcome rinviata)**:
+  - `sws-runtime` nuovi CLI args: `--projects-root <dir>` (default `/var/sws/projects`), `--templates-root <dir>` (default `/var/sws/templates`). Il flag legacy `--project <path>` ora è opzionale: quando valorizzato fa auto-open di quel progetto al boot (backwards compat per dev.sh e container operator).
+  - `AppState.project_dir` da `Arc<PathBuf>` immutabile a `Arc<RwLock<Option<PathBuf>>>` (nuovo type alias `ActiveProjectDir`). Helper `active_dir(state) -> Result<PathBuf, StatusCode>` usato in tutti i handler che leggevano `state.project_dir`: returnano 503 SERVICE_UNAVAILABLE quando nessun progetto è attivo.
+  - Nuovi endpoint pre-auth (montati nel layer "open" insieme a `/health` e `/api/auth/login`):
+    - `GET /api/projects` → lista cartelle in `projects_root` con `project.yaml` dentro (per la WelcomeScreen).
+    - `POST /api/projects` body `{ name, template? }` → crea cartella sotto `projects_root`. Se `template` è valorizzato copia ricorsivamente da `templates_root/<id>/`, altrimenti scrive un `project.yaml` minimo. 409 se esiste già, 400 su nomi invalidi.
+    - `POST /api/projects/:name/open` → switch progetto in-process: TagDb.clear + populate, AlarmDb.load, supervisor.reload, functions registry swap, AuthState.swap_store. Tutti i token correnti vengono invalidati (force re-login).
+    - `POST /api/projects/close` → libera tutto: TagDb.clear, AlarmDb load([]), supervisor.reload([]), functions clear, AuthState.clear.
+    - `GET /api/templates` → lista subfolders di `templates_root` con metadata da `<dir>/template.yaml` (id + label + description).
+  - Nuovi moduli `sws-web/src/projects.rs` e `sws-web/src/templates.rs` + helper `copy_dir_all` (skip-list per `template.yaml`) + `safe_project_name` (rifiuta vuoti, `.`, `/`, `\\`, traversal, >64 chars).
+  - `sws-auth::AuthState` esteso con `swap_store`, `clear`, `empty` per supportare lo switch project senza ricreare l'Arc.
+  - `sws-core::TagDb::clear()` per resettare i tag a sufficienza.
+  - `scripts/dev.sh` migrazione automatica `.run/project/` → `.run/projects/dev/` + nuovi flag `--projects-root` / `--templates-root` al runtime. L'auto-open su `dev` resta (backwards compat per il workflow esistente).
+  - 33 unit test workspace (3 nuovi: 2 per `safe_project_name`, 1 per `copy_dir_all`).
+  - **Frontend ancora invariato**: usa le rotte legacy. La WelcomeScreen + entry "Apri/Chiudi progetto" nel MainMenu arrivano nella prossima sessione (Phase A1 completion). Upload ZIP da PC in Phase A2.
+
+### Changed
+- **Multi-project IDE — Phase A1 foundations (prep, niente UI nuova ancora)**:
+  - `examples/demo/` → `examples/templates/demo-items/` (git rename). Aggiunto `template.yaml` con `{ id, label, description }` per la futura template gallery.
+  - `examples/README.md` riscritto per documentare la nuova convenzione `examples/templates/<id>/`.
+  - `scripts/dev.sh` aggiornato per seedare da `examples/templates/demo-items/` (escludendo `template.yaml`). Layout `.run/project/` invariato — la migrazione `.run/projects/dev/` arriva nella prossima sessione insieme alla welcome screen.
+  - `sws-core::TagDb` — nuovo metodo `clear()` per svuotare tutti i tag (usato dal project switch su `open`/`close`).
+  - `sws-auth::AuthState` — esteso per supportare project switching:
+    - `store_path: Option<PathBuf>` → `RwLock<Option<PathBuf>>` per swap in-place.
+    - Nuovo `swap_store(new_path, seed)` che retarget il `users.yaml` su un altro progetto, invalida tutte le session correnti (force re-login), e ricarica utenti.
+    - Nuovo `clear()` per chiudere lo stato auth quando nessun progetto è attivo.
+    - Nuovo `empty()` costruttore per AppState in "no active project" mode.
+  - Nessuna API esposta cambiata in questa sessione — l'integrazione con `AppState` / nuovi endpoint `/api/projects/*` / `WelcomeScreen` segue nelle sessioni successive.
+
+### Changed
+- Demo `examples/demo/synoptics/{Page 1..Page 4}.yaml` riscritte con id stabili (`page1`/`page2`/`page3`/`page4`) e header di navigazione uniforme: ogni pagina ha due `navbutton` `◀ Precedente` / `Successiva ▶` in cima con `target_page` che realizza nav circolare (1↔2↔3↔4↔1) + un `text` con titolo pagina. Risolve il problema della Page 3 duplicata (`Page 3.yaml` + `Page 3 – Showcase.yaml` con stesso id) e dei navbutton orfani che puntavano a id random non più esistenti. Il widget `p3_navbutton` (showcase del tipo navbutton) ora punta correttamente a `page1`.
+
+### Added
+- `sws-editor`: **animazione opzionale dei binding** — nuovo campo per-oggetto `transition_duration_ms` (0..5000 ms, default 0 = disattivata). Quando > 0, le modifiche bindate ai prop CSS-animabili (`fill`, `stroke`, `opacity`, `transform`/rotation) interpolano linearmente con easing `ease-out` invece di fare il "jump" istantaneo. Slider + numeric + reset nella sezione TRASFORMAZIONE di ObjectProps, sezione "DURATA TRANSIZIONE" in `MultiSelectionProps` per applicarla in batch su più oggetti selezionati. Rust mirror `transition_duration_ms: Option<u64>` su `SynopticObject` (serde, `skip_serializing_if`). Limitazioni v1: prop non-CSS-animabili (testo, font_size, src image, x/y come attributi SVG raw, gauge needle angle, progress_bar width) restano discreti; rotation 360°→0° interpola attraverso 180° (no shortest-path).
 - `sws-editor`: menu a tendina **"☰ Menu"** nell'header (sempre visibile) — Salva tutto (solo edit, con feedback cromatico: grigio/verde/rosso a seconda dello stato), Esporta progetto, Importa progetto (Admin), Esci. Lo stato del salvataggio (`saveSerial`/`saveStatus`/`saveError`) è spostato nel Zustand store così il pulsante riflette la risposta senza prop drilling.
 - `sws-editor`: menu a tendina **"Griglia"** nell'header (solo modalità edit) — selettore dimensione (Off/5/10/20/40 px) e checkbox snap. Sostituisce le impostazioni griglia che erano nel fondo del LeftPanel.
 - Demo: **Page 3 "Showcase"** completa con un esemplare di ogni tipo di widget (rect, ellipse, line, text, button, navbutton, led, progress_bar, gauge, slider, checkbox, radio, table, symbol, image) e tag demo.* multipli (`demo.visible`, `demo.on`, `demo.value`, `demo.color`, `demo.font_size`, `demo.min`, `demo.max`) aggiornati in `examples/demo/project.yaml`. Ogni widget ha bindings su almeno rotation, opacity e una proprietà tipo-specifica.

@@ -153,6 +153,9 @@ export interface SynopticObject {
   flip_v?: boolean;
   /** Opacity 0..1, default 1. Applies to all visual types. */
   opacity?: number;
+  /** Optional CSS transition duration in ms for CSS-animatable bound props
+   *  (fill, stroke, opacity, transform). 0 or undefined → no animation. */
+  transition_duration_ms?: number;
   /** Generic prop-to-tag bindings. At render time the resolver overrides the
    *  static value with the live tag value. Keys are SynopticObject prop names. */
   bindings?: Record<string, string>;

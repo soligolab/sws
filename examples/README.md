@@ -3,37 +3,54 @@
 Working snapshots that ship with the repo so a fresh clone has something
 to run.
 
-## `demo/`
+## `templates/`
 
-Seed used by `scripts/dev.sh` when `.run/project/project.yaml` is missing
-(typically a fresh clone or after `rm -rf .run/project`). Contents:
+Project templates bundled with the runtime, exposed via the
+`Crea nuovo progetto → Da template` flow in the WelcomeScreen.
+Each template is a directory under `examples/templates/<id>/` with:
 
-- `project.yaml` — 5 tags (`counter`, `pump.running`, `checkbox`,
-  `demo.button`, `demo.led`), an MQTT source on
-  `broker.freemqtt.com:1883` with three topic mappings (the counter +
-  the `sws/demo/echo` echo loop), one counter alarm, two reusable
-  Python functions (`fnc_CounterUP` / `fnc_CounterDWN`).
-- `synoptics/Page 1.yaml` — green/red rectangles wired to the counter
-  functions, two labelled buttons (UP/DOWN), a slider + text bound to
-  the counter, two MQTT buttons (LED ON / LED OFF) writing
-  `demo.button`, an LED bound to `demo.led`, a navbutton, a gauge,
-  and a pump symbol from the built-in library.
+- `template.yaml` — `{ id, label, description }` metadata read by
+  `GET /api/templates`.
+- `project.yaml` + `synoptics/` — the same on-disk format as a real
+  project. Copied recursively into `<projects_root>/<new_name>/` when
+  the template is picked.
 
-## Updating the snapshot
+### `templates/demo-items/`
 
-The editor has an admin-only "Esporta" button in the header that
-downloads a ZIP of the current runtime state. The on-disk format
-inside the ZIP mirrors what's in `.run/project/`, so the easiest way
-to refresh `examples/demo/` from a curated dev session is:
+The current built-in demo (previously at `examples/demo/`, moved
+2026-05-15 with the multi-project IDE refactor). Contents:
 
-1. Make your changes in the editor and save.
-2. Header → "Esporta progetto" → keep the downloaded ZIP somewhere.
-3. Replace `examples/demo/project.yaml` and
-   `examples/demo/synoptics/` with the contents of the ZIP (don't
-   ship the `manifest.json` — it's only meaningful inside the export
-   archive).
-4. Commit.
+- `project.yaml` — 16 tags (5 baseline + 11 `demo.*` for binding
+  showcase), MQTT echo source on `broker.freemqtt.com:1883`, one alarm,
+  two Python functions (`fnc_CounterUP` / `fnc_CounterDWN`).
+- `synoptics/Page 1.yaml` — counter rectangles, buttons, slider, MQTT
+  echo round-trip, pump symbol.
+- `synoptics/Page 2.yaml` — welcome page with hints.
+- `synoptics/Page 3.yaml` — showcase of every widget type with `demo.*`
+  bindings (rotation, opacity, fill, etc.).
+- `synoptics/Page 4.yaml` — fill color picker (preset buttons write to
+  `demo.fill_color`).
 
-Alternatively just `cp -r .run/project/{project.yaml,synoptics}
-examples/demo/`. **Never** commit `users.yaml` — it carries the
-Argon2id password hashes for the local accounts.
+All four pages have a uniform header with `◀ Precedente` / `Successiva ▶`
+navbuttons for circular navigation (1↔2↔3↔4↔1).
+
+## Updating a template snapshot
+
+The editor has an admin-only "Esporta progetto" entry in the header
+menu that downloads a ZIP of the current runtime state. The on-disk
+format inside the ZIP mirrors what's in a project directory, so the
+easiest way to refresh `templates/demo-items/` from a curated session
+is:
+
+1. Open the `demo-items` project (or any project you want to snapshot)
+   in the editor.
+2. Make your changes and save.
+3. Header → "Esporta progetto" → keep the downloaded ZIP somewhere.
+4. Replace `project.yaml` and `synoptics/` inside the template directory
+   with the contents of the ZIP (don't ship `manifest.json` — it's only
+   meaningful inside the export archive).
+5. Keep `template.yaml` unchanged.
+6. Commit.
+
+**Never** commit `users.yaml` — it carries the Argon2id password
+hashes for the local accounts.

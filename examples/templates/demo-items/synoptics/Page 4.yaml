@@ -2,32 +2,33 @@ id: page4
 name: Page 4
 background: "#0f172a"
 objects:
-# ── Navigation ────────────────────────────────────────────────────────────────
-- id: p4_nav_p1
+
+# ── Navigation header (uniforme su tutte le 4 pagine) ────────────────────────
+- id: p4_nav_prev
   type: navbutton
   x: 20
   y: 12
   width: 130
   height: 32
-  label: "← Page 1"
-  target_page: mp2n48800ucav
+  label: "◀ Precedente"
+  target_page: page3
 
-- id: p4_nav_p3
+- id: p4_nav_next
   type: navbutton
   x: 160
   y: 12
-  width: 150
+  width: 130
   height: 32
-  label: "← Page 3"
-  target_page: page3
+  label: "Successiva ▶"
+  target_page: page1
 
 - id: p4_title
   type: text
-  x: 420
-  y: 28
-  text: "Demo Fill Color — colore dinamico su binding"
-  font_size: 15
-  font_weight: "bold"
+  x: 400
+  y: 30
+  text: "Page 4 — Fill color dinamico"
+  font_size: 16
+  font_weight: bold
   text_anchor: middle
   color: "#94a3b8"
 

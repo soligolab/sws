@@ -107,6 +107,9 @@ pub struct SynopticObject {
     #[serde(skip_serializing_if = "Option::is_none")] pub flip_v:           Option<bool>,
     /// Opacity 0..1 (default 1).
     #[serde(skip_serializing_if = "Option::is_none")] pub opacity:          Option<f64>,
+    /// Optional CSS transition duration (ms) for CSS-animatable bound props
+    /// (fill / stroke / opacity / transform). 0 or absent → no animation.
+    #[serde(skip_serializing_if = "Option::is_none")] pub transition_duration_ms: Option<u64>,
     /// Generic prop-to-tag bindings. Keys are SynopticObject prop names.
     #[serde(skip_serializing_if = "Option::is_none")] pub bindings:         Option<std::collections::HashMap<String, String>>,
 }

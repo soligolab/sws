@@ -79,6 +79,12 @@ impl TagDb {
         self.store.write().await.remove(id).is_some()
     }
 
+    /// Drop every tag. Used by project switch / close to reset the in-memory
+    /// store before populating the next project's tags.
+    pub async fn clear(&self) {
+        self.store.write().await.clear();
+    }
+
     pub fn subscribe(&self) -> broadcast::Receiver<TagUpdate> {
         self.tx.subscribe()
     }
