@@ -7,7 +7,80 @@ and this project adheres to [CalVer](https://calver.org/) (`YYYY.MM[.patch]`).
 
 ## [Unreleased]
 
+### Added
+- **Log file v2** — historical log browser in the log panel:
+  - `GET /api/logs/files` (Operator+): lists `runtime-YYYY-MM-DD.jsonl` files in `logs_dir` sorted newest-first with `size_bytes`.
+  - `GET /api/logs/file?date=YYYY-MM-DD` (Operator+): reads a historical JSONL file and returns `Vec<LogEvent>`.
+  - `AppState` gains `logs_dir: Arc<PathBuf>`; passed from `main.rs`.
+  - `LogPanel` updated: when log files exist a date dropdown + "Carica" button appear. Loading a file enters "hist mode" (amber header, static source). "← Live" returns to the ring buffer and refreshes the file list. All filters (levels, search, target) apply to historical data.
+
+- **Historian v2** (`sws-historian`):
+  - SQLite fallback for `query()`: when `from_ms` precedes the oldest in-memory sample, the missing range is fetched from SQLite (`store.query_range()`) and prepended — trend widget can now scroll back beyond the ring-buffer window.
+  - Uniform-stride decimation: when a query returns > 1 000 samples the result is thinned to exactly 1 000 points (first and last always preserved) to keep trend rendering fast for wide time windows.
+  - `Historian::prune_older_than_ms(cutoff_ms)`: deletes SQLite rows outside the retention window (no-op when no store is attached). 7 unit tests in `sws-historian`.
+  - Runtime prune task in `sws-runtime/main.rs`: spawned after the recorder, runs once at startup then every 24 h. Retention controlled via `SWS_HISTORIAN_RETENTION_DAYS` (default 30).
+- **Selection rectangle** (`SvgCanvas.tsx`):
+  - Drag on empty canvas background (left-button, edit mode only) draws a blue dashed selection rect overlay.
+  - On release, all objects whose bounding boxes intersect the rect are selected (`onSelectMany`). Lines use the AABB of their two endpoints.
+  - A `suppressClick` ref prevents the SVG `onClick` from deselecting immediately after a successful rect-selection completes.
+  - Wired via `onSelectMany` prop → `store.selectMany()` in `EditorShell.tsx`. Compatible with existing shift-click multi-select flow.
+
+- **Multi-Project IDE — Phase A2 (upload ZIP)**:
+  - Backend: `POST /api/projects/upload` (pre-auth). Accetta body `application/zip`, legge `manifest.json` per il nome (sovrascrivibile con `?name=`), estrae il contenuto in `projects_root/<name>/`. Rifiuta path traversal. Rollback su errore. 201 `{"name"}` o 409.
+  - Frontend: `api.uploadProjectZip(file, name?)` + terzo tab "Da ZIP" nella `NewProjectModal` (file picker, nome auto-filled, fallback al manifest).
+
+- **Multi-project IDE — Phase A1 frontend complete**:
+  - `NoProjectError` in `api/client.ts`: 503 dal runtime (nessun progetto aperto) diventa un errore tipizzato che il mount flow di `App.tsx` gestisce in modo dedicato.
+  - Nuovi metodi API in `api/client.ts`: `listProjects()`, `createProject()`, `openProject()`, `closeProject()`, `listTemplates()`. Tutti pre-auth (nessun token richiesto).
+  - Nuovi tipi `ProjectListEntry` e `TemplateEntry` in `types/index.ts`.
+  - `noActiveProject: boolean` nello store Zustand + `setNoActiveProject()`.
+  - `WelcomeScreen` (`components/WelcomeScreen.tsx`): lista dei progetti con ultima modifica, click per aprire, modal "+ Nuovo progetto" con due tab (Vuoto / Da template — la seconda mostra i template da `GET /api/templates`). Dopo `openProject()` il backend invalida tutte le sessioni → l'utente viene mandato alla LoginScreen.
+  - `App.tsx` mount flow aggiornato: al boot chiama `GET /api/project` — 503 → WelcomeScreen (clearAuth), 401 → LoginScreen, 200 → app normale. Compatibile con `--project` legacy (il progetto è già aperto al boot, comportamento invariato).
+  - `MainMenu` aggiornato: nuovi item "Chiudi progetto" (chiama `/api/projects/close` + redirect a WelcomeScreen) e separatore sopra "Esci".
+
+- **Multi-project IDE — Phase A1 backend complete (frontend ancora vecchio, UI welcome rinviata)**:
+  - `sws-runtime` nuovi CLI args: `--projects-root <dir>` (default `/var/sws/projects`), `--templates-root <dir>` (default `/var/sws/templates`). Il flag legacy `--project <path>` ora è opzionale: quando valorizzato fa auto-open di quel progetto al boot (backwards compat per dev.sh e container operator).
+  - `AppState.project_dir` da `Arc<PathBuf>` immutabile a `Arc<RwLock<Option<PathBuf>>>` (nuovo type alias `ActiveProjectDir`). Helper `active_dir(state) -> Result<PathBuf, StatusCode>` usato in tutti i handler che leggevano `state.project_dir`: returnano 503 SERVICE_UNAVAILABLE quando nessun progetto è attivo.
+  - Nuovi endpoint pre-auth (montati nel layer "open" insieme a `/health` e `/api/auth/login`):
+    - `GET /api/projects` → lista cartelle in `projects_root` con `project.yaml` dentro (per la WelcomeScreen).
+    - `POST /api/projects` body `{ name, template? }` → crea cartella sotto `projects_root`. Se `template` è valorizzato copia ricorsivamente da `templates_root/<id>/`, altrimenti scrive un `project.yaml` minimo. 409 se esiste già, 400 su nomi invalidi.
+    - `POST /api/projects/:name/open` → switch progetto in-process: TagDb.clear + populate, AlarmDb.load, supervisor.reload, functions registry swap, AuthState.swap_store. Tutti i token correnti vengono invalidati (force re-login).
+    - `POST /api/projects/close` → libera tutto: TagDb.clear, AlarmDb load([]), supervisor.reload([]), functions clear, AuthState.clear.
+    - `GET /api/templates` → lista subfolders di `templates_root` con metadata da `<dir>/template.yaml` (id + label + description).
+  - Nuovi moduli `sws-web/src/projects.rs` e `sws-web/src/templates.rs` + helper `copy_dir_all` (skip-list per `template.yaml`) + `safe_project_name` (rifiuta vuoti, `.`, `/`, `\\`, traversal, >64 chars).
+  - `sws-auth::AuthState` esteso con `swap_store`, `clear`, `empty` per supportare lo switch project senza ricreare l'Arc.
+  - `sws-core::TagDb::clear()` per resettare i tag a sufficienza.
+  - `scripts/dev.sh` migrazione automatica `.run/project/` → `.run/projects/dev/` + nuovi flag `--projects-root` / `--templates-root` al runtime. L'auto-open su `dev` resta (backwards compat per il workflow esistente).
+  - 33 unit test workspace (3 nuovi: 2 per `safe_project_name`, 1 per `copy_dir_all`).
+  - **Frontend ancora invariato**: usa le rotte legacy. La WelcomeScreen + entry "Apri/Chiudi progetto" nel MainMenu arrivano nella prossima sessione (Phase A1 completion). Upload ZIP da PC in Phase A2.
+
+### Changed
+- **Multi-project IDE — Phase A1 foundations (prep, niente UI nuova ancora)**:
+  - `examples/demo/` → `examples/templates/demo-items/` (git rename). Aggiunto `template.yaml` con `{ id, label, description }` per la futura template gallery.
+  - `examples/README.md` riscritto per documentare la nuova convenzione `examples/templates/<id>/`.
+  - `scripts/dev.sh` aggiornato per seedare da `examples/templates/demo-items/` (escludendo `template.yaml`). Layout `.run/project/` invariato — la migrazione `.run/projects/dev/` arriva nella prossima sessione insieme alla welcome screen.
+  - `sws-core::TagDb` — nuovo metodo `clear()` per svuotare tutti i tag (usato dal project switch su `open`/`close`).
+  - `sws-auth::AuthState` — esteso per supportare project switching:
+    - `store_path: Option<PathBuf>` → `RwLock<Option<PathBuf>>` per swap in-place.
+    - Nuovo `swap_store(new_path, seed)` che retarget il `users.yaml` su un altro progetto, invalida tutte le session correnti (force re-login), e ricarica utenti.
+    - Nuovo `clear()` per chiudere lo stato auth quando nessun progetto è attivo.
+    - Nuovo `empty()` costruttore per AppState in "no active project" mode.
+  - Nessuna API esposta cambiata in questa sessione — l'integrazione con `AppState` / nuovi endpoint `/api/projects/*` / `WelcomeScreen` segue nelle sessioni successive.
+
+### Changed
+- Demo `examples/demo/synoptics/{Page 1..Page 4}.yaml` riscritte con id stabili (`page1`/`page2`/`page3`/`page4`) e header di navigazione uniforme: ogni pagina ha due `navbutton` `◀ Precedente` / `Successiva ▶` in cima con `target_page` che realizza nav circolare (1↔2↔3↔4↔1) + un `text` con titolo pagina. Risolve il problema della Page 3 duplicata (`Page 3.yaml` + `Page 3 – Showcase.yaml` con stesso id) e dei navbutton orfani che puntavano a id random non più esistenti. Il widget `p3_navbutton` (showcase del tipo navbutton) ora punta correttamente a `page1`.
+
+### Added
+- `sws-editor`: **animazione opzionale dei binding** — nuovo campo per-oggetto `transition_duration_ms` (0..5000 ms, default 0 = disattivata). Quando > 0, le modifiche bindate ai prop CSS-animabili (`fill`, `stroke`, `opacity`, `transform`/rotation) interpolano linearmente con easing `ease-out` invece di fare il "jump" istantaneo. Slider + numeric + reset nella sezione TRASFORMAZIONE di ObjectProps, sezione "DURATA TRANSIZIONE" in `MultiSelectionProps` per applicarla in batch su più oggetti selezionati. Rust mirror `transition_duration_ms: Option<u64>` su `SynopticObject` (serde, `skip_serializing_if`). Limitazioni v1: prop non-CSS-animabili (testo, font_size, src image, x/y come attributi SVG raw, gauge needle angle, progress_bar width) restano discreti; rotation 360°→0° interpola attraverso 180° (no shortest-path).
+- `sws-editor`: menu a tendina **"☰ Menu"** nell'header (sempre visibile) — Salva tutto (solo edit, con feedback cromatico: grigio/verde/rosso a seconda dello stato), Esporta progetto, Importa progetto (Admin), Esci. Lo stato del salvataggio (`saveSerial`/`saveStatus`/`saveError`) è spostato nel Zustand store così il pulsante riflette la risposta senza prop drilling.
+- `sws-editor`: menu a tendina **"Griglia"** nell'header (solo modalità edit) — selettore dimensione (Off/5/10/20/40 px) e checkbox snap. Sostituisce le impostazioni griglia che erano nel fondo del LeftPanel.
+- Demo: **Page 3 "Showcase"** completa con un esemplare di ogni tipo di widget (rect, ellipse, line, text, button, navbutton, led, progress_bar, gauge, slider, checkbox, radio, table, symbol, image) e tag demo.* multipli (`demo.visible`, `demo.on`, `demo.value`, `demo.color`, `demo.font_size`, `demo.min`, `demo.max`) aggiornati in `examples/demo/project.yaml`. Ogni widget ha bindings su almeno rotation, opacity e una proprietà tipo-specifica.
+
 ### Fixed
+- `sws-editor`: oggetti `symbol` non selezionabili nell'area di lavoro quando aggiunti dal pannello sinistro. Causa: `<g>` SVG non genera un bounding box per pointer events e tutti i figli visivi avevano `pointerEvents: "none"`. Fix: rimosso `onMouseDown` dal `<g>`, aggiunto `<rect fill="transparent">` come hit-area con le stesse dimensioni del bounding box (stesso pattern già usato per il gauge). Ora i simboli sono selezionabili, draggabili e ridimensionabili da qualsiasi punto del bounding box.
+- `sws-editor` `BindableInput`: il pulsante 🔗/🔓 non era cliccabile nelle celle strette di layout a 2 colonne (es. X/Y/W/H). Causa: la cella sorella (successiva nel DOM, stesso stacking context statico) copriva l'eventuale overflow del pulsante intercettandone i click. Fix: `position: relative; zIndex: 1` sul button — crea un positioned element con z-index > 0 che sovrasta le celle statiche adiacenti.
+
+### Fixed (previous session)
 - `sws-editor`: il bottone "Salva" del LeftPanel salvava SOLO la pagina synoptic corrente, ignorando tag/sources/alarms/funzioni Python/custom_symbols + tutte le altre pagine. Modifiche fatte nel `FunctionEditor` o nelle altre pagine andavano perse silenziosamente se l'utente cliccava "Salva" senza essere passato dalla tab specifica di ConfigView / dal bottone "Salva funzioni". Ora "Salva tutto" persiste in parallelo: ogni `SynopticPage` + (se Admin) `PUT /api/project/{tags,sources,alarms,functions,custom-symbols}` via `Promise.allSettled` con feedback chip "Salvataggio…" / "✓ Salvato" / "❌ Errore — clicca per ritentare" + tooltip con il dettaglio dell'errore.
 
 ### Added
@@ -18,6 +91,10 @@ and this project adheres to [CalVer](https://calver.org/) (`YYYY.MM[.patch]`).
 - Demo: Page 2 welcome (id `mp472aq9q3yzc` — fixa il navbutton orfano in Page 1) + Page 3 "Demo Binding" (oggetti rect/ellipse/text/button/navbutton/led/gauge/progress_bar/image/symbol/table con `bindings.rotation=demo.rotation` e `bindings.opacity=demo.opacity`; 2 slider per pilotarli). 4 nuovi tag: `demo.rotation`, `demo.opacity`, `demo.label`, `demo.fill_color`.
 - `sws-editor`: `BindableInput` copertura completa — tutti i campi rimanenti ora hanno il toggle, inclusi x/y/width/height/x2/y2, font_family, soglie gauge e progress_bar (warn_low/warn_high/alarm_low/alarm_high), slider min/max/step, checkbox/radio/LED label, trend (window_s/y_min/y_max/line_color), colori stato symbol, z_index.
 - `sws-editor`: sezione "BINDING RAPIDO" in `MultiSelectionProps` — select prop + TagInput + "Applica"/"Rimuovi" per applicare o togliere lo stesso prop→tag binding a tutti gli oggetti multi-selezionati in un click.
+- Demo `Page 4` — "Fill Color": 6 pulsanti preset (rosso/verde/blu/arancio/viola/teal) che scrivono un hex string in `demo.fill_color`; rect/ellipse/button/progress_bar con `bindings.fill = demo.fill_color`; nav da Page 3 → Page 4.
+
+### Fixed
+- `sws-editor` `BindableInput`: il pulsante 🔗/🔓 non era cliccabile nelle celle strette di layout a 2 colonne (es. X/Y/W/H). Causa: la cella sorella (successiva nel DOM, stesso stacking context statico) copriva l'eventuale overflow del pulsante intercettandone i click. Fix: `position: relative; zIndex: 1` sul button — crea un positioned element con z-index > 0 che sovrasta le celle statiche adiacenti.
 - `sws-editor`: rotation + flip per gli oggetti `symbol`. Sezione properties con slider -180°/+180° + numeric input + reset, checkbox flip orizzontale/verticale. Trasform SVG applicata solo al visual del simbolo (selection rect e status badge restano axis-aligned per leggibilità). Persistenza YAML round-trip garantita dai nuovi campi `rotation/flip_h/flip_v` sul `SynopticObject` Rust.
 - `sws-editor`: rinomina pagine — doppio click sul nome o icona ✎ apre input inline; Enter conferma, Esc annulla. Conferma sul × delete con messaggio "annullabile con Ctrl-Z" che richiama l'undo già esistente.
 - `sws-editor`: navbutton con `target_page` puntante a pagina eliminata → bordo rosso del select + chip warning "⚠ pagina inesistente: <id>" + testo esplicativo. Prima sparivano silenziosamente; ora sono visibili e correggibili.

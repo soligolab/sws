@@ -2,7 +2,7 @@
 
 > This file is the **session-to-session memory** for Claude Code. Update it at the end of every session before stopping work. Read it at the start of every session before touching code.
 
-**Last session**: 2026-05-14 (sessione 4: Phases 1-3 del piano universal binding completate)
+**Last session**: 2026-05-15 (sessione 10: rename-page fix + log file v2 + dev.sh bug)
 **Current phase**: Phase 2. Demo working out-of-the-box su fresh clone, import/export progetto per backup/condivisione, pannello log live + persistenza su disco, gestione utenti multi-account.
 **Last commit**: vedi sotto
 
@@ -14,8 +14,21 @@
 - `e4a61f5` Fix `/api/auth/users` 404: App.tsx ora carica `/api/project` in tutte le modalità
 - `b455f6b` Project import/export ZIP + seed `examples/demo/` in repo
 - `05ffc74` Widget Image abilitato + simboli custom con tracking licenza
-- (questa sessione) Log persistence su disco — `runtime-YYYY-MM-DD.jsonl` rotato per data, retention 7 gg configurabile
-- (questa sessione) Fix critico salvataggio + multi-page UX polish + symbol rotation/flip
+- (sessione 2026-05-14) Log persistence su disco — `runtime-YYYY-MM-DD.jsonl` rotato per data, retention 7 gg configurabile
+- (sessione 2026-05-14) Fix critico salvataggio + multi-page UX polish + symbol rotation/flip
+- (sessione 2026-05-15) Header dropdown menu (Salva/Esporta/Importa/Esci) + Grid dropdown + fix symbol hit-area + BindableInput z-index fix + Demo Page 3 Showcase completa
+- (sessione 2026-05-15, blocco 2) Universal binding follow-up #8 — `transition_duration_ms` per-oggetto per animazione CSS dei prop bindati (fill/stroke/opacity/transform). UI in ObjectProps TRASFORMAZIONE + batch in MultiSelectionProps. Rust mirror per round-trip YAML.
+- (sessione 2026-05-15, blocco 3) Pulizia demo — `examples/demo/synoptics/{Page 1..Page 4}.yaml` riscritte con id stabili `page1..page4` (prima random `mp2n48800ucav`, `mp472aq9q3yzc`). Ogni pagina ha un header coerente con due navbutton `◀ Precedente` / `Successiva ▶` per navigazione circolare (1↔2↔3↔4↔1) + titolo. `.run/project/synoptics/` rifresh completo (cancellati 5 file inclusi `Page 3.yaml` + `Page 3 – Showcase.yaml` duplicati con stesso id). Vecchi navbutton orfani rimossi da Page 1; p3_navbutton (widget showcase) ora punta correttamente a `page1`.
+- (sessione 2026-05-15, blocco 7) **Multi-Project IDE — Phase A2 (upload ZIP)**. Backend: `POST /api/projects/upload` pre-auth in `projects.rs` (manifest.json per nome, `?name=` override, estrae ZIP in `projects_root/<name>/`, rollback su errore). Frontend: `api.uploadProjectZip()` + tab "Da ZIP" nella `NewProjectModal` con file picker, nome auto-filled dal filename, fallback al manifest.
+- (sessione 2026-05-15, blocco 6) **Multi-Project IDE — Phase A1 frontend complete**. `NoProjectError` + API wrapping (`listProjects/createProject/openProject/closeProject/listTemplates`), `noActiveProject` in store, `WelcomeScreen` (lista + modal nuovo progetto + template gallery), mount flow `App.tsx` (503→WelcomeScreen, 401→LoginScreen, 200→app), "Chiudi progetto" nel MainMenu. `pnpm type-check` + `pnpm build` verdi.
+- (sessione 2026-05-15, blocco 4) **Multi-Project IDE — Phase A1 foundations**. Piano completo in `/home/ut1/.claude/plans/prosegui-il-lavoro-quali-snoopy-muffin.md` (stima totale 6-8h, splittato A1+A2). Solo le fondamenta non-breaking sono in questa sessione: `examples/demo/` → `examples/templates/demo-items/` (git rename + `template.yaml`), `sws-core::TagDb::clear()`, `sws-auth::AuthState::{swap_store, clear, empty}` + `store_path: RwLock<Option<PathBuf>>`. Tutto il resto (AppState refactor, nuovi endpoint `/api/projects/*`, WelcomeScreen, MainMenu Apri/Chiudi, dev.sh migration a `.run/projects/dev/`, upload ZIP) rinviato.
+- (sessione 2026-05-15, blocco 5) **Multi-Project IDE — Phase A1 backend complete**. Backend pronto end-to-end (frontend ancora vecchio, WelcomeScreen rinviata).
+  - `AppState.project_dir` → `Arc<RwLock<Option<PathBuf>>>` con helper `active_dir(state)`. Tutti i ~10 handler che lo usavano (get_project, patch_project callsites, list_synoptics, save_synoptic, import/export ZIP, custom_symbols) ritornano 503 quando il progetto è chiuso.
+  - Nuovi CLI args runtime: `--projects-root` (lista progetti), `--templates-root` (template gallery), `--project` ora opzionale (auto-open legacy).
+  - Nuovi endpoint pre-auth montati nel layer "open": `GET/POST /api/projects`, `POST /api/projects/:name/open`, `POST /api/projects/close`, `GET /api/templates`. Tutti pre-auth — la WelcomeScreen pesca senza session token.
+  - Nuovi moduli `sws-web::projects` (list/create/open/close + `safe_project_name`) e `sws-web::templates` (list + `copy_dir_all` recursive con skip-list).
+  - `scripts/dev.sh` ora layout `.run/projects/dev/` (auto-migra `.run/project/` esistente al primo run). Lancia runtime con `--projects-root --templates-root --project` (l'ultimo per auto-open legacy).
+  - 33 unit test workspace verdi (+3 nuovi).
 
 ---
 
@@ -87,9 +100,13 @@
 - **Hot-reload alarm**: `PUT /api/project/alarms` invoca `AlarmDb::load` completo dopo il persist. In-flight active alarms si resettano; il prossimo update li rivaluta.
 - **ConfigView tab "Allarmi"**: CRUD `AlarmDef` con TagInput autocomplete, select condizione (above/below/bool_equals), soglia o bool, severità, messaggio, e colonna stato live (ON / ACK / —).
 - **LICENSE**: file AGPL-3.0 completo già presente in repo, Q7 in OPEN_QUESTIONS marcato come deciso.
-- **Historian** (`sws-historian`): `Historian` ring-buffer in-memory (5000 samples × tag), `record()`/`query(from,to)`/`spawn_recorder(tag_db)`. SQLite stays a stub. Unit-tested.
+- **Log file v2** — `GET /api/logs/files` lista i file JSONL storici con data e dimensione; `GET /api/logs/file?date=YYYY-MM-DD` legge e restituisce gli eventi di un file storico come `Vec<LogEvent>`. LogPanel aggiornato: dropdown date + pulsante "Carica", modalità storica (header ambra, sorgente statica), "← Live" per tornare al ring live. Tutti i filtri (livelli, cerca, target) funzionano anche sullo storico.
+- **Fix dev.sh both-mode** — il ramo `both` non passava `--projects-root` e `--templates-root` al runtime; la WelcomeScreen vedeva sempre zero progetti e zero template. Fix: aggiunti i due flag al blocco di lancio in background.
+- **Fix rename-page** — `save_synoptic` ora rimuove il file YAML stale quando una pagina viene rinominata (confronto per `id` interno, non per nome file).
+- **Historian v2** (`sws-historian`): Ring-buffer in-memory (5000 samples × tag) + optional SQLite backing. `query()` falls back to SQLite for ranges older than the ring (prepends the gap). Uniform-stride decimation when result > 1000 samples (keeps first + last). `prune_older_than_ms()` deletes SQLite rows outside the retention window. Runtime spawns a 24 h prune task; retention controlled via `SWS_HISTORIAN_RETENTION_DAYS` (default 30). 7 unit tests in `sws-historian` (incl. decimation, ring-drop, SQLite-fallback shape).
 - **GET /api/history/:tag**: query string `from`/`to`/`limit`; ritorna `Vec<Sample>` (ts_ms + value + quality).
 - **Trend object** nell'editor: `<foreignObject>` con `<canvas>` 2D. Poll ogni 2 s, autofit Y, badge valore corrente, edit-mode placeholder statico per drag senza fetch. Property panel: tag, window_s, y_min/y_max (entrambi 0 → autofit), line_color.
+- **Selection rectangle** (`SvgCanvas.tsx`): drag on empty canvas background (left-button, edit mode only) draws a blue dashed rect overlay and selects all objects whose bounding boxes intersect it. Lines use min/max of their two endpoints for the bbox. A `suppressClick` ref prevents the SVG `onClick` from deselecting immediately after a successful rect-selection. Wired via `onSelectMany` prop → `store.selectMany()` in `EditorShell.tsx`. Compatible with existing shift-click multi-select.
 - **Z-index / visibility cross-cutting**: ogni `SynopticObject` ha `z_index` (sort prima del render, ties per ordine array), `visible` statico e `visible_tag` (override truthy via tag). UI nella properties panel con pulsanti ▲/▼ per bump del z-index e TagInput per il binding visibilità.
 - **Event handler Python**: campi `on_press` e `on_release` su ogni oggetto. `sws-pyscript::Engine` con PyO3 0.23, esegue gli script in `spawn_blocking`. Bindings: `tags.read(id) -> bool|int|float|str|None`, `tags.write(id, value)` (routing via TagWriteBus → fallback TagDb). `POST /api/script/exec` dal `RuntimeView` su mousedown/mouseup. **Sandboxing rinviato** (Q1 OPEN_QUESTIONS).
 - **Bug fix**: Rust `SynopticObject` non aveva `window_s/y_min/y_max/line_color` per il trend — venivano persi al salvataggio. Aggiunti.
@@ -193,14 +210,32 @@
   - **Bug del "ritorno a capo" da investigare**: la textarea attuale potrebbe avere un handler `onKeyDown` che intercetta Enter (es. per "salva al primo enter") — controllare prima di rimpiazzare il componente, perché lo stesso bug potrebbe esistere anche in altri campi multi-linea.
   - **Out of scope**: autocomplete dei nomi tag dentro il codice Python (sarebbe figo ma è LSP-grade, troppo lavoro per il PoC), linting Python lato client, debugger. Vanno in BL successive.
 
-## Next session should — FOLLOW-UP UNIVERSAL BINDING
+## Next session should — candidati aperti (Multi-Project IDE completo)
+
+**Multi-Project IDE Phase A1+A2 completati** (sessione 2026-05-15, blocchi 5-7). Flusso completo: WelcomeScreen → crea (Vuoto / Da template / Da ZIP) → apri → login → app. "Chiudi progetto" riporta a WelcomeScreen. Build + cargo check verdi.
+
+**Prossimi candidati** (scegli uno per la prossima sessione):
+
+1. ✅ **Bug fix rename-page** — `save_synoptic` ora rimuove il file YAML stale dopo una rinomina. **DONE questa sessione.**
+2. ✅ **Historian polish v2** — decimazione per range lunghi, read-fallback a SQLite, prune periodica. **DONE questa sessione.**
+3. ✅ **Selection rectangle** — drag su area vuota per selezione multipla rettangolare (`SvgCanvas.tsx`). **DONE questa sessione.**
+4. **Demo PX30** — build multi-arch + deploy su hardware fisico. Bloccante: serve hardware.
+5. Qualsiasi altra voce dall'elenco "Altri candidati di backlog" in fondo al file.
+
+---
+
+## Backlog precedente — FOLLOW-UP UNIVERSAL BINDING (tutto chiuso)
 
 Piano `docs/plans/2026-05-14_universal_binding.md` **completato** (Phases 1-4). Tutti i follow-up del piano sono chiusi:
 
 1. ✅ **BindableInput su tutti i campi rimanenti** — copertura completa: x, y, width, height, x2, y2, font_family, gauge/progress_bar thresholds (warn_low/warn_high/alarm_low/alarm_high), slider (min/max/step), checkbox (label/checked_value/unchecked_value), radio (label), LED (label/on_value), trend (window_s/y_min/y_max/line_color), symbol state colors, z_index.
 2. ✅ **MultiSelectionProps con binding** — sezione "BINDING RAPIDO" aggiunta: select prop + TagInput + pulsanti "Applica" / "Rimuovi" applicano o tolgono lo stesso binding su tutti gli oggetti selezionati in batch.
-3. **Animation/interpolation** — valori bindati oggi fanno "jump" istantaneo; aggiungere interpolazione opzionale (transition-duration sulla proprietà CSS dell'SVG o easing in React state).
-4. **Demo Page 4** con colore fill controllato da `demo.fill_color` + picker sliders RGB.
+3. ✅ **Bug fix BindableInput in grid 2-colonne** — pulsante 🔗 non cliccabile su X/Y/W/H e altri campi in layout a 2 colonne. Causa: cella sorella (DOM order successivo, stesso stacking context) copriva il pulsante. Fix: `position: relative; zIndex: 1` sul button in BindableInput.tsx.
+4. ✅ **Demo Page 4 "Fill Color"** — nuova pagina con 6 pulsanti colore preset (rosso/verde/blu/arancio/viola/teal) che scrivono un hex in `demo.fill_color`. Anteprima live: rect, ellipse, button, progress_bar con `bindings.fill = demo.fill_color`. Nota che il tag è condiviso con Page 3 (il rect lì cambia colore anch'esso). Nav da Page 3 → Page 4 aggiunta.
+5. ✅ **Header dropdown Menu** — "☰ Menu" con Salva (+ feedback cromatico), Esporta, Importa, Esci; "Griglia ▾" con size + snap (edit mode only). `saveSerial/saveStatus/saveError` nel store Zustand. Old standalone Esci button + ProjectIO rimossi.
+6. ✅ **Fix symbol hit-area** — `<rect fill="transparent">` come hit-area; simboli ora selezionabili.
+7. ✅ **Demo Page 3 "Showcase"** — tutti i 15 tipi widget con bindings demo.*.
+8. ✅ **Animation/interpolation** — campo per-oggetto `transition_duration_ms` (0..5000 ms, default 0). Quando > 0 i prop CSS-animabili bindati (fill/stroke/opacity/transform) interpolano linearmente con easing `ease-out`. Helper `transitionStyle(obj)` in `SvgCanvas.tsx`, spread su tutti gli SVG primitives + `applyTransform` wrap forzato quando duration > 0. UI: slider+numeric+reset in TRASFORMAZIONE di ObjectProps; sezione DURATA TRANSIZIONE in MultiSelectionProps per batch. Rust mirror `transition_duration_ms: Option<u64>` su `SynopticObject` (synoptic.rs) per round-trip YAML + export/import. Limitazioni v1: prop non-CSS-animabili (testo, font_size, src, x/y SVG attr, gauge needle, progress_bar width) restano discreti; rotation 360°→0° interpola attraverso 180°.
 
 ### Altri candidati di backlog (alternativa al piano sopra)
 
@@ -223,7 +258,8 @@ Pick one of these as the next focused work block (each fits 3-4 hours):
 8. **Log file v2** (follow-up del task appena chiuso): (a) compressione gzip dei file ruotati (`runtime-YYYY-MM-DD.jsonl.gz`); (b) endpoint `GET /api/logs/files` per listare i file storici; (c) format-aware reader nel pannello log che pesca dal disco quando si scrolla oltre il ring buffer.
 
 ### Bug aperti / da verificare a mano
-- Nessuno noto al momento del commit. La fix del 404 utenti (`e4a61f5`) è stata validata via curl + via UI in Configurazione → Utenti.
+- ✅ **Rinomina pagina lascia dietro il vecchio file** — risolto: `save_synoptic` ora rimuove i `.yaml` stale con lo stesso `id` interno ma filename diverso. (commit `ff32e40`)
+- Nessun altro noto al momento del commit. La fix del 404 utenti (`e4a61f5`) è stata validata via curl + via UI in Configurazione → Utenti.
 - Da verificare a freddo: `rm -rf .run/project && ./scripts/dev.sh` deve seedare `examples/demo/` (test non eseguito per via del permission gate su `rm -rf`, ma il codice è una `if [ ! -f ... ]; then cp -r ...; fi` lineare).
 - Da verificare al prossimo restart dev.sh: il writer log JSONL crea effettivamente `.run/logs/runtime-YYYY-MM-DD.jsonl` (unit test passano, ma il path live va confermato a vista). Test manuale di retention: `touch -d '2020-01-01' .run/logs/runtime-2020-01-01.jsonl; ./scripts/dev.sh` → file rimosso da `prune_old`.
 

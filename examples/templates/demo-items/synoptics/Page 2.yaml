@@ -1,0 +1,80 @@
+id: page2
+name: Page 2
+background: "#0f172a"
+objects:
+
+# ── Navigation header (uniforme su tutte le 4 pagine) ────────────────────────
+- id: p2_nav_prev
+  type: navbutton
+  x: 20
+  y: 12
+  width: 130
+  height: 32
+  label: "◀ Precedente"
+  target_page: page1
+
+- id: p2_nav_next
+  type: navbutton
+  x: 160
+  y: 12
+  width: 130
+  height: 32
+  label: "Successiva ▶"
+  target_page: page3
+
+- id: p2_title
+  type: text
+  x: 400
+  y: 30
+  text: "Page 2 — Benvenuto"
+  font_size: 16
+  font_weight: bold
+  text_anchor: middle
+  color: "#94a3b8"
+
+# ── Body ─────────────────────────────────────────────────────────────────────
+- id: p2_welcome
+  type: text
+  x: 400
+  y: 180
+  text: "Benvenuto nel demo SWS"
+  font_size: 28
+  font_weight: bold
+  text_anchor: middle
+  color: "#e2e8f0"
+
+- id: p2_subtitle
+  type: text
+  x: 400
+  y: 215
+  text: "Naviga le 4 pagine con i pulsanti ◀ / ▶ in cima."
+  font_size: 14
+  text_anchor: middle
+  color: "#64748b"
+
+- id: p2_hint1
+  type: text
+  x: 400
+  y: 280
+  text: "Page 1 — counter + MQTT echo round-trip"
+  font_size: 13
+  text_anchor: middle
+  color: "#475569"
+
+- id: p2_hint2
+  type: text
+  x: 400
+  y: 305
+  text: "Page 3 — showcase di tutti i tipi di widget con binding"
+  font_size: 13
+  text_anchor: middle
+  color: "#475569"
+
+- id: p2_hint3
+  type: text
+  x: 400
+  y: 330
+  text: "Page 4 — demo fill color (write su demo.fill_color)"
+  font_size: 13
+  text_anchor: middle
+  color: "#475569"

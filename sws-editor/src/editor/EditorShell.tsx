@@ -97,12 +97,16 @@ export function EditorShell() {
   const selectObject    = useAppStore((s) => s.selectObject);
   const toggleSelection = useAppStore((s) => s.toggleSelection);
   const duplicateSelection = useAppStore((s) => s.duplicateSelection);
+  const selectMany      = useAppStore((s) => s.selectMany);
   const copySelection   = useAppStore((s) => s.copySelection);
   const pasteClipboard  = useAppStore((s) => s.pasteClipboard);
   const alignSelection  = useAppStore((s) => s.alignSelection);
   const undo            = useAppStore((s) => s.undo);
   const redo            = useAppStore((s) => s.redo);
-  const updatePageProps = useAppStore((s) => s.updatePageProps);
+  const updatePageProps  = useAppStore((s) => s.updatePageProps);
+  const saveSerial       = useAppStore((s) => s.saveSerial);
+  const saveStatus       = useAppStore((s) => s.saveStatus);
+  const storeSaveStatus  = useAppStore((s) => s.setSaveStatus);
 
   const currentPage = pages.find((p) => p.id === currentPageId);
   const objects     = currentPage?.objects ?? [];
@@ -219,8 +223,6 @@ export function EditorShell() {
   // to a separate `PUT /api/project/*` endpoint — patch-style on the backend
   // (loads from disk, overwrites one field, rewrites the YAML). Admin-only
   // endpoints are skipped for non-Admin so the call doesn't 403.
-  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "ok" | "error">("idle");
-  const [saveError, setSaveError]   = useState<string | null>(null);
   const saveOkTimer = useRef<number | null>(null);
 
   const handleSave = async () => {
@@ -229,8 +231,7 @@ export function EditorShell() {
       window.clearTimeout(saveOkTimer.current);
       saveOkTimer.current = null;
     }
-    setSaveStatus("saving");
-    setSaveError(null);
+    storeSaveStatus("saving", null);
 
     const state = useAppStore.getState();
     const role  = state.authRole;
@@ -254,16 +255,20 @@ export function EditorShell() {
     const results = await Promise.allSettled(tasks);
     const failed  = results.filter((r) => r.status === "rejected") as PromiseRejectedResult[];
     if (failed.length === 0) {
-      setSaveStatus("ok");
-      saveOkTimer.current = window.setTimeout(() => setSaveStatus("idle"), 2000);
+      storeSaveStatus("ok");
+      saveOkTimer.current = window.setTimeout(() => storeSaveStatus("idle"), 2000);
     } else {
       const msg = failed
         .map((f) => (f.reason instanceof Error ? f.reason.message : String(f.reason)))
         .join("; ");
-      setSaveError(msg);
-      setSaveStatus("error");
+      storeSaveStatus("error", msg);
     }
   };
+
+  // Respond to save requests from the header dropdown (incSaveSerial).
+  useEffect(() => {
+    if (saveSerial > 0) handleSave();
+  }, [saveSerial]);
 
   // When a project-level function is selected, take over the whole main
   // area with the full-screen FunctionEditor. The LeftPanel stays on the
@@ -279,10 +284,7 @@ export function EditorShell() {
       <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
         <LeftPanel
           onAddObject={handleAddObject}
-          onSave={handleSave}
           onFunctionsChanged={persistFunctions}
-          saveStatus={saveStatus}
-          saveError={saveError}
         />
         <FunctionEditor
           fn={selectedFn}
@@ -299,7 +301,6 @@ export function EditorShell() {
       {/* Left panel: project tree + object palette + settings */}
       <LeftPanel
         onAddObject={handleAddObject}
-        onSave={handleSave}
         onFunctionsChanged={persistFunctions}
       />
 
@@ -315,6 +316,7 @@ export function EditorShell() {
           snapEnabled={snapEnabled}
           customSymbols={customSymbols}
           onSelect={handleSelect}
+          onSelectMany={selectMany}
           onMove={(id, patch) => updateObject(id, patch)}
         />
       </div>
@@ -342,6 +344,11 @@ export function EditorShell() {
                 } else {
                   updateObject(id, { bindings: { ...(o.bindings ?? {}), [prop]: tagId } });
                 }
+              });
+            }}
+            onSetTransitionDuration={(ms) => {
+              selectedIds.forEach((id) => {
+                updateObject(id, { transition_duration_ms: ms });
               });
             }}
           />
@@ -420,15 +427,18 @@ function MultiSelectionProps({
   onDuplicate,
   onDelete,
   onBind,
+  onSetTransitionDuration,
 }: {
   count: number;
   onAlign: (mode: AlignMode) => void;
   onDuplicate: () => void;
   onDelete: () => void;
   onBind: (prop: string, tagId: string) => void;
+  onSetTransitionDuration: (ms: number | undefined) => void;
 }) {
   const [bindProp, setBindProp] = useState("opacity");
   const [bindTag,  setBindTag]  = useState("");
+  const [batchTxMs, setBatchTxMs] = useState(300);
 
   const btn: React.CSSProperties = {
     background: "#0f172a",
@@ -536,6 +546,36 @@ function MultiSelectionProps({
         </button>
       </div>
 
+      <div style={{ height: 1, background: "#334155", margin: "8px 0" }} />
+
+      <div style={{ fontSize: 10, color: "#475569", fontWeight: 700, letterSpacing: 0.5 }}>
+        DURATA TRANSIZIONE
+      </div>
+      <p style={{ fontSize: 10, color: "#475569", margin: "2px 0 4px" }}>
+        Applica la stessa durata di animazione (ms) a tutti gli oggetti selezionati. 0 = disattiva.
+      </p>
+      <div style={{ display: "flex", gap: 4, marginBottom: 4 }}>
+        <input
+          type="number"
+          min={0} max={5000} step={50}
+          value={batchTxMs}
+          onChange={(e) => setBatchTxMs(Number(e.target.value) || 0)}
+          style={{ flex: 1, background: "#0f172a", color: "#e2e8f0", border: "1px solid #334155", borderRadius: 4, padding: "3px 6px", fontSize: 12 }}
+        />
+        <button
+          style={{ ...btn, background: "#1e3a5f", color: "#93c5fd", borderColor: "#1e40af", flex: "0 0 auto", padding: "4px 10px" }}
+          onClick={() => onSetTransitionDuration(batchTxMs > 0 ? batchTxMs : undefined)}
+        >
+          Applica
+        </button>
+        <button
+          style={{ ...btn, background: "#1e293b", color: "#94a3b8", flex: "0 0 auto", padding: "4px 10px" }}
+          onClick={() => onSetTransitionDuration(undefined)}
+        >
+          Off
+        </button>
+      </div>
+
       <p style={{ fontSize: 10, color: "#475569", marginTop: 8 }}>
         Shift+click per aggiungere/togliere dalla selezione. Ctrl-C/V, Ctrl-D,
         Ctrl-Z/Y, Canc come scorciatoie.
@@ -628,25 +668,42 @@ function ObjectProps({
       {field("ID",   <span style={{ fontSize: 11, color: "#64748b" }}>{obj.id}</span>)}
       {field("Tipo", <span style={{ fontSize: 11, color: "#64748b" }}>{obj.type}</span>)}
 
-      {/* Position */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
-        <div><div style={LABEL}>X</div><BindableInput obj={obj} propName="x" onChange={onChange}>{numInput("x", 0)}</BindableInput></div>
-        <div><div style={LABEL}>Y</div><BindableInput obj={obj} propName="y" onChange={onChange}>{numInput("y", 0)}</BindableInput></div>
-      </div>
-
-      {/* Size (shapes) */}
-      {isShape && (
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
-          <div><div style={LABEL}>W</div><BindableInput obj={obj} propName="width" onChange={onChange}>{numInput("width", 100)}</BindableInput></div>
-          <div><div style={LABEL}>H</div><BindableInput obj={obj} propName="height" onChange={onChange}>{numInput("height", 50)}</BindableInput></div>
+      {/* Position + Size — usa field() a larghezza piena per evitare overflow
+          del pulsante BindableInput nelle celle strette del grid 2-colonne. */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 6px" }}>
+        <div>
+          <div style={LABEL}>X</div>
+          <BindableInput obj={obj} propName="x" onChange={onChange}>{numInput("x", 0)}</BindableInput>
         </div>
-      )}
+        <div>
+          <div style={LABEL}>Y</div>
+          <BindableInput obj={obj} propName="y" onChange={onChange}>{numInput("y", 0)}</BindableInput>
+        </div>
+        {isShape && (
+          <>
+            <div>
+              <div style={LABEL}>W</div>
+              <BindableInput obj={obj} propName="width" onChange={onChange}>{numInput("width", 100)}</BindableInput>
+            </div>
+            <div>
+              <div style={LABEL}>H</div>
+              <BindableInput obj={obj} propName="height" onChange={onChange}>{numInput("height", 50)}</BindableInput>
+            </div>
+          </>
+        )}
+      </div>
 
       {/* Line endpoint */}
       {obj.type === "line" && (
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
-          <div><div style={LABEL}>X2</div><BindableInput obj={obj} propName="x2" onChange={onChange}>{numInput("x2", obj.x + 100)}</BindableInput></div>
-          <div><div style={LABEL}>Y2</div><BindableInput obj={obj} propName="y2" onChange={onChange}>{numInput("y2", obj.y)}</BindableInput></div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 6px" }}>
+          <div>
+            <div style={LABEL}>X2</div>
+            <BindableInput obj={obj} propName="x2" onChange={onChange}>{numInput("x2", obj.x + 100)}</BindableInput>
+          </div>
+          <div>
+            <div style={LABEL}>Y2</div>
+            <BindableInput obj={obj} propName="y2" onChange={onChange}>{numInput("y2", obj.y)}</BindableInput>
+          </div>
         </div>
       )}
 
@@ -1127,6 +1184,32 @@ function ObjectProps({
               </div>
             </BindableInput>
           )}
+          {field("Durata transizione (ms)",
+            <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+              <input
+                type="range"
+                min={0} max={2000} step={50}
+                value={obj.transition_duration_ms ?? 0}
+                onChange={(e) => onChange({ transition_duration_ms: Number(e.target.value) || undefined })}
+                style={{ flex: 1 }}
+              />
+              <input
+                type="number"
+                min={0} max={5000} step={50}
+                value={obj.transition_duration_ms ?? 0}
+                onChange={(e) => onChange({ transition_duration_ms: Number(e.target.value) || undefined })}
+                style={{ ...INPUT, width: 64 }}
+              />
+              <button
+                title="Disattiva animazione"
+                onClick={() => onChange({ transition_duration_ms: undefined })}
+                style={{ ...INPUT, cursor: "pointer", padding: "3px 6px", width: 28 }}
+              >↺</button>
+            </div>
+          )}
+          <p style={{ fontSize: 10, color: "#475569", margin: "0 0 4px" }}>
+            0 = nessuna animazione. Anima fill/stroke/opacity/rotazione bindati. Testo, font-size, src e geometrie restano discreti.
+          </p>
         </>
       )}
 

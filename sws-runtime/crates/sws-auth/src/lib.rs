@@ -171,8 +171,10 @@ pub fn verify_password(password: &str, hash: &str) -> bool {
 
 /// In-memory auth state backed by a YAML file on disk.
 pub struct AuthState {
-    /// Path to `users.yaml`. None → in-memory only (tests).
-    store_path: Option<PathBuf>,
+    /// Path to `users.yaml`. None → in-memory only (tests or "no active
+    /// project"). Wrapped in RwLock so `swap_store()` can switch it when
+    /// a different project is opened, without rebuilding `Arc<AuthState>`.
+    store_path: RwLock<Option<PathBuf>>,
     users: RwLock<HashMap<String, StoredUser>>,
     sessions: RwLock<HashMap<String, Session>>,
     failures: RwLock<HashMap<String, LoginFailures>>,
@@ -273,7 +275,7 @@ impl AuthState {
             .map_err(|e| anyhow::anyhow!("write users.yaml: {e}"))?;
 
         Ok(Arc::new(Self {
-            store_path: Some(store_path),
+            store_path: RwLock::new(Some(store_path)),
             users: RwLock::new(users),
             sessions: RwLock::new(HashMap::new()),
             failures: RwLock::new(HashMap::new()),
@@ -311,7 +313,7 @@ impl AuthState {
             });
         }
         Ok(Arc::new(Self {
-            store_path: None,
+            store_path: RwLock::new(None),
             users: RwLock::new(users),
             sessions: RwLock::new(HashMap::new()),
             failures: RwLock::new(HashMap::new()),
@@ -319,6 +321,93 @@ impl AuthState {
             rate_limit,
             rate_window,
         }))
+    }
+
+    /// Empty in-memory auth state — used when no project is active.
+    /// Login is impossible (no users); existing tokens are invalid.
+    pub fn empty(ttl: Duration, rate_limit: u32, rate_window: Duration) -> Arc<Self> {
+        Arc::new(Self {
+            store_path: RwLock::new(None),
+            users: RwLock::new(HashMap::new()),
+            sessions: RwLock::new(HashMap::new()),
+            failures: RwLock::new(HashMap::new()),
+            ttl,
+            rate_limit,
+            rate_window,
+        })
+    }
+
+    /// Switch the backing `users.yaml` to a different project's path,
+    /// dropping all current sessions/failures and reloading users from
+    /// the new path (or from `seed` if the file is missing/empty).
+    /// Used by `POST /api/projects/:name/open` to retarget authentication
+    /// without rebuilding the Arc.
+    pub async fn swap_store(
+        &self,
+        new_path: PathBuf,
+        seed: Vec<(String, Role, String)>,
+    ) -> anyhow::Result<()> {
+        let on_disk = if new_path.exists() {
+            let text = std::fs::read_to_string(&new_path)
+                .map_err(|e| anyhow::anyhow!("read users.yaml: {e}"))?;
+            if text.trim().is_empty() {
+                UserFile::default()
+            } else {
+                serde_yaml::from_str::<UserFile>(&text)
+                    .map_err(|e| anyhow::anyhow!("parse users.yaml: {e}"))?
+            }
+        } else {
+            UserFile::default()
+        };
+
+        let mut new_users: HashMap<String, StoredUser> = on_disk
+            .users
+            .into_iter()
+            .map(|u| (u.username.clone(), u))
+            .collect();
+        let now = now_unix_ms();
+        for (name, role, pwd) in seed.into_iter().filter(|(_, _, p)| !p.is_empty()) {
+            if !new_users.contains_key(&name) {
+                let hash = hash_password(&pwd)?;
+                info!(user = %name, role = role.as_str(), "auth: seeded account from env");
+                new_users.insert(name.clone(), StoredUser {
+                    username: name,
+                    password_hash: hash,
+                    role,
+                    must_change_password: false,
+                    created_at_ms: now,
+                    updated_at_ms: now,
+                });
+            }
+        }
+        if new_users.is_empty() {
+            anyhow::bail!("no users available — set SWS_ADMIN_PASSWORD or populate users.yaml");
+        }
+
+        if let Some(parent) = new_path.parent() {
+            std::fs::create_dir_all(parent).ok();
+        }
+        let to_write = UserFile { users: new_users.values().cloned().collect() };
+        let yaml = serde_yaml::to_string(&to_write)
+            .map_err(|e| anyhow::anyhow!("serialise users.yaml: {e}"))?;
+        std::fs::write(&new_path, yaml)
+            .map_err(|e| anyhow::anyhow!("write users.yaml: {e}"))?;
+
+        *self.users.write().await = new_users;
+        self.sessions.write().await.clear();
+        self.failures.write().await.clear();
+        *self.store_path.write().await = Some(new_path);
+        Ok(())
+    }
+
+    /// Drop every user/session/failure — moves the AuthState to a no-project
+    /// state. Tokens become invalid; login is impossible until `swap_store`
+    /// is called again.
+    pub async fn clear(&self) {
+        self.users.write().await.clear();
+        self.sessions.write().await.clear();
+        self.failures.write().await.clear();
+        *self.store_path.write().await = None;
     }
 
     /// Verify credentials and mint a session token on success.
@@ -417,7 +506,7 @@ impl AuthState {
             updated_at_ms: now,
         };
         users.insert(p.username.clone(), u.clone());
-        self.flush_locked(&users)?;
+        self.flush_locked(&users).await?;
         info!(user = %p.username, role = p.role.as_str(), "auth: user created");
         Ok(u.to_summary())
     }
@@ -448,7 +537,7 @@ impl AuthState {
         }
         user.updated_at_ms = now_unix_ms();
         let summary = user.to_summary();
-        self.flush_locked(&users)?;
+        self.flush_locked(&users).await?;
         info!(user = %username, "auth: user updated");
         Ok(summary)
     }
@@ -463,7 +552,7 @@ impl AuthState {
             }
         }
         users.remove(username);
-        self.flush_locked(&users)?;
+        self.flush_locked(&users).await?;
 
         // Drop any active sessions for the deleted user too.
         let mut sessions = self.sessions.write().await;
@@ -491,13 +580,14 @@ impl AuthState {
             .map_err(|e| UserError::StorageError(e.to_string()))?;
         user.must_change_password = false;
         user.updated_at_ms = now_unix_ms();
-        self.flush_locked(&users)?;
+        self.flush_locked(&users).await?;
         info!(user = %username, "auth: password changed");
         Ok(())
     }
 
-    fn flush_locked(&self, users: &HashMap<String, StoredUser>) -> Result<(), UserError> {
-        let Some(path) = &self.store_path else { return Ok(()); };
+    async fn flush_locked(&self, users: &HashMap<String, StoredUser>) -> Result<(), UserError> {
+        let path_guard = self.store_path.read().await;
+        let Some(path) = path_guard.as_ref() else { return Ok(()); };
         let file = UserFile { users: users.values().cloned().collect() };
         let yaml = serde_yaml::to_string(&file)
             .map_err(|e| UserError::StorageError(format!("serialise: {e}")))?;
