@@ -22,7 +22,7 @@ and this project adheres to [CalVer](https://calver.org/) (`YYYY.MM[.patch]`).
   - Object palette button: "+ Griglia" in LeftPanel.
   - `store/index.ts`: `updateGridCell(pageId, objectId, cell)` upserts a cell by `{row, col}` in `grid_cells`; `updatePageProps` extended to include `width`/`height`.
   - Rust `synoptic.rs` mirrors all new fields (`grid_rows`, `grid_cols`, `col_widths`, `row_heights`, `grid_cells`, `grid_show_borders`, `grid_border_color`) as `Option<Value>` for round-trip YAML persistence.
-  - Session 2 (deferred): inline child `SynopticObject` embedded per cell (rendered centered).
+  - Session 2: `GridCell.child?: SynopticObject` — an inline object rendered centered in its cell. In edit mode the child is non-interactive (`pointerEvents: none`); in runtime mode it is fully interactive (tag writes, script calls, navigation). Cut/paste workflow: Ctrl+X on a selected cell with a child cuts the child to the clipboard; Ctrl+V when a cell is selected pastes the first clipboard item as the cell child. Both operations also work in reverse (Ctrl+X page object → Ctrl+V into cell, and vice versa). `GridCellEditor` displays child type + a "Rimuovi" button and a paste hint when no child is present. New store action `setClipboard(objs)` to set the clipboard directly without going through a selection.
 
 - **Script output toast** (`RuntimeView`) — when an `on_press_fn` / `on_release_fn` produces stdout, stderr, or fails (including timeout), a card toast appears bottom-right over the canvas. Auto-closes after 5 s (success) or 10 s (error). Manual × dismiss. Stacks up to 4 cards. stdout in white, stderr in amber, errors in red. Silent success (no output) generates no toast.
 

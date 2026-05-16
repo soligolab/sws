@@ -1366,6 +1366,32 @@ function SvgObject(p: ObjProps) {
                     style={{ pointerEvents: "none" }}
                   />
                 )}
+                {cellDef?.child && (() => {
+                  const child = cellDef.child!;
+                  const cw = child.width ?? 100;
+                  const ch = child.height ?? 50;
+                  const childX = colX[c] + (cellW - cw) / 2;
+                  const childY = rowY[r] + (cellH - ch) / 2;
+                  const placed = child.type === "line"
+                    ? { ...child, x: childX, y: childY,
+                        x2: childX + ((child.x2 ?? child.x + 100) - child.x),
+                        y2: childY + ((child.y2 ?? child.y) - child.y) }
+                    : { ...child, x: childX, y: childY };
+                  return (
+                    <g style={{ pointerEvents: isEditMode ? "none" : "auto" }}>
+                      <SvgObject
+                        obj={placed}
+                        tagValues={tagValues}
+                        selected={false}
+                        isEditMode={false}
+                        customSymbols={customSymbols}
+                        onWriteTag={onWriteTag}
+                        onScript={onScript}
+                        onNavigate={onNavigate}
+                      />
+                    </g>
+                  );
+                })()}
               </g>
             );
           })

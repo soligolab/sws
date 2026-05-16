@@ -52,6 +52,8 @@ export interface GridCell {
   visible_tag?: string;
   on_press_fn?: string;
   on_release_fn?: string;
+  /** Inline child object rendered centered in this cell. */
+  child?: SynopticObject;
 }
 
 /** One option in a radio-group. */

@@ -172,6 +172,7 @@ interface AppState {
   // Clipboard
   copySelection: () => void;
   pasteClipboard: () => void;
+  setClipboard: (objs: SynopticObject[]) => void;
 
   // Alignment & distribution (multi-select)
   alignSelection: (mode: AlignMode) => void;
@@ -639,6 +640,8 @@ export const useAppStore = create<AppState>((set, get) => {
         selectedObjectId: newIds.length === 1 ? newIds[0] : null,
       }));
     },
+
+    setClipboard: (objs) => set({ clipboard: objs }),
 
     alignSelection: (mode) => {
       const { selectedObjectIds, pages, currentPageId } = get();

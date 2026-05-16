@@ -100,6 +100,7 @@ export function EditorShell() {
   const selectMany      = useAppStore((s) => s.selectMany);
   const copySelection   = useAppStore((s) => s.copySelection);
   const pasteClipboard  = useAppStore((s) => s.pasteClipboard);
+  const setClipboard    = useAppStore((s) => s.setClipboard);
   const alignSelection  = useAppStore((s) => s.alignSelection);
   const undo            = useAppStore((s) => s.undo);
   const redo            = useAppStore((s) => s.redo);
@@ -139,6 +140,10 @@ export function EditorShell() {
     }
   }, [selectedId]);
 
+  // Ref so the keyboard handler always reads fresh selectedCell without re-registering.
+  const selectedCellRef = useRef(selectedCell);
+  useEffect(() => { selectedCellRef.current = selectedCell; }, [selectedCell]);
+
   // Document-level keyboard shortcuts. Skipped when typing in a form field
   // so renaming an object doesn't trigger delete-on-backspace.
   useEffect(() => {
@@ -157,15 +162,51 @@ export function EditorShell() {
         e.preventDefault(); redo();
       } else if (ctrl && (e.key === "c" || e.key === "C") && ids.length > 0) {
         e.preventDefault(); copySelection();
+      } else if (ctrl && (e.key === "x" || e.key === "X")) {
+        e.preventDefault();
+        const cell = selectedCellRef.current;
+        if (cell) {
+          // Cut cell child to clipboard if the selected cell has one.
+          const state = useAppStore.getState();
+          const page = state.pages.find((p) => p.id === state.currentPageId);
+          const gridObj = page?.objects.find((o) => o.id === cell.objectId);
+          const cellDef = (gridObj?.grid_cells as GridCell[] | undefined)
+            ?.find((c) => c.row === cell.row && c.col === cell.col);
+          if (cellDef?.child) {
+            setClipboard([cellDef.child]);
+            state.updateGridCell(state.currentPageId, cell.objectId,
+              { ...cellDef, child: undefined });
+            return;
+          }
+        }
+        // Fall back to cutting the page-level selection.
+        if (ids.length > 0) { copySelection(); deleteSelection(); }
       } else if (ctrl && (e.key === "v" || e.key === "V")) {
-        e.preventDefault(); pasteClipboard();
+        e.preventDefault();
+        const cell = selectedCellRef.current;
+        if (cell) {
+          // Paste first clipboard item as a child of the selected cell.
+          const state = useAppStore.getState();
+          const { clipboard } = state;
+          if (clipboard.length > 0) {
+            const page = state.pages.find((p) => p.id === state.currentPageId);
+            const gridObj = page?.objects.find((o) => o.id === cell.objectId);
+            const cellDef = (gridObj?.grid_cells as GridCell[] | undefined)
+              ?.find((c) => c.row === cell.row && c.col === cell.col)
+              ?? { row: cell.row, col: cell.col };
+            state.updateGridCell(state.currentPageId, cell.objectId,
+              { ...cellDef, child: { ...clipboard[0] } });
+          }
+        } else {
+          pasteClipboard();
+        }
       } else if (ctrl && (e.key === "d" || e.key === "D") && ids.length > 0) {
         e.preventDefault(); duplicateSelection();
       }
     };
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
-  }, [deleteSelection, undo, redo, copySelection, pasteClipboard, duplicateSelection]);
+  }, [deleteSelection, undo, redo, copySelection, pasteClipboard, duplicateSelection, setClipboard]);
 
   const nextPos = () => {
     const n = objects.length;
@@ -1724,7 +1765,7 @@ function GridCellEditor({
           {functions.map((f) => <option key={f.id} value={f.name}>{f.name}</option>)}
         </select>
       </div>
-      <div>
+      <div style={{ marginBottom: 8 }}>
         <div style={LABEL}>On release</div>
         <select
           style={{ ...INPUT, cursor: "pointer" }}
@@ -1735,6 +1776,28 @@ function GridCellEditor({
           {functions.map((f) => <option key={f.id} value={f.name}>{f.name}</option>)}
         </select>
       </div>
+
+      <div style={{ fontSize: 10, color: "#475569", fontWeight: 700, letterSpacing: 0.5, marginBottom: 4 }}>
+        OGGETTO FIGLIO
+      </div>
+      {cell.child ? (
+        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
+          <span style={{ fontSize: 12, color: "#94a3b8", flex: 1 }}>
+            {cell.child.type}{cell.child.name ? ` — ${cell.child.name}` : ""}
+          </span>
+          <button
+            title="Rimuovi figlio"
+            onClick={() => onChange({ child: undefined })}
+            style={{ background: "#7f1d1d", border: "1px solid #991b1b", color: "#fca5a5", borderRadius: 4, cursor: "pointer", fontSize: 12, padding: "2px 8px" }}
+          >
+            Rimuovi
+          </button>
+        </div>
+      ) : (
+        <p style={{ fontSize: 10, color: "#475569", margin: "0 0 4px" }}>
+          Nessun figlio. Copia un oggetto dalla pagina (Ctrl+C), seleziona questa cella e premi Ctrl+V per incollarlo. Ctrl+X taglia il figlio e lo rimette nel clipboard.
+        </p>
+      )}
     </div>
   );
 }
