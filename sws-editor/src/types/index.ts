@@ -306,6 +306,30 @@ export interface MqttSource {
 
 export type SourceDef = ModbusTcpSource | MqttSource;
 
+// ── MQTT broker browse ─────────────────────────────────────────────────────
+
+export interface MqttBrowseRequest {
+  host: string;
+  port: number;
+  source_id?: string;
+  client_id: string;
+  username?: string;
+  password?: string;
+  tls_enabled?: boolean;
+  ca_cert_path?: string;
+  /** Seconds to listen (1-15, default 8). */
+  duration_secs?: number;
+}
+
+export interface BrowsedTopic {
+  topic: string;
+  sample_payload: string;
+}
+
+export interface MqttBrowseResponse {
+  topics: BrowsedTopic[];
+}
+
 export interface ProjectInfo {
   meta: { name: string; version: string };
   tags: TagDef[];

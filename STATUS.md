@@ -2,11 +2,12 @@
 
 > This file is the **session-to-session memory** for Claude Code. Update it at the end of every session before stopping work. Read it at the start of every session before touching code.
 
-**Last session**: 2026-05-16 (sessione 13: template "Casa Locale" — console domestica a 5 pagine MQTT)
+**Last session**: 2026-05-16 (sessione 15: MQTT broker browse + quick-create variabili + layout responsive)
 **Current phase**: Phase 2. Demo working out-of-the-box su fresh clone, import/export progetto per backup/condivisione, pannello log live + persistenza su disco, gestione utenti multi-account.
 **Last commit**: vedi sotto
 
 ### Cosa è andato online in queste sessioni (in ordine di commit)
+- (sessione 2026-05-16, sessione 15) **MQTT broker browse + quick-create variabili + layout responsive**. `Sfoglia broker` apre un modal che si connette al broker, sottoscrive `#` per 2–15 s e mostra i topic rilevati con anteprima payload e dropdown JSON path. Importazione massiva in un click. `＋` accanto a ogni TagInput in MQTT e Modbus apre `QuickCreateTagModal` (ID / descrizione / tipo); i tag creati vengono salvati insieme alle sorgenti al prossimo "Salva". Body della ConfigView ora usa tutta la larghezza disponibile (rimosso `maxWidth: 900`); colonna "Topic in" allargata. Backend: `browse()` in sws-plugin-mqtt + `POST /api/sources/mqtt/browse` (Operator+) in sws-web con risoluzione automatica della password mascherata dal project.yaml. `cargo check` + `pnpm build` verdi.
 - (sessione 2026-05-16, blocco 4) **Template "Casa Locale"** — secondo template SWS, console di controllo domestica a 5 pagine su broker MQTT locale (192.168.1.6). Pagine: Panoramica (flusso energia + status sicurezza), Impianto Solare (PV + batteria + rete), Contatori Energia (3 DDS661 con gauge + tabella), Sicurezza (12 sensori Zigbee + 3 PIR perimetrali + presenza lux), Domotica (tapparelle Shelly con 3 pulsanti + PDC + ESPHome). Sorgenti: Zigbee2MQTT (16 topic), dds661 (17 topic), Solarman bridge HA (12 topic), Shelly (4 topic con publish_topic). 50+ tag, 6 allarmi. 8 nuove icone SVG Material Design Icons (Apache 2.0) scaricate come asset colorati in `public/symbols/`. Guide in `CREDITS.md` e `SETUP.md` (incl. automation HA per bridge Solarman → MQTT).
 - `3631c37` BL-002 — MQTT auth/TLS/last-will/QoS + password masking
 - `964e67b` BL-003 — CodeMirror Python editor full-screen per FunctionDef

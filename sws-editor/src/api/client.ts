@@ -5,6 +5,8 @@ import type {
   FunctionDef,
   LogEvent,
   LogFileEntry,
+  MqttBrowseRequest,
+  MqttBrowseResponse,
   ProjectInfo,
   ProjectListEntry,
   Sample,
@@ -344,6 +346,13 @@ export const api = {
 
   // Upload a project ZIP to create a new project (pre-auth).
   // `name` is optional — falls back to the name in manifest.json inside the ZIP.
+  // MQTT broker browse: connect ephemerally, subscribe #, return discovered topics.
+  browseMqttTopics: (req: MqttBrowseRequest): Promise<MqttBrowseResponse> =>
+    request<MqttBrowseResponse>("/api/sources/mqtt/browse", {
+      method: "POST",
+      body: JSON.stringify(req),
+    }),
+
   uploadProjectZip: async (file: Blob, name?: string): Promise<{ name: string }> => {
     const url = name
       ? `${BASE_URL}/api/projects/upload?name=${encodeURIComponent(name)}`
