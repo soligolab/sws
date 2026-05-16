@@ -104,6 +104,8 @@ pub fn build(
         .route("/api/logs/files",      get(list_log_files))
         .route("/api/logs/file",       get(get_log_file))
         .route("/ws/logs",             get(ws_logs_handler))
+        // MQTT broker browse: temporary connection, subscribe #, return topics.
+        .route("/api/sources/mqtt/browse", post(mqtt_browse_handler))
         .route_layer(middleware::from_fn(require_operator));
 
     // Routes any authenticated user (incl. Viewer) can hit.
@@ -1381,4 +1383,77 @@ async fn handle_logs_ws(mut socket: WebSocket, logs: Arc<LogBus>) {
             Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
         }
     }
+}
+
+// ── MQTT broker browse ────────────────────────────────────────────────────────
+
+#[derive(Deserialize)]
+struct MqttBrowseRequest {
+    host: String,
+    port: u16,
+    /// If provided and `password` is the masked sentinel, the real password is
+    /// resolved from the saved project source with this ID.
+    source_id: Option<String>,
+    client_id: String,
+    username: Option<String>,
+    password: Option<String>,
+    #[serde(default)]
+    tls_enabled: bool,
+    ca_cert_path: Option<String>,
+    /// Seconds to listen. Capped at 15 to avoid long-blocking requests.
+    duration_secs: Option<u8>,
+}
+
+#[derive(serde::Serialize)]
+struct BrowsedTopicDto {
+    topic: String,
+    sample_payload: String,
+}
+
+#[derive(serde::Serialize)]
+struct MqttBrowseResponse {
+    topics: Vec<BrowsedTopicDto>,
+}
+
+async fn mqtt_browse_handler(
+    State(s): State<AppState>,
+    Json(mut req): Json<MqttBrowseRequest>,
+) -> Response {
+    // Resolve a masked password from the saved project if the caller sent the
+    // sentinel and told us which source ID to look up.
+    if req.password.as_deref() == Some(MASKED_PASSWORD) {
+        if let Some(ref sid) = req.source_id {
+            if let Ok(dir) = active_dir(&s).await {
+                if let Ok(project) = Project::load(&dir) {
+                    for src in &project.sources {
+                        if let SourceDef::Mqtt(c) = src {
+                            if &c.id == sid {
+                                req.password = c.password.clone();
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    let duration = req.duration_secs.unwrap_or(8).min(15);
+    let params = sws_plugin_mqtt::BrowseParams {
+        host: req.host,
+        port: req.port,
+        client_id: req.client_id,
+        username: req.username,
+        password: req.password,
+        tls_enabled: req.tls_enabled,
+        ca_cert_path: req.ca_cert_path,
+        duration_secs: duration,
+    };
+
+    let topics = sws_plugin_mqtt::browse(params).await
+        .into_iter()
+        .map(|t| BrowsedTopicDto { topic: t.topic, sample_payload: t.sample_payload })
+        .collect();
+
+    Json(MqttBrowseResponse { topics }).into_response()
 }
