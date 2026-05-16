@@ -1716,6 +1716,35 @@ function EventFunctionPicker({
 // ── GridCellEditor ────────────────────────────────────────────────────────────
 // Properties panel for a selected grid cell.
 
+const CELL_CHILD_TYPES: { value: string; label: string }[] = [
+  { value: "rect",          label: "Rettangolo" },
+  { value: "ellipse",       label: "Ellisse" },
+  { value: "text",          label: "Testo" },
+  { value: "button",        label: "Pulsante" },
+  { value: "led",           label: "LED" },
+  { value: "progress_bar",  label: "Barra progresso" },
+  { value: "gauge",         label: "Gauge" },
+  { value: "symbol",        label: "Simbolo" },
+  { value: "image",         label: "Immagine" },
+];
+
+function makeDefaultChild(type: string): SynopticObject {
+  const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+  const base: SynopticObject = { id, type: type as SynopticObject["type"], x: 0, y: 0 };
+  switch (type) {
+    case "rect":         return { ...base, width: 80, height: 60, fill: "#334155" };
+    case "ellipse":      return { ...base, width: 60, height: 60, fill: "#334155" };
+    case "text":         return { ...base, width: 80, height: 30, label: "Testo" };
+    case "button":       return { ...base, width: 80, height: 32, label: "Pulsante" };
+    case "led":          return { ...base, width: 40, height: 40 };
+    case "progress_bar": return { ...base, width: 100, height: 20, min: 0, max: 100 };
+    case "gauge":        return { ...base, width: 100, height: 100, min: 0, max: 100 };
+    case "symbol":       return { ...base, width: 60, height: 60, symbol_id: "pump" };
+    case "image":        return { ...base, width: 80, height: 60 };
+    default:             return { ...base, width: 80, height: 60 };
+  }
+}
+
 function GridCellEditor({
   cell,
   functions,
@@ -1725,6 +1754,7 @@ function GridCellEditor({
   functions: FunctionDef[];
   onChange: (patch: Partial<GridCell>) => void;
 }) {
+  const [newChildType, setNewChildType] = useState("rect");
   return (
     <div style={{ marginTop: 8, borderTop: "1px solid #334155", paddingTop: 8 }}>
       <div style={{ fontSize: 10, color: "#3b82f6", fontWeight: 700, letterSpacing: 0.5, marginBottom: 6 }}>
@@ -1828,22 +1858,129 @@ function GridCellEditor({
         OGGETTO FIGLIO
       </div>
       {cell.child ? (
-        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
-          <span style={{ fontSize: 12, color: "#94a3b8", flex: 1 }}>
-            {cell.child.type}{cell.child.name ? ` — ${cell.child.name}` : ""}
-          </span>
-          <button
-            title="Rimuovi figlio"
-            onClick={() => onChange({ child: undefined })}
-            style={{ background: "#7f1d1d", border: "1px solid #991b1b", color: "#fca5a5", borderRadius: 4, cursor: "pointer", fontSize: 12, padding: "2px 8px" }}
-          >
-            Rimuovi
-          </button>
-        </div>
+        <>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
+            <span style={{ fontSize: 12, color: "#94a3b8", flex: 1 }}>
+              {cell.child.type}{cell.child.name ? ` — ${cell.child.name}` : ""}
+            </span>
+            <button
+              title="Taglia figlio (mette nel clipboard)"
+              onClick={() => {
+                useAppStore.getState().setClipboard([cell.child!]);
+                onChange({ child: undefined });
+              }}
+              style={{ background: "#0f172a", border: "1px solid #334155", color: "#94a3b8", borderRadius: 4, cursor: "pointer", fontSize: 11, padding: "2px 6px" }}
+            >
+              Ctrl+X
+            </button>
+            <button
+              title="Rimuovi figlio"
+              onClick={() => onChange({ child: undefined })}
+              style={{ background: "#7f1d1d", border: "1px solid #991b1b", color: "#fca5a5", borderRadius: 4, cursor: "pointer", fontSize: 12, padding: "2px 8px" }}
+            >
+              Rimuovi
+            </button>
+          </div>
+          {/* Basic child property editing */}
+          {["text", "button", "navbutton"].includes(cell.child.type) && (
+            <div style={{ marginBottom: 6 }}>
+              <div style={LABEL}>Etichetta</div>
+              <input
+                type="text" style={INPUT}
+                value={cell.child.label ?? ""}
+                onChange={(e) => onChange({ child: { ...cell.child!, label: e.target.value || undefined } })}
+              />
+            </div>
+          )}
+          {["rect", "ellipse", "button", "led"].includes(cell.child.type) && (
+            <div style={{ marginBottom: 6 }}>
+              <div style={LABEL}>Colore riempimento</div>
+              <div style={{ display: "flex", gap: 6 }}>
+                <input
+                  type="color" style={{ ...INPUT, padding: 2, height: 28, width: 44, cursor: "pointer", flex: "none" }}
+                  value={cell.child.fill ?? "#334155"}
+                  onChange={(e) => onChange({ child: { ...cell.child!, fill: e.target.value } })}
+                />
+                <input
+                  type="text" style={INPUT}
+                  value={cell.child.fill ?? ""}
+                  placeholder="nessuno"
+                  onChange={(e) => onChange({ child: { ...cell.child!, fill: e.target.value || undefined } })}
+                />
+              </div>
+            </div>
+          )}
+          {["text", "gauge", "led", "progress_bar", "trend"].includes(cell.child.type) && (
+            <div style={{ marginBottom: 6 }}>
+              <div style={LABEL}>Tag</div>
+              <TagInput
+                style={INPUT}
+                placeholder="es. pompa.portata"
+                value={cell.child.tag ?? ""}
+                onChange={(v) => onChange({ child: { ...cell.child!, tag: v || undefined } })}
+              />
+            </div>
+          )}
+          {cell.child.type === "symbol" && (
+            <div style={{ marginBottom: 6 }}>
+              <div style={LABEL}>Simbolo</div>
+              <SymbolGallery
+                value={cell.child.symbol_id ?? "pump"}
+                onChange={(v) => onChange({ child: { ...cell.child!, symbol_id: v as any } })}
+              />
+            </div>
+          )}
+          {cell.child.type === "button" && (
+            <div style={{ marginBottom: 6 }}>
+              <div style={LABEL}>Tag scrittura</div>
+              <TagInput
+                style={INPUT}
+                placeholder="es. pompa.start"
+                value={cell.child.tag ?? ""}
+                onChange={(v) => onChange({ child: { ...cell.child!, tag: v || undefined } })}
+              />
+            </div>
+          )}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 6px", marginBottom: 4 }}>
+            <div>
+              <div style={LABEL}>Larghezza</div>
+              <input
+                type="number" style={INPUT}
+                value={cell.child.width ?? 80}
+                onChange={(e) => onChange({ child: { ...cell.child!, width: Number(e.target.value) } })}
+              />
+            </div>
+            <div>
+              <div style={LABEL}>Altezza</div>
+              <input
+                type="number" style={INPUT}
+                value={cell.child.height ?? 60}
+                onChange={(e) => onChange({ child: { ...cell.child!, height: Number(e.target.value) } })}
+              />
+            </div>
+          </div>
+        </>
       ) : (
-        <p style={{ fontSize: 10, color: "#475569", margin: "0 0 4px" }}>
-          Nessun figlio. Copia un oggetto dalla pagina (Ctrl+C), seleziona questa cella e premi Ctrl+V per incollarlo. Ctrl+X taglia il figlio e lo rimette nel clipboard.
-        </p>
+        <>
+          <div style={{ display: "flex", gap: 6, marginBottom: 4 }}>
+            <select
+              style={{ ...INPUT, flex: 1, cursor: "pointer" }}
+              value={newChildType}
+              onChange={(e) => setNewChildType(e.target.value)}
+            >
+              {CELL_CHILD_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+            </select>
+            <button
+              onClick={() => onChange({ child: makeDefaultChild(newChildType) })}
+              style={{ background: "#1d4ed8", border: "1px solid #2563eb", color: "#bfdbfe", borderRadius: 4, cursor: "pointer", fontSize: 12, padding: "2px 10px", flexShrink: 0 }}
+            >
+              + Aggiungi
+            </button>
+          </div>
+          <p style={{ fontSize: 10, color: "#475569", margin: "0 0 4px" }}>
+            Oppure: copia un oggetto dalla pagina (Ctrl+C) e premi Ctrl+V con questa cella selezionata.
+          </p>
+        </>
       )}
     </div>
   );

@@ -1334,6 +1334,7 @@ function SvgObject(p: ObjProps) {
                   if (isEditMode) {
                     e.stopPropagation();
                     onSelect?.(obj.id, e.shiftKey);
+                    if (!e.shiftKey) onStartDrag?.(e, obj);
                     onSelectCell?.(obj.id, r, c);
                   } else if (cellDef?.on_press_fn && onScript) {
                     e.stopPropagation();
