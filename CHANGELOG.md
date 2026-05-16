@@ -8,6 +8,23 @@ and this project adheres to [CalVer](https://calver.org/) (`YYYY.MM[.patch]`).
 ## [Unreleased]
 
 ### Added
+- **Project management from WelcomeScreen** — each project card now shows three icon buttons (✎ rename, ⧉ duplicate, ✕ delete):
+  - **Rename**: click ✎ to replace the project name with an inline `<input>`; Enter/Esc/blur confirms or cancels. Backend: `POST /api/projects/:name/rename` (`{ new_name }`) in `sws-web/src/projects.rs`; updates the active project dir pointer if the project was open.
+  - **Duplicate**: click ⧉ to reveal a "Nome copia:" row below the card with a text input and ✓/✗ buttons. Backend: `POST /api/projects/:name/duplicate` uses `copy_dir_all` into a new folder; 409 on conflict.
+  - **Delete**: click ✕ for `window.confirm`; backend `DELETE /api/projects/:name` returns 409 if the project is currently open. Directory is removed on success.
+  - New `axum::routing::delete` import in `router.rs`; all three routes added to the pre-auth `project_lifecycle` layer. New `deleteProject / renameProject / duplicateProject` methods in `api/client.ts`.
+
+- **Quality dot — per-object visibility toggle and custom colours** — `SynopticObject` gains four optional fields:
+  - `quality_dot?: boolean` — when `false` the quality-state circle is not rendered (useful for decorative objects or wherever the dot would overlap the widget content). Default: `true` (unchanged behaviour).
+  - `quality_dot_good_color?`, `quality_dot_bad_color?`, `quality_dot_uncertain_color?` — override the global defaults (`#22c55e` / `#ef4444` / `#eab308`) per object.
+  - `SvgCanvas.tsx`: `qualityColor()` updated to accept optional overrides; `QDot` component extended with three optional colour props; all five render sites (rect/ellipse/text/progress_bar/gauge) now guard with `obj.quality_dot !== false` and pass the colour props.
+  - `EditorShell.tsx`: new "INDICATORE QUALITÀ" panel section (shown only when `obj.tag` is set) with a checkbox for visibility and three `<input type="color">` pickers that appear when the checkbox is on. Empty value → placeholder shows global default.
+  - `synoptic.rs` (Rust): four new `Option<…>` fields with `skip_serializing_if = "Option::is_none"` for lossless YAML round-trip.
+
+- **Template "Casa Locale" — bug fixes**:
+  - DDS661 "Rack Piano Superiore" topic slug corrected from `contatore-rack-piano-superiore` to `contatore-rack-pianosuperiore` (4 topic references in `project.yaml`). The slug was mismatched with the actual device name published by the dds661 tool.
+  - Navigation home button ("⌂") moved from `x=340 w=130` to `x=155 w=55` on pages 3, 4, 5 — it was overlapping the centred page title text.
+
 - **Symbol library v2** — visual gallery replaces plain dropdown; 5 new builtin symbols; 7 vendored symbols registered:
   - `SymbolGallery` component: 4-column CSS grid, `maxHeight: 260px` scrollable, each tile shows a 44×38 mini-preview (inline SVG for builtins, `<img>` for vendored/custom), blue border on selection, 8 px label below. Replaces `SymbolSelect` (`<select>`) throughout the ObjectProps panel.
   - New builtin symbols (hand-rolled JSX, 100×100 viewBox): `heat_pump` (hot/cold coil sections + compressor), `temperature_sensor` (stub + circular body + TT tag bubble), `boiler` (steam outlet + vessel + flame), `agitator` (vessel + side motor + shaft + cross impeller; CSS `animation: spin 1s linear infinite` when state=on), `cooling_tower` (trapezoid + fan disk + packing lines + water drops).
