@@ -1,0 +1,405 @@
+meta:
+  name: casa-locale
+  version: 0.1.0
+
+# ── Tag definitions ────────────────────────────────────────────────────────────
+tags:
+
+  # Impianto solare (alimentati da HA automation → sws/solarman/*)
+  - id: solar.pv_power
+    description: "Potenza FV totale istantanea (kW)"
+    data_type: float
+  - id: solar.pv1_power
+    description: "Potenza stringa PV1 (kW)"
+    data_type: float
+  - id: solar.pv2_power
+    description: "Potenza stringa PV2 (kW)"
+    data_type: float
+  - id: solar.battery_soc
+    description: "Stato di carica batteria (%)"
+    data_type: float
+  - id: solar.battery_power
+    description: "Potenza batteria (kW, + = carica)"
+    data_type: float
+  - id: solar.battery_v
+    description: "Tensione batteria (V)"
+    data_type: float
+  - id: solar.grid_power
+    description: "Potenza rete (kW, negativo = importo da rete)"
+    data_type: float
+  - id: solar.consumption
+    description: "Consumo casa istantaneo (kW)"
+    data_type: float
+  - id: solar.daily_kwh
+    description: "Produzione FV giornaliera (kWh)"
+    data_type: float
+  - id: solar.total_kwh
+    description: "Produzione FV totale (kWh)"
+    data_type: float
+  - id: solar.inv_temp
+    description: "Temperatura modulo inverter (°C)"
+    data_type: float
+  - id: solar.inv_status
+    description: "Stato inverter (stringa: Normal / Fault)"
+    data_type: string
+
+  # Contatore Rack Garage (DDS661 via soligolab/dds661)
+  - id: rack_garage.power
+    description: "Rack Garage — potenza attiva (W)"
+    data_type: float
+  - id: rack_garage.voltage
+    description: "Rack Garage — tensione (V)"
+    data_type: float
+  - id: rack_garage.current
+    description: "Rack Garage — corrente (A)"
+    data_type: float
+  - id: rack_garage.pf
+    description: "Rack Garage — power factor"
+    data_type: float
+  - id: rack_garage.freq
+    description: "Rack Garage — frequenza (Hz)"
+    data_type: float
+  - id: rack_garage.energy
+    description: "Rack Garage — energia totale (kWh)"
+    data_type: float
+  - id: rack_garage.import
+    description: "Rack Garage — energia importata (kWh)"
+    data_type: float
+  - id: rack_garage.export
+    description: "Rack Garage — energia esportata (kWh)"
+    data_type: float
+
+  # Contatore Rack Piano Superiore (DDS661)
+  - id: rack_piano.power
+    description: "Rack Piano Sup. — potenza attiva (W)"
+    data_type: float
+  - id: rack_piano.voltage
+    description: "Rack Piano Sup. — tensione (V)"
+    data_type: float
+  - id: rack_piano.current
+    description: "Rack Piano Sup. — corrente (A)"
+    data_type: float
+  - id: rack_piano.energy
+    description: "Rack Piano Sup. — energia totale (kWh)"
+    data_type: float
+
+  # Contatore Pompa di Calore (DDS661)
+  - id: pdc.power
+    description: "Pompa di Calore — potenza attiva (W)"
+    data_type: float
+  - id: pdc.voltage
+    description: "Pompa di Calore — tensione (V)"
+    data_type: float
+  - id: pdc.current
+    description: "Pompa di Calore — corrente (A)"
+    data_type: float
+  - id: pdc.pf
+    description: "Pompa di Calore — power factor"
+    data_type: float
+  - id: pdc.energy
+    description: "Pompa di Calore — energia totale (kWh)"
+    data_type: float
+
+  # Sensori sicurezza — porte e finestre (Zigbee2MQTT)
+  # contact: true = aperto, false = chiuso (semantica ZHA/Zigbee)
+  - id: sec.finestra_garage
+    description: "Finestra Garage (true=aperta)"
+    data_type: bool
+  - id: sec.finestra_studio
+    description: "Finestra Studio (true=aperta)"
+    data_type: bool
+  - id: sec.finestra_cucina_dx
+    description: "Finestra Cucina DX (true=aperta)"
+    data_type: bool
+  - id: sec.finestra_cucina_sx
+    description: "Finestra Cucina SX (true=aperta)"
+    data_type: bool
+  - id: sec.portafinestra_sogg_dx
+    description: "Portafinestra Soggiorno DX (true=aperta)"
+    data_type: bool
+  - id: sec.portafinestra_sogg_sx
+    description: "Portafinestra Soggiorno SX (true=aperta)"
+    data_type: bool
+  - id: sec.portafinestra_lav
+    description: "Portafinestra Lavanderia (true=aperta)"
+    data_type: bool
+  - id: sec.finestra_bagno
+    description: "Finestra Bagno Terra (true=aperta)"
+    data_type: bool
+  - id: sec.portoncino_studio
+    description: "Portoncino Studio (true=aperto)"
+    data_type: bool
+  - id: sec.portoncino_dimp
+    description: "Portoncino Disimpegno (true=aperto)"
+    data_type: bool
+  - id: sec.garage_sezionale
+    description: "Garage Sezionale (true=aperto)"
+    data_type: bool
+
+  # Sensori presenza/movimento (Zigbee2MQTT)
+  - id: sec.presenza_ingresso
+    description: "Presenza Ingresso (true=rilevata)"
+    data_type: bool
+  - id: sec.lux_ingresso
+    description: "Luminosità Ingresso (lux)"
+    data_type: float
+  - id: sec.movimento_ovest
+    description: "Movimento Perimetro Ovest (true=rilevato)"
+    data_type: bool
+  - id: sec.movimento_nordest
+    description: "Movimento Perimetro Nord-Est (true=rilevato)"
+    data_type: bool
+  - id: sec.movimento_nordovest
+    description: "Movimento Perimetro Nord-Ovest (true=rilevato)"
+    data_type: bool
+
+  # Tapparelle (Shelly — posizione 0=chiusa, 100=aperta)
+  - id: shutter.garage
+    description: "Tapparella Ufficio/Garage (0-100%)"
+    data_type: float
+  - id: shutter.bagno
+    description: "Tapparella Bagno (0-100%)"
+    data_type: float
+  - id: shutter.sogg_dx
+    description: "Tapparella Soggiorno DX (0-100%)"
+    data_type: float
+  - id: shutter.sogg_sx
+    description: "Tapparella Soggiorno SX (0-100%)"
+    data_type: float
+
+# ── MQTT sources ───────────────────────────────────────────────────────────────
+sources:
+
+  # ── Zigbee2MQTT — topic nativi sul broker ──────────────────────────────────
+  - kind: mqtt
+    id: zigbee2mqtt
+    host: 192.168.1.6
+    port: 1883
+    client_id: sws-casa-zigbee
+    clean_session: true
+    keep_alive_secs: 30
+    topics:
+      # Porte e finestre (contact: true=aperto in Zigbee)
+      - tag: sec.finestra_garage
+        topic: zigbee2mqtt/finestragarage
+        json_path: contact
+      - tag: sec.finestra_studio
+        topic: zigbee2mqtt/finestrastudio
+        json_path: contact
+      - tag: sec.finestra_cucina_dx
+        topic: zigbee2mqtt/finestracucinadx
+        json_path: contact
+      - tag: sec.finestra_cucina_sx
+        topic: zigbee2mqtt/finestracucinasx
+        json_path: contact
+      - tag: sec.portafinestra_sogg_dx
+        topic: zigbee2mqtt/portafinestrasoggiornodx
+        json_path: contact
+      - tag: sec.portafinestra_sogg_sx
+        topic: zigbee2mqtt/portafinestrasoggiornosx
+        json_path: contact
+      - tag: sec.portafinestra_lav
+        topic: zigbee2mqtt/portafinestralavanderia
+        json_path: contact
+      - tag: sec.finestra_bagno
+        topic: zigbee2mqtt/finestrabagnoterra
+        json_path: contact
+      - tag: sec.portoncino_studio
+        topic: zigbee2mqtt/portoncinostudio
+        json_path: contact
+      - tag: sec.portoncino_dimp
+        topic: zigbee2mqtt/portoncinodisimpegno
+        json_path: contact
+      - tag: sec.garage_sezionale
+        topic: zigbee2mqtt/garagesezionale
+        json_path: contact
+      # Presenza e movimento
+      - tag: sec.presenza_ingresso
+        topic: zigbee2mqtt/sensore_presenza_ingresso
+        json_path: occupancy
+      - tag: sec.lux_ingresso
+        topic: zigbee2mqtt/sensore_presenza_ingresso
+        json_path: illuminance
+      - tag: sec.movimento_ovest
+        topic: zigbee2mqtt/sensoreperimetraleovest
+        json_path: occupancy
+      - tag: sec.movimento_nordest
+        topic: zigbee2mqtt/sensoreperimetralenordest
+        json_path: occupancy
+      - tag: sec.movimento_nordovest
+        topic: zigbee2mqtt/sensoreperimetralenordovest
+        json_path: occupancy
+
+  # ── DDS661 energy meters (github.com/soligolab/dds661) ────────────────────
+  # Topic: dds661/<slug>/state — slug = nome in config.yaml slugificato
+  # Verificare con: mosquitto_sub -h 192.168.1.6 -t 'dds661/#' -v
+  - kind: mqtt
+    id: dds661
+    host: 192.168.1.6
+    port: 1883
+    client_id: sws-casa-dds661
+    clean_session: true
+    keep_alive_secs: 30
+    topics:
+      # Rack Garage
+      - tag: rack_garage.power
+        topic: "dds661/contatore-rack-garage/state"
+        json_path: p_active
+      - tag: rack_garage.voltage
+        topic: "dds661/contatore-rack-garage/state"
+        json_path: voltage
+      - tag: rack_garage.current
+        topic: "dds661/contatore-rack-garage/state"
+        json_path: current
+      - tag: rack_garage.pf
+        topic: "dds661/contatore-rack-garage/state"
+        json_path: pf
+      - tag: rack_garage.freq
+        topic: "dds661/contatore-rack-garage/state"
+        json_path: freq
+      - tag: rack_garage.energy
+        topic: "dds661/contatore-rack-garage/state"
+        json_path: e_total
+      - tag: rack_garage.import
+        topic: "dds661/contatore-rack-garage/state"
+        json_path: e_pos
+      - tag: rack_garage.export
+        topic: "dds661/contatore-rack-garage/state"
+        json_path: e_rev
+      # Rack Piano Superiore
+      - tag: rack_piano.power
+        topic: "dds661/contatore-rack-piano-superiore/state"
+        json_path: p_active
+      - tag: rack_piano.voltage
+        topic: "dds661/contatore-rack-piano-superiore/state"
+        json_path: voltage
+      - tag: rack_piano.current
+        topic: "dds661/contatore-rack-piano-superiore/state"
+        json_path: current
+      - tag: rack_piano.energy
+        topic: "dds661/contatore-rack-piano-superiore/state"
+        json_path: e_total
+      # Pompa di Calore
+      - tag: pdc.power
+        topic: "dds661/pompa-di-calore/state"
+        json_path: p_active
+      - tag: pdc.voltage
+        topic: "dds661/pompa-di-calore/state"
+        json_path: voltage
+      - tag: pdc.current
+        topic: "dds661/pompa-di-calore/state"
+        json_path: current
+      - tag: pdc.pf
+        topic: "dds661/pompa-di-calore/state"
+        json_path: pf
+      - tag: pdc.energy
+        topic: "dds661/pompa-di-calore/state"
+        json_path: e_total
+
+  # ── Solarman bridge (pubblicato da automazione HA — vedi SETUP.md) ─────────
+  - kind: mqtt
+    id: solarman-bridge
+    host: 192.168.1.6
+    port: 1883
+    client_id: sws-casa-solar
+    clean_session: true
+    keep_alive_secs: 60
+    topics:
+      - tag: solar.pv_power
+        topic: sws/solarman/pv_power
+      - tag: solar.pv1_power
+        topic: sws/solarman/pv1_power
+      - tag: solar.pv2_power
+        topic: sws/solarman/pv2_power
+      - tag: solar.battery_soc
+        topic: sws/solarman/battery_soc
+      - tag: solar.battery_power
+        topic: sws/solarman/battery_power
+      - tag: solar.battery_v
+        topic: sws/solarman/battery_voltage
+      - tag: solar.grid_power
+        topic: sws/solarman/feed_in_out_power
+      - tag: solar.consumption
+        topic: sws/solarman/consumption
+      - tag: solar.daily_kwh
+        topic: sws/solarman/daily_production
+      - tag: solar.total_kwh
+        topic: sws/solarman/total_production
+      - tag: solar.inv_temp
+        topic: sws/solarman/inverter_temperature
+      - tag: solar.inv_status
+        topic: sws/solarman/inverter_status
+
+  # ── Tapparelle Shelly (MQTT nativo Shelly) ──────────────────────────────────
+  # ATTENZIONE: sostituire SHELLY_*_ID con i MAC reali dei dispositivi
+  # Trovabili con: mosquitto_sub -h 192.168.1.6 -t 'shellies/#' -v
+  - kind: mqtt
+    id: shelly-tapparelle
+    host: 192.168.1.6
+    port: 1883
+    client_id: sws-casa-shelly
+    clean_session: true
+    keep_alive_secs: 30
+    topics:
+      - tag: shutter.garage
+        topic: "shellies/SHELLY_GARAGE_ID/roller/0/pos"
+        publish_topic: "shellies/SHELLY_GARAGE_ID/roller/0/command"
+      - tag: shutter.bagno
+        topic: "shellies/SHELLY_BAGNO_ID/roller/0/pos"
+        publish_topic: "shellies/SHELLY_BAGNO_ID/roller/0/command"
+      - tag: shutter.sogg_dx
+        topic: "shellies/SHELLY_SOGG_DX_ID/roller/0/pos"
+        publish_topic: "shellies/SHELLY_SOGG_DX_ID/roller/0/command"
+      - tag: shutter.sogg_sx
+        topic: "shellies/SHELLY_SOGG_SX_ID/roller/0/pos"
+        publish_topic: "shellies/SHELLY_SOGG_SX_ID/roller/0/command"
+
+# ── Alarms ─────────────────────────────────────────────────────────────────────
+alarms:
+  - id: alarm_garage_aperto
+    tag: sec.garage_sezionale
+    condition:
+      kind: bool_equals
+      value: true
+    message: "Garage sezionale APERTO"
+    severity: Warning
+
+  - id: alarm_movimento_ovest
+    tag: sec.movimento_ovest
+    condition:
+      kind: bool_equals
+      value: true
+    message: "Movimento rilevato — zona Ovest"
+    severity: Info
+
+  - id: alarm_movimento_nordest
+    tag: sec.movimento_nordest
+    condition:
+      kind: bool_equals
+      value: true
+    message: "Movimento rilevato — zona Nord-Est"
+    severity: Info
+
+  - id: alarm_batteria_bassa
+    tag: solar.battery_soc
+    condition:
+      kind: below
+      threshold: 15
+    message: "Batteria scarica (SOC < 15%)"
+    severity: Warning
+
+  - id: alarm_rack_garage_alta_potenza
+    tag: rack_garage.power
+    condition:
+      kind: above
+      threshold: 2500
+    message: "Rack Garage — potenza elevata (>2500W)"
+    severity: Warning
+
+  - id: alarm_pdc_alta_potenza
+    tag: pdc.power
+    condition:
+      kind: above
+      threshold: 3000
+    message: "Pompa di Calore — consumo elevato (>3kW)"
+    severity: Warning

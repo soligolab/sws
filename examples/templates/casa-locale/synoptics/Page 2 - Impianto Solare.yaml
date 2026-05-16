@@ -1,0 +1,482 @@
+id: cl_page2
+name: "Impianto Solare"
+background: "#0f172a"
+objects:
+
+# ══════════════════════════════════════════════════════════════════
+# HEADER + NAV
+# ══════════════════════════════════════════════════════════════════
+- id: cl2_title
+  type: text
+  x: 400
+  y: 22
+  text: "☀  IMPIANTO SOLARE"
+  font_size: 20
+  font_weight: bold
+  text_anchor: middle
+  color: "#fbbf24"
+
+- id: cl2_nav_back
+  type: navbutton
+  x: 20
+  y: 14
+  width: 130
+  height: 30
+  label: "◀ Panoramica"
+  target_page: cl_page1
+
+- id: cl2_nav_next
+  type: navbutton
+  x: 660
+  y: 14
+  width: 130
+  height: 30
+  label: "Contatori ▶"
+  target_page: cl_page3
+
+# Stato inverter in header
+- id: cl2_inv_led
+  type: led
+  x: 780
+  y: 18
+  width: 20
+  height: 20
+  tag: solar.inv_status
+  on_value: "Normal"
+  on_color: "#22c55e"
+  off_color: "#ef4444"
+
+- id: cl2_inv_lbl
+  type: text
+  x: 760
+  y: 48
+  tag: solar.inv_status
+  format: "{value}"
+  font_size: 10
+  text_anchor: middle
+  color: "#64748b"
+
+# ══════════════════════════════════════════════════════════════════
+# COLONNA SINISTRA — PANNELLI PV
+# ══════════════════════════════════════════════════════════════════
+- id: cl2_pv_col_title
+  type: text
+  x: 140
+  y: 68
+  text: "PANNELLI FV"
+  font_size: 13
+  font_weight: bold
+  text_anchor: middle
+  color: "#f59e0b"
+
+# SVG impianto
+- id: cl2_pv_svg
+  type: image
+  x: 60
+  y: 80
+  width: 160
+  height: 60
+  src: "/symbols/solar-power-variant.svg"
+
+# PV1 gauge
+- id: cl2_pv1_lbl
+  type: text
+  x: 90
+  y: 162
+  text: "Stringa PV1"
+  font_size: 11
+  color: "#78716c"
+
+- id: cl2_pv1_gauge
+  type: gauge
+  x: 20
+  y: 170
+  width: 150
+  height: 120
+  tag: solar.pv1_power
+  min: 0
+  max: 2
+  unit: "kW"
+  label: "PV1"
+
+- id: cl2_pv2_lbl
+  type: text
+  x: 220
+  y: 162
+  text: "Stringa PV2"
+  font_size: 11
+  color: "#78716c"
+
+- id: cl2_pv2_gauge
+  type: gauge
+  x: 150
+  y: 170
+  width: 150
+  height: 120
+  tag: solar.pv2_power
+  min: 0
+  max: 2
+  unit: "kW"
+  label: "PV2"
+
+# Totale PV
+- id: cl2_pv_tot_lbl
+  type: text
+  x: 140
+  y: 310
+  text: "Totale generato"
+  font_size: 11
+  text_anchor: middle
+  color: "#64748b"
+
+- id: cl2_pv_tot_val
+  type: text
+  x: 140
+  y: 334
+  tag: solar.pv_power
+  format: "{value:.3f} kW"
+  font_size: 26
+  font_weight: bold
+  text_anchor: middle
+  color: "#f59e0b"
+
+# Produzione giornaliera
+- id: cl2_daily_box
+  type: rect
+  x: 20
+  y: 360
+  width: 240
+  height: 50
+  fill: "#1e293b"
+  stroke: "#374151"
+  stroke_width: 1
+
+- id: cl2_daily_lbl
+  type: text
+  x: 30
+  y: 378
+  text: "Produzione oggi"
+  font_size: 10
+  color: "#64748b"
+
+- id: cl2_daily_val
+  type: text
+  x: 30
+  y: 398
+  tag: solar.daily_kwh
+  format: "{value:.1f} kWh"
+  font_size: 16
+  font_weight: bold
+  color: "#fbbf24"
+
+- id: cl2_total_lbl
+  type: text
+  x: 165
+  y: 378
+  text: "Totale storico"
+  font_size: 10
+  color: "#64748b"
+
+- id: cl2_total_val
+  type: text
+  x: 165
+  y: 398
+  tag: solar.total_kwh
+  format: "{value:.0f} kWh"
+  font_size: 16
+  font_weight: bold
+  color: "#d97706"
+
+# ══════════════════════════════════════════════════════════════════
+# COLONNA CENTRALE — BATTERIA
+# ══════════════════════════════════════════════════════════════════
+
+# Divisore
+- id: cl2_div1
+  type: line
+  x: 295
+  y: 55
+  x2: 295
+  y2: 600
+  stroke: "#1e293b"
+  stroke_width: 2
+
+- id: cl2_bat_title
+  type: text
+  x: 440
+  y: 68
+  text: "BATTERIA"
+  font_size: 13
+  font_weight: bold
+  text_anchor: middle
+  color: "#22c55e"
+
+# Icona batteria
+- id: cl2_bat_icon
+  type: image
+  x: 405
+  y: 78
+  width: 72
+  height: 72
+  src: "/symbols/battery-charging-high.svg"
+
+# SOC gauge grande
+- id: cl2_soc_gauge
+  type: gauge
+  x: 310
+  y: 160
+  width: 200
+  height: 160
+  tag: solar.battery_soc
+  min: 0
+  max: 100
+  unit: "%"
+  label: "SOC Batteria"
+  warn_low: 20
+  alarm_low: 10
+
+# Barra SOC
+- id: cl2_soc_bar
+  type: progress_bar
+  x: 315
+  y: 330
+  width: 250
+  height: 20
+  tag: solar.battery_soc
+  min: 0
+  max: 100
+  fill: "#22c55e"
+  warn_low: 20
+  alarm_low: 10
+
+- id: cl2_soc_pct
+  type: text
+  x: 440
+  y: 365
+  tag: solar.battery_soc
+  format: "{value:.1f} %"
+  font_size: 14
+  font_weight: bold
+  text_anchor: middle
+  color: "#4ade80"
+
+# Tensione e potenza
+- id: cl2_bat_v_lbl
+  type: text
+  x: 310
+  y: 390
+  text: "Tensione:"
+  font_size: 11
+  color: "#64748b"
+- id: cl2_bat_v_val
+  type: text
+  x: 390
+  y: 390
+  tag: solar.battery_v
+  format: "{value:.1f} V"
+  font_size: 13
+  font_weight: bold
+  color: "#86efac"
+
+- id: cl2_bat_p_lbl
+  type: text
+  x: 310
+  y: 412
+  text: "Potenza:"
+  font_size: 11
+  color: "#64748b"
+- id: cl2_bat_p_val
+  type: text
+  x: 390
+  y: 412
+  tag: solar.battery_power
+  format: "{value:+.2f} kW"
+  font_size: 13
+  font_weight: bold
+  color: "#4ade80"
+
+- id: cl2_bat_dir_lbl
+  type: text
+  x: 310
+  y: 432
+  text: "+ = carica / − = scarica"
+  font_size: 9
+  color: "#374155"
+
+# Trend potenza batteria
+- id: cl2_bat_trend_lbl
+  type: text
+  x: 310
+  y: 455
+  text: "Andamento (1h)"
+  font_size: 10
+  color: "#475569"
+
+- id: cl2_bat_trend
+  type: trend
+  x: 308
+  y: 462
+  width: 255
+  height: 100
+  tag: solar.battery_power
+  window_s: 3600
+  line_color: "#22c55e"
+
+# ══════════════════════════════════════════════════════════════════
+# COLONNA DESTRA — RETE + INVERTER
+# ══════════════════════════════════════════════════════════════════
+
+# Divisore
+- id: cl2_div2
+  type: line
+  x: 590
+  y: 55
+  x2: 590
+  y2: 600
+  stroke: "#1e293b"
+  stroke_width: 2
+
+- id: cl2_grid_title
+  type: text
+  x: 710
+  y: 68
+  text: "RETE & INVERTER"
+  font_size: 13
+  font_weight: bold
+  text_anchor: middle
+  color: "#06b6d4"
+
+# Icona rete
+- id: cl2_grid_icon
+  type: image
+  x: 680
+  y: 78
+  width: 56
+  height: 56
+  src: "/symbols/transmission-tower.svg"
+
+# Gauge tensione rete
+- id: cl2_grid_v_gauge
+  type: gauge
+  x: 600
+  y: 148
+  width: 150
+  height: 120
+  tag: solar.battery_v
+  min: 45
+  max: 58
+  unit: "V"
+  label: "Batteria"
+  warn_low: 48
+
+# Feed-in/out
+- id: cl2_feed_lbl
+  type: text
+  x: 600
+  y: 288
+  text: "Scambio rete:"
+  font_size: 11
+  color: "#64748b"
+- id: cl2_feed_val
+  type: text
+  x: 600
+  y: 308
+  tag: solar.grid_power
+  format: "{value:+.3f} kW"
+  font_size: 20
+  font_weight: bold
+  color: "#22d3ee"
+
+- id: cl2_feed_hint
+  type: text
+  x: 600
+  y: 326
+  text: "negativo = importo da rete"
+  font_size: 9
+  color: "#374151"
+
+# Consumo casa
+- id: cl2_cons_lbl
+  type: text
+  x: 600
+  y: 358
+  text: "Consumo casa:"
+  font_size: 11
+  color: "#64748b"
+- id: cl2_cons_val
+  type: text
+  x: 600
+  y: 378
+  tag: solar.consumption
+  format: "{value:.3f} kW"
+  font_size: 20
+  font_weight: bold
+  color: "#60a5fa"
+
+# Inverter
+- id: cl2_inv_box
+  type: rect
+  x: 600
+  y: 408
+  width: 210
+  height: 80
+  fill: "#1e293b"
+  stroke: "#334155"
+  stroke_width: 1
+
+- id: cl2_inv_title2
+  type: text
+  x: 612
+  y: 424
+  text: "INVERTER"
+  font_size: 11
+  font_weight: bold
+  color: "#475569"
+
+- id: cl2_inv_status_lbl
+  type: text
+  x: 612
+  y: 444
+  text: "Stato:"
+  font_size: 11
+  color: "#64748b"
+- id: cl2_inv_status_val
+  type: text
+  x: 660
+  y: 444
+  tag: solar.inv_status
+  format: "{value}"
+  font_size: 11
+  font_weight: bold
+  color: "#22c55e"
+
+- id: cl2_inv_temp_lbl
+  type: text
+  x: 612
+  y: 462
+  text: "Temp modulo:"
+  font_size: 11
+  color: "#64748b"
+- id: cl2_inv_temp_val
+  type: text
+  x: 700
+  y: 462
+  tag: solar.inv_temp
+  format: "{value:.0f} °C"
+  font_size: 11
+  font_weight: bold
+  color: "#94a3b8"
+
+- id: cl2_inv_temp_gauge
+  type: gauge
+  x: 600
+  y: 490
+  width: 140
+  height: 100
+  tag: solar.inv_temp
+  min: 0
+  max: 80
+  unit: "°C"
+  label: "Temp."
+  warn_high: 60
+  alarm_high: 75

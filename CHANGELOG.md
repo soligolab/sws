@@ -8,6 +8,9 @@ and this project adheres to [CalVer](https://calver.org/) (`YYYY.MM[.patch]`).
 ## [Unreleased]
 
 ### Added
+- **Template "Casa Locale"** (`examples/templates/casa-locale/`) — second SWS template: a 5-page home control console for a local MQTT broker. Pages: Panoramica (energy flow + security overview), Impianto Solare (PV gauges + battery SOC + grid exchange), Contatori Energia (3 DDS661 energy meters with gauges and measurement tables), Sicurezza (12 Zigbee door/window sensors + 3 perimeter PIRs + lux), Domotica (4 Shelly roller shutter controllers + heat pump monitoring + ESPHome placeholders). 50+ tags, 4 MQTT sources (Zigbee2MQTT, dds661, Solarman HA bridge, Shelly), 6 alarms. `SETUP.md` includes the HA automation YAML for the Solarman→MQTT bridge. `CREDITS.md` lists all data sources.
+- **8 new SVG icons** (`sws-editor/public/symbols/`) — Material Design Icons (Apache 2.0 / Pictogrammers): `solar-panel.svg`, `solar-power-variant.svg`, `battery-charging-high.svg`, `transmission-tower.svg`, `home-lightning-bolt.svg`, `garage-open-variant.svg`, `window-open-variant.svg`, `roller-shade.svg`. All pre-colored for dark-background dashboards. `ATTRIBUTION.md` updated.
+
 - **Page dimensions** — `SynopticPage` gains optional `width` and `height` fields. When set, the editor canvas renders a dashed blue boundary rect at `(0,0,width,height)` in SVG space. The `PageProps` right-panel now exposes two number inputs (Larghezza/Altezza) with empty = fluid. Both fields are persisted in YAML via the Rust `SynopticPage` mirror.
 
 - **Grid layout object** (type `"grid"`, Session 1) — A new object type for designing tabular layouts:
