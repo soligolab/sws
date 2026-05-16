@@ -35,7 +35,12 @@ serde_yaml  = "0.9"
 serde_json  = "1"
 
 # TLS (pure Rust, no OpenSSL)
-rustls        = "0.23"
+# Explicitly enable the ring crypto backend.  Rustls 0.23 panics at startup if
+# multiple providers end up in the dep graph (e.g., ring via rcgen + aws-lc-rs
+# via hyper-rustls/reqwest) without an explicit install_default() call.
+# Declaring ring here makes the feature flag unambiguous; main.rs calls
+# install_default() as the belt-and-suspenders counterpart.
+rustls        = { version = "0.23", features = ["ring"] }
 tokio-rustls  = "0.26"
 rcgen         = "0.13"
 hyper          = { version = "1",   features = ["http1", "http2"] }

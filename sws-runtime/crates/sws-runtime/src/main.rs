@@ -64,6 +64,14 @@ struct Args {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    // Rustls 0.23 panics if multiple crypto providers end up in the dep graph
+    // (e.g., `ring` via rcgen + `aws-lc-rs` via hyper-rustls/reqwest) without
+    // an explicit call here.  `.ok()` silently accepts "already installed" in
+    // case any upstream crate calls this first.
+    rustls::crypto::ring::default_provider()
+        .install_default()
+        .ok();
+
     let args = Args::parse();
 
     // LogBus is built first so the tracing subscriber can hold an Arc clone.
