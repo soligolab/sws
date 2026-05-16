@@ -431,6 +431,21 @@ export function SvgCanvas({
               onNavigate={onNavigate}
               onSelectCell={onSelectCell}
             />
+            {inEdit && (() => {
+              const bb = objBBox(obj);
+              return (
+                <rect
+                  x={bb.x1} y={bb.y1}
+                  width={bb.x2 - bb.x1} height={bb.y2 - bb.y1}
+                  fill="none"
+                  stroke="#475569"
+                  strokeWidth={1}
+                  strokeDasharray="4 3"
+                  opacity={0.5}
+                  style={{ pointerEvents: "none" }}
+                />
+              );
+            })()}
           </g>
         );
       })}
@@ -1369,6 +1384,17 @@ function SvgObject(p: ObjProps) {
                       : (cellDef?.on_press_fn ? "pointer" : "default"),
                   }}
                 />
+                {isEditMode && (
+                  <rect
+                    x={colX[c]} y={rowY[r]} width={cellW} height={cellH}
+                    fill="none"
+                    stroke={isCellSel ? "#facc15" : "#475569"}
+                    strokeWidth={isCellSel ? 1.5 : 1}
+                    strokeDasharray="4 3"
+                    opacity={isCellSel ? 0.9 : 0.5}
+                    style={{ pointerEvents: "none" }}
+                  />
+                )}
                 {cellDef?.bg_image && (
                   <image
                     href={cellDef.bg_image}
