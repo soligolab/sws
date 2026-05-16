@@ -5,6 +5,8 @@ import { LeftPanel } from "@/editor/LeftPanel";
 import { FunctionEditor } from "@/editor/FunctionEditor";
 import { TagInput } from "@/components/TagInput";
 import { BindableInput } from "@/components/BindableInput";
+import { SYMBOL_LIST } from "@/symbols/library";
+import type { SymbolMeta } from "@/symbols/library";
 import { useAppStore } from "@/store";
 import type { AlignMode } from "@/store";
 import type { FunctionDef, GridCell, RadioOption, SynopticObject, TableRow } from "@/types";
@@ -32,26 +34,87 @@ const INPUT: React.CSSProperties = {
   boxSizing: "border-box",
 };
 
-// ── SymbolSelect ─────────────────────────────────────────────────────────────
-// Dropdown che mostra sia i simboli built-in sia i simboli custom del progetto.
+// ── SymbolGallery ─────────────────────────────────────────────────────────────
+// Visual grid picker — shows a mini SVG preview for built-in symbols and an
+// <img> for vendored/custom SVG files. Replaces the old plain <select>.
 
-const BUILTIN_SYMBOLS = [
-  { id: "pump",              label: "Pompa" },
-  { id: "valve",             label: "Valvola" },
-  { id: "motor",             label: "Motore" },
-  { id: "tank",              label: "Serbatoio" },
-  { id: "fan",               label: "Ventola" },
-  { id: "compressor",        label: "Compressore" },
-  { id: "level_sensor",      label: "Sensore livello" },
-  { id: "flow_meter",        label: "Misuratore portata" },
-  { id: "pressure_indicator",label: "Indicatore pressione" },
-  { id: "breaker",           label: "Interruttore" },
-  { id: "mixer",             label: "Miscelatore" },
-  { id: "heat_exchanger",    label: "Scambiatore" },
-  { id: "separator",         label: "Separatore" },
-  { id: "reactor",           label: "Reattore" },
-  { id: "filter",            label: "Filtro" },
-];
+type GalleryTile =
+  | { kind: "builtin" | "vendored"; id: string; label: string; meta: SymbolMeta }
+  | { kind: "custom"; id: string; label: string; url: string };
+
+function SymbolGallery({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const customSymbols = useAppStore((s) => s.customSymbols);
+
+  const tiles: GalleryTile[] = [
+    ...SYMBOL_LIST.map((m) => ({ kind: m.kind, id: m.id, label: m.label, meta: m } as GalleryTile)),
+    ...customSymbols.map((s) => ({ kind: "custom" as const, id: `custom:${s.id}`, label: s.label, url: s.url })),
+  ];
+
+  return (
+    <div style={{
+      display: "grid",
+      gridTemplateColumns: "repeat(4, 1fr)",
+      gap: 4,
+      maxHeight: 260,
+      overflowY: "auto",
+      padding: 2,
+    }}>
+      {tiles.map((tile) => {
+        const sel = value === tile.id;
+        const isBi = tile.kind === "builtin";
+        return (
+          <button
+            key={tile.id}
+            title={tile.label}
+            onClick={() => onChange(tile.id)}
+            style={{
+              background: sel ? "#1e3a5f" : "#0f172a",
+              border: `2px solid ${sel ? "#facc15" : "#334155"}`,
+              borderRadius: 4,
+              cursor: "pointer",
+              padding: "4px 2px 3px",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              gap: 2,
+              overflow: "hidden",
+              minWidth: 0,
+            }}
+          >
+            <div style={{ width: 44, height: 38, display: "flex", alignItems: "center", justifyContent: "center" }}>
+              {isBi && (tile as { meta: SymbolMeta }).meta.render ? (
+                <svg width={40} height={38} viewBox="0 0 100 100" style={{ overflow: "visible" }}>
+                  {(tile as { meta: SymbolMeta }).meta.render!({ state: "on", off: "#64748b", on: "#22c55e", alarm: "#ef4444" })}
+                </svg>
+              ) : (
+                <img
+                  src={tile.kind === "custom"
+                    ? (tile as Extract<GalleryTile, { kind: "custom" }>).url
+                    : (tile as { meta: SymbolMeta }).meta.path}
+                  style={{ width: 36, height: 34, objectFit: "contain" }}
+                  draggable={false}
+                />
+              )}
+            </div>
+            <span style={{
+              fontSize: 8,
+              color: sel ? "#facc15" : "#64748b",
+              lineHeight: 1.1,
+              textAlign: "center",
+              maxWidth: "100%",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+              padding: "0 2px",
+            }}>
+              {tile.label}
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
 /** Object types that support rotation/flip/opacity in the canvas. */
 const SUPPORTS_TRANSFORM = new Set([
@@ -59,22 +122,6 @@ const SUPPORTS_TRANSFORM = new Set([
   "gauge", "led", "progress_bar", "table",
   "button", "navbutton", "symbol",
 ]);
-
-function SymbolSelect({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-  const customSymbols = useAppStore((s) => s.customSymbols);
-  return (
-    <select style={{ ...INPUT, cursor: "pointer" }} value={value} onChange={(e) => onChange(e.target.value)}>
-      <optgroup label="Libreria built-in">
-        {BUILTIN_SYMBOLS.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
-      </optgroup>
-      {customSymbols.length > 0 && (
-        <optgroup label="Simboli progetto">
-          {customSymbols.map((s) => <option key={s.id} value={`custom:${s.id}`}>{s.label}</option>)}
-        </optgroup>
-      )}
-    </select>
-  );
-}
 
 // ── EditorShell ───────────────────────────────────────────────────────────────
 
@@ -1255,7 +1302,7 @@ function ObjectProps({
       {obj.type === "symbol" && (
         <>
           {field("Simbolo",
-            <SymbolSelect value={obj.symbol_id ?? "pump"} onChange={(v) => onChange({ symbol_id: v as any })} />
+            <SymbolGallery value={obj.symbol_id ?? "pump"} onChange={(v) => onChange({ symbol_id: v as any })} />
           )}
           {field("Tag stato (truthy → ON)",
             <TagInput

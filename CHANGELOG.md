@@ -8,6 +8,13 @@ and this project adheres to [CalVer](https://calver.org/) (`YYYY.MM[.patch]`).
 ## [Unreleased]
 
 ### Added
+- **Symbol library v2** — visual gallery replaces plain dropdown; 5 new builtin symbols; 7 vendored symbols registered:
+  - `SymbolGallery` component: 4-column CSS grid, `maxHeight: 260px` scrollable, each tile shows a 44×38 mini-preview (inline SVG for builtins, `<img>` for vendored/custom), blue border on selection, 8 px label below. Replaces `SymbolSelect` (`<select>`) throughout the ObjectProps panel.
+  - New builtin symbols (hand-rolled JSX, 100×100 viewBox): `heat_pump` (hot/cold coil sections + compressor), `temperature_sensor` (stub + circular body + TT tag bubble), `boiler` (steam outlet + vessel + flame), `agitator` (vessel + side motor + shaft + cross impeller; CSS `animation: spin 1s linear infinite` when state=on), `cooling_tower` (trapezoid + fan disk + packing lines + water drops).
+  - New vendored entries from existing `public/symbols/` SVGs: `solar_panel`, `battery`, `transmission_tower`, `home_lightning`, `garage`, `window_open`, `roller_shade`.
+  - `SYMBOL_LIST = Object.values(SYMBOLS)` exported from `library.tsx` — SymbolGallery imports it instead of maintaining its own list.
+  - Total library: 22 symbols (15 builtin + 7 vendored); custom project symbols still appear after library entries.
+
 - **MQTT broker browsing** — "Sfoglia broker" button in each MQTT source card opens a modal that connects ephemerally to the broker, subscribes to `#` for a configurable duration (2–15 s, default 8 s), and lists all observed topics. Each row shows the topic name, a truncated payload preview, and a JSON path dropdown (auto-populated from top-level keys if the payload is valid JSON). Selected topics can be imported as new mapping rows in one click. Backend: new `pub async fn browse()` in `sws-plugin-mqtt` + `POST /api/sources/mqtt/browse` endpoint (Operator+) in `sws-web`. Masked passwords are resolved from the saved project when a `source_id` is provided.
 - **Quick-create variable in protocol config** — a "＋" button next to every tag field in MQTT topic mappings and Modbus register mappings opens a `QuickCreateTagModal` (ID, description, type). Created tags are accumulated as `pendingTags` in `ProtocolsTab` and saved (merged with existing tags) on the next "Salva" click. A banner lists pending-tag IDs before save.
 - **Responsive layout in Configurazione** — `ConfigView` body no longer caps at `maxWidth: 900`. The entire tab (including protocol cards and topic/register tables) uses the full available width. The "Topic in (subscribe)" column is widened from 26% to 32%; QoS column narrowed to 6% to compensate.

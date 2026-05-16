@@ -263,6 +263,134 @@ function breakerSymbol(p: SymbolRenderProps): ReactElement {
   );
 }
 
+// ── Heat exchanger (basic) — already vendored, JSX variant not needed ──
+
+// ── Heat pump ──────────────────────────────────────────────────────────
+// Two coil sections (hot / cold) with a compressor circle in between.
+function heatPumpSymbol(p: SymbolRenderProps): ReactElement {
+  const c = stateFill(p);
+  return (
+    <g>
+      {/* hot coil (top) */}
+      <path d="M18 18 Q28 8 38 18 Q48 28 58 18 Q68 8 82 18" fill="none" stroke={c} strokeWidth={3} strokeLinecap="round" />
+      <path d="M18 28 Q28 18 38 28 Q48 38 58 28 Q68 18 82 28" fill="none" stroke={c} strokeWidth={3} strokeLinecap="round" />
+      {/* compressor */}
+      <circle cx={50} cy={50} r={13} fill={c} stroke="#0f172a" strokeWidth={2} />
+      <text x={50} y={55} textAnchor="middle" fontSize={9} fontWeight={700}
+        fill="#0f172a" fontFamily="system-ui, sans-serif">CMP</text>
+      {/* cold coil (bottom) */}
+      <path d="M18 72 Q28 62 38 72 Q48 82 58 72 Q68 62 82 72" fill="none" stroke="#64748b" strokeWidth={3} strokeLinecap="round" />
+      <path d="M18 82 Q28 72 38 82 Q48 92 58 82 Q68 72 82 82" fill="none" stroke="#64748b" strokeWidth={3} strokeLinecap="round" />
+      {/* side connections */}
+      <line x1={18} y1={28} x2={18} y2={72} stroke={c} strokeWidth={2} />
+      <line x1={82} y1={28} x2={82} y2={72} stroke="#64748b" strokeWidth={2} />
+    </g>
+  );
+}
+
+// ── Temperature sensor ──────────────────────────────────────────────────
+// Circular body with an inline thermometer + "TT" tag bubble.
+function temperatureSensorSymbol(p: SymbolRenderProps): ReactElement {
+  const c = stateFill(p);
+  const fillH = p.state === "alarm" ? 34 : p.state === "on" ? 22 : 10;
+  return (
+    <g>
+      {/* mounting pipe stub */}
+      <line x1={50} y1={4} x2={50} y2={24} stroke="#cbd5e1" strokeWidth={4} />
+      {/* sensor body */}
+      <circle cx={50} cy={50} r={24} fill={c} stroke="#0f172a" strokeWidth={2} />
+      {/* thermometer shaft */}
+      <rect x={46} y={32} width={8} height={26} rx={4} fill="#0f172a" opacity={0.5} />
+      {/* mercury fill */}
+      <rect x={47} y={58 - fillH} width={6} height={fillH} rx={3} fill="#0f172a" />
+      {/* bulb */}
+      <circle cx={50} cy={64} r={7} fill="#0f172a" opacity={0.6} />
+      {/* TT tag bubble */}
+      <circle cx={50} cy={88} r={10} fill="#1e293b" stroke="#cbd5e1" strokeWidth={1.5} />
+      <text x={50} y={92} textAnchor="middle" fontSize={10} fontWeight={700}
+        fill="#cbd5e1" fontFamily="system-ui, sans-serif">TT</text>
+    </g>
+  );
+}
+
+// ── Boiler ─────────────────────────────────────────────────────────────
+// Cylindrical vessel with a flame at the bottom.
+function boilerSymbol(p: SymbolRenderProps): ReactElement {
+  const c = stateFill(p);
+  return (
+    <g>
+      {/* steam outlet */}
+      <rect x={46} y={2} width={8} height={12} fill="#cbd5e1" />
+      {/* vessel body */}
+      <rect x={22} y={12} width={56} height={58} rx={8} fill="#1e293b" stroke="#cbd5e1" strokeWidth={2} />
+      {/* water level */}
+      <rect x={23} y={48} width={54} height={21} rx={6} fill="#0f172a" />
+      {/* flame */}
+      <path d="M34 90 Q32 80 38 76 Q36 84 42 80 Q40 88 50 82 Q48 90 56 86 Q54 94 62 90 Q58 96 50 94 Q40 98 34 90 Z"
+        fill={c} />
+      {/* burner base */}
+      <rect x={24} y={70} width={52} height={6} rx={2} fill="#475569" />
+    </g>
+  );
+}
+
+// ── Agitator ───────────────────────────────────────────────────────────
+// Vessel with a side-entering shaft + cross impeller. Spins when on.
+function agitatorSymbol(p: SymbolRenderProps): ReactElement {
+  const c = stateFill(p);
+  const spinning = p.state === "on";
+  return (
+    <g>
+      {/* vessel */}
+      <rect x={30} y={8} width={58} height={84} rx={6} fill="#0f172a" stroke="#cbd5e1" strokeWidth={2} />
+      {/* drive motor (left side) */}
+      <rect x={4} y={40} width={20} height={20} rx={4} fill={c} stroke="#0f172a" strokeWidth={2} />
+      {/* shaft */}
+      <line x1={24} y1={50} x2={58} y2={50} stroke="#cbd5e1" strokeWidth={3} />
+      {/* impeller (cross blades, spins when on) */}
+      <g style={spinning ? {
+        transformOrigin: "58px 50px",
+        animation: "sws-fan-spin 2s linear infinite",
+      } : { transformOrigin: "58px 50px" }}>
+        <line x1={58} y1={32} x2={58} y2={68} stroke={c} strokeWidth={4} strokeLinecap="round" />
+        <line x1={40} y1={50} x2={76} y2={50} stroke={c} strokeWidth={4} strokeLinecap="round" />
+      </g>
+    </g>
+  );
+}
+
+// ── Cooling tower ──────────────────────────────────────────────────────
+// Hyperbolic outline (approximated), fan at top, water drops.
+function coolingTowerSymbol(p: SymbolRenderProps): ReactElement {
+  const c = stateFill(p);
+  return (
+    <g>
+      {/* tower body (narrow at top, wider at base) */}
+      <path d="M18 92 L28 16 L72 16 L82 92 Z" fill="#1e293b" stroke="#cbd5e1" strokeWidth={2} />
+      {/* fill packing lines */}
+      <line x1={32} y1={50} x2={68} y2={50} stroke="#334155" strokeWidth={1.5} />
+      <line x1={30} y1={62} x2={70} y2={62} stroke="#334155" strokeWidth={1.5} />
+      <line x1={28} y1={74} x2={72} y2={74} stroke="#334155" strokeWidth={1.5} />
+      {/* fan disk at top */}
+      <ellipse cx={50} cy={16} rx={22} ry={5} fill="#0f172a" stroke={c} strokeWidth={2} />
+      {/* fan cross */}
+      <line x1={36} y1={16} x2={64} y2={16} stroke={c} strokeWidth={2} />
+      <line x1={50} y1={8} x2={50} y2={24} stroke={c} strokeWidth={2} />
+      {/* water drops at base */}
+      {[38, 50, 62].map((x) => (
+        <ellipse key={x} cx={x} cy={84} rx={2.5} ry={3.5} fill={c} opacity={0.7} />
+      ))}
+      {p.state === "on" && (
+        <>
+          <path d="M40 6 L38 0" stroke={c} strokeWidth={1.5} strokeLinecap="round" />
+          <path d="M50 4 L50 -2" stroke={c} strokeWidth={1.5} strokeLinecap="round" />
+          <path d="M60 6 L62 0" stroke={c} strokeWidth={1.5} strokeLinecap="round" />
+        </>
+      )}
+    </g>
+  );
+}
+
 // ── Mixer ──────────────────────────────────────────────────────────────
 // Vessel with an agitator shaft + impeller. Spins when on.
 function mixerSymbol(p: SymbolRenderProps): ReactElement {
@@ -291,26 +419,38 @@ function mixerSymbol(p: SymbolRenderProps): ReactElement {
 
 export const SYMBOLS: Record<SymbolId, SymbolMeta> = {
   // ── Built-in (hand-rolled JSX) ──
-  pump:  { id: "pump",  label: "Pompa",      kind: "builtin", defaultWidth: 80, defaultHeight: 80,  render: pumpSymbol },
-  valve: { id: "valve", label: "Valvola",    kind: "builtin", defaultWidth: 80, defaultHeight: 80,  render: valveSymbol },
-  motor: { id: "motor", label: "Motore",     kind: "builtin", defaultWidth: 80, defaultHeight: 80,  render: motorSymbol },
-  tank:  { id: "tank",  label: "Serbatoio",  kind: "builtin", defaultWidth: 70, defaultHeight: 100, render: tankSymbol },
-  fan:   { id: "fan",   label: "Ventola",    kind: "builtin", defaultWidth: 80, defaultHeight: 80,  render: fanSymbol },
-  compressor:          { id: "compressor",          label: "Compressore",        kind: "builtin", defaultWidth: 80, defaultHeight: 80, render: compressorSymbol },
-  level_sensor:        { id: "level_sensor",        label: "Sensore livello",    kind: "builtin", defaultWidth: 80, defaultHeight: 100, render: levelSensorSymbol },
-  flow_meter:          { id: "flow_meter",          label: "Misuratore flusso",  kind: "builtin", defaultWidth: 100, defaultHeight: 80, render: flowMeterSymbol },
-  pressure_indicator:  { id: "pressure_indicator",  label: "Indicatore press.",  kind: "builtin", defaultWidth: 80, defaultHeight: 80, render: pressureIndicatorSymbol },
-  breaker:             { id: "breaker",             label: "Interruttore",       kind: "builtin", defaultWidth: 80, defaultHeight: 80, render: breakerSymbol },
-  mixer:               { id: "mixer",               label: "Miscelatore",        kind: "builtin", defaultWidth: 80, defaultHeight: 100, render: mixerSymbol },
+  pump:                 { id: "pump",                 label: "Pompa",              kind: "builtin", defaultWidth: 80,  defaultHeight: 80,  render: pumpSymbol },
+  valve:                { id: "valve",                label: "Valvola",            kind: "builtin", defaultWidth: 80,  defaultHeight: 80,  render: valveSymbol },
+  motor:                { id: "motor",                label: "Motore",             kind: "builtin", defaultWidth: 80,  defaultHeight: 80,  render: motorSymbol },
+  tank:                 { id: "tank",                 label: "Serbatoio",          kind: "builtin", defaultWidth: 70,  defaultHeight: 100, render: tankSymbol },
+  fan:                  { id: "fan",                  label: "Ventola",            kind: "builtin", defaultWidth: 80,  defaultHeight: 80,  render: fanSymbol },
+  compressor:           { id: "compressor",           label: "Compressore",        kind: "builtin", defaultWidth: 80,  defaultHeight: 80,  render: compressorSymbol },
+  level_sensor:         { id: "level_sensor",         label: "Sensore livello",    kind: "builtin", defaultWidth: 80,  defaultHeight: 100, render: levelSensorSymbol },
+  flow_meter:           { id: "flow_meter",           label: "Mis. flusso",        kind: "builtin", defaultWidth: 100, defaultHeight: 80,  render: flowMeterSymbol },
+  pressure_indicator:   { id: "pressure_indicator",   label: "Ind. pressione",     kind: "builtin", defaultWidth: 80,  defaultHeight: 80,  render: pressureIndicatorSymbol },
+  breaker:              { id: "breaker",              label: "Interruttore",       kind: "builtin", defaultWidth: 80,  defaultHeight: 80,  render: breakerSymbol },
+  mixer:                { id: "mixer",                label: "Miscelatore",        kind: "builtin", defaultWidth: 80,  defaultHeight: 100, render: mixerSymbol },
+  heat_pump:            { id: "heat_pump",            label: "Pompa di calore",    kind: "builtin", defaultWidth: 90,  defaultHeight: 100, render: heatPumpSymbol },
+  temperature_sensor:   { id: "temperature_sensor",   label: "Sensore temp.",      kind: "builtin", defaultWidth: 70,  defaultHeight: 90,  render: temperatureSensorSymbol },
+  boiler:               { id: "boiler",               label: "Caldaia",            kind: "builtin", defaultWidth: 80,  defaultHeight: 100, render: boilerSymbol },
+  agitator:             { id: "agitator",             label: "Agitatore",          kind: "builtin", defaultWidth: 90,  defaultHeight: 90,  render: agitatorSymbol },
+  cooling_tower:        { id: "cooling_tower",        label: "Torre raffreddamento", kind: "builtin", defaultWidth: 80, defaultHeight: 100, render: coolingTowerSymbol },
 
   // ── Vendored (SVG files under /public/symbols/, served at /symbols/) ──
   // The renderer in SvgCanvas pulls these via <image href={path}> and overlays
   // a coloured status badge for the bound tag. See public/symbols/ATTRIBUTION.md
   // for the license / source per file.
-  heat_exchanger: { id: "heat_exchanger", label: "Scambiatore",   kind: "vendored", path: "/symbols/heat_exchanger.svg", defaultWidth: 100, defaultHeight: 80 },
-  separator:      { id: "separator",      label: "Separatore",    kind: "vendored", path: "/symbols/separator.svg",      defaultWidth: 70,  defaultHeight: 100 },
-  reactor:        { id: "reactor",        label: "Reattore",      kind: "vendored", path: "/symbols/reactor.svg",        defaultWidth: 80,  defaultHeight: 100 },
-  filter:         { id: "filter",         label: "Filtro",        kind: "vendored", path: "/symbols/filter.svg",         defaultWidth: 80,  defaultHeight: 100 },
+  heat_exchanger:     { id: "heat_exchanger",     label: "Scambiatore",       kind: "vendored", path: "/symbols/heat_exchanger.svg",         defaultWidth: 100, defaultHeight: 80  },
+  separator:          { id: "separator",          label: "Separatore",        kind: "vendored", path: "/symbols/separator.svg",               defaultWidth: 70,  defaultHeight: 100 },
+  reactor:            { id: "reactor",            label: "Reattore",          kind: "vendored", path: "/symbols/reactor.svg",                 defaultWidth: 80,  defaultHeight: 100 },
+  filter:             { id: "filter",             label: "Filtro",            kind: "vendored", path: "/symbols/filter.svg",                  defaultWidth: 80,  defaultHeight: 100 },
+  solar_panel:        { id: "solar_panel",        label: "Pannello solare",   kind: "vendored", path: "/symbols/solar-panel.svg",             defaultWidth: 100, defaultHeight: 70  },
+  battery:            { id: "battery",            label: "Batteria",          kind: "vendored", path: "/symbols/battery-charging-high.svg",   defaultWidth: 60,  defaultHeight: 90  },
+  transmission_tower: { id: "transmission_tower", label: "Traliccio",         kind: "vendored", path: "/symbols/transmission-tower.svg",      defaultWidth: 70,  defaultHeight: 100 },
+  home_lightning:     { id: "home_lightning",     label: "Casa energia",      kind: "vendored", path: "/symbols/home-lightning-bolt.svg",     defaultWidth: 80,  defaultHeight: 80  },
+  garage:             { id: "garage",             label: "Garage",            kind: "vendored", path: "/symbols/garage-open-variant.svg",     defaultWidth: 90,  defaultHeight: 70  },
+  window_open:        { id: "window_open",        label: "Finestra",          kind: "vendored", path: "/symbols/window-open-variant.svg",     defaultWidth: 80,  defaultHeight: 70  },
+  roller_shade:       { id: "roller_shade",       label: "Tapparella",        kind: "vendored", path: "/symbols/roller-shade.svg",            defaultWidth: 60,  defaultHeight: 90  },
 };
 
 export const SYMBOL_LIST: SymbolMeta[] = Object.values(SYMBOLS);
