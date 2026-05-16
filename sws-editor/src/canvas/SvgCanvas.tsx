@@ -108,10 +108,13 @@ function isObjectVisible(obj: SynopticObject, tagValues: Record<string, TagState
   return obj.visible !== false;
 }
 
-function qualityColor(quality: TagState["quality"]): string {
-  if (quality === "Good") return "#22c55e";
-  if (quality === "Bad")  return "#ef4444";
-  return "#eab308";
+function qualityColor(
+  quality: TagState["quality"],
+  goodColor?: string, badColor?: string, uncertainColor?: string,
+): string {
+  if (quality === "Good") return goodColor ?? "#22c55e";
+  if (quality === "Bad")  return badColor  ?? "#ef4444";
+  return uncertainColor ?? "#eab308";
 }
 
 /** Determine fill color based on value vs thresholds. Returns null to use default. */
@@ -207,8 +210,15 @@ function applyTransform(obj: SynopticObject, w: number, h: number, content: Reac
 
 // ── Quality dot overlay ───────────────────────────────────────────────────────
 
-function QDot({ x, y, quality }: { x: number; y: number; quality: TagState["quality"] }) {
-  return <circle cx={x} cy={y} r={5} fill={qualityColor(quality)} style={{ pointerEvents: "none" }} />;
+function QDot({ x, y, quality, goodColor, badColor, uncertainColor }: {
+  x: number; y: number; quality: TagState["quality"];
+  goodColor?: string; badColor?: string; uncertainColor?: string;
+}) {
+  return (
+    <circle cx={x} cy={y} r={5}
+      fill={qualityColor(quality, goodColor, badColor, uncertainColor)}
+      style={{ pointerEvents: "none" }} />
+  );
 }
 
 // ── SvgCanvas root ────────────────────────────────────────────────────────────
@@ -498,7 +508,7 @@ function SvgObject(p: ObjProps) {
             style={{ cursor: editCursor, ...transitionStyle(obj) }}
             onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()} />
         )}
-        {tv && <QDot x={obj.x + w - 8} y={obj.y + 8} quality={tv.quality} />}
+        {tv && obj.quality_dot !== false && <QDot x={obj.x + w - 8} y={obj.y + 8} quality={tv.quality} goodColor={obj.quality_dot_good_color} badColor={obj.quality_dot_bad_color} uncertainColor={obj.quality_dot_uncertain_color} />}
       </>
     );
   }
@@ -518,7 +528,7 @@ function SvgObject(p: ObjProps) {
             style={{ cursor: editCursor, ...transitionStyle(obj) }}
             onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()} />
         )}
-        {tv && <QDot x={obj.x + w - 8} y={obj.y + 8} quality={tv.quality} />}
+        {tv && obj.quality_dot !== false && <QDot x={obj.x + w - 8} y={obj.y + 8} quality={tv.quality} goodColor={obj.quality_dot_good_color} badColor={obj.quality_dot_bad_color} uncertainColor={obj.quality_dot_uncertain_color} />}
       </>
     );
   }
@@ -579,7 +589,7 @@ function SvgObject(p: ObjProps) {
             {content}
           </text>
         )}
-        {tv && <QDot x={obj.x - 10} y={obj.y - size / 2} quality={tv.quality} />}
+        {tv && obj.quality_dot !== false && <QDot x={obj.x - 10} y={obj.y - size / 2} quality={tv.quality} goodColor={obj.quality_dot_good_color} badColor={obj.quality_dot_bad_color} uncertainColor={obj.quality_dot_uncertain_color} />}
       </>
     );
   }
@@ -742,7 +752,7 @@ function SvgObject(p: ObjProps) {
           )}
         </>)}
         {/* Quality dot — axis-aligned */}
-        {tv && <QDot x={obj.x + w - 8} y={obj.y + 8} quality={tv.quality} />}
+        {tv && obj.quality_dot !== false && <QDot x={obj.x + w - 8} y={obj.y + 8} quality={tv.quality} goodColor={obj.quality_dot_good_color} badColor={obj.quality_dot_bad_color} uncertainColor={obj.quality_dot_uncertain_color} />}
       </g>
     );
   }
@@ -834,7 +844,7 @@ function SvgObject(p: ObjProps) {
           )}
         </>)}
         {/* Quality dot — axis-aligned */}
-        {tv && <QDot x={obj.x + w - 10} y={obj.y + 10} quality={tv.quality} />}
+        {tv && obj.quality_dot !== false && <QDot x={obj.x + w - 10} y={obj.y + 10} quality={tv.quality} goodColor={obj.quality_dot_good_color} badColor={obj.quality_dot_bad_color} uncertainColor={obj.quality_dot_uncertain_color} />}
       </g>
     );
   }

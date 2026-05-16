@@ -179,6 +179,15 @@ export interface SynopticObject {
   /** Generic prop-to-tag bindings. At render time the resolver overrides the
    *  static value with the live tag value. Keys are SynopticObject prop names. */
   bindings?: Record<string, string>;
+  // ── Quality dot ───────────────────────────────────────────────────────────
+  /** Show the quality-state dot overlay on tagged objects (default true). */
+  quality_dot?: boolean;
+  /** Override dot colour for the Good quality state (default #22c55e). */
+  quality_dot_good_color?: string;
+  /** Override dot colour for the Bad quality state (default #ef4444). */
+  quality_dot_bad_color?: string;
+  /** Override dot colour for the Uncertain quality state (default #eab308). */
+  quality_dot_uncertain_color?: string;
   // ── Grid layout object (type === "grid") ──────────────────────────────
   grid_rows?: number;
   grid_cols?: number;

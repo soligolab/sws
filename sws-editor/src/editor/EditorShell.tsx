@@ -1464,6 +1464,29 @@ function ObjectProps({
         />
       </div>
 
+      {/* ── Quality dot (only when object has a tag) ──────────────────── */}
+      {obj.tag && <>
+        <div style={{ fontSize: 10, color: "#475569", marginTop: 8, marginBottom: 2, fontWeight: 700, letterSpacing: 0.5 }}>
+          INDICATORE QUALITÀ
+        </div>
+        <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#cbd5e1", cursor: "pointer" }}>
+          <input
+            type="checkbox"
+            checked={obj.quality_dot !== false}
+            onChange={(e) => onChange({ quality_dot: e.target.checked ? undefined : false })}
+            style={{ accentColor: "#3b82f6" }}
+          />
+          Mostra indicatore qualità
+        </label>
+        {obj.quality_dot !== false && (
+          <>
+            {field("Colore Buono (Good)",    colorInput("quality_dot_good_color",      "#22c55e"))}
+            {field("Colore Incerto (Uncert.)", colorInput("quality_dot_uncertain_color", "#eab308"))}
+            {field("Colore Errore (Bad)",    colorInput("quality_dot_bad_color",       "#ef4444"))}
+          </>
+        )}
+      </>}
+
       <div style={{ fontSize: 10, color: "#475569", marginTop: 8, marginBottom: 2, fontWeight: 700, letterSpacing: 0.5 }}>
         EVENTI (FUNZIONI)
       </div>

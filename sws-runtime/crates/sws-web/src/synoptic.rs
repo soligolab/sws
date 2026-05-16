@@ -122,6 +122,11 @@ pub struct SynopticObject {
     #[serde(skip_serializing_if = "Option::is_none")] pub grid_cells:        Option<Value>,
     #[serde(skip_serializing_if = "Option::is_none")] pub grid_show_borders: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")] pub grid_border_color: Option<String>,
+    // Quality dot
+    #[serde(skip_serializing_if = "Option::is_none")] pub quality_dot:                Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub quality_dot_good_color:     Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub quality_dot_bad_color:      Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub quality_dot_uncertain_color: Option<String>,
 }
 
 // Note: `symbol_kind` and `symbol_path` are NOT stored on the object —
