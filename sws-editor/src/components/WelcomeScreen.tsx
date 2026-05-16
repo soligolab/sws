@@ -273,12 +273,16 @@ interface WelcomeScreenProps {
   onProjectOpened: () => void;
 }
 
+type EditingState = { name: string; mode: "rename" | "duplicate"; value: string };
+
 export function WelcomeScreen({ onProjectOpened }: WelcomeScreenProps) {
   const [projects, setProjects]   = useState<ProjectListEntry[]>([]);
   const [loading, setLoading]     = useState(true);
   const [openingName, setOpening] = useState<string | null>(null);
   const [error, setError]         = useState<string | null>(null);
   const [showNew, setShowNew]     = useState(false);
+  const [editing, setEditing]     = useState<EditingState | null>(null);
+  const [actionBusy, setActionBusy] = useState<string | null>(null);
 
   const loadProjects = async () => {
     setLoading(true);
@@ -298,7 +302,6 @@ export function WelcomeScreen({ onProjectOpened }: WelcomeScreenProps) {
     setOpening(name); setError(null);
     try {
       await api.openProject(name);
-      // open_project always invalidates sessions → must re-login
       onProjectOpened();
     } catch (e: any) {
       setError(`Errore apertura "${name}": ${e?.message ?? e}`);
@@ -309,9 +312,53 @@ export function WelcomeScreen({ onProjectOpened }: WelcomeScreenProps) {
 
   const handleCreated = async (name: string) => {
     setShowNew(false);
-    // Refresh list then open the newly-created project
     await loadProjects();
     await handleOpen(name);
+  };
+
+  const handleDelete = async (name: string) => {
+    if (!window.confirm(`Eliminare il progetto "${name}"? L'operazione non è reversibile.`)) return;
+    setActionBusy(name); setError(null);
+    try {
+      await api.deleteProject(name);
+      await loadProjects();
+    } catch (e: any) {
+      setError(`Errore eliminazione "${name}": ${e?.message ?? e}`);
+    } finally {
+      setActionBusy(null);
+    }
+  };
+
+  const commitRename = async () => {
+    if (!editing || editing.mode !== "rename") return;
+    const { name, value } = editing;
+    const newName = value.trim();
+    if (!newName || newName === name) { setEditing(null); return; }
+    setActionBusy(name); setEditing(null); setError(null);
+    try {
+      await api.renameProject(name, newName);
+      await loadProjects();
+    } catch (e: any) {
+      setError(`Errore rinomina "${name}": ${e?.message ?? e}`);
+    } finally {
+      setActionBusy(null);
+    }
+  };
+
+  const commitDuplicate = async () => {
+    if (!editing || editing.mode !== "duplicate") return;
+    const { name, value } = editing;
+    const newName = value.trim();
+    if (!newName) { setEditing(null); return; }
+    setActionBusy(name); setEditing(null); setError(null);
+    try {
+      await api.duplicateProject(name, newName);
+      await loadProjects();
+    } catch (e: any) {
+      setError(`Errore duplicazione "${name}": ${e?.message ?? e}`);
+    } finally {
+      setActionBusy(null);
+    }
   };
 
   return (
@@ -350,39 +397,128 @@ export function WelcomeScreen({ onProjectOpened }: WelcomeScreenProps) {
               Nessun progetto trovato. Crea il tuo primo progetto.
             </div>
           )}
-          {!loading && projects.map((p) => (
-            <div
-              key={p.name}
-              style={{
-                ...CARD,
-                marginBottom: 8,
-                opacity: openingName && openingName !== p.name ? 0.5 : 1,
-                borderColor: openingName === p.name ? "#3b82f6" : "#334155",
-              }}
-              onClick={() => { if (!openingName) handleOpen(p.name); }}
-            >
-              {/* icon */}
-              <div style={{
-                width: 40, height: 40, borderRadius: 8,
-                background: "#334155",
-                display: "flex", alignItems: "center", justifyContent: "center",
-                fontSize: 20, flexShrink: 0,
-              }}>
-                📁
-              </div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontWeight: 600, fontSize: 15, color: "#e2e8f0" }}>{p.name}</div>
-                <div style={{ fontSize: 12, color: "#64748b", marginTop: 2 }}>
-                  Ultima modifica: {formatDate(p.last_modified_ms)}
+          {!loading && projects.map((p) => {
+            const isOpening  = openingName === p.name;
+            const isBusy     = actionBusy  === p.name;
+            const isEditing  = editing?.name === p.name;
+            const isRenaming = isEditing && editing?.mode === "rename";
+            const isDuping   = isEditing && editing?.mode === "duplicate";
+            const dimmed     = (openingName || actionBusy) && !isOpening && !isBusy;
+
+            const ACT_BTN: React.CSSProperties = {
+              background: "none", border: "none", cursor: "pointer",
+              color: "#94a3b8", fontSize: 15, padding: "2px 5px",
+              borderRadius: 4, lineHeight: 1,
+            };
+
+            return (
+              <div key={p.name} style={{ marginBottom: 8 }}>
+                {/* main card row */}
+                <div
+                  style={{
+                    ...CARD,
+                    opacity: dimmed ? 0.45 : 1,
+                    borderColor: isOpening ? "#3b82f6" : isBusy ? "#f59e0b" : "#334155",
+                    cursor: (openingName || actionBusy || isEditing) ? "default" : "pointer",
+                  }}
+                  onClick={() => {
+                    if (!openingName && !actionBusy && !isEditing) handleOpen(p.name);
+                  }}
+                >
+                  {/* icon */}
+                  <div style={{
+                    width: 40, height: 40, borderRadius: 8, background: "#334155",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    fontSize: 20, flexShrink: 0,
+                  }}>📁</div>
+
+                  {/* name + date */}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    {isRenaming ? (
+                      <input
+                        autoFocus
+                        style={{ ...INPUT, padding: "3px 8px", fontSize: 14, width: "100%" }}
+                        value={editing!.value}
+                        onChange={(e) => setEditing({ ...editing!, value: e.target.value })}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter")  { e.preventDefault(); commitRename(); }
+                          if (e.key === "Escape") setEditing(null);
+                        }}
+                        onBlur={commitRename}
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                    ) : (
+                      <div style={{ fontWeight: 600, fontSize: 15, color: "#e2e8f0" }}>{p.name}</div>
+                    )}
+                    <div style={{ fontSize: 12, color: "#64748b", marginTop: 2 }}>
+                      Ultima modifica: {formatDate(p.last_modified_ms)}
+                    </div>
+                  </div>
+
+                  {/* action buttons */}
+                  {!isOpening && !isBusy && (
+                    <div style={{ display: "flex", gap: 2, flexShrink: 0 }}
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <button
+                        title="Rinomina"
+                        style={{ ...ACT_BTN, color: isRenaming ? "#3b82f6" : "#94a3b8" }}
+                        onClick={() => setEditing({ name: p.name, mode: "rename", value: p.name })}
+                      >✎</button>
+                      <button
+                        title="Duplica"
+                        style={{ ...ACT_BTN, color: isDuping ? "#a855f7" : "#94a3b8" }}
+                        onClick={() => setEditing({ name: p.name, mode: "duplicate", value: p.name + " (copia)" })}
+                      >⧉</button>
+                      <button
+                        title="Elimina"
+                        style={{ ...ACT_BTN }}
+                        onMouseEnter={(e) => (e.currentTarget.style.color = "#ef4444")}
+                        onMouseLeave={(e) => (e.currentTarget.style.color = "#94a3b8")}
+                        onClick={() => handleDelete(p.name)}
+                      >✕</button>
+                    </div>
+                  )}
+
+                  {/* status label */}
+                  {isOpening && <div style={{ fontSize: 13, color: "#94a3b8", flexShrink: 0 }}>Apro…</div>}
+                  {isBusy   && <div style={{ fontSize: 13, color: "#f59e0b", flexShrink: 0 }}>…</div>}
+                  {!isOpening && !isBusy && (
+                    <div style={{ fontSize: 13, color: "#3b82f6", fontWeight: 500, flexShrink: 0, marginLeft: 4 }}>Apri →</div>
+                  )}
                 </div>
+
+                {/* duplicate name input — shown below card */}
+                {isDuping && (
+                  <div
+                    style={{
+                      display: "flex", gap: 8, alignItems: "center",
+                      padding: "8px 12px", background: "#1e293b",
+                      border: "1px solid #a855f7", borderTop: "none",
+                      borderRadius: "0 0 8px 8px",
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <span style={{ fontSize: 12, color: "#94a3b8", whiteSpace: "nowrap" }}>Nome copia:</span>
+                    <input
+                      autoFocus
+                      style={{ ...INPUT, padding: "4px 8px", fontSize: 13, flex: 1 }}
+                      value={editing!.value}
+                      onChange={(e) => setEditing({ ...editing!, value: e.target.value })}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter")  { e.preventDefault(); commitDuplicate(); }
+                        if (e.key === "Escape") setEditing(null);
+                      }}
+                    />
+                    <button style={{ ...BTN_PRIMARY, padding: "4px 12px", fontSize: 13 }}
+                      onClick={commitDuplicate}>✓</button>
+                    <button style={{ ...BTN_GHOST, padding: "4px 10px", fontSize: 13 }}
+                      onClick={() => setEditing(null)}>✗</button>
+                  </div>
+                )}
               </div>
-              {openingName === p.name ? (
-                <div style={{ fontSize: 13, color: "#94a3b8" }}>Apro…</div>
-              ) : (
-                <div style={{ fontSize: 13, color: "#3b82f6", fontWeight: 500 }}>Apri →</div>
-              )}
-            </div>
-          ))}
+            );
+          })}
         </div>
 
         {error && (

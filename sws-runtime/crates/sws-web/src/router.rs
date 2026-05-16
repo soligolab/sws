@@ -5,7 +5,7 @@ use axum::{
     http::{header, StatusCode},
     middleware::{self, Next},
     response::{IntoResponse, Response},
-    routing::{get, post, put},
+    routing::{delete, get, post, put},
     Json, Router,
 };
 use serde::Deserialize;
@@ -154,6 +154,12 @@ pub fn build(
             get(crate::projects::list_projects).post(crate::projects::create_project))
         .route("/api/projects/:name/open",
             post(crate::projects::open_project))
+        .route("/api/projects/:name/rename",
+            post(crate::projects::rename_project))
+        .route("/api/projects/:name/duplicate",
+            post(crate::projects::duplicate_project))
+        .route("/api/projects/:name",
+            delete(crate::projects::delete_project))
         .route("/api/projects/close",
             post(crate::projects::close_project))
         .route("/api/projects/upload",

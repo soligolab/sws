@@ -340,6 +340,23 @@ export const api = {
   closeProject: () =>
     request<void>("/api/projects/close", { method: "POST" }),
 
+  deleteProject: (name: string) =>
+    request<void>(`/api/projects/${encodeURIComponent(name)}`, { method: "DELETE" }),
+
+  renameProject: (name: string, newName: string) =>
+    request<{ name: string }>(`/api/projects/${encodeURIComponent(name)}/rename`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ new_name: newName }),
+    }),
+
+  duplicateProject: (name: string, newName: string) =>
+    request<{ name: string }>(`/api/projects/${encodeURIComponent(name)}/duplicate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ new_name: newName }),
+    }),
+
   // Template gallery (pre-auth)
   listTemplates: () =>
     request<TemplateEntry[]>("/api/templates"),
