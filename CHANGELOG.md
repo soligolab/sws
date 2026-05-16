@@ -8,6 +8,8 @@ and this project adheres to [CalVer](https://calver.org/) (`YYYY.MM[.patch]`).
 ## [Unreleased]
 
 ### Added
+- **Script output toast** (`RuntimeView`) — when an `on_press_fn` / `on_release_fn` produces stdout, stderr, or fails (including timeout), a card toast appears bottom-right over the canvas. Auto-closes after 5 s (success) or 10 s (error). Manual × dismiss. Stacks up to 4 cards. stdout in white, stderr in amber, errors in red. Silent success (no output) generates no toast.
+
 - **Script preemption** (`sws-pyscript`) — Python infinite loops are now interrupted at runtime:
   - New `KillSwitch` PyO3 class (`is_set()` → `AtomicBool::load`) injected as `__sws_kill_switch__` into every script run.
   - `sys.settrace` installs a per-bytecode-boundary trace function that calls `is_set()`. Cost: one atomic load per Python call/line/return event.
