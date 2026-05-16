@@ -268,16 +268,16 @@ sources:
         json_path: e_rev
       # Rack Piano Superiore
       - tag: rack_piano.power
-        topic: "dds661/contatore-rack-piano-superiore/state"
+        topic: "dds661/contatore-rack-pianosuperiore/state"
         json_path: p_active
       - tag: rack_piano.voltage
-        topic: "dds661/contatore-rack-piano-superiore/state"
+        topic: "dds661/contatore-rack-pianosuperiore/state"
         json_path: voltage
       - tag: rack_piano.current
-        topic: "dds661/contatore-rack-piano-superiore/state"
+        topic: "dds661/contatore-rack-pianosuperiore/state"
         json_path: current
       - tag: rack_piano.energy
-        topic: "dds661/contatore-rack-piano-superiore/state"
+        topic: "dds661/contatore-rack-pianosuperiore/state"
         json_path: e_total
       # Pompa di Calore
       - tag: pdc.power

@@ -36,11 +36,11 @@ objects:
 
 - id: cl3_nav_home
   type: navbutton
-  x: 340
+  x: 155
   y: 14
-  width: 130
+  width: 55
   height: 30
-  label: "⌂ Home"
+  label: "⌂"
   target_page: cl_page1
 
 # Potenza totale
@@ -320,7 +320,7 @@ objects:
   type: text
   x: 400
   y: 600
-  text: "Topic: dds661/<slug>/state · Payload: {p_active, voltage, current, pf, e_total, e_pos, e_rev}"
+  text: "Topic: dds661/contatore-rack-garage/state · dds661/contatore-rack-pianosuperiore/state · dds661/pompa-di-calore/state"
   font_size: 9
   text_anchor: middle
   color: "#1e293b"

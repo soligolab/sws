@@ -27,11 +27,11 @@ objects:
 
 - id: cl5_nav_home
   type: navbutton
-  x: 340
+  x: 155
   y: 14
-  width: 130
+  width: 55
   height: 30
-  label: "⌂ Panoramica"
+  label: "⌂"
   target_page: cl_page1
 
 - id: cl5_nav_next
