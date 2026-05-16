@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { api } from "@/api/client";
+import { api, RuntimeUnavailableError } from "@/api/client";
 import { useAppStore } from "@/store";
 
 /**
@@ -26,11 +26,14 @@ export function LoginScreen() {
       const res = await api.login(username, password);
       setAuth(res.token, res.username, res.role, res.must_change_password);
     } catch (e: any) {
-      // 429 = rate-limited; show a dedicated message so the user knows
-      // to wait rather than retry immediately.
       const msg = String(e?.message ?? "");
-      if (msg.includes("429")) setError("Troppi tentativi. Riprova fra un minuto.");
-      else setError("Credenziali non valide.");
+      if (e instanceof RuntimeUnavailableError) {
+        setError("Runtime non raggiungibile. Avvia ./scripts/dev.sh e riprova.");
+      } else if (msg.includes("429")) {
+        setError("Troppi tentativi. Riprova fra un minuto.");
+      } else {
+        setError("Credenziali non valide.");
+      }
       console.warn("login failed:", e);
     } finally {
       setBusy(false);

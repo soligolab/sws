@@ -28,6 +28,13 @@ export class AuthError extends Error {
   constructor() { super("unauthorized"); this.name = "AuthError"; }
 }
 
+/** The runtime is not reachable (network error, or proxy returned 502/504).
+ *  Distinct from AuthError so the UI can show "start the runtime" rather than
+ *  "wrong password". */
+export class RuntimeUnavailableError extends Error {
+  constructor() { super("runtime unavailable"); this.name = "RuntimeUnavailableError"; }
+}
+
 /** Server signals an authenticated user must change their password before
  *  reaching any non-self-service endpoint. The runtime returns 403 with
  *  `{ error: "password_change_required" }`; the UI lifts the
@@ -68,7 +75,17 @@ export interface UpdateUserBody {
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const headers = new Headers(init?.headers);
   if (TOKEN) headers.set("Authorization", `Bearer ${TOKEN}`);
-  const res = await fetch(`${BASE_URL}${path}`, { ...init, headers });
+  let res: Response;
+  try {
+    res = await fetch(`${BASE_URL}${path}`, { ...init, headers });
+  } catch {
+    // Network error (ECONNREFUSED, DNS failure, …) — runtime is not reachable.
+    throw new RuntimeUnavailableError();
+  }
+  if (res.status === 502 || res.status === 504) {
+    // Vite proxy / reverse proxy couldn't reach the upstream runtime.
+    throw new RuntimeUnavailableError();
+  }
   if (res.status === 401) {
     // If we had a token, the session expired mid-use — signal the UI to show
     // a re-auth overlay rather than fully clearing and redirecting.

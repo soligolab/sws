@@ -8,6 +8,19 @@ and this project adheres to [CalVer](https://calver.org/) (`YYYY.MM[.patch]`).
 ## [Unreleased]
 
 ### Added
+- **Script preemption** (`sws-pyscript`) — Python infinite loops are now interrupted at runtime:
+  - New `KillSwitch` PyO3 class (`is_set()` → `AtomicBool::load`) injected as `__sws_kill_switch__` into every script run.
+  - `sys.settrace` installs a per-bytecode-boundary trace function that calls `is_set()`. Cost: one atomic load per Python call/line/return event.
+  - A `std::thread::spawn` timer thread flips the switch after `SWS_SCRIPT_TIMEOUT_MS`.
+  - On detection, `KeyboardInterrupt` is raised; the inner `except KeyboardInterrupt` clause in the harness turns it into a clean `TimeoutError: script exceeded the configured timeout` error string.
+  - `sys.settrace(None)` in a `finally` block ensures the trace is always cleared on exit, leaving the `spawn_blocking` pool thread in a sane state.
+  - Limitation: blocking C extensions (`time.sleep`, network I/O in C code) are not preempted by the trace. The existing Tokio-level `timeout` remains as the hard backstop for those cases.
+
+- **`RuntimeUnavailableError`** (`api/client.ts`) — distinguishes "runtime not running" from "wrong password":
+  - `request()` now wraps `fetch()` in a try/catch; a network error (`TypeError: Failed to fetch`) or a 502/504 gateway response throws `RuntimeUnavailableError` instead of propagating raw.
+  - `LoginScreen` shows "Runtime non raggiungibile. Avvia ./scripts/dev.sh e riprova." instead of "Credenziali non valide." when the runtime is unreachable.
+  - `ReAuthModal` shows "Runtime non raggiungibile." for the same case.
+
 - **Re-auth modal** — when the Bearer token expires mid-session a modal overlay "Sessione scaduta" appears over the editor instead of redirecting to the full login screen. The user re-enters only their password (username pre-filled from the store). On success the new token is stored and the editor state is preserved. On dismiss the session is cleared and the normal LoginScreen is shown.
   - `api/client.ts`: fires `sws:session-expired` CustomEvent when a request returns 401 and a token was present.
   - `store/index.ts`: new `reAuthNeeded: boolean` flag and `setReAuthNeeded()` action.

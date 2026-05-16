@@ -37,57 +37,78 @@ const DEFAULT_TIMEOUT_MS: u64 = 5_000;
 
 /// Wraps the user source in stdout/stderr capture + restricted compile.
 /// The user source is injected as `__sws_user_source__` (a Python str)
-/// alongside `__sws_sandbox__` (a bool flag) and `tags` (the API).
+/// alongside `__sws_sandbox__` (a bool flag), `tags` (the API), and
+/// `__sws_kill_switch__` (a Rust-backed object polled by the trace fn).
 ///
-/// We compile-then-exec here (instead of letting PyO3 `py.run` the user
-/// source directly) for two reasons:
-///   1. The wrapper can isolate stdout/stderr per call without leaking
-///      Python state across threads.
-///   2. When RestrictedPython is available we route compilation through
-///      `compile_restricted`, which rejects unsafe AST nodes (import,
-///      attribute access on dunders, exec/eval, …).
+/// Preemption: `sys.settrace` installs a per-bytecode-boundary trace function
+/// that checks `__sws_kill_switch__.is_set()`.  A Rust timer thread sets the
+/// switch after `SWS_SCRIPT_TIMEOUT_MS`.  On detection, `KeyboardInterrupt`
+/// is raised and caught by the inner `except KeyboardInterrupt` clause, which
+/// sets a clean timeout error string.  The outer `finally` always clears the
+/// trace so the `spawn_blocking` thread is left in a sane state.
+///
+/// Limitation: the trace fires at Python-bytecode boundaries only.  Blocking
+/// C extensions (e.g., a `time.sleep(100)`) are not interrupted; the Tokio-
+/// level timeout is the hard backstop for those cases (it drops the future
+/// and the thread is eventually reclaimed by the `spawn_blocking` pool).
 const HARNESS: &str = r#"
 import io, sys, traceback
+
+# ── Soft preemption ───────────────────────────────────────────────────────────
+# Fires at every Python call/line/return event.  Cost is one `is_set()` call
+# (an atomic load) per bytecode boundary — negligible for SCADA scripts.
+def __sws_trace__(frame, event, arg):
+    if __sws_kill_switch__.is_set():
+        raise KeyboardInterrupt("SWS script timeout")
+    return __sws_trace__
+sys.settrace(__sws_trace__)
+
+# ── I/O capture and execution ────────────────────────────────────────────────
 __sws_out__ = io.StringIO()
 __sws_err__ = io.StringIO()
 __sws_error__ = None
 __sws_compiled__ = None
 
-if __sws_sandbox__:
-    from RestrictedPython import compile_restricted, safe_builtins
-    __sws_globals__ = {
-        '__builtins__': safe_builtins,
-        '_getattr_':   getattr,
-        '_getitem_':   lambda o, k: o[k],
-        '_write_':     lambda x: x,
-        'tags':        tags,
-    }
-    try:
-        __sws_compiled__ = compile_restricted(__sws_user_source__, '<inline>', 'exec')
-    except SyntaxError as _e:
-        __sws_error__ = f'SyntaxError: {_e}'
-else:
-    __sws_globals__ = {'__builtins__': __builtins__, 'tags': tags}
-    try:
-        __sws_compiled__ = compile(__sws_user_source__, '<inline>', 'exec')
-    except SyntaxError as _e:
-        __sws_error__ = f'SyntaxError: {_e}'
+try:
+    if __sws_sandbox__:
+        from RestrictedPython import compile_restricted, safe_builtins
+        __sws_globals__ = {
+            '__builtins__': safe_builtins,
+            '_getattr_':   getattr,
+            '_getitem_':   lambda o, k: o[k],
+            '_write_':     lambda x: x,
+            'tags':        tags,
+        }
+        try:
+            __sws_compiled__ = compile_restricted(__sws_user_source__, '<inline>', 'exec')
+        except SyntaxError as _e:
+            __sws_error__ = f'SyntaxError: {_e}'
+    else:
+        __sws_globals__ = {'__builtins__': __builtins__, 'tags': tags}
+        try:
+            __sws_compiled__ = compile(__sws_user_source__, '<inline>', 'exec')
+        except SyntaxError as _e:
+            __sws_error__ = f'SyntaxError: {_e}'
 
-# Inject per-call arguments as plain globals. `__sws_args__` is always a
-# dict (possibly empty). Param-name safety is enforced server-side at PUT
-# /api/project/functions so we don't have to filter keywords here.
-if isinstance(__sws_args__, dict):
-    __sws_globals__.update(__sws_args__)
+    # Inject per-call arguments as plain globals.  `__sws_args__` is always a
+    # dict (possibly empty).  Param-name safety is enforced server-side at PUT
+    # /api/project/functions so we don't have to filter keywords here.
+    if isinstance(__sws_args__, dict):
+        __sws_globals__.update(__sws_args__)
 
-if __sws_compiled__ is not None:
-    _orig_out, _orig_err = sys.stdout, sys.stderr
-    sys.stdout, sys.stderr = __sws_out__, __sws_err__
-    try:
-        exec(__sws_compiled__, __sws_globals__, {})
-    except BaseException:
-        __sws_error__ = traceback.format_exc()
-    finally:
-        sys.stdout, sys.stderr = _orig_out, _orig_err
+    if __sws_compiled__ is not None:
+        _orig_out, _orig_err = sys.stdout, sys.stderr
+        sys.stdout, sys.stderr = __sws_out__, __sws_err__
+        try:
+            exec(__sws_compiled__, __sws_globals__, {})
+        except KeyboardInterrupt:
+            __sws_error__ = 'TimeoutError: script exceeded the configured timeout (SWS_SCRIPT_TIMEOUT_MS)'
+        except BaseException:
+            __sws_error__ = traceback.format_exc()
+        finally:
+            sys.stdout, sys.stderr = _orig_out, _orig_err
+finally:
+    sys.settrace(None)
 
 __sws_stdout_capture__ = __sws_out__.getvalue()
 __sws_stderr_capture__ = __sws_err__.getvalue()
@@ -140,6 +161,21 @@ impl TagApi {
                 }
             })
         })
+    }
+}
+
+/// Python-visible object whose `is_set()` method polls the Rust-owned kill flag.
+/// Injected as `__sws_kill_switch__` into every script run; the trace function
+/// calls it at each bytecode boundary to implement soft preemption.
+#[pyclass]
+struct KillSwitch {
+    flag: Arc<AtomicBool>,
+}
+
+#[pymethods]
+impl KillSwitch {
+    fn is_set(&self) -> bool {
+        self.flag.load(Ordering::Relaxed)
     }
 }
 
@@ -219,7 +255,7 @@ impl Engine {
         let timeout = self.timeout;
 
         let work = tokio::task::spawn_blocking(move || {
-            run_in_python(db, bus, handle, sandbox, code, args)
+            run_in_python(db, bus, handle, sandbox, code, args, timeout)
         });
 
         match tokio::time::timeout(timeout, work).await {
@@ -248,11 +284,24 @@ fn run_in_python(
     sandbox: bool,
     user_source: String,
     args: serde_json::Map<String, serde_json::Value>,
+    timeout: Duration,
 ) -> Result<ExecOutput, String> {
+    // Arm the kill switch.  A timer thread flips `kill_flag` after `timeout`;
+    // the Python trace function detects it and raises KeyboardInterrupt.
+    // The timer thread itself is cheap (just sleeping) and terminates naturally.
+    let kill_flag = Arc::new(AtomicBool::new(false));
+    let kf = kill_flag.clone();
+    std::thread::spawn(move || {
+        std::thread::sleep(timeout);
+        kf.store(true, Ordering::Relaxed);
+    });
+
     Python::with_gil(|py| -> PyResult<ExecOutput> {
-        let api = Py::new(py, TagApi { db, bus, handle })?;
+        let api          = Py::new(py, TagApi { db, bus, handle })?;
+        let kill_switch  = Py::new(py, KillSwitch { flag: kill_flag })?;
         let globals = PyDict::new(py);
         globals.set_item("tags", api)?;
+        globals.set_item("__sws_kill_switch__", kill_switch)?;
         globals.set_item("__sws_user_source__", user_source)?;
         globals.set_item("__sws_sandbox__", sandbox)?;
         globals.set_item("__sws_args__", json_map_to_pydict(py, &args)?)?;

@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { api } from "@/api/client";
+import { api, RuntimeUnavailableError } from "@/api/client";
 import { useAppStore } from "@/store";
 
 const OVERLAY: React.CSSProperties = {
@@ -79,8 +79,12 @@ export function ReAuthModal() {
       const res = await api.login(authUser, password);
       setAuth(res.token, res.username, res.role, res.must_change_password);
       setReAuthNeeded(false);
-    } catch {
-      setError("Password errata. Riprova.");
+    } catch (e: any) {
+      setError(
+        e instanceof RuntimeUnavailableError
+          ? "Runtime non raggiungibile."
+          : "Password errata. Riprova."
+      );
       setPassword("");
       setTimeout(() => inputRef.current?.focus(), 50);
     } finally {
