@@ -8,6 +8,19 @@ and this project adheres to [CalVer](https://calver.org/) (`YYYY.MM[.patch]`).
 ## [Unreleased]
 
 ### Added
+- **Page dimensions** — `SynopticPage` gains optional `width` and `height` fields. When set, the editor canvas renders a dashed blue boundary rect at `(0,0,width,height)` in SVG space. The `PageProps` right-panel now exposes two number inputs (Larghezza/Altezza) with empty = fluid. Both fields are persisted in YAML via the Rust `SynopticPage` mirror.
+
+- **Grid layout object** (type `"grid"`, Session 1) — A new object type for designing tabular layouts:
+  - Configurable rows/columns (`grid_rows`, `grid_cols`), optional per-column widths and per-row heights.
+  - Per-cell properties: `bg_color`, `bg_image` (URL), static `visible`, tag-driven `visible_tag`, `on_press_fn` / `on_release_fn` Python hook bindings, `rowspan` / `colspan` for cell merging.
+  - `grid_show_borders` (default true) — when false the grid is invisible at runtime (no borders/background) while children remain visible. Useful as a layout-only container.
+  - Two-level hit-testing in the canvas: clicking anywhere on the grid selects it; clicking inside a cell selects both the grid and the cell, revealing a `GridCellEditor` section in the right-side properties panel.
+  - `GridCellEditor` panel: bg color, bg image URL, visibility (static + tag), on_press/on_release function pickers, rowspan/colspan.
+  - Object palette button: "+ Griglia" in LeftPanel.
+  - `store/index.ts`: `updateGridCell(pageId, objectId, cell)` upserts a cell by `{row, col}` in `grid_cells`; `updatePageProps` extended to include `width`/`height`.
+  - Rust `synoptic.rs` mirrors all new fields (`grid_rows`, `grid_cols`, `col_widths`, `row_heights`, `grid_cells`, `grid_show_borders`, `grid_border_color`) as `Option<Value>` for round-trip YAML persistence.
+  - Session 2 (deferred): inline child `SynopticObject` embedded per cell (rendered centered).
+
 - **Script output toast** (`RuntimeView`) — when an `on_press_fn` / `on_release_fn` produces stdout, stderr, or fails (including timeout), a card toast appears bottom-right over the canvas. Auto-closes after 5 s (success) or 10 s (error). Manual × dismiss. Stacks up to 4 cards. stdout in white, stderr in amber, errors in red. Silent success (no output) generates no toast.
 
 - **Script preemption** (`sws-pyscript`) — Python infinite loops are now interrupted at runtime:

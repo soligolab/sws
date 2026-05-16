@@ -2,11 +2,12 @@
 
 > This file is the **session-to-session memory** for Claude Code. Update it at the end of every session before stopping work. Read it at the start of every session before touching code.
 
-**Last session**: 2026-05-16 (sessione 11: alarm webhook + re-auth modal)
+**Last session**: 2026-05-16 (sessione 13: template "Casa Locale" — console domestica a 5 pagine MQTT)
 **Current phase**: Phase 2. Demo working out-of-the-box su fresh clone, import/export progetto per backup/condivisione, pannello log live + persistenza su disco, gestione utenti multi-account.
 **Last commit**: vedi sotto
 
 ### Cosa è andato online in queste sessioni (in ordine di commit)
+- (sessione 2026-05-16, blocco 4) **Template "Casa Locale"** — secondo template SWS, console di controllo domestica a 5 pagine su broker MQTT locale (192.168.1.6). Pagine: Panoramica (flusso energia + status sicurezza), Impianto Solare (PV + batteria + rete), Contatori Energia (3 DDS661 con gauge + tabella), Sicurezza (12 sensori Zigbee + 3 PIR perimetrali + presenza lux), Domotica (tapparelle Shelly con 3 pulsanti + PDC + ESPHome). Sorgenti: Zigbee2MQTT (16 topic), dds661 (17 topic), Solarman bridge HA (12 topic), Shelly (4 topic con publish_topic). 50+ tag, 6 allarmi. 8 nuove icone SVG Material Design Icons (Apache 2.0) scaricate come asset colorati in `public/symbols/`. Guide in `CREDITS.md` e `SETUP.md` (incl. automation HA per bridge Solarman → MQTT).
 - `3631c37` BL-002 — MQTT auth/TLS/last-will/QoS + password masking
 - `964e67b` BL-003 — CodeMirror Python editor full-screen per FunctionDef
 - `dda777e` BL-001 — persistent multi-user store + admin CRUD + must_change_password gate
@@ -18,6 +19,7 @@
 - (sessione 2026-05-14) Fix critico salvataggio + multi-page UX polish + symbol rotation/flip
 - (sessione 2026-05-15) Header dropdown menu (Salva/Esporta/Importa/Esci) + Grid dropdown + fix symbol hit-area + BindableInput z-index fix + Demo Page 3 Showcase completa
 - (sessione 2026-05-15, blocco 2) Universal binding follow-up #8 — `transition_duration_ms` per-oggetto per animazione CSS dei prop bindati (fill/stroke/opacity/transform). UI in ObjectProps TRASFORMAZIONE + batch in MultiSelectionProps. Rust mirror per round-trip YAML.
+- (sessione 2026-05-16, sessione 12) **`2581fee` Page dimensions + Grid layout object (Session 1)**. `SynopticPage.width/height` opzionali: il canvas editor mostra un bordo tratteggiato blu ai limiti della pagina. Nuovo tipo di oggetto `"grid"`: griglia N×M con per-cella bg_color/bg_image, visible/visible_tag, on_press_fn/on_release_fn, rowspan/colspan. Due-livelli di hit-test nel canvas: clic sulla cella seleziona la griglia + la cella, `GridCellEditor` compare nel pannello destra. Bordi togglable (`grid_show_borders`). `updatePageProps` estesa con width/height; nuova action `updateGridCell`. Rust `synoptic.rs` mirror completo. Session 2 (rinviata): child object inline per cella.
 - (sessione 2026-05-16, blocco 3) **Script output toast** — quando un `on_press_fn` / `on_release_fn` produce stdout, stderr o un errore (incluso timeout), RuntimeView mostra una card toast bottom-right (max 4 visibili, auto-close 5 s successo / 10 s errore, × manuale). stdout bianco, stderr amber, errore rosso. Output silenzioso non genera toast.
 - (sessione 2026-05-16, blocco 2) **Fix runtime panic Rustls CryptoProvider** — aggiungendo `reqwest` con feature `rustls-tls` veniva portato `hyper-rustls` che abilitava `aws-lc-rs` mentre `rcgen` abilitava `ring`. Rustls 0.23 panica se trova entrambi senza un provider esplicito. Fix: `rustls = { version = "0.23", features = ["ring"] }` nel workspace Cargo.toml + `rustls::crypto::ring::default_provider().install_default().ok()` all'inizio di `main()`.
 - (sessione 2026-05-16, blocco 2) **Script preemption** — `sys.settrace` + `KillSwitch` PyO3 class + timer thread (`std::thread::spawn`). Infinite loops in Python scripts vengono interrotti al prossimo confine di bytecode dopo `SWS_SCRIPT_TIMEOUT_MS`. Il timer thread setta un `AtomicBool`; la trace function lo legge e lancia `KeyboardInterrupt`; il harness la cattura e la converte in stringa `TimeoutError`. Il Tokio-level timeout rimane come backstop per le C extension bloccanti. `sys.settrace(None)` in `finally` lascia il thread del pool in stato sano.
