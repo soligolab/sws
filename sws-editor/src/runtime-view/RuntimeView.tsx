@@ -171,6 +171,8 @@ export function RuntimeView() {
           tagValues={tagValues}
           background={currentPage?.background}
           customSymbols={customSymbols}
+          pageWidth={currentPage?.width}
+          pageHeight={currentPage?.height}
           onWriteTag={handleWriteTag}
           onScript={handleScript}
           onNavigate={setCurrentPage}

@@ -12,6 +12,8 @@ pub struct SynopticPage {
     #[serde(default)]
     pub objects: Vec<SynopticObject>,
     #[serde(skip_serializing_if = "Option::is_none")] pub background:   Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub width:        Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub height:       Option<f64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -112,6 +114,14 @@ pub struct SynopticObject {
     #[serde(skip_serializing_if = "Option::is_none")] pub transition_duration_ms: Option<u64>,
     /// Generic prop-to-tag bindings. Keys are SynopticObject prop names.
     #[serde(skip_serializing_if = "Option::is_none")] pub bindings:         Option<std::collections::HashMap<String, String>>,
+    // Grid layout object (type === "grid")
+    #[serde(skip_serializing_if = "Option::is_none")] pub grid_rows:         Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub grid_cols:         Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub col_widths:        Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub row_heights:       Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub grid_cells:        Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub grid_show_borders: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub grid_border_color: Option<String>,
 }
 
 // Note: `symbol_kind` and `symbol_path` are NOT stored on the object —

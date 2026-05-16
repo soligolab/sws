@@ -25,7 +25,9 @@ export type SynopticObjectType =
   | "table"
   | "trend"
   // SCADA symbols (pump/valve/motor/tank/fan from the built-in library)
-  | "symbol";
+  | "symbol"
+  // Layout
+  | "grid";
 
 /** Identifier of a SCADA symbol — either a hand-rolled JSX builtin or a
  *  vendored SVG file. The library at `@/symbols/library` maps ids to metadata
@@ -35,6 +37,22 @@ export type SymbolId = string;
 /** Source category for a SymbolMeta entry. Builtin = JSX in library.tsx,
  *  vendored = SVG file under `public/symbols/`. */
 export type SymbolKind = "builtin" | "vendored";
+
+/** One cell in a grid layout object. */
+export interface GridCell {
+  row: number;
+  col: number;
+  rowspan?: number;
+  colspan?: number;
+  bg_color?: string;
+  bg_image?: string;
+  /** Static visibility flag (default true). */
+  visible?: boolean;
+  /** Tag id whose truthy value controls visibility. */
+  visible_tag?: string;
+  on_press_fn?: string;
+  on_release_fn?: string;
+}
 
 /** One option in a radio-group. */
 export interface RadioOption {
@@ -159,6 +177,17 @@ export interface SynopticObject {
   /** Generic prop-to-tag bindings. At render time the resolver overrides the
    *  static value with the live tag value. Keys are SynopticObject prop names. */
   bindings?: Record<string, string>;
+  // ── Grid layout object (type === "grid") ──────────────────────────────
+  grid_rows?: number;
+  grid_cols?: number;
+  /** Per-column widths in px. If shorter than grid_cols, remaining columns share the leftover equally. */
+  col_widths?: number[];
+  /** Per-row heights in px. If shorter than grid_rows, remaining rows share the leftover equally. */
+  row_heights?: number[];
+  grid_cells?: GridCell[];
+  /** Show cell borders (default true). False = invisible grid at runtime. */
+  grid_show_borders?: boolean;
+  grid_border_color?: string;
 }
 
 // ── Historian sample (wire shape from GET /api/history/:tag) ──────────────
@@ -174,6 +203,10 @@ export interface SynopticPage {
   name: string;
   objects: SynopticObject[];
   background?: string;
+  /** Canvas design width in px. Undefined = fluid (fills the container). */
+  width?: number;
+  /** Canvas design height in px. Undefined = fluid (fills the container). */
+  height?: number;
 }
 
 export interface Project {

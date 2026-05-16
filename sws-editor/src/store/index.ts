@@ -6,6 +6,7 @@ import type {
   AlarmState,
   CustomSymbol,
   FunctionDef,
+  GridCell,
   LogEvent,
   ProjectInfo,
   SourceDef,
@@ -152,7 +153,8 @@ interface AppState {
   addPage: () => void;
   deletePage: (id: string) => void;
   renamePage: (id: string, name: string) => void;
-  updatePageProps: (id: string, patch: Partial<Pick<SynopticPage, "name" | "background">>) => void;
+  updatePageProps: (id: string, patch: Partial<Pick<SynopticPage, "name" | "background" | "width" | "height">>) => void;
+  updateGridCell: (pageId: string, objectId: string, cell: GridCell) => void;
   setCurrentPage: (id: string) => void;
 
   // Object CRUD (operates on current page)
@@ -421,6 +423,28 @@ export const useAppStore = create<AppState>((set, get) => {
     updatePageProps: (id, patch) => {
       pushHistory();
       set((s) => ({ pages: s.pages.map((p) => (p.id === id ? { ...p, ...patch } : p)) }));
+    },
+
+    updateGridCell: (pageId, objectId, cell) => {
+      pushHistory();
+      set((s) => ({
+        pages: s.pages.map((p) =>
+          p.id === pageId
+            ? {
+                ...p,
+                objects: p.objects.map((o) => {
+                  if (o.id !== objectId) return o;
+                  const cells = (o.grid_cells ?? []) as GridCell[];
+                  const idx = cells.findIndex((c) => c.row === cell.row && c.col === cell.col);
+                  const next = idx >= 0
+                    ? cells.map((c, i) => (i === idx ? cell : c))
+                    : [...cells, cell];
+                  return { ...o, grid_cells: next };
+                }),
+              }
+            : p
+        ),
+      }));
     },
 
     setCurrentPage: (id) => set({

@@ -7,7 +7,7 @@ import { TagInput } from "@/components/TagInput";
 import { BindableInput } from "@/components/BindableInput";
 import { useAppStore } from "@/store";
 import type { AlignMode } from "@/store";
-import type { FunctionDef, RadioOption, SynopticObject, TableRow } from "@/types";
+import type { FunctionDef, GridCell, RadioOption, SynopticObject, TableRow } from "@/types";
 
 // ── Shared styles ─────────────────────────────────────────────────────────────
 
@@ -104,9 +104,12 @@ export function EditorShell() {
   const undo            = useAppStore((s) => s.undo);
   const redo            = useAppStore((s) => s.redo);
   const updatePageProps  = useAppStore((s) => s.updatePageProps);
+  const updateGridCell   = useAppStore((s) => s.updateGridCell);
   const saveSerial       = useAppStore((s) => s.saveSerial);
   const saveStatus       = useAppStore((s) => s.saveStatus);
   const storeSaveStatus  = useAppStore((s) => s.setSaveStatus);
+
+  const [selectedCell, setSelectedCell] = useState<{ objectId: string; row: number; col: number } | null>(null);
 
   const currentPage = pages.find((p) => p.id === currentPageId);
   const objects     = currentPage?.objects ?? [];
@@ -128,6 +131,13 @@ export function EditorShell() {
     if (shift) toggleSelection(id);
     else       selectObject(id);
   };
+
+  // Clear cell selection when the selected object changes or is deselected.
+  useEffect(() => {
+    if (selectedCell && selectedCell.objectId !== selectedId) {
+      setSelectedCell(null);
+    }
+  }, [selectedId]);
 
   // Document-level keyboard shortcuts. Skipped when typing in a form field
   // so renaming an object doesn't trigger delete-on-backspace.
@@ -214,6 +224,14 @@ export function EditorShell() {
         addObject({ type, x, y, width: 80, height: 80,
           symbol_id: "pump",
           state_off_color: "#64748b", state_on_color: "#22c55e", state_alarm_color: "#ef4444" });
+        break;
+      case "grid":
+        addObject({ type, x, y, width: 400, height: 300,
+          label: "Grid",
+          grid_rows: 2, grid_cols: 2,
+          grid_cells: [],
+          grid_show_borders: true,
+          grid_border_color: "#64748b" });
         break;
     }
   };
@@ -315,9 +333,13 @@ export function EditorShell() {
           gridSize={gridSize}
           snapEnabled={snapEnabled}
           customSymbols={customSymbols}
+          pageWidth={currentPage?.width}
+          pageHeight={currentPage?.height}
+          selectedCell={selectedCell}
           onSelect={handleSelect}
           onSelectMany={selectMany}
           onMove={(id, patch) => updateObject(id, patch)}
+          onSelectCell={(objectId, row, col) => setSelectedCell({ objectId, row, col })}
         />
       </div>
 
@@ -353,17 +375,33 @@ export function EditorShell() {
             }}
           />
         ) : selected ? (
-          <ObjectProps
-            obj={selected}
-            pages={pages.filter((p) => p.id !== currentPageId)}
-            functions={functions}
-            onChange={(patch) => updateObject(selected.id, patch)}
-            onDelete={() => deleteObject(selected.id)}
-          />
+          <>
+            <ObjectProps
+              obj={selected}
+              pages={pages.filter((p) => p.id !== currentPageId)}
+              functions={functions}
+              onChange={(patch) => updateObject(selected.id, patch)}
+              onDelete={() => deleteObject(selected.id)}
+            />
+            {selected.type === "grid" && selectedCell?.objectId === selected.id && (() => {
+              const cells = (selected.grid_cells ?? []) as GridCell[];
+              const cellDef = cells.find((c) => c.row === selectedCell.row && c.col === selectedCell.col)
+                ?? { row: selectedCell.row, col: selectedCell.col };
+              return (
+                <GridCellEditor
+                  cell={cellDef}
+                  functions={functions}
+                  onChange={(patch) => updateGridCell(currentPageId, selected.id, { ...cellDef, ...patch })}
+                />
+              );
+            })()}
+          </>
         ) : (
           <PageProps
             name={currentPage?.name ?? ""}
             background={currentPage?.background ?? "#1a1a2e"}
+            width={currentPage?.width}
+            height={currentPage?.height}
             onChange={(patch) => updatePageProps(currentPageId, patch)}
           />
         )}
@@ -377,11 +415,15 @@ export function EditorShell() {
 function PageProps({
   name,
   background,
+  width,
+  height,
   onChange,
 }: {
   name: string;
   background: string;
-  onChange: (patch: Partial<{ name: string; background: string }>) => void;
+  width?: number;
+  height?: number;
+  onChange: (patch: Partial<{ name: string; background: string; width: number | undefined; height: number | undefined }>) => void;
 }) {
   return (
     <>
@@ -412,7 +454,35 @@ function PageProps({
           />
         </div>
       </div>
-      <p style={{ fontSize: 11, color: "#475569", margin: 0 }}>
+      <div style={{ fontSize: 10, color: "#475569", marginTop: 4, marginBottom: 2, fontWeight: 700, letterSpacing: 0.5 }}>
+        DIMENSIONI PAGINA
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 6px" }}>
+        <div>
+          <div style={LABEL}>Larghezza (px)</div>
+          <input
+            type="number"
+            style={INPUT}
+            placeholder="fluida"
+            value={width ?? ""}
+            onChange={(e) => onChange({ width: e.target.value ? Number(e.target.value) : undefined })}
+          />
+        </div>
+        <div>
+          <div style={LABEL}>Altezza (px)</div>
+          <input
+            type="number"
+            style={INPUT}
+            placeholder="fluida"
+            value={height ?? ""}
+            onChange={(e) => onChange({ height: e.target.value ? Number(e.target.value) : undefined })}
+          />
+        </div>
+      </div>
+      <p style={{ fontSize: 10, color: "#475569", margin: "2px 0 0" }}>
+        Vuoto = fluido (riempie il contenitore). Con valori impostati, un bordo tratteggiato blu indica i limiti della pagina.
+      </p>
+      <p style={{ fontSize: 11, color: "#475569", margin: "8px 0 0" }}>
         Seleziona un oggetto sul canvas per modificarne le proprietà.
       </p>
     </>
@@ -651,7 +721,7 @@ function ObjectProps({
     </div>
   );
 
-  const BOX_TYPES = ["rect", "ellipse", "button", "navbutton", "checkbox", "radio", "slider", "gauge", "led", "progress_bar", "table", "trend", "symbol"];
+  const BOX_TYPES = ["rect", "ellipse", "button", "navbutton", "checkbox", "radio", "slider", "gauge", "led", "progress_bar", "table", "trend", "symbol", "grid"];
   const isShape = BOX_TYPES.includes(obj.type);
   const hasStroke = obj.type === "rect" || obj.type === "ellipse" || obj.type === "line";
 
@@ -1083,6 +1153,63 @@ function ObjectProps({
         </>
       )}
 
+      {/* Grid layout */}
+      {obj.type === "grid" && (
+        <>
+          <div style={{ fontSize: 10, color: "#475569", marginTop: 4, marginBottom: 2, fontWeight: 700, letterSpacing: 0.5 }}>
+            GRIGLIA
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 6px" }}>
+            <div>
+              <div style={LABEL}>Righe</div>
+              <input
+                type="number" min={1} max={20} style={INPUT}
+                value={obj.grid_rows ?? 2}
+                onChange={(e) => onChange({ grid_rows: Math.max(1, Number(e.target.value)) })}
+              />
+            </div>
+            <div>
+              <div style={LABEL}>Colonne</div>
+              <input
+                type="number" min={1} max={20} style={INPUT}
+                value={obj.grid_cols ?? 2}
+                onChange={(e) => onChange({ grid_cols: Math.max(1, Number(e.target.value)) })}
+              />
+            </div>
+          </div>
+          <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#cbd5e1", marginTop: 6, cursor: "pointer" }}>
+            <input
+              type="checkbox"
+              checked={obj.grid_show_borders !== false}
+              onChange={(e) => onChange({ grid_show_borders: e.target.checked })}
+              style={{ accentColor: "#3b82f6" }}
+            />
+            Mostra bordi
+          </label>
+          {obj.grid_show_borders !== false && (
+            <div style={{ marginTop: 4 }}>
+              <div style={LABEL}>Colore bordi</div>
+              <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                <input
+                  type="color"
+                  style={{ ...INPUT, padding: 2, height: 28, width: 44, cursor: "pointer", flex: "none" }}
+                  value={obj.grid_border_color ?? "#64748b"}
+                  onChange={(e) => onChange({ grid_border_color: e.target.value })}
+                />
+                <input
+                  type="text" style={INPUT}
+                  value={obj.grid_border_color ?? "#64748b"}
+                  onChange={(e) => onChange({ grid_border_color: e.target.value })}
+                />
+              </div>
+            </div>
+          )}
+          <p style={{ fontSize: 10, color: "#475569", margin: "6px 0 0" }}>
+            Clicca su una cella nel canvas per modificarne le proprietà.
+          </p>
+        </>
+      )}
+
       {/* Symbol (built-in SCADA library + custom project symbols) */}
       {obj.type === "symbol" && (
         <>
@@ -1494,6 +1621,120 @@ function EventFunctionPicker({
           })}
         </div>
       )}
+    </div>
+  );
+}
+
+// ── GridCellEditor ────────────────────────────────────────────────────────────
+// Properties panel for a selected grid cell.
+
+function GridCellEditor({
+  cell,
+  functions,
+  onChange,
+}: {
+  cell: GridCell;
+  functions: FunctionDef[];
+  onChange: (patch: Partial<GridCell>) => void;
+}) {
+  return (
+    <div style={{ marginTop: 8, borderTop: "1px solid #334155", paddingTop: 8 }}>
+      <div style={{ fontSize: 10, color: "#3b82f6", fontWeight: 700, letterSpacing: 0.5, marginBottom: 6 }}>
+        CELLA {cell.row + 1},{cell.col + 1}
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 6px", marginBottom: 6 }}>
+        <div>
+          <div style={LABEL}>Rowspan</div>
+          <input
+            type="number" min={1} max={10} style={INPUT}
+            value={cell.rowspan ?? 1}
+            onChange={(e) => onChange({ rowspan: Math.max(1, Number(e.target.value)) })}
+          />
+        </div>
+        <div>
+          <div style={LABEL}>Colspan</div>
+          <input
+            type="number" min={1} max={10} style={INPUT}
+            value={cell.colspan ?? 1}
+            onChange={(e) => onChange({ colspan: Math.max(1, Number(e.target.value)) })}
+          />
+        </div>
+      </div>
+
+      <div style={{ marginBottom: 6 }}>
+        <div style={LABEL}>Colore sfondo</div>
+        <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+          <input
+            type="color"
+            style={{ ...INPUT, padding: 2, height: 28, width: 44, cursor: "pointer", flex: "none" }}
+            value={cell.bg_color ?? "#1e293b"}
+            onChange={(e) => onChange({ bg_color: e.target.value })}
+          />
+          <input
+            type="text" style={INPUT}
+            value={cell.bg_color ?? ""}
+            placeholder="nessuno"
+            onChange={(e) => onChange({ bg_color: e.target.value || undefined })}
+          />
+        </div>
+      </div>
+
+      <div style={{ marginBottom: 6 }}>
+        <div style={LABEL}>Immagine sfondo (URL)</div>
+        <input
+          type="text" style={INPUT}
+          placeholder="https://…"
+          value={cell.bg_image ?? ""}
+          onChange={(e) => onChange({ bg_image: e.target.value || undefined })}
+        />
+      </div>
+
+      <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#cbd5e1", marginBottom: 6, cursor: "pointer" }}>
+        <input
+          type="checkbox"
+          checked={cell.visible !== false}
+          onChange={(e) => onChange({ visible: e.target.checked || undefined })}
+          style={{ accentColor: "#3b82f6" }}
+        />
+        Visibile (statico)
+      </label>
+
+      <div style={{ marginBottom: 6 }}>
+        <div style={LABEL}>Tag visibilità</div>
+        <TagInput
+          style={INPUT}
+          placeholder="es. valvola.aperta"
+          value={cell.visible_tag ?? ""}
+          onChange={(v) => onChange({ visible_tag: v || undefined })}
+        />
+      </div>
+
+      <div style={{ fontSize: 10, color: "#475569", fontWeight: 700, letterSpacing: 0.5, marginBottom: 4 }}>
+        EVENTI CELLA
+      </div>
+      <div style={{ marginBottom: 4 }}>
+        <div style={LABEL}>On press</div>
+        <select
+          style={{ ...INPUT, cursor: "pointer" }}
+          value={cell.on_press_fn ?? ""}
+          onChange={(e) => onChange({ on_press_fn: e.target.value || undefined })}
+        >
+          <option value="">— nessuna —</option>
+          {functions.map((f) => <option key={f.id} value={f.name}>{f.name}</option>)}
+        </select>
+      </div>
+      <div>
+        <div style={LABEL}>On release</div>
+        <select
+          style={{ ...INPUT, cursor: "pointer" }}
+          value={cell.on_release_fn ?? ""}
+          onChange={(e) => onChange({ on_release_fn: e.target.value || undefined })}
+        >
+          <option value="">— nessuna —</option>
+          {functions.map((f) => <option key={f.id} value={f.name}>{f.name}</option>)}
+        </select>
+      </div>
     </div>
   );
 }

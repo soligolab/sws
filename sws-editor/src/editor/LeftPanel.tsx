@@ -230,6 +230,7 @@ const OBJECT_TYPES: { type: SynopticObject["type"]; label: string; disabled?: bo
   { type: "trend",        label: "Trend" },
   { type: "symbol",       label: "Simbolo" },
   { type: "image",        label: "Immagine" },
+  { type: "grid",         label: "Griglia" },
 ];
 
 function ObjectPalette({ onAdd }: { onAdd: (type: SynopticObject["type"]) => void }) {

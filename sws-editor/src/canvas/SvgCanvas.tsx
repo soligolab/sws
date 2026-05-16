@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import { TrendCanvas } from "@/canvas/TrendCanvas";
 import { SYMBOLS } from "@/symbols/library";
-import type { CustomSymbol, SynopticObject, TagState } from "@/types";
+import type { CustomSymbol, GridCell, SynopticObject, TagState } from "@/types";
 
 // ── Canvas props ──────────────────────────────────────────────────────────────
 
@@ -16,18 +16,22 @@ interface SvgCanvasProps {
   snapEnabled?: boolean;
   /** Custom symbols defined in the project (persisted in project.yaml). */
   customSymbols?: CustomSymbol[];
+  /** Page design width in px. Shows a dashed boundary rect in edit mode. */
+  pageWidth?: number;
+  /** Page design height in px. Shows a dashed boundary rect in edit mode. */
+  pageHeight?: number;
+  /** Currently selected grid cell in edit mode. */
+  selectedCell?: { objectId: string; row: number; col: number } | null;
   /** Single-select (replace) when shift is false; toggle into the set when true. */
   onSelect?: (id: string | null, shift?: boolean) => void;
   /** Called with the full set of ids enclosed by a drag-selection rectangle. */
   onSelectMany?: (ids: string[]) => void;
   onMove?: (id: string, patch: Partial<SynopticObject>) => void;
   onWriteTag?: (tagId: string, value: string | number | boolean) => void;
-  /** View-mode dispatcher for on_press / on_release function bindings.
-   *  Called with the function NAME and the per-binding argument overrides
-   *  (possibly empty). Returns void; the caller is responsible for the
-   *  fetch + console logging. */
+  /** View-mode dispatcher for on_press / on_release function bindings. */
   onScript?: (fn: string, args: Record<string, string | number | boolean>) => void;
   onNavigate?: (pageId: string) => void;
+  onSelectCell?: (objectId: string, row: number, col: number) => void;
 }
 
 interface DragState {
@@ -218,12 +222,16 @@ export function SvgCanvas({
   gridSize = 10,
   snapEnabled = true,
   customSymbols = [],
+  pageWidth,
+  pageHeight,
+  selectedCell,
   onSelect,
   onSelectMany,
   onMove,
   onWriteTag,
   onScript,
   onNavigate,
+  onSelectCell,
 }: SvgCanvasProps) {
   // Resolved selection set: prefer the explicit array, fall back to the
   // legacy single-id prop, then to "nothing selected".
@@ -370,6 +378,15 @@ export function SvgCanvas({
       )}
       {gridSize > 0 && <rect width="100%" height="100%" fill="url(#sws-grid)" />}
 
+      {/* Page boundary indicator — edit mode only, when dimensions are defined */}
+      {onMove && pageWidth && pageHeight && (
+        <rect
+          x={0} y={0} width={pageWidth} height={pageHeight}
+          fill="none" stroke="#3b82f6" strokeWidth={1} strokeDasharray="6 3"
+          pointerEvents="none"
+        />
+      )}
+
       {sortByZ(objects).map((obj) => {
         // Visibility: in view mode, skip non-visible objects entirely.
         // In edit mode, always render so the designer can still select them
@@ -389,17 +406,20 @@ export function SvgCanvas({
           ? () => onScript(obj.on_release_fn!, obj.on_release_args ?? {})
           : undefined;
         return (
-          <g key={obj.id} style={gStyle} onMouseDown={onPress} onMouseUp={onRelease}>
+          <g key={obj.id} style={gStyle} onMouseDown={obj.type !== "grid" ? onPress : undefined} onMouseUp={obj.type !== "grid" ? onRelease : undefined}>
             <SvgObject
               obj={obj}
               tagValues={tagValues}
               selected={selSet.has(obj.id)}
               isEditMode={inEdit}
               customSymbols={customSymbols}
+              selectedCell={selectedCell}
               onSelect={onSelect}
               onStartDrag={onMove ? startDrag : undefined}
               onWriteTag={onWriteTag}
+              onScript={onScript}
               onNavigate={onNavigate}
+              onSelectCell={onSelectCell}
             />
           </g>
         );
@@ -431,14 +451,17 @@ interface ObjProps {
   selected: boolean;
   isEditMode: boolean;
   customSymbols: CustomSymbol[];
+  selectedCell?: { objectId: string; row: number; col: number } | null;
   onSelect?: (id: string | null, shift?: boolean) => void;
   onStartDrag?: (e: React.MouseEvent<SVGElement>, obj: SynopticObject) => void;
   onWriteTag?: (tagId: string, value: string | number | boolean) => void;
+  onScript?: (fn: string, args: Record<string, string | number | boolean>) => void;
   onNavigate?: (pageId: string) => void;
+  onSelectCell?: (objectId: string, row: number, col: number) => void;
 }
 
 function SvgObject(p: ObjProps) {
-  const { tagValues, selected, isEditMode, customSymbols, onSelect, onStartDrag, onWriteTag, onNavigate } = p;
+  const { tagValues, selected, isEditMode, customSymbols, selectedCell, onSelect, onStartDrag, onWriteTag, onScript, onNavigate, onSelectCell } = p;
   const obj = resolveObject(p.obj, tagValues);
 
   const handleMouseDown = (e: React.MouseEvent<SVGElement>) => {
@@ -1213,6 +1236,139 @@ function SvgObject(p: ObjProps) {
           <circle cx={obj.x + w - 7} cy={obj.y + 7} r={6}
             fill={badgeColor} stroke="#0f172a" strokeWidth={1}
             style={{ pointerEvents: "none", ...transitionStyle(obj) }} />
+        )}
+      </g>
+    );
+  }
+
+  // ── GRID ────────────────────────────────────────────────────────────────────
+
+  if (obj.type === "grid") {
+    const w = obj.width ?? 400;
+    const h = obj.height ?? 300;
+    const nRows = obj.grid_rows ?? 2;
+    const nCols = obj.grid_cols ?? 2;
+    const showBorders = obj.grid_show_borders !== false;
+    const borderColor = obj.grid_border_color ?? "#64748b";
+
+    // Compute column widths
+    const colWidthsDef = (obj.col_widths as number[] | undefined) ?? [];
+    const colW: number[] = [];
+    for (let c = 0; c < nCols; c++) {
+      colW.push(c < colWidthsDef.length ? colWidthsDef[c] : w / nCols);
+    }
+    // Compute row heights
+    const rowHeightsDef = (obj.row_heights as number[] | undefined) ?? [];
+    const rowH: number[] = [];
+    for (let r = 0; r < nRows; r++) {
+      rowH.push(r < rowHeightsDef.length ? rowHeightsDef[r] : h / nRows);
+    }
+    // Cumulative offsets
+    const colX: number[] = [];
+    let cx = obj.x;
+    for (let c = 0; c < nCols; c++) { colX.push(cx); cx += colW[c]; }
+    const rowY: number[] = [];
+    let ry = obj.y;
+    for (let r = 0; r < nRows; r++) { rowY.push(ry); ry += rowH[r]; }
+
+    // Map from "r-c" to cell definition
+    const definedCells = (obj.grid_cells ?? []) as GridCell[];
+    const cellMap = new Map<string, GridCell>();
+    for (const cell of definedCells) cellMap.set(`${cell.row}-${cell.col}`, cell);
+
+    // Track positions covered by a span (non-origin)
+    const covered = new Set<string>();
+    for (const cell of definedCells) {
+      const rs = cell.rowspan ?? 1;
+      const cs = cell.colspan ?? 1;
+      for (let rr = cell.row; rr < Math.min(cell.row + rs, nRows); rr++) {
+        for (let cc = cell.col; cc < Math.min(cell.col + cs, nCols); cc++) {
+          if (rr !== cell.row || cc !== cell.col) covered.add(`${rr}-${cc}`);
+        }
+      }
+    }
+
+    return (
+      <g>
+        {/* Transparent hit rect for grid-level drag/select */}
+        <rect
+          x={obj.x} y={obj.y} width={w} height={h}
+          fill="transparent"
+          stroke={selected ? "#facc15" : showBorders ? borderColor : "none"}
+          strokeWidth={selected ? 2 : 1}
+          onMouseDown={handleMouseDown}
+          onClick={(e) => e.stopPropagation()}
+          style={{ cursor: editCursor }}
+        />
+        {Array.from({ length: nRows }, (_, r) =>
+          Array.from({ length: nCols }, (_, c) => {
+            const key = `${r}-${c}`;
+            if (covered.has(key)) return null;
+
+            const cellDef = cellMap.get(key);
+            const rs = cellDef?.rowspan ?? 1;
+            const cs = cellDef?.colspan ?? 1;
+            let cellW = 0;
+            for (let cc = c; cc < Math.min(c + cs, nCols); cc++) cellW += colW[cc];
+            let cellH = 0;
+            for (let rr = r; rr < Math.min(r + rs, nRows); rr++) cellH += rowH[rr];
+
+            const cellVisible = (() => {
+              if (!cellDef) return true;
+              if (cellDef.visible_tag && tagValues[cellDef.visible_tag]) {
+                const v = tagValues[cellDef.visible_tag].value;
+                return typeof v === "boolean" ? v : typeof v === "number" ? v !== 0 : String(v).trim().length > 0;
+              }
+              return cellDef.visible !== false;
+            })();
+            if (!cellVisible && !isEditMode) return null;
+
+            const isCellSel = isEditMode && selectedCell?.objectId === obj.id
+              && selectedCell.row === r && selectedCell.col === c;
+
+            return (
+              <g
+                key={key}
+                style={{ opacity: !cellVisible && isEditMode ? 0.35 : 1 }}
+                onMouseDown={(e) => {
+                  if (isEditMode) {
+                    e.stopPropagation();
+                    onSelect?.(obj.id, e.shiftKey);
+                    onSelectCell?.(obj.id, r, c);
+                  } else if (cellDef?.on_press_fn && onScript) {
+                    e.stopPropagation();
+                    onScript(cellDef.on_press_fn, {});
+                  }
+                }}
+                onMouseUp={(e) => {
+                  if (!isEditMode && cellDef?.on_release_fn && onScript) {
+                    e.stopPropagation();
+                    onScript(cellDef.on_release_fn, {});
+                  }
+                }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <rect
+                  x={colX[c]} y={rowY[r]} width={cellW} height={cellH}
+                  fill={cellDef?.bg_color ?? "transparent"}
+                  stroke={showBorders ? (isCellSel ? "#facc15" : borderColor) : "none"}
+                  strokeWidth={isCellSel ? 2 : 1}
+                  style={{
+                    cursor: isEditMode ? "pointer"
+                      : (cellDef?.on_press_fn ? "pointer" : "default"),
+                  }}
+                />
+                {cellDef?.bg_image && (
+                  <image
+                    href={cellDef.bg_image}
+                    x={colX[c]} y={rowY[r]} width={cellW} height={cellH}
+                    preserveAspectRatio="xMidYMid slice"
+                    style={{ pointerEvents: "none" }}
+                  />
+                )}
+              </g>
+            );
+          })
         )}
       </g>
     );
