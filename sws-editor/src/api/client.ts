@@ -350,6 +350,7 @@ export const api = {
   browseMqttTopics: (req: MqttBrowseRequest): Promise<MqttBrowseResponse> =>
     request<MqttBrowseResponse>("/api/sources/mqtt/browse", {
       method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(req),
     }),
 
