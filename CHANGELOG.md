@@ -8,6 +8,23 @@ and this project adheres to [CalVer](https://calver.org/) (`YYYY.MM[.patch]`).
 ## [Unreleased]
 
 ### Added
+- **Object lock** (`SynopticObject.locked`, `SvgCanvas.tsx`, `EditorShell.tsx`, `LeftPanel.tsx`) — a new `locked?: boolean` field on every `SynopticObject`. When `true` in edit mode the object's `handleMouseDown` returns early — it cannot be clicked, selected, or dragged. A "Bloccato" checkbox (amber accent) appears in the LAYER section of the properties panel. A 🔒 emoji indicator appears in the LeftPanel object list next to the type tag.
+
+- **LeftPanel object filter** (`LeftPanel.tsx`) — a live text filter input above the objects list in the "OGGETTI PAGINA" section. Filters by `name`, `type`, and `id` (case-insensitive substring). The section title always shows the total count. An appropriate empty-state message is shown when the filter matches nothing.
+
+- **Canvas zoom + pan** (`SvgCanvas.tsx`) — full non-destructive zoom/pan for the edit canvas:
+  - `Ctrl + scroll wheel`: zoom in/out, centred on the cursor position.
+  - `Scroll wheel` (no modifier): vertical pan; `Shift + scroll`: horizontal pan.
+  - `Ctrl + 0`: reset to 100% zoom, origin pan.
+  - `Middle-click drag` (button 1): free-form pan.
+  - All canvas objects live inside `<g transform="translate(panX,panY) scale(zoom)">`. The grid background uses a 100 000 × 100 000 px rect to stay visible while panning.
+  - Resize handles and line endpoint handles are scaled by `1/zoom` so they stay pixel-constant on screen.
+  - Mouse → SVG user-space via `toSvg(screenX, screenY) = (x − panX) / zoom`; all drag/resize logic updated.
+  - A zoom percentage badge is shown in the bottom-right corner when zoom ≠ 100%.
+  - The wheel listener is attached via `useEffect` with `{ passive: false }` to allow `preventDefault`.
+
+- **Arrow key nudge** (`EditorShell.tsx`) — in edit mode with a single object selected, the arrow keys move it by 1 px (plain) or by `gridSize` px (`Shift + arrow`). Line objects also update `x2`/`y2` to keep their shape. The handler skips when focus is inside an `<input>` or `<textarea>`.
+
 - **Line endpoint drag handles** (`SvgCanvas.tsx`) — when a line is selected in edit mode, two circles (r=5, white/yellow border) appear at its two endpoints. Dragging p1 updates (x, y); dragging p2 updates (x2, y2). Snap-to-grid applies. `ResizeState.startObj` extended with optional `x2`/`y2` fields; `handleMouseMove` dispatches to the p1/p2 branch before the box-handle branch.
 
 - **Z-order reorder + Ctrl+A select-all** (`EditorShell.tsx`, `store/index.ts`):

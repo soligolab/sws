@@ -275,8 +275,17 @@ function ObjectsSection() {
   const [renaming, setRenaming] = useState<string | null>(null);
   const [draft, setDraft]       = useState("");
   const [expandedGrids, setExpandedGrids] = useState<Set<string>>(new Set());
+  const [filter, setFilter]     = useState("");
 
-  const objects = pages.find((p) => p.id === currentPageId)?.objects ?? [];
+  const allObjects = pages.find((p) => p.id === currentPageId)?.objects ?? [];
+  const fq = filter.trim().toLowerCase();
+  const objects = fq
+    ? allObjects.filter((o) =>
+        (o.name ?? "").toLowerCase().includes(fq) ||
+        o.type.toLowerCase().includes(fq) ||
+        o.id.toLowerCase().includes(fq)
+      )
+    : allObjects;
 
   useEffect(() => {
     if (selectedCellChild) {
@@ -308,11 +317,25 @@ function ObjectsSection() {
   };
 
   return (
-    <Section title={`OGGETTI PAGINA (${objects.length})`} defaultOpen={false}>
+    <Section title={`OGGETTI PAGINA (${allObjects.length})`} defaultOpen={false}>
+      <div style={{ padding: "4px 8px", borderBottom: "1px solid #1e293b" }}>
+        <input
+          type="text"
+          placeholder="Filtra per nome / tipo…"
+          value={filter}
+          onChange={(e) => setFilter(e.target.value)}
+          style={{
+            width: "100%", boxSizing: "border-box",
+            background: "#0f172a", color: "#e2e8f0",
+            border: "1px solid #334155", borderRadius: 3,
+            padding: "3px 6px", fontSize: 11,
+          }}
+        />
+      </div>
       <div style={{ ...S.body, maxHeight: 280 }}>
         {objects.length === 0 && (
           <p style={{ padding: "8px 12px", fontSize: 11, color: "#475569", margin: 0 }}>
-            Nessun oggetto su questa pagina. Aggiungili dalla palette qui sopra.
+            {fq ? "Nessun oggetto corrisponde al filtro." : "Nessun oggetto su questa pagina. Aggiungili dalla palette qui sopra."}
           </p>
         )}
         {objects.map((o) => {
@@ -352,6 +375,9 @@ function ObjectsSection() {
                   </button>
                 ) : (
                   <span style={{ width: 14, flexShrink: 0 }} />
+                )}
+                {o.locked && (
+                  <span title="Bloccato" style={{ fontSize: 10, flexShrink: 0, opacity: 0.7 }}>🔒</span>
                 )}
                 <span style={{
                   fontSize: 9, color: "#475569", width: 34, flexShrink: 0,

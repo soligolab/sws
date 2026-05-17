@@ -1745,6 +1745,15 @@ function ObjectProps({
         />
         Visibile (statico)
       </label>
+      <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#cbd5e1", marginTop: 4, cursor: "pointer" }}>
+        <input
+          type="checkbox"
+          checked={obj.locked === true}
+          onChange={(e) => onChange({ locked: e.target.checked ? true : undefined })}
+          style={{ accentColor: "#f59e0b" }}
+        />
+        Bloccato (non selezionabile nell'editor)
+      </label>
       <div>
         <div style={LABEL}>Tag visibilità (override)</div>
         <TagInput

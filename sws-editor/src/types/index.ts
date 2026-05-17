@@ -199,6 +199,8 @@ export interface SynopticObject {
   /** Show cell borders (default true). False = invisible grid at runtime. */
   grid_show_borders?: boolean;
   grid_border_color?: string;
+  /** When true the object cannot be selected or moved in the editor. */
+  locked?: boolean;
 }
 
 // ── Historian sample (wire shape from GET /api/history/:tag) ──────────────

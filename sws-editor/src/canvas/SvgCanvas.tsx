@@ -695,6 +695,7 @@ function SvgObject(p: ObjProps) {
   const obj = resolveObject(p.obj, tagValues);
 
   const handleMouseDown = (e: React.MouseEvent<SVGElement>) => {
+    if (obj.locked && isEditMode) return;
     e.stopPropagation();
     onSelect?.(obj.id, e.shiftKey);
     // Don't start a drag when the user is just shift-clicking to extend
