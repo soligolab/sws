@@ -6,7 +6,9 @@ import type {
   AlarmState,
   CustomSymbol,
   FunctionDef,
+  GridCell,
   LogEvent,
+  ObjectGroup,
   ProjectInfo,
   SourceDef,
   SynopticObject,
@@ -14,6 +16,11 @@ import type {
   TagDef,
   TagState,
 } from "@/types";
+
+export interface HistoryEntry {
+  pages: SynopticPage[];
+  label: string;
+}
 
 // Cap the in-memory log list. The runtime keeps ~1000 events in its ring,
 // but a long-running browser session will accumulate many more from the WS
@@ -67,7 +74,7 @@ function clonePages(pages: SynopticPage[]): SynopticPage[] {
   }));
 }
 
-const HISTORY_LIMIT = 50;
+const HISTORY_LIMIT = 200;
 
 /** Object alignment commands operating on a set of objects. */
 export type AlignMode =
@@ -100,9 +107,13 @@ interface AppState {
   /** Currently-focused FunctionDef.id (when editing a function). Mutually
    *  exclusive with object selection — selecting one clears the other. */
   selectedFunctionId: string | null;
-  /** Snapshot stacks for undo/redo. Each entry is a full clone of `pages`. */
-  past: SynopticPage[][];
-  future: SynopticPage[][];
+  /** Currently-selected grid cell in edit mode (moved from EditorShell local state). */
+  selectedCell: { objectId: string; row: number; col: number } | null;
+  /** The child object inside the selected cell that has been individually clicked. */
+  selectedCellChild: { objectId: string; row: number; col: number } | null;
+  /** Snapshot stacks for undo/redo. Each entry is a labeled clone of `pages`. */
+  past: HistoryEntry[];
+  future: HistoryEntry[];
   /** Cut/paste buffer (in-memory only — not persisted across reloads). */
   clipboard: SynopticObject[];
 
@@ -121,8 +132,12 @@ interface AppState {
   incSaveSerial: () => void;
   setSaveStatus: (s: "idle" | "saving" | "ok" | "error", e?: string | null) => void;
 
+  /** True when the session token expired mid-session. Shows ReAuthModal overlay. */
+  reAuthNeeded: boolean;
+
   setAuth: (token: string, username: string, role: Role, mustChangePassword?: boolean) => void;
   setMustChangePassword: (flag: boolean) => void;
+  setReAuthNeeded: (v: boolean) => void;
   clearAuth: () => void;
   setNoActiveProject: (flag: boolean) => void;
 
@@ -148,8 +163,13 @@ interface AppState {
   addPage: () => void;
   deletePage: (id: string) => void;
   renamePage: (id: string, name: string) => void;
-  updatePageProps: (id: string, patch: Partial<Pick<SynopticPage, "name" | "background">>) => void;
+  reorderPage: (id: string, dir: "up" | "down") => void;
+  duplicatePage: (id: string) => void;
+  updatePageProps: (id: string, patch: Partial<Pick<SynopticPage, "name" | "background" | "width" | "height">>) => void;
+  updateGridCell: (pageId: string, objectId: string, cell: GridCell) => void;
   setCurrentPage: (id: string) => void;
+  setSelectedCell: (cell: { objectId: string; row: number; col: number } | null) => void;
+  setSelectedCellChild: (cell: { objectId: string; row: number; col: number } | null) => void;
 
   // Object CRUD (operates on current page)
   selectObject: (id: string | null) => void;
@@ -158,14 +178,17 @@ interface AppState {
   clearSelection: () => void;
   addObject: (partial: Omit<SynopticObject, "id">) => void;
   updateObject: (id: string, patch: Partial<SynopticObject>) => void;
+  updateObjects: (ids: string[], patch: Partial<SynopticObject>) => void;
   duplicateObject: (id: string) => void;
   duplicateSelection: () => void;
   deleteObject: (id: string) => void;
   deleteSelection: () => void;
+  reorderObject: (id: string, dir: "front" | "forward" | "backward" | "back") => void;
 
   // Clipboard
   copySelection: () => void;
   pasteClipboard: () => void;
+  setClipboard: (objs: SynopticObject[]) => void;
 
   // Alignment & distribution (multi-select)
   alignSelection: (mode: AlignMode) => void;
@@ -175,6 +198,14 @@ interface AppState {
   redo: () => void;
   canUndo: () => boolean;
   canRedo: () => boolean;
+  jumpToPast: (index: number) => void;
+  jumpToFuture: (index: number) => void;
+
+  // Object grouping (UI-only, no canvas effect)
+  groupObjects: (ids: string[], name?: string) => void;
+  ungroupObjects: (groupId: string) => void;
+  renameGroup: (groupId: string, name: string) => void;
+  moveObjectToGroup: (objId: string, groupId: string | null) => void;
 
   // Tag values from WebSocket
   updateTagValue: (id: string, state: TagState) => void;
@@ -202,17 +233,16 @@ if (persisted) setAuthToken(persisted.token);
 
 export const useAppStore = create<AppState>((set, get) => {
   /**
-   * Push a snapshot of the current `pages` onto the history stack before
-   * applying a mutation that's part of the user's edit history. Clears
-   * the redo stack (a new edit invalidates "future"). Capped at HISTORY_LIMIT.
+   * Push a labeled snapshot of the current `pages` onto the history stack
+   * before applying a mutation. Clears the redo stack. Capped at HISTORY_LIMIT.
    */
-  const pushHistory = () => {
+  const pushHistory = (label: string) => {
     const { pages, past } = get();
-    const snapshot = clonePages(pages);
+    const entry: HistoryEntry = { pages: clonePages(pages), label };
     const trimmed = past.length >= HISTORY_LIMIT
       ? past.slice(past.length - HISTORY_LIMIT + 1)
       : past;
-    set({ past: [...trimmed, snapshot], future: [] });
+    set({ past: [...trimmed, entry], future: [] });
   };
 
   /** Helper: object id → page id (current page only). */
@@ -227,6 +257,7 @@ export const useAppStore = create<AppState>((set, get) => {
     authRole:  isRole(persisted?.role) ? (persisted!.role as Role) : null,
     mustChangePassword: persisted?.must_change_password === true,
     noActiveProject: false,
+    reAuthNeeded: false,
 
     project: null,
     customSymbols: [],
@@ -235,6 +266,8 @@ export const useAppStore = create<AppState>((set, get) => {
     selectedObjectId: null,
     selectedObjectIds: [],
     selectedFunctionId: null,
+    selectedCell: null,
+    selectedCellChild: null,
     past: [],
     future: [],
     clipboard: [],
@@ -252,6 +285,8 @@ export const useAppStore = create<AppState>((set, get) => {
       writePersistedAuth({ token, username, role, must_change_password: mustChangePassword });
       set({ authToken: token, authUser: username, authRole: role, mustChangePassword });
     },
+
+    setReAuthNeeded: (v) => set({ reAuthNeeded: v }),
 
     setMustChangePassword: (flag) => {
       const { authToken, authUser, authRole } = get();
@@ -372,18 +407,30 @@ export const useAppStore = create<AppState>((set, get) => {
         selectedFunctionId: s.selectedFunctionId === id ? null : s.selectedFunctionId,
       })),
 
+    setSelectedCell: (cell) =>
+      set((s) => {
+        const prev = s.selectedCell;
+        const same = prev && cell &&
+          prev.objectId === cell.objectId && prev.row === cell.row && prev.col === cell.col;
+        return { selectedCell: cell, selectedCellChild: same ? s.selectedCellChild : null };
+      }),
+
+    setSelectedCellChild: (cell) => set({ selectedCellChild: cell }),
+
     setPages: (pages, currentPageId) =>
       set({
         pages,
         currentPageId: currentPageId ?? pages[0]?.id ?? first.id,
         selectedObjectId: null,
         selectedObjectIds: [],
+        selectedCell: null,
+        selectedCellChild: null,
         past: [],
         future: [],
       }),
 
     addPage: () => {
-      pushHistory();
+      pushHistory("Nuova pagina");
       const page = makePage(`Page ${get().pages.length + 1}`);
       set((s) => ({
         pages: [...s.pages, page],
@@ -396,7 +443,7 @@ export const useAppStore = create<AppState>((set, get) => {
     deletePage: (id) => {
       const { pages, currentPageId } = get();
       if (pages.length <= 1) return;
-      pushHistory();
+      pushHistory("Elimina pagina");
       const next = pages.filter((p) => p.id !== id);
       set({
         pages: next,
@@ -407,13 +454,70 @@ export const useAppStore = create<AppState>((set, get) => {
     },
 
     renamePage: (id, name) => {
-      pushHistory();
+      pushHistory("Rinomina pagina");
       set((s) => ({ pages: s.pages.map((p) => (p.id === id ? { ...p, name } : p)) }));
     },
 
+    reorderPage: (id, dir) => {
+      pushHistory("Riordina pagine");
+      set((s) => {
+        const idx = s.pages.findIndex((p) => p.id === id);
+        if (idx < 0) return s;
+        const pages = [...s.pages];
+        const [page] = pages.splice(idx, 1);
+        const newIdx = dir === "up" ? Math.max(0, idx - 1) : Math.min(pages.length, idx + 1);
+        pages.splice(newIdx, 0, page);
+        return { pages };
+      });
+    },
+
+    duplicatePage: (id) => {
+      pushHistory("Duplica pagina");
+      set((s) => {
+        const page = s.pages.find((p) => p.id === id);
+        if (!page) return s;
+        const ts = Date.now();
+        const copy: SynopticPage = {
+          ...page,
+          id: `page_${ts}`,
+          name: `${page.name} (copia)`,
+          objects: page.objects.map((o, i) => ({
+            ...o,
+            id: `${o.id}_c${i}`,
+          })),
+        };
+        const idx = s.pages.findIndex((p) => p.id === id);
+        const pages = [...s.pages];
+        pages.splice(idx + 1, 0, copy);
+        return { pages, currentPageId: copy.id };
+      });
+    },
+
     updatePageProps: (id, patch) => {
-      pushHistory();
+      pushHistory("Proprietà pagina");
       set((s) => ({ pages: s.pages.map((p) => (p.id === id ? { ...p, ...patch } : p)) }));
+    },
+
+    updateGridCell: (pageId, objectId, cell) => {
+      pushHistory("Modifica cella");
+      set((s) => ({
+        pages: s.pages.map((p) =>
+          p.id === pageId
+            ? {
+                ...p,
+                objects: p.objects.map((o) => {
+                  if (o.id !== objectId) return o;
+                  const cells = (o.grid_cells ?? []) as GridCell[];
+                  const idx = cells.findIndex((c) => c.row === cell.row && c.col === cell.col);
+                  const next = idx >= 0
+                    ? cells.map((c, i) => (i === idx ? cell : c))
+                    : [...cells, cell];
+                  return { ...o, grid_cells: next };
+                }),
+              }
+            : p
+        ),
+      }));
     },
 
     setCurrentPage: (id) => set({
@@ -421,14 +525,17 @@ export const useAppStore = create<AppState>((set, get) => {
       selectedObjectId: null,
       selectedObjectIds: [],
       selectedFunctionId: null,
+      selectedCell: null,
+      selectedCellChild: null,
     }),
 
     selectObject: (id) =>
       set({
         selectedObjectId: id,
         selectedObjectIds: id ? [id] : [],
-        // Selecting an object closes the function editor on the right panel.
         selectedFunctionId: null,
+        selectedCell: null,
+        selectedCellChild: null,
       }),
 
     toggleSelection: (id) => set((s) => {
@@ -451,7 +558,8 @@ export const useAppStore = create<AppState>((set, get) => {
       }),
 
     clearSelection: () =>
-      set({ selectedObjectId: null, selectedObjectIds: [], selectedFunctionId: null }),
+      set({ selectedObjectId: null, selectedObjectIds: [], selectedFunctionId: null,
+            selectedCell: null, selectedCellChild: null }),
 
     selectFunction: (id) =>
       set({
@@ -462,7 +570,7 @@ export const useAppStore = create<AppState>((set, get) => {
       }),
 
     addObject: (partial) => {
-      pushHistory();
+      pushHistory(`Aggiungi ${partial.type}`);
       const obj: SynopticObject = { ...partial, id: genId() };
       set((s) => ({
         pages: s.pages.map((p) =>
@@ -474,7 +582,7 @@ export const useAppStore = create<AppState>((set, get) => {
     },
 
     updateObject: (id, patch) => {
-      pushHistory();
+      pushHistory("Modifica oggetto");
       set((s) => ({
         pages: s.pages.map((p) =>
           p.id === s.currentPageId
@@ -484,10 +592,21 @@ export const useAppStore = create<AppState>((set, get) => {
       }));
     },
 
+    updateObjects: (ids, patch) => {
+      pushHistory("Modifica oggetti");
+      set((s) => ({
+        pages: s.pages.map((p) =>
+          p.id === s.currentPageId
+            ? { ...p, objects: p.objects.map((o) => (ids.includes(o.id) ? { ...o, ...patch } : o)) }
+            : p
+        ),
+      }));
+    },
+
     duplicateObject: (id) => {
       const src = findObj(id);
       if (!src) return;
-      pushHistory();
+      pushHistory("Duplica oggetto");
       const copy: SynopticObject = {
         ...src,
         id: genId(),
@@ -511,7 +630,7 @@ export const useAppStore = create<AppState>((set, get) => {
       if (selectedObjectIds.length === 0) return;
       const page = pages.find((p) => p.id === currentPageId);
       if (!page) return;
-      pushHistory();
+      pushHistory("Duplica selezione");
       const newIds: string[] = [];
       const copies: SynopticObject[] = selectedObjectIds
         .map((id) => page.objects.find((o) => o.id === id))
@@ -539,7 +658,7 @@ export const useAppStore = create<AppState>((set, get) => {
     },
 
     deleteObject: (id) => {
-      pushHistory();
+      pushHistory("Elimina oggetto");
       set((s) => {
         const ids = s.selectedObjectIds.filter((x) => x !== id);
         return {
@@ -557,7 +676,7 @@ export const useAppStore = create<AppState>((set, get) => {
     deleteSelection: () => {
       const { selectedObjectIds } = get();
       if (selectedObjectIds.length === 0) return;
-      pushHistory();
+      pushHistory("Elimina selezione");
       const deleting = new Set(selectedObjectIds);
       set((s) => ({
         pages: s.pages.map((p) =>
@@ -568,6 +687,23 @@ export const useAppStore = create<AppState>((set, get) => {
         selectedObjectId: null,
         selectedObjectIds: [],
       }));
+    },
+
+    reorderObject: (id, dir) => {
+      pushHistory("Riordina oggetto");
+      set((s) => {
+        const page = s.pages.find((p) => p.id === s.currentPageId);
+        if (!page) return s;
+        const idx = page.objects.findIndex((o) => o.id === id);
+        if (idx < 0) return s;
+        const objs = [...page.objects];
+        const [obj] = objs.splice(idx, 1);
+        if      (dir === "front")   objs.push(obj);
+        else if (dir === "back")    objs.unshift(obj);
+        else if (dir === "forward") objs.splice(Math.min(idx + 1, objs.length), 0, obj);
+        else                        objs.splice(Math.max(idx - 1, 0), 0, obj);
+        return { pages: s.pages.map((p) => p.id === s.currentPageId ? { ...p, objects: objs } : p) };
+      });
     },
 
     copySelection: () => {
@@ -585,7 +721,7 @@ export const useAppStore = create<AppState>((set, get) => {
     pasteClipboard: () => {
       const { clipboard, currentPageId } = get();
       if (clipboard.length === 0) return;
-      pushHistory();
+      pushHistory("Incolla");
       const newIds: string[] = [];
       const copies = clipboard.map((src) => {
         const id = genId();
@@ -608,6 +744,8 @@ export const useAppStore = create<AppState>((set, get) => {
         selectedObjectId: newIds.length === 1 ? newIds[0] : null,
       }));
     },
+
+    setClipboard: (objs) => set({ clipboard: objs }),
 
     alignSelection: (mode) => {
       const { selectedObjectIds, pages, currentPageId } = get();
@@ -632,7 +770,7 @@ export const useAppStore = create<AppState>((set, get) => {
       const cx = (minX + maxR) / 2;
       const cy = (minY + maxB) / 2;
 
-      pushHistory();
+      pushHistory(`Allinea (${mode})`);
       const patches = new Map<string, { x?: number; y?: number; x2?: number; y2?: number }>();
 
       const move = (o: SynopticObject, dx: number, dy: number) => {
@@ -705,13 +843,15 @@ export const useAppStore = create<AppState>((set, get) => {
       const { past, future, pages } = get();
       if (past.length === 0) return;
       const prev = past[past.length - 1];
-      const newPast = past.slice(0, past.length - 1);
+      const currentLabel = prev.label;
       set({
-        past: newPast,
-        future: [clonePages(pages), ...future].slice(0, HISTORY_LIMIT),
-        pages: prev,
+        past: past.slice(0, past.length - 1),
+        future: [{ pages: clonePages(pages), label: currentLabel }, ...future].slice(0, HISTORY_LIMIT),
+        pages: prev.pages,
         selectedObjectId: null,
         selectedObjectIds: [],
+        selectedCell: null,
+        selectedCellChild: null,
       });
     },
 
@@ -719,17 +859,62 @@ export const useAppStore = create<AppState>((set, get) => {
       const { past, future, pages } = get();
       if (future.length === 0) return;
       const next = future[0];
+      const currentLabel = next.label;
       set({
-        past: [...past, clonePages(pages)].slice(-HISTORY_LIMIT),
+        past: [...past, { pages: clonePages(pages), label: currentLabel }].slice(-HISTORY_LIMIT),
         future: future.slice(1),
-        pages: next,
+        pages: next.pages,
         selectedObjectId: null,
         selectedObjectIds: [],
+        selectedCell: null,
+        selectedCellChild: null,
       });
     },
 
     canUndo: () => get().past.length > 0,
     canRedo: () => get().future.length > 0,
+
+    jumpToPast: (index) => {
+      const { past, future, pages } = get();
+      if (index < 0 || index >= past.length) return;
+      const target = past[index];
+      const currentLabel = past.length > 0 ? past[past.length - 1].label : "Modifica";
+      const newFuture = [
+        ...past.slice(index + 1),
+        { pages: clonePages(pages), label: currentLabel },
+        ...future,
+      ].slice(0, HISTORY_LIMIT);
+      set({
+        pages: target.pages,
+        past: past.slice(0, index),
+        future: newFuture,
+        selectedObjectId: null,
+        selectedObjectIds: [],
+        selectedCell: null,
+        selectedCellChild: null,
+      });
+    },
+
+    jumpToFuture: (index) => {
+      const { past, future, pages } = get();
+      if (index < 0 || index >= future.length) return;
+      const target = future[index];
+      const currentLabel = past.length > 0 ? past[past.length - 1].label : "Modifica";
+      const newPast = [
+        ...past,
+        { pages: clonePages(pages), label: currentLabel },
+        ...future.slice(0, index),
+      ].slice(-HISTORY_LIMIT);
+      set({
+        pages: target.pages,
+        past: newPast,
+        future: future.slice(index + 1),
+        selectedObjectId: null,
+        selectedObjectIds: [],
+        selectedCell: null,
+        selectedCellChild: null,
+      });
+    },
 
     updateTagValue: (id, state) =>
       set((s) => ({ tagValues: { ...s.tagValues, [id]: state } })),
@@ -761,7 +946,61 @@ export const useAppStore = create<AppState>((set, get) => {
 
     incSaveSerial: () => set((s) => ({ saveSerial: s.saveSerial + 1 })),
     setSaveStatus: (saveStatus, saveError = null) => set({ saveStatus, saveError }),
+
+    groupObjects: (ids, name) => {
+      if (ids.length < 1) return;
+      pushHistory("Raggruppa oggetti");
+      const groupId = genId();
+      const groupName = name ?? `Gruppo ${Date.now() % 10000}`;
+      set((s) => {
+        const page = s.pages.find((p) => p.id === s.currentPageId);
+        if (!page) return s;
+        const newGroup: ObjectGroup = { id: groupId, name: groupName };
+        return {
+          pages: s.pages.map((p) => p.id !== s.currentPageId ? p : {
+            ...p,
+            groups: [...(p.groups ?? []), newGroup],
+            objects: p.objects.map((o) =>
+              ids.includes(o.id) ? { ...o, group_id: groupId } : o
+            ),
+          }),
+        };
+      });
+    },
+
+    ungroupObjects: (groupId) => {
+      pushHistory("Separa gruppo");
+      set((s) => ({
+        pages: s.pages.map((p) => p.id !== s.currentPageId ? p : {
+          ...p,
+          groups: (p.groups ?? []).filter((g) => g.id !== groupId),
+          objects: p.objects.map((o) =>
+            o.group_id === groupId ? { ...o, group_id: undefined } : o
+          ),
+        }),
+      }));
+    },
+
+    renameGroup: (groupId, name) => {
+      set((s) => ({
+        pages: s.pages.map((p) => p.id !== s.currentPageId ? p : {
+          ...p,
+          groups: (p.groups ?? []).map((g) => g.id === groupId ? { ...g, name } : g),
+        }),
+      }));
+    },
+
+    moveObjectToGroup: (objId, groupId) => {
+      set((s) => ({
+        pages: s.pages.map((p) => p.id !== s.currentPageId ? p : {
+          ...p,
+          objects: p.objects.map((o) =>
+            o.id === objId ? { ...o, group_id: groupId ?? undefined } : o
+          ),
+        }),
+      }));
+    },
   };
 });
 
-export type { AppState, SynopticObject };
+export type { AppState, SynopticObject, ObjectGroup };

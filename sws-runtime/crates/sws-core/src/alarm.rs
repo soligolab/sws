@@ -68,6 +68,10 @@ pub struct AlarmDef {
     pub message: String,
     #[serde(default)]
     pub severity: AlarmSeverity,
+    /// Optional webhook URL. When set, a POST is fired to this URL each time
+    /// the alarm transitions to ACTIVE. Payload: `AlarmWebhookPayload` JSON.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub notify_url: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

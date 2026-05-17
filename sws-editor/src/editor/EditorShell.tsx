@@ -1,13 +1,15 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "@/api/client";
 import { SvgCanvas } from "@/canvas/SvgCanvas";
 import { LeftPanel } from "@/editor/LeftPanel";
 import { FunctionEditor } from "@/editor/FunctionEditor";
 import { TagInput } from "@/components/TagInput";
 import { BindableInput } from "@/components/BindableInput";
+import { SYMBOL_LIST } from "@/symbols/library";
+import type { SymbolMeta } from "@/symbols/library";
 import { useAppStore } from "@/store";
 import type { AlignMode } from "@/store";
-import type { FunctionDef, RadioOption, SynopticObject, TableRow } from "@/types";
+import type { FunctionDef, GridCell, RadioOption, SynopticObject, TableRow } from "@/types";
 
 // ── Shared styles ─────────────────────────────────────────────────────────────
 
@@ -32,26 +34,87 @@ const INPUT: React.CSSProperties = {
   boxSizing: "border-box",
 };
 
-// ── SymbolSelect ─────────────────────────────────────────────────────────────
-// Dropdown che mostra sia i simboli built-in sia i simboli custom del progetto.
+// ── SymbolGallery ─────────────────────────────────────────────────────────────
+// Visual grid picker — shows a mini SVG preview for built-in symbols and an
+// <img> for vendored/custom SVG files. Replaces the old plain <select>.
 
-const BUILTIN_SYMBOLS = [
-  { id: "pump",              label: "Pompa" },
-  { id: "valve",             label: "Valvola" },
-  { id: "motor",             label: "Motore" },
-  { id: "tank",              label: "Serbatoio" },
-  { id: "fan",               label: "Ventola" },
-  { id: "compressor",        label: "Compressore" },
-  { id: "level_sensor",      label: "Sensore livello" },
-  { id: "flow_meter",        label: "Misuratore portata" },
-  { id: "pressure_indicator",label: "Indicatore pressione" },
-  { id: "breaker",           label: "Interruttore" },
-  { id: "mixer",             label: "Miscelatore" },
-  { id: "heat_exchanger",    label: "Scambiatore" },
-  { id: "separator",         label: "Separatore" },
-  { id: "reactor",           label: "Reattore" },
-  { id: "filter",            label: "Filtro" },
-];
+type GalleryTile =
+  | { kind: "builtin" | "vendored"; id: string; label: string; meta: SymbolMeta }
+  | { kind: "custom"; id: string; label: string; url: string };
+
+function SymbolGallery({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const customSymbols = useAppStore((s) => s.customSymbols);
+
+  const tiles: GalleryTile[] = [
+    ...SYMBOL_LIST.map((m) => ({ kind: m.kind, id: m.id, label: m.label, meta: m } as GalleryTile)),
+    ...customSymbols.map((s) => ({ kind: "custom" as const, id: `custom:${s.id}`, label: s.label, url: s.url })),
+  ];
+
+  return (
+    <div style={{
+      display: "grid",
+      gridTemplateColumns: "repeat(4, 1fr)",
+      gap: 4,
+      maxHeight: 260,
+      overflowY: "auto",
+      padding: 2,
+    }}>
+      {tiles.map((tile) => {
+        const sel = value === tile.id;
+        const isBi = tile.kind === "builtin";
+        return (
+          <button
+            key={tile.id}
+            title={tile.label}
+            onClick={() => onChange(tile.id)}
+            style={{
+              background: sel ? "#1e3a5f" : "#0f172a",
+              border: `2px solid ${sel ? "#facc15" : "#334155"}`,
+              borderRadius: 4,
+              cursor: "pointer",
+              padding: "4px 2px 3px",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              gap: 2,
+              overflow: "hidden",
+              minWidth: 0,
+            }}
+          >
+            <div style={{ width: 44, height: 38, display: "flex", alignItems: "center", justifyContent: "center" }}>
+              {isBi && (tile as { meta: SymbolMeta }).meta.render ? (
+                <svg width={40} height={38} viewBox="0 0 100 100" style={{ overflow: "visible" }}>
+                  {(tile as { meta: SymbolMeta }).meta.render!({ state: "on", off: "#64748b", on: "#22c55e", alarm: "#ef4444" })}
+                </svg>
+              ) : (
+                <img
+                  src={tile.kind === "custom"
+                    ? (tile as Extract<GalleryTile, { kind: "custom" }>).url
+                    : (tile as { meta: SymbolMeta }).meta.path}
+                  style={{ width: 36, height: 34, objectFit: "contain" }}
+                  draggable={false}
+                />
+              )}
+            </div>
+            <span style={{
+              fontSize: 8,
+              color: sel ? "#facc15" : "#64748b",
+              lineHeight: 1.1,
+              textAlign: "center",
+              maxWidth: "100%",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+              padding: "0 2px",
+            }}>
+              {tile.label}
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
 /** Object types that support rotation/flip/opacity in the canvas. */
 const SUPPORTS_TRANSFORM = new Set([
@@ -60,20 +123,30 @@ const SUPPORTS_TRANSFORM = new Set([
   "button", "navbutton", "symbol",
 ]);
 
-function SymbolSelect({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-  const customSymbols = useAppStore((s) => s.customSymbols);
-  return (
-    <select style={{ ...INPUT, cursor: "pointer" }} value={value} onChange={(e) => onChange(e.target.value)}>
-      <optgroup label="Libreria built-in">
-        {BUILTIN_SYMBOLS.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
-      </optgroup>
-      {customSymbols.length > 0 && (
-        <optgroup label="Simboli progetto">
-          {customSymbols.map((s) => <option key={s.id} value={`custom:${s.id}`}>{s.label}</option>)}
-        </optgroup>
-      )}
-    </select>
-  );
+// ── Multi-selection helpers ───────────────────────────────────────────────────
+
+/** Fields that are identical across all objects; mixed fields → undefined. */
+function mergeObjects(objs: SynopticObject[]): Partial<SynopticObject> {
+  if (objs.length === 0) return {};
+  const keys = new Set(objs.flatMap((o) => Object.keys(o))) as Set<keyof SynopticObject>;
+  const out: Partial<SynopticObject> = {};
+  for (const k of keys) {
+    const vals = objs.map((o) => (o as unknown as Record<string, unknown>)[k as string]);
+    if (vals.every((v) => v === vals[0])) (out as Record<string, unknown>)[k as string] = vals[0];
+  }
+  return out;
+}
+
+/** Keys present in any object whose values differ across the selection. */
+function buildMixedKeys(objs: SynopticObject[]): Set<keyof SynopticObject> {
+  const result = new Set<keyof SynopticObject>();
+  if (objs.length < 2) return result;
+  const allKeys = new Set(objs.flatMap((o) => Object.keys(o))) as Set<keyof SynopticObject>;
+  for (const k of allKeys) {
+    const vals = objs.map((o) => (o as unknown as Record<string, unknown>)[k as string]);
+    if (!vals.every((v) => v === vals[0])) result.add(k);
+  }
+  return result;
 }
 
 // ── EditorShell ───────────────────────────────────────────────────────────────
@@ -94,16 +167,25 @@ export function EditorShell() {
   const updateObject    = useAppStore((s) => s.updateObject);
   const deleteObject    = useAppStore((s) => s.deleteObject);
   const deleteSelection = useAppStore((s) => s.deleteSelection);
+  const reorderObject   = useAppStore((s) => s.reorderObject);
   const selectObject    = useAppStore((s) => s.selectObject);
   const toggleSelection = useAppStore((s) => s.toggleSelection);
   const duplicateSelection = useAppStore((s) => s.duplicateSelection);
   const selectMany      = useAppStore((s) => s.selectMany);
   const copySelection   = useAppStore((s) => s.copySelection);
   const pasteClipboard  = useAppStore((s) => s.pasteClipboard);
+  const setClipboard    = useAppStore((s) => s.setClipboard);
   const alignSelection  = useAppStore((s) => s.alignSelection);
+  const groupObjects    = useAppStore((s) => s.groupObjects);
   const undo            = useAppStore((s) => s.undo);
   const redo            = useAppStore((s) => s.redo);
+  const updateObjects    = useAppStore((s) => s.updateObjects);
   const updatePageProps  = useAppStore((s) => s.updatePageProps);
+  const updateGridCell      = useAppStore((s) => s.updateGridCell);
+  const selectedCell        = useAppStore((s) => s.selectedCell);
+  const selectedCellChild   = useAppStore((s) => s.selectedCellChild);
+  const setSelectedCell     = useAppStore((s) => s.setSelectedCell);
+  const setSelectedCellChild = useAppStore((s) => s.setSelectedCellChild);
   const saveSerial       = useAppStore((s) => s.saveSerial);
   const saveStatus       = useAppStore((s) => s.saveStatus);
   const storeSaveStatus  = useAppStore((s) => s.setSaveStatus);
@@ -115,6 +197,27 @@ export function EditorShell() {
   const functions   = project?.functions ?? [];
   const selectedFn  = functions.find((f) => f.id === selectedFnId) ?? null;
 
+  // Multi-selection derived state
+  const selectedObjects = useMemo(
+    () => objects.filter((o) => selectedIds.includes(o.id)),
+    [objects, selectedIds],
+  );
+  const mergedProps = useMemo(
+    () => (multi ? mergeObjects(selectedObjects) : {}),
+    [multi, selectedObjects],
+  );
+  const mixedKeys = useMemo(
+    () => (multi ? buildMixedKeys(selectedObjects) : new Set<keyof SynopticObject>()),
+    [multi, selectedObjects],
+  );
+  const allSameType = multi &&
+    selectedObjects.length > 0 &&
+    selectedObjects.every((o) => o.type === selectedObjects[0].type);
+  const batchChange = useCallback(
+    (patch: Partial<SynopticObject>) => updateObjects(selectedIds, patch),
+    [selectedIds, updateObjects],
+  );
+
   // Persist the whole `project.functions` list to the server. Called by the
   // FunctionEditor's save button and by FunctionsSection's CRUD verbs (so
   // add/rename/delete take effect for the run endpoint without a refresh).
@@ -122,6 +225,8 @@ export function EditorShell() {
     const list = useAppStore.getState().project?.functions ?? [];
     api.updateFunctions(list).catch(console.error);
   };
+
+  const [helpOpen, setHelpOpen] = useState(false);
 
   const handleSelect = (id: string | null, shift?: boolean) => {
     if (id === null) { selectObject(null); return; }
@@ -147,15 +252,82 @@ export function EditorShell() {
         e.preventDefault(); redo();
       } else if (ctrl && (e.key === "c" || e.key === "C") && ids.length > 0) {
         e.preventDefault(); copySelection();
+      } else if (ctrl && (e.key === "x" || e.key === "X")) {
+        e.preventDefault();
+        const cell = useAppStore.getState().selectedCell;
+        if (cell) {
+          // Cut cell child to clipboard if the selected cell has one.
+          const state = useAppStore.getState();
+          const page = state.pages.find((p) => p.id === state.currentPageId);
+          const gridObj = page?.objects.find((o) => o.id === cell.objectId);
+          const cellDef = (gridObj?.grid_cells as GridCell[] | undefined)
+            ?.find((c) => c.row === cell.row && c.col === cell.col);
+          if (cellDef?.child) {
+            setClipboard([cellDef.child]);
+            state.updateGridCell(state.currentPageId, cell.objectId,
+              { ...cellDef, child: undefined });
+            return;
+          }
+        }
+        // Fall back to cutting the page-level selection.
+        if (ids.length > 0) { copySelection(); deleteSelection(); }
       } else if (ctrl && (e.key === "v" || e.key === "V")) {
-        e.preventDefault(); pasteClipboard();
+        e.preventDefault();
+        const cell = useAppStore.getState().selectedCell;
+        if (cell) {
+          // Paste first clipboard item as a child of the selected cell.
+          const state = useAppStore.getState();
+          const { clipboard } = state;
+          if (clipboard.length > 0) {
+            const page = state.pages.find((p) => p.id === state.currentPageId);
+            const gridObj = page?.objects.find((o) => o.id === cell.objectId);
+            const cellDef = (gridObj?.grid_cells as GridCell[] | undefined)
+              ?.find((c) => c.row === cell.row && c.col === cell.col)
+              ?? { row: cell.row, col: cell.col };
+            state.updateGridCell(state.currentPageId, cell.objectId,
+              { ...cellDef, child: { ...clipboard[0] } });
+          }
+        } else {
+          pasteClipboard();
+        }
       } else if (ctrl && (e.key === "d" || e.key === "D") && ids.length > 0) {
         e.preventDefault(); duplicateSelection();
+      } else if (ctrl && e.key === "a") {
+        e.preventDefault();
+        const state = useAppStore.getState();
+        const page = state.pages.find((p) => p.id === state.currentPageId);
+        if (page && page.objects.length > 0) selectMany(page.objects.map((o) => o.id));
+      } else if (ctrl && (e.key === "g" || e.key === "G") && ids.length >= 2) {
+        e.preventDefault(); groupObjects(ids);
+      } else if (ctrl && e.key === "]" && ids.length === 1) {
+        e.preventDefault(); reorderObject(ids[0], e.shiftKey ? "front" : "forward");
+      } else if (ctrl && e.key === "[" && ids.length === 1) {
+        e.preventDefault(); reorderObject(ids[0], e.shiftKey ? "back" : "backward");
+      } else if (!ctrl && ids.length > 0 &&
+                 (e.key === "ArrowLeft" || e.key === "ArrowRight" ||
+                  e.key === "ArrowUp"   || e.key === "ArrowDown")) {
+        e.preventDefault();
+        const state = useAppStore.getState();
+        const step = e.shiftKey ? (state.snapEnabled && state.gridSize > 0 ? state.gridSize : 10) : 1;
+        const dx = e.key === "ArrowLeft" ? -step : e.key === "ArrowRight" ? step : 0;
+        const dy = e.key === "ArrowUp"   ? -step : e.key === "ArrowDown"  ? step : 0;
+        const page = state.pages.find((p) => p.id === state.currentPageId);
+        if (page) {
+          ids.forEach((id) => {
+            const obj = page.objects.find((o) => o.id === id);
+            if (!obj) return;
+            const patch: Partial<SynopticObject> = { x: (obj.x ?? 0) + dx, y: (obj.y ?? 0) + dy };
+            if (obj.type === "line") { patch.x2 = (obj.x2 ?? obj.x + 100) + dx; patch.y2 = (obj.y2 ?? obj.y) + dy; }
+            state.updateObject(id, patch);
+          });
+        }
+      } else if (e.key === "?" || (e.shiftKey && e.key === "?")) {
+        setHelpOpen((v) => !v);
       }
     };
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
-  }, [deleteSelection, undo, redo, copySelection, pasteClipboard, duplicateSelection]);
+  }, [deleteSelection, undo, redo, copySelection, pasteClipboard, duplicateSelection, setClipboard, selectMany, reorderObject, groupObjects]);
 
   const nextPos = () => {
     const n = objects.length;
@@ -214,6 +386,14 @@ export function EditorShell() {
         addObject({ type, x, y, width: 80, height: 80,
           symbol_id: "pump",
           state_off_color: "#64748b", state_on_color: "#22c55e", state_alarm_color: "#ef4444" });
+        break;
+      case "grid":
+        addObject({ type, x, y, width: 400, height: 300,
+          label: "Grid",
+          grid_rows: 2, grid_cols: 2,
+          grid_cells: [],
+          grid_show_borders: true,
+          grid_border_color: "#64748b" });
         break;
     }
   };
@@ -315,59 +495,266 @@ export function EditorShell() {
           gridSize={gridSize}
           snapEnabled={snapEnabled}
           customSymbols={customSymbols}
+          pageWidth={currentPage?.width}
+          pageHeight={currentPage?.height}
+          selectedCell={selectedCell}
+          selectedCellChild={selectedCellChild}
           onSelect={handleSelect}
           onSelectMany={selectMany}
           onMove={(id, patch) => updateObject(id, patch)}
+          onSelectCell={(objectId, row, col) => setSelectedCell({ objectId, row, col })}
+          onSelectCellChild={(objectId, row, col) => setSelectedCellChild({ objectId, row, col })}
         />
       </div>
 
-      {/* Properties panel — switches between three views depending on what's
-          selected: multiple objects, a single object, or nothing (page). */}
+      {/* Properties panel — context-sensitive:
+            multi-select  → MultiSelectionProps
+            child selected → ObjectProps for the child
+            cell selected  → GridCellEditor for the cell
+            grid selected  → ObjectProps for the grid
+            nothing        → PageProps                   */}
       <aside style={{ ...PANEL, width: 280, borderLeft: "1px solid #334155" }}>
-        <span style={{ fontSize: 11, fontWeight: 700, color: "#64748b", letterSpacing: 1 }}>
-          PROPRIETÀ
-        </span>
         {multi ? (
-          <MultiSelectionProps
-            count={selectedIds.length}
-            onAlign={alignSelection}
-            onDuplicate={duplicateSelection}
-            onDelete={deleteSelection}
-            onBind={(prop, tagId) => {
-              selectedIds.forEach((id) => {
-                const o = objects.find((ob) => ob.id === id);
-                if (!o) return;
-                if (!tagId) {
-                  const next = { ...(o.bindings ?? {}) };
-                  delete next[prop];
-                  updateObject(id, { bindings: Object.keys(next).length > 0 ? next : undefined });
-                } else {
-                  updateObject(id, { bindings: { ...(o.bindings ?? {}), [prop]: tagId } });
-                }
-              });
-            }}
-            onSetTransitionDuration={(ms) => {
-              selectedIds.forEach((id) => {
-                updateObject(id, { transition_duration_ms: ms });
-              });
-            }}
-          />
-        ) : selected ? (
-          <ObjectProps
-            obj={selected}
-            pages={pages.filter((p) => p.id !== currentPageId)}
-            functions={functions}
-            onChange={(patch) => updateObject(selected.id, patch)}
-            onDelete={() => deleteObject(selected.id)}
-          />
-        ) : (
-          <PageProps
-            name={currentPage?.name ?? ""}
-            background={currentPage?.background ?? "#1a1a2e"}
-            onChange={(patch) => updatePageProps(currentPageId, patch)}
-          />
+          <>
+            <span style={{ fontSize: 11, fontWeight: 700, color: "#64748b", letterSpacing: 1 }}>
+              PROPRIETÀ
+            </span>
+            <MultiSelectionProps
+              count={selectedIds.length}
+              selectedObjects={selectedObjects}
+              mergedProps={mergedProps}
+              mixedKeys={mixedKeys}
+              allSameType={allSameType}
+              pages={pages.filter((p) => p.id !== currentPageId)}
+              functions={functions}
+              onAlign={alignSelection}
+              onDuplicate={duplicateSelection}
+              onDelete={deleteSelection}
+              onBatchChange={batchChange}
+            />
+          </>
+        ) : selected ? (() => {
+          const otherPages = pages.filter((p) => p.id !== currentPageId);
+
+          // ── Child sub-selected ──────────────────────────────────────────
+          if (selected.type === "grid" && selectedCellChild?.objectId === selected.id) {
+            const cells = (selected.grid_cells ?? []) as GridCell[];
+            const cellDef = cells.find(
+              (c) => c.row === selectedCellChild.row && c.col === selectedCellChild.col,
+            );
+            const child = cellDef?.child;
+            if (child) {
+              const gridLabel = selected.name?.trim() || `griglia·${selected.id.slice(-4)}`;
+              const childLabel = child.name?.trim() || child.type;
+              return (
+                <>
+                  <PanelBreadcrumb
+                    parts={[gridLabel, `R${selectedCellChild.row + 1} C${selectedCellChild.col + 1}`, childLabel]}
+                  />
+                  <ObjectProps
+                    obj={child}
+                    pages={otherPages}
+                    functions={functions}
+                    onChange={(patch) =>
+                      updateGridCell(currentPageId, selected.id, {
+                        ...cellDef!,
+                        child: { ...child, ...patch },
+                      })
+                    }
+                    onDelete={() =>
+                      updateGridCell(currentPageId, selected.id, { ...cellDef!, child: undefined })
+                    }
+                  />
+                </>
+              );
+            }
+          }
+
+          // ── Cell selected (no child sub-selected) ──────────────────────
+          if (selected.type === "grid" && selectedCell?.objectId === selected.id) {
+            const cells = (selected.grid_cells ?? []) as GridCell[];
+            const cellDef = cells.find(
+              (c) => c.row === selectedCell.row && c.col === selectedCell.col,
+            ) ?? { row: selectedCell.row, col: selectedCell.col };
+            const gridLabel = selected.name?.trim() || `griglia·${selected.id.slice(-4)}`;
+            return (
+              <>
+                <PanelBreadcrumb
+                  parts={[gridLabel, `R${selectedCell.row + 1} C${selectedCell.col + 1}`]}
+                />
+                <GridCellEditor
+                  cell={cellDef}
+                  functions={functions}
+                  onChange={(patch) =>
+                    updateGridCell(currentPageId, selected.id, { ...cellDef, ...patch })
+                  }
+                />
+              </>
+            );
+          }
+
+          // ── Regular object (or grid with no cell selected) ─────────────
+          return (
+            <>
+              <span style={{ fontSize: 11, fontWeight: 700, color: "#64748b", letterSpacing: 1 }}>
+                PROPRIETÀ
+              </span>
+              <ZOrderBar id={selected.id} objectCount={objects.length} onReorder={reorderObject} />
+              <ObjectProps
+                obj={selected}
+                pages={otherPages}
+                functions={functions}
+                onChange={(patch) => updateObject(selected.id, patch)}
+                onDelete={() => deleteObject(selected.id)}
+              />
+            </>
+          );
+        })() : (
+          <>
+            <span style={{ fontSize: 11, fontWeight: 700, color: "#64748b", letterSpacing: 1 }}>
+              PROPRIETÀ
+            </span>
+            <PageProps
+              name={currentPage?.name ?? ""}
+              background={currentPage?.background ?? "#1a1a2e"}
+              width={currentPage?.width}
+              height={currentPage?.height}
+              onChange={(patch) => updatePageProps(currentPageId, patch)}
+            />
+          </>
         )}
       </aside>
+      {helpOpen && <ShortcutHelp onClose={() => setHelpOpen(false)} />}
+    </div>
+  );
+}
+
+// ── Keyboard shortcut help overlay ───────────────────────────────────────────
+
+const SHORTCUTS = [
+  ["Navigazione canvas", ""],
+  ["Ctrl + rotella",    "Zoom centrato sul cursore"],
+  ["Rotella",           "Pan verticale"],
+  ["Shift + rotella",   "Pan orizzontale"],
+  ["Click medio + drag","Pan libero"],
+  ["Ctrl+0",            "Reset zoom 100%"],
+  ["Ctrl+Shift+0",      "Adatta alla vista (fit)"],
+  ["Selezione", ""],
+  ["Click",             "Seleziona oggetto"],
+  ["Shift+click",       "Aggiungi/togli dalla selezione"],
+  ["Drag su sfondo",    "Rettangolo di selezione"],
+  ["Ctrl+A",            "Seleziona tutto"],
+  ["Modifica", ""],
+  ["Canc / Backspace",  "Elimina selezione"],
+  ["Ctrl+C",            "Copia"],
+  ["Ctrl+X",            "Taglia"],
+  ["Ctrl+V",            "Incolla"],
+  ["Ctrl+D",            "Duplica"],
+  ["Ctrl+Z",            "Annulla (Undo)"],
+  ["Ctrl+Y",            "Ripristina (Redo)"],
+  ["Frecce",            "Sposta di 1 px"],
+  ["Shift+Frecce",      "Sposta di 1 passo griglia"],
+  ["Z-order", ""],
+  ["Ctrl+]",            "Porta avanti"],
+  ["Ctrl+Shift+]",      "Primo piano"],
+  ["Ctrl+[",            "Porta indietro"],
+  ["Ctrl+Shift+[",      "Manda in fondo"],
+  ["Gruppi", ""],
+  ["Ctrl+G",            "Raggruppa selezione (≥2 oggetti)"],
+  ["Altro", ""],
+  ["?",                 "Mostra/nasconde questa guida"],
+];
+
+function ShortcutHelp({ onClose }: { onClose: () => void }) {
+  return (
+    <div
+      style={{
+        position: "fixed", inset: 0, zIndex: 9999,
+        background: "rgba(0,0,0,0.6)", display: "flex",
+        alignItems: "center", justifyContent: "center",
+      }}
+      onClick={onClose}
+    >
+      <div
+        style={{
+          background: "#0f172a", border: "1px solid #334155", borderRadius: 8,
+          padding: "20px 28px", minWidth: 400, maxHeight: "80vh", overflowY: "auto",
+          boxShadow: "0 8px 32px rgba(0,0,0,0.6)",
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+          <span style={{ fontSize: 14, fontWeight: 600, color: "#e2e8f0" }}>Scorciatoie da tastiera</span>
+          <button
+            onClick={onClose}
+            style={{ background: "none", border: "none", color: "#64748b", cursor: "pointer", fontSize: 16, lineHeight: 1 }}
+          >×</button>
+        </div>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+          <tbody>
+            {SHORTCUTS.map(([key, desc]) =>
+              desc === "" ? (
+                <tr key={key}>
+                  <td colSpan={2} style={{ color: "#475569", fontWeight: 700, fontSize: 10,
+                    letterSpacing: 0.5, textTransform: "uppercase", paddingTop: 10, paddingBottom: 4 }}>
+                    {key}
+                  </td>
+                </tr>
+              ) : (
+                <tr key={key} style={{ borderBottom: "1px solid #1e293b" }}>
+                  <td style={{ padding: "5px 12px 5px 0", color: "#94a3b8", fontFamily: "monospace",
+                    whiteSpace: "nowrap", minWidth: 160 }}>
+                    {key}
+                  </td>
+                  <td style={{ padding: "5px 0", color: "#cbd5e1" }}>{desc}</td>
+                </tr>
+              )
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ── Z-order bar ───────────────────────────────────────────────────────────────
+
+function ZOrderBar({
+  id,
+  objectCount,
+  onReorder,
+}: {
+  id: string;
+  objectCount: number;
+  onReorder: (id: string, dir: "front" | "forward" | "backward" | "back") => void;
+}) {
+  if (objectCount < 2) return null;
+  const btnStyle: React.CSSProperties = {
+    background: "#0f172a", border: "1px solid #334155", color: "#94a3b8",
+    borderRadius: 3, cursor: "pointer", fontSize: 11, padding: "2px 6px",
+    flex: 1, textAlign: "center" as const,
+  };
+  return (
+    <div style={{ display: "flex", gap: 3, marginBottom: 6 }}>
+      <button style={btnStyle} title="Porta in primo piano (Ctrl+Shift+])" onClick={() => onReorder(id, "front")}>⬆⬆</button>
+      <button style={btnStyle} title="Avanti (Ctrl+])" onClick={() => onReorder(id, "forward")}>↑</button>
+      <button style={btnStyle} title="Indietro (Ctrl+[)" onClick={() => onReorder(id, "backward")}>↓</button>
+      <button style={btnStyle} title="Manda in fondo (Ctrl+Shift+[)" onClick={() => onReorder(id, "back")}>⬇⬇</button>
+    </div>
+  );
+}
+
+// ── Panel breadcrumb ──────────────────────────────────────────────────────────
+
+function PanelBreadcrumb({ parts }: { parts: string[] }) {
+  return (
+    <div style={{ fontSize: 10, color: "#475569", marginBottom: 6, display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" }}>
+      {parts.map((p, i) => (
+        <span key={i} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+          {i > 0 && <span style={{ color: "#334155" }}>›</span>}
+          <span style={{ color: i === parts.length - 1 ? "#94a3b8" : "#475569" }}>{p}</span>
+        </span>
+      ))}
     </div>
   );
 }
@@ -377,11 +764,15 @@ export function EditorShell() {
 function PageProps({
   name,
   background,
+  width,
+  height,
   onChange,
 }: {
   name: string;
   background: string;
-  onChange: (patch: Partial<{ name: string; background: string }>) => void;
+  width?: number;
+  height?: number;
+  onChange: (patch: Partial<{ name: string; background: string; width: number | undefined; height: number | undefined }>) => void;
 }) {
   return (
     <>
@@ -412,7 +803,35 @@ function PageProps({
           />
         </div>
       </div>
-      <p style={{ fontSize: 11, color: "#475569", margin: 0 }}>
+      <div style={{ fontSize: 10, color: "#475569", marginTop: 4, marginBottom: 2, fontWeight: 700, letterSpacing: 0.5 }}>
+        DIMENSIONI PAGINA
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 6px" }}>
+        <div>
+          <div style={LABEL}>Larghezza (px)</div>
+          <input
+            type="number"
+            style={INPUT}
+            placeholder="fluida"
+            value={width ?? ""}
+            onChange={(e) => onChange({ width: e.target.value ? Number(e.target.value) : undefined })}
+          />
+        </div>
+        <div>
+          <div style={LABEL}>Altezza (px)</div>
+          <input
+            type="number"
+            style={INPUT}
+            placeholder="fluida"
+            value={height ?? ""}
+            onChange={(e) => onChange({ height: e.target.value ? Number(e.target.value) : undefined })}
+          />
+        </div>
+      </div>
+      <p style={{ fontSize: 10, color: "#475569", margin: "2px 0 0" }}>
+        Vuoto = fluido (riempie il contenitore). Con valori impostati, un bordo tratteggiato blu indica i limiti della pagina.
+      </p>
+      <p style={{ fontSize: 11, color: "#475569", margin: "8px 0 0" }}>
         Seleziona un oggetto sul canvas per modificarne le proprietà.
       </p>
     </>
@@ -423,23 +842,29 @@ function PageProps({
 
 function MultiSelectionProps({
   count,
+  selectedObjects,
+  mergedProps,
+  mixedKeys,
+  allSameType,
+  pages,
+  functions,
   onAlign,
   onDuplicate,
   onDelete,
-  onBind,
-  onSetTransitionDuration,
+  onBatchChange,
 }: {
   count: number;
+  selectedObjects: SynopticObject[];
+  mergedProps: Partial<SynopticObject>;
+  mixedKeys: Set<keyof SynopticObject>;
+  allSameType: boolean;
+  pages: { id: string; name: string }[];
+  functions: FunctionDef[];
   onAlign: (mode: AlignMode) => void;
   onDuplicate: () => void;
   onDelete: () => void;
-  onBind: (prop: string, tagId: string) => void;
-  onSetTransitionDuration: (ms: number | undefined) => void;
+  onBatchChange: (patch: Partial<SynopticObject>) => void;
 }) {
-  const [bindProp, setBindProp] = useState("opacity");
-  const [bindTag,  setBindTag]  = useState("");
-  const [batchTxMs, setBatchTxMs] = useState(300);
-
   const btn: React.CSSProperties = {
     background: "#0f172a",
     border: "1px solid #334155",
@@ -499,87 +924,199 @@ function MultiSelectionProps({
       <div style={{ height: 1, background: "#334155", margin: "8px 0" }} />
 
       <div style={{ fontSize: 10, color: "#475569", fontWeight: 700, letterSpacing: 0.5 }}>
-        BINDING RAPIDO
+        PROPRIETÀ COMUNI
       </div>
-      <p style={{ fontSize: 10, color: "#475569", margin: "2px 0 4px" }}>
-        Applica/rimuovi lo stesso binding su tutti gli oggetti selezionati.
+      <p style={{ fontSize: 10, color: "#475569", margin: "2px 0 6px" }}>
+        {allSameType
+          ? `Tipo "${selectedObjects[0].type}" — campi vuoti = valori diversi (vari).`
+          : "Tipi diversi — solo sezioni universali."}
       </p>
-      <div style={{ display: "flex", gap: 4, marginBottom: 4 }}>
-        <select
-          value={bindProp}
-          onChange={(e) => setBindProp(e.target.value)}
-          style={{ ...btn, flex: "0 0 auto", width: 100, padding: "4px 4px", fontSize: 12 }}
-        >
-          <option value="opacity">opacity</option>
-          <option value="rotation">rotation</option>
-          <option value="fill">fill</option>
-          <option value="visible">visible</option>
-          <option value="x">x</option>
-          <option value="y">y</option>
-          <option value="width">width</option>
-          <option value="height">height</option>
-          <option value="label">label</option>
-          <option value="color">color</option>
-          <option value="text">text</option>
-        </select>
-        <TagInput
-          style={{ flex: 1, background: "#0f172a", color: "#e2e8f0", border: "1px solid #334155", borderRadius: 4, padding: "3px 6px", fontSize: 12 }}
-          placeholder="tag…"
-          value={bindTag}
-          onChange={setBindTag}
-        />
-      </div>
-      <div style={{ display: "flex", gap: 4 }}>
-        <button
-          style={{ ...btn, background: "#1e3a5f", color: "#93c5fd", borderColor: "#1e40af" }}
-          disabled={!bindProp || !bindTag}
-          onClick={() => { if (bindProp && bindTag) onBind(bindProp, bindTag); }}
-        >
-          Applica
-        </button>
-        <button
-          style={{ ...btn, background: "#1e293b", color: "#94a3b8" }}
-          disabled={!bindProp}
-          onClick={() => { if (bindProp) onBind(bindProp, ""); }}
-        >
-          Rimuovi
-        </button>
-      </div>
 
-      <div style={{ height: 1, background: "#334155", margin: "8px 0" }} />
-
-      <div style={{ fontSize: 10, color: "#475569", fontWeight: 700, letterSpacing: 0.5 }}>
-        DURATA TRANSIZIONE
-      </div>
-      <p style={{ fontSize: 10, color: "#475569", margin: "2px 0 4px" }}>
-        Applica la stessa durata di animazione (ms) a tutti gli oggetti selezionati. 0 = disattiva.
-      </p>
-      <div style={{ display: "flex", gap: 4, marginBottom: 4 }}>
-        <input
-          type="number"
-          min={0} max={5000} step={50}
-          value={batchTxMs}
-          onChange={(e) => setBatchTxMs(Number(e.target.value) || 0)}
-          style={{ flex: 1, background: "#0f172a", color: "#e2e8f0", border: "1px solid #334155", borderRadius: 4, padding: "3px 6px", fontSize: 12 }}
+      {allSameType ? (
+        <ObjectProps
+          obj={{ id: "__multi__", type: selectedObjects[0].type, x: 0, y: 0, ...mergedProps } as SynopticObject}
+          pages={pages}
+          functions={functions}
+          mixedKeys={mixedKeys}
+          onChange={onBatchChange}
+          onDelete={onDelete}
         />
-        <button
-          style={{ ...btn, background: "#1e3a5f", color: "#93c5fd", borderColor: "#1e40af", flex: "0 0 auto", padding: "4px 10px" }}
-          onClick={() => onSetTransitionDuration(batchTxMs > 0 ? batchTxMs : undefined)}
-        >
-          Applica
-        </button>
-        <button
-          style={{ ...btn, background: "#1e293b", color: "#94a3b8", flex: "0 0 auto", padding: "4px 10px" }}
-          onClick={() => onSetTransitionDuration(undefined)}
-        >
-          Off
-        </button>
-      </div>
+      ) : (
+        <CrossTypeProps
+          mergedProps={mergedProps}
+          mixedKeys={mixedKeys}
+          functions={functions}
+          onChange={onBatchChange}
+        />
+      )}
 
       <p style={{ fontSize: 10, color: "#475569", marginTop: 8 }}>
         Shift+click per aggiungere/togliere dalla selezione. Ctrl-C/V, Ctrl-D,
         Ctrl-Z/Y, Canc come scorciatoie.
       </p>
+    </>
+  );
+}
+
+// ── Cross-type properties (shown when selection has mixed types) ──────────────
+
+function CrossTypeProps({
+  mergedProps,
+  mixedKeys,
+  functions,
+  onChange,
+}: {
+  mergedProps: Partial<SynopticObject>;
+  mixedKeys: Set<keyof SynopticObject>;
+  functions: FunctionDef[];
+  onChange: (patch: Partial<SynopticObject>) => void;
+}) {
+  const field = (label: string, content: React.ReactNode) => (
+    <div key={label}>
+      <div style={LABEL}>{label}</div>
+      {content}
+    </div>
+  );
+  const isMixed = (k: keyof SynopticObject) => mixedKeys.has(k);
+
+  const numInput = (k: keyof SynopticObject, fallback: number) => (
+    <input
+      type="number"
+      style={INPUT}
+      value={isMixed(k) ? "" : (mergedProps[k] !== undefined ? (mergedProps[k] as number) : fallback)}
+      placeholder={isMixed(k) ? "(vari)" : undefined}
+      onChange={(e) => onChange({ [k]: e.target.value === "" ? undefined : Number(e.target.value) } as Partial<SynopticObject>)}
+    />
+  );
+
+  const textInput = (k: keyof SynopticObject, placeholder?: string) => (
+    <input
+      type="text"
+      style={INPUT}
+      placeholder={isMixed(k) ? "(vari)" : placeholder}
+      value={isMixed(k) ? "" : ((mergedProps[k] as string) ?? "")}
+      onChange={(e) => onChange({ [k]: e.target.value } as Partial<SynopticObject>)}
+    />
+  );
+
+  const tagInput = (k: keyof SynopticObject, placeholder?: string) => (
+    <TagInput
+      style={INPUT}
+      placeholder={isMixed(k) ? "(vari)" : placeholder}
+      value={isMixed(k) ? "" : ((mergedProps[k] as string) ?? "")}
+      onChange={(v) => onChange({ [k]: v } as Partial<SynopticObject>)}
+    />
+  );
+
+  const colorInput = (k: keyof SynopticObject, fallback: string) => {
+    const mixed = isMixed(k);
+    return (
+      <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+        <input
+          type="color"
+          style={{ ...INPUT, padding: 2, height: 28, width: 44, cursor: "pointer", flex: "none", opacity: mixed ? 0.4 : 1 }}
+          value={mixed ? "#808080" : ((mergedProps[k] as string) ?? fallback)}
+          onChange={(e) => onChange({ [k]: e.target.value } as Partial<SynopticObject>)}
+        />
+        <input
+          type="text"
+          style={INPUT}
+          placeholder={mixed ? "(vari)" : undefined}
+          value={mixed ? "" : ((mergedProps[k] as string) ?? fallback)}
+          onChange={(e) => onChange({ [k]: e.target.value } as Partial<SynopticObject>)}
+        />
+      </div>
+    );
+  };
+
+  const grid2: React.CSSProperties = { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4 };
+
+  return (
+    <>
+      <div style={{ fontSize: 10, color: "#475569", marginTop: 4, fontWeight: 700, letterSpacing: 0.5 }}>POSIZIONE</div>
+      <div style={grid2}>
+        {field("X", numInput("x", 0))}
+        {field("Y", numInput("y", 0))}
+        {field("Larghezza", numInput("width", 100))}
+        {field("Altezza", numInput("height", 40))}
+      </div>
+
+      <div style={{ fontSize: 10, color: "#475569", marginTop: 8, fontWeight: 700, letterSpacing: 0.5 }}>ASPETTO</div>
+      {field("Fill", colorInput("fill", "#3b82f6"))}
+      {field("Stroke", colorInput("stroke", "#ffffff"))}
+      <div style={grid2}>
+        {field("Stroke W", numInput("stroke_width", 1))}
+        {field("Opacity", numInput("opacity", 1))}
+      </div>
+
+      <div style={{ fontSize: 10, color: "#475569", marginTop: 8, fontWeight: 700, letterSpacing: 0.5 }}>TRASFORMAZIONE</div>
+      <div style={grid2}>
+        {field("Rotazione (°)", numInput("rotation", 0))}
+        {field("Z-index", numInput("z_index", 0))}
+      </div>
+      <div style={{ display: "flex", gap: 8 }}>
+        <label style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: "#cbd5e1" }}>
+          <input type="checkbox"
+            checked={!isMixed("flip_h") && !!(mergedProps.flip_h)}
+            onChange={(e) => onChange({ flip_h: e.target.checked })}
+            style={{ accentColor: "#3b82f6" }}
+          /> Flip H
+        </label>
+        <label style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: "#cbd5e1" }}>
+          <input type="checkbox"
+            checked={!isMixed("flip_v") && !!(mergedProps.flip_v)}
+            onChange={(e) => onChange({ flip_v: e.target.checked })}
+            style={{ accentColor: "#3b82f6" }}
+          /> Flip V
+        </label>
+      </div>
+      {field("Transizione (ms)", numInput("transition_duration_ms", 0))}
+
+      <div style={{ fontSize: 10, color: "#475569", marginTop: 8, fontWeight: 700, letterSpacing: 0.5 }}>VISIBILITÀ</div>
+      <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#cbd5e1", cursor: "pointer" }}>
+        <input type="checkbox"
+          checked={!isMixed("visible") && mergedProps.visible !== false}
+          onChange={(e) => onChange({ visible: e.target.checked })}
+          style={{ accentColor: "#3b82f6" }}
+        /> Visibile
+      </label>
+      {field("Tag visibilità", tagInput("visible_tag", "tag.bool…"))}
+
+      <div style={{ fontSize: 10, color: "#475569", marginTop: 8, fontWeight: 700, letterSpacing: 0.5 }}>TAG</div>
+      {field("Tag", tagInput("tag", "tag.id…"))}
+      {field("Formato", textInput("format", "{value}"))}
+
+      <div style={{ fontSize: 10, color: "#475569", marginTop: 8, fontWeight: 700, letterSpacing: 0.5 }}>INDICATORE QUALITÀ</div>
+      <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#cbd5e1", cursor: "pointer" }}>
+        <input type="checkbox"
+          checked={!isMixed("quality_dot") && mergedProps.quality_dot !== false}
+          onChange={(e) => onChange({ quality_dot: e.target.checked ? undefined : false })}
+          style={{ accentColor: "#3b82f6" }}
+        /> Mostra indicatore qualità
+      </label>
+      {mergedProps.quality_dot !== false && (
+        <>
+          {field("Colore Buono (Good)", colorInput("quality_dot_good_color", "#22c55e"))}
+          {field("Colore Incerto (Uncert.)", colorInput("quality_dot_uncertain_color", "#eab308"))}
+          {field("Colore Errore (Bad)", colorInput("quality_dot_bad_color", "#ef4444"))}
+        </>
+      )}
+
+      <div style={{ fontSize: 10, color: "#475569", marginTop: 8, fontWeight: 700, letterSpacing: 0.5 }}>EVENTI</div>
+      <EventFunctionPicker
+        label="Al click (on_press)"
+        fnName={(mergedProps.on_press_fn as string | undefined)}
+        args={mergedProps.on_press_args}
+        functions={functions}
+        onChange={(fn, args) => onChange({ on_press_fn: fn, on_press_args: args })}
+      />
+      <EventFunctionPicker
+        label="Al rilascio (on_release)"
+        fnName={(mergedProps.on_release_fn as string | undefined)}
+        args={mergedProps.on_release_args}
+        functions={functions}
+        onChange={(fn, args) => onChange({ on_release_fn: fn, on_release_args: args })}
+      />
     </>
   );
 }
@@ -590,12 +1127,15 @@ function ObjectProps({
   obj,
   pages,
   functions,
+  mixedKeys = new Set<keyof SynopticObject>(),
   onChange,
   onDelete,
 }: {
   obj: SynopticObject;
   pages: { id: string; name: string }[];
   functions: FunctionDef[];
+  /** Keys whose values differ across a multi-selection — inputs show as empty with "(vari)" placeholder. */
+  mixedKeys?: Set<keyof SynopticObject>;
   onChange: (p: Partial<SynopticObject>) => void;
   onDelete: () => void;
 }) {
@@ -610,8 +1150,9 @@ function ObjectProps({
     <input
       type="number"
       style={INPUT}
-      value={obj[key] !== undefined ? (obj[key] as number) : fallback}
-      onChange={(e) => onChange({ [key]: Number(e.target.value) } as Partial<SynopticObject>)}
+      value={mixedKeys.has(key) ? "" : (obj[key] !== undefined ? (obj[key] as number) : fallback)}
+      placeholder={mixedKeys.has(key) ? "(vari)" : undefined}
+      onChange={(e) => onChange({ [key]: e.target.value === "" ? undefined : Number(e.target.value) } as Partial<SynopticObject>)}
     />
   );
 
@@ -619,8 +1160,8 @@ function ObjectProps({
     <input
       type="text"
       style={INPUT}
-      placeholder={placeholder}
-      value={(obj[key] as string) ?? ""}
+      placeholder={mixedKeys.has(key) ? "(vari)" : placeholder}
+      value={mixedKeys.has(key) ? "" : ((obj[key] as string) ?? "")}
       onChange={(e) => onChange({ [key]: e.target.value } as Partial<SynopticObject>)}
     />
   );
@@ -628,30 +1169,34 @@ function ObjectProps({
   const tagInput = (placeholder?: string) => (
     <TagInput
       style={INPUT}
-      placeholder={placeholder}
-      value={obj.tag ?? ""}
+      placeholder={mixedKeys.has("tag") ? "(vari)" : placeholder}
+      value={mixedKeys.has("tag") ? "" : (obj.tag ?? "")}
       onChange={(v) => onChange({ tag: v })}
     />
   );
 
-  const colorInput = (key: keyof SynopticObject, fallback: string) => (
-    <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-      <input
-        type="color"
-        style={{ ...INPUT, padding: 2, height: 28, width: 44, cursor: "pointer", flex: "none" }}
-        value={(obj[key] as string) ?? fallback}
-        onChange={(e) => onChange({ [key]: e.target.value } as Partial<SynopticObject>)}
-      />
-      <input
-        type="text"
-        style={INPUT}
-        value={(obj[key] as string) ?? fallback}
-        onChange={(e) => onChange({ [key]: e.target.value } as Partial<SynopticObject>)}
-      />
-    </div>
-  );
+  const colorInput = (key: keyof SynopticObject, fallback: string) => {
+    const mixed = mixedKeys.has(key);
+    return (
+      <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+        <input
+          type="color"
+          style={{ ...INPUT, padding: 2, height: 28, width: 44, cursor: "pointer", flex: "none", opacity: mixed ? 0.4 : 1 }}
+          value={mixed ? "#808080" : ((obj[key] as string) ?? fallback)}
+          onChange={(e) => onChange({ [key]: e.target.value } as Partial<SynopticObject>)}
+        />
+        <input
+          type="text"
+          style={INPUT}
+          placeholder={mixed ? "(vari)" : undefined}
+          value={mixed ? "" : ((obj[key] as string) ?? fallback)}
+          onChange={(e) => onChange({ [key]: e.target.value } as Partial<SynopticObject>)}
+        />
+      </div>
+    );
+  };
 
-  const BOX_TYPES = ["rect", "ellipse", "button", "navbutton", "checkbox", "radio", "slider", "gauge", "led", "progress_bar", "table", "trend", "symbol"];
+  const BOX_TYPES = ["rect", "ellipse", "button", "navbutton", "checkbox", "radio", "slider", "gauge", "led", "progress_bar", "table", "trend", "symbol", "grid"];
   const isShape = BOX_TYPES.includes(obj.type);
   const hasStroke = obj.type === "rect" || obj.type === "ellipse" || obj.type === "line";
 
@@ -1083,11 +1628,68 @@ function ObjectProps({
         </>
       )}
 
+      {/* Grid layout */}
+      {obj.type === "grid" && (
+        <>
+          <div style={{ fontSize: 10, color: "#475569", marginTop: 4, marginBottom: 2, fontWeight: 700, letterSpacing: 0.5 }}>
+            GRIGLIA
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 6px" }}>
+            <div>
+              <div style={LABEL}>Righe</div>
+              <input
+                type="number" min={1} max={20} style={INPUT}
+                value={obj.grid_rows ?? 2}
+                onChange={(e) => onChange({ grid_rows: Math.max(1, Number(e.target.value)) })}
+              />
+            </div>
+            <div>
+              <div style={LABEL}>Colonne</div>
+              <input
+                type="number" min={1} max={20} style={INPUT}
+                value={obj.grid_cols ?? 2}
+                onChange={(e) => onChange({ grid_cols: Math.max(1, Number(e.target.value)) })}
+              />
+            </div>
+          </div>
+          <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#cbd5e1", marginTop: 6, cursor: "pointer" }}>
+            <input
+              type="checkbox"
+              checked={obj.grid_show_borders !== false}
+              onChange={(e) => onChange({ grid_show_borders: e.target.checked })}
+              style={{ accentColor: "#3b82f6" }}
+            />
+            Mostra bordi
+          </label>
+          {obj.grid_show_borders !== false && (
+            <div style={{ marginTop: 4 }}>
+              <div style={LABEL}>Colore bordi</div>
+              <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                <input
+                  type="color"
+                  style={{ ...INPUT, padding: 2, height: 28, width: 44, cursor: "pointer", flex: "none" }}
+                  value={obj.grid_border_color ?? "#64748b"}
+                  onChange={(e) => onChange({ grid_border_color: e.target.value })}
+                />
+                <input
+                  type="text" style={INPUT}
+                  value={obj.grid_border_color ?? "#64748b"}
+                  onChange={(e) => onChange({ grid_border_color: e.target.value })}
+                />
+              </div>
+            </div>
+          )}
+          <p style={{ fontSize: 10, color: "#475569", margin: "6px 0 0" }}>
+            Clicca su una cella nel canvas per modificarne le proprietà.
+          </p>
+        </>
+      )}
+
       {/* Symbol (built-in SCADA library + custom project symbols) */}
       {obj.type === "symbol" && (
         <>
           {field("Simbolo",
-            <SymbolSelect value={obj.symbol_id ?? "pump"} onChange={(v) => onChange({ symbol_id: v as any })} />
+            <SymbolGallery value={obj.symbol_id ?? "pump"} onChange={(v) => onChange({ symbol_id: v as any })} />
           )}
           {field("Tag stato (truthy → ON)",
             <TagInput
@@ -1239,6 +1841,15 @@ function ObjectProps({
         />
         Visibile (statico)
       </label>
+      <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#cbd5e1", marginTop: 4, cursor: "pointer" }}>
+        <input
+          type="checkbox"
+          checked={obj.locked === true}
+          onChange={(e) => onChange({ locked: e.target.checked ? true : undefined })}
+          style={{ accentColor: "#f59e0b" }}
+        />
+        Bloccato (non selezionabile nell'editor)
+      </label>
       <div>
         <div style={LABEL}>Tag visibilità (override)</div>
         <TagInput
@@ -1248,6 +1859,29 @@ function ObjectProps({
           onChange={(v) => onChange({ visible_tag: v || undefined })}
         />
       </div>
+
+      {/* ── Quality dot (only when object has a tag) ──────────────────── */}
+      {obj.tag && <>
+        <div style={{ fontSize: 10, color: "#475569", marginTop: 8, marginBottom: 2, fontWeight: 700, letterSpacing: 0.5 }}>
+          INDICATORE QUALITÀ
+        </div>
+        <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#cbd5e1", cursor: "pointer" }}>
+          <input
+            type="checkbox"
+            checked={obj.quality_dot !== false}
+            onChange={(e) => onChange({ quality_dot: e.target.checked ? undefined : false })}
+            style={{ accentColor: "#3b82f6" }}
+          />
+          Mostra indicatore qualità
+        </label>
+        {obj.quality_dot !== false && (
+          <>
+            {field("Colore Buono (Good)",    colorInput("quality_dot_good_color",      "#22c55e"))}
+            {field("Colore Incerto (Uncert.)", colorInput("quality_dot_uncertain_color", "#eab308"))}
+            {field("Colore Errore (Bad)",    colorInput("quality_dot_bad_color",       "#ef4444"))}
+          </>
+        )}
+      </>}
 
       <div style={{ fontSize: 10, color: "#475569", marginTop: 8, marginBottom: 2, fontWeight: 700, letterSpacing: 0.5 }}>
         EVENTI (FUNZIONI)
@@ -1493,6 +2127,209 @@ function EventFunctionPicker({
             );
           })}
         </div>
+      )}
+    </div>
+  );
+}
+
+// ── GridCellEditor ────────────────────────────────────────────────────────────
+// Properties panel for a selected grid cell.
+
+const CELL_CHILD_TYPES: { value: string; label: string }[] = [
+  { value: "rect",          label: "Rettangolo" },
+  { value: "ellipse",       label: "Ellisse" },
+  { value: "text",          label: "Testo" },
+  { value: "button",        label: "Pulsante" },
+  { value: "led",           label: "LED" },
+  { value: "progress_bar",  label: "Barra progresso" },
+  { value: "gauge",         label: "Gauge" },
+  { value: "symbol",        label: "Simbolo" },
+  { value: "image",         label: "Immagine" },
+];
+
+function makeDefaultChild(type: string): SynopticObject {
+  const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+  const base: SynopticObject = { id, type: type as SynopticObject["type"], x: 0, y: 0 };
+  switch (type) {
+    case "rect":         return { ...base, width: 80, height: 60, fill: "#334155" };
+    case "ellipse":      return { ...base, width: 60, height: 60, fill: "#334155" };
+    case "text":         return { ...base, width: 80, height: 30, label: "Testo" };
+    case "button":       return { ...base, width: 80, height: 32, label: "Pulsante" };
+    case "led":          return { ...base, width: 40, height: 40 };
+    case "progress_bar": return { ...base, width: 100, height: 20, min: 0, max: 100 };
+    case "gauge":        return { ...base, width: 100, height: 100, min: 0, max: 100 };
+    case "symbol":       return { ...base, width: 60, height: 60, symbol_id: "pump" };
+    case "image":        return { ...base, width: 80, height: 60 };
+    default:             return { ...base, width: 80, height: 60 };
+  }
+}
+
+function GridCellEditor({
+  cell,
+  functions,
+  onChange,
+}: {
+  cell: GridCell;
+  functions: FunctionDef[];
+  onChange: (patch: Partial<GridCell>) => void;
+}) {
+  const [newChildType, setNewChildType] = useState("rect");
+  return (
+    <div style={{ marginTop: 8, borderTop: "1px solid #334155", paddingTop: 8 }}>
+      <div style={{ fontSize: 10, color: "#3b82f6", fontWeight: 700, letterSpacing: 0.5, marginBottom: 6 }}>
+        CELLA {cell.row + 1},{cell.col + 1}
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 6px", marginBottom: 6 }}>
+        <div>
+          <div style={LABEL}>Rowspan</div>
+          <input
+            type="number" min={1} max={10} style={INPUT}
+            value={cell.rowspan ?? 1}
+            onChange={(e) => onChange({ rowspan: Math.max(1, Number(e.target.value)) })}
+          />
+        </div>
+        <div>
+          <div style={LABEL}>Colspan</div>
+          <input
+            type="number" min={1} max={10} style={INPUT}
+            value={cell.colspan ?? 1}
+            onChange={(e) => onChange({ colspan: Math.max(1, Number(e.target.value)) })}
+          />
+        </div>
+      </div>
+
+      <div style={{ marginBottom: 6 }}>
+        <div style={LABEL}>Colore sfondo</div>
+        <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+          <input
+            type="color"
+            style={{ ...INPUT, padding: 2, height: 28, width: 44, cursor: "pointer", flex: "none" }}
+            value={cell.bg_color ?? "#1e293b"}
+            onChange={(e) => onChange({ bg_color: e.target.value })}
+          />
+          <input
+            type="text" style={INPUT}
+            value={cell.bg_color ?? ""}
+            placeholder="nessuno"
+            onChange={(e) => onChange({ bg_color: e.target.value || undefined })}
+          />
+        </div>
+      </div>
+
+      <div style={{ marginBottom: 6 }}>
+        <div style={LABEL}>Immagine sfondo (URL)</div>
+        <input
+          type="text" style={INPUT}
+          placeholder="https://…"
+          value={cell.bg_image ?? ""}
+          onChange={(e) => onChange({ bg_image: e.target.value || undefined })}
+        />
+      </div>
+
+      <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#cbd5e1", marginBottom: 6, cursor: "pointer" }}>
+        <input
+          type="checkbox"
+          checked={cell.visible !== false}
+          onChange={(e) => onChange({ visible: e.target.checked || undefined })}
+          style={{ accentColor: "#3b82f6" }}
+        />
+        Visibile (statico)
+      </label>
+
+      <div style={{ marginBottom: 6 }}>
+        <div style={LABEL}>Tag visibilità</div>
+        <TagInput
+          style={INPUT}
+          placeholder="es. valvola.aperta"
+          value={cell.visible_tag ?? ""}
+          onChange={(v) => onChange({ visible_tag: v || undefined })}
+        />
+      </div>
+
+      <div style={{ fontSize: 10, color: "#475569", fontWeight: 700, letterSpacing: 0.5, marginBottom: 4 }}>
+        EVENTI CELLA
+      </div>
+      <div style={{ marginBottom: 4 }}>
+        <div style={LABEL}>On press</div>
+        <select
+          style={{ ...INPUT, cursor: "pointer" }}
+          value={cell.on_press_fn ?? ""}
+          onChange={(e) => onChange({ on_press_fn: e.target.value || undefined })}
+        >
+          <option value="">— nessuna —</option>
+          {functions.map((f) => <option key={f.id} value={f.name}>{f.name}</option>)}
+        </select>
+      </div>
+      <div style={{ marginBottom: 8 }}>
+        <div style={LABEL}>On release</div>
+        <select
+          style={{ ...INPUT, cursor: "pointer" }}
+          value={cell.on_release_fn ?? ""}
+          onChange={(e) => onChange({ on_release_fn: e.target.value || undefined })}
+        >
+          <option value="">— nessuna —</option>
+          {functions.map((f) => <option key={f.id} value={f.name}>{f.name}</option>)}
+        </select>
+      </div>
+
+      <div style={{ fontSize: 10, color: "#475569", fontWeight: 700, letterSpacing: 0.5, marginBottom: 4 }}>
+        OGGETTO FIGLIO
+      </div>
+      {cell.child ? (
+        <>
+          <div style={{
+            display: "flex", alignItems: "center", gap: 6, marginBottom: 8,
+            padding: "4px 8px", background: "#0f172a", border: "1px solid #1e3a5f", borderRadius: 4,
+          }}>
+            <span style={{ flex: 1, fontSize: 11, color: "#93c5fd" }}>
+              {cell.child.type}{cell.child.name ? ` — ${cell.child.name}` : ""}
+            </span>
+          </div>
+          <p style={{ fontSize: 10, color: "#475569", margin: "0 0 8px" }}>
+            Clicca il figlio nel canvas per modificarne le proprietà.
+          </p>
+          <div style={{ display: "flex", gap: 6 }}>
+            <button
+              title="Taglia — rimette il figlio nel clipboard di pagina"
+              onClick={() => {
+                useAppStore.getState().setClipboard([cell.child!]);
+                onChange({ child: undefined });
+              }}
+              style={{ background: "#0f172a", border: "1px solid #334155", color: "#94a3b8", borderRadius: 4, cursor: "pointer", fontSize: 11, padding: "2px 8px" }}
+            >
+              ✂ Taglia
+            </button>
+            <button
+              title="Rimuovi figlio"
+              onClick={() => onChange({ child: undefined })}
+              style={{ background: "#7f1d1d", border: "1px solid #991b1b", color: "#fca5a5", borderRadius: 4, cursor: "pointer", fontSize: 11, padding: "2px 8px" }}
+            >
+              ✕ Rimuovi
+            </button>
+          </div>
+        </>
+      ) : (
+        <>
+          <div style={{ display: "flex", gap: 6, marginBottom: 4 }}>
+            <select
+              style={{ ...INPUT, flex: 1, cursor: "pointer" }}
+              value={newChildType}
+              onChange={(e) => setNewChildType(e.target.value)}
+            >
+              {CELL_CHILD_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+            </select>
+            <button
+              onClick={() => onChange({ child: makeDefaultChild(newChildType) })}
+              style={{ background: "#1d4ed8", border: "1px solid #2563eb", color: "#bfdbfe", borderRadius: 4, cursor: "pointer", fontSize: 12, padding: "2px 10px", flexShrink: 0 }}
+            >
+              + Aggiungi
+            </button>
+          </div>
+          <p style={{ fontSize: 10, color: "#475569", margin: "0 0 4px" }}>
+            Oppure: copia un oggetto dalla pagina (Ctrl+C) e premi Ctrl+V con questa cella selezionata.
+          </p>
+        </>
       )}
     </div>
   );

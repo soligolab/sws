@@ -1,7 +1,7 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { TrendCanvas } from "@/canvas/TrendCanvas";
 import { SYMBOLS } from "@/symbols/library";
-import type { CustomSymbol, SynopticObject, TagState } from "@/types";
+import type { CustomSymbol, GridCell, SynopticObject, TagState } from "@/types";
 
 // ── Canvas props ──────────────────────────────────────────────────────────────
 
@@ -16,18 +16,25 @@ interface SvgCanvasProps {
   snapEnabled?: boolean;
   /** Custom symbols defined in the project (persisted in project.yaml). */
   customSymbols?: CustomSymbol[];
+  /** Page design width in px. Shows a dashed boundary rect in edit mode. */
+  pageWidth?: number;
+  /** Page design height in px. Shows a dashed boundary rect in edit mode. */
+  pageHeight?: number;
+  /** Currently selected grid cell in edit mode. */
+  selectedCell?: { objectId: string; row: number; col: number } | null;
+  /** Currently selected child object within a grid cell. */
+  selectedCellChild?: { objectId: string; row: number; col: number } | null;
   /** Single-select (replace) when shift is false; toggle into the set when true. */
   onSelect?: (id: string | null, shift?: boolean) => void;
   /** Called with the full set of ids enclosed by a drag-selection rectangle. */
   onSelectMany?: (ids: string[]) => void;
   onMove?: (id: string, patch: Partial<SynopticObject>) => void;
   onWriteTag?: (tagId: string, value: string | number | boolean) => void;
-  /** View-mode dispatcher for on_press / on_release function bindings.
-   *  Called with the function NAME and the per-binding argument overrides
-   *  (possibly empty). Returns void; the caller is responsible for the
-   *  fetch + console logging. */
+  /** View-mode dispatcher for on_press / on_release function bindings. */
   onScript?: (fn: string, args: Record<string, string | number | boolean>) => void;
   onNavigate?: (pageId: string) => void;
+  onSelectCell?: (objectId: string, row: number, col: number) => void;
+  onSelectCellChild?: (objectId: string, row: number, col: number) => void;
 }
 
 interface DragState {
@@ -36,6 +43,16 @@ interface DragState {
   offsetY: number;
   dx2?: number;
   dy2?: number;
+}
+
+interface ResizeState {
+  objId: string;
+  /** Box handles: "tl"|"tc"|"tr"|"ml"|"mr"|"bl"|"bc"|"br"
+   *  Line endpoint handles: "p1"|"p2" */
+  handle: string;
+  startX: number;
+  startY: number;
+  startObj: { x: number; y: number; width: number; height: number; x2?: number; y2?: number };
 }
 
 /** Coordinates of an in-progress drag-selection rectangle (SVG space). */
@@ -104,10 +121,13 @@ function isObjectVisible(obj: SynopticObject, tagValues: Record<string, TagState
   return obj.visible !== false;
 }
 
-function qualityColor(quality: TagState["quality"]): string {
-  if (quality === "Good") return "#22c55e";
-  if (quality === "Bad")  return "#ef4444";
-  return "#eab308";
+function qualityColor(
+  quality: TagState["quality"],
+  goodColor?: string, badColor?: string, uncertainColor?: string,
+): string {
+  if (quality === "Good") return goodColor ?? "#22c55e";
+  if (quality === "Bad")  return badColor  ?? "#ef4444";
+  return uncertainColor ?? "#eab308";
 }
 
 /** Determine fill color based on value vs thresholds. Returns null to use default. */
@@ -203,8 +223,15 @@ function applyTransform(obj: SynopticObject, w: number, h: number, content: Reac
 
 // ── Quality dot overlay ───────────────────────────────────────────────────────
 
-function QDot({ x, y, quality }: { x: number; y: number; quality: TagState["quality"] }) {
-  return <circle cx={x} cy={y} r={5} fill={qualityColor(quality)} style={{ pointerEvents: "none" }} />;
+function QDot({ x, y, quality, goodColor, badColor, uncertainColor }: {
+  x: number; y: number; quality: TagState["quality"];
+  goodColor?: string; badColor?: string; uncertainColor?: string;
+}) {
+  return (
+    <circle cx={x} cy={y} r={5}
+      fill={qualityColor(quality, goodColor, badColor, uncertainColor)}
+      style={{ pointerEvents: "none" }} />
+  );
 }
 
 // ── SvgCanvas root ────────────────────────────────────────────────────────────
@@ -218,12 +245,18 @@ export function SvgCanvas({
   gridSize = 10,
   snapEnabled = true,
   customSymbols = [],
+  pageWidth,
+  pageHeight,
+  selectedCell,
+  selectedCellChild,
   onSelect,
   onSelectMany,
   onMove,
   onWriteTag,
   onScript,
   onNavigate,
+  onSelectCell,
+  onSelectCellChild,
 }: SvgCanvasProps) {
   // Resolved selection set: prefer the explicit array, fall back to the
   // legacy single-id prop, then to "nothing selected".
@@ -232,6 +265,8 @@ export function SvgCanvas({
 
   // Object drag state
   const dragRef = useRef<DragState | null>(null);
+  // Resize handle drag state
+  const resizeRef = useRef<ResizeState | null>(null);
 
   // Selection-rectangle drag state. `selDragRef` tracks the active drag for
   // event handlers (always up-to-date); `selRect` drives the visual overlay.
@@ -240,6 +275,77 @@ export function SvgCanvas({
   // Set to true when a rect-selection just completed so the SVG onClick
   // (which fires on every mouseup) does not deselect the result.
   const suppressClick  = useRef(false);
+
+  // Zoom + pan (edit mode only). Use refs for event handler closures +
+  // state for render. panDragRef: middle-click panning.
+  const svgRef   = useRef<SVGSVGElement>(null);
+  const zoomRef  = useRef(1);
+  const panRef   = useRef({ x: 0, y: 0 });
+  const [viewT, setViewT] = useState({ zoom: 1, panX: 0, panY: 0 });
+  const panDragRef = useRef<{ startCX: number; startCY: number; startPX: number; startPY: number } | null>(null);
+  const [mousePos, setMousePos] = useState<{ x: number; y: number } | null>(null);
+  const [snapLines, setSnapLines] = useState<{ x: number | null; y: number | null }>({ x: null, y: null });
+
+  const applyView = (z: number, px: number, py: number) => {
+    zoomRef.current = z;
+    panRef.current = { x: px, y: py };
+    setViewT({ zoom: z, panX: px, panY: py });
+  };
+
+  const fitView = () => {
+    const el = svgRef.current;
+    if (!el || objects.length === 0) { applyView(1, 0, 0); return; }
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const o of objects) {
+      const bb = objBBox(o);
+      minX = Math.min(minX, bb.x1); minY = Math.min(minY, bb.y1);
+      maxX = Math.max(maxX, bb.x2); maxY = Math.max(maxY, bb.y2);
+    }
+    const W = maxX - minX; const H = maxY - minY;
+    const cw = el.clientWidth; const ch = el.clientHeight;
+    const z = Math.max(0.1, Math.min(4, Math.min(cw / (W + 80), ch / (H + 80))));
+    applyView(z, (cw - W * z) / 2 - minX * z, (ch - H * z) / 2 - minY * z);
+  };
+
+  // Non-passive wheel listener for zoom + pan via scroll.
+  useEffect(() => {
+    if (!onMove) return; // only in edit mode
+    const el = svgRef.current;
+    if (!el) return;
+    const handler = (e: WheelEvent) => {
+      e.preventDefault();
+      const rect = el.getBoundingClientRect();
+      const cx = e.clientX - rect.left;
+      const cy = e.clientY - rect.top;
+      if (e.ctrlKey) {
+        // Zoom centred on cursor
+        const factor = e.deltaY > 0 ? 1 / 1.1 : 1.1;
+        const oldZ = zoomRef.current;
+        const newZ = Math.max(0.1, Math.min(8, oldZ * factor));
+        const svgCX = (cx - panRef.current.x) / oldZ;
+        const svgCY = (cy - panRef.current.y) / oldZ;
+        applyView(newZ, cx - svgCX * newZ, cy - svgCY * newZ);
+      } else {
+        // Pan
+        const dx = e.shiftKey ? -e.deltaY : -e.deltaX;
+        const dy = e.shiftKey ?  0        : -e.deltaY;
+        applyView(zoomRef.current, panRef.current.x + dx, panRef.current.y + dy);
+      }
+    };
+    const resetHandler = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === "0") { e.preventDefault(); fitView(); }
+      else if ((e.ctrlKey || e.metaKey) && e.key === "0") { e.preventDefault(); applyView(1, 0, 0); }
+    };
+    el.addEventListener("wheel", handler, { passive: false });
+    window.addEventListener("keydown", resetHandler);
+    return () => { el.removeEventListener("wheel", handler); window.removeEventListener("keydown", resetHandler); };
+  }, [onMove]);
+
+  /** Convert screen coordinates (relative to SVG element) to SVG user-space. */
+  const toSvg = (screenX: number, screenY: number) => ({
+    x: (screenX - panRef.current.x) / zoomRef.current,
+    y: (screenY - panRef.current.y) / zoomRef.current,
+  });
 
   const snap = (v: number) =>
     snapEnabled && gridSize > 0 ? Math.round(v / gridSize) * gridSize : v;
@@ -260,23 +366,98 @@ export function SvgCanvas({
   };
 
   const handleSvgMouseDown = (e: React.MouseEvent<SVGSVGElement>) => {
-    // Only start a selection rect in edit mode with left button.
-    if (!onMove || e.button !== 0) return;
+    if (!onMove) return;
+    const svgRect = e.currentTarget.getBoundingClientRect();
+    if (e.button === 1) {
+      // Middle-click → start pan drag
+      e.preventDefault();
+      panDragRef.current = {
+        startCX: e.clientX, startCY: e.clientY,
+        startPX: panRef.current.x, startPY: panRef.current.y,
+      };
+      return;
+    }
+    if (e.button !== 0) return;
     // If an object drag is already active, ignore (startDrag sets dragRef first
     // because child handlers fire before parent handlers in React).
     if (dragRef.current) return;
-    const svgRect = e.currentTarget.getBoundingClientRect();
-    const x = e.clientX - svgRect.left;
-    const y = e.clientY - svgRect.top;
-    selDragRef.current = { startX: x, startY: y, curX: x, curY: y };
+    const pt = toSvg(e.clientX - svgRect.left, e.clientY - svgRect.top);
+    selDragRef.current = { startX: pt.x, startY: pt.y, curX: pt.x, curY: pt.y };
   };
 
   const handleMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
     const svgRect = e.currentTarget.getBoundingClientRect();
-    if (dragRef.current && onMove) {
-      // Object drag
-      const newX = snap(e.clientX - svgRect.left - dragRef.current.offsetX);
-      const newY = snap(e.clientY - svgRect.top  - dragRef.current.offsetY);
+    const screenX = e.clientX - svgRect.left;
+    const screenY = e.clientY - svgRect.top;
+    const pt = toSvg(screenX, screenY);
+
+    if (panDragRef.current) {
+      // Middle-click pan
+      const pd = panDragRef.current;
+      applyView(zoomRef.current,
+        pd.startPX + (e.clientX - pd.startCX),
+        pd.startPY + (e.clientY - pd.startCY));
+      return;
+    }
+
+    // Update mouse position display
+    if (onMove) setMousePos(pt);
+
+    const z = zoomRef.current;
+    if (resizeRef.current && onMove) {
+      // Resize / endpoint handle drag. dx/dy in screen pixels → divide by zoom.
+      const { handle, startX, startY, startObj, objId } = resizeRef.current;
+      const dx = (e.clientX - startX) / z;
+      const dy = (e.clientY - startY) / z;
+      if (handle === "p1") {
+        onMove(objId, { x: snap(startObj.x + dx), y: snap(startObj.y + dy) });
+      } else if (handle === "p2") {
+        onMove(objId, { x2: snap((startObj.x2 ?? startObj.x + 100) + dx), y2: snap((startObj.y2 ?? startObj.y) + dy) });
+      } else {
+        let { x, y, width, height } = startObj;
+        if (handle.includes("l")) { x = snap(startObj.x + dx); width = snap(startObj.width - dx); }
+        if (handle.includes("r")) { width = snap(startObj.width + dx); }
+        if (handle.includes("t")) { y = snap(startObj.y + dy); height = snap(startObj.height - dy); }
+        if (handle.includes("b")) { height = snap(startObj.height + dy); }
+        if (width >= 4 && height >= 4) onMove(objId, { x, y, width, height });
+      }
+    } else if (dragRef.current && onMove) {
+      // Object drag — coords in SVG space with edge snapping
+      const rawX = pt.x - dragRef.current.offsetX;
+      const rawY = pt.y - dragRef.current.offsetY;
+      const draggedObj = objects.find((o) => o.id === dragRef.current!.objId);
+      const dw = draggedObj?.width ?? 0;
+      const dh = draggedObj?.height ?? 0;
+
+      const threshold = 8 / z;
+      let newX = rawX; let newY = rawY;
+      let snapX: number | null = null; let snapY: number | null = null;
+
+      for (const other of objects) {
+        if (other.id === dragRef.current.objId) continue;
+        const bb = objBBox(other);
+        const exs = [bb.x1, (bb.x1 + bb.x2) / 2, bb.x2];
+        const eys = [bb.y1, (bb.y1 + bb.y2) / 2, bb.y2];
+        if (snapX === null) {
+          for (const ex of exs) {
+            if (Math.abs(rawX - ex) < threshold)           { snapX = ex; newX = ex;          break; }
+            if (Math.abs(rawX + dw / 2 - ex) < threshold) { snapX = ex; newX = ex - dw / 2; break; }
+            if (Math.abs(rawX + dw - ex) < threshold)     { snapX = ex; newX = ex - dw;      break; }
+          }
+        }
+        if (snapY === null) {
+          for (const ey of eys) {
+            if (Math.abs(rawY - ey) < threshold)           { snapY = ey; newY = ey;          break; }
+            if (Math.abs(rawY + dh / 2 - ey) < threshold) { snapY = ey; newY = ey - dh / 2; break; }
+            if (Math.abs(rawY + dh - ey) < threshold)     { snapY = ey; newY = ey - dh;      break; }
+          }
+        }
+        if (snapX !== null && snapY !== null) break;
+      }
+      if (snapX === null) newX = snap(rawX);
+      if (snapY === null) newY = snap(rawY);
+      setSnapLines({ x: snapX, y: snapY });
+
       const patch: Partial<SynopticObject> = { x: newX, y: newY };
       if (dragRef.current.dx2 !== undefined) {
         patch.x2 = newX + dragRef.current.dx2!;
@@ -284,12 +465,8 @@ export function SvgCanvas({
       }
       onMove(dragRef.current.objId, patch);
     } else if (selDragRef.current) {
-      // Selection rect update
-      const updated: SelRect = {
-        ...selDragRef.current,
-        curX: e.clientX - svgRect.left,
-        curY: e.clientY - svgRect.top,
-      };
+      // Selection rect update — coords in SVG space
+      const updated: SelRect = { ...selDragRef.current, curX: pt.x, curY: pt.y };
       selDragRef.current = updated;
       setSelRect(updated);
     }
@@ -297,6 +474,9 @@ export function SvgCanvas({
 
   const endDrag = () => {
     dragRef.current = null;
+    resizeRef.current = null;
+    panDragRef.current = null;
+    setSnapLines({ x: null, y: null });
 
     const rect = selDragRef.current;
     selDragRef.current = null;
@@ -327,28 +507,33 @@ export function SvgCanvas({
   };
 
   const startDrag = (e: React.MouseEvent<SVGElement>, obj: SynopticObject) => {
-    // Object drag wins: cancel any pending selection rect.
+    // Object drag wins: cancel any pending selection rect / pan.
     selDragRef.current = null;
+    panDragRef.current = null;
     setSelRect(null);
 
     const svgEl = (e.currentTarget as SVGElement).ownerSVGElement!;
     const rect = svgEl.getBoundingClientRect();
+    // Convert cursor to SVG space then compute offset from object origin.
+    const pt = toSvg(e.clientX - rect.left, e.clientY - rect.top);
     const ds: DragState = {
       objId:   obj.id,
-      offsetX: e.clientX - rect.left - obj.x,
-      offsetY: e.clientY - rect.top  - obj.y,
+      offsetX: pt.x - (obj.x ?? 0),
+      offsetY: pt.y - (obj.y ?? 0),
     };
     if (obj.type === "line") {
-      ds.dx2 = (obj.x2 ?? obj.x + 100) - obj.x;
-      ds.dy2 = (obj.y2 ?? obj.y)        - obj.y;
+      ds.dx2 = (obj.x2 ?? obj.x + 100) - (obj.x ?? 0);
+      ds.dy2 = (obj.y2 ?? obj.y ?? 0)  - (obj.y ?? 0);
     }
     dragRef.current = ds;
   };
 
   return (
     <svg
+      ref={svgRef}
       width="100%" height="100%"
-      style={{ background, display: "block", userSelect: "none" }}
+      style={{ background, display: "block", userSelect: "none",
+               cursor: panDragRef.current ? "grabbing" : undefined }}
       onMouseDown={handleSvgMouseDown}
       onClick={() => {
         if (suppressClick.current) { suppressClick.current = false; return; }
@@ -358,6 +543,7 @@ export function SvgCanvas({
       onMouseUp={endDrag}
       onMouseLeave={endDrag}
     >
+      {/* Pattern def is in global SVG space so it tiles correctly after pan */}
       {gridSize > 0 && (
         <defs>
           <pattern id="sws-grid" width={gridSize} height={gridSize} patternUnits="userSpaceOnUse">
@@ -368,7 +554,18 @@ export function SvgCanvas({
           </pattern>
         </defs>
       )}
-      {gridSize > 0 && <rect width="100%" height="100%" fill="url(#sws-grid)" />}
+      {/* All zoomed+panned content is inside this group */}
+      <g transform={`translate(${viewT.panX}, ${viewT.panY}) scale(${viewT.zoom})`}>
+      {gridSize > 0 && <rect x={-50000} y={-50000} width={100000} height={100000} fill="url(#sws-grid)" />}
+
+      {/* Page boundary indicator — edit mode only, when dimensions are defined */}
+      {onMove && pageWidth && pageHeight && (
+        <rect
+          x={0} y={0} width={pageWidth} height={pageHeight}
+          fill="none" stroke="#3b82f6" strokeWidth={1} strokeDasharray="6 3"
+          pointerEvents="none"
+        />
+      )}
 
       {sortByZ(objects).map((obj) => {
         // Visibility: in view mode, skip non-visible objects entirely.
@@ -389,18 +586,38 @@ export function SvgCanvas({
           ? () => onScript(obj.on_release_fn!, obj.on_release_args ?? {})
           : undefined;
         return (
-          <g key={obj.id} style={gStyle} onMouseDown={onPress} onMouseUp={onRelease}>
+          <g key={obj.id} style={gStyle} onMouseDown={obj.type !== "grid" ? onPress : undefined} onMouseUp={obj.type !== "grid" ? onRelease : undefined}>
             <SvgObject
               obj={obj}
               tagValues={tagValues}
               selected={selSet.has(obj.id)}
               isEditMode={inEdit}
               customSymbols={customSymbols}
+              selectedCell={selectedCell}
+              selectedCellChild={selectedCellChild}
               onSelect={onSelect}
               onStartDrag={onMove ? startDrag : undefined}
               onWriteTag={onWriteTag}
+              onScript={onScript}
               onNavigate={onNavigate}
+              onSelectCell={onSelectCell}
+              onSelectCellChild={onSelectCellChild}
             />
+            {inEdit && (() => {
+              const bb = objBBox(obj);
+              return (
+                <rect
+                  x={bb.x1} y={bb.y1}
+                  width={bb.x2 - bb.x1} height={bb.y2 - bb.y1}
+                  fill="none"
+                  stroke="#475569"
+                  strokeWidth={1}
+                  strokeDasharray="4 3"
+                  opacity={0.5}
+                  style={{ pointerEvents: "none" }}
+                />
+              );
+            })()}
           </g>
         );
       })}
@@ -410,15 +627,131 @@ export function SvgCanvas({
         const ry = Math.min(selRect.startY, selRect.curY);
         const rw = Math.abs(selRect.curX - selRect.startX);
         const rh = Math.abs(selRect.curY - selRect.startY);
+        const sw = 1 / viewT.zoom;
         return (
           <rect
             x={rx} y={ry} width={rw} height={rh}
             fill="rgba(59,130,246,0.1)" stroke="#3b82f6"
-            strokeWidth={1} strokeDasharray="4 2"
+            strokeWidth={sw} strokeDasharray={`${4 * sw} ${2 * sw}`}
             pointerEvents="none"
           />
         );
       })()}
+
+      {/* Line endpoint handles — single selected line in edit mode */}
+      {onMove && selIds.length === 1 && (() => {
+        const obj = objects.find((o) => o.id === selIds[0]);
+        if (!obj || obj.type !== "line") return null;
+        const x2 = obj.x2 ?? obj.x + 100;
+        const y2 = obj.y2 ?? obj.y;
+        const r = 5 / viewT.zoom;
+        const sw = 1.5 / viewT.zoom;
+        const makeEndpoint = (handle: "p1" | "p2", cx: number, cy: number) => (
+          <circle
+            key={handle}
+            cx={cx} cy={cy} r={r}
+            fill="white" stroke="#facc15" strokeWidth={sw}
+            style={{ cursor: "crosshair" }}
+            onMouseDown={(e) => {
+              e.stopPropagation();
+              dragRef.current = null;
+              selDragRef.current = null;
+              setSelRect(null);
+              resizeRef.current = {
+                objId: obj.id, handle,
+                startX: e.clientX, startY: e.clientY,
+                startObj: { x: obj.x ?? 0, y: obj.y ?? 0, width: 0, height: 0, x2, y2 },
+              };
+            }}
+          />
+        );
+        return <>{makeEndpoint("p1", obj.x ?? 0, obj.y ?? 0)}{makeEndpoint("p2", x2, y2)}</>;
+      })()}
+
+      {/* Resize handles — single selection, edit mode, no rotation, not line/grid */}
+      {onMove && selIds.length === 1 && (() => {
+        const obj = objects.find((o) => o.id === selIds[0]);
+        if (!obj || obj.type === "line" || obj.type === "grid" || (obj.rotation ?? 0) !== 0) return null;
+        const bb = objBBox(obj);
+        const cx = (bb.x1 + bb.x2) / 2;
+        const cy = (bb.y1 + bb.y2) / 2;
+        const hs = 4 / viewT.zoom;
+        const sw = 1.5 / viewT.zoom;
+        const handles: { id: string; x: number; y: number; cursor: string }[] = [
+          { id: "tl", x: bb.x1, y: bb.y1, cursor: "nw-resize" },
+          { id: "tc", x: cx,    y: bb.y1, cursor: "n-resize"  },
+          { id: "tr", x: bb.x2, y: bb.y1, cursor: "ne-resize" },
+          { id: "ml", x: bb.x1, y: cy,    cursor: "w-resize"  },
+          { id: "mr", x: bb.x2, y: cy,    cursor: "e-resize"  },
+          { id: "bl", x: bb.x1, y: bb.y2, cursor: "sw-resize" },
+          { id: "bc", x: cx,    y: bb.y2, cursor: "s-resize"  },
+          { id: "br", x: bb.x2, y: bb.y2, cursor: "se-resize" },
+        ];
+        return (
+          <>
+            {handles.map(({ id, x, y, cursor }) => (
+              <rect
+                key={id}
+                x={x - hs} y={y - hs} width={hs * 2} height={hs * 2}
+                fill="white" stroke="#facc15" strokeWidth={sw}
+                style={{ cursor }}
+                onMouseDown={(e) => {
+                  e.stopPropagation();
+                  dragRef.current = null;
+                  selDragRef.current = null;
+                  setSelRect(null);
+                  resizeRef.current = {
+                    objId: obj.id,
+                    handle: id,
+                    startX: e.clientX,
+                    startY: e.clientY,
+                    startObj: {
+                      x: obj.x ?? 0, y: obj.y ?? 0,
+                      width: obj.width ?? 0, height: obj.height ?? 0,
+                    },
+                  };
+                }}
+              />
+            ))}
+          </>
+        );
+      })()}
+      {/* Snap guide lines — inside the transform so coords match SVG space */}
+      {snapLines.x !== null && (
+        <line x1={snapLines.x} y1={-50000} x2={snapLines.x} y2={50000}
+          stroke="#06b6d4" strokeWidth={1 / viewT.zoom}
+          style={{ pointerEvents: "none" }} />
+      )}
+      {snapLines.y !== null && (
+        <line x1={-50000} y1={snapLines.y} x2={50000} y2={snapLines.y}
+          stroke="#06b6d4" strokeWidth={1 / viewT.zoom}
+          style={{ pointerEvents: "none" }} />
+      )}
+      </g>{/* end zoom+pan group */}
+
+      {/* Zoom level badge + fit button — top-right corner, outside the transform */}
+      {onMove && (
+        <g>
+          <text x="100%" y={18} textAnchor="end" dx={viewT.zoom !== 1 ? -30 : -6}
+            style={{ fontSize: 11, fill: "#64748b", pointerEvents: "none", fontFamily: "monospace" }}>
+            {Math.round(viewT.zoom * 100)}%
+          </text>
+          <text x="100%" y={18} textAnchor="end" dx={-6}
+            style={{ fontSize: 11, fill: "#475569", cursor: "pointer", fontFamily: "monospace" }}
+            onClick={fitView}>
+            <title>Adatta alla vista (Ctrl+Shift+0)</title>
+            ⊡
+          </text>
+        </g>
+      )}
+
+      {/* Mouse position indicator — bottom-left, outside the transform */}
+      {onMove && mousePos && (
+        <text x={6} y="100%" dy={-6}
+          style={{ fontSize: 10, fill: "#475569", pointerEvents: "none", fontFamily: "monospace" }}>
+          X:{Math.round(mousePos.x)} Y:{Math.round(mousePos.y)}
+        </text>
+      )}
     </svg>
   );
 }
@@ -431,17 +764,23 @@ interface ObjProps {
   selected: boolean;
   isEditMode: boolean;
   customSymbols: CustomSymbol[];
+  selectedCell?: { objectId: string; row: number; col: number } | null;
+  selectedCellChild?: { objectId: string; row: number; col: number } | null;
   onSelect?: (id: string | null, shift?: boolean) => void;
   onStartDrag?: (e: React.MouseEvent<SVGElement>, obj: SynopticObject) => void;
   onWriteTag?: (tagId: string, value: string | number | boolean) => void;
+  onScript?: (fn: string, args: Record<string, string | number | boolean>) => void;
   onNavigate?: (pageId: string) => void;
+  onSelectCell?: (objectId: string, row: number, col: number) => void;
+  onSelectCellChild?: (objectId: string, row: number, col: number) => void;
 }
 
 function SvgObject(p: ObjProps) {
-  const { tagValues, selected, isEditMode, customSymbols, onSelect, onStartDrag, onWriteTag, onNavigate } = p;
+  const { tagValues, selected, isEditMode, customSymbols, selectedCell, selectedCellChild, onSelect, onStartDrag, onWriteTag, onScript, onNavigate, onSelectCell, onSelectCellChild } = p;
   const obj = resolveObject(p.obj, tagValues);
 
   const handleMouseDown = (e: React.MouseEvent<SVGElement>) => {
+    if (obj.locked && isEditMode) return;
     e.stopPropagation();
     onSelect?.(obj.id, e.shiftKey);
     // Don't start a drag when the user is just shift-clicking to extend
@@ -475,7 +814,7 @@ function SvgObject(p: ObjProps) {
             style={{ cursor: editCursor, ...transitionStyle(obj) }}
             onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()} />
         )}
-        {tv && <QDot x={obj.x + w - 8} y={obj.y + 8} quality={tv.quality} />}
+        {tv && obj.quality_dot !== false && <QDot x={obj.x + w - 8} y={obj.y + 8} quality={tv.quality} goodColor={obj.quality_dot_good_color} badColor={obj.quality_dot_bad_color} uncertainColor={obj.quality_dot_uncertain_color} />}
       </>
     );
   }
@@ -495,7 +834,7 @@ function SvgObject(p: ObjProps) {
             style={{ cursor: editCursor, ...transitionStyle(obj) }}
             onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()} />
         )}
-        {tv && <QDot x={obj.x + w - 8} y={obj.y + 8} quality={tv.quality} />}
+        {tv && obj.quality_dot !== false && <QDot x={obj.x + w - 8} y={obj.y + 8} quality={tv.quality} goodColor={obj.quality_dot_good_color} badColor={obj.quality_dot_bad_color} uncertainColor={obj.quality_dot_uncertain_color} />}
       </>
     );
   }
@@ -556,7 +895,7 @@ function SvgObject(p: ObjProps) {
             {content}
           </text>
         )}
-        {tv && <QDot x={obj.x - 10} y={obj.y - size / 2} quality={tv.quality} />}
+        {tv && obj.quality_dot !== false && <QDot x={obj.x - 10} y={obj.y - size / 2} quality={tv.quality} goodColor={obj.quality_dot_good_color} badColor={obj.quality_dot_bad_color} uncertainColor={obj.quality_dot_uncertain_color} />}
       </>
     );
   }
@@ -719,7 +1058,7 @@ function SvgObject(p: ObjProps) {
           )}
         </>)}
         {/* Quality dot — axis-aligned */}
-        {tv && <QDot x={obj.x + w - 8} y={obj.y + 8} quality={tv.quality} />}
+        {tv && obj.quality_dot !== false && <QDot x={obj.x + w - 8} y={obj.y + 8} quality={tv.quality} goodColor={obj.quality_dot_good_color} badColor={obj.quality_dot_bad_color} uncertainColor={obj.quality_dot_uncertain_color} />}
       </g>
     );
   }
@@ -811,7 +1150,7 @@ function SvgObject(p: ObjProps) {
           )}
         </>)}
         {/* Quality dot — axis-aligned */}
-        {tv && <QDot x={obj.x + w - 10} y={obj.y + 10} quality={tv.quality} />}
+        {tv && obj.quality_dot !== false && <QDot x={obj.x + w - 10} y={obj.y + 10} quality={tv.quality} goodColor={obj.quality_dot_good_color} badColor={obj.quality_dot_bad_color} uncertainColor={obj.quality_dot_uncertain_color} />}
       </g>
     );
   }
@@ -1213,6 +1552,207 @@ function SvgObject(p: ObjProps) {
           <circle cx={obj.x + w - 7} cy={obj.y + 7} r={6}
             fill={badgeColor} stroke="#0f172a" strokeWidth={1}
             style={{ pointerEvents: "none", ...transitionStyle(obj) }} />
+        )}
+      </g>
+    );
+  }
+
+  // ── GRID ────────────────────────────────────────────────────────────────────
+
+  if (obj.type === "grid") {
+    const w = obj.width ?? 400;
+    const h = obj.height ?? 300;
+    const nRows = obj.grid_rows ?? 2;
+    const nCols = obj.grid_cols ?? 2;
+    const showBorders = obj.grid_show_borders !== false;
+    const borderColor = obj.grid_border_color ?? "#64748b";
+
+    // Compute column widths
+    const colWidthsDef = (obj.col_widths as number[] | undefined) ?? [];
+    const colW: number[] = [];
+    for (let c = 0; c < nCols; c++) {
+      colW.push(c < colWidthsDef.length ? colWidthsDef[c] : w / nCols);
+    }
+    // Compute row heights
+    const rowHeightsDef = (obj.row_heights as number[] | undefined) ?? [];
+    const rowH: number[] = [];
+    for (let r = 0; r < nRows; r++) {
+      rowH.push(r < rowHeightsDef.length ? rowHeightsDef[r] : h / nRows);
+    }
+    // Cumulative offsets
+    const colX: number[] = [];
+    let cx = obj.x;
+    for (let c = 0; c < nCols; c++) { colX.push(cx); cx += colW[c]; }
+    const rowY: number[] = [];
+    let ry = obj.y;
+    for (let r = 0; r < nRows; r++) { rowY.push(ry); ry += rowH[r]; }
+
+    // Map from "r-c" to cell definition
+    const definedCells = (obj.grid_cells ?? []) as GridCell[];
+    const cellMap = new Map<string, GridCell>();
+    for (const cell of definedCells) cellMap.set(`${cell.row}-${cell.col}`, cell);
+
+    // Track positions covered by a span (non-origin)
+    const covered = new Set<string>();
+    for (const cell of definedCells) {
+      const rs = cell.rowspan ?? 1;
+      const cs = cell.colspan ?? 1;
+      for (let rr = cell.row; rr < Math.min(cell.row + rs, nRows); rr++) {
+        for (let cc = cell.col; cc < Math.min(cell.col + cs, nCols); cc++) {
+          if (rr !== cell.row || cc !== cell.col) covered.add(`${rr}-${cc}`);
+        }
+      }
+    }
+
+    return (
+      <g>
+        {/* Transparent hit rect for grid-level drag/select */}
+        <rect
+          x={obj.x} y={obj.y} width={w} height={h}
+          fill="transparent"
+          stroke={selected ? "#facc15" : showBorders ? borderColor : "none"}
+          strokeWidth={selected ? 2 : 1}
+          onMouseDown={handleMouseDown}
+          onClick={(e) => e.stopPropagation()}
+          style={{ cursor: editCursor }}
+        />
+        {Array.from({ length: nRows }, (_, r) =>
+          Array.from({ length: nCols }, (_, c) => {
+            const key = `${r}-${c}`;
+            if (covered.has(key)) return null;
+
+            const cellDef = cellMap.get(key);
+            const rs = cellDef?.rowspan ?? 1;
+            const cs = cellDef?.colspan ?? 1;
+            let cellW = 0;
+            for (let cc = c; cc < Math.min(c + cs, nCols); cc++) cellW += colW[cc];
+            let cellH = 0;
+            for (let rr = r; rr < Math.min(r + rs, nRows); rr++) cellH += rowH[rr];
+
+            const cellVisible = (() => {
+              if (!cellDef) return true;
+              if (cellDef.visible_tag && tagValues[cellDef.visible_tag]) {
+                const v = tagValues[cellDef.visible_tag].value;
+                return typeof v === "boolean" ? v : typeof v === "number" ? v !== 0 : String(v).trim().length > 0;
+              }
+              return cellDef.visible !== false;
+            })();
+            if (!cellVisible && !isEditMode) return null;
+
+            const isCellSel = isEditMode && selectedCell?.objectId === obj.id
+              && selectedCell.row === r && selectedCell.col === c;
+
+            return (
+              <g
+                key={key}
+                style={{ opacity: !cellVisible && isEditMode ? 0.35 : 1 }}
+                onMouseDown={(e) => {
+                  if (isEditMode) {
+                    e.stopPropagation();
+                    onSelect?.(obj.id, e.shiftKey);
+                    if (!e.shiftKey) onStartDrag?.(e, obj);
+                    onSelectCell?.(obj.id, r, c);
+                  } else if (cellDef?.on_press_fn && onScript) {
+                    e.stopPropagation();
+                    onScript(cellDef.on_press_fn, {});
+                  }
+                }}
+                onMouseUp={(e) => {
+                  if (!isEditMode && cellDef?.on_release_fn && onScript) {
+                    e.stopPropagation();
+                    onScript(cellDef.on_release_fn, {});
+                  }
+                }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <rect
+                  x={colX[c]} y={rowY[r]} width={cellW} height={cellH}
+                  fill={cellDef?.bg_color ?? "transparent"}
+                  stroke={showBorders ? (isCellSel ? "#facc15" : borderColor) : "none"}
+                  strokeWidth={isCellSel ? 2 : 1}
+                  style={{
+                    cursor: isEditMode ? "pointer"
+                      : (cellDef?.on_press_fn ? "pointer" : "default"),
+                  }}
+                />
+                {isEditMode && (
+                  <rect
+                    x={colX[c]} y={rowY[r]} width={cellW} height={cellH}
+                    fill="none"
+                    stroke={isCellSel ? "#facc15" : "#475569"}
+                    strokeWidth={isCellSel ? 1.5 : 1}
+                    strokeDasharray="4 3"
+                    opacity={isCellSel ? 0.9 : 0.5}
+                    style={{ pointerEvents: "none" }}
+                  />
+                )}
+                {cellDef?.bg_image && (
+                  <image
+                    href={cellDef.bg_image}
+                    x={colX[c]} y={rowY[r]} width={cellW} height={cellH}
+                    preserveAspectRatio="xMidYMid slice"
+                    style={{ pointerEvents: "none" }}
+                  />
+                )}
+                {cellDef?.child && (() => {
+                  const child = cellDef.child!;
+                  const cw = child.width ?? 100;
+                  const ch = child.height ?? 50;
+                  const childX = colX[c] + (cellW - cw) / 2;
+                  const childY = rowY[r] + (cellH - ch) / 2;
+                  const placed = child.type === "line"
+                    ? { ...child, x: childX, y: childY,
+                        x2: childX + ((child.x2 ?? child.x + 100) - child.x),
+                        y2: childY + ((child.y2 ?? child.y) - child.y) }
+                    : { ...child, x: childX, y: childY };
+                  const isChildSel = isEditMode
+                    && selectedCellChild?.objectId === obj.id
+                    && selectedCellChild.row === r
+                    && selectedCellChild.col === c;
+                  return (
+                    <>
+                      {/* Child visual — always non-interactive in edit mode */}
+                      <g style={{ pointerEvents: isEditMode ? "none" : "auto" }}>
+                        <SvgObject
+                          obj={placed}
+                          tagValues={tagValues}
+                          selected={false}
+                          isEditMode={false}
+                          customSymbols={customSymbols}
+                          onWriteTag={onWriteTag}
+                          onScript={onScript}
+                          onNavigate={onNavigate}
+                        />
+                      </g>
+                      {/* Transparent overlay — enables clicking the child when the cell is already selected */}
+                      {isEditMode && isCellSel && (
+                        <rect
+                          x={childX} y={childY} width={cw} height={ch}
+                          fill="transparent"
+                          style={{ cursor: "pointer" }}
+                          onMouseDown={(e) => {
+                            e.stopPropagation();
+                            onSelectCellChild?.(obj.id, r, c);
+                          }}
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      )}
+                      {/* Teal selection rect around the child when it is the active sub-selection */}
+                      {isEditMode && isChildSel && (
+                        <rect
+                          x={childX - 2} y={childY - 2}
+                          width={cw + 4} height={ch + 4}
+                          fill="none" stroke="#0d9488"
+                          strokeWidth={1.5} strokeDasharray="4 2"
+                          style={{ pointerEvents: "none" }}
+                        />
+                      )}
+                    </>
+                  );
+                })()}
+              </g>
+            );
+          })
         )}
       </g>
     );

@@ -8,6 +8,147 @@ and this project adheres to [CalVer](https://calver.org/) (`YYYY.MM[.patch]`).
 ## [Unreleased]
 
 ### Added
+- **Visual undo/redo history panel** (`store/index.ts`, `LeftPanel.tsx`) — `HistoryEntry { pages, label }` replaces `SynopticPage[][]` for the `past`/`future` stacks. `HISTORY_LIMIT` raised to 200. `pushHistory(label)` now stores a human-readable action label for each snapshot; all 17+ call sites updated with contextual labels (e.g. `"Aggiungi rect"`, `"Elimina selezione"`, `"Allinea (left)"`). New `jumpToPast(index)` and `jumpToFuture(index)` actions for direct jump to any history step. `undo()` and `redo()` preserve the label when moving entries between stacks. `HistorySection` in LeftPanel replaces `UndoRedoBar`: a scrollable chronological list showing "Stato iniziale", clickable past entries, a "▶ CORRENTE" marker row, and greyed/italic future entries (clickable for redo). Auto-scrolls to the current row on every history change. The ↶/↷ buttons remain at the bottom.
+
+- **User-defined object groups** (`types/index.ts`, `store/index.ts`, `LeftPanel.tsx`, `EditorShell.tsx`, `synoptic.rs`) — `ObjectGroup { id, name }` in types; `group_id?: string` on `SynopticObject`; `groups?: ObjectGroup[]` on `SynopticPage`. Store adds `groupObjects(ids, name?)`, `ungroupObjects(groupId)`, `renameGroup(groupId, name)`, `moveObjectToGroup(objId, groupId|null)`. `ObjectsSection` in LeftPanel rewritten with `buildTree()` that renders a hierarchical tree: collapsible 📁 folder rows (▶/▼ toggle) with member count, click on folder → multi-selects all members in canvas, double-click name → inline rename, ⊔ button to ungroup. A "+ Raggruppa selezionati (N)" button appears above the list whenever 2+ objects are selected. Groups auto-expand when a member is selected. `Ctrl+G` shortcut added (`EditorShell.tsx`) + entry in ShortcutHelp. Rust `synoptic.rs`: `locked` and `group_id` on `SynopticObject`, `groups` on `SynopticPage` — all persisted to YAML.
+
+- **Mouse position display** (`SvgCanvas.tsx`) — in edit mode, the bottom-left corner of the canvas shows `X:NNN Y:NNN` in SVG user-space coordinates, updated live on every `mousemove`.
+
+- **Zoom to fit** (`SvgCanvas.tsx`) — `Ctrl+Shift+0` and the `⊡` button in the top-right corner of the canvas compute the bounding box of all page objects and set zoom + pan to fit them in view with ~40 px of margin. Resets to 100% when the page is empty. (Ctrl+0 continues to reset to 100% without fitting.)
+
+- **Page reorder + duplicate** (`LeftPanel.tsx`, `store/index.ts`) — each page row in the LeftPanel now shows ↑/↓ buttons to move the page up or down in the list (visible only when applicable) and a ⧉ button to duplicate the page. Store: new `reorderPage(id, dir)` and `duplicatePage(id)` actions (both push undo history). The duplicate appears immediately after the original and becomes the active page.
+
+- **Object edge snapping** (`SvgCanvas.tsx`) — when dragging an object, the canvas scans all other objects' bounding boxes (left/center/right on X; top/middle/bottom on Y). If any edge on the dragged object (its own left, center, or right) falls within `8/zoom` px of another object's reference edge, it snaps to that edge. Object-edge snap takes priority over grid snap. Snap guide lines (cyan, 1 px) are shown along the active snap axis and cleared on `mouseup`. Works with all non-line object types.
+
+- **Keyboard shortcut help** (`EditorShell.tsx`) — pressing `?` anywhere (outside an input field) toggles a modal overlay listing all keyboard shortcuts, grouped by category: canvas navigation, selection, editing, z-order. Click outside or ×  to close.
+
+- **Object lock** (`SynopticObject.locked`, `SvgCanvas.tsx`, `EditorShell.tsx`, `LeftPanel.tsx`) — a new `locked?: boolean` field on every `SynopticObject`. When `true` in edit mode the object's `handleMouseDown` returns early — it cannot be clicked, selected, or dragged. A "Bloccato" checkbox (amber accent) appears in the LAYER section of the properties panel. A 🔒 emoji indicator appears in the LeftPanel object list next to the type tag.
+
+- **LeftPanel object filter** (`LeftPanel.tsx`) — a live text filter input above the objects list in the "OGGETTI PAGINA" section. Filters by `name`, `type`, and `id` (case-insensitive substring). The section title always shows the total count. An appropriate empty-state message is shown when the filter matches nothing.
+
+- **Canvas zoom + pan** (`SvgCanvas.tsx`) — full non-destructive zoom/pan for the edit canvas:
+  - `Ctrl + scroll wheel`: zoom in/out, centred on the cursor position.
+  - `Scroll wheel` (no modifier): vertical pan; `Shift + scroll`: horizontal pan.
+  - `Ctrl + 0`: reset to 100% zoom, origin pan.
+  - `Middle-click drag` (button 1): free-form pan.
+  - All canvas objects live inside `<g transform="translate(panX,panY) scale(zoom)">`. The grid background uses a 100 000 × 100 000 px rect to stay visible while panning.
+  - Resize handles and line endpoint handles are scaled by `1/zoom` so they stay pixel-constant on screen.
+  - Mouse → SVG user-space via `toSvg(screenX, screenY) = (x − panX) / zoom`; all drag/resize logic updated.
+  - A zoom percentage badge is shown in the bottom-right corner when zoom ≠ 100%.
+  - The wheel listener is attached via `useEffect` with `{ passive: false }` to allow `preventDefault`.
+
+- **Arrow key nudge** (`EditorShell.tsx`) — in edit mode with a single object selected, the arrow keys move it by 1 px (plain) or by `gridSize` px (`Shift + arrow`). Line objects also update `x2`/`y2` to keep their shape. The handler skips when focus is inside an `<input>` or `<textarea>`.
+
+- **Line endpoint drag handles** (`SvgCanvas.tsx`) — when a line is selected in edit mode, two circles (r=5, white/yellow border) appear at its two endpoints. Dragging p1 updates (x, y); dragging p2 updates (x2, y2). Snap-to-grid applies. `ResizeState.startObj` extended with optional `x2`/`y2` fields; `handleMouseMove` dispatches to the p1/p2 branch before the box-handle branch.
+
+- **Z-order reorder + Ctrl+A select-all** (`EditorShell.tsx`, `store/index.ts`):
+  - `ZOrderBar` component in the properties panel (4 buttons: ⬆⬆ primo piano / ↑ avanti / ↓ indietro / ⬇⬇ sfondo). Hidden when only 1 object on the page.
+  - Keyboard: `Ctrl+]` → forward, `Ctrl+Shift+]` → front, `Ctrl+[` → backward, `Ctrl+Shift+[` → back.
+  - `Ctrl+A` selects all objects on the current page.
+  - New store action `reorderObject(id, dir)` with `pushHistory`, splices the object in the `page.objects` array (render order = array order, last = on top).
+
+- **Visual resize handles** (`SvgCanvas.tsx`) — when a single non-line, non-grid, non-rotated object is selected in edit mode, 8 white/yellow squares (8 × 8 px) appear at the bounding-box corners and edge midpoints. Dragging a handle resizes the object in real time via `onMove`: corner handles change both dimensions and position; edge handles change only one dimension. Minimum enforced at 4 px; snap-to-grid applies. Implemented via a new `ResizeState` / `resizeRef` alongside the existing `DragState` — mutually exclusive, no changes in `EditorShell` or the store.
+
+- **Context-sensitive properties panel** (`EditorShell.tsx`) — the right-side panel now shows exactly one level of detail based on what is selected, instead of stacking all levels simultaneously:
+  - Grid selected (no cell) → `ObjectProps` for the grid object.
+  - Cell selected (no child sub-selected) → `GridCellEditor` for the cell; if a child exists a labelled chip shows its type/name plus ✂ Taglia / ✕ Rimuovi buttons and a hint "clicca nel canvas per modificarne le proprietà".
+  - Child sub-selected → `ObjectProps` for the child directly, headed by a `PanelBreadcrumb` showing `griglia › R,C › tipo`.
+  - `PanelBreadcrumb`: lightweight inline component (›-separated parts, last part highlighted).
+  - `GridCellEditor`: removed the embedded `ObjectProps` and the now-unused `pages` prop.
+
+- **Grid child mouse selection** (`SvgCanvas.tsx`, `store/index.ts`, `EditorShell.tsx`):
+  - First click on a grid object selects the cell (yellow dashed highlight, as before).
+  - Second click on the embedded child object — when its cell is already selected — sub-selects the child with a teal dashed highlight (`stroke="#0d9488"`).
+  - Implemented with a transparent overlay `<rect>` that is only rendered when `isCellSel` is true, so the first click always falls through to the cell hit area.
+  - `selectedCell` / `selectedCellChild` migrated from local `useState` in `EditorShell` to the Zustand store. Both fields are cleared in `selectObject`, `clearSelection`, `setCurrentPage`, `undo`, and `redo`. `setSelectedCell` resets `selectedCellChild` whenever the cell identity changes.
+  - Keyboard handler (Ctrl+X / Ctrl+V) updated to `useAppStore.getState().selectedCell` (no stale-closure risk, no need for the old `useRef` / `useEffect` pattern).
+  - `SvgCanvasProps` and `ObjProps` extended with `selectedCellChild?` / `onSelectCellChild?`; threaded through `SvgObject`.
+
+- **LeftPanel collapsible object tree** (`LeftPanel.tsx`):
+  - Each grid object row now shows a `▶/▼` expand toggle (only if the grid has cells with children).
+  - Clicking the toggle reveals indented sub-rows, one per cell that has a child object. Each sub-row shows the child's type tag, name, and cell coordinates (R,C).
+  - Clicking a sub-row simultaneously selects the parent grid, the cell, and the child (canvas teal highlight + panel `GridCellEditor`).
+  - Selecting a child via the canvas auto-expands the grid branch in the tree (a `useEffect` on `selectedCellChild?.objectId` adds the parent id to `expandedGrids`).
+  - Selection highlight: teal text `#5eead4` + dark teal background `#0f2922` when the sub-row matches the active `selectedCellChild`.
+
+- **Multi-selection common properties panel** (`EditorShell.tsx`, `store/index.ts`) — when 2+ objects are selected the right panel now shows editable properties instead of only alignment/distribution tools:
+  - Same type (e.g. 5 gauges): full `ObjectProps` panel pre-filled with identical values; mixed values show empty + placeholder "(vari)". Any edit applies to all selected objects.
+  - Mixed types (e.g. rect + button): `CrossTypeProps` panel with universal sections: POSIZIONE, ASPETTO, TRASFORMAZIONE, VISIBILITÀ, TAG, QUALITÀ, EVENTI.
+  - Undo (Ctrl-Z) restores all objects at once via a single `pushHistory` call in the new `updateObjects` store action.
+
+- **Design-reference borders** (`SvgCanvas.tsx`) — in edit mode every object and every grid cell gets a dashed editorial bounding-box overlay (`stroke="#475569"`, `strokeDasharray="4 3"`, `opacity=0.5`, `pointerEvents="none"`). For grid cells the border turns yellow when the cell is selected. These borders are purely editorial — never rendered at runtime.
+
+- **Full child `ObjectProps` in `GridCellEditor`** (`EditorShell.tsx`) — the editing panel for a grid cell child now embeds the complete `<ObjectProps>` component (same as for page-level objects) instead of the previous minimal set. Added `CELL_CHILD_TYPES`, `makeDefaultChild()`, a type dropdown, and an "Aggiungi" button for inserting a new child. The `pages` prop is threaded through `GridCellEditor` for navbutton target selection.
+
+- **Project management from WelcomeScreen** — each project card now shows three icon buttons (✎ rename, ⧉ duplicate, ✕ delete):
+  - **Rename**: click ✎ to replace the project name with an inline `<input>`; Enter/Esc/blur confirms or cancels. Backend: `POST /api/projects/:name/rename` (`{ new_name }`) in `sws-web/src/projects.rs`; updates the active project dir pointer if the project was open.
+  - **Duplicate**: click ⧉ to reveal a "Nome copia:" row below the card with a text input and ✓/✗ buttons. Backend: `POST /api/projects/:name/duplicate` uses `copy_dir_all` into a new folder; 409 on conflict.
+  - **Delete**: click ✕ for `window.confirm`; backend `DELETE /api/projects/:name` returns 409 if the project is currently open. Directory is removed on success.
+  - New `axum::routing::delete` import in `router.rs`; all three routes added to the pre-auth `project_lifecycle` layer. New `deleteProject / renameProject / duplicateProject` methods in `api/client.ts`.
+
+- **Quality dot — per-object visibility toggle and custom colours** — `SynopticObject` gains four optional fields:
+  - `quality_dot?: boolean` — when `false` the quality-state circle is not rendered (useful for decorative objects or wherever the dot would overlap the widget content). Default: `true` (unchanged behaviour).
+  - `quality_dot_good_color?`, `quality_dot_bad_color?`, `quality_dot_uncertain_color?` — override the global defaults (`#22c55e` / `#ef4444` / `#eab308`) per object.
+  - `SvgCanvas.tsx`: `qualityColor()` updated to accept optional overrides; `QDot` component extended with three optional colour props; all five render sites (rect/ellipse/text/progress_bar/gauge) now guard with `obj.quality_dot !== false` and pass the colour props.
+  - `EditorShell.tsx`: new "INDICATORE QUALITÀ" panel section (shown only when `obj.tag` is set) with a checkbox for visibility and three `<input type="color">` pickers that appear when the checkbox is on. Empty value → placeholder shows global default.
+  - `synoptic.rs` (Rust): four new `Option<…>` fields with `skip_serializing_if = "Option::is_none"` for lossless YAML round-trip.
+
+- **Template "Casa Locale" — bug fixes**:
+  - DDS661 "Rack Piano Superiore" topic slug corrected from `contatore-rack-piano-superiore` to `contatore-rack-pianosuperiore` (4 topic references in `project.yaml`). The slug was mismatched with the actual device name published by the dds661 tool.
+  - Navigation home button ("⌂") moved from `x=340 w=130` to `x=155 w=55` on pages 3, 4, 5 — it was overlapping the centred page title text.
+
+- **Symbol library v2** — visual gallery replaces plain dropdown; 5 new builtin symbols; 7 vendored symbols registered:
+  - `SymbolGallery` component: 4-column CSS grid, `maxHeight: 260px` scrollable, each tile shows a 44×38 mini-preview (inline SVG for builtins, `<img>` for vendored/custom), blue border on selection, 8 px label below. Replaces `SymbolSelect` (`<select>`) throughout the ObjectProps panel.
+  - New builtin symbols (hand-rolled JSX, 100×100 viewBox): `heat_pump` (hot/cold coil sections + compressor), `temperature_sensor` (stub + circular body + TT tag bubble), `boiler` (steam outlet + vessel + flame), `agitator` (vessel + side motor + shaft + cross impeller; CSS `animation: spin 1s linear infinite` when state=on), `cooling_tower` (trapezoid + fan disk + packing lines + water drops).
+  - New vendored entries from existing `public/symbols/` SVGs: `solar_panel`, `battery`, `transmission_tower`, `home_lightning`, `garage`, `window_open`, `roller_shade`.
+  - `SYMBOL_LIST = Object.values(SYMBOLS)` exported from `library.tsx` — SymbolGallery imports it instead of maintaining its own list.
+  - Total library: 22 symbols (15 builtin + 7 vendored); custom project symbols still appear after library entries.
+
+- **MQTT broker browsing** — "Sfoglia broker" button in each MQTT source card opens a modal that connects ephemerally to the broker, subscribes to `#` for a configurable duration (2–15 s, default 8 s), and lists all observed topics. Each row shows the topic name, a truncated payload preview, and a JSON path dropdown (auto-populated from top-level keys if the payload is valid JSON). Selected topics can be imported as new mapping rows in one click. Backend: new `pub async fn browse()` in `sws-plugin-mqtt` + `POST /api/sources/mqtt/browse` endpoint (Operator+) in `sws-web`. Masked passwords are resolved from the saved project when a `source_id` is provided.
+- **Quick-create variable in protocol config** — a "＋" button next to every tag field in MQTT topic mappings and Modbus register mappings opens a `QuickCreateTagModal` (ID, description, type). Created tags are accumulated as `pendingTags` in `ProtocolsTab` and saved (merged with existing tags) on the next "Salva" click. A banner lists pending-tag IDs before save.
+- **Responsive layout in Configurazione** — `ConfigView` body no longer caps at `maxWidth: 900`. The entire tab (including protocol cards and topic/register tables) uses the full available width. The "Topic in (subscribe)" column is widened from 26% to 32%; QoS column narrowed to 6% to compensate.
+
+- **Template "Casa Locale"** (`examples/templates/casa-locale/`) — second SWS template: a 5-page home control console for a local MQTT broker. Pages: Panoramica (energy flow + security overview), Impianto Solare (PV gauges + battery SOC + grid exchange), Contatori Energia (3 DDS661 energy meters with gauges and measurement tables), Sicurezza (12 Zigbee door/window sensors + 3 perimeter PIRs + lux), Domotica (4 Shelly roller shutter controllers + heat pump monitoring + ESPHome placeholders). 50+ tags, 4 MQTT sources (Zigbee2MQTT, dds661, Solarman HA bridge, Shelly), 6 alarms. `SETUP.md` includes the HA automation YAML for the Solarman→MQTT bridge. `CREDITS.md` lists all data sources.
+- **8 new SVG icons** (`sws-editor/public/symbols/`) — Material Design Icons (Apache 2.0 / Pictogrammers): `solar-panel.svg`, `solar-power-variant.svg`, `battery-charging-high.svg`, `transmission-tower.svg`, `home-lightning-bolt.svg`, `garage-open-variant.svg`, `window-open-variant.svg`, `roller-shade.svg`. All pre-colored for dark-background dashboards. `ATTRIBUTION.md` updated.
+
+- **Page dimensions** — `SynopticPage` gains optional `width` and `height` fields. When set, the editor canvas renders a dashed blue boundary rect at `(0,0,width,height)` in SVG space. The `PageProps` right-panel now exposes two number inputs (Larghezza/Altezza) with empty = fluid. Both fields are persisted in YAML via the Rust `SynopticPage` mirror.
+
+- **Grid layout object** (type `"grid"`, Session 1) — A new object type for designing tabular layouts:
+  - Configurable rows/columns (`grid_rows`, `grid_cols`), optional per-column widths and per-row heights.
+  - Per-cell properties: `bg_color`, `bg_image` (URL), static `visible`, tag-driven `visible_tag`, `on_press_fn` / `on_release_fn` Python hook bindings, `rowspan` / `colspan` for cell merging.
+  - `grid_show_borders` (default true) — when false the grid is invisible at runtime (no borders/background) while children remain visible. Useful as a layout-only container.
+  - Two-level hit-testing in the canvas: clicking anywhere on the grid selects it; clicking inside a cell selects both the grid and the cell, revealing a `GridCellEditor` section in the right-side properties panel.
+  - `GridCellEditor` panel: bg color, bg image URL, visibility (static + tag), on_press/on_release function pickers, rowspan/colspan.
+  - Object palette button: "+ Griglia" in LeftPanel.
+  - `store/index.ts`: `updateGridCell(pageId, objectId, cell)` upserts a cell by `{row, col}` in `grid_cells`; `updatePageProps` extended to include `width`/`height`.
+  - Rust `synoptic.rs` mirrors all new fields (`grid_rows`, `grid_cols`, `col_widths`, `row_heights`, `grid_cells`, `grid_show_borders`, `grid_border_color`) as `Option<Value>` for round-trip YAML persistence.
+  - Session 2: `GridCell.child?: SynopticObject` — an inline object rendered centered in its cell. In edit mode the child is non-interactive (`pointerEvents: none`); in runtime mode it is fully interactive (tag writes, script calls, navigation). Cut/paste workflow: Ctrl+X on a selected cell with a child cuts the child to the clipboard; Ctrl+V when a cell is selected pastes the first clipboard item as the cell child. Both operations also work in reverse (Ctrl+X page object → Ctrl+V into cell, and vice versa). `GridCellEditor` displays child type + a "Rimuovi" button and a paste hint when no child is present. New store action `setClipboard(objs)` to set the clipboard directly without going through a selection.
+
+- **Script output toast** (`RuntimeView`) — when an `on_press_fn` / `on_release_fn` produces stdout, stderr, or fails (including timeout), a card toast appears bottom-right over the canvas. Auto-closes after 5 s (success) or 10 s (error). Manual × dismiss. Stacks up to 4 cards. stdout in white, stderr in amber, errors in red. Silent success (no output) generates no toast.
+
+- **Script preemption** (`sws-pyscript`) — Python infinite loops are now interrupted at runtime:
+  - New `KillSwitch` PyO3 class (`is_set()` → `AtomicBool::load`) injected as `__sws_kill_switch__` into every script run.
+  - `sys.settrace` installs a per-bytecode-boundary trace function that calls `is_set()`. Cost: one atomic load per Python call/line/return event.
+  - A `std::thread::spawn` timer thread flips the switch after `SWS_SCRIPT_TIMEOUT_MS`.
+  - On detection, `KeyboardInterrupt` is raised; the inner `except KeyboardInterrupt` clause in the harness turns it into a clean `TimeoutError: script exceeded the configured timeout` error string.
+  - `sys.settrace(None)` in a `finally` block ensures the trace is always cleared on exit, leaving the `spawn_blocking` pool thread in a sane state.
+  - Limitation: blocking C extensions (`time.sleep`, network I/O in C code) are not preempted by the trace. The existing Tokio-level `timeout` remains as the hard backstop for those cases.
+
+- **`RuntimeUnavailableError`** (`api/client.ts`) — distinguishes "runtime not running" from "wrong password":
+  - `request()` now wraps `fetch()` in a try/catch; a network error (`TypeError: Failed to fetch`) or a 502/504 gateway response throws `RuntimeUnavailableError` instead of propagating raw.
+  - `LoginScreen` shows "Runtime non raggiungibile. Avvia ./scripts/dev.sh e riprova." instead of "Credenziali non valide." when the runtime is unreachable.
+  - `ReAuthModal` shows "Runtime non raggiungibile." for the same case.
+
+- **Re-auth modal** — when the Bearer token expires mid-session a modal overlay "Sessione scaduta" appears over the editor instead of redirecting to the full login screen. The user re-enters only their password (username pre-filled from the store). On success the new token is stored and the editor state is preserved. On dismiss the session is cleared and the normal LoginScreen is shown.
+  - `api/client.ts`: fires `sws:session-expired` CustomEvent when a request returns 401 and a token was present.
+  - `store/index.ts`: new `reAuthNeeded: boolean` flag and `setReAuthNeeded()` action.
+  - `App.tsx`: listens for the event and sets `reAuthNeeded`; renders `<ReAuthModal>` overlay.
+  - New `components/ReAuthModal.tsx`.
+
+- **Alarm webhook notifications** — `AlarmDef` gains `notify_url?: string`. When an alarm transitions to ACTIVE and `notify_url` is set, a best-effort HTTP POST is fired within 5 s (reqwest 0.12, rustls-tls). Payload: `{id, message, severity, tag, ts_ms, value}`. Errors are logged as warnings (never fatal). UI: `ConfigView` shows a URL input below the message field in the alarm table row.
+  - `reqwest 0.12` added to workspace and `sws-runtime` Cargo.toml (rustls-tls + json features).
+  - Alarm webhook dispatcher task spawned in `sws-runtime/main.rs` (subscribes to `AlarmDb.subscribe()` broadcast).
+
 - **Log file v2** — historical log browser in the log panel:
   - `GET /api/logs/files` (Operator+): lists `runtime-YYYY-MM-DD.jsonl` files in `logs_dir` sorted newest-first with `size_bytes`.
   - `GET /api/logs/file?date=YYYY-MM-DD` (Operator+): reads a historical JSONL file and returns `Vec<LogEvent>`.

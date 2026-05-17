@@ -279,6 +279,116 @@ pub async fn close_project(State(s): State<AppState>) -> Response {
     StatusCode::NO_CONTENT.into_response()
 }
 
+// ── Delete / Rename / Duplicate ───────────────────────────────────────────────
+
+#[derive(Deserialize)]
+pub struct RenameRequest {
+    pub new_name: String,
+}
+
+/// `DELETE /api/projects/:name` — permanently remove a project folder.
+/// Returns 409 if the project is currently open.
+pub async fn delete_project(
+    State(s): State<AppState>,
+    Path(name): Path<String>,
+) -> Response {
+    let safe_name = match safe_project_name(&name) {
+        Ok(n) => n,
+        Err(msg) => return (StatusCode::BAD_REQUEST, msg).into_response(),
+    };
+    let target = s.projects_root.join(&safe_name);
+    if !tokio::fs::try_exists(&target).await.unwrap_or(false) {
+        return StatusCode::NOT_FOUND.into_response();
+    }
+    // Reject if the project is currently open.
+    if let Ok(active) = active_dir(&s).await {
+        if active == target {
+            return (StatusCode::CONFLICT, "project is currently open — close it first")
+                .into_response();
+        }
+    }
+    if let Err(e) = tokio::fs::remove_dir_all(&target).await {
+        warn!("delete_project: remove {}: {e}", target.display());
+        return (StatusCode::INTERNAL_SERVER_ERROR, "cannot delete project dir").into_response();
+    }
+    info!(name = %safe_name, "project deleted");
+    StatusCode::NO_CONTENT.into_response()
+}
+
+/// `POST /api/projects/:name/rename` — rename a project folder.
+/// Body: `{ "new_name": "..." }`.
+/// If the project is currently open, updates the active project_dir pointer.
+pub async fn rename_project(
+    State(s): State<AppState>,
+    Path(name): Path<String>,
+    Json(req): Json<RenameRequest>,
+) -> Response {
+    let old_name = match safe_project_name(&name) {
+        Ok(n) => n,
+        Err(msg) => return (StatusCode::BAD_REQUEST, msg).into_response(),
+    };
+    let new_name = match safe_project_name(&req.new_name) {
+        Ok(n) => n,
+        Err(msg) => return (StatusCode::BAD_REQUEST, msg).into_response(),
+    };
+    if old_name == new_name {
+        return (StatusCode::BAD_REQUEST, "new name is the same as the current name").into_response();
+    }
+    let old_dir = s.projects_root.join(&old_name);
+    let new_dir = s.projects_root.join(&new_name);
+    if !tokio::fs::try_exists(&old_dir).await.unwrap_or(false) {
+        return StatusCode::NOT_FOUND.into_response();
+    }
+    if tokio::fs::try_exists(&new_dir).await.unwrap_or(false) {
+        return (StatusCode::CONFLICT, "a project with the new name already exists").into_response();
+    }
+    if let Err(e) = tokio::fs::rename(&old_dir, &new_dir).await {
+        warn!("rename_project: rename {old_name} → {new_name}: {e}");
+        return (StatusCode::INTERNAL_SERVER_ERROR, "cannot rename project dir").into_response();
+    }
+    // If the renamed project was open, update the active pointer.
+    {
+        let mut lock = s.project_dir.write().await;
+        if lock.as_deref() == Some(old_dir.as_path()) {
+            *lock = Some(new_dir.clone());
+        }
+    }
+    info!(old = %old_name, new = %new_name, "project renamed");
+    Json(serde_json::json!({ "name": new_name })).into_response()
+}
+
+/// `POST /api/projects/:name/duplicate` — copy a project to a new folder.
+/// Body: `{ "new_name": "..." }`.
+pub async fn duplicate_project(
+    State(s): State<AppState>,
+    Path(name): Path<String>,
+    Json(req): Json<RenameRequest>,
+) -> Response {
+    let src_name = match safe_project_name(&name) {
+        Ok(n) => n,
+        Err(msg) => return (StatusCode::BAD_REQUEST, msg).into_response(),
+    };
+    let dst_name = match safe_project_name(&req.new_name) {
+        Ok(n) => n,
+        Err(msg) => return (StatusCode::BAD_REQUEST, msg).into_response(),
+    };
+    let src_dir = s.projects_root.join(&src_name);
+    let dst_dir = s.projects_root.join(&dst_name);
+    if !tokio::fs::try_exists(&src_dir).await.unwrap_or(false) {
+        return StatusCode::NOT_FOUND.into_response();
+    }
+    if tokio::fs::try_exists(&dst_dir).await.unwrap_or(false) {
+        return (StatusCode::CONFLICT, "a project with the new name already exists").into_response();
+    }
+    if let Err(e) = copy_dir_all(&src_dir, &dst_dir, &[]).await {
+        warn!("duplicate_project: copy {src_name} → {dst_name}: {e}");
+        let _ = tokio::fs::remove_dir_all(&dst_dir).await;
+        return (StatusCode::INTERNAL_SERVER_ERROR, "copy failed").into_response();
+    }
+    info!(src = %src_name, dst = %dst_name, "project duplicated");
+    (StatusCode::CREATED, Json(serde_json::json!({ "name": dst_name }))).into_response()
+}
+
 // ── Upload from ZIP ───────────────────────────────────────────────────────────
 
 #[derive(Deserialize, Default)]

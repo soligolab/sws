@@ -5,6 +5,8 @@ import type {
   FunctionDef,
   LogEvent,
   LogFileEntry,
+  MqttBrowseRequest,
+  MqttBrowseResponse,
   ProjectInfo,
   ProjectListEntry,
   Sample,
@@ -26,6 +28,13 @@ export function getAuthToken(): string | null { return TOKEN; }
 
 export class AuthError extends Error {
   constructor() { super("unauthorized"); this.name = "AuthError"; }
+}
+
+/** The runtime is not reachable (network error, or proxy returned 502/504).
+ *  Distinct from AuthError so the UI can show "start the runtime" rather than
+ *  "wrong password". */
+export class RuntimeUnavailableError extends Error {
+  constructor() { super("runtime unavailable"); this.name = "RuntimeUnavailableError"; }
 }
 
 /** Server signals an authenticated user must change their password before
@@ -68,10 +77,21 @@ export interface UpdateUserBody {
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const headers = new Headers(init?.headers);
   if (TOKEN) headers.set("Authorization", `Bearer ${TOKEN}`);
-  const res = await fetch(`${BASE_URL}${path}`, { ...init, headers });
+  let res: Response;
+  try {
+    res = await fetch(`${BASE_URL}${path}`, { ...init, headers });
+  } catch {
+    // Network error (ECONNREFUSED, DNS failure, …) — runtime is not reachable.
+    throw new RuntimeUnavailableError();
+  }
+  if (res.status === 502 || res.status === 504) {
+    // Vite proxy / reverse proxy couldn't reach the upstream runtime.
+    throw new RuntimeUnavailableError();
+  }
   if (res.status === 401) {
-    // Surface as a typed error so the UI can drop the stored token and
-    // bounce back to the login screen without showing a generic 401 toast.
+    // If we had a token, the session expired mid-use — signal the UI to show
+    // a re-auth overlay rather than fully clearing and redirecting.
+    if (TOKEN) window.dispatchEvent(new CustomEvent("sws:session-expired"));
     throw new AuthError();
   }
   if (res.status === 503) {
@@ -320,12 +340,37 @@ export const api = {
   closeProject: () =>
     request<void>("/api/projects/close", { method: "POST" }),
 
+  deleteProject: (name: string) =>
+    request<void>(`/api/projects/${encodeURIComponent(name)}`, { method: "DELETE" }),
+
+  renameProject: (name: string, newName: string) =>
+    request<{ name: string }>(`/api/projects/${encodeURIComponent(name)}/rename`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ new_name: newName }),
+    }),
+
+  duplicateProject: (name: string, newName: string) =>
+    request<{ name: string }>(`/api/projects/${encodeURIComponent(name)}/duplicate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ new_name: newName }),
+    }),
+
   // Template gallery (pre-auth)
   listTemplates: () =>
     request<TemplateEntry[]>("/api/templates"),
 
   // Upload a project ZIP to create a new project (pre-auth).
   // `name` is optional — falls back to the name in manifest.json inside the ZIP.
+  // MQTT broker browse: connect ephemerally, subscribe #, return discovered topics.
+  browseMqttTopics: (req: MqttBrowseRequest): Promise<MqttBrowseResponse> =>
+    request<MqttBrowseResponse>("/api/sources/mqtt/browse", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(req),
+    }),
+
   uploadProjectZip: async (file: Blob, name?: string): Promise<{ name: string }> => {
     const url = name
       ? `${BASE_URL}/api/projects/upload?name=${encodeURIComponent(name)}`

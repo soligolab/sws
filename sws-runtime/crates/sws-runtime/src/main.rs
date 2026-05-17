@@ -64,6 +64,14 @@ struct Args {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    // Rustls 0.23 panics if multiple crypto providers end up in the dep graph
+    // (e.g., `ring` via rcgen + `aws-lc-rs` via hyper-rustls/reqwest) without
+    // an explicit call here.  `.ok()` silently accepts "already installed" in
+    // case any upstream crate calls this first.
+    rustls::crypto::ring::default_provider()
+        .install_default()
+        .ok();
+
     let args = Args::parse();
 
     // LogBus is built first so the tracing subscriber can hold an Arc clone.
@@ -225,6 +233,48 @@ async fn main() -> anyhow::Result<()> {
                     Ok(update) => adb.evaluate(&update.id, &update.state).await,
                     Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
                         warn!("alarm evaluator lagged by {n}");
+                    }
+                    Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
+                }
+            }
+        });
+    }
+
+    // Alarm webhook dispatcher: subscribe to the alarm broadcast; for every
+    // transition to ACTIVE fire an HTTP POST to `notify_url` (best-effort).
+    {
+        let mut alarm_rx = alarm_db.subscribe();
+        let http = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(5))
+            .build()
+            .unwrap_or_default();
+        tokio::spawn(async move {
+            loop {
+                match alarm_rx.recv().await {
+                    Ok(state) => {
+                        // Only notify on fresh activation (not ack or recovery).
+                        if !state.active { continue; }
+                        let Some(url) = &state.def.notify_url else { continue };
+                        if url.trim().is_empty() { continue; }
+                        let payload = serde_json::json!({
+                            "id":       state.def.id,
+                            "message":  state.def.message,
+                            "severity": format!("{:?}", state.def.severity),
+                            "tag":      state.def.tag,
+                            "ts_ms":    state.activated_at_ms,
+                            "value":    state.last_value,
+                        });
+                        let url = url.clone();
+                        let client = http.clone();
+                        tokio::spawn(async move {
+                            match client.post(&url).json(&payload).send().await {
+                                Ok(r)  => info!(alarm = %payload["id"], status = r.status().as_u16(), "alarm webhook sent"),
+                                Err(e) => warn!(alarm = %payload["id"], url, "alarm webhook failed: {e}"),
+                            }
+                        });
+                    }
+                    Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
+                        warn!("alarm webhook dispatcher lagged by {n}");
                     }
                     Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
                 }

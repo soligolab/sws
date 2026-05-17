@@ -1,0 +1,326 @@
+id: cl_page3
+name: "Contatori"
+background: "#0f172a"
+objects:
+
+# ══════════════════════════════════════════════════════════════════
+# HEADER + NAV
+# ══════════════════════════════════════════════════════════════════
+- id: cl3_title
+  type: text
+  x: 400
+  y: 22
+  text: "⚡  CONTATORI ENERGIA"
+  font_size: 20
+  font_weight: bold
+  text_anchor: middle
+  color: "#fbbf24"
+
+- id: cl3_nav_back
+  type: navbutton
+  x: 20
+  y: 14
+  width: 130
+  height: 30
+  label: "◀ Solare"
+  target_page: cl_page2
+
+- id: cl3_nav_next
+  type: navbutton
+  x: 660
+  y: 14
+  width: 130
+  height: 30
+  label: "Sicurezza ▶"
+  target_page: cl_page4
+
+- id: cl3_nav_home
+  type: navbutton
+  x: 155
+  y: 14
+  width: 55
+  height: 30
+  label: "⌂"
+  target_page: cl_page1
+
+# Potenza totale
+- id: cl3_tot_lbl
+  type: text
+  x: 400
+  y: 46
+  text: "Totale monitorato:"
+  font_size: 10
+  text_anchor: middle
+  color: "#475569"
+
+# Nota: totale non è un tag direto, mostriamo i singoli
+# ── Nota fonte dati ──────────────────────────────────────────────
+- id: cl3_source_note
+  type: text
+  x: 400
+  y: 58
+  text: "Sorgente: dds661/<slug>/state — verificare topic in project.yaml"
+  font_size: 9
+  text_anchor: middle
+  color: "#334155"
+
+# ══════════════════════════════════════════════════════════════════
+# CARD 1 — RACK GARAGE
+# ══════════════════════════════════════════════════════════════════
+- id: cl3_rg_card
+  type: rect
+  x: 20
+  y: 70
+  width: 240
+  height: 360
+  fill: "#1e293b"
+  stroke: "#f59e0b"
+  stroke_width: 2
+
+- id: cl3_rg_title
+  type: text
+  x: 140
+  y: 92
+  text: "RACK GARAGE"
+  font_size: 14
+  font_weight: bold
+  text_anchor: middle
+  color: "#f59e0b"
+
+- id: cl3_rg_led
+  type: led
+  x: 234
+  y: 78
+  width: 16
+  height: 16
+  tag: rack_garage.power
+  on_value: 1
+  on_color: "#f59e0b"
+  off_color: "#374151"
+
+# Gauge potenza
+- id: cl3_rg_gauge
+  type: gauge
+  x: 30
+  y: 100
+  width: 220
+  height: 170
+  tag: rack_garage.power
+  min: 0
+  max: 3000
+  unit: "W"
+  label: "Potenza"
+  warn_high: 2000
+  alarm_high: 2800
+
+# Tabella misure
+- id: cl3_rg_table
+  type: table
+  x: 28
+  y: 278
+  width: 224
+  height: 140
+  label: "Misure"
+  table_rows:
+    - label: "Tensione"
+      tag: rack_garage.voltage
+      format: "{value:.1f} V"
+    - label: "Corrente"
+      tag: rack_garage.current
+      format: "{value:.3f} A"
+    - label: "Power Factor"
+      tag: rack_garage.pf
+      format: "{value:.2f}"
+    - label: "Energia tot."
+      tag: rack_garage.energy
+      format: "{value:.1f} kWh"
+    - label: "Import"
+      tag: rack_garage.import
+      format: "{value:.2f} kWh"
+
+# ══════════════════════════════════════════════════════════════════
+# CARD 2 — RACK PIANO SUPERIORE
+# ══════════════════════════════════════════════════════════════════
+- id: cl3_rp_card
+  type: rect
+  x: 280
+  y: 70
+  width: 240
+  height: 360
+  fill: "#1e293b"
+  stroke: "#06b6d4"
+  stroke_width: 2
+
+- id: cl3_rp_title
+  type: text
+  x: 400
+  y: 92
+  text: "RACK PIANO SUP."
+  font_size: 14
+  font_weight: bold
+  text_anchor: middle
+  color: "#06b6d4"
+
+- id: cl3_rp_led
+  type: led
+  x: 494
+  y: 78
+  width: 16
+  height: 16
+  tag: rack_piano.power
+  on_value: 1
+  on_color: "#06b6d4"
+  off_color: "#374151"
+
+# Gauge potenza
+- id: cl3_rp_gauge
+  type: gauge
+  x: 290
+  y: 100
+  width: 220
+  height: 170
+  tag: rack_piano.power
+  min: 0
+  max: 3000
+  unit: "W"
+  label: "Potenza"
+  warn_high: 2000
+  alarm_high: 2800
+
+# Tabella misure
+- id: cl3_rp_table
+  type: table
+  x: 288
+  y: 278
+  width: 224
+  height: 140
+  label: "Misure"
+  table_rows:
+    - label: "Tensione"
+      tag: rack_piano.voltage
+      format: "{value:.1f} V"
+    - label: "Corrente"
+      tag: rack_piano.current
+      format: "{value:.3f} A"
+    - label: "Energia tot."
+      tag: rack_piano.energy
+      format: "{value:.1f} kWh"
+
+# ══════════════════════════════════════════════════════════════════
+# CARD 3 — POMPA DI CALORE
+# ══════════════════════════════════════════════════════════════════
+- id: cl3_pdc_card
+  type: rect
+  x: 540
+  y: 70
+  width: 250
+  height: 360
+  fill: "#1e293b"
+  stroke: "#a855f7"
+  stroke_width: 2
+
+- id: cl3_pdc_title
+  type: text
+  x: 665
+  y: 92
+  text: "POMPA DI CALORE"
+  font_size: 14
+  font_weight: bold
+  text_anchor: middle
+  color: "#a855f7"
+
+- id: cl3_pdc_led
+  type: led
+  x: 762
+  y: 78
+  width: 16
+  height: 16
+  tag: pdc.power
+  on_value: 10
+  on_color: "#a855f7"
+  off_color: "#374151"
+
+# Gauge potenza
+- id: cl3_pdc_gauge
+  type: gauge
+  x: 548
+  y: 100
+  width: 234
+  height: 170
+  tag: pdc.power
+  min: 0
+  max: 3500
+  unit: "W"
+  label: "Potenza"
+  warn_high: 2500
+  alarm_high: 3200
+
+# Tabella misure
+- id: cl3_pdc_table
+  type: table
+  x: 548
+  y: 278
+  width: 234
+  height: 140
+  label: "Misure"
+  table_rows:
+    - label: "Tensione"
+      tag: pdc.voltage
+      format: "{value:.1f} V"
+    - label: "Corrente"
+      tag: pdc.current
+      format: "{value:.3f} A"
+    - label: "Power Factor"
+      tag: pdc.pf
+      format: "{value:.2f}"
+    - label: "Energia tot."
+      tag: pdc.energy
+      format: "{value:.2f} kWh"
+
+# ══════════════════════════════════════════════════════════════════
+# TREND E INFORMAZIONI
+# ══════════════════════════════════════════════════════════════════
+
+- id: cl3_trend_lbl
+  type: text
+  x: 20
+  y: 452
+  text: "Trend Potenze (ultima ora)"
+  font_size: 11
+  font_weight: bold
+  color: "#64748b"
+
+- id: cl3_trend_rg
+  type: trend
+  x: 20
+  y: 462
+  width: 740
+  height: 110
+  tag: rack_garage.power
+  window_s: 3600
+  line_color: "#f59e0b"
+
+- id: cl3_legend_rg
+  type: text
+  x: 25
+  y: 582
+  text: "— Rack Garage (W)"
+  font_size: 9
+  color: "#f59e0b"
+
+- id: cl3_legend_pdc
+  type: text
+  x: 160
+  y: 582
+  text: "— Pompa Calore (W)"
+  font_size: 9
+  color: "#a855f7"
+
+- id: cl3_footer
+  type: text
+  x: 400
+  y: 600
+  text: "Topic: dds661/contatore-rack-garage/state · dds661/contatore-rack-pianosuperiore/state · dds661/pompa-di-calore/state"
+  font_size: 9
+  text_anchor: middle
+  color: "#1e293b"

@@ -25,7 +25,9 @@ export type SynopticObjectType =
   | "table"
   | "trend"
   // SCADA symbols (pump/valve/motor/tank/fan from the built-in library)
-  | "symbol";
+  | "symbol"
+  // Layout
+  | "grid";
 
 /** Identifier of a SCADA symbol — either a hand-rolled JSX builtin or a
  *  vendored SVG file. The library at `@/symbols/library` maps ids to metadata
@@ -35,6 +37,24 @@ export type SymbolId = string;
 /** Source category for a SymbolMeta entry. Builtin = JSX in library.tsx,
  *  vendored = SVG file under `public/symbols/`. */
 export type SymbolKind = "builtin" | "vendored";
+
+/** One cell in a grid layout object. */
+export interface GridCell {
+  row: number;
+  col: number;
+  rowspan?: number;
+  colspan?: number;
+  bg_color?: string;
+  bg_image?: string;
+  /** Static visibility flag (default true). */
+  visible?: boolean;
+  /** Tag id whose truthy value controls visibility. */
+  visible_tag?: string;
+  on_press_fn?: string;
+  on_release_fn?: string;
+  /** Inline child object rendered centered in this cell. */
+  child?: SynopticObject;
+}
 
 /** One option in a radio-group. */
 export interface RadioOption {
@@ -159,6 +179,30 @@ export interface SynopticObject {
   /** Generic prop-to-tag bindings. At render time the resolver overrides the
    *  static value with the live tag value. Keys are SynopticObject prop names. */
   bindings?: Record<string, string>;
+  // ── Quality dot ───────────────────────────────────────────────────────────
+  /** Show the quality-state dot overlay on tagged objects (default true). */
+  quality_dot?: boolean;
+  /** Override dot colour for the Good quality state (default #22c55e). */
+  quality_dot_good_color?: string;
+  /** Override dot colour for the Bad quality state (default #ef4444). */
+  quality_dot_bad_color?: string;
+  /** Override dot colour for the Uncertain quality state (default #eab308). */
+  quality_dot_uncertain_color?: string;
+  // ── Grid layout object (type === "grid") ──────────────────────────────
+  grid_rows?: number;
+  grid_cols?: number;
+  /** Per-column widths in px. If shorter than grid_cols, remaining columns share the leftover equally. */
+  col_widths?: number[];
+  /** Per-row heights in px. If shorter than grid_rows, remaining rows share the leftover equally. */
+  row_heights?: number[];
+  grid_cells?: GridCell[];
+  /** Show cell borders (default true). False = invisible grid at runtime. */
+  grid_show_borders?: boolean;
+  grid_border_color?: string;
+  /** When true the object cannot be selected or moved in the editor. */
+  locked?: boolean;
+  /** Optional group this object belongs to (id from SynopticPage.groups). */
+  group_id?: string;
 }
 
 // ── Historian sample (wire shape from GET /api/history/:tag) ──────────────
@@ -169,11 +213,23 @@ export interface Sample {
   quality: TagQuality;
 }
 
+/** A logical grouping of objects in the editor panel (UI-only, no canvas effect). */
+export interface ObjectGroup {
+  id: string;
+  name: string;
+}
+
 export interface SynopticPage {
   id: string;
   name: string;
   objects: SynopticObject[];
   background?: string;
+  /** Canvas design width in px. Undefined = fluid (fills the container). */
+  width?: number;
+  /** Canvas design height in px. Undefined = fluid (fills the container). */
+  height?: number;
+  /** Editor-panel groups (logical containers). No canvas rendering effect. */
+  groups?: ObjectGroup[];
 }
 
 export interface Project {
@@ -271,6 +327,30 @@ export interface MqttSource {
 
 export type SourceDef = ModbusTcpSource | MqttSource;
 
+// ── MQTT broker browse ─────────────────────────────────────────────────────
+
+export interface MqttBrowseRequest {
+  host: string;
+  port: number;
+  source_id?: string;
+  client_id: string;
+  username?: string;
+  password?: string;
+  tls_enabled?: boolean;
+  ca_cert_path?: string;
+  /** Seconds to listen (1-15, default 8). */
+  duration_secs?: number;
+}
+
+export interface BrowsedTopic {
+  topic: string;
+  sample_payload: string;
+}
+
+export interface MqttBrowseResponse {
+  topics: BrowsedTopic[];
+}
+
 export interface ProjectInfo {
   meta: { name: string; version: string };
   tags: TagDef[];
@@ -318,6 +398,8 @@ export interface AlarmDef {
   condition: AlarmCondition;
   message: string;
   severity?: AlarmSeverity;
+  /** Optional webhook URL. POSTed with AlarmWebhookPayload JSON when the alarm goes ACTIVE. */
+  notify_url?: string;
 }
 
 export interface AlarmState {

@@ -39,9 +39,10 @@ Still pending (Phase 2 polish):
   "no imports, no exec/eval" even without RestrictedPython.
 - Surfacing script output back into the editor UI (a panel, not just the
   console).
-- Real preemption: tokio's timeout drops the future but the Python thread
-  keeps running until it yields. PyO3's `Python::check_signals` + a signal
-  thread would let us interrupt mid-execution.
+- Preemption of blocking C extensions: the `sys.settrace` approach (2026-05-16)
+  covers pure-Python infinite loops. C-extension blocking calls (e.g., `time.sleep`)
+  still require the Tokio-level backstop. A SIGALRM-based approach could cover
+  those too, but it's per-process (not per-thread) and risks corrupting the GIL.
 - `into_py` deprecation in PyO3 0.23 — migrate to `IntoPyObject` before 0.24.
 
 ---

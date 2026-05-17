@@ -12,12 +12,24 @@ export default defineConfig({
         target: "https://localhost:8443",
         secure: false,
         changeOrigin: true,
+        configure: (proxy) => {
+          proxy.on("error", (err: NodeJS.ErrnoException) => {
+            if (err.code === "EPIPE" || err.code === "ECONNRESET") return;
+            console.error("[api proxy]", err.message);
+          });
+        },
       },
       "/ws": {
         target: "wss://localhost:8443",
         secure: false,
         ws: true,
         changeOrigin: true,
+        configure: (proxy) => {
+          proxy.on("error", (err: NodeJS.ErrnoException) => {
+            if (err.code === "EPIPE" || err.code === "ECONNRESET") return;
+            console.error("[ws proxy]", err.message);
+          });
+        },
       },
     },
   },
