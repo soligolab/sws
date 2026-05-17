@@ -8,6 +8,30 @@ and this project adheres to [CalVer](https://calver.org/) (`YYYY.MM[.patch]`).
 ## [Unreleased]
 
 ### Added
+- **Grid child mouse selection** (`SvgCanvas.tsx`, `store/index.ts`, `EditorShell.tsx`):
+  - First click on a grid object selects the cell (yellow dashed highlight, as before).
+  - Second click on the embedded child object — when its cell is already selected — sub-selects the child with a teal dashed highlight (`stroke="#0d9488"`).
+  - Implemented with a transparent overlay `<rect>` that is only rendered when `isCellSel` is true, so the first click always falls through to the cell hit area.
+  - `selectedCell` / `selectedCellChild` migrated from local `useState` in `EditorShell` to the Zustand store. Both fields are cleared in `selectObject`, `clearSelection`, `setCurrentPage`, `undo`, and `redo`. `setSelectedCell` resets `selectedCellChild` whenever the cell identity changes.
+  - Keyboard handler (Ctrl+X / Ctrl+V) updated to `useAppStore.getState().selectedCell` (no stale-closure risk, no need for the old `useRef` / `useEffect` pattern).
+  - `SvgCanvasProps` and `ObjProps` extended with `selectedCellChild?` / `onSelectCellChild?`; threaded through `SvgObject`.
+
+- **LeftPanel collapsible object tree** (`LeftPanel.tsx`):
+  - Each grid object row now shows a `▶/▼` expand toggle (only if the grid has cells with children).
+  - Clicking the toggle reveals indented sub-rows, one per cell that has a child object. Each sub-row shows the child's type tag, name, and cell coordinates (R,C).
+  - Clicking a sub-row simultaneously selects the parent grid, the cell, and the child (canvas teal highlight + panel `GridCellEditor`).
+  - Selecting a child via the canvas auto-expands the grid branch in the tree (a `useEffect` on `selectedCellChild?.objectId` adds the parent id to `expandedGrids`).
+  - Selection highlight: teal text `#5eead4` + dark teal background `#0f2922` when the sub-row matches the active `selectedCellChild`.
+
+- **Multi-selection common properties panel** (`EditorShell.tsx`, `store/index.ts`) — when 2+ objects are selected the right panel now shows editable properties instead of only alignment/distribution tools:
+  - Same type (e.g. 5 gauges): full `ObjectProps` panel pre-filled with identical values; mixed values show empty + placeholder "(vari)". Any edit applies to all selected objects.
+  - Mixed types (e.g. rect + button): `CrossTypeProps` panel with universal sections: POSIZIONE, ASPETTO, TRASFORMAZIONE, VISIBILITÀ, TAG, QUALITÀ, EVENTI.
+  - Undo (Ctrl-Z) restores all objects at once via a single `pushHistory` call in the new `updateObjects` store action.
+
+- **Design-reference borders** (`SvgCanvas.tsx`) — in edit mode every object and every grid cell gets a dashed editorial bounding-box overlay (`stroke="#475569"`, `strokeDasharray="4 3"`, `opacity=0.5`, `pointerEvents="none"`). For grid cells the border turns yellow when the cell is selected. These borders are purely editorial — never rendered at runtime.
+
+- **Full child `ObjectProps` in `GridCellEditor`** (`EditorShell.tsx`) — the editing panel for a grid cell child now embeds the complete `<ObjectProps>` component (same as for page-level objects) instead of the previous minimal set. Added `CELL_CHILD_TYPES`, `makeDefaultChild()`, a type dropdown, and an "Aggiungi" button for inserting a new child. The `pages` prop is threaded through `GridCellEditor` for navbutton target selection.
+
 - **Project management from WelcomeScreen** — each project card now shows three icon buttons (✎ rename, ⧉ duplicate, ✕ delete):
   - **Rename**: click ✎ to replace the project name with an inline `<input>`; Enter/Esc/blur confirms or cancels. Backend: `POST /api/projects/:name/rename` (`{ new_name }`) in `sws-web/src/projects.rs`; updates the active project dir pointer if the project was open.
   - **Duplicate**: click ⧉ to reveal a "Nome copia:" row below the card with a text input and ✓/✗ buttons. Backend: `POST /api/projects/:name/duplicate` uses `copy_dir_all` into a new folder; 409 on conflict.
