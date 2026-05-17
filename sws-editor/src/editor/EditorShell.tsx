@@ -298,6 +298,24 @@ export function EditorShell() {
         e.preventDefault(); reorderObject(ids[0], e.shiftKey ? "front" : "forward");
       } else if (ctrl && e.key === "[" && ids.length === 1) {
         e.preventDefault(); reorderObject(ids[0], e.shiftKey ? "back" : "backward");
+      } else if (!ctrl && ids.length > 0 &&
+                 (e.key === "ArrowLeft" || e.key === "ArrowRight" ||
+                  e.key === "ArrowUp"   || e.key === "ArrowDown")) {
+        e.preventDefault();
+        const state = useAppStore.getState();
+        const step = e.shiftKey ? (state.snapEnabled && state.gridSize > 0 ? state.gridSize : 10) : 1;
+        const dx = e.key === "ArrowLeft" ? -step : e.key === "ArrowRight" ? step : 0;
+        const dy = e.key === "ArrowUp"   ? -step : e.key === "ArrowDown"  ? step : 0;
+        const page = state.pages.find((p) => p.id === state.currentPageId);
+        if (page) {
+          ids.forEach((id) => {
+            const obj = page.objects.find((o) => o.id === id);
+            if (!obj) return;
+            const patch: Partial<SynopticObject> = { x: (obj.x ?? 0) + dx, y: (obj.y ?? 0) + dy };
+            if (obj.type === "line") { patch.x2 = (obj.x2 ?? obj.x + 100) + dx; patch.y2 = (obj.y2 ?? obj.y) + dy; }
+            state.updateObject(id, patch);
+          });
+        }
       }
     };
     document.addEventListener("keydown", handler);

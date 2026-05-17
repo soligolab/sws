@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { TrendCanvas } from "@/canvas/TrendCanvas";
 import { SYMBOLS } from "@/symbols/library";
 import type { CustomSymbol, GridCell, SynopticObject, TagState } from "@/types";
@@ -276,6 +276,59 @@ export function SvgCanvas({
   // (which fires on every mouseup) does not deselect the result.
   const suppressClick  = useRef(false);
 
+  // Zoom + pan (edit mode only). Use refs for event handler closures +
+  // state for render. panDragRef: middle-click panning.
+  const svgRef   = useRef<SVGSVGElement>(null);
+  const zoomRef  = useRef(1);
+  const panRef   = useRef({ x: 0, y: 0 });
+  const [viewT, setViewT] = useState({ zoom: 1, panX: 0, panY: 0 });
+  const panDragRef = useRef<{ startCX: number; startCY: number; startPX: number; startPY: number } | null>(null);
+
+  const applyView = (z: number, px: number, py: number) => {
+    zoomRef.current = z;
+    panRef.current = { x: px, y: py };
+    setViewT({ zoom: z, panX: px, panY: py });
+  };
+
+  // Non-passive wheel listener for zoom + pan via scroll.
+  useEffect(() => {
+    if (!onMove) return; // only in edit mode
+    const el = svgRef.current;
+    if (!el) return;
+    const handler = (e: WheelEvent) => {
+      e.preventDefault();
+      const rect = el.getBoundingClientRect();
+      const cx = e.clientX - rect.left;
+      const cy = e.clientY - rect.top;
+      if (e.ctrlKey) {
+        // Zoom centred on cursor
+        const factor = e.deltaY > 0 ? 1 / 1.1 : 1.1;
+        const oldZ = zoomRef.current;
+        const newZ = Math.max(0.1, Math.min(8, oldZ * factor));
+        const svgCX = (cx - panRef.current.x) / oldZ;
+        const svgCY = (cy - panRef.current.y) / oldZ;
+        applyView(newZ, cx - svgCX * newZ, cy - svgCY * newZ);
+      } else {
+        // Pan
+        const dx = e.shiftKey ? -e.deltaY : -e.deltaX;
+        const dy = e.shiftKey ?  0        : -e.deltaY;
+        applyView(zoomRef.current, panRef.current.x + dx, panRef.current.y + dy);
+      }
+    };
+    const resetHandler = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === "0") { e.preventDefault(); applyView(1, 0, 0); }
+    };
+    el.addEventListener("wheel", handler, { passive: false });
+    window.addEventListener("keydown", resetHandler);
+    return () => { el.removeEventListener("wheel", handler); window.removeEventListener("keydown", resetHandler); };
+  }, [onMove]);
+
+  /** Convert screen coordinates (relative to SVG element) to SVG user-space. */
+  const toSvg = (screenX: number, screenY: number) => ({
+    x: (screenX - panRef.current.x) / zoomRef.current,
+    y: (screenY - panRef.current.y) / zoomRef.current,
+  });
+
   const snap = (v: number) =>
     snapEnabled && gridSize > 0 ? Math.round(v / gridSize) * gridSize : v;
 
@@ -295,24 +348,41 @@ export function SvgCanvas({
   };
 
   const handleSvgMouseDown = (e: React.MouseEvent<SVGSVGElement>) => {
-    // Only start a selection rect in edit mode with left button.
-    if (!onMove || e.button !== 0) return;
+    if (!onMove) return;
+    const svgRect = e.currentTarget.getBoundingClientRect();
+    if (e.button === 1) {
+      // Middle-click → start pan drag
+      e.preventDefault();
+      panDragRef.current = {
+        startCX: e.clientX, startCY: e.clientY,
+        startPX: panRef.current.x, startPY: panRef.current.y,
+      };
+      return;
+    }
+    if (e.button !== 0) return;
     // If an object drag is already active, ignore (startDrag sets dragRef first
     // because child handlers fire before parent handlers in React).
     if (dragRef.current) return;
-    const svgRect = e.currentTarget.getBoundingClientRect();
-    const x = e.clientX - svgRect.left;
-    const y = e.clientY - svgRect.top;
-    selDragRef.current = { startX: x, startY: y, curX: x, curY: y };
+    const pt = toSvg(e.clientX - svgRect.left, e.clientY - svgRect.top);
+    selDragRef.current = { startX: pt.x, startY: pt.y, curX: pt.x, curY: pt.y };
   };
 
   const handleMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
     const svgRect = e.currentTarget.getBoundingClientRect();
+    if (panDragRef.current) {
+      // Middle-click pan
+      const pd = panDragRef.current;
+      applyView(zoomRef.current,
+        pd.startPX + (e.clientX - pd.startCX),
+        pd.startPY + (e.clientY - pd.startCY));
+      return;
+    }
+    const z = zoomRef.current;
     if (resizeRef.current && onMove) {
-      // Resize / endpoint handle drag
+      // Resize / endpoint handle drag. dx/dy in screen pixels → divide by zoom.
       const { handle, startX, startY, startObj, objId } = resizeRef.current;
-      const dx = e.clientX - startX;
-      const dy = e.clientY - startY;
+      const dx = (e.clientX - startX) / z;
+      const dy = (e.clientY - startY) / z;
       if (handle === "p1") {
         onMove(objId, { x: snap(startObj.x + dx), y: snap(startObj.y + dy) });
       } else if (handle === "p2") {
@@ -326,9 +396,10 @@ export function SvgCanvas({
         if (width >= 4 && height >= 4) onMove(objId, { x, y, width, height });
       }
     } else if (dragRef.current && onMove) {
-      // Object drag
-      const newX = snap(e.clientX - svgRect.left - dragRef.current.offsetX);
-      const newY = snap(e.clientY - svgRect.top  - dragRef.current.offsetY);
+      // Object drag — coords in SVG space
+      const pt = toSvg(e.clientX - svgRect.left, e.clientY - svgRect.top);
+      const newX = snap(pt.x - dragRef.current.offsetX);
+      const newY = snap(pt.y - dragRef.current.offsetY);
       const patch: Partial<SynopticObject> = { x: newX, y: newY };
       if (dragRef.current.dx2 !== undefined) {
         patch.x2 = newX + dragRef.current.dx2!;
@@ -336,12 +407,9 @@ export function SvgCanvas({
       }
       onMove(dragRef.current.objId, patch);
     } else if (selDragRef.current) {
-      // Selection rect update
-      const updated: SelRect = {
-        ...selDragRef.current,
-        curX: e.clientX - svgRect.left,
-        curY: e.clientY - svgRect.top,
-      };
+      // Selection rect update — coords in SVG space
+      const pt = toSvg(e.clientX - svgRect.left, e.clientY - svgRect.top);
+      const updated: SelRect = { ...selDragRef.current, curX: pt.x, curY: pt.y };
       selDragRef.current = updated;
       setSelRect(updated);
     }
@@ -350,6 +418,7 @@ export function SvgCanvas({
   const endDrag = () => {
     dragRef.current = null;
     resizeRef.current = null;
+    panDragRef.current = null;
 
     const rect = selDragRef.current;
     selDragRef.current = null;
@@ -380,28 +449,33 @@ export function SvgCanvas({
   };
 
   const startDrag = (e: React.MouseEvent<SVGElement>, obj: SynopticObject) => {
-    // Object drag wins: cancel any pending selection rect.
+    // Object drag wins: cancel any pending selection rect / pan.
     selDragRef.current = null;
+    panDragRef.current = null;
     setSelRect(null);
 
     const svgEl = (e.currentTarget as SVGElement).ownerSVGElement!;
     const rect = svgEl.getBoundingClientRect();
+    // Convert cursor to SVG space then compute offset from object origin.
+    const pt = toSvg(e.clientX - rect.left, e.clientY - rect.top);
     const ds: DragState = {
       objId:   obj.id,
-      offsetX: e.clientX - rect.left - obj.x,
-      offsetY: e.clientY - rect.top  - obj.y,
+      offsetX: pt.x - (obj.x ?? 0),
+      offsetY: pt.y - (obj.y ?? 0),
     };
     if (obj.type === "line") {
-      ds.dx2 = (obj.x2 ?? obj.x + 100) - obj.x;
-      ds.dy2 = (obj.y2 ?? obj.y)        - obj.y;
+      ds.dx2 = (obj.x2 ?? obj.x + 100) - (obj.x ?? 0);
+      ds.dy2 = (obj.y2 ?? obj.y ?? 0)  - (obj.y ?? 0);
     }
     dragRef.current = ds;
   };
 
   return (
     <svg
+      ref={svgRef}
       width="100%" height="100%"
-      style={{ background, display: "block", userSelect: "none" }}
+      style={{ background, display: "block", userSelect: "none",
+               cursor: panDragRef.current ? "grabbing" : undefined }}
       onMouseDown={handleSvgMouseDown}
       onClick={() => {
         if (suppressClick.current) { suppressClick.current = false; return; }
@@ -411,6 +485,7 @@ export function SvgCanvas({
       onMouseUp={endDrag}
       onMouseLeave={endDrag}
     >
+      {/* Pattern def is in global SVG space so it tiles correctly after pan */}
       {gridSize > 0 && (
         <defs>
           <pattern id="sws-grid" width={gridSize} height={gridSize} patternUnits="userSpaceOnUse">
@@ -421,7 +496,9 @@ export function SvgCanvas({
           </pattern>
         </defs>
       )}
-      {gridSize > 0 && <rect width="100%" height="100%" fill="url(#sws-grid)" />}
+      {/* All zoomed+panned content is inside this group */}
+      <g transform={`translate(${viewT.panX}, ${viewT.panY}) scale(${viewT.zoom})`}>
+      {gridSize > 0 && <rect x={-50000} y={-50000} width={100000} height={100000} fill="url(#sws-grid)" />}
 
       {/* Page boundary indicator — edit mode only, when dimensions are defined */}
       {onMove && pageWidth && pageHeight && (
@@ -492,11 +569,12 @@ export function SvgCanvas({
         const ry = Math.min(selRect.startY, selRect.curY);
         const rw = Math.abs(selRect.curX - selRect.startX);
         const rh = Math.abs(selRect.curY - selRect.startY);
+        const sw = 1 / viewT.zoom;
         return (
           <rect
             x={rx} y={ry} width={rw} height={rh}
             fill="rgba(59,130,246,0.1)" stroke="#3b82f6"
-            strokeWidth={1} strokeDasharray="4 2"
+            strokeWidth={sw} strokeDasharray={`${4 * sw} ${2 * sw}`}
             pointerEvents="none"
           />
         );
@@ -508,11 +586,13 @@ export function SvgCanvas({
         if (!obj || obj.type !== "line") return null;
         const x2 = obj.x2 ?? obj.x + 100;
         const y2 = obj.y2 ?? obj.y;
+        const r = 5 / viewT.zoom;
+        const sw = 1.5 / viewT.zoom;
         const makeEndpoint = (handle: "p1" | "p2", cx: number, cy: number) => (
           <circle
             key={handle}
-            cx={cx} cy={cy} r={5}
-            fill="white" stroke="#facc15" strokeWidth={1.5}
+            cx={cx} cy={cy} r={r}
+            fill="white" stroke="#facc15" strokeWidth={sw}
             style={{ cursor: "crosshair" }}
             onMouseDown={(e) => {
               e.stopPropagation();
@@ -537,7 +617,8 @@ export function SvgCanvas({
         const bb = objBBox(obj);
         const cx = (bb.x1 + bb.x2) / 2;
         const cy = (bb.y1 + bb.y2) / 2;
-        const hs = 4;
+        const hs = 4 / viewT.zoom;
+        const sw = 1.5 / viewT.zoom;
         const handles: { id: string; x: number; y: number; cursor: string }[] = [
           { id: "tl", x: bb.x1, y: bb.y1, cursor: "nw-resize" },
           { id: "tc", x: cx,    y: bb.y1, cursor: "n-resize"  },
@@ -554,7 +635,7 @@ export function SvgCanvas({
               <rect
                 key={id}
                 x={x - hs} y={y - hs} width={hs * 2} height={hs * 2}
-                fill="white" stroke="#facc15" strokeWidth={1.5}
+                fill="white" stroke="#facc15" strokeWidth={sw}
                 style={{ cursor }}
                 onMouseDown={(e) => {
                   e.stopPropagation();
@@ -577,6 +658,15 @@ export function SvgCanvas({
           </>
         );
       })()}
+      </g>{/* end zoom+pan group */}
+
+      {/* Zoom level badge — top-right corner, outside the transform */}
+      {onMove && viewT.zoom !== 1 && (
+        <text x="100%" y={18} textAnchor="end" dx={-6}
+          style={{ fontSize: 11, fill: "#64748b", pointerEvents: "none", fontFamily: "monospace" }}>
+          {Math.round(viewT.zoom * 100)}%
+        </text>
+      )}
     </svg>
   );
 }
