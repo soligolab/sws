@@ -8,6 +8,13 @@ and this project adheres to [CalVer](https://calver.org/) (`YYYY.MM[.patch]`).
 ## [Unreleased]
 
 ### Added
+- **Context-sensitive properties panel** (`EditorShell.tsx`) — the right-side panel now shows exactly one level of detail based on what is selected, instead of stacking all levels simultaneously:
+  - Grid selected (no cell) → `ObjectProps` for the grid object.
+  - Cell selected (no child sub-selected) → `GridCellEditor` for the cell; if a child exists a labelled chip shows its type/name plus ✂ Taglia / ✕ Rimuovi buttons and a hint "clicca nel canvas per modificarne le proprietà".
+  - Child sub-selected → `ObjectProps` for the child directly, headed by a `PanelBreadcrumb` showing `griglia › R,C › tipo`.
+  - `PanelBreadcrumb`: lightweight inline component (›-separated parts, last part highlighted).
+  - `GridCellEditor`: removed the embedded `ObjectProps` and the now-unused `pages` prop.
+
 - **Grid child mouse selection** (`SvgCanvas.tsx`, `store/index.ts`, `EditorShell.tsx`):
   - First click on a grid object selects the cell (yellow dashed highlight, as before).
   - Second click on the embedded child object — when its cell is already selected — sub-selects the child with a teal dashed highlight (`stroke="#0d9488"`).
