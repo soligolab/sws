@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { api } from "@/api/client";
 import { useAppStore } from "@/store";
 import type { ProjectInfo, SynopticObject } from "@/types";
@@ -261,18 +261,39 @@ function ObjectPalette({ onAdd }: { onAdd: (type: SynopticObject["type"]) => voi
 // ── Objects-on-page section ──────────────────────────────────────────────────
 
 function ObjectsSection() {
-  const pages          = useAppStore((s) => s.pages);
-  const currentPageId  = useAppStore((s) => s.currentPageId);
-  const selectedId     = useAppStore((s) => s.selectedObjectId);
-  const selectObject   = useAppStore((s) => s.selectObject);
-  const updateObject   = useAppStore((s) => s.updateObject);
-  const duplicateObject = useAppStore((s) => s.duplicateObject);
-  const deleteObject   = useAppStore((s) => s.deleteObject);
+  const pages               = useAppStore((s) => s.pages);
+  const currentPageId       = useAppStore((s) => s.currentPageId);
+  const selectedId          = useAppStore((s) => s.selectedObjectId);
+  const selectObject        = useAppStore((s) => s.selectObject);
+  const updateObject        = useAppStore((s) => s.updateObject);
+  const duplicateObject     = useAppStore((s) => s.duplicateObject);
+  const deleteObject        = useAppStore((s) => s.deleteObject);
+  const selectedCellChild    = useAppStore((s) => s.selectedCellChild);
+  const setSelectedCell      = useAppStore((s) => s.setSelectedCell);
+  const setSelectedCellChild = useAppStore((s) => s.setSelectedCellChild);
 
   const [renaming, setRenaming] = useState<string | null>(null);
   const [draft, setDraft]       = useState("");
+  const [expandedGrids, setExpandedGrids] = useState<Set<string>>(new Set());
 
   const objects = pages.find((p) => p.id === currentPageId)?.objects ?? [];
+
+  useEffect(() => {
+    if (selectedCellChild) {
+      setExpandedGrids((prev) =>
+        prev.has(selectedCellChild.objectId)
+          ? prev
+          : new Set([...prev, selectedCellChild.objectId])
+      );
+    }
+  }, [selectedCellChild?.objectId]);
+
+  const toggleExpand = (id: string) =>
+    setExpandedGrids((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
 
   const startRename = (id: string, name: string) => {
     setRenaming(id);
@@ -298,70 +319,139 @@ function ObjectsSection() {
           const isSel = o.id === selectedId;
           const isRen = o.id === renaming;
           const label = o.name?.trim() || `${o.type}·${o.id.slice(-4)}`;
+          const isGrid = o.type === "grid";
+          const isExpanded = isGrid && expandedGrids.has(o.id);
+          const cellsWithChildren = isGrid
+            ? (o.grid_cells ?? []).filter((c) => !!c.child)
+            : [];
+
           return (
-            <div
-              key={o.id}
-              onClick={() => !isRen && selectObject(o.id)}
-              style={{
-                ...S.row(isSel),
-                gap: 4,
-                paddingRight: 4,
-              }}
-            >
-              <span style={{
-                fontSize: 9, color: "#475569", width: 38, flexShrink: 0,
-                textTransform: "uppercase", letterSpacing: 0.5,
-              }}>
-                {o.type.slice(0, 5)}
-              </span>
-              {isRen ? (
-                <input
-                  type="text"
-                  value={draft}
-                  autoFocus
-                  onClick={(e) => e.stopPropagation()}
-                  onChange={(e) => setDraft(e.target.value)}
-                  onBlur={commitRename}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") commitRename();
-                    else if (e.key === "Escape") { setRenaming(null); setDraft(""); }
-                  }}
-                  style={{
-                    flex: 1, minWidth: 0,
-                    background: "#0f172a", color: "#e2e8f0",
-                    border: "1px solid #334155", borderRadius: 3,
-                    padding: "1px 4px", fontSize: 11,
-                  }}
-                />
-              ) : (
-                <span
-                  onDoubleClick={(e) => { e.stopPropagation(); startRename(o.id, o.name ?? ""); }}
-                  title="Doppio click per rinominare"
-                  style={{
-                    flex: 1, minWidth: 0,
-                    overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                    fontSize: 11,
-                  }}
-                >
-                  {label}
+            <React.Fragment key={o.id}>
+              {/* Main object row */}
+              <div
+                onClick={() => !isRen && selectObject(o.id)}
+                style={{ ...S.row(isSel), gap: 4, paddingRight: 4 }}
+              >
+                {/* Grid expand toggle */}
+                {isGrid ? (
+                  <button
+                    style={{
+                      ...S.iconBtn,
+                      width: 14,
+                      fontSize: 8,
+                      color: cellsWithChildren.length > 0 ? "#94a3b8" : "#334155",
+                      flexShrink: 0,
+                    }}
+                    title={isExpanded ? "Comprimi" : "Espandi"}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (cellsWithChildren.length > 0) toggleExpand(o.id);
+                    }}
+                  >
+                    {cellsWithChildren.length > 0 ? (isExpanded ? "▼" : "▶") : "·"}
+                  </button>
+                ) : (
+                  <span style={{ width: 14, flexShrink: 0 }} />
+                )}
+                <span style={{
+                  fontSize: 9, color: "#475569", width: 34, flexShrink: 0,
+                  textTransform: "uppercase", letterSpacing: 0.5,
+                }}>
+                  {o.type.slice(0, 5)}
                 </span>
-              )}
-              <button
-                style={S.iconBtn}
-                title="Rinomina"
-                onClick={(e) => { e.stopPropagation(); startRename(o.id, o.name ?? ""); }}
-              >✎</button>
-              <button
-                style={S.iconBtn}
-                title="Duplica"
-                onClick={(e) => { e.stopPropagation(); duplicateObject(o.id); }}
-              >⧉</button>
-              <button
-                style={{ ...S.iconBtn, color: "#ef4444" }}
-                title="Elimina"
-                onClick={(e) => { e.stopPropagation(); deleteObject(o.id); }}
-              >×</button>
-            </div>
+                {isRen ? (
+                  <input
+                    type="text"
+                    value={draft}
+                    autoFocus
+                    onClick={(e) => e.stopPropagation()}
+                    onChange={(e) => setDraft(e.target.value)}
+                    onBlur={commitRename}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") commitRename();
+                      else if (e.key === "Escape") { setRenaming(null); setDraft(""); }
+                    }}
+                    style={{
+                      flex: 1, minWidth: 0,
+                      background: "#0f172a", color: "#e2e8f0",
+                      border: "1px solid #334155", borderRadius: 3,
+                      padding: "1px 4px", fontSize: 11,
+                    }}
+                  />
+                ) : (
+                  <span
+                    onDoubleClick={(e) => { e.stopPropagation(); startRename(o.id, o.name ?? ""); }}
+                    title="Doppio click per rinominare"
+                    style={{
+                      flex: 1, minWidth: 0,
+                      overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                      fontSize: 11,
+                    }}
+                  >
+                    {label}
+                  </span>
+                )}
+                <button
+                  style={S.iconBtn}
+                  title="Rinomina"
+                  onClick={(e) => { e.stopPropagation(); startRename(o.id, o.name ?? ""); }}
+                >✎</button>
+                <button
+                  style={S.iconBtn}
+                  title="Duplica"
+                  onClick={(e) => { e.stopPropagation(); duplicateObject(o.id); }}
+                >⧉</button>
+                <button
+                  style={{ ...S.iconBtn, color: "#ef4444" }}
+                  title="Elimina"
+                  onClick={(e) => { e.stopPropagation(); deleteObject(o.id); }}
+                >×</button>
+              </div>
+
+              {/* Grid child sub-rows */}
+              {isExpanded && cellsWithChildren.map((c) => {
+                const isChildSel =
+                  selectedCellChild?.objectId === o.id &&
+                  selectedCellChild.row === c.row &&
+                  selectedCellChild.col === c.col;
+                const childLabel = c.child!.type +
+                  (c.child!.name ? ` — ${c.child!.name}` : "");
+                return (
+                  <div
+                    key={`${o.id}-${c.row}-${c.col}`}
+                    onClick={() => {
+                      selectObject(o.id);
+                      setSelectedCell({ objectId: o.id, row: c.row, col: c.col });
+                      setSelectedCellChild({ objectId: o.id, row: c.row, col: c.col });
+                    }}
+                    style={{
+                      ...S.row(isChildSel),
+                      paddingLeft: 24,
+                      paddingRight: 4,
+                      gap: 4,
+                      color: isChildSel ? "#5eead4" : "#64748b",
+                      background: isChildSel ? "#0f2922" : "transparent",
+                    }}
+                    title={`Cella R${c.row + 1}, C${c.col + 1}`}
+                  >
+                    <span style={{ fontSize: 10, flexShrink: 0, color: "#475569" }}>↳</span>
+                    <span style={{ fontSize: 9, color: "#475569", width: 34, flexShrink: 0, textTransform: "uppercase", letterSpacing: 0.5 }}>
+                      {c.child!.type.slice(0, 5)}
+                    </span>
+                    <span style={{
+                      flex: 1, minWidth: 0,
+                      overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                      fontSize: 11,
+                    }}>
+                      {childLabel}
+                    </span>
+                    <span style={{ fontSize: 9, color: "#334155", flexShrink: 0 }}>
+                      R{c.row + 1},{c.col + 1}
+                    </span>
+                  </div>
+                );
+              })}
+            </React.Fragment>
           );
         })}
       </div>

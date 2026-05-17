@@ -22,6 +22,8 @@ interface SvgCanvasProps {
   pageHeight?: number;
   /** Currently selected grid cell in edit mode. */
   selectedCell?: { objectId: string; row: number; col: number } | null;
+  /** Currently selected child object within a grid cell. */
+  selectedCellChild?: { objectId: string; row: number; col: number } | null;
   /** Single-select (replace) when shift is false; toggle into the set when true. */
   onSelect?: (id: string | null, shift?: boolean) => void;
   /** Called with the full set of ids enclosed by a drag-selection rectangle. */
@@ -32,6 +34,7 @@ interface SvgCanvasProps {
   onScript?: (fn: string, args: Record<string, string | number | boolean>) => void;
   onNavigate?: (pageId: string) => void;
   onSelectCell?: (objectId: string, row: number, col: number) => void;
+  onSelectCellChild?: (objectId: string, row: number, col: number) => void;
 }
 
 interface DragState {
@@ -235,6 +238,7 @@ export function SvgCanvas({
   pageWidth,
   pageHeight,
   selectedCell,
+  selectedCellChild,
   onSelect,
   onSelectMany,
   onMove,
@@ -242,6 +246,7 @@ export function SvgCanvas({
   onScript,
   onNavigate,
   onSelectCell,
+  onSelectCellChild,
 }: SvgCanvasProps) {
   // Resolved selection set: prefer the explicit array, fall back to the
   // legacy single-id prop, then to "nothing selected".
@@ -424,12 +429,14 @@ export function SvgCanvas({
               isEditMode={inEdit}
               customSymbols={customSymbols}
               selectedCell={selectedCell}
+              selectedCellChild={selectedCellChild}
               onSelect={onSelect}
               onStartDrag={onMove ? startDrag : undefined}
               onWriteTag={onWriteTag}
               onScript={onScript}
               onNavigate={onNavigate}
               onSelectCell={onSelectCell}
+              onSelectCellChild={onSelectCellChild}
             />
             {inEdit && (() => {
               const bb = objBBox(obj);
@@ -477,16 +484,18 @@ interface ObjProps {
   isEditMode: boolean;
   customSymbols: CustomSymbol[];
   selectedCell?: { objectId: string; row: number; col: number } | null;
+  selectedCellChild?: { objectId: string; row: number; col: number } | null;
   onSelect?: (id: string | null, shift?: boolean) => void;
   onStartDrag?: (e: React.MouseEvent<SVGElement>, obj: SynopticObject) => void;
   onWriteTag?: (tagId: string, value: string | number | boolean) => void;
   onScript?: (fn: string, args: Record<string, string | number | boolean>) => void;
   onNavigate?: (pageId: string) => void;
   onSelectCell?: (objectId: string, row: number, col: number) => void;
+  onSelectCellChild?: (objectId: string, row: number, col: number) => void;
 }
 
 function SvgObject(p: ObjProps) {
-  const { tagValues, selected, isEditMode, customSymbols, selectedCell, onSelect, onStartDrag, onWriteTag, onScript, onNavigate, onSelectCell } = p;
+  const { tagValues, selected, isEditMode, customSymbols, selectedCell, selectedCellChild, onSelect, onStartDrag, onWriteTag, onScript, onNavigate, onSelectCell, onSelectCellChild } = p;
   const obj = resolveObject(p.obj, tagValues);
 
   const handleMouseDown = (e: React.MouseEvent<SVGElement>) => {
@@ -1414,19 +1423,49 @@ function SvgObject(p: ObjProps) {
                         x2: childX + ((child.x2 ?? child.x + 100) - child.x),
                         y2: childY + ((child.y2 ?? child.y) - child.y) }
                     : { ...child, x: childX, y: childY };
+                  const isChildSel = isEditMode
+                    && selectedCellChild?.objectId === obj.id
+                    && selectedCellChild.row === r
+                    && selectedCellChild.col === c;
                   return (
-                    <g style={{ pointerEvents: isEditMode ? "none" : "auto" }}>
-                      <SvgObject
-                        obj={placed}
-                        tagValues={tagValues}
-                        selected={false}
-                        isEditMode={false}
-                        customSymbols={customSymbols}
-                        onWriteTag={onWriteTag}
-                        onScript={onScript}
-                        onNavigate={onNavigate}
-                      />
-                    </g>
+                    <>
+                      {/* Child visual — always non-interactive in edit mode */}
+                      <g style={{ pointerEvents: isEditMode ? "none" : "auto" }}>
+                        <SvgObject
+                          obj={placed}
+                          tagValues={tagValues}
+                          selected={false}
+                          isEditMode={false}
+                          customSymbols={customSymbols}
+                          onWriteTag={onWriteTag}
+                          onScript={onScript}
+                          onNavigate={onNavigate}
+                        />
+                      </g>
+                      {/* Transparent overlay — enables clicking the child when the cell is already selected */}
+                      {isEditMode && isCellSel && (
+                        <rect
+                          x={childX} y={childY} width={cw} height={ch}
+                          fill="transparent"
+                          style={{ cursor: "pointer" }}
+                          onMouseDown={(e) => {
+                            e.stopPropagation();
+                            onSelectCellChild?.(obj.id, r, c);
+                          }}
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      )}
+                      {/* Teal selection rect around the child when it is the active sub-selection */}
+                      {isEditMode && isChildSel && (
+                        <rect
+                          x={childX - 2} y={childY - 2}
+                          width={cw + 4} height={ch + 4}
+                          fill="none" stroke="#0d9488"
+                          strokeWidth={1.5} strokeDasharray="4 2"
+                          style={{ pointerEvents: "none" }}
+                        />
+                      )}
+                    </>
                   );
                 })()}
               </g>
