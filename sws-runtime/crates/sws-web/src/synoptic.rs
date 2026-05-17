@@ -14,6 +14,7 @@ pub struct SynopticPage {
     #[serde(skip_serializing_if = "Option::is_none")] pub background:   Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")] pub width:        Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")] pub height:       Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub groups:       Option<Value>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -127,6 +128,9 @@ pub struct SynopticObject {
     #[serde(skip_serializing_if = "Option::is_none")] pub quality_dot_good_color:     Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")] pub quality_dot_bad_color:      Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")] pub quality_dot_uncertain_color: Option<String>,
+    // Editor-only metadata
+    #[serde(skip_serializing_if = "Option::is_none")] pub locked:                     Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub group_id:                   Option<String>,
 }
 
 // Note: `symbol_kind` and `symbol_path` are NOT stored on the object —

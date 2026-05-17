@@ -176,6 +176,7 @@ export function EditorShell() {
   const pasteClipboard  = useAppStore((s) => s.pasteClipboard);
   const setClipboard    = useAppStore((s) => s.setClipboard);
   const alignSelection  = useAppStore((s) => s.alignSelection);
+  const groupObjects    = useAppStore((s) => s.groupObjects);
   const undo            = useAppStore((s) => s.undo);
   const redo            = useAppStore((s) => s.redo);
   const updateObjects    = useAppStore((s) => s.updateObjects);
@@ -296,6 +297,8 @@ export function EditorShell() {
         const state = useAppStore.getState();
         const page = state.pages.find((p) => p.id === state.currentPageId);
         if (page && page.objects.length > 0) selectMany(page.objects.map((o) => o.id));
+      } else if (ctrl && (e.key === "g" || e.key === "G") && ids.length >= 2) {
+        e.preventDefault(); groupObjects(ids);
       } else if (ctrl && e.key === "]" && ids.length === 1) {
         e.preventDefault(); reorderObject(ids[0], e.shiftKey ? "front" : "forward");
       } else if (ctrl && e.key === "[" && ids.length === 1) {
@@ -324,7 +327,7 @@ export function EditorShell() {
     };
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
-  }, [deleteSelection, undo, redo, copySelection, pasteClipboard, duplicateSelection, setClipboard, selectMany, reorderObject]);
+  }, [deleteSelection, undo, redo, copySelection, pasteClipboard, duplicateSelection, setClipboard, selectMany, reorderObject, groupObjects]);
 
   const nextPos = () => {
     const n = objects.length;
@@ -656,6 +659,8 @@ const SHORTCUTS = [
   ["Ctrl+Shift+]",      "Primo piano"],
   ["Ctrl+[",            "Porta indietro"],
   ["Ctrl+Shift+[",      "Manda in fondo"],
+  ["Gruppi", ""],
+  ["Ctrl+G",            "Raggruppa selezione (≥2 oggetti)"],
   ["Altro", ""],
   ["?",                 "Mostra/nasconde questa guida"],
 ];

@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { api } from "@/api/client";
 import { useAppStore } from "@/store";
-import type { ProjectInfo, SynopticObject } from "@/types";
+import type { ObjectGroup, ProjectInfo, SynopticObject } from "@/types";
 
 // ── Shared styles ─────────────────────────────────────────────────────────────
 
@@ -268,14 +268,23 @@ function ObjectPalette({ onAdd }: { onAdd: (type: SynopticObject["type"]) => voi
 
 // ── Objects-on-page section ──────────────────────────────────────────────────
 
+type TreeNode =
+  | { kind: "group"; group: ObjectGroup; members: SynopticObject[] }
+  | { kind: "object"; obj: SynopticObject };
+
 function ObjectsSection() {
   const pages               = useAppStore((s) => s.pages);
   const currentPageId       = useAppStore((s) => s.currentPageId);
   const selectedId          = useAppStore((s) => s.selectedObjectId);
+  const selectedIds         = useAppStore((s) => s.selectedObjectIds);
   const selectObject        = useAppStore((s) => s.selectObject);
+  const selectMany          = useAppStore((s) => s.selectMany);
   const updateObject        = useAppStore((s) => s.updateObject);
   const duplicateObject     = useAppStore((s) => s.duplicateObject);
   const deleteObject        = useAppStore((s) => s.deleteObject);
+  const groupObjects        = useAppStore((s) => s.groupObjects);
+  const ungroupObjects      = useAppStore((s) => s.ungroupObjects);
+  const renameGroup         = useAppStore((s) => s.renameGroup);
   const selectedCellChild    = useAppStore((s) => s.selectedCellChild);
   const setSelectedCell      = useAppStore((s) => s.setSelectedCell);
   const setSelectedCellChild = useAppStore((s) => s.setSelectedCellChild);
@@ -283,17 +292,47 @@ function ObjectsSection() {
   const [renaming, setRenaming] = useState<string | null>(null);
   const [draft, setDraft]       = useState("");
   const [expandedGrids, setExpandedGrids] = useState<Set<string>>(new Set());
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+  const [renamingGroup, setRenamingGroup] = useState<string | null>(null);
+  const [groupDraft, setGroupDraft] = useState("");
   const [filter, setFilter]     = useState("");
 
-  const allObjects = pages.find((p) => p.id === currentPageId)?.objects ?? [];
+  const currentPage = pages.find((p) => p.id === currentPageId);
+  const allObjects = currentPage?.objects ?? [];
+  const groups = currentPage?.groups ?? [];
   const fq = filter.trim().toLowerCase();
-  const objects = fq
+  const filteredObjects = fq
     ? allObjects.filter((o) =>
         (o.name ?? "").toLowerCase().includes(fq) ||
         o.type.toLowerCase().includes(fq) ||
         o.id.toLowerCase().includes(fq)
       )
     : allObjects;
+
+  const buildTree = (): TreeNode[] => {
+    if (fq) {
+      return filteredObjects.map((obj) => ({ kind: "object", obj }));
+    }
+    const tree: TreeNode[] = [];
+    const grouped = new Map<string, SynopticObject[]>();
+    for (const o of allObjects) {
+      if (o.group_id && groups.some((g) => g.id === o.group_id)) {
+        const arr = grouped.get(o.group_id) ?? [];
+        arr.push(o);
+        grouped.set(o.group_id, arr);
+      }
+    }
+    const ungrouped = allObjects.filter(
+      (o) => !o.group_id || !groups.some((g) => g.id === o.group_id)
+    );
+    for (const g of groups) {
+      tree.push({ kind: "group", group: g, members: grouped.get(g.id) ?? [] });
+    }
+    for (const o of ungrouped) {
+      tree.push({ kind: "object", obj: o });
+    }
+    return tree;
+  };
 
   useEffect(() => {
     if (selectedCellChild) {
@@ -305,8 +344,27 @@ function ObjectsSection() {
     }
   }, [selectedCellChild?.objectId]);
 
-  const toggleExpand = (id: string) =>
+  // Auto-expand group when a member is selected
+  useEffect(() => {
+    if (selectedId) {
+      const obj = allObjects.find((o) => o.id === selectedId);
+      if (obj?.group_id) {
+        setExpandedGroups((prev) =>
+          prev.has(obj.group_id!) ? prev : new Set([...prev, obj.group_id!])
+        );
+      }
+    }
+  }, [selectedId]);
+
+  const toggleExpandGrid = (id: string) =>
     setExpandedGrids((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+
+  const toggleExpandGroup = (id: string) =>
+    setExpandedGroups((prev) => {
       const next = new Set(prev);
       next.has(id) ? next.delete(id) : next.add(id);
       return next;
@@ -324,6 +382,102 @@ function ObjectsSection() {
     setDraft("");
   };
 
+  const startRenameGroup = (id: string, name: string) => {
+    setRenamingGroup(id);
+    setGroupDraft(name);
+  };
+  const commitRenameGroup = () => {
+    if (renamingGroup) {
+      const v = groupDraft.trim();
+      if (v) renameGroup(renamingGroup, v);
+    }
+    setRenamingGroup(null);
+    setGroupDraft("");
+  };
+
+  const renderObjectRow = (o: SynopticObject, indent = 0) => {
+    const isSel = o.id === selectedId;
+    const isRen = o.id === renaming;
+    const label = o.name?.trim() || `${o.type}·${o.id.slice(-4)}`;
+    const isGrid = o.type === "grid";
+    const isExpanded = isGrid && expandedGrids.has(o.id);
+    const cellsWithChildren = isGrid ? (o.grid_cells ?? []).filter((c) => !!c.child) : [];
+
+    return (
+      <React.Fragment key={o.id}>
+        <div
+          onClick={() => !isRen && selectObject(o.id)}
+          style={{ ...S.row(isSel), gap: 4, paddingRight: 4, paddingLeft: 4 + indent }}
+        >
+          {isGrid ? (
+            <button
+              style={{ ...S.iconBtn, width: 14, fontSize: 8, color: cellsWithChildren.length > 0 ? "#94a3b8" : "#334155", flexShrink: 0 }}
+              title={isExpanded ? "Comprimi" : "Espandi"}
+              onClick={(e) => { e.stopPropagation(); if (cellsWithChildren.length > 0) toggleExpandGrid(o.id); }}
+            >
+              {cellsWithChildren.length > 0 ? (isExpanded ? "▼" : "▶") : "·"}
+            </button>
+          ) : (
+            <span style={{ width: 14, flexShrink: 0 }} />
+          )}
+          {o.locked && (
+            <span title="Bloccato" style={{ fontSize: 10, flexShrink: 0, opacity: 0.7 }}>🔒</span>
+          )}
+          <span style={{ fontSize: 9, color: "#475569", width: 34, flexShrink: 0, textTransform: "uppercase", letterSpacing: 0.5 }}>
+            {o.type.slice(0, 5)}
+          </span>
+          {isRen ? (
+            <input
+              type="text" value={draft} autoFocus
+              onClick={(e) => e.stopPropagation()}
+              onChange={(e) => setDraft(e.target.value)}
+              onBlur={commitRename}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") commitRename();
+                else if (e.key === "Escape") { setRenaming(null); setDraft(""); }
+              }}
+              style={{ flex: 1, minWidth: 0, background: "#0f172a", color: "#e2e8f0", border: "1px solid #334155", borderRadius: 3, padding: "1px 4px", fontSize: 11 }}
+            />
+          ) : (
+            <span
+              onDoubleClick={(e) => { e.stopPropagation(); startRename(o.id, o.name ?? ""); }}
+              title="Doppio click per rinominare"
+              style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 11 }}
+            >
+              {label}
+            </span>
+          )}
+          <button style={S.iconBtn} title="Rinomina" onClick={(e) => { e.stopPropagation(); startRename(o.id, o.name ?? ""); }}>✎</button>
+          <button style={S.iconBtn} title="Duplica" onClick={(e) => { e.stopPropagation(); duplicateObject(o.id); }}>⧉</button>
+          <button style={{ ...S.iconBtn, color: "#ef4444" }} title="Elimina" onClick={(e) => { e.stopPropagation(); deleteObject(o.id); }}>×</button>
+        </div>
+        {isExpanded && cellsWithChildren.map((c) => {
+          const isChildSel = selectedCellChild?.objectId === o.id && selectedCellChild.row === c.row && selectedCellChild.col === c.col;
+          const childLabel = c.child!.type + (c.child!.name ? ` — ${c.child!.name}` : "");
+          return (
+            <div
+              key={`${o.id}-${c.row}-${c.col}`}
+              onClick={() => { selectObject(o.id); setSelectedCell({ objectId: o.id, row: c.row, col: c.col }); setSelectedCellChild({ objectId: o.id, row: c.row, col: c.col }); }}
+              style={{ ...S.row(isChildSel), paddingLeft: indent + 24, paddingRight: 4, gap: 4, color: isChildSel ? "#5eead4" : "#64748b", background: isChildSel ? "#0f2922" : "transparent" }}
+              title={`Cella R${c.row + 1}, C${c.col + 1}`}
+            >
+              <span style={{ fontSize: 10, flexShrink: 0, color: "#475569" }}>↳</span>
+              <span style={{ fontSize: 9, color: "#475569", width: 34, flexShrink: 0, textTransform: "uppercase", letterSpacing: 0.5 }}>
+                {c.child!.type.slice(0, 5)}
+              </span>
+              <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 11 }}>
+                {childLabel}
+              </span>
+              <span style={{ fontSize: 9, color: "#334155", flexShrink: 0 }}>R{c.row + 1},{c.col + 1}</span>
+            </div>
+          );
+        })}
+      </React.Fragment>
+    );
+  };
+
+  const tree = buildTree();
+
   return (
     <Section title={`OGGETTI PAGINA (${allObjects.length})`} defaultOpen={false}>
       <div style={{ padding: "4px 8px", borderBottom: "1px solid #1e293b" }}>
@@ -332,161 +486,94 @@ function ObjectsSection() {
           placeholder="Filtra per nome / tipo…"
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
-          style={{
-            width: "100%", boxSizing: "border-box",
-            background: "#0f172a", color: "#e2e8f0",
-            border: "1px solid #334155", borderRadius: 3,
-            padding: "3px 6px", fontSize: 11,
-          }}
+          style={{ width: "100%", boxSizing: "border-box", background: "#0f172a", color: "#e2e8f0", border: "1px solid #334155", borderRadius: 3, padding: "3px 6px", fontSize: 11 }}
         />
       </div>
+      {selectedIds.length >= 2 && (
+        <div style={{ padding: "3px 8px", borderBottom: "1px solid #1e293b" }}>
+          <button
+            onClick={() => groupObjects(selectedIds)}
+            style={{ ...S.objBtn, flex: "none", width: "100%", borderStyle: "dashed", color: "#38bdf8", borderColor: "#0ea5e9", fontSize: 11 }}
+          >
+            + Raggruppa selezionati ({selectedIds.length})
+          </button>
+        </div>
+      )}
       <div style={{ ...S.body, maxHeight: 280 }}>
-        {objects.length === 0 && (
+        {tree.length === 0 && (
           <p style={{ padding: "8px 12px", fontSize: 11, color: "#475569", margin: 0 }}>
             {fq ? "Nessun oggetto corrisponde al filtro." : "Nessun oggetto su questa pagina. Aggiungili dalla palette qui sopra."}
           </p>
         )}
-        {objects.map((o) => {
-          const isSel = o.id === selectedId;
-          const isRen = o.id === renaming;
-          const label = o.name?.trim() || `${o.type}·${o.id.slice(-4)}`;
-          const isGrid = o.type === "grid";
-          const isExpanded = isGrid && expandedGrids.has(o.id);
-          const cellsWithChildren = isGrid
-            ? (o.grid_cells ?? []).filter((c) => !!c.child)
-            : [];
-
-          return (
-            <React.Fragment key={o.id}>
-              {/* Main object row */}
-              <div
-                onClick={() => !isRen && selectObject(o.id)}
-                style={{ ...S.row(isSel), gap: 4, paddingRight: 4 }}
-              >
-                {/* Grid expand toggle */}
-                {isGrid ? (
+        {tree.map((node) => {
+          if (node.kind === "group") {
+            const { group, members } = node;
+            const isExpanded = expandedGroups.has(group.id);
+            const allMembersSel = members.length > 0 && members.every((m) => selectedIds.includes(m.id));
+            const isRenamingThis = renamingGroup === group.id;
+            return (
+              <React.Fragment key={group.id}>
+                {/* Group row */}
+                <div
+                  onClick={() => members.length > 0 && selectMany(members.map((m) => m.id))}
+                  style={{
+                    ...S.row(allMembersSel),
+                    gap: 4, paddingRight: 4,
+                    background: allMembersSel ? "#1e3a5f" : "#172033",
+                    color: allMembersSel ? "#93c5fd" : "#64748b",
+                    borderBottom: "1px solid #1e293b",
+                  }}
+                  title="Click per selezionare tutti i membri"
+                >
                   <button
-                    style={{
-                      ...S.iconBtn,
-                      width: 14,
-                      fontSize: 8,
-                      color: cellsWithChildren.length > 0 ? "#94a3b8" : "#334155",
-                      flexShrink: 0,
-                    }}
+                    style={{ ...S.iconBtn, width: 14, fontSize: 8, flexShrink: 0 }}
+                    onClick={(e) => { e.stopPropagation(); toggleExpandGroup(group.id); }}
                     title={isExpanded ? "Comprimi" : "Espandi"}
+                  >
+                    {isExpanded ? "▼" : "▶"}
+                  </button>
+                  <span style={{ fontSize: 11, flexShrink: 0 }}>📁</span>
+                  {isRenamingThis ? (
+                    <input
+                      type="text" value={groupDraft} autoFocus
+                      onClick={(e) => e.stopPropagation()}
+                      onChange={(e) => setGroupDraft(e.target.value)}
+                      onBlur={commitRenameGroup}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") commitRenameGroup();
+                        else if (e.key === "Escape") { setRenamingGroup(null); setGroupDraft(""); }
+                      }}
+                      style={{ flex: 1, minWidth: 0, background: "#0f172a", color: "#e2e8f0", border: "1px solid #334155", borderRadius: 3, padding: "1px 4px", fontSize: 11 }}
+                    />
+                  ) : (
+                    <span
+                      onDoubleClick={(e) => { e.stopPropagation(); startRenameGroup(group.id, group.name); }}
+                      title="Doppio click per rinominare"
+                      style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 11 }}
+                    >
+                      {group.name} ({members.length})
+                    </span>
+                  )}
+                  <button
+                    style={S.iconBtn} title="Rinomina gruppo"
+                    onClick={(e) => { e.stopPropagation(); startRenameGroup(group.id, group.name); }}
+                  >✎</button>
+                  <button
+                    style={{ ...S.iconBtn, color: "#f59e0b" }} title="Separa gruppo"
                     onClick={(e) => {
                       e.stopPropagation();
-                      if (cellsWithChildren.length > 0) toggleExpand(o.id);
+                      if (window.confirm(`Separare il gruppo "${group.name}"? Gli oggetti torneranno alla radice.`)) {
+                        ungroupObjects(group.id);
+                      }
                     }}
-                  >
-                    {cellsWithChildren.length > 0 ? (isExpanded ? "▼" : "▶") : "·"}
-                  </button>
-                ) : (
-                  <span style={{ width: 14, flexShrink: 0 }} />
-                )}
-                {o.locked && (
-                  <span title="Bloccato" style={{ fontSize: 10, flexShrink: 0, opacity: 0.7 }}>🔒</span>
-                )}
-                <span style={{
-                  fontSize: 9, color: "#475569", width: 34, flexShrink: 0,
-                  textTransform: "uppercase", letterSpacing: 0.5,
-                }}>
-                  {o.type.slice(0, 5)}
-                </span>
-                {isRen ? (
-                  <input
-                    type="text"
-                    value={draft}
-                    autoFocus
-                    onClick={(e) => e.stopPropagation()}
-                    onChange={(e) => setDraft(e.target.value)}
-                    onBlur={commitRename}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") commitRename();
-                      else if (e.key === "Escape") { setRenaming(null); setDraft(""); }
-                    }}
-                    style={{
-                      flex: 1, minWidth: 0,
-                      background: "#0f172a", color: "#e2e8f0",
-                      border: "1px solid #334155", borderRadius: 3,
-                      padding: "1px 4px", fontSize: 11,
-                    }}
-                  />
-                ) : (
-                  <span
-                    onDoubleClick={(e) => { e.stopPropagation(); startRename(o.id, o.name ?? ""); }}
-                    title="Doppio click per rinominare"
-                    style={{
-                      flex: 1, minWidth: 0,
-                      overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                      fontSize: 11,
-                    }}
-                  >
-                    {label}
-                  </span>
-                )}
-                <button
-                  style={S.iconBtn}
-                  title="Rinomina"
-                  onClick={(e) => { e.stopPropagation(); startRename(o.id, o.name ?? ""); }}
-                >✎</button>
-                <button
-                  style={S.iconBtn}
-                  title="Duplica"
-                  onClick={(e) => { e.stopPropagation(); duplicateObject(o.id); }}
-                >⧉</button>
-                <button
-                  style={{ ...S.iconBtn, color: "#ef4444" }}
-                  title="Elimina"
-                  onClick={(e) => { e.stopPropagation(); deleteObject(o.id); }}
-                >×</button>
-              </div>
-
-              {/* Grid child sub-rows */}
-              {isExpanded && cellsWithChildren.map((c) => {
-                const isChildSel =
-                  selectedCellChild?.objectId === o.id &&
-                  selectedCellChild.row === c.row &&
-                  selectedCellChild.col === c.col;
-                const childLabel = c.child!.type +
-                  (c.child!.name ? ` — ${c.child!.name}` : "");
-                return (
-                  <div
-                    key={`${o.id}-${c.row}-${c.col}`}
-                    onClick={() => {
-                      selectObject(o.id);
-                      setSelectedCell({ objectId: o.id, row: c.row, col: c.col });
-                      setSelectedCellChild({ objectId: o.id, row: c.row, col: c.col });
-                    }}
-                    style={{
-                      ...S.row(isChildSel),
-                      paddingLeft: 24,
-                      paddingRight: 4,
-                      gap: 4,
-                      color: isChildSel ? "#5eead4" : "#64748b",
-                      background: isChildSel ? "#0f2922" : "transparent",
-                    }}
-                    title={`Cella R${c.row + 1}, C${c.col + 1}`}
-                  >
-                    <span style={{ fontSize: 10, flexShrink: 0, color: "#475569" }}>↳</span>
-                    <span style={{ fontSize: 9, color: "#475569", width: 34, flexShrink: 0, textTransform: "uppercase", letterSpacing: 0.5 }}>
-                      {c.child!.type.slice(0, 5)}
-                    </span>
-                    <span style={{
-                      flex: 1, minWidth: 0,
-                      overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                      fontSize: 11,
-                    }}>
-                      {childLabel}
-                    </span>
-                    <span style={{ fontSize: 9, color: "#334155", flexShrink: 0 }}>
-                      R{c.row + 1},{c.col + 1}
-                    </span>
-                  </div>
-                );
-              })}
-            </React.Fragment>
-          );
+                  >⊔</button>
+                </div>
+                {/* Group members */}
+                {isExpanded && members.map((o) => renderObjectRow(o, 12))}
+              </React.Fragment>
+            );
+          }
+          return renderObjectRow(node.obj);
         })}
       </div>
     </Section>
@@ -769,16 +856,29 @@ export function LeftPanel({ onAddObject, onFunctionsChanged }: LeftPanelProps) {
         <SourcesSection project={project} />
       </div>
 
-      <UndoRedoBar />
+      <HistorySection />
     </div>
   );
 }
 
-function UndoRedoBar() {
-  const undo = useAppStore((s) => s.undo);
-  const redo = useAppStore((s) => s.redo);
-  const past = useAppStore((s) => s.past.length);
-  const future = useAppStore((s) => s.future.length);
+// ── History section (cronologia visuale) ──────────────────────────────────────
+
+function HistorySection() {
+  const past         = useAppStore((s) => s.past);
+  const future       = useAppStore((s) => s.future);
+  const undo         = useAppStore((s) => s.undo);
+  const redo         = useAppStore((s) => s.redo);
+  const jumpToPast   = useAppStore((s) => s.jumpToPast);
+  const jumpToFuture = useAppStore((s) => s.jumpToFuture);
+
+  const currentRef = useRef<HTMLDivElement>(null);
+  const totalSteps = past.length + future.length;
+
+  const [open, setOpen] = useState(true);
+
+  useEffect(() => {
+    currentRef.current?.scrollIntoView({ block: "nearest" });
+  }, [past.length, future.length]);
 
   const btn = (enabled: boolean): React.CSSProperties => ({
     flex: 1,
@@ -786,19 +886,81 @@ function UndoRedoBar() {
     color: enabled ? "#cbd5e1" : "#475569",
     border: "1px solid #334155",
     borderRadius: 4,
-    padding: "4px 0",
+    padding: "3px 0",
     cursor: enabled ? "pointer" : "not-allowed",
-    fontSize: 12,
+    fontSize: 11,
   });
 
   return (
-    <div style={{ padding: "6px 10px", borderTop: "1px solid #334155", flexShrink: 0, display: "flex", gap: 6 }}>
-      <button style={btn(past > 0)} onClick={undo} disabled={past === 0} title="Ctrl-Z">
-        ↶ Annulla
-      </button>
-      <button style={btn(future > 0)} onClick={redo} disabled={future === 0} title="Ctrl-Y / Ctrl-Shift-Z">
-        ↷ Rifai
-      </button>
+    <div style={{ borderTop: "1px solid #334155", flexShrink: 0 }}>
+      <div style={S.sectionHead(open)} onClick={() => setOpen((v) => !v)}>
+        <span>CRONOLOGIA ({totalSteps} step)</span>
+        <span style={S.chevron(open)}>▶</span>
+      </div>
+      {open && (
+        <>
+          <div style={{ overflowY: "auto", maxHeight: 180 }}>
+            {/* Stato iniziale */}
+            <div style={{ ...S.row(false), fontSize: 11, color: "#475569", fontStyle: "italic" }}>
+              Stato iniziale
+            </div>
+            {/* Past entries — oldest to newest, clicking jumps to that state */}
+            {past.map((entry, idx) => (
+              <div
+                key={idx}
+                onClick={() => jumpToPast(idx)}
+                style={{ ...S.row(false), fontSize: 11, paddingLeft: 16, cursor: "pointer" }}
+                title={`Torna a: ${entry.label}`}
+              >
+                {entry.label}
+              </div>
+            ))}
+            {/* Current marker */}
+            <div
+              ref={currentRef}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                padding: "3px 12px",
+                background: "#134e4a",
+                color: "#5eead4",
+                fontSize: 11,
+                fontWeight: 700,
+                borderTop: "1px solid #0f3d38",
+                borderBottom: "1px solid #0f3d38",
+              }}
+            >
+              ▶ CORRENTE
+            </div>
+            {/* Future entries — next redo target first */}
+            {future.map((entry, idx) => (
+              <div
+                key={idx}
+                onClick={() => jumpToFuture(idx)}
+                style={{
+                  ...S.row(false),
+                  fontSize: 11,
+                  paddingLeft: 16,
+                  cursor: "pointer",
+                  opacity: 0.5,
+                  fontStyle: "italic",
+                }}
+                title={`Ripristina: ${entry.label}`}
+              >
+                {entry.label}
+              </div>
+            ))}
+          </div>
+          <div style={{ padding: "5px 8px", display: "flex", gap: 5 }}>
+            <button style={btn(past.length > 0)} onClick={undo} disabled={past.length === 0} title="Ctrl-Z">
+              ↶ Annulla
+            </button>
+            <button style={btn(future.length > 0)} onClick={redo} disabled={future.length === 0} title="Ctrl-Y">
+              ↷ Rifai
+            </button>
+          </div>
+        </>
+      )}
     </div>
   );
 }

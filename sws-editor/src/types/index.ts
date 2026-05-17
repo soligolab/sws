@@ -201,6 +201,8 @@ export interface SynopticObject {
   grid_border_color?: string;
   /** When true the object cannot be selected or moved in the editor. */
   locked?: boolean;
+  /** Optional group this object belongs to (id from SynopticPage.groups). */
+  group_id?: string;
 }
 
 // ── Historian sample (wire shape from GET /api/history/:tag) ──────────────
@@ -209,6 +211,12 @@ export interface Sample {
   ts_ms: number;
   value: number | string | boolean;
   quality: TagQuality;
+}
+
+/** A logical grouping of objects in the editor panel (UI-only, no canvas effect). */
+export interface ObjectGroup {
+  id: string;
+  name: string;
 }
 
 export interface SynopticPage {
@@ -220,6 +228,8 @@ export interface SynopticPage {
   width?: number;
   /** Canvas design height in px. Undefined = fluid (fills the container). */
   height?: number;
+  /** Editor-panel groups (logical containers). No canvas rendering effect. */
+  groups?: ObjectGroup[];
 }
 
 export interface Project {
