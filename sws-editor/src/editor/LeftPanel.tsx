@@ -111,6 +111,8 @@ function PagesSection() {
   const addPage       = useAppStore((s) => s.addPage);
   const deletePage    = useAppStore((s) => s.deletePage);
   const renamePage    = useAppStore((s) => s.renamePage);
+  const reorderPage   = useAppStore((s) => s.reorderPage);
+  const duplicatePage = useAppStore((s) => s.duplicatePage);
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingValue, setEditingValue] = useState("");
@@ -131,7 +133,7 @@ function PagesSection() {
   return (
     <Section title="PAGINE">
       <div style={S.body}>
-        {pages.map((p) => (
+        {pages.map((p, pi) => (
           <div
             key={p.id}
             style={{ ...S.row(p.id === currentPageId), justifyContent: "space-between" }}
@@ -162,17 +164,25 @@ function PagesSection() {
               />
             ) : (
               <>
-                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, minWidth: 0 }}>
                   {p.name}
                 </span>
-                <span style={{ display: "flex", gap: 2 }}>
+                <span style={{ display: "flex", gap: 2, flexShrink: 0 }}>
+                  {pi > 0 && (
+                    <button style={S.iconBtn} title="Sposta su"
+                      onClick={(e) => { e.stopPropagation(); reorderPage(p.id, "up"); }}>↑</button>
+                  )}
+                  {pi < pages.length - 1 && (
+                    <button style={S.iconBtn} title="Sposta giù"
+                      onClick={(e) => { e.stopPropagation(); reorderPage(p.id, "down"); }}>↓</button>
+                  )}
+                  <button style={S.iconBtn} title="Duplica pagina"
+                    onClick={(e) => { e.stopPropagation(); duplicatePage(p.id); }}>⧉</button>
                   <button
                     style={S.iconBtn}
                     title="Rinomina"
                     onClick={(e) => { e.stopPropagation(); beginRename(p.id, p.name); }}
-                  >
-                    ✎
-                  </button>
+                  >✎</button>
                   {pages.length > 1 && (
                     <button
                       style={S.iconBtn}
@@ -183,9 +193,7 @@ function PagesSection() {
                           deletePage(p.id);
                         }
                       }}
-                    >
-                      ×
-                    </button>
+                    >×</button>
                   )}
                 </span>
               </>

@@ -8,6 +8,16 @@ and this project adheres to [CalVer](https://calver.org/) (`YYYY.MM[.patch]`).
 ## [Unreleased]
 
 ### Added
+- **Mouse position display** (`SvgCanvas.tsx`) — in edit mode, the bottom-left corner of the canvas shows `X:NNN Y:NNN` in SVG user-space coordinates, updated live on every `mousemove`.
+
+- **Zoom to fit** (`SvgCanvas.tsx`) — `Ctrl+Shift+0` and the `⊡` button in the top-right corner of the canvas compute the bounding box of all page objects and set zoom + pan to fit them in view with ~40 px of margin. Resets to 100% when the page is empty. (Ctrl+0 continues to reset to 100% without fitting.)
+
+- **Page reorder + duplicate** (`LeftPanel.tsx`, `store/index.ts`) — each page row in the LeftPanel now shows ↑/↓ buttons to move the page up or down in the list (visible only when applicable) and a ⧉ button to duplicate the page. Store: new `reorderPage(id, dir)` and `duplicatePage(id)` actions (both push undo history). The duplicate appears immediately after the original and becomes the active page.
+
+- **Object edge snapping** (`SvgCanvas.tsx`) — when dragging an object, the canvas scans all other objects' bounding boxes (left/center/right on X; top/middle/bottom on Y). If any edge on the dragged object (its own left, center, or right) falls within `8/zoom` px of another object's reference edge, it snaps to that edge. Object-edge snap takes priority over grid snap. Snap guide lines (cyan, 1 px) are shown along the active snap axis and cleared on `mouseup`. Works with all non-line object types.
+
+- **Keyboard shortcut help** (`EditorShell.tsx`) — pressing `?` anywhere (outside an input field) toggles a modal overlay listing all keyboard shortcuts, grouped by category: canvas navigation, selection, editing, z-order. Click outside or ×  to close.
+
 - **Object lock** (`SynopticObject.locked`, `SvgCanvas.tsx`, `EditorShell.tsx`, `LeftPanel.tsx`) — a new `locked?: boolean` field on every `SynopticObject`. When `true` in edit mode the object's `handleMouseDown` returns early — it cannot be clicked, selected, or dragged. A "Bloccato" checkbox (amber accent) appears in the LAYER section of the properties panel. A 🔒 emoji indicator appears in the LeftPanel object list next to the type tag.
 
 - **LeftPanel object filter** (`LeftPanel.tsx`) — a live text filter input above the objects list in the "OGGETTI PAGINA" section. Filters by `name`, `type`, and `id` (case-insensitive substring). The section title always shows the total count. An appropriate empty-state message is shown when the filter matches nothing.

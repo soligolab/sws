@@ -283,11 +283,28 @@ export function SvgCanvas({
   const panRef   = useRef({ x: 0, y: 0 });
   const [viewT, setViewT] = useState({ zoom: 1, panX: 0, panY: 0 });
   const panDragRef = useRef<{ startCX: number; startCY: number; startPX: number; startPY: number } | null>(null);
+  const [mousePos, setMousePos] = useState<{ x: number; y: number } | null>(null);
+  const [snapLines, setSnapLines] = useState<{ x: number | null; y: number | null }>({ x: null, y: null });
 
   const applyView = (z: number, px: number, py: number) => {
     zoomRef.current = z;
     panRef.current = { x: px, y: py };
     setViewT({ zoom: z, panX: px, panY: py });
+  };
+
+  const fitView = () => {
+    const el = svgRef.current;
+    if (!el || objects.length === 0) { applyView(1, 0, 0); return; }
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const o of objects) {
+      const bb = objBBox(o);
+      minX = Math.min(minX, bb.x1); minY = Math.min(minY, bb.y1);
+      maxX = Math.max(maxX, bb.x2); maxY = Math.max(maxY, bb.y2);
+    }
+    const W = maxX - minX; const H = maxY - minY;
+    const cw = el.clientWidth; const ch = el.clientHeight;
+    const z = Math.max(0.1, Math.min(4, Math.min(cw / (W + 80), ch / (H + 80))));
+    applyView(z, (cw - W * z) / 2 - minX * z, (ch - H * z) / 2 - minY * z);
   };
 
   // Non-passive wheel listener for zoom + pan via scroll.
@@ -316,7 +333,8 @@ export function SvgCanvas({
       }
     };
     const resetHandler = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === "0") { e.preventDefault(); applyView(1, 0, 0); }
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === "0") { e.preventDefault(); fitView(); }
+      else if ((e.ctrlKey || e.metaKey) && e.key === "0") { e.preventDefault(); applyView(1, 0, 0); }
     };
     el.addEventListener("wheel", handler, { passive: false });
     window.addEventListener("keydown", resetHandler);
@@ -369,6 +387,10 @@ export function SvgCanvas({
 
   const handleMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
     const svgRect = e.currentTarget.getBoundingClientRect();
+    const screenX = e.clientX - svgRect.left;
+    const screenY = e.clientY - svgRect.top;
+    const pt = toSvg(screenX, screenY);
+
     if (panDragRef.current) {
       // Middle-click pan
       const pd = panDragRef.current;
@@ -377,6 +399,10 @@ export function SvgCanvas({
         pd.startPY + (e.clientY - pd.startCY));
       return;
     }
+
+    // Update mouse position display
+    if (onMove) setMousePos(pt);
+
     const z = zoomRef.current;
     if (resizeRef.current && onMove) {
       // Resize / endpoint handle drag. dx/dy in screen pixels → divide by zoom.
@@ -396,10 +422,42 @@ export function SvgCanvas({
         if (width >= 4 && height >= 4) onMove(objId, { x, y, width, height });
       }
     } else if (dragRef.current && onMove) {
-      // Object drag — coords in SVG space
-      const pt = toSvg(e.clientX - svgRect.left, e.clientY - svgRect.top);
-      const newX = snap(pt.x - dragRef.current.offsetX);
-      const newY = snap(pt.y - dragRef.current.offsetY);
+      // Object drag — coords in SVG space with edge snapping
+      const rawX = pt.x - dragRef.current.offsetX;
+      const rawY = pt.y - dragRef.current.offsetY;
+      const draggedObj = objects.find((o) => o.id === dragRef.current!.objId);
+      const dw = draggedObj?.width ?? 0;
+      const dh = draggedObj?.height ?? 0;
+
+      const threshold = 8 / z;
+      let newX = rawX; let newY = rawY;
+      let snapX: number | null = null; let snapY: number | null = null;
+
+      for (const other of objects) {
+        if (other.id === dragRef.current.objId) continue;
+        const bb = objBBox(other);
+        const exs = [bb.x1, (bb.x1 + bb.x2) / 2, bb.x2];
+        const eys = [bb.y1, (bb.y1 + bb.y2) / 2, bb.y2];
+        if (snapX === null) {
+          for (const ex of exs) {
+            if (Math.abs(rawX - ex) < threshold)           { snapX = ex; newX = ex;          break; }
+            if (Math.abs(rawX + dw / 2 - ex) < threshold) { snapX = ex; newX = ex - dw / 2; break; }
+            if (Math.abs(rawX + dw - ex) < threshold)     { snapX = ex; newX = ex - dw;      break; }
+          }
+        }
+        if (snapY === null) {
+          for (const ey of eys) {
+            if (Math.abs(rawY - ey) < threshold)           { snapY = ey; newY = ey;          break; }
+            if (Math.abs(rawY + dh / 2 - ey) < threshold) { snapY = ey; newY = ey - dh / 2; break; }
+            if (Math.abs(rawY + dh - ey) < threshold)     { snapY = ey; newY = ey - dh;      break; }
+          }
+        }
+        if (snapX !== null && snapY !== null) break;
+      }
+      if (snapX === null) newX = snap(rawX);
+      if (snapY === null) newY = snap(rawY);
+      setSnapLines({ x: snapX, y: snapY });
+
       const patch: Partial<SynopticObject> = { x: newX, y: newY };
       if (dragRef.current.dx2 !== undefined) {
         patch.x2 = newX + dragRef.current.dx2!;
@@ -408,7 +466,6 @@ export function SvgCanvas({
       onMove(dragRef.current.objId, patch);
     } else if (selDragRef.current) {
       // Selection rect update — coords in SVG space
-      const pt = toSvg(e.clientX - svgRect.left, e.clientY - svgRect.top);
       const updated: SelRect = { ...selDragRef.current, curX: pt.x, curY: pt.y };
       selDragRef.current = updated;
       setSelRect(updated);
@@ -419,6 +476,7 @@ export function SvgCanvas({
     dragRef.current = null;
     resizeRef.current = null;
     panDragRef.current = null;
+    setSnapLines({ x: null, y: null });
 
     const rect = selDragRef.current;
     selDragRef.current = null;
@@ -658,13 +716,40 @@ export function SvgCanvas({
           </>
         );
       })()}
+      {/* Snap guide lines — inside the transform so coords match SVG space */}
+      {snapLines.x !== null && (
+        <line x1={snapLines.x} y1={-50000} x2={snapLines.x} y2={50000}
+          stroke="#06b6d4" strokeWidth={1 / viewT.zoom}
+          style={{ pointerEvents: "none" }} />
+      )}
+      {snapLines.y !== null && (
+        <line x1={-50000} y1={snapLines.y} x2={50000} y2={snapLines.y}
+          stroke="#06b6d4" strokeWidth={1 / viewT.zoom}
+          style={{ pointerEvents: "none" }} />
+      )}
       </g>{/* end zoom+pan group */}
 
-      {/* Zoom level badge — top-right corner, outside the transform */}
-      {onMove && viewT.zoom !== 1 && (
-        <text x="100%" y={18} textAnchor="end" dx={-6}
-          style={{ fontSize: 11, fill: "#64748b", pointerEvents: "none", fontFamily: "monospace" }}>
-          {Math.round(viewT.zoom * 100)}%
+      {/* Zoom level badge + fit button — top-right corner, outside the transform */}
+      {onMove && (
+        <g>
+          <text x="100%" y={18} textAnchor="end" dx={viewT.zoom !== 1 ? -30 : -6}
+            style={{ fontSize: 11, fill: "#64748b", pointerEvents: "none", fontFamily: "monospace" }}>
+            {Math.round(viewT.zoom * 100)}%
+          </text>
+          <text x="100%" y={18} textAnchor="end" dx={-6}
+            style={{ fontSize: 11, fill: "#475569", cursor: "pointer", fontFamily: "monospace" }}
+            onClick={fitView}>
+            <title>Adatta alla vista (Ctrl+Shift+0)</title>
+            ⊡
+          </text>
+        </g>
+      )}
+
+      {/* Mouse position indicator — bottom-left, outside the transform */}
+      {onMove && mousePos && (
+        <text x={6} y="100%" dy={-6}
+          style={{ fontSize: 10, fill: "#475569", pointerEvents: "none", fontFamily: "monospace" }}>
+          X:{Math.round(mousePos.x)} Y:{Math.round(mousePos.y)}
         </text>
       )}
     </svg>

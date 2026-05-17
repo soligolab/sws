@@ -157,6 +157,8 @@ interface AppState {
   addPage: () => void;
   deletePage: (id: string) => void;
   renamePage: (id: string, name: string) => void;
+  reorderPage: (id: string, dir: "up" | "down") => void;
+  duplicatePage: (id: string) => void;
   updatePageProps: (id: string, patch: Partial<Pick<SynopticPage, "name" | "background" | "width" | "height">>) => void;
   updateGridCell: (pageId: string, objectId: string, cell: GridCell) => void;
   setCurrentPage: (id: string) => void;
@@ -441,6 +443,41 @@ export const useAppStore = create<AppState>((set, get) => {
     renamePage: (id, name) => {
       pushHistory();
       set((s) => ({ pages: s.pages.map((p) => (p.id === id ? { ...p, name } : p)) }));
+    },
+
+    reorderPage: (id, dir) => {
+      pushHistory();
+      set((s) => {
+        const idx = s.pages.findIndex((p) => p.id === id);
+        if (idx < 0) return s;
+        const pages = [...s.pages];
+        const [page] = pages.splice(idx, 1);
+        const newIdx = dir === "up" ? Math.max(0, idx - 1) : Math.min(pages.length, idx + 1);
+        pages.splice(newIdx, 0, page);
+        return { pages };
+      });
+    },
+
+    duplicatePage: (id) => {
+      pushHistory();
+      set((s) => {
+        const page = s.pages.find((p) => p.id === id);
+        if (!page) return s;
+        const ts = Date.now();
+        const copy: SynopticPage = {
+          ...page,
+          id: `page_${ts}`,
+          name: `${page.name} (copia)`,
+          objects: page.objects.map((o, i) => ({
+            ...o,
+            id: `${o.id}_c${i}`,
+          })),
+        };
+        const idx = s.pages.findIndex((p) => p.id === id);
+        const pages = [...s.pages];
+        pages.splice(idx + 1, 0, copy);
+        return { pages, currentPageId: copy.id };
+      });
     },
 
     updatePageProps: (id, patch) => {

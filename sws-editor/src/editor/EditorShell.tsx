@@ -225,6 +225,8 @@ export function EditorShell() {
     api.updateFunctions(list).catch(console.error);
   };
 
+  const [helpOpen, setHelpOpen] = useState(false);
+
   const handleSelect = (id: string | null, shift?: boolean) => {
     if (id === null) { selectObject(null); return; }
     if (shift) toggleSelection(id);
@@ -316,6 +318,8 @@ export function EditorShell() {
             state.updateObject(id, patch);
           });
         }
+      } else if (e.key === "?" || (e.shiftKey && e.key === "?")) {
+        setHelpOpen((v) => !v);
       }
     };
     document.addEventListener("keydown", handler);
@@ -617,6 +621,93 @@ export function EditorShell() {
           </>
         )}
       </aside>
+      {helpOpen && <ShortcutHelp onClose={() => setHelpOpen(false)} />}
+    </div>
+  );
+}
+
+// ── Keyboard shortcut help overlay ───────────────────────────────────────────
+
+const SHORTCUTS = [
+  ["Navigazione canvas", ""],
+  ["Ctrl + rotella",    "Zoom centrato sul cursore"],
+  ["Rotella",           "Pan verticale"],
+  ["Shift + rotella",   "Pan orizzontale"],
+  ["Click medio + drag","Pan libero"],
+  ["Ctrl+0",            "Reset zoom 100%"],
+  ["Ctrl+Shift+0",      "Adatta alla vista (fit)"],
+  ["Selezione", ""],
+  ["Click",             "Seleziona oggetto"],
+  ["Shift+click",       "Aggiungi/togli dalla selezione"],
+  ["Drag su sfondo",    "Rettangolo di selezione"],
+  ["Ctrl+A",            "Seleziona tutto"],
+  ["Modifica", ""],
+  ["Canc / Backspace",  "Elimina selezione"],
+  ["Ctrl+C",            "Copia"],
+  ["Ctrl+X",            "Taglia"],
+  ["Ctrl+V",            "Incolla"],
+  ["Ctrl+D",            "Duplica"],
+  ["Ctrl+Z",            "Annulla (Undo)"],
+  ["Ctrl+Y",            "Ripristina (Redo)"],
+  ["Frecce",            "Sposta di 1 px"],
+  ["Shift+Frecce",      "Sposta di 1 passo griglia"],
+  ["Z-order", ""],
+  ["Ctrl+]",            "Porta avanti"],
+  ["Ctrl+Shift+]",      "Primo piano"],
+  ["Ctrl+[",            "Porta indietro"],
+  ["Ctrl+Shift+[",      "Manda in fondo"],
+  ["Altro", ""],
+  ["?",                 "Mostra/nasconde questa guida"],
+];
+
+function ShortcutHelp({ onClose }: { onClose: () => void }) {
+  return (
+    <div
+      style={{
+        position: "fixed", inset: 0, zIndex: 9999,
+        background: "rgba(0,0,0,0.6)", display: "flex",
+        alignItems: "center", justifyContent: "center",
+      }}
+      onClick={onClose}
+    >
+      <div
+        style={{
+          background: "#0f172a", border: "1px solid #334155", borderRadius: 8,
+          padding: "20px 28px", minWidth: 400, maxHeight: "80vh", overflowY: "auto",
+          boxShadow: "0 8px 32px rgba(0,0,0,0.6)",
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+          <span style={{ fontSize: 14, fontWeight: 600, color: "#e2e8f0" }}>Scorciatoie da tastiera</span>
+          <button
+            onClick={onClose}
+            style={{ background: "none", border: "none", color: "#64748b", cursor: "pointer", fontSize: 16, lineHeight: 1 }}
+          >×</button>
+        </div>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+          <tbody>
+            {SHORTCUTS.map(([key, desc]) =>
+              desc === "" ? (
+                <tr key={key}>
+                  <td colSpan={2} style={{ color: "#475569", fontWeight: 700, fontSize: 10,
+                    letterSpacing: 0.5, textTransform: "uppercase", paddingTop: 10, paddingBottom: 4 }}>
+                    {key}
+                  </td>
+                </tr>
+              ) : (
+                <tr key={key} style={{ borderBottom: "1px solid #1e293b" }}>
+                  <td style={{ padding: "5px 12px 5px 0", color: "#94a3b8", fontFamily: "monospace",
+                    whiteSpace: "nowrap", minWidth: 160 }}>
+                    {key}
+                  </td>
+                  <td style={{ padding: "5px 0", color: "#cbd5e1" }}>{desc}</td>
+                </tr>
+              )
+            )}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
