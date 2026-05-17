@@ -8,6 +8,8 @@ and this project adheres to [CalVer](https://calver.org/) (`YYYY.MM[.patch]`).
 ## [Unreleased]
 
 ### Added
+- **Visual resize handles** (`SvgCanvas.tsx`) — when a single non-line, non-grid, non-rotated object is selected in edit mode, 8 white/yellow squares (8 × 8 px) appear at the bounding-box corners and edge midpoints. Dragging a handle resizes the object in real time via `onMove`: corner handles change both dimensions and position; edge handles change only one dimension. Minimum enforced at 4 px; snap-to-grid applies. Implemented via a new `ResizeState` / `resizeRef` alongside the existing `DragState` — mutually exclusive, no changes in `EditorShell` or the store.
+
 - **Context-sensitive properties panel** (`EditorShell.tsx`) — the right-side panel now shows exactly one level of detail based on what is selected, instead of stacking all levels simultaneously:
   - Grid selected (no cell) → `ObjectProps` for the grid object.
   - Cell selected (no child sub-selected) → `GridCellEditor` for the cell; if a child exists a labelled chip shows its type/name plus ✂ Taglia / ✕ Rimuovi buttons and a hint "clicca nel canvas per modificarne le proprietà".
