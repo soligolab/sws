@@ -1,0 +1,3 @@
+id: casa-locale
+label: "Casa Locale (MQTT)"
+description: "Console di controllo domestica a 5 pagine: flusso energia solare, contatori DDS661, sensori Zigbee porte/finestre, tapparelle Shelly. Broker MQTT locale su 192.168.1.6. Leggere SETUP.md prima di usare."

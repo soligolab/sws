@@ -1,0 +1,878 @@
+id: cl_page1
+name: "Panoramica"
+background: "#0f172a"
+objects:
+
+# ══════════════════════════════════════════════════════════════════
+# HEADER
+# ══════════════════════════════════════════════════════════════════
+- id: cl1_title
+  type: text
+  x: 400
+  y: 22
+  text: "🏠  CASA — PANORAMICA"
+  font_size: 20
+  font_weight: bold
+  text_anchor: middle
+  color: "#e2e8f0"
+
+- id: cl1_subtitle
+  type: text
+  x: 400
+  y: 42
+  text: "Dashboard energia + sicurezza"
+  font_size: 11
+  text_anchor: middle
+  color: "#475569"
+
+# Nav bottom
+- id: cl1_nav_solare
+  type: navbutton
+  x: 40
+  y: 620
+  width: 160
+  height: 36
+  label: "☀ Solare"
+  target_page: cl_page2
+
+- id: cl1_nav_contatori
+  type: navbutton
+  x: 215
+  y: 620
+  width: 160
+  height: 36
+  label: "⚡ Contatori"
+  target_page: cl_page3
+
+- id: cl1_nav_sicurezza
+  type: navbutton
+  x: 390
+  y: 620
+  width: 160
+  height: 36
+  label: "🔐 Sicurezza"
+  target_page: cl_page4
+
+- id: cl1_nav_domotica
+  type: navbutton
+  x: 565
+  y: 620
+  width: 160
+  height: 36
+  label: "🏠 Domotica"
+  target_page: cl_page5
+
+# ══════════════════════════════════════════════════════════════════
+# SEZIONE SINISTRA — FLUSSO ENERGIA
+# ══════════════════════════════════════════════════════════════════
+
+# Titolo sezione
+- id: cl1_e_title
+  type: text
+  x: 210
+  y: 70
+  text: "FLUSSO ENERGIA"
+  font_size: 12
+  font_weight: bold
+  text_anchor: middle
+  color: "#64748b"
+
+# ── Box FOTOVOLTAICO ──────────────────────────────────────────────
+- id: cl1_pv_box
+  type: rect
+  x: 80
+  y: 90
+  width: 190
+  height: 100
+  fill: "#1c1e2e"
+  stroke: "#f59e0b"
+  stroke_width: 2
+
+- id: cl1_pv_icon
+  type: image
+  x: 88
+  y: 96
+  width: 28
+  height: 28
+  src: "/symbols/solar-panel.svg"
+
+- id: cl1_pv_label
+  type: text
+  x: 175
+  y: 110
+  text: "FOTOVOLTAICO"
+  font_size: 11
+  font_weight: bold
+  text_anchor: middle
+  color: "#f59e0b"
+
+- id: cl1_pv_val
+  type: text
+  x: 175
+  y: 140
+  tag: solar.pv_power
+  format: "{value:.2f} kW"
+  font_size: 22
+  font_weight: bold
+  text_anchor: middle
+  color: "#fbbf24"
+
+- id: cl1_pv_daily
+  type: text
+  x: 175
+  y: 162
+  tag: solar.daily_kwh
+  format: "oggi {value:.1f} kWh"
+  font_size: 11
+  text_anchor: middle
+  color: "#78716c"
+
+- id: cl1_pv_led
+  type: led
+  x: 248
+  y: 96
+  width: 14
+  height: 14
+  tag: solar.pv_power
+  on_value: 0.05
+  on_color: "#f59e0b"
+  off_color: "#374151"
+
+# ── Box CONSUMO CASA ──────────────────────────────────────────────
+- id: cl1_casa_box
+  type: rect
+  x: 300
+  y: 90
+  width: 190
+  height: 100
+  fill: "#1c1e2e"
+  stroke: "#3b82f6"
+  stroke_width: 2
+
+- id: cl1_casa_icon
+  type: image
+  x: 308
+  y: 96
+  width: 28
+  height: 28
+  src: "/symbols/home-lightning-bolt.svg"
+
+- id: cl1_casa_label
+  type: text
+  x: 395
+  y: 110
+  text: "CONSUMO CASA"
+  font_size: 11
+  font_weight: bold
+  text_anchor: middle
+  color: "#3b82f6"
+
+- id: cl1_casa_val
+  type: text
+  x: 395
+  y: 140
+  tag: solar.consumption
+  format: "{value:.2f} kW"
+  font_size: 22
+  font_weight: bold
+  text_anchor: middle
+  color: "#60a5fa"
+
+- id: cl1_casa_total
+  type: text
+  x: 395
+  y: 162
+  tag: solar.total_kwh
+  format: "totale {value:.0f} kWh"
+  font_size: 11
+  text_anchor: middle
+  color: "#78716c"
+
+# Linea PV → Casa
+- id: cl1_line_pv_casa
+  type: line
+  x: 270
+  y: 140
+  x2: 300
+  y2: 140
+  stroke: "#f59e0b"
+  stroke_width: 2
+
+# ── Box BATTERIA ──────────────────────────────────────────────────
+- id: cl1_bat_box
+  type: rect
+  x: 80
+  y: 240
+  width: 190
+  height: 120
+  fill: "#1c1e2e"
+  stroke: "#22c55e"
+  stroke_width: 2
+
+- id: cl1_bat_icon
+  type: image
+  x: 88
+  y: 247
+  width: 28
+  height: 28
+  src: "/symbols/battery-charging-high.svg"
+
+- id: cl1_bat_label
+  type: text
+  x: 175
+  y: 260
+  text: "BATTERIA"
+  font_size: 11
+  font_weight: bold
+  text_anchor: middle
+  color: "#22c55e"
+
+- id: cl1_bat_soc
+  type: text
+  x: 175
+  y: 290
+  tag: solar.battery_soc
+  format: "{value:.0f}%"
+  font_size: 22
+  font_weight: bold
+  text_anchor: middle
+  color: "#4ade80"
+
+- id: cl1_bat_bar
+  type: progress_bar
+  x: 92
+  y: 304
+  width: 166
+  height: 16
+  tag: solar.battery_soc
+  min: 0
+  max: 100
+  fill: "#22c55e"
+  warn_low: 20
+  alarm_low: 10
+
+- id: cl1_bat_power
+  type: text
+  x: 175
+  y: 336
+  tag: solar.battery_power
+  format: "{value:+.2f} kW"
+  font_size: 12
+  text_anchor: middle
+  color: "#6ee7b7"
+
+# Linea PV → Batteria
+- id: cl1_line_pv_bat
+  type: line
+  x: 175
+  y: 190
+  x2: 175
+  y2: 240
+  stroke: "#22c55e"
+  stroke_width: 2
+
+# ── Box RETE ──────────────────────────────────────────────────────
+- id: cl1_grid_box
+  type: rect
+  x: 300
+  y: 240
+  width: 190
+  height: 120
+  fill: "#1c1e2e"
+  stroke: "#06b6d4"
+  stroke_width: 2
+
+- id: cl1_grid_icon
+  type: image
+  x: 308
+  y: 247
+  width: 28
+  height: 28
+  src: "/symbols/transmission-tower.svg"
+
+- id: cl1_grid_label
+  type: text
+  x: 395
+  y: 260
+  text: "RETE ELETTRICA"
+  font_size: 11
+  font_weight: bold
+  text_anchor: middle
+  color: "#06b6d4"
+
+- id: cl1_grid_val
+  type: text
+  x: 395
+  y: 290
+  tag: solar.grid_power
+  format: "{value:+.2f} kW"
+  font_size: 22
+  font_weight: bold
+  text_anchor: middle
+  color: "#22d3ee"
+
+- id: cl1_grid_hint
+  type: text
+  x: 395
+  y: 312
+  text: "- = importo / + = esporto"
+  font_size: 9
+  text_anchor: middle
+  color: "#475569"
+
+- id: cl1_grid_v
+  type: text
+  x: 395
+  y: 336
+  tag: solar.battery_v
+  format: "bat {value:.1f} V"
+  font_size: 11
+  text_anchor: middle
+  color: "#0e7490"
+
+# Linea Casa → Rete
+- id: cl1_line_casa_grid
+  type: line
+  x: 395
+  y: 190
+  x2: 395
+  y2: 240
+  stroke: "#06b6d4"
+  stroke_width: 2
+
+# Linea Batteria → Rete
+- id: cl1_line_bat_grid
+  type: line
+  x: 270
+  y: 300
+  x2: 300
+  y2: 300
+  stroke: "#22c55e"
+  stroke_width: 2
+
+# Stato inverter
+- id: cl1_inv_status_lbl
+  type: text
+  x: 88
+  y: 390
+  text: "Inverter:"
+  font_size: 11
+  color: "#64748b"
+
+- id: cl1_inv_status_val
+  type: text
+  x: 150
+  y: 390
+  tag: solar.inv_status
+  format: "{value}"
+  font_size: 11
+  font_weight: bold
+  color: "#22c55e"
+
+- id: cl1_inv_temp_lbl
+  type: text
+  x: 88
+  y: 408
+  text: "Temp modulo:"
+  font_size: 11
+  color: "#64748b"
+
+- id: cl1_inv_temp_val
+  type: text
+  x: 185
+  y: 408
+  tag: solar.inv_temp
+  format: "{value:.0f} °C"
+  font_size: 11
+  font_weight: bold
+  color: "#94a3b8"
+
+# ══════════════════════════════════════════════════════════════════
+# SEZIONE DESTRA — SICUREZZA + TAPPARELLE
+# ══════════════════════════════════════════════════════════════════
+
+# Divisore verticale
+- id: cl1_divider
+  type: line
+  x: 540
+  y: 60
+  x2: 540
+  y2: 600
+  stroke: "#1e293b"
+  stroke_width: 2
+
+# Titolo
+- id: cl1_sec_title
+  type: text
+  x: 680
+  y: 70
+  text: "SICUREZZA"
+  font_size: 12
+  font_weight: bold
+  text_anchor: middle
+  color: "#64748b"
+
+# ── Garage sezionale ──────────────────────────────────────────────
+- id: cl1_garage_box
+  type: rect
+  x: 555
+  y: 85
+  width: 255
+  height: 60
+  fill: "#1e293b"
+  stroke: "#334155"
+  stroke_width: 1
+
+- id: cl1_garage_lbl
+  type: text
+  x: 565
+  y: 104
+  text: "Garage Sezionale"
+  font_size: 12
+  color: "#94a3b8"
+
+- id: cl1_garage_stato
+  type: text
+  x: 565
+  y: 124
+  tag: sec.garage_sezionale
+  format: "{value}"
+  font_size: 10
+  color: "#64748b"
+
+- id: cl1_garage_led
+  type: led
+  x: 770
+  y: 100
+  width: 30
+  height: 30
+  tag: sec.garage_sezionale
+  on_value: true
+  on_color: "#ef4444"
+  off_color: "#22c55e"
+
+# ── Finestre / porte (griglia 2 colonne) ─────────────────────────
+- id: cl1_win_title
+  type: text
+  x: 555
+  y: 165
+  text: "APERTURE"
+  font_size: 11
+  font_weight: bold
+  color: "#475569"
+
+# Col sx
+- id: cl1_w1_lbl
+  type: text
+  x: 570
+  y: 186
+  text: "Fin. Garage"
+  font_size: 10
+  color: "#64748b"
+- id: cl1_w1_led
+  type: led
+  x: 648
+  y: 178
+  width: 14
+  height: 14
+  tag: sec.finestra_garage
+  on_value: true
+  on_color: "#ef4444"
+  off_color: "#22c55e"
+
+- id: cl1_w2_lbl
+  type: text
+  x: 570
+  y: 206
+  text: "Fin. Studio"
+  font_size: 10
+  color: "#64748b"
+- id: cl1_w2_led
+  type: led
+  x: 648
+  y: 198
+  width: 14
+  height: 14
+  tag: sec.finestra_studio
+  on_value: true
+  on_color: "#ef4444"
+  off_color: "#22c55e"
+
+- id: cl1_w3_lbl
+  type: text
+  x: 570
+  y: 226
+  text: "Cucina DX"
+  font_size: 10
+  color: "#64748b"
+- id: cl1_w3_led
+  type: led
+  x: 648
+  y: 218
+  width: 14
+  height: 14
+  tag: sec.finestra_cucina_dx
+  on_value: true
+  on_color: "#ef4444"
+  off_color: "#22c55e"
+
+- id: cl1_w4_lbl
+  type: text
+  x: 570
+  y: 246
+  text: "Cucina SX"
+  font_size: 10
+  color: "#64748b"
+- id: cl1_w4_led
+  type: led
+  x: 648
+  y: 238
+  width: 14
+  height: 14
+  tag: sec.finestra_cucina_sx
+  on_value: true
+  on_color: "#ef4444"
+  off_color: "#22c55e"
+
+- id: cl1_w5_lbl
+  type: text
+  x: 570
+  y: 266
+  text: "Sogg. DX"
+  font_size: 10
+  color: "#64748b"
+- id: cl1_w5_led
+  type: led
+  x: 648
+  y: 258
+  width: 14
+  height: 14
+  tag: sec.portafinestra_sogg_dx
+  on_value: true
+  on_color: "#ef4444"
+  off_color: "#22c55e"
+
+- id: cl1_w6_lbl
+  type: text
+  x: 570
+  y: 286
+  text: "Sogg. SX"
+  font_size: 10
+  color: "#64748b"
+- id: cl1_w6_led
+  type: led
+  x: 648
+  y: 278
+  width: 14
+  height: 14
+  tag: sec.portafinestra_sogg_sx
+  on_value: true
+  on_color: "#ef4444"
+  off_color: "#22c55e"
+
+# Col dx
+- id: cl1_w7_lbl
+  type: text
+  x: 680
+  y: 186
+  text: "Lavanderia"
+  font_size: 10
+  color: "#64748b"
+- id: cl1_w7_led
+  type: led
+  x: 760
+  y: 178
+  width: 14
+  height: 14
+  tag: sec.portafinestra_lav
+  on_value: true
+  on_color: "#ef4444"
+  off_color: "#22c55e"
+
+- id: cl1_w8_lbl
+  type: text
+  x: 680
+  y: 206
+  text: "Bagno T."
+  font_size: 10
+  color: "#64748b"
+- id: cl1_w8_led
+  type: led
+  x: 760
+  y: 198
+  width: 14
+  height: 14
+  tag: sec.finestra_bagno
+  on_value: true
+  on_color: "#ef4444"
+  off_color: "#22c55e"
+
+- id: cl1_w9_lbl
+  type: text
+  x: 680
+  y: 226
+  text: "Port. Studio"
+  font_size: 10
+  color: "#64748b"
+- id: cl1_w9_led
+  type: led
+  x: 760
+  y: 218
+  width: 14
+  height: 14
+  tag: sec.portoncino_studio
+  on_value: true
+  on_color: "#ef4444"
+  off_color: "#22c55e"
+
+- id: cl1_w10_lbl
+  type: text
+  x: 680
+  y: 246
+  text: "Port. Dimp."
+  font_size: 10
+  color: "#64748b"
+- id: cl1_w10_led
+  type: led
+  x: 760
+  y: 238
+  width: 14
+  height: 14
+  tag: sec.portoncino_dimp
+  on_value: true
+  on_color: "#ef4444"
+  off_color: "#22c55e"
+
+# ── Movimento ────────────────────────────────────────────────────
+- id: cl1_mov_title
+  type: text
+  x: 555
+  y: 308
+  text: "MOVIMENTO"
+  font_size: 11
+  font_weight: bold
+  color: "#475569"
+
+- id: cl1_mov1_lbl
+  type: text
+  x: 570
+  y: 328
+  text: "Ingresso"
+  font_size: 10
+  color: "#64748b"
+- id: cl1_mov1_led
+  type: led
+  x: 648
+  y: 320
+  width: 14
+  height: 14
+  tag: sec.presenza_ingresso
+  on_value: true
+  on_color: "#f59e0b"
+  off_color: "#1e293b"
+
+- id: cl1_mov2_lbl
+  type: text
+  x: 570
+  y: 348
+  text: "Ovest"
+  font_size: 10
+  color: "#64748b"
+- id: cl1_mov2_led
+  type: led
+  x: 648
+  y: 340
+  width: 14
+  height: 14
+  tag: sec.movimento_ovest
+  on_value: true
+  on_color: "#f59e0b"
+  off_color: "#1e293b"
+
+- id: cl1_mov3_lbl
+  type: text
+  x: 680
+  y: 328
+  text: "Nord-Est"
+  font_size: 10
+  color: "#64748b"
+- id: cl1_mov3_led
+  type: led
+  x: 760
+  y: 320
+  width: 14
+  height: 14
+  tag: sec.movimento_nordest
+  on_value: true
+  on_color: "#f59e0b"
+  off_color: "#1e293b"
+
+- id: cl1_mov4_lbl
+  type: text
+  x: 680
+  y: 348
+  text: "Nord-Ovest"
+  font_size: 10
+  color: "#64748b"
+- id: cl1_mov4_led
+  type: led
+  x: 760
+  y: 340
+  width: 14
+  height: 14
+  tag: sec.movimento_nordovest
+  on_value: true
+  on_color: "#f59e0b"
+  off_color: "#1e293b"
+
+# ── Tapparelle (posizioni rapide) ─────────────────────────────────
+- id: cl1_tap_title
+  type: text
+  x: 555
+  y: 380
+  text: "TAPPARELLE"
+  font_size: 11
+  font_weight: bold
+  color: "#475569"
+
+- id: cl1_tap1_lbl
+  type: text
+  x: 555
+  y: 400
+  text: "Ufficio"
+  font_size: 10
+  color: "#64748b"
+- id: cl1_tap1_bar
+  type: progress_bar
+  x: 605
+  y: 392
+  width: 180
+  height: 12
+  tag: shutter.garage
+  min: 0
+  max: 100
+  fill: "#94a3b8"
+
+- id: cl1_tap2_lbl
+  type: text
+  x: 555
+  y: 420
+  text: "Bagno"
+  font_size: 10
+  color: "#64748b"
+- id: cl1_tap2_bar
+  type: progress_bar
+  x: 605
+  y: 412
+  width: 180
+  height: 12
+  tag: shutter.bagno
+  min: 0
+  max: 100
+  fill: "#94a3b8"
+
+- id: cl1_tap3_lbl
+  type: text
+  x: 555
+  y: 440
+  text: "Sogg. DX"
+  font_size: 10
+  color: "#64748b"
+- id: cl1_tap3_bar
+  type: progress_bar
+  x: 605
+  y: 432
+  width: 180
+  height: 12
+  tag: shutter.sogg_dx
+  min: 0
+  max: 100
+  fill: "#94a3b8"
+
+- id: cl1_tap4_lbl
+  type: text
+  x: 555
+  y: 460
+  text: "Sogg. SX"
+  font_size: 10
+  color: "#64748b"
+- id: cl1_tap4_bar
+  type: progress_bar
+  x: 605
+  y: 452
+  width: 180
+  height: 12
+  tag: shutter.sogg_sx
+  min: 0
+  max: 100
+  fill: "#94a3b8"
+
+# ── Contatori snapshot ────────────────────────────────────────────
+- id: cl1_cnt_title
+  type: text
+  x: 555
+  y: 490
+  text: "CONTATORI"
+  font_size: 11
+  font_weight: bold
+  color: "#475569"
+
+- id: cl1_cnt1_lbl
+  type: text
+  x: 555
+  y: 510
+  text: "Rack Garage:"
+  font_size: 10
+  color: "#64748b"
+- id: cl1_cnt1_val
+  type: text
+  x: 650
+  y: 510
+  tag: rack_garage.power
+  format: "{value:.0f} W"
+  font_size: 10
+  font_weight: bold
+  color: "#cbd5e1"
+
+- id: cl1_cnt2_lbl
+  type: text
+  x: 555
+  y: 528
+  text: "Rack Piano:"
+  font_size: 10
+  color: "#64748b"
+- id: cl1_cnt2_val
+  type: text
+  x: 650
+  y: 528
+  tag: rack_piano.power
+  format: "{value:.0f} W"
+  font_size: 10
+  font_weight: bold
+  color: "#cbd5e1"
+
+- id: cl1_cnt3_lbl
+  type: text
+  x: 555
+  y: 546
+  text: "Pompa Calore:"
+  font_size: 10
+  color: "#64748b"
+- id: cl1_cnt3_val
+  type: text
+  x: 660
+  y: 546
+  tag: pdc.power
+  format: "{value:.0f} W"
+  font_size: 10
+  font_weight: bold
+  color: "#cbd5e1"
+
+- id: cl1_footer
+  type: text
+  x: 400
+  y: 600
+  text: "▸ Dati in tempo reale via MQTT broker 192.168.1.6"
+  font_size: 9
+  text_anchor: middle
+  color: "#334155"

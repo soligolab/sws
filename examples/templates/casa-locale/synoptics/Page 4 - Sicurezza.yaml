@@ -1,0 +1,586 @@
+id: cl_page4
+name: "Sicurezza"
+background: "#0f172a"
+objects:
+
+# ══════════════════════════════════════════════════════════════════
+# HEADER + NAV
+# ══════════════════════════════════════════════════════════════════
+- id: cl4_title
+  type: text
+  x: 400
+  y: 22
+  text: "🔐  SICUREZZA"
+  font_size: 20
+  font_weight: bold
+  text_anchor: middle
+  color: "#e2e8f0"
+
+- id: cl4_nav_back
+  type: navbutton
+  x: 20
+  y: 14
+  width: 130
+  height: 30
+  label: "◀ Contatori"
+  target_page: cl_page3
+
+- id: cl4_nav_next
+  type: navbutton
+  x: 660
+  y: 14
+  width: 130
+  height: 30
+  label: "Domotica ▶"
+  target_page: cl_page5
+
+- id: cl4_nav_home
+  type: navbutton
+  x: 155
+  y: 14
+  width: 55
+  height: 30
+  label: "⌂"
+  target_page: cl_page1
+
+# Zigbee2MQTT bridge status
+- id: cl4_z2m_lbl
+  type: text
+  x: 560
+  y: 48
+  text: "Zigbee2MQTT:"
+  font_size: 10
+  color: "#475569"
+
+- id: cl4_z2m_status
+  type: text
+  x: 648
+  y: 48
+  text: "ONLINE"
+  font_size: 10
+  font_weight: bold
+  color: "#22c55e"
+
+# ══════════════════════════════════════════════════════════════════
+# BOX GARAGE SEZIONALE (prominente, top-left)
+# ══════════════════════════════════════════════════════════════════
+- id: cl4_garage_box
+  type: rect
+  x: 20
+  y: 60
+  width: 220
+  height: 120
+  fill: "#1e293b"
+  stroke: "#ef4444"
+  stroke_width: 2
+
+- id: cl4_garage_icon
+  type: image
+  x: 28
+  y: 68
+  width: 40
+  height: 40
+  src: "/symbols/garage-open-variant.svg"
+
+- id: cl4_garage_title
+  type: text
+  x: 130
+  y: 80
+  text: "GARAGE SEZIONALE"
+  font_size: 12
+  font_weight: bold
+  text_anchor: middle
+  color: "#cbd5e1"
+
+- id: cl4_garage_led
+  type: led
+  x: 215
+  y: 65
+  width: 20
+  height: 20
+  tag: sec.garage_sezionale
+  on_value: true
+  on_color: "#ef4444"
+  off_color: "#22c55e"
+
+- id: cl4_garage_stato
+  type: text
+  x: 130
+  y: 104
+  tag: sec.garage_sezionale
+  format: "{value}"
+  font_size: 11
+  text_anchor: middle
+  color: "#94a3b8"
+
+# ══════════════════════════════════════════════════════════════════
+# SEZIONE SINISTRA — APERTURE
+# ══════════════════════════════════════════════════════════════════
+- id: cl4_win_title
+  type: text
+  x: 20
+  y: 202
+  text: "FINESTRE & PORTE"
+  font_size: 13
+  font_weight: bold
+  color: "#64748b"
+
+# Legenda
+- id: cl4_leg_chiusa
+  type: led
+  x: 280
+  y: 195
+  width: 12
+  height: 12
+  tag: sec.finestra_bagno
+  on_value: false
+  on_color: "#22c55e"
+  off_color: "#22c55e"
+- id: cl4_leg_chiusa_lbl
+  type: text
+  x: 296
+  y: 205
+  text: "chiusa"
+  font_size: 9
+  color: "#22c55e"
+
+- id: cl4_leg_aperta_led
+  type: led
+  x: 340
+  y: 195
+  width: 12
+  height: 12
+  tag: sec.finestra_bagno
+  on_value: true
+  on_color: "#ef4444"
+  off_color: "#ef4444"
+- id: cl4_leg_aperta_lbl
+  type: text
+  x: 356
+  y: 205
+  text: "aperta"
+  font_size: 9
+  color: "#ef4444"
+
+# Riga 1
+- id: cl4_w1_led
+  type: led
+  x: 20
+  y: 218
+  width: 16
+  height: 16
+  tag: sec.finestra_garage
+  on_value: true
+  on_color: "#ef4444"
+  off_color: "#22c55e"
+- id: cl4_w1_lbl
+  type: text
+  x: 42
+  y: 230
+  text: "Finestra Garage"
+  font_size: 11
+  color: "#94a3b8"
+
+- id: cl4_w2_led
+  type: led
+  x: 210
+  y: 218
+  width: 16
+  height: 16
+  tag: sec.portafinestra_sogg_dx
+  on_value: true
+  on_color: "#ef4444"
+  off_color: "#22c55e"
+- id: cl4_w2_lbl
+  type: text
+  x: 232
+  y: 230
+  text: "Portafinestra Sogg. DX"
+  font_size: 11
+  color: "#94a3b8"
+
+# Riga 2
+- id: cl4_w3_led
+  type: led
+  x: 20
+  y: 248
+  width: 16
+  height: 16
+  tag: sec.finestra_studio
+  on_value: true
+  on_color: "#ef4444"
+  off_color: "#22c55e"
+- id: cl4_w3_lbl
+  type: text
+  x: 42
+  y: 260
+  text: "Finestra Studio"
+  font_size: 11
+  color: "#94a3b8"
+
+- id: cl4_w4_led
+  type: led
+  x: 210
+  y: 248
+  width: 16
+  height: 16
+  tag: sec.portafinestra_sogg_sx
+  on_value: true
+  on_color: "#ef4444"
+  off_color: "#22c55e"
+- id: cl4_w4_lbl
+  type: text
+  x: 232
+  y: 260
+  text: "Portafinestra Sogg. SX"
+  font_size: 11
+  color: "#94a3b8"
+
+# Riga 3
+- id: cl4_w5_led
+  type: led
+  x: 20
+  y: 278
+  width: 16
+  height: 16
+  tag: sec.finestra_cucina_dx
+  on_value: true
+  on_color: "#ef4444"
+  off_color: "#22c55e"
+- id: cl4_w5_lbl
+  type: text
+  x: 42
+  y: 290
+  text: "Finestra Cucina DX"
+  font_size: 11
+  color: "#94a3b8"
+
+- id: cl4_w6_led
+  type: led
+  x: 210
+  y: 278
+  width: 16
+  height: 16
+  tag: sec.portafinestra_lav
+  on_value: true
+  on_color: "#ef4444"
+  off_color: "#22c55e"
+- id: cl4_w6_lbl
+  type: text
+  x: 232
+  y: 290
+  text: "Portafinestra Lavanderia"
+  font_size: 11
+  color: "#94a3b8"
+
+# Riga 4
+- id: cl4_w7_led
+  type: led
+  x: 20
+  y: 308
+  width: 16
+  height: 16
+  tag: sec.finestra_cucina_sx
+  on_value: true
+  on_color: "#ef4444"
+  off_color: "#22c55e"
+- id: cl4_w7_lbl
+  type: text
+  x: 42
+  y: 320
+  text: "Finestra Cucina SX"
+  font_size: 11
+  color: "#94a3b8"
+
+- id: cl4_w8_led
+  type: led
+  x: 210
+  y: 308
+  width: 16
+  height: 16
+  tag: sec.finestra_bagno
+  on_value: true
+  on_color: "#ef4444"
+  off_color: "#22c55e"
+- id: cl4_w8_lbl
+  type: text
+  x: 232
+  y: 320
+  text: "Finestra Bagno Terra"
+  font_size: 11
+  color: "#94a3b8"
+
+# Riga 5 — Portoncini
+- id: cl4_w9_led
+  type: led
+  x: 20
+  y: 338
+  width: 16
+  height: 16
+  tag: sec.portoncino_studio
+  on_value: true
+  on_color: "#f59e0b"
+  off_color: "#22c55e"
+- id: cl4_w9_lbl
+  type: text
+  x: 42
+  y: 350
+  text: "Portoncino Studio"
+  font_size: 11
+  color: "#94a3b8"
+
+- id: cl4_w10_led
+  type: led
+  x: 210
+  y: 338
+  width: 16
+  height: 16
+  tag: sec.portoncino_dimp
+  on_value: true
+  on_color: "#f59e0b"
+  off_color: "#22c55e"
+- id: cl4_w10_lbl
+  type: text
+  x: 232
+  y: 350
+  text: "Portoncino Disimpegno"
+  font_size: 11
+  color: "#94a3b8"
+
+# ══════════════════════════════════════════════════════════════════
+# SEZIONE CENTRALE — MOVIMENTO / PRESENZA
+# ══════════════════════════════════════════════════════════════════
+
+# Divisore
+- id: cl4_div1
+  type: line
+  x: 450
+  y: 55
+  x2: 450
+  y2: 580
+  stroke: "#1e293b"
+  stroke_width: 2
+
+- id: cl4_mov_title
+  type: text
+  x: 460
+  y: 70
+  text: "RILEVATORI PRESENZA"
+  font_size: 13
+  font_weight: bold
+  color: "#64748b"
+
+# Box presenza ingresso (con lux)
+- id: cl4_ing_box
+  type: rect
+  x: 460
+  y: 82
+  width: 330
+  height: 90
+  fill: "#1e293b"
+  stroke: "#334155"
+  stroke_width: 1
+
+- id: cl4_ing_led
+  type: led
+  x: 468
+  y: 92
+  width: 28
+  height: 28
+  tag: sec.presenza_ingresso
+  on_value: true
+  on_color: "#f59e0b"
+  off_color: "#1e293b"
+
+- id: cl4_ing_lbl
+  type: text
+  x: 505
+  y: 100
+  text: "Sensore Presenza Ingresso"
+  font_size: 12
+  font_weight: bold
+  color: "#cbd5e1"
+
+- id: cl4_ing_occ_lbl
+  type: text
+  x: 505
+  y: 118
+  text: "Occupazione:"
+  font_size: 10
+  color: "#64748b"
+- id: cl4_ing_occ_val
+  type: text
+  x: 590
+  y: 118
+  tag: sec.presenza_ingresso
+  format: "{value}"
+  font_size: 10
+  font_weight: bold
+  color: "#f59e0b"
+
+- id: cl4_ing_lux_lbl
+  type: text
+  x: 505
+  y: 136
+  text: "Luminosità:"
+  font_size: 10
+  color: "#64748b"
+- id: cl4_ing_lux_val
+  type: text
+  x: 580
+  y: 136
+  tag: sec.lux_ingresso
+  format: "{value:.0f} lux"
+  font_size: 10
+  font_weight: bold
+  color: "#fbbf24"
+
+- id: cl4_ing_lux_bar
+  type: progress_bar
+  x: 650
+  y: 130
+  width: 130
+  height: 12
+  tag: sec.lux_ingresso
+  min: 0
+  max: 500
+  fill: "#fbbf24"
+
+# Perimetro Est
+- id: cl4_per_title
+  type: text
+  x: 460
+  y: 196
+  text: "PERIMETRO ESTERNO"
+  font_size: 12
+  font_weight: bold
+  color: "#64748b"
+
+- id: cl4_pe1_led
+  type: led
+  x: 460
+  y: 210
+  width: 24
+  height: 24
+  tag: sec.movimento_ovest
+  on_value: true
+  on_color: "#ef4444"
+  off_color: "#1e293b"
+- id: cl4_pe1_lbl
+  type: text
+  x: 490
+  y: 226
+  text: "Zona Ovest"
+  font_size: 12
+  color: "#94a3b8"
+
+- id: cl4_pe2_led
+  type: led
+  x: 460
+  y: 244
+  width: 24
+  height: 24
+  tag: sec.movimento_nordest
+  on_value: true
+  on_color: "#ef4444"
+  off_color: "#1e293b"
+- id: cl4_pe2_lbl
+  type: text
+  x: 490
+  y: 260
+  text: "Zona Nord-Est"
+  font_size: 12
+  color: "#94a3b8"
+
+- id: cl4_pe3_led
+  type: led
+  x: 460
+  y: 278
+  width: 24
+  height: 24
+  tag: sec.movimento_nordovest
+  on_value: true
+  on_color: "#ef4444"
+  off_color: "#1e293b"
+- id: cl4_pe3_lbl
+  type: text
+  x: 490
+  y: 294
+  text: "Zona Nord-Ovest"
+  font_size: 12
+  color: "#94a3b8"
+
+# Hint
+- id: cl4_hint_mov
+  type: text
+  x: 460
+  y: 320
+  text: "Movimento: rosso = rilevato / scuro = assente"
+  font_size: 9
+  color: "#334155"
+
+# ══════════════════════════════════════════════════════════════════
+# ALLARMI ATTIVI (tabella)
+# ══════════════════════════════════════════════════════════════════
+- id: cl4_alm_title
+  type: text
+  x: 460
+  y: 360
+  text: "SOMMARIO APERTURE"
+  font_size: 12
+  font_weight: bold
+  color: "#64748b"
+
+- id: cl4_alm_table
+  type: table
+  x: 460
+  y: 372
+  width: 330
+  height: 140
+  label: "Sensori"
+  table_rows:
+    - label: "Fin. Garage"
+      tag: sec.finestra_garage
+      format: "{value}"
+    - label: "Fin. Studio"
+      tag: sec.finestra_studio
+      format: "{value}"
+    - label: "Garage Sez."
+      tag: sec.garage_sezionale
+      format: "{value}"
+    - label: "Pres. Ingr."
+      tag: sec.presenza_ingresso
+      format: "{value}"
+    - label: "Mov. Ovest"
+      tag: sec.movimento_ovest
+      format: "{value}"
+
+# ══════════════════════════════════════════════════════════════════
+# TREND PRESENZA E LUCE
+# ══════════════════════════════════════════════════════════════════
+- id: cl4_lux_trend_lbl
+  type: text
+  x: 20
+  y: 380
+  text: "Luminosità Ingresso — ultima ora (lux)"
+  font_size: 10
+  color: "#475569"
+
+- id: cl4_lux_trend
+  type: trend
+  x: 20
+  y: 392
+  width: 400
+  height: 90
+  tag: sec.lux_ingresso
+  window_s: 3600
+  line_color: "#fbbf24"
+
+- id: cl4_footer
+  type: text
+  x: 400
+  y: 608
+  text: "Topic: zigbee2mqtt/DEVICE · Payload: {contact, occupancy, illuminance}"
+  font_size: 9
+  text_anchor: middle
+  color: "#1e293b"

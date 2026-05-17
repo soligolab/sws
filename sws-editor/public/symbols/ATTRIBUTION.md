@@ -14,10 +14,18 @@ project loses its right to redistribute under the file's licence.
 
 | File                  | Author / source                              | Licence  |
 | --------------------- | -------------------------------------------- | -------- |
-| `heat_exchanger.svg`  | SWS project (original, drawn for this PoC)   | CC0 1.0  |
-| `separator.svg`       | SWS project (original, drawn for this PoC)   | CC0 1.0  |
-| `reactor.svg`         | SWS project (original, drawn for this PoC)   | CC0 1.0  |
-| `filter.svg`          | SWS project (original, drawn for this PoC)   | CC0 1.0  |
+| `heat_exchanger.svg`     | SWS project (original, drawn for this PoC)                             | CC0 1.0     |
+| `separator.svg`          | SWS project (original, drawn for this PoC)                             | CC0 1.0     |
+| `reactor.svg`            | SWS project (original, drawn for this PoC)                             | CC0 1.0     |
+| `filter.svg`             | SWS project (original, drawn for this PoC)                             | CC0 1.0     |
+| `solar-panel.svg`        | Pictogrammers / MaterialDesign — `mdi-solar-panel` — downloaded 2026-05-16 from github.com/Templarian/MaterialDesign | Apache 2.0 |
+| `solar-power-variant.svg`| Pictogrammers / MaterialDesign — `mdi-solar-power-variant` — downloaded 2026-05-16 | Apache 2.0 |
+| `battery-charging-high.svg` | Pictogrammers / MaterialDesign — `mdi-battery-charging-high` — downloaded 2026-05-16 | Apache 2.0 |
+| `transmission-tower.svg` | Pictogrammers / MaterialDesign — `mdi-transmission-tower` — downloaded 2026-05-16 | Apache 2.0 |
+| `home-lightning-bolt.svg`| Pictogrammers / MaterialDesign — `mdi-home-lightning-bolt` — downloaded 2026-05-16 | Apache 2.0 |
+| `garage-open-variant.svg`| Pictogrammers / MaterialDesign — `mdi-garage-open-variant` — downloaded 2026-05-16 | Apache 2.0 |
+| `window-open-variant.svg`| Pictogrammers / MaterialDesign — `mdi-window-open-variant` — downloaded 2026-05-16 | Apache 2.0 |
+| `roller-shade.svg`       | Pictogrammers / MaterialDesign — `mdi-roller-shade` — downloaded 2026-05-16 | Apache 2.0 |
 
 ## Adding files from third-party sources
 

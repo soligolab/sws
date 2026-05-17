@@ -273,3 +273,102 @@ fn qos_from_u8(v: u8) -> QoS {
         _ => QoS::AtMostOnce,
     }
 }
+
+// ── Broker browse ─────────────────────────────────────────────────────────────
+
+/// Parameters for a one-shot broker browse session.
+pub struct BrowseParams {
+    pub host: String,
+    pub port: u16,
+    pub client_id: String,
+    pub username: Option<String>,
+    pub password: Option<String>,
+    pub tls_enabled: bool,
+    pub ca_cert_path: Option<String>,
+    /// How long to listen for incoming publishes. Capped to 15 s by the caller.
+    pub duration_secs: u8,
+}
+
+/// A topic seen during a browse session plus its last raw payload.
+pub struct BrowsedTopic {
+    pub topic: String,
+    pub sample_payload: String,
+}
+
+/// Connect to the broker, subscribe to `#`, collect messages for
+/// `params.duration_secs` seconds, then disconnect and return the
+/// unique topics observed (sorted alphabetically).
+pub async fn browse(params: BrowseParams) -> Vec<BrowsedTopic> {
+    let cid = format!("{}-browse", params.client_id);
+    let mut opts = MqttOptions::new(&cid, &params.host, params.port);
+    opts.set_keep_alive(Duration::from_secs(10));
+    opts.set_clean_session(true);
+
+    if let (Some(user), Some(pass)) = (params.username, params.password) {
+        opts.set_credentials(user, pass);
+    }
+
+    if params.tls_enabled {
+        if let Some(path) = params.ca_cert_path {
+            match std::fs::read(&path) {
+                Ok(ca) => {
+                    opts.set_transport(rumqttc::Transport::Tls(
+                        rumqttc::TlsConfiguration::Simple {
+                            ca,
+                            alpn: None,
+                            client_auth: None,
+                        },
+                    ));
+                }
+                Err(e) => {
+                    warn!("browse: cannot read CA cert {path}: {e}");
+                    return vec![];
+                }
+            }
+        }
+    }
+
+    let (client, mut eventloop) = AsyncClient::new(opts, 64);
+    let mut map: std::collections::HashMap<String, String> = std::collections::HashMap::new();
+    let deadline = tokio::time::sleep(Duration::from_secs(u64::from(params.duration_secs)));
+    tokio::pin!(deadline);
+
+    // Subscribe after the first ConnAck arrives.
+    let mut subscribed = false;
+
+    loop {
+        tokio::select! {
+            biased;
+            _ = &mut deadline => break,
+            res = eventloop.poll() => {
+                match res {
+                    Ok(Event::Incoming(Packet::ConnAck(_))) if !subscribed => {
+                        if let Err(e) = client.subscribe("#", QoS::AtMostOnce).await {
+                            warn!("browse: subscribe '#' failed: {e}");
+                            break;
+                        }
+                        subscribed = true;
+                    }
+                    Ok(Event::Incoming(Packet::Publish(p))) => {
+                        let payload = String::from_utf8_lossy(&p.payload).into_owned();
+                        map.insert(p.topic.clone(), payload);
+                    }
+                    Err(e) => {
+                        warn!("browse: eventloop error: {e}");
+                        break;
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+
+    let _ = client.disconnect().await;
+
+    let mut result: Vec<BrowsedTopic> = map
+        .into_iter()
+        .map(|(topic, sample_payload)| BrowsedTopic { topic, sample_payload })
+        .collect();
+    result.sort_by(|a, b| a.topic.cmp(&b.topic));
+    result
+}
