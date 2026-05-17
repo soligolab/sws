@@ -478,6 +478,7 @@ export function EditorShell() {
               return (
                 <GridCellEditor
                   cell={cellDef}
+                  pages={pages.filter((p) => p.id !== currentPageId)}
                   functions={functions}
                   onChange={(patch) => updateGridCell(currentPageId, selected.id, { ...cellDef, ...patch })}
                 />
@@ -1770,10 +1771,12 @@ function makeDefaultChild(type: string): SynopticObject {
 
 function GridCellEditor({
   cell,
+  pages,
   functions,
   onChange,
 }: {
   cell: GridCell;
+  pages: { id: string; name: string }[];
   functions: FunctionDef[];
   onChange: (patch: Partial<GridCell>) => void;
 }) {
@@ -1882,106 +1885,34 @@ function GridCellEditor({
       </div>
       {cell.child ? (
         <>
-          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
-            <span style={{ fontSize: 12, color: "#94a3b8", flex: 1 }}>
-              {cell.child.type}{cell.child.name ? ` — ${cell.child.name}` : ""}
-            </span>
+          {/* Action bar: cut to clipboard / remove */}
+          <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
             <button
-              title="Taglia figlio (mette nel clipboard)"
+              title="Taglia — rimette il figlio nel clipboard di pagina"
               onClick={() => {
                 useAppStore.getState().setClipboard([cell.child!]);
                 onChange({ child: undefined });
               }}
-              style={{ background: "#0f172a", border: "1px solid #334155", color: "#94a3b8", borderRadius: 4, cursor: "pointer", fontSize: 11, padding: "2px 6px" }}
+              style={{ background: "#0f172a", border: "1px solid #334155", color: "#94a3b8", borderRadius: 4, cursor: "pointer", fontSize: 11, padding: "2px 8px" }}
             >
-              Ctrl+X
+              ✂ Taglia
             </button>
             <button
               title="Rimuovi figlio"
               onClick={() => onChange({ child: undefined })}
-              style={{ background: "#7f1d1d", border: "1px solid #991b1b", color: "#fca5a5", borderRadius: 4, cursor: "pointer", fontSize: 12, padding: "2px 8px" }}
+              style={{ background: "#7f1d1d", border: "1px solid #991b1b", color: "#fca5a5", borderRadius: 4, cursor: "pointer", fontSize: 11, padding: "2px 8px" }}
             >
-              Rimuovi
+              ✕ Rimuovi
             </button>
           </div>
-          {/* Basic child property editing */}
-          {["text", "button", "navbutton"].includes(cell.child.type) && (
-            <div style={{ marginBottom: 6 }}>
-              <div style={LABEL}>Etichetta</div>
-              <input
-                type="text" style={INPUT}
-                value={cell.child.label ?? ""}
-                onChange={(e) => onChange({ child: { ...cell.child!, label: e.target.value || undefined } })}
-              />
-            </div>
-          )}
-          {["rect", "ellipse", "button", "led"].includes(cell.child.type) && (
-            <div style={{ marginBottom: 6 }}>
-              <div style={LABEL}>Colore riempimento</div>
-              <div style={{ display: "flex", gap: 6 }}>
-                <input
-                  type="color" style={{ ...INPUT, padding: 2, height: 28, width: 44, cursor: "pointer", flex: "none" }}
-                  value={cell.child.fill ?? "#334155"}
-                  onChange={(e) => onChange({ child: { ...cell.child!, fill: e.target.value } })}
-                />
-                <input
-                  type="text" style={INPUT}
-                  value={cell.child.fill ?? ""}
-                  placeholder="nessuno"
-                  onChange={(e) => onChange({ child: { ...cell.child!, fill: e.target.value || undefined } })}
-                />
-              </div>
-            </div>
-          )}
-          {["text", "gauge", "led", "progress_bar", "trend"].includes(cell.child.type) && (
-            <div style={{ marginBottom: 6 }}>
-              <div style={LABEL}>Tag</div>
-              <TagInput
-                style={INPUT}
-                placeholder="es. pompa.portata"
-                value={cell.child.tag ?? ""}
-                onChange={(v) => onChange({ child: { ...cell.child!, tag: v || undefined } })}
-              />
-            </div>
-          )}
-          {cell.child.type === "symbol" && (
-            <div style={{ marginBottom: 6 }}>
-              <div style={LABEL}>Simbolo</div>
-              <SymbolGallery
-                value={cell.child.symbol_id ?? "pump"}
-                onChange={(v) => onChange({ child: { ...cell.child!, symbol_id: v as any } })}
-              />
-            </div>
-          )}
-          {cell.child.type === "button" && (
-            <div style={{ marginBottom: 6 }}>
-              <div style={LABEL}>Tag scrittura</div>
-              <TagInput
-                style={INPUT}
-                placeholder="es. pompa.start"
-                value={cell.child.tag ?? ""}
-                onChange={(v) => onChange({ child: { ...cell.child!, tag: v || undefined } })}
-              />
-            </div>
-          )}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 6px", marginBottom: 4 }}>
-            <div>
-              <div style={LABEL}>Larghezza</div>
-              <input
-                type="number" style={INPUT}
-                value={cell.child.width ?? 80}
-                onChange={(e) => onChange({ child: { ...cell.child!, width: Number(e.target.value) } })}
-              />
-            </div>
-            <div>
-              <div style={LABEL}>Altezza</div>
-              <input
-                type="number" style={INPUT}
-                value={cell.child.height ?? 60}
-                onChange={(e) => onChange({ child: { ...cell.child!, height: Number(e.target.value) } })}
-              />
-            </div>
-          </div>
+          {/* Full property panel for the child object */}
+          <ObjectProps
+            obj={cell.child}
+            pages={pages}
+            functions={functions}
+            onChange={(patch) => onChange({ child: { ...cell.child!, ...patch } })}
+            onDelete={() => onChange({ child: undefined })}
+          />
         </>
       ) : (
         <>
