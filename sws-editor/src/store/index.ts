@@ -101,6 +101,10 @@ interface AppState {
   /** Currently-focused FunctionDef.id (when editing a function). Mutually
    *  exclusive with object selection — selecting one clears the other. */
   selectedFunctionId: string | null;
+  /** Currently-selected grid cell in edit mode (moved from EditorShell local state). */
+  selectedCell: { objectId: string; row: number; col: number } | null;
+  /** The child object inside the selected cell that has been individually clicked. */
+  selectedCellChild: { objectId: string; row: number; col: number } | null;
   /** Snapshot stacks for undo/redo. Each entry is a full clone of `pages`. */
   past: SynopticPage[][];
   future: SynopticPage[][];
@@ -156,6 +160,8 @@ interface AppState {
   updatePageProps: (id: string, patch: Partial<Pick<SynopticPage, "name" | "background" | "width" | "height">>) => void;
   updateGridCell: (pageId: string, objectId: string, cell: GridCell) => void;
   setCurrentPage: (id: string) => void;
+  setSelectedCell: (cell: { objectId: string; row: number; col: number } | null) => void;
+  setSelectedCellChild: (cell: { objectId: string; row: number; col: number } | null) => void;
 
   // Object CRUD (operates on current page)
   selectObject: (id: string | null) => void;
@@ -164,6 +170,7 @@ interface AppState {
   clearSelection: () => void;
   addObject: (partial: Omit<SynopticObject, "id">) => void;
   updateObject: (id: string, patch: Partial<SynopticObject>) => void;
+  updateObjects: (ids: string[], patch: Partial<SynopticObject>) => void;
   duplicateObject: (id: string) => void;
   duplicateSelection: () => void;
   deleteObject: (id: string) => void;
@@ -243,6 +250,8 @@ export const useAppStore = create<AppState>((set, get) => {
     selectedObjectId: null,
     selectedObjectIds: [],
     selectedFunctionId: null,
+    selectedCell: null,
+    selectedCellChild: null,
     past: [],
     future: [],
     clipboard: [],
@@ -382,12 +391,24 @@ export const useAppStore = create<AppState>((set, get) => {
         selectedFunctionId: s.selectedFunctionId === id ? null : s.selectedFunctionId,
       })),
 
+    setSelectedCell: (cell) =>
+      set((s) => {
+        const prev = s.selectedCell;
+        const same = prev && cell &&
+          prev.objectId === cell.objectId && prev.row === cell.row && prev.col === cell.col;
+        return { selectedCell: cell, selectedCellChild: same ? s.selectedCellChild : null };
+      }),
+
+    setSelectedCellChild: (cell) => set({ selectedCellChild: cell }),
+
     setPages: (pages, currentPageId) =>
       set({
         pages,
         currentPageId: currentPageId ?? pages[0]?.id ?? first.id,
         selectedObjectId: null,
         selectedObjectIds: [],
+        selectedCell: null,
+        selectedCellChild: null,
         past: [],
         future: [],
       }),
@@ -453,14 +474,17 @@ export const useAppStore = create<AppState>((set, get) => {
       selectedObjectId: null,
       selectedObjectIds: [],
       selectedFunctionId: null,
+      selectedCell: null,
+      selectedCellChild: null,
     }),
 
     selectObject: (id) =>
       set({
         selectedObjectId: id,
         selectedObjectIds: id ? [id] : [],
-        // Selecting an object closes the function editor on the right panel.
         selectedFunctionId: null,
+        selectedCell: null,
+        selectedCellChild: null,
       }),
 
     toggleSelection: (id) => set((s) => {
@@ -483,7 +507,8 @@ export const useAppStore = create<AppState>((set, get) => {
       }),
 
     clearSelection: () =>
-      set({ selectedObjectId: null, selectedObjectIds: [], selectedFunctionId: null }),
+      set({ selectedObjectId: null, selectedObjectIds: [], selectedFunctionId: null,
+            selectedCell: null, selectedCellChild: null }),
 
     selectFunction: (id) =>
       set({
@@ -511,6 +536,17 @@ export const useAppStore = create<AppState>((set, get) => {
         pages: s.pages.map((p) =>
           p.id === s.currentPageId
             ? { ...p, objects: p.objects.map((o) => (o.id === id ? { ...o, ...patch } : o)) }
+            : p
+        ),
+      }));
+    },
+
+    updateObjects: (ids, patch) => {
+      pushHistory();
+      set((s) => ({
+        pages: s.pages.map((p) =>
+          p.id === s.currentPageId
+            ? { ...p, objects: p.objects.map((o) => (ids.includes(o.id) ? { ...o, ...patch } : o)) }
             : p
         ),
       }));
@@ -746,6 +782,8 @@ export const useAppStore = create<AppState>((set, get) => {
         pages: prev,
         selectedObjectId: null,
         selectedObjectIds: [],
+        selectedCell: null,
+        selectedCellChild: null,
       });
     },
 
@@ -759,6 +797,8 @@ export const useAppStore = create<AppState>((set, get) => {
         pages: next,
         selectedObjectId: null,
         selectedObjectIds: [],
+        selectedCell: null,
+        selectedCellChild: null,
       });
     },
 

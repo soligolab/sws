@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "@/api/client";
 import { SvgCanvas } from "@/canvas/SvgCanvas";
 import { LeftPanel } from "@/editor/LeftPanel";
@@ -123,6 +123,32 @@ const SUPPORTS_TRANSFORM = new Set([
   "button", "navbutton", "symbol",
 ]);
 
+// ── Multi-selection helpers ───────────────────────────────────────────────────
+
+/** Fields that are identical across all objects; mixed fields → undefined. */
+function mergeObjects(objs: SynopticObject[]): Partial<SynopticObject> {
+  if (objs.length === 0) return {};
+  const keys = new Set(objs.flatMap((o) => Object.keys(o))) as Set<keyof SynopticObject>;
+  const out: Partial<SynopticObject> = {};
+  for (const k of keys) {
+    const vals = objs.map((o) => (o as unknown as Record<string, unknown>)[k as string]);
+    if (vals.every((v) => v === vals[0])) (out as Record<string, unknown>)[k as string] = vals[0];
+  }
+  return out;
+}
+
+/** Keys present in any object whose values differ across the selection. */
+function buildMixedKeys(objs: SynopticObject[]): Set<keyof SynopticObject> {
+  const result = new Set<keyof SynopticObject>();
+  if (objs.length < 2) return result;
+  const allKeys = new Set(objs.flatMap((o) => Object.keys(o))) as Set<keyof SynopticObject>;
+  for (const k of allKeys) {
+    const vals = objs.map((o) => (o as unknown as Record<string, unknown>)[k as string]);
+    if (!vals.every((v) => v === vals[0])) result.add(k);
+  }
+  return result;
+}
+
 // ── EditorShell ───────────────────────────────────────────────────────────────
 
 export function EditorShell() {
@@ -151,13 +177,16 @@ export function EditorShell() {
   const alignSelection  = useAppStore((s) => s.alignSelection);
   const undo            = useAppStore((s) => s.undo);
   const redo            = useAppStore((s) => s.redo);
+  const updateObjects    = useAppStore((s) => s.updateObjects);
   const updatePageProps  = useAppStore((s) => s.updatePageProps);
-  const updateGridCell   = useAppStore((s) => s.updateGridCell);
+  const updateGridCell      = useAppStore((s) => s.updateGridCell);
+  const selectedCell        = useAppStore((s) => s.selectedCell);
+  const selectedCellChild   = useAppStore((s) => s.selectedCellChild);
+  const setSelectedCell     = useAppStore((s) => s.setSelectedCell);
+  const setSelectedCellChild = useAppStore((s) => s.setSelectedCellChild);
   const saveSerial       = useAppStore((s) => s.saveSerial);
   const saveStatus       = useAppStore((s) => s.saveStatus);
   const storeSaveStatus  = useAppStore((s) => s.setSaveStatus);
-
-  const [selectedCell, setSelectedCell] = useState<{ objectId: string; row: number; col: number } | null>(null);
 
   const currentPage = pages.find((p) => p.id === currentPageId);
   const objects     = currentPage?.objects ?? [];
@@ -165,6 +194,27 @@ export function EditorShell() {
   const multi       = selectedIds.length > 1;
   const functions   = project?.functions ?? [];
   const selectedFn  = functions.find((f) => f.id === selectedFnId) ?? null;
+
+  // Multi-selection derived state
+  const selectedObjects = useMemo(
+    () => objects.filter((o) => selectedIds.includes(o.id)),
+    [objects, selectedIds],
+  );
+  const mergedProps = useMemo(
+    () => (multi ? mergeObjects(selectedObjects) : {}),
+    [multi, selectedObjects],
+  );
+  const mixedKeys = useMemo(
+    () => (multi ? buildMixedKeys(selectedObjects) : new Set<keyof SynopticObject>()),
+    [multi, selectedObjects],
+  );
+  const allSameType = multi &&
+    selectedObjects.length > 0 &&
+    selectedObjects.every((o) => o.type === selectedObjects[0].type);
+  const batchChange = useCallback(
+    (patch: Partial<SynopticObject>) => updateObjects(selectedIds, patch),
+    [selectedIds, updateObjects],
+  );
 
   // Persist the whole `project.functions` list to the server. Called by the
   // FunctionEditor's save button and by FunctionsSection's CRUD verbs (so
@@ -179,17 +229,6 @@ export function EditorShell() {
     if (shift) toggleSelection(id);
     else       selectObject(id);
   };
-
-  // Clear cell selection when the selected object changes or is deselected.
-  useEffect(() => {
-    if (selectedCell && selectedCell.objectId !== selectedId) {
-      setSelectedCell(null);
-    }
-  }, [selectedId]);
-
-  // Ref so the keyboard handler always reads fresh selectedCell without re-registering.
-  const selectedCellRef = useRef(selectedCell);
-  useEffect(() => { selectedCellRef.current = selectedCell; }, [selectedCell]);
 
   // Document-level keyboard shortcuts. Skipped when typing in a form field
   // so renaming an object doesn't trigger delete-on-backspace.
@@ -211,7 +250,7 @@ export function EditorShell() {
         e.preventDefault(); copySelection();
       } else if (ctrl && (e.key === "x" || e.key === "X")) {
         e.preventDefault();
-        const cell = selectedCellRef.current;
+        const cell = useAppStore.getState().selectedCell;
         if (cell) {
           // Cut cell child to clipboard if the selected cell has one.
           const state = useAppStore.getState();
@@ -230,7 +269,7 @@ export function EditorShell() {
         if (ids.length > 0) { copySelection(); deleteSelection(); }
       } else if (ctrl && (e.key === "v" || e.key === "V")) {
         e.preventDefault();
-        const cell = selectedCellRef.current;
+        const cell = useAppStore.getState().selectedCell;
         if (cell) {
           // Paste first clipboard item as a child of the selected cell.
           const state = useAppStore.getState();
@@ -424,10 +463,12 @@ export function EditorShell() {
           pageWidth={currentPage?.width}
           pageHeight={currentPage?.height}
           selectedCell={selectedCell}
+          selectedCellChild={selectedCellChild}
           onSelect={handleSelect}
           onSelectMany={selectMany}
           onMove={(id, patch) => updateObject(id, patch)}
           onSelectCell={(objectId, row, col) => setSelectedCell({ objectId, row, col })}
+          onSelectCellChild={(objectId, row, col) => setSelectedCellChild({ objectId, row, col })}
         />
       </div>
 
@@ -440,27 +481,16 @@ export function EditorShell() {
         {multi ? (
           <MultiSelectionProps
             count={selectedIds.length}
+            selectedObjects={selectedObjects}
+            mergedProps={mergedProps}
+            mixedKeys={mixedKeys}
+            allSameType={allSameType}
+            pages={pages.filter((p) => p.id !== currentPageId)}
+            functions={functions}
             onAlign={alignSelection}
             onDuplicate={duplicateSelection}
             onDelete={deleteSelection}
-            onBind={(prop, tagId) => {
-              selectedIds.forEach((id) => {
-                const o = objects.find((ob) => ob.id === id);
-                if (!o) return;
-                if (!tagId) {
-                  const next = { ...(o.bindings ?? {}) };
-                  delete next[prop];
-                  updateObject(id, { bindings: Object.keys(next).length > 0 ? next : undefined });
-                } else {
-                  updateObject(id, { bindings: { ...(o.bindings ?? {}), [prop]: tagId } });
-                }
-              });
-            }}
-            onSetTransitionDuration={(ms) => {
-              selectedIds.forEach((id) => {
-                updateObject(id, { transition_duration_ms: ms });
-              });
-            }}
+            onBatchChange={batchChange}
           />
         ) : selected ? (
           <>
@@ -582,23 +612,29 @@ function PageProps({
 
 function MultiSelectionProps({
   count,
+  selectedObjects,
+  mergedProps,
+  mixedKeys,
+  allSameType,
+  pages,
+  functions,
   onAlign,
   onDuplicate,
   onDelete,
-  onBind,
-  onSetTransitionDuration,
+  onBatchChange,
 }: {
   count: number;
+  selectedObjects: SynopticObject[];
+  mergedProps: Partial<SynopticObject>;
+  mixedKeys: Set<keyof SynopticObject>;
+  allSameType: boolean;
+  pages: { id: string; name: string }[];
+  functions: FunctionDef[];
   onAlign: (mode: AlignMode) => void;
   onDuplicate: () => void;
   onDelete: () => void;
-  onBind: (prop: string, tagId: string) => void;
-  onSetTransitionDuration: (ms: number | undefined) => void;
+  onBatchChange: (patch: Partial<SynopticObject>) => void;
 }) {
-  const [bindProp, setBindProp] = useState("opacity");
-  const [bindTag,  setBindTag]  = useState("");
-  const [batchTxMs, setBatchTxMs] = useState(300);
-
   const btn: React.CSSProperties = {
     background: "#0f172a",
     border: "1px solid #334155",
@@ -658,87 +694,199 @@ function MultiSelectionProps({
       <div style={{ height: 1, background: "#334155", margin: "8px 0" }} />
 
       <div style={{ fontSize: 10, color: "#475569", fontWeight: 700, letterSpacing: 0.5 }}>
-        BINDING RAPIDO
+        PROPRIETÀ COMUNI
       </div>
-      <p style={{ fontSize: 10, color: "#475569", margin: "2px 0 4px" }}>
-        Applica/rimuovi lo stesso binding su tutti gli oggetti selezionati.
+      <p style={{ fontSize: 10, color: "#475569", margin: "2px 0 6px" }}>
+        {allSameType
+          ? `Tipo "${selectedObjects[0].type}" — campi vuoti = valori diversi (vari).`
+          : "Tipi diversi — solo sezioni universali."}
       </p>
-      <div style={{ display: "flex", gap: 4, marginBottom: 4 }}>
-        <select
-          value={bindProp}
-          onChange={(e) => setBindProp(e.target.value)}
-          style={{ ...btn, flex: "0 0 auto", width: 100, padding: "4px 4px", fontSize: 12 }}
-        >
-          <option value="opacity">opacity</option>
-          <option value="rotation">rotation</option>
-          <option value="fill">fill</option>
-          <option value="visible">visible</option>
-          <option value="x">x</option>
-          <option value="y">y</option>
-          <option value="width">width</option>
-          <option value="height">height</option>
-          <option value="label">label</option>
-          <option value="color">color</option>
-          <option value="text">text</option>
-        </select>
-        <TagInput
-          style={{ flex: 1, background: "#0f172a", color: "#e2e8f0", border: "1px solid #334155", borderRadius: 4, padding: "3px 6px", fontSize: 12 }}
-          placeholder="tag…"
-          value={bindTag}
-          onChange={setBindTag}
-        />
-      </div>
-      <div style={{ display: "flex", gap: 4 }}>
-        <button
-          style={{ ...btn, background: "#1e3a5f", color: "#93c5fd", borderColor: "#1e40af" }}
-          disabled={!bindProp || !bindTag}
-          onClick={() => { if (bindProp && bindTag) onBind(bindProp, bindTag); }}
-        >
-          Applica
-        </button>
-        <button
-          style={{ ...btn, background: "#1e293b", color: "#94a3b8" }}
-          disabled={!bindProp}
-          onClick={() => { if (bindProp) onBind(bindProp, ""); }}
-        >
-          Rimuovi
-        </button>
-      </div>
 
-      <div style={{ height: 1, background: "#334155", margin: "8px 0" }} />
-
-      <div style={{ fontSize: 10, color: "#475569", fontWeight: 700, letterSpacing: 0.5 }}>
-        DURATA TRANSIZIONE
-      </div>
-      <p style={{ fontSize: 10, color: "#475569", margin: "2px 0 4px" }}>
-        Applica la stessa durata di animazione (ms) a tutti gli oggetti selezionati. 0 = disattiva.
-      </p>
-      <div style={{ display: "flex", gap: 4, marginBottom: 4 }}>
-        <input
-          type="number"
-          min={0} max={5000} step={50}
-          value={batchTxMs}
-          onChange={(e) => setBatchTxMs(Number(e.target.value) || 0)}
-          style={{ flex: 1, background: "#0f172a", color: "#e2e8f0", border: "1px solid #334155", borderRadius: 4, padding: "3px 6px", fontSize: 12 }}
+      {allSameType ? (
+        <ObjectProps
+          obj={{ id: "__multi__", type: selectedObjects[0].type, x: 0, y: 0, ...mergedProps } as SynopticObject}
+          pages={pages}
+          functions={functions}
+          mixedKeys={mixedKeys}
+          onChange={onBatchChange}
+          onDelete={onDelete}
         />
-        <button
-          style={{ ...btn, background: "#1e3a5f", color: "#93c5fd", borderColor: "#1e40af", flex: "0 0 auto", padding: "4px 10px" }}
-          onClick={() => onSetTransitionDuration(batchTxMs > 0 ? batchTxMs : undefined)}
-        >
-          Applica
-        </button>
-        <button
-          style={{ ...btn, background: "#1e293b", color: "#94a3b8", flex: "0 0 auto", padding: "4px 10px" }}
-          onClick={() => onSetTransitionDuration(undefined)}
-        >
-          Off
-        </button>
-      </div>
+      ) : (
+        <CrossTypeProps
+          mergedProps={mergedProps}
+          mixedKeys={mixedKeys}
+          functions={functions}
+          onChange={onBatchChange}
+        />
+      )}
 
       <p style={{ fontSize: 10, color: "#475569", marginTop: 8 }}>
         Shift+click per aggiungere/togliere dalla selezione. Ctrl-C/V, Ctrl-D,
         Ctrl-Z/Y, Canc come scorciatoie.
       </p>
+    </>
+  );
+}
+
+// ── Cross-type properties (shown when selection has mixed types) ──────────────
+
+function CrossTypeProps({
+  mergedProps,
+  mixedKeys,
+  functions,
+  onChange,
+}: {
+  mergedProps: Partial<SynopticObject>;
+  mixedKeys: Set<keyof SynopticObject>;
+  functions: FunctionDef[];
+  onChange: (patch: Partial<SynopticObject>) => void;
+}) {
+  const field = (label: string, content: React.ReactNode) => (
+    <div key={label}>
+      <div style={LABEL}>{label}</div>
+      {content}
+    </div>
+  );
+  const isMixed = (k: keyof SynopticObject) => mixedKeys.has(k);
+
+  const numInput = (k: keyof SynopticObject, fallback: number) => (
+    <input
+      type="number"
+      style={INPUT}
+      value={isMixed(k) ? "" : (mergedProps[k] !== undefined ? (mergedProps[k] as number) : fallback)}
+      placeholder={isMixed(k) ? "(vari)" : undefined}
+      onChange={(e) => onChange({ [k]: e.target.value === "" ? undefined : Number(e.target.value) } as Partial<SynopticObject>)}
+    />
+  );
+
+  const textInput = (k: keyof SynopticObject, placeholder?: string) => (
+    <input
+      type="text"
+      style={INPUT}
+      placeholder={isMixed(k) ? "(vari)" : placeholder}
+      value={isMixed(k) ? "" : ((mergedProps[k] as string) ?? "")}
+      onChange={(e) => onChange({ [k]: e.target.value } as Partial<SynopticObject>)}
+    />
+  );
+
+  const tagInput = (k: keyof SynopticObject, placeholder?: string) => (
+    <TagInput
+      style={INPUT}
+      placeholder={isMixed(k) ? "(vari)" : placeholder}
+      value={isMixed(k) ? "" : ((mergedProps[k] as string) ?? "")}
+      onChange={(v) => onChange({ [k]: v } as Partial<SynopticObject>)}
+    />
+  );
+
+  const colorInput = (k: keyof SynopticObject, fallback: string) => {
+    const mixed = isMixed(k);
+    return (
+      <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+        <input
+          type="color"
+          style={{ ...INPUT, padding: 2, height: 28, width: 44, cursor: "pointer", flex: "none", opacity: mixed ? 0.4 : 1 }}
+          value={mixed ? "#808080" : ((mergedProps[k] as string) ?? fallback)}
+          onChange={(e) => onChange({ [k]: e.target.value } as Partial<SynopticObject>)}
+        />
+        <input
+          type="text"
+          style={INPUT}
+          placeholder={mixed ? "(vari)" : undefined}
+          value={mixed ? "" : ((mergedProps[k] as string) ?? fallback)}
+          onChange={(e) => onChange({ [k]: e.target.value } as Partial<SynopticObject>)}
+        />
+      </div>
+    );
+  };
+
+  const grid2: React.CSSProperties = { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4 };
+
+  return (
+    <>
+      <div style={{ fontSize: 10, color: "#475569", marginTop: 4, fontWeight: 700, letterSpacing: 0.5 }}>POSIZIONE</div>
+      <div style={grid2}>
+        {field("X", numInput("x", 0))}
+        {field("Y", numInput("y", 0))}
+        {field("Larghezza", numInput("width", 100))}
+        {field("Altezza", numInput("height", 40))}
+      </div>
+
+      <div style={{ fontSize: 10, color: "#475569", marginTop: 8, fontWeight: 700, letterSpacing: 0.5 }}>ASPETTO</div>
+      {field("Fill", colorInput("fill", "#3b82f6"))}
+      {field("Stroke", colorInput("stroke", "#ffffff"))}
+      <div style={grid2}>
+        {field("Stroke W", numInput("stroke_width", 1))}
+        {field("Opacity", numInput("opacity", 1))}
+      </div>
+
+      <div style={{ fontSize: 10, color: "#475569", marginTop: 8, fontWeight: 700, letterSpacing: 0.5 }}>TRASFORMAZIONE</div>
+      <div style={grid2}>
+        {field("Rotazione (°)", numInput("rotation", 0))}
+        {field("Z-index", numInput("z_index", 0))}
+      </div>
+      <div style={{ display: "flex", gap: 8 }}>
+        <label style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: "#cbd5e1" }}>
+          <input type="checkbox"
+            checked={!isMixed("flip_h") && !!(mergedProps.flip_h)}
+            onChange={(e) => onChange({ flip_h: e.target.checked })}
+            style={{ accentColor: "#3b82f6" }}
+          /> Flip H
+        </label>
+        <label style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: "#cbd5e1" }}>
+          <input type="checkbox"
+            checked={!isMixed("flip_v") && !!(mergedProps.flip_v)}
+            onChange={(e) => onChange({ flip_v: e.target.checked })}
+            style={{ accentColor: "#3b82f6" }}
+          /> Flip V
+        </label>
+      </div>
+      {field("Transizione (ms)", numInput("transition_duration_ms", 0))}
+
+      <div style={{ fontSize: 10, color: "#475569", marginTop: 8, fontWeight: 700, letterSpacing: 0.5 }}>VISIBILITÀ</div>
+      <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#cbd5e1", cursor: "pointer" }}>
+        <input type="checkbox"
+          checked={!isMixed("visible") && mergedProps.visible !== false}
+          onChange={(e) => onChange({ visible: e.target.checked })}
+          style={{ accentColor: "#3b82f6" }}
+        /> Visibile
+      </label>
+      {field("Tag visibilità", tagInput("visible_tag", "tag.bool…"))}
+
+      <div style={{ fontSize: 10, color: "#475569", marginTop: 8, fontWeight: 700, letterSpacing: 0.5 }}>TAG</div>
+      {field("Tag", tagInput("tag", "tag.id…"))}
+      {field("Formato", textInput("format", "{value}"))}
+
+      <div style={{ fontSize: 10, color: "#475569", marginTop: 8, fontWeight: 700, letterSpacing: 0.5 }}>INDICATORE QUALITÀ</div>
+      <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#cbd5e1", cursor: "pointer" }}>
+        <input type="checkbox"
+          checked={!isMixed("quality_dot") && mergedProps.quality_dot !== false}
+          onChange={(e) => onChange({ quality_dot: e.target.checked ? undefined : false })}
+          style={{ accentColor: "#3b82f6" }}
+        /> Mostra indicatore qualità
+      </label>
+      {mergedProps.quality_dot !== false && (
+        <>
+          {field("Colore Buono (Good)", colorInput("quality_dot_good_color", "#22c55e"))}
+          {field("Colore Incerto (Uncert.)", colorInput("quality_dot_uncertain_color", "#eab308"))}
+          {field("Colore Errore (Bad)", colorInput("quality_dot_bad_color", "#ef4444"))}
+        </>
+      )}
+
+      <div style={{ fontSize: 10, color: "#475569", marginTop: 8, fontWeight: 700, letterSpacing: 0.5 }}>EVENTI</div>
+      <EventFunctionPicker
+        label="Al click (on_press)"
+        fnName={(mergedProps.on_press_fn as string | undefined)}
+        args={mergedProps.on_press_args}
+        functions={functions}
+        onChange={(fn, args) => onChange({ on_press_fn: fn, on_press_args: args })}
+      />
+      <EventFunctionPicker
+        label="Al rilascio (on_release)"
+        fnName={(mergedProps.on_release_fn as string | undefined)}
+        args={mergedProps.on_release_args}
+        functions={functions}
+        onChange={(fn, args) => onChange({ on_release_fn: fn, on_release_args: args })}
+      />
     </>
   );
 }
@@ -749,12 +897,15 @@ function ObjectProps({
   obj,
   pages,
   functions,
+  mixedKeys = new Set<keyof SynopticObject>(),
   onChange,
   onDelete,
 }: {
   obj: SynopticObject;
   pages: { id: string; name: string }[];
   functions: FunctionDef[];
+  /** Keys whose values differ across a multi-selection — inputs show as empty with "(vari)" placeholder. */
+  mixedKeys?: Set<keyof SynopticObject>;
   onChange: (p: Partial<SynopticObject>) => void;
   onDelete: () => void;
 }) {
@@ -769,8 +920,9 @@ function ObjectProps({
     <input
       type="number"
       style={INPUT}
-      value={obj[key] !== undefined ? (obj[key] as number) : fallback}
-      onChange={(e) => onChange({ [key]: Number(e.target.value) } as Partial<SynopticObject>)}
+      value={mixedKeys.has(key) ? "" : (obj[key] !== undefined ? (obj[key] as number) : fallback)}
+      placeholder={mixedKeys.has(key) ? "(vari)" : undefined}
+      onChange={(e) => onChange({ [key]: e.target.value === "" ? undefined : Number(e.target.value) } as Partial<SynopticObject>)}
     />
   );
 
@@ -778,8 +930,8 @@ function ObjectProps({
     <input
       type="text"
       style={INPUT}
-      placeholder={placeholder}
-      value={(obj[key] as string) ?? ""}
+      placeholder={mixedKeys.has(key) ? "(vari)" : placeholder}
+      value={mixedKeys.has(key) ? "" : ((obj[key] as string) ?? "")}
       onChange={(e) => onChange({ [key]: e.target.value } as Partial<SynopticObject>)}
     />
   );
@@ -787,28 +939,32 @@ function ObjectProps({
   const tagInput = (placeholder?: string) => (
     <TagInput
       style={INPUT}
-      placeholder={placeholder}
-      value={obj.tag ?? ""}
+      placeholder={mixedKeys.has("tag") ? "(vari)" : placeholder}
+      value={mixedKeys.has("tag") ? "" : (obj.tag ?? "")}
       onChange={(v) => onChange({ tag: v })}
     />
   );
 
-  const colorInput = (key: keyof SynopticObject, fallback: string) => (
-    <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-      <input
-        type="color"
-        style={{ ...INPUT, padding: 2, height: 28, width: 44, cursor: "pointer", flex: "none" }}
-        value={(obj[key] as string) ?? fallback}
-        onChange={(e) => onChange({ [key]: e.target.value } as Partial<SynopticObject>)}
-      />
-      <input
-        type="text"
-        style={INPUT}
-        value={(obj[key] as string) ?? fallback}
-        onChange={(e) => onChange({ [key]: e.target.value } as Partial<SynopticObject>)}
-      />
-    </div>
-  );
+  const colorInput = (key: keyof SynopticObject, fallback: string) => {
+    const mixed = mixedKeys.has(key);
+    return (
+      <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+        <input
+          type="color"
+          style={{ ...INPUT, padding: 2, height: 28, width: 44, cursor: "pointer", flex: "none", opacity: mixed ? 0.4 : 1 }}
+          value={mixed ? "#808080" : ((obj[key] as string) ?? fallback)}
+          onChange={(e) => onChange({ [key]: e.target.value } as Partial<SynopticObject>)}
+        />
+        <input
+          type="text"
+          style={INPUT}
+          placeholder={mixed ? "(vari)" : undefined}
+          value={mixed ? "" : ((obj[key] as string) ?? fallback)}
+          onChange={(e) => onChange({ [key]: e.target.value } as Partial<SynopticObject>)}
+        />
+      </div>
+    );
+  };
 
   const BOX_TYPES = ["rect", "ellipse", "button", "navbutton", "checkbox", "radio", "slider", "gauge", "led", "progress_bar", "table", "trend", "symbol", "grid"];
   const isShape = BOX_TYPES.includes(obj.type);
