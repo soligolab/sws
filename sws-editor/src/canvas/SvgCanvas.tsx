@@ -47,10 +47,12 @@ interface DragState {
 
 interface ResizeState {
   objId: string;
-  handle: string; // "tl"|"tc"|"tr"|"ml"|"mr"|"bl"|"bc"|"br"
+  /** Box handles: "tl"|"tc"|"tr"|"ml"|"mr"|"bl"|"bc"|"br"
+   *  Line endpoint handles: "p1"|"p2" */
+  handle: string;
   startX: number;
   startY: number;
-  startObj: { x: number; y: number; width: number; height: number };
+  startObj: { x: number; y: number; width: number; height: number; x2?: number; y2?: number };
 }
 
 /** Coordinates of an in-progress drag-selection rectangle (SVG space). */
@@ -307,16 +309,22 @@ export function SvgCanvas({
   const handleMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
     const svgRect = e.currentTarget.getBoundingClientRect();
     if (resizeRef.current && onMove) {
-      // Resize handle drag
+      // Resize / endpoint handle drag
       const { handle, startX, startY, startObj, objId } = resizeRef.current;
       const dx = e.clientX - startX;
       const dy = e.clientY - startY;
-      let { x, y, width, height } = startObj;
-      if (handle.includes("l")) { x = snap(startObj.x + dx); width = snap(startObj.width - dx); }
-      if (handle.includes("r")) { width = snap(startObj.width + dx); }
-      if (handle.includes("t")) { y = snap(startObj.y + dy); height = snap(startObj.height - dy); }
-      if (handle.includes("b")) { height = snap(startObj.height + dy); }
-      if (width >= 4 && height >= 4) onMove(objId, { x, y, width, height });
+      if (handle === "p1") {
+        onMove(objId, { x: snap(startObj.x + dx), y: snap(startObj.y + dy) });
+      } else if (handle === "p2") {
+        onMove(objId, { x2: snap((startObj.x2 ?? startObj.x + 100) + dx), y2: snap((startObj.y2 ?? startObj.y) + dy) });
+      } else {
+        let { x, y, width, height } = startObj;
+        if (handle.includes("l")) { x = snap(startObj.x + dx); width = snap(startObj.width - dx); }
+        if (handle.includes("r")) { width = snap(startObj.width + dx); }
+        if (handle.includes("t")) { y = snap(startObj.y + dy); height = snap(startObj.height - dy); }
+        if (handle.includes("b")) { height = snap(startObj.height + dy); }
+        if (width >= 4 && height >= 4) onMove(objId, { x, y, width, height });
+      }
     } else if (dragRef.current && onMove) {
       // Object drag
       const newX = snap(e.clientX - svgRect.left - dragRef.current.offsetX);
@@ -492,6 +500,34 @@ export function SvgCanvas({
             pointerEvents="none"
           />
         );
+      })()}
+
+      {/* Line endpoint handles — single selected line in edit mode */}
+      {onMove && selIds.length === 1 && (() => {
+        const obj = objects.find((o) => o.id === selIds[0]);
+        if (!obj || obj.type !== "line") return null;
+        const x2 = obj.x2 ?? obj.x + 100;
+        const y2 = obj.y2 ?? obj.y;
+        const makeEndpoint = (handle: "p1" | "p2", cx: number, cy: number) => (
+          <circle
+            key={handle}
+            cx={cx} cy={cy} r={5}
+            fill="white" stroke="#facc15" strokeWidth={1.5}
+            style={{ cursor: "crosshair" }}
+            onMouseDown={(e) => {
+              e.stopPropagation();
+              dragRef.current = null;
+              selDragRef.current = null;
+              setSelRect(null);
+              resizeRef.current = {
+                objId: obj.id, handle,
+                startX: e.clientX, startY: e.clientY,
+                startObj: { x: obj.x ?? 0, y: obj.y ?? 0, width: 0, height: 0, x2, y2 },
+              };
+            }}
+          />
+        );
+        return <>{makeEndpoint("p1", obj.x ?? 0, obj.y ?? 0)}{makeEndpoint("p2", x2, y2)}</>;
       })()}
 
       {/* Resize handles — single selection, edit mode, no rotation, not line/grid */}
