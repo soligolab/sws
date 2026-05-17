@@ -472,59 +472,137 @@ export function EditorShell() {
         />
       </div>
 
-      {/* Properties panel — switches between three views depending on what's
-          selected: multiple objects, a single object, or nothing (page). */}
+      {/* Properties panel — context-sensitive:
+            multi-select  → MultiSelectionProps
+            child selected → ObjectProps for the child
+            cell selected  → GridCellEditor for the cell
+            grid selected  → ObjectProps for the grid
+            nothing        → PageProps                   */}
       <aside style={{ ...PANEL, width: 280, borderLeft: "1px solid #334155" }}>
-        <span style={{ fontSize: 11, fontWeight: 700, color: "#64748b", letterSpacing: 1 }}>
-          PROPRIETÀ
-        </span>
         {multi ? (
-          <MultiSelectionProps
-            count={selectedIds.length}
-            selectedObjects={selectedObjects}
-            mergedProps={mergedProps}
-            mixedKeys={mixedKeys}
-            allSameType={allSameType}
-            pages={pages.filter((p) => p.id !== currentPageId)}
-            functions={functions}
-            onAlign={alignSelection}
-            onDuplicate={duplicateSelection}
-            onDelete={deleteSelection}
-            onBatchChange={batchChange}
-          />
-        ) : selected ? (
           <>
-            <ObjectProps
-              obj={selected}
+            <span style={{ fontSize: 11, fontWeight: 700, color: "#64748b", letterSpacing: 1 }}>
+              PROPRIETÀ
+            </span>
+            <MultiSelectionProps
+              count={selectedIds.length}
+              selectedObjects={selectedObjects}
+              mergedProps={mergedProps}
+              mixedKeys={mixedKeys}
+              allSameType={allSameType}
               pages={pages.filter((p) => p.id !== currentPageId)}
               functions={functions}
-              onChange={(patch) => updateObject(selected.id, patch)}
-              onDelete={() => deleteObject(selected.id)}
+              onAlign={alignSelection}
+              onDuplicate={duplicateSelection}
+              onDelete={deleteSelection}
+              onBatchChange={batchChange}
             />
-            {selected.type === "grid" && selectedCell?.objectId === selected.id && (() => {
-              const cells = (selected.grid_cells ?? []) as GridCell[];
-              const cellDef = cells.find((c) => c.row === selectedCell.row && c.col === selectedCell.col)
-                ?? { row: selectedCell.row, col: selectedCell.col };
+          </>
+        ) : selected ? (() => {
+          const otherPages = pages.filter((p) => p.id !== currentPageId);
+
+          // ── Child sub-selected ──────────────────────────────────────────
+          if (selected.type === "grid" && selectedCellChild?.objectId === selected.id) {
+            const cells = (selected.grid_cells ?? []) as GridCell[];
+            const cellDef = cells.find(
+              (c) => c.row === selectedCellChild.row && c.col === selectedCellChild.col,
+            );
+            const child = cellDef?.child;
+            if (child) {
+              const gridLabel = selected.name?.trim() || `griglia·${selected.id.slice(-4)}`;
+              const childLabel = child.name?.trim() || child.type;
               return (
+                <>
+                  <PanelBreadcrumb
+                    parts={[gridLabel, `R${selectedCellChild.row + 1} C${selectedCellChild.col + 1}`, childLabel]}
+                  />
+                  <ObjectProps
+                    obj={child}
+                    pages={otherPages}
+                    functions={functions}
+                    onChange={(patch) =>
+                      updateGridCell(currentPageId, selected.id, {
+                        ...cellDef!,
+                        child: { ...child, ...patch },
+                      })
+                    }
+                    onDelete={() =>
+                      updateGridCell(currentPageId, selected.id, { ...cellDef!, child: undefined })
+                    }
+                  />
+                </>
+              );
+            }
+          }
+
+          // ── Cell selected (no child sub-selected) ──────────────────────
+          if (selected.type === "grid" && selectedCell?.objectId === selected.id) {
+            const cells = (selected.grid_cells ?? []) as GridCell[];
+            const cellDef = cells.find(
+              (c) => c.row === selectedCell.row && c.col === selectedCell.col,
+            ) ?? { row: selectedCell.row, col: selectedCell.col };
+            const gridLabel = selected.name?.trim() || `griglia·${selected.id.slice(-4)}`;
+            return (
+              <>
+                <PanelBreadcrumb
+                  parts={[gridLabel, `R${selectedCell.row + 1} C${selectedCell.col + 1}`]}
+                />
                 <GridCellEditor
                   cell={cellDef}
-                  pages={pages.filter((p) => p.id !== currentPageId)}
                   functions={functions}
-                  onChange={(patch) => updateGridCell(currentPageId, selected.id, { ...cellDef, ...patch })}
+                  onChange={(patch) =>
+                    updateGridCell(currentPageId, selected.id, { ...cellDef, ...patch })
+                  }
                 />
-              );
-            })()}
+              </>
+            );
+          }
+
+          // ── Regular object (or grid with no cell selected) ─────────────
+          return (
+            <>
+              <span style={{ fontSize: 11, fontWeight: 700, color: "#64748b", letterSpacing: 1 }}>
+                PROPRIETÀ
+              </span>
+              <ObjectProps
+                obj={selected}
+                pages={otherPages}
+                functions={functions}
+                onChange={(patch) => updateObject(selected.id, patch)}
+                onDelete={() => deleteObject(selected.id)}
+              />
+            </>
+          );
+        })() : (
+          <>
+            <span style={{ fontSize: 11, fontWeight: 700, color: "#64748b", letterSpacing: 1 }}>
+              PROPRIETÀ
+            </span>
+            <PageProps
+              name={currentPage?.name ?? ""}
+              background={currentPage?.background ?? "#1a1a2e"}
+              width={currentPage?.width}
+              height={currentPage?.height}
+              onChange={(patch) => updatePageProps(currentPageId, patch)}
+            />
           </>
-        ) : (
-          <PageProps
-            name={currentPage?.name ?? ""}
-            background={currentPage?.background ?? "#1a1a2e"}
-            width={currentPage?.width}
-            height={currentPage?.height}
-            onChange={(patch) => updatePageProps(currentPageId, patch)}
-          />
         )}
       </aside>
+    </div>
+  );
+}
+
+// ── Panel breadcrumb ──────────────────────────────────────────────────────────
+
+function PanelBreadcrumb({ parts }: { parts: string[] }) {
+  return (
+    <div style={{ fontSize: 10, color: "#475569", marginBottom: 6, display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" }}>
+      {parts.map((p, i) => (
+        <span key={i} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+          {i > 0 && <span style={{ color: "#334155" }}>›</span>}
+          <span style={{ color: i === parts.length - 1 ? "#94a3b8" : "#475569" }}>{p}</span>
+        </span>
+      ))}
     </div>
   );
 }
@@ -1927,12 +2005,10 @@ function makeDefaultChild(type: string): SynopticObject {
 
 function GridCellEditor({
   cell,
-  pages,
   functions,
   onChange,
 }: {
   cell: GridCell;
-  pages: { id: string; name: string }[];
   functions: FunctionDef[];
   onChange: (patch: Partial<GridCell>) => void;
 }) {
@@ -2041,8 +2117,18 @@ function GridCellEditor({
       </div>
       {cell.child ? (
         <>
-          {/* Action bar: cut to clipboard / remove */}
-          <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+          <div style={{
+            display: "flex", alignItems: "center", gap: 6, marginBottom: 8,
+            padding: "4px 8px", background: "#0f172a", border: "1px solid #1e3a5f", borderRadius: 4,
+          }}>
+            <span style={{ flex: 1, fontSize: 11, color: "#93c5fd" }}>
+              {cell.child.type}{cell.child.name ? ` — ${cell.child.name}` : ""}
+            </span>
+          </div>
+          <p style={{ fontSize: 10, color: "#475569", margin: "0 0 8px" }}>
+            Clicca il figlio nel canvas per modificarne le proprietà.
+          </p>
+          <div style={{ display: "flex", gap: 6 }}>
             <button
               title="Taglia — rimette il figlio nel clipboard di pagina"
               onClick={() => {
@@ -2061,14 +2147,6 @@ function GridCellEditor({
               ✕ Rimuovi
             </button>
           </div>
-          {/* Full property panel for the child object */}
-          <ObjectProps
-            obj={cell.child}
-            pages={pages}
-            functions={functions}
-            onChange={(patch) => onChange({ child: { ...cell.child!, ...patch } })}
-            onDelete={() => onChange({ child: undefined })}
-          />
         </>
       ) : (
         <>
