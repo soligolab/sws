@@ -175,6 +175,7 @@ interface AppState {
   duplicateSelection: () => void;
   deleteObject: (id: string) => void;
   deleteSelection: () => void;
+  reorderObject: (id: string, dir: "front" | "forward" | "backward" | "back") => void;
 
   // Clipboard
   copySelection: () => void;
@@ -636,6 +637,23 @@ export const useAppStore = create<AppState>((set, get) => {
         selectedObjectId: null,
         selectedObjectIds: [],
       }));
+    },
+
+    reorderObject: (id, dir) => {
+      pushHistory();
+      set((s) => {
+        const page = s.pages.find((p) => p.id === s.currentPageId);
+        if (!page) return s;
+        const idx = page.objects.findIndex((o) => o.id === id);
+        if (idx < 0) return s;
+        const objs = [...page.objects];
+        const [obj] = objs.splice(idx, 1);
+        if      (dir === "front")   objs.push(obj);
+        else if (dir === "back")    objs.unshift(obj);
+        else if (dir === "forward") objs.splice(Math.min(idx + 1, objs.length), 0, obj);
+        else                        objs.splice(Math.max(idx - 1, 0), 0, obj);
+        return { pages: s.pages.map((p) => p.id === s.currentPageId ? { ...p, objects: objs } : p) };
+      });
     },
 
     copySelection: () => {

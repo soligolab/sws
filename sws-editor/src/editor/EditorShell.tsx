@@ -167,6 +167,7 @@ export function EditorShell() {
   const updateObject    = useAppStore((s) => s.updateObject);
   const deleteObject    = useAppStore((s) => s.deleteObject);
   const deleteSelection = useAppStore((s) => s.deleteSelection);
+  const reorderObject   = useAppStore((s) => s.reorderObject);
   const selectObject    = useAppStore((s) => s.selectObject);
   const toggleSelection = useAppStore((s) => s.toggleSelection);
   const duplicateSelection = useAppStore((s) => s.duplicateSelection);
@@ -288,11 +289,20 @@ export function EditorShell() {
         }
       } else if (ctrl && (e.key === "d" || e.key === "D") && ids.length > 0) {
         e.preventDefault(); duplicateSelection();
+      } else if (ctrl && e.key === "a") {
+        e.preventDefault();
+        const state = useAppStore.getState();
+        const page = state.pages.find((p) => p.id === state.currentPageId);
+        if (page && page.objects.length > 0) selectMany(page.objects.map((o) => o.id));
+      } else if (ctrl && e.key === "]" && ids.length === 1) {
+        e.preventDefault(); reorderObject(ids[0], e.shiftKey ? "front" : "forward");
+      } else if (ctrl && e.key === "[" && ids.length === 1) {
+        e.preventDefault(); reorderObject(ids[0], e.shiftKey ? "back" : "backward");
       }
     };
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
-  }, [deleteSelection, undo, redo, copySelection, pasteClipboard, duplicateSelection, setClipboard]);
+  }, [deleteSelection, undo, redo, copySelection, pasteClipboard, duplicateSelection, setClipboard, selectMany, reorderObject]);
 
   const nextPos = () => {
     const n = objects.length;
@@ -564,6 +574,7 @@ export function EditorShell() {
               <span style={{ fontSize: 11, fontWeight: 700, color: "#64748b", letterSpacing: 1 }}>
                 PROPRIETÀ
               </span>
+              <ZOrderBar id={selected.id} objectCount={objects.length} onReorder={reorderObject} />
               <ObjectProps
                 obj={selected}
                 pages={otherPages}
@@ -588,6 +599,33 @@ export function EditorShell() {
           </>
         )}
       </aside>
+    </div>
+  );
+}
+
+// ── Z-order bar ───────────────────────────────────────────────────────────────
+
+function ZOrderBar({
+  id,
+  objectCount,
+  onReorder,
+}: {
+  id: string;
+  objectCount: number;
+  onReorder: (id: string, dir: "front" | "forward" | "backward" | "back") => void;
+}) {
+  if (objectCount < 2) return null;
+  const btnStyle: React.CSSProperties = {
+    background: "#0f172a", border: "1px solid #334155", color: "#94a3b8",
+    borderRadius: 3, cursor: "pointer", fontSize: 11, padding: "2px 6px",
+    flex: 1, textAlign: "center" as const,
+  };
+  return (
+    <div style={{ display: "flex", gap: 3, marginBottom: 6 }}>
+      <button style={btnStyle} title="Porta in primo piano (Ctrl+Shift+])" onClick={() => onReorder(id, "front")}>⬆⬆</button>
+      <button style={btnStyle} title="Avanti (Ctrl+])" onClick={() => onReorder(id, "forward")}>↑</button>
+      <button style={btnStyle} title="Indietro (Ctrl+[)" onClick={() => onReorder(id, "backward")}>↓</button>
+      <button style={btnStyle} title="Manda in fondo (Ctrl+Shift+[)" onClick={() => onReorder(id, "back")}>⬇⬇</button>
     </div>
   );
 }
