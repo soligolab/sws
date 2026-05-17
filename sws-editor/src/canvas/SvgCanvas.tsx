@@ -45,6 +45,14 @@ interface DragState {
   dy2?: number;
 }
 
+interface ResizeState {
+  objId: string;
+  handle: string; // "tl"|"tc"|"tr"|"ml"|"mr"|"bl"|"bc"|"br"
+  startX: number;
+  startY: number;
+  startObj: { x: number; y: number; width: number; height: number };
+}
+
 /** Coordinates of an in-progress drag-selection rectangle (SVG space). */
 interface SelRect {
   startX: number;
@@ -255,6 +263,8 @@ export function SvgCanvas({
 
   // Object drag state
   const dragRef = useRef<DragState | null>(null);
+  // Resize handle drag state
+  const resizeRef = useRef<ResizeState | null>(null);
 
   // Selection-rectangle drag state. `selDragRef` tracks the active drag for
   // event handlers (always up-to-date); `selRect` drives the visual overlay.
@@ -296,7 +306,18 @@ export function SvgCanvas({
 
   const handleMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
     const svgRect = e.currentTarget.getBoundingClientRect();
-    if (dragRef.current && onMove) {
+    if (resizeRef.current && onMove) {
+      // Resize handle drag
+      const { handle, startX, startY, startObj, objId } = resizeRef.current;
+      const dx = e.clientX - startX;
+      const dy = e.clientY - startY;
+      let { x, y, width, height } = startObj;
+      if (handle.includes("l")) { x = snap(startObj.x + dx); width = snap(startObj.width - dx); }
+      if (handle.includes("r")) { width = snap(startObj.width + dx); }
+      if (handle.includes("t")) { y = snap(startObj.y + dy); height = snap(startObj.height - dy); }
+      if (handle.includes("b")) { height = snap(startObj.height + dy); }
+      if (width >= 4 && height >= 4) onMove(objId, { x, y, width, height });
+    } else if (dragRef.current && onMove) {
       // Object drag
       const newX = snap(e.clientX - svgRect.left - dragRef.current.offsetX);
       const newY = snap(e.clientY - svgRect.top  - dragRef.current.offsetY);
@@ -320,6 +341,7 @@ export function SvgCanvas({
 
   const endDrag = () => {
     dragRef.current = null;
+    resizeRef.current = null;
 
     const rect = selDragRef.current;
     selDragRef.current = null;
@@ -469,6 +491,54 @@ export function SvgCanvas({
             strokeWidth={1} strokeDasharray="4 2"
             pointerEvents="none"
           />
+        );
+      })()}
+
+      {/* Resize handles — single selection, edit mode, no rotation, not line/grid */}
+      {onMove && selIds.length === 1 && (() => {
+        const obj = objects.find((o) => o.id === selIds[0]);
+        if (!obj || obj.type === "line" || obj.type === "grid" || (obj.rotation ?? 0) !== 0) return null;
+        const bb = objBBox(obj);
+        const cx = (bb.x1 + bb.x2) / 2;
+        const cy = (bb.y1 + bb.y2) / 2;
+        const hs = 4;
+        const handles: { id: string; x: number; y: number; cursor: string }[] = [
+          { id: "tl", x: bb.x1, y: bb.y1, cursor: "nw-resize" },
+          { id: "tc", x: cx,    y: bb.y1, cursor: "n-resize"  },
+          { id: "tr", x: bb.x2, y: bb.y1, cursor: "ne-resize" },
+          { id: "ml", x: bb.x1, y: cy,    cursor: "w-resize"  },
+          { id: "mr", x: bb.x2, y: cy,    cursor: "e-resize"  },
+          { id: "bl", x: bb.x1, y: bb.y2, cursor: "sw-resize" },
+          { id: "bc", x: cx,    y: bb.y2, cursor: "s-resize"  },
+          { id: "br", x: bb.x2, y: bb.y2, cursor: "se-resize" },
+        ];
+        return (
+          <>
+            {handles.map(({ id, x, y, cursor }) => (
+              <rect
+                key={id}
+                x={x - hs} y={y - hs} width={hs * 2} height={hs * 2}
+                fill="white" stroke="#facc15" strokeWidth={1.5}
+                style={{ cursor }}
+                onMouseDown={(e) => {
+                  e.stopPropagation();
+                  dragRef.current = null;
+                  selDragRef.current = null;
+                  setSelRect(null);
+                  resizeRef.current = {
+                    objId: obj.id,
+                    handle: id,
+                    startX: e.clientX,
+                    startY: e.clientY,
+                    startObj: {
+                      x: obj.x ?? 0, y: obj.y ?? 0,
+                      width: obj.width ?? 0, height: obj.height ?? 0,
+                    },
+                  };
+                }}
+              />
+            ))}
+          </>
         );
       })()}
     </svg>
