@@ -2,11 +2,17 @@
 
 > This file is the **session-to-session memory** for Claude Code. Update it at the end of every session before stopping work. Read it at the start of every session before touching code.
 
-**Last session**: 2026-05-18 (sessione 22: ARCH-001/002 + 5 UX bundle — single-binary runtime, remote-runtime config, drag/paste/snap polish, alarm ACK panel, log JSONL export)
+**Last session**: 2026-05-18 (sessione 23: grid object — resize bordi righe/colonne con drag, snap interno, multi-cell selection + merge, split locale 1×2/2×1)
 **Current phase**: Phase 2. Demo working out-of-the-box su fresh clone, import/export progetto per backup/condivisione, pannello log live + persistenza su disco, gestione utenti multi-account. Da questa sessione il runtime può servire la SPA da sé (`--www`) e l'editor può puntare a un runtime remoto via `VITE_RUNTIME_URL` — sblocco completo del deploy single-container su PX30.
 **Last commit**: (vedi CHANGELOG [Unreleased] per i dettagli della sessione corrente)
 
 ### Cosa è andato online in queste sessioni (in ordine di commit)
+- (sessione 2026-05-18, sessione 23) **Grid: resize bordi righe/colonne con drag + snap interno** — quando il `grid` è selezionato in edit mode, `SvgCanvas` rende ora dei `<rect>` trasparenti 6 px centrati su ogni bordo interno (col-resize / row-resize cursor). `gridBorderRef` traccia il drag in `handleMouseMove`: delta convertito da screen→SVG via zoom, applicato come `[startA + delta, startB - delta]` sulle due tracce adiacenti, clamp min 8 px ciascuna. Snap: candidati = posizioni cumulative degli altri bordi interni dello stesso grid; threshold `8/zoom`; quando agganciato, snap-line ciano riusa l'esistente `setSnapLines`. Update tramite `updateObject(id, { col_widths: [...] })` o `{ row_heights: [...] }`. Coalescenza undo via `openInteraction("Ridimensiona colonna N")`.
+- (sessione 2026-05-18, sessione 23) **Grid: multi-cell selection + merge** — shift+click su una cella del grid già selezionato chiama `onSelectCellRange(objectId, r1,c1, r2,c2)` → store `setSelectedCellRange` (normalizza r1≤r2, c1≤c2). Overlay teal tratteggiato sopra l'unione dei rect. Pannello a destra mostra `CellRangeMergeActions` con bottoni "🔗 Unisci celle" e "Annulla selezione". Store action `mergeCellRange(...)`: valida che le celle merged interne non sborderebbero; ruota a top-left cell con `rowspan/colspan` corretti, droppa le entries non-origine. `unmergeCell` strippa rowspan/colspan preservando le altre proprietà.
+- (sessione 2026-05-18, sessione 23) **Grid: split locale di una cella (ibrido)** — il `GridCell` TS guadagna `sub?: SubGrid { orientation: "rows"|"cols", ratio: number, a?: SubCellEntry, b?: SubCellEntry }`. Bottoni "⬓ Dividi orizzontalmente" / "⬔ Dividi verticalmente" appaiono nel pannello quando una singola cella senza span e senza split è selezionata. Action `splitCell`: imposta `cell.sub = { orientation, ratio: 0.5, a: { child: existingChild?, ... }, b: undefined }` e migra l'eventuale `cell.child` in `sub.a.child`. Renderer della cella detecta `cellDef.sub` e disegna 2 sub-rect (alto/basso o sinistra/destra a seconda di orientation) con bg_color, bg_image, child centrato in ciascuno. Click su sub-cella → `selectedSubCell: { slot: "a"|"b" }`. `joinSplitCell` rimuove `sub` e re-lifta `sub.a.child` (o `sub.b.child` se a è vuoto) come child di cella. Ricorsione su sub-cell intenzionalmente disabilitata (KISS).
+- (sessione 2026-05-18, sessione 23) **Grid: resize del bordo interno di una cella split** — `subBorderRef` traccia il drag del divider tra slot a/b. Posto a livello SvgCanvas (sopra le celle del grid) come 6 px corridor sul bordo. `resizeSubBorder` action aggiorna solo `cell.sub.ratio`, clamp `[8/cellPx, 1-8/cellPx]` per evitare slot < 8px. `cellPxSize` salvato al drag-start; orientation determina asse (clientX o clientY). Nessun snap cross-livello (per ora).
+- (sessione 2026-05-18, sessione 23) **Pannello sub-cella** — quando `selectedSubCell` è settato, il `GridCellEditor` mostra colore sfondo per lo slot + `ObjectProps` completo per `entry.child` (riusa lo stesso componente già usato per `selectedCellChild`). Per ora niente UI di "trascina/copia un oggetto qui" (post-MVP — l'utente può comunque editare YAML o aggiungere `child` via Ctrl+V dentro la cella prima di splittare).
+- (sessione 2026-05-18, sessione 23) **Modello dati: zero modifiche Rust** — `grid_cells: Option<Value>` in `synoptic.rs` è già un blob JSON opaco. La nuova forma `sub` viaggia round-trip serde alla cieca (commento documentale aggiunto in `synoptic.rs` per ricordarlo). 36+ test cargo workspace tutti verdi.
 - (sessione 2026-05-18, sessione 22) **ARCH-001 — Runtime serve la SPA via `ServeDir + --www`** — nuova CLI arg `--www <path>` in `sws-runtime` che monta `tower_http::ServeDir` come fallback service del router (404 dentro `ServeDir` cadono su `index.html` per SPA routing). Workspace `tower-http` ora con feature `fs`. `compose.yaml` riporta variante single-container commentata; `docs/DEPLOY_PX30.md` documenta la nuova shape di deploy (no più container Nginx separato).
 - (sessione 2026-05-18, sessione 22) **ARCH-002 — `VITE_RUNTIME_URL` configurabile** — un singolo env var orienta la proxy Vite, il `BASE_URL` di `api/client.ts` e tutte le WS URL. Refactor: i tre helper `buildWsUrl` duplicati nei file `ws/*Stream.ts` consolidati in un singolo `ws/wsUrl.ts` con scheme-swap `http→ws`. Override per-stream (`VITE_RUNTIME_WS_URL`, …) preservati.
 - (sessione 2026-05-18, sessione 22) **Undo singolo per drag/resize** (task 4.1) — nuove action store `beginInteraction(label)` / `endInteraction()` con depth counter. `updateObject/updateObjects` saltano `pushHistory` durante un'interazione in corso. `SvgCanvas` apre l'interaction in `startDrag` + endpoint handle + resize handle, la chiude in `endDrag`. Era buggato: un drag da 200 px generava 200 voci nella cronologia.
@@ -235,6 +241,12 @@
 | 4.2 | Ruler/guide lines: righelli px con guide orizzontali/verticali draggabili | 2 h | — |
 | 4.3 | ✅ Copy-paste cross-page (source-page tracking, strip `group_id` cross-page) | — | — |
 | 4.4 | ✅ Snap to page border (0, w/2, w; 0, h/2, h con stesso threshold dell'edge snap) | — | — |
+| 4.5 | ✅ Grid: drag-resize bordi righe/colonne + snap interno | — | — |
+| 4.6 | ✅ Grid: shift+click multi-cell selection + merge/unmerge | — | — |
+| 4.7 | ✅ Grid: split locale cella in 1×2/2×1 con drag bordo interno | — | — |
+| 4.8 | Grid: drag-to-range multi-cell (oggi solo shift+click) | 1.5 h | — |
+| 4.9 | Grid: ricorsione split (sub-cell con sub) | 2 h | → 4.7 |
+| 4.10 | Grid: merged cell splittable (auto-unmerge + split) | 1 h | → 4.7 |
 
 ---
 
@@ -297,9 +309,10 @@
 | Sessione | Durata | Contenuto | Prerequisiti |
 |----------|--------|-----------|--------------|
 | ~~**S-22**~~ ✅ | ~6 h | ARCH-001 + ARCH-002 + 4.1 + 4.3 + 4.4 + 6.1 + 6.2 + fix test `alarm.rs` | — |
-| **S-23** | ~2 h | ARCH-003 (kiosk) + test su PX30 hardware | hw fisico |
-| **S-24** | ~3 h | ARCH-004 (multi-runtime WelcomeScreen) | ARCH-002 stabile (✅) |
-| **S-25** | ~3 h | 1.3 (drag&drop tree) + 1.4 (context menu) + 4.2 (rulers) | — |
+| ~~**S-23**~~ ✅ | ~4 h | Grid: resize bordi (4.5) + multi-cell + merge (4.6) + split locale (4.7) | — |
+| **S-24** | ~2 h | ARCH-003 (kiosk) + test su PX30 hardware | hw fisico |
+| **S-25** | ~3 h | ARCH-004 (multi-runtime WelcomeScreen) | ARCH-002 stabile (✅) |
+| **S-26** | ~3 h | 1.3 (drag&drop tree) + 1.4 (context menu) + 4.2 (rulers) | — |
 
 ---
 

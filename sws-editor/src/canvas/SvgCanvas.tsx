@@ -25,6 +25,10 @@ interface SvgCanvasProps {
   selectedCell?: { objectId: string; row: number; col: number } | null;
   /** Currently selected child object within a grid cell. */
   selectedCellChild?: { objectId: string; row: number; col: number } | null;
+  /** Currently selected rectangular range of grid cells (for merge). */
+  selectedCellRange?: { objectId: string; r1: number; c1: number; r2: number; c2: number } | null;
+  /** Currently selected slot inside a split (`cell.sub`) cell. */
+  selectedSubCell?: { objectId: string; row: number; col: number; slot: "a" | "b" } | null;
   /** Single-select (replace) when shift is false; toggle into the set when true. */
   onSelect?: (id: string | null, shift?: boolean) => void;
   /** Called with the full set of ids enclosed by a drag-selection rectangle. */
@@ -36,6 +40,10 @@ interface SvgCanvasProps {
   onNavigate?: (pageId: string) => void;
   onSelectCell?: (objectId: string, row: number, col: number) => void;
   onSelectCellChild?: (objectId: string, row: number, col: number) => void;
+  /** Shift+click on a second cell of the same grid: form/extend a rect range. */
+  onSelectCellRange?: (objectId: string, r1: number, c1: number, r2: number, c2: number) => void;
+  /** Click on slot "a" or "b" inside a split cell. */
+  onSelectSubCell?: (objectId: string, row: number, col: number, slot: "a" | "b") => void;
 }
 
 interface DragState {
@@ -54,6 +62,35 @@ interface ResizeState {
   startX: number;
   startY: number;
   startObj: { x: number; y: number; width: number; height: number; x2?: number; y2?: number };
+}
+
+/** Active drag on an interior border of a `grid` object (between two
+ *  columns or two rows). The user gets a single bracketed history entry
+ *  per drag thanks to openInteraction/closeInteraction in startDrag. */
+interface GridBorderResizeState {
+  objId: string;
+  axis: "col" | "row";
+  /** Index of the border: between column `index-1` and `index` (col-axis)
+   *  or between row `index-1` and `index` (row-axis). Valid 1..count-1. */
+  index: number;
+  /** Mouse clientX (col axis) or clientY (row axis) at startMouse. */
+  startMouse: number;
+  /** Pixel sizes of the two adjacent tracks at the start of the drag. */
+  startA: number;
+  startB: number;
+  /** Snapshot of all column widths or row heights at start. */
+  startSizes: number[];
+}
+
+/** Active drag on the internal border of a split (`cell.sub`) cell. */
+interface SubBorderResizeState {
+  objId: string;
+  row: number;
+  col: number;
+  startMouse: number;
+  startRatio: number;
+  /** Length (px) of the parent cell along the split axis at start. */
+  cellPxSize: number;
 }
 
 /** Coordinates of an in-progress drag-selection rectangle (SVG space). */
@@ -250,6 +287,8 @@ export function SvgCanvas({
   pageHeight,
   selectedCell,
   selectedCellChild,
+  selectedCellRange,
+  selectedSubCell,
   onSelect,
   onSelectMany,
   onMove,
@@ -258,6 +297,8 @@ export function SvgCanvas({
   onNavigate,
   onSelectCell,
   onSelectCellChild,
+  onSelectCellRange,
+  onSelectSubCell,
 }: SvgCanvasProps) {
   // Resolved selection set: prefer the explicit array, fall back to the
   // legacy single-id prop, then to "nothing selected".
@@ -268,6 +309,7 @@ export function SvgCanvas({
   // history entry per gesture rather than per pixel.
   const beginInteraction = useAppStore((s) => s.beginInteraction);
   const endInteraction = useAppStore((s) => s.endInteraction);
+  const resizeSubBorderAction = useAppStore((s) => s.resizeSubBorder);
   // Tracks whether we actually opened an interaction this gesture, so
   // endDrag only closes one when one was opened.
   const interactionOpen = useRef(false);
@@ -286,6 +328,10 @@ export function SvgCanvas({
   const dragRef = useRef<DragState | null>(null);
   // Resize handle drag state
   const resizeRef = useRef<ResizeState | null>(null);
+  // Grid interior-border resize state (drag between columns or between rows).
+  const gridBorderRef = useRef<GridBorderResizeState | null>(null);
+  // Sub-grid (split cell) interior border resize state.
+  const subBorderRef = useRef<SubBorderResizeState | null>(null);
 
   // Selection-rectangle drag state. `selDragRef` tracks the active drag for
   // event handlers (always up-to-date); `selRect` drives the visual overlay.
@@ -423,6 +469,87 @@ export function SvgCanvas({
     if (onMove) setMousePos(pt);
 
     const z = zoomRef.current;
+
+    // Grid interior-border drag — adjust two adjacent track sizes while
+    // keeping the sum constant. Snap to the other border positions in the
+    // same grid so the user can easily re-align columns.
+    if (gridBorderRef.current && onMove) {
+      const ref = gridBorderRef.current;
+      const grid = objects.find((o) => o.id === ref.objId);
+      if (grid) {
+        const deltaScreen = ref.axis === "col" ? (e.clientX - ref.startMouse) : (e.clientY - ref.startMouse);
+        let delta = deltaScreen / z;
+        let newA = ref.startA + delta;
+        let newB = ref.startB - delta;
+        const MIN = 8;
+        if (newA < MIN) { delta = MIN - ref.startA; newA = MIN; newB = ref.startB - delta; }
+        if (newB < MIN) { delta = ref.startB - MIN; newA = ref.startA + delta; newB = MIN; }
+
+        // Snap candidates: cumulative positions of every other interior
+        // border on the same axis. The moving border's reference position
+        // is the sum of sizes[0..ref.index-1] (before this drag) plus the
+        // new value of sizes[ref.index-1].
+        const sizes = ref.startSizes.slice();
+        let baseBefore = 0; // sum sizes[0..ref.index-1] before mutation
+        for (let i = 0; i < ref.index - 1; i++) baseBefore += sizes[i];
+        const draggedPos = baseBefore + newA;
+        const otherBorders: number[] = [];
+        let acc = 0;
+        for (let i = 0; i < sizes.length - 1; i++) {
+          acc += sizes[i];
+          if (i + 1 !== ref.index) otherBorders.push(acc);
+        }
+        const threshold = 8 / z;
+        let snapHit: number | null = null;
+        for (const cand of otherBorders) {
+          if (Math.abs(draggedPos - cand) < threshold) { snapHit = cand; break; }
+        }
+        if (snapHit !== null) {
+          // Recompute newA so the dragged border lands exactly on the snap.
+          const snappedA = snapHit - baseBefore;
+          if (snappedA >= MIN && (ref.startA + ref.startB - snappedA) >= MIN) {
+            newA = snappedA;
+            newB = ref.startA + ref.startB - snappedA;
+          }
+        }
+
+        sizes[ref.index - 1] = newA;
+        sizes[ref.index] = newB;
+        const patch: Partial<SynopticObject> = ref.axis === "col"
+          ? { col_widths: sizes }
+          : { row_heights: sizes };
+        onMove(ref.objId, patch);
+
+        // Snap line is in canvas coordinates: position relative to grid origin.
+        if (snapHit !== null) {
+          if (ref.axis === "col") setSnapLines({ x: (grid.x ?? 0) + snapHit, y: null });
+          else                    setSnapLines({ x: null, y: (grid.y ?? 0) + snapHit });
+        } else {
+          setSnapLines({ x: null, y: null });
+        }
+      }
+      return;
+    }
+
+    // Sub-grid (split cell) interior border drag — updates `cell.sub.ratio`.
+    if (subBorderRef.current) {
+      const ref = subBorderRef.current;
+      const grid = objects.find((o) => o.id === ref.objId);
+      const cell = ((grid?.grid_cells ?? []) as GridCell[]).find((c) =>
+        c.row === ref.row && c.col === ref.col);
+      if (cell?.sub) {
+        const screenDelta = cell.sub.orientation === "rows"
+          ? (e.clientY - ref.startMouse)
+          : (e.clientX - ref.startMouse);
+        const deltaFrac = (screenDelta / z) / ref.cellPxSize;
+        const minFrac = 8 / ref.cellPxSize;
+        const newRatio = clamp(ref.startRatio + deltaFrac, minFrac, 1 - minFrac);
+        const pageId = useAppStore.getState().currentPageId;
+        resizeSubBorderAction(pageId, ref.objId, ref.row, ref.col, newRatio);
+      }
+      return;
+    }
+
     if (resizeRef.current && onMove) {
       // Resize / endpoint handle drag. dx/dy in screen pixels → divide by zoom.
       const { handle, startX, startY, startObj, objId } = resizeRef.current;
@@ -519,6 +646,8 @@ export function SvgCanvas({
     closeInteraction();
     dragRef.current = null;
     resizeRef.current = null;
+    gridBorderRef.current = null;
+    subBorderRef.current = null;
     panDragRef.current = null;
     setSnapLines({ x: null, y: null });
 
@@ -640,6 +769,8 @@ export function SvgCanvas({
               customSymbols={customSymbols}
               selectedCell={selectedCell}
               selectedCellChild={selectedCellChild}
+              selectedCellRange={selectedCellRange}
+              selectedSubCell={selectedSubCell}
               onSelect={onSelect}
               onStartDrag={onMove ? startDrag : undefined}
               onWriteTag={onWriteTag}
@@ -647,6 +778,8 @@ export function SvgCanvas({
               onNavigate={onNavigate}
               onSelectCell={onSelectCell}
               onSelectCellChild={onSelectCellChild}
+              onSelectCellRange={onSelectCellRange}
+              onSelectSubCell={onSelectSubCell}
             />
             {inEdit && (() => {
               const bb = objBBox(obj);
@@ -763,6 +896,182 @@ export function SvgCanvas({
           </>
         );
       })()}
+
+      {/* Grid interior border handles — single grid selected, edit mode.
+          6 px corridor centred on each interior column/row border. Rendered
+          AFTER cells (and AFTER the 8 corner handles) so they win the
+          pointer hit-test inside the corridor. */}
+      {onMove && selIds.length === 1 && (() => {
+        const obj = objects.find((o) => o.id === selIds[0]);
+        if (!obj || obj.type !== "grid") return null;
+        const w = obj.width ?? 400;
+        const h = obj.height ?? 300;
+        const nRows = obj.grid_rows ?? 2;
+        const nCols = obj.grid_cols ?? 2;
+        const colWidthsDef = (obj.col_widths as number[] | undefined) ?? [];
+        const colW: number[] = [];
+        for (let c = 0; c < nCols; c++) {
+          colW.push(c < colWidthsDef.length ? colWidthsDef[c] : w / nCols);
+        }
+        const rowHeightsDef = (obj.row_heights as number[] | undefined) ?? [];
+        const rowH: number[] = [];
+        for (let r = 0; r < nRows; r++) {
+          rowH.push(r < rowHeightsDef.length ? rowHeightsDef[r] : h / nRows);
+        }
+        const colX: number[] = [];
+        let cx0 = obj.x; for (let c = 0; c < nCols; c++) { colX.push(cx0); cx0 += colW[c]; }
+        const rowY: number[] = [];
+        let ry0 = obj.y; for (let r = 0; r < nRows; r++) { rowY.push(ry0); ry0 += rowH[r]; }
+        const hitWidth = 6 / viewT.zoom;
+        return (
+          <>
+            {Array.from({ length: Math.max(0, nCols - 1) }, (_, i) => (
+              <rect
+                key={`gbv-${i}`}
+                x={colX[i + 1] - hitWidth / 2} y={obj.y}
+                width={hitWidth} height={h}
+                fill="transparent"
+                style={{ cursor: "col-resize" }}
+                onMouseDown={(e) => {
+                  e.stopPropagation();
+                  dragRef.current = null;
+                  resizeRef.current = null;
+                  selDragRef.current = null;
+                  setSelRect(null);
+                  openInteraction(`Ridimensiona colonna ${i + 1}`);
+                  gridBorderRef.current = {
+                    objId: obj.id, axis: "col", index: i + 1,
+                    startMouse: e.clientX,
+                    startA: colW[i], startB: colW[i + 1],
+                    startSizes: colW.slice(),
+                  };
+                }}
+                onClick={(e) => e.stopPropagation()}
+              />
+            ))}
+            {Array.from({ length: Math.max(0, nRows - 1) }, (_, i) => (
+              <rect
+                key={`gbh-${i}`}
+                x={obj.x} y={rowY[i + 1] - hitWidth / 2}
+                width={w} height={hitWidth}
+                fill="transparent"
+                style={{ cursor: "row-resize" }}
+                onMouseDown={(e) => {
+                  e.stopPropagation();
+                  dragRef.current = null;
+                  resizeRef.current = null;
+                  selDragRef.current = null;
+                  setSelRect(null);
+                  openInteraction(`Ridimensiona riga ${i + 1}`);
+                  gridBorderRef.current = {
+                    objId: obj.id, axis: "row", index: i + 1,
+                    startMouse: e.clientY,
+                    startA: rowH[i], startB: rowH[i + 1],
+                    startSizes: rowH.slice(),
+                  };
+                }}
+                onClick={(e) => e.stopPropagation()}
+              />
+            ))}
+          </>
+        );
+      })()}
+
+      {/* Sub-grid border handles — for every split cell of a selected grid,
+          render a transparent corridor over its internal divider. Only one
+          handle per split cell (either horizontal or vertical depending on
+          `sub.orientation`). */}
+      {onMove && selIds.length === 1 && (() => {
+        const obj = objects.find((o) => o.id === selIds[0]);
+        if (!obj || obj.type !== "grid") return null;
+        const w = obj.width ?? 400;
+        const h = obj.height ?? 300;
+        const nRows = obj.grid_rows ?? 2;
+        const nCols = obj.grid_cols ?? 2;
+        const colWidthsDef = (obj.col_widths as number[] | undefined) ?? [];
+        const colW: number[] = [];
+        for (let c = 0; c < nCols; c++) colW.push(c < colWidthsDef.length ? colWidthsDef[c] : w / nCols);
+        const rowHeightsDef = (obj.row_heights as number[] | undefined) ?? [];
+        const rowH: number[] = [];
+        for (let r = 0; r < nRows; r++) rowH.push(r < rowHeightsDef.length ? rowHeightsDef[r] : h / nRows);
+        const colX: number[] = [];
+        let cx0 = obj.x; for (let c = 0; c < nCols; c++) { colX.push(cx0); cx0 += colW[c]; }
+        const rowY: number[] = [];
+        let ry0 = obj.y; for (let r = 0; r < nRows; r++) { rowY.push(ry0); ry0 += rowH[r]; }
+        const hitWidth = 6 / viewT.zoom;
+        const cells = (obj.grid_cells as GridCell[] | undefined) ?? [];
+        const splitCells = cells.filter((cd) => cd.sub);
+        return (
+          <>
+            {splitCells.map((cd) => {
+              const rs = cd.rowspan ?? 1;
+              const cs = cd.colspan ?? 1;
+              let cellW = 0;
+              for (let cc = cd.col; cc < Math.min(cd.col + cs, nCols); cc++) cellW += colW[cc];
+              let cellH = 0;
+              for (let rr = cd.row; rr < Math.min(cd.row + rs, nRows); rr++) cellH += rowH[rr];
+              const cellX = colX[cd.col];
+              const cellY = rowY[cd.row];
+              const sub = cd.sub!;
+              const ratio = Math.max(0.05, Math.min(0.95, sub.ratio ?? 0.5));
+              if (sub.orientation === "rows") {
+                const borderY = cellY + cellH * ratio;
+                return (
+                  <rect
+                    key={`sbh-${cd.row}-${cd.col}`}
+                    x={cellX} y={borderY - hitWidth / 2}
+                    width={cellW} height={hitWidth}
+                    fill="transparent"
+                    style={{ cursor: "row-resize" }}
+                    onMouseDown={(e) => {
+                      e.stopPropagation();
+                      dragRef.current = null;
+                      resizeRef.current = null;
+                      selDragRef.current = null;
+                      setSelRect(null);
+                      openInteraction("Ridimensiona sub-cella");
+                      subBorderRef.current = {
+                        objId: obj.id, row: cd.row, col: cd.col,
+                        startMouse: e.clientY,
+                        startRatio: ratio,
+                        cellPxSize: cellH,
+                      };
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                );
+              } else {
+                const borderX = cellX + cellW * ratio;
+                return (
+                  <rect
+                    key={`sbv-${cd.row}-${cd.col}`}
+                    x={borderX - hitWidth / 2} y={cellY}
+                    width={hitWidth} height={cellH}
+                    fill="transparent"
+                    style={{ cursor: "col-resize" }}
+                    onMouseDown={(e) => {
+                      e.stopPropagation();
+                      dragRef.current = null;
+                      resizeRef.current = null;
+                      selDragRef.current = null;
+                      setSelRect(null);
+                      openInteraction("Ridimensiona sub-cella");
+                      subBorderRef.current = {
+                        objId: obj.id, row: cd.row, col: cd.col,
+                        startMouse: e.clientX,
+                        startRatio: ratio,
+                        cellPxSize: cellW,
+                      };
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                );
+              }
+            })}
+          </>
+        );
+      })()}
+
       {/* Snap guide lines — inside the transform so coords match SVG space */}
       {snapLines.x !== null && (
         <line x1={snapLines.x} y1={-50000} x2={snapLines.x} y2={50000}
@@ -813,6 +1122,8 @@ interface ObjProps {
   customSymbols: CustomSymbol[];
   selectedCell?: { objectId: string; row: number; col: number } | null;
   selectedCellChild?: { objectId: string; row: number; col: number } | null;
+  selectedCellRange?: { objectId: string; r1: number; c1: number; r2: number; c2: number } | null;
+  selectedSubCell?: { objectId: string; row: number; col: number; slot: "a" | "b" } | null;
   onSelect?: (id: string | null, shift?: boolean) => void;
   onStartDrag?: (e: React.MouseEvent<SVGElement>, obj: SynopticObject) => void;
   onWriteTag?: (tagId: string, value: string | number | boolean) => void;
@@ -820,10 +1131,16 @@ interface ObjProps {
   onNavigate?: (pageId: string) => void;
   onSelectCell?: (objectId: string, row: number, col: number) => void;
   onSelectCellChild?: (objectId: string, row: number, col: number) => void;
+  onSelectCellRange?: (objectId: string, r1: number, c1: number, r2: number, c2: number) => void;
+  onSelectSubCell?: (objectId: string, row: number, col: number, slot: "a" | "b") => void;
 }
 
 function SvgObject(p: ObjProps) {
-  const { tagValues, selected, isEditMode, customSymbols, selectedCell, selectedCellChild, onSelect, onStartDrag, onWriteTag, onScript, onNavigate, onSelectCell, onSelectCellChild } = p;
+  const { tagValues, selected, isEditMode, customSymbols, selectedCell, selectedCellChild, selectedCellRange, onSelect, onStartDrag, onWriteTag, onScript, onNavigate, onSelectCell, onSelectCellChild, onSelectCellRange } = p;
+  // selectedSubCell + onSelectSubCell are passed through but used only by
+  // the sub-grid render path (Step 4 — populated when split cells gain UI).
+  // Reference them to satisfy noUnusedParameters until then.
+  void p.selectedSubCell; void p.onSelectSubCell;
   const obj = resolveObject(p.obj, tagValues);
 
   const handleMouseDown = (e: React.MouseEvent<SVGElement>) => {
@@ -1696,6 +2013,15 @@ function SvgObject(p: ObjProps) {
                 onMouseDown={(e) => {
                   if (isEditMode) {
                     e.stopPropagation();
+                    // Shift+click on a cell of the already-selected grid
+                    // extends the cell selection to a rectangular range
+                    // anchored on the previously-selected cell. Does NOT
+                    // start an object drag (would be confusing while
+                    // building a range).
+                    if (e.shiftKey && selectedCell?.objectId === obj.id) {
+                      onSelectCellRange?.(obj.id, selectedCell.row, selectedCell.col, r, c);
+                      return;
+                    }
                     onSelect?.(obj.id, e.shiftKey);
                     if (!e.shiftKey) onStartDrag?.(e, obj);
                     onSelectCell?.(obj.id, r, c);
@@ -1733,7 +2059,7 @@ function SvgObject(p: ObjProps) {
                     style={{ pointerEvents: "none" }}
                   />
                 )}
-                {cellDef?.bg_image && (
+                {!cellDef?.sub && cellDef?.bg_image && (
                   <image
                     href={cellDef.bg_image}
                     x={colX[c]} y={rowY[r]} width={cellW} height={cellH}
@@ -1741,7 +2067,107 @@ function SvgObject(p: ObjProps) {
                     style={{ pointerEvents: "none" }}
                   />
                 )}
-                {cellDef?.child && (() => {
+                {cellDef?.sub && (() => {
+                  // Split cell: render two sub-slots (a / b) instead of the
+                  // single child. The divider is a thin dashed line so the
+                  // user knows there's a draggable boundary in edit mode.
+                  const sub = cellDef.sub;
+                  const ratio = Math.max(0.05, Math.min(0.95, sub.ratio ?? 0.5));
+                  let aX = colX[c], aY = rowY[r], aW = cellW, aH = cellH;
+                  let bX = aX, bY = aY, bW = aW, bH = aH;
+                  if (sub.orientation === "rows") {
+                    aH = cellH * ratio;
+                    bX = aX; bY = aY + aH; bW = aW; bH = cellH - aH;
+                  } else {
+                    aW = cellW * ratio;
+                    bX = aX + aW; bY = aY; bW = cellW - aW; bH = cellH;
+                  }
+                  const slots = [
+                    { key: "a" as const, entry: sub.a, x: aX, y: aY, w: aW, h: aH },
+                    { key: "b" as const, entry: sub.b, x: bX, y: bY, w: bW, h: bH },
+                  ];
+                  return (
+                    <>
+                      {slots.map(({ key: slot, entry, x: sx, y: sy, w: sw, h: sh }) => {
+                        const isSlotSel = isEditMode
+                          && p.selectedSubCell?.objectId === obj.id
+                          && p.selectedSubCell.row === r
+                          && p.selectedSubCell.col === c
+                          && p.selectedSubCell.slot === slot;
+                        return (
+                          <g key={`sub-${slot}`}>
+                            <rect
+                              x={sx} y={sy} width={sw} height={sh}
+                              fill={entry?.bg_color ?? "transparent"}
+                              stroke="none"
+                              style={{ cursor: isEditMode ? "pointer" : "default" }}
+                              onMouseDown={(e) => {
+                                if (!isEditMode) return;
+                                e.stopPropagation();
+                                p.onSelectSubCell?.(obj.id, r, c, slot);
+                              }}
+                              onClick={(e) => e.stopPropagation()}
+                            />
+                            {entry?.bg_image && (
+                              <image href={entry.bg_image}
+                                x={sx} y={sy} width={sw} height={sh}
+                                preserveAspectRatio="xMidYMid slice"
+                                style={{ pointerEvents: "none" }} />
+                            )}
+                            {entry?.child && (() => {
+                              const ch2 = entry.child!;
+                              const cw = ch2.width ?? 100;
+                              const chh = ch2.height ?? 50;
+                              const childX = sx + (sw - cw) / 2;
+                              const childY = sy + (sh - chh) / 2;
+                              const placed = ch2.type === "line"
+                                ? { ...ch2, x: childX, y: childY,
+                                    x2: childX + ((ch2.x2 ?? ch2.x + 100) - ch2.x),
+                                    y2: childY + ((ch2.y2 ?? ch2.y) - ch2.y) }
+                                : { ...ch2, x: childX, y: childY };
+                              return (
+                                <g style={{ pointerEvents: isEditMode ? "none" : "auto" }}>
+                                  <SvgObject
+                                    obj={placed}
+                                    tagValues={tagValues}
+                                    selected={false}
+                                    isEditMode={false}
+                                    customSymbols={customSymbols}
+                                    onWriteTag={onWriteTag}
+                                    onScript={onScript}
+                                    onNavigate={onNavigate}
+                                  />
+                                </g>
+                              );
+                            })()}
+                            {isSlotSel && (
+                              <rect
+                                x={sx + 1} y={sy + 1} width={sw - 2} height={sh - 2}
+                                fill="none" stroke="#14b8a6"
+                                strokeWidth={1.5} strokeDasharray="4 2"
+                                style={{ pointerEvents: "none" }}
+                              />
+                            )}
+                          </g>
+                        );
+                      })}
+                      {/* Divider line — visual only, drag interaction handled by
+                          a wider transparent corridor on top (Step 5). */}
+                      {isEditMode && (() => {
+                        const divX1 = sub.orientation === "rows" ? aX : bX;
+                        const divY1 = sub.orientation === "rows" ? bY : aY;
+                        const divX2 = sub.orientation === "rows" ? aX + aW : bX;
+                        const divY2 = sub.orientation === "rows" ? bY : aY + aH;
+                        return (
+                          <line x1={divX1} y1={divY1} x2={divX2} y2={divY2}
+                            stroke="#475569" strokeWidth={1} strokeDasharray="3 3"
+                            style={{ pointerEvents: "none" }} />
+                        );
+                      })()}
+                    </>
+                  );
+                })()}
+                {!cellDef?.sub && cellDef?.child && (() => {
                   const child = cellDef.child!;
                   const cw = child.width ?? 100;
                   const ch = child.height ?? 50;
@@ -1801,6 +2227,30 @@ function SvgObject(p: ObjProps) {
             );
           })
         )}
+
+        {/* Multi-cell range overlay — teal dashed rect around the union of
+            selected cells. Non-interactive so cells underneath remain clickable. */}
+        {isEditMode && selectedCellRange?.objectId === obj.id && (() => {
+          const { r1, c1, r2, c2 } = selectedCellRange;
+          const safeR1 = Math.max(0, Math.min(nRows - 1, r1));
+          const safeR2 = Math.max(0, Math.min(nRows - 1, r2));
+          const safeC1 = Math.max(0, Math.min(nCols - 1, c1));
+          const safeC2 = Math.max(0, Math.min(nCols - 1, c2));
+          const rx = colX[safeC1];
+          const ry = rowY[safeR1];
+          let rw = 0;
+          for (let cc = safeC1; cc <= safeC2; cc++) rw += colW[cc];
+          let rh = 0;
+          for (let rr = safeR1; rr <= safeR2; rr++) rh += rowH[rr];
+          return (
+            <rect
+              x={rx} y={ry} width={rw} height={rh}
+              fill="rgba(20,184,166,0.08)" stroke="#14b8a6"
+              strokeWidth={2} strokeDasharray="6 4"
+              style={{ pointerEvents: "none" }}
+            />
+          );
+        })()}
       </g>
     );
   }

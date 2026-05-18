@@ -120,6 +120,9 @@ pub struct SynopticObject {
     #[serde(skip_serializing_if = "Option::is_none")] pub grid_cols:         Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")] pub col_widths:        Option<Value>,
     #[serde(skip_serializing_if = "Option::is_none")] pub row_heights:       Option<Value>,
+    // `grid_cells` is an opaque JSON array of GridCell records. Recent
+    // additions on the TS side (`sub` mini-grids for split cells, merge
+    // spans via rowspan/colspan) ride along without schema changes here.
     #[serde(skip_serializing_if = "Option::is_none")] pub grid_cells:        Option<Value>,
     #[serde(skip_serializing_if = "Option::is_none")] pub grid_show_borders: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")] pub grid_border_color: Option<String>,

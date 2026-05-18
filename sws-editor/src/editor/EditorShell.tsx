@@ -184,8 +184,16 @@ export function EditorShell() {
   const updateGridCell      = useAppStore((s) => s.updateGridCell);
   const selectedCell        = useAppStore((s) => s.selectedCell);
   const selectedCellChild   = useAppStore((s) => s.selectedCellChild);
+  const selectedCellRange   = useAppStore((s) => s.selectedCellRange);
+  const selectedSubCell     = useAppStore((s) => s.selectedSubCell);
   const setSelectedCell     = useAppStore((s) => s.setSelectedCell);
   const setSelectedCellChild = useAppStore((s) => s.setSelectedCellChild);
+  const setSelectedCellRange = useAppStore((s) => s.setSelectedCellRange);
+  const setSelectedSubCell  = useAppStore((s) => s.setSelectedSubCell);
+  const mergeCellRange      = useAppStore((s) => s.mergeCellRange);
+  const unmergeCell         = useAppStore((s) => s.unmergeCell);
+  const splitCell           = useAppStore((s) => s.splitCell);
+  const joinSplitCell       = useAppStore((s) => s.joinSplitCell);
   const saveSerial       = useAppStore((s) => s.saveSerial);
   const saveStatus       = useAppStore((s) => s.saveStatus);
   const storeSaveStatus  = useAppStore((s) => s.setSaveStatus);
@@ -499,11 +507,17 @@ export function EditorShell() {
           pageHeight={currentPage?.height}
           selectedCell={selectedCell}
           selectedCellChild={selectedCellChild}
+          selectedCellRange={selectedCellRange}
+          selectedSubCell={selectedSubCell}
           onSelect={handleSelect}
           onSelectMany={selectMany}
           onMove={(id, patch) => updateObject(id, patch)}
           onSelectCell={(objectId, row, col) => setSelectedCell({ objectId, row, col })}
           onSelectCellChild={(objectId, row, col) => setSelectedCellChild({ objectId, row, col })}
+          onSelectCellRange={(objectId, r1, c1, r2, c2) =>
+            setSelectedCellRange({ objectId, r1, c1, r2, c2 })}
+          onSelectSubCell={(objectId, row, col, slot) =>
+            setSelectedSubCell({ objectId, row, col, slot })}
         />
       </div>
 
@@ -535,6 +549,61 @@ export function EditorShell() {
           </>
         ) : selected ? (() => {
           const otherPages = pages.filter((p) => p.id !== currentPageId);
+
+          // ── Sub-cell (slot of a split cell) selected ───────────────────
+          if (selected.type === "grid" && selectedSubCell?.objectId === selected.id) {
+            const cells = (selected.grid_cells ?? []) as GridCell[];
+            const cellDef = cells.find(
+              (c) => c.row === selectedSubCell.row && c.col === selectedSubCell.col,
+            );
+            const sub = cellDef?.sub;
+            if (cellDef && sub) {
+              const slotKey = selectedSubCell.slot;
+              const entry = sub[slotKey] ?? {};
+              const gridLabel = selected.name?.trim() || `griglia·${selected.id.slice(-4)}`;
+              const updateSub = (patch: Partial<typeof entry>) =>
+                updateGridCell(currentPageId, selected.id, {
+                  ...cellDef,
+                  sub: { ...sub, [slotKey]: { ...entry, ...patch } },
+                });
+              const child = entry.child;
+              return (
+                <>
+                  <PanelBreadcrumb
+                    parts={[gridLabel, `R${selectedSubCell.row + 1} C${selectedSubCell.col + 1}`, `slot ${slotKey.toUpperCase()}`]}
+                  />
+                  <div style={{ fontSize: 10, color: "#475569", marginBottom: 6 }}>
+                    Sub-cella interna della cella split ({sub.orientation === "rows" ? "alto/basso" : "sinistra/destra"}).
+                  </div>
+                  <label style={{ fontSize: 11, color: "#94a3b8", display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
+                    Colore sfondo:
+                    <input type="color" value={entry.bg_color ?? "#1e293b"}
+                      onChange={(e) => updateSub({ bg_color: e.target.value })}
+                      style={{ width: 28, height: 22, border: "1px solid #334155", background: "transparent", cursor: "pointer" }} />
+                    {entry.bg_color && (
+                      <button onClick={() => updateSub({ bg_color: undefined })}
+                        style={{ background: "transparent", border: "1px solid #334155", color: "#94a3b8", borderRadius: 4, padding: "1px 8px", fontSize: 10, cursor: "pointer" }}>
+                        reset
+                      </button>
+                    )}
+                  </label>
+                  {child ? (
+                    <ObjectProps
+                      obj={child}
+                      pages={otherPages}
+                      functions={functions}
+                      onChange={(patch) => updateSub({ child: { ...child, ...patch } })}
+                      onDelete={() => updateSub({ child: undefined })}
+                    />
+                  ) : (
+                    <div style={{ fontSize: 11, color: "#64748b", marginTop: 8 }}>
+                      Nessun figlio in questo slot. Trascina o copia un oggetto qui (in arrivo).
+                    </div>
+                  )}
+                </>
+              );
+            }
+          }
 
           // ── Child sub-selected ──────────────────────────────────────────
           if (selected.type === "grid" && selectedCellChild?.objectId === selected.id) {
@@ -570,6 +639,28 @@ export function EditorShell() {
             }
           }
 
+          // ── Cell range selected (multi-cell, for merge) ────────────────
+          if (selected.type === "grid" && selectedCellRange?.objectId === selected.id) {
+            const { r1, c1, r2, c2 } = selectedCellRange;
+            const rows = r2 - r1 + 1;
+            const cols = c2 - c1 + 1;
+            const gridLabel = selected.name?.trim() || `griglia·${selected.id.slice(-4)}`;
+            return (
+              <>
+                <PanelBreadcrumb
+                  parts={[gridLabel, `${rows}×${cols} celle (R${r1 + 1}-${r2 + 1}, C${c1 + 1}-${c2 + 1})`]}
+                />
+                <CellRangeMergeActions
+                  onMerge={() => {
+                    const err = mergeCellRange(currentPageId, selected.id, r1, c1, r2, c2);
+                    if (err) alert(err);
+                  }}
+                  onCancel={() => setSelectedCellRange(null)}
+                />
+              </>
+            );
+          }
+
           // ── Cell selected (no child sub-selected) ──────────────────────
           if (selected.type === "grid" && selectedCell?.objectId === selected.id) {
             const cells = (selected.grid_cells ?? []) as GridCell[];
@@ -577,10 +668,20 @@ export function EditorShell() {
               (c) => c.row === selectedCell.row && c.col === selectedCell.col,
             ) ?? { row: selectedCell.row, col: selectedCell.col };
             const gridLabel = selected.name?.trim() || `griglia·${selected.id.slice(-4)}`;
+            const isMerged = (cellDef.rowspan ?? 1) > 1 || (cellDef.colspan ?? 1) > 1;
+            const isSplit = !!cellDef.sub;
             return (
               <>
                 <PanelBreadcrumb
                   parts={[gridLabel, `R${selectedCell.row + 1} C${selectedCell.col + 1}`]}
+                />
+                <CellStructureActions
+                  isMerged={isMerged}
+                  isSplit={isSplit}
+                  onUnmerge={() => unmergeCell(currentPageId, selected.id, selectedCell.row, selectedCell.col)}
+                  onSplitRows={() => splitCell(currentPageId, selected.id, selectedCell.row, selectedCell.col, "rows")}
+                  onSplitCols={() => splitCell(currentPageId, selected.id, selectedCell.row, selectedCell.col, "cols")}
+                  onJoinSplit={() => joinSplitCell(currentPageId, selected.id, selectedCell.row, selectedCell.col)}
                 />
                 <GridCellEditor
                   cell={cellDef}
@@ -755,6 +856,63 @@ function PanelBreadcrumb({ parts }: { parts: string[] }) {
           <span style={{ color: i === parts.length - 1 ? "#94a3b8" : "#475569" }}>{p}</span>
         </span>
       ))}
+    </div>
+  );
+}
+
+// ── Cell range / structure action toolbars ────────────────────────────────────
+
+const ACT_BTN: React.CSSProperties = {
+  background: "#1e293b", border: "1px solid #334155", color: "#e2e8f0",
+  padding: "4px 10px", borderRadius: 4, cursor: "pointer", fontSize: 11,
+};
+
+function CellRangeMergeActions({ onMerge, onCancel }: {
+  onMerge: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
+      <button onClick={onMerge} style={{ ...ACT_BTN, background: "#0f766e", borderColor: "#14b8a6" }}>
+        🔗 Unisci celle
+      </button>
+      <button onClick={onCancel} style={ACT_BTN}>
+        Annulla selezione
+      </button>
+    </div>
+  );
+}
+
+function CellStructureActions({ isMerged, isSplit, onUnmerge, onSplitRows, onSplitCols, onJoinSplit }: {
+  isMerged: boolean;
+  isSplit: boolean;
+  onUnmerge: () => void;
+  onSplitRows: () => void;
+  onSplitCols: () => void;
+  onJoinSplit: () => void;
+}) {
+  return (
+    <div style={{ display: "flex", gap: 6, marginBottom: 12, flexWrap: "wrap" }}>
+      {isMerged && (
+        <button onClick={onUnmerge} style={ACT_BTN}>
+          ↔ Annulla unione
+        </button>
+      )}
+      {!isMerged && !isSplit && (
+        <>
+          <button onClick={onSplitRows} style={ACT_BTN} title="Crea due sub-celle sovrapposte (alto/basso)">
+            ⬓ Dividi orizzontalmente
+          </button>
+          <button onClick={onSplitCols} style={ACT_BTN} title="Crea due sub-celle affiancate (sinistra/destra)">
+            ⬔ Dividi verticalmente
+          </button>
+        </>
+      )}
+      {isSplit && (
+        <button onClick={onJoinSplit} style={ACT_BTN}>
+          ⌧ Rimuovi split
+        </button>
+      )}
     </div>
   );
 }

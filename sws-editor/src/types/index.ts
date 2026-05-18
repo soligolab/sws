@@ -54,6 +54,32 @@ export interface GridCell {
   on_release_fn?: string;
   /** Inline child object rendered centered in this cell. */
   child?: SynopticObject;
+  /** Local 1×2 / 2×1 subdivision of this cell. When set, `child` is ignored
+   *  and rendering recurses into `sub.a` / `sub.b`. Recursion of `sub` inside
+   *  a `SubCellEntry` is intentionally not allowed in this version. */
+  sub?: SubGrid;
+}
+
+/** Local mini-grid that subdivides a single `GridCell` into two slots. */
+export interface SubGrid {
+  /** `rows` = top/bottom split (a above, b below); `cols` = left/right split. */
+  orientation: "rows" | "cols";
+  /** Fractional size of slot `a` (0.05 .. 0.95). Slot `b` is the remainder. */
+  ratio: number;
+  a?: SubCellEntry;
+  b?: SubCellEntry;
+}
+
+/** Content of one slot inside a `SubGrid`. Mirrors the customisable bits of a
+ *  `GridCell` but without row/col coordinates (the slot is positional). */
+export interface SubCellEntry {
+  bg_color?: string;
+  bg_image?: string;
+  visible?: boolean;
+  visible_tag?: string;
+  on_press_fn?: string;
+  on_release_fn?: string;
+  child?: SynopticObject;
 }
 
 /** One option in a radio-group. */
