@@ -17,6 +17,12 @@
 #   ./scripts/dev.sh runtime  # only the runtime
 #   ./scripts/dev.sh editor   # only the editor
 #
+# Remote runtime (editor only):
+#   VITE_RUNTIME_URL=https://px30.local:8443 ./scripts/dev.sh editor
+#     → the Vite proxy + the SPA fetch/WS calls all target the remote
+#       runtime instead of localhost:8443. Useful for editing a project
+#       hosted on a device from a developer laptop.
+#
 # Ctrl-C kills both cleanly.
 
 set -euo pipefail

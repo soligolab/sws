@@ -2,11 +2,19 @@
 
 > This file is the **session-to-session memory** for Claude Code. Update it at the end of every session before stopping work. Read it at the start of every session before touching code.
 
-**Last session**: 2026-05-18 (sessione 21: navigazione inter-view + palette categorizzata + tab Stato sistema)
-**Current phase**: Phase 2. Demo working out-of-the-box su fresh clone, import/export progetto per backup/condivisione, pannello log live + persistenza su disco, gestione utenti multi-account.
+**Last session**: 2026-05-18 (sessione 22: ARCH-001/002 + 5 UX bundle — single-binary runtime, remote-runtime config, drag/paste/snap polish, alarm ACK panel, log JSONL export)
+**Current phase**: Phase 2. Demo working out-of-the-box su fresh clone, import/export progetto per backup/condivisione, pannello log live + persistenza su disco, gestione utenti multi-account. Da questa sessione il runtime può servire la SPA da sé (`--www`) e l'editor può puntare a un runtime remoto via `VITE_RUNTIME_URL` — sblocco completo del deploy single-container su PX30.
 **Last commit**: (vedi CHANGELOG [Unreleased] per i dettagli della sessione corrente)
 
 ### Cosa è andato online in queste sessioni (in ordine di commit)
+- (sessione 2026-05-18, sessione 22) **ARCH-001 — Runtime serve la SPA via `ServeDir + --www`** — nuova CLI arg `--www <path>` in `sws-runtime` che monta `tower_http::ServeDir` come fallback service del router (404 dentro `ServeDir` cadono su `index.html` per SPA routing). Workspace `tower-http` ora con feature `fs`. `compose.yaml` riporta variante single-container commentata; `docs/DEPLOY_PX30.md` documenta la nuova shape di deploy (no più container Nginx separato).
+- (sessione 2026-05-18, sessione 22) **ARCH-002 — `VITE_RUNTIME_URL` configurabile** — un singolo env var orienta la proxy Vite, il `BASE_URL` di `api/client.ts` e tutte le WS URL. Refactor: i tre helper `buildWsUrl` duplicati nei file `ws/*Stream.ts` consolidati in un singolo `ws/wsUrl.ts` con scheme-swap `http→ws`. Override per-stream (`VITE_RUNTIME_WS_URL`, …) preservati.
+- (sessione 2026-05-18, sessione 22) **Undo singolo per drag/resize** (task 4.1) — nuove action store `beginInteraction(label)` / `endInteraction()` con depth counter. `updateObject/updateObjects` saltano `pushHistory` durante un'interazione in corso. `SvgCanvas` apre l'interaction in `startDrag` + endpoint handle + resize handle, la chiude in `endDrag`. Era buggato: un drag da 200 px generava 200 voci nella cronologia.
+- (sessione 2026-05-18, sessione 22) **Copy-paste cross-page con source-page tracking** (task 4.3) — `clipboardSourcePageId` aggiunto allo store; `copySelection` lo imposta a `currentPageId`. Paste su stessa pagina: comportamento storico (offset +20, preserva `group_id`). Paste cross-page: coord originali, `group_id` strippato (i gruppi sono per-page). ShortcutHelp annotato "(anche cross-page)".
+- (sessione 2026-05-18, sessione 22) **Snap to page border** (task 4.4) — refactor della logica di snap-edge in helper `trySnapX/trySnapY`. Dopo il loop sugli object-edge, se nessun edge ha agganciato si testano gli edge della pagina (0, w/2, w; 0, h/2, h) con stesso threshold. Grid snap rimane il default ultimo.
+- (sessione 2026-05-18, sessione 22) **Pannello allarmi RuntimeView con ACK per riga** (task 6.1) — nuovo `AlarmPanel` floating top-right in `RuntimeView`. Badge 🔔 con count, bordo rosso se ci sono non-confermati, ambra altrimenti. Dropdown con lista completa: dot severità, id, messaggio, bottone ACK per riga; bottone "ACK tutti" se ≥2 non confermati. Live via `useAlarmStream` (WS singleton condiviso con `AlarmBanner`).
+- (sessione 2026-05-18, sessione 22) **Log export JSONL** (task 6.2) — bottone "⬇ Scarica" nel header del `LogPanel`. Serializza gli eventi visibili (rispettando i filtri) come `sws-logs-YYYY-MM-DD.jsonl` via Blob + anchor download. Funziona in modalità live (data = oggi) e storica (data = file caricato). Disabilitato se la lista è vuota.
+- (sessione 2026-05-18, sessione 22) **Fix test alarm.rs preesistente** — l'helper `def()` in `crates/sws-core/src/alarm.rs:211` non era stato aggiornato dopo `524cc61` (campo `notify_url` su `AlarmDef`), faceva fallire `cargo test -p sws-core`. Una riga `notify_url: None` ed è verde.
 - (sessione 2026-05-18, sessione 21) **Navigazione inter-view store-based** — `appMode` e `configTab` spostati da `useState` locale in `App.tsx`/`ConfigView.tsx` a Zustand store (`store/index.ts`). Tipi esportati `AppMode` e `AppConfigTab`. Action `navigateToConfig(tab)` imposta atomicamente `appMode: "config"` e `configTab`. `SourcesSection` in `LeftPanel.tsx` riscritta: ogni sorgente è una riga cliccabile con badge tipo (`MQTT`/`MBUS`), click → `navigateToConfig("protocols")`; hint "Vai alla configurazione →" in fondo. `ConfigView.tsx` legge il tab iniziale da store + `useEffect` per sincronizzare quando cambia dall'esterno.
 - (sessione 2026-05-18, sessione 21) **Palette oggetti categorizzata con icone** — `OBJECT_TYPES` (array flat) e il vecchio `ObjectPalette` sostituiti con `PALETTE_GROUPS` (5 categorie: Forme, Controlli, Display, SCADA, Layout) e componente `PaletteGroupAccordion`. Ogni categoria ha colore distintivo e icona Unicode per tipo (▭○╱T per forme, ⊡↗☑◉↔ per controlli, ◔●▰≡∿ per display, ⚙ SCADA, ⊞ layout). "Forme" aperta di default; le altre chiuse.
 - (sessione 2026-05-18, sessione 21) **Tab "Stato" in ConfigView + endpoint sistema** — crate `sysinfo = "0.30"` aggiunto al workspace Rust. `started_at: std::time::Instant` in `AppState`. Nuovo modulo `sws-web/src/system.rs` con `SystemStatus` + handler `get_system_status`. Route `GET /api/system` in `operator_routes`. Frontend: `getSystemStatus()` in `api/client.ts`; tab `"system"` (`"Stato"`) in `ConfigView.tsx` con componente `SystemTab` che fa polling ogni 10 s: card metriche (versione runtime, progetto attivo, uptime `Xh Ym`, tag count, sorgenti, allarmi attivi, campioni storico) + barre progresso CPU%, RAM, disco.
@@ -223,10 +231,10 @@
 
 | ID | Task | Stima | Dipendenze |
 |----|------|-------|------------|
-| 4.1 | Undo su drag: `pushHistory` su `mouseup` del drag (oggi il drag non registra nella cronologia) | 30 min | — |
+| 4.1 | ✅ Undo singolo per drag/resize (bracketed `beginInteraction`/`endInteraction`) | — | — |
 | 4.2 | Ruler/guide lines: righelli px con guide orizzontali/verticali draggabili | 2 h | — |
-| 4.3 | Copy-paste cross-page: incolla oggetti su pagina diversa da quella di copia | 1 h | — |
-| 4.4 | Snap to page border: aggancia agli edge della SynopticPage (width/height) come agli oggetti | 30 min | — |
+| 4.3 | ✅ Copy-paste cross-page (source-page tracking, strip `group_id` cross-page) | — | — |
+| 4.4 | ✅ Snap to page border (0, w/2, w; 0, h/2, h con stesso threshold dell'edge snap) | — | — |
 
 ---
 
@@ -234,10 +242,10 @@
 
 | ID | Task | Stima | Dipendenze |
 |----|------|-------|------------|
-| 5.1 | **ARCH-001** Runtime serve SPA: `ServeDir` + `--www <path>` CLI arg | 2 h | — |
-| 5.2 | **ARCH-002** `VITE_RUNTIME_URL` configurabile (proxy Vite + `api/client.ts`) | 30 min | — |
-| 5.3 | **ARCH-003** Kiosk mode: `--kiosk-browser <cmd>` — spawna browser dopo `/health` OK | 1 h | → 5.1 |
-| 5.4 | **ARCH-004** Multi-runtime WelcomeScreen (tab "Runtime remoto" + localStorage override) | 3 h | → 5.2 |
+| 5.1 | ✅ **ARCH-001** Runtime serve SPA via `ServeDir` + `--www <path>` (fallback service + SPA `index.html` 404 catch) | — | — |
+| 5.2 | ✅ **ARCH-002** `VITE_RUNTIME_URL` configurabile (proxy Vite + `api/client.ts` + `ws/wsUrl.ts`) | — | — |
+| 5.3 | **ARCH-003** Kiosk mode: `--kiosk-browser <cmd>` — spawna browser dopo `/health` OK | 1 h | — |
+| 5.4 | **ARCH-004** Multi-runtime WelcomeScreen (tab "Runtime remoto" + localStorage override) | 3 h | — |
 | 5.5 | Demo su PX30 hardware | — | → 5.1, hw fisico |
 
 ---
@@ -246,8 +254,8 @@
 
 | ID | Task | Stima | Dipendenze |
 |----|------|-------|------------|
-| 6.1 | Alarm acknowledge UI: pulsante ACK nel pannello allarmi RuntimeView | 30 min | — |
-| 6.2 | Log export: bottone "Scarica log" nella RuntimeView (download `.jsonl` del giorno corrente) | 30 min | — |
+| 6.1 | ✅ Alarm acknowledge UI: `AlarmPanel` floating top-right in RuntimeView con ACK per riga + ACK tutti | — | — |
+| 6.2 | ✅ Log export: bottone "⬇ Scarica" in `LogPanel` (JSONL, rispetta i filtri, live/storico) | — | — |
 | 6.3 | Script parametri live: UI per sovrascrivere i parametri di `on_press_fn` al volo | 1 h | — |
 | 6.4 | WebSocket tag write bidirezionale (WS push + subscribe per scritture da runtime) | 3 h | — |
 
@@ -288,9 +296,10 @@
 
 | Sessione | Durata | Contenuto | Prerequisiti |
 |----------|--------|-----------|--------------|
-| **S-22** | ~2.5 h | 5.2 + 5.1 (ARCH-002 + ARCH-001) | — |
-| **S-23** | ~2 h | 5.3 + test PX30 | hw fisico + S-22 |
-| **S-24** | ~3 h | 4.1 + 4.3 + 6.1 + 6.2 | — |
+| ~~**S-22**~~ ✅ | ~6 h | ARCH-001 + ARCH-002 + 4.1 + 4.3 + 4.4 + 6.1 + 6.2 + fix test `alarm.rs` | — |
+| **S-23** | ~2 h | ARCH-003 (kiosk) + test su PX30 hardware | hw fisico |
+| **S-24** | ~3 h | ARCH-004 (multi-runtime WelcomeScreen) | ARCH-002 stabile (✅) |
+| **S-25** | ~3 h | 1.3 (drag&drop tree) + 1.4 (context menu) + 4.2 (rulers) | — |
 
 ---
 
@@ -410,25 +419,26 @@ Analisi completa delle implicazioni dei 4 punti operativi desiderati. Piano in `
 - IDE e runtime sono sempre co-locati (stessa macchina / stessa compose). Nessuna connessione remota possibile senza modifiche.
 - Nessun supporto kiosk/Wayland.
 
-### ARCH-001 — Runtime serve la SPA direttamente (`--www <path>`) — ~2-3 h
-> **Obiettivo**: un browser può connettersi al solo runtime (senza il container editor) su `https://<device>:8443`.  
+### ARCH-001 — Runtime serve la SPA direttamente (`--www <path>`) — ✅ DONE (2026-05-18)
+> **Obiettivo**: un browser può connettersi al solo runtime (senza il container editor) su `https://<device>:8443`.
 > **Opzione scelta**: `tower_http::ServeDir` + CLI arg `--www`; nessun embedding nel binario.
-- [ ] `sws-runtime/crates/sws-web/src/router.rs`: aggiungere route `GET /` e `GET /*` verso `ServeDir` se `--www` è impostato
-- [ ] `sws-runtime/crates/sws-runtime/src/main.rs`: aggiungere CLI arg `--www <path>` (opzionale; se assente il comportamento è invariato)
-- [ ] `compose.yaml`: volume `./sws-editor/dist:/var/sws/www:ro` + esporre porta 8443 del runtime all'host (`ports: ["8443:8443"]`)
-- [ ] `sws-runtime/docker/Dockerfile`: nessuna modifica (il volume è esterno)
-- [ ] `scripts/dev.sh`: aggiungere step `pnpm --prefix sws-editor build` prima di avviare il runtime se si vuole il flusso integrato; altrimenti documentare separatamente
-- [ ] `docs/DEPLOY_PX30.md`: aggiornare con flusso single-container (runtime serve SPA)
-- [ ] `cargo check` verde; test manuale: `https://localhost:8443` apre la SPA
+- [x] `sws-runtime/crates/sws-web/src/router.rs`: `app.fallback_service(ServeDir::new(dir).not_found_service(ServeFile::new(index)))` quando `--www` è impostato
+- [x] `sws-runtime/crates/sws-runtime/src/main.rs`: CLI arg `--www <path>` + log line + passaggio a `router::build`
+- [x] `compose.yaml`: variante single-container commentata (4 righe `command:` + 4 volumes alternativi)
+- [x] `sws-runtime/docker/Dockerfile`: invariato (volume è esterno)
+- [x] `scripts/dev.sh`: invariato (la SPA continua a girare via Vite dev server in modalità `both`; variante single-container documentata in DEPLOY_PX30)
+- [x] `docs/DEPLOY_PX30.md`: nuova sezione "4b. Alternative: single-container deployment"
+- [x] `cargo check --workspace` verde; tutti i 36+ test verdi
 
-### ARCH-002 — IDE con runtime URL configurabile (`VITE_RUNTIME_URL`) — ~30 min
-> **Obiettivo**: `VITE_RUNTIME_URL=https://192.168.1.50:8443 ./scripts/dev.sh` fa parlare l'IDE con il PX30 remoto.
-- [ ] `sws-editor/vite.config.ts`: sostituire `target: "https://localhost:8443"` con `target: process.env.VITE_RUNTIME_URL ?? "https://localhost:8443"` (sia per `/api` sia per `/ws`)
-- [ ] `sws-editor/src/api/client.ts`: aggiungere `const RUNTIME_BASE = import.meta.env.VITE_RUNTIME_BASE_URL ?? ""` e usarlo come prefisso URL in tutte le `fetch()` (default `""` = relativo, funziona col proxy)
-- [ ] `sws-editor/src/ws/tagStream.ts`: stessa variabile `VITE_RUNTIME_BASE_URL` per l'URL WebSocket (quando vuoto usa `window.location.host` come ora)
-- [ ] `scripts/dev.sh`: passare `VITE_RUNTIME_URL` e `VITE_RUNTIME_BASE_URL` all'ambiente Vite se definiti dall'utente
-- [ ] `scripts/README.md`: documentare `VITE_RUNTIME_URL=https://px30:8443 ./scripts/dev.sh`
-- [ ] `pnpm type-check` + `pnpm build` verdi
+### ARCH-002 — IDE con runtime URL configurabile (`VITE_RUNTIME_URL`) — ✅ DONE (2026-05-18)
+> **Obiettivo**: `VITE_RUNTIME_URL=https://192.168.1.50:8443 ./scripts/dev.sh editor` fa parlare l'IDE con il PX30 remoto.
+- [x] `sws-editor/vite.config.ts`: `RUNTIME_TARGET = process.env.VITE_RUNTIME_URL ?? "https://localhost:8443"`, `WS_TARGET` derivato via `replace(/^http/, "ws")` per `/api` e `/ws` proxy
+- [x] `sws-editor/src/api/client.ts`: già esistente — usa `BASE_URL = import.meta.env.VITE_RUNTIME_URL ?? ""` come prefisso di `fetch()`
+- [x] `sws-editor/src/ws/wsUrl.ts`: nuovo helper condiviso che deriva da `VITE_RUNTIME_URL` con scheme-swap, fallback su `window.location`. Override per-stream (`VITE_RUNTIME_WS_URL` etc.) come `overrideEnvKey` opzionale
+- [x] `ws/tagStream.ts`, `ws/alarmStream.ts`, `ws/logStream.ts`: refattorizzati per chiamare `buildWsUrl(path, overrideKey)` — niente più duplicazione
+- [x] `scripts/dev.sh`: header commento aggiornato con esempio `VITE_RUNTIME_URL=https://px30.local:8443 ./scripts/dev.sh editor` (Vite eredita env automaticamente)
+- [x] `scripts/README.md`: nuova sezione "Pointing the editor at a remote runtime"
+- [x] `pnpm type-check` + `pnpm build` verdi
 
 ### ARCH-003 — Kiosk mode (`--kiosk-browser <cmd>`) — ~1 h
 > **Obiettivo**: sul PX30, all'avvio del runtime, il browser parte in kiosk senza intervento utente.

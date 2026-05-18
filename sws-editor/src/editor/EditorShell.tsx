@@ -263,7 +263,7 @@ export function EditorShell() {
           const cellDef = (gridObj?.grid_cells as GridCell[] | undefined)
             ?.find((c) => c.row === cell.row && c.col === cell.col);
           if (cellDef?.child) {
-            setClipboard([cellDef.child]);
+            setClipboard([cellDef.child], state.currentPageId);
             state.updateGridCell(state.currentPageId, cell.objectId,
               { ...cellDef, child: undefined });
             return;
@@ -648,7 +648,7 @@ const SHORTCUTS = [
   ["Canc / Backspace",  "Elimina selezione"],
   ["Ctrl+C",            "Copia"],
   ["Ctrl+X",            "Taglia"],
-  ["Ctrl+V",            "Incolla"],
+  ["Ctrl+V",            "Incolla (anche cross-page)"],
   ["Ctrl+D",            "Duplica"],
   ["Ctrl+Z",            "Annulla (Undo)"],
   ["Ctrl+Y",            "Ripristina (Redo)"],
@@ -2293,7 +2293,8 @@ function GridCellEditor({
             <button
               title="Taglia — rimette il figlio nel clipboard di pagina"
               onClick={() => {
-                useAppStore.getState().setClipboard([cell.child!]);
+                const state = useAppStore.getState();
+                state.setClipboard([cell.child!], state.currentPageId);
                 onChange({ child: undefined });
               }}
               style={{ background: "#0f172a", border: "1px solid #334155", color: "#94a3b8", borderRadius: 4, cursor: "pointer", fontSize: 11, padding: "2px 8px" }}

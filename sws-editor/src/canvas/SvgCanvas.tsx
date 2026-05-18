@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { TrendCanvas } from "@/canvas/TrendCanvas";
+import { useAppStore } from "@/store";
 import { SYMBOLS } from "@/symbols/library";
 import type { CustomSymbol, GridCell, SynopticObject, TagState } from "@/types";
 
@@ -263,6 +264,24 @@ export function SvgCanvas({
   const selIds = selectedIds ?? (selectedId ? [selectedId] : []);
   const selSet = new Set(selIds);
 
+  // Bracketed-interaction helpers — coalesce drag/resize into a single
+  // history entry per gesture rather than per pixel.
+  const beginInteraction = useAppStore((s) => s.beginInteraction);
+  const endInteraction = useAppStore((s) => s.endInteraction);
+  // Tracks whether we actually opened an interaction this gesture, so
+  // endDrag only closes one when one was opened.
+  const interactionOpen = useRef(false);
+  const openInteraction = (label: string) => {
+    if (interactionOpen.current) return;
+    beginInteraction(label);
+    interactionOpen.current = true;
+  };
+  const closeInteraction = () => {
+    if (!interactionOpen.current) return;
+    endInteraction();
+    interactionOpen.current = false;
+  };
+
   // Object drag state
   const dragRef = useRef<DragState | null>(null);
   // Resize handle drag state
@@ -433,27 +452,51 @@ export function SvgCanvas({
       let newX = rawX; let newY = rawY;
       let snapX: number | null = null; let snapY: number | null = null;
 
+      // Helper: test a list of candidate edges against the three drag
+      // anchor points (left/centre/right or top/middle/bottom).
+      const trySnapX = (exs: number[]): { snap: number; out: number } | null => {
+        for (const ex of exs) {
+          if (Math.abs(rawX - ex) < threshold)           return { snap: ex, out: ex };
+          if (Math.abs(rawX + dw / 2 - ex) < threshold) return { snap: ex, out: ex - dw / 2 };
+          if (Math.abs(rawX + dw - ex) < threshold)     return { snap: ex, out: ex - dw };
+        }
+        return null;
+      };
+      const trySnapY = (eys: number[]): { snap: number; out: number } | null => {
+        for (const ey of eys) {
+          if (Math.abs(rawY - ey) < threshold)           return { snap: ey, out: ey };
+          if (Math.abs(rawY + dh / 2 - ey) < threshold) return { snap: ey, out: ey - dh / 2 };
+          if (Math.abs(rawY + dh - ey) < threshold)     return { snap: ey, out: ey - dh };
+        }
+        return null;
+      };
+
       for (const other of objects) {
         if (other.id === dragRef.current.objId) continue;
         const bb = objBBox(other);
-        const exs = [bb.x1, (bb.x1 + bb.x2) / 2, bb.x2];
-        const eys = [bb.y1, (bb.y1 + bb.y2) / 2, bb.y2];
         if (snapX === null) {
-          for (const ex of exs) {
-            if (Math.abs(rawX - ex) < threshold)           { snapX = ex; newX = ex;          break; }
-            if (Math.abs(rawX + dw / 2 - ex) < threshold) { snapX = ex; newX = ex - dw / 2; break; }
-            if (Math.abs(rawX + dw - ex) < threshold)     { snapX = ex; newX = ex - dw;      break; }
-          }
+          const hit = trySnapX([bb.x1, (bb.x1 + bb.x2) / 2, bb.x2]);
+          if (hit) { snapX = hit.snap; newX = hit.out; }
         }
         if (snapY === null) {
-          for (const ey of eys) {
-            if (Math.abs(rawY - ey) < threshold)           { snapY = ey; newY = ey;          break; }
-            if (Math.abs(rawY + dh / 2 - ey) < threshold) { snapY = ey; newY = ey - dh / 2; break; }
-            if (Math.abs(rawY + dh - ey) < threshold)     { snapY = ey; newY = ey - dh;      break; }
-          }
+          const hit = trySnapY([bb.y1, (bb.y1 + bb.y2) / 2, bb.y2]);
+          if (hit) { snapY = hit.snap; newY = hit.out; }
         }
         if (snapX !== null && snapY !== null) break;
       }
+
+      // Page-border snapping — fall back to the page's left/centre/right and
+      // top/middle/bottom edges if no nearby object edge already caught
+      // the drag. Same threshold; same anchor logic.
+      if (pageWidth && pageWidth > 0 && snapX === null) {
+        const hit = trySnapX([0, pageWidth / 2, pageWidth]);
+        if (hit) { snapX = hit.snap; newX = hit.out; }
+      }
+      if (pageHeight && pageHeight > 0 && snapY === null) {
+        const hit = trySnapY([0, pageHeight / 2, pageHeight]);
+        if (hit) { snapY = hit.snap; newY = hit.out; }
+      }
+
       if (snapX === null) newX = snap(rawX);
       if (snapY === null) newY = snap(rawY);
       setSnapLines({ x: snapX, y: snapY });
@@ -473,6 +516,7 @@ export function SvgCanvas({
   };
 
   const endDrag = () => {
+    closeInteraction();
     dragRef.current = null;
     resizeRef.current = null;
     panDragRef.current = null;
@@ -525,6 +569,7 @@ export function SvgCanvas({
       ds.dx2 = (obj.x2 ?? obj.x + 100) - (obj.x ?? 0);
       ds.dy2 = (obj.y2 ?? obj.y ?? 0)  - (obj.y ?? 0);
     }
+    openInteraction("Sposta oggetto");
     dragRef.current = ds;
   };
 
@@ -657,6 +702,7 @@ export function SvgCanvas({
               dragRef.current = null;
               selDragRef.current = null;
               setSelRect(null);
+              openInteraction("Sposta estremo linea");
               resizeRef.current = {
                 objId: obj.id, handle,
                 startX: e.clientX, startY: e.clientY,
@@ -700,6 +746,7 @@ export function SvgCanvas({
                   dragRef.current = null;
                   selDragRef.current = null;
                   setSelRect(null);
+                  openInteraction("Ridimensiona oggetto");
                   resizeRef.current = {
                     objId: obj.id,
                     handle: id,

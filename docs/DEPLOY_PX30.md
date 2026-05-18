@@ -115,6 +115,37 @@ container's TLS cert.
 
 Login: `admin` / whatever you passed in `SWS_ADMIN_PASSWORD`.
 
+## 4b. Alternative: single-container deployment
+
+Since version `0.1.0-dev` (May 2026), the runtime can serve the
+Vite-built SPA itself. This removes the `sws-editor` Nginx container —
+both REST/WS and the static UI live behind one HTTPS endpoint.
+
+To switch:
+
+1. **Build the SPA on the host** (the runtime image doesn't bundle
+   pnpm/node):
+
+   ```sh
+   (cd sws-editor && pnpm install && pnpm build)
+   ```
+
+2. **Edit `compose.yaml`** — comment out the entire `editor:` service
+   and uncomment the four lines under "Single-container mode (optional)"
+   inside the `runtime:` service.
+
+3. **Restart**: `podman compose up -d`.
+
+The browser now opens `https://<board-ip>:8443` directly, accepts the
+self-signed cert once, and lands on the WelcomeScreen. All `/api` and
+`/ws/*` requests go to the same origin — no proxy hop, no second cert.
+
+When to prefer the two-container shape (the default in `compose.yaml`):
+the editor container's Nginx will gzip/HTTP-cache static assets, so for
+a public-facing deployment behind a load balancer that's still the
+right shape. For a PX30 on the factory floor talking to one operator
+on the LAN, single-container is simpler and burns fewer MB of RAM.
+
 ## 5. Operational notes
 
 ### TLS certs

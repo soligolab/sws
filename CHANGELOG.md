@@ -8,6 +8,24 @@ and this project adheres to [CalVer](https://calver.org/) (`YYYY.MM[.patch]`).
 ## [Unreleased]
 
 ### Added
+- **Runtime serves the SPA — single-binary deployment** (`ARCH-001`, `sws-web/router.rs`, `sws-runtime/main.rs`, `Cargo.toml`, `compose.yaml`, `docs/DEPLOY_PX30.md`) — new CLI arg `--www <path>`. When set, the runtime mounts `tower_http::ServeDir` as a fallback service so any path not matched by the API/WS routes is served as static. 404s inside ServeDir fall back to `index.html` so the SPA's client-side routing survives a refresh. `tower-http` workspace dep gains the `fs` feature. `compose.yaml` ships commented-out single-container variant; `docs/DEPLOY_PX30.md` documents the alternative deployment shape (no separate Nginx container needed).
+
+- **Configurable runtime URL for the editor** (`ARCH-002`, `vite.config.ts`, `ws/wsUrl.ts`, `ws/tagStream.ts`, `ws/alarmStream.ts`, `ws/logStream.ts`, `scripts/dev.sh`, `scripts/README.md`) — `VITE_RUNTIME_URL=https://px30.local:8443` now influences the Vite proxy target, the `api/client.ts` BASE_URL prefix and the WS URL derivation (with `http→ws` scheme swap). Three previously-duplicated WS URL builders are consolidated into a single `ws/wsUrl.ts` helper. Per-stream overrides (`VITE_RUNTIME_WS_URL`, etc.) remain available for advanced setups.
+
+- **Alarm panel with per-row ACK in RuntimeView** (`6.1`, `runtime-view/RuntimeView.tsx`) — new floating top-right `AlarmPanel` component with a 🔔 toggle button. Badge shows total active count (red border when there are unacked alarms, amber when all acked). Click reveals a dropdown listing every active alarm with severity dot, id, message, and an individual ACK button. A bulk "ACK tutti" button appears when 2+ unacked alarms are present. Live updates via the shared `useAlarmStream` WS singleton.
+
+- **Log export download** (`6.2`, `components/LogPanel.tsx`) — new "⬇ Scarica" button in the LogPanel header writes the currently visible (filtered) events to a `sws-logs-YYYY-MM-DD.jsonl` blob and triggers a browser download. Works in both live mode (date = today) and historical mode (date = the loaded file's date). Disabled when there are no rows to export.
+
+### Changed
+- **Drag/resize undo collapses to one entry per gesture** (`4.1`, `store/index.ts`, `canvas/SvgCanvas.tsx`) — added `beginInteraction(label)` / `endInteraction()` store actions that bracket a drag or resize. While an interaction is open, `updateObject` / `updateObjects` skip their per-mutation `pushHistory` call; the bracket captures a single labeled snapshot at the start. Without this, a 200 px drag created 200 redundant undo entries.
+
+- **Copy-paste honours source page** (`4.3`, `store/index.ts`, `editor/EditorShell.tsx`) — `copySelection` now records the source page id alongside the clipboard. `pasteClipboard` reads it: same-page paste keeps the historical `+20 px` offset and preserves `group_id`; cross-page paste lands at the original coordinates and strips `group_id` (groups are per-page, so cross-page references would dangle). `setClipboard(objs, sourcePageId?)` signature extended; all call sites updated. ShortcutHelp annotated "(anche cross-page)".
+
+- **Snap-to-page-border during drag** (`4.4`, `canvas/SvgCanvas.tsx`) — extracted the snap candidate test into `trySnapX` / `trySnapY` helpers. After the object-edge pass, when no nearby object caught the drag, the page's left/center/right (and top/middle/bottom) edges become snap targets at the same threshold. Grid snap remains the last-resort default.
+
+### Fixed
+- **alarm.rs unit-test `def()` helper missing `notify_url`** (`sws-core/src/alarm.rs`) — pre-existing test compile failure on origin/main left over from commit `524cc61` (alarm webhook field) — the helper was not updated alongside the public struct, breaking `cargo test -p sws-core`. Added `notify_url: None` and the workspace test suite is green again.
+
 - **Store-based cross-view navigation** (`store/index.ts`, `App.tsx`, `ConfigView.tsx`, `LeftPanel.tsx`) — `appMode` and `configTab` moved from local `useState` to Zustand store. Exported types `AppMode` and `AppConfigTab`. New `navigateToConfig(tab)` action sets both `appMode: "config"` and `configTab` atomically. `SourcesSection` rewritten as a list of clickable source rows with type badge (MQTT/MBUS) and click → `navigateToConfig("protocols")`. ConfigView reads `configTab` from the store as initial state and syncs via `useEffect` when an external navigation occurs.
 
 - **Categorized object palette with icons** (`LeftPanel.tsx`) — the flat `OBJECT_TYPES` array and old `ObjectPalette` component replaced with `PALETTE_GROUPS` (5 accordion categories: Forme, Controlli, Display, SCADA, Layout) and a `PaletteGroupAccordion` component. Each widget type has a colored Unicode icon and label; "Forme" opens by default. Layout unchanged for `EditorShell` (`onAdd` prop untouched).

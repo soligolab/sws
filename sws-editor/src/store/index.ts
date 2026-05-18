@@ -118,6 +118,10 @@ interface AppState {
   future: HistoryEntry[];
   /** Cut/paste buffer (in-memory only — not persisted across reloads). */
   clipboard: SynopticObject[];
+  /** Page id the clipboard contents came from. Used by pasteClipboard to
+   *  decide whether to keep grouping (same page → yes) and whether to
+   *  offset coords (same page → +20 to avoid overlap, cross-page → 0). */
+  clipboardSourcePageId: string | null;
 
   tagValues: Record<string, TagState>;
   alarms: Record<string, AlarmState>;
@@ -190,7 +194,7 @@ interface AppState {
   // Clipboard
   copySelection: () => void;
   pasteClipboard: () => void;
-  setClipboard: (objs: SynopticObject[]) => void;
+  setClipboard: (objs: SynopticObject[], sourcePageId?: string | null) => void;
 
   // Alignment & distribution (multi-select)
   alignSelection: (mode: AlignMode) => void;
@@ -202,6 +206,15 @@ interface AppState {
   canRedo: () => boolean;
   jumpToPast: (index: number) => void;
   jumpToFuture: (index: number) => void;
+
+  /**
+   * Bracketed interaction (drag, resize, etc.). Captures the pre-state in
+   * a single history entry on `begin`, then suspends per-mutation history
+   * pushes until `end`. Without this, a 200 px drag turns into 200 undo
+   * steps because `updateObject` pushes on every pixel.
+   */
+  beginInteraction: (label: string) => void;
+  endInteraction: () => void;
 
   // Object grouping (UI-only, no canvas effect)
   groupObjects: (ids: string[], name?: string) => void;
@@ -241,11 +254,28 @@ const persisted = readPersistedAuth();
 if (persisted) setAuthToken(persisted.token);
 
 export const useAppStore = create<AppState>((set, get) => {
+  // Suspend per-mutation history pushes while > 0. Lets a drag/resize
+  // capture one history entry up front (at beginInteraction) instead of
+  // one per pixel.
+  let interactionDepth = 0;
+
   /**
    * Push a labeled snapshot of the current `pages` onto the history stack
    * before applying a mutation. Clears the redo stack. Capped at HISTORY_LIMIT.
+   * Becomes a no-op while inside a bracketed interaction.
    */
   const pushHistory = (label: string) => {
+    if (interactionDepth > 0) return;
+    const { pages, past } = get();
+    const entry: HistoryEntry = { pages: clonePages(pages), label };
+    const trimmed = past.length >= HISTORY_LIMIT
+      ? past.slice(past.length - HISTORY_LIMIT + 1)
+      : past;
+    set({ past: [...trimmed, entry], future: [] });
+  };
+
+  /** Force-push a history entry even mid-interaction; used by begin. */
+  const pushHistoryUnconditional = (label: string) => {
     const { pages, past } = get();
     const entry: HistoryEntry = { pages: clonePages(pages), label };
     const trimmed = past.length >= HISTORY_LIMIT
@@ -280,6 +310,7 @@ export const useAppStore = create<AppState>((set, get) => {
     past: [],
     future: [],
     clipboard: [],
+    clipboardSourcePageId: null,
     tagValues: {},
     alarms: {},
     logs: [],
@@ -724,26 +755,36 @@ export const useAppStore = create<AppState>((set, get) => {
         .map((id) => page.objects.find((o) => o.id === id))
         .filter((o): o is SynopticObject => !!o)
         .map((o) => ({ ...o })); // shallow clone — values are primitives or arrays we'll overwrite on paste
-      set({ clipboard: picked });
+      set({ clipboard: picked, clipboardSourcePageId: currentPageId });
     },
 
     pasteClipboard: () => {
-      const { clipboard, currentPageId } = get();
+      const { clipboard, currentPageId, clipboardSourcePageId } = get();
       if (clipboard.length === 0) return;
+      // Same-page paste behaves like a duplicate: offset by +20 to make the
+      // copies visually distinct, and keep group_id so the original
+      // grouping is preserved.
+      // Cross-page paste keeps the original coordinates (no overlap risk on
+      // the destination page) and strips group_id (the destination page's
+      // group registry doesn't know about the source page's groups).
+      const samePage = clipboardSourcePageId === currentPageId;
       pushHistory("Incolla");
       const newIds: string[] = [];
       const copies = clipboard.map((src) => {
         const id = genId();
         newIds.push(id);
-        return {
+        const offset = samePage ? 20 : 0;
+        const out: SynopticObject = {
           ...src,
           id,
           name: src.name ? `${src.name} (incolla)` : undefined,
-          x: (src.x ?? 0) + 20,
-          y: (src.y ?? 0) + 20,
-          x2: src.x2 != null ? src.x2 + 20 : undefined,
-          y2: src.y2 != null ? src.y2 + 20 : undefined,
+          x: (src.x ?? 0) + offset,
+          y: (src.y ?? 0) + offset,
+          x2: src.x2 != null ? src.x2 + offset : undefined,
+          y2: src.y2 != null ? src.y2 + offset : undefined,
         };
+        if (!samePage) delete out.group_id;
+        return out;
       });
       set((s) => ({
         pages: s.pages.map((p) =>
@@ -754,7 +795,8 @@ export const useAppStore = create<AppState>((set, get) => {
       }));
     },
 
-    setClipboard: (objs) => set({ clipboard: objs }),
+    setClipboard: (objs, sourcePageId = null) =>
+      set({ clipboard: objs, clipboardSourcePageId: sourcePageId }),
 
     alignSelection: (mode) => {
       const { selectedObjectIds, pages, currentPageId } = get();
@@ -923,6 +965,18 @@ export const useAppStore = create<AppState>((set, get) => {
         selectedCell: null,
         selectedCellChild: null,
       });
+    },
+
+    beginInteraction: (label) => {
+      // Only the outermost begin actually pushes — nested begins (which
+      // would otherwise happen if a resize handler also called begin)
+      // just bump the depth counter.
+      if (interactionDepth === 0) pushHistoryUnconditional(label);
+      interactionDepth += 1;
+    },
+
+    endInteraction: () => {
+      if (interactionDepth > 0) interactionDepth -= 1;
     },
 
     updateTagValue: (id, state) =>

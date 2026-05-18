@@ -60,6 +60,13 @@ struct Args {
     /// Defaults to `<projects_root>/logs`.
     #[arg(long)]
     logs: Option<PathBuf>,
+
+    /// When set, the runtime also serves a static SPA bundle from this
+    /// directory at the root path. Used for the single-binary deployment
+    /// where the runtime container ships the editor's `dist/` and no
+    /// separate Nginx container is needed.
+    #[arg(long)]
+    www: Option<PathBuf>,
 }
 
 #[tokio::main]
@@ -112,6 +119,7 @@ async fn main() -> anyhow::Result<()> {
         project        = ?args.project.as_ref().map(|p| p.display().to_string()),
         logs           = %logs_dir.display(),
         retention      = retention_days,
+        www            = ?args.www.as_ref().map(|p| p.display().to_string()),
         "SWS runtime starting"
     );
 
@@ -323,6 +331,7 @@ async fn main() -> anyhow::Result<()> {
         log_bus,
         Arc::new(logs_dir),
         started_at,
+        args.www.clone(),
     );
 
     let addr: SocketAddr = "0.0.0.0:8443".parse()?;

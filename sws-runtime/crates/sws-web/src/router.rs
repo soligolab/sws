@@ -8,6 +8,7 @@ use axum::{
     routing::{delete, get, post, put},
     Json, Router,
 };
+use tower_http::services::{ServeDir, ServeFile};
 use serde::Deserialize;
 use sws_auth::{AuthState, Credentials, LoginError, LoginOk, Role};
 use sws_core::{
@@ -72,6 +73,7 @@ pub fn build(
     logs: Arc<LogBus>,
     logs_dir: Arc<PathBuf>,
     started_at: std::time::Instant,
+    www_dir: Option<PathBuf>,
 ) -> Router {
     let state = AppState { db, bus, alarms, historian, py, auth, supervisor, functions, project_dir, projects_root, templates_root, logs, logs_dir, started_at };
 
@@ -177,7 +179,20 @@ pub fn build(
         .route("/api/auth/login", post(login))
         .merge(project_lifecycle);
 
-    open.merge(protected).with_state(state)
+    let mut app = open.merge(protected);
+
+    // Serve the Vite-built SPA from disk when --www is provided. Any path that
+    // doesn't match an API/WS route falls through to ServeDir; 404s inside
+    // ServeDir fall back to index.html so the SPA can handle client-side
+    // routing on a refresh. This is the "single-binary" deployment shape:
+    // the editor container is no longer required.
+    if let Some(dir) = www_dir {
+        let index = dir.join("index.html");
+        let fallback = ServeDir::new(&dir).not_found_service(ServeFile::new(index));
+        app = app.fallback_service(fallback);
+    }
+
+    app.with_state(state)
 }
 
 // ── Auth middleware ──────────────────────────────────────────────────────────
