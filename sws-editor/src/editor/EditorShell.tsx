@@ -575,7 +575,11 @@ export function EditorShell() {
               return (
                 <>
                   <PanelBreadcrumb
-                    parts={[gridLabel, `R${selectedSubCell.row + 1} C${selectedSubCell.col + 1}`, `slot ${pathLabel}`]}
+                    parts={[
+                      { label: gridLabel, onClick: () => { setSelectedCell(null); setSelectedSubCell(null); } },
+                      { label: `R${selectedSubCell.row + 1} C${selectedSubCell.col + 1}`, onClick: () => setSelectedSubCell(null) },
+                      `slot ${pathLabel}`,
+                    ]}
                   />
                   <div style={{ fontSize: 10, color: "#475569", marginBottom: 6 }}>
                     Sub-cella interna ({parentSub.orientation === "rows" ? "alto/basso" : "sinistra/destra"}).
@@ -639,7 +643,11 @@ export function EditorShell() {
               return (
                 <>
                   <PanelBreadcrumb
-                    parts={[gridLabel, `R${selectedCellChild.row + 1} C${selectedCellChild.col + 1}`, childLabel]}
+                    parts={[
+                      { label: gridLabel, onClick: () => { setSelectedCell(null); setSelectedCellChild(null); } },
+                      { label: `R${selectedCellChild.row + 1} C${selectedCellChild.col + 1}`, onClick: () => setSelectedCellChild(null) },
+                      childLabel,
+                    ]}
                   />
                   <ObjectProps
                     obj={child}
@@ -669,7 +677,10 @@ export function EditorShell() {
             return (
               <>
                 <PanelBreadcrumb
-                  parts={[gridLabel, `${rows}×${cols} celle (R${r1 + 1}-${r2 + 1}, C${c1 + 1}-${c2 + 1})`]}
+                  parts={[
+                    { label: gridLabel, onClick: () => setSelectedCellRange(null) },
+                    `${rows}×${cols} celle (R${r1 + 1}-${r2 + 1}, C${c1 + 1}-${c2 + 1})`,
+                  ]}
                 />
                 <CellRangeMergeActions
                   onMerge={() => {
@@ -694,7 +705,10 @@ export function EditorShell() {
             return (
               <>
                 <PanelBreadcrumb
-                  parts={[gridLabel, `R${selectedCell.row + 1} C${selectedCell.col + 1}`]}
+                  parts={[
+                    { label: gridLabel, onClick: () => setSelectedCell(null) },
+                    `R${selectedCell.row + 1} C${selectedCell.col + 1}`,
+                  ]}
                 />
                 <CellStructureActions
                   isMerged={isMerged}
@@ -868,15 +882,41 @@ function ZOrderBar({
 
 // ── Panel breadcrumb ──────────────────────────────────────────────────────────
 
-function PanelBreadcrumb({ parts }: { parts: string[] }) {
+/** Breadcrumb chip. A plain string is non-interactive; an object with
+ *  `onClick` becomes a small button that lets the user step "up" one
+ *  level of the selection hierarchy (typically: child → cell → grid). */
+type BreadcrumbPart = string | { label: string; onClick?: () => void };
+
+function PanelBreadcrumb({ parts }: { parts: BreadcrumbPart[] }) {
   return (
     <div style={{ fontSize: 10, color: "#475569", marginBottom: 6, display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" }}>
-      {parts.map((p, i) => (
-        <span key={i} style={{ display: "flex", alignItems: "center", gap: 4 }}>
-          {i > 0 && <span style={{ color: "#334155" }}>›</span>}
-          <span style={{ color: i === parts.length - 1 ? "#94a3b8" : "#475569" }}>{p}</span>
-        </span>
-      ))}
+      {parts.map((p, i) => {
+        const part = typeof p === "string" ? { label: p } : p;
+        const isLast = i === parts.length - 1;
+        const clickable = !isLast && !!part.onClick;
+        return (
+          <span key={i} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            {i > 0 && <span style={{ color: "#334155" }}>›</span>}
+            {clickable ? (
+              <button
+                type="button"
+                onClick={part.onClick}
+                title="Torna a questo livello"
+                style={{
+                  background: "transparent", border: "none", padding: 0,
+                  color: "#3b82f6", cursor: "pointer", fontSize: 10,
+                  textDecoration: "underline dotted",
+                  font: "inherit",
+                }}
+              >
+                {part.label}
+              </button>
+            ) : (
+              <span style={{ color: isLast ? "#94a3b8" : "#475569" }}>{part.label}</span>
+            )}
+          </span>
+        );
+      })}
     </div>
   );
 }
