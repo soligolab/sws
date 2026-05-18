@@ -881,8 +881,11 @@ function PanelBreadcrumb({ parts }: { parts: string[] }) {
   );
 }
 
-/** Walk `cell.sub.a|b.sub.a|b...` along `path` and return the leaf entry,
- *  or null if the path no longer matches the data (cell un-split, etc.). */
+/** Walk `cell.sub.a|b.sub.a|b...` along `path` and return the leaf entry.
+ *  Returns an empty entry `{}` for slots that exist in the structure but
+ *  haven't been materialised yet (just split, no content added) — the
+ *  panel needs to treat them as editable. Returns null only when the
+ *  path itself is no longer valid (cell un-split, etc.). */
 function resolveSubCellEntry(cell: GridCell | undefined, path: ("a" | "b")[]): SubCellEntry | null {
   if (!cell || path.length === 0) return null;
   let sub: SubGrid | undefined = cell.sub;
@@ -892,7 +895,7 @@ function resolveSubCellEntry(cell: GridCell | undefined, path: ("a" | "b")[]): S
     entry = sub[slot];
     sub = entry?.sub;
   }
-  return entry ?? null;
+  return entry ?? {};
 }
 
 /** Return the `SubGrid` that owns the slot addressed by `path`. For path
