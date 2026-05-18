@@ -16,7 +16,51 @@ import type {
   TemplateEntry,
 } from "@/types";
 
-const BASE_URL = import.meta.env.VITE_RUNTIME_URL ?? "";
+// Runtime URL resolution order (ARCH-002 + ARCH-004):
+//
+//   1. localStorage `sws.runtimeBaseUrl` — user-toggleable at runtime via
+//      the WelcomeScreen "Runtime remoto" modal. Lets the same SPA bundle
+//      connect to different runtimes (laptop ↔ PX30) without rebuilding.
+//   2. `VITE_RUNTIME_URL` env var — build-time default for dev workflows
+//      that always target a fixed remote runtime.
+//   3. Empty string → same-origin (Vite proxy in dev, single-binary in
+//      production where the runtime itself serves the SPA).
+//
+// Read on every request so a localStorage change takes effect on the
+// next call (no app reload required for the api layer; the WelcomeScreen
+// does a full `window.location.reload()` anyway to reset auth + project
+// state cleanly when the user switches runtime).
+const RUNTIME_BASE_URL_KEY = "sws.runtimeBaseUrl";
+
+function getBaseUrl(): string {
+  if (typeof window !== "undefined") {
+    try {
+      const v = window.localStorage.getItem(RUNTIME_BASE_URL_KEY);
+      if (v) return v.replace(/\/$/, "");
+    } catch { /* ignore */ }
+  }
+  return (import.meta.env.VITE_RUNTIME_URL as string | undefined) ?? "";
+}
+
+export function getRuntimeBaseUrl(): string {
+  return getBaseUrl();
+}
+
+/** Switch the SPA to a different runtime origin. Pass `null` (or the
+ *  empty string) to revert to same-origin. Caller is responsible for
+ *  clearing the auth token and reloading the page — the runtime URL
+ *  carries identity (tokens issued by the old runtime are invalid on
+ *  the new one). */
+export function setRuntimeBaseUrl(url: string | null): void {
+  if (typeof window === "undefined") return;
+  try {
+    if (url && url.trim() !== "") {
+      window.localStorage.setItem(RUNTIME_BASE_URL_KEY, url.trim().replace(/\/$/, ""));
+    } else {
+      window.localStorage.removeItem(RUNTIME_BASE_URL_KEY);
+    }
+  } catch { /* ignore */ }
+}
 
 // Session token cache. Set by `setAuthToken` on login / store hydration;
 // read on every `request()` call so that protected routes carry the
@@ -79,7 +123,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   if (TOKEN) headers.set("Authorization", `Bearer ${TOKEN}`);
   let res: Response;
   try {
-    res = await fetch(`${BASE_URL}${path}`, { ...init, headers });
+    res = await fetch(`${getBaseUrl()}${path}`, { ...init, headers });
   } catch {
     // Network error (ECONNREFUSED, DNS failure, …) — runtime is not reachable.
     throw new RuntimeUnavailableError();
@@ -219,7 +263,7 @@ export const api = {
   exportProjectZip: async (): Promise<Response> => {
     const headers = new Headers();
     if (getAuthToken()) headers.set("Authorization", `Bearer ${getAuthToken()}`);
-    const res = await fetch(`${BASE_URL}/api/project/export`, { headers });
+    const res = await fetch(`${getBaseUrl()}/api/project/export`, { headers });
     if (res.status === 401) throw new AuthError();
     if (res.status === 403) throw new Error(`API /api/project/export: 403 Forbidden`);
     if (!res.ok) throw new Error(`API /api/project/export: ${res.status} ${res.statusText}`);
@@ -229,7 +273,7 @@ export const api = {
   importProjectZip: async (file: Blob): Promise<void> => {
     const headers = new Headers({ "Content-Type": "application/zip" });
     if (getAuthToken()) headers.set("Authorization", `Bearer ${getAuthToken()}`);
-    const res = await fetch(`${BASE_URL}/api/project/import`, {
+    const res = await fetch(`${getBaseUrl()}/api/project/import`, {
       method: "PUT",
       headers,
       body: file,
@@ -388,8 +432,8 @@ export const api = {
 
   uploadProjectZip: async (file: Blob, name?: string): Promise<{ name: string }> => {
     const url = name
-      ? `${BASE_URL}/api/projects/upload?name=${encodeURIComponent(name)}`
-      : `${BASE_URL}/api/projects/upload`;
+      ? `${getBaseUrl()}/api/projects/upload?name=${encodeURIComponent(name)}`
+      : `${getBaseUrl()}/api/projects/upload`;
     const headers = new Headers({ "Content-Type": "application/zip" });
     if (TOKEN) headers.set("Authorization", `Bearer ${TOKEN}`);
     const res = await fetch(url, { method: "POST", headers, body: file });

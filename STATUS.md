@@ -2,22 +2,24 @@
 
 > This file is the **session-to-session memory** for Claude Code. Update it at the end of every session before stopping work. Read it at the start of every session before touching code.
 
-**Last session**: 2026-05-18 (sessione 24: ARCH-003 kiosk-mode + iterazioni UX grid post-S-23 — ricorsione sub-cell, breadcrumb cliccabile per navigazione grid→cella→sub-cella, ObjectProps accordion redesign)
+**Last session**: 2026-05-19 (sessione 25: ARCH-004 multi-runtime WelcomeScreen — runtime URL via localStorage + CORS, badge header con disconnetti, modal Connetti/Test connessione)
 **Current phase**: Phase 2. Demo working out-of-the-box su fresh clone, import/export progetto per backup/condivisione, pannello log live + persistenza su disco, gestione utenti multi-account. Da questa sessione il runtime può servire la SPA da sé (`--www`), puntare a un runtime remoto via `VITE_RUNTIME_URL` lato editor, e spawnare automaticamente un browser kiosk (`--kiosk-browser`) — il trio ARCH-001/002/003 è chiuso e il deploy single-board PX30 unattended è teoricamente pronto. Manca solo il test su hardware fisico.
-**Last commit**: `caa225e` (ARCH-003). Tutto pushato a `origin/main`.
+**Last commit**: (vedi `git log` per la sessione 25). Tutto pushato a `origin/main`.
 
-### Handoff per la prossima sessione (resume da casa)
+### Handoff per la prossima sessione
 
-1. **`git pull` su `main`** — la sessione 24 è chiusa con 9 commit pushati dopo `8c0f158` (cross-view navigation). HEAD = `caa225e`.
-2. **Smoke-test rapido (5 min)** prima di partire con cose nuove:
-   - `./scripts/dev.sh` → editor + runtime up.
-   - In pagina 1 della demo, aggiungi un `grid` → splitta una cella → click sul sub-slot → verifica che il pannello mostri il sub-cell editor (non page props) e che ci siano breadcrumb chip cliccabili.
-   - Click su un oggetto qualsiasi → pannello con sezioni Trasformazione/Layer/Eventi/Binding collassate di default.
-   - Se vuoi testare ARCH-003 senza PX30: `SWS_ADMIN_PASSWORD=admin cargo run -p sws-runtime -- --kiosk-browser "firefox https://localhost:8443"` (o chromium).
-3. **Prossimo step raccomandato**: **S-26 ARCH-004 multi-runtime WelcomeScreen** (~3h) — tab "Runtime remoto" in WelcomeScreen con input URL + test connessione `/health` + localStorage `swsRuntimeUrl` override. Sblocco completo del workflow "editor sul laptop → runtime sul PX30 in produzione". Dipende solo da ARCH-002 (✅).
-4. **Alternativa di S-25** se hai il PX30 con un display sotto mano: installa chromium, ricrea i container con `--www` + `--kiosk-browser`, verifica che parta da solo al boot via systemd. Una sessione da ~1h se la rete e l'apt funzionano al primo colpo.
+1. **`git pull` su `main`** prima di toccare codice.
+2. **Smoke-test ARCH-004** (~5 min):
+   - Tab 1: `./scripts/dev.sh` → editor su 5173, runtime su 8443.
+   - Tab 2: lancia un secondo runtime su porta diversa per simulare "remoto":
+     `SWS_ADMIN_PASSWORD=admin /tmp/sws-test/run.sh` (build separato). Oppure usa una VM.
+   - Nel browser https://localhost:5173, in fondo alla WelcomeScreen click "📡 Connetti a runtime remoto…", incolla l'URL del secondo runtime, Test → OK, Connetti. La pagina reload. Vedi nel badge header `📡 host:port`.
+   - Click sul badge → conferma → torna al locale.
+3. **Trio ARCH chiuso** (001 SPA serve, 002 VITE_RUNTIME_URL, 003 kiosk, 004 multi-runtime). Per il deploy PX30 completo manca solo il test sul ferro fisico (S-25 manuale).
+4. **Prossimo step raccomandato**: **S-27 UX bundle** — 1.3 drag&drop tree + 1.4 context menu + 4.2 rulers. ~3h, tutti task indipendenti, frontend-only. Oppure aprire un BL nuovo: BL-005 OPC-UA client (Phase 4) è il "demo industriale serio" mancante — stima 6-8h ma servirebbe accesso a un server OPC-UA reale o simulatore.
 
 ### Cosa è andato online in queste sessioni (in ordine di commit)
+- (sessione 2026-05-19, sessione 25) **ARCH-004 — Multi-runtime WelcomeScreen** — la stessa SPA bundle ora può connettersi a runtime diversi senza rebuild. (1) Runtime CORS in `sws-web/router.rs`: `CorsLayer::new().allow_origin(Any).allow_methods(Any).allow_headers(Any)` come outermost layer. (2) `api/client.ts` BASE_URL diventa `getBaseUrl()` dinamico che legge `localStorage["sws.runtimeBaseUrl"]` > `VITE_RUNTIME_URL` > same-origin. (3) `ws/wsUrl.ts` stesso resolver per le WS. (4) `WelcomeScreen` footer + `RemoteRuntimeModal` (URL input, bottone Test che chiama `<url>/health` con CORS, bottone Connetti abilitato dopo OK, "Torna al locale" se già remoto). On connect/disconnect → `window.location.reload()` per reset pulito. (5) App.tsx header pillola `📡 host:port` quando si è connessi a remoto, click per disconnettersi con confirm. Gotcha noto e documentato nel modal: il cert self-signed va accettato manualmente in una tab al primo connect altrimenti `fetch()` fallisce con "Failed to fetch" muto.
 - (sessione 2026-05-18, sessione 24) **ARCH-003 — Kiosk-mode browser spawn** — nuova CLI arg `--kiosk-browser <shell-cmd>`. Dopo che il listener HTTPS è up e `/health` risponde OK (poll reqwest con `danger_accept_invalid_certs(true)`, 50×100ms), il runtime fa `tokio::process::Command::new("sh").arg("-c").arg(cmd).spawn()` fire-and-forget. La morte del child non ferma il runtime; il runtime exit non killa il child. Entrypoint.sh ha commento con esempi. `docs/DEPLOY_PX30.md` §4c documenta il setup con chromium/epiphany/firefox/cage. La stock image non include un browser — installazione lato host.
 - (sessione 2026-05-18, sessione 23/24) **Grid sub-cell ricorsione + breadcrumb cliccabile + ObjectProps accordion** — 6 commit di iterazione su S-23. (1) `SubCellEntry.sub: SubGrid` ricorsivo senza limite, `selectedSubCell.path: ("a"|"b")[]`, helper traversal `updateSubGridAtPath`/`updateSubCellEntryAtPath`, render canvas via `renderSubArea` ricorsivo, drag handles per ogni sub-divider. (2) Bug fix: `resolveSubCellEntry` ritorna `{}` per slot vuoti (era `null`, panel cadeva in "page props"). (3) Bug fix: sub-slot click chiama `p.onSelect(gridObjId)` PRIMA di `p.onSelectSubCell` per evitare che il pannello mostri page props. (4) Pannello sub-cell con "+ Aggiungi" UI completa (era assente). (5) Child di sub-cella ora ha rettangolo selezione teal + overlay cliccabile. (6) **PanelBreadcrumb chip cliccabili**: ogni chip non-leaf con `onClick` diventa un link blu, l'utente può navigare grid→cella→sub-cella all'indietro pulendo la selezione del livello. Sblocca l'accesso alle proprietà generali della griglia (prima irraggiungibile da canvas perché celle coprono tutto). (7) **ObjectProps accordion redesign**: nuovo `CollapsibleSection` con localStorage persist; Trasformazione/Layer/Eventi/Binding/Qualità collapsed di default; rimossi slider duplicati da rotation/opacity/transition; Identità compatta su 1 riga `[type · id]`; ~480 px collapsed vs ~900 px prima.
 - (sessione 2026-05-18, sessione 23) **Grid: resize bordi righe/colonne con drag + snap interno** — quando il `grid` è selezionato in edit mode, `SvgCanvas` rende ora dei `<rect>` trasparenti 6 px centrati su ogni bordo interno (col-resize / row-resize cursor). `gridBorderRef` traccia il drag in `handleMouseMove`: delta convertito da screen→SVG via zoom, applicato come `[startA + delta, startB - delta]` sulle due tracce adiacenti, clamp min 8 px ciascuna. Snap: candidati = posizioni cumulative degli altri bordi interni dello stesso grid; threshold `8/zoom`; quando agganciato, snap-line ciano riusa l'esistente `setSnapLines`. Update tramite `updateObject(id, { col_widths: [...] })` o `{ row_heights: [...] }`. Coalescenza undo via `openInteraction("Ridimensiona colonna N")`.
@@ -270,7 +272,7 @@
 | 5.1 | ✅ **ARCH-001** Runtime serve SPA via `ServeDir` + `--www <path>` (fallback service + SPA `index.html` 404 catch) | — | — |
 | 5.2 | ✅ **ARCH-002** `VITE_RUNTIME_URL` configurabile (proxy Vite + `api/client.ts` + `ws/wsUrl.ts`) | — | — |
 | 5.3 | ✅ **ARCH-003** Kiosk mode: `--kiosk-browser <cmd>` con poll `/health` + spawn fire-and-forget | — | — |
-| 5.4 | **ARCH-004** Multi-runtime WelcomeScreen (tab "Runtime remoto" + localStorage override) | 3 h | — |
+| 5.4 | ✅ **ARCH-004** Multi-runtime WelcomeScreen (CORS + dynamic baseUrl + modal + header pill) | — | — |
 | 5.5 | Demo su PX30 hardware | — | → 5.1, hw fisico |
 
 ---
@@ -325,7 +327,7 @@
 | ~~**S-23**~~ ✅ | ~4 h | Grid: resize bordi (4.5) + multi-cell + merge (4.6) + split locale (4.7) | — |
 | ~~**S-24**~~ ✅ | ~3 h | Grid sub-cell recursion + breadcrumb cliccabile + ObjectProps accordion + ARCH-003 kiosk software | — |
 | **S-25** | manual | Test ARCH-003 sul PX30 reale (chromium + cage) | hw fisico |
-| **S-26** | ~3 h | ARCH-004 (multi-runtime WelcomeScreen) | ARCH-002 stabile (✅) |
+| ~~**S-26**~~ ✅ | ~2 h | ARCH-004 (multi-runtime WelcomeScreen + CORS) | — |
 | **S-27** | ~3 h | 1.3 (drag&drop tree) + 1.4 (context menu) + 4.2 (rulers) | — |
 
 ---
@@ -478,13 +480,16 @@ Analisi completa delle implicazioni dei 4 punti operativi desiderati. Piano in `
 - [x] `cargo check --workspace` + `cargo test --workspace` verdi
 - [ ] Test sul PX30 reale — manuale, da fare dal maintainer (sessione S-25)
 
-### ARCH-004 — Multi-runtime WelcomeScreen (BL-004) — ~3-4 h — RIMANDATO
-> Dipende da ARCH-002 stabile. Aprire come BL-004 quando si pianifica la sessione.
-- [ ] `WelcomeScreen`: aggiungere tab "Runtime remoto" con input URL + test connessione (`GET /health`)
-- [ ] Login inline contro il runtime remoto; se ok, commutare `localStorage.swsRuntimeUrl`
-- [ ] `api/client.ts` e `ws/tagStream.ts`: leggere `localStorage.swsRuntimeUrl` come override dell'URL base
-- [ ] Indicatore runtime remoto nell'header (badge con IP/hostname)
-- [ ] `pnpm type-check` + `pnpm build` verdi
+### ARCH-004 — Multi-runtime WelcomeScreen — ✅ DONE (2026-05-19)
+> **Obiettivo**: stessa SPA bundle può puntare a qualsiasi runtime senza rebuild.
+- [x] `WelcomeScreen`: footer cliccabile + `RemoteRuntimeModal` con URL input + bottone "Test" che chiama `GET <url>/health` + bottone "Connetti" abilitato solo dopo test OK
+- [x] Persistenza in `localStorage["sws.runtimeBaseUrl"]`; `window.location.reload()` su connect/disconnect per reset pulito di auth + project state + WS
+- [x] `api/client.ts`: `getBaseUrl()` legge localStorage > `VITE_RUNTIME_URL` > "" (same-origin). Esporta `getRuntimeBaseUrl`/`setRuntimeBaseUrl`. Tutti i call site di `BASE_URL` aggiornati.
+- [x] `ws/wsUrl.ts`: stesso resolver per le WS (swap http→ws automatico)
+- [x] Badge runtime remoto nell'header App.tsx (pillola `📡 host:port`); click → confirm + disconnetti
+- [x] **CORS** in `sws-web/router.rs`: `CorsLayer::new().allow_origin(Any).allow_methods(Any).allow_headers(Any)` come outermost layer. Necessario per cross-origin laptop→PX30.
+- [x] `cargo check` + `cargo test --workspace` + `pnpm type-check` + `pnpm build` verdi
+- Gotcha documentato nel modal: certificato self-signed va accettato in tab separata prima del primo connect (browser blocca fetch silenziosamente con "Failed to fetch")
 
 ### Sequenza raccomandata
 | Sessione | Durata | Contenuto |

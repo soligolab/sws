@@ -8,6 +8,7 @@ use axum::{
     routing::{delete, get, post, put},
     Json, Router,
 };
+use tower_http::cors::{Any, CorsLayer};
 use tower_http::services::{ServeDir, ServeFile};
 use serde::Deserialize;
 use sws_auth::{AuthState, Credentials, LoginError, LoginOk, Role};
@@ -192,7 +193,21 @@ pub fn build(
         app = app.fallback_service(fallback);
     }
 
-    app.with_state(state)
+    // Permissive CORS for the "editor on laptop → runtime on PX30" deployment
+    // shape (ARCH-004). The editor sets the runtime URL via localStorage and
+    // talks to a different origin; without this layer the browser blocks
+    // every cross-origin fetch at the preflight stage.
+    //
+    // Bearer-token auth is unaffected: `Allow-Credentials` stays at the
+    // default (false), so no cookies cross origins. The `*` wildcard is
+    // CRA-non-compliant — when the PoC graduates to product, narrow this to
+    // a configured allowlist (see follow-ups in STATUS.md).
+    let cors = CorsLayer::new()
+        .allow_origin(Any)
+        .allow_methods(Any)
+        .allow_headers(Any);
+
+    app.layer(cors).with_state(state)
 }
 
 // ── Auth middleware ──────────────────────────────────────────────────────────
