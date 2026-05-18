@@ -55,6 +55,23 @@ services:
       timeout: 5s
       retries: 3
       start_period: 10s
+    # ── Single-container mode (optional) ─────────────────────────────────────
+    # Uncomment the two lines below AND comment out the `editor:` service
+    # below to have the runtime serve the Vite-built SPA directly on
+    # https://<host>:8443 — no separate Nginx container needed.
+    #
+    # You must build the SPA on the host first:
+    #     (cd sws-editor && pnpm install && pnpm build)
+    #
+    # command: ["sws-runtime", "--config", "/var/sws/config",
+    #           "--projects-root", "/var/sws/projects",
+    #           "--project",       "/var/sws/projects/default",
+    #           "--www",           "/var/sws/www"]
+    # volumes:
+    #   - ./sws-editor/dist:/var/sws/www:ro
+    #   - ./.run/config:/var/sws/config
+    #   - ./.run/project:/var/sws/projects/default
+    #   - ./.run/db:/var/sws/db
 
   editor:
     image: ghcr.io/soligolab/sws-editor:latest

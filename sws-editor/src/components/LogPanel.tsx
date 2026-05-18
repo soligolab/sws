@@ -177,6 +177,15 @@ export function LogPanel({ open, onClose }: LogPanelProps) {
           </>
         )}
 
+        <button
+          onClick={() => downloadAsJsonl(filtered, isHistMode ? selDate : todayLocalIso())}
+          disabled={filtered.length === 0}
+          title="Scarica i log visualizzati (rispetta i filtri) come file JSONL"
+          style={{ ...btn("#334155"), opacity: filtered.length === 0 ? 0.5 : 1 }}
+        >
+          ⬇ Scarica
+        </button>
+
         <input
           type="text"
           value={search}
@@ -303,6 +312,32 @@ function formatTs(ms: number): string {
   const ss = String(d.getSeconds()).padStart(2, "0");
   const mmm = String(d.getMilliseconds()).padStart(3, "0");
   return `${hh}:${mm}:${ss}.${mmm}`;
+}
+
+/** Current date as `YYYY-MM-DD` in the user's local timezone. Used as the
+ *  filename hint when downloading live logs (the server's JSONL files
+ *  are named `runtime-YYYY-MM-DD.jsonl` so we match that shape). */
+function todayLocalIso(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+/** Serialise the given events as JSONL (one JSON object per line) and
+ *  trigger a browser download. Uses Blob + an ephemeral anchor — no
+ *  external library, no popup. */
+function downloadAsJsonl(events: LogEvent[], dateTag: string): void {
+  if (events.length === 0) return;
+  const text = events.map((e) => JSON.stringify(e)).join("\n") + "\n";
+  const blob = new Blob([text], { type: "application/x-ndjson;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `sws-logs-${dateTag || "export"}.jsonl`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  // Release the blob URL once the browser has had a chance to start the download.
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 // ── Styles ────────────────────────────────────────────────────────────────

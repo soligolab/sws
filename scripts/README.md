@@ -17,6 +17,27 @@ dev server.
 ./scripts/dev.sh editor   # only the editor (assumes runtime already up)
 ```
 
+### Pointing the editor at a remote runtime
+
+By default the editor's Vite proxy and the SPA both target
+`https://localhost:8443`. To edit a project hosted on a different machine
+(typical PX30 deployment scenario), set `VITE_RUNTIME_URL` before
+launching the editor:
+
+```sh
+VITE_RUNTIME_URL=https://px30.local:8443 ./scripts/dev.sh editor
+```
+
+This single env var influences three things:
+- `vite.config.ts` proxy `/api` and `/ws` targets (so `pnpm dev` requests
+  forward to the remote runtime),
+- `api/client.ts` BASE_URL prefix on every `fetch()`,
+- `ws/*.ts` WebSocket URL derivation (with `http→ws` scheme swap).
+
+You can still pin individual streams with `VITE_RUNTIME_WS_URL` /
+`VITE_ALARMS_WS_URL` / `VITE_LOGS_WS_URL` if you need to (e.g. when
+multiplexing the WS through a different gateway).
+
 ### Access from another device on the LAN
 
 `dev.sh` binds Vite to `0.0.0.0:5173` so any browser on the same Wi-Fi /

@@ -115,6 +115,88 @@ container's TLS cert.
 
 Login: `admin` / whatever you passed in `SWS_ADMIN_PASSWORD`.
 
+## 4b. Alternative: single-container deployment
+
+Since version `0.1.0-dev` (May 2026), the runtime can serve the
+Vite-built SPA itself. This removes the `sws-editor` Nginx container —
+both REST/WS and the static UI live behind one HTTPS endpoint.
+
+To switch:
+
+1. **Build the SPA on the host** (the runtime image doesn't bundle
+   pnpm/node):
+
+   ```sh
+   (cd sws-editor && pnpm install && pnpm build)
+   ```
+
+2. **Edit `compose.yaml`** — comment out the entire `editor:` service
+   and uncomment the four lines under "Single-container mode (optional)"
+   inside the `runtime:` service.
+
+3. **Restart**: `podman compose up -d`.
+
+The browser now opens `https://<board-ip>:8443` directly, accepts the
+self-signed cert once, and lands on the WelcomeScreen. All `/api` and
+`/ws/*` requests go to the same origin — no proxy hop, no second cert.
+
+When to prefer the two-container shape (the default in `compose.yaml`):
+the editor container's Nginx will gzip/HTTP-cache static assets, so for
+a public-facing deployment behind a load balancer that's still the
+right shape. For a PX30 on the factory floor talking to one operator
+on the LAN, single-container is simpler and burns fewer MB of RAM.
+
+## 4c. Kiosk mode (unattended boot)
+
+For panel-PC / HMI scenarios — the board has a display attached and you
+want the SCADA synoptic to come up by itself without anyone logging in
+or opening a browser — pass `--kiosk-browser <shell-cmd>` to the runtime.
+Once `/health` answers OK, the runtime spawns the command (fire-and-forget;
+its death does not stop the runtime).
+
+```yaml
+# In compose.yaml, under the runtime service `command:` (combine with
+# the single-container `--www` override from §4b for the fullest demo):
+command: ["sws-runtime",
+          "--config",         "/var/sws/config",
+          "--projects-root",  "/var/sws/projects",
+          "--project",        "/var/sws/projects/default",
+          "--www",            "/var/sws/www",
+          "--kiosk-browser",  "chromium --kiosk --no-sandbox --app=https://localhost:8443"]
+```
+
+Browser choices:
+
+| Command | Notes |
+|---|---|
+| `chromium --kiosk --no-sandbox --app=URL` | Most common; needs `chromium` package on the host (the stock SWS image does NOT bundle a browser — install on the board or build a derived image). |
+| `epiphany-browser --application-mode URL` | GNOME Web — lighter than Chromium, fewer deps |
+| `firefox --kiosk URL` | Mature kiosk mode since FF 71 |
+| `cage -- chromium --kiosk --app=URL` | Wayland-only minimal kiosk wrapper — clean, no window decorations |
+
+The browser process inherits stdin/stdout from the runtime: its logs end
+up in journald or `podman logs <container>` alongside the runtime's own
+output. If the browser crashes, the runtime keeps serving; restart the
+browser by hand (or wrap it in a `while true; do …; done` shell loop in
+the `--kiosk-browser` command itself).
+
+Installing chromium on Debian Bookworm arm64 (host side):
+
+```sh
+sudo apt-get update
+sudo apt-get install -y --no-install-recommends \
+    chromium                    \
+    fonts-noto-core libgl1-mesa-dri
+```
+
+For an X-less Wayland kiosk on a barebones board, `cage` + chromium is
+the minimal setup:
+
+```sh
+sudo apt-get install -y cage chromium
+# in compose: --kiosk-browser "cage -- chromium --kiosk --no-sandbox --app=https://localhost:8443"
+```
+
 ## 5. Operational notes
 
 ### TLS certs

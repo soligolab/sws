@@ -10,16 +10,7 @@ import { useEffect } from "react";
 import { api, getAuthToken } from "@/api/client";
 import { useAppStore } from "@/store";
 import type { LogEvent } from "@/types";
-
-function buildWsUrl(path: string): string {
-  const base = import.meta.env.VITE_LOGS_WS_URL
-    ?? (typeof window === "undefined"
-          ? `ws://localhost${path}`
-          : `${window.location.protocol === "https:" ? "wss" : "ws"}://${window.location.host}${path}`);
-  const token = getAuthToken();
-  if (!token) return base;
-  return `${base}${base.includes("?") ? "&" : "?"}token=${encodeURIComponent(token)}`;
-}
+import { buildWsUrl } from "@/ws/wsUrl";
 
 let socket: WebSocket | null = null;
 let currentToken: string | null = null;
@@ -32,7 +23,7 @@ function getSocket(): WebSocket {
   }
   if (!socket || socket.readyState === WebSocket.CLOSED) {
     currentToken = token;
-    socket = new WebSocket(buildWsUrl("/ws/logs"));
+    socket = new WebSocket(buildWsUrl("/ws/logs", "VITE_LOGS_WS_URL"));
   }
   return socket;
 }

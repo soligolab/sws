@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api, type CreateUserBody, type UpdateUserBody, type UserRole, type UserSummary } from "@/api/client";
 import { TagInput } from "@/components/TagInput";
 import { useAppStore } from "@/store";
@@ -1637,6 +1637,137 @@ function AlarmsTab() {
   );
 }
 
+// ── SYSTEM tab ───────────────────────────────────────────────────────────────
+
+interface SystemStatus {
+  runtime_version: string;
+  uptime_s: number;
+  active_project: string | null;
+  tag_count: number;
+  source_count: number;
+  alarm_active_count: number;
+  historian_samples: number;
+  cpu_usage_pct: number;
+  mem_used_mb: number;
+  mem_total_mb: number;
+  disk_used_gb: number;
+  disk_total_gb: number;
+}
+
+function ProgressBar({ value, max, color }: { value: number; max: number; color: string }) {
+  const pct = max > 0 ? Math.min(100, (value / max) * 100) : 0;
+  return (
+    <div style={{ background: "#0f172a", borderRadius: 4, height: 8, overflow: "hidden", flex: 1 }}>
+      <div style={{ width: `${pct}%`, height: "100%", background: color, borderRadius: 4, transition: "width 0.3s" }} />
+    </div>
+  );
+}
+
+function MetricCard({ icon, label, value }: { icon: string; label: string; value: string }) {
+  return (
+    <div style={{ background: "#0f172a", border: "1px solid #1e293b", borderRadius: 6, padding: "10px 14px" }}>
+      <div style={{ fontSize: 11, color: "#64748b", marginBottom: 4 }}>{icon} {label}</div>
+      <div style={{ fontSize: 15, fontWeight: 700, color: "#e2e8f0" }}>{value}</div>
+    </div>
+  );
+}
+
+function SystemTab() {
+  const [status, setStatus] = useState<SystemStatus | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const fetchStatus = async () => {
+    try {
+      const s = await api.getSystemStatus();
+      setStatus(s);
+      setError(null);
+    } catch (e: any) {
+      setError(String(e?.message ?? e));
+    }
+  };
+
+  useEffect(() => {
+    void fetchStatus();
+    intervalRef.current = setInterval(fetchStatus, 10_000);
+    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
+  }, []);
+
+  const fmtUptime = (s: number) => {
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    return h > 0 ? `${h}h ${m}m` : `${m}m`;
+  };
+
+  const fmtSamples = (n: number) => {
+    if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M campioni`;
+    if (n >= 1_000)     return `${(n / 1_000).toFixed(0)}k campioni`;
+    return `${n} campioni`;
+  };
+
+  if (error) {
+    return (
+      <div style={{ color: "#fca5a5", background: "#450a0a", border: "1px solid #991b1b", borderRadius: 6, padding: "12px 16px", fontSize: 13 }}>
+        Errore caricamento stato sistema: {error}
+      </div>
+    );
+  }
+
+  if (!status) {
+    return <div style={{ color: "#64748b", fontSize: 13 }}>Caricamento…</div>;
+  }
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+      <div>
+        <div style={{ fontSize: 12, fontWeight: 700, color: "#64748b", letterSpacing: 1, marginBottom: 10 }}>
+          RUNTIME
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+          <MetricCard icon="🖥" label="Versione" value={status.runtime_version} />
+          <MetricCard icon="📦" label="Progetto" value={status.active_project ?? "—"} />
+          <MetricCard icon="⏱" label="Uptime" value={fmtUptime(status.uptime_s)} />
+          <MetricCard icon="🏷" label="Tag" value={String(status.tag_count)} />
+          <MetricCard icon="📡" label="Sorgenti" value={String(status.source_count)} />
+          <MetricCard icon="🔔" label="Allarmi attivi" value={String(status.alarm_active_count)} />
+        </div>
+        <div style={{ marginTop: 8, background: "#0f172a", border: "1px solid #1e293b", borderRadius: 6, padding: "10px 14px" }}>
+          <div style={{ fontSize: 11, color: "#64748b", marginBottom: 4 }}>📊 Storico</div>
+          <div style={{ fontSize: 15, fontWeight: 700, color: "#e2e8f0" }}>{fmtSamples(status.historian_samples)}</div>
+        </div>
+      </div>
+      <div>
+        <div style={{ fontSize: 12, fontWeight: 700, color: "#64748b", letterSpacing: 1, marginBottom: 10 }}>
+          SISTEMA
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <div style={{ background: "#0f172a", border: "1px solid #1e293b", borderRadius: 6, padding: "10px 14px" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+              <span style={{ fontSize: 11, color: "#64748b" }}>⚙ CPU</span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: "#e2e8f0" }}>{status.cpu_usage_pct.toFixed(1)}%</span>
+            </div>
+            <ProgressBar value={status.cpu_usage_pct} max={100} color="#60a5fa" />
+          </div>
+          <div style={{ background: "#0f172a", border: "1px solid #1e293b", borderRadius: 6, padding: "10px 14px" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+              <span style={{ fontSize: 11, color: "#64748b" }}>💾 RAM</span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: "#e2e8f0" }}>{status.mem_used_mb} MB / {status.mem_total_mb} MB</span>
+            </div>
+            <ProgressBar value={status.mem_used_mb} max={status.mem_total_mb} color="#34d399" />
+          </div>
+          <div style={{ background: "#0f172a", border: "1px solid #1e293b", borderRadius: 6, padding: "10px 14px" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+              <span style={{ fontSize: 11, color: "#64748b" }}>💿 Disco</span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: "#e2e8f0" }}>{status.disk_used_gb} GB / {status.disk_total_gb} GB</span>
+            </div>
+            <ProgressBar value={status.disk_used_gb} max={status.disk_total_gb} color="#fb923c" />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Main ConfigView ───────────────────────────────────────────────────────────
 
 // ── USERS tab ─────────────────────────────────────────────────────────────────
@@ -2058,7 +2189,7 @@ function ResourcesTab() {
 
 // ── ConfigView root ───────────────────────────────────────────────────────────
 
-type ConfigTab = "tags" | "protocols" | "alarms" | "users" | "resources";
+type ConfigTab = "tags" | "protocols" | "alarms" | "users" | "resources" | "system";
 
 const TAB_LABELS: Record<ConfigTab, string> = {
   tags:      "Variabili",
@@ -2066,36 +2197,47 @@ const TAB_LABELS: Record<ConfigTab, string> = {
   alarms:    "Allarmi",
   users:     "Utenti",
   resources: "Risorse",
+  system:    "Stato",
 };
 
 export function ConfigView() {
-  const [tab, setTab] = useState<ConfigTab>("tags");
+  const storeTab    = useAppStore((s) => s.configTab) as ConfigTab;
+  const setStoreTab = useAppStore((s) => s.setConfigTab);
+  const [tab, setTab] = useState<ConfigTab>(storeTab);
   const authRole = useAppStore((s) => s.authRole);
   const isAdmin = authRole === "Admin";
   const project = useAppStore((s) => s.project);
 
+  // Sync when the store tab changes (e.g. navigateToConfig from LeftPanel).
+  useEffect(() => { setTab(storeTab); }, [storeTab]);
+
+  const handleSetTab = (t: ConfigTab) => {
+    setTab(t);
+    setStoreTab(t);
+  };
+
   // Hide the Utenti tab for non-admins; if the URL/state ever sneaks them
   // onto it, bounce back to tags.
   useEffect(() => {
-    if (tab === "users" && !isAdmin) setTab("tags");
+    if (tab === "users" && !isAdmin) handleSetTab("tags");
   }, [tab, isAdmin]);
 
   const visibleTabs: ConfigTab[] = isAdmin
-    ? ["tags", "protocols", "alarms", "users", "resources"]
-    : ["tags", "protocols", "alarms", "resources"];
+    ? ["tags", "protocols", "alarms", "users", "resources", "system"]
+    : ["tags", "protocols", "alarms", "resources", "system"];
 
   // Guard: tags/protocols/alarms tabs all initialise their local state from
   // store.project. If project hasn't loaded yet, rendering them would show
   // empty inputs over a populated YAML and a subsequent save would wipe the
-  // file. The Utenti and Risorse tabs are independent so they stay available.
-  const projectLoading = project === null && tab !== "users" && tab !== "resources";
+  // file. The other tabs are independent so they stay available.
+  const projectLoading = project === null && tab !== "users" && tab !== "resources" && tab !== "system";
 
   return (
     <div style={S.page}>
       {/* Tab bar */}
       <div style={S.tabBar}>
         {visibleTabs.map((t) => (
-          <button key={t} style={S.tab(tab === t)} onClick={() => setTab(t)}>
+          <button key={t} style={S.tab(tab === t)} onClick={() => handleSetTab(t)}>
             {TAB_LABELS[t]}
           </button>
         ))}
@@ -2114,6 +2256,7 @@ export function ConfigView() {
             {tab === "alarms"    && <AlarmsTab />}
             {tab === "users"     && isAdmin && <UsersTab />}
             {tab === "resources" && <ResourcesTab />}
+            {tab === "system"    && <SystemTab />}
           </>
         )}
       </div>

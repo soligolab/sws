@@ -1,6 +1,13 @@
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 
+// Default proxy target for `pnpm dev`. Override at the shell with
+// `VITE_RUNTIME_URL=https://px30.local:8443 pnpm dev` to point the editor
+// at a runtime running on another machine — useful for editing a project
+// hosted on a device while developing on a laptop.
+const RUNTIME_TARGET = process.env.VITE_RUNTIME_URL ?? "https://localhost:8443";
+const WS_TARGET = RUNTIME_TARGET.replace(/^http/, "ws");
+
 export default defineConfig({
   plugins: [react()],
   resolve: {
@@ -9,7 +16,7 @@ export default defineConfig({
   server: {
     proxy: {
       "/api": {
-        target: "https://localhost:8443",
+        target: RUNTIME_TARGET,
         secure: false,
         changeOrigin: true,
         configure: (proxy) => {
@@ -20,7 +27,7 @@ export default defineConfig({
         },
       },
       "/ws": {
-        target: "wss://localhost:8443",
+        target: WS_TARGET,
         secure: false,
         ws: true,
         changeOrigin: true,

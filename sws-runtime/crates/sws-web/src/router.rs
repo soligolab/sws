@@ -8,6 +8,8 @@ use axum::{
     routing::{delete, get, post, put},
     Json, Router,
 };
+use tower_http::cors::{Any, CorsLayer};
+use tower_http::services::{ServeDir, ServeFile};
 use serde::Deserialize;
 use sws_auth::{AuthState, Credentials, LoginError, LoginOk, Role};
 use sws_core::{
@@ -48,6 +50,7 @@ pub struct AppState {
     pub templates_root: Arc<PathBuf>,
     pub logs: Arc<LogBus>,
     pub logs_dir: Arc<PathBuf>,
+    pub started_at: std::time::Instant,
 }
 
 /// Resolve the active project directory or return 503. Used at the top
@@ -70,8 +73,10 @@ pub fn build(
     templates_root: Arc<PathBuf>,
     logs: Arc<LogBus>,
     logs_dir: Arc<PathBuf>,
+    started_at: std::time::Instant,
+    www_dir: Option<PathBuf>,
 ) -> Router {
-    let state = AppState { db, bus, alarms, historian, py, auth, supervisor, functions, project_dir, projects_root, templates_root, logs, logs_dir };
+    let state = AppState { db, bus, alarms, historian, py, auth, supervisor, functions, project_dir, projects_root, templates_root, logs, logs_dir, started_at };
 
     // Routes that need Admin privileges (PUT /api/project/* — schema edits,
     // plus the multi-user CRUD).
@@ -106,6 +111,7 @@ pub fn build(
         .route("/ws/logs",             get(ws_logs_handler))
         // MQTT broker browse: temporary connection, subscribe #, return topics.
         .route("/api/sources/mqtt/browse", post(mqtt_browse_handler))
+        .route("/api/system",             get(crate::system::get_system_status))
         .route_layer(middleware::from_fn(require_operator));
 
     // Routes any authenticated user (incl. Viewer) can hit.
@@ -174,7 +180,34 @@ pub fn build(
         .route("/api/auth/login", post(login))
         .merge(project_lifecycle);
 
-    open.merge(protected).with_state(state)
+    let mut app = open.merge(protected);
+
+    // Serve the Vite-built SPA from disk when --www is provided. Any path that
+    // doesn't match an API/WS route falls through to ServeDir; 404s inside
+    // ServeDir fall back to index.html so the SPA can handle client-side
+    // routing on a refresh. This is the "single-binary" deployment shape:
+    // the editor container is no longer required.
+    if let Some(dir) = www_dir {
+        let index = dir.join("index.html");
+        let fallback = ServeDir::new(&dir).not_found_service(ServeFile::new(index));
+        app = app.fallback_service(fallback);
+    }
+
+    // Permissive CORS for the "editor on laptop → runtime on PX30" deployment
+    // shape (ARCH-004). The editor sets the runtime URL via localStorage and
+    // talks to a different origin; without this layer the browser blocks
+    // every cross-origin fetch at the preflight stage.
+    //
+    // Bearer-token auth is unaffected: `Allow-Credentials` stays at the
+    // default (false), so no cookies cross origins. The `*` wildcard is
+    // CRA-non-compliant — when the PoC graduates to product, narrow this to
+    // a configured allowlist (see follow-ups in STATUS.md).
+    let cors = CorsLayer::new()
+        .allow_origin(Any)
+        .allow_methods(Any)
+        .allow_headers(Any);
+
+    app.layer(cors).with_state(state)
 }
 
 // ── Auth middleware ──────────────────────────────────────────────────────────

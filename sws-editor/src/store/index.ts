@@ -11,6 +11,8 @@ import type {
   ObjectGroup,
   ProjectInfo,
   SourceDef,
+  SubCellEntry,
+  SubGrid,
   SynopticObject,
   SynopticPage,
   TagDef,
@@ -74,6 +76,64 @@ function clonePages(pages: SynopticPage[]): SynopticPage[] {
   }));
 }
 
+// ── Sub-cell tree traversal ───────────────────────────────────────────────
+//
+// The grid cell layout supports recursive split: a `GridCell` can have
+// `sub: SubGrid { orientation, ratio, a?, b? }`, and each slot (a/b) is a
+// `SubCellEntry` that may itself have a `sub`. The helpers below walk that
+// tree by a `path: ("a" | "b")[]`. They return new objects (immutable
+// update) so they're safe to drop into Zustand `set` callbacks.
+
+/** Update the SubGrid at the given path inside `cell.sub`. Empty path =
+ *  the cell-level sub. Path of length 1 = inside slot a/b's own sub.
+ *  Returns a new GridCell. Bails (returns unchanged) if the path is
+ *  invalid (e.g., walks into a slot whose `sub` is absent). */
+function updateSubGridAtPath(
+  cell: GridCell,
+  path: ("a" | "b")[],
+  fn: (sg: SubGrid) => SubGrid | undefined,
+): GridCell {
+  // Empty path: the target is cell.sub itself.
+  if (path.length === 0) {
+    if (!cell.sub) return cell;
+    const next = fn(cell.sub);
+    return { ...cell, sub: next };
+  }
+  // Recurse: target is path[0]'s entry, then walk path[1..].
+  if (!cell.sub) return cell;
+  const [head, ...rest] = path;
+  const entry = cell.sub[head];
+  if (!entry?.sub && rest.length > 0) return cell;
+  // Build a synthetic cell where cell.sub is the entry's sub, recurse, and
+  // splice the result back in.
+  if (rest.length === 0) {
+    // Path ends here — apply `fn` to entry.sub
+    if (!entry?.sub) return cell;
+    const nextSubGrid = fn(entry.sub);
+    const nextEntry = { ...entry, sub: nextSubGrid };
+    return { ...cell, sub: { ...cell.sub, [head]: nextEntry } };
+  }
+  // Deeper recursion: treat entry as a pseudo-cell. The early-return above
+  // already ensured entry.sub exists when there are remaining path steps.
+  const pseudoCell: GridCell = { row: 0, col: 0, sub: entry!.sub };
+  const updatedPseudo = updateSubGridAtPath(pseudoCell, rest, fn);
+  const nextEntry = { ...entry!, sub: updatedPseudo.sub };
+  return { ...cell, sub: { ...cell.sub, [head]: nextEntry } };
+}
+
+/** Update the `SubCellEntry` at the given path (path must be non-empty —
+ *  empty paths refer to the cell itself, which is a `GridCell`, not an entry). */
+function updateSubCellEntryAtPath(
+  cell: GridCell,
+  path: ("a" | "b")[],
+  fn: (entry: SubCellEntry | undefined) => SubCellEntry | undefined,
+): GridCell {
+  if (path.length === 0) return cell; // can't address a SubCellEntry with empty path
+  const head = path[path.length - 1];
+  const parentPath = path.slice(0, -1);
+  return updateSubGridAtPath(cell, parentPath, (sg) => ({ ...sg, [head]: fn(sg[head]) }));
+}
+
 const HISTORY_LIMIT = 200;
 
 /** Object alignment commands operating on a set of objects. */
@@ -83,6 +143,8 @@ export type AlignMode =
   | "distribute-x" | "distribute-y";
 
 export type Role = "Viewer" | "Operator" | "Supervisor" | "Admin";
+export type AppMode = "edit" | "view" | "config";
+export type AppConfigTab = "tags" | "protocols" | "alarms" | "users" | "resources" | "system";
 
 interface AppState {
   // Auth
@@ -111,11 +173,22 @@ interface AppState {
   selectedCell: { objectId: string; row: number; col: number } | null;
   /** The child object inside the selected cell that has been individually clicked. */
   selectedCellChild: { objectId: string; row: number; col: number } | null;
+  /** Rectangular range of grid cells selected for merge. Normalised so r1≤r2, c1≤c2. */
+  selectedCellRange: { objectId: string; r1: number; c1: number; r2: number; c2: number } | null;
+  /** Slot inside a split cell that the user clicked, for sub-cell property
+   *  editing. `path` is the chain of slot keys from the cell down to the
+   *  selected entry — `["a"]` for a first-level split, `["a","b"]` for a
+   *  deeper one, and so on. */
+  selectedSubCell: { objectId: string; row: number; col: number; path: ("a" | "b")[] } | null;
   /** Snapshot stacks for undo/redo. Each entry is a labeled clone of `pages`. */
   past: HistoryEntry[];
   future: HistoryEntry[];
   /** Cut/paste buffer (in-memory only — not persisted across reloads). */
   clipboard: SynopticObject[];
+  /** Page id the clipboard contents came from. Used by pasteClipboard to
+   *  decide whether to keep grouping (same page → yes) and whether to
+   *  offset coords (same page → +20 to avoid overlap, cross-page → 0). */
+  clipboardSourcePageId: string | null;
 
   tagValues: Record<string, TagState>;
   alarms: Record<string, AlarmState>;
@@ -167,6 +240,25 @@ interface AppState {
   duplicatePage: (id: string) => void;
   updatePageProps: (id: string, patch: Partial<Pick<SynopticPage, "name" | "background" | "width" | "height">>) => void;
   updateGridCell: (pageId: string, objectId: string, cell: GridCell) => void;
+  setSelectedCellRange: (range: { objectId: string; r1: number; c1: number; r2: number; c2: number } | null) => void;
+  setSelectedSubCell: (sub: { objectId: string; row: number; col: number; path: ("a" | "b")[] } | null) => void;
+  /** Merge an N×M range of cells into the top-left origin (rs/cs spans).
+   *  Returns an error message if the range overlaps with another existing merge. */
+  mergeCellRange: (pageId: string, objectId: string, r1: number, c1: number, r2: number, c2: number) => string | null;
+  /** Reset rowspan/colspan on a previously-merged cell. */
+  unmergeCell: (pageId: string, objectId: string, row: number, col: number) => void;
+  /** Subdivide a cell or any sub-cell at the given path into 1×2 / 2×1.
+   *  Empty path = cell level (migrates `child` to `sub.a`); non-empty path =
+   *  recursive split of an existing sub-cell entry. */
+  splitCell: (pageId: string, objectId: string, row: number, col: number, orientation: "rows" | "cols", path?: ("a" | "b")[]) => void;
+  /** Remove the mini-grid at the given path. Empty path = cell level. */
+  joinSplitCell: (pageId: string, objectId: string, row: number, col: number, path?: ("a" | "b")[]) => void;
+  /** Update the `ratio` of the sub-grid at the given path during drag. */
+  resizeSubBorder: (pageId: string, objectId: string, row: number, col: number, path: ("a" | "b")[], newRatio: number) => void;
+  /** Patch fields of a sub-cell entry at the given path (bg_color, child, …).
+   *  No-history per call: the panel coalesces edits via the existing interaction
+   *  bracket only when needed; otherwise each save pushes one history entry. */
+  updateSubCellAt: (pageId: string, objectId: string, row: number, col: number, path: ("a" | "b")[], patch: { bg_color?: string; bg_image?: string; visible?: boolean; visible_tag?: string; on_press_fn?: string; on_release_fn?: string; child?: SynopticObject; }) => void;
   setCurrentPage: (id: string) => void;
   setSelectedCell: (cell: { objectId: string; row: number; col: number } | null) => void;
   setSelectedCellChild: (cell: { objectId: string; row: number; col: number } | null) => void;
@@ -188,7 +280,7 @@ interface AppState {
   // Clipboard
   copySelection: () => void;
   pasteClipboard: () => void;
-  setClipboard: (objs: SynopticObject[]) => void;
+  setClipboard: (objs: SynopticObject[], sourcePageId?: string | null) => void;
 
   // Alignment & distribution (multi-select)
   alignSelection: (mode: AlignMode) => void;
@@ -200,6 +292,15 @@ interface AppState {
   canRedo: () => boolean;
   jumpToPast: (index: number) => void;
   jumpToFuture: (index: number) => void;
+
+  /**
+   * Bracketed interaction (drag, resize, etc.). Captures the pre-state in
+   * a single history entry on `begin`, then suspends per-mutation history
+   * pushes until `end`. Without this, a 200 px drag turns into 200 undo
+   * steps because `updateObject` pushes on every pixel.
+   */
+  beginInteraction: (label: string) => void;
+  endInteraction: () => void;
 
   // Object grouping (UI-only, no canvas effect)
   groupObjects: (ids: string[], name?: string) => void;
@@ -222,6 +323,13 @@ interface AppState {
   // Canvas settings
   setGridSize: (size: number) => void;
   setSnapEnabled: (enabled: boolean) => void;
+
+  // App-level navigation (allows cross-view navigation, e.g. LeftPanel → ConfigView)
+  appMode: AppMode;
+  configTab: AppConfigTab;
+  setAppMode: (mode: AppMode) => void;
+  setConfigTab: (tab: AppConfigTab) => void;
+  navigateToConfig: (tab: AppConfigTab) => void;
 }
 
 const first = makePage("Page 1");
@@ -232,11 +340,28 @@ const persisted = readPersistedAuth();
 if (persisted) setAuthToken(persisted.token);
 
 export const useAppStore = create<AppState>((set, get) => {
+  // Suspend per-mutation history pushes while > 0. Lets a drag/resize
+  // capture one history entry up front (at beginInteraction) instead of
+  // one per pixel.
+  let interactionDepth = 0;
+
   /**
    * Push a labeled snapshot of the current `pages` onto the history stack
    * before applying a mutation. Clears the redo stack. Capped at HISTORY_LIMIT.
+   * Becomes a no-op while inside a bracketed interaction.
    */
   const pushHistory = (label: string) => {
+    if (interactionDepth > 0) return;
+    const { pages, past } = get();
+    const entry: HistoryEntry = { pages: clonePages(pages), label };
+    const trimmed = past.length >= HISTORY_LIMIT
+      ? past.slice(past.length - HISTORY_LIMIT + 1)
+      : past;
+    set({ past: [...trimmed, entry], future: [] });
+  };
+
+  /** Force-push a history entry even mid-interaction; used by begin. */
+  const pushHistoryUnconditional = (label: string) => {
     const { pages, past } = get();
     const entry: HistoryEntry = { pages: clonePages(pages), label };
     const trimmed = past.length >= HISTORY_LIMIT
@@ -268,9 +393,12 @@ export const useAppStore = create<AppState>((set, get) => {
     selectedFunctionId: null,
     selectedCell: null,
     selectedCellChild: null,
+    selectedCellRange: null,
+    selectedSubCell: null,
     past: [],
     future: [],
     clipboard: [],
+    clipboardSourcePageId: null,
     tagValues: {},
     alarms: {},
     logs: [],
@@ -412,10 +540,38 @@ export const useAppStore = create<AppState>((set, get) => {
         const prev = s.selectedCell;
         const same = prev && cell &&
           prev.objectId === cell.objectId && prev.row === cell.row && prev.col === cell.col;
-        return { selectedCell: cell, selectedCellChild: same ? s.selectedCellChild : null };
+        // Setting a single cell clears multi-cell and sub-cell selection so
+        // the panel can show the right UI without flicker.
+        return {
+          selectedCell: cell,
+          selectedCellChild: same ? s.selectedCellChild : null,
+          selectedCellRange: null,
+          selectedSubCell: same ? s.selectedSubCell : null,
+        };
       }),
 
     setSelectedCellChild: (cell) => set({ selectedCellChild: cell }),
+
+    setSelectedCellRange: (range) =>
+      set((s) => {
+        if (!range) return { selectedCellRange: null };
+        // Normalise to r1≤r2, c1≤c2 so consumers don't have to guess.
+        const r1 = Math.min(range.r1, range.r2);
+        const r2 = Math.max(range.r1, range.r2);
+        const c1 = Math.min(range.c1, range.c2);
+        const c2 = Math.max(range.c1, range.c2);
+        // Setting a multi-cell range clears the sub-cell focus; the single
+        // selectedCell stays put so the user can still see "where the range
+        // started" if helpful.
+        return {
+          selectedCellRange: { objectId: range.objectId, r1, c1, r2, c2 },
+          selectedSubCell: null,
+          // Also drop any cell-child focus (range edits live at cell level).
+          selectedCellChild: s.selectedCellChild,
+        };
+      }),
+
+    setSelectedSubCell: (sub) => set({ selectedSubCell: sub }),
 
     setPages: (pages, currentPageId) =>
       set({
@@ -425,6 +581,8 @@ export const useAppStore = create<AppState>((set, get) => {
         selectedObjectIds: [],
         selectedCell: null,
         selectedCellChild: null,
+        selectedCellRange: null,
+        selectedSubCell: null,
         past: [],
         future: [],
       }),
@@ -520,6 +678,213 @@ export const useAppStore = create<AppState>((set, get) => {
       }));
     },
 
+    mergeCellRange: (pageId, objectId, r1, c1, r2, c2) => {
+      // Normalise + bail on degenerate ranges.
+      const rs = Math.max(r1, r2) - Math.min(r1, r2) + 1;
+      const cs = Math.max(c1, c2) - Math.min(c1, c2) + 1;
+      if (rs < 1 || cs < 1) return "Range non valido.";
+      if (rs === 1 && cs === 1) return "Seleziona almeno due celle.";
+      const topR = Math.min(r1, r2);
+      const topC = Math.min(c1, c2);
+
+      // Look up the grid object first so we can validate before mutating.
+      const page = get().pages.find((p) => p.id === pageId);
+      const obj = page?.objects.find((o) => o.id === objectId);
+      if (!obj || obj.type !== "grid") return "Oggetto non trovato.";
+      const cells = (obj.grid_cells ?? []) as GridCell[];
+
+      // Reject if any cell inside the range is already the origin of a merge
+      // whose footprint extends outside the new range — that would orphan the
+      // overlapping portion.
+      for (const c of cells) {
+        const cRs = c.rowspan ?? 1;
+        const cCs = c.colspan ?? 1;
+        if (cRs === 1 && cCs === 1) continue;
+        const inside = c.row >= topR && c.row < topR + rs && c.col >= topC && c.col < topC + cs;
+        if (!inside) continue;
+        const extendsOut = c.row + cRs > topR + rs || c.col + cCs > topC + cs;
+        if (extendsOut) {
+          return `La cella (${c.row},${c.col}) ha già un merge che sborderebbe.`;
+        }
+      }
+
+      pushHistory("Unisci celle");
+      set((s) => ({
+        pages: s.pages.map((p) =>
+          p.id !== pageId ? p : {
+            ...p,
+            objects: p.objects.map((o) => {
+              if (o.id !== objectId || o.type !== "grid") return o;
+              const list = (o.grid_cells ?? []) as GridCell[];
+              // Drop every entry strictly inside the range (origin is updated below).
+              const survivors = list.filter((c) =>
+                !(c.row >= topR && c.row < topR + rs &&
+                  c.col >= topC && c.col < topC + cs) ||
+                (c.row === topR && c.col === topC)
+              );
+              const originIdx = survivors.findIndex((c) => c.row === topR && c.col === topC);
+              const origin: GridCell = originIdx >= 0
+                ? { ...survivors[originIdx], rowspan: rs, colspan: cs }
+                : { row: topR, col: topC, rowspan: rs, colspan: cs };
+              const next = originIdx >= 0
+                ? survivors.map((c, i) => (i === originIdx ? origin : c))
+                : [...survivors, origin];
+              return { ...o, grid_cells: next };
+            }),
+          }
+        ),
+        selectedCellRange: null,
+        selectedCell: { objectId, row: topR, col: topC },
+      }));
+      return null;
+    },
+
+    unmergeCell: (pageId, objectId, row, col) => {
+      pushHistory("Annulla unione");
+      set((s) => ({
+        pages: s.pages.map((p) =>
+          p.id !== pageId ? p : {
+            ...p,
+            objects: p.objects.map((o) => {
+              if (o.id !== objectId || o.type !== "grid") return o;
+              const list = (o.grid_cells ?? []) as GridCell[];
+              const next = list.map((c) => {
+                if (c.row !== row || c.col !== col) return c;
+                // Strip span fields; preserve everything else.
+                const { rowspan: _rs, colspan: _cs, ...rest } = c;
+                return rest;
+              });
+              return { ...o, grid_cells: next };
+            }),
+          }
+        ),
+      }));
+    },
+
+    splitCell: (pageId, objectId, row, col, orientation, path = []) => {
+      pushHistory(path.length === 0 ? "Dividi cella" : "Dividi sub-cella");
+      set((s) => ({
+        pages: s.pages.map((p) =>
+          p.id !== pageId ? p : {
+            ...p,
+            objects: p.objects.map((o) => {
+              if (o.id !== objectId || o.type !== "grid") return o;
+              const list = (o.grid_cells ?? []) as GridCell[];
+              const idx = list.findIndex((c) => c.row === row && c.col === col);
+              const prev: GridCell = idx >= 0 ? list[idx] : { row, col };
+              let updated: GridCell;
+              if (path.length === 0) {
+                // Cell-level split: migrate any existing `child` to sub.a.
+                const newSub: SubGrid = {
+                  orientation,
+                  ratio: 0.5,
+                  a: prev.child ? { child: prev.child } : undefined,
+                };
+                updated = { ...prev, child: undefined, sub: newSub };
+              } else {
+                // Sub-level split: target the entry at `path`, migrate its
+                // child into the new mini-grid's slot A.
+                updated = updateSubCellEntryAtPath(prev, path, (entry) => {
+                  const e = entry ?? {};
+                  const newSub: SubGrid = {
+                    orientation,
+                    ratio: 0.5,
+                    a: e.child ? { child: e.child } : undefined,
+                  };
+                  return { ...e, child: undefined, sub: newSub };
+                });
+              }
+              const next = idx >= 0
+                ? list.map((c, i) => (i === idx ? updated : c))
+                : [...list, updated];
+              return { ...o, grid_cells: next };
+            }),
+          }
+        ),
+      }));
+    },
+
+    joinSplitCell: (pageId, objectId, row, col, path = []) => {
+      pushHistory(path.length === 0 ? "Rimuovi split" : "Rimuovi split sub-cella");
+      set((s) => ({
+        pages: s.pages.map((p) =>
+          p.id !== pageId ? p : {
+            ...p,
+            objects: p.objects.map((o) => {
+              if (o.id !== objectId || o.type !== "grid") return o;
+              const list = (o.grid_cells ?? []) as GridCell[];
+              const next = list.map((c) => {
+                if (c.row !== row || c.col !== col) return c;
+                if (path.length === 0) {
+                  // Cell-level un-split: lift `sub.a.child` (or .b.child) back to cell-level.
+                  const promoted = c.sub?.a?.child ?? c.sub?.b?.child;
+                  const { sub: _sub, ...rest } = c;
+                  return promoted ? { ...rest, child: promoted } : rest;
+                }
+                // Sub-level un-split: clear the entry's `sub`, promote its
+                // sub.a.child (or .b.child) back into the entry's child.
+                return updateSubCellEntryAtPath(c, path, (entry) => {
+                  if (!entry?.sub) return entry;
+                  const promoted = entry.sub.a?.child ?? entry.sub.b?.child;
+                  const { sub: _sub, ...rest } = entry;
+                  return promoted ? { ...rest, child: promoted } : rest;
+                });
+              });
+              return { ...o, grid_cells: next };
+            }),
+          }
+        ),
+        selectedSubCell: null,
+      }));
+    },
+
+    resizeSubBorder: (pageId, objectId, row, col, path, newRatio) => {
+      // No pushHistory — the SvgCanvas drag interaction bracket covers it.
+      set((s) => ({
+        pages: s.pages.map((p) =>
+          p.id !== pageId ? p : {
+            ...p,
+            objects: p.objects.map((o) => {
+              if (o.id !== objectId || o.type !== "grid") return o;
+              const list = (o.grid_cells ?? []) as GridCell[];
+              const next = list.map((c) => {
+                if (c.row !== row || c.col !== col) return c;
+                // path is the path TO THE SUBGRID being resized. Empty path
+                // means cell.sub itself; non-empty means a nested SubGrid
+                // inside that path's entry.
+                if (path.length === 0) {
+                  if (!c.sub) return c;
+                  return { ...c, sub: { ...c.sub, ratio: newRatio } };
+                }
+                return updateSubGridAtPath(c, path, (sg) => ({ ...sg, ratio: newRatio }));
+              });
+              return { ...o, grid_cells: next };
+            }),
+          }
+        ),
+      }));
+    },
+
+    updateSubCellAt: (pageId, objectId, row, col, path, patch) => {
+      pushHistory("Modifica sub-cella");
+      set((s) => ({
+        pages: s.pages.map((p) =>
+          p.id !== pageId ? p : {
+            ...p,
+            objects: p.objects.map((o) => {
+              if (o.id !== objectId || o.type !== "grid") return o;
+              const list = (o.grid_cells ?? []) as GridCell[];
+              const next = list.map((c) => {
+                if (c.row !== row || c.col !== col) return c;
+                return updateSubCellEntryAtPath(c, path, (entry) => ({ ...(entry ?? {}), ...patch }));
+              });
+              return { ...o, grid_cells: next };
+            }),
+          }
+        ),
+      }));
+    },
+
     setCurrentPage: (id) => set({
       currentPageId: id,
       selectedObjectId: null,
@@ -527,6 +892,8 @@ export const useAppStore = create<AppState>((set, get) => {
       selectedFunctionId: null,
       selectedCell: null,
       selectedCellChild: null,
+      selectedCellRange: null,
+      selectedSubCell: null,
     }),
 
     selectObject: (id) =>
@@ -536,6 +903,8 @@ export const useAppStore = create<AppState>((set, get) => {
         selectedFunctionId: null,
         selectedCell: null,
         selectedCellChild: null,
+        selectedCellRange: null,
+        selectedSubCell: null,
       }),
 
     toggleSelection: (id) => set((s) => {
@@ -559,7 +928,8 @@ export const useAppStore = create<AppState>((set, get) => {
 
     clearSelection: () =>
       set({ selectedObjectId: null, selectedObjectIds: [], selectedFunctionId: null,
-            selectedCell: null, selectedCellChild: null }),
+            selectedCell: null, selectedCellChild: null,
+            selectedCellRange: null, selectedSubCell: null }),
 
     selectFunction: (id) =>
       set({
@@ -715,26 +1085,36 @@ export const useAppStore = create<AppState>((set, get) => {
         .map((id) => page.objects.find((o) => o.id === id))
         .filter((o): o is SynopticObject => !!o)
         .map((o) => ({ ...o })); // shallow clone — values are primitives or arrays we'll overwrite on paste
-      set({ clipboard: picked });
+      set({ clipboard: picked, clipboardSourcePageId: currentPageId });
     },
 
     pasteClipboard: () => {
-      const { clipboard, currentPageId } = get();
+      const { clipboard, currentPageId, clipboardSourcePageId } = get();
       if (clipboard.length === 0) return;
+      // Same-page paste behaves like a duplicate: offset by +20 to make the
+      // copies visually distinct, and keep group_id so the original
+      // grouping is preserved.
+      // Cross-page paste keeps the original coordinates (no overlap risk on
+      // the destination page) and strips group_id (the destination page's
+      // group registry doesn't know about the source page's groups).
+      const samePage = clipboardSourcePageId === currentPageId;
       pushHistory("Incolla");
       const newIds: string[] = [];
       const copies = clipboard.map((src) => {
         const id = genId();
         newIds.push(id);
-        return {
+        const offset = samePage ? 20 : 0;
+        const out: SynopticObject = {
           ...src,
           id,
           name: src.name ? `${src.name} (incolla)` : undefined,
-          x: (src.x ?? 0) + 20,
-          y: (src.y ?? 0) + 20,
-          x2: src.x2 != null ? src.x2 + 20 : undefined,
-          y2: src.y2 != null ? src.y2 + 20 : undefined,
+          x: (src.x ?? 0) + offset,
+          y: (src.y ?? 0) + offset,
+          x2: src.x2 != null ? src.x2 + offset : undefined,
+          y2: src.y2 != null ? src.y2 + offset : undefined,
         };
+        if (!samePage) delete out.group_id;
+        return out;
       });
       set((s) => ({
         pages: s.pages.map((p) =>
@@ -745,7 +1125,8 @@ export const useAppStore = create<AppState>((set, get) => {
       }));
     },
 
-    setClipboard: (objs) => set({ clipboard: objs }),
+    setClipboard: (objs, sourcePageId = null) =>
+      set({ clipboard: objs, clipboardSourcePageId: sourcePageId }),
 
     alignSelection: (mode) => {
       const { selectedObjectIds, pages, currentPageId } = get();
@@ -852,6 +1233,8 @@ export const useAppStore = create<AppState>((set, get) => {
         selectedObjectIds: [],
         selectedCell: null,
         selectedCellChild: null,
+        selectedCellRange: null,
+        selectedSubCell: null,
       });
     },
 
@@ -868,6 +1251,8 @@ export const useAppStore = create<AppState>((set, get) => {
         selectedObjectIds: [],
         selectedCell: null,
         selectedCellChild: null,
+        selectedCellRange: null,
+        selectedSubCell: null,
       });
     },
 
@@ -892,6 +1277,8 @@ export const useAppStore = create<AppState>((set, get) => {
         selectedObjectIds: [],
         selectedCell: null,
         selectedCellChild: null,
+        selectedCellRange: null,
+        selectedSubCell: null,
       });
     },
 
@@ -913,7 +1300,21 @@ export const useAppStore = create<AppState>((set, get) => {
         selectedObjectIds: [],
         selectedCell: null,
         selectedCellChild: null,
+        selectedCellRange: null,
+        selectedSubCell: null,
       });
+    },
+
+    beginInteraction: (label) => {
+      // Only the outermost begin actually pushes — nested begins (which
+      // would otherwise happen if a resize handler also called begin)
+      // just bump the depth counter.
+      if (interactionDepth === 0) pushHistoryUnconditional(label);
+      interactionDepth += 1;
+    },
+
+    endInteraction: () => {
+      if (interactionDepth > 0) interactionDepth -= 1;
     },
 
     updateTagValue: (id, state) =>
@@ -943,6 +1344,12 @@ export const useAppStore = create<AppState>((set, get) => {
 
     setGridSize: (gridSize) => set({ gridSize }),
     setSnapEnabled: (snapEnabled) => set({ snapEnabled }),
+
+    appMode: "edit",
+    configTab: "tags",
+    setAppMode: (appMode) => set({ appMode }),
+    setConfigTab: (configTab) => set({ configTab }),
+    navigateToConfig: (tab) => set({ appMode: "config", configTab: tab }),
 
     incSaveSerial: () => set((s) => ({ saveSerial: s.saveSerial + 1 })),
     setSaveStatus: (saveStatus, saveError = null) => set({ saveStatus, saveError }),
