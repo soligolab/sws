@@ -3,8 +3,19 @@
 > This file is the **session-to-session memory** for Claude Code. Update it at the end of every session before stopping work. Read it at the start of every session before touching code.
 
 **Last session**: 2026-05-18 (sessione 24: ARCH-003 kiosk-mode + iterazioni UX grid post-S-23 — ricorsione sub-cell, breadcrumb cliccabile per navigazione grid→cella→sub-cella, ObjectProps accordion redesign)
-**Current phase**: Phase 2. Demo working out-of-the-box su fresh clone, import/export progetto per backup/condivisione, pannello log live + persistenza su disco, gestione utenti multi-account. Da questa sessione il runtime può servire la SPA da sé (`--www`) e l'editor può puntare a un runtime remoto via `VITE_RUNTIME_URL` — sblocco completo del deploy single-container su PX30.
-**Last commit**: (vedi CHANGELOG [Unreleased] per i dettagli della sessione corrente)
+**Current phase**: Phase 2. Demo working out-of-the-box su fresh clone, import/export progetto per backup/condivisione, pannello log live + persistenza su disco, gestione utenti multi-account. Da questa sessione il runtime può servire la SPA da sé (`--www`), puntare a un runtime remoto via `VITE_RUNTIME_URL` lato editor, e spawnare automaticamente un browser kiosk (`--kiosk-browser`) — il trio ARCH-001/002/003 è chiuso e il deploy single-board PX30 unattended è teoricamente pronto. Manca solo il test su hardware fisico.
+**Last commit**: `caa225e` (ARCH-003). Tutto pushato a `origin/main`.
+
+### Handoff per la prossima sessione (resume da casa)
+
+1. **`git pull` su `main`** — la sessione 24 è chiusa con 9 commit pushati dopo `8c0f158` (cross-view navigation). HEAD = `caa225e`.
+2. **Smoke-test rapido (5 min)** prima di partire con cose nuove:
+   - `./scripts/dev.sh` → editor + runtime up.
+   - In pagina 1 della demo, aggiungi un `grid` → splitta una cella → click sul sub-slot → verifica che il pannello mostri il sub-cell editor (non page props) e che ci siano breadcrumb chip cliccabili.
+   - Click su un oggetto qualsiasi → pannello con sezioni Trasformazione/Layer/Eventi/Binding collassate di default.
+   - Se vuoi testare ARCH-003 senza PX30: `SWS_ADMIN_PASSWORD=admin cargo run -p sws-runtime -- --kiosk-browser "firefox https://localhost:8443"` (o chromium).
+3. **Prossimo step raccomandato**: **S-26 ARCH-004 multi-runtime WelcomeScreen** (~3h) — tab "Runtime remoto" in WelcomeScreen con input URL + test connessione `/health` + localStorage `swsRuntimeUrl` override. Sblocco completo del workflow "editor sul laptop → runtime sul PX30 in produzione". Dipende solo da ARCH-002 (✅).
+4. **Alternativa di S-25** se hai il PX30 con un display sotto mano: installa chromium, ricrea i container con `--www` + `--kiosk-browser`, verifica che parta da solo al boot via systemd. Una sessione da ~1h se la rete e l'apt funzionano al primo colpo.
 
 ### Cosa è andato online in queste sessioni (in ordine di commit)
 - (sessione 2026-05-18, sessione 24) **ARCH-003 — Kiosk-mode browser spawn** — nuova CLI arg `--kiosk-browser <shell-cmd>`. Dopo che il listener HTTPS è up e `/health` risponde OK (poll reqwest con `danger_accept_invalid_certs(true)`, 50×100ms), il runtime fa `tokio::process::Command::new("sh").arg("-c").arg(cmd).spawn()` fire-and-forget. La morte del child non ferma il runtime; il runtime exit non killa il child. Entrypoint.sh ha commento con esempi. `docs/DEPLOY_PX30.md` §4c documenta il setup con chromium/epiphany/firefox/cage. La stock image non include un browser — installazione lato host.
