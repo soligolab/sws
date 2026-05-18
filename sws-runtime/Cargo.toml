@@ -75,3 +75,6 @@ reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"
 
 # Error handling
 anyhow = "1"
+
+# System metrics (CPU, RAM, disk)
+sysinfo = "0.30"

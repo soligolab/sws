@@ -371,6 +371,21 @@ export const api = {
       body: JSON.stringify(req),
     }),
 
+  getSystemStatus: (): Promise<{
+    runtime_version: string;
+    uptime_s: number;
+    active_project: string | null;
+    tag_count: number;
+    source_count: number;
+    alarm_active_count: number;
+    historian_samples: number;
+    cpu_usage_pct: number;
+    mem_used_mb: number;
+    mem_total_mb: number;
+    disk_used_gb: number;
+    disk_total_gb: number;
+  }> => request("/api/system"),
+
   uploadProjectZip: async (file: Blob, name?: string): Promise<{ name: string }> => {
     const url = name
       ? `${BASE_URL}/api/projects/upload?name=${encodeURIComponent(name)}`

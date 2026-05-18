@@ -289,7 +289,8 @@ const LOG_PANEL_KEY = "sws.logPanel.open";
 
 export function App() {
   const { t } = useTranslation();
-  const [mode, setMode] = useState<Mode>("edit");
+  const mode    = useAppStore((s) => s.appMode);
+  const setMode = useAppStore((s) => s.setAppMode);
   const [logOpen, setLogOpen] = useState<boolean>(() => {
     try { return localStorage.getItem(LOG_PANEL_KEY) === "1"; } catch { return false; }
   });

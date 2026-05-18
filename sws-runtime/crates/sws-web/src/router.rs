@@ -48,6 +48,7 @@ pub struct AppState {
     pub templates_root: Arc<PathBuf>,
     pub logs: Arc<LogBus>,
     pub logs_dir: Arc<PathBuf>,
+    pub started_at: std::time::Instant,
 }
 
 /// Resolve the active project directory or return 503. Used at the top
@@ -70,8 +71,9 @@ pub fn build(
     templates_root: Arc<PathBuf>,
     logs: Arc<LogBus>,
     logs_dir: Arc<PathBuf>,
+    started_at: std::time::Instant,
 ) -> Router {
-    let state = AppState { db, bus, alarms, historian, py, auth, supervisor, functions, project_dir, projects_root, templates_root, logs, logs_dir };
+    let state = AppState { db, bus, alarms, historian, py, auth, supervisor, functions, project_dir, projects_root, templates_root, logs, logs_dir, started_at };
 
     // Routes that need Admin privileges (PUT /api/project/* — schema edits,
     // plus the multi-user CRUD).
@@ -106,6 +108,7 @@ pub fn build(
         .route("/ws/logs",             get(ws_logs_handler))
         // MQTT broker browse: temporary connection, subscribe #, return topics.
         .route("/api/sources/mqtt/browse", post(mqtt_browse_handler))
+        .route("/api/system",             get(crate::system::get_system_status))
         .route_layer(middleware::from_fn(require_operator));
 
     // Routes any authenticated user (incl. Viewer) can hit.

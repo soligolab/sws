@@ -221,47 +221,76 @@ function PagesSection() {
 
 // ── Objects palette section ───────────────────────────────────────────────────
 
-const OBJECT_TYPES: { type: SynopticObject["type"]; label: string; disabled?: boolean }[] = [
-  { type: "rect",         label: "Rettangolo" },
-  { type: "ellipse",      label: "Ellisse" },
-  { type: "line",         label: "Linea" },
-  { type: "text",         label: "Testo" },
-  { type: "button",       label: "Bottone" },
-  { type: "navbutton",    label: "Nav page" },
-  { type: "checkbox",     label: "Checkbox" },
-  { type: "radio",        label: "Radio" },
-  { type: "slider",       label: "Slider" },
-  { type: "gauge",        label: "Gauge" },
-  { type: "led",          label: "LED" },
-  { type: "progress_bar", label: "Progress" },
-  { type: "table",        label: "Tabella" },
-  { type: "trend",        label: "Trend" },
-  { type: "symbol",       label: "Simbolo" },
-  { type: "image",        label: "Immagine" },
-  { type: "grid",         label: "Griglia" },
+interface PaletteItem { type: SynopticObject["type"]; label: string; icon: string }
+interface PaletteGroup { category: string; color: string; defaultOpen?: boolean; items: PaletteItem[] }
+
+const PALETTE_GROUPS: PaletteGroup[] = [
+  { category: "Forme", color: "#60a5fa", defaultOpen: true, items: [
+    { type: "rect",    label: "Rettangolo", icon: "▭" },
+    { type: "ellipse", label: "Ellisse",    icon: "○" },
+    { type: "line",    label: "Linea",      icon: "╱" },
+    { type: "text",    label: "Testo",      icon: "T" },
+    { type: "image",   label: "Immagine",   icon: "🖼" },
+  ]},
+  { category: "Controlli", color: "#34d399", items: [
+    { type: "button",    label: "Bottone",  icon: "⊡" },
+    { type: "navbutton", label: "Nav page", icon: "↗" },
+    { type: "checkbox",  label: "Checkbox", icon: "☑" },
+    { type: "radio",     label: "Radio",    icon: "◉" },
+    { type: "slider",    label: "Slider",   icon: "↔" },
+  ]},
+  { category: "Display", color: "#fb923c", items: [
+    { type: "gauge",        label: "Gauge",    icon: "◔" },
+    { type: "led",          label: "LED",      icon: "●" },
+    { type: "progress_bar", label: "Progress", icon: "▰" },
+    { type: "table",        label: "Tabella",  icon: "≡" },
+    { type: "trend",        label: "Trend",    icon: "∿" },
+  ]},
+  { category: "SCADA", color: "#f472b6", items: [
+    { type: "symbol", label: "Simbolo", icon: "⚙" },
+  ]},
+  { category: "Layout", color: "#a78bfa", items: [
+    { type: "grid", label: "Griglia", icon: "⊞" },
+  ]},
 ];
+
+function PaletteGroupAccordion({ group, onAdd }: { group: PaletteGroup; onAdd: (type: SynopticObject["type"]) => void }) {
+  const [open, setOpen] = useState(group.defaultOpen ?? false);
+  return (
+    <div>
+      <div
+        style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "4px 10px", cursor: "pointer", background: "#0a111e", borderBottom: "1px solid #1e293b" }}
+        onClick={() => setOpen((v) => !v)}
+      >
+        <span style={{ fontSize: 10, fontWeight: 700, color: group.color, letterSpacing: 0.5 }}>
+          {group.category.toUpperCase()}
+        </span>
+        <span style={{ fontSize: 9, color: "#475569" }}>{open ? "▼" : "▶"}</span>
+      </div>
+      {open && (
+        <div style={{ padding: "4px 8px", display: "flex", flexDirection: "column", gap: 2 }}>
+          {group.items.map(({ type, label, icon }) => (
+            <button
+              key={type}
+              onClick={() => onAdd(type)}
+              style={{ ...S.objBtn, flex: "none", width: "100%", display: "flex", alignItems: "center", gap: 6 }}
+            >
+              <span style={{ fontSize: 14, color: group.color, flexShrink: 0, width: 18, textAlign: "center" as const }}>{icon}</span>
+              <span>{label}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function ObjectPalette({ onAdd }: { onAdd: (type: SynopticObject["type"]) => void }) {
   return (
     <Section title="OGGETTI">
-      <div style={{ padding: "6px 8px", display: "flex", flexWrap: "wrap", gap: 4 }}>
-        {OBJECT_TYPES.map(({ type, label, disabled }) => (
-          <button
-            key={type}
-            disabled={disabled}
-            onClick={() => onAdd(type)}
-            title={disabled ? "Prossimamente" : undefined}
-            style={{
-              ...S.objBtn,
-              color: disabled ? "#334155" : "#cbd5e1",
-              borderColor: disabled ? "#1e293b" : "#334155",
-              cursor: disabled ? "not-allowed" : "pointer",
-            }}
-          >
-            + {label}
-          </button>
-        ))}
-      </div>
+      {PALETTE_GROUPS.map((group) => (
+        <PaletteGroupAccordion key={group.category} group={group} onAdd={onAdd} />
+      ))}
     </Section>
   );
 }
@@ -784,45 +813,46 @@ function TagsSection() {
 // ── Sources section ───────────────────────────────────────────────────────────
 
 function SourcesSection({ project }: { project: ProjectInfo | null }) {
+  const navigateToConfig = useAppStore((s) => s.navigateToConfig);
   const sources = project?.sources ?? [];
-
-  if (sources.length === 0) {
-    return (
-      <Section title="SORGENTI" defaultOpen={false}>
-        <p style={{ padding: "8px 12px", fontSize: 11, color: "#475569", margin: 0 }}>
-          Nessuna sorgente configurata.
-        </p>
-      </Section>
-    );
-  }
 
   return (
     <Section title={`SORGENTI (${sources.length})`} defaultOpen={false}>
-      <div style={{ ...S.body, maxHeight: 300 }}>
-        {sources.map((src) => (
-          <div key={src.id} style={{ padding: "4px 10px" }}>
-            <div style={{ fontSize: 11, color: "#e2e8f0", fontWeight: 600 }}>
-              {src.id}
+      <div style={{ ...S.body, maxHeight: 200 }}>
+        {sources.length === 0 ? (
+          <p style={{ padding: "8px 12px", fontSize: 11, color: "#475569", margin: 0 }}>
+            Nessuna sorgente configurata.
+          </p>
+        ) : (
+          sources.map((src) => (
+            <div
+              key={src.id}
+              onClick={() => navigateToConfig("protocols")}
+              style={{ ...S.row(false), justifyContent: "space-between", cursor: "pointer" }}
+              title="Vai alla configurazione protocolli"
+            >
+              <span style={{ fontSize: 11, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, minWidth: 0 }}>
+                {src.id}
+              </span>
+              <span style={{
+                fontSize: 9, fontWeight: 700, letterSpacing: 0.5, padding: "1px 4px", borderRadius: 3,
+                background: src.kind === "mqtt" ? "#4c1d95" : "#1e3a5f",
+                color: src.kind === "mqtt" ? "#c4b5fd" : "#93c5fd",
+                flexShrink: 0,
+              }}>
+                {src.kind === "mqtt" ? "MQTT" : "MBUS"}
+              </span>
             </div>
-            <div style={{ fontSize: 10, color: "#64748b", marginBottom: 2 }}>
-              {src.kind === "modbus_tcp"
-                ? `Modbus TCP — ${src.host}:${src.port} | unit ${src.unit_id}`
-                : `MQTT — ${src.host}:${src.port}`}
-            </div>
-            {src.kind === "modbus_tcp" && src.registers.map((r) => (
-              <div key={r.tag} style={{ fontSize: 10, color: "#475569", paddingLeft: 8 }}>
-                {r.tag} @ reg {r.address}
-                {r.scale !== 1 ? ` × ${r.scale}` : ""}
-              </div>
-            ))}
-            {src.kind === "mqtt" && src.topics.map((t, i) => (
-              <div key={`${t.tag}-${i}`} style={{ fontSize: 10, color: "#475569", paddingLeft: 8 }}>
-                {t.tag} ← {t.topic}
-                {t.json_path ? ` ($.${t.json_path})` : ""}
-              </div>
-            ))}
-          </div>
-        ))}
+          ))
+        )}
+        <div style={{ padding: "4px 12px" }}>
+          <span
+            onClick={() => navigateToConfig("protocols")}
+            style={{ fontSize: 10, color: "#475569", fontStyle: "italic", cursor: "pointer" }}
+          >
+            Vai alla configurazione →
+          </span>
+        </div>
       </div>
     </Section>
   );

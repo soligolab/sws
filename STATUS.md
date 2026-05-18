@@ -2,11 +2,14 @@
 
 > This file is the **session-to-session memory** for Claude Code. Update it at the end of every session before stopping work. Read it at the start of every session before touching code.
 
-**Last session**: 2026-05-17 (sessione 20: cronologia visuale undo/redo + gruppi oggetti utente)
+**Last session**: 2026-05-18 (sessione 21: navigazione inter-view + palette categorizzata + tab Stato sistema)
 **Current phase**: Phase 2. Demo working out-of-the-box su fresh clone, import/export progetto per backup/condivisione, pannello log live + persistenza su disco, gestione utenti multi-account.
 **Last commit**: (vedi CHANGELOG [Unreleased] per i dettagli della sessione corrente)
 
 ### Cosa è andato online in queste sessioni (in ordine di commit)
+- (sessione 2026-05-18, sessione 21) **Navigazione inter-view store-based** — `appMode` e `configTab` spostati da `useState` locale in `App.tsx`/`ConfigView.tsx` a Zustand store (`store/index.ts`). Tipi esportati `AppMode` e `AppConfigTab`. Action `navigateToConfig(tab)` imposta atomicamente `appMode: "config"` e `configTab`. `SourcesSection` in `LeftPanel.tsx` riscritta: ogni sorgente è una riga cliccabile con badge tipo (`MQTT`/`MBUS`), click → `navigateToConfig("protocols")`; hint "Vai alla configurazione →" in fondo. `ConfigView.tsx` legge il tab iniziale da store + `useEffect` per sincronizzare quando cambia dall'esterno.
+- (sessione 2026-05-18, sessione 21) **Palette oggetti categorizzata con icone** — `OBJECT_TYPES` (array flat) e il vecchio `ObjectPalette` sostituiti con `PALETTE_GROUPS` (5 categorie: Forme, Controlli, Display, SCADA, Layout) e componente `PaletteGroupAccordion`. Ogni categoria ha colore distintivo e icona Unicode per tipo (▭○╱T per forme, ⊡↗☑◉↔ per controlli, ◔●▰≡∿ per display, ⚙ SCADA, ⊞ layout). "Forme" aperta di default; le altre chiuse.
+- (sessione 2026-05-18, sessione 21) **Tab "Stato" in ConfigView + endpoint sistema** — crate `sysinfo = "0.30"` aggiunto al workspace Rust. `started_at: std::time::Instant` in `AppState`. Nuovo modulo `sws-web/src/system.rs` con `SystemStatus` + handler `get_system_status`. Route `GET /api/system` in `operator_routes`. Frontend: `getSystemStatus()` in `api/client.ts`; tab `"system"` (`"Stato"`) in `ConfigView.tsx` con componente `SystemTab` che fa polling ogni 10 s: card metriche (versione runtime, progetto attivo, uptime `Xh Ym`, tag count, sorgenti, allarmi attivi, campioni storico) + barre progresso CPU%, RAM, disco.
 - (sessione 2026-05-17, sessione 20) **Cronologia visuale undo/redo** — `HistoryEntry { pages, label }` sostituisce `SynopticPage[][]` per `past/future` nello store. `HISTORY_LIMIT` portato a 200. `pushHistory(label)` accetta un'etichetta descrittiva; tutti i 17+ siti di chiamata aggiornati con label contestuali (es. `"Aggiungi rect"`, `"Elimina selezione"`, `"Allinea (left)"`). Nuove action `jumpToPast(index)` e `jumpToFuture(index)` per salto diretto. `undo()` e `redo()` preservano la label nel passaggio tra stack. `HistorySection` in `LeftPanel.tsx` sostituisce `UndoRedoBar`: lista scorrevole con "Stato iniziale", voci passate (cliccabili), riga "▶ CORRENTE" (teal), voci future (grigie/italic, cliccabili per redo), auto-scroll al corrente ad ogni cambio. Bottoni ↶/↷ rimangono in basso.
 - (sessione 2026-05-17, sessione 20) **Gruppi oggetti utente** — `ObjectGroup { id, name }` in `types/index.ts`; `group_id?: string` su `SynopticObject`; `groups?: ObjectGroup[]` su `SynopticPage`. Store: `groupObjects(ids, name?)`, `ungroupObjects(groupId)`, `renameGroup(groupId, name)`, `moveObjectToGroup(objId, groupId|null)`. `ObjectsSection` in LeftPanel riscritta con `buildTree()` → tree gerarchico: cartelle 📁 collassabili (toggle ▶/▼) con conteggio membri, click su cartella → seleziona tutti i membri, doppio-click nome → rename inline, pulsante ⊔ per ungroup. Quando 2+ oggetti sono selezionati appare bottone "+ Raggruppa selezionati (N)" sopra la lista. Auto-expand gruppo quando un suo membro è selezionato (useEffect su `selectedId`). Ctrl+G raggruppa la selezione corrente. `CTRL+G` aggiunto a ShortcutHelp. Rust `synoptic.rs`: `locked` e `group_id` su `SynopticObject`, `groups` su `SynopticPage`. Tutto persistito nel YAML.
 - (sessione 2026-05-17, sessione 19) **Keyboard shortcut help** — `?` (qualsiasi posizione fuori da un input) apre/chiude un modale overlay con tutte le scorciatoie da tastiera raggruppate per categoria (canvas, selezione, modifica, z-order). Click fuori o × per chiudere. Componente `ShortcutHelp` in `EditorShell.tsx`.
@@ -177,11 +180,123 @@
 - **BindableInput component (Phase 2)**: toggle 🔗/🔓 su fill, stroke, text, color, label, rotation, opacity, src, on_color, off_color, min, max, unit e altri campi del pannello. Sezione "BINDING ATTIVI" in fondo al pannello per audit/rimozione rapida.
 - **Demo Page 2 + Page 3 (Phase 3)**: Page 2 welcome fixa il navbutton orfano di Page 1 (id `mp472aq9q3yzc`). Page 3 "Demo Binding" con un widget per tipo agganciato a `demo.rotation`/`demo.opacity`; 2 slider per pilotarli. 4 nuovi tag in `examples/demo/project.yaml`.
 
-## Backlog / reminders
+## Roadmap — Task pendenti
 
-> Reminders raccolti fuori sessione. Da promuovere a "Next session should" quando si pianifica il prossimo blocco di lavoro. Ogni voce ha un id stabile (`BL-NNN`) per riferimento.
+> Organizzati per area. Ogni sub-item è sviluppabile indipendentemente salvo dipendenze indicate con →.
+> Stime implementazione indicative. Chiusi = ✅.
 
-> **2026-05-13 — BL-001, BL-002, BL-003 chiusi in blocco autonomo.** Si veda la sezione "What's working" sopra. Le descrizioni di backlog sotto restano come riferimento storico.
+---
+
+### 1 — Editor UX / LeftPanel
+
+| ID | Task | Stima | Dipendenze |
+|----|------|-------|------------|
+| 1.1 | ✅ Gruppo rename (doppio-click + ✎) | — | — |
+| 1.2 | ✅ Palette oggetti categorizzata + icone: accordion Forme/Controlli/Display/SCADA/Layout | — | — |
+| 1.3 | Drag & drop oggetti nel tree LeftPanel (riordina, cambia gruppo) | 2 h | — |
+| 1.4 | Context menu tasto destro su oggetto (Rinomina / Duplica / Elimina / Raggruppa) | 1 h | — |
+
+---
+
+### 2 — Navigazione inter-view
+
+| ID | Task | Stima | Dipendenze |
+|----|------|-------|------------|
+| 2.1 | ✅ Store `appMode` + `configTab` nel Zustand store; App.tsx li legge da store | — | — |
+| 2.2 | ✅ Sorgenti LeftPanel come link → `navigateToConfig("protocols")` | — | → 2.1 |
+| 2.3 | Deep-link da qualsiasi punto dell'app a qualsiasi tab ConfigView | — | → 2.1 |
+
+---
+
+### 3 — Stato sistema e monitoraggio
+
+| ID | Task | Stima | Dipendenze |
+|----|------|-------|------------|
+| 3.1 | ✅ Crate `sysinfo = "0.30"` + `started_at: Instant` in AppState | — | — |
+| 3.2 | ✅ Endpoint `GET /api/system` (version, uptime, tag/alarm count, CPU%, RAM, disco) | — | → 3.1 |
+| 3.3 | ✅ Tab "Stato" in ConfigView con card metriche + polling 10s | — | → 3.2 + 2.1 |
+| 3.4 | `/metrics` endpoint Prometheus reale (usa crate `metrics-exporter-prometheus` già incluso) | 1 h | → 3.1 |
+
+---
+
+### 4 — Canvas avanzato
+
+| ID | Task | Stima | Dipendenze |
+|----|------|-------|------------|
+| 4.1 | Undo su drag: `pushHistory` su `mouseup` del drag (oggi il drag non registra nella cronologia) | 30 min | — |
+| 4.2 | Ruler/guide lines: righelli px con guide orizzontali/verticali draggabili | 2 h | — |
+| 4.3 | Copy-paste cross-page: incolla oggetti su pagina diversa da quella di copia | 1 h | — |
+| 4.4 | Snap to page border: aggancia agli edge della SynopticPage (width/height) come agli oggetti | 30 min | — |
+
+---
+
+### 5 — Deployment e architettura (ARCH-001..004)
+
+| ID | Task | Stima | Dipendenze |
+|----|------|-------|------------|
+| 5.1 | **ARCH-001** Runtime serve SPA: `ServeDir` + `--www <path>` CLI arg | 2 h | — |
+| 5.2 | **ARCH-002** `VITE_RUNTIME_URL` configurabile (proxy Vite + `api/client.ts`) | 30 min | — |
+| 5.3 | **ARCH-003** Kiosk mode: `--kiosk-browser <cmd>` — spawna browser dopo `/health` OK | 1 h | → 5.1 |
+| 5.4 | **ARCH-004** Multi-runtime WelcomeScreen (tab "Runtime remoto" + localStorage override) | 3 h | → 5.2 |
+| 5.5 | Demo su PX30 hardware | — | → 5.1, hw fisico |
+
+---
+
+### 6 — Runtime e backend
+
+| ID | Task | Stima | Dipendenze |
+|----|------|-------|------------|
+| 6.1 | Alarm acknowledge UI: pulsante ACK nel pannello allarmi RuntimeView | 30 min | — |
+| 6.2 | Log export: bottone "Scarica log" nella RuntimeView (download `.jsonl` del giorno corrente) | 30 min | — |
+| 6.3 | Script parametri live: UI per sovrascrivere i parametri di `on_press_fn` al volo | 1 h | — |
+| 6.4 | WebSocket tag write bidirezionale (WS push + subscribe per scritture da runtime) | 3 h | — |
+
+---
+
+### 7 — Progetto e persistenza
+
+| ID | Task | Stima | Dipendenze |
+|----|------|-------|------------|
+| 7.1 | Export singola pagina YAML (oggi solo ZIP progetto completo) | 45 min | — |
+| 7.2 | Backup automatico ogni N minuti con `.bak/` directory e rollback | 2 h | — |
+| 7.3 | Import singola pagina YAML in un progetto esistente | 45 min | → 7.1 |
+
+---
+
+### 8 — Auth e sicurezza
+
+| ID | Task | Stima | Dipendenze |
+|----|------|-------|------------|
+| 8.1 | Refresh token + cookie httponly (oggi solo Bearer + localStorage) | 2 h | — |
+| 8.2 | Lockout dopo N tentativi falliti | 1 h | — |
+| 8.3 | LDAP / OAuth2 plugin | 4 h+ | — |
+
+---
+
+### 9 — Qualità e test
+
+| ID | Task | Stima | Dipendenze |
+|----|------|-------|------------|
+| 9.1 | Test E2E Playwright per flusso login → add object → save → reload | 3 h | — |
+| 9.2 | Test integrazione endpoint `/api/system` (mock sysinfo) | 30 min | → 3.2 |
+| 9.3 | Verifica fresh clone: `rm -rf .run && ./scripts/dev.sh` deve seedare demo | — | verifica manuale |
+| 9.4 | Verifica log JSONL: `.run/logs/runtime-YYYY-MM-DD.jsonl` creato al primo restart | — | verifica manuale |
+
+---
+
+### Sessioni raccomandate
+
+| Sessione | Durata | Contenuto | Prerequisiti |
+|----------|--------|-----------|--------------|
+| **S-22** | ~2.5 h | 5.2 + 5.1 (ARCH-002 + ARCH-001) | — |
+| **S-23** | ~2 h | 5.3 + test PX30 | hw fisico + S-22 |
+| **S-24** | ~3 h | 4.1 + 4.3 + 6.1 + 6.2 | — |
+
+---
+
+## Backlog storico (chiusi — solo riferimento)
+
+> **BL-001, BL-002, BL-003 chiusi in blocco autonomo 2026-05-13.** Si veda la sezione "What's working" sopra. Le descrizioni di backlog sotto restano come riferimento storico.
 
 - **BL-001 ✅ DONE — Gestione utenti multi-account nella vista Configurazione (admin-only)**
   - **Goal**: in modalità *Configurazione*, un utente con ruolo `admin` deve poter vedere l'elenco degli account, crearne di nuovi, assegnare il ruolo (Viewer / Operator / Supervisor / Admin — i 4 ruoli RBAC esistenti) e forzare il cambio password al primo login del nuovo utente.
@@ -226,6 +341,47 @@
     - Sezione "Topic": colonna `qos` opzionale per ogni mapping.
   - **Test di accettazione**: configurare un broker freemqtt.com con utente+password, vedere arrivare valori in un tag, scrivere via `PUT /api/tags/:id` e vederli pubblicati. Annotare in `STATUS.md` come "verificato su broker pubblico".
 
+- **BL-005 — Plugin OPC-UA client completo (Phase 4)**
+  - **Contesto**: `sws-plugin-opcua` è uno scheletro vuoto. La crate `async-opcua 0.18` è già in `Cargo.toml` (workspace). Questa BL copre tutta la Phase 4 del piano in `docs/CONTEXT.md`.
+  - **Backend (`sws-plugin-opcua` + `sws-core` + `sws-web`)**:
+    - `OpcUaConfig` in `sws-core/src/project.rs`:
+      ```yaml
+      - kind: opcua_client
+        id: machine1
+        endpoint_url: "opc.tcp://192.168.1.100:4840"
+        security_policy: None   # None | Basic128Rsa15 | Basic256 | Basic256Sha256
+        auth: { anonymous: true }  # o { username, password / password_env }
+        subscription_interval_ms: 500
+        nodes:
+          - node_id: "ns=2;s=Machine.CycleTime"
+            tag: "machine1.cycle_time"
+      ```
+    - `sws-plugin-opcua::run(cfg, db, write_bus)`: connessione, `CreateSubscription`, loop `MonitoredItems` → `TagDb`. Riconnessione automatica 5 s. Write via `TagWriteBus` → `async_opcua::Client::write`.
+    - `POST /api/sources/opcua/browse` (Operator+): browse ricorsivo del namespace, ritorna albero nodi (NodeId / DisplayName / DataType / Description). Usato da ConfigView per il browse modale.
+    - `POST /api/sources/opcua/read-node` (Operator+): legge il valore istantaneo di un NodeId (diagnostica).
+  - **Frontend (`OpcUaSourceCard` in ConfigView)**:
+    - Campi: endpoint URL, security policy (select), auth (anonimo / user+password), subscription interval.
+    - Tabella nodi: NodeId (input manuale o da browse), tag (TagInput autocomplete), descrizione.
+    - Bottone "Sfoglia server" → modal con albero address space; click su foglia → aggiunge riga nella tabella.
+    - Bottone "+ Aggiungi OPC-UA" attivo in ConfigView Protocolli.
+  - **Exit criterion**: legge un nodo da un server OPC-UA reale (Siemens / B&R / simulatore `opcua-commander`), valore live nel browser. Write verso un nodo Bool funziona da pulsante canvas.
+
+- **BL-005b — Euromap companion spec auto-discovery (dipende da BL-005)**
+  - **Contesto**: Euromap 77 (injection molding machines) e Euromap 83 (temperature control units) sono companion specification OPC-UA con namespace e NodeId standardizzati. Le macchine conformi espongono un namespace riconoscibile dal tipo di ObjectType.
+  - **Backend**:
+    - `POST /api/sources/opcua/detect-euromap` (Operator+): browsa il server, cerca ObjectType/Instance derivanti da tipi Euromap noti (namespace URI `http://euromap.org/euromap77`), ritorna `{ euromap_version, machine_type, detected_variables: [{ node_id, name, description, unit, data_type }] }`.
+  - **Frontend**: tab "Sfoglia Euromap" in `OpcUaSourceCard` → card con tipo macchina rilevato + lista variabili con checkbox → "Importa selezionati" → aggiunge righe nella tabella nodi + crea tag con nome/desc standard.
+  - **Variabili Euromap 77 mappate** (nome standard → tag SWS):
+    - `MachineState` → `{id}.machine_state` (int), `ActiveErrors` → `{id}.active_errors` (int)
+    - `CycleTime` → `{id}.cycle_time` (float s), `InjectionTime` → `{id}.injection_time` (float s)
+    - `MeltTemperature` → `{id}.melt_temp` (float °C), `ClampingForce` → `{id}.clamping_force` (float kN)
+    - `ProductionActiveParts` → `{id}.parts_produced` (int), `ProductionActiveDefectiveParts` → `{id}.parts_defective` (int)
+  - **Variabili Euromap 83** (temperature control unit):
+    - `TbcActualTemperature` → `{id}.temp_actual`, `TbcSetTemperature` → `{id}.temp_set`, `TbcState` → `{id}.tcu_state`
+  - **Template**: `examples/templates/euromap77-im/` — `project.yaml` + synoptic preconfigurato (gauge CycleTime, LED MachineState, tabella errori, bar ClampingForce).
+  - **Documentazione**: `docs/EUROMAP_SETUP.md` — companion spec supportate, NodeId noti, come testare con server simulato `node-opcua`.
+  - **Exit criterion**: auto-discovery su server Euromap 77 rileva 8+ variabili, crea tag, valori live in synoptic.
+
 - **BL-003 ✅ DONE — Editor Python decente per `on_press` / `on_release` e funzioni di progetto**
   - **Motivo**: oggi i campi di codice Python sono `<textarea>` minuscole nella properties panel — niente syntax highlighting, niente indentazione automatica, e l'utente segnala che il ritorno a capo non funziona bene. Vale per sia gli handler per-oggetto (`on_press`, `on_release`) sia le nuove funzioni Python a livello progetto (vedi commit "reusable Python functions + symbol library doubled").
   - **Obiettivo UX**:
@@ -245,52 +401,62 @@
   - **Bug del "ritorno a capo" da investigare**: la textarea attuale potrebbe avere un handler `onKeyDown` che intercetta Enter (es. per "salva al primo enter") — controllare prima di rimpiazzare il componente, perché lo stesso bug potrebbe esistere anche in altri campi multi-linea.
   - **Out of scope**: autocomplete dei nomi tag dentro il codice Python (sarebbe figo ma è LSP-grade, troppo lavoro per il PoC), linting Python lato client, debugger. Vanno in BL successive.
 
-## Next session should — candidati aperti (Multi-Project IDE completo)
+## Note architetturali — IDE remoto + runtime autonomo + kiosk (analisi sessione 2026-05-18)
 
-**Multi-Project IDE Phase A1+A2 completati** (sessione 2026-05-15, blocchi 5-7). Flusso completo: WelcomeScreen → crea (Vuoto / Da template / Da ZIP) → apri → login → app. "Chiudi progetto" riporta a WelcomeScreen. Build + cargo check verdi.
+Analisi completa delle implicazioni dei 4 punti operativi desiderati. Piano in `.claude/plans/rivediamo-la-logica-di-encapsulated-scone.md`.
 
-**Prossimi candidati** (scegli uno per la prossima sessione):
+### Baseline attuale identificata
+- Runtime espone solo REST + WS, zero file statici. La SPA viene servita dall'editor container (Nginx).
+- IDE e runtime sono sempre co-locati (stessa macchina / stessa compose). Nessuna connessione remota possibile senza modifiche.
+- Nessun supporto kiosk/Wayland.
 
-1. ✅ **Bug fix rename-page** — `save_synoptic` ora rimuove il file YAML stale dopo una rinomina. **DONE questa sessione.**
-2. ✅ **Historian polish v2** — decimazione per range lunghi, read-fallback a SQLite, prune periodica. **DONE questa sessione.**
-3. ✅ **Selection rectangle** — drag su area vuota per selezione multipla rettangolare (`SvgCanvas.tsx`). **DONE questa sessione.**
-4. **Demo PX30** — build multi-arch + deploy su hardware fisico. Bloccante: serve hardware.
-5. Qualsiasi altra voce dall'elenco "Altri candidati di backlog" in fondo al file.
+### ARCH-001 — Runtime serve la SPA direttamente (`--www <path>`) — ~2-3 h
+> **Obiettivo**: un browser può connettersi al solo runtime (senza il container editor) su `https://<device>:8443`.  
+> **Opzione scelta**: `tower_http::ServeDir` + CLI arg `--www`; nessun embedding nel binario.
+- [ ] `sws-runtime/crates/sws-web/src/router.rs`: aggiungere route `GET /` e `GET /*` verso `ServeDir` se `--www` è impostato
+- [ ] `sws-runtime/crates/sws-runtime/src/main.rs`: aggiungere CLI arg `--www <path>` (opzionale; se assente il comportamento è invariato)
+- [ ] `compose.yaml`: volume `./sws-editor/dist:/var/sws/www:ro` + esporre porta 8443 del runtime all'host (`ports: ["8443:8443"]`)
+- [ ] `sws-runtime/docker/Dockerfile`: nessuna modifica (il volume è esterno)
+- [ ] `scripts/dev.sh`: aggiungere step `pnpm --prefix sws-editor build` prima di avviare il runtime se si vuole il flusso integrato; altrimenti documentare separatamente
+- [ ] `docs/DEPLOY_PX30.md`: aggiornare con flusso single-container (runtime serve SPA)
+- [ ] `cargo check` verde; test manuale: `https://localhost:8443` apre la SPA
+
+### ARCH-002 — IDE con runtime URL configurabile (`VITE_RUNTIME_URL`) — ~30 min
+> **Obiettivo**: `VITE_RUNTIME_URL=https://192.168.1.50:8443 ./scripts/dev.sh` fa parlare l'IDE con il PX30 remoto.
+- [ ] `sws-editor/vite.config.ts`: sostituire `target: "https://localhost:8443"` con `target: process.env.VITE_RUNTIME_URL ?? "https://localhost:8443"` (sia per `/api` sia per `/ws`)
+- [ ] `sws-editor/src/api/client.ts`: aggiungere `const RUNTIME_BASE = import.meta.env.VITE_RUNTIME_BASE_URL ?? ""` e usarlo come prefisso URL in tutte le `fetch()` (default `""` = relativo, funziona col proxy)
+- [ ] `sws-editor/src/ws/tagStream.ts`: stessa variabile `VITE_RUNTIME_BASE_URL` per l'URL WebSocket (quando vuoto usa `window.location.host` come ora)
+- [ ] `scripts/dev.sh`: passare `VITE_RUNTIME_URL` e `VITE_RUNTIME_BASE_URL` all'ambiente Vite se definiti dall'utente
+- [ ] `scripts/README.md`: documentare `VITE_RUNTIME_URL=https://px30:8443 ./scripts/dev.sh`
+- [ ] `pnpm type-check` + `pnpm build` verdi
+
+### ARCH-003 — Kiosk mode (`--kiosk-browser <cmd>`) — ~1 h
+> **Obiettivo**: sul PX30, all'avvio del runtime, il browser parte in kiosk senza intervento utente.
+- [ ] `sws-runtime/crates/sws-runtime/src/main.rs`: aggiungere CLI arg `--kiosk-browser <shell-cmd>` (opzionale)
+- [ ] Dopo che il server è up (poll `GET /health` ogni 100 ms × 50 tentativi), spawnare il comando via `tokio::process::Command::new("sh").arg("-c").arg(cmd).spawn()`
+- [ ] Il child process non viene monitorato né riavviato (PoC); la sua morte non ferma il runtime
+- [ ] Log del processo: solo `tracing::info!("kiosk browser spawned: {cmd}")` — mai via LogBus
+- [ ] `sws-runtime/docker/entrypoint.sh`: aggiungere commento con esempio `--kiosk-browser "chromium --kiosk --no-sandbox --app=https://localhost:8443"`
+- [ ] `docs/DEPLOY_PX30.md`: sezione "Modalità kiosk Wayland" con pacchetti da installare (`chromium-browser` o `epiphany-browser` su Debian arm64) e opzione `cage`
+- [ ] `cargo check` verde
+
+### ARCH-004 — Multi-runtime WelcomeScreen (BL-004) — ~3-4 h — RIMANDATO
+> Dipende da ARCH-002 stabile. Aprire come BL-004 quando si pianifica la sessione.
+- [ ] `WelcomeScreen`: aggiungere tab "Runtime remoto" con input URL + test connessione (`GET /health`)
+- [ ] Login inline contro il runtime remoto; se ok, commutare `localStorage.swsRuntimeUrl`
+- [ ] `api/client.ts` e `ws/tagStream.ts`: leggere `localStorage.swsRuntimeUrl` come override dell'URL base
+- [ ] Indicatore runtime remoto nell'header (badge con IP/hostname)
+- [ ] `pnpm type-check` + `pnpm build` verdi
+
+### Sequenza raccomandata
+| Sessione | Durata | Contenuto |
+|---|---|---|
+| **S-21** | ~3 h | ARCH-002 (30 min) + ARCH-001 (2 h) + test locale |
+| **S-22** | ~2 h | ARCH-003 (1 h) + test su PX30 hardware |
+| **S-23** | ~4 h | ARCH-004 (se S-21/22 stabili) |
 
 ---
 
-## Backlog precedente — FOLLOW-UP UNIVERSAL BINDING (tutto chiuso)
-
-Piano `docs/plans/2026-05-14_universal_binding.md` **completato** (Phases 1-4). Tutti i follow-up del piano sono chiusi:
-
-1. ✅ **BindableInput su tutti i campi rimanenti** — copertura completa: x, y, width, height, x2, y2, font_family, gauge/progress_bar thresholds (warn_low/warn_high/alarm_low/alarm_high), slider (min/max/step), checkbox (label/checked_value/unchecked_value), radio (label), LED (label/on_value), trend (window_s/y_min/y_max/line_color), symbol state colors, z_index.
-2. ✅ **MultiSelectionProps con binding** — sezione "BINDING RAPIDO" aggiunta: select prop + TagInput + pulsanti "Applica" / "Rimuovi" applicano o tolgono lo stesso binding su tutti gli oggetti selezionati in batch.
-3. ✅ **Bug fix BindableInput in grid 2-colonne** — pulsante 🔗 non cliccabile su X/Y/W/H e altri campi in layout a 2 colonne. Causa: cella sorella (DOM order successivo, stesso stacking context) copriva il pulsante. Fix: `position: relative; zIndex: 1` sul button in BindableInput.tsx.
-4. ✅ **Demo Page 4 "Fill Color"** — nuova pagina con 6 pulsanti colore preset (rosso/verde/blu/arancio/viola/teal) che scrivono un hex in `demo.fill_color`. Anteprima live: rect, ellipse, button, progress_bar con `bindings.fill = demo.fill_color`. Nota che il tag è condiviso con Page 3 (il rect lì cambia colore anch'esso). Nav da Page 3 → Page 4 aggiunta.
-5. ✅ **Header dropdown Menu** — "☰ Menu" con Salva (+ feedback cromatico), Esporta, Importa, Esci; "Griglia ▾" con size + snap (edit mode only). `saveSerial/saveStatus/saveError` nel store Zustand. Old standalone Esci button + ProjectIO rimossi.
-6. ✅ **Fix symbol hit-area** — `<rect fill="transparent">` come hit-area; simboli ora selezionabili.
-7. ✅ **Demo Page 3 "Showcase"** — tutti i 15 tipi widget con bindings demo.*.
-8. ✅ **Animation/interpolation** — campo per-oggetto `transition_duration_ms` (0..5000 ms, default 0). Quando > 0 i prop CSS-animabili bindati (fill/stroke/opacity/transform) interpolano linearmente con easing `ease-out`. Helper `transitionStyle(obj)` in `SvgCanvas.tsx`, spread su tutti gli SVG primitives + `applyTransform` wrap forzato quando duration > 0. UI: slider+numeric+reset in TRASFORMAZIONE di ObjectProps; sezione DURATA TRANSIZIONE in MultiSelectionProps per batch. Rust mirror `transition_duration_ms: Option<u64>` su `SynopticObject` (synoptic.rs) per round-trip YAML + export/import. Limitazioni v1: prop non-CSS-animabili (testo, font_size, src, x/y SVG attr, gauge needle, progress_bar width) restano discreti; rotation 360°→0° interpola attraverso 180°.
-
-### Altri candidati di backlog (alternativa al piano sopra)
-
-Stato di partenza per la prossima sessione:
-- Branch `main` pulito (a meno del commit di questa sessione pending).
-- **30 unit test** workspace verdi (`PYO3_PYTHON=python3 cargo test --manifest-path sws-runtime/Cargo.toml --workspace`).
-- Frontend builda OK (`cd sws-editor && pnpm type-check && pnpm build`).
-- `./scripts/dev.sh` parte. Demo seedato in `.run/project/`.
-- **Da verificare al primo restart dev.sh**: in `.run/logs/` deve apparire `runtime-YYYY-MM-DD.jsonl` accanto al `runtime.log` (stdout redirect di dev.sh). Aprilo: deve contenere `{"ts_ms":…,"level":"INFO",…}` per ogni evento, identico a `GET /api/logs`.
-
-Pick one of these as the next focused work block (each fits 3-4 hours):
-
-1. **Demo PX30 reale**: usa `scripts/build-images.sh` per le immagini multi-arch, segui `docs/DEPLOY_PX30.md` passo passo, prova sul Rockchip con un PLC vero. Documenta i bug che emergono — è l'exit criterion di Phase 1. **Bloccante: serve hardware fisico.**
-2. **Historian polish v2**: decimazione per range lunghi (>5000 samples), read-fallback a SQLite per range fuori dal ring buffer, prune periodica del db. Niente blocker, file di partenza `sws-runtime/crates/sws-historian/src/lib.rs`.
-3. **Symbol library v2**: tilt/rotation, simboli aggiuntivi (compressor, heat exchanger, level sensor), packaging come asset cartella `sws-symbols/` (vs inline TSX in `sws-editor/src/symbols/library.tsx`).
-4. **Selection rectangle**: drag su area vuota della SVG canvas per selezione multipla rettangolare. File principale: `sws-editor/src/canvas/SvgCanvas.tsx`. Convive con selectedObjectIds esistente.
-5. **Auth polish v2**: refresh token, cookie httponly oltre al Bearer, LDAP/OAuth plugin. Lo schema utenti persistente è già pronto (BL-001).
-6. **Script preemption** (OPEN_QUESTIONS Q1 follow-up): `Python::check_signals` + thread di interrupt per davvero terminare gli script che superano `SWS_SCRIPT_TIMEOUT_MS`. Oggi il timeout c'è ma è "best effort" — uno script con loop infinito non viene preempted.
-7. **Multi-pagina synoptic UX**: oggi solo "Page 1" nella demo. Crea pagina 2/3 via LeftPanel, verifica che il navbutton funzioni, prova export → import (deve preservare tutte le pagine, replace mode garantisce la sincronia).
-8. **Log file v2** (follow-up del task appena chiuso): (a) compressione gzip dei file ruotati (`runtime-YYYY-MM-DD.jsonl.gz`); (b) endpoint `GET /api/logs/files` per listare i file storici; (c) format-aware reader nel pannello log che pesca dal disco quando si scrolla oltre il ring buffer.
 
 ### Bug aperti / da verificare a mano
 - ✅ **Rinomina pagina lascia dietro il vecchio file** — risolto: `save_synoptic` ora rimuove i `.yaml` stale con lo stesso `id` interno ma filename diverso. (commit `ff32e40`)

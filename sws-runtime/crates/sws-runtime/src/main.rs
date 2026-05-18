@@ -306,6 +306,8 @@ async fn main() -> anyhow::Result<()> {
         });
     }
 
+    let started_at = std::time::Instant::now();
+
     let app = sws_web::router::build(
         tag_db,
         bus,
@@ -320,6 +322,7 @@ async fn main() -> anyhow::Result<()> {
         Arc::new(args.templates_root.clone()),
         log_bus,
         Arc::new(logs_dir),
+        started_at,
     );
 
     let addr: SocketAddr = "0.0.0.0:8443".parse()?;

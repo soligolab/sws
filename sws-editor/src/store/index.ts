@@ -83,6 +83,8 @@ export type AlignMode =
   | "distribute-x" | "distribute-y";
 
 export type Role = "Viewer" | "Operator" | "Supervisor" | "Admin";
+export type AppMode = "edit" | "view" | "config";
+export type AppConfigTab = "tags" | "protocols" | "alarms" | "users" | "resources" | "system";
 
 interface AppState {
   // Auth
@@ -222,6 +224,13 @@ interface AppState {
   // Canvas settings
   setGridSize: (size: number) => void;
   setSnapEnabled: (enabled: boolean) => void;
+
+  // App-level navigation (allows cross-view navigation, e.g. LeftPanel → ConfigView)
+  appMode: AppMode;
+  configTab: AppConfigTab;
+  setAppMode: (mode: AppMode) => void;
+  setConfigTab: (tab: AppConfigTab) => void;
+  navigateToConfig: (tab: AppConfigTab) => void;
 }
 
 const first = makePage("Page 1");
@@ -943,6 +952,12 @@ export const useAppStore = create<AppState>((set, get) => {
 
     setGridSize: (gridSize) => set({ gridSize }),
     setSnapEnabled: (snapEnabled) => set({ snapEnabled }),
+
+    appMode: "edit",
+    configTab: "tags",
+    setAppMode: (appMode) => set({ appMode }),
+    setConfigTab: (configTab) => set({ configTab }),
+    navigateToConfig: (tab) => set({ appMode: "config", configTab: tab }),
 
     incSaveSerial: () => set((s) => ({ saveSerial: s.saveSerial + 1 })),
     setSaveStatus: (saveStatus, saveError = null) => set({ saveStatus, saveError }),
