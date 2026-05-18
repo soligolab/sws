@@ -1240,6 +1240,11 @@ function SvgObject(p: ObjProps) {
                 onMouseDown={(e) => {
                   if (!isEditMode) return;
                   e.stopPropagation();
+                  // Select the grid object first so the right panel renders
+                  // the object-properties branch (otherwise selectedObjectId
+                  // would stay null and the panel would show page properties
+                  // even while the sub-slot looks highlighted).
+                  p.onSelect?.(gridObjId, false);
                   p.onSelectSubCell?.(gridObjId, cellRow, cellCol, slotPath);
                 }}
                 onClick={(e) => e.stopPropagation()}
@@ -1289,6 +1294,11 @@ function SvgObject(p: ObjProps) {
                         style={{ cursor: "pointer" }}
                         onMouseDown={(e) => {
                           e.stopPropagation();
+                          // Same reason as the sub-slot rect above: select
+                          // the grid first so the panel routes to the
+                          // object-properties branch, then nail down which
+                          // sub-cell is being edited.
+                          p.onSelect?.(gridObjId, false);
                           p.onSelectSubCell?.(gridObjId, cellRow, cellCol, slotPath);
                         }}
                         onClick={(e) => e.stopPropagation()}

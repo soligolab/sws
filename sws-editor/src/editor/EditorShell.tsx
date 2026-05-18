@@ -881,6 +881,70 @@ function PanelBreadcrumb({ parts }: { parts: string[] }) {
   );
 }
 
+/** Compact accordion section. Open/closed state persists in localStorage
+ *  per `storageKey`, so switching between selected objects doesn't reset
+ *  the user's preference. Body is only rendered when open (cheap collapse
+ *  for sections that contain expensive UI like color pickers or galleries). */
+function CollapsibleSection({
+  title, storageKey, defaultOpen = false, headerExtra, hint, children,
+}: {
+  title: string;
+  storageKey?: string;
+  defaultOpen?: boolean;
+  /** Right-aligned slot next to the title (e.g. count badge "(2)"). */
+  headerExtra?: React.ReactNode;
+  /** Shown italic below the header when the section is collapsed. Use to
+   *  signal "section visible but currently not applicable", e.g. "Imposta
+   *  un tag per personalizzare i colori". */
+  hint?: string;
+  children: React.ReactNode;
+}) {
+  const lsKey = storageKey ? `sws.objprops.${storageKey}` : null;
+  const [open, setOpen] = useState<boolean>(() => {
+    if (lsKey) {
+      try {
+        const v = localStorage.getItem(lsKey);
+        if (v === "1") return true;
+        if (v === "0") return false;
+      } catch { /* ignore */ }
+    }
+    return defaultOpen;
+  });
+  const toggle = () => {
+    setOpen((o) => {
+      const next = !o;
+      if (lsKey) {
+        try { localStorage.setItem(lsKey, next ? "1" : "0"); } catch { /* ignore */ }
+      }
+      return next;
+    });
+  };
+  return (
+    <div style={{ borderTop: "1px solid #1e293b", paddingTop: 4, marginTop: 4 }}>
+      <button
+        type="button"
+        onClick={toggle}
+        style={{
+          width: "100%", display: "flex", alignItems: "center", gap: 6,
+          background: "transparent", border: "none", padding: "4px 0",
+          color: "#94a3b8", fontSize: 11, fontWeight: 700, letterSpacing: 0.5,
+          textAlign: "left", cursor: "pointer",
+        }}
+      >
+        <span style={{ fontSize: 9, color: "#64748b", width: 10 }}>{open ? "▼" : "▶"}</span>
+        <span style={{ flex: 1, textTransform: "uppercase" }}>{title}</span>
+        {headerExtra}
+      </button>
+      {!open && hint && (
+        <div style={{ fontSize: 10, color: "#475569", fontStyle: "italic", margin: "0 0 4px 16px" }}>
+          {hint}
+        </div>
+      )}
+      {open && <div style={{ paddingLeft: 4, paddingBottom: 4 }}>{children}</div>}
+    </div>
+  );
+}
+
 /** Walk `cell.sub.a|b.sub.a|b...` along `path` and return the leaf entry.
  *  Returns an empty entry `{}` for slots that exist in the structure but
  *  haven't been materialised yet (just split, no content added) — the
@@ -1440,6 +1504,8 @@ function ObjectProps({
 
   return (
     <>
+      {/* Identità compatta — 1 riga "Nome [input]" + 1 riga "type · id".
+          Sostituisce le 3 righe sparse precedenti per recuperare ~30 px. */}
       {field("Nome",
         <input
           type="text" style={INPUT}
@@ -1448,8 +1514,12 @@ function ObjectProps({
           onChange={(e) => onChange({ name: e.target.value || undefined })}
         />
       )}
-      {field("ID",   <span style={{ fontSize: 11, color: "#64748b" }}>{obj.id}</span>)}
-      {field("Tipo", <span style={{ fontSize: 11, color: "#64748b" }}>{obj.type}</span>)}
+      <div style={{ fontSize: 10, color: "#64748b", margin: "-2px 0 6px", display: "flex", gap: 6 }}>
+        <span style={{ background: "#1e293b", padding: "1px 6px", borderRadius: 3, color: "#94a3b8", fontWeight: 600 }}>
+          {obj.type}
+        </span>
+        <span style={{ fontFamily: "monospace" }}>{obj.id}</span>
+      </div>
 
       {/* Position + Size — usa field() a larghezza piena per evitare overflow
           del pulsante BindableInput nelle celle strette del grid 2-colonne. */}
@@ -1949,27 +2019,17 @@ function ObjectProps({
         </>
       )}
 
-      {/* ── Cross-cutting: rotation / flip / opacity ──────────────── */}
+      {/* ── Cross-cutting: rotation / flip / opacity (advanced, collapsed) */}
       {SUPPORTS_TRANSFORM.has(obj.type) && (
-        <>
-          <div style={{ fontSize: 10, color: "#475569", marginTop: 8, marginBottom: 2, fontWeight: 700, letterSpacing: 0.5 }}>
-            TRASFORMAZIONE
-          </div>
+        <CollapsibleSection title="Trasformazione" storageKey="transform">
           {field("Rotazione (gradi)",
             <BindableInput obj={obj} propName="rotation" onChange={onChange}>
               <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
                 <input
-                  type="range"
-                  min={-180} max={180} step={1}
-                  value={obj.rotation ?? 0}
-                  onChange={(e) => onChange({ rotation: Number(e.target.value) || 0 })}
-                  style={{ flex: 1 }}
-                />
-                <input
                   type="number"
                   value={obj.rotation ?? 0}
                   onChange={(e) => onChange({ rotation: Number(e.target.value) || 0 })}
-                  style={{ ...INPUT, width: 64 }}
+                  style={{ ...INPUT, flex: 1 }}
                 />
                 <button
                   title="Resetta a 0°"
@@ -2003,18 +2063,11 @@ function ObjectProps({
             <BindableInput obj={obj} propName="opacity" onChange={onChange}>
               <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
                 <input
-                  type="range"
-                  min={0} max={1} step={0.05}
-                  value={obj.opacity ?? 1}
-                  onChange={(e) => onChange({ opacity: Number(e.target.value) })}
-                  style={{ flex: 1 }}
-                />
-                <input
                   type="number"
                   min={0} max={1} step={0.05}
                   value={obj.opacity ?? 1}
                   onChange={(e) => onChange({ opacity: Number(e.target.value) })}
-                  style={{ ...INPUT, width: 64 }}
+                  style={{ ...INPUT, flex: 1 }}
                 />
                 <button
                   title="Resetta a 1"
@@ -2027,18 +2080,11 @@ function ObjectProps({
           {field("Durata transizione (ms)",
             <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
               <input
-                type="range"
-                min={0} max={2000} step={50}
-                value={obj.transition_duration_ms ?? 0}
-                onChange={(e) => onChange({ transition_duration_ms: Number(e.target.value) || undefined })}
-                style={{ flex: 1 }}
-              />
-              <input
                 type="number"
                 min={0} max={5000} step={50}
                 value={obj.transition_duration_ms ?? 0}
                 onChange={(e) => onChange({ transition_duration_ms: Number(e.target.value) || undefined })}
-                style={{ ...INPUT, width: 64 }}
+                style={{ ...INPUT, flex: 1 }}
               />
               <button
                 title="Disattiva animazione"
@@ -2050,106 +2096,133 @@ function ObjectProps({
           <p style={{ fontSize: 10, color: "#475569", margin: "0 0 4px" }}>
             0 = nessuna animazione. Anima fill/stroke/opacity/rotazione bindati. Testo, font-size, src e geometrie restano discreti.
           </p>
-        </>
+        </CollapsibleSection>
       )}
 
-      {/* ── Cross-cutting: layer, visibility, event scripts ─────────── */}
-      <div style={{ fontSize: 10, color: "#475569", marginTop: 8, marginBottom: 2, fontWeight: 700, letterSpacing: 0.5 }}>
-        LIVELLO E VISIBILITÀ
-      </div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr auto auto", gap: 4, alignItems: "end" }}>
-        <div><div style={LABEL}>z-index</div><BindableInput obj={obj} propName="z_index" onChange={onChange}>{numInput("z_index", 0)}</BindableInput></div>
-        <button
-          title="Porta indietro (-1)"
-          onClick={() => onChange({ z_index: (obj.z_index ?? 0) - 1 })}
-          style={{ ...INPUT, cursor: "pointer", padding: "3px 8px", height: 26 }}
-        >▼</button>
-        <button
-          title="Porta avanti (+1)"
-          onClick={() => onChange({ z_index: (obj.z_index ?? 0) + 1 })}
-          style={{ ...INPUT, cursor: "pointer", padding: "3px 8px", height: 26 }}
-        >▲</button>
-      </div>
-      <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#cbd5e1", marginTop: 4, cursor: "pointer" }}>
-        <input
-          type="checkbox"
-          checked={obj.visible !== false}
-          onChange={(e) => onChange({ visible: e.target.checked })}
-          style={{ accentColor: "#3b82f6" }}
-        />
-        Visibile (statico)
-      </label>
-      <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#cbd5e1", marginTop: 4, cursor: "pointer" }}>
-        <input
-          type="checkbox"
-          checked={obj.locked === true}
-          onChange={(e) => onChange({ locked: e.target.checked ? true : undefined })}
-          style={{ accentColor: "#f59e0b" }}
-        />
-        Bloccato (non selezionabile nell'editor)
-      </label>
-      <div>
-        <div style={LABEL}>Tag visibilità (override)</div>
-        <TagInput
-          style={INPUT}
-          placeholder="es. valvola.aperta"
-          value={obj.visible_tag ?? ""}
-          onChange={(v) => onChange({ visible_tag: v || undefined })}
-        />
-      </div>
-
-      {/* ── Quality dot (only when object has a tag) ──────────────────── */}
-      {obj.tag && <>
-        <div style={{ fontSize: 10, color: "#475569", marginTop: 8, marginBottom: 2, fontWeight: 700, letterSpacing: 0.5 }}>
-          INDICATORE QUALITÀ
+      {/* ── Cross-cutting: layer & visibility (advanced, collapsed) ─── */}
+      <CollapsibleSection title="Layer e Visibilità" storageKey="layer">
+        <div style={{ display: "grid", gridTemplateColumns: "1fr auto auto", gap: 4, alignItems: "end" }}>
+          <div><div style={LABEL}>z-index</div><BindableInput obj={obj} propName="z_index" onChange={onChange}>{numInput("z_index", 0)}</BindableInput></div>
+          <button
+            title="Porta indietro (-1)"
+            onClick={() => onChange({ z_index: (obj.z_index ?? 0) - 1 })}
+            style={{ ...INPUT, cursor: "pointer", padding: "3px 8px", height: 26 }}
+          >▼</button>
+          <button
+            title="Porta avanti (+1)"
+            onClick={() => onChange({ z_index: (obj.z_index ?? 0) + 1 })}
+            style={{ ...INPUT, cursor: "pointer", padding: "3px 8px", height: 26 }}
+          >▲</button>
         </div>
-        <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#cbd5e1", cursor: "pointer" }}>
+        <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#cbd5e1", marginTop: 4, cursor: "pointer" }}>
           <input
             type="checkbox"
-            checked={obj.quality_dot !== false}
-            onChange={(e) => onChange({ quality_dot: e.target.checked ? undefined : false })}
+            checked={obj.visible !== false}
+            onChange={(e) => onChange({ visible: e.target.checked })}
             style={{ accentColor: "#3b82f6" }}
           />
-          Mostra indicatore qualità
+          Visibile (statico)
         </label>
-        {obj.quality_dot !== false && (
+        <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#cbd5e1", marginTop: 4, cursor: "pointer" }}>
+          <input
+            type="checkbox"
+            checked={obj.locked === true}
+            onChange={(e) => onChange({ locked: e.target.checked ? true : undefined })}
+            style={{ accentColor: "#f59e0b" }}
+          />
+          Bloccato (non selezionabile nell'editor)
+        </label>
+        <div>
+          <div style={LABEL}>Tag visibilità (override)</div>
+          <TagInput
+            style={INPUT}
+            placeholder="es. valvola.aperta"
+            value={obj.visible_tag ?? ""}
+            onChange={(v) => onChange({ visible_tag: v || undefined })}
+          />
+        </div>
+      </CollapsibleSection>
+
+      {/* ── Quality dot — always present; hint when no tag bound ──────── */}
+      <CollapsibleSection
+        title="Indicatore qualità"
+        storageKey="quality"
+        hint={!obj.tag ? "Imposta un tag (sezione Tag) per personalizzare i colori." : undefined}
+      >
+        {!obj.tag ? (
+          <p style={{ fontSize: 11, color: "#64748b", margin: "0 0 4px" }}>
+            Questo oggetto non ha un tag bound. L'indicatore di qualità verrà
+            mostrato automaticamente quando colleghi un tag.
+          </p>
+        ) : (
           <>
-            {field("Colore Buono (Good)",    colorInput("quality_dot_good_color",      "#22c55e"))}
-            {field("Colore Incerto (Uncert.)", colorInput("quality_dot_uncertain_color", "#eab308"))}
-            {field("Colore Errore (Bad)",    colorInput("quality_dot_bad_color",       "#ef4444"))}
+            <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#cbd5e1", cursor: "pointer" }}>
+              <input
+                type="checkbox"
+                checked={obj.quality_dot !== false}
+                onChange={(e) => onChange({ quality_dot: e.target.checked ? undefined : false })}
+                style={{ accentColor: "#3b82f6" }}
+              />
+              Mostra indicatore qualità
+            </label>
+            {obj.quality_dot !== false && (
+              <>
+                {field("Colore Buono (Good)",    colorInput("quality_dot_good_color",      "#22c55e"))}
+                {field("Colore Incerto (Uncert.)", colorInput("quality_dot_uncertain_color", "#eab308"))}
+                {field("Colore Errore (Bad)",    colorInput("quality_dot_bad_color",       "#ef4444"))}
+              </>
+            )}
           </>
         )}
-      </>}
+      </CollapsibleSection>
 
-      <div style={{ fontSize: 10, color: "#475569", marginTop: 8, marginBottom: 2, fontWeight: 700, letterSpacing: 0.5 }}>
-        EVENTI (FUNZIONI)
-      </div>
-      <EventFunctionPicker
-        label="On press"
-        fnName={obj.on_press_fn}
-        args={obj.on_press_args}
-        functions={functions}
-        onChange={(fn, args) => onChange({ on_press_fn: fn, on_press_args: args })}
-      />
-      <EventFunctionPicker
-        label="On release"
-        fnName={obj.on_release_fn}
-        args={obj.on_release_args}
-        functions={functions}
-        onChange={(fn, args) => onChange({ on_release_fn: fn, on_release_args: args })}
-      />
-      <p style={{ fontSize: 10, color: "#475569", margin: "0 0 4px" }}>
-        Definisci le funzioni nel pannello laterale (sezione FUNZIONI). I valori
-        dei parametri sono sostituiti per binding; lascia vuoto per usare il default.
-      </p>
+      {/* ── Event scripts (advanced, collapsed) ─────────────────────── */}
+      <CollapsibleSection
+        title="Eventi"
+        storageKey="events"
+        headerExtra={
+          (obj.on_press_fn || obj.on_release_fn)
+            ? <span style={{ fontSize: 10, color: "#3b82f6", fontWeight: 700 }}>
+                ({(obj.on_press_fn ? 1 : 0) + (obj.on_release_fn ? 1 : 0)})
+              </span>
+            : null
+        }
+      >
+        <EventFunctionPicker
+          label="On press"
+          fnName={obj.on_press_fn}
+          args={obj.on_press_args}
+          functions={functions}
+          onChange={(fn, args) => onChange({ on_press_fn: fn, on_press_args: args })}
+        />
+        <EventFunctionPicker
+          label="On release"
+          fnName={obj.on_release_fn}
+          args={obj.on_release_args}
+          functions={functions}
+          onChange={(fn, args) => onChange({ on_release_fn: fn, on_release_args: args })}
+        />
+        <p style={{ fontSize: 10, color: "#475569", margin: "0 0 4px" }}>
+          Definisci le funzioni nel pannello laterale (sezione FUNZIONI). I valori
+          dei parametri sono sostituiti per binding; lascia vuoto per usare il default.
+        </p>
+      </CollapsibleSection>
 
-      {/* ── Binding attivi (audit) ───────────────────────────────────── */}
-      {obj.bindings && Object.keys(obj.bindings).length > 0 && (
-        <>
-          <div style={{ fontSize: 10, color: "#475569", marginTop: 8, marginBottom: 2, fontWeight: 700, letterSpacing: 0.5 }}>
-            BINDING ATTIVI
-          </div>
-          {Object.entries(obj.bindings).map(([prop, tagId]) => (
+      {/* ── Binding attivi (audit) — always shown with count ──────────── */}
+      <CollapsibleSection
+        title="Binding attivi"
+        storageKey="bindings"
+        headerExtra={
+          <span style={{ fontSize: 10, color: obj.bindings && Object.keys(obj.bindings).length > 0 ? "#3b82f6" : "#475569", fontWeight: 700 }}>
+            ({obj.bindings ? Object.keys(obj.bindings).length : 0})
+          </span>
+        }
+        hint={!obj.bindings || Object.keys(obj.bindings).length === 0
+          ? "Usa il toggle 🔗 accanto a un campo per creare un binding."
+          : undefined}
+      >
+        {obj.bindings && Object.keys(obj.bindings).length > 0 ? (
+          Object.entries(obj.bindings).map(([prop, tagId]) => (
             <div key={prop} style={{ display: "flex", gap: 4, alignItems: "center", fontSize: 12, marginBottom: 2 }}>
               <span style={{ color: "#64748b", flex: "0 0 auto" }}>{prop}</span>
               <span style={{ color: "#475569" }}>→</span>
@@ -2164,9 +2237,13 @@ function ObjectProps({
                 style={{ ...LABEL, cursor: "pointer", background: "transparent", border: "none", color: "#ef4444", padding: "0 4px" }}
               >×</button>
             </div>
-          ))}
-        </>
-      )}
+          ))
+        ) : (
+          <p style={{ fontSize: 11, color: "#64748b", margin: "0 0 4px" }}>
+            Nessun binding attivo su questo oggetto.
+          </p>
+        )}
+      </CollapsibleSection>
 
       <button
         onClick={onDelete}
