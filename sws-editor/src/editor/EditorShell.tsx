@@ -596,9 +596,9 @@ export function EditorShell() {
                       onDelete={() => updateSub({ child: undefined })}
                     />
                   ) : (
-                    <div style={{ fontSize: 11, color: "#64748b", marginTop: 8 }}>
-                      Nessun figlio in questo slot. Trascina o copia un oggetto qui (in arrivo).
-                    </div>
+                    <SubCellAddChild
+                      onAdd={(type) => updateSub({ child: makeDefaultChild(type) })}
+                    />
                   )}
                 </>
               );
@@ -879,6 +879,35 @@ function CellRangeMergeActions({ onMerge, onCancel }: {
       <button onClick={onCancel} style={ACT_BTN}>
         Annulla selezione
       </button>
+    </div>
+  );
+}
+
+function SubCellAddChild({ onAdd }: { onAdd: (type: string) => void }) {
+  const [type, setType] = useState("rect");
+  return (
+    <div style={{ marginTop: 8 }}>
+      <div style={{ fontSize: 11, color: "#94a3b8", marginBottom: 4 }}>
+        Aggiungi un oggetto in questo slot:
+      </div>
+      <div style={{ display: "flex", gap: 6 }}>
+        <select
+          style={{ ...INPUT, flex: 1, cursor: "pointer" }}
+          value={type}
+          onChange={(e) => setType(e.target.value)}
+        >
+          {CELL_CHILD_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+        </select>
+        <button
+          onClick={() => onAdd(type)}
+          style={{ background: "#1d4ed8", border: "1px solid #2563eb", color: "#bfdbfe", borderRadius: 4, cursor: "pointer", fontSize: 12, padding: "2px 10px", flexShrink: 0 }}
+        >
+          + Aggiungi
+        </button>
+      </div>
+      <p style={{ fontSize: 10, color: "#475569", margin: "4px 0 0" }}>
+        Oppure: copia un oggetto dalla pagina (Ctrl+C) e premi Ctrl+V con la cella padre selezionata.
+      </p>
     </div>
   );
 }
