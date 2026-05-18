@@ -71,7 +71,8 @@ export interface SubGrid {
 }
 
 /** Content of one slot inside a `SubGrid`. Mirrors the customisable bits of a
- *  `GridCell` but without row/col coordinates (the slot is positional). */
+ *  `GridCell` but without row/col coordinates (the slot is positional).
+ *  May itself be subdivided via `sub` (recursive — no depth limit). */
 export interface SubCellEntry {
   bg_color?: string;
   bg_image?: string;
@@ -80,7 +81,15 @@ export interface SubCellEntry {
   on_press_fn?: string;
   on_release_fn?: string;
   child?: SynopticObject;
+  /** Recursive subdivision. When set, `child` is ignored and the slot
+   *  renders as a mini-grid (its two slots may each split again, ad lib). */
+  sub?: SubGrid;
 }
+
+/** Path of slot keys from a top-level `GridCell` down to a nested sub-cell.
+ *  Empty → the cell itself; `["a"]` → first split's slot A; `["a", "b"]` →
+ *  slot A's split's slot B; and so on. */
+export type SubPath = ("a" | "b")[];
 
 /** One option in a radio-group. */
 export interface RadioOption {

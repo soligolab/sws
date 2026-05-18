@@ -9,7 +9,7 @@ import { SYMBOL_LIST } from "@/symbols/library";
 import type { SymbolMeta } from "@/symbols/library";
 import { useAppStore } from "@/store";
 import type { AlignMode } from "@/store";
-import type { FunctionDef, GridCell, RadioOption, SynopticObject, TableRow } from "@/types";
+import type { FunctionDef, GridCell, RadioOption, SubCellEntry, SubGrid, SynopticObject, TableRow } from "@/types";
 
 // ── Shared styles ─────────────────────────────────────────────────────────────
 
@@ -194,6 +194,7 @@ export function EditorShell() {
   const unmergeCell         = useAppStore((s) => s.unmergeCell);
   const splitCell           = useAppStore((s) => s.splitCell);
   const joinSplitCell       = useAppStore((s) => s.joinSplitCell);
+  const updateSubCellAt     = useAppStore((s) => s.updateSubCellAt);
   const saveSerial       = useAppStore((s) => s.saveSerial);
   const saveStatus       = useAppStore((s) => s.saveStatus);
   const storeSaveStatus  = useAppStore((s) => s.setSaveStatus);
@@ -516,8 +517,8 @@ export function EditorShell() {
           onSelectCellChild={(objectId, row, col) => setSelectedCellChild({ objectId, row, col })}
           onSelectCellRange={(objectId, r1, c1, r2, c2) =>
             setSelectedCellRange({ objectId, r1, c1, r2, c2 })}
-          onSelectSubCell={(objectId, row, col, slot) =>
-            setSelectedSubCell({ objectId, row, col, slot })}
+          onSelectSubCell={(objectId, row, col, path) =>
+            setSelectedSubCell({ objectId, row, col, path })}
         />
       </div>
 
@@ -551,30 +552,45 @@ export function EditorShell() {
           const otherPages = pages.filter((p) => p.id !== currentPageId);
 
           // ── Sub-cell (slot of a split cell) selected ───────────────────
-          if (selected.type === "grid" && selectedSubCell?.objectId === selected.id) {
+          if (selected.type === "grid" && selectedSubCell?.objectId === selected.id
+              && selectedSubCell.path.length > 0) {
             const cells = (selected.grid_cells ?? []) as GridCell[];
             const cellDef = cells.find(
               (c) => c.row === selectedSubCell.row && c.col === selectedSubCell.col,
             );
-            const sub = cellDef?.sub;
-            if (cellDef && sub) {
-              const slotKey = selectedSubCell.slot;
-              const entry = sub[slotKey] ?? {};
+            // Walk the path through cellDef.sub to find the entry the user
+            // clicked. Bail to the regular cell branch if the path is no
+            // longer valid (e.g., the user unsplit while it was selected).
+            const path = selectedSubCell.path;
+            const entry = resolveSubCellEntry(cellDef, path);
+            const parentSub = resolveParentSubGrid(cellDef, path);
+            if (cellDef && entry !== null && parentSub) {
               const gridLabel = selected.name?.trim() || `griglia·${selected.id.slice(-4)}`;
+              const isSplit = !!entry.sub;
+              const pathLabel = path.map((s) => s.toUpperCase()).join("→");
               const updateSub = (patch: Partial<typeof entry>) =>
-                updateGridCell(currentPageId, selected.id, {
-                  ...cellDef,
-                  sub: { ...sub, [slotKey]: { ...entry, ...patch } },
-                });
+                updateSubCellAt(currentPageId, selected.id,
+                  selectedSubCell.row, selectedSubCell.col, path, patch);
               const child = entry.child;
               return (
                 <>
                   <PanelBreadcrumb
-                    parts={[gridLabel, `R${selectedSubCell.row + 1} C${selectedSubCell.col + 1}`, `slot ${slotKey.toUpperCase()}`]}
+                    parts={[gridLabel, `R${selectedSubCell.row + 1} C${selectedSubCell.col + 1}`, `slot ${pathLabel}`]}
                   />
                   <div style={{ fontSize: 10, color: "#475569", marginBottom: 6 }}>
-                    Sub-cella interna della cella split ({sub.orientation === "rows" ? "alto/basso" : "sinistra/destra"}).
+                    Sub-cella interna ({parentSub.orientation === "rows" ? "alto/basso" : "sinistra/destra"}).
                   </div>
+                  <CellStructureActions
+                    isMerged={false}
+                    isSplit={isSplit}
+                    onUnmerge={() => {}}
+                    onSplitRows={() => splitCell(currentPageId, selected.id,
+                      selectedSubCell.row, selectedSubCell.col, "rows", path)}
+                    onSplitCols={() => splitCell(currentPageId, selected.id,
+                      selectedSubCell.row, selectedSubCell.col, "cols", path)}
+                    onJoinSplit={() => joinSplitCell(currentPageId, selected.id,
+                      selectedSubCell.row, selectedSubCell.col, path)}
+                  />
                   <label style={{ fontSize: 11, color: "#94a3b8", display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
                     Colore sfondo:
                     <input type="color" value={entry.bg_color ?? "#1e293b"}
@@ -587,7 +603,12 @@ export function EditorShell() {
                       </button>
                     )}
                   </label>
-                  {child ? (
+                  {isSplit ? (
+                    <div style={{ fontSize: 11, color: "#64748b", marginTop: 8 }}>
+                      Questa sub-cella è ora divisa. Seleziona una delle sue
+                      sotto-celle nel canvas per editarne il contenuto.
+                    </div>
+                  ) : child ? (
                     <ObjectProps
                       obj={child}
                       pages={otherPages}
@@ -858,6 +879,33 @@ function PanelBreadcrumb({ parts }: { parts: string[] }) {
       ))}
     </div>
   );
+}
+
+/** Walk `cell.sub.a|b.sub.a|b...` along `path` and return the leaf entry,
+ *  or null if the path no longer matches the data (cell un-split, etc.). */
+function resolveSubCellEntry(cell: GridCell | undefined, path: ("a" | "b")[]): SubCellEntry | null {
+  if (!cell || path.length === 0) return null;
+  let sub: SubGrid | undefined = cell.sub;
+  let entry: SubCellEntry | undefined;
+  for (const slot of path) {
+    if (!sub) return null;
+    entry = sub[slot];
+    sub = entry?.sub;
+  }
+  return entry ?? null;
+}
+
+/** Return the `SubGrid` that owns the slot addressed by `path`. For path
+ *  length 1, that's `cell.sub`; for deeper paths, the parent SubGrid is
+ *  reached by walking path[0..-2]. Returns null if the path is broken. */
+function resolveParentSubGrid(cell: GridCell | undefined, path: ("a" | "b")[]): SubGrid | null {
+  if (!cell || path.length === 0) return null;
+  let sub: SubGrid | undefined = cell.sub;
+  for (let i = 0; i < path.length - 1; i++) {
+    if (!sub) return null;
+    sub = sub[path[i]]?.sub;
+  }
+  return sub ?? null;
 }
 
 // ── Cell range / structure action toolbars ────────────────────────────────────
