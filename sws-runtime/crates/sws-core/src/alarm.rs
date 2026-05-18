@@ -214,6 +214,7 @@ mod tests {
             condition: cond,
             message: format!("{id} fired"),
             severity: AlarmSeverity::Warning,
+            notify_url: None,
         }
     }
 

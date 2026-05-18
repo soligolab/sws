@@ -22,7 +22,7 @@ rusqlite         = { version = "0.32",  features = ["bundled"] }
 # Web framework
 axum             = { version = "0.7",   features = ["ws"] }
 tower            = "0.4"
-tower-http       = { version = "0.5",   features = ["cors", "trace"] }
+tower-http       = { version = "0.5",   features = ["cors", "trace", "fs"] }
 
 # Tracing / logging
 tracing              = "0.1"
@@ -75,3 +75,6 @@ reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"
 
 # Error handling
 anyhow = "1"
+
+# System metrics (CPU, RAM, disk)
+sysinfo = "0.30"

@@ -26,6 +26,7 @@ sws-pyscript      = { path = "../sws-pyscript" }
 sws-auth          = { path = "../sws-auth" }
 sws-plugin-modbus = { path = "../sws-plugin-modbus" }
 sws-plugin-mqtt   = { path = "../sws-plugin-mqtt" }
+sysinfo           = { workspace = true }
 
 [dev-dependencies]
 tempfile = "3"

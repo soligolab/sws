@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { api } from "@/api/client";
+import { api, getRuntimeBaseUrl, setRuntimeBaseUrl } from "@/api/client";
 import type { ProjectListEntry, TemplateEntry } from "@/types";
 
 // ── styles ────────────────────────────────────────────────────────────────────
@@ -266,6 +266,143 @@ function NewProjectModal({
   );
 }
 
+// ── RemoteRuntimeModal ────────────────────────────────────────────────────────
+//
+// ARCH-004: switch the SPA to a different runtime URL without rebuilding.
+// Probes `/health` over the supplied origin (CORS allows it since the
+// runtime ships a permissive CorsLayer). On success, persists the URL in
+// localStorage and triggers a full window reload so the api client + WS
+// helpers pick the new base, and so stale auth tokens / project state
+// from the previous runtime are cleared cleanly.
+
+function RemoteRuntimeModal({
+  current,
+  onClose,
+}: {
+  current: string;
+  onClose: () => void;
+}) {
+  const [url, setUrl]         = useState(current);
+  const [probing, setProbing] = useState(false);
+  const [probed, setProbed]   = useState<"ok" | "fail" | null>(null);
+  const [error, setError]     = useState<string | null>(null);
+
+  const normalised = url.trim().replace(/\/$/, "");
+
+  const probe = async () => {
+    if (!normalised) return;
+    setProbing(true); setProbed(null); setError(null);
+    try {
+      const res = await fetch(`${normalised}/health`, { method: "GET" });
+      if (res.ok) {
+        setProbed("ok");
+      } else {
+        setProbed("fail");
+        setError(`Il runtime ha risposto ${res.status} ${res.statusText}. URL valido ma /health non OK.`);
+      }
+    } catch (e: any) {
+      setProbed("fail");
+      const msg = String(e?.message ?? e);
+      // Most common case: self-signed cert never accepted in this browser.
+      // Surface it explicitly so the user knows to open the URL in a tab
+      // first and click through the cert warning.
+      if (msg.includes("Failed to fetch") || msg.includes("NetworkError")) {
+        setError(`Connessione fallita. Possibili cause: runtime spento, URL errato, oppure certificato self-signed mai accettato in questo browser. Apri ${normalised}/health in una nuova scheda e accetta il certificato, poi riprova.`);
+      } else {
+        setError(msg);
+      }
+    } finally {
+      setProbing(false);
+    }
+  };
+
+  const connect = () => {
+    setRuntimeBaseUrl(normalised);
+    // Full reload: clears auth token cache, Zustand store, WS connections.
+    // The next mount sees the new runtime URL on every fetch.
+    window.location.reload();
+  };
+
+  const reset = () => {
+    setRuntimeBaseUrl(null);
+    window.location.reload();
+  };
+
+  return (
+    <div style={{
+      position: "fixed", inset: 0,
+      background: "rgba(0,0,0,0.6)", zIndex: 9000,
+      display: "flex", alignItems: "center", justifyContent: "center",
+    }} onClick={onClose}>
+      <div style={{
+        background: "#0f172a", border: "1px solid #334155",
+        borderRadius: 10, padding: 24,
+        width: 480, maxWidth: "90vw",
+      }} onClick={(e) => e.stopPropagation()}>
+        <div style={{ fontSize: 18, fontWeight: 700, color: "#e2e8f0", marginBottom: 4 }}>
+          📡 Runtime remoto
+        </div>
+        <div style={{ fontSize: 12, color: "#64748b", marginBottom: 16 }}>
+          Connetti l'editor a un runtime SWS in esecuzione su un'altra macchina
+          (tipicamente il PX30 sul campo). L'URL viene salvato nel browser
+          (localStorage) e usato da tutte le chiamate API/WS finché non lo
+          ripristini al locale.
+        </div>
+
+        <label style={{ fontSize: 11, color: "#94a3b8", display: "block", marginBottom: 4 }}>
+          URL del runtime
+        </label>
+        <div style={{ display: "flex", gap: 8, marginBottom: 4 }}>
+          <input
+            style={{ ...INPUT, flex: 1 }}
+            placeholder="https://px30.local:8443"
+            value={url}
+            onChange={(e) => { setUrl(e.target.value); setProbed(null); setError(null); }}
+            autoFocus
+          />
+          <button
+            style={{ ...BTN_GHOST, padding: "8px 14px" }}
+            onClick={probe}
+            disabled={!normalised || probing}
+          >
+            {probing ? "Test…" : "Test"}
+          </button>
+        </div>
+        {probed === "ok" && (
+          <div style={{ fontSize: 12, color: "#22c55e", marginBottom: 8 }}>
+            ✓ Il runtime risponde a /health. Pronto per connettersi.
+          </div>
+        )}
+        {probed === "fail" && error && (
+          <div style={{ fontSize: 12, color: "#fca5a5", marginBottom: 8, lineHeight: 1.4 }}>
+            {error}
+          </div>
+        )}
+
+        <div style={{ display: "flex", gap: 8, marginTop: 16, justifyContent: "flex-end" }}>
+          {current && (
+            <button
+              style={{ ...BTN_GHOST, marginRight: "auto" }}
+              onClick={reset}
+              title="Ripristina runtime locale (same-origin)"
+            >
+              ↺ Torna al locale
+            </button>
+          )}
+          <button style={BTN_GHOST} onClick={onClose}>Annulla</button>
+          <button
+            style={{ ...BTN_PRIMARY, opacity: probed === "ok" ? 1 : 0.5 }}
+            onClick={connect}
+            disabled={probed !== "ok"}
+          >
+            Connetti
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── WelcomeScreen ─────────────────────────────────────────────────────────────
 
 interface WelcomeScreenProps {
@@ -281,8 +418,10 @@ export function WelcomeScreen({ onProjectOpened }: WelcomeScreenProps) {
   const [openingName, setOpening] = useState<string | null>(null);
   const [error, setError]         = useState<string | null>(null);
   const [showNew, setShowNew]     = useState(false);
+  const [showRuntime, setShowRuntime] = useState(false);
   const [editing, setEditing]     = useState<EditingState | null>(null);
   const [actionBusy, setActionBusy] = useState<string | null>(null);
+  const remoteRuntime             = getRuntimeBaseUrl();
 
   const loadProjects = async () => {
     setLoading(true);
@@ -372,6 +511,12 @@ export function WelcomeScreen({ onProjectOpened }: WelcomeScreenProps) {
         <NewProjectModal
           onClose={() => setShowNew(false)}
           onCreate={handleCreated}
+        />
+      )}
+      {showRuntime && (
+        <RemoteRuntimeModal
+          current={remoteRuntime}
+          onClose={() => setShowRuntime(false)}
         />
       )}
 
@@ -536,6 +681,38 @@ export function WelcomeScreen({ onProjectOpened }: WelcomeScreenProps) {
           >
             + Nuovo progetto
           </button>
+        </div>
+
+        {/* runtime selector — small footer row */}
+        <div style={{
+          marginTop: 20, paddingTop: 14,
+          borderTop: "1px solid #1e293b",
+          display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+          fontSize: 12, color: "#64748b",
+        }}>
+          {remoteRuntime ? (
+            <>
+              <span style={{ fontSize: 14 }}>📡</span>
+              <span>Connesso a</span>
+              <span style={{ color: "#3b82f6", fontFamily: "monospace" }}>{remoteRuntime}</span>
+              <button
+                style={{ background: "transparent", border: "none", color: "#94a3b8", cursor: "pointer", fontSize: 11, textDecoration: "underline dotted" }}
+                onClick={() => setShowRuntime(true)}
+              >
+                cambia
+              </button>
+            </>
+          ) : (
+            <>
+              <span>Runtime locale</span>
+              <button
+                style={{ background: "transparent", border: "none", color: "#3b82f6", cursor: "pointer", fontSize: 12, textDecoration: "underline dotted" }}
+                onClick={() => setShowRuntime(true)}
+              >
+                📡 Connetti a runtime remoto…
+              </button>
+            </>
+          )}
         </div>
       </div>
     </div>

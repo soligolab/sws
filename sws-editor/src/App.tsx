@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { api, AuthError, NoProjectError, PasswordChangeRequiredError } from "@/api/client";
+import { api, AuthError, getRuntimeBaseUrl, NoProjectError, PasswordChangeRequiredError, setRuntimeBaseUrl } from "@/api/client";
 import { AlarmBanner } from "@/components/AlarmBanner";
 import { ChangePasswordScreen } from "@/components/ChangePasswordScreen";
 import { LogPanel } from "@/components/LogPanel";
@@ -289,7 +289,8 @@ const LOG_PANEL_KEY = "sws.logPanel.open";
 
 export function App() {
   const { t } = useTranslation();
-  const [mode, setMode] = useState<Mode>("edit");
+  const mode    = useAppStore((s) => s.appMode);
+  const setMode = useAppStore((s) => s.setAppMode);
   const [logOpen, setLogOpen] = useState<boolean>(() => {
     try { return localStorage.getItem(LOG_PANEL_KEY) === "1"; } catch { return false; }
   });
@@ -406,6 +407,43 @@ export function App() {
         flexShrink: 0,
       }}>
         <strong style={{ letterSpacing: 1, fontSize: 15, color: "#e2e8f0" }}>SWS</strong>
+        {(() => {
+          // ARCH-004: remote runtime indicator. Visible only when the SPA is
+          // pointing at a non-default runtime origin. Click to disconnect →
+          // strips localStorage + full reload back to same-origin / proxy.
+          const remote = getRuntimeBaseUrl();
+          if (!remote) return null;
+          // Display only the host:port portion so the header stays compact.
+          let host = remote;
+          try { const u = new URL(remote); host = u.host; } catch { /* ignore */ }
+          return (
+            <button
+              onClick={() => {
+                if (window.confirm(`Disconnetti dal runtime remoto ${host}? Tornerai al runtime locale.`)) {
+                  setRuntimeBaseUrl(null);
+                  window.location.reload();
+                }
+              }}
+              title={`Connesso a ${remote}. Clicca per tornare al runtime locale.`}
+              style={{
+                padding: "2px 8px",
+                background: "#1e3a8a",
+                color: "#bfdbfe",
+                border: "1px solid #2563eb",
+                borderRadius: 10,
+                cursor: "pointer",
+                fontSize: 11,
+                fontWeight: 600,
+                display: "flex",
+                alignItems: "center",
+                gap: 4,
+              }}
+            >
+              <span>📡</span>
+              <span style={{ fontFamily: "monospace" }}>{host}</span>
+            </button>
+          );
+        })()}
         <span style={{ color: "#475569", flex: 1, fontSize: 13 }}>
           {t("app.project")}: {project?.meta.name ?? "—"}
         </span>

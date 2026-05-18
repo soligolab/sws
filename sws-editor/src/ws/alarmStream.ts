@@ -3,17 +3,7 @@ import { useEffect } from "react";
 import { api, getAuthToken } from "@/api/client";
 import { useAppStore } from "@/store";
 import type { AlarmState } from "@/types";
-
-/** Same-origin WS URL with token in query string — see tagStream.ts. */
-function buildWsUrl(path: string): string {
-  const base = import.meta.env.VITE_ALARMS_WS_URL
-    ?? (typeof window === "undefined"
-          ? `ws://localhost${path}`
-          : `${window.location.protocol === "https:" ? "wss" : "ws"}://${window.location.host}${path}`);
-  const token = getAuthToken();
-  if (!token) return base;
-  return `${base}${base.includes("?") ? "&" : "?"}token=${encodeURIComponent(token)}`;
-}
+import { buildWsUrl } from "@/ws/wsUrl";
 
 let socket: WebSocket | null = null;
 let currentToken: string | null = null;
@@ -26,7 +16,7 @@ function getSocket(): WebSocket {
   }
   if (!socket || socket.readyState === WebSocket.CLOSED) {
     currentToken = token;
-    socket = new WebSocket(buildWsUrl("/ws/alarms"));
+    socket = new WebSocket(buildWsUrl("/ws/alarms", "VITE_ALARMS_WS_URL"));
   }
   return socket;
 }
