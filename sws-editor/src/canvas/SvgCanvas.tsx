@@ -1262,18 +1262,51 @@ function SvgObject(p: ObjProps) {
                       y2: childY + ((ch2.y2 ?? ch2.y) - ch2.y) }
                   : { ...ch2, x: childX, y: childY };
                 return (
-                  <g style={{ pointerEvents: isEditMode ? "none" : "auto" }}>
-                    <SvgObject
-                      obj={placed}
-                      tagValues={tagValues}
-                      selected={false}
-                      isEditMode={false}
-                      customSymbols={customSymbols}
-                      onWriteTag={onWriteTag}
-                      onScript={onScript}
-                      onNavigate={onNavigate}
-                    />
-                  </g>
+                  <>
+                    {/* Child visual — non-interactive in edit mode; the
+                        overlay rect below catches clicks for selection. */}
+                    <g style={{ pointerEvents: isEditMode ? "none" : "auto" }}>
+                      <SvgObject
+                        obj={placed}
+                        tagValues={tagValues}
+                        selected={false}
+                        isEditMode={false}
+                        customSymbols={customSymbols}
+                        onWriteTag={onWriteTag}
+                        onScript={onScript}
+                        onNavigate={onNavigate}
+                      />
+                    </g>
+                    {/* Click target — selects the parent sub-slot so the
+                        panel surfaces the child's ObjectProps (and stops the
+                        click from re-selecting through the slot rect
+                        underneath, which is the same selection anyway but
+                        the explicit stopPropagation keeps event flow tidy). */}
+                    {isEditMode && (
+                      <rect
+                        x={childX} y={childY} width={cw} height={chh}
+                        fill="transparent"
+                        style={{ cursor: "pointer" }}
+                        onMouseDown={(e) => {
+                          e.stopPropagation();
+                          p.onSelectSubCell?.(gridObjId, cellRow, cellCol, slotPath);
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                    )}
+                    {/* Selection rect around the child — visible whenever
+                        the slot holding it is selected, so the user can
+                        confirm which object the panel is editing. */}
+                    {isEditMode && isSlotSel && (
+                      <rect
+                        x={childX - 2} y={childY - 2}
+                        width={cw + 4} height={chh + 4}
+                        fill="none" stroke="#0d9488"
+                        strokeWidth={1.5} strokeDasharray="4 2"
+                        style={{ pointerEvents: "none" }}
+                      />
+                    )}
+                  </>
                 );
               })()}
               {isSlotSel && (
