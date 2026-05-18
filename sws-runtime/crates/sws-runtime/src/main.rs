@@ -67,6 +67,20 @@ struct Args {
     /// separate Nginx container is needed.
     #[arg(long)]
     www: Option<PathBuf>,
+
+    /// Shell command to spawn once the HTTPS listener answers `/health` OK.
+    /// Used for kiosk-mode deployments on PX30 / RK3399: the runtime starts
+    /// the browser itself, no operator login required.
+    ///
+    /// Typical value: `chromium --kiosk --no-sandbox --app=https://localhost:8443`
+    /// or `epiphany-browser --application-mode https://localhost:8443`.
+    ///
+    /// The child process is launched fire-and-forget: it is not monitored,
+    /// restarted, or killed by the runtime. If the browser dies, the runtime
+    /// keeps running. Stdout/stderr of the child inherit from the runtime's
+    /// stdio (visible in journald / podman logs).
+    #[arg(long)]
+    kiosk_browser: Option<String>,
 }
 
 #[tokio::main]
@@ -337,6 +351,42 @@ async fn main() -> anyhow::Result<()> {
     let addr: SocketAddr = "0.0.0.0:8443".parse()?;
     let listener = TcpListener::bind(addr).await?;
     info!(%addr, "HTTPS listener ready");
+
+    // Kiosk-mode browser spawn: once /health answers OK, run the operator-
+    // provided shell command (typically a kiosk browser). Fire-and-forget —
+    // the runtime never restarts or kills the child, and the child's death
+    // doesn't stop the runtime. PoC-grade: no retries beyond the initial
+    // health-check poll, no log capture (stdio inherits).
+    if let Some(cmd) = args.kiosk_browser.clone() {
+        tokio::spawn(async move {
+            // Tolerate self-signed cert (rcgen-generated on first run).
+            let client = reqwest::Client::builder()
+                .danger_accept_invalid_certs(true)
+                .timeout(std::time::Duration::from_millis(500))
+                .build()
+                .unwrap_or_default();
+            let mut ready = false;
+            for _ in 0..50 {
+                if let Ok(r) = client.get("https://localhost:8443/health").send().await {
+                    if r.status().is_success() { ready = true; break; }
+                }
+                tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+            }
+            if !ready {
+                warn!(kiosk = %cmd, "kiosk: /health didn't answer in 5s — skipping browser spawn");
+                return;
+            }
+            info!(kiosk = %cmd, "kiosk: spawning browser");
+            match tokio::process::Command::new("sh")
+                .arg("-c").arg(&cmd)
+                .stdin(std::process::Stdio::null())
+                .spawn()
+            {
+                Ok(_child) => { /* fire-and-forget, child inherits stdout/stderr */ }
+                Err(e)     => warn!(kiosk = %cmd, "kiosk: spawn failed: {e}"),
+            }
+        });
+    }
 
     loop {
         let (stream, peer) = tokio::select! {

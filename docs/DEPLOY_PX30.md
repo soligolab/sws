@@ -146,6 +146,57 @@ a public-facing deployment behind a load balancer that's still the
 right shape. For a PX30 on the factory floor talking to one operator
 on the LAN, single-container is simpler and burns fewer MB of RAM.
 
+## 4c. Kiosk mode (unattended boot)
+
+For panel-PC / HMI scenarios — the board has a display attached and you
+want the SCADA synoptic to come up by itself without anyone logging in
+or opening a browser — pass `--kiosk-browser <shell-cmd>` to the runtime.
+Once `/health` answers OK, the runtime spawns the command (fire-and-forget;
+its death does not stop the runtime).
+
+```yaml
+# In compose.yaml, under the runtime service `command:` (combine with
+# the single-container `--www` override from §4b for the fullest demo):
+command: ["sws-runtime",
+          "--config",         "/var/sws/config",
+          "--projects-root",  "/var/sws/projects",
+          "--project",        "/var/sws/projects/default",
+          "--www",            "/var/sws/www",
+          "--kiosk-browser",  "chromium --kiosk --no-sandbox --app=https://localhost:8443"]
+```
+
+Browser choices:
+
+| Command | Notes |
+|---|---|
+| `chromium --kiosk --no-sandbox --app=URL` | Most common; needs `chromium` package on the host (the stock SWS image does NOT bundle a browser — install on the board or build a derived image). |
+| `epiphany-browser --application-mode URL` | GNOME Web — lighter than Chromium, fewer deps |
+| `firefox --kiosk URL` | Mature kiosk mode since FF 71 |
+| `cage -- chromium --kiosk --app=URL` | Wayland-only minimal kiosk wrapper — clean, no window decorations |
+
+The browser process inherits stdin/stdout from the runtime: its logs end
+up in journald or `podman logs <container>` alongside the runtime's own
+output. If the browser crashes, the runtime keeps serving; restart the
+browser by hand (or wrap it in a `while true; do …; done` shell loop in
+the `--kiosk-browser` command itself).
+
+Installing chromium on Debian Bookworm arm64 (host side):
+
+```sh
+sudo apt-get update
+sudo apt-get install -y --no-install-recommends \
+    chromium                    \
+    fonts-noto-core libgl1-mesa-dri
+```
+
+For an X-less Wayland kiosk on a barebones board, `cage` + chromium is
+the minimal setup:
+
+```sh
+sudo apt-get install -y cage chromium
+# in compose: --kiosk-browser "cage -- chromium --kiosk --no-sandbox --app=https://localhost:8443"
+```
+
 ## 5. Operational notes
 
 ### TLS certs

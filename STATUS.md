@@ -2,11 +2,13 @@
 
 > This file is the **session-to-session memory** for Claude Code. Update it at the end of every session before stopping work. Read it at the start of every session before touching code.
 
-**Last session**: 2026-05-18 (sessione 23: grid object — resize bordi righe/colonne con drag, snap interno, multi-cell selection + merge, split locale 1×2/2×1)
+**Last session**: 2026-05-18 (sessione 24: ARCH-003 kiosk-mode + iterazioni UX grid post-S-23 — ricorsione sub-cell, breadcrumb cliccabile per navigazione grid→cella→sub-cella, ObjectProps accordion redesign)
 **Current phase**: Phase 2. Demo working out-of-the-box su fresh clone, import/export progetto per backup/condivisione, pannello log live + persistenza su disco, gestione utenti multi-account. Da questa sessione il runtime può servire la SPA da sé (`--www`) e l'editor può puntare a un runtime remoto via `VITE_RUNTIME_URL` — sblocco completo del deploy single-container su PX30.
 **Last commit**: (vedi CHANGELOG [Unreleased] per i dettagli della sessione corrente)
 
 ### Cosa è andato online in queste sessioni (in ordine di commit)
+- (sessione 2026-05-18, sessione 24) **ARCH-003 — Kiosk-mode browser spawn** — nuova CLI arg `--kiosk-browser <shell-cmd>`. Dopo che il listener HTTPS è up e `/health` risponde OK (poll reqwest con `danger_accept_invalid_certs(true)`, 50×100ms), il runtime fa `tokio::process::Command::new("sh").arg("-c").arg(cmd).spawn()` fire-and-forget. La morte del child non ferma il runtime; il runtime exit non killa il child. Entrypoint.sh ha commento con esempi. `docs/DEPLOY_PX30.md` §4c documenta il setup con chromium/epiphany/firefox/cage. La stock image non include un browser — installazione lato host.
+- (sessione 2026-05-18, sessione 23/24) **Grid sub-cell ricorsione + breadcrumb cliccabile + ObjectProps accordion** — 6 commit di iterazione su S-23. (1) `SubCellEntry.sub: SubGrid` ricorsivo senza limite, `selectedSubCell.path: ("a"|"b")[]`, helper traversal `updateSubGridAtPath`/`updateSubCellEntryAtPath`, render canvas via `renderSubArea` ricorsivo, drag handles per ogni sub-divider. (2) Bug fix: `resolveSubCellEntry` ritorna `{}` per slot vuoti (era `null`, panel cadeva in "page props"). (3) Bug fix: sub-slot click chiama `p.onSelect(gridObjId)` PRIMA di `p.onSelectSubCell` per evitare che il pannello mostri page props. (4) Pannello sub-cell con "+ Aggiungi" UI completa (era assente). (5) Child di sub-cella ora ha rettangolo selezione teal + overlay cliccabile. (6) **PanelBreadcrumb chip cliccabili**: ogni chip non-leaf con `onClick` diventa un link blu, l'utente può navigare grid→cella→sub-cella all'indietro pulendo la selezione del livello. Sblocca l'accesso alle proprietà generali della griglia (prima irraggiungibile da canvas perché celle coprono tutto). (7) **ObjectProps accordion redesign**: nuovo `CollapsibleSection` con localStorage persist; Trasformazione/Layer/Eventi/Binding/Qualità collapsed di default; rimossi slider duplicati da rotation/opacity/transition; Identità compatta su 1 riga `[type · id]`; ~480 px collapsed vs ~900 px prima.
 - (sessione 2026-05-18, sessione 23) **Grid: resize bordi righe/colonne con drag + snap interno** — quando il `grid` è selezionato in edit mode, `SvgCanvas` rende ora dei `<rect>` trasparenti 6 px centrati su ogni bordo interno (col-resize / row-resize cursor). `gridBorderRef` traccia il drag in `handleMouseMove`: delta convertito da screen→SVG via zoom, applicato come `[startA + delta, startB - delta]` sulle due tracce adiacenti, clamp min 8 px ciascuna. Snap: candidati = posizioni cumulative degli altri bordi interni dello stesso grid; threshold `8/zoom`; quando agganciato, snap-line ciano riusa l'esistente `setSnapLines`. Update tramite `updateObject(id, { col_widths: [...] })` o `{ row_heights: [...] }`. Coalescenza undo via `openInteraction("Ridimensiona colonna N")`.
 - (sessione 2026-05-18, sessione 23) **Grid: multi-cell selection + merge** — shift+click su una cella del grid già selezionato chiama `onSelectCellRange(objectId, r1,c1, r2,c2)` → store `setSelectedCellRange` (normalizza r1≤r2, c1≤c2). Overlay teal tratteggiato sopra l'unione dei rect. Pannello a destra mostra `CellRangeMergeActions` con bottoni "🔗 Unisci celle" e "Annulla selezione". Store action `mergeCellRange(...)`: valida che le celle merged interne non sborderebbero; ruota a top-left cell con `rowspan/colspan` corretti, droppa le entries non-origine. `unmergeCell` strippa rowspan/colspan preservando le altre proprietà.
 - (sessione 2026-05-18, sessione 23) **Grid: split locale di una cella (ibrido)** — il `GridCell` TS guadagna `sub?: SubGrid { orientation: "rows"|"cols", ratio: number, a?: SubCellEntry, b?: SubCellEntry }`. Bottoni "⬓ Dividi orizzontalmente" / "⬔ Dividi verticalmente" appaiono nel pannello quando una singola cella senza span e senza split è selezionata. Action `splitCell`: imposta `cell.sub = { orientation, ratio: 0.5, a: { child: existingChild?, ... }, b: undefined }` e migra l'eventuale `cell.child` in `sub.a.child`. Renderer della cella detecta `cellDef.sub` e disegna 2 sub-rect (alto/basso o sinistra/destra a seconda di orientation) con bg_color, bg_image, child centrato in ciascuno. Click su sub-cella → `selectedSubCell: { slot: "a"|"b" }`. `joinSplitCell` rimuove `sub` e re-lifta `sub.a.child` (o `sub.b.child` se a è vuoto) come child di cella. Ricorsione su sub-cell intenzionalmente disabilitata (KISS).
@@ -256,7 +258,7 @@
 |----|------|-------|------------|
 | 5.1 | ✅ **ARCH-001** Runtime serve SPA via `ServeDir` + `--www <path>` (fallback service + SPA `index.html` 404 catch) | — | — |
 | 5.2 | ✅ **ARCH-002** `VITE_RUNTIME_URL` configurabile (proxy Vite + `api/client.ts` + `ws/wsUrl.ts`) | — | — |
-| 5.3 | **ARCH-003** Kiosk mode: `--kiosk-browser <cmd>` — spawna browser dopo `/health` OK | 1 h | — |
+| 5.3 | ✅ **ARCH-003** Kiosk mode: `--kiosk-browser <cmd>` con poll `/health` + spawn fire-and-forget | — | — |
 | 5.4 | **ARCH-004** Multi-runtime WelcomeScreen (tab "Runtime remoto" + localStorage override) | 3 h | — |
 | 5.5 | Demo su PX30 hardware | — | → 5.1, hw fisico |
 
@@ -310,9 +312,10 @@
 |----------|--------|-----------|--------------|
 | ~~**S-22**~~ ✅ | ~6 h | ARCH-001 + ARCH-002 + 4.1 + 4.3 + 4.4 + 6.1 + 6.2 + fix test `alarm.rs` | — |
 | ~~**S-23**~~ ✅ | ~4 h | Grid: resize bordi (4.5) + multi-cell + merge (4.6) + split locale (4.7) | — |
-| **S-24** | ~2 h | ARCH-003 (kiosk) + test su PX30 hardware | hw fisico |
-| **S-25** | ~3 h | ARCH-004 (multi-runtime WelcomeScreen) | ARCH-002 stabile (✅) |
-| **S-26** | ~3 h | 1.3 (drag&drop tree) + 1.4 (context menu) + 4.2 (rulers) | — |
+| ~~**S-24**~~ ✅ | ~3 h | Grid sub-cell recursion + breadcrumb cliccabile + ObjectProps accordion + ARCH-003 kiosk software | — |
+| **S-25** | manual | Test ARCH-003 sul PX30 reale (chromium + cage) | hw fisico |
+| **S-26** | ~3 h | ARCH-004 (multi-runtime WelcomeScreen) | ARCH-002 stabile (✅) |
+| **S-27** | ~3 h | 1.3 (drag&drop tree) + 1.4 (context menu) + 4.2 (rulers) | — |
 
 ---
 
@@ -453,15 +456,16 @@ Analisi completa delle implicazioni dei 4 punti operativi desiderati. Piano in `
 - [x] `scripts/README.md`: nuova sezione "Pointing the editor at a remote runtime"
 - [x] `pnpm type-check` + `pnpm build` verdi
 
-### ARCH-003 — Kiosk mode (`--kiosk-browser <cmd>`) — ~1 h
+### ARCH-003 — Kiosk mode (`--kiosk-browser <cmd>`) — ✅ DONE (2026-05-18)
 > **Obiettivo**: sul PX30, all'avvio del runtime, il browser parte in kiosk senza intervento utente.
-- [ ] `sws-runtime/crates/sws-runtime/src/main.rs`: aggiungere CLI arg `--kiosk-browser <shell-cmd>` (opzionale)
-- [ ] Dopo che il server è up (poll `GET /health` ogni 100 ms × 50 tentativi), spawnare il comando via `tokio::process::Command::new("sh").arg("-c").arg(cmd).spawn()`
-- [ ] Il child process non viene monitorato né riavviato (PoC); la sua morte non ferma il runtime
-- [ ] Log del processo: solo `tracing::info!("kiosk browser spawned: {cmd}")` — mai via LogBus
-- [ ] `sws-runtime/docker/entrypoint.sh`: aggiungere commento con esempio `--kiosk-browser "chromium --kiosk --no-sandbox --app=https://localhost:8443"`
-- [ ] `docs/DEPLOY_PX30.md`: sezione "Modalità kiosk Wayland" con pacchetti da installare (`chromium-browser` o `epiphany-browser` su Debian arm64) e opzione `cage`
-- [ ] `cargo check` verde
+- [x] `sws-runtime/crates/sws-runtime/src/main.rs`: CLI arg `--kiosk-browser <shell-cmd>` (opzionale)
+- [x] Dopo `/health` OK (poll reqwest con `danger_accept_invalid_certs(true)`, 50×100ms), spawn `tokio::process::Command::new("sh").arg("-c").arg(cmd).spawn()`
+- [x] Child fire-and-forget (no monitor, no restart, no kill on runtime exit); morte del child non ferma il runtime
+- [x] Log: `info!(kiosk = %cmd, "kiosk: spawning browser")` + warn su spawn failure o /health timeout
+- [x] `sws-runtime/docker/entrypoint.sh`: commento con esempi (chromium / epiphany / firefox / cage)
+- [x] `docs/DEPLOY_PX30.md` §4c: sezione "Kiosk mode (unattended boot)" con pacchetti Debian arm64 + Wayland kiosk option
+- [x] `cargo check --workspace` + `cargo test --workspace` verdi
+- [ ] Test sul PX30 reale — manuale, da fare dal maintainer (sessione S-25)
 
 ### ARCH-004 — Multi-runtime WelcomeScreen (BL-004) — ~3-4 h — RIMANDATO
 > Dipende da ARCH-002 stabile. Aprire come BL-004 quando si pianifica la sessione.
