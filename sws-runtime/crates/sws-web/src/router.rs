@@ -122,6 +122,8 @@ pub fn build(
         .route("/ws/logs",             get(ws_logs_handler))
         // MQTT broker browse: temporary connection, subscribe #, return topics.
         .route("/api/sources/mqtt/browse", post(mqtt_browse_handler))
+        // OPC-UA server browse: one level under a NodeId (default Objects).
+        .route("/api/sources/opcua/browse", post(opcua_browse_handler))
         .route("/api/system",             get(crate::system::get_system_status))
         .route_layer(middleware::from_fn(require_operator));
 
@@ -1703,6 +1705,73 @@ struct BrowsedTopicDto {
 #[derive(serde::Serialize)]
 struct MqttBrowseResponse {
     topics: Vec<BrowsedTopicDto>,
+}
+
+// ── OPC-UA browse (BL-005 step 3) ────────────────────────────────────────────
+
+#[derive(Deserialize)]
+struct OpcUaBrowseRequest {
+    endpoint_url: String,
+    /// When the caller sends the masked sentinel password, we substitute the
+    /// real one from project.yaml by looking up the matching source id.
+    /// Same pattern as mqtt_browse_handler.
+    #[serde(default)]
+    source_id: Option<String>,
+    #[serde(default)]
+    auth: Option<sws_core::OpcUaAuth>,
+    /// Optional NodeId to browse under (e.g. `ns=2;s=Machine`). Defaults to
+    /// the Objects folder on the server.
+    #[serde(default)]
+    parent_node_id: Option<String>,
+}
+
+async fn opcua_browse_handler(
+    State(s): State<AppState>,
+    Json(mut req): Json<OpcUaBrowseRequest>,
+) -> Response {
+    // Resolve a masked password from project.yaml when the editor sends
+    // the sentinel — keeps secrets out of round-trips just like the MQTT
+    // path. Only `UsernamePassword` carries a password.
+    if let Some(sws_core::OpcUaAuth::UsernamePassword { password: Some(ref p), .. }) = req.auth {
+        if p == MASKED_PASSWORD {
+            if let (Some(ref sid), Ok(dir)) = (req.source_id.as_ref(), active_dir(&s).await) {
+                if let Ok(project) = Project::load(&dir) {
+                    for src in &project.sources {
+                        if let SourceDef::OpcUaClient(c) = src {
+                            if c.id.as_str() == sid.as_str() {
+                                if let sws_core::OpcUaAuth::UsernamePassword {
+                                    password: Some(stored), ..
+                                } = &c.auth {
+                                    if let sws_core::OpcUaAuth::UsernamePassword {
+                                        password, ..
+                                    } = &mut req.auth.as_mut().unwrap() {
+                                        *password = Some(stored.clone());
+                                    }
+                                }
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Build a throwaway OpcUaClientConfig for the helper. We don't touch
+    // the persisted project — the browse is a one-shot lookup.
+    let cfg = sws_core::OpcUaClientConfig {
+        id: "browse".into(),
+        endpoint_url: req.endpoint_url,
+        security_policy: "None".into(),
+        auth: req.auth.unwrap_or_default(),
+        subscription_interval_ms: 1000,
+        nodes: Vec::new(),
+    };
+
+    match sws_plugin_opcua::browse_one_level(&cfg, req.parent_node_id.as_deref()).await {
+        Ok(nodes) => Json(serde_json::json!({ "nodes": nodes })).into_response(),
+        Err(e) => (StatusCode::BAD_GATEWAY, format!("opcua browse failed: {e}")).into_response(),
+    }
 }
 
 async fn mqtt_browse_handler(

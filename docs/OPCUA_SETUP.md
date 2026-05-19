@@ -1,10 +1,10 @@
 # OPC-UA Client Setup
 
-> **Status (BL-005 step 1+2)**: Client subscriptions work end-to-end against
+> **Status (BL-005 step 1+2+3+4)**: Reads (subscriptions), writes (via
+> `TagWriteBus`), and one-level server browse all work end-to-end against
 > a server that accepts anonymous or username/password auth with security
-> policy `None`. Browse, certificate-based security, write-back to the
-> server, and Euromap companion-spec auto-discovery (BL-005b) are deferred
-> follow-ups — see `STATUS.md`.
+> policy `None`. Certificate-based security and Euromap companion-spec
+> auto-discovery (BL-005b) are deferred follow-ups — see `STATUS.md`.
 
 The SWS runtime ships with a built-in OPC-UA client plugin
 (`sws-plugin-opcua`, version-locked to `async-opcua` 0.18). It runs as a
@@ -140,18 +140,81 @@ opcua: connected, creating subscription
 opcua: subscribed (count=N)
 ```
 
-## What's not in step 1+2
+## Writes back to the server (step 4)
 
-- **Writes back to the server**. The TagWriteBus is intentionally not
-  wired to the OPC-UA plugin yet — only reads. Buttons / sliders bound
-  to OPC-UA-fed tags update the local TagDb but won't propagate.
-- **Server browse**. The ConfigView card has no "Sfoglia server" button
-  yet; you enter NodeIds by hand. Browse is BL-005 step 4.
+Each tag listed in `OpcUaClientConfig.nodes` is automatically registered
+on the runtime's `TagWriteBus`. Any `PUT /api/tags/<tag>` or `/ws/tags`
+write frame for one of those tags is converted into an OPC-UA `Write`
+service call on the configured NodeId.
+
+Value type mapping for writes:
+
+| TagValue | Sent as           |
+|----------|-------------------|
+| `Bool`   | `Variant::Boolean`|
+| `Int`    | `Variant::Int64`  |
+| `Float`  | `Variant::Double` |
+| `Str`    | `Variant::String` |
+
+If the server returns `StatusCode::Good` the plugin echoes the new
+value into the local `TagDb` immediately (so the UI doesn't have to
+wait for the next subscription publish). Any other status is logged
+and the local value stays at whatever the server reports next.
+
+The server side is responsible for type coercion if a tag's natural
+type doesn't line up with the underlying node's data type — most
+industrial servers accept the closest convertible scalar.
+
+## Browse the server (step 3)
+
+`POST /api/sources/opcua/browse` (Operator+) opens a temporary OPC-UA
+session, walks **one level** under the requested `parent_node_id`
+(defaults to the Objects folder, `ns=0;i=85`), and returns the immediate
+children:
+
+```json
+{
+  "endpoint_url": "opc.tcp://localhost:26543/UA/MyLittleServer",
+  "source_id":    "machine1",   // for masked-password resolution
+  "auth":         { "kind": "anonymous" },
+  "parent_node_id": "ns=2;s=Machine"   // optional; omit for root
+}
+```
+
+```json
+{
+  "nodes": [
+    { "node_id": "ns=2;s=Machine.CycleTime",
+      "browse_name": "CycleTime", "display_name": "CycleTime",
+      "node_class": "Variable" },
+    …
+  ]
+}
+```
+
+Recursion is on the caller — the editor expands a folder by issuing a
+fresh browse with that folder's NodeId. Keeps responses small and
+avoids server-side fan-out timeouts.
+
+**In the editor**: open a source card → click **🔍 Sfoglia server**.
+A tree appears. Click an `Object` to expand it (lazy-load); tick a
+`Variable` to add it to the import selection; click **Importa**.
+The selected NodeIds are appended to the source's node table with their
+`display_name` pre-filled as the description — you still set the SWS
+`tag` field yourself (or click `＋` next to it to create the tag inline).
+`Variable` rows that are already in the import list are greyed out so
+you can't double-add.
+
+## What's still deferred
+
 - **Security policies other than `None`**. The `security_policy` field
   travels through to YAML for forward-compat and is logged when set, but
   the plugin always negotiates `None` for the PoC.
 - **Euromap companion spec auto-discovery**. Tracked as BL-005b in
   STATUS.md.
+- **Reverse browse** (References pointing *into* a node). The current
+  endpoint only walks Forward / HierarchicalReferences — the common case
+  for inspecting an address space.
 
 When any of these become a customer-facing requirement we'll graduate
 the implementation; the existing `OpcUaClientConfig` shape is designed

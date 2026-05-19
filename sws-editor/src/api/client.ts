@@ -7,6 +7,8 @@ import type {
   LogFileEntry,
   MqttBrowseRequest,
   MqttBrowseResponse,
+  OpcUaBrowseRequest,
+  OpcUaBrowseResponse,
   ProjectInfo,
   ProjectListEntry,
   Sample,
@@ -448,6 +450,13 @@ export const api = {
   // MQTT broker browse: connect ephemerally, subscribe #, return discovered topics.
   browseMqttTopics: (req: MqttBrowseRequest): Promise<MqttBrowseResponse> =>
     request<MqttBrowseResponse>("/api/sources/mqtt/browse", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(req),
+    }),
+
+  browseOpcUa: (req: OpcUaBrowseRequest): Promise<OpcUaBrowseResponse> =>
+    request<OpcUaBrowseResponse>("/api/sources/opcua/browse", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(req),

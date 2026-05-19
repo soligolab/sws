@@ -382,6 +382,25 @@ export interface OpcUaSource {
   nodes: OpcUaNodeMapping[];
 }
 
+export interface OpcUaBrowsedNode {
+  node_id: string;
+  browse_name: string;
+  display_name: string;
+  /** "Object" | "Variable" | "Method" | ... — only Variable can become a tag. */
+  node_class: string;
+}
+
+export interface OpcUaBrowseRequest {
+  endpoint_url: string;
+  source_id?: string;
+  auth?: OpcUaAuth;
+  parent_node_id?: string;
+}
+
+export interface OpcUaBrowseResponse {
+  nodes: OpcUaBrowsedNode[];
+}
+
 export type SourceDef = ModbusTcpSource | MqttSource | OpcUaSource;
 
 // ── MQTT broker browse ─────────────────────────────────────────────────────
