@@ -169,7 +169,8 @@ case "${1:-both}" in
   editor)  start_editor  ;;
   kiosk)
     echo "[kiosk] building runtime + sws-kiosk…"
-    (cd "$REPO_ROOT/sws-runtime" && cargo build --quiet -p sws-runtime -p sws-kiosk)
+    (cd "$REPO_ROOT/sws-runtime" && cargo build --quiet -p sws-runtime)
+    (cd "$REPO_ROOT/sws-runtime" && cargo build --quiet --manifest-path crates/sws-kiosk/Cargo.toml)
 
     echo "[kiosk] starting runtime in background; logs → $LOG_DIR/runtime.log"
     "$REPO_ROOT/sws-runtime/target/debug/sws-runtime" \

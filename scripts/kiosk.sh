@@ -9,7 +9,8 @@
 #   - Both sws-runtime and sws-kiosk binaries must be pre-built (see below).
 #
 # Build once:
-#   cd sws-runtime && cargo build --release -p sws-runtime -p sws-kiosk
+#   cd sws-runtime && cargo build --release -p sws-runtime
+#   cd sws-runtime && cargo build --release --manifest-path crates/sws-kiosk/Cargo.toml
 #
 # Usage:
 #   WAYLAND_DISPLAY=wayland-0 ./scripts/kiosk.sh
@@ -37,7 +38,8 @@ fi
 
 if [ ! -x "$BINARY_DIR/sws-runtime" ] || [ ! -x "$BINARY_DIR/sws-kiosk" ]; then
   echo "[kiosk] ERROR: binaries not found in $BINARY_DIR" >&2
-  echo "[kiosk] Run: cd sws-runtime && cargo build --release -p sws-runtime -p sws-kiosk" >&2
+  echo "[kiosk] Run: cd sws-runtime && cargo build --release -p sws-runtime" >&2
+  echo "[kiosk]      cd sws-runtime && cargo build --release --manifest-path crates/sws-kiosk/Cargo.toml" >&2
   exit 1
 fi
 

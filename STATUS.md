@@ -11,7 +11,7 @@
 ## Handoff prossima sessione
 
 1. Installa GTK4 + WebKit sul dev box: `sudo apt install libgtk-4-dev libwebkitgtk-6.0-dev`
-2. Verifica build sws-kiosk: `cd sws-runtime && cargo build -p sws-kiosk`
+2. Verifica build sws-kiosk: `cd sws-runtime && cargo build --manifest-path crates/sws-kiosk/Cargo.toml`
 3. Test kiosk locale: `./scripts/dev.sh kiosk` (apre una finestra WebKit con il runtime)
 4. Scegli un task dalla tabella "Next steps" qui sotto.
 
