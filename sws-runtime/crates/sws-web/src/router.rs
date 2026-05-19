@@ -173,10 +173,14 @@ pub fn build(
         .route("/api/templates",
             get(crate::templates::list_templates));
 
+    // Install the Prometheus recorder once. Calling this multiple times in
+    // the same process (e.g. tests that build several routers) is safe.
+    crate::metrics::install_recorder();
+
     // Always-open routes: liveness probes + login + project lifecycle.
     let open = Router::new()
         .route("/health",  get(|| async { "ok" }))
-        .route("/metrics", get(|| async { "# SWS metrics placeholder\n" }))
+        .route("/metrics", get(crate::metrics::get_metrics))
         .route("/api/auth/login", post(login))
         .merge(project_lifecycle);
 

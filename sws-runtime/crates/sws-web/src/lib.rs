@@ -1,3 +1,4 @@
+pub mod metrics;
 pub mod projects;
 pub mod router;
 pub mod source_supervisor;
