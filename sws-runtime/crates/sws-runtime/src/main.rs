@@ -81,6 +81,27 @@ struct Args {
     /// stdio (visible in journald / podman logs).
     #[arg(long)]
     kiosk_browser: Option<String>,
+
+    /// Spawn sws-kiosk (WebKitGTK native window) once /health answers OK.
+    /// Alternative to --kiosk-browser for devices without a full browser
+    /// installed (Wayland compositor required, no desktop environment needed).
+    /// The sws-kiosk binary must be in the same directory as sws-runtime.
+    #[arg(long)]
+    kiosk_wayland: bool,
+
+    /// Take an automatic backup every N minutes. 0 (default) disables the
+    /// loop. Backups go under `<project>/.bak/<UTC-timestamp>/` and cover
+    /// `project.yaml`, `synoptics/`, and `users.yaml`. Triggered via the
+    /// `/api/backups` POST endpoint on demand regardless of this setting.
+    #[arg(long, default_value_t = 0u64)]
+    auto_backup_interval_minutes: u64,
+
+    /// Keep at most this many auto-backups; older ones are pruned after
+    /// each tick. Manual backups created via the API are also subject to
+    /// this cap. 0 disables pruning (keep everything — careful on small
+    /// disks).
+    #[arg(long, default_value_t = 20u64)]
+    auto_backup_retention: u64,
 }
 
 #[tokio::main]
@@ -209,6 +230,7 @@ async fn main() -> anyhow::Result<()> {
     if let Some(project_path) = args.project.clone() {
         // Legacy auto-open path: bootstrap exactly as the single-project
         // runtime did, then mark this dir as active.
+        supervisor.set_pki_root(project_path.join(".opcua-pki")).await;
         match sws_core::project::Project::load(&project_path) {
             Ok(project) => {
                 info!(
@@ -244,6 +266,52 @@ async fn main() -> anyhow::Result<()> {
         info!("no --project specified — starting with no active project (WelcomeScreen will list /api/projects)");
     }
 
+    // Auto-backup loop. Skipped entirely when --auto-backup-interval-minutes
+    // is 0 (the default). Runs on a fixed interval, take a snapshot of the
+    // currently-active project (if any), then prune old snapshots beyond the
+    // retention cap. Errors are logged but the loop continues.
+    if args.auto_backup_interval_minutes > 0 {
+        let dir_handle = active_dir.clone();
+        let interval_min = args.auto_backup_interval_minutes;
+        let retention = args.auto_backup_retention as usize;
+        tokio::spawn(async move {
+            let mut tick = tokio::time::interval(
+                std::time::Duration::from_secs(interval_min * 60),
+            );
+            // First tick fires immediately; skip it so we don't snapshot the
+            // moment the process starts (before the user has done any work).
+            tick.tick().await;
+            loop {
+                tick.tick().await;
+                let dir_opt = dir_handle.read().await.clone();
+                let Some(dir) = dir_opt else { continue }; // no project open
+                let dir2 = dir.clone();
+                let result = tokio::task::spawn_blocking(move || {
+                    sws_web::backups::backup_now(&dir2)
+                }).await;
+                match result {
+                    Ok(Ok(path)) => {
+                        let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("?").to_string();
+                        info!(backup = %name, "auto-backup created");
+                        if retention > 0 {
+                            let dir3 = dir.clone();
+                            let _ = tokio::task::spawn_blocking(move || {
+                                sws_web::backups::prune_backups(&dir3, retention);
+                            }).await;
+                        }
+                    }
+                    Ok(Err(e)) => warn!("auto-backup failed: {e}"),
+                    Err(e) => warn!("auto-backup task panicked: {e}"),
+                }
+            }
+        });
+        info!(
+            interval_min  = args.auto_backup_interval_minutes,
+            retention     = args.auto_backup_retention,
+            "auto-backup loop started",
+        );
+    }
+
     // Alarm evaluator: every TagDb update is fed to AlarmDb, which re-evaluates
     // the alarms watching that tag and broadcasts any transitions.
     {
@@ -274,6 +342,16 @@ async fn main() -> anyhow::Result<()> {
             loop {
                 match alarm_rx.recv().await {
                     Ok(state) => {
+                        // Bump the Prometheus counter on every transition we
+                        // observe (active or recovery), labelled by direction
+                        // + severity. This is the single broadcast all alarms
+                        // flow through, so it's the right spot for the metric.
+                        let direction = if state.active { "activated" } else { "recovered" };
+                        let severity = format!("{:?}", state.def.severity);
+                        metrics::counter!("sws_alarm_transitions_total",
+                            "direction" => direction.to_string(),
+                            "severity"  => severity,
+                        ).increment(1);
                         // Only notify on fresh activation (not ack or recovery).
                         if !state.active { continue; }
                         let Some(url) = &state.def.notify_url else { continue };
@@ -384,6 +462,42 @@ async fn main() -> anyhow::Result<()> {
             {
                 Ok(_child) => { /* fire-and-forget, child inherits stdout/stderr */ }
                 Err(e)     => warn!(kiosk = %cmd, "kiosk: spawn failed: {e}"),
+            }
+        });
+    }
+
+    if args.kiosk_wayland {
+        tokio::spawn(async move {
+            let client = reqwest::Client::builder()
+                .danger_accept_invalid_certs(true)
+                .timeout(std::time::Duration::from_millis(500))
+                .build()
+                .unwrap_or_default();
+            let mut ready = false;
+            for _ in 0..50 {
+                if let Ok(r) = client.get("https://localhost:8443/health").send().await {
+                    if r.status().is_success() { ready = true; break; }
+                }
+                tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+            }
+            if !ready {
+                warn!("kiosk-wayland: /health didn't answer in 5s — skipping sws-kiosk spawn");
+                return;
+            }
+            // Look for sws-kiosk next to the current executable, fall back to PATH.
+            let binary = std::env::current_exe()
+                .ok()
+                .and_then(|p| p.parent().map(|d| d.join("sws-kiosk")))
+                .unwrap_or_else(|| "sws-kiosk".into());
+            info!(binary = %binary.display(), "kiosk-wayland: spawning sws-kiosk");
+            match tokio::process::Command::new(&binary)
+                .arg("https://localhost:8443")
+                .arg("--allow-insecure-tls")
+                .stdin(std::process::Stdio::null())
+                .spawn()
+            {
+                Ok(_child) => { /* fire-and-forget */ }
+                Err(e) => warn!(binary = %binary.display(), "kiosk-wayland: spawn failed: {e}"),
             }
         });
     }

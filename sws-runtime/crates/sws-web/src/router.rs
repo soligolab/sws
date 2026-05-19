@@ -90,6 +90,13 @@ pub fn build(
         // every synoptic). Destructive on the import side — Admin only.
         .route("/api/project/export",     get(export_project_zip))
         .route("/api/project/import",     put(import_project_zip))
+        // Backup management (admin-only; restore is destructive).
+        .route("/api/backups",
+            get(crate::backups::list_backups_handler).post(crate::backups::create_backup_handler))
+        .route("/api/backups/:name",
+            delete(crate::backups::delete_backup_handler))
+        .route("/api/backups/:name/restore",
+            post(crate::backups::restore_backup_handler))
         .route("/api/auth/users",         get(list_users).post(create_user))
         .route("/api/auth/users/:username",
             axum::routing::put(update_user).delete(delete_user))
@@ -103,6 +110,10 @@ pub fn build(
         .route("/api/script/exec",     post(exec_script))
         .route("/api/script/run/:name", post(run_function))
         .route("/api/synoptics/:name", put(save_synoptic))
+        // Single-page YAML import — body is the raw YAML; replaces or creates
+        // the named page. Allocates a fresh id so an import never collides
+        // with an existing one.
+        .route("/api/synoptics/import", post(import_synoptic_yaml))
         // Logs — read-only but Operator+ so the audit surface stays
         // narrow (logs may include schema/secret hints).
         .route("/api/logs",            get(get_logs))
@@ -111,6 +122,10 @@ pub fn build(
         .route("/ws/logs",             get(ws_logs_handler))
         // MQTT broker browse: temporary connection, subscribe #, return topics.
         .route("/api/sources/mqtt/browse", post(mqtt_browse_handler))
+        // OPC-UA server browse: one level under a NodeId (default Objects).
+        .route("/api/sources/opcua/browse", post(opcua_browse_handler))
+        // OPC-UA Euromap 77/83 companion-spec auto-detect.
+        .route("/api/sources/opcua/detect-euromap", post(opcua_detect_euromap_handler))
         .route("/api/system",             get(crate::system::get_system_status))
         .route_layer(middleware::from_fn(require_operator));
 
@@ -123,11 +138,12 @@ pub fn build(
         .route("/api/alarms",    get(get_alarms))
         // Historian
         .route("/api/history/:tag", get(get_history))
-        // Project info (read)
-        .route("/api/project",   get(get_project))
         // Synoptic REST (reads)
         .route("/api/synoptics",       get(list_synoptics))
         .route("/api/synoptics/:name", get(get_synoptic))
+        // Per-page export — raw YAML download. Same shape as the file on disk,
+        // small enough to skip the ZIP wrapper used by the bulk export.
+        .route("/api/synoptics/:name/export", get(export_synoptic_yaml))
         // WebSocket streams
         .route("/ws/tags",   get(ws_tags_handler))
         .route("/ws/alarms", get(ws_alarms_handler));
@@ -155,7 +171,10 @@ pub fn build(
     // Pre-auth project lifecycle endpoints — the WelcomeScreen calls these
     // before any session token exists. They operate on `projects_root` and
     // `templates_root` only (no AuthState dependency).
+    // GET /api/project is also pre-auth: the WelcomeScreen needs to know
+    // whether a project is active (503 = none) before any session exists.
     let project_lifecycle = Router::new()
+        .route("/api/project",   get(get_project))
         .route("/api/projects",
             get(crate::projects::list_projects).post(crate::projects::create_project))
         .route("/api/projects/:name/open",
@@ -173,10 +192,14 @@ pub fn build(
         .route("/api/templates",
             get(crate::templates::list_templates));
 
+    // Install the Prometheus recorder once. Calling this multiple times in
+    // the same process (e.g. tests that build several routers) is safe.
+    crate::metrics::install_recorder();
+
     // Always-open routes: liveness probes + login + project lifecycle.
     let open = Router::new()
         .route("/health",  get(|| async { "ok" }))
-        .route("/metrics", get(|| async { "# SWS metrics placeholder\n" }))
+        .route("/metrics", get(crate::metrics::get_metrics))
         .route("/api/auth/login", post(login))
         .merge(project_lifecycle);
 
@@ -192,6 +215,10 @@ pub fn build(
         let fallback = ServeDir::new(&dir).not_found_service(ServeFile::new(index));
         app = app.fallback_service(fallback);
     }
+
+    // HTTP request counter — applied to every route, identifies the matched
+    // route template (not the raw URI) so cardinality stays bounded.
+    app = app.layer(middleware::from_fn(crate::metrics::track_http_metrics));
 
     // Permissive CORS for the "editor on laptop → runtime on PX30" deployment
     // shape (ARCH-004). The editor sets the runtime URL via localStorage and
@@ -513,13 +540,17 @@ async fn exec_script(
     Json(body): Json<ScriptBody>,
 ) -> Json<ScriptResult> {
     match s.py.execute(body.code).await {
-        Ok(ExecOutput { stdout, stderr, sandboxed }) => Json(ScriptResult {
-            ok: true, stdout, stderr, sandboxed, error: None,
-        }),
-        Err(e) => Json(ScriptResult {
-            ok: false, error: Some(e), sandboxed: s.py.is_sandboxed(),
-            ..Default::default()
-        }),
+        Ok(ExecOutput { stdout, stderr, sandboxed }) => {
+            metrics::counter!("sws_script_exec_total", "endpoint" => "exec", "status" => "ok").increment(1);
+            Json(ScriptResult { ok: true, stdout, stderr, sandboxed, error: None })
+        }
+        Err(e) => {
+            metrics::counter!("sws_script_exec_total", "endpoint" => "exec", "status" => "error").increment(1);
+            Json(ScriptResult {
+                ok: false, error: Some(e), sandboxed: s.py.is_sandboxed(),
+                ..Default::default()
+            })
+        }
     }
 }
 
@@ -1178,13 +1209,17 @@ async fn run_function(
     };
     let args = body.map(|Json(b)| b.args).unwrap_or_default();
     match s.py.execute_with_args(code, args).await {
-        Ok(ExecOutput { stdout, stderr, sandboxed }) => Json(ScriptResult {
-            ok: true, stdout, stderr, sandboxed, error: None,
-        }).into_response(),
-        Err(e) => Json(ScriptResult {
-            ok: false, error: Some(e), sandboxed: s.py.is_sandboxed(),
-            ..Default::default()
-        }).into_response(),
+        Ok(ExecOutput { stdout, stderr, sandboxed }) => {
+            metrics::counter!("sws_script_exec_total", "endpoint" => "run", "status" => "ok").increment(1);
+            Json(ScriptResult { ok: true, stdout, stderr, sandboxed, error: None }).into_response()
+        }
+        Err(e) => {
+            metrics::counter!("sws_script_exec_total", "endpoint" => "run", "status" => "error").increment(1);
+            Json(ScriptResult {
+                ok: false, error: Some(e), sandboxed: s.py.is_sandboxed(),
+                ..Default::default()
+            }).into_response()
+        }
     }
 }
 
@@ -1250,6 +1285,110 @@ async fn get_synoptic(
     }
 }
 
+/// `GET /api/synoptics/:name/export` — returns the synoptic file as raw YAML
+/// with a `Content-Disposition: attachment` header so browsers download it.
+/// Same content as `/api/synoptics/:name` (the file on disk), just bytes —
+/// no JSON round-trip — and Content-Type set to `application/x-yaml`.
+async fn export_synoptic_yaml(
+    State(s): State<AppState>,
+    Path(name): Path<String>,
+) -> Response {
+    let project_dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
+    let safe = safe_filename(&name);
+    let path = synoptics_dir_at(&project_dir).join(format!("{}.yaml", safe));
+    match tokio::fs::read(&path).await {
+        Ok(bytes) => {
+            let filename = format!("{}.yaml", safe);
+            (
+                StatusCode::OK,
+                [
+                    (header::CONTENT_TYPE, "application/x-yaml; charset=utf-8".to_string()),
+                    (header::CONTENT_DISPOSITION, format!("attachment; filename=\"{filename}\"")),
+                ],
+                bytes,
+            ).into_response()
+        }
+        Err(_) => StatusCode::NOT_FOUND.into_response(),
+    }
+}
+
+/// `POST /api/synoptics/import` — accepts raw YAML in the request body and
+/// installs it as a new page. The page's internal `id` is regenerated to
+/// avoid collisions with existing pages, and the filename is derived from
+/// the page's `name` (with collision handling: appending `-2`, `-3`, …).
+///
+/// Returns 200 + `{ id, name, filename }` on success so the editor can
+/// jump to the imported page.
+async fn import_synoptic_yaml(
+    State(s): State<AppState>,
+    body: Bytes,
+) -> Response {
+    let project_dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
+    let dir = synoptics_dir_at(&project_dir);
+    if let Err(e) = tokio::fs::create_dir_all(&dir).await {
+        warn!("import_synoptic: cannot create synoptics dir: {e}");
+        return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+    }
+
+    let text = match std::str::from_utf8(&body) {
+        Ok(t)  => t,
+        Err(_) => return (StatusCode::BAD_REQUEST, "body is not UTF-8").into_response(),
+    };
+    let mut page: SynopticPage = match serde_yaml::from_str(text) {
+        Ok(p)  => p,
+        Err(e) => return (StatusCode::BAD_REQUEST, format!("invalid synoptic YAML: {e}")).into_response(),
+    };
+
+    // Always allocate a fresh id so imports never collide with existing pages.
+    // Format mirrors the editor's `genId()` (alphanumeric base36).
+    let new_id = format!(
+        "imported-{}",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_millis())
+            .unwrap_or(0)
+    );
+    page.id = new_id.clone();
+
+    // Resolve a non-colliding filename. If `<name>.yaml` already exists, try
+    // `<name>-2.yaml`, `<name>-3.yaml`, … and rename the page in-memory to
+    // match so the human-readable label stays in sync with the file on disk.
+    let base = safe_filename(&page.name);
+    let mut filename = format!("{base}.yaml");
+    let mut suffix = 2;
+    while dir.join(&filename).exists() {
+        let new_name = format!("{} ({})", page.name, suffix);
+        filename = format!("{}.yaml", safe_filename(&new_name));
+        if !dir.join(&filename).exists() {
+            page.name = new_name;
+            break;
+        }
+        suffix += 1;
+        if suffix > 100 {
+            return (StatusCode::INTERNAL_SERVER_ERROR, "too many name collisions").into_response();
+        }
+    }
+
+    let yaml = match serde_yaml::to_string(&page) {
+        Ok(y)  => y,
+        Err(e) => {
+            warn!("import_synoptic: serialize: {e}");
+            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
+    };
+    let path = dir.join(&filename);
+    if let Err(e) = tokio::fs::write(&path, yaml).await {
+        warn!("import_synoptic: write {}: {e}", path.display());
+        return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+    }
+
+    Json(serde_json::json!({
+        "id":       new_id,
+        "name":     page.name,
+        "filename": filename,
+    })).into_response()
+}
+
 async fn save_synoptic(
     State(s): State<AppState>,
     Path(name): Path<String>,
@@ -1301,31 +1440,148 @@ async fn save_synoptic(
 
 // ── WebSocket ────────────────────────────────────────────────────────────────
 
-async fn ws_tags_handler(ws: WebSocketUpgrade, State(s): State<AppState>) -> impl IntoResponse {
-    ws.on_upgrade(move |socket| handle_ws(socket, s.db))
+/// Inbound message frame for `/ws/tags`. Only one variant for now (`write`)
+/// but the discriminated-union shape leaves room for future ones
+/// (`subscribe`, `unsubscribe`, etc.). Unknown variants are rejected by
+/// `serde_json` and logged on the receiver task.
+#[derive(Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+enum InboundMsg {
+    /// Operator+ write. `req_id` is an optional correlation id echoed in
+    /// the ack so the client can match the response to its request.
+    Write {
+        tag: String,
+        value: TagValue,
+        #[serde(default)]
+        req_id: Option<String>,
+    },
 }
 
-async fn handle_ws(mut socket: WebSocket, db: Arc<TagDb>) {
+/// Outbound ack for a `write` request. Sent on the same socket the
+/// caller used.
+#[derive(serde::Serialize)]
+struct WriteAck {
+    #[serde(rename = "type")]
+    ty: &'static str, // always "ack"
+    req_id: Option<String>,
+    tag: String,
+    ok: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    error: Option<String>,
+}
+
+async fn ws_tags_handler(
+    ws: WebSocketUpgrade,
+    State(s): State<AppState>,
+    axum::Extension(user): axum::Extension<AuthUser>,
+) -> impl IntoResponse {
+    ws.on_upgrade(move |socket| handle_ws(socket, s.db, s.bus, user.role))
+}
+
+async fn handle_ws(socket: WebSocket, db: Arc<TagDb>, bus: Arc<TagWriteBus>, role: Role) {
+    // Split the socket so the broadcast pump (sends) and the inbound write
+    // loop (receives) can run concurrently. mpsc bridges incoming writes
+    // back to the sender so we serialise every outbound message through
+    // one task — otherwise concurrent sends would race on the WS framer.
+    use futures_util::{SinkExt, StreamExt};
+    let (mut ws_tx, mut ws_rx) = socket.split();
+    let (out_tx, mut out_rx) = tokio::sync::mpsc::channel::<Message>(32);
+
+    // Initial snapshot frame.
     for (id, state) in db.snapshot().await {
         let update = TagUpdate { id, state };
         if let Ok(text) = serde_json::to_string(&update) {
-            if socket.send(Message::Text(text)).await.is_err() { return; }
+            if out_tx.send(Message::Text(text)).await.is_err() {
+                return;
+            }
         }
     }
+
+    // Forwarder: pumps the mpsc queue onto the socket.
+    let forward_task = tokio::spawn(async move {
+        while let Some(msg) = out_rx.recv().await {
+            if ws_tx.send(msg).await.is_err() { break; }
+        }
+    });
+
+    // Broadcast subscriber: every tag update lands in the queue as a
+    // serialised TagUpdate JSON frame.
     let mut rx = db.subscribe();
-    loop {
-        match rx.recv().await {
-            Ok(update) => {
-                if let Ok(text) = serde_json::to_string(&update) {
-                    if socket.send(Message::Text(text)).await.is_err() { break; }
+    let broadcast_tx = out_tx.clone();
+    let broadcast_task = tokio::spawn(async move {
+        loop {
+            match rx.recv().await {
+                Ok(update) => {
+                    if let Ok(text) = serde_json::to_string(&update) {
+                        if broadcast_tx.send(Message::Text(text)).await.is_err() { break; }
+                    }
+                }
+                Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
+                    warn!("ws/tags subscriber lagged by {n}");
+                }
+                Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
+            }
+        }
+    });
+
+    // Inbound loop: read client frames and dispatch writes. Closing the
+    // socket from this side propagates: dropping `out_tx` ends the
+    // forwarder task; aborting `broadcast_task` cleans up the subscriber.
+    while let Some(frame) = ws_rx.next().await {
+        let frame = match frame {
+            Ok(f) => f,
+            Err(_) => break,
+        };
+        match frame {
+            Message::Text(text) => {
+                let parsed: Result<InboundMsg, _> = serde_json::from_str(&text);
+                let Ok(msg) = parsed else {
+                    let ack = WriteAck {
+                        ty: "ack", req_id: None, tag: String::new(),
+                        ok: false, error: Some("invalid frame".into()),
+                    };
+                    let _ = out_tx.send(Message::Text(serde_json::to_string(&ack).unwrap_or_default())).await;
+                    continue;
+                };
+                match msg {
+                    InboundMsg::Write { tag, value, req_id } => {
+                        // Role gate: Operator+ only. Mirror the HTTP
+                        // /api/tags/:id rule so the WS path doesn't open
+                        // a side channel that bypasses it.
+                        if role < Role::Operator {
+                            let ack = WriteAck {
+                                ty: "ack", req_id, tag,
+                                ok: false, error: Some("forbidden: Operator+ required".into()),
+                            };
+                            let _ = out_tx.send(Message::Text(serde_json::to_string(&ack).unwrap_or_default())).await;
+                            continue;
+                        }
+                        // Route through the bus (plugin) first; fall back
+                        // to direct TagDb set so virtual / scripted tags
+                        // keep working. Same shape as write_tag().
+                        let (ok, err) = match bus.write(&tag, value.clone()).await {
+                            Ok(()) => (true, None),
+                            Err(WriteError::NoWriter(_)) => {
+                                db.set(tag.clone(), value, TagQuality::Good).await;
+                                (true, None)
+                            }
+                            Err(e @ WriteError::ChannelClosed(_)) => (false, Some(e.to_string())),
+                        };
+                        let ack = WriteAck { ty: "ack", req_id, tag, ok, error: err };
+                        let _ = out_tx.send(Message::Text(serde_json::to_string(&ack).unwrap_or_default())).await;
+                    }
                 }
             }
-            Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
-                warn!("ws/tags subscriber lagged by {n}");
-            }
-            Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
+            Message::Close(_) => break,
+            // Pings are handled by axum's WS layer; binary frames are
+            // not a supported protocol on this endpoint.
+            _ => {}
         }
     }
+
+    broadcast_task.abort();
+    drop(out_tx);
+    let _ = forward_task.await;
 }
 
 // ── Log streaming ────────────────────────────────────────────────────────────
@@ -1452,6 +1708,139 @@ struct BrowsedTopicDto {
 #[derive(serde::Serialize)]
 struct MqttBrowseResponse {
     topics: Vec<BrowsedTopicDto>,
+}
+
+// ── OPC-UA browse (BL-005 step 3) ────────────────────────────────────────────
+
+#[derive(Deserialize)]
+struct OpcUaBrowseRequest {
+    endpoint_url: String,
+    /// When the caller sends the masked sentinel password, we substitute the
+    /// real one from project.yaml by looking up the matching source id.
+    /// Same pattern as mqtt_browse_handler.
+    #[serde(default)]
+    source_id: Option<String>,
+    #[serde(default)]
+    auth: Option<sws_core::OpcUaAuth>,
+    /// Optional NodeId to browse under (e.g. `ns=2;s=Machine`). Defaults to
+    /// the Objects folder on the server.
+    #[serde(default)]
+    parent_node_id: Option<String>,
+    /// Optional browse direction: "forward" (default), "inverse" (inbound
+    /// refs), or "both". Forward is what the UI tree uses.
+    #[serde(default)]
+    direction: Option<sws_plugin_opcua::BrowseDir>,
+    /// Optional security policy override (defaults to "None" if unset).
+    /// Useful when the caller wants to test a Basic256Sha256 connection
+    /// without saving the source first.
+    #[serde(default)]
+    security_policy: Option<String>,
+}
+
+async fn opcua_browse_handler(
+    State(s): State<AppState>,
+    Json(mut req): Json<OpcUaBrowseRequest>,
+) -> Response {
+    // Resolve a masked password from project.yaml when the editor sends
+    // the sentinel — keeps secrets out of round-trips just like the MQTT
+    // path. Only `UsernamePassword` carries a password.
+    if let Some(sws_core::OpcUaAuth::UsernamePassword { password: Some(ref p), .. }) = req.auth {
+        if p == MASKED_PASSWORD {
+            if let (Some(ref sid), Ok(dir)) = (req.source_id.as_ref(), active_dir(&s).await) {
+                if let Ok(project) = Project::load(&dir) {
+                    for src in &project.sources {
+                        if let SourceDef::OpcUaClient(c) = src {
+                            if c.id.as_str() == sid.as_str() {
+                                if let sws_core::OpcUaAuth::UsernamePassword {
+                                    password: Some(stored), ..
+                                } = &c.auth {
+                                    if let sws_core::OpcUaAuth::UsernamePassword {
+                                        password, ..
+                                    } = &mut req.auth.as_mut().unwrap() {
+                                        *password = Some(stored.clone());
+                                    }
+                                }
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Build a throwaway OpcUaClientConfig for the helper. We don't touch
+    // the persisted project — the browse is a one-shot lookup.
+    let cfg = sws_core::OpcUaClientConfig {
+        id: "browse".into(),
+        endpoint_url: req.endpoint_url,
+        security_policy: req.security_policy.unwrap_or_else(|| "None".into()),
+        auth: req.auth.unwrap_or_default(),
+        subscription_interval_ms: 1000,
+        nodes: Vec::new(),
+    };
+    let direction = req.direction.unwrap_or_default();
+
+    match sws_plugin_opcua::browse_one_level(&cfg, req.parent_node_id.as_deref(), direction).await {
+        Ok(nodes) => Json(serde_json::json!({ "nodes": nodes })).into_response(),
+        Err(e) => (StatusCode::BAD_GATEWAY, format!("opcua browse failed: {e}")).into_response(),
+    }
+}
+
+#[derive(Deserialize)]
+struct OpcUaDetectEuromapRequest {
+    endpoint_url: String,
+    #[serde(default)]
+    source_id: Option<String>,
+    #[serde(default)]
+    auth: Option<sws_core::OpcUaAuth>,
+    #[serde(default)]
+    security_policy: Option<String>,
+}
+
+async fn opcua_detect_euromap_handler(
+    State(s): State<AppState>,
+    Json(mut req): Json<OpcUaDetectEuromapRequest>,
+) -> Response {
+    // Same masked-password sentinel resolution pattern as opcua_browse.
+    if let Some(sws_core::OpcUaAuth::UsernamePassword { password: Some(ref p), .. }) = req.auth {
+        if p == MASKED_PASSWORD {
+            if let (Some(ref sid), Ok(dir)) = (req.source_id.as_ref(), active_dir(&s).await) {
+                if let Ok(project) = Project::load(&dir) {
+                    for src in &project.sources {
+                        if let SourceDef::OpcUaClient(c) = src {
+                            if c.id.as_str() == sid.as_str() {
+                                if let sws_core::OpcUaAuth::UsernamePassword {
+                                    password: Some(stored), ..
+                                } = &c.auth {
+                                    if let sws_core::OpcUaAuth::UsernamePassword {
+                                        password, ..
+                                    } = &mut req.auth.as_mut().unwrap() {
+                                        *password = Some(stored.clone());
+                                    }
+                                }
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    let cfg = sws_core::OpcUaClientConfig {
+        id: "euromap".into(),
+        endpoint_url: req.endpoint_url,
+        security_policy: req.security_policy.unwrap_or_else(|| "None".into()),
+        auth: req.auth.unwrap_or_default(),
+        subscription_interval_ms: 1000,
+        nodes: Vec::new(),
+    };
+
+    match sws_plugin_opcua::detect_euromap(&cfg).await {
+        Ok(det) => Json(det).into_response(),
+        Err(e) => (StatusCode::BAD_GATEWAY, format!("opcua euromap detection failed: {e}")).into_response(),
+    }
 }
 
 async fn mqtt_browse_handler(

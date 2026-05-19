@@ -1,6 +1,8 @@
 id: page4
 name: Page 4
 background: "#0f172a"
+width: 800
+height: 600
 objects:
 
 # ── Navigation header (uniforme su tutte le 4 pagine) ────────────────────────
@@ -12,6 +14,8 @@ objects:
   height: 32
   label: "◀ Precedente"
   target_page: page3
+  group_id: g_nav
+  locked: true
 
 - id: p4_nav_next
   type: navbutton
@@ -21,6 +25,8 @@ objects:
   height: 32
   label: "Successiva ▶"
   target_page: page1
+  group_id: g_nav
+  locked: true
 
 - id: p4_title
   type: text
@@ -31,6 +37,8 @@ objects:
   font_weight: bold
   text_anchor: middle
   color: "#94a3b8"
+  group_id: g_nav
+  locked: true
 
 # ── Color picker: pulsanti preset ────────────────────────────────────────────
 - id: p4_lbl_picker
@@ -133,6 +141,7 @@ objects:
   width: 120
   height: 80
   fill: "#3b82f6"
+  transition_duration_ms: 300
   bindings:
     fill: demo.fill_color
 
@@ -152,6 +161,7 @@ objects:
   width: 120
   height: 80
   fill: "#3b82f6"
+  transition_duration_ms: 300
   bindings:
     fill: demo.fill_color
 
@@ -215,3 +225,7 @@ objects:
   text: "Il tag demo.fill_color è condiviso con Page 3: anche il rect lì cambierà colore."
   font_size: 11
   color: "#475569"
+
+groups:
+- id: g_nav
+  name: Navigazione

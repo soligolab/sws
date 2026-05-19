@@ -1,0 +1,184 @@
+id: opc_page1
+name: "Live"
+background: "#0f172a"
+width: 880
+height: 660
+objects:
+
+# ══════════════════════════════════════════════════════════════════
+# HEADER
+# ══════════════════════════════════════════════════════════════════
+- id: o1_title
+  type: text
+  x: 440
+  y: 24
+  text: "🔌  OPC-UA — Live"
+  font_size: 20
+  font_weight: bold
+  text_anchor: middle
+  color: "#38bdf8"
+  group_id: g_nav
+  locked: true
+
+- id: o1_subtitle
+  type: text
+  x: 440
+  y: 44
+  text: "5 nodi sottoscritti via subscription_interval_ms=500"
+  font_size: 11
+  text_anchor: middle
+  color: "#475569"
+  group_id: g_nav
+  locked: true
+
+- id: o1_nav_table
+  type: navbutton
+  x: 680
+  y: 14
+  width: 180
+  height: 30
+  label: "Tabella nodi ▶"
+  target_page: opc_page2
+  group_id: g_nav
+  locked: true
+
+# ══════════════════════════════════════════════════════════════════
+# RIGA 1 — Gauge temperatura + pressione
+# ══════════════════════════════════════════════════════════════════
+- id: o1_gauge_temp
+  type: gauge
+  x: 20
+  y: 70
+  width: 220
+  height: 220
+  label: "Temperatura (°C)"
+  tag: sim.temperature
+  min: -20
+  max: 80
+  warn_high: 50
+  alarm_high: 60
+  transition_duration_ms: 250
+
+- id: o1_gauge_pressure
+  type: gauge
+  x: 260
+  y: 70
+  width: 220
+  height: 220
+  label: "Pressione (kPa)"
+  tag: sim.pressure
+  min: 0
+  max: 10
+  warn_high: 6.0
+  alarm_high: 8.0
+  transition_duration_ms: 250
+
+# Stato macchina (testuale) + LED ready
+- id: o1_state_lbl
+  type: text
+  x: 510
+  y: 95
+  text: "Stato macchina (Euromap 77)"
+  font_size: 11
+  color: "#64748b"
+
+- id: o1_state_val
+  type: text
+  x: 510
+  y: 130
+  tag: sim.machine_state
+  format: "{value}"
+  font_size: 28
+  font_weight: bold
+  color: "#e2e8f0"
+  transition_duration_ms: 200
+
+- id: o1_ready_lbl
+  type: text
+  x: 510
+  y: 175
+  text: "Pronto"
+  font_size: 11
+  color: "#64748b"
+
+- id: o1_ready_led
+  type: led
+  x: 510
+  y: 192
+  width: 36
+  height: 36
+  tag: sim.machine_ready
+  on_value: true
+  on_color: "#22c55e"
+  off_color: "#475569"
+
+- id: o1_cycle_lbl
+  type: text
+  x: 600
+  y: 175
+  text: "Cycle Time"
+  font_size: 11
+  color: "#64748b"
+
+- id: o1_cycle_val
+  type: text
+  x: 600
+  y: 205
+  tag: sim.cycle_time
+  format: "{value} s"
+  font_size: 20
+  font_weight: bold
+  color: "#fbbf24"
+
+# Simbolo pompa pilotato dal flag ready
+- id: o1_pump
+  type: symbol
+  x: 760
+  y: 130
+  width: 100
+  height: 100
+  symbol_id: pump
+  state_tag: sim.machine_ready
+  state_off_color: "#64748b"
+  state_on_color: "#22c55e"
+  state_alarm_color: "#ef4444"
+  transition_duration_ms: 300
+
+# ══════════════════════════════════════════════════════════════════
+# RIGA 2 — Trend live multi-tag
+# ══════════════════════════════════════════════════════════════════
+- id: o1_trend_lbl
+  type: text
+  x: 20
+  y: 310
+  text: "Trend live (temperatura · pressione)"
+  font_size: 12
+  color: "#94a3b8"
+
+- id: o1_trend
+  type: trend
+  x: 20
+  y: 325
+  width: 840
+  height: 240
+  tag: sim.temperature
+  extra_tags:
+    - sim.pressure
+  window_s: 120
+  line_color: "#38bdf8"
+
+# ══════════════════════════════════════════════════════════════════
+# FOOTER hint
+# ══════════════════════════════════════════════════════════════════
+- id: o1_footer
+  type: text
+  x: 440
+  y: 600
+  text: "▸ Endpoint: opc.tcp://localhost:4840 — security_policy: None — vedere SETUP.md per Basic256Sha256"
+  font_size: 9
+  text_anchor: middle
+  color: "#334155"
+
+groups:
+- id: g_nav
+  name: Navigazione

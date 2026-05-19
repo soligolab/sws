@@ -1,0 +1,72 @@
+meta:
+  name: opcua-demo
+  version: 0.1.0
+
+# ── Tag definitions ────────────────────────────────────────────────────────────
+# Mapping 1:1 con i 5 nodi del simulatore node-opcua "demo server" (node-opcua-server-example).
+# Se usi Prosys OPC UA Simulation Server, i NodeId equivalenti vivono sotto
+# ns=3 / ns=5 (la struttura cambia a ogni release): apri il browse modal
+# nell'editor (🔍 Sfoglia server) per recuperarli al volo.
+tags:
+  - id: sim.temperature
+    description: "Temperatura simulata (sinusoide attorno a 25 °C)"
+    data_type: float
+  - id: sim.pressure
+    description: "Pressione simulata (kPa)"
+    data_type: float
+  - id: sim.cycle_time
+    description: "Tempo ciclo macchina (s) — naming canonico Euromap 77"
+    data_type: float
+  - id: sim.machine_state
+    description: "Stato macchina (Stopped/Running/Fault) — naming canonico Euromap 77"
+    data_type: string
+  - id: sim.machine_ready
+    description: "Macchina pronta — bool"
+    data_type: bool
+
+# ── Sources ───────────────────────────────────────────────────────────────────
+# OPC-UA client. security_policy: None per la PoC; per Basic256Sha256 vedere
+# docs/OPCUA_SETUP.md (richiede trust del cert SWS sul server al primo handshake).
+sources:
+  - kind: opcua_client
+    id: sim-opcua
+    endpoint_url: opc.tcp://localhost:4840
+    security_policy: None
+    auth:
+      kind: anonymous
+    subscription_interval_ms: 500
+    nodes:
+      - tag: sim.temperature
+        node_id: "ns=1;s=Temperature"
+        description: "Simulated temperature"
+      - tag: sim.pressure
+        node_id: "ns=1;s=Pressure"
+        description: "Simulated pressure"
+      - tag: sim.cycle_time
+        node_id: "ns=2;s=CycleTime"
+        description: "Euromap 77 — CycleTime"
+      - tag: sim.machine_state
+        node_id: "ns=2;s=MachineState"
+        description: "Euromap 77 — MachineState"
+      - tag: sim.machine_ready
+        node_id: "ns=2;s=MachineReady"
+        description: "Euromap 77 — MachineReady"
+
+# ── Alarms ────────────────────────────────────────────────────────────────────
+alarms:
+  - id: temp_high
+    tag: sim.temperature
+    condition:
+      kind: above
+      threshold: 60.0
+    message: "Temperatura simulata sopra soglia (>60 °C)"
+    severity: Warning
+  - id: pressure_high
+    tag: sim.pressure
+    condition:
+      kind: above
+      threshold: 8.0
+    message: "Pressione simulata fuori range (>8 kPa)"
+    severity: Critical
+
+functions: []

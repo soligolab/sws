@@ -216,6 +216,10 @@ pub async fn open_project(
     s.supervisor.reload(vec![]).await;
     s.functions.write().await.clear();
 
+    // Point the OPC-UA plugin at this project's PKI dir so cert + key
+    // travel with the project (back up + restore included).
+    s.supervisor.set_pki_root(project_dir.join(".opcua-pki")).await;
+
     // 2. Load and apply the new project.
     match Project::load(&project_dir) {
         Ok(project) => {

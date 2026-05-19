@@ -11,6 +11,11 @@ import type {
   MqttLastWill,
   MqttSource,
   MqttTlsConfig,
+  OpcUaAuth,
+  OpcUaBrowsedNode,
+  OpcUaEuromapVariable,
+  OpcUaNodeMapping,
+  OpcUaSource,
   RegisterMapping,
   SourceDef,
   TagDataType,
@@ -144,6 +149,10 @@ const S = {
     color: "#93c5fd",
     marginBottom: 16,
   },
+  // Compact field label used by the source-card grids.
+  label: {
+    fontSize: 11, color: "#64748b", display: "block" as const, marginBottom: 3,
+  } as React.CSSProperties,
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -406,6 +415,740 @@ function emptyMqtt(): MqttSource {
 
 function emptyTopic(): TopicMapping {
   return { tag: "", topic: "", json_path: undefined };
+}
+
+function emptyOpcUa(): OpcUaSource {
+  return {
+    kind: "opcua_client",
+    id: `opcua-${genId()}`,
+    endpoint_url: "opc.tcp://localhost:4840",
+    security_policy: "None",
+    auth: { kind: "anonymous" },
+    subscription_interval_ms: 500,
+    nodes: [],
+  };
+}
+
+function emptyOpcUaNode(): OpcUaNodeMapping {
+  return { tag: "", node_id: "" };
+}
+
+// ── OPC-UA card ───────────────────────────────────────────────────────────────
+//
+// Mirrors the MqttSourceCard shape on purpose so the operator's mental
+// model is the same across protocols. PoC scope: anonymous + username
+// auth; security policy "None" wired end-to-end (other values stored in
+// YAML for forward-compat, ignored by the plugin).
+
+function OpcUaSourceCard({
+  source, onChange, onDelete, onCreateTag,
+}: {
+  source: OpcUaSource;
+  onChange: (s: OpcUaSource) => void;
+  onDelete: () => void;
+  onCreateTag: (tag: TagDef) => void;
+}) {
+  const [open, setOpen] = useState(true);
+  const [quickCreate, setQuickCreate] = useState<{ rowIdx: number; prefill: string } | null>(null);
+  const [browseOpen, setBrowseOpen] = useState(false);
+  const [euromapOpen, setEuromapOpen] = useState(false);
+
+  const setField = <K extends keyof OpcUaSource>(k: K, v: OpcUaSource[K]) =>
+    onChange({ ...source, [k]: v });
+
+  const setAuth = (auth: OpcUaAuth) =>
+    onChange({ ...source, auth });
+
+  const setNode = (idx: number, patch: Partial<OpcUaNodeMapping>) =>
+    onChange({
+      ...source,
+      nodes: source.nodes.map((n, i) => (i === idx ? { ...n, ...patch } : n)),
+    });
+
+  const addNode = () =>
+    onChange({ ...source, nodes: [...source.nodes, emptyOpcUaNode()] });
+
+  const removeNode = (idx: number) =>
+    onChange({ ...source, nodes: source.nodes.filter((_, i) => i !== idx) });
+
+  return (
+    <div style={S.card}>
+      <div
+        style={{
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          marginBottom: open ? 12 : 0, cursor: "pointer",
+        }}
+        onClick={() => setOpen((v) => !v)}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{ fontSize: 10, color: "#475569" }}>{open ? "▼" : "▶"}</span>
+          <span style={{ fontWeight: 600 }}>OPC-UA · {source.id}</span>
+          <span style={{ fontSize: 11, color: "#64748b" }}>{source.endpoint_url}</span>
+        </div>
+        <button
+          style={S.btn("danger")}
+          onClick={(e) => { e.stopPropagation(); onDelete(); }}
+        >Elimina</button>
+      </div>
+
+      {open && (
+        <>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            <div>
+              <label style={S.label}>ID sorgente</label>
+              <input style={S.input} value={source.id} onChange={(e) => setField("id", e.target.value)} />
+            </div>
+            <div>
+              <label style={S.label}>Endpoint URL</label>
+              <input
+                style={S.input}
+                placeholder="opc.tcp://192.168.1.100:4840"
+                value={source.endpoint_url}
+                onChange={(e) => setField("endpoint_url", e.target.value)}
+              />
+            </div>
+            <div>
+              <label style={S.label}>Security policy</label>
+              <select
+                style={S.input}
+                value={source.security_policy}
+                onChange={(e) => setField("security_policy", e.target.value)}
+              >
+                <option value="None">None (no crypto)</option>
+                <option value="Basic128Rsa15">Basic128Rsa15 (deprecato)</option>
+                <option value="Basic256">Basic256</option>
+                <option value="Basic256Sha256">Basic256Sha256 (raccomandato)</option>
+                <option value="Aes128Sha256RsaOaep">Aes128-SHA256-RsaOaep</option>
+                <option value="Aes256Sha256RsaPss">Aes256-SHA256-RsaPss</option>
+              </select>
+            </div>
+            <div>
+              <label style={S.label}>Subscription interval (ms)</label>
+              <input
+                type="number" min={50} step={50} style={S.input}
+                value={source.subscription_interval_ms}
+                onChange={(e) => setField("subscription_interval_ms", Number(e.target.value) || 500)}
+              />
+            </div>
+          </div>
+
+          {/* Auth ------------------------------------------------------- */}
+          <div style={{ marginTop: 12, marginBottom: 6, color: "#94a3b8", fontSize: 12, fontWeight: 600 }}>
+            AUTENTICAZIONE
+          </div>
+          <div style={{ display: "flex", gap: 14, alignItems: "center", marginBottom: 8 }}>
+            <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13 }}>
+              <input
+                type="radio"
+                checked={source.auth.kind === "anonymous"}
+                onChange={() => setAuth({ kind: "anonymous" })}
+              />
+              Anonima
+            </label>
+            <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13 }}>
+              <input
+                type="radio"
+                checked={source.auth.kind === "username_password"}
+                onChange={() => setAuth({ kind: "username_password", username: "" })}
+              />
+              Utente + Password
+            </label>
+          </div>
+          {source.auth.kind === "username_password" && (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 8 }}>
+              <div>
+                <label style={S.label}>Username</label>
+                <input
+                  style={S.input}
+                  value={source.auth.username}
+                  onChange={(e) => setAuth({
+                    ...(source.auth as Extract<OpcUaAuth, { kind: "username_password" }>),
+                    username: e.target.value,
+                  })}
+                />
+              </div>
+              <div>
+                <label style={S.label}>Password</label>
+                <input
+                  type="password"
+                  style={S.input}
+                  placeholder="(lascia vuoto se usi password_env)"
+                  value={source.auth.password ?? ""}
+                  onChange={(e) => setAuth({
+                    ...(source.auth as Extract<OpcUaAuth, { kind: "username_password" }>),
+                    password: e.target.value || undefined,
+                  })}
+                />
+              </div>
+              <div>
+                <label style={S.label}>Password env var</label>
+                <input
+                  style={S.input}
+                  placeholder="SWS_OPCUA_PWD"
+                  value={source.auth.password_env ?? ""}
+                  onChange={(e) => setAuth({
+                    ...(source.auth as Extract<OpcUaAuth, { kind: "username_password" }>),
+                    password_env: e.target.value || undefined,
+                  })}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Nodes ------------------------------------------------------ */}
+          <div style={{ marginTop: 12, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div style={{ color: "#94a3b8", fontSize: 12, fontWeight: 600 }}>
+              NODI MONITORATI ({source.nodes.length})
+            </div>
+            <div style={{ display: "flex", gap: 6 }}>
+              <button
+                style={S.btn("ghost")}
+                onClick={() => setBrowseOpen(true)}
+                title="Sfoglia l'address space del server e seleziona i nodi"
+              >🔍 Sfoglia server</button>
+              <button
+                style={S.btn("ghost")}
+                onClick={() => setEuromapOpen(true)}
+                title="Rileva variabili standard Euromap 77 / 83"
+              >🤖 Rileva Euromap</button>
+            </div>
+          </div>
+          {source.nodes.length === 0 ? (
+            <div style={{ color: "#64748b", fontSize: 12, fontStyle: "italic", marginTop: 6 }}>
+              Nessun nodo. Clicca "+ Nodo" per aggiungerne uno.
+            </div>
+          ) : (
+            <table style={{ width: "100%", marginTop: 8, borderCollapse: "collapse", fontSize: 12 }}>
+              <thead>
+                <tr style={{ borderBottom: "1px solid #1e293b" }}>
+                  <th style={{ textAlign: "left", padding: "4px 6px", color: "#94a3b8" }}>Tag</th>
+                  <th style={{ textAlign: "left", padding: "4px 6px", color: "#94a3b8" }}>NodeId</th>
+                  <th style={{ textAlign: "left", padding: "4px 6px", color: "#94a3b8" }}>Descrizione</th>
+                  <th style={{ width: 36 }}></th>
+                </tr>
+              </thead>
+              <tbody>
+                {source.nodes.map((n, i) => (
+                  <tr key={i} style={{ borderBottom: "1px solid #1e293b" }}>
+                    <td style={{ padding: "4px 6px" }}>
+                      <div style={{ display: "flex", gap: 4 }}>
+                        <TagInput
+                          value={n.tag}
+                          onChange={(v) => setNode(i, { tag: v })}
+                          style={{ ...S.input, padding: "2px 6px", flex: 1 }}
+                        />
+                        <button
+                          title="Crea nuova variabile"
+                          style={{ ...S.btn("ghost"), padding: "2px 6px" }}
+                          onClick={() => setQuickCreate({ rowIdx: i, prefill: n.tag })}
+                        >＋</button>
+                      </div>
+                    </td>
+                    <td style={{ padding: "4px 6px" }}>
+                      <input
+                        style={{ ...S.input, padding: "2px 6px", fontFamily: "monospace" }}
+                        placeholder="ns=2;s=Machine.CycleTime"
+                        value={n.node_id}
+                        onChange={(e) => setNode(i, { node_id: e.target.value })}
+                      />
+                    </td>
+                    <td style={{ padding: "4px 6px" }}>
+                      <input
+                        style={{ ...S.input, padding: "2px 6px" }}
+                        value={n.description ?? ""}
+                        onChange={(e) => setNode(i, { description: e.target.value || undefined })}
+                      />
+                    </td>
+                    <td>
+                      <button style={S.btn("danger")} onClick={() => removeNode(i)}>×</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+          <div style={{ marginTop: 8 }}>
+            <button style={S.btn("ghost")} onClick={addNode}>+ Nodo</button>
+          </div>
+        </>
+      )}
+      {quickCreate !== null && (
+        <QuickCreateTagModal
+          initialId={quickCreate.prefill}
+          onConfirm={(tag) => {
+            onCreateTag(tag);
+            setNode(quickCreate.rowIdx, { tag: tag.id });
+          }}
+          onClose={() => setQuickCreate(null)}
+        />
+      )}
+      {browseOpen && (
+        <OpcUaBrowseModal
+          source={source}
+          existingNodeIds={new Set(source.nodes.map((n) => n.node_id))}
+          onClose={() => setBrowseOpen(false)}
+          onImport={(picked) => {
+            // Merge in the picked NodeIds, skipping any already present.
+            const existing = new Set(source.nodes.map((n) => n.node_id));
+            const fresh = picked
+              .filter((p) => !existing.has(p.node_id))
+              .map<OpcUaNodeMapping>((p) => ({
+                tag: "",
+                node_id: p.node_id,
+                description: p.display_name || undefined,
+              }));
+            if (fresh.length > 0) {
+              onChange({ ...source, nodes: [...source.nodes, ...fresh] });
+            }
+            setBrowseOpen(false);
+          }}
+        />
+      )}
+      {euromapOpen && (
+        <OpcUaEuromapModal
+          source={source}
+          existingNodeIds={new Set(source.nodes.map((n) => n.node_id))}
+          onClose={() => setEuromapOpen(false)}
+          onCreateTag={onCreateTag}
+          onImport={(picked, autoCreateTags) => {
+            const existing = new Set(source.nodes.map((n) => n.node_id));
+            const sid = source.id;
+            const fresh = picked
+              .filter((p) => !existing.has(p.node_id))
+              .map<OpcUaNodeMapping>((p) => ({
+                tag: autoCreateTags ? `${sid}.${p.suggested_tag_suffix}` : "",
+                node_id: p.node_id,
+                description: `Euromap ${p.spec} · ${p.description}`,
+              }));
+            if (fresh.length > 0) {
+              onChange({ ...source, nodes: [...source.nodes, ...fresh] });
+            }
+            // Auto-create tags so the operator doesn't have to ＋ each row.
+            if (autoCreateTags) {
+              for (const p of picked) {
+                if (existing.has(p.node_id)) continue;
+                onCreateTag({
+                  id: `${sid}.${p.suggested_tag_suffix}`,
+                  description: `Euromap ${p.spec} · ${p.description}`,
+                });
+              }
+            }
+            setEuromapOpen(false);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+// ── OPC-UA browse modal ──────────────────────────────────────────────────────
+//
+// Tree view of the server's address space. Each "Object" folder is
+// expandable on click — we lazy-load one level at a time so the payload
+// stays small and the server doesn't have to fan out the whole namespace.
+// "Variable" leaves are selectable via checkbox; "Method" rows are
+// rendered but disabled (writes-to-method not in scope).
+
+function OpcUaBrowseModal({
+  source, existingNodeIds, onClose, onImport,
+}: {
+  source: OpcUaSource;
+  existingNodeIds: Set<string>;
+  onClose: () => void;
+  onImport: (picked: OpcUaBrowsedNode[]) => void;
+}) {
+  // children[parentNodeId | "@root"] = level returned by browse_one_level
+  const [children, setChildren] = useState<Record<string, OpcUaBrowsedNode[]>>({});
+  // expanded folder keys; "@root" is always logically expanded.
+  const [expanded, setExpanded] = useState<Set<string>>(new Set(["@root"]));
+  const [busy, setBusy] = useState<Set<string>>(new Set());
+  const [error, setError] = useState<string | null>(null);
+  // Selected variable rows (keyed by NodeId).
+  const [picked, setPicked] = useState<Map<string, OpcUaBrowsedNode>>(new Map());
+
+  const loadLevel = async (parentNodeId: string | null) => {
+    const key = parentNodeId ?? "@root";
+    if (children[key]) return; // cached
+    setError(null);
+    setBusy((prev) => new Set(prev).add(key));
+    try {
+      const res = await api.browseOpcUa({
+        endpoint_url: source.endpoint_url,
+        source_id: source.id,
+        auth: source.auth,
+        parent_node_id: parentNodeId ?? undefined,
+      });
+      setChildren((prev) => ({ ...prev, [key]: res.nodes }));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy((prev) => { const n = new Set(prev); n.delete(key); return n; });
+    }
+  };
+
+  useEffect(() => { loadLevel(null); }, []);
+
+  const toggleExpand = (n: OpcUaBrowsedNode) => {
+    if (n.node_class === "Variable" || n.node_class === "Method") return;
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(n.node_id)) {
+        next.delete(n.node_id);
+      } else {
+        next.add(n.node_id);
+        if (!children[n.node_id]) {
+          loadLevel(n.node_id);
+        }
+      }
+      return next;
+    });
+  };
+
+  const togglePick = (n: OpcUaBrowsedNode) => {
+    if (n.node_class !== "Variable") return;
+    if (existingNodeIds.has(n.node_id)) return; // already imported
+    setPicked((prev) => {
+      const next = new Map(prev);
+      if (next.has(n.node_id)) next.delete(n.node_id);
+      else next.set(n.node_id, n);
+      return next;
+    });
+  };
+
+  const renderLevel = (parentKey: string, depth: number): React.ReactNode => {
+    const lvl = children[parentKey];
+    const loading = busy.has(parentKey);
+    if (!lvl && loading) {
+      return (
+        <div style={{ paddingLeft: depth * 16 + 28, color: "#64748b", fontSize: 11, fontStyle: "italic" }}>
+          caricamento…
+        </div>
+      );
+    }
+    if (!lvl) return null;
+    if (lvl.length === 0) {
+      return (
+        <div style={{ paddingLeft: depth * 16 + 28, color: "#64748b", fontSize: 11, fontStyle: "italic" }}>
+          (vuoto)
+        </div>
+      );
+    }
+    return lvl.map((n) => {
+      const isFolder = n.node_class === "Object" || n.node_class === "View";
+      const isVariable = n.node_class === "Variable";
+      const isExpanded = expanded.has(n.node_id);
+      const isPicked = picked.has(n.node_id);
+      const isImported = existingNodeIds.has(n.node_id);
+      const icon = isFolder ? "📁" : isVariable ? "📊" : n.node_class === "Method" ? "⚙" : "·";
+      const labelColor = isVariable
+        ? (isImported ? "#475569" : isPicked ? "#5eead4" : "#cbd5e1")
+        : isFolder ? "#fde68a"
+        : "#64748b";
+      return (
+        <div key={n.node_id}>
+          <div
+            onClick={() => isFolder ? toggleExpand(n) : togglePick(n)}
+            style={{
+              paddingLeft: depth * 16 + 8,
+              paddingTop: 3, paddingBottom: 3,
+              display: "flex", alignItems: "center", gap: 6,
+              cursor: isFolder ? "pointer" : isVariable ? (isImported ? "not-allowed" : "pointer") : "default",
+              background: isPicked ? "#0f2922" : "transparent",
+              fontSize: 12, color: labelColor,
+            }}
+            title={isImported ? "Già importato" : n.node_id}
+          >
+            {isFolder ? (
+              <span style={{ width: 12, color: "#64748b" }}>{isExpanded ? "▼" : "▶"}</span>
+            ) : isVariable ? (
+              <input
+                type="checkbox"
+                checked={isPicked}
+                disabled={isImported}
+                onChange={() => togglePick(n)}
+                onClick={(e) => e.stopPropagation()}
+                style={{ width: 12, height: 12 }}
+              />
+            ) : (
+              <span style={{ width: 12 }} />
+            )}
+            <span>{icon}</span>
+            <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {n.display_name || n.browse_name || n.node_id}
+            </span>
+            <span style={{ fontSize: 10, fontFamily: "monospace", color: "#475569" }}>
+              {n.node_id}
+            </span>
+          </div>
+          {isFolder && isExpanded && renderLevel(n.node_id, depth + 1)}
+        </div>
+      );
+    });
+  };
+
+  const pickedList = Array.from(picked.values());
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: "fixed", inset: 0, zIndex: 9000,
+        background: "rgba(0,0,0,0.6)", display: "flex",
+        alignItems: "center", justifyContent: "center",
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: "#0f172a", border: "1px solid #334155", borderRadius: 8,
+          width: 720, maxHeight: "80vh", display: "flex", flexDirection: "column",
+          boxShadow: "0 12px 32px rgba(0,0,0,0.5)",
+        }}
+      >
+        <div style={{ padding: "14px 18px", borderBottom: "1px solid #1e293b",
+          display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div>
+            <div style={{ fontSize: 14, fontWeight: 600 }}>Sfoglia server OPC-UA</div>
+            <div style={{ fontSize: 11, color: "#64748b", marginTop: 2 }}>{source.endpoint_url}</div>
+          </div>
+          <button onClick={onClose} style={{ background: "none", border: "none", color: "#94a3b8", cursor: "pointer", fontSize: 16 }}>×</button>
+        </div>
+        {error && (
+          <div style={{ background: "#7f1d1d", color: "#fecaca", padding: "8px 14px", fontSize: 12 }}>
+            {error}
+          </div>
+        )}
+        <div style={{ flex: 1, overflowY: "auto", padding: "8px 0", background: "#0a111e" }}>
+          {renderLevel("@root", 0)}
+        </div>
+        <div style={{ padding: "10px 14px", borderTop: "1px solid #1e293b",
+          display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div style={{ fontSize: 12, color: pickedList.length > 0 ? "#5eead4" : "#64748b" }}>
+            {pickedList.length === 0
+              ? "Espandi un Object e seleziona le Variable da importare."
+              : `${pickedList.length} nod${pickedList.length === 1 ? "o" : "i"} selezionat${pickedList.length === 1 ? "o" : "i"}.`}
+          </div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button style={S.btn("ghost")} onClick={onClose}>Annulla</button>
+            <button
+              style={S.btn("primary")}
+              disabled={pickedList.length === 0}
+              onClick={() => onImport(pickedList)}
+            >
+              Importa {pickedList.length > 0 ? `(${pickedList.length})` : ""}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── OPC-UA Euromap auto-detect modal (BL-005b) ──────────────────────────────
+//
+// Walks the server address space looking for Variable nodes whose
+// browse_name matches a known Euromap 77 (injection moulding) or 83
+// (temperature control unit) variable. Match list is server-side. UI:
+// run-scan → table with checkbox per match → import.
+
+function OpcUaEuromapModal({
+  source, existingNodeIds, onClose, onCreateTag, onImport,
+}: {
+  source: OpcUaSource;
+  existingNodeIds: Set<string>;
+  onClose: () => void;
+  onCreateTag: (tag: TagDef) => void;
+  onImport: (picked: OpcUaEuromapVariable[], autoCreateTags: boolean) => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [result, setResult] = useState<{
+    nodes_scanned: number;
+    truncated: boolean;
+    variables: OpcUaEuromapVariable[];
+  } | null>(null);
+  // Default = every match selected. Operator deselects what they don't want.
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+  const [autoCreateTags, setAutoCreateTags] = useState(true);
+  // Kept for a future "create tag immediately" affordance per row.
+  void onCreateTag;
+
+  const runScan = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const det = await api.detectOpcUaEuromap({
+        endpoint_url: source.endpoint_url,
+        source_id: source.id,
+        auth: source.auth,
+        security_policy: source.security_policy,
+      });
+      setResult(det);
+      // Pre-select every match that isn't already imported.
+      setPicked(new Set(
+        det.variables
+          .filter((v) => !existingNodeIds.has(v.node_id))
+          .map((v) => v.node_id),
+      ));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  useEffect(() => { runScan(); }, []);
+
+  const togglePick = (nodeId: string) => {
+    if (existingNodeIds.has(nodeId)) return;
+    setPicked((prev) => {
+      const next = new Set(prev);
+      if (next.has(nodeId)) next.delete(nodeId);
+      else next.add(nodeId);
+      return next;
+    });
+  };
+
+  const pickedVariables = result
+    ? result.variables.filter((v) => picked.has(v.node_id))
+    : [];
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: "fixed", inset: 0, zIndex: 9000,
+        background: "rgba(0,0,0,0.6)", display: "flex",
+        alignItems: "center", justifyContent: "center",
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: "#0f172a", border: "1px solid #334155", borderRadius: 8,
+          width: 760, maxHeight: "85vh", display: "flex", flexDirection: "column",
+          boxShadow: "0 12px 32px rgba(0,0,0,0.5)",
+        }}
+      >
+        <div style={{ padding: "14px 18px", borderBottom: "1px solid #1e293b",
+          display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div>
+            <div style={{ fontSize: 14, fontWeight: 600 }}>
+              🤖 Auto-detect Euromap 77 / 83
+            </div>
+            <div style={{ fontSize: 11, color: "#64748b", marginTop: 2 }}>
+              {source.endpoint_url}
+              {result && (
+                <> · {result.nodes_scanned} nodi scansionati
+                  {result.truncated && " (limite raggiunto)"}</>
+              )}
+            </div>
+          </div>
+          <button onClick={onClose} style={{ background: "none", border: "none", color: "#94a3b8", cursor: "pointer", fontSize: 16 }}>×</button>
+        </div>
+        {error && (
+          <div style={{ background: "#7f1d1d", color: "#fecaca", padding: "8px 14px", fontSize: 12 }}>
+            {error}
+          </div>
+        )}
+        <div style={{ flex: 1, overflowY: "auto", background: "#0a111e" }}>
+          {busy && (
+            <div style={{ padding: "24px 18px", color: "#94a3b8", fontSize: 13 }}>
+              Scansione address space in corso (max ~500 nodi)…
+            </div>
+          )}
+          {!busy && result && result.variables.length === 0 && (
+            <div style={{ padding: "24px 18px", color: "#64748b", fontSize: 13, fontStyle: "italic" }}>
+              Nessuna variabile Euromap 77 / 83 rilevata. Il server potrebbe non
+              implementare le companion spec, oppure i nomi non corrispondono
+              al match canonico. Usa "🔍 Sfoglia server" per esplorare manualmente.
+            </div>
+          )}
+          {!busy && result && result.variables.length > 0 && (
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+              <thead>
+                <tr style={{ background: "#0f172a", borderBottom: "1px solid #1e293b", textAlign: "left" }}>
+                  <th style={{ padding: "8px 12px", color: "#94a3b8", fontWeight: 600, width: 24 }}></th>
+                  <th style={{ padding: "8px 12px", color: "#94a3b8", fontWeight: 600, width: 40 }}>Spec</th>
+                  <th style={{ padding: "8px 12px", color: "#94a3b8", fontWeight: 600 }}>Variabile</th>
+                  <th style={{ padding: "8px 12px", color: "#94a3b8", fontWeight: 600 }}>Tag suggerito</th>
+                  <th style={{ padding: "8px 12px", color: "#94a3b8", fontWeight: 600 }}>NodeId</th>
+                </tr>
+              </thead>
+              <tbody>
+                {result.variables.map((v) => {
+                  const imported = existingNodeIds.has(v.node_id);
+                  const checked = picked.has(v.node_id);
+                  return (
+                    <tr
+                      key={v.node_id}
+                      onClick={() => togglePick(v.node_id)}
+                      style={{
+                        borderBottom: "1px solid #1e293b",
+                        cursor: imported ? "not-allowed" : "pointer",
+                        background: checked ? "#0f2922" : "transparent",
+                        color: imported ? "#475569" : "#cbd5e1",
+                      }}
+                    >
+                      <td style={{ padding: "6px 12px" }}>
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          disabled={imported}
+                          onChange={() => togglePick(v.node_id)}
+                          onClick={(e) => e.stopPropagation()}
+                          style={{ width: 14, height: 14 }}
+                        />
+                      </td>
+                      <td style={{ padding: "6px 12px",
+                        fontFamily: "monospace", color: v.spec === "77" ? "#fbbf24" : "#a78bfa" }}>
+                        {v.spec}
+                      </td>
+                      <td style={{ padding: "6px 12px" }}>
+                        <div style={{ fontWeight: 600 }}>{v.canonical_name}</div>
+                        <div style={{ fontSize: 10, color: "#64748b" }}>{v.description}</div>
+                      </td>
+                      <td style={{ padding: "6px 12px", fontFamily: "monospace", color: "#5eead4" }}>
+                        {source.id}.{v.suggested_tag_suffix}
+                      </td>
+                      <td style={{ padding: "6px 12px", fontFamily: "monospace",
+                        fontSize: 10, color: "#64748b" }}>
+                        {v.node_id}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+        </div>
+        <div style={{ padding: "10px 14px", borderTop: "1px solid #1e293b",
+          display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+          <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#94a3b8" }}>
+            <input
+              type="checkbox"
+              checked={autoCreateTags}
+              onChange={(e) => setAutoCreateTags(e.target.checked)}
+            />
+            Crea automaticamente i tag SWS suggeriti
+          </label>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button style={S.btn("ghost")} onClick={runScan} disabled={busy}>
+              {busy ? "Scansione…" : "↻ Riprova"}
+            </button>
+            <button style={S.btn("ghost")} onClick={onClose}>Annulla</button>
+            <button
+              style={S.btn("primary")}
+              disabled={pickedVariables.length === 0}
+              onClick={() => onImport(pickedVariables, autoCreateTags)}
+            >
+              Importa {pickedVariables.length > 0 ? `(${pickedVariables.length})` : ""}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function ModbusSourceCard({
@@ -1330,6 +2073,9 @@ function ProtocolsTab() {
   const addMqtt = () =>
     setSources((prev) => [...prev, emptyMqtt()]);
 
+  const addOpcUa = () =>
+    setSources((prev) => [...prev, emptyOpcUa()]);
+
   const updateSource = (idx: number, updated: SourceDef) =>
     setSources((prev) => prev.map((s, i) => (i === idx ? updated : s)));
 
@@ -1370,7 +2116,8 @@ function ProtocolsTab() {
       <div style={S.sectionTitle}>SORGENTI DATI / PROTOCOLLI</div>
       <div style={S.notice}>
         Configura le connessioni ai dispositivi di campo. Supportati: <strong>Modbus TCP</strong>
-        (lettura registri holding) e <strong>MQTT</strong> (sottoscrizione topic). OPC-UA pianificato.
+        (lettura registri holding), <strong>MQTT</strong> (sottoscrizione topic),
+        <strong>OPC-UA client</strong> (subscription PoC, security None).
         Le sorgenti vengono ricollegate <strong>in tempo reale</strong> al salvataggio (niente
         riavvio del runtime).
       </div>
@@ -1404,6 +2151,17 @@ function ProtocolsTab() {
             />
           );
         }
+        if (src.kind === "opcua_client") {
+          return (
+            <OpcUaSourceCard
+              key={i}
+              source={src}
+              onChange={(updated) => updateSource(i, updated)}
+              onDelete={() => removeSource(i)}
+              onCreateTag={handleCreateTag}
+            />
+          );
+        }
         return null;
       })}
 
@@ -1414,8 +2172,8 @@ function ProtocolsTab() {
         <button style={S.btn("ghost")} onClick={addMqtt}>
           + Aggiungi MQTT
         </button>
-        <button style={{ ...S.btn("ghost"), opacity: 0.4, cursor: "not-allowed" }} disabled>
-          + OPC-UA (prossimamente)
+        <button style={S.btn("ghost")} onClick={addOpcUa}>
+          + Aggiungi OPC-UA
         </button>
       </div>
 
@@ -2189,7 +2947,7 @@ function ResourcesTab() {
 
 // ── ConfigView root ───────────────────────────────────────────────────────────
 
-type ConfigTab = "tags" | "protocols" | "alarms" | "users" | "resources" | "system";
+type ConfigTab = "tags" | "protocols" | "alarms" | "users" | "resources" | "system" | "backups";
 
 const TAB_LABELS: Record<ConfigTab, string> = {
   tags:      "Variabili",
@@ -2198,6 +2956,7 @@ const TAB_LABELS: Record<ConfigTab, string> = {
   users:     "Utenti",
   resources: "Risorse",
   system:    "Stato",
+  backups:   "Backup",
 };
 
 export function ConfigView() {
@@ -2223,14 +2982,20 @@ export function ConfigView() {
   }, [tab, isAdmin]);
 
   const visibleTabs: ConfigTab[] = isAdmin
-    ? ["tags", "protocols", "alarms", "users", "resources", "system"]
+    ? ["tags", "protocols", "alarms", "users", "resources", "backups", "system"]
     : ["tags", "protocols", "alarms", "resources", "system"];
+
+  // Bounce non-admins off the backups tab too (it's an admin-only API).
+  useEffect(() => {
+    if (tab === "backups" && !isAdmin) handleSetTab("tags");
+  }, [tab, isAdmin]);
 
   // Guard: tags/protocols/alarms tabs all initialise their local state from
   // store.project. If project hasn't loaded yet, rendering them would show
   // empty inputs over a populated YAML and a subsequent save would wipe the
   // file. The other tabs are independent so they stay available.
-  const projectLoading = project === null && tab !== "users" && tab !== "resources" && tab !== "system";
+  const projectLoading = project === null
+    && tab !== "users" && tab !== "resources" && tab !== "system" && tab !== "backups";
 
   return (
     <div style={S.page}>
@@ -2257,9 +3022,180 @@ export function ConfigView() {
             {tab === "users"     && isAdmin && <UsersTab />}
             {tab === "resources" && <ResourcesTab />}
             {tab === "system"    && <SystemTab />}
+            {tab === "backups"   && isAdmin && <BackupsTab />}
           </>
         )}
       </div>
+    </div>
+  );
+}
+
+// ── Backups tab ──────────────────────────────────────────────────────────────
+//
+// Admin-only list / create / restore / delete on `/api/backups`. Backups are
+// snapshots of `project.yaml`, `synoptics/`, and `users.yaml` under
+// `<project>/.bak/<UTC-timestamp>/`. The runtime also takes them
+// automatically when `--auto-backup-interval-minutes` is set.
+
+function BackupsTab() {
+  type BackupInfo = { name: string; created_at_ms: number; size_bytes: number };
+  const [list, setList]       = useState<BackupInfo[] | null>(null);
+  const [busy, setBusy]       = useState(false);
+  const [err, setErr]         = useState<string | null>(null);
+
+  const refresh = async () => {
+    setErr(null);
+    try {
+      const r = await api.listBackups();
+      setList(r);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    }
+  };
+
+  useEffect(() => { refresh(); }, []);
+
+  const createNow = async () => {
+    setBusy(true);
+    try {
+      await api.createBackup();
+      await refresh();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const restore = async (name: string) => {
+    if (!window.confirm(
+      `Ripristinare il backup "${name}"?\n\n` +
+      `Sovrascrive project.yaml, tutte le synoptic e users.yaml dal backup.\n` +
+      `Le modifiche non salvate sul disco vengono perse.`
+    )) return;
+    setBusy(true);
+    try {
+      await api.restoreBackup(name);
+      // Reload the project so the UI reflects the restored state.
+      const p = await api.getProject();
+      useAppStore.getState().setProject(p);
+      const names = await api.listSynoptics();
+      const pages = await Promise.all(names.map((n) => api.getSynoptic(n)));
+      useAppStore.getState().setPages(pages);
+      await refresh();
+      window.alert(`Backup "${name}" ripristinato.`);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const drop = async (name: string) => {
+    if (!window.confirm(`Eliminare il backup "${name}"? L'azione è definitiva.`)) return;
+    setBusy(true);
+    try {
+      await api.deleteBackup(name);
+      await refresh();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const fmtSize = (b: number) => b < 1024 ? `${b} B`
+    : b < 1024 * 1024 ? `${(b / 1024).toFixed(1)} KB`
+    : `${(b / 1024 / 1024).toFixed(1)} MB`;
+  const fmtDate = (ms: number) => ms > 0
+    ? new Date(ms).toLocaleString()
+    : "—";
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      <div style={{ color: "#94a3b8", fontSize: 13, lineHeight: 1.5 }}>
+        Snapshot point-in-time del progetto (project.yaml + synoptics + users.yaml)
+        salvati sotto <code>{`<project>/.bak/`}</code>. Il runtime ne crea uno automaticamente
+        ogni N minuti se avviato con <code>--auto-backup-interval-minutes</code>.
+      </div>
+      <div style={{ display: "flex", gap: 8 }}>
+        <button
+          onClick={createNow}
+          disabled={busy}
+          style={{
+            padding: "6px 14px", background: "#16a34a", color: "#f0fdf4",
+            border: "none", borderRadius: 4, cursor: busy ? "wait" : "pointer",
+            fontSize: 13, fontWeight: 600,
+          }}
+        >
+          + Backup adesso
+        </button>
+        <button
+          onClick={refresh}
+          disabled={busy}
+          style={{
+            padding: "6px 14px", background: "#1e293b", color: "#cbd5e1",
+            border: "1px solid #334155", borderRadius: 4,
+            cursor: busy ? "wait" : "pointer", fontSize: 13,
+          }}
+        >
+          ↻ Aggiorna
+        </button>
+      </div>
+      {err && (
+        <div style={{ background: "#7f1d1d", color: "#fecaca", padding: "8px 12px", borderRadius: 4, fontSize: 12 }}>
+          Errore: {err}
+        </div>
+      )}
+      {list === null ? (
+        <div style={{ color: "#64748b", fontSize: 13 }}>Caricamento…</div>
+      ) : list.length === 0 ? (
+        <div style={{ color: "#64748b", fontSize: 13, fontStyle: "italic", padding: "16px 0" }}>
+          Nessun backup. Click "+ Backup adesso" per crearne uno.
+        </div>
+      ) : (
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+          <thead>
+            <tr style={{ borderBottom: "1px solid #334155" }}>
+              <th style={{ textAlign: "left", padding: "6px 8px", color: "#94a3b8", fontWeight: 600 }}>Nome</th>
+              <th style={{ textAlign: "left", padding: "6px 8px", color: "#94a3b8", fontWeight: 600 }}>Creato</th>
+              <th style={{ textAlign: "right", padding: "6px 8px", color: "#94a3b8", fontWeight: 600 }}>Dimensione</th>
+              <th style={{ textAlign: "right", padding: "6px 8px", color: "#94a3b8", fontWeight: 600 }}>Azioni</th>
+            </tr>
+          </thead>
+          <tbody>
+            {list.map((b) => (
+              <tr key={b.name} style={{ borderBottom: "1px solid #1e293b" }}>
+                <td style={{ padding: "6px 8px", color: "#cbd5e1", fontFamily: "monospace" }}>{b.name}</td>
+                <td style={{ padding: "6px 8px", color: "#94a3b8" }}>{fmtDate(b.created_at_ms)}</td>
+                <td style={{ padding: "6px 8px", color: "#94a3b8", textAlign: "right" }}>{fmtSize(b.size_bytes)}</td>
+                <td style={{ padding: "6px 8px", textAlign: "right" }}>
+                  <button
+                    onClick={() => restore(b.name)}
+                    disabled={busy}
+                    style={{
+                      marginRight: 4, padding: "3px 10px",
+                      background: "#3b82f6", color: "#fff",
+                      border: "none", borderRadius: 3, cursor: busy ? "wait" : "pointer",
+                      fontSize: 12,
+                    }}
+                  >Ripristina</button>
+                  <button
+                    onClick={() => drop(b.name)}
+                    disabled={busy}
+                    style={{
+                      padding: "3px 10px",
+                      background: "transparent", color: "#fca5a5",
+                      border: "1px solid #7f1d1d", borderRadius: 3,
+                      cursor: busy ? "wait" : "pointer", fontSize: 12,
+                    }}
+                  >Elimina</button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
     </div>
   );
 }

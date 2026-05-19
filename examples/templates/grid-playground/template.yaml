@@ -1,0 +1,3 @@
+id: grid-playground
+label: "Grid Playground"
+description: "Showcase del grid layout S-23: griglia 4×4 con merge (rowspan/colspan), sub-cell nidificate fino a 4 livelli, mix di rect/ellipse/text/gauge/led/symbol/button/slider come figli di cella, righelli editor + gruppi + lock. Niente sorgenti esterne — tutto pilotato da tag in-memory."

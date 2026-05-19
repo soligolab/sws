@@ -7,6 +7,10 @@ import type {
   LogFileEntry,
   MqttBrowseRequest,
   MqttBrowseResponse,
+  OpcUaBrowseRequest,
+  OpcUaBrowseResponse,
+  OpcUaDetectEuromapRequest,
+  OpcUaEuromapDetection,
   ProjectInfo,
   ProjectListEntry,
   Sample,
@@ -300,6 +304,44 @@ export const api = {
       body: JSON.stringify(page),
     }),
 
+  // Single-page YAML export — returns the file body + filename pulled from
+  // the Content-Disposition header so the UI can trigger a browser download
+  // with the same name the runtime produced.
+  exportSynopticYaml: async (name: string): Promise<{ blob: Blob; filename: string }> => {
+    const headers = new Headers();
+    if (getAuthToken()) headers.set("Authorization", `Bearer ${getAuthToken()}`);
+    const res = await fetch(`${getBaseUrl()}/api/synoptics/${encodeURIComponent(name)}/export`, { headers });
+    if (res.status === 401) throw new AuthError();
+    if (!res.ok) throw new Error(`API export synoptic ${name}: ${res.status} ${res.statusText}`);
+    const cd = res.headers.get("Content-Disposition") ?? "";
+    const m = cd.match(/filename="([^"]+)"/);
+    const filename = m?.[1] ?? `${name}.yaml`;
+    const blob = await res.blob();
+    return { blob, filename };
+  },
+
+  importSynopticYaml: (yamlText: string) =>
+    request<{ id: string; name: string; filename: string }>(`/api/synoptics/import`, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-yaml" },
+      body: yamlText,
+    }),
+
+  // Backups — admin-only. The list is sorted newest-first by the server.
+  listBackups: () =>
+    request<Array<{ name: string; created_at_ms: number; size_bytes: number }>>(
+      "/api/backups",
+    ),
+
+  createBackup: () =>
+    request<{ name: string }>("/api/backups", { method: "POST" }),
+
+  restoreBackup: (name: string) =>
+    request<void>(`/api/backups/${encodeURIComponent(name)}/restore`, { method: "POST" }),
+
+  deleteBackup: (name: string) =>
+    request<void>(`/api/backups/${encodeURIComponent(name)}`, { method: "DELETE" }),
+
   // Tags
   writeTag: (id: string, value: number | string | boolean) =>
     request<void>(`/api/tags/${encodeURIComponent(id)}`, {
@@ -410,6 +452,20 @@ export const api = {
   // MQTT broker browse: connect ephemerally, subscribe #, return discovered topics.
   browseMqttTopics: (req: MqttBrowseRequest): Promise<MqttBrowseResponse> =>
     request<MqttBrowseResponse>("/api/sources/mqtt/browse", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(req),
+    }),
+
+  browseOpcUa: (req: OpcUaBrowseRequest): Promise<OpcUaBrowseResponse> =>
+    request<OpcUaBrowseResponse>("/api/sources/opcua/browse", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(req),
+    }),
+
+  detectOpcUaEuromap: (req: OpcUaDetectEuromapRequest): Promise<OpcUaEuromapDetection> =>
+    request<OpcUaEuromapDetection>("/api/sources/opcua/detect-euromap", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(req),
