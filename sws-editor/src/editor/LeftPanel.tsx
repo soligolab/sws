@@ -1207,11 +1207,17 @@ function SourcesSection({ project }: { project: ProjectInfo | null }) {
               </span>
               <span style={{
                 fontSize: 9, fontWeight: 700, letterSpacing: 0.5, padding: "1px 4px", borderRadius: 3,
-                background: src.kind === "mqtt" ? "#4c1d95" : "#1e3a5f",
-                color: src.kind === "mqtt" ? "#c4b5fd" : "#93c5fd",
+                background: src.kind === "mqtt" ? "#4c1d95"
+                  : src.kind === "opcua_client" ? "#1d4733"
+                  : "#1e3a5f",
+                color: src.kind === "mqtt" ? "#c4b5fd"
+                  : src.kind === "opcua_client" ? "#86efac"
+                  : "#93c5fd",
                 flexShrink: 0,
               }}>
-                {src.kind === "mqtt" ? "MQTT" : "MBUS"}
+                {src.kind === "mqtt" ? "MQTT"
+                  : src.kind === "opcua_client" ? "OPC-UA"
+                  : "MBUS"}
               </span>
             </div>
           ))

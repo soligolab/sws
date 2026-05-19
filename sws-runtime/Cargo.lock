@@ -174,6 +174,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "arc-swap"
+version = "1.9.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6a3a1fd6f75306b68087b831f025c712524bcb19aad54e557b1129cfa0a2b207"
+dependencies = [
+ "rustversion",
+]
+
+[[package]]
 name = "argon2"
 version = "0.5.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -242,11 +251,35 @@ version = "0.18.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "21b41aafb34371afea4ce25f026c5a46e5872d2aca6a3fdcf1fcc12d52636768"
 dependencies = [
+ "async-opcua-client",
  "async-opcua-core",
  "async-opcua-crypto",
  "async-opcua-macros",
  "async-opcua-types",
  "chrono",
+]
+
+[[package]]
+name = "async-opcua-client"
+version = "0.18.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e33d8045bf3d4187bdb5eb4f224aa7fecb804c63a79ac32ad38950b4f05ac159"
+dependencies = [
+ "arc-swap",
+ "async-opcua-core",
+ "async-opcua-crypto",
+ "async-opcua-nodes",
+ "async-opcua-types",
+ "async-trait",
+ "chrono",
+ "futures",
+ "hashbrown 0.15.5",
+ "parking_lot",
+ "rsa",
+ "serde",
+ "tokio",
+ "tokio-util",
+ "tracing",
 ]
 
 [[package]]
@@ -304,6 +337,21 @@ dependencies = [
  "quote",
  "syn 2.0.117",
  "uuid",
+]
+
+[[package]]
+name = "async-opcua-nodes"
+version = "0.18.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c9aa04366fbb50e5e5eab459604657ee0872f1b7f4da7bd0eb086160ccc7cd04"
+dependencies = [
+ "async-opcua-macros",
+ "async-opcua-types",
+ "bitflags 2.11.1",
+ "hashbrown 0.15.5",
+ "regex",
+ "thiserror 1.0.69",
+ "tracing",
 ]
 
 [[package]]
@@ -3424,6 +3472,7 @@ dependencies = [
  "anyhow",
  "async-opcua",
  "serde",
+ "sws-core",
  "sws-plugin-api",
  "tokio",
  "tracing",
@@ -3490,6 +3539,7 @@ dependencies = [
  "sws-historian",
  "sws-plugin-modbus",
  "sws-plugin-mqtt",
+ "sws-plugin-opcua",
  "sws-pyscript",
  "sysinfo",
  "tempfile",

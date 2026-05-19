@@ -127,6 +127,17 @@ impl SourceSupervisor {
                     sws_plugin_mqtt::run(cfg, db, bus, cancel_for_task).await;
                 })
             }
+            SourceDef::OpcUaClient(cfg) => {
+                // The opcua plugin has no cancel hook yet (the reconnect
+                // loop is self-driven). Drop the bus too — writes back to
+                // the server aren't wired in step 1.
+                info!(source = %id_for_log, "starting OPC-UA client task");
+                let _ = bus;
+                let _ = cancel_for_task;
+                tokio::spawn(async move {
+                    sws_plugin_opcua::run(cfg, db).await;
+                })
+            }
         };
 
         self.sources.lock().await.insert(
@@ -163,14 +174,16 @@ impl SourceSupervisor {
 
 fn source_id(s: &SourceDef) -> &str {
     match s {
-        SourceDef::ModbusTcp(c) => &c.id,
-        SourceDef::Mqtt(c)      => &c.id,
+        SourceDef::ModbusTcp(c)   => &c.id,
+        SourceDef::Mqtt(c)        => &c.id,
+        SourceDef::OpcUaClient(c) => &c.id,
     }
 }
 
 fn tags_of(s: &SourceDef) -> Vec<String> {
     match s {
-        SourceDef::ModbusTcp(c) => c.registers.iter().map(|r| r.tag.clone()).collect(),
-        SourceDef::Mqtt(c)      => c.topics.iter().map(|t| t.tag.clone()).collect(),
+        SourceDef::ModbusTcp(c)   => c.registers.iter().map(|r| r.tag.clone()).collect(),
+        SourceDef::Mqtt(c)        => c.topics.iter().map(|t| t.tag.clone()).collect(),
+        SourceDef::OpcUaClient(c) => c.nodes.iter().map(|n| n.tag.clone()).collect(),
     }
 }

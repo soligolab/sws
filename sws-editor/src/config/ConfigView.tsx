@@ -11,6 +11,9 @@ import type {
   MqttLastWill,
   MqttSource,
   MqttTlsConfig,
+  OpcUaAuth,
+  OpcUaNodeMapping,
+  OpcUaSource,
   RegisterMapping,
   SourceDef,
   TagDataType,
@@ -144,6 +147,10 @@ const S = {
     color: "#93c5fd",
     marginBottom: 16,
   },
+  // Compact field label used by the source-card grids.
+  label: {
+    fontSize: 11, color: "#64748b", display: "block" as const, marginBottom: 3,
+  } as React.CSSProperties,
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -406,6 +413,259 @@ function emptyMqtt(): MqttSource {
 
 function emptyTopic(): TopicMapping {
   return { tag: "", topic: "", json_path: undefined };
+}
+
+function emptyOpcUa(): OpcUaSource {
+  return {
+    kind: "opcua_client",
+    id: `opcua-${genId()}`,
+    endpoint_url: "opc.tcp://localhost:4840",
+    security_policy: "None",
+    auth: { kind: "anonymous" },
+    subscription_interval_ms: 500,
+    nodes: [],
+  };
+}
+
+function emptyOpcUaNode(): OpcUaNodeMapping {
+  return { tag: "", node_id: "" };
+}
+
+// ── OPC-UA card ───────────────────────────────────────────────────────────────
+//
+// Mirrors the MqttSourceCard shape on purpose so the operator's mental
+// model is the same across protocols. PoC scope: anonymous + username
+// auth; security policy "None" wired end-to-end (other values stored in
+// YAML for forward-compat, ignored by the plugin).
+
+function OpcUaSourceCard({
+  source, onChange, onDelete, onCreateTag,
+}: {
+  source: OpcUaSource;
+  onChange: (s: OpcUaSource) => void;
+  onDelete: () => void;
+  onCreateTag: (tag: TagDef) => void;
+}) {
+  const [open, setOpen] = useState(true);
+  const [quickCreate, setQuickCreate] = useState<{ rowIdx: number; prefill: string } | null>(null);
+
+  const setField = <K extends keyof OpcUaSource>(k: K, v: OpcUaSource[K]) =>
+    onChange({ ...source, [k]: v });
+
+  const setAuth = (auth: OpcUaAuth) =>
+    onChange({ ...source, auth });
+
+  const setNode = (idx: number, patch: Partial<OpcUaNodeMapping>) =>
+    onChange({
+      ...source,
+      nodes: source.nodes.map((n, i) => (i === idx ? { ...n, ...patch } : n)),
+    });
+
+  const addNode = () =>
+    onChange({ ...source, nodes: [...source.nodes, emptyOpcUaNode()] });
+
+  const removeNode = (idx: number) =>
+    onChange({ ...source, nodes: source.nodes.filter((_, i) => i !== idx) });
+
+  return (
+    <div style={S.card}>
+      <div
+        style={{
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          marginBottom: open ? 12 : 0, cursor: "pointer",
+        }}
+        onClick={() => setOpen((v) => !v)}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{ fontSize: 10, color: "#475569" }}>{open ? "▼" : "▶"}</span>
+          <span style={{ fontWeight: 600 }}>OPC-UA · {source.id}</span>
+          <span style={{ fontSize: 11, color: "#64748b" }}>{source.endpoint_url}</span>
+        </div>
+        <button
+          style={S.btn("danger")}
+          onClick={(e) => { e.stopPropagation(); onDelete(); }}
+        >Elimina</button>
+      </div>
+
+      {open && (
+        <>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            <div>
+              <label style={S.label}>ID sorgente</label>
+              <input style={S.input} value={source.id} onChange={(e) => setField("id", e.target.value)} />
+            </div>
+            <div>
+              <label style={S.label}>Endpoint URL</label>
+              <input
+                style={S.input}
+                placeholder="opc.tcp://192.168.1.100:4840"
+                value={source.endpoint_url}
+                onChange={(e) => setField("endpoint_url", e.target.value)}
+              />
+            </div>
+            <div>
+              <label style={S.label}>Security policy</label>
+              <select
+                style={S.input}
+                value={source.security_policy}
+                onChange={(e) => setField("security_policy", e.target.value)}
+              >
+                <option value="None">None</option>
+                <option value="Basic128Rsa15" disabled>Basic128Rsa15 (prossimamente)</option>
+                <option value="Basic256" disabled>Basic256 (prossimamente)</option>
+                <option value="Basic256Sha256" disabled>Basic256Sha256 (prossimamente)</option>
+              </select>
+            </div>
+            <div>
+              <label style={S.label}>Subscription interval (ms)</label>
+              <input
+                type="number" min={50} step={50} style={S.input}
+                value={source.subscription_interval_ms}
+                onChange={(e) => setField("subscription_interval_ms", Number(e.target.value) || 500)}
+              />
+            </div>
+          </div>
+
+          {/* Auth ------------------------------------------------------- */}
+          <div style={{ marginTop: 12, marginBottom: 6, color: "#94a3b8", fontSize: 12, fontWeight: 600 }}>
+            AUTENTICAZIONE
+          </div>
+          <div style={{ display: "flex", gap: 14, alignItems: "center", marginBottom: 8 }}>
+            <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13 }}>
+              <input
+                type="radio"
+                checked={source.auth.kind === "anonymous"}
+                onChange={() => setAuth({ kind: "anonymous" })}
+              />
+              Anonima
+            </label>
+            <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13 }}>
+              <input
+                type="radio"
+                checked={source.auth.kind === "username_password"}
+                onChange={() => setAuth({ kind: "username_password", username: "" })}
+              />
+              Utente + Password
+            </label>
+          </div>
+          {source.auth.kind === "username_password" && (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 8 }}>
+              <div>
+                <label style={S.label}>Username</label>
+                <input
+                  style={S.input}
+                  value={source.auth.username}
+                  onChange={(e) => setAuth({
+                    ...(source.auth as Extract<OpcUaAuth, { kind: "username_password" }>),
+                    username: e.target.value,
+                  })}
+                />
+              </div>
+              <div>
+                <label style={S.label}>Password</label>
+                <input
+                  type="password"
+                  style={S.input}
+                  placeholder="(lascia vuoto se usi password_env)"
+                  value={source.auth.password ?? ""}
+                  onChange={(e) => setAuth({
+                    ...(source.auth as Extract<OpcUaAuth, { kind: "username_password" }>),
+                    password: e.target.value || undefined,
+                  })}
+                />
+              </div>
+              <div>
+                <label style={S.label}>Password env var</label>
+                <input
+                  style={S.input}
+                  placeholder="SWS_OPCUA_PWD"
+                  value={source.auth.password_env ?? ""}
+                  onChange={(e) => setAuth({
+                    ...(source.auth as Extract<OpcUaAuth, { kind: "username_password" }>),
+                    password_env: e.target.value || undefined,
+                  })}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Nodes ------------------------------------------------------ */}
+          <div style={{ marginTop: 12, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div style={{ color: "#94a3b8", fontSize: 12, fontWeight: 600 }}>
+              NODI MONITORATI ({source.nodes.length})
+            </div>
+          </div>
+          {source.nodes.length === 0 ? (
+            <div style={{ color: "#64748b", fontSize: 12, fontStyle: "italic", marginTop: 6 }}>
+              Nessun nodo. Clicca "+ Nodo" per aggiungerne uno.
+            </div>
+          ) : (
+            <table style={{ width: "100%", marginTop: 8, borderCollapse: "collapse", fontSize: 12 }}>
+              <thead>
+                <tr style={{ borderBottom: "1px solid #1e293b" }}>
+                  <th style={{ textAlign: "left", padding: "4px 6px", color: "#94a3b8" }}>Tag</th>
+                  <th style={{ textAlign: "left", padding: "4px 6px", color: "#94a3b8" }}>NodeId</th>
+                  <th style={{ textAlign: "left", padding: "4px 6px", color: "#94a3b8" }}>Descrizione</th>
+                  <th style={{ width: 36 }}></th>
+                </tr>
+              </thead>
+              <tbody>
+                {source.nodes.map((n, i) => (
+                  <tr key={i} style={{ borderBottom: "1px solid #1e293b" }}>
+                    <td style={{ padding: "4px 6px" }}>
+                      <div style={{ display: "flex", gap: 4 }}>
+                        <TagInput
+                          value={n.tag}
+                          onChange={(v) => setNode(i, { tag: v })}
+                          style={{ ...S.input, padding: "2px 6px", flex: 1 }}
+                        />
+                        <button
+                          title="Crea nuova variabile"
+                          style={{ ...S.btn("ghost"), padding: "2px 6px" }}
+                          onClick={() => setQuickCreate({ rowIdx: i, prefill: n.tag })}
+                        >＋</button>
+                      </div>
+                    </td>
+                    <td style={{ padding: "4px 6px" }}>
+                      <input
+                        style={{ ...S.input, padding: "2px 6px", fontFamily: "monospace" }}
+                        placeholder="ns=2;s=Machine.CycleTime"
+                        value={n.node_id}
+                        onChange={(e) => setNode(i, { node_id: e.target.value })}
+                      />
+                    </td>
+                    <td style={{ padding: "4px 6px" }}>
+                      <input
+                        style={{ ...S.input, padding: "2px 6px" }}
+                        value={n.description ?? ""}
+                        onChange={(e) => setNode(i, { description: e.target.value || undefined })}
+                      />
+                    </td>
+                    <td>
+                      <button style={S.btn("danger")} onClick={() => removeNode(i)}>×</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+          <div style={{ marginTop: 8 }}>
+            <button style={S.btn("ghost")} onClick={addNode}>+ Nodo</button>
+          </div>
+        </>
+      )}
+      {quickCreate !== null && (
+        <QuickCreateTagModal
+          initialId={quickCreate.prefill}
+          onConfirm={(tag) => {
+            onCreateTag(tag);
+            setNode(quickCreate.rowIdx, { tag: tag.id });
+          }}
+          onClose={() => setQuickCreate(null)}
+        />
+      )}
+    </div>
+  );
 }
 
 function ModbusSourceCard({
@@ -1330,6 +1590,9 @@ function ProtocolsTab() {
   const addMqtt = () =>
     setSources((prev) => [...prev, emptyMqtt()]);
 
+  const addOpcUa = () =>
+    setSources((prev) => [...prev, emptyOpcUa()]);
+
   const updateSource = (idx: number, updated: SourceDef) =>
     setSources((prev) => prev.map((s, i) => (i === idx ? updated : s)));
 
@@ -1370,7 +1633,8 @@ function ProtocolsTab() {
       <div style={S.sectionTitle}>SORGENTI DATI / PROTOCOLLI</div>
       <div style={S.notice}>
         Configura le connessioni ai dispositivi di campo. Supportati: <strong>Modbus TCP</strong>
-        (lettura registri holding) e <strong>MQTT</strong> (sottoscrizione topic). OPC-UA pianificato.
+        (lettura registri holding), <strong>MQTT</strong> (sottoscrizione topic),
+        <strong>OPC-UA client</strong> (subscription PoC, security None).
         Le sorgenti vengono ricollegate <strong>in tempo reale</strong> al salvataggio (niente
         riavvio del runtime).
       </div>
@@ -1404,6 +1668,17 @@ function ProtocolsTab() {
             />
           );
         }
+        if (src.kind === "opcua_client") {
+          return (
+            <OpcUaSourceCard
+              key={i}
+              source={src}
+              onChange={(updated) => updateSource(i, updated)}
+              onDelete={() => removeSource(i)}
+              onCreateTag={handleCreateTag}
+            />
+          );
+        }
         return null;
       })}
 
@@ -1414,8 +1689,8 @@ function ProtocolsTab() {
         <button style={S.btn("ghost")} onClick={addMqtt}>
           + Aggiungi MQTT
         </button>
-        <button style={{ ...S.btn("ghost"), opacity: 0.4, cursor: "not-allowed" }} disabled>
-          + OPC-UA (prossimamente)
+        <button style={S.btn("ghost")} onClick={addOpcUa}>
+          + Aggiungi OPC-UA
         </button>
       </div>
 

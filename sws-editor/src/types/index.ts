@@ -360,7 +360,29 @@ export interface MqttSource {
   last_will?: MqttLastWill;
 }
 
-export type SourceDef = ModbusTcpSource | MqttSource;
+// ── OPC-UA client source (BL-005) ─────────────────────────────────────────
+
+export interface OpcUaNodeMapping {
+  tag: string;
+  node_id: string;
+  description?: string;
+}
+
+export type OpcUaAuth =
+  | { kind: "anonymous" }
+  | { kind: "username_password"; username: string; password?: string; password_env?: string };
+
+export interface OpcUaSource {
+  kind: "opcua_client";
+  id: string;
+  endpoint_url: string;
+  security_policy: string;
+  auth: OpcUaAuth;
+  subscription_interval_ms: number;
+  nodes: OpcUaNodeMapping[];
+}
+
+export type SourceDef = ModbusTcpSource | MqttSource | OpcUaSource;
 
 // ── MQTT broker browse ─────────────────────────────────────────────────────
 

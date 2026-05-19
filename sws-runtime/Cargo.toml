@@ -59,7 +59,7 @@ clap = { version = "4", features = ["derive"] }
 
 # Protocols
 tokio-modbus = "0.6"
-async-opcua  = "0.18"
+async-opcua  = { version = "0.18", features = ["client"] }
 rumqttc      = "0.24"
 rumqttd      = "0.19"
 
