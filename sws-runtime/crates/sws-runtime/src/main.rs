@@ -223,6 +223,7 @@ async fn main() -> anyhow::Result<()> {
     if let Some(project_path) = args.project.clone() {
         // Legacy auto-open path: bootstrap exactly as the single-project
         // runtime did, then mark this dir as active.
+        supervisor.set_pki_root(project_path.join(".opcua-pki")).await;
         match sws_core::project::Project::load(&project_path) {
             Ok(project) => {
                 info!(

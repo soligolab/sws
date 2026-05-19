@@ -395,10 +395,36 @@ export interface OpcUaBrowseRequest {
   source_id?: string;
   auth?: OpcUaAuth;
   parent_node_id?: string;
+  /** "forward" (default) | "inverse" | "both". */
+  direction?: "forward" | "inverse" | "both";
+  security_policy?: string;
 }
 
 export interface OpcUaBrowseResponse {
   nodes: OpcUaBrowsedNode[];
+}
+
+export interface OpcUaEuromapVariable {
+  spec: string; // "77" or "83"
+  canonical_name: string;
+  suggested_tag_suffix: string;
+  description: string;
+  node_id: string;
+  browse_name: string;
+  display_name: string;
+}
+
+export interface OpcUaEuromapDetection {
+  nodes_scanned: number;
+  truncated: boolean;
+  variables: OpcUaEuromapVariable[];
+}
+
+export interface OpcUaDetectEuromapRequest {
+  endpoint_url: string;
+  source_id?: string;
+  auth?: OpcUaAuth;
+  security_policy?: string;
 }
 
 export type SourceDef = ModbusTcpSource | MqttSource | OpcUaSource;

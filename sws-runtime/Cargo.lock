@@ -3474,6 +3474,7 @@ dependencies = [
  "serde",
  "sws-core",
  "sws-plugin-api",
+ "tempfile",
  "tokio",
  "tracing",
 ]

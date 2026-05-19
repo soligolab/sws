@@ -124,6 +124,8 @@ pub fn build(
         .route("/api/sources/mqtt/browse", post(mqtt_browse_handler))
         // OPC-UA server browse: one level under a NodeId (default Objects).
         .route("/api/sources/opcua/browse", post(opcua_browse_handler))
+        // OPC-UA Euromap 77/83 companion-spec auto-detect.
+        .route("/api/sources/opcua/detect-euromap", post(opcua_detect_euromap_handler))
         .route("/api/system",             get(crate::system::get_system_status))
         .route_layer(middleware::from_fn(require_operator));
 
@@ -1723,6 +1725,15 @@ struct OpcUaBrowseRequest {
     /// the Objects folder on the server.
     #[serde(default)]
     parent_node_id: Option<String>,
+    /// Optional browse direction: "forward" (default), "inverse" (inbound
+    /// refs), or "both". Forward is what the UI tree uses.
+    #[serde(default)]
+    direction: Option<sws_plugin_opcua::BrowseDir>,
+    /// Optional security policy override (defaults to "None" if unset).
+    /// Useful when the caller wants to test a Basic256Sha256 connection
+    /// without saving the source first.
+    #[serde(default)]
+    security_policy: Option<String>,
 }
 
 async fn opcua_browse_handler(
@@ -1762,15 +1773,72 @@ async fn opcua_browse_handler(
     let cfg = sws_core::OpcUaClientConfig {
         id: "browse".into(),
         endpoint_url: req.endpoint_url,
-        security_policy: "None".into(),
+        security_policy: req.security_policy.unwrap_or_else(|| "None".into()),
+        auth: req.auth.unwrap_or_default(),
+        subscription_interval_ms: 1000,
+        nodes: Vec::new(),
+    };
+    let direction = req.direction.unwrap_or_default();
+
+    match sws_plugin_opcua::browse_one_level(&cfg, req.parent_node_id.as_deref(), direction).await {
+        Ok(nodes) => Json(serde_json::json!({ "nodes": nodes })).into_response(),
+        Err(e) => (StatusCode::BAD_GATEWAY, format!("opcua browse failed: {e}")).into_response(),
+    }
+}
+
+#[derive(Deserialize)]
+struct OpcUaDetectEuromapRequest {
+    endpoint_url: String,
+    #[serde(default)]
+    source_id: Option<String>,
+    #[serde(default)]
+    auth: Option<sws_core::OpcUaAuth>,
+    #[serde(default)]
+    security_policy: Option<String>,
+}
+
+async fn opcua_detect_euromap_handler(
+    State(s): State<AppState>,
+    Json(mut req): Json<OpcUaDetectEuromapRequest>,
+) -> Response {
+    // Same masked-password sentinel resolution pattern as opcua_browse.
+    if let Some(sws_core::OpcUaAuth::UsernamePassword { password: Some(ref p), .. }) = req.auth {
+        if p == MASKED_PASSWORD {
+            if let (Some(ref sid), Ok(dir)) = (req.source_id.as_ref(), active_dir(&s).await) {
+                if let Ok(project) = Project::load(&dir) {
+                    for src in &project.sources {
+                        if let SourceDef::OpcUaClient(c) = src {
+                            if c.id.as_str() == sid.as_str() {
+                                if let sws_core::OpcUaAuth::UsernamePassword {
+                                    password: Some(stored), ..
+                                } = &c.auth {
+                                    if let sws_core::OpcUaAuth::UsernamePassword {
+                                        password, ..
+                                    } = &mut req.auth.as_mut().unwrap() {
+                                        *password = Some(stored.clone());
+                                    }
+                                }
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    let cfg = sws_core::OpcUaClientConfig {
+        id: "euromap".into(),
+        endpoint_url: req.endpoint_url,
+        security_policy: req.security_policy.unwrap_or_else(|| "None".into()),
         auth: req.auth.unwrap_or_default(),
         subscription_interval_ms: 1000,
         nodes: Vec::new(),
     };
 
-    match sws_plugin_opcua::browse_one_level(&cfg, req.parent_node_id.as_deref()).await {
-        Ok(nodes) => Json(serde_json::json!({ "nodes": nodes })).into_response(),
-        Err(e) => (StatusCode::BAD_GATEWAY, format!("opcua browse failed: {e}")).into_response(),
+    match sws_plugin_opcua::detect_euromap(&cfg).await {
+        Ok(det) => Json(det).into_response(),
+        Err(e) => (StatusCode::BAD_GATEWAY, format!("opcua euromap detection failed: {e}")).into_response(),
     }
 }
 

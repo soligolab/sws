@@ -1,10 +1,12 @@
 # OPC-UA Client Setup
 
-> **Status (BL-005 step 1+2+3+4)**: Reads (subscriptions), writes (via
-> `TagWriteBus`), and one-level server browse all work end-to-end against
-> a server that accepts anonymous or username/password auth with security
-> policy `None`. Certificate-based security and Euromap companion-spec
-> auto-discovery (BL-005b) are deferred follow-ups — see `STATUS.md`.
+> **Status (BL-005 complete)**: Reads (subscriptions), writes (via
+> `TagWriteBus`), one-level browse (forward/inverse/both),
+> certificate-based security policies (Basic128Rsa15 / Basic256 /
+> Basic256Sha256 / Aes128 / Aes256), and Euromap 77 / 83 companion-spec
+> auto-discovery all work end-to-end. Only really-out-of-scope items
+> remain: vendor-curated server trust list (today every server cert is
+> trusted), historical reads, and reverse-connect mode.
 
 The SWS runtime ships with a built-in OPC-UA client plugin
 (`sws-plugin-opcua`, version-locked to `async-opcua` 0.18). It runs as a
@@ -48,6 +50,36 @@ auth:
 `password_env` always wins over `password` so secrets can stay out of the
 YAML on disk. Set the env var when launching the runtime
 (e.g. `SWS_OPCUA_PWD=… ./scripts/dev.sh`).
+
+### Security policies
+
+The `security_policy` field accepts the canonical OPC-UA names. SWS pairs
+each non-None policy with `MessageSecurityMode::SignAndEncrypt` (the
+`Sign`-only mode is rarely supported on industrial endpoints):
+
+| Value                  | Underlying policy             | Message mode      |
+|------------------------|-------------------------------|-------------------|
+| `None`                 | Plaintext                     | None              |
+| `Basic128Rsa15`        | Basic128Rsa15 (deprecated)    | SignAndEncrypt    |
+| `Basic256`             | Basic256                      | SignAndEncrypt    |
+| `Basic256Sha256`       | Basic256Sha256 (recommended)  | SignAndEncrypt    |
+| `Aes128Sha256RsaOaep`  | Aes128-SHA256-RsaOaep         | SignAndEncrypt    |
+| `Aes256Sha256RsaPss`   | Aes256-SHA256-RsaPss          | SignAndEncrypt    |
+
+The runtime auto-generates a self-signed cert + private key under
+`<project>/.opcua-pki/<source-id>/` on first connect, then re-uses the
+same keypair on every reconnect so the server's trust list stays stable.
+Each OPC-UA source has its own keypair so different machines see distinct
+client identities.
+
+On the server side: most industrial servers refuse the cert on the
+first handshake and surface it in a "rejected" list — the operator has
+to mark it trusted in the server's UI before the second attempt
+succeeds. This is normal one-time setup.
+
+For the PoC every server certificate is **trusted** automatically
+(`trust_server_certs(true)`). When the project graduates we'll add a UI
+to curate the accepted-server list.
 
 ### NodeId format
 
@@ -205,17 +237,68 @@ The selected NodeIds are appended to the source's node table with their
 `Variable` rows that are already in the import list are greyed out so
 you can't double-add.
 
+## Euromap 77 / 83 auto-detect (BL-005b)
+
+`POST /api/sources/opcua/detect-euromap` walks the server's address
+space (BFS, capped at 500 nodes and 4 levels under `ObjectsFolder`) and
+matches every Variable `browse_name` against the canonical Euromap
+dictionary. The match is case-insensitive and pure name-based — no
+companion-spec type checks — which catches most servers without paying
+the cost of walking ObjectType hierarchies. Returns:
+
+```json
+{
+  "nodes_scanned": 312,
+  "truncated": false,
+  "variables": [
+    { "spec": "77", "canonical_name": "CycleTime",
+      "suggested_tag_suffix": "cycle_time",
+      "description": "Tempo ciclo (s, float)",
+      "node_id": "ns=2;s=Machine.CycleTime",
+      "browse_name": "CycleTime", "display_name": "CycleTime" },
+    …
+  ]
+}
+```
+
+The dictionary covers:
+
+| Spec    | Variables                                                   |
+|---------|-------------------------------------------------------------|
+| **77** (IM) | MachineState, ActiveErrors, CycleTime, InjectionTime, MeltTemperature, ClampingForce, ProductionActiveParts, ProductionActiveDefectiveParts |
+| **83** (TCU) | TbcActualTemperature, TbcSetTemperature, TbcState        |
+
+**In the editor**: open a source card → click **🤖 Rileva Euromap**.
+A scan runs against the configured endpoint. Matches appear in a table
+with checkboxes pre-selected (skip any already in the source's nodes
+table). A "Crea automaticamente i tag SWS suggeriti" toggle decides
+whether each imported NodeId also gets a fresh `<source-id>.<suffix>`
+tag created in the same save round-trip (default on). Click **Importa**
+to add the picked variables to the nodes table.
+
+If the server doesn't expose Euromap-canonical names you'll get an
+empty result — fall back to "🔍 Sfoglia server" and add nodes
+manually.
+
+## Server browse direction
+
+`POST /api/sources/opcua/browse` accepts an optional
+`"direction": "forward" | "inverse" | "both"` (default `"forward"`).
+Forward is what the UI tree uses to walk *into* an address space.
+Inverse / Both follow inbound references — useful for inspector-style
+tooling that wants to walk back up to the parent or list siblings.
+
 ## What's still deferred
 
-- **Security policies other than `None`**. The `security_policy` field
-  travels through to YAML for forward-compat and is logged when set, but
-  the plugin always negotiates `None` for the PoC.
-- **Euromap companion spec auto-discovery**. Tracked as BL-005b in
-  STATUS.md.
-- **Reverse browse** (References pointing *into* a node). The current
-  endpoint only walks Forward / HierarchicalReferences — the common case
-  for inspecting an address space.
+- **Vendor-curated server trust list**. Today every server cert is
+  trusted (`trust_server_certs(true)`). A UI to mark / un-mark
+  individual server certs is on the roadmap when the project graduates
+  past PoC.
+- **Historical reads** (`HistoryRead`) and **complex Variant types**
+  (arrays, ExtensionObjects, structures). The plugin lands these as
+  `Uncertain` for now.
+- **Reverse connect** mode (server initiates the TCP, useful behind
+  NAT/firewall). Tracked separately if a customer asks for it.
 
-When any of these become a customer-facing requirement we'll graduate
-the implementation; the existing `OpcUaClientConfig` shape is designed
-to stay stable across that work.
+The `OpcUaClientConfig` shape is designed to stay stable across these
+follow-ups; new fields are additive with `serde(default)`.

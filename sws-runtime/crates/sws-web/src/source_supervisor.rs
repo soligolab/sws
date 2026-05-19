@@ -31,6 +31,11 @@ struct RunningSource {
 pub struct SourceSupervisor {
     db: Arc<TagDb>,
     bus: Arc<TagWriteBus>,
+    /// Base directory under which OPC-UA cert keypairs are persisted.
+    /// The plugin appends `<source-id>/` so multiple OPC-UA sources keep
+    /// distinct identities. Updated when a project opens/closes via
+    /// `set_pki_root`.
+    opcua_pki_root: tokio::sync::RwLock<std::path::PathBuf>,
     sources: Mutex<HashMap<String, RunningSource>>,
 }
 
@@ -39,8 +44,16 @@ impl SourceSupervisor {
         Arc::new(Self {
             db,
             bus,
+            opcua_pki_root: tokio::sync::RwLock::new(default_pki_root()),
             sources: Mutex::new(HashMap::new()),
         })
+    }
+
+    /// Set the PKI root used by the OPC-UA plugin's secure-channel
+    /// keypairs. Called on every project open/close so the cert lives
+    /// inside the project directory and travels with it.
+    pub async fn set_pki_root(&self, root: std::path::PathBuf) {
+        *self.opcua_pki_root.write().await = root;
     }
 
     /// Apply `desired` as the new source list. Returns the number of
@@ -134,8 +147,9 @@ impl SourceSupervisor {
                 // work can wire it in one place.
                 info!(source = %id_for_log, "starting OPC-UA client task");
                 let _ = cancel_for_task;
+                let pki = self.opcua_pki_root.read().await.clone();
                 tokio::spawn(async move {
-                    sws_plugin_opcua::run(cfg, db, bus).await;
+                    sws_plugin_opcua::run(cfg, db, bus, pki).await;
                 })
             }
         };
@@ -186,4 +200,12 @@ fn tags_of(s: &SourceDef) -> Vec<String> {
         SourceDef::Mqtt(c)        => c.topics.iter().map(|t| t.tag.clone()).collect(),
         SourceDef::OpcUaClient(c) => c.nodes.iter().map(|n| n.tag.clone()).collect(),
     }
+}
+
+/// Fallback PKI root used until a project is opened. Living under the
+/// process's temp dir means the keypair survives the runtime's lifetime
+/// (a server's trust list isn't yet curated) but disappears on reboot —
+/// fine for unattached/dev runs.
+fn default_pki_root() -> std::path::PathBuf {
+    std::env::temp_dir().join("sws-opcua-pki")
 }

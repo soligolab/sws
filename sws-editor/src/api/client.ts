@@ -9,6 +9,8 @@ import type {
   MqttBrowseResponse,
   OpcUaBrowseRequest,
   OpcUaBrowseResponse,
+  OpcUaDetectEuromapRequest,
+  OpcUaEuromapDetection,
   ProjectInfo,
   ProjectListEntry,
   Sample,
@@ -457,6 +459,13 @@ export const api = {
 
   browseOpcUa: (req: OpcUaBrowseRequest): Promise<OpcUaBrowseResponse> =>
     request<OpcUaBrowseResponse>("/api/sources/opcua/browse", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(req),
+    }),
+
+  detectOpcUaEuromap: (req: OpcUaDetectEuromapRequest): Promise<OpcUaEuromapDetection> =>
+    request<OpcUaEuromapDetection>("/api/sources/opcua/detect-euromap", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(req),
