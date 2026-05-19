@@ -8,6 +8,12 @@ and this project adheres to [CalVer](https://calver.org/) (`YYYY.MM[.patch]`).
 ## [Unreleased]
 
 ### Added
+- **Automatic project backups + restore (task 7.2)** (`sws-web/backups.rs`, `sws-runtime/main.rs`, `api/client.ts`, `config/ConfigView.tsx`) — point-in-time snapshots of the project files under `<project>/.bak/<UTC-timestamp>/` covering `project.yaml`, `synoptics/`, and `users.yaml`. Two trigger paths:
+  - Background loop fired by the runtime when started with `--auto-backup-interval-minutes N` (default 0 = disabled). `--auto-backup-retention K` caps the retained count (default 20); older snapshots are pruned after each tick. First tick is skipped so the process doesn't snapshot on startup before any work happens. Snapshot I/O runs under `spawn_blocking` so it never starves the runtime's tasks. Skipped silently when no project is open.
+  - Admin REST: `GET/POST /api/backups`, `DELETE /api/backups/:name`, `POST /api/backups/:name/restore`. Path param sanitised by `safe_backup_name` against `..`/`/`/length.
+  - `ConfigView` gains a "Backup" tab (admin-only) with a newest-first table (name, created at, size) and **Backup adesso** / **Aggiorna** / **Ripristina** / **Elimina** buttons. Restore reloads the project + pages so the editor reflects the snapshot state immediately.
+  - 4 new unit tests (sws-web 8 → 12): roundtrip, list sort order, prune behaviour, traversal rejection.
+
 - **Aspect-ratio resize, Prometheus counters, live script test panel** (sessione 26 follow-up).
   - **1.5 Shift + corner drag preserves aspect ratio** (`canvas/SvgCanvas.tsx`): when `shiftKey` is held during a corner handle drag (`tl/tr/bl/br`), the resize locks `startObj.width / startObj.height`. Driver axis is whichever moved more (in width-equivalent units, `dySigned * aspect`); the other axis is derived. Mid-edge handles ignore Shift (only one dim is meaningful). Anchor preserved: `l` handles still move `x` inward from the right, `t` handles still move `y` from the bottom. Documented in `ShortcutHelp`.
   - **3.4b Prometheus counters** (`sws-web/router.rs`, `sws-runtime/main.rs`, `sws-web/metrics.rs`):
