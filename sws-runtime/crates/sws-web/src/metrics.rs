@@ -11,7 +11,12 @@
 
 use std::sync::OnceLock;
 
-use axum::{extract::State, http::header, response::IntoResponse};
+use axum::{
+    extract::{MatchedPath, Request, State},
+    http::header,
+    middleware::Next,
+    response::{IntoResponse, Response},
+};
 use metrics_exporter_prometheus::{PrometheusBuilder, PrometheusHandle};
 use sysinfo::{Disks, System};
 
@@ -73,6 +78,30 @@ pub async fn get_metrics(State(state): State<AppState>) -> impl IntoResponse {
         [(header::CONTENT_TYPE, "text/plain; version=0.0.4; charset=utf-8")],
         body,
     )
+}
+
+/// Axum middleware: increment `sws_http_requests_total{path, method, status}`
+/// on every response. `path` is the matched route template (e.g.
+/// `/api/synoptics/:name`) so cardinality stays bounded — using the raw URI
+/// would explode label space with every distinct id. `/metrics` itself is
+/// excluded so a busy Prometheus scrape doesn't show up dominating its own
+/// numbers.
+pub async fn track_http_metrics(req: Request, next: Next) -> Response {
+    let method = req.method().clone();
+    let matched = req.extensions()
+        .get::<MatchedPath>()
+        .map(|m| m.as_str().to_string())
+        .unwrap_or_else(|| "<unmatched>".to_string());
+    let response = next.run(req).await;
+    if matched != "/metrics" && matched != "/health" {
+        let status = response.status().as_u16();
+        metrics::counter!("sws_http_requests_total",
+            "path"   => matched,
+            "method" => method.as_str().to_string(),
+            "status" => status.to_string(),
+        ).increment(1);
+    }
+    response
 }
 
 #[cfg(test)]

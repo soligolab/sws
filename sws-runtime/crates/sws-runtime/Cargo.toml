@@ -27,6 +27,9 @@ clap.workspace               = true
 anyhow.workspace             = true
 time.workspace               = true
 reqwest.workspace            = true
+# Bump the global Prometheus counter on alarm transitions. The recorder
+# is installed by sws-web::metrics; this crate only emits.
+metrics.workspace            = true
 
 sws-core      = { path = "../sws-core" }
 sws-web       = { path = "../sws-web" }

@@ -4,7 +4,7 @@ import { SvgCanvas } from "@/canvas/SvgCanvas";
 import { useAppStore } from "@/store";
 import { useAlarmStream } from "@/ws/alarmStream";
 import { useTagStream } from "@/ws/tagStream";
-import type { AlarmSeverity, AlarmState } from "@/types";
+import type { AlarmSeverity, AlarmState, FunctionDef } from "@/types";
 
 // ── Script output toast ───────────────────────────────────────────────────────
 
@@ -344,8 +344,166 @@ export function RuntimeView() {
       {/* Alarm panel (top-right floating, dropdown with per-row ACK) */}
       <AlarmPanel />
 
+      {/* Function test panel (bottom-left floating — operator picks a
+          project function, edits parameter overrides, runs ad-hoc). */}
+      <FunctionTestPanel onRun={handleScript} />
+
       {/* Script output toasts (bottom-right, auto-dismiss) */}
       <ScriptToasts toasts={toasts} onClose={closeToast} />
+    </div>
+  );
+}
+
+// ── Function test panel ──────────────────────────────────────────────────────
+//
+// Floating button at the bottom-left expands into a small dialog listing every
+// project function. The operator picks one, optionally overrides its
+// declared parameter defaults, and clicks Run. The same `onRun` handler used
+// by canvas `on_press_fn` dispatches the call, so output appears in the
+// existing toast surface and the runtime metrics counter increments.
+
+function FunctionTestPanel({
+  onRun,
+}: {
+  onRun: (fn: string, args: Record<string, string | number | boolean>) => void;
+}) {
+  const project = useAppStore((s) => s.project);
+  const functions: FunctionDef[] = project?.functions ?? [];
+  const [open, setOpen] = useState(false);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  // Per-function arg overrides, keyed by function id. Persists across opens
+  // within the same session so the operator can iterate without retyping.
+  const [overrides, setOverrides] = useState<Record<string, Record<string, string>>>({});
+
+  if (functions.length === 0) return null; // nothing to test
+
+  const selected = functions.find((f) => f.id === selectedId) ?? functions[0];
+  const currentOverrides = overrides[selected.id] ?? {};
+
+  const setArg = (paramName: string, raw: string) => {
+    setOverrides((prev) => ({
+      ...prev,
+      [selected.id]: { ...(prev[selected.id] ?? {}), [paramName]: raw },
+    }));
+  };
+
+  // Coerce string overrides back to the declared types via the param default
+  // (bool/number/string). Empty string falls back to the declared default.
+  const coerce = (raw: string, def: string | number | boolean | undefined): string | number | boolean => {
+    if (raw === "" && def !== undefined) return def;
+    if (typeof def === "boolean") return raw === "true" || raw === "1" || raw === "on";
+    if (typeof def === "number")  {
+      const n = Number(raw);
+      return Number.isFinite(n) ? n : def;
+    }
+    return raw;
+  };
+
+  const handleRun = () => {
+    const args: Record<string, string | number | boolean> = {};
+    for (const p of selected.params) {
+      const raw = currentOverrides[p.name] ?? "";
+      args[p.name] = coerce(raw, p.default);
+    }
+    onRun(selected.name, args);
+  };
+
+  if (!open) {
+    return (
+      <button
+        onClick={() => setOpen(true)}
+        title={`Test funzioni (${functions.length} disponibili)`}
+        style={{
+          position: "fixed", bottom: 16, left: 16, zIndex: 8000,
+          width: 40, height: 40, borderRadius: "50%",
+          background: "#1e293b", border: "1px solid #334155",
+          color: "#94a3b8", cursor: "pointer", fontSize: 18,
+          boxShadow: "0 4px 12px rgba(0,0,0,0.4)",
+        }}
+      >
+        🧪
+      </button>
+    );
+  }
+
+  return (
+    <div
+      style={{
+        position: "fixed", bottom: 16, left: 16, zIndex: 8000,
+        background: "#0f172a", border: "1px solid #334155", borderRadius: 8,
+        padding: "12px 14px", minWidth: 320, maxWidth: 420,
+        boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
+      }}
+    >
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+        <span style={{ fontSize: 13, fontWeight: 600, color: "#e2e8f0" }}>🧪 Test funzioni</span>
+        <button
+          onClick={() => setOpen(false)}
+          style={{ background: "none", border: "none", color: "#64748b", cursor: "pointer", fontSize: 14 }}
+        >×</button>
+      </div>
+      <label style={{ fontSize: 11, color: "#94a3b8", display: "block", marginBottom: 4 }}>
+        Funzione
+      </label>
+      <select
+        value={selected.id}
+        onChange={(e) => setSelectedId(e.target.value)}
+        style={{
+          width: "100%", background: "#1e293b", color: "#e2e8f0",
+          border: "1px solid #334155", borderRadius: 4, padding: "4px 6px",
+          fontSize: 12, marginBottom: 8,
+        }}
+      >
+        {functions.map((f) => (
+          <option key={f.id} value={f.id}>{f.name}</option>
+        ))}
+      </select>
+      {selected.description && (
+        <div style={{ fontSize: 11, color: "#64748b", fontStyle: "italic", marginBottom: 8 }}>
+          {selected.description}
+        </div>
+      )}
+      {selected.params.length === 0 ? (
+        <div style={{ fontSize: 11, color: "#64748b", padding: "4px 0", fontStyle: "italic" }}>
+          Nessun parametro definito.
+        </div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 10 }}>
+          {selected.params.map((p) => {
+            const raw = currentOverrides[p.name] ?? "";
+            const placeholder = p.default !== undefined ? String(p.default) : "(nessun default)";
+            return (
+              <div key={p.name} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <span style={{ fontSize: 11, color: "#94a3b8", minWidth: 90,
+                  fontFamily: "monospace", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {p.name}
+                </span>
+                <input
+                  type="text"
+                  value={raw}
+                  placeholder={placeholder}
+                  onChange={(e) => setArg(p.name, e.target.value)}
+                  style={{
+                    flex: 1, background: "#1e293b", color: "#e2e8f0",
+                    border: "1px solid #334155", borderRadius: 3, padding: "2px 6px",
+                    fontSize: 11, fontFamily: "monospace",
+                  }}
+                />
+              </div>
+            );
+          })}
+        </div>
+      )}
+      <button
+        onClick={handleRun}
+        style={{
+          width: "100%", background: "#16a34a", color: "#f0fdf4",
+          border: "none", borderRadius: 4, padding: "6px 0",
+          cursor: "pointer", fontSize: 12, fontWeight: 600,
+        }}
+      >
+        ▶ Esegui {selected.name}
+      </button>
     </div>
   );
 }

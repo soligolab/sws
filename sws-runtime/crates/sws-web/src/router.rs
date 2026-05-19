@@ -204,6 +204,10 @@ pub fn build(
         app = app.fallback_service(fallback);
     }
 
+    // HTTP request counter — applied to every route, identifies the matched
+    // route template (not the raw URI) so cardinality stays bounded.
+    app = app.layer(middleware::from_fn(crate::metrics::track_http_metrics));
+
     // Permissive CORS for the "editor on laptop → runtime on PX30" deployment
     // shape (ARCH-004). The editor sets the runtime URL via localStorage and
     // talks to a different origin; without this layer the browser blocks
@@ -524,13 +528,17 @@ async fn exec_script(
     Json(body): Json<ScriptBody>,
 ) -> Json<ScriptResult> {
     match s.py.execute(body.code).await {
-        Ok(ExecOutput { stdout, stderr, sandboxed }) => Json(ScriptResult {
-            ok: true, stdout, stderr, sandboxed, error: None,
-        }),
-        Err(e) => Json(ScriptResult {
-            ok: false, error: Some(e), sandboxed: s.py.is_sandboxed(),
-            ..Default::default()
-        }),
+        Ok(ExecOutput { stdout, stderr, sandboxed }) => {
+            metrics::counter!("sws_script_exec_total", "endpoint" => "exec", "status" => "ok").increment(1);
+            Json(ScriptResult { ok: true, stdout, stderr, sandboxed, error: None })
+        }
+        Err(e) => {
+            metrics::counter!("sws_script_exec_total", "endpoint" => "exec", "status" => "error").increment(1);
+            Json(ScriptResult {
+                ok: false, error: Some(e), sandboxed: s.py.is_sandboxed(),
+                ..Default::default()
+            })
+        }
     }
 }
 
@@ -1189,13 +1197,17 @@ async fn run_function(
     };
     let args = body.map(|Json(b)| b.args).unwrap_or_default();
     match s.py.execute_with_args(code, args).await {
-        Ok(ExecOutput { stdout, stderr, sandboxed }) => Json(ScriptResult {
-            ok: true, stdout, stderr, sandboxed, error: None,
-        }).into_response(),
-        Err(e) => Json(ScriptResult {
-            ok: false, error: Some(e), sandboxed: s.py.is_sandboxed(),
-            ..Default::default()
-        }).into_response(),
+        Ok(ExecOutput { stdout, stderr, sandboxed }) => {
+            metrics::counter!("sws_script_exec_total", "endpoint" => "run", "status" => "ok").increment(1);
+            Json(ScriptResult { ok: true, stdout, stderr, sandboxed, error: None }).into_response()
+        }
+        Err(e) => {
+            metrics::counter!("sws_script_exec_total", "endpoint" => "run", "status" => "error").increment(1);
+            Json(ScriptResult {
+                ok: false, error: Some(e), sandboxed: s.py.is_sandboxed(),
+                ..Default::default()
+            }).into_response()
+        }
     }
 }
 

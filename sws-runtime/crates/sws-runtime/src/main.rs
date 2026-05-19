@@ -274,6 +274,16 @@ async fn main() -> anyhow::Result<()> {
             loop {
                 match alarm_rx.recv().await {
                     Ok(state) => {
+                        // Bump the Prometheus counter on every transition we
+                        // observe (active or recovery), labelled by direction
+                        // + severity. This is the single broadcast all alarms
+                        // flow through, so it's the right spot for the metric.
+                        let direction = if state.active { "activated" } else { "recovered" };
+                        let severity = format!("{:?}", state.def.severity);
+                        metrics::counter!("sws_alarm_transitions_total",
+                            "direction" => direction.to_string(),
+                            "severity"  => severity,
+                        ).increment(1);
                         // Only notify on fresh activation (not ack or recovery).
                         if !state.active { continue; }
                         let Some(url) = &state.def.notify_url else { continue };

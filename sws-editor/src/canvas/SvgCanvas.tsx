@@ -625,10 +625,34 @@ export function SvgCanvas({
         onMove(objId, { x2: snap((startObj.x2 ?? startObj.x + 100) + dx), y2: snap((startObj.y2 ?? startObj.y) + dy) });
       } else {
         let { x, y, width, height } = startObj;
-        if (handle.includes("l")) { x = snap(startObj.x + dx); width = snap(startObj.width - dx); }
-        if (handle.includes("r")) { width = snap(startObj.width + dx); }
-        if (handle.includes("t")) { y = snap(startObj.y + dy); height = snap(startObj.height - dy); }
-        if (handle.includes("b")) { height = snap(startObj.height + dy); }
+        const isCorner = (handle === "tl" || handle === "tr" || handle === "bl" || handle === "br");
+        // Shift + corner drag → preserve aspect ratio. We pick whichever axis
+        // moved more (in width-equivalent units) as the driver and derive the
+        // other axis from it. Mid-edge handles ignore Shift since only one
+        // dimension is meaningful.
+        if (e.shiftKey && isCorner && startObj.width > 0 && startObj.height > 0) {
+          const aspect = startObj.width / startObj.height;
+          const dxSigned = handle.includes("l") ? -dx : dx;   // outward = grow
+          const dySigned = handle.includes("t") ? -dy : dy;
+          // Convert dy to width-equivalent units so we can compare magnitudes.
+          const dyAsW = dySigned * aspect;
+          const dw = Math.abs(dxSigned) >= Math.abs(dyAsW) ? dxSigned : dyAsW;
+          let newW = snap(startObj.width + dw);
+          if (newW < 4) newW = 4;
+          let newH = snap(newW / aspect);
+          if (newH < 4) { newH = 4; newW = snap(newH * aspect); }
+          width = newW;
+          height = newH;
+          // Anchor the opposite corner: "l" handles move x right by the width
+          // delta; "t" handles move y down by the height delta.
+          if (handle.includes("l")) x = startObj.x + (startObj.width - newW);
+          if (handle.includes("t")) y = startObj.y + (startObj.height - newH);
+        } else {
+          if (handle.includes("l")) { x = snap(startObj.x + dx); width = snap(startObj.width - dx); }
+          if (handle.includes("r")) { width = snap(startObj.width + dx); }
+          if (handle.includes("t")) { y = snap(startObj.y + dy); height = snap(startObj.height - dy); }
+          if (handle.includes("b")) { height = snap(startObj.height + dy); }
+        }
         if (width >= 4 && height >= 4) onMove(objId, { x, y, width, height });
       }
     } else if (dragRef.current && onMove) {

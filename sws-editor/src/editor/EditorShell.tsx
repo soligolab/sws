@@ -791,6 +791,7 @@ const SHORTCUTS = [
   ["Ctrl+Y",            "Ripristina (Redo)"],
   ["Frecce",            "Sposta di 1 px"],
   ["Shift+Frecce",      "Sposta di 1 passo griglia"],
+  ["Shift + drag angolo", "Ridimensiona mantenendo aspect ratio"],
   ["Z-order", ""],
   ["Ctrl+]",            "Porta avanti"],
   ["Ctrl+Shift+]",      "Primo piano"],
