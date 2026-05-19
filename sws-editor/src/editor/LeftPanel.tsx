@@ -116,6 +116,46 @@ function PagesSection() {
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingValue, setEditingValue] = useState("");
+  const importInputRef = useRef<HTMLInputElement>(null);
+
+  // Single-page YAML export — calls the runtime endpoint, then triggers a
+  // browser download using the filename it returned. Persisted page state
+  // must be on disk for export to see it; the LeftPanel "Salva tutto"
+  // button is the user's responsibility to click first.
+  const handleExportPage = async (name: string) => {
+    try {
+      const { blob, filename } = await api.exportSynopticYaml(name);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      window.alert(`Esportazione fallita: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  };
+
+  // Single-page YAML import — reads the chosen file, posts to the runtime
+  // (which assigns a fresh id + filename), then reloads the project so the
+  // newly-imported page appears in the editor.
+  const handleImportPage = async (file: File) => {
+    try {
+      const text = await file.text();
+      const res = await api.importSynopticYaml(text);
+      const project = await api.getProject();
+      useAppStore.getState().setProject(project);
+      // Reload pages list — the store doesn't auto-refresh from /api/project.
+      const names = await api.listSynoptics();
+      const pagesLoaded = await Promise.all(names.map((n) => api.getSynoptic(n)));
+      useAppStore.getState().setPages(pagesLoaded);
+      useAppStore.getState().setCurrentPage(res.id);
+    } catch (e) {
+      window.alert(`Importazione fallita: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  };
 
   const beginRename = (id: string, name: string) => {
     setEditingId(id);
@@ -178,6 +218,8 @@ function PagesSection() {
                   )}
                   <button style={S.iconBtn} title="Duplica pagina"
                     onClick={(e) => { e.stopPropagation(); duplicatePage(p.id); }}>⧉</button>
+                  <button style={S.iconBtn} title="Esporta pagina (.yaml)"
+                    onClick={(e) => { e.stopPropagation(); handleExportPage(p.name); }}>⬇</button>
                   <button
                     style={S.iconBtn}
                     title="Rinomina"
@@ -200,19 +242,42 @@ function PagesSection() {
             )}
           </div>
         ))}
-        <div style={{ padding: "4px 8px" }}>
+        <div style={{ padding: "4px 8px", display: "flex", gap: 4 }}>
           <button
             onClick={addPage}
             style={{
               ...S.objBtn,
-              flex: "none",
-              width: "100%",
+              flex: "1 1 auto",
               borderStyle: "dashed",
               color: "#64748b",
             }}
           >
             + Nuova pagina
           </button>
+          <button
+            onClick={() => importInputRef.current?.click()}
+            title="Importa pagina da file .yaml"
+            style={{
+              ...S.objBtn,
+              flex: "0 0 auto",
+              borderStyle: "dashed",
+              color: "#64748b",
+              padding: "4px 8px",
+            }}
+          >
+            ⬆ YAML
+          </button>
+          <input
+            ref={importInputRef}
+            type="file"
+            accept=".yaml,.yml,application/x-yaml,text/yaml"
+            style={{ display: "none" }}
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) handleImportPage(f);
+              e.target.value = ""; // allow re-selecting the same file
+            }}
+          />
         </div>
       </div>
     </Section>

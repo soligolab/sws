@@ -300,6 +300,29 @@ export const api = {
       body: JSON.stringify(page),
     }),
 
+  // Single-page YAML export — returns the file body + filename pulled from
+  // the Content-Disposition header so the UI can trigger a browser download
+  // with the same name the runtime produced.
+  exportSynopticYaml: async (name: string): Promise<{ blob: Blob; filename: string }> => {
+    const headers = new Headers();
+    if (getAuthToken()) headers.set("Authorization", `Bearer ${getAuthToken()}`);
+    const res = await fetch(`${getBaseUrl()}/api/synoptics/${encodeURIComponent(name)}/export`, { headers });
+    if (res.status === 401) throw new AuthError();
+    if (!res.ok) throw new Error(`API export synoptic ${name}: ${res.status} ${res.statusText}`);
+    const cd = res.headers.get("Content-Disposition") ?? "";
+    const m = cd.match(/filename="([^"]+)"/);
+    const filename = m?.[1] ?? `${name}.yaml`;
+    const blob = await res.blob();
+    return { blob, filename };
+  },
+
+  importSynopticYaml: (yamlText: string) =>
+    request<{ id: string; name: string; filename: string }>(`/api/synoptics/import`, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-yaml" },
+      body: yamlText,
+    }),
+
   // Tags
   writeTag: (id: string, value: number | string | boolean) =>
     request<void>(`/api/tags/${encodeURIComponent(id)}`, {

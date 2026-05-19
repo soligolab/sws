@@ -103,6 +103,10 @@ pub fn build(
         .route("/api/script/exec",     post(exec_script))
         .route("/api/script/run/:name", post(run_function))
         .route("/api/synoptics/:name", put(save_synoptic))
+        // Single-page YAML import — body is the raw YAML; replaces or creates
+        // the named page. Allocates a fresh id so an import never collides
+        // with an existing one.
+        .route("/api/synoptics/import", post(import_synoptic_yaml))
         // Logs — read-only but Operator+ so the audit surface stays
         // narrow (logs may include schema/secret hints).
         .route("/api/logs",            get(get_logs))
@@ -128,6 +132,9 @@ pub fn build(
         // Synoptic REST (reads)
         .route("/api/synoptics",       get(list_synoptics))
         .route("/api/synoptics/:name", get(get_synoptic))
+        // Per-page export — raw YAML download. Same shape as the file on disk,
+        // small enough to skip the ZIP wrapper used by the bulk export.
+        .route("/api/synoptics/:name/export", get(export_synoptic_yaml))
         // WebSocket streams
         .route("/ws/tags",   get(ws_tags_handler))
         .route("/ws/alarms", get(ws_alarms_handler));
@@ -1252,6 +1259,110 @@ async fn get_synoptic(
         },
         Err(_) => StatusCode::NOT_FOUND.into_response(),
     }
+}
+
+/// `GET /api/synoptics/:name/export` — returns the synoptic file as raw YAML
+/// with a `Content-Disposition: attachment` header so browsers download it.
+/// Same content as `/api/synoptics/:name` (the file on disk), just bytes —
+/// no JSON round-trip — and Content-Type set to `application/x-yaml`.
+async fn export_synoptic_yaml(
+    State(s): State<AppState>,
+    Path(name): Path<String>,
+) -> Response {
+    let project_dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
+    let safe = safe_filename(&name);
+    let path = synoptics_dir_at(&project_dir).join(format!("{}.yaml", safe));
+    match tokio::fs::read(&path).await {
+        Ok(bytes) => {
+            let filename = format!("{}.yaml", safe);
+            (
+                StatusCode::OK,
+                [
+                    (header::CONTENT_TYPE, "application/x-yaml; charset=utf-8".to_string()),
+                    (header::CONTENT_DISPOSITION, format!("attachment; filename=\"{filename}\"")),
+                ],
+                bytes,
+            ).into_response()
+        }
+        Err(_) => StatusCode::NOT_FOUND.into_response(),
+    }
+}
+
+/// `POST /api/synoptics/import` — accepts raw YAML in the request body and
+/// installs it as a new page. The page's internal `id` is regenerated to
+/// avoid collisions with existing pages, and the filename is derived from
+/// the page's `name` (with collision handling: appending `-2`, `-3`, …).
+///
+/// Returns 200 + `{ id, name, filename }` on success so the editor can
+/// jump to the imported page.
+async fn import_synoptic_yaml(
+    State(s): State<AppState>,
+    body: Bytes,
+) -> Response {
+    let project_dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
+    let dir = synoptics_dir_at(&project_dir);
+    if let Err(e) = tokio::fs::create_dir_all(&dir).await {
+        warn!("import_synoptic: cannot create synoptics dir: {e}");
+        return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+    }
+
+    let text = match std::str::from_utf8(&body) {
+        Ok(t)  => t,
+        Err(_) => return (StatusCode::BAD_REQUEST, "body is not UTF-8").into_response(),
+    };
+    let mut page: SynopticPage = match serde_yaml::from_str(text) {
+        Ok(p)  => p,
+        Err(e) => return (StatusCode::BAD_REQUEST, format!("invalid synoptic YAML: {e}")).into_response(),
+    };
+
+    // Always allocate a fresh id so imports never collide with existing pages.
+    // Format mirrors the editor's `genId()` (alphanumeric base36).
+    let new_id = format!(
+        "imported-{}",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_millis())
+            .unwrap_or(0)
+    );
+    page.id = new_id.clone();
+
+    // Resolve a non-colliding filename. If `<name>.yaml` already exists, try
+    // `<name>-2.yaml`, `<name>-3.yaml`, … and rename the page in-memory to
+    // match so the human-readable label stays in sync with the file on disk.
+    let base = safe_filename(&page.name);
+    let mut filename = format!("{base}.yaml");
+    let mut suffix = 2;
+    while dir.join(&filename).exists() {
+        let new_name = format!("{} ({})", page.name, suffix);
+        filename = format!("{}.yaml", safe_filename(&new_name));
+        if !dir.join(&filename).exists() {
+            page.name = new_name;
+            break;
+        }
+        suffix += 1;
+        if suffix > 100 {
+            return (StatusCode::INTERNAL_SERVER_ERROR, "too many name collisions").into_response();
+        }
+    }
+
+    let yaml = match serde_yaml::to_string(&page) {
+        Ok(y)  => y,
+        Err(e) => {
+            warn!("import_synoptic: serialize: {e}");
+            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
+    };
+    let path = dir.join(&filename);
+    if let Err(e) = tokio::fs::write(&path, yaml).await {
+        warn!("import_synoptic: write {}: {e}", path.display());
+        return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+    }
+
+    Json(serde_json::json!({
+        "id":       new_id,
+        "name":     page.name,
+        "filename": filename,
+    })).into_response()
 }
 
 async fn save_synoptic(
