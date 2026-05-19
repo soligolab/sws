@@ -138,8 +138,6 @@ pub fn build(
         .route("/api/alarms",    get(get_alarms))
         // Historian
         .route("/api/history/:tag", get(get_history))
-        // Project info (read)
-        .route("/api/project",   get(get_project))
         // Synoptic REST (reads)
         .route("/api/synoptics",       get(list_synoptics))
         .route("/api/synoptics/:name", get(get_synoptic))
@@ -173,7 +171,10 @@ pub fn build(
     // Pre-auth project lifecycle endpoints — the WelcomeScreen calls these
     // before any session token exists. They operate on `projects_root` and
     // `templates_root` only (no AuthState dependency).
+    // GET /api/project is also pre-auth: the WelcomeScreen needs to know
+    // whether a project is active (503 = none) before any session exists.
     let project_lifecycle = Router::new()
+        .route("/api/project",   get(get_project))
         .route("/api/projects",
             get(crate::projects::list_projects).post(crate::projects::create_project))
         .route("/api/projects/:name/open",

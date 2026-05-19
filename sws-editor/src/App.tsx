@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { api, AuthError, getRuntimeBaseUrl, NoProjectError, PasswordChangeRequiredError, setRuntimeBaseUrl } from "@/api/client";
+import { api, AuthError, getRuntimeBaseUrl, NoProjectError, PasswordChangeRequiredError, RuntimeUnavailableError, setRuntimeBaseUrl } from "@/api/client";
 import { AlarmBanner } from "@/components/AlarmBanner";
 import { ChangePasswordScreen } from "@/components/ChangePasswordScreen";
 import { LogPanel } from "@/components/LogPanel";
@@ -340,6 +340,11 @@ export function App() {
         if (e instanceof NoProjectError) {
           setNoActiveProject(true);
           clearAuth();
+        } else if (e instanceof RuntimeUnavailableError) {
+          // Runtime non raggiungibile → WelcomeScreen; la WelcomeScreen
+          // gestirà il retry/errore quando l'utente interagisce.
+          setNoActiveProject(true);
+          clearAuth();
         } else if (e instanceof AuthError) {
           clearAuth();
         } else if (e instanceof PasswordChangeRequiredError) {
@@ -363,7 +368,9 @@ export function App() {
 
   const handleLogout = async () => {
     try { await api.logout(); } catch { /* ignore */ }
+    try { await api.closeProject(); } catch { /* ignore */ }
     clearAuth();
+    setNoActiveProject(true);
   };
 
   const handleCloseProject = async () => {
