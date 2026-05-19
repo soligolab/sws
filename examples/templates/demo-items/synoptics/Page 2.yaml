@@ -1,6 +1,8 @@
 id: page2
 name: Page 2
 background: "#0f172a"
+width: 800
+height: 600
 objects:
 
 # ── Navigation header (uniforme su tutte le 4 pagine) ────────────────────────
@@ -12,6 +14,8 @@ objects:
   height: 32
   label: "◀ Precedente"
   target_page: page1
+  group_id: g_nav
+  locked: true
 
 - id: p2_nav_next
   type: navbutton
@@ -21,6 +25,8 @@ objects:
   height: 32
   label: "Successiva ▶"
   target_page: page3
+  group_id: g_nav
+  locked: true
 
 - id: p2_title
   type: text
@@ -31,6 +37,8 @@ objects:
   font_weight: bold
   text_anchor: middle
   color: "#94a3b8"
+  group_id: g_nav
+  locked: true
 
 # ── Body ─────────────────────────────────────────────────────────────────────
 - id: p2_welcome
@@ -78,3 +86,7 @@ objects:
   font_size: 13
   text_anchor: middle
   color: "#475569"
+
+groups:
+- id: g_nav
+  name: Navigazione

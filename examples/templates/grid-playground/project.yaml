@@ -1,0 +1,67 @@
+meta:
+  name: grid-playground
+  version: 0.1.0
+
+# Tag in-memory: nessuna sorgente, scrivibili via API o dai bottoni del template.
+tags:
+  - id: counter
+    description: "Contatore demo (incrementato da fnc_Inc / decrementato da fnc_Dec)"
+    data_type: float
+  - id: pump.running
+    description: "Flag demo pompa ON/OFF"
+    data_type: bool
+  - id: demo.value
+    description: "Valore numerico generico 0-100"
+    data_type: float
+  - id: demo.opacity
+    description: "Opacità (0..1) per binding"
+    data_type: float
+  - id: demo.fill_color
+    description: "Colore CSS (#RRGGBB) per binding"
+    data_type: string
+  - id: demo.label
+    description: "Etichetta dinamica"
+    data_type: string
+
+sources: []
+
+alarms:
+  - id: counter_high
+    tag: counter
+    condition:
+      kind: above
+      threshold: 80.0
+    message: "Counter sopra soglia (>80)"
+    severity: Warning
+
+functions:
+  - id: fn_inc
+    name: fnc_Inc
+    description: "Incrementa il tag indicato di `step`"
+    code: |-
+      current = tags.read(tag) or 0
+      tags.write(tag, current + step)
+    params:
+      - name: tag
+        default: counter
+      - name: step
+        default: 1
+  - id: fn_dec
+    name: fnc_Dec
+    description: "Decrementa il tag indicato di `step`"
+    code: |-
+      current = tags.read(tag) or 0
+      tags.write(tag, current - step)
+    params:
+      - name: tag
+        default: counter
+      - name: step
+        default: 1
+  - id: fn_toggle
+    name: fnc_Toggle
+    description: "Inverte un tag bool"
+    code: |-
+      tags.write(tag, not bool(tags.read(tag)))
+    params:
+      - name: tag
+        default: pump.running

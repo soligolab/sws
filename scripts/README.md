@@ -95,6 +95,37 @@ rm -rf .run && ./scripts/dev.sh
 Ctrl-C in the `both` mode kills both processes. In split mode use Ctrl-C
 in each terminal.
 
+### End-to-end tests (Playwright)
+
+The editor ships with a small Playwright suite under `sws-editor/e2e/`
+that exercises the login → add object → save → reload golden path
+against a locally-running dev stack. Run sequence:
+
+```sh
+# Terminal A
+./scripts/dev.sh both
+
+# Terminal B (first run only — downloads Chromium ~150 MB)
+cd sws-editor && npx playwright install chromium
+
+# Terminal B (each run)
+cd sws-editor && pnpm test:e2e        # headless
+cd sws-editor && pnpm test:e2e:ui     # debug UI
+```
+
+The runtime is *not* spawned by Playwright — the config deliberately
+omits `webServer` because the dev.sh bootstrap (cert generation, demo
+seeding, env wiring) is non-trivial to duplicate. The tests assume
+`admin/admin` credentials, which dev.sh seeds via the
+`SWS_ADMIN_PASSWORD` env var.
+
+`ignoreHTTPSErrors: true` is set, so the self-signed cert is accepted
+automatically.
+
+Artefacts (traces on failure, screenshots, HTML report) land in
+`sws-editor/playwright-report/` and `sws-editor/test-results/`, both
+gitignored.
+
 ## `demo-sine.py` — driving a Trend with a sine wave
 
 Quick way to put movement on a `trend` object during the demo. Logs in,

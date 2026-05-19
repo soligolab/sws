@@ -360,7 +360,74 @@ export interface MqttSource {
   last_will?: MqttLastWill;
 }
 
-export type SourceDef = ModbusTcpSource | MqttSource;
+// ── OPC-UA client source (BL-005) ─────────────────────────────────────────
+
+export interface OpcUaNodeMapping {
+  tag: string;
+  node_id: string;
+  description?: string;
+}
+
+export type OpcUaAuth =
+  | { kind: "anonymous" }
+  | { kind: "username_password"; username: string; password?: string; password_env?: string };
+
+export interface OpcUaSource {
+  kind: "opcua_client";
+  id: string;
+  endpoint_url: string;
+  security_policy: string;
+  auth: OpcUaAuth;
+  subscription_interval_ms: number;
+  nodes: OpcUaNodeMapping[];
+}
+
+export interface OpcUaBrowsedNode {
+  node_id: string;
+  browse_name: string;
+  display_name: string;
+  /** "Object" | "Variable" | "Method" | ... — only Variable can become a tag. */
+  node_class: string;
+}
+
+export interface OpcUaBrowseRequest {
+  endpoint_url: string;
+  source_id?: string;
+  auth?: OpcUaAuth;
+  parent_node_id?: string;
+  /** "forward" (default) | "inverse" | "both". */
+  direction?: "forward" | "inverse" | "both";
+  security_policy?: string;
+}
+
+export interface OpcUaBrowseResponse {
+  nodes: OpcUaBrowsedNode[];
+}
+
+export interface OpcUaEuromapVariable {
+  spec: string; // "77" or "83"
+  canonical_name: string;
+  suggested_tag_suffix: string;
+  description: string;
+  node_id: string;
+  browse_name: string;
+  display_name: string;
+}
+
+export interface OpcUaEuromapDetection {
+  nodes_scanned: number;
+  truncated: boolean;
+  variables: OpcUaEuromapVariable[];
+}
+
+export interface OpcUaDetectEuromapRequest {
+  endpoint_url: string;
+  source_id?: string;
+  auth?: OpcUaAuth;
+  security_policy?: string;
+}
+
+export type SourceDef = ModbusTcpSource | MqttSource | OpcUaSource;
 
 // ── MQTT broker browse ─────────────────────────────────────────────────────
 

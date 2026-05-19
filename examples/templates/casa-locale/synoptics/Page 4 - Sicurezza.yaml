@@ -1,6 +1,8 @@
 id: cl_page4
 name: "Sicurezza"
 background: "#0f172a"
+width: 820
+height: 680
 objects:
 
 # ══════════════════════════════════════════════════════════════════
@@ -15,6 +17,8 @@ objects:
   font_weight: bold
   text_anchor: middle
   color: "#e2e8f0"
+  group_id: g_nav
+  locked: true
 
 - id: cl4_nav_back
   type: navbutton
@@ -24,6 +28,8 @@ objects:
   height: 30
   label: "◀ Contatori"
   target_page: cl_page3
+  group_id: g_nav
+  locked: true
 
 - id: cl4_nav_next
   type: navbutton
@@ -33,6 +39,8 @@ objects:
   height: 30
   label: "Domotica ▶"
   target_page: cl_page5
+  group_id: g_nav
+  locked: true
 
 - id: cl4_nav_home
   type: navbutton
@@ -42,6 +50,8 @@ objects:
   height: 30
   label: "⌂"
   target_page: cl_page1
+  group_id: g_nav
+  locked: true
 
 # Zigbee2MQTT bridge status
 - id: cl4_z2m_lbl
@@ -584,3 +594,7 @@ objects:
   font_size: 9
   text_anchor: middle
   color: "#1e293b"
+
+groups:
+- id: g_nav
+  name: Navigazione

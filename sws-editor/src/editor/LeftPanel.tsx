@@ -116,6 +116,46 @@ function PagesSection() {
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingValue, setEditingValue] = useState("");
+  const importInputRef = useRef<HTMLInputElement>(null);
+
+  // Single-page YAML export — calls the runtime endpoint, then triggers a
+  // browser download using the filename it returned. Persisted page state
+  // must be on disk for export to see it; the LeftPanel "Salva tutto"
+  // button is the user's responsibility to click first.
+  const handleExportPage = async (name: string) => {
+    try {
+      const { blob, filename } = await api.exportSynopticYaml(name);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      window.alert(`Esportazione fallita: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  };
+
+  // Single-page YAML import — reads the chosen file, posts to the runtime
+  // (which assigns a fresh id + filename), then reloads the project so the
+  // newly-imported page appears in the editor.
+  const handleImportPage = async (file: File) => {
+    try {
+      const text = await file.text();
+      const res = await api.importSynopticYaml(text);
+      const project = await api.getProject();
+      useAppStore.getState().setProject(project);
+      // Reload pages list — the store doesn't auto-refresh from /api/project.
+      const names = await api.listSynoptics();
+      const pagesLoaded = await Promise.all(names.map((n) => api.getSynoptic(n)));
+      useAppStore.getState().setPages(pagesLoaded);
+      useAppStore.getState().setCurrentPage(res.id);
+    } catch (e) {
+      window.alert(`Importazione fallita: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  };
 
   const beginRename = (id: string, name: string) => {
     setEditingId(id);
@@ -178,6 +218,8 @@ function PagesSection() {
                   )}
                   <button style={S.iconBtn} title="Duplica pagina"
                     onClick={(e) => { e.stopPropagation(); duplicatePage(p.id); }}>⧉</button>
+                  <button style={S.iconBtn} title="Esporta pagina (.yaml)"
+                    onClick={(e) => { e.stopPropagation(); handleExportPage(p.name); }}>⬇</button>
                   <button
                     style={S.iconBtn}
                     title="Rinomina"
@@ -200,19 +242,42 @@ function PagesSection() {
             )}
           </div>
         ))}
-        <div style={{ padding: "4px 8px" }}>
+        <div style={{ padding: "4px 8px", display: "flex", gap: 4 }}>
           <button
             onClick={addPage}
             style={{
               ...S.objBtn,
-              flex: "none",
-              width: "100%",
+              flex: "1 1 auto",
               borderStyle: "dashed",
               color: "#64748b",
             }}
           >
             + Nuova pagina
           </button>
+          <button
+            onClick={() => importInputRef.current?.click()}
+            title="Importa pagina da file .yaml"
+            style={{
+              ...S.objBtn,
+              flex: "0 0 auto",
+              borderStyle: "dashed",
+              color: "#64748b",
+              padding: "4px 8px",
+            }}
+          >
+            ⬆ YAML
+          </button>
+          <input
+            ref={importInputRef}
+            type="file"
+            accept=".yaml,.yml,application/x-yaml,text/yaml"
+            style={{ display: "none" }}
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) handleImportPage(f);
+              e.target.value = ""; // allow re-selecting the same file
+            }}
+          />
         </div>
       </div>
     </Section>
@@ -301,6 +366,31 @@ type TreeNode =
   | { kind: "group"; group: ObjectGroup; members: SynopticObject[] }
   | { kind: "object"; obj: SynopticObject };
 
+// ── Drag & drop + context menu types ─────────────────────────────────────────
+//
+// Drag&drop: two draggable kinds (object rows + group rows). The drop target
+// tells onDrop where the dragged item should land:
+//   - "before" / "after": insert adjacent to the target (top half / bottom half
+//     of the row, computed in onDragOver)
+//   - "inside": for group rows, drop the dragged object inside that group
+//   - "root": special "Senza gruppo" drop zone at the bottom of the tree
+//
+// Context menu: opens on right-click on object/group rows. Position is in
+// viewport coords; menu auto-closes on click outside or Esc.
+
+type DragItem =
+  | { kind: "object"; id: string }
+  | { kind: "group";  id: string };
+
+type DropTarget =
+  | { kind: "object"; id: string; place: "before" | "after" }
+  | { kind: "group";  id: string; place: "before" | "after" | "inside" }
+  | { kind: "root";   place: "after" };
+
+type ContextMenuState =
+  | { kind: "object"; id: string; x: number; y: number }
+  | { kind: "group";  id: string; x: number; y: number };
+
 function ObjectsSection() {
   const pages               = useAppStore((s) => s.pages);
   const currentPageId       = useAppStore((s) => s.currentPageId);
@@ -314,6 +404,9 @@ function ObjectsSection() {
   const groupObjects        = useAppStore((s) => s.groupObjects);
   const ungroupObjects      = useAppStore((s) => s.ungroupObjects);
   const renameGroup         = useAppStore((s) => s.renameGroup);
+  const moveObjectAdjacent  = useAppStore((s) => s.moveObjectAdjacent);
+  const moveObjectToGroupEnd = useAppStore((s) => s.moveObjectToGroupEnd);
+  const moveGroupAdjacent   = useAppStore((s) => s.moveGroupAdjacent);
   const selectedCellChild    = useAppStore((s) => s.selectedCellChild);
   const setSelectedCell      = useAppStore((s) => s.setSelectedCell);
   const setSelectedCellChild = useAppStore((s) => s.setSelectedCellChild);
@@ -325,6 +418,9 @@ function ObjectsSection() {
   const [renamingGroup, setRenamingGroup] = useState<string | null>(null);
   const [groupDraft, setGroupDraft] = useState("");
   const [filter, setFilter]     = useState("");
+  const [dragItem, setDragItem] = useState<DragItem | null>(null);
+  const [dropTarget, setDropTarget] = useState<DropTarget | null>(null);
+  const [menu, setMenu] = useState<ContextMenuState | null>(null);
 
   const currentPage = pages.find((p) => p.id === currentPageId);
   const allObjects = currentPage?.objects ?? [];
@@ -424,6 +520,118 @@ function ObjectsSection() {
     setGroupDraft("");
   };
 
+  // ── Drag & drop handlers ──
+  // The dataTransfer is set to a marker string so dragging from outside the
+  // tree (e.g. from desktop) is ignored. Hit-testing on row hover splits the
+  // row into top half (place="before") and bottom half ("after"); for group
+  // headers we also expose a center band ("inside") via top:25-75%.
+
+  const computePlace = (e: React.DragEvent, allowInside: boolean): "before" | "after" | "inside" => {
+    const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const y = e.clientY - r.top;
+    const h = r.height;
+    if (allowInside) {
+      if (y < h * 0.25) return "before";
+      if (y > h * 0.75) return "after";
+      return "inside";
+    }
+    return y < h / 2 ? "before" : "after";
+  };
+
+  const onDragStartObject = (e: React.DragEvent, id: string) => {
+    setDragItem({ kind: "object", id });
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("application/x-sws-tree", `obj:${id}`);
+  };
+
+  const onDragStartGroup = (e: React.DragEvent, id: string) => {
+    setDragItem({ kind: "group", id });
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("application/x-sws-tree", `grp:${id}`);
+  };
+
+  const onDragOverObjectRow = (e: React.DragEvent, id: string) => {
+    if (!dragItem) return;
+    // Object → object reorder is always allowed; group → object isn't (groups
+    // only reorder relative to other groups).
+    if (dragItem.kind === "group") return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    const place = computePlace(e, false) as "before" | "after";
+    setDropTarget({ kind: "object", id, place });
+  };
+
+  const onDragOverGroupRow = (e: React.DragEvent, id: string) => {
+    if (!dragItem) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    if (dragItem.kind === "object") {
+      // Dropping an object on a group → either insert before/after the header
+      // (treated as before/after the group as a block — i.e. move into a
+      // neighbouring group) or "inside" to put the object into this group.
+      const place = computePlace(e, true);
+      setDropTarget({ kind: "group", id, place });
+    } else {
+      // Group → group reorder (only before/after).
+      const place = computePlace(e, false) as "before" | "after";
+      setDropTarget({ kind: "group", id, place });
+    }
+  };
+
+  const onDragOverRootZone = (e: React.DragEvent) => {
+    if (!dragItem || dragItem.kind !== "object") return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    setDropTarget({ kind: "root", place: "after" });
+  };
+
+  const onDropObject = (e: React.DragEvent) => {
+    e.preventDefault();
+    if (!dragItem || !dropTarget) { setDragItem(null); setDropTarget(null); return; }
+    // Object → object: adjacent insert inheriting the target's group.
+    if (dragItem.kind === "object" && dropTarget.kind === "object") {
+      moveObjectAdjacent(dragItem.id, dropTarget.id, dropTarget.place);
+    }
+    // Object → group: "inside" appends to the group's tail; before/after
+    // moves the object just outside the group block.
+    else if (dragItem.kind === "object" && dropTarget.kind === "group") {
+      if (dropTarget.place === "inside") {
+        moveObjectToGroupEnd(dragItem.id, dropTarget.id);
+      } else {
+        // Find the first / last member of the target group to anchor next to.
+        const page = pages.find((p) => p.id === currentPageId);
+        const members = (page?.objects ?? []).filter((o) => o.group_id === dropTarget.id);
+        if (members.length === 0) {
+          // empty group → just put obj at the end (ungrouped), keeps order
+          moveObjectToGroupEnd(dragItem.id, null);
+        } else {
+          const anchor = dropTarget.place === "before" ? members[0] : members[members.length - 1];
+          moveObjectAdjacent(dragItem.id, anchor.id, dropTarget.place);
+        }
+      }
+    }
+    // Object → root drop zone: move to ungrouped tail.
+    else if (dragItem.kind === "object" && dropTarget.kind === "root") {
+      moveObjectToGroupEnd(dragItem.id, null);
+    }
+    // Group → group reorder.
+    else if (dragItem.kind === "group" && dropTarget.kind === "group") {
+      moveGroupAdjacent(dragItem.id, dropTarget.id, dropTarget.place === "inside" ? "before" : dropTarget.place);
+    }
+    setDragItem(null);
+    setDropTarget(null);
+  };
+
+  const indicatorFor = (kind: "object" | "group", id: string): React.CSSProperties => {
+    if (!dropTarget || dropTarget.kind !== kind || dropTarget.id !== id) return {};
+    if (dropTarget.place === "inside") {
+      return { boxShadow: "inset 0 0 0 2px #38bdf8", background: "#1e3a5f" };
+    }
+    return dropTarget.place === "before"
+      ? { borderTop: "2px solid #38bdf8", marginTop: -2 }
+      : { borderBottom: "2px solid #38bdf8", marginBottom: -2 };
+  };
+
   const renderObjectRow = (o: SynopticObject, indent = 0) => {
     const isSel = o.id === selectedId;
     const isRen = o.id === renaming;
@@ -435,8 +643,14 @@ function ObjectsSection() {
     return (
       <React.Fragment key={o.id}>
         <div
+          draggable={!isRen}
+          onDragStart={(e) => onDragStartObject(e, o.id)}
+          onDragOver={(e) => onDragOverObjectRow(e, o.id)}
+          onDragEnd={() => { setDragItem(null); setDropTarget(null); }}
+          onDrop={onDropObject}
+          onContextMenu={(e) => { e.preventDefault(); setMenu({ kind: "object", id: o.id, x: e.clientX, y: e.clientY }); }}
           onClick={() => !isRen && selectObject(o.id)}
-          style={{ ...S.row(isSel), gap: 4, paddingRight: 4, paddingLeft: 4 + indent }}
+          style={{ ...S.row(isSel), gap: 4, paddingRight: 4, paddingLeft: 4 + indent, ...indicatorFor("object", o.id) }}
         >
           {isGrid ? (
             <button
@@ -534,6 +748,24 @@ function ObjectsSection() {
             {fq ? "Nessun oggetto corrisponde al filtro." : "Nessun oggetto su questa pagina. Aggiungili dalla palette qui sopra."}
           </p>
         )}
+        {dragItem?.kind === "object" && (
+          <div
+            onDragOver={onDragOverRootZone}
+            onDrop={onDropObject}
+            style={{
+              padding: "6px 10px",
+              fontSize: 10,
+              color: "#64748b",
+              borderTop: "1px dashed #334155",
+              borderBottom: "1px dashed #334155",
+              background: dropTarget?.kind === "root" ? "#1e3a5f" : "#0f172a",
+              textAlign: "center" as const,
+              fontStyle: "italic" as const,
+            }}
+          >
+            ⤓ Trascina qui per rimuovere dal gruppo
+          </div>
+        )}
         {tree.map((node) => {
           if (node.kind === "group") {
             const { group, members } = node;
@@ -544,6 +776,12 @@ function ObjectsSection() {
               <React.Fragment key={group.id}>
                 {/* Group row */}
                 <div
+                  draggable={!isRenamingThis}
+                  onDragStart={(e) => onDragStartGroup(e, group.id)}
+                  onDragOver={(e) => onDragOverGroupRow(e, group.id)}
+                  onDragEnd={() => { setDragItem(null); setDropTarget(null); }}
+                  onDrop={onDropObject}
+                  onContextMenu={(e) => { e.preventDefault(); setMenu({ kind: "group", id: group.id, x: e.clientX, y: e.clientY }); }}
                   onClick={() => members.length > 0 && selectMany(members.map((m) => m.id))}
                   style={{
                     ...S.row(allMembersSel),
@@ -551,8 +789,9 @@ function ObjectsSection() {
                     background: allMembersSel ? "#1e3a5f" : "#172033",
                     color: allMembersSel ? "#93c5fd" : "#64748b",
                     borderBottom: "1px solid #1e293b",
+                    ...indicatorFor("group", group.id),
                   }}
-                  title="Click per selezionare tutti i membri"
+                  title="Click per selezionare tutti i membri · trascina per riordinare · tasto destro per opzioni"
                 >
                   <button
                     style={{ ...S.iconBtn, width: 14, fontSize: 8, flexShrink: 0 }}
@@ -605,7 +844,139 @@ function ObjectsSection() {
           return renderObjectRow(node.obj);
         })}
       </div>
+      {menu && (
+        <ObjectsContextMenu
+          state={menu}
+          onClose={() => setMenu(null)}
+          actions={{
+            renameObject: (id) => startRename(id, allObjects.find((o) => o.id === id)?.name ?? ""),
+            duplicateObject,
+            deleteObject,
+            groupSelection: () => groupObjects(selectedIds),
+            moveToGroup: (objId, gid) => {
+              if (gid == null) {
+                moveObjectToGroupEnd(objId, null);
+              } else {
+                moveObjectToGroupEnd(objId, gid);
+              }
+            },
+            renameGroup: (id) => startRenameGroup(id, groups.find((g) => g.id === id)?.name ?? ""),
+            ungroup: ungroupObjects,
+          }}
+          groups={groups}
+          currentSelection={selectedIds}
+        />
+      )}
     </Section>
+  );
+}
+
+// ── Context menu component ───────────────────────────────────────────────────
+
+interface ContextMenuActions {
+  renameObject: (id: string) => void;
+  duplicateObject: (id: string) => void;
+  deleteObject: (id: string) => void;
+  groupSelection: () => void;
+  moveToGroup: (objId: string, groupId: string | null) => void;
+  renameGroup: (id: string) => void;
+  ungroup: (id: string) => void;
+}
+
+function ObjectsContextMenu({
+  state, onClose, actions, groups, currentSelection,
+}: {
+  state: ContextMenuState;
+  onClose: () => void;
+  actions: ContextMenuActions;
+  groups: ObjectGroup[];
+  currentSelection: string[];
+}) {
+  // Close on outside click + Esc. Mounted in a fixed-position overlay so it
+  // floats above the rest of the panel; no portal needed since z-index alone
+  // wins inside this stacking context.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    const onClickAway = () => onClose();
+    window.addEventListener("keydown", onKey);
+    window.addEventListener("mousedown", onClickAway);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("mousedown", onClickAway);
+    };
+  }, [onClose]);
+
+  // Clamp menu inside viewport so it doesn't overflow when right-click happens
+  // near the bottom/right edge of the screen.
+  const W = 220, H = 260;
+  const x = Math.min(state.x, window.innerWidth - W - 6);
+  const y = Math.min(state.y, window.innerHeight - H - 6);
+
+  const menuStyle: React.CSSProperties = {
+    position: "fixed", left: x, top: y, zIndex: 1000,
+    background: "#0f172a", color: "#cbd5e1",
+    border: "1px solid #334155", borderRadius: 4,
+    boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
+    fontSize: 12, minWidth: 200,
+    padding: "4px 0",
+  };
+  const item: React.CSSProperties = {
+    padding: "5px 12px", cursor: "pointer",
+    display: "flex", alignItems: "center", gap: 8,
+  };
+  const danger: React.CSSProperties = { ...item, color: "#fca5a5" };
+  const sep: React.CSSProperties = { borderTop: "1px solid #1e293b", margin: "4px 0" };
+  const sub: React.CSSProperties = { padding: "3px 24px", fontSize: 11, color: "#94a3b8", cursor: "pointer" };
+
+  const stop = (e: React.MouseEvent) => e.stopPropagation();
+
+  const close = () => onClose();
+
+  return (
+    <div style={menuStyle} onMouseDown={stop} onClick={stop}>
+      {state.kind === "object" ? (
+        <>
+          <div style={item} onClick={() => { actions.renameObject(state.id); close(); }}>
+            <span style={{ width: 16 }}>✎</span> Rinomina
+          </div>
+          <div style={item} onClick={() => { actions.duplicateObject(state.id); close(); }}>
+            <span style={{ width: 16 }}>⧉</span> Duplica
+          </div>
+          {currentSelection.length >= 2 && currentSelection.includes(state.id) && (
+            <div style={item} onClick={() => { actions.groupSelection(); close(); }}>
+              <span style={{ width: 16 }}>📁</span> Raggruppa selezione ({currentSelection.length})
+            </div>
+          )}
+          <div style={sep} />
+          <div style={{ ...item, color: "#64748b", cursor: "default" }}>Sposta in gruppo →</div>
+          {groups.length === 0 && (
+            <div style={{ ...sub, color: "#475569", fontStyle: "italic" }}>nessun gruppo</div>
+          )}
+          {groups.map((g) => (
+            <div key={g.id} style={sub} onClick={() => { actions.moveToGroup(state.id, g.id); close(); }}>
+              📁 {g.name}
+            </div>
+          ))}
+          <div style={sub} onClick={() => { actions.moveToGroup(state.id, null); close(); }}>
+            ⤓ Senza gruppo
+          </div>
+          <div style={sep} />
+          <div style={danger} onClick={() => { actions.deleteObject(state.id); close(); }}>
+            <span style={{ width: 16 }}>×</span> Elimina
+          </div>
+        </>
+      ) : (
+        <>
+          <div style={item} onClick={() => { actions.renameGroup(state.id); close(); }}>
+            <span style={{ width: 16 }}>✎</span> Rinomina gruppo
+          </div>
+          <div style={sep} />
+          <div style={danger} onClick={() => { actions.ungroup(state.id); close(); }}>
+            <span style={{ width: 16 }}>⊔</span> Separa gruppo
+          </div>
+        </>
+      )}
+    </div>
   );
 }
 
@@ -836,11 +1207,17 @@ function SourcesSection({ project }: { project: ProjectInfo | null }) {
               </span>
               <span style={{
                 fontSize: 9, fontWeight: 700, letterSpacing: 0.5, padding: "1px 4px", borderRadius: 3,
-                background: src.kind === "mqtt" ? "#4c1d95" : "#1e3a5f",
-                color: src.kind === "mqtt" ? "#c4b5fd" : "#93c5fd",
+                background: src.kind === "mqtt" ? "#4c1d95"
+                  : src.kind === "opcua_client" ? "#1d4733"
+                  : "#1e3a5f",
+                color: src.kind === "mqtt" ? "#c4b5fd"
+                  : src.kind === "opcua_client" ? "#86efac"
+                  : "#93c5fd",
                 flexShrink: 0,
               }}>
-                {src.kind === "mqtt" ? "MQTT" : "MBUS"}
+                {src.kind === "mqtt" ? "MQTT"
+                  : src.kind === "opcua_client" ? "OPC-UA"
+                  : "MBUS"}
               </span>
             </div>
           ))

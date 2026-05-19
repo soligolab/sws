@@ -10,6 +10,11 @@ sws-editor/dist-types/
 sws-editor/.pnpm-store/
 sws-editor/.vite/
 
+# Playwright artefacts (test runs)
+sws-editor/test-results/
+sws-editor/playwright-report/
+sws-editor/.playwright/
+
 # Secrets and certificates
 *.pem
 *.key

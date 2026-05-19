@@ -1,6 +1,8 @@
 id: page1
 name: Page 1
 background: "#0f172a"
+width: 800
+height: 660
 objects:
 
 # ── Navigation header (uniforme su tutte le 4 pagine) ────────────────────────
@@ -12,6 +14,8 @@ objects:
   height: 32
   label: "◀ Precedente"
   target_page: page4
+  group_id: g_nav
+  locked: true
 
 - id: p1_nav_next
   type: navbutton
@@ -21,6 +25,8 @@ objects:
   height: 32
   label: "Successiva ▶"
   target_page: page2
+  group_id: g_nav
+  locked: true
 
 - id: p1_title
   type: text
@@ -31,6 +37,8 @@ objects:
   font_weight: bold
   text_anchor: middle
   color: "#94a3b8"
+  group_id: g_nav
+  locked: true
 
 # ── Counter demo (rect + ellipse cliccabili eseguono fnc_CounterUP/DWN) ──────
 - id: mp2n4a4pjy9lx
@@ -209,6 +217,7 @@ objects:
   tag: counter
   min: 0.0
   max: 100.0
+  transition_duration_ms: 200
 
 - id: mp477qscf6c9a
   type: symbol
@@ -217,6 +226,12 @@ objects:
   width: 80.0
   height: 80.0
   symbol_id: pump
+  state_tag: pump.running
   state_off_color: '#64748b'
   state_on_color: '#22c55e'
   state_alarm_color: '#ef4444'
+  transition_duration_ms: 250
+
+groups:
+- id: g_nav
+  name: Navigazione

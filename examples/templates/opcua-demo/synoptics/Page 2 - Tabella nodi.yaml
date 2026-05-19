@@ -1,0 +1,268 @@
+id: opc_page2
+name: "Tabella nodi"
+background: "#0f172a"
+width: 880
+height: 580
+objects:
+
+# ══════════════════════════════════════════════════════════════════
+# HEADER
+# ══════════════════════════════════════════════════════════════════
+- id: o2_title
+  type: text
+  x: 440
+  y: 24
+  text: "🔌  OPC-UA — Tabella nodi"
+  font_size: 20
+  font_weight: bold
+  text_anchor: middle
+  color: "#38bdf8"
+  group_id: g_nav
+  locked: true
+
+- id: o2_nav_back
+  type: navbutton
+  x: 20
+  y: 14
+  width: 180
+  height: 30
+  label: "◀ Live"
+  target_page: opc_page1
+  group_id: g_nav
+  locked: true
+
+- id: o2_subtitle
+  type: text
+  x: 440
+  y: 50
+  text: "Mapping NodeId → Tag corrente (live)"
+  font_size: 11
+  text_anchor: middle
+  color: "#475569"
+
+# ══════════════════════════════════════════════════════════════════
+# TABELLA NODI — header + righe
+# ══════════════════════════════════════════════════════════════════
+- id: o2_th_node
+  type: text
+  x: 30
+  y: 85
+  text: "NodeId"
+  font_size: 11
+  font_weight: bold
+  color: "#94a3b8"
+
+- id: o2_th_tag
+  type: text
+  x: 320
+  y: 85
+  text: "Tag SWS"
+  font_size: 11
+  font_weight: bold
+  color: "#94a3b8"
+
+- id: o2_th_value
+  type: text
+  x: 540
+  y: 85
+  text: "Valore"
+  font_size: 11
+  font_weight: bold
+  color: "#94a3b8"
+
+- id: o2_th_unit
+  type: text
+  x: 740
+  y: 85
+  text: "Unità"
+  font_size: 11
+  font_weight: bold
+  color: "#94a3b8"
+
+# Riga 1 — temperature
+- id: o2_r1_node
+  type: text
+  x: 30
+  y: 120
+  text: "ns=1;s=Temperature"
+  font_size: 11
+  color: "#cbd5e1"
+- id: o2_r1_tag
+  type: text
+  x: 320
+  y: 120
+  text: "sim.temperature"
+  font_size: 11
+  color: "#cbd5e1"
+- id: o2_r1_val
+  type: text
+  x: 540
+  y: 120
+  tag: sim.temperature
+  format: "{value}"
+  font_size: 11
+  color: "#fbbf24"
+- id: o2_r1_unit
+  type: text
+  x: 740
+  y: 120
+  text: "°C"
+  font_size: 11
+  color: "#64748b"
+
+# Riga 2 — pressure
+- id: o2_r2_node
+  type: text
+  x: 30
+  y: 145
+  text: "ns=1;s=Pressure"
+  font_size: 11
+  color: "#cbd5e1"
+- id: o2_r2_tag
+  type: text
+  x: 320
+  y: 145
+  text: "sim.pressure"
+  font_size: 11
+  color: "#cbd5e1"
+- id: o2_r2_val
+  type: text
+  x: 540
+  y: 145
+  tag: sim.pressure
+  format: "{value}"
+  font_size: 11
+  color: "#fbbf24"
+- id: o2_r2_unit
+  type: text
+  x: 740
+  y: 145
+  text: "kPa"
+  font_size: 11
+  color: "#64748b"
+
+# Riga 3 — cycle_time
+- id: o2_r3_node
+  type: text
+  x: 30
+  y: 170
+  text: "ns=2;s=CycleTime"
+  font_size: 11
+  color: "#cbd5e1"
+- id: o2_r3_tag
+  type: text
+  x: 320
+  y: 170
+  text: "sim.cycle_time"
+  font_size: 11
+  color: "#cbd5e1"
+- id: o2_r3_val
+  type: text
+  x: 540
+  y: 170
+  tag: sim.cycle_time
+  format: "{value}"
+  font_size: 11
+  color: "#fbbf24"
+- id: o2_r3_unit
+  type: text
+  x: 740
+  y: 170
+  text: "s (Euromap 77)"
+  font_size: 11
+  color: "#64748b"
+
+# Riga 4 — machine_state
+- id: o2_r4_node
+  type: text
+  x: 30
+  y: 195
+  text: "ns=2;s=MachineState"
+  font_size: 11
+  color: "#cbd5e1"
+- id: o2_r4_tag
+  type: text
+  x: 320
+  y: 195
+  text: "sim.machine_state"
+  font_size: 11
+  color: "#cbd5e1"
+- id: o2_r4_val
+  type: text
+  x: 540
+  y: 195
+  tag: sim.machine_state
+  format: "{value}"
+  font_size: 11
+  color: "#fbbf24"
+- id: o2_r4_unit
+  type: text
+  x: 740
+  y: 195
+  text: "string"
+  font_size: 11
+  color: "#64748b"
+
+# Riga 5 — machine_ready
+- id: o2_r5_node
+  type: text
+  x: 30
+  y: 220
+  text: "ns=2;s=MachineReady"
+  font_size: 11
+  color: "#cbd5e1"
+- id: o2_r5_tag
+  type: text
+  x: 320
+  y: 220
+  text: "sim.machine_ready"
+  font_size: 11
+  color: "#cbd5e1"
+- id: o2_r5_val
+  type: text
+  x: 540
+  y: 220
+  tag: sim.machine_ready
+  format: "{value}"
+  font_size: 11
+  color: "#fbbf24"
+- id: o2_r5_unit
+  type: text
+  x: 740
+  y: 220
+  text: "bool"
+  font_size: 11
+  color: "#64748b"
+
+# Hint Euromap detect
+- id: o2_hint
+  type: text
+  x: 30
+  y: 290
+  text: "Suggerimento: in Configurazione → Protocolli → OPC-UA, premi 🤖 Rileva Euromap per importare automaticamente i nodi canonici Euromap 77/83."
+  font_size: 11
+  color: "#94a3b8"
+
+- id: o2_hint2
+  type: text
+  x: 30
+  y: 312
+  text: "Browse manuale: 🔍 Sfoglia server apre un tree lazy-load partendo da ObjectsFolder."
+  font_size: 11
+  color: "#94a3b8"
+
+# ══════════════════════════════════════════════════════════════════
+# FOOTER
+# ══════════════════════════════════════════════════════════════════
+- id: o2_footer
+  type: text
+  x: 440
+  y: 540
+  text: "▸ Per testare in locale: npx -y node-opcua-server  (oppure Prosys OPC UA Simulation Server)"
+  font_size: 9
+  text_anchor: middle
+  color: "#334155"
+
+groups:
+- id: g_nav
+  name: Navigazione

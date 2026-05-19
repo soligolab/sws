@@ -1,6 +1,8 @@
 id: cl_page2
 name: "Impianto Solare"
 background: "#0f172a"
+width: 820
+height: 680
 objects:
 
 # ══════════════════════════════════════════════════════════════════
@@ -15,6 +17,8 @@ objects:
   font_weight: bold
   text_anchor: middle
   color: "#fbbf24"
+  group_id: g_nav
+  locked: true
 
 - id: cl2_nav_back
   type: navbutton
@@ -24,6 +28,8 @@ objects:
   height: 30
   label: "◀ Panoramica"
   target_page: cl_page1
+  group_id: g_nav
+  locked: true
 
 - id: cl2_nav_next
   type: navbutton
@@ -33,6 +39,8 @@ objects:
   height: 30
   label: "Contatori ▶"
   target_page: cl_page3
+  group_id: g_nav
+  locked: true
 
 # Stato inverter in header
 - id: cl2_inv_led
@@ -480,3 +488,7 @@ objects:
   label: "Temp."
   warn_high: 60
   alarm_high: 75
+
+groups:
+- id: g_nav
+  name: Navigazione

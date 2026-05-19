@@ -45,6 +45,8 @@ pub enum SourceDef {
     ModbusTcp(ModbusTcpConfig),
     #[serde(rename = "mqtt")]
     Mqtt(MqttConfig),
+    #[serde(rename = "opcua_client")]
+    OpcUaClient(OpcUaClientConfig),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -162,6 +164,58 @@ pub struct TopicMapping {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub qos: Option<u8>,
 }
+
+/// OPC-UA client source. Connects to an `opc.tcp://…` endpoint, creates a
+/// subscription, and feeds the configured nodes into the `TagDb`.
+///
+/// The `security_policy` field accepts the canonical names from the spec
+/// (`None`, `Basic256Sha256`, …). For the PoC we only validate the value
+/// against the small whitelist below; the plugin maps it to the matching
+/// `async_opcua::types::SecurityPolicy` variant.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OpcUaClientConfig {
+    pub id: String,
+    /// e.g. `opc.tcp://192.168.1.100:4840`.
+    pub endpoint_url: String,
+    /// PoC: only "None" is wired end-to-end; the field exists so the
+    /// project format doesn't need a migration when we wire the rest.
+    #[serde(default = "default_opcua_security_policy")]
+    pub security_policy: String,
+    #[serde(default)]
+    pub auth: OpcUaAuth,
+    /// Server-side subscription publishing interval, in milliseconds.
+    #[serde(default = "default_opcua_subscription_interval_ms")]
+    pub subscription_interval_ms: u64,
+    /// Nodes to subscribe to. NodeId format is the canonical OPC-UA one,
+    /// e.g. `ns=2;s=Machine.CycleTime` or `ns=0;i=2253`.
+    #[serde(default)]
+    pub nodes: Vec<OpcUaNodeMapping>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OpcUaNodeMapping {
+    pub tag: String,
+    pub node_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum OpcUaAuth {
+    #[default]
+    Anonymous,
+    UsernamePassword {
+        username: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        password: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        password_env: Option<String>,
+    },
+}
+
+fn default_opcua_security_policy() -> String { "None".into() }
+fn default_opcua_subscription_interval_ms() -> u64 { 500 }
 
 fn default_modbus_port() -> u16 { 502 }
 fn default_unit_id() -> u8 { 1 }

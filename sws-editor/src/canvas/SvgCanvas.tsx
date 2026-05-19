@@ -21,6 +21,8 @@ interface SvgCanvasProps {
   pageWidth?: number;
   /** Page design height in px. Shows a dashed boundary rect in edit mode. */
   pageHeight?: number;
+  /** Current page id — keys persisted ruler guides in localStorage. */
+  pageId?: string;
   /** Currently selected grid cell in edit mode. */
   selectedCell?: { objectId: string; row: number; col: number } | null;
   /** Currently selected child object within a grid cell. */
@@ -292,6 +294,7 @@ export function SvgCanvas({
   customSymbols = [],
   pageWidth,
   pageHeight,
+  pageId,
   selectedCell,
   selectedCellChild,
   selectedCellRange,
@@ -357,6 +360,52 @@ export function SvgCanvas({
   const panDragRef = useRef<{ startCX: number; startCY: number; startPX: number; startPY: number } | null>(null);
   const [mousePos, setMousePos] = useState<{ x: number; y: number } | null>(null);
   const [snapLines, setSnapLines] = useState<{ x: number | null; y: number | null }>({ x: null, y: null });
+
+  // ── Rulers + guides ──
+  // Guides are page-local px coordinates (SVG user space). Persisted in
+  // localStorage keyed by pageId — not in project.yaml (deliberate: guides
+  // are an editor convenience, not part of the published synoptic).
+  // RULER_PX is the strip thickness (top + left). Stored as a constant so
+  // hit-testing, render, and snap-delete zone all agree.
+  const RULER_PX = 20;
+  type Guide = { id: string; axis: "h" | "v"; pos: number };
+  const [showRulers, setShowRulers] = useState(() => {
+    try { return localStorage.getItem("sws.canvas.showRulers") !== "0"; }
+    catch { return true; }
+  });
+  const [guides, setGuides] = useState<Guide[]>([]);
+  // Track which guide (if any) is being dragged. `pendingAxis` is set during
+  // a brand-new drag from a ruler (no id yet); the guide is committed on
+  // mouse-up.
+  const guideDragRef = useRef<{ id: string | null; axis: "h" | "v"; startPos: number } | null>(null);
+  const [draggingGuide, setDraggingGuide] = useState<{ axis: "h" | "v"; pos: number; deleting: boolean } | null>(null);
+
+  // Load guides whenever the active page changes
+  useEffect(() => {
+    if (!pageId) { setGuides([]); return; }
+    try {
+      const raw = localStorage.getItem(`sws.canvas.guides.${pageId}`);
+      setGuides(raw ? JSON.parse(raw) : []);
+    } catch { setGuides([]); }
+  }, [pageId]);
+
+  // Persist on every change (debounce not needed — guides change at most
+  // a few times per second during a drag, and localStorage writes are sync).
+  const persistGuides = (next: Guide[]) => {
+    setGuides(next);
+    if (!pageId) return;
+    try { localStorage.setItem(`sws.canvas.guides.${pageId}`, JSON.stringify(next)); }
+    catch { /* quota — ignore */ }
+  };
+
+  const toggleRulers = () => {
+    setShowRulers((v) => {
+      const next = !v;
+      try { localStorage.setItem("sws.canvas.showRulers", next ? "1" : "0"); }
+      catch { /* ignore */ }
+      return next;
+    });
+  };
 
   const applyView = (z: number, px: number, py: number) => {
     zoomRef.current = z;
@@ -472,6 +521,17 @@ export function SvgCanvas({
       return;
     }
 
+    // Guide drag — updates the visual immediately; commit on mouseup.
+    // Dragging the cursor back over the originating ruler arms a delete:
+    // the line turns red and is removed on release.
+    if (guideDragRef.current && onMove) {
+      const ref = guideDragRef.current;
+      const pos = ref.axis === "v" ? pt.x : pt.y;
+      const overRuler = ref.axis === "v" ? screenY < RULER_PX : screenX < RULER_PX;
+      setDraggingGuide({ axis: ref.axis, pos, deleting: overRuler });
+      return;
+    }
+
     // Update mouse position display
     if (onMove) setMousePos(pt);
 
@@ -565,10 +625,34 @@ export function SvgCanvas({
         onMove(objId, { x2: snap((startObj.x2 ?? startObj.x + 100) + dx), y2: snap((startObj.y2 ?? startObj.y) + dy) });
       } else {
         let { x, y, width, height } = startObj;
-        if (handle.includes("l")) { x = snap(startObj.x + dx); width = snap(startObj.width - dx); }
-        if (handle.includes("r")) { width = snap(startObj.width + dx); }
-        if (handle.includes("t")) { y = snap(startObj.y + dy); height = snap(startObj.height - dy); }
-        if (handle.includes("b")) { height = snap(startObj.height + dy); }
+        const isCorner = (handle === "tl" || handle === "tr" || handle === "bl" || handle === "br");
+        // Shift + corner drag → preserve aspect ratio. We pick whichever axis
+        // moved more (in width-equivalent units) as the driver and derive the
+        // other axis from it. Mid-edge handles ignore Shift since only one
+        // dimension is meaningful.
+        if (e.shiftKey && isCorner && startObj.width > 0 && startObj.height > 0) {
+          const aspect = startObj.width / startObj.height;
+          const dxSigned = handle.includes("l") ? -dx : dx;   // outward = grow
+          const dySigned = handle.includes("t") ? -dy : dy;
+          // Convert dy to width-equivalent units so we can compare magnitudes.
+          const dyAsW = dySigned * aspect;
+          const dw = Math.abs(dxSigned) >= Math.abs(dyAsW) ? dxSigned : dyAsW;
+          let newW = snap(startObj.width + dw);
+          if (newW < 4) newW = 4;
+          let newH = snap(newW / aspect);
+          if (newH < 4) { newH = 4; newW = snap(newH * aspect); }
+          width = newW;
+          height = newH;
+          // Anchor the opposite corner: "l" handles move x right by the width
+          // delta; "t" handles move y down by the height delta.
+          if (handle.includes("l")) x = startObj.x + (startObj.width - newW);
+          if (handle.includes("t")) y = startObj.y + (startObj.height - newH);
+        } else {
+          if (handle.includes("l")) { x = snap(startObj.x + dx); width = snap(startObj.width - dx); }
+          if (handle.includes("r")) { width = snap(startObj.width + dx); }
+          if (handle.includes("t")) { y = snap(startObj.y + dy); height = snap(startObj.height - dy); }
+          if (handle.includes("b")) { height = snap(startObj.height + dy); }
+        }
         if (width >= 4 && height >= 4) onMove(objId, { x, y, width, height });
       }
     } else if (dragRef.current && onMove) {
@@ -627,6 +711,22 @@ export function SvgCanvas({
         const hit = trySnapY([0, pageHeight / 2, pageHeight]);
         if (hit) { snapY = hit.snap; newY = hit.out; }
       }
+      // Ruler-guide snapping — pulls the drag onto any vertical guide (x) or
+      // horizontal guide (y) within the same threshold band.
+      if (snapX === null) {
+        const xGuides = guides.filter((g) => g.axis === "v").map((g) => g.pos);
+        if (xGuides.length > 0) {
+          const hit = trySnapX(xGuides);
+          if (hit) { snapX = hit.snap; newX = hit.out; }
+        }
+      }
+      if (snapY === null) {
+        const yGuides = guides.filter((g) => g.axis === "h").map((g) => g.pos);
+        if (yGuides.length > 0) {
+          const hit = trySnapY(yGuides);
+          if (hit) { snapY = hit.snap; newY = hit.out; }
+        }
+      }
 
       if (snapX === null) newX = snap(rawX);
       if (snapY === null) newY = snap(rawY);
@@ -654,6 +754,27 @@ export function SvgCanvas({
     subBorderRef.current = null;
     panDragRef.current = null;
     setSnapLines({ x: null, y: null });
+
+    // Commit guide drag: delete if the user released over the originating
+    // ruler ("deleting" flag), otherwise persist the new position. Creating
+    // a brand-new guide (no id yet) on top of the ruler simply discards it.
+    if (guideDragRef.current && draggingGuide) {
+      const ref = guideDragRef.current;
+      if (draggingGuide.deleting) {
+        if (ref.id) persistGuides(guides.filter((g) => g.id !== ref.id));
+      } else if (ref.id) {
+        persistGuides(guides.map((g) => g.id === ref.id ? { ...g, pos: Math.round(draggingGuide.pos) } : g));
+      } else {
+        const newGuide: Guide = {
+          id: `g${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`,
+          axis: ref.axis,
+          pos: Math.round(draggingGuide.pos),
+        };
+        persistGuides([...guides, newGuide]);
+      }
+    }
+    guideDragRef.current = null;
+    setDraggingGuide(null);
 
     const rect = selDragRef.current;
     selDragRef.current = null;
@@ -1105,7 +1226,173 @@ export function SvgCanvas({
           stroke="#06b6d4" strokeWidth={1 / viewT.zoom}
           style={{ pointerEvents: "none" }} />
       )}
+
+      {/* Ruler guides — page-local persisted lines, draggable in edit mode.
+          Stroke width is scaled inverse to zoom so the line stays at ~1.5 px
+          on screen regardless of zoom level. */}
+      {onMove && showRulers && guides.map((g) => {
+        const isDragging = guideDragRef.current?.id === g.id;
+        const renderPos = isDragging && draggingGuide ? draggingGuide.pos : g.pos;
+        const deleting = isDragging && draggingGuide?.deleting;
+        const sw = 1.5 / viewT.zoom;
+        const stroke = deleting ? "#ef4444" : "#f59e0b";
+        return g.axis === "v" ? (
+          <line key={g.id}
+            x1={renderPos} y1={-50000} x2={renderPos} y2={50000}
+            stroke={stroke} strokeWidth={sw} strokeDasharray={`${4 * sw} ${3 * sw}`}
+            style={{ cursor: "ew-resize", opacity: deleting ? 0.5 : 1 }}
+            onMouseDown={(e) => {
+              if (e.button !== 0) return;
+              e.stopPropagation();
+              guideDragRef.current = { id: g.id, axis: "v", startPos: g.pos };
+              setDraggingGuide({ axis: "v", pos: g.pos, deleting: false });
+            }}
+          />
+        ) : (
+          <line key={g.id}
+            x1={-50000} y1={renderPos} x2={50000} y2={renderPos}
+            stroke={stroke} strokeWidth={sw} strokeDasharray={`${4 * sw} ${3 * sw}`}
+            style={{ cursor: "ns-resize", opacity: deleting ? 0.5 : 1 }}
+            onMouseDown={(e) => {
+              if (e.button !== 0) return;
+              e.stopPropagation();
+              guideDragRef.current = { id: g.id, axis: "h", startPos: g.pos };
+              setDraggingGuide({ axis: "h", pos: g.pos, deleting: false });
+            }}
+          />
+        );
+      })}
+
+      {/* Preview while creating a brand-new guide (no id committed yet). */}
+      {onMove && showRulers && draggingGuide && !guideDragRef.current?.id && (
+        draggingGuide.axis === "v" ? (
+          <line x1={draggingGuide.pos} y1={-50000} x2={draggingGuide.pos} y2={50000}
+            stroke="#f59e0b" strokeWidth={1.5 / viewT.zoom}
+            strokeDasharray={`${4 * 1.5 / viewT.zoom} ${3 * 1.5 / viewT.zoom}`}
+            style={{ pointerEvents: "none", opacity: draggingGuide.deleting ? 0 : 1 }}
+          />
+        ) : (
+          <line x1={-50000} y1={draggingGuide.pos} x2={50000} y2={draggingGuide.pos}
+            stroke="#f59e0b" strokeWidth={1.5 / viewT.zoom}
+            strokeDasharray={`${4 * 1.5 / viewT.zoom} ${3 * 1.5 / viewT.zoom}`}
+            style={{ pointerEvents: "none", opacity: draggingGuide.deleting ? 0 : 1 }}
+          />
+        )
+      )}
       </g>{/* end zoom+pan group */}
+
+      {/* Rulers — screen-space strips along top and left edges (edit mode).
+          Tick spacing adapts to zoom level so labels never collide. Click+drag
+          on a ruler spawns a fresh guide on the orthogonal axis. */}
+      {onMove && showRulers && (() => {
+        const z = viewT.zoom;
+        // Pick a tick step that keeps adjacent labels ≥ 50 screen-px apart.
+        // Steps follow a 1/2/5 progression across decades so the numbers
+        // remain "round" at every zoom (e.g. 10, 20, 50, 100, 200, 500, 1000).
+        const targetPx = 50;
+        const rawStep = targetPx / z;
+        const pow = Math.pow(10, Math.floor(Math.log10(rawStep)));
+        const norm = rawStep / pow;
+        const niceStep = (norm < 2 ? 1 : norm < 5 ? 2 : 5) * pow;
+        // Visible range in SVG space — derive from element rect at render
+        // time. We use a safe wide range as fallback (rendering offscreen
+        // ticks is cheap).
+        const el = svgRef.current;
+        const wScreen = el?.clientWidth ?? 2000;
+        const hScreen = el?.clientHeight ?? 1000;
+        const minX = (-viewT.panX) / z;
+        const maxX = (wScreen - viewT.panX) / z;
+        const minY = (-viewT.panY) / z;
+        const maxY = (hScreen - viewT.panY) / z;
+        const firstTickX = Math.ceil(minX / niceStep) * niceStep;
+        const firstTickY = Math.ceil(minY / niceStep) * niceStep;
+        const ticksX: number[] = [];
+        for (let v = firstTickX; v <= maxX; v += niceStep) ticksX.push(v);
+        const ticksY: number[] = [];
+        for (let v = firstTickY; v <= maxY; v += niceStep) ticksY.push(v);
+
+        const rulerStyle: React.CSSProperties = {
+          fill: "#0f172a", stroke: "#334155", strokeWidth: 1,
+          cursor: "crosshair",
+        };
+
+        return (
+          <g>
+            {/* Top strip */}
+            <rect x={0} y={0} width="100%" height={RULER_PX}
+              style={rulerStyle}
+              onMouseDown={(e) => {
+                if (e.button !== 0 || !onMove) return;
+                e.stopPropagation();
+                const rect = (e.currentTarget.ownerSVGElement!).getBoundingClientRect();
+                const pt = toSvg(e.clientX - rect.left, e.clientY - rect.top);
+                guideDragRef.current = { id: null, axis: "v", startPos: pt.x };
+                setDraggingGuide({ axis: "v", pos: pt.x, deleting: false });
+              }}
+            />
+            {ticksX.map((v) => {
+              const sx = v * z + viewT.panX;
+              if (sx < RULER_PX) return null;
+              return (
+                <g key={`tx-${v}`} style={{ pointerEvents: "none" }}>
+                  <line x1={sx} y1={RULER_PX - 5} x2={sx} y2={RULER_PX} stroke="#64748b" strokeWidth={1} />
+                  <text x={sx + 2} y={11}
+                    style={{ fontSize: 9, fill: "#64748b", fontFamily: "monospace" }}>
+                    {v}
+                  </text>
+                </g>
+              );
+            })}
+            {/* Left strip */}
+            <rect x={0} y={0} width={RULER_PX} height="100%"
+              style={rulerStyle}
+              onMouseDown={(e) => {
+                if (e.button !== 0 || !onMove) return;
+                e.stopPropagation();
+                const rect = (e.currentTarget.ownerSVGElement!).getBoundingClientRect();
+                const pt = toSvg(e.clientX - rect.left, e.clientY - rect.top);
+                guideDragRef.current = { id: null, axis: "h", startPos: pt.y };
+                setDraggingGuide({ axis: "h", pos: pt.y, deleting: false });
+              }}
+            />
+            {ticksY.map((v) => {
+              const sy = v * z + viewT.panY;
+              if (sy < RULER_PX) return null;
+              return (
+                <g key={`ty-${v}`} style={{ pointerEvents: "none" }}>
+                  <line x1={RULER_PX - 5} y1={sy} x2={RULER_PX} y2={sy} stroke="#64748b" strokeWidth={1} />
+                  <text x={2} y={sy + 8} transform={`rotate(-90 ${10} ${sy})`}
+                    style={{ fontSize: 9, fill: "#64748b", fontFamily: "monospace" }}>
+                    {v}
+                  </text>
+                </g>
+              );
+            })}
+            {/* Corner square */}
+            <rect x={0} y={0} width={RULER_PX} height={RULER_PX}
+              fill="#1e293b" stroke="#334155" strokeWidth={1}
+              style={{ cursor: "pointer" }}
+              onClick={(e) => { e.stopPropagation(); toggleRulers(); }}
+            >
+              <title>Nascondi righelli</title>
+            </rect>
+            <text x={RULER_PX / 2} y={RULER_PX / 2 + 3} textAnchor="middle"
+              style={{ fontSize: 10, fill: "#64748b", pointerEvents: "none", fontFamily: "monospace" }}>
+              ⟂
+            </text>
+          </g>
+        );
+      })()}
+
+      {/* Ruler toggle button when rulers are hidden — small icon top-left. */}
+      {onMove && !showRulers && (
+        <g style={{ cursor: "pointer" }} onClick={(e) => { e.stopPropagation(); toggleRulers(); }}>
+          <rect x={2} y={2} width={20} height={20} fill="#1e293b" stroke="#334155" />
+          <text x={12} y={16} textAnchor="middle"
+            style={{ fontSize: 11, fill: "#64748b", fontFamily: "monospace", pointerEvents: "none" }}>⟂</text>
+          <title>Mostra righelli</title>
+        </g>
+      )}
 
       {/* Zoom level badge + fit button — top-right corner, outside the transform */}
       {onMove && (

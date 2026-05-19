@@ -1,6 +1,9 @@
 [workspace]
 resolver = "2"
 members = ["crates/*"]
+# sws-kiosk requires libgtk-4-dev + libwebkitgtk-6.0-dev (not installed everywhere).
+# Build explicitly: cargo build --manifest-path crates/sws-kiosk/Cargo.toml (after: sudo apt install libgtk-4-dev libwebkitgtk-6.0-dev)
+exclude = ["crates/sws-kiosk"]
 
 [workspace.package]
 version      = "0.1.0-dev"
@@ -15,6 +18,9 @@ homepage     = "https://soligolab.example"
 # Async runtime
 tokio            = { version = "1.36",  features = ["full"] }
 tokio-util       = { version = "0.7" }
+# `Sink::send` / `Stream::next` traits on the axum WebSocket. Used by the
+# bidirectional /ws/tags handler to split read + write into separate tasks.
+futures-util     = { version = "0.3",   default-features = false, features = ["std", "sink"] }
 
 # Historian persistence
 rusqlite         = { version = "0.32",  features = ["bundled"] }
@@ -56,7 +62,7 @@ clap = { version = "4", features = ["derive"] }
 
 # Protocols
 tokio-modbus = "0.6"
-async-opcua  = "0.18"
+async-opcua  = { version = "0.18", features = ["client"] }
 rumqttc      = "0.24"
 rumqttd      = "0.19"
 
@@ -78,3 +84,6 @@ anyhow = "1"
 
 # System metrics (CPU, RAM, disk)
 sysinfo = "0.30"
+
+# Scratch directories (e.g. one-shot PKI for OPC-UA browse)
+tempfile = "3"

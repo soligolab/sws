@@ -1,0 +1,451 @@
+id: gp_page1
+name: "Griglia 4×4"
+background: "#0f172a"
+width: 900
+height: 720
+objects:
+
+# ══════════════════════════════════════════════════════════════════
+# HEADER (locked + grouped)
+# ══════════════════════════════════════════════════════════════════
+- id: gp_title
+  type: text
+  x: 450
+  y: 24
+  text: "🗂  GRID PLAYGROUND — 4×4 con sub-cell fino a 4 livelli"
+  font_size: 18
+  font_weight: bold
+  text_anchor: middle
+  color: "#c084fc"
+  group_id: g_header
+  locked: true
+
+- id: gp_subtitle
+  type: text
+  x: 450
+  y: 44
+  text: "Pannello: rect / ellipse / text / gauge / led / symbol / button / slider come figli di cella"
+  font_size: 10
+  text_anchor: middle
+  color: "#475569"
+  group_id: g_header
+  locked: true
+
+- id: gp_nav_next
+  type: navbutton
+  x: 740
+  y: 14
+  width: 150
+  height: 30
+  label: "Controlli ▶"
+  target_page: gp_page2
+  group_id: g_header
+  locked: true
+
+# ══════════════════════════════════════════════════════════════════
+# GRID 4×4 (60..820 × 80..680 → ogni cella ≈ 190×150)
+# ══════════════════════════════════════════════════════════════════
+- id: gp_grid
+  type: grid
+  x: 60
+  y: 70
+  width: 760
+  height: 600
+  grid_rows: 4
+  grid_cols: 4
+  grid_show_borders: true
+  grid_border_color: "#334155"
+  grid_cells:
+
+    # ─────────────────────────────────────────────────────────────
+    # (0,0) — Sub-cell annidata fino a 4 livelli.
+    # Livello 1 split cols   → a (sx), b (dx con symbol)
+    # Livello 2 split rows   → a.a (top rect), a.b (bottom)
+    # Livello 3 split cols   → a.b.a (testo "L3-A"), a.b.b (split)
+    # Livello 4 split rows   → a.b.b.a (ellipse), a.b.b.b (led)
+    # ─────────────────────────────────────────────────────────────
+    - row: 0
+      col: 0
+      bg_color: "#1e293b"
+      sub:
+        orientation: cols
+        ratio: 0.5
+        a:
+          bg_color: "#1e3a8a"
+          sub:
+            orientation: rows
+            ratio: 0.4
+            a:
+              child:
+                id: gp_lv2_rect
+                type: rect
+                x: 0
+                y: 0
+                width: 60
+                height: 30
+                fill: "#3b82f6"
+                stroke: "#1d4ed8"
+                stroke_width: 2
+            b:
+              bg_color: "#1e293b"
+              sub:
+                orientation: cols
+                ratio: 0.5
+                a:
+                  child:
+                    id: gp_lv3_text
+                    type: text
+                    x: 0
+                    y: 0
+                    text: "L3"
+                    font_size: 12
+                    font_weight: bold
+                    text_anchor: middle
+                    color: "#e2e8f0"
+                b:
+                  bg_color: "#312e81"
+                  sub:
+                    orientation: rows
+                    ratio: 0.5
+                    a:
+                      child:
+                        id: gp_lv4_ell
+                        type: ellipse
+                        x: 0
+                        y: 0
+                        width: 36
+                        height: 24
+                        fill: "#a855f7"
+                    b:
+                      child:
+                        id: gp_lv4_led
+                        type: led
+                        x: 0
+                        y: 0
+                        width: 22
+                        height: 22
+                        tag: pump.running
+                        on_value: true
+                        on_color: "#22c55e"
+                        off_color: "#475569"
+        b:
+          bg_color: "#1e293b"
+          child:
+            id: gp_lv1_symbol
+            type: symbol
+            x: 0
+            y: 0
+            width: 90
+            height: 90
+            symbol_id: pump
+            state_tag: pump.running
+            state_off_color: "#64748b"
+            state_on_color: "#22c55e"
+            state_alarm_color: "#ef4444"
+            transition_duration_ms: 300
+
+    # (0,1) — Gauge figlio di cella
+    - row: 0
+      col: 1
+      bg_color: "#0b1220"
+      child:
+        id: gp_gauge_counter
+        type: gauge
+        x: 0
+        y: 0
+        width: 170
+        height: 140
+        label: "Counter"
+        tag: counter
+        min: 0
+        max: 100
+        warn_high: 70
+        alarm_high: 85
+        transition_duration_ms: 200
+
+    # (0,2) — testo bindato al counter
+    - row: 0
+      col: 2
+      bg_color: "#0b1220"
+      child:
+        id: gp_txt_counter
+        type: text
+        x: 0
+        y: 0
+        tag: counter
+        format: "{value}"
+        font_size: 38
+        font_weight: bold
+        text_anchor: middle
+        color: "#fbbf24"
+        transition_duration_ms: 150
+
+    # (0,3) — LED + label statico
+    - row: 0
+      col: 3
+      bg_color: "#0b1220"
+      child:
+        id: gp_led_pump
+        type: led
+        x: 0
+        y: 0
+        width: 56
+        height: 56
+        tag: pump.running
+        on_value: true
+        on_color: "#22c55e"
+        off_color: "#475569"
+
+    # (1,0) — Button: incrementa counter
+    - row: 1
+      col: 0
+      child:
+        id: gp_btn_inc
+        type: button
+        x: 0
+        y: 0
+        width: 150
+        height: 50
+        fill: "#3b82f6"
+        label: "Counter ▲ +1"
+        on_press_fn: fnc_Inc
+        on_press_args:
+          tag: counter
+          step: 1
+
+    # (1,1) → merged 1×2 (colspan=2) per ospitare un trend ampio
+    - row: 1
+      col: 1
+      colspan: 2
+      bg_color: "#0b1220"
+      child:
+        id: gp_trend
+        type: trend
+        x: 0
+        y: 0
+        width: 360
+        height: 130
+        tag: counter
+        window_s: 60
+        line_color: "#fbbf24"
+
+    # (1,3) → cella libera (no child, bg_color personalizzato)
+    - row: 1
+      col: 3
+      bg_color: "#312e81"
+      child:
+        id: gp_rect_color
+        type: rect
+        x: 0
+        y: 0
+        width: 130
+        height: 90
+        fill: "#3b82f6"
+        transition_duration_ms: 400
+        bindings:
+          fill: demo.fill_color
+
+    # (2,0) — Button: decrementa counter
+    - row: 2
+      col: 0
+      child:
+        id: gp_btn_dec
+        type: button
+        x: 0
+        y: 0
+        width: 150
+        height: 50
+        fill: "#dc2626"
+        label: "Counter ▼ −1"
+        on_press_fn: fnc_Dec
+        on_press_args:
+          tag: counter
+          step: 1
+
+    # (2,1) — Toggle pump.running
+    - row: 2
+      col: 1
+      child:
+        id: gp_btn_toggle
+        type: button
+        x: 0
+        y: 0
+        width: 150
+        height: 50
+        fill: "#0d9488"
+        label: "Toggle pompa"
+        on_press_fn: fnc_Toggle
+        on_press_args:
+          tag: pump.running
+
+    # (2,2) — slider su demo.value
+    - row: 2
+      col: 2
+      bg_color: "#0b1220"
+      child:
+        id: gp_slider_value
+        type: slider
+        x: 0
+        y: 0
+        width: 170
+        height: 36
+        tag: demo.value
+        min: 0
+        max: 100
+        step: 1
+        orientation: horizontal
+
+    # (2,3) — progress_bar bindato a demo.value
+    - row: 2
+      col: 3
+      bg_color: "#0b1220"
+      child:
+        id: gp_pbar
+        type: progress_bar
+        x: 0
+        y: 0
+        width: 160
+        height: 26
+        tag: demo.value
+        min: 0
+        max: 100
+        unit: "%"
+        fill: "#22c55e"
+
+    # ─────────────────────────────────────────────────────────────
+    # Riga 3 — 4 celle con split shallow (1 livello)
+    # ─────────────────────────────────────────────────────────────
+
+    # (3,0) — split rows: testo top / ellipse bottom
+    - row: 3
+      col: 0
+      bg_color: "#1f2937"
+      sub:
+        orientation: rows
+        ratio: 0.4
+        a:
+          child:
+            id: gp_lbl_top
+            type: text
+            x: 0
+            y: 0
+            text: "TOP"
+            font_size: 14
+            font_weight: bold
+            text_anchor: middle
+            color: "#fbbf24"
+        b:
+          child:
+            id: gp_ell_bot
+            type: ellipse
+            x: 0
+            y: 0
+            width: 110
+            height: 60
+            fill: "#0d9488"
+
+    # (3,1) — split cols (2 livelli: a → ulteriore split rows)
+    - row: 3
+      col: 1
+      bg_color: "#1f2937"
+      sub:
+        orientation: cols
+        ratio: 0.5
+        a:
+          sub:
+            orientation: rows
+            ratio: 0.5
+            a:
+              child:
+                id: gp_split_a_a
+                type: text
+                x: 0
+                y: 0
+                text: "A.A"
+                font_size: 12
+                text_anchor: middle
+                color: "#e2e8f0"
+            b:
+              child:
+                id: gp_split_a_b
+                type: text
+                x: 0
+                y: 0
+                text: "A.B"
+                font_size: 12
+                text_anchor: middle
+                color: "#94a3b8"
+        b:
+          child:
+            id: gp_split_b
+            type: rect
+            x: 0
+            y: 0
+            width: 70
+            height: 90
+            fill: "#9333ea"
+
+    # (3,2) — split rows con visible_tag su slot a
+    - row: 3
+      col: 2
+      bg_color: "#1f2937"
+      sub:
+        orientation: rows
+        ratio: 0.5
+        a:
+          visible_tag: pump.running
+          child:
+            id: gp_visa
+            type: text
+            x: 0
+            y: 0
+            text: "ON only"
+            font_size: 12
+            font_weight: bold
+            text_anchor: middle
+            color: "#22c55e"
+        b:
+          child:
+            id: gp_visb
+            type: text
+            x: 0
+            y: 0
+            text: "always"
+            font_size: 11
+            text_anchor: middle
+            color: "#94a3b8"
+
+    # (3,3) — Slider opacity + binding opacity sul rect (3,3) stesso? No, demo standalone.
+    - row: 3
+      col: 3
+      bg_color: "#1f2937"
+      child:
+        id: gp_opacity_slider
+        type: slider
+        x: 0
+        y: 0
+        width: 160
+        height: 30
+        tag: demo.opacity
+        min: 0
+        max: 1
+        step: 0.05
+        orientation: horizontal
+
+# ══════════════════════════════════════════════════════════════════
+# OGGETTO DI PAGINA che reagisce all'opacity slider della grid
+# ══════════════════════════════════════════════════════════════════
+- id: gp_outside_rect
+  type: rect
+  x: 60
+  y: 690
+  width: 760
+  height: 16
+  fill: "#c084fc"
+  transition_duration_ms: 300
+  bindings:
+    opacity: demo.opacity
+
+groups:
+- id: g_header
+  name: Header
