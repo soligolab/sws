@@ -1,3 +1,4 @@
+pub mod backups;
 pub mod metrics;
 pub mod projects;
 pub mod router;

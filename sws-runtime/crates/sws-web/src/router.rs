@@ -90,6 +90,13 @@ pub fn build(
         // every synoptic). Destructive on the import side — Admin only.
         .route("/api/project/export",     get(export_project_zip))
         .route("/api/project/import",     put(import_project_zip))
+        // Backup management (admin-only; restore is destructive).
+        .route("/api/backups",
+            get(crate::backups::list_backups_handler).post(crate::backups::create_backup_handler))
+        .route("/api/backups/:name",
+            delete(crate::backups::delete_backup_handler))
+        .route("/api/backups/:name/restore",
+            post(crate::backups::restore_backup_handler))
         .route("/api/auth/users",         get(list_users).post(create_user))
         .route("/api/auth/users/:username",
             axum::routing::put(update_user).delete(delete_user))

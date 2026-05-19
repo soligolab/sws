@@ -81,6 +81,20 @@ struct Args {
     /// stdio (visible in journald / podman logs).
     #[arg(long)]
     kiosk_browser: Option<String>,
+
+    /// Take an automatic backup every N minutes. 0 (default) disables the
+    /// loop. Backups go under `<project>/.bak/<UTC-timestamp>/` and cover
+    /// `project.yaml`, `synoptics/`, and `users.yaml`. Triggered via the
+    /// `/api/backups` POST endpoint on demand regardless of this setting.
+    #[arg(long, default_value_t = 0u64)]
+    auto_backup_interval_minutes: u64,
+
+    /// Keep at most this many auto-backups; older ones are pruned after
+    /// each tick. Manual backups created via the API are also subject to
+    /// this cap. 0 disables pruning (keep everything — careful on small
+    /// disks).
+    #[arg(long, default_value_t = 20u64)]
+    auto_backup_retention: u64,
 }
 
 #[tokio::main]
@@ -242,6 +256,52 @@ async fn main() -> anyhow::Result<()> {
         *active_dir.write().await = Some(project_path);
     } else {
         info!("no --project specified — starting with no active project (WelcomeScreen will list /api/projects)");
+    }
+
+    // Auto-backup loop. Skipped entirely when --auto-backup-interval-minutes
+    // is 0 (the default). Runs on a fixed interval, take a snapshot of the
+    // currently-active project (if any), then prune old snapshots beyond the
+    // retention cap. Errors are logged but the loop continues.
+    if args.auto_backup_interval_minutes > 0 {
+        let dir_handle = active_dir.clone();
+        let interval_min = args.auto_backup_interval_minutes;
+        let retention = args.auto_backup_retention as usize;
+        tokio::spawn(async move {
+            let mut tick = tokio::time::interval(
+                std::time::Duration::from_secs(interval_min * 60),
+            );
+            // First tick fires immediately; skip it so we don't snapshot the
+            // moment the process starts (before the user has done any work).
+            tick.tick().await;
+            loop {
+                tick.tick().await;
+                let dir_opt = dir_handle.read().await.clone();
+                let Some(dir) = dir_opt else { continue }; // no project open
+                let dir2 = dir.clone();
+                let result = tokio::task::spawn_blocking(move || {
+                    sws_web::backups::backup_now(&dir2)
+                }).await;
+                match result {
+                    Ok(Ok(path)) => {
+                        let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("?").to_string();
+                        info!(backup = %name, "auto-backup created");
+                        if retention > 0 {
+                            let dir3 = dir.clone();
+                            let _ = tokio::task::spawn_blocking(move || {
+                                sws_web::backups::prune_backups(&dir3, retention);
+                            }).await;
+                        }
+                    }
+                    Ok(Err(e)) => warn!("auto-backup failed: {e}"),
+                    Err(e) => warn!("auto-backup task panicked: {e}"),
+                }
+            }
+        });
+        info!(
+            interval_min  = args.auto_backup_interval_minutes,
+            retention     = args.auto_backup_retention,
+            "auto-backup loop started",
+        );
     }
 
     // Alarm evaluator: every TagDb update is fed to AlarmDb, which re-evaluates

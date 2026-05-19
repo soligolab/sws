@@ -323,6 +323,21 @@ export const api = {
       body: yamlText,
     }),
 
+  // Backups — admin-only. The list is sorted newest-first by the server.
+  listBackups: () =>
+    request<Array<{ name: string; created_at_ms: number; size_bytes: number }>>(
+      "/api/backups",
+    ),
+
+  createBackup: () =>
+    request<{ name: string }>("/api/backups", { method: "POST" }),
+
+  restoreBackup: (name: string) =>
+    request<void>(`/api/backups/${encodeURIComponent(name)}/restore`, { method: "POST" }),
+
+  deleteBackup: (name: string) =>
+    request<void>(`/api/backups/${encodeURIComponent(name)}`, { method: "DELETE" }),
+
   // Tags
   writeTag: (id: string, value: number | string | boolean) =>
     request<void>(`/api/tags/${encodeURIComponent(id)}`, {

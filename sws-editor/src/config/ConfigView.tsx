@@ -2189,7 +2189,7 @@ function ResourcesTab() {
 
 // ── ConfigView root ───────────────────────────────────────────────────────────
 
-type ConfigTab = "tags" | "protocols" | "alarms" | "users" | "resources" | "system";
+type ConfigTab = "tags" | "protocols" | "alarms" | "users" | "resources" | "system" | "backups";
 
 const TAB_LABELS: Record<ConfigTab, string> = {
   tags:      "Variabili",
@@ -2198,6 +2198,7 @@ const TAB_LABELS: Record<ConfigTab, string> = {
   users:     "Utenti",
   resources: "Risorse",
   system:    "Stato",
+  backups:   "Backup",
 };
 
 export function ConfigView() {
@@ -2223,14 +2224,20 @@ export function ConfigView() {
   }, [tab, isAdmin]);
 
   const visibleTabs: ConfigTab[] = isAdmin
-    ? ["tags", "protocols", "alarms", "users", "resources", "system"]
+    ? ["tags", "protocols", "alarms", "users", "resources", "backups", "system"]
     : ["tags", "protocols", "alarms", "resources", "system"];
+
+  // Bounce non-admins off the backups tab too (it's an admin-only API).
+  useEffect(() => {
+    if (tab === "backups" && !isAdmin) handleSetTab("tags");
+  }, [tab, isAdmin]);
 
   // Guard: tags/protocols/alarms tabs all initialise their local state from
   // store.project. If project hasn't loaded yet, rendering them would show
   // empty inputs over a populated YAML and a subsequent save would wipe the
   // file. The other tabs are independent so they stay available.
-  const projectLoading = project === null && tab !== "users" && tab !== "resources" && tab !== "system";
+  const projectLoading = project === null
+    && tab !== "users" && tab !== "resources" && tab !== "system" && tab !== "backups";
 
   return (
     <div style={S.page}>
@@ -2257,9 +2264,180 @@ export function ConfigView() {
             {tab === "users"     && isAdmin && <UsersTab />}
             {tab === "resources" && <ResourcesTab />}
             {tab === "system"    && <SystemTab />}
+            {tab === "backups"   && isAdmin && <BackupsTab />}
           </>
         )}
       </div>
+    </div>
+  );
+}
+
+// ── Backups tab ──────────────────────────────────────────────────────────────
+//
+// Admin-only list / create / restore / delete on `/api/backups`. Backups are
+// snapshots of `project.yaml`, `synoptics/`, and `users.yaml` under
+// `<project>/.bak/<UTC-timestamp>/`. The runtime also takes them
+// automatically when `--auto-backup-interval-minutes` is set.
+
+function BackupsTab() {
+  type BackupInfo = { name: string; created_at_ms: number; size_bytes: number };
+  const [list, setList]       = useState<BackupInfo[] | null>(null);
+  const [busy, setBusy]       = useState(false);
+  const [err, setErr]         = useState<string | null>(null);
+
+  const refresh = async () => {
+    setErr(null);
+    try {
+      const r = await api.listBackups();
+      setList(r);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    }
+  };
+
+  useEffect(() => { refresh(); }, []);
+
+  const createNow = async () => {
+    setBusy(true);
+    try {
+      await api.createBackup();
+      await refresh();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const restore = async (name: string) => {
+    if (!window.confirm(
+      `Ripristinare il backup "${name}"?\n\n` +
+      `Sovrascrive project.yaml, tutte le synoptic e users.yaml dal backup.\n` +
+      `Le modifiche non salvate sul disco vengono perse.`
+    )) return;
+    setBusy(true);
+    try {
+      await api.restoreBackup(name);
+      // Reload the project so the UI reflects the restored state.
+      const p = await api.getProject();
+      useAppStore.getState().setProject(p);
+      const names = await api.listSynoptics();
+      const pages = await Promise.all(names.map((n) => api.getSynoptic(n)));
+      useAppStore.getState().setPages(pages);
+      await refresh();
+      window.alert(`Backup "${name}" ripristinato.`);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const drop = async (name: string) => {
+    if (!window.confirm(`Eliminare il backup "${name}"? L'azione è definitiva.`)) return;
+    setBusy(true);
+    try {
+      await api.deleteBackup(name);
+      await refresh();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const fmtSize = (b: number) => b < 1024 ? `${b} B`
+    : b < 1024 * 1024 ? `${(b / 1024).toFixed(1)} KB`
+    : `${(b / 1024 / 1024).toFixed(1)} MB`;
+  const fmtDate = (ms: number) => ms > 0
+    ? new Date(ms).toLocaleString()
+    : "—";
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      <div style={{ color: "#94a3b8", fontSize: 13, lineHeight: 1.5 }}>
+        Snapshot point-in-time del progetto (project.yaml + synoptics + users.yaml)
+        salvati sotto <code>{`<project>/.bak/`}</code>. Il runtime ne crea uno automaticamente
+        ogni N minuti se avviato con <code>--auto-backup-interval-minutes</code>.
+      </div>
+      <div style={{ display: "flex", gap: 8 }}>
+        <button
+          onClick={createNow}
+          disabled={busy}
+          style={{
+            padding: "6px 14px", background: "#16a34a", color: "#f0fdf4",
+            border: "none", borderRadius: 4, cursor: busy ? "wait" : "pointer",
+            fontSize: 13, fontWeight: 600,
+          }}
+        >
+          + Backup adesso
+        </button>
+        <button
+          onClick={refresh}
+          disabled={busy}
+          style={{
+            padding: "6px 14px", background: "#1e293b", color: "#cbd5e1",
+            border: "1px solid #334155", borderRadius: 4,
+            cursor: busy ? "wait" : "pointer", fontSize: 13,
+          }}
+        >
+          ↻ Aggiorna
+        </button>
+      </div>
+      {err && (
+        <div style={{ background: "#7f1d1d", color: "#fecaca", padding: "8px 12px", borderRadius: 4, fontSize: 12 }}>
+          Errore: {err}
+        </div>
+      )}
+      {list === null ? (
+        <div style={{ color: "#64748b", fontSize: 13 }}>Caricamento…</div>
+      ) : list.length === 0 ? (
+        <div style={{ color: "#64748b", fontSize: 13, fontStyle: "italic", padding: "16px 0" }}>
+          Nessun backup. Click "+ Backup adesso" per crearne uno.
+        </div>
+      ) : (
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+          <thead>
+            <tr style={{ borderBottom: "1px solid #334155" }}>
+              <th style={{ textAlign: "left", padding: "6px 8px", color: "#94a3b8", fontWeight: 600 }}>Nome</th>
+              <th style={{ textAlign: "left", padding: "6px 8px", color: "#94a3b8", fontWeight: 600 }}>Creato</th>
+              <th style={{ textAlign: "right", padding: "6px 8px", color: "#94a3b8", fontWeight: 600 }}>Dimensione</th>
+              <th style={{ textAlign: "right", padding: "6px 8px", color: "#94a3b8", fontWeight: 600 }}>Azioni</th>
+            </tr>
+          </thead>
+          <tbody>
+            {list.map((b) => (
+              <tr key={b.name} style={{ borderBottom: "1px solid #1e293b" }}>
+                <td style={{ padding: "6px 8px", color: "#cbd5e1", fontFamily: "monospace" }}>{b.name}</td>
+                <td style={{ padding: "6px 8px", color: "#94a3b8" }}>{fmtDate(b.created_at_ms)}</td>
+                <td style={{ padding: "6px 8px", color: "#94a3b8", textAlign: "right" }}>{fmtSize(b.size_bytes)}</td>
+                <td style={{ padding: "6px 8px", textAlign: "right" }}>
+                  <button
+                    onClick={() => restore(b.name)}
+                    disabled={busy}
+                    style={{
+                      marginRight: 4, padding: "3px 10px",
+                      background: "#3b82f6", color: "#fff",
+                      border: "none", borderRadius: 3, cursor: busy ? "wait" : "pointer",
+                      fontSize: 12,
+                    }}
+                  >Ripristina</button>
+                  <button
+                    onClick={() => drop(b.name)}
+                    disabled={busy}
+                    style={{
+                      padding: "3px 10px",
+                      background: "transparent", color: "#fca5a5",
+                      border: "1px solid #7f1d1d", borderRadius: 3,
+                      cursor: busy ? "wait" : "pointer", fontSize: 12,
+                    }}
+                  >Elimina</button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
     </div>
   );
 }

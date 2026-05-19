@@ -32,6 +32,7 @@ sysinfo           = { workspace = true }
 # facade against the global recorder.
 metrics                      = { workspace = true }
 metrics-exporter-prometheus  = { workspace = true }
+time                         = { workspace = true }
 
 [dev-dependencies]
 tempfile = "3"
