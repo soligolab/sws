@@ -167,6 +167,40 @@ start_editor() {
 case "${1:-both}" in
   runtime) start_runtime ;;
   editor)  start_editor  ;;
+  kiosk)
+    echo "[kiosk] building runtime + sws-kiosk…"
+    (cd "$REPO_ROOT/sws-runtime" && cargo build --quiet -p sws-runtime -p sws-kiosk)
+
+    echo "[kiosk] starting runtime in background; logs → $LOG_DIR/runtime.log"
+    "$REPO_ROOT/sws-runtime/target/debug/sws-runtime" \
+      --config "$CONFIG_DIR" \
+      --projects-root "$PROJECTS_ROOT" \
+      --templates-root "$TEMPLATES_ROOT" \
+      > "$LOG_DIR/runtime.log" 2>&1 &
+    RUNTIME_PID=$!
+
+    cleanup_kiosk() {
+      if kill -0 "$RUNTIME_PID" 2>/dev/null; then
+        echo "[runtime] stopping (pid $RUNTIME_PID)…"
+        kill "$RUNTIME_PID" 2>/dev/null || true
+        wait "$RUNTIME_PID" 2>/dev/null || true
+      fi
+    }
+    trap cleanup_kiosk EXIT INT TERM
+
+    echo "[kiosk] waiting for https://localhost:8443/health…"
+    for _ in $(seq 1 30); do
+      if curl -sk --max-time 1 https://localhost:8443/health >/dev/null 2>&1; then
+        echo "[kiosk] runtime up (pid $RUNTIME_PID)"
+        break
+      fi
+      sleep 0.5
+    done
+
+    echo "[kiosk] launching sws-kiosk (windowed for local test; remove --windowed for fullscreen)"
+    exec "$REPO_ROOT/sws-runtime/target/debug/sws-kiosk" \
+      "https://localhost:8443" --allow-insecure-tls --windowed
+    ;;
   both)
     echo "[runtime] building (cargo build)…"
     (cd "$REPO_ROOT/sws-runtime" && cargo build --quiet -p sws-runtime)

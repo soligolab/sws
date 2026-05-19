@@ -1,6 +1,9 @@
 [workspace]
 resolver = "2"
 members = ["crates/*"]
+# sws-kiosk requires libgtk-4-dev + libwebkitgtk-6.0-dev (not installed everywhere).
+# Build explicitly: cargo build -p sws-kiosk (after: sudo apt install libgtk-4-dev libwebkitgtk-6.0-dev)
+exclude = ["crates/sws-kiosk"]
 
 [workspace.package]
 version      = "0.1.0-dev"

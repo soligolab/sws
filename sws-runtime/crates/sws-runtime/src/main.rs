@@ -82,6 +82,13 @@ struct Args {
     #[arg(long)]
     kiosk_browser: Option<String>,
 
+    /// Spawn sws-kiosk (WebKitGTK native window) once /health answers OK.
+    /// Alternative to --kiosk-browser for devices without a full browser
+    /// installed (Wayland compositor required, no desktop environment needed).
+    /// The sws-kiosk binary must be in the same directory as sws-runtime.
+    #[arg(long)]
+    kiosk_wayland: bool,
+
     /// Take an automatic backup every N minutes. 0 (default) disables the
     /// loop. Backups go under `<project>/.bak/<UTC-timestamp>/` and cover
     /// `project.yaml`, `synoptics/`, and `users.yaml`. Triggered via the
@@ -455,6 +462,42 @@ async fn main() -> anyhow::Result<()> {
             {
                 Ok(_child) => { /* fire-and-forget, child inherits stdout/stderr */ }
                 Err(e)     => warn!(kiosk = %cmd, "kiosk: spawn failed: {e}"),
+            }
+        });
+    }
+
+    if args.kiosk_wayland {
+        tokio::spawn(async move {
+            let client = reqwest::Client::builder()
+                .danger_accept_invalid_certs(true)
+                .timeout(std::time::Duration::from_millis(500))
+                .build()
+                .unwrap_or_default();
+            let mut ready = false;
+            for _ in 0..50 {
+                if let Ok(r) = client.get("https://localhost:8443/health").send().await {
+                    if r.status().is_success() { ready = true; break; }
+                }
+                tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+            }
+            if !ready {
+                warn!("kiosk-wayland: /health didn't answer in 5s — skipping sws-kiosk spawn");
+                return;
+            }
+            // Look for sws-kiosk next to the current executable, fall back to PATH.
+            let binary = std::env::current_exe()
+                .ok()
+                .and_then(|p| p.parent().map(|d| d.join("sws-kiosk")))
+                .unwrap_or_else(|| "sws-kiosk".into());
+            info!(binary = %binary.display(), "kiosk-wayland: spawning sws-kiosk");
+            match tokio::process::Command::new(&binary)
+                .arg("https://localhost:8443")
+                .arg("--allow-insecure-tls")
+                .stdin(std::process::Stdio::null())
+                .spawn()
+            {
+                Ok(_child) => { /* fire-and-forget */ }
+                Err(e) => warn!(binary = %binary.display(), "kiosk-wayland: spawn failed: {e}"),
             }
         });
     }

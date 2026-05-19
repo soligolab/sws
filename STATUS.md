@@ -2,7 +2,7 @@
 
 > Session-to-session memory. Leggi all'inizio di ogni sessione, aggiorna alla fine.
 
-**Last session**: 2026-05-19 (S-31) — fix auth: WelcomeScreen su avvio senza progetto + "Esci" → WelcomeScreen
+**Last session**: 2026-05-19 (S-32) — sws-kiosk: nuovo crate WebKitGTK (Step 1+2), --kiosk-wayland in runtime, kiosk mode in dev.sh, scripts/kiosk.sh
 **Last commit**: `2a2174b fix(auth): WelcomeScreen on startup — GET /api/project pre-auth + logout closes project`
 **Current phase**: Phase 2 — sviluppo attivo PoC
 
@@ -10,9 +10,10 @@
 
 ## Handoff prossima sessione
 
-1. Smoke-test WelcomeScreen: `./scripts/dev.sh` → `http://localhost:5173` → deve apparire la lista template (4 voci) senza login. Crea un progetto da "Demo items" → compare LoginScreen → login `admin/admin` → funziona.
-2. Smoke-test "Esci": una volta loggati, apri ☰ Menu → "Esci" → torna alla WelcomeScreen (non alla LoginScreen).
-3. Scegli un task dalla tabella "Next steps" qui sotto.
+1. Installa GTK4 + WebKit sul dev box: `sudo apt install libgtk-4-dev libwebkitgtk-6.0-dev`
+2. Verifica build sws-kiosk: `cd sws-runtime && cargo build -p sws-kiosk`
+3. Test kiosk locale: `./scripts/dev.sh kiosk` (apre una finestra WebKit con il runtime)
+4. Scegli un task dalla tabella "Next steps" qui sotto.
 
 ---
 
@@ -20,16 +21,16 @@
 
 | ID | Task | Stima | Note |
 |----|------|-------|------|
+| A1 | **sws-kiosk GTK4+WebKit** — build + test su dev box | ~30 min | Crate pronto; manca `sudo apt install libgtk-4-dev libwebkitgtk-6.0-dev` sul dev box |
+| A1b | **sws-kiosk Step 3** — test su PX30 fisico (`./scripts/kiosk.sh`) | manuale | Richiede hardware + Wayland compositor (cage/weston) |
 | 6.4-bis | **WS auto-reconnect con backoff esponenziale** | ~1.5 h | TODO aperto in `sws-editor/src/ws/tagStream.ts`; oggi single-attempt |
 | — | **Vite bundle splitting** | ~1 h | Chunk principale 900 KB (273 KB gzip). `manualChunks` per codemirror / react / runtime |
 | 8.2 | **Lockout dopo N tentativi falliti** | ~1 h | Protezione brute-force login; contatore in `sws-auth` |
 | — | **OPC-UA trust list UI** | ~2 h | Oggi `trust_server_certs(true)` globale. UI per accettare/rifiutare cert per-source |
 | 8.1 | **Refresh token + httponly cookie** | ~2 h | Oggi solo Bearer + localStorage |
 | — | **OPC-UA historical reads** | ~3 h | `HistoryRead` service per backfill grafico Trend al primo open |
-| 5.5 | **Test deploy PX30 fisico** | manuale | ARCH-003 kiosk, richiede hardware |
 | 2.3 | Deep-link ConfigView tabs | ~30 min | Bassa priorità |
 | 4.8 | Grid: drag-to-range multi-cell | ~1.5 h | Oggi solo shift+click; bassa priorità |
-| 4.10 | Grid: merged cell splittable | ~1 h | Auto-unmerge + split; bassa priorità |
 | 8.3 | LDAP / OAuth2 | ~4 h+ | Phase 3 — non ora |
 
 ---
