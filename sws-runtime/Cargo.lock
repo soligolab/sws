@@ -3479,6 +3479,7 @@ version = "0.1.0-dev"
 dependencies = [
  "anyhow",
  "axum 0.7.9",
+ "futures-util",
  "metrics 0.23.1",
  "metrics-exporter-prometheus 0.15.3",
  "serde",

@@ -1435,31 +1435,148 @@ async fn save_synoptic(
 
 // ── WebSocket ────────────────────────────────────────────────────────────────
 
-async fn ws_tags_handler(ws: WebSocketUpgrade, State(s): State<AppState>) -> impl IntoResponse {
-    ws.on_upgrade(move |socket| handle_ws(socket, s.db))
+/// Inbound message frame for `/ws/tags`. Only one variant for now (`write`)
+/// but the discriminated-union shape leaves room for future ones
+/// (`subscribe`, `unsubscribe`, etc.). Unknown variants are rejected by
+/// `serde_json` and logged on the receiver task.
+#[derive(Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+enum InboundMsg {
+    /// Operator+ write. `req_id` is an optional correlation id echoed in
+    /// the ack so the client can match the response to its request.
+    Write {
+        tag: String,
+        value: TagValue,
+        #[serde(default)]
+        req_id: Option<String>,
+    },
 }
 
-async fn handle_ws(mut socket: WebSocket, db: Arc<TagDb>) {
+/// Outbound ack for a `write` request. Sent on the same socket the
+/// caller used.
+#[derive(serde::Serialize)]
+struct WriteAck {
+    #[serde(rename = "type")]
+    ty: &'static str, // always "ack"
+    req_id: Option<String>,
+    tag: String,
+    ok: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    error: Option<String>,
+}
+
+async fn ws_tags_handler(
+    ws: WebSocketUpgrade,
+    State(s): State<AppState>,
+    axum::Extension(user): axum::Extension<AuthUser>,
+) -> impl IntoResponse {
+    ws.on_upgrade(move |socket| handle_ws(socket, s.db, s.bus, user.role))
+}
+
+async fn handle_ws(socket: WebSocket, db: Arc<TagDb>, bus: Arc<TagWriteBus>, role: Role) {
+    // Split the socket so the broadcast pump (sends) and the inbound write
+    // loop (receives) can run concurrently. mpsc bridges incoming writes
+    // back to the sender so we serialise every outbound message through
+    // one task — otherwise concurrent sends would race on the WS framer.
+    use futures_util::{SinkExt, StreamExt};
+    let (mut ws_tx, mut ws_rx) = socket.split();
+    let (out_tx, mut out_rx) = tokio::sync::mpsc::channel::<Message>(32);
+
+    // Initial snapshot frame.
     for (id, state) in db.snapshot().await {
         let update = TagUpdate { id, state };
         if let Ok(text) = serde_json::to_string(&update) {
-            if socket.send(Message::Text(text)).await.is_err() { return; }
+            if out_tx.send(Message::Text(text)).await.is_err() {
+                return;
+            }
         }
     }
+
+    // Forwarder: pumps the mpsc queue onto the socket.
+    let forward_task = tokio::spawn(async move {
+        while let Some(msg) = out_rx.recv().await {
+            if ws_tx.send(msg).await.is_err() { break; }
+        }
+    });
+
+    // Broadcast subscriber: every tag update lands in the queue as a
+    // serialised TagUpdate JSON frame.
     let mut rx = db.subscribe();
-    loop {
-        match rx.recv().await {
-            Ok(update) => {
-                if let Ok(text) = serde_json::to_string(&update) {
-                    if socket.send(Message::Text(text)).await.is_err() { break; }
+    let broadcast_tx = out_tx.clone();
+    let broadcast_task = tokio::spawn(async move {
+        loop {
+            match rx.recv().await {
+                Ok(update) => {
+                    if let Ok(text) = serde_json::to_string(&update) {
+                        if broadcast_tx.send(Message::Text(text)).await.is_err() { break; }
+                    }
+                }
+                Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
+                    warn!("ws/tags subscriber lagged by {n}");
+                }
+                Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
+            }
+        }
+    });
+
+    // Inbound loop: read client frames and dispatch writes. Closing the
+    // socket from this side propagates: dropping `out_tx` ends the
+    // forwarder task; aborting `broadcast_task` cleans up the subscriber.
+    while let Some(frame) = ws_rx.next().await {
+        let frame = match frame {
+            Ok(f) => f,
+            Err(_) => break,
+        };
+        match frame {
+            Message::Text(text) => {
+                let parsed: Result<InboundMsg, _> = serde_json::from_str(&text);
+                let Ok(msg) = parsed else {
+                    let ack = WriteAck {
+                        ty: "ack", req_id: None, tag: String::new(),
+                        ok: false, error: Some("invalid frame".into()),
+                    };
+                    let _ = out_tx.send(Message::Text(serde_json::to_string(&ack).unwrap_or_default())).await;
+                    continue;
+                };
+                match msg {
+                    InboundMsg::Write { tag, value, req_id } => {
+                        // Role gate: Operator+ only. Mirror the HTTP
+                        // /api/tags/:id rule so the WS path doesn't open
+                        // a side channel that bypasses it.
+                        if role < Role::Operator {
+                            let ack = WriteAck {
+                                ty: "ack", req_id, tag,
+                                ok: false, error: Some("forbidden: Operator+ required".into()),
+                            };
+                            let _ = out_tx.send(Message::Text(serde_json::to_string(&ack).unwrap_or_default())).await;
+                            continue;
+                        }
+                        // Route through the bus (plugin) first; fall back
+                        // to direct TagDb set so virtual / scripted tags
+                        // keep working. Same shape as write_tag().
+                        let (ok, err) = match bus.write(&tag, value.clone()).await {
+                            Ok(()) => (true, None),
+                            Err(WriteError::NoWriter(_)) => {
+                                db.set(tag.clone(), value, TagQuality::Good).await;
+                                (true, None)
+                            }
+                            Err(e @ WriteError::ChannelClosed(_)) => (false, Some(e.to_string())),
+                        };
+                        let ack = WriteAck { ty: "ack", req_id, tag, ok, error: err };
+                        let _ = out_tx.send(Message::Text(serde_json::to_string(&ack).unwrap_or_default())).await;
+                    }
                 }
             }
-            Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
-                warn!("ws/tags subscriber lagged by {n}");
-            }
-            Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
+            Message::Close(_) => break,
+            // Pings are handled by axum's WS layer; binary frames are
+            // not a supported protocol on this endpoint.
+            _ => {}
         }
     }
+
+    broadcast_task.abort();
+    drop(out_tx);
+    let _ = forward_task.await;
 }
 
 // ── Log streaming ────────────────────────────────────────────────────────────

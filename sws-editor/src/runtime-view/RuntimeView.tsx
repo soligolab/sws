@@ -3,7 +3,7 @@ import { api } from "@/api/client";
 import { SvgCanvas } from "@/canvas/SvgCanvas";
 import { useAppStore } from "@/store";
 import { useAlarmStream } from "@/ws/alarmStream";
-import { useTagStream } from "@/ws/tagStream";
+import { useTagStream, tryTagWriteWs } from "@/ws/tagStream";
 import type { AlarmSeverity, AlarmState, FunctionDef } from "@/types";
 
 // ── Script output toast ───────────────────────────────────────────────────────
@@ -261,6 +261,10 @@ export function RuntimeView() {
   const objects     = currentPage?.objects ?? [];
 
   const handleWriteTag = (tagId: string, value: string | number | boolean) => {
+    // Prefer the bidirectional WS path (zero HTTP round-trip + token reuse).
+    // The HTTP PUT remains as the fallback when the socket isn't open
+    // yet — first paint can race the upgrade handshake.
+    if (tryTagWriteWs(tagId, value)) return;
     api.writeTag(tagId, value).catch(console.error);
   };
 
