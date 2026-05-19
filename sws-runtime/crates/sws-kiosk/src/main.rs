@@ -1,8 +1,9 @@
 use clap::Parser;
-use gdk::Key;
+use gtk4::gdk::Key;
+use gtk4::glib;
 use gtk4::prelude::*;
 use gtk4::{gdk, Application, ApplicationWindow, EventControllerKey};
-use webkit6::prelude::*;
+use webkit6::prelude::WebViewExt;
 use webkit6::{NetworkSession, TLSErrorsPolicy, WebView};
 
 #[derive(Parser)]
@@ -39,7 +40,8 @@ fn main() -> glib::ExitCode {
 
         let webview = WebView::builder().network_session(&session).build();
 
-        if let Some(settings) = webview.settings() {
+        // Explicitly use WebViewExt::settings to avoid ambiguity with WidgetExt::settings.
+        if let Some(settings) = WebViewExt::settings(&webview) {
             settings.set_enable_developer_extras(false);
             settings.set_enable_back_forward_navigation_gestures(false);
         }
@@ -52,7 +54,6 @@ fn main() -> glib::ExitCode {
             .title("SWS")
             .build();
 
-        // Remove window decorations for true kiosk look
         win.set_decorated(false);
 
         if fullscreen {
