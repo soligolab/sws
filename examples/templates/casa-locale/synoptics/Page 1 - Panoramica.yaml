@@ -1,6 +1,8 @@
 id: cl_page1
 name: "Panoramica"
 background: "#0f172a"
+width: 800
+height: 680
 objects:
 
 # ══════════════════════════════════════════════════════════════════
@@ -15,6 +17,8 @@ objects:
   font_weight: bold
   text_anchor: middle
   color: "#e2e8f0"
+  group_id: g_header
+  locked: true
 
 - id: cl1_subtitle
   type: text
@@ -24,6 +28,8 @@ objects:
   font_size: 11
   text_anchor: middle
   color: "#475569"
+  group_id: g_header
+  locked: true
 
 # Nav bottom
 - id: cl1_nav_solare
@@ -34,6 +40,8 @@ objects:
   height: 36
   label: "☀ Solare"
   target_page: cl_page2
+  group_id: g_nav
+  locked: true
 
 - id: cl1_nav_contatori
   type: navbutton
@@ -43,6 +51,8 @@ objects:
   height: 36
   label: "⚡ Contatori"
   target_page: cl_page3
+  group_id: g_nav
+  locked: true
 
 - id: cl1_nav_sicurezza
   type: navbutton
@@ -52,6 +62,8 @@ objects:
   height: 36
   label: "🔐 Sicurezza"
   target_page: cl_page4
+  group_id: g_nav
+  locked: true
 
 - id: cl1_nav_domotica
   type: navbutton
@@ -61,6 +73,8 @@ objects:
   height: 36
   label: "🏠 Domotica"
   target_page: cl_page5
+  group_id: g_nav
+  locked: true
 
 # ══════════════════════════════════════════════════════════════════
 # SEZIONE SINISTRA — FLUSSO ENERGIA
@@ -876,3 +890,9 @@ objects:
   font_size: 9
   text_anchor: middle
   color: "#334155"
+
+groups:
+- id: g_header
+  name: Header
+- id: g_nav
+  name: Navigazione

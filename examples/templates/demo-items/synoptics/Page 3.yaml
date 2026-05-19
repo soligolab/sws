@@ -1,6 +1,8 @@
 id: page3
 name: Page 3
 background: "#0f172a"
+width: 900
+height: 700
 objects:
 
 # ── Navigation header (uniforme su tutte le 4 pagine) ────────────────────────
@@ -12,6 +14,8 @@ objects:
   height: 32
   label: "◀ Precedente"
   target_page: page2
+  group_id: g_nav
+  locked: true
 
 - id: p3_nav_next
   type: navbutton
@@ -21,6 +25,8 @@ objects:
   height: 32
   label: "Successiva ▶"
   target_page: page4
+  group_id: g_nav
+  locked: true
 
 - id: p3_title
   type: text
@@ -31,6 +37,8 @@ objects:
   font_weight: bold
   text_anchor: middle
   color: "#94a3b8"
+  group_id: g_nav
+  locked: true
 
 # ── Controls (sliders + write buttons) ───────────────────────────────────────
 - id: p3_ctrl_rot_lbl
@@ -537,3 +545,7 @@ objects:
   font_size: 9
   text_anchor: middle
   color: "#475569"
+
+groups:
+- id: g_nav
+  name: Navigazione

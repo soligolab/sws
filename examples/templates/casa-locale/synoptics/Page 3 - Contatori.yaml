@@ -1,6 +1,8 @@
 id: cl_page3
 name: "Contatori"
 background: "#0f172a"
+width: 820
+height: 680
 objects:
 
 # ══════════════════════════════════════════════════════════════════
@@ -15,6 +17,8 @@ objects:
   font_weight: bold
   text_anchor: middle
   color: "#fbbf24"
+  group_id: g_nav
+  locked: true
 
 - id: cl3_nav_back
   type: navbutton
@@ -24,6 +28,8 @@ objects:
   height: 30
   label: "◀ Solare"
   target_page: cl_page2
+  group_id: g_nav
+  locked: true
 
 - id: cl3_nav_next
   type: navbutton
@@ -33,6 +39,8 @@ objects:
   height: 30
   label: "Sicurezza ▶"
   target_page: cl_page4
+  group_id: g_nav
+  locked: true
 
 - id: cl3_nav_home
   type: navbutton
@@ -42,6 +50,8 @@ objects:
   height: 30
   label: "⌂"
   target_page: cl_page1
+  group_id: g_nav
+  locked: true
 
 # Potenza totale
 - id: cl3_tot_lbl
@@ -324,3 +334,7 @@ objects:
   font_size: 9
   text_anchor: middle
   color: "#1e293b"
+
+groups:
+- id: g_nav
+  name: Navigazione

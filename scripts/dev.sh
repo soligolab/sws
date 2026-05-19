@@ -30,23 +30,13 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 RUN_DIR="$REPO_ROOT/.run"
 CONFIG_DIR="$RUN_DIR/config"
-# Multi-project layout (since 2026-05-15): projects live as subfolders of
-# PROJECTS_ROOT, and the runtime can open/close them at runtime via
-# /api/projects/*. The "dev" project keeps the same content the old
-# .run/project/ used to hold; if you upgrade in-place, the migration block
-# below moves it over.
+# Multi-project layout: projects live as subfolders of PROJECTS_ROOT, and the
+# runtime can open/close them at runtime via /api/projects/*. There is no
+# longer a hard-coded default "dev" project — on first run the WelcomeScreen
+# lists the bundled templates so the user picks one.
 PROJECTS_ROOT="$RUN_DIR/projects"
 TEMPLATES_ROOT="$REPO_ROOT/examples/templates"
-PROJECT_DIR="$PROJECTS_ROOT/dev"
 LOG_DIR="$RUN_DIR/logs"
-
-# In-place migration: if the legacy single-project layout (.run/project/)
-# exists and the new multi-project layout doesn't, move it over.
-if [ -d "$RUN_DIR/project" ] && [ ! -d "$PROJECT_DIR" ]; then
-  mkdir -p "$PROJECTS_ROOT"
-  mv "$RUN_DIR/project" "$PROJECT_DIR"
-  echo "[dev.sh] migrated .run/project/ → .run/projects/dev/"
-fi
 
 # pyo3-build-config defaults to /usr/bin/python which isn't present on Debian
 # Bookworm (only /usr/bin/python3). Point it at python3 explicitly so cargo
@@ -71,32 +61,18 @@ export SWS_SUPERVISOR_PASSWORD SWS_OPERATOR_PASSWORD SWS_VIEWER_PASSWORD
 : "${SWS_HISTORIAN_DB:=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/.run/historian.db}"
 export SWS_HISTORIAN_DB
 
-mkdir -p "$CONFIG_DIR" "$PROJECTS_ROOT" "$PROJECT_DIR" "$LOG_DIR"
+mkdir -p "$CONFIG_DIR" "$PROJECTS_ROOT" "$LOG_DIR"
 
-# ── Seed an example project from examples/templates/demo-items/ on first run ─
-# Snapshot of the MQTT echo + buttons + LED + gauge + pump demo. Subsequent
-# runs keep the maintainer's local edits (this only fires when project.yaml
-# is missing — i.e., on a fresh clone or after `rm -rf .run/projects`).
+# No default project on first run. The WelcomeScreen will list any subfolder
+# of $PROJECTS_ROOT as a candidate project (so user-created projects survive
+# across runs) and expose the bundled templates from $TEMPLATES_ROOT.
+#
+# A "Default" YAML used to be seeded here so dev.sh produced a working demo
+# on a fresh clone; that's intentionally gone since 2026-05 (operator must
+# create the project from a template). The heredoc is kept commented below
+# only as documentation of the legacy fallback shape.
 
-DEMO_TEMPLATE_DIR="$REPO_ROOT/examples/templates/demo-items"
-if [ ! -f "$PROJECT_DIR/project.yaml" ] && [ -d "$DEMO_TEMPLATE_DIR" ]; then
-  # Copy everything except the template.yaml metadata file (only relevant
-  # in template gallery context, not inside a live project).
-  for entry in "$DEMO_TEMPLATE_DIR"/*; do
-    name="$(basename "$entry")"
-    [ "$name" = "template.yaml" ] && continue
-    cp -r "$entry" "$PROJECT_DIR/"
-  done
-  echo "[dev.sh] seeded $PROJECT_DIR from $DEMO_TEMPLATE_DIR"
-fi
-
-# ── Last-resort minimal fallback if the template is absent ───────────────────
-
-if [ ! -f "$PROJECT_DIR/project.yaml" ]; then
-  cat > "$PROJECT_DIR/project.yaml" <<'YAML'
-meta:
-  name: dev
-  version: "0.1.0"
+: <<'LEGACY_FALLBACK_YAML'
 
 # Tags are the live data points the editor binds to.
 # data_type: bool | int | float | string  (default: float)
@@ -136,9 +112,7 @@ alarms:
     condition: { kind: above, threshold: 50 }
     message: Counter sopra soglia (>50)
     severity: Warning
-YAML
-  echo "seeded $PROJECT_DIR/project.yaml"
-fi
+LEGACY_FALLBACK_YAML
 
 # ── pnpm detection ───────────────────────────────────────────────────────────
 # The maintainer's machine has pnpm only via corepack's shim; on a CI box it
@@ -162,12 +136,11 @@ start_runtime() {
   echo "[runtime] config         = $CONFIG_DIR"
   echo "[runtime] projects_root  = $PROJECTS_ROOT"
   echo "[runtime] templates_root = $TEMPLATES_ROOT"
-  echo "[runtime] auto-open      = $PROJECT_DIR (legacy --project flag)"
+  echo "[runtime] auto-open      = (none — WelcomeScreen picks the project)"
   exec "$REPO_ROOT/sws-runtime/target/debug/sws-runtime" \
     --config "$CONFIG_DIR" \
     --projects-root "$PROJECTS_ROOT" \
-    --templates-root "$TEMPLATES_ROOT" \
-    --project "$PROJECT_DIR"
+    --templates-root "$TEMPLATES_ROOT"
 }
 
 start_editor() {
@@ -203,7 +176,6 @@ case "${1:-both}" in
       --config "$CONFIG_DIR" \
       --projects-root "$PROJECTS_ROOT" \
       --templates-root "$TEMPLATES_ROOT" \
-      --project "$PROJECT_DIR" \
       > "$LOG_DIR/runtime.log" 2>&1 &
     RUNTIME_PID=$!
 

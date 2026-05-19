@@ -1,0 +1,3 @@
+id: opcua-demo
+label: "OPC-UA Demo (BL-005)"
+description: "Showcase del client OPC-UA: subscription a 5 nodi del simulatore node-opcua/Prosys con Trend + Gauge + LED + tabella valori. Richiede un simulatore OPC-UA in ascolto su opc.tcp://localhost:4840 — vedere SETUP.md."
