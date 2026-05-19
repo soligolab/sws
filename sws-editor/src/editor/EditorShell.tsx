@@ -506,6 +506,7 @@ export function EditorShell() {
           customSymbols={customSymbols}
           pageWidth={currentPage?.width}
           pageHeight={currentPage?.height}
+          pageId={currentPageId}
           selectedCell={selectedCell}
           selectedCellChild={selectedCellChild}
           selectedCellRange={selectedCellRange}

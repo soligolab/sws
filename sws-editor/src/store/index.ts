@@ -307,6 +307,12 @@ interface AppState {
   ungroupObjects: (groupId: string) => void;
   renameGroup: (groupId: string, name: string) => void;
   moveObjectToGroup: (objId: string, groupId: string | null) => void;
+  /** Reorder an object in the page array next to another object, inheriting its group_id. */
+  moveObjectAdjacent: (objId: string, targetId: string, place: "before" | "after") => void;
+  /** Append an object at the end of a group (or to the ungrouped tail when null). */
+  moveObjectToGroupEnd: (objId: string, groupId: string | null) => void;
+  /** Reorder a group next to another group. Target null = end of list. */
+  moveGroupAdjacent: (groupId: string, targetGroupId: string | null, place: "before" | "after") => void;
 
   // Tag values from WebSocket
   updateTagValue: (id: string, state: TagState) => void;
@@ -1398,6 +1404,7 @@ export const useAppStore = create<AppState>((set, get) => {
     },
 
     moveObjectToGroup: (objId, groupId) => {
+      pushHistory(groupId ? "Sposta in gruppo" : "Rimuovi da gruppo");
       set((s) => ({
         pages: s.pages.map((p) => p.id !== s.currentPageId ? p : {
           ...p,
@@ -1406,6 +1413,79 @@ export const useAppStore = create<AppState>((set, get) => {
           ),
         }),
       }));
+    },
+
+    moveObjectAdjacent: (objId, targetId, place) => {
+      if (objId === targetId) return;
+      pushHistory("Riordina oggetto");
+      set((s) => {
+        const page = s.pages.find((p) => p.id === s.currentPageId);
+        if (!page) return s;
+        const srcIdx = page.objects.findIndex((o) => o.id === objId);
+        if (srcIdx < 0) return s;
+        const src = page.objects[srcIdx];
+        const objs = [...page.objects];
+        objs.splice(srcIdx, 1);
+        const tgtIdx = objs.findIndex((o) => o.id === targetId);
+        if (tgtIdx < 0) return s;
+        const target = objs[tgtIdx];
+        const insertAt = place === "before" ? tgtIdx : tgtIdx + 1;
+        // Inherit target's group_id so the move is consistent with the
+        // group the drop landed inside.
+        objs.splice(insertAt, 0, { ...src, group_id: target.group_id });
+        return { pages: s.pages.map((p) => p.id === s.currentPageId ? { ...p, objects: objs } : p) };
+      });
+    },
+
+    moveObjectToGroupEnd: (objId, groupId) => {
+      pushHistory(groupId ? "Sposta in gruppo" : "Rimuovi da gruppo");
+      set((s) => {
+        const page = s.pages.find((p) => p.id === s.currentPageId);
+        if (!page) return s;
+        const srcIdx = page.objects.findIndex((o) => o.id === objId);
+        if (srcIdx < 0) return s;
+        const src = page.objects[srcIdx];
+        const objs = [...page.objects];
+        objs.splice(srcIdx, 1);
+        // For "drop on group header" we insert at the END of that group's
+        // member streak so it appears as the last member. Ungrouped (null)
+        // goes to the very end of the array.
+        if (groupId == null) {
+          objs.push({ ...src, group_id: undefined });
+        } else {
+          let lastMemberIdx = -1;
+          for (let i = 0; i < objs.length; i++) {
+            if (objs[i].group_id === groupId) lastMemberIdx = i;
+          }
+          const insertAt = lastMemberIdx + 1;
+          objs.splice(insertAt, 0, { ...src, group_id: groupId });
+        }
+        return { pages: s.pages.map((p) => p.id === s.currentPageId ? { ...p, objects: objs } : p) };
+      });
+    },
+
+    moveGroupAdjacent: (groupId, targetGroupId, place) => {
+      if (groupId === targetGroupId) return;
+      pushHistory("Riordina gruppo");
+      set((s) => {
+        const page = s.pages.find((p) => p.id === s.currentPageId);
+        if (!page) return s;
+        const groups = [...(page.groups ?? [])];
+        const srcIdx = groups.findIndex((g) => g.id === groupId);
+        if (srcIdx < 0) return s;
+        const [src] = groups.splice(srcIdx, 1);
+        if (targetGroupId == null) {
+          groups.push(src);
+        } else {
+          const tgtIdx = groups.findIndex((g) => g.id === targetGroupId);
+          if (tgtIdx < 0) { groups.push(src); }
+          else {
+            const insertAt = place === "before" ? tgtIdx : tgtIdx + 1;
+            groups.splice(insertAt, 0, src);
+          }
+        }
+        return { pages: s.pages.map((p) => p.id === s.currentPageId ? { ...p, groups } : p) };
+      });
     },
   };
 });
