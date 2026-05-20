@@ -8,6 +8,7 @@
 2. Read `STATUS.md` (this directory) — current state, what's working, what the next session should pick up.
 3. Read `docs/OPEN_QUESTIONS.md` — deferred architectural decisions; don't try to settle them in a vibecode session.
 4. Read `docs/CLAUDE_CODE_SETUP.md` if a permission prompt is confusing — that file explains the `.claude/settings.json` rules.
+5. Read `docs/TEST_SETUPS.md` — where the maintainer actually runs SWS (home Ubuntu desktop, this headless dev server, office Yocto devices). Device addresses change per session — always ask before SSH-ing.
 
 Then state to the maintainer:
 - What the previous session ended with

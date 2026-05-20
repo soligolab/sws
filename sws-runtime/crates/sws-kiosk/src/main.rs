@@ -46,6 +46,19 @@ fn main() -> glib::ExitCode {
             settings.set_enable_back_forward_navigation_gestures(false);
         }
 
+        // Diagnostic: print load failures to stderr so a "white window" is not silent.
+        webview.connect_load_failed(|_wv, _event, uri, error| {
+            eprintln!("[sws-kiosk] load-failed uri={} err={}", uri, error);
+            false
+        });
+        webview.connect_load_failed_with_tls_errors(|_wv, uri, _cert, errors| {
+            eprintln!(
+                "[sws-kiosk] load-failed-with-tls-errors uri={} errors={:?}",
+                uri, errors
+            );
+            false
+        });
+
         webview.load_uri(&url);
 
         let win = ApplicationWindow::builder()
