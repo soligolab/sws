@@ -2,18 +2,29 @@
 
 > Session-to-session memory. Leggi all'inizio di ogni sessione, aggiorna alla fine.
 
-**Last session**: 2026-05-19 (S-32) — sws-kiosk: nuovo crate WebKitGTK (Step 1+2), --kiosk-wayland in runtime, kiosk mode in dev.sh, scripts/kiosk.sh
-**Last commit**: `2a2174b fix(auth): WelcomeScreen on startup — GET /api/project pre-auth + logout closes project`
+**Last session**: 2026-05-20 (S-33) — sws-kiosk build verde, finestra GTK apre, test interrotto per porta 8443 occupata
+**Last commit**: `3492a3a fix(kiosk): set default window size 1280x800`
 **Current phase**: Phase 2 — sviluppo attivo PoC
 
 ---
 
 ## Handoff prossima sessione
 
-1. Installa GTK4 + WebKit sul dev box: `sudo apt install libgtk-4-dev libwebkitgtk-6.0-dev`
-2. Verifica build sws-kiosk: `cd sws-runtime && cargo build --manifest-path crates/sws-kiosk/Cargo.toml`
-3. Test kiosk locale: `./scripts/dev.sh kiosk` (apre una finestra WebKit con il runtime)
-4. Scegli un task dalla tabella "Next steps" qui sotto.
+**sws-kiosk — test da completare in ufficio:**
+
+1. Se il runtime è già in ascolto su 8443: `pkill sws-runtime` per liberare la porta.
+2. Terminale 1 — avvia runtime: `./scripts/dev.sh runtime`
+3. Terminale 2 — testa finestra kiosk:
+   ```
+   cd sws-runtime
+   cargo build --manifest-path crates/sws-kiosk/Cargo.toml
+   cd ..
+   ./sws-runtime/crates/sws-kiosk/target/debug/sws-kiosk https://localhost:8443 --allow-insecure-tls --windowed
+   ```
+4. Deve apparire la WelcomeScreen (lista template) nella finestra GTK 1280×800.
+   - Se ancora bianco: il problema è il cert self-signed che WebKit blocca → aprire https://localhost:8443 in Firefox/Chrome, accettare il cert, poi riprovare sws-kiosk.
+5. Se tutto ok: testare `./scripts/dev.sh kiosk` (avvia entrambi insieme).
+6. Scegli il prossimo task dalla tabella qui sotto.
 
 ---
 
