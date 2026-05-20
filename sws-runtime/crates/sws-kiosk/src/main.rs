@@ -52,6 +52,8 @@ fn main() -> glib::ExitCode {
             .application(app)
             .child(&webview)
             .title("SWS")
+            .default_width(1280)
+            .default_height(800)
             .build();
 
         win.set_decorated(false);
