@@ -88,5 +88,6 @@ fn main() -> glib::ExitCode {
         win.present();
     });
 
-    app.run()
+    // Pass only argv[0] to GTK so it doesn't try to parse our own flags.
+    app.run_with_args(&[std::env::args().next().unwrap_or_default()])
 }
