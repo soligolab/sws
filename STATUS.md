@@ -4,7 +4,7 @@
 >
 > Ambienti di test: vedi [docs/TEST_SETUPS.md](docs/TEST_SETUPS.md) (casa, dev server, dispositivi Yocto).
 
-**Last session**: 2026-05-21 (S-36) — Yocto cross-compile + deploy end-to-end verde su PX30 reale (wp615-a-p2, 192.168.1.59)
+**Last session**: 2026-05-21 (S-37) — RBAC tightening: Operator/Viewer ridotti a runtime-only, sia frontend che backend (PUT /api/synoptics ora Supervisor+). Redeploy su PX30 verde, verifica browser maintainer pendente.
 **Last commit**: vedi `git log -1`
 **Current phase**: Phase 2 — sviluppo attivo PoC
 
@@ -12,7 +12,16 @@
 
 ## Handoff prossima sessione
 
-**Traccia A chiusa.** Resta aperta solo la **Traccia B** (diagnostica white-window del kiosk, da fare a casa) e i task della tabella "Next steps".
+**Tracce A (Yocto) e RBAC chiuse lato dev.** Resta aperta solo la **Traccia B** (diagnostica white-window del kiosk, da fare a casa) e i task della tabella "Next steps".
+
+### Verifica browser Operator su PX30 (S-37, da fare manualmente)
+
+Dopo il redeploy delle modifiche RBAC, aprire `https://192.168.1.59:8443/` dal PC, login come Operator (`operator/operator` se è una nuova install, oppure le credenziali demo del progetto), e confermare che:
+- L'header mostra solo il bottone "Runtime" (no "Modifica", no "Configurazione").
+- Hard-reload (Ctrl+Shift+R): nessun flash dell'editor; resta su Runtime view.
+- DevTools console: `useAppStore.getState().setAppMode("edit")` → UI resta su Runtime (`effectiveMode` pinning).
+- Re-login come Supervisor: tutti e tre i bottoni visibili; ConfigView apre senza Users/Backups.
+- Re-login come Admin: tutti e tre i bottoni, ConfigView include Users/Backups.
 
 ### Traccia A — Yocto cross-compile + deploy (S-36, ✅ chiusa)
 

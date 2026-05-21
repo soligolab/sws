@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { api, type CreateUserBody, type UpdateUserBody, type UserRole, type UserSummary } from "@/api/client";
 import { TagInput } from "@/components/TagInput";
 import { useAppStore } from "@/store";
+import { canConfigureProject } from "@/auth/permissions";
 import type {
   AlarmCondition,
   AlarmDef,
@@ -2996,6 +2997,12 @@ export function ConfigView() {
   // file. The other tabs are independent so they stay available.
   const projectLoading = project === null
     && tab !== "users" && tab !== "resources" && tab !== "system" && tab !== "backups";
+
+  // Belt-and-braces: App.tsx already gates mode="config" via effectiveMode,
+  // so this is unreachable for non-Supervisor+ today. Kept so a future
+  // direct mount can't slip past the role check. Placed after all hooks
+  // to keep React's rules-of-hooks invariant intact across role changes.
+  if (!canConfigureProject(authRole)) return null;
 
   return (
     <div style={S.page}>

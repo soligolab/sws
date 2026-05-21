@@ -12,6 +12,7 @@ import { EditorShell } from "@/editor/EditorShell";
 import { RuntimeView } from "@/runtime-view/RuntimeView";
 import { useAppStore } from "@/store";
 import { useLogStream } from "@/ws/logStream";
+import { canEditProject, canConfigureProject } from "@/auth/permissions";
 
 type Mode = "edit" | "view" | "config";
 
@@ -316,6 +317,20 @@ export function App() {
   const project        = useAppStore((s) => s.project);
   const setProject     = useAppStore((s) => s.setProject);
 
+  // Role-gated UI surfaces. Viewer + Operator are runtime-only roles;
+  // Supervisor + Admin get editor and config. `effectiveMode` pins
+  // non-editors to "view" even if `appMode` in the store is stale "edit"
+  // (the store default; not persisted to localStorage).
+  const canEdit      = canEditProject(authRole);
+  const canConfigure = canConfigureProject(authRole);
+  const effectiveMode: Mode =
+    (mode === "edit"   && !canEdit)      ? "view" :
+    (mode === "config" && !canConfigure) ? "view" :
+    mode;
+  const allowedModes: Mode[] = canEdit
+    ? (["edit", "view", "config"] as Mode[])
+    : (["view"] as Mode[]);
+
   // Listen for mid-session token expiry fired by api/client.ts
   useEffect(() => {
     const handler = () => { if (authToken) setReAuthNeeded(true); };
@@ -455,7 +470,7 @@ export function App() {
           {t("app.project")}: {project?.meta.name ?? "—"}
         </span>
         <div style={{ display: "flex", gap: 4 }}>
-          {(["edit", "view", "config"] as Mode[]).map((m) => (
+          {allowedModes.map((m) => (
             <button
               key={m}
               onClick={() => setMode(m)}
@@ -464,9 +479,9 @@ export function App() {
                 borderRadius: 4,
                 border: "none",
                 cursor: "pointer",
-                background: mode === m ? "#3b82f6" : "#334155",
+                background: effectiveMode === m ? "#3b82f6" : "#334155",
                 color: "#fff",
-                fontWeight: mode === m ? 600 : 400,
+                fontWeight: effectiveMode === m ? 600 : 400,
                 fontSize: 13,
               }}
             >
@@ -492,7 +507,7 @@ export function App() {
             </span>
           )}
         </span>
-        {mode === "edit" && <GridDropdown />}
+        {effectiveMode === "edit" && <GridDropdown />}
         <button
           onClick={() => {
             const next = !logOpen;
@@ -512,14 +527,14 @@ export function App() {
         >
           Log
         </button>
-        <MainMenu mode={mode} onLogout={handleLogout} onCloseProject={handleCloseProject} />
+        <MainMenu mode={effectiveMode} onLogout={handleLogout} onCloseProject={handleCloseProject} />
       </header>
 
       {/* Alarm banner */}
       <AlarmBanner />
 
       {/* Page tabs (editor mode only) */}
-      {mode === "edit" && (
+      {effectiveMode === "edit" && (
         <div style={{
           display: "flex",
           alignItems: "center",
@@ -555,9 +570,9 @@ export function App() {
 
       {/* Main area */}
       <main style={{ display: "flex", flex: 1, overflow: "hidden" }}>
-        {mode === "edit"   && <EditorShell />}
-        {mode === "view"   && <RuntimeView />}
-        {mode === "config" && <ConfigView />}
+        {effectiveMode === "edit"   && <EditorShell />}
+        {effectiveMode === "view"   && <RuntimeView />}
+        {effectiveMode === "config" && <ConfigView />}
       </main>
 
       {/* Log drawer (bottom) */}
