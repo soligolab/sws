@@ -14,14 +14,24 @@
 
 **Tracce A (Yocto) e RBAC chiuse lato dev.** Resta aperta solo la **Traccia B** (diagnostica white-window del kiosk, da fare a casa) e i task della tabella "Next steps".
 
-### Verifica browser Operator su PX30 (S-37, da fare manualmente)
+### Verifica browser Operator su PX30 (S-37, da rifare con cache pulita)
 
-Dopo il redeploy delle modifiche RBAC, aprire `https://192.168.1.59:8443/` dal PC, login come Operator (`operator/operator` se è una nuova install, oppure le credenziali demo del progetto), e confermare che:
-- L'header mostra solo il bottone "Runtime" (no "Modifica", no "Configurazione").
-- Hard-reload (Ctrl+Shift+R): nessun flash dell'editor; resta su Runtime view.
-- DevTools console: `useAppStore.getState().setAppMode("edit")` → UI resta su Runtime (`effectiveMode` pinning).
-- Re-login come Supervisor: tutti e tre i bottoni visibili; ConfigView apre senza Users/Backups.
-- Re-login come Admin: tutti e tre i bottoni, ConfigView include Users/Backups.
+**Stato attuale**: il maintainer ha provato dopo il redeploy e ha visto ancora il bottone "Editor" come Operator. **Causa quasi certa**: cache browser. Il bundle SPA servito dal device è `index-BPl7YtNj.js` (verificato con `curl -k https://192.168.1.59:8443/index.html | grep index-`), che è quello *post-RBAC* — l'hash è stato confermato cambiare con/senza canary string a controprova. Vite usa `index.html` non-hashed (servito sempre fresco dal runtime), ma il browser può tenerlo cachato e continuare a chiamare un vecchio `index-XXXX.js`.
+
+**Cosa fare la prossima volta**:
+1. Dal PC, aprire DevTools (F12) → tasto destro sul pulsante refresh → "Svuota cache e ricarica difficile" (o `Ctrl+Shift+Del` → "Immagini e file in cache" → Cancella).
+2. Ricaricare `https://192.168.1.59:8443/`, login come Operator.
+3. Verificare matrice:
+   - Operator: solo bottone "Runtime"; no "Editor"/"Configurazione"; no side-menu.
+   - Hard-reload: resta su Runtime.
+   - DevTools console: `useAppStore.getState().setAppMode("edit")` → UI resta su Runtime.
+   - Supervisor: tutti e tre i bottoni; ConfigView senza Users/Backups.
+   - Admin: tutti e tre i bottoni; ConfigView con Users + Backups.
+
+**Se anche dopo cache-purge l'Operator vede il bottone Editor**: è un bug reale e va investigato. Indizi da raccogliere:
+- Cosa stampa `useAppStore.getState().authRole` in DevTools console subito dopo il login Operator (dovrebbe essere `"Operator"`).
+- Cosa stampa `useAppStore.getState().appMode` (dovrebbe essere `"edit"` di default — è il pinning di `effectiveMode` che lo nasconde, non lo store).
+- Screenshot dell'header così vediamo quale bottone effettivamente compare.
 
 ### Traccia A — Yocto cross-compile + deploy (S-36, ✅ chiusa)
 
