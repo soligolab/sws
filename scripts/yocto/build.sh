@@ -91,6 +91,19 @@ export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER="$LINKER_WRAPPER"
 export PYO3_CROSS_LIB_DIR="$OECORE_TARGET_SYSROOT/usr/lib"
 export PYO3_CROSS_PYTHON_VERSION="3.12"
 
+# pyo3-build-config still needs a *host* Python to run its build script.
+# Debian dev box has python3 but not /usr/bin/python (the default pyo3 path).
+# Point it at python3 explicitly to avoid "No such file or directory" errors.
+if [ -z "${PYO3_PYTHON:-}" ]; then
+  if command -v python3 >/dev/null 2>&1; then
+    PYO3_PYTHON="$(command -v python3)"
+    export PYO3_PYTHON
+  else
+    echo "[build] ERROR: no host python3 on PATH (needed by pyo3-build-config)." >&2
+    exit 1
+  fi
+fi
+
 # cc-rs (used by rusqlite/bundled, ring, etc.) will pick up $CC/$CXX from the
 # SDK env. No extra config needed.
 

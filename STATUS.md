@@ -4,7 +4,7 @@
 >
 > Ambienti di test: vedi [docs/TEST_SETUPS.md](docs/TEST_SETUPS.md) (casa, dev server, dispositivi Yocto).
 
-**Last session**: 2026-05-20 (S-35) — Yocto cross-compile scaffolding (WIP — fermato a metà su richiesta maintainer per pausa)
+**Last session**: 2026-05-21 (S-36) — Yocto cross-compile end-to-end green sul dev server in ufficio
 **Last commit**: vedi `git log -1`
 **Current phase**: Phase 2 — sviluppo attivo PoC
 
@@ -14,28 +14,26 @@
 
 **Due tracce aperte. Scegli quale riprendere per prima.**
 
-### Traccia A — Yocto cross-compile (questa sessione, WIP)
+### Traccia A — Yocto cross-compile (S-36, build verde, deploy device pendente)
 
-Piano completo in `~/.claude/plans/a-casa-ho-provato-giggly-sketch.md` (S-35). Decisioni già prese:
-- Approccio: nativo come `/home/ut1/GitPixsys/test-kit`, no container.
-- Solo `sws-runtime` (kiosk non cross-compilabile: sysroot Yocto manca GTK4+WebKitGTK).
-- Un solo SDK `cortexa35-pixsys-linux` per PX30/RK3399/RK3588.
-- PyO3 OK (Python 3.12 + Python.h nel sysroot ✅).
-
-**Fatto in questa sessione**:
-- `scripts/yocto/yocto-linker.sh` (linker wrapper, +x).
-- `scripts/yocto/build.sh` (build script, +x, syntax ok).
-- `deploy/yocto/sws-runtime.service` (systemd unit).
-- `deploy/yocto/sws-runtime-launch.sh` (launch wrapper, +x).
-- `scripts/yocto/deploy.sh` (deploy script — file scritto ma **NON chmod +x e NON syntax-checked**, perché la sessione è stata messa in pausa qui).
-- `sws-runtime/Cargo.toml` → aggiunto `[profile.release]` con `lto=thin`, `strip=symbols`, `codegen-units=1`, `opt-level=3`.
+Build host-side completato e verificato:
+- `./scripts/yocto/build.sh release` → 3m40s clean, 18 MB stripped PIE aarch64.
+- `aarch64-pixsys-linux-readelf -d` NEEDED = `libpython3.12.so.1.0`, `libgcc_s.so.1`, `libm.so.6`, `libc.so.6`, `ld-linux-aarch64.so.1`. No OpenSSL, no sqlite (bundled), no GTK/WebKit.
+- `scripts/yocto/deploy.sh` ora `+x` e syntax-checked.
+- `scripts/yocto/build.sh` aggiornato: auto-export `PYO3_PYTHON=$(command -v python3)` (Debian non ha l'alias `/usr/bin/python` e pyo3-build-config lo richiede anche in cross mode).
+- `docs/YOCTO_CROSSCOMPILE.md` scritta + linkata da `CLAUDE.md`.
 
 **Da fare alla ripresa**:
-1. `chmod +x scripts/yocto/deploy.sh && bash -n scripts/yocto/deploy.sh`.
-2. Scrivere `docs/YOCTO_CROSSCOMPILE.md` (sezioni: prereq SDK + rustup target, come buildare, come deployare, layout su device, troubleshooting). Linkarlo da CLAUDE.md.
-3. Sul dev server: eseguire `./scripts/yocto/build.sh` end-to-end. Verifica attesa: binario in `sws-runtime/target/aarch64-unknown-linux-gnu/release/sws-runtime`, `file` = "ELF 64-bit ARM aarch64", `aarch64-pixsys-linux-readelf -d` → NEEDED solo libpython3.12, libsqlite3, libc, libpthread, libdl, libm (no libgtk/webkit).
-4. Test end-to-end sul device fisico in ufficio: prima **chiedere al maintainer device + IP + conferma `ssh-copy-id`** (vedi memoria `feedback-yocto-device-access`). Poi `./scripts/yocto/deploy.sh pixsys@<host>` → `curl -k https://<host>:8443/health`.
-5. Aggiornare STATUS + CHANGELOG con outcome, commit `-s`.
+1. **Test end-to-end su device fisico Yocto in ufficio**. Prima chiedere al maintainer device + IP + conferma `ssh-copy-id pixsys@<host>` (vedi memoria `feedback-yocto-device-access`). Poi:
+   ```
+   ./scripts/yocto/deploy.sh pixsys@<host>
+   curl -k https://<host>:8443/health     # atteso: ok
+   ```
+   Se /health silenzia: `ssh pixsys@<host> 'sudo journalctl -u sws-runtime.service -n 200 --no-pager'`.
+2. Smoke test SPA dal browser del PC maintainer: `https://<host>:8443/`, accettare cert self-signed, login con `admin/admin` (default in `runtime.env`), creare un progetto vuoto da template, vedere `/api/system` rispondere.
+3. Aggiornare STATUS + CHANGELOG con outcome del deploy reale, commit `-s`.
+
+Nota su una potenziale insidia futura: `sws-runtime.service` oggi gira `User=root` (semplifica scrittura `/opt/sws/`); è un debito CRA — vedi note in deploy/yocto/sws-runtime.service.
 
 ### Traccia B — Diagnostica white-window di `sws-kiosk` (S-34, ancora pendente)
 
