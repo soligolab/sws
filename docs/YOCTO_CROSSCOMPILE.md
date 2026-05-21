@@ -143,7 +143,7 @@ Layout on device (created on first install, never overwritten afterwards
 for the `runtime.env` file):
 
 ```
-/opt/sws/
+/data/user/sws/
   sws-runtime              binary
   sws-runtime-launch.sh    env loader + exec wrapper
   runtime.env              per-device overrides (admin user / passwords)
@@ -155,6 +155,12 @@ for the `runtime.env` file):
 
 /etc/systemd/system/sws-runtime.service
 ```
+
+> Why `/data/user/sws` and not `/opt/sws`: Pixsys Yocto devices mount `/`
+> read-only (squashfs/ubifs) and use `/data/user` as the writable scratch
+> partition. `scp` from the `pixsys` account can only target there. The
+> staging dir is also under `/data/user` so the post-staging `sudo install`
+> step is a same-partition rename instead of a cross-partition copy.
 
 The unit runs the launch wrapper, which sources `runtime.env` and execs
 `sws-runtime --config ... --projects-root ... --templates-root ...
@@ -186,7 +192,7 @@ sudo journalctl -u sws-runtime.service -n 200 --no-pager
 | `readelf -d` shows `libssl`/`libcrypto` | a crate pulled native OpenSSL | find it (`cargo tree -i openssl-sys`); switch to `rustls`-backed features |
 | `readelf -d` shows `libgtk-4`/`libwebkit2gtk` | accidentally built `sws-kiosk` for the target | only build `-p sws-runtime` (default in `build.sh`); kiosk is host-only |
 | Deploy succeeds but `/health` is silent | systemd unit not enabled, or port 8443 firewalled | `systemctl status sws-runtime`, then `journalctl -u sws-runtime -n 100` |
-| `sws-runtime` exits with `permission denied` on `historian.db` | first start as a non-root user that can't write `/opt/sws/` | unit currently runs `User=root` for the PoC — confirm `User=` line in `/etc/systemd/system/sws-runtime.service` |
+| `sws-runtime` exits with `permission denied` on `historian.db` | first start as a non-root user that can't write `/data/user/sws/` | unit currently runs `User=root` for the PoC — confirm `User=` line in `/etc/systemd/system/sws-runtime.service` |
 | Re-deploy wipes `runtime.env` | shouldn't happen — `deploy.sh` only seeds it when missing | check `deploy.sh` install block; if intentional during a major upgrade, back up the file first |
 
 ---
@@ -199,7 +205,7 @@ sudo journalctl -u sws-runtime.service -n 200 --no-pager
 | `scripts/yocto/yocto-linker.sh` | linker wrapper invoked by cargo for the aarch64 target |
 | `scripts/yocto/deploy.sh` | rsync/scp binary + SPA + systemd unit to a device, restart |
 | `deploy/yocto/sws-runtime.service` | systemd unit installed at `/etc/systemd/system/` |
-| `deploy/yocto/sws-runtime-launch.sh` | env loader + exec wrapper installed at `/opt/sws/` |
+| `deploy/yocto/sws-runtime-launch.sh` | env loader + exec wrapper installed at `/data/user/sws/` |
 | `sws-runtime/Cargo.toml` (`[profile.release]`) | LTO + strip + opt-level for size-/perf-tuned builds |
 
 ---

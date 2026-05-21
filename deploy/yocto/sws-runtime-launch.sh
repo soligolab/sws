@@ -1,16 +1,16 @@
 #!/usr/bin/env sh
 #
 # Launch wrapper for sws-runtime on Pixsys Yocto devices. Installed at
-# /opt/sws/sws-runtime-launch.sh by scripts/yocto/deploy.sh and invoked
+# /data/user/sws/sws-runtime-launch.sh by scripts/yocto/deploy.sh and invoked
 # by sws-runtime.service.
 #
-# Edit /opt/sws/runtime.env on the device to override the credentials below
+# Edit /data/user/sws/runtime.env on the device to override the credentials below
 # (the deploy script seeds runtime.env on first install only — never
 # overwritten on subsequent deploys).
 
 set -eu
 
-SWS_HOME="/opt/sws"
+SWS_HOME="/data/user/sws"
 
 # Source environment overrides if present (key=value lines).
 if [ -f "$SWS_HOME/runtime.env" ]; then

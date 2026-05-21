@@ -14,7 +14,7 @@
 #   ./scripts/yocto/deploy.sh <user@host> --debug   # deploy debug binary
 #
 # Layout on device (created on first install):
-#   /opt/sws/
+#   /data/user/sws/
 #     sws-runtime              (binary)
 #     sws-runtime-launch.sh    (env + exec wrapper)
 #     runtime.env              (per-device overrides — never overwritten)
@@ -76,7 +76,11 @@ fi
 # the device. Both go via the same SSH connection multiplexing window
 # defined in ~/.ssh/config — nothing fancy.
 
-STAGE="/tmp/sws-deploy-$$"
+# Staging dir lives under the device's writable partition. Pixsys Yocto boxes
+# typically have / as a read-only squashfs/ubifs; /data/user is the operator
+# scratch area. The post-staging `sudo install` step moves files into
+# /data/user/sws (which is on the same partition — instant rename, no copy).
+STAGE="/data/user/sws-deploy-$$"
 
 # shellcheck disable=SC2029
 ssh "$TARGET_HOST" "mkdir -p $STAGE/www $STAGE/templates"
@@ -120,30 +124,30 @@ ssh -t "$TARGET_HOST" bash <<EOF
 set -euo pipefail
 
 STAGE="$STAGE"
-sudo mkdir -p /opt/sws/config /opt/sws/projects /opt/sws/templates /opt/sws/www
+sudo mkdir -p /data/user/sws/config /data/user/sws/projects /data/user/sws/templates /data/user/sws/www
 
-sudo install -m 0755 "\$STAGE/sws-runtime"            /opt/sws/sws-runtime
-sudo install -m 0755 "\$STAGE/sws-runtime-launch.sh"  /opt/sws/sws-runtime-launch.sh
+sudo install -m 0755 "\$STAGE/sws-runtime"            /data/user/sws/sws-runtime
+sudo install -m 0755 "\$STAGE/sws-runtime-launch.sh"  /data/user/sws/sws-runtime-launch.sh
 
 # runtime.env is seeded once and never overwritten — operator-editable.
-if [ ! -f /opt/sws/runtime.env ]; then
-  sudo tee /opt/sws/runtime.env >/dev/null <<'ENV'
+if [ ! -f /data/user/sws/runtime.env ]; then
+  sudo tee /data/user/sws/runtime.env >/dev/null <<'ENV'
 # Per-device overrides for sws-runtime. Edit and: sudo systemctl restart sws-runtime
 # (default credentials below are for the FIRST LOGIN ONLY — change them!)
 SWS_ADMIN_USER=admin
 SWS_ADMIN_PASSWORD=admin
 ENV
-  sudo chmod 0600 /opt/sws/runtime.env
+  sudo chmod 0600 /data/user/sws/runtime.env
 fi
 
 if [ -d "\$STAGE/www" ]; then
-  sudo rm -rf /opt/sws/www
-  sudo mv     "\$STAGE/www" /opt/sws/www
+  sudo rm -rf /data/user/sws/www
+  sudo mv     "\$STAGE/www" /data/user/sws/www
 fi
 
 if [ -d "\$STAGE/templates" ]; then
-  sudo rm -rf /opt/sws/templates
-  sudo mv     "\$STAGE/templates" /opt/sws/templates
+  sudo rm -rf /data/user/sws/templates
+  sudo mv     "\$STAGE/templates" /data/user/sws/templates
 fi
 
 sudo install -m 0644 "\$STAGE/sws-runtime.service" /etc/systemd/system/sws-runtime.service
