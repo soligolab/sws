@@ -14,7 +14,7 @@ use sws_auth::{AuthState, Role};
 use sws_core::{AlarmDb, LogBus, TagDb, TagQuality, TagWriteBus, DEFAULT_LOG_CAPACITY};
 use sws_historian::{sqlite::SqliteStore, DatastoreRegistry, Historian};
 use sws_pyscript::Engine as PyEngine;
-use sws_web::{router::DerivedTagsRegistry, SourceSupervisor};
+use sws_web::{router::{DerivedTagsRegistry, RegistryCell}, SourceSupervisor};
 use tokio::net::TcpListener;
 use tokio_rustls::{
     rustls::{
@@ -137,8 +137,13 @@ async fn main() -> anyhow::Result<()> {
     // Independent of the stdout fmt layer so the file survives orchestrator
     // log-capture quirks (podman/journald wrap policies). Errors inside the
     // writer go to stderr to avoid feedback loops via tracing → LogBus.
+    // Default logs dir is a sibling of projects_root (not inside it), so that
+    // list_projects never mistakes the log directory for a project.
     let logs_dir = args.logs.clone().unwrap_or_else(|| {
-        args.projects_root.join("logs")
+        args.projects_root
+            .parent()
+            .unwrap_or(&args.projects_root)
+            .join("logs")
     });
     let retention_days = std::env::var("SWS_LOG_RETENTION_DAYS")
         .ok()
@@ -224,9 +229,10 @@ async fn main() -> anyhow::Result<()> {
     let active_dir: sws_web::router::ActiveProjectDir =
         Arc::new(tokio::sync::RwLock::new(None));
 
-    // Datastore registry: built from project.datastores when a project is
-    // known at startup. None = legacy historian-only mode.
-    let mut registry: Option<Arc<DatastoreRegistry>> = None;
+    // Datastore registry: hot-swappable cell initialised empty.
+    // Populated below from project.yaml (if --project was passed) or later
+    // by open_project when the user opens a project via WelcomeScreen.
+    let registry: RegistryCell = Arc::new(tokio::sync::RwLock::new(None));
 
     // Auth state: empty until a project is opened. When --project is set,
     // we swap to its users.yaml; otherwise the WelcomeScreen does it via
@@ -264,9 +270,9 @@ async fn main() -> anyhow::Result<()> {
                             backends = reg.backend_ids().len(),
                             "datastore registry initialized"
                         );
-                        registry = Some(reg);
+                        *registry.write().await = Some(reg);
                     }
-                    Ok(None) => {} // no datastores configured, keep historian-only mode
+                    Ok(None) => {} // no datastores configured
                     Err(e) => warn!("datastore registry init failed: {e:#}"),
                 }
                 alarm_db.load(project.alarms).await;
@@ -484,9 +490,10 @@ async fn main() -> anyhow::Result<()> {
     historian.clone().spawn_recorder(tag_db.clone());
 
     // Datastore registry recorder: routes updates to external backends.
-    // Runs in addition to the historian (both receive every update).
-    if let Some(reg) = &registry {
-        reg.clone().spawn_recorder(tag_db.clone());
+    // Spawned at startup if --project already has datastores; also spawned
+    // dynamically by open_project when the user opens a project later.
+    if let Some(reg) = registry.read().await.as_ref().map(Arc::clone) {
+        reg.spawn_recorder(tag_db.clone());
     }
 
     // Historian SQLite pruning: run once at startup then every 24 h.

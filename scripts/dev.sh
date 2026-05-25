@@ -114,6 +114,43 @@ alarms:
     severity: Warning
 LEGACY_FALLBACK_YAML
 
+# ── Cleanup of stale processes ───────────────────────────────────────────────
+# Kill any sws-runtime or vite processes from a previous run of this repo.
+# Uses REPO_ROOT-scoped patterns so we don't clobber unrelated processes.
+
+stop_existing() {
+  local killed=0
+
+  if pgrep -f "$REPO_ROOT/sws-runtime/target/debug/sws-runtime" >/dev/null 2>&1; then
+    echo "[cleanup] stopping existing sws-runtime…"
+    pkill -TERM -f "$REPO_ROOT/sws-runtime/target/debug/sws-runtime" 2>/dev/null || true
+    # Give it up to 3 s to shut down gracefully, then force.
+    local i
+    for i in $(seq 1 6); do
+      pgrep -f "$REPO_ROOT/sws-runtime/target/debug/sws-runtime" >/dev/null 2>&1 || break
+      sleep 0.5
+    done
+    pkill -KILL -f "$REPO_ROOT/sws-runtime/target/debug/sws-runtime" 2>/dev/null || true
+    killed=1
+  fi
+
+  if pgrep -f "$REPO_ROOT/sws-editor.*vite" >/dev/null 2>&1; then
+    echo "[cleanup] stopping existing vite dev server…"
+    pkill -TERM -f "$REPO_ROOT/sws-editor.*vite" 2>/dev/null || true
+    sleep 1
+    pkill -KILL -f "$REPO_ROOT/sws-editor.*vite" 2>/dev/null || true
+    killed=1
+  fi
+
+  # esbuild is a child of vite but sometimes lingers after vite is killed.
+  if pgrep -f "$REPO_ROOT/sws-editor.*esbuild" >/dev/null 2>&1; then
+    pkill -KILL -f "$REPO_ROOT/sws-editor.*esbuild" 2>/dev/null || true
+    killed=1
+  fi
+
+  if [ "$killed" -eq 1 ]; then sleep 0.3; fi
+}
+
 # ── pnpm detection ───────────────────────────────────────────────────────────
 # The maintainer's machine has pnpm only via corepack's shim; on a CI box it
 # might be on PATH. Try the obvious candidates in order.
@@ -165,9 +202,16 @@ start_editor() {
 # ── Modes ────────────────────────────────────────────────────────────────────
 
 case "${1:-both}" in
-  runtime) start_runtime ;;
-  editor)  start_editor  ;;
+  runtime)
+    stop_existing
+    start_runtime
+    ;;
+  editor)
+    stop_existing
+    start_editor
+    ;;
   kiosk)
+    stop_existing
     echo "[kiosk] building runtime + sws-kiosk…"
     (cd "$REPO_ROOT/sws-runtime" && cargo build --quiet -p sws-runtime)
     (cd "$REPO_ROOT/sws-runtime" && cargo build --quiet --manifest-path crates/sws-kiosk/Cargo.toml)
@@ -222,6 +266,7 @@ case "${1:-both}" in
       "https://localhost:8443" --allow-insecure-tls --windowed
     ;;
   both)
+    stop_existing
     echo "[runtime] building (cargo build)…"
     (cd "$REPO_ROOT/sws-runtime" && cargo build --quiet -p sws-runtime)
 

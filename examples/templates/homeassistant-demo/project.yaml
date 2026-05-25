@@ -1,112 +1,150 @@
 meta:
   name: homeassistant-demo
-  version: 0.1.0
+  version: 0.2.0
 
 # ── TAG ───────────────────────────────────────────────────────────────────────
+# Tutti gli entity_id si riferiscono a un'installazione reale con:
+#   - Sensori Zigbee (temperatura/umidità per stanza)
+#   - Inverter fotovoltaico Solarman (PV + batteria + rete)
+#   - Sensori perimetrali (porte, finestre, cancello garage)
+#   - Switch controllabili (lampade esterne, prese)
+# Adatta gli entity_id alla tua installazione. Vedi SETUP.md.
 
 tags:
 
-  # Sensori clima
+  # ── Ambiente: soggiorno ────────────────────────────────────────────────────
   - id: sala.temperatura
     description: "Temperatura soggiorno (°C)"
     data_type: float
     history: true
+    datastore_id: sqlite-locale
 
   - id: sala.umidita
-    description: "Umidità relativa soggiorno (%)"
+    description: "Umidità soggiorno (%)"
     data_type: float
     history: true
+    datastore_id: sqlite-locale
 
-  - id: esterno.temperatura
-    description: "Temperatura esterna (°C)"
+  # ── Ambiente: studio ───────────────────────────────────────────────────────
+  - id: studio.temperatura
+    description: "Temperatura studio (°C)"
     data_type: float
     history: true
+    datastore_id: sqlite-locale
 
-  - id: esterno.umidita
-    description: "Umidità relativa esterna (%)"
+  - id: studio.umidita
+    description: "Umidità studio (%)"
     data_type: float
 
-  # Energia
+  # ── Fotovoltaico ───────────────────────────────────────────────────────────
+  - id: pv.potenza_kw
+    description: "Produzione FV istantanea (kW)"
+    data_type: float
+    history: true
+    datastore_id: sqlite-locale
+
+  - id: pv.produzione_oggi_kwh
+    description: "Produzione FV oggi (kWh)"
+    data_type: float
+
+  - id: batteria.percentuale
+    description: "Carica batteria (%)"
+    data_type: float
+    history: true
+    datastore_id: sqlite-locale
+
+  - id: batteria.potenza_kw
+    description: "Potenza batteria (kW — positivo = carica, negativo = scarica)"
+    data_type: float
+    history: true
+    datastore_id: sqlite-locale
+
+  - id: batteria.temperatura
+    description: "Temperatura batteria (°C)"
+    data_type: float
+
+  # ── Energia casa ───────────────────────────────────────────────────────────
+  # Nota: energia.potenza_w mantiene l'ID per compatibilità sinottico
+  #       ma il valore è in kW (inverter Solarman).
   - id: energia.potenza_w
-    description: "Potenza istantanea (W)"
+    description: "Consumo casa istantaneo (kW)"
     data_type: float
     history: true
+    datastore_id: sqlite-locale
 
   - id: energia.consumo_kwh
-    description: "Energia totale consumata (kWh)"
+    description: "Consumo casa oggi (kWh)"
     data_type: float
 
-  # Sensori binari
+  - id: rete.potenza_kw
+    description: "Scambio rete (kW — positivo = immissione, negativo = prelievo)"
+    data_type: float
+    history: true
+    datastore_id: sqlite-locale
+
+  # ── Sicurezza ──────────────────────────────────────────────────────────────
+  - id: garage.aperto
+    description: "Porta sezionale garage aperta"
+    data_type: bool
+
   - id: porta.principale
-    description: "Porta principale aperta"
+    description: "Portoncino ingresso aperto"
     data_type: bool
 
   - id: ingresso.movimento
-    description: "Rilevamento movimento ingresso"
+    description: "Presenza rilevata in ingresso"
     data_type: bool
 
-  - id: garage.aperto
-    description: "Garage aperto"
+  - id: movimento.esterno
+    description: "Movimento area esterna rilevato"
     data_type: bool
 
-  # Clima (attributo)
-  - id: clima.temperatura_attuale
-    description: "Temperatura attuale clima (°C)"
-    data_type: float
+  - id: finestra.soggiorno_sx
+    description: "Portafinestra soggiorno sinistra aperta"
+    data_type: bool
 
-  - id: clima.setpoint
-    description: "Setpoint temperatura (°C)"
-    data_type: float
+  - id: finestra.soggiorno_dx
+    description: "Portafinestra soggiorno destra aperta"
+    data_type: bool
 
-  # Luci/switch — write-back abilitato
+  # ── Luci/switch — write-back abilitato ────────────────────────────────────
+  # I tag luce.* mantengono gli ID storici del sinottico — rimappati
+  # a switch reali (lampade esterne, prese) disponibili nell'installazione.
+  - id: luce.esterno
+    description: "Lampada cancelletto ON/OFF"
+    data_type: bool
+
   - id: luce.soggiorno
-    description: "Luce soggiorno ON/OFF"
+    description: "Lampada viale centrale ON/OFF"
     data_type: bool
 
   - id: luce.cucina
-    description: "Luce cucina ON/OFF"
-    data_type: bool
-
-  - id: luce.esterno
-    description: "Luce esterna ON/OFF"
+    description: "Lampada strada destra ON/OFF"
     data_type: bool
 
   - id: ventilatore.camera
-    description: "Ventilatore camera ON/OFF"
+    description: "Presa laboratorio ON/OFF"
     data_type: bool
 
-  # Input numerico — write-back abilitato
-  - id: riscaldamento.setpoint
-    description: "Setpoint riscaldamento (°C)"
-    data_type: float
-
-  - id: irrigazione.durata_min
-    description: "Durata irrigazione (minuti)"
-    data_type: float
-
-  # Input booleano — write-back
-  - id: modalita.notturna
-    description: "Modalità notturna attiva"
-    data_type: bool
-
-  # Sole (attributo)
+  # ── Sole ───────────────────────────────────────────────────────────────────
   - id: sole.elevazione
     description: "Elevazione solare (gradi)"
     data_type: float
 
-  # Tag derivati (calcolati da SWS — non su HA)
+  # ── Tag derivati (calcolati da SWS — non su HA) ───────────────────────────
   - id: energia.costo_ora_eur
     description: "Costo energia €/h stimato (0.25 €/kWh)"
     data_type: float
-    expression: "round(tags['energia.potenza_w'] * 0.25 / 1000, 4)"
+    expression: "round(tags['energia.potenza_w'] * 0.25, 4)"
 
+  # Delta temperatura tra due stanze (sostituisce vecchio interno-esterno)
   - id: clima.delta_interno_esterno
-    description: "Delta temperatura interno-esterno (°C)"
+    description: "Delta temperatura soggiorno-studio (°C)"
     data_type: float
-    expression: "round(tags['sala.temperatura'] - tags['esterno.temperatura'], 1)"
+    expression: "round(tags['sala.temperatura'] - tags['studio.temperatura'], 1)"
 
   - id: sala.comfort_index
-    description: "Indice comfort 0-100 (T ideale 22°C, H ideale 50%)"
+    description: "Indice comfort soggiorno 0-100 (T ideale 22°C, U ideale 50%)"
     data_type: float
     expression: |
       t = tags['sala.temperatura']
@@ -115,98 +153,124 @@ tags:
       h_score = max(0.0, 100.0 - abs(h - 50.0) * 2.0)
       round((t_score + h_score) / 2.0, 1)
 
+  - id: pv.autoconsumo_pct
+    description: "Quota consumo coperta da FV (0-100%)"
+    data_type: float
+    expression: |
+      pv   = tags['pv.potenza_kw']
+      casa = tags['energia.potenza_w']
+      if pv <= 0.0 or casa <= 0.0:
+          0.0
+      else:
+          round(min(pv, casa) / casa * 100.0, 1)
+
+# ── DATABASE STORICO ──────────────────────────────────────────────────────────
+# SQLite locale: i campioni vengono scritti in <progetto>/.history/sws-history.db
+# retention_days: 90 → campioni più vecchi di 90 giorni vengono eliminati
+
+datastores:
+  - id: sqlite-locale
+    label: "Storico SQLite locale"
+    backend:
+      kind: sqlite
+      path: .history/sws-history.db
+    retention_days: 90
+
 # ── SORGENTE HOMEASSISTANT ────────────────────────────────────────────────────
 # Adatta url e token alla tua installazione. Vedi SETUP.md.
+# Usa token_env: HA_TOKEN invece di token in chiaro in produzione.
 
 sources:
   - kind: homeassistant
     id: ha-demo
-    url: http://192.168.1.2:8123
-    # token in chiaro per comodità nel template — usa token_env: HA_TOKEN in produzione
-    token: "INSERISCI_TOKEN_QUI"
+    url: http://homeassistant.local:8123
+    token_env: HA_TOKEN
 
     entities:
 
-      # ── Sensori numerici (state principale) ────────────────────────────────
+      # ── Sensori ambiente ──────────────────────────────────────────────────
       - tag: sala.temperatura
-        entity_id: sensor.living_room_temperature
+        entity_id: sensor.sensoreambientesoggiorno_temperature
 
       - tag: sala.umidita
-        entity_id: sensor.living_room_humidity
+        entity_id: sensor.sensoreambientesoggiorno_humidity
 
-      - tag: esterno.temperatura
-        entity_id: sensor.outdoor_temperature
+      - tag: studio.temperatura
+        entity_id: sensor.sensoreambientestudio_temperature
 
-      - tag: esterno.umidita
-        entity_id: sensor.outdoor_humidity
+      - tag: studio.umidita
+        entity_id: sensor.sensoreambientestudio_humidity
 
+      # ── Fotovoltaico (inverter Solarman) ──────────────────────────────────
+      - tag: pv.potenza_kw
+        entity_id: sensor.solarman_pv_instant_generated_pw
+
+      - tag: pv.produzione_oggi_kwh
+        entity_id: sensor.solarman_daily_production
+
+      - tag: batteria.percentuale
+        entity_id: sensor.solarman_battery_percentage
+
+      - tag: batteria.potenza_kw
+        entity_id: sensor.solarman_charge_discharge_power
+
+      - tag: batteria.temperatura
+        entity_id: sensor.solarman_battery_temperature
+
+      # ── Energia casa ──────────────────────────────────────────────────────
       - tag: energia.potenza_w
-        entity_id: sensor.power_meter
+        entity_id: sensor.solarman_power_consumption
 
       - tag: energia.consumo_kwh
-        entity_id: sensor.energy_total
+        entity_id: sensor.solarman_today_power_consumption
 
-      # ── Sensori binari ─────────────────────────────────────────────────────
+      - tag: rete.potenza_kw
+        entity_id: sensor.solarman_feed_in_out_power
+
+      # ── Sicurezza ─────────────────────────────────────────────────────────
+      - tag: garage.aperto
+        entity_id: binary_sensor.garagesezionale_garage_door_contact
+
       - tag: porta.principale
-        entity_id: binary_sensor.front_door
+        entity_id: binary_sensor.portoncinodisimpegno
 
       - tag: ingresso.movimento
-        entity_id: binary_sensor.motion_entrance
+        entity_id: binary_sensor.sensore_presenza_ingresso_occupancy
 
-      - tag: garage.aperto
-        entity_id: binary_sensor.garage_door
+      - tag: movimento.esterno
+        entity_id: binary_sensor.casaretrobosco_motion
 
-      # ── Attributo specifico ────────────────────────────────────────────────
-      - tag: clima.temperatura_attuale
-        entity_id: climate.living_room
-        attribute: current_temperature
+      - tag: finestra.soggiorno_sx
+        entity_id: binary_sensor.portafinestrasoggiornosx
 
-      - tag: clima.setpoint
-        entity_id: climate.living_room
-        attribute: temperature
+      - tag: finestra.soggiorno_dx
+        entity_id: binary_sensor.portafinestrasoggiornodx
 
-      - tag: sole.elevazione
-        entity_id: sun.sun
-        attribute: elevation
-
-      # ── Luci — lettura + scrittura (turn_on/turn_off) ─────────────────────
-      - tag: luce.soggiorno
-        entity_id: light.living_room
-        write_domain: light
-        write_service: turn_on
-
-      - tag: luce.cucina
-        entity_id: light.kitchen
-        write_domain: light
-        write_service: turn_on
-
+      # ── Luci esterne e switch — lettura + write-back ──────────────────────
       - tag: luce.esterno
-        entity_id: light.outdoor
-        write_domain: light
-        write_service: turn_on
-
-      # ── Switch — lettura + scrittura ──────────────────────────────────────
-      - tag: ventilatore.camera
-        entity_id: switch.bedroom_fan
+        entity_id: switch.lampada_cancelletto_mauro
         write_domain: switch
         write_service: turn_on
 
-      # ── Input numerico — scrittura con {"value": N} ───────────────────────
-      - tag: riscaldamento.setpoint
-        entity_id: input_number.heating_setpoint
-        write_domain: input_number
-        write_service: set_value
-
-      - tag: irrigazione.durata_min
-        entity_id: input_number.irrigation_duration
-        write_domain: input_number
-        write_service: set_value
-
-      # ── Input booleano ────────────────────────────────────────────────────
-      - tag: modalita.notturna
-        entity_id: input_boolean.night_mode
-        write_domain: input_boolean
+      - tag: luce.soggiorno
+        entity_id: switch.lampada_viale_centrale_2
+        write_domain: switch
         write_service: turn_on
+
+      - tag: luce.cucina
+        entity_id: switch.lampada_strada_dx_2
+        write_domain: switch
+        write_service: turn_on
+
+      - tag: ventilatore.camera
+        entity_id: switch.presa_laboratorio
+        write_domain: switch
+        write_service: turn_on
+
+      # ── Sole (attributo) ──────────────────────────────────────────────────
+      - tag: sole.elevazione
+        entity_id: sun.sun
+        attribute: elevation
 
 # ── ALLARMI ───────────────────────────────────────────────────────────────────
 
@@ -215,7 +279,7 @@ alarms:
     tag: sala.temperatura
     condition:
       kind: above
-      threshold: 28.0
+      threshold: 27.0
     dead_band: 1.0
     message: "Soggiorno caldo: {value:.1f}°C"
     severity: Warning
@@ -224,7 +288,7 @@ alarms:
     tag: sala.temperatura
     condition:
       kind: below
-      threshold: 16.0
+      threshold: 15.0
     dead_band: 1.0
     message: "Soggiorno freddo: {value:.1f}°C"
     severity: Warning
@@ -233,17 +297,19 @@ alarms:
     tag: energia.potenza_w
     condition:
       kind: above
-      threshold: 4000.0
-    dead_band: 200.0
-    message: "Consumo elevato: {value:.0f} W"
+      threshold: 5.0
+    dead_band: 0.5
+    message: "Consumo elevato: {value:.1f} kW"
     severity: Critical
 
-  - id: alm-porta
-    tag: porta.principale
+  - id: alm-batteria
+    tag: batteria.percentuale
     condition:
-      kind: bool_true
-    message: "Porta principale aperta"
-    severity: Info
+      kind: below
+      threshold: 15.0
+    dead_band: 3.0
+    message: "Batteria scarica: {value:.0f}%"
+    severity: Warning
 
   - id: alm-garage
     tag: garage.aperto
@@ -251,3 +317,17 @@ alarms:
       kind: bool_true
     message: "Porta garage aperta"
     severity: Warning
+
+  - id: alm-porta
+    tag: porta.principale
+    condition:
+      kind: bool_true
+    message: "Portoncino ingresso aperto"
+    severity: Info
+
+  - id: alm-movimento-esterno
+    tag: movimento.esterno
+    condition:
+      kind: bool_true
+    message: "Movimento rilevato area esterna"
+    severity: Info

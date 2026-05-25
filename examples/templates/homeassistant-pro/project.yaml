@@ -1,0 +1,868 @@
+meta:
+  name: homeassistant-pro
+  version: 0.1.0
+
+# ── TAG ───────────────────────────────────────────────────────────────────────
+# Template showcase: sistema fotovoltaico+batteria, monitoraggio elettrico
+# multi-circuito, clima 5 stanze, sicurezza perimetrale completa, controlli
+# luci e tapparelle con write-back.
+#
+# Adatta gli entity_id alla tua installazione. Vedi SETUP.md.
+# Usa token_env: HA_TOKEN invece di token in chiaro in produzione.
+
+tags:
+
+  # ── Fotovoltaico — Stringa 1 ───────────────────────────────────────────────
+  - id: pv1.tensione_v
+    description: "Tensione stringa FV1 (V)"
+    data_type: float
+
+  - id: pv1.corrente_a
+    description: "Corrente stringa FV1 (A)"
+    data_type: float
+    history: true
+    datastore_id: sqlite-pro
+
+  - id: pv1.potenza_kw
+    description: "Potenza stringa FV1 (kW)"
+    data_type: float
+    history: true
+    datastore_id: sqlite-pro
+
+  # ── Fotovoltaico — Stringa 2 ───────────────────────────────────────────────
+  - id: pv2.tensione_v
+    description: "Tensione stringa FV2 (V)"
+    data_type: float
+
+  - id: pv2.corrente_a
+    description: "Corrente stringa FV2 (A)"
+    data_type: float
+    history: true
+    datastore_id: sqlite-pro
+
+  - id: pv2.potenza_kw
+    description: "Potenza stringa FV2 (kW)"
+    data_type: float
+    history: true
+    datastore_id: sqlite-pro
+
+  # ── Fotovoltaico — Energia ─────────────────────────────────────────────────
+  - id: pv.potenza_kw
+    description: "Produzione FV istantanea totale (kW)"
+    data_type: float
+    history: true
+    datastore_id: sqlite-pro
+
+  - id: pv.produzione_oggi_kwh
+    description: "Produzione FV oggi (kWh)"
+    data_type: float
+
+  - id: pv.produzione_totale_kwh
+    description: "Produzione FV totale lifetime (kWh)"
+    data_type: float
+
+  - id: pv.ore_oggi_min
+    description: "Minuti di generazione oggi (min)"
+    data_type: float
+
+  # ── Inverter — Temperature ─────────────────────────────────────────────────
+  - id: inverter.temp_interna
+    description: "Temperatura interna inverter (°C)"
+    data_type: float
+
+  - id: inverter.temp_modulo
+    description: "Temperatura modulo inverter (°C)"
+    data_type: float
+
+  # ── Batteria ───────────────────────────────────────────────────────────────
+  - id: batteria.percentuale
+    description: "Carica batteria (%)"
+    data_type: float
+    history: true
+    datastore_id: sqlite-pro
+
+  - id: batteria.tensione_v
+    description: "Tensione batteria (V)"
+    data_type: float
+    history: true
+    datastore_id: sqlite-pro
+
+  - id: batteria.corrente_a
+    description: "Corrente batteria (A — positivo = carica, negativo = scarica)"
+    data_type: float
+    history: true
+    datastore_id: sqlite-pro
+
+  - id: batteria.potenza_kw
+    description: "Potenza batteria (kW — positivo = carica, negativo = scarica)"
+    data_type: float
+    history: true
+    datastore_id: sqlite-pro
+
+  - id: batteria.temperatura
+    description: "Temperatura batteria (°C)"
+    data_type: float
+
+  - id: batteria.cicli
+    description: "Cicli di carica totali"
+    data_type: float
+
+  - id: batteria.capacita_ah
+    description: "Capacità nominale batteria (Ah)"
+    data_type: float
+
+  - id: batteria.carica_oggi_kwh
+    description: "Energia caricata oggi (kWh)"
+    data_type: float
+
+  - id: batteria.scarica_oggi_kwh
+    description: "Energia scaricata oggi (kWh)"
+    data_type: float
+
+  # ── Rete Elettrica ─────────────────────────────────────────────────────────
+  - id: rete.tensione_v
+    description: "Tensione rete (V)"
+    data_type: float
+    history: true
+    datastore_id: sqlite-pro
+
+  - id: rete.corrente_a
+    description: "Corrente rete (A)"
+    data_type: float
+    history: true
+    datastore_id: sqlite-pro
+
+  - id: rete.frequenza_hz
+    description: "Frequenza rete (Hz)"
+    data_type: float
+    history: true
+    datastore_id: sqlite-pro
+
+  - id: rete.potenza_kw
+    description: "Scambio rete (kW — positivo = immissione, negativo = prelievo)"
+    data_type: float
+    history: true
+    datastore_id: sqlite-pro
+
+  - id: rete.consumo_oggi_kwh
+    description: "Energia prelevata dalla rete oggi (kWh)"
+    data_type: float
+
+  - id: rete.immissione_oggi_kwh
+    description: "Energia immessa in rete oggi (kWh)"
+    data_type: float
+
+  - id: rete.immissione_totale_kwh
+    description: "Energia immessa in rete lifetime (kWh)"
+    data_type: float
+
+  # ── Casa — Consumo ─────────────────────────────────────────────────────────
+  - id: energia.potenza_kw
+    description: "Consumo casa istantaneo (kW)"
+    data_type: float
+    history: true
+    datastore_id: sqlite-pro
+
+  - id: energia.consumo_oggi_kwh
+    description: "Consumo casa oggi (kWh)"
+    data_type: float
+
+  - id: energia.consumo_totale_kwh
+    description: "Consumo casa lifetime (kWh)"
+    data_type: float
+
+  # ── Clima — Soggiorno ──────────────────────────────────────────────────────
+  - id: sala.temperatura
+    description: "Temperatura soggiorno (°C)"
+    data_type: float
+    history: true
+    datastore_id: sqlite-pro
+
+  - id: sala.umidita
+    description: "Umidità soggiorno (%)"
+    data_type: float
+    history: true
+    datastore_id: sqlite-pro
+
+  # ── Clima — Studio ─────────────────────────────────────────────────────────
+  - id: studio.temperatura
+    description: "Temperatura studio (°C)"
+    data_type: float
+    history: true
+    datastore_id: sqlite-pro
+
+  - id: studio.umidita
+    description: "Umidità studio (%)"
+    data_type: float
+
+  # ── Clima — Lavanderia ─────────────────────────────────────────────────────
+  - id: lavanderia.temperatura
+    description: "Temperatura lavanderia (°C)"
+    data_type: float
+    history: true
+    datastore_id: sqlite-pro
+
+  - id: lavanderia.umidita
+    description: "Umidità lavanderia (%)"
+    data_type: float
+
+  # ── Clima — Bagno ──────────────────────────────────────────────────────────
+  - id: bagno.temperatura
+    description: "Temperatura bagno piano terra (°C)"
+    data_type: float
+
+  - id: bagno.umidita
+    description: "Umidità bagno piano terra (%)"
+    data_type: float
+
+  # ── Clima — Locale Tecnico ─────────────────────────────────────────────────
+  - id: tecnico.temperatura
+    description: "Temperatura locale tecnico (°C)"
+    data_type: float
+
+  - id: tecnico.umidita
+    description: "Umidità locale tecnico (%)"
+    data_type: float
+
+  - id: tecnico.pressione_hpa
+    description: "Pressione atmosferica locale tecnico (hPa)"
+    data_type: float
+
+  # ── Carichi — Contatore Cucina ─────────────────────────────────────────────
+  - id: cucina.potenza_w
+    description: "Potenza contatore cucina (W)"
+    data_type: float
+    history: true
+    datastore_id: sqlite-pro
+
+  - id: cucina.tensione_v
+    description: "Tensione contatore cucina (V)"
+    data_type: float
+    history: true
+    datastore_id: sqlite-pro
+
+  - id: cucina.corrente_a
+    description: "Corrente contatore cucina (A)"
+    data_type: float
+    history: true
+    datastore_id: sqlite-pro
+
+  - id: cucina.frequenza_hz
+    description: "Frequenza contatore cucina (Hz)"
+    data_type: float
+
+  - id: cucina.energia_kwh
+    description: "Energia totale contatore cucina (kWh)"
+    data_type: float
+
+  # ── Carichi — Pompa di Calore ──────────────────────────────────────────────
+  - id: pompacalore.potenza_w
+    description: "Potenza pompa di calore (W)"
+    data_type: float
+    history: true
+    datastore_id: sqlite-pro
+
+  - id: pompacalore.tensione_v
+    description: "Tensione pompa di calore (V)"
+    data_type: float
+
+  - id: pompacalore.corrente_a
+    description: "Corrente pompa di calore (A)"
+    data_type: float
+
+  - id: pompacalore.energia_kwh
+    description: "Energia totale pompa di calore (kWh)"
+    data_type: float
+
+  # ── Sicurezza — Porte ──────────────────────────────────────────────────────
+  - id: garage.aperto
+    description: "Porta sezionale garage aperta"
+    data_type: bool
+
+  - id: porta.principale
+    description: "Portoncino ingresso aperto"
+    data_type: bool
+
+  - id: porta.studio
+    description: "Portoncino studio aperto"
+    data_type: bool
+
+  # ── Sicurezza — Finestre ───────────────────────────────────────────────────
+  - id: finestra.soggiorno_sx
+    description: "Portafinestra soggiorno sinistra aperta"
+    data_type: bool
+
+  - id: finestra.soggiorno_dx
+    description: "Portafinestra soggiorno destra aperta"
+    data_type: bool
+
+  - id: finestra.cucina_sx
+    description: "Finestra cucina sinistra aperta"
+    data_type: bool
+
+  - id: finestra.cucina_dx
+    description: "Finestra cucina destra aperta"
+    data_type: bool
+
+  - id: finestra.lavanderia
+    description: "Portafinestra lavanderia aperta"
+    data_type: bool
+
+  - id: finestra.bagno
+    description: "Finestra bagno piano terra aperta"
+    data_type: bool
+
+  # ── Sicurezza — Movimento & AI ─────────────────────────────────────────────
+  - id: ingresso.movimento
+    description: "Presenza rilevata in ingresso"
+    data_type: bool
+
+  - id: esterno.movimento
+    description: "Movimento area esterna rilevato"
+    data_type: bool
+
+  - id: esterno.persona
+    description: "Persona rilevata area esterna (AI)"
+    data_type: bool
+
+  - id: esterno.veicolo
+    description: "Veicolo rilevato area esterna (AI)"
+    data_type: bool
+
+  - id: piazzale.movimento
+    description: "Allarme movimento piazzale"
+    data_type: bool
+
+  # ── Sicurezza — Perimetro ──────────────────────────────────────────────────
+  - id: perimetro.nordest
+    description: "Sensore perimetrale nord-est attivo"
+    data_type: bool
+
+  - id: perimetro.nordovest
+    description: "Sensore perimetrale nord-ovest attivo"
+    data_type: bool
+
+  - id: perimetro.ovest
+    description: "Sensore perimetrale ovest attivo"
+    data_type: bool
+
+  # ── Luci Esterne — write-back ──────────────────────────────────────────────
+  - id: luce.cancelletto
+    description: "Lampada cancelletto ON/OFF"
+    data_type: bool
+
+  - id: luce.viale
+    description: "Lampada viale centrale ON/OFF"
+    data_type: bool
+
+  - id: luce.strada
+    description: "Lampada strada destra ON/OFF"
+    data_type: bool
+
+  # ── Tapparelle — write-back cover ──────────────────────────────────────────
+  # true → open_cover, false → close_cover (auto-invert nel plugin HA)
+  - id: tapparella.soggiorno_sx
+    description: "Tapparella soggiorno sinistra (open=true / closed=false)"
+    data_type: bool
+
+  - id: tapparella.soggiorno_dx
+    description: "Tapparella soggiorno destra (open=true / closed=false)"
+    data_type: bool
+
+  - id: tapparella.bagno
+    description: "Tapparella bagno piano terra (open=true / closed=false)"
+    data_type: bool
+
+  - id: tapparella.garage
+    description: "Tapparella/schermatura garage (open=true / closed=false)"
+    data_type: bool
+
+  # ── Presenza & Sole ────────────────────────────────────────────────────────
+  # person: "home" → true, "not_home" → false
+  - id: mauro.a_casa
+    description: "Mauro è a casa"
+    data_type: bool
+
+  - id: sole.elevazione
+    description: "Elevazione solare (gradi)"
+    data_type: float
+
+  # ── Tag derivati ───────────────────────────────────────────────────────────
+  # Calcolati da SWS — non mappati su HA
+
+  - id: pv.potenza_totale_kw
+    description: "Potenza FV totale PV1+PV2 (kW)"
+    data_type: float
+    history: true
+    datastore_id: sqlite-pro
+    expression: "round(tags['pv1.potenza_kw'] + tags['pv2.potenza_kw'], 3)"
+
+  - id: energia.costo_ora_eur
+    description: "Costo energia €/h stimato (0.25 €/kWh)"
+    data_type: float
+    expression: "round(tags['energia.potenza_kw'] * 0.25, 4)"
+
+  - id: pv.autoconsumo_pct
+    description: "Quota consumo coperta da FV (0-100%)"
+    data_type: float
+    expression: |
+      pv   = tags['pv.potenza_kw']
+      casa = tags['energia.potenza_kw']
+      if pv <= 0.0 or casa <= 0.0:
+          0.0
+      else:
+          round(min(pv, casa) / casa * 100.0, 1)
+
+  - id: sala.comfort_index
+    description: "Indice comfort soggiorno 0-100 (T ideale 22°C, U ideale 50%)"
+    data_type: float
+    expression: |
+      t = tags['sala.temperatura']
+      h = tags['sala.umidita']
+      t_score = max(0.0, 100.0 - abs(t - 22.0) * 10.0)
+      h_score = max(0.0, 100.0 - abs(h - 50.0) * 2.0)
+      round((t_score + h_score) / 2.0, 1)
+
+  - id: batteria.in_carica
+    description: "Batteria in carica (true) o scarica (false)"
+    data_type: bool
+    expression: "tags['batteria.corrente_a'] > 0.0"
+
+  - id: rete.acquisto_kw
+    description: "Potenza prelevata dalla rete (kW — sempre ≥ 0)"
+    data_type: float
+    expression: "round(max(0.0, -tags['rete.potenza_kw']), 3)"
+
+  - id: rete.vendita_kw
+    description: "Potenza immessa in rete (kW — sempre ≥ 0)"
+    data_type: float
+    expression: "round(max(0.0, tags['rete.potenza_kw']), 3)"
+
+  - id: clima.temp_media
+    description: "Temperatura media 5 stanze (°C)"
+    data_type: float
+    expression: |
+      temps = [
+          tags['sala.temperatura'],
+          tags['studio.temperatura'],
+          tags['lavanderia.temperatura'],
+          tags['bagno.temperatura'],
+          tags['tecnico.temperatura'],
+      ]
+      round(sum(temps) / len(temps), 1)
+
+  - id: energia.saldo_kw
+    description: "Saldo energetico FV-casa (kW — positivo = surplus, negativo = deficit)"
+    data_type: float
+    expression: "round(tags['pv.potenza_kw'] - tags['energia.potenza_kw'], 3)"
+
+# ── DATABASE STORICO ──────────────────────────────────────────────────────────
+# SQLite locale — retention 365 giorni
+# Path relativa alla directory del progetto
+
+datastores:
+  - id: sqlite-pro
+    label: "Storico SQLite Pro — HA Showcase"
+    backend:
+      kind: sqlite
+      path: .history/ha-pro.db
+    retention_days: 365
+
+# ── SORGENTE HOMEASSISTANT ────────────────────────────────────────────────────
+# Sostituisci url e token con i tuoi valori. Vedi SETUP.md.
+# Usa token_env: HA_TOKEN per non mettere il token in chiaro nel file.
+
+sources:
+  - kind: homeassistant
+    id: ha-pro
+    url: http://homeassistant.local:8123
+    token_env: HA_TOKEN
+
+    entities:
+
+      # ── FV Stringa 1 ───────────────────────────────────────────────────────
+      - tag: pv1.tensione_v
+        entity_id: sensor.solarman_pv1_voltage
+
+      - tag: pv1.corrente_a
+        entity_id: sensor.solarman_pv1_current
+
+      - tag: pv1.potenza_kw
+        entity_id: sensor.solarman_pv1_power
+
+      # ── FV Stringa 2 ───────────────────────────────────────────────────────
+      - tag: pv2.tensione_v
+        entity_id: sensor.solarman_pv2_voltage
+
+      - tag: pv2.corrente_a
+        entity_id: sensor.solarman_pv2_current
+
+      - tag: pv2.potenza_kw
+        entity_id: sensor.solarman_pv2_power
+
+      # ── FV Energia ─────────────────────────────────────────────────────────
+      - tag: pv.potenza_kw
+        entity_id: sensor.solarman_pv_instant_generated_pw
+
+      - tag: pv.produzione_oggi_kwh
+        entity_id: sensor.solarman_daily_production
+
+      - tag: pv.produzione_totale_kwh
+        entity_id: sensor.solarman_total_production
+
+      - tag: pv.ore_oggi_min
+        entity_id: sensor.solarman_today_generation_time
+
+      # ── Inverter ───────────────────────────────────────────────────────────
+      - tag: inverter.temp_interna
+        entity_id: sensor.solarman_inverter_inner_temperature
+
+      - tag: inverter.temp_modulo
+        entity_id: sensor.solarman_inverter_module_temperature
+
+      # ── Batteria ───────────────────────────────────────────────────────────
+      - tag: batteria.percentuale
+        entity_id: sensor.solarman_battery_percentage
+
+      - tag: batteria.tensione_v
+        entity_id: sensor.solarman_battery_voltage
+
+      - tag: batteria.corrente_a
+        entity_id: sensor.solarman_battery_charge_discharge_current
+
+      - tag: batteria.potenza_kw
+        entity_id: sensor.solarman_charge_discharge_power
+
+      - tag: batteria.temperatura
+        entity_id: sensor.solarman_battery_temperature
+
+      - tag: batteria.cicli
+        entity_id: sensor.solarman_battery_cicles
+
+      - tag: batteria.capacita_ah
+        entity_id: sensor.solarman_battery_capacity
+
+      - tag: batteria.carica_oggi_kwh
+        entity_id: sensor.solarman_battery_daily_charge
+
+      - tag: batteria.scarica_oggi_kwh
+        entity_id: sensor.solarman_battery_daily_discharge_2
+
+      # ── Rete Elettrica ─────────────────────────────────────────────────────
+      - tag: rete.tensione_v
+        entity_id: sensor.solarman_grid_voltage
+
+      - tag: rete.corrente_a
+        entity_id: sensor.solarman_grid_current
+
+      - tag: rete.frequenza_hz
+        entity_id: sensor.solarman_grid_frequency
+
+      - tag: rete.potenza_kw
+        entity_id: sensor.solarman_feed_in_out_power
+
+      - tag: rete.consumo_oggi_kwh
+        entity_id: sensor.solarman_today_grid_consumption
+
+      - tag: rete.immissione_oggi_kwh
+        entity_id: sensor.solarman_today_grid_return
+
+      - tag: rete.immissione_totale_kwh
+        entity_id: sensor.solarman_total_grid_return
+
+      # ── Casa — Consumo ─────────────────────────────────────────────────────
+      - tag: energia.potenza_kw
+        entity_id: sensor.solarman_power_consumption
+
+      - tag: energia.consumo_oggi_kwh
+        entity_id: sensor.solarman_today_power_consumption
+
+      - tag: energia.consumo_totale_kwh
+        entity_id: sensor.solarman_total_power_consumption
+
+      # ── Clima — Soggiorno ──────────────────────────────────────────────────
+      - tag: sala.temperatura
+        entity_id: sensor.sensoreambientesoggiorno_temperature
+
+      - tag: sala.umidita
+        entity_id: sensor.sensoreambientesoggiorno_humidity
+
+      # ── Clima — Studio ─────────────────────────────────────────────────────
+      - tag: studio.temperatura
+        entity_id: sensor.sensoreambientestudio_temperature
+
+      - tag: studio.umidita
+        entity_id: sensor.sensoreambientestudio_humidity
+
+      # ── Clima — Lavanderia ─────────────────────────────────────────────────
+      - tag: lavanderia.temperatura
+        entity_id: sensor.sensoreambientelavanderia_temperature
+
+      - tag: lavanderia.umidita
+        entity_id: sensor.sensoreambientelavanderia_humidity
+
+      # ── Clima — Bagno ──────────────────────────────────────────────────────
+      - tag: bagno.temperatura
+        entity_id: sensor.sensoreambientebagnopianoterra_temperature
+
+      - tag: bagno.umidita
+        entity_id: sensor.sensoreambientebagnopianoterra_humidity
+
+      # ── Clima — Locale Tecnico ─────────────────────────────────────────────
+      - tag: tecnico.temperatura
+        entity_id: sensor.sensoreambientestanzaarmadi_temperature
+
+      - tag: tecnico.umidita
+        entity_id: sensor.sensoreambientestanzaarmadi_humidity
+
+      - tag: tecnico.pressione_hpa
+        entity_id: sensor.sensoreambientestanzaarmadi_pressure
+
+      # ── Contatore Cucina ───────────────────────────────────────────────────
+      - tag: cucina.potenza_w
+        entity_id: sensor.contatore_cucina_contatore_cucina_active_power_2
+
+      - tag: cucina.tensione_v
+        entity_id: sensor.contatore_cucina_contatore_cucina_voltage_2
+
+      - tag: cucina.corrente_a
+        entity_id: sensor.contatore_cucina_contatore_cucina_current_2
+
+      - tag: cucina.frequenza_hz
+        entity_id: sensor.contatore_cucina_contatore_cucina_frequency_2
+
+      - tag: cucina.energia_kwh
+        entity_id: sensor.contatore_cucina_contatore_cucina_energy_import
+
+      # ── Pompa di Calore ────────────────────────────────────────────────────
+      - tag: pompacalore.potenza_w
+        entity_id: sensor.pompa_di_calore_potenza
+
+      - tag: pompacalore.tensione_v
+        entity_id: sensor.pompa_di_calore_tensione
+
+      - tag: pompacalore.corrente_a
+        entity_id: sensor.pompa_di_calore_corrente
+
+      - tag: pompacalore.energia_kwh
+        entity_id: sensor.pompa_di_calore_energia_totale
+
+      # ── Sicurezza — Porte ──────────────────────────────────────────────────
+      - tag: garage.aperto
+        entity_id: binary_sensor.garagesezionale_garage_door_contact
+
+      - tag: porta.principale
+        entity_id: binary_sensor.portoncinodisimpegno
+
+      - tag: porta.studio
+        entity_id: binary_sensor.portoncinostudio
+
+      # ── Sicurezza — Finestre ───────────────────────────────────────────────
+      - tag: finestra.soggiorno_sx
+        entity_id: binary_sensor.portafinestrasoggiornosx
+
+      - tag: finestra.soggiorno_dx
+        entity_id: binary_sensor.portafinestrasoggiornodx
+
+      - tag: finestra.cucina_sx
+        entity_id: binary_sensor.finestracucinasx
+
+      - tag: finestra.cucina_dx
+        entity_id: binary_sensor.finestracucinadx
+
+      - tag: finestra.lavanderia
+        entity_id: binary_sensor.portafinestralavanderia
+
+      - tag: finestra.bagno
+        entity_id: binary_sensor.finestrabagnoterra
+
+      # ── Sicurezza — Movimento & AI ─────────────────────────────────────────
+      - tag: ingresso.movimento
+        entity_id: binary_sensor.sensore_presenza_ingresso_occupancy
+
+      - tag: esterno.movimento
+        entity_id: binary_sensor.casaretrobosco_motion
+
+      - tag: esterno.persona
+        entity_id: binary_sensor.casaretrobosco_person
+
+      - tag: esterno.veicolo
+        entity_id: binary_sensor.casaretrobosco_vehicle
+
+      - tag: piazzale.movimento
+        entity_id: binary_sensor.piazzale_motion_alarm
+
+      # ── Sicurezza — Perimetro ──────────────────────────────────────────────
+      - tag: perimetro.nordest
+        entity_id: binary_sensor.sensoreperimetralenordest
+
+      - tag: perimetro.nordovest
+        entity_id: binary_sensor.sensoreperimetralenordovest
+
+      - tag: perimetro.ovest
+        entity_id: binary_sensor.sensoreperimetraleovest
+
+      # ── Luci Esterne — write-back ──────────────────────────────────────────
+      - tag: luce.cancelletto
+        entity_id: switch.lampada_cancelletto_mauro
+        write_domain: switch
+        write_service: turn_on
+
+      - tag: luce.viale
+        entity_id: switch.lampada_viale_centrale_2
+        write_domain: switch
+        write_service: turn_on
+
+      - tag: luce.strada
+        entity_id: switch.lampada_strada_dx_2
+        write_domain: switch
+        write_service: turn_on
+
+      # ── Tapparelle — write-back cover ──────────────────────────────────────
+      # true → open_cover, false → close_cover (auto-invert plugin HA)
+      - tag: tapparella.soggiorno_sx
+        entity_id: cover.tapparella_pianoterra_soggiorno_sx
+        write_domain: cover
+        write_service: open_cover
+
+      - tag: tapparella.soggiorno_dx
+        entity_id: cover.tapparella_pianoterra_soggiorno_dx
+        write_domain: cover
+        write_service: open_cover
+
+      - tag: tapparella.bagno
+        entity_id: cover.tapparella_pianoterra_bagno
+        write_domain: cover
+        write_service: open_cover
+
+      - tag: tapparella.garage
+        entity_id: cover.tapparella_pianoterra_garage
+        write_domain: cover
+        write_service: open_cover
+
+      # ── Presenza & Sole ────────────────────────────────────────────────────
+      # person.mauro2: "home" → true, "not_home" → false
+      - tag: mauro.a_casa
+        entity_id: person.mauro2
+
+      - tag: sole.elevazione
+        entity_id: sun.sun
+        attribute: elevation
+
+# ── ALLARMI ───────────────────────────────────────────────────────────────────
+
+alarms:
+
+  # Batteria
+  - id: alm-batteria-bassa
+    tag: batteria.percentuale
+    condition:
+      kind: below
+      threshold: 15.0
+    dead_band: 3.0
+    message: "Batteria scarica: {value:.0f}%"
+    severity: Warning
+
+  - id: alm-batteria-critica
+    tag: batteria.percentuale
+    condition:
+      kind: below
+      threshold: 5.0
+    dead_band: 1.0
+    message: "Batteria critica: {value:.0f}% — intervento urgente"
+    severity: Critical
+
+  # Rete — Tensione
+  - id: alm-rete-sovratensione
+    tag: rete.tensione_v
+    condition:
+      kind: above
+      threshold: 250.0
+    dead_band: 2.0
+    message: "Sovratensione rete: {value:.1f} V"
+    severity: Warning
+
+  - id: alm-rete-sottotensione
+    tag: rete.tensione_v
+    condition:
+      kind: below
+      threshold: 210.0
+    dead_band: 2.0
+    message: "Sottotensione rete: {value:.1f} V"
+    severity: Warning
+
+  # Rete — Frequenza
+  - id: alm-freq-alta
+    tag: rete.frequenza_hz
+    condition:
+      kind: above
+      threshold: 50.3
+    dead_band: 0.05
+    message: "Frequenza rete alta: {value:.2f} Hz"
+    severity: Warning
+
+  - id: alm-freq-bassa
+    tag: rete.frequenza_hz
+    condition:
+      kind: below
+      threshold: 49.7
+    dead_band: 0.05
+    message: "Frequenza rete bassa: {value:.2f} Hz"
+    severity: Warning
+
+  # Sicurezza
+  - id: alm-garage
+    tag: garage.aperto
+    condition:
+      kind: bool_true
+    message: "Porta garage aperta"
+    severity: Warning
+
+  - id: alm-porta
+    tag: porta.principale
+    condition:
+      kind: bool_true
+    message: "Portoncino ingresso aperto"
+    severity: Info
+
+  - id: alm-movimento-esterno
+    tag: esterno.movimento
+    condition:
+      kind: bool_true
+    message: "Movimento rilevato area esterna"
+    severity: Info
+
+  - id: alm-persona-esterna
+    tag: esterno.persona
+    condition:
+      kind: bool_true
+    message: "Persona rilevata area esterna (AI)"
+    severity: Warning
+
+  # Clima
+  - id: alm-temp-alta-sala
+    tag: sala.temperatura
+    condition:
+      kind: above
+      threshold: 28.0
+    dead_band: 1.0
+    message: "Soggiorno troppo caldo: {value:.1f}°C"
+    severity: Warning
+
+  - id: alm-temp-bassa-sala
+    tag: sala.temperatura
+    condition:
+      kind: below
+      threshold: 14.0
+    dead_band: 1.0
+    message: "Soggiorno troppo freddo: {value:.1f}°C"
+    severity: Warning
+
+  - id: alm-umidita-alta
+    tag: sala.umidita
+    condition:
+      kind: above
+      threshold: 70.0
+    dead_band: 5.0
+    message: "Umidità soggiorno elevata: {value:.0f}%"
+    severity: Warning

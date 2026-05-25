@@ -26,30 +26,10 @@ pub async fn run(cfg: ModbusTcpConfig, db: Arc<TagDb>, bus: Arc<TagWriteBus>, ca
         .map(|r| (r.tag.clone(), (r.address, r.scale)))
         .collect();
 
-    loop {
-        if cancel.is_cancelled() {
-            info!(source = %cfg.id, "Modbus task cancelled");
-            return;
-        }
-        tokio::select! {
-            biased;
-            _ = cancel.cancelled() => {
-                info!(source = %cfg.id, "Modbus task cancelled");
-                return;
-            }
-            res = session(&cfg, &db, &routes, &mut write_rx, cancel.clone()) => match res {
-                Ok(()) => return, // clean exit (cancellation)
-                Err(e) => {
-                    warn!(source = %cfg.id, "Modbus error: {e:#} — marking tags Bad, retry in 5 s");
-                    for reg in &cfg.registers {
-                        db.set(reg.tag.clone(), TagValue::Float(0.0), TagQuality::Bad).await;
-                    }
-                    tokio::select! {
-                        _ = cancel.cancelled() => return,
-                        _ = tokio::time::sleep(Duration::from_secs(5)) => {}
-                    }
-                }
-            }
+    if let Err(e) = session(&cfg, &db, &routes, &mut write_rx, cancel).await {
+        warn!(source = %cfg.id, "Modbus error: {e:#} — stopped (save config to retry)");
+        for reg in &cfg.registers {
+            db.set(reg.tag.clone(), TagValue::Float(0.0), TagQuality::Bad).await;
         }
     }
 }
@@ -153,30 +133,10 @@ pub async fn run_rtu(cfg: ModbusRtuConfig, db: Arc<TagDb>, bus: Arc<TagWriteBus>
         .map(|r| (r.tag.clone(), (r.address, r.scale)))
         .collect();
 
-    loop {
-        if cancel.is_cancelled() {
-            info!(source = %cfg.id, "Modbus RTU task cancelled");
-            return;
-        }
-        tokio::select! {
-            biased;
-            _ = cancel.cancelled() => {
-                info!(source = %cfg.id, "Modbus RTU task cancelled");
-                return;
-            }
-            res = session_rtu(&cfg, &db, &routes, &mut write_rx, cancel.clone()) => match res {
-                Ok(()) => return,
-                Err(e) => {
-                    warn!(source = %cfg.id, "Modbus RTU error: {e:#} — marking tags Bad, retry in 5 s");
-                    for reg in &cfg.registers {
-                        db.set(reg.tag.clone(), TagValue::Float(0.0), TagQuality::Bad).await;
-                    }
-                    tokio::select! {
-                        _ = cancel.cancelled() => return,
-                        _ = tokio::time::sleep(Duration::from_secs(5)) => {}
-                    }
-                }
-            }
+    if let Err(e) = session_rtu(&cfg, &db, &routes, &mut write_rx, cancel).await {
+        warn!(source = %cfg.id, "Modbus RTU error: {e:#} — stopped (save config to retry)");
+        for reg in &cfg.registers {
+            db.set(reg.tag.clone(), TagValue::Float(0.0), TagQuality::Bad).await;
         }
     }
 }

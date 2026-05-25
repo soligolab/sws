@@ -24,29 +24,10 @@ pub async fn run(cfg: MqttConfig, db: Arc<TagDb>, bus: Arc<TagWriteBus>, cancel:
         .filter_map(|t| t.publish_topic.as_ref().map(|pt| (t.tag.clone(), pt.clone())))
         .collect();
 
-    loop {
-        if cancel.is_cancelled() {
-            info!(source = %cfg.id, "MQTT task cancelled");
-            return;
-        }
-        tokio::select! {
-            biased;
-            _ = cancel.cancelled() => {
-                info!(source = %cfg.id, "MQTT task cancelled");
-                return;
-            }
-            res = run_session(&cfg, &db, &bus, &writers, cancel.clone()) => {
-                if let Err(e) = res {
-                    warn!(source = %cfg.id, "MQTT session ended: {e:#} — retry in 5 s");
-                    for topic in &cfg.topics {
-                        db.set(topic.tag.clone(), TagValue::Float(0.0), TagQuality::Bad).await;
-                    }
-                    tokio::select! {
-                        _ = cancel.cancelled() => return,
-                        _ = tokio::time::sleep(Duration::from_secs(5)) => {}
-                    }
-                }
-            }
+    if let Err(e) = run_session(&cfg, &db, &bus, &writers, cancel).await {
+        warn!(source = %cfg.id, "MQTT session ended: {e:#} — stopped (save config to retry)");
+        for topic in &cfg.topics {
+            db.set(topic.tag.clone(), TagValue::Float(0.0), TagQuality::Bad).await;
         }
     }
 }

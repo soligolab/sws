@@ -29,6 +29,10 @@ use crate::synoptic::{safe_filename, SynopticPage};
 /// latest body without a restart.
 pub type FunctionsRegistry = Arc<RwLock<HashMap<String, FunctionDef>>>;
 
+/// Hot-swappable datastore registry. Replaced on every `open_project` so
+/// the historian connects to the new project's backends without a restart.
+pub type RegistryCell = Arc<RwLock<Option<Arc<DatastoreRegistry>>>>;
+
 /// List of `(tag_id, expression)` pairs for derived/calculated tags.
 /// Updated whenever the project's tag list changes; read by the derived-tag
 /// evaluator task that runs in the runtime.
@@ -46,9 +50,9 @@ pub struct AppState {
     pub bus: Arc<TagWriteBus>,
     pub alarms: Arc<AlarmDb>,
     pub historian: Arc<Historian>,
-    /// Multi-backend datastore registry. `None` when the project has no
-    /// `datastores` configured (legacy single-SQLite mode).
-    pub registry: Option<Arc<DatastoreRegistry>>,
+    /// Multi-backend datastore registry. Hot-swapped on every `open_project`.
+    /// `None` when no project is open or the project has no `datastores`.
+    pub registry: RegistryCell,
     pub py: PyEngine,
     pub auth: Arc<AuthState>,
     pub supervisor: Arc<SourceSupervisor>,
@@ -75,7 +79,7 @@ pub fn build(
     bus: Arc<TagWriteBus>,
     alarms: Arc<AlarmDb>,
     historian: Arc<Historian>,
-    registry: Option<Arc<DatastoreRegistry>>,
+    registry: RegistryCell,
     py: PyEngine,
     auth: Arc<AuthState>,
     supervisor: Arc<SourceSupervisor>,
@@ -927,8 +931,7 @@ struct DatastoreListItem {
 }
 
 async fn list_datastores(State(s): State<AppState>) -> Json<Vec<DatastoreListItem>> {
-    // If the live registry exists, return its real connected status.
-    if let Some(reg) = &s.registry {
+    if let Some(reg) = s.registry.read().await.as_ref().map(Arc::clone) {
         let stats = reg.all_stats().await;
         return Json(stats.into_iter().map(|(id, st)| DatastoreListItem {
             id,
@@ -936,15 +939,7 @@ async fn list_datastores(State(s): State<AppState>) -> Json<Vec<DatastoreListIte
             error: st.error,
         }).collect());
     }
-    // Registry not yet initialised (project opened via WelcomeScreen after startup).
-    // Return configured datastores as disconnected so the UI can still show them.
-    let Ok(dir) = active_dir(&s).await else { return Json(vec![]); };
-    let Ok(project) = sws_core::project::Project::load(&dir) else { return Json(vec![]); };
-    Json(project.datastores.into_iter().map(|d| DatastoreListItem {
-        id: d.id,
-        connected: false,
-        error: Some("not yet initialised (restart to activate)".into()),
-    }).collect())
+    Json(vec![])
 }
 
 /// Load a datastore backend from project.yaml for one-shot ops (test / stats).
@@ -969,7 +964,7 @@ async fn datastore_stats(
     Path(id): Path<String>,
 ) -> Response {
     // Live registry first; fall back to one-shot query from project config.
-    if let Some(reg) = &s.registry {
+    if let Some(reg) = s.registry.read().await.as_ref().map(Arc::clone) {
         if let Some(stats) = reg.backend_stats(&id).await {
             if let Some(ref err) = stats.error {
                 warn!(datastore_id = %id, "datastore stats error: {err}");
@@ -994,7 +989,7 @@ async fn datastore_test(
     Path(id): Path<String>,
 ) -> Response {
     // Live registry first.
-    if let Some(reg) = &s.registry {
+    if let Some(reg) = s.registry.read().await.as_ref().map(Arc::clone) {
         if reg.backend_ids().contains(&id) {
             return match reg.test_backend(&id).await {
                 Ok(msg)  => Json(msg).into_response(),
@@ -1030,7 +1025,7 @@ async fn datastore_purge(
     Path(id): Path<String>,
     Json(body): Json<PurgeBody>,
 ) -> Response {
-    let Some(reg) = &s.registry else {
+    let Some(reg) = s.registry.read().await.as_ref().map(Arc::clone) else {
         return (StatusCode::NOT_FOUND, "no datastores configured").into_response();
     };
     match reg.purge_backend(&id, body.retention_rows, body.retention_days).await {
@@ -1057,7 +1052,7 @@ async fn datastore_export(
     Path(id): Path<String>,
     Query(q): Query<ExportQuery>,
 ) -> Response {
-    let Some(reg) = &s.registry else {
+    let Some(reg) = s.registry.read().await.as_ref().map(Arc::clone) else {
         return (StatusCode::NOT_FOUND, "no datastores configured").into_response();
     };
     let tags: Vec<String> = q.tags.unwrap_or_default()
