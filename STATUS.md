@@ -4,7 +4,9 @@
 >
 > Ambienti di test: vedi [docs/TEST_SETUPS.md](docs/TEST_SETUPS.md) (casa, dev server, dispositivi Yocto).
 
-**Last session**: 2026-05-24 (S-55) — Template `homeassistant-pro` (showcase completo). Fix plugin HA: `parse_ha_state` ora mappa "home"→Bool(true), "not_home"→Bool(false), "open"→Bool(true), "closed"→Bool(false); `build_service_call` ora inverte correttamente `open_cover`→`close_cover` per Bool(false). Nuovo template 86 tag: FV 2 stringhe Solarman, batteria, rete, clima 5 stanze Zigbee, contatori cucina+pompa di calore (V+A+W+Hz), 14 sensori sicurezza, tapparelle motorizzate write-back (cover), 3 luci esterne write-back (switch), presenza persona, sole elevazione, 9 tag derivati Python, 13 allarmi dead-band, SQLite 365 giorni (20 tag storici). 3 file: `project.yaml` (86 tag), `template.yaml`, `SETUP.md`. cargo check verde.
+**Last session**: 2026-05-25 (S-57) — Fix isolamento progetti + sinottici ha-pro completi. Fix race condition `open_project`/`close_project`: `supervisor.reload` spostato PRIMA di `db.clear` (stop plugin → poi clear, nessuna scrittura residua nel nuovo progetto). Fix historian leak: aggiunto `Historian::clear()`, chiamato in open/close project (il ring buffer in-memory era condiviso tra tutti i progetti). Completate 6 pagine sinottiche per il template `homeassistant-pro` (tutte le funzionalità SCADA: gauge, trend multi-tag, LED, write-back luci ON/OFF, pulsanti tapparelle SU/GIÙ, tabelle clima, KPI energetici). Sinottici copiati anche in `.run/projects/ha/synoptics/`. cargo build verde.
+**Previous session**: 2026-05-24 (S-56) — Bug fix session. Fix `eval_expression` multi-line (AST harness: `ast.parse+__inject` per catturare l'ultima espressione anche in blocchi if/else multi-riga). Fix retry flood di tutti i plugin (HA, MQTT, Modbus TCP/RTU, OPC-UA): rimosso loop esterno di retry — ogni plugin viene chiamato una sola volta; riavvio solo su Save via `handle.is_finished()` in `source_supervisor`. Fix `logs/` scansionato come progetto: spostata dir log default da `projects_root/logs` a `projects_root/../logs`, aggiunto controllo `has_project_yaml` in `list_projects`. Fix `open_project` partial-state: load PRIMA, clear DOPO. Fix `create_project`: dopo copia template, aggiorna `meta.name` nel project.yaml copiato con il nome scelto dall'utente. Fix `dev.sh`: aggiunta `stop_existing()` con pkill TERM+KILL; fix `set -euo pipefail` bug `[ ] && sleep` → `if...fi`. Corretti `meta.name` nei progetti già creati (`.run/projects/test` e `.run/projects/ha`). cargo check + cargo build verdi.
+**Previous session**: 2026-05-24 (S-55) — Template `homeassistant-pro` (showcase completo). Fix plugin HA: `parse_ha_state` ora mappa "home"→Bool(true), "not_home"→Bool(false), "open"→Bool(true), "closed"→Bool(false); `build_service_call` ora inverte correttamente `open_cover`→`close_cover` per Bool(false). Nuovo template 86 tag: FV 2 stringhe Solarman, batteria, rete, clima 5 stanze Zigbee, contatori cucina+pompa di calore (V+A+W+Hz), 14 sensori sicurezza, tapparelle motorizzate write-back (cover), 3 luci esterne write-back (switch), presenza persona, sole elevazione, 9 tag derivati Python, 13 allarmi dead-band, SQLite 365 giorni (20 tag storici). 3 file: `project.yaml` (86 tag), `template.yaml`, `SETUP.md`. cargo check verde.
 **Previous session**: 2026-05-24 (S-54) — SQLite storico per progetto HomeAssistant. Fix hot-swap datastore registry: `registry` in `AppState` era `Option<Arc<...>>` immutabile → progetti aperti via WelcomeScreen non avviavano il recorder. Cambiato a `RegistryCell = Arc<RwLock<Option<Arc<DatastoreRegistry>>>>`. `open_project` ora inizializza il registry + spawna il recorder; `close_project` lo svuota. Template e progetto attivo aggiornati con `datastores:` SQLite + `datastore_id:` sugli 8 tag `history: true`. Verificato: SQLite `sws-history.db` riceve campioni Good da HA. cargo check + pnpm build verdi.
 **Previous session**: 2026-05-23 (S-53) — Bug fix: derived tag evaluator feedback loop. Il task scriveva su TagDb via `db.set()`, che emetteva un broadcast, che il task stesso riceveva → loop geometrico → canale saturo → "lagged by N" continuo → runtime bloccato. Fix: guard che skippa l'intera valutazione quando tutti i tag cambiati nel batch sono essi stessi derivati; batch-drain `try_recv()` per collassare burst N→1 eval round; `Lagged` log abbassato da warn a debug. Un file modificato: `sws-runtime/src/main.rs`. cargo check verde.
 **Previous session**: 2026-05-23 (S-52) — Bug fix: HA Demo template causava "Caricamento progetto…" su tutti i tab dato che i campi `kind: bool_true`/`bool_false` negli allarmi non erano riconosciuti da `AlarmCondition`. Fix: aggiunto `BoolTrue`/`BoolFalse` variant all'enum in sws-core/alarm.rs + evaluate/evaluate_clear aggiornati. Fix `get_project`: prima ritornava 404 silenzioso su parse error, ora 500 con messaggio. Store: aggiunto `projectLoadError` → ConfigView mostra errore in rosso invece di spinner infinito. Tipo `AlarmCondition` aggiornato in types/index.ts. cargo check + pnpm build verdi. Anche nella stessa sessione: cancel login button (LoginScreen.tsx), per-user session TTL configurabile (Users tab), HA entity browser 🔍.
@@ -15,9 +17,48 @@
 
 ---
 
-## Handoff prossima sessione
+## Handoff prossima sessione (in ufficio — PX30 + dispositivi Yocto)
 
-**Tracce A (Yocto), B (kiosk white-window) e RBAC chiuse lato dev.** Resta aperta la verifica RBAC su PX30 con cache-purge (da fare in ufficio). Task principali: vedi tabella Next steps.
+### Contesto stato attuale (2026-05-25)
+
+Due sessioni di bugfix (S-56/S-57) + template ha-pro completo (S-55/S-57).
+Il runtime è stabile. Il binary deve essere ricompilato sull'ufficio/PX30 con `cargo build` o
+lo script di cross-compile Yocto. I commit sono locali (non pushati su remote).
+
+### Cosa fare prima di tutto
+
+**Se lavori direttamente sul dev server via SSH**, il repo è aggiornato e il binary è già
+compilato in `sws-runtime/target/debug/sws-runtime`. Basta `./scripts/dev.sh`.
+
+**Se lavori sul PX30 o Yocto**, devi cross-compilare e deployare:
+```bash
+./scripts/yocto/build.sh release
+./scripts/yocto/deploy.sh pixsys@192.168.1.59  # aggiorna IP se cambiato
+```
+
+### Task in ufficio suggeriti
+
+1. **Smoke test progetto ha-pro** — apri il progetto `ha` (o crea da template `homeassistant-pro`):
+   - Configura `HA_TOKEN=<il-tuo-token>` nell'env o nel dev.sh
+   - Verifica che i 6 sinottici siano visibili e navigabili
+   - Verifica che i tag HA arrivino live (alcuni saranno `Bad` se entity_id non corrisponde)
+   - Verifica write-back: pulsanti luci ON/OFF e tapparelle SÙ/GIÙ
+
+2. **Verifica isolamento progetti** — ora che il bug è fixato:
+   - Apri MQTT demo → genera traffico
+   - Crea progetto vuoto → verifica tag list vuota + nessun sample in `/api/history/...`
+
+3. **Verifica RBAC su PX30** (S-37, in sospeso da settimane):
+   - Hard reload browser (F12 → ricarica difficile)
+   - Login Operator: deve vedere solo Runtime, no Editor
+   - Login Supervisor: Runtime + ConfigView senza Users/Backups
+   - Login Admin: tutto
+
+4. **Adattamento entity_id** — il template usa gli entity_id dell'installazione di casa.
+   Se l'ufficio ha HA, aggiorna `project.yaml` con i tuoi entity_id.
+   Vedi `examples/templates/homeassistant-pro/SETUP.md` per la guida.
+
+### Verifica RBAC su PX30 (S-37, da rifare con cache pulita)
 
 ### Verifica browser Operator su PX30 (S-37, da rifare con cache pulita)
 

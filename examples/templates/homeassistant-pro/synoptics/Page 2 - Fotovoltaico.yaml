@@ -1,0 +1,584 @@
+id: pro_p2
+name: "Fotovoltaico"
+background: "#0f172a"
+width: 800
+height: 620
+
+objects:
+
+# ── HEADER ────────────────────────────────────────────────────────────────────
+- id: pro2_title
+  type: text
+  x: 400
+  y: 20
+  text: "FOTOVOLTAICO — Solarman 2 Stringhe"
+  font_size: 17
+  font_weight: bold
+  text_anchor: middle
+  color: "#e2e8f0"
+  locked: true
+
+- id: pro2_sub
+  type: text
+  x: 400
+  y: 40
+  text: "Tensione · Corrente · Potenza per stringa · Inverter · Storico"
+  font_size: 10
+  text_anchor: middle
+  color: "#475569"
+  locked: true
+
+# ── NAVIGATION ───────────────────────────────────────────────────────────────
+- id: pro2_nav1
+  type: navbutton
+  x: 10
+  y: 572
+  width: 120
+  height: 34
+  label: "◎ Panoramica"
+  target_page: pro_p1
+  locked: true
+
+- id: pro2_nav2
+  type: navbutton
+  x: 140
+  y: 572
+  width: 120
+  height: 34
+  label: "◉ Fotovoltaico"
+  target_page: pro_p2
+  fill: "#1e293b"
+  locked: true
+
+- id: pro2_nav3
+  type: navbutton
+  x: 270
+  y: 572
+  width: 120
+  height: 34
+  label: "⚡ Batt & Rete"
+  target_page: pro_p3
+  locked: true
+
+- id: pro2_nav4
+  type: navbutton
+  x: 400
+  y: 572
+  width: 120
+  height: 34
+  label: "🌡 Clima"
+  target_page: pro_p4
+  locked: true
+
+- id: pro2_nav5
+  type: navbutton
+  x: 530
+  y: 572
+  width: 120
+  height: 34
+  label: "🔌 Carichi"
+  target_page: pro_p5
+  locked: true
+
+- id: pro2_nav6
+  type: navbutton
+  x: 660
+  y: 572
+  width: 120
+  height: 34
+  label: "🔒 Sicurezza"
+  target_page: pro_p6
+  locked: true
+
+# ══════════════════════════════════════════════════════════════════════════════
+# POTENZA TOTALE FV (top bar)
+# ══════════════════════════════════════════════════════════════════════════════
+
+- id: pro2_tot_box
+  type: rect
+  x: 14
+  y: 56
+  width: 772
+  height: 60
+  fill: "#052e16"
+  stroke: "#22c55e"
+  stroke_width: 2
+  rx: 6
+
+- id: pro2_tot_lbl
+  type: text
+  x: 100
+  y: 78
+  text: "POTENZA TOTALE FV"
+  font_size: 11
+  font_weight: bold
+  text_anchor: middle
+  color: "#22c55e"
+
+- id: pro2_tot_kw
+  type: text
+  x: 100
+  y: 103
+  tag: pv.potenza_totale_kw
+  format: "{value:.3f} kW"
+  font_size: 22
+  font_weight: bold
+  text_anchor: middle
+  color: "#4ade80"
+
+- id: pro2_tot_prog
+  type: progress_bar
+  x: 200
+  y: 66
+  width: 370
+  height: 16
+  tag: pv.potenza_totale_kw
+  min: 0
+  max: 12
+  fill: "#22c55e"
+  background: "#14532d"
+
+- id: pro2_oggi_lbl
+  type: text
+  x: 590
+  y: 78
+  text: "Produzione oggi"
+  font_size: 10
+  text_anchor: middle
+  color: "#16a34a"
+
+- id: pro2_oggi_val
+  type: text
+  x: 590
+  y: 103
+  tag: pv.produzione_oggi_kwh
+  format: "{value:.2f} kWh"
+  font_size: 20
+  font_weight: bold
+  text_anchor: middle
+  color: "#86efac"
+
+- id: pro2_tot_kwh_lbl
+  type: text
+  x: 730
+  y: 78
+  text: "Lifetime"
+  font_size: 10
+  text_anchor: middle
+  color: "#16a34a"
+
+- id: pro2_tot_kwh
+  type: text
+  x: 730
+  y: 103
+  tag: pv.produzione_totale_kwh
+  format: "{value:.0f} kWh"
+  font_size: 18
+  font_weight: bold
+  text_anchor: middle
+  color: "#86efac"
+
+# ══════════════════════════════════════════════════════════════════════════════
+# STRINGA PV1 (left column)
+# ══════════════════════════════════════════════════════════════════════════════
+
+- id: pro2_pv1_hdr
+  type: text
+  x: 200
+  y: 136
+  text: "STRINGA 1"
+  font_size: 13
+  font_weight: bold
+  text_anchor: middle
+  color: "#22c55e"
+
+- id: pro2_pv1_box
+  type: rect
+  x: 14
+  y: 144
+  width: 372
+  height: 190
+  fill: "#0a1a10"
+  stroke: "#166534"
+  stroke_width: 1
+  rx: 6
+
+# V1
+- id: pro2_pv1_v_lbl
+  type: text
+  x: 100
+  y: 166
+  text: "Tensione"
+  font_size: 10
+  text_anchor: middle
+  color: "#475569"
+
+- id: pro2_pv1_v
+  type: text
+  x: 100
+  y: 188
+  tag: pv1.tensione_v
+  format: "{value:.1f}"
+  font_size: 28
+  font_weight: bold
+  text_anchor: middle
+  color: "#4ade80"
+
+- id: pro2_pv1_v_u
+  type: text
+  x: 100
+  y: 204
+  text: "V"
+  font_size: 12
+  text_anchor: middle
+  color: "#16a34a"
+
+# gauge V1
+- id: pro2_pv1_v_g
+  type: gauge
+  x: 30
+  y: 210
+  width: 140
+  height: 50
+  tag: pv1.tensione_v
+  min: 150
+  max: 400
+  unit: "V"
+
+# A1
+- id: pro2_pv1_a_lbl
+  type: text
+  x: 290
+  y: 166
+  text: "Corrente"
+  font_size: 10
+  text_anchor: middle
+  color: "#475569"
+
+- id: pro2_pv1_a
+  type: text
+  x: 290
+  y: 188
+  tag: pv1.corrente_a
+  format: "{value:.2f}"
+  font_size: 28
+  font_weight: bold
+  text_anchor: middle
+  color: "#4ade80"
+
+- id: pro2_pv1_a_u
+  type: text
+  x: 290
+  y: 204
+  text: "A"
+  font_size: 12
+  text_anchor: middle
+  color: "#16a34a"
+
+# gauge A1
+- id: pro2_pv1_a_g
+  type: gauge
+  x: 220
+  y: 210
+  width: 140
+  height: 50
+  tag: pv1.corrente_a
+  min: 0
+  max: 12
+  unit: "A"
+
+# kW PV1
+- id: pro2_pv1_kw_lbl
+  type: text
+  x: 200
+  y: 284
+  text: "Potenza PV1"
+  font_size: 10
+  text_anchor: middle
+  color: "#475569"
+
+- id: pro2_pv1_kw
+  type: text
+  x: 200
+  y: 304
+  tag: pv1.potenza_kw
+  format: "{value:.3f} kW"
+  font_size: 16
+  font_weight: bold
+  text_anchor: middle
+  color: "#86efac"
+
+# ══════════════════════════════════════════════════════════════════════════════
+# STRINGA PV2 (right column)
+# ══════════════════════════════════════════════════════════════════════════════
+
+- id: pro2_pv2_hdr
+  type: text
+  x: 600
+  y: 136
+  text: "STRINGA 2"
+  font_size: 13
+  font_weight: bold
+  text_anchor: middle
+  color: "#22c55e"
+
+- id: pro2_pv2_box
+  type: rect
+  x: 414
+  y: 144
+  width: 372
+  height: 190
+  fill: "#0a1a10"
+  stroke: "#166534"
+  stroke_width: 1
+  rx: 6
+
+# V2
+- id: pro2_pv2_v_lbl
+  type: text
+  x: 500
+  y: 166
+  text: "Tensione"
+  font_size: 10
+  text_anchor: middle
+  color: "#475569"
+
+- id: pro2_pv2_v
+  type: text
+  x: 500
+  y: 188
+  tag: pv2.tensione_v
+  format: "{value:.1f}"
+  font_size: 28
+  font_weight: bold
+  text_anchor: middle
+  color: "#4ade80"
+
+- id: pro2_pv2_v_u
+  type: text
+  x: 500
+  y: 204
+  text: "V"
+  font_size: 12
+  text_anchor: middle
+  color: "#16a34a"
+
+- id: pro2_pv2_v_g
+  type: gauge
+  x: 430
+  y: 210
+  width: 140
+  height: 50
+  tag: pv2.tensione_v
+  min: 150
+  max: 400
+  unit: "V"
+
+# A2
+- id: pro2_pv2_a_lbl
+  type: text
+  x: 690
+  y: 166
+  text: "Corrente"
+  font_size: 10
+  text_anchor: middle
+  color: "#475569"
+
+- id: pro2_pv2_a
+  type: text
+  x: 690
+  y: 188
+  tag: pv2.corrente_a
+  format: "{value:.2f}"
+  font_size: 28
+  font_weight: bold
+  text_anchor: middle
+  color: "#4ade80"
+
+- id: pro2_pv2_a_u
+  type: text
+  x: 690
+  y: 204
+  text: "A"
+  font_size: 12
+  text_anchor: middle
+  color: "#16a34a"
+
+- id: pro2_pv2_a_g
+  type: gauge
+  x: 620
+  y: 210
+  width: 140
+  height: 50
+  tag: pv2.corrente_a
+  min: 0
+  max: 12
+  unit: "A"
+
+# kW PV2
+- id: pro2_pv2_kw_lbl
+  type: text
+  x: 600
+  y: 284
+  text: "Potenza PV2"
+  font_size: 10
+  text_anchor: middle
+  color: "#475569"
+
+- id: pro2_pv2_kw
+  type: text
+  x: 600
+  y: 304
+  tag: pv2.potenza_kw
+  format: "{value:.3f} kW"
+  font_size: 16
+  font_weight: bold
+  text_anchor: middle
+  color: "#86efac"
+
+# ══════════════════════════════════════════════════════════════════════════════
+# TREND CORRENTI STRINGHE (mid)
+# ══════════════════════════════════════════════════════════════════════════════
+
+- id: pro2_trend_lbl
+  type: text
+  x: 400
+  y: 348
+  text: "Corrente PV1 vs PV2 — 1 ora"
+  font_size: 10
+  text_anchor: middle
+  color: "#64748b"
+
+- id: pro2_trend_pv1
+  type: trend
+  x: 14
+  y: 356
+  width: 772
+  height: 130
+  tag: pv1.corrente_a
+  extra_tags:
+    - pv2.corrente_a
+  window_s: 3600
+  line_color: "#22c55e"
+
+- id: pro2_leg_pv1
+  type: text
+  x: 24
+  y: 498
+  text: "— PV1 corrente (A)"
+  font_size: 9
+  color: "#22c55e"
+
+- id: pro2_leg_pv2
+  type: text
+  x: 200
+  y: 498
+  text: "— PV2 corrente (A)"
+  font_size: 9
+  color: "#86efac"
+
+# ══════════════════════════════════════════════════════════════════════════════
+# INVERTER TEMPERATURE + ORE GENERAZIONE
+# ══════════════════════════════════════════════════════════════════════════════
+
+- id: pro2_inv_box
+  type: rect
+  x: 14
+  y: 510
+  width: 372
+  height: 48
+  fill: "#1c1917"
+  stroke: "#292524"
+  stroke_width: 1
+  rx: 4
+
+- id: pro2_inv_int_lbl
+  type: text
+  x: 90
+  y: 527
+  text: "T. interna inv."
+  font_size: 10
+  text_anchor: middle
+  color: "#64748b"
+
+- id: pro2_inv_int
+  type: text
+  x: 90
+  y: 547
+  tag: inverter.temp_interna
+  format: "{value:.1f}°C"
+  font_size: 14
+  font_weight: bold
+  text_anchor: middle
+  color: "#f97316"
+
+- id: pro2_inv_mod_lbl
+  type: text
+  x: 240
+  y: 527
+  text: "T. modulo inv."
+  font_size: 10
+  text_anchor: middle
+  color: "#64748b"
+
+- id: pro2_inv_mod
+  type: text
+  x: 240
+  y: 547
+  tag: inverter.temp_modulo
+  format: "{value:.1f}°C"
+  font_size: 14
+  font_weight: bold
+  text_anchor: middle
+  color: "#f97316"
+
+- id: pro2_ore_box
+  type: rect
+  x: 414
+  y: 510
+  width: 372
+  height: 48
+  fill: "#1c1917"
+  stroke: "#292524"
+  stroke_width: 1
+  rx: 4
+
+- id: pro2_ore_lbl
+  type: text
+  x: 550
+  y: 527
+  text: "Generazione oggi"
+  font_size: 10
+  text_anchor: middle
+  color: "#64748b"
+
+- id: pro2_ore_val
+  type: text
+  x: 550
+  y: 547
+  tag: pv.ore_oggi_min
+  format: "{value:.0f} min"
+  font_size: 14
+  font_weight: bold
+  text_anchor: middle
+  color: "#fbbf24"
+
+- id: pro2_auto_lbl
+  type: text
+  x: 720
+  y: 527
+  text: "Autoconsumo"
+  font_size: 10
+  text_anchor: middle
+  color: "#64748b"
+
+- id: pro2_auto_val
+  type: text
+  x: 720
+  y: 547
+  tag: pv.autoconsumo_pct
+  format: "{value:.1f}%"
+  font_size: 14
+  font_weight: bold
+  text_anchor: middle
+  color: "#a3e635"

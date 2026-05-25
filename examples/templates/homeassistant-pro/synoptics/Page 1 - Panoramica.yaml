@@ -1,0 +1,1110 @@
+id: pro_p1
+name: "Panoramica"
+background: "#0f172a"
+width: 800
+height: 620
+
+objects:
+
+# ── HEADER ────────────────────────────────────────────────────────────────────
+- id: pro1_title
+  type: text
+  x: 400
+  y: 20
+  text: "HOMEASSISTANT PRO — PANORAMICA"
+  font_size: 17
+  font_weight: bold
+  text_anchor: middle
+  color: "#e2e8f0"
+  locked: true
+
+- id: pro1_sub
+  type: text
+  x: 400
+  y: 40
+  text: "Flusso energia · Clima · Sicurezza · Presenza"
+  font_size: 10
+  text_anchor: middle
+  color: "#475569"
+  locked: true
+
+# ── NAVIGATION ───────────────────────────────────────────────────────────────
+- id: pro1_nav1
+  type: navbutton
+  x: 10
+  y: 572
+  width: 120
+  height: 34
+  label: "◉ Panoramica"
+  target_page: pro_p1
+  fill: "#1e293b"
+  locked: true
+
+- id: pro1_nav2
+  type: navbutton
+  x: 140
+  y: 572
+  width: 120
+  height: 34
+  label: "☀ Fotovoltaico"
+  target_page: pro_p2
+  locked: true
+
+- id: pro1_nav3
+  type: navbutton
+  x: 270
+  y: 572
+  width: 120
+  height: 34
+  label: "⚡ Batt & Rete"
+  target_page: pro_p3
+  locked: true
+
+- id: pro1_nav4
+  type: navbutton
+  x: 400
+  y: 572
+  width: 120
+  height: 34
+  label: "🌡 Clima"
+  target_page: pro_p4
+  locked: true
+
+- id: pro1_nav5
+  type: navbutton
+  x: 530
+  y: 572
+  width: 120
+  height: 34
+  label: "🔌 Carichi"
+  target_page: pro_p5
+  locked: true
+
+- id: pro1_nav6
+  type: navbutton
+  x: 660
+  y: 572
+  width: 120
+  height: 34
+  label: "🔒 Sicurezza"
+  target_page: pro_p6
+  locked: true
+
+# ══════════════════════════════════════════════════════════════════════════════
+# FLUSSO ENERGIA (top, full width)
+# ══════════════════════════════════════════════════════════════════════════════
+
+- id: pro1_en_hdr
+  type: text
+  x: 400
+  y: 62
+  text: "FLUSSO ENERGIA"
+  font_size: 11
+  font_weight: bold
+  text_anchor: middle
+  color: "#64748b"
+
+# Box FV (top-left)
+- id: pro1_fv_box
+  type: rect
+  x: 14
+  y: 72
+  width: 170
+  height: 104
+  fill: "#052e16"
+  stroke: "#22c55e"
+  stroke_width: 2
+  rx: 6
+
+- id: pro1_fv_lbl
+  type: text
+  x: 99
+  y: 91
+  text: "☀ FOTOVOLTAICO"
+  font_size: 10
+  font_weight: bold
+  text_anchor: middle
+  color: "#22c55e"
+
+- id: pro1_fv_kw
+  type: text
+  x: 99
+  y: 120
+  tag: pv.potenza_totale_kw
+  format: "{value:.2f} kW"
+  font_size: 22
+  font_weight: bold
+  text_anchor: middle
+  color: "#4ade80"
+
+- id: pro1_fv_oggi
+  type: text
+  x: 99
+  y: 142
+  tag: pv.produzione_oggi_kwh
+  format: "Oggi: {value:.1f} kWh"
+  font_size: 11
+  text_anchor: middle
+  color: "#16a34a"
+
+- id: pro1_fv_prog
+  type: progress_bar
+  x: 24
+  y: 156
+  width: 150
+  height: 10
+  tag: pv.potenza_totale_kw
+  min: 0
+  max: 12
+  fill: "#22c55e"
+  background: "#14532d"
+
+# Box BATTERIA (top-center-left)
+- id: pro1_batt_box
+  type: rect
+  x: 200
+  y: 72
+  width: 170
+  height: 104
+  fill: "#1a1a2e"
+  stroke: "#f59e0b"
+  stroke_width: 2
+  rx: 6
+
+- id: pro1_batt_lbl
+  type: text
+  x: 285
+  y: 91
+  text: "🔋 BATTERIA"
+  font_size: 10
+  font_weight: bold
+  text_anchor: middle
+  color: "#f59e0b"
+
+- id: pro1_batt_soc
+  type: text
+  x: 285
+  y: 120
+  tag: batteria.percentuale
+  format: "{value:.0f}%"
+  font_size: 22
+  font_weight: bold
+  text_anchor: middle
+  color: "#fbbf24"
+
+- id: pro1_batt_kw
+  type: text
+  x: 285
+  y: 142
+  tag: batteria.potenza_kw
+  format: "{value:+.2f} kW"
+  font_size: 11
+  text_anchor: middle
+  color: "#92400e"
+
+- id: pro1_batt_prog
+  type: progress_bar
+  x: 210
+  y: 156
+  width: 150
+  height: 10
+  tag: batteria.percentuale
+  min: 0
+  max: 100
+  fill: "#f59e0b"
+  background: "#292524"
+
+# Box CASA (top-center-right)
+- id: pro1_casa_box
+  type: rect
+  x: 386
+  y: 72
+  width: 170
+  height: 104
+  fill: "#1e1b4b"
+  stroke: "#818cf8"
+  stroke_width: 2
+  rx: 6
+
+- id: pro1_casa_lbl
+  type: text
+  x: 471
+  y: 91
+  text: "🏠 CONSUMO CASA"
+  font_size: 10
+  font_weight: bold
+  text_anchor: middle
+  color: "#818cf8"
+
+- id: pro1_casa_kw
+  type: text
+  x: 471
+  y: 120
+  tag: energia.potenza_kw
+  format: "{value:.2f} kW"
+  font_size: 22
+  font_weight: bold
+  text_anchor: middle
+  color: "#a5b4fc"
+
+- id: pro1_casa_cost
+  type: text
+  x: 471
+  y: 142
+  tag: energia.costo_ora_eur
+  format: "{value:.4f} €/h"
+  font_size: 11
+  text_anchor: middle
+  color: "#6d28d9"
+
+- id: pro1_casa_prog
+  type: progress_bar
+  x: 396
+  y: 156
+  width: 150
+  height: 10
+  tag: energia.potenza_kw
+  min: 0
+  max: 10
+  fill: "#818cf8"
+  background: "#1e1b4b"
+
+# Box RETE (top-right)
+- id: pro1_rete_box
+  type: rect
+  x: 572
+  y: 72
+  width: 214
+  height: 104
+  fill: "#1c1917"
+  stroke: "#94a3b8"
+  stroke_width: 2
+  rx: 6
+
+- id: pro1_rete_lbl
+  type: text
+  x: 679
+  y: 91
+  text: "⚡ RETE ELETTRICA"
+  font_size: 10
+  font_weight: bold
+  text_anchor: middle
+  color: "#94a3b8"
+
+- id: pro1_rete_kw
+  type: text
+  x: 679
+  y: 120
+  tag: rete.potenza_kw
+  format: "{value:+.2f} kW"
+  font_size: 22
+  font_weight: bold
+  text_anchor: middle
+  color: "#cbd5e1"
+
+- id: pro1_rete_acq
+  type: text
+  x: 620
+  y: 142
+  tag: rete.acquisto_kw
+  format: "↓ {value:.2f}"
+  font_size: 11
+  text_anchor: middle
+  color: "#ef4444"
+
+- id: pro1_rete_vend
+  type: text
+  x: 740
+  y: 142
+  tag: rete.vendita_kw
+  format: "↑ {value:.2f}"
+  font_size: 11
+  text_anchor: middle
+  color: "#22c55e"
+
+- id: pro1_saldo_lbl
+  type: text
+  x: 679
+  y: 163
+  tag: energia.saldo_kw
+  format: "Saldo: {value:+.2f} kW"
+  font_size: 10
+  text_anchor: middle
+  color: "#64748b"
+
+# ══════════════════════════════════════════════════════════════════════════════
+# CLIMA 5 STANZE (left-center block)
+# ══════════════════════════════════════════════════════════════════════════════
+
+- id: pro1_clima_hdr
+  type: text
+  x: 220
+  y: 196
+  text: "CLIMA"
+  font_size: 11
+  font_weight: bold
+  text_anchor: middle
+  color: "#64748b"
+
+- id: pro1_clima_box
+  type: rect
+  x: 14
+  y: 206
+  width: 412
+  height: 160
+  fill: "#0c1a2e"
+  stroke: "#1e3a5f"
+  stroke_width: 1
+  rx: 6
+
+# Column headers
+- id: pro1_c_stanza
+  type: text
+  x: 90
+  y: 224
+  text: "Stanza"
+  font_size: 9
+  font_weight: bold
+  text_anchor: middle
+  color: "#475569"
+
+- id: pro1_c_temp
+  type: text
+  x: 240
+  y: 224
+  text: "Temp."
+  font_size: 9
+  font_weight: bold
+  text_anchor: middle
+  color: "#475569"
+
+- id: pro1_c_umid
+  type: text
+  x: 330
+  y: 224
+  text: "Umidità"
+  font_size: 9
+  font_weight: bold
+  text_anchor: middle
+  color: "#475569"
+
+# Row divider
+- id: pro1_c_div
+  type: line
+  x: 24
+  y: 228
+  x2: 416
+  y2: 228
+  stroke: "#1e3a5f"
+  stroke_width: 1
+
+# Sala
+- id: pro1_r_sala
+  type: text
+  x: 90
+  y: 248
+  text: "Soggiorno"
+  font_size: 11
+  text_anchor: middle
+  color: "#93c5fd"
+
+- id: pro1_t_sala
+  type: text
+  x: 240
+  y: 248
+  tag: sala.temperatura
+  format: "{value:.1f}°C"
+  font_size: 13
+  font_weight: bold
+  text_anchor: middle
+  color: "#60a5fa"
+
+- id: pro1_u_sala
+  type: text
+  x: 330
+  y: 248
+  tag: sala.umidita
+  format: "{value:.0f}%"
+  font_size: 11
+  text_anchor: middle
+  color: "#7dd3fc"
+
+- id: pro1_ci_sala
+  type: text
+  x: 400
+  y: 248
+  tag: sala.comfort_index
+  format: "★{value:.0f}"
+  font_size: 10
+  text_anchor: middle
+  color: "#a3e635"
+
+# Studio
+- id: pro1_r_studio
+  type: text
+  x: 90
+  y: 270
+  text: "Studio"
+  font_size: 11
+  text_anchor: middle
+  color: "#94a3b8"
+
+- id: pro1_t_studio
+  type: text
+  x: 240
+  y: 270
+  tag: studio.temperatura
+  format: "{value:.1f}°C"
+  font_size: 13
+  font_weight: bold
+  text_anchor: middle
+  color: "#60a5fa"
+
+- id: pro1_u_studio
+  type: text
+  x: 330
+  y: 270
+  tag: studio.umidita
+  format: "{value:.0f}%"
+  font_size: 11
+  text_anchor: middle
+  color: "#7dd3fc"
+
+# Lavanderia
+- id: pro1_r_lavand
+  type: text
+  x: 90
+  y: 292
+  text: "Lavanderia"
+  font_size: 11
+  text_anchor: middle
+  color: "#94a3b8"
+
+- id: pro1_t_lavand
+  type: text
+  x: 240
+  y: 292
+  tag: lavanderia.temperatura
+  format: "{value:.1f}°C"
+  font_size: 13
+  font_weight: bold
+  text_anchor: middle
+  color: "#60a5fa"
+
+- id: pro1_u_lavand
+  type: text
+  x: 330
+  y: 292
+  tag: lavanderia.umidita
+  format: "{value:.0f}%"
+  font_size: 11
+  text_anchor: middle
+  color: "#7dd3fc"
+
+# Bagno
+- id: pro1_r_bagno
+  type: text
+  x: 90
+  y: 314
+  text: "Bagno PT"
+  font_size: 11
+  text_anchor: middle
+  color: "#94a3b8"
+
+- id: pro1_t_bagno
+  type: text
+  x: 240
+  y: 314
+  tag: bagno.temperatura
+  format: "{value:.1f}°C"
+  font_size: 13
+  font_weight: bold
+  text_anchor: middle
+  color: "#60a5fa"
+
+- id: pro1_u_bagno
+  type: text
+  x: 330
+  y: 314
+  tag: bagno.umidita
+  format: "{value:.0f}%"
+  font_size: 11
+  text_anchor: middle
+  color: "#7dd3fc"
+
+# Tecnico
+- id: pro1_r_tecnico
+  type: text
+  x: 90
+  y: 336
+  text: "Loc. Tecnico"
+  font_size: 11
+  text_anchor: middle
+  color: "#94a3b8"
+
+- id: pro1_t_tecnico
+  type: text
+  x: 240
+  y: 336
+  tag: tecnico.temperatura
+  format: "{value:.1f}°C"
+  font_size: 13
+  font_weight: bold
+  text_anchor: middle
+  color: "#60a5fa"
+
+- id: pro1_u_tecnico
+  type: text
+  x: 330
+  y: 336
+  tag: tecnico.umidita
+  format: "{value:.0f}%"
+  font_size: 11
+  text_anchor: middle
+  color: "#7dd3fc"
+
+# Media
+- id: pro1_div2
+  type: line
+  x: 24
+  y: 348
+  x2: 416
+  y2: 348
+  stroke: "#1e3a5f"
+  stroke_width: 1
+
+- id: pro1_r_media
+  type: text
+  x: 90
+  y: 362
+  text: "Media"
+  font_size: 11
+  font_weight: bold
+  text_anchor: middle
+  color: "#64748b"
+
+- id: pro1_t_media
+  type: text
+  x: 240
+  y: 362
+  tag: clima.temp_media
+  format: "{value:.1f}°C"
+  font_size: 13
+  font_weight: bold
+  text_anchor: middle
+  color: "#38bdf8"
+
+- id: pro1_pressione
+  type: text
+  x: 330
+  y: 362
+  tag: tecnico.pressione_hpa
+  format: "{value:.0f} hPa"
+  font_size: 10
+  text_anchor: middle
+  color: "#475569"
+
+# ══════════════════════════════════════════════════════════════════════════════
+# SICUREZZA (bottom-left)
+# ══════════════════════════════════════════════════════════════════════════════
+
+- id: pro1_sec_hdr
+  type: text
+  x: 220
+  y: 384
+  text: "SICUREZZA"
+  font_size: 11
+  font_weight: bold
+  text_anchor: middle
+  color: "#64748b"
+
+- id: pro1_sec_box
+  type: rect
+  x: 14
+  y: 392
+  width: 412
+  height: 168
+  fill: "#0c1017"
+  stroke: "#1e293b"
+  stroke_width: 1
+  rx: 6
+
+# Porte
+- id: pro1_s_garage_lbl
+  type: text
+  x: 110
+  y: 412
+  text: "Garage"
+  font_size: 11
+  color: "#94a3b8"
+
+- id: pro1_s_garage_led
+  type: led
+  x: 200
+  y: 403
+  width: 14
+  height: 14
+  tag: garage.aperto
+  on_color: "#ef4444"
+  off_color: "#166534"
+
+- id: pro1_s_porta_lbl
+  type: text
+  x: 110
+  y: 432
+  text: "Porta principale"
+  font_size: 11
+  color: "#94a3b8"
+
+- id: pro1_s_porta_led
+  type: led
+  x: 200
+  y: 423
+  width: 14
+  height: 14
+  tag: porta.principale
+  on_color: "#ef4444"
+  off_color: "#166534"
+
+- id: pro1_s_studio_lbl
+  type: text
+  x: 110
+  y: 452
+  text: "Porta studio"
+  font_size: 11
+  color: "#94a3b8"
+
+- id: pro1_s_studio_led
+  type: led
+  x: 200
+  y: 443
+  width: 14
+  height: 14
+  tag: porta.studio
+  on_color: "#ef4444"
+  off_color: "#166534"
+
+# Finestre (right column)
+- id: pro1_fw_sg_sx
+  type: text
+  x: 290
+  y: 412
+  text: "Soggiorno SX"
+  font_size: 11
+  color: "#94a3b8"
+
+- id: pro1_fw_sg_sx_led
+  type: led
+  x: 400
+  y: 403
+  width: 14
+  height: 14
+  tag: finestra.soggiorno_sx
+  on_color: "#f59e0b"
+  off_color: "#166534"
+
+- id: pro1_fw_sg_dx
+  type: text
+  x: 290
+  y: 432
+  text: "Soggiorno DX"
+  font_size: 11
+  color: "#94a3b8"
+
+- id: pro1_fw_sg_dx_led
+  type: led
+  x: 400
+  y: 423
+  width: 14
+  height: 14
+  tag: finestra.soggiorno_dx
+  on_color: "#f59e0b"
+  off_color: "#166534"
+
+- id: pro1_fw_cuc_sx
+  type: text
+  x: 290
+  y: 452
+  text: "Cucina SX"
+  font_size: 11
+  color: "#94a3b8"
+
+- id: pro1_fw_cuc_sx_led
+  type: led
+  x: 400
+  y: 443
+  width: 14
+  height: 14
+  tag: finestra.cucina_sx
+  on_color: "#f59e0b"
+  off_color: "#166534"
+
+- id: pro1_fw_cuc_dx
+  type: text
+  x: 290
+  y: 472
+  text: "Cucina DX"
+  font_size: 11
+  color: "#94a3b8"
+
+- id: pro1_fw_cuc_dx_led
+  type: led
+  x: 400
+  y: 463
+  width: 14
+  height: 14
+  tag: finestra.cucina_dx
+  on_color: "#f59e0b"
+  off_color: "#166534"
+
+- id: pro1_fw_lav
+  type: text
+  x: 290
+  y: 492
+  text: "Lavanderia"
+  font_size: 11
+  color: "#94a3b8"
+
+- id: pro1_fw_lav_led
+  type: led
+  x: 400
+  y: 483
+  width: 14
+  height: 14
+  tag: finestra.lavanderia
+  on_color: "#f59e0b"
+  off_color: "#166534"
+
+# Sensori movimento
+- id: pro1_mov_lbl
+  type: text
+  x: 24
+  y: 475
+  text: "Ingresso:"
+  font_size: 10
+  color: "#475569"
+
+- id: pro1_mov_led
+  type: led
+  x: 80
+  y: 466
+  width: 14
+  height: 14
+  tag: ingresso.movimento
+  on_color: "#f59e0b"
+  off_color: "#1e293b"
+
+- id: pro1_ext_lbl
+  type: text
+  x: 24
+  y: 495
+  text: "Esterno:"
+  font_size: 10
+  color: "#475569"
+
+- id: pro1_ext_led
+  type: led
+  x: 80
+  y: 486
+  width: 14
+  height: 14
+  tag: esterno.movimento
+  on_color: "#ef4444"
+  off_color: "#1e293b"
+
+- id: pro1_peri_lbl
+  type: text
+  x: 24
+  y: 515
+  text: "Perimetro:"
+  font_size: 10
+  color: "#475569"
+
+- id: pro1_peri_ne
+  type: led
+  x: 80
+  y: 507
+  width: 12
+  height: 12
+  tag: perimetro.nordest
+  on_color: "#ef4444"
+  off_color: "#1e293b"
+
+- id: pro1_peri_no
+  type: led
+  x: 98
+  y: 507
+  width: 12
+  height: 12
+  tag: perimetro.nordovest
+  on_color: "#ef4444"
+  off_color: "#1e293b"
+
+- id: pro1_peri_o
+  type: led
+  x: 116
+  y: 507
+  width: 12
+  height: 12
+  tag: perimetro.ovest
+  on_color: "#ef4444"
+  off_color: "#1e293b"
+
+- id: pro1_peri_lbl2
+  type: text
+  x: 136
+  y: 516
+  text: "NE · NO · O"
+  font_size: 9
+  color: "#334155"
+
+# ══════════════════════════════════════════════════════════════════════════════
+# PRESENZA & LUCI (bottom-right)
+# ══════════════════════════════════════════════════════════════════════════════
+
+- id: pro1_pres_hdr
+  type: text
+  x: 614
+  y: 196
+  text: "PRESENZA & LUCI"
+  font_size: 11
+  font_weight: bold
+  text_anchor: middle
+  color: "#64748b"
+
+- id: pro1_pres_box
+  type: rect
+  x: 438
+  y: 206
+  width: 348
+  height: 354
+  fill: "#0c1017"
+  stroke: "#1e293b"
+  stroke_width: 1
+  rx: 6
+
+# Presenza
+- id: pro1_mauro_lbl
+  type: text
+  x: 450
+  y: 228
+  text: "Mauro a casa:"
+  font_size: 12
+  color: "#94a3b8"
+
+- id: pro1_mauro_led
+  type: led
+  x: 556
+  y: 219
+  width: 18
+  height: 18
+  tag: mauro.a_casa
+  on_color: "#22c55e"
+  off_color: "#334155"
+
+- id: pro1_mauro_txt
+  type: text
+  x: 582
+  y: 232
+  tag: mauro.a_casa
+  format: "{value}"
+  font_size: 12
+  color: "#64748b"
+
+# Sole
+- id: pro1_sole_lbl
+  type: text
+  x: 450
+  y: 256
+  text: "Elevazione solare:"
+  font_size: 12
+  color: "#94a3b8"
+
+- id: pro1_sole_val
+  type: text
+  x: 762
+  y: 256
+  tag: sole.elevazione
+  format: "{value:.1f}°"
+  font_size: 14
+  font_weight: bold
+  text_anchor: end
+  color: "#fbbf24"
+
+# Luci esterne
+- id: pro1_luci_div
+  type: line
+  x: 448
+  y: 268
+  x2: 776
+  y2: 268
+  stroke: "#1e293b"
+  stroke_width: 1
+
+- id: pro1_luci_hdr2
+  type: text
+  x: 614
+  y: 284
+  text: "LUCI ESTERNE"
+  font_size: 10
+  font_weight: bold
+  text_anchor: middle
+  color: "#f59e0b"
+
+- id: pro1_lc_lbl
+  type: text
+  x: 450
+  y: 306
+  text: "Cancelletto"
+  font_size: 12
+  color: "#94a3b8"
+
+- id: pro1_lc_led
+  type: led
+  x: 556
+  y: 297
+  width: 16
+  height: 16
+  tag: luce.cancelletto
+  on_color: "#fbbf24"
+  off_color: "#374151"
+
+- id: pro1_lv_lbl
+  type: text
+  x: 450
+  y: 328
+  text: "Viale centrale"
+  font_size: 12
+  color: "#94a3b8"
+
+- id: pro1_lv_led
+  type: led
+  x: 556
+  y: 319
+  width: 16
+  height: 16
+  tag: luce.viale
+  on_color: "#fbbf24"
+  off_color: "#374151"
+
+- id: pro1_ls_lbl
+  type: text
+  x: 450
+  y: 350
+  text: "Strada DX"
+  font_size: 12
+  color: "#94a3b8"
+
+- id: pro1_ls_led
+  type: led
+  x: 556
+  y: 341
+  width: 16
+  height: 16
+  tag: luce.strada
+  on_color: "#fbbf24"
+  off_color: "#374151"
+
+# Tapparelle
+- id: pro1_tapp_div
+  type: line
+  x: 448
+  y: 364
+  x2: 776
+  y2: 364
+  stroke: "#1e293b"
+  stroke_width: 1
+
+- id: pro1_tapp_hdr
+  type: text
+  x: 614
+  y: 380
+  text: "TAPPARELLE"
+  font_size: 10
+  font_weight: bold
+  text_anchor: middle
+  color: "#38bdf8"
+
+- id: pro1_tsg_sx_lbl
+  type: text
+  x: 450
+  y: 400
+  text: "Soggiorno SX"
+  font_size: 11
+  color: "#94a3b8"
+
+- id: pro1_tsg_sx_led
+  type: led
+  x: 556
+  y: 391
+  width: 14
+  height: 14
+  tag: tapparella.soggiorno_sx
+  on_color: "#38bdf8"
+  off_color: "#334155"
+
+- id: pro1_tsg_dx_lbl
+  type: text
+  x: 450
+  y: 420
+  text: "Soggiorno DX"
+  font_size: 11
+  color: "#94a3b8"
+
+- id: pro1_tsg_dx_led
+  type: led
+  x: 556
+  y: 411
+  width: 14
+  height: 14
+  tag: tapparella.soggiorno_dx
+  on_color: "#38bdf8"
+  off_color: "#334155"
+
+- id: pro1_tb_lbl
+  type: text
+  x: 450
+  y: 440
+  text: "Bagno PT"
+  font_size: 11
+  color: "#94a3b8"
+
+- id: pro1_tb_led
+  type: led
+  x: 556
+  y: 431
+  width: 14
+  height: 14
+  tag: tapparella.bagno
+  on_color: "#38bdf8"
+  off_color: "#334155"
+
+- id: pro1_tg_lbl
+  type: text
+  x: 450
+  y: 460
+  text: "Garage"
+  font_size: 11
+  color: "#94a3b8"
+
+- id: pro1_tg_led
+  type: led
+  x: 556
+  y: 451
+  width: 14
+  height: 14
+  tag: tapparella.garage
+  on_color: "#38bdf8"
+  off_color: "#334155"
+
+# Link a pagina controllo
+- id: pro1_ctrl_link
+  type: navbutton
+  x: 448
+  y: 522
+  width: 328
+  height: 32
+  label: "→ Controllo completo luci e tapparelle"
+  target_page: pro_p6
+  fill: "#172554"
+  locked: true

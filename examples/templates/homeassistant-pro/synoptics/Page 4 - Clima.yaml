@@ -1,0 +1,641 @@
+id: pro_p4
+name: "Clima"
+background: "#0f172a"
+width: 800
+height: 620
+
+objects:
+
+# ── HEADER ────────────────────────────────────────────────────────────────────
+- id: pro4_title
+  type: text
+  x: 400
+  y: 20
+  text: "CLIMA — 5 Stanze"
+  font_size: 17
+  font_weight: bold
+  text_anchor: middle
+  color: "#e2e8f0"
+  locked: true
+
+- id: pro4_sub
+  type: text
+  x: 400
+  y: 40
+  text: "Temperatura · Umidità · Comfort Index · Trend storico"
+  font_size: 10
+  text_anchor: middle
+  color: "#475569"
+  locked: true
+
+# ── NAVIGATION ───────────────────────────────────────────────────────────────
+- id: pro4_nav1
+  type: navbutton
+  x: 10
+  y: 572
+  width: 120
+  height: 34
+  label: "◎ Panoramica"
+  target_page: pro_p1
+  locked: true
+
+- id: pro4_nav2
+  type: navbutton
+  x: 140
+  y: 572
+  width: 120
+  height: 34
+  label: "☀ Fotovoltaico"
+  target_page: pro_p2
+  locked: true
+
+- id: pro4_nav3
+  type: navbutton
+  x: 270
+  y: 572
+  width: 120
+  height: 34
+  label: "⚡ Batt & Rete"
+  target_page: pro_p3
+  locked: true
+
+- id: pro4_nav4
+  type: navbutton
+  x: 400
+  y: 572
+  width: 120
+  height: 34
+  label: "◉ Clima"
+  target_page: pro_p4
+  fill: "#1e293b"
+  locked: true
+
+- id: pro4_nav5
+  type: navbutton
+  x: 530
+  y: 572
+  width: 120
+  height: 34
+  label: "🔌 Carichi"
+  target_page: pro_p5
+  locked: true
+
+- id: pro4_nav6
+  type: navbutton
+  x: 660
+  y: 572
+  width: 120
+  height: 34
+  label: "🔒 Sicurezza"
+  target_page: pro_p6
+  locked: true
+
+# ══════════════════════════════════════════════════════════════════════════════
+# TABELLA STANZE (left half)
+# ══════════════════════════════════════════════════════════════════════════════
+
+- id: pro4_tab_box
+  type: rect
+  x: 14
+  y: 56
+  width: 420
+  height: 310
+  fill: "#0c1a2e"
+  stroke: "#1e3a5f"
+  stroke_width: 1
+  rx: 6
+
+# Header colonne
+- id: pro4_hdr_stanza
+  type: text
+  x: 80
+  y: 76
+  text: "Stanza"
+  font_size: 10
+  font_weight: bold
+  text_anchor: middle
+  color: "#64748b"
+
+- id: pro4_hdr_temp
+  type: text
+  x: 200
+  y: 76
+  text: "Temperatura"
+  font_size: 10
+  font_weight: bold
+  text_anchor: middle
+  color: "#64748b"
+
+- id: pro4_hdr_umid
+  type: text
+  x: 310
+  y: 76
+  text: "Umidità"
+  font_size: 10
+  font_weight: bold
+  text_anchor: middle
+  color: "#64748b"
+
+- id: pro4_hdr_bar
+  type: text
+  x: 400
+  y: 76
+  text: "Barra"
+  font_size: 10
+  font_weight: bold
+  text_anchor: middle
+  color: "#64748b"
+
+- id: pro4_div0
+  type: line
+  x: 24
+  y: 82
+  x2: 424
+  y2: 82
+  stroke: "#1e3a5f"
+  stroke_width: 1
+
+# SOGGIORNO
+- id: pro4_r1_nm
+  type: text
+  x: 80
+  y: 104
+  text: "Soggiorno"
+  font_size: 12
+  font_weight: bold
+  text_anchor: middle
+  color: "#93c5fd"
+
+- id: pro4_r1_t
+  type: text
+  x: 200
+  y: 104
+  tag: sala.temperatura
+  format: "{value:.1f}°C"
+  font_size: 16
+  font_weight: bold
+  text_anchor: middle
+  color: "#60a5fa"
+
+- id: pro4_r1_u
+  type: text
+  x: 310
+  y: 104
+  tag: sala.umidita
+  format: "{value:.0f}%"
+  font_size: 14
+  text_anchor: middle
+  color: "#7dd3fc"
+
+- id: pro4_r1_bar
+  type: progress_bar
+  x: 360
+  y: 96
+  width: 60
+  height: 14
+  tag: sala.temperatura
+  min: 10
+  max: 32
+  fill: "#3b82f6"
+  background: "#1e3a5f"
+
+# STUDIO
+- id: pro4_div1
+  type: line
+  x: 24
+  y: 116
+  x2: 424
+  y2: 116
+  stroke: "#0f2040"
+  stroke_width: 1
+
+- id: pro4_r2_nm
+  type: text
+  x: 80
+  y: 138
+  text: "Studio"
+  font_size: 12
+  font_weight: bold
+  text_anchor: middle
+  color: "#94a3b8"
+
+- id: pro4_r2_t
+  type: text
+  x: 200
+  y: 138
+  tag: studio.temperatura
+  format: "{value:.1f}°C"
+  font_size: 16
+  font_weight: bold
+  text_anchor: middle
+  color: "#60a5fa"
+
+- id: pro4_r2_u
+  type: text
+  x: 310
+  y: 138
+  tag: studio.umidita
+  format: "{value:.0f}%"
+  font_size: 14
+  text_anchor: middle
+  color: "#7dd3fc"
+
+- id: pro4_r2_bar
+  type: progress_bar
+  x: 360
+  y: 130
+  width: 60
+  height: 14
+  tag: studio.temperatura
+  min: 10
+  max: 32
+  fill: "#3b82f6"
+  background: "#1e3a5f"
+
+# LAVANDERIA
+- id: pro4_div2
+  type: line
+  x: 24
+  y: 150
+  x2: 424
+  y2: 150
+  stroke: "#0f2040"
+  stroke_width: 1
+
+- id: pro4_r3_nm
+  type: text
+  x: 80
+  y: 172
+  text: "Lavanderia"
+  font_size: 12
+  font_weight: bold
+  text_anchor: middle
+  color: "#94a3b8"
+
+- id: pro4_r3_t
+  type: text
+  x: 200
+  y: 172
+  tag: lavanderia.temperatura
+  format: "{value:.1f}°C"
+  font_size: 16
+  font_weight: bold
+  text_anchor: middle
+  color: "#60a5fa"
+
+- id: pro4_r3_u
+  type: text
+  x: 310
+  y: 172
+  tag: lavanderia.umidita
+  format: "{value:.0f}%"
+  font_size: 14
+  text_anchor: middle
+  color: "#7dd3fc"
+
+- id: pro4_r3_bar
+  type: progress_bar
+  x: 360
+  y: 164
+  width: 60
+  height: 14
+  tag: lavanderia.temperatura
+  min: 10
+  max: 32
+  fill: "#3b82f6"
+  background: "#1e3a5f"
+
+# BAGNO
+- id: pro4_div3
+  type: line
+  x: 24
+  y: 184
+  x2: 424
+  y2: 184
+  stroke: "#0f2040"
+  stroke_width: 1
+
+- id: pro4_r4_nm
+  type: text
+  x: 80
+  y: 206
+  text: "Bagno PT"
+  font_size: 12
+  font_weight: bold
+  text_anchor: middle
+  color: "#94a3b8"
+
+- id: pro4_r4_t
+  type: text
+  x: 200
+  y: 206
+  tag: bagno.temperatura
+  format: "{value:.1f}°C"
+  font_size: 16
+  font_weight: bold
+  text_anchor: middle
+  color: "#60a5fa"
+
+- id: pro4_r4_u
+  type: text
+  x: 310
+  y: 206
+  tag: bagno.umidita
+  format: "{value:.0f}%"
+  font_size: 14
+  text_anchor: middle
+  color: "#7dd3fc"
+
+- id: pro4_r4_bar
+  type: progress_bar
+  x: 360
+  y: 198
+  width: 60
+  height: 14
+  tag: bagno.temperatura
+  min: 10
+  max: 32
+  fill: "#3b82f6"
+  background: "#1e3a5f"
+
+# TECNICO
+- id: pro4_div4
+  type: line
+  x: 24
+  y: 218
+  x2: 424
+  y2: 218
+  stroke: "#0f2040"
+  stroke_width: 1
+
+- id: pro4_r5_nm
+  type: text
+  x: 80
+  y: 240
+  text: "Loc. Tecnico"
+  font_size: 12
+  font_weight: bold
+  text_anchor: middle
+  color: "#94a3b8"
+
+- id: pro4_r5_t
+  type: text
+  x: 200
+  y: 240
+  tag: tecnico.temperatura
+  format: "{value:.1f}°C"
+  font_size: 16
+  font_weight: bold
+  text_anchor: middle
+  color: "#60a5fa"
+
+- id: pro4_r5_u
+  type: text
+  x: 310
+  y: 240
+  tag: tecnico.umidita
+  format: "{value:.0f}%"
+  font_size: 14
+  text_anchor: middle
+  color: "#7dd3fc"
+
+- id: pro4_r5_bar
+  type: progress_bar
+  x: 360
+  y: 232
+  width: 60
+  height: 14
+  tag: tecnico.temperatura
+  min: 10
+  max: 32
+  fill: "#3b82f6"
+  background: "#1e3a5f"
+
+# MEDIA + PRESSIONE
+- id: pro4_div5
+  type: line
+  x: 24
+  y: 252
+  x2: 424
+  y2: 252
+  stroke: "#1e3a5f"
+  stroke_width: 1
+
+- id: pro4_media_nm
+  type: text
+  x: 80
+  y: 276
+  text: "Media 5 stanze"
+  font_size: 12
+  font_weight: bold
+  text_anchor: middle
+  color: "#38bdf8"
+
+- id: pro4_media_t
+  type: text
+  x: 200
+  y: 276
+  tag: clima.temp_media
+  format: "{value:.1f}°C"
+  font_size: 18
+  font_weight: bold
+  text_anchor: middle
+  color: "#38bdf8"
+
+- id: pro4_pres_lbl
+  type: text
+  x: 310
+  y: 262
+  text: "Pressione"
+  font_size: 9
+  text_anchor: middle
+  color: "#475569"
+
+- id: pro4_pres_val
+  type: text
+  x: 310
+  y: 278
+  tag: tecnico.pressione_hpa
+  format: "{value:.1f} hPa"
+  font_size: 13
+  font_weight: bold
+  text_anchor: middle
+  color: "#94a3b8"
+
+# Comfort Index Soggiorno
+- id: pro4_div6
+  type: line
+  x: 24
+  y: 290
+  x2: 424
+  y2: 290
+  stroke: "#1e3a5f"
+  stroke_width: 1
+
+- id: pro4_ci_lbl
+  type: text
+  x: 80
+  y: 310
+  text: "Comfort Soggiorno"
+  font_size: 11
+  text_anchor: middle
+  color: "#64748b"
+
+- id: pro4_ci_val
+  type: text
+  x: 200
+  y: 316
+  tag: sala.comfort_index
+  format: "{value:.0f} / 100"
+  font_size: 20
+  font_weight: bold
+  text_anchor: middle
+  color: "#a3e635"
+
+- id: pro4_ci_bar
+  type: progress_bar
+  x: 280
+  y: 308
+  width: 140
+  height: 14
+  tag: sala.comfort_index
+  min: 0
+  max: 100
+  fill: "#a3e635"
+  background: "#1a2e05"
+
+- id: pro4_ci_note
+  type: text
+  x: 214
+  y: 350
+  text: "100 = T 22°C + U 50%"
+  font_size: 9
+  text_anchor: middle
+  color: "#334155"
+
+# ══════════════════════════════════════════════════════════════════════════════
+# GAUGE TEMPERATURA MEDIA (right top)
+# ══════════════════════════════════════════════════════════════════════════════
+
+- id: pro4_gauge_box
+  type: rect
+  x: 450
+  y: 56
+  width: 336
+  height: 180
+  fill: "#0c1017"
+  stroke: "#1e293b"
+  stroke_width: 1
+  rx: 6
+
+- id: pro4_gauge_hdr
+  type: text
+  x: 618
+  y: 76
+  text: "GAUGE — TEMPERATURA MEDIA"
+  font_size: 10
+  font_weight: bold
+  text_anchor: middle
+  color: "#64748b"
+
+- id: pro4_gauge_t
+  type: gauge
+  x: 470
+  y: 86
+  width: 200
+  height: 100
+  tag: clima.temp_media
+  min: 0
+  max: 40
+  unit: "°C"
+  warn_low: 14
+  warn_high: 28
+  alarm_high: 32
+
+- id: pro4_gauge_val
+  type: text
+  x: 700
+  y: 130
+  tag: sala.comfort_index
+  format: "CI: {value:.0f}"
+  font_size: 20
+  font_weight: bold
+  text_anchor: middle
+  color: "#a3e635"
+
+- id: pro4_gauge_note
+  type: text
+  x: 700
+  y: 152
+  text: "Comfort Index"
+  font_size: 9
+  text_anchor: middle
+  color: "#334155"
+
+- id: pro4_umid_note
+  type: text
+  x: 618
+  y: 218
+  tag: sala.umidita
+  format: "Umidità soggiorno: {value:.0f}%"
+  font_size: 12
+  text_anchor: middle
+  color: "#7dd3fc"
+
+# ══════════════════════════════════════════════════════════════════════════════
+# TREND TEMPERATURE 3 STANZE (bottom, full width)
+# ══════════════════════════════════════════════════════════════════════════════
+
+- id: pro4_trend_lbl
+  type: text
+  x: 400
+  y: 374
+  text: "Temperature Soggiorno · Studio · Lavanderia — 2 ore"
+  font_size: 10
+  text_anchor: middle
+  color: "#64748b"
+
+- id: pro4_trend
+  type: trend
+  x: 14
+  y: 382
+  width: 772
+  height: 146
+  tag: sala.temperatura
+  extra_tags:
+    - studio.temperatura
+    - lavanderia.temperatura
+  window_s: 7200
+  line_color: "#3b82f6"
+
+- id: pro4_leg1
+  type: text
+  x: 24
+  y: 540
+  text: "— Soggiorno (°C)"
+  font_size: 9
+  color: "#3b82f6"
+
+- id: pro4_leg2
+  type: text
+  x: 200
+  y: 540
+  text: "— Studio (°C)"
+  font_size: 9
+  color: "#60a5fa"
+
+- id: pro4_leg3
+  type: text
+  x: 360
+  y: 540
+  text: "— Lavanderia (°C)"
+  font_size: 9
+  color: "#93c5fd"
+
+- id: pro4_trend_note
+  type: text
+  x: 650
+  y: 540
+  text: "Storico SQLite 365 gg"
+  font_size: 9
+  color: "#334155"

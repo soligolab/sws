@@ -1,0 +1,1007 @@
+id: pro_p6
+name: "Sicurezza & Ctrl"
+background: "#0f172a"
+width: 800
+height: 620
+
+objects:
+
+# ── HEADER ────────────────────────────────────────────────────────────────────
+- id: pro6_title
+  type: text
+  x: 400
+  y: 20
+  text: "SICUREZZA & CONTROLLO"
+  font_size: 17
+  font_weight: bold
+  text_anchor: middle
+  color: "#e2e8f0"
+  locked: true
+
+- id: pro6_sub
+  type: text
+  x: 400
+  y: 40
+  text: "Porte · Finestre · Perimetro · Luci write-back · Tapparelle write-back"
+  font_size: 10
+  text_anchor: middle
+  color: "#475569"
+  locked: true
+
+# ── NAVIGATION ───────────────────────────────────────────────────────────────
+- id: pro6_nav1
+  type: navbutton
+  x: 10
+  y: 572
+  width: 120
+  height: 34
+  label: "◎ Panoramica"
+  target_page: pro_p1
+  locked: true
+
+- id: pro6_nav2
+  type: navbutton
+  x: 140
+  y: 572
+  width: 120
+  height: 34
+  label: "☀ Fotovoltaico"
+  target_page: pro_p2
+  locked: true
+
+- id: pro6_nav3
+  type: navbutton
+  x: 270
+  y: 572
+  width: 120
+  height: 34
+  label: "⚡ Batt & Rete"
+  target_page: pro_p3
+  locked: true
+
+- id: pro6_nav4
+  type: navbutton
+  x: 400
+  y: 572
+  width: 120
+  height: 34
+  label: "🌡 Clima"
+  target_page: pro_p4
+  locked: true
+
+- id: pro6_nav5
+  type: navbutton
+  x: 530
+  y: 572
+  width: 120
+  height: 34
+  label: "🔌 Carichi"
+  target_page: pro_p5
+  locked: true
+
+- id: pro6_nav6
+  type: navbutton
+  x: 660
+  y: 572
+  width: 120
+  height: 34
+  label: "◉ Sicurezza"
+  target_page: pro_p6
+  fill: "#1e293b"
+  locked: true
+
+# ══════════════════════════════════════════════════════════════════════════════
+# SENSORI SICUREZZA (left column)
+# ══════════════════════════════════════════════════════════════════════════════
+
+- id: pro6_sec_hdr
+  type: text
+  x: 200
+  y: 60
+  text: "SENSORI SICUREZZA"
+  font_size: 12
+  font_weight: bold
+  text_anchor: middle
+  color: "#64748b"
+
+# ── PORTE ──────────────────────────────────────────────────────────────────
+
+- id: pro6_porte_hdr
+  type: text
+  x: 200
+  y: 78
+  text: "PORTE"
+  font_size: 10
+  font_weight: bold
+  text_anchor: middle
+  color: "#ef4444"
+
+- id: pro6_porte_box
+  type: rect
+  x: 14
+  y: 84
+  width: 380
+  height: 82
+  fill: "#0c1017"
+  stroke: "#1e293b"
+  stroke_width: 1
+  rx: 4
+
+# Garage
+- id: pro6_garage_lbl
+  type: text
+  x: 108
+  y: 106
+  text: "Garage sezionale"
+  font_size: 11
+  color: "#94a3b8"
+
+- id: pro6_garage_led
+  type: led
+  x: 220
+  y: 97
+  width: 16
+  height: 16
+  tag: garage.aperto
+  on_color: "#ef4444"
+  off_color: "#166534"
+
+- id: pro6_garage_txt
+  type: text
+  x: 244
+  y: 108
+  tag: garage.aperto
+  format: "{value}"
+  font_size: 10
+  color: "#64748b"
+
+# Porta principale
+- id: pro6_porta_lbl
+  type: text
+  x: 108
+  y: 128
+  text: "Portoncino ingresso"
+  font_size: 11
+  color: "#94a3b8"
+
+- id: pro6_porta_led
+  type: led
+  x: 220
+  y: 119
+  width: 16
+  height: 16
+  tag: porta.principale
+  on_color: "#ef4444"
+  off_color: "#166534"
+
+- id: pro6_porta_txt
+  type: text
+  x: 244
+  y: 130
+  tag: porta.principale
+  format: "{value}"
+  font_size: 10
+  color: "#64748b"
+
+# Porta studio
+- id: pro6_studio_lbl
+  type: text
+  x: 108
+  y: 150
+  text: "Portoncino studio"
+  font_size: 11
+  color: "#94a3b8"
+
+- id: pro6_studio_led
+  type: led
+  x: 220
+  y: 141
+  width: 16
+  height: 16
+  tag: porta.studio
+  on_color: "#ef4444"
+  off_color: "#166534"
+
+- id: pro6_studio_txt
+  type: text
+  x: 244
+  y: 152
+  tag: porta.studio
+  format: "{value}"
+  font_size: 10
+  color: "#64748b"
+
+# ── FINESTRE ──────────────────────────────────────────────────────────────
+
+- id: pro6_fin_hdr
+  type: text
+  x: 200
+  y: 180
+  text: "FINESTRE"
+  font_size: 10
+  font_weight: bold
+  text_anchor: middle
+  color: "#f59e0b"
+
+- id: pro6_fin_box
+  type: rect
+  x: 14
+  y: 186
+  width: 380
+  height: 140
+  fill: "#0c1017"
+  stroke: "#1e293b"
+  stroke_width: 1
+  rx: 4
+
+- id: pro6_fw_sg_sx_lbl
+  type: text
+  x: 108
+  y: 208
+  text: "Soggiorno SX"
+  font_size: 11
+  color: "#94a3b8"
+
+- id: pro6_fw_sg_sx_led
+  type: led
+  x: 220
+  y: 199
+  width: 16
+  height: 16
+  tag: finestra.soggiorno_sx
+  on_color: "#f59e0b"
+  off_color: "#166534"
+
+- id: pro6_fw_sg_dx_lbl
+  type: text
+  x: 108
+  y: 230
+  text: "Soggiorno DX"
+  font_size: 11
+  color: "#94a3b8"
+
+- id: pro6_fw_sg_dx_led
+  type: led
+  x: 220
+  y: 221
+  width: 16
+  height: 16
+  tag: finestra.soggiorno_dx
+  on_color: "#f59e0b"
+  off_color: "#166534"
+
+- id: pro6_fw_cuc_sx_lbl
+  type: text
+  x: 108
+  y: 252
+  text: "Cucina SX"
+  font_size: 11
+  color: "#94a3b8"
+
+- id: pro6_fw_cuc_sx_led
+  type: led
+  x: 220
+  y: 243
+  width: 16
+  height: 16
+  tag: finestra.cucina_sx
+  on_color: "#f59e0b"
+  off_color: "#166534"
+
+- id: pro6_fw_cuc_dx_lbl
+  type: text
+  x: 108
+  y: 274
+  text: "Cucina DX"
+  font_size: 11
+  color: "#94a3b8"
+
+- id: pro6_fw_cuc_dx_led
+  type: led
+  x: 220
+  y: 265
+  width: 16
+  height: 16
+  tag: finestra.cucina_dx
+  on_color: "#f59e0b"
+  off_color: "#166534"
+
+- id: pro6_fw_lav_lbl
+  type: text
+  x: 108
+  y: 296
+  text: "Lavanderia"
+  font_size: 11
+  color: "#94a3b8"
+
+- id: pro6_fw_lav_led
+  type: led
+  x: 220
+  y: 287
+  width: 16
+  height: 16
+  tag: finestra.lavanderia
+  on_color: "#f59e0b"
+  off_color: "#166534"
+
+- id: pro6_fw_bagno_lbl
+  type: text
+  x: 108
+  y: 318
+  text: "Bagno PT"
+  font_size: 11
+  color: "#94a3b8"
+
+- id: pro6_fw_bagno_led
+  type: led
+  x: 220
+  y: 309
+  width: 16
+  height: 16
+  tag: finestra.bagno
+  on_color: "#f59e0b"
+  off_color: "#166534"
+
+# ── PERIMETRO & MOVIMENTO ─────────────────────────────────────────────────
+
+- id: pro6_peri_hdr
+  type: text
+  x: 200
+  y: 342
+  text: "PERIMETRO & MOVIMENTO"
+  font_size: 10
+  font_weight: bold
+  text_anchor: middle
+  color: "#a78bfa"
+
+- id: pro6_peri_box
+  type: rect
+  x: 14
+  y: 348
+  width: 380
+  height: 140
+  fill: "#0c1017"
+  stroke: "#1e293b"
+  stroke_width: 1
+  rx: 4
+
+- id: pro6_pe_ne_lbl
+  type: text
+  x: 108
+  y: 370
+  text: "Perimetro Nord-Est"
+  font_size: 11
+  color: "#94a3b8"
+
+- id: pro6_pe_ne_led
+  type: led
+  x: 220
+  y: 361
+  width: 16
+  height: 16
+  tag: perimetro.nordest
+  on_color: "#ef4444"
+  off_color: "#1e293b"
+
+- id: pro6_pe_no_lbl
+  type: text
+  x: 108
+  y: 392
+  text: "Perimetro Nord-Ovest"
+  font_size: 11
+  color: "#94a3b8"
+
+- id: pro6_pe_no_led
+  type: led
+  x: 220
+  y: 383
+  width: 16
+  height: 16
+  tag: perimetro.nordovest
+  on_color: "#ef4444"
+  off_color: "#1e293b"
+
+- id: pro6_pe_o_lbl
+  type: text
+  x: 108
+  y: 414
+  text: "Perimetro Ovest"
+  font_size: 11
+  color: "#94a3b8"
+
+- id: pro6_pe_o_led
+  type: led
+  x: 220
+  y: 405
+  width: 16
+  height: 16
+  tag: perimetro.ovest
+  on_color: "#ef4444"
+  off_color: "#1e293b"
+
+- id: pro6_mov_ingr_lbl
+  type: text
+  x: 108
+  y: 436
+  text: "Movimento ingresso"
+  font_size: 11
+  color: "#94a3b8"
+
+- id: pro6_mov_ingr_led
+  type: led
+  x: 220
+  y: 427
+  width: 16
+  height: 16
+  tag: ingresso.movimento
+  on_color: "#f59e0b"
+  off_color: "#1e293b"
+
+- id: pro6_mov_ext_lbl
+  type: text
+  x: 108
+  y: 458
+  text: "Movimento esterno"
+  font_size: 11
+  color: "#94a3b8"
+
+- id: pro6_mov_ext_led
+  type: led
+  x: 220
+  y: 449
+  width: 16
+  height: 16
+  tag: esterno.movimento
+  on_color: "#ef4444"
+  off_color: "#1e293b"
+
+- id: pro6_pers_ext_lbl
+  type: text
+  x: 108
+  y: 480
+  text: "Persona (AI)"
+  font_size: 11
+  color: "#94a3b8"
+
+- id: pro6_pers_ext_led
+  type: led
+  x: 220
+  y: 471
+  width: 16
+  height: 16
+  tag: esterno.persona
+  on_color: "#a78bfa"
+  off_color: "#1e293b"
+
+- id: pro6_veic_lbl
+  type: text
+  x: 108
+  y: 478
+  text: "Veicolo (AI)"
+  font_size: 11
+  color: "#94a3b8"
+
+- id: pro6_veic_led
+  type: led
+  x: 310
+  y: 471
+  width: 16
+  height: 16
+  tag: esterno.veicolo
+  on_color: "#38bdf8"
+  off_color: "#1e293b"
+
+- id: pro6_piaz_lbl
+  type: text
+  x: 108
+  y: 480
+  text: "Piazzale"
+  font_size: 11
+  color: "#94a3b8"
+
+- id: pro6_piaz_led
+  type: led
+  x: 220
+  y: 477
+  width: 14
+  height: 14
+  tag: piazzale.movimento
+  on_color: "#ef4444"
+  off_color: "#1e293b"
+
+# Mauro a casa
+- id: pro6_mauro_lbl
+  type: text
+  x: 108
+  y: 478
+  text: "Mauro a casa"
+  font_size: 11
+  color: "#94a3b8"
+
+- id: pro6_mauro_led
+  type: led
+  x: 220
+  y: 469
+  width: 16
+  height: 16
+  tag: mauro.a_casa
+  on_color: "#22c55e"
+  off_color: "#334155"
+
+# ══════════════════════════════════════════════════════════════════════════════
+# CONTROLLO LUCI (right top) — write-back switch HA
+# ══════════════════════════════════════════════════════════════════════════════
+
+- id: pro6_luci_hdr
+  type: text
+  x: 614
+  y: 60
+  text: "💡 LUCI ESTERNE — write-back"
+  font_size: 12
+  font_weight: bold
+  text_anchor: middle
+  color: "#f59e0b"
+
+- id: pro6_luci_box
+  type: rect
+  x: 410
+  y: 68
+  width: 376
+  height: 174
+  fill: "#1c1100"
+  stroke: "#92400e"
+  stroke_width: 1
+  rx: 6
+
+# Lampada cancelletto
+- id: pro6_lc_lbl
+  type: text
+  x: 502
+  y: 95
+  text: "Cancelletto"
+  font_size: 12
+  color: "#94a3b8"
+
+- id: pro6_lc_led
+  type: led
+  x: 584
+  y: 86
+  width: 18
+  height: 18
+  tag: luce.cancelletto
+  on_color: "#fbbf24"
+  off_color: "#374151"
+
+- id: pro6_lc_on
+  type: button
+  x: 612
+  y: 82
+  width: 54
+  height: 28
+  label: "ON"
+  fill: "#d97706"
+  tag: luce.cancelletto
+  write_value: true
+
+- id: pro6_lc_off
+  type: button
+  x: 672
+  y: 82
+  width: 54
+  height: 28
+  label: "OFF"
+  fill: "#374151"
+  tag: luce.cancelletto
+  write_value: false
+
+# Lampada viale
+- id: pro6_lv_lbl
+  type: text
+  x: 502
+  y: 125
+  text: "Viale centrale"
+  font_size: 12
+  color: "#94a3b8"
+
+- id: pro6_lv_led
+  type: led
+  x: 584
+  y: 116
+  width: 18
+  height: 18
+  tag: luce.viale
+  on_color: "#fbbf24"
+  off_color: "#374151"
+
+- id: pro6_lv_on
+  type: button
+  x: 612
+  y: 112
+  width: 54
+  height: 28
+  label: "ON"
+  fill: "#d97706"
+  tag: luce.viale
+  write_value: true
+
+- id: pro6_lv_off
+  type: button
+  x: 672
+  y: 112
+  width: 54
+  height: 28
+  label: "OFF"
+  fill: "#374151"
+  tag: luce.viale
+  write_value: false
+
+# Lampada strada
+- id: pro6_ls_lbl
+  type: text
+  x: 502
+  y: 155
+  text: "Strada DX"
+  font_size: 12
+  color: "#94a3b8"
+
+- id: pro6_ls_led
+  type: led
+  x: 584
+  y: 146
+  width: 18
+  height: 18
+  tag: luce.strada
+  on_color: "#fbbf24"
+  off_color: "#374151"
+
+- id: pro6_ls_on
+  type: button
+  x: 612
+  y: 142
+  width: 54
+  height: 28
+  label: "ON"
+  fill: "#d97706"
+  tag: luce.strada
+  write_value: true
+
+- id: pro6_ls_off
+  type: button
+  x: 672
+  y: 142
+  width: 54
+  height: 28
+  label: "OFF"
+  fill: "#374151"
+  tag: luce.strada
+  write_value: false
+
+- id: pro6_luci_note
+  type: text
+  x: 598
+  y: 230
+  text: "true → HA: switch.turn_on / false → turn_off"
+  font_size: 9
+  text_anchor: middle
+  color: "#334155"
+
+# ══════════════════════════════════════════════════════════════════════════════
+# CONTROLLO TAPPARELLE (right bottom) — write-back cover HA
+# ══════════════════════════════════════════════════════════════════════════════
+
+- id: pro6_tapp_hdr
+  type: text
+  x: 614
+  y: 250
+  text: "🪟 TAPPARELLE — write-back"
+  font_size: 12
+  font_weight: bold
+  text_anchor: middle
+  color: "#38bdf8"
+
+- id: pro6_tapp_box
+  type: rect
+  x: 410
+  y: 258
+  width: 376
+  height: 284
+  fill: "#0c1a2e"
+  stroke: "#1e3a5f"
+  stroke_width: 1
+  rx: 6
+
+- id: pro6_tapp_col_lbl
+  type: text
+  x: 500
+  y: 276
+  text: "Tapparella"
+  font_size: 9
+  font_weight: bold
+  color: "#475569"
+
+- id: pro6_tapp_st_lbl
+  type: text
+  x: 598
+  y: 276
+  text: "Stato"
+  font_size: 9
+  font_weight: bold
+  text_anchor: middle
+  color: "#475569"
+
+- id: pro6_tapp_su_lbl
+  type: text
+  x: 670
+  y: 276
+  text: "SÙ"
+  font_size: 9
+  font_weight: bold
+  text_anchor: middle
+  color: "#38bdf8"
+
+- id: pro6_tapp_giu_lbl
+  type: text
+  x: 740
+  y: 276
+  text: "GIÙ"
+  font_size: 9
+  font_weight: bold
+  text_anchor: middle
+  color: "#94a3b8"
+
+- id: pro6_t_div
+  type: line
+  x: 420
+  y: 280
+  x2: 776
+  y2: 280
+  stroke: "#1e3a5f"
+  stroke_width: 1
+
+# Soggiorno SX
+- id: pro6_t_sg_sx_lbl
+  type: text
+  x: 500
+  y: 302
+  text: "Soggiorno SX"
+  font_size: 11
+  color: "#94a3b8"
+
+- id: pro6_t_sg_sx_led
+  type: led
+  x: 590
+  y: 293
+  width: 16
+  height: 16
+  tag: tapparella.soggiorno_sx
+  on_color: "#38bdf8"
+  off_color: "#334155"
+
+- id: pro6_t_sg_sx_su
+  type: button
+  x: 644
+  y: 289
+  width: 50
+  height: 26
+  label: "▲ SÙ"
+  fill: "#0284c7"
+  tag: tapparella.soggiorno_sx
+  write_value: true
+
+- id: pro6_t_sg_sx_giu
+  type: button
+  x: 700
+  y: 289
+  width: 50
+  height: 26
+  label: "▼ GIÙ"
+  fill: "#374151"
+  tag: tapparella.soggiorno_sx
+  write_value: false
+
+# Soggiorno DX
+- id: pro6_t_sg_dx_lbl
+  type: text
+  x: 500
+  y: 332
+  text: "Soggiorno DX"
+  font_size: 11
+  color: "#94a3b8"
+
+- id: pro6_t_sg_dx_led
+  type: led
+  x: 590
+  y: 323
+  width: 16
+  height: 16
+  tag: tapparella.soggiorno_dx
+  on_color: "#38bdf8"
+  off_color: "#334155"
+
+- id: pro6_t_sg_dx_su
+  type: button
+  x: 644
+  y: 319
+  width: 50
+  height: 26
+  label: "▲ SÙ"
+  fill: "#0284c7"
+  tag: tapparella.soggiorno_dx
+  write_value: true
+
+- id: pro6_t_sg_dx_giu
+  type: button
+  x: 700
+  y: 319
+  width: 50
+  height: 26
+  label: "▼ GIÙ"
+  fill: "#374151"
+  tag: tapparella.soggiorno_dx
+  write_value: false
+
+# Bagno
+- id: pro6_t_bagno_lbl
+  type: text
+  x: 500
+  y: 362
+  text: "Bagno PT"
+  font_size: 11
+  color: "#94a3b8"
+
+- id: pro6_t_bagno_led
+  type: led
+  x: 590
+  y: 353
+  width: 16
+  height: 16
+  tag: tapparella.bagno
+  on_color: "#38bdf8"
+  off_color: "#334155"
+
+- id: pro6_t_bagno_su
+  type: button
+  x: 644
+  y: 349
+  width: 50
+  height: 26
+  label: "▲ SÙ"
+  fill: "#0284c7"
+  tag: tapparella.bagno
+  write_value: true
+
+- id: pro6_t_bagno_giu
+  type: button
+  x: 700
+  y: 349
+  width: 50
+  height: 26
+  label: "▼ GIÙ"
+  fill: "#374151"
+  tag: tapparella.bagno
+  write_value: false
+
+# Garage (tapparella)
+- id: pro6_t_gar_lbl
+  type: text
+  x: 500
+  y: 392
+  text: "Garage"
+  font_size: 11
+  color: "#94a3b8"
+
+- id: pro6_t_gar_led
+  type: led
+  x: 590
+  y: 383
+  width: 16
+  height: 16
+  tag: tapparella.garage
+  on_color: "#38bdf8"
+  off_color: "#334155"
+
+- id: pro6_t_gar_su
+  type: button
+  x: 644
+  y: 379
+  width: 50
+  height: 26
+  label: "▲ SÙ"
+  fill: "#0284c7"
+  tag: tapparella.garage
+  write_value: true
+
+- id: pro6_t_gar_giu
+  type: button
+  x: 700
+  y: 379
+  width: 50
+  height: 26
+  label: "▼ GIÙ"
+  fill: "#374151"
+  tag: tapparella.garage
+  write_value: false
+
+# Note
+- id: pro6_tapp_note1
+  type: text
+  x: 598
+  y: 418
+  text: "▲ SÙ → HA: cover.open_cover"
+  font_size: 9
+  text_anchor: middle
+  color: "#334155"
+
+- id: pro6_tapp_note2
+  type: text
+  x: 598
+  y: 432
+  text: "▼ GIÙ → HA: cover.close_cover"
+  font_size: 9
+  text_anchor: middle
+  color: "#334155"
+
+- id: pro6_tapp_note3
+  type: text
+  x: 598
+  y: 450
+  text: "Stato: true = aperta / false = chiusa"
+  font_size: 9
+  text_anchor: middle
+  color: "#334155"
+
+# Presenza (bottom-right)
+- id: pro6_pres_div
+  type: line
+  x: 420
+  y: 468
+  x2: 776
+  y2: 468
+  stroke: "#1e3a5f"
+  stroke_width: 1
+
+- id: pro6_pres_lbl
+  type: text
+  x: 502
+  y: 490
+  text: "Mauro a casa"
+  font_size: 12
+  color: "#94a3b8"
+
+- id: pro6_pres_led
+  type: led
+  x: 594
+  y: 481
+  width: 20
+  height: 20
+  tag: mauro.a_casa
+  on_color: "#22c55e"
+  off_color: "#334155"
+
+- id: pro6_pres_val
+  type: text
+  x: 624
+  y: 494
+  tag: mauro.a_casa
+  format: "{value}"
+  font_size: 13
+  font_weight: bold
+  color: "#4ade80"
+
+- id: pro6_sole_lbl
+  type: text
+  x: 502
+  y: 520
+  text: "Sole elevazione"
+  font_size: 12
+  color: "#94a3b8"
+
+- id: pro6_sole_val
+  type: text
+  x: 624
+  y: 520
+  tag: sole.elevazione
+  format: "{value:.1f}°"
+  font_size: 16
+  font_weight: bold
+  color: "#fbbf24"
