@@ -6,14 +6,18 @@ import type {
   DatastoreListItem,
   DatastoreStats,
   FunctionDef,
+  HistoryStats,
   LogEvent,
   LogFileEntry,
   MqttBrowseRequest,
   MqttBrowseResponse,
   OpcUaBrowseRequest,
   OpcUaBrowseResponse,
+  OpcUaCertEntry,
   OpcUaDetectEuromapRequest,
   OpcUaEuromapDetection,
+  OpcUaHistoricalSample,
+  OpcUaHistoryRequest,
   ProjectInfo,
   ProjectListEntry,
   Sample,
@@ -385,14 +389,41 @@ export const api = {
   getLogFile: (date: string) => request<LogEvent[]>(`/api/logs/file?date=${encodeURIComponent(date)}`),
 
   // Historian
-  getHistory: (tag: string, opts?: { fromMs?: number; toMs?: number; limit?: number }) => {
+  getHistory: (tag: string, opts?: { fromMs?: number; toMs?: number; limit?: number; backfill?: boolean }) => {
     const params = new URLSearchParams();
-    if (opts?.fromMs !== undefined) params.set("from", String(opts.fromMs));
-    if (opts?.toMs   !== undefined) params.set("to",   String(opts.toMs));
-    if (opts?.limit  !== undefined) params.set("limit", String(opts.limit));
+    if (opts?.fromMs   !== undefined) params.set("from",     String(opts.fromMs));
+    if (opts?.toMs     !== undefined) params.set("to",       String(opts.toMs));
+    if (opts?.limit    !== undefined) params.set("limit",    String(opts.limit));
+    if (opts?.backfill)               params.set("backfill", "true");
     const qs = params.toString();
     return request<Sample[]>(
       `/api/history/${encodeURIComponent(tag)}${qs ? "?" + qs : ""}`,
+    );
+  },
+
+  /** GET /api/history/export?tags=a,b&from_ms=&to_ms=
+   *  Triggers a browser download of a CSV file with all samples for the given tags. */
+  exportHistoryCsv: (tags: string[], fromMs?: number, toMs?: number): void => {
+    const params = new URLSearchParams({ tags: tags.join(",") });
+    if (fromMs !== undefined) params.set("from_ms", String(fromMs));
+    if (toMs   !== undefined) params.set("to_ms",   String(toMs));
+    const url = `${getBaseUrl()}/api/history/export?${params}`;
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "export.csv";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  },
+
+  /** GET /api/history/:tag/stats?from_ms=&to_ms= */
+  getHistoryStats: (tag: string, opts?: { fromMs?: number; toMs?: number }) => {
+    const params = new URLSearchParams();
+    if (opts?.fromMs !== undefined) params.set("from_ms", String(opts.fromMs));
+    if (opts?.toMs   !== undefined) params.set("to_ms",   String(opts.toMs));
+    const qs = params.toString();
+    return request<HistoryStats>(
+      `/api/history/${encodeURIComponent(tag)}/stats${qs ? "?" + qs : ""}`,
     );
   },
 
@@ -492,6 +523,30 @@ export const api = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(req),
     }),
+
+  // OPC-UA historical read — fetches raw data directly from the server's historian (Operator+)
+  readOpcUaHistory: (req: OpcUaHistoryRequest) =>
+    request<OpcUaHistoricalSample[]>("/api/sources/opcua/history", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(req),
+    }),
+
+  // OPC-UA certificate trust management (Supervisor+ list, Admin trust/delete)
+  listOpcUaCerts: (sourceId: string) =>
+    request<OpcUaCertEntry[]>(`/api/sources/${encodeURIComponent(sourceId)}/opcua/certs`),
+
+  trustOpcUaCert: (sourceId: string, filename: string) =>
+    request<void>(
+      `/api/sources/${encodeURIComponent(sourceId)}/opcua/certs/${encodeURIComponent(filename)}/trust`,
+      { method: "POST" },
+    ),
+
+  deleteOpcUaCert: (sourceId: string, filename: string) =>
+    request<void>(
+      `/api/sources/${encodeURIComponent(sourceId)}/opcua/certs/${encodeURIComponent(filename)}`,
+      { method: "DELETE" },
+    ),
 
   getSystemStatus: (): Promise<{
     runtime_version: string;

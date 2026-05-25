@@ -2,9 +2,10 @@
 // sws-plugin-api is deferred until third-party plugin support is needed.
 
 use std::{collections::HashMap, sync::Arc, time::Duration};
-use sws_core::{ModbusTcpConfig, TagDb, TagQuality, TagValue, TagWriteBus, WriteRequest};
+use sws_core::{ModbusRtuConfig, ModbusTcpConfig, TagDb, TagQuality, TagValue, TagWriteBus, WriteRequest};
 use tokio::sync::mpsc;
 use tokio_modbus::prelude::*;
+use tokio_serial::{DataBits, Parity, SerialPortBuilderExt, StopBits};
 use tokio_util::sync::CancellationToken;
 use tracing::{info, warn};
 
@@ -135,5 +136,127 @@ fn tagvalue_to_register(value: &TagValue, scale: f64) -> Option<u16> {
         Some(raw as u16)
     } else {
         None
+    }
+}
+
+/// Runs the Modbus RTU (serial) polling loop until `cancel` fires, reconnecting
+/// on any error. Same structure as `run()` but uses `rtu::connect_slave` with a
+/// `tokio_serial::SerialStream` as transport.
+pub async fn run_rtu(cfg: ModbusRtuConfig, db: Arc<TagDb>, bus: Arc<TagWriteBus>, cancel: CancellationToken) {
+    let (write_tx, mut write_rx) = mpsc::channel::<WriteRequest>(32);
+    for reg in &cfg.registers {
+        bus.register(reg.tag.clone(), write_tx.clone()).await;
+    }
+    drop(write_tx);
+
+    let routes: HashMap<String, (u16, f64)> = cfg.registers.iter()
+        .map(|r| (r.tag.clone(), (r.address, r.scale)))
+        .collect();
+
+    loop {
+        if cancel.is_cancelled() {
+            info!(source = %cfg.id, "Modbus RTU task cancelled");
+            return;
+        }
+        tokio::select! {
+            biased;
+            _ = cancel.cancelled() => {
+                info!(source = %cfg.id, "Modbus RTU task cancelled");
+                return;
+            }
+            res = session_rtu(&cfg, &db, &routes, &mut write_rx, cancel.clone()) => match res {
+                Ok(()) => return,
+                Err(e) => {
+                    warn!(source = %cfg.id, "Modbus RTU error: {e:#} — marking tags Bad, retry in 5 s");
+                    for reg in &cfg.registers {
+                        db.set(reg.tag.clone(), TagValue::Float(0.0), TagQuality::Bad).await;
+                    }
+                    tokio::select! {
+                        _ = cancel.cancelled() => return,
+                        _ = tokio::time::sleep(Duration::from_secs(5)) => {}
+                    }
+                }
+            }
+        }
+    }
+}
+
+async fn session_rtu(
+    cfg: &ModbusRtuConfig,
+    db: &TagDb,
+    routes: &HashMap<String, (u16, f64)>,
+    write_rx: &mut mpsc::Receiver<WriteRequest>,
+    cancel: CancellationToken,
+) -> anyhow::Result<()> {
+    let parity = match cfg.parity.to_ascii_uppercase().as_str() {
+        "E" => Parity::Even,
+        "O" => Parity::Odd,
+        _   => Parity::None,
+    };
+    let data_bits = match cfg.data_bits {
+        7 => DataBits::Seven,
+        _ => DataBits::Eight,
+    };
+    let stop_bits = match cfg.stop_bits {
+        2 => StopBits::Two,
+        _ => StopBits::One,
+    };
+
+    info!(source = %cfg.id, device = %cfg.device, baud = cfg.baud_rate,
+          unit_id = cfg.unit_id, "Modbus RTU connecting");
+
+    let stream = tokio_serial::new(&cfg.device, cfg.baud_rate)
+        .parity(parity)
+        .data_bits(data_bits)
+        .stop_bits(stop_bits)
+        .open_native_async()
+        .map_err(|e| anyhow::anyhow!("open serial {}: {e}", cfg.device))?;
+
+    let mut ctx = rtu::connect_slave(stream, Slave(cfg.unit_id))
+        .await
+        .map_err(|e| anyhow::anyhow!("connect RTU {}: {e}", cfg.device))?;
+
+    info!(source = %cfg.id, "Modbus RTU connected");
+
+    let mut ticker = tokio::time::interval(Duration::from_millis(cfg.poll_interval_ms));
+    ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+
+    loop {
+        tokio::select! {
+            _ = cancel.cancelled() => return Ok(()),
+
+            _ = ticker.tick() => {
+                for reg in &cfg.registers {
+                    match ctx.read_holding_registers(reg.address, 1).await {
+                        Ok(words) => {
+                            let raw = words.first().copied().unwrap_or(0) as f64;
+                            db.set(reg.tag.clone(), TagValue::Float(raw * reg.scale), TagQuality::Good).await;
+                        }
+                        Err(e) => {
+                            db.set(reg.tag.clone(), TagValue::Float(0.0), TagQuality::Bad).await;
+                            return Err(anyhow::anyhow!("read register {}: {e}", reg.address));
+                        }
+                    }
+                }
+            }
+
+            Some((tag, value)) = write_rx.recv() => {
+                let Some(&(address, scale)) = routes.get(&tag) else { continue };
+                let Some(raw) = tagvalue_to_register(&value, scale) else {
+                    warn!(source = %cfg.id, %tag, ?value, "write rejected: value out of range / unsupported type");
+                    continue;
+                };
+                match ctx.write_single_register(address, raw).await {
+                    Ok(_) => {
+                        db.set(tag.clone(), TagValue::Float(raw as f64 * scale), TagQuality::Good).await;
+                        info!(source = %cfg.id, %tag, address, raw, "Modbus RTU write OK");
+                    }
+                    Err(e) => {
+                        db.set(tag.clone(), TagValue::Float(0.0), TagQuality::Bad).await;
+                        return Err(anyhow::anyhow!("write register {address} for tag {tag}: {e}"));
+                    }
+                }
+            }
+        }
     }
 }

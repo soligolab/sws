@@ -8,6 +8,7 @@ license.workspace = true
 tokio.workspace        = true
 tokio-util.workspace   = true
 tokio-modbus.workspace = true
+tokio-serial.workspace = true
 serde.workspace        = true
 tracing.workspace      = true
 anyhow.workspace       = true

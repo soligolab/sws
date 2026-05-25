@@ -137,6 +137,10 @@ impl TagDef {
 pub enum SourceDef {
     #[serde(rename = "modbus_tcp")]
     ModbusTcp(ModbusTcpConfig),
+    #[serde(rename = "modbus_rtu")]
+    ModbusRtu(ModbusRtuConfig),
+    #[serde(rename = "opcua_server")]
+    OpcUaServer(OpcUaServerConfig),
     #[serde(rename = "mqtt")]
     Mqtt(MqttConfig),
     #[serde(rename = "opcua_client")]
@@ -152,6 +156,32 @@ pub struct ModbusTcpConfig {
     #[serde(default = "default_unit_id")]
     pub unit_id: u8,
     /// How often to poll all registers, in milliseconds.
+    #[serde(default = "default_poll_interval_ms")]
+    pub poll_interval_ms: u64,
+    pub registers: Vec<RegisterMapping>,
+}
+
+/// Modbus RTU (serial) source. Mirrors `ModbusTcpConfig` but uses a serial
+/// device instead of a TCP address.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ModbusRtuConfig {
+    pub id: String,
+    /// Serial device path, e.g. `/dev/ttyS0` or `/dev/ttyUSB0`.
+    pub device: String,
+    /// Baud rate, e.g. 9600, 19200, 115200.
+    #[serde(default = "default_baud_rate")]
+    pub baud_rate: u32,
+    /// Parity: "N" (none), "E" (even), "O" (odd). Default "N".
+    #[serde(default = "default_parity")]
+    pub parity: String,
+    /// Data bits: 7 or 8. Default 8.
+    #[serde(default = "default_data_bits")]
+    pub data_bits: u8,
+    /// Stop bits: 1 or 2. Default 1.
+    #[serde(default = "default_stop_bits")]
+    pub stop_bits: u8,
+    #[serde(default = "default_unit_id")]
+    pub unit_id: u8,
     #[serde(default = "default_poll_interval_ms")]
     pub poll_interval_ms: u64,
     pub registers: Vec<RegisterMapping>,
@@ -284,6 +314,10 @@ pub struct OpcUaClientConfig {
     /// e.g. `ns=2;s=Machine.CycleTime` or `ns=0;i=2253`.
     #[serde(default)]
     pub nodes: Vec<OpcUaNodeMapping>,
+    /// When true (default), any server certificate is automatically trusted.
+    /// Set to false to require explicit certificate approval via the trust store.
+    #[serde(default = "default_true")]
+    pub trust_all_certs: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -292,6 +326,45 @@ pub struct OpcUaNodeMapping {
     pub node_id: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
+}
+
+/// OPC-UA server — exposes SWS tag values as OPC-UA Variable nodes so that
+/// SCADA supervisors, MES, and historian tools can subscribe to SWS directly.
+/// One folder ("SWS") is created under ObjectsFolder; each mapping adds a
+/// Variable node under that folder. Writes from OPC-UA clients flow into
+/// TagWriteBus and are reflected in the TagDb.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OpcUaServerConfig {
+    pub id: String,
+    /// TCP port to listen on. Default 4840 (OPC-UA standard).
+    #[serde(default = "default_opcua_server_port")]
+    pub port: u16,
+    /// Namespace URI for the SWS nodes,
+    /// e.g. `urn:soligolab:sws`. Default `urn:soligolab:sws`.
+    #[serde(default = "default_opcua_namespace_uri")]
+    pub namespace_uri: String,
+    /// Tag → OPC-UA node mappings. `node_id` is the string identifier
+    /// within the SWS namespace (e.g. `"pump1.speed"`).
+    #[serde(default)]
+    pub nodes: Vec<OpcUaServerNodeMapping>,
+}
+
+/// One tag exposed as an OPC-UA Variable node.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OpcUaServerNodeMapping {
+    /// SWS tag identifier.
+    pub tag: String,
+    /// OPC-UA string node id within the server namespace.
+    /// Defaults to the tag id when omitted.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub node_id: Option<String>,
+}
+
+impl OpcUaServerNodeMapping {
+    /// Returns the effective OPC-UA node id string (node_id or tag).
+    pub fn effective_node_id(&self) -> &str {
+        self.node_id.as_deref().unwrap_or(&self.tag)
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -310,11 +383,18 @@ pub enum OpcUaAuth {
 
 fn default_opcua_security_policy() -> String { "None".into() }
 fn default_opcua_subscription_interval_ms() -> u64 { 500 }
+fn default_true() -> bool { true }
+fn default_opcua_server_port() -> u16 { 4840 }
+fn default_opcua_namespace_uri() -> String { "urn:soligolab:sws".into() }
 
 fn default_modbus_port() -> u16 { 502 }
 fn default_unit_id() -> u8 { 1 }
 fn default_poll_interval_ms() -> u64 { 1000 }
 fn default_scale() -> f64 { 1.0 }
+fn default_baud_rate() -> u32 { 9600 }
+fn default_parity() -> String { "N".into() }
+fn default_data_bits() -> u8 { 8 }
+fn default_stop_bits() -> u8 { 1 }
 fn default_data_type() -> String { "float".to_string() }
 fn default_mqtt_port() -> u16 { 1883 }
 fn default_mqtt_client_id() -> String { "sws-runtime".to_string() }

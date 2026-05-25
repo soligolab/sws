@@ -7,9 +7,9 @@ pub use alarm::{AlarmCondition, AlarmDb, AlarmDef, AlarmSeverity, AlarmState};
 pub use logbus::{LogBus, LogEvent, DEFAULT_LOG_CAPACITY};
 pub use project::{
     CustomSymbol, CustomSymbolAttribution, DatastoreBackendConfig, DatastoreConfig, FunctionDef,
-    FunctionParam, ModbusTcpConfig, MqttConfig, MqttLastWill, MqttTlsConfig, OpcUaAuth,
-    OpcUaClientConfig, OpcUaNodeMapping, Project, ProjectMeta, RegisterMapping, SourceDef, TagDef,
-    TopicMapping, MAX_FUNCTION_CODE_BYTES,
+    FunctionParam, ModbusRtuConfig, ModbusTcpConfig, MqttConfig, MqttLastWill, MqttTlsConfig, OpcUaAuth,
+    OpcUaClientConfig, OpcUaNodeMapping, OpcUaServerConfig, OpcUaServerNodeMapping, Project,
+    ProjectMeta, RegisterMapping, SourceDef, TagDef, TopicMapping, MAX_FUNCTION_CODE_BYTES,
 };
 pub use tag::{
     Tag, TagDb, TagId, TagQuality, TagState, TagUpdate, TagValue, TagWriteBus, WriteError,

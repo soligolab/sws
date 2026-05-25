@@ -128,6 +128,8 @@ pub fn build(
         .route("/api/sources/opcua/browse", post(opcua_browse_handler))
         // OPC-UA Euromap 77/83 companion-spec auto-detect.
         .route("/api/sources/opcua/detect-euromap", post(opcua_detect_euromap_handler))
+        // OPC-UA historical read — fetches raw data directly from the server's historian.
+        .route("/api/sources/opcua/history", post(opcua_history_handler))
         .route("/api/system",             get(crate::system::get_system_status))
         .route_layer(middleware::from_fn(require_operator));
 
@@ -149,7 +151,9 @@ pub fn build(
         // Alarm REST (reads)
         .route("/api/alarms",    get(get_alarms))
         // Historian
-        .route("/api/history/:tag", get(get_history))
+        .route("/api/history/export",      get(export_history_csv))   // literal before :tag
+        .route("/api/history/:tag/stats",  get(tag_history_stats))
+        .route("/api/history/:tag",        get(get_history))
         // (Datastore routes are in a dedicated router below — see datastore_routes)
         // Synoptic REST (reads)
         .route("/api/synoptics",       get(list_synoptics))
@@ -174,7 +178,19 @@ pub fn build(
         .route("/api/datastores/:id/purge",
             post(datastore_purge).route_layer(require_admin_layer.clone()))
         .route("/api/datastores/:id/export",
-            get(datastore_export).route_layer(require_admin_layer));
+            get(datastore_export).route_layer(require_admin_layer.clone()));
+
+    // OPC-UA cert trust management — separate router to avoid matchit
+    // conflicts with /api/sources/opcua/browse (literal) vs :id (param).
+    // GET list is Supervisor+; POST trust and DELETE are Admin-only.
+    let require_supervisor_layer = middleware::from_fn(require_supervisor);
+    let opcua_cert_routes = Router::new()
+        .route("/api/sources/:id/opcua/certs",
+            get(opcua_list_certs).route_layer(require_supervisor_layer))
+        .route("/api/sources/:id/opcua/certs/:filename/trust",
+            post(opcua_trust_cert).route_layer(require_admin_layer.clone()))
+        .route("/api/sources/:id/opcua/certs/:filename",
+            delete(opcua_delete_cert).route_layer(require_admin_layer));
 
     // The "blocking" set — all routes above plus all the operator/admin
     // routes — is gated by the must_change_password flag in addition to
@@ -185,6 +201,7 @@ pub fn build(
         .merge(supervisor_routes)
         .merge(admin_routes)
         .merge(datastore_routes)
+        .merge(opcua_cert_routes)
         .route_layer(middleware::from_fn(require_password_changed));
 
     // Self-service endpoints: any authenticated user, including one with
@@ -622,6 +639,11 @@ struct HistoryQuery {
     to:   Option<u64>,
     /// If provided, returns at most the last `limit` samples in the range.
     limit: Option<usize>,
+    /// When true, transparently backfills from the OPC-UA server's historian
+    /// for any tag that originates from an OPC-UA source. Merged with and
+    /// deduplicated against the local historian samples.
+    #[serde(default)]
+    backfill: bool,
 }
 
 async fn get_history(
@@ -630,12 +652,217 @@ async fn get_history(
     Query(q): Query<HistoryQuery>,
 ) -> Json<Vec<Sample>> {
     let mut samples = s.historian.query(&tag, q.from, q.to).await;
+
+    if q.backfill {
+        samples = opcua_backfill_history(&s, &tag, q.from, q.to, samples).await;
+    }
+
     if let Some(n) = q.limit {
         if samples.len() > n {
             samples = samples.split_off(samples.len() - n);
         }
     }
     Json(samples)
+}
+
+// ── Feature #4: CSV export ────────────────────────────────────────────────────
+
+#[derive(Deserialize)]
+struct ExportCsvQuery {
+    /// Comma-separated list of tag IDs.
+    tags: Option<String>,
+    from_ms: Option<u64>,
+    to_ms:   Option<u64>,
+}
+
+/// GET /api/history/export?tags=a,b&from_ms=&to_ms=
+/// Returns a CSV file with columns: ts_ms,ts_iso,tag_id,value,quality.
+/// `ts_iso` is RFC 3339 UTC (e.g. 2026-05-22T10:30:00.000Z).
+async fn export_history_csv(
+    State(s): State<AppState>,
+    Query(q): Query<ExportCsvQuery>,
+) -> impl IntoResponse {
+    let tag_list: Vec<String> = q.tags
+        .as_deref()
+        .unwrap_or("")
+        .split(',')
+        .map(str::trim)
+        .filter(|t| !t.is_empty())
+        .map(String::from)
+        .collect();
+
+    if tag_list.is_empty() {
+        return (StatusCode::BAD_REQUEST, "tag parameter 'tags' required").into_response();
+    }
+
+    struct Row { ts_ms: u64, tag: String, val: String, quality: &'static str }
+    let mut rows: Vec<Row> = Vec::new();
+
+    for tag in &tag_list {
+        let samples = s.historian.query(tag, q.from_ms, q.to_ms).await;
+        for sample in samples {
+            let val = match &sample.value {
+                TagValue::Float(f) => format!("{f}"),
+                TagValue::Int(i)   => format!("{i}"),
+                TagValue::Bool(b)  => if *b { "1".into() } else { "0".into() },
+                TagValue::Str(s)   => format!("\"{s}\""),
+            };
+            let quality = match sample.quality {
+                TagQuality::Good      => "Good",
+                TagQuality::Bad       => "Bad",
+                TagQuality::Uncertain => "Uncertain",
+            };
+            rows.push(Row { ts_ms: sample.ts_ms, tag: tag.clone(), val, quality });
+        }
+    }
+
+    rows.sort_by_key(|r| r.ts_ms);
+
+    let mut csv = String::from("ts_ms,ts_iso,tag_id,value,quality\n");
+    for r in &rows {
+        let iso = ms_to_iso(r.ts_ms);
+        csv.push_str(&format!("{},{},{},{},{}\n", r.ts_ms, iso, r.tag, r.val, r.quality));
+    }
+
+    (
+        StatusCode::OK,
+        [
+            (header::CONTENT_TYPE,        "text/csv; charset=utf-8"),
+            (header::CONTENT_DISPOSITION, "attachment; filename=\"export.csv\""),
+        ],
+        csv,
+    ).into_response()
+}
+
+/// Convert a Unix millisecond timestamp to a compact ISO 8601 UTC string
+/// (e.g. "2026-05-22T10:30:00.123Z") without requiring the `formatting`
+/// feature of the `time` crate.
+fn ms_to_iso(ts_ms: u64) -> String {
+    use time::OffsetDateTime;
+    let secs = (ts_ms / 1000) as i64;
+    let millis = (ts_ms % 1000) as u32;
+    match OffsetDateTime::from_unix_timestamp(secs) {
+        Ok(dt) => {
+            let mo = dt.month() as u8;
+            format!(
+                "{:04}-{:02}-{:02}T{:02}:{:02}:{:02}.{:03}Z",
+                dt.year(), mo, dt.day(),
+                dt.hour(), dt.minute(), dt.second(),
+                millis
+            )
+        }
+        Err(_) => format!("{ts_ms}"),
+    }
+}
+
+// ── Feature #5: Statistiche aggregate ────────────────────────────────────────
+
+#[derive(Deserialize)]
+struct StatsQuery {
+    from_ms: Option<u64>,
+    to_ms:   Option<u64>,
+}
+
+#[derive(serde::Serialize)]
+struct HistoryStats {
+    tag: String,
+    count: usize,
+    min: f64,
+    max: f64,
+    avg: f64,
+    stddev: f64,
+    first_ts: Option<u64>,
+    last_ts:  Option<u64>,
+}
+
+/// GET /api/history/:tag/stats?from_ms=&to_ms=
+async fn tag_history_stats(
+    State(s): State<AppState>,
+    Path(tag): Path<String>,
+    Query(q): Query<StatsQuery>,
+) -> impl IntoResponse {
+    let samples = s.historian.query(&tag, q.from_ms, q.to_ms).await;
+
+    let nums: Vec<f64> = samples.iter().filter_map(|s| match &s.value {
+        TagValue::Float(f) => Some(*f),
+        TagValue::Int(i)   => Some(*i as f64),
+        TagValue::Bool(b)  => Some(if *b { 1.0 } else { 0.0 }),
+        TagValue::Str(v)   => v.trim().parse().ok(),
+    }).collect();
+
+    if nums.is_empty() {
+        return Json(HistoryStats {
+            tag,
+            count: 0, min: 0.0, max: 0.0, avg: 0.0, stddev: 0.0,
+            first_ts: None, last_ts: None,
+        }).into_response();
+    }
+
+    let count = nums.len();
+    let min = nums.iter().cloned().fold(f64::INFINITY, f64::min);
+    let max = nums.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
+    let avg = nums.iter().sum::<f64>() / count as f64;
+    let variance = nums.iter().map(|v| (v - avg).powi(2)).sum::<f64>() / count as f64;
+    let stddev = variance.sqrt();
+
+    Json(HistoryStats {
+        tag,
+        count,
+        min,
+        max,
+        avg,
+        stddev,
+        first_ts: samples.first().map(|s| s.ts_ms),
+        last_ts:  samples.last().map(|s| s.ts_ms),
+    }).into_response()
+}
+
+/// If `tag` is subscribed from an OPC-UA source, query that server's historian
+/// and merge the results with the existing local `samples`. No-ops silently when
+/// the project can't be loaded or the tag has no OPC-UA source.
+async fn opcua_backfill_history(
+    s: &AppState,
+    tag: &str,
+    from_ms: Option<u64>,
+    to_ms:   Option<u64>,
+    mut local: Vec<Sample>,
+) -> Vec<Sample> {
+    let Ok(dir) = active_dir(s).await else { return local };
+    let Ok(project) = sws_core::project::Project::load(&dir) else { return local };
+
+    // Find the OPC-UA source that maps this tag to a node_id.
+    for source in &project.sources {
+        let SourceDef::OpcUaClient(cfg) = source else { continue };
+        let Some(mapping) = cfg.nodes.iter().find(|n| n.tag == tag) else { continue };
+
+        match sws_plugin_opcua::read_history(cfg, &mapping.node_id, from_ms, to_ms, 1000).await {
+            Ok(hist) => {
+                // Build the set of timestamps already in local storage to
+                // avoid adding duplicates for the overlap period.
+                let local_ts: std::collections::HashSet<u64> =
+                    local.iter().map(|s| s.ts_ms).collect();
+                for h in hist {
+                    if local_ts.contains(&h.ts_ms) { continue; }
+                    local.push(Sample {
+                        ts_ms:   h.ts_ms,
+                        value:   TagValue::Float(h.value),
+                        quality: match h.quality {
+                            "Good"      => TagQuality::Good,
+                            "Bad"       => TagQuality::Bad,
+                            _           => TagQuality::Uncertain,
+                        },
+                    });
+                }
+                local.sort_unstable_by_key(|s| s.ts_ms);
+                return local;
+            }
+            Err(e) => {
+                warn!(tag = %tag, node = %mapping.node_id, "opcua history backfill: {e}");
+                return local;
+            }
+        }
+    }
+    local
 }
 
 // ── Datastore endpoints ──────────────────────────────────────────────────────
@@ -2006,6 +2233,7 @@ async fn opcua_browse_handler(
         auth: req.auth.unwrap_or_default(),
         subscription_interval_ms: 1000,
         nodes: Vec::new(),
+        trust_all_certs: true,
     };
     let direction = req.direction.unwrap_or_default();
 
@@ -2063,11 +2291,84 @@ async fn opcua_detect_euromap_handler(
         auth: req.auth.unwrap_or_default(),
         subscription_interval_ms: 1000,
         nodes: Vec::new(),
+        trust_all_certs: true,
     };
 
     match sws_plugin_opcua::detect_euromap(&cfg).await {
         Ok(det) => Json(det).into_response(),
         Err(e) => (StatusCode::BAD_GATEWAY, format!("opcua euromap detection failed: {e}")).into_response(),
+    }
+}
+
+// ── OPC-UA historical read ────────────────────────────────────────────────────
+//
+// POST /api/sources/opcua/history
+// Body: { endpoint_url, auth?, security_policy?, node_id, from_ms?, to_ms?, max_values? }
+// Returns: [ { ts_ms, value, quality }, … ] sorted ascending by ts_ms.
+//
+// Operator+ can call this. The source_id field (optional) is used to resolve
+// credentials from project.yaml when the editor sends the masked sentinel.
+
+#[derive(serde::Deserialize)]
+struct OpcUaHistoryRequest {
+    endpoint_url: String,
+    #[serde(default)]
+    source_id: Option<String>,
+    #[serde(default)]
+    auth: Option<sws_core::OpcUaAuth>,
+    #[serde(default)]
+    security_policy: Option<String>,
+    node_id: String,
+    #[serde(default)]
+    from_ms: Option<u64>,
+    #[serde(default)]
+    to_ms: Option<u64>,
+    /// Maximum data points returned by the server. Capped at 2000 server-side.
+    #[serde(default)]
+    max_values: Option<u32>,
+}
+
+async fn opcua_history_handler(
+    State(s): State<AppState>,
+    Json(mut req): Json<OpcUaHistoryRequest>,
+) -> Response {
+    // Resolve masked credentials from project.yaml (same pattern as browse).
+    if let Some(ref sid) = req.source_id.clone() {
+        if req.auth.as_ref().map_or(true, |a| {
+            matches!(a, sws_core::OpcUaAuth::UsernamePassword { password: Some(p), .. } if p == MASKED_PASSWORD)
+        }) {
+            if let Ok(dir) = active_dir(&s).await {
+                if let Ok(project) = Project::load(&dir) {
+                    if let Some(src) = project.sources.iter().find(|src| {
+                        matches!(src, sws_core::SourceDef::OpcUaClient(c) if c.id == *sid)
+                    }) {
+                        if let sws_core::SourceDef::OpcUaClient(c) = src {
+                            req.auth = Some(c.auth.clone());
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    let cfg = sws_core::OpcUaClientConfig {
+        id: "history".into(),
+        endpoint_url: req.endpoint_url,
+        security_policy: req.security_policy.unwrap_or_else(|| "None".into()),
+        auth: req.auth.unwrap_or_default(),
+        subscription_interval_ms: 1000,
+        nodes: Vec::new(),
+        trust_all_certs: true,
+    };
+
+    let max_values = req.max_values.unwrap_or(500).min(2000);
+
+    match sws_plugin_opcua::read_history(&cfg, &req.node_id, req.from_ms, req.to_ms, max_values).await {
+        Ok(samples) => Json(samples).into_response(),
+        Err(e) => {
+            warn!(node = %req.node_id, "opcua history read failed: {e}");
+            (StatusCode::BAD_GATEWAY, format!("opcua history read failed: {e}")).into_response()
+        }
     }
 }
 
@@ -2112,4 +2413,104 @@ async fn mqtt_browse_handler(
         .collect();
 
     Json(MqttBrowseResponse { topics }).into_response()
+}
+
+// ── OPC-UA certificate trust management ──────────────────────────────────────
+//
+// async-opcua writes server certs to:
+//   {pki_root}/{source_id}/trusted/certs/*.der   — explicitly trusted
+//   {pki_root}/{source_id}/rejected/certs/*.der  — rejected / pending review
+//
+// The pki_root lives at {project_dir}/.opcua-pki/ (set by source_supervisor).
+
+#[derive(serde::Serialize)]
+struct OpcUaCertEntry {
+    filename: String,
+    status:   &'static str, // "trusted" | "rejected"
+    size_bytes: u64,
+}
+
+/// List certs in the per-source trust store.
+/// Returns all .der files from trusted/certs and rejected/certs directories.
+async fn opcua_list_certs(
+    State(s): State<AppState>,
+    Path(source_id): Path<String>,
+) -> Response {
+    let Ok(dir) = active_dir(&s).await else {
+        return (StatusCode::SERVICE_UNAVAILABLE, "no active project").into_response();
+    };
+    let pki_root = dir.join(".opcua-pki").join(&source_id);
+    let mut entries: Vec<OpcUaCertEntry> = vec![];
+    for (subdir, status) in [("trusted/certs", "trusted"), ("rejected/certs", "rejected")] {
+        let cert_dir = pki_root.join(subdir);
+        let Ok(mut rd) = tokio::fs::read_dir(&cert_dir).await else { continue };
+        while let Ok(Some(ent)) = rd.next_entry().await {
+            let name = ent.file_name().to_string_lossy().into_owned();
+            if !name.ends_with(".der") { continue; }
+            let size = ent.metadata().await.map(|m| m.len()).unwrap_or(0);
+            entries.push(OpcUaCertEntry { filename: name, status, size_bytes: size });
+        }
+    }
+    Json(entries).into_response()
+}
+
+/// Move a cert from rejected/certs to trusted/certs (or no-op if already there).
+async fn opcua_trust_cert(
+    State(s): State<AppState>,
+    Path((source_id, filename)): Path<(String, String)>,
+) -> Response {
+    if !is_safe_cert_filename(&filename) {
+        return (StatusCode::BAD_REQUEST, "invalid filename").into_response();
+    }
+    let Ok(dir) = active_dir(&s).await else {
+        return (StatusCode::SERVICE_UNAVAILABLE, "no active project").into_response();
+    };
+    let pki_root = dir.join(".opcua-pki").join(&source_id);
+    let rejected  = pki_root.join("rejected/certs").join(&filename);
+    let trusted   = pki_root.join("trusted/certs");
+    if rejected.exists() {
+        if let Err(e) = tokio::fs::create_dir_all(&trusted).await {
+            return (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response();
+        }
+        if let Err(e) = tokio::fs::rename(&rejected, trusted.join(&filename)).await {
+            warn!(source = %source_id, file = %filename, "opcua trust: rename failed: {e}");
+            return (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response();
+        }
+    }
+    StatusCode::NO_CONTENT.into_response()
+}
+
+/// Remove a cert from either trusted or rejected store.
+async fn opcua_delete_cert(
+    State(s): State<AppState>,
+    Path((source_id, filename)): Path<(String, String)>,
+) -> Response {
+    if !is_safe_cert_filename(&filename) {
+        return (StatusCode::BAD_REQUEST, "invalid filename").into_response();
+    }
+    let Ok(dir) = active_dir(&s).await else {
+        return (StatusCode::SERVICE_UNAVAILABLE, "no active project").into_response();
+    };
+    let pki_root = dir.join(".opcua-pki").join(&source_id);
+    let mut deleted = false;
+    for subdir in ["trusted/certs", "rejected/certs"] {
+        let path = pki_root.join(subdir).join(&filename);
+        if path.exists() {
+            if let Err(e) = tokio::fs::remove_file(&path).await {
+                warn!(source = %source_id, file = %filename, "opcua delete cert: {e}");
+                return (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response();
+            }
+            deleted = true;
+        }
+    }
+    if deleted {
+        StatusCode::NO_CONTENT.into_response()
+    } else {
+        (StatusCode::NOT_FOUND, "cert not found").into_response()
+    }
+}
+
+/// Safety check: filename must be a plain `*.der` with no path components.
+fn is_safe_cert_filename(name: &str) -> bool {
+    !name.contains('/') && !name.contains('\\') && !name.starts_with('.') && name.ends_with(".der")
 }

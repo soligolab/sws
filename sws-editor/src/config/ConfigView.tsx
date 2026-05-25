@@ -12,11 +12,15 @@ import type {
   DatastoreConfig,
   DatastoreStats,
   ModbusTcpSource,
+  ModbusRtuSource,
+  OpcUaServerNodeMapping,
+  OpcUaServerSource,
   MqttLastWill,
   MqttSource,
   MqttTlsConfig,
   OpcUaAuth,
   OpcUaBrowsedNode,
+  OpcUaCertEntry,
   OpcUaEuromapVariable,
   OpcUaNodeMapping,
   OpcUaSource,
@@ -430,6 +434,21 @@ function emptyModbus(): ModbusTcpSource {
   };
 }
 
+function emptyModbusRtu(): ModbusRtuSource {
+  return {
+    kind: "modbus_rtu",
+    id: `rtu-${genId()}`,
+    device: "/dev/ttyUSB0",
+    baud_rate: 9600,
+    parity: "N",
+    data_bits: 8,
+    stop_bits: 1,
+    unit_id: 1,
+    poll_interval_ms: 1000,
+    registers: [],
+  };
+}
+
 function emptyRegister(): RegisterMapping {
   return { tag: "", address: 0, scale: 1 };
 }
@@ -465,6 +484,20 @@ function emptyOpcUaNode(): OpcUaNodeMapping {
   return { tag: "", node_id: "" };
 }
 
+function emptyOpcUaServer(): OpcUaServerSource {
+  return {
+    kind: "opcua_server",
+    id: `opcua-srv-${genId()}`,
+    port: 4840,
+    namespace_uri: "urn:soligolab:sws",
+    nodes: [],
+  };
+}
+
+function emptyOpcUaServerNode(): OpcUaServerNodeMapping {
+  return { tag: "" };
+}
+
 // ── OPC-UA card ───────────────────────────────────────────────────────────────
 //
 // Mirrors the MqttSourceCard shape on purpose so the operator's mental
@@ -484,6 +517,39 @@ function OpcUaSourceCard({
   const [quickCreate, setQuickCreate] = useState<{ rowIdx: number; prefill: string } | null>(null);
   const [browseOpen, setBrowseOpen] = useState(false);
   const [euromapOpen, setEuromapOpen] = useState(false);
+  const [certs, setCerts] = useState<OpcUaCertEntry[] | null>(null);
+  const [certsLoading, setCertsLoading] = useState(false);
+  const [certsError, setCertsError] = useState<string | null>(null);
+
+  const loadCerts = async () => {
+    setCertsLoading(true);
+    setCertsError(null);
+    try {
+      setCerts(await api.listOpcUaCerts(source.id));
+    } catch (e) {
+      setCertsError(String(e));
+    } finally {
+      setCertsLoading(false);
+    }
+  };
+
+  const handleTrustCert = async (filename: string) => {
+    try {
+      await api.trustOpcUaCert(source.id, filename);
+      await loadCerts();
+    } catch (e) {
+      setCertsError(String(e));
+    }
+  };
+
+  const handleDeleteCert = async (filename: string) => {
+    try {
+      await api.deleteOpcUaCert(source.id, filename);
+      await loadCerts();
+    } catch (e) {
+      setCertsError(String(e));
+    }
+  };
 
   const setField = <K extends keyof OpcUaSource>(k: K, v: OpcUaSource[K]) =>
     onChange({ ...source, [k]: v });
@@ -627,6 +693,86 @@ function OpcUaSourceCard({
             </div>
           )}
 
+          {/* Sicurezza -------------------------------------------------- */}
+          <div style={{ marginTop: 12, marginBottom: 6, color: "#94a3b8", fontSize: 12, fontWeight: 600 }}>
+            SICUREZZA CERTIFICATI
+          </div>
+          <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, marginBottom: 8 }}>
+            <input
+              type="checkbox"
+              checked={source.trust_all_certs ?? true}
+              onChange={(e) => onChange({ ...source, trust_all_certs: e.target.checked })}
+            />
+            Accetta qualsiasi certificato server (PoC — disabilita per gestione trust manuale)
+          </label>
+          {!(source.trust_all_certs ?? true) && (
+            <div style={{ background: "#1e293b", borderRadius: 6, padding: 10, marginBottom: 8 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                <span style={{ fontSize: 12, color: "#94a3b8", fontWeight: 600 }}>TRUST STORE</span>
+                <button style={S.btn("ghost")} onClick={loadCerts} disabled={certsLoading}>
+                  {certsLoading ? "..." : "Aggiorna"}
+                </button>
+              </div>
+              {certsError && (
+                <div style={{ color: "#f87171", fontSize: 11, marginBottom: 6 }}>{certsError}</div>
+              )}
+              {certs === null ? (
+                <div style={{ fontSize: 12, color: "#64748b", fontStyle: "italic" }}>
+                  Clicca "Aggiorna" per vedere i certificati nel trust store.
+                </div>
+              ) : certs.length === 0 ? (
+                <div style={{ fontSize: 12, color: "#64748b", fontStyle: "italic" }}>
+                  Nessun certificato nel trust store. Abilita temporaneamente "Accetta qualsiasi" per
+                  permettere la prima connessione, poi ricarica i certificati.
+                </div>
+              ) : (
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
+                  <thead>
+                    <tr style={{ borderBottom: "1px solid #334155" }}>
+                      <th style={{ textAlign: "left", padding: "3px 6px", color: "#94a3b8" }}>File</th>
+                      <th style={{ textAlign: "left", padding: "3px 6px", color: "#94a3b8" }}>Stato</th>
+                      <th style={{ textAlign: "right", padding: "3px 6px", color: "#94a3b8" }}>Byte</th>
+                      <th style={{ width: 80 }}></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {certs.map((c) => (
+                      <tr key={c.filename} style={{ borderBottom: "1px solid #1e293b" }}>
+                        <td style={{ padding: "3px 6px", fontFamily: "monospace", wordBreak: "break-all" }}>
+                          {c.filename}
+                        </td>
+                        <td style={{ padding: "3px 6px" }}>
+                          <span style={{
+                            fontSize: 10, fontWeight: 600, padding: "1px 5px", borderRadius: 4,
+                            background: c.status === "trusted" ? "#14532d" : "#7f1d1d",
+                            color: c.status === "trusted" ? "#86efac" : "#fca5a5",
+                          }}>
+                            {c.status === "trusted" ? "TRUSTED" : "REJECTED"}
+                          </span>
+                        </td>
+                        <td style={{ padding: "3px 6px", textAlign: "right", color: "#94a3b8" }}>
+                          {c.size_bytes}
+                        </td>
+                        <td style={{ padding: "3px 6px", display: "flex", gap: 4, justifyContent: "flex-end" }}>
+                          {c.status === "rejected" && (
+                            <button
+                              style={{ ...S.btn("ghost"), padding: "1px 6px", fontSize: 10 }}
+                              onClick={() => handleTrustCert(c.filename)}
+                            >Trust</button>
+                          )}
+                          <button
+                            style={{ ...S.btn("danger"), padding: "1px 6px", fontSize: 10 }}
+                            onClick={() => handleDeleteCert(c.filename)}
+                          >×</button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          )}
+
           {/* Nodes ------------------------------------------------------ */}
           <div style={{ marginTop: 12, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <div style={{ color: "#94a3b8", fontSize: 12, fontWeight: 600 }}>
@@ -767,6 +913,140 @@ function OpcUaSourceCard({
             }
             setEuromapOpen(false);
           }}
+        />
+      )}
+    </div>
+  );
+}
+
+// ── OPC-UA server card ───────────────────────────────────────────────────────
+
+function OpcUaServerSourceCard({
+  source,
+  onChange,
+  onDelete,
+  onCreateTag,
+}: {
+  source: OpcUaServerSource;
+  onChange: (s: OpcUaServerSource) => void;
+  onDelete: () => void;
+  onCreateTag: (tag: TagDef) => void;
+}) {
+  const [open, setOpen] = useState(true);
+  const [quickCreate, setQuickCreate] = useState<{ rowIdx: number; prefill: string } | null>(null);
+
+  const setField = <K extends keyof OpcUaServerSource>(k: K, v: OpcUaServerSource[K]) =>
+    onChange({ ...source, [k]: v });
+
+  const setNode = (idx: number, patch: Partial<OpcUaServerNodeMapping>) =>
+    onChange({ ...source, nodes: source.nodes.map((n, i) => (i === idx ? { ...n, ...patch } : n)) });
+
+  const addNode = () =>
+    onChange({ ...source, nodes: [...source.nodes, emptyOpcUaServerNode()] });
+
+  const removeNode = (idx: number) =>
+    onChange({ ...source, nodes: source.nodes.filter((_, i) => i !== idx) });
+
+  return (
+    <div style={S.card}>
+      <div style={S.cardHead} onClick={() => setOpen((v) => !v)}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <span style={{ fontSize: 11, color: "#8b5cf6", fontWeight: 700, letterSpacing: 1 }}>
+            OPC-UA SERVER
+          </span>
+          <span style={{ fontWeight: 600, color: "#e2e8f0" }}>{source.id}</span>
+          <span style={{ color: "#64748b", fontSize: 12 }}>
+            :{source.port} — {source.nodes.length} nodi
+          </span>
+        </div>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button
+            style={S.btn("danger")}
+            onClick={(e) => { e.stopPropagation(); onDelete(); }}
+          >
+            Elimina
+          </button>
+          <span style={{ color: "#475569", fontSize: 14 }}>{open ? "▲" : "▼"}</span>
+        </div>
+      </div>
+
+      {open && (
+        <div style={{ padding: "14px 16px" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 100px 1fr", gap: 12, marginBottom: 16 }}>
+            <div>
+              <label style={{ fontSize: 11, color: "#64748b", display: "block", marginBottom: 3 }}>ID sorgente</label>
+              <input style={S.input} value={source.id}
+                onChange={(e) => setField("id", e.target.value)} spellCheck={false} />
+            </div>
+            <div>
+              <label style={{ fontSize: 11, color: "#64748b", display: "block", marginBottom: 3 }}>Porta TCP</label>
+              <input style={S.input} type="number" min={1} max={65535}
+                value={source.port}
+                onChange={(e) => setField("port", Number(e.target.value))} />
+            </div>
+            <div>
+              <label style={{ fontSize: 11, color: "#64748b", display: "block", marginBottom: 3 }}>Namespace URI</label>
+              <input style={S.input} value={source.namespace_uri}
+                onChange={(e) => setField("namespace_uri", e.target.value)} spellCheck={false} />
+            </div>
+          </div>
+
+          <div style={{ marginBottom: 6, fontSize: 12, color: "#64748b", fontWeight: 600, letterSpacing: 0.5 }}>
+            NODI ESPOSTI
+          </div>
+          <table style={{ ...S.table, marginBottom: 8 }}>
+            <thead>
+              <tr>
+                <th style={{ ...S.th, width: "45%" }}>Variabile (ID tag)</th>
+                <th style={{ ...S.th, width: "45%" }}>Node ID OPC-UA (opzionale)</th>
+                <th style={S.th} />
+              </tr>
+            </thead>
+            <tbody>
+              {source.nodes.length === 0 && (
+                <tr>
+                  <td colSpan={3} style={{ ...S.td, color: "#475569", textAlign: "center", padding: 12 }}>
+                    Nessun nodo — aggiungi una mappatura.
+                  </td>
+                </tr>
+              )}
+              {source.nodes.map((n, i) => (
+                <tr key={i} style={{ background: i % 2 === 0 ? "transparent" : "#0f172a33" }}>
+                  <td style={S.td}>
+                    <div style={{ display: "flex", gap: 4 }}>
+                      <TagInput style={S.inputSm} placeholder="pump1.speed"
+                        value={n.tag} onChange={(v) => setNode(i, { tag: v })} />
+                      <button
+                        style={{ ...S.btn("ghost"), padding: "4px 7px", fontSize: 14, lineHeight: 1 }}
+                        title="Crea variabile"
+                        onClick={() => setQuickCreate({ rowIdx: i, prefill: n.tag })}
+                      >＋</button>
+                    </div>
+                  </td>
+                  <td style={S.td}>
+                    <input style={S.inputSm} placeholder={n.tag || "uguale al tag"}
+                      value={n.node_id ?? ""}
+                      onChange={(e) => setNode(i, { node_id: e.target.value || undefined })}
+                      spellCheck={false} />
+                  </td>
+                  <td style={{ ...S.td, textAlign: "right" }}>
+                    <button style={S.btn("danger")} onClick={() => removeNode(i)}>✕</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <button style={S.btn("ghost")} onClick={addNode}>+ Aggiungi nodo</button>
+        </div>
+      )}
+      {quickCreate !== null && (
+        <QuickCreateTagModal
+          initialId={quickCreate.prefill}
+          onConfirm={(tag) => {
+            onCreateTag(tag);
+            setNode(quickCreate.rowIdx, { tag: tag.id });
+          }}
+          onClose={() => setQuickCreate(null)}
         />
       )}
     </div>
@@ -1360,6 +1640,205 @@ function ModbusSourceCard({
                   <td style={{ ...S.td, color: "#64748b", fontSize: 11 }}>
                     Float (×scala)
                   </td>
+                  <td style={{ ...S.td, textAlign: "right" }}>
+                    <button style={S.btn("danger")} onClick={() => removeRegister(i)}>✕</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+
+          <button style={S.btn("ghost")} onClick={addRegister}>
+            + Aggiungi registro
+          </button>
+        </div>
+      )}
+      {quickCreate !== null && (
+        <QuickCreateTagModal
+          initialId={quickCreate.prefill}
+          onConfirm={(tag) => {
+            onCreateTag(tag);
+            setRegister(quickCreate.rowIdx, { tag: tag.id });
+          }}
+          onClose={() => setQuickCreate(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+// ── Modbus RTU card ───────────────────────────────────────────────────────────
+
+function ModbusRtuSourceCard({
+  source,
+  onChange,
+  onDelete,
+  onCreateTag,
+}: {
+  source: ModbusRtuSource;
+  onChange: (s: ModbusRtuSource) => void;
+  onDelete: () => void;
+  onCreateTag: (tag: TagDef) => void;
+}) {
+  const [open, setOpen] = useState(true);
+  const [quickCreate, setQuickCreate] = useState<{ rowIdx: number; prefill: string } | null>(null);
+
+  const setField = <K extends keyof ModbusRtuSource>(k: K, v: ModbusRtuSource[K]) =>
+    onChange({ ...source, [k]: v });
+
+  const setRegister = (idx: number, patch: Partial<RegisterMapping>) =>
+    onChange({
+      ...source,
+      registers: source.registers.map((r, i) => (i === idx ? { ...r, ...patch } : r)),
+    });
+
+  const addRegister = () =>
+    onChange({ ...source, registers: [...source.registers, emptyRegister()] });
+
+  const removeRegister = (idx: number) =>
+    onChange({ ...source, registers: source.registers.filter((_, i) => i !== idx) });
+
+  return (
+    <div style={S.card}>
+      <div style={S.cardHead} onClick={() => setOpen((v) => !v)}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <span style={{ fontSize: 11, color: "#f59e0b", fontWeight: 700, letterSpacing: 1 }}>
+            MODBUS RTU
+          </span>
+          <span style={{ fontWeight: 600, color: "#e2e8f0" }}>{source.id}</span>
+          <span style={{ color: "#64748b", fontSize: 12 }}>
+            {source.device} — {source.baud_rate} baud — {source.registers.length} registri
+          </span>
+        </div>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button
+            style={S.btn("danger")}
+            onClick={(e) => { e.stopPropagation(); onDelete(); }}
+          >
+            Elimina
+          </button>
+          <span style={{ color: "#475569", fontSize: 14 }}>{open ? "▲" : "▼"}</span>
+        </div>
+      </div>
+
+      {open && (
+        <div style={{ padding: "14px 16px" }}>
+          {/* Serial port parameters */}
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: "1fr 120px 80px 80px 80px 80px",
+            gap: 12,
+            marginBottom: 16,
+          }}>
+            <div>
+              <label style={{ fontSize: 11, color: "#64748b", display: "block", marginBottom: 3 }}>ID sorgente</label>
+              <input style={S.input} value={source.id}
+                onChange={(e) => setField("id", e.target.value)} spellCheck={false} />
+            </div>
+            <div>
+              <label style={{ fontSize: 11, color: "#64748b", display: "block", marginBottom: 3 }}>Dispositivo seriale</label>
+              <input style={S.input} value={source.device}
+                onChange={(e) => setField("device", e.target.value)} spellCheck={false}
+                placeholder="/dev/ttyUSB0" />
+            </div>
+            <div>
+              <label style={{ fontSize: 11, color: "#64748b", display: "block", marginBottom: 3 }}>Baud rate</label>
+              <input style={S.input} type="number" min={1200} max={921600} step={100}
+                value={source.baud_rate}
+                onChange={(e) => setField("baud_rate", Number(e.target.value))} />
+            </div>
+            <div>
+              <label style={{ fontSize: 11, color: "#64748b", display: "block", marginBottom: 3 }}>Parità</label>
+              <select style={S.input} value={source.parity}
+                onChange={(e) => setField("parity", e.target.value)}>
+                <option value="N">Nessuna (N)</option>
+                <option value="E">Pari (E)</option>
+                <option value="O">Dispari (O)</option>
+              </select>
+            </div>
+            <div>
+              <label style={{ fontSize: 11, color: "#64748b", display: "block", marginBottom: 3 }}>Bit dati</label>
+              <select style={S.input} value={source.data_bits}
+                onChange={(e) => setField("data_bits", Number(e.target.value))}>
+                <option value={8}>8</option>
+                <option value={7}>7</option>
+              </select>
+            </div>
+            <div>
+              <label style={{ fontSize: 11, color: "#64748b", display: "block", marginBottom: 3 }}>Bit stop</label>
+              <select style={S.input} value={source.stop_bits}
+                onChange={(e) => setField("stop_bits", Number(e.target.value))}>
+                <option value={1}>1</option>
+                <option value={2}>2</option>
+              </select>
+            </div>
+          </div>
+
+          <div style={{ marginBottom: 16, display: "grid", gridTemplateColumns: "80px 160px 1fr", gap: 12 }}>
+            <div>
+              <label style={{ fontSize: 11, color: "#64748b", display: "block", marginBottom: 3 }}>Unit ID</label>
+              <input style={S.input} type="number" min={0} max={255}
+                value={source.unit_id}
+                onChange={(e) => setField("unit_id", Number(e.target.value))} />
+            </div>
+            <div>
+              <label style={{ fontSize: 11, color: "#64748b", display: "block", marginBottom: 3 }}>Intervallo poll (ms)</label>
+              <input style={S.input} type="number" min={100}
+                value={source.poll_interval_ms}
+                onChange={(e) => setField("poll_interval_ms", Number(e.target.value))} />
+            </div>
+          </div>
+
+          {/* Register mappings — shared structure with Modbus TCP */}
+          <div style={{ marginBottom: 6, fontSize: 12, color: "#64748b", fontWeight: 600, letterSpacing: 0.5 }}>
+            MAPPATURA REGISTRI HOLDING
+          </div>
+          <table style={{ ...S.table, marginBottom: 8 }}>
+            <thead>
+              <tr>
+                <th style={{ ...S.th, width: "40%" }}>Variabile (ID tag)</th>
+                <th style={{ ...S.th, width: "20%" }}>Indirizzo reg.</th>
+                <th style={{ ...S.th, width: "20%" }}>Scala (×)</th>
+                <th style={{ ...S.th, width: "20%" }}>Tipo dato</th>
+                <th style={S.th} />
+              </tr>
+            </thead>
+            <tbody>
+              {source.registers.length === 0 && (
+                <tr>
+                  <td colSpan={5} style={{ ...S.td, color: "#475569", textAlign: "center", padding: 12 }}>
+                    Nessun registro — aggiungi una mappatura.
+                  </td>
+                </tr>
+              )}
+              {source.registers.map((r, i) => (
+                <tr key={i} style={{ background: i % 2 === 0 ? "transparent" : "#0f172a33" }}>
+                  <td style={S.td}>
+                    <div style={{ display: "flex", gap: 4 }}>
+                      <TagInput
+                        style={S.inputSm}
+                        placeholder="pump1.speed"
+                        value={r.tag}
+                        onChange={(v) => setRegister(i, { tag: v })}
+                      />
+                      <button
+                        style={{ ...S.btn("ghost"), padding: "4px 7px", fontSize: 14, lineHeight: 1 }}
+                        title="Crea variabile"
+                        onClick={() => setQuickCreate({ rowIdx: i, prefill: r.tag })}
+                      >＋</button>
+                    </div>
+                  </td>
+                  <td style={S.td}>
+                    <input style={S.inputSm} type="number" min={0}
+                      value={r.address}
+                      onChange={(e) => setRegister(i, { address: Number(e.target.value) })} />
+                  </td>
+                  <td style={S.td}>
+                    <input style={S.inputSm} type="number" step="0.001"
+                      value={r.scale}
+                      onChange={(e) => setRegister(i, { scale: Number(e.target.value) })} />
+                  </td>
+                  <td style={{ ...S.td, color: "#64748b", fontSize: 11 }}>Float (×scala)</td>
                   <td style={{ ...S.td, textAlign: "right" }}>
                     <button style={S.btn("danger")} onClick={() => removeRegister(i)}>✕</button>
                   </td>
@@ -2102,11 +2581,17 @@ function ProtocolsTab() {
   const addModbus = () =>
     setSources((prev) => [...prev, emptyModbus()]);
 
+  const addModbusRtu = () =>
+    setSources((prev) => [...prev, emptyModbusRtu()]);
+
   const addMqtt = () =>
     setSources((prev) => [...prev, emptyMqtt()]);
 
   const addOpcUa = () =>
     setSources((prev) => [...prev, emptyOpcUa()]);
+
+  const addOpcUaServer = () =>
+    setSources((prev) => [...prev, emptyOpcUaServer()]);
 
   const updateSource = (idx: number, updated: SourceDef) =>
     setSources((prev) => prev.map((s, i) => (i === idx ? updated : s)));
@@ -2148,8 +2633,10 @@ function ProtocolsTab() {
       <div style={S.sectionTitle}>SORGENTI DATI / PROTOCOLLI</div>
       <div style={S.notice}>
         Configura le connessioni ai dispositivi di campo. Supportati: <strong>Modbus TCP</strong>
-        (lettura registri holding), <strong>MQTT</strong> (sottoscrizione topic),
-        <strong>OPC-UA client</strong> (subscription PoC, security None).
+        (lettura registri holding), <strong>Modbus RTU</strong> (RS-485/RS-232 seriale),
+        <strong>MQTT</strong> (sottoscrizione topic),
+        <strong>OPC-UA client</strong> (subscription, security None),
+        <strong>OPC-UA server</strong> (espone tag SWS a SCADA/MES superiori).
         Le sorgenti vengono ricollegate <strong>in tempo reale</strong> al salvataggio (niente
         riavvio del runtime).
       </div>
@@ -2164,6 +2651,17 @@ function ProtocolsTab() {
         if (src.kind === "modbus_tcp") {
           return (
             <ModbusSourceCard
+              key={i}
+              source={src}
+              onChange={(updated) => updateSource(i, updated)}
+              onDelete={() => removeSource(i)}
+              onCreateTag={handleCreateTag}
+            />
+          );
+        }
+        if (src.kind === "modbus_rtu") {
+          return (
+            <ModbusRtuSourceCard
               key={i}
               source={src}
               onChange={(updated) => updateSource(i, updated)}
@@ -2194,18 +2692,35 @@ function ProtocolsTab() {
             />
           );
         }
+        if (src.kind === "opcua_server") {
+          return (
+            <OpcUaServerSourceCard
+              key={i}
+              source={src}
+              onChange={(updated) => updateSource(i, updated)}
+              onDelete={() => removeSource(i)}
+              onCreateTag={handleCreateTag}
+            />
+          );
+        }
         return null;
       })}
 
-      <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
+      <div style={{ display: "flex", gap: 8, marginTop: 4, flexWrap: "wrap" }}>
         <button style={S.btn("ghost")} onClick={addModbus}>
           + Aggiungi Modbus TCP
+        </button>
+        <button style={S.btn("ghost")} onClick={addModbusRtu}>
+          + Aggiungi Modbus RTU
         </button>
         <button style={S.btn("ghost")} onClick={addMqtt}>
           + Aggiungi MQTT
         </button>
         <button style={S.btn("ghost")} onClick={addOpcUa}>
-          + Aggiungi OPC-UA
+          + Aggiungi OPC-UA client
+        </button>
+        <button style={S.btn("ghost")} onClick={addOpcUaServer}>
+          + Aggiungi OPC-UA server
         </button>
       </div>
 
@@ -2292,8 +2807,9 @@ function AlarmsTab() {
             <th style={{ ...S.th, width: "16%" }}>ID</th>
             <th style={{ ...S.th, width: "18%" }}>Tag</th>
             <th style={{ ...S.th, width: "10%" }}>Condizione</th>
-            <th style={{ ...S.th, width: "14%" }}>Valore / soglia</th>
-            <th style={{ ...S.th, width: "12%" }}>Severità</th>
+            <th style={{ ...S.th, width: "10%" }}>Soglia</th>
+            <th style={{ ...S.th, width: "8%" }} title="Isteresi: l'allarme rientra solo quando il valore supera (soglia ± dead-band)">Dead-band</th>
+            <th style={{ ...S.th, width: "10%" }}>Severità</th>
             <th style={{ ...S.th, width: "20%" }}>Messaggio</th>
             <th style={{ ...S.th, width: "6%" }}>Stato</th>
             <th style={S.th} />
@@ -2302,7 +2818,7 @@ function AlarmsTab() {
         <tbody>
           {alarms.length === 0 && (
             <tr>
-              <td colSpan={8} style={{ ...S.td, color: "#475569", textAlign: "center", padding: 12 }}>
+              <td colSpan={9} style={{ ...S.td, color: "#475569", textAlign: "center", padding: 12 }}>
                 Nessun allarme definito.
               </td>
             </tr>
@@ -2367,6 +2883,21 @@ function AlarmsTab() {
                         const kind = alm.condition.kind as "above" | "below";
                         updateCondition(i, { kind, threshold: Number(e.target.value) });
                       }}
+                    />
+                  )}
+                </td>
+                <td style={S.td}>
+                  {/* dead_band: only meaningful for above/below conditions */}
+                  {alm.condition.kind !== "bool_equals" && (
+                    <input
+                      style={S.inputSm}
+                      type="number"
+                      step="any"
+                      min="0"
+                      placeholder="0"
+                      title="Isteresi: l'allarme rientra solo a (soglia ± dead-band)"
+                      value={alm.dead_band ?? ""}
+                      onChange={(e) => updateAlarm(i, { dead_band: e.target.value !== "" ? Number(e.target.value) : undefined })}
                     />
                   )}
                 </td>
