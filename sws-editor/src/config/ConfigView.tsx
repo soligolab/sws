@@ -3303,33 +3303,42 @@ function AlarmsTab() {
                   </select>
                 </td>
                 <td style={S.td}>
-                  {alm.condition.kind === "bool_equals" ? (
-                    <select
-                      style={{ ...S.inputSm, cursor: "pointer" }}
-                      value={alm.condition.value ? "true" : "false"}
-                      onChange={(e) =>
-                        updateCondition(i, { kind: "bool_equals", value: e.target.value === "true" })
-                      }
-                    >
-                      <option value="true">true</option>
-                      <option value="false">false</option>
-                    </select>
-                  ) : (
-                    <input
-                      style={S.inputSm}
-                      type="number"
-                      step="any"
-                      value={alm.condition.threshold}
-                      onChange={(e) => {
-                        const kind = alm.condition.kind as "above" | "below";
-                        updateCondition(i, { kind, threshold: Number(e.target.value) });
-                      }}
-                    />
-                  )}
+                  {(() => {
+                    const cond = alm.condition;
+                    const isBool = cond.kind === "bool_equals" || cond.kind === "bool_true" || cond.kind === "bool_false";
+                    if (isBool) {
+                      const boolVal = cond.kind === "bool_true" ? "true"
+                                    : cond.kind === "bool_false" ? "false"
+                                    : cond.value ? "true" : "false";
+                      return (
+                        <select
+                          style={{ ...S.inputSm, cursor: "pointer" }}
+                          value={boolVal}
+                          onChange={(e) =>
+                            updateCondition(i, { kind: "bool_equals", value: e.target.value === "true" })
+                          }
+                        >
+                          <option value="true">true</option>
+                          <option value="false">false</option>
+                        </select>
+                      );
+                    }
+                    return (
+                      <input
+                        style={S.inputSm}
+                        type="number"
+                        step="any"
+                        value={cond.threshold}
+                        onChange={(e) =>
+                          updateCondition(i, { kind: cond.kind, threshold: Number(e.target.value) })
+                        }
+                      />
+                    );
+                  })()}
                 </td>
                 <td style={S.td}>
                   {/* dead_band: only meaningful for above/below conditions */}
-                  {alm.condition.kind !== "bool_equals" && (
+                  {alm.condition.kind !== "bool_equals" && alm.condition.kind !== "bool_true" && alm.condition.kind !== "bool_false" && (
                     <input
                       style={S.inputSm}
                       type="number"
@@ -3675,6 +3684,7 @@ function UsersTab() {
                 <th style={S.th}>Utente</th>
                 <th style={S.th}>Ruolo</th>
                 <th style={S.th}>Cambio pwd</th>
+                <th style={S.th}>Scadenza sessione</th>
                 <th style={S.th}>Aggiornato</th>
                 <th style={S.th}>Reset password</th>
                 <th style={S.th}></th>
@@ -3709,6 +3719,37 @@ function UsersTab() {
                         />
                         forza
                       </label>
+                    </td>
+                    <td style={S.td}>
+                      <select
+                        value={u.session_ttl_secs === null ? "default" : u.session_ttl_secs === 0 ? "never" : String(u.session_ttl_secs)}
+                        disabled={busy}
+                        style={{ ...S.inputSm, minWidth: 110 }}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          const ttl: number | null =
+                            v === "default" ? null :
+                            v === "never"   ? 0    :
+                            Number(v);
+                          onPatch(u.username, { session_ttl_secs: ttl });
+                        }}
+                      >
+                        <option value="default">Predefinita</option>
+                        <option value="never">Mai</option>
+                        <option value="1800">30 min</option>
+                        <option value="3600">1 ora</option>
+                        <option value="7200">2 ore</option>
+                        <option value="28800">8 ore</option>
+                        <option value="86400">24 ore</option>
+                        <option value="604800">7 giorni</option>
+                        {/* Preserve custom values not in the list */}
+                        {u.session_ttl_secs !== null && u.session_ttl_secs !== 0 &&
+                         ![1800, 3600, 7200, 28800, 86400, 604800].includes(u.session_ttl_secs) && (
+                          <option value={String(u.session_ttl_secs)}>
+                            {Math.round(u.session_ttl_secs / 60)} min
+                          </option>
+                        )}
+                      </select>
                     </td>
                     <td style={S.td}>
                       <span style={{ color: "#94a3b8", fontSize: 12 }}>{fmtDate(u.updated_at_ms)}</span>
@@ -4189,7 +4230,8 @@ export function ConfigView() {
   const [tab, setTab] = useState<ConfigTab>(storeTab);
   const authRole = useAppStore((s) => s.authRole);
   const isAdmin = authRole === "Admin";
-  const project = useAppStore((s) => s.project);
+  const project          = useAppStore((s) => s.project);
+  const projectLoadError = useAppStore((s) => s.projectLoadError);
 
   // Sync when the store tab changes (e.g. navigateToConfig from LeftPanel).
   useEffect(() => { setTab(storeTab); }, [storeTab]);
@@ -4243,9 +4285,15 @@ export function ConfigView() {
       {/* Content */}
       <div style={S.body}>
         {projectLoading ? (
-          <div style={{ color: "#64748b", fontSize: 13, padding: 24 }}>
-            Caricamento progetto…
-          </div>
+          projectLoadError ? (
+            <div style={{ color: "#dc2626", fontSize: 13, padding: 24, whiteSpace: "pre-wrap" }}>
+              <strong>Errore caricamento progetto:</strong><br />{projectLoadError}
+            </div>
+          ) : (
+            <div style={{ color: "#64748b", fontSize: 13, padding: 24 }}>
+              Caricamento progetto…
+            </div>
+          )
         ) : (
           <>
             {tab === "tags"        && <TagsTab />}

@@ -656,7 +656,9 @@ export type AlarmSeverity = "Info" | "Warning" | "Critical";
 export type AlarmCondition =
   | { kind: "above"; threshold: number }
   | { kind: "below"; threshold: number }
-  | { kind: "bool_equals"; value: boolean };
+  | { kind: "bool_equals"; value: boolean }
+  | { kind: "bool_true" }
+  | { kind: "bool_false" };
 
 export interface AlarmDef {
   id: string;

@@ -35,7 +35,7 @@ const LOG_LIMIT = 2000;
 
 const AUTH_KEY = "sws.auth";
 
-type PersistedAuth = { token: string; username: string; role?: string; must_change_password?: boolean; expires_at_ms?: number };
+type PersistedAuth = { token: string; username: string; role?: string; must_change_password?: boolean; expires_at_ms?: number | null };
 
 function readPersistedAuth(): PersistedAuth | null {
   try {
@@ -166,6 +166,7 @@ interface AppState {
   noActiveProject: boolean;
 
   project: ProjectInfo | null;
+  projectLoadError: string | null;
   customSymbols: CustomSymbol[];
   pages: SynopticPage[];
   currentPageId: string;
@@ -215,14 +216,15 @@ interface AppState {
   /** True when the session token expired mid-session. Shows ReAuthModal overlay. */
   reAuthNeeded: boolean;
 
-  setAuth: (token: string, username: string, role: Role, mustChangePassword?: boolean, expiresAtMs?: number) => void;
-  setExpiresAtMs: (ms: number) => void;
+  setAuth: (token: string, username: string, role: Role, mustChangePassword?: boolean, expiresAtMs?: number | null) => void;
+  setExpiresAtMs: (ms: number | null) => void;
   setMustChangePassword: (flag: boolean) => void;
   setReAuthNeeded: (v: boolean) => void;
   clearAuth: () => void;
   setNoActiveProject: (flag: boolean) => void;
 
   setProject: (p: ProjectInfo) => void;
+  setProjectLoadError: (msg: string | null) => void;
   updateProjectTags: (tags: TagDef[]) => void;
   updateProjectSources: (sources: SourceDef[]) => void;
   updateProjectAlarms: (alarms: AlarmDef[]) => void;
@@ -406,6 +408,7 @@ export const useAppStore = create<AppState>((set, get) => {
     reAuthNeeded: false,
 
     project: null,
+    projectLoadError: null,
     customSymbols: [],
     pages: [first],
     currentPageId: first.id,
@@ -467,7 +470,8 @@ export const useAppStore = create<AppState>((set, get) => {
 
     setNoActiveProject: (flag) => set({ noActiveProject: flag }),
 
-    setProject: (project) => set({ project, customSymbols: project.custom_symbols ?? [] }),
+    setProject: (project) => set({ project, projectLoadError: null, customSymbols: project.custom_symbols ?? [] }),
+    setProjectLoadError: (msg) => set({ projectLoadError: msg }),
 
     updateProjectTags: (tags) =>
       set((s) => ({ project: s.project ? { ...s.project, tags } : s.project })),

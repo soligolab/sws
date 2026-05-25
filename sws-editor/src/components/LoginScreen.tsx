@@ -11,7 +11,7 @@ import { useAppStore } from "@/store";
  * The runtime's session map is in-memory, so a runtime restart logs
  * everyone out automatically.
  */
-export function LoginScreen() {
+export function LoginScreen({ onCancel }: { onCancel?: () => void } = {}) {
   const setAuth = useAppStore((s) => s.setAuth);
   const [username, setUsername] = useState("admin");
   const [password, setPassword] = useState("");
@@ -140,6 +140,23 @@ export function LoginScreen() {
         >
           {isLocked ? `Bloccato (${countdown}s)` : busy ? "Accesso…" : "Accedi"}
         </button>
+        {onCancel && (
+          <button
+            type="button"
+            onClick={onCancel}
+            style={{
+              background: "transparent",
+              color: "#64748b",
+              border: "none",
+              cursor: "pointer",
+              fontSize: 13,
+              padding: 0,
+              textAlign: "left",
+            }}
+          >
+            ← Torna all'elenco progetti
+          </button>
+        )}
         <p style={{ fontSize: 11, color: "#475569", margin: 0 }}>
           Sessioni in-memory: un riavvio del runtime ti disconnette automaticamente.
         </p>

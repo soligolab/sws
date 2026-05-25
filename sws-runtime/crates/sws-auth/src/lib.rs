@@ -61,7 +61,8 @@ pub struct LoginOk {
     pub username: String,
     pub role: Role,
     /// Unix timestamp (ms) at which the session expires unless refreshed.
-    pub expires_at_ms: u64,
+    /// `null` means the session never expires (per-user override).
+    pub expires_at_ms: Option<u64>,
     /// True if the user has to change their password before any other API
     /// call will succeed. The login itself plus self-service endpoints
     /// (whoami / change-password / logout) still work.
@@ -76,6 +77,11 @@ pub struct UserSummary {
     pub must_change_password: bool,
     pub created_at_ms: u64,
     pub updated_at_ms: u64,
+    /// Per-user session TTL override.
+    /// `None` = use the global system default.
+    /// `Some(0)` = session never expires.
+    /// `Some(n)` = session TTL is n seconds (sliding window).
+    pub session_ttl_secs: Option<u64>,
 }
 
 /// Patch shape for `PUT /api/auth/users/:username`. Every field is optional;
@@ -87,6 +93,13 @@ pub struct UserPatch {
     pub role: Option<Role>,
     pub password: Option<String>,
     pub must_change_password: Option<bool>,
+    /// Set the per-user session TTL override.
+    /// Absent = leave unchanged.
+    /// `null` = reset to global default.
+    /// `0` = never expires.
+    /// `n` = n seconds.
+    #[serde(default)]
+    pub session_ttl_secs: Option<Option<u64>>,
 }
 
 /// Payload for `POST /api/auth/users`.
@@ -118,6 +131,10 @@ struct StoredUser {
     created_at_ms: u64,
     #[serde(default)]
     updated_at_ms: u64,
+    /// Per-user session TTL override persisted in users.yaml.
+    /// None = use system default; Some(0) = never expires; Some(n) = n seconds.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    session_ttl_secs: Option<u64>,
 }
 
 impl StoredUser {
@@ -128,6 +145,17 @@ impl StoredUser {
             must_change_password: self.must_change_password,
             created_at_ms: self.created_at_ms,
             updated_at_ms: self.updated_at_ms,
+            session_ttl_secs: self.session_ttl_secs,
+        }
+    }
+
+    /// Compute the effective session Duration for a new login.
+    /// Returns `None` when the session should never expire.
+    fn effective_ttl(&self, global: Duration) -> Option<Duration> {
+        match self.session_ttl_secs {
+            None        => Some(global),               // use system default
+            Some(0)     => None,                        // never expires
+            Some(secs)  => Some(Duration::from_secs(secs)),
         }
     }
 }
@@ -142,7 +170,10 @@ struct UserFile {
 struct Session {
     username: String,
     role: Role,
-    expires_at: Instant,
+    /// None = never expires; Some(t) = hard expiry at t.
+    expires_at: Option<Instant>,
+    /// None = infinite; Some(d) = sliding window duration.
+    effective_ttl: Option<Duration>,
 }
 
 #[derive(Debug, Default)]
@@ -259,6 +290,7 @@ impl AuthState {
                     must_change_password: false,
                     created_at_ms: now,
                     updated_at_ms: now,
+                    session_ttl_secs: None,
                 });
             }
         }
@@ -313,6 +345,7 @@ impl AuthState {
                 must_change_password: false,
                 created_at_ms: now,
                 updated_at_ms: now,
+                session_ttl_secs: None,
             });
         }
         Ok(Arc::new(Self {
@@ -380,6 +413,7 @@ impl AuthState {
                     must_change_password: false,
                     created_at_ms: now,
                     updated_at_ms: now,
+                    session_ttl_secs: None,
                 });
             }
         }
@@ -433,12 +467,15 @@ impl AuthState {
         }
         let user = user.expect("checked above");
 
+        let effective_ttl = user.effective_ttl(self.ttl);
         let token = uuid::Uuid::new_v4().to_string();
-        let expires_at = Instant::now() + self.ttl;
+        let expires_at = effective_ttl.map(|d| Instant::now() + d);
+        let expires_at_ms = effective_ttl.map(|d| now_unix_ms() + d.as_millis() as u64);
         self.sessions.write().await.insert(token.clone(), Session {
             username: user.username.clone(),
             role: user.role,
             expires_at,
+            effective_ttl,
         });
         self.failures.write().await.remove(&creds.username);
         info!(user = %user.username, role = user.role.as_str(), "login: session issued");
@@ -446,7 +483,7 @@ impl AuthState {
             token,
             username: user.username,
             role: user.role,
-            expires_at_ms: now_unix_ms() + self.ttl.as_millis() as u64,
+            expires_at_ms,
             must_change_password: user.must_change_password,
         })
     }
@@ -456,11 +493,17 @@ impl AuthState {
     pub async fn validate(&self, token: &str) -> Option<SessionInfo> {
         let mut sessions = self.sessions.write().await;
         let session = sessions.get_mut(token)?;
-        if Instant::now() >= session.expires_at {
-            sessions.remove(token);
-            return None;
+        // Check expiry (None = never expires)
+        if let Some(exp) = session.expires_at {
+            if Instant::now() >= exp {
+                sessions.remove(token);
+                return None;
+            }
+            // Slide the window
+            if let Some(ttl) = session.effective_ttl {
+                session.expires_at = Some(Instant::now() + ttl);
+            }
         }
-        session.expires_at = Instant::now() + self.ttl;
         let username = session.username.clone();
         let role     = session.role;
         drop(sessions);
@@ -477,17 +520,25 @@ impl AuthState {
     }
 
     /// Slide the TTL for an active session and return the new expiry timestamp
-    /// (milliseconds since Unix epoch). Returns `None` when the token is
-    /// expired or not found, which signals the caller to return 401.
-    pub async fn touch(&self, token: &str) -> Option<u64> {
+    /// (milliseconds since Unix epoch).
+    /// Returns `None` when the token is expired or not found (→ 401).
+    /// Returns `Some(None)` when the session never expires.
+    /// Returns `Some(Some(ms))` with the new expiry timestamp otherwise.
+    pub async fn touch(&self, token: &str) -> Option<Option<u64>> {
         let mut sessions = self.sessions.write().await;
         let session = sessions.get_mut(token)?;
-        if Instant::now() >= session.expires_at {
-            sessions.remove(token);
-            return None;
+        if let Some(exp) = session.expires_at {
+            if Instant::now() >= exp {
+                sessions.remove(token);
+                return None;
+            }
+            if let Some(ttl) = session.effective_ttl {
+                session.expires_at = Some(Instant::now() + ttl);
+                return Some(Some(now_unix_ms() + ttl.as_millis() as u64));
+            }
         }
-        session.expires_at = Instant::now() + self.ttl;
-        Some(now_unix_ms() + self.ttl.as_millis() as u64)
+        // Never-expires session: token is valid, no expiry to report
+        Some(None)
     }
 
     pub async fn session_count(&self) -> usize {
@@ -521,6 +572,7 @@ impl AuthState {
             must_change_password: p.must_change_password,
             created_at_ms: now,
             updated_at_ms: now,
+            session_ttl_secs: None,
         };
         users.insert(p.username.clone(), u.clone());
         self.flush_locked(&users).await?;
@@ -551,6 +603,10 @@ impl AuthState {
             user.must_change_password = patch.must_change_password.unwrap_or(true);
         } else if let Some(flag) = patch.must_change_password {
             user.must_change_password = flag;
+        }
+        // session_ttl_secs: outer None = unchanged; outer Some(inner) = set (None resets to global)
+        if let Some(ttl_override) = patch.session_ttl_secs {
+            user.session_ttl_secs = ttl_override;
         }
         user.updated_at_ms = now_unix_ms();
         let summary = user.to_summary();
@@ -781,6 +837,7 @@ mod tests {
         // Update role
         let s = auth.update_user("alice", UserPatch {
             role: Some(Role::Supervisor), password: None, must_change_password: None,
+            session_ttl_secs: None,
         }).await.unwrap();
         assert_eq!(s.role, Role::Supervisor);
 
@@ -804,6 +861,7 @@ mod tests {
         assert!(matches!(
             auth.update_user("admin", UserPatch {
                 role: Some(Role::Viewer), password: None, must_change_password: None,
+                session_ttl_secs: None,
             }).await,
             Err(UserError::LastAdmin)
         ));

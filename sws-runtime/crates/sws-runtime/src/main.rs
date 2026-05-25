@@ -24,7 +24,7 @@ use tokio_rustls::{
     TlsAcceptor,
 };
 use tower::Service;
-use tracing::{info, warn};
+use tracing::{debug, info, warn};
 use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 
 use crate::log_layer::LogBusLayer;
@@ -362,6 +362,16 @@ async fn main() -> anyhow::Result<()> {
     // whose result may have changed.  Each expression runs in spawn_blocking
     // (PyO3 requires a non-async context) and updates the tag with Good/Bad
     // quality depending on whether the Python eval succeeds.
+    //
+    // Design notes:
+    // - We batch-drain the broadcast channel after the first wake-up so that a
+    //   burst of N source updates (e.g. populate_tags) causes only ONE Python
+    //   eval round instead of N.
+    // - We skip evaluation when every changed tag in the batch is itself a
+    //   derived tag.  This breaks the feedback loop: db.set() on a derived tag
+    //   emits a broadcast that would otherwise re-trigger evaluation endlessly.
+    //   Limitation: a derived tag that reads another derived tag won't chain
+    //   automatically — acceptable for the PoC (no current use case).
     {
         let db = tag_db.clone();
         let derived = derived_tags.clone();
@@ -369,9 +379,30 @@ async fn main() -> anyhow::Result<()> {
         tokio::spawn(async move {
             loop {
                 match tag_rx.recv().await {
-                    Ok(_) => {
+                    Ok(first) => {
+                        // Collect the first changed id, then drain all pending
+                        // messages without blocking to collapse bursts.
+                        let mut changed: std::collections::HashSet<String> =
+                            std::collections::HashSet::new();
+                        changed.insert(first.id);
+                        loop {
+                            match tag_rx.try_recv() {
+                                Ok(u)  => { changed.insert(u.id); }
+                                Err(_) => break,
+                            }
+                        }
+
                         let pairs = derived.read().await.clone();
                         if pairs.is_empty() { continue; }
+
+                        // Skip if every trigger is itself a derived tag — prevents
+                        // the db.set() → broadcast → re-eval feedback loop.
+                        let derived_ids: std::collections::HashSet<&str> =
+                            pairs.iter().map(|(id, _)| id.as_str()).collect();
+                        if changed.iter().all(|id| derived_ids.contains(id.as_str())) {
+                            continue;
+                        }
+
                         let snapshot: std::collections::HashMap<String, sws_core::TagValue> =
                             db.snapshot().await.into_iter().map(|(k, v)| (k, v.value)).collect();
                         for (id, expr) in pairs {
@@ -387,7 +418,9 @@ async fn main() -> anyhow::Result<()> {
                         }
                     }
                     Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
-                        warn!("derived tag evaluator lagged by {n}");
+                        // Log at debug: with the feedback-loop guard this should
+                        // never happen in normal operation.
+                        debug!("derived tag evaluator lagged by {n}");
                     }
                     Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
                 }

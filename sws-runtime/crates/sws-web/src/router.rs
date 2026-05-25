@@ -490,7 +490,7 @@ async fn refresh_session(
     };
     match s.auth.touch(token).await {
         Some(expires_at_ms) => Json(serde_json::json!({ "expires_at_ms": expires_at_ms })).into_response(),
-        None => StatusCode::UNAUTHORIZED.into_response(),
+        None                => StatusCode::UNAUTHORIZED.into_response(),
     }
 }
 
@@ -1163,7 +1163,11 @@ async fn get_project(State(s): State<AppState>) -> Response {
             mask_project_secrets(&mut project);
             Json(project).into_response()
         }
-        Err(_) => StatusCode::NOT_FOUND.into_response(),
+        Err(e) => {
+            tracing::error!("project load failed: {e:#}");
+            (StatusCode::INTERNAL_SERVER_ERROR,
+             format!("project parse error: {e}")).into_response()
+        }
     }
 }
 
