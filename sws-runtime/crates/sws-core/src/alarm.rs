@@ -7,7 +7,7 @@
 //! `POST /api/alarms/:id/ack`.
 //!
 //! Out of scope for the PoC: multi-condition (AND/OR) rules, time-based
-//! delays, alarm groups, shelving. All Phase 2 polish.
+//! delays, alarm groups. Shelving implemented in Phase 2 (S-49).
 
 use std::{
     collections::HashMap,
@@ -119,12 +119,25 @@ impl AlarmState {
     }
 }
 
+/// A shelved (suppressed) alarm entry.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ShelvedAlarm {
+    pub alarm_id: String,
+    pub reason: String,
+    /// Epoch-ms when the shelving expires. `0` = indefinite (never auto-unshelves).
+    pub until_ms: u64,
+    pub shelved_by: String,
+    pub shelved_at_ms: u64,
+}
+
 /// In-memory alarm registry + broadcast for live UI updates.
 /// Mirrors the shape of TagDb deliberately.
 pub struct AlarmDb {
     states: Arc<RwLock<HashMap<String, AlarmState>>>,
     /// Reverse index: tag → IDs of alarms that watch it.
     by_tag: Arc<RwLock<HashMap<TagId, Vec<String>>>>,
+    /// Shelved (suppressed) alarms: id → shelving metadata.
+    shelved: Arc<RwLock<HashMap<String, ShelvedAlarm>>>,
     tx: broadcast::Sender<AlarmState>,
 }
 
@@ -132,8 +145,9 @@ impl AlarmDb {
     pub fn new(channel_capacity: usize) -> Self {
         let (tx, _) = broadcast::channel(channel_capacity);
         Self {
-            states: Arc::new(RwLock::new(HashMap::new())),
-            by_tag: Arc::new(RwLock::new(HashMap::new())),
+            states:  Arc::new(RwLock::new(HashMap::new())),
+            by_tag:  Arc::new(RwLock::new(HashMap::new())),
+            shelved: Arc::new(RwLock::new(HashMap::new())),
             tx,
         }
     }
@@ -144,6 +158,7 @@ impl AlarmDb {
         let mut by_tag = self.by_tag.write().await;
         states.clear();
         by_tag.clear();
+        self.shelved.write().await.clear();
         for def in defs {
             by_tag.entry(def.tag.clone()).or_default().push(def.id.clone());
             states.insert(def.id.clone(), AlarmState::from_def(def));
@@ -173,10 +188,23 @@ impl AlarmDb {
         if watchers.is_empty() { return; }
 
         let now = now_ms();
+
+        // Auto-expire shelved entries whose `until_ms` has passed.
+        {
+            let mut shelved = self.shelved.write().await;
+            shelved.retain(|_, sh| sh.until_ms == 0 || sh.until_ms > now);
+        }
+
+        // Snapshot shelved IDs so we can skip them during evaluation.
+        let shelved_ids: std::collections::HashSet<String> =
+            self.shelved.read().await.keys().cloned().collect();
+
         let mut to_emit: Vec<AlarmState> = Vec::new();
         {
             let mut states = self.states.write().await;
             for id in &watchers {
+                // Shelved alarms are suppressed — skip evaluation entirely.
+                if shelved_ids.contains(id) { continue; }
                 let Some(s) = states.get_mut(id) else { continue };
                 let fired = s.def.condition.evaluate(&tag_state.value);
                 s.last_value = Some(tag_state.value.clone());
@@ -208,6 +236,36 @@ impl AlarmDb {
         for st in to_emit {
             let _ = self.tx.send(st);
         }
+    }
+
+    /// Shelve (suppress) an alarm for `duration_ms` milliseconds (`0` = indefinite).
+    /// Returns `false` if the alarm id is unknown.
+    pub async fn shelve(&self, id: &str, reason: String, duration_ms: u64, shelved_by: String) -> bool {
+        if !self.states.read().await.contains_key(id) { return false; }
+        let now = now_ms();
+        let until_ms = if duration_ms == 0 { 0 } else { now + duration_ms };
+        self.shelved.write().await.insert(id.to_string(), ShelvedAlarm {
+            alarm_id: id.to_string(),
+            reason,
+            until_ms,
+            shelved_by,
+            shelved_at_ms: now,
+        });
+        true
+    }
+
+    /// Unshelve (re-activate) an alarm. Idempotent.
+    pub async fn unshelve(&self, id: &str) {
+        self.shelved.write().await.remove(id);
+    }
+
+    /// Snapshot of all currently-shelved alarms.
+    pub async fn shelved_snapshot(&self) -> Vec<ShelvedAlarm> {
+        let now = now_ms();
+        self.shelved.read().await.values()
+            .filter(|sh| sh.until_ms == 0 || sh.until_ms > now)
+            .cloned()
+            .collect()
     }
 
     /// Mark an alarm as acknowledged. Idempotent.

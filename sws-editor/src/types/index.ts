@@ -267,6 +267,8 @@ export interface SynopticPage {
   height?: number;
   /** Editor-panel groups (logical containers). No canvas rendering effect. */
   groups?: ObjectGroup[];
+  /** When true, this page is skipped by the auto-rotate (kiosk) cycle. */
+  auto_rotate_skip?: boolean;
 }
 
 export interface Project {
@@ -304,6 +306,10 @@ export interface TagDef {
   history_deadband?: number;
   /** Minimum ms between two recorded samples. */
   history_min_interval_ms?: number;
+  /** Python expression evaluated against a `tags` dict snapshot.
+   * Example: `tags["motor.v"] * tags["motor.i"]`.
+   * When set, the tag is computed/read-only — it cannot be written via the API. */
+  expression?: string;
 }
 
 export interface RegisterMapping {
@@ -658,6 +664,15 @@ export interface AlarmState {
   activated_at_ms: number | null;
   ack_at_ms: number | null;
   last_value: number | string | boolean | null;
+}
+
+export interface ShelvedAlarm {
+  alarm_id: string;
+  reason: string;
+  /** Epoch-ms when shelving expires; 0 = indefinite. */
+  until_ms: number;
+  shelved_by: string;
+  shelved_at_ms: number;
 }
 
 // ── Multi-project management ──────────────────────────────────────────────

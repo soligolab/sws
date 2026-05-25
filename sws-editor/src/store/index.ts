@@ -246,7 +246,7 @@ interface AppState {
   renamePage: (id: string, name: string) => void;
   reorderPage: (id: string, dir: "up" | "down") => void;
   duplicatePage: (id: string) => void;
-  updatePageProps: (id: string, patch: Partial<Pick<SynopticPage, "name" | "background" | "width" | "height">>) => void;
+  updatePageProps: (id: string, patch: Partial<Pick<SynopticPage, "name" | "background" | "width" | "height" | "auto_rotate_skip">>) => void;
   updateGridCell: (pageId: string, objectId: string, cell: GridCell) => void;
   setSelectedCellRange: (range: { objectId: string; r1: number; c1: number; r2: number; c2: number } | null) => void;
   setSelectedSubCell: (sub: { objectId: string; row: number; col: number; path: ("a" | "b")[] } | null) => void;
@@ -344,6 +344,12 @@ interface AppState {
   setAppMode: (mode: AppMode) => void;
   setConfigTab: (tab: AppConfigTab) => void;
   navigateToConfig: (tab: AppConfigTab) => void;
+
+  // Kiosk auto-rotate
+  autoRotate: boolean;
+  autoRotateIntervalS: number;
+  setAutoRotate: (v: boolean) => void;
+  setAutoRotateIntervalS: (v: number) => void;
 }
 
 const first = makePage("Page 1");
@@ -1374,6 +1380,17 @@ export const useAppStore = create<AppState>((set, get) => {
     setAppMode: (appMode) => set({ appMode }),
     setConfigTab: (configTab) => set({ configTab }),
     navigateToConfig: (tab) => set({ appMode: "config", configTab: tab }),
+
+    autoRotate: false,
+    autoRotateIntervalS: parseInt(localStorage.getItem("sws:autoRotateIntervalS") ?? "30", 10) || 30,
+    setAutoRotate: (autoRotate) => {
+      localStorage.setItem("sws:autoRotate", String(autoRotate));
+      set({ autoRotate });
+    },
+    setAutoRotateIntervalS: (autoRotateIntervalS) => {
+      localStorage.setItem("sws:autoRotateIntervalS", String(autoRotateIntervalS));
+      set({ autoRotateIntervalS });
+    },
 
     incSaveSerial: () => set((s) => ({ saveSerial: s.saveSerial + 1 })),
     setSaveStatus: (saveStatus, saveError = null) => set({ saveStatus, saveError }),

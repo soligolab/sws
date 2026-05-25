@@ -216,6 +216,7 @@ pub async fn open_project(
     s.alarms.load(vec![]).await;
     s.supervisor.reload(vec![]).await;
     s.functions.write().await.clear();
+    s.derived_tags.write().await.clear();
 
     // Point the OPC-UA plugin at this project's PKI dir so cert + key
     // travel with the project (back up + restore included).
@@ -231,6 +232,14 @@ pub async fn open_project(
                 functions = project.functions.len(),
                 "project opened",
             );
+            // Seed derived tags before populate_tags so they start Uncertain
+            // until the evaluator task computes the first real value.
+            {
+                let derived: Vec<(String, String)> = project.tags.iter()
+                    .filter_map(|t| t.expression.as_ref().map(|e| (t.id.clone(), e.clone())))
+                    .collect();
+                *s.derived_tags.write().await = derived;
+            }
             project.populate_tags(&s.db).await;
             s.alarms.load(project.alarms).await;
             s.supervisor.reload(project.sources).await;
@@ -278,6 +287,7 @@ pub async fn close_project(State(s): State<AppState>) -> Response {
     s.alarms.load(vec![]).await;
     s.supervisor.reload(vec![]).await;
     s.functions.write().await.clear();
+    s.derived_tags.write().await.clear();
     s.auth.clear().await;
     *s.project_dir.write().await = None;
     info!("project closed");

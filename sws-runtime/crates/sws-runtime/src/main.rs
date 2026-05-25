@@ -9,12 +9,12 @@ use hyper::body::Incoming;
 use hyper_util::rt::{TokioExecutor, TokioIo};
 use hyper_util::server::conn::auto::Builder as ConnBuilder;
 use rcgen::generate_simple_self_signed;
-use std::{net::SocketAddr, path::PathBuf, sync::Arc};
+use std::{net::{IpAddr, SocketAddr}, path::PathBuf, sync::Arc};
 use sws_auth::{AuthState, Role};
-use sws_core::{AlarmDb, LogBus, TagDb, TagWriteBus, DEFAULT_LOG_CAPACITY};
+use sws_core::{AlarmDb, LogBus, TagDb, TagQuality, TagWriteBus, DEFAULT_LOG_CAPACITY};
 use sws_historian::{sqlite::SqliteStore, DatastoreRegistry, Historian};
 use sws_pyscript::Engine as PyEngine;
-use sws_web::SourceSupervisor;
+use sws_web::{router::DerivedTagsRegistry, SourceSupervisor};
 use tokio::net::TcpListener;
 use tokio_rustls::{
     rustls::{
@@ -188,6 +188,8 @@ async fn main() -> anyhow::Result<()> {
     // Empty registry — populated below from project.yaml (if present).
     let functions: sws_web::router::FunctionsRegistry =
         Arc::new(tokio::sync::RwLock::new(std::collections::HashMap::new()));
+    let derived_tags: DerivedTagsRegistry =
+        Arc::new(tokio::sync::RwLock::new(Vec::new()));
 
     // Admin credentials must be provided via env. The runtime refuses to
     // start without one — "no default credentials" commitment in
@@ -244,6 +246,15 @@ async fn main() -> anyhow::Result<()> {
                     functions = project.functions.len(),
                     "project loaded (legacy --project auto-open)",
                 );
+                // Seed derived tags before populate_tags so they start Uncertain.
+                {
+                    let mut derived = derived_tags.write().await;
+                    for t in &project.tags {
+                        if let Some(expr) = &t.expression {
+                            derived.push((t.id.clone(), expr.clone()));
+                        }
+                    }
+                }
                 project.populate_tags(&tag_db).await;
                 // Build datastore registry while project is still whole (before
                 // field moves below).
@@ -347,6 +358,43 @@ async fn main() -> anyhow::Result<()> {
         });
     }
 
+    // Derived tag evaluator: on every TagDb update, re-evaluate all expressions
+    // whose result may have changed.  Each expression runs in spawn_blocking
+    // (PyO3 requires a non-async context) and updates the tag with Good/Bad
+    // quality depending on whether the Python eval succeeds.
+    {
+        let db = tag_db.clone();
+        let derived = derived_tags.clone();
+        let mut tag_rx = tag_db.subscribe();
+        tokio::spawn(async move {
+            loop {
+                match tag_rx.recv().await {
+                    Ok(_) => {
+                        let pairs = derived.read().await.clone();
+                        if pairs.is_empty() { continue; }
+                        let snapshot: std::collections::HashMap<String, sws_core::TagValue> =
+                            db.snapshot().await.into_iter().map(|(k, v)| (k, v.value)).collect();
+                        for (id, expr) in pairs {
+                            match sws_pyscript::eval_expression(expr, snapshot.clone()).await {
+                                Ok(value) => {
+                                    db.set(id, value, TagQuality::Good).await;
+                                }
+                                Err(e) => {
+                                    warn!(tag = %id, "derived tag eval error: {e}");
+                                    // Keep last good value; just log — don't overwrite with garbage.
+                                }
+                            }
+                        }
+                    }
+                    Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
+                        warn!("derived tag evaluator lagged by {n}");
+                    }
+                    Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
+                }
+            }
+        });
+    }
+
     // Alarm webhook dispatcher: subscribe to the alarm broadcast; for every
     // transition to ACTIVE fire an HTTP POST to `notify_url` (best-effort).
     {
@@ -431,6 +479,30 @@ async fn main() -> anyhow::Result<()> {
 
     let started_at = std::time::Instant::now();
 
+    // Parse SWS_IP_ALLOWLIST="192.168.1.0/24,10.0.0.0/8".
+    // Empty / unset → no restriction (all IPs allowed).
+    let ip_allowlist: Arc<Vec<(IpAddr, u8)>> = Arc::new(
+        std::env::var("SWS_IP_ALLOWLIST")
+            .unwrap_or_default()
+            .split(',')
+            .filter_map(|entry| {
+                let entry = entry.trim();
+                if entry.is_empty() { return None; }
+                let (addr_str, prefix_str) = if let Some(pos) = entry.find('/') {
+                    (&entry[..pos], &entry[pos+1..])
+                } else {
+                    (entry, "32")
+                };
+                let addr: IpAddr = addr_str.parse().ok()?;
+                let prefix: u8 = prefix_str.parse().ok()?;
+                Some((addr, prefix))
+            })
+            .collect()
+    );
+    if !ip_allowlist.is_empty() {
+        info!(entries = ip_allowlist.len(), "IP allowlist active for /api/auth/login");
+    }
+
     let app = sws_web::router::build(
         tag_db,
         bus,
@@ -441,12 +513,14 @@ async fn main() -> anyhow::Result<()> {
         auth,
         supervisor.clone(),
         functions,
+        derived_tags.clone(),
         active_dir,
         Arc::new(args.projects_root.clone()),
         Arc::new(args.templates_root.clone()),
         log_bus,
         Arc::new(logs_dir),
         started_at,
+        ip_allowlist,
         args.www.clone(),
     );
 
@@ -547,7 +621,8 @@ async fn main() -> anyhow::Result<()> {
                 Err(e) => { warn!(%peer, "TLS handshake failed: {e}"); return; }
             };
             let io = TokioIo::new(tls_stream);
-            let hyper_svc = hyper::service::service_fn(move |req: axum::extract::Request<Incoming>| {
+            let hyper_svc = hyper::service::service_fn(move |mut req: axum::extract::Request<Incoming>| {
+                req.extensions_mut().insert(peer);
                 svc.clone().call(req)
             });
             if let Err(e) = ConnBuilder::new(TokioExecutor::new())

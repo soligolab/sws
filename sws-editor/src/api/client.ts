@@ -22,6 +22,7 @@ import type {
   ProjectListEntry,
   Sample,
   SourceDef,
+  ShelvedAlarm,
   SynopticPage,
   TagDef,
   TemplateEntry,
@@ -382,6 +383,19 @@ export const api = {
 
   ackAlarm: (id: string) =>
     request<void>(`/api/alarms/${encodeURIComponent(id)}/ack`, { method: "POST" }),
+
+  shelveAlarm: (id: string, reason: string, durationMs: number, shelvedBy: string) =>
+    request<void>(`/api/alarms/${encodeURIComponent(id)}/shelve`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ reason, duration_ms: durationMs, shelved_by: shelvedBy }),
+    }),
+
+  unshelveAlarm: (id: string) =>
+    request<void>(`/api/alarms/${encodeURIComponent(id)}/shelve`, { method: "DELETE" }),
+
+  listShelved: () =>
+    request<ShelvedAlarm[]>("/api/alarms/shelved"),
 
   // Runtime logs (Operator+)
   getLogs: () => request<LogEvent[]>("/api/logs"),

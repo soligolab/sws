@@ -29,6 +29,11 @@ use crate::synoptic::{safe_filename, SynopticPage};
 /// latest body without a restart.
 pub type FunctionsRegistry = Arc<RwLock<HashMap<String, FunctionDef>>>;
 
+/// List of `(tag_id, expression)` pairs for derived/calculated tags.
+/// Updated whenever the project's tag list changes; read by the derived-tag
+/// evaluator task that runs in the runtime.
+pub type DerivedTagsRegistry = Arc<RwLock<Vec<(String, String)>>>;
+
 /// Mutable handle on the currently-active project directory. `None` means
 /// "no project open" — handlers that need a project dir gate on this and
 /// return 503. Wrapped in RwLock so `open`/`close` can swap it in-place
@@ -48,12 +53,15 @@ pub struct AppState {
     pub auth: Arc<AuthState>,
     pub supervisor: Arc<SourceSupervisor>,
     pub functions: FunctionsRegistry,
+    pub derived_tags: DerivedTagsRegistry,
     pub project_dir: ActiveProjectDir,
     pub projects_root: Arc<PathBuf>,
     pub templates_root: Arc<PathBuf>,
     pub logs: Arc<LogBus>,
     pub logs_dir: Arc<PathBuf>,
     pub started_at: std::time::Instant,
+    /// Parsed CIDR entries from `SWS_IP_ALLOWLIST`. Empty = no restriction.
+    pub ip_allowlist: Arc<Vec<(std::net::IpAddr, u8)>>,
 }
 
 /// Resolve the active project directory or return 503. Used at the top
@@ -72,15 +80,17 @@ pub fn build(
     auth: Arc<AuthState>,
     supervisor: Arc<SourceSupervisor>,
     functions: FunctionsRegistry,
+    derived_tags: DerivedTagsRegistry,
     project_dir: ActiveProjectDir,
     projects_root: Arc<PathBuf>,
     templates_root: Arc<PathBuf>,
     logs: Arc<LogBus>,
     logs_dir: Arc<PathBuf>,
     started_at: std::time::Instant,
+    ip_allowlist: Arc<Vec<(std::net::IpAddr, u8)>>,
     www_dir: Option<PathBuf>,
 ) -> Router {
-    let state = AppState { db, bus, alarms, historian, registry, py, auth, supervisor, functions, project_dir, projects_root, templates_root, logs, logs_dir, started_at };
+    let state = AppState { db, bus, alarms, historian, registry, py, auth, supervisor, functions, derived_tags, project_dir, projects_root, templates_root, logs, logs_dir, started_at, ip_allowlist };
 
     // Routes that need Admin privileges (PUT /api/project/* — schema edits,
     // plus the multi-user CRUD).
@@ -112,8 +122,10 @@ pub fn build(
     // can't change state. Synoptic writes moved to supervisor_routes
     // below — Operators are runtime users, not project editors.
     let operator_routes = Router::new()
-        .route("/api/tags/:id",        put(write_tag))
-        .route("/api/alarms/:id/ack",  post(ack_alarm))
+        .route("/api/tags/:id",           put(write_tag))
+        .route("/api/alarms/:id/ack",     post(ack_alarm))
+        .route("/api/alarms/:id/shelve",  post(shelve_alarm).delete(unshelve_alarm))
+        .route("/api/alarms/shelved",     get(list_shelved_alarms))
         .route("/api/script/exec",     post(exec_script))
         .route("/api/script/run/:name", post(run_function))
         // Logs — read-only but Operator+ so the audit surface stays
@@ -400,8 +412,28 @@ fn url_form_decode(q: &str) -> Vec<(String, String)> {
 
 async fn login(
     State(s): State<AppState>,
+    peer: Option<axum::extract::Extension<std::net::SocketAddr>>,
+    headers: axum::http::HeaderMap,
     Json(creds): Json<Credentials>,
 ) -> Response {
+    // IP allowlist check — only enforced when SWS_IP_ALLOWLIST is set.
+    if !s.ip_allowlist.is_empty() {
+        let peer_ip: Option<std::net::IpAddr> = peer
+            .map(|axum::extract::Extension(sa)| sa.ip())
+            .or_else(|| {
+                headers.get("x-forwarded-for")
+                    .and_then(|v| v.to_str().ok())
+                    .and_then(|v| v.split(',').next())
+                    .and_then(|ip| ip.trim().parse().ok())
+            });
+        let allowed = peer_ip.map_or(false, |ip| {
+            s.ip_allowlist.iter().any(|(net, prefix)| ip_in_cidr(ip, *net, *prefix))
+        });
+        if !allowed {
+            warn!(peer = ?peer_ip, "login blocked by IP allowlist");
+            return StatusCode::FORBIDDEN.into_response();
+        }
+    }
     match s.auth.login(&creds).await {
         Ok(ok) => Json(ok).into_response(),
         Err(LoginError::BadCredentials) => StatusCode::UNAUTHORIZED.into_response(),
@@ -409,6 +441,24 @@ async fn login(
             StatusCode::TOO_MANY_REQUESTS,
             [(axum::http::header::RETRY_AFTER, retry_after_secs.to_string())],
         ).into_response(),
+    }
+}
+
+/// Returns true when `ip` falls within the CIDR block `network/prefix_len`.
+fn ip_in_cidr(ip: std::net::IpAddr, network: std::net::IpAddr, prefix_len: u8) -> bool {
+    use std::net::IpAddr;
+    match (ip, network) {
+        (IpAddr::V4(ip4), IpAddr::V4(net4)) => {
+            if prefix_len == 0 { return true; }
+            let shift = 32u32.saturating_sub(prefix_len as u32);
+            u32::from(ip4) >> shift == u32::from(net4) >> shift
+        }
+        (IpAddr::V6(ip6), IpAddr::V6(net6)) => {
+            if prefix_len == 0 { return true; }
+            let shift = 128u128.saturating_sub(prefix_len as u128);
+            u128::from(ip6) >> shift == u128::from(net6) >> shift
+        }
+        _ => false, // IPv4 vs IPv6 mismatch
     }
 }
 
@@ -1034,6 +1084,37 @@ async fn ack_alarm(State(s): State<AppState>, Path(id): Path<String>) -> StatusC
     if s.alarms.ack(&id).await { StatusCode::NO_CONTENT } else { StatusCode::NOT_FOUND }
 }
 
+#[derive(serde::Deserialize)]
+struct ShelveRequest {
+    reason: String,
+    /// Duration in milliseconds; 0 = indefinite.
+    #[serde(default)]
+    duration_ms: u64,
+    #[serde(default)]
+    shelved_by: String,
+}
+
+async fn shelve_alarm(
+    State(s): State<AppState>,
+    Path(id): Path<String>,
+    Json(body): Json<ShelveRequest>,
+) -> StatusCode {
+    if s.alarms.shelve(&id, body.reason, body.duration_ms, body.shelved_by).await {
+        StatusCode::NO_CONTENT
+    } else {
+        StatusCode::NOT_FOUND
+    }
+}
+
+async fn unshelve_alarm(State(s): State<AppState>, Path(id): Path<String>) -> StatusCode {
+    s.alarms.unshelve(&id).await;
+    StatusCode::NO_CONTENT
+}
+
+async fn list_shelved_alarms(State(s): State<AppState>) -> Json<Vec<sws_core::ShelvedAlarm>> {
+    Json(s.alarms.shelved_snapshot().await)
+}
+
 async fn ws_alarms_handler(ws: WebSocketUpgrade, State(s): State<AppState>) -> impl IntoResponse {
     ws.on_upgrade(move |socket| handle_alarms_ws(socket, s.alarms))
 }
@@ -1144,6 +1225,10 @@ async fn update_project_tags(
         .difference(&new_ids)
         .cloned()
         .collect();
+    // Collect derived pairs before tags is consumed by patch_project closure.
+    let derived: Vec<(String, String)> = tags.iter()
+        .filter_map(|t| t.expression.as_ref().map(|e| (t.id.clone(), e.clone())))
+        .collect();
 
     let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c };
     let status = patch_project(&dir, |p| p.tags = tags).await;
@@ -1156,6 +1241,7 @@ async fn update_project_tags(
     for id in &to_remove {
         s.db.remove(id).await;
     }
+    *s.derived_tags.write().await = derived;
     status
 }
 
@@ -1554,6 +1640,12 @@ async fn import_project_zip(State(s): State<AppState>, body: Bytes) -> Response 
         for f in project.functions.iter().cloned() {
             map.insert(f.name.clone(), f);
         }
+    }
+    {
+        let derived: Vec<(String, String)> = project.tags.iter()
+            .filter_map(|t| t.expression.as_ref().map(|e| (t.id.clone(), e.clone())))
+            .collect();
+        *s.derived_tags.write().await = derived;
     }
 
     tracing::info!(
