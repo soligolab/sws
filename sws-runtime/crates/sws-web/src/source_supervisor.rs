@@ -134,10 +134,22 @@ impl SourceSupervisor {
                     sws_plugin_modbus::run(cfg, db, bus, cancel_for_task).await;
                 })
             }
+            SourceDef::ModbusRtu(cfg) => {
+                info!(source = %id_for_log, device = %cfg.device, "starting Modbus RTU task");
+                tokio::spawn(async move {
+                    sws_plugin_modbus::run_rtu(cfg, db, bus, cancel_for_task).await;
+                })
+            }
             SourceDef::Mqtt(cfg) => {
                 info!(source = %id_for_log, "starting MQTT task");
                 tokio::spawn(async move {
                     sws_plugin_mqtt::run(cfg, db, bus, cancel_for_task).await;
+                })
+            }
+            SourceDef::OpcUaServer(cfg) => {
+                info!(source = %id_for_log, port = cfg.port, "starting OPC-UA server task");
+                tokio::spawn(async move {
+                    sws_plugin_opcua::run_server(cfg, db, bus, cancel_for_task).await;
                 })
             }
             SourceDef::OpcUaClient(cfg) => {
@@ -188,17 +200,21 @@ impl SourceSupervisor {
 
 fn source_id(s: &SourceDef) -> &str {
     match s {
-        SourceDef::ModbusTcp(c)   => &c.id,
-        SourceDef::Mqtt(c)        => &c.id,
-        SourceDef::OpcUaClient(c) => &c.id,
+        SourceDef::ModbusTcp(c)    => &c.id,
+        SourceDef::ModbusRtu(c)    => &c.id,
+        SourceDef::OpcUaServer(c)  => &c.id,
+        SourceDef::Mqtt(c)         => &c.id,
+        SourceDef::OpcUaClient(c)  => &c.id,
     }
 }
 
 fn tags_of(s: &SourceDef) -> Vec<String> {
     match s {
-        SourceDef::ModbusTcp(c)   => c.registers.iter().map(|r| r.tag.clone()).collect(),
-        SourceDef::Mqtt(c)        => c.topics.iter().map(|t| t.tag.clone()).collect(),
-        SourceDef::OpcUaClient(c) => c.nodes.iter().map(|n| n.tag.clone()).collect(),
+        SourceDef::ModbusTcp(c)    => c.registers.iter().map(|r| r.tag.clone()).collect(),
+        SourceDef::ModbusRtu(c)    => c.registers.iter().map(|r| r.tag.clone()).collect(),
+        SourceDef::OpcUaServer(c)  => c.nodes.iter().map(|n| n.tag.clone()).collect(),
+        SourceDef::Mqtt(c)         => c.topics.iter().map(|t| t.tag.clone()).collect(),
+        SourceDef::OpcUaClient(c)  => c.nodes.iter().map(|n| n.tag.clone()).collect(),
     }
 }
 

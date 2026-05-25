@@ -1960,6 +1960,16 @@ function ObjectProps({
           >
             + Aggiungi tag
           </button>
+
+          {/* OPC-UA historian backfill */}
+          <label style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8, fontSize: 11, color: "#94a3b8", cursor: "pointer" }}>
+            <input
+              type="checkbox"
+              checked={obj.opcua_backfill ?? false}
+              onChange={(e) => onChange({ opcua_backfill: e.target.checked || undefined })}
+            />
+            Backfill da storico OPC-UA al caricamento
+          </label>
         </>
       )}
 

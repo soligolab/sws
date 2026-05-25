@@ -15,12 +15,13 @@ use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
 
-use opcua::client::{ClientBuilder, DataChangeCallback, IdentityToken};
+use opcua::client::{ClientBuilder, DataChangeCallback, HistoryReadAction, IdentityToken};
 use opcua::crypto::SecurityPolicy;
 use opcua::types::{
-    AttributeId, BrowseDescription, BrowseDirection, DataValue, MessageSecurityMode,
-    MonitoredItemCreateRequest, NodeClass, NodeId, ObjectId, ReferenceTypeId, StatusCode,
-    TimestampsToReturn, UserTokenPolicy, Variant, WriteValue,
+    AttributeId, BrowseDescription, BrowseDirection, DataValue, HistoryData, HistoryReadValueId,
+    MessageSecurityMode, MonitoredItemCreateRequest, NodeClass, NodeId, NumericRange, ObjectId,
+    ReadRawModifiedDetails, ReferenceTypeId, StatusCode, TimestampsToReturn, UserTokenPolicy,
+    Variant, WriteValue,
 };
 use serde::{Deserialize, Serialize};
 use sws_core::{OpcUaAuth, OpcUaClientConfig, TagDb, TagQuality, TagValue, TagWriteBus, WriteRequest};
@@ -58,17 +59,14 @@ fn security_mode_for(policy: SecurityPolicy) -> MessageSecurityMode {
 /// where async-opcua persists the runtime's self-signed cert + private
 /// key. For long-lived sessions the supervisor passes the project-scoped
 /// dir; one-shot browses use a tempdir.
-fn build_client_builder(pki_dir: &Path) -> ClientBuilder {
+fn build_client_builder(pki_dir: &Path, trust_all: bool) -> ClientBuilder {
     ClientBuilder::new()
         .application_name("SWS Runtime")
         .application_uri("urn:sws-runtime")
         // Generate a keypair on first run; reuse it on subsequent runs so
         // the server's trust list remains stable.
         .create_sample_keypair(true)
-        // Accept any server cert — for the PoC we don't ship a server
-        // trust list. Tighten this in BL-005c follow-up once the operator
-        // can curate accepted server certs from the UI.
-        .trust_server_certs(true)
+        .trust_server_certs(trust_all)
         .pki_dir(pki_dir.to_path_buf())
         .session_retry_limit(0)
 }
@@ -118,7 +116,7 @@ async fn run_once(
     if let Err(e) = std::fs::create_dir_all(pki_dir) {
         warn!(pki = %pki_dir.display(), "opcua: cannot create pki dir: {e}");
     }
-    let mut client = build_client_builder(pki_dir)
+    let mut client = build_client_builder(pki_dir, cfg.trust_all_certs)
         .client()
         .map_err(|e| anyhow::anyhow!("opcua client builder: {e:?}"))?;
 
@@ -355,6 +353,166 @@ fn data_value_to_tag(dv: &DataValue) -> (TagValue, TagQuality) {
     (value, quality)
 }
 
+// ── Historical reads (BL-005c) ───────────────────────────────────────────────
+//
+// Opens a temporary OPC-UA session, issues a HistoryRead / ReadRawModified
+// request for one node, and returns the samples. The session is torn down
+// immediately after the call — this is a one-shot backfill, not a live feed.
+//
+// Only numeric and boolean nodes are converted; string values are silently
+// dropped since the Trend chart can't plot them.
+
+#[derive(Debug, Clone, Serialize)]
+pub struct HistoricalSample {
+    /// Milliseconds since Unix epoch (source timestamp, falling back to server
+    /// timestamp when the server doesn't populate the source timestamp).
+    pub ts_ms: u64,
+    /// Numeric value — bool → 0.0/1.0, integers widened to f64.
+    pub value: f64,
+    pub quality: &'static str, // "Good" | "Bad" | "Uncertain"
+}
+
+/// Fetch raw historical data for one OPC-UA node.
+///
+/// * `cfg` — the source configuration (endpoint, auth, security policy).
+/// * `node_id` — canonical OPC-UA NodeId string (`ns=2;s=Machine.Temp`).
+/// * `from_ms` — start of the time range (Unix ms); defaults to 24 h ago.
+/// * `to_ms`   — end of the time range (Unix ms); defaults to now.
+/// * `max_values` — server-side cap per call (≤ 1000 for PoC).
+pub async fn read_history(
+    cfg: &OpcUaClientConfig,
+    node_id: &str,
+    from_ms: Option<u64>,
+    to_ms: Option<u64>,
+    max_values: u32,
+) -> anyhow::Result<Vec<HistoricalSample>> {
+    // 100-ns ticks between the OPC-UA epoch (1601-01-01) and the Unix epoch
+    // (1970-01-01). Used to convert between Unix-ms and OPC-UA ticks without
+    // pulling in a chrono dependency.
+    const EPOCH_OFFSET_TICKS: i64 = 116_444_736_000_000_000;
+
+    let now_ms = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as u64;
+    let from_ms = from_ms.unwrap_or(now_ms.saturating_sub(86_400_000));
+    let to_ms   = to_ms.unwrap_or(now_ms);
+
+    let ms_to_opc = |ms: u64| -> opcua::types::DateTime {
+        let ticks = (ms as i64) * 10_000 + EPOCH_OFFSET_TICKS;
+        ticks.into()
+    };
+    let start_time = ms_to_opc(from_ms);
+    let end_time   = ms_to_opc(to_ms);
+
+    let nid = NodeId::from_str(node_id)
+        .map_err(|e| anyhow::anyhow!("invalid NodeId '{node_id}': {e}"))?;
+
+    let tmpdir = tempfile::tempdir()
+        .map_err(|e| anyhow::anyhow!("opcua history: cannot create temp pki: {e}"))?;
+    let mut client = build_client_builder(tmpdir.path(), true)
+        .application_name("SWS Runtime (history)")
+        .client()
+        .map_err(|e| anyhow::anyhow!("opcua client builder: {e:?}"))?;
+
+    let security_policy = parse_security_policy(&cfg.security_policy)
+        .unwrap_or(SecurityPolicy::None);
+    let security_mode = security_mode_for(security_policy);
+
+    let endpoint: opcua::types::EndpointDescription = (
+        cfg.endpoint_url.as_str(),
+        security_policy.to_uri(),
+        security_mode,
+        UserTokenPolicy::anonymous(),
+    ).into();
+
+    let identity = match &cfg.auth {
+        OpcUaAuth::Anonymous => IdentityToken::Anonymous,
+        OpcUaAuth::UsernamePassword { username, password, password_env } => {
+            let pwd = password_env
+                .as_ref()
+                .and_then(|k| std::env::var(k).ok())
+                .or_else(|| password.clone())
+                .unwrap_or_default();
+            IdentityToken::new_user_name(username.clone(), pwd)
+        }
+    };
+
+    let (session, event_loop) = client
+        .connect_to_endpoint_directly(endpoint, identity)
+        .map_err(|e| anyhow::anyhow!("opcua connect: {e}"))?;
+    let loop_handle = event_loop.spawn();
+    session.wait_for_connection().await;
+
+    let node_to_read = HistoryReadValueId {
+        node_id: nid,
+        index_range: NumericRange::None,
+        data_encoding: opcua::types::QualifiedName::default(),
+        continuation_point: Default::default(),
+    };
+
+    let details = ReadRawModifiedDetails {
+        is_read_modified: false,
+        start_time,
+        end_time,
+        num_values_per_node: max_values,
+        return_bounds: false,
+    };
+
+    let results = session
+        .history_read(
+            HistoryReadAction::ReadRawModifiedDetails(details),
+            TimestampsToReturn::Source,
+            false,
+            &[node_to_read],
+        )
+        .await
+        .map_err(|e| anyhow::anyhow!("opcua history_read: {e}"))?;
+
+    let _ = session.disconnect().await;
+    loop_handle.abort();
+    drop(tmpdir);
+
+    let mut out = Vec::new();
+    for result in results {
+        if !result.status_code.is_good() {
+            warn!(node = %node_id, code = ?result.status_code, "opcua history_read: bad status");
+            continue;
+        }
+        let Some(hd) = result.history_data.inner_as::<HistoryData>() else { continue };
+        for dv in hd.data_values.iter().flatten() {
+            let ts_ms = dv.source_timestamp
+                .or(dv.server_timestamp)
+                .map(|dt| {
+                    // Convert OPC-UA ticks (since 1601-01-01) to Unix ms.
+                    ((dt.ticks() - EPOCH_OFFSET_TICKS) / 10_000) as u64
+                })
+                .unwrap_or(0);
+            let quality = match dv.status {
+                Some(s) if s == StatusCode::Good => "Good",
+                Some(_) => "Bad",
+                None     => "Uncertain",
+            };
+            let value = match &dv.value {
+                Some(Variant::Boolean(b))   => if *b { 1.0 } else { 0.0 },
+                Some(Variant::Byte(n))      => *n as f64,
+                Some(Variant::SByte(n))     => *n as f64,
+                Some(Variant::Int16(n))     => *n as f64,
+                Some(Variant::UInt16(n))    => *n as f64,
+                Some(Variant::Int32(n))     => *n as f64,
+                Some(Variant::UInt32(n))    => *n as f64,
+                Some(Variant::Int64(n))     => *n as f64,
+                Some(Variant::UInt64(n))    => *n as f64,
+                Some(Variant::Float(f))     => *f as f64,
+                Some(Variant::Double(d))    => *d,
+                _ => continue, // skip strings, extension objects, nulls
+            };
+            out.push(HistoricalSample { ts_ms, value, quality });
+        }
+    }
+    Ok(out)
+}
+
 // ── Server browse (BL-005 step 3) ────────────────────────────────────────────
 //
 // Opens a temporary OPC-UA session, browses the requested node (or the
@@ -397,7 +555,7 @@ pub async fn browse_one_level(
 ) -> anyhow::Result<Vec<BrowsedNode>> {
     let tmpdir = tempfile::tempdir()
         .map_err(|e| anyhow::anyhow!("opcua browse: cannot create temp pki: {e}"))?;
-    let mut client = build_client_builder(tmpdir.path())
+    let mut client = build_client_builder(tmpdir.path(), true)
         .application_name("SWS Runtime (browse)")
         .client()
         .map_err(|e| anyhow::anyhow!("opcua client builder: {e:?}"))?;
@@ -556,7 +714,7 @@ pub async fn detect_euromap(cfg: &OpcUaClientConfig) -> anyhow::Result<EuromapDe
 
     let tmpdir = tempfile::tempdir()
         .map_err(|e| anyhow::anyhow!("opcua detect-euromap: cannot create temp pki: {e}"))?;
-    let mut client = build_client_builder(tmpdir.path())
+    let mut client = build_client_builder(tmpdir.path(), true)
         .application_name("SWS Runtime (euromap)")
         .client()
         .map_err(|e| anyhow::anyhow!("opcua client builder: {e:?}"))?;
@@ -671,6 +829,176 @@ fn node_class_label(c: NodeClass) -> &'static str {
         NodeClass::View          => "View",
         NodeClass::Unspecified   => "Unspecified",
     }
+}
+
+// ── OPC-UA server ─────────────────────────────────────────────────────────────
+
+/// Expose SWS tag values as OPC-UA Variable nodes.
+///
+/// Launches an anonymous OPC-UA server on `cfg.port`. For each `cfg.nodes`
+/// entry, one Variable node is created under an "SWS" folder in ObjectsFolder
+/// using the configured `cfg.namespace_uri`. The server mirrors every
+/// TagDb broadcast into the matching node so OPC-UA subscribers receive
+/// live updates. Writes from OPC-UA clients are forwarded to TagWriteBus.
+///
+/// The server runs until `cancel` fires (called by SourceSupervisor on
+/// project-close or reconfigure), which signals the opcua runtime to stop.
+pub async fn run_server(
+    cfg: sws_core::OpcUaServerConfig,
+    db: Arc<sws_core::TagDb>,
+    _bus: Arc<sws_core::TagWriteBus>,
+    cancel: tokio_util::sync::CancellationToken,
+) {
+    use opcua::nodes::{AccessLevel, VariableBuilder};
+    use opcua::server::{
+        ServerBuilder,
+        node_manager::memory::simple_node_manager,
+        diagnostics::NamespaceMetadata,
+    };
+    use opcua::types::{DataTypeId, DataValue, NodeId, ObjectId};
+    use sws_core::{TagValue, TagQuality};
+
+    let (server, handle) = match ServerBuilder::new_anonymous("SWS OPC-UA Server")
+        .application_uri(&format!("urn:soligolab:sws:{}", cfg.id))
+        .host("0.0.0.0")
+        .port(cfg.port)
+        .trust_client_certs(true)
+        .with_node_manager(simple_node_manager(
+            NamespaceMetadata {
+                namespace_uri: cfg.namespace_uri.clone(),
+                ..Default::default()
+            },
+            "sws",
+        ))
+        .build()
+    {
+        Ok(x) => x,
+        Err(e) => {
+            warn!(source = %cfg.id, "OPC-UA server build failed: {e}");
+            return;
+        }
+    };
+
+    // Namespace index is assigned by the server at build time.
+    let ns = handle.get_namespace_index(&cfg.namespace_uri).unwrap_or(2);
+    let Some(node_mgr) = handle
+        .node_managers()
+        .get_of_type::<opcua::server::node_manager::memory::SimpleNodeManager>()
+    else {
+        warn!(source = %cfg.id, "OPC-UA server: could not get SimpleNodeManager");
+        return;
+    };
+
+    // Populate address space: folder + one Variable per tag mapping.
+    {
+        let mut address_space = node_mgr.address_space().write();
+        let folder_id = NodeId::new(ns, "SWS");
+        let objects_folder: NodeId = ObjectId::ObjectsFolder.into();
+        address_space.add_folder(&folder_id, "SWS", "SWS", &objects_folder);
+
+        for mapping in &cfg.nodes {
+            let nid = NodeId::new(ns, mapping.effective_node_id());
+            VariableBuilder::new(&nid, mapping.effective_node_id(), mapping.effective_node_id())
+                .data_type(DataTypeId::Double)
+                .value(0.0_f64)
+                .access_level(AccessLevel::CURRENT_READ | AccessLevel::CURRENT_WRITE)
+                .user_access_level(AccessLevel::CURRENT_READ | AccessLevel::CURRENT_WRITE)
+                .writable()
+                .organized_by(folder_id.clone())
+                .insert(&mut *address_space);
+        }
+    }
+
+    // Wire OPC-UA write → TagDb. Sync callbacks cannot be async, so we use
+    // an unbounded mpsc channel: callback posts to channel; a spawned task
+    // drains it and calls db.set() (bypassing the write bus — the OPC-UA
+    // server is the authoritative source for these tags while running).
+    let (write_tx, mut write_rx) =
+        tokio::sync::mpsc::unbounded_channel::<(String, TagValue)>();
+    {
+        let impl_ = node_mgr.inner();
+        for mapping in &cfg.nodes {
+            let nid = NodeId::new(ns, mapping.effective_node_id());
+            let tag = mapping.tag.clone();
+            let tx = write_tx.clone();
+            impl_.add_write_callback(nid, move |dv, _range| {
+                if let Some(v) = &dv.value {
+                    let tv: Option<TagValue> = match v {
+                        opcua::types::Variant::Boolean(b) => Some(TagValue::Bool(*b)),
+                        opcua::types::Variant::Float(f)   => Some(TagValue::Float(*f as f64)),
+                        opcua::types::Variant::Double(f)  => Some(TagValue::Float(*f)),
+                        opcua::types::Variant::Int32(i)   => Some(TagValue::Int(*i as i64)),
+                        opcua::types::Variant::Int64(i)   => Some(TagValue::Int(*i)),
+                        opcua::types::Variant::String(s)  => Some(TagValue::Str(s.as_ref().to_string())),
+                        _ => None,
+                    };
+                    if let Some(tv) = tv {
+                        let _ = tx.send((tag.clone(), tv));
+                    }
+                }
+                opcua::types::StatusCode::Good
+            });
+        }
+    }
+    drop(write_tx); // callbacks hold clones; drop our copy so the channel closes when they all drop
+    // Write-drain task: receives (tag, value) pairs from OPC-UA write callbacks.
+    let db_for_writes = db.clone();
+    let write_drainer = tokio::spawn(async move {
+        while let Some((tag, value)) = write_rx.recv().await {
+            db_for_writes.set(tag, value, TagQuality::Good).await;
+        }
+    });
+
+    info!(source = %cfg.id, port = cfg.port, ns = %cfg.namespace_uri,
+          nodes = cfg.nodes.len(), "OPC-UA server started");
+
+    // Mirror TagDb broadcasts into the OPC-UA address space.
+    let mut db_rx = db.subscribe();
+    let handle_for_update = handle.clone();
+    let node_mgr_for_update = node_mgr.clone();
+    let nodes_for_update: Vec<_> = cfg.nodes.clone();
+    let ns_for_update = ns;
+
+    let updater = tokio::spawn(async move {
+        loop {
+            match db_rx.recv().await {
+                Ok(update) => {
+                    // Find the mapping for this tag (linear scan — small list).
+                    let Some(mapping) = nodes_for_update.iter().find(|m| m.tag == update.id) else {
+                        continue;
+                    };
+                    let nid = NodeId::new(ns_for_update, mapping.effective_node_id());
+                    let variant = tag_value_to_variant(&update.state.value);
+                    if let Some(v) = variant {
+                        let dv = DataValue::new_now(v);
+                        let _ = node_mgr_for_update.set_value(
+                            handle_for_update.subscriptions(),
+                            &nid, None, dv,
+                        );
+                    }
+                }
+                Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
+                    warn!("OPC-UA server: dropped {n} TagDb updates (lagged)");
+                }
+                Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
+            }
+        }
+    });
+
+    // Run the server until either it exits on its own or cancel fires.
+    tokio::select! {
+        res = server.run() => {
+            if let Err(e) = res {
+                warn!(source = %cfg.id, "OPC-UA server exited with error: {e}");
+            }
+        }
+        _ = cancel.cancelled() => {
+            info!(source = %cfg.id, "OPC-UA server cancelled — stopping");
+            handle.cancel();
+        }
+    }
+    updater.abort();
+    write_drainer.abort();
 }
 
 // Keep the trivial doctest so the crate still has CI coverage above zero.

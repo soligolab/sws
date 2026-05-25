@@ -32,6 +32,9 @@ interface TrendCanvasProps {
   yMin?: number;
   yMax?: number;
   pollMs?: number;
+  /** When true, the first poll request includes backfill=true to seed the chart
+   *  with data from the OPC-UA server's historian (if the tag has an OPC-UA source). */
+  opcuaBackfill?: boolean;
 }
 
 function sampleToNumber(v: Sample["value"]): number | null {
@@ -63,6 +66,7 @@ export function TrendCanvas({
   yMin,
   yMax,
   pollMs = 2000,
+  opcuaBackfill = false,
 }: TrendCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   // One Sample[] per tag, indexed parallel to `tags`.
@@ -80,16 +84,25 @@ export function TrendCanvas({
   }, [tags.join(",")]);
 
   // Polling: fetch each series in parallel; abort old responses on unmount.
+  // opcuaBackfill is passed only on the first call to seed older data;
+  // subsequent polls use the normal historian to avoid repeated OPC-UA RTTs.
   useEffect(() => {
     if (tags.length === 0 || tags.every((t) => !t)) return;
     let cancelled = false;
+    let firstTick = true;
 
     const tick = async () => {
       const now = Date.now();
       const fromMs = now - windowS * 1000;
+      const backfill = firstTick && opcuaBackfill;
+      firstTick = false;
       try {
         const data = await Promise.all(
-          tags.map((t) => t ? api.getHistory(t, { fromMs, toMs: now }) : Promise.resolve([] as Sample[]))
+          tags.map((t) =>
+            t
+              ? api.getHistory(t, { fromMs, toMs: now, backfill: backfill || undefined })
+              : Promise.resolve([] as Sample[])
+          )
         );
         if (!cancelled) setSeries(data);
       } catch {
@@ -99,7 +112,7 @@ export function TrendCanvas({
     tick();
     const id = setInterval(tick, pollMs);
     return () => { cancelled = true; clearInterval(id); };
-  }, [tags.join(","), windowS, pollMs]);
+  }, [tags.join(","), windowS, pollMs, opcuaBackfill]);
 
   // Layout constants for the plot area
   const PAD_TOP    = 6 + (tags.length > 1 ? 14 : 0); // legend space when multi-tag
@@ -326,15 +339,43 @@ export function TrendCanvas({
     }
   }, [series, width, height, colors, yMin, yMax, hoverX, tags.join(","), windowS]);
 
+  const hasSeries = series.some((s) => s.length > 0);
+
   return (
-    <canvas
-      ref={canvasRef}
-      style={{ width, height, display: "block" }}
-      onMouseMove={(e) => {
-        const rect = e.currentTarget.getBoundingClientRect();
-        setHoverX(e.clientX - rect.left);
-      }}
-      onMouseLeave={() => setHoverX(null)}
-    />
+    <div style={{ position: "relative", width, height, display: "block" }}>
+      <canvas
+        ref={canvasRef}
+        style={{ width, height, display: "block" }}
+        onMouseMove={(e) => {
+          const rect = e.currentTarget.getBoundingClientRect();
+          setHoverX(e.clientX - rect.left);
+        }}
+        onMouseLeave={() => setHoverX(null)}
+      />
+      {hasSeries && (
+        <button
+          title="Scarica CSV"
+          onClick={() => {
+            const now = Date.now();
+            api.exportHistoryCsv(
+              tags.filter(Boolean),
+              now - windowS * 1000,
+              now,
+            );
+          }}
+          style={{
+            position: "absolute", top: 4, right: 4,
+            background: "#1e293b", border: "1px solid #334155",
+            color: "#64748b", borderRadius: 3, cursor: "pointer",
+            fontSize: 10, padding: "2px 5px", lineHeight: 1.4,
+            opacity: 0.7,
+          }}
+          onMouseEnter={(e) => (e.currentTarget.style.opacity = "1")}
+          onMouseLeave={(e) => (e.currentTarget.style.opacity = "0.7")}
+        >
+          ⬇ CSV
+        </button>
+      )}
+    </div>
   );
 }

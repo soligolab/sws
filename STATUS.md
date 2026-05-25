@@ -4,7 +4,7 @@
 >
 > Ambienti di test: vedi [docs/TEST_SETUPS.md](docs/TEST_SETUPS.md) (casa, dev server, dispositivi Yocto).
 
-**Last session**: 2026-05-22 (S-41) — Datastore management completo (task D): multi-backend storage per tag history. `DatastoreBackendConfig` (SQLite/PostgreSQL/ODBC-stub) + `DatastoreConfig` in sws-core. Nuovi crate: `sws-historian`: `backend.rs`, `sqlite_backend.rs`, `postgres_backend.rs`, `odbc_backend.rs`, `registry.rs`. REST API `/api/datastores/*` (GET list/stats, POST test/purge, GET export, PUT /api/project/datastores). Frontend: tipi in `types/index.ts`, metodi in `client.ts`, tab "Datastore" in ConfigView, colonne History/Datastore nella tab Variabili. cargo check + pnpm build verdi.
+**Last session**: 2026-05-22 (S-41/42/43/44/45) — Fix: `datastore_test` ora restituisce JSON; `tracing::warn!` su errori datastore/stats. OPC-UA trust list UI: `trust_all_certs: bool` in `OpcUaClientConfig` (default `true`), REST API `GET/POST/DELETE /api/sources/:id/opcua/certs/*`, sezione "SICUREZZA CERTIFICATI" in OpcUaSourceCard. OPC-UA historical reads: `read_history()` in `sws-plugin-opcua` (HistoryRead service, ticks arithmetic senza chrono), `GET /api/history/:tag?backfill=true` fonde storico OPC-UA con historian locale (dedup + sort), `opcuaBackfill` prop su `TrendCanvas` (solo primo tick), `opcua_backfill` field su `SynopticObject`, checkbox nell'editor Trend in EditorShell. cargo check + pnpm build verdi.
 **Last commit**: vedi `git log -1`
 **Current phase**: Phase 2 — sviluppo attivo PoC
 
@@ -72,9 +72,9 @@ cd sws-editor && pnpm build   # una volta, se dist/ non esiste
 | ID | Task | Stima | Note |
 |----|------|-------|------|
 | A1 | **sws-kiosk test su PX30 fisico** (`./scripts/kiosk.sh`) | manuale | Richiede hardware + Wayland compositor (cage/weston). Build OK su desktop Ubuntu (S-38). |
-| — | **OPC-UA trust list UI** | ~2 h | Oggi `trust_server_certs(true)` globale. UI per accettare/rifiutare cert per-source |
-| — | **OPC-UA historical reads** | ~3 h | `HistoryRead` service per backfill grafico Trend al primo open |
-| 4.8 | Grid: drag-to-range multi-cell | ~1.5 h | Oggi solo shift+click; bassa priorità |
+| — | ~~**OPC-UA historical reads**~~ | ✅ done | Chiusa S-43 |
+| 4.8 | ~~Grid: drag-to-range multi-cell~~ | ✅ done | Chiusa S-44 |
+| — | **Verifica RBAC su PX30** | manuale | Cache-purge browser (F12 → ricarica difficile) poi smoke Operator/Supervisor/Admin |
 | 8.3 | LDAP / OAuth2 | ~4 h+ | Phase 3 — non ora |
 
 ---

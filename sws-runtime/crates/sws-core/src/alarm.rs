@@ -6,8 +6,8 @@
 //! the alarm broadcast (or polls `GET /api/alarms`) and acknowledges via
 //! `POST /api/alarms/:id/ack`.
 //!
-//! Out of scope for the PoC: hysteresis, deadband, multi-condition (AND/OR)
-//! rules, time-based delays, alarm groups, shelving. All Phase 2 polish.
+//! Out of scope for the PoC: multi-condition (AND/OR) rules, time-based
+//! delays, alarm groups, shelving. All Phase 2 polish.
 
 use std::{
     collections::HashMap,
@@ -41,21 +41,37 @@ pub enum AlarmCondition {
 }
 
 impl AlarmCondition {
+    fn as_f64(v: &TagValue) -> Option<f64> {
+        match v {
+            TagValue::Float(f) => Some(*f),
+            TagValue::Int(i)   => Some(*i as f64),
+            TagValue::Bool(b)  => Some(if *b { 1.0 } else { 0.0 }),
+            TagValue::Str(s)   => s.trim().parse().ok(),
+        }
+    }
+
     /// Evaluate this condition against the current tag value.
     /// Returns false if the value can't be coerced into the expected type.
     pub fn evaluate(&self, value: &TagValue) -> bool {
-        let as_f64 = |v: &TagValue| -> Option<f64> {
-            match v {
-                TagValue::Float(f) => Some(*f),
-                TagValue::Int(i)   => Some(*i as f64),
-                TagValue::Bool(b)  => Some(if *b { 1.0 } else { 0.0 }),
-                TagValue::Str(s)   => s.trim().parse().ok(),
-            }
-        };
         match self {
-            AlarmCondition::Above { threshold }      => as_f64(value).map_or(false, |v| v >  *threshold),
-            AlarmCondition::Below { threshold }      => as_f64(value).map_or(false, |v| v <  *threshold),
+            AlarmCondition::Above { threshold }        => Self::as_f64(value).map_or(false, |v| v >  *threshold),
+            AlarmCondition::Below { threshold }        => Self::as_f64(value).map_or(false, |v| v <  *threshold),
             AlarmCondition::BoolEquals { value: want } => matches!(value, TagValue::Bool(b) if b == want),
+        }
+    }
+
+    /// Evaluate the "return-to-normal" condition considering a dead-band.
+    /// When dead_band > 0, the alarm only clears when the value has moved
+    /// `dead_band` units past the threshold (hysteresis).
+    /// BoolEquals alarms have no numeric dead-band — they clear normally.
+    pub fn evaluate_clear(&self, value: &TagValue, dead_band: f64) -> bool {
+        match self {
+            AlarmCondition::Above { threshold } =>
+                Self::as_f64(value).map_or(true, |v| v < threshold - dead_band),
+            AlarmCondition::Below { threshold } =>
+                Self::as_f64(value).map_or(true, |v| v > threshold + dead_band),
+            AlarmCondition::BoolEquals { value: want } =>
+                !matches!(value, TagValue::Bool(b) if b == want),
         }
     }
 }
@@ -72,6 +88,12 @@ pub struct AlarmDef {
     /// the alarm transitions to ACTIVE. Payload: `AlarmWebhookPayload` JSON.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub notify_url: Option<String>,
+    /// Hysteresis band (same unit as the tag value). When set, the alarm only
+    /// clears when the value has moved `dead_band` units back past the threshold.
+    /// Prevents alarm chatter on noisy signals near the setpoint.
+    /// Example: Above(80) + dead_band=2 → clears only below 78, not at 79.9.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub dead_band: Option<f64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -166,10 +188,19 @@ impl AlarmDb {
                     s.ack_at_ms = None;
                     to_emit.push(s.clone());
                 } else if !fired && s.active {
-                    s.active = false;
-                    // Keep ack flag — once acked, the recovery is recorded but the
-                    // operator doesn't have to ack a second time.
-                    to_emit.push(s.clone());
+                    // With dead_band: only clear when the value has moved past
+                    // (threshold ± dead_band), not just crossed back over threshold.
+                    let cleared = match s.def.dead_band {
+                        Some(db) if db > 0.0 =>
+                            s.def.condition.evaluate_clear(&tag_state.value, db),
+                        _ => true,
+                    };
+                    if cleared {
+                        s.active = false;
+                        // Keep ack flag — once acked, the recovery is recorded but the
+                        // operator doesn't have to ack a second time.
+                        to_emit.push(s.clone());
+                    }
                 }
             }
         }
@@ -215,6 +246,7 @@ mod tests {
             message: format!("{id} fired"),
             severity: AlarmSeverity::Warning,
             notify_url: None,
+            dead_band: None,
         }
     }
 
@@ -257,6 +289,26 @@ mod tests {
         let snap = db.snapshot().await;
         assert!(snap[0].active);
         assert!(!snap[0].acknowledged);
+    }
+
+    #[tokio::test]
+    async fn dead_band_prevents_premature_clear() {
+        let db = AlarmDb::new(8);
+        let mut alarm = def("temp_high", "boiler.t", AlarmCondition::Above { threshold: 80.0 });
+        alarm.dead_band = Some(2.0);
+        db.load(vec![alarm]).await;
+
+        // Fire at 85
+        db.evaluate("boiler.t", &ts(TagValue::Float(85.0))).await;
+        assert!(db.snapshot().await[0].active, "should activate at 85");
+
+        // Drop to 79.5: still above (threshold - dead_band = 78), so alarm stays
+        db.evaluate("boiler.t", &ts(TagValue::Float(79.5))).await;
+        assert!(db.snapshot().await[0].active, "should stay active at 79.5 (above dead_band floor 78)");
+
+        // Drop to 77: below 78 → alarm clears
+        db.evaluate("boiler.t", &ts(TagValue::Float(77.0))).await;
+        assert!(!db.snapshot().await[0].active, "should clear at 77 (below dead_band floor 78)");
     }
 
     #[tokio::test]

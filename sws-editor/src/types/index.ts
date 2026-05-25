@@ -171,6 +171,8 @@ export interface SynopticObject {
   line_color?: string;
   /** Additional tags to overlay on the same trend (multi-series). */
   extra_tags?: string[];
+  /** When true, backfills from the OPC-UA server's historian on mount. */
+  opcua_backfill?: boolean;
   // ── Layer / visibility (cross-cutting) ────────────────────────────────
   /** Render order. Higher draws on top. Default 0; ties broken by array order. */
   z_index?: number;
@@ -320,6 +322,24 @@ export interface ModbusTcpSource {
   registers: RegisterMapping[];
 }
 
+export interface ModbusRtuSource {
+  kind: "modbus_rtu";
+  id: string;
+  /** Serial device path, e.g. /dev/ttyS0 or /dev/ttyUSB0. */
+  device: string;
+  /** Baud rate, e.g. 9600, 19200, 115200. Default 9600. */
+  baud_rate: number;
+  /** Parity: "N" (none), "E" (even), "O" (odd). Default "N". */
+  parity: string;
+  /** Data bits: 7 or 8. Default 8. */
+  data_bits: number;
+  /** Stop bits: 1 or 2. Default 1. */
+  stop_bits: number;
+  unit_id: number;
+  poll_interval_ms: number;
+  registers: RegisterMapping[];
+}
+
 export interface TopicMapping {
   tag: string;
   topic: string;
@@ -388,6 +408,51 @@ export interface OpcUaSource {
   auth: OpcUaAuth;
   subscription_interval_ms: number;
   nodes: OpcUaNodeMapping[];
+  /** When false, only certs in the per-source trust store are accepted. Default true. */
+  trust_all_certs?: boolean;
+}
+
+/** One SWS tag exposed as an OPC-UA Variable node. */
+export interface OpcUaServerNodeMapping {
+  tag: string;
+  /** OPC-UA string node id within the server namespace. Defaults to tag id. */
+  node_id?: string;
+}
+
+/** OPC-UA server source — exposes SWS tags to OPC-UA clients. */
+export interface OpcUaServerSource {
+  kind: "opcua_server";
+  id: string;
+  /** TCP port. Default 4840. */
+  port: number;
+  /** Namespace URI, e.g. urn:soligolab:sws. */
+  namespace_uri: string;
+  nodes: OpcUaServerNodeMapping[];
+}
+
+export interface OpcUaCertEntry {
+  filename: string;
+  /** "trusted" | "rejected" */
+  status: "trusted" | "rejected";
+  size_bytes: number;
+}
+
+export interface OpcUaHistoricalSample {
+  ts_ms: number;
+  value: number;
+  quality: "Good" | "Bad" | "Uncertain";
+}
+
+export interface OpcUaHistoryRequest {
+  endpoint_url: string;
+  source_id?: string;
+  auth?: OpcUaAuth;
+  security_policy?: string;
+  node_id: string;
+  from_ms?: number;
+  to_ms?: number;
+  /** Max data points from the server (capped at 2000). Default 500. */
+  max_values?: number;
 }
 
 export interface OpcUaBrowsedNode {
@@ -435,7 +500,7 @@ export interface OpcUaDetectEuromapRequest {
   security_policy?: string;
 }
 
-export type SourceDef = ModbusTcpSource | MqttSource | OpcUaSource;
+export type SourceDef = ModbusTcpSource | ModbusRtuSource | MqttSource | OpcUaSource | OpcUaServerSource;
 
 // ── MQTT broker browse ─────────────────────────────────────────────────────
 
@@ -569,6 +634,21 @@ export interface AlarmDef {
   severity?: AlarmSeverity;
   /** Optional webhook URL. POSTed with AlarmWebhookPayload JSON when the alarm goes ACTIVE. */
   notify_url?: string;
+  /** Hysteresis band (same unit as the tag value). The alarm only clears when the value
+   *  moves dead_band units past the threshold. Prevents chatter on noisy sensors. */
+  dead_band?: number;
+}
+
+/** Aggregate statistics for a tag's historian samples. */
+export interface HistoryStats {
+  tag: string;
+  count: number;
+  min: number;
+  max: number;
+  avg: number;
+  stddev: number;
+  first_ts: number | null;
+  last_ts: number | null;
 }
 
 export interface AlarmState {

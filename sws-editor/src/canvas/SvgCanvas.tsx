@@ -2297,6 +2297,7 @@ function SvgObject(p: ObjProps) {
               lineColor={obj.line_color ?? "#3b82f6"}
               yMin={obj.y_min}
               yMax={obj.y_max}
+              opcuaBackfill={obj.opcua_backfill}
             />
           </foreignObject>
         )}
@@ -2499,6 +2500,12 @@ function SvgObject(p: ObjProps) {
                   } else if (cellDef?.on_press_fn && onScript) {
                     e.stopPropagation();
                     onScript(cellDef.on_press_fn, {});
+                  }
+                }}
+                onMouseEnter={(e) => {
+                  // Shift+drag: primary button held + shift → extend range live
+                  if (isEditMode && e.shiftKey && e.buttons === 1 && selectedCell?.objectId === obj.id) {
+                    onSelectCellRange?.(obj.id, selectedCell.row, selectedCell.col, r, c);
                   }
                 }}
                 onMouseUp={(e) => {
