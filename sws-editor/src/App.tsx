@@ -290,8 +290,10 @@ const LOG_PANEL_KEY = "sws.logPanel.open";
 
 export function App() {
   const { t } = useTranslation();
-  const mode    = useAppStore((s) => s.appMode);
-  const setMode = useAppStore((s) => s.setAppMode);
+  const mode             = useAppStore((s) => s.appMode);
+  const setMode          = useAppStore((s) => s.setAppMode);
+  const configTab        = useAppStore((s) => s.configTab);
+  const navigateToConfig = useAppStore((s) => s.navigateToConfig);
   const [logOpen, setLogOpen] = useState<boolean>(() => {
     try { return localStorage.getItem(LOG_PANEL_KEY) === "1"; } catch { return false; }
   });
@@ -303,6 +305,8 @@ export function App() {
   const authToken              = useAppStore((s) => s.authToken);
   const authUser               = useAppStore((s) => s.authUser);
   const authRole               = useAppStore((s) => s.authRole);
+  const expiresAtMs            = useAppStore((s) => s.expiresAtMs);
+  const setExpiresAtMs         = useAppStore((s) => s.setExpiresAtMs);
   const mustChangePassword     = useAppStore((s) => s.mustChangePassword);
   const setMustChangePassword  = useAppStore((s) => s.setMustChangePassword);
   const clearAuth              = useAppStore((s) => s.clearAuth);
@@ -331,12 +335,55 @@ export function App() {
     ? (["edit", "view", "config"] as Mode[])
     : (["view"] as Mode[]);
 
+  // ── URL hash deep-linking (#edit | #view | #config | #config/<tab>) ─────────
+  // Read once after the app becomes active (authenticated + project open).
+  const deepLinkApplied = useRef(false);
+  const VALID_TABS = ["tags","protocols","alarms","users","resources","system","backups"];
+  useEffect(() => {
+    if (!authToken || noActiveProject || deepLinkApplied.current) return;
+    deepLinkApplied.current = true;
+    const hash = window.location.hash.slice(1);
+    if (hash.startsWith("config/")) {
+      const tab = hash.slice("config/".length);
+      if (VALID_TABS.includes(tab)) navigateToConfig(tab as Parameters<typeof navigateToConfig>[0]);
+      else setMode("config");
+    } else if (hash === "edit" || hash === "view" || hash === "config") {
+      setMode(hash as Mode);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authToken, noActiveProject]);
+
+  // Keep hash in sync whenever mode or configTab changes (for bookmarking).
+  useEffect(() => {
+    if (!authToken || noActiveProject) return;
+    const hash = effectiveMode === "config" ? `config/${configTab}` : effectiveMode;
+    history.replaceState(null, "", `#${hash}`);
+  }, [effectiveMode, configTab, authToken, noActiveProject]);
+
   // Listen for mid-session token expiry fired by api/client.ts
   useEffect(() => {
     const handler = () => { if (authToken) setReAuthNeeded(true); };
     window.addEventListener("sws:session-expired", handler);
     return () => window.removeEventListener("sws:session-expired", handler);
   }, [authToken, setReAuthNeeded]);
+
+  // Proactive session refresh: fire 5 min before expiry so idle sessions
+  // don't time out. Effect re-runs whenever expiresAtMs changes (i.e., after
+  // each successful refresh), creating a self-rescheduling timer chain.
+  useEffect(() => {
+    if (!authToken || !expiresAtMs) return;
+    const delay = Math.max(expiresAtMs - Date.now() - 5 * 60_000, 30_000);
+    const timer = setTimeout(async () => {
+      try {
+        const r = await api.refresh();
+        setExpiresAtMs(r.expires_at_ms);
+      } catch {
+        // Failure is handled by the existing session-expired event + ReAuthModal;
+        // no duplicate action needed here.
+      }
+    }, delay);
+    return () => clearTimeout(timer);
+  }, [authToken, expiresAtMs, setExpiresAtMs]);
 
   // Mount flow:
   //   1. If no token → try GET /api/project to detect 503 (no project open).

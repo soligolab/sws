@@ -57,7 +57,7 @@ export function LoginScreen() {
     setBusy(true);
     try {
       const res = await api.login(username, password);
-      setAuth(res.token, res.username, res.role, res.must_change_password);
+      setAuth(res.token, res.username, res.role, res.must_change_password, res.expires_at_ms);
     } catch (e: unknown) {
       if (e instanceof RateLimitedError) {
         setLockedUntilMs(Date.now() + e.retryAfterSecs * 1000);

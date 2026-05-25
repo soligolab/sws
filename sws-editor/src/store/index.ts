@@ -35,7 +35,7 @@ const LOG_LIMIT = 2000;
 
 const AUTH_KEY = "sws.auth";
 
-type PersistedAuth = { token: string; username: string; role?: string; must_change_password?: boolean };
+type PersistedAuth = { token: string; username: string; role?: string; must_change_password?: boolean; expires_at_ms?: number };
 
 function readPersistedAuth(): PersistedAuth | null {
   try {
@@ -43,6 +43,10 @@ function readPersistedAuth(): PersistedAuth | null {
     if (!raw) return null;
     const parsed = JSON.parse(raw);
     if (typeof parsed?.token === "string" && typeof parsed?.username === "string") {
+      // Discard already-expired sessions so we never restore a stale token.
+      if (typeof parsed.expires_at_ms === "number" && Date.now() >= parsed.expires_at_ms) {
+        return null;
+      }
       return parsed;
     }
   } catch { /* ignore */ }
@@ -151,6 +155,9 @@ interface AppState {
   authToken: string | null;
   authUser: string | null;
   authRole: Role | null;
+  /** Unix timestamp (ms) when the session expires. Used to schedule proactive
+   *  token refresh. Null when unknown (old persisted sessions without expiry). */
+  expiresAtMs: number | null;
   /** True while the server insists the current account changes its password.
    *  The App shell renders ChangePasswordScreen until this clears. */
   mustChangePassword: boolean;
@@ -208,7 +215,8 @@ interface AppState {
   /** True when the session token expired mid-session. Shows ReAuthModal overlay. */
   reAuthNeeded: boolean;
 
-  setAuth: (token: string, username: string, role: Role, mustChangePassword?: boolean) => void;
+  setAuth: (token: string, username: string, role: Role, mustChangePassword?: boolean, expiresAtMs?: number) => void;
+  setExpiresAtMs: (ms: number) => void;
   setMustChangePassword: (flag: boolean) => void;
   setReAuthNeeded: (v: boolean) => void;
   clearAuth: () => void;
@@ -386,6 +394,7 @@ export const useAppStore = create<AppState>((set, get) => {
     authToken: persisted?.token ?? null,
     authUser:  persisted?.username ?? null,
     authRole:  isRole(persisted?.role) ? (persisted!.role as Role) : null,
+    expiresAtMs: persisted?.expires_at_ms ?? null,
     mustChangePassword: persisted?.must_change_password === true,
     noActiveProject: false,
     reAuthNeeded: false,
@@ -414,22 +423,31 @@ export const useAppStore = create<AppState>((set, get) => {
     saveStatus: "idle",
     saveError: null,
 
-    setAuth: (token, username, role, mustChangePassword = false) => {
+    setAuth: (token, username, role, mustChangePassword = false, expiresAtMs) => {
       setAuthToken(token);
-      writePersistedAuth({ token, username, role, must_change_password: mustChangePassword });
-      set({ authToken: token, authUser: username, authRole: role, mustChangePassword });
+      writePersistedAuth({ token, username, role, must_change_password: mustChangePassword, expires_at_ms: expiresAtMs });
+      set({ authToken: token, authUser: username, authRole: role, mustChangePassword, expiresAtMs: expiresAtMs ?? null });
+    },
+
+    setExpiresAtMs: (ms) => {
+      const { authToken, authUser, authRole, mustChangePassword } = get();
+      if (authToken && authUser && authRole) {
+        writePersistedAuth({ token: authToken, username: authUser, role: authRole, must_change_password: mustChangePassword, expires_at_ms: ms });
+      }
+      set({ expiresAtMs: ms });
     },
 
     setReAuthNeeded: (v) => set({ reAuthNeeded: v }),
 
     setMustChangePassword: (flag) => {
-      const { authToken, authUser, authRole } = get();
+      const { authToken, authUser, authRole, expiresAtMs } = get();
       if (authToken && authUser && authRole) {
         writePersistedAuth({
           token: authToken,
           username: authUser,
           role: authRole,
           must_change_password: flag,
+          expires_at_ms: expiresAtMs ?? undefined,
         });
       }
       set({ mustChangePassword: flag });
@@ -438,7 +456,7 @@ export const useAppStore = create<AppState>((set, get) => {
     clearAuth: () => {
       setAuthToken(null);
       writePersistedAuth(null);
-      set({ authToken: null, authUser: null, authRole: null, mustChangePassword: false });
+      set({ authToken: null, authUser: null, authRole: null, expiresAtMs: null, mustChangePassword: false });
     },
 
     setNoActiveProject: (flag) => set({ noActiveProject: flag }),
