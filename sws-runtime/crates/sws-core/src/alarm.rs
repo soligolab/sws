@@ -38,6 +38,10 @@ pub enum AlarmCondition {
     Below       { threshold: f64 },
     /// Fire when a Bool tag matches `value`.
     BoolEquals  { value: bool },
+    /// Shorthand for BoolEquals { value: true } — tag name form used in project YAML.
+    BoolTrue,
+    /// Shorthand for BoolEquals { value: false }.
+    BoolFalse,
 }
 
 impl AlarmCondition {
@@ -57,13 +61,15 @@ impl AlarmCondition {
             AlarmCondition::Above { threshold }        => Self::as_f64(value).map_or(false, |v| v >  *threshold),
             AlarmCondition::Below { threshold }        => Self::as_f64(value).map_or(false, |v| v <  *threshold),
             AlarmCondition::BoolEquals { value: want } => matches!(value, TagValue::Bool(b) if b == want),
+            AlarmCondition::BoolTrue                   => matches!(value, TagValue::Bool(true)),
+            AlarmCondition::BoolFalse                  => matches!(value, TagValue::Bool(false)),
         }
     }
 
     /// Evaluate the "return-to-normal" condition considering a dead-band.
     /// When dead_band > 0, the alarm only clears when the value has moved
     /// `dead_band` units past the threshold (hysteresis).
-    /// BoolEquals alarms have no numeric dead-band — they clear normally.
+    /// Bool alarms have no numeric dead-band — they clear normally.
     pub fn evaluate_clear(&self, value: &TagValue, dead_band: f64) -> bool {
         match self {
             AlarmCondition::Above { threshold } =>
@@ -72,6 +78,8 @@ impl AlarmCondition {
                 Self::as_f64(value).map_or(true, |v| v > threshold + dead_band),
             AlarmCondition::BoolEquals { value: want } =>
                 !matches!(value, TagValue::Bool(b) if b == want),
+            AlarmCondition::BoolTrue  => !matches!(value, TagValue::Bool(true)),
+            AlarmCondition::BoolFalse => !matches!(value, TagValue::Bool(false)),
         }
     }
 }

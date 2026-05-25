@@ -318,8 +318,9 @@ export function App() {
   const currentPageId  = useAppStore((s) => s.currentPageId);
   const setCurrentPage = useAppStore((s) => s.setCurrentPage);
   const setPages       = useAppStore((s) => s.setPages);
-  const project        = useAppStore((s) => s.project);
-  const setProject     = useAppStore((s) => s.setProject);
+  const project             = useAppStore((s) => s.project);
+  const setProject          = useAppStore((s) => s.setProject);
+  const setProjectLoadError = useAppStore((s) => s.setProjectLoadError);
 
   // Role-gated UI surfaces. Viewer + Operator are runtime-only roles;
   // Supervisor + Admin get editor and config. `effectiveMode` pins
@@ -411,6 +412,8 @@ export function App() {
           clearAuth();
         } else if (e instanceof PasswordChangeRequiredError) {
           setMustChangePassword(true);
+        } else {
+          setProjectLoadError(e?.message ?? String(e));
         }
       });
 
@@ -455,7 +458,11 @@ export function App() {
   }
 
   if (!authToken) {
-    return <LoginScreen />;
+    const handleCancelLogin = async () => {
+      try { await api.closeProject(); } catch { /* ignore */ }
+      setNoActiveProject(true);
+    };
+    return <LoginScreen onCancel={handleCancelLogin} />;
   }
 
   if (mustChangePassword) {

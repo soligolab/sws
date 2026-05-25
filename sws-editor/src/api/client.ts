@@ -127,6 +127,8 @@ export interface UserSummary {
   must_change_password: boolean;
   created_at_ms: number;
   updated_at_ms: number;
+  /** null = use system default, 0 = never expires, n = n seconds */
+  session_ttl_secs: number | null;
 }
 
 export interface CreateUserBody {
@@ -140,6 +142,8 @@ export interface UpdateUserBody {
   role?: UserRole;
   password?: string;
   must_change_password?: boolean;
+  /** null = reset to system default, 0 = never expires, n = n seconds */
+  session_ttl_secs?: number | null;
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -200,7 +204,7 @@ export const api = {
       token: string;
       username: string;
       role: UserRole;
-      expires_at_ms: number;
+      expires_at_ms: number | null;
       must_change_password: boolean;
     }>("/api/auth/login", {
       method: "POST",
@@ -212,7 +216,7 @@ export const api = {
     request<void>("/api/auth/logout", { method: "POST" }),
 
   refresh: () =>
-    request<{ expires_at_ms: number }>("/api/auth/refresh", { method: "POST" }),
+    request<{ expires_at_ms: number | null }>("/api/auth/refresh", { method: "POST" }),
 
   whoami: () =>
     request<{ username: string; role: UserRole; must_change_password: boolean }>(
