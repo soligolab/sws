@@ -100,6 +100,13 @@ impl Historian {
         Ok(h)
     }
 
+    /// Discard all in-memory samples for all tags.
+    /// Called on project open/close to prevent inter-project data leakage.
+    /// The SQLite store (if any) is left intact — its data remains on disk.
+    pub async fn clear(&self) {
+        self.buffers.write().await.clear();
+    }
+
     /// Append a sample for `tag`. Drops the oldest if the cap is hit.
     /// Also persists to SQLite (best-effort) when a store is attached.
     pub async fn record(&self, tag: &str, state: &TagState) {

@@ -1,10 +1,6 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
-  "_comment": "SWS project Claude Code permissions. Project-scoped, committed to Git. See docs/CLAUDE_CODE_SETUP.md for the rationale and the alternative devcontainer mode.",
-
   "permissions": {
-    "defaultMode": "acceptEdits",
-
     "allow": [
       "Bash(cargo *)",
       "Bash(cd sws-runtime && cargo *)",
@@ -13,7 +9,6 @@
       "Bash(pnpm *)",
       "Bash(npm *)",
       "Bash(node *)",
-
       "Bash(git status*)",
       "Bash(git log*)",
       "Bash(git diff*)",
@@ -31,7 +26,6 @@
       "Bash(git merge --no-ff*)",
       "Bash(git rebase*)",
       "Bash(git tag*)",
-
       "Bash(ls *)",
       "Bash(ls)",
       "Bash(cat *)",
@@ -50,12 +44,10 @@
       "Bash(printf *)",
       "Bash(date)",
       "Bash(pwd)",
-
       "Bash(mkdir -p *)",
       "Bash(touch *)",
       "Bash(cp *)",
       "Bash(mv *)",
-
       "Bash(podman build*)",
       "Bash(podman run*)",
       "Bash(podman ps*)",
@@ -64,17 +56,13 @@
       "Bash(podman-compose*)",
       "Bash(docker build*)",
       "Bash(docker compose*)",
-
       "Bash(curl -fk *)",
       "Bash(curl -fsk *)",
       "Bash(curl -fI *)",
-
       "Bash(./scripts/*)",
-
       "Read(./**)",
       "Edit(./**)",
       "Write(./**)",
-
       "WebFetch(domain:docs.rs)",
       "WebFetch(domain:doc.rust-lang.org)",
       "WebFetch(domain:crates.io)",
@@ -91,21 +79,10 @@
       "WebFetch(domain:axum.rs)",
       "WebFetch(domain:reference.opcfoundation.org)",
       "WebFetch(domain:eclipse.dev)",
-      "WebFetch(domain:mqtt.org)"
+      "WebFetch(domain:mqtt.org)",
+      "Bash(grep -n \"pub fn global_cpu\" /home/max_xxv/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/sysinfo-0.30.13/src/common.rs 2>/dev/null | head -5)",
+      "Read(//home/max_xxv/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/sysinfo-0.30.13/src/**)"
     ],
-
-    "ask": [
-      "Bash(git push*)",
-      "Bash(git reset --hard*)",
-      "Bash(git clean *)",
-      "Bash(git rebase -i*)",
-      "Bash(cargo publish*)",
-      "Bash(pnpm publish*)",
-      "Bash(npm publish*)",
-      "Bash(podman push*)",
-      "Bash(docker push*)"
-    ],
-
     "deny": [
       "Read(./.env)",
       "Read(./.env.*)",
@@ -117,7 +94,6 @@
       "Read(./**/*.p12)",
       "Read(./**/secrets/**)",
       "Read(./**/credentials.*)",
-
       "Bash(rm -rf /)",
       "Bash(rm -rf ~)",
       "Bash(rm -rf ~/*)",
@@ -127,10 +103,22 @@
       "Bash(curl * | bash*)",
       "Bash(wget * | sh*)",
       "Bash(wget * | bash*)",
-
       "Bash(ssh *)",
       "Bash(scp *)",
       "Bash(rsync *)"
-    ]
-  }
+    ],
+    "ask": [
+      "Bash(git push*)",
+      "Bash(git reset --hard*)",
+      "Bash(git clean *)",
+      "Bash(git rebase -i*)",
+      "Bash(cargo publish*)",
+      "Bash(pnpm publish*)",
+      "Bash(npm publish*)",
+      "Bash(podman push*)",
+      "Bash(docker push*)"
+    ],
+    "defaultMode": "acceptEdits"
+  },
+  "_comment": "SWS project Claude Code permissions. Project-scoped, committed to Git. See docs/CLAUDE_CODE_SETUP.md for the rationale and the alternative devcontainer mode."
 }

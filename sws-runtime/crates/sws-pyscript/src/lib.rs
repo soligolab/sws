@@ -273,11 +273,44 @@ impl Engine {
     }
 }
 
+/// Python harness used by `eval_expression`.
+///
+/// Uses the `ast` module to inject `__sws_result__ = <expr>` on the correct
+/// node so that:
+///  - single-line expressions → assigned directly
+///  - multi-line blocks ending with an expression → that expression is captured
+///  - multi-line blocks ending with `if/else` → the last Expr in each branch
+///    is captured (handles `if cond: val_a else: val_b` patterns)
+///
+/// Without this, naïvely prepending `__sws_result__ = ` to a multi-line block
+/// would capture only the first assignment (e.g. a list literal), not the
+/// intended result.
+const EVAL_HARNESS: &str = r#"
+import ast as __ast
+__tree = __ast.parse(__sws_expr_code__, mode='exec')
+def __inject(stmts):
+    if not stmts:
+        return
+    last = stmts[-1]
+    if isinstance(last, __ast.Expr):
+        stmts[-1] = __ast.Assign(
+            targets=[__ast.Name(id='__sws_result__', ctx=__ast.Store())],
+            value=last.value, lineno=last.lineno, col_offset=0)
+    elif isinstance(last, __ast.If):
+        __inject(last.body)
+        __inject(last.orelse)
+__inject(__tree.body)
+__ast.fix_missing_locations(__tree)
+exec(compile(__tree, '<expr>', 'exec'), globals())
+"#;
+
 /// Evaluate a Python expression `expr` with `tags` bound to a dict snapshot
 /// of current tag values.  Returns the expression result coerced to a
 /// `TagValue`, or an error string on Python failure.
 ///
-/// Runs in a `spawn_blocking` thread (PyO3 requires a non-async context).
+/// Supports both single-line expressions and multi-line code blocks (see
+/// `EVAL_HARNESS`). The last expression or if/else branch value is used as
+/// the result. Runs in a `spawn_blocking` thread.
 #[allow(deprecated)]
 pub async fn eval_expression(
     expr: String,
@@ -297,18 +330,17 @@ pub async fn eval_expression(
             }
             let globals = PyDict::new(py);
             globals.set_item("tags", &tags_dict).map_err(|e| e.to_string())?;
+            globals.set_item("__sws_expr_code__", &expr).map_err(|e| e.to_string())?;
 
-            // Wrap as assignment so we can read the result back from globals.
-            let code = format!("__sws_result__ = {expr}");
-            let c_code = std::ffi::CString::new(code)
-                .map_err(|e| format!("invalid expression bytes: {e}"))?;
-            py.run(c_code.as_c_str(), Some(&globals), None)
+            let c_harness = std::ffi::CString::new(EVAL_HARNESS)
+                .map_err(|e| format!("invalid harness bytes: {e}"))?;
+            py.run(c_harness.as_c_str(), Some(&globals), None)
                 .map_err(|e| e.to_string())?;
 
             let result = globals
                 .get_item("__sws_result__")
                 .map_err(|e| e.to_string())?
-                .ok_or_else(|| "expression returned no value".to_string())?;
+                .ok_or_else(|| "expression returned no value — last statement must be an expression".to_string())?;
 
             // bool must be checked before i64 (Python bool is a subclass of int)
             if let Ok(b) = result.extract::<bool>() {
@@ -320,7 +352,8 @@ pub async fn eval_expression(
             } else if let Ok(s) = result.extract::<String>() {
                 Ok(TagValue::Str(s))
             } else {
-                Err("expression result has unsupported Python type".to_string())
+                Err(format!("expression result has unsupported Python type: {}",
+                    result.get_type().name().map(|s| s.to_string()).unwrap_or_else(|_| "?".into())))
             }
         })
     });

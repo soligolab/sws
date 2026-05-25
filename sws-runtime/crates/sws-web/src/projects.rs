@@ -154,6 +154,16 @@ pub async fn create_project(
                 return (StatusCode::INTERNAL_SERVER_ERROR, "copy template failed")
                     .into_response();
             }
+            // Update meta.name in the copied project.yaml to match the user's
+            // chosen name instead of the template's internal id.
+            let yaml_path = target.join("project.yaml");
+            match patch_project_name(&yaml_path, &safe_name).await {
+                Ok(()) => {}
+                Err(e) => {
+                    warn!("create_project: patch meta.name: {e}");
+                    // Non-fatal — project is usable, name just stays as template id.
+                }
+            }
             info!(name = %safe_name, template = template_id, "project created from template");
         }
         None => {
@@ -232,9 +242,12 @@ pub async fn open_project(
     };
 
     // 2. Project is valid — clear the current runtime state.
-    s.db.clear().await;
-    s.alarms.load(vec![]).await;
+    // Stop sources FIRST so no plugin can write to TagDb after we clear it.
+    // reload(vec![]) waits up to 2 s per source for clean shutdown.
     s.supervisor.reload(vec![]).await;
+    s.db.clear().await;
+    s.historian.clear().await;
+    s.alarms.load(vec![]).await;
     s.functions.write().await.clear();
     s.derived_tags.write().await.clear();
 
@@ -313,9 +326,10 @@ pub async fn close_project(State(s): State<AppState>) -> Response {
     if active_dir(&s).await.is_err() {
         return (StatusCode::NO_CONTENT, ()).into_response();
     }
-    s.db.clear().await;
-    s.alarms.load(vec![]).await;
     s.supervisor.reload(vec![]).await;
+    s.db.clear().await;
+    s.historian.clear().await;
+    s.alarms.load(vec![]).await;
     s.functions.write().await.clear();
     s.derived_tags.write().await.clear();
     *s.registry.write().await = None;
@@ -612,6 +626,20 @@ mod tests {
         assert!(safe_project_name("foo:bar").is_err());
         assert!(safe_project_name(&"x".repeat(100)).is_err());
     }
+}
+
+/// Rewrite `meta.name` in a copied `project.yaml` to match the user-chosen
+/// project folder name, so the ConfigView title reflects the real project
+/// name instead of the template's internal id.
+async fn patch_project_name(yaml_path: &StdPath, name: &str) -> anyhow::Result<()> {
+    let raw = tokio::fs::read_to_string(yaml_path).await?;
+    let mut doc: serde_yaml::Value = serde_yaml::from_str(&raw)?;
+    if let Some(meta) = doc.get_mut("meta") {
+        meta["name"] = serde_yaml::Value::String(name.to_string());
+    }
+    let updated = serde_yaml::to_string(&doc)?;
+    tokio::fs::write(yaml_path, updated).await?;
+    Ok(())
 }
 
 #[allow(unused_imports)]

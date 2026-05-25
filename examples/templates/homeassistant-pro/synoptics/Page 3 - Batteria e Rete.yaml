@@ -1,0 +1,642 @@
+id: pro_p3
+name: "Batteria & Rete"
+background: "#0f172a"
+width: 800
+height: 620
+
+objects:
+
+# ── HEADER ────────────────────────────────────────────────────────────────────
+- id: pro3_title
+  type: text
+  x: 400
+  y: 20
+  text: "BATTERIA & RETE ELETTRICA"
+  font_size: 17
+  font_weight: bold
+  text_anchor: middle
+  color: "#e2e8f0"
+  locked: true
+
+- id: pro3_sub
+  type: text
+  x: 400
+  y: 40
+  text: "SoC · Tensione · Corrente · Scambio rete · Storico"
+  font_size: 10
+  text_anchor: middle
+  color: "#475569"
+  locked: true
+
+# ── NAVIGATION ───────────────────────────────────────────────────────────────
+- id: pro3_nav1
+  type: navbutton
+  x: 10
+  y: 572
+  width: 120
+  height: 34
+  label: "◎ Panoramica"
+  target_page: pro_p1
+  locked: true
+
+- id: pro3_nav2
+  type: navbutton
+  x: 140
+  y: 572
+  width: 120
+  height: 34
+  label: "☀ Fotovoltaico"
+  target_page: pro_p2
+  locked: true
+
+- id: pro3_nav3
+  type: navbutton
+  x: 270
+  y: 572
+  width: 120
+  height: 34
+  label: "◉ Batt & Rete"
+  target_page: pro_p3
+  fill: "#1e293b"
+  locked: true
+
+- id: pro3_nav4
+  type: navbutton
+  x: 400
+  y: 572
+  width: 120
+  height: 34
+  label: "🌡 Clima"
+  target_page: pro_p4
+  locked: true
+
+- id: pro3_nav5
+  type: navbutton
+  x: 530
+  y: 572
+  width: 120
+  height: 34
+  label: "🔌 Carichi"
+  target_page: pro_p5
+  locked: true
+
+- id: pro3_nav6
+  type: navbutton
+  x: 660
+  y: 572
+  width: 120
+  height: 34
+  label: "🔒 Sicurezza"
+  target_page: pro_p6
+  locked: true
+
+# ══════════════════════════════════════════════════════════════════════════════
+# BATTERIA (left column)
+# ══════════════════════════════════════════════════════════════════════════════
+
+- id: pro3_batt_hdr
+  type: text
+  x: 200
+  y: 60
+  text: "🔋 BATTERIA LiFePO4"
+  font_size: 13
+  font_weight: bold
+  text_anchor: middle
+  color: "#f59e0b"
+
+# SoC gauge (big)
+- id: pro3_soc_gauge
+  type: gauge
+  x: 80
+  y: 72
+  width: 240
+  height: 100
+  tag: batteria.percentuale
+  min: 0
+  max: 100
+  unit: "%"
+  warn_low: 15
+  alarm_low: 5
+
+- id: pro3_soc_val
+  type: text
+  x: 200
+  y: 186
+  tag: batteria.percentuale
+  format: "{value:.1f}%"
+  font_size: 22
+  font_weight: bold
+  text_anchor: middle
+  color: "#fbbf24"
+
+- id: pro3_in_carica_led
+  type: led
+  x: 148
+  y: 196
+  width: 18
+  height: 18
+  tag: batteria.in_carica
+  on_color: "#22c55e"
+  off_color: "#ef4444"
+
+- id: pro3_in_carica_txt
+  type: text
+  x: 175
+  y: 208
+  tag: batteria.in_carica
+  format: "{value}"
+  font_size: 11
+  color: "#64748b"
+
+# V batt
+- id: pro3_batt_v_lbl
+  type: text
+  x: 50
+  y: 232
+  text: "Tensione"
+  font_size: 10
+  color: "#475569"
+
+- id: pro3_batt_v
+  type: text
+  x: 180
+  y: 232
+  tag: batteria.tensione_v
+  format: "{value:.2f} V"
+  font_size: 16
+  font_weight: bold
+  text_anchor: end
+  color: "#fbbf24"
+
+# A batt
+- id: pro3_batt_a_lbl
+  type: text
+  x: 50
+  y: 254
+  text: "Corrente"
+  font_size: 10
+  color: "#475569"
+
+- id: pro3_batt_a
+  type: text
+  x: 180
+  y: 254
+  tag: batteria.corrente_a
+  format: "{value:+.2f} A"
+  font_size: 16
+  font_weight: bold
+  text_anchor: end
+  color: "#fbbf24"
+
+# kW batt
+- id: pro3_batt_kw_lbl
+  type: text
+  x: 50
+  y: 276
+  text: "Potenza"
+  font_size: 10
+  color: "#475569"
+
+- id: pro3_batt_kw
+  type: text
+  x: 180
+  y: 276
+  tag: batteria.potenza_kw
+  format: "{value:+.3f} kW"
+  font_size: 16
+  font_weight: bold
+  text_anchor: end
+  color: "#fbbf24"
+
+# Temperatura batt
+- id: pro3_batt_t_lbl
+  type: text
+  x: 50
+  y: 298
+  text: "Temperatura"
+  font_size: 10
+  color: "#475569"
+
+- id: pro3_batt_t
+  type: text
+  x: 180
+  y: 298
+  tag: batteria.temperatura
+  format: "{value:.1f}°C"
+  font_size: 16
+  font_weight: bold
+  text_anchor: end
+  color: "#fb923c"
+
+# Cicli
+- id: pro3_batt_cicli_lbl
+  type: text
+  x: 50
+  y: 320
+  text: "Cicli carica"
+  font_size: 10
+  color: "#475569"
+
+- id: pro3_batt_cicli
+  type: text
+  x: 180
+  y: 320
+  tag: batteria.cicli
+  format: "{value:.0f}"
+  font_size: 16
+  font_weight: bold
+  text_anchor: end
+  color: "#a3a3a3"
+
+# Carica/scarica oggi
+- id: pro3_carica_oggi_lbl
+  type: text
+  x: 50
+  y: 342
+  text: "Caricata oggi"
+  font_size: 10
+  color: "#475569"
+
+- id: pro3_carica_oggi
+  type: text
+  x: 180
+  y: 342
+  tag: batteria.carica_oggi_kwh
+  format: "{value:.2f} kWh"
+  font_size: 13
+  font_weight: bold
+  text_anchor: end
+  color: "#22c55e"
+
+- id: pro3_scarica_oggi_lbl
+  type: text
+  x: 50
+  y: 360
+  text: "Scaricata oggi"
+  font_size: 10
+  color: "#475569"
+
+- id: pro3_scarica_oggi
+  type: text
+  x: 180
+  y: 360
+  tag: batteria.scarica_oggi_kwh
+  format: "{value:.2f} kWh"
+  font_size: 13
+  font_weight: bold
+  text_anchor: end
+  color: "#ef4444"
+
+# Capacità
+- id: pro3_batt_cap_lbl
+  type: text
+  x: 50
+  y: 378
+  text: "Capacità nominale"
+  font_size: 10
+  color: "#334155"
+
+- id: pro3_batt_cap
+  type: text
+  x: 180
+  y: 378
+  tag: batteria.capacita_ah
+  format: "{value:.0f} Ah"
+  font_size: 12
+  font_weight: bold
+  text_anchor: end
+  color: "#475569"
+
+# ══════════════════════════════════════════════════════════════════════════════
+# RETE ELETTRICA (right column)
+# ══════════════════════════════════════════════════════════════════════════════
+
+- id: pro3_rete_hdr
+  type: text
+  x: 610
+  y: 60
+  text: "⚡ RETE ELETTRICA"
+  font_size: 13
+  font_weight: bold
+  text_anchor: middle
+  color: "#94a3b8"
+
+- id: pro3_rete_box
+  type: rect
+  x: 420
+  y: 68
+  width: 366
+  height: 320
+  fill: "#0c1017"
+  stroke: "#1e293b"
+  stroke_width: 1
+  rx: 6
+
+# Tensione rete (big)
+- id: pro3_rete_v_lbl
+  type: text
+  x: 510
+  y: 92
+  text: "Tensione"
+  font_size: 10
+  text_anchor: middle
+  color: "#475569"
+
+- id: pro3_rete_v
+  type: text
+  x: 510
+  y: 118
+  tag: rete.tensione_v
+  format: "{value:.1f}"
+  font_size: 28
+  font_weight: bold
+  text_anchor: middle
+  color: "#cbd5e1"
+
+- id: pro3_rete_v_u
+  type: text
+  x: 510
+  y: 134
+  text: "V"
+  font_size: 11
+  text_anchor: middle
+  color: "#64748b"
+
+- id: pro3_rete_v_g
+  type: gauge
+  x: 428
+  y: 140
+  width: 160
+  height: 46
+  tag: rete.tensione_v
+  min: 195
+  max: 265
+  unit: "V"
+  warn_low: 210
+  warn_high: 250
+  alarm_high: 260
+
+# Frequenza
+- id: pro3_rete_hz_lbl
+  type: text
+  x: 720
+  y: 92
+  text: "Frequenza"
+  font_size: 10
+  text_anchor: middle
+  color: "#475569"
+
+- id: pro3_rete_hz
+  type: text
+  x: 720
+  y: 118
+  tag: rete.frequenza_hz
+  format: "{value:.2f}"
+  font_size: 28
+  font_weight: bold
+  text_anchor: middle
+  color: "#cbd5e1"
+
+- id: pro3_rete_hz_u
+  type: text
+  x: 720
+  y: 134
+  text: "Hz"
+  font_size: 11
+  text_anchor: middle
+  color: "#64748b"
+
+- id: pro3_rete_hz_g
+  type: gauge
+  x: 610
+  y: 140
+  width: 160
+  height: 46
+  tag: rete.frequenza_hz
+  min: 49.0
+  max: 51.0
+  unit: "Hz"
+  warn_low: 49.7
+  warn_high: 50.3
+
+# Corrente rete
+- id: pro3_rete_a_lbl
+  type: text
+  x: 510
+  y: 200
+  text: "Corrente"
+  font_size: 10
+  text_anchor: middle
+  color: "#475569"
+
+- id: pro3_rete_a
+  type: text
+  x: 510
+  y: 222
+  tag: rete.corrente_a
+  format: "{value:+.2f} A"
+  font_size: 22
+  font_weight: bold
+  text_anchor: middle
+  color: "#94a3b8"
+
+# Potenza scambio
+- id: pro3_rete_kw_lbl
+  type: text
+  x: 720
+  y: 200
+  text: "Scambio"
+  font_size: 10
+  text_anchor: middle
+  color: "#475569"
+
+- id: pro3_rete_kw
+  type: text
+  x: 720
+  y: 222
+  tag: rete.potenza_kw
+  format: "{value:+.3f} kW"
+  font_size: 22
+  font_weight: bold
+  text_anchor: middle
+  color: "#94a3b8"
+
+# Acquisto / Vendita (derived)
+- id: pro3_acq_lbl
+  type: text
+  x: 480
+  y: 252
+  text: "Acquisto"
+  font_size: 10
+  text_anchor: middle
+  color: "#ef4444"
+
+- id: pro3_acq
+  type: text
+  x: 480
+  y: 270
+  tag: rete.acquisto_kw
+  format: "{value:.3f} kW"
+  font_size: 14
+  font_weight: bold
+  text_anchor: middle
+  color: "#f87171"
+
+- id: pro3_vend_lbl
+  type: text
+  x: 620
+  y: 252
+  text: "Vendita"
+  font_size: 10
+  text_anchor: middle
+  color: "#22c55e"
+
+- id: pro3_vend
+  type: text
+  x: 620
+  y: 270
+  tag: rete.vendita_kw
+  format: "{value:.3f} kW"
+  font_size: 14
+  font_weight: bold
+  text_anchor: middle
+  color: "#4ade80"
+
+- id: pro3_saldo_lbl
+  type: text
+  x: 760
+  y: 252
+  text: "Saldo FV"
+  font_size: 10
+  text_anchor: middle
+  color: "#a3e635"
+
+- id: pro3_saldo
+  type: text
+  x: 760
+  y: 270
+  tag: energia.saldo_kw
+  format: "{value:+.2f}"
+  font_size: 14
+  font_weight: bold
+  text_anchor: middle
+  color: "#a3e635"
+
+# Energie giornaliere rete
+- id: pro3_div
+  type: line
+  x: 430
+  y: 284
+  x2: 776
+  y2: 284
+  stroke: "#1e293b"
+  stroke_width: 1
+
+- id: pro3_cons_oggi_lbl
+  type: text
+  x: 480
+  y: 302
+  text: "Prelevata oggi"
+  font_size: 9
+  text_anchor: middle
+  color: "#475569"
+
+- id: pro3_cons_oggi
+  type: text
+  x: 480
+  y: 320
+  tag: rete.consumo_oggi_kwh
+  format: "{value:.2f} kWh"
+  font_size: 13
+  font_weight: bold
+  text_anchor: middle
+  color: "#f87171"
+
+- id: pro3_imm_oggi_lbl
+  type: text
+  x: 620
+  y: 302
+  text: "Immessa oggi"
+  font_size: 9
+  text_anchor: middle
+  color: "#475569"
+
+- id: pro3_imm_oggi
+  type: text
+  x: 620
+  y: 320
+  tag: rete.immissione_oggi_kwh
+  format: "{value:.2f} kWh"
+  font_size: 13
+  font_weight: bold
+  text_anchor: middle
+  color: "#4ade80"
+
+- id: pro3_imm_tot_lbl
+  type: text
+  x: 760
+  y: 302
+  text: "Immessa lifetime"
+  font_size: 9
+  text_anchor: middle
+  color: "#334155"
+
+- id: pro3_imm_tot
+  type: text
+  x: 760
+  y: 320
+  tag: rete.immissione_totale_kwh
+  format: "{value:.0f} kWh"
+  font_size: 13
+  font_weight: bold
+  text_anchor: middle
+  color: "#475569"
+
+# ══════════════════════════════════════════════════════════════════════════════
+# TREND SoC + TENSIONE RETE
+# ══════════════════════════════════════════════════════════════════════════════
+
+- id: pro3_trend_lbl
+  type: text
+  x: 400
+  y: 404
+  text: "SoC batteria + Tensione rete — 1 ora"
+  font_size: 10
+  text_anchor: middle
+  color: "#64748b"
+
+- id: pro3_trend
+  type: trend
+  x: 14
+  y: 412
+  width: 772
+  height: 130
+  tag: batteria.percentuale
+  extra_tags:
+    - rete.tensione_v
+  window_s: 3600
+  line_color: "#f59e0b"
+
+- id: pro3_leg_soc
+  type: text
+  x: 24
+  y: 554
+  text: "— SoC batteria (%)"
+  font_size: 9
+  color: "#f59e0b"
+
+- id: pro3_leg_rete
+  type: text
+  x: 200
+  y: 554
+  text: "— Tensione rete (V)"
+  font_size: 9
+  color: "#94a3b8"
+
+- id: pro3_leg_note
+  type: text
+  x: 600
+  y: 554
+  text: "Positivo scambio = immissione"
+  font_size: 9
+  color: "#334155"
