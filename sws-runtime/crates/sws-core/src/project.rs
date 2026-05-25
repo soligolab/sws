@@ -22,7 +22,101 @@ pub struct TagDef {
     /// Drives the initial `TagValue` variant seeded into the TagDb at startup.
     #[serde(default = "default_data_type")]
     pub data_type: String,
+    /// When true, tag samples are persisted to `datastore_id` (or the project
+    /// default datastore when unset). Default false.
+    #[serde(default)]
+    pub history: bool,
+    /// Which datastore (by `DatastoreConfig::id`) receives this tag's samples.
+    /// When None and `history` is true, uses the first configured datastore (or
+    /// the built-in SQLite fallback).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub datastore_id: Option<String>,
+    /// Minimum absolute change required to record a new sample. Prevents
+    /// chatty analog tags from flooding the datastore with near-identical values.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub history_deadband: Option<f64>,
+    /// Minimum time between recorded samples (ms). Even if the value changed,
+    /// samples closer than this interval are dropped.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub history_min_interval_ms: Option<u64>,
 }
+
+// ── Datastore configuration ───────────────────────────────────────────────────
+
+/// Backend-specific connection parameters. Serialised as a discriminated union
+/// using `kind` as the tag field (matches the SourceDef pattern).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum DatastoreBackendConfig {
+    /// Local SQLite file. `path` is relative to the project directory unless
+    /// it starts with `/`. Default path: `.history/historian.db`.
+    Sqlite {
+        #[serde(default = "default_sqlite_history_path")]
+        path: String,
+    },
+    /// PostgreSQL (or TimescaleDB). Uses standard `sslmode` values:
+    /// disable / prefer / require (default: prefer).
+    Postgres {
+        host: String,
+        #[serde(default = "default_pg_port")]
+        port: u16,
+        database: String,
+        username: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        password: Option<String>,
+        #[serde(default = "default_pg_ssl_mode")]
+        ssl_mode: String,
+        /// Target schema (default "public").
+        #[serde(default = "default_pg_schema")]
+        schema: String,
+    },
+    /// Generic ODBC source (SQL Server, Oracle, etc. via unixODBC).
+    /// Provide either `dsn` (from /etc/odbc.ini) or a raw `connection_string`.
+    Odbc {
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        dsn: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        connection_string: Option<String>,
+        /// Target table name (default "sws_samples").
+        #[serde(default = "default_odbc_table")]
+        table: String,
+        /// Column that holds the tag identifier (default "tag_id").
+        #[serde(default = "default_odbc_col_tag")]
+        col_tag: String,
+        /// Column that holds the numeric value (default "value").
+        #[serde(default = "default_odbc_col_value")]
+        col_value: String,
+        /// Column for the Unix-ms timestamp (default "ts_ms").
+        #[serde(default = "default_odbc_col_ts")]
+        col_ts: String,
+    },
+}
+
+/// A named, persistent storage destination for tag history.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DatastoreConfig {
+    /// Unique slug used in `TagDef::datastore_id` references and API paths.
+    pub id: String,
+    /// Human-readable label shown in the UI.
+    pub label: String,
+    pub backend: DatastoreBackendConfig,
+    /// Maximum samples kept per tag (ring-buffer behaviour). None = unlimited.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub retention_rows: Option<u64>,
+    /// Maximum age in days. Samples older than this are pruned on the nightly
+    /// sweep. None = keep forever.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub retention_days: Option<u64>,
+}
+
+fn default_sqlite_history_path() -> String { ".history/historian.db".into() }
+fn default_pg_port() -> u16 { 5432 }
+fn default_pg_ssl_mode() -> String { "prefer".into() }
+fn default_pg_schema() -> String { "public".into() }
+fn default_odbc_table() -> String { "sws_samples".into() }
+fn default_odbc_col_tag() -> String { "tag_id".into() }
+fn default_odbc_col_value() -> String { "value".into() }
+fn default_odbc_col_ts() -> String { "ts_ms".into() }
 
 impl TagDef {
     /// Initial `TagValue` to seed the TagDb with for this definition.
@@ -292,6 +386,10 @@ pub struct Project {
     pub functions: Vec<FunctionDef>,
     #[serde(default)]
     pub custom_symbols: Vec<CustomSymbol>,
+    /// Named persistent storage backends for tag history. When empty, the
+    /// runtime falls back to a built-in SQLite file under `<project>/.history/`.
+    #[serde(default)]
+    pub datastores: Vec<DatastoreConfig>,
 }
 
 impl Project {

@@ -24,6 +24,8 @@ futures-util     = { version = "0.3",   default-features = false, features = ["s
 
 # Historian persistence
 rusqlite         = { version = "0.32",  features = ["bundled"] }
+# PostgreSQL async driver (plain TCP — operators set sslmode in connstring).
+tokio-postgres   = { version = "0.7",   default-features = false, features = ["runtime"] }
 
 # Web framework
 axum             = { version = "0.7",   features = ["ws"] }

@@ -162,6 +162,7 @@ pub async fn create_project(
                 alarms: vec![],
                 functions: vec![],
                 custom_symbols: vec![],
+                datastores: vec![],
             };
             let yaml = match serde_yaml::to_string(&project) {
                 Ok(y) => y,

@@ -294,6 +294,14 @@ export interface TagDef {
   description: string;
   /** Storage type. Optional in the wire format; defaults to "float" server-side. */
   data_type?: TagDataType;
+  /** When true, samples are persisted to `datastore_id` (or the default datastore). */
+  history?: boolean;
+  /** Which datastore (by DatastoreConfig.id) stores this tag's history. */
+  datastore_id?: string;
+  /** Deadband: minimum change in value to trigger a new record. */
+  history_deadband?: number;
+  /** Minimum ms between two recorded samples. */
+  history_min_interval_ms?: number;
 }
 
 export interface RegisterMapping {
@@ -453,6 +461,64 @@ export interface MqttBrowseResponse {
   topics: BrowsedTopic[];
 }
 
+// ── Datastore types ───────────────────────────────────────────────────────
+
+export interface SqliteBackendConfig {
+  kind: "sqlite";
+  path: string;
+}
+
+export interface PostgresBackendConfig {
+  kind: "postgres";
+  host: string;
+  port: number;
+  database: string;
+  username: string;
+  password?: string;
+  ssl_mode: string;
+  schema: string;
+}
+
+export interface OdbcBackendConfig {
+  kind: "odbc";
+  dsn?: string;
+  connection_string?: string;
+  table: string;
+  col_tag: string;
+  col_value: string;
+  col_ts: string;
+}
+
+export type DatastoreBackendConfig =
+  | SqliteBackendConfig
+  | PostgresBackendConfig
+  | OdbcBackendConfig;
+
+export interface DatastoreConfig {
+  id: string;
+  label: string;
+  backend: DatastoreBackendConfig;
+  retention_rows?: number;
+  retention_days?: number;
+}
+
+export interface DatastoreStats {
+  kind: string;
+  tag_count: number;
+  sample_count: number;
+  oldest_ms: number | null;
+  newest_ms: number | null;
+  size_bytes: number | null;
+  connected: boolean;
+  error: string | null;
+}
+
+export interface DatastoreListItem {
+  id: string;
+  connected: boolean;
+  error: string | null;
+}
+
 export interface ProjectInfo {
   meta: { name: string; version: string };
   tags: TagDef[];
@@ -460,6 +526,7 @@ export interface ProjectInfo {
   alarms?: AlarmDef[];
   functions?: FunctionDef[];
   custom_symbols?: CustomSymbol[];
+  datastores?: DatastoreConfig[];
 }
 
 // ── Reusable Python functions ──────────────────────────────────────────────

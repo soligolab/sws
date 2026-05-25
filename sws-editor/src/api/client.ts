@@ -2,6 +2,9 @@ import type {
   AlarmDef,
   AlarmState,
   CustomSymbol,
+  DatastoreConfig,
+  DatastoreListItem,
+  DatastoreStats,
   FunctionDef,
   LogEvent,
   LogFileEntry,
@@ -504,6 +507,41 @@ export const api = {
     disk_used_gb: number;
     disk_total_gb: number;
   }> => request("/api/system"),
+
+  // Datastores (runtime stats + admin ops)
+  listDatastores: () => request<DatastoreListItem[]>("/api/datastores"),
+
+  datastoreStats: (id: string) =>
+    request<DatastoreStats>(`/api/datastores/${encodeURIComponent(id)}/stats`),
+
+  testDatastore: (id: string) =>
+    request<string>(`/api/datastores/${encodeURIComponent(id)}/test`, { method: "POST" }),
+
+  purgeDatastore: (id: string, body: { retention_rows?: number; retention_days?: number }) =>
+    request<{ deleted: number }>(`/api/datastores/${encodeURIComponent(id)}/purge`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }),
+
+  exportDatastore: (id: string, opts?: { tags?: string[]; fromMs?: number; toMs?: number }) => {
+    const params = new URLSearchParams();
+    if (opts?.tags?.length)    params.set("tags",    opts.tags.join(","));
+    if (opts?.fromMs != null)  params.set("from_ms", String(opts.fromMs));
+    if (opts?.toMs   != null)  params.set("to_ms",   String(opts.toMs));
+    const qs = params.toString();
+    return request<{ tag_id: string; samples: Sample[] }[]>(
+      `/api/datastores/${encodeURIComponent(id)}/export${qs ? "?" + qs : ""}`,
+    );
+  },
+
+  // Project datastores config (saved as part of PUT /api/project/tags — uses existing endpoint)
+  saveDatastores: (datastores: DatastoreConfig[]) =>
+    request<void>("/api/project/datastores", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(datastores),
+    }),
 
   uploadProjectZip: async (file: Blob, name?: string): Promise<{ name: string }> => {
     const url = name

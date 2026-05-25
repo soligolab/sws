@@ -8,6 +8,9 @@ import type {
   AlarmDef,
   AlarmSeverity,
   BrowsedTopic,
+  DatastoreBackendConfig,
+  DatastoreConfig,
+  DatastoreStats,
   ModbusTcpSource,
   MqttLastWill,
   MqttSource,
@@ -269,6 +272,7 @@ function TagsTab() {
   const storeProject        = useAppStore((s) => s.project);
   const updateProjectTags   = useAppStore((s) => s.updateProjectTags);
   const tagValues           = useAppStore((s) => s.tagValues);
+  const datastoreIds        = storeProject?.datastores?.map((d) => ({ id: d.id, label: d.label })) ?? [];
 
   const [tags, setTags]     = useState<TagDef[]>(storeProject?.tags ?? []);
   const [saving, setSaving] = useState(false);
@@ -314,10 +318,12 @@ function TagsTab() {
       <table style={S.table}>
         <thead>
           <tr>
-            <th style={{ ...S.th, width: "30%" }}>ID variabile</th>
-            <th style={{ ...S.th, width: "33%" }}>Descrizione</th>
-            <th style={{ ...S.th, width: "12%" }}>Tipo</th>
-            <th style={{ ...S.th, width: "15%" }}>Valore live</th>
+            <th style={{ ...S.th, width: "22%" }}>ID variabile</th>
+            <th style={{ ...S.th, width: "25%" }}>Descrizione</th>
+            <th style={{ ...S.th, width: "9%" }}>Tipo</th>
+            <th style={{ ...S.th, width: "6%", textAlign: "center" }}>Storico</th>
+            <th style={{ ...S.th, width: "16%" }}>Datastore</th>
+            <th style={{ ...S.th, width: "12%" }}>Valore live</th>
             <th style={S.th} />
           </tr>
         </thead>
@@ -354,6 +360,31 @@ function TagsTab() {
                     <option value="float">Float</option>
                     <option value="string">Stringa</option>
                   </select>
+                </td>
+                <td style={{ ...S.td, textAlign: "center" }}>
+                  <input
+                    type="checkbox"
+                    checked={tag.history ?? false}
+                    onChange={(e) => updateTag(i, { history: e.target.checked })}
+                    style={{ cursor: "pointer" }}
+                  />
+                </td>
+                <td style={S.td}>
+                  {datastoreIds.length > 0 ? (
+                    <select
+                      style={{ ...S.input, cursor: "pointer" }}
+                      value={tag.datastore_id ?? ""}
+                      onChange={(e) => updateTag(i, { datastore_id: e.target.value || undefined })}
+                      disabled={!tag.history}
+                    >
+                      <option value="">(default)</option>
+                      {datastoreIds.map((d) => (
+                        <option key={d.id} value={d.id}>{d.label}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <span style={{ color: "#475569", fontSize: 11 }}>—</span>
+                  )}
                 </td>
                 <td style={{ ...S.td, textAlign: "center" }}>
                   {tv != null ? (
@@ -2946,18 +2977,238 @@ function ResourcesTab() {
   );
 }
 
+// ── DATASTORES tab ────────────────────────────────────────────────────────────
+
+function newSqliteConfig(): DatastoreBackendConfig {
+  return { kind: "sqlite", path: ".history/historian.db" };
+}
+function newPostgresConfig(): DatastoreBackendConfig {
+  return { kind: "postgres", host: "localhost", port: 5432, database: "sws", username: "sws", password: "", ssl_mode: "disable", schema: "public" };
+}
+function newOdbcConfig(): DatastoreBackendConfig {
+  return { kind: "odbc", dsn: "", connection_string: "", table: "sws_samples", col_tag: "tag_id", col_value: "value", col_ts: "ts_ms" };
+}
+
+function DatastoresTab() {
+  const project = useAppStore((s) => s.project);
+  const [datastores, setDatastores] = useState<DatastoreConfig[]>(project?.datastores ?? []);
+  const [dirty, setDirty] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [statusMap, setStatusMap] = useState<Record<string, { ok: boolean; msg: string }>>({});
+  const [statsMap, setStatsMap]   = useState<Record<string, DatastoreStats | null>>({});
+
+  // Keep local copy in sync when project reloads.
+  useEffect(() => {
+    setDatastores(project?.datastores ?? []);
+    setDirty(false);
+  }, [project]);
+
+  const update = (ds: DatastoreConfig[]) => { setDatastores(ds); setDirty(true); };
+
+  const addDatastore = () => {
+    const id = `ds_${Date.now()}`;
+    update([...datastores, { id, label: "Nuovo datastore", backend: newSqliteConfig(), retention_rows: undefined, retention_days: undefined }]);
+  };
+
+  const removeDatastore = (id: string) => update(datastores.filter((d) => d.id !== id));
+
+  const setBackendKind = (id: string, kind: "sqlite" | "postgres" | "odbc") => {
+    update(datastores.map((d) =>
+      d.id === id ? { ...d, backend: kind === "sqlite" ? newSqliteConfig() : kind === "postgres" ? newPostgresConfig() : newOdbcConfig() } : d
+    ));
+  };
+
+  const patchDs = (id: string, patch: Partial<DatastoreConfig>) =>
+    update(datastores.map((d) => d.id === id ? { ...d, ...patch } : d));
+
+  const patchBackend = (id: string, patch: Partial<DatastoreBackendConfig>) =>
+    update(datastores.map((d) => d.id === id ? { ...d, backend: { ...d.backend, ...patch } as DatastoreBackendConfig } : d));
+
+  const save = async () => {
+    setSaving(true); setSaveError(null);
+    try {
+      await api.saveDatastores(datastores);
+      setDirty(false);
+    } catch (e) {
+      setSaveError(String(e));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const testDs = async (id: string) => {
+    setStatusMap((m) => ({ ...m, [id]: { ok: false, msg: "Test…" } }));
+    try {
+      const msg = await api.testDatastore(id);
+      setStatusMap((m) => ({ ...m, [id]: { ok: true, msg } }));
+    } catch (e) {
+      setStatusMap((m) => ({ ...m, [id]: { ok: false, msg: String(e) } }));
+    }
+  };
+
+  const loadStats = async (id: string) => {
+    setStatsMap((m) => ({ ...m, [id]: null }));
+    try {
+      const stats = await api.datastoreStats(id);
+      setStatsMap((m) => ({ ...m, [id]: stats }));
+    } catch { /* ignore */ }
+  };
+
+  const cellStyle: React.CSSProperties = { padding: "4px 8px", borderBottom: "1px solid #1e293b", verticalAlign: "top" };
+  const labelStyle: React.CSSProperties = { fontSize: 12, color: "#94a3b8", display: "block", marginBottom: 2 };
+  const inputStyle: React.CSSProperties = { width: "100%", background: "#1e293b", border: "1px solid #334155", color: "#f1f5f9", borderRadius: 4, padding: "3px 6px", fontSize: 12 };
+
+  return (
+    <div style={{ padding: 16 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+        <span style={{ fontSize: 13, color: "#94a3b8", flex: 1 }}>
+          Configura i backend di persistenza dati storici. Ogni variabile con &quot;history&quot; attivo
+          viene scritta nel datastore assegnato.
+        </span>
+        <button onClick={addDatastore} style={{ background: "#0ea5e9", color: "#fff", border: "none", borderRadius: 4, padding: "4px 10px", cursor: "pointer", fontSize: 12 }}>
+          + Aggiungi
+        </button>
+        <button onClick={save} disabled={!dirty || saving}
+          style={{ background: dirty ? "#22c55e" : "#334155", color: "#fff", border: "none", borderRadius: 4, padding: "4px 10px", cursor: dirty ? "pointer" : "default", fontSize: 12 }}>
+          {saving ? "Salvo…" : "Salva"}
+        </button>
+      </div>
+      {saveError && <div style={{ color: "#f87171", fontSize: 12, marginBottom: 8 }}>{saveError}</div>}
+
+      {datastores.length === 0 && (
+        <div style={{ color: "#64748b", fontSize: 13, padding: 24, textAlign: "center" }}>
+          Nessun datastore configurato. Usa il pulsante + per aggiungerne uno.
+        </div>
+      )}
+
+      {datastores.map((ds) => {
+        const status = statusMap[ds.id];
+        const stats  = statsMap[ds.id];
+        return (
+          <div key={ds.id} style={{ background: "#1e293b", borderRadius: 6, padding: 12, marginBottom: 12, border: "1px solid #334155" }}>
+            {/* Header row */}
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+              <input
+                value={ds.label}
+                onChange={(e) => patchDs(ds.id, { label: e.target.value })}
+                placeholder="Etichetta"
+                style={{ ...inputStyle, flex: 1, fontWeight: 600, fontSize: 13 }}
+              />
+              <input
+                value={ds.id}
+                onChange={(e) => patchDs(ds.id, { id: e.target.value })}
+                placeholder="id (slug)"
+                style={{ ...inputStyle, width: 140, fontFamily: "monospace" }}
+              />
+              <select
+                value={ds.backend.kind}
+                onChange={(e) => setBackendKind(ds.id, e.target.value as "sqlite" | "postgres" | "odbc")}
+                style={{ ...inputStyle, width: 110 }}>
+                <option value="sqlite">SQLite</option>
+                <option value="postgres">PostgreSQL</option>
+                <option value="odbc">ODBC</option>
+              </select>
+              <button onClick={() => testDs(ds.id)} style={{ background: "#0ea5e9", color: "#fff", border: "none", borderRadius: 4, padding: "3px 8px", cursor: "pointer", fontSize: 11 }}>Test</button>
+              <button onClick={() => loadStats(ds.id)} style={{ background: "#475569", color: "#fff", border: "none", borderRadius: 4, padding: "3px 8px", cursor: "pointer", fontSize: 11 }}>Stats</button>
+              <button onClick={() => removeDatastore(ds.id)} style={{ background: "#ef4444", color: "#fff", border: "none", borderRadius: 4, padding: "3px 8px", cursor: "pointer", fontSize: 11 }}>X</button>
+            </div>
+
+            {/* Status + stats row */}
+            {status && (
+              <div style={{ fontSize: 11, color: status.ok ? "#4ade80" : "#f87171", marginBottom: 8 }}>
+                {status.msg}
+              </div>
+            )}
+            {stats !== undefined && (
+              <div style={{ fontSize: 11, color: "#94a3b8", marginBottom: 8, display: "flex", gap: 16 }}>
+                {stats === null ? "Caricamento stats…" : (
+                  <>
+                    <span>Campioni: {stats.sample_count.toLocaleString()}</span>
+                    <span>Tag: {stats.tag_count}</span>
+                    {stats.size_bytes != null && <span>Dim: {(stats.size_bytes / 1024 / 1024).toFixed(1)} MB</span>}
+                    <span style={{ color: stats.connected ? "#4ade80" : "#f87171" }}>{stats.connected ? "Connesso" : stats.error ?? "Disconnesso"}</span>
+                  </>
+                )}
+              </div>
+            )}
+
+            {/* Backend-specific fields */}
+            {ds.backend.kind === "sqlite" && (
+              <div style={cellStyle}>
+                <span style={labelStyle}>Percorso file</span>
+                <input value={ds.backend.path} onChange={(e) => patchBackend(ds.id, { path: e.target.value })} style={inputStyle} placeholder=".history/historian.db" />
+              </div>
+            )}
+
+            {ds.backend.kind === "postgres" && (
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                {(["host", "port", "database", "username", "password", "ssl_mode", "schema"] as const).map((field) => (
+                  <div key={field} style={cellStyle}>
+                    <span style={labelStyle}>{field}</span>
+                    <input
+                      type={field === "password" ? "password" : "text"}
+                      value={String((ds.backend as unknown as Record<string, unknown>)[field] ?? "")}
+                      onChange={(e) => patchBackend(ds.id, { [field]: field === "port" ? Number(e.target.value) : e.target.value })}
+                      style={inputStyle}
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {ds.backend.kind === "odbc" && (
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                {(["dsn", "connection_string", "table", "col_tag", "col_value", "col_ts"] as const).map((field) => (
+                  <div key={field} style={cellStyle}>
+                    <span style={labelStyle}>{field}</span>
+                    <input
+                      value={String((ds.backend as unknown as Record<string, unknown>)[field] ?? "")}
+                      onChange={(e) => patchBackend(ds.id, { [field]: e.target.value })}
+                      style={inputStyle}
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Retention */}
+            <div style={{ display: "flex", gap: 16, marginTop: 8 }}>
+              <div>
+                <span style={labelStyle}>Max righe per tag</span>
+                <input type="number" min={0}
+                  value={ds.retention_rows ?? ""}
+                  onChange={(e) => patchDs(ds.id, { retention_rows: e.target.value ? Number(e.target.value) : undefined })}
+                  style={{ ...inputStyle, width: 120 }} placeholder="illimitato" />
+              </div>
+              <div>
+                <span style={labelStyle}>Giorni di ritenzione</span>
+                <input type="number" min={0}
+                  value={ds.retention_days ?? ""}
+                  onChange={(e) => patchDs(ds.id, { retention_days: e.target.value ? Number(e.target.value) : undefined })}
+                  style={{ ...inputStyle, width: 120 }} placeholder="illimitato" />
+              </div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 // ── ConfigView root ───────────────────────────────────────────────────────────
 
-type ConfigTab = "tags" | "protocols" | "alarms" | "users" | "resources" | "system" | "backups";
+type ConfigTab = "tags" | "protocols" | "alarms" | "datastores" | "users" | "resources" | "system" | "backups";
 
 const TAB_LABELS: Record<ConfigTab, string> = {
-  tags:      "Variabili",
-  protocols: "Protocolli",
-  alarms:    "Allarmi",
-  users:     "Utenti",
-  resources: "Risorse",
-  system:    "Stato",
-  backups:   "Backup",
+  tags:        "Variabili",
+  protocols:   "Protocolli",
+  alarms:      "Allarmi",
+  datastores:  "Datastore",
+  users:       "Utenti",
+  resources:   "Risorse",
+  system:      "Stato",
+  backups:     "Backup",
 };
 
 export function ConfigView() {
@@ -2983,12 +3234,13 @@ export function ConfigView() {
   }, [tab, isAdmin]);
 
   const visibleTabs: ConfigTab[] = isAdmin
-    ? ["tags", "protocols", "alarms", "users", "resources", "backups", "system"]
+    ? ["tags", "protocols", "alarms", "datastores", "users", "resources", "backups", "system"]
     : ["tags", "protocols", "alarms", "resources", "system"];
 
-  // Bounce non-admins off the backups tab too (it's an admin-only API).
+  // Bounce non-admins off the backups and datastores tabs.
   useEffect(() => {
-    if (tab === "backups" && !isAdmin) handleSetTab("tags");
+    if (tab === "backups"    && !isAdmin) handleSetTab("tags");
+    if (tab === "datastores" && !isAdmin) handleSetTab("tags");
   }, [tab, isAdmin]);
 
   // Guard: tags/protocols/alarms tabs all initialise their local state from
@@ -2996,7 +3248,8 @@ export function ConfigView() {
   // empty inputs over a populated YAML and a subsequent save would wipe the
   // file. The other tabs are independent so they stay available.
   const projectLoading = project === null
-    && tab !== "users" && tab !== "resources" && tab !== "system" && tab !== "backups";
+    && tab !== "users" && tab !== "resources" && tab !== "system"
+    && tab !== "backups" && tab !== "datastores";
 
   // Belt-and-braces: App.tsx already gates mode="config" via effectiveMode,
   // so this is unreachable for non-Supervisor+ today. Kept so a future
@@ -3023,13 +3276,14 @@ export function ConfigView() {
           </div>
         ) : (
           <>
-            {tab === "tags"      && <TagsTab />}
-            {tab === "protocols" && <ProtocolsTab />}
-            {tab === "alarms"    && <AlarmsTab />}
-            {tab === "users"     && isAdmin && <UsersTab />}
-            {tab === "resources" && <ResourcesTab />}
-            {tab === "system"    && <SystemTab />}
-            {tab === "backups"   && isAdmin && <BackupsTab />}
+            {tab === "tags"        && <TagsTab />}
+            {tab === "protocols"   && <ProtocolsTab />}
+            {tab === "alarms"      && <AlarmsTab />}
+            {tab === "datastores"  && isAdmin && <DatastoresTab />}
+            {tab === "users"       && isAdmin && <UsersTab />}
+            {tab === "resources"   && <ResourcesTab />}
+            {tab === "system"      && <SystemTab />}
+            {tab === "backups"     && isAdmin && <BackupsTab />}
           </>
         )}
       </div>
