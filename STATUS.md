@@ -4,7 +4,7 @@
 >
 > Ambienti di test: vedi [docs/TEST_SETUPS.md](docs/TEST_SETUPS.md) (casa, dev server, dispositivi Yocto).
 
-**Last session**: 2026-05-22 (S-38/S-39/S-40) — Traccia B kiosk chiusa. WS auto-reconnect backoff (6.4-bis). Vite bundle splitting. Lockout login sticky (8.2). Deep-link ConfigView tabs (2.3). Token refresh proattivo (8.1): `POST /api/auth/refresh` + `touch()` in sws-auth + timer in App.tsx + `expires_at_ms` persistito in localStorage. cargo check + pnpm build verdi.
+**Last session**: 2026-05-22 (S-41) — Datastore management completo (task D): multi-backend storage per tag history. `DatastoreBackendConfig` (SQLite/PostgreSQL/ODBC-stub) + `DatastoreConfig` in sws-core. Nuovi crate: `sws-historian`: `backend.rs`, `sqlite_backend.rs`, `postgres_backend.rs`, `odbc_backend.rs`, `registry.rs`. REST API `/api/datastores/*` (GET list/stats, POST test/purge, GET export, PUT /api/project/datastores). Frontend: tipi in `types/index.ts`, metodi in `client.ts`, tab "Datastore" in ConfigView, colonne History/Datastore nella tab Variabili. cargo check + pnpm build verdi.
 **Last commit**: vedi `git log -1`
 **Current phase**: Phase 2 — sviluppo attivo PoC
 

@@ -17,7 +17,7 @@ use sws_core::{
     ProjectMeta, SourceDef, TagDb, TagDef, TagId, TagQuality, TagState, TagUpdate, TagValue,
     TagWriteBus, WriteError, MAX_FUNCTION_CODE_BYTES,
 };
-use sws_historian::{Historian, Sample};
+use sws_historian::{DatastoreRegistry, Historian, Sample};
 use sws_pyscript::{Engine as PyEngine, ExecOutput};
 use tokio::sync::RwLock;
 use tracing::warn;
@@ -41,6 +41,9 @@ pub struct AppState {
     pub bus: Arc<TagWriteBus>,
     pub alarms: Arc<AlarmDb>,
     pub historian: Arc<Historian>,
+    /// Multi-backend datastore registry. `None` when the project has no
+    /// `datastores` configured (legacy single-SQLite mode).
+    pub registry: Option<Arc<DatastoreRegistry>>,
     pub py: PyEngine,
     pub auth: Arc<AuthState>,
     pub supervisor: Arc<SourceSupervisor>,
@@ -64,6 +67,7 @@ pub fn build(
     bus: Arc<TagWriteBus>,
     alarms: Arc<AlarmDb>,
     historian: Arc<Historian>,
+    registry: Option<Arc<DatastoreRegistry>>,
     py: PyEngine,
     auth: Arc<AuthState>,
     supervisor: Arc<SourceSupervisor>,
@@ -76,7 +80,7 @@ pub fn build(
     started_at: std::time::Instant,
     www_dir: Option<PathBuf>,
 ) -> Router {
-    let state = AppState { db, bus, alarms, historian, py, auth, supervisor, functions, project_dir, projects_root, templates_root, logs, logs_dir, started_at };
+    let state = AppState { db, bus, alarms, historian, registry, py, auth, supervisor, functions, project_dir, projects_root, templates_root, logs, logs_dir, started_at };
 
     // Routes that need Admin privileges (PUT /api/project/* — schema edits,
     // plus the multi-user CRUD).
@@ -86,6 +90,7 @@ pub fn build(
         .route("/api/project/alarms",         put(update_project_alarms))
         .route("/api/project/functions",      put(update_project_functions))
         .route("/api/project/custom-symbols", put(update_project_custom_symbols))
+        .route("/api/project/datastores",     put(update_project_datastores))
         // Bulk project export/import (single ZIP carrying project.yaml +
         // every synoptic). Destructive on the import side — Admin only.
         .route("/api/project/export",     get(export_project_zip))
@@ -145,6 +150,7 @@ pub fn build(
         .route("/api/alarms",    get(get_alarms))
         // Historian
         .route("/api/history/:tag", get(get_history))
+        // (Datastore routes are in a dedicated router below — see datastore_routes)
         // Synoptic REST (reads)
         .route("/api/synoptics",       get(list_synoptics))
         .route("/api/synoptics/:name", get(get_synoptic))
@@ -155,6 +161,21 @@ pub fn build(
         .route("/ws/tags",   get(ws_tags_handler))
         .route("/ws/alarms", get(ws_alarms_handler));
 
+    // Datastore routes — all in ONE router to avoid Axum v0.7 matchit
+    // conflicts when routers with overlapping `:id` prefixes are merged.
+    // Admin-only operations use per-route middleware instead of a
+    // shared route_layer so they coexist with the read routes.
+    let require_admin_layer = middleware::from_fn(require_admin);
+    let datastore_routes = Router::new()
+        .route("/api/datastores",           get(list_datastores))
+        .route("/api/datastores/:id/stats", get(datastore_stats))
+        .route("/api/datastores/:id/test",
+            post(datastore_test).route_layer(require_admin_layer.clone()))
+        .route("/api/datastores/:id/purge",
+            post(datastore_purge).route_layer(require_admin_layer.clone()))
+        .route("/api/datastores/:id/export",
+            get(datastore_export).route_layer(require_admin_layer));
+
     // The "blocking" set — all routes above plus all the operator/admin
     // routes — is gated by the must_change_password flag in addition to
     // the role checks. A user flagged for password change can still hit
@@ -163,6 +184,7 @@ pub fn build(
         .merge(operator_routes)
         .merge(supervisor_routes)
         .merge(admin_routes)
+        .merge(datastore_routes)
         .route_layer(middleware::from_fn(require_password_changed));
 
     // Self-service endpoints: any authenticated user, including one with
@@ -616,6 +638,165 @@ async fn get_history(
     Json(samples)
 }
 
+// ── Datastore endpoints ──────────────────────────────────────────────────────
+
+#[derive(serde::Serialize)]
+struct DatastoreListItem {
+    id: String,
+    connected: bool,
+    error: Option<String>,
+}
+
+async fn list_datastores(State(s): State<AppState>) -> Json<Vec<DatastoreListItem>> {
+    // If the live registry exists, return its real connected status.
+    if let Some(reg) = &s.registry {
+        let stats = reg.all_stats().await;
+        return Json(stats.into_iter().map(|(id, st)| DatastoreListItem {
+            id,
+            connected: st.connected,
+            error: st.error,
+        }).collect());
+    }
+    // Registry not yet initialised (project opened via WelcomeScreen after startup).
+    // Return configured datastores as disconnected so the UI can still show them.
+    let Ok(dir) = active_dir(&s).await else { return Json(vec![]); };
+    let Ok(project) = sws_core::project::Project::load(&dir) else { return Json(vec![]); };
+    Json(project.datastores.into_iter().map(|d| DatastoreListItem {
+        id: d.id,
+        connected: false,
+        error: Some("not yet initialised (restart to activate)".into()),
+    }).collect())
+}
+
+/// Load a datastore backend from project.yaml for one-shot ops (test / stats).
+async fn backend_from_project(
+    s: &AppState,
+    id: &str,
+) -> Result<sws_historian::DatastoreBackend, Response> {
+    let dir = active_dir(s).await.map_err(|c| c.into_response())?;
+    let project = sws_core::project::Project::load(&dir)
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR,
+                      format!("cannot load project: {e}")).into_response())?;
+    let cfg = project.datastores.into_iter().find(|d| d.id == id)
+        .ok_or_else(|| (StatusCode::NOT_FOUND,
+                        format!("datastore '{id}' not found")).into_response())?;
+    sws_historian::DatastoreBackend::from_config(&cfg.backend, &dir).await
+        .map_err(|e| (StatusCode::BAD_GATEWAY,
+                      format!("cannot connect: {e}")).into_response())
+}
+
+async fn datastore_stats(
+    State(s): State<AppState>,
+    Path(id): Path<String>,
+) -> Response {
+    // Live registry first; fall back to one-shot query from project config.
+    if let Some(reg) = &s.registry {
+        if let Some(stats) = reg.backend_stats(&id).await {
+            if let Some(ref err) = stats.error {
+                warn!(datastore_id = %id, "datastore stats error: {err}");
+            }
+            return Json(stats).into_response();
+        }
+    }
+    match backend_from_project(&s, &id).await {
+        Ok(backend) => {
+            let stats = backend.stats().await;
+            if let Some(ref err) = stats.error {
+                warn!(datastore_id = %id, "datastore stats error: {err}");
+            }
+            Json(stats).into_response()
+        }
+        Err(r) => r,
+    }
+}
+
+async fn datastore_test(
+    State(s): State<AppState>,
+    Path(id): Path<String>,
+) -> Response {
+    // Live registry first.
+    if let Some(reg) = &s.registry {
+        if reg.backend_ids().contains(&id) {
+            return match reg.test_backend(&id).await {
+                Ok(msg)  => Json(msg).into_response(),
+                Err(e)   => {
+                    warn!(datastore_id = %id, "datastore test failed: {e}");
+                    (StatusCode::BAD_GATEWAY, e.to_string()).into_response()
+                }
+            };
+        }
+    }
+    // Not in registry — one-shot test from project config (common when the
+    // user just saved a new datastore and clicks Test before restarting).
+    match backend_from_project(&s, &id).await {
+        Ok(backend) => match backend.test().await {
+            Ok(msg)  => Json(msg).into_response(),
+            Err(e)   => {
+                warn!(datastore_id = %id, "datastore test failed: {e}");
+                (StatusCode::BAD_GATEWAY, e.to_string()).into_response()
+            }
+        },
+        Err(r) => r,
+    }
+}
+
+#[derive(serde::Deserialize)]
+struct PurgeBody {
+    retention_rows: Option<u64>,
+    retention_days: Option<u64>,
+}
+
+async fn datastore_purge(
+    State(s): State<AppState>,
+    Path(id): Path<String>,
+    Json(body): Json<PurgeBody>,
+) -> Response {
+    let Some(reg) = &s.registry else {
+        return (StatusCode::NOT_FOUND, "no datastores configured").into_response();
+    };
+    match reg.purge_backend(&id, body.retention_rows, body.retention_days).await {
+        Ok(n)  => Json(serde_json::json!({ "deleted": n })).into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+    }
+}
+
+#[derive(serde::Deserialize)]
+struct ExportQuery {
+    tags:    Option<String>, // comma-separated tag ids
+    from_ms: Option<u64>,
+    to_ms:   Option<u64>,
+}
+
+#[derive(serde::Serialize)]
+struct ExportTagResult {
+    tag_id: String,
+    samples: Vec<Sample>,
+}
+
+async fn datastore_export(
+    State(s): State<AppState>,
+    Path(id): Path<String>,
+    Query(q): Query<ExportQuery>,
+) -> Response {
+    let Some(reg) = &s.registry else {
+        return (StatusCode::NOT_FOUND, "no datastores configured").into_response();
+    };
+    let tags: Vec<String> = q.tags.unwrap_or_default()
+        .split(',')
+        .map(|t| t.trim().to_string())
+        .filter(|t| !t.is_empty())
+        .collect();
+    match reg.export_backend(&id, &tags, q.from_ms, q.to_ms).await {
+        Ok(pairs) => {
+            let out: Vec<ExportTagResult> = pairs.into_iter()
+                .map(|(tag_id, samples)| ExportTagResult { tag_id, samples })
+                .collect();
+            Json(out).into_response()
+        }
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+    }
+}
+
 // ── Alarm endpoints ──────────────────────────────────────────────────────────
 
 async fn get_alarms(State(s): State<AppState>) -> Json<Vec<AlarmState>> {
@@ -700,6 +881,7 @@ where
         alarms: vec![],
         functions: vec![],
         custom_symbols: vec![],
+        datastores: vec![],
     });
     f(&mut project);
     if let Err(e) = tokio::fs::create_dir_all(project_dir).await {
@@ -854,6 +1036,14 @@ async fn update_project_custom_symbols(
 ) -> StatusCode {
     let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c };
     patch_project(&dir, |p| p.custom_symbols = symbols).await
+}
+
+async fn update_project_datastores(
+    State(s): State<AppState>,
+    Json(datastores): Json<Vec<sws_core::DatastoreConfig>>,
+) -> StatusCode {
+    let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c };
+    patch_project(&dir, |p| p.datastores = datastores).await
 }
 
 // ── Project import / export (Admin only) ─────────────────────────────────────

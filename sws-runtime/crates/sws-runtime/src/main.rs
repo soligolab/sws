@@ -12,7 +12,7 @@ use rcgen::generate_simple_self_signed;
 use std::{net::SocketAddr, path::PathBuf, sync::Arc};
 use sws_auth::{AuthState, Role};
 use sws_core::{AlarmDb, LogBus, TagDb, TagWriteBus, DEFAULT_LOG_CAPACITY};
-use sws_historian::{sqlite::SqliteStore, Historian};
+use sws_historian::{sqlite::SqliteStore, DatastoreRegistry, Historian};
 use sws_pyscript::Engine as PyEngine;
 use sws_web::SourceSupervisor;
 use tokio::net::TcpListener;
@@ -222,6 +222,10 @@ async fn main() -> anyhow::Result<()> {
     let active_dir: sws_web::router::ActiveProjectDir =
         Arc::new(tokio::sync::RwLock::new(None));
 
+    // Datastore registry: built from project.datastores when a project is
+    // known at startup. None = legacy historian-only mode.
+    let mut registry: Option<Arc<DatastoreRegistry>> = None;
+
     // Auth state: empty until a project is opened. When --project is set,
     // we swap to its users.yaml; otherwise the WelcomeScreen does it via
     // POST /api/projects/:name/open later.
@@ -241,6 +245,19 @@ async fn main() -> anyhow::Result<()> {
                     "project loaded (legacy --project auto-open)",
                 );
                 project.populate_tags(&tag_db).await;
+                // Build datastore registry while project is still whole (before
+                // field moves below).
+                match DatastoreRegistry::from_project(&project, &project_path).await {
+                    Ok(Some(reg)) => {
+                        info!(
+                            backends = reg.backend_ids().len(),
+                            "datastore registry initialized"
+                        );
+                        registry = Some(reg);
+                    }
+                    Ok(None) => {} // no datastores configured, keep historian-only mode
+                    Err(e) => warn!("datastore registry init failed: {e:#}"),
+                }
                 alarm_db.load(project.alarms).await;
                 supervisor.reload(project.sources).await;
                 // Seed the function registry. Duplicates from project.yaml
@@ -385,6 +402,12 @@ async fn main() -> anyhow::Result<()> {
     // Historian recorder: append every TagDb update to the per-tag ring buffer.
     historian.clone().spawn_recorder(tag_db.clone());
 
+    // Datastore registry recorder: routes updates to external backends.
+    // Runs in addition to the historian (both receive every update).
+    if let Some(reg) = &registry {
+        reg.clone().spawn_recorder(tag_db.clone());
+    }
+
     // Historian SQLite pruning: run once at startup then every 24 h.
     // Only effective when SWS_HISTORIAN_DB is set (no-op on RAM-only mode).
     {
@@ -413,6 +436,7 @@ async fn main() -> anyhow::Result<()> {
         bus,
         alarm_db,
         historian,
+        registry,
         py_engine,
         auth,
         supervisor.clone(),

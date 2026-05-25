@@ -23,6 +23,14 @@
 //!   enough for the PoC; LTTB preserves extrema better for sparse spiky data.
 
 pub mod sqlite;
+pub mod backend;
+pub mod sqlite_backend;
+pub mod postgres_backend;
+pub mod odbc_backend;
+pub mod registry;
+
+pub use backend::{DatastoreBackend, DatastoreStats};
+pub use registry::DatastoreRegistry;
 
 use std::{
     collections::{HashMap, VecDeque},

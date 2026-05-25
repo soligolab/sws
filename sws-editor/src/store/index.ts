@@ -148,7 +148,7 @@ export type AlignMode =
 
 export type Role = "Viewer" | "Operator" | "Supervisor" | "Admin";
 export type AppMode = "edit" | "view" | "config";
-export type AppConfigTab = "tags" | "protocols" | "alarms" | "users" | "resources" | "system" | "backups";
+export type AppConfigTab = "tags" | "protocols" | "alarms" | "datastores" | "users" | "resources" | "system" | "backups";
 
 interface AppState {
   // Auth

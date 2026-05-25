@@ -6,9 +6,10 @@ pub mod tag;
 pub use alarm::{AlarmCondition, AlarmDb, AlarmDef, AlarmSeverity, AlarmState};
 pub use logbus::{LogBus, LogEvent, DEFAULT_LOG_CAPACITY};
 pub use project::{
-    CustomSymbol, CustomSymbolAttribution, FunctionDef, FunctionParam, ModbusTcpConfig, MqttConfig,
-    MqttLastWill, MqttTlsConfig, OpcUaAuth, OpcUaClientConfig, OpcUaNodeMapping, Project,
-    ProjectMeta, RegisterMapping, SourceDef, TagDef, TopicMapping, MAX_FUNCTION_CODE_BYTES,
+    CustomSymbol, CustomSymbolAttribution, DatastoreBackendConfig, DatastoreConfig, FunctionDef,
+    FunctionParam, ModbusTcpConfig, MqttConfig, MqttLastWill, MqttTlsConfig, OpcUaAuth,
+    OpcUaClientConfig, OpcUaNodeMapping, Project, ProjectMeta, RegisterMapping, SourceDef, TagDef,
+    TopicMapping, MAX_FUNCTION_CODE_BYTES,
 };
 pub use tag::{
     Tag, TagDb, TagId, TagQuality, TagState, TagUpdate, TagValue, TagWriteBus, WriteError,

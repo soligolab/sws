@@ -201,4 +201,68 @@ impl SqliteStore {
         }).await??;
         Ok(n)
     }
+
+    /// Aggregate stats: (sample_count, oldest_ms, newest_ms, size_bytes, tag_count).
+    pub async fn full_stats(&self) -> anyhow::Result<(u64, Option<u64>, Option<u64>, Option<u64>, u64)> {
+        let conn = self.conn.clone();
+        let path = self.path.clone();
+        task::spawn_blocking(move || -> anyhow::Result<(u64, Option<u64>, Option<u64>, Option<u64>, u64)> {
+            let c = conn.blocking_lock();
+            let sample_count: i64 = c
+                .query_row("SELECT COUNT(*) FROM samples", [], |r| r.get(0))
+                .optional()?.unwrap_or(0);
+            let oldest_ms: Option<i64> = c
+                .query_row("SELECT MIN(ts_ms) FROM samples", [], |r| r.get(0))
+                .optional()?.flatten();
+            let newest_ms: Option<i64> = c
+                .query_row("SELECT MAX(ts_ms) FROM samples", [], |r| r.get(0))
+                .optional()?.flatten();
+            let tag_count: i64 = c
+                .query_row("SELECT COUNT(DISTINCT tag) FROM samples", [], |r| r.get(0))
+                .optional()?.unwrap_or(0);
+            let size_bytes = std::fs::metadata(&path).ok().map(|m| m.len());
+            Ok((
+                sample_count as u64,
+                oldest_ms.map(|v| v as u64),
+                newest_ms.map(|v| v as u64),
+                size_bytes,
+                tag_count as u64,
+            ))
+        }).await?
+    }
+
+    /// Delete excess rows per tag, keeping only the `max_rows` most-recent.
+    /// Returns total rows deleted.
+    pub async fn prune_excess_rows(&self, max_rows: u64) -> anyhow::Result<u64> {
+        let conn = self.conn.clone();
+        task::spawn_blocking(move || -> anyhow::Result<u64> {
+            let c = conn.blocking_lock();
+            let mut tags: Vec<String> = Vec::new();
+            {
+                let mut stmt = c.prepare("SELECT DISTINCT tag FROM samples")?;
+                let rows = stmt.query_map([], |r| r.get::<_, String>(0))?;
+                for r in rows { tags.push(r?); }
+            }
+            let mut deleted = 0u64;
+            for tag in &tags {
+                let count: i64 = c.query_row(
+                    "SELECT COUNT(*) FROM samples WHERE tag = ?1",
+                    params![tag], |r| r.get(0),
+                ).optional()?.unwrap_or(0);
+                if count as u64 > max_rows {
+                    let cutoff: i64 = c.query_row(
+                        "SELECT ts_ms FROM samples WHERE tag = ?1 ORDER BY ts_ms DESC LIMIT 1 OFFSET ?2",
+                        params![tag, max_rows as i64],
+                        |r| r.get(0),
+                    )?;
+                    let n = c.execute(
+                        "DELETE FROM samples WHERE tag = ?1 AND ts_ms <= ?2",
+                        params![tag, cutoff],
+                    )?;
+                    deleted += n as u64;
+                }
+            }
+            Ok(deleted)
+        }).await?
+    }
 }
