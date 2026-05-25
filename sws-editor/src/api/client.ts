@@ -99,6 +99,17 @@ export class NoProjectError extends Error {
   constructor() { super("no active project"); this.name = "NoProjectError"; }
 }
 
+/** Login returned 429 Too Many Requests. `retryAfterSecs` is the value of
+ *  the Retry-After header (defaults to 60 if the header is absent). */
+export class RateLimitedError extends Error {
+  retryAfterSecs: number;
+  constructor(secs: number) {
+    super("rate limited");
+    this.name = "RateLimitedError";
+    this.retryAfterSecs = secs;
+  }
+}
+
 export type UserRole = "Viewer" | "Operator" | "Supervisor" | "Admin";
 
 export interface UserSummary {
@@ -156,6 +167,11 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
       throw new PasswordChangeRequiredError();
     }
     throw new Error(`API ${path}: 403 Forbidden${bodyText ? ` — ${bodyText}` : ""}`);
+  }
+  if (res.status === 429) {
+    const raw = res.headers.get("Retry-After");
+    const secs = raw !== null ? parseInt(raw, 10) : NaN;
+    throw new RateLimitedError(Number.isFinite(secs) ? secs : 60);
   }
   if (!res.ok) {
     let bodyText = "";

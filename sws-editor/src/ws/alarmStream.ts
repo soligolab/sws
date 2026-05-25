@@ -1,37 +1,44 @@
-// TODO: exponential back-off reconnection (shared with tagStream).
 import { useEffect } from "react";
 import { api, getAuthToken } from "@/api/client";
 import { useAppStore } from "@/store";
 import type { AlarmState } from "@/types";
 import { buildWsUrl } from "@/ws/wsUrl";
+import { ReconnectingWs } from "@/ws/reconnectingWs";
 
-let socket: WebSocket | null = null;
+let rws: ReconnectingWs | null = null;
 let currentToken: string | null = null;
 
-function getSocket(): WebSocket {
+function getStream(): ReconnectingWs {
   const token = getAuthToken();
-  if (socket && currentToken !== token) {
-    try { socket.close(); } catch { /* ignore */ }
-    socket = null;
+  if (rws && currentToken !== token) {
+    rws.destroy();
+    rws = null;
   }
-  if (!socket || socket.readyState === WebSocket.CLOSED) {
+  if (!rws) {
     currentToken = token;
-    socket = new WebSocket(buildWsUrl("/ws/alarms", "VITE_ALARMS_WS_URL"));
+    rws = new ReconnectingWs(() => buildWsUrl("/ws/alarms", "VITE_ALARMS_WS_URL"));
   }
-  return socket;
+  return rws;
 }
 
 export function useAlarmStream(): void {
-  const setAlarms    = useAppStore((s) => s.setAlarms);
-  const updateAlarm  = useAppStore((s) => s.updateAlarm);
+  const setAlarms   = useAppStore((s) => s.setAlarms);
+  const updateAlarm = useAppStore((s) => s.updateAlarm);
+  const authToken   = useAppStore((s) => s.authToken);
 
   useEffect(() => {
+    if (!authToken) {
+      rws?.destroy();
+      rws = null;
+      currentToken = null;
+      return;
+    }
+
     // Prime with a snapshot via HTTP, then subscribe to live transitions.
-    // The WS handler also sends the snapshot first, but a parallel REST call
-    // lets the UI render before the socket finishes opening.
     api.getAlarms().then(setAlarms).catch(() => {});
 
-    const ws = getSocket();
+    const stream = getStream();
+
     const onMessage = (ev: MessageEvent) => {
       try {
         const state = JSON.parse(ev.data as string) as AlarmState;
@@ -40,7 +47,8 @@ export function useAlarmStream(): void {
         // ignore malformed frames
       }
     };
-    ws.addEventListener("message", onMessage);
-    return () => ws.removeEventListener("message", onMessage);
-  }, [setAlarms, updateAlarm]);
+
+    stream.on("message", onMessage);
+    return () => stream.off("message", onMessage);
+  }, [setAlarms, updateAlarm, authToken]);
 }

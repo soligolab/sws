@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { api, RuntimeUnavailableError } from "@/api/client";
+import { useEffect, useRef, useState } from "react";
+import { api, RateLimitedError, RuntimeUnavailableError } from "@/api/client";
 import { useAppStore } from "@/store";
 
 /**
@@ -7,7 +7,7 @@ import { useAppStore } from "@/store";
  * Calls POST /api/auth/login, stores the returned token, and the App
  * unmounts/remounts to render the authenticated UI.
  *
- * PoC scope: no "remember me" toggle, no rate-limit hint, no captcha.
+ * PoC scope: no "remember me" toggle, no captcha.
  * The runtime's session map is in-memory, so a runtime restart logs
  * everyone out automatically.
  */
@@ -18,19 +18,53 @@ export function LoginScreen() {
   const [error, setError]       = useState<string | null>(null);
   const [busy, setBusy]         = useState(false);
 
+  // Lockout countdown: millisecond epoch when the lockout expires.
+  const [lockedUntilMs, setLockedUntilMs] = useState<number | null>(null);
+  const [countdown, setCountdown]         = useState(0);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    if (lockedUntilMs === null) {
+      if (timerRef.current !== null) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+      return;
+    }
+    const tick = () => {
+      const remaining = Math.ceil((lockedUntilMs - Date.now()) / 1000);
+      if (remaining <= 0) {
+        setLockedUntilMs(null);
+        setCountdown(0);
+        setError(null);
+      } else {
+        setCountdown(remaining);
+      }
+    };
+    tick();
+    timerRef.current = setInterval(tick, 1000);
+    return () => {
+      if (timerRef.current !== null) clearInterval(timerRef.current);
+    };
+  }, [lockedUntilMs]);
+
+  const isLocked = lockedUntilMs !== null && countdown > 0;
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isLocked) return;
     setError(null);
     setBusy(true);
     try {
       const res = await api.login(username, password);
       setAuth(res.token, res.username, res.role, res.must_change_password);
-    } catch (e: any) {
-      const msg = String(e?.message ?? "");
-      if (e instanceof RuntimeUnavailableError) {
+    } catch (e: unknown) {
+      if (e instanceof RateLimitedError) {
+        setLockedUntilMs(Date.now() + e.retryAfterSecs * 1000);
+        setCountdown(e.retryAfterSecs);
+        setError(`Troppi tentativi falliti. Riprova tra ${e.retryAfterSecs}s.`);
+      } else if (e instanceof RuntimeUnavailableError) {
         setError("Runtime non raggiungibile. Avvia ./scripts/dev.sh e riprova.");
-      } else if (msg.includes("429")) {
-        setError("Troppi tentativi. Riprova fra un minuto.");
       } else {
         setError("Credenziali non valide.");
       }
@@ -72,6 +106,7 @@ export function LoginScreen() {
             value={username}
             onChange={(e) => setUsername(e.target.value)}
             autoComplete="username"
+            disabled={isLocked}
             style={input}
           />
         </div>
@@ -83,25 +118,27 @@ export function LoginScreen() {
             onChange={(e) => setPassword(e.target.value)}
             autoComplete="current-password"
             autoFocus
+            disabled={isLocked}
             style={input}
           />
         </div>
         {error && (
           <div style={{ color: "#fca5a5", fontSize: 12, background: "#7f1d1d33", padding: "6px 10px", borderRadius: 4 }}>
-            {error}
+            {isLocked ? `Account bloccato. Riprova tra ${countdown}s.` : error}
           </div>
         )}
         <button
           type="submit"
-          disabled={busy || !password}
+          disabled={busy || !password || isLocked}
           style={{
-            background: busy ? "#1e3a8a" : "#3b82f6",
-            color: "#fff", border: "none", borderRadius: 4,
-            padding: "8px 12px", cursor: busy ? "default" : "pointer",
+            background: isLocked ? "#334155" : busy ? "#1e3a8a" : "#3b82f6",
+            color: isLocked ? "#64748b" : "#fff",
+            border: "none", borderRadius: 4,
+            padding: "8px 12px", cursor: (busy || isLocked) ? "default" : "pointer",
             fontSize: 14, fontWeight: 600,
           }}
         >
-          {busy ? "Accesso…" : "Accedi"}
+          {isLocked ? `Bloccato (${countdown}s)` : busy ? "Accesso…" : "Accedi"}
         </button>
         <p style={{ fontSize: 11, color: "#475569", margin: 0 }}>
           Sessioni in-memory: un riavvio del runtime ti disconnette automaticamente.

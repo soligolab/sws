@@ -1,28 +1,26 @@
-// TODO: exponential back-off reconnection.
 import { useEffect } from "react";
 import { getAuthToken } from "@/api/client";
 import { useAppStore } from "@/store";
 import type { TagQuality } from "@/types";
 import { buildWsUrl } from "@/ws/wsUrl";
+import { ReconnectingWs } from "@/ws/reconnectingWs";
 
-let socket: WebSocket | null = null;
+let rws: ReconnectingWs | null = null;
 let currentToken: string | null = null;
 
-function getSocket(): WebSocket {
+function getStream(): ReconnectingWs {
   const token = getAuthToken();
-  // Drop a socket opened under a different token (e.g. login/logout cycle).
-  if (socket && currentToken !== token) {
-    try { socket.close(); } catch { /* ignore */ }
-    socket = null;
+  if (rws && currentToken !== token) {
+    rws.destroy();
+    rws = null;
   }
-  if (!socket || socket.readyState === WebSocket.CLOSED) {
+  if (!rws) {
     currentToken = token;
-    socket = new WebSocket(buildWsUrl("/ws/tags", "VITE_RUNTIME_WS_URL"));
+    rws = new ReconnectingWs(() => buildWsUrl("/ws/tags", "VITE_RUNTIME_WS_URL"));
   }
-  return socket;
+  return rws;
 }
 
-// Wire format sent by sws-web /ws/tags
 interface TagUpdate {
   id: string;
   state: {
@@ -52,29 +50,28 @@ export function tryTagWriteWs(
   tag: string,
   value: number | string | boolean,
 ): boolean {
-  const s = socket;
-  if (!s || s.readyState !== WebSocket.OPEN) return false;
-  try {
-    s.send(JSON.stringify({ type: "write", tag, value }));
-    return true;
-  } catch {
-    return false;
-  }
+  return rws?.send(JSON.stringify({ type: "write", tag, value })) ?? false;
 }
 
 export function useTagStream(): void {
   const updateTagValue = useAppStore((s) => s.updateTagValue);
+  const authToken = useAppStore((s) => s.authToken);
 
   useEffect(() => {
-    const ws = getSocket();
+    if (!authToken) {
+      // Logged out: stop any pending reconnect.
+      rws?.destroy();
+      rws = null;
+      currentToken = null;
+      return;
+    }
+
+    const stream = getStream();
 
     const onMessage = (ev: MessageEvent) => {
       const text = typeof ev.data === "string" ? ev.data : "";
       try {
         const parsed = JSON.parse(text) as TagUpdate | WriteAck;
-        // Discriminate by shape: write acks carry { type: "ack" }, tag
-        // updates carry { id, state }. Acks aren't propagated to the
-        // store — at most we log a failure so the operator sees it.
         if ((parsed as WriteAck).type === "ack") {
           const ack = parsed as WriteAck;
           if (!ack.ok) {
@@ -96,7 +93,7 @@ export function useTagStream(): void {
       }
     };
 
-    ws.addEventListener("message", onMessage);
-    return () => ws.removeEventListener("message", onMessage);
-  }, [updateTagValue]);
+    stream.on("message", onMessage);
+    return () => stream.off("message", onMessage);
+  }, [updateTagValue, authToken]);
 }

@@ -1,19 +1,69 @@
 # SWS — Current Status
 
 > Session-to-session memory. Leggi all'inizio di ogni sessione, aggiorna alla fine.
+>
+> Ambienti di test: vedi [docs/TEST_SETUPS.md](docs/TEST_SETUPS.md) (casa, dev server, dispositivi Yocto).
 
-**Last session**: 2026-05-19 (S-32) — sws-kiosk: nuovo crate WebKitGTK (Step 1+2), --kiosk-wayland in runtime, kiosk mode in dev.sh, scripts/kiosk.sh
-**Last commit**: `2a2174b fix(auth): WelcomeScreen on startup — GET /api/project pre-auth + logout closes project`
+**Last session**: 2026-05-22 (S-38/S-39) — Traccia B kiosk chiusa. WS auto-reconnect backoff (6.4-bis) su tutti e 3 gli stream. Vite bundle splitting (920KB → 4 chunk, app chunk 81KB gzip). Lockout login sticky con Retry-After + countdown UI (8.2). cargo check + pnpm build verdi.
+**Last commit**: vedi `git log -1`
 **Current phase**: Phase 2 — sviluppo attivo PoC
 
 ---
 
 ## Handoff prossima sessione
 
-1. Installa GTK4 + WebKit sul dev box: `sudo apt install libgtk-4-dev libwebkitgtk-6.0-dev`
-2. Verifica build sws-kiosk: `cd sws-runtime && cargo build --manifest-path crates/sws-kiosk/Cargo.toml`
-3. Test kiosk locale: `./scripts/dev.sh kiosk` (apre una finestra WebKit con il runtime)
-4. Scegli un task dalla tabella "Next steps" qui sotto.
+**Tracce A (Yocto), B (kiosk white-window) e RBAC chiuse lato dev.** Resta aperta la verifica RBAC su PX30 con cache-purge (da fare in ufficio). Task principali: vedi tabella Next steps.
+
+### Verifica browser Operator su PX30 (S-37, da rifare con cache pulita)
+
+**Stato attuale**: il maintainer ha provato dopo il redeploy e ha visto ancora il bottone "Editor" come Operator. **Causa quasi certa**: cache browser. Il bundle SPA servito dal device è `index-BPl7YtNj.js` (verificato con `curl -k https://192.168.1.59:8443/index.html | grep index-`), che è quello *post-RBAC* — l'hash è stato confermato cambiare con/senza canary string a controprova. Vite usa `index.html` non-hashed (servito sempre fresco dal runtime), ma il browser può tenerlo cachato e continuare a chiamare un vecchio `index-XXXX.js`.
+
+**Cosa fare la prossima volta**:
+1. Dal PC, aprire DevTools (F12) → tasto destro sul pulsante refresh → "Svuota cache e ricarica difficile" (o `Ctrl+Shift+Del` → "Immagini e file in cache" → Cancella).
+2. Ricaricare `https://192.168.1.59:8443/`, login come Operator.
+3. Verificare matrice:
+   - Operator: solo bottone "Runtime"; no "Editor"/"Configurazione"; no side-menu.
+   - Hard-reload: resta su Runtime.
+   - DevTools console: `useAppStore.getState().setAppMode("edit")` → UI resta su Runtime.
+   - Supervisor: tutti e tre i bottoni; ConfigView senza Users/Backups.
+   - Admin: tutti e tre i bottoni; ConfigView con Users + Backups.
+
+**Se anche dopo cache-purge l'Operator vede il bottone Editor**: è un bug reale e va investigato. Indizi da raccogliere:
+- Cosa stampa `useAppStore.getState().authRole` in DevTools console subito dopo il login Operator (dovrebbe essere `"Operator"`).
+- Cosa stampa `useAppStore.getState().appMode` (dovrebbe essere `"edit"` di default — è il pinning di `effectiveMode` che lo nasconde, non lo store).
+- Screenshot dell'header così vediamo quale bottone effettivamente compare.
+
+### Traccia A — Yocto cross-compile + deploy (S-36, ✅ chiusa)
+
+Outcome:
+- `./scripts/yocto/build.sh release` su dev server → 3m40s clean, 18 MB stripped PIE aarch64.
+- `aarch64-pixsys-linux-readelf -d` NEEDED = `libpython3.12.so.1.0`, `libgcc_s.so.1`, `libm.so.6`, `libc.so.6`, `ld-linux-aarch64.so.1`. No OpenSSL, no sqlite (bundled), no GTK/WebKit.
+- Install path **`/data/user/sws/`** (non `/opt/sws`): su Pixsys Yocto `/` è read-only squashfs/ubifs, `/data/user` è la partizione scrivibile. Cambio applicato a `deploy.sh`, `sws-runtime-launch.sh`, `sws-runtime.service`, `docs/YOCTO_CROSSCOMPILE.md`.
+- Deploy `./scripts/yocto/deploy.sh pixsys@192.168.1.59` (PX30 `wp615-a-p2`) → systemd unit attivo, journal pulito, listener su 0.0.0.0:8443. Smoke test:
+  - `curl -k https://192.168.1.59:8443/health` → `ok` ✅
+  - `curl -k https://192.168.1.59:8443/` → 200 `text/html` (SPA servita) ✅
+  - `curl -k https://192.168.1.59:8443/api/system` → 401 (auth richiesta, atteso) ✅
+- `scripts/yocto/build.sh` patchato per esportare `PYO3_PYTHON=$(command -v python3)` (Debian dev server senza alias `/usr/bin/python`).
+- `docs/YOCTO_CROSSCOMPILE.md` linkata da `CLAUDE.md`.
+
+Debiti noti dal deploy (non-bloccanti, per fase prodotto):
+- `sws-runtime.service` gira `User=root` per semplicità. Quando il path diventa "prodotto" → utente non-privilegiato + `CAP_NET_BIND_SERVICE` solo se la porta scende sotto 1024.
+- Sul device manca `RestrictedPython` → script Python eseguono in modalità unsandboxed (warning evidente nel journal). Per device di test va bene; in prodotto: aggiungere `python3-restrictedpython` alla `IMAGE_INSTALL` di `meta-pixsys`.
+
+### Traccia B — Diagnostica white-window di `sws-kiosk` (S-38, ✅ CHIUSA)
+
+**Root cause** (S-38, 2026-05-22): quando Claude Code gira come snap (`SNAP=/snap/code/240`), le variabili `SNAP_*` si propagano nel subprocess `WebKitNetworkProcess` che WebKit lancia internamente. Quel processo trova `libpthread.so.0` da `/snap/core20/current/lib/` invece che dal sistema, causando un errore `GLIBC_PRIVATE` e il fallback a finestra bianca.
+
+**Fix applicato in `scripts/dev.sh`** (kiosk mode):
+1. Strip di tutte le variabili `SNAP_*` con `env -u` prima di exec-are il kiosk.
+2. Path binario corretto: `sws-runtime/crates/sws-kiosk/target/debug/sws-kiosk` (crate escluso dal workspace, non nel workspace target).
+3. Runtime in kiosk mode ora passa `--www sws-editor/dist` se la directory esiste (altrimenti warn).
+
+**Per lanciare il kiosk in sviluppo**:
+```bash
+cd sws-editor && pnpm build   # una volta, se dist/ non esiste
+./scripts/dev.sh kiosk        # avvia runtime + kiosk insieme
+```
 
 ---
 
@@ -21,11 +71,7 @@
 
 | ID | Task | Stima | Note |
 |----|------|-------|------|
-| A1 | **sws-kiosk GTK4+WebKit** — build + test su dev box | ~30 min | Crate pronto; manca `sudo apt install libgtk-4-dev libwebkitgtk-6.0-dev` sul dev box |
-| A1b | **sws-kiosk Step 3** — test su PX30 fisico (`./scripts/kiosk.sh`) | manuale | Richiede hardware + Wayland compositor (cage/weston) |
-| 6.4-bis | **WS auto-reconnect con backoff esponenziale** | ~1.5 h | TODO aperto in `sws-editor/src/ws/tagStream.ts`; oggi single-attempt |
-| — | **Vite bundle splitting** | ~1 h | Chunk principale 900 KB (273 KB gzip). `manualChunks` per codemirror / react / runtime |
-| 8.2 | **Lockout dopo N tentativi falliti** | ~1 h | Protezione brute-force login; contatore in `sws-auth` |
+| A1 | **sws-kiosk test su PX30 fisico** (`./scripts/kiosk.sh`) | manuale | Richiede hardware + Wayland compositor (cage/weston). Build OK su desktop Ubuntu (S-38). |
 | — | **OPC-UA trust list UI** | ~2 h | Oggi `trust_server_certs(true)` globale. UI per accettare/rifiutare cert per-source |
 | 8.1 | **Refresh token + httponly cookie** | ~2 h | Oggi solo Bearer + localStorage |
 | — | **OPC-UA historical reads** | ~3 h | `HistoryRead` service per backfill grafico Trend al primo open |

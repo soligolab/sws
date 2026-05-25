@@ -103,17 +103,14 @@ pub fn build(
         .route_layer(middleware::from_fn(require_admin));
 
     // Routes that need Operator+ (tag writes, alarm ACK, script exec,
-    // synoptic save). Viewers can read everything but can't change state.
+    // alarm-actionable observability). Viewers can read everything but
+    // can't change state. Synoptic writes moved to supervisor_routes
+    // below — Operators are runtime users, not project editors.
     let operator_routes = Router::new()
         .route("/api/tags/:id",        put(write_tag))
         .route("/api/alarms/:id/ack",  post(ack_alarm))
         .route("/api/script/exec",     post(exec_script))
         .route("/api/script/run/:name", post(run_function))
-        .route("/api/synoptics/:name", put(save_synoptic))
-        // Single-page YAML import — body is the raw YAML; replaces or creates
-        // the named page. Allocates a fresh id so an import never collides
-        // with an existing one.
-        .route("/api/synoptics/import", post(import_synoptic_yaml))
         // Logs — read-only but Operator+ so the audit surface stays
         // narrow (logs may include schema/secret hints).
         .route("/api/logs",            get(get_logs))
@@ -128,6 +125,16 @@ pub fn build(
         .route("/api/sources/opcua/detect-euromap", post(opcua_detect_euromap_handler))
         .route("/api/system",             get(crate::system::get_system_status))
         .route_layer(middleware::from_fn(require_operator));
+
+    // Routes that need Supervisor+ — project editing surface that
+    // Operators must not touch (synoptic page write + per-page YAML
+    // import). PUT /api/project/* schema-level routes live in
+    // admin_routes above; this group only covers what the frontend
+    // editor saves.
+    let supervisor_routes = Router::new()
+        .route("/api/synoptics/:name", put(save_synoptic))
+        .route("/api/synoptics/import", post(import_synoptic_yaml))
+        .route_layer(middleware::from_fn(require_supervisor));
 
     // Routes any authenticated user (incl. Viewer) can hit.
     let read_routes = Router::new()
@@ -154,6 +161,7 @@ pub fn build(
     // the self-service endpoints below.
     let blocking = read_routes
         .merge(operator_routes)
+        .merge(supervisor_routes)
         .merge(admin_routes)
         .route_layer(middleware::from_fn(require_password_changed));
 
@@ -320,6 +328,13 @@ async fn require_operator(req: Request, next: Next) -> Response {
     next.run(req).await
 }
 
+async fn require_supervisor(req: Request, next: Next) -> Response {
+    if let Some(code) = check_role(&req, Role::Supervisor) {
+        return code.into_response();
+    }
+    next.run(req).await
+}
+
 async fn require_admin(req: Request, next: Next) -> Response {
     if let Some(code) = check_role(&req, Role::Admin) {
         return code.into_response();
@@ -348,9 +363,12 @@ async fn login(
     Json(creds): Json<Credentials>,
 ) -> Response {
     match s.auth.login(&creds).await {
-        Ok(ok)  => Json(ok).into_response(),
+        Ok(ok) => Json(ok).into_response(),
         Err(LoginError::BadCredentials) => StatusCode::UNAUTHORIZED.into_response(),
-        Err(LoginError::RateLimited)    => StatusCode::TOO_MANY_REQUESTS.into_response(),
+        Err(LoginError::RateLimited { retry_after_secs }) => (
+            StatusCode::TOO_MANY_REQUESTS,
+            [(axum::http::header::RETRY_AFTER, retry_after_secs.to_string())],
+        ).into_response(),
     }
 }
 

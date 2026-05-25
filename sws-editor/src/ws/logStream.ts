@@ -2,30 +2,30 @@
 // from /ws/logs. Mirrors the alarmStream / tagStream singleton pattern so
 // repeated component mounts don't open extra sockets.
 //
-// Operator+ only. If the current session is a Viewer, the hook returns
-// early without opening the socket and the LogPanel renders a "no access"
-// state.
+// Operator+ only. If the current session is a Viewer the hook returns early
+// without opening the socket and the LogPanel renders a "no access" state.
 
 import { useEffect } from "react";
 import { api, getAuthToken } from "@/api/client";
 import { useAppStore } from "@/store";
 import type { LogEvent } from "@/types";
 import { buildWsUrl } from "@/ws/wsUrl";
+import { ReconnectingWs } from "@/ws/reconnectingWs";
 
-let socket: WebSocket | null = null;
+let rws: ReconnectingWs | null = null;
 let currentToken: string | null = null;
 
-function getSocket(): WebSocket {
+function getStream(): ReconnectingWs {
   const token = getAuthToken();
-  if (socket && currentToken !== token) {
-    try { socket.close(); } catch { /* ignore */ }
-    socket = null;
+  if (rws && currentToken !== token) {
+    rws.destroy();
+    rws = null;
   }
-  if (!socket || socket.readyState === WebSocket.CLOSED) {
+  if (!rws) {
     currentToken = token;
-    socket = new WebSocket(buildWsUrl("/ws/logs", "VITE_LOGS_WS_URL"));
+    rws = new ReconnectingWs(() => buildWsUrl("/ws/logs", "VITE_LOGS_WS_URL"));
   }
-  return socket;
+  return rws;
 }
 
 export function useLogStream(): void {
@@ -35,12 +35,17 @@ export function useLogStream(): void {
   const appendLog = useAppStore((s) => s.appendLog);
 
   useEffect(() => {
-    // Operator+ gate: skip both the REST seed and the WS open for Viewer.
-    if (!authToken || authRole === "Viewer" || authRole === null) return;
+    if (!authToken || authRole === "Viewer" || authRole === null) {
+      rws?.destroy();
+      rws = null;
+      currentToken = null;
+      return;
+    }
 
     api.getLogs().then(setLogs).catch(() => {});
 
-    const ws = getSocket();
+    const stream = getStream();
+
     const onMessage = (ev: MessageEvent) => {
       try {
         const event = JSON.parse(ev.data as string) as LogEvent;
@@ -49,7 +54,8 @@ export function useLogStream(): void {
         // ignore malformed frames
       }
     };
-    ws.addEventListener("message", onMessage);
-    return () => ws.removeEventListener("message", onMessage);
+
+    stream.on("message", onMessage);
+    return () => stream.off("message", onMessage);
   }, [authToken, authRole, setLogs, appendLog]);
 }

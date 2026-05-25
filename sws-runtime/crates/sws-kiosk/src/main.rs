@@ -46,12 +46,27 @@ fn main() -> glib::ExitCode {
             settings.set_enable_back_forward_navigation_gestures(false);
         }
 
+        // Diagnostic: print load failures to stderr so a "white window" is not silent.
+        webview.connect_load_failed(|_wv, _event, uri, error| {
+            eprintln!("[sws-kiosk] load-failed uri={} err={}", uri, error);
+            false
+        });
+        webview.connect_load_failed_with_tls_errors(|_wv, uri, _cert, errors| {
+            eprintln!(
+                "[sws-kiosk] load-failed-with-tls-errors uri={} errors={:?}",
+                uri, errors
+            );
+            false
+        });
+
         webview.load_uri(&url);
 
         let win = ApplicationWindow::builder()
             .application(app)
             .child(&webview)
             .title("SWS")
+            .default_width(1280)
+            .default_height(800)
             .build();
 
         win.set_decorated(false);
@@ -88,5 +103,6 @@ fn main() -> glib::ExitCode {
         win.present();
     });
 
-    app.run()
+    // Pass only argv[0] to GTK so it doesn't try to parse our own flags.
+    app.run_with_args(&[std::env::args().next().unwrap_or_default()])
 }
