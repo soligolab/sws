@@ -1,0 +1,613 @@
+id: ha_page1
+name: "Panoramica"
+background: "#0f172a"
+width: 800
+height: 620
+
+objects:
+
+# ── HEADER ────────────────────────────────────────────────────────────────────
+- id: ha1_title
+  type: text
+  x: 400
+  y: 22
+  text: "HOME ASSISTANT — PANORAMICA"
+  font_size: 18
+  font_weight: bold
+  text_anchor: middle
+  color: "#e2e8f0"
+  group_id: g_header
+  locked: true
+
+- id: ha1_sub
+  type: text
+  x: 400
+  y: 42
+  text: "Clima · Energia · Sicurezza · Luci"
+  font_size: 11
+  text_anchor: middle
+  color: "#475569"
+  group_id: g_header
+  locked: true
+
+# ── NAV ───────────────────────────────────────────────────────────────────────
+- id: ha1_nav_panoramica
+  type: navbutton
+  x: 40
+  y: 572
+  width: 220
+  height: 34
+  label: "◉ Panoramica"
+  target_page: ha_page1
+  fill: "#1e293b"
+  group_id: g_nav
+  locked: true
+
+- id: ha1_nav_controllo
+  type: navbutton
+  x: 280
+  y: 572
+  width: 220
+  height: 34
+  label: "⚙ Controllo"
+  target_page: ha_page2
+  group_id: g_nav
+  locked: true
+
+- id: ha1_nav_storico
+  type: navbutton
+  x: 520
+  y: 572
+  width: 220
+  height: 34
+  label: "📈 Storico"
+  target_page: ha_page3
+  group_id: g_nav
+  locked: true
+
+# ── SEZIONE CLIMA ─────────────────────────────────────────────────────────────
+- id: ha1_clima_lbl
+  type: text
+  x: 200
+  y: 70
+  text: "CLIMA"
+  font_size: 12
+  font_weight: bold
+  text_anchor: middle
+  color: "#64748b"
+
+# Box interno
+- id: ha1_int_box
+  type: rect
+  x: 40
+  y: 82
+  width: 160
+  height: 110
+  fill: "#1e293b"
+  stroke: "#3b82f6"
+  stroke_width: 2
+  rx: 6
+
+- id: ha1_int_lbl
+  type: text
+  x: 120
+  y: 100
+  text: "INTERNO"
+  font_size: 10
+  font_weight: bold
+  text_anchor: middle
+  color: "#3b82f6"
+
+- id: ha1_int_temp
+  type: text
+  x: 120
+  y: 134
+  tag: sala.temperatura
+  format: "{value:.1f}°C"
+  font_size: 26
+  font_weight: bold
+  text_anchor: middle
+  color: "#93c5fd"
+
+- id: ha1_int_hum
+  type: text
+  x: 120
+  y: 160
+  tag: sala.umidita
+  format: "💧 {value:.0f}%"
+  font_size: 13
+  text_anchor: middle
+  color: "#7dd3fc"
+
+- id: ha1_int_comfort_lbl
+  type: text
+  x: 120
+  y: 180
+  text: "Comfort:"
+  font_size: 10
+  text_anchor: middle
+  color: "#475569"
+
+- id: ha1_int_comfort
+  type: text
+  x: 180
+  y: 180
+  tag: sala.comfort_index
+  format: "{value:.0f}/100"
+  font_size: 10
+  text_anchor: end
+  color: "#a3e635"
+
+# Box esterno
+- id: ha1_ext_box
+  type: rect
+  x: 220
+  y: 82
+  width: 160
+  height: 110
+  fill: "#1e293b"
+  stroke: "#22d3ee"
+  stroke_width: 2
+  rx: 6
+
+- id: ha1_ext_lbl
+  type: text
+  x: 300
+  y: 100
+  text: "ESTERNO"
+  font_size: 10
+  font_weight: bold
+  text_anchor: middle
+  color: "#22d3ee"
+
+- id: ha1_ext_temp
+  type: text
+  x: 300
+  y: 134
+  tag: esterno.temperatura
+  format: "{value:.1f}°C"
+  font_size: 26
+  font_weight: bold
+  text_anchor: middle
+  color: "#67e8f9"
+
+- id: ha1_ext_hum
+  type: text
+  x: 300
+  y: 160
+  tag: esterno.umidita
+  format: "💧 {value:.0f}%"
+  font_size: 13
+  text_anchor: middle
+  color: "#a5f3fc"
+
+- id: ha1_delta_lbl
+  type: text
+  x: 300
+  y: 180
+  text: "Delta:"
+  font_size: 10
+  text_anchor: middle
+  color: "#475569"
+
+- id: ha1_delta
+  type: text
+  x: 370
+  y: 180
+  tag: clima.delta_interno_esterno
+  format: "{value:+.1f}°C"
+  font_size: 10
+  text_anchor: end
+  color: "#fbbf24"
+
+# ── SEZIONE ENERGIA ───────────────────────────────────────────────────────────
+- id: ha1_energia_lbl
+  type: text
+  x: 590
+  y: 70
+  text: "ENERGIA"
+  font_size: 12
+  font_weight: bold
+  text_anchor: middle
+  color: "#64748b"
+
+- id: ha1_en_box
+  type: rect
+  x: 430
+  y: 82
+  width: 320
+  height: 110
+  fill: "#1e293b"
+  stroke: "#f59e0b"
+  stroke_width: 2
+  rx: 6
+
+- id: ha1_pot_lbl
+  type: text
+  x: 530
+  y: 100
+  text: "POTENZA ISTANTANEA"
+  font_size: 10
+  font_weight: bold
+  text_anchor: middle
+  color: "#f59e0b"
+
+- id: ha1_pot_val
+  type: text
+  x: 530
+  y: 138
+  tag: energia.potenza_w
+  format: "{value:.0f} W"
+  font_size: 30
+  font_weight: bold
+  text_anchor: middle
+  color: "#fbbf24"
+
+- id: ha1_kwh_lbl
+  type: text
+  x: 530
+  y: 165
+  tag: energia.consumo_kwh
+  format: "Totale: {value:.2f} kWh"
+  font_size: 11
+  text_anchor: middle
+  color: "#92400e"
+
+- id: ha1_costo_lbl
+  type: text
+  x: 530
+  y: 180
+  tag: energia.costo_ora_eur
+  format: "Costo ora: {value:.4f} €"
+  font_size: 10
+  text_anchor: middle
+  color: "#78716c"
+
+- id: ha1_en_gauge
+  type: gauge
+  x: 680
+  y: 82
+  width: 70
+  height: 110
+  tag: energia.potenza_w
+  min: 0
+  max: 5000
+  unit: "W"
+  warn_high: 3500
+  alarm_high: 4500
+
+# ── SEZIONE SICUREZZA ─────────────────────────────────────────────────────────
+- id: ha1_sec_lbl
+  type: text
+  x: 200
+  y: 220
+  text: "SICUREZZA"
+  font_size: 12
+  font_weight: bold
+  text_anchor: middle
+  color: "#64748b"
+
+- id: ha1_sec_box
+  type: rect
+  x: 40
+  y: 232
+  width: 340
+  height: 130
+  fill: "#1e293b"
+  stroke: "#334155"
+  stroke_width: 1
+  rx: 6
+
+# Porta principale
+- id: ha1_porta_lbl
+  type: text
+  x: 60
+  y: 258
+  text: "Porta principale"
+  font_size: 12
+  color: "#94a3b8"
+
+- id: ha1_porta_led
+  type: led
+  x: 220
+  y: 250
+  width: 16
+  height: 16
+  tag: porta.principale
+  on_color: "#ef4444"
+  off_color: "#22c55e"
+
+- id: ha1_porta_stato
+  type: text
+  x: 248
+  y: 262
+  tag: porta.principale
+  format: "{value}"
+  font_size: 11
+  color: "#64748b"
+
+# Movimento ingresso
+- id: ha1_mov_lbl
+  type: text
+  x: 60
+  y: 288
+  text: "Movimento ingresso"
+  font_size: 12
+  color: "#94a3b8"
+
+- id: ha1_mov_led
+  type: led
+  x: 220
+  y: 280
+  width: 16
+  height: 16
+  tag: ingresso.movimento
+  on_color: "#f59e0b"
+  off_color: "#334155"
+
+# Garage
+- id: ha1_garage_lbl
+  type: text
+  x: 60
+  y: 318
+  text: "Garage"
+  font_size: 12
+  color: "#94a3b8"
+
+- id: ha1_garage_led
+  type: led
+  x: 220
+  y: 310
+  width: 16
+  height: 16
+  tag: garage.aperto
+  on_color: "#ef4444"
+  off_color: "#22c55e"
+
+- id: ha1_garage_stato
+  type: text
+  x: 248
+  y: 322
+  tag: garage.aperto
+  format: "{value}"
+  font_size: 11
+  color: "#64748b"
+
+# Modalità notturna
+- id: ha1_notte_lbl
+  type: text
+  x: 60
+  y: 348
+  text: "Modalità notturna"
+  font_size: 12
+  color: "#94a3b8"
+
+- id: ha1_notte_led
+  type: led
+  x: 220
+  y: 340
+  width: 16
+  height: 16
+  tag: modalita.notturna
+  on_color: "#8b5cf6"
+  off_color: "#334155"
+
+# ── SEZIONE LUCI ─────────────────────────────────────────────────────────────
+- id: ha1_luci_lbl
+  type: text
+  x: 590
+  y: 220
+  text: "LUCI"
+  font_size: 12
+  font_weight: bold
+  text_anchor: middle
+  color: "#64748b"
+
+- id: ha1_luci_box
+  type: rect
+  x: 430
+  y: 232
+  width: 320
+  height: 130
+  fill: "#1e293b"
+  stroke: "#334155"
+  stroke_width: 1
+  rx: 6
+
+- id: ha1_l_sog_lbl
+  type: text
+  x: 450
+  y: 258
+  text: "Soggiorno"
+  font_size: 12
+  color: "#94a3b8"
+
+- id: ha1_l_sog_led
+  type: led
+  x: 610
+  y: 250
+  width: 16
+  height: 16
+  tag: luce.soggiorno
+  on_color: "#fbbf24"
+  off_color: "#334155"
+
+- id: ha1_l_cuc_lbl
+  type: text
+  x: 450
+  y: 288
+  text: "Cucina"
+  font_size: 12
+  color: "#94a3b8"
+
+- id: ha1_l_cuc_led
+  type: led
+  x: 610
+  y: 280
+  width: 16
+  height: 16
+  tag: luce.cucina
+  on_color: "#fbbf24"
+  off_color: "#334155"
+
+- id: ha1_l_est_lbl
+  type: text
+  x: 450
+  y: 318
+  text: "Esterna"
+  font_size: 12
+  color: "#94a3b8"
+
+- id: ha1_l_est_led
+  type: led
+  x: 610
+  y: 310
+  width: 16
+  height: 16
+  tag: luce.esterno
+  on_color: "#fbbf24"
+  off_color: "#334155"
+
+- id: ha1_l_vent_lbl
+  type: text
+  x: 450
+  y: 348
+  text: "Ventilatore"
+  font_size: 12
+  color: "#94a3b8"
+
+- id: ha1_l_vent_led
+  type: led
+  x: 610
+  y: 340
+  width: 16
+  height: 16
+  tag: ventilatore.camera
+  on_color: "#22d3ee"
+  off_color: "#334155"
+
+# ── SEZIONE RISCALDAMENTO ─────────────────────────────────────────────────────
+- id: ha1_risc_lbl
+  type: text
+  x: 200
+  y: 390
+  text: "RISCALDAMENTO"
+  font_size: 12
+  font_weight: bold
+  text_anchor: middle
+  color: "#64748b"
+
+- id: ha1_risc_box
+  type: rect
+  x: 40
+  y: 402
+  width: 340
+  height: 120
+  fill: "#1e293b"
+  stroke: "#dc2626"
+  stroke_width: 1
+  rx: 6
+
+- id: ha1_risc_curr_lbl
+  type: text
+  x: 60
+  y: 428
+  text: "Temperatura attuale"
+  font_size: 11
+  color: "#94a3b8"
+
+- id: ha1_risc_curr
+  type: text
+  x: 360
+  y: 428
+  tag: clima.temperatura_attuale
+  format: "{value:.1f}°C"
+  font_size: 14
+  font_weight: bold
+  text_anchor: end
+  color: "#f87171"
+
+- id: ha1_risc_set_lbl
+  type: text
+  x: 60
+  y: 458
+  text: "Setpoint corrente"
+  font_size: 11
+  color: "#94a3b8"
+
+- id: ha1_risc_set
+  type: text
+  x: 360
+  y: 458
+  tag: clima.setpoint
+  format: "{value:.1f}°C"
+  font_size: 14
+  font_weight: bold
+  text_anchor: end
+  color: "#fb923c"
+
+- id: ha1_risc_prog
+  type: progress_bar
+  x: 60
+  y: 472
+  width: 290
+  height: 16
+  tag: clima.temperatura_attuale
+  min: 10
+  max: 30
+  fill: "#dc2626"
+  background: "#374151"
+
+# ── SOLE ──────────────────────────────────────────────────────────────────────
+- id: ha1_sole_box
+  type: rect
+  x: 430
+  y: 390
+  width: 320
+  height: 120
+  fill: "#1e293b"
+  stroke: "#f59e0b"
+  stroke_width: 1
+  rx: 6
+
+- id: ha1_sole_lbl
+  type: text
+  x: 590
+  y: 410
+  text: "☀ SOLE"
+  font_size: 12
+  font_weight: bold
+  text_anchor: middle
+  color: "#f59e0b"
+
+- id: ha1_sole_el
+  type: text
+  x: 590
+  y: 448
+  tag: sole.elevazione
+  format: "{value:.1f}°"
+  font_size: 30
+  font_weight: bold
+  text_anchor: middle
+  color: "#fbbf24"
+
+- id: ha1_sole_el_lbl
+  type: text
+  x: 590
+  y: 468
+  text: "elevazione"
+  font_size: 10
+  text_anchor: middle
+  color: "#78716c"
+
+- id: ha1_sole_prog
+  type: progress_bar
+  x: 450
+  y: 480
+  width: 280
+  height: 12
+  tag: sole.elevazione
+  min: -30
+  max: 70
+  fill: "#f59e0b"
+  background: "#1c1917"

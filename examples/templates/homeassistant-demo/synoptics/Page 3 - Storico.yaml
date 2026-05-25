@@ -1,0 +1,413 @@
+id: ha_page3
+name: "Storico"
+background: "#0f172a"
+width: 800
+height: 620
+
+objects:
+
+# ── HEADER ────────────────────────────────────────────────────────────────────
+- id: ha3_title
+  type: text
+  x: 400
+  y: 22
+  text: "HOME ASSISTANT — STORICO"
+  font_size: 18
+  font_weight: bold
+  text_anchor: middle
+  color: "#e2e8f0"
+  group_id: g_header
+  locked: true
+
+- id: ha3_sub
+  type: text
+  x: 400
+  y: 42
+  text: "Tag derivati · Trend · Statistiche"
+  font_size: 11
+  text_anchor: middle
+  color: "#475569"
+  group_id: g_header
+  locked: true
+
+# ── NAV ───────────────────────────────────────────────────────────────────────
+- id: ha3_nav_panoramica
+  type: navbutton
+  x: 40
+  y: 572
+  width: 220
+  height: 34
+  label: "◎ Panoramica"
+  target_page: ha_page1
+  group_id: g_nav
+  locked: true
+
+- id: ha3_nav_controllo
+  type: navbutton
+  x: 280
+  y: 572
+  width: 220
+  height: 34
+  label: "⚙ Controllo"
+  target_page: ha_page2
+  group_id: g_nav
+  locked: true
+
+- id: ha3_nav_storico
+  type: navbutton
+  x: 520
+  y: 572
+  width: 220
+  height: 34
+  label: "◉ Storico"
+  target_page: ha_page3
+  fill: "#1e293b"
+  group_id: g_nav
+  locked: true
+
+# ── TAG DERIVATI — RIEPILOGO ──────────────────────────────────────────────────
+- id: ha3_deriv_hdr
+  type: text
+  x: 400
+  y: 70
+  text: "TAG DERIVATI (calcolati in SWS da espressioni Python)"
+  font_size: 12
+  font_weight: bold
+  text_anchor: middle
+  color: "#a78bfa"
+
+- id: ha3_deriv_box
+  type: rect
+  x: 40
+  y: 82
+  width: 710
+  height: 100
+  fill: "#1e293b"
+  stroke: "#7c3aed"
+  stroke_width: 1
+  rx: 6
+
+# Costo orario
+- id: ha3_costo_lbl
+  type: text
+  x: 60
+  y: 108
+  text: "Costo energia (€/h):"
+  font_size: 12
+  color: "#94a3b8"
+
+- id: ha3_costo_val
+  type: text
+  x: 260
+  y: 108
+  tag: energia.costo_ora_eur
+  format: "{value:.4f} €"
+  font_size: 14
+  font_weight: bold
+  color: "#a3e635"
+
+- id: ha3_costo_expr
+  type: text
+  x: 420
+  y: 108
+  text: "potenza_W × 0.25 / 1000"
+  font_size: 10
+  color: "#334155"
+
+# Delta termico
+- id: ha3_delta_lbl
+  type: text
+  x: 60
+  y: 134
+  text: "Delta Int–Ext (°C):"
+  font_size: 12
+  color: "#94a3b8"
+
+- id: ha3_delta_val
+  type: text
+  x: 260
+  y: 134
+  tag: clima.delta_interno_esterno
+  format: "{value:+.1f}°C"
+  font_size: 14
+  font_weight: bold
+  color: "#38bdf8"
+
+- id: ha3_delta_expr
+  type: text
+  x: 420
+  y: 134
+  text: "sala.temperatura − esterno.temperatura"
+  font_size: 10
+  color: "#334155"
+
+# Indice comfort
+- id: ha3_comf_lbl
+  type: text
+  x: 60
+  y: 162
+  text: "Indice comfort (0–100):"
+  font_size: 12
+  color: "#94a3b8"
+
+- id: ha3_comf_val
+  type: text
+  x: 260
+  y: 162
+  tag: sala.comfort_index
+  format: "{value:.0f} / 100"
+  font_size: 14
+  font_weight: bold
+  color: "#4ade80"
+
+- id: ha3_comf_expr
+  type: text
+  x: 420
+  y: 162
+  text: "T ideale 22°C + H ideale 50% → score 0–100"
+  font_size: 10
+  color: "#334155"
+
+# ── VALORI LIVE ───────────────────────────────────────────────────────────────
+- id: ha3_live_hdr
+  type: text
+  x: 400
+  y: 204
+  text: "VALORI LIVE — TAG CON HISTORY ABILITATA"
+  font_size: 12
+  font_weight: bold
+  text_anchor: middle
+  color: "#64748b"
+
+# Temperatura interna
+- id: ha3_ti_box
+  type: rect
+  x: 40
+  y: 216
+  width: 220
+  height: 120
+  fill: "#1e293b"
+  stroke: "#3b82f6"
+  stroke_width: 1
+  rx: 6
+
+- id: ha3_ti_lbl
+  type: text
+  x: 150
+  y: 234
+  text: "Temp. Soggiorno"
+  font_size: 11
+  font_weight: bold
+  text_anchor: middle
+  color: "#3b82f6"
+
+- id: ha3_ti_val
+  type: text
+  x: 150
+  y: 268
+  tag: sala.temperatura
+  format: "{value:.1f}°C"
+  font_size: 28
+  font_weight: bold
+  text_anchor: middle
+  color: "#93c5fd"
+
+- id: ha3_ti_prog
+  type: progress_bar
+  x: 55
+  y: 292
+  width: 190
+  height: 14
+  tag: sala.temperatura
+  min: 10
+  max: 35
+  fill: "#3b82f6"
+  background: "#1e3a5f"
+
+- id: ha3_ti_hint
+  type: text
+  x: 150
+  y: 322
+  text: "history: true → persiste su SQLite"
+  font_size: 9
+  text_anchor: middle
+  color: "#334155"
+
+# Temperatura esterna
+- id: ha3_te_box
+  type: rect
+  x: 290
+  y: 216
+  width: 220
+  height: 120
+  fill: "#1e293b"
+  stroke: "#22d3ee"
+  stroke_width: 1
+  rx: 6
+
+- id: ha3_te_lbl
+  type: text
+  x: 400
+  y: 234
+  text: "Temp. Esterna"
+  font_size: 11
+  font_weight: bold
+  text_anchor: middle
+  color: "#22d3ee"
+
+- id: ha3_te_val
+  type: text
+  x: 400
+  y: 268
+  tag: esterno.temperatura
+  format: "{value:.1f}°C"
+  font_size: 28
+  font_weight: bold
+  text_anchor: middle
+  color: "#67e8f9"
+
+- id: ha3_te_prog
+  type: progress_bar
+  x: 305
+  y: 292
+  width: 190
+  height: 14
+  tag: esterno.temperatura
+  min: -10
+  max: 40
+  fill: "#22d3ee"
+  background: "#0f2f35"
+
+- id: ha3_te_hint
+  type: text
+  x: 400
+  y: 322
+  text: "history: true → persiste su SQLite"
+  font_size: 9
+  text_anchor: middle
+  color: "#334155"
+
+# Energia
+- id: ha3_en_box
+  type: rect
+  x: 540
+  y: 216
+  width: 220
+  height: 120
+  fill: "#1e293b"
+  stroke: "#f59e0b"
+  stroke_width: 1
+  rx: 6
+
+- id: ha3_en_lbl
+  type: text
+  x: 650
+  y: 234
+  text: "Potenza"
+  font_size: 11
+  font_weight: bold
+  text_anchor: middle
+  color: "#f59e0b"
+
+- id: ha3_en_val
+  type: text
+  x: 650
+  y: 268
+  tag: energia.potenza_w
+  format: "{value:.0f} W"
+  font_size: 26
+  font_weight: bold
+  text_anchor: middle
+  color: "#fbbf24"
+
+- id: ha3_en_prog
+  type: progress_bar
+  x: 555
+  y: 292
+  width: 190
+  height: 14
+  tag: energia.potenza_w
+  min: 0
+  max: 5000
+  fill: "#f59e0b"
+  background: "#2d1f00"
+
+- id: ha3_en_hint
+  type: text
+  x: 650
+  y: 322
+  text: "history: true → persiste su SQLite"
+  font_size: 9
+  text_anchor: middle
+  color: "#334155"
+
+# ── INFO STORICO ──────────────────────────────────────────────────────────────
+- id: ha3_info_box
+  type: rect
+  x: 40
+  y: 360
+  width: 710
+  height: 170
+  fill: "#1e293b"
+  stroke: "#334155"
+  stroke_width: 1
+  rx: 6
+
+- id: ha3_info_hdr
+  type: text
+  x: 400
+  y: 382
+  text: "COME USARE LO STORICO"
+  font_size: 12
+  font_weight: bold
+  text_anchor: middle
+  color: "#64748b"
+
+- id: ha3_info1
+  type: text
+  x: 60
+  y: 406
+  text: "▶  I tag con history: true vengono campionati ogni volta che cambiano e salvati nel DB SQLite di SWS."
+  font_size: 11
+  color: "#94a3b8"
+
+- id: ha3_info2
+  type: text
+  x: 60
+  y: 426
+  text: "▶  In Runtime → pannello Log/Trend puoi visualizzare l'andamento temporale di sala.temperatura, esterno.temperatura, energia.potenza_w."
+  font_size: 11
+  color: "#94a3b8"
+
+- id: ha3_info3
+  type: text
+  x: 60
+  y: 446
+  text: "▶  API REST: GET /api/history/{tag}?from_ms=&to_ms=  — oppure ⬇ CSV dal pannello Trend per export in Excel."
+  font_size: 11
+  color: "#94a3b8"
+
+- id: ha3_info4
+  type: text
+  x: 60
+  y: 466
+  text: "▶  GET /api/history/{tag}/stats?from_ms=&to_ms= restituisce min/max/avg/σ sulla finestra temporale scelta."
+  font_size: 11
+  color: "#94a3b8"
+
+- id: ha3_info5
+  type: text
+  x: 60
+  y: 496
+  text: "Tag derivati (expression): ricalcolati ad ogni aggiornamento di qualsiasi tag — non richiedono history per funzionare."
+  font_size: 11
+  color: "#7c3aed"
+
+- id: ha3_info6
+  type: text
+  x: 60
+  y: 516
+  text: "  Esempio: energia.costo_ora_eur  =  tags['energia.potenza_w'] * 0.25 / 1000"
+  font_size: 11
+  font_weight: bold
+  color: "#6d28d9"

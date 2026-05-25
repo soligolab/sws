@@ -156,6 +156,44 @@ pub enum SourceDef {
     Mqtt(MqttConfig),
     #[serde(rename = "opcua_client")]
     OpcUaClient(OpcUaClientConfig),
+    #[serde(rename = "homeassistant")]
+    HomeAssistant(HomeAssistantConfig),
+}
+
+/// Home Assistant integration source.
+/// Connects via WebSocket + REST to a local or remote HA instance.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HomeAssistantConfig {
+    pub id: String,
+    /// Base URL of the HA instance, e.g. `http://homeassistant.local:8123`.
+    pub url: String,
+    /// Long-lived access token (plain text). Use `token_env` in production.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub token: Option<String>,
+    /// Environment variable to read the access token from at runtime.
+    /// Wins over `token` when both are set.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub token_env: Option<String>,
+    pub entities: Vec<EntityMapping>,
+}
+
+/// Maps one HA entity to a SWS tag.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EntityMapping {
+    /// SWS tag id to write values into.
+    pub tag: String,
+    /// HA entity id, e.g. `sensor.living_room_temperature`.
+    pub entity_id: String,
+    /// When set, read this attribute instead of the entity's main `state`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub attribute: Option<String>,
+    /// HA service domain for write-back (e.g. `light`, `switch`, `input_number`).
+    /// When absent the tag is read-only.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub write_domain: Option<String>,
+    /// HA service name for write-back (e.g. `turn_on`, `set_value`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub write_service: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -464,12 +502,33 @@ pub struct CustomSymbol {
     pub attribution: CustomSymbolAttribution,
 }
 
+fn deserialize_sources_tolerant<'de, D>(d: D) -> Result<Vec<SourceDef>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    use serde::Deserialize as _;
+    let raw: Vec<serde_yaml::Value> = Vec::deserialize(d)?;
+    let mut out = Vec::with_capacity(raw.len());
+    for val in raw {
+        let kind = val.get("kind").and_then(|k| k.as_str()).unwrap_or("?").to_string();
+        match serde_yaml::from_value::<SourceDef>(val) {
+            Ok(src) => out.push(src),
+            Err(e) => tracing::warn!(%kind, "skipping unrecognized source kind: {e}"),
+        }
+    }
+    Ok(out)
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Project {
     pub meta: ProjectMeta,
     #[serde(default)]
     pub tags: Vec<TagDef>,
-    #[serde(default)]
+    /// Tolerant deserialization: unknown `kind` values are skipped with a
+    /// warning so a project.yaml written by a newer binary still loads on
+    /// an older one (forward-compat). New source kinds added in future
+    /// releases won't brick existing installations.
+    #[serde(default, deserialize_with = "deserialize_sources_tolerant")]
     pub sources: Vec<SourceDef>,
     #[serde(default)]
     pub alarms: Vec<AlarmDef>,

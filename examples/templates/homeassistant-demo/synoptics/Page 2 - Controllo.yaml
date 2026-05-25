@@ -1,0 +1,528 @@
+id: ha_page2
+name: "Controllo"
+background: "#0f172a"
+width: 800
+height: 620
+
+objects:
+
+# ── HEADER ────────────────────────────────────────────────────────────────────
+- id: ha2_title
+  type: text
+  x: 400
+  y: 22
+  text: "HOME ASSISTANT — CONTROLLO"
+  font_size: 18
+  font_weight: bold
+  text_anchor: middle
+  color: "#e2e8f0"
+  group_id: g_header
+  locked: true
+
+- id: ha2_sub
+  type: text
+  x: 400
+  y: 42
+  text: "Attuatori con write-back diretto su HomeAssistant"
+  font_size: 11
+  text_anchor: middle
+  color: "#475569"
+  group_id: g_header
+  locked: true
+
+# ── NAV ───────────────────────────────────────────────────────────────────────
+- id: ha2_nav_panoramica
+  type: navbutton
+  x: 40
+  y: 572
+  width: 220
+  height: 34
+  label: "◎ Panoramica"
+  target_page: ha_page1
+  group_id: g_nav
+  locked: true
+
+- id: ha2_nav_controllo
+  type: navbutton
+  x: 280
+  y: 572
+  width: 220
+  height: 34
+  label: "◉ Controllo"
+  target_page: ha_page2
+  fill: "#1e293b"
+  group_id: g_nav
+  locked: true
+
+- id: ha2_nav_storico
+  type: navbutton
+  x: 520
+  y: 572
+  width: 220
+  height: 34
+  label: "📈 Storico"
+  target_page: ha_page3
+  group_id: g_nav
+  locked: true
+
+# ── LUCI — TOGGLE BUTTON ─────────────────────────────────────────────────────
+# Scrivere true al tag → HA chiama light.turn_on (false → turn_off automatico)
+
+- id: ha2_luci_hdr
+  type: text
+  x: 200
+  y: 70
+  text: "LUCI"
+  font_size: 13
+  font_weight: bold
+  text_anchor: middle
+  color: "#f59e0b"
+
+- id: ha2_luci_box
+  type: rect
+  x: 40
+  y: 82
+  width: 320
+  height: 200
+  fill: "#1e293b"
+  stroke: "#f59e0b"
+  stroke_width: 1
+  rx: 6
+
+# Luce soggiorno
+- id: ha2_sog_lbl
+  type: text
+  x: 60
+  y: 112
+  text: "Soggiorno"
+  font_size: 13
+  color: "#e2e8f0"
+
+- id: ha2_sog_led
+  type: led
+  x: 200
+  y: 103
+  width: 18
+  height: 18
+  tag: luce.soggiorno
+  on_color: "#fbbf24"
+  off_color: "#374151"
+
+- id: ha2_sog_on
+  type: button
+  x: 232
+  y: 98
+  width: 54
+  height: 28
+  label: "ON"
+  fill: "#d97706"
+  tag: luce.soggiorno
+  write_value: true
+
+- id: ha2_sog_off
+  type: button
+  x: 294
+  y: 98
+  width: 54
+  height: 28
+  label: "OFF"
+  fill: "#374151"
+  tag: luce.soggiorno
+  write_value: false
+
+# Luce cucina
+- id: ha2_cuc_lbl
+  type: text
+  x: 60
+  y: 152
+  text: "Cucina"
+  font_size: 13
+  color: "#e2e8f0"
+
+- id: ha2_cuc_led
+  type: led
+  x: 200
+  y: 143
+  width: 18
+  height: 18
+  tag: luce.cucina
+  on_color: "#fbbf24"
+  off_color: "#374151"
+
+- id: ha2_cuc_on
+  type: button
+  x: 232
+  y: 138
+  width: 54
+  height: 28
+  label: "ON"
+  fill: "#d97706"
+  tag: luce.cucina
+  write_value: true
+
+- id: ha2_cuc_off
+  type: button
+  x: 294
+  y: 138
+  width: 54
+  height: 28
+  label: "OFF"
+  fill: "#374151"
+  tag: luce.cucina
+  write_value: false
+
+# Luce esterna
+- id: ha2_est_lbl
+  type: text
+  x: 60
+  y: 192
+  text: "Esterna"
+  font_size: 13
+  color: "#e2e8f0"
+
+- id: ha2_est_led
+  type: led
+  x: 200
+  y: 183
+  width: 18
+  height: 18
+  tag: luce.esterno
+  on_color: "#fbbf24"
+  off_color: "#374151"
+
+- id: ha2_est_on
+  type: button
+  x: 232
+  y: 178
+  width: 54
+  height: 28
+  label: "ON"
+  fill: "#d97706"
+  tag: luce.esterno
+  write_value: true
+
+- id: ha2_est_off
+  type: button
+  x: 294
+  y: 178
+  width: 54
+  height: 28
+  label: "OFF"
+  fill: "#374151"
+  tag: luce.esterno
+  write_value: false
+
+# Ventilatore
+- id: ha2_vent_lbl
+  type: text
+  x: 60
+  y: 232
+  text: "Ventilatore"
+  font_size: 13
+  color: "#e2e8f0"
+
+- id: ha2_vent_led
+  type: led
+  x: 200
+  y: 223
+  width: 18
+  height: 18
+  tag: ventilatore.camera
+  on_color: "#22d3ee"
+  off_color: "#374151"
+
+- id: ha2_vent_on
+  type: button
+  x: 232
+  y: 218
+  width: 54
+  height: 28
+  label: "ON"
+  fill: "#0891b2"
+  tag: ventilatore.camera
+  write_value: true
+
+- id: ha2_vent_off
+  type: button
+  x: 294
+  y: 218
+  width: 54
+  height: 28
+  label: "OFF"
+  fill: "#374151"
+  tag: ventilatore.camera
+  write_value: false
+
+# ── RISCALDAMENTO — SLIDER input_number ──────────────────────────────────────
+# Slider scrive il valore a riscaldamento.setpoint → HA chiama input_number.set_value
+
+- id: ha2_risc_hdr
+  type: text
+  x: 590
+  y: 70
+  text: "RISCALDAMENTO"
+  font_size: 13
+  font_weight: bold
+  text_anchor: middle
+  color: "#f87171"
+
+- id: ha2_risc_box
+  type: rect
+  x: 430
+  y: 82
+  width: 320
+  height: 200
+  fill: "#1e293b"
+  stroke: "#dc2626"
+  stroke_width: 1
+  rx: 6
+
+- id: ha2_risc_curr_lbl
+  type: text
+  x: 450
+  y: 110
+  text: "Temperatura attuale"
+  font_size: 11
+  color: "#94a3b8"
+
+- id: ha2_risc_curr
+  type: text
+  x: 730
+  y: 110
+  tag: clima.temperatura_attuale
+  format: "{value:.1f}°C"
+  font_size: 15
+  font_weight: bold
+  text_anchor: end
+  color: "#f87171"
+
+- id: ha2_risc_sp_lbl
+  type: text
+  x: 450
+  y: 140
+  text: "Setpoint HA"
+  font_size: 11
+  color: "#94a3b8"
+
+- id: ha2_risc_sp
+  type: text
+  x: 730
+  y: 140
+  tag: clima.setpoint
+  format: "{value:.1f}°C"
+  font_size: 15
+  font_weight: bold
+  text_anchor: end
+  color: "#fb923c"
+
+- id: ha2_risc_slider_lbl
+  type: text
+  x: 450
+  y: 168
+  text: "Nuovo setpoint:"
+  font_size: 11
+  color: "#94a3b8"
+
+- id: ha2_risc_new
+  type: text
+  x: 730
+  y: 168
+  tag: riscaldamento.setpoint
+  format: "{value:.1f}°C"
+  font_size: 13
+  font_weight: bold
+  text_anchor: end
+  color: "#fbbf24"
+
+- id: ha2_risc_slider
+  type: slider
+  x: 450
+  y: 178
+  width: 280
+  height: 28
+  tag: riscaldamento.setpoint
+  min: 15
+  max: 30
+  step: 0.5
+  fill: "#dc2626"
+
+- id: ha2_risc_hint
+  type: text
+  x: 590
+  y: 225
+  text: "Scrivere: HA chiama input_number.set_value"
+  font_size: 9
+  text_anchor: middle
+  color: "#475569"
+
+# ── IRRIGAZIONE ───────────────────────────────────────────────────────────────
+- id: ha2_irr_hdr
+  type: text
+  x: 200
+  y: 310
+  text: "IRRIGAZIONE"
+  font_size: 13
+  font_weight: bold
+  text_anchor: middle
+  color: "#22d3ee"
+
+- id: ha2_irr_box
+  type: rect
+  x: 40
+  y: 322
+  width: 320
+  height: 160
+  fill: "#1e293b"
+  stroke: "#0891b2"
+  stroke_width: 1
+  rx: 6
+
+- id: ha2_irr_dur_lbl
+  type: text
+  x: 60
+  y: 352
+  text: "Durata (minuti):"
+  font_size: 12
+  color: "#94a3b8"
+
+- id: ha2_irr_dur
+  type: text
+  x: 340
+  y: 352
+  tag: irrigazione.durata_min
+  format: "{value:.0f} min"
+  font_size: 14
+  font_weight: bold
+  text_anchor: end
+  color: "#67e8f9"
+
+- id: ha2_irr_slider
+  type: slider
+  x: 60
+  y: 362
+  width: 280
+  height: 26
+  tag: irrigazione.durata_min
+  min: 1
+  max: 60
+  step: 1
+  fill: "#0891b2"
+
+- id: ha2_irr_prog_lbl
+  type: text
+  x: 60
+  y: 415
+  text: "Durata impostata:"
+  font_size: 10
+  color: "#475569"
+
+- id: ha2_irr_prog
+  type: progress_bar
+  x: 60
+  y: 425
+  width: 280
+  height: 14
+  tag: irrigazione.durata_min
+  min: 0
+  max: 60
+  fill: "#0891b2"
+  background: "#1c2e34"
+
+# ── MODALITÀ NOTTURNA ─────────────────────────────────────────────────────────
+- id: ha2_notte_hdr
+  type: text
+  x: 590
+  y: 310
+  text: "MODALITÀ"
+  font_size: 13
+  font_weight: bold
+  text_anchor: middle
+  color: "#8b5cf6"
+
+- id: ha2_notte_box
+  type: rect
+  x: 430
+  y: 322
+  width: 320
+  height: 160
+  fill: "#1e293b"
+  stroke: "#7c3aed"
+  stroke_width: 1
+  rx: 6
+
+- id: ha2_notte_lbl
+  type: text
+  x: 450
+  y: 358
+  text: "Modalità notturna"
+  font_size: 13
+  color: "#e2e8f0"
+
+- id: ha2_notte_led
+  type: led
+  x: 680
+  y: 348
+  width: 20
+  height: 20
+  tag: modalita.notturna
+  on_color: "#8b5cf6"
+  off_color: "#374151"
+
+- id: ha2_notte_on
+  type: button
+  x: 450
+  y: 378
+  width: 110
+  height: 34
+  label: "🌙 Attiva"
+  fill: "#7c3aed"
+  tag: modalita.notturna
+  write_value: true
+
+- id: ha2_notte_off
+  type: button
+  x: 580
+  y: 378
+  width: 110
+  height: 34
+  label: "☀ Disattiva"
+  fill: "#374151"
+  tag: modalita.notturna
+  write_value: false
+
+- id: ha2_notte_hint
+  type: text
+  x: 590
+  y: 435
+  text: "Scrive su input_boolean.night_mode in HA"
+  font_size: 9
+  text_anchor: middle
+  color: "#475569"
+
+# ── NOTE WRITE-BACK ───────────────────────────────────────────────────────────
+- id: ha2_note_box
+  type: rect
+  x: 40
+  y: 508
+  width: 710
+  height: 48
+  fill: "#0f172a"
+  stroke: "#1e293b"
+  stroke_width: 1
+  rx: 4
+
+- id: ha2_note
+  type: text
+  x: 60
+  y: 530
+  text: "Write-back: ogni modifica qui viene inviata a HomeAssistant via WebSocket (call_service). Riconnessione automatica se HA non è raggiungibile."
+  font_size: 10
+  color: "#475569"
+
+- id: ha2_note2
+  type: text
+  x: 60
+  y: 548
+  text: "Bool → turn_on / turn_off  •  Float/Int → service_data: {value: N}  •  Latenza tipica: < 200 ms su rete locale"
+  font_size: 10
+  color: "#334155"

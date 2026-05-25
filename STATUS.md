@@ -4,8 +4,9 @@
 >
 > Ambienti di test: vedi [docs/TEST_SETUPS.md](docs/TEST_SETUPS.md) (casa, dev server, dispositivi Yocto).
 
-**Last session**: 2026-05-23 (S-49) — Feature #10 Rotazione automatica pagine kiosk (SynopticPage.auto_rotate_skip, store autoRotate/autoRotateIntervalS con localStorage, useEffect+setInterval in RuntimeView, toolbar ▶/⏹, PageProps checkbox). Feature #12 IP allowlist per login (SWS_IP_ALLOWLIST env, CIDR check IPv4/IPv6 senza deps, Extension<SocketAddr> dal accept loop). Feature #3 Alarm shelving (ShelvedAlarm + shelve/unshelve/shelved_snapshot in AlarmDb, auto-scadenza, 3 rotte API, AlarmPanel con 🔧 form inline + sezione Soppressi + badge ⏸). cargo check + pnpm build verdi.
-**Previous session**: 2026-05-22 (S-48) — Feature #1 Tag calcolati/derivati: `expression: Option<String>` su `TagDef`, `sws_pyscript::eval_expression()`, `DerivedTagsRegistry` in AppState, `derived_tag_task` in main.rs (rivaluta ad ogni TagDb update, PyO3 spawn_blocking). Frontend: bottone λ per tag + sub-riga expression input. cargo check + pnpm build verdi.
+**Last session**: 2026-05-23 (S-51) — HA entity browser: pulsante 🔍 accanto a entity_id e attribute nella tabella entità del `HomeAssistantSourceCard`. Backend `POST /api/sources/ha/browse` (reqwest → GET /api/states HA → Vec<HaBrowsedEntity>); frontend `HaBrowseModal` con ricerca full-text, filtro dominio, espansione attributi. Fix: `deserialize_sources_tolerant` per forward-compat source kinds. cargo check + pnpm build verdi.
+**Previous session**: 2026-05-23 (S-50) — Feature #16 HomeAssistant protocol plugin + template `homeassistant-demo` (3 pagine: Panoramica/Controllo/Storico, tutti i pattern HA, tag derivati, allarmi): nuovo crate `sws-plugin-homeassistant` (REST fetch iniziale + WebSocket state_changed + write-back call_service), `HomeAssistantConfig`/`EntityMapping` in sws-core, `SourceDef::HomeAssistant`, source supervisor aggiornato, `tokio-tungstenite` in workspace. Frontend: `HomeAssistantSourceCard` in ConfigView, `EntityMapping`/`HomeAssistantSource` in types. cargo check + pnpm build verdi.
+**Previous session**: 2026-05-23 (S-49) — Feature #10 Rotazione automatica pagine kiosk (SynopticPage.auto_rotate_skip, store autoRotate/autoRotateIntervalS con localStorage, useEffect+setInterval in RuntimeView, toolbar ▶/⏹, PageProps checkbox). Feature #12 IP allowlist per login (SWS_IP_ALLOWLIST env, CIDR check IPv4/IPv6 senza deps, Extension<SocketAddr> dal accept loop). Feature #3 Alarm shelving (ShelvedAlarm + shelve/unshelve/shelved_snapshot in AlarmDb, auto-scadenza, 3 rotte API, AlarmPanel con 🔧 form inline + sezione Soppressi + badge ⏸). cargo check + pnpm build verdi.
 **Last commit**: vedi `git log -1`
 **Current phase**: Phase 2 — sviluppo attivo PoC
 
@@ -81,6 +82,8 @@ cd sws-editor && pnpm build   # una volta, se dist/ non esiste
 | — | ~~**Rotazione automatica pagine**~~ | ✅ done | Chiusa S-49 |
 | — | ~~**IP allowlist**~~ | ✅ done | Chiusa S-49 |
 | — | ~~**Alarm shelving**~~ | ✅ done | Chiusa S-49 |
+| — | ~~**HomeAssistant plugin**~~ | ✅ done | Chiusa S-50 |
+| — | ~~**HA entity browser**~~ | ✅ done | Chiusa S-51 |
 | — | **Verifica RBAC su PX30** | manuale | Cache-purge browser (F12 → ricarica difficile) poi smoke Operator/Supervisor/Admin |
 | 8.3 | LDAP / OAuth2 | ~4 h+ | Phase 3 — non ora |
 
@@ -96,7 +99,7 @@ cd sws-editor && pnpm build   # una volta, se dist/ non esiste
 | **Editor UX** | Palette categorizzata, groups + tree drag&drop + context menu, rulers + guide + snap, undo/redo (200 step), copy-paste cross-page, aspect-ratio resize, zoom/pan, multi-select, z-order, lock, history visuale |
 | **Bindings** | Tag bind su fill/stroke/text/opacity/rotation/visibility/color + `transition_duration_ms`; `on_press`/`on_release` Python con CodeMirror editor + snippet |
 | **Runtime view** | Tag WS bidirezionale, alarm panel + ACK, log panel (live + storico), script test panel, re-auth modal |
-| **Protocolli** | Modbus TCP, MQTT (TLS/auth/QoS/last-will/browse), OPC-UA (subscribe/write/browse/Euromap auto-detect/security policies Basic256Sha256) |
+| **Protocolli** | Modbus TCP, MQTT (TLS/auth/QoS/last-will/browse), OPC-UA (subscribe/write/browse/Euromap auto-detect/security policies Basic256Sha256), HomeAssistant (WebSocket state_changed + call_service write-back) |
 | **Backend** | Historian SQLite + ring-buffer, `/metrics` Prometheus, `/api/system`, backup auto, log JSONL rotato, alarm webhook, TagWriteBus |
 | **Deploy** | `--www` SPA embed, `VITE_RUNTIME_URL` remoto, `--kiosk-browser`, CORS + multi-runtime WelcomeScreen, compose.yaml PX30, entrypoint.sh |
 | **Qualità** | 53 unit test workspace, Playwright e2e (2 spec), TESTING_GUIDE, DEPLOY_PX30, OPCUA_SETUP |

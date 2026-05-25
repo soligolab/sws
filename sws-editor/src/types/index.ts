@@ -506,7 +506,33 @@ export interface OpcUaDetectEuromapRequest {
   security_policy?: string;
 }
 
-export type SourceDef = ModbusTcpSource | ModbusRtuSource | MqttSource | OpcUaSource | OpcUaServerSource;
+export interface EntityMapping {
+  tag: string;
+  entity_id: string;
+  attribute?: string;
+  write_domain?: string;
+  write_service?: string;
+}
+
+export interface HomeAssistantSource {
+  kind: 'homeassistant';
+  id: string;
+  url: string;
+  token?: string;
+  token_env?: string;
+  entities: EntityMapping[];
+}
+
+export type SourceDef = ModbusTcpSource | ModbusRtuSource | MqttSource | OpcUaSource | OpcUaServerSource | HomeAssistantSource;
+
+// ── HomeAssistant entity browser ───────────────────────────────────────────
+
+export interface HaBrowsedEntity {
+  entity_id: string;
+  state: string;
+  friendly_name?: string;
+  attributes: string[];
+}
 
 // ── MQTT broker browse ─────────────────────────────────────────────────────
 

@@ -1,0 +1,3 @@
+id: homeassistant-demo
+label: "HomeAssistant Demo"
+description: "Demo integrazione SWS ↔ HomeAssistant: sensori, binary_sensor, attributi, luci/switch (write bool), input_number (write numerico), tag derivati, allarmi. 3 pagine: Panoramica, Controllo, Storico. URL/token pre-configurati su 192.168.1.2:8123 — leggere SETUP.md."

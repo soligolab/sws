@@ -25,9 +25,11 @@ sws-core          = { path = "../sws-core" }
 sws-historian     = { path = "../sws-historian" }
 sws-pyscript      = { path = "../sws-pyscript" }
 sws-auth          = { path = "../sws-auth" }
-sws-plugin-modbus = { path = "../sws-plugin-modbus" }
-sws-plugin-mqtt   = { path = "../sws-plugin-mqtt" }
-sws-plugin-opcua  = { path = "../sws-plugin-opcua" }
+sws-plugin-modbus         = { path = "../sws-plugin-modbus" }
+sws-plugin-mqtt           = { path = "../sws-plugin-mqtt" }
+sws-plugin-opcua          = { path = "../sws-plugin-opcua" }
+sws-plugin-homeassistant  = { path = "../sws-plugin-homeassistant" }
+reqwest.workspace         = true
 sysinfo           = { workspace = true }
 # Prometheus exposition for /metrics. The recorder is installed once at
 # router-build time; emitting metrics elsewhere goes through the `metrics`

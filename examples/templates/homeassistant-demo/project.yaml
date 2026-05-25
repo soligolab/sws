@@ -1,0 +1,253 @@
+meta:
+  name: homeassistant-demo
+  version: 0.1.0
+
+# ── TAG ───────────────────────────────────────────────────────────────────────
+
+tags:
+
+  # Sensori clima
+  - id: sala.temperatura
+    description: "Temperatura soggiorno (°C)"
+    data_type: float
+    history: true
+
+  - id: sala.umidita
+    description: "Umidità relativa soggiorno (%)"
+    data_type: float
+    history: true
+
+  - id: esterno.temperatura
+    description: "Temperatura esterna (°C)"
+    data_type: float
+    history: true
+
+  - id: esterno.umidita
+    description: "Umidità relativa esterna (%)"
+    data_type: float
+
+  # Energia
+  - id: energia.potenza_w
+    description: "Potenza istantanea (W)"
+    data_type: float
+    history: true
+
+  - id: energia.consumo_kwh
+    description: "Energia totale consumata (kWh)"
+    data_type: float
+
+  # Sensori binari
+  - id: porta.principale
+    description: "Porta principale aperta"
+    data_type: bool
+
+  - id: ingresso.movimento
+    description: "Rilevamento movimento ingresso"
+    data_type: bool
+
+  - id: garage.aperto
+    description: "Garage aperto"
+    data_type: bool
+
+  # Clima (attributo)
+  - id: clima.temperatura_attuale
+    description: "Temperatura attuale clima (°C)"
+    data_type: float
+
+  - id: clima.setpoint
+    description: "Setpoint temperatura (°C)"
+    data_type: float
+
+  # Luci/switch — write-back abilitato
+  - id: luce.soggiorno
+    description: "Luce soggiorno ON/OFF"
+    data_type: bool
+
+  - id: luce.cucina
+    description: "Luce cucina ON/OFF"
+    data_type: bool
+
+  - id: luce.esterno
+    description: "Luce esterna ON/OFF"
+    data_type: bool
+
+  - id: ventilatore.camera
+    description: "Ventilatore camera ON/OFF"
+    data_type: bool
+
+  # Input numerico — write-back abilitato
+  - id: riscaldamento.setpoint
+    description: "Setpoint riscaldamento (°C)"
+    data_type: float
+
+  - id: irrigazione.durata_min
+    description: "Durata irrigazione (minuti)"
+    data_type: float
+
+  # Input booleano — write-back
+  - id: modalita.notturna
+    description: "Modalità notturna attiva"
+    data_type: bool
+
+  # Sole (attributo)
+  - id: sole.elevazione
+    description: "Elevazione solare (gradi)"
+    data_type: float
+
+  # Tag derivati (calcolati da SWS — non su HA)
+  - id: energia.costo_ora_eur
+    description: "Costo energia €/h stimato (0.25 €/kWh)"
+    data_type: float
+    expression: "round(tags['energia.potenza_w'] * 0.25 / 1000, 4)"
+
+  - id: clima.delta_interno_esterno
+    description: "Delta temperatura interno-esterno (°C)"
+    data_type: float
+    expression: "round(tags['sala.temperatura'] - tags['esterno.temperatura'], 1)"
+
+  - id: sala.comfort_index
+    description: "Indice comfort 0-100 (T ideale 22°C, H ideale 50%)"
+    data_type: float
+    expression: |
+      t = tags['sala.temperatura']
+      h = tags['sala.umidita']
+      t_score = max(0.0, 100.0 - abs(t - 22.0) * 10.0)
+      h_score = max(0.0, 100.0 - abs(h - 50.0) * 2.0)
+      round((t_score + h_score) / 2.0, 1)
+
+# ── SORGENTE HOMEASSISTANT ────────────────────────────────────────────────────
+# Adatta url e token alla tua installazione. Vedi SETUP.md.
+
+sources:
+  - kind: homeassistant
+    id: ha-demo
+    url: http://192.168.1.2:8123
+    # token in chiaro per comodità nel template — usa token_env: HA_TOKEN in produzione
+    token: "INSERISCI_TOKEN_QUI"
+
+    entities:
+
+      # ── Sensori numerici (state principale) ────────────────────────────────
+      - tag: sala.temperatura
+        entity_id: sensor.living_room_temperature
+
+      - tag: sala.umidita
+        entity_id: sensor.living_room_humidity
+
+      - tag: esterno.temperatura
+        entity_id: sensor.outdoor_temperature
+
+      - tag: esterno.umidita
+        entity_id: sensor.outdoor_humidity
+
+      - tag: energia.potenza_w
+        entity_id: sensor.power_meter
+
+      - tag: energia.consumo_kwh
+        entity_id: sensor.energy_total
+
+      # ── Sensori binari ─────────────────────────────────────────────────────
+      - tag: porta.principale
+        entity_id: binary_sensor.front_door
+
+      - tag: ingresso.movimento
+        entity_id: binary_sensor.motion_entrance
+
+      - tag: garage.aperto
+        entity_id: binary_sensor.garage_door
+
+      # ── Attributo specifico ────────────────────────────────────────────────
+      - tag: clima.temperatura_attuale
+        entity_id: climate.living_room
+        attribute: current_temperature
+
+      - tag: clima.setpoint
+        entity_id: climate.living_room
+        attribute: temperature
+
+      - tag: sole.elevazione
+        entity_id: sun.sun
+        attribute: elevation
+
+      # ── Luci — lettura + scrittura (turn_on/turn_off) ─────────────────────
+      - tag: luce.soggiorno
+        entity_id: light.living_room
+        write_domain: light
+        write_service: turn_on
+
+      - tag: luce.cucina
+        entity_id: light.kitchen
+        write_domain: light
+        write_service: turn_on
+
+      - tag: luce.esterno
+        entity_id: light.outdoor
+        write_domain: light
+        write_service: turn_on
+
+      # ── Switch — lettura + scrittura ──────────────────────────────────────
+      - tag: ventilatore.camera
+        entity_id: switch.bedroom_fan
+        write_domain: switch
+        write_service: turn_on
+
+      # ── Input numerico — scrittura con {"value": N} ───────────────────────
+      - tag: riscaldamento.setpoint
+        entity_id: input_number.heating_setpoint
+        write_domain: input_number
+        write_service: set_value
+
+      - tag: irrigazione.durata_min
+        entity_id: input_number.irrigation_duration
+        write_domain: input_number
+        write_service: set_value
+
+      # ── Input booleano ────────────────────────────────────────────────────
+      - tag: modalita.notturna
+        entity_id: input_boolean.night_mode
+        write_domain: input_boolean
+        write_service: turn_on
+
+# ── ALLARMI ───────────────────────────────────────────────────────────────────
+
+alarms:
+  - id: alm-caldo
+    tag: sala.temperatura
+    condition:
+      kind: above
+      threshold: 28.0
+    dead_band: 1.0
+    message: "Soggiorno caldo: {value:.1f}°C"
+    severity: Warning
+
+  - id: alm-freddo
+    tag: sala.temperatura
+    condition:
+      kind: below
+      threshold: 16.0
+    dead_band: 1.0
+    message: "Soggiorno freddo: {value:.1f}°C"
+    severity: Warning
+
+  - id: alm-consumo
+    tag: energia.potenza_w
+    condition:
+      kind: above
+      threshold: 4000.0
+    dead_band: 200.0
+    message: "Consumo elevato: {value:.0f} W"
+    severity: Critical
+
+  - id: alm-porta
+    tag: porta.principale
+    condition:
+      kind: bool_true
+    message: "Porta principale aperta"
+    severity: Info
+
+  - id: alm-garage
+    tag: garage.aperto
+    condition:
+      kind: bool_true
+    message: "Porta garage aperta"
+    severity: Warning
