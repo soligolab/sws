@@ -273,6 +273,64 @@ impl Engine {
     }
 }
 
+/// Evaluate a Python expression `expr` with `tags` bound to a dict snapshot
+/// of current tag values.  Returns the expression result coerced to a
+/// `TagValue`, or an error string on Python failure.
+///
+/// Runs in a `spawn_blocking` thread (PyO3 requires a non-async context).
+#[allow(deprecated)]
+pub async fn eval_expression(
+    expr: String,
+    snapshot: std::collections::HashMap<String, TagValue>,
+) -> Result<TagValue, String> {
+    let work = tokio::task::spawn_blocking(move || {
+        Python::with_gil(|py| -> Result<TagValue, String> {
+            let tags_dict = PyDict::new(py);
+            for (k, v) in &snapshot {
+                let py_v: PyObject = match v {
+                    TagValue::Bool(b)  => b.into_py(py),
+                    TagValue::Int(i)   => i.into_py(py),
+                    TagValue::Float(f) => f.into_py(py),
+                    TagValue::Str(s)   => s.clone().into_py(py),
+                };
+                tags_dict.set_item(k, py_v).map_err(|e| e.to_string())?;
+            }
+            let globals = PyDict::new(py);
+            globals.set_item("tags", &tags_dict).map_err(|e| e.to_string())?;
+
+            // Wrap as assignment so we can read the result back from globals.
+            let code = format!("__sws_result__ = {expr}");
+            let c_code = std::ffi::CString::new(code)
+                .map_err(|e| format!("invalid expression bytes: {e}"))?;
+            py.run(c_code.as_c_str(), Some(&globals), None)
+                .map_err(|e| e.to_string())?;
+
+            let result = globals
+                .get_item("__sws_result__")
+                .map_err(|e| e.to_string())?
+                .ok_or_else(|| "expression returned no value".to_string())?;
+
+            // bool must be checked before i64 (Python bool is a subclass of int)
+            if let Ok(b) = result.extract::<bool>() {
+                Ok(TagValue::Bool(b))
+            } else if let Ok(i) = result.extract::<i64>() {
+                Ok(TagValue::Int(i))
+            } else if let Ok(f) = result.extract::<f64>() {
+                Ok(TagValue::Float(f))
+            } else if let Ok(s) = result.extract::<String>() {
+                Ok(TagValue::Str(s))
+            } else {
+                Err("expression result has unsupported Python type".to_string())
+            }
+        })
+    });
+    match work.await {
+        Ok(Ok(v))  => Ok(v),
+        Ok(Err(e)) => Err(e),
+        Err(e)     => Err(format!("eval task panicked: {e}")),
+    }
+}
+
 fn probe_restricted_python() -> bool {
     Python::with_gil(|py| py.import("RestrictedPython").is_ok())
 }

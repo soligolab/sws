@@ -3,7 +3,7 @@ pub mod logbus;
 pub mod project;
 pub mod tag;
 
-pub use alarm::{AlarmCondition, AlarmDb, AlarmDef, AlarmSeverity, AlarmState};
+pub use alarm::{AlarmCondition, AlarmDb, AlarmDef, AlarmSeverity, AlarmState, ShelvedAlarm};
 pub use logbus::{LogBus, LogEvent, DEFAULT_LOG_CAPACITY};
 pub use project::{
     CustomSymbol, CustomSymbolAttribution, DatastoreBackendConfig, DatastoreConfig, FunctionDef,

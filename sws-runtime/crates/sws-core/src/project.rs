@@ -39,6 +39,13 @@ pub struct TagDef {
     /// samples closer than this interval are dropped.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub history_min_interval_ms: Option<u64>,
+    /// Python expression evaluated against a `tags` dict snapshot of the current
+    /// TagDb values.  Example: `tags["motor.v"] * tags["motor.i"]`.
+    /// When set the tag is read-only; writes via the API or TagWriteBus are
+    /// rejected.  The expression is re-evaluated whenever any tag in the project
+    /// changes.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub expression: Option<String>,
 }
 
 // ── Datastore configuration ───────────────────────────────────────────────────
@@ -128,6 +135,10 @@ impl TagDef {
             "string" => TagValue::Str(String::new()),
             _        => TagValue::Float(0.0),
         }
+    }
+
+    pub fn is_derived(&self) -> bool {
+        self.expression.is_some()
     }
 }
 

@@ -756,6 +756,7 @@ export function EditorShell() {
               background={currentPage?.background ?? "#1a1a2e"}
               width={currentPage?.width}
               height={currentPage?.height}
+              auto_rotate_skip={currentPage?.auto_rotate_skip}
               onChange={(patch) => updatePageProps(currentPageId, patch)}
             />
           </>
@@ -1110,13 +1111,15 @@ function PageProps({
   background,
   width,
   height,
+  auto_rotate_skip,
   onChange,
 }: {
   name: string;
   background: string;
   width?: number;
   height?: number;
-  onChange: (patch: Partial<{ name: string; background: string; width: number | undefined; height: number | undefined }>) => void;
+  auto_rotate_skip?: boolean;
+  onChange: (patch: Partial<{ name: string; background: string; width: number | undefined; height: number | undefined; auto_rotate_skip: boolean | undefined }>) => void;
 }) {
   return (
     <>
@@ -1175,6 +1178,18 @@ function PageProps({
       <p style={{ fontSize: 10, color: "#475569", margin: "2px 0 0" }}>
         Vuoto = fluido (riempie il contenitore). Con valori impostati, un bordo tratteggiato blu indica i limiti della pagina.
       </p>
+      <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8 }}>
+        <input
+          type="checkbox"
+          id="auto-rotate-skip"
+          checked={auto_rotate_skip ?? false}
+          onChange={(e) => onChange({ auto_rotate_skip: e.target.checked || undefined })}
+          style={{ cursor: "pointer" }}
+        />
+        <label htmlFor="auto-rotate-skip" style={{ fontSize: 11, color: "#94a3b8", cursor: "pointer" }}>
+          Escludi dal ciclo automatico (kiosk)
+        </label>
+      </div>
       <p style={{ fontSize: 11, color: "#475569", margin: "8px 0 0" }}>
         Seleziona un oggetto sul canvas per modificarne le proprietà.
       </p>

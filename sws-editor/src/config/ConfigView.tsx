@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { api, type CreateUserBody, type UpdateUserBody, type UserRole, type UserSummary } from "@/api/client";
 import { TagInput } from "@/components/TagInput";
 import { useAppStore } from "@/store";
@@ -278,9 +278,10 @@ function TagsTab() {
   const tagValues           = useAppStore((s) => s.tagValues);
   const datastoreIds        = storeProject?.datastores?.map((d) => ({ id: d.id, label: d.label })) ?? [];
 
-  const [tags, setTags]     = useState<TagDef[]>(storeProject?.tags ?? []);
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved]   = useState(false);
+  const [tags, setTags]         = useState<TagDef[]>(storeProject?.tags ?? []);
+  const [saving, setSaving]     = useState(false);
+  const [saved, setSaved]       = useState(false);
+  const [exprOpen, setExprOpen] = useState<Set<number>>(new Set());
 
   // Sync local state when store changes (e.g. on initial project load)
   useEffect(() => {
@@ -295,6 +296,14 @@ function TagsTab() {
 
   const removeTag = (idx: number) =>
     setTags((prev) => prev.filter((_, i) => i !== idx));
+
+  const toggleExpr = (idx: number) =>
+    setExprOpen((prev) => {
+      const next = new Set(prev);
+      if (next.has(idx)) next.delete(idx);
+      else next.add(idx);
+      return next;
+    });
 
   const handleSave = async () => {
     const valid = tags.filter((t) => t.id.trim() !== "");
@@ -335,7 +344,8 @@ function TagsTab() {
           {tags.map((tag, i) => {
             const tv = tagValues[tag.id];
             return (
-              <tr key={i} style={{ background: i % 2 === 0 ? "transparent" : "#0f172a" }}>
+              <React.Fragment key={i}>
+              <tr style={{ background: i % 2 === 0 ? "transparent" : "#0f172a" }}>
                 <td style={S.td}>
                   <input
                     style={S.input}
@@ -403,9 +413,41 @@ function TagsTab() {
                   )}
                 </td>
                 <td style={{ ...S.td, textAlign: "right" }}>
+                  <button
+                    style={{
+                      ...S.btn("ghost"),
+                      marginRight: 4,
+                      color: tag.expression ? "#818cf8" : "#475569",
+                      fontFamily: "monospace",
+                      fontWeight: "bold",
+                    }}
+                    title="Espressione calcolata (Python)"
+                    onClick={() => toggleExpr(i)}
+                  >
+                    λ
+                  </button>
                   <button style={S.btn("danger")} onClick={() => removeTag(i)}>✕</button>
                 </td>
               </tr>
+              {(exprOpen.has(i) || !!tag.expression) && (
+                <tr style={{ background: "#0a1628" }}>
+                  <td colSpan={7} style={{ ...S.td, paddingTop: 4, paddingBottom: 6 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <span style={{ fontSize: 11, color: "#818cf8", minWidth: 70, fontFamily: "monospace" }}>
+                        λ espressione
+                      </span>
+                      <input
+                        style={{ ...S.input, flex: 1, fontFamily: "monospace", fontSize: 12, color: "#c4b5fd" }}
+                        placeholder='es. tags["motor.v"] * tags["motor.i"]'
+                        value={tag.expression ?? ""}
+                        onChange={(e) => updateTag(i, { expression: e.target.value || undefined })}
+                        spellCheck={false}
+                      />
+                    </div>
+                  </td>
+                </tr>
+              )}
+              </React.Fragment>
             );
           })}
         </tbody>

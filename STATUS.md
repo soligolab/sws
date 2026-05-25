@@ -4,7 +4,8 @@
 >
 > Ambienti di test: vedi [docs/TEST_SETUPS.md](docs/TEST_SETUPS.md) (casa, dev server, dispositivi Yocto).
 
-**Last session**: 2026-05-22 (S-41/42/43/44/45) — Fix: `datastore_test` ora restituisce JSON; `tracing::warn!` su errori datastore/stats. OPC-UA trust list UI: `trust_all_certs: bool` in `OpcUaClientConfig` (default `true`), REST API `GET/POST/DELETE /api/sources/:id/opcua/certs/*`, sezione "SICUREZZA CERTIFICATI" in OpcUaSourceCard. OPC-UA historical reads: `read_history()` in `sws-plugin-opcua` (HistoryRead service, ticks arithmetic senza chrono), `GET /api/history/:tag?backfill=true` fonde storico OPC-UA con historian locale (dedup + sort), `opcuaBackfill` prop su `TrendCanvas` (solo primo tick), `opcua_backfill` field su `SynopticObject`, checkbox nell'editor Trend in EditorShell. cargo check + pnpm build verdi.
+**Last session**: 2026-05-23 (S-49) — Feature #10 Rotazione automatica pagine kiosk (SynopticPage.auto_rotate_skip, store autoRotate/autoRotateIntervalS con localStorage, useEffect+setInterval in RuntimeView, toolbar ▶/⏹, PageProps checkbox). Feature #12 IP allowlist per login (SWS_IP_ALLOWLIST env, CIDR check IPv4/IPv6 senza deps, Extension<SocketAddr> dal accept loop). Feature #3 Alarm shelving (ShelvedAlarm + shelve/unshelve/shelved_snapshot in AlarmDb, auto-scadenza, 3 rotte API, AlarmPanel con 🔧 form inline + sezione Soppressi + badge ⏸). cargo check + pnpm build verdi.
+**Previous session**: 2026-05-22 (S-48) — Feature #1 Tag calcolati/derivati: `expression: Option<String>` su `TagDef`, `sws_pyscript::eval_expression()`, `DerivedTagsRegistry` in AppState, `derived_tag_task` in main.rs (rivaluta ad ogni TagDb update, PyO3 spawn_blocking). Frontend: bottone λ per tag + sub-riga expression input. cargo check + pnpm build verdi.
 **Last commit**: vedi `git log -1`
 **Current phase**: Phase 2 — sviluppo attivo PoC
 
@@ -74,6 +75,12 @@ cd sws-editor && pnpm build   # una volta, se dist/ non esiste
 | A1 | **sws-kiosk test su PX30 fisico** (`./scripts/kiosk.sh`) | manuale | Richiede hardware + Wayland compositor (cage/weston). Build OK su desktop Ubuntu (S-38). |
 | — | ~~**OPC-UA historical reads**~~ | ✅ done | Chiusa S-43 |
 | 4.8 | ~~Grid: drag-to-range multi-cell~~ | ✅ done | Chiusa S-44 |
+| — | ~~**Modbus RTU**~~ | ✅ done | Chiusa S-46 |
+| — | ~~**OPC-UA server**~~ | ✅ done | Chiusa S-47 |
+| — | ~~**Tag calcolati/derivati**~~ | ✅ done | Chiusa S-48 |
+| — | ~~**Rotazione automatica pagine**~~ | ✅ done | Chiusa S-49 |
+| — | ~~**IP allowlist**~~ | ✅ done | Chiusa S-49 |
+| — | ~~**Alarm shelving**~~ | ✅ done | Chiusa S-49 |
 | — | **Verifica RBAC su PX30** | manuale | Cache-purge browser (F12 → ricarica difficile) poi smoke Operator/Supervisor/Admin |
 | 8.3 | LDAP / OAuth2 | ~4 h+ | Phase 3 — non ora |
 
