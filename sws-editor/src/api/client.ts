@@ -202,6 +202,9 @@ export const api = {
   logout: () =>
     request<void>("/api/auth/logout", { method: "POST" }),
 
+  refresh: () =>
+    request<{ expires_at_ms: number }>("/api/auth/refresh", { method: "POST" }),
+
   whoami: () =>
     request<{ username: string; role: UserRole; must_change_password: boolean }>(
       "/api/auth/whoami",

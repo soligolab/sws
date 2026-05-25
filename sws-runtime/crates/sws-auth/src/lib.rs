@@ -476,6 +476,20 @@ impl AuthState {
         self.sessions.write().await.remove(token).is_some()
     }
 
+    /// Slide the TTL for an active session and return the new expiry timestamp
+    /// (milliseconds since Unix epoch). Returns `None` when the token is
+    /// expired or not found, which signals the caller to return 401.
+    pub async fn touch(&self, token: &str) -> Option<u64> {
+        let mut sessions = self.sessions.write().await;
+        let session = sessions.get_mut(token)?;
+        if Instant::now() >= session.expires_at {
+            sessions.remove(token);
+            return None;
+        }
+        session.expires_at = Instant::now() + self.ttl;
+        Some(now_unix_ms() + self.ttl.as_millis() as u64)
+    }
+
     pub async fn session_count(&self) -> usize {
         self.sessions.read().await.len()
     }

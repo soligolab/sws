@@ -170,7 +170,8 @@ pub fn build(
     let self_service = Router::new()
         .route("/api/auth/whoami",          get(whoami))
         .route("/api/auth/logout",          post(logout))
-        .route("/api/auth/change-password", post(change_password));
+        .route("/api/auth/change-password", post(change_password))
+        .route("/api/auth/refresh",         post(refresh_session));
 
     let protected = blocking
         .merge(self_service)
@@ -381,6 +382,25 @@ async fn logout(
         .and_then(|h| h.strip_prefix("Bearer "));
     if let Some(t) = token { s.auth.logout(t).await; }
     StatusCode::NO_CONTENT
+}
+
+/// Slide the session TTL and return the refreshed expiry timestamp.
+/// The client uses this to reschedule its proactive refresh timer.
+/// Returns 401 when the token is already expired (client should re-login).
+async fn refresh_session(
+    State(s): State<AppState>,
+    req: Request,
+) -> Response {
+    let token = req.headers().get(header::AUTHORIZATION)
+        .and_then(|h| h.to_str().ok())
+        .and_then(|h| h.strip_prefix("Bearer "));
+    let Some(token) = token else {
+        return StatusCode::UNAUTHORIZED.into_response();
+    };
+    match s.auth.touch(token).await {
+        Some(expires_at_ms) => Json(serde_json::json!({ "expires_at_ms": expires_at_ms })).into_response(),
+        None => StatusCode::UNAUTHORIZED.into_response(),
+    }
 }
 
 #[derive(serde::Serialize)]

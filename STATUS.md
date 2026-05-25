@@ -4,7 +4,7 @@
 >
 > Ambienti di test: vedi [docs/TEST_SETUPS.md](docs/TEST_SETUPS.md) (casa, dev server, dispositivi Yocto).
 
-**Last session**: 2026-05-22 (S-38/S-39) — Traccia B kiosk chiusa. WS auto-reconnect backoff (6.4-bis) su tutti e 3 gli stream. Vite bundle splitting (920KB → 4 chunk, app chunk 81KB gzip). Lockout login sticky con Retry-After + countdown UI (8.2). cargo check + pnpm build verdi.
+**Last session**: 2026-05-22 (S-38/S-39/S-40) — Traccia B kiosk chiusa. WS auto-reconnect backoff (6.4-bis). Vite bundle splitting. Lockout login sticky (8.2). Deep-link ConfigView tabs (2.3). Token refresh proattivo (8.1): `POST /api/auth/refresh` + `touch()` in sws-auth + timer in App.tsx + `expires_at_ms` persistito in localStorage. cargo check + pnpm build verdi.
 **Last commit**: vedi `git log -1`
 **Current phase**: Phase 2 — sviluppo attivo PoC
 
@@ -73,9 +73,7 @@ cd sws-editor && pnpm build   # una volta, se dist/ non esiste
 |----|------|-------|------|
 | A1 | **sws-kiosk test su PX30 fisico** (`./scripts/kiosk.sh`) | manuale | Richiede hardware + Wayland compositor (cage/weston). Build OK su desktop Ubuntu (S-38). |
 | — | **OPC-UA trust list UI** | ~2 h | Oggi `trust_server_certs(true)` globale. UI per accettare/rifiutare cert per-source |
-| 8.1 | **Refresh token + httponly cookie** | ~2 h | Oggi solo Bearer + localStorage |
 | — | **OPC-UA historical reads** | ~3 h | `HistoryRead` service per backfill grafico Trend al primo open |
-| 2.3 | Deep-link ConfigView tabs | ~30 min | Bassa priorità |
 | 4.8 | Grid: drag-to-range multi-cell | ~1.5 h | Oggi solo shift+click; bassa priorità |
 | 8.3 | LDAP / OAuth2 | ~4 h+ | Phase 3 — non ora |
 
