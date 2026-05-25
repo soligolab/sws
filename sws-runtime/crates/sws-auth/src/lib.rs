@@ -149,6 +149,8 @@ struct Session {
 struct LoginFailures {
     window_start: Option<Instant>,
     count: u32,
+    /// Set when count reaches rate_limit. Further attempts extend this.
+    locked_until: Option<Instant>,
 }
 
 /// Hash a clear-text password with Argon2id and a fresh random salt.
@@ -186,7 +188,8 @@ pub struct AuthState {
 #[derive(Debug, Clone)]
 pub enum LoginError {
     BadCredentials,
-    RateLimited,
+    /// Account temporarily locked. `retry_after_secs` is the remaining lockout.
+    RateLimited { retry_after_secs: u64 },
 }
 
 #[derive(Debug, Clone)]
@@ -412,9 +415,9 @@ impl AuthState {
 
     /// Verify credentials and mint a session token on success.
     pub async fn login(&self, creds: &Credentials) -> Result<LoginOk, LoginError> {
-        if self.is_rate_limited(&creds.username).await {
-            warn!(user = %creds.username, "login: rate limited");
-            return Err(LoginError::RateLimited);
+        if let Some(retry_after_secs) = self.check_lockout(&creds.username).await {
+            warn!(user = %creds.username, retry_after_secs, "login: account locked");
+            return Err(LoginError::RateLimited { retry_after_secs });
         }
 
         let user = self.users.read().await.get(&creds.username).cloned();
@@ -596,24 +599,48 @@ impl AuthState {
         Ok(())
     }
 
-    // ── Rate-limit helpers (unchanged) ────────────────────────────────
+    // ── Rate-limit / lockout helpers ─────────────────────────────────
 
     async fn record_failure(&self, username: &str) {
         let mut map = self.failures.write().await;
         let entry = map.entry(username.to_string()).or_default();
         let now = Instant::now();
+
+        // While already locked: extend lockout on every new attempt.
+        if entry.locked_until.map(|t| t > now).unwrap_or(false) {
+            entry.locked_until = Some(now + self.rate_window);
+            return;
+        }
+        // Clear a stale (expired) lockout before accumulating.
+        if entry.locked_until.is_some() {
+            *entry = LoginFailures::default();
+        }
+
+        // Accumulate within the sliding window.
         match entry.window_start {
             Some(t) if now.duration_since(t) <= self.rate_window => entry.count += 1,
             _ => { entry.window_start = Some(now); entry.count = 1; }
         }
+
+        // Trigger lockout when the failure budget is exhausted.
+        if entry.count >= self.rate_limit {
+            entry.locked_until = Some(now + self.rate_window);
+            entry.count = 0;
+            entry.window_start = None;
+        }
     }
 
-    async fn is_rate_limited(&self, username: &str) -> bool {
+    /// Returns `Some(remaining_secs)` when the account is currently locked,
+    /// `None` when a login attempt is permitted.
+    async fn check_lockout(&self, username: &str) -> Option<u64> {
         let map = self.failures.read().await;
-        let Some(entry) = map.get(username) else { return false };
-        let Some(start) = entry.window_start else { return false };
-        Instant::now().duration_since(start) <= self.rate_window
-            && entry.count >= self.rate_limit
+        let locked_until = map.get(username)?.locked_until?;
+        let now = Instant::now();
+        if locked_until > now {
+            Some(locked_until.duration_since(now).as_secs().max(1))
+        } else {
+            None
+        }
     }
 }
 
@@ -706,7 +733,7 @@ mod tests {
         }
         assert!(matches!(
             auth.login(&Credentials { username: "admin".into(), password: "x".into() }).await,
-            Err(LoginError::RateLimited)
+            Err(LoginError::RateLimited { .. })
         ));
     }
 

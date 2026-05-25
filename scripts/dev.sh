@@ -172,11 +172,23 @@ case "${1:-both}" in
     (cd "$REPO_ROOT/sws-runtime" && cargo build --quiet -p sws-runtime)
     (cd "$REPO_ROOT/sws-runtime" && cargo build --quiet --manifest-path crates/sws-kiosk/Cargo.toml)
 
+    # Serve the SPA from the pre-built dist/ if it exists; otherwise the kiosk
+    # will get a 404 on / and show a white window. Run 'pnpm build' first if needed.
+    WWW_DIST="$REPO_ROOT/sws-editor/dist"
+    WWW_ARGS=()
+    if [ -f "$WWW_DIST/index.html" ]; then
+      WWW_ARGS=(--www "$WWW_DIST")
+      echo "[kiosk] serving SPA from $WWW_DIST"
+    else
+      echo "[kiosk] WARNING: $WWW_DIST not found — run 'cd sws-editor && pnpm build' first or the kiosk will show a blank page" >&2
+    fi
+
     echo "[kiosk] starting runtime in background; logs → $LOG_DIR/runtime.log"
     "$REPO_ROOT/sws-runtime/target/debug/sws-runtime" \
       --config "$CONFIG_DIR" \
       --projects-root "$PROJECTS_ROOT" \
       --templates-root "$TEMPLATES_ROOT" \
+      "${WWW_ARGS[@]}" \
       > "$LOG_DIR/runtime.log" 2>&1 &
     RUNTIME_PID=$!
 
@@ -199,7 +211,14 @@ case "${1:-both}" in
     done
 
     echo "[kiosk] launching sws-kiosk (windowed for local test; remove --windowed for fullscreen)"
-    exec "$REPO_ROOT/sws-runtime/target/debug/sws-kiosk" \
+    # Strip every SNAP_* variable before exec: when Claude Code runs as a snap, these
+    # propagate into WebKit's WebKitNetworkProcess which then loads libpthread from
+    # /snap/core20/current/lib — incompatible with system glibc → white window.
+    STRIP_SNAP=()
+    while IFS= read -r v; do STRIP_SNAP+=("-u" "$v"); done \
+      < <(printenv | grep -o '^SNAP[^=]*')
+    exec env "${STRIP_SNAP[@]}" \
+      "$REPO_ROOT/sws-runtime/crates/sws-kiosk/target/debug/sws-kiosk" \
       "https://localhost:8443" --allow-insecure-tls --windowed
     ;;
   both)

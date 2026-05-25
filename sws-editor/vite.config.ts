@@ -40,6 +40,30 @@ export default defineConfig({
       },
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          // Stable vendor chunks — cached by the browser between app deploys.
+          if (id.includes("/node_modules/react-dom/") ||
+              id.includes("/node_modules/react/")) {
+            return "react-vendor";
+          }
+          if (id.includes("/node_modules/@codemirror/") ||
+              id.includes("/node_modules/codemirror/")) {
+            return "codemirror";
+          }
+          if (id.includes("/node_modules/@tanstack/")) {
+            return "router";
+          }
+          if (id.includes("/node_modules/i18next") ||
+              id.includes("/node_modules/react-i18next")) {
+            return "i18n";
+          }
+        },
+      },
+    },
+  },
   test: {
     environment: "jsdom",
     globals: true,
