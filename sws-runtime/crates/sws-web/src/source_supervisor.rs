@@ -164,6 +164,12 @@ impl SourceSupervisor {
                     sws_plugin_opcua::run(cfg, db, bus, pki).await;
                 })
             }
+            SourceDef::HomeAssistant(cfg) => {
+                info!(source = %id_for_log, url = %cfg.url, "starting HomeAssistant task");
+                tokio::spawn(async move {
+                    sws_plugin_homeassistant::run(cfg, db, bus, cancel_for_task).await;
+                })
+            }
         };
 
         self.sources.lock().await.insert(
@@ -200,21 +206,23 @@ impl SourceSupervisor {
 
 fn source_id(s: &SourceDef) -> &str {
     match s {
-        SourceDef::ModbusTcp(c)    => &c.id,
-        SourceDef::ModbusRtu(c)    => &c.id,
-        SourceDef::OpcUaServer(c)  => &c.id,
-        SourceDef::Mqtt(c)         => &c.id,
-        SourceDef::OpcUaClient(c)  => &c.id,
+        SourceDef::ModbusTcp(c)      => &c.id,
+        SourceDef::ModbusRtu(c)      => &c.id,
+        SourceDef::OpcUaServer(c)    => &c.id,
+        SourceDef::Mqtt(c)           => &c.id,
+        SourceDef::OpcUaClient(c)    => &c.id,
+        SourceDef::HomeAssistant(c)  => &c.id,
     }
 }
 
 fn tags_of(s: &SourceDef) -> Vec<String> {
     match s {
-        SourceDef::ModbusTcp(c)    => c.registers.iter().map(|r| r.tag.clone()).collect(),
-        SourceDef::ModbusRtu(c)    => c.registers.iter().map(|r| r.tag.clone()).collect(),
-        SourceDef::OpcUaServer(c)  => c.nodes.iter().map(|n| n.tag.clone()).collect(),
-        SourceDef::Mqtt(c)         => c.topics.iter().map(|t| t.tag.clone()).collect(),
-        SourceDef::OpcUaClient(c)  => c.nodes.iter().map(|n| n.tag.clone()).collect(),
+        SourceDef::ModbusTcp(c)      => c.registers.iter().map(|r| r.tag.clone()).collect(),
+        SourceDef::ModbusRtu(c)      => c.registers.iter().map(|r| r.tag.clone()).collect(),
+        SourceDef::OpcUaServer(c)    => c.nodes.iter().map(|n| n.tag.clone()).collect(),
+        SourceDef::Mqtt(c)           => c.topics.iter().map(|t| t.tag.clone()).collect(),
+        SourceDef::OpcUaClient(c)    => c.nodes.iter().map(|n| n.tag.clone()).collect(),
+        SourceDef::HomeAssistant(c)  => c.entities.iter().map(|e| e.tag.clone()).collect(),
     }
 }
 

@@ -3775,6 +3775,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "sws-plugin-homeassistant"
+version = "0.1.0-dev"
+dependencies = [
+ "anyhow",
+ "futures-util",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "sws-core",
+ "tokio",
+ "tokio-tungstenite",
+ "tokio-util",
+ "tracing",
+]
+
+[[package]]
 name = "sws-plugin-modbus"
 version = "0.1.0-dev"
 dependencies = [
@@ -3873,12 +3889,14 @@ dependencies = [
  "futures-util",
  "metrics 0.23.1",
  "metrics-exporter-prometheus 0.15.3",
+ "reqwest",
  "serde",
  "serde_json",
  "serde_yaml",
  "sws-auth",
  "sws-core",
  "sws-historian",
+ "sws-plugin-homeassistant",
  "sws-plugin-modbus",
  "sws-plugin-mqtt",
  "sws-plugin-opcua",

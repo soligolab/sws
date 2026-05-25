@@ -142,6 +142,8 @@ pub fn build(
         .route("/api/sources/opcua/detect-euromap", post(opcua_detect_euromap_handler))
         // OPC-UA historical read — fetches raw data directly from the server's historian.
         .route("/api/sources/opcua/history", post(opcua_history_handler))
+        // HomeAssistant entity browse: proxy GET /api/states to HA and return entities.
+        .route("/api/sources/ha/browse", post(ha_browse_handler))
         .route("/api/system",             get(crate::system::get_system_status))
         .route_layer(middleware::from_fn(require_operator));
 
@@ -2605,4 +2607,117 @@ async fn opcua_delete_cert(
 /// Safety check: filename must be a plain `*.der` with no path components.
 fn is_safe_cert_filename(name: &str) -> bool {
     !name.contains('/') && !name.contains('\\') && !name.starts_with('.') && name.ends_with(".der")
+}
+
+// ── HomeAssistant entity browse ───────────────────────────────────────────────
+
+#[derive(Deserialize)]
+struct HaBrowseRequest {
+    /// Source id from the project's sources list — used to look up url+token.
+    source_id: String,
+    /// Optional filter: only return entities whose id starts with this prefix
+    /// (e.g. "sensor.", "light.", "binary_sensor.").
+    #[serde(default)]
+    domain_filter: Option<String>,
+}
+
+#[derive(serde::Serialize)]
+struct HaBrowsedEntity {
+    entity_id:     String,
+    state:         String,
+    friendly_name: Option<String>,
+    /// Non-empty attribute names for this entity (sorted, for UI display).
+    attributes:    Vec<String>,
+}
+
+async fn ha_browse_handler(
+    State(s): State<AppState>,
+    Json(req): Json<HaBrowseRequest>,
+) -> Response {
+    // Resolve url + token from the saved project.
+    let dir = match active_dir(&s).await {
+        Ok(d) => d,
+        Err(_) => return (StatusCode::BAD_REQUEST, "no project open").into_response(),
+    };
+    let project = match Project::load(&dir) {
+        Ok(p) => p,
+        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, format!("project load: {e}")).into_response(),
+    };
+
+    let (url, token) = match project.sources.iter().find_map(|src| {
+        if let SourceDef::HomeAssistant(c) = src {
+            if c.id == req.source_id { return Some((c.url.clone(), c.token.clone(), c.token_env.clone())); }
+        }
+        None
+    }) {
+        Some((url, token_plain, token_env)) => {
+            let tok = if let Some(env) = token_env {
+                std::env::var(&env).unwrap_or_default()
+            } else {
+                token_plain.unwrap_or_default()
+            };
+            (url, tok)
+        }
+        None => return (StatusCode::NOT_FOUND, "HomeAssistant source not found").into_response(),
+    };
+
+    if token.is_empty() {
+        return (StatusCode::BAD_REQUEST, "HomeAssistant token not configured").into_response();
+    }
+
+    let states_url = format!("{}/api/states", url.trim_end_matches('/'));
+    let client = reqwest::Client::new();
+    let resp = match client
+        .get(&states_url)
+        .header("Authorization", format!("Bearer {token}"))
+        .timeout(std::time::Duration::from_secs(10))
+        .send()
+        .await
+    {
+        Ok(r) => r,
+        Err(e) => return (StatusCode::BAD_GATEWAY, format!("HA unreachable: {e}")).into_response(),
+    };
+
+    if !resp.status().is_success() {
+        return (
+            StatusCode::BAD_GATEWAY,
+            format!("HA returned {}", resp.status()),
+        ).into_response();
+    }
+
+    let raw: Vec<serde_json::Value> = match resp.json().await {
+        Ok(v) => v,
+        Err(e) => return (StatusCode::BAD_GATEWAY, format!("HA parse error: {e}")).into_response(),
+    };
+
+    let domain_filter = req.domain_filter.as_deref().unwrap_or("");
+    let mut entities: Vec<HaBrowsedEntity> = raw.into_iter()
+        .filter_map(|v| {
+            let entity_id = v.get("entity_id")?.as_str()?.to_string();
+            if !domain_filter.is_empty() && !entity_id.starts_with(domain_filter) {
+                return None;
+            }
+            let state = v.get("state").and_then(|s| s.as_str()).unwrap_or("").to_string();
+            let attrs = v.get("attributes").and_then(|a| a.as_object());
+            let friendly_name = attrs
+                .and_then(|a| a.get("friendly_name"))
+                .and_then(|f| f.as_str())
+                .map(|s| s.to_string());
+            let mut attribute_names: Vec<String> = attrs
+                .map(|a| {
+                    let mut names: Vec<String> = a.keys()
+                        .filter(|k| *k != "friendly_name")
+                        .cloned()
+                        .collect();
+                    names.sort();
+                    names
+                })
+                .unwrap_or_default();
+            attribute_names.sort();
+            Some(HaBrowsedEntity { entity_id, state, friendly_name, attributes: attribute_names })
+        })
+        .collect();
+
+    entities.sort_by(|a, b| a.entity_id.cmp(&b.entity_id));
+    Json(entities).into_response()
 }

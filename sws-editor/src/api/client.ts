@@ -6,6 +6,7 @@ import type {
   DatastoreListItem,
   DatastoreStats,
   FunctionDef,
+  HaBrowsedEntity,
   HistoryStats,
   LogEvent,
   LogFileEntry,
@@ -529,6 +530,13 @@ export const api = {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(req),
+    }),
+
+  browseHaEntities: (sourceId: string, domainFilter?: string): Promise<HaBrowsedEntity[]> =>
+    request<HaBrowsedEntity[]>("/api/sources/ha/browse", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ source_id: sourceId, domain_filter: domainFilter ?? null }),
     }),
 
   detectOpcUaEuromap: (req: OpcUaDetectEuromapRequest): Promise<OpcUaEuromapDetection> =>

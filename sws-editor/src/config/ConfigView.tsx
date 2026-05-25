@@ -11,6 +11,9 @@ import type {
   DatastoreBackendConfig,
   DatastoreConfig,
   DatastoreStats,
+  EntityMapping,
+  HaBrowsedEntity,
+  HomeAssistantSource,
   ModbusTcpSource,
   ModbusRtuSource,
   OpcUaServerNodeMapping,
@@ -538,6 +541,384 @@ function emptyOpcUaServer(): OpcUaServerSource {
 
 function emptyOpcUaServerNode(): OpcUaServerNodeMapping {
   return { tag: "" };
+}
+
+function emptyHomeAssistant(): HomeAssistantSource {
+  return {
+    kind: "homeassistant",
+    id: `ha-${genId()}`,
+    url: "http://homeassistant.local:8123",
+    token: "",
+    entities: [],
+  };
+}
+
+function emptyEntityMapping(): EntityMapping {
+  return { tag: "", entity_id: "" };
+}
+
+// ── HomeAssistant entity browser modal ────────────────────────────────────────
+
+type HaBrowseTarget = { rowIdx: number; field: "entity_id" | "attribute" };
+
+function HaBrowseModal({
+  sourceId,
+  target,
+  onSelect,
+  onClose,
+}: {
+  sourceId: string;
+  target: HaBrowseTarget;
+  onSelect: (entityId: string, attribute?: string) => void;
+  onClose: () => void;
+}) {
+  const [entities, setEntities] = useState<HaBrowsedEntity[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const [domainFilter, setDomainFilter] = useState("");
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  useEffect(() => {
+    setLoading(true);
+    setError(null);
+    api.browseHaEntities(sourceId, domainFilter || undefined)
+      .then((list) => { setEntities(list); setLoading(false); })
+      .catch((e) => { setError(String(e)); setLoading(false); });
+  }, [sourceId, domainFilter]);
+
+  const filtered = entities.filter((e) => {
+    const q = search.toLowerCase();
+    return (
+      e.entity_id.toLowerCase().includes(q) ||
+      (e.friendly_name?.toLowerCase().includes(q) ?? false) ||
+      e.state.toLowerCase().includes(q)
+    );
+  });
+
+  const domains = Array.from(new Set(entities.map((e) => e.entity_id.split(".")[0]))).sort();
+
+  return (
+    <div style={{
+      position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 1100,
+      display: "flex", alignItems: "center", justifyContent: "center",
+    }} onClick={(ev) => { if (ev.target === ev.currentTarget) onClose(); }}>
+      <div style={{
+        background: "#1e293b", border: "1px solid #334155", borderRadius: 8,
+        width: 720, maxHeight: "80vh", display: "flex", flexDirection: "column",
+        boxShadow: "0 25px 50px rgba(0,0,0,0.6)",
+      }}>
+        {/* Header */}
+        <div style={{ padding: "14px 16px", borderBottom: "1px solid #334155", display: "flex", alignItems: "center", gap: 12 }}>
+          <span style={{ fontSize: 13, fontWeight: 700, color: "#f59e0b", letterSpacing: 0.5 }}>
+            SFOGLIA ENTITÀ HOME ASSISTANT
+          </span>
+          <span style={{ fontSize: 11, color: "#64748b", flex: 1 }}>
+            {target.field === "attribute" ? "Seleziona entità poi attributo" : "Seleziona entità"}
+          </span>
+          <button style={S.btn("ghost")} onClick={onClose}>✕</button>
+        </div>
+
+        {/* Filters */}
+        <div style={{ padding: "10px 16px", borderBottom: "1px solid #1e3a5f", display: "flex", gap: 10 }}>
+          <input
+            style={{ ...S.input, flex: 1 }}
+            placeholder="Cerca entity_id, nome, stato…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            autoFocus
+          />
+          <select
+            style={{ ...S.input, minWidth: 140 }}
+            value={domainFilter}
+            onChange={(e) => setDomainFilter(e.target.value)}
+          >
+            <option value="">Tutti i domini</option>
+            {domains.map((d) => <option key={d} value={d}>{d}</option>)}
+          </select>
+        </div>
+
+        {/* Body */}
+        <div style={{ overflowY: "auto", flex: 1, padding: "6px 0" }}>
+          {loading && (
+            <div style={{ padding: 24, textAlign: "center", color: "#64748b" }}>Caricamento entità…</div>
+          )}
+          {error && (
+            <div style={{ padding: 16, color: "#ef4444", fontSize: 12 }}>
+              Errore: {error}. Verifica che l'URL e il token siano corretti e salva il progetto prima di sfogliare.
+            </div>
+          )}
+          {!loading && !error && filtered.length === 0 && (
+            <div style={{ padding: 24, textAlign: "center", color: "#475569" }}>Nessuna entità trovata.</div>
+          )}
+          {!loading && !error && filtered.map((ent) => (
+            <div key={ent.entity_id} style={{ borderBottom: "1px solid #0f172a" }}>
+              <div
+                style={{
+                  padding: "7px 16px", display: "flex", alignItems: "center", gap: 12,
+                  cursor: "pointer",
+                  background: expandedId === ent.entity_id ? "#0f2f35" : "transparent",
+                }}
+                onMouseEnter={(ev) => { (ev.currentTarget as HTMLDivElement).style.background = "#162032"; }}
+                onMouseLeave={(ev) => { (ev.currentTarget as HTMLDivElement).style.background = expandedId === ent.entity_id ? "#0f2f35" : "transparent"; }}
+              >
+                <div style={{ flex: 1, minWidth: 0 }} onClick={() => {
+                  if (target.field === "entity_id") {
+                    onSelect(ent.entity_id);
+                  } else {
+                    setExpandedId(expandedId === ent.entity_id ? null : ent.entity_id);
+                  }
+                }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: "#e2e8f0", marginBottom: 2 }}>
+                    {ent.entity_id}
+                  </div>
+                  {ent.friendly_name && ent.friendly_name !== ent.entity_id && (
+                    <div style={{ fontSize: 11, color: "#64748b" }}>{ent.friendly_name}</div>
+                  )}
+                </div>
+                <div style={{ fontSize: 11, color: "#94a3b8", minWidth: 80, textAlign: "right" }}>
+                  {ent.state}
+                </div>
+                {target.field === "entity_id" ? (
+                  <button
+                    style={{ ...S.btn("primary"), padding: "3px 10px", fontSize: 11 }}
+                    onClick={() => onSelect(ent.entity_id)}
+                  >
+                    Seleziona
+                  </button>
+                ) : (
+                  <button
+                    style={{ ...S.btn("ghost"), padding: "3px 10px", fontSize: 11 }}
+                    onClick={() => setExpandedId(expandedId === ent.entity_id ? null : ent.entity_id)}
+                  >
+                    {expandedId === ent.entity_id ? "▲" : "▼"} attr
+                  </button>
+                )}
+              </div>
+
+              {/* Attribute list — shown when field=attribute and row is expanded */}
+              {target.field === "attribute" && expandedId === ent.entity_id && ent.attributes.length > 0 && (
+                <div style={{ padding: "4px 16px 8px 32px", display: "flex", flexWrap: "wrap", gap: 6 }}>
+                  {ent.attributes.map((attr) => (
+                    <button
+                      key={attr}
+                      style={{ ...S.btn("ghost"), padding: "2px 8px", fontSize: 11 }}
+                      onClick={() => onSelect(ent.entity_id, attr)}
+                    >
+                      {attr}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+
+        {/* Footer */}
+        <div style={{ padding: "10px 16px", borderTop: "1px solid #334155", fontSize: 11, color: "#475569" }}>
+          {!loading && !error && `${filtered.length} / ${entities.length} entità`}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── HomeAssistant card ────────────────────────────────────────────────────────
+
+function HomeAssistantSourceCard({
+  source,
+  onChange,
+  onDelete,
+  onCreateTag,
+}: {
+  source: HomeAssistantSource;
+  onChange: (s: HomeAssistantSource) => void;
+  onDelete: () => void;
+  onCreateTag: (tag: TagDef) => void;
+}) {
+  const [open, setOpen] = useState(true);
+  const [quickCreate, setQuickCreate] = useState<{ rowIdx: number; prefill: string } | null>(null);
+  const [browse, setBrowse] = useState<HaBrowseTarget | null>(null);
+
+  const setField = <K extends keyof HomeAssistantSource>(k: K, v: HomeAssistantSource[K]) =>
+    onChange({ ...source, [k]: v });
+
+  const setEntity = (idx: number, patch: Partial<EntityMapping>) =>
+    onChange({ ...source, entities: source.entities.map((e, i) => (i === idx ? { ...e, ...patch } : e)) });
+
+  const addEntity = () =>
+    onChange({ ...source, entities: [...source.entities, emptyEntityMapping()] });
+
+  const removeEntity = (idx: number) =>
+    onChange({ ...source, entities: source.entities.filter((_, i) => i !== idx) });
+
+  return (
+    <div style={S.card}>
+      <div style={S.cardHead} onClick={() => setOpen((v) => !v)}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <span style={{ fontSize: 11, color: "#f59e0b", fontWeight: 700, letterSpacing: 1 }}>
+            HOME ASSISTANT
+          </span>
+          <span style={{ fontWeight: 600, color: "#e2e8f0" }}>{source.id}</span>
+          <span style={{ color: "#64748b", fontSize: 12 }}>
+            {source.url} — {source.entities.length} entità
+          </span>
+        </div>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button
+            style={S.btn("danger")}
+            onClick={(e) => { e.stopPropagation(); onDelete(); }}
+          >
+            Elimina
+          </button>
+          <span style={{ color: "#475569", fontSize: 14 }}>{open ? "▲" : "▼"}</span>
+        </div>
+      </div>
+
+      {open && (
+        <div style={{ padding: "14px 16px" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "120px 1fr 1fr", gap: 12, marginBottom: 16 }}>
+            <div>
+              <label style={{ fontSize: 11, color: "#64748b", display: "block", marginBottom: 3 }}>ID sorgente</label>
+              <input style={S.input} value={source.id}
+                onChange={(e) => setField("id", e.target.value)} spellCheck={false} />
+            </div>
+            <div>
+              <label style={{ fontSize: 11, color: "#64748b", display: "block", marginBottom: 3 }}>URL HomeAssistant</label>
+              <input style={S.input} placeholder="http://homeassistant.local:8123"
+                value={source.url}
+                onChange={(e) => setField("url", e.target.value)} spellCheck={false} />
+            </div>
+            <div>
+              <label style={{ fontSize: 11, color: "#64748b", display: "block", marginBottom: 3 }}>
+                Token accesso{" "}
+                <span style={{ fontWeight: 400, color: "#475569" }}>(oppure usa token_env)</span>
+              </label>
+              <input style={S.input} type="password" placeholder="long-lived access token"
+                value={source.token ?? ""}
+                onChange={(e) => setField("token", e.target.value || undefined)} />
+            </div>
+          </div>
+
+          <div style={{ marginBottom: 8 }}>
+            <label style={{ fontSize: 11, color: "#64748b", display: "block", marginBottom: 3 }}>
+              Variabile env per il token (opzionale — prevale su "Token accesso")
+            </label>
+            <input style={{ ...S.input, maxWidth: 240 }} placeholder="HA_TOKEN"
+              value={source.token_env ?? ""}
+              onChange={(e) => setField("token_env", e.target.value || undefined)}
+              spellCheck={false} />
+          </div>
+
+          <div style={{ marginBottom: 6, fontSize: 12, color: "#64748b", fontWeight: 600, letterSpacing: 0.5 }}>
+            ENTITÀ HA → TAG SWS
+          </div>
+          <table style={{ ...S.table, marginBottom: 8 }}>
+            <thead>
+              <tr>
+                <th style={{ ...S.th, width: "18%" }}>Tag SWS</th>
+                <th style={{ ...S.th, width: "25%" }}>Entity ID HA</th>
+                <th style={{ ...S.th, width: "14%" }}>Attributo</th>
+                <th style={{ ...S.th, width: "14%" }}>Dominio write</th>
+                <th style={{ ...S.th, width: "14%" }}>Servizio write</th>
+                <th style={S.th} />
+              </tr>
+            </thead>
+            <tbody>
+              {source.entities.length === 0 && (
+                <tr>
+                  <td colSpan={6} style={{ ...S.td, color: "#475569", textAlign: "center", padding: 12 }}>
+                    Nessuna entità — aggiungi una mappatura.
+                  </td>
+                </tr>
+              )}
+              {source.entities.map((e, i) => (
+                <tr key={i} style={{ background: i % 2 === 0 ? "transparent" : "#0f172a33" }}>
+                  <td style={S.td}>
+                    <div style={{ display: "flex", gap: 4 }}>
+                      <TagInput style={S.inputSm} placeholder="sala.temp"
+                        value={e.tag} onChange={(v) => setEntity(i, { tag: v })} />
+                      <button
+                        style={{ ...S.btn("ghost"), padding: "4px 7px", fontSize: 14, lineHeight: 1 }}
+                        title="Crea variabile"
+                        onClick={() => setQuickCreate({ rowIdx: i, prefill: e.tag })}
+                      >＋</button>
+                    </div>
+                  </td>
+                  <td style={S.td}>
+                    <div style={{ display: "flex", gap: 4 }}>
+                      <input style={S.inputSm} placeholder="sensor.living_room_temperature"
+                        value={e.entity_id}
+                        onChange={(ev) => setEntity(i, { entity_id: ev.target.value })}
+                        spellCheck={false} />
+                      <button
+                        style={{ ...S.btn("ghost"), padding: "4px 7px", fontSize: 13, lineHeight: 1 }}
+                        title="Sfoglia entità disponibili"
+                        onClick={() => setBrowse({ rowIdx: i, field: "entity_id" })}
+                      >🔍</button>
+                    </div>
+                  </td>
+                  <td style={S.td}>
+                    <div style={{ display: "flex", gap: 4 }}>
+                      <input style={S.inputSm} placeholder="(stato)"
+                        value={e.attribute ?? ""}
+                        onChange={(ev) => setEntity(i, { attribute: ev.target.value || undefined })}
+                        spellCheck={false} />
+                      <button
+                        style={{ ...S.btn("ghost"), padding: "4px 7px", fontSize: 13, lineHeight: 1 }}
+                        title="Sfoglia attributi disponibili"
+                        onClick={() => setBrowse({ rowIdx: i, field: "attribute" })}
+                      >🔍</button>
+                    </div>
+                  </td>
+                  <td style={S.td}>
+                    <input style={S.inputSm} placeholder="light"
+                      value={e.write_domain ?? ""}
+                      onChange={(ev) => setEntity(i, { write_domain: ev.target.value || undefined })}
+                      spellCheck={false} />
+                  </td>
+                  <td style={S.td}>
+                    <input style={S.inputSm} placeholder="turn_on"
+                      value={e.write_service ?? ""}
+                      onChange={(ev) => setEntity(i, { write_service: ev.target.value || undefined })}
+                      spellCheck={false} />
+                  </td>
+                  <td style={{ ...S.td, textAlign: "right" }}>
+                    <button style={S.btn("danger")} onClick={() => removeEntity(i)}>✕</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <button style={S.btn("ghost")} onClick={addEntity}>+ Aggiungi entità</button>
+        </div>
+      )}
+
+      {browse !== null && (
+        <HaBrowseModal
+          sourceId={source.id}
+          target={browse}
+          onClose={() => setBrowse(null)}
+          onSelect={(entityId, attribute) => {
+            if (browse.field === "entity_id") {
+              setEntity(browse.rowIdx, { entity_id: entityId });
+            } else {
+              setEntity(browse.rowIdx, { entity_id: entityId, attribute });
+            }
+            setBrowse(null);
+          }}
+        />
+      )}
+
+      {quickCreate !== null && (
+        <QuickCreateTagModal
+          initialId={quickCreate.prefill}
+          onClose={() => setQuickCreate(null)}
+          onConfirm={(tag: TagDef) => { onCreateTag(tag); setQuickCreate(null); }}
+        />
+      )}
+    </div>
+  );
 }
 
 // ── OPC-UA card ───────────────────────────────────────────────────────────────
@@ -2635,6 +3016,9 @@ function ProtocolsTab() {
   const addOpcUaServer = () =>
     setSources((prev) => [...prev, emptyOpcUaServer()]);
 
+  const addHomeAssistant = () =>
+    setSources((prev) => [...prev, emptyHomeAssistant()]);
+
   const updateSource = (idx: number, updated: SourceDef) =>
     setSources((prev) => prev.map((s, i) => (i === idx ? updated : s)));
 
@@ -2678,7 +3062,8 @@ function ProtocolsTab() {
         (lettura registri holding), <strong>Modbus RTU</strong> (RS-485/RS-232 seriale),
         <strong>MQTT</strong> (sottoscrizione topic),
         <strong>OPC-UA client</strong> (subscription, security None),
-        <strong>OPC-UA server</strong> (espone tag SWS a SCADA/MES superiori).
+        <strong>OPC-UA server</strong> (espone tag SWS a SCADA/MES superiori),
+        <strong>HomeAssistant</strong> (sensori e attuatori domotica via WebSocket).
         Le sorgenti vengono ricollegate <strong>in tempo reale</strong> al salvataggio (niente
         riavvio del runtime).
       </div>
@@ -2745,6 +3130,17 @@ function ProtocolsTab() {
             />
           );
         }
+        if (src.kind === "homeassistant") {
+          return (
+            <HomeAssistantSourceCard
+              key={i}
+              source={src}
+              onChange={(updated) => updateSource(i, updated)}
+              onDelete={() => removeSource(i)}
+              onCreateTag={handleCreateTag}
+            />
+          );
+        }
         return null;
       })}
 
@@ -2763,6 +3159,9 @@ function ProtocolsTab() {
         </button>
         <button style={S.btn("ghost")} onClick={addOpcUaServer}>
           + Aggiungi OPC-UA server
+        </button>
+        <button style={S.btn("ghost")} onClick={addHomeAssistant}>
+          + Aggiungi HomeAssistant
         </button>
       </div>
 
