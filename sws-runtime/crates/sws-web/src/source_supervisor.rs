@@ -80,7 +80,9 @@ impl SourceSupervisor {
                     None => to_stop.push(id.clone()),
                     Some(new_def) => {
                         let new_json = serde_json::to_value(new_def).unwrap_or(Json::Null);
-                        if new_json != running.config_json {
+                        // Restart if config changed OR if the task has already exited
+                        // (error/config-problem) — gives "retry on Save" semantics.
+                        if new_json != running.config_json || running.handle.is_finished() {
                             to_stop.push(id.clone());
                         }
                     }

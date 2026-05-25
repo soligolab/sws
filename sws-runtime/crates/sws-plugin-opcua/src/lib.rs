@@ -84,24 +84,14 @@ fn build_client_builder(pki_dir: &Path, trust_all: bool) -> ClientBuilder {
 /// its own subdirectory so multiple servers don't share the same identity.
 pub async fn run(cfg: OpcUaClientConfig, db: Arc<TagDb>, bus: Arc<TagWriteBus>, pki_dir: PathBuf) {
     let source_pki = pki_dir.join(&cfg.id);
-    loop {
-        match run_once(&cfg, &db, &bus, &source_pki).await {
-            Ok(()) => {
-                info!(source = %cfg.id, "opcua: session ended cleanly");
-            }
-            Err(e) => {
-                warn!(source = %cfg.id, "opcua: session error: {e}");
-            }
+    match run_once(&cfg, &db, &bus, &source_pki).await {
+        Ok(()) => info!(source = %cfg.id, "opcua: session ended cleanly"),
+        Err(e) => warn!(source = %cfg.id, "opcua: session error: {e} — stopped (save config to retry)"),
+    }
+    for n in &cfg.nodes {
+        if let Some(state) = db.get(&n.tag).await {
+            db.set(n.tag.clone(), state.value, TagQuality::Bad).await;
         }
-        // Mark every mapped tag Bad on disconnect so the UI surfaces the
-        // outage; on reconnect the next data-change callback flips them
-        // back to Good.
-        for n in &cfg.nodes {
-            if let Some(state) = db.get(&n.tag).await {
-                db.set(n.tag.clone(), state.value, TagQuality::Bad).await;
-            }
-        }
-        tokio::time::sleep(Duration::from_secs(5)).await;
     }
 }
 

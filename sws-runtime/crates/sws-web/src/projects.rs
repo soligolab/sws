@@ -19,6 +19,7 @@ use std::{
     path::{Path as StdPath, PathBuf},
 };
 use sws_core::{Project, ProjectMeta};
+use sws_historian::DatastoreRegistry;
 use tracing::{info, warn};
 
 // ── DTOs ─────────────────────────────────────────────────────────────────────
@@ -102,6 +103,11 @@ pub async fn list_projects(State(s): State<AppState>) -> Response {
         };
         let yaml_path = path.join("project.yaml");
         let has_project_yaml = tokio::fs::try_exists(&yaml_path).await.unwrap_or(false);
+        // Skip directories that don't look like projects (e.g. the `logs/`
+        // subdirectory that the runtime creates inside projects_root by default).
+        if !has_project_yaml {
+            continue;
+        }
         let last_modified_ms = meta
             .modified()
             .ok()
@@ -211,7 +217,21 @@ pub async fn open_project(
     // single-project boot.
     let seed = build_seed_accounts();
 
-    // 1. Clear current project state.
+    // 1. Load the new project FIRST — if it's invalid, leave the current
+    //    state untouched and return an error without disrupting the operator.
+    let project = match Project::load(&project_dir) {
+        Ok(p) => p,
+        Err(e) => {
+            warn!("open_project: project.yaml missing or invalid: {e:#}");
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("project parse error: {e}"),
+            )
+            .into_response();
+        }
+    };
+
+    // 2. Project is valid — clear the current runtime state.
     s.db.clear().await;
     s.alarms.load(vec![]).await;
     s.supervisor.reload(vec![]).await;
@@ -222,40 +242,50 @@ pub async fn open_project(
     // travel with the project (back up + restore included).
     s.supervisor.set_pki_root(project_dir.join(".opcua-pki")).await;
 
-    // 2. Load and apply the new project.
-    match Project::load(&project_dir) {
-        Ok(project) => {
-            info!(
-                name = %project.meta.name,
-                tags = project.tags.len(),
-                alarms = project.alarms.len(),
-                functions = project.functions.len(),
-                "project opened",
-            );
-            // Seed derived tags before populate_tags so they start Uncertain
-            // until the evaluator task computes the first real value.
-            {
-                let derived: Vec<(String, String)> = project.tags.iter()
-                    .filter_map(|t| t.expression.as_ref().map(|e| (t.id.clone(), e.clone())))
-                    .collect();
-                *s.derived_tags.write().await = derived;
+    // 3. Apply the new project.
+    {
+        info!(
+            name = %project.meta.name,
+            tags = project.tags.len(),
+            alarms = project.alarms.len(),
+            functions = project.functions.len(),
+            "project opened",
+        );
+        // Seed derived tags before populate_tags so they start Uncertain
+        // until the evaluator task computes the first real value.
+        {
+            let derived: Vec<(String, String)> = project.tags.iter()
+                .filter_map(|t| t.expression.as_ref().map(|e| (t.id.clone(), e.clone())))
+                .collect();
+            *s.derived_tags.write().await = derived;
+        }
+        project.populate_tags(&s.db).await;
+        // Init datastore registry before consuming the project fields.
+        match DatastoreRegistry::from_project(&project, &project_dir).await {
+            Ok(Some(reg)) => {
+                reg.clone().spawn_recorder(s.db.clone());
+                info!(backends = project.datastores.len(), "datastore registry initialised");
+                *s.registry.write().await = Some(reg);
             }
-            project.populate_tags(&s.db).await;
-            s.alarms.load(project.alarms).await;
-            s.supervisor.reload(project.sources).await;
-            {
-                let mut map = s.functions.write().await;
-                for f in project.functions {
-                    map.insert(f.name.clone(), f);
-                }
+            Ok(None) => {
+                *s.registry.write().await = None;
+            }
+            Err(e) => {
+                warn!("open_project: datastore registry init failed: {e:#}");
+                *s.registry.write().await = None;
             }
         }
-        Err(e) => {
-            warn!("open_project: project.yaml missing or invalid: {e:#}");
+        s.alarms.load(project.alarms).await;
+        s.supervisor.reload(project.sources).await;
+        {
+            let mut map = s.functions.write().await;
+            for f in project.functions {
+                map.insert(f.name.clone(), f);
+            }
         }
     }
 
-    // 3. Swap auth store. Drops all sessions → forces re-login.
+    // 4. Swap auth store. Drops all sessions → forces re-login.
     if let Err(e) = s.auth.swap_store(project_dir.join("users.yaml"), seed).await {
         warn!("open_project: swap_store failed: {e:#}");
         return (
@@ -288,6 +318,7 @@ pub async fn close_project(State(s): State<AppState>) -> Response {
     s.supervisor.reload(vec![]).await;
     s.functions.write().await.clear();
     s.derived_tags.write().await.clear();
+    *s.registry.write().await = None;
     s.auth.clear().await;
     *s.project_dir.write().await = None;
     info!("project closed");

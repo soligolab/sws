@@ -16,7 +16,7 @@ use sws_core::{EntityMapping, HomeAssistantConfig, TagDb, TagQuality, TagValue, 
 use tokio::sync::mpsc;
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 use tokio_util::sync::CancellationToken;
-use tracing::{debug, info, warn};
+use tracing::{debug, error, info, warn};
 
 pub async fn run(
     cfg: HomeAssistantConfig,
@@ -28,29 +28,20 @@ pub async fn run(
         .map(|e| (e.entity_id.clone(), e.clone()))
         .collect();
 
-    loop {
-        if cancel.is_cancelled() {
-            info!(source = %cfg.id, "HomeAssistant task cancelled");
-            return;
+    // Validate config before entering the retry loop — permanent errors (missing
+    // token, empty URL) must not spam the log with repeated retries.
+    if let Err(e) = effective_token(&cfg) {
+        error!(source = %cfg.id, "HomeAssistant source misconfigured: {e:#} — fix the config and reopen the project");
+        for m in &cfg.entities {
+            db.set(m.tag.clone(), TagValue::Bool(false), TagQuality::Bad).await;
         }
-        tokio::select! {
-            biased;
-            _ = cancel.cancelled() => {
-                info!(source = %cfg.id, "HomeAssistant task cancelled");
-                return;
-            }
-            res = run_session(&cfg, &db, &bus, &entity_map, cancel.clone()) => {
-                if let Err(e) = res {
-                    warn!(source = %cfg.id, "HomeAssistant session ended: {e:#} — retry in 5 s");
-                    for m in &cfg.entities {
-                        db.set(m.tag.clone(), TagValue::Bool(false), TagQuality::Bad).await;
-                    }
-                    tokio::select! {
-                        _ = cancel.cancelled() => return,
-                        _ = tokio::time::sleep(Duration::from_secs(5)) => {}
-                    }
-                }
-            }
+        return;
+    }
+
+    if let Err(e) = run_session(&cfg, &db, &bus, &entity_map, cancel).await {
+        warn!(source = %cfg.id, "HomeAssistant session ended: {e:#} — stopped (save config to retry)");
+        for m in &cfg.entities {
+            db.set(m.tag.clone(), TagValue::Bool(false), TagQuality::Bad).await;
         }
     }
 }
@@ -223,8 +214,10 @@ fn parse_ha_state(state: &str, attributes: &Json, mapping: &EntityMapping) -> Op
 
     if raw == "unavailable" || raw == "unknown" { return None; }
 
-    if raw == "on" || raw == "true"  { return Some(TagValue::Bool(true));  }
-    if raw == "off" || raw == "false" { return Some(TagValue::Bool(false)); }
+    if raw == "on" || raw == "true" || raw == "home" || raw == "open"
+        { return Some(TagValue::Bool(true));  }
+    if raw == "off" || raw == "false" || raw == "not_home" || raw == "closed"
+        { return Some(TagValue::Bool(false)); }
 
     if let Ok(f) = raw.parse::<f64>() { return Some(TagValue::Float(f)); }
 
@@ -238,8 +231,12 @@ fn build_service_call(mapping: &EntityMapping, value: &TagValue) -> Option<(Stri
     let (service, data) = match value {
         TagValue::Bool(true)  => (svc_base, json!({})),
         TagValue::Bool(false) => {
-            // Flip turn_on → turn_off; leave other services unchanged.
-            let svc = if svc_base == "turn_on" { "turn_off".to_string() } else { svc_base };
+            let svc = match svc_base.as_str() {
+                "turn_on"     => "turn_off".into(),
+                "open_cover"  => "close_cover".into(),
+                "close_cover" => "open_cover".into(),
+                _             => svc_base,
+            };
             (svc, json!({}))
         }
         TagValue::Float(f) => (svc_base, json!({ "value": f })),

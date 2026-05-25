@@ -1,0 +1,26 @@
+name: homeassistant-pro
+label: "HomeAssistant Pro — Showcase completo"
+description: |
+  Template di showcase per installazioni HomeAssistant avanzate con:
+  - Inverter fotovoltaico Solarman (2 stringhe PV, batteria LiFePO4, scambio rete)
+  - Monitoraggio elettrico multi-circuito (contatori Sonoff/Shelly con V+A+W+Hz)
+  - Clima 5 stanze Zigbee (temperatura + umidità)
+  - Sicurezza perimetrale completa (14 sensori porte/finestre, 5 motion, 3 perimetrali)
+  - Controlli write-back: luci esterne (switch) + tapparelle motorizzate (cover)
+  - Presenza persona (person tracker)
+  - 9 tag derivati Python (autoconsumo, comfort index, saldo energetico, ecc.)
+  - 13 allarmi con dead-band (batteria, tensione, frequenza, sicurezza, clima)
+  - SQLite historian (365 giorni, 20 tag registrati)
+  - Pronto per 6 pagine sinottiche: Panoramica · FV · Batteria/Rete · Clima · Carichi · Sicurezza
+tags_count: 86
+requires:
+  - integration: solarman
+    description: "Inverter Solarman (fotovoltaico + batteria)"
+  - integration: zigbee
+    description: "Sensori Zigbee temperatura/umidità multi-stanza"
+  - integration: smart_meters
+    description: "Contatori smart (Sonoff POWR316D o Shelly EM) per misura V+A+W"
+  - integration: cover
+    description: "Tapparelle motorizzate compatibili HA (Shelly, Somfy, BTicino, ecc.)"
+  - integration: binary_sensor
+    description: "Sensori contatto porte/finestre + sensori PIR/Zigbee"
