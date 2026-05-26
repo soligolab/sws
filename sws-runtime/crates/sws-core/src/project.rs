@@ -158,6 +158,8 @@ pub enum SourceDef {
     OpcUaClient(OpcUaClientConfig),
     #[serde(rename = "homeassistant")]
     HomeAssistant(HomeAssistantConfig),
+    #[serde(rename = "s7")]
+    S7(S7Config),
 }
 
 /// Home Assistant integration source.
@@ -447,6 +449,68 @@ fn default_stop_bits() -> u8 { 1 }
 fn default_data_type() -> String { "float".to_string() }
 fn default_mqtt_port() -> u16 { 1883 }
 fn default_mqtt_client_id() -> String { "sws-runtime".to_string() }
+
+// ── Siemens S7 config ─────────────────────────────────────────────────────────
+
+fn default_s7_slot() -> u16 { 1 }
+fn default_s7_poll_ms() -> u64 { 500 }
+fn default_s7_area() -> String { "db".into() }
+
+/// Data type of a tag mapped from the S7 PLC.
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum S7DataType {
+    Bool,
+    Byte,
+    Int,
+    Word,
+    Dint,
+    #[default]
+    Real,
+}
+
+/// One tag mapping from an S7 PLC to a SWS tag.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct S7TagMapping {
+    /// SWS tag id.
+    pub tag: String,
+    /// Memory area: "db", "m" (Merker), "i" (inputs), "q" (outputs).
+    #[serde(default = "default_s7_area")]
+    pub area: String,
+    /// Data Block number (only for area == "db").
+    #[serde(default)]
+    pub db_num: i32,
+    /// Byte offset within the area/DB.
+    pub byte_offset: i32,
+    /// Bit offset within the byte (0-7). Only used for `data_type: bool`.
+    #[serde(default)]
+    pub bit_offset: u8,
+    /// Data type of this tag at the PLC.
+    #[serde(default)]
+    pub data_type: S7DataType,
+    /// Optional write-back: when true, `PUT /api/tags/:id` writes back to PLC.
+    #[serde(default)]
+    pub writable: bool,
+}
+
+/// Siemens S7 ISO-on-TCP source (S7-300/400/1200/1500).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct S7Config {
+    pub id: String,
+    /// PLC IP address.
+    pub ip: String,
+    /// CPU rack number. Usually 0.
+    #[serde(default)]
+    pub rack: u16,
+    /// CPU slot number. 1 for S7-300/400, 0 for S7-1200/1500.
+    #[serde(default = "default_s7_slot")]
+    pub slot: u16,
+    /// Poll interval in milliseconds.
+    #[serde(default = "default_s7_poll_ms")]
+    pub poll_interval_ms: u64,
+    #[serde(default)]
+    pub tags: Vec<S7TagMapping>,
+}
 
 /// One named parameter on a `FunctionDef`. Parameters become Python locals
 /// when the function runs. Default is a JSON value so we can carry the

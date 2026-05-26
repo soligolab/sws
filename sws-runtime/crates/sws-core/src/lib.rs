@@ -10,7 +10,8 @@ pub use project::{
     FunctionDef, FunctionParam, GlobalScriptDef, HomeAssistantConfig, ModbusRtuConfig,
     ModbusTcpConfig, MqttConfig, MqttLastWill, MqttTlsConfig, OpcUaAuth, OpcUaClientConfig,
     OpcUaNodeMapping, OpcUaServerConfig, OpcUaServerNodeMapping, Project, ProjectMeta,
-    RegisterMapping, ScriptTrigger, SourceDef, TagDef, TopicMapping, MAX_FUNCTION_CODE_BYTES,
+    RegisterMapping, S7Config, S7DataType, S7TagMapping, ScriptTrigger, SourceDef, TagDef,
+    TopicMapping, MAX_FUNCTION_CODE_BYTES,
 };
 pub use tag::{
     Tag, TagDb, TagId, TagQuality, TagState, TagUpdate, TagValue, TagWriteBus, WriteError,

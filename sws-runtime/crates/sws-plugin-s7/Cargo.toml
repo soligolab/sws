@@ -1,0 +1,15 @@
+[package]
+name    = "sws-plugin-s7"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+tokio.workspace   = true
+serde.workspace   = true
+tracing.workspace = true
+anyhow.workspace  = true
+tokio-util.workspace = true
+s7 = "0.1.9"
+byteorder.workspace = true
+sws-core = { path = "../sws-core" }
