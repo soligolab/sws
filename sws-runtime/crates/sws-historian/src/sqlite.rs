@@ -14,7 +14,7 @@
 
 use std::{path::PathBuf, sync::Arc};
 use rusqlite::{params, Connection, OptionalExtension};
-use sws_core::{TagQuality, TagValue};
+use sws_core::{AlarmEvent, AlarmSeverity, TagQuality, TagValue};
 use tokio::{sync::Mutex, task};
 use tracing::{info, warn};
 
@@ -29,6 +29,20 @@ CREATE TABLE IF NOT EXISTS samples (
     PRIMARY KEY (tag, ts_ms)
 ) WITHOUT ROWID;
 CREATE INDEX IF NOT EXISTS idx_samples_ts ON samples(ts_ms);
+
+CREATE TABLE IF NOT EXISTS alarm_events (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    alarm_id        TEXT    NOT NULL,
+    alarm_message   TEXT    NOT NULL DEFAULT '',
+    severity        TEXT    NOT NULL DEFAULT 'Warning',
+    ts_activated_ms INTEGER NOT NULL,
+    ts_acked_ms     INTEGER,
+    ts_normalized_ms INTEGER,
+    duration_s      REAL,
+    acked_by        TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_alarm_events_ts  ON alarm_events(ts_activated_ms DESC);
+CREATE INDEX IF NOT EXISTS idx_alarm_events_aid ON alarm_events(alarm_id);
 "#;
 
 /// Thin async wrapper around a single SQLite connection.
@@ -229,6 +243,105 @@ impl SqliteStore {
                 tag_count as u64,
             ))
         }).await?
+    }
+
+    // ── Alarm event journal ───────────────────────────────────────────────────
+
+    /// Persist one completed alarm event.
+    pub async fn append_alarm_event(&self, ev: &AlarmEvent) {
+        let conn         = self.conn.clone();
+        let alarm_id     = ev.alarm_id.clone();
+        let msg          = ev.alarm_message.clone();
+        let sev          = format!("{:?}", ev.severity);
+        let ts_act       = ev.ts_activated_ms as i64;
+        let ts_ack       = ev.ts_acked_ms.map(|v| v as i64);
+        let ts_norm      = ev.ts_normalized_ms.map(|v| v as i64);
+        let duration     = ev.duration_s;
+        let acked_by     = ev.acked_by.clone();
+        let res = task::spawn_blocking(move || -> rusqlite::Result<()> {
+            let c = conn.blocking_lock();
+            c.execute(
+                "INSERT INTO alarm_events \
+                 (alarm_id, alarm_message, severity, ts_activated_ms, ts_acked_ms, ts_normalized_ms, duration_s, acked_by) \
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                params![alarm_id, msg, sev, ts_act, ts_ack, ts_norm, duration, acked_by],
+            )?;
+            Ok(())
+        }).await;
+        match res {
+            Ok(Ok(())) => {}
+            Ok(Err(e)) => warn!("historian: alarm_event insert failed: {e}"),
+            Err(e)     => warn!("historian: alarm_event task panicked: {e}"),
+        }
+    }
+
+    /// Query alarm events with optional filters. Returns events newest-first, up to `limit`.
+    pub async fn query_alarm_events(
+        &self,
+        alarm_id: Option<&str>,
+        from_ms: Option<u64>,
+        to_ms: Option<u64>,
+        limit: usize,
+    ) -> Vec<AlarmEvent> {
+        let conn     = self.conn.clone();
+        let alarm_id = alarm_id.map(str::to_string);
+        let res = task::spawn_blocking(move || -> rusqlite::Result<Vec<AlarmEvent>> {
+            let c = conn.blocking_lock();
+            // Use NULL-guard pattern: (?2 IS NULL OR col = ?2) avoids dynamic SQL.
+            let mut stmt = c.prepare(
+                "SELECT alarm_id, alarm_message, severity, ts_activated_ms, \
+                        ts_acked_ms, ts_normalized_ms, duration_s, acked_by \
+                   FROM alarm_events \
+                  WHERE (?2 IS NULL OR alarm_id = ?2) \
+                    AND (?3 IS NULL OR ts_activated_ms >= ?3) \
+                    AND (?4 IS NULL OR ts_activated_ms <= ?4) \
+                  ORDER BY ts_activated_ms DESC \
+                  LIMIT ?1"
+            )?;
+            let rows = stmt.query_map(
+                params![
+                    limit as i64,
+                    alarm_id,
+                    from_ms.map(|v| v as i64),
+                    to_ms.map(|v| v as i64),
+                ],
+                |r| Ok((
+                    r.get::<_, String>(0)?,
+                    r.get::<_, String>(1)?,
+                    r.get::<_, String>(2)?,
+                    r.get::<_, i64>(3)?,
+                    r.get::<_, Option<i64>>(4)?,
+                    r.get::<_, Option<i64>>(5)?,
+                    r.get::<_, Option<f64>>(6)?,
+                    r.get::<_, Option<String>>(7)?,
+                )),
+            )?;
+            let mut events = Vec::new();
+            for r in rows {
+                let (aid, msg, sev_str, ts_act, ts_ack, ts_norm, dur, acked_by) = r?;
+                let severity = match sev_str.as_str() {
+                    "Info"     => AlarmSeverity::Info,
+                    "Critical" => AlarmSeverity::Critical,
+                    _          => AlarmSeverity::Warning,
+                };
+                events.push(AlarmEvent {
+                    alarm_id: aid,
+                    alarm_message: msg,
+                    severity,
+                    ts_activated_ms: ts_act as u64,
+                    ts_acked_ms: ts_ack.map(|v| v as u64),
+                    ts_normalized_ms: ts_norm.map(|v| v as u64),
+                    duration_s: dur,
+                    acked_by,
+                });
+            }
+            Ok(events)
+        }).await;
+        match res {
+            Ok(Ok(v)) => v,
+            Ok(Err(e)) => { warn!("historian: query_alarm_events db error: {e}"); vec![] }
+            Err(e)     => { warn!("historian: query_alarm_events task panicked: {e}"); vec![] }
+        }
     }
 
     /// Delete excess rows per tag, keeping only the `max_rows` most-recent.

@@ -685,13 +685,34 @@ export interface HistoryStats {
   last_ts: number | null;
 }
 
+export type IsaState =
+  | "normal"
+  | "active_unacked"
+  | "active_acked"
+  | "normal_unacked";
+
 export interface AlarmState {
   def: AlarmDef;
+  /** ISA-18.2 four-state value. */
+  isa_state: IsaState;
+  /** Convenience booleans derived from isa_state (backward-compat). */
   active: boolean;
   acknowledged: boolean;
   activated_at_ms: number | null;
   ack_at_ms: number | null;
+  normalized_at_ms: number | null;
   last_value: number | string | boolean | null;
+}
+
+export interface AlarmEvent {
+  alarm_id: string;
+  alarm_message: string;
+  severity: AlarmSeverity;
+  ts_activated_ms: number;
+  ts_acked_ms: number | null;
+  ts_normalized_ms: number | null;
+  duration_s: number | null;
+  acked_by: string | null;
 }
 
 export interface ShelvedAlarm {

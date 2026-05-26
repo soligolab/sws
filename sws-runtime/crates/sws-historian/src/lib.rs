@@ -100,6 +100,11 @@ impl Historian {
         Ok(h)
     }
 
+    /// Access the underlying SQLite store, if attached.
+    pub fn sqlite_store(&self) -> Option<&SqliteStore> {
+        self.store.as_ref()
+    }
+
     /// Discard all in-memory samples for all tags.
     /// Called on project open/close to prevent inter-project data leakage.
     /// The SQLite store (if any) is left intact — its data remains on disk.

@@ -289,6 +289,13 @@ pub async fn open_project(
             }
         }
         s.alarms.load(project.alarms).await;
+        // Wire the alarm journal → SQLite if a store is open.
+        if let Some(store) = s.historian.sqlite_store().cloned() {
+            s.alarms.set_journal_callback(move |ev| {
+                let store = store.clone();
+                tokio::spawn(async move { store.append_alarm_event(&ev).await; });
+            }).await;
+        }
         s.supervisor.reload(project.sources).await;
         {
             let mut map = s.functions.write().await;
