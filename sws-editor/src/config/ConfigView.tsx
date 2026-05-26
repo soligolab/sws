@@ -285,6 +285,10 @@ function TagsTab() {
   const [saving, setSaving]     = useState(false);
   const [saved, setSaved]       = useState(false);
   const [exprOpen, setExprOpen] = useState<Set<number>>(new Set());
+  const [showImport, setShowImport] = useState(false);
+  const [importText, setImportText] = useState("");
+  const [importMsg, setImportMsg]   = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   // Sync local state when store changes (e.g. on initial project load)
   useEffect(() => {
@@ -322,8 +326,88 @@ function TagsTab() {
     }
   };
 
+  const handleExportCsv = () => {
+    const header = "id,data_type,description,history,expression";
+    const rows = tags.map((t) =>
+      [t.id, t.data_type ?? "float", t.description ?? "", t.history ? "true" : "false", t.expression ?? ""]
+        .map((v) => (v.includes(",") || v.includes("\n") ? `"${v.replace(/"/g, '""')}"` : v))
+        .join(",")
+    );
+    const csv = [header, ...rows].join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = "tags.csv"; a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImportSubmit = async () => {
+    setImportMsg(null);
+    try {
+      const result = await api.importTagsCsv(importText);
+      setImportMsg(`✓ Importati ${result.imported} tag. Ricarica la pagina o salva per aggiornare la vista.`);
+      // Refresh from server
+      const proj = await api.getProject();
+      if (proj.tags) { setTags(proj.tags); updateProjectTags(proj.tags); }
+      setImportText("");
+    } catch (e: unknown) {
+      setImportMsg(`Errore: ${e instanceof Error ? e.message : "importazione fallita"}`);
+    }
+  };
+
   return (
     <div style={S.section}>
+      {showImport && (
+        <div style={{
+          position: "fixed", inset: 0, zIndex: 8000,
+          background: "rgba(0,0,0,0.6)",
+          display: "flex", alignItems: "center", justifyContent: "center",
+        }}
+          onClick={(e) => { if (e.target === e.currentTarget) setShowImport(false); }}
+        >
+          <div style={{ background: "#0f172a", border: "1px solid #334155", borderRadius: 8, width: 560, display: "flex", flexDirection: "column", gap: 10, padding: 16 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: "#cbd5e1" }}>Importa tag da CSV</div>
+            <div style={{ fontSize: 11, color: "#64748b" }}>
+              Prima riga = intestazione. Colonne obbligatorie: <code>id</code>. Opzionali: <code>data_type</code>, <code>description</code>, <code>history</code>, <code>expression</code>.
+              I tag esistenti vengono aggiornati; i nuovi vengono aggiunti.
+            </div>
+            <input
+              ref={fileRef}
+              type="file"
+              accept=".csv,text/csv"
+              style={{ display: "none" }}
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (ev) => setImportText(ev.target?.result as string ?? "");
+                reader.readAsText(file);
+              }}
+            />
+            <button onClick={() => fileRef.current?.click()} style={{ ...S.btn("ghost"), alignSelf: "flex-start" }}>
+              📂 Scegli file CSV…
+            </button>
+            <textarea
+              value={importText}
+              onChange={(e) => setImportText(e.target.value)}
+              placeholder={"id,data_type,description,history\npump1.speed,float,Velocità pompa 1,true\npump1.run,bool,Stato marcia,false"}
+              rows={8}
+              style={{ ...S.input, fontFamily: "monospace", fontSize: 11, resize: "vertical" }}
+            />
+            {importMsg && (
+              <div style={{ fontSize: 12, color: importMsg.startsWith("✓") ? "#22c55e" : "#ef4444" }}>
+                {importMsg}
+              </div>
+            )}
+            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+              <button style={S.btn("ghost")} onClick={() => { setShowImport(false); setImportMsg(null); setImportText(""); }}>Annulla</button>
+              <button style={S.btn("primary")} onClick={handleImportSubmit} disabled={!importText.trim()}>
+                Importa
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       <div style={S.sectionTitle}>VARIABILI (TAG)</div>
       <div style={S.notice}>
         Le variabili definiscono i punti dati del progetto. Collega ogni variabile a un
@@ -456,8 +540,10 @@ function TagsTab() {
         </tbody>
       </table>
 
-      <div style={{ marginTop: 10, display: "flex", gap: 8 }}>
+      <div style={{ marginTop: 10, display: "flex", gap: 8, flexWrap: "wrap" }}>
         <button style={S.btn("ghost")} onClick={addTag}>+ Aggiungi variabile</button>
+        <button style={S.btn("ghost")} onClick={handleExportCsv} title="Scarica i tag correnti come CSV">⬇ Esporta CSV</button>
+        <button style={S.btn("ghost")} onClick={() => setShowImport(true)} title="Importa tag da file CSV">⬆ Importa CSV</button>
       </div>
 
       <SaveBar onSave={handleSave} saving={saving} saved={saved} />
