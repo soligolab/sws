@@ -86,8 +86,11 @@ reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"
 # Error handling
 anyhow = "1"
 
-# Byte order helpers (used by S7 plugin for big-endian PLC data)
+# Byte order helpers (used by S7/EtherNetIP plugins)
 byteorder = "1"
+
+# EtherNet/IP (CIP) async client for Allen-Bradley PLC
+rseip = "0.3.1"
 
 # System metrics (CPU, RAM, disk)
 sysinfo = "0.30"

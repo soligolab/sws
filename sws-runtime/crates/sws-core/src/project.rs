@@ -160,6 +160,8 @@ pub enum SourceDef {
     HomeAssistant(HomeAssistantConfig),
     #[serde(rename = "s7")]
     S7(S7Config),
+    #[serde(rename = "enip")]
+    EnIp(EnIpConfig),
 }
 
 /// Home Assistant integration source.
@@ -510,6 +512,54 @@ pub struct S7Config {
     pub poll_interval_ms: u64,
     #[serde(default)]
     pub tags: Vec<S7TagMapping>,
+}
+
+// ── EtherNet/IP (Allen-Bradley / CIP) config ─────────────────────────────────
+
+fn default_enip_poll_ms() -> u64 { 500 }
+
+/// CIP data type for an EtherNet/IP tag.
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum EnIpDataType {
+    Bool,
+    Sint,
+    Int,
+    Dint,
+    Lint,
+    #[default]
+    Real,
+}
+
+/// One tag mapped from an Allen-Bradley PLC.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EnIpTagMapping {
+    /// SWS tag id.
+    pub tag: String,
+    /// PLC tag name (e.g. "Motor_Speed" or "Program:MainProgram.Counter").
+    pub plc_tag: String,
+    /// CIP data type of this PLC tag.
+    #[serde(default)]
+    pub data_type: EnIpDataType,
+    /// When true, `PUT /api/tags/:id` writes back to the PLC.
+    #[serde(default)]
+    pub writable: bool,
+}
+
+/// EtherNet/IP (CIP) source for Allen-Bradley ControlLogix/CompactLogix.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EnIpConfig {
+    pub id: String,
+    /// PLC IP address (port 44818 is implied).
+    pub ip: String,
+    /// CIP slot number (rack/slot for ControlLogix; 0 for CompactLogix/Micro).
+    #[serde(default)]
+    pub slot: u8,
+    /// Poll interval in milliseconds.
+    #[serde(default = "default_enip_poll_ms")]
+    pub poll_interval_ms: u64,
+    #[serde(default)]
+    pub tags: Vec<EnIpTagMapping>,
 }
 
 /// One named parameter on a `FunctionDef`. Parameters become Python locals

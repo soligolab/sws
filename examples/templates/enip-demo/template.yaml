@@ -1,0 +1,3 @@
+id: enip-demo
+label: "EtherNet/IP (Allen-Bradley) Demo"
+description: "Template di partenza per un PLC Allen-Bradley ControlLogix/CompactLogix via EtherNet/IP CIP (porta 44818). Legge tag simbolici: velocità pompa (REAL), stato valvola (BOOL), temperatura (REAL), contatore cicli (DINT). Write-back su velocità e valvola. Modificare l'IP in Protocolli per puntare al proprio PLC."

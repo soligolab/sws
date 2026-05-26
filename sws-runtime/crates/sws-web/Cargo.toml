@@ -30,6 +30,7 @@ sws-plugin-mqtt           = { path = "../sws-plugin-mqtt" }
 sws-plugin-opcua          = { path = "../sws-plugin-opcua" }
 sws-plugin-homeassistant  = { path = "../sws-plugin-homeassistant" }
 sws-plugin-s7             = { path = "../sws-plugin-s7" }
+sws-plugin-enip           = { path = "../sws-plugin-enip" }
 reqwest.workspace         = true
 sysinfo           = { workspace = true }
 # Prometheus exposition for /metrics. The recorder is installed once at

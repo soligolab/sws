@@ -178,6 +178,12 @@ impl SourceSupervisor {
                     sws_plugin_s7::run(cfg, db, bus, cancel_for_task).await;
                 })
             }
+            SourceDef::EnIp(cfg) => {
+                info!(source = %id_for_log, ip = %cfg.ip, "starting EtherNet/IP task");
+                tokio::spawn(async move {
+                    sws_plugin_enip::run(cfg, db, bus, cancel_for_task).await;
+                })
+            }
         };
 
         self.sources.lock().await.insert(
@@ -221,6 +227,7 @@ fn source_id(s: &SourceDef) -> &str {
         SourceDef::OpcUaClient(c)    => &c.id,
         SourceDef::HomeAssistant(c)  => &c.id,
         SourceDef::S7(c)             => &c.id,
+        SourceDef::EnIp(c)           => &c.id,
     }
 }
 
@@ -233,6 +240,7 @@ fn tags_of(s: &SourceDef) -> Vec<String> {
         SourceDef::OpcUaClient(c)    => c.nodes.iter().map(|n| n.tag.clone()).collect(),
         SourceDef::HomeAssistant(c)  => c.entities.iter().map(|e| e.tag.clone()).collect(),
         SourceDef::S7(c)             => c.tags.iter().map(|t| t.tag.clone()).collect(),
+        SourceDef::EnIp(c)           => c.tags.iter().map(|t| t.tag.clone()).collect(),
     }
 }
 

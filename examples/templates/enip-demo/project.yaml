@@ -1,0 +1,146 @@
+meta:
+  name: "EtherNet/IP Demo"
+  description: "Progetto dimostrativo per Allen-Bradley ControlLogix/CompactLogix via EtherNet/IP CIP. Modificare l'IP per puntare al proprio PLC."
+
+sources:
+  - kind: en_ip
+    id: enip-plc
+    ip: "192.168.1.10"
+    slot: 0
+    poll_interval_ms: 500
+    tags:
+      - tag: pump.speed
+        plc_tag: "Pump_Speed"
+        data_type: real
+        writable: true
+      - tag: valve.open
+        plc_tag: "Valve_Open"
+        data_type: bool
+        writable: true
+      - tag: sensor.temp
+        plc_tag: "Temperature"
+        data_type: real
+        writable: false
+      - tag: counter.cycles
+        plc_tag: "Cycle_Count"
+        data_type: dint
+        writable: false
+
+tags:
+  - id: pump.speed
+    data_type: float
+    description: "Velocità pompa (rpm)"
+    history: true
+  - id: valve.open
+    data_type: bool
+    description: "Valvola aperta"
+    history: true
+  - id: sensor.temp
+    data_type: float
+    description: "Temperatura °C"
+    history: true
+  - id: counter.cycles
+    data_type: int
+    description: "Contatore cicli PLC"
+    history: false
+  - id: pump.speed_pct
+    data_type: float
+    description: "Velocità pompa (%)"
+    expression: "tags['pump.speed'] / 30.0"
+    history: false
+
+alarms:
+  - id: alm-temp-high
+    tag: sensor.temp
+    condition:
+      kind: above
+      threshold: 85.0
+    message: "Temperatura eccessiva!"
+    severity: Critical
+  - id: alm-pump-zero
+    tag: pump.speed
+    condition:
+      kind: below
+      threshold: 5.0
+    message: "Pompa ferma o sotto minimo"
+    severity: Warning
+
+synoptics:
+  - id: main
+    label: "EtherNet/IP Overview"
+    objects:
+      - type: text
+        id: title
+        x: 20
+        y: 16
+        text: "Allen-Bradley ControlLogix — EtherNet/IP Demo"
+        font_size: 18
+        color: "#f59e0b"
+      - type: text
+        id: lbl-speed
+        x: 20
+        y: 70
+        text: "Velocità pompa:"
+        font_size: 13
+        color: "#94a3b8"
+      - type: value_display
+        id: pump-speed
+        x: 160
+        y: 66
+        tag: pump.speed
+        suffix: " rpm"
+        font_size: 14
+        color: "#22d3ee"
+      - type: text
+        id: lbl-temp
+        x: 20
+        y: 110
+        text: "Temperatura:"
+        font_size: 13
+        color: "#94a3b8"
+      - type: value_display
+        id: temp-display
+        x: 160
+        y: 106
+        tag: sensor.temp
+        suffix: " °C"
+        font_size: 14
+        color: "#f97316"
+      - type: text
+        id: lbl-valve
+        x: 20
+        y: 150
+        text: "Valvola:"
+        font_size: 13
+        color: "#94a3b8"
+      - type: indicator
+        id: valve-indicator
+        x: 160
+        y: 146
+        tag: valve.open
+        color_on: "#22c55e"
+        color_off: "#ef4444"
+        width: 20
+        height: 20
+      - type: text
+        id: lbl-cycles
+        x: 20
+        y: 190
+        text: "Cicli PLC:"
+        font_size: 13
+        color: "#94a3b8"
+      - type: value_display
+        id: cycles-display
+        x: 160
+        y: 186
+        tag: counter.cycles
+        font_size: 14
+        color: "#a78bfa"
+      - type: setpoint
+        id: sp-speed
+        x: 20
+        y: 240
+        tag: pump.speed
+        label: "Imposta velocità (rpm)"
+        min: 0
+        max: 3000
