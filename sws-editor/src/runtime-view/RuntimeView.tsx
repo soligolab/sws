@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { api } from "@/api/client";
 import { SvgCanvas } from "@/canvas/SvgCanvas";
+import { AlarmHistory } from "@/components/AlarmHistory";
 import { useAppStore } from "@/store";
 import { useAlarmStream } from "@/ws/alarmStream";
 import { useTagStream, tryTagWriteWs } from "@/ws/tagStream";
@@ -95,7 +96,9 @@ function AlarmPanel() {
 
   const alarms = useAppStore((s) => s.alarms);
   const updateAlarm = useAppStore((s) => s.updateAlarm);
+  const authUser = useAppStore((s) => s.authUser);
   const [open, setOpen] = useState(false);
+  const [panelTab, setPanelTab] = useState<"attivi" | "storico">("attivi");
   const [shelved, setShelved] = useState<ShelvedAlarm[]>([]);
   // shelveOpen: id of alarm whose inline shelve-form is expanded, or null
   const [shelveOpen, setShelveOpen] = useState<string | null>(null);
@@ -119,8 +122,13 @@ function AlarmPanel() {
 
   const handleAck = async (a: AlarmState) => {
     try {
-      await api.ackAlarm(a.def.id);
-      updateAlarm({ ...a, acknowledged: true, ack_at_ms: Date.now() });
+      await api.ackAlarm(a.def.id, authUser ?? undefined);
+      updateAlarm({
+        ...a,
+        isa_state: a.isa_state === "active_unacked" ? "active_acked" : "normal",
+        acknowledged: true,
+        ack_at_ms: Date.now(),
+      });
     } catch { /* WS broadcast reconciles */ }
   };
 
@@ -193,22 +201,45 @@ function AlarmPanel() {
           overflow: "hidden", display: "flex", flexDirection: "column",
           boxShadow: "0 6px 20px rgba(0,0,0,0.5)",
         }}>
-          {/* Header */}
+          {/* Header with tabs */}
           <div style={{
             display: "flex", alignItems: "center", justifyContent: "space-between",
-            padding: "8px 12px", borderBottom: "1px solid #334155",
+            padding: "6px 12px", borderBottom: "1px solid #334155",
             background: "#1e293b", fontSize: 12, color: "#94a3b8",
           }}>
-            <span>{visibleActive.length} attivi{unack.filter(a => !shelvedIds.has(a.def.id)).length > 0 ? ` · ${unack.filter(a => !shelvedIds.has(a.def.id)).length} non conf.` : ""}</span>
-            {unack.filter(a => !shelvedIds.has(a.def.id)).length > 1 && (
+            <div style={{ display: "flex", gap: 2 }}>
+              {(["attivi", "storico"] as const).map((t) => (
+                <button
+                  key={t}
+                  onClick={() => setPanelTab(t)}
+                  style={{
+                    padding: "2px 10px", fontSize: 11, borderRadius: 4, cursor: "pointer",
+                    background: panelTab === t ? "#334155" : "transparent",
+                    border: "none",
+                    color: panelTab === t ? "#e2e8f0" : "#64748b",
+                    textTransform: "capitalize",
+                  }}
+                >
+                  {t === "attivi" ? `Attivi (${visibleActive.length})` : "Storico"}
+                </button>
+              ))}
+            </div>
+            {panelTab === "attivi" && unack.filter(a => !shelvedIds.has(a.def.id)).length > 1 && (
               <button onClick={handleAckAll} style={{ background: "#334155", border: "none", color: "#e2e8f0", padding: "2px 10px", borderRadius: 4, cursor: "pointer", fontSize: 11 }}>
                 ACK tutti
               </button>
             )}
           </div>
 
+          {/* Storico tab */}
+          {panelTab === "storico" && (
+            <div style={{ overflowY: "auto", flex: 1, padding: 12 }}>
+              <AlarmHistory />
+            </div>
+          )}
+
           {/* Active alarms */}
-          <div style={{ overflowY: "auto", flex: 1 }}>
+          {panelTab === "attivi" && <div style={{ overflowY: "auto", flex: 1 }}>
             {visibleActive.length === 0 && shelved.length === 0 ? (
               <div style={{ padding: 16, color: "#64748b", fontSize: 12, textAlign: "center" }}>Nessun allarme attivo.</div>
             ) : visibleActive.map((a) => {
@@ -297,7 +328,7 @@ function AlarmPanel() {
                 ))}
               </>
             )}
-          </div>
+          </div>}
         </div>
       )}
     </div>

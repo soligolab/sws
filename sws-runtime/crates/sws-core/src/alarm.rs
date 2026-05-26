@@ -1,13 +1,22 @@
-//! Minimal alarm engine for the PoC.
+//! ISA-18.2-compliant alarm engine.
 //!
-//! An `AlarmDef` watches one `TagId` with a `AlarmCondition`. The runtime
-//! evaluates conditions whenever the tag changes (subscribing to `TagDb`'s
-//! broadcast) and stores transitions in an `AlarmDb`. The UI subscribes to
-//! the alarm broadcast (or polls `GET /api/alarms`) and acknowledges via
-//! `POST /api/alarms/:id/ack`.
+//! State machine (4 states per ISA-18.2):
 //!
-//! Out of scope for the PoC: multi-condition (AND/OR) rules, time-based
-//! delays, alarm groups. Shelving implemented in Phase 2 (S-49).
+//!   Normal ────activate───► Active-Unacked
+//!                                  │ ack()
+//!                                  ▼
+//!   Normal ◄───normalize──── Active-Acked
+//!
+//!   Normal-Unacked ◄─────────── (cleared before ack)
+//!      │ ack()
+//!      ▼
+//!   Normal
+//!
+//! Transitions that produce journal events:
+//!   - ACTIVATE   (Normal → Active-Unacked): ts_activated recorded
+//!   - ACK        (Active-Unacked → Active-Acked)
+//!   - NORMALIZE  (Active-Acked → Normal OR Active-Unacked → Normal-Unacked)
+//!   - NORM-ACK   (Normal-Unacked → Normal): completes the event row
 
 use std::{
     collections::HashMap,
@@ -17,6 +26,8 @@ use std::{
 use serde::{Deserialize, Serialize};
 use tokio::sync::{broadcast, RwLock};
 use crate::tag::{TagId, TagState, TagValue};
+
+// ── Types ─────────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 pub enum AlarmSeverity {
@@ -29,18 +40,37 @@ impl Default for AlarmSeverity {
     fn default() -> Self { Self::Warning }
 }
 
+/// ISA-18.2 alarm state — four states.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum IsaState {
+    /// Not active, no outstanding ack needed — steady state.
+    #[default]
+    Normal,
+    /// Condition is active and operator has not acknowledged.
+    ActiveUnacked,
+    /// Condition is active and operator has acknowledged.
+    ActiveAcked,
+    /// Condition cleared but operator has not yet acknowledged the event.
+    NormalUnacked,
+}
+
+impl IsaState {
+    pub fn is_active(self) -> bool {
+        matches!(self, IsaState::ActiveUnacked | IsaState::ActiveAcked)
+    }
+    pub fn needs_ack(self) -> bool {
+        matches!(self, IsaState::ActiveUnacked | IsaState::NormalUnacked)
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum AlarmCondition {
-    /// Fire when the tag's numeric value goes strictly above `threshold`.
     Above       { threshold: f64 },
-    /// Fire when the tag's numeric value goes strictly below `threshold`.
     Below       { threshold: f64 },
-    /// Fire when a Bool tag matches `value`.
     BoolEquals  { value: bool },
-    /// Shorthand for BoolEquals { value: true } — tag name form used in project YAML.
     BoolTrue,
-    /// Shorthand for BoolEquals { value: false }.
     BoolFalse,
 }
 
@@ -54,8 +84,6 @@ impl AlarmCondition {
         }
     }
 
-    /// Evaluate this condition against the current tag value.
-    /// Returns false if the value can't be coerced into the expected type.
     pub fn evaluate(&self, value: &TagValue) -> bool {
         match self {
             AlarmCondition::Above { threshold }        => Self::as_f64(value).map_or(false, |v| v >  *threshold),
@@ -66,10 +94,6 @@ impl AlarmCondition {
         }
     }
 
-    /// Evaluate the "return-to-normal" condition considering a dead-band.
-    /// When dead_band > 0, the alarm only clears when the value has moved
-    /// `dead_band` units past the threshold (hysteresis).
-    /// Bool alarms have no numeric dead-band — they clear normally.
     pub fn evaluate_clear(&self, value: &TagValue, dead_band: f64) -> bool {
         match self {
             AlarmCondition::Above { threshold } =>
@@ -92,25 +116,24 @@ pub struct AlarmDef {
     pub message: String,
     #[serde(default)]
     pub severity: AlarmSeverity,
-    /// Optional webhook URL. When set, a POST is fired to this URL each time
-    /// the alarm transitions to ACTIVE. Payload: `AlarmWebhookPayload` JSON.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub notify_url: Option<String>,
-    /// Hysteresis band (same unit as the tag value). When set, the alarm only
-    /// clears when the value has moved `dead_band` units back past the threshold.
-    /// Prevents alarm chatter on noisy signals near the setpoint.
-    /// Example: Above(80) + dead_band=2 → clears only below 78, not at 79.9.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub dead_band: Option<f64>,
 }
 
+/// Live alarm state — serialized in WS/REST snapshots.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AlarmState {
     pub def: AlarmDef,
+    /// ISA-18.2 four-state value.
+    pub isa_state: IsaState,
+    /// Convenience fields derived from `isa_state` for backward-compat.
     pub active: bool,
     pub acknowledged: bool,
     pub activated_at_ms: Option<u64>,
     pub ack_at_ms: Option<u64>,
+    pub normalized_at_ms: Option<u64>,
     pub last_value: Option<TagValue>,
 }
 
@@ -118,55 +141,109 @@ impl AlarmState {
     fn from_def(def: AlarmDef) -> Self {
         Self {
             def,
+            isa_state: IsaState::Normal,
             active: false,
             acknowledged: false,
             activated_at_ms: None,
             ack_at_ms: None,
+            normalized_at_ms: None,
             last_value: None,
         }
     }
+
+    fn sync_compat(&mut self) {
+        self.active = self.isa_state.is_active();
+        self.acknowledged = !self.isa_state.needs_ack() && self.isa_state != IsaState::Normal
+            || self.isa_state == IsaState::ActiveAcked;
+    }
 }
 
-/// A shelved (suppressed) alarm entry.
+/// One completed (or in-progress) alarm event in the journal.
+/// `normalized_at_ms` and `acked_by`/`ack_at_ms` are None while the alarm
+/// is still active.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AlarmEvent {
+    /// Matches `AlarmDef.id`.
+    pub alarm_id: String,
+    pub alarm_message: String,
+    pub severity: AlarmSeverity,
+    pub ts_activated_ms: u64,
+    pub ts_acked_ms: Option<u64>,
+    pub ts_normalized_ms: Option<u64>,
+    /// Duration active in seconds (None while still active).
+    pub duration_s: Option<f64>,
+    pub acked_by: Option<String>,
+}
+
+/// A shelved (suppressed) alarm.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ShelvedAlarm {
     pub alarm_id: String,
     pub reason: String,
-    /// Epoch-ms when the shelving expires. `0` = indefinite (never auto-unshelves).
     pub until_ms: u64,
     pub shelved_by: String,
     pub shelved_at_ms: u64,
 }
 
-/// In-memory alarm registry + broadcast for live UI updates.
-/// Mirrors the shape of TagDb deliberately.
+// ── In-progress event tracker (not persisted — lives in memory) ───────────────
+
+#[derive(Debug, Clone)]
+struct OpenEvent {
+    alarm_id: String,
+    alarm_message: String,
+    severity: AlarmSeverity,
+    ts_activated_ms: u64,
+    ts_acked_ms: Option<u64>,
+    acked_by: Option<String>,
+}
+
+// ── AlarmDb ───────────────────────────────────────────────────────────────────
+
 pub struct AlarmDb {
-    states: Arc<RwLock<HashMap<String, AlarmState>>>,
-    /// Reverse index: tag → IDs of alarms that watch it.
-    by_tag: Arc<RwLock<HashMap<TagId, Vec<String>>>>,
-    /// Shelved (suppressed) alarms: id → shelving metadata.
-    shelved: Arc<RwLock<HashMap<String, ShelvedAlarm>>>,
+    states:      Arc<RwLock<HashMap<String, AlarmState>>>,
+    by_tag:      Arc<RwLock<HashMap<TagId, Vec<String>>>>,
+    shelved:     Arc<RwLock<HashMap<String, ShelvedAlarm>>>,
+    open_events: Arc<RwLock<HashMap<String, OpenEvent>>>,
+    /// Completed journal events (in-memory; lost on restart — SQLite persistence
+    /// is wired in separately via the journal callback).
+    journal:     Arc<RwLock<Vec<AlarmEvent>>>,
     tx: broadcast::Sender<AlarmState>,
+    /// Optional async callback fired on each completed journal event.
+    /// Set externally to persist to SQLite.
+    journal_cb:  Arc<RwLock<Option<Box<dyn Fn(AlarmEvent) + Send + Sync + 'static>>>>,
 }
 
 impl AlarmDb {
     pub fn new(channel_capacity: usize) -> Self {
         let (tx, _) = broadcast::channel(channel_capacity);
         Self {
-            states:  Arc::new(RwLock::new(HashMap::new())),
-            by_tag:  Arc::new(RwLock::new(HashMap::new())),
-            shelved: Arc::new(RwLock::new(HashMap::new())),
+            states:      Arc::new(RwLock::new(HashMap::new())),
+            by_tag:      Arc::new(RwLock::new(HashMap::new())),
+            shelved:     Arc::new(RwLock::new(HashMap::new())),
+            open_events: Arc::new(RwLock::new(HashMap::new())),
+            journal:     Arc::new(RwLock::new(Vec::new())),
             tx,
+            journal_cb:  Arc::new(RwLock::new(None)),
         }
     }
 
-    /// Register every alarm definition. Call at startup after loading the project.
+    /// Register a callback invoked whenever an alarm event completes.
+    /// Used by the SQLite alarm journal layer to persist events.
+    pub async fn set_journal_callback<F>(&self, cb: F)
+    where
+        F: Fn(AlarmEvent) + Send + Sync + 'static,
+    {
+        *self.journal_cb.write().await = Some(Box::new(cb));
+    }
+
     pub async fn load(&self, defs: Vec<AlarmDef>) {
         let mut states = self.states.write().await;
         let mut by_tag = self.by_tag.write().await;
         states.clear();
         by_tag.clear();
         self.shelved.write().await.clear();
+        self.open_events.write().await.clear();
+        self.journal.write().await.clear();
         for def in defs {
             by_tag.entry(def.tag.clone()).or_default().push(def.id.clone());
             states.insert(def.id.clone(), AlarmState::from_def(def));
@@ -183,10 +260,13 @@ impl AlarmDb {
         v
     }
 
-    /// Drive evaluation: called for every TagDb update. Emits a broadcast
-    /// whenever an alarm transitions active/inactive (or ack changes).
+    /// Recent journal events, newest first. `limit` caps the returned count.
+    pub async fn journal_snapshot(&self, limit: usize) -> Vec<AlarmEvent> {
+        let j = self.journal.read().await;
+        j.iter().rev().take(limit).cloned().collect()
+    }
+
     pub async fn evaluate(&self, tag_id: &str, tag_state: &TagState) {
-        // Collect IDs of alarms watching this tag without holding the lock during the write.
         let watchers: Vec<String> = self
             .by_tag.read().await
             .get(tag_id)
@@ -197,47 +277,108 @@ impl AlarmDb {
 
         let now = now_ms();
 
-        // Auto-expire shelved entries whose `until_ms` has passed.
+        // Auto-expire shelved entries.
         {
             let mut shelved = self.shelved.write().await;
             shelved.retain(|_, sh| sh.until_ms == 0 || sh.until_ms > now);
         }
-
-        // Snapshot shelved IDs so we can skip them during evaluation.
         let shelved_ids: std::collections::HashSet<String> =
             self.shelved.read().await.keys().cloned().collect();
 
         let mut to_emit: Vec<AlarmState> = Vec::new();
+        let mut completed_events: Vec<AlarmEvent> = Vec::new();
+
         {
-            let mut states = self.states.write().await;
+            let mut states      = self.states.write().await;
+            let mut open_events = self.open_events.write().await;
+
             for id in &watchers {
-                // Shelved alarms are suppressed — skip evaluation entirely.
                 if shelved_ids.contains(id) { continue; }
                 let Some(s) = states.get_mut(id) else { continue };
-                let fired = s.def.condition.evaluate(&tag_state.value);
+                let fired   = s.def.condition.evaluate(&tag_state.value);
                 s.last_value = Some(tag_state.value.clone());
 
-                if fired && !s.active {
-                    s.active = true;
-                    s.acknowledged = false;
-                    s.activated_at_ms = Some(now);
-                    s.ack_at_ms = None;
-                    to_emit.push(s.clone());
-                } else if !fired && s.active {
-                    // With dead_band: only clear when the value has moved past
-                    // (threshold ± dead_band), not just crossed back over threshold.
-                    let cleared = match s.def.dead_band {
-                        Some(db) if db > 0.0 =>
-                            s.def.condition.evaluate_clear(&tag_state.value, db),
-                        _ => true,
-                    };
-                    if cleared {
-                        s.active = false;
-                        // Keep ack flag — once acked, the recovery is recorded but the
-                        // operator doesn't have to ack a second time.
+                let prev = s.isa_state;
+
+                match (prev, fired) {
+                    // Normal → ActiveUnacked (activate)
+                    (IsaState::Normal, true) => {
+                        s.isa_state = IsaState::ActiveUnacked;
+                        s.activated_at_ms = Some(now);
+                        s.ack_at_ms = None;
+                        s.normalized_at_ms = None;
+                        open_events.insert(id.clone(), OpenEvent {
+                            alarm_id: id.clone(),
+                            alarm_message: s.def.message.clone(),
+                            severity: s.def.severity,
+                            ts_activated_ms: now,
+                            ts_acked_ms: None,
+                            acked_by: None,
+                        });
+                        s.sync_compat();
                         to_emit.push(s.clone());
                     }
+                    // NormalUnacked → ActiveUnacked (re-activate before ack)
+                    (IsaState::NormalUnacked, true) => {
+                        s.isa_state = IsaState::ActiveUnacked;
+                        s.activated_at_ms = Some(now);
+                        s.sync_compat();
+                        to_emit.push(s.clone());
+                    }
+                    // ActiveUnacked cleared → NormalUnacked (normalize without ack)
+                    (IsaState::ActiveUnacked, false) => {
+                        let cleared = s.def.dead_band
+                            .map(|db| db > 0.0 && s.def.condition.evaluate_clear(&tag_state.value, db))
+                            .unwrap_or(true);
+                        if cleared {
+                            s.isa_state = IsaState::NormalUnacked;
+                            s.normalized_at_ms = Some(now);
+                            // Update open event but don't complete it yet.
+                            if let Some(ev) = open_events.get_mut(id) {
+                                ev.ts_acked_ms = None;
+                            }
+                            s.sync_compat();
+                            to_emit.push(s.clone());
+                        }
+                    }
+                    // ActiveAcked cleared → Normal (clean close)
+                    (IsaState::ActiveAcked, false) => {
+                        let cleared = s.def.dead_band
+                            .map(|db| db > 0.0 && s.def.condition.evaluate_clear(&tag_state.value, db))
+                            .unwrap_or(true);
+                        if cleared {
+                            s.isa_state = IsaState::Normal;
+                            s.normalized_at_ms = Some(now);
+                            // Complete the journal event.
+                            if let Some(ev) = open_events.remove(id) {
+                                let duration_s = Some((now - ev.ts_activated_ms) as f64 / 1000.0);
+                                completed_events.push(AlarmEvent {
+                                    alarm_id: ev.alarm_id,
+                                    alarm_message: ev.alarm_message,
+                                    severity: ev.severity,
+                                    ts_activated_ms: ev.ts_activated_ms,
+                                    ts_acked_ms: ev.ts_acked_ms,
+                                    ts_normalized_ms: Some(now),
+                                    duration_s,
+                                    acked_by: ev.acked_by,
+                                });
+                            }
+                            s.sync_compat();
+                            to_emit.push(s.clone());
+                        }
+                    }
+                    _ => {}
                 }
+            }
+        }
+
+        // Persist + store completed events outside the state lock.
+        if !completed_events.is_empty() {
+            let cb = self.journal_cb.read().await;
+            let mut journal = self.journal.write().await;
+            for ev in completed_events {
+                if let Some(f) = cb.as_ref() { f(ev.clone()); }
+                journal.push(ev);
             }
         }
 
@@ -246,8 +387,64 @@ impl AlarmDb {
         }
     }
 
-    /// Shelve (suppress) an alarm for `duration_ms` milliseconds (`0` = indefinite).
-    /// Returns `false` if the alarm id is unknown.
+    /// Acknowledge the alarm identified by `id`. `by` is the operator name/id.
+    pub async fn ack(&self, id: &str, by: Option<String>) -> bool {
+        let mut states = self.states.write().await;
+        let Some(s) = states.get_mut(id) else { return false };
+
+        let transition = match s.isa_state {
+            IsaState::ActiveUnacked => Some(IsaState::ActiveAcked),
+            IsaState::NormalUnacked => Some(IsaState::Normal),
+            _ => None,
+        };
+        let Some(next) = transition else { return true /* already acked */ };
+
+        let now = now_ms();
+        s.isa_state = next;
+        s.ack_at_ms = Some(now);
+        s.sync_compat();
+
+        // Update open event with ack info.
+        let mut open_events = self.open_events.write().await;
+        let mut completed_events: Vec<AlarmEvent> = Vec::new();
+
+        if let Some(ev) = open_events.get_mut(id) {
+            ev.ts_acked_ms = Some(now);
+            ev.acked_by = by.clone();
+            // NormalUnacked → Normal completes the event immediately.
+            if next == IsaState::Normal {
+                let ev = open_events.remove(id).unwrap();
+                let duration_s = Some((now - ev.ts_activated_ms) as f64 / 1000.0);
+                completed_events.push(AlarmEvent {
+                    alarm_id: ev.alarm_id,
+                    alarm_message: ev.alarm_message,
+                    severity: ev.severity,
+                    ts_activated_ms: ev.ts_activated_ms,
+                    ts_acked_ms: ev.ts_acked_ms,
+                    ts_normalized_ms: s.normalized_at_ms,
+                    duration_s,
+                    acked_by: ev.acked_by,
+                });
+            }
+        }
+
+        let snap = s.clone();
+        drop(states);
+        drop(open_events);
+
+        if !completed_events.is_empty() {
+            let cb = self.journal_cb.read().await;
+            let mut journal = self.journal.write().await;
+            for ev in completed_events {
+                if let Some(f) = cb.as_ref() { f(ev.clone()); }
+                journal.push(ev);
+            }
+        }
+
+        let _ = self.tx.send(snap);
+        true
+    }
+
     pub async fn shelve(&self, id: &str, reason: String, duration_ms: u64, shelved_by: String) -> bool {
         if !self.states.read().await.contains_key(id) { return false; }
         let now = now_ms();
@@ -262,33 +459,16 @@ impl AlarmDb {
         true
     }
 
-    /// Unshelve (re-activate) an alarm. Idempotent.
     pub async fn unshelve(&self, id: &str) {
         self.shelved.write().await.remove(id);
     }
 
-    /// Snapshot of all currently-shelved alarms.
     pub async fn shelved_snapshot(&self) -> Vec<ShelvedAlarm> {
         let now = now_ms();
         self.shelved.read().await.values()
             .filter(|sh| sh.until_ms == 0 || sh.until_ms > now)
             .cloned()
             .collect()
-    }
-
-    /// Mark an alarm as acknowledged. Idempotent.
-    /// Returns `true` if the alarm exists.
-    pub async fn ack(&self, id: &str) -> bool {
-        let mut states = self.states.write().await;
-        let Some(s) = states.get_mut(id) else { return false };
-        if !s.acknowledged {
-            s.acknowledged = true;
-            s.ack_at_ms = Some(now_ms());
-            let snap = s.clone();
-            drop(states);
-            let _ = self.tx.send(snap);
-        }
-        true
     }
 }
 
@@ -321,69 +501,80 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn fires_when_above_threshold() {
+    async fn four_state_isa182_cycle() {
         let db = AlarmDb::new(8);
-        db.load(vec![def("temp_high", "boiler.t", AlarmCondition::Above { threshold: 80.0 })]).await;
-        db.evaluate("boiler.t", &ts(TagValue::Float(85.0))).await;
+        db.load(vec![def("t", "tag", AlarmCondition::Above { threshold: 80.0 })]).await;
+
+        // Activate → ActiveUnacked
+        db.evaluate("tag", &ts(TagValue::Float(90.0))).await;
         let snap = db.snapshot().await;
+        assert_eq!(snap[0].isa_state, IsaState::ActiveUnacked);
         assert!(snap[0].active);
         assert!(!snap[0].acknowledged);
-    }
 
-    #[tokio::test]
-    async fn clears_when_back_below() {
-        let db = AlarmDb::new(8);
-        db.load(vec![def("temp_high", "boiler.t", AlarmCondition::Above { threshold: 80.0 })]).await;
-        db.evaluate("boiler.t", &ts(TagValue::Float(85.0))).await;
-        db.evaluate("boiler.t", &ts(TagValue::Float(75.0))).await;
+        // Ack → ActiveAcked
+        db.ack("t", None).await;
         let snap = db.snapshot().await;
+        assert_eq!(snap[0].isa_state, IsaState::ActiveAcked);
+        assert!(snap[0].active);
+
+        // Normalize → Normal (event complete)
+        db.evaluate("tag", &ts(TagValue::Float(70.0))).await;
+        let snap = db.snapshot().await;
+        assert_eq!(snap[0].isa_state, IsaState::Normal);
         assert!(!snap[0].active);
+
+        let events = db.journal_snapshot(10).await;
+        assert_eq!(events.len(), 1);
+        assert!(events[0].ts_acked_ms.is_some());
+        assert!(events[0].ts_normalized_ms.is_some());
     }
 
     #[tokio::test]
-    async fn ack_sticks_until_recurrence() {
+    async fn normalize_before_ack_gives_normal_unacked() {
         let db = AlarmDb::new(8);
-        db.load(vec![def("temp_high", "boiler.t", AlarmCondition::Above { threshold: 80.0 })]).await;
-        db.evaluate("boiler.t", &ts(TagValue::Float(85.0))).await;
-        assert!(db.ack("temp_high").await);
-        let snap = db.snapshot().await;
-        assert!(snap[0].acknowledged);
+        db.load(vec![def("t", "tag", AlarmCondition::Above { threshold: 80.0 })]).await;
 
-        // Recovery + re-fire: ack must reset
-        db.evaluate("boiler.t", &ts(TagValue::Float(70.0))).await;
-        db.evaluate("boiler.t", &ts(TagValue::Float(90.0))).await;
-        let snap = db.snapshot().await;
-        assert!(snap[0].active);
-        assert!(!snap[0].acknowledged);
+        db.evaluate("tag", &ts(TagValue::Float(90.0))).await;
+        assert_eq!(db.snapshot().await[0].isa_state, IsaState::ActiveUnacked);
+
+        // Normalize without ack → NormalUnacked
+        db.evaluate("tag", &ts(TagValue::Float(70.0))).await;
+        assert_eq!(db.snapshot().await[0].isa_state, IsaState::NormalUnacked);
+
+        // Ack → Normal, event completes
+        db.ack("t", None).await;
+        assert_eq!(db.snapshot().await[0].isa_state, IsaState::Normal);
+        assert_eq!(db.journal_snapshot(10).await.len(), 1);
     }
 
     #[tokio::test]
     async fn dead_band_prevents_premature_clear() {
         let db = AlarmDb::new(8);
-        let mut alarm = def("temp_high", "boiler.t", AlarmCondition::Above { threshold: 80.0 });
+        let mut alarm = def("t", "tag", AlarmCondition::Above { threshold: 80.0 });
         alarm.dead_band = Some(2.0);
         db.load(vec![alarm]).await;
+        db.ack("t", None).await; // pre-ack so it goes to ActiveAcked on fire
 
-        // Fire at 85
-        db.evaluate("boiler.t", &ts(TagValue::Float(85.0))).await;
-        assert!(db.snapshot().await[0].active, "should activate at 85");
+        db.evaluate("tag", &ts(TagValue::Float(85.0))).await;
+        assert_eq!(db.snapshot().await[0].isa_state, IsaState::ActiveUnacked);
 
-        // Drop to 79.5: still above (threshold - dead_band = 78), so alarm stays
-        db.evaluate("boiler.t", &ts(TagValue::Float(79.5))).await;
-        assert!(db.snapshot().await[0].active, "should stay active at 79.5 (above dead_band floor 78)");
+        db.evaluate("tag", &ts(TagValue::Float(79.5))).await;
+        assert_eq!(db.snapshot().await[0].isa_state, IsaState::ActiveUnacked, "above dead_band floor 78");
 
-        // Drop to 77: below 78 → alarm clears
-        db.evaluate("boiler.t", &ts(TagValue::Float(77.0))).await;
-        assert!(!db.snapshot().await[0].active, "should clear at 77 (below dead_band floor 78)");
+        db.evaluate("tag", &ts(TagValue::Float(77.0))).await;
+        // Still ActiveUnacked (not yet acked) but normalize should fire.
+        // Dead_band: threshold(80) - db(2) = 78. 77 < 78 → clears.
+        assert_eq!(db.snapshot().await[0].isa_state, IsaState::NormalUnacked);
     }
 
     #[tokio::test]
-    async fn bool_equals_condition() {
+    async fn bool_condition_cycle() {
         let db = AlarmDb::new(8);
-        db.load(vec![def("fault", "pump.fault", AlarmCondition::BoolEquals { value: true })]).await;
+        db.load(vec![def("f", "pump.fault", AlarmCondition::BoolTrue)]).await;
         db.evaluate("pump.fault", &ts(TagValue::Bool(true))).await;
-        assert!(db.snapshot().await[0].active);
+        assert_eq!(db.snapshot().await[0].isa_state, IsaState::ActiveUnacked);
         db.evaluate("pump.fault", &ts(TagValue::Bool(false))).await;
-        assert!(!db.snapshot().await[0].active);
+        assert_eq!(db.snapshot().await[0].isa_state, IsaState::NormalUnacked);
     }
 }

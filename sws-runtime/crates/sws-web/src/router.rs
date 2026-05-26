@@ -13,9 +13,9 @@ use tower_http::services::{ServeDir, ServeFile};
 use serde::Deserialize;
 use sws_auth::{AuthState, Credentials, LoginError, LoginOk, Role};
 use sws_core::{
-    AlarmDb, AlarmDef, AlarmState, CustomSymbol, FunctionDef, LogBus, LogEvent, Project,
-    ProjectMeta, SourceDef, TagDb, TagDef, TagId, TagQuality, TagState, TagUpdate, TagValue,
-    TagWriteBus, WriteError, MAX_FUNCTION_CODE_BYTES,
+    AlarmDb, AlarmDef, AlarmEvent, AlarmState, CustomSymbol, FunctionDef, LogBus,
+    LogEvent, Project, ProjectMeta, SourceDef, TagDb, TagDef, TagId, TagQuality, TagState,
+    TagUpdate, TagValue, TagWriteBus, WriteError, MAX_FUNCTION_CODE_BYTES,
 };
 use sws_historian::{DatastoreRegistry, Historian, Sample};
 use sws_pyscript::{Engine as PyEngine, ExecOutput};
@@ -167,7 +167,8 @@ pub fn build(
         .route("/api/tags",      get(get_all_tags))
         .route("/api/tags/:id",  get(get_tag))
         // Alarm REST (reads)
-        .route("/api/alarms",    get(get_alarms))
+        .route("/api/alarms",         get(get_alarms))
+        .route("/api/alarms/history", get(get_alarm_history))
         // Historian
         .route("/api/history/export",      get(export_history_csv))   // literal before :tag
         .route("/api/history/:tag/stats",  get(tag_history_stats))
@@ -1077,8 +1078,47 @@ async fn get_alarms(State(s): State<AppState>) -> Json<Vec<AlarmState>> {
     Json(s.alarms.snapshot().await)
 }
 
-async fn ack_alarm(State(s): State<AppState>, Path(id): Path<String>) -> StatusCode {
-    if s.alarms.ack(&id).await { StatusCode::NO_CONTENT } else { StatusCode::NOT_FOUND }
+#[derive(serde::Deserialize, Default)]
+struct AckRequest {
+    #[serde(default)]
+    by: Option<String>,
+}
+
+async fn ack_alarm(
+    State(s): State<AppState>,
+    Path(id): Path<String>,
+    body: Option<Json<AckRequest>>,
+) -> StatusCode {
+    let by = body.and_then(|b| b.by.clone());
+    if s.alarms.ack(&id, by).await { StatusCode::NO_CONTENT } else { StatusCode::NOT_FOUND }
+}
+
+#[derive(serde::Deserialize, Default)]
+struct AlarmHistoryQuery {
+    alarm_id: Option<String>,
+    from_ms:  Option<u64>,
+    to_ms:    Option<u64>,
+    #[serde(default = "default_limit")]
+    limit:    usize,
+}
+fn default_limit() -> usize { 200 }
+
+async fn get_alarm_history(
+    State(s): State<AppState>,
+    Query(q): Query<AlarmHistoryQuery>,
+) -> Json<Vec<AlarmEvent>> {
+    // Try SQLite first; fall back to in-memory journal.
+    let events = if let Some(store) = s.historian.sqlite_store() {
+        store.query_alarm_events(
+            q.alarm_id.as_deref(),
+            q.from_ms,
+            q.to_ms,
+            q.limit,
+        ).await
+    } else {
+        s.alarms.journal_snapshot(q.limit).await
+    };
+    Json(events)
 }
 
 #[derive(serde::Deserialize)]

@@ -1,5 +1,6 @@
 import type {
   AlarmDef,
+  AlarmEvent,
   AlarmState,
   CustomSymbol,
   DatastoreConfig,
@@ -386,8 +387,21 @@ export const api = {
   getAlarms: () =>
     request<AlarmState[]>("/api/alarms"),
 
-  ackAlarm: (id: string) =>
-    request<void>(`/api/alarms/${encodeURIComponent(id)}/ack`, { method: "POST" }),
+  ackAlarm: (id: string, by?: string) =>
+    request<void>(`/api/alarms/${encodeURIComponent(id)}/ack`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ by: by ?? null }),
+    }),
+
+  getAlarmHistory: (params?: { alarm_id?: string; from_ms?: number; to_ms?: number; limit?: number }) => {
+    const q = new URLSearchParams();
+    if (params?.alarm_id) q.set("alarm_id", params.alarm_id);
+    if (params?.from_ms != null) q.set("from_ms", String(params.from_ms));
+    if (params?.to_ms != null) q.set("to_ms", String(params.to_ms));
+    if (params?.limit != null) q.set("limit", String(params.limit));
+    return request<AlarmEvent[]>(`/api/alarms/history?${q}`);
+  },
 
   shelveAlarm: (id: string, reason: string, durationMs: number, shelvedBy: string) =>
     request<void>(`/api/alarms/${encodeURIComponent(id)}/shelve`, {
