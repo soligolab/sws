@@ -7,6 +7,7 @@ import type {
   DatastoreListItem,
   DatastoreStats,
   FunctionDef,
+  GlobalScriptDef,
   HaBrowsedEntity,
   HistoryStats,
   LogEvent,
@@ -643,6 +644,13 @@ export const api = {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(datastores),
+    }),
+
+  saveGlobalScripts: (scripts: GlobalScriptDef[]) =>
+    request<void>("/api/project/global-scripts", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(scripts),
     }),
 
   uploadProjectZip: async (file: Blob, name?: string): Promise<{ name: string }> => {

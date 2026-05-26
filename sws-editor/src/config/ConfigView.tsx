@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { api, type CreateUserBody, type UpdateUserBody, type UserRole, type UserSummary } from "@/api/client";
 import { TagInput } from "@/components/TagInput";
+import { PythonEditor, type PythonEditorHandle } from "@/components/PythonEditor";
 import { useAppStore } from "@/store";
 import { canConfigureProject } from "@/auth/permissions";
 import type {
@@ -12,6 +13,7 @@ import type {
   DatastoreConfig,
   DatastoreStats,
   EntityMapping,
+  GlobalScriptDef,
   HaBrowsedEntity,
   HomeAssistantSource,
   ModbusTcpSource,
@@ -28,6 +30,7 @@ import type {
   OpcUaNodeMapping,
   OpcUaSource,
   RegisterMapping,
+  ScriptTriggerKind,
   SourceDef,
   TagDataType,
   TagDef,
@@ -4295,15 +4298,236 @@ function DatastoresTab() {
   );
 }
 
+// ── GlobalScriptsTab ──────────────────────────────────────────────────────────
+
+function newScript(): GlobalScriptDef {
+  return {
+    id: `script_${Date.now()}`,
+    trigger: { kind: "startup" },
+    code: "# Script avviato all'apertura del progetto\nlog('Hello from global script!')\n",
+    enabled: true,
+  };
+}
+
+function triggerLabel(t: ScriptTriggerKind): string {
+  switch (t.kind) {
+    case "startup":    return "Avvio";
+    case "interval":   return `Ogni ${t.interval_s}s`;
+    case "cron":       return `Cron: ${t.schedule}`;
+    case "tag_change": return `Tag: ${t.tag}`;
+  }
+}
+
+function GlobalScriptsTab() {
+  const project = useAppStore((s) => s.project);
+  const [scripts, setScripts] = useState<GlobalScriptDef[]>(
+    () => project?.global_scripts ?? []
+  );
+  const [selected, setSelected] = useState<number>(0);
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+  const editorRef = useRef<PythonEditorHandle | null>(null);
+
+  // Sync when project reloads
+  useEffect(() => {
+    setScripts(project?.global_scripts ?? []);
+  }, [project]);
+
+  const cur = scripts[selected] ?? null;
+
+  function update(idx: number, patch: Partial<GlobalScriptDef>) {
+    setScripts((prev) => prev.map((s, i) => i === idx ? { ...s, ...patch } : s));
+  }
+
+  function updateTrigger(idx: number, patch: Partial<ScriptTriggerKind>) {
+    const s = scripts[idx];
+    if (!s) return;
+    update(idx, { trigger: { ...s.trigger, ...patch } as ScriptTriggerKind });
+  }
+
+  async function handleSave() {
+    setSaving(true);
+    setMsg(null);
+    try {
+      await api.saveGlobalScripts(scripts);
+      setMsg("Salvato.");
+    } catch (e) {
+      setMsg(`Errore: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function addScript() {
+    const s = newScript();
+    setScripts((prev) => [...prev, s]);
+    setSelected(scripts.length);
+  }
+
+  function removeScript(idx: number) {
+    setScripts((prev) => prev.filter((_, i) => i !== idx));
+    setSelected((prev) => Math.max(0, prev > idx ? prev - 1 : prev));
+  }
+
+  return (
+    <div style={{ display: "flex", gap: 16, height: "calc(100vh - 120px)", overflow: "hidden" }}>
+      {/* Left: script list */}
+      <div style={{ width: 240, flexShrink: 0, display: "flex", flexDirection: "column", gap: 8 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <span style={{ fontWeight: 700, fontSize: 13, color: "#94a3b8" }}>SCRIPT</span>
+          <button
+            onClick={addScript}
+            style={{ background: "#3b82f6", color: "#fff", border: "none", borderRadius: 4, padding: "4px 10px", cursor: "pointer", fontSize: 13 }}
+          >+ Nuovo</button>
+        </div>
+        <div style={{ flex: 1, overflow: "auto", display: "flex", flexDirection: "column", gap: 4 }}>
+          {scripts.length === 0 && (
+            <div style={{ color: "#64748b", fontSize: 13, padding: 8 }}>Nessuno script.</div>
+          )}
+          {scripts.map((s, idx) => (
+            <div
+              key={s.id}
+              onClick={() => setSelected(idx)}
+              style={{
+                padding: "8px 10px",
+                borderRadius: 6,
+                background: selected === idx ? "#1e40af" : "#1e293b",
+                cursor: "pointer",
+                display: "flex",
+                flexDirection: "column",
+                gap: 2,
+              }}
+            >
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ fontSize: 13, fontWeight: 600, color: "#e2e8f0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.id}</span>
+                <button
+                  onClick={(e) => { e.stopPropagation(); removeScript(idx); }}
+                  style={{ background: "none", border: "none", color: "#ef4444", cursor: "pointer", fontSize: 14, padding: "0 2px" }}
+                >✕</button>
+              </div>
+              <span style={{ fontSize: 11, color: "#94a3b8" }}>{triggerLabel(s.trigger)}</span>
+              <span style={{ fontSize: 11, color: s.enabled ? "#22c55e" : "#64748b" }}>{s.enabled ? "Abilitato" : "Disabilitato"}</span>
+            </div>
+          ))}
+        </div>
+        <button
+          onClick={handleSave}
+          disabled={saving}
+          style={{ background: saving ? "#374151" : "#10b981", color: "#fff", border: "none", borderRadius: 6, padding: "8px 16px", cursor: saving ? "default" : "pointer", fontSize: 14, fontWeight: 600 }}
+        >{saving ? "Salvataggio…" : "Salva tutti"}</button>
+        {msg && <div style={{ fontSize: 12, color: msg.startsWith("Errore") ? "#ef4444" : "#22c55e" }}>{msg}</div>}
+      </div>
+
+      {/* Right: editor */}
+      {cur ? (
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 12, overflow: "hidden" }}>
+          {/* ID + enabled */}
+          <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+            <label style={{ fontSize: 13, color: "#94a3b8" }}>ID</label>
+            <input
+              value={cur.id}
+              onChange={(e) => update(selected, { id: e.target.value })}
+              style={{ background: "#1e293b", border: "1px solid #334155", borderRadius: 4, color: "#e2e8f0", padding: "4px 8px", fontSize: 13, width: 200 }}
+            />
+            <label style={{ fontSize: 13, color: "#94a3b8", display: "flex", alignItems: "center", gap: 6 }}>
+              <input
+                type="checkbox"
+                checked={cur.enabled}
+                onChange={(e) => update(selected, { enabled: e.target.checked })}
+              />
+              Abilitato
+            </label>
+          </div>
+
+          {/* Trigger type */}
+          <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+            <label style={{ fontSize: 13, color: "#94a3b8" }}>Trigger</label>
+            <select
+              value={cur.trigger.kind}
+              onChange={(e) => {
+                const kind = e.target.value as ScriptTriggerKind["kind"];
+                const base: ScriptTriggerKind =
+                  kind === "startup"    ? { kind } :
+                  kind === "interval"   ? { kind, interval_s: 60 } :
+                  kind === "cron"       ? { kind, schedule: "0 * * * *" } :
+                  /* tag_change */        { kind, tag: "", edge: "any" };
+                update(selected, { trigger: base });
+              }}
+              style={{ background: "#1e293b", border: "1px solid #334155", borderRadius: 4, color: "#e2e8f0", padding: "4px 8px", fontSize: 13 }}
+            >
+              <option value="startup">Avvio progetto</option>
+              <option value="interval">Intervallo (secondi)</option>
+              <option value="cron">Cron (5 campi)</option>
+              <option value="tag_change">Cambio tag</option>
+            </select>
+
+            {cur.trigger.kind === "interval" && (
+              <input
+                type="number"
+                min={1}
+                value={cur.trigger.interval_s}
+                onChange={(e) => updateTrigger(selected, { interval_s: Number(e.target.value) })}
+                style={{ background: "#1e293b", border: "1px solid #334155", borderRadius: 4, color: "#e2e8f0", padding: "4px 8px", fontSize: 13, width: 80 }}
+              />
+            )}
+            {cur.trigger.kind === "cron" && (
+              <input
+                value={cur.trigger.schedule}
+                onChange={(e) => updateTrigger(selected, { schedule: e.target.value })}
+                placeholder="0 * * * *"
+                style={{ background: "#1e293b", border: "1px solid #334155", borderRadius: 4, color: "#e2e8f0", padding: "4px 8px", fontSize: 13, width: 160 }}
+              />
+            )}
+            {cur.trigger.kind === "tag_change" && (
+              <>
+                <input
+                  value={cur.trigger.tag}
+                  onChange={(e) => updateTrigger(selected, { tag: e.target.value })}
+                  placeholder="es. pump1.running"
+                  style={{ background: "#1e293b", border: "1px solid #334155", borderRadius: 4, color: "#e2e8f0", padding: "4px 8px", fontSize: 13, width: 200 }}
+                />
+                <select
+                  value={cur.trigger.edge}
+                  onChange={(e) => updateTrigger(selected, { edge: e.target.value as "rising" | "falling" | "any" })}
+                  style={{ background: "#1e293b", border: "1px solid #334155", borderRadius: 4, color: "#e2e8f0", padding: "4px 8px", fontSize: 13 }}
+                >
+                  <option value="any">Qualsiasi</option>
+                  <option value="rising">Rising (0→1)</option>
+                  <option value="falling">Falling (1→0)</option>
+                </select>
+              </>
+            )}
+          </div>
+
+          {/* Code editor */}
+          <div style={{ flex: 1, minHeight: 0, border: "1px solid #334155", borderRadius: 6, overflow: "hidden" }}>
+            <PythonEditor
+              ref={editorRef}
+              value={cur.code}
+              onChange={(code) => update(selected, { code })}
+              height="100%"
+            />
+          </div>
+        </div>
+      ) : (
+        <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: "#64748b", fontSize: 14 }}>
+          Seleziona o crea uno script
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── ConfigView root ───────────────────────────────────────────────────────────
 
-type ConfigTab = "tags" | "protocols" | "alarms" | "datastores" | "users" | "resources" | "system" | "backups";
+type ConfigTab = "tags" | "protocols" | "alarms" | "datastores" | "scripts" | "users" | "resources" | "system" | "backups";
 
 const TAB_LABELS: Record<ConfigTab, string> = {
   tags:        "Variabili",
   protocols:   "Protocolli",
   alarms:      "Allarmi",
   datastores:  "Datastore",
+  scripts:     "Script",
   users:       "Utenti",
   resources:   "Risorse",
   system:      "Stato",
@@ -4334,8 +4558,8 @@ export function ConfigView() {
   }, [tab, isAdmin]);
 
   const visibleTabs: ConfigTab[] = isAdmin
-    ? ["tags", "protocols", "alarms", "datastores", "users", "resources", "backups", "system"]
-    : ["tags", "protocols", "alarms", "resources", "system"];
+    ? ["tags", "protocols", "alarms", "scripts", "datastores", "users", "resources", "backups", "system"]
+    : ["tags", "protocols", "alarms", "scripts", "resources", "system"];
 
   // Bounce non-admins off the backups and datastores tabs.
   useEffect(() => {
@@ -4349,7 +4573,7 @@ export function ConfigView() {
   // file. The other tabs are independent so they stay available.
   const projectLoading = project === null
     && tab !== "users" && tab !== "resources" && tab !== "system"
-    && tab !== "backups" && tab !== "datastores";
+    && tab !== "backups" && tab !== "datastores" && tab !== "scripts";
 
   // Belt-and-braces: App.tsx already gates mode="config" via effectiveMode,
   // so this is unreachable for non-Supervisor+ today. Kept so a future
@@ -4385,6 +4609,7 @@ export function ConfigView() {
             {tab === "tags"        && <TagsTab />}
             {tab === "protocols"   && <ProtocolsTab />}
             {tab === "alarms"      && <AlarmsTab />}
+            {tab === "scripts"     && <GlobalScriptsTab />}
             {tab === "datastores"  && isAdmin && <DatastoresTab />}
             {tab === "users"       && isAdmin && <UsersTab />}
             {tab === "resources"   && <ResourcesTab />}

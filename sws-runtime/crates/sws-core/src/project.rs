@@ -519,6 +519,36 @@ where
     Ok(out)
 }
 
+/// Trigger type for a global script.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum ScriptTrigger {
+    /// Run once when the project is loaded.
+    Startup,
+    /// Run every `interval_s` seconds.
+    Interval { interval_s: u64 },
+    /// Run on a cron schedule (5-field: min hour day month weekday).
+    Cron { schedule: String },
+    /// Run when `tag` changes. `edge`: "rising", "falling", or "any" (default).
+    TagChange { tag: String, #[serde(default = "default_edge")] edge: String },
+}
+
+fn default_edge() -> String { "any".into() }
+
+/// A globally-scoped Python script with a trigger.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GlobalScriptDef {
+    pub id: String,
+    pub trigger: ScriptTrigger,
+    /// Python code. Has access to `tags` (read/write), `log(msg)`.
+    pub code: String,
+    /// When false, the script is loaded but never scheduled.
+    #[serde(default = "bool_true")]
+    pub enabled: bool,
+}
+
+fn bool_true() -> bool { true }
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Project {
     pub meta: ProjectMeta,
@@ -540,6 +570,8 @@ pub struct Project {
     /// runtime falls back to a built-in SQLite file under `<project>/.history/`.
     #[serde(default)]
     pub datastores: Vec<DatastoreConfig>,
+    #[serde(default)]
+    pub global_scripts: Vec<GlobalScriptDef>,
 }
 
 impl Project {

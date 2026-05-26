@@ -624,6 +624,7 @@ export interface ProjectInfo {
   functions?: FunctionDef[];
   custom_symbols?: CustomSymbol[];
   datastores?: DatastoreConfig[];
+  global_scripts?: GlobalScriptDef[];
 }
 
 // ── Reusable Python functions ──────────────────────────────────────────────
@@ -754,4 +755,19 @@ export interface LogEvent {
 export interface LogFileEntry {
   date: string;       // "YYYY-MM-DD"
   size_bytes: number;
+}
+
+// ── Global scripts (T-09) ─────────────────────────────────────────────────────
+
+export type ScriptTriggerKind =
+  | { kind: "startup" }
+  | { kind: "interval"; interval_s: number }
+  | { kind: "cron"; schedule: string }
+  | { kind: "tag_change"; tag: string; edge: "rising" | "falling" | "any" };
+
+export interface GlobalScriptDef {
+  id: string;
+  trigger: ScriptTriggerKind;
+  code: string;
+  enabled: boolean;
 }
