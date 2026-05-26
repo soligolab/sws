@@ -523,7 +523,31 @@ export interface HomeAssistantSource {
   entities: EntityMapping[];
 }
 
-export type SourceDef = ModbusTcpSource | ModbusRtuSource | MqttSource | OpcUaSource | OpcUaServerSource | HomeAssistantSource;
+// ── Siemens S7 source ──────────────────────────────────────────────────────
+
+export type S7DataType = 'bool' | 'byte' | 'int' | 'word' | 'dint' | 'real';
+
+export interface S7TagMapping {
+  tag: string;
+  area: 'db' | 'm' | 'i' | 'q';
+  db_num: number;
+  byte_offset: number;
+  bit_offset: number;
+  data_type: S7DataType;
+  writable: boolean;
+}
+
+export interface S7Source {
+  kind: 's7';
+  id: string;
+  ip: string;
+  rack: number;
+  slot: number;
+  poll_interval_ms: number;
+  tags: S7TagMapping[];
+}
+
+export type SourceDef = ModbusTcpSource | ModbusRtuSource | MqttSource | OpcUaSource | OpcUaServerSource | HomeAssistantSource | S7Source;
 
 // ── HomeAssistant entity browser ───────────────────────────────────────────
 

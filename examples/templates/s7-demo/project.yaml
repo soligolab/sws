@@ -1,0 +1,72 @@
+meta:
+  name: s7-demo
+  version: "0.1.0"
+
+sources:
+  - kind: s7
+    id: plc1
+    ip: "192.168.1.5"
+    rack: 0
+    slot: 1
+    poll_interval_ms: 500
+    tags:
+      - tag: pump1.speed
+        area: db
+        db_num: 1
+        byte_offset: 0
+        data_type: real
+        writable: true
+      - tag: valve1.open
+        area: db
+        db_num: 1
+        byte_offset: 4
+        data_type: bool
+        bit_offset: 0
+        writable: true
+      - tag: process.temperature
+        area: db
+        db_num: 1
+        byte_offset: 6
+        data_type: real
+      - tag: process.pressure
+        area: db
+        db_num: 1
+        byte_offset: 10
+        data_type: int
+
+tags:
+  - id: pump1.speed
+    data_type: float
+    description: "Velocità pompa 1 [rpm]"
+    history: true
+  - id: valve1.open
+    data_type: bool
+    description: "Valvola 1 aperta"
+  - id: process.temperature
+    data_type: float
+    description: "Temperatura processo [°C]"
+    history: true
+  - id: process.pressure
+    data_type: int
+    description: "Pressione processo [mbar]"
+    history: true
+  - id: pump1.running
+    data_type: bool
+    description: "Pompa 1 in marcia (derivato)"
+    expression: "tags.read('pump1.speed') > 0"
+
+alarms:
+  - id: overheat
+    tag: process.temperature
+    condition:
+      kind: above
+      threshold: 80.0
+    message: "Temperatura processo troppo alta!"
+    severity: Critical
+  - id: high_pressure
+    tag: process.pressure
+    condition:
+      kind: above
+      threshold: 5000
+    message: "Pressione processo oltre soglia"
+    severity: Warning

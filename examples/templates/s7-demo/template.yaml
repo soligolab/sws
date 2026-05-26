@@ -1,0 +1,3 @@
+id: s7-demo
+label: "Siemens S7 Demo"
+description: "Template di partenza per un PLC Siemens S7-1200/1500 (o S7-300/400). Legge DB1: velocità pompa (REAL), stato valvola (BOOL), temperatura (REAL), pressione (INT). Write-back su velocità e valvola. Modificare l'IP in Protocolli per puntare al proprio PLC."
