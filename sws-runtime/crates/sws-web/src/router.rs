@@ -100,6 +100,7 @@ pub fn build(
     // plus the multi-user CRUD).
     let admin_routes = Router::new()
         .route("/api/project/tags",           put(update_project_tags))
+        .route("/api/project/tags/import-csv", post(import_tags_csv))
         .route("/api/project/sources",        put(update_project_sources))
         .route("/api/project/alarms",         put(update_project_alarms))
         .route("/api/project/functions",      put(update_project_functions))
@@ -1284,6 +1285,101 @@ async fn update_project_tags(
     }
     *s.derived_tags.write().await = derived;
     status
+}
+
+/// POST /api/project/tags/import-csv
+/// Body: plain text CSV (UTF-8). First row must be a header row containing
+/// at least `id`. Optional columns: `data_type`, `description`, `history`,
+/// `expression`. Unknown columns are ignored.
+/// Behaviour: merges the uploaded tags with the existing project tags — adds
+/// new ones, updates matching IDs, leaves unmentioned tags unchanged.
+async fn import_tags_csv(
+    State(s): State<AppState>,
+    body: Bytes,
+) -> Response {
+    let text = match std::str::from_utf8(&body) {
+        Ok(t) => t,
+        Err(_) => return (StatusCode::BAD_REQUEST, "CSV must be UTF-8").into_response(),
+    };
+
+    let mut lines = text.lines();
+    let header_line = match lines.next() {
+        Some(h) => h,
+        None    => return (StatusCode::BAD_REQUEST, "Empty CSV").into_response(),
+    };
+
+    // Parse header to find column indices.
+    let cols: Vec<&str> = header_line.split(',').map(str::trim).collect();
+    let col = |name: &str| -> Option<usize> { cols.iter().position(|&c| c == name) };
+    let Some(id_col) = col("id") else {
+        return (StatusCode::BAD_REQUEST, "CSV missing 'id' column").into_response();
+    };
+    let dt_col   = col("data_type");
+    let desc_col = col("description");
+    let hist_col = col("history");
+    let expr_col = col("expression");
+
+    // Parse data rows.
+    let mut imported: Vec<TagDef> = Vec::new();
+    for (line_no, line) in lines.enumerate() {
+        let line = line.trim();
+        if line.is_empty() { continue; }
+        let fields: Vec<&str> = line.split(',').collect();
+        let get = |idx: usize| fields.get(idx).map(|s| s.trim()).unwrap_or("");
+        let id = get(id_col);
+        if id.is_empty() { continue; }
+        let tag = TagDef {
+            id: id.to_string(),
+            description: desc_col.map(|i| get(i).to_string()).unwrap_or_default(),
+            data_type: dt_col.map(|i| get(i).to_string())
+                .filter(|s| !s.is_empty())
+                .unwrap_or_else(|| "float".into()),
+            history: hist_col.map(|i| matches!(get(i).to_lowercase().as_str(), "true" | "1" | "yes")).unwrap_or(false),
+            datastore_id: None,
+            history_deadband: None,
+            history_min_interval_ms: None,
+            expression: expr_col.map(|i| get(i).to_string()).filter(|s| !s.is_empty()),
+        };
+        let _ = line_no; // suppress warning
+        imported.push(tag);
+    }
+
+    if imported.is_empty() {
+        return (StatusCode::BAD_REQUEST, "No valid rows in CSV").into_response();
+    }
+
+    // Merge: load current, upsert imported.
+    let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
+    let status = patch_project(&dir, |p| {
+        for new_tag in &imported {
+            if let Some(existing) = p.tags.iter_mut().find(|t| t.id == new_tag.id) {
+                *existing = new_tag.clone();
+            } else {
+                p.tags.push(new_tag.clone());
+            }
+        }
+    }).await;
+    if status != StatusCode::NO_CONTENT {
+        return status.into_response();
+    }
+    // Seed any newly-added tags into TagDb.
+    let current_ids: std::collections::HashSet<TagId> = s.db.snapshot().await.into_keys().collect();
+    for t in &imported {
+        if !current_ids.contains(&t.id) {
+            s.db.set(t.id.clone(), t.initial_value(), TagQuality::Uncertain).await;
+        }
+    }
+    // Re-sync derived tags (re-load updated project from disk).
+    let dir2 = active_dir(&s).await.ok();
+    if let Some(dir2) = dir2 {
+        if let Ok(proj) = Project::load(&dir2) {
+            let derived: Vec<(String, String)> = proj.tags.iter()
+                .filter_map(|t| t.expression.as_ref().map(|e| (t.id.clone(), e.clone())))
+                .collect();
+            *s.derived_tags.write().await = derived;
+        }
+    }
+    Json(serde_json::json!({ "imported": imported.len() })).into_response()
 }
 
 async fn update_project_sources(

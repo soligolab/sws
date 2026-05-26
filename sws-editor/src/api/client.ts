@@ -264,6 +264,13 @@ export const api = {
       body: JSON.stringify(tags),
     }),
 
+  importTagsCsv: (csvText: string) =>
+    request<{ imported: number }>("/api/project/tags/import-csv", {
+      method: "POST",
+      headers: { "Content-Type": "text/plain; charset=utf-8" },
+      body: csvText,
+    }),
+
   updateSources: (sources: SourceDef[]) =>
     request<void>("/api/project/sources", {
       method: "PUT",
