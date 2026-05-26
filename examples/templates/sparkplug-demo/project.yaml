@@ -1,0 +1,146 @@
+meta:
+  name: "Sparkplug B Demo"
+  description: "Progetto dimostrativo per sorgenti IIoT Sparkplug B via MQTT. Configurare host, porta e group_id. SWS decodifica payload protobuf NBIRTH/NDATA/DBIRTH/DDATA automaticamente."
+
+sources:
+  - kind: mqtt
+    id: spb-broker
+    host: "localhost"
+    port: 1883
+    client_id: "sws-scada-host"
+    topics: []
+    sparkplug:
+      group_id: "plant-a"
+      host_id: "SWS-SCADA"
+      metrics:
+        - metric_name: "Pump/Speed"
+          tag: pump.speed
+          writable: true
+        - metric_name: "Pump/Running"
+          tag: pump.running
+          writable: true
+        - metric_name: "Temperature/Inlet"
+          tag: temp.inlet
+          writable: false
+        - metric_name: "Temperature/Outlet"
+          tag: temp.outlet
+          writable: false
+        - metric_name: "Flow/TotalCubicMeters"
+          tag: flow.total
+          writable: false
+
+tags:
+  - id: pump.speed
+    data_type: float
+    description: "Velocità pompa (rpm)"
+    history: true
+  - id: pump.running
+    data_type: bool
+    description: "Pompa in marcia"
+    history: true
+  - id: temp.inlet
+    data_type: float
+    description: "Temperatura ingresso (°C)"
+    history: true
+  - id: temp.outlet
+    data_type: float
+    description: "Temperatura uscita (°C)"
+    history: true
+  - id: flow.total
+    data_type: float
+    description: "Portata totale (m³)"
+    history: false
+  - id: temp.delta
+    data_type: float
+    description: "Delta temperatura (°C)"
+    expression: "tags['temp.outlet'] - tags['temp.inlet']"
+    history: false
+
+alarms:
+  - id: alm-pump-overtemp
+    tag: temp.outlet
+    condition:
+      kind: above
+      threshold: 80.0
+    message: "Temperatura uscita eccessiva — pompa surriscaldata"
+    severity: Critical
+  - id: alm-pump-stopped
+    tag: pump.running
+    condition:
+      kind: equal
+      value: false
+    message: "Pompa ferma durante produzione"
+    severity: Warning
+
+synoptics:
+  - id: main
+    label: "Sparkplug B Overview"
+    objects:
+      - type: text
+        id: title
+        x: 20
+        y: 16
+        text: "Sparkplug B IIoT — plant-a"
+        font_size: 18
+        color: "#a855f7"
+      - type: text
+        id: lbl-speed
+        x: 20
+        y: 70
+        text: "Velocità pompa:"
+        font_size: 13
+        color: "#94a3b8"
+      - type: value_display
+        id: pump-speed
+        x: 170
+        y: 66
+        tag: pump.speed
+        suffix: " rpm"
+        font_size: 14
+        color: "#22d3ee"
+      - type: text
+        id: lbl-running
+        x: 20
+        y: 110
+        text: "Pompa in marcia:"
+        font_size: 13
+        color: "#94a3b8"
+      - type: indicator
+        id: pump-running
+        x: 170
+        y: 106
+        tag: pump.running
+        color_on: "#22c55e"
+        color_off: "#ef4444"
+        width: 20
+        height: 20
+      - type: text
+        id: lbl-temp-in
+        x: 20
+        y: 150
+        text: "T ingresso:"
+        font_size: 13
+        color: "#94a3b8"
+      - type: value_display
+        id: temp-in
+        x: 170
+        y: 146
+        tag: temp.inlet
+        suffix: " °C"
+        font_size: 14
+        color: "#3b82f6"
+      - type: text
+        id: lbl-temp-out
+        x: 20
+        y: 190
+        text: "T uscita:"
+        font_size: 13
+        color: "#94a3b8"
+      - type: value_display
+        id: temp-out
+        x: 170
+        y: 186
+        tag: temp.outlet
+        suffix: " °C"
+        font_size: 14
+        color: "#f97316"

@@ -371,6 +371,18 @@ export interface MqttLastWill {
   retain: boolean;
 }
 
+export interface SparkplugMetricMapping {
+  metric_name: string;
+  tag: string;
+  writable: boolean;
+}
+
+export interface SparkplugConfig {
+  group_id: string;
+  host_id: string;
+  metrics: SparkplugMetricMapping[];
+}
+
 export interface MqttSource {
   kind: "mqtt";
   id: string;
@@ -392,6 +404,8 @@ export interface MqttSource {
   qos?: number;
   tls?: MqttTlsConfig;
   last_will?: MqttLastWill;
+  /** Sparkplug B mode: when set, topics[] is ignored and payloads are protobuf. */
+  sparkplug?: SparkplugConfig;
 }
 
 // ── OPC-UA client source (BL-005) ─────────────────────────────────────────
