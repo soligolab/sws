@@ -116,6 +116,54 @@ function SymbolGallery({ value, onChange }: { value: string; onChange: (v: strin
   );
 }
 
+// ── SymbolPickerModal ─────────────────────────────────────────────────────────
+// Full-screen overlay that lets the user choose a symbol at placement time.
+
+function SymbolPickerModal({ onPick, onCancel }: {
+  onPick: (symbolId: string) => void;
+  onCancel: () => void;
+}) {
+  const [selected, setSelected] = useState("pump");
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onCancel();
+      if (e.key === "Enter") onPick(selected);
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [selected, onPick, onCancel]);
+
+  return (
+    <div
+      style={{
+        position: "fixed", inset: 0, zIndex: 9998,
+        background: "rgba(0,0,0,0.7)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+      }}
+      onClick={(e) => { if (e.target === e.currentTarget) onCancel(); }}
+    >
+      <div style={{
+        background: "#0f172a", border: "1px solid #334155", borderRadius: 8,
+        width: 420, maxHeight: "80vh",
+        display: "flex", flexDirection: "column", overflow: "hidden",
+      }}>
+        <div style={{ padding: "10px 14px", borderBottom: "1px solid #1e293b", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <span style={{ fontSize: 13, color: "#cbd5e1", fontWeight: 600 }}>Scegli simbolo</span>
+          <button onClick={onCancel} style={{ background: "transparent", border: "none", color: "#64748b", cursor: "pointer", fontSize: 16 }}>✕</button>
+        </div>
+        <div style={{ overflowY: "auto", padding: 12, flex: 1 }}>
+          <SymbolGallery value={selected} onChange={setSelected} />
+        </div>
+        <div style={{ padding: "8px 14px", borderTop: "1px solid #1e293b", display: "flex", justifyContent: "flex-end", gap: 8 }}>
+          <button onClick={onCancel} style={{ padding: "4px 14px", fontSize: 12, background: "#1e293b", border: "1px solid #334155", color: "#94a3b8", borderRadius: 4, cursor: "pointer" }}>Annulla</button>
+          <button onClick={() => onPick(selected)} style={{ padding: "4px 14px", fontSize: 12, background: "#1e3a5f", border: "1px solid #3b82f6", color: "#93c5fd", borderRadius: 4, cursor: "pointer" }}>Inserisci</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /** Object types that support rotation/flip/opacity in the canvas. */
 const SUPPORTS_TRANSFORM = new Set([
   "rect", "ellipse", "text", "image",
@@ -236,6 +284,7 @@ export function EditorShell() {
   };
 
   const [helpOpen, setHelpOpen] = useState(false);
+  const [symbolPickPos, setSymbolPickPos] = useState<{ x: number; y: number } | null>(null);
 
   const handleSelect = (id: string | null, shift?: boolean) => {
     if (id === null) { selectObject(null); return; }
@@ -392,10 +441,8 @@ export function EditorShell() {
           tag: "", window_s: 60, line_color: "#3b82f6" });
         break;
       case "symbol":
-        addObject({ type, x, y, width: 80, height: 80,
-          symbol_id: "pump",
-          state_off_color: "#64748b", state_on_color: "#22c55e", state_alarm_color: "#ef4444" });
-        break;
+        setSymbolPickPos({ x, y });
+        return; // addObject called when user confirms in modal
       case "grid":
         addObject({ type, x, y, width: 400, height: 300,
           label: "Grid",
@@ -487,6 +534,25 @@ export function EditorShell() {
 
   return (
     <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
+      {symbolPickPos && (
+        <SymbolPickerModal
+          onPick={(symbolId) => {
+            addObject({
+              type: "symbol",
+              x: symbolPickPos.x,
+              y: symbolPickPos.y,
+              width: 80,
+              height: 80,
+              symbol_id: symbolId,
+              state_off_color: "#64748b",
+              state_on_color: "#22c55e",
+              state_alarm_color: "#ef4444",
+            });
+            setSymbolPickPos(null);
+          }}
+          onCancel={() => setSymbolPickPos(null)}
+        />
+      )}
       {/* Left panel: project tree + object palette + settings */}
       <LeftPanel
         onAddObject={handleAddObject}

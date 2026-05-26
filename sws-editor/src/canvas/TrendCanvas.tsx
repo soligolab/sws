@@ -35,6 +35,12 @@ interface TrendCanvasProps {
   /** When true, the first poll request includes backfill=true to seed the chart
    *  with data from the OPC-UA server's historian (if the tag has an OPC-UA source). */
   opcuaBackfill?: boolean;
+  /** Explicit time range. When both are set, overrides the rolling windowS window.
+   *  Polling is disabled in this mode (data is fetched once on mount/change). */
+  fromMs?: number;
+  toMs?: number;
+  /** Indices of series to hide (0-based, parallel to tags). */
+  hiddenIndices?: Set<number>;
 }
 
 function sampleToNumber(v: Sample["value"]): number | null {
@@ -67,52 +73,61 @@ export function TrendCanvas({
   yMax,
   pollMs = 2000,
   opcuaBackfill = false,
+  fromMs: explicitFromMs,
+  toMs: explicitToMs,
+  hiddenIndices,
 }: TrendCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  // One Sample[] per tag, indexed parallel to `tags`.
   const [series, setSeries] = useState<Sample[][]>(() => tags.map(() => []));
   const [hoverX, setHoverX] = useState<number | null>(null);
+
+  const isHistorical = explicitFromMs !== undefined && explicitToMs !== undefined;
 
   const colors = useMemo(() => tags.map((_, i) => {
     if (i === 0 && lineColor) return lineColor;
     return PALETTE[i % PALETTE.length];
   }), [tags, lineColor]);
 
-  // Reset state when the tag list shape changes (otherwise lengths drift).
   useEffect(() => {
     setSeries(tags.map(() => []));
   }, [tags.join(",")]);
 
-  // Polling: fetch each series in parallel; abort old responses on unmount.
-  // opcuaBackfill is passed only on the first call to seed older data;
-  // subsequent polls use the normal historian to avoid repeated OPC-UA RTTs.
+  // In historical mode: fetch once when range changes. In live mode: poll.
   useEffect(() => {
     if (tags.length === 0 || tags.every((t) => !t)) return;
     let cancelled = false;
-    let firstTick = true;
 
-    const tick = async () => {
-      const now = Date.now();
-      const fromMs = now - windowS * 1000;
-      const backfill = firstTick && opcuaBackfill;
-      firstTick = false;
+    const fetch = async (fMs: number, tMs: number, backfill: boolean) => {
       try {
         const data = await Promise.all(
           tags.map((t) =>
             t
-              ? api.getHistory(t, { fromMs, toMs: now, backfill: backfill || undefined })
+              ? api.getHistory(t, { fromMs: fMs, toMs: tMs, backfill: backfill || undefined })
               : Promise.resolve([] as Sample[])
           )
         );
         if (!cancelled) setSeries(data);
       } catch {
-        // Runtime offline or one of the tags missing — keep last data.
+        // Runtime offline or tag missing — keep last data.
       }
+    };
+
+    if (isHistorical) {
+      fetch(explicitFromMs!, explicitToMs!, false);
+      return () => { cancelled = true; };
+    }
+
+    let firstTick = true;
+    const tick = async () => {
+      const now = Date.now();
+      const backfill = firstTick && opcuaBackfill;
+      firstTick = false;
+      await fetch(now - windowS * 1000, now, backfill);
     };
     tick();
     const id = setInterval(tick, pollMs);
     return () => { cancelled = true; clearInterval(id); };
-  }, [tags.join(","), windowS, pollMs, opcuaBackfill]);
+  }, [tags.join(","), windowS, pollMs, opcuaBackfill, isHistorical, explicitFromMs, explicitToMs]);
 
   // Layout constants for the plot area
   const PAD_TOP    = 6 + (tags.length > 1 ? 14 : 0); // legend space when multi-tag
@@ -151,11 +166,10 @@ export function TrendCanvas({
       return;
     }
 
-    // X domain: union of all series' time ranges, but bounded by the
-    // configured window so axes don't jump around when one tag is empty.
+    // X domain: explicit historical range or rolling live window.
     const now = Date.now();
-    const tMin = now - windowS * 1000;
-    const tMax = now;
+    const tMin = isHistorical ? explicitFromMs! : now - windowS * 1000;
+    const tMax = isHistorical ? explicitToMs!   : now;
     const tSpan = Math.max(1, tMax - tMin);
 
     // Y domain: per-canvas, computed from numeric samples across all series.
@@ -226,6 +240,7 @@ export function TrendCanvas({
     // ── Lines (one per series) ──
     series.forEach((points, idx) => {
       if (points.length < 1) return;
+      if (hiddenIndices?.has(idx)) return;
       ctx.strokeStyle = colors[idx];
       ctx.lineWidth = 1.5;
       ctx.lineJoin = "round";
@@ -251,12 +266,12 @@ export function TrendCanvas({
       const cy = PAD_TOP - 8;
       tags.forEach((t, idx) => {
         if (!t) return;
-        ctx.fillStyle = colors[idx];
+        const hidden = hiddenIndices?.has(idx);
+        ctx.fillStyle = hidden ? "#334155" : colors[idx];
         ctx.fillRect(cx, cy - 4, 8, 8);
-        ctx.fillStyle = "#cbd5e1";
-        const label = t;
-        ctx.fillText(label, cx + 12, cy);
-        const w = ctx.measureText(label).width;
+        ctx.fillStyle = hidden ? "#475569" : "#cbd5e1";
+        ctx.fillText(t, cx + 12, cy);
+        const w = ctx.measureText(t).width;
         cx += 12 + w + 12;
       });
     }
@@ -278,6 +293,7 @@ export function TrendCanvas({
       const hits: { tag: string; color: string; value: number; y: number }[] = [];
       series.forEach((points, idx) => {
         if (!points.length) return;
+        if (hiddenIndices?.has(idx)) return;
         let best: Sample | null = null;
         let bestDt = Infinity;
         for (const p of points) {
@@ -337,7 +353,7 @@ export function TrendCanvas({
         ctx.fillText(fmtValue(lastN), PAD_LEFT + plotW - 4, PAD_TOP + 4);
       }
     }
-  }, [series, width, height, colors, yMin, yMax, hoverX, tags.join(","), windowS]);
+  }, [series, width, height, colors, yMin, yMax, hoverX, tags.join(","), windowS, isHistorical, explicitFromMs, explicitToMs, hiddenIndices]);
 
   const hasSeries = series.some((s) => s.length > 0);
 
@@ -359,8 +375,8 @@ export function TrendCanvas({
             const now = Date.now();
             api.exportHistoryCsv(
               tags.filter(Boolean),
-              now - windowS * 1000,
-              now,
+              isHistorical ? explicitFromMs! : now - windowS * 1000,
+              isHistorical ? explicitToMs!   : now,
             );
           }}
           style={{

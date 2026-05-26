@@ -8,6 +8,10 @@ and this project adheres to [CalVer](https://calver.org/) (`YYYY.MM[.patch]`).
 ## [Unreleased]
 
 ### Added
+- **T-01 — Symbol picker at placement time** (`EditorShell.tsx`). Clicking "Simbolo" in the object palette now opens `SymbolPickerModal` — a full gallery with preview of all built-in and vendored symbols — before the object is placed. The symbol ID chosen by the user is used directly; no more forced "pump" default.
+
+- **T-02 — Interactive trend with historical mode** (`TrendCanvas.tsx`, `TrendExpanded.tsx`, `SvgCanvas.tsx`). `TrendCanvas` extended with `fromMs`/`toMs` props for explicit historical range (polling disabled), `hiddenIndices` for per-series visibility, and fixed dependency array + CSV export range in historical mode. New `TrendExpandedModal` component: range presets (Live / 1h / 8h / 24h / 7d), pan ◀ ▶ buttons, per-series toggle buttons, ResizeObserver-based canvas auto-sizing. A small expand button (⤢) appears on each trend widget in RuntimeView and opens the modal on click.
+
 - **Template `homeassistant-pro`: 6 pagine sinottiche** (`examples/templates/homeassistant-pro/synoptics/`). Showcase completo di tutte le funzionalità SCADA di SWS: **Panoramica** (flusso energia FV→batt→casa→rete, tabella clima 5 stanze, LED sicurezza, luci/tapparelle status, presenza persona); **Fotovoltaico** (gauge V+A per stringa, potenza totale, produzione oggi/lifetime, trend correnti stringhe multi-tag, temperature inverter, autoconsumo%); **Batteria & Rete** (gauge SoC, corrente/tensione/potenza batteria, indicatore in-carica/scarica, V+A+Hz+kW rete, acquisto/vendita kW derivati, trend SoC+tensione rete); **Clima** (tabella 5 stanze T+U con barre, gauge temperatura media, comfort index, trend 3 stanze su finestra 2h); **Carichi** (cucina W/V/A/Hz/kWh con gauge, pompa calore W/V/A/kWh, KPI energetici nella top bar, trend potenze multi-carico); **Sicurezza & Ctrl** (LED porte/finestre/perimetro/movimento, pulsanti ON/OFF write-back per 3 luci esterne switch HA, pulsanti SÙ/GIÙ write-back per 4 tapparelle cover HA, presenza persona+sole). Sinottici copiati anche in `.run/projects/ha/synoptics/`.
 
 ### Fixed
