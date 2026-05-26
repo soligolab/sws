@@ -4,6 +4,7 @@
 //! WelcomeScreen can show a project picker without a session token. Once
 //! a project is opened, the per-project AuthState gates everything else.
 
+use crate::global_scripts::GlobalScriptSupervisor;
 use crate::router::{active_dir, AppState};
 use crate::templates::copy_dir_all;
 use axum::{
@@ -179,6 +180,7 @@ pub async fn create_project(
                 functions: vec![],
                 custom_symbols: vec![],
                 datastores: vec![],
+                global_scripts: vec![],
             };
             let yaml = match serde_yaml::to_string(&project) {
                 Ok(y) => y,
@@ -245,6 +247,10 @@ pub async fn open_project(
     // Stop sources FIRST so no plugin can write to TagDb after we clear it.
     // reload(vec![]) waits up to 2 s per source for clean shutdown.
     s.supervisor.reload(vec![]).await;
+    // Stop any running global scripts before clearing tag state.
+    if let Some(sc) = s.script_supervisor.write().await.take() {
+        sc.stop();
+    }
     s.db.clear().await;
     s.historian.clear().await;
     s.alarms.load(vec![]).await;
@@ -297,6 +303,17 @@ pub async fn open_project(
             }).await;
         }
         s.supervisor.reload(project.sources).await;
+        // Start global scripts after sources so tag values exist.
+        if !project.global_scripts.is_empty() {
+            let n = project.global_scripts.len();
+            let sc = GlobalScriptSupervisor::start(
+                project.global_scripts,
+                s.db.clone(),
+                s.bus.clone(),
+            );
+            info!(scripts = n, "global script supervisor started");
+            *s.script_supervisor.write().await = Some(sc);
+        }
         {
             let mut map = s.functions.write().await;
             for f in project.functions {
@@ -334,6 +351,9 @@ pub async fn close_project(State(s): State<AppState>) -> Response {
         return (StatusCode::NO_CONTENT, ()).into_response();
     }
     s.supervisor.reload(vec![]).await;
+    if let Some(sc) = s.script_supervisor.write().await.take() {
+        sc.stop();
+    }
     s.db.clear().await;
     s.historian.clear().await;
     s.alarms.load(vec![]).await;

@@ -14,7 +14,7 @@ use sws_auth::{AuthState, Role};
 use sws_core::{AlarmDb, LogBus, TagDb, TagQuality, TagWriteBus, DEFAULT_LOG_CAPACITY};
 use sws_historian::{sqlite::SqliteStore, DatastoreRegistry, Historian};
 use sws_pyscript::Engine as PyEngine;
-use sws_web::{router::{DerivedTagsRegistry, RegistryCell}, SourceSupervisor};
+use sws_web::{router::{DerivedTagsRegistry, RegistryCell, ScriptSupervisorCell}, SourceSupervisor};
 use tokio::net::TcpListener;
 use tokio_rustls::{
     rustls::{
@@ -190,11 +190,13 @@ async fn main() -> anyhow::Result<()> {
     };
     let py_engine = PyEngine::new(tag_db.clone(), bus.clone());
     let supervisor = SourceSupervisor::new(tag_db.clone(), bus.clone());
-    // Empty registry — populated below from project.yaml (if present).
+    // Empty registries — populated below from project.yaml (if present).
     let functions: sws_web::router::FunctionsRegistry =
         Arc::new(tokio::sync::RwLock::new(std::collections::HashMap::new()));
     let derived_tags: DerivedTagsRegistry =
         Arc::new(tokio::sync::RwLock::new(Vec::new()));
+    let script_supervisor: ScriptSupervisorCell =
+        Arc::new(tokio::sync::RwLock::new(None));
 
     // Admin credentials must be provided via env. The runtime refuses to
     // start without one — "no default credentials" commitment in
@@ -552,6 +554,7 @@ async fn main() -> anyhow::Result<()> {
         py_engine,
         auth,
         supervisor.clone(),
+        script_supervisor,
         functions,
         derived_tags.clone(),
         active_dir,

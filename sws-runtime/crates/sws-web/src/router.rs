@@ -13,14 +13,15 @@ use tower_http::services::{ServeDir, ServeFile};
 use serde::Deserialize;
 use sws_auth::{AuthState, Credentials, LoginError, LoginOk, Role};
 use sws_core::{
-    AlarmDb, AlarmDef, AlarmEvent, AlarmState, CustomSymbol, FunctionDef, LogBus,
-    LogEvent, Project, ProjectMeta, SourceDef, TagDb, TagDef, TagId, TagQuality, TagState,
-    TagUpdate, TagValue, TagWriteBus, WriteError, MAX_FUNCTION_CODE_BYTES,
+    AlarmDb, AlarmDef, AlarmEvent, AlarmState, CustomSymbol, FunctionDef, GlobalScriptDef,
+    LogBus, LogEvent, Project, ProjectMeta, SourceDef, TagDb, TagDef, TagId, TagQuality,
+    TagState, TagUpdate, TagValue, TagWriteBus, WriteError, MAX_FUNCTION_CODE_BYTES,
 };
 use sws_historian::{DatastoreRegistry, Historian, Sample};
 use sws_pyscript::{Engine as PyEngine, ExecOutput};
 use tokio::sync::RwLock;
 use tracing::warn;
+use crate::global_scripts::GlobalScriptSupervisor;
 use crate::source_supervisor::SourceSupervisor;
 use crate::synoptic::{safe_filename, SynopticPage};
 
@@ -44,6 +45,10 @@ pub type DerivedTagsRegistry = Arc<RwLock<Vec<(String, String)>>>;
 /// without rebuilding the whole AppState.
 pub type ActiveProjectDir = Arc<RwLock<Option<PathBuf>>>;
 
+/// Swappable handle for the global-script supervisor. `None` = no project open
+/// or project has no global_scripts.
+pub type ScriptSupervisorCell = Arc<RwLock<Option<GlobalScriptSupervisor>>>;
+
 #[derive(Clone)]
 pub struct AppState {
     pub db: Arc<TagDb>,
@@ -56,6 +61,7 @@ pub struct AppState {
     pub py: PyEngine,
     pub auth: Arc<AuthState>,
     pub supervisor: Arc<SourceSupervisor>,
+    pub script_supervisor: ScriptSupervisorCell,
     pub functions: FunctionsRegistry,
     pub derived_tags: DerivedTagsRegistry,
     pub project_dir: ActiveProjectDir,
@@ -83,6 +89,7 @@ pub fn build(
     py: PyEngine,
     auth: Arc<AuthState>,
     supervisor: Arc<SourceSupervisor>,
+    script_supervisor: ScriptSupervisorCell,
     functions: FunctionsRegistry,
     derived_tags: DerivedTagsRegistry,
     project_dir: ActiveProjectDir,
@@ -94,7 +101,7 @@ pub fn build(
     ip_allowlist: Arc<Vec<(std::net::IpAddr, u8)>>,
     www_dir: Option<PathBuf>,
 ) -> Router {
-    let state = AppState { db, bus, alarms, historian, registry, py, auth, supervisor, functions, derived_tags, project_dir, projects_root, templates_root, logs, logs_dir, started_at, ip_allowlist };
+    let state = AppState { db, bus, alarms, historian, registry, py, auth, supervisor, script_supervisor, functions, derived_tags, project_dir, projects_root, templates_root, logs, logs_dir, started_at, ip_allowlist };
 
     // Routes that need Admin privileges (PUT /api/project/* — schema edits,
     // plus the multi-user CRUD).
@@ -105,7 +112,8 @@ pub fn build(
         .route("/api/project/alarms",         put(update_project_alarms))
         .route("/api/project/functions",      put(update_project_functions))
         .route("/api/project/custom-symbols", put(update_project_custom_symbols))
-        .route("/api/project/datastores",     put(update_project_datastores))
+        .route("/api/project/datastores",      put(update_project_datastores))
+        .route("/api/project/global-scripts", put(update_project_global_scripts))
         // Bulk project export/import (single ZIP carrying project.yaml +
         // every synoptic). Destructive on the import side — Admin only.
         .route("/api/project/export",     get(export_project_zip))
@@ -1232,6 +1240,7 @@ where
         functions: vec![],
         custom_symbols: vec![],
         datastores: vec![],
+        global_scripts: vec![],
     });
     f(&mut project);
     if let Err(e) = tokio::fs::create_dir_all(project_dir).await {
@@ -2855,4 +2864,31 @@ async fn ha_browse_handler(
 
     entities.sort_by(|a, b| a.entity_id.cmp(&b.entity_id));
     Json(entities).into_response()
+}
+
+// ── Global scripts ────────────────────────────────────────────────────────────
+
+/// `PUT /api/project/global-scripts` — replace the global script list.
+/// Saves to project.yaml and hot-swaps the supervisor.
+async fn update_project_global_scripts(
+    State(s): State<AppState>,
+    Json(scripts): Json<Vec<GlobalScriptDef>>,
+) -> StatusCode {
+    let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c };
+    let status = patch_project(&dir, |p| p.global_scripts = scripts.clone()).await;
+    if status == StatusCode::NO_CONTENT {
+        // Hot-swap: cancel running scripts, start new set.
+        if let Some(old) = s.script_supervisor.write().await.take() {
+            old.stop();
+        }
+        if !scripts.is_empty() {
+            let sc = crate::global_scripts::GlobalScriptSupervisor::start(
+                scripts,
+                s.db.clone(),
+                s.bus.clone(),
+            );
+            *s.script_supervisor.write().await = Some(sc);
+        }
+    }
+    status
 }
