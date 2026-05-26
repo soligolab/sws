@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { TrendCanvas } from "@/canvas/TrendCanvas";
+import { TrendExpandedModal } from "@/canvas/TrendExpanded";
 import { useAppStore } from "@/store";
 import { SYMBOLS } from "@/symbols/library";
 import type { CustomSymbol, GridCell, SynopticObject, TagState } from "@/types";
@@ -347,6 +348,7 @@ export function SvgCanvas({
   // event handlers (always up-to-date); `selRect` drives the visual overlay.
   const selDragRef     = useRef<SelRect | null>(null);
   const [selRect, setSelRect] = useState<SelRect | null>(null);
+  const [expandedTrendObj, setExpandedTrendObj] = useState<SynopticObject | null>(null);
   // Set to true when a rect-selection just completed so the SVG onClick
   // (which fires on every mouseup) does not deselect the result.
   const suppressClick  = useRef(false);
@@ -828,6 +830,18 @@ export function SvgCanvas({
   };
 
   return (
+    <>
+    {expandedTrendObj && (
+      <TrendExpandedModal
+        tags={[expandedTrendObj.tag ?? "", ...(expandedTrendObj.extra_tags ?? [])].filter(Boolean)}
+        windowS={expandedTrendObj.window_s ?? 60}
+        lineColor={expandedTrendObj.line_color ?? "#3b82f6"}
+        yMin={expandedTrendObj.y_min}
+        yMax={expandedTrendObj.y_max}
+        opcuaBackfill={expandedTrendObj.opcua_backfill}
+        onClose={() => setExpandedTrendObj(null)}
+      />
+    )}
     <svg
       ref={svgRef}
       width="100%" height="100%"
@@ -905,6 +919,7 @@ export function SvgCanvas({
               onSelectCellChild={onSelectCellChild}
               onSelectCellRange={onSelectCellRange}
               onSelectSubCell={onSelectSubCell}
+              onExpandTrend={!inEdit ? setExpandedTrendObj : undefined}
             />
             {inEdit && (() => {
               const bb = objBBox(obj);
@@ -1418,6 +1433,7 @@ export function SvgCanvas({
         </text>
       )}
     </svg>
+    </>
   );
 }
 
@@ -1442,10 +1458,11 @@ interface ObjProps {
   onSelectCellChild?: (objectId: string, row: number, col: number) => void;
   onSelectCellRange?: (objectId: string, r1: number, c1: number, r2: number, c2: number) => void;
   onSelectSubCell?: (objectId: string, row: number, col: number, path: ("a" | "b")[]) => void;
+  onExpandTrend?: (obj: SynopticObject) => void;
 }
 
 function SvgObject(p: ObjProps) {
-  const { tagValues, selected, isEditMode, customSymbols, selectedCell, selectedCellChild, selectedCellRange, onSelect, onStartDrag, onWriteTag, onScript, onNavigate, onSelectCell, onSelectCellChild, onSelectCellRange } = p;
+  const { tagValues, selected, isEditMode, customSymbols, selectedCell, selectedCellChild, selectedCellRange, onSelect, onStartDrag, onWriteTag, onScript, onNavigate, onSelectCell, onSelectCellChild, onSelectCellRange, onExpandTrend } = p;
   const obj = resolveObject(p.obj, tagValues);
 
   const handleMouseDown = (e: React.MouseEvent<SVGElement>) => {
@@ -2288,18 +2305,40 @@ function SvgObject(p: ObjProps) {
             </text>
           </>
         ) : (
-          <foreignObject x={obj.x} y={obj.y} width={w} height={h}>
-            <TrendCanvas
-              tags={[obj.tag ?? "", ...(obj.extra_tags ?? [])].filter(Boolean)}
-              windowS={obj.window_s ?? 60}
-              width={w}
-              height={h}
-              lineColor={obj.line_color ?? "#3b82f6"}
-              yMin={obj.y_min}
-              yMax={obj.y_max}
-              opcuaBackfill={obj.opcua_backfill}
-            />
-          </foreignObject>
+          <>
+            <foreignObject x={obj.x} y={obj.y} width={w} height={h}>
+              <TrendCanvas
+                tags={[obj.tag ?? "", ...(obj.extra_tags ?? [])].filter(Boolean)}
+                windowS={obj.window_s ?? 60}
+                width={w}
+                height={h}
+                lineColor={obj.line_color ?? "#3b82f6"}
+                yMin={obj.y_min}
+                yMax={obj.y_max}
+                opcuaBackfill={obj.opcua_backfill}
+              />
+            </foreignObject>
+            {onExpandTrend && (
+              <g
+                style={{ cursor: "pointer" }}
+                onClick={(e) => { e.stopPropagation(); onExpandTrend(obj); }}
+              >
+                <title>Espandi trend</title>
+                <rect
+                  x={obj.x + w - 20} y={obj.y + 2}
+                  width={17} height={14} rx={3}
+                  fill="#1e293b" fillOpacity={0.85}
+                  stroke="#334155" strokeWidth={0.5}
+                />
+                <text
+                  x={obj.x + w - 11.5} y={obj.y + 9}
+                  textAnchor="middle" dominantBaseline="middle"
+                  fill="#64748b" fontSize={9}
+                  style={{ pointerEvents: "none", userSelect: "none" }}
+                >⤢</text>
+              </g>
+            )}
+          </>
         )}
       </g>
     );
