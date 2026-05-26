@@ -92,6 +92,9 @@ byteorder = "1"
 # EtherNet/IP (CIP) async client for Allen-Bradley PLC
 rseip = "0.3.1"
 
+# Protobuf encode/decode for Sparkplug B (no protoc needed — structs are hand-written)
+prost = "0.13"
+
 # System metrics (CPU, RAM, disk)
 sysinfo = "0.30"
 

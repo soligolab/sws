@@ -292,6 +292,12 @@ pub struct MqttConfig {
     /// Last-will message published by the broker on ungraceful disconnect.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub last_will: Option<MqttLastWill>,
+
+    /// When set, this source operates in Sparkplug B mode: payloads are
+    /// protobuf-encoded and topics follow `spBv1.0/{group_id}/...`.
+    /// Regular `topics` mapping is ignored when this is present.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sparkplug: Option<SparkplugConfig>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -319,6 +325,34 @@ pub struct MqttLastWill {
     pub qos: u8,
     #[serde(default)]
     pub retain: bool,
+}
+
+/// Sparkplug B configuration. When this is attached to an `MqttConfig`,
+/// the plugin subscribes to `spBv1.0/{group_id}/#` and decodes all messages
+/// as Sparkplug B protobuf payloads.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SparkplugConfig {
+    /// Sparkplug B group id (e.g. "plant-a").
+    pub group_id: String,
+    /// Sparkplug B SCADA host id — published in STATE birth certificate.
+    #[serde(default = "default_spb_host_id")]
+    pub host_id: String,
+    /// Metric name → SWS tag id mappings.
+    pub metrics: Vec<SparkplugMetricMapping>,
+}
+
+fn default_spb_host_id() -> String { "SWS-SCADA".to_string() }
+
+/// Map one Sparkplug B metric name to an SWS tag.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SparkplugMetricMapping {
+    /// Sparkplug B metric name as published by the edge node (e.g. "Pump/Speed").
+    pub metric_name: String,
+    /// SWS tag id (e.g. "pump.speed").
+    pub tag: String,
+    /// When true, `PUT /api/tags/:id` sends an NCMD back to the edge node.
+    #[serde(default)]
+    pub writable: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

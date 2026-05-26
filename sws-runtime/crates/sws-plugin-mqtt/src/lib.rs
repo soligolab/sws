@@ -14,11 +14,20 @@ use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, info, warn};
 
+mod sparkplug;
+
 /// Runs the MQTT subscription + publish loop until `cancel` fires,
 /// reconnecting on any error. Tags with a `publish_topic` set in their
 /// TopicMapping register on the write bus and forward writes as MQTT
 /// publishes (raw string payload).
+///
+/// When `cfg.sparkplug` is set, delegates to the Sparkplug B handler instead.
 pub async fn run(cfg: MqttConfig, db: Arc<TagDb>, bus: Arc<TagWriteBus>, cancel: CancellationToken) {
+    // Sparkplug B mode: fully different subscription + protobuf decode path.
+    if let Some(spb) = cfg.sparkplug.clone() {
+        sparkplug::run_sparkplug(cfg, spb, db, bus, cancel).await;
+        return;
+    }
     // Pre-build a (tag → publish_topic) lookup for the writable subset.
     let writers: Vec<(String, String)> = cfg.topics.iter()
         .filter_map(|t| t.publish_topic.as_ref().map(|pt| (t.tag.clone(), pt.clone())))

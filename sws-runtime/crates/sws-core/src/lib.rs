@@ -11,7 +11,8 @@ pub use project::{
     HomeAssistantConfig, ModbusRtuConfig, ModbusTcpConfig, MqttConfig, MqttLastWill, MqttTlsConfig,
     OpcUaAuth, OpcUaClientConfig, OpcUaNodeMapping, OpcUaServerConfig, OpcUaServerNodeMapping,
     Project, ProjectMeta, RegisterMapping, S7Config, S7DataType, S7TagMapping, ScriptTrigger,
-    SourceDef, TagDef, TopicMapping, MAX_FUNCTION_CODE_BYTES,
+    SourceDef, SparkplugConfig, SparkplugMetricMapping, TagDef, TopicMapping,
+    MAX_FUNCTION_CODE_BYTES,
 };
 pub use tag::{
     Tag, TagDb, TagId, TagQuality, TagState, TagUpdate, TagValue, TagWriteBus, WriteError,

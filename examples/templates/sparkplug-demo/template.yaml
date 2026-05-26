@@ -1,0 +1,3 @@
+id: sparkplug-demo
+label: "Sparkplug B (MQTT IIoT) Demo"
+description: "Template di partenza per sorgenti IIoT Sparkplug B (Eclipse Foundation). Il broker MQTT riceve payload protobuf da edge node; SWS decodifica NBIRTH/NDATA/DBIRTH/DDATA e scrive i tag. Configurare host/porta e group_id per puntare al proprio broker."
