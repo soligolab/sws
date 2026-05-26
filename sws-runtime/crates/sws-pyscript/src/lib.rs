@@ -295,7 +295,10 @@ def __inject(stmts):
     if isinstance(last, __ast.Expr):
         stmts[-1] = __ast.Assign(
             targets=[__ast.Name(id='__sws_result__', ctx=__ast.Store())],
-            value=last.value, lineno=last.lineno, col_offset=0)
+            value=last.value,
+            lineno=last.lineno, col_offset=0,
+            end_lineno=getattr(last, 'end_lineno', last.lineno),
+            end_col_offset=getattr(last, 'end_col_offset', 0))
     elif isinstance(last, __ast.If):
         __inject(last.body)
         __inject(last.orelse)
