@@ -547,7 +547,25 @@ export interface S7Source {
   tags: S7TagMapping[];
 }
 
-export type SourceDef = ModbusTcpSource | ModbusRtuSource | MqttSource | OpcUaSource | OpcUaServerSource | HomeAssistantSource | S7Source;
+export type EnIpDataType = 'bool' | 'sint' | 'int' | 'dint' | 'lint' | 'real';
+
+export interface EnIpTagMapping {
+  tag: string;
+  plc_tag: string;
+  data_type: EnIpDataType;
+  writable: boolean;
+}
+
+export interface EnIpSource {
+  kind: 'en_ip';
+  id: string;
+  ip: string;
+  slot: number;
+  poll_interval_ms: number;
+  tags: EnIpTagMapping[];
+}
+
+export type SourceDef = ModbusTcpSource | ModbusRtuSource | MqttSource | OpcUaSource | OpcUaServerSource | HomeAssistantSource | S7Source | EnIpSource;
 
 // ── HomeAssistant entity browser ───────────────────────────────────────────
 
