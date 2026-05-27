@@ -318,6 +318,7 @@ export function App() {
   const currentPageId  = useAppStore((s) => s.currentPageId);
   const setCurrentPage = useAppStore((s) => s.setCurrentPage);
   const setPages       = useAppStore((s) => s.setPages);
+  const setFaceplates  = useAppStore((s) => s.setFaceplates);
   const project             = useAppStore((s) => s.project);
   const setProject          = useAppStore((s) => s.setProject);
   const setProjectLoadError = useAppStore((s) => s.setProjectLoadError);
@@ -429,6 +430,14 @@ export function App() {
         if (e instanceof AuthError) clearAuth();
         else if (e instanceof PasswordChangeRequiredError) setMustChangePassword(true);
       });
+
+    api.listFaceplates()
+      .then(async (ids) => {
+        if (ids.length === 0) return;
+        const loaded = await Promise.all(ids.map((id) => api.getFaceplate(id)));
+        setFaceplates(loaded);
+      })
+      .catch(() => { /* non-critical — no faceplates configured */ });
   }, [authToken, mustChangePassword]);
 
   const handleLogout = async () => {

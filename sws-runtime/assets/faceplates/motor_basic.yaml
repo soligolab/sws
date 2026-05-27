@@ -1,0 +1,62 @@
+id: motor_basic
+label: "Motor (Basic)"
+params:
+  - tag_prefix
+  - label
+objects:
+  - id: motor-bg
+    type: rect
+    x: 0
+    y: 0
+    width: 140
+    height: 80
+    fill: "#1e293b"
+    stroke: "#334155"
+    stroke_width: 1
+  - id: motor-title
+    type: text
+    x: 4
+    y: 14
+    text: "{label}"
+    font_size: 12
+    color: "#cbd5e1"
+  - id: motor-status-led
+    type: led
+    x: 120
+    y: 4
+    width: 16
+    height: 16
+    tag: "{tag_prefix}.running"
+    color_on: "#22c55e"
+    color_off: "#ef4444"
+  - id: motor-speed-label
+    type: text
+    x: 4
+    y: 44
+    text: "Speed:"
+    font_size: 11
+    color: "#64748b"
+  - id: motor-speed-value
+    type: text
+    x: 44
+    y: 44
+    tag: "{tag_prefix}.speed"
+    format: "%.0f rpm"
+    font_size: 11
+    color: "#22d3ee"
+  - id: motor-fault-label
+    type: text
+    x: 4
+    y: 64
+    text: "Fault:"
+    font_size: 11
+    color: "#64748b"
+  - id: motor-fault-led
+    type: led
+    x: 40
+    y: 56
+    width: 12
+    height: 12
+    tag: "{tag_prefix}.fault"
+    color_on: "#ef4444"
+    color_off: "#334155"

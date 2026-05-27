@@ -6,6 +6,7 @@ import type {
   DatastoreConfig,
   DatastoreListItem,
   DatastoreStats,
+  FaceplateDef,
   FunctionDef,
   GlobalScriptDef,
   HaBrowsedEntity,
@@ -367,6 +368,18 @@ export const api = {
       headers: { "Content-Type": "application/x-yaml" },
       body: yamlText,
     }),
+
+  // ── Faceplate API ────────────────────────────────────────────────────────
+  listFaceplates: () => request<string[]>("/api/faceplates"),
+  getFaceplate: (id: string) => request<FaceplateDef>(`/api/faceplates/${encodeURIComponent(id)}`),
+  saveFaceplate: (fp: FaceplateDef) =>
+    request<void>(`/api/faceplates/${encodeURIComponent(fp.id)}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(fp),
+    }),
+  deleteFaceplate: (id: string) =>
+    request<void>(`/api/faceplates/${encodeURIComponent(id)}`, { method: "DELETE" }),
 
   // Backups — admin-only. The list is sorted newest-first by the server.
   listBackups: () =>
