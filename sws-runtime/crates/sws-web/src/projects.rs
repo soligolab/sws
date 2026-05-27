@@ -5,6 +5,7 @@
 //! a project is opened, the per-project AuthState gates everything else.
 
 use crate::global_scripts::GlobalScriptSupervisor;
+use crate::notifications::NotificationSupervisor;
 use crate::router::{active_dir, AppState};
 use crate::templates::copy_dir_all;
 use axum::{
@@ -181,6 +182,7 @@ pub async fn create_project(
                 custom_symbols: vec![],
                 datastores: vec![],
                 global_scripts: vec![],
+                notifications: None,
             };
             let yaml = match serde_yaml::to_string(&project) {
                 Ok(y) => y,
@@ -251,6 +253,9 @@ pub async fn open_project(
     if let Some(sc) = s.script_supervisor.write().await.take() {
         sc.stop();
     }
+    if let Some(ns) = s.notification_supervisor.write().await.take() {
+        ns.stop();
+    }
     s.db.clear().await;
     s.historian.clear().await;
     s.alarms.load(vec![]).await;
@@ -315,6 +320,12 @@ pub async fn open_project(
             info!(scripts = n, "global script supervisor started");
             *s.script_supervisor.write().await = Some(sc);
         }
+        // Start notification supervisor if SMTP is configured.
+        if let Some(notif) = project.notifications {
+            let ns = NotificationSupervisor::start(s.alarms.clone(), notif);
+            info!("notification supervisor started");
+            *s.notification_supervisor.write().await = Some(ns);
+        }
         {
             let mut map = s.functions.write().await;
             for f in project.functions {
@@ -354,6 +365,9 @@ pub async fn close_project(State(s): State<AppState>) -> Response {
     s.supervisor.reload(vec![]).await;
     if let Some(sc) = s.script_supervisor.write().await.take() {
         sc.stop();
+    }
+    if let Some(ns) = s.notification_supervisor.write().await.take() {
+        ns.stop();
     }
     s.db.clear().await;
     s.historian.clear().await;

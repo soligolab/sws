@@ -697,6 +697,31 @@ pub struct GlobalScriptDef {
 
 fn bool_true() -> bool { true }
 
+// ── Notification config ───────────────────────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SmtpConfig {
+    pub host: String,
+    /// SMTP port. Defaults to 587 (STARTTLS).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub port: Option<u16>,
+    /// "From" address, e.g. "SWS Alerts <alerts@example.com>".
+    pub from: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub username: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub password: Option<String>,
+    /// Use STARTTLS (default true). Set false for plain SMTP on port 25.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub starttls: Option<bool>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct NotificationConfig {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub smtp: Option<SmtpConfig>,
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Project {
     pub meta: ProjectMeta,
@@ -720,6 +745,8 @@ pub struct Project {
     pub datastores: Vec<DatastoreConfig>,
     #[serde(default)]
     pub global_scripts: Vec<GlobalScriptDef>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub notifications: Option<NotificationConfig>,
 }
 
 impl Project {

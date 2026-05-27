@@ -14,14 +14,16 @@ use serde::Deserialize;
 use sws_auth::{AuthState, Credentials, LoginError, LoginOk, Role};
 use sws_core::{
     AlarmDb, AlarmDef, AlarmEvent, AlarmState, CustomSymbol, FunctionDef, GlobalScriptDef,
-    LogBus, LogEvent, Project, ProjectMeta, SourceDef, TagDb, TagDef, TagId, TagQuality,
-    TagState, TagUpdate, TagValue, TagWriteBus, WriteError, MAX_FUNCTION_CODE_BYTES,
+    LogBus, LogEvent, NotificationConfig, Project, ProjectMeta, SourceDef, TagDb, TagDef,
+    TagId, TagQuality, TagState, TagUpdate, TagValue, TagWriteBus, WriteError,
+    MAX_FUNCTION_CODE_BYTES,
 };
 use sws_historian::{DatastoreRegistry, Historian, Sample};
 use sws_pyscript::{Engine as PyEngine, ExecOutput};
 use tokio::sync::RwLock;
 use tracing::warn;
 use crate::global_scripts::GlobalScriptSupervisor;
+use crate::notifications::NotificationSupervisor;
 use crate::recipe::{RecipeApplyEvent, RecipeDef};
 use crate::source_supervisor::SourceSupervisor;
 use crate::synoptic::{safe_filename, FaceplateDef, SynopticPage};
@@ -75,6 +77,8 @@ pub struct AppState {
     pub ip_allowlist: Arc<Vec<(std::net::IpAddr, u8)>>,
     /// In-memory log of recipe apply events. Cleared on project open/close.
     pub recipe_log: Arc<RwLock<Vec<RecipeApplyEvent>>>,
+    /// Active notification supervisor (email + escalation). Replaced on project open.
+    pub notification_supervisor: Arc<RwLock<Option<NotificationSupervisor>>>,
 }
 
 /// Resolve the active project directory or return 503. Used at the top
@@ -104,7 +108,7 @@ pub fn build(
     ip_allowlist: Arc<Vec<(std::net::IpAddr, u8)>>,
     www_dir: Option<PathBuf>,
 ) -> Router {
-    let state = AppState { db, bus, alarms, historian, registry, py, auth, supervisor, script_supervisor, functions, derived_tags, project_dir, projects_root, templates_root, logs, logs_dir, started_at, ip_allowlist, recipe_log: Arc::new(RwLock::new(Vec::new())) };
+    let state = AppState { db, bus, alarms, historian, registry, py, auth, supervisor, script_supervisor, functions, derived_tags, project_dir, projects_root, templates_root, logs, logs_dir, started_at, ip_allowlist, recipe_log: Arc::new(RwLock::new(Vec::new())), notification_supervisor: Arc::new(RwLock::new(None)) };
 
     // Routes that need Admin privileges (PUT /api/project/* — schema edits,
     // plus the multi-user CRUD).
@@ -116,7 +120,8 @@ pub fn build(
         .route("/api/project/functions",      put(update_project_functions))
         .route("/api/project/custom-symbols", put(update_project_custom_symbols))
         .route("/api/project/datastores",      put(update_project_datastores))
-        .route("/api/project/global-scripts", put(update_project_global_scripts))
+        .route("/api/project/global-scripts",  put(update_project_global_scripts))
+        .route("/api/project/notifications",   put(update_project_notifications))
         // Bulk project export/import (single ZIP carrying project.yaml +
         // every synoptic). Destructive on the import side — Admin only.
         .route("/api/project/export",     get(export_project_zip))
@@ -1237,6 +1242,13 @@ fn mask_project_secrets(project: &mut Project) {
             }
         }
     }
+    if let Some(notif) = &mut project.notifications {
+        if let Some(smtp) = &mut notif.smtp {
+            if smtp.password.is_some() {
+                smtp.password = Some(MASKED_PASSWORD.to_string());
+            }
+        }
+    }
 }
 
 /// Read project.yaml (or build a minimal default), apply `f`, write back.
@@ -1253,6 +1265,7 @@ where
         custom_symbols: vec![],
         datastores: vec![],
         global_scripts: vec![],
+        notifications: None,
     });
     f(&mut project);
     if let Err(e) = tokio::fs::create_dir_all(project_dir).await {
@@ -3155,6 +3168,49 @@ async fn update_project_global_scripts(
                 s.bus.clone(),
             );
             *s.script_supervisor.write().await = Some(sc);
+        }
+    }
+    status
+}
+
+/// `PUT /api/project/notifications` — save SMTP / notification config and hot-swap supervisor.
+/// Preserves the existing SMTP password if the caller sends the masked placeholder.
+async fn update_project_notifications(
+    State(s): State<AppState>,
+    Json(config): Json<Option<NotificationConfig>>,
+) -> StatusCode {
+    let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c };
+
+    // Preserve existing password when the UI sends the masked placeholder.
+    let config = if let Some(mut cfg) = config {
+        if let Some(smtp) = &mut cfg.smtp {
+            if smtp.password.as_deref() == Some(MASKED_PASSWORD) {
+                // Load the real password from disk.
+                if let Ok(existing) = Project::load(&dir) {
+                    smtp.password = existing.notifications
+                        .and_then(|n| n.smtp)
+                        .and_then(|s| s.password);
+                }
+            }
+        }
+        Some(cfg)
+    } else {
+        None
+    };
+
+    let config_clone = config.clone();
+    let status = patch_project(&dir, |p| p.notifications = config_clone).await;
+    if status == StatusCode::NO_CONTENT {
+        // Hot-swap notification supervisor.
+        if let Some(old) = s.notification_supervisor.write().await.take() {
+            old.stop();
+        }
+        if let Some(cfg) = config {
+            let sup = crate::notifications::NotificationSupervisor::start(
+                s.alarms.clone(),
+                cfg,
+            );
+            *s.notification_supervisor.write().await = Some(sup);
         }
     }
     status

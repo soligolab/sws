@@ -692,6 +692,19 @@ export interface DatastoreListItem {
   error: string | null;
 }
 
+export interface SmtpConfig {
+  host: string;
+  port?: number;
+  from: string;
+  username?: string;
+  password?: string;
+  starttls?: boolean;
+}
+
+export interface NotificationConfig {
+  smtp?: SmtpConfig;
+}
+
 export interface ProjectInfo {
   meta: { name: string; version: string };
   tags: TagDef[];
@@ -701,6 +714,7 @@ export interface ProjectInfo {
   custom_symbols?: CustomSymbol[];
   datastores?: DatastoreConfig[];
   global_scripts?: GlobalScriptDef[];
+  notifications?: NotificationConfig;
 }
 
 // ── Reusable Python functions ──────────────────────────────────────────────
@@ -756,6 +770,12 @@ export interface AlarmDef {
   inhibit_tag?: string;
   /** Condition on inhibit_tag that means "alarm is inhibited" (default: bool_true). */
   inhibit_condition?: AlarmCondition;
+  /** Email recipients for alarm activation notification. */
+  notify_email?: string[];
+  /** Seconds after which an unacknowledged alarm triggers escalation email. */
+  escalate_after_s?: number;
+  /** Email recipients for escalation. */
+  escalate_to?: string[];
 }
 
 export interface RecipeSetpoint {

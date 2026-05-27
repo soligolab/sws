@@ -1,4 +1,5 @@
 pub mod backups;
+pub mod notifications;
 pub mod recipe;
 pub mod global_scripts;
 pub mod metrics;

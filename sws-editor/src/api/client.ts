@@ -15,6 +15,7 @@ import type {
   LogFileEntry,
   MqttBrowseRequest,
   MqttBrowseResponse,
+  NotificationConfig,
   OpcUaBrowseRequest,
   OpcUaBrowseResponse,
   OpcUaCertEntry,
@@ -687,6 +688,13 @@ export const api = {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(scripts),
+    }),
+
+  saveNotifications: (config: NotificationConfig | null) =>
+    request<void>("/api/project/notifications", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(config),
     }),
 
   uploadProjectZip: async (file: Blob, name?: string): Promise<{ name: string }> => {
