@@ -735,7 +735,10 @@ export type AlarmCondition =
   | { kind: "below"; threshold: number }
   | { kind: "bool_equals"; value: boolean }
   | { kind: "bool_true" }
-  | { kind: "bool_false" };
+  | { kind: "bool_false" }
+  | { kind: "and"; conditions: AlarmCondition[] }
+  | { kind: "or";  conditions: AlarmCondition[] }
+  | { kind: "not"; condition: AlarmCondition };
 
 export interface AlarmDef {
   id: string;
@@ -743,11 +746,16 @@ export interface AlarmDef {
   condition: AlarmCondition;
   message: string;
   severity?: AlarmSeverity;
-  /** Optional webhook URL. POSTed with AlarmWebhookPayload JSON when the alarm goes ACTIVE. */
   notify_url?: string;
-  /** Hysteresis band (same unit as the tag value). The alarm only clears when the value
-   *  moves dead_band units past the threshold. Prevents chatter on noisy sensors. */
   dead_band?: number;
+  /** Seconds condition must be continuously true before alarm activates. */
+  on_delay_s?: number;
+  /** Seconds condition must be continuously false before alarm clears. */
+  off_delay_s?: number;
+  /** Tag that suppresses this alarm when its value matches inhibit_condition. */
+  inhibit_tag?: string;
+  /** Condition on inhibit_tag that means "alarm is inhibited" (default: bool_true). */
+  inhibit_condition?: AlarmCondition;
 }
 
 /** Aggregate statistics for a tag's historian samples. */

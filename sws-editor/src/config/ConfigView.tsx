@@ -3827,31 +3827,49 @@ function AlarmsTab() {
                   />
                 </td>
                 <td style={S.td}>
-                  <select
-                    style={{ ...S.inputSm, cursor: "pointer" }}
-                    value={alm.condition.kind}
-                    onChange={(e) => {
-                      const kind = e.target.value as AlarmCondition["kind"];
-                      if (kind === "above" || kind === "below") {
-                        updateCondition(i, { kind, threshold: 0 });
-                      } else {
-                        updateCondition(i, { kind: "bool_equals", value: true });
-                      }
-                    }}
-                  >
-                    <option value="above">above</option>
-                    <option value="below">below</option>
-                    <option value="bool_equals">bool_equals</option>
-                  </select>
+                  {(() => {
+                    const isComposite = ["and", "or", "not"].includes(alm.condition.kind);
+                    if (isComposite) {
+                      return (
+                        <span style={{ fontSize: 11, color: "#64748b", fontStyle: "italic" }}
+                          title="Condizione composita (And/Or/Not): modifica nel YAML">
+                          {alm.condition.kind}
+                        </span>
+                      );
+                    }
+                    return (
+                      <select
+                        style={{ ...S.inputSm, cursor: "pointer" }}
+                        value={alm.condition.kind}
+                        onChange={(e) => {
+                          const kind = e.target.value as AlarmCondition["kind"];
+                          if (kind === "above" || kind === "below") {
+                            updateCondition(i, { kind, threshold: 0 });
+                          } else if (kind === "not") {
+                            updateCondition(i, { kind: "not", condition: { kind: "bool_true" } });
+                          } else {
+                            updateCondition(i, { kind: "bool_equals", value: true });
+                          }
+                        }}
+                      >
+                        <option value="above">above</option>
+                        <option value="below">below</option>
+                        <option value="bool_equals">bool_equals</option>
+                        <option value="not">not</option>
+                      </select>
+                    );
+                  })()}
                 </td>
                 <td style={S.td}>
                   {(() => {
                     const cond = alm.condition;
                     const isBool = cond.kind === "bool_equals" || cond.kind === "bool_true" || cond.kind === "bool_false";
+                    const isComposite = cond.kind === "and" || cond.kind === "or" || cond.kind === "not";
+                    if (isComposite) return null;
                     if (isBool) {
                       const boolVal = cond.kind === "bool_true" ? "true"
                                     : cond.kind === "bool_false" ? "false"
-                                    : cond.value ? "true" : "false";
+                                    : (cond as { kind: "bool_equals"; value: boolean }).value ? "true" : "false";
                       return (
                         <select
                           style={{ ...S.inputSm, cursor: "pointer" }}
@@ -3870,17 +3888,17 @@ function AlarmsTab() {
                         style={S.inputSm}
                         type="number"
                         step="any"
-                        value={cond.threshold}
+                        value={(cond as { kind: "above" | "below"; threshold: number }).threshold}
                         onChange={(e) =>
-                          updateCondition(i, { kind: cond.kind, threshold: Number(e.target.value) })
+                          updateCondition(i, { kind: cond.kind as "above" | "below", threshold: Number(e.target.value) })
                         }
                       />
                     );
                   })()}
                 </td>
                 <td style={S.td}>
-                  {/* dead_band: only meaningful for above/below conditions */}
-                  {alm.condition.kind !== "bool_equals" && alm.condition.kind !== "bool_true" && alm.condition.kind !== "bool_false" && (
+                  {/* dead_band: only for above/below atomic conditions */}
+                  {(alm.condition.kind === "above" || alm.condition.kind === "below") && (
                     <input
                       style={S.inputSm}
                       type="number"
@@ -3916,6 +3934,30 @@ function AlarmsTab() {
                     placeholder="🔔 URL webhook (opz.)"
                     value={alm.notify_url ?? ""}
                     onChange={(e) => updateAlarm(i, { notify_url: e.target.value || undefined })}
+                  />
+                  <div style={{ display: "flex", gap: 4, marginTop: 4 }}>
+                    <input
+                      style={{ ...S.inputSm, width: "50%", fontSize: 11 }}
+                      type="number" step="any" min="0"
+                      placeholder="on_delay s"
+                      title="Ritardo attivazione (s): la condizione deve essere vera per almeno N secondi"
+                      value={alm.on_delay_s ?? ""}
+                      onChange={(e) => updateAlarm(i, { on_delay_s: e.target.value !== "" ? Number(e.target.value) : undefined })}
+                    />
+                    <input
+                      style={{ ...S.inputSm, width: "50%", fontSize: 11 }}
+                      type="number" step="any" min="0"
+                      placeholder="off_delay s"
+                      title="Ritardo disattivazione (s): la condizione deve essere falsa per almeno N secondi prima del rientro"
+                      value={alm.off_delay_s ?? ""}
+                      onChange={(e) => updateAlarm(i, { off_delay_s: e.target.value !== "" ? Number(e.target.value) : undefined })}
+                    />
+                  </div>
+                  <TagInput
+                    style={{ ...S.inputSm, marginTop: 4, fontSize: 11 }}
+                    placeholder="⊘ inhibit_tag (opz.)"
+                    value={alm.inhibit_tag ?? ""}
+                    onChange={(v) => updateAlarm(i, { inhibit_tag: v || undefined })}
                   />
                 </td>
                 <td style={{ ...S.td, textAlign: "center" }}>
