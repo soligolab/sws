@@ -911,3 +911,16 @@ export interface GlobalScriptDef {
   code: string;
   enabled: boolean;
 }
+
+// ── GitOps (T-20) ─────────────────────────────────────────────────────────────
+
+export interface GitStatus {
+  sha: string;
+  author: string;
+  message: string;
+  commit_date: string;
+  branch: string;
+  remote_url: string | null;
+  clean: boolean;
+  last_deploy_ms: number | null;
+}
