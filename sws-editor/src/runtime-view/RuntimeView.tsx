@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useCallback } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { api } from "@/api/client";
 import { SvgCanvas } from "@/canvas/SvgCanvas";
 import { AlarmHistory } from "@/components/AlarmHistory";
@@ -516,8 +516,27 @@ export function RuntimeView() {
     });
   };
 
+  // T-19: touch swipe navigation between pages.
+  const touchStartX = useRef<number | null>(null);
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartX.current = e.touches[0]?.clientX ?? null;
+  };
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (touchStartX.current === null) return;
+    const dx = (e.changedTouches[0]?.clientX ?? 0) - touchStartX.current;
+    touchStartX.current = null;
+    if (Math.abs(dx) < 50) return; // threshold 50px
+    const idx = pages.findIndex((p) => p.id === currentPageId);
+    if (dx < 0 && idx < pages.length - 1) setCurrentPage(pages[idx + 1].id);
+    if (dx > 0 && idx > 0) setCurrentPage(pages[idx - 1].id);
+  };
+
   return (
-    <div style={{ display: "flex", flexDirection: "column", flex: 1, overflow: "hidden" }}>
+    <div
+      style={{ display: "flex", flexDirection: "column", flex: 1, overflow: "hidden" }}
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
+    >
       {/* Page navigation bar */}
       {pages.length > 1 && (
         <nav style={{
