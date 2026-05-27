@@ -15,13 +15,13 @@ use sws_auth::{AuthState, Credentials, LoginError, LoginOk, Role};
 use sws_core::{
     AlarmDb, AlarmDef, AlarmEvent, AlarmState, CustomSymbol, FunctionDef, GlobalScriptDef,
     LogBus, LogEvent, NotificationConfig, Project, ProjectMeta, SourceDef, TagDb, TagDef,
-    TagId, TagQuality, TagState, TagUpdate, TagValue, TagWriteBus, WriteError,
+    TagId, TagQuality, TagState, TagValue, TagWriteBus, WriteError,
     MAX_FUNCTION_CODE_BYTES,
 };
 use sws_historian::{DatastoreRegistry, Historian, Sample};
 use sws_pyscript::{Engine as PyEngine, ExecOutput};
 use tokio::sync::RwLock;
-use tracing::warn;
+use tracing::{info, warn};
 use crate::global_scripts::GlobalScriptSupervisor;
 use crate::notifications::NotificationSupervisor;
 use crate::recipe::{RecipeApplyEvent, RecipeDef};
@@ -122,6 +122,7 @@ pub fn build(
         .route("/api/project/datastores",      put(update_project_datastores))
         .route("/api/project/global-scripts",  put(update_project_global_scripts))
         .route("/api/project/notifications",   put(update_project_notifications))
+        .route("/api/project/rollback",        post(trigger_rollback))
         // Bulk project export/import (single ZIP carrying project.yaml +
         // every synoptic). Destructive on the import side — Admin only.
         .route("/api/project/export",     get(export_project_zip))
@@ -168,6 +169,7 @@ pub fn build(
         // HomeAssistant entity browse: proxy GET /api/states to HA and return entities.
         .route("/api/sources/ha/browse", post(ha_browse_handler))
         .route("/api/system",             get(crate::system::get_system_status))
+        .route("/api/project/deploy",     post(trigger_deploy))
         .route_layer(middleware::from_fn(require_operator));
 
     // Routes that need Supervisor+ — project editing surface that
@@ -206,6 +208,8 @@ pub fn build(
         .route("/api/recipes",          get(list_recipes))
         .route("/api/recipes/history",  get(get_recipe_history))
         .route("/api/recipes/:id",      get(get_recipe).put(save_recipe).delete(delete_recipe))
+        // GitOps status (read-only — any authenticated user)
+        .route("/api/project/git-status", get(get_git_status))
         // WebSocket streams
         .route("/ws/tags",   get(ws_tags_handler))
         .route("/ws/alarms", get(ws_alarms_handler));
@@ -2527,8 +2531,6 @@ async fn handle_ws(socket: WebSocket, db: Arc<TagDb>, bus: Arc<TagWriteBus>, rol
 
     // Sequence counter (per-connection monotonic).
     let mut seq: u64 = 0;
-    // Subscription set: None = all tags; Some(set) = filtered.
-    let mut subscribed: Option<HashSet<String>> = None;
 
     // Helper: build + send snapshot for the current subscription.
     let send_snapshot = |sub: &Option<HashSet<String>>, snapshot: Vec<(TagId, TagState)>, seq: u64, tx: &tokio::sync::mpsc::Sender<Message>| {
@@ -2668,12 +2670,11 @@ async fn handle_ws(socket: WebSocket, db: Arc<TagDb>, bus: Arc<TagWriteBus>, rol
                         };
                         // Update shared filter for the batcher task.
                         *sub_cell.write().await = new_sub.clone();
-                        subscribed = new_sub.clone();
                         // Send fresh snapshot for the new subscription.
                         seq = seq.wrapping_add(1);
                         let snap = db.snapshot().await;
                         let snap_vec: Vec<(TagId, TagState)> = snap.into_iter().collect();
-                        send_snapshot(&subscribed, snap_vec, seq, &out_tx);
+                        send_snapshot(&new_sub, snap_vec, seq, &out_tx);
                     }
                 }
             }
@@ -3301,6 +3302,80 @@ async fn update_project_global_scripts(
         }
     }
     status
+}
+
+// ── T-20 GitOps ──────────────────────────────────────────────────────────────
+
+/// `GET /api/project/git-status` — git commit info for the active project dir.
+async fn get_git_status(State(s): State<AppState>) -> impl IntoResponse {
+    let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
+    let gd = crate::git_deploy::GitDeploy::new(dir);
+    if !gd.is_git_repo() {
+        return StatusCode::NOT_FOUND.into_response();
+    }
+    match gd.status() {
+        Ok(st) => Json(st).into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+    }
+}
+
+/// `POST /api/project/deploy` — `git pull --ff-only` then soft-reload.
+async fn trigger_deploy(State(s): State<AppState>) -> impl IntoResponse {
+    let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
+    let gd = crate::git_deploy::GitDeploy::new(dir.clone());
+    if !gd.is_git_repo() {
+        return (StatusCode::BAD_REQUEST, "not a git repository").into_response();
+    }
+    match tokio::task::spawn_blocking(move || gd.pull()).await {
+        Ok(Ok(msg)) => {
+            soft_reload_project(&s, &dir).await;
+            Json(serde_json::json!({ "message": msg })).into_response()
+        }
+        Ok(Err(e)) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+    }
+}
+
+/// `POST /api/project/rollback` — `git reset --hard HEAD~1` then soft-reload.
+async fn trigger_rollback(State(s): State<AppState>) -> impl IntoResponse {
+    let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
+    let gd = crate::git_deploy::GitDeploy::new(dir.clone());
+    if !gd.is_git_repo() {
+        return (StatusCode::BAD_REQUEST, "not a git repository").into_response();
+    }
+    match tokio::task::spawn_blocking(move || gd.rollback()).await {
+        Ok(Ok(msg)) => {
+            soft_reload_project(&s, &dir).await;
+            Json(serde_json::json!({ "message": msg })).into_response()
+        }
+        Ok(Err(e)) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+    }
+}
+
+/// Reload project YAML without restarting sources or clearing the historian.
+/// Used by GitOps deploy/rollback to apply config changes from new commits.
+async fn soft_reload_project(s: &AppState, dir: &std::path::Path) {
+    let project = match Project::load(dir) {
+        Ok(p) => p,
+        Err(e) => { warn!("git deploy: project reload failed: {e:#}"); return; }
+    };
+    {
+        let derived: Vec<(String, String)> = project.tags.iter()
+            .filter_map(|t| t.expression.as_ref().map(|e| (t.id.clone(), e.clone())))
+            .collect();
+        *s.derived_tags.write().await = derived;
+    }
+    project.populate_tags(&s.db).await;
+    s.alarms.load(project.alarms.clone()).await;
+    {
+        let mut funcs = s.functions.write().await;
+        funcs.clear();
+        for f in &project.functions {
+            funcs.insert(f.name.clone(), f.clone());
+        }
+    }
+    info!(dir = %dir.display(), "git deploy: project soft-reloaded");
 }
 
 /// `PUT /api/project/notifications` — save SMTP / notification config and hot-swap supervisor.

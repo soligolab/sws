@@ -4063,6 +4063,102 @@ function MetricCard({ icon, label, value }: { icon: string; label: string; value
   );
 }
 
+function GitOpsPanel() {
+  const [gitStatus, setGitStatus] = useState<import("../types").GitStatus | null>(null);
+  const [gitError, setGitError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [opMsg, setOpMsg] = useState<string | null>(null);
+
+  const fetchGitStatus = async () => {
+    try {
+      const gs = await api.getGitStatus();
+      setGitStatus(gs);
+      setGitError(null);
+    } catch (e: any) {
+      if (e?.status === 404 || String(e?.message).includes("404")) {
+        setGitStatus(null);
+        setGitError(null);
+      } else {
+        setGitError(String(e?.message ?? e));
+      }
+    }
+  };
+
+  useEffect(() => { void fetchGitStatus(); }, []);
+
+  const runOp = async (op: () => Promise<{ message: string }>, label: string) => {
+    setBusy(true);
+    setOpMsg(null);
+    try {
+      const r = await op();
+      setOpMsg(`${label}: ${r.message || "ok"}`);
+      await fetchGitStatus();
+    } catch (e: any) {
+      setOpMsg(`Errore ${label}: ${String(e?.message ?? e)}`);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (gitError) {
+    return (
+      <div style={{ color: "#fca5a5", fontSize: 12, marginTop: 4 }}>Git: {gitError}</div>
+    );
+  }
+  if (!gitStatus) return null;
+
+  const dateStr = gitStatus.commit_date
+    ? new Date(gitStatus.commit_date).toLocaleString("it-IT", { dateStyle: "short", timeStyle: "short" })
+    : "—";
+
+  return (
+    <div>
+      <div style={{ fontSize: 12, fontWeight: 700, color: "#64748b", letterSpacing: 1, marginBottom: 10 }}>
+        GITOPS
+      </div>
+      <div style={{ background: "#0f172a", border: "1px solid #1e293b", borderRadius: 6, padding: "12px 14px", display: "flex", flexDirection: "column", gap: 6 }}>
+        <div style={{ display: "flex", gap: 12, flexWrap: "wrap", fontSize: 12 }}>
+          <span style={{ color: "#64748b" }}>Branch:</span>
+          <span style={{ color: "#93c5fd", fontWeight: 700 }}>{gitStatus.branch}</span>
+          <span style={{ color: "#64748b" }}>SHA:</span>
+          <span style={{ color: "#e2e8f0", fontFamily: "monospace" }}>{gitStatus.sha}</span>
+          <span style={{ color: gitStatus.clean ? "#34d399" : "#fb923c" }}>
+            {gitStatus.clean ? "✓ clean" : "⚠ modificato"}
+          </span>
+        </div>
+        <div style={{ fontSize: 12, color: "#94a3b8" }}>
+          <span style={{ color: "#64748b" }}>{dateStr} — </span>
+          {gitStatus.author}: {gitStatus.message}
+        </div>
+        {gitStatus.remote_url && (
+          <div style={{ fontSize: 11, color: "#475569", wordBreak: "break-all" }}>{gitStatus.remote_url}</div>
+        )}
+        <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
+          <button
+            disabled={busy}
+            onClick={() => runOp(() => api.triggerDeploy(), "Deploy")}
+            style={{ flex: 1, padding: "6px 10px", background: "#1e40af", border: "none", borderRadius: 4, color: "#fff", fontSize: 12, cursor: busy ? "not-allowed" : "pointer", opacity: busy ? 0.6 : 1 }}
+          >
+            ↑ Deploy (git pull)
+          </button>
+          <button
+            disabled={busy}
+            onClick={() => { if (confirm("Eseguire git reset --hard HEAD~1? Questa operazione non è reversibile.")) runOp(() => api.triggerRollback(), "Rollback"); }}
+            style={{ flex: 1, padding: "6px 10px", background: "#7f1d1d", border: "none", borderRadius: 4, color: "#fff", fontSize: 12, cursor: busy ? "not-allowed" : "pointer", opacity: busy ? 0.6 : 1 }}
+          >
+            ↓ Rollback (HEAD~1)
+          </button>
+        </div>
+        {opMsg && (
+          <div style={{ fontSize: 11, color: opMsg.startsWith("Errore") ? "#fca5a5" : "#34d399", marginTop: 2, whiteSpace: "pre-wrap" }}>
+            {opMsg}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function SystemTab() {
   const [status, setStatus] = useState<SystemStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -4155,6 +4251,7 @@ function SystemTab() {
           </div>
         </div>
       </div>
+      <GitOpsPanel />
     </div>
   );
 }

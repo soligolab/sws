@@ -701,6 +701,15 @@ export const api = {
       body: JSON.stringify(config),
     }),
 
+  getGitStatus: () =>
+    request<import("../types").GitStatus>("/api/project/git-status"),
+
+  triggerDeploy: () =>
+    request<{ message: string }>("/api/project/deploy", { method: "POST" }),
+
+  triggerRollback: () =>
+    request<{ message: string }>("/api/project/rollback", { method: "POST" }),
+
   uploadProjectZip: async (file: Blob, name?: string): Promise<{ name: string }> => {
     const url = name
       ? `${getBaseUrl()}/api/projects/upload?name=${encodeURIComponent(name)}`
