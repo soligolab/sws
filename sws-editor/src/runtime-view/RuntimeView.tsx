@@ -1,11 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import { api } from "@/api/client";
 import { SvgCanvas } from "@/canvas/SvgCanvas";
 import { AlarmHistory } from "@/components/AlarmHistory";
 import { useAppStore } from "@/store";
 import { useAlarmStream } from "@/ws/alarmStream";
 import { useTagStream, tryTagWriteWs } from "@/ws/tagStream";
-import type { AlarmSeverity, AlarmState, FunctionDef, ShelvedAlarm } from "@/types";
+import type { AlarmSeverity, AlarmState, FunctionDef, RecipeSummary, ShelvedAlarm } from "@/types";
 
 // ── Script output toast ───────────────────────────────────────────────────────
 
@@ -335,6 +335,84 @@ function AlarmPanel() {
   );
 }
 
+// ── RecipeModal ───────────────────────────────────────────────────────────────
+
+function RecipeModal({ onClose, username }: { onClose: () => void; username: string }) {
+  const [recipes, setRecipes]   = useState<RecipeSummary[]>([]);
+  const [applying, setApplying] = useState<string | null>(null);
+  const [result, setResult]     = useState<string>("");
+
+  useEffect(() => {
+    api.listRecipes().then(setRecipes).catch(() => setRecipes([]));
+  }, []);
+
+  const apply = useCallback(async (id: string) => {
+    setApplying(id);
+    setResult("");
+    try {
+      const r = await api.applyRecipe(id, username || "operator");
+      setResult(`✓ ${r.applied}/${r.total} setpoint scritti` +
+        (r.errors.length > 0 ? ` — Errori: ${r.errors.join(", ")}` : ""));
+    } catch {
+      setResult("Errore: impossibile applicare la ricetta.");
+    } finally {
+      setApplying(null);
+    }
+  }, [username]);
+
+  return (
+    <div style={{
+      position: "fixed", inset: 0, zIndex: 2000,
+      background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center",
+    }} onClick={onClose}>
+      <div style={{
+        background: "#0f172a", border: "1px solid #334155", borderRadius: 8,
+        padding: 24, minWidth: 380, maxWidth: 520, maxHeight: "80vh",
+        overflowY: "auto", color: "#e2e8f0",
+      }} onClick={(e) => e.stopPropagation()}>
+        <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 16 }}>Applica Ricetta</div>
+        {recipes.length === 0 ? (
+          <div style={{ color: "#64748b", fontSize: 13 }}>Nessuna ricetta disponibile.</div>
+        ) : (
+          recipes.map((r) => (
+            <div key={r.id} style={{
+              display: "flex", justifyContent: "space-between", alignItems: "center",
+              padding: "8px 0", borderBottom: "1px solid #1e293b",
+            }}>
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 600 }}>{r.name}</div>
+                <div style={{ fontSize: 11, color: "#64748b" }}>{r.id} · {r.setpoints_count} setpoint</div>
+              </div>
+              <button
+                onClick={() => apply(r.id)}
+                disabled={applying === r.id}
+                style={{
+                  padding: "4px 12px", borderRadius: 4, border: "none",
+                  background: "#1d4ed8", color: "#fff", cursor: "pointer", fontSize: 12,
+                  opacity: applying === r.id ? 0.6 : 1,
+                }}
+              >
+                {applying === r.id ? "…" : "Applica"}
+              </button>
+            </div>
+          ))
+        )}
+        {result && (
+          <div style={{ marginTop: 12, fontSize: 12, color: result.startsWith("✓") ? "#22c55e" : "#ef4444" }}>
+            {result}
+          </div>
+        )}
+        <button onClick={onClose} style={{
+          marginTop: 16, padding: "6px 16px", borderRadius: 4, border: "1px solid #334155",
+          background: "transparent", color: "#94a3b8", cursor: "pointer", fontSize: 12,
+        }}>
+          Chiudi
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ── RuntimeView ───────────────────────────────────────────────────────────────
 
 export function RuntimeView() {
@@ -349,7 +427,9 @@ export function RuntimeView() {
   const setAutoRotate       = useAppStore((s) => s.setAutoRotate);
   const setAutoRotateIntervalS = useAppStore((s) => s.setAutoRotateIntervalS);
 
-  const [toasts, setToasts] = useState<ScriptToast[]>([]);
+  const [toasts, setToasts]         = useState<ScriptToast[]>([]);
+  const [recipeOpen, setRecipeOpen] = useState(false);
+  const username = useAppStore((s) => s.authUser) ?? "operator";
 
   // Kiosk auto-rotate: advance to the next non-skipped page on a fixed interval.
   useEffect(() => {
@@ -484,6 +564,25 @@ export function RuntimeView() {
             />
             <span style={{ color: "#475569", fontSize: 11 }}>s</span>
           </div>
+          {/* Recipe apply button */}
+          <button
+            onClick={() => setRecipeOpen(true)}
+            title="Applica ricetta"
+            style={{
+              marginLeft: 8,
+              padding: "2px 8px",
+              border: "1px solid #334155",
+              borderRadius: 4,
+              background: "transparent",
+              color: "#64748b",
+              cursor: "pointer",
+              fontSize: 12,
+              whiteSpace: "nowrap",
+              flexShrink: 0,
+            }}
+          >
+            ⚗ Ricette
+          </button>
         </nav>
       )}
 
@@ -512,6 +611,11 @@ export function RuntimeView() {
 
       {/* Script output toasts (bottom-right, auto-dismiss) */}
       <ScriptToasts toasts={toasts} onClose={closeToast} />
+
+      {/* Recipe apply modal */}
+      {recipeOpen && (
+        <RecipeModal onClose={() => setRecipeOpen(false)} username={username} />
+      )}
     </div>
   );
 }

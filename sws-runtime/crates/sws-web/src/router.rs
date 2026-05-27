@@ -22,6 +22,7 @@ use sws_pyscript::{Engine as PyEngine, ExecOutput};
 use tokio::sync::RwLock;
 use tracing::warn;
 use crate::global_scripts::GlobalScriptSupervisor;
+use crate::recipe::{RecipeApplyEvent, RecipeDef};
 use crate::source_supervisor::SourceSupervisor;
 use crate::synoptic::{safe_filename, FaceplateDef, SynopticPage};
 
@@ -72,6 +73,8 @@ pub struct AppState {
     pub started_at: std::time::Instant,
     /// Parsed CIDR entries from `SWS_IP_ALLOWLIST`. Empty = no restriction.
     pub ip_allowlist: Arc<Vec<(std::net::IpAddr, u8)>>,
+    /// In-memory log of recipe apply events. Cleared on project open/close.
+    pub recipe_log: Arc<RwLock<Vec<RecipeApplyEvent>>>,
 }
 
 /// Resolve the active project directory or return 503. Used at the top
@@ -101,7 +104,7 @@ pub fn build(
     ip_allowlist: Arc<Vec<(std::net::IpAddr, u8)>>,
     www_dir: Option<PathBuf>,
 ) -> Router {
-    let state = AppState { db, bus, alarms, historian, registry, py, auth, supervisor, script_supervisor, functions, derived_tags, project_dir, projects_root, templates_root, logs, logs_dir, started_at, ip_allowlist };
+    let state = AppState { db, bus, alarms, historian, registry, py, auth, supervisor, script_supervisor, functions, derived_tags, project_dir, projects_root, templates_root, logs, logs_dir, started_at, ip_allowlist, recipe_log: Arc::new(RwLock::new(Vec::new())) };
 
     // Routes that need Admin privileges (PUT /api/project/* — schema edits,
     // plus the multi-user CRUD).
@@ -139,6 +142,8 @@ pub fn build(
         .route("/api/alarms/:id/ack",     post(ack_alarm))
         .route("/api/alarms/:id/shelve",  post(shelve_alarm).delete(unshelve_alarm))
         .route("/api/alarms/shelved",     get(list_shelved_alarms))
+        // Recipe apply — writes multiple tags atomically
+        .route("/api/recipes/:id/apply",  post(apply_recipe))
         .route("/api/script/exec",     post(exec_script))
         .route("/api/script/run/:name", post(run_function))
         // Logs — read-only but Operator+ so the audit surface stays
@@ -192,6 +197,10 @@ pub fn build(
         // Faceplate REST (read + write — Operator+ can read, Configurator+ can write)
         .route("/api/faceplates",       get(list_faceplates))
         .route("/api/faceplates/:id",   get(get_faceplate).put(save_faceplate).delete(delete_faceplate))
+        // Recipe REST (read)
+        .route("/api/recipes",          get(list_recipes))
+        .route("/api/recipes/history",  get(get_recipe_history))
+        .route("/api/recipes/:id",      get(get_recipe).put(save_recipe).delete(delete_recipe))
         // WebSocket streams
         .route("/ws/tags",   get(ws_tags_handler))
         .route("/ws/alarms", get(ws_alarms_handler));
@@ -2224,6 +2233,168 @@ async fn delete_faceplate(
     match tokio::fs::remove_file(&path).await {
         Ok(()) => StatusCode::NO_CONTENT,
         Err(_) => StatusCode::NOT_FOUND,
+    }
+}
+
+// ── Recipes ───────────────────────────────────────────────────────────────────
+
+fn recipes_dir_at(project_dir: &std::path::Path) -> PathBuf {
+    project_dir.join("recipes")
+}
+
+async fn list_recipes(State(s): State<AppState>) -> Response {
+    let project_dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
+    let dir = recipes_dir_at(&project_dir);
+    let mut recipes: Vec<serde_json::Value> = Vec::new();
+    if let Ok(mut entries) = tokio::fs::read_dir(&dir).await {
+        while let Ok(Some(entry)) = entries.next_entry().await {
+            let path = entry.path();
+            if path.extension().and_then(|e| e.to_str()) == Some("yaml") {
+                if let Ok(text) = tokio::fs::read_to_string(&path).await {
+                    if let Ok(r) = serde_yaml::from_str::<RecipeDef>(&text) {
+                        recipes.push(serde_json::json!({
+                            "id": r.id,
+                            "name": r.name,
+                            "setpoints_count": r.setpoints.len()
+                        }));
+                    }
+                }
+            }
+        }
+    }
+    recipes.sort_by(|a, b| a["id"].as_str().cmp(&b["id"].as_str()));
+    Json(recipes).into_response()
+}
+
+async fn get_recipe(State(s): State<AppState>, Path(id): Path<String>) -> Response {
+    let project_dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
+    let path = recipes_dir_at(&project_dir).join(format!("{}.yaml", safe_filename(&id)));
+    match tokio::fs::read_to_string(&path).await {
+        Err(_) => StatusCode::NOT_FOUND.into_response(),
+        Ok(text) => match serde_yaml::from_str::<RecipeDef>(&text) {
+            Ok(r) => Json(r).into_response(),
+            Err(e) => {
+                warn!("failed to parse recipe {id}: {e}");
+                StatusCode::INTERNAL_SERVER_ERROR.into_response()
+            }
+        },
+    }
+}
+
+async fn save_recipe(
+    State(s): State<AppState>,
+    Path(id): Path<String>,
+    Json(mut recipe): Json<RecipeDef>,
+) -> StatusCode {
+    let project_dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c };
+    let dir = recipes_dir_at(&project_dir);
+    if let Err(e) = tokio::fs::create_dir_all(&dir).await {
+        warn!("cannot create recipes dir: {e}");
+        return StatusCode::INTERNAL_SERVER_ERROR;
+    }
+    recipe.id = id.clone();
+    let path = dir.join(format!("{}.yaml", safe_filename(&id)));
+    match serde_yaml::to_string(&recipe) {
+        Ok(yaml) => match tokio::fs::write(&path, yaml.as_bytes()).await {
+            Ok(()) => StatusCode::NO_CONTENT,
+            Err(e) => { warn!("cannot write recipe {id}: {e}"); StatusCode::INTERNAL_SERVER_ERROR }
+        },
+        Err(e) => { warn!("cannot serialize recipe {id}: {e}"); StatusCode::INTERNAL_SERVER_ERROR }
+    }
+}
+
+async fn delete_recipe(State(s): State<AppState>, Path(id): Path<String>) -> StatusCode {
+    let project_dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c };
+    let path = recipes_dir_at(&project_dir).join(format!("{}.yaml", safe_filename(&id)));
+    match tokio::fs::remove_file(&path).await {
+        Ok(()) => StatusCode::NO_CONTENT,
+        Err(_) => StatusCode::NOT_FOUND,
+    }
+}
+
+#[derive(serde::Deserialize)]
+struct ApplyRecipeBody {
+    #[serde(default = "default_applied_by")]
+    applied_by: String,
+}
+fn default_applied_by() -> String { "operator".to_string() }
+
+async fn apply_recipe(
+    State(s): State<AppState>,
+    Path(id): Path<String>,
+    Json(body): Json<ApplyRecipeBody>,
+) -> Response {
+    let project_dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
+    let path = recipes_dir_at(&project_dir).join(format!("{}.yaml", safe_filename(&id)));
+    let text = match tokio::fs::read_to_string(&path).await {
+        Ok(t) => t,
+        Err(_) => return StatusCode::NOT_FOUND.into_response(),
+    };
+    let recipe = match serde_yaml::from_str::<RecipeDef>(&text) {
+        Ok(r) => r,
+        Err(e) => {
+            warn!("recipe parse error {id}: {e}");
+            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
+    };
+
+    let mut applied = 0usize;
+    let mut errors: Vec<String> = Vec::new();
+    for sp in &recipe.setpoints {
+        let tv = match json_to_tag_value(&sp.value) {
+            Some(v) => v,
+            None => {
+                errors.push(format!("{}: unsupported value type", sp.tag));
+                continue;
+            }
+        };
+        match s.bus.write(&sp.tag, tv.clone()).await {
+            Ok(()) => applied += 1,
+            Err(WriteError::NoWriter(_)) => {
+                s.db.set(sp.tag.clone(), tv, TagQuality::Good).await;
+                applied += 1;
+            }
+            Err(e) => errors.push(format!("{}: {e}", sp.tag)),
+        }
+    }
+
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as u64;
+    s.recipe_log.write().await.push(RecipeApplyEvent {
+        recipe_id:       recipe.id.clone(),
+        recipe_name:     recipe.name.clone(),
+        ts_ms:           now,
+        applied_by:      body.applied_by.clone(),
+        setpoints_count: applied,
+    });
+
+    Json(serde_json::json!({
+        "recipe_id": recipe.id,
+        "applied": applied,
+        "total": recipe.setpoints.len(),
+        "errors": errors,
+        "applied_by": body.applied_by,
+        "ts_ms": now,
+    })).into_response()
+}
+
+async fn get_recipe_history(State(s): State<AppState>) -> impl IntoResponse {
+    let mut events: Vec<RecipeApplyEvent> = s.recipe_log.read().await.clone();
+    events.sort_by(|a, b| b.ts_ms.cmp(&a.ts_ms));
+    Json(events)
+}
+
+fn json_to_tag_value(v: &serde_json::Value) -> Option<TagValue> {
+    match v {
+        serde_json::Value::Bool(b)   => Some(TagValue::Bool(*b)),
+        serde_json::Value::Number(n) => {
+            if let Some(i) = n.as_i64() { Some(TagValue::Int(i)) }
+            else { n.as_f64().map(TagValue::Float) }
+        }
+        serde_json::Value::String(s) => Some(TagValue::Str(s.clone())),
+        _ => None,
     }
 }
 
