@@ -4,7 +4,7 @@ import { SvgCanvas } from "@/canvas/SvgCanvas";
 import { AlarmHistory } from "@/components/AlarmHistory";
 import { useAppStore } from "@/store";
 import { useAlarmStream } from "@/ws/alarmStream";
-import { useTagStream, tryTagWriteWs } from "@/ws/tagStream";
+import { useTagStream, tryTagWriteWs, sendSubscribe } from "@/ws/tagStream";
 import type { AlarmSeverity, AlarmState, FunctionDef, RecipeSummary, ShelvedAlarm } from "@/types";
 
 // ── Script output toast ───────────────────────────────────────────────────────
@@ -446,6 +446,34 @@ export function RuntimeView() {
 
   useTagStream();
 
+  // T-17: per-page subscription — tell the server which tags this page uses
+  // so it sends delta frames only for those tags (bandwidth optimization).
+  // When the page changes, re-subscribe to the new page's tags.
+  const currentPage = pages.find((p) => p.id === currentPageId);
+  const pageTagIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const obj of currentPage?.objects ?? []) {
+      const o = obj as unknown as Record<string, unknown>;
+      if (typeof o.tag === "string")       ids.add(o.tag);
+      if (typeof o.value_tag === "string") ids.add(o.value_tag);
+      if (typeof o.min_tag === "string")   ids.add(o.min_tag);
+      if (typeof o.max_tag === "string")   ids.add(o.max_tag);
+      // trend pens
+      if (Array.isArray(o.pens)) {
+        for (const pen of o.pens as unknown[]) {
+          if (pen && typeof pen === "object" && "tag" in pen) ids.add(String((pen as Record<string, unknown>).tag));
+        }
+      }
+    }
+    return [...ids];
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPageId, pages]);
+
+  useEffect(() => {
+    // Send subscribe. Empty array = all tags (no restriction).
+    sendSubscribe(pageTagIds.length > 0 ? pageTagIds : []);
+  }, [pageTagIds]);
+
   const addToast = (toast: ScriptToast, ttlMs: number) => {
     setToasts((ts) => [...ts, toast]);
     setTimeout(() => setToasts((ts) => ts.filter((t) => t.id !== toast.id)), ttlMs);
@@ -453,8 +481,7 @@ export function RuntimeView() {
 
   const closeToast = (id: string) => setToasts((ts) => ts.filter((t) => t.id !== id));
 
-  const currentPage = pages.find((p) => p.id === currentPageId);
-  const objects     = currentPage?.objects ?? [];
+  const objects = currentPage?.objects ?? [];
 
   const handleWriteTag = (tagId: string, value: string | number | boolean) => {
     // Prefer the bidirectional WS path (zero HTTP round-trip + token reuse).

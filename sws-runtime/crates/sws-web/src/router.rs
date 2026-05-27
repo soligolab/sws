@@ -2447,31 +2447,62 @@ fn json_to_tag_value(v: &serde_json::Value) -> Option<TagValue> {
     }
 }
 
-// ── WebSocket ────────────────────────────────────────────────────────────────
+// ── WebSocket (T-16 delta batching + T-17 per-page subscription) ─────────────
+//
+// Protocol v2 (from this commit):
+//   Client → Server:
+//     {type:"subscribe", tags:["id1","id2",...]}  — ["*"] or [] = all tags
+//     {type:"write", tag, value, req_id?}           — Operator+ only
+//
+//   Server → Client:
+//     {type:"snapshot", tags:[{id,value,quality,ts}], seq:N}  — on connect or re-subscribe
+//     {type:"delta",   changed:[{id,value,quality,ts}], seq:N} — batched updates (≤50ms window)
+//     {type:"ack",     tag, ok, req_id?, error?}               — write response
 
-/// Inbound message frame for `/ws/tags`. Only one variant for now (`write`)
-/// but the discriminated-union shape leaves room for future ones
-/// (`subscribe`, `unsubscribe`, etc.). Unknown variants are rejected by
-/// `serde_json` and logged on the receiver task.
+/// Inbound message frame for `/ws/tags`.
 #[derive(Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 enum InboundMsg {
-    /// Operator+ write. `req_id` is an optional correlation id echoed in
-    /// the ack so the client can match the response to its request.
     Write {
         tag: String,
         value: TagValue,
         #[serde(default)]
         req_id: Option<String>,
     },
+    /// Replace the subscription filter. ["*"] or empty = all tags (default).
+    Subscribe {
+        tags: Vec<String>,
+    },
 }
 
-/// Outbound ack for a `write` request. Sent on the same socket the
-/// caller used.
+#[derive(serde::Serialize)]
+struct WsTagEntry<'a> {
+    id: &'a str,
+    value: &'a TagValue,
+    quality: &'a TagQuality,
+    ts: u64,
+}
+
+#[derive(serde::Serialize)]
+struct WsSnapshotMsg<'a> {
+    #[serde(rename = "type")]
+    ty: &'static str,
+    tags: Vec<WsTagEntry<'a>>,
+    seq: u64,
+}
+
+#[derive(serde::Serialize)]
+struct WsDeltaMsg<'a> {
+    #[serde(rename = "type")]
+    ty: &'static str,
+    changed: Vec<WsTagEntry<'a>>,
+    seq: u64,
+}
+
 #[derive(serde::Serialize)]
 struct WriteAck {
     #[serde(rename = "type")]
-    ty: &'static str, // always "ack"
+    ty: &'static str,
     req_id: Option<String>,
     tag: String,
     ok: bool,
@@ -2488,86 +2519,135 @@ async fn ws_tags_handler(
 }
 
 async fn handle_ws(socket: WebSocket, db: Arc<TagDb>, bus: Arc<TagWriteBus>, role: Role) {
-    // Split the socket so the broadcast pump (sends) and the inbound write
-    // loop (receives) can run concurrently. mpsc bridges incoming writes
-    // back to the sender so we serialise every outbound message through
-    // one task — otherwise concurrent sends would race on the WS framer.
     use futures_util::{SinkExt, StreamExt};
-    let (mut ws_tx, mut ws_rx) = socket.split();
-    let (out_tx, mut out_rx) = tokio::sync::mpsc::channel::<Message>(32);
+    use std::collections::{HashMap, HashSet};
 
-    // Initial snapshot frame.
-    for (id, state) in db.snapshot().await {
-        let update = TagUpdate { id, state };
-        if let Ok(text) = serde_json::to_string(&update) {
-            if out_tx.send(Message::Text(text)).await.is_err() {
-                return;
-            }
+    let (mut ws_tx, mut ws_rx) = socket.split();
+    let (out_tx, mut out_rx) = tokio::sync::mpsc::channel::<Message>(64);
+
+    // Sequence counter (per-connection monotonic).
+    let mut seq: u64 = 0;
+    // Subscription set: None = all tags; Some(set) = filtered.
+    let mut subscribed: Option<HashSet<String>> = None;
+
+    // Helper: build + send snapshot for the current subscription.
+    let send_snapshot = |sub: &Option<HashSet<String>>, snapshot: Vec<(TagId, TagState)>, seq: u64, tx: &tokio::sync::mpsc::Sender<Message>| {
+        let tags: Vec<_> = snapshot.iter()
+            .filter(|(id, _)| sub.as_ref().map_or(true, |s| s.contains(id)))
+            .map(|(id, st)| (id.clone(), st.clone()))
+            .collect();
+        let entries: Vec<WsTagEntry> = tags.iter().map(|(id, st)| WsTagEntry {
+            id,
+            value: &st.value,
+            quality: &st.quality,
+            ts: st.timestamp_ms,
+        }).collect();
+        let msg = WsSnapshotMsg { ty: "snapshot", tags: entries, seq };
+        if let Ok(text) = serde_json::to_string(&msg) {
+            let _ = tx.try_send(Message::Text(text));
+        }
+    };
+
+    // Initial snapshot.
+    let snapshot = db.snapshot().await;
+    {
+        let entries: Vec<_> = snapshot.iter()
+            .map(|(id, st)| (id.clone(), st.clone()))
+            .collect();
+        let ws_entries: Vec<WsTagEntry> = entries.iter().map(|(id, st)| WsTagEntry {
+            id,
+            value: &st.value,
+            quality: &st.quality,
+            ts: st.timestamp_ms,
+        }).collect();
+        let msg = WsSnapshotMsg { ty: "snapshot", tags: ws_entries, seq };
+        if let Ok(text) = serde_json::to_string(&msg) {
+            if out_tx.send(Message::Text(text)).await.is_err() { return; }
         }
     }
 
-    // Forwarder: pumps the mpsc queue onto the socket.
+    // Forwarder: pumps mpsc → socket.
     let forward_task = tokio::spawn(async move {
         while let Some(msg) = out_rx.recv().await {
             if ws_tx.send(msg).await.is_err() { break; }
         }
     });
 
-    // Broadcast subscriber: every tag update lands in the queue as a
-    // serialised TagUpdate JSON frame.
+    // Delta batcher: collects incoming tag updates into a 50ms window,
+    // then flushes as one delta frame.
     let mut rx = db.subscribe();
     let broadcast_tx = out_tx.clone();
+
+    // pending accumulator: id → latest state within the current window.
+    let mut pending: HashMap<String, TagState> = HashMap::new();
+    let flush_interval = std::time::Duration::from_millis(50);
+    let mut flush_tick = tokio::time::interval(flush_interval);
+    flush_tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+
+    // subscription_rx: notified when the subscription changes so the batcher
+    // can use the current filter. We share it via an atomic-guarded cell.
+    use std::sync::Arc as StdArc;
+    let sub_cell: StdArc<tokio::sync::RwLock<Option<HashSet<String>>>> =
+        StdArc::new(tokio::sync::RwLock::new(None));
+    let sub_cell_batcher = StdArc::clone(&sub_cell);
+
+    let mut batcher_seq: u64 = seq + 1; // seq 0 used by snapshot
     let broadcast_task = tokio::spawn(async move {
         loop {
-            match rx.recv().await {
-                Ok(update) => {
-                    if let Ok(text) = serde_json::to_string(&update) {
+            tokio::select! {
+                res = rx.recv() => {
+                    match res {
+                        Ok(update) => {
+                            pending.insert(update.id, update.state);
+                        }
+                        Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
+                            warn!("ws/tags subscriber lagged by {n}");
+                        }
+                        Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
+                    }
+                }
+                _ = flush_tick.tick() => {
+                    if pending.is_empty() { continue; }
+                    let sub = sub_cell_batcher.read().await;
+                    let changed: Vec<(String, TagState)> = pending.drain()
+                        .filter(|(id, _)| sub.as_ref().map_or(true, |s| s.contains(id)))
+                        .collect();
+                    drop(sub);
+                    if changed.is_empty() { continue; }
+                    let entries: Vec<WsTagEntry> = changed.iter().map(|(id, st)| WsTagEntry {
+                        id,
+                        value: &st.value,
+                        quality: &st.quality,
+                        ts: st.timestamp_ms,
+                    }).collect();
+                    let msg = WsDeltaMsg { ty: "delta", changed: entries, seq: batcher_seq };
+                    batcher_seq = batcher_seq.wrapping_add(1);
+                    if let Ok(text) = serde_json::to_string(&msg) {
                         if broadcast_tx.send(Message::Text(text)).await.is_err() { break; }
                     }
                 }
-                Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
-                    warn!("ws/tags subscriber lagged by {n}");
-                }
-                Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
             }
         }
     });
 
-    // Inbound loop: read client frames and dispatch writes. Closing the
-    // socket from this side propagates: dropping `out_tx` ends the
-    // forwarder task; aborting `broadcast_task` cleans up the subscriber.
+    // Inbound loop: writes and subscribe messages.
     while let Some(frame) = ws_rx.next().await {
-        let frame = match frame {
-            Ok(f) => f,
-            Err(_) => break,
-        };
+        let frame = match frame { Ok(f) => f, Err(_) => break };
         match frame {
             Message::Text(text) => {
                 let parsed: Result<InboundMsg, _> = serde_json::from_str(&text);
                 let Ok(msg) = parsed else {
-                    let ack = WriteAck {
-                        ty: "ack", req_id: None, tag: String::new(),
-                        ok: false, error: Some("invalid frame".into()),
-                    };
+                    let ack = WriteAck { ty: "ack", req_id: None, tag: String::new(), ok: false, error: Some("invalid frame".into()) };
                     let _ = out_tx.send(Message::Text(serde_json::to_string(&ack).unwrap_or_default())).await;
                     continue;
                 };
                 match msg {
                     InboundMsg::Write { tag, value, req_id } => {
-                        // Role gate: Operator+ only. Mirror the HTTP
-                        // /api/tags/:id rule so the WS path doesn't open
-                        // a side channel that bypasses it.
                         if role < Role::Operator {
-                            let ack = WriteAck {
-                                ty: "ack", req_id, tag,
-                                ok: false, error: Some("forbidden: Operator+ required".into()),
-                            };
+                            let ack = WriteAck { ty: "ack", req_id, tag, ok: false, error: Some("forbidden: Operator+ required".into()) };
                             let _ = out_tx.send(Message::Text(serde_json::to_string(&ack).unwrap_or_default())).await;
                             continue;
                         }
-                        // Route through the bus (plugin) first; fall back
-                        // to direct TagDb set so virtual / scripted tags
-                        // keep working. Same shape as write_tag().
                         let (ok, err) = match bus.write(&tag, value.clone()).await {
                             Ok(()) => (true, None),
                             Err(WriteError::NoWriter(_)) => {
@@ -2579,11 +2659,25 @@ async fn handle_ws(socket: WebSocket, db: Arc<TagDb>, bus: Arc<TagWriteBus>, rol
                         let ack = WriteAck { ty: "ack", req_id, tag, ok, error: err };
                         let _ = out_tx.send(Message::Text(serde_json::to_string(&ack).unwrap_or_default())).await;
                     }
+                    InboundMsg::Subscribe { tags } => {
+                        // Update subscription filter.
+                        let new_sub: Option<HashSet<String>> = if tags.is_empty() || tags.iter().any(|t| t == "*") {
+                            None // all tags
+                        } else {
+                            Some(tags.into_iter().collect())
+                        };
+                        // Update shared filter for the batcher task.
+                        *sub_cell.write().await = new_sub.clone();
+                        subscribed = new_sub.clone();
+                        // Send fresh snapshot for the new subscription.
+                        seq = seq.wrapping_add(1);
+                        let snap = db.snapshot().await;
+                        let snap_vec: Vec<(TagId, TagState)> = snap.into_iter().collect();
+                        send_snapshot(&subscribed, snap_vec, seq, &out_tx);
+                    }
                 }
             }
             Message::Close(_) => break,
-            // Pings are handled by axum's WS layer; binary frames are
-            // not a supported protocol on this endpoint.
             _ => {}
         }
     }
