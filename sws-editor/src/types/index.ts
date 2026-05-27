@@ -758,6 +758,40 @@ export interface AlarmDef {
   inhibit_condition?: AlarmCondition;
 }
 
+export interface RecipeSetpoint {
+  tag: string;
+  value: boolean | number | string;
+}
+
+export interface RecipeDef {
+  id: string;
+  name: string;
+  setpoints: RecipeSetpoint[];
+}
+
+export interface RecipeSummary {
+  id: string;
+  name: string;
+  setpoints_count: number;
+}
+
+export interface RecipeApplyResult {
+  recipe_id: string;
+  applied: number;
+  total: number;
+  errors: string[];
+  applied_by: string;
+  ts_ms: number;
+}
+
+export interface RecipeApplyEvent {
+  recipe_id: string;
+  recipe_name: string;
+  ts_ms: number;
+  applied_by: string;
+  setpoints_count: number;
+}
+
 /** Aggregate statistics for a tag's historian samples. */
 export interface HistoryStats {
   tag: string;

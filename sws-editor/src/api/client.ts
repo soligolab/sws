@@ -26,6 +26,10 @@ import type {
   ProjectListEntry,
   Sample,
   SourceDef,
+  RecipeApplyEvent,
+  RecipeApplyResult,
+  RecipeDef,
+  RecipeSummary,
   ShelvedAlarm,
   SynopticPage,
   TagDef,
@@ -380,6 +384,25 @@ export const api = {
     }),
   deleteFaceplate: (id: string) =>
     request<void>(`/api/faceplates/${encodeURIComponent(id)}`, { method: "DELETE" }),
+
+  // ── Recipe API ───────────────────────────────────────────────────────────
+  listRecipes: () => request<RecipeSummary[]>("/api/recipes"),
+  getRecipe: (id: string) => request<RecipeDef>(`/api/recipes/${encodeURIComponent(id)}`),
+  saveRecipe: (r: RecipeDef) =>
+    request<void>(`/api/recipes/${encodeURIComponent(r.id)}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(r),
+    }),
+  deleteRecipe: (id: string) =>
+    request<void>(`/api/recipes/${encodeURIComponent(id)}`, { method: "DELETE" }),
+  applyRecipe: (id: string, applied_by: string) =>
+    request<RecipeApplyResult>(`/api/recipes/${encodeURIComponent(id)}/apply`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ applied_by }),
+    }),
+  getRecipeHistory: () => request<RecipeApplyEvent[]>("/api/recipes/history"),
 
   // Backups — admin-only. The list is sorted newest-first by the server.
   listBackups: () =>

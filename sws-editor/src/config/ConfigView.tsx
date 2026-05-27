@@ -34,6 +34,8 @@ import type {
   EnIpSource,
   EnIpTagMapping,
   FaceplateDef,
+  RecipeDef,
+  RecipeSummary,
   S7DataType,
   S7Source,
   S7TagMapping,
@@ -5180,9 +5182,214 @@ function FaceplatesTab() {
   );
 }
 
+// ── RECIPES tab ───────────────────────────────────────────────────────────────
+
+function genRecipeId() {
+  return "recipe-" + Math.random().toString(36).slice(2, 8);
+}
+
+function RecipesTab() {
+  const [recipes, setRecipes]     = useState<RecipeSummary[]>([]);
+  const [selected, setSelected]   = useState<RecipeDef | null>(null);
+  const [loading, setLoading]     = useState(false);
+  const [saved, setSaved]         = useState(false);
+  const [newId, setNewId]         = useState("");
+  const [newName, setNewName]     = useState("");
+
+  const loadList = async () => {
+    try { setRecipes(await api.listRecipes()); } catch { /* no project open */ }
+  };
+
+  useEffect(() => { void loadList(); }, []);
+
+  const selectRecipe = async (id: string) => {
+    try {
+      const r = await api.getRecipe(id);
+      setSelected(r);
+    } catch { /* ignore */ }
+  };
+
+  const saveSelected = async () => {
+    if (!selected) return;
+    setLoading(true);
+    try {
+      await api.saveRecipe(selected);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+      await loadList();
+    } finally { setLoading(false); }
+  };
+
+  const deleteSelected = async () => {
+    if (!selected) return;
+    await api.deleteRecipe(selected.id);
+    setSelected(null);
+    await loadList();
+  };
+
+  const createRecipe = async () => {
+    const id = newId.trim() || genRecipeId();
+    const name = newName.trim() || id;
+    const r: RecipeDef = { id, name, setpoints: [] };
+    await api.saveRecipe(r);
+    setNewId(""); setNewName("");
+    await loadList();
+    await selectRecipe(id);
+  };
+
+  const updateSetpoint = (idx: number, patch: Partial<{ tag: string; value: boolean | number | string }>) =>
+    setSelected((prev) => prev ? {
+      ...prev,
+      setpoints: prev.setpoints.map((sp, i) => i === idx ? { ...sp, ...patch } : sp),
+    } : null);
+
+  const addSetpoint = () =>
+    setSelected((prev) => prev ? {
+      ...prev,
+      setpoints: [...prev.setpoints, { tag: "", value: 0 }],
+    } : null);
+
+  const removeSetpoint = (idx: number) =>
+    setSelected((prev) => prev ? {
+      ...prev,
+      setpoints: prev.setpoints.filter((_, i) => i !== idx),
+    } : null);
+
+  return (
+    <div style={S.section}>
+      <div style={S.sectionTitle}>RICETTE (ISA-88)</div>
+      <div style={S.notice}>
+        Una ricetta è un insieme nominato di setpoint che vengono scritti atomicamente sui tag
+        selezionati. Usata per cambiare configurazione impianto (cambio prodotto, turno, avvio).
+        Le ricette possono essere applicate anche dalla Runtime View.
+      </div>
+
+      <div style={{ display: "flex", gap: 12, height: 500 }}>
+        {/* Left: recipe list */}
+        <div style={{ width: 220, display: "flex", flexDirection: "column", gap: 8 }}>
+          <div style={{ display: "flex", gap: 4 }}>
+            <input
+              style={{ ...S.inputSm, flex: 1 }}
+              placeholder="ID (es. prodotto-a)"
+              value={newId}
+              onChange={(e) => setNewId(e.target.value)}
+              spellCheck={false}
+            />
+            <input
+              style={{ ...S.inputSm, flex: 1 }}
+              placeholder="Nome"
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              spellCheck={false}
+            />
+            <button style={S.btn("primary")} onClick={createRecipe}>+</button>
+          </div>
+          <div style={{ flex: 1, overflowY: "auto", border: "1px solid #1e293b", borderRadius: 4 }}>
+            {recipes.length === 0 && (
+              <div style={{ padding: 12, color: "#475569", fontSize: 12 }}>Nessuna ricetta.</div>
+            )}
+            {recipes.map((r) => (
+              <div
+                key={r.id}
+                style={{
+                  padding: "8px 10px",
+                  cursor: "pointer",
+                  background: selected?.id === r.id ? "#1e3a5f" : "transparent",
+                  borderBottom: "1px solid #1e293b",
+                  fontSize: 12,
+                }}
+                onClick={() => selectRecipe(r.id)}
+              >
+                <div style={{ fontWeight: 600, color: "#e2e8f0" }}>{r.name}</div>
+                <div style={{ color: "#64748b" }}>{r.id} · {r.setpoints_count} setpoint</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Right: recipe editor */}
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8 }}>
+          {!selected ? (
+            <div style={{ color: "#475569", fontSize: 12, padding: 20 }}>
+              Seleziona o crea una ricetta per modificarla.
+            </div>
+          ) : (
+            <>
+              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                <input
+                  style={{ ...S.inputSm, flex: 1 }}
+                  value={selected.name}
+                  onChange={(e) => setSelected({ ...selected, name: e.target.value })}
+                  placeholder="Nome ricetta"
+                  spellCheck={false}
+                />
+                <button style={S.btn("primary")} onClick={saveSelected} disabled={loading}>
+                  {loading ? "…" : saved ? "✓ Salvato" : "Salva"}
+                </button>
+                <button style={S.btn("danger")} onClick={deleteSelected} title="Elimina ricetta">✕</button>
+              </div>
+
+              <table style={{ ...S.table, flex: 1 }}>
+                <thead>
+                  <tr>
+                    <th style={{ ...S.th, width: "45%" }}>Tag</th>
+                    <th style={{ ...S.th, width: "40%" }}>Valore setpoint</th>
+                    <th style={S.th} />
+                  </tr>
+                </thead>
+                <tbody>
+                  {selected.setpoints.length === 0 && (
+                    <tr>
+                      <td colSpan={3} style={{ ...S.td, color: "#475569", textAlign: "center", padding: 12 }}>
+                        Nessun setpoint. Clicca "+ Aggiungi" per iniziare.
+                      </td>
+                    </tr>
+                  )}
+                  {selected.setpoints.map((sp, i) => (
+                    <tr key={i}>
+                      <td style={S.td}>
+                        <TagInput
+                          style={S.inputSm}
+                          value={sp.tag}
+                          onChange={(v) => updateSetpoint(i, { tag: v })}
+                          placeholder="tag.path"
+                        />
+                      </td>
+                      <td style={S.td}>
+                        <input
+                          style={S.inputSm}
+                          value={String(sp.value)}
+                          onChange={(e) => {
+                            const v = e.target.value;
+                            const n = Number(v);
+                            updateSetpoint(i, { value: v === "true" ? true : v === "false" ? false : isNaN(n) ? v : n });
+                          }}
+                          placeholder="0 / true / false / testo"
+                          spellCheck={false}
+                        />
+                      </td>
+                      <td style={{ ...S.td, textAlign: "right" }}>
+                        <button style={S.btn("danger")} onClick={() => removeSetpoint(i)}>✕</button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+
+              <button style={{ ...S.btn("ghost"), alignSelf: "flex-start" }} onClick={addSetpoint}>
+                + Aggiungi setpoint
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── ConfigView root ───────────────────────────────────────────────────────────
 
-type ConfigTab = "tags" | "protocols" | "alarms" | "datastores" | "scripts" | "faceplates" | "users" | "resources" | "system" | "backups";
+type ConfigTab = "tags" | "protocols" | "alarms" | "datastores" | "scripts" | "faceplates" | "recipes" | "users" | "resources" | "system" | "backups";
 
 const TAB_LABELS: Record<ConfigTab, string> = {
   tags:        "Variabili",
@@ -5191,6 +5398,7 @@ const TAB_LABELS: Record<ConfigTab, string> = {
   datastores:  "Datastore",
   scripts:     "Script",
   faceplates:  "Faceplates",
+  recipes:     "Ricette",
   users:       "Utenti",
   resources:   "Risorse",
   system:      "Stato",
@@ -5221,8 +5429,8 @@ export function ConfigView() {
   }, [tab, isAdmin]);
 
   const visibleTabs: ConfigTab[] = isAdmin
-    ? ["tags", "protocols", "alarms", "scripts", "faceplates", "datastores", "users", "resources", "backups", "system"]
-    : ["tags", "protocols", "alarms", "scripts", "faceplates", "resources", "system"];
+    ? ["tags", "protocols", "alarms", "scripts", "faceplates", "recipes", "datastores", "users", "resources", "backups", "system"]
+    : ["tags", "protocols", "alarms", "scripts", "faceplates", "recipes", "resources", "system"];
 
   // Bounce non-admins off the backups and datastores tabs.
   useEffect(() => {
@@ -5237,7 +5445,7 @@ export function ConfigView() {
   const projectLoading = project === null
     && tab !== "users" && tab !== "resources" && tab !== "system"
     && tab !== "backups" && tab !== "datastores" && tab !== "scripts"
-    && tab !== "faceplates";
+    && tab !== "faceplates" && tab !== "recipes";
 
   // Belt-and-braces: App.tsx already gates mode="config" via effectiveMode,
   // so this is unreachable for non-Supervisor+ today. Kept so a future
@@ -5275,6 +5483,7 @@ export function ConfigView() {
             {tab === "alarms"      && <AlarmsTab />}
             {tab === "scripts"     && <GlobalScriptsTab />}
             {tab === "faceplates"  && <FaceplatesTab />}
+            {tab === "recipes"     && <RecipesTab />}
             {tab === "datastores"  && isAdmin && <DatastoresTab />}
             {tab === "users"       && isAdmin && <UsersTab />}
             {tab === "resources"   && <ResourcesTab />}

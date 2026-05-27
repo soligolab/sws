@@ -256,6 +256,7 @@ pub async fn open_project(
     s.alarms.load(vec![]).await;
     s.functions.write().await.clear();
     s.derived_tags.write().await.clear();
+    s.recipe_log.write().await.clear();
 
     // Point the OPC-UA plugin at this project's PKI dir so cert + key
     // travel with the project (back up + restore included).
@@ -359,6 +360,7 @@ pub async fn close_project(State(s): State<AppState>) -> Response {
     s.alarms.load(vec![]).await;
     s.functions.write().await.clear();
     s.derived_tags.write().await.clear();
+    s.recipe_log.write().await.clear();
     *s.registry.write().await = None;
     s.auth.clear().await;
     *s.project_dir.write().await = None;
