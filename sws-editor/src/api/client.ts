@@ -137,6 +137,8 @@ export interface UserSummary {
   updated_at_ms: number;
   /** null = use system default, 0 = never expires, n = n seconds */
   session_ttl_secs: number | null;
+  /** Zones this user can access. Empty = all zones. */
+  allowed_zones: string[];
 }
 
 export interface CreateUserBody {
@@ -144,6 +146,7 @@ export interface CreateUserBody {
   password: string;
   role: UserRole;
   must_change_password?: boolean;
+  allowed_zones?: string[];
 }
 
 export interface UpdateUserBody {
@@ -152,6 +155,7 @@ export interface UpdateUserBody {
   must_change_password?: boolean;
   /** null = reset to system default, 0 = never expires, n = n seconds */
   session_ttl_secs?: number | null;
+  allowed_zones?: string[];
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
