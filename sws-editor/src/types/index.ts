@@ -289,6 +289,8 @@ export interface SynopticPage {
   groups?: ObjectGroup[];
   /** When true, this page is skipped by the auto-rotate (kiosk) cycle. */
   auto_rotate_skip?: boolean;
+  /** Zone restriction: if set, only users whose allowed_zones intersects this list can view the page. */
+  zones?: string[];
 }
 
 export interface Project {

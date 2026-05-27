@@ -251,7 +251,7 @@ interface AppState {
   renamePage: (id: string, name: string) => void;
   reorderPage: (id: string, dir: "up" | "down") => void;
   duplicatePage: (id: string) => void;
-  updatePageProps: (id: string, patch: Partial<Pick<SynopticPage, "name" | "background" | "width" | "height" | "auto_rotate_skip">>) => void;
+  updatePageProps: (id: string, patch: Partial<Pick<SynopticPage, "name" | "background" | "width" | "height" | "auto_rotate_skip" | "zones">>) => void;
   updateGridCell: (pageId: string, objectId: string, cell: GridCell) => void;
   setSelectedCellRange: (range: { objectId: string; r1: number; c1: number; r2: number; c2: number } | null) => void;
   setSelectedSubCell: (sub: { objectId: string; row: number; col: number; path: ("a" | "b")[] } | null) => void;

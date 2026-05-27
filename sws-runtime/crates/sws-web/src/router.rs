@@ -366,6 +366,7 @@ async fn require_auth(
         username: info.username,
         role: info.role,
         must_change_password: must_change,
+        allowed_zones: info.allowed_zones,
     });
     next.run(req).await
 }
@@ -375,6 +376,8 @@ pub struct AuthUser {
     pub username: String,
     pub role: Role,
     pub must_change_password: bool,
+    /// Empty = all zones allowed.
+    pub allowed_zones: Vec<String>,
 }
 
 /// When the user is flagged "must change password", any API call other
@@ -535,7 +538,7 @@ struct Whoami {
 async fn whoami(req: Request) -> Json<Whoami> {
     // require_auth has already inserted AuthUser; missing here would be a bug.
     let user = req.extensions().get::<AuthUser>().cloned()
-        .unwrap_or(AuthUser { username: String::new(), role: Role::Viewer, must_change_password: false });
+        .unwrap_or(AuthUser { username: String::new(), role: Role::Viewer, must_change_password: false, allowed_zones: vec![] });
     Json(Whoami {
         username: user.username,
         role: user.role,
@@ -1967,7 +1970,24 @@ pub fn synoptics_dir_at(project_dir: &std::path::Path) -> PathBuf {
     project_dir.join("synoptics")
 }
 
-async fn list_synoptics(State(s): State<AppState>) -> Response {
+/// Returns true if `user_zones` (empty = all zones) can access a page with `page_zones`
+/// (None or empty = accessible to all).
+fn zone_allowed(user_zones: &[String], page_zones: &Option<Vec<String>>) -> bool {
+    match page_zones {
+        None => true,
+        Some(pz) if pz.is_empty() => true,
+        Some(pz) => {
+            // user_zones empty = user has no zone restriction → can access any page
+            if user_zones.is_empty() { return true; }
+            user_zones.iter().any(|z| pz.contains(z))
+        }
+    }
+}
+
+async fn list_synoptics(
+    State(s): State<AppState>,
+    axum::extract::Extension(user): axum::extract::Extension<AuthUser>,
+) -> Response {
     let project_dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
     let dir = synoptics_dir_at(&project_dir);
     let mut names = Vec::new();
@@ -1976,7 +1996,17 @@ async fn list_synoptics(State(s): State<AppState>) -> Response {
             let path = entry.path();
             if path.extension().and_then(|e| e.to_str()) == Some("yaml") {
                 if let Some(stem) = path.file_stem().and_then(|s| s.to_str()) {
-                    names.push(stem.to_owned());
+                    // Zone filter: peek at zones field without fully parsing objects.
+                    let allowed = if user.allowed_zones.is_empty() {
+                        true // admin/no-restriction users see all pages
+                    } else if let Ok(text) = tokio::fs::read_to_string(&path).await {
+                        if let Ok(page) = serde_yaml::from_str::<SynopticPage>(&text) {
+                            zone_allowed(&user.allowed_zones, &page.zones)
+                        } else { true }
+                    } else { true };
+                    if allowed {
+                        names.push(stem.to_owned());
+                    }
                 }
             }
         }
@@ -1987,13 +2017,19 @@ async fn list_synoptics(State(s): State<AppState>) -> Response {
 
 async fn get_synoptic(
     State(s): State<AppState>,
+    axum::extract::Extension(user): axum::extract::Extension<AuthUser>,
     Path(name): Path<String>,
 ) -> Response {
     let project_dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
     let path = synoptics_dir_at(&project_dir).join(format!("{}.yaml", safe_filename(&name)));
     match tokio::fs::read_to_string(&path).await {
         Ok(text) => match serde_yaml::from_str::<SynopticPage>(&text) {
-            Ok(page) => Json(page).into_response(),
+            Ok(page) => {
+                if !zone_allowed(&user.allowed_zones, &page.zones) {
+                    return StatusCode::FORBIDDEN.into_response();
+                }
+                Json(page).into_response()
+            }
             Err(e) => {
                 warn!("failed to parse synoptic {name}: {e}");
                 StatusCode::INTERNAL_SERVER_ERROR.into_response()

@@ -82,6 +82,8 @@ pub struct UserSummary {
     /// `Some(0)` = session never expires.
     /// `Some(n)` = session TTL is n seconds (sliding window).
     pub session_ttl_secs: Option<u64>,
+    /// Zones this user can access. Empty = all zones.
+    pub allowed_zones: Vec<String>,
 }
 
 /// Patch shape for `PUT /api/auth/users/:username`. Every field is optional;
@@ -93,6 +95,8 @@ pub struct UserPatch {
     pub role: Option<Role>,
     pub password: Option<String>,
     pub must_change_password: Option<bool>,
+    /// Replace the user's allowed_zones list. None = leave unchanged.
+    pub allowed_zones: Option<Vec<String>>,
     /// Set the per-user session TTL override.
     /// Absent = leave unchanged.
     /// `null` = reset to global default.
@@ -110,6 +114,8 @@ pub struct CreateUser {
     pub role: Role,
     #[serde(default = "yes")]
     pub must_change_password: bool,
+    #[serde(default)]
+    pub allowed_zones: Vec<String>,
 }
 fn yes() -> bool { true }
 
@@ -135,6 +141,9 @@ struct StoredUser {
     /// None = use system default; Some(0) = never expires; Some(n) = n seconds.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     session_ttl_secs: Option<u64>,
+    /// Zones this user is allowed to access. Empty = all zones (backwards compatible).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    allowed_zones: Vec<String>,
 }
 
 impl StoredUser {
@@ -146,6 +155,7 @@ impl StoredUser {
             created_at_ms: self.created_at_ms,
             updated_at_ms: self.updated_at_ms,
             session_ttl_secs: self.session_ttl_secs,
+            allowed_zones: self.allowed_zones.clone(),
         }
     }
 
@@ -291,6 +301,7 @@ impl AuthState {
                     created_at_ms: now,
                     updated_at_ms: now,
                     session_ttl_secs: None,
+                    allowed_zones: vec![],
                 });
             }
         }
@@ -346,6 +357,7 @@ impl AuthState {
                 created_at_ms: now,
                 updated_at_ms: now,
                 session_ttl_secs: None,
+                allowed_zones: vec![],
             });
         }
         Ok(Arc::new(Self {
@@ -414,6 +426,7 @@ impl AuthState {
                     created_at_ms: now,
                     updated_at_ms: now,
                     session_ttl_secs: None,
+                    allowed_zones: vec![],
                 });
             }
         }
@@ -508,11 +521,15 @@ impl AuthState {
         let role     = session.role;
         drop(sessions);
 
-        let must_change = self.users.read().await
-            .get(&username)
-            .map(|u| u.must_change_password)
-            .unwrap_or(false);
-        Some(SessionInfo { username, role, must_change_password: must_change })
+        let (must_change, allowed_zones) = {
+            let users = self.users.read().await;
+            let u = users.get(&username);
+            (
+                u.map(|u| u.must_change_password).unwrap_or(false),
+                u.map(|u| u.allowed_zones.clone()).unwrap_or_default(),
+            )
+        };
+        Some(SessionInfo { username, role, must_change_password: must_change, allowed_zones })
     }
 
     pub async fn logout(&self, token: &str) -> bool {
@@ -573,6 +590,7 @@ impl AuthState {
             created_at_ms: now,
             updated_at_ms: now,
             session_ttl_secs: None,
+            allowed_zones: p.allowed_zones,
         };
         users.insert(p.username.clone(), u.clone());
         self.flush_locked(&users).await?;
@@ -607,6 +625,9 @@ impl AuthState {
         // session_ttl_secs: outer None = unchanged; outer Some(inner) = set (None resets to global)
         if let Some(ttl_override) = patch.session_ttl_secs {
             user.session_ttl_secs = ttl_override;
+        }
+        if let Some(zones) = patch.allowed_zones {
+            user.allowed_zones = zones;
         }
         user.updated_at_ms = now_unix_ms();
         let summary = user.to_summary();
@@ -720,6 +741,7 @@ pub struct SessionInfo {
     pub username: String,
     pub role: Role,
     pub must_change_password: bool,
+    pub allowed_zones: Vec<String>,
 }
 
 fn now_unix_ms() -> u64 {

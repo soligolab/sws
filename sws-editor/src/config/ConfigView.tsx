@@ -4305,6 +4305,7 @@ function UsersTab() {
                 <th style={S.th}>Ruolo</th>
                 <th style={S.th}>Cambio pwd</th>
                 <th style={S.th}>Scadenza sessione</th>
+                <th style={S.th} title="Zone accessibili (vuoto = tutte)">Zone</th>
                 <th style={S.th}>Aggiornato</th>
                 <th style={S.th}>Reset password</th>
                 <th style={S.th}></th>
@@ -4370,6 +4371,19 @@ function UsersTab() {
                           </option>
                         )}
                       </select>
+                    </td>
+                    <td style={S.td}>
+                      <input
+                        style={{ ...S.inputSm, fontSize: 11, minWidth: 120 }}
+                        placeholder="zona1, zona2 (vuoto=tutte)"
+                        title="Zone accessibili: inserisci id separati da virgola. Vuoto = nessuna restrizione."
+                        value={(u.allowed_zones ?? []).join(", ")}
+                        disabled={busy}
+                        onChange={(e) => {
+                          const zones = e.target.value ? e.target.value.split(",").map((z) => z.trim()).filter(Boolean) : [];
+                          onPatch(u.username, { allowed_zones: zones });
+                        }}
+                      />
                     </td>
                     <td style={S.td}>
                       <span style={{ color: "#94a3b8", fontSize: 12 }}>{fmtDate(u.updated_at_ms)}</span>

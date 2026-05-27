@@ -825,6 +825,7 @@ export function EditorShell() {
               width={currentPage?.width}
               height={currentPage?.height}
               auto_rotate_skip={currentPage?.auto_rotate_skip}
+              zones={currentPage?.zones}
               onChange={(patch) => updatePageProps(currentPageId, patch)}
             />
           </>
@@ -1180,6 +1181,7 @@ function PageProps({
   width,
   height,
   auto_rotate_skip,
+  zones,
   onChange,
 }: {
   name: string;
@@ -1187,7 +1189,8 @@ function PageProps({
   width?: number;
   height?: number;
   auto_rotate_skip?: boolean;
-  onChange: (patch: Partial<{ name: string; background: string; width: number | undefined; height: number | undefined; auto_rotate_skip: boolean | undefined }>) => void;
+  zones?: string[];
+  onChange: (patch: Partial<{ name: string; background: string; width: number | undefined; height: number | undefined; auto_rotate_skip: boolean | undefined; zones: string[] | undefined }>) => void;
 }) {
   return (
     <>
@@ -1257,6 +1260,20 @@ function PageProps({
         <label htmlFor="auto-rotate-skip" style={{ fontSize: 11, color: "#94a3b8", cursor: "pointer" }}>
           Escludi dal ciclo automatico (kiosk)
         </label>
+      </div>
+      <div style={{ marginTop: 8 }}>
+        <div style={LABEL}>Zone (vuoto = tutti)</div>
+        <input
+          type="text"
+          style={INPUT}
+          placeholder="zona1, zona2"
+          title="Zone accessibili: id separati da virgola. Vuoto = nessuna restrizione."
+          value={(zones ?? []).join(", ")}
+          onChange={(e) => {
+            const zlist = e.target.value ? e.target.value.split(",").map((z) => z.trim()).filter(Boolean) : undefined;
+            onChange({ zones: zlist });
+          }}
+        />
       </div>
       <p style={{ fontSize: 11, color: "#475569", margin: "8px 0 0" }}>
         Seleziona un oggetto sul canvas per modificarne le proprietà.

@@ -15,6 +15,9 @@ pub struct SynopticPage {
     #[serde(skip_serializing_if = "Option::is_none")] pub width:        Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")] pub height:       Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")] pub groups:       Option<Value>,
+    /// Zone restriction: if set, only users whose `allowed_zones` intersects this list
+    /// can view or load this page. Empty list or None = accessible to all.
+    #[serde(skip_serializing_if = "Option::is_none")] pub zones:        Option<Vec<String>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
