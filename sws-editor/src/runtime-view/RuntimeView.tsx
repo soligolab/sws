@@ -343,6 +343,7 @@ export function RuntimeView() {
   const setCurrentPage      = useAppStore((s) => s.setCurrentPage);
   const tagValues           = useAppStore((s) => s.tagValues);
   const customSymbols       = useAppStore((s) => s.customSymbols);
+  const faceplates          = useAppStore((s) => s.faceplates);
   const autoRotate          = useAppStore((s) => s.autoRotate);
   const autoRotateIntervalS = useAppStore((s) => s.autoRotateIntervalS);
   const setAutoRotate       = useAppStore((s) => s.setAutoRotate);
@@ -493,6 +494,7 @@ export function RuntimeView() {
           tagValues={tagValues}
           background={currentPage?.background}
           customSymbols={customSymbols}
+          faceplates={faceplates}
           pageWidth={currentPage?.width}
           pageHeight={currentPage?.height}
           onWriteTag={handleWriteTag}

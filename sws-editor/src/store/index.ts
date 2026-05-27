@@ -5,6 +5,7 @@ import type {
   AlarmDef,
   AlarmState,
   CustomSymbol,
+  FaceplateDef,
   FunctionDef,
   GridCell,
   LogEvent,
@@ -148,7 +149,7 @@ export type AlignMode =
 
 export type Role = "Viewer" | "Operator" | "Supervisor" | "Admin";
 export type AppMode = "edit" | "view" | "config";
-export type AppConfigTab = "tags" | "protocols" | "alarms" | "scripts" | "datastores" | "users" | "resources" | "system" | "backups";
+export type AppConfigTab = "tags" | "protocols" | "alarms" | "scripts" | "faceplates" | "datastores" | "users" | "resources" | "system" | "backups";
 
 interface AppState {
   // Auth
@@ -168,6 +169,7 @@ interface AppState {
   project: ProjectInfo | null;
   projectLoadError: string | null;
   customSymbols: CustomSymbol[];
+  faceplates: FaceplateDef[];
   pages: SynopticPage[];
   currentPageId: string;
   /** Primary selection — `null` when nothing or many. Equals `selectedObjectIds[0]` when one. */
@@ -230,6 +232,7 @@ interface AppState {
   updateProjectAlarms: (alarms: AlarmDef[]) => void;
   updateProjectFunctions: (functions: FunctionDef[]) => void;
   updateProjectCustomSymbols: (symbols: CustomSymbol[]) => void;
+  setFaceplates: (faceplates: FaceplateDef[]) => void;
 
   // ── Function CRUD (project-level reusable Python). All mutations push to
   //    `past` for undo and need to be persisted with api.updateFunctions
@@ -410,6 +413,7 @@ export const useAppStore = create<AppState>((set, get) => {
     project: null,
     projectLoadError: null,
     customSymbols: [],
+    faceplates: [],
     pages: [first],
     currentPageId: first.id,
     selectedObjectId: null,
@@ -490,6 +494,8 @@ export const useAppStore = create<AppState>((set, get) => {
         customSymbols: symbols,
         project: s.project ? { ...s.project, custom_symbols: symbols } : s.project,
       })),
+
+    setFaceplates: (faceplates) => set({ faceplates }),
 
     // ── Function CRUD ──────────────────────────────────────────────────────
     // Mutations live in the in-memory `project.functions`; the caller is

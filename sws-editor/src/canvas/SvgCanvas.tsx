@@ -3,7 +3,7 @@ import { TrendCanvas } from "@/canvas/TrendCanvas";
 import { TrendExpandedModal } from "@/canvas/TrendExpanded";
 import { useAppStore } from "@/store";
 import { SYMBOLS } from "@/symbols/library";
-import type { CustomSymbol, GridCell, SynopticObject, TagState } from "@/types";
+import type { CustomSymbol, FaceplateDef, GridCell, SynopticObject, TagState } from "@/types";
 
 // ── Canvas props ──────────────────────────────────────────────────────────────
 
@@ -18,6 +18,8 @@ interface SvgCanvasProps {
   snapEnabled?: boolean;
   /** Custom symbols defined in the project (persisted in project.yaml). */
   customSymbols?: CustomSymbol[];
+  /** Faceplate definitions for rendering faceplate instances. */
+  faceplates?: FaceplateDef[];
   /** Page design width in px. Shows a dashed boundary rect in edit mode. */
   pageWidth?: number;
   /** Page design height in px. Shows a dashed boundary rect in edit mode. */
@@ -293,6 +295,7 @@ export function SvgCanvas({
   gridSize = 10,
   snapEnabled = true,
   customSymbols = [],
+  faceplates = [],
   pageWidth,
   pageHeight,
   pageId,
@@ -906,6 +909,7 @@ export function SvgCanvas({
               selected={selSet.has(obj.id)}
               isEditMode={inEdit}
               customSymbols={customSymbols}
+              faceplates={faceplates}
               selectedCell={selectedCell}
               selectedCellChild={selectedCellChild}
               selectedCellRange={selectedCellRange}
@@ -1445,6 +1449,7 @@ interface ObjProps {
   selected: boolean;
   isEditMode: boolean;
   customSymbols: CustomSymbol[];
+  faceplates?: FaceplateDef[];
   selectedCell?: { objectId: string; row: number; col: number } | null;
   selectedCellChild?: { objectId: string; row: number; col: number } | null;
   selectedCellRange?: { objectId: string; r1: number; c1: number; r2: number; c2: number } | null;
@@ -1462,7 +1467,7 @@ interface ObjProps {
 }
 
 function SvgObject(p: ObjProps) {
-  const { tagValues, selected, isEditMode, customSymbols, selectedCell, selectedCellChild, selectedCellRange, onSelect, onStartDrag, onWriteTag, onScript, onNavigate, onSelectCell, onSelectCellChild, onSelectCellRange, onExpandTrend } = p;
+  const { tagValues, selected, isEditMode, customSymbols, faceplates = [], selectedCell, selectedCellChild, selectedCellRange, onSelect, onStartDrag, onWriteTag, onScript, onNavigate, onSelectCell, onSelectCellChild, onSelectCellRange, onExpandTrend } = p;
   const obj = resolveObject(p.obj, tagValues);
 
   const handleMouseDown = (e: React.MouseEvent<SVGElement>) => {
@@ -1581,6 +1586,7 @@ function SvgObject(p: ObjProps) {
                         selected={false}
                         isEditMode={false}
                         customSymbols={customSymbols}
+                        faceplates={faceplates}
                         onWriteTag={onWriteTag}
                         onScript={onScript}
                         onNavigate={onNavigate}
@@ -2686,6 +2692,82 @@ function SvgObject(p: ObjProps) {
             onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()} />
         )}
       </>
+    );
+  }
+
+  // ── Faceplate instance ────────────────────────────────────────────────────
+  if (obj.type === "faceplate") {
+    const defn = faceplates.find((f) => f.id === obj.faceplate_id);
+    const params = obj.faceplate_params ?? {};
+    const w = obj.width ?? 120;
+    const h = obj.height ?? 80;
+
+    if (!defn) {
+      // Unknown faceplate — show placeholder
+      return (
+        <>
+          {selRect(obj.x, obj.y, w, h)}
+          <rect x={obj.x} y={obj.y} width={w} height={h}
+            fill="none" stroke="#f59e0b" strokeWidth={1.5} strokeDasharray="4 2"
+            style={{ cursor: editCursor }} onMouseDown={handleMouseDown} />
+          <text x={obj.x + 4} y={obj.y + 14} fill="#f59e0b" fontSize={11} fontFamily="monospace">
+            {obj.faceplate_id ?? "faceplate"}
+          </text>
+        </>
+      );
+    }
+
+    // Substitute `{param}` placeholders in all string fields of a child object.
+    function substituteParams(child: SynopticObject): SynopticObject {
+      const subStr = (s: string | undefined) =>
+        s ? s.replace(/\{(\w+)\}/g, (_, k) => params[k] ?? `{${k}}`) : s;
+      return {
+        ...child,
+        tag: subStr(child.tag),
+        label: subStr(child.label),
+        name: subStr(child.name),
+      };
+    }
+
+    if (isEditMode) {
+      // Edit mode: show a labelled placeholder rect + click to select
+      return (
+        <>
+          {selRect(obj.x, obj.y, w, h)}
+          <rect x={obj.x} y={obj.y} width={w} height={h}
+            fill="#1e293b" stroke="#f59e0b" strokeWidth={1.5} strokeDasharray="4 2"
+            style={{ cursor: "move" }} onMouseDown={handleMouseDown} />
+          <text x={obj.x + 4} y={obj.y + 14} fill="#f59e0b" fontSize={11} fontFamily="monospace">
+            {defn.label}
+          </text>
+          <text x={obj.x + 4} y={obj.y + 28} fill="#64748b" fontSize={10}>
+            {Object.entries(params).map(([k, v]) => `${k}=${v}`).join(" ")}
+          </text>
+        </>
+      );
+    }
+
+    // View mode: render child objects with param substitution at (obj.x, obj.y) offset
+    return (
+      <g transform={`translate(${obj.x}, ${obj.y})`} style={{ cursor: "default" }}>
+        {defn.objects.map((child, i) => {
+          const resolved = substituteParams(child);
+          return (
+            <SvgObject
+              key={child.id ?? i}
+              obj={resolved}
+              tagValues={tagValues}
+              selected={false}
+              isEditMode={false}
+              customSymbols={customSymbols}
+              faceplates={faceplates}
+              onWriteTag={onWriteTag}
+              onScript={onScript}
+              onNavigate={onNavigate}
+            />
+          );
+        })}
+      </g>
     );
   }
 

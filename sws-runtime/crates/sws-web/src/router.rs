@@ -23,7 +23,7 @@ use tokio::sync::RwLock;
 use tracing::warn;
 use crate::global_scripts::GlobalScriptSupervisor;
 use crate::source_supervisor::SourceSupervisor;
-use crate::synoptic::{safe_filename, SynopticPage};
+use crate::synoptic::{safe_filename, FaceplateDef, SynopticPage};
 
 /// Resolved function registry keyed by name. Hot-swapped on every
 /// `PUT /api/project/functions` so the run endpoint always sees the
@@ -189,6 +189,9 @@ pub fn build(
         // Per-page export — raw YAML download. Same shape as the file on disk,
         // small enough to skip the ZIP wrapper used by the bulk export.
         .route("/api/synoptics/:name/export", get(export_synoptic_yaml))
+        // Faceplate REST (read + write — Operator+ can read, Configurator+ can write)
+        .route("/api/faceplates",       get(list_faceplates))
+        .route("/api/faceplates/:id",   get(get_faceplate).put(save_faceplate).delete(delete_faceplate))
         // WebSocket streams
         .route("/ws/tags",   get(ws_tags_handler))
         .route("/ws/alarms", get(ws_alarms_handler));
@@ -2129,6 +2132,99 @@ async fn save_synoptic(
     }
 
     StatusCode::NO_CONTENT
+}
+
+// ── Faceplate endpoints ──────────────────────────────────────────────────────
+
+// Built-in faceplates embedded at compile time — always available.
+const BUILTIN_FACEPLATES: &[(&str, &str)] = &[
+    ("motor_basic",  include_str!("../../../assets/faceplates/motor_basic.yaml")),
+    ("valve_basic",  include_str!("../../../assets/faceplates/valve_basic.yaml")),
+    ("tank_level",   include_str!("../../../assets/faceplates/tank_level.yaml")),
+];
+
+fn faceplates_dir_at(project_dir: &std::path::Path) -> PathBuf {
+    project_dir.join("faceplates")
+}
+
+async fn list_faceplates(State(s): State<AppState>) -> Response {
+    let project_dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
+    let dir = faceplates_dir_at(&project_dir);
+    let mut ids: std::collections::HashSet<String> = BUILTIN_FACEPLATES.iter()
+        .map(|(id, _)| id.to_string()).collect();
+    if let Ok(mut entries) = tokio::fs::read_dir(&dir).await {
+        while let Ok(Some(entry)) = entries.next_entry().await {
+            let path = entry.path();
+            if path.extension().and_then(|e| e.to_str()) == Some("yaml") {
+                if let Some(stem) = path.file_stem().and_then(|s| s.to_str()) {
+                    ids.insert(stem.to_owned());
+                }
+            }
+        }
+    }
+    let mut sorted: Vec<String> = ids.into_iter().collect();
+    sorted.sort();
+    Json(sorted).into_response()
+}
+
+async fn get_faceplate(
+    State(s): State<AppState>,
+    Path(id): Path<String>,
+) -> Response {
+    let project_dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
+    let path = faceplates_dir_at(&project_dir).join(format!("{}.yaml", safe_filename(&id)));
+    // Project-specific faceplate wins over built-in.
+    let text = match tokio::fs::read_to_string(&path).await {
+        Ok(t) => t,
+        Err(_) => {
+            // Fall back to built-in.
+            match BUILTIN_FACEPLATES.iter().find(|(bid, _)| *bid == id.as_str()) {
+                Some((_, yaml)) => yaml.to_string(),
+                None => return StatusCode::NOT_FOUND.into_response(),
+            }
+        }
+    };
+    match serde_yaml::from_str::<FaceplateDef>(&text) {
+        Ok(fp) => Json(fp).into_response(),
+        Err(e) => {
+            warn!("failed to parse faceplate {id}: {e}");
+            StatusCode::INTERNAL_SERVER_ERROR.into_response()
+        }
+    }
+}
+
+async fn save_faceplate(
+    State(s): State<AppState>,
+    Path(id): Path<String>,
+    Json(mut fp): Json<FaceplateDef>,
+) -> StatusCode {
+    let project_dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c };
+    let dir = faceplates_dir_at(&project_dir);
+    if let Err(e) = tokio::fs::create_dir_all(&dir).await {
+        warn!("cannot create faceplates dir: {e}");
+        return StatusCode::INTERNAL_SERVER_ERROR;
+    }
+    fp.id = id.clone();
+    let path = dir.join(format!("{}.yaml", safe_filename(&id)));
+    match serde_yaml::to_string(&fp) {
+        Ok(yaml) => match tokio::fs::write(&path, yaml.as_bytes()).await {
+            Ok(()) => StatusCode::NO_CONTENT,
+            Err(e) => { warn!("cannot write faceplate {id}: {e}"); StatusCode::INTERNAL_SERVER_ERROR }
+        },
+        Err(e) => { warn!("cannot serialize faceplate {id}: {e}"); StatusCode::INTERNAL_SERVER_ERROR }
+    }
+}
+
+async fn delete_faceplate(
+    State(s): State<AppState>,
+    Path(id): Path<String>,
+) -> StatusCode {
+    let project_dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c };
+    let path = faceplates_dir_at(&project_dir).join(format!("{}.yaml", safe_filename(&id)));
+    match tokio::fs::remove_file(&path).await {
+        Ok(()) => StatusCode::NO_CONTENT,
+        Err(_) => StatusCode::NOT_FOUND,
+    }
 }
 
 // ── WebSocket ────────────────────────────────────────────────────────────────

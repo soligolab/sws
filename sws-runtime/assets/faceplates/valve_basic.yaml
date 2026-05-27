@@ -1,0 +1,67 @@
+id: valve_basic
+label: "Valve (Basic)"
+params:
+  - tag_prefix
+  - label
+objects:
+  - id: valve-bg
+    type: rect
+    x: 0
+    y: 0
+    width: 120
+    height: 70
+    fill: "#1e293b"
+    stroke: "#334155"
+    stroke_width: 1
+  - id: valve-title
+    type: text
+    x: 4
+    y: 14
+    text: "{label}"
+    font_size: 12
+    color: "#cbd5e1"
+  - id: valve-open-led
+    type: led
+    x: 100
+    y: 4
+    width: 16
+    height: 16
+    tag: "{tag_prefix}.open"
+    color_on: "#22c55e"
+    color_off: "#ef4444"
+  - id: valve-open-label
+    type: text
+    x: 4
+    y: 40
+    text: "Open:"
+    font_size: 11
+    color: "#64748b"
+  - id: valve-open-value
+    type: text
+    x: 38
+    y: 40
+    tag: "{tag_prefix}.open"
+    font_size: 11
+    color: "#22d3ee"
+  - id: valve-cmd-open
+    type: button
+    x: 4
+    y: 50
+    width: 52
+    height: 16
+    label: "Open"
+    tag: "{tag_prefix}.cmd_open"
+    write_value: true
+    font_size: 10
+    fill: "#166534"
+  - id: valve-cmd-close
+    type: button
+    x: 62
+    y: 50
+    width: 52
+    height: 16
+    label: "Close"
+    tag: "{tag_prefix}.cmd_close"
+    write_value: true
+    font_size: 10
+    fill: "#7f1d1d"

@@ -207,6 +207,7 @@ export function EditorShell() {
   const selectedFnId    = useAppStore((s) => s.selectedFunctionId);
   const project         = useAppStore((s) => s.project);
   const customSymbols   = useAppStore((s) => s.customSymbols);
+  const faceplates      = useAppStore((s) => s.faceplates);
   const updateFunction  = useAppStore((s) => s.updateFunction);
   const tagValues       = useAppStore((s) => s.tagValues);
   const gridSize        = useAppStore((s) => s.gridSize);
@@ -570,6 +571,7 @@ export function EditorShell() {
           gridSize={gridSize}
           snapEnabled={snapEnabled}
           customSymbols={customSymbols}
+          faceplates={faceplates}
           pageWidth={currentPage?.width}
           pageHeight={currentPage?.height}
           pageId={currentPageId}

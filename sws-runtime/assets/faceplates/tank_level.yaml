@@ -1,0 +1,51 @@
+id: tank_level
+label: "Tank Level"
+params:
+  - tag_prefix
+  - label
+  - max_level
+objects:
+  - id: tank-bg
+    type: rect
+    x: 0
+    y: 0
+    width: 100
+    height: 120
+    fill: "#1e293b"
+    stroke: "#334155"
+    stroke_width: 1
+  - id: tank-title
+    type: text
+    x: 4
+    y: 14
+    text: "{label}"
+    font_size: 12
+    color: "#cbd5e1"
+  - id: tank-bar
+    type: progress_bar
+    x: 10
+    y: 22
+    width: 20
+    height: 70
+    tag: "{tag_prefix}.level"
+    min: 0
+    max: 100
+    fill: "#3b82f6"
+    direction: vertical
+  - id: tank-level-value
+    type: text
+    x: 36
+    y: 60
+    tag: "{tag_prefix}.level"
+    format: "%.1f %%"
+    font_size: 12
+    color: "#3b82f6"
+  - id: tank-alarm-led
+    type: led
+    x: 80
+    y: 4
+    width: 12
+    height: 12
+    tag: "{tag_prefix}.alarm_high"
+    color_on: "#ef4444"
+    color_off: "#334155"

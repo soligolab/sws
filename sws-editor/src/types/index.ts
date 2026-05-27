@@ -27,7 +27,9 @@ export type SynopticObjectType =
   // SCADA symbols (pump/valve/motor/tank/fan from the built-in library)
   | "symbol"
   // Layout
-  | "grid";
+  | "grid"
+  // Faceplate instance (parametric reusable component)
+  | "faceplate";
 
 /** Identifier of a SCADA symbol — either a hand-rolled JSX builtin or a
  *  vendored SVG file. The library at `@/symbols/library` maps ids to metadata
@@ -240,6 +242,24 @@ export interface SynopticObject {
   locked?: boolean;
   /** Optional group this object belongs to (id from SynopticPage.groups). */
   group_id?: string;
+  // ── Faceplate instance (type === "faceplate") ─────────────────────────
+  /** ID of the FaceplateDef to instantiate. */
+  faceplate_id?: string;
+  /** Parameter values substituted into the faceplate template (e.g. {tag_prefix: "pump1"}). */
+  faceplate_params?: Record<string, string>;
+}
+
+// ── Faceplate definitions ─────────────────────────────────────────────────────
+
+/** A reusable parametric component. `objects` may contain `{param}` placeholders
+ *  in tag/label/text fields which are replaced at render-time per instance. */
+export interface FaceplateDef {
+  id: string;
+  label: string;
+  /** Names of parameters the faceplate accepts (e.g. ["tag_prefix", "label"]). */
+  params: string[];
+  /** Template objects. Position is relative to the faceplate origin (0,0). */
+  objects: SynopticObject[];
 }
 
 // ── Historian sample (wire shape from GET /api/history/:tag) ──────────────

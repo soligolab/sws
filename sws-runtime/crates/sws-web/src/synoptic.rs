@@ -140,6 +140,20 @@ pub struct SynopticObject {
 // they are properties of the SymbolMeta registry on the editor side.
 // The object carries only `symbol_id`; the renderer looks the kind up.
 
+/// A reusable parametric component. `objects` use `{param}` placeholders in
+/// string fields (tag, label, text…). Each instance supplies concrete values.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FaceplateDef {
+    pub id: String,
+    pub label: String,
+    /// Parameter names the faceplate exposes (e.g. ["tag_prefix", "label"]).
+    #[serde(default)]
+    pub params: Vec<String>,
+    /// Template objects. Positions are relative to the faceplate origin (0,0).
+    #[serde(default)]
+    pub objects: Vec<serde_json::Value>,
+}
+
 /// Sanitize a page name to a safe filename stem.
 pub fn safe_filename(name: &str) -> String {
     name.chars()

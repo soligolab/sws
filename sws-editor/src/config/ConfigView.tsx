@@ -33,6 +33,7 @@ import type {
   EnIpDataType,
   EnIpSource,
   EnIpTagMapping,
+  FaceplateDef,
   S7DataType,
   S7Source,
   S7TagMapping,
@@ -4970,9 +4971,176 @@ function GlobalScriptsTab() {
   );
 }
 
+// ── FACEPLATES tab ────────────────────────────────────────────────────────────
+
+function FaceplatesTab() {
+  const storeFaceplates   = useAppStore((s) => s.faceplates);
+  const setFaceplates     = useAppStore((s) => s.setFaceplates);
+  const [faceplates, setLocal] = useState<FaceplateDef[]>(storeFaceplates);
+  const [selected, setSelected] = useState<string | null>(
+    storeFaceplates[0]?.id ?? null
+  );
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved]   = useState(false);
+  const [loadErr, setLoadErr] = useState<string | null>(null);
+
+  // Load all faceplates (including built-ins from the API) on mount.
+  useEffect(() => {
+    api.listFaceplates()
+      .then(async (ids) => {
+        const loaded = await Promise.all(ids.map((id) => api.getFaceplate(id)));
+        setLocal(loaded);
+        setFaceplates(loaded);
+        if (!selected && loaded.length > 0) setSelected(loaded[0].id);
+      })
+      .catch((e) => setLoadErr(String(e)));
+  }, []);
+
+  const current = faceplates.find((f) => f.id === selected) ?? null;
+
+  function updateCurrent(patch: Partial<FaceplateDef>) {
+    if (!current) return;
+    setLocal((prev) => prev.map((f) => f.id === current.id ? { ...f, ...patch } : f));
+  }
+
+  function addFaceplate() {
+    const id = `fp-${Date.now().toString(36)}`;
+    const fp: FaceplateDef = { id, label: "Nuovo faceplate", params: ["tag_prefix", "label"], objects: [] };
+    setLocal((prev) => [...prev, fp]);
+    setSelected(id);
+  }
+
+  async function saveCurrent() {
+    if (!current) return;
+    setSaving(true);
+    try {
+      await api.saveFaceplate(current);
+      setFaceplates(faceplates);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    } catch (e) {
+      setLoadErr(String(e));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function deleteCurrent() {
+    if (!current) return;
+    if (!window.confirm(`Eliminare il faceplate "${current.label}"?`)) return;
+    try {
+      await api.deleteFaceplate(current.id);
+      const updated = faceplates.filter((f) => f.id !== current.id);
+      setLocal(updated);
+      setFaceplates(updated);
+      setSelected(updated[0]?.id ?? null);
+    } catch (e) {
+      setLoadErr(String(e));
+    }
+  }
+
+  return (
+    <div style={{ display: "flex", flex: 1, overflow: "hidden", height: "100%" }}>
+      {/* Left: faceplate list */}
+      <div style={{ width: 220, borderRight: "1px solid #1e293b", display: "flex", flexDirection: "column", overflow: "hidden" }}>
+        <div style={{ padding: "10px 12px", borderBottom: "1px solid #1e293b", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <span style={{ fontSize: 12, fontWeight: 700, color: "#94a3b8", letterSpacing: 0.5 }}>FACEPLATES</span>
+          <button style={S.btn("ghost")} onClick={addFaceplate}>+ Nuovo</button>
+        </div>
+        <div style={{ flex: 1, overflow: "auto" }}>
+          {faceplates.map((fp) => (
+            <div
+              key={fp.id}
+              onClick={() => setSelected(fp.id)}
+              style={{
+                padding: "8px 12px",
+                cursor: "pointer",
+                background: selected === fp.id ? "#1e293b" : "transparent",
+                borderLeft: selected === fp.id ? "2px solid #f59e0b" : "2px solid transparent",
+              }}
+            >
+              <div style={{ fontSize: 13, color: "#e2e8f0", fontWeight: selected === fp.id ? 600 : 400 }}>{fp.label}</div>
+              <div style={{ fontSize: 11, color: "#64748b" }}>{fp.id}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Right: faceplate editor */}
+      {current ? (
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+          <div style={{ padding: "10px 16px", borderBottom: "1px solid #1e293b", display: "flex", gap: 8, alignItems: "center" }}>
+            <span style={{ fontSize: 13, fontWeight: 600, color: "#f59e0b" }}>{current.label}</span>
+            <span style={{ flex: 1 }} />
+            {loadErr && <span style={{ fontSize: 12, color: "#ef4444" }}>{loadErr}</span>}
+            {saved && <span style={{ fontSize: 12, color: "#22c55e" }}>✓ Salvato</span>}
+            <button style={S.btn("danger")} onClick={deleteCurrent}>Elimina</button>
+            <button style={S.btn("primary")} onClick={saveCurrent} disabled={saving}>
+              {saving ? "Salvataggio…" : "Salva"}
+            </button>
+          </div>
+          <div style={{ flex: 1, overflow: "auto", padding: "16px" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
+              <div>
+                <label style={{ fontSize: 11, color: "#64748b", display: "block", marginBottom: 3 }}>ID</label>
+                <input
+                  style={S.input}
+                  value={current.id}
+                  onChange={(e) => updateCurrent({ id: e.target.value })}
+                  spellCheck={false}
+                />
+              </div>
+              <div>
+                <label style={{ fontSize: 11, color: "#64748b", display: "block", marginBottom: 3 }}>Label</label>
+                <input
+                  style={S.input}
+                  value={current.label}
+                  onChange={(e) => updateCurrent({ label: e.target.value })}
+                  spellCheck={false}
+                />
+              </div>
+            </div>
+            <div style={{ marginBottom: 16 }}>
+              <label style={{ fontSize: 11, color: "#64748b", display: "block", marginBottom: 3 }}>
+                Parametri (uno per riga, es. <code>tag_prefix</code>, <code>label</code>)
+              </label>
+              <textarea
+                value={current.params.join("\n")}
+                onChange={(e) => updateCurrent({ params: e.target.value.split("\n").map(s => s.trim()).filter(Boolean) })}
+                style={{ ...S.input, height: 80, resize: "vertical", fontFamily: "monospace", fontSize: 12 }}
+                spellCheck={false}
+              />
+            </div>
+            <div>
+              <label style={{ fontSize: 11, color: "#64748b", display: "block", marginBottom: 3 }}>
+                Oggetti template (JSON array — usa <code>{"{tag_prefix}"}</code> come placeholder nei campi tag/label)
+              </label>
+              <textarea
+                value={JSON.stringify(current.objects, null, 2)}
+                onChange={(e) => {
+                  try {
+                    const parsed = JSON.parse(e.target.value);
+                    if (Array.isArray(parsed)) updateCurrent({ objects: parsed });
+                  } catch { /* invalid JSON — ignore until valid */ }
+                }}
+                style={{ ...S.input, height: 340, resize: "vertical", fontFamily: "monospace", fontSize: 12 }}
+                spellCheck={false}
+              />
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: "#64748b", fontSize: 14 }}>
+          Seleziona o crea un faceplate. I faceplate built-in sono motor_basic, valve_basic, tank_level.
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── ConfigView root ───────────────────────────────────────────────────────────
 
-type ConfigTab = "tags" | "protocols" | "alarms" | "datastores" | "scripts" | "users" | "resources" | "system" | "backups";
+type ConfigTab = "tags" | "protocols" | "alarms" | "datastores" | "scripts" | "faceplates" | "users" | "resources" | "system" | "backups";
 
 const TAB_LABELS: Record<ConfigTab, string> = {
   tags:        "Variabili",
@@ -4980,6 +5148,7 @@ const TAB_LABELS: Record<ConfigTab, string> = {
   alarms:      "Allarmi",
   datastores:  "Datastore",
   scripts:     "Script",
+  faceplates:  "Faceplates",
   users:       "Utenti",
   resources:   "Risorse",
   system:      "Stato",
@@ -5010,8 +5179,8 @@ export function ConfigView() {
   }, [tab, isAdmin]);
 
   const visibleTabs: ConfigTab[] = isAdmin
-    ? ["tags", "protocols", "alarms", "scripts", "datastores", "users", "resources", "backups", "system"]
-    : ["tags", "protocols", "alarms", "scripts", "resources", "system"];
+    ? ["tags", "protocols", "alarms", "scripts", "faceplates", "datastores", "users", "resources", "backups", "system"]
+    : ["tags", "protocols", "alarms", "scripts", "faceplates", "resources", "system"];
 
   // Bounce non-admins off the backups and datastores tabs.
   useEffect(() => {
@@ -5025,7 +5194,8 @@ export function ConfigView() {
   // file. The other tabs are independent so they stay available.
   const projectLoading = project === null
     && tab !== "users" && tab !== "resources" && tab !== "system"
-    && tab !== "backups" && tab !== "datastores" && tab !== "scripts";
+    && tab !== "backups" && tab !== "datastores" && tab !== "scripts"
+    && tab !== "faceplates";
 
   // Belt-and-braces: App.tsx already gates mode="config" via effectiveMode,
   // so this is unreachable for non-Supervisor+ today. Kept so a future
@@ -5062,6 +5232,7 @@ export function ConfigView() {
             {tab === "protocols"   && <ProtocolsTab />}
             {tab === "alarms"      && <AlarmsTab />}
             {tab === "scripts"     && <GlobalScriptsTab />}
+            {tab === "faceplates"  && <FaceplatesTab />}
             {tab === "datastores"  && isAdmin && <DatastoresTab />}
             {tab === "users"       && isAdmin && <UsersTab />}
             {tab === "resources"   && <ResourcesTab />}
