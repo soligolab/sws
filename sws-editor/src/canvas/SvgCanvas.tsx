@@ -848,6 +848,9 @@ export function SvgCanvas({
     <svg
       ref={svgRef}
       width="100%" height="100%"
+      {...(!onMove && pageWidth && pageHeight
+        ? { viewBox: `0 0 ${pageWidth} ${pageHeight}`, preserveAspectRatio: "xMidYMid meet" }
+        : {})}
       style={{ background, display: "block", userSelect: "none",
                cursor: panDragRef.current ? "grabbing" : undefined }}
       onMouseDown={handleSvgMouseDown}

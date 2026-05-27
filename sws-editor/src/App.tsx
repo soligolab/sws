@@ -329,11 +329,22 @@ export function App() {
   // (the store default; not persisted to localStorage).
   const canEdit      = canEditProject(authRole);
   const canConfigure = canConfigureProject(authRole);
+
+  // T-19: on narrow screens (<768px) force runtime-view only.
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768);
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 767px)");
+    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches);
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
+  }, []);
+
   const effectiveMode: Mode =
+    isMobile                             ? "view" :
     (mode === "edit"   && !canEdit)      ? "view" :
     (mode === "config" && !canConfigure) ? "view" :
     mode;
-  const allowedModes: Mode[] = canEdit
+  const allowedModes: Mode[] = (canEdit && !isMobile)
     ? (["edit", "view", "config"] as Mode[])
     : (["view"] as Mode[]);
 
