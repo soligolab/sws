@@ -160,6 +160,15 @@ pub struct AlarmDef {
     /// Defaults to `BoolTrue` when absent.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub inhibit_condition: Option<AlarmCondition>,
+    /// Email addresses to notify on alarm activation.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub notify_email: Option<Vec<String>>,
+    /// Seconds after activation before escalating (if alarm not ACKed).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub escalate_after_s: Option<f64>,
+    /// Email addresses to notify on escalation.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub escalate_to: Option<Vec<String>>,
 }
 
 /// Live alarm state — serialized in WS/REST snapshots.
@@ -641,6 +650,9 @@ mod tests {
             off_delay_s: None,
             inhibit_tag: None,
             inhibit_condition: None,
+            notify_email: None,
+            escalate_after_s: None,
+            escalate_to: None,
         }
     }
 

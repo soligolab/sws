@@ -18,6 +18,7 @@ import type {
   HomeAssistantSource,
   ModbusTcpSource,
   ModbusRtuSource,
+  NotificationConfig,
   OpcUaServerNodeMapping,
   OpcUaServerSource,
   MqttLastWill,
@@ -36,6 +37,7 @@ import type {
   FaceplateDef,
   RecipeDef,
   RecipeSummary,
+  SmtpConfig,
   S7DataType,
   S7Source,
   S7TagMapping,
@@ -3961,6 +3963,38 @@ function AlarmsTab() {
                     value={alm.inhibit_tag ?? ""}
                     onChange={(v) => updateAlarm(i, { inhibit_tag: v || undefined })}
                   />
+                  <input
+                    style={{ ...S.inputSm, marginTop: 4, fontSize: 11 }}
+                    placeholder="✉ email destinatari (virgola)"
+                    title="notify_email: invia email su attivazione (separati da virgola)"
+                    value={alm.notify_email?.join(", ") ?? ""}
+                    onChange={(e) => {
+                      const raw = e.target.value;
+                      const emails = raw ? raw.split(",").map((s) => s.trim()).filter(Boolean) : undefined;
+                      updateAlarm(i, { notify_email: emails?.length ? emails : undefined });
+                    }}
+                  />
+                  <div style={{ display: "flex", gap: 4, marginTop: 4 }}>
+                    <input
+                      style={{ ...S.inputSm, width: "40%", fontSize: 11 }}
+                      type="number" step="any" min="0"
+                      placeholder="escalate s"
+                      title="escalate_after_s: secondi dopo cui inviare escalation se non ACKato"
+                      value={alm.escalate_after_s ?? ""}
+                      onChange={(e) => updateAlarm(i, { escalate_after_s: e.target.value !== "" ? Number(e.target.value) : undefined })}
+                    />
+                    <input
+                      style={{ ...S.inputSm, width: "60%", fontSize: 11 }}
+                      placeholder="→ email escalation"
+                      title="escalate_to: destinatari escalation (separati da virgola)"
+                      value={alm.escalate_to?.join(", ") ?? ""}
+                      onChange={(e) => {
+                        const raw = e.target.value;
+                        const emails = raw ? raw.split(",").map((s) => s.trim()).filter(Boolean) : undefined;
+                        updateAlarm(i, { escalate_to: emails?.length ? emails : undefined });
+                      }}
+                    />
+                  </div>
                 </td>
                 <td style={{ ...S.td, textAlign: "center" }}>
                   {live ? (
@@ -5387,19 +5421,145 @@ function RecipesTab() {
   );
 }
 
+// ── Notifications tab ─────────────────────────────────────────────────────────
+
+function emptySmtp(): SmtpConfig {
+  return { host: "", from: "", port: 587, starttls: true };
+}
+
+function NotificationsTab() {
+  const storeProject = useAppStore((s) => s.project);
+  const initial = storeProject?.notifications ?? null;
+
+  const [enabled, setEnabled] = useState<boolean>(initial?.smtp != null);
+  const [smtp, setSmtp] = useState<SmtpConfig>(initial?.smtp ?? emptySmtp());
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const patchSmtp = (patch: Partial<SmtpConfig>) =>
+    setSmtp((prev) => ({ ...prev, ...patch }));
+
+  const handleSave = async () => {
+    setSaving(true);
+    setError(null);
+    try {
+      const config: NotificationConfig | null = enabled ? { smtp } : null;
+      await api.saveNotifications(config);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div style={S.section}>
+      <div style={S.sectionTitle}>NOTIFICHE EMAIL</div>
+      <div style={S.notice}>
+        Configura un server SMTP per inviare email al momento dell'attivazione di
+        un allarme. I campi <em>notify_email</em> e <em>escalate_to</em> sono
+        configurabili per ogni allarme nella tab Allarmi.
+      </div>
+
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
+        <label style={{ fontSize: 13, color: "#e2e8f0", cursor: "pointer", display: "flex", alignItems: "center", gap: 8 }}>
+          <input
+            type="checkbox"
+            checked={enabled}
+            onChange={(e) => setEnabled(e.target.checked)}
+          />
+          Abilita notifiche SMTP
+        </label>
+      </div>
+
+      {enabled && (
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, maxWidth: 640 }}>
+          <div>
+            <div style={{ fontSize: 11, color: "#94a3b8", marginBottom: 4 }}>Host SMTP *</div>
+            <input
+              style={S.input}
+              placeholder="smtp.example.com"
+              value={smtp.host}
+              onChange={(e) => patchSmtp({ host: e.target.value })}
+            />
+          </div>
+          <div>
+            <div style={{ fontSize: 11, color: "#94a3b8", marginBottom: 4 }}>Porta</div>
+            <input
+              style={S.input}
+              type="number"
+              placeholder="587"
+              value={smtp.port ?? ""}
+              onChange={(e) => patchSmtp({ port: e.target.value ? Number(e.target.value) : undefined })}
+            />
+          </div>
+          <div style={{ gridColumn: "1 / -1" }}>
+            <div style={{ fontSize: 11, color: "#94a3b8", marginBottom: 4 }}>Indirizzo From *</div>
+            <input
+              style={S.input}
+              placeholder="allarmi@example.com"
+              value={smtp.from}
+              onChange={(e) => patchSmtp({ from: e.target.value })}
+            />
+          </div>
+          <div>
+            <div style={{ fontSize: 11, color: "#94a3b8", marginBottom: 4 }}>Username SMTP</div>
+            <input
+              style={S.input}
+              placeholder="(opzionale)"
+              value={smtp.username ?? ""}
+              onChange={(e) => patchSmtp({ username: e.target.value || undefined })}
+            />
+          </div>
+          <div>
+            <div style={{ fontSize: 11, color: "#94a3b8", marginBottom: 4 }}>Password SMTP</div>
+            <input
+              style={S.input}
+              type="password"
+              placeholder="(opzionale)"
+              value={smtp.password ?? ""}
+              onChange={(e) => patchSmtp({ password: e.target.value || undefined })}
+            />
+          </div>
+          <div style={{ gridColumn: "1 / -1" }}>
+            <label style={{ fontSize: 13, color: "#e2e8f0", cursor: "pointer", display: "flex", alignItems: "center", gap: 8 }}>
+              <input
+                type="checkbox"
+                checked={smtp.starttls ?? true}
+                onChange={(e) => patchSmtp({ starttls: e.target.checked })}
+              />
+              STARTTLS (raccomandato su porta 587)
+            </label>
+          </div>
+        </div>
+      )}
+
+      {error && (
+        <div style={{ color: "#ef4444", fontSize: 12, marginTop: 8 }}>{error}</div>
+      )}
+
+      <SaveBar onSave={handleSave} saving={saving} saved={saved} />
+    </div>
+  );
+}
+
 // ── ConfigView root ───────────────────────────────────────────────────────────
 
-type ConfigTab = "tags" | "protocols" | "alarms" | "datastores" | "scripts" | "faceplates" | "recipes" | "users" | "resources" | "system" | "backups";
+type ConfigTab = "tags" | "protocols" | "alarms" | "datastores" | "scripts" | "faceplates" | "recipes" | "notifications" | "users" | "resources" | "system" | "backups";
 
 const TAB_LABELS: Record<ConfigTab, string> = {
   tags:        "Variabili",
   protocols:   "Protocolli",
   alarms:      "Allarmi",
   datastores:  "Datastore",
-  scripts:     "Script",
-  faceplates:  "Faceplates",
-  recipes:     "Ricette",
-  users:       "Utenti",
+  scripts:       "Script",
+  faceplates:    "Faceplates",
+  recipes:       "Ricette",
+  notifications: "Notifiche",
+  users:         "Utenti",
   resources:   "Risorse",
   system:      "Stato",
   backups:     "Backup",
@@ -5429,8 +5589,8 @@ export function ConfigView() {
   }, [tab, isAdmin]);
 
   const visibleTabs: ConfigTab[] = isAdmin
-    ? ["tags", "protocols", "alarms", "scripts", "faceplates", "recipes", "datastores", "users", "resources", "backups", "system"]
-    : ["tags", "protocols", "alarms", "scripts", "faceplates", "recipes", "resources", "system"];
+    ? ["tags", "protocols", "alarms", "scripts", "faceplates", "recipes", "notifications", "datastores", "users", "resources", "backups", "system"]
+    : ["tags", "protocols", "alarms", "scripts", "faceplates", "recipes", "notifications", "resources", "system"];
 
   // Bounce non-admins off the backups and datastores tabs.
   useEffect(() => {
@@ -5445,7 +5605,7 @@ export function ConfigView() {
   const projectLoading = project === null
     && tab !== "users" && tab !== "resources" && tab !== "system"
     && tab !== "backups" && tab !== "datastores" && tab !== "scripts"
-    && tab !== "faceplates" && tab !== "recipes";
+    && tab !== "faceplates" && tab !== "recipes" && tab !== "notifications";
 
   // Belt-and-braces: App.tsx already gates mode="config" via effectiveMode,
   // so this is unreachable for non-Supervisor+ today. Kept so a future
@@ -5483,8 +5643,9 @@ export function ConfigView() {
             {tab === "alarms"      && <AlarmsTab />}
             {tab === "scripts"     && <GlobalScriptsTab />}
             {tab === "faceplates"  && <FaceplatesTab />}
-            {tab === "recipes"     && <RecipesTab />}
-            {tab === "datastores"  && isAdmin && <DatastoresTab />}
+            {tab === "recipes"        && <RecipesTab />}
+            {tab === "notifications"  && <NotificationsTab />}
+            {tab === "datastores"     && isAdmin && <DatastoresTab />}
             {tab === "users"       && isAdmin && <UsersTab />}
             {tab === "resources"   && <ResourcesTab />}
             {tab === "system"      && <SystemTab />}
