@@ -25,6 +25,24 @@ Then state to the maintainer:
 - **Sessions are 3-4 hours.** Plan tasks that fit. Stop at clean points.
 - **Do not push** to remote without explicit instruction. The `ask` rules deliberately gate `git push`.
 
+## Git workflow per task
+
+Ogni task del roadmap (T-01…T-20 e oltre) segue questo flusso:
+
+1. **Branch**: crea `feat/T-XX-short-desc` da `main`:
+   `git checkout main && git checkout -b feat/T-01-pid-symbols`
+2. **Sviluppo**: tutti i commit intermedi nel branch, nessun commit diretto su `main`.
+3. **Verifica**: `cargo check` + `pnpm build` verdi, funzionalità testata dal maintainer.
+4. **Squash merge** quando il maintainer conferma che funziona:
+   ```
+   git checkout main
+   git merge --squash feat/T-01-pid-symbols
+   git commit -s -m "feat(T-01): ..."
+   ```
+5. **Non cancellare** il branch dopo il merge — pulizia futura a discrezione del maintainer.
+
+I commit meta (STATUS.md, CHANGELOG.md, CLAUDE.md, memory) vanno direttamente su `main`.
+
 ## At the end of every session
 
 1. Ensure CI would pass (`cargo check` / `pnpm build` green).
