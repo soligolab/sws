@@ -172,6 +172,12 @@ pub fn build(
         .route("/api/project/deploy",     post(trigger_deploy))
         .route_layer(middleware::from_fn(require_operator));
 
+    let system_ctrl_routes = Router::new()
+        .route("/api/system/stop",   post(crate::system::system_stop))
+        .route("/api/system/start",  post(crate::system::system_start))
+        .route("/api/system/reboot", post(crate::system::system_reboot))
+        .route_layer(middleware::from_fn(require_admin));
+
     // Routes that need Supervisor+ — project editing surface that
     // Operators must not touch (synoptic page write + per-page YAML
     // import). PUT /api/project/* schema-level routes live in
@@ -249,6 +255,7 @@ pub fn build(
         .merge(operator_routes)
         .merge(supervisor_routes)
         .merge(admin_routes)
+        .merge(system_ctrl_routes)
         .merge(datastore_routes)
         .merge(opcua_cert_routes)
         .route_layer(middleware::from_fn(require_password_changed));

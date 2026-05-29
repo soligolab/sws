@@ -643,6 +643,7 @@ export const api = {
     active_project: string | null;
     tag_count: number;
     source_count: number;
+    sources_running: boolean;
     alarm_active_count: number;
     historian_samples: number;
     cpu_usage_pct: number;
@@ -651,6 +652,10 @@ export const api = {
     disk_used_gb: number;
     disk_total_gb: number;
   }> => request("/api/system"),
+
+  systemStop:   () => request<void>("/api/system/stop",   { method: "POST" }),
+  systemStart:  () => request<void>("/api/system/start",  { method: "POST" }),
+  systemReboot: () => request<void>("/api/system/reboot", { method: "POST" }),
 
   // Datastores (runtime stats + admin ops)
   listDatastores: () => request<DatastoreListItem[]>("/api/datastores"),

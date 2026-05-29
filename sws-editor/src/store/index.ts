@@ -212,6 +212,8 @@ interface AppState {
   saveSerial: number;
   saveStatus: "idle" | "saving" | "ok" | "error";
   saveError: string | null;
+  /** True when the canvas has unsaved changes (cleared on load and on save success). */
+  isDirty: boolean;
   incSaveSerial: () => void;
   setSaveStatus: (s: "idle" | "saving" | "ok" | "error", e?: string | null) => void;
 
@@ -382,7 +384,7 @@ export const useAppStore = create<AppState>((set, get) => {
     const trimmed = past.length >= HISTORY_LIMIT
       ? past.slice(past.length - HISTORY_LIMIT + 1)
       : past;
-    set({ past: [...trimmed, entry], future: [] });
+    set({ past: [...trimmed, entry], future: [], isDirty: true });
   };
 
   /** Force-push a history entry even mid-interaction; used by begin. */
@@ -392,7 +394,7 @@ export const useAppStore = create<AppState>((set, get) => {
     const trimmed = past.length >= HISTORY_LIMIT
       ? past.slice(past.length - HISTORY_LIMIT + 1)
       : past;
-    set({ past: [...trimmed, entry], future: [] });
+    set({ past: [...trimmed, entry], future: [], isDirty: true });
   };
 
   /** Helper: object id → page id (current page only). */
@@ -435,6 +437,7 @@ export const useAppStore = create<AppState>((set, get) => {
     saveSerial: 0,
     saveStatus: "idle",
     saveError: null,
+    isDirty: false,
 
     setAuth: (token, username, role, mustChangePassword = false, expiresAtMs) => {
       setAuthToken(token);
@@ -625,6 +628,7 @@ export const useAppStore = create<AppState>((set, get) => {
         selectedSubCell: null,
         past: [],
         future: [],
+        isDirty: false,
       }),
 
     addPage: () => {

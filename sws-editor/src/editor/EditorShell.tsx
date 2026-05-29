@@ -493,6 +493,7 @@ export function EditorShell() {
     const failed  = results.filter((r) => r.status === "rejected") as PromiseRejectedResult[];
     if (failed.length === 0) {
       storeSaveStatus("ok");
+      useAppStore.setState({ isDirty: false });
       saveOkTimer.current = window.setTimeout(() => storeSaveStatus("idle"), 2000);
     } else {
       const msg = failed

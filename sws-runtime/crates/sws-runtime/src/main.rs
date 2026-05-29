@@ -241,7 +241,28 @@ async fn main() -> anyhow::Result<()> {
     // POST /api/projects/:name/open later.
     let auth = AuthState::empty(ttl, rate_limit, rate_window_dur);
 
-    if let Some(project_path) = args.project.clone() {
+    // If --project was not supplied but a previous reboot wrote .last-opened,
+    // auto-reopen that project so clients can re-authenticate immediately.
+    let project_arg = args.project.clone().or_else(|| {
+        let marker = args.projects_root.join(".last-opened");
+        match std::fs::read_to_string(&marker) {
+            Ok(s) => {
+                let p = std::path::PathBuf::from(s.trim());
+                if p.is_dir() {
+                    info!(path = %p.display(), "auto-reopening project from .last-opened");
+                    let _ = std::fs::remove_file(&marker); // consume so a clean start ignores it
+                    Some(p)
+                } else {
+                    warn!(path = %p.display(), ".last-opened path no longer exists, ignoring");
+                    let _ = std::fs::remove_file(&marker);
+                    None
+                }
+            }
+            Err(_) => None,
+        }
+    });
+
+    if let Some(project_path) = project_arg {
         // Legacy auto-open path: bootstrap exactly as the single-project
         // runtime did, then mark this dir as active.
         supervisor.set_pki_root(project_path.join(".opcua-pki")).await;
