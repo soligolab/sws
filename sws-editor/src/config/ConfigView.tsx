@@ -302,6 +302,21 @@ function SaveBar({
 
 // ── TAG tab ───────────────────────────────────────────────────────────────────
 
+function collectSourceTagIds(project: ReturnType<typeof useAppStore.getState>["project"]): string[] {
+  if (!project) return [];
+  const ids = new Set<string>();
+  for (const src of project.sources ?? []) {
+    const s = src as any;
+    for (const e of s.entities  ?? []) if (e?.tag) ids.add(e.tag);   // HomeAssistant
+    for (const r of s.registers ?? []) if (r?.tag) ids.add(r.tag);   // Modbus TCP/RTU
+    for (const t of s.tags      ?? []) if (t?.tag) ids.add(t.tag);   // S7, EtherNet/IP
+    for (const n of s.nodes     ?? []) if (n?.tag) ids.add(n.tag);   // OPC-UA
+    for (const t of s.topics    ?? []) if (t?.tag) ids.add(t.tag);   // MQTT
+    for (const m of s.metrics   ?? []) if (m?.tag) ids.add(m.tag);   // Sparkplug B
+  }
+  return [...ids].sort();
+}
+
 function TagsTab() {
   const storeProject        = useAppStore((s) => s.project);
   const updateProjectTags   = useAppStore((s) => s.updateProjectTags);
@@ -572,6 +587,54 @@ function TagsTab() {
         <button style={S.btn("ghost")} onClick={handleExportCsv} title="Scarica i tag correnti come CSV">⬇ Esporta CSV</button>
         <button style={S.btn("ghost")} onClick={() => setShowImport(true)} title="Importa tag da file CSV">⬆ Importa CSV</button>
       </div>
+
+      {/* Orphan source tags — present in protocol sources but missing from project.tags */}
+      {(() => {
+        const explicitIds = new Set(tags.map(t => t.id));
+        const orphanIds = collectSourceTagIds(storeProject).filter(id => !explicitIds.has(id));
+        if (orphanIds.length === 0) return null;
+        return (
+          <div style={{ marginTop: 16, borderTop: "1px solid #1e293b", paddingTop: 12 }}>
+            <div style={{ fontSize: 10, color: "#64748b", fontWeight: 700, letterSpacing: 0.5, marginBottom: 4 }}>
+              TAG DA SORGENTI — non ancora nella lista variabili
+            </div>
+            <div style={{ fontSize: 11, color: "#475569", marginBottom: 8 }}>
+              Questi tag sono attivi nei protocolli ma non hanno una definizione variabile.
+              "Abilita storico" li aggiunge alla lista con <em>history: true</em> — poi salva.
+            </div>
+            {orphanIds.map((id) => (
+              <div key={id} style={{ display: "flex", alignItems: "center", gap: 8,
+                                     padding: "5px 8px", background: "#0f172a",
+                                     border: "1px solid #1e293b", borderRadius: 4, marginBottom: 2 }}>
+                <span style={{ flex: 1, fontSize: 12, color: "#94a3b8", fontFamily: "monospace" }}>{id}</span>
+                <span style={{ fontSize: 10, color: "#334155", padding: "1px 5px",
+                               border: "1px solid #1e293b", borderRadius: 3 }}>da sorgente</span>
+                <button
+                  title="Aggiunge alla lista variabili con history abilitato"
+                  style={{ fontSize: 11, padding: "2px 8px", background: "#1e3a5f",
+                           color: "#93c5fd", border: "1px solid #1e40af", borderRadius: 3, cursor: "pointer" }}
+                  onClick={() => setTags(prev => [...prev, {
+                    id, data_type: "float" as TagDataType, description: "", history: true,
+                    datastore_id: datastoreIds[0]?.id,
+                  }])}
+                >
+                  Abilita storico
+                </button>
+                <button
+                  title="Aggiunge alla lista variabili senza history"
+                  style={{ fontSize: 11, padding: "2px 8px", background: "#334155",
+                           color: "#cbd5e1", border: "1px solid #475569", borderRadius: 3, cursor: "pointer" }}
+                  onClick={() => setTags(prev => [...prev, {
+                    id, data_type: "float" as TagDataType, description: "", history: false,
+                  }])}
+                >
+                  +
+                </button>
+              </div>
+            ))}
+          </div>
+        );
+      })()}
 
       <SaveBar onSave={handleSave} saving={saving} saved={saved} />
     </div>
