@@ -216,6 +216,10 @@ impl SourceSupervisor {
             self.stop_one(&id).await;
         }
     }
+
+    pub async fn running_count(&self) -> usize {
+        self.sources.lock().await.len()
+    }
 }
 
 fn source_id(s: &SourceDef) -> &str {
