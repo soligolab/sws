@@ -121,6 +121,76 @@ function GridDropdown() {
   );
 }
 
+// ── RuntimeCtrl (admin/supervisor only) ──────────────────────────────────────
+
+function RuntimeCtrl() {
+  const authRole              = useAppStore((s) => s.authRole);
+  const [running, setRunning] = useState<boolean | null>(null);
+  const [busy, setBusy]       = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    const poll = async () => {
+      try {
+        const s = await api.getSystemStatus();
+        if (alive) setRunning(s.sources_running);
+      } catch { /* ignore — runtime may be restarting */ }
+    };
+    poll();
+    const id = setInterval(poll, 5000);
+    return () => { alive = false; clearInterval(id); };
+  }, []);
+
+  if (!canConfigureProject(authRole)) return null;
+
+  const handleToggle = async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      if (running) await api.systemStop();
+      else         await api.systemStart();
+      const s = await api.getSystemStatus();
+      setRunning(s.sources_running);
+    } catch { /* ignore */ }
+    finally { setBusy(false); }
+  };
+
+  const handleReboot = async () => {
+    if (!confirm("Riavviare il runtime? Tutti i WebSocket si disconnetteranno per ~2s.")) return;
+    setBusy(true);
+    try { await api.systemReboot(); } catch { /* ignore */ }
+    setTimeout(() => setBusy(false), 3000);
+  };
+
+  const dotColor = running === null ? "#64748b" : running ? "#22c55e" : "#ef4444";
+  const dotTitle = running === null ? "Stato sconosciuto" : running ? "Acquisizione attiva" : "Acquisizione ferma";
+
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+      <span
+        title={dotTitle}
+        style={{ width: 8, height: 8, borderRadius: "50%", background: dotColor, display: "inline-block", flexShrink: 0 }}
+      />
+      <button
+        style={{ ...HDR_BTN, opacity: busy ? 0.6 : 1 }}
+        disabled={busy || running === null}
+        onClick={handleToggle}
+        title={running ? "Ferma acquisizione dati" : "Avvia acquisizione dati"}
+      >
+        {busy ? "…" : running ? "Stop" : "Start"}
+      </button>
+      <button
+        style={{ ...HDR_BTN, opacity: busy ? 0.6 : 1 }}
+        disabled={busy}
+        onClick={handleReboot}
+        title="Riavvia il processo runtime (exec-replace, ~2s di disconnessione)"
+      >
+        Reboot
+      </button>
+    </div>
+  );
+}
+
 // ── MainMenu (always visible) ─────────────────────────────────────────────────
 
 function MainMenu({ mode, onLogout, onCloseProject }: { mode: Mode; onLogout: () => void; onCloseProject: () => void }) {
@@ -322,6 +392,9 @@ export function App() {
   const project             = useAppStore((s) => s.project);
   const setProject          = useAppStore((s) => s.setProject);
   const setProjectLoadError = useAppStore((s) => s.setProjectLoadError);
+  const isDirty             = useAppStore((s) => s.isDirty);
+  const incSaveSerial       = useAppStore((s) => s.incSaveSerial);
+  const saveStatus          = useAppStore((s) => s.saveStatus);
 
   // Role-gated UI surfaces. Viewer + Operator are runtime-only roles;
   // Supervisor + Admin get editor and config. `effectiveMode` pins
@@ -331,6 +404,9 @@ export function App() {
   const canConfigure = canConfigureProject(authRole);
 
   // T-19: on narrow screens (<768px) force runtime-view only.
+  const [confirmPending, setConfirmPending] = useState<"close" | "logout" | null>(null);
+  const [waitingForSave, setWaitingForSave] = useState(false);
+
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768);
   useEffect(() => {
     const mq = window.matchMedia("(max-width: 767px)");
@@ -451,18 +527,45 @@ export function App() {
       .catch(() => { /* non-critical — no faceplates configured */ });
   }, [authToken, mustChangePassword]);
 
-  const handleLogout = async () => {
+  const executeClose = async () => {
+    try { await api.closeProject(); } catch { /* ignore */ }
+    clearAuth();
+    setNoActiveProject(true);
+  };
+
+  const executeLogout = async () => {
     try { await api.logout(); } catch { /* ignore */ }
     try { await api.closeProject(); } catch { /* ignore */ }
     clearAuth();
     setNoActiveProject(true);
   };
 
-  const handleCloseProject = async () => {
-    try { await api.closeProject(); } catch { /* ignore */ }
-    clearAuth();
-    setNoActiveProject(true);
+  const handleLogout = () => {
+    if (isDirty) { setConfirmPending("logout"); return; }
+    executeLogout();
   };
+
+  const handleCloseProject = () => {
+    if (isDirty) { setConfirmPending("close"); return; }
+    executeClose();
+  };
+
+  // After triggering a save via incSaveSerial(), wait for isDirty to clear
+  // (save succeeded) or saveStatus "error" (save failed) before closing.
+  useEffect(() => {
+    if (!waitingForSave) return;
+    if (!isDirty) {
+      setWaitingForSave(false);
+      const pending = confirmPending;
+      setConfirmPending(null);
+      if (pending === "close") executeClose();
+      else if (pending === "logout") executeLogout();
+    } else if (saveStatus === "error") {
+      setWaitingForSave(false);
+      setConfirmPending(null);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [waitingForSave, isDirty, saveStatus]);
 
   // Show WelcomeScreen when runtime has no active project.
   if (noActiveProject) {
@@ -582,6 +685,7 @@ export function App() {
           )}
         </span>
         {effectiveMode === "edit" && <GridDropdown />}
+        <RuntimeCtrl />
         <button
           onClick={() => {
             const next = !logOpen;
@@ -657,6 +761,42 @@ export function App() {
 
       {/* Re-auth overlay — session expired mid-use */}
       {reAuthNeeded && <ReAuthModal />}
+
+      {/* Unsaved-changes confirmation dialog */}
+      {confirmPending && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999 }}>
+          <div style={{ background: "#1e293b", border: "1px solid #334155", borderRadius: 8, padding: "24px 28px", maxWidth: 360, width: "90%", display: "flex", flexDirection: "column", gap: 16 }}>
+            <div style={{ fontSize: 15, fontWeight: 600, color: "#e2e8f0" }}>Modifiche non salvate</div>
+            <div style={{ fontSize: 13, color: "#94a3b8" }}>Ci sono modifiche al sinottico non ancora salvate. Cosa vuoi fare?</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <button
+                style={{ ...HDR_BTN, background: "#1d4ed8", color: "#fff", border: "1px solid #2563eb", padding: "8px 16px", fontSize: 13 }}
+                disabled={waitingForSave}
+                onClick={() => { incSaveSerial(); setWaitingForSave(true); }}
+              >
+                {waitingForSave ? "Salvataggio…" : "Salva e chiudi"}
+              </button>
+              <button
+                style={{ ...HDR_BTN, background: "#7f1d1d", color: "#fca5a5", border: "1px solid #991b1b", padding: "8px 16px", fontSize: 13 }}
+                onClick={() => {
+                  const pending = confirmPending;
+                  setConfirmPending(null);
+                  if (pending === "close") executeClose();
+                  else executeLogout();
+                }}
+              >
+                Chiudi senza salvare
+              </button>
+              <button
+                style={{ ...HDR_BTN, padding: "8px 16px", fontSize: 13 }}
+                onClick={() => { setConfirmPending(null); setWaitingForSave(false); }}
+              >
+                Annulla
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
