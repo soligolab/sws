@@ -5,6 +5,7 @@ import { LeftPanel } from "@/editor/LeftPanel";
 import { FunctionEditor } from "@/editor/FunctionEditor";
 import { TagInput } from "@/components/TagInput";
 import { BindableInput } from "@/components/BindableInput";
+import { ImageBrowser } from "@/components/ImageBrowser";
 import { SYMBOL_LIST } from "@/symbols/library";
 import type { SymbolMeta } from "@/symbols/library";
 import { useAppStore } from "@/store";
@@ -286,6 +287,7 @@ export function EditorShell() {
 
   const [helpOpen, setHelpOpen] = useState(false);
   const [symbolPickPos, setSymbolPickPos] = useState<{ x: number; y: number } | null>(null);
+  const [pendingImagePos, setPendingImagePos] = useState<{ x: number; y: number } | null>(null);
 
   const handleSelect = (id: string | null, shift?: boolean) => {
     if (id === null) { selectObject(null); return; }
@@ -441,6 +443,9 @@ export function EditorShell() {
         addObject({ type, x, y, width: 360, height: 180,
           tag: "", window_s: 60, line_color: "#3b82f6" });
         break;
+      case "image":
+        setPendingImagePos({ x, y });
+        return; // addObject called after image is chosen in browser
       case "symbol":
         setSymbolPickPos({ x, y });
         return; // addObject called when user confirms in modal
@@ -536,6 +541,16 @@ export function EditorShell() {
 
   return (
     <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
+      {pendingImagePos && (
+        <ImageBrowser
+          onSelect={(path) => {
+            addObject({ type: "image", x: pendingImagePos.x, y: pendingImagePos.y,
+                        width: 120, height: 80, src: path });
+            setPendingImagePos(null);
+          }}
+          onClose={() => setPendingImagePos(null)}
+        />
+      )}
       {symbolPickPos && (
         <SymbolPickerModal
           onPick={(symbolId) => {
@@ -1584,6 +1599,8 @@ function ObjectProps({
   onChange: (p: Partial<SynopticObject>) => void;
   onDelete: () => void;
 }) {
+  const [imgBrowserOpen, setImgBrowserOpen] = useState(false);
+
   const field = (label: string, content: React.ReactNode) => (
     <div key={label}>
       <div style={LABEL}>{label}</div>
@@ -1716,7 +1733,7 @@ function ObjectProps({
       )}
 
       {/* Tag binding */}
-      {obj.type !== "navbutton" && field("Tag", tagInput("es. pump1.speed"))}
+      {!["navbutton","gauge","slider","checkbox","radio","led","progress_bar","trend"].includes(obj.type) && field("Tag", tagInput("es. pump1.speed"))}
 
       {/* Text object: static content + typography */}
       {obj.type === "text" && (
@@ -2078,13 +2095,46 @@ function ObjectProps({
       {obj.type === "image" && (
         <>
           {field("URL immagine",
-            <BindableInput obj={obj} propName="src" onChange={onChange}>
-              <input
-                style={INPUT} placeholder="https://… o /symbols/…"
-                value={obj.src ?? ""}
-                onChange={(e) => onChange({ src: e.target.value || undefined })}
+            <div style={{ display: "flex", gap: 4 }}>
+              <BindableInput obj={obj} propName="src" onChange={onChange}>
+                <input
+                  style={{ ...INPUT, flex: 1, minWidth: 0 }}
+                  placeholder="https://… o /images/…"
+                  value={obj.src ?? ""}
+                  onChange={(e) => onChange({ src: e.target.value || undefined })}
+                />
+              </BindableInput>
+              <button
+                style={{
+                  flexShrink: 0, background: "#1e3a5f", border: "1px solid #1e40af",
+                  borderRadius: 4, color: "#93c5fd", cursor: "pointer",
+                  padding: "0 8px", fontSize: 12,
+                }}
+                onClick={() => setImgBrowserOpen(true)}
+                title="Sfoglia libreria immagini"
+              >
+                ⋯
+              </button>
+            </div>
+          )}
+          {obj.src && (
+            <div style={{ marginTop: 4, textAlign: "center" }}>
+              <img
+                src={obj.src}
+                alt=""
+                style={{
+                  maxWidth: "100%", maxHeight: 80, objectFit: "contain",
+                  filter: "invert(1) brightness(0.85)", borderRadius: 4,
+                  border: "1px solid #1e293b",
+                }}
               />
-            </BindableInput>
+            </div>
+          )}
+          {imgBrowserOpen && (
+            <ImageBrowser
+              onSelect={(path) => { onChange({ src: path }); }}
+              onClose={() => setImgBrowserOpen(false)}
+            />
           )}
         </>
       )}

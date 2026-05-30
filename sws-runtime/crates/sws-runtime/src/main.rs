@@ -12,7 +12,7 @@ use rcgen::generate_simple_self_signed;
 use std::{net::{IpAddr, SocketAddr}, path::PathBuf, sync::Arc};
 use sws_auth::{AuthState, Role};
 use sws_core::{AlarmDb, LogBus, TagDb, TagQuality, TagWriteBus, DEFAULT_LOG_CAPACITY};
-use sws_historian::{sqlite::SqliteStore, DatastoreRegistry, Historian};
+use sws_historian::{DatastoreRegistry, Historian};
 use sws_pyscript::Engine as PyEngine;
 use sws_web::{router::{DerivedTagsRegistry, RegistryCell, ScriptSupervisorCell}, SourceSupervisor};
 use tokio::net::TcpListener;
@@ -170,24 +170,9 @@ async fn main() -> anyhow::Result<()> {
     let alarm_db  = Arc::new(AlarmDb::new(64));
     // 5_000 samples × ~100 tags ≈ a few MB. Adjust per-tag cap when we learn
     // realistic project sizes — for now this is the PoC sizing.
-    // SQLite persistence is opt-in via SWS_HISTORIAN_DB. If unset, the
-    // historian is RAM-only (current PoC default).
-    let historian = match std::env::var("SWS_HISTORIAN_DB").ok() {
-        Some(path) if !path.is_empty() => match SqliteStore::open(&path).await {
-            Ok(store) => match Historian::with_sqlite(5_000, store).await {
-                Ok(h) => Arc::new(h),
-                Err(e) => {
-                    warn!("historian: SQLite restore failed ({e}), starting empty");
-                    Arc::new(Historian::new(5_000))
-                }
-            },
-            Err(e) => {
-                warn!("historian: cannot open SQLite at {path} ({e}), falling back to RAM-only");
-                Arc::new(Historian::new(5_000))
-            }
-        },
-        _ => Arc::new(Historian::new(5_000)),
-    };
+    // Historian starts RAM-only. open_project calls historian.swap_store() to
+    // attach the per-project SQLite so history is isolated between projects.
+    let historian = Arc::new(Historian::new(5_000));
     let py_engine = PyEngine::new(tag_db.clone(), bus.clone());
     let supervisor = SourceSupervisor::new(tag_db.clone(), bus.clone());
     // Empty registries — populated below from project.yaml (if present).
@@ -517,27 +502,6 @@ async fn main() -> anyhow::Result<()> {
     // dynamically by open_project when the user opens a project later.
     if let Some(reg) = registry.read().await.as_ref().map(Arc::clone) {
         reg.spawn_recorder(tag_db.clone());
-    }
-
-    // Historian SQLite pruning: run once at startup then every 24 h.
-    // Only effective when SWS_HISTORIAN_DB is set (no-op on RAM-only mode).
-    {
-        let historian_prune = historian.clone();
-        let retention_days: u64 = std::env::var("SWS_HISTORIAN_RETENTION_DAYS")
-            .ok()
-            .and_then(|v| v.parse().ok())
-            .unwrap_or(30);
-        tokio::spawn(async move {
-            loop {
-                let now_ms = std::time::SystemTime::now()
-                    .duration_since(std::time::UNIX_EPOCH)
-                    .map(|d| d.as_millis() as u64)
-                    .unwrap_or(0);
-                let cutoff_ms = now_ms.saturating_sub(retention_days * 24 * 3600 * 1_000);
-                historian_prune.prune_older_than_ms(cutoff_ms).await;
-                tokio::time::sleep(std::time::Duration::from_secs(24 * 3600)).await;
-            }
-        });
     }
 
     let started_at = std::time::Instant::now();

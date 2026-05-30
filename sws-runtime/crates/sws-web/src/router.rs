@@ -1148,7 +1148,7 @@ async fn get_alarm_history(
     Query(q): Query<AlarmHistoryQuery>,
 ) -> Json<Vec<AlarmEvent>> {
     // Try SQLite first; fall back to in-memory journal.
-    let events = if let Some(store) = s.historian.sqlite_store() {
+    let events = if let Some(store) = s.historian.sqlite_store().await {
         store.query_alarm_events(
             q.alarm_id.as_deref(),
             q.from_ms,

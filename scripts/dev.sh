@@ -57,9 +57,11 @@ export SWS_ADMIN_USER SWS_ADMIN_PASSWORD
 : "${SWS_VIEWER_PASSWORD:=viewer}"
 export SWS_SUPERVISOR_PASSWORD SWS_OPERATOR_PASSWORD SWS_VIEWER_PASSWORD
 
-# Historian SQLite persistence path. Set to empty to disable (RAM only).
-: "${SWS_HISTORIAN_DB:=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/.run/historian.db}"
-export SWS_HISTORIAN_DB
+# Historian SQLite global path — disabled. Each project now uses its own
+# .history/historian.db via the per-project DatastoreConfig in project.yaml.
+# Uncomment the two lines below only if you need a temporary shared historian.
+# : "${SWS_HISTORIAN_DB:=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/.run/historian.db}"
+# export SWS_HISTORIAN_DB
 
 mkdir -p "$CONFIG_DIR" "$PROJECTS_ROOT" "$LOG_DIR"
 

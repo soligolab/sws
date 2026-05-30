@@ -21,6 +21,10 @@ impl SqliteBackend {
         self.store.path()
     }
 
+    pub fn store(&self) -> &SqliteStore {
+        &self.store
+    }
+
     pub async fn record(&self, tag_id: &str, sample: &Sample) {
         self.store.append(tag_id, sample).await;
     }

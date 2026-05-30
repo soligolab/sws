@@ -20,7 +20,7 @@ use std::{
     io::{Cursor, Read},
     path::{Path as StdPath, PathBuf},
 };
-use sws_core::{Project, ProjectMeta};
+use sws_core::{DatastoreBackendConfig, DatastoreConfig, Project, ProjectMeta};
 use sws_historian::DatastoreRegistry;
 use tracing::{info, warn};
 
@@ -180,7 +180,7 @@ pub async fn create_project(
                 alarms: vec![],
                 functions: vec![],
                 custom_symbols: vec![],
-                datastores: vec![],
+                datastores: vec![default_datastore()],
                 global_scripts: vec![],
                 notifications: None,
             };
@@ -233,7 +233,7 @@ pub async fn open_project(
 
     // 1. Load the new project FIRST — if it's invalid, leave the current
     //    state untouched and return an error without disrupting the operator.
-    let project = match Project::load(&project_dir) {
+    let mut project = match Project::load(&project_dir) {
         Ok(p) => p,
         Err(e) => {
             warn!("open_project: project.yaml missing or invalid: {e:#}");
@@ -244,6 +244,17 @@ pub async fn open_project(
             .into_response();
         }
     };
+    // Retroactively add the per-project default datastore for legacy projects
+    // that were created before this field existed (datastores: []).
+    // This ensures every project records history into its own .history/
+    // directory instead of the shared global historian.
+    if project.datastores.is_empty() {
+        project.datastores.push(default_datastore());
+        if let Ok(y) = serde_yaml::to_string(&project) {
+            let _ = std::fs::write(project_dir.join("project.yaml"), y);
+        }
+        info!(name = %project.meta.name, "injected default datastore into legacy project");
+    }
 
     // 2. Project is valid — clear the current runtime state.
     // Stop sources FIRST so no plugin can write to TagDb after we clear it.
@@ -300,9 +311,16 @@ pub async fn open_project(
                 *s.registry.write().await = None;
             }
         }
+        // Swap the global historian's SQLite to this project's primary store.
+        // All history reads/writes now go to <project>/.history/historian.db.
+        {
+            let hist_store = s.registry.read().await.as_ref()
+                .and_then(|r| r.primary_sqlite_store());
+            s.historian.swap_store(hist_store).await;
+        }
         s.alarms.load(project.alarms).await;
         // Wire the alarm journal → SQLite if a store is open.
-        if let Some(store) = s.historian.sqlite_store().cloned() {
+        if let Some(store) = s.historian.sqlite_store().await {
             s.alarms.set_journal_callback(move |ev| {
                 let store = store.clone();
                 tokio::spawn(async move { store.append_alarm_event(&ev).await; });
@@ -370,7 +388,7 @@ pub async fn close_project(State(s): State<AppState>) -> Response {
         ns.stop();
     }
     s.db.clear().await;
-    s.historian.clear().await;
+    s.historian.swap_store(None).await; // RAM-only between projects
     s.alarms.load(vec![]).await;
     s.functions.write().await.clear();
     s.derived_tags.write().await.clear();
@@ -623,6 +641,20 @@ fn read_zip_entry<R: Read + std::io::Seek>(
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
+
+/// Default per-project SQLite datastore injected when a project has none.
+/// Stores history inside the project directory so it travels with backups.
+fn default_datastore() -> DatastoreConfig {
+    DatastoreConfig {
+        id: "default".into(),
+        label: "Storico locale".into(),
+        backend: DatastoreBackendConfig::Sqlite {
+            path: ".history/historian.db".into(),
+        },
+        retention_rows: None,
+        retention_days: None,
+    }
+}
 
 /// Re-read SWS_ADMIN_PASSWORD etc. from env so a freshly-opened project
 /// without a `users.yaml` gets seeded. Mirrors main.rs bootstrap.

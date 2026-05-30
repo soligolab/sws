@@ -70,7 +70,7 @@ pub struct Sample {
 pub struct Historian {
     buffers: RwLock<HashMap<TagId, VecDeque<Sample>>>,
     max_per_tag: usize,
-    store: Option<SqliteStore>,
+    store: RwLock<Option<SqliteStore>>,
 }
 
 impl Historian {
@@ -78,14 +78,14 @@ impl Historian {
         Self {
             buffers: RwLock::new(HashMap::new()),
             max_per_tag,
-            store: None,
+            store: RwLock::new(None),
         }
     }
 
     /// Attach a SQLite store and seed the in-memory ring from disk.
     /// Returns the new Historian so the runtime can build it inline.
     pub async fn with_sqlite(max_per_tag: usize, store: SqliteStore) -> anyhow::Result<Self> {
-        let mut h = Self::new(max_per_tag);
+        let h = Self::new(max_per_tag);
         let restored = store.restore_recent(max_per_tag).await?;
         let total: usize = restored.iter().map(|(_, v)| v.len()).sum();
         {
@@ -96,18 +96,44 @@ impl Historian {
             }
         }
         info!(samples = total, "historian: restored from SQLite");
-        h.store = Some(store);
+        *h.store.write().await = Some(store);
         Ok(h)
     }
 
-    /// Access the underlying SQLite store, if attached.
-    pub fn sqlite_store(&self) -> Option<&SqliteStore> {
-        self.store.as_ref()
+    /// Access the underlying SQLite store, if attached (returns a clone — cheap, Arc-backed).
+    pub async fn sqlite_store(&self) -> Option<SqliteStore> {
+        self.store.read().await.clone()
+    }
+
+    /// Swap the SQLite backing store to a new project's database and reload
+    /// the ring buffer from it. Pass `None` to go RAM-only (between projects).
+    ///
+    /// Called by `open_project` after the DatastoreRegistry is initialised.
+    /// The global recorder task continues running and will write to the new
+    /// store from the next tag update onwards.
+    pub async fn swap_store(&self, new_store: Option<SqliteStore>) {
+        // 1. Clear ring buffer — no cross-project data in the new project.
+        self.buffers.write().await.clear();
+        // 2. Restore recent samples from the new store if provided.
+        if let Some(ref store) = new_store {
+            match store.restore_recent(self.max_per_tag).await {
+                Ok(restored) => {
+                    let total: usize = restored.iter().map(|(_, v)| v.len()).sum();
+                    let mut buf = self.buffers.write().await;
+                    for (tag, samples) in restored {
+                        buf.insert(tag, samples.into_iter().collect());
+                    }
+                    info!(samples = total, "historian: swapped to project SQLite");
+                }
+                Err(e) => warn!("historian: swap_store restore failed: {e}"),
+            }
+        }
+        // 3. Swap the store — recorder writes to new store from here on.
+        *self.store.write().await = new_store;
     }
 
     /// Discard all in-memory samples for all tags.
-    /// Called on project open/close to prevent inter-project data leakage.
-    /// The SQLite store (if any) is left intact — its data remains on disk.
+    /// Called on project open/close. The SQLite store is preserved on disk.
     pub async fn clear(&self) {
         self.buffers.write().await.clear();
     }
@@ -128,7 +154,7 @@ impl Historian {
             }
             q.push_back(sample.clone());
         }
-        if let Some(store) = &self.store {
+        if let Some(store) = self.store.read().await.as_ref() {
             store.append(tag, &sample).await;
         }
     }
@@ -159,8 +185,9 @@ impl Historian {
 
         // SQLite fallback: when from_ms is older than the ring's oldest sample,
         // prepend the gap from disk. Skip when there's no store or no from_ms.
+        let store_snapshot = self.store.read().await.clone();
         let mut samples = if let (Some(store), Some(from), Some(oldest)) =
-            (&self.store, from_ms, oldest_mem_ts)
+            (store_snapshot, from_ms, oldest_mem_ts)
         {
             if from < oldest {
                 let sqlite_to = oldest.saturating_sub(1);
@@ -185,7 +212,7 @@ impl Historian {
     /// Delete SQLite samples older than `cutoff_ms`.
     /// No-op when no SQLite store is attached.
     pub async fn prune_older_than_ms(&self, cutoff_ms: u64) {
-        if let Some(store) = &self.store {
+        if let Some(store) = self.store.read().await.as_ref() {
             match store.prune_older_than_ms(cutoff_ms).await {
                 Ok(n) if n > 0 => info!(rows = n, "historian: pruned old SQLite samples"),
                 Ok(_)          => {}

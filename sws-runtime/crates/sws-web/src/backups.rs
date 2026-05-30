@@ -27,6 +27,8 @@ const BACKED_UP: &[&str] = &[
     "project.yaml",
     "synoptics",
     "users.yaml",
+    ".history",  // per-project SQLite historian — needed to restore on another host
+    "recipes",   // recipe files (skipped silently if absent)
 ];
 
 #[derive(Serialize, Debug, Clone)]
