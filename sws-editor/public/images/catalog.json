@@ -1,0 +1,1137 @@
+{
+  "categories": [
+    {
+      "id": "mdi",
+      "label": "Material Design Icons",
+      "license": "Apache 2.0",
+      "items": [
+        {
+          "id": "mdi-alarm-light",
+          "path": "/images/mdi/alarm-light.svg",
+          "label": "alarm light"
+        },
+        {
+          "id": "mdi-alarm",
+          "path": "/images/mdi/alarm.svg",
+          "label": "alarm"
+        },
+        {
+          "id": "mdi-alert-circle",
+          "path": "/images/mdi/alert-circle.svg",
+          "label": "alert circle"
+        },
+        {
+          "id": "mdi-alert",
+          "path": "/images/mdi/alert.svg",
+          "label": "alert"
+        },
+        {
+          "id": "mdi-arrow-down",
+          "path": "/images/mdi/arrow-down.svg",
+          "label": "arrow down"
+        },
+        {
+          "id": "mdi-arrow-left",
+          "path": "/images/mdi/arrow-left.svg",
+          "label": "arrow left"
+        },
+        {
+          "id": "mdi-arrow-right",
+          "path": "/images/mdi/arrow-right.svg",
+          "label": "arrow right"
+        },
+        {
+          "id": "mdi-arrow-up",
+          "path": "/images/mdi/arrow-up.svg",
+          "label": "arrow up"
+        },
+        {
+          "id": "mdi-battery-charging",
+          "path": "/images/mdi/battery-charging.svg",
+          "label": "battery charging"
+        },
+        {
+          "id": "mdi-battery",
+          "path": "/images/mdi/battery.svg",
+          "label": "battery"
+        },
+        {
+          "id": "mdi-bell-off",
+          "path": "/images/mdi/bell-off.svg",
+          "label": "bell off"
+        },
+        {
+          "id": "mdi-bell",
+          "path": "/images/mdi/bell.svg",
+          "label": "bell"
+        },
+        {
+          "id": "mdi-check-circle",
+          "path": "/images/mdi/check-circle.svg",
+          "label": "check circle"
+        },
+        {
+          "id": "mdi-check",
+          "path": "/images/mdi/check.svg",
+          "label": "check"
+        },
+        {
+          "id": "mdi-close-circle",
+          "path": "/images/mdi/close-circle.svg",
+          "label": "close circle"
+        },
+        {
+          "id": "mdi-close",
+          "path": "/images/mdi/close.svg",
+          "label": "close"
+        },
+        {
+          "id": "mdi-cog-outline",
+          "path": "/images/mdi/cog-outline.svg",
+          "label": "cog outline"
+        },
+        {
+          "id": "mdi-cog",
+          "path": "/images/mdi/cog.svg",
+          "label": "cog"
+        },
+        {
+          "id": "mdi-current-ac",
+          "path": "/images/mdi/current-ac.svg",
+          "label": "current ac"
+        },
+        {
+          "id": "mdi-current-dc",
+          "path": "/images/mdi/current-dc.svg",
+          "label": "current dc"
+        },
+        {
+          "id": "mdi-database",
+          "path": "/images/mdi/database.svg",
+          "label": "database"
+        },
+        {
+          "id": "mdi-electric-switch",
+          "path": "/images/mdi/electric-switch.svg",
+          "label": "electric switch"
+        },
+        {
+          "id": "mdi-eye-off",
+          "path": "/images/mdi/eye-off.svg",
+          "label": "eye off"
+        },
+        {
+          "id": "mdi-eye",
+          "path": "/images/mdi/eye.svg",
+          "label": "eye"
+        },
+        {
+          "id": "mdi-fan",
+          "path": "/images/mdi/fan.svg",
+          "label": "fan"
+        },
+        {
+          "id": "mdi-fire-alert",
+          "path": "/images/mdi/fire-alert.svg",
+          "label": "fire alert"
+        },
+        {
+          "id": "mdi-fire",
+          "path": "/images/mdi/fire.svg",
+          "label": "fire"
+        },
+        {
+          "id": "mdi-fuse",
+          "path": "/images/mdi/fuse.svg",
+          "label": "fuse"
+        },
+        {
+          "id": "mdi-gauge-empty",
+          "path": "/images/mdi/gauge-empty.svg",
+          "label": "gauge empty"
+        },
+        {
+          "id": "mdi-gauge-full",
+          "path": "/images/mdi/gauge-full.svg",
+          "label": "gauge full"
+        },
+        {
+          "id": "mdi-gauge-low",
+          "path": "/images/mdi/gauge-low.svg",
+          "label": "gauge low"
+        },
+        {
+          "id": "mdi-gauge",
+          "path": "/images/mdi/gauge.svg",
+          "label": "gauge"
+        },
+        {
+          "id": "mdi-home",
+          "path": "/images/mdi/home.svg",
+          "label": "home"
+        },
+        {
+          "id": "mdi-lightning-bolt",
+          "path": "/images/mdi/lightning-bolt.svg",
+          "label": "lightning bolt"
+        },
+        {
+          "id": "mdi-lock-open",
+          "path": "/images/mdi/lock-open.svg",
+          "label": "lock open"
+        },
+        {
+          "id": "mdi-lock",
+          "path": "/images/mdi/lock.svg",
+          "label": "lock"
+        },
+        {
+          "id": "mdi-network",
+          "path": "/images/mdi/network.svg",
+          "label": "network"
+        },
+        {
+          "id": "mdi-pause-circle",
+          "path": "/images/mdi/pause-circle.svg",
+          "label": "pause circle"
+        },
+        {
+          "id": "mdi-pause",
+          "path": "/images/mdi/pause.svg",
+          "label": "pause"
+        },
+        {
+          "id": "mdi-pipe-valve",
+          "path": "/images/mdi/pipe-valve.svg",
+          "label": "pipe valve"
+        },
+        {
+          "id": "mdi-pipe",
+          "path": "/images/mdi/pipe.svg",
+          "label": "pipe"
+        },
+        {
+          "id": "mdi-play-circle",
+          "path": "/images/mdi/play-circle.svg",
+          "label": "play circle"
+        },
+        {
+          "id": "mdi-play",
+          "path": "/images/mdi/play.svg",
+          "label": "play"
+        },
+        {
+          "id": "mdi-power-plug",
+          "path": "/images/mdi/power-plug.svg",
+          "label": "power plug"
+        },
+        {
+          "id": "mdi-power",
+          "path": "/images/mdi/power.svg",
+          "label": "power"
+        },
+        {
+          "id": "mdi-pump",
+          "path": "/images/mdi/pump.svg",
+          "label": "pump"
+        },
+        {
+          "id": "mdi-refresh",
+          "path": "/images/mdi/refresh.svg",
+          "label": "refresh"
+        },
+        {
+          "id": "mdi-restart",
+          "path": "/images/mdi/restart.svg",
+          "label": "restart"
+        },
+        {
+          "id": "mdi-server",
+          "path": "/images/mdi/server.svg",
+          "label": "server"
+        },
+        {
+          "id": "mdi-shield-alert",
+          "path": "/images/mdi/shield-alert.svg",
+          "label": "shield alert"
+        },
+        {
+          "id": "mdi-solar-panel",
+          "path": "/images/mdi/solar-panel.svg",
+          "label": "solar panel"
+        },
+        {
+          "id": "mdi-speedometer-slow",
+          "path": "/images/mdi/speedometer-slow.svg",
+          "label": "speedometer slow"
+        },
+        {
+          "id": "mdi-speedometer",
+          "path": "/images/mdi/speedometer.svg",
+          "label": "speedometer"
+        },
+        {
+          "id": "mdi-stop-circle",
+          "path": "/images/mdi/stop-circle.svg",
+          "label": "stop circle"
+        },
+        {
+          "id": "mdi-stop",
+          "path": "/images/mdi/stop.svg",
+          "label": "stop"
+        },
+        {
+          "id": "mdi-temperature-celsius",
+          "path": "/images/mdi/temperature-celsius.svg",
+          "label": "temperature celsius"
+        },
+        {
+          "id": "mdi-temperature-fahrenheit",
+          "path": "/images/mdi/temperature-fahrenheit.svg",
+          "label": "temperature fahrenheit"
+        },
+        {
+          "id": "mdi-thermometer-alert",
+          "path": "/images/mdi/thermometer-alert.svg",
+          "label": "thermometer alert"
+        },
+        {
+          "id": "mdi-thermometer-high",
+          "path": "/images/mdi/thermometer-high.svg",
+          "label": "thermometer high"
+        },
+        {
+          "id": "mdi-thermometer-low",
+          "path": "/images/mdi/thermometer-low.svg",
+          "label": "thermometer low"
+        },
+        {
+          "id": "mdi-thermometer",
+          "path": "/images/mdi/thermometer.svg",
+          "label": "thermometer"
+        },
+        {
+          "id": "mdi-transmission-tower",
+          "path": "/images/mdi/transmission-tower.svg",
+          "label": "transmission tower"
+        },
+        {
+          "id": "mdi-valve",
+          "path": "/images/mdi/valve.svg",
+          "label": "valve"
+        },
+        {
+          "id": "mdi-water-pump",
+          "path": "/images/mdi/water-pump.svg",
+          "label": "water pump"
+        },
+        {
+          "id": "mdi-water",
+          "path": "/images/mdi/water.svg",
+          "label": "water"
+        },
+        {
+          "id": "mdi-wifi",
+          "path": "/images/mdi/wifi.svg",
+          "label": "wifi"
+        },
+        {
+          "id": "mdi-wind-turbine",
+          "path": "/images/mdi/wind-turbine.svg",
+          "label": "wind turbine"
+        },
+        {
+          "id": "mdi-wrench",
+          "path": "/images/mdi/wrench.svg",
+          "label": "wrench"
+        }
+      ]
+    },
+    {
+      "id": "equinor",
+      "label": "Equinor Engineering Symbols",
+      "license": "MIT",
+      "items": [
+        {
+          "id": "equinor-IM005A",
+          "path": "/images/equinor/IM005A.svg",
+          "label": "IM005A"
+        },
+        {
+          "id": "equinor-IM017A",
+          "path": "/images/equinor/IM017A.svg",
+          "label": "IM017A"
+        },
+        {
+          "id": "equinor-IM017B",
+          "path": "/images/equinor/IM017B.svg",
+          "label": "IM017B"
+        },
+        {
+          "id": "equinor-IM017C",
+          "path": "/images/equinor/IM017C.svg",
+          "label": "IM017C"
+        },
+        {
+          "id": "equinor-LZ009A",
+          "path": "/images/equinor/LZ009A.svg",
+          "label": "LZ009A"
+        },
+        {
+          "id": "equinor-ND0001",
+          "path": "/images/equinor/ND0001.svg",
+          "label": "ND0001"
+        },
+        {
+          "id": "equinor-ND0002",
+          "path": "/images/equinor/ND0002.svg",
+          "label": "ND0002"
+        },
+        {
+          "id": "equinor-ND0005",
+          "path": "/images/equinor/ND0005.svg",
+          "label": "ND0005"
+        },
+        {
+          "id": "equinor-ND0005Option1",
+          "path": "/images/equinor/ND0005Option1.svg",
+          "label": "ND0005Option1"
+        },
+        {
+          "id": "equinor-ND0011",
+          "path": "/images/equinor/ND0011.svg",
+          "label": "ND0011"
+        },
+        {
+          "id": "equinor-ND0011Option1",
+          "path": "/images/equinor/ND0011Option1.svg",
+          "label": "ND0011Option1"
+        },
+        {
+          "id": "equinor-ND0012",
+          "path": "/images/equinor/ND0012.svg",
+          "label": "ND0012"
+        },
+        {
+          "id": "equinor-ND0012Option1",
+          "path": "/images/equinor/ND0012Option1.svg",
+          "label": "ND0012Option1"
+        },
+        {
+          "id": "equinor-ND0014",
+          "path": "/images/equinor/ND0014.svg",
+          "label": "ND0014"
+        },
+        {
+          "id": "equinor-ND0015",
+          "path": "/images/equinor/ND0015.svg",
+          "label": "ND0015"
+        },
+        {
+          "id": "equinor-ND0016",
+          "path": "/images/equinor/ND0016.svg",
+          "label": "ND0016"
+        },
+        {
+          "id": "equinor-ND0020",
+          "path": "/images/equinor/ND0020.svg",
+          "label": "ND0020"
+        },
+        {
+          "id": "equinor-ND0020Option1",
+          "path": "/images/equinor/ND0020Option1.svg",
+          "label": "ND0020Option1"
+        },
+        {
+          "id": "equinor-ND0023",
+          "path": "/images/equinor/ND0023.svg",
+          "label": "ND0023"
+        },
+        {
+          "id": "equinor-ND0024",
+          "path": "/images/equinor/ND0024.svg",
+          "label": "ND0024"
+        },
+        {
+          "id": "equinor-ND0025",
+          "path": "/images/equinor/ND0025.svg",
+          "label": "ND0025"
+        },
+        {
+          "id": "equinor-PA007A",
+          "path": "/images/equinor/PA007A.svg",
+          "label": "PA007A"
+        },
+        {
+          "id": "equinor-PA008A",
+          "path": "/images/equinor/PA008A.svg",
+          "label": "PA008A"
+        },
+        {
+          "id": "equinor-PD001A",
+          "path": "/images/equinor/PD001A.svg",
+          "label": "PD001A"
+        },
+        {
+          "id": "equinor-PP001A",
+          "path": "/images/equinor/PP001A.svg",
+          "label": "PP001A"
+        },
+        {
+          "id": "equinor-PP002A",
+          "path": "/images/equinor/PP002A.svg",
+          "label": "PP002A"
+        },
+        {
+          "id": "equinor-PP003A",
+          "path": "/images/equinor/PP003A.svg",
+          "label": "PP003A"
+        },
+        {
+          "id": "equinor-PP004A",
+          "path": "/images/equinor/PP004A.svg",
+          "label": "PP004A"
+        },
+        {
+          "id": "equinor-PP005A",
+          "path": "/images/equinor/PP005A.svg",
+          "label": "PP005A"
+        },
+        {
+          "id": "equinor-PP006A",
+          "path": "/images/equinor/PP006A.svg",
+          "label": "PP006A"
+        },
+        {
+          "id": "equinor-PP007A",
+          "path": "/images/equinor/PP007A.svg",
+          "label": "PP007A"
+        },
+        {
+          "id": "equinor-PS005A",
+          "path": "/images/equinor/PS005A.svg",
+          "label": "PS005A"
+        },
+        {
+          "id": "equinor-PS006A",
+          "path": "/images/equinor/PS006A.svg",
+          "label": "PS006A"
+        },
+        {
+          "id": "equinor-PS007A",
+          "path": "/images/equinor/PS007A.svg",
+          "label": "PS007A"
+        },
+        {
+          "id": "equinor-PT002A",
+          "path": "/images/equinor/PT002A.svg",
+          "label": "PT002A"
+        },
+        {
+          "id": "equinor-PT002AOption1",
+          "path": "/images/equinor/PT002AOption1.svg",
+          "label": "PT002AOption1"
+        },
+        {
+          "id": "equinor-PT002A_Option1",
+          "path": "/images/equinor/PT002A_Option1.svg",
+          "label": "PT002A Option1"
+        },
+        {
+          "id": "equinor-PT005A",
+          "path": "/images/equinor/PT005A.svg",
+          "label": "PT005A"
+        },
+        {
+          "id": "equinor-PT006A",
+          "path": "/images/equinor/PT006A.svg",
+          "label": "PT006A"
+        },
+        {
+          "id": "equinor-PV003B-LargeConnectors",
+          "path": "/images/equinor/PV003B-LargeConnectors.svg",
+          "label": "PV003B LargeConnectors"
+        },
+        {
+          "id": "equinor-PV003B",
+          "path": "/images/equinor/PV003B.svg",
+          "label": "PV003B"
+        },
+        {
+          "id": "equinor-PV005A",
+          "path": "/images/equinor/PV005A.svg",
+          "label": "PV005A"
+        },
+        {
+          "id": "equinor-PV005AOption1",
+          "path": "/images/equinor/PV005AOption1.svg",
+          "label": "PV005AOption1"
+        },
+        {
+          "id": "equinor-PV005AUmbrella",
+          "path": "/images/equinor/PV005AUmbrella.svg",
+          "label": "PV005AUmbrella"
+        },
+        {
+          "id": "equinor-PV005AUmbrellaOption1",
+          "path": "/images/equinor/PV005AUmbrellaOption1.svg",
+          "label": "PV005AUmbrellaOption1"
+        },
+        {
+          "id": "equinor-PV007B",
+          "path": "/images/equinor/PV007B.svg",
+          "label": "PV007B"
+        },
+        {
+          "id": "equinor-PV007BOption1",
+          "path": "/images/equinor/PV007BOption1.svg",
+          "label": "PV007BOption1"
+        },
+        {
+          "id": "equinor-PV016A",
+          "path": "/images/equinor/PV016A.svg",
+          "label": "PV016A"
+        },
+        {
+          "id": "equinor-PV016AOption1",
+          "path": "/images/equinor/PV016AOption1.svg",
+          "label": "PV016AOption1"
+        },
+        {
+          "id": "equinor-PV018A",
+          "path": "/images/equinor/PV018A.svg",
+          "label": "PV018A"
+        },
+        {
+          "id": "equinor-PV018AOption1",
+          "path": "/images/equinor/PV018AOption1.svg",
+          "label": "PV018AOption1"
+        },
+        {
+          "id": "equinor-PV019B",
+          "path": "/images/equinor/PV019B.svg",
+          "label": "PV019B"
+        },
+        {
+          "id": "equinor-PV019BOption1",
+          "path": "/images/equinor/PV019BOption1.svg",
+          "label": "PV019BOption1"
+        },
+        {
+          "id": "equinor-PV021A",
+          "path": "/images/equinor/PV021A.svg",
+          "label": "PV021A"
+        },
+        {
+          "id": "equinor-PV022A",
+          "path": "/images/equinor/PV022A.svg",
+          "label": "PV022A"
+        },
+        {
+          "id": "equinor-PV023A",
+          "path": "/images/equinor/PV023A.svg",
+          "label": "PV023A"
+        },
+        {
+          "id": "equinor-PV023AOption1",
+          "path": "/images/equinor/PV023AOption1.svg",
+          "label": "PV023AOption1"
+        },
+        {
+          "id": "equinor-STPL008",
+          "path": "/images/equinor/STPL008.svg",
+          "label": "STPL008"
+        },
+        {
+          "id": "equinor-Zarankiewicz_K4_7",
+          "path": "/images/equinor/Zarankiewicz_K4_7.svg",
+          "label": "Zarankiewicz K4 7"
+        },
+        {
+          "id": "equinor-cat",
+          "path": "/images/equinor/cat.svg",
+          "label": "cat"
+        },
+        {
+          "id": "equinor-close",
+          "path": "/images/equinor/close.svg",
+          "label": "close"
+        },
+        {
+          "id": "equinor-grid-add",
+          "path": "/images/equinor/grid-add.svg",
+          "label": "grid add"
+        },
+        {
+          "id": "equinor-grid-minus",
+          "path": "/images/equinor/grid-minus.svg",
+          "label": "grid minus"
+        }
+      ]
+    },
+    {
+      "id": "tabler",
+      "label": "Tabler Icons",
+      "license": "MIT",
+      "items": [
+        {
+          "id": "tabler-activity",
+          "path": "/images/tabler/activity.svg",
+          "label": "activity"
+        },
+        {
+          "id": "tabler-adjustments-horizontal",
+          "path": "/images/tabler/adjustments-horizontal.svg",
+          "label": "adjustments horizontal"
+        },
+        {
+          "id": "tabler-alert-circle",
+          "path": "/images/tabler/alert-circle.svg",
+          "label": "alert circle"
+        },
+        {
+          "id": "tabler-alert-octagon",
+          "path": "/images/tabler/alert-octagon.svg",
+          "label": "alert octagon"
+        },
+        {
+          "id": "tabler-alert-triangle",
+          "path": "/images/tabler/alert-triangle.svg",
+          "label": "alert triangle"
+        },
+        {
+          "id": "tabler-arrow-down-circle",
+          "path": "/images/tabler/arrow-down-circle.svg",
+          "label": "arrow down circle"
+        },
+        {
+          "id": "tabler-arrow-down",
+          "path": "/images/tabler/arrow-down.svg",
+          "label": "arrow down"
+        },
+        {
+          "id": "tabler-arrow-left",
+          "path": "/images/tabler/arrow-left.svg",
+          "label": "arrow left"
+        },
+        {
+          "id": "tabler-arrow-right",
+          "path": "/images/tabler/arrow-right.svg",
+          "label": "arrow right"
+        },
+        {
+          "id": "tabler-arrow-up-circle",
+          "path": "/images/tabler/arrow-up-circle.svg",
+          "label": "arrow up circle"
+        },
+        {
+          "id": "tabler-arrow-up",
+          "path": "/images/tabler/arrow-up.svg",
+          "label": "arrow up"
+        },
+        {
+          "id": "tabler-bell-off",
+          "path": "/images/tabler/bell-off.svg",
+          "label": "bell off"
+        },
+        {
+          "id": "tabler-bell-ringing",
+          "path": "/images/tabler/bell-ringing.svg",
+          "label": "bell ringing"
+        },
+        {
+          "id": "tabler-bell",
+          "path": "/images/tabler/bell.svg",
+          "label": "bell"
+        },
+        {
+          "id": "tabler-chart-bar",
+          "path": "/images/tabler/chart-bar.svg",
+          "label": "chart bar"
+        },
+        {
+          "id": "tabler-chart-line",
+          "path": "/images/tabler/chart-line.svg",
+          "label": "chart line"
+        },
+        {
+          "id": "tabler-check",
+          "path": "/images/tabler/check.svg",
+          "label": "check"
+        },
+        {
+          "id": "tabler-chevron-down",
+          "path": "/images/tabler/chevron-down.svg",
+          "label": "chevron down"
+        },
+        {
+          "id": "tabler-chevron-left",
+          "path": "/images/tabler/chevron-left.svg",
+          "label": "chevron left"
+        },
+        {
+          "id": "tabler-chevron-right",
+          "path": "/images/tabler/chevron-right.svg",
+          "label": "chevron right"
+        },
+        {
+          "id": "tabler-chevron-up",
+          "path": "/images/tabler/chevron-up.svg",
+          "label": "chevron up"
+        },
+        {
+          "id": "tabler-clock-hour-3",
+          "path": "/images/tabler/clock-hour-3.svg",
+          "label": "clock hour 3"
+        },
+        {
+          "id": "tabler-clock",
+          "path": "/images/tabler/clock.svg",
+          "label": "clock"
+        },
+        {
+          "id": "tabler-database",
+          "path": "/images/tabler/database.svg",
+          "label": "database"
+        },
+        {
+          "id": "tabler-eye-off",
+          "path": "/images/tabler/eye-off.svg",
+          "label": "eye off"
+        },
+        {
+          "id": "tabler-eye",
+          "path": "/images/tabler/eye.svg",
+          "label": "eye"
+        },
+        {
+          "id": "tabler-history",
+          "path": "/images/tabler/history.svg",
+          "label": "history"
+        },
+        {
+          "id": "tabler-info-circle",
+          "path": "/images/tabler/info-circle.svg",
+          "label": "info circle"
+        },
+        {
+          "id": "tabler-link",
+          "path": "/images/tabler/link.svg",
+          "label": "link"
+        },
+        {
+          "id": "tabler-lock-open",
+          "path": "/images/tabler/lock-open.svg",
+          "label": "lock open"
+        },
+        {
+          "id": "tabler-lock",
+          "path": "/images/tabler/lock.svg",
+          "label": "lock"
+        },
+        {
+          "id": "tabler-player-pause",
+          "path": "/images/tabler/player-pause.svg",
+          "label": "player pause"
+        },
+        {
+          "id": "tabler-player-play",
+          "path": "/images/tabler/player-play.svg",
+          "label": "player play"
+        },
+        {
+          "id": "tabler-player-stop",
+          "path": "/images/tabler/player-stop.svg",
+          "label": "player stop"
+        },
+        {
+          "id": "tabler-power",
+          "path": "/images/tabler/power.svg",
+          "label": "power"
+        },
+        {
+          "id": "tabler-refresh",
+          "path": "/images/tabler/refresh.svg",
+          "label": "refresh"
+        },
+        {
+          "id": "tabler-reload",
+          "path": "/images/tabler/reload.svg",
+          "label": "reload"
+        },
+        {
+          "id": "tabler-settings-2",
+          "path": "/images/tabler/settings-2.svg",
+          "label": "settings 2"
+        },
+        {
+          "id": "tabler-settings",
+          "path": "/images/tabler/settings.svg",
+          "label": "settings"
+        },
+        {
+          "id": "tabler-table",
+          "path": "/images/tabler/table.svg",
+          "label": "table"
+        },
+        {
+          "id": "tabler-tool",
+          "path": "/images/tabler/tool.svg",
+          "label": "tool"
+        },
+        {
+          "id": "tabler-tools",
+          "path": "/images/tabler/tools.svg",
+          "label": "tools"
+        },
+        {
+          "id": "tabler-trending-down",
+          "path": "/images/tabler/trending-down.svg",
+          "label": "trending down"
+        },
+        {
+          "id": "tabler-trending-up",
+          "path": "/images/tabler/trending-up.svg",
+          "label": "trending up"
+        },
+        {
+          "id": "tabler-unlink",
+          "path": "/images/tabler/unlink.svg",
+          "label": "unlink"
+        },
+        {
+          "id": "tabler-wifi-off",
+          "path": "/images/tabler/wifi-off.svg",
+          "label": "wifi off"
+        },
+        {
+          "id": "tabler-wifi",
+          "path": "/images/tabler/wifi.svg",
+          "label": "wifi"
+        },
+        {
+          "id": "tabler-x",
+          "path": "/images/tabler/x.svg",
+          "label": "x"
+        }
+      ]
+    },
+    {
+      "id": "electrical",
+      "label": "Electrical Symbol Library",
+      "license": "CC0",
+      "items": [
+        {
+          "id": "electrical-ammeter",
+          "path": "/images/electrical/ammeter.svg",
+          "label": "ammeter"
+        },
+        {
+          "id": "electrical-annotation-current",
+          "path": "/images/electrical/annotation-current.svg",
+          "label": "annotation current"
+        },
+        {
+          "id": "electrical-annotation-voltage-contact",
+          "path": "/images/electrical/annotation-voltage-contact.svg",
+          "label": "annotation voltage contact"
+        },
+        {
+          "id": "electrical-annotation-voltage",
+          "path": "/images/electrical/annotation-voltage.svg",
+          "label": "annotation voltage"
+        },
+        {
+          "id": "electrical-capacitor-adjustable",
+          "path": "/images/electrical/capacitor-adjustable.svg",
+          "label": "capacitor adjustable"
+        },
+        {
+          "id": "electrical-capacitor-polarized",
+          "path": "/images/electrical/capacitor-polarized.svg",
+          "label": "capacitor polarized"
+        },
+        {
+          "id": "electrical-capacitor",
+          "path": "/images/electrical/capacitor.svg",
+          "label": "capacitor"
+        },
+        {
+          "id": "electrical-diode-led",
+          "path": "/images/electrical/diode-led.svg",
+          "label": "diode led"
+        },
+        {
+          "id": "electrical-diode-photodiode",
+          "path": "/images/electrical/diode-photodiode.svg",
+          "label": "diode photodiode"
+        },
+        {
+          "id": "electrical-diode-zener",
+          "path": "/images/electrical/diode-zener.svg",
+          "label": "diode zener"
+        },
+        {
+          "id": "electrical-diode",
+          "path": "/images/electrical/diode.svg",
+          "label": "diode"
+        },
+        {
+          "id": "electrical-electrical-symbol-library-v1.1.1",
+          "path": "/images/electrical/electrical-symbol-library-v1.1.1.svg",
+          "label": "electrical symbol library v1.1.1"
+        },
+        {
+          "id": "electrical-ground-earth",
+          "path": "/images/electrical/ground-earth.svg",
+          "label": "ground earth"
+        },
+        {
+          "id": "electrical-ground-signal",
+          "path": "/images/electrical/ground-signal.svg",
+          "label": "ground signal"
+        },
+        {
+          "id": "electrical-gyrator",
+          "path": "/images/electrical/gyrator.svg",
+          "label": "gyrator"
+        },
+        {
+          "id": "electrical-impedance-adjustable",
+          "path": "/images/electrical/impedance-adjustable.svg",
+          "label": "impedance adjustable"
+        },
+        {
+          "id": "electrical-impedance",
+          "path": "/images/electrical/impedance.svg",
+          "label": "impedance"
+        },
+        {
+          "id": "electrical-inductor-coupled",
+          "path": "/images/electrical/inductor-coupled.svg",
+          "label": "inductor coupled"
+        },
+        {
+          "id": "electrical-inductor-with-core",
+          "path": "/images/electrical/inductor-with-core.svg",
+          "label": "inductor with core"
+        },
+        {
+          "id": "electrical-inductor",
+          "path": "/images/electrical/inductor.svg",
+          "label": "inductor"
+        },
+        {
+          "id": "electrical-loudspeaker",
+          "path": "/images/electrical/loudspeaker.svg",
+          "label": "loudspeaker"
+        },
+        {
+          "id": "electrical-norator",
+          "path": "/images/electrical/norator.svg",
+          "label": "norator"
+        },
+        {
+          "id": "electrical-nullator",
+          "path": "/images/electrical/nullator.svg",
+          "label": "nullator"
+        },
+        {
+          "id": "electrical-nullor",
+          "path": "/images/electrical/nullor.svg",
+          "label": "nullor"
+        },
+        {
+          "id": "electrical-opamp-diff-output",
+          "path": "/images/electrical/opamp-diff-output.svg",
+          "label": "opamp diff output"
+        },
+        {
+          "id": "electrical-opamp-single-output",
+          "path": "/images/electrical/opamp-single-output.svg",
+          "label": "opamp single output"
+        },
+        {
+          "id": "electrical-piezo",
+          "path": "/images/electrical/piezo.svg",
+          "label": "piezo"
+        },
+        {
+          "id": "electrical-resistor-adjustable",
+          "path": "/images/electrical/resistor-adjustable.svg",
+          "label": "resistor adjustable"
+        },
+        {
+          "id": "electrical-resistor-ldr",
+          "path": "/images/electrical/resistor-ldr.svg",
+          "label": "resistor ldr"
+        },
+        {
+          "id": "electrical-resistor-potentiometer",
+          "path": "/images/electrical/resistor-potentiometer.svg",
+          "label": "resistor potentiometer"
+        },
+        {
+          "id": "electrical-resistor",
+          "path": "/images/electrical/resistor.svg",
+          "label": "resistor"
+        },
+        {
+          "id": "electrical-showcase",
+          "path": "/images/electrical/showcase.svg",
+          "label": "showcase"
+        },
+        {
+          "id": "electrical-source-current-controlled",
+          "path": "/images/electrical/source-current-controlled.svg",
+          "label": "source current controlled"
+        },
+        {
+          "id": "electrical-source-current",
+          "path": "/images/electrical/source-current.svg",
+          "label": "source current"
+        },
+        {
+          "id": "electrical-source-voltage-controlled",
+          "path": "/images/electrical/source-voltage-controlled.svg",
+          "label": "source voltage controlled"
+        },
+        {
+          "id": "electrical-source-voltage",
+          "path": "/images/electrical/source-voltage.svg",
+          "label": "source voltage"
+        },
+        {
+          "id": "electrical-transformer",
+          "path": "/images/electrical/transformer.svg",
+          "label": "transformer"
+        },
+        {
+          "id": "electrical-voltmeter",
+          "path": "/images/electrical/voltmeter.svg",
+          "label": "voltmeter"
+        },
+        {
+          "id": "electrical-wire-connection",
+          "path": "/images/electrical/wire-connection.svg",
+          "label": "wire connection"
+        },
+        {
+          "id": "electrical-wire-crossing",
+          "path": "/images/electrical/wire-crossing.svg",
+          "label": "wire crossing"
+        },
+        {
+          "id": "electrical-wire-terminal",
+          "path": "/images/electrical/wire-terminal.svg",
+          "label": "wire terminal"
+        },
+        {
+          "id": "electrical-wire",
+          "path": "/images/electrical/wire.svg",
+          "label": "wire"
+        }
+      ]
+    }
+  ]
+}

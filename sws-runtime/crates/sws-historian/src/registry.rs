@@ -227,6 +227,17 @@ impl DatastoreRegistry {
         self.backends.iter().map(|(id, _)| id.clone()).collect()
     }
 
+    /// Return the SqliteStore of the first SQLite backend (clone is cheap — Arc-backed).
+    /// Used by open_project to give the global Historian the per-project store.
+    pub fn primary_sqlite_store(&self) -> Option<crate::sqlite::SqliteStore> {
+        for (_, backend) in &self.backends {
+            if let crate::backend::DatastoreBackend::Sqlite(b) = backend {
+                return Some(b.store().clone());
+            }
+        }
+        None
+    }
+
     /// Spawn a recorder task that subscribes to `tag_db` and routes every update.
     pub fn spawn_recorder(self: Arc<Self>, tag_db: Arc<sws_core::TagDb>) -> tokio::task::JoinHandle<()> {
         let mut rx = tag_db.subscribe();

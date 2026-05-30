@@ -8,6 +8,18 @@ and this project adheres to [CalVer](https://calver.org/) (`YYYY.MM[.patch]`).
 ## [Unreleased]
 
 ### Added
+- **Image widget library browser** (`ImageBrowser.tsx`, `scripts/fetch-image-catalog.sh`, `scripts/gen-catalog.js`, `sws-editor/public/images/`). 221 SVG da 4 librerie open-source: Material Design Icons (Apache 2.0, 68 file), Equinor Engineering Symbols (MIT, 63 file), Tabler Icons (MIT, 48 file), Electrical Symbol Library (CC0, 42 file). Catalogo statico `catalog.json` generato da script Node. Componente `ImageBrowser` a griglia con tab categoria, filtro full-text, preview SVG lazy; usa `createPortal` per sfuggire da stacking context del pannello. Pulsante ⋯ nel pannello proprietà image + anteprima SVG inline sotto il campo URL. Documentazione licenze in `third-party/` con testi completi Apache-2.0/MIT/CC0.
+
+- **Per-project historian isolation** (`projects.rs`, `backups.rs`, `scripts/dev.sh`). Ogni progetto ora registra la storia nel proprio `<project>/.history/historian.db` invece di un SQLite globale condiviso. `create_project` scrive sempre un `datastores: [{id: "default", path: ".history/historian.db"}]` nel progetto vuoto. `open_project` inietta retroattivamente il datastore di default per progetti legacy (`datastores: []`) e aggiorna `project.yaml` su disco. `BACKED_UP` allargato a `.history` e `recipes`: i backup sono ora ripristinabili su qualsiasi host inclusi i dati storici. `SWS_HISTORIAN_DB` commentato in `dev.sh` — il fallback globale non è più necessario.
+
+### Fixed
+- **Campi Tag duplicati** nel pannello proprietà editor: il campo generico "Tag" (riga 1719 EditorShell) viene ora nascosto per i tipi gauge/slider/checkbox/radio/led/progress_bar/trend che hanno già il proprio campo Tag nella sezione specifica.
+
+- **TagInput picker** (`TagInput.tsx`): aggiunto pulsante ▾ con dropdown filtrable per selezionare un tag tra quelli definiti in Variabili. Dropdown chiuso con Escape/blur, `onMouseDown preventDefault` sul container per evitare perdita focus dell'input principale.
+
+- **"Forme → Immagine" non faceva nulla**: aggiunto `case "image":` in `handleAddObject` switch di EditorShell; ora apre `ImageBrowser` per scegliere l'immagine prima di piazzare l'oggetto sul canvas.
+
+### Added
 - **Save confirmation dialog** (`App.tsx`, `store/index.ts`, `EditorShell.tsx`). `isDirty: boolean` state in Zustand (set `true` on any canvas mutation via `pushHistory`/`pushHistoryUnconditional`, `false` on `setPages` load or successful save). `handleCloseProject` and `handleLogout` now check `isDirty` before executing; if dirty, they open a modal overlay with "Salva e chiudi" (triggers `incSaveSerial` + waits for `isDirty → false` via `useEffect`), "Chiudi senza salvare" (execute immediately), "Annulla". If save fails (`saveStatus === "error"`), the dialog closes without closing the project so the user can see the error.
 
 - **RuntimeCtrl header widget** (`App.tsx`, `system.rs`, `router.rs`, `source_supervisor.rs`, `api/client.ts`). Admin/Supervisor-only UI in the app header: green/red status dot polling `GET /api/system` every 5s (`sources_running`). "Stop" / "Start" toggle calls `POST /api/system/stop` (stops all source plugins + global-script + notification supervisors; web server stays up) or `POST /api/system/start` (reloads project from disk and restarts acquisition). "Reboot" button calls `POST /api/system/reboot` after a native confirm dialog — replaces the process image via Unix `exec()` (~2s WebSocket reconnect gap). Once installed on a device, the runtime never needs CLI access.
