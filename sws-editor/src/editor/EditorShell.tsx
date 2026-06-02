@@ -457,6 +457,16 @@ export function EditorShell() {
           grid_show_borders: true,
           grid_border_color: "#64748b" });
         break;
+      case "pipe":
+        addObject({
+          type, x, y,
+          points: [{ x, y }, { x: x + 120, y }, { x: x + 120, y: y + 80 }],
+          routing: "straight",
+          pipe_style: "flat",
+          stroke: "#64748b",
+          stroke_width: 8,
+        });
+        break;
     }
   };
 
@@ -1733,7 +1743,7 @@ function ObjectProps({
       )}
 
       {/* Tag binding */}
-      {!["navbutton","gauge","slider","checkbox","radio","led","progress_bar","trend"].includes(obj.type) && field("Tag", tagInput("es. pump1.speed"))}
+      {!["navbutton","gauge","slider","checkbox","radio","led","progress_bar","trend","pipe"].includes(obj.type) && field("Tag", tagInput("es. pump1.speed"))}
 
       {/* Text object: static content + typography */}
       {obj.type === "text" && (
@@ -2247,6 +2257,223 @@ function ObjectProps({
           {field("Colore OFF",   <BindableInput obj={obj} propName="state_off_color"   onChange={onChange}>{colorInput("state_off_color",   "#64748b")}</BindableInput>)}
           {field("Colore ON",    <BindableInput obj={obj} propName="state_on_color"    onChange={onChange}>{colorInput("state_on_color",    "#22c55e")}</BindableInput>)}
           {field("Colore ALARM", <BindableInput obj={obj} propName="state_alarm_color" onChange={onChange}>{colorInput("state_alarm_color", "#ef4444")}</BindableInput>)}
+        </>
+      )}
+
+      {/* ── Pipe / connector ────────────────────────────────────────────────── */}
+      {obj.type === "pipe" && (
+        <>
+          {/* Routing + style */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+            <div>
+              <div style={LABEL}>Percorso</div>
+              <select style={{ ...INPUT, cursor: "pointer" }}
+                value={obj.routing ?? "straight"}
+                onChange={(e) => onChange({ routing: e.target.value as "straight" | "orthogonal" | "diagonal" | "bezier" })}>
+                <option value="straight">Linee dirette</option>
+                <option value="bezier">Curvo (bezier)</option>
+                <option value="orthogonal">90° ortogonale</option>
+                <option value="diagonal">45° diagonale</option>
+              </select>
+            </div>
+            <div>
+              <div style={LABEL}>Stile</div>
+              <select style={{ ...INPUT, cursor: "pointer" }}
+                value={obj.pipe_style ?? "flat"}
+                onChange={(e) => onChange({ pipe_style: e.target.value as "flat" | "tube" | "wire" })}>
+                <option value="flat">Piatto</option>
+                <option value="tube">Tubo 3D</option>
+                <option value="wire">Cavo/filo</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Stroke */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+            <div>
+              {field("Colore tubo", colorInput("stroke", "#64748b"))}
+            </div>
+            <div>
+              {field("Spessore (px)", numInput("stroke_width", 8))}
+            </div>
+          </div>
+
+          {/* Tratteggio */}
+          {field("Tratteggio (es. 6,3)", textInput("stroke_dasharray", "6,3"))}
+
+          {/* Gradiente (tube style) */}
+          {(obj.pipe_style === "tube" || obj.pipe_gradient) && (
+            <>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+                <div>{field("Colore chiaro", colorInput("gradient_light_color", "#94a3b8"))}</div>
+                <div>{field("Colore scuro",  colorInput("gradient_dark_color",  "#334155"))}</div>
+              </div>
+            </>
+          )}
+
+          {/* Fill level */}
+          <CollapsibleSection title="Riempimento fluido" storageKey="pipe-fill">
+            {field("Tag livello",
+              <TagInput
+                style={INPUT} placeholder="es. tank1.level"
+                value={obj.fill_level_tag ?? ""}
+                onChange={(v) => onChange({ fill_level_tag: v || undefined })}
+              />
+            )}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+              <div>
+                <div style={LABEL}>Scala tag</div>
+                <select style={{ ...INPUT, cursor: "pointer" }}
+                  value={obj.fill_level_scale ?? "0-100"}
+                  onChange={(e) => onChange({ fill_level_scale: e.target.value as "0-1" | "0-100" })}>
+                  <option value="0-100">0 – 100</option>
+                  <option value="0-1">0.0 – 1.0</option>
+                </select>
+              </div>
+              <div>
+                <div style={LABEL}>Direzione</div>
+                <select style={{ ...INPUT, cursor: "pointer" }}
+                  value={obj.fill_direction ?? "start-to-end"}
+                  onChange={(e) => onChange({ fill_direction: e.target.value as "start-to-end" | "end-to-start" })}>
+                  <option value="start-to-end">Inizio → Fine</option>
+                  <option value="end-to-start">Fine → Inizio</option>
+                </select>
+              </div>
+            </div>
+            {field("Livello statico (0–1)", numInput("fill_level", 0))}
+            {field("Colore fluido", colorInput("fill_color", "#3b82f6"))}
+          </CollapsibleSection>
+
+          {/* Markers */}
+          <CollapsibleSection title="Marker estremità" storageKey="pipe-markers">
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+              <div>
+                <div style={LABEL}>Marker inizio</div>
+                <select style={{ ...INPUT, cursor: "pointer" }}
+                  value={obj.start_marker ?? "none"}
+                  onChange={(e) => onChange({ start_marker: e.target.value as "none" | "arrow" | "dot" | "flange" })}>
+                  <option value="none">Nessuno</option>
+                  <option value="arrow">Freccia</option>
+                  <option value="dot">Pallino</option>
+                  <option value="flange">Flangia</option>
+                </select>
+              </div>
+              <div>
+                <div style={LABEL}>Marker fine</div>
+                <select style={{ ...INPUT, cursor: "pointer" }}
+                  value={obj.end_marker ?? "none"}
+                  onChange={(e) => onChange({ end_marker: e.target.value as "none" | "arrow" | "dot" | "flange" })}>
+                  <option value="none">Nessuno</option>
+                  <option value="arrow">Freccia</option>
+                  <option value="dot">Pallino</option>
+                  <option value="flange">Flangia</option>
+                </select>
+              </div>
+            </div>
+            {field("Dimensione marker", numInput("marker_size", 1))}
+          </CollapsibleSection>
+
+          {/* State coloring */}
+          <CollapsibleSection title="Stato e allarme" storageKey="pipe-state">
+            {field("Tag stato (truthy → ON)",
+              <TagInput style={INPUT} placeholder="es. pump1.running"
+                value={obj.state_tag ?? ""}
+                onChange={(v) => onChange({ state_tag: v || undefined })} />
+            )}
+            {field("Tag allarme (truthy → ALARM)",
+              <TagInput style={INPUT} placeholder="es. pump1.fault"
+                value={obj.alarm_tag ?? ""}
+                onChange={(v) => onChange({ alarm_tag: v || undefined })} />
+            )}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6 }}>
+              <div>{field("OFF",   colorInput("state_off_color",   "#64748b"))}</div>
+              <div>{field("ON",    colorInput("state_on_color",    "#22c55e"))}</div>
+              <div>{field("ALARM", colorInput("state_alarm_color", "#ef4444"))}</div>
+            </div>
+          </CollapsibleSection>
+
+          {/* Label */}
+          <CollapsibleSection title="Etichetta" storageKey="pipe-label">
+            {field("Testo", textInput("pipe_label", "es. P-101"))}
+            {field("Tag valore",
+              <TagInput style={INPUT} placeholder="es. flow1.value"
+                value={obj.pipe_label_tag ?? ""}
+                onChange={(v) => onChange({ pipe_label_tag: v || undefined })} />
+            )}
+            {field("Formato", textInput("pipe_label_format", "{value:.1f}"))}
+            {field("Offset (px)", numInput("pipe_label_offset", 10))}
+          </CollapsibleSection>
+
+          {/* Connection anchoring */}
+          <CollapsibleSection title="Aggancio oggetti" storageKey="pipe-anchor">
+            <p style={{ fontSize: 10, color: "#475569", margin: "0 0 6px" }}>
+              Quando impostato, il primo / ultimo waypoint segue l'oggetto collegato.
+            </p>
+            {field("ID oggetto sorgente", textInput("from_obj_id", "es. pump-1"))}
+            <div style={LABEL}>Porta sorgente</div>
+            <select style={{ ...INPUT, cursor: "pointer" }}
+              value={obj.from_port ?? "center"}
+              onChange={(e) => onChange({ from_port: e.target.value as "top" | "bottom" | "left" | "right" | "center" })}>
+              <option value="center">Centro</option>
+              <option value="top">Sopra</option>
+              <option value="bottom">Sotto</option>
+              <option value="left">Sinistra</option>
+              <option value="right">Destra</option>
+            </select>
+            {field("ID oggetto destinazione", textInput("to_obj_id", "es. tank-1"))}
+            <div style={LABEL}>Porta destinazione</div>
+            <select style={{ ...INPUT, cursor: "pointer" }}
+              value={obj.to_port ?? "center"}
+              onChange={(e) => onChange({ to_port: e.target.value as "top" | "bottom" | "left" | "right" | "center" })}>
+              <option value="center">Centro</option>
+              <option value="top">Sopra</option>
+              <option value="bottom">Sotto</option>
+              <option value="left">Sinistra</option>
+              <option value="right">Destra</option>
+            </select>
+          </CollapsibleSection>
+
+          {/* Waypoints editor */}
+          <CollapsibleSection title="Waypoint" storageKey="pipe-points">
+            <p style={{ fontSize: 10, color: "#475569", margin: "0 0 4px" }}>
+              Trascina i punti gialli sul canvas. Usa ± per aggiungere/rimuovere.
+            </p>
+            {(obj.points ?? []).map((pt, i) => (
+              <div key={i} style={{ display: "flex", gap: 4, alignItems: "center", marginBottom: 3 }}>
+                <span style={{ fontSize: 11, color: "#64748b", width: 18, flexShrink: 0 }}>{i}</span>
+                <input type="number" style={{ ...INPUT, width: 58 }} value={pt.x}
+                  onChange={(e) => {
+                    const pts = [...(obj.points ?? [])];
+                    pts[i] = { ...pts[i], x: Number(e.target.value) };
+                    onChange({ points: pts });
+                  }} />
+                <input type="number" style={{ ...INPUT, width: 58 }} value={pt.y}
+                  onChange={(e) => {
+                    const pts = [...(obj.points ?? [])];
+                    pts[i] = { ...pts[i], y: Number(e.target.value) };
+                    onChange({ points: pts });
+                  }} />
+                {(obj.points ?? []).length > 2 && (
+                  <button style={{ ...INPUT, cursor: "pointer", padding: "2px 6px", width: 22 }}
+                    title="Rimuovi waypoint"
+                    onClick={() => {
+                      const pts = (obj.points ?? []).filter((_, idx) => idx !== i);
+                      onChange({ points: pts });
+                    }}>−</button>
+                )}
+              </div>
+            ))}
+            <button
+              style={{ ...INPUT, cursor: "pointer", width: "100%", marginTop: 2 }}
+              onClick={() => {
+                const pts = [...(obj.points ?? [])];
+                const last = pts[pts.length - 1] ?? { x: obj.x, y: obj.y };
+                pts.push({ x: last.x + 40, y: last.y });
+                onChange({ points: pts });
+              }}>
+              + Aggiungi waypoint
+            </button>
+          </CollapsibleSection>
         </>
       )}
 

@@ -312,7 +312,8 @@ const PALETTE_GROUPS: PaletteGroup[] = [
     { type: "trend",        label: "Trend",    icon: "∿" },
   ]},
   { category: "SCADA", color: "#f472b6", items: [
-    { type: "symbol", label: "Simbolo", icon: "⚙" },
+    { type: "symbol", label: "Simbolo",   icon: "⚙" },
+    { type: "pipe",   label: "Tubazione", icon: "⋯" },
   ]},
   { category: "Layout", color: "#a78bfa", items: [
     { type: "grid", label: "Griglia", icon: "⊞" },

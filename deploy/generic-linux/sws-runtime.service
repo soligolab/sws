@@ -1,0 +1,20 @@
+[Unit]
+Description=SWS SCADA runtime
+Documentation=https://github.com/soligolab/sws
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/opt/sws/bin/sws-runtime-launch.sh
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+# Running as root for the PoC. Lock down with a dedicated user before
+# going to production (needs write access to /var/lib/sws).
+User=root
+
+[Install]
+WantedBy=multi-user.target
