@@ -4,20 +4,24 @@
 >
 > Ambienti di test: vedi [docs/TEST_SETUPS.md](docs/TEST_SETUPS.md) (casa, dev server, dispositivi Yocto).
 
-**Last session**: 2026-06-02 — Revisione doc completa + T-22 + T-23.
+**Last session**: 2026-06-02 — T-24 (fingerprint + device dashboard), T-25 (remote logs), T-26 (git commit/push).
 
-- **Doc revision** (da piano in `.claude/plans/`): `docs/CONTEXT.md`, `OPEN_QUESTIONS.md`, `TEST_SETUPS.md`, `DEPLOY_PX30.md`, `YOCTO_CROSSCOMPILE.md`, `SWS_Project_Specification.md`, `adr/0001-state-management.md` — tutti aggiornati allo stato post T-01…T-21. Commit diretto su main.
+- **T-26 — Git commit/push** (`feat/T-26-git-commit-push` → squash main):
+  - `git_deploy.rs`: `commit()`, `push()`, `unpushed_count()` aggiunti a `GitDeploy`; `GitStatus.unpushed_commits` aggiornato in ogni `status()`.
+  - Nuove route: `POST /api/project/git/commit` (Supervisor+), `POST /api/project/git/push` (Admin).
+  - Frontend: form inline commit + bottone "↑ Push (N)" in `GitOpsPanel`.
 
-- **T-22 — Dev UX** (`feat/T-22-dev-ux` → squash main):
-  - Banner sessione TTL in `App.tsx`: compare dopo login se `session_ttl_secs > 0` (Admin/Supervisor); bottone "Disattiva" chiama `api.updateUser(authUser, { session_ttl_secs: 0 })`.
-  - Pre-deploy TTL check in `ConfigView.tsx` `handleDeploy()`: se TTL = 0 → `window.confirm` per riabilitare (1 h) prima del deploy.
-  - `scripts/dev.sh` riscritto con `--instance N`: porte VIEWER=8443+(N-1)×2, ADMIN=8444+(N-1)×2, VITE=5173+(N-1), data dir `.run-N/`. `stop_existing()` usa `fuser` per killare solo i processi sulle porte proprie.
-  - `sws-runtime/src/main.rs`: CLI args `--viewer-port` (default 8443) e `--admin-port` (default 8444).
+- **T-24 — Project Fingerprint + Device Dashboard** (`feat/T-24-fingerprint-dashboard` → squash main):
+  - `GET /api/project/fingerprint` su entrambe le porte (8443/8444): SHA256 di `project.yaml` + `synoptics/*.yaml` ordinati per nome, codifica hex manuale.
+  - `sha2 = "0.10"` aggiunto al workspace e `sws-web/Cargo.toml`.
+  - Nuovo tab "Device" (Admin) in `ConfigView`: lista device salvata in localStorage (`sws.saved-devices`), auto-refresh 30 s, ping `/health` + fetch fingerprint, confronto con fingerprint locale.
+  - `deployToTarget()` estratto come funzione standalone riusata da `RuntimeConnectionTab` e `DevicesTab`.
+  - `AppConfigTab` e `ConfigTab` aggiornati per includere `"devices"`.
 
-- **T-23 — Network discovery** (`feat/T-23-network-discovery` → squash main):
-  - Runtime annuncia `_sws._tcp.local.` via mdns-sd al boot (proprietà: `admin_port`, `version`); ServiceDaemon tenuto vivo fino all'exit del processo.
-  - `sws-web/src/discover.rs`: handler `GET /api/discover` (Supervisor+, porta 8444) — browse mDNS 2 s in `spawn_blocking`, restituisce `[{name, admin_url, viewer_url, version}]`.
-  - Frontend: bottone "Cerca runtime" in `RuntimeConnectionTab` → lista cliccabile di device trovati → click popola il campo URL.
+- **T-25 — Remote log viewer** (`feat/T-25-remote-logs` → squash main):
+  - In `RuntimeConnectionTab` (quando connesso): login → `GET /api/logs` → mostra log colorati per livello.
+  - Bottone "Aggiorna" + toggle "● Live" (poll ogni 5 s); auto-stop alla disconnessione.
+  - Box scrollabile max 200 px, timestamp HH:MM:SS, colori INFO/WARN/ERROR/DEBUG.
 
 **Branch corrente**: main (tutti i commit squash-merged).
 
@@ -25,30 +29,30 @@
 
 ## Handoff prossima sessione
 
-### Prossimi task dal piano workflow (T-24…T-26)
-
-| ID | Titolo | Descrizione breve |
-|----|--------|------------------|
-| T-24 | Multi-device deploy | Deploy parallelo a N device (lista target, progress per-device, roll-back singolo) |
-| T-25 | Remote log viewer | `GET /api/logs/stream` SSE dal runtime remoto → pannello live nell'IDE |
-| T-26 | Dev.sh dual-instance smoke test | Verifica che `./scripts/dev.sh --instance 2` avvii sul secondo set di porte senza conflitti con l'istanza 1 |
-
-### Verifica manuale T-22/T-23 da fare
+### Verifica manuale T-24/T-25/T-26 da fare
 
 ```bash
-# Avviare due istanze
-./scripts/dev.sh --instance 1    # apre http://localhost:5173 (admin), viewer 8443
-./scripts/dev.sh --instance 2    # apre http://localhost:5174, viewer 8445
+# Avviare runtime locale
+./scripts/dev.sh
 
-# Verificare discovery (dal browser sull'istanza 1):
-# Configurazione → tab Runtime → "Cerca runtime"
-# → devono comparire entrambe le istanze
+# T-26: Configurazione → Runtime → connettiti → sezione "GitOps"
+# → "💾 Commit" → scrivi messaggio → Salva
+# → "↑ Push (N)" → confirm → mostra output git push
 
-# Verificare TTL banner:
-# Login → banner compare se session_ttl_secs > 0 → "Disattiva" → banner sparisce
+# T-24: Configurazione → tab "Device"
+# → aggiungi device (URL del runtime locale: https://localhost:8444, admin/admin)
+# → "Aggiorna" → mostra stato online + firma SHA256
+# → "Connetti" → l'IDE si connette a quel runtime
 
-# Verificare pre-deploy:
-# Connettiti a istanza 2, clicca "Deploy" → se TTL=0 → confirm riabilitazione
+# T-25: Configurazione → Runtime → connettiti
+# → sezione "Log remoti" → "Aggiorna" → lista log
+# → "● Live" → aggiornamento automatico ogni 5 s
+
+# Smoke fingerprint:
+TOKEN=$(curl -sk -X POST https://localhost:8444/api/auth/login \
+  -H 'Content-Type: application/json' -d '{"username":"admin","password":"admin"}' | jq -r .token)
+curl -sk -H "Authorization: Bearer $TOKEN" https://localhost:8444/api/project/fingerprint
+# → {"sha256":"...","computed_at_ms":...}
 ```
 
 ### Debiti tecnici noti
@@ -59,7 +63,7 @@
 
 ---
 
-## Feature set consegnato (PoC completo T-01…T-23)
+## Feature set consegnato (PoC completo T-01…T-26)
 
 | Area | Funzionalità |
 |------|-------------|
@@ -68,7 +72,8 @@
 | **Auth/RBAC** | Argon2id, 4 ruoli, ABAC zone, session TTL configurabile per utente, audit log |
 | **Allarmi** | ISA-18.2 state machine, multi-condizione, delay, inhibit, shelving, webhook, SMTP escalation |
 | **Historian** | Ring-buffer + SQLite per-progetto, CSV export, trend interattivo |
-| **Deploy** | Dual-port 8443/8444, `--instance N` dev.sh, mDNS discovery, deploy remoto via SCP/systemd, GitOps |
+| **Deploy** | Dual-port 8443/8444, `--instance N` dev.sh, mDNS discovery, deploy remoto via SCP/systemd, GitOps (pull/rollback/commit/push) |
+| **Observability** | Project fingerprint SHA256, device dashboard multi-runtime, remote log viewer live |
 | **PWA** | Service worker, manifest, auto-rotate kiosk, mobile layout |
 | **Infra** | Yocto cross-compile (aarch64), Prometheus `/metrics`, audit log, log JSONL rotato, backup auto |
 
