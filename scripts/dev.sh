@@ -123,18 +123,35 @@ LEGACY_FALLBACK_YAML
 stop_existing() {
   local killed=0
 
-  if pgrep -f "$REPO_ROOT/sws-runtime/target/debug/sws-runtime" >/dev/null 2>&1; then
-    echo "[cleanup] stopping existing sws-runtime…"
-    pkill -TERM -f "$REPO_ROOT/sws-runtime/target/debug/sws-runtime" 2>/dev/null || true
-    # Give it up to 3 s to shut down gracefully, then force.
-    local i
-    for i in $(seq 1 6); do
-      pgrep -f "$REPO_ROOT/sws-runtime/target/debug/sws-runtime" >/dev/null 2>&1 || break
-      sleep 0.5
-    done
-    pkill -KILL -f "$REPO_ROOT/sws-runtime/target/debug/sws-runtime" 2>/dev/null || true
+  # Kill any other dev.sh instances from this repo first so they don't
+  # race with us or restart child processes we're about to kill.
+  if pkill -TERM -f "$REPO_ROOT/scripts/dev.sh" 2>/dev/null; then
+    sleep 0.5
+    pkill -KILL -f "$REPO_ROOT/scripts/dev.sh" 2>/dev/null || true
     killed=1
   fi
+
+  # Kill any lingering cargo build for this repo — it holds a file lock
+  # that would cause the next build to block silently.
+  if pkill -KILL -f "cargo build.*-p sws-runtime" 2>/dev/null; then
+    echo "[cleanup] terminated lingering cargo build"
+    killed=1
+  fi
+
+  # Kill debug and release runtime binaries.
+  for variant in debug release; do
+    if pgrep -f "$REPO_ROOT/sws-runtime/target/$variant/sws-runtime" >/dev/null 2>&1; then
+      echo "[cleanup] stopping existing sws-runtime ($variant)…"
+      pkill -TERM -f "$REPO_ROOT/sws-runtime/target/$variant/sws-runtime" 2>/dev/null || true
+      local i
+      for i in $(seq 1 6); do
+        pgrep -f "$REPO_ROOT/sws-runtime/target/$variant/sws-runtime" >/dev/null 2>&1 || break
+        sleep 0.5
+      done
+      pkill -KILL -f "$REPO_ROOT/sws-runtime/target/$variant/sws-runtime" 2>/dev/null || true
+      killed=1
+    fi
+  done
 
   if pgrep -f "$REPO_ROOT/sws-editor.*vite" >/dev/null 2>&1; then
     echo "[cleanup] stopping existing vite dev server…"
@@ -176,7 +193,7 @@ pick_pnpm() {
 
 start_runtime() {
   echo "[runtime] building (cargo build)…"
-  (cd "$REPO_ROOT/sws-runtime" && cargo build --quiet -p sws-runtime)
+  (cd "$REPO_ROOT/sws-runtime" && cargo build -p sws-runtime)
 
   WWW_DIST="$REPO_ROOT/sws-editor/dist"
   WWW_ARGS=()
@@ -232,8 +249,8 @@ case "${1:-both}" in
   kiosk)
     stop_existing
     echo "[kiosk] building runtime + sws-kiosk…"
-    (cd "$REPO_ROOT/sws-runtime" && cargo build --quiet -p sws-runtime)
-    (cd "$REPO_ROOT/sws-runtime" && cargo build --quiet --manifest-path crates/sws-kiosk/Cargo.toml)
+    (cd "$REPO_ROOT/sws-runtime" && cargo build -p sws-runtime)
+    (cd "$REPO_ROOT/sws-runtime" && cargo build --manifest-path crates/sws-kiosk/Cargo.toml)
 
     # Serve the SPA from the pre-built dist/ if it exists; otherwise the kiosk
     # will get a 404 on / and show a white window. Run 'pnpm build' first if needed.
@@ -287,7 +304,7 @@ case "${1:-both}" in
   both)
     stop_existing
     echo "[runtime] building (cargo build)…"
-    (cd "$REPO_ROOT/sws-runtime" && cargo build --quiet -p sws-runtime)
+    (cd "$REPO_ROOT/sws-runtime" && cargo build -p sws-runtime)
 
     # Serve the pre-built SPA on both ports (8443 + 8444) when dist/ exists.
     # Without --www, the runtime returns 404 on GET / (API-only mode).
