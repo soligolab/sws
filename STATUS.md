@@ -4,177 +4,76 @@
 >
 > Ambienti di test: vedi [docs/TEST_SETUPS.md](docs/TEST_SETUPS.md) (casa, dev server, dispositivi Yocto).
 
-**Last session**: 2026-05-30 (T-21 subtasks 6-8, branch feat/T-21-split-webservers) — (6) Admin SPA: secondo Vite entry point `index-admin.html` → `src/admin/AdminApp.tsx` (WelcomeScreen + Login + ConfigView, no canvas; AccessDenied per Operator/Viewer). Admin router (8444) serve `index-admin.html` come fallback SPA. (7) Deploy remoto: `POST /api/deploy/remote` (admin-only) in `deploy.rs` — scarica binario da GitHub Releases, SCP via sshpass/scp, restart systemd, streaming log newline-delimited; `deployRemote()` nel client API; sezione "Deploy binario" in `RemoteRuntimeModal` con selector arch, SSH host/port/user/password (localStorage save per host), log panel streaming. (8) `deploy/yocto/sws-kiosk.service` systemd unit. cargo check + pnpm build verdi. Branch NON ancora mergiato su main (verifica del maintainer richiesta — tutti e 8 i subtask ora completi).
-**Previous session**: 2026-05-30 (T-21 subtasks 1-5, branch feat/T-21-split-webservers) — Split webserver: (1) router.rs: `build()` ritorna `(Router, Router)` — runtime_router (8443, optional_auth, solo sinottici/tag/allarmi/history/WS/recipes) + admin_router (8444, tutto). `optional_auth` middleware: no token → Role::Viewer anonimo; token valido → ruolo reale. (2) main.rs: due TcpListener, `tokio::select!` su entrambi, stesso TLS/AppState. `--kiosk` flag: 8443 si binda a 127.0.0.1 invece di 0.0.0.0. (3) vite.config.ts: proxy default porta 8444 (admin). (4) Rimossa tab "Runtime View" (mode "view") dall'editor — solo "Editor" e "Configurazione" rimangono. (5) `ButtonAction` type (`{ type: "login" | "logout" | "navigate"; url? }`) aggiunto a SynopticObject + SvgCanvas prop `onButtonAction` + properties panel "Azione built-in" in EditorShell. cargo check + pnpm build verdi.
-**Previous session**: 2026-05-30 (S-70) — Bugfix session: tag duplicati, image picker, isolamento progetti. (1) Campi Tag duplicati. (2) TagInput dropdown filtrabile. (3) ImageBrowser 221 SVG. (4) Fix "Forme→Immagine". (5) Isolamento progetti: historian swap_store per-progetto, historian.store: RwLock<Option<SqliteStore>>, swap_store() in open/close project. cargo check + pnpm build verdi.
-**Previous session**: 2026-05-29 (S-69) — Save-confirm dialog + RuntimeCtrl. `isDirty` state in Zustand store (set true on pushHistory, false on setPages/save). `handleCloseProject`/`handleLogout` now check isDirty and open a "Salva / Scarta / Annulla" modal instead of executing immediately. `RuntimeCtrl` component (admin/supervisor-only): polls GET /api/system every 5s, green/red dot for sources_running, Stop/Start toggle (POST /api/system/stop|start), Reboot button (POST /api/system/reboot — Unix exec-replace, ~2s WS gap). Backend routes were already in place from previous session work (source_supervisor running_count, system.rs handlers, router admin routes). cargo check + pnpm build verdi. Squash-merged to main.
-**Previous session**: 2026-05-27 (S-68) — T-20 GitOps. `git_deploy.rs`: `GitDeploy` struct (is_git_repo, status, pull --ff-only, reset --hard HEAD~1, init_remote) via `std::process::Command` (no libgit2). Tre rotte HTTP: `GET /api/project/git-status` (auth), `POST /api/project/deploy` (operator+, git pull + soft-reload), `POST /api/project/rollback` (admin, git reset + soft-reload). `soft_reload_project`: ricarica project.yaml, aggiorna derived_tags/tags/alarms/functions senza riavviare sorgenti né cancellare historian. Frontend: `GitOpsPanel` in SystemTab (branch, sha, author, message, clean badge, pulsanti Deploy e Rollback con confirm dialog). API client: `getGitStatus`, `triggerDeploy`, `triggerRollback`. cargo check + pnpm build verdi, zero warning. Fase E completata (T-18 editor multi-utente e T-15 LDAP/OIDC non implementati — troppo grandi per PoC). Tutti i 20 task del roadmap affrontati (18/20 completati, T-15+T-18 post-PoC).
-**Previous session**: 2026-05-27 (S-67) — T-10 Alarm multi-condizione + delay + inhibit + T-11 Recipe Manager + T-13 Notifiche SMTP + T-14 Zone ABAC. T-10: `AlarmCondition` composita (And/Or/Not) con evaluate/evaluate_clear semantics ISA, on_delay_s/off_delay_s (AlarmTimer), inhibit_tag (by_inhibit_tag map, last_value cache PRIMA del check), 9 unit test verdi. T-11: `RecipeDef`/`RecipeSetpoint` YAML per progetto, CRUD `/api/recipes`, `POST /api/recipes/:id/apply` (TagWriteBus + log in-memory), `RecipesTab` in ConfigView (panel lista + editor setpoint), `RecipeModal` in RuntimeView, API client completo. T-13: `NotificationConfig`/`SmtpConfig` in project.rs, `NotificationSupervisor` (lettre 0.11 STARTTLS, Task A email on ActiveUnacked, Task B escalation ogni 60s), lifecycle in open/close project, `PUT /api/project/notifications` con mask SMTP password, `NotificationsTab` in ConfigView (SMTP form + enabled toggle), `notify_email`/`escalate_after_s`/`escalate_to` nel form allarmi. cargo check + pnpm build verdi. Fase C completata (T-10, T-11, T-13). T-14: `SynopticPage.zones`, `StoredUser/SessionInfo/AuthUser.allowed_zones`, zone filter in list/get synoptics (`zone_allowed` helper), zone input in PageProps editor, allowed_zones input in Users tab. T-16+T-17: WS protocol v2 (snapshot+delta+subscribe), delta batching 50ms, per-connection seq counter, `{type:subscribe,tags:[...]}` per-page filtering, `sendSubscribe()` chiamata in RuntimeView al cambio pagina, tag extraction da oggetti canvas. T-19: PWA manifest + service worker + SW registration in index.html, isMobile hook (MediaQueryList), forza RuntimeView su <768px, SVG viewBox in runtime mode per fit-to-viewport, touch swipe navigation. cargo check + pnpm build verdi. Fase D+E iniziate (T-14, T-16, T-17, T-19 completate).
-**Previous session**: 2026-05-27 (S-66) — T-07 EtherNet/IP + T-08 Sparkplug B + T-04 Faceplates. T-07: crate `sws-plugin-enip` con rseip 0.3.1, accesso tag ControlLogix per nome simbolico, tipi BOOL/SINT/INT/DINT/LINT/REAL, `EnIpSourceCard` in ConfigView, template `enip-demo`. T-08: estensione `sws-plugin-mqtt` con mode sparkplug_b, struct prost manuali (no protoc), decode NBIRTH/NDATA/DBIRTH/DDATA, NCMD write-back, SCADA Host STATE birth/LWT, `SparkplugSection` in MqttSourceCard, template `sparkplug-demo`. T-04: `FaceplateDef` in sws-core e sws-web, CRUD `/api/faceplates/:id` (project dir + built-ins embedded via include_str!), built-in `motor_basic`/`valve_basic`/`tank_level`, rendering in SvgCanvas con `substituteParams({param})`, `FaceplatesTab` in ConfigView, `faceplates` state in store. Fase B completata (T-06, T-07, T-08, T-04). cargo check + pnpm build verdi.
-**Previous session**: 2026-05-26 (S-62) — T-06 Plugin S7 Siemens. Nuovo crate `sws-plugin-s7` (pure Rust, usa crate `s7` 0.1.9, nessuna dipendenza C). Bridge tokio→std::thread per il Client S7 non-Send. Supporto aree DB/M/I/Q, tipi BOOL/BYTE/INT/WORD/DINT/REAL, write-back. `S7Config`/`S7TagMapping`/`S7DataType` in sws-core. `S7SourceCard` in ConfigView con form completo. Template `s7-demo`. cargo check + pnpm build verdi.
-**Previous session**: 2026-05-26 (S-61) — T-09 Script globali + scheduler. Backend: `GlobalScriptDef`/`ScriptTrigger` in project.rs, supervisor `GlobalScriptSupervisor` in sws-web/global_scripts.rs (tokio task per trigger startup/interval/cron/tag_change), hot-swap su open/close project, `PUT /api/project/global-scripts`. Frontend: "Script" tab in ConfigView con lista script, form trigger, CodeMirror editor Python, save. cargo check + pnpm build verdi. Fase A completata (T-01, T-02, T-03, T-05, T-09).
-**Previous session**: 2026-05-26 (S-60) — T-05 Tag Manager CSV import/export. Backend: POST /api/project/tags/import-csv (CSV merge — aggiunge nuovi tag, aggiorna esistenti, ignora colonne sconosciute). Frontend: "Esporta CSV" (download tags.csv) + "Importa CSV" (modal con file picker + textarea, anteprima, feedback). pnpm build + cargo check verdi.
-**Previous session**: 2026-05-26 (S-59) — T-03 Alarm ISA-18.2 + journal. Stato macchina a 4 stati (Normal/ActiveUnacked/ActiveAcked/NormalUnacked). AlarmEvent journal in-memory + SQLite (tabella alarm_events, append on event complete, query con filtri). GET /api/alarms/history (SQLite o fallback in-memory). AlarmBanner aggiornato: badge ISA con blink per ActiveUnacked, label stato, ACK con username. AlarmPanel: tab "Attivi" + "Storico" (AlarmHistory.tsx con paginazione). pnpm build + cargo check verdi.
-**Previous session**: 2026-05-26 (S-58) — T-01 symbol picker + T-02 trend interattivo. Symbol: aggiunto `SymbolPickerModal` in EditorShell; clic "Simbolo" in palette apre galleria a scelta prima di inserire (no più default pump forzato). Trend: `TrendCanvas` esteso con `fromMs`/`toMs` (historical mode, nessun polling), `hiddenIndices`, dipendenze fixing; nuovo `TrendExpandedModal` (preset 1h/8h/24h/7d, pan ◀▶, toggle serie, ResizeObserver per canvas full-size); click ⤢ sul trend in RuntimeView apre il modal. pnpm build + cargo check verdi. Branch `task/S-58-T01-T02-symbols-trend` → squash-merged a main.
-**Previous session**: 2026-05-25 (S-57) — Fix isolamento progetti + sinottici ha-pro completi. Fix race condition `open_project`/`close_project`: `supervisor.reload` spostato PRIMA di `db.clear` (stop plugin → poi clear, nessuna scrittura residua nel nuovo progetto). Fix historian leak: aggiunto `Historian::clear()`, chiamato in open/close project (il ring buffer in-memory era condiviso tra tutti i progetti). Completate 6 pagine sinottiche per il template `homeassistant-pro` (tutte le funzionalità SCADA: gauge, trend multi-tag, LED, write-back luci ON/OFF, pulsanti tapparelle SU/GIÙ, tabelle clima, KPI energetici). Sinottici copiati anche in `.run/projects/ha/synoptics/`. cargo build verde.
-**Previous session**: 2026-05-24 (S-56) — Bug fix session. Fix `eval_expression` multi-line (AST harness: `ast.parse+__inject` per catturare l'ultima espressione anche in blocchi if/else multi-riga). Fix retry flood di tutti i plugin (HA, MQTT, Modbus TCP/RTU, OPC-UA): rimosso loop esterno di retry — ogni plugin viene chiamato una sola volta; riavvio solo su Save via `handle.is_finished()` in `source_supervisor`. Fix `logs/` scansionato come progetto: spostata dir log default da `projects_root/logs` a `projects_root/../logs`, aggiunto controllo `has_project_yaml` in `list_projects`. Fix `open_project` partial-state: load PRIMA, clear DOPO. Fix `create_project`: dopo copia template, aggiorna `meta.name` nel project.yaml copiato con il nome scelto dall'utente. Fix `dev.sh`: aggiunta `stop_existing()` con pkill TERM+KILL; fix `set -euo pipefail` bug `[ ] && sleep` → `if...fi`. Corretti `meta.name` nei progetti già creati (`.run/projects/test` e `.run/projects/ha`). cargo check + cargo build verdi.
-**Previous session**: 2026-05-24 (S-55) — Template `homeassistant-pro` (showcase completo). Fix plugin HA: `parse_ha_state` ora mappa "home"→Bool(true), "not_home"→Bool(false), "open"→Bool(true), "closed"→Bool(false); `build_service_call` ora inverte correttamente `open_cover`→`close_cover` per Bool(false). Nuovo template 86 tag: FV 2 stringhe Solarman, batteria, rete, clima 5 stanze Zigbee, contatori cucina+pompa di calore (V+A+W+Hz), 14 sensori sicurezza, tapparelle motorizzate write-back (cover), 3 luci esterne write-back (switch), presenza persona, sole elevazione, 9 tag derivati Python, 13 allarmi dead-band, SQLite 365 giorni (20 tag storici). 3 file: `project.yaml` (86 tag), `template.yaml`, `SETUP.md`. cargo check verde.
-**Previous session**: 2026-05-24 (S-54) — SQLite storico per progetto HomeAssistant. Fix hot-swap datastore registry: `registry` in `AppState` era `Option<Arc<...>>` immutabile → progetti aperti via WelcomeScreen non avviavano il recorder. Cambiato a `RegistryCell = Arc<RwLock<Option<Arc<DatastoreRegistry>>>>`. `open_project` ora inizializza il registry + spawna il recorder; `close_project` lo svuota. Template e progetto attivo aggiornati con `datastores:` SQLite + `datastore_id:` sugli 8 tag `history: true`. Verificato: SQLite `sws-history.db` riceve campioni Good da HA. cargo check + pnpm build verdi.
-**Previous session**: 2026-05-23 (S-53) — Bug fix: derived tag evaluator feedback loop. Il task scriveva su TagDb via `db.set()`, che emetteva un broadcast, che il task stesso riceveva → loop geometrico → canale saturo → "lagged by N" continuo → runtime bloccato. Fix: guard che skippa l'intera valutazione quando tutti i tag cambiati nel batch sono essi stessi derivati; batch-drain `try_recv()` per collassare burst N→1 eval round; `Lagged` log abbassato da warn a debug. Un file modificato: `sws-runtime/src/main.rs`. cargo check verde.
-**Previous session**: 2026-05-23 (S-52) — Bug fix: HA Demo template causava "Caricamento progetto…" su tutti i tab dato che i campi `kind: bool_true`/`bool_false` negli allarmi non erano riconosciuti da `AlarmCondition`. Fix: aggiunto `BoolTrue`/`BoolFalse` variant all'enum in sws-core/alarm.rs + evaluate/evaluate_clear aggiornati. Fix `get_project`: prima ritornava 404 silenzioso su parse error, ora 500 con messaggio. Store: aggiunto `projectLoadError` → ConfigView mostra errore in rosso invece di spinner infinito. Tipo `AlarmCondition` aggiornato in types/index.ts. cargo check + pnpm build verdi. Anche nella stessa sessione: cancel login button (LoginScreen.tsx), per-user session TTL configurabile (Users tab), HA entity browser 🔍.
-**Previous session**: 2026-05-23 (S-51) — HA entity browser: pulsante 🔍 accanto a entity_id e attribute nella tabella entità del `HomeAssistantSourceCard`. Backend `POST /api/sources/ha/browse` (reqwest → GET /api/states HA → Vec<HaBrowsedEntity>); frontend `HaBrowseModal` con ricerca full-text, filtro dominio, espansione attributi. Fix: `deserialize_sources_tolerant` per forward-compat source kinds. cargo check + pnpm build verdi.
-**Previous session**: 2026-05-23 (S-49) — Feature #10 Rotazione automatica pagine kiosk (SynopticPage.auto_rotate_skip, store autoRotate/autoRotateIntervalS con localStorage, useEffect+setInterval in RuntimeView, toolbar ▶/⏹, PageProps checkbox). Feature #12 IP allowlist per login (SWS_IP_ALLOWLIST env, CIDR check IPv4/IPv6 senza deps, Extension<SocketAddr> dal accept loop). Feature #3 Alarm shelving (ShelvedAlarm + shelve/unshelve/shelved_snapshot in AlarmDb, auto-scadenza, 3 rotte API, AlarmPanel con 🔧 form inline + sezione Soppressi + badge ⏸). cargo check + pnpm build verdi.
-**Last commit**: vedi `git log -1`
-**Current phase**: Phase 2 — sviluppo attivo PoC
+**Last session**: 2026-06-02 — Revisione doc completa + T-22 + T-23.
+
+- **Doc revision** (da piano in `.claude/plans/`): `docs/CONTEXT.md`, `OPEN_QUESTIONS.md`, `TEST_SETUPS.md`, `DEPLOY_PX30.md`, `YOCTO_CROSSCOMPILE.md`, `SWS_Project_Specification.md`, `adr/0001-state-management.md` — tutti aggiornati allo stato post T-01…T-21. Commit diretto su main.
+
+- **T-22 — Dev UX** (`feat/T-22-dev-ux` → squash main):
+  - Banner sessione TTL in `App.tsx`: compare dopo login se `session_ttl_secs > 0` (Admin/Supervisor); bottone "Disattiva" chiama `api.updateUser(authUser, { session_ttl_secs: 0 })`.
+  - Pre-deploy TTL check in `ConfigView.tsx` `handleDeploy()`: se TTL = 0 → `window.confirm` per riabilitare (1 h) prima del deploy.
+  - `scripts/dev.sh` riscritto con `--instance N`: porte VIEWER=8443+(N-1)×2, ADMIN=8444+(N-1)×2, VITE=5173+(N-1), data dir `.run-N/`. `stop_existing()` usa `fuser` per killare solo i processi sulle porte proprie.
+  - `sws-runtime/src/main.rs`: CLI args `--viewer-port` (default 8443) e `--admin-port` (default 8444).
+
+- **T-23 — Network discovery** (`feat/T-23-network-discovery` → squash main):
+  - Runtime annuncia `_sws._tcp.local.` via mdns-sd al boot (proprietà: `admin_port`, `version`); ServiceDaemon tenuto vivo fino all'exit del processo.
+  - `sws-web/src/discover.rs`: handler `GET /api/discover` (Supervisor+, porta 8444) — browse mDNS 2 s in `spawn_blocking`, restituisce `[{name, admin_url, viewer_url, version}]`.
+  - Frontend: bottone "Cerca runtime" in `RuntimeConnectionTab` → lista cliccabile di device trovati → click popola il campo URL.
+
+**Branch corrente**: main (tutti i commit squash-merged).
 
 ---
 
 ## Handoff prossima sessione
 
-### Stato branch T-21 (feat/T-21-split-webservers)
+### Prossimi task dal piano workflow (T-24…T-26)
 
-Subtasks completati: **tutti e 8 di 8**.  
-Branch non ancora mergiato su main — richiede verifica del maintainer.
+| ID | Titolo | Descrizione breve |
+|----|--------|------------------|
+| T-24 | Multi-device deploy | Deploy parallelo a N device (lista target, progress per-device, roll-back singolo) |
+| T-25 | Remote log viewer | `GET /api/logs/stream` SSE dal runtime remoto → pannello live nell'IDE |
+| T-26 | Dev.sh dual-instance smoke test | Verifica che `./scripts/dev.sh --instance 2` avvii sul secondo set di porte senza conflitti con l'istanza 1 |
 
-#### Verifica end-to-end richiesta
+### Verifica manuale T-22/T-23 da fare
+
 ```bash
-./scripts/dev.sh
-# In un altro terminale:
-curl -k https://localhost:8443/health         # → "ok"
-curl -k https://localhost:8444/health         # → "ok"
-curl -k https://localhost:8443/api/tags       # → 200 senza token (anonimo)
-curl -k https://localhost:8443/api/backups    # → 404 (non esposto su porta runtime)
-curl -k https://localhost:8444/api/backups    # → 401/200 (esposto su porta admin)
+# Avviare due istanze
+./scripts/dev.sh --instance 1    # apre http://localhost:5173 (admin), viewer 8443
+./scripts/dev.sh --instance 2    # apre http://localhost:5174, viewer 8445
+
+# Verificare discovery (dal browser sull'istanza 1):
+# Configurazione → tab Runtime → "Cerca runtime"
+# → devono comparire entrambe le istanze
+
+# Verificare TTL banner:
+# Login → banner compare se session_ttl_secs > 0 → "Disattiva" → banner sparisce
+
+# Verificare pre-deploy:
+# Connettiti a istanza 2, clicca "Deploy" → se TTL=0 → confirm riabilitazione
 ```
-Editor Vite (5173) ora proxia su 8444 — aprire `http://localhost:5173` e verificare che funzioni.
 
-Admin SPA: costruita come secondo entry point `dist/index-admin.html`. In produzione (--www), il router 8444 la serve come fallback SPA.
+### Debiti tecnici noti
 
-#### Subtask 6 — Admin SPA
-- `sws-editor/index-admin.html` → `src/admin-main.tsx` → `src/admin/AdminApp.tsx`
-- Mostra WelcomeScreen → Login → ConfigView (solo Supervisor/Admin)
-- Operator/Viewer vedono pagina 403
-- Build: `dist/assets/admin-*.js` (solo 4 kB — il grosso condiviso coi vendor chunks)
-
-#### Subtask 7 — Deploy remoto
-- `POST /api/deploy/remote` (admin-only, porta 8444): scarica da GitHub Releases, SCP, restart systemd, streaming log
-- Frontend: tab "Deploy binario" in `RemoteRuntimeModal` con arch selector, SSH credentials (localStorage save), log panel live
-
-#### Subtask 8 — sws-kiosk.service
-- `deploy/yocto/sws-kiosk.service` — unit systemd per il kiosk browser sul device
-
-3. **Verifica RBAC su PX30** (S-37, in sospeso da settimane):
-   - Hard reload browser (F12 → ricarica difficile)
-   - Login Operator: deve vedere solo Runtime, no Editor
-   - Login Supervisor: Runtime + ConfigView senza Users/Backups
-   - Login Admin: tutto
-
-4. **Adattamento entity_id** — il template usa gli entity_id dell'installazione di casa.
-   Se l'ufficio ha HA, aggiorna `project.yaml` con i tuoi entity_id.
-   Vedi `examples/templates/homeassistant-pro/SETUP.md` per la guida.
-
-### Verifica RBAC su PX30 (S-37, da rifare con cache pulita)
-
-### Verifica browser Operator su PX30 (S-37, da rifare con cache pulita)
-
-**Stato attuale**: il maintainer ha provato dopo il redeploy e ha visto ancora il bottone "Editor" come Operator. **Causa quasi certa**: cache browser. Il bundle SPA servito dal device è `index-BPl7YtNj.js` (verificato con `curl -k https://192.168.1.59:8443/index.html | grep index-`), che è quello *post-RBAC* — l'hash è stato confermato cambiare con/senza canary string a controprova. Vite usa `index.html` non-hashed (servito sempre fresco dal runtime), ma il browser può tenerlo cachato e continuare a chiamare un vecchio `index-XXXX.js`.
-
-**Cosa fare la prossima volta**:
-1. Dal PC, aprire DevTools (F12) → tasto destro sul pulsante refresh → "Svuota cache e ricarica difficile" (o `Ctrl+Shift+Del` → "Immagini e file in cache" → Cancella).
-2. Ricaricare `https://192.168.1.59:8443/`, login come Operator.
-3. Verificare matrice:
-   - Operator: solo bottone "Runtime"; no "Editor"/"Configurazione"; no side-menu.
-   - Hard-reload: resta su Runtime.
-   - DevTools console: `useAppStore.getState().setAppMode("edit")` → UI resta su Runtime.
-   - Supervisor: tutti e tre i bottoni; ConfigView senza Users/Backups.
-   - Admin: tutti e tre i bottoni; ConfigView con Users + Backups.
-
-**Se anche dopo cache-purge l'Operator vede il bottone Editor**: è un bug reale e va investigato. Indizi da raccogliere:
-- Cosa stampa `useAppStore.getState().authRole` in DevTools console subito dopo il login Operator (dovrebbe essere `"Operator"`).
-- Cosa stampa `useAppStore.getState().appMode` (dovrebbe essere `"edit"` di default — è il pinning di `effectiveMode` che lo nasconde, non lo store).
-- Screenshot dell'header così vediamo quale bottone effettivamente compare.
-
-### Traccia A — Yocto cross-compile + deploy (S-36, ✅ chiusa)
-
-Outcome:
-- `./scripts/yocto/build.sh release` su dev server → 3m40s clean, 18 MB stripped PIE aarch64.
-- `aarch64-pixsys-linux-readelf -d` NEEDED = `libpython3.12.so.1.0`, `libgcc_s.so.1`, `libm.so.6`, `libc.so.6`, `ld-linux-aarch64.so.1`. No OpenSSL, no sqlite (bundled), no GTK/WebKit.
-- Install path **`/data/user/sws/`** (non `/opt/sws`): su Pixsys Yocto `/` è read-only squashfs/ubifs, `/data/user` è la partizione scrivibile. Cambio applicato a `deploy.sh`, `sws-runtime-launch.sh`, `sws-runtime.service`, `docs/YOCTO_CROSSCOMPILE.md`.
-- Deploy `./scripts/yocto/deploy.sh pixsys@192.168.1.59` (PX30 `wp615-a-p2`) → systemd unit attivo, journal pulito, listener su 0.0.0.0:8443. Smoke test:
-  - `curl -k https://192.168.1.59:8443/health` → `ok` ✅
-  - `curl -k https://192.168.1.59:8443/` → 200 `text/html` (SPA servita) ✅
-  - `curl -k https://192.168.1.59:8443/api/system` → 401 (auth richiesta, atteso) ✅
-- `scripts/yocto/build.sh` patchato per esportare `PYO3_PYTHON=$(command -v python3)` (Debian dev server senza alias `/usr/bin/python`).
-- `docs/YOCTO_CROSSCOMPILE.md` linkata da `CLAUDE.md`.
-
-Debiti noti dal deploy (non-bloccanti, per fase prodotto):
-- `sws-runtime.service` gira `User=root` per semplicità. Quando il path diventa "prodotto" → utente non-privilegiato + `CAP_NET_BIND_SERVICE` solo se la porta scende sotto 1024.
-- Sul device manca `RestrictedPython` → script Python eseguono in modalità unsandboxed (warning evidente nel journal). Per device di test va bene; in prodotto: aggiungere `python3-restrictedpython` alla `IMAGE_INSTALL` di `meta-pixsys`.
-
-### Traccia B — Diagnostica white-window di `sws-kiosk` (S-38, ✅ CHIUSA)
-
-**Root cause** (S-38, 2026-05-22): quando Claude Code gira come snap (`SNAP=/snap/code/240`), le variabili `SNAP_*` si propagano nel subprocess `WebKitNetworkProcess` che WebKit lancia internamente. Quel processo trova `libpthread.so.0` da `/snap/core20/current/lib/` invece che dal sistema, causando un errore `GLIBC_PRIVATE` e il fallback a finestra bianca.
-
-**Fix applicato in `scripts/dev.sh`** (kiosk mode):
-1. Strip di tutte le variabili `SNAP_*` con `env -u` prima di exec-are il kiosk.
-2. Path binario corretto: `sws-runtime/crates/sws-kiosk/target/debug/sws-kiosk` (crate escluso dal workspace, non nel workspace target).
-3. Runtime in kiosk mode ora passa `--www sws-editor/dist` se la directory esiste (altrimenti warn).
-
-**Per lanciare il kiosk in sviluppo**:
-```bash
-cd sws-editor && pnpm build   # una volta, se dist/ non esiste
-./scripts/dev.sh kiosk        # avvia runtime + kiosk insieme
-```
+- `sws-kiosk` non aggiornato per `--viewer-port` (usa ancora hardcoded `https://localhost:8443` nel wayland spawn). Fix triviale in main.rs se/quando si usa il kiosk su device multi-istanza.
+- `stop_existing()` in `dev.sh` usa `fuser`; su macOS o sistemi senza `fuser` non funzionerà. Non prioritario (sviluppo su Linux).
+- mDNS discovery non funzionerà attraverso subnet diverse (by design — mDNS è link-local). Se serve bridge inter-subnet, post-PoC.
 
 ---
 
-## Next steps — priorità
-
-| ID | Task | Stima | Note |
-|----|------|-------|------|
-| A1 | **sws-kiosk test su PX30 fisico** (`./scripts/kiosk.sh`) | manuale | Richiede hardware + Wayland compositor (cage/weston). Build OK su desktop Ubuntu (S-38). |
-| — | ~~**OPC-UA historical reads**~~ | ✅ done | Chiusa S-43 |
-| 4.8 | ~~Grid: drag-to-range multi-cell~~ | ✅ done | Chiusa S-44 |
-| — | ~~**Modbus RTU**~~ | ✅ done | Chiusa S-46 |
-| — | ~~**OPC-UA server**~~ | ✅ done | Chiusa S-47 |
-| — | ~~**Tag calcolati/derivati**~~ | ✅ done | Chiusa S-48 |
-| — | ~~**Rotazione automatica pagine**~~ | ✅ done | Chiusa S-49 |
-| — | ~~**IP allowlist**~~ | ✅ done | Chiusa S-49 |
-| — | ~~**Alarm shelving**~~ | ✅ done | Chiusa S-49 |
-| — | ~~**HomeAssistant plugin**~~ | ✅ done | Chiusa S-50 |
-| — | ~~**HA entity browser**~~ | ✅ done | Chiusa S-51 |
-| — | **Verifica RBAC su PX30** | manuale | Cache-purge browser (F12 → ricarica difficile) poi smoke Operator/Supervisor/Admin |
-| 8.3 | LDAP / OAuth2 | ~4 h+ | Phase 3 — non ora |
-
----
-
-## Feature set consegnato (Phase 2)
+## Feature set consegnato (PoC completo T-01…T-23)
 
 | Area | Funzionalità |
 |------|-------------|
-| **Progetto** | WelcomeScreen pre-auth, 4 template (demo-items, casa-locale, opcua-demo, grid-playground), create/open/close/rename/duplicate/delete, ZIP export/import, backup manuale + auto |
-| **Auth** | Argon2id, RBAC 4 ruoli (Viewer/Operator/Supervisor/Admin), `users.yaml` per-progetto, `must_change_password`, re-auth modal, admin CRUD utenti |
-| **Editor canvas** | rect, ellipse, line, text, button, navbutton, image, gauge, slider, checkbox, radio, led, progress\_bar, table, symbol (22 built-in + custom), grid (merge/split/sub-cell ricorsivo) |
-| **Editor UX** | Palette categorizzata, groups + tree drag&drop + context menu, rulers + guide + snap, undo/redo (200 step), copy-paste cross-page, aspect-ratio resize, zoom/pan, multi-select, z-order, lock, history visuale |
-| **Bindings** | Tag bind su fill/stroke/text/opacity/rotation/visibility/color + `transition_duration_ms`; `on_press`/`on_release` Python con CodeMirror editor + snippet |
-| **Runtime view** | Tag WS bidirezionale, alarm panel + ACK, log panel (live + storico), script test panel, re-auth modal |
-| **Protocolli** | Modbus TCP, MQTT (TLS/auth/QoS/last-will/browse), OPC-UA (subscribe/write/browse/Euromap auto-detect/security policies Basic256Sha256), HomeAssistant (WebSocket state_changed + call_service write-back) |
-| **Backend** | Historian SQLite + ring-buffer, `/metrics` Prometheus, `/api/system`, backup auto, log JSONL rotato, alarm webhook, TagWriteBus |
-| **Deploy** | `--www` SPA embed, `VITE_RUNTIME_URL` remoto, `--kiosk-browser`, CORS + multi-runtime WelcomeScreen, compose.yaml PX30, entrypoint.sh |
-| **Qualità** | 53 unit test workspace, Playwright e2e (2 spec), TESTING_GUIDE, DEPLOY_PX30, OPCUA_SETUP |
-
----
-
-## Bug / verifiche manuali pendenti
-
-- **9.3** Fresh clone smoke: `rm -rf .run && ./scripts/dev.sh` → WelcomeScreen con 4 template, nessun progetto pre-aperto
-- **9.4** Log JSONL: al primo restart verificare che `.run/logs/runtime-YYYY-MM-DD.jsonl` venga creato
+| **Protocolli** | Modbus TCP+RTU, MQTT+Sparkplug B, OPC-UA client+server, HomeAssistant WS, Siemens S7, EtherNet/IP |
+| **Editor canvas** | Tutti i widget, symbol picker (22 built-in + custom), faceplate, grid, undo/redo 200 step |
+| **Auth/RBAC** | Argon2id, 4 ruoli, ABAC zone, session TTL configurabile per utente, audit log |
+| **Allarmi** | ISA-18.2 state machine, multi-condizione, delay, inhibit, shelving, webhook, SMTP escalation |
+| **Historian** | Ring-buffer + SQLite per-progetto, CSV export, trend interattivo |
+| **Deploy** | Dual-port 8443/8444, `--instance N` dev.sh, mDNS discovery, deploy remoto via SCP/systemd, GitOps |
+| **PWA** | Service worker, manifest, auto-rotate kiosk, mobile layout |
+| **Infra** | Yocto cross-compile (aarch64), Prometheus `/metrics`, audit log, log JSONL rotato, backup auto |
 
 ---
 
 ## Open questions
 
-Vedi `docs/OPEN_QUESTIONS.md`:
-- **Q2** Sparkplug B (deferred Phase 3)
-- **Q3** Plugin ABI (deferred)
-- **Q4** Frontend state management (default Zustand, revisit prima di M1 freeze)
+Vedi `docs/OPEN_QUESTIONS.md` — Q2/Q3/Q4/Q6 ora decise. Nessuna questione aperta bloccante.
