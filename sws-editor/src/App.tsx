@@ -432,6 +432,37 @@ export function App() {
   const [rtConnected, setRtConnected] = useState(
     () => localStorage.getItem("sws.runtime.connected") === "1"
   );
+
+  // Dev-mode TTL banner: shown to Admin/Supervisor when their session has an expiry.
+  // Lets them quickly disable it for convenience during development.
+  const [devTtlBanner, setDevTtlBanner] = useState<{ ttlSecs: number } | null>(null);
+  const [ttlBusy, setTtlBusy] = useState(false);
+
+  useEffect(() => {
+    if (!authToken || !authUser || (authRole !== "Admin" && authRole !== "Supervisor")) {
+      setDevTtlBanner(null);
+      return;
+    }
+    api.listUsers()
+      .then((users) => {
+        const me = users.find((u) => u.username === authUser);
+        if (me && me.session_ttl_secs !== null && me.session_ttl_secs !== 0) {
+          setDevTtlBanner({ ttlSecs: me.session_ttl_secs });
+        }
+      })
+      .catch(() => { /* non-critical */ });
+  }, [authToken, authUser, authRole]);
+
+  const handleDisableTtl = async () => {
+    if (!authUser) return;
+    setTtlBusy(true);
+    try {
+      await api.updateUser(authUser, { session_ttl_secs: 0 });
+      setDevTtlBanner(null);
+    } catch { /* ignore */ } finally {
+      setTtlBusy(false);
+    }
+  };
   useEffect(() => {
     const onConn = () => setRtConnected(true);
     const onDisc = () => setRtConnected(false);
@@ -760,6 +791,42 @@ export function App() {
 
       {/* Alarm banner */}
       <AlarmBanner />
+
+      {/* Dev-mode TTL banner: suggests disabling session expiry during development */}
+      {devTtlBanner && (
+        <div style={{
+          background: "#1c1917", borderBottom: "1px solid #44403c",
+          padding: "5px 16px", display: "flex", alignItems: "center",
+          gap: 12, fontSize: 12, color: "#d6d3d1", flexShrink: 0,
+        }}>
+          <span style={{ color: "#a8a29e" }}>⏱</span>
+          <span>
+            La sessione scade dopo {Math.round(devTtlBanner.ttlSecs / 60)} min.
+            Disattivarla per lo sviluppo?
+          </span>
+          <button
+            onClick={handleDisableTtl}
+            disabled={ttlBusy}
+            style={{
+              background: "#292524", color: "#d6d3d1",
+              border: "1px solid #44403c", borderRadius: 4,
+              padding: "2px 10px", cursor: ttlBusy ? "default" : "pointer",
+              fontSize: 11,
+            }}
+          >
+            {ttlBusy ? "…" : "Disattiva"}
+          </button>
+          <button
+            onClick={() => setDevTtlBanner(null)}
+            style={{
+              background: "transparent", color: "#78716c", border: "none",
+              cursor: "pointer", fontSize: 13, padding: "0 4px", marginLeft: "auto",
+            }}
+          >
+            ✕
+          </button>
+        </div>
+      )}
 
       {/* Page tabs (editor mode only) */}
       {effectiveMode === "edit" && (
