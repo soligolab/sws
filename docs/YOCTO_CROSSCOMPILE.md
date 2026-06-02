@@ -169,8 +169,13 @@ The unit runs the launch wrapper, which sources `runtime.env` and execs
 Quick check from the dev box after a deploy:
 
 ```
-curl -k https://<host>:8443/health        # → "ok"
+curl -k https://<host>:8443/health        # viewer operatori → "ok"
+curl -k https://<host>:8444/health        # admin IDE → "ok"
 ```
+
+> **Nota porte (T-21)**: il runtime avvia due server HTTPS.
+> `8443` = viewer operatori (optional_auth, esposto agli operatori).
+> `8444` = admin IDE (required_auth, solo per deploy e amministrazione — non esporre agli operatori in produzione).
 
 If `/health` doesn't answer, on the device:
 

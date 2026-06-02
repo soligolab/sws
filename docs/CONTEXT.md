@@ -1,43 +1,46 @@
 # SWS — Project Context & Working Mode (Addendum)
 
 > **Read this at the start of every Claude Code session before touching code.**
-> This file is the working-mode reality check. The original `SWS_Project_Specification.md` describes the long-term *destination* (CRA-compliant industrial Web SCADA). This addendum describes the *current short-term reality*: a **proof-of-concept** to demonstrate that the idea is viable.
+> This file is the working-mode reality check. The original `SWS_Project_Specification.md`
+> describes the long-term *destination* (CRA-compliant industrial Web SCADA). This addendum
+> describes the *current short-term reality*.
 >
 > Where this file and the spec disagree, **this file wins for now**.
 
-**Last updated**: May 2026
+**Last updated**: June 2026
 **Maintainer**: Mauro Soligo (solo developer, side project)
 **Working mode**: vibecode — Claude Code writes most of the code; the maintainer reviews, tests on hardware, makes architectural calls.
-**Project stage**: **Proof of Concept**, not product.
+**Project stage**: **Proof of Concept — core functionality complete (T-01…T-21).** Currently in workflow refinement phase (T-22…T-26) before a soft-launch demo.
 
 ---
 
 ## 1. What this project actually is right now
 
-**SWS today = a PoC to answer one question: "Is the idea of a lightweight, web-based, plugin-extensible SCADA running in a container on cheap ARM industrial hardware actually viable?"**
+**SWS today = a functionally complete PoC of a lightweight, web-based, plugin-extensible SCADA running on cheap ARM industrial hardware.**
 
-The PoC succeeds if a single person can:
+The original PoC success criteria have been met:
 
-1. Spin up SWS on a Rockchip PX30 in a Podman container.
-2. Load a project from a YAML folder.
-3. See live data from a real PLC (Modbus TCP), a real OPC-UA server, and an MQTT/Sparkplug source.
-4. Build a small synoptic in the WebEditor and watch values update live in a browser.
-5. Show this to industry peers and have them say "yes, this could work as a product."
+1. ✅ SWS runs natively on Rockchip PX30 (Yocto cross-compiled binary).
+2. ✅ Projects are loaded from YAML folders with hot-reload.
+3. ✅ Live data from real PLCs: Modbus TCP, OPC-UA, MQTT/Sparkplug B, HomeAssistant.
+4. ✅ Synoptics are built in the WebEditor and values update live in the browser.
+5. ✅ The architecture has been shown to industry peers informally.
 
-Anything beyond this is not the goal of the PoC. It can wait.
+The current focus is on refining the **development and deployment workflow** (T-22…T-26)
+before the Phase 5 public demo.
 
 ### What the PoC is NOT
 
 - It is not a product. No customers, no SLAs, no support obligations.
 - It is not 1.0. The CalVer milestones in the original spec are aspirational, not commitments.
-- It is not CRA-certified. CRA is a *design influence* (see §4), not a deliverable.
-- It is not feature-complete vs commercial SCADAs. Many things are deliberately left for later.
+- It is not CRA-certified. CRA is a *design influence* (see §6), not a deliverable.
+- It is not feature-complete vs commercial SCADAs — many things are deliberately deferred.
 
 ### Visibility policy
 
-- Repo is **public but silent**: no announcements, no marketing, no community building until there is a working demo.
+- Repo is **public but silent**: no announcements, no marketing, no community building until the public demo (Phase 5).
 - README explicitly states "early proof-of-concept, not for production use."
-- License (AGPL-3.0) and DCO are already in place to keep options open if the PoC succeeds.
+- License (AGPL-3.0) and DCO are already in place.
 
 ---
 
@@ -49,12 +52,12 @@ Anything beyond this is not the goal of the PoC. It can wait.
 | Annual capacity | ~200-280 hours/year of human time |
 | Session pattern | **Whenever a 3-4 hour focused block is available** — no fixed schedule |
 | Team | **One person + Claude Code** |
-| Hardware access | Maintainer-only (PX30, RK3399) |
+| Hardware access | Maintainer-only (PX30, RK3399, RK3588) |
 
 ### What this means for how Claude Code should work
 
 - **Sessions are sparse and may be weeks apart.** Loss of context between sessions is the #1 risk.
-- Every session must end with the codebase in a state the next session can resume cleanly. Update `STATUS.md` (see §6) before stopping work.
+- Every session must end with the codebase in a state the next session can resume cleanly. Update `STATUS.md` (see §8) before stopping work.
 - **Each work block is 3-4 hours.** Plan tasks that fit one block. Don't start a 12-hour refactor.
 - Code the maintainer can't read at midnight is technical debt, even if it's idiomatic Rust. Prefer simpler, well-commented code over clever code.
 - **Permission friction is the second risk** after context loss. See `docs/CLAUDE_CODE_SETUP.md` — this project ships a tuned `.claude/settings.json` with `defaultMode: acceptEdits` so most operations don't prompt.
@@ -64,86 +67,113 @@ Anything beyond this is not the goal of the PoC. It can wait.
 
 ---
 
-## 3. Current bootstrap status
+## 3. Current state (as of June 2026)
 
-As of the last context update, the repository has been scaffolded with the following structure:
+The repository is fully functional. All workspace crates build (`cargo check --workspace` green), the SPA builds (`pnpm build` green), and 53+ unit tests pass.
+
+### Crate structure
 
 ```
-sws/
-├── README.md, SECURITY.md, CONTRIBUTING.md, CODE_OF_CONDUCT.md, CHANGELOG.md
-├── .github/workflows/ci.yml (DCO, lint, build, test, audit, SBOM, multi-arch container)
-├── .gitlab-ci.yml (mirror pipeline)
-├── .claude/settings.json (Claude Code permissions, project-scoped — see CLAUDE_CODE_SETUP.md)
-├── docs/adr/0001-state-management.md (Zustand vs RTK, pending)
-├── sws-runtime/ (Rust workspace, cargo check passes)
-│   └── crates/ (sws-core, sws-web, sws-auth, sws-historian, sws-audit,
-│                sws-pyscript, sws-plugin-api, sws-plugin-{modbus,opcua,mqtt},
-│                sws-runtime [bin])
-└── sws-editor/ (Vite + React + TypeScript, pnpm build passes)
-    └── src/ (App, EditorShell, RuntimeView, SvgCanvas, store, tagStream, i18n)
+sws-runtime/crates/
+  sws-core           — shared types (TagValue, AlarmDef, ProjectMeta, …)
+  sws-auth           — Argon2id, RBAC 4 roles, session tokens
+  sws-historian      — in-memory ring buffer + SQLite persistence
+  sws-pyscript       — PyO3 + RestrictedPython sandbox, global script supervisor
+  sws-audit          — append-only audit log (auth events, tag writes, project changes)
+  sws-web            — Axum router (dual-port 8443+8444), all HTTP/WS handlers
+  sws-plugin-api     — shared Plugin trait + TagValue across plugin crates
+  sws-plugin-modbus  — Modbus TCP + RTU (tokio-modbus)
+  sws-plugin-opcua   — OPC-UA client + server (async-opcua)
+  sws-plugin-mqtt    — MQTT client + Sparkplug B encode/decode (rumqttc + prost)
+  sws-plugin-ha      — HomeAssistant WebSocket (state_changed + call_service)
+  sws-plugin-s7      — Siemens S7 (pure-Rust s7 crate, tokio bridge)
+  sws-plugin-enip    — EtherNet/IP (rseip, ControlLogix symbolic tag access)
+  sws-runtime        — binary entry point, dual-port TLS server (8443 + 8444)
 ```
 
-Verified working at last bootstrap:
-- `cd sws-runtime && cargo check --workspace` — passes
-- `cd sws-editor && pnpm build` — passes
-- `cd sws-editor && pnpm type-check` — passes
+### Editor (sws-editor)
 
-Still to do (was deferred during bootstrap):
-- LICENSE file (AGPL-3.0 full text) — content-filter blocked the original write, add it manually or via short SPDX reference + URL
-- Actual feature implementation — bootstrap created skeletons only, all crates have `// TODO:` placeholders
+React + TypeScript + Vite 6 SPA. Two entry points:
+- `index.html` → `src/main.tsx` → `RuntimeViewer` (operator UI, ~24 kB)
+- `index-admin.html` → `src/admin-main.tsx` → `App` (full IDE, ~310 kB)
+
+### Dual-port architecture (T-21)
+
+| Port | Role | Auth | SPA |
+|------|------|------|-----|
+| **8443** | Viewer (operators) | Optional (`optional_auth`) | `dist/index.html` |
+| **8444** | Admin IDE | Required | `dist/index-admin.html` |
+
+Project lifecycle routes (`upload`, `delete`, `open`) exist **only on 8444**.
+
+### Dev workflow
+
+```bash
+./scripts/dev.sh           # runtime 8443+8444 + Vite proxy 5173→8444
+# Browser: http://<ip>:5173  (IDE via proxy, no cert)
+#          https://<ip>:8443 (viewer, self-signed cert — accept once)
+#          https://<ip>:8444 (admin IDE, same cert — accept once)
+```
+
+TLS cert is persistent between restarts (`.run/tls.crt` + `.run/tls.key`).
 
 ---
 
-## 4. Honest milestone plan
-
-Forget the CalVer dates from the original spec. Realistic plan based on actual time budget:
+## 4. Phase plan — current status
 
 ### Phase 0 — Scaffolding ✅ COMPLETE
+Bootstrap done. Monorepo structure, CI, Dockerfiles, healthcheck, `cargo check` and `pnpm build` green.
 
-Bootstrap done. Two-container monorepo structure, CI, Dockerfiles, healthcheck endpoint. `cargo check` and `pnpm build` both green.
+### Phase 1 — Tag engine + Modbus TCP ✅ COMPLETE
+Centralized in-memory tag DB, WebSocket streaming, project YAML loader, Modbus TCP plugin,
+Argon2id auth, WebEditor drag-and-drop canvas, tag binding on synoptic objects.
 
-### Phase 1 — Tag engine + Modbus TCP (next, ~60 h work)
+### Phase 2 — Historian + Alarms + RBAC ✅ COMPLETE
+SQLite historian (deadband/on-change/periodic), ISA-18.2 alarm state machine (4-state,
+ACK, shelving, delay, inhibit, journal), ABAC zone-based access control, audit log v1,
+trend chart (Canvas 2D with pan/zoom).
 
-- Centralized in-memory tag database with WSS streaming.
-- Project loader: YAML files from a folder, hot reload on change.
-- Modbus TCP plugin reading/writing real registers (`tokio-modbus`).
-- Auth: single admin user, Argon2id password, session cookies.
-- WebEditor: drag primitive on canvas, bind to tag, save synoptic YAML, see live value.
-- **Exit criteria**: maintainer builds and demos "blink an LED on a real PLC from a browser tab" on PX30.
+### Phase 3 — MQTT + Sparkplug B ✅ COMPLETE
+`rumqttc` MQTT client plugin (TLS/auth/QoS/last-will/browse), Sparkplug B encode/decode
+with manual Protobuf structs (prost), SCADA Host STATE, NCMD write-back. _(T-08)_
 
-### Phase 2 — Historian + Alarms + RBAC (~50 h work)
+### Phase 4 — OPC-UA client + server ✅ COMPLETE
+`async-opcua` 0.18 client (subscribe/write/browse/Euromap auto-detect, security policies
+Basic256Sha256) + server (exposes SWS tags as OPC-UA nodes). _(S-62/63)_
 
-- SQLite historian plugin: deadband + on-change + periodic.
-- Alarm engine: definition, active list, acknowledge.
-- Audit log v1: file-based, hash-chained (HMAC signing deferred).
-- Trend chart in the editor (Canvas 2D).
-- RBAC: Viewer / Operator / Supervisor / Admin roles.
-- **Exit criteria**: a small real SCADA project (e.g. Mauro's solar plant monitoring) deployable end-to-end.
-
-### Phase 3 — MQTT + Sparkplug B (~50 h work)
-
-- `rumqttc` MQTT client plugin.
-- Optional embedded `rumqttd` broker mode.
-- Sparkplug B encoding/decoding (likely contributing to or forking `sparkplug-rs`, possibly hand-rolled with `prost` — see OPEN_QUESTIONS Q2).
-- **Exit criteria**: SWS publishes tag changes as Sparkplug B; another SWS instance subscribes and receives them.
-
-### Phase 4 — OPC-UA client + server (~80 h work)
-
-- `async-opcua` integration: client plugin first, server plugin after.
-- Tested against a real industrial PLC (Siemens / B&R / similar), not just simulators.
-- **Exit criteria**: bidirectional OPC-UA tag exchange with at least one real PLC documented in the test report.
-
-### Phase 5 — PoC public demo (~30 h work)
-
-- Documentation site (Docusaurus) with operator manual, project format reference.
-- Short demo video showing all three protocols feeding a live synoptic on PX30.
-- "Soft launch" announcement, opening discussion for feedback.
+### Phase 5 — PoC public demo 🔲 IN PROGRESS
+Workflow refinement (T-22…T-26), documentation update (current session), then:
+- Two-terminal dev simulation (`dev.sh --instance N`)
+- Network discovery of active runtimes (mDNS)
+- Multi-device management from IDE
+- Runtime standalone packaging (generic Linux installer)
+- Documentation site (Docusaurus) — deferred post-workflow
+- Short demo video
 
 ### Realistic PoC-complete horizon
+Phase 5 is the last PoC phase. After the demo the decision is "graduate to product" or "park the experiment." Either is fine.
 
-**12-18 months of calendar time** from bootstrap. The goal is **demo-able viability**, not 1.0. After that, the decision is "graduate to product" or "park the experiment." Either is fine.
+### Features implemented beyond the original plan
+The following were not in the original Phase 1-4 plan but were implemented during the PoC:
 
-Phases beyond PoC (WebEditor "complete" with animations + multi-user, S7, EtherNet/IP, OAuth/LDAP plugins, OTA updates with rollback, full CRA program) are post-PoC territory.
+| Feature | Task/Session |
+|---------|-------------|
+| Siemens S7 plugin | T-07 (S-62) |
+| EtherNet/IP plugin | T-07 (S-62) |
+| HomeAssistant plugin | T-09 (S-50/51) |
+| Recipe Manager | T-11 (S-67) |
+| Alarm shelving | S-49 |
+| SMTP notifications | T-13 (S-67) |
+| GitOps (git pull/rollback per project) | T-20 (S-68) |
+| PWA (Progressive Web App) | T-19 (S-49) |
+| Symbol picker gallery (22 built-in SVG) | T-01 (S-58) |
+| Faceplate system (motor/valve/tank) | T-04 (S-66) |
+| Global script scheduler (cron/interval/startup/tag-change) | T-09 (S-61) |
+| CSV tag import/export | T-05 (S-60) |
+| Per-device IP allowlist | S-49 |
+| Split webserver 8443/8444 + admin SPA | T-21 |
+| Remote deploy from IDE | T-21 (S-70) |
+| Persistent TLS cert | T-21 fix |
 
 ---
 
@@ -158,29 +188,30 @@ These were settled in the spec design rounds and confirmed at bootstrap. **Not u
 | HTTP/WS server | Axum + Tower + hyper-util TLS loop | `axum`, `tower`, `tower-http`, `hyper-util` |
 | TLS | rustls (no OpenSSL), self-signed via rcgen | `rustls`, `tokio-rustls`, `rcgen`, `rustls-pemfile` |
 | Logging | Structured JSON | `tracing` + `tracing-subscriber` |
-| Metrics | Prometheus exposition (placeholder for now) | `metrics`, `metrics-exporter-prometheus` |
+| Metrics | Prometheus exposition | `metrics`, `metrics-exporter-prometheus` |
 | OPC-UA client + server | Pure-Rust | `async-opcua` 0.18 (FreeOpcUa, MPL-2.0) |
 | Modbus TCP/RTU | Pure-Rust async | `tokio-modbus` 0.6 (slowtec, MIT/Apache-2.0) |
 | MQTT client | Pure-Rust async | `rumqttc` 0.24 (Bytebeam, Apache-2.0) |
 | MQTT broker (optional embedded) | Pure-Rust | `rumqttd` 0.19 (Bytebeam, Apache-2.0) |
-| Sparkplug B | TBD — see OPEN_QUESTIONS Q2 | likely `prost` + manual encoding |
+| Sparkplug B | Manual Protobuf with `prost` (option C, decided T-08) | `prost` |
 | Password hashing | Argon2id | `argon2` |
 | User scripting | Embedded CPython sandboxed | `pyo3` 0.23 + RestrictedPython |
 | Frontend | TypeScript + React 19 + Vite 6 | — |
 | Frontend package manager | pnpm 9 | — |
-| Frontend state mgmt | Zustand (provisional, ADR 0001 pending) | `zustand` |
+| Frontend state mgmt | Zustand (decided — ADR 0001 accepted) | `zustand` |
 | Graphic rendering | SVG (interactive) + Canvas 2D (trends) | — |
 | Project format | YAML files in a folder, one synoptic per file | `serde_yaml` |
-| Plugin loading | Dynamic `.so` via stable C ABI | `abi_stable` crate as fallback |
-| Container base | `debian:bookworm-slim` | — |
-| Architectures | `linux/arm64`, `linux/amd64` | — |
+| Plugin loading | **Compiled-in workspace crates** (no dynamic .so in PoC; revisit product phase) | — |
+| Container base | `debian:bookworm-slim` (container path legacy; Yocto native binary is preferred) | — |
+| Architectures | `linux/arm64` (Yocto native binary — preferred); `linux/amd64` (dev) | — |
 | Repository layout | **Monorepo** with `sws-runtime/` and `sws-editor/` subdirectories | — |
-| License | AGPL-3.0 | LICENSE file pending |
+| License | AGPL-3.0 (full text in `LICENSE`, verified 2026-05-12) | — |
 | Contributor agreement | DCO (`Signed-off-by:` on every commit) | — |
-| Branching | Trunk-based, short feature branches | — |
+| Branching | `feat/T-XX-short-desc` branches → squash merge to main | — |
 | Versioning | CalVer (`YYYY.MM[.patch]`), starting at `0.1.0-dev` | — |
-| Reference hardware | Rockchip PX30, RK3399 | — |
-| UI / docs language | English only | — |
+| Reference hardware | Rockchip PX30, RK3399, RK3588 | — |
+| UI language | **Italian** (pragmatic choice for the PoC — only Italian users in scope now) | — |
+| Docs/code language | English | — |
 
 If a session needs to revisit any of these, **stop and ask the maintainer first**. Don't refactor across architectural decisions in a vibecode session.
 
@@ -190,18 +221,19 @@ If a session needs to revisit any of these, **stop and ask the maintainer first*
 
 The original spec lists a full CRA compliance program. For the PoC, **CRA is an architectural compass, not a deliverable**. We implement what's cheap and architecturally consequential; we defer what's heavy and process-driven.
 
-### IN scope for PoC (do these now)
+### IN scope for PoC (done or doing)
 
-- **HTTPS/WSS only**, no plain HTTP. Self-signed cert auto-generated on first run. ✅ done at bootstrap
-- **No default credentials**. First run forces admin password creation. (entrypoint.sh enforces `SWS_ADMIN_PASSWORD`) ✅ done at bootstrap
-- **Argon2id** password hashing, never plain or weak hashes.
-- **Non-root container user**, capabilities dropped where reasonable. ✅ done at bootstrap
-- **Pinned dependencies** (`Cargo.lock`, `pnpm-lock.yaml` always committed).
-- **CycloneDX SBOM** generated by CI on every build (cheap, automatic). ✅ done at bootstrap
-- **Vulnerability scanning** in CI: `cargo-audit`, `npm audit`, `trivy`. Non-blocking warnings for now (we're a PoC, not blocking on every advisory). ✅ done at bootstrap
-- **Audit log v1**: simple append-only file, structured JSON. Records auth events, tag writes, project changes.
-- **Memory-safe Rust**: no `unsafe` without a `// SAFETY:` comment.
-- **Secrets deny rules** in `.claude/settings.json` so Claude Code can never read `.env`, `*.pem`, `*.key`, etc. ✅ done
+- **HTTPS/WSS only**, no plain HTTP. Self-signed cert auto-generated on first run. ✅
+- **No default credentials**. First run forces admin password creation. ✅
+- **Argon2id** password hashing, never plain or weak hashes. ✅
+- **Non-root container user**, capabilities dropped where reasonable. ✅
+- **Pinned dependencies** (`Cargo.lock`, `pnpm-lock.yaml` always committed). ✅
+- **CycloneDX SBOM** generated by CI on every build. ✅
+- **Vulnerability scanning** in CI: `cargo-audit`, `npm audit`, `trivy`. ✅
+- **Audit log v1**: append-only file, structured JSON. Records auth events, tag writes, project changes. ✅
+- **Memory-safe Rust**: no `unsafe` without a `// SAFETY:` comment. ✅
+- **Secrets deny rules** in `.claude/settings.json`. ✅
+- **ABAC zone-based permissions** (T-14): per-synoptic zone access control. ✅
 
 ### OUT of scope for PoC (defer to product phase)
 
@@ -211,7 +243,6 @@ The original spec lists a full CRA compliance program. For the PoC, **CRA is an 
 - Container signing with cosign.
 - Automatic update with rollback.
 - Let's Encrypt integration.
-- Full ABAC zone-based permissions (basic RBAC is enough for PoC).
 - OAuth2/OIDC, LDAP authentication plugins.
 - 21 CFR Part 11 audit trail compatibility.
 
@@ -219,32 +250,21 @@ When in doubt: **CRA-friendly architecture yes, CRA-compliant process no.**
 
 ---
 
-## 7. PoC scope per protocol
+## 7. PoC scope per protocol — final status
 
-For each protocol, the PoC needs:
+| Protocol | Status | Task/Session |
+|----------|--------|-------------|
+| **Modbus TCP** | ✅ DONE — read/write, hot-reload, demo synoptic | Phase 1 |
+| **Modbus RTU** | ✅ DONE — serial port, same driver as TCP | S-46 |
+| **OPC-UA client** | ✅ DONE — subscribe/write/browse, security policies, Euromap | S-62/63 |
+| **OPC-UA server** | ✅ DONE — SWS tags exposed as OPC-UA nodes | S-63 |
+| **MQTT client** | ✅ DONE — TLS/auth/QoS/LWT, browse, Sparkplug B | T-08 (S-65) |
+| **Sparkplug B** | ✅ DONE — NBIRTH/NDATA/DBIRTH/DDATA, NCMD write-back, SCADA Host STATE | T-08 |
+| **HomeAssistant** | ✅ DONE — WebSocket state_changed + call_service write-back, entity browser | T-09 (S-50/51) |
+| **Siemens S7** | ✅ DONE — DB/M/I/Q areas, BOOL/BYTE/INT/WORD/DINT/REAL | T-07 (S-62) |
+| **EtherNet/IP** | ✅ DONE — ControlLogix symbolic tag access | T-07 (S-62) |
 
-1. **Happy-path connection** to a real device.
-2. **Read + write of basic tag types** (bool, int, float, string).
-3. **One demo synoptic in the WebEditor** that visibly uses that protocol.
-
-That's it. No need for:
-- Edge cases, reconnection storms, partial failures (log them, move on).
-- Full address space browsing (OPC-UA) — manual config is fine.
-- Sparkplug birth/death/rebirth full state machine — basic publish/subscribe is enough.
-- Modbus RTU (TCP only for PoC).
-- TLS on Modbus or MQTT (HTTPS for the web side is enough; field protocols can be plain in PoC).
-
-### Per-protocol exit criteria
-
-| Protocol | "Done for PoC" means |
-|---|---|
-| **Modbus TCP** | Reads holding registers from a real PLC, writes to a coil, both visible in a browser synoptic |
-| **OPC-UA client** | Subscribes to nodes on a real OPC-UA server, values stream to the browser |
-| **OPC-UA server** | Exposes SWS internal tags as OPC-UA nodes, a third-party OPC-UA client can read them |
-| **MQTT client** | Publishes tag changes and subscribes to commands on a broker |
-| **Sparkplug B** | One SWS instance publishes Sparkplug-encoded data, another SWS subscribes and decodes |
-
-Once each protocol hits "done for PoC", **stop iterating on it** and move to the next. Polishing is for the product phase.
+All "done for PoC" criteria met for every protocol. No further protocol work planned unless the maintainer requests it.
 
 ---
 
@@ -265,7 +285,6 @@ This is the operational rhythm Claude Code should follow.
 - Keep changes scoped to **one logical unit** (one PR worth of work).
 - Run tests and `cargo check` / `pnpm build` frequently.
 - If something doesn't fit in the current 3-4 hour block, **stop at a clean point**, don't try to push through.
-- Comment generously, especially around protocol-specific quirks (OPC-UA security policies, Modbus byte order, Sparkplug payload schemas).
 - **Use the approved tools without re-asking**. The `.claude/settings.json` exists so you don't have to interrupt the maintainer for routine commands. If you find yourself about to ask permission for a `cargo`/`pnpm`/`git` command, check the allow list first — it's almost certainly already approved.
 - **When you do encounter a new command that gets denied**: stop, propose adding it to `.claude/settings.json` as a specific allow rule (not `Bash(*)`), and continue.
 
@@ -282,9 +301,9 @@ This is the operational rhythm Claude Code should follow.
 
 ## 9. Open architectural questions
 
-See `docs/OPEN_QUESTIONS.md` for the running list. **Don't decide these in a vibecode session** — bring them to the maintainer.
+See `docs/OPEN_QUESTIONS.md` for the full running list. **Don't decide these in a vibecode session** — bring them to the maintainer.
 
-Current questions: Python embedding strategy, Sparkplug B implementation, plugin ABI strategy, frontend state management, i18n scaffolding, symbol library packaging.
+Remaining undecided questions: none of the original Q1-Q7 are open (all decided). New questions should be added when they arise.
 
 ---
 
@@ -292,13 +311,12 @@ Current questions: Python embedding strategy, Sparkplug B implementation, plugin
 
 Things that will hurt this PoC specifically. If Claude Code finds itself doing any of these, **stop and reconsider**.
 
-- ❌ **Refactoring across architectural lines** without maintainer sign-off (e.g. "let me just switch from Axum to Actix because…").
+- ❌ **Refactoring across architectural lines** without maintainer sign-off.
 - ❌ **Adding dependencies casually**. Each new crate is a CRA surface and a maintenance commitment. Use what's in §5 unless there's a strong reason.
 - ❌ **Writing >500 lines without a `cargo check`**. Long unverified diffs are session-ending failures.
 - ❌ **Implementing "edge cases" that aren't in PoC scope**. The happy path is enough. Log and move on.
 - ❌ **Touching multiple subsystems in one commit**. PRs should be focused.
 - ❌ **Skipping `STATUS.md` update at session end**. This is the single most important habit for vibecode continuity.
-- ❌ **Implementing features not on the current phase plan**. If it's Phase 1, don't start MQTT work yet.
 - ❌ **Pretending the PoC is more than it is**. README, comments, commit messages should be honest about the stage.
 - ❌ **Asking permission for an already-allowed command**. Read `.claude/settings.json` first; if a rule covers it, just run it.
 - ❌ **Proposing `Bash(*)` as an allow rule** to dodge prompts. Use specific patterns; that's the whole point.

@@ -1,45 +1,115 @@
 # SWS — Test setups
 
-> Where the maintainer actually runs SWS while developing it. The list of physical devices changes between sessions; this doc records the *categories* of test environments and the conventions around using them. For up-to-date device addresses, ask the maintainer.
+> Where the maintainer actually runs SWS while developing it. The list of physical devices
+> changes between sessions; this doc records the *categories* of test environments and the
+> conventions around using them. For up-to-date device addresses, ask the maintainer.
+
+## Architettura porte (T-21)
+
+Il runtime avvia **due server HTTPS** su porte distinte:
+
+| Porta | Ruolo | SPA servita | Auth |
+|-------|-------|-------------|------|
+| **8443** | Viewer operatori | `dist/index.html` (RuntimeViewer, ~24 kB) | Optional (`optional_auth`): no token → Viewer anonimo |
+| **8444** | Admin IDE | `dist/index-admin.html` (App completa, ~310 kB) | Required: token valido oppure 401 |
+
+Il proxy Vite (`5173 → 8444`) permette lo sviluppo senza accettare il cert self-signed
+dell'admin IDE. Il cert TLS è **persistente tra i restart** del runtime (T-21 fix):
+basta accettarlo una volta per browser.
+
+---
 
 ## 1. Casa — Ubuntu desktop con monitor
 
-Un singolo PC desktop Linux con schermo. È l'unico posto in cui il maintainer può vedere `sws-kiosk` (GTK4 + WebKitGTK6) dal vivo su un display reale, senza Yocto/Wayland.
+Un singolo PC desktop Linux con schermo. È l'unico posto in cui il maintainer può vedere
+`sws-kiosk` (GTK4 + WebKitGTK6) dal vivo su un display reale, senza Yocto/Wayland.
 
 Cosa testare qui:
 - `sws-kiosk` (finestra GTK locale).
 - Runtime + editor in modalità locale (`./scripts/dev.sh`).
-- Browser di sistema (Firefox/Chrome) per accettare il cert self-signed la prima volta.
+- Browser di sistema (Firefox/Chrome) per accettare i cert self-signed.
+
+Dopo `./scripts/dev.sh`:
+- `http://localhost:5173` → IDE admin via Vite proxy (nessun cert da accettare)
+- `https://localhost:8443` → Viewer operatori (accettare cert una volta)
+- `https://localhost:8444` → IDE admin diretto (accettare cert una volta)
+
+I due cert (8443 e 8444) sono gli stessi file `tls.crt`/`tls.key` in `.run/`, persistenti
+tra restart. Accettarli è un'operazione una-tantum per installazione.
+
+---
 
 ## 2. Ufficio — dev server (questa macchina)
 
-Il server di sviluppo dove vive il repo a `/home/ut1/sws`. **Macchina headless** (nessun monitor diretto).
+Il server di sviluppo dove vive il repo a `/home/max_xxv/sws`. **Macchina headless**
+(nessun monitor diretto).
 
 Flusso tipico:
-1. `./scripts/dev.sh` su questa macchina avvia runtime (8443) + Vite editor (5173) e stampa la LAN IP del server.
-2. Il maintainer apre il browser sul **proprio PC** e punta a `http://<server-lan-ip>:5173` (consigliato — Vite fa proxy a 8443, niente cert self-signed da accettare dal browser remoto).
+1. `./scripts/dev.sh` su questa macchina avvia:
+   - runtime (8443 viewer + 8444 admin)
+   - Vite dev server (5173 → proxy a 8444)
+   - stampa la LAN IP del server
+2. Il maintainer apre il browser sul **proprio PC**:
+
+| URL | Cosa mostra | Cert |
+|-----|-------------|------|
+| `http://<server-ip>:5173` | IDE admin via Vite proxy | nessun cert (HTTP) |
+| `https://<server-ip>:8443` | Viewer operatori | self-signed, accettare una volta |
+| `https://<server-ip>:8444` | IDE admin diretto | self-signed, accettare una volta |
+
+> Il proxy Vite (5173) punta a **8444** (admin), non a 8443. Le route di project lifecycle
+> (`upload`, `delete`, `open`) esistono **solo** su 8444.
 
 Cosa NON si può testare qui:
-- `sws-kiosk`: richiede un display GTK; questa macchina non ne ha. Per quello, vedi sezione 1 (casa) o 3 (Yocto + Wayland).
+- `sws-kiosk`: richiede un display GTK; questa macchina non ne ha. Per quello, vedi
+  sezione 1 (casa) o 3 (Yocto + Wayland).
+
+---
 
 ## 3. Ufficio — dispositivi Yocto (PX30, RK3399, RK3588)
 
-Dispositivi industriali Rockchip in LAN ufficio. Deploy in **container Podman** secondo `docs/DEPLOY_PX30.md`. Due modi di guardare la UI:
+Dispositivi industriali Rockchip in LAN ufficio. Deploy tramite **binario nativo Yocto**
+(`docs/YOCTO_CROSSCOMPILE.md`). La guida container (`docs/DEPLOY_PX30.md`) è il flusso
+legacy per device ARM64 generici non-Yocto.
 
+Layout su device:
+```
+/data/user/sws/
+  sws-runtime              binario nativo aarch64
+  sws-runtime-launch.sh    env loader + exec wrapper
+  runtime.env              overrides per-device (admin password, ecc.)
+  config/                  cert TLS (generati al primo avvio, persistenti)
+  projects/                progetti operativi
+  templates/               template bundled
+  www/                     SPA dist (viewer 8443 + admin 8444)
+  historian.db             SQLite
+```
+
+Porte su device:
+```
+https://<device-ip>:8443   → viewer operatori (non esporre agli operatori la porta 8444)
+https://<device-ip>:8444   → admin IDE (solo per deploy e amministrazione)
+```
+
+Due modi di guardare la UI:
 1. Browser remoto dal PC del maintainer (come per il dev server).
-2. **Rendering Wayland diretto sul device** (il caso d'uso reale del prodotto: SCADA su pannello industriale).
+2. **Rendering Wayland diretto sul device** (caso d'uso reale del prodotto: SCADA su
+   pannello industriale).
 
 | Piattaforma | Note |
 |-------------|------|
 | PX30 | Reference hardware principale per il PoC. |
-| RK3399 | Compatibile via Podman/arm64. |
-| RK3588 | Compatibile via Podman/arm64 (più potente, utile per stress test). |
+| RK3399 | Compatibile via stesso binario arm64. |
+| RK3588 | Compatibile (più potente, utile per stress test). |
 
-**Lista dei device fisicamente disponibili = volatile.** Cambia tra sessioni. Lo snapshot più recente è nella memoria di sessione (`test-setup-office-yocto`). Prima di lanciare un test SSH, **chiedere sempre al maintainer** quale device usare e a quale indirizzo.
+**Lista dei device fisicamente disponibili = volatile.** Cambia tra sessioni.
+Prima di lanciare un test SSH, **chiedere sempre al maintainer** quale device usare e
+a quale indirizzo.
 
 ### Procedura ricorrente del maintainer (non automatizzata)
 
-Il maintainer esegue **manualmente** sul dev server, prima di ogni sessione di test su un device:
+Il maintainer esegue **manualmente** sul dev server, prima di ogni sessione di test su un
+device:
 
 ```sh
 # Se l'host key del device è cambiata (ad es. dopo un re-flash):
@@ -49,16 +119,23 @@ ssh-keygen -f ~/.ssh/known_hosts -R <host>
 ssh-copy-id -i ~/.ssh/id_ed25519.pub pixsys@<host>
 ```
 
-L'agente non esegue questi due comandi: deve aspettare che il maintainer li abbia fatti e poi può procedere con `ssh pixsys@<host>` per i comandi successivi.
+L'agente non esegue questi due comandi: deve aspettare che il maintainer li abbia fatti
+e poi può procedere con `ssh pixsys@<host>` per i comandi successivi.
+
+---
 
 ## Convenzioni
 
 - **Username sui device Yocto**: `pixsys` per default.
-- **Cert self-signed**: il runtime genera `tls.crt` / `tls.key` in `.run/config/` al primo avvio (`rcgen`, CN=`localhost`). Per evitare di doverlo accettare nel browser, sviluppare via Vite proxy (porta 5173).
-- **Non automatizzare** la distribuzione delle chiavi SSH ai device — è una scelta esplicita del maintainer.
+- **Cert self-signed**: il runtime genera `tls.crt` / `tls.key` in `.run/` al primo avvio
+  (`rcgen`). Dalla seconda esecuzione in poi i cert vengono riusati (T-21 fix) — il browser
+  non chiede di riaccettarli.
+- **Non automatizzare** la distribuzione delle chiavi SSH ai device — è una scelta
+  esplicita del maintainer.
 
 ## Vedi anche
 
 - `STATUS.md` — handoff session-by-session.
-- `docs/DEPLOY_PX30.md` — deploy in container sul PX30 reale.
+- `docs/YOCTO_CROSSCOMPILE.md` — build e deploy nativo su Pixsys Yocto (percorso preferito).
+- `docs/DEPLOY_PX30.md` — deploy in container su ARM64 generico (percorso legacy).
 - `scripts/README.md` — overview script `dev.sh` / `kiosk.sh`.

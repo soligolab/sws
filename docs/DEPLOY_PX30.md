@@ -1,16 +1,13 @@
 # Deploy SWS on a Rockchip PX30 (or similar ARM64 SBC)
 
-This guide covers the **happy path** for getting `sws-runtime` and
-`sws-editor` running on a Rockchip PX30 industrial board. The same
-recipe works for any ARM64 Linux with a container runtime (RK3399,
-Raspberry Pi 4, NVIDIA Jetson, …) — the only PX30-specific bits are
-the kernel/distro notes at the end.
+> **Nota (giugno 2026)**: Per i device **Pixsys Yocto** (PX30/RK3399/RK3588) il percorso
+> preferito è il binario nativo — vedi `docs/YOCTO_CROSSCOMPILE.md`.
+> Questa guida descrive il flusso **container (Podman/Docker)** per device ARM64 generici
+> (Raspberry Pi, Jetson, ecc.) che non hanno un SDK Yocto disponibile.
 
-The PoC target (per `docs/CONTEXT.md` Phase 1 exit criteria) is to
-demonstrate that a single person can drop SWS on a PX30, point it at a
-real PLC over Modbus TCP, build a small synoptic in the editor, and
-watch values update live in a browser. **This document is the recipe
-for that demo.**
+This guide covers the **happy path** for getting `sws-runtime` running in a container on
+a Rockchip PX30 or any other ARM64 Linux board with a container runtime (RK3399,
+Raspberry Pi 4, NVIDIA Jetson, …).
 
 ## 1. Prerequisites
 
@@ -105,46 +102,40 @@ sources hot-reload at the next save).
 
 From a workstation on the same LAN:
 
-```
-http://<board-ip>:5173
-```
+| URL | Cosa mostra |
+|-----|-------------|
+| `https://<board-ip>:8444` | IDE admin (deploy, configurazione, editor grafico) |
+| `https://<board-ip>:8443` | Viewer operatori (sinottici, allarmi, trend) |
 
-The editor proxies `/api` and `/ws/*` to the runtime container via
-compose DNS (`runtime:8443`), so the browser only ever sees the editor
-container's TLS cert.
+Entrambe le porte richiedono di accettare il cert self-signed una volta nel browser.
+Dopo il primo avvio il cert è persistente — i restart successivi non richiedono
+ri-accettazione.
 
-Login: `admin` / whatever you passed in `SWS_ADMIN_PASSWORD`.
+Login: `admin` / il valore passato in `SWS_ADMIN_PASSWORD`.
 
-## 4b. Alternative: single-container deployment
+## 4b. Alternative: single-container deployment (--www)
 
-Since version `0.1.0-dev` (May 2026), the runtime can serve the
-Vite-built SPA itself. This removes the `sws-editor` Nginx container —
-both REST/WS and the static UI live behind one HTTPS endpoint.
+The runtime può servire la SPA Vite direttamente, eliminando il container `sws-editor`.
+Dalla T-21, il runtime avvia **due porte** in automatico:
 
-To switch:
+- **8443** — viewer operatori (serve `dist/index.html`)
+- **8444** — admin IDE (serve `dist/index-admin.html`)
 
-1. **Build the SPA on the host** (the runtime image doesn't bundle
-   pnpm/node):
+Per usare il single-container:
+
+1. **Build della SPA sul host** (il runtime image non include pnpm/node):
 
    ```sh
    (cd sws-editor && pnpm install && pnpm build)
    ```
 
-2. **Edit `compose.yaml`** — comment out the entire `editor:` service
-   and uncomment the four lines under "Single-container mode (optional)"
-   inside the `runtime:` service.
+2. **Modifica `compose.yaml`** — commentare il servizio `editor:` e decommentare le righe
+   di "Single-container mode" nel servizio `runtime:` che aggiungono `--www /var/sws/www`.
 
 3. **Restart**: `podman compose up -d`.
 
-The browser now opens `https://<board-ip>:8443` directly, accepts the
-self-signed cert once, and lands on the WelcomeScreen. All `/api` and
-`/ws/*` requests go to the same origin — no proxy hop, no second cert.
-
-When to prefer the two-container shape (the default in `compose.yaml`):
-the editor container's Nginx will gzip/HTTP-cache static assets, so for
-a public-facing deployment behind a load balancer that's still the
-right shape. For a PX30 on the factory floor talking to one operator
-on the LAN, single-container is simpler and burns fewer MB of RAM.
+Il browser può aprire sia `https://<board-ip>:8443` (viewer) che `https://<board-ip>:8444`
+(admin IDE). Entrambe le porte usano lo stesso cert self-signed persistente.
 
 ## 4c. Kiosk mode (unattended boot)
 
@@ -279,30 +270,33 @@ Then `systemctl enable --now sws.service`.
 From a different machine on the LAN:
 
 ```sh
-# Login
-TOKEN=$(curl -sk -X POST "https://<board-ip>:8443/api/auth/login" \
+# Health check su entrambe le porte
+curl -sk https://<board-ip>:8443/health   # → "ok"
+curl -sk https://<board-ip>:8444/health   # → "ok"
+
+# Login (route admin su 8444)
+TOKEN=$(curl -sk -X POST "https://<board-ip>:8444/api/auth/login" \
   -H 'Content-Type: application/json' \
   -d '{"username":"admin","password":"changeme"}' | jq -r .token)
 
-# Read tags
-curl -sk -H "Authorization: Bearer $TOKEN" \
-  "https://<board-ip>:8443/api/tags" | jq .
+# Read tags (disponibile su 8443 senza token in optional_auth)
+curl -sk "https://<board-ip>:8443/api/tags" | jq .
 
-# Write a coil (assumes plug-and-play Modbus mapping)
+# Write a tag (8443 con token oppure 8444)
 curl -sk -X PUT -H "Authorization: Bearer $TOKEN" \
   -H 'Content-Type: application/json' \
   -d '{"value": true}' \
   "https://<board-ip>:8443/api/tags/pump1.fault"
 ```
 
-If all three succeed, **Phase 1 exit criteria is met**.
+## 8. Note post-PoC
 
-## 8. Next-step polish (post-PoC)
+Il PoC (T-01…T-21) è funzionalmente completo. I prossimi passi (T-22…T-26) riguardano
+il workflow di sviluppo e deploy multi-device (vedi `STATUS.md`).
 
-These are out of scope for the demo but listed in `STATUS.md`:
-
-- Container signing with cosign (CRA item).
-- Auto-update mechanism with rollback.
-- Let's Encrypt / ACME integration for the editor's nginx.
+Aspetti futuri per la fase product:
+- Container signing con cosign (CRA item).
+- Auto-update con rollback.
+- Let's Encrypt / ACME integration.
 - Hardened systemd unit (`PrivateTmp=`, `NoNewPrivileges=`, …).
-- Audit log shipping (today it's a per-host file).
+- Audit log shipping (oggi è un file per-host).
