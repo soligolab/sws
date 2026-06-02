@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { api, type CreateUserBody, type DiscoveredRuntime, type UpdateUserBody, type UserRole, type UserSummary } from "@/api/client";
 import { TagInput } from "@/components/TagInput";
 import { PythonEditor, type PythonEditorHandle } from "@/components/PythonEditor";
@@ -48,6 +48,7 @@ import type {
   TagDataType,
   TagDef,
   TopicMapping,
+  SavedDevice,
 } from "@/types";
 
 // ── Shared styles ─────────────────────────────────────────────────────────────
@@ -6132,9 +6133,317 @@ function RuntimeConnectionTab() {
   );
 }
 
+// ── T-24 DevicesTab ───────────────────────────────────────────────────────────
+
+const DEVICES_KEY = "sws.saved-devices";
+
+/** Core deploy logic, reusable from RuntimeConnectionTab and DevicesTab. */
+async function deployToTarget(
+  target: string,
+  user: string,
+  pass: string,
+  onLog: (msg: string) => void,
+): Promise<boolean> {
+  try {
+    onLog("Esportazione progetto dal runtime locale…");
+    const exportRes = await api.exportProjectZip();
+    const cd = exportRes.headers.get("content-disposition") ?? "";
+    const nameMatch = cd.match(/filename="([^"]+)"/);
+    const zipName = nameMatch?.[1] ?? "project.zip";
+    const projectName = zipName.replace(/\.zip$/, "");
+    const zipBlob = await exportRes.blob();
+    onLog(`✓ Esportato: ${zipName} (${(zipBlob.size / 1024).toFixed(1)} KB)`);
+
+    onLog("Login al target…");
+    const loginRes = await fetch(`${target}/api/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username: user, password: pass }),
+    });
+    if (!loginRes.ok) throw new Error(`Login target fallito: ${loginRes.status} ${loginRes.statusText}`);
+    const { token: remoteToken } = await loginRes.json();
+    onLog("✓ Login OK");
+
+    onLog("Upload ZIP al target…");
+    let uploadRes = await fetch(`${target}/api/projects/upload`, {
+      method: "POST",
+      headers: { "Content-Type": "application/zip", "Authorization": `Bearer ${remoteToken}` },
+      body: zipBlob,
+    });
+    if (uploadRes.status === 409) {
+      const conflict = await uploadRes.json().catch(() => ({}));
+      const realName = (conflict as any).name ?? projectName;
+      const ok = window.confirm(`Sul target esiste già il progetto "${realName}".\nSostituirlo con la versione corrente?`);
+      if (!ok) throw new Error("Deploy annullato dall'utente.");
+      onLog(`Rimozione di "${realName}" dal target…`);
+      await fetch(`${target}/api/projects/close`, { method: "POST", headers: { "Authorization": `Bearer ${remoteToken}` } }).catch(() => {});
+      const delRes = await fetch(`${target}/api/projects/${encodeURIComponent(realName)}`,
+        { method: "DELETE", headers: { "Authorization": `Bearer ${remoteToken}` } });
+      if (!delRes.ok) {
+        const body = await delRes.text().catch(() => "");
+        throw new Error(`Impossibile rimuovere "${realName}": ${delRes.status}${body ? ` — ${body}` : ""}`);
+      }
+      onLog(`✓ Rimosso "${realName}"`);
+      uploadRes = await fetch(`${target}/api/projects/upload`, {
+        method: "POST",
+        headers: { "Content-Type": "application/zip", "Authorization": `Bearer ${remoteToken}` },
+        body: zipBlob,
+      });
+    }
+    if (!uploadRes.ok) {
+      const body = await uploadRes.text().catch(() => "");
+      throw new Error(`Upload fallito: ${uploadRes.status}${body ? ` — ${body}` : ""}`);
+    }
+    const { name: uploadedName } = await uploadRes.json();
+    onLog(`✓ Caricato come "${uploadedName}"`);
+
+    onLog("Attivazione progetto…");
+    const openRes = await fetch(`${target}/api/projects/${encodeURIComponent(uploadedName)}/open`, {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${remoteToken}` },
+    });
+    if (!openRes.ok) {
+      const body = await openRes.text().catch(() => "");
+      throw new Error(`Attivazione fallita: ${openRes.status}${body ? ` — ${body}` : ""}`);
+    }
+    onLog(`✓ "${uploadedName}" attivo sul runtime`);
+    onLog("🚀 Deploy completato!");
+    return true;
+  } catch (e: any) {
+    onLog(`✗ ${e?.message ?? String(e)}`);
+    return false;
+  }
+}
+
+interface DeviceState {
+  checking: boolean;
+  online: boolean;
+  fingerprint: string | null;
+}
+
+function DevicesTab() {
+  const [devices, setDevices] = useState<SavedDevice[]>(() => {
+    try { return JSON.parse(localStorage.getItem(DEVICES_KEY) ?? "[]"); }
+    catch { return []; }
+  });
+  const [states, setStates] = useState<Record<string, DeviceState>>({});
+  const [localFp, setLocalFp] = useState<string | null>(null);
+  const [addForm, setAddForm] = useState({ label: "", url: "", user: "admin", pass: "" });
+  const [deployingUrl, setDeployingUrl] = useState<string | null>(null);
+  const [deployLog, setDeployLog] = useState<string[]>([]);
+
+  const saveDevices = (list: SavedDevice[]) => {
+    setDevices(list);
+    localStorage.setItem(DEVICES_KEY, JSON.stringify(list));
+  };
+
+  const checkDevice = useCallback(async (device: SavedDevice) => {
+    const url = device.url;
+    setStates((s) => ({ ...s, [url]: { ...s[url], checking: true, online: s[url]?.online ?? false, fingerprint: s[url]?.fingerprint ?? null } }));
+    let online = false;
+    try {
+      const r = await fetch(`${url}/health`, { signal: AbortSignal.timeout(3000) });
+      online = r.ok;
+    } catch { /* offline */ }
+
+    if (!online) {
+      setStates((s) => ({ ...s, [url]: { checking: false, online: false, fingerprint: null } }));
+      return;
+    }
+
+    let fingerprint: string | null = null;
+    try {
+      const loginR = await fetch(`${url}/api/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: device.user, password: device.pass }),
+        signal: AbortSignal.timeout(5000),
+      });
+      if (loginR.ok) {
+        const { token } = await loginR.json();
+        const fpR = await fetch(`${url}/api/project/fingerprint`, {
+          headers: { "Authorization": `Bearer ${token}` },
+          signal: AbortSignal.timeout(5000),
+        });
+        if (fpR.ok) {
+          const fp = await fpR.json();
+          fingerprint = fp.sha256 ?? null;
+        }
+      }
+    } catch { /* auth failed or no project */ }
+
+    setStates((s) => ({ ...s, [url]: { checking: false, online: true, fingerprint } }));
+  }, []);
+
+  const checkAll = useCallback((list: SavedDevice[]) => {
+    list.forEach((d) => void checkDevice(d));
+  }, [checkDevice]);
+
+  useEffect(() => {
+    api.getProjectFingerprint().then((fp) => setLocalFp(fp.sha256)).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (devices.length > 0) checkAll(devices);
+    const timer = setInterval(() => checkAll(devices), 30_000);
+    return () => clearInterval(timer);
+  }, [devices, checkAll]);
+
+  const handleConnect = (device: SavedDevice) => {
+    localStorage.setItem(RT_URL_KEY, device.url);
+    localStorage.setItem(RT_USER_KEY, device.user);
+    localStorage.setItem(RT_PASS_KEY, device.pass);
+    localStorage.removeItem(RT_CONN_KEY);
+    window.dispatchEvent(new CustomEvent("sws:runtime-connected", { detail: { url: device.url } }));
+  };
+
+  const handleDeploy = async (device: SavedDevice) => {
+    setDeployingUrl(device.url);
+    setDeployLog([]);
+    await deployToTarget(device.url, device.user, device.pass, (msg) =>
+      setDeployLog((l) => [...l, msg])
+    );
+    setDeployingUrl(null);
+    // Refresh fingerprint after deploy
+    setTimeout(() => void checkDevice(device), 1500);
+  };
+
+  const INPUT: React.CSSProperties = {
+    background: "#020617", color: "#e2e8f0", border: "1px solid #334155",
+    borderRadius: 4, padding: "5px 8px", fontSize: 12,
+  };
+  const BTN: React.CSSProperties = {
+    padding: "4px 10px", borderRadius: 4, cursor: "pointer", fontSize: 12,
+    border: "1px solid #334155", background: "#1e293b", color: "#e2e8f0",
+  };
+
+  return (
+    <div style={{ padding: 24, display: "flex", flexDirection: "column", gap: 20, maxWidth: 800 }}>
+      <div style={{ fontSize: 13, fontWeight: 600, color: "#94a3b8", textTransform: "uppercase", letterSpacing: 1 }}>
+        Device registrati
+      </div>
+
+      {/* Device table */}
+      {devices.length === 0 ? (
+        <p style={{ fontSize: 12, color: "#475569", margin: 0 }}>Nessun device salvato. Aggiungine uno qui sotto.</p>
+      ) : (
+        <div style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+            <thead>
+              <tr style={{ borderBottom: "1px solid #334155", color: "#64748b" }}>
+                <th style={{ textAlign: "left", padding: "6px 8px" }}>Label</th>
+                <th style={{ textAlign: "left", padding: "6px 8px" }}>URL</th>
+                <th style={{ textAlign: "center", padding: "6px 8px" }}>Stato</th>
+                <th style={{ textAlign: "center", padding: "6px 8px" }}>Firma</th>
+                <th style={{ textAlign: "right", padding: "6px 8px" }}>Azioni</th>
+              </tr>
+            </thead>
+            <tbody>
+              {devices.map((d) => {
+                const st = states[d.url];
+                const checking = st?.checking ?? false;
+                const online = st?.online ?? null;
+                const fp = st?.fingerprint ?? null;
+                const match = localFp && fp ? (localFp === fp ? "sync" : "diff") : "unknown";
+                return (
+                  <tr key={d.url} style={{ borderBottom: "1px solid #1e293b" }}>
+                    <td style={{ padding: "8px", color: "#e2e8f0", fontWeight: 600 }}>{d.label}</td>
+                    <td style={{ padding: "8px", color: "#94a3b8", fontFamily: "monospace", fontSize: 11 }}>{d.url}</td>
+                    <td style={{ padding: "8px", textAlign: "center" }}>
+                      {online === null || checking
+                        ? <span style={{ color: "#64748b" }}>…</span>
+                        : online
+                          ? <span style={{ color: "#34d399" }}>● online</span>
+                          : <span style={{ color: "#f87171" }}>● offline</span>}
+                    </td>
+                    <td style={{ padding: "8px", textAlign: "center" }}>
+                      {!online ? <span style={{ color: "#475569" }}>—</span>
+                        : match === "sync"    ? <span style={{ color: "#34d399" }}>✓ in sync</span>
+                        : match === "diff"    ? <span style={{ color: "#fb923c" }}>✗ diff. versione</span>
+                        : <span style={{ color: "#64748b" }}>? n/d</span>}
+                    </td>
+                    <td style={{ padding: "8px", textAlign: "right" }}>
+                      <div style={{ display: "flex", gap: 4, justifyContent: "flex-end" }}>
+                        <button style={BTN} onClick={() => handleConnect(d)} title="Imposta come runtime target e connetti">Connetti</button>
+                        <button style={{ ...BTN, background: "#1e3a5f", borderColor: "#2563eb", color: "#93c5fd" }}
+                          disabled={deployingUrl === d.url}
+                          onClick={() => void handleDeploy(d)}>
+                          {deployingUrl === d.url ? "Deploy…" : "Deploy"}
+                        </button>
+                        <button style={{ ...BTN, color: "#f87171", borderColor: "#7f1d1d" }}
+                          onClick={() => saveDevices(devices.filter((x) => x.url !== d.url))}>✕</button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Deploy log */}
+      {deployLog.length > 0 && (
+        <div style={{ background: "#020617", border: "1px solid #1e293b", borderRadius: 4,
+          padding: "8px 10px", maxHeight: 150, overflowY: "auto", fontFamily: "monospace", fontSize: 11 }}>
+          {deployLog.map((l, i) => (
+            <div key={i} style={{ color: l.startsWith("✗") ? "#f87171" : l.startsWith("🚀") ? "#4ade80" : "#94a3b8" }}>{l}</div>
+          ))}
+        </div>
+      )}
+
+      {/* Add device form */}
+      <div>
+        <div style={{ fontSize: 13, fontWeight: 600, color: "#94a3b8", textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>
+          Aggiungi device
+        </div>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            <label style={{ fontSize: 11, color: "#64748b" }}>Label</label>
+            <input style={{ ...INPUT, width: 120 }} placeholder="PLC-01"
+              value={addForm.label} onChange={(e) => setAddForm((f) => ({ ...f, label: e.target.value }))} />
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            <label style={{ fontSize: 11, color: "#64748b" }}>URL admin (8444)</label>
+            <input style={{ ...INPUT, width: 200 }} placeholder="https://192.168.1.10:8444"
+              value={addForm.url} onChange={(e) => setAddForm((f) => ({ ...f, url: e.target.value.trim() }))} />
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            <label style={{ fontSize: 11, color: "#64748b" }}>Utente</label>
+            <input style={{ ...INPUT, width: 90 }} placeholder="admin"
+              value={addForm.user} onChange={(e) => setAddForm((f) => ({ ...f, user: e.target.value }))} />
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            <label style={{ fontSize: 11, color: "#64748b" }}>Password</label>
+            <input style={{ ...INPUT, width: 110 }} type="password" placeholder="••••••••"
+              value={addForm.pass} onChange={(e) => setAddForm((f) => ({ ...f, pass: e.target.value }))} />
+          </div>
+          <button
+            style={{ ...BTN, background: "#1e3a5f", borderColor: "#2563eb", color: "#93c5fd", padding: "5px 14px" }}
+            disabled={!addForm.url || !addForm.user}
+            onClick={() => {
+              const label = addForm.label.trim() || addForm.url;
+              const newDevice: SavedDevice = { label, url: addForm.url, user: addForm.user, pass: addForm.pass };
+              const updated = [...devices.filter((d) => d.url !== newDevice.url), newDevice];
+              saveDevices(updated);
+              setAddForm({ label: "", url: "", user: "admin", pass: "" });
+              void checkDevice(newDevice);
+            }}
+          >Aggiungi</button>
+        </div>
+        {localFp && (
+          <div style={{ marginTop: 10, fontSize: 11, color: "#475569" }}>
+            Firma locale: <span style={{ fontFamily: "monospace", color: "#64748b" }}>{localFp.substring(0, 16)}…</span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── ConfigView root ───────────────────────────────────────────────────────────
 
-type ConfigTab = "tags" | "protocols" | "alarms" | "datastores" | "scripts" | "faceplates" | "recipes" | "notifications" | "users" | "resources" | "system" | "backups" | "runtime";
+type ConfigTab = "tags" | "protocols" | "alarms" | "datastores" | "scripts" | "faceplates" | "recipes" | "notifications" | "users" | "resources" | "system" | "backups" | "devices" | "runtime";
 
 const TAB_LABELS: Record<ConfigTab, string> = {
   tags:        "Variabili",
@@ -6149,6 +6458,7 @@ const TAB_LABELS: Record<ConfigTab, string> = {
   resources:   "Risorse",
   system:      "Stato",
   backups:     "Backup",
+  devices:     "Device",
   runtime:     "Runtime",
 };
 
@@ -6176,13 +6486,14 @@ export function ConfigView() {
   }, [tab, isAdmin]);
 
   const visibleTabs: ConfigTab[] = isAdmin
-    ? ["tags", "protocols", "alarms", "scripts", "faceplates", "recipes", "notifications", "datastores", "users", "resources", "backups", "system", "runtime"]
+    ? ["tags", "protocols", "alarms", "scripts", "faceplates", "recipes", "notifications", "datastores", "users", "resources", "backups", "system", "devices", "runtime"]
     : ["tags", "protocols", "alarms", "scripts", "faceplates", "recipes", "notifications", "resources", "system"];
 
-  // Bounce non-admins off the backups and datastores tabs.
+  // Bounce non-admins off the backups, datastores, devices tabs.
   useEffect(() => {
     if (tab === "backups"    && !isAdmin) handleSetTab("tags");
     if (tab === "datastores" && !isAdmin) handleSetTab("tags");
+    if (tab === "devices"    && !isAdmin) handleSetTab("tags");
   }, [tab, isAdmin]);
 
   // Guard: tags/protocols/alarms tabs all initialise their local state from
@@ -6193,7 +6504,7 @@ export function ConfigView() {
     && tab !== "users" && tab !== "resources" && tab !== "system"
     && tab !== "backups" && tab !== "datastores" && tab !== "scripts"
     && tab !== "faceplates" && tab !== "recipes" && tab !== "notifications"
-    && tab !== "runtime";
+    && tab !== "devices" && tab !== "runtime";
 
   // Belt-and-braces: App.tsx already gates mode="config" via effectiveMode,
   // so this is unreachable for non-Supervisor+ today. Kept so a future
@@ -6238,6 +6549,7 @@ export function ConfigView() {
             {tab === "resources"   && <ResourcesTab />}
             {tab === "system"      && <SystemTab />}
             {tab === "backups"     && isAdmin && <BackupsTab />}
+            {tab === "devices"    && isAdmin && <DevicesTab />}
             {tab === "runtime"    && isAdmin && <RuntimeConnectionTab />}
           </>
         )}
