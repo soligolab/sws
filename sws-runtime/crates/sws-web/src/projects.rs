@@ -569,10 +569,14 @@ pub async fn upload_project_zip(
         Err(msg) => return (StatusCode::BAD_REQUEST, msg).into_response(),
     };
 
-    // 3. Reject if the folder already exists.
+    // 3. Reject if the folder already exists — include the real name so the
+    //    client can display a confirmation dialog before deleting + re-uploading.
     let target = s.projects_root.join(&safe_name);
     if tokio::fs::try_exists(&target).await.unwrap_or(false) {
-        return (StatusCode::CONFLICT, "project already exists").into_response();
+        return (
+            StatusCode::CONFLICT,
+            axum::Json(serde_json::json!({ "name": safe_name })),
+        ).into_response();
     }
     if let Err(e) = tokio::fs::create_dir_all(&target).await {
         warn!("upload_project_zip: mkdir {}: {e}", target.display());
