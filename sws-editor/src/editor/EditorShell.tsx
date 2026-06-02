@@ -10,7 +10,7 @@ import { SYMBOL_LIST } from "@/symbols/library";
 import type { SymbolMeta } from "@/symbols/library";
 import { useAppStore } from "@/store";
 import type { AlignMode } from "@/store";
-import type { FunctionDef, GridCell, RadioOption, SubCellEntry, SubGrid, SynopticObject, TableRow } from "@/types";
+import type { ButtonAction, FunctionDef, GridCell, RadioOption, SubCellEntry, SubGrid, SynopticObject, TableRow } from "@/types";
 
 // ── Shared styles ─────────────────────────────────────────────────────────────
 
@@ -1806,7 +1806,7 @@ function ObjectProps({
         </>
       )}
 
-      {/* Button label + write value */}
+      {/* Button label + write value + built-in action */}
       {obj.type === "button" && (
         <>
           {field("Etichetta", <BindableInput obj={obj} propName="label" onChange={onChange}>{textInput("label", "Bottone")}</BindableInput>)}
@@ -1825,6 +1825,34 @@ function ObjectProps({
                 }}
               />
             </BindableInput>
+          )}
+          {field("Azione built-in",
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              <select
+                style={{ ...INPUT, cursor: "pointer" }}
+                value={obj.button_action?.type ?? ""}
+                onChange={(e) => {
+                  const t = e.target.value as ButtonAction["type"] | "";
+                  if (!t) { onChange({ button_action: undefined }); return; }
+                  if (t === "navigate") onChange({ button_action: { type: "navigate", url: "" } });
+                  else onChange({ button_action: { type: t } as ButtonAction });
+                }}
+              >
+                <option value="">— nessuna —</option>
+                <option value="login">Login modal</option>
+                <option value="logout">Logout (torna read-only)</option>
+                <option value="navigate">Naviga a URL</option>
+              </select>
+              {obj.button_action?.type === "navigate" && (
+                <input
+                  type="text"
+                  style={INPUT}
+                  placeholder="https://..."
+                  value={(obj.button_action as { type: "navigate"; url: string }).url}
+                  onChange={(e) => onChange({ button_action: { type: "navigate", url: e.target.value } })}
+                />
+              )}
+            </div>
           )}
         </>
       )}

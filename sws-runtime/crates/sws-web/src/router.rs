@@ -79,6 +79,8 @@ pub struct AppState {
     pub recipe_log: Arc<RwLock<Vec<RecipeApplyEvent>>>,
     /// Active notification supervisor (email + escalation). Replaced on project open.
     pub notification_supervisor: Arc<RwLock<Option<NotificationSupervisor>>>,
+    /// Path to the TLS certificate PEM for `GET /cert` (browser import).
+    pub cert_path: Arc<PathBuf>,
 }
 
 /// Resolve the active project directory or return 503. Used at the top
@@ -106,9 +108,12 @@ pub fn build(
     logs_dir: Arc<PathBuf>,
     started_at: std::time::Instant,
     ip_allowlist: Arc<Vec<(std::net::IpAddr, u8)>>,
+    cert_path: Arc<PathBuf>,
     www_dir: Option<PathBuf>,
-) -> Router {
-    let state = AppState { db, bus, alarms, historian, registry, py, auth, supervisor, script_supervisor, functions, derived_tags, project_dir, projects_root, templates_root, logs, logs_dir, started_at, ip_allowlist, recipe_log: Arc::new(RwLock::new(Vec::new())), notification_supervisor: Arc::new(RwLock::new(None)) };
+) -> (Router, Router) {
+    let state = AppState { db, bus, alarms, historian, registry, py, auth, supervisor, script_supervisor, functions, derived_tags, project_dir, projects_root, templates_root, logs, logs_dir, started_at, ip_allowlist, recipe_log: Arc::new(RwLock::new(Vec::new())), notification_supervisor: Arc::new(RwLock::new(None)), cert_path };
+    // Build the runtime router (8443) before consuming state for admin.
+    let runtime_app = build_runtime_inner(state.clone(), www_dir.clone());
 
     // Routes that need Admin privileges (PUT /api/project/* — schema edits,
     // plus the multi-user CRUD).
@@ -137,6 +142,8 @@ pub fn build(
         .route("/api/auth/users",         get(list_users).post(create_user))
         .route("/api/auth/users/:username",
             axum::routing::put(update_user).delete(delete_user))
+        // Remote deploy: download binary from GitHub Releases + SCP to device.
+        .route("/api/deploy/remote",       post(crate::deploy::deploy_remote))
         .route_layer(middleware::from_fn(require_admin));
 
     // Routes that need Operator+ (tag writes, alarm ACK, script exec,
@@ -300,10 +307,25 @@ pub fn build(
     // the same process (e.g. tests that build several routers) is safe.
     crate::metrics::install_recorder();
 
-    // Always-open routes: liveness probes + login + project lifecycle.
+    // Serve a self-unregistering service-worker script on the admin port.
+    // The runtime SPA previously registered a SW at this origin; this stub
+    // immediately unregisters it so browsers stop receiving the cached runtime
+    // SPA and load index-admin.html instead.
+    let sw_unregister = get(|| async {
+        (
+            [(axum::http::header::CONTENT_TYPE,  "application/javascript"),
+             (axum::http::header::CACHE_CONTROL, "no-store")],
+            "self.addEventListener('install',()=>self.skipWaiting());\
+             self.addEventListener('activate',e=>e.waitUntil(self.registration.unregister()));",
+        )
+    });
+
+    // Always-open routes: liveness probes + login + cert download + project lifecycle.
     let open = Router::new()
         .route("/health",  get(|| async { "ok" }))
         .route("/metrics", get(crate::metrics::get_metrics))
+        .route("/cert",    get(get_cert))
+        .route("/sw.js",   sw_unregister)
         .route("/api/auth/login", post(login))
         .merge(project_lifecycle);
 
@@ -311,12 +333,20 @@ pub fn build(
 
     // Serve the Vite-built SPA from disk when --www is provided. Any path that
     // doesn't match an API/WS route falls through to ServeDir; 404s inside
-    // ServeDir fall back to index.html so the SPA can handle client-side
-    // routing on a refresh. This is the "single-binary" deployment shape:
-    // the editor container is no longer required.
+    // ServeDir fall back to admin.html (admin SPA) so the SPA can handle
+    // client-side routing on a refresh. Falls back to index.html when the
+    // admin bundle hasn't been built yet (dev mode).
     if let Some(dir) = www_dir {
-        let index = dir.join("index.html");
-        let fallback = ServeDir::new(&dir).not_found_service(ServeFile::new(index));
+        // "index-admin.html" is the Vite output for the admin entry point.
+        // Falls back to index.html when the admin bundle hasn't been built.
+        let admin_html = dir.join("index-admin.html");
+        let fallback_html = if admin_html.exists() { admin_html } else { dir.join("index.html") };
+        // Disable ServeDir's automatic directory-index (which would serve
+        // index.html for "/"), so that "/" also falls into not_found_service
+        // and gets served index-admin.html instead.
+        let fallback = ServeDir::new(&dir)
+            .append_index_html_on_directories(false)
+            .not_found_service(ServeFile::new(fallback_html));
         app = app.fallback_service(fallback);
     }
 
@@ -338,7 +368,91 @@ pub fn build(
         .allow_methods(Any)
         .allow_headers(Any);
 
-    app.layer(cors).with_state(state)
+    (runtime_app, app.layer(cors).with_state(state))
+}
+
+/// Build the runtime router served on port 8443 (synoptic view only).
+///
+/// All routes are wrapped with `optional_auth` — unauthenticated requests get
+/// `Role::Viewer` (anonymous read-only). Write routes (`put`, `post` that mutate
+/// state) still require `Operator+` via `require_operator`.
+///
+/// Routes NOT included here: project editing (`PUT /api/project/*`), synoptic
+/// editing (`PUT /api/synoptics/*`), backups, users, system control, project
+/// lifecycle, log viewer, source browse, datastore admin.
+fn build_runtime_inner(state: AppState, www_dir: Option<PathBuf>) -> Router {
+    // Operator-required routes: tag writes, alarm ops, recipe apply, scripts.
+    let operator_routes = Router::new()
+        .route("/api/tags/:id",          put(write_tag))
+        .route("/api/alarms/:id/ack",    post(ack_alarm))
+        .route("/api/alarms/:id/shelve", post(shelve_alarm).delete(unshelve_alarm))
+        .route("/api/alarms/shelved",    get(list_shelved_alarms))
+        .route("/api/recipes/:id/apply", post(apply_recipe))
+        .route("/api/script/exec",       post(exec_script))
+        .route("/api/script/run/:name",  post(run_function))
+        .route("/api/system",            get(crate::system::get_system_status))
+        .route_layer(middleware::from_fn(require_operator));
+
+    // Anonymous-readable routes: synoptic, tags, alarms, history, WS streams.
+    let read_routes = Router::new()
+        .route("/api/tags",               get(get_all_tags))
+        .route("/api/tags/:id",           get(get_tag))
+        .route("/api/alarms",             get(get_alarms))
+        .route("/api/alarms/history",     get(get_alarm_history))
+        .route("/api/history/export",     get(export_history_csv))
+        .route("/api/history/:tag/stats", get(tag_history_stats))
+        .route("/api/history/:tag",       get(get_history))
+        .route("/api/synoptics",          get(list_synoptics))
+        .route("/api/synoptics/:name",    get(get_synoptic))
+        .route("/api/faceplates",         get(list_faceplates))
+        .route("/api/faceplates/:id",     get(get_faceplate))
+        .route("/api/recipes",            get(list_recipes))
+        .route("/api/recipes/history",    get(get_recipe_history))
+        .route("/api/recipes/:id",        get(get_recipe))
+        .route("/api/datastores",         get(list_datastores))
+        .route("/api/datastores/:id/stats", get(datastore_stats))
+        .route("/ws/tags",                get(ws_tags_handler))
+        .route("/ws/alarms",              get(ws_alarms_handler));
+
+    // Self-service: token must be valid but not blocked by password-change flag.
+    let self_service = Router::new()
+        .route("/api/auth/whoami",          get(whoami))
+        .route("/api/auth/logout",          post(logout))
+        .route("/api/auth/change-password", post(change_password))
+        .route("/api/auth/refresh",         post(refresh_session));
+
+    // Wrap all gated routes with optional_auth so every request has AuthUser.
+    let gated = read_routes
+        .merge(operator_routes)
+        .merge(self_service)
+        .route_layer(middleware::from_fn_with_state(state.clone(), optional_auth));
+
+    // Open: no auth needed. Only /api/project (current active project status)
+    // is exposed on the runtime port — project management routes live on 8444 only.
+    let open = Router::new()
+        .route("/health",         get(|| async { "ok" }))
+        .route("/metrics",        get(crate::metrics::get_metrics))
+        .route("/cert",           get(get_cert))
+        .route("/api/auth/login", post(login))
+        .route("/api/project",    get(get_project));
+
+    let cors = CorsLayer::new()
+        .allow_origin(Any)
+        .allow_methods(Any)
+        .allow_headers(Any);
+
+    let mut router = open.merge(gated)
+        .layer(middleware::from_fn(crate::metrics::track_http_metrics))
+        .layer(cors)
+        .with_state(state);
+
+    if let Some(dir) = www_dir {
+        let index_html = dir.join("index.html");
+        let fallback = ServeDir::new(&dir).not_found_service(ServeFile::new(index_html));
+        router = router.fallback_service(fallback);
+    }
+
+    router
 }
 
 // ── Auth middleware ──────────────────────────────────────────────────────────
@@ -441,6 +555,52 @@ async fn require_admin(req: Request, next: Next) -> Response {
     next.run(req).await
 }
 
+/// Optional auth: tries to authenticate from the bearer token / `?token=` query
+/// parameter. If the token is missing or invalid, inserts an anonymous
+/// `AuthUser` with `Role::Viewer` so all downstream handlers still have an
+/// `AuthUser` in extensions. Routes that need more than read access still apply
+/// `require_operator` / `require_admin` on top of this.
+///
+/// Used by the runtime router (port 8443) to allow anonymous read-only access
+/// to the synoptic SPA without removing the role-check guards on write routes.
+async fn optional_auth(
+    State(s): State<AppState>,
+    mut req: Request,
+    next: Next,
+) -> Response {
+    let token = req
+        .headers()
+        .get(header::AUTHORIZATION)
+        .and_then(|h| h.to_str().ok())
+        .and_then(|v| v.strip_prefix("Bearer "))
+        .map(|t| t.to_string())
+        .or_else(|| {
+            let q = req.uri().query().unwrap_or("");
+            url_form_decode(q).into_iter()
+                .find(|(k, _)| k == "token")
+                .map(|(_, v)| v)
+        });
+
+    let auth_user = if let Some(tok) = token {
+        if let Some(info) = s.auth.validate(&tok).await {
+            AuthUser {
+                username: info.username,
+                role: info.role,
+                must_change_password: info.must_change_password,
+                allowed_zones: info.allowed_zones,
+            }
+        } else {
+            // Expired / unknown token → anonymous
+            AuthUser { username: String::new(), role: Role::Viewer, must_change_password: false, allowed_zones: vec![] }
+        }
+    } else {
+        // No token → anonymous read-only
+        AuthUser { username: String::new(), role: Role::Viewer, must_change_password: false, allowed_zones: vec![] }
+    };
+    req.extensions_mut().insert(auth_user);
+    next.run(req).await
+}
+
 /// Minimal application/x-www-form-urlencoded parser — only handles the
 /// shape we need (`k=v&k2=v2`) without pulling in a dep.
 fn url_form_decode(q: &str) -> Vec<(String, String)> {
@@ -453,6 +613,22 @@ fn url_form_decode(q: &str) -> Vec<(String, String)> {
             Some((k, v))
         })
         .collect()
+}
+
+// ── Cert download ─────────────────────────────────────────────────────────────
+
+/// Serve the TLS certificate PEM so users can import it into their browser.
+/// Open endpoint (no auth) — the cert is the public key only, no secret.
+async fn get_cert(State(s): State<AppState>) -> Response {
+    match tokio::fs::read(&*s.cert_path).await {
+        Ok(bytes) => Response::builder()
+            .status(StatusCode::OK)
+            .header(header::CONTENT_TYPE, "application/x-pem-file")
+            .header(header::CONTENT_DISPOSITION, "attachment; filename=\"sws.crt\"")
+            .body(axum::body::Body::from(bytes))
+            .unwrap(),
+        Err(_) => StatusCode::NOT_FOUND.into_response(),
+    }
 }
 
 // ── Auth endpoints ───────────────────────────────────────────────────────────

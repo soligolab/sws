@@ -53,7 +53,13 @@ import type {
 // state cleanly when the user switches runtime).
 const RUNTIME_BASE_URL_KEY = "sws.runtimeBaseUrl";
 
+// When true, all API calls use same-origin (ignoring localStorage and VITE_RUNTIME_URL).
+// Set by AdminApp so project management always targets the local server.
+let _forceLocalApi = false;
+export function setForceLocalApi(v: boolean) { _forceLocalApi = v; }
+
 function getBaseUrl(): string {
+  if (_forceLocalApi) return "";
   if (typeof window !== "undefined") {
     try {
       const v = window.localStorage.getItem(RUNTIME_BASE_URL_KEY);
@@ -714,6 +720,20 @@ export const api = {
 
   triggerRollback: () =>
     request<{ message: string }>("/api/project/rollback", { method: "POST" }),
+
+  // Remote deploy: POST /api/deploy/remote (admin-only on port 8444).
+  // Returns the raw Response so the caller can stream the body.
+  deployRemote: async (req: {
+    arch: string; host: string; port: number; user: string; password: string; remote_path?: string;
+  }): Promise<Response> => {
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (TOKEN) headers["Authorization"] = `Bearer ${TOKEN}`;
+    return fetch(`${getBaseUrl()}/api/deploy/remote`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(req),
+    });
+  },
 
   uploadProjectZip: async (file: Blob, name?: string): Promise<{ name: string }> => {
     const url = name

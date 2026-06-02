@@ -275,6 +275,183 @@ function NewProjectModal({
 // helpers pick the new base, and so stale auth tokens / project state
 // from the previous runtime are cleared cleanly.
 
+// ── DeploySection ─────────────────────────────────────────────────────────────
+
+const DEPLOY_KEY = (host: string) => `sws.deploy.${host}`;
+
+function loadDeployCreds(host: string) {
+  try {
+    const raw = localStorage.getItem(DEPLOY_KEY(host));
+    if (raw) return JSON.parse(raw) as { port: number; user: string; password: string };
+  } catch { /* ignore */ }
+  return null;
+}
+
+function saveDeployCreds(host: string, creds: { port: number; user: string; password: string }) {
+  try { localStorage.setItem(DEPLOY_KEY(host), JSON.stringify(creds)); } catch { /* ignore */ }
+}
+
+function DeploySection() {
+  const [arch, setArch]           = useState<"amd64" | "arm64">("arm64");
+  const [host, setHost]           = useState("");
+  const [port, setPort]           = useState(22);
+  const [user, setUser]           = useState("root");
+  const [password, setPassword]   = useState("");
+  const [remotePath, setRemotePath] = useState("/data/user/sws");
+  const [deploying, setDeploying] = useState(false);
+  const [logs, setLogs]           = useState<string[]>([]);
+  const logsRef                   = useRef<HTMLDivElement>(null);
+
+  // Restore saved credentials when host changes
+  useEffect(() => {
+    if (!host) return;
+    const saved = loadDeployCreds(host);
+    if (saved) { setPort(saved.port); setUser(saved.user); setPassword(saved.password); }
+  }, [host]);
+
+  // Auto-scroll log panel
+  useEffect(() => {
+    if (logsRef.current) logsRef.current.scrollTop = logsRef.current.scrollHeight;
+  }, [logs]);
+
+  const handleDeploy = async () => {
+    if (!host || !user) return;
+    saveDeployCreds(host, { port, user, password });
+    setDeploying(true);
+    setLogs([`Avvio deploy → ${user}@${host}:${port} (${arch}) ${remotePath}`]);
+
+    try {
+      const res = await api.deployRemote({ arch, host, port, user, password, remote_path: remotePath });
+      if (!res.ok) {
+        setLogs((l) => [...l, `ERROR: HTTP ${res.status} ${res.statusText}`]);
+        setDeploying(false);
+        return;
+      }
+      const reader = res.body?.getReader();
+      if (!reader) { setLogs((l) => [...l, "ERROR: streaming non supportato"]); setDeploying(false); return; }
+      const dec = new TextDecoder();
+      let done = false;
+      while (!done) {
+        const { value, done: d } = await reader.read();
+        done = d;
+        if (value) {
+          const text = dec.decode(value);
+          const lines = text.split("\n").filter((s) => s.trim());
+          setLogs((l) => [...l, ...lines]);
+        }
+      }
+    } catch (e: any) {
+      setLogs((l) => [...l, `ERROR: ${e?.message ?? e}`]);
+    } finally {
+      setDeploying(false);
+    }
+  };
+
+  const done = logs.some((l) => l === "DONE");
+  const hasError = logs.some((l) => l.startsWith("ERROR:"));
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      <div style={{ fontSize: 12, color: "#64748b", lineHeight: 1.5 }}>
+        Scarica il binario <code>sws-runtime</code> da GitHub Releases e lo
+        installa sul dispositivo remoto via SCP. Richiede <code>sshpass</code>
+        e <code>scp</code> installati sulla macchina locale.
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+        <div>
+          <label style={{ fontSize: 11, color: "#94a3b8", display: "block", marginBottom: 3 }}>Architettura target</label>
+          <select
+            style={{ ...INPUT, cursor: "pointer" }}
+            value={arch}
+            onChange={(e) => setArch(e.target.value as "amd64" | "arm64")}
+          >
+            <option value="arm64">linux/arm64 (PX30, Pi)</option>
+            <option value="amd64">linux/amd64 (x86-64)</option>
+          </select>
+        </div>
+        <div>
+          <label style={{ fontSize: 11, color: "#94a3b8", display: "block", marginBottom: 3 }}>Path remoto</label>
+          <input
+            style={INPUT}
+            placeholder="/data/user/sws"
+            value={remotePath}
+            onChange={(e) => setRemotePath(e.target.value)}
+          />
+        </div>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 8 }}>
+        <div>
+          <label style={{ fontSize: 11, color: "#94a3b8", display: "block", marginBottom: 3 }}>Host SSH</label>
+          <input
+            style={INPUT}
+            placeholder="192.168.1.59"
+            value={host}
+            onChange={(e) => setHost(e.target.value)}
+          />
+        </div>
+        <div>
+          <label style={{ fontSize: 11, color: "#94a3b8", display: "block", marginBottom: 3 }}>Porta</label>
+          <input
+            style={{ ...INPUT, width: 60 }}
+            type="number"
+            min={1}
+            max={65535}
+            value={port}
+            onChange={(e) => setPort(Number(e.target.value))}
+          />
+        </div>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+        <div>
+          <label style={{ fontSize: 11, color: "#94a3b8", display: "block", marginBottom: 3 }}>Utente SSH</label>
+          <input style={INPUT} placeholder="root" value={user} onChange={(e) => setUser(e.target.value)} />
+        </div>
+        <div>
+          <label style={{ fontSize: 11, color: "#94a3b8", display: "block", marginBottom: 3 }}>Password SSH</label>
+          <input style={INPUT} type="password" placeholder="••••••" value={password} onChange={(e) => setPassword(e.target.value)} />
+        </div>
+      </div>
+
+      {logs.length > 0 && (
+        <div
+          ref={logsRef}
+          style={{
+            background: "#0a0f1a", border: "1px solid #1e293b", borderRadius: 6,
+            padding: "8px 10px", maxHeight: 140, overflowY: "auto",
+            fontFamily: "monospace", fontSize: 11, lineHeight: 1.6,
+          }}
+        >
+          {logs.map((line, i) => (
+            <div
+              key={i}
+              style={{
+                color: line.startsWith("ERROR:") ? "#fca5a5"
+                  : line.startsWith("WARN:") ? "#fbbf24"
+                  : line === "DONE" ? "#22c55e"
+                  : "#94a3b8",
+              }}
+            >
+              {line}
+            </div>
+          ))}
+          {deploying && <div style={{ color: "#60a5fa" }}>…</div>}
+        </div>
+      )}
+
+      <button
+        style={{ ...BTN_PRIMARY, opacity: (!host || !user || deploying) ? 0.5 : 1 }}
+        disabled={!host || !user || deploying}
+        onClick={handleDeploy}
+      >
+        {deploying ? "Deploy in corso…" : done ? "✓ Deploy completato" : hasError ? "Riprova deploy" : "Deploy"}
+      </button>
+    </div>
+  );
+}
+
 function RemoteRuntimeModal({
   current,
   onClose,
@@ -282,6 +459,7 @@ function RemoteRuntimeModal({
   current: string;
   onClose: () => void;
 }) {
+  const [tab, setTab]         = useState<"connect" | "deploy">("connect");
   const [url, setUrl]         = useState(current);
   const [probing, setProbing] = useState(false);
   const [probed, setProbed]   = useState<"ok" | "fail" | null>(null);
@@ -303,9 +481,6 @@ function RemoteRuntimeModal({
     } catch (e: any) {
       setProbed("fail");
       const msg = String(e?.message ?? e);
-      // Most common case: self-signed cert never accepted in this browser.
-      // Surface it explicitly so the user knows to open the URL in a tab
-      // first and click through the cert warning.
       if (msg.includes("Failed to fetch") || msg.includes("NetworkError")) {
         setError(`Connessione fallita. Possibili cause: runtime spento, URL errato, oppure certificato self-signed mai accettato in questo browser. Apri ${normalised}/health in una nuova scheda e accetta il certificato, poi riprova.`);
       } else {
@@ -318,8 +493,6 @@ function RemoteRuntimeModal({
 
   const connect = () => {
     setRuntimeBaseUrl(normalised);
-    // Full reload: clears auth token cache, Zustand store, WS connections.
-    // The next mount sees the new runtime URL on every fetch.
     window.location.reload();
   };
 
@@ -327,6 +500,17 @@ function RemoteRuntimeModal({
     setRuntimeBaseUrl(null);
     window.location.reload();
   };
+
+  const TAB_BTN = (active: boolean): React.CSSProperties => ({
+    padding: "6px 16px",
+    background: active ? "#1e3a8a" : "transparent",
+    color: active ? "#bfdbfe" : "#94a3b8",
+    border: active ? "1px solid #2563eb" : "1px solid transparent",
+    borderRadius: 6,
+    cursor: "pointer",
+    fontSize: 13,
+    fontWeight: active ? 600 : 400,
+  });
 
   return (
     <div style={{
@@ -337,67 +521,87 @@ function RemoteRuntimeModal({
       <div style={{
         background: "#0f172a", border: "1px solid #334155",
         borderRadius: 10, padding: 24,
-        width: 480, maxWidth: "90vw",
+        width: 520, maxWidth: "92vw",
       }} onClick={(e) => e.stopPropagation()}>
-        <div style={{ fontSize: 18, fontWeight: 700, color: "#e2e8f0", marginBottom: 4 }}>
+        <div style={{ fontSize: 18, fontWeight: 700, color: "#e2e8f0", marginBottom: 12 }}>
           📡 Runtime remoto
         </div>
-        <div style={{ fontSize: 12, color: "#64748b", marginBottom: 16 }}>
-          Connetti l'editor a un runtime SWS in esecuzione su un'altra macchina
-          (tipicamente il PX30 sul campo). L'URL viene salvato nel browser
-          (localStorage) e usato da tutte le chiamate API/WS finché non lo
-          ripristini al locale.
+
+        {/* Tab selector */}
+        <div style={{ display: "flex", gap: 6, marginBottom: 16 }}>
+          <button style={TAB_BTN(tab === "connect")} onClick={() => setTab("connect")}>Connetti</button>
+          <button style={TAB_BTN(tab === "deploy")} onClick={() => setTab("deploy")}>Deploy binario</button>
         </div>
 
-        <label style={{ fontSize: 11, color: "#94a3b8", display: "block", marginBottom: 4 }}>
-          URL del runtime
-        </label>
-        <div style={{ display: "flex", gap: 8, marginBottom: 4 }}>
-          <input
-            style={{ ...INPUT, flex: 1 }}
-            placeholder="https://px30.local:8443"
-            value={url}
-            onChange={(e) => { setUrl(e.target.value); setProbed(null); setError(null); }}
-            autoFocus
-          />
-          <button
-            style={{ ...BTN_GHOST, padding: "8px 14px" }}
-            onClick={probe}
-            disabled={!normalised || probing}
-          >
-            {probing ? "Test…" : "Test"}
-          </button>
-        </div>
-        {probed === "ok" && (
-          <div style={{ fontSize: 12, color: "#22c55e", marginBottom: 8 }}>
-            ✓ Il runtime risponde a /health. Pronto per connettersi.
-          </div>
-        )}
-        {probed === "fail" && error && (
-          <div style={{ fontSize: 12, color: "#fca5a5", marginBottom: 8, lineHeight: 1.4 }}>
-            {error}
-          </div>
+        {tab === "connect" && (
+          <>
+            <div style={{ fontSize: 12, color: "#64748b", marginBottom: 16 }}>
+              Connetti l'editor a un runtime SWS in esecuzione su un'altra macchina
+              (tipicamente il PX30 sul campo). L'URL viene salvato nel browser
+              (localStorage) e usato da tutte le chiamate API/WS finché non lo
+              ripristini al locale.
+            </div>
+
+            <label style={{ fontSize: 11, color: "#94a3b8", display: "block", marginBottom: 4 }}>
+              URL del runtime
+            </label>
+            <div style={{ display: "flex", gap: 8, marginBottom: 4 }}>
+              <input
+                style={{ ...INPUT, flex: 1 }}
+                placeholder="https://px30.local:8443"
+                value={url}
+                onChange={(e) => { setUrl(e.target.value); setProbed(null); setError(null); }}
+                autoFocus
+              />
+              <button
+                style={{ ...BTN_GHOST, padding: "8px 14px" }}
+                onClick={probe}
+                disabled={!normalised || probing}
+              >
+                {probing ? "Test…" : "Test"}
+              </button>
+            </div>
+            {probed === "ok" && (
+              <div style={{ fontSize: 12, color: "#22c55e", marginBottom: 8 }}>
+                ✓ Il runtime risponde a /health. Pronto per connettersi.
+              </div>
+            )}
+            {probed === "fail" && error && (
+              <div style={{ fontSize: 12, color: "#fca5a5", marginBottom: 8, lineHeight: 1.4 }}>
+                {error}
+              </div>
+            )}
+
+            <div style={{ display: "flex", gap: 8, marginTop: 16, justifyContent: "flex-end" }}>
+              {current && (
+                <button
+                  style={{ ...BTN_GHOST, marginRight: "auto" }}
+                  onClick={reset}
+                  title="Ripristina runtime locale (same-origin)"
+                >
+                  ↺ Torna al locale
+                </button>
+              )}
+              <button style={BTN_GHOST} onClick={onClose}>Annulla</button>
+              <button
+                style={{ ...BTN_PRIMARY, opacity: probed === "ok" ? 1 : 0.5 }}
+                onClick={connect}
+                disabled={probed !== "ok"}
+              >
+                Connetti
+              </button>
+            </div>
+          </>
         )}
 
-        <div style={{ display: "flex", gap: 8, marginTop: 16, justifyContent: "flex-end" }}>
-          {current && (
-            <button
-              style={{ ...BTN_GHOST, marginRight: "auto" }}
-              onClick={reset}
-              title="Ripristina runtime locale (same-origin)"
-            >
-              ↺ Torna al locale
-            </button>
-          )}
-          <button style={BTN_GHOST} onClick={onClose}>Annulla</button>
-          <button
-            style={{ ...BTN_PRIMARY, opacity: probed === "ok" ? 1 : 0.5 }}
-            onClick={connect}
-            disabled={probed !== "ok"}
-          >
-            Connetti
-          </button>
-        </div>
+        {tab === "deploy" && (
+          <>
+            <DeploySection />
+            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 12 }}>
+              <button style={BTN_GHOST} onClick={onClose}>Chiudi</button>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

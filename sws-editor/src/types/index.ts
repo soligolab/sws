@@ -106,6 +106,19 @@ export interface TableRow {
   format?: string;
 }
 
+/**
+ * Built-in runtime action for a pressable object.
+ * - "login"    → opens the login modal overlay on the synoptic.
+ * - "logout"   → logs out and returns to anonymous read-only.
+ * - "navigate" → browser navigation to `url` (cross-page or cross-host).
+ * When set, Python on_press_fn is NOT called for "login"/"logout" (the built-in
+ * action takes precedence). For "navigate", on_press_fn fires first, then navigate.
+ */
+export type ButtonAction =
+  | { type: "login" }
+  | { type: "logout" }
+  | { type: "navigate"; url: string };
+
 export interface SynopticObject {
   id: string;
   /** Optional human-friendly name shown in the page object list. Defaults to type+suffix when omitted. */
@@ -191,6 +204,9 @@ export interface SynopticObject {
   on_press_args?: Record<string, string | number | boolean>;
   /** Per-binding overrides for the on_release function's parameter values. */
   on_release_args?: Record<string, string | number | boolean>;
+  /** Built-in runtime action triggered on click (takes precedence over on_press_fn
+   *  when `type` is "login" or "logout"; combined with on_press_fn for "navigate"). */
+  button_action?: ButtonAction;
   // ── Built-in SCADA symbol (type === "symbol") ─────────────────────────
   /** Which symbol from the built-in library this object renders. */
   symbol_id?: SymbolId;

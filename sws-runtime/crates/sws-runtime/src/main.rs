@@ -8,7 +8,7 @@ use clap::Parser;
 use hyper::body::Incoming;
 use hyper_util::rt::{TokioExecutor, TokioIo};
 use hyper_util::server::conn::auto::Builder as ConnBuilder;
-use rcgen::generate_simple_self_signed;
+use rcgen::{CertificateParams, KeyPair, SanType};
 use std::{net::{IpAddr, SocketAddr}, path::PathBuf, sync::Arc};
 use sws_auth::{AuthState, Role};
 use sws_core::{AlarmDb, LogBus, TagDb, TagQuality, TagWriteBus, DEFAULT_LOG_CAPACITY};
@@ -88,6 +88,13 @@ struct Args {
     /// The sws-kiosk binary must be in the same directory as sws-runtime.
     #[arg(long)]
     kiosk_wayland: bool,
+
+    /// Kiosk mode: bind port 8443 to 127.0.0.1 instead of 0.0.0.0.
+    /// The synoptic is then only reachable by a local browser (sws-kiosk or
+    /// Chromium kiosk launched on the same machine). Port 8444 (admin) is
+    /// always bound to 0.0.0.0 so a technician's laptop can reach it.
+    #[arg(long)]
+    kiosk: bool,
 
     /// Take an automatic backup every N minutes. 0 (default) disables the
     /// loop. Backups go under `<project>/.bak/<UTC-timestamp>/` and cover
@@ -530,7 +537,9 @@ async fn main() -> anyhow::Result<()> {
         info!(entries = ip_allowlist.len(), "IP allowlist active for /api/auth/login");
     }
 
-    let app = sws_web::router::build(
+    let cert_path = Arc::new(args.config.join("tls.crt"));
+
+    let (runtime_app, admin_app) = sws_web::router::build(
         tag_db,
         bus,
         alarm_db,
@@ -549,12 +558,20 @@ async fn main() -> anyhow::Result<()> {
         Arc::new(logs_dir),
         started_at,
         ip_allowlist,
+        cert_path,
         args.www.clone(),
     );
 
-    let addr: SocketAddr = "0.0.0.0:8443".parse()?;
-    let listener = TcpListener::bind(addr).await?;
-    info!(%addr, "HTTPS listener ready");
+    // Runtime listener (synoptic, optional-auth): 127.0.0.1 in --kiosk mode.
+    let runtime_bind = if args.kiosk { "127.0.0.1:8443" } else { "0.0.0.0:8443" };
+    let runtime_addr: SocketAddr = runtime_bind.parse()?;
+    let runtime_listener = TcpListener::bind(runtime_addr).await?;
+    info!(addr = %runtime_addr, kiosk = args.kiosk, "HTTPS runtime listener ready");
+
+    // Admin listener (all routes, auth required): always 0.0.0.0:8444.
+    let admin_addr: SocketAddr = "0.0.0.0:8444".parse()?;
+    let admin_listener = TcpListener::bind(admin_addr).await?;
+    info!(addr = %admin_addr, "HTTPS admin listener ready");
 
     // Kiosk-mode browser spawn: once /health answers OK, run the operator-
     // provided shell command (typically a kiosk browser). Fire-and-forget —
@@ -629,10 +646,15 @@ async fn main() -> anyhow::Result<()> {
     }
 
     loop {
-        let (stream, peer) = tokio::select! {
-            res = listener.accept() => match res {
-                Ok(v)  => v,
-                Err(e) => { warn!("accept error: {e}"); continue; }
+        // Accept on both listeners in parallel; either can produce the next connection.
+        let (stream, peer, svc) = tokio::select! {
+            res = runtime_listener.accept() => match res {
+                Ok((s, p)) => (s, p, runtime_app.clone()),
+                Err(e) => { warn!("runtime accept error: {e}"); continue; }
+            },
+            res = admin_listener.accept() => match res {
+                Ok((s, p)) => (s, p, admin_app.clone()),
+                Err(e) => { warn!("admin accept error: {e}"); continue; }
             },
             _ = tokio::signal::ctrl_c() => {
                 info!("shutdown signal received");
@@ -641,7 +663,6 @@ async fn main() -> anyhow::Result<()> {
         };
 
         let acceptor = acceptor.clone();
-        let svc = app.clone();
 
         tokio::spawn(async move {
             let tls_stream = match acceptor.accept(stream).await {
@@ -665,40 +686,81 @@ async fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
-/// Load `tls.crt`/`tls.key` from `config_dir`.
-/// Generates a self-signed certificate for `localhost` on first run.
-fn build_tls_acceptor(config_dir: &PathBuf) -> anyhow::Result<TlsAcceptor> {
-    let cert_path = config_dir.join("tls.crt");
-    let key_path  = config_dir.join("tls.key");
+/// Detect the primary outbound LAN IP via a connected UDP socket (no packets sent).
+fn detect_lan_ip() -> Option<std::net::IpAddr> {
+    let sock = std::net::UdpSocket::bind("0.0.0.0:0").ok()?;
+    sock.connect("8.8.8.8:80").ok()?;
+    sock.local_addr().ok().map(|a| a.ip())
+}
 
-    if !cert_path.exists() || !key_path.exists() {
-        info!("generating self-signed TLS certificate");
-        std::fs::create_dir_all(config_dir).context("creating config directory")?;
-        let certified = generate_simple_self_signed(vec!["localhost".into()])
-            .context("rcgen: generate_simple_self_signed")?;
-        std::fs::write(&cert_path, certified.cert.pem())
-            .context("writing tls.crt")?;
-        std::fs::write(&key_path, certified.key_pair.serialize_pem())
-            .context("writing tls.key")?;
-    }
-
-    let cert_pem = std::fs::read(&cert_path).context("reading tls.crt")?;
-    let key_pem  = std::fs::read(&key_path).context("reading tls.key")?;
-
+/// Try to load an existing TLS cert+key pair from disk. Returns an error if the
+/// files are missing, corrupted, or cannot be parsed by rustls.
+fn try_load_existing_tls(
+    cert_path: &std::path::Path,
+    key_path: &std::path::Path,
+) -> anyhow::Result<TlsAcceptor> {
+    let cert_pem = std::fs::read(cert_path).context("reading tls.crt")?;
+    let key_pem  = std::fs::read(key_path).context("reading tls.key")?;
     let certs: Vec<CertificateDer<'static>> =
         rustls_pemfile::certs(&mut cert_pem.as_slice())
             .collect::<Result<_, _>>()
             .context("parsing certificate PEM")?;
-
     let key: PrivateKeyDer<'static> =
         rustls_pemfile::private_key(&mut key_pem.as_slice())
             .context("parsing private key PEM")?
             .ok_or_else(|| anyhow::anyhow!("no private key found in tls.key"))?;
-
     let tls_cfg = ServerConfig::builder()
         .with_no_client_auth()
         .with_single_cert(certs, key)
         .context("building TLS ServerConfig")?;
-
     Ok(TlsAcceptor::from(Arc::new(tls_cfg)))
+}
+
+/// Build (or reuse) a self-signed TLS certificate with SANs:
+///   - DNS: localhost
+///   - IP:  127.0.0.1
+///   - IP:  <LAN IP> (auto-detected)
+///
+/// If `config_dir/tls.crt` and `tls.key` already exist and are loadable, they
+/// are reused so the browser does not need to re-accept the cert on every restart.
+/// Regeneration happens only when the files are missing or unreadable.
+/// The cert file is saved to `config_dir/tls.crt` for manual browser import.
+fn build_tls_acceptor(config_dir: &PathBuf) -> anyhow::Result<TlsAcceptor> {
+    let cert_path = config_dir.join("tls.crt");
+    let key_path  = config_dir.join("tls.key");
+
+    std::fs::create_dir_all(config_dir).context("creating config directory")?;
+
+    // Reuse existing cert if present and loadable — avoids forcing the browser
+    // to re-accept the TLS exception on every runtime restart.
+    if cert_path.exists() && key_path.exists() {
+        match try_load_existing_tls(&cert_path, &key_path) {
+            Ok(acceptor) => {
+                info!(path = %cert_path.display(), "reusing existing TLS certificate");
+                return Ok(acceptor);
+            }
+            Err(e) => warn!("existing TLS cert unloadable ({e}), regenerating"),
+        }
+    }
+
+    // Build SAN list: localhost + loopback IP + LAN IP
+    let lan_ip = detect_lan_ip();
+    let mut params = CertificateParams::new(vec!["localhost".to_string()])
+        .context("rcgen: CertificateParams::new")?;
+    params.subject_alt_names.push(SanType::IpAddress(
+        std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST),
+    ));
+    if let Some(ip) = lan_ip {
+        params.subject_alt_names.push(SanType::IpAddress(ip));
+        info!(%ip, "TLS cert will include LAN IP SAN");
+    }
+
+    let key_pair = KeyPair::generate().context("rcgen: KeyPair::generate")?;
+    let cert = params.self_signed(&key_pair).context("rcgen: self_signed")?;
+
+    std::fs::write(&cert_path, cert.pem()).context("writing tls.crt")?;
+    std::fs::write(&key_path, key_pair.serialize_pem()).context("writing tls.key")?;
+    info!(path = %cert_path.display(), "self-signed TLS certificate saved (import to trust)");
+
+    try_load_existing_tls(&cert_path, &key_path)
 }

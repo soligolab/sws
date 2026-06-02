@@ -148,8 +148,8 @@ export type AlignMode =
   | "distribute-x" | "distribute-y";
 
 export type Role = "Viewer" | "Operator" | "Supervisor" | "Admin";
-export type AppMode = "edit" | "view" | "config";
-export type AppConfigTab = "tags" | "protocols" | "alarms" | "scripts" | "faceplates" | "recipes" | "notifications" | "datastores" | "users" | "resources" | "system" | "backups";
+export type AppMode = "edit" | "config";
+export type AppConfigTab = "tags" | "protocols" | "alarms" | "scripts" | "faceplates" | "recipes" | "notifications" | "datastores" | "users" | "resources" | "system" | "backups" | "runtime";
 
 interface AppState {
   // Auth

@@ -9,12 +9,38 @@ import { ReAuthModal } from "@/components/ReAuthModal";
 import { WelcomeScreen } from "@/components/WelcomeScreen";
 import { ConfigView } from "@/config/ConfigView";
 import { EditorShell } from "@/editor/EditorShell";
-import { RuntimeView } from "@/runtime-view/RuntimeView";
 import { useAppStore } from "@/store";
 import { useLogStream } from "@/ws/logStream";
 import { canEditProject, canConfigureProject } from "@/auth/permissions";
 
-type Mode = "edit" | "view" | "config";
+// Port 8444 — full IDE (canvas editor + ConfigView + project management).
+// Served via admin-main.tsx which calls setForceLocalApi(true) before render.
+type Mode = "edit" | "config";
+
+// ── Role gate for admin port ──────────────────────────────────────────────────
+
+const HDR_BTN_DENY: React.CSSProperties = {
+  padding: "8px 20px", background: "#334155", color: "#cbd5e1",
+  border: "1px solid #475569", borderRadius: 4, cursor: "pointer", fontSize: 14,
+};
+
+function AccessDenied({ role, onLogout }: { role: string; onLogout: () => void }) {
+  return (
+    <div style={{
+      display: "flex", flexDirection: "column", alignItems: "center",
+      justifyContent: "center", height: "100vh", background: "#0f172a",
+      color: "#e2e8f0", gap: 16, fontFamily: "system-ui",
+    }}>
+      <div style={{ fontSize: 48 }}>🔒</div>
+      <div style={{ fontSize: 20, fontWeight: 600 }}>Accesso negato</div>
+      <div style={{ fontSize: 14, color: "#94a3b8", maxWidth: 400, textAlign: "center" }}>
+        Il pannello IDE richiede ruolo <strong>Supervisor</strong> o <strong>Admin</strong>.
+        Sei autenticato come <strong>{role}</strong>.
+      </div>
+      <button style={HDR_BTN_DENY} onClick={onLogout}>Logout</button>
+    </div>
+  );
+}
 
 // ── Shared header-button style ────────────────────────────────────────────────
 
@@ -352,7 +378,6 @@ function MainMenu({ mode, onLogout, onCloseProject }: { mode: Mode; onLogout: ()
 
 const MODE_LABELS: Record<Mode, string> = {
   edit:   "Editor",
-  view:   "Runtime",
   config: "Configurazione",
 };
 
@@ -396,33 +421,19 @@ export function App() {
   const incSaveSerial       = useAppStore((s) => s.incSaveSerial);
   const saveStatus          = useAppStore((s) => s.saveStatus);
 
-  // Role-gated UI surfaces. Viewer + Operator are runtime-only roles;
-  // Supervisor + Admin get editor and config. `effectiveMode` pins
-  // non-editors to "view" even if `appMode` in the store is stale "edit"
-  // (the store default; not persisted to localStorage).
-  const canEdit      = canEditProject(authRole);
-  const canConfigure = canConfigureProject(authRole);
+  // Role-gated UI surfaces. Supervisor + Admin get editor and config;
+  // Viewer/Operator should use the runtime SPA (port 8443) instead.
+  const canEdit = canEditProject(authRole);
 
-  // T-19: on narrow screens (<768px) force runtime-view only.
   const [confirmPending, setConfirmPending] = useState<"close" | "logout" | null>(null);
   const [waitingForSave, setWaitingForSave] = useState(false);
 
-  const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768);
-  useEffect(() => {
-    const mq = window.matchMedia("(max-width: 767px)");
-    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches);
-    mq.addEventListener("change", handler);
-    return () => mq.removeEventListener("change", handler);
-  }, []);
-
   const effectiveMode: Mode =
-    isMobile                             ? "view" :
-    (mode === "edit"   && !canEdit)      ? "view" :
-    (mode === "config" && !canConfigure) ? "view" :
+    (mode === "edit"   && !canEdit)      ? "config" :
     mode;
-  const allowedModes: Mode[] = (canEdit && !isMobile)
-    ? (["edit", "view", "config"] as Mode[])
-    : (["view"] as Mode[]);
+  const allowedModes: Mode[] = canEdit
+    ? (["edit", "config"] as Mode[])
+    : (["config"] as Mode[]);
 
   // ── URL hash deep-linking (#edit | #view | #config | #config/<tab>) ─────────
   // Read once after the app becomes active (authenticated + project open).
@@ -436,7 +447,7 @@ export function App() {
       const tab = hash.slice("config/".length);
       if (VALID_TABS.includes(tab)) navigateToConfig(tab as Parameters<typeof navigateToConfig>[0]);
       else setMode("config");
-    } else if (hash === "edit" || hash === "view" || hash === "config") {
+    } else if (hash === "edit" || hash === "config") {
       setMode(hash as Mode);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -567,15 +578,11 @@ export function App() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [waitingForSave, isDirty, saveStatus]);
 
-  // Show WelcomeScreen when runtime has no active project.
+  // No active project → show project picker (WelcomeScreen).
   if (noActiveProject) {
     return (
       <WelcomeScreen
-        onProjectOpened={() => {
-          // open_project invalidates all sessions → go to LoginScreen.
-          setNoActiveProject(false);
-          clearAuth();
-        }}
+        onProjectOpened={() => { setNoActiveProject(false); clearAuth(); }}
       />
     );
   }
@@ -590,6 +597,11 @@ export function App() {
 
   if (mustChangePassword) {
     return <ChangePasswordScreen />;
+  }
+
+  // Role gate: Operator/Viewer cannot use the IDE on port 8444.
+  if (!canConfigureProject(authRole)) {
+    return <AccessDenied role={authRole ?? "Viewer"} onLogout={handleLogout} />;
   }
 
   return (
@@ -749,7 +761,6 @@ export function App() {
       {/* Main area */}
       <main style={{ display: "flex", flex: 1, overflow: "hidden" }}>
         {effectiveMode === "edit"   && <EditorShell />}
-        {effectiveMode === "view"   && <RuntimeView />}
         {effectiveMode === "config" && <ConfigView />}
       </main>
 

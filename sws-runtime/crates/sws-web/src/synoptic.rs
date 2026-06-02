@@ -137,6 +137,10 @@ pub struct SynopticObject {
     // Editor-only metadata
     #[serde(skip_serializing_if = "Option::is_none")] pub locked:                     Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")] pub group_id:                   Option<String>,
+    // Built-in runtime action — opaque JSON so we don't need to mirror the
+    // TypeScript discriminated union on the Rust side. The runtime SPA reads
+    // the raw `type` field directly; the backend never interprets it.
+    #[serde(skip_serializing_if = "Option::is_none")] pub button_action:              Option<Value>,
 }
 
 // Note: `symbol_kind` and `symbol_path` are NOT stored on the object —

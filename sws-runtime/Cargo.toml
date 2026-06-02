@@ -21,6 +21,7 @@ tokio-util       = { version = "0.7" }
 # `Sink::send` / `Stream::next` traits on the axum WebSocket. Used by the
 # bidirectional /ws/tags handler to split read + write into separate tasks.
 futures-util     = { version = "0.3",   default-features = false, features = ["std", "sink"] }
+tokio-stream     = { version = "0.1" }
 
 # Historian persistence
 rusqlite         = { version = "0.32",  features = ["bundled"] }

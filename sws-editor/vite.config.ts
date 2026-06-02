@@ -1,11 +1,12 @@
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 
-// Default proxy target for `pnpm dev`. Override at the shell with
-// `VITE_RUNTIME_URL=https://px30.local:8443 pnpm dev` to point the editor
+// Default proxy target for `pnpm dev`. The editor is an admin tool and connects
+// to the admin port (8444). Override at the shell with
+// `VITE_RUNTIME_URL=https://px30.local:8444 pnpm dev` to point the editor
 // at a runtime running on another machine — useful for editing a project
 // hosted on a device while developing on a laptop.
-const RUNTIME_TARGET = process.env.VITE_RUNTIME_URL ?? "https://localhost:8443";
+const RUNTIME_TARGET = process.env.VITE_RUNTIME_URL ?? "https://localhost:8444";
 const WS_TARGET = RUNTIME_TARGET.replace(/^http/, "ws");
 
 export default defineConfig({
@@ -42,6 +43,10 @@ export default defineConfig({
   },
   build: {
     rollupOptions: {
+      input: {
+        main:  "index.html",
+        admin: "index-admin.html",
+      },
       output: {
         manualChunks(id) {
           // Stable vendor chunks — cached by the browser between app deploys.
