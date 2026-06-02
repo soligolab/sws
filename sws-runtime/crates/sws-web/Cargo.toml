@@ -37,6 +37,7 @@ mdns-sd.workspace         = true
 # Email notifications (SMTP) — pure-Rust TLS via rustls, no OpenSSL
 lettre = { version = "0.11", default-features = false, features = ["tokio1-rustls-tls", "smtp-transport", "builder"] }
 sysinfo           = { workspace = true }
+sha2              = { workspace = true }
 # Prometheus exposition for /metrics. The recorder is installed once at
 # router-build time; emitting metrics elsewhere goes through the `metrics`
 # facade against the global recorder.

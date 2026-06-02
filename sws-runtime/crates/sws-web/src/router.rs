@@ -230,6 +230,9 @@ pub fn build(
         .route("/api/recipes/:id",      get(get_recipe).put(save_recipe).delete(delete_recipe))
         // GitOps status (read-only — any authenticated user)
         .route("/api/project/git-status", get(get_git_status))
+        // Project fingerprint: SHA256 of project.yaml + all synoptics.
+        // Clients compare local vs. remote fingerprint to verify deployment sync.
+        .route("/api/project/fingerprint", get(get_project_fingerprint))
         // WebSocket streams
         .route("/ws/tags",   get(ws_tags_handler))
         .route("/ws/alarms", get(ws_alarms_handler));
@@ -418,6 +421,7 @@ fn build_runtime_inner(state: AppState, www_dir: Option<PathBuf>) -> Router {
         .route("/api/recipes/:id",        get(get_recipe))
         .route("/api/datastores",         get(list_datastores))
         .route("/api/datastores/:id/stats", get(datastore_stats))
+        .route("/api/project/fingerprint", get(get_project_fingerprint))
         .route("/ws/tags",                get(ws_tags_handler))
         .route("/ws/alarms",              get(ws_alarms_handler));
 
@@ -3492,6 +3496,65 @@ async fn update_project_global_scripts(
         }
     }
     status
+}
+
+// ── T-24 Project fingerprint ─────────────────────────────────────────────────
+
+/// `GET /api/project/fingerprint` — SHA-256 of project.yaml + all synoptic YAMLs.
+/// The fingerprint is deterministic: same file contents = same hash regardless of
+/// when it is computed. Clients compare local vs. remote fingerprint to verify that
+/// a deployment is in sync.
+async fn get_project_fingerprint(State(s): State<AppState>) -> impl IntoResponse {
+    use sha2::{Digest, Sha256};
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
+
+    let result = tokio::task::spawn_blocking(move || -> anyhow::Result<String> {
+        let mut hasher = Sha256::new();
+
+        // 1. Hash project.yaml
+        let yaml = std::fs::read(dir.join("project.yaml"))
+            .map_err(|e| anyhow::anyhow!("project.yaml: {e}"))?;
+        hasher.update(&yaml);
+
+        // 2. Hash synoptics sorted by filename for determinism
+        let syn_dir = dir.join("synoptics");
+        if syn_dir.is_dir() {
+            let mut entries: Vec<std::path::PathBuf> = std::fs::read_dir(&syn_dir)
+                .map_err(|e| anyhow::anyhow!("synoptics/: {e}"))?
+                .filter_map(|e| e.ok())
+                .map(|e| e.path())
+                .filter(|p| p.extension().and_then(|s| s.to_str()) == Some("yaml"))
+                .collect();
+            entries.sort();
+            for path in &entries {
+                // Prefix with filename so two files with identical content but
+                // different names produce different overall hashes.
+                if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
+                    hasher.update(name.as_bytes());
+                }
+                let content = std::fs::read(path)
+                    .map_err(|e| anyhow::anyhow!("{}: {e}", path.display()))?;
+                hasher.update(&content);
+            }
+        }
+
+        let digest = hasher.finalize();
+        Ok(digest.iter().fold(String::new(), |mut s, b| { s.push_str(&format!("{:02x}", b)); s }))
+    }).await;
+
+    match result {
+        Ok(Ok(sha256)) => {
+            let computed_at_ms = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .map(|d| d.as_millis() as u64)
+                .unwrap_or(0);
+            Json(serde_json::json!({ "sha256": sha256, "computed_at_ms": computed_at_ms })).into_response()
+        }
+        Ok(Err(e)) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+        Err(e)     => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+    }
 }
 
 // ── T-20 GitOps ──────────────────────────────────────────────────────────────
