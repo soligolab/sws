@@ -939,4 +939,17 @@ export interface GitStatus {
   remote_url: string | null;
   clean: boolean;
   last_deploy_ms: number | null;
+  unpushed_commits: number;
+}
+
+export interface ProjectFingerprint {
+  sha256: string;
+  computed_at_ms: number;
+}
+
+export interface SavedDevice {
+  label: string;
+  url: string;
+  user: string;
+  pass: string;
 }
