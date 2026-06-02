@@ -5776,6 +5776,8 @@ function NotificationsTab() {
 
 // ── RuntimeConnectionTab ─────────────────────────────────────────────────────
 
+interface RemoteLog { ts_ms: number; level: string; message: string; }
+
 const RT_URL_KEY  = "sws.runtime.targetUrl";
 const RT_USER_KEY = "sws.runtime.targetUser";
 const RT_PASS_KEY = "sws.runtime.targetPass";
@@ -5796,6 +5798,10 @@ function RuntimeConnectionTab() {
   const [deployDone, setDeployDone] = useState(false);
   const [discovering, setDiscovering] = useState(false);
   const [discovered, setDiscovered]   = useState<DiscoveredRuntime[] | null>(null);
+  const [remoteLogs, setRemoteLogs]   = useState<RemoteLog[] | null>(null);
+  const [logFetching, setLogFetching] = useState(false);
+  const [logLive, setLogLive]         = useState(false);
+  const logTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const target = targetUrl.trim().replace(/\/$/, "");
 
@@ -5834,6 +5840,7 @@ function RuntimeConnectionTab() {
   const handleDisconnect = () => {
     localStorage.removeItem(RT_CONN_KEY);
     setStatus("idle"); setStatusMsg(null); setDeployLog([]); setDeployDone(false);
+    setRemoteLogs(null); setLogLive(false);
     window.dispatchEvent(new CustomEvent("sws:runtime-disconnected"));
   };
 
@@ -5865,6 +5872,34 @@ function RuntimeConnectionTab() {
       setDiscovering(false);
     }
   };
+
+  const fetchRemoteLogs = useCallback(async () => {
+    if (!target || !targetUser || !targetPass) return;
+    setLogFetching(true);
+    try {
+      const res = await fetch(`${target}/api/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: targetUser.trim(), password: targetPass }),
+      });
+      if (!res.ok) return;
+      const { token } = await res.json();
+      const lr = await fetch(`${target}/api/logs`, { headers: { Authorization: `Bearer ${token}` } });
+      if (lr.ok) setRemoteLogs(await lr.json());
+    } catch { /* network error, ignore */ } finally {
+      setLogFetching(false);
+    }
+  }, [target, targetUser, targetPass]);
+
+  useEffect(() => {
+    if (logLive && status === "connected") {
+      logTimerRef.current = setInterval(fetchRemoteLogs, 5000);
+    } else {
+      if (logTimerRef.current) { clearInterval(logTimerRef.current); logTimerRef.current = null; }
+      if (status !== "connected") setLogLive(false);
+    }
+    return () => { if (logTimerRef.current) { clearInterval(logTimerRef.current); logTimerRef.current = null; } };
+  }, [logLive, status, fetchRemoteLogs]);
 
   const addLog = (msg: string) => setDeployLog((l) => [...l, msg]);
 
@@ -6127,6 +6162,48 @@ function RuntimeConnectionTab() {
               Nuovo deploy
             </button>
           )}
+        </section>
+      )}
+
+      {/* Remote logs */}
+      {connected && (
+        <section>
+          <div style={{ fontSize: 13, fontWeight: 600, color: "#94a3b8", marginBottom: 8, textTransform: "uppercase", letterSpacing: 1 }}>
+            Log remoti
+          </div>
+          <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+            <button style={{ ...BTN, opacity: logFetching ? 0.6 : 1 }} disabled={logFetching}
+              onClick={() => { void fetchRemoteLogs(); }}>
+              {logFetching ? "Carico…" : "Aggiorna"}
+            </button>
+            <button style={{ ...BTN, border: logLive ? "1px solid #4ade80" : undefined, color: logLive ? "#4ade80" : undefined }}
+              onClick={() => setLogLive((v) => !v)}>
+              ● Live
+            </button>
+          </div>
+          <div style={{
+            background: "#020617", border: "1px solid #1e293b", borderRadius: 4,
+            padding: "8px 10px", maxHeight: 200, overflowY: "auto",
+            fontFamily: "monospace", fontSize: 11,
+          }}>
+            {remoteLogs === null
+              ? <span style={{ color: "#475569" }}>Nessun log caricato. Premi Aggiorna.</span>
+              : remoteLogs.length === 0
+                ? <span style={{ color: "#475569" }}>Nessun log disponibile.</span>
+                : remoteLogs.map((l, i) => {
+                    const lvl = l.level.toUpperCase();
+                    const color = lvl === "WARN" ? "#fb923c" : lvl === "ERROR" ? "#f87171" : lvl === "DEBUG" ? "#475569" : "#94a3b8";
+                    const ts = new Date(l.ts_ms).toLocaleTimeString("it-IT");
+                    return (
+                      <div key={i} style={{ color, marginBottom: 1 }}>
+                        <span style={{ color: "#475569", marginRight: 6 }}>{ts}</span>
+                        <span style={{ marginRight: 6 }}>{lvl}</span>
+                        {l.message}
+                      </div>
+                    );
+                  })
+            }
+          </div>
         </section>
       )}
     </div>
