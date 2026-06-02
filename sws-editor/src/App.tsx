@@ -428,6 +428,21 @@ export function App() {
   const [confirmPending, setConfirmPending] = useState<"close" | "logout" | null>(null);
   const [waitingForSave, setWaitingForSave] = useState(false);
 
+  // Remote deploy target connection state — persisted in localStorage by RuntimeConnectionTab.
+  const [rtConnected, setRtConnected] = useState(
+    () => localStorage.getItem("sws.runtime.connected") === "1"
+  );
+  useEffect(() => {
+    const onConn = () => setRtConnected(true);
+    const onDisc = () => setRtConnected(false);
+    window.addEventListener("sws:runtime-connected", onConn);
+    window.addEventListener("sws:runtime-disconnected", onDisc);
+    return () => {
+      window.removeEventListener("sws:runtime-connected", onConn);
+      window.removeEventListener("sws:runtime-disconnected", onDisc);
+    };
+  }, []);
+
   const effectiveMode: Mode =
     (mode === "edit"   && !canEdit)      ? "config" :
     mode;
@@ -698,6 +713,29 @@ export function App() {
         </span>
         {effectiveMode === "edit" && <GridDropdown />}
         <RuntimeCtrl />
+        {/* Remote deploy target indicator — green when connected, click to go to Runtime tab */}
+        <button
+          onClick={() => {
+            if (rtConnected) {
+              if (window.confirm("Disconnettere dal runtime remoto?")) {
+                localStorage.removeItem("sws.runtime.connected");
+                setRtConnected(false);
+                window.dispatchEvent(new CustomEvent("sws:runtime-disconnected"));
+              }
+            } else {
+              navigateToConfig("runtime");
+            }
+          }}
+          title={rtConnected ? "Connesso al runtime remoto — clicca per disconnettere" : "Clicca per configurare la connessione al runtime remoto"}
+          style={{
+            ...HDR_BTN,
+            ...(rtConnected ? { background: "#14532d", color: "#4ade80", border: "1px solid #16a34a" } : {}),
+            display: "flex", alignItems: "center", gap: 5,
+          }}
+        >
+          <span style={{ width: 7, height: 7, borderRadius: "50%", background: rtConnected ? "#4ade80" : "#ef4444", display: "inline-block", flexShrink: 0 }} />
+          Deploy
+        </button>
         <button
           onClick={() => {
             const next = !logOpen;
