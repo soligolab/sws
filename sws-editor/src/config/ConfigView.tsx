@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { api, type CreateUserBody, type UpdateUserBody, type UserRole, type UserSummary } from "@/api/client";
+import { api, type CreateUserBody, type DiscoveredRuntime, type UpdateUserBody, type UserRole, type UserSummary } from "@/api/client";
 import { TagInput } from "@/components/TagInput";
 import { PythonEditor, type PythonEditorHandle } from "@/components/PythonEditor";
 import { useAppStore } from "@/store";
@@ -5740,6 +5740,8 @@ function RuntimeConnectionTab() {
   const [deployLog, setDeployLog]   = useState<string[]>([]);
   const [deploying, setDeploying]   = useState(false);
   const [deployDone, setDeployDone] = useState(false);
+  const [discovering, setDiscovering] = useState(false);
+  const [discovered, setDiscovered]   = useState<DiscoveredRuntime[] | null>(null);
 
   const target = targetUrl.trim().replace(/\/$/, "");
 
@@ -5794,6 +5796,19 @@ function RuntimeConnectionTab() {
       URL.revokeObjectURL(a.href);
     } catch {
       setStatusMsg(`Non riesco a scaricare il cert. Se il target usa TLS self-signed non ancora accettato, esegui:\n  curl -k ${certUrl} -o sws.crt\npoi importalo nel browser.`);
+    }
+  };
+
+  const handleDiscover = async () => {
+    setDiscovering(true);
+    setDiscovered(null);
+    try {
+      const found = await api.discoverRuntimes();
+      setDiscovered(found);
+    } catch {
+      setDiscovered([]);
+    } finally {
+      setDiscovering(false);
     }
   };
 
@@ -5941,7 +5956,33 @@ function RuntimeConnectionTab() {
               disabled={!target}
               onClick={() => { if (target) window.open(`${target}/health`, "_blank"); }}
             >Accetta cert TLS ↗</button>
+            <button
+              style={{ ...BTN, whiteSpace: "nowrap", flexShrink: 0 }}
+              title="Cerca runtime SWS sulla rete locale via mDNS (~2 s)"
+              disabled={discovering}
+              onClick={handleDiscover}
+            >{discovering ? "Cerco…" : "Cerca runtime"}</button>
           </div>
+          {discovered !== null && (
+            <div style={{ background: "#0f172a", border: "1px solid #334155", borderRadius: 4, padding: "6px 8px" }}>
+              {discovered.length === 0
+                ? <span style={{ fontSize: 12, color: "#64748b" }}>Nessun runtime trovato sulla rete locale.</span>
+                : discovered.map((r) => (
+                    <div
+                      key={r.admin_url}
+                      style={{ display: "flex", alignItems: "center", gap: 8, padding: "3px 0",
+                        borderBottom: "1px solid #1e293b", cursor: "pointer" }}
+                      onClick={() => { setTargetUrl(r.admin_url); if (connected) handleDisconnect(); setDiscovered(null); }}
+                    >
+                      <span style={{ fontSize: 12, color: "#94a3b8", flex: 1 }}>
+                        {r.name}{r.version ? ` v${r.version}` : ""}
+                      </span>
+                      <span style={{ fontSize: 11, color: "#475569" }}>{r.admin_url}</span>
+                    </div>
+                  ))
+              }
+            </div>
+          )}
           <span style={{ fontSize: 10, color: "#475569" }}>
             Porta 8444 = accesso admin (deploy). Porta 8443 = viewer operatori.
           </span>

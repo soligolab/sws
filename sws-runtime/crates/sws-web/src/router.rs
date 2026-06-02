@@ -193,6 +193,9 @@ pub fn build(
     let supervisor_routes = Router::new()
         .route("/api/synoptics/:name", put(save_synoptic))
         .route("/api/synoptics/import", post(import_synoptic_yaml))
+        // mDNS discovery: scan LAN for _sws._tcp.local. services (~2 s).
+        // Supervisor+ only — used from the RuntimeConnectionTab deploy panel.
+        .route("/api/discover", get(crate::discover::discover_runtimes))
         .route_layer(middleware::from_fn(require_supervisor));
 
     // Routes any authenticated user (incl. Viewer) can hit.

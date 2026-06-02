@@ -56,6 +56,10 @@ hyper          = { version = "1",   features = ["http1", "http2"] }
 hyper-util     = { version = "0.1", features = ["tokio", "server", "server-auto"] }
 rustls-pemfile = "2"
 
+# mDNS service discovery — announce _sws._tcp.local. at startup and browse on demand.
+# Pure Rust, no avahi/dbus dependency.
+mdns-sd = { version = "0.20", default-features = false }
+
 # Auth
 argon2 = { version = "0.5", features = ["std"] }
 uuid   = { version = "1", features = ["v4"] }

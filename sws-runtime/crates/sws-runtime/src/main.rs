@@ -587,6 +587,10 @@ async fn main() -> anyhow::Result<()> {
     let admin_listener = TcpListener::bind(admin_addr).await?;
     info!(addr = %admin_addr, "HTTPS admin listener ready");
 
+    // Announce this runtime on the local network via mDNS.
+    // Held alive until process exit; drop = unregister. Non-fatal if it fails.
+    let _mdns_svc = announce_mdns(args.viewer_port, args.admin_port);
+
     // Kiosk-mode browser spawn: once /health answers OK, run the operator-
     // provided shell command (typically a kiosk browser). Fire-and-forget —
     // the runtime never restarts or kills the child, and the child's death
@@ -702,6 +706,63 @@ async fn main() -> anyhow::Result<()> {
     }
 
     Ok(())
+}
+
+/// Announce this runtime as `_sws._tcp.local.` via mDNS.
+/// The ServiceDaemon must stay alive for the announcement to remain visible;
+/// drop it to unregister. Returns `None` if the daemon or registration fails
+/// (non-fatal — mDNS is optional).
+fn announce_mdns(viewer_port: u16, admin_port: u16) -> Option<mdns_sd::ServiceDaemon> {
+    use mdns_sd::{ServiceDaemon, ServiceInfo};
+
+    let daemon = ServiceDaemon::new()
+        .map_err(|e| warn!("mDNS: daemon create failed: {e}"))
+        .ok()?;
+
+    let hostname = std::process::Command::new("hostname")
+        .output()
+        .ok()
+        .and_then(|o| String::from_utf8(o.stdout).ok())
+        .map(|s| s.trim().to_string())
+        .unwrap_or_else(|| "sws-runtime".to_string());
+
+    let host_fqdn = format!("{}.local.", hostname);
+    let admin_port_str = admin_port.to_string();
+    let properties = [
+        ("admin_port", admin_port_str.as_str()),
+        ("version", env!("CARGO_PKG_VERSION")),
+    ];
+
+    let service_info = match ServiceInfo::new(
+        "_sws._tcp.local.",
+        &hostname,
+        &host_fqdn,
+        "", // empty = enable_addr_auto below
+        viewer_port,
+        &properties[..],
+    ) {
+        Ok(info) => info.enable_addr_auto(),
+        Err(e) => {
+            warn!("mDNS: ServiceInfo build failed: {e}");
+            return None;
+        }
+    };
+
+    match daemon.register(service_info) {
+        Ok(_) => {
+            info!(
+                instance = %hostname,
+                viewer_port,
+                admin_port,
+                "mDNS service announced (_sws._tcp.local.)"
+            );
+            Some(daemon)
+        }
+        Err(e) => {
+            warn!("mDNS: register failed: {e}");
+            None
+        }
+    }
 }
 
 /// Detect the primary outbound LAN IP via a connected UDP socket (no packets sent).
