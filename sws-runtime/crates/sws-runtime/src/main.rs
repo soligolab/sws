@@ -89,12 +89,22 @@ struct Args {
     #[arg(long)]
     kiosk_wayland: bool,
 
-    /// Kiosk mode: bind port 8443 to 127.0.0.1 instead of 0.0.0.0.
+    /// Kiosk mode: bind the viewer port to 127.0.0.1 instead of 0.0.0.0.
     /// The synoptic is then only reachable by a local browser (sws-kiosk or
-    /// Chromium kiosk launched on the same machine). Port 8444 (admin) is
+    /// Chromium kiosk launched on the same machine). The admin port is
     /// always bound to 0.0.0.0 so a technician's laptop can reach it.
     #[arg(long)]
     kiosk: bool,
+
+    /// HTTPS port for the operator viewer (RuntimeViewer SPA, optional_auth). Default: 8443.
+    /// Override when running multiple runtime instances on the same host.
+    #[arg(long, default_value_t = 8443u16)]
+    viewer_port: u16,
+
+    /// HTTPS port for the admin IDE (full App SPA, required_auth). Default: 8444.
+    /// Override when running multiple runtime instances on the same host.
+    #[arg(long, default_value_t = 8444u16)]
+    admin_port: u16,
 
     /// Take an automatic backup every N minutes. 0 (default) disables the
     /// loop. Backups go under `<project>/.bak/<UTC-timestamp>/` and cover
@@ -563,13 +573,17 @@ async fn main() -> anyhow::Result<()> {
     );
 
     // Runtime listener (synoptic, optional-auth): 127.0.0.1 in --kiosk mode.
-    let runtime_bind = if args.kiosk { "127.0.0.1:8443" } else { "0.0.0.0:8443" };
+    let runtime_bind = if args.kiosk {
+        format!("127.0.0.1:{}", args.viewer_port)
+    } else {
+        format!("0.0.0.0:{}", args.viewer_port)
+    };
     let runtime_addr: SocketAddr = runtime_bind.parse()?;
     let runtime_listener = TcpListener::bind(runtime_addr).await?;
     info!(addr = %runtime_addr, kiosk = args.kiosk, "HTTPS runtime listener ready");
 
-    // Admin listener (all routes, auth required): always 0.0.0.0:8444.
-    let admin_addr: SocketAddr = "0.0.0.0:8444".parse()?;
+    // Admin listener (all routes, auth required): always 0.0.0.0.
+    let admin_addr: SocketAddr = format!("0.0.0.0:{}", args.admin_port).parse()?;
     let admin_listener = TcpListener::bind(admin_addr).await?;
     info!(addr = %admin_addr, "HTTPS admin listener ready");
 
@@ -579,6 +593,7 @@ async fn main() -> anyhow::Result<()> {
     // doesn't stop the runtime. PoC-grade: no retries beyond the initial
     // health-check poll, no log capture (stdio inherits).
     if let Some(cmd) = args.kiosk_browser.clone() {
+        let vport = args.viewer_port;
         tokio::spawn(async move {
             // Tolerate self-signed cert (rcgen-generated on first run).
             let client = reqwest::Client::builder()
@@ -586,9 +601,10 @@ async fn main() -> anyhow::Result<()> {
                 .timeout(std::time::Duration::from_millis(500))
                 .build()
                 .unwrap_or_default();
+            let health_url = format!("https://localhost:{vport}/health");
             let mut ready = false;
             for _ in 0..50 {
-                if let Ok(r) = client.get("https://localhost:8443/health").send().await {
+                if let Ok(r) = client.get(&health_url).send().await {
                     if r.status().is_success() { ready = true; break; }
                 }
                 tokio::time::sleep(std::time::Duration::from_millis(100)).await;
@@ -610,15 +626,17 @@ async fn main() -> anyhow::Result<()> {
     }
 
     if args.kiosk_wayland {
+        let vport = args.viewer_port;
         tokio::spawn(async move {
             let client = reqwest::Client::builder()
                 .danger_accept_invalid_certs(true)
                 .timeout(std::time::Duration::from_millis(500))
                 .build()
                 .unwrap_or_default();
+            let health_url = format!("https://localhost:{vport}/health");
             let mut ready = false;
             for _ in 0..50 {
-                if let Ok(r) = client.get("https://localhost:8443/health").send().await {
+                if let Ok(r) = client.get(&health_url).send().await {
                     if r.status().is_success() { ready = true; break; }
                 }
                 tokio::time::sleep(std::time::Duration::from_millis(100)).await;

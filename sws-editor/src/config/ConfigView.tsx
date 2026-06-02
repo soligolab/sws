@@ -5728,6 +5728,8 @@ const RT_PASS_KEY = "sws.runtime.targetPass";
 const RT_CONN_KEY = "sws.runtime.connected";
 
 function RuntimeConnectionTab() {
+  const authUser = useAppStore((s) => s.authUser);
+
   const [targetUrl,  setTargetUrl]  = useState(() => localStorage.getItem(RT_URL_KEY)  ?? "");
   const [targetUser, setTargetUser] = useState(() => localStorage.getItem(RT_USER_KEY) ?? "admin");
   const [targetPass, setTargetPass] = useState(() => localStorage.getItem(RT_PASS_KEY) ?? "");
@@ -5799,6 +5801,21 @@ function RuntimeConnectionTab() {
 
   const handleDeploy = async () => {
     saveForm();
+    // Warn if session TTL is disabled — re-enable before deploying to production.
+    if (authUser) {
+      try {
+        const users = await api.listUsers();
+        const me = users.find((u) => u.username === authUser);
+        if (me?.session_ttl_secs === 0) {
+          const reEnable = window.confirm(
+            "La scadenza della sessione è disattivata.\n" +
+            "Riabilitarla è consigliato per la sicurezza in produzione.\n\n" +
+            "Riabilitare la scadenza (1 ora) prima del deploy?"
+          );
+          if (reEnable) await api.updateUser(authUser, { session_ttl_secs: 3600 });
+        }
+      } catch { /* non-critical — proceed with deploy */ }
+    }
     setDeploying(true); setDeployLog([]); setDeployDone(false);
     try {
       addLog("Esportazione progetto dal runtime locale…");
