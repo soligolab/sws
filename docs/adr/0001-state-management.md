@@ -1,7 +1,8 @@
 # ADR 0001 — State Management Library for sws-editor
 
-**Status**: Proposed  
+**Status**: Accepted  
 **Date**: 2026-05-10  
+**Decided**: 2026-06-02  
 **Deciders**: Soligo Lab maintainers
 
 ## Context
@@ -34,13 +35,18 @@ cross-component communication (canvas ↔ properties panel ↔ alarm banner).
 
 ## Decision
 
-**Pending** — provisional implementation uses Zustand (Option A) because of lower startup
-cost. This decision must be reviewed before Milestone 1 (M1) freeze. If undo/redo or
-multi-user CRDT merge (planned for M5) requires Redux middleware, migrate then.
+**Accepted: Option A — Zustand.**
+
+After T-01…T-21 (full PoC implementation), Zustand has proven adequate for the store
+surface: tags, alarms, auth, canvas selection, undo/redo history, project state, and
+WebSocket live data. The store grew to ~600 lines but remained readable and maintainable.
+
+No migration to RTK is planned for the PoC phase. Revisit if multi-user CRDT editing
+is introduced in the product phase (M5+).
 
 ## Consequences
 
-- Zustand is installed as a dependency in `package.json`
-- `src/store/index.ts` exports a Zustand store; refactoring to RTK would touch all
-  `useStore` call sites
-- ADR must be updated with final decision before PR #3 is merged
+- Zustand remains the state management library for `sws-editor`
+- `src/store/index.ts` is the single Zustand store; all components use `useAppStore`
+- If the store grows beyond ~1000 lines, consider splitting into slices (Zustand supports
+  this natively) before considering a full migration to RTK

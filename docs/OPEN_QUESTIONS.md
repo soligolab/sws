@@ -58,7 +58,9 @@ Still pending (Phase 2 polish):
 
 **Default for PoC**: pick C (manual Protobuf) for the simplest happy-path demo. Revisit if/when Sparkplug becomes a serious product feature.
 
-**Decided**: not yet. No code touches this area until Phase 3.
+**Decided**: **C (manual Protobuf with `prost`)**. Implemented in T-08 (`sws-plugin-mqtt`):
+struct Protobuf scritte a mano, encode/decode NBIRTH/NDATA/DBIRTH/DDATA, SCADA Host STATE
+birth/LWT, NCMD write-back. Nessuna dipendenza esterna oltre a `prost`.
 
 ---
 
@@ -72,7 +74,11 @@ Still pending (Phase 2 polish):
 
 **Default for PoC**: pick A (manual C ABI). `sws-plugin-api` bootstrap already sketches the C ABI surface (`SwsPluginManifest`, `TagValue`, `PluginKind`, `TagQuality`). Revisit if surface grows enough that boilerplate becomes painful.
 
-**Decided**: not yet. Bootstrap shape committed; loader/linker still to write.
+**Decided**: **Compiled-in workspace crates (nessun dynamic loading nel PoC)**. Ogni
+plugin è un crate del workspace (`sws-plugin-modbus`, `sws-plugin-opcua`, `sws-plugin-mqtt`,
+`sws-plugin-ha`, `sws-plugin-s7`, `sws-plugin-enip`) compilato direttamente nel binario
+`sws-runtime`. Il dynamic `.so` è stato deferito al product phase. `sws-plugin-api` esiste
+ma il suo ruolo attuale è solo definire i trait condivisi tra i crate.
 
 ---
 
@@ -84,7 +90,9 @@ Still pending (Phase 2 polish):
 
 **Default for PoC**: Zustand. Simple, idiomatic with React, easy to swap if needed. Bootstrap installed it and `src/store/index.ts` uses it.
 
-**Decided**: not yet. Revisit before Milestone 1 freeze (when multi-user CRDT editing is on the table).
+**Decided**: **Zustand** (confermato). In uso attraverso tutti i task T-01…T-21 senza
+problemi. Lo store (`src/store/index.ts`) è cresciuto significativamente e rimane gestibile.
+Migrazione a RTK deferita al product phase se necessario. ADR 0001 chiusa come "decided".
 
 ---
 
@@ -111,7 +119,10 @@ Still pending (Phase 2 polish):
 
 **Default for PoC**: B (separate folder in container). Easy to update without rebuilding the binary.
 
-**Decided**: not yet. No symbol library content exists yet; this becomes real in Phase 2-3.
+**Decided**: **A (embedded nel binario)**. I 22 simboli SVG built-in e le 3 faceplate
+predefinite (`motor_basic`, `valve_basic`, `tank_level`) sono inclusi via `include_str!()`
+in `sws-web`. Un'eventuale cartella `sws-symbols/` separata con symbol pack aggiuntivi
+rimane un'opzione post-PoC.
 
 ---
 

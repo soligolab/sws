@@ -6,6 +6,14 @@
 **Status:** Draft for team review
 **Audience:** Internal development team, contributors, stakeholders
 
+> **PoC Status (giugno 2026)**: Il core del progetto descritto in questo spec è stato
+> implementato come Proof of Concept (T-01…T-21). Tutti i protocolli principali (Modbus
+> TCP/RTU, OPC-UA client+server, MQTT/Sparkplug B, HomeAssistant, Siemens S7,
+> EtherNet/IP), l'editor grafico WYSIWYG, il sistema di allarmi ISA-18.2, il historian
+> SQLite, il deploy remoto e lo split webserver 8443/8444 sono funzionanti.
+> Dove questo spec e la realtà del PoC divergono, leggere `docs/CONTEXT.md` (che prevale)
+> e `STATUS.md` per lo stato sessione per sessione.
+
 ---
 
 ## 1. Executive Summary
