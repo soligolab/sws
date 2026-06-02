@@ -4,7 +4,13 @@
 >
 > Ambienti di test: vedi [docs/TEST_SETUPS.md](docs/TEST_SETUPS.md) (casa, dev server, dispositivi Yocto).
 
-**Last session**: 2026-06-02 — T-24 (fingerprint + device dashboard), T-25 (remote logs), T-26 (git commit/push).
+**Last session**: 2026-06-02 — T-24, T-25, T-26 (workflow refinement); T-27 (generic Linux packaging); pipe/tubazione canvas feature (working tree carry-over).
+
+- **T-27 — Generic Linux packaging** (`feat/T-27-generic-linux-package` → squash main):
+  - `scripts/package.sh`: build tarball `sws-<version>-linux-<arch>.tar.gz` (flags: `--no-rust`, `--no-spa`).
+  - `deploy/generic-linux/install.sh`: installa in `/opt/sws/` (binario+assets), `/var/lib/sws/` (dati), `/etc/sws/runtime.env` (credenziali, solo primo install). Supporta upgrade e `--uninstall`. Fa health-check dopo start.
+  - `deploy/generic-linux/sws-runtime-launch.sh` + `sws-runtime.service`: avvio systemd per Linux generico.
+  - **Note**: il commit T-27 ha assorbito anche una feature "pipe/tubazione" (SvgCanvas, EditorShell, LeftPanel, types) che era nel working tree da una sessione precedente. Funziona e non rompe nulla.
 
 - **T-26 — Git commit/push** (`feat/T-26-git-commit-push` → squash main):
   - `git_deploy.rs`: `commit()`, `push()`, `unpushed_count()` aggiunti a `GitDeploy`; `GitStatus.unpushed_commits` aggiornato in ogni `status()`.
@@ -28,6 +34,21 @@
 ---
 
 ## Handoff prossima sessione
+
+### Verifica manuale T-27 da fare
+
+```bash
+# Build tarball completo (richiede ~5 min per cargo + pnpm)
+./scripts/package.sh
+
+# Verifica struttura
+tar tzf dist/sws-0.1.0-dev-linux-x86_64.tar.gz | head -10
+
+# Test installer in locale (o su VM)
+tar xzf dist/sws-0.1.0-dev-linux-x86_64.tar.gz
+sudo ./sws-0.1.0-dev-linux-x86_64/install.sh
+# → apri https://localhost:8443 e https://localhost:8444
+```
 
 ### Verifica manuale T-24/T-25/T-26 da fare
 
@@ -63,7 +84,7 @@ curl -sk -H "Authorization: Bearer $TOKEN" https://localhost:8444/api/project/fi
 
 ---
 
-## Feature set consegnato (PoC completo T-01…T-26)
+## Feature set consegnato (PoC completo T-01…T-27)
 
 | Area | Funzionalità |
 |------|-------------|
@@ -74,6 +95,8 @@ curl -sk -H "Authorization: Bearer $TOKEN" https://localhost:8444/api/project/fi
 | **Historian** | Ring-buffer + SQLite per-progetto, CSV export, trend interattivo |
 | **Deploy** | Dual-port 8443/8444, `--instance N` dev.sh, mDNS discovery, deploy remoto via SCP/systemd, GitOps (pull/rollback/commit/push) |
 | **Observability** | Project fingerprint SHA256, device dashboard multi-runtime, remote log viewer live |
+| **Canvas** | Pipe/tubazione multi-waypoint (flat/tube/wire), SVG path animato, drag waypoint |
+| **Packaging** | `scripts/package.sh` → tarball `.tar.gz`; `deploy/generic-linux/install.sh` → systemd |
 | **PWA** | Service worker, manifest, auto-rotate kiosk, mobile layout |
 | **Infra** | Yocto cross-compile (aarch64), Prometheus `/metrics`, audit log, log JSONL rotato, backup auto |
 
