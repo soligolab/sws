@@ -4,7 +4,9 @@
 >
 > Ambienti di test: vedi [docs/TEST_SETUPS.md](docs/TEST_SETUPS.md) (casa, dev server, dispositivi Yocto).
 
-**Last session**: 2026-05-30 (S-70) — Bugfix session: tag duplicati, image picker, isolamento progetti. (1) Campi Tag duplicati nel pannello proprietà: esclusi gauge/slider/checkbox/radio/led/progress_bar/trend dal campo generico a riga 1719. (2) TagInput rewritten con pulsante ▾ e dropdown filtrable (createPortal non usato — dropdown relativo). (3) ImageBrowser: componente modale con 4 tab SVG (MDI/Equinor/Tabler/Electrical), catalogo statico da `/images/catalog.json` (221 SVG totali), usa createPortal per sfuggire da stacking context del pannello. Script `scripts/fetch-image-catalog.sh` + `scripts/gen-catalog.js`. Documentazione licenze in `third-party/` (Apache-2.0, MIT, CC0). (4) Fix "Forme→Immagine non fa nulla": aggiunto `case "image":` in handleAddObject switch, stato `pendingImagePos`, ImageBrowser a livello EditorShell. Pulsante ⋯ nel pannello proprietà image per aprire il browser, anteprima SVG inline. (5) Isolamento progetti: `projects.rs` auto-inietta datastore di default (`.history/historian.db`) su create + open (retroattivo per progetti legacy con `datastores: []`). `backups.rs` aggiunge `.history` e `recipes` a BACKED_UP. `dev.sh`: `SWS_HISTORIAN_DB` commentato — ogni progetto usa il proprio historian. cargo check + pnpm build verdi.
+**Last session**: 2026-05-30 (T-21 subtasks 6-8, branch feat/T-21-split-webservers) — (6) Admin SPA: secondo Vite entry point `index-admin.html` → `src/admin/AdminApp.tsx` (WelcomeScreen + Login + ConfigView, no canvas; AccessDenied per Operator/Viewer). Admin router (8444) serve `index-admin.html` come fallback SPA. (7) Deploy remoto: `POST /api/deploy/remote` (admin-only) in `deploy.rs` — scarica binario da GitHub Releases, SCP via sshpass/scp, restart systemd, streaming log newline-delimited; `deployRemote()` nel client API; sezione "Deploy binario" in `RemoteRuntimeModal` con selector arch, SSH host/port/user/password (localStorage save per host), log panel streaming. (8) `deploy/yocto/sws-kiosk.service` systemd unit. cargo check + pnpm build verdi. Branch NON ancora mergiato su main (verifica del maintainer richiesta — tutti e 8 i subtask ora completi).
+**Previous session**: 2026-05-30 (T-21 subtasks 1-5, branch feat/T-21-split-webservers) — Split webserver: (1) router.rs: `build()` ritorna `(Router, Router)` — runtime_router (8443, optional_auth, solo sinottici/tag/allarmi/history/WS/recipes) + admin_router (8444, tutto). `optional_auth` middleware: no token → Role::Viewer anonimo; token valido → ruolo reale. (2) main.rs: due TcpListener, `tokio::select!` su entrambi, stesso TLS/AppState. `--kiosk` flag: 8443 si binda a 127.0.0.1 invece di 0.0.0.0. (3) vite.config.ts: proxy default porta 8444 (admin). (4) Rimossa tab "Runtime View" (mode "view") dall'editor — solo "Editor" e "Configurazione" rimangono. (5) `ButtonAction` type (`{ type: "login" | "logout" | "navigate"; url? }`) aggiunto a SynopticObject + SvgCanvas prop `onButtonAction` + properties panel "Azione built-in" in EditorShell. cargo check + pnpm build verdi.
+**Previous session**: 2026-05-30 (S-70) — Bugfix session: tag duplicati, image picker, isolamento progetti. (1) Campi Tag duplicati. (2) TagInput dropdown filtrabile. (3) ImageBrowser 221 SVG. (4) Fix "Forme→Immagine". (5) Isolamento progetti: historian swap_store per-progetto, historian.store: RwLock<Option<SqliteStore>>, swap_store() in open/close project. cargo check + pnpm build verdi.
 **Previous session**: 2026-05-29 (S-69) — Save-confirm dialog + RuntimeCtrl. `isDirty` state in Zustand store (set true on pushHistory, false on setPages/save). `handleCloseProject`/`handleLogout` now check isDirty and open a "Salva / Scarta / Annulla" modal instead of executing immediately. `RuntimeCtrl` component (admin/supervisor-only): polls GET /api/system every 5s, green/red dot for sources_running, Stop/Start toggle (POST /api/system/stop|start), Reboot button (POST /api/system/reboot — Unix exec-replace, ~2s WS gap). Backend routes were already in place from previous session work (source_supervisor running_count, system.rs handlers, router admin routes). cargo check + pnpm build verdi. Squash-merged to main.
 **Previous session**: 2026-05-27 (S-68) — T-20 GitOps. `git_deploy.rs`: `GitDeploy` struct (is_git_repo, status, pull --ff-only, reset --hard HEAD~1, init_remote) via `std::process::Command` (no libgit2). Tre rotte HTTP: `GET /api/project/git-status` (auth), `POST /api/project/deploy` (operator+, git pull + soft-reload), `POST /api/project/rollback` (admin, git reset + soft-reload). `soft_reload_project`: ricarica project.yaml, aggiorna derived_tags/tags/alarms/functions senza riavviare sorgenti né cancellare historian. Frontend: `GitOpsPanel` in SystemTab (branch, sha, author, message, clean badge, pulsanti Deploy e Rollback con confirm dialog). API client: `getGitStatus`, `triggerDeploy`, `triggerRollback`. cargo check + pnpm build verdi, zero warning. Fase E completata (T-18 editor multi-utente e T-15 LDAP/OIDC non implementati — troppo grandi per PoC). Tutti i 20 task del roadmap affrontati (18/20 completati, T-15+T-18 post-PoC).
 **Previous session**: 2026-05-27 (S-67) — T-10 Alarm multi-condizione + delay + inhibit + T-11 Recipe Manager + T-13 Notifiche SMTP + T-14 Zone ABAC. T-10: `AlarmCondition` composita (And/Or/Not) con evaluate/evaluate_clear semantics ISA, on_delay_s/off_delay_s (AlarmTimer), inhibit_tag (by_inhibit_tag map, last_value cache PRIMA del check), 9 unit test verdi. T-11: `RecipeDef`/`RecipeSetpoint` YAML per progetto, CRUD `/api/recipes`, `POST /api/recipes/:id/apply` (TagWriteBus + log in-memory), `RecipesTab` in ConfigView (panel lista + editor setpoint), `RecipeModal` in RuntimeView, API client completo. T-13: `NotificationConfig`/`SmtpConfig` in project.rs, `NotificationSupervisor` (lettre 0.11 STARTTLS, Task A email on ActiveUnacked, Task B escalation ogni 60s), lifecycle in open/close project, `PUT /api/project/notifications` con mask SMTP password, `NotificationsTab` in ConfigView (SMTP form + enabled toggle), `notify_email`/`escalate_after_s`/`escalate_to` nel form allarmi. cargo check + pnpm build verdi. Fase C completata (T-10, T-11, T-13). T-14: `SynopticPage.zones`, `StoredUser/SessionInfo/AuthUser.allowed_zones`, zone filter in list/get synoptics (`zone_allowed` helper), zone input in PageProps editor, allowed_zones input in Users tab. T-16+T-17: WS protocol v2 (snapshot+delta+subscribe), delta batching 50ms, per-connection seq counter, `{type:subscribe,tags:[...]}` per-page filtering, `sendSubscribe()` chiamata in RuntimeView al cambio pagina, tag extraction da oggetti canvas. T-19: PWA manifest + service worker + SW registration in index.html, isMobile hook (MediaQueryList), forza RuntimeView su <768px, SVG viewBox in runtime mode per fit-to-viewport, touch swipe navigation. cargo check + pnpm build verdi. Fase D+E iniziate (T-14, T-16, T-17, T-19 completate).
@@ -27,36 +29,39 @@
 
 ---
 
-## Handoff prossima sessione (in ufficio — PX30 + dispositivi Yocto)
+## Handoff prossima sessione
 
-### Contesto stato attuale (2026-05-25)
+### Stato branch T-21 (feat/T-21-split-webservers)
 
-Due sessioni di bugfix (S-56/S-57) + template ha-pro completo (S-55/S-57).
-Il runtime è stabile. Il binary deve essere ricompilato sull'ufficio/PX30 con `cargo build` o
-lo script di cross-compile Yocto. I commit sono locali (non pushati su remote).
+Subtasks completati: **tutti e 8 di 8**.  
+Branch non ancora mergiato su main — richiede verifica del maintainer.
 
-### Cosa fare prima di tutto
-
-**Se lavori direttamente sul dev server via SSH**, il repo è aggiornato e il binary è già
-compilato in `sws-runtime/target/debug/sws-runtime`. Basta `./scripts/dev.sh`.
-
-**Se lavori sul PX30 o Yocto**, devi cross-compilare e deployare:
+#### Verifica end-to-end richiesta
 ```bash
-./scripts/yocto/build.sh release
-./scripts/yocto/deploy.sh pixsys@192.168.1.59  # aggiorna IP se cambiato
+./scripts/dev.sh
+# In un altro terminale:
+curl -k https://localhost:8443/health         # → "ok"
+curl -k https://localhost:8444/health         # → "ok"
+curl -k https://localhost:8443/api/tags       # → 200 senza token (anonimo)
+curl -k https://localhost:8443/api/backups    # → 404 (non esposto su porta runtime)
+curl -k https://localhost:8444/api/backups    # → 401/200 (esposto su porta admin)
 ```
+Editor Vite (5173) ora proxia su 8444 — aprire `http://localhost:5173` e verificare che funzioni.
 
-### Task in ufficio suggeriti
+Admin SPA: costruita come secondo entry point `dist/index-admin.html`. In produzione (--www), il router 8444 la serve come fallback SPA.
 
-1. **Smoke test progetto ha-pro** — apri il progetto `ha` (o crea da template `homeassistant-pro`):
-   - Configura `HA_TOKEN=<il-tuo-token>` nell'env o nel dev.sh
-   - Verifica che i 6 sinottici siano visibili e navigabili
-   - Verifica che i tag HA arrivino live (alcuni saranno `Bad` se entity_id non corrisponde)
-   - Verifica write-back: pulsanti luci ON/OFF e tapparelle SÙ/GIÙ
+#### Subtask 6 — Admin SPA
+- `sws-editor/index-admin.html` → `src/admin-main.tsx` → `src/admin/AdminApp.tsx`
+- Mostra WelcomeScreen → Login → ConfigView (solo Supervisor/Admin)
+- Operator/Viewer vedono pagina 403
+- Build: `dist/assets/admin-*.js` (solo 4 kB — il grosso condiviso coi vendor chunks)
 
-2. **Verifica isolamento progetti** — ora che il bug è fixato:
-   - Apri MQTT demo → genera traffico
-   - Crea progetto vuoto → verifica tag list vuota + nessun sample in `/api/history/...`
+#### Subtask 7 — Deploy remoto
+- `POST /api/deploy/remote` (admin-only, porta 8444): scarica da GitHub Releases, SCP, restart systemd, streaming log
+- Frontend: tab "Deploy binario" in `RemoteRuntimeModal` con arch selector, SSH credentials (localStorage save), log panel live
+
+#### Subtask 8 — sws-kiosk.service
+- `deploy/yocto/sws-kiosk.service` — unit systemd per il kiosk browser sul device
 
 3. **Verifica RBAC su PX30** (S-37, in sospeso da settimane):
    - Hard reload browser (F12 → ricarica difficile)

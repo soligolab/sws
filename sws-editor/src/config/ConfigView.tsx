@@ -5720,9 +5720,302 @@ function NotificationsTab() {
   );
 }
 
+// ── RuntimeConnectionTab ─────────────────────────────────────────────────────
+
+const RT_URL_KEY  = "sws.runtime.targetUrl";
+const RT_USER_KEY = "sws.runtime.targetUser";
+const RT_PASS_KEY = "sws.runtime.targetPass";
+const RT_CONN_KEY = "sws.runtime.connected";
+
+function RuntimeConnectionTab() {
+  const [targetUrl,  setTargetUrl]  = useState(() => localStorage.getItem(RT_URL_KEY)  ?? "");
+  const [targetUser, setTargetUser] = useState(() => localStorage.getItem(RT_USER_KEY) ?? "admin");
+  const [targetPass, setTargetPass] = useState(() => localStorage.getItem(RT_PASS_KEY) ?? "");
+  const [status, setStatus]         = useState<"idle" | "connecting" | "connected" | "error">(
+    () => localStorage.getItem(RT_CONN_KEY) === "1" ? "connected" : "idle"
+  );
+  const [statusMsg, setStatusMsg]   = useState<string | null>(null);
+  const [deployLog, setDeployLog]   = useState<string[]>([]);
+  const [deploying, setDeploying]   = useState(false);
+  const [deployDone, setDeployDone] = useState(false);
+
+  const target = targetUrl.trim().replace(/\/$/, "");
+
+  const saveForm = () => {
+    localStorage.setItem(RT_URL_KEY,  target);
+    localStorage.setItem(RT_USER_KEY, targetUser.trim());
+    localStorage.setItem(RT_PASS_KEY, targetPass);
+  };
+
+  const handleConnect = async () => {
+    if (!target || !targetUser || !targetPass) { setStatusMsg("Compila tutti i campi."); return; }
+    saveForm();
+    setStatus("connecting"); setStatusMsg(null);
+    try {
+      const res = await fetch(`${target}/api/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: targetUser.trim(), password: targetPass }),
+      });
+      if (!res.ok) throw new Error(`Login fallito: ${res.status} ${res.statusText}`);
+      localStorage.setItem(RT_CONN_KEY, "1");
+      setStatus("connected");
+      setStatusMsg(null);
+      window.dispatchEvent(new CustomEvent("sws:runtime-connected", { detail: { url: target } }));
+    } catch (e: any) {
+      localStorage.removeItem(RT_CONN_KEY);
+      setStatus("error");
+      const msg = String(e?.message ?? e);
+      setStatusMsg(msg.includes("Failed to fetch") || msg.includes("NetworkError")
+        ? `Connessione fallita. Assicurati che il target sia raggiungibile e che il certificato TLS sia importato nel browser.\n→ Scarica il cert: curl -k ${target}/cert -o sws.crt`
+        : msg);
+      window.dispatchEvent(new CustomEvent("sws:runtime-disconnected"));
+    }
+  };
+
+  const handleDisconnect = () => {
+    localStorage.removeItem(RT_CONN_KEY);
+    setStatus("idle"); setStatusMsg(null); setDeployLog([]); setDeployDone(false);
+    window.dispatchEvent(new CustomEvent("sws:runtime-disconnected"));
+  };
+
+  const handleDownloadCert = async () => {
+    const certUrl = `${target}/cert`;
+    try {
+      const res = await fetch(certUrl);
+      if (!res.ok) throw new Error(`${res.status}`);
+      const blob = await res.blob();
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = "sws.crt";
+      a.click();
+      URL.revokeObjectURL(a.href);
+    } catch {
+      setStatusMsg(`Non riesco a scaricare il cert. Se il target usa TLS self-signed non ancora accettato, esegui:\n  curl -k ${certUrl} -o sws.crt\npoi importalo nel browser.`);
+    }
+  };
+
+  const addLog = (msg: string) => setDeployLog((l) => [...l, msg]);
+
+  const handleDeploy = async () => {
+    saveForm();
+    setDeploying(true); setDeployLog([]); setDeployDone(false);
+    try {
+      addLog("Esportazione progetto dal runtime locale…");
+      const exportRes = await api.exportProjectZip();
+      const cd = exportRes.headers.get("content-disposition") ?? "";
+      const nameMatch = cd.match(/filename="([^"]+)"/);
+      const zipName = nameMatch?.[1] ?? "project.zip";
+      const projectName = zipName.replace(/\.zip$/, "");
+      const zipBlob = await exportRes.blob();
+      addLog(`✓ Esportato: ${zipName} (${(zipBlob.size / 1024).toFixed(1)} KB)`);
+
+      addLog(`Login al target…`);
+      const loginRes = await fetch(`${target}/api/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: targetUser.trim(), password: targetPass }),
+      });
+      if (!loginRes.ok) throw new Error(`Login target fallito: ${loginRes.status} ${loginRes.statusText}`);
+      const { token: remoteToken } = await loginRes.json();
+      addLog("✓ Login OK");
+
+      addLog("Upload ZIP al target…");
+      let uploadRes = await fetch(`${target}/api/projects/upload`, {
+        method: "POST",
+        headers: { "Content-Type": "application/zip", "Authorization": `Bearer ${remoteToken}` },
+        body: zipBlob,
+      });
+      if (uploadRes.status === 409) {
+        addLog(`Progetto "${projectName}" già presente — sostituzione in corso…`);
+        // Close first in case it's the active project on the target
+        await fetch(`${target}/api/projects/close`, {
+          method: "POST",
+          headers: { "Authorization": `Bearer ${remoteToken}` },
+        }).catch(() => {});
+        // Delete existing project
+        const delRes = await fetch(
+          `${target}/api/projects/${encodeURIComponent(projectName)}`,
+          { method: "DELETE", headers: { "Authorization": `Bearer ${remoteToken}` } }
+        );
+        if (!delRes.ok) {
+          const body = await delRes.text().catch(() => "");
+          throw new Error(`Impossibile rimuovere "${projectName}" dal target: ${delRes.status}${body ? ` — ${body}` : ""}`);
+        }
+        addLog(`✓ Rimosso "${projectName}" dal target`);
+        // Retry upload
+        uploadRes = await fetch(`${target}/api/projects/upload`, {
+          method: "POST",
+          headers: { "Content-Type": "application/zip", "Authorization": `Bearer ${remoteToken}` },
+          body: zipBlob,
+        });
+      }
+      if (!uploadRes.ok) {
+        const body = await uploadRes.text().catch(() => "");
+        throw new Error(`Upload fallito: ${uploadRes.status}${body ? ` — ${body}` : ""}`);
+      }
+      const { name: uploadedName } = await uploadRes.json();
+      addLog(`✓ Caricato come "${uploadedName}"`);
+
+      addLog("Attivazione progetto…");
+      const openRes = await fetch(`${target}/api/projects/${encodeURIComponent(uploadedName)}/open`, {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${remoteToken}` },
+      });
+      if (!openRes.ok) {
+        const body = await openRes.text().catch(() => "");
+        throw new Error(`Attivazione fallita: ${openRes.status}${body ? ` — ${body}` : ""}`);
+      }
+      addLog(`✓ "${uploadedName}" attivo sul runtime`);
+      addLog("🚀 Deploy completato!");
+      setDeployDone(true);
+    } catch (e: any) {
+      addLog(`✗ ${e?.message ?? String(e)}`);
+    } finally {
+      setDeploying(false);
+    }
+  };
+
+  const INPUT: React.CSSProperties = {
+    background: "#020617", color: "#e2e8f0", border: "1px solid #334155",
+    borderRadius: 4, padding: "6px 8px", fontSize: 13,
+  };
+  const BTN: React.CSSProperties = {
+    padding: "6px 14px", borderRadius: 5, cursor: "pointer", fontSize: 13,
+    border: "1px solid #334155", background: "#1e293b", color: "#e2e8f0",
+  };
+  const BTN_PRIMARY: React.CSSProperties = {
+    ...BTN, background: "#1d4ed8", border: "1px solid #2563eb", color: "#fff", fontWeight: 600,
+  };
+  const BTN_RED: React.CSSProperties = {
+    ...BTN, background: "#450a0a", border: "1px solid #dc2626", color: "#fca5a5",
+  };
+
+  const connected = status === "connected";
+  let hostLabel = target;
+  try { hostLabel = new URL(target).host; } catch { /* keep raw */ }
+
+  return (
+    <div style={{ padding: 24, maxWidth: 600, display: "flex", flexDirection: "column", gap: 20 }}>
+      {/* Connection config */}
+      <section>
+        <div style={{ fontSize: 13, fontWeight: 600, color: "#94a3b8", marginBottom: 12, textTransform: "uppercase", letterSpacing: 1 }}>
+          Connessione runtime remoto
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <label style={{ fontSize: 11, color: "#64748b" }}>URL del runtime target — porta admin (8444)</label>
+          <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+            <input style={{ ...INPUT, flex: 1, boxSizing: "border-box" }}
+              placeholder="https://192.168.1.10:8444"
+              value={targetUrl}
+              onChange={(e) => { setTargetUrl(e.target.value); if (connected) handleDisconnect(); }}
+            />
+            <button
+              style={{ ...BTN, whiteSpace: "nowrap", flexShrink: 0 }}
+              title="Apri il health-check in una nuova scheda per accettare il certificato TLS"
+              disabled={!target}
+              onClick={() => { if (target) window.open(`${target}/health`, "_blank"); }}
+            >Accetta cert TLS ↗</button>
+          </div>
+          <span style={{ fontSize: 10, color: "#475569" }}>
+            Porta 8444 = accesso admin (deploy). Porta 8443 = viewer operatori.
+          </span>
+          <div style={{ display: "flex", gap: 8 }}>
+            <div style={{ flex: 1 }}>
+              <label style={{ fontSize: 11, color: "#64748b", display: "block", marginBottom: 4 }}>Utente</label>
+              <input style={{ ...INPUT, width: "100%", boxSizing: "border-box" }}
+                placeholder="admin" value={targetUser}
+                onChange={(e) => setTargetUser(e.target.value)} />
+            </div>
+            <div style={{ flex: 1 }}>
+              <label style={{ fontSize: 11, color: "#64748b", display: "block", marginBottom: 4 }}>Password</label>
+              <input style={{ ...INPUT, width: "100%", boxSizing: "border-box" }}
+                type="password" placeholder="••••••••" value={targetPass}
+                onChange={(e) => setTargetPass(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && !connected && handleConnect()} />
+            </div>
+          </div>
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            {!connected && (
+              <button style={BTN_PRIMARY} onClick={handleConnect} disabled={status === "connecting"}>
+                {status === "connecting" ? "Connessione…" : "Connetti"}
+              </button>
+            )}
+            {connected && (
+              <button style={BTN_RED} onClick={handleDisconnect}>Disconnetti</button>
+            )}
+            <button style={BTN} onClick={handleDownloadCert} disabled={!target} title="Scarica il cert TLS del target (poi importarlo nel browser)">
+              Scarica cert TLS
+            </button>
+          </div>
+        </div>
+      </section>
+
+      {/* Status */}
+      <section style={{
+        padding: "10px 14px", borderRadius: 6,
+        background: connected ? "#052e16" : status === "error" ? "#1c0a0a" : "#0f172a",
+        border: `1px solid ${connected ? "#16a34a" : status === "error" ? "#dc2626" : "#1e293b"}`,
+      }}>
+        {connected && (
+          <span style={{ color: "#4ade80", fontWeight: 600, fontSize: 13 }}>
+            ● Connesso a {hostLabel}
+          </span>
+        )}
+        {status === "idle" && (
+          <span style={{ color: "#475569", fontSize: 13 }}>Non connesso</span>
+        )}
+        {status === "connecting" && (
+          <span style={{ color: "#94a3b8", fontSize: 13 }}>Connessione in corso…</span>
+        )}
+        {status === "error" && (
+          <span style={{ color: "#fca5a5", fontSize: 13, whiteSpace: "pre-wrap" }}>✗ {statusMsg}</span>
+        )}
+        {status !== "error" && statusMsg && (
+          <span style={{ color: "#fca5a5", fontSize: 12, display: "block", marginTop: 4, whiteSpace: "pre-wrap" }}>{statusMsg}</span>
+        )}
+      </section>
+
+      {/* Deploy */}
+      {connected && (
+        <section>
+          <div style={{ fontSize: 13, fontWeight: 600, color: "#94a3b8", marginBottom: 12, textTransform: "uppercase", letterSpacing: 1 }}>
+            Deploy progetto
+          </div>
+          <p style={{ fontSize: 12, color: "#475569", margin: "0 0 10px" }}>
+            Esporta il progetto attivo e lo attiva sul runtime target.
+          </p>
+          {!deployDone && (
+            <button style={{ ...BTN_PRIMARY, opacity: deploying ? 0.6 : 1 }}
+              onClick={handleDeploy} disabled={deploying}>
+              {deploying ? "Deploy in corso…" : "Deploy progetto attivo ▸"}
+            </button>
+          )}
+          {deployLog.length > 0 && (
+            <div style={{
+              marginTop: 10, background: "#020617", border: "1px solid #1e293b",
+              borderRadius: 4, padding: "8px 10px", maxHeight: 180, overflowY: "auto",
+              fontFamily: "monospace", fontSize: 12,
+            }}>
+              {deployLog.map((l, i) => (
+                <div key={i} style={{ color: l.startsWith("✗") ? "#f87171" : l.startsWith("🚀") ? "#4ade80" : "#94a3b8" }}>{l}</div>
+              ))}
+            </div>
+          )}
+          {deployDone && (
+            <button style={{ ...BTN, marginTop: 8 }} onClick={() => { setDeployLog([]); setDeployDone(false); }}>
+              Nuovo deploy
+            </button>
+          )}
+        </section>
+      )}
+    </div>
+  );
+}
+
 // ── ConfigView root ───────────────────────────────────────────────────────────
 
-type ConfigTab = "tags" | "protocols" | "alarms" | "datastores" | "scripts" | "faceplates" | "recipes" | "notifications" | "users" | "resources" | "system" | "backups";
+type ConfigTab = "tags" | "protocols" | "alarms" | "datastores" | "scripts" | "faceplates" | "recipes" | "notifications" | "users" | "resources" | "system" | "backups" | "runtime";
 
 const TAB_LABELS: Record<ConfigTab, string> = {
   tags:        "Variabili",
@@ -5737,6 +6030,7 @@ const TAB_LABELS: Record<ConfigTab, string> = {
   resources:   "Risorse",
   system:      "Stato",
   backups:     "Backup",
+  runtime:     "Runtime",
 };
 
 export function ConfigView() {
@@ -5763,7 +6057,7 @@ export function ConfigView() {
   }, [tab, isAdmin]);
 
   const visibleTabs: ConfigTab[] = isAdmin
-    ? ["tags", "protocols", "alarms", "scripts", "faceplates", "recipes", "notifications", "datastores", "users", "resources", "backups", "system"]
+    ? ["tags", "protocols", "alarms", "scripts", "faceplates", "recipes", "notifications", "datastores", "users", "resources", "backups", "system", "runtime"]
     : ["tags", "protocols", "alarms", "scripts", "faceplates", "recipes", "notifications", "resources", "system"];
 
   // Bounce non-admins off the backups and datastores tabs.
@@ -5779,7 +6073,8 @@ export function ConfigView() {
   const projectLoading = project === null
     && tab !== "users" && tab !== "resources" && tab !== "system"
     && tab !== "backups" && tab !== "datastores" && tab !== "scripts"
-    && tab !== "faceplates" && tab !== "recipes" && tab !== "notifications";
+    && tab !== "faceplates" && tab !== "recipes" && tab !== "notifications"
+    && tab !== "runtime";
 
   // Belt-and-braces: App.tsx already gates mode="config" via effectiveMode,
   // so this is unreachable for non-Supervisor+ today. Kept so a future
@@ -5824,6 +6119,7 @@ export function ConfigView() {
             {tab === "resources"   && <ResourcesTab />}
             {tab === "system"      && <SystemTab />}
             {tab === "backups"     && isAdmin && <BackupsTab />}
+            {tab === "runtime"    && isAdmin && <RuntimeConnectionTab />}
           </>
         )}
       </div>

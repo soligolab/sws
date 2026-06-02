@@ -43,6 +43,8 @@ interface SvgCanvasProps {
   /** View-mode dispatcher for on_press / on_release function bindings. */
   onScript?: (fn: string, args: Record<string, string | number | boolean>) => void;
   onNavigate?: (pageId: string) => void;
+  /** View-mode dispatcher for built-in button_action (login / logout / navigate). */
+  onButtonAction?: (action: import("@/types").ButtonAction) => void;
   onSelectCell?: (objectId: string, row: number, col: number) => void;
   onSelectCellChild?: (objectId: string, row: number, col: number) => void;
   /** Shift+click on a second cell of the same grid: form/extend a rect range. */
@@ -309,6 +311,7 @@ export function SvgCanvas({
   onWriteTag,
   onScript,
   onNavigate,
+  onButtonAction,
   onSelectCell,
   onSelectCellChild,
   onSelectCellRange,
@@ -898,9 +901,21 @@ export function SvgCanvas({
         // referenced function and forwards the per-binding parameter
         // overrides. Doesn't interfere with the per-type click handlers
         // inside SvgObject — both can fire.
-        const onPress   = !inEdit && obj.on_press_fn && onScript
-          ? () => onScript(obj.on_press_fn!, obj.on_press_args ?? {})
-          : undefined;
+        const onPress = !inEdit ? (() => {
+          // button_action takes precedence for login/logout; for navigate it fires after on_press_fn.
+          if (obj.button_action) {
+            if (obj.button_action.type === "login" || obj.button_action.type === "logout") {
+              onButtonAction?.(obj.button_action);
+              return;
+            }
+            if (obj.button_action.type === "navigate") {
+              if (obj.on_press_fn && onScript) onScript(obj.on_press_fn, obj.on_press_args ?? {});
+              onButtonAction?.(obj.button_action);
+              return;
+            }
+          }
+          if (obj.on_press_fn && onScript) onScript(obj.on_press_fn, obj.on_press_args ?? {});
+        }) : undefined;
         const onRelease = !inEdit && obj.on_release_fn && onScript
           ? () => onScript(obj.on_release_fn!, obj.on_release_args ?? {})
           : undefined;
