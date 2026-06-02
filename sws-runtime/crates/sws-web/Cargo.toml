@@ -33,6 +33,7 @@ sws-plugin-homeassistant  = { path = "../sws-plugin-homeassistant" }
 sws-plugin-s7             = { path = "../sws-plugin-s7" }
 sws-plugin-enip           = { path = "../sws-plugin-enip" }
 reqwest.workspace         = true
+mdns-sd.workspace         = true
 # Email notifications (SMTP) — pure-Rust TLS via rustls, no OpenSSL
 lettre = { version = "0.11", default-features = false, features = ["tokio1-rustls-tls", "smtp-transport", "builder"] }
 sysinfo           = { workspace = true }

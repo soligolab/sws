@@ -135,6 +135,13 @@ export class RateLimitedError extends Error {
 
 export type UserRole = "Viewer" | "Operator" | "Supervisor" | "Admin";
 
+export interface DiscoveredRuntime {
+  name: string;
+  admin_url: string;
+  viewer_url: string;
+  version: string | null;
+}
+
 export interface UserSummary {
   username: string;
   role: UserRole;
@@ -751,4 +758,7 @@ export const api = {
     }
     return res.json();
   },
+
+  /** GET /api/discover — browse mDNS for SWS runtimes on the LAN (~2 s). */
+  discoverRuntimes: () => request<DiscoveredRuntime[]>("/api/discover"),
 };
