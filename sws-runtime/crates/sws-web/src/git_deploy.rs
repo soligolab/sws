@@ -32,6 +32,8 @@ pub struct GitStatus {
     pub clean: bool,
     /// Unix timestamp (ms) of the last deploy triggered via this API.
     pub last_deploy_ms: Option<u64>,
+    /// Commits in HEAD not yet pushed to upstream (0 if no remote or no tracking branch).
+    pub unpushed_commits: u32,
 }
 
 pub struct GitDeploy {
@@ -67,6 +69,7 @@ impl GitDeploy {
             .map(|o| o.stdout.is_empty())
             .unwrap_or(true);
 
+        let unpushed_commits = self.unpushed_count();
         Ok(GitStatus {
             sha,
             author,
@@ -76,6 +79,7 @@ impl GitDeploy {
             remote_url,
             clean,
             last_deploy_ms: None,
+            unpushed_commits,
         })
     }
 
@@ -109,6 +113,58 @@ impl GitDeploy {
         } else {
             Err(anyhow::anyhow!("git reset failed: {stderr}"))
         }
+    }
+
+    /// `git add -A && git commit -m <message>` — stage everything and commit.
+    pub fn commit(&self, message: &str) -> anyhow::Result<String> {
+        let dir = self.project_dir.to_string_lossy().to_string();
+        let add = Command::new("git")
+            .args(["-C", &dir, "add", "-A"])
+            .output()
+            .map_err(|e| anyhow::anyhow!("git add: {e}"))?;
+        if !add.status.success() {
+            return Err(anyhow::anyhow!("git add failed: {}", String::from_utf8_lossy(&add.stderr).trim()));
+        }
+        let out = Command::new("git")
+            .args(["-C", &dir, "commit", "-m", message])
+            .output()
+            .map_err(|e| anyhow::anyhow!("git commit: {e}"))?;
+        let stdout = String::from_utf8_lossy(&out.stdout).trim().to_string();
+        let stderr = String::from_utf8_lossy(&out.stderr).trim().to_string();
+        if out.status.success() {
+            info!(dir = %self.project_dir.display(), "git commit: {stdout}");
+            Ok(stdout)
+        } else {
+            Err(anyhow::anyhow!("git commit failed: {stderr}"))
+        }
+    }
+
+    /// `git push` — push to the default remote/branch from git config.
+    pub fn push(&self) -> anyhow::Result<String> {
+        let out = Command::new("git")
+            .args(["-C", &self.project_dir.to_string_lossy().as_ref(), "push"])
+            .output()
+            .map_err(|e| anyhow::anyhow!("git push: {e}"))?;
+        // git push writes progress to stderr even on success
+        let stdout = String::from_utf8_lossy(&out.stdout).trim().to_string();
+        let stderr = String::from_utf8_lossy(&out.stderr).trim().to_string();
+        let msg = if stdout.is_empty() { stderr.clone() } else { stdout };
+        if out.status.success() {
+            info!(dir = %self.project_dir.display(), "git push: {msg}");
+            Ok(msg)
+        } else {
+            Err(anyhow::anyhow!("git push failed: {stderr}"))
+        }
+    }
+
+    /// Count commits in HEAD not yet in the upstream tracking branch.
+    /// Returns 0 if there is no remote or no tracking branch.
+    pub fn unpushed_count(&self) -> u32 {
+        let dir = self.project_dir.to_string_lossy().to_string();
+        git_out(&dir, &["rev-list", "--count", "HEAD", "^@{upstream}"])
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(0)
     }
 
     /// `git init` + `git remote add origin <url>` for a new project.

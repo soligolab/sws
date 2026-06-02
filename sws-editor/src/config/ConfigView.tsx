@@ -4131,6 +4131,8 @@ function GitOpsPanel() {
   const [gitError, setGitError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [opMsg, setOpMsg] = useState<string | null>(null);
+  const [showCommitForm, setShowCommitForm] = useState(false);
+  const [commitMsg, setCommitMsg] = useState("");
 
   const fetchGitStatus = async () => {
     try {
@@ -4196,22 +4198,73 @@ function GitOpsPanel() {
         {gitStatus.remote_url && (
           <div style={{ fontSize: 11, color: "#475569", wordBreak: "break-all" }}>{gitStatus.remote_url}</div>
         )}
-        <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
+        <div style={{ display: "flex", gap: 8, marginTop: 4, flexWrap: "wrap" }}>
           <button
             disabled={busy}
             onClick={() => runOp(() => api.triggerDeploy(), "Deploy")}
-            style={{ flex: 1, padding: "6px 10px", background: "#1e40af", border: "none", borderRadius: 4, color: "#fff", fontSize: 12, cursor: busy ? "not-allowed" : "pointer", opacity: busy ? 0.6 : 1 }}
+            style={{ flex: 1, minWidth: 100, padding: "6px 10px", background: "#1e40af", border: "none", borderRadius: 4, color: "#fff", fontSize: 12, cursor: busy ? "not-allowed" : "pointer", opacity: busy ? 0.6 : 1 }}
           >
             ↑ Deploy (git pull)
           </button>
           <button
             disabled={busy}
             onClick={() => { if (confirm("Eseguire git reset --hard HEAD~1? Questa operazione non è reversibile.")) runOp(() => api.triggerRollback(), "Rollback"); }}
-            style={{ flex: 1, padding: "6px 10px", background: "#7f1d1d", border: "none", borderRadius: 4, color: "#fff", fontSize: 12, cursor: busy ? "not-allowed" : "pointer", opacity: busy ? 0.6 : 1 }}
+            style={{ flex: 1, minWidth: 100, padding: "6px 10px", background: "#7f1d1d", border: "none", borderRadius: 4, color: "#fff", fontSize: 12, cursor: busy ? "not-allowed" : "pointer", opacity: busy ? 0.6 : 1 }}
           >
             ↓ Rollback (HEAD~1)
           </button>
+          <button
+            disabled={busy}
+            onClick={() => { setShowCommitForm((v) => !v); setOpMsg(null); }}
+            style={{ flex: 1, minWidth: 100, padding: "6px 10px", background: "#166534", border: "none", borderRadius: 4, color: "#fff", fontSize: 12, cursor: busy ? "not-allowed" : "pointer", opacity: busy ? 0.6 : 1 }}
+          >
+            💾 Commit
+          </button>
+          {gitStatus?.remote_url && (
+            <button
+              disabled={busy}
+              onClick={() => {
+                if (confirm("Pubblicare i commit locali sul remote?")) {
+                  runOp(() => api.pushProject(), "Push");
+                }
+              }}
+              style={{ flex: 1, minWidth: 100, padding: "6px 10px", background: "#7c3aed", border: "none", borderRadius: 4, color: "#fff", fontSize: 12, cursor: busy ? "not-allowed" : "pointer", opacity: busy ? 0.6 : 1 }}
+            >
+              ↑ Push{gitStatus.unpushed_commits > 0 ? ` (${gitStatus.unpushed_commits})` : ""}
+            </button>
+          )}
         </div>
+        {showCommitForm && (
+          <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
+            <input
+              value={commitMsg}
+              onChange={(e) => setCommitMsg(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && commitMsg.trim()) {
+                  setShowCommitForm(false);
+                  runOp(() => api.commitProject(commitMsg.trim()), "Commit");
+                  setCommitMsg("");
+                }
+              }}
+              placeholder="Messaggio di commit…"
+              style={{ flex: 1, background: "#020617", color: "#e2e8f0", border: "1px solid #334155", borderRadius: 4, padding: "5px 8px", fontSize: 12 }}
+              autoFocus
+            />
+            <button
+              disabled={busy || !commitMsg.trim()}
+              onClick={() => {
+                setShowCommitForm(false);
+                runOp(() => api.commitProject(commitMsg.trim()), "Commit");
+                setCommitMsg("");
+              }}
+              style={{ padding: "5px 10px", background: "#166534", border: "none", borderRadius: 4, color: "#fff", fontSize: 12, cursor: "pointer" }}
+            >Salva</button>
+            <button
+              onClick={() => { setShowCommitForm(false); setCommitMsg(""); }}
+              style={{ padding: "5px 10px", background: "#1e293b", border: "1px solid #334155", borderRadius: 4, color: "#94a3b8", fontSize: 12, cursor: "pointer" }}
+            >✕</button>
+          </div>
+        )}
         {opMsg && (
           <div style={{ fontSize: 11, color: opMsg.startsWith("Errore") ? "#fca5a5" : "#34d399", marginTop: 2, whiteSpace: "pre-wrap" }}>
             {opMsg}

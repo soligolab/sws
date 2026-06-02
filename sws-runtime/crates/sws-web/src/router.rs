@@ -144,6 +144,8 @@ pub fn build(
             axum::routing::put(update_user).delete(delete_user))
         // Remote deploy: download binary from GitHub Releases + SCP to device.
         .route("/api/deploy/remote",       post(crate::deploy::deploy_remote))
+        // Git push: push to default remote/branch. Admin-only (risk of exposing credentials).
+        .route("/api/project/git/push",    post(git_push))
         .route_layer(middleware::from_fn(require_admin));
 
     // Routes that need Operator+ (tag writes, alarm ACK, script exec,
@@ -196,6 +198,8 @@ pub fn build(
         // mDNS discovery: scan LAN for _sws._tcp.local. services (~2 s).
         // Supervisor+ only — used from the RuntimeConnectionTab deploy panel.
         .route("/api/discover", get(crate::discover::discover_runtimes))
+        // Git commit: stage all changes and create a commit.
+        .route("/api/project/git/commit", post(git_commit))
         .route_layer(middleware::from_fn(require_supervisor));
 
     // Routes any authenticated user (incl. Viewer) can hit.
@@ -3536,6 +3540,38 @@ async fn trigger_rollback(State(s): State<AppState>) -> impl IntoResponse {
         }
         Ok(Err(e)) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
         Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+    }
+}
+
+/// `POST /api/project/git/commit` — `git add -A && git commit -m <message>`.
+async fn git_commit(State(s): State<AppState>, Json(body): Json<serde_json::Value>) -> impl IntoResponse {
+    let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
+    let gd = crate::git_deploy::GitDeploy::new(dir);
+    if !gd.is_git_repo() {
+        return (StatusCode::BAD_REQUEST, "not a git repository").into_response();
+    }
+    let message = body.get("message").and_then(|v| v.as_str()).unwrap_or("").trim().to_string();
+    if message.is_empty() {
+        return (StatusCode::BAD_REQUEST, "commit message is required").into_response();
+    }
+    match tokio::task::spawn_blocking(move || gd.commit(&message)).await {
+        Ok(Ok(msg)) => Json(serde_json::json!({ "message": msg })).into_response(),
+        Ok(Err(e)) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+        Err(e)     => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+    }
+}
+
+/// `POST /api/project/git/push` — `git push` to default remote/branch.
+async fn git_push(State(s): State<AppState>) -> impl IntoResponse {
+    let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
+    let gd = crate::git_deploy::GitDeploy::new(dir);
+    if !gd.is_git_repo() {
+        return (StatusCode::BAD_REQUEST, "not a git repository").into_response();
+    }
+    match tokio::task::spawn_blocking(move || gd.push()).await {
+        Ok(Ok(msg)) => Json(serde_json::json!({ "message": msg })).into_response(),
+        Ok(Err(e)) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+        Err(e)     => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
     }
 }
 

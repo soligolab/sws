@@ -761,4 +761,19 @@ export const api = {
 
   /** GET /api/discover — browse mDNS for SWS runtimes on the LAN (~2 s). */
   discoverRuntimes: () => request<DiscoveredRuntime[]>("/api/discover"),
+
+  /** GET /api/project/fingerprint — SHA256 of project.yaml + all synoptics. */
+  getProjectFingerprint: () => request<import("../types").ProjectFingerprint>("/api/project/fingerprint"),
+
+  /** POST /api/project/git/commit — git add -A && git commit -m <message>. */
+  commitProject: (message: string) =>
+    request<{ message: string }>("/api/project/git/commit", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message }),
+    }),
+
+  /** POST /api/project/git/push — git push to default remote/branch. */
+  pushProject: () =>
+    request<{ message: string }>("/api/project/git/push", { method: "POST" }),
 };
