@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { api, NoProjectError, RuntimeUnavailableError } from "@/api/client";
+import { api, NoProjectError, RateLimitedError, RuntimeUnavailableError } from "@/api/client";
 import { useAppStore } from "@/store";
 
 const OVERLAY: React.CSSProperties = {
@@ -90,6 +90,8 @@ export function ReAuthModal() {
         setError(
           e instanceof RuntimeUnavailableError
             ? "Runtime non raggiungibile."
+            : e instanceof RateLimitedError
+            ? `Troppi tentativi. Riprova tra ${e.retryAfterSecs}s.`
             : "Password errata. Riprova."
         );
         setPassword("");

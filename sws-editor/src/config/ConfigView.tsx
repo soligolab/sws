@@ -5827,22 +5827,30 @@ function RuntimeConnectionTab() {
         body: zipBlob,
       });
       if (uploadRes.status === 409) {
-        addLog(`Progetto "${projectName}" già presente — sostituzione in corso…`);
+        // Server returns { "name": "<real-project-name>" } — the name comes from
+        // the ZIP manifest, which may differ from the timestamped ZIP filename.
+        const conflict = await uploadRes.json().catch(() => ({}));
+        const realName = (conflict as any).name ?? projectName;
+        const ok = window.confirm(
+          `Sul target esiste già un progetto "${realName}".\nSostituirlo con la versione corrente?`
+        );
+        if (!ok) throw new Error("Deploy annullato dall'utente.");
+        addLog(`Rimozione di "${realName}" dal target…`);
         // Close first in case it's the active project on the target
         await fetch(`${target}/api/projects/close`, {
           method: "POST",
           headers: { "Authorization": `Bearer ${remoteToken}` },
         }).catch(() => {});
-        // Delete existing project
+        // Delete using the REAL project name from the manifest, not the ZIP filename
         const delRes = await fetch(
-          `${target}/api/projects/${encodeURIComponent(projectName)}`,
+          `${target}/api/projects/${encodeURIComponent(realName)}`,
           { method: "DELETE", headers: { "Authorization": `Bearer ${remoteToken}` } }
         );
         if (!delRes.ok) {
           const body = await delRes.text().catch(() => "");
-          throw new Error(`Impossibile rimuovere "${projectName}" dal target: ${delRes.status}${body ? ` — ${body}` : ""}`);
+          throw new Error(`Impossibile rimuovere "${realName}" dal target: ${delRes.status}${body ? ` — ${body}` : ""}`);
         }
-        addLog(`✓ Rimosso "${projectName}" dal target`);
+        addLog(`✓ Rimosso "${realName}" dal target`);
         // Retry upload
         uploadRes = await fetch(`${target}/api/projects/upload`, {
           method: "POST",
