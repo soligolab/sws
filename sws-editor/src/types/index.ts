@@ -26,6 +26,8 @@ export type SynopticObjectType =
   | "trend"
   // SCADA symbols (pump/valve/motor/tank/fan from the built-in library)
   | "symbol"
+  // Pipe / connector (multi-waypoint path with fill-level animation)
+  | "pipe"
   // Layout
   | "grid"
   // Faceplate instance (parametric reusable component)
@@ -92,6 +94,12 @@ export interface SubCellEntry {
  *  Empty → the cell itself; `["a"]` → first split's slot A; `["a", "b"]` →
  *  slot A's split's slot B; and so on. */
 export type SubPath = ("a" | "b")[];
+
+/** One waypoint in a pipe/connector path. */
+export interface PipePoint {
+  x: number;
+  y: number;
+}
 
 /** One option in a radio-group. */
 export interface RadioOption {
@@ -258,6 +266,53 @@ export interface SynopticObject {
   locked?: boolean;
   /** Optional group this object belongs to (id from SynopticPage.groups). */
   group_id?: string;
+  // ── Pipe / connector (type === "pipe") ───────────────────────────────
+  /** Ordered array of waypoints (min 2). First/last overridden by from/to anchors at render time. */
+  points?: PipePoint[];
+  /** How segments between waypoints are routed. Default "straight". */
+  routing?: "straight" | "orthogonal" | "diagonal" | "bezier";
+  /** Visual style. Default "flat". */
+  pipe_style?: "flat" | "tube" | "wire";
+  /** Enable 3D-gradient fill (auto-enabled for "tube" style). */
+  pipe_gradient?: boolean;
+  /** Highlight colour for the tube gradient (default: lightened stroke). */
+  gradient_light_color?: string;
+  /** Shadow colour for the tube gradient (default: darkened stroke). */
+  gradient_dark_color?: string;
+  /** Static fill level 0.0…1.0 (0=empty, 1=full). */
+  fill_level?: number;
+  /** Tag whose numeric value drives the fill level. Overrides fill_level. */
+  fill_level_tag?: string;
+  /** How to interpret the fill tag value. Default "0-100". */
+  fill_level_scale?: "0-1" | "0-100";
+  /** Colour of the fluid fill overlay. Default "#3b82f6". */
+  fill_color?: string;
+  /** Which end the fluid rises from. Default "start-to-end". */
+  fill_direction?: "start-to-end" | "end-to-start";
+  /** Marker shape at the first waypoint. Default "none". */
+  start_marker?: "none" | "arrow" | "dot" | "flange";
+  /** Marker shape at the last waypoint. Default "none". */
+  end_marker?: "none" | "arrow" | "dot" | "flange";
+  /** Marker size multiplier. Default 1.0. */
+  marker_size?: number;
+  /** Static label shown at the midpoint of the pipe. */
+  pipe_label?: string;
+  /** Tag whose value is displayed as the pipe label (overrides pipe_label). */
+  pipe_label_tag?: string;
+  /** Format string for the pipe label tag value. Default "{value}". */
+  pipe_label_format?: string;
+  /** Perpendicular offset of the label from the midpoint (px). Default 10. */
+  pipe_label_offset?: number;
+  /** SVG stroke-dasharray value applied to the pipe body (e.g. "6,3" for dashes). */
+  stroke_dasharray?: string;
+  /** ID of the object the pipe starts from (its first waypoint follows the object). */
+  from_obj_id?: string;
+  /** Port on the source object to anchor to. Default "center". */
+  from_port?: "top" | "bottom" | "left" | "right" | "center";
+  /** ID of the object the pipe ends at (its last waypoint follows the object). */
+  to_obj_id?: string;
+  /** Port on the destination object to anchor to. Default "center". */
+  to_port?: "top" | "bottom" | "left" | "right" | "center";
   // ── Faceplate instance (type === "faceplate") ─────────────────────────
   /** ID of the FaceplateDef to instantiate. */
   faceplate_id?: string;

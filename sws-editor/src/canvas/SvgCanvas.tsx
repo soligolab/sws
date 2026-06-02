@@ -3,7 +3,7 @@ import { TrendCanvas } from "@/canvas/TrendCanvas";
 import { TrendExpandedModal } from "@/canvas/TrendExpanded";
 import { useAppStore } from "@/store";
 import { SYMBOLS } from "@/symbols/library";
-import type { CustomSymbol, FaceplateDef, GridCell, SynopticObject, TagState } from "@/types";
+import type { CustomSymbol, FaceplateDef, GridCell, PipePoint, SynopticObject, TagState } from "@/types";
 
 // ── Canvas props ──────────────────────────────────────────────────────────────
 
@@ -59,6 +59,8 @@ interface DragState {
   offsetY: number;
   dx2?: number;
   dy2?: number;
+  /** For pipe objects: initial waypoints captured at drag start so all points shift uniformly. */
+  startPoints?: PipePoint[];
 }
 
 interface ResizeState {
@@ -134,6 +136,77 @@ function arcPath(cx: number, cy: number, r: number, startDeg: number, endDeg: nu
 
 function clamp(v: number, lo: number, hi: number) {
   return Math.max(lo, Math.min(hi, v));
+}
+
+// ── Pipe helpers ──────────────────────────────────────────────────────────────
+
+function blendHex(hex: string, with2: string, t: number): string {
+  try {
+    const p = (h: string) => {
+      const c = h.replace("#", "");
+      return [parseInt(c.slice(0, 2), 16), parseInt(c.slice(2, 4), 16), parseInt(c.slice(4, 6), 16)];
+    };
+    const [r1, g1, b1] = p(hex); const [r2, g2, b2] = p(with2);
+    const r = Math.round(r1 + (r2 - r1) * t);
+    const g = Math.round(g1 + (g2 - g1) * t);
+    const b = Math.round(b1 + (b2 - b1) * t);
+    return `#${r.toString(16).padStart(2, "0")}${g.toString(16).padStart(2, "0")}${b.toString(16).padStart(2, "0")}`;
+  } catch { return hex; }
+}
+const lightenHex = (h: string) => blendHex(h, "#ffffff", 0.45);
+const darkenHex  = (h: string) => blendHex(h, "#000000", 0.40);
+
+function buildBezierPath(pts: PipePoint[]): string {
+  if (pts.length < 2) return "";
+  if (pts.length === 2) {
+    const mx = (pts[0].x + pts[1].x) / 2, my = (pts[0].y + pts[1].y) / 2;
+    return `M ${pts[0].x} ${pts[0].y} Q ${mx} ${my} ${pts[1].x} ${pts[1].y}`;
+  }
+  let d = `M ${pts[0].x} ${pts[0].y}`;
+  const t = 0.35;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const p0 = pts[Math.max(0, i - 1)];
+    const p1 = pts[i];
+    const p2 = pts[i + 1];
+    const p3 = pts[Math.min(pts.length - 1, i + 2)];
+    const cp1x = p1.x + (p2.x - p0.x) * t;
+    const cp1y = p1.y + (p2.y - p0.y) * t;
+    const cp2x = p2.x - (p3.x - p1.x) * t;
+    const cp2y = p2.y - (p3.y - p1.y) * t;
+    d += ` C ${cp1x.toFixed(1)} ${cp1y.toFixed(1)} ${cp2x.toFixed(1)} ${cp2y.toFixed(1)} ${p2.x} ${p2.y}`;
+  }
+  return d;
+}
+
+function buildPipeD(pts: PipePoint[], routing: string): string {
+  if (pts.length < 2) return "";
+  if (routing === "bezier") return buildBezierPath(pts);
+  return `M ${pts[0].x} ${pts[0].y} ` + pts.slice(1).map((p) => `L ${p.x} ${p.y}`).join(" ");
+}
+
+function computeAnchor(obj: SynopticObject, port: string): PipePoint {
+  const w = obj.type === "line" ? 0 : (obj.width ?? 80);
+  const h = obj.type === "line" ? 0 : (obj.height ?? 80);
+  switch (port) {
+    case "top":    return { x: obj.x + w / 2, y: obj.y };
+    case "bottom": return { x: obj.x + w / 2, y: obj.y + h };
+    case "left":   return { x: obj.x,         y: obj.y + h / 2 };
+    case "right":  return { x: obj.x + w,     y: obj.y + h / 2 };
+    default:       return { x: obj.x + w / 2, y: obj.y + h / 2 };
+  }
+}
+
+function resolveAnchoredPoints(pipe: SynopticObject, objects: SynopticObject[]): PipePoint[] {
+  const pts = [...(pipe.points ?? [])];
+  if (pipe.from_obj_id) {
+    const src = objects.find((o) => o.id === pipe.from_obj_id);
+    if (src) pts[0] = computeAnchor(src, pipe.from_port ?? "center");
+  }
+  if (pipe.to_obj_id && pts.length >= 2) {
+    const dst = objects.find((o) => o.id === pipe.to_obj_id);
+    if (dst) pts[pts.length - 1] = computeAnchor(dst, pipe.to_port ?? "center");
+  }
+  return pts;
 }
 
 // ── Quality helpers ───────────────────────────────────────────────────────────
@@ -489,6 +562,11 @@ export function SvgCanvas({
       const ly2 = Math.max(obj.y ?? 0, obj.y2 ?? obj.y ?? 0);
       return { x1: lx1, y1: ly1, x2: lx2, y2: ly2 };
     }
+    if (obj.type === "pipe" && obj.points && obj.points.length >= 1) {
+      const xs = obj.points.map((p) => p.x);
+      const ys = obj.points.map((p) => p.y);
+      return { x1: Math.min(...xs), y1: Math.min(...ys), x2: Math.max(...xs), y2: Math.max(...ys) };
+    }
     const ox = obj.x ?? 0;
     const oy = obj.y ?? 0;
     return { x1: ox, y1: oy, x2: ox + (obj.width ?? 0), y2: oy + (obj.height ?? 0) };
@@ -631,6 +709,15 @@ export function SvgCanvas({
         onMove(objId, { x: snap(startObj.x + dx), y: snap(startObj.y + dy) });
       } else if (handle === "p2") {
         onMove(objId, { x2: snap((startObj.x2 ?? startObj.x + 100) + dx), y2: snap((startObj.y2 ?? startObj.y) + dy) });
+      } else if (handle.startsWith("wp-")) {
+        const wpIdx = parseInt(handle.slice(3));
+        const pipeObj = objects.find((o) => o.id === objId);
+        if (pipeObj?.points) {
+          const newPoints = pipeObj.points.map((p, i) =>
+            i === wpIdx ? { x: snap(startObj.x + dx), y: snap(startObj.y + dy) } : p
+          );
+          onMove(objId, { points: newPoints });
+        }
       } else {
         let { x, y, width, height } = startObj;
         const isCorner = (handle === "tl" || handle === "tr" || handle === "bl" || handle === "br");
@@ -745,6 +832,14 @@ export function SvgCanvas({
         patch.x2 = newX + dragRef.current.dx2!;
         patch.y2 = newY + dragRef.current.dy2!;
       }
+      if (dragRef.current.startPoints) {
+        const sp = dragRef.current.startPoints;
+        const dx = newX - sp[0].x;
+        const dy = newY - sp[0].y;
+        patch.points = sp.map((p) => ({ x: snap(p.x + dx), y: snap(p.y + dy) }));
+        patch.x = patch.points[0].x;
+        patch.y = patch.points[0].y;
+      }
       onMove(dragRef.current.objId, patch);
     } else if (selDragRef.current) {
       // Selection rect update — coords in SVG space
@@ -830,6 +925,11 @@ export function SvgCanvas({
     if (obj.type === "line") {
       ds.dx2 = (obj.x2 ?? obj.x + 100) - (obj.x ?? 0);
       ds.dy2 = (obj.y2 ?? obj.y ?? 0)  - (obj.y ?? 0);
+    }
+    if (obj.type === "pipe" && obj.points && obj.points.length >= 1) {
+      ds.offsetX = pt.x - obj.points[0].x;
+      ds.offsetY = pt.y - obj.points[0].y;
+      ds.startPoints = obj.points.map((p) => ({ ...p }));
     }
     openInteraction("Sposta oggetto");
     dragRef.current = ds;
@@ -923,6 +1023,7 @@ export function SvgCanvas({
           <g key={obj.id} style={gStyle} onMouseDown={obj.type !== "grid" ? onPress : undefined} onMouseUp={obj.type !== "grid" ? onRelease : undefined}>
             <SvgObject
               obj={obj}
+              objects={objects}
               tagValues={tagValues}
               selected={selSet.has(obj.id)}
               isEditMode={inEdit}
@@ -1009,10 +1110,42 @@ export function SvgCanvas({
         return <>{makeEndpoint("p1", obj.x ?? 0, obj.y ?? 0)}{makeEndpoint("p2", x2, y2)}</>;
       })()}
 
-      {/* Resize handles — single selection, edit mode, no rotation, not line/grid */}
+      {/* Pipe waypoint handles — single selected pipe in edit mode */}
       {onMove && selIds.length === 1 && (() => {
         const obj = objects.find((o) => o.id === selIds[0]);
-        if (!obj || obj.type === "line" || obj.type === "grid" || (obj.rotation ?? 0) !== 0) return null;
+        if (!obj || obj.type !== "pipe") return null;
+        const pts = obj.points ?? [];
+        const r = 5 / viewT.zoom;
+        const sw = 1.5 / viewT.zoom;
+        return (
+          <>
+            {pts.map((pt, i) => (
+              <circle key={i}
+                cx={pt.x} cy={pt.y} r={r}
+                fill="white" stroke="#facc15" strokeWidth={sw}
+                style={{ cursor: "crosshair" }}
+                onMouseDown={(e) => {
+                  e.stopPropagation();
+                  dragRef.current = null;
+                  selDragRef.current = null;
+                  setSelRect(null);
+                  openInteraction(`Sposta waypoint ${i}`);
+                  resizeRef.current = {
+                    objId: obj.id, handle: `wp-${i}`,
+                    startX: e.clientX, startY: e.clientY,
+                    startObj: { x: pt.x, y: pt.y, width: 0, height: 0 },
+                  };
+                }}
+              />
+            ))}
+          </>
+        );
+      })()}
+
+      {/* Resize handles — single selection, edit mode, no rotation, not line/grid/pipe */}
+      {onMove && selIds.length === 1 && (() => {
+        const obj = objects.find((o) => o.id === selIds[0]);
+        if (!obj || obj.type === "line" || obj.type === "grid" || obj.type === "pipe" || (obj.rotation ?? 0) !== 0) return null;
         const bb = objBBox(obj);
         const cx = (bb.x1 + bb.x2) / 2;
         const cy = (bb.y1 + bb.y2) / 2;
@@ -1463,6 +1596,8 @@ export function SvgCanvas({
 
 interface ObjProps {
   obj: SynopticObject;
+  /** Full list of page objects — used by pipe rendering to resolve anchor points. */
+  objects: SynopticObject[];
   tagValues: Record<string, TagState>;
   selected: boolean;
   isEditMode: boolean;
@@ -1485,7 +1620,7 @@ interface ObjProps {
 }
 
 function SvgObject(p: ObjProps) {
-  const { tagValues, selected, isEditMode, customSymbols, faceplates = [], selectedCell, selectedCellChild, selectedCellRange, onSelect, onStartDrag, onWriteTag, onScript, onNavigate, onSelectCell, onSelectCellChild, onSelectCellRange, onExpandTrend } = p;
+  const { objects, tagValues, selected, isEditMode, customSymbols, faceplates = [], selectedCell, selectedCellChild, selectedCellRange, onSelect, onStartDrag, onWriteTag, onScript, onNavigate, onSelectCell, onSelectCellChild, onSelectCellRange, onExpandTrend } = p;
   const obj = resolveObject(p.obj, tagValues);
 
   const handleMouseDown = (e: React.MouseEvent<SVGElement>) => {
@@ -1600,6 +1735,7 @@ function SvgObject(p: ObjProps) {
                     <g style={{ pointerEvents: isEditMode ? "none" : "auto" }}>
                       <SvgObject
                         obj={placed}
+                        objects={objects}
                         tagValues={tagValues}
                         selected={false}
                         isEditMode={false}
@@ -1730,6 +1866,155 @@ function SvgObject(p: ObjProps) {
           <circle cx={x2} cy={y2} r={4} fill="#facc15" style={{ pointerEvents: "none" }} />
         </>}
       </>
+    );
+  }
+
+  // ── PIPE ────────────────────────────────────────────────────────────────────
+
+  if (obj.type === "pipe") {
+    const pts = resolveAnchoredPoints(obj, objects);
+    if (pts.length < 2) return null;
+    const pipeStyle = obj.pipe_style ?? "flat";
+    const sw = obj.stroke_width ?? 8;
+    const baseColor = obj.stroke ?? "#64748b";
+    const routing = obj.routing ?? "straight";
+    const pathD = buildPipeD(pts, routing);
+
+    // State / alarm colour override
+    const alarmTv = obj.alarm_tag ? tagValues[obj.alarm_tag] : undefined;
+    const stateTv = obj.state_tag ? tagValues[obj.state_tag] : undefined;
+    const pipeColor =
+      (alarmTv && alarmTv.value) ? (obj.state_alarm_color ?? "#ef4444") :
+      (stateTv && stateTv.value) ? (obj.state_on_color ?? baseColor) :
+      (obj.state_tag ? (obj.state_off_color ?? baseColor) : baseColor);
+
+    // Gradient
+    const useGrad = obj.pipe_gradient ?? (pipeStyle === "tube");
+    const gradId = `pipe-grad-${obj.id}`;
+    const lightC = obj.gradient_light_color ?? lightenHex(pipeColor);
+    const darkC  = obj.gradient_dark_color  ?? darkenHex(pipeColor);
+
+    // Fill level
+    const flTag = obj.fill_level_tag ? tagValues[obj.fill_level_tag] : undefined;
+    const rawLevel = flTag
+      ? ((obj.fill_level_scale ?? "0-100") === "0-100"
+          ? Number(flTag.value) / 100
+          : Number(flTag.value))
+      : (obj.fill_level ?? 0);
+    const fillLevel = clamp(rawLevel, 0, 1);
+    const fillColor = obj.fill_color ?? "#3b82f6";
+    const fillOffset = (obj.fill_direction ?? "start-to-end") === "start-to-end"
+      ? (1 - fillLevel) : fillLevel;
+
+    // Stroke widths per style
+    const outerSw = sw + 2;
+    const innerSw = Math.max(1, sw - 2);
+    const wireSw  = Math.max(2, Math.round(sw / 4));
+    const bodySw  = pipeStyle === "wire" ? wireSw : sw;
+    const fillSw  = pipeStyle === "wire" ? Math.max(1, wireSw - 1) : innerSw;
+
+    // Midpoint for label / quality dot
+    const midPt = pts[Math.floor((pts.length - 1) / 2)];
+
+    // Label
+    const labelTv = obj.pipe_label_tag ? tagValues[obj.pipe_label_tag] : undefined;
+    const labelText = labelTv
+      ? formatValue(labelTv.value, obj.pipe_label_format ?? "{value}")
+      : (obj.pipe_label ?? obj.label);
+
+    // Marker size
+    const mSz = Math.max(4, sw * (obj.marker_size ?? 1));
+    const mId = (s: string) => `pipe-m${s}-${obj.id}`;
+
+    const dasharray = pipeStyle === "wire" ? (obj.stroke_dasharray ?? "6,3") : (obj.stroke_dasharray ?? undefined);
+
+    return (
+      <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()}
+         style={{ cursor: editCursor, opacity: obj.opacity ?? 1 }}>
+        <defs>
+          {useGrad && (
+            <linearGradient id={gradId} x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%"   stopColor={lightC} />
+              <stop offset="50%"  stopColor={pipeColor} />
+              <stop offset="100%" stopColor={darkC} />
+            </linearGradient>
+          )}
+          {obj.start_marker && obj.start_marker !== "none" && (
+            <marker id={mId("s")} markerWidth={mSz} markerHeight={mSz}
+                    refX={mSz / 2} refY={mSz / 2} orient="auto-start-reverse">
+              {obj.start_marker === "arrow" && <path d={`M 0 0 L ${mSz} ${mSz/2} L 0 ${mSz} Z`} fill={pipeColor} />}
+              {obj.start_marker === "dot"   && <circle cx={mSz/2} cy={mSz/2} r={mSz/2 - 0.5} fill={pipeColor} />}
+              {obj.start_marker === "flange" && <rect x={0} y={0} width={mSz * 0.35} height={mSz} fill={pipeColor} />}
+            </marker>
+          )}
+          {obj.end_marker && obj.end_marker !== "none" && (
+            <marker id={mId("e")} markerWidth={mSz} markerHeight={mSz}
+                    refX={mSz / 2} refY={mSz / 2} orient="auto">
+              {obj.end_marker === "arrow" && <path d={`M 0 0 L ${mSz} ${mSz/2} L 0 ${mSz} Z`} fill={pipeColor} />}
+              {obj.end_marker === "dot"   && <circle cx={mSz/2} cy={mSz/2} r={mSz/2 - 0.5} fill={pipeColor} />}
+              {obj.end_marker === "flange" && <rect x={0} y={0} width={mSz * 0.35} height={mSz} fill={pipeColor} />}
+            </marker>
+          )}
+        </defs>
+
+        {/* Outer shadow for tube style */}
+        {pipeStyle === "tube" && (
+          <path d={pathD} fill="none" stroke={darkC} strokeWidth={outerSw}
+            strokeLinecap="round" strokeLinejoin="round"
+            style={{ pointerEvents: "none" }} />
+        )}
+
+        {/* Main pipe body */}
+        <path d={pathD} fill="none"
+          stroke={useGrad ? `url(#${gradId})` : pipeColor}
+          strokeWidth={bodySw}
+          strokeLinecap="round" strokeLinejoin="round"
+          strokeDasharray={dasharray}
+          markerStart={obj.start_marker && obj.start_marker !== "none" ? `url(#${mId("s")})` : undefined}
+          markerEnd={obj.end_marker && obj.end_marker !== "none" ? `url(#${mId("e")})` : undefined}
+          style={{ ...transitionStyle(obj) }} />
+
+        {/* Inner highlight for tube style */}
+        {pipeStyle === "tube" && (
+          <path d={pathD} fill="none" stroke={lightC}
+            strokeWidth={Math.max(1, Math.round(sw * 0.22))}
+            strokeLinecap="round" strokeLinejoin="round"
+            style={{ pointerEvents: "none", opacity: 0.55 }} />
+        )}
+
+        {/* Fill level overlay (stroke-dasharray trick with pathLength=1) */}
+        {fillLevel > 0 && (
+          <path d={pathD} fill="none"
+            stroke={fillColor} strokeWidth={fillSw}
+            strokeLinecap="round" strokeLinejoin="round"
+            pathLength={1}
+            strokeDasharray="1"
+            strokeDashoffset={fillOffset}
+            style={{ pointerEvents: "none", ...transitionStyle(obj) }} />
+        )}
+
+        {/* Transparent wider hit area so it's easy to click */}
+        <path d={pathD} fill="none" stroke="transparent"
+          strokeWidth={Math.max(bodySw, 14)}
+          strokeLinecap="round" strokeLinejoin="round" />
+
+        {/* Label */}
+        {labelText && (
+          <text x={midPt.x} y={midPt.y - (obj.pipe_label_offset ?? 10)}
+            textAnchor="middle" fill="#e2e8f0" fontSize={12}
+            style={{ pointerEvents: "none" }}>
+            {labelText}
+          </text>
+        )}
+
+        {/* Quality dot at midpoint */}
+        {flTag && obj.quality_dot !== false && (
+          <QDot x={midPt.x + 7} y={midPt.y - 7} quality={flTag.quality}
+            goodColor={obj.quality_dot_good_color}
+            badColor={obj.quality_dot_bad_color}
+            uncertainColor={obj.quality_dot_uncertain_color} />
+        )}
+      </g>
     );
   }
 
@@ -2630,6 +2915,7 @@ function SvgObject(p: ObjProps) {
                       <g style={{ pointerEvents: isEditMode ? "none" : "auto" }}>
                         <SvgObject
                           obj={placed}
+                          objects={objects}
                           tagValues={tagValues}
                           selected={false}
                           isEditMode={false}
@@ -2774,6 +3060,7 @@ function SvgObject(p: ObjProps) {
             <SvgObject
               key={child.id ?? i}
               obj={resolved}
+              objects={objects}
               tagValues={tagValues}
               selected={false}
               isEditMode={false}
