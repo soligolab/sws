@@ -776,4 +776,8 @@ export const api = {
   /** POST /api/project/git/push — git push to default remote/branch. */
   pushProject: () =>
     request<{ message: string }>("/api/project/git/push", { method: "POST" }),
+
+  /** GET /api/build/packages — list built tarballs in dist/. */
+  listPackages: () =>
+    request<import("../types").PackageFile[]>("/api/build/packages"),
 };

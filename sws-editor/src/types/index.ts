@@ -1008,3 +1008,9 @@ export interface SavedDevice {
   user: string;
   pass: string;
 }
+
+export interface PackageFile {
+  name: string;
+  size_bytes: number;
+  mtime_ms: number;
+}
