@@ -4,7 +4,12 @@
 >
 > Ambienti di test: vedi [docs/TEST_SETUPS.md](docs/TEST_SETUPS.md) (casa, dev server, dispositivi Yocto).
 
-**Last session**: 2026-06-02 — T-24, T-25, T-26 (workflow refinement); T-27 (generic Linux packaging); pipe/tubazione canvas feature (working tree carry-over).
+**Last session**: 2026-06-02 — T-24…T-28 + pipe/tubazione canvas.
+
+- **T-28 — IDE Package Builder + SSH Device Deployer** (`feat/T-28-ide-package-deploy` → squash main):
+  - Backend: `packaging.rs` con 3 endpoint Admin: `POST /api/build/package` (streaming), `GET /api/build/packages`, `POST /api/deploy/device` (streaming SCP+SSH).
+  - AppState: `+build_running` (mutex build unica), `+repo_root` (Some se `scripts/package.sh` esiste vicino al CWD, None su device deployati).
+  - Frontend: due nuove sezioni in RuntimeConnectionTab — "Pacchetto runtime" (3 pulsanti build + log + lista tarball) e "Installa su dispositivo" (form SSH + log deploy streaming).
 
 - **T-27 — Generic Linux packaging** (`feat/T-27-generic-linux-package` → squash main):
   - `scripts/package.sh`: build tarball `sws-<version>-linux-<arch>.tar.gz` (flags: `--no-rust`, `--no-spa`).
@@ -97,6 +102,7 @@ curl -sk -H "Authorization: Bearer $TOKEN" https://localhost:8444/api/project/fi
 | **Observability** | Project fingerprint SHA256, device dashboard multi-runtime, remote log viewer live |
 | **Canvas** | Pipe/tubazione multi-waypoint (flat/tube/wire), SVG path animato, drag waypoint |
 | **Packaging** | `scripts/package.sh` → tarball `.tar.gz`; `deploy/generic-linux/install.sh` → systemd |
+| **IDE deploy** | Build tarball + deploy SSH su device direttamente da Configurazione → Runtime |
 | **PWA** | Service worker, manifest, auto-rotate kiosk, mobile layout |
 | **Infra** | Yocto cross-compile (aarch64), Prometheus `/metrics`, audit log, log JSONL rotato, backup auto |
 
