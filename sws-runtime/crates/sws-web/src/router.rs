@@ -81,6 +81,10 @@ pub struct AppState {
     pub notification_supervisor: Arc<RwLock<Option<NotificationSupervisor>>>,
     /// Path to the TLS certificate PEM for `GET /cert` (browser import).
     pub cert_path: Arc<PathBuf>,
+    /// True while scripts/package.sh is running. Prevents concurrent builds.
+    pub build_running: crate::packaging::BuildLock,
+    /// Repository root (where scripts/package.sh lives). None on deployed instances.
+    pub repo_root: crate::packaging::RepoRoot,
 }
 
 /// Resolve the active project directory or return 503. Used at the top
@@ -111,7 +115,7 @@ pub fn build(
     cert_path: Arc<PathBuf>,
     www_dir: Option<PathBuf>,
 ) -> (Router, Router) {
-    let state = AppState { db, bus, alarms, historian, registry, py, auth, supervisor, script_supervisor, functions, derived_tags, project_dir, projects_root, templates_root, logs, logs_dir, started_at, ip_allowlist, recipe_log: Arc::new(RwLock::new(Vec::new())), notification_supervisor: Arc::new(RwLock::new(None)), cert_path };
+    let state = AppState { db, bus, alarms, historian, registry, py, auth, supervisor, script_supervisor, functions, derived_tags, project_dir, projects_root, templates_root, logs, logs_dir, started_at, ip_allowlist, recipe_log: Arc::new(RwLock::new(Vec::new())), notification_supervisor: Arc::new(RwLock::new(None)), cert_path, build_running: crate::packaging::new_build_lock(), repo_root: crate::packaging::new_repo_root() };
     // Build the runtime router (8443) before consuming state for admin.
     let runtime_app = build_runtime_inner(state.clone(), www_dir.clone());
 
@@ -146,6 +150,10 @@ pub fn build(
         .route("/api/deploy/remote",       post(crate::deploy::deploy_remote))
         // Git push: push to default remote/branch. Admin-only (risk of exposing credentials).
         .route("/api/project/git/push",    post(git_push))
+        // T-28: local package build + SSH device deploy.
+        .route("/api/build/package",       post(crate::packaging::build_package))
+        .route("/api/build/packages",      get(crate::packaging::list_packages))
+        .route("/api/deploy/device",       post(crate::packaging::deploy_device))
         .route_layer(middleware::from_fn(require_admin));
 
     // Routes that need Operator+ (tag writes, alarm ACK, script exec,

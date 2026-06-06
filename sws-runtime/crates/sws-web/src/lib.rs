@@ -1,6 +1,7 @@
 pub mod backups;
 pub mod deploy;
 pub mod discover;
+pub mod packaging;
 pub mod git_deploy;
 pub mod notifications;
 pub mod recipe;

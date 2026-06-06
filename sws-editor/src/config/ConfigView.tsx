@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { api, type CreateUserBody, type DiscoveredRuntime, type UpdateUserBody, type UserRole, type UserSummary } from "@/api/client";
+import { api, getAuthToken, type CreateUserBody, type DiscoveredRuntime, type UpdateUserBody, type UserRole, type UserSummary } from "@/api/client";
 import { TagInput } from "@/components/TagInput";
 import { PythonEditor, type PythonEditorHandle } from "@/components/PythonEditor";
 import { useAppStore } from "@/store";
@@ -49,6 +49,7 @@ import type {
   TagDef,
   TopicMapping,
   SavedDevice,
+  PackageFile,
 } from "@/types";
 
 // ── Shared styles ─────────────────────────────────────────────────────────────
@@ -5803,6 +5804,20 @@ function RuntimeConnectionTab() {
   const [logLive, setLogLive]         = useState(false);
   const logTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // T-28: package build
+  const [buildLog, setBuildLog]         = useState<string[]>([]);
+  const [building, setBuilding]         = useState(false);
+  const [packages, setPackages]         = useState<PackageFile[]>([]);
+  const [selectedPkg, setSelectedPkg]   = useState("");
+  // T-28: device deploy via SSH
+  const [deviceHost, setDeviceHost]     = useState("");
+  const [devicePort, setDevicePort]     = useState(22);
+  const [deviceUser, setDeviceUser]     = useState("root");
+  const [devicePass, setDevicePass]     = useState("");
+  const [deviceTmpDir, setDeviceTmpDir] = useState("/tmp/sws-deploy");
+  const [deviceLog, setDeviceLog]       = useState<string[]>([]);
+  const [deviceDeploying, setDeviceDeploying] = useState(false);
+
   const target = targetUrl.trim().replace(/\/$/, "");
 
   const saveForm = () => {
@@ -5900,6 +5915,72 @@ function RuntimeConnectionTab() {
     }
     return () => { if (logTimerRef.current) { clearInterval(logTimerRef.current); logTimerRef.current = null; } };
   }, [logLive, status, fetchRemoteLogs]);
+
+  const fetchPackages = useCallback(async () => {
+    try { const pkgs = await api.listPackages(); setPackages(pkgs); if (pkgs.length > 0 && !selectedPkg) setSelectedPkg(pkgs[0].name); }
+    catch { /* ignore */ }
+  }, [selectedPkg]);
+
+  useEffect(() => { void fetchPackages(); }, []);
+
+  const handleBuild = async (noRust = false, noSpa = false) => {
+    setBuilding(true);
+    setBuildLog([]);
+    try {
+      const token = getAuthToken() ?? "";
+      const res = await fetch("/api/build/package", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ no_rust: noRust, no_spa: noSpa }),
+      });
+      if (!res.ok) { setBuildLog([`ERROR: ${res.status} ${res.statusText}`]); return; }
+      const reader = res.body?.getReader();
+      if (!reader) return;
+      const dec = new TextDecoder();
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        dec.decode(value).split("\n").filter(Boolean).forEach((line) => {
+          setBuildLog((l) => [...l, line]);
+          if (line === "DONE") void fetchPackages();
+        });
+      }
+    } catch (e: unknown) {
+      setBuildLog((l) => [...l, `ERROR: ${String(e)}`]);
+    } finally {
+      setBuilding(false);
+    }
+  };
+
+  const handleDeviceDeploy = async () => {
+    if (!selectedPkg || !deviceHost || !deviceUser) return;
+    setDeviceDeploying(true);
+    setDeviceLog([]);
+    try {
+      const token = getAuthToken() ?? "";
+      const res = await fetch("/api/deploy/device", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          tarball: selectedPkg, host: deviceHost, port: devicePort,
+          user: deviceUser, password: devicePass, remote_dir: deviceTmpDir,
+        }),
+      });
+      if (!res.ok) { setDeviceLog([`ERROR: ${res.status} ${res.statusText}`]); return; }
+      const reader = res.body?.getReader();
+      if (!reader) return;
+      const dec = new TextDecoder();
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        dec.decode(value).split("\n").filter(Boolean).forEach((line) => setDeviceLog((l) => [...l, line]));
+      }
+    } catch (e: unknown) {
+      setDeviceLog((l) => [...l, `ERROR: ${String(e)}`]);
+    } finally {
+      setDeviceDeploying(false);
+    }
+  };
 
   const addLog = (msg: string) => setDeployLog((l) => [...l, msg]);
 
@@ -6203,6 +6284,136 @@ function RuntimeConnectionTab() {
                     );
                   })
             }
+          </div>
+        </section>
+      )}
+      {/* Package build */}
+      <section>
+        <div style={{ fontSize: 13, fontWeight: 600, color: "#94a3b8", marginBottom: 8, textTransform: "uppercase", letterSpacing: 1 }}>
+          Pacchetto runtime
+        </div>
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
+          <button style={{ ...BTN_PRIMARY, opacity: building ? 0.6 : 1 }} disabled={building}
+            onClick={() => void handleBuild(false, false)}>
+            {building ? "Build in corso…" : "Build completo"}
+          </button>
+          <button style={{ ...BTN, opacity: building ? 0.6 : 1 }} disabled={building}
+            onClick={() => void handleBuild(true, false)} title="Salta cargo build, rigenera solo SPA">
+            ⚡ Solo UI
+          </button>
+          <button style={{ ...BTN, opacity: building ? 0.6 : 1 }} disabled={building}
+            onClick={() => void handleBuild(false, true)} title="Salta pnpm build, ricompila solo il binario Rust">
+            ⚡ Solo Rust
+          </button>
+        </div>
+        {buildLog.length > 0 && (
+          <div style={{
+            background: "#020617", border: "1px solid #1e293b", borderRadius: 4,
+            padding: "8px 10px", maxHeight: 150, overflowY: "auto",
+            fontFamily: "monospace", fontSize: 11, marginBottom: 8,
+          }}>
+            {buildLog.map((l, i) => (
+              <div key={i} style={{ color: l.startsWith("ERROR") ? "#f87171" : l === "DONE" ? "#4ade80" : l.startsWith("WARN") ? "#fb923c" : "#94a3b8" }}>{l}</div>
+            ))}
+          </div>
+        )}
+        {packages.length > 0 && (
+          <div>
+            <div style={{ fontSize: 11, color: "#64748b", marginBottom: 4 }}>Pacchetti disponibili:</div>
+            {packages.map((p) => (
+              <div key={p.name}
+                onClick={() => setSelectedPkg(p.name)}
+                style={{
+                  display: "flex", alignItems: "center", gap: 8, padding: "4px 6px",
+                  borderRadius: 4, cursor: "pointer", marginBottom: 2,
+                  background: selectedPkg === p.name ? "#1e3a5f" : "transparent",
+                  border: `1px solid ${selectedPkg === p.name ? "#3b82f6" : "transparent"}`,
+                }}>
+                <span style={{ fontSize: 12, color: "#e2e8f0", flex: 1, fontFamily: "monospace" }}>{p.name}</span>
+                <span style={{ fontSize: 11, color: "#475569" }}>
+                  {(p.size_bytes / 1024 / 1024).toFixed(1)} MB
+                </span>
+                <span style={{ fontSize: 10, color: "#334155" }}>
+                  {new Date(p.mtime_ms).toLocaleDateString("it-IT")}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
+      {/* Device SSH deploy */}
+      {packages.length > 0 && (
+        <section>
+          <div style={{ fontSize: 13, fontWeight: 600, color: "#94a3b8", marginBottom: 8, textTransform: "uppercase", letterSpacing: 1 }}>
+            Installa su dispositivo
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <div>
+              <label style={{ fontSize: 11, color: "#64748b", display: "block", marginBottom: 4 }}>
+                Pacchetto selezionato
+              </label>
+              <select
+                value={selectedPkg}
+                onChange={(e) => setSelectedPkg(e.target.value)}
+                style={{ ...INPUT, width: "100%", boxSizing: "border-box" as const }}>
+                {packages.map((p) => <option key={p.name} value={p.name}>{p.name}</option>)}
+              </select>
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <div style={{ flex: 1 }}>
+                <label style={{ fontSize: 11, color: "#64748b", display: "block", marginBottom: 4 }}>Host SSH</label>
+                <input style={{ ...INPUT, width: "100%", boxSizing: "border-box" as const }}
+                  placeholder="192.168.1.50" value={deviceHost}
+                  onChange={(e) => setDeviceHost(e.target.value)} />
+              </div>
+              <div style={{ width: 70 }}>
+                <label style={{ fontSize: 11, color: "#64748b", display: "block", marginBottom: 4 }}>Porta</label>
+                <input style={{ ...INPUT, width: "100%", boxSizing: "border-box" as const }}
+                  type="number" value={devicePort}
+                  onChange={(e) => setDevicePort(Number(e.target.value))} />
+              </div>
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <div style={{ flex: 1 }}>
+                <label style={{ fontSize: 11, color: "#64748b", display: "block", marginBottom: 4 }}>Utente SSH</label>
+                <input style={{ ...INPUT, width: "100%", boxSizing: "border-box" as const }}
+                  placeholder="root" value={deviceUser}
+                  onChange={(e) => setDeviceUser(e.target.value)} />
+              </div>
+              <div style={{ flex: 1 }}>
+                <label style={{ fontSize: 11, color: "#64748b", display: "block", marginBottom: 4 }}>Password SSH</label>
+                <input style={{ ...INPUT, width: "100%", boxSizing: "border-box" as const }}
+                  type="password" placeholder="••••••••" value={devicePass}
+                  onChange={(e) => setDevicePass(e.target.value)} />
+              </div>
+            </div>
+            <div>
+              <label style={{ fontSize: 11, color: "#64748b", display: "block", marginBottom: 4 }}>Cartella temporanea remota</label>
+              <input style={{ ...INPUT, width: "100%", boxSizing: "border-box" as const }}
+                value={deviceTmpDir}
+                onChange={(e) => setDeviceTmpDir(e.target.value)} />
+            </div>
+            <span style={{ fontSize: 10, color: "#475569" }}>
+              Richiede <code>sshpass</code> e <code>scp</code> sul sistema locale. Il dispositivo deve avere accesso SSH e <code>sudo</code>.
+            </span>
+            <button
+              style={{ ...BTN_PRIMARY, opacity: (deviceDeploying || !deviceHost || !selectedPkg) ? 0.6 : 1 }}
+              disabled={deviceDeploying || !deviceHost || !selectedPkg}
+              onClick={() => void handleDeviceDeploy()}>
+              {deviceDeploying ? "Deploy in corso…" : "🚀 Installa / Aggiorna"}
+            </button>
+            {deviceLog.length > 0 && (
+              <div style={{
+                background: "#020617", border: "1px solid #1e293b", borderRadius: 4,
+                padding: "8px 10px", maxHeight: 150, overflowY: "auto",
+                fontFamily: "monospace", fontSize: 11,
+              }}>
+                {deviceLog.map((l, i) => (
+                  <div key={i} style={{ color: l.startsWith("ERROR") ? "#f87171" : l === "DONE" ? "#4ade80" : l.startsWith("WARN") ? "#fb923c" : "#94a3b8" }}>{l}</div>
+                ))}
+              </div>
+            )}
           </div>
         </section>
       )}
