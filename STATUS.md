@@ -4,7 +4,15 @@
 >
 > Ambienti di test: vedi [docs/TEST_SETUPS.md](docs/TEST_SETUPS.md) (casa, dev server, dispositivi Yocto).
 
-**Last session**: 2026-06-02 — T-24…T-28 + pipe/tubazione canvas.
+**Last session**: 2026-06-02 — T-24…T-33.
+
+- **T-29…T-33 — 5 nuovi widget canvas** (squash unico su main):
+  - **T-31 Text List**: mappa valore → etichetta testuale (lookup-table). Pannello: voci val/label/colore, testo default, font, allineamento.
+  - **T-29 Bar Chart**: SVG puro, verticale/orizzontale, n serie multi-tag, linee soglia warn/alarm.
+  - **T-33 Pie/Donut Chart**: SVG con path archi, modalità pie/donut, raggio interno, percentuali, legenda, testo/tag centro donut.
+  - **T-32 Sparkline**: mini-trend senza assi in foreignObject SVG, finestra mobile live, fill area, mostra ultimo valore.
+  - **T-30 Alarm Viewer**: lista/banner allarmi attivi embedded nel sinottico, filtro prefisso/severità, ACK inline (Operator+), banner ticker CSS.
+  - Tutti: palette LeftPanel gruppo Display, default palette, pannello proprietà EditorShell. Nessuna modifica backend.
 
 - **T-28 — IDE Package Builder + SSH Device Deployer** (`feat/T-28-ide-package-deploy` → squash main):
   - Backend: `packaging.rs` con 3 endpoint Admin: `POST /api/build/package` (streaming), `GET /api/build/packages`, `POST /api/deploy/device` (streaming SCP+SSH).
@@ -101,6 +109,7 @@ curl -sk -H "Authorization: Bearer $TOKEN" https://localhost:8444/api/project/fi
 | **Deploy** | Dual-port 8443/8444, `--instance N` dev.sh, mDNS discovery, deploy remoto via SCP/systemd, GitOps (pull/rollback/commit/push) |
 | **Observability** | Project fingerprint SHA256, device dashboard multi-runtime, remote log viewer live |
 | **Canvas** | Pipe/tubazione multi-waypoint (flat/tube/wire), SVG path animato, drag waypoint |
+| **Widget avanzati** | Bar Chart, Pie/Donut, Sparkline, Text List, Alarm Viewer inline |
 | **Packaging** | `scripts/package.sh` → tarball `.tar.gz`; `deploy/generic-linux/install.sh` → systemd |
 | **IDE deploy** | Build tarball + deploy SSH su device direttamente da Configurazione → Runtime |
 | **PWA** | Service worker, manifest, auto-rotate kiosk, mobile layout |
