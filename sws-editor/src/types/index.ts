@@ -24,6 +24,11 @@ export type SynopticObjectType =
   | "progress_bar"
   | "table"
   | "trend"
+  | "text_list"
+  | "bar_chart"
+  | "pie_chart"
+  | "sparkline"
+  | "alarm_viewer"
   // SCADA symbols (pump/valve/motor/tank/fan from the built-in library)
   | "symbol"
   // Pipe / connector (multi-waypoint path with fill-level animation)
@@ -318,6 +323,43 @@ export interface SynopticObject {
   faceplate_id?: string;
   /** Parameter values substituted into the faceplate template (e.g. {tag_prefix: "pump1"}). */
   faceplate_params?: Record<string, string>;
+  // ── Text List (type === "text_list") ──────────────────────────────────
+  text_list_entries?: TextListEntry[];
+  text_list_default?: string;
+  text_list_default_color?: string;
+  // ── Bar Chart (type === "bar_chart") ──────────────────────────────────
+  bar_series?: BarChartSeries[];
+  bar_orientation?: "vertical" | "horizontal";
+  bar_show_values?: boolean;
+  bar_show_labels?: boolean;
+  bar_show_thresholds?: boolean;
+  bar_gap?: number;
+  bar_y_label?: string;
+  // ── Pie / Donut Chart (type === "pie_chart") ──────────────────────────
+  pie_slices?: PieSlice[];
+  pie_mode?: "pie" | "donut";
+  pie_inner_ratio?: number;
+  pie_show_labels?: boolean;
+  pie_center_text?: string;
+  pie_center_tag?: string;
+  pie_center_format?: string;
+  pie_show_legend?: boolean;
+  // ── Sparkline (type === "sparkline") ──────────────────────────────────
+  spark_window_s?: number;
+  spark_color?: string;
+  spark_fill?: boolean;
+  spark_fill_opacity?: number;
+  spark_show_last?: boolean;
+  spark_stroke_width?: number;
+  // ── Alarm Viewer (type === "alarm_viewer") ────────────────────────────
+  alarm_viewer_max_rows?: number;
+  alarm_viewer_severities?: AlarmSeverity[];
+  alarm_viewer_id_prefix?: string;
+  alarm_viewer_show_ack?: boolean;
+  alarm_viewer_show_ts?: boolean;
+  alarm_viewer_show_empty?: boolean;
+  alarm_viewer_mode?: "list" | "banner";
+  alarm_viewer_bg_color?: string;
 }
 
 // ── Faceplate definitions ─────────────────────────────────────────────────────
@@ -1013,4 +1055,24 @@ export interface PackageFile {
   name: string;
   size_bytes: number;
   mtime_ms: number;
+}
+
+export interface TextListEntry {
+  value: number | string | boolean;
+  label: string;
+  color?: string;
+}
+
+export interface BarChartSeries {
+  tag: string;
+  label: string;
+  color: string;
+  min?: number;
+  max?: number;
+}
+
+export interface PieSlice {
+  tag: string;
+  label: string;
+  color: string;
 }

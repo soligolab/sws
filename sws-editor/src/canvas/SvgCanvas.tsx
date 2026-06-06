@@ -1,9 +1,9 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { TrendCanvas } from "@/canvas/TrendCanvas";
 import { TrendExpandedModal } from "@/canvas/TrendExpanded";
 import { useAppStore } from "@/store";
 import { SYMBOLS } from "@/symbols/library";
-import type { CustomSymbol, FaceplateDef, GridCell, PipePoint, SynopticObject, TagState } from "@/types";
+import type { AlarmSeverity, CustomSymbol, FaceplateDef, GridCell, PipePoint, SynopticObject, TagState } from "@/types";
 
 // ── Canvas props ──────────────────────────────────────────────────────────────
 
@@ -1619,6 +1619,179 @@ interface ObjProps {
   onExpandTrend?: (obj: SynopticObject) => void;
 }
 
+// ── SparklineWidget ───────────────────────────────────────────────────────────
+
+function SparklineWidget({ tag, windowS, width, height, color, strokeWidth, fill, fillOpacity, showLast, yMin, yMax, tagValues }: {
+  tag: string; windowS: number; width: number; height: number;
+  color: string; strokeWidth: number; fill: boolean; fillOpacity: number;
+  showLast: boolean; yMin?: number; yMax?: number;
+  tagValues: Record<string, TagState>;
+}) {
+  const [samples, setSamples] = useState<{ ts: number; v: number }[]>([]);
+  const tv = tag ? tagValues[tag] : undefined;
+
+  useEffect(() => {
+    if (tv === undefined) return;
+    const v = Number(tv.value);
+    if (!isFinite(v)) return;
+    const now = Date.now();
+    setSamples((prev) => {
+      const cutoff = now - windowS * 1000;
+      return [...prev.filter((s) => s.ts > cutoff), { ts: now, v }];
+    });
+  }, [tv?.value, windowS]);
+
+  const pad = 2;
+  const pw = width - pad * 2; const ph = height - pad * 2;
+  if (samples.length < 2) {
+    const last = samples[0]?.v;
+    return (
+      <div style={{ width, height, background: "transparent", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <svg width={width} height={height}>
+          <line x1={pad} y1={ph / 2 + pad} x2={pw + pad} y2={ph / 2 + pad} stroke={color} strokeWidth={strokeWidth} opacity={0.3} />
+          {showLast && last !== undefined && (
+            <text x={width - pad} y={pad + 10} textAnchor="end" fill={color} fontSize={9}>{last.toFixed(1)}</text>
+          )}
+        </svg>
+      </div>
+    );
+  }
+
+  const allV = samples.map((s) => s.v);
+  const lo = yMin ?? Math.min(...allV); const hi = yMax ?? Math.max(...allV);
+  const range = hi - lo || 1;
+  const now2 = Date.now(); const oldest = now2 - windowS * 1000;
+
+  const toX = (ts: number) => pad + ((ts - oldest) / (windowS * 1000)) * pw;
+  const toY = (v: number) => pad + ph - ((v - lo) / range) * ph;
+
+  const pts = samples.map((s) => `${toX(s.ts).toFixed(1)},${toY(s.v).toFixed(1)}`).join(" ");
+  const last = samples[samples.length - 1];
+
+  return (
+    <div style={{ width, height, background: "transparent" }}>
+      <svg width={width} height={height} style={{ overflow: "visible" }}>
+        {fill && <path d={`M ${toX(samples[0].ts)} ${ph + pad} L ${pts} L ${toX(last.ts)} ${ph + pad} Z`} fill={color} fillOpacity={fillOpacity} />}
+        <polyline points={pts} fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinejoin="round" />
+        {showLast && (
+          <text x={width - pad} y={pad + 10} textAnchor="end" fill={color} fontSize={9}>{last.v.toFixed(1)}</text>
+        )}
+      </svg>
+    </div>
+  );
+}
+
+// ── AlarmViewerWidget ─────────────────────────────────────────────────────────
+
+function AlarmViewerWidget({ width, height, mode, maxRows, prefix, allowedSev, showAck, showTs, showEmpty, bgColor }: {
+  width: number; height: number; mode: "list" | "banner";
+  maxRows: number; prefix: string;
+  allowedSev?: AlarmSeverity[];
+  showAck: boolean; showTs: boolean; showEmpty: boolean;
+  bgColor?: string;
+}) {
+  const alarmsMap = useAppStore((s) => s.alarms);
+  const authRole = useAppStore((s) => s.authRole);
+  const canAck = authRole === "Admin" || authRole === "Supervisor" || authRole === "Operator";
+
+  const filtered = Object.values(alarmsMap)
+    .filter((a) => {
+      if (!a.active) return false;
+      if (prefix && !a.def.id.startsWith(prefix)) return false;
+      if (allowedSev && allowedSev.length > 0 && !allowedSev.includes(a.def.severity!)) return false;
+      return true;
+    })
+    .sort((a, b) => (b.activated_at_ms ?? 0) - (a.activated_at_ms ?? 0))
+    .slice(0, maxRows);
+
+  const sevColor = (sev: string) =>
+    sev === "Critical" ? "#ef4444" : sev === "Warning" ? "#f59e0b" : "#3b82f6";
+
+  const handleAck = useCallback(async (id: string) => {
+    try {
+      const { getAuthToken } = await import("@/api/client");
+      const token = getAuthToken() ?? "";
+      await fetch(`/api/alarms/${id}/ack`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+    } catch { /* ignore */ }
+  }, []);
+
+  const containerStyle: React.CSSProperties = {
+    width, height,
+    background: bgColor ?? "rgba(15,23,42,0.92)",
+    overflow: "hidden",
+    fontFamily: "monospace",
+    fontSize: 11,
+    color: "#e2e8f0",
+    borderRadius: 4,
+    border: "1px solid #334155",
+    boxSizing: "border-box",
+  };
+
+  if (filtered.length === 0) {
+    return (
+      <div style={containerStyle}>
+        {showEmpty && (
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: "#475569" }}>
+            Nessun allarme attivo
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  if (mode === "banner") {
+    const a = filtered[0];
+    const sev = a.def.severity ?? "Warning";
+    const text = `${sev.toUpperCase()}: ${a.def.message ?? a.def.id}`;
+    return (
+      <div style={{ ...containerStyle, background: sevColor(sev) + "33", display: "flex", alignItems: "center", overflow: "hidden" }}>
+        <div style={{
+          whiteSpace: "nowrap", animation: filtered.length > 1 ? "sws-marquee 10s linear infinite" : undefined,
+          color: sevColor(sev), fontWeight: "bold", padding: "0 8px",
+        }}>
+          {text}
+        </div>
+        <style>{`@keyframes sws-marquee { 0%{transform:translateX(100%)} 100%{transform:translateX(-100%)} }`}</style>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ ...containerStyle, overflowY: "auto" }}>
+      {filtered.map((a) => {
+        const sev = a.def.severity ?? "Warning";
+        return (
+        <div key={a.def.id} style={{
+          display: "flex", alignItems: "center", gap: 4, padding: "2px 6px",
+          borderBottom: "1px solid #1e293b",
+          background: sevColor(sev) + "18",
+        }}>
+          <span style={{ color: sevColor(sev), flexShrink: 0 }}>●</span>
+          {showTs && a.activated_at_ms && (
+            <span style={{ color: "#475569", flexShrink: 0 }}>
+              {new Date(a.activated_at_ms).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}
+            </span>
+          )}
+          <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {a.def.message ?? a.def.id}
+          </span>
+          {showAck && canAck && !a.acknowledged && (
+            <button
+              onClick={(e) => { e.stopPropagation(); void handleAck(a.def.id); }}
+              style={{ fontSize: 9, padding: "1px 4px", background: "#1e293b", border: "1px solid #334155", borderRadius: 2, color: "#94a3b8", cursor: "pointer", flexShrink: 0 }}>
+              ACK
+            </button>
+          )}
+        </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function SvgObject(p: ObjProps) {
   const { objects, tagValues, selected, isEditMode, customSymbols, faceplates = [], selectedCell, selectedCellChild, selectedCellRange, onSelect, onStartDrag, onWriteTag, onScript, onNavigate, onSelectCell, onSelectCellChild, onSelectCellRange, onExpandTrend } = p;
   const obj = resolveObject(p.obj, tagValues);
@@ -2649,6 +2822,290 @@ function SvgObject(p: ObjProps) {
             )}
           </>
         )}
+      </g>
+    );
+  }
+
+  // ── TEXT LIST ────────────────────────────────────────────────────────────────
+
+  if (obj.type === "text_list") {
+    const tv = obj.tag ? tagValues[obj.tag] : undefined;
+    const liveVal = tv?.value;
+    const entry = (obj.text_list_entries ?? []).find(
+      (e) => String(e.value) === String(liveVal)
+    );
+    const label = entry ? entry.label : (obj.text_list_default ?? (liveVal !== undefined ? String(liveVal) : "N/D"));
+    const textFill = entry ? (entry.color ?? obj.color ?? "#f1f5f9") : (obj.text_list_default_color ?? "#94a3b8");
+    const size = obj.font_size ?? 16;
+    const anchor = obj.text_anchor ?? "middle";
+    const cx = obj.x + (obj.width ?? 120) / 2;
+    const cy = obj.y + (obj.height ?? 32) / 2;
+    const tx = anchor === "middle" ? cx : anchor === "end" ? obj.x + (obj.width ?? 120) : obj.x;
+    return (
+      <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()} style={{ cursor: editCursor }}>
+        {selRect(obj.x, obj.y, obj.width ?? 120, obj.height ?? 32)}
+        <text x={tx} y={cy + size / 3}
+          fill={textFill} fontSize={size}
+          fontFamily={obj.font_family} fontWeight={obj.font_weight as any ?? "normal"}
+          fontStyle={obj.font_style ?? "normal"} textAnchor={anchor}
+          style={{ pointerEvents: "none", ...transitionStyle(obj) }}>
+          {label}
+        </text>
+        {tv && obj.quality_dot !== false && <QDot x={obj.x + 2} y={obj.y + 2} quality={tv.quality} />}
+      </g>
+    );
+  }
+
+  // ── BAR CHART ────────────────────────────────────────────────────────────────
+
+  if (obj.type === "bar_chart") {
+    const w = obj.width ?? 240; const h = obj.height ?? 180;
+    const series = obj.bar_series ?? [];
+    const orient = obj.bar_orientation ?? "vertical";
+    const gap = clamp(obj.bar_gap ?? 0.2, 0, 0.9);
+    const showValues = obj.bar_show_values !== false;
+    const showLabels = obj.bar_show_labels !== false;
+    const showThresh = obj.bar_show_thresholds !== false;
+    const padT = 20; const padB = showLabels ? 28 : 8; const padL = 8; const padR = 8;
+    const plotW = w - padL - padR; const plotH = h - padT - padB;
+    const n = series.length || 1;
+    const slotW = plotW / n;
+    const barW = slotW * (1 - gap);
+
+    if (isEditMode) {
+      return (
+        <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()} style={{ cursor: editCursor }}>
+          {selRect(obj.x, obj.y, w, h)}
+          <rect x={obj.x} y={obj.y} width={w} height={h} rx={4} fill="#0f172a" stroke={selected ? "#facc15" : "#334155"} strokeWidth={selected ? 2 : 1} />
+          <text x={obj.x + w / 2} y={obj.y + h / 2} textAnchor="middle" fill="#64748b" fontSize={12} style={{ pointerEvents: "none" }}>
+            Bar Chart — {series.length} serie
+          </text>
+        </g>
+      );
+    }
+
+    const baseX = obj.x + padL; const baseY = obj.y + padT;
+    const axisY = baseY + plotH;
+
+    return (
+      <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()} style={{ cursor: editCursor }}>
+        {selRect(obj.x, obj.y, w, h)}
+        <rect x={obj.x} y={obj.y} width={w} height={h} rx={4} fill="#0f172a" stroke={selected ? "#facc15" : "#334155"} strokeWidth={selected ? 2 : 1} />
+        <line x1={baseX} y1={baseY} x2={baseX} y2={axisY} stroke="#334155" strokeWidth={1} />
+        <line x1={baseX} y1={axisY} x2={baseX + plotW} y2={axisY} stroke="#334155" strokeWidth={1} />
+        {series.map((s, i) => {
+          const tv = s.tag ? tagValues[s.tag] : undefined;
+          const val = tv ? Number(tv.value) : 0;
+          const lo = s.min ?? obj.min ?? 0; const hi = s.max ?? obj.max ?? 100;
+          const pct = orient === "vertical"
+            ? clamp((val - lo) / (hi - lo), 0, 1)
+            : clamp((val - lo) / (hi - lo), 0, 1);
+          if (orient === "vertical") {
+            const bx = baseX + i * slotW + (slotW - barW) / 2;
+            const bh = plotH * pct;
+            const by = axisY - bh;
+            return (
+              <g key={i}>
+                <rect x={bx} y={by} width={barW} height={bh} fill={s.color} rx={2} style={transitionStyle(obj)} />
+                {showValues && <text x={bx + barW / 2} y={Math.max(by - 3, baseY + 10)} textAnchor="middle" fill="#e2e8f0" fontSize={10} style={{ pointerEvents: "none" }}>{val.toFixed(1)}{obj.unit ?? ""}</text>}
+                {showLabels && <text x={bx + barW / 2} y={axisY + 14} textAnchor="middle" fill="#94a3b8" fontSize={10} style={{ pointerEvents: "none" }}>{s.label}</text>}
+              </g>
+            );
+          } else {
+            const bh2 = slotW * (1 - gap); const bw2 = plotW * pct;
+            const by2 = baseY + i * slotW + (slotW - bh2) / 2;
+            return (
+              <g key={i}>
+                <rect x={baseX} y={by2} width={bw2} height={bh2} fill={s.color} rx={2} style={transitionStyle(obj)} />
+                {showValues && <text x={baseX + bw2 + 3} y={by2 + bh2 / 2 + 4} fill="#e2e8f0" fontSize={10} style={{ pointerEvents: "none" }}>{val.toFixed(1)}{obj.unit ?? ""}</text>}
+                {showLabels && <text x={baseX - 3} y={by2 + bh2 / 2 + 4} textAnchor="end" fill="#94a3b8" fontSize={10} style={{ pointerEvents: "none" }}>{s.label}</text>}
+              </g>
+            );
+          }
+        })}
+        {showThresh && orient === "vertical" && (obj.warn_high !== undefined) && (() => {
+          const lo2 = obj.min ?? 0; const hi2 = obj.max ?? 100;
+          const wy = axisY - plotH * clamp((obj.warn_high - lo2) / (hi2 - lo2), 0, 1);
+          return <line key="wh" x1={baseX} y1={wy} x2={baseX + plotW} y2={wy} stroke="#f59e0b" strokeWidth={1} strokeDasharray="4,2" />;
+        })()}
+        {showThresh && orient === "vertical" && (obj.alarm_high !== undefined) && (() => {
+          const lo2 = obj.min ?? 0; const hi2 = obj.max ?? 100;
+          const ay = axisY - plotH * clamp((obj.alarm_high - lo2) / (hi2 - lo2), 0, 1);
+          return <line key="ah" x1={baseX} y1={ay} x2={baseX + plotW} y2={ay} stroke="#ef4444" strokeWidth={1} strokeDasharray="4,2" />;
+        })()}
+      </g>
+    );
+  }
+
+  // ── PIE / DONUT CHART ────────────────────────────────────────────────────────
+
+  if (obj.type === "pie_chart") {
+    const w = obj.width ?? 200; const h = obj.height ?? 200;
+    const slices = obj.pie_slices ?? [];
+    const mode = obj.pie_mode ?? "pie";
+    const innerR = mode === "donut" ? clamp(obj.pie_inner_ratio ?? 0.5, 0.1, 0.9) : 0;
+    const showLabels = obj.pie_show_labels !== false;
+    const showLegend = obj.pie_show_legend === true;
+    const legendH = showLegend ? Math.min(slices.length * 14 + 4, 60) : 0;
+    const chartH = h - legendH;
+    const cx2 = obj.x + w / 2; const cy2 = obj.y + chartH / 2;
+    const r = Math.min(w, chartH) / 2 - 6;
+
+    if (isEditMode || slices.length === 0) {
+      return (
+        <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()} style={{ cursor: editCursor }}>
+          {selRect(obj.x, obj.y, w, h)}
+          <rect x={obj.x} y={obj.y} width={w} height={h} rx={4} fill="#0f172a" stroke={selected ? "#facc15" : "#334155"} strokeWidth={selected ? 2 : 1} />
+          <circle cx={cx2} cy={cy2} r={r} fill="none" stroke="#334155" strokeWidth={2} />
+          {mode === "donut" && <circle cx={cx2} cy={cy2} r={r * innerR} fill="#0f172a" />}
+          <text x={cx2} y={cy2 + 4} textAnchor="middle" fill="#64748b" fontSize={11} style={{ pointerEvents: "none" }}>
+            {mode === "donut" ? "Donut" : "Pie"} — {slices.length} slice
+          </text>
+        </g>
+      );
+    }
+
+    const values = slices.map((s) => Math.max(0, Number(s.tag ? (tagValues[s.tag]?.value ?? 0) : 0)));
+    const total = values.reduce((a, b) => a + b, 0) || 1;
+    let angle = -Math.PI / 2;
+
+    const paths = slices.map((s, i) => {
+      const pct = values[i] / total;
+      const sweep = pct * 2 * Math.PI;
+      const x1 = cx2 + r * Math.cos(angle); const y1 = cy2 + r * Math.sin(angle);
+      angle += sweep;
+      const x2 = cx2 + r * Math.cos(angle); const y2 = cy2 + r * Math.sin(angle);
+      const large = sweep > Math.PI ? 1 : 0;
+      let d: string;
+      if (mode === "donut") {
+        const ir = r * innerR;
+        const ix1 = cx2 + ir * Math.cos(angle - sweep); const iy1 = cy2 + ir * Math.sin(angle - sweep);
+        const ix2 = cx2 + ir * Math.cos(angle); const iy2 = cy2 + ir * Math.sin(angle);
+        d = `M ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2} L ${ix2} ${iy2} A ${ir} ${ir} 0 ${large} 0 ${ix1} ${iy1} Z`;
+      } else {
+        d = `M ${cx2} ${cy2} L ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2} Z`;
+      }
+      const midAngle = angle - sweep / 2;
+      const labelR = r * (mode === "donut" ? (1 + innerR) / 2 : 0.65);
+      return { d, color: s.color, pct, midAngle, labelR, label: s.label, key: i };
+    });
+
+    const centerTag = obj.pie_center_tag ? tagValues[obj.pie_center_tag] : undefined;
+    const centerText = centerTag
+      ? (obj.pie_center_format ? obj.pie_center_format.replace("{value}", String(centerTag.value)) : String(centerTag.value))
+      : (obj.pie_center_text ?? "");
+
+    return (
+      <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()} style={{ cursor: editCursor }}>
+        {selRect(obj.x, obj.y, w, h)}
+        {paths.map(({ d, color, pct, midAngle, labelR, key }) => (
+          <g key={key}>
+            <path d={d} fill={color} stroke="#0f172a" strokeWidth={1} />
+            {showLabels && pct > 0.05 && (
+              <text
+                x={cx2 + labelR * Math.cos(midAngle)}
+                y={cy2 + labelR * Math.sin(midAngle) + 4}
+                textAnchor="middle" fill="#fff" fontSize={10} fontWeight="bold"
+                style={{ pointerEvents: "none" }}>
+                {(pct * 100).toFixed(0)}%
+              </text>
+            )}
+          </g>
+        ))}
+        {mode === "donut" && <circle cx={cx2} cy={cy2} r={r * innerR - 1} fill="#0f172a" />}
+        {mode === "donut" && centerText && (
+          <text x={cx2} y={cy2 + 5} textAnchor="middle" fill="#e2e8f0" fontSize={13} fontWeight="bold" style={{ pointerEvents: "none" }}>{centerText}</text>
+        )}
+        {showLegend && slices.map((s, i) => (
+          <g key={i}>
+            <rect x={obj.x + 6 + (i % 2) * (w / 2)} y={obj.y + chartH + 4 + Math.floor(i / 2) * 14} width={8} height={8} fill={s.color} rx={1} />
+            <text x={obj.x + 18 + (i % 2) * (w / 2)} y={obj.y + chartH + 11 + Math.floor(i / 2) * 14} fill="#94a3b8" fontSize={9} style={{ pointerEvents: "none" }}>{s.label}</text>
+          </g>
+        ))}
+      </g>
+    );
+  }
+
+  // ── SPARKLINE ────────────────────────────────────────────────────────────────
+
+  if (obj.type === "sparkline") {
+    const w = obj.width ?? 120; const h = obj.height ?? 30;
+    const color = obj.spark_color ?? "#3b82f6";
+    const strokeW = obj.spark_stroke_width ?? 1.5;
+    const windowS = obj.spark_window_s ?? 60;
+
+    if (isEditMode) {
+      return (
+        <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()} style={{ cursor: editCursor }}>
+          {selRect(obj.x, obj.y, w, h)}
+          <rect x={obj.x} y={obj.y} width={w} height={h} rx={2} fill="#0f172a" stroke={selected ? "#facc15" : "#1e293b"} />
+          <polyline
+            points={`${obj.x + 4},${obj.y + h * 0.6} ${obj.x + w * 0.25},${obj.y + h * 0.3} ${obj.x + w * 0.5},${obj.y + h * 0.7} ${obj.x + w * 0.75},${obj.y + h * 0.2} ${obj.x + w - 4},${obj.y + h * 0.5}`}
+            fill="none" stroke={color} strokeWidth={strokeW} opacity={0.6}
+            style={{ pointerEvents: "none" }} />
+        </g>
+      );
+    }
+
+    // Runtime: use foreignObject with SparklineCanvas (inline component)
+    return (
+      <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()}>
+        {selRect(obj.x, obj.y, w, h)}
+        <foreignObject x={obj.x} y={obj.y} width={w} height={h}>
+          <SparklineWidget
+            tag={obj.tag ?? ""}
+            windowS={windowS}
+            width={w}
+            height={h}
+            color={color}
+            strokeWidth={strokeW}
+            fill={obj.spark_fill ?? false}
+            fillOpacity={obj.spark_fill_opacity ?? 0.2}
+            showLast={obj.spark_show_last ?? false}
+            yMin={obj.y_min}
+            yMax={obj.y_max}
+            tagValues={tagValues}
+          />
+        </foreignObject>
+      </g>
+    );
+  }
+
+  // ── ALARM VIEWER ─────────────────────────────────────────────────────────────
+
+  if (obj.type === "alarm_viewer") {
+    const w = obj.width ?? 360; const h = obj.height ?? 160;
+    const mode = obj.alarm_viewer_mode ?? "list";
+    const maxRows = obj.alarm_viewer_max_rows ?? 5;
+    const prefix = obj.alarm_viewer_id_prefix ?? "";
+    const allowedSev = obj.alarm_viewer_severities;
+    const showAck = obj.alarm_viewer_show_ack !== false;
+    const showTs = obj.alarm_viewer_show_ts !== false;
+    const showEmpty = obj.alarm_viewer_show_empty !== false;
+
+    if (isEditMode) {
+      return (
+        <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()} style={{ cursor: editCursor }}>
+          {selRect(obj.x, obj.y, w, h)}
+          <rect x={obj.x} y={obj.y} width={w} height={h} rx={4} fill="#0f172a" stroke={selected ? "#facc15" : "#334155"} strokeWidth={selected ? 2 : 1} />
+          <text x={obj.x + w / 2} y={obj.y + h / 2} textAnchor="middle" fill="#64748b" fontSize={12} style={{ pointerEvents: "none" }}>
+            Alarm Viewer ({mode})
+          </text>
+        </g>
+      );
+    }
+
+    return (
+      <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()}>
+        {selRect(obj.x, obj.y, w, h)}
+        <foreignObject x={obj.x} y={obj.y} width={w} height={h}>
+          <AlarmViewerWidget
+            width={w} height={h} mode={mode} maxRows={maxRows}
+            prefix={prefix} allowedSev={allowedSev}
+            showAck={showAck} showTs={showTs} showEmpty={showEmpty}
+            bgColor={obj.alarm_viewer_bg_color}
+          />
+        </foreignObject>
       </g>
     );
   }

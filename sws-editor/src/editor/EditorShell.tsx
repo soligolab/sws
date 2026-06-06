@@ -443,6 +443,42 @@ export function EditorShell() {
         addObject({ type, x, y, width: 360, height: 180,
           tag: "", window_s: 60, line_color: "#3b82f6" });
         break;
+      case "text_list":
+        addObject({ type, x, y, width: 120, height: 32, font_size: 16, text_anchor: "middle",
+          text_list_entries: [
+            { value: 0, label: "Chiuso", color: "#94a3b8" },
+            { value: 1, label: "Aperto", color: "#22c55e" },
+          ],
+          text_list_default: "N/D", text_list_default_color: "#ef4444" });
+        break;
+      case "bar_chart":
+        addObject({ type, x, y, width: 240, height: 180, min: 0, max: 100,
+          bar_orientation: "vertical", bar_show_values: true, bar_show_labels: true,
+          bar_show_thresholds: true, bar_gap: 0.2,
+          bar_series: [
+            { tag: "", label: "Linea 1", color: "#3b82f6" },
+            { tag: "", label: "Linea 2", color: "#22c55e" },
+          ] });
+        break;
+      case "pie_chart":
+        addObject({ type, x, y, width: 200, height: 200, pie_mode: "pie",
+          pie_show_labels: true,
+          pie_slices: [
+            { tag: "", label: "Zona 1", color: "#3b82f6" },
+            { tag: "", label: "Zona 2", color: "#22c55e" },
+            { tag: "", label: "Zona 3", color: "#f59e0b" },
+          ] });
+        break;
+      case "sparkline":
+        addObject({ type, x, y, width: 120, height: 30, tag: "",
+          spark_window_s: 60, spark_color: "#3b82f6",
+          spark_fill: true, spark_fill_opacity: 0.2, spark_stroke_width: 1.5 });
+        break;
+      case "alarm_viewer":
+        addObject({ type, x, y, width: 360, height: 160,
+          alarm_viewer_max_rows: 5, alarm_viewer_mode: "list",
+          alarm_viewer_show_ack: true, alarm_viewer_show_ts: true, alarm_viewer_show_empty: true });
+        break;
       case "image":
         setPendingImagePos({ x, y });
         return; // addObject called after image is chosen in browser
@@ -2231,6 +2267,176 @@ function ObjectProps({
           <p style={{ fontSize: 10, color: "#475569", margin: "6px 0 0" }}>
             Clicca su una cella nel canvas per modificarne le proprietà.
           </p>
+        </>
+      )}
+
+      {/* Text List */}
+      {obj.type === "text_list" && (
+        <>
+          {field("Tag", tagInput("es. valvola.stato"))}
+          <div style={{ fontSize: 10, color: "#475569", marginTop: 4, marginBottom: 2, fontWeight: 700 }}>VOCI</div>
+          {(obj.text_list_entries ?? []).map((e, i) => (
+            <div key={i} style={{ display: "flex", gap: 4, marginBottom: 4, alignItems: "center" }}>
+              <input style={{ ...INPUT, width: 54 }} placeholder="val" value={String(e.value)}
+                onChange={(ev) => {
+                  const raw = ev.target.value;
+                  const v = raw === "true" ? true : raw === "false" ? false : isNaN(Number(raw)) || raw === "" ? raw : Number(raw);
+                  const next = [...(obj.text_list_entries ?? [])]; next[i] = { ...e, value: v };
+                  onChange({ text_list_entries: next });
+                }} />
+              <input style={{ ...INPUT, flex: 1 }} placeholder="etichetta" value={e.label}
+                onChange={(ev) => { const next = [...(obj.text_list_entries ?? [])]; next[i] = { ...e, label: ev.target.value }; onChange({ text_list_entries: next }); }} />
+              <input type="color" value={e.color ?? "#e2e8f0"} title="Colore testo"
+                onChange={(ev) => { const next = [...(obj.text_list_entries ?? [])]; next[i] = { ...e, color: ev.target.value }; onChange({ text_list_entries: next }); }}
+                style={{ width: 28, height: 24, padding: 1, border: "1px solid #334155", borderRadius: 3, cursor: "pointer" }} />
+              <button style={{ ...INPUT, padding: "0 6px", cursor: "pointer" }}
+                onClick={() => { const next = (obj.text_list_entries ?? []).filter((_, j) => j !== i); onChange({ text_list_entries: next }); }}>✕</button>
+            </div>
+          ))}
+          <button style={{ ...INPUT, width: "100%", cursor: "pointer", marginBottom: 4 }}
+            onClick={() => onChange({ text_list_entries: [...(obj.text_list_entries ?? []), { value: 0, label: "Stato", color: "#e2e8f0" }] })}>
+            + Aggiungi voce
+          </button>
+          {field("Testo default", <input style={INPUT} value={obj.text_list_default ?? ""} onChange={(e) => onChange({ text_list_default: e.target.value })} />)}
+          {field("Colore default", <input type="color" value={obj.text_list_default_color ?? "#94a3b8"} onChange={(e) => onChange({ text_list_default_color: e.target.value })} style={{ width: 40, height: 24, padding: 1, border: "1px solid #334155", borderRadius: 3 }} />)}
+          {field("Font size", numInput("font_size", 16))}
+          {field("Allineamento", (
+            <select style={INPUT} value={obj.text_anchor ?? "middle"} onChange={(e) => onChange({ text_anchor: e.target.value as any })}>
+              <option value="start">Sinistra</option>
+              <option value="middle">Centro</option>
+              <option value="end">Destra</option>
+            </select>
+          ))}
+        </>
+      )}
+
+      {/* Bar Chart */}
+      {obj.type === "bar_chart" && (
+        <>
+          {field("Orientamento", (
+            <select style={INPUT} value={obj.bar_orientation ?? "vertical"} onChange={(e) => onChange({ bar_orientation: e.target.value as any })}>
+              <option value="vertical">Verticale</option>
+              <option value="horizontal">Orizzontale</option>
+            </select>
+          ))}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+            <div><div style={LABEL}>Min</div>{numInput("min", 0)}</div>
+            <div><div style={LABEL}>Max</div>{numInput("max", 100)}</div>
+          </div>
+          {field("Unità", textInput("unit", ""))}
+          {field("Gap barre (0-0.9)", numInput("bar_gap", 0.2))}
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {[["bar_show_values","Valori"], ["bar_show_labels","Etichette"], ["bar_show_thresholds","Soglie"]].map(([k,l]) => (
+              <label key={k} style={{ fontSize: 11, color: "#94a3b8", display: "flex", gap: 3, alignItems: "center" }}>
+                <input type="checkbox" checked={!!(obj as any)[k]} onChange={(e) => onChange({ [k]: e.target.checked })} />{l}
+              </label>
+            ))}
+          </div>
+          <div style={{ fontSize: 10, color: "#475569", marginTop: 6, marginBottom: 2, fontWeight: 700 }}>SERIE</div>
+          {(obj.bar_series ?? []).map((s, i) => (
+            <div key={i} style={{ display: "flex", gap: 4, marginBottom: 4, alignItems: "center" }}>
+              <TagInput style={{ ...INPUT, flex: 1 }} placeholder="tag" value={s.tag}
+                onChange={(v) => { const next = [...(obj.bar_series ?? [])]; next[i] = { ...s, tag: v }; onChange({ bar_series: next }); }} />
+              <input style={{ ...INPUT, width: 60 }} placeholder="label" value={s.label}
+                onChange={(e) => { const next = [...(obj.bar_series ?? [])]; next[i] = { ...s, label: e.target.value }; onChange({ bar_series: next }); }} />
+              <input type="color" value={s.color} onChange={(e) => { const next = [...(obj.bar_series ?? [])]; next[i] = { ...s, color: e.target.value }; onChange({ bar_series: next }); }}
+                style={{ width: 28, height: 24, padding: 1, border: "1px solid #334155", borderRadius: 3 }} />
+              <button style={{ ...INPUT, padding: "0 6px", cursor: "pointer" }}
+                onClick={() => onChange({ bar_series: (obj.bar_series ?? []).filter((_, j) => j !== i) })}>✕</button>
+            </div>
+          ))}
+          <button style={{ ...INPUT, width: "100%", cursor: "pointer", marginBottom: 4 }}
+            onClick={() => onChange({ bar_series: [...(obj.bar_series ?? []), { tag: "", label: `Serie ${(obj.bar_series?.length ?? 0) + 1}`, color: "#3b82f6" }] })}>
+            + Aggiungi serie
+          </button>
+          <div style={{ fontSize: 10, color: "#475569", marginTop: 2, marginBottom: 2, fontWeight: 700 }}>SOGLIE</div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+            <div><div style={LABEL}>Warn High</div>{numInput("warn_high", 0)}</div>
+            <div><div style={LABEL}>Alarm High</div>{numInput("alarm_high", 0)}</div>
+          </div>
+        </>
+      )}
+
+      {/* Pie / Donut Chart */}
+      {obj.type === "pie_chart" && (
+        <>
+          {field("Modalità", (
+            <select style={INPUT} value={obj.pie_mode ?? "pie"} onChange={(e) => onChange({ pie_mode: e.target.value as any })}>
+              <option value="pie">Pie (cerchio pieno)</option>
+              <option value="donut">Donut (anello)</option>
+            </select>
+          ))}
+          {(obj.pie_mode ?? "pie") === "donut" && field("Raggio interno (0.1-0.8)", numInput("pie_inner_ratio", 0.5))}
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {[["pie_show_labels","Percentuali"], ["pie_show_legend","Legenda"]].map(([k,l]) => (
+              <label key={k} style={{ fontSize: 11, color: "#94a3b8", display: "flex", gap: 3, alignItems: "center" }}>
+                <input type="checkbox" checked={!!(obj as any)[k]} onChange={(e) => onChange({ [k]: e.target.checked })} />{l}
+              </label>
+            ))}
+          </div>
+          {(obj.pie_mode ?? "pie") === "donut" && field("Testo centro", textInput("pie_center_text", ""))}
+          {(obj.pie_mode ?? "pie") === "donut" && field("Tag centro", tagInput("es. totale.kw"))}
+          <div style={{ fontSize: 10, color: "#475569", marginTop: 6, marginBottom: 2, fontWeight: 700 }}>SLICE</div>
+          {(obj.pie_slices ?? []).map((s, i) => (
+            <div key={i} style={{ display: "flex", gap: 4, marginBottom: 4, alignItems: "center" }}>
+              <TagInput style={{ ...INPUT, flex: 1 }} placeholder="tag" value={s.tag}
+                onChange={(v) => { const next = [...(obj.pie_slices ?? [])]; next[i] = { ...s, tag: v }; onChange({ pie_slices: next }); }} />
+              <input style={{ ...INPUT, width: 60 }} placeholder="label" value={s.label}
+                onChange={(e) => { const next = [...(obj.pie_slices ?? [])]; next[i] = { ...s, label: e.target.value }; onChange({ pie_slices: next }); }} />
+              <input type="color" value={s.color} onChange={(e) => { const next = [...(obj.pie_slices ?? [])]; next[i] = { ...s, color: e.target.value }; onChange({ pie_slices: next }); }}
+                style={{ width: 28, height: 24, padding: 1, border: "1px solid #334155", borderRadius: 3 }} />
+              <button style={{ ...INPUT, padding: "0 6px", cursor: "pointer" }}
+                onClick={() => onChange({ pie_slices: (obj.pie_slices ?? []).filter((_, j) => j !== i) })}>✕</button>
+            </div>
+          ))}
+          <button style={{ ...INPUT, width: "100%", cursor: "pointer" }}
+            onClick={() => { const colors = ["#3b82f6","#22c55e","#f59e0b","#ef4444","#a855f7","#06b6d4"]; onChange({ pie_slices: [...(obj.pie_slices ?? []), { tag: "", label: `Slice ${(obj.pie_slices?.length ?? 0) + 1}`, color: colors[(obj.pie_slices?.length ?? 0) % colors.length] }] }); }}>
+            + Aggiungi slice
+          </button>
+        </>
+      )}
+
+      {/* Sparkline */}
+      {obj.type === "sparkline" && (
+        <>
+          {field("Tag", tagInput("es. flow.rate"))}
+          {field("Finestra (s)", numInput("spark_window_s", 60))}
+          {field("Colore linea", <input type="color" value={obj.spark_color ?? "#3b82f6"} onChange={(e) => onChange({ spark_color: e.target.value })} style={{ width: 40, height: 24, padding: 1, border: "1px solid #334155", borderRadius: 3 }} />)}
+          {field("Spessore (px)", numInput("spark_stroke_width", 1.5))}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+            <div><div style={LABEL}>Y min</div>{numInput("y_min", 0)}</div>
+            <div><div style={LABEL}>Y max</div>{numInput("y_max", 0)}</div>
+          </div>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {[["spark_fill","Fill area"], ["spark_show_last","Mostra ultimo"]].map(([k,l]) => (
+              <label key={k} style={{ fontSize: 11, color: "#94a3b8", display: "flex", gap: 3, alignItems: "center" }}>
+                <input type="checkbox" checked={!!(obj as any)[k]} onChange={(e) => onChange({ [k]: e.target.checked })} />{l}
+              </label>
+            ))}
+          </div>
+          {obj.spark_fill && field("Opacità fill", numInput("spark_fill_opacity", 0.2))}
+        </>
+      )}
+
+      {/* Alarm Viewer */}
+      {obj.type === "alarm_viewer" && (
+        <>
+          {field("Modalità", (
+            <select style={INPUT} value={obj.alarm_viewer_mode ?? "list"} onChange={(e) => onChange({ alarm_viewer_mode: e.target.value as any })}>
+              <option value="list">Lista</option>
+              <option value="banner">Banner scorrevole</option>
+            </select>
+          ))}
+          {field("Max righe", numInput("alarm_viewer_max_rows", 5))}
+          {field("Prefisso ID allarme", <input style={INPUT} placeholder="es. zona1." value={obj.alarm_viewer_id_prefix ?? ""} onChange={(e) => onChange({ alarm_viewer_id_prefix: e.target.value })} />)}
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {[["alarm_viewer_show_ack","Mostra ACK"], ["alarm_viewer_show_ts","Timestamp"], ["alarm_viewer_show_empty","Mostra vuoto"]].map(([k,l]) => (
+              <label key={k} style={{ fontSize: 11, color: "#94a3b8", display: "flex", gap: 3, alignItems: "center" }}>
+                <input type="checkbox" checked={!!(obj as any)[k] || (obj as any)[k] === undefined} onChange={(e) => onChange({ [k]: e.target.checked })} />{l}
+              </label>
+            ))}
+          </div>
+          {field("Sfondo vuoto", <input type="color" value={obj.alarm_viewer_bg_color ?? "#0f172a"} onChange={(e) => onChange({ alarm_viewer_bg_color: e.target.value })} style={{ width: 40, height: 24, padding: 1, border: "1px solid #334155", borderRadius: 3 }} />)}
         </>
       )}
 
