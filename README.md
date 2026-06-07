@@ -88,7 +88,15 @@ pnpm dev
 
 ## Documentation
 
-Full documentation lives at **https://docs.soligolab.example** (placeholder).
+**[📖 Manuale Utente SWS](docs/manual/MAIN.md)** — guida completa con screenshot.
+
+| Sezione | Link |
+|---------|------|
+| Quick Start | [docs/manual/02_quickstart.md](docs/manual/02_quickstart.md) |
+| Widget Reference | [docs/manual/05_widget_reference.md](docs/manual/05_widget_reference.md) |
+| Protocolli | [docs/manual/06_protocols.md](docs/manual/06_protocols.md) |
+| API Reference | [docs/manual/13_api_reference.md](docs/manual/13_api_reference.md) |
+| Deployment | [docs/manual/10_deployment.md](docs/manual/10_deployment.md) |
 
 Architectural Decision Records are in [`docs/adr/`](docs/adr/).
 

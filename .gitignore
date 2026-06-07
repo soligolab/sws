@@ -40,3 +40,4 @@ sbom.cdx.json
 
 # Local dev runtime state (created by scripts/dev.sh)
 /.run/
+REMOVED_DOC.md
