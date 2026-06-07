@@ -37,6 +37,12 @@ pub struct DeployRequest {
 fn default_port() -> u16 { 22 }
 fn default_path() -> String { "/data/user/sws".to_string() }
 
+fn validate_remote_path(path: &str) -> bool {
+    path.starts_with('/')
+        && !path.contains("..")
+        && path.chars().all(|c| c.is_ascii_alphanumeric() || "-_./".contains(c))
+}
+
 /// Build the GitHub Releases URL for the sws-runtime binary.
 fn binary_url(arch: &str) -> String {
     // Releases follow the pattern: sws-runtime-linux-{arch}
@@ -66,6 +72,12 @@ pub async fn deploy_remote(EJson(req): EJson<DeployRequest>) -> Response {
         // Validate arch
         if arch != "amd64" && arch != "arm64" {
             send(&format!("ERROR: architettura non supportata: {arch}. Usa 'amd64' o 'arm64'."));
+            return;
+        }
+
+        // Validate remote_path before interpolating into SSH commands.
+        if !validate_remote_path(&remote_path) {
+            send("ERROR: remote_path non valido: deve essere assoluto senza '..' né caratteri speciali");
             return;
         }
 
