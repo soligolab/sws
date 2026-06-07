@@ -40,6 +40,17 @@ fn sshpass_available() -> bool {
         .unwrap_or(false)
 }
 
+/// Validate a remote path used in SSH commands.
+/// Must be absolute, contain no `..` components, and consist only of
+/// alphanumeric characters plus `-`, `_`, `.`, `/`.
+/// This prevents shell injection when the path is interpolated into a
+/// remote command string (e.g. `mkdir -p <dir> && tar xzf ... -C <dir>`).
+fn validate_remote_path(path: &str) -> bool {
+    path.starts_with('/')
+        && !path.contains("..")
+        && path.chars().all(|c| c.is_ascii_alphanumeric() || "-_./".contains(c))
+}
+
 /// Resolve the repository root: current_dir() if scripts/package.sh exists there.
 pub fn resolve_repo_root() -> Option<PathBuf> {
     let cwd = std::env::current_dir().ok()?;
@@ -117,21 +128,28 @@ pub async fn build_package(
             }
         };
 
-        // Stream stdout line by line.
+        // Read stdout and stderr concurrently to avoid pipe deadlock.
+        // cargo build writes heavily to stderr; draining them sequentially
+        // would block once either pipe's OS buffer fills (~64 KB).
         use tokio::io::{AsyncBufReadExt, BufReader};
-        if let Some(stdout) = child.stdout.take() {
-            let mut lines = BufReader::new(stdout).lines();
+        let stderr = child.stderr.take();
+        let stdout = child.stdout.take();
+        let tx_err = tx.clone();
+        let stderr_task = tokio::spawn(async move {
+            if let Some(s) = stderr {
+                let mut lines = BufReader::new(s).lines();
+                while let Ok(Some(line)) = lines.next_line().await {
+                    let _ = tx_err.try_send(format!("{line}\n"));
+                }
+            }
+        });
+        if let Some(s) = stdout {
+            let mut lines = BufReader::new(s).lines();
             while let Ok(Some(line)) = lines.next_line().await {
                 send(&line);
             }
         }
-        // Drain stderr.
-        if let Some(stderr) = child.stderr.take() {
-            let mut lines = BufReader::new(stderr).lines();
-            while let Ok(Some(line)) = lines.next_line().await {
-                send(&line);
-            }
-        }
+        let _ = stderr_task.await;
 
         match child.wait().await {
             Ok(status) if status.success() => send("DONE"),
@@ -233,6 +251,13 @@ pub async fn deploy_device(
         }
     };
 
+    // Validate remote_dir before accepting the request.
+    if !validate_remote_path(&req.remote_dir) {
+        return (StatusCode::BAD_REQUEST,
+            "remote_dir non valido: deve essere un percorso assoluto senza '..' né caratteri speciali\n"
+        ).into_response();
+    }
+
     // Sanitize tarball name: only basename, must end with .tar.gz.
     let basename = PathBuf::from(&req.tarball)
         .file_name()
@@ -243,10 +268,23 @@ pub async fn deploy_device(
         return (StatusCode::BAD_REQUEST, "tarball non valido\n").into_response();
     }
 
-    let tarball_path = repo.join("dist").join(&basename);
+    // Canonicalize to catch symlink escapes from dist/.
+    let dist_dir = repo.join("dist");
+    let tarball_path = dist_dir.join(&basename);
     if !tarball_path.exists() {
         return (StatusCode::NOT_FOUND,
             format!("tarball non trovato: dist/{basename}\n")).into_response();
+    }
+    let canon = match tarball_path.canonicalize() {
+        Ok(p) => p,
+        Err(_) => return (StatusCode::NOT_FOUND, "tarball non trovato\n").into_response(),
+    };
+    let canon_dist = match dist_dir.canonicalize() {
+        Ok(p) => p,
+        Err(_) => return (StatusCode::INTERNAL_SERVER_ERROR, "dist/ non trovata\n").into_response(),
+    };
+    if !canon.starts_with(&canon_dist) {
+        return (StatusCode::BAD_REQUEST, "tarball fuori da dist/\n").into_response();
     }
 
     let (tx, rx) = tokio::sync::mpsc::channel::<String>(128);
