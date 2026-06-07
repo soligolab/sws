@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { TrendCanvas } from "@/canvas/TrendCanvas";
 import { TrendExpandedModal } from "@/canvas/TrendExpanded";
+import { getAuthToken } from "@/api/client";
 import { useAppStore } from "@/store";
 import { SYMBOLS } from "@/symbols/library";
 import type { AlarmSeverity, CustomSymbol, FaceplateDef, GridCell, PipePoint, SynopticObject, TagState } from "@/types";
@@ -1709,7 +1710,6 @@ function AlarmViewerWidget({ width, height, mode, maxRows, prefix, allowedSev, s
 
   const handleAck = useCallback(async (id: string) => {
     try {
-      const { getAuthToken } = await import("@/api/client");
       const token = getAuthToken() ?? "";
       await fetch(`/api/alarms/${id}/ack`, {
         method: "POST",
@@ -2897,9 +2897,8 @@ function SvgObject(p: ObjProps) {
           const tv = s.tag ? tagValues[s.tag] : undefined;
           const val = tv ? Number(tv.value) : 0;
           const lo = s.min ?? obj.min ?? 0; const hi = s.max ?? obj.max ?? 100;
-          const pct = orient === "vertical"
-            ? clamp((val - lo) / (hi - lo), 0, 1)
-            : clamp((val - lo) / (hi - lo), 0, 1);
+          const range = hi - lo;
+          const pct = range === 0 ? 0 : clamp((val - lo) / range, 0, 1);
           if (orient === "vertical") {
             const bx = baseX + i * slotW + (slotW - barW) / 2;
             const bh = plotH * pct;
@@ -2951,7 +2950,7 @@ function SvgObject(p: ObjProps) {
     const cx2 = obj.x + w / 2; const cy2 = obj.y + chartH / 2;
     const r = Math.min(w, chartH) / 2 - 6;
 
-    if (isEditMode || slices.length === 0) {
+    if (isEditMode) {
       return (
         <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()} style={{ cursor: editCursor }}>
           {selRect(obj.x, obj.y, w, h)}
@@ -2961,6 +2960,17 @@ function SvgObject(p: ObjProps) {
           <text x={cx2} y={cy2 + 4} textAnchor="middle" fill="#64748b" fontSize={11} style={{ pointerEvents: "none" }}>
             {mode === "donut" ? "Donut" : "Pie"} — {slices.length} slice
           </text>
+        </g>
+      );
+    }
+
+    // View mode: no slices configured → render nothing.
+    if (slices.length === 0) {
+      return (
+        <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()}>
+          {selRect(obj.x, obj.y, w, h)}
+          <rect x={obj.x} y={obj.y} width={w} height={h} rx={4} fill="#0f172a" stroke="#1e293b" />
+          <text x={cx2} y={cy2 + 4} textAnchor="middle" fill="#475569" fontSize={11} style={{ pointerEvents: "none" }}>Nessun dato</text>
         </g>
       );
     }
@@ -2995,10 +3005,21 @@ function SvgObject(p: ObjProps) {
       ? (obj.pie_center_format ? obj.pie_center_format.replace("{value}", String(centerTag.value)) : String(centerTag.value))
       : (obj.pie_center_text ?? "");
 
+    // SVG arc is degenerate when a single slice covers exactly 360°
+    // (start == end point). Detect and replace with a <circle>.
+    const singleVisible = paths.filter((p) => p.pct > 0);
+    const isFullCircle = singleVisible.length === 1 && singleVisible[0].pct >= 0.9999;
+
     return (
       <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()} style={{ cursor: editCursor }}>
         {selRect(obj.x, obj.y, w, h)}
-        {paths.map(({ d, color, pct, midAngle, labelR, key }) => (
+        {isFullCircle ? (
+          <>
+            <circle cx={cx2} cy={cy2} r={r} fill={singleVisible[0].color} />
+            {mode === "donut" && <circle cx={cx2} cy={cy2} r={r * innerR - 1} fill="#0f172a" />}
+            {showLabels && <text x={cx2} y={cy2 + 4} textAnchor="middle" fill="#fff" fontSize={10} fontWeight="bold" style={{ pointerEvents: "none" }}>100%</text>}
+          </>
+        ) : paths.map(({ d, color, pct, midAngle, labelR, key }) => (
           <g key={key}>
             <path d={d} fill={color} stroke="#0f172a" strokeWidth={1} />
             {showLabels && pct > 0.05 && (
@@ -3012,8 +3033,8 @@ function SvgObject(p: ObjProps) {
             )}
           </g>
         ))}
-        {mode === "donut" && <circle cx={cx2} cy={cy2} r={r * innerR - 1} fill="#0f172a" />}
-        {mode === "donut" && centerText && (
+        {!isFullCircle && mode === "donut" && <circle cx={cx2} cy={cy2} r={r * innerR - 1} fill="#0f172a" />}
+        {!isFullCircle && mode === "donut" && centerText && (
           <text x={cx2} y={cy2 + 5} textAnchor="middle" fill="#e2e8f0" fontSize={13} fontWeight="bold" style={{ pointerEvents: "none" }}>{centerText}</text>
         )}
         {showLegend && slices.map((s, i) => (
