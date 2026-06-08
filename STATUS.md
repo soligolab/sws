@@ -58,13 +58,16 @@
 
 ## Handoff prossima sessione
 
-### Prossima sessione: --no-tls per start_editor.sh
+### Prossima sessione: TLS opzionale — da pianificare in Plan Mode
 
-Implementare flag `--no-tls` (o `--plain-http`) nel binario Rust:
-- Se attivo, l'admin port serve HTTP plain (nessun TLS acceptor, nessuna generazione cert)
-- `start_editor.sh` lo usa → accesso via `http://localhost:8460/` senza nessuna gestione certificati
-- Il companion server HTTP su 8090 diventa inutile per l'editor e può essere rimosso
-- `start_runtime.sh` non lo usa (il runtime su LAN ha bisogno di HTTPS)
+**Approccio scelto (da progettare):** il runtime parte in HTTP plain per default e passa a HTTPS solo se l'utente configura un certificato in ConfigView. Nessun flag `--no-tls`: è TLS che si attiva su richiesta, non HTTP che si disattiva.
+
+- Default: HTTP plain su tutte le porte (nessuna generazione cert automatica)
+- Se l'utente carica/genera un cert in Configurazione → il processo si riavvia (o ricarica) in TLS
+- `start_editor.sh` e `start_runtime.sh` semplificati: nessun HTTP companion server necessario per il primo accesso
+- Il runtime su dispositivo LAN potrà comunque usare TLS configurandolo esplicitamente
+
+**Da fare nella prossima sessione:** entrare in Plan Mode per progettare bene questa feature prima di toccare il codice.
 
 ### Verifica manuale T-27 da fare
 
