@@ -4,7 +4,17 @@
 >
 > Ambienti di test: vedi [docs/TEST_SETUPS.md](docs/TEST_SETUPS.md) (casa, dev server, dispositivi Yocto).
 
-**Last session**: 2026-06-02 — T-24…T-33.
+**Last session**: 2026-06-08 — completamento branch split-runtime-editor-scripts.
+
+- **Split dev.sh → start_runtime.sh + start_editor.sh** (branch `feat/split-runtime-editor-scripts`):
+  - `scripts/dev.sh` eliminato.
+  - `scripts/start_runtime.sh` — runtime su dispositivo: viewer 8443 + IDE 8444 + HTTP companion 8080, auto-apre progetto `default`.
+  - `scripts/start_editor.sh` — IDE locale su 8460 + HTTP companion 8090 senza viewer; porte separate dal runtime per coesistere sulla stessa macchina.
+  - Rust `main.rs`: `--viewer-port` ora è `Option<u16>`; `--http-port Option<u16>` aggiunto per il companion server.
+  - **HTTP companion server**: pagina plain HTTP (no cert) che guida all'accettazione del certificato TLS. Opzione A: copia URL `/health` da incollare nella barra del browser; polling JS rilevea accettazione e reindirizza. Opzione B: download `sws.crt` da route `/cert` (MIME `application/x-x509-ca-cert`) per installazione permanente.
+  - Fix OOM: `cargo build -j 1` in entrambi gli script (pyo3 + linking esaurisce la RAM quando il runtime è già in esecuzione).
+  - Docs aggiornati: CLAUDE.md, scripts/README.md, docs/CONTEXT.md, docs/TEST_SETUPS.md, kiosk.sh.
+  - **Prossimo passo urgente**: implementare `--no-tls` sul binario Rust per `start_editor.sh`. `localhost` è sempre un "secure context" nei browser moderni — non serve TLS, eliminando il problema del certificato lato editor completamente.
 
 - **T-29…T-33 — 5 nuovi widget canvas** (squash unico su main):
   - **T-31 Text List**: mappa valore → etichetta testuale (lookup-table). Pannello: voci val/label/colore, testo default, font, allineamento.
@@ -42,11 +52,19 @@
   - Bottone "Aggiorna" + toggle "● Live" (poll ogni 5 s); auto-stop alla disconnessione.
   - Box scrollabile max 200 px, timestamp HH:MM:SS, colori INFO/WARN/ERROR/DEBUG.
 
-**Branch corrente**: main (tutti i commit squash-merged).
+**Branch corrente**: `feat/split-runtime-editor-scripts` (pushato, pronto per squash merge).
 
 ---
 
 ## Handoff prossima sessione
+
+### Prossima sessione: --no-tls per start_editor.sh
+
+Implementare flag `--no-tls` (o `--plain-http`) nel binario Rust:
+- Se attivo, l'admin port serve HTTP plain (nessun TLS acceptor, nessuna generazione cert)
+- `start_editor.sh` lo usa → accesso via `http://localhost:8460/` senza nessuna gestione certificati
+- Il companion server HTTP su 8090 diventa inutile per l'editor e può essere rimosso
+- `start_runtime.sh` non lo usa (il runtime su LAN ha bisogno di HTTPS)
 
 ### Verifica manuale T-27 da fare
 
