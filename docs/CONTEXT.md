@@ -109,10 +109,12 @@ Project lifecycle routes (`upload`, `delete`, `open`) exist **only on 8444**.
 ### Dev workflow
 
 ```bash
-./scripts/dev.sh           # runtime 8443+8444 + Vite proxy 5173→8444
-# Browser: http://<ip>:5173  (IDE via proxy, no cert)
-#          https://<ip>:8443 (viewer, self-signed cert — accept once)
-#          https://<ip>:8444 (admin IDE, same cert — accept once)
+# Sul dispositivo (viewer + IDE remoto):
+./scripts/start_runtime.sh   # viewer 8443 + IDE/admin 8444
+
+# Sul PC sviluppatore (IDE locale, no viewer):
+./scripts/start_editor.sh    # solo IDE 8444
+# → ConfigView → Runtime → "Connetti" per deployare su dispositivo remoto
 ```
 
 TLS cert is persistent between restarts (`.run/tls.crt` + `.run/tls.key`).
@@ -143,7 +145,7 @@ Basic256Sha256) + server (exposes SWS tags as OPC-UA nodes). _(S-62/63)_
 
 ### Phase 5 — PoC public demo 🔲 IN PROGRESS
 Workflow refinement (T-22…T-26), documentation update (current session), then:
-- Two-terminal dev simulation (`dev.sh --instance N`)
+- Two-terminal dev simulation (`start_runtime.sh --instance N`)
 - Network discovery of active runtimes (mDNS)
 - Multi-device management from IDE
 - Runtime standalone packaging (generic Linux installer)

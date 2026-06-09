@@ -96,15 +96,25 @@ struct Args {
     #[arg(long)]
     kiosk: bool,
 
-    /// HTTPS port for the operator viewer (RuntimeViewer SPA, optional_auth). Default: 8443.
-    /// Override when running multiple runtime instances on the same host.
-    #[arg(long, default_value_t = 8443u16)]
-    viewer_port: u16,
+    /// HTTPS port for the operator viewer (RuntimeViewer SPA, optional_auth).
+    /// When omitted, the viewer is not started — only the admin IDE port is
+    /// active (IDE-only mode, used by start_editor.sh on the developer's PC).
+    /// Pass --viewer-port 8443 to enable the viewer (start_runtime.sh).
+    #[arg(long)]
+    viewer_port: Option<u16>,
 
     /// HTTPS port for the admin IDE (full App SPA, required_auth). Default: 8444.
     /// Override when running multiple runtime instances on the same host.
     #[arg(long, default_value_t = 8444u16)]
     admin_port: u16,
+
+    /// Plain HTTP port for the TLS certificate acceptance helper page.
+    /// Serves a small interactive page (no cert needed) that guides the user
+    /// to accept the self-signed certificate and then redirects to the HTTPS IDE.
+    /// Used by start_editor.sh and start_runtime.sh as the primary entry point
+    /// for first-time or post-.run-reset access.
+    #[arg(long)]
+    http_port: Option<u16>,
 
     /// Take an automatic backup every N minutes. 0 (default) disables the
     /// loop. Backups go under `<project>/.bak/<UTC-timestamp>/` and cover
@@ -120,6 +130,101 @@ struct Args {
     #[arg(long, default_value_t = 20u64)]
     auto_backup_retention: u64,
 }
+
+// HTML page served on the plain-HTTP companion port to guide certificate acceptance.
+// Placeholders replaced at startup: __ADMIN_PORT__ with the actual admin port.
+// /cert on this HTTP port serves the TLS cert file for direct download.
+const CERT_PAGE_TEMPLATE: &str = r##"<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SWS — Certificato TLS</title>
+  <style>
+    *{box-sizing:border-box}
+    body{font-family:system-ui,sans-serif;background:#0f172a;color:#e2e8f0;
+         display:flex;flex-direction:column;align-items:center;justify-content:center;
+         min-height:100vh;margin:0;padding:24px;gap:0}
+    h2{margin:0 0 8px;font-size:20px;font-weight:600;text-align:center}
+    .lead{margin:0 0 28px;color:#94a3b8;text-align:center;max-width:400px;line-height:1.5;font-size:14px}
+    .card{background:#1e293b;border:1px solid #334155;border-radius:10px;
+          padding:20px 24px;max-width:480px;width:100%;margin-bottom:16px}
+    .card h3{margin:0 0 10px;font-size:14px;font-weight:600;color:#cbd5e1}
+    .card p{margin:0 0 12px;font-size:13px;color:#94a3b8;line-height:1.5}
+    .row{display:flex;gap:8px;align-items:center}
+    input[type=text]{flex:1;background:#0f172a;border:1px solid #334155;border-radius:6px;
+                     padding:7px 10px;color:#e2e8f0;font-size:13px;font-family:monospace}
+    .btn{padding:7px 16px;border:none;border-radius:6px;cursor:pointer;
+         font-size:13px;font-weight:500;white-space:nowrap}
+    .btn-blue{background:#2563eb;color:#fff}
+    .btn-blue:hover{background:#1d4ed8}
+    .btn-slate{background:#334155;color:#e2e8f0}
+    .btn-slate:hover{background:#475569}
+    a.btn{text-decoration:none;display:inline-block}
+    #status{margin-top:4px;font-size:12px;color:#64748b;text-align:center;min-height:18px}
+    .divider{color:#334155;margin:0 0 16px;text-align:center;font-size:12px}
+  </style>
+</head>
+<body>
+  <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#3b82f6"
+       stroke-width="1.5" style="margin-bottom:12px">
+    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+    <path d="M7 11V7a5 5 0 0110 0v4"/>
+  </svg>
+  <h2>Certificato TLS non approvato</h2>
+  <p class="lead">SWS usa un certificato self-signed. Il browser deve approvarlo una volta prima di poter accedere all'IDE.</p>
+
+  <div class="card">
+    <h3>Opzione A — accettazione rapida (una sessione)</h3>
+    <p>Copia questo URL e incollalo nella <strong>barra degli indirizzi</strong> del browser.
+       Clicca "Avanzate" &rarr; "Procedi" per accettare il certificato.</p>
+    <div class="row">
+      <input id="url" type="text" readonly value="">
+      <button class="btn btn-slate" onclick="copyUrl()">Copia</button>
+    </div>
+    <p id="status" style="margin-top:8px"></p>
+  </div>
+
+  <div class="divider">— oppure —</div>
+
+  <div class="card">
+    <h3>Opzione B — installazione permanente (consigliata)</h3>
+    <p>Scarica il certificato e importalo nel browser. Dopo l'importazione non verrà mai più chiesto.</p>
+    <div class="row">
+      <a class="btn btn-blue" href="/cert" download="sws.crt">Scarica sws.crt</a>
+      <span style="font-size:12px;color:#64748b">
+        Chrome: Impostazioni &rarr; Privacy &rarr; Sicurezza &rarr; Gestisci certificati &rarr; Importa &rarr; seleziona sws.crt &rarr; "Autorità di certificazione"
+      </span>
+    </div>
+  </div>
+
+  <script>
+    var PORT = '__ADMIN_PORT__';
+    var ORIGIN = 'https://' + window.location.hostname + ':' + PORT;
+    var healthUrl = ORIGIN + '/health';
+    document.getElementById('url').value = healthUrl;
+
+    function copyUrl() {
+      navigator.clipboard.writeText(healthUrl).then(function() {
+        document.getElementById('status').textContent = 'URL copiato. Incollalo nella barra degli indirizzi e accetta il certificato, poi torna qui.';
+      });
+    }
+
+    function poll() {
+      fetch(ORIGIN + '/health')
+        .then(function(r) {
+          if (r.ok) {
+            document.getElementById('status').textContent = 'Certificato approvato - reindirizzamento...';
+            setTimeout(function() { window.location.href = ORIGIN + '/'; }, 800);
+          } else { wait(); }
+        })
+        .catch(function() { wait(); });
+    }
+    function wait() { setTimeout(poll, 1200); }
+    poll();
+  </script>
+</body>
+</html>"##;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -548,6 +653,7 @@ async fn main() -> anyhow::Result<()> {
     }
 
     let cert_path = Arc::new(args.config.join("tls.crt"));
+    let http_cert_path = (*cert_path).clone(); // used by HTTP /cert route; cert_path moves into build()
 
     let (runtime_app, admin_app) = sws_web::router::build(
         tag_db,
@@ -572,32 +678,85 @@ async fn main() -> anyhow::Result<()> {
         args.www.clone(),
     );
 
-    // Runtime listener (synoptic, optional-auth): 127.0.0.1 in --kiosk mode.
-    let runtime_bind = if args.kiosk {
-        format!("127.0.0.1:{}", args.viewer_port)
+    // Runtime listener (synoptic, optional-auth): only started when --viewer-port is given.
+    // Omitting --viewer-port starts in IDE-only mode (start_editor.sh on developer's PC).
+    let runtime_listener: Option<TcpListener> = if let Some(vport) = args.viewer_port {
+        let bind = if args.kiosk {
+            format!("127.0.0.1:{vport}")
+        } else {
+            format!("0.0.0.0:{vport}")
+        };
+        let addr: SocketAddr = bind.parse()?;
+        let l = TcpListener::bind(addr).await?;
+        info!(addr = %addr, kiosk = args.kiosk, "HTTPS runtime listener ready");
+        Some(l)
     } else {
-        format!("0.0.0.0:{}", args.viewer_port)
+        info!("--viewer-port not set — IDE-only mode (admin port only)");
+        None
     };
-    let runtime_addr: SocketAddr = runtime_bind.parse()?;
-    let runtime_listener = TcpListener::bind(runtime_addr).await?;
-    info!(addr = %runtime_addr, kiosk = args.kiosk, "HTTPS runtime listener ready");
 
     // Admin listener (all routes, auth required): always 0.0.0.0.
     let admin_addr: SocketAddr = format!("0.0.0.0:{}", args.admin_port).parse()?;
     let admin_listener = TcpListener::bind(admin_addr).await?;
     info!(addr = %admin_addr, "HTTPS admin listener ready");
 
-    // Announce this runtime on the local network via mDNS.
-    // Held alive until process exit; drop = unregister. Non-fatal if it fails.
-    let _mdns_svc = announce_mdns(args.viewer_port, args.admin_port);
+    // HTTP companion listener: plain HTTP, no TLS. Serves a cert-acceptance
+    // helper page so first-time users can approve the self-signed cert without
+    // having to know the /health URL. Only started when --http-port is given.
+    let http_listener: Option<TcpListener> = if let Some(hp) = args.http_port {
+        let addr: SocketAddr = format!("0.0.0.0:{hp}").parse()?;
+        let l = TcpListener::bind(addr).await?;
+        info!(addr = %addr, "HTTP cert-acceptance listener ready");
+        Some(l)
+    } else {
+        None
+    };
+
+    // Build the HTTP app: cert-acceptance page at "/" and cert download at "/cert".
+    let http_app: Option<axum::Router> = http_listener.as_ref().map(|_| {
+        let page = CERT_PAGE_TEMPLATE
+            .replace("__ADMIN_PORT__", &args.admin_port.to_string());
+        let cert_file = http_cert_path.clone();
+        axum::Router::new()
+            .route("/", axum::routing::get(move || {
+                let body = page.clone();
+                async move {
+                    axum::response::Response::builder()
+                        .header(axum::http::header::CONTENT_TYPE, "text/html; charset=utf-8")
+                        .header(axum::http::header::CACHE_CONTROL, "no-store")
+                        .body(axum::body::Body::from(body))
+                        .unwrap()
+                }
+            }))
+            .route("/cert", axum::routing::get(move || {
+                let path = cert_file.clone();
+                async move {
+                    match tokio::fs::read(&path).await {
+                        Ok(bytes) => axum::response::Response::builder()
+                            .header(axum::http::header::CONTENT_TYPE, "application/x-x509-ca-cert")
+                            .header("Content-Disposition", "attachment; filename=\"sws.crt\"")
+                            .header(axum::http::header::CACHE_CONTROL, "no-store")
+                            .body(axum::body::Body::from(bytes))
+                            .unwrap(),
+                        Err(e) => axum::response::Response::builder()
+                            .status(500)
+                            .body(axum::body::Body::from(format!("cert not found: {e}")))
+                            .unwrap(),
+                    }
+                }
+            }))
+    });
+
+    // Announce this runtime on the local network via mDNS (viewer port only).
+    // Skipped in IDE-only mode (no viewer port = no service to discover).
+    let _mdns_svc = args.viewer_port.map(|vp| announce_mdns(vp, args.admin_port));
 
     // Kiosk-mode browser spawn: once /health answers OK, run the operator-
     // provided shell command (typically a kiosk browser). Fire-and-forget —
     // the runtime never restarts or kills the child, and the child's death
     // doesn't stop the runtime. PoC-grade: no retries beyond the initial
     // health-check poll, no log capture (stdio inherits).
-    if let Some(cmd) = args.kiosk_browser.clone() {
-        let vport = args.viewer_port;
+    if let (Some(cmd), Some(vport)) = (args.kiosk_browser.clone(), args.viewer_port) {
         tokio::spawn(async move {
             // Tolerate self-signed cert (rcgen-generated on first run).
             let client = reqwest::Client::builder()
@@ -629,8 +788,7 @@ async fn main() -> anyhow::Result<()> {
         });
     }
 
-    if args.kiosk_wayland {
-        let vport = args.viewer_port;
+    if let (true, Some(vport)) = (args.kiosk_wayland, args.viewer_port) {
         tokio::spawn(async move {
             let client = reqwest::Client::builder()
                 .danger_accept_invalid_certs(true)
@@ -668,15 +826,32 @@ async fn main() -> anyhow::Result<()> {
     }
 
     loop {
-        // Accept on both listeners in parallel; either can produce the next connection.
-        let (stream, peer, svc) = tokio::select! {
-            res = runtime_listener.accept() => match res {
-                Ok((s, p)) => (s, p, runtime_app.clone()),
+        // Accept on all listeners in parallel.
+        // kind=0 → viewer (HTTPS), kind=1 → admin (HTTPS), kind=2 → HTTP companion.
+        // Listeners that are not configured use std::future::pending() so their
+        // branch never fires without blocking the others.
+        let (stream, peer, kind) = tokio::select! {
+            res = async {
+                match runtime_listener.as_ref() {
+                    Some(l) => l.accept().await.map(|(s, p)| (s, p, 0u8)),
+                    None    => std::future::pending::<std::io::Result<_>>().await,
+                }
+            } => match res {
+                Ok(x) => x,
                 Err(e) => { warn!("runtime accept error: {e}"); continue; }
             },
             res = admin_listener.accept() => match res {
-                Ok((s, p)) => (s, p, admin_app.clone()),
+                Ok((s, p)) => (s, p, 1u8),
                 Err(e) => { warn!("admin accept error: {e}"); continue; }
+            },
+            res = async {
+                match http_listener.as_ref() {
+                    Some(l) => l.accept().await.map(|(s, p)| (s, p, 2u8)),
+                    None    => std::future::pending::<std::io::Result<_>>().await,
+                }
+            } => match res {
+                Ok(x) => x,
+                Err(e) => { warn!("http accept error: {e}"); continue; }
             },
             _ = tokio::signal::ctrl_c() => {
                 info!("shutdown signal received");
@@ -684,6 +859,26 @@ async fn main() -> anyhow::Result<()> {
             }
         };
 
+        // HTTP companion: serve plain (no TLS), then continue to next accept.
+        if kind == 2 {
+            if let Some(ref app) = http_app {
+                let app = app.clone();
+                tokio::spawn(async move {
+                    let io = TokioIo::new(stream);
+                    let svc = hyper::service::service_fn(move |req| app.clone().call(req));
+                    if let Err(e) = ConnBuilder::new(TokioExecutor::new())
+                        .serve_connection(io, svc)
+                        .await
+                    {
+                        debug!(%peer, "http connection closed: {e}");
+                    }
+                });
+            }
+            continue;
+        }
+
+        // HTTPS: pick the right Axum app, then do TLS handshake.
+        let svc = if kind == 0 { runtime_app.clone() } else { admin_app.clone() };
         let acceptor = acceptor.clone();
 
         tokio::spawn(async move {

@@ -26,16 +26,14 @@ Un singolo PC desktop Linux con schermo. È l'unico posto in cui il maintainer p
 
 Cosa testare qui:
 - `sws-kiosk` (finestra GTK locale).
-- Runtime + editor in modalità locale (`./scripts/dev.sh`).
+- Runtime + IDE in modalità locale.
 - Browser di sistema (Firefox/Chrome) per accettare i cert self-signed.
 
-Dopo `./scripts/dev.sh`:
-- `http://localhost:5173` → IDE admin via Vite proxy (nessun cert da accettare)
-- `https://localhost:8443` → Viewer operatori (accettare cert una volta)
-- `https://localhost:8444` → IDE admin diretto (accettare cert una volta)
+Dopo `./scripts/start_runtime.sh`:
+- `https://localhost:8443` → Viewer operatori (accettare cert self-signed una volta)
+- `https://localhost:8444` → IDE admin (accettare cert una volta)
 
-I due cert (8443 e 8444) sono gli stessi file `tls.crt`/`tls.key` in `.run/`, persistenti
-tra restart. Accettarli è un'operazione una-tantum per installazione.
+Il cert TLS (`tls.crt`/`tls.key` in `.run/config/`) è persistente tra restart.
 
 ---
 
@@ -45,20 +43,15 @@ Il server di sviluppo dove vive il repo a `/home/max_xxv/sws`. **Macchina headle
 (nessun monitor diretto).
 
 Flusso tipico:
-1. `./scripts/dev.sh` su questa macchina avvia:
-   - runtime (8443 viewer + 8444 admin)
-   - Vite dev server (5173 → proxy a 8444)
+1. `./scripts/start_runtime.sh` su questa macchina avvia:
+   - runtime (8443 viewer + 8444 admin/IDE)
    - stampa la LAN IP del server
 2. Il maintainer apre il browser sul **proprio PC**:
 
 | URL | Cosa mostra | Cert |
 |-----|-------------|------|
-| `http://<server-ip>:5173` | IDE admin via Vite proxy | nessun cert (HTTP) |
 | `https://<server-ip>:8443` | Viewer operatori | self-signed, accettare una volta |
 | `https://<server-ip>:8444` | IDE admin diretto | self-signed, accettare una volta |
-
-> Il proxy Vite (5173) punta a **8444** (admin), non a 8443. Le route di project lifecycle
-> (`upload`, `delete`, `open`) esistono **solo** su 8444.
 
 Cosa NON si può testare qui:
 - `sws-kiosk`: richiede un display GTK; questa macchina non ne ha. Per quello, vedi
@@ -138,4 +131,4 @@ e poi può procedere con `ssh pixsys@<host>` per i comandi successivi.
 - `STATUS.md` — handoff session-by-session.
 - `docs/YOCTO_CROSSCOMPILE.md` — build e deploy nativo su Pixsys Yocto (percorso preferito).
 - `docs/DEPLOY_PX30.md` — deploy in container su ARM64 generico (percorso legacy).
-- `scripts/README.md` — overview script `dev.sh` / `kiosk.sh`.
+- `scripts/README.md` — overview script `start_runtime.sh` / `start_editor.sh` / `kiosk.sh`.

@@ -19,7 +19,10 @@ Then state to the maintainer:
 ## Working mode reminders
 
 - This is a **proof of concept**, not a product. Ship the smallest thing that works. See `docs/CONTEXT.md` §1.
-- **Local dev**: `./scripts/dev.sh` from repo root starts the runtime + Vite editor with a writable `.run/` directory (cert + project.yaml seeded). Browser must accept the self-signed cert once at `https://localhost:8443/health`. Details in `scripts/README.md`.
+- **Local dev**: due script separati con ruoli distinti (dettagli in `scripts/README.md`):
+  - `./scripts/start_runtime.sh` — runtime sul dispositivo: viewer 8443 + IDE/admin 8444 + HTTP companion 8080, auto-apre il progetto `default`.
+  - `./scripts/start_editor.sh` — IDE sul PC sviluppatore: porta 8460 + HTTP companion 8090, nessun viewer. Per il deploy usa ConfigView → Runtime → "Connetti" con l'URL del runtime remoto.
+  - Primo accesso: apri `http://localhost:8080` (runtime) o `http://localhost:8090` (editor) per accettare il certificato self-signed senza uscire dall'app.
 - **Vibecode + solo maintainer + sparse sessions**. Loss of context between sessions is the #1 risk; permission friction is #2.
 - **`.claude/settings.json` covers the routine commands** (cargo, pnpm, git, ls/cat/grep, mkdir, podman, etc.). Don't ask permission for them — just run them. If a command is denied and it's clearly safe and recurring, propose adding a specific allow rule (never `Bash(*)`).
 - **Sessions are 3-4 hours.** Plan tasks that fit. Stop at clean points.
