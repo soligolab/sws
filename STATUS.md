@@ -4,7 +4,16 @@
 >
 > Ambienti di test: vedi [docs/TEST_SETUPS.md](docs/TEST_SETUPS.md) (casa, dev server, dispositivi Yocto).
 
-**Last session**: 2026-06-08 — completamento branch split-runtime-editor-scripts.
+**Last session**: 2026-06-09 — TLS opzionale (branch `feat/tls-optional`).
+
+- **TLS opzionale — HTTP di default, HTTPS su richiesta** (branch `feat/tls-optional`):
+  - Il runtime parte in **HTTP plain** se manca `config/tls.crt`; la **presenza** del cert all'avvio determina la modalità (accept loop su `Option<TlsAcceptor>`, percorso plain con `serve_connection_with_upgrades` → i WebSocket funzionano anche in HTTP). Nessun flag `--no-tls`.
+  - Endpoint admin (solo admin app, `require_admin`): `GET /api/system/tls` (stato), `POST /api/system/tls/generate` (self-signed rcgen + reboot), `PUT /api/system/tls` (carica cert+key PEM, validati con `with_single_cert` prima di scrivere, + reboot), `DELETE /api/system/tls` (rimuove + reboot). Switch via riavvio (`system_reboot` ri-exec con stesso argv, riapre il progetto).
+  - UI: `ConfigView → Stato → Certificato TLS` (Admin): genera self-signed / carica cert+key (file o paste PEM) / disabilita.
+  - Script: `--http-port` ora condizionale alla presenza del cert (companion off in modalità HTTP).
+  - **Base**: il grosso era già stato implementato a casa (commit `1ede756`, cherry-pick su main attuale); in questa sessione aggiunto **upload cert+key** (PUT + validazione + UI), test unitari `validate_cert_key`, fix test stantii in `system.rs`, doc aggiornati (scripts/README, manual/10_deployment).
+  - **Verificato**: `cargo test -p sws-web` verde (15), `pnpm build` verde, avvio live HTTP-default (`/health` http 200, https ko) e HTTPS con cert presente (`/health` https 200, http ko), gating admin su `/api/system/tls`.
+  - **Da fare**: squash merge in `main` quando il maintainer conferma; verifica browser end-to-end (genera → riconnetti su https → carica cert CA → disabilita). Nota: su questo dev server `.run/config/` può avere già `tls.*` → parte in HTTPS; per testare HTTP `rm .run/config/tls.{crt,key}`.
 
 - **Split dev.sh → start_runtime.sh + start_editor.sh** (branch `feat/split-runtime-editor-scripts`):
   - `scripts/dev.sh` eliminato.
@@ -60,7 +69,7 @@
 
 > Unica traccia del lavoro ancora aperto. Aggiorna man mano che gli item si chiudono.
 
-- [ ] **TLS opzionale** (feature) — runtime in HTTP plain di default; passa a HTTPS solo se l'utente configura un cert in ConfigView. **Nessun** flag `--no-tls`: è TLS che si attiva su richiesta, non HTTP che si disattiva. Da progettare **in Plan Mode** prima di toccare il codice. Dettaglio sotto.
+- [x] **TLS opzionale** (feature) — ✅ fatto su `feat/tls-optional` (HTTP default + genera/carica/disabilita TLS da ConfigView). Resta solo lo squash merge + verifica browser. Dettagli nel blocco "Last session".
 - [ ] **Verifica manuale T-27** — packaging tarball + installer. Comandi sotto.
 - [ ] **Verifica manuale T-24/T-25/T-26** — fingerprint/device dashboard, remote logs, git commit/push. Comandi sotto.
 - [ ] **Debito: `sws-kiosk` non rispetta `--viewer-port`** (hardcoded `https://localhost:8443` nel wayland spawn). Fix triviale in `main.rs` se/quando si usa il kiosk su device multi-istanza.

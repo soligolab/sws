@@ -33,7 +33,7 @@ Auto-apre il progetto `default` se esiste in `.run/projects/default/`.
 
 ```
 .run/
-├── config/    # tls.crt + tls.key (generati al primo avvio, persistenti)
+├── config/    # tls.crt + tls.key (solo se il TLS è stato attivato dall'IDE)
 ├── projects/  # progetti (uno per sottodirectory)
 │   └── default/
 │       ├── project.yaml
@@ -48,16 +48,23 @@ L'albero `.run/` è in `.gitignore`. Per ripartire da zero:
 rm -rf .run && ./scripts/start_runtime.sh
 ```
 
-### Certificato TLS
+### Certificato TLS (opzionale)
 
-Il runtime genera un cert self-signed al primo avvio e lo riusa poi sempre.
-Il browser va accettato una volta:
+Il runtime parte in **HTTP plain** di default: nessun certificato, nessuna pagina di
+accettazione, primo accesso diretto su `http://localhost:8444`. `localhost` è sempre un
+"secure context" nei browser moderni, quindi l'IDE funziona senza TLS.
+
+Il TLS si attiva **su richiesta** dall'IDE: **Configurazione → Stato → Certificato TLS**:
+- **Genera self-signed** — crea `config/tls.crt`+`tls.key` e riavvia in HTTPS.
+- **Carica cert+key** — carica un certificato firmato (es. CA aziendale), validato lato server.
+- **Disabilita TLS** — rimuove i file e torna in HTTP.
+
+La modalità è determinata dalla **presenza** di `config/tls.crt` all'avvio (gli script passano
+`--http-port` solo quando il cert esiste). Quando il TLS è attivo, accetta il self-signed così:
 
 ```sh
-# Scarica il cert per aggiungerlo ai trusted del browser
-curl -k https://localhost:8443/cert -o sws.crt
-# Oppure da un altro PC sulla LAN:
-curl -k https://<ip>:8443/cert -o sws.crt
+curl -k https://localhost:8443/cert -o sws.crt   # scarica il cert per i trusted del browser
+curl -k https://<ip>:8443/cert -o sws.crt         # da un altro PC sulla LAN
 ```
 
 ### Verifica che sia vivo

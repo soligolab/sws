@@ -285,7 +285,17 @@ async fn main() -> anyhow::Result<()> {
         "SWS runtime starting"
     );
 
-    let acceptor = build_tls_acceptor(&args.config)?;
+    // TLS is opt-in: if config_dir/tls.crt exists, start in HTTPS mode.
+    // Otherwise serve plain HTTP — localhost is a "secure context" in all
+    // modern browsers, so the editor works without any cert acceptance step.
+    // Users can enable TLS from ConfigView → Stato → Certificato TLS.
+    std::fs::create_dir_all(&args.config).context("creating config directory")?;
+    let acceptor: Option<TlsAcceptor> = if args.config.join("tls.crt").exists() {
+        Some(build_tls_acceptor(&args.config)?)
+    } else {
+        info!("no TLS certificate found — plain HTTP mode (enable via ConfigView → Stato → Certificato TLS)");
+        None
+    };
 
     let tag_db    = Arc::new(TagDb::new(256));
     let bus       = Arc::new(TagWriteBus::new());
@@ -652,8 +662,10 @@ async fn main() -> anyhow::Result<()> {
         info!(entries = ip_allowlist.len(), "IP allowlist active for /api/auth/login");
     }
 
-    let cert_path = Arc::new(args.config.join("tls.crt"));
-    let http_cert_path = (*cert_path).clone(); // used by HTTP /cert route; cert_path moves into build()
+    let cert_path: Option<Arc<PathBuf>> = acceptor.as_ref()
+        .map(|_| Arc::new(args.config.join("tls.crt")));
+    let http_cert_path: Option<PathBuf> = cert_path.as_ref().map(|p| (**p).clone());
+    let config_dir = Arc::new(args.config.clone());
 
     let (runtime_app, admin_app) = sws_web::router::build(
         tag_db,
@@ -674,6 +686,7 @@ async fn main() -> anyhow::Result<()> {
         Arc::new(logs_dir),
         started_at,
         ip_allowlist,
+        config_dir,
         cert_path,
         args.www.clone(),
     );
@@ -688,7 +701,7 @@ async fn main() -> anyhow::Result<()> {
         };
         let addr: SocketAddr = bind.parse()?;
         let l = TcpListener::bind(addr).await?;
-        info!(addr = %addr, kiosk = args.kiosk, "HTTPS runtime listener ready");
+        info!(addr = %addr, kiosk = args.kiosk, tls = acceptor.is_some(), "runtime listener ready");
         Some(l)
     } else {
         info!("--viewer-port not set — IDE-only mode (admin port only)");
@@ -698,12 +711,13 @@ async fn main() -> anyhow::Result<()> {
     // Admin listener (all routes, auth required): always 0.0.0.0.
     let admin_addr: SocketAddr = format!("0.0.0.0:{}", args.admin_port).parse()?;
     let admin_listener = TcpListener::bind(admin_addr).await?;
-    info!(addr = %admin_addr, "HTTPS admin listener ready");
+    info!(addr = %admin_addr, tls = acceptor.is_some(), "admin listener ready");
 
-    // HTTP companion listener: plain HTTP, no TLS. Serves a cert-acceptance
-    // helper page so first-time users can approve the self-signed cert without
-    // having to know the /health URL. Only started when --http-port is given.
-    let http_listener: Option<TcpListener> = if let Some(hp) = args.http_port {
+    // HTTP companion listener: plain HTTP, no TLS. Serves a cert-acceptance helper
+    // page so users can approve the self-signed cert without knowing the /health URL.
+    // Only useful (and only started) when TLS is active — in plain HTTP mode the main
+    // ports are already plain HTTP so no companion is needed.
+    let http_listener: Option<TcpListener> = if let (Some(hp), true) = (args.http_port, acceptor.is_some()) {
         let addr: SocketAddr = format!("0.0.0.0:{hp}").parse()?;
         let l = TcpListener::bind(addr).await?;
         info!(addr = %addr, "HTTP cert-acceptance listener ready");
@@ -731,16 +745,22 @@ async fn main() -> anyhow::Result<()> {
             .route("/cert", axum::routing::get(move || {
                 let path = cert_file.clone();
                 async move {
-                    match tokio::fs::read(&path).await {
-                        Ok(bytes) => axum::response::Response::builder()
-                            .header(axum::http::header::CONTENT_TYPE, "application/x-x509-ca-cert")
-                            .header("Content-Disposition", "attachment; filename=\"sws.crt\"")
-                            .header(axum::http::header::CACHE_CONTROL, "no-store")
-                            .body(axum::body::Body::from(bytes))
-                            .unwrap(),
-                        Err(e) => axum::response::Response::builder()
-                            .status(500)
-                            .body(axum::body::Body::from(format!("cert not found: {e}")))
+                    match path {
+                        Some(p) => match tokio::fs::read(&p).await {
+                            Ok(bytes) => axum::response::Response::builder()
+                                .header(axum::http::header::CONTENT_TYPE, "application/x-x509-ca-cert")
+                                .header("Content-Disposition", "attachment; filename=\"sws.crt\"")
+                                .header(axum::http::header::CACHE_CONTROL, "no-store")
+                                .body(axum::body::Body::from(bytes))
+                                .unwrap(),
+                            Err(e) => axum::response::Response::builder()
+                                .status(500)
+                                .body(axum::body::Body::from(format!("cert not found: {e}")))
+                                .unwrap(),
+                        },
+                        None => axum::response::Response::builder()
+                            .status(404)
+                            .body(axum::body::Body::from("no TLS certificate"))
                             .unwrap(),
                     }
                 }
@@ -877,27 +897,46 @@ async fn main() -> anyhow::Result<()> {
             continue;
         }
 
-        // HTTPS: pick the right Axum app, then do TLS handshake.
+        // Pick the right Axum app, then serve — with TLS if a cert is configured,
+        // otherwise as plain HTTP (localhost is a "secure context" in modern browsers).
         let svc = if kind == 0 { runtime_app.clone() } else { admin_app.clone() };
-        let acceptor = acceptor.clone();
 
-        tokio::spawn(async move {
-            let tls_stream = match acceptor.accept(stream).await {
-                Ok(s)  => s,
-                Err(e) => { warn!(%peer, "TLS handshake failed: {e}"); return; }
-            };
-            let io = TokioIo::new(tls_stream);
-            let hyper_svc = hyper::service::service_fn(move |mut req: axum::extract::Request<Incoming>| {
-                req.extensions_mut().insert(peer);
-                svc.clone().call(req)
-            });
-            if let Err(e) = ConnBuilder::new(TokioExecutor::new())
-                .serve_connection_with_upgrades(io, hyper_svc)
-                .await
-            {
-                warn!(%peer, "connection error: {e}");
+        match acceptor.clone() {
+            Some(tls_acceptor) => {
+                tokio::spawn(async move {
+                    let tls_stream = match tls_acceptor.accept(stream).await {
+                        Ok(s)  => s,
+                        Err(e) => { warn!(%peer, "TLS handshake failed: {e}"); return; }
+                    };
+                    let io = TokioIo::new(tls_stream);
+                    let hyper_svc = hyper::service::service_fn(move |mut req: axum::extract::Request<Incoming>| {
+                        req.extensions_mut().insert(peer);
+                        svc.clone().call(req)
+                    });
+                    if let Err(e) = ConnBuilder::new(TokioExecutor::new())
+                        .serve_connection_with_upgrades(io, hyper_svc)
+                        .await
+                    {
+                        warn!(%peer, "connection error: {e}");
+                    }
+                });
             }
-        });
+            None => {
+                tokio::spawn(async move {
+                    let io = TokioIo::new(stream);
+                    let hyper_svc = hyper::service::service_fn(move |mut req: axum::extract::Request<Incoming>| {
+                        req.extensions_mut().insert(peer);
+                        svc.clone().call(req)
+                    });
+                    if let Err(e) = ConnBuilder::new(TokioExecutor::new())
+                        .serve_connection_with_upgrades(io, hyper_svc)
+                        .await
+                    {
+                        debug!(%peer, "plain HTTP connection closed: {e}");
+                    }
+                });
+            }
+        }
     }
 
     Ok(())

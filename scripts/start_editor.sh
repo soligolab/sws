@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
 #
-# Avvia l'IDE SWS in locale sul PC dello sviluppatore (solo porta 8444).
+# Avvia l'IDE SWS in locale sul PC dello sviluppatore (solo porta 8460).
 # Nessun viewer operatori — solo l'interfaccia di progettazione canvas.
 #
-# Permette di creare e modificare progetti localmente senza bisogno di un
-# runtime attivo. Per deployare su un dispositivo, usare ConfigView → Runtime
-# → "Connetti" e inserire l'URL del runtime remoto (es. https://192.168.1.50:8444).
+# Di default parte in plain HTTP (nessun certificato necessario — localhost è
+# sempre un "secure context" nei browser moderni). TLS si abilita da
+# ConfigView → Stato → Certificato TLS dopo il primo avvio.
 #
 # Uso:
-#   ./scripts/start_editor.sh                # IDE su 8460, HTTP su 8090, dati .run/
-#   ./scripts/start_editor.sh --instance 2   # IDE su 8462, HTTP su 8091, dati .run-2/
+#   ./scripts/start_editor.sh                # IDE su 8460, dati .run/
+#   ./scripts/start_editor.sh --instance 2   # IDE su 8462, dati .run-2/
 #
 # Variabili d'ambiente (opzionali):
 #   SWS_ADMIN_USER / SWS_ADMIN_PASSWORD   (default: admin/admin)
@@ -32,7 +32,6 @@ done
 # Range separato dal runtime (8443-8449/8080-8089) per evitare conflitti
 # quando entrambi girano sulla stessa macchina di sviluppo.
 ADMIN_PORT=$((8460 + (INSTANCE - 1) * 2))
-HTTP_PORT=$((8090  + (INSTANCE - 1)))
 
 if [ "$INSTANCE" -eq 1 ]; then
   RUN_DIR="$REPO_ROOT/.run"
@@ -119,22 +118,40 @@ LAN_IP="$(hostname -I 2>/dev/null | awk '{print $1}')"
 INST_LABEL=""
 [ "$INSTANCE" -ne 1 ] && INST_LABEL=" (istanza $INSTANCE)"
 
-cat <<MSG
+# Mostra URL corretto in base allo stato TLS
+if [ -f "$CONFIG_DIR/tls.crt" ]; then
+  HTTP_PORT=$((8090 + (INSTANCE - 1)))
+  IDE_URL="https://$LAN_IP:$ADMIN_PORT"
+  HTTP_ARGS=(--http-port "$HTTP_PORT")
+  cat <<MSG
 
 ────────────────────────────────────────────────────────────────
-SWS IDE$INST_LABEL — pronto
+SWS IDE$INST_LABEL — pronto (HTTPS)
 
-  Primo accesso : http://$LAN_IP:$HTTP_PORT    ← accetta il cert qui (no TLS)
+  Primo accesso : http://$LAN_IP:$HTTP_PORT   ← accetta cert qui
   IDE locale    : https://$LAN_IP:$ADMIN_PORT
 
-  Viewer non attivo — questo è l'ambiente di sviluppo.
-  Per deployare su un dispositivo:
-    ConfigView → Runtime → "Connetti" → https://<ip>:8444
-
+  Viewer non attivo. Per deployare: ConfigView → Runtime → "Connetti"
   Stop: Ctrl-C
 ────────────────────────────────────────────────────────────────
 
 MSG
+else
+  HTTP_ARGS=()
+  cat <<MSG
+
+────────────────────────────────────────────────────────────────
+SWS IDE$INST_LABEL — pronto (HTTP plain)
+
+  IDE locale    : http://$LAN_IP:$ADMIN_PORT
+
+  Viewer non attivo. Per deployare: ConfigView → Runtime → "Connetti"
+  Per abilitare HTTPS: ConfigView → Stato → Certificato TLS
+  Stop: Ctrl-C
+────────────────────────────────────────────────────────────────
+
+MSG
+fi
 
 # Avvia senza --viewer-port: solo la porta admin (IDE) è in ascolto.
 exec "$REPO_ROOT/sws-runtime/target/debug/sws-runtime" \
@@ -142,6 +159,6 @@ exec "$REPO_ROOT/sws-runtime/target/debug/sws-runtime" \
   --projects-root  "$PROJECTS_ROOT"  \
   --templates-root "$TEMPLATES_ROOT" \
   --admin-port     "$ADMIN_PORT"     \
-  --http-port      "$HTTP_PORT"      \
+  "${HTTP_ARGS[@]}"                  \
   "${PROJECT_ARGS[@]}"               \
   "${WWW_ARGS[@]}"

@@ -79,8 +79,11 @@ pub struct AppState {
     pub recipe_log: Arc<RwLock<Vec<RecipeApplyEvent>>>,
     /// Active notification supervisor (email + escalation). Replaced on project open.
     pub notification_supervisor: Arc<RwLock<Option<NotificationSupervisor>>>,
+    /// Runtime config directory (where tls.crt/tls.key live). Used by TLS management endpoints.
+    pub config_dir: Arc<PathBuf>,
     /// Path to the TLS certificate PEM for `GET /cert` (browser import).
-    pub cert_path: Arc<PathBuf>,
+    /// `None` when running in plain HTTP mode (no TLS configured).
+    pub cert_path: Option<Arc<PathBuf>>,
     /// True while scripts/package.sh is running. Prevents concurrent builds.
     pub build_running: crate::packaging::BuildLock,
     /// Repository root (where scripts/package.sh lives). None on deployed instances.
@@ -112,10 +115,11 @@ pub fn build(
     logs_dir: Arc<PathBuf>,
     started_at: std::time::Instant,
     ip_allowlist: Arc<Vec<(std::net::IpAddr, u8)>>,
-    cert_path: Arc<PathBuf>,
+    config_dir: Arc<PathBuf>,
+    cert_path: Option<Arc<PathBuf>>,
     www_dir: Option<PathBuf>,
 ) -> (Router, Router) {
-    let state = AppState { db, bus, alarms, historian, registry, py, auth, supervisor, script_supervisor, functions, derived_tags, project_dir, projects_root, templates_root, logs, logs_dir, started_at, ip_allowlist, recipe_log: Arc::new(RwLock::new(Vec::new())), notification_supervisor: Arc::new(RwLock::new(None)), cert_path, build_running: crate::packaging::new_build_lock(), repo_root: crate::packaging::new_repo_root() };
+    let state = AppState { db, bus, alarms, historian, registry, py, auth, supervisor, script_supervisor, functions, derived_tags, project_dir, projects_root, templates_root, logs, logs_dir, started_at, ip_allowlist, recipe_log: Arc::new(RwLock::new(Vec::new())), notification_supervisor: Arc::new(RwLock::new(None)), config_dir, cert_path, build_running: crate::packaging::new_build_lock(), repo_root: crate::packaging::new_repo_root() };
     // Build the runtime router (8443) before consuming state for admin.
     let runtime_app = build_runtime_inner(state.clone(), www_dir.clone());
 
@@ -190,9 +194,13 @@ pub fn build(
         .route_layer(middleware::from_fn(require_operator));
 
     let system_ctrl_routes = Router::new()
-        .route("/api/system/stop",   post(crate::system::system_stop))
-        .route("/api/system/start",  post(crate::system::system_start))
-        .route("/api/system/reboot", post(crate::system::system_reboot))
+        .route("/api/system/stop",         post(crate::system::system_stop))
+        .route("/api/system/start",        post(crate::system::system_start))
+        .route("/api/system/reboot",       post(crate::system::system_reboot))
+        .route("/api/system/tls",          get(crate::system::get_tls_status))
+        .route("/api/system/tls/generate", post(crate::system::generate_tls_cert))
+        .route("/api/system/tls",          put(crate::system::upload_tls_cert))
+        .route("/api/system/tls",          delete(crate::system::remove_tls_cert))
         .route_layer(middleware::from_fn(require_admin));
 
     // Routes that need Supervisor+ — project editing surface that
@@ -639,7 +647,10 @@ fn url_form_decode(q: &str) -> Vec<(String, String)> {
 /// Serve the TLS certificate PEM so users can import it into their browser.
 /// Open endpoint (no auth) — the cert is the public key only, no secret.
 async fn get_cert(State(s): State<AppState>) -> Response {
-    match tokio::fs::read(&*s.cert_path).await {
+    let Some(ref path) = s.cert_path else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
+    match tokio::fs::read(path.as_ref()).await {
         Ok(bytes) => Response::builder()
             .status(StatusCode::OK)
             .header(header::CONTENT_TYPE, "application/x-pem-file")

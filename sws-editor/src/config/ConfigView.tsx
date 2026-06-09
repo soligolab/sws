@@ -4369,7 +4369,172 @@ function SystemTab() {
           </div>
         </div>
       </div>
+      <TlsSection />
       <GitOpsPanel />
+    </div>
+  );
+}
+
+// ── TLS management section (inside SystemTab, Admin-only) ─────────────────────
+function TlsSection() {
+  const authRole = useAppStore((s) => s.authRole);
+  const [tlsEnabled, setTlsEnabled] = useState<boolean | null>(null);
+  const [msg, setMsg] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [showUpload, setShowUpload] = useState(false);
+  const [certPem, setCertPem] = useState("");
+  const [keyPem, setKeyPem] = useState("");
+
+  useEffect(() => {
+    api.getTlsStatus().then(s => setTlsEnabled(s.enabled)).catch(() => setTlsEnabled(false));
+  }, []);
+
+  if (authRole !== "Admin") return null;
+  if (tlsEnabled === null) return null;
+
+  const handleGenerate = async () => {
+    if (!confirm("Generare un nuovo certificato TLS self-signed?\n\nIl runtime si riavvierà in modalità HTTPS. Sarà necessario accettare il certificato nel browser.")) return;
+    setBusy(true);
+    setMsg(null);
+    try {
+      await api.generateTlsCert();
+      setMsg("Certificato generato — il runtime si sta riavviando in HTTPS…");
+    } catch (e: any) {
+      setMsg(`Errore: ${String(e?.message ?? e)}`);
+      setBusy(false);
+    }
+  };
+
+  const readFileInto = (setter: (v: string) => void) => (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    f.text().then(setter).catch(() => setMsg("Errore: impossibile leggere il file"));
+  };
+
+  const handleUpload = async () => {
+    if (!certPem.trim() || !keyPem.trim()) {
+      setMsg("Errore: incolla o carica sia il certificato sia la chiave privata (PEM).");
+      return;
+    }
+    if (!confirm("Caricare il certificato fornito e attivare HTTPS?\n\nIl runtime si riavvierà. Dovrai riconnetterti su https://.")) return;
+    setBusy(true);
+    setMsg(null);
+    try {
+      await api.uploadTlsCert(certPem, keyPem);
+      setMsg("Certificato caricato — il runtime si sta riavviando in HTTPS…");
+    } catch (e: any) {
+      setMsg(`Errore: ${String(e?.message ?? e)}`);
+      setBusy(false);
+    }
+  };
+
+  const handleRemove = async () => {
+    if (!confirm("Disabilitare TLS e tornare a plain HTTP?\n\nIl runtime si riavvierà. Nessun certificato da accettare.")) return;
+    setBusy(true);
+    setMsg(null);
+    try {
+      await api.removeTlsCert();
+      setMsg("TLS disabilitato — il runtime si sta riavviando in HTTP…");
+    } catch (e: any) {
+      setMsg(`Errore: ${String(e?.message ?? e)}`);
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div>
+      <div style={{ fontSize: 12, fontWeight: 700, color: "#64748b", letterSpacing: 1, marginBottom: 10 }}>
+        CERTIFICATO TLS
+      </div>
+      <div style={{ background: "#0f172a", border: "1px solid #1e293b", borderRadius: 6, padding: "12px 16px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+          <span style={{
+            display: "inline-block", width: 8, height: 8, borderRadius: "50%",
+            background: tlsEnabled ? "#34d399" : "#64748b",
+          }} />
+          <span style={{ fontSize: 13, color: "#e2e8f0" }}>
+            {tlsEnabled ? "HTTPS attivo" : "HTTP plain (nessun certificato)"}
+          </span>
+        </div>
+        {!tlsEnabled && (
+          <div>
+            <p style={{ margin: "0 0 10px", fontSize: 12, color: "#94a3b8" }}>
+              Genera un certificato self-signed per abilitare HTTPS. Richiesto per accesso da LAN (non localhost).
+            </p>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <button
+                onClick={handleGenerate}
+                disabled={busy}
+                style={{ padding: "6px 14px", background: "#2563eb", color: "#fff", border: "none", borderRadius: 6, cursor: busy ? "default" : "pointer", fontSize: 13 }}
+              >
+                Genera certificato self-signed
+              </button>
+              <button
+                onClick={() => setShowUpload(v => !v)}
+                disabled={busy}
+                style={{ padding: "6px 14px", background: "#334155", color: "#e2e8f0", border: "1px solid #475569", borderRadius: 6, cursor: busy ? "default" : "pointer", fontSize: 13 }}
+              >
+                {showUpload ? "Annulla caricamento" : "Carica certificato (cert + key)"}
+              </button>
+            </div>
+            {showUpload && (
+              <div style={{ marginTop: 12, display: "grid", gap: 10 }}>
+                <p style={{ margin: 0, fontSize: 12, color: "#94a3b8" }}>
+                  Carica un certificato firmato da una CA (es. aziendale). Incolla il PEM o seleziona i file.
+                </p>
+                <div>
+                  <label style={{ display: "block", fontSize: 12, color: "#cbd5e1", marginBottom: 4 }}>
+                    Certificato (tls.crt, PEM)
+                  </label>
+                  <input type="file" accept=".crt,.pem,.cer" onChange={readFileInto(setCertPem)}
+                    style={{ fontSize: 12, color: "#94a3b8", marginBottom: 6 }} />
+                  <textarea value={certPem} onChange={(e) => setCertPem(e.target.value)}
+                    placeholder="-----BEGIN CERTIFICATE-----"
+                    rows={4} spellCheck={false}
+                    style={{ width: "100%", boxSizing: "border-box", fontFamily: "monospace", fontSize: 11, background: "#020617", color: "#e2e8f0", border: "1px solid #1e293b", borderRadius: 6, padding: 8 }} />
+                </div>
+                <div>
+                  <label style={{ display: "block", fontSize: 12, color: "#cbd5e1", marginBottom: 4 }}>
+                    Chiave privata (tls.key, PEM)
+                  </label>
+                  <input type="file" accept=".key,.pem" onChange={readFileInto(setKeyPem)}
+                    style={{ fontSize: 12, color: "#94a3b8", marginBottom: 6 }} />
+                  <textarea value={keyPem} onChange={(e) => setKeyPem(e.target.value)}
+                    placeholder="-----BEGIN PRIVATE KEY-----"
+                    rows={4} spellCheck={false}
+                    style={{ width: "100%", boxSizing: "border-box", fontFamily: "monospace", fontSize: 11, background: "#020617", color: "#e2e8f0", border: "1px solid #1e293b", borderRadius: 6, padding: 8 }} />
+                </div>
+                <button
+                  onClick={handleUpload}
+                  disabled={busy}
+                  style={{ justifySelf: "start", padding: "6px 14px", background: "#2563eb", color: "#fff", border: "none", borderRadius: 6, cursor: busy ? "default" : "pointer", fontSize: 13 }}
+                >
+                  Carica e attiva HTTPS
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+        {tlsEnabled && (
+          <div>
+            <p style={{ margin: "0 0 10px", fontSize: 12, color: "#94a3b8" }}>
+              Il runtime serve HTTPS. Per tornare a HTTP plain (es. per sviluppo localhost) rimuovi il certificato.
+            </p>
+            <button
+              onClick={handleRemove}
+              disabled={busy}
+              style={{ padding: "6px 14px", background: "#334155", color: "#e2e8f0", border: "1px solid #475569", borderRadius: 6, cursor: busy ? "default" : "pointer", fontSize: 13 }}
+            >
+              Disabilita TLS
+            </button>
+          </div>
+        )}
+        {msg && (
+          <div style={{ marginTop: 10, fontSize: 12, color: msg.startsWith("Errore") ? "#fca5a5" : "#34d399" }}>
+            {msg}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

@@ -1,8 +1,10 @@
+use std::net::IpAddr;
 use std::path::Path;
 use std::time::Instant;
 
-use axum::{extract::State, http::StatusCode, Json};
-use serde::Serialize;
+use axum::{extract::State, http::StatusCode, response::{IntoResponse, Response}, Json};
+use rcgen::{CertificateParams, KeyPair, SanType};
+use serde::{Deserialize, Serialize};
 use sws_core::{AlarmDb, TagDb};
 use sysinfo::{Disks, System};
 
@@ -166,6 +168,151 @@ pub async fn system_reboot(State(s): State<AppState>) -> StatusCode {
     StatusCode::NO_CONTENT
 }
 
+// ── TLS management endpoints ─────────────────────────────────────────────────
+
+#[derive(Serialize)]
+pub struct TlsStatus {
+    pub enabled: bool,
+}
+
+/// `GET /api/system/tls` — returns whether TLS is currently active.
+pub async fn get_tls_status(State(s): State<AppState>) -> Json<TlsStatus> {
+    let enabled = s.config_dir.join("tls.crt").exists();
+    Json(TlsStatus { enabled })
+}
+
+/// `POST /api/system/tls/generate` — generate a self-signed cert, write to config dir,
+/// then reboot so the new TLS config takes effect.
+pub async fn generate_tls_cert(State(s): State<AppState>) -> StatusCode {
+    let config_dir = (*s.config_dir).clone();
+    match tokio::task::spawn_blocking(move || generate_cert_files(&config_dir)).await {
+        Ok(Ok(())) => {}
+        Ok(Err(e)) => {
+            tracing::error!("generate_tls_cert: {e:#}");
+            return StatusCode::INTERNAL_SERVER_ERROR;
+        }
+        Err(e) => {
+            tracing::error!("generate_tls_cert: join error: {e}");
+            return StatusCode::INTERNAL_SERVER_ERROR;
+        }
+    }
+    tracing::info!("TLS certificate generated — rebooting to activate HTTPS");
+    system_reboot(State(s)).await
+}
+
+/// `DELETE /api/system/tls` — remove the TLS cert files and reboot into plain HTTP.
+pub async fn remove_tls_cert(State(s): State<AppState>) -> StatusCode {
+    let cert_path = s.config_dir.join("tls.crt");
+    let key_path  = s.config_dir.join("tls.key");
+    for path in [&cert_path, &key_path] {
+        if path.exists() {
+            if let Err(e) = tokio::fs::remove_file(path).await {
+                tracing::error!("remove_tls_cert: could not remove {}: {e}", path.display());
+                return StatusCode::INTERNAL_SERVER_ERROR;
+            }
+        }
+    }
+    tracing::info!("TLS certificate removed — rebooting to plain HTTP");
+    system_reboot(State(s)).await
+}
+
+#[derive(Deserialize)]
+pub struct TlsUpload {
+    pub cert_pem: String,
+    pub key_pem: String,
+}
+
+/// `PUT /api/system/tls` — upload a user-provided certificate + private key (PEM),
+/// validate that they parse and match, write them to the config dir, then reboot
+/// so the new cert takes effect (HTTPS). Rejects invalid input before writing so
+/// the user gets immediate feedback instead of a silent self-signed regeneration.
+pub async fn upload_tls_cert(State(s): State<AppState>, Json(body): Json<TlsUpload>) -> Response {
+    if let Err(e) = validate_cert_key(&body.cert_pem, &body.key_pem) {
+        tracing::warn!("upload_tls_cert: invalid cert/key: {e:#}");
+        return (
+            StatusCode::BAD_REQUEST,
+            format!("Certificato/chiave non validi: {e}"),
+        )
+            .into_response();
+    }
+
+    let config_dir = (*s.config_dir).clone();
+    let cert = body.cert_pem;
+    let key = body.key_pem;
+    let write = tokio::task::spawn_blocking(move || -> anyhow::Result<()> {
+        use anyhow::Context;
+        std::fs::create_dir_all(&config_dir).context("creating config directory")?;
+        std::fs::write(config_dir.join("tls.crt"), cert.as_bytes()).context("writing tls.crt")?;
+        std::fs::write(config_dir.join("tls.key"), key.as_bytes()).context("writing tls.key")?;
+        Ok(())
+    })
+    .await;
+    match write {
+        Ok(Ok(())) => {}
+        Ok(Err(e)) => {
+            tracing::error!("upload_tls_cert: write failed: {e:#}");
+            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
+        Err(e) => {
+            tracing::error!("upload_tls_cert: join error: {e}");
+            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
+    }
+    tracing::info!("TLS certificate uploaded — rebooting to activate HTTPS");
+    system_reboot(State(s)).await.into_response()
+}
+
+/// Parse a PEM cert chain + private key and confirm they form a valid TLS
+/// keypair (mirrors the runtime's startup loader). `with_single_cert` also
+/// catches a key that does not match the certificate.
+fn validate_cert_key(cert_pem: &str, key_pem: &str) -> anyhow::Result<()> {
+    use anyhow::Context;
+    let certs: Vec<rustls::pki_types::CertificateDer<'static>> =
+        rustls_pemfile::certs(&mut cert_pem.as_bytes())
+            .collect::<Result<_, _>>()
+            .context("parsing certificate PEM")?;
+    anyhow::ensure!(!certs.is_empty(), "nessun certificato trovato nel PEM");
+    let key = rustls_pemfile::private_key(&mut key_pem.as_bytes())
+        .context("parsing private key PEM")?
+        .ok_or_else(|| anyhow::anyhow!("nessuna chiave privata trovata nel PEM"))?;
+    rustls::ServerConfig::builder()
+        .with_no_client_auth()
+        .with_single_cert(certs, key)
+        .context("la chiave privata non corrisponde al certificato")?;
+    Ok(())
+}
+
+fn generate_cert_files(config_dir: &std::path::Path) -> anyhow::Result<()> {
+    use anyhow::Context;
+
+    std::fs::create_dir_all(config_dir).context("creating config directory")?;
+
+    // Detect LAN IP via connected UDP socket (no packets sent).
+    let lan_ip: Option<IpAddr> = (|| {
+        let sock = std::net::UdpSocket::bind("0.0.0.0:0").ok()?;
+        sock.connect("8.8.8.8:80").ok()?;
+        sock.local_addr().ok().map(|a| a.ip())
+    })();
+
+    let mut params = CertificateParams::new(vec!["localhost".to_string()])
+        .context("rcgen: CertificateParams::new")?;
+    params.subject_alt_names.push(SanType::IpAddress(
+        std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST),
+    ));
+    if let Some(ip) = lan_ip {
+        params.subject_alt_names.push(SanType::IpAddress(ip));
+        tracing::info!(%ip, "TLS cert will include LAN IP SAN");
+    }
+
+    let key_pair = KeyPair::generate().context("rcgen: KeyPair::generate")?;
+    let cert = params.self_signed(&key_pair).context("rcgen: self_signed")?;
+
+    std::fs::write(config_dir.join("tls.crt"), cert.pem()).context("writing tls.crt")?;
+    std::fs::write(config_dir.join("tls.key"), key_pair.serialize_pem()).context("writing tls.key")?;
+    tracing::info!(path = %config_dir.display(), "self-signed TLS certificate saved");
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -175,7 +322,7 @@ mod tests {
 
     fn make_supervisor() -> std::sync::Arc<crate::source_supervisor::SourceSupervisor> {
         let db = std::sync::Arc::new(TagDb::new(64));
-        let bus = TagWriteBus::new(64);
+        let bus = std::sync::Arc::new(TagWriteBus::new());
         crate::source_supervisor::SourceSupervisor::new(db, bus)
     }
 
@@ -229,6 +376,14 @@ mod tests {
             severity: AlarmSeverity::Warning,
             message: "too hot".into(),
             notify_url: None,
+            dead_band: None,
+            on_delay_s: None,
+            off_delay_s: None,
+            inhibit_tag: None,
+            inhibit_condition: None,
+            notify_email: None,
+            escalate_after_s: None,
+            escalate_to: None,
         }]).await;
 
         let state = TagState {
@@ -241,5 +396,37 @@ mod tests {
         let supervisor = make_supervisor();
         let status = compute_system_status(&db, &alarms, &supervisor, None, Instant::now()).await;
         assert_eq!(status.alarm_active_count, 1);
+    }
+
+    /// Generate a fresh self-signed cert+key PEM pair for validation tests.
+    /// Also installs the ring CryptoProvider (the runtime does this in `main()`;
+    /// the test process must do it before `ServerConfig::builder()` is used).
+    fn make_cert_key() -> (String, String) {
+        let _ = rustls::crypto::ring::default_provider().install_default();
+        let key = KeyPair::generate().unwrap();
+        let params = CertificateParams::new(vec!["localhost".to_string()]).unwrap();
+        let cert = params.self_signed(&key).unwrap();
+        (cert.pem(), key.serialize_pem())
+    }
+
+    #[test]
+    fn validate_cert_key_accepts_matching_pair() {
+        let (cert, key) = make_cert_key();
+        assert!(validate_cert_key(&cert, &key).is_ok());
+    }
+
+    #[test]
+    fn validate_cert_key_rejects_garbage() {
+        assert!(validate_cert_key("not a cert", "not a key").is_err());
+        let (cert, _) = make_cert_key();
+        assert!(validate_cert_key(&cert, "").is_err(), "missing key must fail");
+    }
+
+    #[test]
+    fn validate_cert_key_rejects_mismatched_key() {
+        let (cert, _) = make_cert_key();
+        let (_, other_key) = make_cert_key();
+        // A valid cert and a valid key, but from different keypairs → must be rejected.
+        assert!(validate_cert_key(&cert, &other_key).is_err());
     }
 }
