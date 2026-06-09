@@ -7,6 +7,10 @@ and this project adheres to [CalVer](https://calver.org/) (`YYYY.MM[.patch]`).
 
 ## [Unreleased]
 
+### Removed
+
+- **Pulizia file-istruzioni obsoleti** — rimossi i prompt di task ormai completati (`T-21-prompt.md`, `T-27`…`T-33-prompt.md`), il prompt di bootstrap iniziale (`SWS_Repository_Bootstrap_Prompt.md`, scaffolding già eseguito) e il piano stantio `docs/plans/2026-05-14_universal_binding.md` (feature di binding già consegnata). Verificato che ogni file descriveva lavoro già implementato — nessun task pendente perso (recuperabili da git history). I task ancora aperti sono ora tracciati in un'unica checklist `## Remaining tasks` in `STATUS.md`.
+
 ### Added
 
 - **HTTP companion server per accettazione certificato TLS** (`sws-runtime/src/main.rs`, `scripts/`). Nuovo flag `--http-port` sul binario: quando specificato avvia un server plain HTTP (no TLS) con una pagina guida all'accettazione del certificato self-signed. Opzione A: campo URL copiabile con pulsante "Copia" + polling JS che rileva l'accettazione e reindirizza automaticamente all'IDE. Opzione B: route `/cert` serve il file `tls.crt` con MIME `application/x-x509-ca-cert` per download e installazione permanente nel browser. `start_runtime.sh` usa porta 8080, `start_editor.sh` usa porta 8090.

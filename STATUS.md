@@ -56,18 +56,23 @@
 
 ---
 
-## Handoff prossima sessione
+## Remaining tasks
 
-### Prossima sessione: TLS opzionale — da pianificare in Plan Mode
+> Unica traccia del lavoro ancora aperto. Aggiorna man mano che gli item si chiudono.
 
-**Approccio scelto (da progettare):** il runtime parte in HTTP plain per default e passa a HTTPS solo se l'utente configura un certificato in ConfigView. Nessun flag `--no-tls`: è TLS che si attiva su richiesta, non HTTP che si disattiva.
+- [ ] **TLS opzionale** (feature) — runtime in HTTP plain di default; passa a HTTPS solo se l'utente configura un cert in ConfigView. **Nessun** flag `--no-tls`: è TLS che si attiva su richiesta, non HTTP che si disattiva. Da progettare **in Plan Mode** prima di toccare il codice. Dettaglio sotto.
+- [ ] **Verifica manuale T-27** — packaging tarball + installer. Comandi sotto.
+- [ ] **Verifica manuale T-24/T-25/T-26** — fingerprint/device dashboard, remote logs, git commit/push. Comandi sotto.
+- [ ] **Debito: `sws-kiosk` non rispetta `--viewer-port`** (hardcoded `https://localhost:8443` nel wayland spawn). Fix triviale in `main.rs` se/quando si usa il kiosk su device multi-istanza.
+- [ ] **Debito: `stop_existing()` in `scripts/start_runtime.sh` usa `fuser`** — su macOS o sistemi senza `fuser` non funziona. Non prioritario (sviluppo su Linux).
+- [ ] **Debito: mDNS discovery non attraversa subnet diverse** (by design — link-local). Bridge inter-subnet solo post-PoC.
+
+### TLS opzionale — dettaglio approccio (da progettare in Plan Mode)
 
 - Default: HTTP plain su tutte le porte (nessuna generazione cert automatica)
 - Se l'utente carica/genera un cert in Configurazione → il processo si riavvia (o ricarica) in TLS
 - `start_editor.sh` e `start_runtime.sh` semplificati: nessun HTTP companion server necessario per il primo accesso
 - Il runtime su dispositivo LAN potrà comunque usare TLS configurandolo esplicitamente
-
-**Da fare nella prossima sessione:** entrare in Plan Mode per progettare bene questa feature prima di toccare il codice.
 
 ### Verifica manuale T-27 da fare
 
@@ -87,8 +92,8 @@ sudo ./sws-0.1.0-dev-linux-x86_64/install.sh
 ### Verifica manuale T-24/T-25/T-26 da fare
 
 ```bash
-# Avviare runtime locale
-./scripts/dev.sh
+# Avviare runtime locale (viewer 8443 + IDE/admin 8444)
+./scripts/start_runtime.sh
 
 # T-26: Configurazione → Runtime → connettiti → sezione "GitOps"
 # → "💾 Commit" → scrivi messaggio → Salva
@@ -110,12 +115,6 @@ curl -sk -H "Authorization: Bearer $TOKEN" https://localhost:8444/api/project/fi
 # → {"sha256":"...","computed_at_ms":...}
 ```
 
-### Debiti tecnici noti
-
-- `sws-kiosk` non aggiornato per `--viewer-port` (usa ancora hardcoded `https://localhost:8443` nel wayland spawn). Fix triviale in main.rs se/quando si usa il kiosk su device multi-istanza.
-- `stop_existing()` in `dev.sh` usa `fuser`; su macOS o sistemi senza `fuser` non funzionerà. Non prioritario (sviluppo su Linux).
-- mDNS discovery non funzionerà attraverso subnet diverse (by design — mDNS è link-local). Se serve bridge inter-subnet, post-PoC.
-
 ---
 
 ## Feature set consegnato (PoC completo T-01…T-27)
@@ -127,7 +126,7 @@ curl -sk -H "Authorization: Bearer $TOKEN" https://localhost:8444/api/project/fi
 | **Auth/RBAC** | Argon2id, 4 ruoli, ABAC zone, session TTL configurabile per utente, audit log |
 | **Allarmi** | ISA-18.2 state machine, multi-condizione, delay, inhibit, shelving, webhook, SMTP escalation |
 | **Historian** | Ring-buffer + SQLite per-progetto, CSV export, trend interattivo |
-| **Deploy** | Dual-port 8443/8444, `--instance N` dev.sh, mDNS discovery, deploy remoto via SCP/systemd, GitOps (pull/rollback/commit/push) |
+| **Deploy** | Dual-port 8443/8444, `--instance N` (start_runtime.sh), mDNS discovery, deploy remoto via SCP/systemd, GitOps (pull/rollback/commit/push) |
 | **Observability** | Project fingerprint SHA256, device dashboard multi-runtime, remote log viewer live |
 | **Canvas** | Pipe/tubazione multi-waypoint (flat/tube/wire), SVG path animato, drag waypoint |
 | **Widget avanzati** | Bar Chart, Pie/Donut, Sparkline, Text List, Alarm Viewer inline |
