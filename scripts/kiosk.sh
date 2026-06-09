@@ -16,7 +16,7 @@
 #   WAYLAND_DISPLAY=wayland-0 ./scripts/kiosk.sh
 #   WAYLAND_DISPLAY=wayland-0 ./scripts/kiosk.sh --windowed   # for testing
 #
-# Environment overrides (same as dev.sh):
+# Environment overrides (same as start_runtime.sh):
 #   SWS_ADMIN_USER / SWS_ADMIN_PASSWORD
 #   SWS_HISTORIAN_DB
 #   PROJECTS_ROOT / TEMPLATES_ROOT (override paths below)

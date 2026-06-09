@@ -1,0 +1,147 @@
+#!/usr/bin/env bash
+#
+# Avvia l'IDE SWS in locale sul PC dello sviluppatore (solo porta 8444).
+# Nessun viewer operatori — solo l'interfaccia di progettazione canvas.
+#
+# Permette di creare e modificare progetti localmente senza bisogno di un
+# runtime attivo. Per deployare su un dispositivo, usare ConfigView → Runtime
+# → "Connetti" e inserire l'URL del runtime remoto (es. https://192.168.1.50:8444).
+#
+# Uso:
+#   ./scripts/start_editor.sh                # IDE su 8460, HTTP su 8090, dati .run/
+#   ./scripts/start_editor.sh --instance 2   # IDE su 8462, HTTP su 8091, dati .run-2/
+#
+# Variabili d'ambiente (opzionali):
+#   SWS_ADMIN_USER / SWS_ADMIN_PASSWORD   (default: admin/admin)
+#   RUST_LOG=debug   per log verbosi
+
+set -euo pipefail
+
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+# ── Parse --instance N ────────────────────────────────────────────────────────
+INSTANCE=1
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --instance) INSTANCE="$2"; shift 2 ;;
+    *) echo "uso: $0 [--instance N]" >&2; exit 2 ;;
+  esac
+done
+
+# ── Porta IDE per-istanza (solo admin — nessun viewer) ────────────────────────
+# Range separato dal runtime (8443-8449/8080-8089) per evitare conflitti
+# quando entrambi girano sulla stessa macchina di sviluppo.
+ADMIN_PORT=$((8460 + (INSTANCE - 1) * 2))
+HTTP_PORT=$((8090  + (INSTANCE - 1)))
+
+if [ "$INSTANCE" -eq 1 ]; then
+  RUN_DIR="$REPO_ROOT/.run"
+else
+  RUN_DIR="$REPO_ROOT/.run-$INSTANCE"
+fi
+
+CONFIG_DIR="$RUN_DIR/config"
+PROJECTS_ROOT="$RUN_DIR/projects"
+TEMPLATES_ROOT="$REPO_ROOT/examples/templates"
+LOG_DIR="$RUN_DIR/logs"
+
+if [ -z "${PYO3_PYTHON:-}" ] && command -v python3 >/dev/null 2>&1; then
+  export PYO3_PYTHON=python3
+fi
+
+: "${SWS_ADMIN_USER:=admin}"
+: "${SWS_ADMIN_PASSWORD:=admin}"
+export SWS_ADMIN_USER SWS_ADMIN_PASSWORD
+
+: "${SWS_SUPERVISOR_PASSWORD:=supervisor}"
+: "${SWS_OPERATOR_PASSWORD:=operator}"
+: "${SWS_VIEWER_PASSWORD:=viewer}"
+export SWS_SUPERVISOR_PASSWORD SWS_OPERATOR_PASSWORD SWS_VIEWER_PASSWORD
+
+mkdir -p "$CONFIG_DIR" "$PROJECTS_ROOT" "$LOG_DIR"
+
+# ── Pulizia processi stale sulla porta IDE ────────────────────────────────────
+stop_existing() {
+  local killed=0
+
+  if pkill -KILL -f "cargo build.*-p sws-runtime" 2>/dev/null; then
+    echo "[cleanup] terminato cargo build residuo"
+    killed=1
+  fi
+
+  for variant in debug release; do
+    if fuser "${ADMIN_PORT}/tcp" >/dev/null 2>&1; then
+      if pgrep -f "$REPO_ROOT/sws-runtime/target/$variant/sws-runtime" >/dev/null 2>&1; then
+        echo "[cleanup] fermo sws-runtime ($variant) su porta $ADMIN_PORT…"
+        pkill -TERM -f "$REPO_ROOT/sws-runtime/target/$variant/sws-runtime" 2>/dev/null || true
+        local i
+        for i in $(seq 1 6); do
+          pgrep -f "$REPO_ROOT/sws-runtime/target/$variant/sws-runtime" >/dev/null 2>&1 || break
+          sleep 0.5
+        done
+        pkill -KILL -f "$REPO_ROOT/sws-runtime/target/$variant/sws-runtime" 2>/dev/null || true
+        killed=1
+      fi
+    fi
+  done
+
+  if [ "$killed" -eq 1 ]; then sleep 0.3; fi
+  fuser -k "${ADMIN_PORT}/tcp" 2>/dev/null || true
+  sleep 0.3
+}
+
+# ── Build + avvio ─────────────────────────────────────────────────────────────
+stop_existing
+
+echo "[editor] build (cargo build -p sws-runtime -j 1)…"
+(cd "$REPO_ROOT/sws-runtime" && cargo build -p sws-runtime -j 1)
+
+WWW_DIST="$REPO_ROOT/sws-editor/dist"
+WWW_ARGS=()
+if [ -f "$WWW_DIST/index-admin.html" ]; then
+  WWW_ARGS=(--www "$WWW_DIST")
+  echo "[editor] SPA da $WWW_DIST"
+else
+  echo "[editor] ATTENZIONE: $WWW_DIST/index-admin.html non trovata — solo API"
+  echo "[editor]   Costruisci con: cd sws-editor && pnpm build"
+fi
+
+# Auto-apre il progetto 'default' se esiste
+PROJECT_ARGS=()
+if [ -d "$PROJECTS_ROOT/default" ]; then
+  PROJECT_ARGS=(--project "$PROJECTS_ROOT/default")
+  echo "[editor] auto-apertura progetto: default"
+fi
+
+LAN_IP="$(hostname -I 2>/dev/null | awk '{print $1}')"
+[ -z "$LAN_IP" ] && LAN_IP="localhost"
+
+INST_LABEL=""
+[ "$INSTANCE" -ne 1 ] && INST_LABEL=" (istanza $INSTANCE)"
+
+cat <<MSG
+
+────────────────────────────────────────────────────────────────
+SWS IDE$INST_LABEL — pronto
+
+  Primo accesso : http://$LAN_IP:$HTTP_PORT    ← accetta il cert qui (no TLS)
+  IDE locale    : https://$LAN_IP:$ADMIN_PORT
+
+  Viewer non attivo — questo è l'ambiente di sviluppo.
+  Per deployare su un dispositivo:
+    ConfigView → Runtime → "Connetti" → https://<ip>:8444
+
+  Stop: Ctrl-C
+────────────────────────────────────────────────────────────────
+
+MSG
+
+# Avvia senza --viewer-port: solo la porta admin (IDE) è in ascolto.
+exec "$REPO_ROOT/sws-runtime/target/debug/sws-runtime" \
+  --config         "$CONFIG_DIR"     \
+  --projects-root  "$PROJECTS_ROOT"  \
+  --templates-root "$TEMPLATES_ROOT" \
+  --admin-port     "$ADMIN_PORT"     \
+  --http-port      "$HTTP_PORT"      \
+  "${PROJECT_ARGS[@]}"               \
+  "${WWW_ARGS[@]}"

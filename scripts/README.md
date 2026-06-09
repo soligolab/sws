@@ -1,130 +1,120 @@
 # scripts/
 
-Local-dev helpers for the SWS PoC. None of these are needed in production
-or CI — the container image and the GitLab/GitHub pipelines do their own
-bootstrap.
+Helper locali per il PoC SWS. Non necessari in produzione o CI.
 
-## `dev.sh`
+## Architettura dei due script
 
-One-stop launcher: builds the Rust runtime, seeds an example `project.yaml`
-under `.run/project/`, generates the self-signed TLS cert under
-`.run/config/`, and (in `both` mode) starts both the runtime and the Vite
-dev server.
-
-```sh
-./scripts/dev.sh          # both (recommended)
-./scripts/dev.sh runtime  # only the runtime
-./scripts/dev.sh editor   # only the editor (assumes runtime already up)
+```
+DISPOSITIVO (panel, server):         PC SVILUPPATORE:
+  ./scripts/start_runtime.sh           ./scripts/start_editor.sh
+  ├─ 8080  HTTP cert-acceptance         ├─ 8090  HTTP cert-acceptance
+  ├─ 8443  viewer operatori             └─ 8460  IDE locale
+  └─ 8444  IDE/admin remoto                  ↕ "Connetti runtime"
 ```
 
-### Pointing the editor at a remote runtime
+I due script usano range di porte separati per poter girare sulla **stessa
+macchina** senza conflitti (es. dev locale con runtime + editor in parallelo).
 
-By default the editor's Vite proxy and the SPA both target
-`https://localhost:8443`. To edit a project hosted on a different machine
-(typical PX30 deployment scenario), set `VITE_RUNTIME_URL` before
-launching the editor:
+## `start_runtime.sh` — runtime sul dispositivo
 
-```sh
-VITE_RUNTIME_URL=https://px30.local:8443 ./scripts/dev.sh editor
-```
+Avvia il binario Rust con **tutte e tre** le porte:
+- `8080` — HTTP (no TLS): pagina di aiuto per accettare il certificato self-signed
+- `8443` — viewer per operatori e kiosk (accesso anonimo)
+- `8444` — IDE/admin remoto (accesso autenticato, Supervisor/Admin)
 
-This single env var influences three things:
-- `vite.config.ts` proxy `/api` and `/ws` targets (so `pnpm dev` requests
-  forward to the remote runtime),
-- `api/client.ts` BASE_URL prefix on every `fetch()`,
-- `ws/*.ts` WebSocket URL derivation (with `http→ws` scheme swap).
-
-You can still pin individual streams with `VITE_RUNTIME_WS_URL` /
-`VITE_ALARMS_WS_URL` / `VITE_LOGS_WS_URL` if you need to (e.g. when
-multiplexing the WS through a different gateway).
-
-### Access from another device on the LAN
-
-`dev.sh` binds Vite to `0.0.0.0:5173` so any browser on the same Wi-Fi /
-LAN can hit `http://<your-host-ip>:5173` (the script prints the URL in
-the info banner). The frontend builds WebSocket URLs from
-`window.location`, so all `/api` and `/ws/*` traffic goes through Vite,
-which proxies on the server side to the runtime on `localhost:8443`.
-
-That means the remote browser **never sees the self-signed certificate**
-and there is no extra cert-acceptance step.
-
-If you launch the editor by hand without `dev.sh`, pass
-`--host 0.0.0.0` to `pnpm dev` for the same effect.
-
-The runtime itself still listens on `0.0.0.0:8443`, so a remote browser
-that wants to hit the HTTPS endpoint directly (e.g. for raw `curl`
-testing from another box) can — that path does require accepting the
-cert.
-
-### Verifying it's alive
+Auto-apre il progetto `default` se esiste in `.run/projects/default/`.
 
 ```sh
-# tag snapshot
-curl -k https://localhost:8443/api/tags
-
-# write a value (triggers `counter_high` alarm at >50)
-curl -k -X PUT https://localhost:8443/api/tags/counter \
-  -H 'Content-Type: application/json' \
-  -d '{"value": 99}'
-
-# active alarms
-curl -k https://localhost:8443/api/alarms
-
-# historian (after a few writes)
-curl -k 'https://localhost:8443/api/history/counter?limit=20'
+./scripts/start_runtime.sh                # instance 1: 8443/8444, dati .run/
+./scripts/start_runtime.sh --instance 2   # instance 2: 8445/8446, dati .run-2/
 ```
 
-### Where state lives
+### Dove vive lo stato
 
 ```
 .run/
-├── config/        # tls.crt + tls.key, generated on first run
-├── project/       # project.yaml (seeded with two demo tags + one alarm)
-└── logs/          # runtime.log when started via the "both" mode
+├── config/    # tls.crt + tls.key (generati al primo avvio, persistenti)
+├── projects/  # progetti (uno per sottodirectory)
+│   └── default/
+│       ├── project.yaml
+│       ├── synoptics/
+│       └── users.yaml
+└── logs/      # file JSONL ruotati per data
 ```
 
-The whole `.run/` tree is `.gitignore`d. Wipe it any time:
+L'albero `.run/` è in `.gitignore`. Per ripartire da zero:
 
 ```sh
-rm -rf .run && ./scripts/dev.sh
+rm -rf .run && ./scripts/start_runtime.sh
 ```
 
-### Stopping
+### Certificato TLS
 
-Ctrl-C in the `both` mode kills both processes. In split mode use Ctrl-C
-in each terminal.
+Il runtime genera un cert self-signed al primo avvio e lo riusa poi sempre.
+Il browser va accettato una volta:
+
+```sh
+# Scarica il cert per aggiungerlo ai trusted del browser
+curl -k https://localhost:8443/cert -o sws.crt
+# Oppure da un altro PC sulla LAN:
+curl -k https://<ip>:8443/cert -o sws.crt
+```
+
+### Verifica che sia vivo
+
+```sh
+curl -k https://localhost:8443/health   # → "ok"
+curl -k https://localhost:8444/health   # → "ok"
+curl -k https://localhost:8443/api/tags
+```
 
 ### End-to-end tests (Playwright)
 
-The editor ships with a small Playwright suite under `sws-editor/e2e/`
-that exercises the login → add object → save → reload golden path
-against a locally-running dev stack. Run sequence:
+Il suite Playwright si trova in `sws-editor/e2e/`. Avviare il runtime prima:
 
 ```sh
 # Terminal A
-./scripts/dev.sh both
+./scripts/start_runtime.sh
 
-# Terminal B (first run only — downloads Chromium ~150 MB)
+# Terminal B (prima volta — scarica Chromium ~150 MB)
 cd sws-editor && npx playwright install chromium
 
-# Terminal B (each run)
+# Terminal B (ogni run)
 cd sws-editor && pnpm test:e2e        # headless
 cd sws-editor && pnpm test:e2e:ui     # debug UI
 ```
 
-The runtime is *not* spawned by Playwright — the config deliberately
-omits `webServer` because the dev.sh bootstrap (cert generation, demo
-seeding, env wiring) is non-trivial to duplicate. The tests assume
-`admin/admin` credentials, which dev.sh seeds via the
-`SWS_ADMIN_PASSWORD` env var.
+---
 
-`ignoreHTTPSErrors: true` is set, so the self-signed cert is accepted
-automatically.
+## `start_editor.sh` — IDE locale sul PC sviluppatore
 
-Artefacts (traces on failure, screenshots, HTML report) land in
-`sws-editor/playwright-report/` and `sws-editor/test-results/`, both
-gitignored.
+Avvia il binario Rust con **solo** la porta IDE (nessun viewer).
+Permette di creare e modificare progetti localmente, anche senza un runtime attivo.
+
+- `8090` — HTTP (no TLS): pagina di aiuto per accettare il certificato self-signed
+- `8460` — IDE/admin locale
+
+```sh
+./scripts/start_editor.sh                # IDE su 8460, HTTP su 8090, dati .run/
+./scripts/start_editor.sh --instance 2   # IDE su 8462, HTTP su 8091, dati .run-2/
+```
+
+Per deployare su un dispositivo remoto: apri l'IDE → **ConfigView → Runtime →
+"Connetti"** → inserisci l'URL del runtime (es. `https://192.168.1.50:8444`).
+
+### Primo accesso (accettazione certificato)
+
+Apri `http://localhost:8090/` nel browser. La pagina guida all'accettazione
+del certificato self-signed senza uscire dall'applicazione.
+
+### Costruire la SPA prima di usare gli script
+
+Gli script servono la SPA già compilata da `sws-editor/dist/`. Se non è
+presente o è stale, ricostruirla:
+
+```sh
+cd sws-editor && pnpm build
+```
 
 ## `demo-sine.py` — driving a Trend with a sine wave
 
