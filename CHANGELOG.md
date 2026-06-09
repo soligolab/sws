@@ -7,6 +7,10 @@ and this project adheres to [CalVer](https://calver.org/) (`YYYY.MM[.patch]`).
 
 ## [Unreleased]
 
+### Added
+
+- **TLS opzionale — HTTP di default, HTTPS su richiesta** (`main.rs`, `sws-web/src/system.rs`, `router.rs`, `ConfigView.tsx`, `client.ts`, `scripts/`). Il runtime parte in HTTP plain se manca `config/tls.crt`; la presenza del certificato all'avvio determina la modalità (accept loop su `Option<TlsAcceptor>`, percorso plain con `serve_connection_with_upgrades` così i WebSocket funzionano anche senza TLS). Niente flag `--no-tls`. Endpoint admin-only: `GET /api/system/tls`, `POST /api/system/tls/generate` (self-signed rcgen), **`PUT /api/system/tls` (carica cert+key PEM, validati con `with_single_cert` prima di scrivere)**, `DELETE /api/system/tls`; ogni cambio riavvia il runtime (`system_reboot`, stesso argv, riapre il progetto). UI in `Configurazione → Stato → Certificato TLS` (Admin): genera self-signed / carica cert+key / disabilita. Script: `--http-port` (companion accettazione cert) ora condizionale alla presenza del cert. Backward-compatible: installazioni con cert esistente restano in HTTPS. ⚠️ in modalità HTTP login e pannello admin viaggiano in chiaro — attivare il TLS per device in campo.
+
 ### Removed
 
 - **Pulizia file-istruzioni obsoleti** — rimossi i prompt di task ormai completati (`T-21-prompt.md`, `T-27`…`T-33-prompt.md`), il prompt di bootstrap iniziale (`SWS_Repository_Bootstrap_Prompt.md`, scaffolding già eseguito) e il piano stantio `docs/plans/2026-05-14_universal_binding.md` (feature di binding già consegnata). Verificato che ogni file descriveva lavoro già implementato — nessun task pendente perso (recuperabili da git history). I task ancora aperti sono ora tracciati in un'unica checklist `## Remaining tasks` in `STATUS.md`.

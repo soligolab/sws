@@ -124,23 +124,43 @@ LAN_IP="$(hostname -I 2>/dev/null | awk '{print $1}')"
 INST_LABEL=""
 [ "$INSTANCE" -ne 1 ] && INST_LABEL=" (istanza $INSTANCE)"
 
-cat <<MSG
+# Passa --http-port solo se il cert è già presente (TLS mode).
+# Senza cert il runtime parte in plain HTTP — il companion è inutile.
+HTTP_ARGS=()
+if [ -f "$CONFIG_DIR/tls.crt" ]; then
+  HTTP_ARGS=(--http-port "$HTTP_PORT")
+  cat <<MSG
 
 ────────────────────────────────────────────────────────────────
-SWS Runtime$INST_LABEL — pronto
+SWS Runtime$INST_LABEL — pronto (HTTPS)
 
-  Primo accesso    : http://$LAN_IP:$HTTP_PORT   ← accetta il cert qui (no TLS)
+  Primo accesso    : http://$LAN_IP:$HTTP_PORT   ← accetta cert qui
   Viewer operatori : https://$LAN_IP:$VIEWER_PORT
   IDE/Admin        : https://$LAN_IP:$ADMIN_PORT
 
-  Cert TLS: curl -k https://localhost:$VIEWER_PORT/cert -o sws.crt
   Stop: Ctrl-C
-
 Per simulare un secondo dispositivo:
   ./scripts/start_runtime.sh --instance 2
 ────────────────────────────────────────────────────────────────
 
 MSG
+else
+  cat <<MSG
+
+────────────────────────────────────────────────────────────────
+SWS Runtime$INST_LABEL — pronto (HTTP plain)
+
+  Viewer operatori : http://$LAN_IP:$VIEWER_PORT
+  IDE/Admin        : http://$LAN_IP:$ADMIN_PORT
+
+  Per abilitare HTTPS: IDE → ConfigView → Stato → Certificato TLS
+  Stop: Ctrl-C
+Per simulare un secondo dispositivo:
+  ./scripts/start_runtime.sh --instance 2
+────────────────────────────────────────────────────────────────
+
+MSG
+fi
 
 exec "$REPO_ROOT/sws-runtime/target/debug/sws-runtime" \
   --config         "$CONFIG_DIR"         \
@@ -148,6 +168,6 @@ exec "$REPO_ROOT/sws-runtime/target/debug/sws-runtime" \
   --templates-root "$TEMPLATES_ROOT"     \
   --viewer-port    "$VIEWER_PORT"        \
   --admin-port     "$ADMIN_PORT"         \
-  --http-port      "$HTTP_PORT"          \
+  "${HTTP_ARGS[@]}"                      \
   "${PROJECT_ARGS[@]}"                   \
   "${WWW_ARGS[@]}"

@@ -243,19 +243,26 @@ Richiede GTK4 + WebKitGTK sul sistema host.
 
 ---
 
-## Gestione certificati TLS
+## Gestione certificati TLS (opzionale)
 
-SWS genera automaticamente certificati self-signed:
-- **Dev**: `.run/config/tls.crt` + `.run/config/tls.key`
-- **Produzione (generic)**: `/var/lib/sws/config/tls.crt` + `tls.key`
-- **Yocto**: `/data/user/sws/config/tls.crt` + `tls.key`
+SWS parte in **HTTP plain** di default — nessun certificato, primo accesso diretto su
+`http://<host>:8444`. Il TLS è **opt-in**: si attiva quando esiste `tls.crt` nella directory
+config. Le directory config per ambiente:
+- **Dev**: `.run/config/`
+- **Produzione (generic)**: `/var/lib/sws/config/`
+- **Yocto**: `/data/user/sws/config/`
 
-I certificati vengono generati al primo avvio e **riutilizzati** nei restart successivi.
-Il browser deve accettarli una sola volta per installazione.
+> ⚠️ In modalità HTTP il login e il pannello admin viaggiano in chiaro. Per i device in campo /
+> reti non fidate si raccomanda di **attivare il TLS**.
 
-Per usare un certificato firmato da una CA:
-1. Sostituisci `tls.crt` e `tls.key` nella directory config
-2. Riavvia il runtime
+Attivazione dall'IDE — **Configurazione → Stato → Certificato TLS** (solo Admin):
+- **Genera self-signed** — crea `tls.crt`+`tls.key` (SAN: localhost, 127.0.0.1, IP LAN) e riavvia in HTTPS.
+- **Carica cert+key** — carica un certificato firmato da una CA (PEM, validato lato server) e riavvia in HTTPS.
+- **Disabilita TLS** — rimuove i file e torna in HTTP.
+
+In alternativa (es. provisioning automatico) si possono copiare manualmente `tls.crt` e `tls.key`
+nella directory config e riavviare il runtime. Una volta attivo, il browser deve accettare il
+self-signed una sola volta per installazione.
 
 ---
 

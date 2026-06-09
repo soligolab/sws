@@ -669,6 +669,15 @@ export const api = {
   systemStop:   () => request<void>("/api/system/stop",   { method: "POST" }),
   systemStart:  () => request<void>("/api/system/start",  { method: "POST" }),
   systemReboot: () => request<void>("/api/system/reboot", { method: "POST" }),
+  getTlsStatus:      () => request<{ enabled: boolean }>("/api/system/tls"),
+  generateTlsCert:   () => request<void>("/api/system/tls/generate", { method: "POST" }),
+  uploadTlsCert:     (cert_pem: string, key_pem: string) =>
+    request<void>("/api/system/tls", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ cert_pem, key_pem }),
+    }),
+  removeTlsCert:     () => request<void>("/api/system/tls",          { method: "DELETE" }),
 
   // Datastores (runtime stats + admin ops)
   listDatastores: () => request<DatastoreListItem[]>("/api/datastores"),
