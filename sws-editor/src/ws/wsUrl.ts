@@ -17,8 +17,23 @@
 // string.
 
 import { getAuthToken, getRuntimeBaseUrl } from "@/api/client";
+import { useAppStore } from "@/store";
 
 export function buildWsUrl(path: string, overrideEnvKey?: string): string {
+  // When a remote runtime is connected via the relay bridge, proxy all WS
+  // connections through the local runtime's /ws/remote/* relay. This avoids
+  // CORS and self-signed cert issues on cross-origin WebSocket upgrades.
+  // `path` here is expected to be one of: /ws/tags, /ws/alarms, /ws/logs.
+  const remoteConnected = useAppStore.getState().remoteConnected;
+  if (remoteConnected) {
+    const sub = path.replace(/^\/ws\//, "");
+    const scheme = typeof window !== "undefined" && window.location.protocol === "https:" ? "wss" : "ws";
+    const host = typeof window !== "undefined" ? window.location.host : "localhost";
+    const relayBase = `${scheme}://${host}/ws/remote/${sub}`;
+    const token = getAuthToken();
+    return token ? `${relayBase}?token=${encodeURIComponent(token)}` : relayBase;
+  }
+
   let base: string;
   const override = overrideEnvKey
     ? (import.meta.env as Record<string, string | undefined>)[overrideEnvKey]

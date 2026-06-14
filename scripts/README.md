@@ -106,8 +106,10 @@ Permette di creare e modificare progetti localmente, anche senza un runtime atti
 ./scripts/start_editor.sh --instance 2   # IDE su 8462, HTTP su 8091, dati .run-2/
 ```
 
-Per deployare su un dispositivo remoto: apri l'IDE → **ConfigView → Runtime →
-"Connetti"** → inserisci l'URL del runtime (es. `https://192.168.1.50:8444`).
+Per connettere un runtime remoto: apri l'IDE → **ConfigView → Runtime →
+"Connetti"** → inserisci URL, utente e password del runtime (es. `https://192.168.1.50:8444`).
+La connessione abilita sia il **deploy del progetto** sia la **visualizzazione live di tag e allarmi**
+in real-time tramite relay WebSocket (il token remoto rimane nel processo locale, mai nel browser).
 
 ### Primo accesso (accettazione certificato)
 

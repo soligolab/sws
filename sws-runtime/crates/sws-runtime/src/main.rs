@@ -315,13 +315,12 @@ async fn main() -> anyhow::Result<()> {
     let script_supervisor: ScriptSupervisorCell =
         Arc::new(tokio::sync::RwLock::new(None));
 
-    // Admin credentials must be provided via env. The runtime refuses to
-    // start without one — "no default credentials" commitment in
-    // docs/CONTEXT.md §6. Supervisor / operator / viewer passwords are
-    // optional; missing roles just aren't seeded.
+    // Env-var credentials are optional. When SWS_ADMIN_PASSWORD is not set
+    // (and users.yaml is absent or empty), the runtime starts in no-auth mode:
+    // all routes are open without a token. Set SWS_ADMIN_PASSWORD to seed an
+    // admin account and enable authentication.
     let admin_user = std::env::var("SWS_ADMIN_USER").unwrap_or_else(|_| "admin".into());
-    let admin_pwd  = std::env::var("SWS_ADMIN_PASSWORD")
-        .context("SWS_ADMIN_PASSWORD is required on first start (no default password)")?;
+    let admin_pwd  = std::env::var("SWS_ADMIN_PASSWORD").unwrap_or_default();
     let mut accounts: Vec<(String, Role, String)> = vec![
         (admin_user, Role::Admin, admin_pwd),
     ];

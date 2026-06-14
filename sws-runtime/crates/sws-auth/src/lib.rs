@@ -307,18 +307,18 @@ impl AuthState {
         }
 
         if users.is_empty() {
-            anyhow::bail!("no users available — set SWS_ADMIN_PASSWORD or populate users.yaml");
+            info!("no users defined — starting in no-auth mode (all routes open)");
+        } else {
+            // Flush the seeded set so subsequent restarts find them on disk.
+            let to_write = UserFile { users: users.values().cloned().collect() };
+            if let Some(parent) = store_path.parent() {
+                std::fs::create_dir_all(parent).ok();
+            }
+            let yaml = serde_yaml::to_string(&to_write)
+                .map_err(|e| anyhow::anyhow!("serialise users.yaml: {e}"))?;
+            std::fs::write(&store_path, yaml)
+                .map_err(|e| anyhow::anyhow!("write users.yaml: {e}"))?;
         }
-
-        // Flush the seeded set so subsequent restarts find them on disk.
-        let to_write = UserFile { users: users.values().cloned().collect() };
-        if let Some(parent) = store_path.parent() {
-            std::fs::create_dir_all(parent).ok();
-        }
-        let yaml = serde_yaml::to_string(&to_write)
-            .map_err(|e| anyhow::anyhow!("serialise users.yaml: {e}"))?;
-        std::fs::write(&store_path, yaml)
-            .map_err(|e| anyhow::anyhow!("write users.yaml: {e}"))?;
 
         Ok(Arc::new(Self {
             store_path: RwLock::new(Some(store_path)),
@@ -431,23 +431,29 @@ impl AuthState {
             }
         }
         if new_users.is_empty() {
-            anyhow::bail!("no users available — set SWS_ADMIN_PASSWORD or populate users.yaml");
+            info!("no users defined — starting in no-auth mode (all routes open)");
+        } else {
+            if let Some(parent) = new_path.parent() {
+                std::fs::create_dir_all(parent).ok();
+            }
+            let to_write = UserFile { users: new_users.values().cloned().collect() };
+            let yaml = serde_yaml::to_string(&to_write)
+                .map_err(|e| anyhow::anyhow!("serialise users.yaml: {e}"))?;
+            std::fs::write(&new_path, yaml)
+                .map_err(|e| anyhow::anyhow!("write users.yaml: {e}"))?;
         }
-
-        if let Some(parent) = new_path.parent() {
-            std::fs::create_dir_all(parent).ok();
-        }
-        let to_write = UserFile { users: new_users.values().cloned().collect() };
-        let yaml = serde_yaml::to_string(&to_write)
-            .map_err(|e| anyhow::anyhow!("serialise users.yaml: {e}"))?;
-        std::fs::write(&new_path, yaml)
-            .map_err(|e| anyhow::anyhow!("write users.yaml: {e}"))?;
 
         *self.users.write().await = new_users;
         self.sessions.write().await.clear();
         self.failures.write().await.clear();
         *self.store_path.write().await = Some(new_path);
         Ok(())
+    }
+
+    /// True when at least one user is defined. When false, `require_auth`
+    /// passes all requests through (no-auth / open mode).
+    pub async fn has_users(&self) -> bool {
+        !self.users.read().await.is_empty()
     }
 
     /// Drop every user/session/failure — moves the AuthState to a no-project
@@ -843,6 +849,7 @@ mod tests {
         let s = auth.create_user(CreateUser {
             username: "alice".into(), password: "p4ss".into(),
             role: Role::Operator, must_change_password: true,
+            allowed_zones: vec![],
         }).await.unwrap();
         assert_eq!(s.username, "alice");
         assert!(s.must_change_password);
@@ -852,6 +859,7 @@ mod tests {
             auth.create_user(CreateUser {
                 username: "alice".into(), password: "x".into(),
                 role: Role::Operator, must_change_password: true,
+                allowed_zones: vec![],
             }).await,
             Err(UserError::AlreadyExists)
         ));
@@ -859,7 +867,7 @@ mod tests {
         // Update role
         let s = auth.update_user("alice", UserPatch {
             role: Some(Role::Supervisor), password: None, must_change_password: None,
-            session_ttl_secs: None,
+            session_ttl_secs: None, allowed_zones: None,
         }).await.unwrap();
         assert_eq!(s.role, Role::Supervisor);
 
@@ -883,7 +891,7 @@ mod tests {
         assert!(matches!(
             auth.update_user("admin", UserPatch {
                 role: Some(Role::Viewer), password: None, must_change_password: None,
-                session_ttl_secs: None,
+                session_ttl_secs: None, allowed_zones: None,
             }).await,
             Err(UserError::LastAdmin)
         ));
@@ -895,6 +903,7 @@ mod tests {
         auth.create_user(CreateUser {
             username: "bob".into(), password: "init".into(),
             role: Role::Viewer, must_change_password: true,
+            allowed_zones: vec![],
         }).await.unwrap();
 
         // Wrong old password is refused

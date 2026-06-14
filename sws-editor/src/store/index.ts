@@ -357,6 +357,11 @@ interface AppState {
   autoRotateIntervalS: number;
   setAutoRotate: (v: boolean) => void;
   setAutoRotateIntervalS: (v: number) => void;
+
+  // Remote runtime bridge (relay via /ws/remote/*)
+  remoteConnected: boolean;
+  remoteUrl: string | null;
+  setRemoteConnected: (connected: boolean, url?: string | null) => void;
 }
 
 const first = makePage("Page 1");
@@ -1405,6 +1410,11 @@ export const useAppStore = create<AppState>((set, get) => {
       localStorage.setItem("sws:autoRotateIntervalS", String(autoRotateIntervalS));
       set({ autoRotateIntervalS });
     },
+
+    remoteConnected: false,
+    remoteUrl: null,
+    setRemoteConnected: (connected, url = null) =>
+      set({ remoteConnected: connected, remoteUrl: connected ? (url ?? null) : null }),
 
     incSaveSerial: () => set((s) => ({ saveSerial: s.saveSerial + 1 })),
     setSaveStatus: (saveStatus, saveError = null) => set({ saveStatus, saveError }),

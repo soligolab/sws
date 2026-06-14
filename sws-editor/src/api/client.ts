@@ -789,4 +789,21 @@ export const api = {
   /** GET /api/build/packages — list built tarballs in dist/. */
   listPackages: () =>
     request<import("../types").PackageFile[]>("/api/build/packages"),
+
+  // ── Remote runtime bridge ─────────────────────────────────────────────────
+  // These calls hit the *local* runtime's proxy endpoints (see remote.rs).
+  // The local runtime handles the actual connection to the remote device.
+
+  remoteConnect: (url: string, username?: string, password?: string) =>
+    request<{ ok: boolean; error?: string }>("/api/remote/connect", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url, username: username || undefined, password: password || undefined }),
+    }),
+
+  remoteDisconnect: () =>
+    request<void>("/api/remote/connect", { method: "DELETE" }),
+
+  remoteStatus: () =>
+    request<{ connected: boolean; url?: string; connected_at_ms?: number }>("/api/remote/status"),
 };

@@ -12,7 +12,7 @@
 #   ./scripts/start_editor.sh --instance 2   # IDE su 8462, dati .run-2/
 #
 # Variabili d'ambiente (opzionali):
-#   SWS_ADMIN_USER / SWS_ADMIN_PASSWORD   (default: admin/admin)
+#   SWS_ADMIN_USER / SWS_ADMIN_PASSWORD   per creare un utente admin all'avvio
 #   RUST_LOG=debug   per log verbosi
 
 set -euo pipefail
@@ -48,25 +48,14 @@ if [ -z "${PYO3_PYTHON:-}" ] && command -v python3 >/dev/null 2>&1; then
   export PYO3_PYTHON=python3
 fi
 
-: "${SWS_ADMIN_USER:=admin}"
-: "${SWS_ADMIN_PASSWORD:=admin}"
-export SWS_ADMIN_USER SWS_ADMIN_PASSWORD
-
-: "${SWS_SUPERVISOR_PASSWORD:=supervisor}"
-: "${SWS_OPERATOR_PASSWORD:=operator}"
-: "${SWS_VIEWER_PASSWORD:=viewer}"
-export SWS_SUPERVISOR_PASSWORD SWS_OPERATOR_PASSWORD SWS_VIEWER_PASSWORD
-
 mkdir -p "$CONFIG_DIR" "$PROJECTS_ROOT" "$LOG_DIR"
 
 # ── Pulizia processi stale sulla porta IDE ────────────────────────────────────
 stop_existing() {
   local killed=0
 
-  if pkill -KILL -f "cargo build.*-p sws-runtime" 2>/dev/null; then
-    echo "[cleanup] terminato cargo build residuo"
-    killed=1
-  fi
+  # NON uccidiamo cargo build: Cargo usa file lock e gestisce da solo la
+  # concorrenza. Un pkill globale ammazzerebbe la build di un'altra istanza.
 
   for variant in debug release; do
     if fuser "${ADMIN_PORT}/tcp" >/dev/null 2>&1; then
@@ -93,6 +82,7 @@ stop_existing() {
 stop_existing
 
 echo "[editor] build (cargo build -p sws-runtime -j 1)…"
+echo "[editor]  (in attesa del file lock se un altro build è in corso)"
 (cd "$REPO_ROOT/sws-runtime" && cargo build -p sws-runtime -j 1)
 
 WWW_DIST="$REPO_ROOT/sws-editor/dist"
@@ -121,17 +111,20 @@ INST_LABEL=""
 # Mostra URL corretto in base allo stato TLS
 if [ -f "$CONFIG_DIR/tls.crt" ]; then
   HTTP_PORT=$((8090 + (INSTANCE - 1)))
-  IDE_URL="https://$LAN_IP:$ADMIN_PORT"
   HTTP_ARGS=(--http-port "$HTTP_PORT")
   cat <<MSG
 
 ────────────────────────────────────────────────────────────────
 SWS IDE$INST_LABEL — pronto (HTTPS)
 
-  Primo accesso : http://$LAN_IP:$HTTP_PORT   ← accetta cert qui
-  IDE locale    : https://$LAN_IP:$ADMIN_PORT
+  IDE locale : https://$LAN_IP:$ADMIN_PORT
 
-  Viewer non attivo. Per deployare: ConfigView → Runtime → "Connetti"
+  → Per connettere un runtime: ConfigView → Runtime → Connetti
+    (abilita deploy progetto + visualizzazione tag/allarmi live)
+
+  Primo accesso (cert non ancora accettato nel browser):
+    http://$LAN_IP:$HTTP_PORT  ← apri qui prima di usare l'IDE
+
   Stop: Ctrl-C
 ────────────────────────────────────────────────────────────────
 
@@ -141,11 +134,13 @@ else
   cat <<MSG
 
 ────────────────────────────────────────────────────────────────
-SWS IDE$INST_LABEL — pronto (HTTP plain)
+SWS IDE$INST_LABEL — pronto (HTTP)
 
-  IDE locale    : http://$LAN_IP:$ADMIN_PORT
+  IDE locale : http://$LAN_IP:$ADMIN_PORT
 
-  Viewer non attivo. Per deployare: ConfigView → Runtime → "Connetti"
+  → Per connettere un runtime: ConfigView → Runtime → Connetti
+    (abilita deploy progetto + visualizzazione tag/allarmi live)
+
   Per abilitare HTTPS: ConfigView → Stato → Certificato TLS
   Stop: Ctrl-C
 ────────────────────────────────────────────────────────────────

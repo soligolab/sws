@@ -4,7 +4,25 @@
 >
 > Ambienti di test: vedi [docs/TEST_SETUPS.md](docs/TEST_SETUPS.md) (casa, dev server, dispositivi Yocto).
 
-**Last session**: 2026-06-09 — TLS opzionale (branch `feat/tls-optional`).
+**Last session**: 2026-06-14 — Server-side deploy relay + no-auth mode frontend (branch `feat/websocket-remote-bridge`).
+
+- **Server-side deploy relay + no-auth frontend + WebSocket remote bridge** (branch `feat/websocket-remote-bridge`, pronto per squash merge su main):
+  - Backend (`sws-web`): `remote.rs` — `POST/DELETE /api/remote/connect` (autentica contro il runtime remoto, salva token in AppState), `GET /api/remote/status`. `remote_relay.rs` — `GET /ws/remote/{tags,alarms,logs}` pipe bidirezionale tokio-tungstenite con `AcceptAnyCert` rustls verifier per target `wss://`. Tutto Admin-only via `system_ctrl_routes`.
+  - Frontend: `api/client.ts` — `remoteConnect / remoteDisconnect / remoteStatus`. Store Zustand — `remoteConnected`, `remoteUrl`, `setRemoteConnected`. `wsUrl.ts` — quando `remoteConnected`, `buildWsUrl()` restituisce `/ws/remote/{sub}` (relay) invece dell'URL diretto.
+  - `RuntimeConnectionTab`: `handleConnect()` usa `api.remoteConnect()` (server-side relay), polling `remoteStatus` ogni 5 s, pannello variabili live via `/ws/remote/tags` (max 50 tag, delta 50 ms).
+
+- **Fix architettura auth (stessa sessione, stesso branch):**
+  - **Script puliti**: rimosso da `start_runtime.sh` e `start_editor.sh` il blocco `SWS_ADMIN_*` e `SWS_SUPERVISOR/OPERATOR/VIEWER_PASSWORD`. Gli script ora sono solo build + avvio.
+  - **No-auth mode**: `require_auth` in `router.rs` ora verifica `auth.has_users()` — se non ci sono utenti (nessun progetto, o progetto senza `users.yaml`) tutte le route sono aperte senza token.
+  - **`sws-auth`**: rimosso `bail!` in `new_persistent()` e `swap_store()` quando `users` è vuoto (era `"no users available — set SWS_ADMIN_PASSWORD"`). Un progetto senza utenti è uno stato valido (no-auth mode). Aggiunto metodo pubblico `has_users()`.
+  - **`connect_remote` credenziali opzionali**: `ConnectBody.username/password` → `Option<String>`. Se vuoti: relay senza token (per runtime in no-auth mode). `run_relay()` omette `?token=` se token è vuoto.
+  - **Fix `RT_CONN_KEY` bug**: `status` ora parte sempre come `"idle"` (non da localStorage). Mount effect pulisce la chiave legacy e sincronizza dal server. Rimosso `localStorage.setItem(RT_CONN_KEY, "1")` da `handleConnect`.
+  - **Form credenziali opzionali**: campi Utente/Password con placeholder "opzionale" + default vuoto.
+  - `cargo check` + `cargo test -p sws-auth` (11 test OK, corretti anche 5 test stantii con `allowed_zones`) + `pnpm build` verdi.
+  - **Fix no-auth frontend (stessa sessione):** `App.tsx` — dopo apertura progetto in no-auth mode, il frontend mostrava LoginScreen perché `clearAuth()` svuotava `authToken` e non c'era modo di ottenerlo. Fix: `onProjectOpened` ora chiama `whoami()` first; se risponde 200 (no-auth: admin sintetico) setta token sentinella `"no-auth"` che il backend ignora. Stesso fix al bootstrap iniziale (`getProject().then()`). `pnpm build` verde.
+  - **Deploy relay**: `POST /api/remote/deploy` — backend locale esporta ZIP, carica sul target via reqwest AcceptAnyCert, gestisce conflitto 409, attiva progetto. Frontend `RuntimeConnectionTab.handleDeploy` ora legge flusso streaming da `/api/remote/deploy` (nessun fetch diretto browser→remote). Risolve "Failed to fetch" per certificati self-signed.
+  - **No-auth mode frontend**: `App.tsx` — `bootstrapping` flag (no flash iniziale), `onProjectOpened` chiama `whoami()` prima di `setNoActiveProject(false)` (no LoginScreen flash), token sentinella `"no-auth"`.
+  - **Da fare**: squash merge in `main` + test end-to-end con due istanze locali (runtime su 8444 + editor su 8460).
 
 - **TLS opzionale — HTTP di default, HTTPS su richiesta** (branch `feat/tls-optional`):
   - Il runtime parte in **HTTP plain** se manca `config/tls.crt`; la **presenza** del cert all'avvio determina la modalità (accept loop su `Option<TlsAcceptor>`, percorso plain con `serve_connection_with_upgrades` → i WebSocket funzionano anche in HTTP). Nessun flag `--no-tls`.
@@ -61,7 +79,7 @@
   - Bottone "Aggiorna" + toggle "● Live" (poll ogni 5 s); auto-stop alla disconnessione.
   - Box scrollabile max 200 px, timestamp HH:MM:SS, colori INFO/WARN/ERROR/DEBUG.
 
-**Branch corrente**: `feat/split-runtime-editor-scripts` (pushato, pronto per squash merge).
+**Branch corrente**: `feat/websocket-remote-bridge` (commit `33807f1`, pronto per squash merge).
 
 ---
 
