@@ -8,6 +8,8 @@ pub mod recipe;
 pub mod global_scripts;
 pub mod metrics;
 pub mod projects;
+pub mod remote;
+pub mod remote_relay;
 pub mod router;
 pub mod source_supervisor;
 pub mod synoptic;

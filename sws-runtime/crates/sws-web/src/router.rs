@@ -88,6 +88,9 @@ pub struct AppState {
     pub build_running: crate::packaging::BuildLock,
     /// Repository root (where scripts/package.sh lives). None on deployed instances.
     pub repo_root: crate::packaging::RepoRoot,
+    /// Currently-connected remote runtime target (set by POST /api/remote/connect).
+    /// `None` when no remote is connected. Used by the WS relay handlers.
+    pub remote_target: Arc<RwLock<Option<crate::remote::RemoteTarget>>>,
 }
 
 /// Resolve the active project directory or return 503. Used at the top
@@ -119,7 +122,7 @@ pub fn build(
     cert_path: Option<Arc<PathBuf>>,
     www_dir: Option<PathBuf>,
 ) -> (Router, Router) {
-    let state = AppState { db, bus, alarms, historian, registry, py, auth, supervisor, script_supervisor, functions, derived_tags, project_dir, projects_root, templates_root, logs, logs_dir, started_at, ip_allowlist, recipe_log: Arc::new(RwLock::new(Vec::new())), notification_supervisor: Arc::new(RwLock::new(None)), config_dir, cert_path, build_running: crate::packaging::new_build_lock(), repo_root: crate::packaging::new_repo_root() };
+    let state = AppState { db, bus, alarms, historian, registry, py, auth, supervisor, script_supervisor, functions, derived_tags, project_dir, projects_root, templates_root, logs, logs_dir, started_at, ip_allowlist, recipe_log: Arc::new(RwLock::new(Vec::new())), notification_supervisor: Arc::new(RwLock::new(None)), config_dir, cert_path, build_running: crate::packaging::new_build_lock(), repo_root: crate::packaging::new_repo_root(), remote_target: Arc::new(RwLock::new(None)) };
     // Build the runtime router (8443) before consuming state for admin.
     let runtime_app = build_runtime_inner(state.clone(), www_dir.clone());
 
@@ -201,6 +204,12 @@ pub fn build(
         .route("/api/system/tls/generate", post(crate::system::generate_tls_cert))
         .route("/api/system/tls",          put(crate::system::upload_tls_cert))
         .route("/api/system/tls",          delete(crate::system::remove_tls_cert))
+        // Remote runtime bridge: connect/disconnect/status + WS relay
+        .route("/api/remote/connect",      post(crate::remote::connect_remote)
+                                           .delete(crate::remote::disconnect_remote))
+        .route("/api/remote/status",       get(crate::remote::remote_status))
+        .route("/api/remote/deploy",       post(crate::remote::remote_deploy))
+        .route("/ws/remote/:sub",          get(crate::remote_relay::ws_relay_handler))
         .route_layer(middleware::from_fn(require_admin));
 
     // Routes that need Supervisor+ — project editing surface that
@@ -493,6 +502,19 @@ async fn require_auth(
     mut req: Request,
     next: Next,
 ) -> Response {
+    // No users defined (no project, or project without users) → open / no-auth mode.
+    // Inject a synthetic AuthUser so all downstream handlers see an Admin-level
+    // caller — the frontend never shows the login screen and all routes work.
+    if !s.auth.has_users().await {
+        req.extensions_mut().insert(AuthUser {
+            username: "admin".to_string(),
+            role: Role::Admin,
+            must_change_password: false,
+            allowed_zones: vec![],
+        });
+        return next.run(req).await;
+    }
+
     let token = req
         .headers()
         .get(header::AUTHORIZATION)
@@ -1769,6 +1791,31 @@ struct BundleManifest {
     secrets_masked:  bool,
 }
 
+/// Build a ZIP of the active project from `dir` (same logic as the export
+/// endpoint but callable internally — used by `remote_deploy`).
+pub(crate) async fn build_project_zip(dir: &std::path::Path) -> anyhow::Result<Vec<u8>> {
+    let mut project = Project::load(dir)
+        .map_err(|e| anyhow::anyhow!("cannot load project: {e}"))?;
+    for src in &mut project.sources {
+        if let SourceDef::Mqtt(c) = src { c.password = None; }
+    }
+    let pages = load_all_synoptics(&synoptics_dir_at(dir)).await
+        .map_err(|e| anyhow::anyhow!("cannot read synoptics: {e}"))?;
+    let project_name = project.meta.name.clone();
+    let exported_at_ms = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0);
+    let manifest = BundleManifest {
+        format_version: BUNDLE_FORMAT_VERSION.into(),
+        name:           project_name,
+        exported_at_ms,
+        secrets_masked: true,
+    };
+    let users_yaml = std::fs::read_to_string(dir.join("users.yaml")).ok();
+    build_export_zip(&manifest, &project, &pages, users_yaml.as_deref())
+}
+
 async fn export_project_zip(State(s): State<AppState>) -> Response {
     let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
     // 1. Load the project from disk and strip MQTT passwords.
@@ -1807,7 +1854,10 @@ async fn export_project_zip(State(s): State<AppState>) -> Response {
         secrets_masked: true,
     };
 
-    let buf = match build_export_zip(&manifest, &project, &pages) {
+    // Include users.yaml if present so credentials travel with the project.
+    let users_yaml = std::fs::read_to_string(dir.join("users.yaml")).ok();
+
+    let buf = match build_export_zip(&manifest, &project, &pages, users_yaml.as_deref()) {
         Ok(b)  => b,
         Err(e) => {
             warn!("export: zip build failed: {e}");
@@ -1837,6 +1887,7 @@ fn build_export_zip(
     manifest: &BundleManifest,
     project: &Project,
     pages: &[SynopticPage],
+    users_yaml: Option<&str>,
 ) -> anyhow::Result<Vec<u8>> {
     use zip::write::SimpleFileOptions;
     let mut cursor = Cursor::new(Vec::<u8>::new());
@@ -1857,6 +1908,10 @@ fn build_export_zip(
             let path = format!("synoptics/{}.yaml", safe_filename(&page.name));
             z.start_file(path, opts)?;
             z.write_all(serde_yaml::to_string(page)?.as_bytes())?;
+        }
+        if let Some(users) = users_yaml {
+            z.start_file("users.yaml", opts)?;
+            z.write_all(users.as_bytes())?;
         }
         z.finish()?;
     }

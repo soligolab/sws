@@ -404,6 +404,7 @@ export function App() {
   const setExpiresAtMs         = useAppStore((s) => s.setExpiresAtMs);
   const mustChangePassword     = useAppStore((s) => s.mustChangePassword);
   const setMustChangePassword  = useAppStore((s) => s.setMustChangePassword);
+  const setAuth                = useAppStore((s) => s.setAuth);
   const clearAuth              = useAppStore((s) => s.clearAuth);
   const noActiveProject        = useAppStore((s) => s.noActiveProject);
   const setNoActiveProject     = useAppStore((s) => s.setNoActiveProject);
@@ -424,6 +425,10 @@ export function App() {
   // Role-gated UI surfaces. Supervisor + Admin get editor and config;
   // Viewer/Operator should use the runtime SPA (port 8443) instead.
   const canEdit = canEditProject(authRole);
+
+  // True while the initial getProject()+whoami() bootstrap is in flight.
+  // Prevents LoginScreen from flashing before we know the auth state.
+  const [bootstrapping, setBootstrapping] = useState(true);
 
   const [confirmPending, setConfirmPending] = useState<"close" | "logout" | null>(null);
   const [waitingForSave, setWaitingForSave] = useState(false);
@@ -540,9 +545,19 @@ export function App() {
     if (mustChangePassword) return;
 
     api.getProject()
-      .then((p) => {
+      .then(async (p) => {
         setNoActiveProject(false);
         setProject(p);
+        // No token and project is open: we may be in no-auth mode.
+        // Probe whoami; if it succeeds (synthetic admin), set a sentinel
+        // token so the main app renders instead of LoginScreen.
+        if (!authToken) {
+          try {
+            const me = await api.whoami();
+            setAuth("no-auth", me.username, me.role, me.must_change_password);
+          } catch { /* has users → LoginScreen will appear */ }
+        }
+        setBootstrapping(false);
       })
       .catch((e) => {
         if (e instanceof NoProjectError) {
@@ -560,6 +575,7 @@ export function App() {
         } else {
           setProjectLoadError(e?.message ?? String(e));
         }
+        setBootstrapping(false);
       });
 
     if (!authToken) return;
@@ -624,11 +640,27 @@ export function App() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [waitingForSave, isDirty, saveStatus]);
 
+  // Blank while the first getProject()+whoami() round-trip is in flight.
+  if (bootstrapping) return null;
+
   // No active project → show project picker (WelcomeScreen).
   if (noActiveProject) {
     return (
       <WelcomeScreen
-        onProjectOpened={() => { setNoActiveProject(false); clearAuth(); }}
+        onProjectOpened={async () => {
+            // whoami BEFORE setNoActiveProject so the WelcomeScreen stays
+            // visible while we probe auth state — avoids a LoginScreen flash.
+            // No-auth mode: server injects synthetic admin → 200.
+            // Auth mode: swap_store invalidated old session → 401.
+            try {
+              const me = await api.whoami();
+              clearAuth();
+              setAuth("no-auth", me.username, me.role, me.must_change_password);
+            } catch {
+              clearAuth(); // has users → LoginScreen correct
+            }
+            setNoActiveProject(false);
+          }}
       />
     );
   }

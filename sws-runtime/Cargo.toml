@@ -73,7 +73,7 @@ tokio-serial      = "5.4"
 async-opcua       = { version = "0.18", features = ["client", "server"] }
 rumqttc           = "0.24"
 rumqttd           = "0.19"
-tokio-tungstenite = "0.24"
+tokio-tungstenite = { version = "0.24", features = ["rustls-tls-webpki-roots"] }
 
 # Python scripting
 pyo3 = { version = "0.23", features = ["auto-initialize"] }

@@ -5950,14 +5950,13 @@ const RT_PASS_KEY = "sws.runtime.targetPass";
 const RT_CONN_KEY = "sws.runtime.connected";
 
 function RuntimeConnectionTab() {
-  const authUser = useAppStore((s) => s.authUser);
+  const authToken = useAppStore((s) => s.authToken);
+  const setRemoteConnected = useAppStore((s) => s.setRemoteConnected);
 
   const [targetUrl,  setTargetUrl]  = useState(() => localStorage.getItem(RT_URL_KEY)  ?? "");
-  const [targetUser, setTargetUser] = useState(() => localStorage.getItem(RT_USER_KEY) ?? "admin");
+  const [targetUser, setTargetUser] = useState(() => localStorage.getItem(RT_USER_KEY) ?? "");
   const [targetPass, setTargetPass] = useState(() => localStorage.getItem(RT_PASS_KEY) ?? "");
-  const [status, setStatus]         = useState<"idle" | "connecting" | "connected" | "error">(
-    () => localStorage.getItem(RT_CONN_KEY) === "1" ? "connected" : "idle"
-  );
+  const [status, setStatus]         = useState<"idle" | "connecting" | "connected" | "error">("idle");
   const [statusMsg, setStatusMsg]   = useState<string | null>(null);
   const [deployLog, setDeployLog]   = useState<string[]>([]);
   const [deploying, setDeploying]   = useState(false);
@@ -5968,6 +5967,22 @@ function RuntimeConnectionTab() {
   const [logFetching, setLogFetching] = useState(false);
   const [logLive, setLogLive]         = useState(false);
   const logTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // On mount: remove stale localStorage key, sync actual state from server.
+  useEffect(() => {
+    localStorage.removeItem(RT_CONN_KEY);
+    api.remoteStatus().then((s) => {
+      if (s.connected && s.url) {
+        setStatus("connected");
+        setRemoteConnected(true, s.url);
+      }
+    }).catch(() => { /* not critical — start as idle */ });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Live tag panel: tag-id → {value, quality, ts} from /ws/remote/tags relay.
+  type LiveTagEntry = { value: unknown; quality: string; ts: number };
+  const [liveTags, setLiveTags] = useState<Map<string, LiveTagEntry>>(new Map());
+  const liveWsRef = useRef<WebSocket | null>(null);
 
   // T-28: package build
   const [buildLog, setBuildLog]         = useState<string[]>([]);
@@ -5991,38 +6006,85 @@ function RuntimeConnectionTab() {
     localStorage.setItem(RT_PASS_KEY, targetPass);
   };
 
+  const handleDisconnect = useCallback(() => {
+    void api.remoteDisconnect().catch(() => {});
+    setStatus("idle"); setStatusMsg(null); setDeployLog([]); setDeployDone(false);
+    setRemoteLogs(null); setLogLive(false);
+    setRemoteConnected(false);
+    window.dispatchEvent(new CustomEvent("sws:runtime-disconnected"));
+  }, [setRemoteConnected]);
+
   const handleConnect = async () => {
-    if (!target || !targetUser || !targetPass) { setStatusMsg("Compila tutti i campi."); return; }
+    if (!target) { setStatusMsg("Inserisci l'URL del runtime."); return; }
     saveForm();
     setStatus("connecting"); setStatusMsg(null);
     try {
-      const res = await fetch(`${target}/api/auth/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username: targetUser.trim(), password: targetPass }),
-      });
-      if (!res.ok) throw new Error(`Login fallito: ${res.status} ${res.statusText}`);
-      localStorage.setItem(RT_CONN_KEY, "1");
+      // Credentials are optional: if the remote has no users defined it
+      // accepts connections without authentication.
+      const user = targetUser.trim() || undefined;
+      const pass = targetPass || undefined;
+      const result = await api.remoteConnect(target, user, pass);
+      if (!result.ok) throw new Error(result.error ?? "Connessione fallita");
       setStatus("connected");
       setStatusMsg(null);
+      setRemoteConnected(true, target);
       window.dispatchEvent(new CustomEvent("sws:runtime-connected", { detail: { url: target } }));
     } catch (e: any) {
-      localStorage.removeItem(RT_CONN_KEY);
       setStatus("error");
-      const msg = String(e?.message ?? e);
-      setStatusMsg(msg.includes("Failed to fetch") || msg.includes("NetworkError")
-        ? `Connessione fallita. Assicurati che il target sia raggiungibile e che il certificato TLS sia importato nel browser.\n→ Scarica il cert: curl -k ${target}/cert -o sws.crt`
-        : msg);
+      setStatusMsg(String(e?.message ?? e));
+      setRemoteConnected(false);
       window.dispatchEvent(new CustomEvent("sws:runtime-disconnected"));
     }
   };
 
-  const handleDisconnect = () => {
-    localStorage.removeItem(RT_CONN_KEY);
-    setStatus("idle"); setStatusMsg(null); setDeployLog([]); setDeployDone(false);
-    setRemoteLogs(null); setLogLive(false);
-    window.dispatchEvent(new CustomEvent("sws:runtime-disconnected"));
-  };
+  // Poll /api/remote/status every 5 s while connected. Clears state if the
+  // local runtime loses the session (restart, token expiry).
+  useEffect(() => {
+    if (status !== "connected") return;
+    const id = setInterval(async () => {
+      try {
+        const s = await api.remoteStatus();
+        if (!s.connected) handleDisconnect();
+      } catch { /* network error — keep current state, will retry */ }
+    }, 5000);
+    return () => clearInterval(id);
+  }, [status, handleDisconnect]);
+
+  // Open the /ws/remote/tags relay when connected; close on disconnect.
+  useEffect(() => {
+    if (status !== "connected") {
+      liveWsRef.current?.close();
+      liveWsRef.current = null;
+      setLiveTags(new Map());
+      return;
+    }
+    const scheme = window.location.protocol === "https:" ? "wss" : "ws";
+    const token  = getAuthToken();
+    const url    = `${scheme}://${window.location.host}/ws/remote/tags${token ? `?token=${encodeURIComponent(token)}` : ""}`;
+    const ws = new WebSocket(url);
+    liveWsRef.current = ws;
+    ws.onopen = () => ws.send(JSON.stringify({ type: "subscribe", tags: ["*"] }));
+    ws.onmessage = (ev) => {
+      try {
+        type WireEntry = { id: string; value: unknown; quality: string; ts: number };
+        type WireMsg = { type: string; tags?: WireEntry[]; changed?: WireEntry[] };
+        const msg = JSON.parse(ev.data as string) as WireMsg;
+        if (msg.type === "snapshot" && msg.tags) {
+          const m = new Map<string, LiveTagEntry>();
+          for (const t of msg.tags) m.set(t.id, { value: t.value, quality: t.quality, ts: t.ts });
+          setLiveTags(m);
+        } else if (msg.type === "delta" && msg.changed) {
+          setLiveTags((prev) => {
+            const m = new Map(prev);
+            for (const t of msg.changed!) m.set(t.id, { value: t.value, quality: t.quality, ts: t.ts });
+            return m;
+          });
+        }
+      } catch { /* ignore malformed frames */ }
+    };
+    ws.onerror = () => { ws.close(); };
+    return () => { ws.close(); liveWsRef.current = null; };
+  }, [status]);
 
   const handleDownloadCert = async () => {
     const certUrl = `${target}/cert`;
@@ -6147,105 +6209,28 @@ function RuntimeConnectionTab() {
     }
   };
 
-  const addLog = (msg: string) => setDeployLog((l) => [...l, msg]);
-
   const handleDeploy = async () => {
-    saveForm();
-    // Warn if session TTL is disabled — re-enable before deploying to production.
-    if (authUser) {
-      try {
-        const users = await api.listUsers();
-        const me = users.find((u) => u.username === authUser);
-        if (me?.session_ttl_secs === 0) {
-          const reEnable = window.confirm(
-            "La scadenza della sessione è disattivata.\n" +
-            "Riabilitarla è consigliato per la sicurezza in produzione.\n\n" +
-            "Riabilitare la scadenza (1 ora) prima del deploy?"
-          );
-          if (reEnable) await api.updateUser(authUser, { session_ttl_secs: 3600 });
-        }
-      } catch { /* non-critical — proceed with deploy */ }
-    }
     setDeploying(true); setDeployLog([]); setDeployDone(false);
     try {
-      addLog("Esportazione progetto dal runtime locale…");
-      const exportRes = await api.exportProjectZip();
-      const cd = exportRes.headers.get("content-disposition") ?? "";
-      const nameMatch = cd.match(/filename="([^"]+)"/);
-      const zipName = nameMatch?.[1] ?? "project.zip";
-      const projectName = zipName.replace(/\.zip$/, "");
-      const zipBlob = await exportRes.blob();
-      addLog(`✓ Esportato: ${zipName} (${(zipBlob.size / 1024).toFixed(1)} KB)`);
-
-      addLog(`Login al target…`);
-      const loginRes = await fetch(`${target}/api/auth/login`, {
+      const res = await fetch("/api/remote/deploy", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username: targetUser.trim(), password: targetPass }),
+        headers: authToken ? { "Authorization": `Bearer ${authToken}` } : {},
       });
-      if (!loginRes.ok) throw new Error(`Login target fallito: ${loginRes.status} ${loginRes.statusText}`);
-      const { token: remoteToken } = await loginRes.json();
-      addLog("✓ Login OK");
-
-      addLog("Upload ZIP al target…");
-      let uploadRes = await fetch(`${target}/api/projects/upload`, {
-        method: "POST",
-        headers: { "Content-Type": "application/zip", "Authorization": `Bearer ${remoteToken}` },
-        body: zipBlob,
-      });
-      if (uploadRes.status === 409) {
-        // Server returns { "name": "<real-project-name>" } — the name comes from
-        // the ZIP manifest, which may differ from the timestamped ZIP filename.
-        const conflict = await uploadRes.json().catch(() => ({}));
-        const realName = (conflict as any).name ?? projectName;
-        const ok = window.confirm(
-          `Sul target esiste già un progetto "${realName}".\nSostituirlo con la versione corrente?`
+      if (!res.ok || !res.body) {
+        throw new Error(`Deploy fallito: ${res.status} ${res.statusText}`);
+      }
+      const reader = res.body.getReader();
+      const dec = new TextDecoder();
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        dec.decode(value).split("\n").filter(Boolean).forEach((line) =>
+          setDeployLog((l) => [...l, line])
         );
-        if (!ok) throw new Error("Deploy annullato dall'utente.");
-        addLog(`Rimozione di "${realName}" dal target…`);
-        // Close first in case it's the active project on the target
-        await fetch(`${target}/api/projects/close`, {
-          method: "POST",
-          headers: { "Authorization": `Bearer ${remoteToken}` },
-        }).catch(() => {});
-        // Delete using the REAL project name from the manifest, not the ZIP filename
-        const delRes = await fetch(
-          `${target}/api/projects/${encodeURIComponent(realName)}`,
-          { method: "DELETE", headers: { "Authorization": `Bearer ${remoteToken}` } }
-        );
-        if (!delRes.ok) {
-          const body = await delRes.text().catch(() => "");
-          throw new Error(`Impossibile rimuovere "${realName}" dal target: ${delRes.status}${body ? ` — ${body}` : ""}`);
-        }
-        addLog(`✓ Rimosso "${realName}" dal target`);
-        // Retry upload
-        uploadRes = await fetch(`${target}/api/projects/upload`, {
-          method: "POST",
-          headers: { "Content-Type": "application/zip", "Authorization": `Bearer ${remoteToken}` },
-          body: zipBlob,
-        });
       }
-      if (!uploadRes.ok) {
-        const body = await uploadRes.text().catch(() => "");
-        throw new Error(`Upload fallito: ${uploadRes.status}${body ? ` — ${body}` : ""}`);
-      }
-      const { name: uploadedName } = await uploadRes.json();
-      addLog(`✓ Caricato come "${uploadedName}"`);
-
-      addLog("Attivazione progetto…");
-      const openRes = await fetch(`${target}/api/projects/${encodeURIComponent(uploadedName)}/open`, {
-        method: "POST",
-        headers: { "Authorization": `Bearer ${remoteToken}` },
-      });
-      if (!openRes.ok) {
-        const body = await openRes.text().catch(() => "");
-        throw new Error(`Attivazione fallita: ${openRes.status}${body ? ` — ${body}` : ""}`);
-      }
-      addLog(`✓ "${uploadedName}" attivo sul runtime`);
-      addLog("🚀 Deploy completato!");
       setDeployDone(true);
     } catch (e: any) {
-      addLog(`✗ ${e?.message ?? String(e)}`);
+      setDeployLog((l) => [...l, `✗ ${e?.message ?? String(e)}`]);
     } finally {
       setDeploying(false);
     }
@@ -6323,13 +6308,13 @@ function RuntimeConnectionTab() {
           </span>
           <div style={{ display: "flex", gap: 8 }}>
             <div style={{ flex: 1 }}>
-              <label style={{ fontSize: 11, color: "#64748b", display: "block", marginBottom: 4 }}>Utente</label>
+              <label style={{ fontSize: 11, color: "#64748b", display: "block", marginBottom: 4 }}>Utente <span style={{ color: "#475569" }}>(opzionale)</span></label>
               <input style={{ ...INPUT, width: "100%", boxSizing: "border-box" }}
-                placeholder="admin" value={targetUser}
+                placeholder="lascia vuoto se il runtime non ha utenti" value={targetUser}
                 onChange={(e) => setTargetUser(e.target.value)} />
             </div>
             <div style={{ flex: 1 }}>
-              <label style={{ fontSize: 11, color: "#64748b", display: "block", marginBottom: 4 }}>Password</label>
+              <label style={{ fontSize: 11, color: "#64748b", display: "block", marginBottom: 4 }}>Password <span style={{ color: "#475569" }}>(opzionale)</span></label>
               <input style={{ ...INPUT, width: "100%", boxSizing: "border-box" }}
                 type="password" placeholder="••••••••" value={targetPass}
                 onChange={(e) => setTargetPass(e.target.value)}
@@ -6452,6 +6437,35 @@ function RuntimeConnectionTab() {
           </div>
         </section>
       )}
+
+      {/* Live tag panel via /ws/remote/tags relay */}
+      {connected && (
+        <section>
+          <div style={{ fontSize: 13, fontWeight: 600, color: "#94a3b8", marginBottom: 8, textTransform: "uppercase", letterSpacing: 1 }}>
+            Variabili live ({liveTags.size})
+          </div>
+          <div style={{
+            background: "#020617", border: "1px solid #1e293b", borderRadius: 4,
+            padding: "6px 8px", maxHeight: 220, overflowY: "auto",
+            fontFamily: "monospace", fontSize: 11,
+          }}>
+            {liveTags.size === 0
+              ? <span style={{ color: "#475569" }}>Nessuna variabile ricevuta…</span>
+              : Array.from(liveTags.entries()).slice(0, 50).map(([id, t]) => {
+                  const qColor = t.quality === "Good" ? "#4ade80" : t.quality === "Bad" ? "#f87171" : "#fb923c";
+                  return (
+                    <div key={id} style={{ display: "flex", gap: 8, borderBottom: "1px solid #0f172a", padding: "1px 0" }}>
+                      <span style={{ color: "#64748b", width: 180, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flexShrink: 0 }} title={id}>{id}</span>
+                      <span style={{ color: "#e2e8f0", flex: 1 }}>{JSON.stringify(t.value)}</span>
+                      <span style={{ color: qColor, width: 36, textAlign: "right", flexShrink: 0 }}>{t.quality === "Good" ? "OK" : t.quality === "Bad" ? "BAD" : "UNC"}</span>
+                    </div>
+                  );
+                })
+            }
+          </div>
+        </section>
+      )}
+
       {/* Package build */}
       <section>
         <div style={{ fontSize: 13, fontWeight: 600, color: "#94a3b8", marginBottom: 8, textTransform: "uppercase", letterSpacing: 1 }}>

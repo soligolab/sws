@@ -14,8 +14,7 @@
 #   ./scripts/start_runtime.sh --instance 2   # instance 2: 8445/8446, dati .run-2/
 #
 # Variabili d'ambiente (opzionali):
-#   SWS_ADMIN_USER / SWS_ADMIN_PASSWORD   (default: admin/admin)
-#   SWS_SUPERVISOR_PASSWORD / SWS_OPERATOR_PASSWORD / SWS_VIEWER_PASSWORD
+#   SWS_ADMIN_USER / SWS_ADMIN_PASSWORD   per creare un utente admin all'avvio
 #   RUST_LOG=debug   per log verbosi
 
 set -euo pipefail
@@ -52,26 +51,14 @@ if [ -z "${PYO3_PYTHON:-}" ] && command -v python3 >/dev/null 2>&1; then
   export PYO3_PYTHON=python3
 fi
 
-# Credenziali admin — vanno bene per lo sviluppo locale; sovrascrivere in produzione.
-: "${SWS_ADMIN_USER:=admin}"
-: "${SWS_ADMIN_PASSWORD:=admin}"
-export SWS_ADMIN_USER SWS_ADMIN_PASSWORD
-
-: "${SWS_SUPERVISOR_PASSWORD:=supervisor}"
-: "${SWS_OPERATOR_PASSWORD:=operator}"
-: "${SWS_VIEWER_PASSWORD:=viewer}"
-export SWS_SUPERVISOR_PASSWORD SWS_OPERATOR_PASSWORD SWS_VIEWER_PASSWORD
-
 mkdir -p "$CONFIG_DIR" "$PROJECTS_ROOT" "$LOG_DIR"
 
 # ── Pulizia processi stale sulle porte di questa istanza ──────────────────────
 stop_existing() {
   local killed=0
 
-  if pkill -KILL -f "cargo build.*-p sws-runtime" 2>/dev/null; then
-    echo "[cleanup] terminato cargo build residuo"
-    killed=1
-  fi
+  # NON uccidiamo cargo build: Cargo usa file lock e gestisce da solo la
+  # concorrenza. Un pkill globale ammazzerebbe la build di un'altra istanza.
 
   for variant in debug release; do
     if pgrep -f "$REPO_ROOT/sws-runtime/target/$variant/sws-runtime" >/dev/null 2>&1; then
@@ -98,6 +85,7 @@ stop_existing() {
 stop_existing
 
 echo "[runtime] build (cargo build -p sws-runtime -j 1)…"
+echo "[runtime]  (in attesa del file lock se un altro build è in corso)"
 (cd "$REPO_ROOT/sws-runtime" && cargo build -p sws-runtime -j 1)
 
 WWW_DIST="$REPO_ROOT/sws-editor/dist"
@@ -134,13 +122,13 @@ if [ -f "$CONFIG_DIR/tls.crt" ]; then
 ────────────────────────────────────────────────────────────────
 SWS Runtime$INST_LABEL — pronto (HTTPS)
 
-  Primo accesso    : http://$LAN_IP:$HTTP_PORT   ← accetta cert qui
   Viewer operatori : https://$LAN_IP:$VIEWER_PORT
   IDE/Admin        : https://$LAN_IP:$ADMIN_PORT
 
+  Primo accesso (cert non ancora accettato nel browser):
+    http://$LAN_IP:$HTTP_PORT  ← apri qui prima di usare gli URL sopra
+
   Stop: Ctrl-C
-Per simulare un secondo dispositivo:
-  ./scripts/start_runtime.sh --instance 2
 ────────────────────────────────────────────────────────────────
 
 MSG
@@ -148,15 +136,13 @@ else
   cat <<MSG
 
 ────────────────────────────────────────────────────────────────
-SWS Runtime$INST_LABEL — pronto (HTTP plain)
+SWS Runtime$INST_LABEL — pronto (HTTP)
 
   Viewer operatori : http://$LAN_IP:$VIEWER_PORT
   IDE/Admin        : http://$LAN_IP:$ADMIN_PORT
 
   Per abilitare HTTPS: IDE → ConfigView → Stato → Certificato TLS
   Stop: Ctrl-C
-Per simulare un secondo dispositivo:
-  ./scripts/start_runtime.sh --instance 2
 ────────────────────────────────────────────────────────────────
 
 MSG
