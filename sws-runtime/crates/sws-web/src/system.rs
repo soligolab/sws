@@ -17,6 +17,12 @@ pub struct SystemStatus {
     pub runtime_version: String,
     pub uptime_s: u64,
     pub active_project: Option<String>,
+    /// Runtime version that last saved the active project's `project.yaml`
+    /// (`None` if no project is open or the file predates version stamping).
+    pub project_saved_by: Option<String>,
+    /// True when the active project was saved by a different runtime version
+    /// and the IDE should offer to re-save it in the current format.
+    pub project_needs_update: bool,
     pub tag_count: usize,
     pub source_count: usize,
     /// True when the supervisor has at least one source running.
@@ -46,6 +52,16 @@ pub async fn compute_system_status(
         .and_then(|p| p.file_name())
         .map(|n| n.to_string_lossy().into_owned());
 
+    // Version-drift detection: read the on-disk project to compare the runtime
+    // that saved it against this build. Cheap (a small YAML file) and only when
+    // a project is open.
+    let (project_saved_by, project_needs_update) = match project_dir
+        .and_then(|p| sws_core::Project::load(p).ok())
+    {
+        Some(p) => (p.saved_by.clone(), p.needs_update()),
+        None => (None, false),
+    };
+
     let alarms_snap = alarms.snapshot().await;
     let alarm_active_count = alarms_snap.iter().filter(|a| a.active).count();
 
@@ -57,6 +73,8 @@ pub async fn compute_system_status(
         runtime_version: env!("CARGO_PKG_VERSION").to_string(),
         uptime_s: started_at.elapsed().as_secs(),
         active_project,
+        project_saved_by,
+        project_needs_update,
         tag_count,
         source_count,
         sources_running: source_count > 0,
@@ -79,6 +97,34 @@ pub async fn get_system_status(State(state): State<AppState>) -> Json<SystemStat
         dir_guard.as_deref(),
         state.started_at,
     ).await)
+}
+
+/// `POST /api/project/migrate` — re-save the active project in the current
+/// runtime's on-disk format, stamping this build's version. Reloading the
+/// project through the tolerant deserializer and writing it back normalizes
+/// the file and clears the IDE's "needs update" warning. 409 if no project
+/// is open.
+pub async fn migrate_project(State(s): State<AppState>) -> Response {
+    let project_dir = match active_dir(&s).await {
+        Ok(d) => d,
+        Err(_) => return (StatusCode::CONFLICT, "no active project").into_response(),
+    };
+    let mut project = match sws_core::Project::load(&project_dir) {
+        Ok(p) => p,
+        Err(e) => {
+            tracing::warn!("migrate_project: load failed: {e:#}");
+            return (StatusCode::INTERNAL_SERVER_ERROR, format!("load failed: {e}")).into_response();
+        }
+    };
+    if let Err(e) = project.save_to(&project_dir) {
+        tracing::warn!("migrate_project: save failed: {e:#}");
+        return (StatusCode::INTERNAL_SERVER_ERROR, format!("save failed: {e}")).into_response();
+    }
+    tracing::info!(
+        version = sws_core::project::runtime_version(),
+        "project re-saved to current runtime version"
+    );
+    StatusCode::NO_CONTENT.into_response()
 }
 
 /// `POST /api/system/stop` — stop all sources and script/notification supervisors.

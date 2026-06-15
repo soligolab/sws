@@ -747,6 +747,19 @@ pub struct Project {
     pub global_scripts: Vec<GlobalScriptDef>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub notifications: Option<NotificationConfig>,
+    /// Version of the runtime that last wrote this file (CARGO_PKG_VERSION).
+    /// Informational only — used by the IDE to warn when a project on disk was
+    /// saved by a different runtime build and offer a one-click re-save.
+    /// `None` on projects written before this field existed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub saved_by: Option<String>,
+}
+
+/// Version of this runtime build, stamped into `project.yaml` on every save.
+/// All workspace crates share `version.workspace`, so this matches the
+/// `sws-runtime` binary version.
+pub fn runtime_version() -> &'static str {
+    env!("CARGO_PKG_VERSION")
 }
 
 impl Project {
@@ -758,6 +771,29 @@ impl Project {
             .with_context(|| format!("reading {}", path.display()))?;
         serde_yaml::from_str(&text)
             .with_context(|| format!("parsing {}", path.display()))
+    }
+
+    /// True when this project was last saved by a different runtime version
+    /// (or by one too old to record it). The IDE uses this to surface an
+    /// "update project" prompt.
+    pub fn needs_update(&self) -> bool {
+        self.saved_by.as_deref() != Some(runtime_version())
+    }
+
+    /// Stamp the current runtime version into `saved_by` and serialize to YAML.
+    /// All `project.yaml` writers go through this so the on-disk stamp always
+    /// reflects the runtime that produced the file.
+    pub fn stamp_and_serialize(&mut self) -> Result<String, serde_yaml::Error> {
+        self.saved_by = Some(runtime_version().to_string());
+        serde_yaml::to_string(self)
+    }
+
+    /// Stamp the runtime version and write `<project_dir>/project.yaml`.
+    pub fn save_to(&mut self, project_dir: &Path) -> anyhow::Result<()> {
+        let yaml = self.stamp_and_serialize()?;
+        let path = project_dir.join("project.yaml");
+        std::fs::write(&path, yaml)
+            .with_context(|| format!("writing {}", path.display()))
     }
 
     /// Register every tag from the definition list in `db` with an initial

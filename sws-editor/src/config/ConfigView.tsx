@@ -5961,6 +5961,8 @@ function RuntimeConnectionTab() {
   const [deployLog, setDeployLog]   = useState<string[]>([]);
   const [deploying, setDeploying]   = useState(false);
   const [deployDone, setDeployDone] = useState(false);
+  const [deletingRemote, setDeletingRemote] = useState(false);
+  const [remoteMsg, setRemoteMsg]   = useState<string | null>(null);
   const [discovering, setDiscovering] = useState(false);
   const [discovered, setDiscovered]   = useState<DiscoveredRuntime[] | null>(null);
   const [remoteLogs, setRemoteLogs]   = useState<RemoteLog[] | null>(null);
@@ -6236,6 +6238,21 @@ function RuntimeConnectionTab() {
     }
   };
 
+  const handleDeleteRemoteProject = async () => {
+    if (!window.confirm(
+      "Eliminare il progetto attualmente attivo sul runtime? L'operazione non è reversibile."
+    )) return;
+    setDeletingRemote(true); setRemoteMsg(null);
+    try {
+      await api.remoteDeleteProject();
+      setRemoteMsg("✓ Progetto eliminato dal runtime.");
+    } catch (e: any) {
+      setRemoteMsg(`✗ ${e?.message ?? String(e)}`);
+    } finally {
+      setDeletingRemote(false);
+    }
+  };
+
   const INPUT: React.CSSProperties = {
     background: "#020617", color: "#e2e8f0", border: "1px solid #334155",
     borderRadius: 4, padding: "6px 8px", fontSize: 13,
@@ -6393,6 +6410,22 @@ function RuntimeConnectionTab() {
               Nuovo deploy
             </button>
           )}
+
+          {/* Danger: rimuovi il progetto attivo dal runtime */}
+          <div style={{ marginTop: 16, paddingTop: 12, borderTop: "1px solid #1e293b" }}>
+            <p style={{ fontSize: 12, color: "#475569", margin: "0 0 8px" }}>
+              Elimina il progetto attualmente attivo sul runtime (es. per ripartire pulito).
+            </p>
+            <button style={{ ...BTN_RED, opacity: deletingRemote ? 0.6 : 1 }}
+              onClick={handleDeleteRemoteProject} disabled={deletingRemote}>
+              {deletingRemote ? "Eliminazione…" : "Elimina progetto sul runtime"}
+            </button>
+            {remoteMsg && (
+              <div style={{ marginTop: 8, fontSize: 12, color: remoteMsg.startsWith("✗") ? "#f87171" : "#4ade80" }}>
+                {remoteMsg}
+              </div>
+            )}
+          </div>
         </section>
       )}
 

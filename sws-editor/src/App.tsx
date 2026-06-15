@@ -153,13 +153,22 @@ function RuntimeCtrl() {
   const authRole              = useAppStore((s) => s.authRole);
   const [running, setRunning] = useState<boolean | null>(null);
   const [busy, setBusy]       = useState(false);
+  const [needsUpdate, setNeedsUpdate] = useState(false);
+  const [savedBy, setSavedBy] = useState<string | null>(null);
+  const [runtimeVersion, setRuntimeVersion] = useState<string>("");
+  const [migrating, setMigrating] = useState(false);
 
   useEffect(() => {
     let alive = true;
     const poll = async () => {
       try {
         const s = await api.getSystemStatus();
-        if (alive) setRunning(s.sources_running);
+        if (alive) {
+          setRunning(s.sources_running);
+          setNeedsUpdate(s.project_needs_update);
+          setSavedBy(s.project_saved_by);
+          setRuntimeVersion(s.runtime_version);
+        }
       } catch { /* ignore — runtime may be restarting */ }
     };
     poll();
@@ -168,6 +177,19 @@ function RuntimeCtrl() {
   }, []);
 
   if (!canConfigureProject(authRole)) return null;
+
+  const handleMigrate = async () => {
+    if (!confirm(
+      `Il progetto è stato salvato dalla versione ${savedBy ?? "sconosciuta"}, ` +
+      `il runtime è la ${runtimeVersion}. Aggiornare il progetto al formato corrente?`
+    )) return;
+    setMigrating(true);
+    try {
+      await api.migrateProject();
+      setNeedsUpdate(false);
+    } catch { /* ignore — banner stays until next poll */ }
+    finally { setMigrating(false); }
+  };
 
   const handleToggle = async () => {
     if (busy) return;
@@ -193,6 +215,16 @@ function RuntimeCtrl() {
 
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+      {needsUpdate && (
+        <button
+          style={{ ...HDR_BTN, background: "#78350f", border: "1px solid #f59e0b", color: "#fde68a", opacity: migrating ? 0.6 : 1 }}
+          disabled={migrating}
+          onClick={handleMigrate}
+          title={`Progetto salvato da ${savedBy ?? "versione sconosciuta"}, runtime ${runtimeVersion}. Clicca per aggiornare.`}
+        >
+          {migrating ? "Aggiorno…" : "⚠ Aggiorna progetto"}
+        </button>
+      )}
       <span
         title={dotTitle}
         style={{ width: 8, height: 8, borderRadius: "50%", background: dotColor, display: "inline-block", flexShrink: 0 }}

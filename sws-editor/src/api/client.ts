@@ -654,6 +654,8 @@ export const api = {
     runtime_version: string;
     uptime_s: number;
     active_project: string | null;
+    project_saved_by: string | null;
+    project_needs_update: boolean;
     tag_count: number;
     source_count: number;
     sources_running: boolean;
@@ -806,4 +808,15 @@ export const api = {
 
   remoteStatus: () =>
     request<{ connected: boolean; url?: string; connected_at_ms?: number }>("/api/remote/status"),
+
+  /** POST /api/remote/project/delete — delete the active project on the
+   *  connected remote runtime. Resolves on success, throws with the runtime's
+   *  message on failure. */
+  remoteDeleteProject: () =>
+    request<void>("/api/remote/project/delete", { method: "POST" }),
+
+  /** POST /api/project/migrate — re-save the active project in the current
+   *  runtime format (clears the version-mismatch warning). */
+  migrateProject: () =>
+    request<void>("/api/project/migrate", { method: "POST" }),
 };

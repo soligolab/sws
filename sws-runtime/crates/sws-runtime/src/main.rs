@@ -357,24 +357,42 @@ async fn main() -> anyhow::Result<()> {
     // POST /api/projects/:name/open later.
     let auth = AuthState::empty(ttl, rate_limit, rate_window_dur);
 
-    // If --project was not supplied but a previous reboot wrote .last-opened,
-    // auto-reopen that project so clients can re-authenticate immediately.
+    // Resolve which project to auto-open. The runtime is single-project: it
+    // should always come back up serving the project on disk, in this order:
+    //   1. explicit --project flag
+    //   2. .active-project marker (written on every open, persistent)
+    //   3. legacy .last-opened reboot marker (consumed once)
+    //   4. the only project directory present under projects_root
     let project_arg = args.project.clone().or_else(|| {
-        let marker = args.projects_root.join(".last-opened");
-        match std::fs::read_to_string(&marker) {
-            Ok(s) => {
-                let p = std::path::PathBuf::from(s.trim());
-                if p.is_dir() {
-                    info!(path = %p.display(), "auto-reopening project from .last-opened");
-                    let _ = std::fs::remove_file(&marker); // consume so a clean start ignores it
-                    Some(p)
-                } else {
-                    warn!(path = %p.display(), ".last-opened path no longer exists, ignoring");
-                    let _ = std::fs::remove_file(&marker);
-                    None
-                }
+        // 2. Persistent "last active project" marker — NOT consumed, so a plain
+        //    restart reopens the same project.
+        let active = args.projects_root.join(".active-project");
+        if let Ok(s) = std::fs::read_to_string(&active) {
+            let p = std::path::PathBuf::from(s.trim());
+            if p.is_dir() {
+                info!(path = %p.display(), "auto-opening last active project (.active-project)");
+                return Some(p);
             }
-            Err(_) => None,
+            warn!(path = %p.display(), ".active-project path no longer exists, ignoring");
+        }
+        // 3. Legacy reboot marker — consume so a clean start ignores it.
+        let legacy = args.projects_root.join(".last-opened");
+        if let Ok(s) = std::fs::read_to_string(&legacy) {
+            let p = std::path::PathBuf::from(s.trim());
+            let _ = std::fs::remove_file(&legacy);
+            if p.is_dir() {
+                info!(path = %p.display(), "auto-reopening project from .last-opened");
+                return Some(p);
+            }
+            warn!(path = %p.display(), ".last-opened path no longer exists, ignoring");
+        }
+        // 4. Single-project fallback: open the only project on disk.
+        match single_project_dir(&args.projects_root) {
+            Some(p) => {
+                info!(path = %p.display(), "auto-opening the only project present");
+                Some(p)
+            }
+            None => None,
         }
     });
 
@@ -433,6 +451,11 @@ async fn main() -> anyhow::Result<()> {
         // Swap auth to point at this project's users.yaml, seeded from env.
         if let Err(e) = auth.swap_store(project_path.join("users.yaml"), accounts).await {
             anyhow::bail!("failed to bootstrap auth from --project: {e}");
+        }
+        // Persist the choice so a plain restart reopens the same project.
+        let marker = args.projects_root.join(".active-project");
+        if let Err(e) = std::fs::write(&marker, project_path.to_string_lossy().as_bytes()) {
+            warn!("could not write .active-project marker: {e}");
         }
         *active_dir.write().await = Some(project_path);
     } else {
@@ -939,6 +962,33 @@ async fn main() -> anyhow::Result<()> {
     }
 
     Ok(())
+}
+
+/// Single-project fallback for auto-open: if exactly one directory under
+/// `projects_root` contains a `project.yaml`, return its path. Returns `None`
+/// when there are zero or more than one (the WelcomeScreen then takes over).
+fn single_project_dir(projects_root: &std::path::Path) -> Option<std::path::PathBuf> {
+    let mut found: Option<std::path::PathBuf> = None;
+    let entries = std::fs::read_dir(projects_root).ok()?;
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if !path.is_dir() {
+            continue;
+        }
+        // Skip dot-dirs (logs, .history, markers) and anything without project.yaml.
+        if path.file_name().and_then(|n| n.to_str()).is_some_and(|n| n.starts_with('.')) {
+            continue;
+        }
+        if !path.join("project.yaml").is_file() {
+            continue;
+        }
+        if found.is_some() {
+            // More than one project — not a single-project layout.
+            return None;
+        }
+        found = Some(path);
+    }
+    found
 }
 
 /// Announce this runtime as `_sws._tcp.local.` via mDNS.

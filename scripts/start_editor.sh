@@ -85,6 +85,21 @@ echo "[editor] build (cargo build -p sws-runtime -j 1)…"
 echo "[editor]  (in attesa del file lock se un altro build è in corso)"
 (cd "$REPO_ROOT/sws-runtime" && cargo build -p sws-runtime -j 1)
 
+# ── Build frontend se dist manca o è più vecchio dei sorgenti ────────────────
+# Lo script ricompila sempre il backend ma servirebbe un dist/ stantio: questo
+# evita di mostrare una SPA vecchia (es. login dopo un aggiornamento no-auth).
+ensure_frontend_built() {
+  local dist="$REPO_ROOT/sws-editor/dist"
+  local marker="$dist/index-admin.html"
+  if [ ! -f "$marker" ] || [ -n "$(find "$REPO_ROOT/sws-editor/src" -newer "$marker" -print -quit 2>/dev/null)" ]; then
+    echo "[editor] frontend: dist assente o più vecchio dei sorgenti → pnpm build…"
+    (cd "$REPO_ROOT/sws-editor" && pnpm build)
+  else
+    echo "[editor] frontend: dist aggiornato — skip build"
+  fi
+}
+ensure_frontend_built
+
 WWW_DIST="$REPO_ROOT/sws-editor/dist"
 WWW_ARGS=()
 if [ -f "$WWW_DIST/index-admin.html" ]; then
@@ -95,12 +110,9 @@ else
   echo "[editor]   Costruisci con: cd sws-editor && pnpm build"
 fi
 
-# Auto-apre il progetto 'default' se esiste
+# Auto-apertura del progetto: NON passiamo --project. Il runtime riapre da solo
+# l'ultimo progetto attivo (marker .active-project) o l'unico presente.
 PROJECT_ARGS=()
-if [ -d "$PROJECTS_ROOT/default" ]; then
-  PROJECT_ARGS=(--project "$PROJECTS_ROOT/default")
-  echo "[editor] auto-apertura progetto: default"
-fi
 
 LAN_IP="$(hostname -I 2>/dev/null | awk '{print $1}')"
 [ -z "$LAN_IP" ] && LAN_IP="localhost"
