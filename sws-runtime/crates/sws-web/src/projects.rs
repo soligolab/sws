@@ -170,7 +170,7 @@ pub async fn create_project(
         }
         None => {
             // Write a minimal project.yaml so the welcome list sees it.
-            let project = Project {
+            let mut project = Project {
                 meta: ProjectMeta {
                     name: safe_name.clone(),
                     version: "0.1.0".into(),
@@ -183,8 +183,9 @@ pub async fn create_project(
                 datastores: vec![default_datastore()],
                 global_scripts: vec![],
                 notifications: None,
+                saved_by: None,
             };
-            let yaml = match serde_yaml::to_string(&project) {
+            let yaml = match project.stamp_and_serialize() {
                 Ok(y) => y,
                 Err(e) => {
                     warn!("create_project: serialize: {e}");
@@ -250,7 +251,7 @@ pub async fn open_project(
     // directory instead of the shared global historian.
     if project.datastores.is_empty() {
         project.datastores.push(default_datastore());
-        if let Ok(y) = serde_yaml::to_string(&project) {
+        if let Ok(y) = project.stamp_and_serialize() {
             let _ = std::fs::write(project_dir.join("project.yaml"), y);
         }
         info!(name = %project.meta.name, "injected default datastore into legacy project");
@@ -362,7 +363,12 @@ pub async fn open_project(
             .into_response();
     }
 
-    // 4. Mark the project as active.
+    // 4. Mark the project as active and persist the choice so the runtime
+    //    reopens it after a plain restart (single-project model).
+    let marker = s.projects_root.join(".active-project");
+    if let Err(e) = tokio::fs::write(&marker, project_dir.to_string_lossy().as_bytes()).await {
+        warn!("open_project: could not write .active-project marker: {e}");
+    }
     *s.project_dir.write().await = Some(project_dir);
 
     Json(OpenProjectResponse {
@@ -431,6 +437,14 @@ pub async fn delete_project(
     if let Err(e) = tokio::fs::remove_dir_all(&target).await {
         warn!("delete_project: remove {}: {e}", target.display());
         return (StatusCode::INTERNAL_SERVER_ERROR, "cannot delete project dir").into_response();
+    }
+    // Clear the auto-open marker if it pointed at the deleted project, so the
+    // runtime doesn't try to reopen a missing directory on next restart.
+    let marker = s.projects_root.join(".active-project");
+    if let Ok(txt) = tokio::fs::read_to_string(&marker).await {
+        if std::path::Path::new(txt.trim()) == target {
+            let _ = tokio::fs::remove_file(&marker).await;
+        }
     }
     info!(name = %safe_name, "project deleted");
     StatusCode::NO_CONTENT.into_response()

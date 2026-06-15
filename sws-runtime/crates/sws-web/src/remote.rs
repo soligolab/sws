@@ -194,6 +194,38 @@ pub async fn remote_deploy(
         let auth_hdr: Option<String> = if target.token.is_empty() { None }
             else { Some(format!("Bearer {}", target.token)) };
 
+        // Single-project runtime: wipe every existing project on the target so
+        // the deploy fully overwrites it (not just the same-named one).
+        send("Pulizia progetti esistenti sul target…");
+        let mut r = client.get(format!("{base}/api/projects"));
+        if let Some(h) = &auth_hdr { r = r.header("Authorization", h); }
+        match r.send().await {
+            Ok(resp) if resp.status().is_success() => {
+                let list: serde_json::Value = resp.json().await.unwrap_or_default();
+                if let Some(arr) = list.as_array() {
+                    if !arr.is_empty() {
+                        // Close any active project first so delete isn't rejected (409).
+                        let mut rc = client.post(format!("{base}/api/projects/close"));
+                        if let Some(h) = &auth_hdr { rc = rc.header("Authorization", h); }
+                        let _ = rc.send().await;
+                    }
+                    for item in arr {
+                        if let Some(n) = item["name"].as_str() {
+                            let mut rd = client.delete(format!("{base}/api/projects/{}", pct_encode(n)));
+                            if let Some(h) = &auth_hdr { rd = rd.header("Authorization", h); }
+                            match rd.send().await {
+                                Ok(d) if d.status().is_success() => send(&format!("  ✓ rimosso \"{n}\"")),
+                                Ok(d) => send(&format!("  ⚠ \"{n}\": {}", d.status())),
+                                Err(e) => send(&format!("  ⚠ \"{n}\": {e}")),
+                            }
+                        }
+                    }
+                }
+            }
+            Ok(resp) => send(&format!("⚠ Lista progetti non disponibile: {}", resp.status())),
+            Err(e)   => send(&format!("⚠ Lista progetti non disponibile: {e}")),
+        }
+
         // Upload ZIP
         send("Upload ZIP al target…");
         let mut req = client.post(format!("{base}/api/projects/upload"))
@@ -271,6 +303,56 @@ pub async fn remote_deploy(
         .header("x-content-type-options", "nosniff")
         .body(Body::from_stream(stream))
         .unwrap()
+}
+
+/// `POST /api/remote/project/delete` — delete the project currently active on
+/// the connected remote runtime (close + DELETE). Single-project model: there
+/// is at most one project, so we resolve its name from the remote's
+/// `/api/system` and remove it.
+pub async fn delete_remote_project(
+    State(s): State<AppState>,
+    Extension(_user): Extension<AuthUser>,
+) -> Response {
+    let target = match s.remote_target.read().await.clone() {
+        Some(t) => t,
+        None => return (StatusCode::BAD_REQUEST, "Nessun runtime remoto connesso").into_response(),
+    };
+    let client = make_remote_client();
+    let base = target.url.trim_end_matches('/').to_string();
+    let auth_hdr: Option<String> = if target.token.is_empty() { None }
+        else { Some(format!("Bearer {}", target.token)) };
+
+    // Resolve the active project name from the remote system status.
+    let mut r = client.get(format!("{base}/api/system"));
+    if let Some(h) = &auth_hdr { r = r.header("Authorization", h); }
+    let active = match r.send().await {
+        Ok(resp) if resp.status().is_success() => {
+            let v: serde_json::Value = resp.json().await.unwrap_or_default();
+            v["active_project"].as_str().map(|s| s.to_string())
+        }
+        Ok(resp) => return (StatusCode::BAD_GATEWAY, format!("Stato runtime: {}", resp.status())).into_response(),
+        Err(e)   => return (StatusCode::BAD_GATEWAY, format!("Stato runtime: {e}")).into_response(),
+    };
+    let name = match active {
+        Some(n) => n,
+        None => return (StatusCode::CONFLICT, "Nessun progetto attivo sul runtime").into_response(),
+    };
+
+    // Close (so delete isn't rejected with 409) then delete.
+    let mut rc = client.post(format!("{base}/api/projects/close"));
+    if let Some(h) = &auth_hdr { rc = rc.header("Authorization", h); }
+    let _ = rc.send().await;
+
+    let mut rd = client.delete(format!("{base}/api/projects/{}", pct_encode(&name)));
+    if let Some(h) = &auth_hdr { rd = rd.header("Authorization", h); }
+    match rd.send().await {
+        Ok(d) if d.status().is_success() => {
+            tracing::info!(project = %name, "deleted active project on remote runtime");
+            StatusCode::NO_CONTENT.into_response()
+        }
+        Ok(d) => (StatusCode::BAD_GATEWAY, format!("Delete fallito: {}", d.status())).into_response(),
+        Err(e) => (StatusCode::BAD_GATEWAY, format!("{e}")).into_response(),
+    }
 }
 
 /// `GET /api/remote/status` — return connection state (polled by the IDE

@@ -197,6 +197,7 @@ pub fn build(
         .route_layer(middleware::from_fn(require_operator));
 
     let system_ctrl_routes = Router::new()
+        .route("/api/project/migrate",     post(crate::system::migrate_project))
         .route("/api/system/stop",         post(crate::system::system_stop))
         .route("/api/system/start",        post(crate::system::system_start))
         .route("/api/system/reboot",       post(crate::system::system_reboot))
@@ -209,6 +210,7 @@ pub fn build(
                                            .delete(crate::remote::disconnect_remote))
         .route("/api/remote/status",       get(crate::remote::remote_status))
         .route("/api/remote/deploy",       post(crate::remote::remote_deploy))
+        .route("/api/remote/project/delete", post(crate::remote::delete_remote_project))
         .route("/ws/remote/:sub",          get(crate::remote_relay::ws_relay_handler))
         .route_layer(middleware::from_fn(require_admin));
 
@@ -1519,6 +1521,7 @@ where
         datastores: vec![],
         global_scripts: vec![],
         notifications: None,
+        saved_by: None,
     });
     f(&mut project);
     if let Err(e) = tokio::fs::create_dir_all(project_dir).await {
@@ -1526,7 +1529,7 @@ where
         return StatusCode::INTERNAL_SERVER_ERROR;
     }
     let path = project_dir.join("project.yaml");
-    match serde_yaml::to_string(&project) {
+    match project.stamp_and_serialize() {
         Ok(yaml) => match tokio::fs::write(&path, yaml).await {
             Ok(_)  => StatusCode::NO_CONTENT,
             Err(e) => { warn!("write project.yaml: {e}"); StatusCode::INTERNAL_SERVER_ERROR }
@@ -2022,7 +2025,7 @@ async fn import_project_zip(State(s): State<AppState>, body: Bytes) -> Response 
         return (StatusCode::INTERNAL_SERVER_ERROR, "cannot create project dir").into_response();
     }
     let project_path = project_dir.join("project.yaml");
-    let serialized_project = match serde_yaml::to_string(&project) {
+    let serialized_project = match project.stamp_and_serialize() {
         Ok(y)  => y,
         Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR,
             format!("project.yaml serialize: {e}")).into_response(),
