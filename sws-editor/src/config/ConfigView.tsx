@@ -3166,7 +3166,7 @@ function MqttBrowseModal({
                             checked={selected.has(t.topic)}
                             onChange={() => setSelected(prev => {
                               const next = new Set(prev);
-                              next.has(t.topic) ? next.delete(t.topic) : next.add(t.topic);
+                              if (next.has(t.topic)) { next.delete(t.topic); } else { next.add(t.topic); }
                               return next;
                             })}
                           />

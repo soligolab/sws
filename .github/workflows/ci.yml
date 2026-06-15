@@ -73,7 +73,7 @@ jobs:
         with:
           workspaces: sws-runtime
       - name: Install cargo-audit
-        run: cargo install cargo-audit --locked
+        run: cargo install cargo-audit --version "0.21.0"
       - run: cargo audit
 
   # ── Rust SBOM ─────────────────────────────────────────────────────────────
