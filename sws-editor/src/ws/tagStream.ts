@@ -60,7 +60,9 @@ export function tryTagWriteWs(
   tag: string,
   value: number | string | boolean,
 ): boolean {
-  return rws?.send(JSON.stringify({ type: "write", tag, value })) ?? false;
+  if (!rws || rws.readyState !== WebSocket.OPEN) return false;
+  rws.send(JSON.stringify({ type: "write", tag, value }));
+  return true;
 }
 
 /**

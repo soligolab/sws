@@ -617,6 +617,17 @@ async fn optional_auth(
     mut req: Request,
     next: Next,
 ) -> Response {
+    // No users defined → no-auth mode: inject synthetic Admin (mirrors require_auth).
+    if !s.auth.has_users().await {
+        req.extensions_mut().insert(AuthUser {
+            username: "admin".to_string(),
+            role: Role::Admin,
+            must_change_password: false,
+            allowed_zones: vec![],
+        });
+        return next.run(req).await;
+    }
+
     let token = req
         .headers()
         .get(header::AUTHORIZATION)

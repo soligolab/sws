@@ -67,10 +67,20 @@ export function RuntimeViewer() {
   const setPages            = useAppStore((s) => s.setPages);
   const setFaceplates       = useAppStore((s) => s.setFaceplates);
   const clearAuth           = useAppStore((s) => s.clearAuth);
+  const setAuth             = useAppStore((s) => s.setAuth);
   const setMustChangePassword = useAppStore((s) => s.setMustChangePassword);
 
   // On mount: detect whether a project is active and load its data.
   useEffect(() => {
+    // Initialize authToken so useTagStream() can open the WebSocket.
+    // In no-auth mode whoami() returns 200 with a synthetic admin — we use
+    // the "no-auth" sentinel token (ignored by optional_auth on the server).
+    // If the user has a persisted token it's already in the store; the call
+    // is harmless and confirms the session is still valid.
+    api.whoami()
+      .then((me) => setAuth("no-auth", me.username, me.role))
+      .catch(() => { /* anonymous viewer — reads work, writes need auth */ });
+
     api.getProject()
       .then(async (p) => {
         setNoActiveProject(false);
