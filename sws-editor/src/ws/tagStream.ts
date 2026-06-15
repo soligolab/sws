@@ -96,7 +96,6 @@ export function useTagStream(): void {
         if (parsed.type === "ack") {
           const ack = parsed as WriteAck;
           if (!ack.ok) {
-            // eslint-disable-next-line no-console
             console.warn(`[ws/tags] write ${ack.tag} failed: ${ack.error ?? "?"}`);
           }
           return;
@@ -120,7 +119,6 @@ export function useTagStream(): void {
           const delta = parsed as DeltaMsg;
           // Detect missing frames (seq gap > 1 since last delta/snapshot).
           if (lastSeq >= 0 && delta.seq > lastSeq + 1) {
-            // eslint-disable-next-line no-console
             console.warn(`[ws/tags] seq gap: expected ${lastSeq + 1}, got ${delta.seq}`);
           }
           lastSeq = delta.seq;
