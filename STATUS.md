@@ -4,7 +4,16 @@
 >
 > Ambienti di test: vedi [docs/TEST_SETUPS.md](docs/TEST_SETUPS.md) (casa, dev server, dispositivi Yocto).
 
-**Last session**: 2026-06-14 — Server-side deploy relay + no-auth mode frontend (branch `feat/websocket-remote-bridge`).
+**Last session**: 2026-06-15 — Runtime mono-progetto + versionamento progetto + elimina progetto remoto (commit diretto su `main`, **NON ancora testato end-to-end**).
+
+- **T-34 — Runtime mono-progetto, versionamento progetto, no-auth fix** (commesso su `main` non testato; il test verrà completato a casa):
+  - **Causa del "login ancora richiesto"**: NON era il repo (i commit no-auth c'erano). Il `dist/` del frontend era stantio (9 giu, pre-no-auth) perché gli script ricompilano il backend ma **non** il frontend. Fix: `pnpm build` rigenerato + **hardening** di `start_editor.sh`/`start_runtime.sh` (ora ricostruiscono `dist/` se mancante o più vecchio dei sorgenti). "admin" non funzionava perché in no-auth non esiste alcun utente.
+  - **Runtime mono-progetto** (`main.rs`, `projects.rs`): auto-apertura risolta in ordine `--project` → marker persistente `.active-project` (scritto a ogni open, **non più consumato**) → `.last-opened` legacy → unico progetto presente (`single_project_dir`). Rimosso l'hardcoding di `default` dagli script. Marker ripulito su delete.
+  - **Versionamento progetto** (`sws-core/project.rs`): campo `saved_by` + `runtime_version()`/`needs_update()`/`stamp_and_serialize()`/`save_to()`; tutti i writer di `project.yaml` instradati attraverso lo stamp. `/api/system` espone `project_saved_by` + `project_needs_update`; nuovo `POST /api/project/migrate` (re-save). Banner "⚠ Aggiorna progetto" in `App.tsx` (RuntimeCtrl). ⚠️ Tutti i crate condividono `0.1.0-dev` → il warning scatta solo quando si bumpa la versione del workspace.
+  - **Deploy sovrascrive tutto** (`remote.rs`): `remote_deploy` ora cancella **tutti** i progetti remoti prima dell'upload (coerente col mono-progetto).
+  - **Elimina progetto sul runtime** (`remote.rs`, `router.rs`, `ConfigView.tsx`, `client.ts`): nuovo relay `POST /api/remote/project/delete` (risolve il progetto attivo da `/api/system` del target, close+delete) + bottone rosso nel tab Runtime→Connetti.
+  - `cargo check -p sws-runtime` + `pnpm build` **verdi**.
+  - **Da fare a casa**: test end-to-end (vedi sezione "Verifica T-34" sotto). Se ok, nessuno squash necessario (già su main); altrimenti correggere e ricommittare.
 
 - **Server-side deploy relay + no-auth frontend + WebSocket remote bridge** (branch `feat/websocket-remote-bridge`, pronto per squash merge su main):
   - Backend (`sws-web`): `remote.rs` — `POST/DELETE /api/remote/connect` (autentica contro il runtime remoto, salva token in AppState), `GET /api/remote/status`. `remote_relay.rs` — `GET /ws/remote/{tags,alarms,logs}` pipe bidirezionale tokio-tungstenite con `AcceptAnyCert` rustls verifier per target `wss://`. Tutto Admin-only via `system_ctrl_routes`.
@@ -79,7 +88,7 @@
   - Bottone "Aggiorna" + toggle "● Live" (poll ogni 5 s); auto-stop alla disconnessione.
   - Box scrollabile max 200 px, timestamp HH:MM:SS, colori INFO/WARN/ERROR/DEBUG.
 
-**Branch corrente**: `feat/websocket-remote-bridge` (commit `33807f1`, pronto per squash merge).
+**Branch corrente**: `main` — lavoro T-34 committato direttamente su main (non testato), più branch `feat/T-34-runtime-single-project-versioning` lasciato come riferimento. Test da completare a casa.
 
 ---
 
@@ -87,6 +96,7 @@
 
 > Unica traccia del lavoro ancora aperto. Aggiorna man mano che gli item si chiudono.
 
+- [ ] **Verifica manuale T-34** (PRIORITÀ — da fare a casa) — riprendere da qui. Comandi sotto.
 - [x] **TLS opzionale** (feature) — ✅ fatto su `feat/tls-optional` (HTTP default + genera/carica/disabilita TLS da ConfigView). Resta solo lo squash merge + verifica browser. Dettagli nel blocco "Last session".
 - [ ] **Verifica manuale T-27** — packaging tarball + installer. Comandi sotto.
 - [ ] **Verifica manuale T-24/T-25/T-26** — fingerprint/device dashboard, remote logs, git commit/push. Comandi sotto.
@@ -100,6 +110,29 @@
 - Se l'utente carica/genera un cert in Configurazione → il processo si riavvia (o ricarica) in TLS
 - `start_editor.sh` e `start_runtime.sh` semplificati: nessun HTTP companion server necessario per il primo accesso
 - Il runtime su dispositivo LAN potrà comunque usare TLS configurandolo esplicitamente
+
+### Verifica manuale T-34 da fare (riprendere da qui)
+
+```bash
+# 1. no-auth: l'editor non deve chiedere login creando un progetto
+./scripts/start_editor.sh          # ricompila backend + rigenera dist se stantio
+# → browser http://<host>:8460, hard refresh (Ctrl-Shift-R), crea progetto → nessun login
+grep -rl "no-auth" sws-editor/dist/assets/*.js   # deve trovare la stringa
+
+# 2. auto-open mono-progetto: con UN solo progetto in projects-root
+./scripts/start_runtime.sh         # riavvio → deve riaprire quel progetto da solo
+#    (log "auto-opening …"; /api/system riporta active_project non-null)
+
+# 3. versione: salvare un progetto → project.yaml contiene `saved_by: 0.1.0-dev`
+#    Per testare il banner "Aggiorna": editare a mano saved_by (es. "0.0.1") nel
+#    project.yaml e riaprire → header IDE mostra "⚠ Aggiorna progetto" → click → re-save.
+
+# 4. deploy overwrite: con un progetto diverso già sul runtime, deploy dall'IDE
+#    (ConfigView → Runtime → Connetti → Deploy) → sul runtime resta solo il deployato.
+
+# 5. elimina remoto: ConfigView → Runtime → Connetti → "Elimina progetto sul runtime"
+#    → /api/system del runtime riporta active_project: null.
+```
 
 ### Verifica manuale T-27 da fare
 

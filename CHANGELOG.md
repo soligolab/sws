@@ -9,6 +9,18 @@ and this project adheres to [CalVer](https://calver.org/) (`YYYY.MM[.patch]`).
 
 ### Added
 
+- **Runtime mono-progetto: auto-apertura affidabile** (`sws-runtime/src/main.rs`, `sws-web/src/projects.rs`, `scripts/`). Al boot il runtime risolve il progetto da aprire in ordine: `--project` → marker persistente `.active-project` (scritto a ogni open, **non più consumato** come il vecchio `.last-opened`) → `.last-opened` legacy → unico progetto presente sotto `projects-root` (nuova `single_project_dir()`). Rimosso l'hardcoding del progetto `default` dagli script di avvio. Il marker viene ripulito quando il progetto puntato è eliminato. Risolve il caso "il runtime riparte dicendo che non c'è un progetto" pur essendoci un progetto su disco.
+
+- **Versionamento progetto + avviso/aggiornamento** (`sws-core/src/project.rs`, `sws-web/src/system.rs`, `router.rs`, `sws-editor/src/App.tsx`, `client.ts`). Nuovo campo `Project.saved_by` che registra la versione del runtime (`CARGO_PKG_VERSION`) a ogni salvataggio; tutti i writer di `project.yaml` passano per `stamp_and_serialize()`/`save_to()`. `GET /api/system` espone `project_saved_by` + `project_needs_update`; nuovo endpoint `POST /api/project/migrate` (Admin) che ricarica il progetto attivo e lo ri-salva nel formato corrente. L'header IDE mostra un pulsante "⚠ Aggiorna progetto" quando la versione di salvataggio diverge da quella del runtime.
+
+- **Elimina progetto sul runtime remoto** (`sws-web/src/remote.rs`, `router.rs`, `sws-editor/src/config/ConfigView.tsx`, `client.ts`). Nuovo relay `POST /api/remote/project/delete` (Admin): risolve il nome del progetto attivo dal `/api/system` del target, poi `close` + `DELETE`. Bottone rosso "Elimina progetto sul runtime" nel tab Runtime → Connetti.
+
+### Changed
+
+- **Deploy remoto sovrascrive tutto** (`sws-web/src/remote.rs`). `POST /api/remote/deploy` ora, prima dell'upload, elenca ed **elimina tutti** i progetti presenti sul runtime target (coerente col modello mono-progetto), non solo quello in conflitto sullo stesso nome.
+
+- **Script di avvio ricostruiscono il frontend se stantio** (`scripts/start_editor.sh`, `scripts/start_runtime.sh`). Gli script ricompilavano sempre il backend ma servivano un `sws-editor/dist` eventualmente vecchio (causa: dopo un aggiornamento la SPA servita poteva essere quella precedente, es. mostrando il login dopo l'introduzione del no-auth). Ora eseguono `pnpm build` quando `dist/index-admin.html` manca o è più vecchio dei sorgenti in `sws-editor/src/`.
+
 - **Server-side deploy relay** (`sws-web/src/remote.rs`, `router.rs`, `sws-editor/src/config/ConfigView.tsx`). `POST /api/remote/deploy`: il backend locale esporta il progetto attivo in ZIP, lo carica sul runtime remoto e lo attiva — tutto via reqwest `danger_accept_invalid_certs(true)`. Il browser non apre mai connessioni dirette al dispositivo remoto (no "Failed to fetch" per certificati self-signed). Il frontend legge un flusso newline-delimited di log di avanzamento. Supporto conflitto 409: close + delete vecchio progetto + retry upload automatici. Rimossa la vecchia `handleDeploy` da `RuntimeConnectionTab` che faceva fetch diretti dal browser.
 
 - **No-auth mode frontend** (`sws-editor/src/App.tsx`). In assenza di utenti (nessun `users.yaml`), il server risponde 200 a `GET /api/auth/whoami` con un admin sintetico. Il frontend ora chiama `whoami()` al bootstrap e dopo `onProjectOpened` prima di aggiornare lo stato auth: se risponde 200 setta il token sentinella `"no-auth"` (ignorato dal backend), evitando il flash di LoginScreen. Flag `bootstrapping` aggiunto per non mostrare nulla durante il round-trip iniziale.
