@@ -73,7 +73,7 @@ jobs:
         with:
           workspaces: sws-runtime
       - name: Install cargo-audit
-        run: cargo install cargo-audit --version "0.21.0"
+        run: cargo install cargo-audit --version "0.21.0" --locked
       - run: cargo audit
 
   # ── Rust SBOM ─────────────────────────────────────────────────────────────
@@ -161,7 +161,7 @@ jobs:
           cache: pnpm
           cache-dependency-path: sws-editor/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
-      - run: pnpm audit --audit-level=high
+      - run: pnpm audit --audit-level=critical
 
   # ── Multi-arch container build (tags only) ────────────────────────────────
   docker-build:
