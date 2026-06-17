@@ -330,6 +330,26 @@ export function EditorShell() {
             return;
           }
         }
+        const subCell = useAppStore.getState().selectedSubCell;
+        if (subCell) {
+          const state = useAppStore.getState();
+          const page = state.pages.find((p) => p.id === state.currentPageId);
+          const gridObj = page?.objects.find((o) => o.id === subCell.objectId);
+          const topCell = (gridObj?.grid_cells as GridCell[] | undefined)
+            ?.find((c) => c.row === subCell.row && c.col === subCell.col);
+          const entry = resolveSubCellEntry(topCell, subCell.path);
+          if (entry?.child) {
+            setClipboard([entry.child], state.currentPageId);
+            state.updateSubCellAt(
+              state.currentPageId,
+              subCell.objectId,
+              subCell.row, subCell.col,
+              subCell.path,
+              { child: undefined },
+            );
+            return;
+          }
+        }
         // Fall back to cutting the page-level selection.
         if (ids.length > 0) { copySelection(); deleteSelection(); }
       } else if (ctrl && (e.key === "v" || e.key === "V")) {
@@ -349,7 +369,21 @@ export function EditorShell() {
               { ...cellDef, child: { ...clipboard[0] } });
           }
         } else {
-          pasteClipboard();
+          const subCell = useAppStore.getState().selectedSubCell;
+          if (subCell) {
+            const state = useAppStore.getState();
+            if (state.clipboard.length > 0) {
+              state.updateSubCellAt(
+                state.currentPageId,
+                subCell.objectId,
+                subCell.row, subCell.col,
+                subCell.path,
+                { child: { ...state.clipboard[0] } },
+              );
+            }
+          } else {
+            pasteClipboard();
+          }
         }
       } else if (ctrl && (e.key === "d" || e.key === "D") && ids.length > 0) {
         e.preventDefault(); duplicateSelection();
