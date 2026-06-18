@@ -1,4 +1,4 @@
-import { useId, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAppStore } from "@/store";
 
 interface TagInputProps {
@@ -9,16 +9,31 @@ interface TagInputProps {
 }
 
 /**
- * Text input with autocomplete suggestions for project-defined tag IDs.
- * Shows a ▾ button that opens a filterable dropdown when tags are available.
+ * Text input with a ▾ button that opens a filterable tag-picker dropdown.
  * Free-text entry is always allowed.
  */
 export function TagInput({ value, onChange, placeholder, style }: TagInputProps) {
-  const listId   = useId();
-  const tags     = useAppStore((s) => s.project?.tags ?? []);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const tags         = useAppStore((s) => s.project?.tags ?? []);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const inputRef     = useRef<HTMLInputElement>(null);
+  const filterRef    = useRef<HTMLInputElement>(null);
   const [open, setOpen]     = useState(false);
   const [filter, setFilter] = useState("");
+
+  // Close when focus leaves the component entirely.
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (!containerRef.current?.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open]);
+
+  // Focus the filter input after the dropdown mounts (avoids autoFocus blur race).
+  useEffect(() => {
+    if (open) filterRef.current?.focus();
+  }, [open]);
 
   const filtered = tags.filter(
     (t) => !filter || t.id.toLowerCase().includes(filter.toLowerCase())
@@ -29,20 +44,18 @@ export function TagInput({ value, onChange, placeholder, style }: TagInputProps)
     onChange(id);
     setOpen(false);
     setFilter("");
+    inputRef.current?.focus();
   };
 
   return (
-    <div style={{ position: "relative", display: "flex", gap: 2 }}>
+    <div ref={containerRef} style={{ position: "relative", display: "flex", gap: 2 }}>
       <input
         ref={inputRef}
         type="text"
-        list={listId}
         style={{ ...style, flex: 1, minWidth: 0 }}
         placeholder={placeholder}
         value={value}
-        onChange={(e) => { onChange(e.target.value); setFilter(e.target.value); }}
-        onFocus={() => setFilter(value)}
-        onBlur={() => setTimeout(() => setOpen(false), 150)}
+        onChange={(e) => onChange(e.target.value)}
         spellCheck={false}
         autoComplete="off"
       />
@@ -60,8 +73,8 @@ export function TagInput({ value, onChange, placeholder, style }: TagInputProps)
             fontSize: 11,
             lineHeight: 1,
           }}
-          onClick={() => { setFilter(""); setOpen((o) => !o); inputRef.current?.focus(); }}
           onMouseDown={(e) => e.preventDefault()}
+          onClick={() => { setFilter(""); setOpen((o) => !o); }}
           tabIndex={-1}
           title="Seleziona tag"
         >
@@ -84,9 +97,9 @@ export function TagInput({ value, onChange, placeholder, style }: TagInputProps)
             boxShadow: "0 4px 16px rgba(0,0,0,0.5)",
             marginTop: 2,
           }}
-          onMouseDown={(e) => e.preventDefault()}
         >
           <input
+            ref={filterRef}
             type="text"
             placeholder="Filtra tag…"
             style={{
@@ -102,7 +115,7 @@ export function TagInput({ value, onChange, placeholder, style }: TagInputProps)
             }}
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
-            autoFocus
+            onKeyDown={(e) => { if (e.key === "Escape") setOpen(false); }}
           />
           {filtered.map((t) => (
             <div
@@ -110,7 +123,7 @@ export function TagInput({ value, onChange, placeholder, style }: TagInputProps)
               style={{ padding: "5px 8px", cursor: "pointer", display: "flex", gap: 8, alignItems: "baseline" }}
               onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.background = "#1e293b"; }}
               onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.background = ""; }}
-              onClick={() => select(t.id)}
+              onMouseDown={() => select(t.id)}
             >
               <span style={{ color: "#e2e8f0", fontFamily: "monospace", fontSize: 12 }}>{t.id}</span>
               {t.description && (
@@ -125,9 +138,6 @@ export function TagInput({ value, onChange, placeholder, style }: TagInputProps)
           )}
         </div>
       )}
-      <datalist id={listId}>
-        {tags.map((t) => <option key={t.id} value={t.id}>{t.description}</option>)}
-      </datalist>
     </div>
   );
 }
