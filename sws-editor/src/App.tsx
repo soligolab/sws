@@ -307,6 +307,8 @@ function MainMenu({ mode, onLogout, onCloseProject }: { mode: Mode; onLogout: ()
       if (names.length > 0) {
         const pages = await Promise.all(names.map((n) => api.getSynoptic(n)));
         setPages(pages, pages[0].id);
+      } else {
+        setPages([], "");
       }
       setIoStat(`✓ Importato ${file.name}`);
     } catch (e: any) { setIoStat(`Errore: ${e?.message ?? e}`); }
