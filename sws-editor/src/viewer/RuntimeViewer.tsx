@@ -13,7 +13,6 @@ import { RuntimeView } from "@/runtime-view/RuntimeView";
 // ── Idle screen (no active project on this runtime) ───────────────────────────
 
 function RuntimeIdleScreen() {
-  const healthUrl = `${window.location.origin}/health`;
   return (
     <div style={{
       display: "flex", flexDirection: "column", alignItems: "center",
@@ -39,18 +38,6 @@ function RuntimeIdleScreen() {
       >
         Riprova
       </button>
-      <p style={{ margin: 0, fontSize: 12, color: "#475569", textAlign: "center" }}>
-        Certificato TLS non ancora accettato?{" "}
-        <a
-          href={healthUrl}
-          target="_blank"
-          rel="noreferrer"
-          style={{ color: "#64748b", textDecoration: "underline" }}
-        >
-          Apri {healthUrl}
-        </a>
-        {" "}e clicca "Avanzate → Procedi".
-      </p>
     </div>
   );
 }
