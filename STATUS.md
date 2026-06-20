@@ -104,7 +104,7 @@
 
 > Unica traccia del lavoro ancora aperto. Aggiorna man mano che gli item si chiudono.
 
-- [ ] **Verifica manuale T-34** (PRIORITÀ — da fare a casa) — riprendere da qui. Comandi sotto.
+- [x] **Verifica T-34** — ✅ automatizzata con `scripts/test_t34.sh` (18/18 test verdi, 2026-06-20). Copre: no-auth, auto-open, versionamento+migrate, remote deploy, elimina remoto.
 - [x] **TLS opzionale** — ✅ in main.
 - [ ] **`origin/feat/pyenv-support`** — 15 righe in `start_runtime.sh` per supporto pyenv (`LD_LIBRARY_PATH` auto-patch). Non critico, da valutare se integrare.
 - [ ] **Verifica manuale T-27** — packaging tarball + installer. Comandi sotto.
