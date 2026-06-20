@@ -3,13 +3,16 @@
 # Avvia l'IDE SWS in locale sul PC dello sviluppatore (solo porta 8460).
 # Nessun viewer operatori — solo l'interfaccia di progettazione canvas.
 #
+# La directory dati è .run-editor/ (SEPARATA da .run/ usata da start_runtime.sh).
+# Editor e runtime hanno progetti distinti: il deploy copia via API, non su disco.
+#
 # Di default parte in plain HTTP (nessun certificato necessario — localhost è
 # sempre un "secure context" nei browser moderni). TLS si abilita da
 # ConfigView → Stato → Certificato TLS dopo il primo avvio.
 #
 # Uso:
-#   ./scripts/start_editor.sh                # IDE su 8460, dati .run/
-#   ./scripts/start_editor.sh --instance 2   # IDE su 8462, dati .run-2/
+#   ./scripts/start_editor.sh                # IDE su 8460, dati .run-editor/
+#   ./scripts/start_editor.sh --instance 2   # IDE su 8462, dati .run-editor-2/
 #
 # Variabili d'ambiente (opzionali):
 #   SWS_ADMIN_USER / SWS_ADMIN_PASSWORD   per creare un utente admin all'avvio
@@ -34,9 +37,9 @@ done
 ADMIN_PORT=$((8460 + (INSTANCE - 1) * 2))
 
 if [ "$INSTANCE" -eq 1 ]; then
-  RUN_DIR="$REPO_ROOT/.run"
+  RUN_DIR="$REPO_ROOT/.run-editor"
 else
-  RUN_DIR="$REPO_ROOT/.run-$INSTANCE"
+  RUN_DIR="$REPO_ROOT/.run-editor-$INSTANCE"
 fi
 
 CONFIG_DIR="$RUN_DIR/config"
