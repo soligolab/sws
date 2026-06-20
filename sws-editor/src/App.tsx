@@ -310,7 +310,8 @@ function MainMenu({ mode, onLogout, onCloseProject }: { mode: Mode; onLogout: ()
       } else {
         setPages([], "");
       }
-      setIoStat(`✓ Importato ${file.name}`);
+      const tagCount = project.tags?.length ?? 0;
+      setIoStat(`✓ Importato ${file.name} (${tagCount} tag)`);
     } catch (e: any) { setIoStat(`Errore: ${e?.message ?? e}`); }
     finally { setIoBusy(null); setTimeout(() => setIoStat(null), 6000); }
   };
@@ -342,6 +343,17 @@ function MainMenu({ mode, onLogout, onCloseProject }: { mode: Mode; onLogout: ()
       >
         ☰ Menu {saveStatus === "saving" ? "⟳" : saveStatus === "ok" ? "✓" : saveStatus === "error" ? "⚠" : ""}
       </button>
+      {/* L'input file vive FUORI dal dropdown: cliccare "Importa progetto" chiude
+          il menu (setOpen(false)); se l'input fosse dentro {open && …} verrebbe
+          smontato mentre il file-dialog nativo è ancora aperto e l'onChange non
+          scatterebbe più → l'import non partirebbe (GitHub issue #2). */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".zip,application/zip"
+        style={{ display: "none" }}
+        onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) handleImport(f); }}
+      />
       {open && (
         <div style={DROP_PANEL}>
           {mode === "edit" && (
@@ -393,18 +405,19 @@ function MainMenu({ mode, onLogout, onCloseProject }: { mode: Mode; onLogout: ()
           >
             Esci
           </button>
-          {ioStatus && (
-            <div style={{ padding: "4px 14px", fontSize: 11, color: ioStatus.startsWith("✓") ? "#86efac" : "#fca5a5" }}>
-              {ioStatus}
-            </div>
-          )}
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".zip,application/zip"
-            style={{ display: "none" }}
-            onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) handleImport(f); }}
-          />
+        </div>
+      )}
+      {/* Lo stato export/import vive FUORI dal dropdown: il menu si chiude al
+          click di "Importa progetto", quindi un messaggio interno non verrebbe
+          mai visto. Qui resta visibile come piccolo toast sotto il bottone. */}
+      {ioStatus && (
+        <div style={{
+          position: "absolute", top: "100%", right: 0, marginTop: 4, zIndex: 9000,
+          whiteSpace: "nowrap", padding: "4px 10px", borderRadius: 4,
+          background: "#0f172a", border: "1px solid #334155",
+          fontSize: 11, color: ioStatus.startsWith("✓") ? "#86efac" : "#fca5a5",
+        }}>
+          {ioStatus}
         </div>
       )}
     </div>
