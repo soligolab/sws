@@ -38,6 +38,9 @@ Thumbs.db
 sbom.cdx.json
 /dist/
 
-# Local dev runtime state (created by scripts/dev.sh)
+# Local dev runtime/editor state (start_runtime.sh → .run/, start_editor.sh → .run-editor/)
 /.run/
+/.run-*/
+/.run-editor/
+/.run-editor-*/
 REMOVED_DOC.md
