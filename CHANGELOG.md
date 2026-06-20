@@ -7,6 +7,16 @@ and this project adheres to [CalVer](https://calver.org/) (`YYYY.MM[.patch]`).
 
 ## [Unreleased]
 
+### Fixed
+
+- **Grid paste/cut in sub-celle** (`sws-editor/src/editor/EditorShell.tsx`). Ctrl+V e Ctrl+X gestiscono ora anche `selectedSubCell` (celle ottenute per divisione). Prima il paste/cut funzionava solo sulla cella top-level; le celle suddivise erano ignorate.
+
+- **TagInput: pulsante ▾ esterno funzionante + dropdown con filtro** (`sws-editor/src/components/TagInput.tsx`). Riscrittura completa del componente: rimosso pattern `onBlur+setTimeout` (causava chiusura immediata per race con `autoFocus` sul filtro), sostituito con click-outside (`document.addEventListener("mousedown", ...)`). Aggiunto campo filtro nel dropdown. Rimosso `<datalist>` nativo (eliminata freccia browser interna). Fix applicato a tutti i campi tag del codebase.
+
+- **"Valore live" in Configurazione → Variabili non si aggiornava** (`sws-editor/src/App.tsx`, `sws-editor/src/ws/tagStream.ts`). Doppio fix: (1) `useTagStream()` ora chiamato anche nella IDE SPA (`App.tsx`), non solo nel viewer; (2) `tagStream.ts`: il singleton `ReconnectingWs` ora viene ricreato quando cambia `remoteConnected` (diverso URL `/ws/remote/tags` vs `/ws/tags`) e invia `{"type":"subscribe","tags":["*"]}` all'apertura della connessione (richiesto dal relay remoto).
+
+- **Auto-deploy al salvataggio** (`sws-editor/src/editor/EditorShell.tsx`, `sws-editor/src/App.tsx`, `sws-editor/src/store/index.ts`). Quando connesso a un runtime remoto, ogni salvataggio riuscito lancia automaticamente `POST /api/remote/deploy` in background. Il pulsante "Deploy" nell'header IDE mostra lo stato del sync: "⟳ Sync…" (in corso) / "✓ Synced" (ok, 3 s) / "✗ Sync err" (errore, 3 s). Nuovo campo `remoteDeployStatus: "idle"|"syncing"|"ok"|"error"` nello store Zustand.
+
 ### Added
 
 - **Runtime mono-progetto: auto-apertura affidabile** (`sws-runtime/src/main.rs`, `sws-web/src/projects.rs`, `scripts/`). Al boot il runtime risolve il progetto da aprire in ordine: `--project` → marker persistente `.active-project` (scritto a ogni open, **non più consumato** come il vecchio `.last-opened`) → `.last-opened` legacy → unico progetto presente sotto `projects-root` (nuova `single_project_dir()`). Rimosso l'hardcoding del progetto `default` dagli script di avvio. Il marker viene ripulito quando il progetto puntato è eliminato. Risolve il caso "il runtime riparte dicendo che non c'è un progetto" pur essendoci un progetto su disco.

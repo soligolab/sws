@@ -4,7 +4,15 @@
 >
 > Ambienti di test: vedi [docs/TEST_SETUPS.md](docs/TEST_SETUPS.md) (casa, dev server, dispositivi Yocto).
 
-**Last session**: 2026-06-15 — Runtime mono-progetto + versionamento progetto + elimina progetto remoto (commit diretto su `main`, **NON ancora testato end-to-end**).
+**Last session**: 2026-06-20 — Bugfix vari + pulizia branch. Tutto su `main`, solo `main` rimane localmente.
+
+- **Sessione 2026-06-20 — Bugfix vari + pulizia branch**:
+  - **Grid paste/cut in sub-celle**: `EditorShell.tsx` — Ctrl+V e Ctrl+X ora gestiscono anche `selectedSubCell` (prima funzionavano solo sulla cella top-level). Usa `resolveSubCellEntry` + `updateSubCellAt`.
+  - **TagInput — pulsante ▾ esterno funzionante + filtro**: riscrittura completa del componente, rimosso `onBlur+setTimeout` (causava chiusura immediata per race con `autoFocus`), sostituito con click-outside pattern (`document.addEventListener("mousedown", ...)`). Aggiunto campo filtro nel dropdown. Rimosso `<datalist>` nativo (eliminata freccia interna). Fix applicato a tutti gli usi di `TagInput` nel codebase.
+  - **"Valore live" in Configurazione → Variabili si aggiorna**: due fix: (1) aggiunto `useTagStream()` in `App.tsx` (l'hook WebSocket `/ws/tags` non era chiamato nell'IDE SPA); (2) fix `tagStream.ts` — `getStream()` ora ricrea il WebSocket quando cambia `remoteConnected` (URL diverso) e invia `{"type":"subscribe","tags":["*"]}` all'apertura (relay `/ws/remote/tags` ne aveva bisogno, il locale no ma non fa male).
+  - **Auto-deploy al salvataggio**: quando `remoteConnected`, ogni salvataggio riuscito (Ctrl+S) fa `POST /api/remote/deploy` in background. Pulsante "Deploy" in App.tsx mostra lo stato: "⟳ Sync…" / "✓ Synced" / "✗ Sync err"; torna a idle dopo 3 s. Campo `remoteDeployStatus` aggiunto allo store Zustand.
+  - **Pulizia branch locale**: eliminati tutti i 17 branch locali — erano tutti già mergiati su `main` (squash precedenti). Rimane solo `main`. Note: `origin/feat/pyenv-support` (15 righe in `start_runtime.sh` per supporto pyenv LD_LIBRARY_PATH) è ancora nel remote non mergiato — decidere se integrare.
+  - `cargo check` + `pnpm build` **verdi**.
 
 - **T-34 — Runtime mono-progetto, versionamento progetto, no-auth fix** (commesso su `main` non testato; il test verrà completato a casa):
   - **Causa del "login ancora richiesto"**: NON era il repo (i commit no-auth c'erano). Il `dist/` del frontend era stantio (9 giu, pre-no-auth) perché gli script ricompilano il backend ma **non** il frontend. Fix: `pnpm build` rigenerato + **hardening** di `start_editor.sh`/`start_runtime.sh` (ora ricostruiscono `dist/` se mancante o più vecchio dei sorgenti). "admin" non funzionava perché in no-auth non esiste alcun utente.
@@ -88,7 +96,7 @@
   - Bottone "Aggiorna" + toggle "● Live" (poll ogni 5 s); auto-stop alla disconnessione.
   - Box scrollabile max 200 px, timestamp HH:MM:SS, colori INFO/WARN/ERROR/DEBUG.
 
-**Branch corrente**: `main` — lavoro T-34 committato direttamente su main (non testato), più branch `feat/T-34-runtime-single-project-versioning` lasciato come riferimento. Test da completare a casa.
+**Branch corrente**: `main` — tutti i branch locali eliminati (erano tutti già mergiati). Solo `origin/feat/pyenv-support` rimane nel remote, non critico.
 
 ---
 
@@ -97,7 +105,8 @@
 > Unica traccia del lavoro ancora aperto. Aggiorna man mano che gli item si chiudono.
 
 - [ ] **Verifica manuale T-34** (PRIORITÀ — da fare a casa) — riprendere da qui. Comandi sotto.
-- [x] **TLS opzionale** (feature) — ✅ fatto su `feat/tls-optional` (HTTP default + genera/carica/disabilita TLS da ConfigView). Resta solo lo squash merge + verifica browser. Dettagli nel blocco "Last session".
+- [x] **TLS opzionale** — ✅ in main.
+- [ ] **`origin/feat/pyenv-support`** — 15 righe in `start_runtime.sh` per supporto pyenv (`LD_LIBRARY_PATH` auto-patch). Non critico, da valutare se integrare.
 - [ ] **Verifica manuale T-27** — packaging tarball + installer. Comandi sotto.
 - [ ] **Verifica manuale T-24/T-25/T-26** — fingerprint/device dashboard, remote logs, git commit/push. Comandi sotto.
 - [ ] **Debito: `sws-kiosk` non rispetta `--viewer-port`** (hardcoded `https://localhost:8443` nel wayland spawn). Fix triviale in `main.rs` se/quando si usa il kiosk su device multi-istanza.
