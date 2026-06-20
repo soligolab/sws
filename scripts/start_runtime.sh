@@ -46,9 +46,19 @@ PROJECTS_ROOT="$RUN_DIR/projects"
 TEMPLATES_ROOT="$REPO_ROOT/examples/templates"
 LOG_DIR="$RUN_DIR/logs"
 
-# Debian Bookworm non ha /usr/bin/python, solo python3.
-if [ -z "${PYO3_PYTHON:-}" ] && command -v python3 >/dev/null 2>&1; then
-  export PYO3_PYTHON=python3
+PYTHON_PATH=$(which python3 2>/dev/null || echo "")
+if [ -z "${PYO3_PYTHON:-}" ] && [ -n "$PYTHON_PATH" ]; then
+  export PYO3_PYTHON="$PYTHON_PATH"
+fi
+
+# Su Arch/pyenv il binario Python è uno shim che non espone le shared libs:
+# PyO3 non trova libpython e crasha. Patcha LD_LIBRARY_PATH con la versione attiva.
+if [[ "${PYTHON_PATH:-}" == *".pyenv/shims"* ]]; then
+  python_version=$(pyenv version 2>/dev/null | awk '{print $1}')
+  if [ -n "$python_version" ]; then
+    pyenv_lib="$HOME/.pyenv/versions/$python_version/lib"
+    export LD_LIBRARY_PATH="${pyenv_lib}${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+  fi
 fi
 
 mkdir -p "$CONFIG_DIR" "$PROJECTS_ROOT" "$LOG_DIR"
