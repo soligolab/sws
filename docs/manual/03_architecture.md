@@ -19,35 +19,36 @@ sws/
 └── sws-editor/      TypeScript + React — SPA editor + viewer operatori
 ```
 
-Il runtime è un **singolo binario Rust** che:
-- Avvia due server HTTPS (porta 8443 e 8444)
-- Carica il progetto dal filesystem (YAML)
+Il runtime è un **singolo binario Rust** (mono-progetto) che:
+- Avvia due server (porta 8443 viewer e 8444 admin), in HTTP o HTTPS a seconda del certificato
+- Carica il progetto dal filesystem (YAML) e riapre l'ultimo attivo al boot
 - Raccoglie dati dai PLC tramite plugin
-- Gestisce tag, allarmi, historian e autenticazione
-- Serve la SPA React (admin e viewer) come file statici incorporati nel binario
+- Gestisce tag, allarmi, historian e (se configurata) autenticazione
+- Serve la SPA React (admin e viewer) dalla cartella `dist/` passata con `--www`
 
 ---
 
 ## Crate Rust
 
-Il workspace `sws-runtime/crates/` è composto da 14 crate:
+Il workspace `sws-runtime/crates/` è composto da 15 crate:
 
 ```
 sws-runtime/crates/
-  sws-core           Tipi condivisi: TagValue, AlarmDef, ProjectMeta, ...
-  sws-auth           Argon2id, RBAC 4 ruoli, token sessione
-  sws-historian      Ring buffer in-memory + persistenza SQLite
-  sws-pyscript       PyO3 + RestrictedPython sandbox, supervisor script globali
-  sws-audit          Audit log append-only (eventi auth, scritture tag, modifiche progetto)
-  sws-web            Router Axum dual-port 8443+8444, tutti gli handler HTTP/WS
-  sws-plugin-api     Trait Plugin + TagValue condivisi tra i plugin
-  sws-plugin-modbus  Modbus TCP + RTU (tokio-modbus)
-  sws-plugin-opcua   OPC-UA client + server (async-opcua 0.18)
-  sws-plugin-mqtt    MQTT client + Sparkplug B encode/decode (rumqttc + prost)
-  sws-plugin-ha      HomeAssistant WebSocket (state_changed + call_service)
-  sws-plugin-s7      Siemens S7 (pure-Rust s7 crate, tokio bridge)
-  sws-plugin-enip    EtherNet/IP (rseip, ControlLogix symbolic tag access)
-  sws-runtime        Entry point binario, TLS dual-port server (8443 + 8444)
+  sws-core                  Tipi condivisi: TagValue, AlarmDef, ProjectMeta, ...
+  sws-auth                  Argon2id, RBAC 4 ruoli, ABAC zone, token sessione
+  sws-historian             Ring buffer in-memory + persistenza SQLite
+  sws-pyscript              PyO3 + RestrictedPython sandbox, supervisor script globali
+  sws-audit                 Audit log append-only (auth, scritture tag, modifiche progetto)
+  sws-web                   Router Axum dual-port 8443+8444, tutti gli handler HTTP/WS
+  sws-kiosk                 Viewer fullscreen Wayland per pannelli HMI
+  sws-plugin-api            Trait Plugin + TagValue condivisi tra i plugin
+  sws-plugin-modbus         Modbus TCP + RTU (tokio-modbus)
+  sws-plugin-opcua          OPC-UA client + server (async-opcua 0.18)
+  sws-plugin-mqtt           MQTT client + Sparkplug B encode/decode (rumqttc + prost)
+  sws-plugin-homeassistant  HomeAssistant WebSocket (state_changed + call_service)
+  sws-plugin-s7             Siemens S7 (DB/M/I/Q areas, tokio bridge)
+  sws-plugin-enip           EtherNet/IP (rseip, ControlLogix symbolic tag access)
+  sws-runtime               Entry point binario, dual-port server (8443 + 8444)
 ```
 
 ### Dipendenze chiave
@@ -67,7 +68,8 @@ sws-runtime/crates/
 
 ## Architettura dual-port
 
-SWS avvia **due server HTTPS indipendenti** dallo stesso processo:
+SWS avvia **due server indipendenti** dallo stesso processo (HTTP di default, HTTPS se è presente
+un certificato all'avvio):
 
 ```
 processo sws-runtime
@@ -78,7 +80,7 @@ processo sws-runtime
       │       │           Route: /api/* (lettura), /ws/* (stream live)
       │       │
       └── porta 8444 ──── Admin IDE
-              │           Auth: obbligatoria (401 senza token)
+              │           Auth: opzionale — richiesta solo se esistono utenti (no-auth mode)
               │           SPA: dist/index-admin.html (~310 kB)
               │           Route: tutto quanto + project lifecycle
 ```
@@ -112,7 +114,7 @@ sws-core :: TagDb (in-memory HashMap<String, TagState>)
         └──► WebSocket broadcast (push a tutti i browser connessi)
                 │
                 ▼
-        Browser (RuntimeViewer o Editor in Modalità Runtime)
+        Browser (Viewer operatori porta 8443)
         aggiorna il sinottico SVG in tempo reale
 ```
 
@@ -170,7 +172,7 @@ Zustand (`src/store/index.ts`) gestisce lo stato globale:
 
 | Aspetto | Implementazione |
 |---------|----------------|
-| **TLS only** | Nessun HTTP plain — rustls self-signed auto-generato al primo avvio |
+| **TLS opzionale** | HTTP di default; HTTPS (rustls) attivabile generando/caricando un certificato dall'IDE — vedi [10 — Deployment](10_deployment.md) |
 | **Password** | Argon2id, mai in chiaro nel database o nei log |
 | **Dipendenze** | `Cargo.lock` e `pnpm-lock.yaml` sempre committati; `cargo-audit` in CI |
 | **Memory safety** | Rust puro; nessun `unsafe` senza commento `// SAFETY:` |
@@ -183,14 +185,17 @@ Zustand (`src/store/index.ts`) gestisce lo stato globale:
 ## Dev workflow
 
 ```bash
-# Avvio completo (compila Rust al primo lancio, poi avvio runtime + Vite)
-./scripts/dev.sh
+# Runtime sul dispositivo (compila Rust al primo lancio, ricostruisce la SPA se stantia)
+./scripts/start_runtime.sh
+
+# Solo editor su PC sviluppatore (IDE su 8460, deploy verso runtime remoto)
+./scripts/start_editor.sh
 
 # Struttura dello stato locale (tutto .gitignore-ato)
 .run/
-├── config/        # tls.crt + tls.key (generati una volta, riusati)
-├── project/       # project.yaml demo con 2 tag + 1 allarme
-└── logs/          # runtime.log
+├── config/      # tls.crt + tls.key (solo se il TLS è stato attivato dall'IDE)
+├── projects/    # un progetto per sottodirectory (project.yaml + synoptics/)
+└── logs/        # runtime-YYYY-MM-DD.jsonl
 ```
 
 Per compilare solo il runtime:
@@ -198,7 +203,7 @@ Per compilare solo il runtime:
 cd sws-runtime && cargo build --release
 ```
 
-Per avviare solo il frontend:
+Per avviare solo il frontend con hot-reload:
 ```bash
 cd sws-editor && pnpm dev
 ```

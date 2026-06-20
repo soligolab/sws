@@ -4,49 +4,19 @@
 
 # 02 — Quick Start
 
-Questa guida ti porta dall'installazione alla prima schermata operativa in meno di 10 minuti.
+Questa guida ti porta dall'installazione alla prima schermata operativa in pochi minuti.
 Scegli il percorso più adatto alla tua situazione.
 
----
-
-## Percorso A — Container (più veloce)
-
-Il modo più rapido per vedere SWS in azione senza compilare nulla.
-
-### Prerequisiti
-
-- Docker ≥ 24 oppure Podman ≥ 4 con `podman-compose`
-- 512 MB RAM libera
-- Porte 8443 e 8444 disponibili
-
-### Avvio
-
-```bash
-git clone https://github.com/soligolab/sws.git
-cd sws
-
-# Imposta una password admin (obbligatoria, nessun default)
-export SWS_ADMIN_PASSWORD=cambiami
-
-docker compose up
-```
-
-### Accesso
-
-| URL | Ruolo | Prima visita |
-|-----|-------|-------------|
-| `https://localhost:8444` | Admin IDE (editor) | Accetta il certificato self-signed |
-| `https://localhost:8443` | Viewer operatori | Accetta il certificato self-signed |
-
-> **Certificato self-signed**: il browser mostrerà un avviso di sicurezza. Clicca
-> "Continua" (o "Advanced → Proceed"). Il certificato è generato automaticamente e
-> rimane lo stesso tra i restart — lo accetti una sola volta per browser.
+> **Nota PoC.** Di default il runtime parte in **HTTP** (nessun certificato) e in **no-auth
+> mode** (nessun login). Per un device in campo abilita TLS e crea degli utenti — vedi
+> [09 — Autenticazione e ruoli](09_auth_rbac.md) e [10 — Deployment](10_deployment.md).
 
 ---
 
-## Percorso B — Sviluppo locale (consigliato per chi sviluppa)
+## Percorso A — Runtime sul dispositivo (consigliato)
 
-Compila il runtime e avvia editor + runtime in un unico comando.
+Un solo comando: compila il backend, ricostruisce la SPA se necessario, avvia il runtime e
+riapre l'ultimo progetto attivo.
 
 ### Prerequisiti
 
@@ -59,182 +29,157 @@ Compila il runtime e avvia editor + runtime in un unico comando.
 
 > Su Ubuntu 22.04+: `apt install libssl-dev pkg-config` per la compilazione Rust.
 
-### Primo avvio
+### Avvio
 
 ```bash
 git clone https://github.com/soligolab/sws.git
 cd sws
 
-# Installa dipendenze frontend
+# Installa le dipendenze frontend (solo la prima volta)
 cd sws-editor && pnpm install && cd ..
 
-# Avvia runtime + editor con un solo comando
-./scripts/dev.sh
+# Avvia il runtime: viewer 8443 + IDE/admin 8444 (+ companion HTTP 8080)
+./scripts/start_runtime.sh
 ```
 
-Lo script `dev.sh`:
-1. Compila il runtime Rust (solo al primo avvio o dopo modifiche, ~3 min)
-2. Genera il certificato TLS self-signed in `.run/config/`
-3. Crea un progetto demo in `.run/project/` con due tag (`counter`, `sine`) e un allarme
-4. Avvia il runtime sulle porte 8443 e 8444
-5. Avvia il server Vite (proxy HTTP sulla porta 5173 → 8444)
-6. Stampa gli URL di accesso nel terminale
+Lo script `start_runtime.sh`:
+1. Compila il runtime Rust (`cargo build -j 1`; ~3 min al primo avvio)
+2. Ricostruisce `sws-editor/dist/` se manca o è più vecchio dei sorgenti
+3. Avvia il runtime sulle porte 8443 (viewer) e 8444 (IDE/admin)
+4. Riapre automaticamente l'ultimo progetto attivo (mono-progetto)
+5. Stampa gli URL di accesso e l'IP LAN nel terminale
 
-### Accesso (sviluppo locale)
+### Accesso
 
-| URL | Descrizione | Certificato |
-|-----|-------------|-------------|
-| `http://localhost:5173` | Admin IDE via proxy Vite | Nessuno (HTTP) — consigliato in dev |
-| `https://localhost:8443` | Viewer operatori | Self-signed — accetta una volta |
-| `https://localhost:8444` | Admin IDE diretto | Self-signed — accetta una volta |
+| URL | Ruolo |
+|-----|-------|
+| `http://localhost:8444` | Admin IDE (editor) |
+| `http://localhost:8443` | Viewer operatori |
 
-**Raccomandazione**: usa `http://localhost:5173` durante lo sviluppo — non richiede di accettare certificati ed ha l'hot-reload del frontend.
+In no-auth mode non serve alcuna credenziale: apri l'IDE e inizia. Quando il TLS è attivo gli URL
+diventano `https://` e al primo accesso il browser chiede di accettare il certificato self-signed
+— apri prima `http://localhost:8080` (companion) per accettarlo senza uscire dall'app.
 
-### Accesso da un altro dispositivo in rete
-
-`dev.sh` avvia Vite su `0.0.0.0:5173` e stampa l'IP LAN del server. Dal proprio PC:
-
-```
-http://<ip-server>:5173   → Admin IDE (HTTP, nessun cert)
-https://<ip-server>:8443  → Viewer operatori (cert da accettare)
-```
+![Prima schermata dell'IDE](screenshots/01_login.png)
 
 ---
 
-## Primo accesso all'Admin IDE
+## Percorso B — Solo editor su PC sviluppatore
 
-1. Apri `http://localhost:5173` (o `https://localhost:8444`)
-2. Inserisci le credenziali:
-   - **Username**: `admin`
-   - **Password**: quella impostata in `SWS_ADMIN_PASSWORD` (in dev: `admin`)
-3. Clicca **Accedi**
+Per lavorare al progetto da un PC e poi deployarlo su un runtime remoto in rete:
 
-![Schermata di login](screenshots/01_login.png)
+```bash
+./scripts/start_editor.sh        # IDE su http://localhost:8460 (nessun viewer)
+```
+
+Poi, dall'IDE: *Configurazione → Runtime → Connetti*, inserisci l'URL del runtime remoto
+(es. `https://192.168.1.50:8444`) e usa **Deploy** per inviare il progetto. Vedi
+[12 — GitOps](12_gitops.md) e [11 — Package builder](11_packaging_deploy.md).
+
+---
+
+## Percorso C — Container (legacy)
+
+Il file [`compose.yaml`](../../compose.yaml) avvia runtime + editor in container. **Attenzione**:
+questo percorso precede il no-auth mode e richiede ancora `SWS_ADMIN_PASSWORD`.
+
+```bash
+SWS_ADMIN_PASSWORD=cambiami docker compose up
+```
 
 ---
 
 ## Orientamento nell'interfaccia
 
-### Admin IDE (porta 8444 / 5173)
+### Admin IDE (porta 8444, oppure 8460 per il solo editor)
 
-L'Admin IDE si divide in due modalità principali:
+L'header in alto commuta tra **due modalità**:
 
-**Modalità Editor** (matita ✏️ nella toolbar):
+**Editor** — costruzione del sinottico:
 - Pannello sinistro: palette oggetti (widget da trascinare sul canvas)
-- Canvas centrale: sinottico in costruzione
+- Canvas centrale: il sinottico in costruzione
 - Pannello destro: proprietà dell'oggetto selezionato
-- Toolbar in alto: modalità, salva, undo/redo, zoom, griglia
+- Header: salva (Ctrl+S), undo/redo, zoom, griglia, menu ☰
 
-**Modalità Runtime** (play ▶ nella toolbar):
-- Canvas in sola lettura con valori live dal PLC
-- Aggiornamento in tempo reale via WebSocket
-- Allarmi visibili nell'alarm banner in basso
+**Configurazione** — tag, protocolli, allarmi, utenti, runtime:
+vedi la sezione successiva.
 
 ![Editor principale](screenshots/02_editor_main.png)
 
-### Configurazione (tab "Configurazione" nel menu)
+### Configurazione
 
-Qui si accede a:
-- **Runtime**: connessione a runtime remoti, log, package builder
-- **Tag**: elenco e modifica tag del progetto
-- **Allarmi**: definizione e configurazione allarmi
-- **Utenti**: gestione utenti e ruoli
-- **Protocolli**: configurazione driver Modbus, OPC-UA, MQTT, ecc.
-- **Device**: dashboard multi-runtime con stato e fingerprint
-- **GitOps**: commit, push, pull del progetto
+Tab disponibili (Admin): **Variabili** (tag), **Protocolli**, **Allarmi**, **Script**,
+**Faceplates**, **Ricette**, **Notifiche**, **Datastore**, **Utenti**, **Risorse**, **Backup**,
+**Stato** (TLS, sistema), **Device** (dashboard multi-runtime), **Runtime** (connessione remota,
+log, package builder).
 
 ### Viewer operatori (porta 8443)
 
-Vista semplificata per il personale di sala controllo:
-- Solo lettura (nessun accesso all'editor)
-- Autenticazione opzionale (può essere anonimo)
-- Alarm banner sempre visibile
-- Ottimizzato per schermi touchscreen e pannelli HMI
+Vista in sola lettura per la sala controllo:
+- Nessun accesso all'editor
+- Valori live via WebSocket, alarm banner sempre visibile
+- Ottimizzato per touchscreen e pannelli HMI
 
 ---
 
-## Progetto demo
+## Creare il primo progetto
 
-`dev.sh` crea automaticamente un progetto di esempio con:
+Se non esiste ancora un progetto, l'IDE mostra la **schermata di benvenuto**: dai un nome al
+progetto (eventualmente partendo da un template di esempio in `examples/templates/`) e aprilo.
 
-| Tag | Tipo | Valore iniziale | Note |
-|-----|------|----------------|------|
-| `counter` | Float | 0 | Incrementa ogni secondo via timer interno |
-| `sine` | Float | 0 | Onda sinusoidale — da popolare con `demo-sine.py` |
+Per aggiungere un valore live al sinottico:
 
-Un allarme `counter_high` scatta quando `counter > 50`.
-
-### Popolare il tag `sine` con dati in movimento
-
-In un secondo terminale:
-
-```bash
-./scripts/demo-sine.py
-```
-
-Questo script scrive ogni secondo il valore di una sinusoide sul tag `sine`, producendo un segnale animato nel trend.
-
-### Aggiungere un oggetto al sinottico
-
-1. Nell'editor, assicurati di essere in **Modalità Editor** (✏️)
-2. Dal pannello sinistro, clicca su **Display → Valore**
-3. Trascina il widget sul canvas
-4. Nel pannello proprietà a destra, imposta **Tag** → `counter`
-5. Clicca **Salva** (o `Ctrl+S`)
-6. Passa in **Modalità Runtime** (▶): il contatore si aggiorna in tempo reale
+1. In modalità **Editor**, apri il gruppo **Display** nella palette sinistra
+2. Clicca **Valore** per aggiungerlo al canvas
+3. Nel pannello proprietà a destra imposta **Tag** → un tag esistente
+4. **Salva** (`Ctrl+S`)
+5. Apri il **Viewer** (porta 8443): il valore si aggiorna in tempo reale
 
 ---
 
 ## Smoke test da riga di comando
 
-Verifica che il runtime risponda correttamente:
+Con il runtime in HTTP (default) ometti `-k` e usa `http://`; con TLS attivo usa `https://` + `-k`:
 
 ```bash
-# Health check
-curl -k https://localhost:8443/health
+# Health check (porta viewer)
+curl http://localhost:8443/health
 # → {"status":"ok","version":"0.1.0-dev"}
 
-# Tutti i tag (senza autenticazione — porta viewer)
-curl -k https://localhost:8443/api/tags
+# Elenco tag (porta viewer, no-auth)
+curl http://localhost:8443/api/tags
 
-# Scrivi un valore (triggera l'allarme counter_high se > 50)
-curl -k -X PUT https://localhost:8443/api/tags/counter \
+# Scrivi un valore su un tag
+curl -X PUT http://localhost:8443/api/tags/<tag-id> \
   -H 'Content-Type: application/json' \
   -d '{"value": 99}'
 
 # Allarmi attivi
-curl -k https://localhost:8443/api/alarms
-
-# Storico ultimi 20 valori del tag counter
-curl -k 'https://localhost:8443/api/history/counter?limit=20'
+curl http://localhost:8443/api/alarms
 ```
 
 ---
 
-## Arrestare il sistema
+## Arrestare e ripartire
 
-In `dev.sh` (modalità `both`): `Ctrl-C` ferma sia il runtime sia Vite.
+`Ctrl-C` nel terminale ferma il runtime. Lo stato persistente vive in `.run/` (runtime) o
+`.run-editor/` (editor):
 
-I dati persistenti sono in `.run/`:
 ```
 .run/
-├── config/        # tls.crt + tls.key (persistenti, non rigenerare)
-├── project/       # project.yaml con tag e allarmi demo
-└── logs/          # runtime.log
+├── config/     # tls.crt + tls.key (solo se il TLS è stato attivato dall'IDE)
+├── projects/   # un progetto per sottodirectory (project.yaml + synoptics/)
+└── logs/       # runtime-YYYY-MM-DD.jsonl
 ```
 
-Per ricominciare da zero:
-```bash
-rm -rf .run
-./scripts/dev.sh
-```
+Per ricominciare da zero: `rm -rf .run && ./scripts/start_runtime.sh`.
 
 ---
 
 ## Prossimi passi
 
 - [03 — Architettura](03_architecture.md): come funziona internamente SWS
-- [04 — Guida all'editor](04_editor_guide.md): come creare sinottici professionali
+- [04 — Guida all'editor](04_editor_guide.md): creare sinottici professionali
 - [06 — Protocolli](06_protocols.md): collegare SWS a PLC reali
 
 ---

@@ -14,11 +14,11 @@ e diagnosticare i problemi più comuni.
 Prima di qualsiasi test approfondito, verifica che il runtime risponda:
 
 ```bash
-# Avvia in dev
-./scripts/dev.sh both
+# Avvia il runtime
+./scripts/start_runtime.sh
 
-# Health check
-curl -k https://localhost:8443/health
+# Health check (HTTP di default; con TLS attivo usa https:// + -k)
+curl http://localhost:8443/health
 # → ok
 
 # Metriche Prometheus
@@ -102,8 +102,8 @@ La suite di test E2E automatizzata verifica il golden path del editor.
 ### Prerequisiti
 
 ```bash
-# Il runtime deve essere in esecuzione
-./scripts/dev.sh both &
+# Il runtime deve essere in esecuzione (serve la SPA su :8444)
+./scripts/start_runtime.sh &
 
 # Prima esecuzione: installa Chromium (~150 MB)
 cd sws-editor && npx playwright install chromium
@@ -121,23 +121,24 @@ pnpm test:e2e
 pnpm test:e2e:ui
 ```
 
-### Test inclusi (`e2e/editor.spec.ts`)
+### Test inclusi
 
-| Test | Cosa verifica |
+| Spec | Cosa verifica |
 |------|--------------|
-| Login → editor | Autenticazione e caricamento progetto |
-| Aggiungi rettangolo | Aggiunta oggetto dalla palette |
-| Salva e ricarica | Persistenza oggetto dopo save + reload |
+| `e2e/editor.spec.ts` | Golden path: apertura progetto, aggiunta oggetto, salva + reload |
+| `e2e/import-tags.spec.ts` | Regressione issue #2: import progetto via menu → i tag compaiono |
+| `e2e/screenshots.spec.ts` | Cattura gli screenshot del manuale |
 
 ### Screenshot automatici (per la documentazione)
 
 ```bash
 cd sws-editor
-npx playwright test e2e/screenshots.spec.ts
+npx playwright test e2e/screenshots.spec.ts --project=chromium
 ```
 
-Genera 10 screenshot in `docs/manual/screenshots/`.
-Richiede il runtime in esecuzione su `http://localhost:5173`.
+Genera gli screenshot in `docs/manual/screenshots/`.
+Richiede un runtime in esecuzione che serva la SPA su `https://localhost:8444` (avvialo con
+`./scripts/start_runtime.sh`); apri un progetto con contenuti per immagini significative.
 
 ### Artefatti test
 
@@ -233,11 +234,14 @@ journalctl -u sws-runtime -f
 ### Il frontend non carica
 
 ```bash
-# Verifica Vite
-curl -s http://localhost:5173/ | head -5
+# La SPA è servita dal runtime sulla porta admin
+curl -sk https://localhost:8444/ | head -5
 
-# Verifica proxy a 8444
+# Health del runtime
 curl -sk https://localhost:8444/health
+
+# In dev con hot-reload (pnpm dev), il dev server Vite è su :5173
+curl -s http://localhost:5173/ | head -5
 ```
 
 ### Certificato non accettato

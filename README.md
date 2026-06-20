@@ -5,100 +5,148 @@
 [![Container: GHCR](https://img.shields.io/badge/Container-GHCR-green.svg)](https://github.com/orgs/soligolab/packages)
 
 An open-source, web-based SCADA platform for embedded industrial hardware. SWS runs on ARM64
-devices (Rockchip PX30, RK3399) and targets CRA-compliant deployments with soft real-time
-tag streaming, a browser-based WYSIWYG editor, and a vendorneutral plugin architecture.
+devices (Rockchip PX30, RK3399) as well as generic Linux, with soft real-time tag streaming, a
+browser-based WYSIWYG synoptic editor, a vendor-neutral comm-plugin architecture, and a path
+toward CRA-compliant deployments.
+
+> **Status: proof of concept.** This repository is an exploratory PoC, not yet a product. The
+> long-term destination is described in [`docs/SWS_Project_Specification.md`](docs/SWS_Project_Specification.md);
+> the short-term reality and working mode are in [`docs/CONTEXT.md`](docs/CONTEXT.md). Where they
+> conflict, `CONTEXT.md` wins until the PoC graduates.
 
 ---
 
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│  Browser                                                │
-│  ┌─────────────┐   ┌──────────────────────────────────┐ │
-│  │ sws-editor  │   │  Operator View (runtime-view)    │ │
-│  │ WYSIWYG     │   │  live WSS tag streaming          │ │
-│  └──────┬──────┘   └───────────────┬──────────────────┘ │
-│         │ HTTPS REST / WSS         │                    │
-└─────────┼──────────────────────────┼────────────────────┘
-          │                          │
-┌─────────┴──────────────────────────┴────────────────────┐
-│  sws-runtime (Rust binary, port 8443)                   │
-│  ┌──────────┐  ┌──────────┐  ┌────────────────────────┐ │
-│  │ sws-core │  │ sws-auth │  │ sws-historian (SQLite)  │ │
-│  │ tag DB   │  │ RBAC+ABAC│  └────────────────────────┘ │
-│  └────┬─────┘  └──────────┘  ┌────────────────────────┐ │
-│       │  plugin C ABI        │ sws-audit (hash-chain)  │ │
-│  ┌────┴──────────────────┐   └────────────────────────┘ │
-│  │ Modbus │ OPC-UA │ MQTT │                             │ │
-│  └──────────────────────┘                               │
-└─────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────┐
+│  Browser                                                      │
+│  ┌──────────────────────┐   ┌──────────────────────────────┐ │
+│  │ Admin IDE / editor   │   │  Operator viewer             │ │
+│  │ WYSIWYG synoptics    │   │  live tag streaming (WS)     │ │
+│  └──────────┬───────────┘   └───────────────┬──────────────┘ │
+│       REST / WS :8444 (or :8460)      REST / WS :8443         │
+└─────────────┼─────────────────────────────┼──────────────────┘
+              │                             │
+┌─────────────┴─────────────────────────────┴──────────────────┐
+│  sws-runtime (single Rust binary)                            │
+│  ┌──────────┐  ┌──────────┐  ┌────────────────────────────┐  │
+│  │ sws-core │  │ sws-auth │  │ sws-historian (ring+SQLite)│  │
+│  │ tag DB   │  │ RBAC+ABAC│  └────────────────────────────┘  │
+│  └────┬─────┘  └──────────┘  ┌────────────────────────────┐  │
+│       │   plugin C ABI       │ sws-audit (hash-chain log) │  │
+│  ┌────┴────────────────────┐ └────────────────────────────┘  │
+│  │ Modbus · OPC-UA · MQTT  │                                 │
+│  │ S7 · EtherNet/IP · HA   │                                 │
+│  └─────────────────────────┘                                 │
+└──────────────────────────────────────────────────────────────┘
 ```
+
+The runtime is **single-binary, mono-project**: one `sws-runtime` process serves the operator
+viewer, the admin IDE, and all comm plugins, and auto-opens the last active project on boot.
+
+**Ports:**
+
+| Port | Role | Notes |
+|------|------|-------|
+| `8443` | Operator viewer (RuntimeViewer SPA) | started by `start_runtime.sh` |
+| `8444` | Admin IDE + full admin API | started by `start_runtime.sh` |
+| `8460` | Standalone editor IDE (no viewer) | started by `start_editor.sh` on a dev PC |
+| `8080` / `8090` | HTTP companion (TLS-cert acceptance helper) | only when TLS is enabled |
+
+**Auth & TLS are both optional by default (PoC).** A project without a `users.yaml` runs in
+**no-auth mode** — all routes are open, no login screen. The runtime starts in **plain HTTP**
+unless a TLS certificate is present; HTTPS is enabled on demand from
+*Configurazione → Stato → Certificato TLS*.
 
 **Monorepo layout:**
 
 | Directory | Language | Purpose |
 |---|---|---|
-| [`sws-runtime/`](sws-runtime/) | Rust | Tag engine, comm plugins, HTTPS/WSS server |
-| [`sws-editor/`](sws-editor/) | TypeScript + React | WYSIWYG synoptic editor + operator view |
+| [`sws-runtime/`](sws-runtime/) | Rust | Cargo workspace: runtime binary + all crates (see below) |
+| [`sws-editor/`](sws-editor/) | TypeScript + React | WYSIWYG synoptic editor + operator viewer SPA |
+| [`scripts/`](scripts/) | Bash | Dev launchers, packaging, kiosk, container builds |
+| [`deploy/`](deploy/) | — | Generic-Linux installer + systemd unit, Yocto assets |
+| [`examples/`](examples/) | — | Project templates and sample synoptics |
+| [`docs/`](docs/) | Markdown | Context, ADRs, and the [user manual](docs/manual/MAIN.md) |
+
+**Rust crates** (under [`sws-runtime/crates/`](sws-runtime/crates/)):
+`sws-core` (tag engine) · `sws-web` (Axum server) · `sws-auth` (RBAC/ABAC) ·
+`sws-historian` (trends) · `sws-audit` (hash-chain log) · `sws-pyscript` (Python scripting) ·
+`sws-kiosk` (Wayland viewer) · `sws-plugin-api` + plugins `modbus`, `opcua`, `mqtt`, `s7`,
+`enip`, `homeassistant`.
 
 ---
 
-## Quickstart
+## Quickstart (local dev)
 
-Requires [Docker](https://docs.docker.com/get-docker/) or [Podman](https://podman.io/) with Compose.
+Prerequisites: Rust ≥ 1.75, Node 20 + pnpm 9, Python 3.10+.
 
 ```bash
 git clone https://github.com/soligolab/sws.git
 cd sws
 
-# Set a strong admin password — required, no default credentials
-export SWS_ADMIN_PASSWORD=changeme
-
-docker compose up
+# Runtime on this device: viewer 8443 + admin IDE 8444 (+ HTTP companion 8080).
+# Builds the backend and the SPA if stale, then auto-opens the last project.
+./scripts/start_runtime.sh
 ```
 
-- Editor: `https://localhost:8444`
-- Runtime API / metrics: `https://localhost:8443` / `http://localhost:9090`
+- Operator viewer: `http://localhost:8443` (or `https://` once TLS is enabled)
+- Admin IDE: `http://localhost:8444`
 
-Self-signed TLS certificates are generated automatically on first run.
+No credentials are required in the default no-auth PoC mode — open the IDE and start building.
+
+To run **only the editor** on a developer PC (no viewer) and deploy to a remote runtime over the
+network, use `./scripts/start_editor.sh` (IDE on `8460`) and connect to the runtime from
+*ConfigView → Runtime → Connetti*.
+
+See [`scripts/README.md`](scripts/README.md) for the full launcher reference.
+
+### Containers (optional)
+
+A [`compose.yaml`](compose.yaml) is provided for container-based deployment on x86_64 / ARM64
+hosts. Note that the compose path predates no-auth mode and still expects `SWS_ADMIN_PASSWORD`;
+prefer the scripts above for the current PoC workflow.
 
 ---
 
 ## Development
 
-### Runtime (Rust ≥ 1.75)
+### Runtime (Rust)
 
 ```bash
 cd sws-runtime
 cargo check --workspace
-cargo test --workspace
-cargo run -- --config /path/to/config.yaml --project /path/to/project/
+cargo test  --workspace
 ```
 
-### Editor (Node 20 + pnpm)
+### Editor (Node + pnpm)
 
 ```bash
 cd sws-editor
 pnpm install
-pnpm dev
+pnpm build      # production SPA into dist/ (served by the runtime)
+pnpm dev        # Vite dev server with hot reload (optional)
+pnpm test:e2e   # Playwright end-to-end tests (needs a running runtime)
 ```
 
 ---
 
 ## Documentation
 
-**[📖 Manuale Utente SWS](docs/manual/MAIN.md)** — guida completa con screenshot.
+**[📖 Manuale Utente SWS](docs/manual/MAIN.md)** — full guide (Italian) with screenshots.
 
-| Sezione | Link |
+| Section | Link |
 |---------|------|
 | Quick Start | [docs/manual/02_quickstart.md](docs/manual/02_quickstart.md) |
-| Widget Reference | [docs/manual/05_widget_reference.md](docs/manual/05_widget_reference.md) |
-| Protocolli | [docs/manual/06_protocols.md](docs/manual/06_protocols.md) |
-| API Reference | [docs/manual/13_api_reference.md](docs/manual/13_api_reference.md) |
+| Editor guide | [docs/manual/04_editor_guide.md](docs/manual/04_editor_guide.md) |
+| Widget reference | [docs/manual/05_widget_reference.md](docs/manual/05_widget_reference.md) |
+| Protocols | [docs/manual/06_protocols.md](docs/manual/06_protocols.md) |
 | Deployment | [docs/manual/10_deployment.md](docs/manual/10_deployment.md) |
+| API reference | [docs/manual/13_api_reference.md](docs/manual/13_api_reference.md) |
 
-Architectural Decision Records are in [`docs/adr/`](docs/adr/).
+Architectural Decision Records are in [`docs/adr/`](docs/adr/). Session state and the open task
+list live in [`STATUS.md`](STATUS.md); change history in [`CHANGELOG.md`](CHANGELOG.md).
 
 ---
 
@@ -113,6 +161,9 @@ See [CONTRIBUTING.md](CONTRIBUTING.md). All contributors must sign off commits w
 
 Report vulnerabilities via GitHub Security Advisories or `security@soligolab.example`.
 See [SECURITY.md](SECURITY.md) for the full disclosure policy.
+
+> ⚠️ In no-auth + plain-HTTP mode (the PoC default) the IDE and admin API are fully open and
+> unencrypted. Enable authentication and TLS before exposing a runtime on an untrusted network.
 
 ---
 

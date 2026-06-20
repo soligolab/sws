@@ -33,18 +33,26 @@
 | Scenario | Requisiti |
 |----------|-----------|
 | **Sviluppo locale** | Rust ≥ 1.75, Node 20, pnpm 9, Python 3.10+ |
-| **Avvio rapido (container)** | Docker o Podman con Compose |
-| **Deploy su device** | Linux ARM64 (Yocto o generico), systemd |
+| **Avvio rapido (container)** | Docker o Podman con Compose (vedi `compose.yaml`) |
+| **Deploy su device** | Linux ARM64 (Yocto o generico) oppure x86_64, systemd |
 
 ---
 
 ## Porte di default
 
-| Porta | Ruolo | Accesso |
-|-------|-------|---------|
-| `8443` | Viewer operatori (RuntimeViewer) | Autenticazione opzionale |
-| `8444` | Admin IDE (editor WYSIWYG) | Autenticazione obbligatoria |
-| `5173` | Proxy Vite (solo sviluppo locale) | HTTP, nessun certificato |
+Il runtime è **mono-progetto** (un solo processo `sws-runtime` serve viewer, IDE e plugin) e
+parte in **HTTP** finché non si abilita il TLS da *Configurazione → Stato → Certificato TLS*.
+
+| Porta | Ruolo | Avviata da |
+|-------|-------|------------|
+| `8443` | Viewer operatori (RuntimeViewer) | `start_runtime.sh` |
+| `8444` | Admin IDE + API admin completa | `start_runtime.sh` |
+| `8460` | IDE editor stand-alone (nessun viewer) | `start_editor.sh` su PC sviluppatore |
+| `8080` / `8090` | Companion HTTP (accettazione certificato) | solo quando il TLS è attivo |
+
+> **Autenticazione opzionale (PoC).** Un progetto senza `users.yaml` gira in **no-auth mode**:
+> nessun login, tutte le route aperte. Si attivano utenti e ruoli creando account dal tab Utenti.
+> Vedi [09 — Autenticazione e ruoli](09_auth_rbac.md).
 
 ---
 

@@ -116,14 +116,20 @@ Ogni progetto è una cartella di file YAML versionabile con Git:
 
 ### Dual-port by design
 
-SWS avvia **due server HTTPS distinti** sullo stesso binario:
+SWS avvia **due server distinti** sullo stesso binario:
 
-| Porta | Ruolo | Autenticazione | SPA servita |
-|-------|-------|----------------|-------------|
-| **8443** | Viewer operatori | Opzionale | RuntimeViewer (~24 kB) |
-| **8444** | Admin IDE | Obbligatoria | Editor completo (~310 kB) |
+| Porta | Ruolo | SPA servita |
+|-------|-------|-------------|
+| **8443** | Viewer operatori | RuntimeViewer (~24 kB) |
+| **8444** | Admin IDE | Editor completo (~310 kB) |
 
 Questa separazione permette di esporre la porta 8443 agli operatori (pannelli HMI, browser kiosk) e di limitare la porta 8444 ai soli ingegneri autorizzati, anche con firewall differenti.
+
+**HTTP di default, HTTPS opzionale.** Entrambe le porte partono in HTTP plain finché non si
+carica o genera un certificato TLS (vedi [10 — Deployment](10_deployment.md)); la presenza del
+certificato all'avvio commuta automaticamente in HTTPS. **Autenticazione opzionale**: senza
+`users.yaml` il runtime è in *no-auth mode* (route aperte); creando utenti si attiva il login con
+RBAC/ABAC. Per un device in campo abilitare sia TLS sia l'autenticazione.
 
 ---
 

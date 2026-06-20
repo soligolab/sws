@@ -386,7 +386,7 @@ Genera un **Long-lived access token** in HomeAssistant:
 Imposta la variabile d'ambiente prima di avviare il runtime:
 ```bash
 export HA_TOKEN="eyJh..."
-./scripts/dev.sh
+./scripts/start_runtime.sh
 ```
 
 ---

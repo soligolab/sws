@@ -217,7 +217,9 @@ volumes:
 
 - Immagine base: `debian:bookworm-slim`
 - Architetture: `linux/arm64`, `linux/amd64` (multi-arch manifest)
-- Certificato TLS auto-generato al primo avvio, persistente nel volume `sws-data`
+- Il runtime parte in **HTTP**; il TLS si abilita generando/caricando un certificato dall'IDE
+  (*Configurazione → Stato → Certificato TLS*), che viene salvato nel volume `sws-data` e riusato
+  ai riavvii successivi
 
 ### Kiosk mode (avvio automatico browser)
 
