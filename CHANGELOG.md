@@ -9,6 +9,8 @@ and this project adheres to [CalVer](https://calver.org/) (`YYYY.MM[.patch]`).
 
 ### Fixed
 
+- **Import progetto da ZIP non partiva dal menu** (GitHub issue #2, `sws-editor/src/App.tsx`). L'`<input type=file>` dell'import progetto viveva dentro il dropdown del MainMenu (`{open && …}`); il bottone "Importa progetto" fa `fileInputRef.current?.click(); setOpen(false)`, quindi la chiusura del menu smontava l'input mentre il file-dialog nativo era ancora aperto. Alla selezione del file l'`onChange` non scattava più e `handleImport` (con la `PUT /api/project/import`) non veniva mai eseguito: il sintomo segnalato — "variable definition and database are missing" dopo l'import — nasceva perché **l'import non partiva affatto** (il backend era corretto). Fix: l'`<input type=file>` e il toast di stato export/import vivono ora **fuori** dal dropdown, sempre montati. Regression test E2E `sws-editor/e2e/import-tags.spec.ts` (Playwright) che guida la UI reale.
+
 - **Grid paste/cut in sub-celle** (`sws-editor/src/editor/EditorShell.tsx`). Ctrl+V e Ctrl+X gestiscono ora anche `selectedSubCell` (celle ottenute per divisione). Prima il paste/cut funzionava solo sulla cella top-level; le celle suddivise erano ignorate.
 
 - **TagInput: pulsante ▾ esterno funzionante + dropdown con filtro** (`sws-editor/src/components/TagInput.tsx`). Riscrittura completa del componente: rimosso pattern `onBlur+setTimeout` (causava chiusura immediata per race con `autoFocus` sul filtro), sostituito con click-outside (`document.addEventListener("mousedown", ...)`). Aggiunto campo filtro nel dropdown. Rimosso `<datalist>` nativo (eliminata freccia browser interna). Fix applicato a tutti i campi tag del codebase.

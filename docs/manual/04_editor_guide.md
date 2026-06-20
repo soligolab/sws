@@ -45,26 +45,26 @@ SWS  Project: default  [Editor] [Configurazione]  User: admin  Admin  Griglia: 1
 
 ## Due modalità operative
 
-L'editor ha due modalità. Il toggle è nel menu **≡ Menu** o con i pulsanti nella toolbar.
+L'IDE commuta tra due modalità con i pulsanti **Editor** / **Configurazione** nell'header.
 
-### Modalità Editor (✏️ Edit mode)
+### Modalità Editor
 
-La modalità di progettazione. Permette:
+La modalità di progettazione del sinottico. Permette:
 - Trascinare nuovi widget dalla palette sul canvas
 - Selezionare, spostare, ridimensionare oggetti
 - Configurare le proprietà nel pannello destro
 - Aggiungere, rinominare, riordinare pagine
 - Undo/Redo fino a 200 step
 
-### Modalità Runtime (▶️ Runtime mode)
+### Modalità Configurazione
 
-Anteprima live del sinottico con dati reali:
-- Tutti gli oggetti aggiornati via WebSocket dal runtime
-- I tag si aggiornano in tempo reale
-- Gli allarmi appaiono nel banner in fondo
-- Nessuna modifica possibile al canvas
+Tutta la configurazione non grafica del progetto, organizzata in tab: **Variabili** (tag),
+Protocolli, Allarmi, Script, Faceplates, Ricette, Notifiche, Datastore, Utenti, Risorse, Backup,
+Stato, Device, Runtime. Il tab **Variabili** mostra anche il *valore live* di ogni tag in tempo
+reale.
 
-Per tornare alla modalità Editor: clicca il pulsante **Modifica** che appare nella toolbar.
+> **Anteprima live del sinottico**: apri il **Viewer operatori** sulla porta 8443. Mostra le
+> pagine in sola lettura con i valori aggiornati via WebSocket e l'alarm banner sempre visibile.
 
 ---
 
@@ -174,7 +174,7 @@ Il binding è il collegamento tra un widget e un tag PLC.
 Quasi tutti i widget hanno un campo **Tag** nel pannello proprietà.
 
 Quando imposti un tag:
-1. Il widget mostra il valore live del tag in modalità Runtime
+1. Il widget mostra il valore live del tag nel Viewer operatori (porta 8443)
 2. Il quality dot (•) nell'angolo indica la qualità del dato: verde=Good, rosso=Bad, giallo=Uncertain
 3. I widget di controllo (button, slider, checkbox) scrivono sul tag quando l'operatore interagisce
 

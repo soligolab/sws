@@ -5,7 +5,10 @@
 # 13 — API Reference
 
 SWS espone API REST e WebSocket su due porte distinte.
-La porta **8443** è pubblica (auth opzionale), la porta **8444** è admin (auth obbligatoria).
+La porta **8443** è pubblica (auth opzionale), la porta **8444** è admin (auth obbligatoria
+*solo quando esistono utenti*; in no-auth mode tutte le route sono aperte — vedi
+[09 — Autenticazione](09_auth_rbac.md)). Di default il runtime è in HTTP; con TLS attivo usa
+`https://`.
 
 ---
 

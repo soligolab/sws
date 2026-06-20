@@ -4,7 +4,14 @@
 >
 > Ambienti di test: vedi [docs/TEST_SETUPS.md](docs/TEST_SETUPS.md) (casa, dev server, dispositivi Yocto).
 
-**Last session**: 2026-06-20 — Bugfix vari + pulizia branch. Tutto su `main`, solo `main` rimane localmente.
+**Last session**: 2026-06-20 — Issue #2 risolto (causa radice reale) + revisione documentazione. Tutto su `main`.
+
+- **Sessione 2026-06-20 (sera) — GitHub issue #2: import progetto non funzionava**:
+  - **Causa radice reale** (non era il backend, né la cache, né il rendering): l'`<input type=file>` dell'import progetto viveva dentro il dropdown del MainMenu (`{open && …}`). Il bottone "Importa progetto" fa `fileInputRef.current?.click(); setOpen(false)`: chiudendo il menu, React **smontava l'input** mentre il file-dialog nativo era ancora aperto → alla selezione del file l'`onChange` non scattava più → `handleImport` e la `PUT /api/project/import` **non venivano mai eseguiti**. Il sintomo "i tag non vengono importati" nasceva perché l'import non partiva affatto. I test curl funzionavano perché bypassavano la UI.
+  - **Diagnosi**: scritto un test Playwright headless che guida la UI reale (apri menu → Importa progetto → scegli ZIP) — ha riprodotto il bug (nessun `POST /api/project/import` nella rete).
+  - **Fix** ([App.tsx](sws-editor/src/App.tsx)): spostato l'`<input type=file>` e il toast di stato export/import **fuori** dal blocco `{open && …}` così l'input resta sempre montato e l'esito resta visibile dopo la chiusura del menu.
+  - **Regression test**: [sws-editor/e2e/import-tags.spec.ts](sws-editor/e2e/import-tags.spec.ts) — self-contained, verifica che il tag compaia in Configurazione → Variabili dopo import via menu. Verde. Confermato dal maintainer in browser.
+  - Squash merge su `main` (`bdd50b8`), branch `fix/issue2-import-input-unmount` eliminato su richiesta.
 
 - **Sessione 2026-06-20 — Bugfix vari + pulizia branch**:
   - **Grid paste/cut in sub-celle**: `EditorShell.tsx` — Ctrl+V e Ctrl+X ora gestiscono anche `selectedSubCell` (prima funzionavano solo sulla cella top-level). Usa `resolveSubCellEntry` + `updateSubCellAt`.

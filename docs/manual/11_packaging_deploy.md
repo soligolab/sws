@@ -24,7 +24,7 @@ Il runtime deve essere avviato dalla **root del repository** (non da un device g
 
 ```bash
 cd /path/to/sws
-./scripts/dev.sh both
+./scripts/start_runtime.sh
 ```
 
 Se il runtime è avviato da un device Yocto o da `/opt/sws/`, il package builder

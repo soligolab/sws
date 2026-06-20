@@ -5,7 +5,22 @@
 # 09 — Autenticazione e Controllo Accessi
 
 SWS implementa autenticazione multi-utente con 4 ruoli gerarchici (RBAC) e
-controllo di accesso per zona (ABAC).
+controllo di accesso per zona (ABAC). **L'autenticazione è opzionale.**
+
+---
+
+## No-auth mode (default del PoC)
+
+Un progetto **senza utenti** (nessun `users.yaml`) gira in **no-auth mode**: tutte le route —
+incluso l'Admin IDE sulla 8444 — sono aperte senza login. Il backend risponde a
+`GET /api/auth/whoami` con un admin sintetico e il frontend non mostra alcuna schermata di login.
+
+Si passa alla modalità autenticata semplicemente **creando il primo utente** da
+*Configurazione → Utenti*: appena esiste almeno un utente, il runtime richiede il login e applica
+RBAC/ABAC. Eliminando tutti gli utenti si torna in no-auth mode.
+
+> ⚠️ In no-auth mode chiunque raggiunga la porta 8444 ha pieno accesso amministrativo. Crea
+> utenti e attiva il TLS prima di esporre un runtime su una rete non fidata.
 
 ---
 
@@ -146,12 +161,14 @@ Un utente con `allowed_zones: []` ha accesso a tutte le pagine non ristrette.
 
 ## Porta 8443 vs 8444
 
-Le due porte hanno politiche di autenticazione diverse:
+Quando esistono utenti, le due porte hanno politiche di autenticazione diverse:
 
-| Porta | Autenticazione | Uso |
-|-------|---------------|-----|
+| Porta | Autenticazione (con utenti) | Uso |
+|-------|------------------------------|-----|
 | **8443** | Opzionale — senza token = Viewer anonimo | Pannelli HMI, operatori |
 | **8444** | Obbligatoria — senza token = 401 | Ingegneri, Admin |
+
+In **no-auth mode** (nessun utente) entrambe le porte sono completamente aperte.
 
 **Viewer anonimo** (porta 8443 senza token):
 - Può visualizzare sinottici
@@ -184,22 +201,21 @@ tail -f /var/lib/sws/default/audit.jsonl | jq '.'
 
 ---
 
-## Password di default e primo avvio
+## Primo avvio e creazione del primo utente
 
-**SWS non ha credenziali di default** — al primo avvio richiede di impostare
-una password admin tramite variabile d'ambiente:
+Di default un progetto nuovo **non ha credenziali** e gira in [no-auth mode](#no-auth-mode-default-del-poc):
+l'IDE si apre senza login. Per attivare l'autenticazione:
 
-```bash
-export SWS_ADMIN_PASSWORD=mia_password_sicura
-./scripts/dev.sh
-# oppure:
-sws-runtime --config /etc/sws/config.yaml
-```
+1. Apri l'Admin IDE (porta 8444)
+2. Vai in *Configurazione → Utenti → + Aggiungi utente*
+3. Crea un utente **Admin** con una password forte
+4. Da quel momento il runtime richiede il login a ogni accesso
 
-Se `SWS_ADMIN_PASSWORD` non è impostata, il runtime si avvia ugualmente
-ma l'utente `admin` avrà la password `admin` in ambiente di sviluppo (seeded da `dev.sh`).
+La password viene salvata come hash Argon2id in `project.yaml`; il form UI calcola l'hash prima
+di inviarlo al server. Eliminando l'ultimo utente il progetto torna in no-auth mode.
 
-> **Attenzione**: in produzione imposta sempre `SWS_ADMIN_PASSWORD` a una password forte.
+> **Container (legacy).** Il percorso `compose.yaml` precede il no-auth mode e usa ancora la
+> variabile d'ambiente `SWS_ADMIN_PASSWORD` per seedare l'utente admin al primo avvio.
 
 ---
 

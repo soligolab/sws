@@ -30,8 +30,8 @@ Il progetto aperto sul runtime deve essere in una directory Git:
 git -C /var/lib/sws/default status
 ```
 
-In ambiente dev (`./scripts/dev.sh`), `.run/project/` NON è un repository Git —
-il GitOps è disponibile solo su device con progetti versionati.
+In ambiente dev (`./scripts/start_runtime.sh`), i progetti sotto `.run/projects/` NON sono
+repository Git — il GitOps è disponibile solo su device con progetti versionati.
 
 ---
 
@@ -179,7 +179,7 @@ I device sono salvati in localStorage del browser (non nel progetto).
 
 ```
 [Ingegnere - local dev]
-  ./scripts/dev.sh
+  ./scripts/start_editor.sh
   → Modifica sinottici
   → GitOps: Commit "feat: aggiunta pompa P3"
   → GitOps: Push
