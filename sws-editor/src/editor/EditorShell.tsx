@@ -580,6 +580,24 @@ export function EditorShell() {
       storeSaveStatus("ok");
       useAppStore.setState({ isDirty: false });
       saveOkTimer.current = window.setTimeout(() => storeSaveStatus("idle"), 2000);
+      // Auto-sync al runtime remoto se connesso.
+      const { remoteConnected, authToken: tok } = useAppStore.getState();
+      if (remoteConnected) {
+        useAppStore.setState({ remoteDeployStatus: "syncing" });
+        const hdrs: HeadersInit = tok ? { "Authorization": `Bearer ${tok}` } : {};
+        fetch("/api/remote/deploy", { method: "POST", headers: hdrs })
+          .then(async (res) => {
+            if (res.body) {
+              const rdr = res.body.getReader();
+              while (!(await rdr.read()).done) { /* drain streaming body */ }
+            }
+            useAppStore.setState({ remoteDeployStatus: res.ok ? "ok" : "error" });
+          })
+          .catch(() => useAppStore.setState({ remoteDeployStatus: "error" }))
+          .finally(() => {
+            setTimeout(() => useAppStore.setState({ remoteDeployStatus: "idle" }), 3000);
+          });
+      }
     } else {
       const msg = failed
         .map((f) => (f.reason instanceof Error ? f.reason.message : String(f.reason)))

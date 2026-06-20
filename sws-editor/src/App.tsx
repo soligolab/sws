@@ -11,6 +11,7 @@ import { ConfigView } from "@/config/ConfigView";
 import { EditorShell } from "@/editor/EditorShell";
 import { useAppStore } from "@/store";
 import { useLogStream } from "@/ws/logStream";
+import { useTagStream } from "@/ws/tagStream";
 import { canEditProject, canConfigureProject } from "@/auth/permissions";
 
 // Port 8444 — full IDE (canvas editor + ConfigView + project management).
@@ -425,9 +426,9 @@ export function App() {
     try { return localStorage.getItem(LOG_PANEL_KEY) === "1"; } catch { return false; }
   });
 
-  // Stream runtime logs whenever the user is Operator+. The hook is a no-op
-  // for Viewer / unauthenticated states.
+  // Stream runtime logs and tag values whenever the user is authenticated.
   useLogStream();
+  useTagStream();
 
   const authToken              = useAppStore((s) => s.authToken);
   const authUser               = useAppStore((s) => s.authUser);
@@ -453,6 +454,7 @@ export function App() {
   const isDirty             = useAppStore((s) => s.isDirty);
   const incSaveSerial       = useAppStore((s) => s.incSaveSerial);
   const saveStatus          = useAppStore((s) => s.saveStatus);
+  const remoteDeployStatus  = useAppStore((s) => s.remoteDeployStatus);
 
   // Role-gated UI surfaces. Supervisor + Admin get editor and config;
   // Viewer/Operator should use the runtime SPA (port 8443) instead.
@@ -808,29 +810,45 @@ export function App() {
         </span>
         {effectiveMode === "edit" && <GridDropdown />}
         <RuntimeCtrl />
-        {/* Remote deploy target indicator — green when connected, click to go to Runtime tab */}
-        <button
-          onClick={() => {
-            if (rtConnected) {
-              if (window.confirm("Disconnettere dal runtime remoto?")) {
-                localStorage.removeItem("sws.runtime.connected");
-                setRtConnected(false);
-                window.dispatchEvent(new CustomEvent("sws:runtime-disconnected"));
-              }
-            } else {
-              navigateToConfig("runtime");
-            }
-          }}
-          title={rtConnected ? "Connesso al runtime remoto — clicca per disconnettere" : "Clicca per configurare la connessione al runtime remoto"}
-          style={{
-            ...HDR_BTN,
-            ...(rtConnected ? { background: "#14532d", color: "#4ade80", border: "1px solid #16a34a" } : {}),
-            display: "flex", alignItems: "center", gap: 5,
-          }}
-        >
-          <span style={{ width: 7, height: 7, borderRadius: "50%", background: rtConnected ? "#4ade80" : "#ef4444", display: "inline-block", flexShrink: 0 }} />
-          Deploy
-        </button>
+        {/* Remote deploy target indicator — shows sync status when connected */}
+        {(() => {
+          const syncLabel =
+            remoteDeployStatus === "syncing" ? "⟳ Sync…" :
+            remoteDeployStatus === "ok"      ? "✓ Synced" :
+            remoteDeployStatus === "error"   ? "✗ Sync err" :
+            "Deploy";
+          const dotColor =
+            remoteDeployStatus === "syncing" ? "#f59e0b" :
+            remoteDeployStatus === "ok"      ? "#4ade80" :
+            remoteDeployStatus === "error"   ? "#ef4444" :
+            rtConnected ? "#4ade80" : "#ef4444";
+          const btnExtra = rtConnected
+            ? { background: "#14532d", color: "#4ade80", border: "1px solid #16a34a" }
+            : {};
+          const titleStr = rtConnected
+            ? "Connesso — salva per sincronizzare automaticamente. Clicca per disconnettere."
+            : "Clicca per configurare la connessione al runtime remoto";
+          return (
+            <button
+              onClick={() => {
+                if (rtConnected) {
+                  if (window.confirm("Disconnettere dal runtime remoto?")) {
+                    localStorage.removeItem("sws.runtime.connected");
+                    setRtConnected(false);
+                    window.dispatchEvent(new CustomEvent("sws:runtime-disconnected"));
+                  }
+                } else {
+                  navigateToConfig("runtime");
+                }
+              }}
+              title={titleStr}
+              style={{ ...HDR_BTN, ...btnExtra, display: "flex", alignItems: "center", gap: 5 }}
+            >
+              <span style={{ width: 7, height: 7, borderRadius: "50%", background: dotColor, display: "inline-block", flexShrink: 0 }} />
+              {syncLabel}
+            </button>
+          );
+        })()}
         <button
           onClick={() => {
             const next = !logOpen;

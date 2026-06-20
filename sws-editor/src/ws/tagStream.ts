@@ -7,15 +7,18 @@ import { ReconnectingWs } from "@/ws/reconnectingWs";
 
 let rws: ReconnectingWs | null = null;
 let currentToken: string | null = null;
+let currentRemoteConnected: boolean = false;
 
-function getStream(): ReconnectingWs {
+function getStream(remoteConnected: boolean): ReconnectingWs {
   const token = getAuthToken();
-  if (rws && currentToken !== token) {
+  // Recreate if token OR remoteConnected changed: the target URL is different.
+  if (rws && (currentToken !== token || currentRemoteConnected !== remoteConnected)) {
     rws.destroy();
     rws = null;
   }
   if (!rws) {
     currentToken = token;
+    currentRemoteConnected = remoteConnected;
     rws = new ReconnectingWs(() => buildWsUrl("/ws/tags", "VITE_RUNTIME_WS_URL"));
   }
   return rws;
@@ -74,8 +77,9 @@ export function sendSubscribe(tags: string[]): void {
 }
 
 export function useTagStream(): void {
-  const updateTagValue = useAppStore((s) => s.updateTagValue);
-  const authToken = useAppStore((s) => s.authToken);
+  const updateTagValue    = useAppStore((s) => s.updateTagValue);
+  const authToken         = useAppStore((s) => s.authToken);
+  const remoteConnected   = useAppStore((s) => s.remoteConnected);
 
   useEffect(() => {
     if (!authToken) {
@@ -86,7 +90,15 @@ export function useTagStream(): void {
       return;
     }
 
-    const stream = getStream();
+    // getStream recreates rws when remoteConnected changes (different URL).
+    const stream = getStream(remoteConnected);
+
+    // Both the local /ws/tags and the /ws/remote/* relay need a subscribe
+    // frame to start (or resume) streaming data. Send it on every open,
+    // including reconnects, and immediately if already open.
+    const onOpen = () => stream.send(JSON.stringify({ type: "subscribe", tags: ["*"] }));
+    stream.on("open", onOpen);
+    if (stream.readyState === WebSocket.OPEN) onOpen();
 
     const onMessage = (ev: MessageEvent) => {
       const text = typeof ev.data === "string" ? ev.data : "";
@@ -103,7 +115,6 @@ export function useTagStream(): void {
 
         if (parsed.type === "snapshot") {
           const snap = parsed as SnapshotMsg;
-          // Check for seq gap (not critical for snapshot, just log).
           lastSeq = snap.seq;
           for (const entry of snap.tags) {
             updateTagValue(entry.id, {
@@ -117,7 +128,6 @@ export function useTagStream(): void {
 
         if (parsed.type === "delta") {
           const delta = parsed as DeltaMsg;
-          // Detect missing frames (seq gap > 1 since last delta/snapshot).
           if (lastSeq >= 0 && delta.seq > lastSeq + 1) {
             console.warn(`[ws/tags] seq gap: expected ${lastSeq + 1}, got ${delta.seq}`);
           }
@@ -137,6 +147,9 @@ export function useTagStream(): void {
     };
 
     stream.on("message", onMessage);
-    return () => stream.off("message", onMessage);
-  }, [updateTagValue, authToken]);
+    return () => {
+      stream.off("open", onOpen);
+      stream.off("message", onMessage);
+    };
+  }, [updateTagValue, authToken, remoteConnected]);
 }
