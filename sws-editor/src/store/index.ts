@@ -362,6 +362,7 @@ interface AppState {
   remoteConnected: boolean;
   remoteUrl: string | null;
   setRemoteConnected: (connected: boolean, url?: string | null) => void;
+  remoteDeployStatus: "idle" | "syncing" | "ok" | "error";
 }
 
 const first = makePage("Page 1");
@@ -1415,6 +1416,7 @@ export const useAppStore = create<AppState>((set, get) => {
     remoteUrl: null,
     setRemoteConnected: (connected, url = null) =>
       set({ remoteConnected: connected, remoteUrl: connected ? (url ?? null) : null }),
+    remoteDeployStatus: "idle",
 
     incSaveSerial: () => set((s) => ({ saveSerial: s.saveSerial + 1 })),
     setSaveStatus: (saveStatus, saveError = null) => set({ saveStatus, saveError }),
