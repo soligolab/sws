@@ -334,6 +334,62 @@ else
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────
+info "Test 6 — Export/import ZIP preserva tag (Issue #2)"
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Prima riapri il progetto t34-test nell'editor (potrebbe essere stato
+# disconnesso dalla sessione di deploy).
+curl -sf -X POST "http://localhost:$EDITOR_PORT/api/projects/t34-test/open" \
+  -o /dev/null 2>/dev/null || true
+sleep 0.3
+
+# Aggiungi un tag al progetto editor.
+curl -sf -X PUT "http://localhost:$EDITOR_PORT/api/project/tags" \
+  -H "Content-Type: application/json" \
+  -d '[{"id":"pump_speed","description":"Velocità pompa","data_type":"float"}]' \
+  -o /dev/null 2>/dev/null || true
+
+# Esporta il progetto come ZIP.
+EXPORT_ZIP="$EDITOR_DIR/test_export.zip"
+http_export=$(curl -s -o "$EXPORT_ZIP" -w "%{http_code}" \
+  "http://localhost:$EDITOR_PORT/api/project/export" 2>/dev/null)
+zip_size=$(wc -c < "$EXPORT_ZIP" 2>/dev/null || echo 0)
+
+if [ "$http_export" = "200" ] && [ "$zip_size" -gt 100 ]; then
+  pass "Export ZIP creato (HTTP $http_export, $zip_size bytes)"
+else
+  fail "Export fallito: HTTP $http_export, $zip_size bytes"
+fi
+
+# Crea un nuovo progetto vuoto, aprilo, importa lo ZIP.
+curl -sf -X POST "http://localhost:$EDITOR_PORT/api/projects" \
+  -H "Content-Type: application/json" -d '{"name":"import-test"}' -o /dev/null 2>/dev/null || true
+curl -sf -X POST "http://localhost:$EDITOR_PORT/api/projects/import-test/open" \
+  -o /dev/null 2>/dev/null || true
+
+http_import=$(curl -s -o /dev/null -w "%{http_code}" \
+  -X PUT "http://localhost:$EDITOR_PORT/api/project/import" \
+  --data-binary @"$EXPORT_ZIP" \
+  -H "Content-Type: application/zip" 2>/dev/null)
+
+if [ "$http_import" = "204" ]; then
+  pass "Import ZIP: HTTP 204"
+else
+  fail "Import ZIP fallito: HTTP $http_import"
+fi
+
+# Verifica che i tag siano presenti dopo l'import.
+proj_after=$(curl -sf "http://localhost:$EDITOR_PORT/api/project" 2>/dev/null || echo "{}")
+tag_count=$(echo "$proj_after" | python3 -c \
+  "import sys,json; print(len(json.load(sys.stdin).get('tags',[])))" 2>/dev/null || echo 0)
+
+if [ "$tag_count" -gt 0 ]; then
+  pass "Import: $tag_count tag presenti in GET /api/project dopo import"
+else
+  fail "Import: nessun tag in GET /api/project dopo import (Issue #2)"
+fi
+
+# ─────────────────────────────────────────────────────────────────────────────
 echo ""
 echo -e "${CYAN}═══════════════════════════════════════════${NC}"
 if [ "$FAIL" -eq 0 ]; then

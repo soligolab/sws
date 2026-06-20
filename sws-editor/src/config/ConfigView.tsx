@@ -334,10 +334,11 @@ function TagsTab() {
   const [importMsg, setImportMsg]   = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  // Sync local state when store changes (e.g. on initial project load)
+  // Sync local state when store changes (e.g. on initial project load or after ZIP import).
+  // Depend on the full project object so content changes (not just count) trigger a refresh.
   useEffect(() => {
     if (storeProject?.tags) setTags(storeProject.tags);
-  }, [storeProject?.tags?.length]);
+  }, [storeProject]);
 
   const addTag = () =>
     setTags((prev) => [...prev, { id: "", description: "", data_type: "float" }]);
