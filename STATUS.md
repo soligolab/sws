@@ -103,7 +103,7 @@
   - Bottone "Aggiorna" + toggle "● Live" (poll ogni 5 s); auto-stop alla disconnessione.
   - Box scrollabile max 200 px, timestamp HH:MM:SS, colori INFO/WARN/ERROR/DEBUG.
 
-**Branch corrente**: `main` — tutti i branch locali eliminati (erano tutti già mergiati). Solo `origin/feat/pyenv-support` rimane nel remote, non critico.
+**Branch corrente**: `main` — unico branch sia in locale sia in remoto. Pulizia branch del 2026-06-22: eliminato il residuo locale stantio `fix/issue2-export-import` (superato da `main`) e confermata l'assenza di `feat/pyenv-support` sul remote (pyenv già in `main`).
 
 ---
 
@@ -113,7 +113,7 @@
 
 - [x] **Verifica T-34** — ✅ automatizzata con `scripts/test_t34.sh` (18/18 test verdi, 2026-06-20). Copre: no-auth, auto-open, versionamento+migrate, remote deploy, elimina remoto.
 - [x] **TLS opzionale** — ✅ in main.
-- [ ] **`origin/feat/pyenv-support`** — 15 righe in `start_runtime.sh` per supporto pyenv (`LD_LIBRARY_PATH` auto-patch). Non critico, da valutare se integrare.
+- [x] **`feat/pyenv-support`** — ✅ già integrato in `main` (`ba6e3c8`, `start_runtime.sh` righe 54-60). Branch remoto ridondante rimosso (2026-06-22).
 - [ ] **Verifica manuale T-27** — packaging tarball + installer. Comandi sotto.
 - [ ] **Verifica manuale T-24/T-25/T-26** — fingerprint/device dashboard, remote logs, git commit/push. Comandi sotto.
 - [ ] **Debito: `sws-kiosk` non rispetta `--viewer-port`** (hardcoded `https://localhost:8443` nel wayland spawn). Fix triviale in `main.rs` se/quando si usa il kiosk su device multi-istanza.
