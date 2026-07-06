@@ -60,23 +60,23 @@ const S = {
     flexDirection: "column" as const,
     flex: 1,
     overflow: "hidden" as const,
-    background: "#0f172a",
-    color: "#e2e8f0",
+    background: "var(--brand-bg, #0f172a)",
+    color: "var(--brand-text, #e2e8f0)",
   },
   tabBar: {
     display: "flex" as const,
     gap: 2,
     padding: "0 16px",
-    background: "#1e293b",
-    borderBottom: "1px solid #334155",
+    background: "var(--brand-surface, #1e293b)",
+    borderBottom: "1px solid var(--brand-surface-2, #334155)",
     flexShrink: 0,
   },
   tab: (active: boolean): React.CSSProperties => ({
     padding: "10px 20px",
     border: "none",
-    borderBottom: active ? "2px solid #3b82f6" : "2px solid transparent",
+    borderBottom: active ? "2px solid var(--brand-primary, #3b82f6)" : "2px solid transparent",
     background: "transparent",
-    color: active ? "#e2e8f0" : "#64748b",
+    color: active ? "var(--brand-text, #e2e8f0)" : "#64748b",
     cursor: "pointer",
     fontSize: 14,
     fontWeight: active ? 600 : 400,
@@ -110,17 +110,17 @@ const S = {
     fontWeight: 600,
     fontSize: 11,
     letterSpacing: 0.5,
-    borderBottom: "1px solid #334155",
+    borderBottom: "1px solid var(--brand-surface-2, #334155)",
   },
   td: {
     padding: "4px 6px",
-    borderBottom: "1px solid #1e293b",
+    borderBottom: "1px solid var(--brand-surface, #1e293b)",
     verticalAlign: "middle" as const,
   },
   input: {
-    background: "#1e293b",
-    color: "#e2e8f0",
-    border: "1px solid #334155",
+    background: "var(--brand-surface, #1e293b)",
+    color: "var(--brand-text, #e2e8f0)",
+    border: "1px solid var(--brand-surface-2, #334155)",
     borderRadius: 4,
     padding: "4px 8px",
     fontSize: 13,
@@ -128,9 +128,9 @@ const S = {
     boxSizing: "border-box" as const,
   },
   inputSm: {
-    background: "#1e293b",
-    color: "#e2e8f0",
-    border: "1px solid #334155",
+    background: "var(--brand-surface, #1e293b)",
+    color: "var(--brand-text, #e2e8f0)",
+    border: "1px solid var(--brand-surface-2, #334155)",
     borderRadius: 4,
     padding: "4px 6px",
     fontSize: 12,
@@ -142,7 +142,7 @@ const S = {
       primary: { background: "#1d4ed8", color: "#dbeafe", border: "1px solid #1e40af" },
       success: { background: "#166534", color: "#bbf7d0", border: "1px solid #15803d" },
       danger:  { background: "#7f1d1d", color: "#fca5a5", border: "1px solid #991b1b" },
-      ghost:   { background: "transparent", color: "#64748b", border: "1px solid #334155" },
+      ghost:   { background: "transparent", color: "#64748b", border: "1px solid var(--brand-surface-2, #334155)" },
     };
     return {
       ...map[variant],
@@ -154,8 +154,8 @@ const S = {
     };
   },
   card: {
-    background: "#1e293b",
-    border: "1px solid #334155",
+    background: "var(--brand-surface, #1e293b)",
+    border: "1px solid var(--brand-surface-2, #334155)",
     borderRadius: 8,
     marginBottom: 12,
     overflow: "hidden" as const,
@@ -165,9 +165,9 @@ const S = {
     alignItems: "center" as const,
     justifyContent: "space-between" as const,
     padding: "10px 16px",
-    background: "#1e293b",
+    background: "var(--brand-surface, #1e293b)",
     cursor: "pointer",
-    borderBottom: "1px solid #334155",
+    borderBottom: "1px solid var(--brand-surface-2, #334155)",
   },
   notice: {
     background: "#172554",
@@ -185,7 +185,7 @@ const S = {
   // Tiny icon-sized button for delete/close actions inside cards.
   btnXs: {
     background: "transparent",
-    border: "1px solid #334155",
+    border: "1px solid var(--brand-surface-2, #334155)",
     borderRadius: 4,
     color: "#64748b",
     cursor: "pointer",
@@ -230,10 +230,10 @@ function QuickCreateTagModal({
       display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000,
     }}>
       <div style={{
-        background: "#1e293b", border: "1px solid #334155", borderRadius: 8,
+        background: "var(--brand-surface, #1e293b)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 8,
         padding: 20, minWidth: 320, maxWidth: 440,
       }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: "#e2e8f0", marginBottom: 14 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: "var(--brand-text, #e2e8f0)", marginBottom: 14 }}>
           Crea variabile
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -410,8 +410,8 @@ function TagsTab() {
         }}
           onClick={(e) => { if (e.target === e.currentTarget) setShowImport(false); }}
         >
-          <div style={{ background: "#0f172a", border: "1px solid #334155", borderRadius: 8, width: 560, display: "flex", flexDirection: "column", gap: 10, padding: 16 }}>
-            <div style={{ fontSize: 13, fontWeight: 700, color: "#cbd5e1" }}>Importa tag da CSV</div>
+          <div style={{ background: "var(--brand-bg, #0f172a)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 8, width: 560, display: "flex", flexDirection: "column", gap: 10, padding: 16 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: "var(--brand-text-2, #cbd5e1)" }}>Importa tag da CSV</div>
             <div style={{ fontSize: 11, color: "#64748b" }}>
               Prima riga = intestazione. Colonne obbligatorie: <code>id</code>. Opzionali: <code>data_type</code>, <code>description</code>, <code>history</code>, <code>expression</code>.
               I tag esistenti vengono aggiornati; i nuovi vengono aggiunti.
@@ -477,7 +477,7 @@ function TagsTab() {
             const tv = tagValues[tag.id];
             return (
               <React.Fragment key={i}>
-              <tr style={{ background: i % 2 === 0 ? "transparent" : "#0f172a" }}>
+              <tr style={{ background: i % 2 === 0 ? "transparent" : "var(--brand-bg, #0f172a)" }}>
                 <td style={S.td}>
                   <input
                     style={S.input}
@@ -529,7 +529,7 @@ function TagsTab() {
                       ))}
                     </select>
                   ) : (
-                    <span style={{ color: "#475569", fontSize: 11 }}>—</span>
+                    <span style={{ color: "var(--brand-border, #475569)", fontSize: 11 }}>—</span>
                   )}
                 </td>
                 <td style={{ ...S.td, textAlign: "center" }}>
@@ -541,7 +541,7 @@ function TagsTab() {
                       {String(tv.value)}
                     </span>
                   ) : (
-                    <span style={{ color: "#334155", fontSize: 12 }}>—</span>
+                    <span style={{ color: "var(--brand-surface-2, #334155)", fontSize: 12 }}>—</span>
                   )}
                 </td>
                 <td style={{ ...S.td, textAlign: "right" }}>
@@ -549,7 +549,7 @@ function TagsTab() {
                     style={{
                       ...S.btn("ghost"),
                       marginRight: 4,
-                      color: tag.expression ? "#818cf8" : "#475569",
+                      color: tag.expression ? "#818cf8" : "var(--brand-border, #475569)",
                       fontFamily: "monospace",
                       fontWeight: "bold",
                     }}
@@ -597,21 +597,21 @@ function TagsTab() {
         const orphanIds = collectSourceTagIds(storeProject).filter(id => !explicitIds.has(id));
         if (orphanIds.length === 0) return null;
         return (
-          <div style={{ marginTop: 16, borderTop: "1px solid #1e293b", paddingTop: 12 }}>
+          <div style={{ marginTop: 16, borderTop: "1px solid var(--brand-surface, #1e293b)", paddingTop: 12 }}>
             <div style={{ fontSize: 10, color: "#64748b", fontWeight: 700, letterSpacing: 0.5, marginBottom: 4 }}>
               TAG DA SORGENTI — non ancora nella lista variabili
             </div>
-            <div style={{ fontSize: 11, color: "#475569", marginBottom: 8 }}>
+            <div style={{ fontSize: 11, color: "var(--brand-border, #475569)", marginBottom: 8 }}>
               Questi tag sono attivi nei protocolli ma non hanno una definizione variabile.
               "Abilita storico" li aggiunge alla lista con <em>history: true</em> — poi salva.
             </div>
             {orphanIds.map((id) => (
               <div key={id} style={{ display: "flex", alignItems: "center", gap: 8,
-                                     padding: "5px 8px", background: "#0f172a",
-                                     border: "1px solid #1e293b", borderRadius: 4, marginBottom: 2 }}>
-                <span style={{ flex: 1, fontSize: 12, color: "#94a3b8", fontFamily: "monospace" }}>{id}</span>
-                <span style={{ fontSize: 10, color: "#334155", padding: "1px 5px",
-                               border: "1px solid #1e293b", borderRadius: 3 }}>da sorgente</span>
+                                     padding: "5px 8px", background: "var(--brand-bg, #0f172a)",
+                                     border: "1px solid var(--brand-surface, #1e293b)", borderRadius: 4, marginBottom: 2 }}>
+                <span style={{ flex: 1, fontSize: 12, color: "var(--brand-text-muted, #94a3b8)", fontFamily: "monospace" }}>{id}</span>
+                <span style={{ fontSize: 10, color: "var(--brand-surface-2, #334155)", padding: "1px 5px",
+                               border: "1px solid var(--brand-surface, #1e293b)", borderRadius: 3 }}>da sorgente</span>
                 <button
                   title="Aggiunge alla lista variabili con history abilitato"
                   style={{ fontSize: 11, padding: "2px 8px", background: "#1e3a5f",
@@ -625,8 +625,8 @@ function TagsTab() {
                 </button>
                 <button
                   title="Aggiunge alla lista variabili senza history"
-                  style={{ fontSize: 11, padding: "2px 8px", background: "#334155",
-                           color: "#cbd5e1", border: "1px solid #475569", borderRadius: 3, cursor: "pointer" }}
+                  style={{ fontSize: 11, padding: "2px 8px", background: "var(--brand-surface-2, #334155)",
+                           color: "var(--brand-text-2, #cbd5e1)", border: "1px solid var(--brand-border, #475569)", borderRadius: 3, cursor: "pointer" }}
                   onClick={() => setTags(prev => [...prev, {
                     id, data_type: "float" as TagDataType, description: "", history: false,
                   }])}
@@ -796,8 +796,8 @@ function S7SourceCard({
     <div style={{ display: "flex", gap: 8, alignItems: "center", cursor: "pointer" }}
       onClick={() => setCollapsed((c) => !c)}
     >
-      <span style={{ fontWeight: 700, fontSize: 13, color: "#3b82f6" }}>S7</span>
-      <span style={{ fontSize: 13, color: "#e2e8f0" }}>
+      <span style={{ fontWeight: 700, fontSize: 13, color: "var(--brand-primary, #3b82f6)" }}>S7</span>
+      <span style={{ fontSize: 13, color: "var(--brand-text, #e2e8f0)" }}>
         {source.id} — {source.ip} R{source.rack}/S{source.slot}
         ({source.tags.length} tag)
       </span>
@@ -812,12 +812,12 @@ function S7SourceCard({
 
   const inp = (label: string, val: string | number, set: (v: string) => void, type = "text") => (
     <label style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-      <span style={{ fontSize: 11, color: "#94a3b8" }}>{label}</span>
+      <span style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)" }}>{label}</span>
       <input
         type={type}
         value={val}
         onChange={(e) => set(e.target.value)}
-        style={{ background: "#0f172a", border: "1px solid #334155", borderRadius: 4, color: "#e2e8f0", padding: "4px 8px", fontSize: 13, width: 120 }}
+        style={{ background: "var(--brand-bg, #0f172a)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, color: "var(--brand-text, #e2e8f0)", padding: "4px 8px", fontSize: 13, width: 120 }}
       />
     </label>
   );
@@ -841,12 +841,12 @@ function S7SourceCard({
               value={tm.tag}
               onChange={(e) => updateTag(idx, { tag: e.target.value })}
               placeholder="tag id"
-              style={{ background: "#0f172a", border: "1px solid #334155", borderRadius: 4, color: "#e2e8f0", padding: "4px 6px", fontSize: 12, width: 160 }}
+              style={{ background: "var(--brand-bg, #0f172a)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, color: "var(--brand-text, #e2e8f0)", padding: "4px 6px", fontSize: 12, width: 160 }}
             />
             <select
               value={tm.area}
               onChange={(e) => updateTag(idx, { area: e.target.value as S7TagMapping["area"] })}
-              style={{ background: "#0f172a", border: "1px solid #334155", borderRadius: 4, color: "#e2e8f0", padding: "4px 6px", fontSize: 12 }}
+              style={{ background: "var(--brand-bg, #0f172a)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, color: "var(--brand-text, #e2e8f0)", padding: "4px 6px", fontSize: 12 }}
             >
               <option value="db">DB</option>
               <option value="m">M (Merker)</option>
@@ -859,7 +859,7 @@ function S7SourceCard({
                 value={tm.db_num}
                 onChange={(e) => updateTag(idx, { db_num: Number(e.target.value) })}
                 title="DB number"
-                style={{ background: "#0f172a", border: "1px solid #334155", borderRadius: 4, color: "#e2e8f0", padding: "4px 6px", fontSize: 12, width: 60 }}
+                style={{ background: "var(--brand-bg, #0f172a)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, color: "var(--brand-text, #e2e8f0)", padding: "4px 6px", fontSize: 12, width: 60 }}
               />
             )}
             <input
@@ -867,12 +867,12 @@ function S7SourceCard({
               value={tm.byte_offset}
               onChange={(e) => updateTag(idx, { byte_offset: Number(e.target.value) })}
               title="byte offset"
-              style={{ background: "#0f172a", border: "1px solid #334155", borderRadius: 4, color: "#e2e8f0", padding: "4px 6px", fontSize: 12, width: 60 }}
+              style={{ background: "var(--brand-bg, #0f172a)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, color: "var(--brand-text, #e2e8f0)", padding: "4px 6px", fontSize: 12, width: 60 }}
             />
             <select
               value={tm.data_type}
               onChange={(e) => updateTag(idx, { data_type: e.target.value as S7DataType })}
-              style={{ background: "#0f172a", border: "1px solid #334155", borderRadius: 4, color: "#e2e8f0", padding: "4px 6px", fontSize: 12 }}
+              style={{ background: "var(--brand-bg, #0f172a)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, color: "var(--brand-text, #e2e8f0)", padding: "4px 6px", fontSize: 12 }}
             >
               <option value="real">REAL (4B float)</option>
               <option value="int">INT (2B signed)</option>
@@ -889,10 +889,10 @@ function S7SourceCard({
                 value={tm.bit_offset}
                 onChange={(e) => updateTag(idx, { bit_offset: Number(e.target.value) })}
                 title="bit (0-7)"
-                style={{ background: "#0f172a", border: "1px solid #334155", borderRadius: 4, color: "#e2e8f0", padding: "4px 6px", fontSize: 12, width: 50 }}
+                style={{ background: "var(--brand-bg, #0f172a)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, color: "var(--brand-text, #e2e8f0)", padding: "4px 6px", fontSize: 12, width: 50 }}
               />
             )}
-            <label style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: "#94a3b8" }}>
+            <label style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: "var(--brand-text-muted, #94a3b8)" }}>
               <input
                 type="checkbox"
                 checked={tm.writable}
@@ -954,7 +954,7 @@ function EnIpSourceCard({
       onClick={() => setCollapsed((c) => !c)}
     >
       <span style={{ fontWeight: 700, fontSize: 13, color: "#f59e0b" }}>EtherNet/IP</span>
-      <span style={{ fontSize: 13, color: "#e2e8f0" }}>
+      <span style={{ fontSize: 13, color: "var(--brand-text, #e2e8f0)" }}>
         {source.id} — {source.ip} slot {source.slot} ({source.tags.length} tag)
       </span>
       <span style={{ marginLeft: "auto", color: "#64748b", fontSize: 12 }}>{collapsed ? "▶" : "▼"}</span>
@@ -966,10 +966,10 @@ function EnIpSourceCard({
 
   const inp = (label: string, val: string | number, set: (v: string) => void, type = "text") => (
     <label style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-      <span style={{ fontSize: 11, color: "#94a3b8" }}>{label}</span>
+      <span style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)" }}>{label}</span>
       <input
         type={type} value={val} onChange={(e) => set(e.target.value)}
-        style={{ background: "#0f172a", border: "1px solid #334155", borderRadius: 4, color: "#e2e8f0", padding: "4px 8px", fontSize: 13, width: 120 }}
+        style={{ background: "var(--brand-bg, #0f172a)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, color: "var(--brand-text, #e2e8f0)", padding: "4px 8px", fontSize: 13, width: 120 }}
       />
     </label>
   );
@@ -990,17 +990,17 @@ function EnIpSourceCard({
             <input
               value={tm.tag} onChange={(e) => updateTag(idx, { tag: e.target.value })}
               placeholder="sws tag id"
-              style={{ background: "#0f172a", border: "1px solid #334155", borderRadius: 4, color: "#e2e8f0", padding: "4px 6px", fontSize: 12, width: 150 }}
+              style={{ background: "var(--brand-bg, #0f172a)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, color: "var(--brand-text, #e2e8f0)", padding: "4px 6px", fontSize: 12, width: 150 }}
             />
             <input
               value={tm.plc_tag} onChange={(e) => updateTag(idx, { plc_tag: e.target.value })}
               placeholder="PLC tag (es. Motor_Speed)"
-              style={{ background: "#0f172a", border: "1px solid #334155", borderRadius: 4, color: "#e2e8f0", padding: "4px 6px", fontSize: 12, width: 180 }}
+              style={{ background: "var(--brand-bg, #0f172a)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, color: "var(--brand-text, #e2e8f0)", padding: "4px 6px", fontSize: 12, width: 180 }}
             />
             <select
               value={tm.data_type}
               onChange={(e) => updateTag(idx, { data_type: e.target.value as EnIpDataType })}
-              style={{ background: "#0f172a", border: "1px solid #334155", borderRadius: 4, color: "#e2e8f0", padding: "4px 6px", fontSize: 12 }}
+              style={{ background: "var(--brand-bg, #0f172a)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, color: "var(--brand-text, #e2e8f0)", padding: "4px 6px", fontSize: 12 }}
             >
               <option value="real">REAL (f32)</option>
               <option value="dint">DINT (i32)</option>
@@ -1009,7 +1009,7 @@ function EnIpSourceCard({
               <option value="sint">SINT (i8)</option>
               <option value="bool">BOOL</option>
             </select>
-            <label style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: "#94a3b8" }}>
+            <label style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: "var(--brand-text-muted, #94a3b8)" }}>
               <input type="checkbox" checked={tm.writable} onChange={(e) => updateTag(idx, { writable: e.target.checked })} />
               Write
             </label>
@@ -1074,12 +1074,12 @@ function HaBrowseModal({
       display: "flex", alignItems: "center", justifyContent: "center",
     }} onClick={(ev) => { if (ev.target === ev.currentTarget) onClose(); }}>
       <div style={{
-        background: "#1e293b", border: "1px solid #334155", borderRadius: 8,
+        background: "var(--brand-surface, #1e293b)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 8,
         width: 720, maxHeight: "80vh", display: "flex", flexDirection: "column",
         boxShadow: "0 25px 50px rgba(0,0,0,0.6)",
       }}>
         {/* Header */}
-        <div style={{ padding: "14px 16px", borderBottom: "1px solid #334155", display: "flex", alignItems: "center", gap: 12 }}>
+        <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--brand-surface-2, #334155)", display: "flex", alignItems: "center", gap: 12 }}>
           <span style={{ fontSize: 13, fontWeight: 700, color: "#f59e0b", letterSpacing: 0.5 }}>
             SFOGLIA ENTITÀ HOME ASSISTANT
           </span>
@@ -1119,10 +1119,10 @@ function HaBrowseModal({
             </div>
           )}
           {!loading && !error && filtered.length === 0 && (
-            <div style={{ padding: 24, textAlign: "center", color: "#475569" }}>Nessuna entità trovata.</div>
+            <div style={{ padding: 24, textAlign: "center", color: "var(--brand-border, #475569)" }}>Nessuna entità trovata.</div>
           )}
           {!loading && !error && filtered.map((ent) => (
-            <div key={ent.entity_id} style={{ borderBottom: "1px solid #0f172a" }}>
+            <div key={ent.entity_id} style={{ borderBottom: "1px solid var(--brand-bg, #0f172a)" }}>
               <div
                 style={{
                   padding: "7px 16px", display: "flex", alignItems: "center", gap: 12,
@@ -1139,14 +1139,14 @@ function HaBrowseModal({
                     setExpandedId(expandedId === ent.entity_id ? null : ent.entity_id);
                   }
                 }}>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: "#e2e8f0", marginBottom: 2 }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: "var(--brand-text, #e2e8f0)", marginBottom: 2 }}>
                     {ent.entity_id}
                   </div>
                   {ent.friendly_name && ent.friendly_name !== ent.entity_id && (
                     <div style={{ fontSize: 11, color: "#64748b" }}>{ent.friendly_name}</div>
                   )}
                 </div>
-                <div style={{ fontSize: 11, color: "#94a3b8", minWidth: 80, textAlign: "right" }}>
+                <div style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", minWidth: 80, textAlign: "right" }}>
                   {ent.state}
                 </div>
                 {target.field === "entity_id" ? (
@@ -1185,7 +1185,7 @@ function HaBrowseModal({
         </div>
 
         {/* Footer */}
-        <div style={{ padding: "10px 16px", borderTop: "1px solid #334155", fontSize: 11, color: "#475569" }}>
+        <div style={{ padding: "10px 16px", borderTop: "1px solid var(--brand-surface-2, #334155)", fontSize: 11, color: "var(--brand-border, #475569)" }}>
           {!loading && !error && `${filtered.length} / ${entities.length} entità`}
         </div>
       </div>
@@ -1229,7 +1229,7 @@ function HomeAssistantSourceCard({
           <span style={{ fontSize: 11, color: "#f59e0b", fontWeight: 700, letterSpacing: 1 }}>
             HOME ASSISTANT
           </span>
-          <span style={{ fontWeight: 600, color: "#e2e8f0" }}>{source.id}</span>
+          <span style={{ fontWeight: 600, color: "var(--brand-text, #e2e8f0)" }}>{source.id}</span>
           <span style={{ color: "#64748b", fontSize: 12 }}>
             {source.url} — {source.entities.length} entità
           </span>
@@ -1241,7 +1241,7 @@ function HomeAssistantSourceCard({
           >
             Elimina
           </button>
-          <span style={{ color: "#475569", fontSize: 14 }}>{open ? "▲" : "▼"}</span>
+          <span style={{ color: "var(--brand-border, #475569)", fontSize: 14 }}>{open ? "▲" : "▼"}</span>
         </div>
       </div>
 
@@ -1262,7 +1262,7 @@ function HomeAssistantSourceCard({
             <div>
               <label style={{ fontSize: 11, color: "#64748b", display: "block", marginBottom: 3 }}>
                 Token accesso{" "}
-                <span style={{ fontWeight: 400, color: "#475569" }}>(oppure usa token_env)</span>
+                <span style={{ fontWeight: 400, color: "var(--brand-border, #475569)" }}>(oppure usa token_env)</span>
               </label>
               <input style={S.input} type="password" placeholder="long-lived access token"
                 value={source.token ?? ""}
@@ -1297,13 +1297,13 @@ function HomeAssistantSourceCard({
             <tbody>
               {source.entities.length === 0 && (
                 <tr>
-                  <td colSpan={6} style={{ ...S.td, color: "#475569", textAlign: "center", padding: 12 }}>
+                  <td colSpan={6} style={{ ...S.td, color: "var(--brand-border, #475569)", textAlign: "center", padding: 12 }}>
                     Nessuna entità — aggiungi una mappatura.
                   </td>
                 </tr>
               )}
               {source.entities.map((e, i) => (
-                <tr key={i} style={{ background: i % 2 === 0 ? "transparent" : "#0f172a33" }}>
+                <tr key={i} style={{ background: i % 2 === 0 ? "transparent" : "var(--brand-bg, #0f172a)33" }}>
                   <td style={S.td}>
                     <div style={{ display: "flex", gap: 4 }}>
                       <TagInput style={S.inputSm} placeholder="sala.temp"
@@ -1472,7 +1472,7 @@ function OpcUaSourceCard({
         onClick={() => setOpen((v) => !v)}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <span style={{ fontSize: 10, color: "#475569" }}>{open ? "▼" : "▶"}</span>
+          <span style={{ fontSize: 10, color: "var(--brand-border, #475569)" }}>{open ? "▼" : "▶"}</span>
           <span style={{ fontWeight: 600 }}>OPC-UA · {source.id}</span>
           <span style={{ fontSize: 11, color: "#64748b" }}>{source.endpoint_url}</span>
         </div>
@@ -1524,7 +1524,7 @@ function OpcUaSourceCard({
           </div>
 
           {/* Auth ------------------------------------------------------- */}
-          <div style={{ marginTop: 12, marginBottom: 6, color: "#94a3b8", fontSize: 12, fontWeight: 600 }}>
+          <div style={{ marginTop: 12, marginBottom: 6, color: "var(--brand-text-muted, #94a3b8)", fontSize: 12, fontWeight: 600 }}>
             AUTENTICAZIONE
           </div>
           <div style={{ display: "flex", gap: 14, alignItems: "center", marginBottom: 8 }}>
@@ -1587,7 +1587,7 @@ function OpcUaSourceCard({
           )}
 
           {/* Sicurezza -------------------------------------------------- */}
-          <div style={{ marginTop: 12, marginBottom: 6, color: "#94a3b8", fontSize: 12, fontWeight: 600 }}>
+          <div style={{ marginTop: 12, marginBottom: 6, color: "var(--brand-text-muted, #94a3b8)", fontSize: 12, fontWeight: 600 }}>
             SICUREZZA CERTIFICATI
           </div>
           <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, marginBottom: 8 }}>
@@ -1599,9 +1599,9 @@ function OpcUaSourceCard({
             Accetta qualsiasi certificato server (PoC — disabilita per gestione trust manuale)
           </label>
           {!(source.trust_all_certs ?? true) && (
-            <div style={{ background: "#1e293b", borderRadius: 6, padding: 10, marginBottom: 8 }}>
+            <div style={{ background: "var(--brand-surface, #1e293b)", borderRadius: 6, padding: 10, marginBottom: 8 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-                <span style={{ fontSize: 12, color: "#94a3b8", fontWeight: 600 }}>TRUST STORE</span>
+                <span style={{ fontSize: 12, color: "var(--brand-text-muted, #94a3b8)", fontWeight: 600 }}>TRUST STORE</span>
                 <button style={S.btn("ghost")} onClick={loadCerts} disabled={certsLoading}>
                   {certsLoading ? "..." : "Aggiorna"}
                 </button>
@@ -1621,16 +1621,16 @@ function OpcUaSourceCard({
               ) : (
                 <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
                   <thead>
-                    <tr style={{ borderBottom: "1px solid #334155" }}>
-                      <th style={{ textAlign: "left", padding: "3px 6px", color: "#94a3b8" }}>File</th>
-                      <th style={{ textAlign: "left", padding: "3px 6px", color: "#94a3b8" }}>Stato</th>
-                      <th style={{ textAlign: "right", padding: "3px 6px", color: "#94a3b8" }}>Byte</th>
+                    <tr style={{ borderBottom: "1px solid var(--brand-surface-2, #334155)" }}>
+                      <th style={{ textAlign: "left", padding: "3px 6px", color: "var(--brand-text-muted, #94a3b8)" }}>File</th>
+                      <th style={{ textAlign: "left", padding: "3px 6px", color: "var(--brand-text-muted, #94a3b8)" }}>Stato</th>
+                      <th style={{ textAlign: "right", padding: "3px 6px", color: "var(--brand-text-muted, #94a3b8)" }}>Byte</th>
                       <th style={{ width: 80 }}></th>
                     </tr>
                   </thead>
                   <tbody>
                     {certs.map((c) => (
-                      <tr key={c.filename} style={{ borderBottom: "1px solid #1e293b" }}>
+                      <tr key={c.filename} style={{ borderBottom: "1px solid var(--brand-surface, #1e293b)" }}>
                         <td style={{ padding: "3px 6px", fontFamily: "monospace", wordBreak: "break-all" }}>
                           {c.filename}
                         </td>
@@ -1643,7 +1643,7 @@ function OpcUaSourceCard({
                             {c.status === "trusted" ? "TRUSTED" : "REJECTED"}
                           </span>
                         </td>
-                        <td style={{ padding: "3px 6px", textAlign: "right", color: "#94a3b8" }}>
+                        <td style={{ padding: "3px 6px", textAlign: "right", color: "var(--brand-text-muted, #94a3b8)" }}>
                           {c.size_bytes}
                         </td>
                         <td style={{ padding: "3px 6px", display: "flex", gap: 4, justifyContent: "flex-end" }}>
@@ -1668,7 +1668,7 @@ function OpcUaSourceCard({
 
           {/* Nodes ------------------------------------------------------ */}
           <div style={{ marginTop: 12, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <div style={{ color: "#94a3b8", fontSize: 12, fontWeight: 600 }}>
+            <div style={{ color: "var(--brand-text-muted, #94a3b8)", fontSize: 12, fontWeight: 600 }}>
               NODI MONITORATI ({source.nodes.length})
             </div>
             <div style={{ display: "flex", gap: 6 }}>
@@ -1691,16 +1691,16 @@ function OpcUaSourceCard({
           ) : (
             <table style={{ width: "100%", marginTop: 8, borderCollapse: "collapse", fontSize: 12 }}>
               <thead>
-                <tr style={{ borderBottom: "1px solid #1e293b" }}>
-                  <th style={{ textAlign: "left", padding: "4px 6px", color: "#94a3b8" }}>Tag</th>
-                  <th style={{ textAlign: "left", padding: "4px 6px", color: "#94a3b8" }}>NodeId</th>
-                  <th style={{ textAlign: "left", padding: "4px 6px", color: "#94a3b8" }}>Descrizione</th>
+                <tr style={{ borderBottom: "1px solid var(--brand-surface, #1e293b)" }}>
+                  <th style={{ textAlign: "left", padding: "4px 6px", color: "var(--brand-text-muted, #94a3b8)" }}>Tag</th>
+                  <th style={{ textAlign: "left", padding: "4px 6px", color: "var(--brand-text-muted, #94a3b8)" }}>NodeId</th>
+                  <th style={{ textAlign: "left", padding: "4px 6px", color: "var(--brand-text-muted, #94a3b8)" }}>Descrizione</th>
                   <th style={{ width: 36 }}></th>
                 </tr>
               </thead>
               <tbody>
                 {source.nodes.map((n, i) => (
-                  <tr key={i} style={{ borderBottom: "1px solid #1e293b" }}>
+                  <tr key={i} style={{ borderBottom: "1px solid var(--brand-surface, #1e293b)" }}>
                     <td style={{ padding: "4px 6px" }}>
                       <div style={{ display: "flex", gap: 4 }}>
                         <TagInput
@@ -1847,7 +1847,7 @@ function OpcUaServerSourceCard({
           <span style={{ fontSize: 11, color: "#8b5cf6", fontWeight: 700, letterSpacing: 1 }}>
             OPC-UA SERVER
           </span>
-          <span style={{ fontWeight: 600, color: "#e2e8f0" }}>{source.id}</span>
+          <span style={{ fontWeight: 600, color: "var(--brand-text, #e2e8f0)" }}>{source.id}</span>
           <span style={{ color: "#64748b", fontSize: 12 }}>
             :{source.port} — {source.nodes.length} nodi
           </span>
@@ -1859,7 +1859,7 @@ function OpcUaServerSourceCard({
           >
             Elimina
           </button>
-          <span style={{ color: "#475569", fontSize: 14 }}>{open ? "▲" : "▼"}</span>
+          <span style={{ color: "var(--brand-border, #475569)", fontSize: 14 }}>{open ? "▲" : "▼"}</span>
         </div>
       </div>
 
@@ -1898,13 +1898,13 @@ function OpcUaServerSourceCard({
             <tbody>
               {source.nodes.length === 0 && (
                 <tr>
-                  <td colSpan={3} style={{ ...S.td, color: "#475569", textAlign: "center", padding: 12 }}>
+                  <td colSpan={3} style={{ ...S.td, color: "var(--brand-border, #475569)", textAlign: "center", padding: 12 }}>
                     Nessun nodo — aggiungi una mappatura.
                   </td>
                 </tr>
               )}
               {source.nodes.map((n, i) => (
-                <tr key={i} style={{ background: i % 2 === 0 ? "transparent" : "#0f172a33" }}>
+                <tr key={i} style={{ background: i % 2 === 0 ? "transparent" : "var(--brand-bg, #0f172a)33" }}>
                   <td style={S.td}>
                     <div style={{ display: "flex", gap: 4 }}>
                       <TagInput style={S.inputSm} placeholder="pump1.speed"
@@ -2046,7 +2046,7 @@ function OpcUaBrowseModal({
       const isImported = existingNodeIds.has(n.node_id);
       const icon = isFolder ? "📁" : isVariable ? "📊" : n.node_class === "Method" ? "⚙" : "·";
       const labelColor = isVariable
-        ? (isImported ? "#475569" : isPicked ? "#5eead4" : "#cbd5e1")
+        ? (isImported ? "var(--brand-border, #475569)" : isPicked ? "#5eead4" : "var(--brand-text-2, #cbd5e1)")
         : isFolder ? "#fde68a"
         : "#64748b";
       return (
@@ -2081,7 +2081,7 @@ function OpcUaBrowseModal({
             <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
               {n.display_name || n.browse_name || n.node_id}
             </span>
-            <span style={{ fontSize: 10, fontFamily: "monospace", color: "#475569" }}>
+            <span style={{ fontSize: 10, fontFamily: "monospace", color: "var(--brand-border, #475569)" }}>
               {n.node_id}
             </span>
           </div>
@@ -2105,18 +2105,18 @@ function OpcUaBrowseModal({
       <div
         onClick={(e) => e.stopPropagation()}
         style={{
-          background: "#0f172a", border: "1px solid #334155", borderRadius: 8,
+          background: "var(--brand-bg, #0f172a)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 8,
           width: 720, maxHeight: "80vh", display: "flex", flexDirection: "column",
           boxShadow: "0 12px 32px rgba(0,0,0,0.5)",
         }}
       >
-        <div style={{ padding: "14px 18px", borderBottom: "1px solid #1e293b",
+        <div style={{ padding: "14px 18px", borderBottom: "1px solid var(--brand-surface, #1e293b)",
           display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div>
             <div style={{ fontSize: 14, fontWeight: 600 }}>Sfoglia server OPC-UA</div>
             <div style={{ fontSize: 11, color: "#64748b", marginTop: 2 }}>{source.endpoint_url}</div>
           </div>
-          <button onClick={onClose} style={{ background: "none", border: "none", color: "#94a3b8", cursor: "pointer", fontSize: 16 }}>×</button>
+          <button onClick={onClose} style={{ background: "none", border: "none", color: "var(--brand-text-muted, #94a3b8)", cursor: "pointer", fontSize: 16 }}>×</button>
         </div>
         {error && (
           <div style={{ background: "#7f1d1d", color: "#fecaca", padding: "8px 14px", fontSize: 12 }}>
@@ -2126,7 +2126,7 @@ function OpcUaBrowseModal({
         <div style={{ flex: 1, overflowY: "auto", padding: "8px 0", background: "#0a111e" }}>
           {renderLevel("@root", 0)}
         </div>
-        <div style={{ padding: "10px 14px", borderTop: "1px solid #1e293b",
+        <div style={{ padding: "10px 14px", borderTop: "1px solid var(--brand-surface, #1e293b)",
           display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div style={{ fontSize: 12, color: pickedList.length > 0 ? "#5eead4" : "#64748b" }}>
             {pickedList.length === 0
@@ -2230,12 +2230,12 @@ function OpcUaEuromapModal({
       <div
         onClick={(e) => e.stopPropagation()}
         style={{
-          background: "#0f172a", border: "1px solid #334155", borderRadius: 8,
+          background: "var(--brand-bg, #0f172a)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 8,
           width: 760, maxHeight: "85vh", display: "flex", flexDirection: "column",
           boxShadow: "0 12px 32px rgba(0,0,0,0.5)",
         }}
       >
-        <div style={{ padding: "14px 18px", borderBottom: "1px solid #1e293b",
+        <div style={{ padding: "14px 18px", borderBottom: "1px solid var(--brand-surface, #1e293b)",
           display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div>
             <div style={{ fontSize: 14, fontWeight: 600 }}>
@@ -2249,7 +2249,7 @@ function OpcUaEuromapModal({
               )}
             </div>
           </div>
-          <button onClick={onClose} style={{ background: "none", border: "none", color: "#94a3b8", cursor: "pointer", fontSize: 16 }}>×</button>
+          <button onClick={onClose} style={{ background: "none", border: "none", color: "var(--brand-text-muted, #94a3b8)", cursor: "pointer", fontSize: 16 }}>×</button>
         </div>
         {error && (
           <div style={{ background: "#7f1d1d", color: "#fecaca", padding: "8px 14px", fontSize: 12 }}>
@@ -2258,7 +2258,7 @@ function OpcUaEuromapModal({
         )}
         <div style={{ flex: 1, overflowY: "auto", background: "#0a111e" }}>
           {busy && (
-            <div style={{ padding: "24px 18px", color: "#94a3b8", fontSize: 13 }}>
+            <div style={{ padding: "24px 18px", color: "var(--brand-text-muted, #94a3b8)", fontSize: 13 }}>
               Scansione address space in corso (max ~500 nodi)…
             </div>
           )}
@@ -2272,12 +2272,12 @@ function OpcUaEuromapModal({
           {!busy && result && result.variables.length > 0 && (
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
               <thead>
-                <tr style={{ background: "#0f172a", borderBottom: "1px solid #1e293b", textAlign: "left" }}>
-                  <th style={{ padding: "8px 12px", color: "#94a3b8", fontWeight: 600, width: 24 }}></th>
-                  <th style={{ padding: "8px 12px", color: "#94a3b8", fontWeight: 600, width: 40 }}>Spec</th>
-                  <th style={{ padding: "8px 12px", color: "#94a3b8", fontWeight: 600 }}>Variabile</th>
-                  <th style={{ padding: "8px 12px", color: "#94a3b8", fontWeight: 600 }}>Tag suggerito</th>
-                  <th style={{ padding: "8px 12px", color: "#94a3b8", fontWeight: 600 }}>NodeId</th>
+                <tr style={{ background: "var(--brand-bg, #0f172a)", borderBottom: "1px solid var(--brand-surface, #1e293b)", textAlign: "left" }}>
+                  <th style={{ padding: "8px 12px", color: "var(--brand-text-muted, #94a3b8)", fontWeight: 600, width: 24 }}></th>
+                  <th style={{ padding: "8px 12px", color: "var(--brand-text-muted, #94a3b8)", fontWeight: 600, width: 40 }}>Spec</th>
+                  <th style={{ padding: "8px 12px", color: "var(--brand-text-muted, #94a3b8)", fontWeight: 600 }}>Variabile</th>
+                  <th style={{ padding: "8px 12px", color: "var(--brand-text-muted, #94a3b8)", fontWeight: 600 }}>Tag suggerito</th>
+                  <th style={{ padding: "8px 12px", color: "var(--brand-text-muted, #94a3b8)", fontWeight: 600 }}>NodeId</th>
                 </tr>
               </thead>
               <tbody>
@@ -2289,10 +2289,10 @@ function OpcUaEuromapModal({
                       key={v.node_id}
                       onClick={() => togglePick(v.node_id)}
                       style={{
-                        borderBottom: "1px solid #1e293b",
+                        borderBottom: "1px solid var(--brand-surface, #1e293b)",
                         cursor: imported ? "not-allowed" : "pointer",
                         background: checked ? "#0f2922" : "transparent",
-                        color: imported ? "#475569" : "#cbd5e1",
+                        color: imported ? "var(--brand-border, #475569)" : "var(--brand-text-2, #cbd5e1)",
                       }}
                     >
                       <td style={{ padding: "6px 12px" }}>
@@ -2327,9 +2327,9 @@ function OpcUaEuromapModal({
             </table>
           )}
         </div>
-        <div style={{ padding: "10px 14px", borderTop: "1px solid #1e293b",
+        <div style={{ padding: "10px 14px", borderTop: "1px solid var(--brand-surface, #1e293b)",
           display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
-          <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#94a3b8" }}>
+          <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--brand-text-muted, #94a3b8)" }}>
             <input
               type="checkbox"
               checked={autoCreateTags}
@@ -2390,10 +2390,10 @@ function ModbusSourceCard({
       {/* Card header */}
       <div style={S.cardHead} onClick={() => setOpen((v) => !v)}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <span style={{ fontSize: 11, color: "#3b82f6", fontWeight: 700, letterSpacing: 1 }}>
+          <span style={{ fontSize: 11, color: "var(--brand-primary, #3b82f6)", fontWeight: 700, letterSpacing: 1 }}>
             MODBUS TCP
           </span>
-          <span style={{ fontWeight: 600, color: "#e2e8f0" }}>{source.id}</span>
+          <span style={{ fontWeight: 600, color: "var(--brand-text, #e2e8f0)" }}>{source.id}</span>
           <span style={{ color: "#64748b", fontSize: 12 }}>
             {source.host}:{source.port} — {source.registers.length} registri
           </span>
@@ -2405,7 +2405,7 @@ function ModbusSourceCard({
           >
             Elimina
           </button>
-          <span style={{ color: "#475569", fontSize: 14 }}>{open ? "▲" : "▼"}</span>
+          <span style={{ color: "var(--brand-border, #475569)", fontSize: 14 }}>{open ? "▲" : "▼"}</span>
         </div>
       </div>
 
@@ -2490,13 +2490,13 @@ function ModbusSourceCard({
             <tbody>
               {source.registers.length === 0 && (
                 <tr>
-                  <td colSpan={5} style={{ ...S.td, color: "#475569", textAlign: "center", padding: 12 }}>
+                  <td colSpan={5} style={{ ...S.td, color: "var(--brand-border, #475569)", textAlign: "center", padding: 12 }}>
                     Nessun registro — aggiungi una mappatura.
                   </td>
                 </tr>
               )}
               {source.registers.map((r, i) => (
-                <tr key={i} style={{ background: i % 2 === 0 ? "transparent" : "#0f172a33" }}>
+                <tr key={i} style={{ background: i % 2 === 0 ? "transparent" : "var(--brand-bg, #0f172a)33" }}>
                   <td style={S.td}>
                     <div style={{ display: "flex", gap: 4 }}>
                       <TagInput
@@ -2598,7 +2598,7 @@ function ModbusRtuSourceCard({
           <span style={{ fontSize: 11, color: "#f59e0b", fontWeight: 700, letterSpacing: 1 }}>
             MODBUS RTU
           </span>
-          <span style={{ fontWeight: 600, color: "#e2e8f0" }}>{source.id}</span>
+          <span style={{ fontWeight: 600, color: "var(--brand-text, #e2e8f0)" }}>{source.id}</span>
           <span style={{ color: "#64748b", fontSize: 12 }}>
             {source.device} — {source.baud_rate} baud — {source.registers.length} registri
           </span>
@@ -2610,7 +2610,7 @@ function ModbusRtuSourceCard({
           >
             Elimina
           </button>
-          <span style={{ color: "#475569", fontSize: 14 }}>{open ? "▲" : "▼"}</span>
+          <span style={{ color: "var(--brand-border, #475569)", fontSize: 14 }}>{open ? "▲" : "▼"}</span>
         </div>
       </div>
 
@@ -2699,13 +2699,13 @@ function ModbusRtuSourceCard({
             <tbody>
               {source.registers.length === 0 && (
                 <tr>
-                  <td colSpan={5} style={{ ...S.td, color: "#475569", textAlign: "center", padding: 12 }}>
+                  <td colSpan={5} style={{ ...S.td, color: "var(--brand-border, #475569)", textAlign: "center", padding: 12 }}>
                     Nessun registro — aggiungi una mappatura.
                   </td>
                 </tr>
               )}
               {source.registers.map((r, i) => (
-                <tr key={i} style={{ background: i % 2 === 0 ? "transparent" : "#0f172a33" }}>
+                <tr key={i} style={{ background: i % 2 === 0 ? "transparent" : "var(--brand-bg, #0f172a)33" }}>
                   <td style={S.td}>
                     <div style={{ display: "flex", gap: 4 }}>
                       <TagInput
@@ -2798,7 +2798,7 @@ function MqttSourceCard({
           <span style={{ fontSize: 11, color: "#a855f7", fontWeight: 700, letterSpacing: 1 }}>
             MQTT
           </span>
-          <span style={{ fontWeight: 600, color: "#e2e8f0" }}>{source.id}</span>
+          <span style={{ fontWeight: 600, color: "var(--brand-text, #e2e8f0)" }}>{source.id}</span>
           <span style={{ color: "#64748b", fontSize: 12 }}>
             {source.host}:{source.port} — {source.topics.length} topic
           </span>
@@ -2816,7 +2816,7 @@ function MqttSourceCard({
           >
             Elimina
           </button>
-          <span style={{ color: "#475569", fontSize: 14 }}>{open ? "▲" : "▼"}</span>
+          <span style={{ color: "var(--brand-border, #475569)", fontSize: 14 }}>{open ? "▲" : "▼"}</span>
         </div>
       </div>
 
@@ -2908,13 +2908,13 @@ function MqttSourceCard({
             <tbody>
               {source.topics.length === 0 && (
                 <tr>
-                  <td colSpan={6} style={{ ...S.td, color: "#475569", textAlign: "center", padding: 12 }}>
+                  <td colSpan={6} style={{ ...S.td, color: "var(--brand-border, #475569)", textAlign: "center", padding: 12 }}>
                     Nessun topic — aggiungi una mappatura.
                   </td>
                 </tr>
               )}
               {source.topics.map((t, i) => (
-                <tr key={i} style={{ background: i % 2 === 0 ? "transparent" : "#0f172a33" }}>
+                <tr key={i} style={{ background: i % 2 === 0 ? "transparent" : "var(--brand-bg, #0f172a)33" }}>
                   <td style={S.td}>
                     <div style={{ display: "flex", gap: 4 }}>
                       <TagInput
@@ -3089,13 +3089,13 @@ function MqttBrowseModal({
       display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000,
     }}>
       <div style={{
-        background: "#1e293b", border: "1px solid #334155", borderRadius: 8,
+        background: "var(--brand-surface, #1e293b)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 8,
         padding: 20, width: "min(90vw, 740px)", maxHeight: "80vh",
         display: "flex", flexDirection: "column", gap: 12,
       }}>
         {/* Header */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <div style={{ fontWeight: 700, color: "#e2e8f0" }}>
+          <div style={{ fontWeight: 700, color: "var(--brand-text, #e2e8f0)" }}>
             Sfoglia broker — {source.host}:{source.port}
           </div>
           <button style={{ ...S.btn("ghost"), padding: "4px 8px" }} onClick={onClose}>✕</button>
@@ -3152,7 +3152,7 @@ function MqttBrowseModal({
                 <tbody>
                   {visible.length === 0 && (
                     <tr>
-                      <td colSpan={4} style={{ ...S.td, textAlign: "center", color: "#475569", padding: 12 }}>
+                      <td colSpan={4} style={{ ...S.td, textAlign: "center", color: "var(--brand-border, #475569)", padding: 12 }}>
                         Nessun topic corrisponde al filtro.
                       </td>
                     </tr>
@@ -3175,7 +3175,7 @@ function MqttBrowseModal({
                         <td style={{ ...S.td, fontFamily: "monospace", fontSize: 11, wordBreak: "break-all" }}>
                           {t.topic}
                         </td>
-                        <td style={{ ...S.td, fontFamily: "monospace", fontSize: 11, color: "#94a3b8", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+                        <td style={{ ...S.td, fontFamily: "monospace", fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
                           title={t.sample_payload}>
                           {t.sample_payload.length > 55 ? t.sample_payload.slice(0, 55) + "…" : t.sample_payload}
                         </td>
@@ -3190,7 +3190,7 @@ function MqttBrowseModal({
                               {keys.map(k => <option key={k} value={k}>{k}</option>)}
                             </select>
                           ) : (
-                            <span style={{ color: "#475569", fontSize: 11 }}>—</span>
+                            <span style={{ color: "var(--brand-border, #475569)", fontSize: 11 }}>—</span>
                           )}
                         </td>
                       </tr>
@@ -3251,7 +3251,7 @@ function MqttAuthSection({
         <div>
           <label style={{ fontSize: 11, color: "#64748b", display: "block", marginBottom: 3 }}>
             Password{" "}
-            <span style={{ color: "#475569" }}>(lascia "********" per non modificare)</span>
+            <span style={{ color: "var(--brand-border, #475569)" }}>(lascia "********" per non modificare)</span>
           </label>
           <div style={{ display: "flex", gap: 4 }}>
             <input
@@ -3356,7 +3356,7 @@ function MqttTlsSection({
     <>
       <SectionHeader>TLS</SectionHeader>
       <div style={{ display: "grid", gridTemplateColumns: "auto 1fr auto", gap: 12, marginBottom: 12, alignItems: "center" }}>
-        <label style={{ fontSize: 12, color: "#cbd5e1", cursor: "pointer" }}>
+        <label style={{ fontSize: 12, color: "var(--brand-text-2, #cbd5e1)", cursor: "pointer" }}>
           <input
             type="checkbox"
             checked={current.enabled}
@@ -3403,7 +3403,7 @@ function MqttLastWillSection({
     <>
       <SectionHeader>LAST WILL</SectionHeader>
       <div style={{ marginBottom: 8 }}>
-        <label style={{ fontSize: 12, color: "#cbd5e1", cursor: "pointer" }}>
+        <label style={{ fontSize: 12, color: "var(--brand-text-2, #cbd5e1)", cursor: "pointer" }}>
           <input
             type="checkbox"
             checked={enabled}
@@ -3453,7 +3453,7 @@ function MqttLastWillSection({
               type="checkbox"
               checked={current.retain}
               onChange={(e) => setField("retain", e.target.checked)}
-              style={{ accentColor: "#3b82f6", marginTop: 5 }}
+              style={{ accentColor: "var(--brand-primary, #3b82f6)", marginTop: 5 }}
             />
           </div>
         </div>
@@ -3493,7 +3493,7 @@ function SparkplugSection({
     <>
       <SectionHeader>SPARKPLUG B</SectionHeader>
       <div style={{ marginBottom: 8 }}>
-        <label style={{ fontSize: 12, color: "#cbd5e1", cursor: "pointer" }}>
+        <label style={{ fontSize: 12, color: "var(--brand-text-2, #cbd5e1)", cursor: "pointer" }}>
           <input
             type="checkbox"
             checked={enabled}
@@ -3534,14 +3534,14 @@ function SparkplugSection({
               <input
                 value={m.tag} onChange={(e) => updateMetric(idx, { tag: e.target.value })}
                 placeholder="sws tag id"
-                style={{ background: "#0f172a", border: "1px solid #334155", borderRadius: 4, color: "#e2e8f0", padding: "4px 6px", fontSize: 12, width: 160 }}
+                style={{ background: "var(--brand-bg, #0f172a)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, color: "var(--brand-text, #e2e8f0)", padding: "4px 6px", fontSize: 12, width: 160 }}
               />
               <input
                 value={m.metric_name} onChange={(e) => updateMetric(idx, { metric_name: e.target.value })}
                 placeholder="Sparkplug metric name"
-                style={{ background: "#0f172a", border: "1px solid #334155", borderRadius: 4, color: "#e2e8f0", padding: "4px 6px", fontSize: 12, width: 200 }}
+                style={{ background: "var(--brand-bg, #0f172a)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, color: "var(--brand-text, #e2e8f0)", padding: "4px 6px", fontSize: 12, width: 200 }}
               />
-              <label style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: "#94a3b8" }}>
+              <label style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: "var(--brand-text-muted, #94a3b8)" }}>
                 <input type="checkbox" checked={m.writable} onChange={(e) => updateMetric(idx, { writable: e.target.checked })} />
                 NCMD write
               </label>
@@ -3653,7 +3653,7 @@ function ProtocolsTab() {
       </div>
 
       {sources.length === 0 && (
-        <div style={{ color: "#475569", fontSize: 13, marginBottom: 16 }}>
+        <div style={{ color: "var(--brand-border, #475569)", fontSize: 13, marginBottom: 16 }}>
           Nessuna sorgente configurata.
         </div>
       )}
@@ -3871,7 +3871,7 @@ function AlarmsTab() {
         <tbody>
           {alarms.length === 0 && (
             <tr>
-              <td colSpan={9} style={{ ...S.td, color: "#475569", textAlign: "center", padding: 12 }}>
+              <td colSpan={9} style={{ ...S.td, color: "var(--brand-border, #475569)", textAlign: "center", padding: 12 }}>
                 Nessun allarme definito.
               </td>
             </tr>
@@ -3879,7 +3879,7 @@ function AlarmsTab() {
           {alarms.map((alm, i) => {
             const live = liveAlarms[alm.id];
             return (
-              <tr key={i} style={{ background: i % 2 === 0 ? "transparent" : "#0f172a" }}>
+              <tr key={i} style={{ background: i % 2 === 0 ? "transparent" : "var(--brand-bg, #0f172a)" }}>
                 <td style={S.td}>
                   <input
                     style={S.inputSm}
@@ -4073,7 +4073,7 @@ function AlarmsTab() {
                       {live.active ? (live.acknowledged ? "ACK" : "ON") : "—"}
                     </span>
                   ) : (
-                    <span style={{ color: "#334155", fontSize: 11 }}>—</span>
+                    <span style={{ color: "var(--brand-surface-2, #334155)", fontSize: 11 }}>—</span>
                   )}
                 </td>
                 <td style={{ ...S.td, textAlign: "right" }}>
@@ -4114,7 +4114,7 @@ interface SystemStatus {
 function ProgressBar({ value, max, color }: { value: number; max: number; color: string }) {
   const pct = max > 0 ? Math.min(100, (value / max) * 100) : 0;
   return (
-    <div style={{ background: "#0f172a", borderRadius: 4, height: 8, overflow: "hidden", flex: 1 }}>
+    <div style={{ background: "var(--brand-bg, #0f172a)", borderRadius: 4, height: 8, overflow: "hidden", flex: 1 }}>
       <div style={{ width: `${pct}%`, height: "100%", background: color, borderRadius: 4, transition: "width 0.3s" }} />
     </div>
   );
@@ -4122,9 +4122,9 @@ function ProgressBar({ value, max, color }: { value: number; max: number; color:
 
 function MetricCard({ icon, label, value }: { icon: string; label: string; value: string }) {
   return (
-    <div style={{ background: "#0f172a", border: "1px solid #1e293b", borderRadius: 6, padding: "10px 14px" }}>
+    <div style={{ background: "var(--brand-bg, #0f172a)", border: "1px solid var(--brand-surface, #1e293b)", borderRadius: 6, padding: "10px 14px" }}>
       <div style={{ fontSize: 11, color: "#64748b", marginBottom: 4 }}>{icon} {label}</div>
-      <div style={{ fontSize: 15, fontWeight: 700, color: "#e2e8f0" }}>{value}</div>
+      <div style={{ fontSize: 15, fontWeight: 700, color: "var(--brand-text, #e2e8f0)" }}>{value}</div>
     </div>
   );
 }
@@ -4184,22 +4184,22 @@ function GitOpsPanel() {
       <div style={{ fontSize: 12, fontWeight: 700, color: "#64748b", letterSpacing: 1, marginBottom: 10 }}>
         GITOPS
       </div>
-      <div style={{ background: "#0f172a", border: "1px solid #1e293b", borderRadius: 6, padding: "12px 14px", display: "flex", flexDirection: "column", gap: 6 }}>
+      <div style={{ background: "var(--brand-bg, #0f172a)", border: "1px solid var(--brand-surface, #1e293b)", borderRadius: 6, padding: "12px 14px", display: "flex", flexDirection: "column", gap: 6 }}>
         <div style={{ display: "flex", gap: 12, flexWrap: "wrap", fontSize: 12 }}>
           <span style={{ color: "#64748b" }}>Branch:</span>
           <span style={{ color: "#93c5fd", fontWeight: 700 }}>{gitStatus.branch}</span>
           <span style={{ color: "#64748b" }}>SHA:</span>
-          <span style={{ color: "#e2e8f0", fontFamily: "monospace" }}>{gitStatus.sha}</span>
+          <span style={{ color: "var(--brand-text, #e2e8f0)", fontFamily: "monospace" }}>{gitStatus.sha}</span>
           <span style={{ color: gitStatus.clean ? "#34d399" : "#fb923c" }}>
             {gitStatus.clean ? "✓ clean" : "⚠ modificato"}
           </span>
         </div>
-        <div style={{ fontSize: 12, color: "#94a3b8" }}>
+        <div style={{ fontSize: 12, color: "var(--brand-text-muted, #94a3b8)" }}>
           <span style={{ color: "#64748b" }}>{dateStr} — </span>
           {gitStatus.author}: {gitStatus.message}
         </div>
         {gitStatus.remote_url && (
-          <div style={{ fontSize: 11, color: "#475569", wordBreak: "break-all" }}>{gitStatus.remote_url}</div>
+          <div style={{ fontSize: 11, color: "var(--brand-border, #475569)", wordBreak: "break-all" }}>{gitStatus.remote_url}</div>
         )}
         <div style={{ display: "flex", gap: 8, marginTop: 4, flexWrap: "wrap" }}>
           <button
@@ -4250,7 +4250,7 @@ function GitOpsPanel() {
                 }
               }}
               placeholder="Messaggio di commit…"
-              style={{ flex: 1, background: "#020617", color: "#e2e8f0", border: "1px solid #334155", borderRadius: 4, padding: "5px 8px", fontSize: 12 }}
+              style={{ flex: 1, background: "#020617", color: "var(--brand-text, #e2e8f0)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, padding: "5px 8px", fontSize: 12 }}
               autoFocus
             />
             <button
@@ -4264,7 +4264,7 @@ function GitOpsPanel() {
             >Salva</button>
             <button
               onClick={() => { setShowCommitForm(false); setCommitMsg(""); }}
-              style={{ padding: "5px 10px", background: "#1e293b", border: "1px solid #334155", borderRadius: 4, color: "#94a3b8", fontSize: 12, cursor: "pointer" }}
+              style={{ padding: "5px 10px", background: "var(--brand-surface, #1e293b)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, color: "var(--brand-text-muted, #94a3b8)", fontSize: 12, cursor: "pointer" }}
             >✕</button>
           </div>
         )}
@@ -4337,9 +4337,9 @@ function SystemTab() {
           <MetricCard icon="📡" label="Sorgenti" value={String(status.source_count)} />
           <MetricCard icon="🔔" label="Allarmi attivi" value={String(status.alarm_active_count)} />
         </div>
-        <div style={{ marginTop: 8, background: "#0f172a", border: "1px solid #1e293b", borderRadius: 6, padding: "10px 14px" }}>
+        <div style={{ marginTop: 8, background: "var(--brand-bg, #0f172a)", border: "1px solid var(--brand-surface, #1e293b)", borderRadius: 6, padding: "10px 14px" }}>
           <div style={{ fontSize: 11, color: "#64748b", marginBottom: 4 }}>📊 Storico</div>
-          <div style={{ fontSize: 15, fontWeight: 700, color: "#e2e8f0" }}>{fmtSamples(status.historian_samples)}</div>
+          <div style={{ fontSize: 15, fontWeight: 700, color: "var(--brand-text, #e2e8f0)" }}>{fmtSamples(status.historian_samples)}</div>
         </div>
       </div>
       <div>
@@ -4347,24 +4347,24 @@ function SystemTab() {
           SISTEMA
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          <div style={{ background: "#0f172a", border: "1px solid #1e293b", borderRadius: 6, padding: "10px 14px" }}>
+          <div style={{ background: "var(--brand-bg, #0f172a)", border: "1px solid var(--brand-surface, #1e293b)", borderRadius: 6, padding: "10px 14px" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
               <span style={{ fontSize: 11, color: "#64748b" }}>⚙ CPU</span>
-              <span style={{ fontSize: 13, fontWeight: 700, color: "#e2e8f0" }}>{status.cpu_usage_pct.toFixed(1)}%</span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: "var(--brand-text, #e2e8f0)" }}>{status.cpu_usage_pct.toFixed(1)}%</span>
             </div>
             <ProgressBar value={status.cpu_usage_pct} max={100} color="#60a5fa" />
           </div>
-          <div style={{ background: "#0f172a", border: "1px solid #1e293b", borderRadius: 6, padding: "10px 14px" }}>
+          <div style={{ background: "var(--brand-bg, #0f172a)", border: "1px solid var(--brand-surface, #1e293b)", borderRadius: 6, padding: "10px 14px" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
               <span style={{ fontSize: 11, color: "#64748b" }}>💾 RAM</span>
-              <span style={{ fontSize: 13, fontWeight: 700, color: "#e2e8f0" }}>{status.mem_used_mb} MB / {status.mem_total_mb} MB</span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: "var(--brand-text, #e2e8f0)" }}>{status.mem_used_mb} MB / {status.mem_total_mb} MB</span>
             </div>
             <ProgressBar value={status.mem_used_mb} max={status.mem_total_mb} color="#34d399" />
           </div>
-          <div style={{ background: "#0f172a", border: "1px solid #1e293b", borderRadius: 6, padding: "10px 14px" }}>
+          <div style={{ background: "var(--brand-bg, #0f172a)", border: "1px solid var(--brand-surface, #1e293b)", borderRadius: 6, padding: "10px 14px" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
               <span style={{ fontSize: 11, color: "#64748b" }}>💿 Disco</span>
-              <span style={{ fontSize: 13, fontWeight: 700, color: "#e2e8f0" }}>{status.disk_used_gb} GB / {status.disk_total_gb} GB</span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: "var(--brand-text, #e2e8f0)" }}>{status.disk_used_gb} GB / {status.disk_total_gb} GB</span>
             </div>
             <ProgressBar value={status.disk_used_gb} max={status.disk_total_gb} color="#fb923c" />
           </div>
@@ -4447,68 +4447,68 @@ function TlsSection() {
       <div style={{ fontSize: 12, fontWeight: 700, color: "#64748b", letterSpacing: 1, marginBottom: 10 }}>
         CERTIFICATO TLS
       </div>
-      <div style={{ background: "#0f172a", border: "1px solid #1e293b", borderRadius: 6, padding: "12px 16px" }}>
+      <div style={{ background: "var(--brand-bg, #0f172a)", border: "1px solid var(--brand-surface, #1e293b)", borderRadius: 6, padding: "12px 16px" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
           <span style={{
             display: "inline-block", width: 8, height: 8, borderRadius: "50%",
             background: tlsEnabled ? "#34d399" : "#64748b",
           }} />
-          <span style={{ fontSize: 13, color: "#e2e8f0" }}>
+          <span style={{ fontSize: 13, color: "var(--brand-text, #e2e8f0)" }}>
             {tlsEnabled ? "HTTPS attivo" : "HTTP plain (nessun certificato)"}
           </span>
         </div>
         {!tlsEnabled && (
           <div>
-            <p style={{ margin: "0 0 10px", fontSize: 12, color: "#94a3b8" }}>
+            <p style={{ margin: "0 0 10px", fontSize: 12, color: "var(--brand-text-muted, #94a3b8)" }}>
               Genera un certificato self-signed per abilitare HTTPS. Richiesto per accesso da LAN (non localhost).
             </p>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               <button
                 onClick={handleGenerate}
                 disabled={busy}
-                style={{ padding: "6px 14px", background: "#2563eb", color: "#fff", border: "none", borderRadius: 6, cursor: busy ? "default" : "pointer", fontSize: 13 }}
+                style={{ padding: "6px 14px", background: "var(--brand-primary-hover, #2563eb)", color: "#fff", border: "none", borderRadius: 6, cursor: busy ? "default" : "pointer", fontSize: 13 }}
               >
                 Genera certificato self-signed
               </button>
               <button
                 onClick={() => setShowUpload(v => !v)}
                 disabled={busy}
-                style={{ padding: "6px 14px", background: "#334155", color: "#e2e8f0", border: "1px solid #475569", borderRadius: 6, cursor: busy ? "default" : "pointer", fontSize: 13 }}
+                style={{ padding: "6px 14px", background: "var(--brand-surface-2, #334155)", color: "var(--brand-text, #e2e8f0)", border: "1px solid var(--brand-border, #475569)", borderRadius: 6, cursor: busy ? "default" : "pointer", fontSize: 13 }}
               >
                 {showUpload ? "Annulla caricamento" : "Carica certificato (cert + key)"}
               </button>
             </div>
             {showUpload && (
               <div style={{ marginTop: 12, display: "grid", gap: 10 }}>
-                <p style={{ margin: 0, fontSize: 12, color: "#94a3b8" }}>
+                <p style={{ margin: 0, fontSize: 12, color: "var(--brand-text-muted, #94a3b8)" }}>
                   Carica un certificato firmato da una CA (es. aziendale). Incolla il PEM o seleziona i file.
                 </p>
                 <div>
-                  <label style={{ display: "block", fontSize: 12, color: "#cbd5e1", marginBottom: 4 }}>
+                  <label style={{ display: "block", fontSize: 12, color: "var(--brand-text-2, #cbd5e1)", marginBottom: 4 }}>
                     Certificato (tls.crt, PEM)
                   </label>
                   <input type="file" accept=".crt,.pem,.cer" onChange={readFileInto(setCertPem)}
-                    style={{ fontSize: 12, color: "#94a3b8", marginBottom: 6 }} />
+                    style={{ fontSize: 12, color: "var(--brand-text-muted, #94a3b8)", marginBottom: 6 }} />
                   <textarea value={certPem} onChange={(e) => setCertPem(e.target.value)}
                     placeholder="-----BEGIN CERTIFICATE-----"
                     rows={4} spellCheck={false}
-                    style={{ width: "100%", boxSizing: "border-box", fontFamily: "monospace", fontSize: 11, background: "#020617", color: "#e2e8f0", border: "1px solid #1e293b", borderRadius: 6, padding: 8 }} />
+                    style={{ width: "100%", boxSizing: "border-box", fontFamily: "monospace", fontSize: 11, background: "#020617", color: "var(--brand-text, #e2e8f0)", border: "1px solid var(--brand-surface, #1e293b)", borderRadius: 6, padding: 8 }} />
                 </div>
                 <div>
-                  <label style={{ display: "block", fontSize: 12, color: "#cbd5e1", marginBottom: 4 }}>
+                  <label style={{ display: "block", fontSize: 12, color: "var(--brand-text-2, #cbd5e1)", marginBottom: 4 }}>
                     Chiave privata (tls.key, PEM)
                   </label>
                   <input type="file" accept=".key,.pem" onChange={readFileInto(setKeyPem)}
-                    style={{ fontSize: 12, color: "#94a3b8", marginBottom: 6 }} />
+                    style={{ fontSize: 12, color: "var(--brand-text-muted, #94a3b8)", marginBottom: 6 }} />
                   <textarea value={keyPem} onChange={(e) => setKeyPem(e.target.value)}
                     placeholder="-----BEGIN PRIVATE KEY-----"
                     rows={4} spellCheck={false}
-                    style={{ width: "100%", boxSizing: "border-box", fontFamily: "monospace", fontSize: 11, background: "#020617", color: "#e2e8f0", border: "1px solid #1e293b", borderRadius: 6, padding: 8 }} />
+                    style={{ width: "100%", boxSizing: "border-box", fontFamily: "monospace", fontSize: 11, background: "#020617", color: "var(--brand-text, #e2e8f0)", border: "1px solid var(--brand-surface, #1e293b)", borderRadius: 6, padding: 8 }} />
                 </div>
                 <button
                   onClick={handleUpload}
                   disabled={busy}
-                  style={{ justifySelf: "start", padding: "6px 14px", background: "#2563eb", color: "#fff", border: "none", borderRadius: 6, cursor: busy ? "default" : "pointer", fontSize: 13 }}
+                  style={{ justifySelf: "start", padding: "6px 14px", background: "var(--brand-primary-hover, #2563eb)", color: "#fff", border: "none", borderRadius: 6, cursor: busy ? "default" : "pointer", fontSize: 13 }}
                 >
                   Carica e attiva HTTPS
                 </button>
@@ -4518,13 +4518,13 @@ function TlsSection() {
         )}
         {tlsEnabled && (
           <div>
-            <p style={{ margin: "0 0 10px", fontSize: 12, color: "#94a3b8" }}>
+            <p style={{ margin: "0 0 10px", fontSize: 12, color: "var(--brand-text-muted, #94a3b8)" }}>
               Il runtime serve HTTPS. Per tornare a HTTP plain (es. per sviluppo localhost) rimuovi il certificato.
             </p>
             <button
               onClick={handleRemove}
               disabled={busy}
-              style={{ padding: "6px 14px", background: "#334155", color: "#e2e8f0", border: "1px solid #475569", borderRadius: 6, cursor: busy ? "default" : "pointer", fontSize: 13 }}
+              style={{ padding: "6px 14px", background: "var(--brand-surface-2, #334155)", color: "var(--brand-text, #e2e8f0)", border: "1px solid var(--brand-border, #475569)", borderRadius: 6, cursor: busy ? "default" : "pointer", fontSize: 13 }}
             >
               Disabilita TLS
             </button>
@@ -4665,7 +4665,7 @@ function UsersTab() {
     <div>
       <div style={S.section}>
         <div style={S.sectionTitle}>UTENTI</div>
-        <p style={{ color: "#94a3b8", fontSize: 12, marginTop: 0 }}>
+        <p style={{ color: "var(--brand-text-muted, #94a3b8)", fontSize: 12, marginTop: 0 }}>
           Gli utenti sono salvati in <code>users.yaml</code> nella cartella del progetto.
           La password viene cifrata con Argon2id; il file non contiene mai testo in chiaro.
         </p>
@@ -4767,7 +4767,7 @@ function UsersTab() {
                       />
                     </td>
                     <td style={S.td}>
-                      <span style={{ color: "#94a3b8", fontSize: 12 }}>{fmtDate(u.updated_at_ms)}</span>
+                      <span style={{ color: "var(--brand-text-muted, #94a3b8)", fontSize: 12 }}>{fmtDate(u.updated_at_ms)}</span>
                     </td>
                     <td style={S.td}>
                       <div style={{ display: "flex", gap: 6 }}>
@@ -4816,7 +4816,7 @@ function UsersTab() {
           alignItems: "end",
         }}>
           <div>
-            <label style={{ fontSize: 11, color: "#94a3b8", display: "block", marginBottom: 4 }}>Username</label>
+            <label style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "block", marginBottom: 4 }}>Username</label>
             <input
               type="text"
               value={newUser.username}
@@ -4826,7 +4826,7 @@ function UsersTab() {
             />
           </div>
           <div>
-            <label style={{ fontSize: 11, color: "#94a3b8", display: "block", marginBottom: 4 }}>Password iniziale</label>
+            <label style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "block", marginBottom: 4 }}>Password iniziale</label>
             <input
               type="password"
               value={newUser.password}
@@ -4835,7 +4835,7 @@ function UsersTab() {
             />
           </div>
           <div>
-            <label style={{ fontSize: 11, color: "#94a3b8", display: "block", marginBottom: 4 }}>Ruolo</label>
+            <label style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "block", marginBottom: 4 }}>Ruolo</label>
             <select
               value={newUser.role}
               onChange={(e) => setNewUser((s) => ({ ...s, role: e.target.value as UserRole }))}
@@ -4853,7 +4853,7 @@ function UsersTab() {
             + Crea
           </button>
         </div>
-        <label style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, color: "#94a3b8", marginTop: 8 }}>
+        <label style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--brand-text-muted, #94a3b8)", marginTop: 8 }}>
           <input
             type="checkbox"
             checked={newUser.must_change_password ?? true}
@@ -4910,8 +4910,8 @@ function ResourcesTab() {
   const remove = (id: string) => persist(customSymbols.filter((s) => s.id !== id));
 
   const inp: React.CSSProperties = {
-    background: "#0f172a", border: "1px solid #334155", borderRadius: 4,
-    color: "#e2e8f0", padding: "4px 8px", fontSize: 13, width: "100%", boxSizing: "border-box",
+    background: "var(--brand-bg, #0f172a)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4,
+    color: "var(--brand-text, #e2e8f0)", padding: "4px 8px", fontSize: 13, width: "100%", boxSizing: "border-box",
   };
   const lbl: React.CSSProperties = { fontSize: 11, color: "#64748b", marginBottom: 2 };
 
@@ -4920,15 +4920,15 @@ function ResourcesTab() {
 
       {/* Simboli già aggiunti */}
       <section>
-        <div style={{ fontSize: 13, fontWeight: 700, color: "#94a3b8", marginBottom: 12 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: "var(--brand-text-muted, #94a3b8)", marginBottom: 12 }}>
           SIMBOLI PROGETTO ({customSymbols.length})
         </div>
         {customSymbols.length === 0 ? (
-          <div style={{ color: "#475569", fontSize: 13 }}>Nessun simbolo custom aggiunto.</div>
+          <div style={{ color: "var(--brand-border, #475569)", fontSize: 13 }}>Nessun simbolo custom aggiunto.</div>
         ) : (
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
             <thead>
-              <tr style={{ color: "#64748b", borderBottom: "1px solid #334155" }}>
+              <tr style={{ color: "#64748b", borderBottom: "1px solid var(--brand-surface-2, #334155)" }}>
                 {["Etichetta", "URL", "Licenza", "Autore / fonte", ""].map((h) => (
                   <th key={h} style={{ textAlign: "left", padding: "4px 8px", fontWeight: 600 }}>{h}</th>
                 ))}
@@ -4936,12 +4936,12 @@ function ResourcesTab() {
             </thead>
             <tbody>
               {customSymbols.map((s) => (
-                <tr key={s.id} style={{ borderBottom: "1px solid #1e293b" }}>
-                  <td style={{ padding: "6px 8px", color: "#e2e8f0" }}>{s.label}</td>
-                  <td style={{ padding: "6px 8px", color: "#94a3b8", maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    <a href={s.url} target="_blank" rel="noopener noreferrer" style={{ color: "#3b82f6" }}>{s.url}</a>
+                <tr key={s.id} style={{ borderBottom: "1px solid var(--brand-surface, #1e293b)" }}>
+                  <td style={{ padding: "6px 8px", color: "var(--brand-text, #e2e8f0)" }}>{s.label}</td>
+                  <td style={{ padding: "6px 8px", color: "var(--brand-text-muted, #94a3b8)", maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    <a href={s.url} target="_blank" rel="noopener noreferrer" style={{ color: "var(--brand-primary, #3b82f6)" }}>{s.url}</a>
                   </td>
-                  <td style={{ padding: "6px 8px", color: "#94a3b8" }}>{s.attribution.license}</td>
+                  <td style={{ padding: "6px 8px", color: "var(--brand-text-muted, #94a3b8)" }}>{s.attribution.license}</td>
                   <td style={{ padding: "6px 8px", color: "#64748b" }}>{s.attribution.author}{s.attribution.source ? ` / ${s.attribution.source}` : ""}</td>
                   <td style={{ padding: "6px 8px" }}>
                     <button
@@ -4957,8 +4957,8 @@ function ResourcesTab() {
       </section>
 
       {/* Form aggiunta */}
-      <section style={{ background: "#1e293b", border: "1px solid #334155", borderRadius: 6, padding: 16 }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: "#94a3b8", marginBottom: 12 }}>
+      <section style={{ background: "var(--brand-surface, #1e293b)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 6, padding: 16 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: "var(--brand-text-muted, #94a3b8)", marginBottom: 12 }}>
           AGGIUNGI SIMBOLO SVG
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: "8px 12px", alignItems: "start" }}>
@@ -4991,12 +4991,12 @@ function ResourcesTab() {
             onClick={add}
             disabled={saving || !form.label.trim() || !form.url.trim()}
             style={{
-              background: "#3b82f6", border: "none", borderRadius: 4, color: "#fff",
+              background: "var(--brand-primary, #3b82f6)", border: "none", borderRadius: 4, color: "#fff",
               cursor: saving ? "wait" : "pointer", padding: "6px 20px", fontSize: 13,
               opacity: (!form.label.trim() || !form.url.trim()) ? 0.5 : 1,
             }}
           >{saving ? "Salvataggio…" : "Aggiungi al progetto"}</button>
-          <span style={{ fontSize: 11, color: "#475569" }}>
+          <span style={{ fontSize: 11, color: "var(--brand-border, #475569)" }}>
             Confermando accetti di rispettare i termini della licenza selezionata.
           </span>
         </div>
@@ -5083,14 +5083,14 @@ function DatastoresTab() {
     } catch { /* ignore */ }
   };
 
-  const cellStyle: React.CSSProperties = { padding: "4px 8px", borderBottom: "1px solid #1e293b", verticalAlign: "top" };
-  const labelStyle: React.CSSProperties = { fontSize: 12, color: "#94a3b8", display: "block", marginBottom: 2 };
-  const inputStyle: React.CSSProperties = { width: "100%", background: "#1e293b", border: "1px solid #334155", color: "#f1f5f9", borderRadius: 4, padding: "3px 6px", fontSize: 12 };
+  const cellStyle: React.CSSProperties = { padding: "4px 8px", borderBottom: "1px solid var(--brand-surface, #1e293b)", verticalAlign: "top" };
+  const labelStyle: React.CSSProperties = { fontSize: 12, color: "var(--brand-text-muted, #94a3b8)", display: "block", marginBottom: 2 };
+  const inputStyle: React.CSSProperties = { width: "100%", background: "var(--brand-surface, #1e293b)", border: "1px solid var(--brand-surface-2, #334155)", color: "#f1f5f9", borderRadius: 4, padding: "3px 6px", fontSize: 12 };
 
   return (
     <div style={{ padding: 16 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
-        <span style={{ fontSize: 13, color: "#94a3b8", flex: 1 }}>
+        <span style={{ fontSize: 13, color: "var(--brand-text-muted, #94a3b8)", flex: 1 }}>
           Configura i backend di persistenza dati storici. Ogni variabile con &quot;history&quot; attivo
           viene scritta nel datastore assegnato.
         </span>
@@ -5098,7 +5098,7 @@ function DatastoresTab() {
           + Aggiungi
         </button>
         <button onClick={save} disabled={!dirty || saving}
-          style={{ background: dirty ? "#22c55e" : "#334155", color: "#fff", border: "none", borderRadius: 4, padding: "4px 10px", cursor: dirty ? "pointer" : "default", fontSize: 12 }}>
+          style={{ background: dirty ? "#22c55e" : "var(--brand-surface-2, #334155)", color: "#fff", border: "none", borderRadius: 4, padding: "4px 10px", cursor: dirty ? "pointer" : "default", fontSize: 12 }}>
           {saving ? "Salvo…" : "Salva"}
         </button>
       </div>
@@ -5114,7 +5114,7 @@ function DatastoresTab() {
         const status = statusMap[ds.id];
         const stats  = statsMap[ds.id];
         return (
-          <div key={ds.id} style={{ background: "#1e293b", borderRadius: 6, padding: 12, marginBottom: 12, border: "1px solid #334155" }}>
+          <div key={ds.id} style={{ background: "var(--brand-surface, #1e293b)", borderRadius: 6, padding: 12, marginBottom: 12, border: "1px solid var(--brand-surface-2, #334155)" }}>
             {/* Header row */}
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
               <input
@@ -5138,7 +5138,7 @@ function DatastoresTab() {
                 <option value="odbc">ODBC</option>
               </select>
               <button onClick={() => testDs(ds.id)} style={{ background: "#0ea5e9", color: "#fff", border: "none", borderRadius: 4, padding: "3px 8px", cursor: "pointer", fontSize: 11 }}>Test</button>
-              <button onClick={() => loadStats(ds.id)} style={{ background: "#475569", color: "#fff", border: "none", borderRadius: 4, padding: "3px 8px", cursor: "pointer", fontSize: 11 }}>Stats</button>
+              <button onClick={() => loadStats(ds.id)} style={{ background: "var(--brand-border, #475569)", color: "#fff", border: "none", borderRadius: 4, padding: "3px 8px", cursor: "pointer", fontSize: 11 }}>Stats</button>
               <button onClick={() => removeDatastore(ds.id)} style={{ background: "#ef4444", color: "#fff", border: "none", borderRadius: 4, padding: "3px 8px", cursor: "pointer", fontSize: 11 }}>X</button>
             </div>
 
@@ -5149,7 +5149,7 @@ function DatastoresTab() {
               </div>
             )}
             {stats !== undefined && (
-              <div style={{ fontSize: 11, color: "#94a3b8", marginBottom: 8, display: "flex", gap: 16 }}>
+              <div style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", marginBottom: 8, display: "flex", gap: 16 }}>
                 {stats === null ? "Caricamento stats…" : (
                   <>
                     <span>Campioni: {stats.sample_count.toLocaleString()}</span>
@@ -5300,10 +5300,10 @@ function GlobalScriptsTab() {
       {/* Left: script list */}
       <div style={{ width: 240, flexShrink: 0, display: "flex", flexDirection: "column", gap: 8 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <span style={{ fontWeight: 700, fontSize: 13, color: "#94a3b8" }}>SCRIPT</span>
+          <span style={{ fontWeight: 700, fontSize: 13, color: "var(--brand-text-muted, #94a3b8)" }}>SCRIPT</span>
           <button
             onClick={addScript}
-            style={{ background: "#3b82f6", color: "#fff", border: "none", borderRadius: 4, padding: "4px 10px", cursor: "pointer", fontSize: 13 }}
+            style={{ background: "var(--brand-primary, #3b82f6)", color: "#fff", border: "none", borderRadius: 4, padding: "4px 10px", cursor: "pointer", fontSize: 13 }}
           >+ Nuovo</button>
         </div>
         <div style={{ flex: 1, overflow: "auto", display: "flex", flexDirection: "column", gap: 4 }}>
@@ -5317,7 +5317,7 @@ function GlobalScriptsTab() {
               style={{
                 padding: "8px 10px",
                 borderRadius: 6,
-                background: selected === idx ? "#1e40af" : "#1e293b",
+                background: selected === idx ? "#1e40af" : "var(--brand-surface, #1e293b)",
                 cursor: "pointer",
                 display: "flex",
                 flexDirection: "column",
@@ -5325,13 +5325,13 @@ function GlobalScriptsTab() {
               }}
             >
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <span style={{ fontSize: 13, fontWeight: 600, color: "#e2e8f0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.id}</span>
+                <span style={{ fontSize: 13, fontWeight: 600, color: "var(--brand-text, #e2e8f0)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.id}</span>
                 <button
                   onClick={(e) => { e.stopPropagation(); removeScript(idx); }}
                   style={{ background: "none", border: "none", color: "#ef4444", cursor: "pointer", fontSize: 14, padding: "0 2px" }}
                 >✕</button>
               </div>
-              <span style={{ fontSize: 11, color: "#94a3b8" }}>{triggerLabel(s.trigger)}</span>
+              <span style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)" }}>{triggerLabel(s.trigger)}</span>
               <span style={{ fontSize: 11, color: s.enabled ? "#22c55e" : "#64748b" }}>{s.enabled ? "Abilitato" : "Disabilitato"}</span>
             </div>
           ))}
@@ -5349,13 +5349,13 @@ function GlobalScriptsTab() {
         <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 12, overflow: "hidden" }}>
           {/* ID + enabled */}
           <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-            <label style={{ fontSize: 13, color: "#94a3b8" }}>ID</label>
+            <label style={{ fontSize: 13, color: "var(--brand-text-muted, #94a3b8)" }}>ID</label>
             <input
               value={cur.id}
               onChange={(e) => update(selected, { id: e.target.value })}
-              style={{ background: "#1e293b", border: "1px solid #334155", borderRadius: 4, color: "#e2e8f0", padding: "4px 8px", fontSize: 13, width: 200 }}
+              style={{ background: "var(--brand-surface, #1e293b)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, color: "var(--brand-text, #e2e8f0)", padding: "4px 8px", fontSize: 13, width: 200 }}
             />
-            <label style={{ fontSize: 13, color: "#94a3b8", display: "flex", alignItems: "center", gap: 6 }}>
+            <label style={{ fontSize: 13, color: "var(--brand-text-muted, #94a3b8)", display: "flex", alignItems: "center", gap: 6 }}>
               <input
                 type="checkbox"
                 checked={cur.enabled}
@@ -5367,7 +5367,7 @@ function GlobalScriptsTab() {
 
           {/* Trigger type */}
           <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
-            <label style={{ fontSize: 13, color: "#94a3b8" }}>Trigger</label>
+            <label style={{ fontSize: 13, color: "var(--brand-text-muted, #94a3b8)" }}>Trigger</label>
             <select
               value={cur.trigger.kind}
               onChange={(e) => {
@@ -5379,7 +5379,7 @@ function GlobalScriptsTab() {
                   /* tag_change */        { kind, tag: "", edge: "any" };
                 update(selected, { trigger: base });
               }}
-              style={{ background: "#1e293b", border: "1px solid #334155", borderRadius: 4, color: "#e2e8f0", padding: "4px 8px", fontSize: 13 }}
+              style={{ background: "var(--brand-surface, #1e293b)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, color: "var(--brand-text, #e2e8f0)", padding: "4px 8px", fontSize: 13 }}
             >
               <option value="startup">Avvio progetto</option>
               <option value="interval">Intervallo (secondi)</option>
@@ -5393,7 +5393,7 @@ function GlobalScriptsTab() {
                 min={1}
                 value={cur.trigger.interval_s}
                 onChange={(e) => updateTrigger(selected, { interval_s: Number(e.target.value) })}
-                style={{ background: "#1e293b", border: "1px solid #334155", borderRadius: 4, color: "#e2e8f0", padding: "4px 8px", fontSize: 13, width: 80 }}
+                style={{ background: "var(--brand-surface, #1e293b)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, color: "var(--brand-text, #e2e8f0)", padding: "4px 8px", fontSize: 13, width: 80 }}
               />
             )}
             {cur.trigger.kind === "cron" && (
@@ -5401,7 +5401,7 @@ function GlobalScriptsTab() {
                 value={cur.trigger.schedule}
                 onChange={(e) => updateTrigger(selected, { schedule: e.target.value })}
                 placeholder="0 * * * *"
-                style={{ background: "#1e293b", border: "1px solid #334155", borderRadius: 4, color: "#e2e8f0", padding: "4px 8px", fontSize: 13, width: 160 }}
+                style={{ background: "var(--brand-surface, #1e293b)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, color: "var(--brand-text, #e2e8f0)", padding: "4px 8px", fontSize: 13, width: 160 }}
               />
             )}
             {cur.trigger.kind === "tag_change" && (
@@ -5410,12 +5410,12 @@ function GlobalScriptsTab() {
                   value={cur.trigger.tag}
                   onChange={(e) => updateTrigger(selected, { tag: e.target.value })}
                   placeholder="es. pump1.running"
-                  style={{ background: "#1e293b", border: "1px solid #334155", borderRadius: 4, color: "#e2e8f0", padding: "4px 8px", fontSize: 13, width: 200 }}
+                  style={{ background: "var(--brand-surface, #1e293b)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, color: "var(--brand-text, #e2e8f0)", padding: "4px 8px", fontSize: 13, width: 200 }}
                 />
                 <select
                   value={cur.trigger.edge}
                   onChange={(e) => updateTrigger(selected, { edge: e.target.value as "rising" | "falling" | "any" })}
-                  style={{ background: "#1e293b", border: "1px solid #334155", borderRadius: 4, color: "#e2e8f0", padding: "4px 8px", fontSize: 13 }}
+                  style={{ background: "var(--brand-surface, #1e293b)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, color: "var(--brand-text, #e2e8f0)", padding: "4px 8px", fontSize: 13 }}
                 >
                   <option value="any">Qualsiasi</option>
                   <option value="rising">Rising (0→1)</option>
@@ -5426,7 +5426,7 @@ function GlobalScriptsTab() {
           </div>
 
           {/* Code editor */}
-          <div style={{ flex: 1, minHeight: 0, border: "1px solid #334155", borderRadius: 6, overflow: "hidden" }}>
+          <div style={{ flex: 1, minHeight: 0, border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 6, overflow: "hidden" }}>
             <PythonEditor
               ref={editorRef}
               value={cur.code}
@@ -5515,9 +5515,9 @@ function FaceplatesTab() {
   return (
     <div style={{ display: "flex", flex: 1, overflow: "hidden", height: "100%" }}>
       {/* Left: faceplate list */}
-      <div style={{ width: 220, borderRight: "1px solid #1e293b", display: "flex", flexDirection: "column", overflow: "hidden" }}>
-        <div style={{ padding: "10px 12px", borderBottom: "1px solid #1e293b", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <span style={{ fontSize: 12, fontWeight: 700, color: "#94a3b8", letterSpacing: 0.5 }}>FACEPLATES</span>
+      <div style={{ width: 220, borderRight: "1px solid var(--brand-surface, #1e293b)", display: "flex", flexDirection: "column", overflow: "hidden" }}>
+        <div style={{ padding: "10px 12px", borderBottom: "1px solid var(--brand-surface, #1e293b)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <span style={{ fontSize: 12, fontWeight: 700, color: "var(--brand-text-muted, #94a3b8)", letterSpacing: 0.5 }}>FACEPLATES</span>
           <button style={S.btn("ghost")} onClick={addFaceplate}>+ Nuovo</button>
         </div>
         <div style={{ flex: 1, overflow: "auto" }}>
@@ -5528,11 +5528,11 @@ function FaceplatesTab() {
               style={{
                 padding: "8px 12px",
                 cursor: "pointer",
-                background: selected === fp.id ? "#1e293b" : "transparent",
+                background: selected === fp.id ? "var(--brand-surface, #1e293b)" : "transparent",
                 borderLeft: selected === fp.id ? "2px solid #f59e0b" : "2px solid transparent",
               }}
             >
-              <div style={{ fontSize: 13, color: "#e2e8f0", fontWeight: selected === fp.id ? 600 : 400 }}>{fp.label}</div>
+              <div style={{ fontSize: 13, color: "var(--brand-text, #e2e8f0)", fontWeight: selected === fp.id ? 600 : 400 }}>{fp.label}</div>
               <div style={{ fontSize: 11, color: "#64748b" }}>{fp.id}</div>
             </div>
           ))}
@@ -5542,7 +5542,7 @@ function FaceplatesTab() {
       {/* Right: faceplate editor */}
       {current ? (
         <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-          <div style={{ padding: "10px 16px", borderBottom: "1px solid #1e293b", display: "flex", gap: 8, alignItems: "center" }}>
+          <div style={{ padding: "10px 16px", borderBottom: "1px solid var(--brand-surface, #1e293b)", display: "flex", gap: 8, alignItems: "center" }}>
             <span style={{ fontSize: 13, fontWeight: 600, color: "#f59e0b" }}>{current.label}</span>
             <span style={{ flex: 1 }} />
             {loadErr && <span style={{ fontSize: 12, color: "#ef4444" }}>{loadErr}</span>}
@@ -5713,9 +5713,9 @@ function RecipesTab() {
             />
             <button style={S.btn("primary")} onClick={createRecipe}>+</button>
           </div>
-          <div style={{ flex: 1, overflowY: "auto", border: "1px solid #1e293b", borderRadius: 4 }}>
+          <div style={{ flex: 1, overflowY: "auto", border: "1px solid var(--brand-surface, #1e293b)", borderRadius: 4 }}>
             {recipes.length === 0 && (
-              <div style={{ padding: 12, color: "#475569", fontSize: 12 }}>Nessuna ricetta.</div>
+              <div style={{ padding: 12, color: "var(--brand-border, #475569)", fontSize: 12 }}>Nessuna ricetta.</div>
             )}
             {recipes.map((r) => (
               <div
@@ -5724,12 +5724,12 @@ function RecipesTab() {
                   padding: "8px 10px",
                   cursor: "pointer",
                   background: selected?.id === r.id ? "#1e3a5f" : "transparent",
-                  borderBottom: "1px solid #1e293b",
+                  borderBottom: "1px solid var(--brand-surface, #1e293b)",
                   fontSize: 12,
                 }}
                 onClick={() => selectRecipe(r.id)}
               >
-                <div style={{ fontWeight: 600, color: "#e2e8f0" }}>{r.name}</div>
+                <div style={{ fontWeight: 600, color: "var(--brand-text, #e2e8f0)" }}>{r.name}</div>
                 <div style={{ color: "#64748b" }}>{r.id} · {r.setpoints_count} setpoint</div>
               </div>
             ))}
@@ -5739,7 +5739,7 @@ function RecipesTab() {
         {/* Right: recipe editor */}
         <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8 }}>
           {!selected ? (
-            <div style={{ color: "#475569", fontSize: 12, padding: 20 }}>
+            <div style={{ color: "var(--brand-border, #475569)", fontSize: 12, padding: 20 }}>
               Seleziona o crea una ricetta per modificarla.
             </div>
           ) : (
@@ -5769,7 +5769,7 @@ function RecipesTab() {
                 <tbody>
                   {selected.setpoints.length === 0 && (
                     <tr>
-                      <td colSpan={3} style={{ ...S.td, color: "#475569", textAlign: "center", padding: 12 }}>
+                      <td colSpan={3} style={{ ...S.td, color: "var(--brand-border, #475569)", textAlign: "center", padding: 12 }}>
                         Nessun setpoint. Clicca "+ Aggiungi" per iniziare.
                       </td>
                     </tr>
@@ -5860,7 +5860,7 @@ function NotificationsTab() {
       </div>
 
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
-        <label style={{ fontSize: 13, color: "#e2e8f0", cursor: "pointer", display: "flex", alignItems: "center", gap: 8 }}>
+        <label style={{ fontSize: 13, color: "var(--brand-text, #e2e8f0)", cursor: "pointer", display: "flex", alignItems: "center", gap: 8 }}>
           <input
             type="checkbox"
             checked={enabled}
@@ -5873,7 +5873,7 @@ function NotificationsTab() {
       {enabled && (
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, maxWidth: 640 }}>
           <div>
-            <div style={{ fontSize: 11, color: "#94a3b8", marginBottom: 4 }}>Host SMTP *</div>
+            <div style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", marginBottom: 4 }}>Host SMTP *</div>
             <input
               style={S.input}
               placeholder="smtp.example.com"
@@ -5882,7 +5882,7 @@ function NotificationsTab() {
             />
           </div>
           <div>
-            <div style={{ fontSize: 11, color: "#94a3b8", marginBottom: 4 }}>Porta</div>
+            <div style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", marginBottom: 4 }}>Porta</div>
             <input
               style={S.input}
               type="number"
@@ -5892,7 +5892,7 @@ function NotificationsTab() {
             />
           </div>
           <div style={{ gridColumn: "1 / -1" }}>
-            <div style={{ fontSize: 11, color: "#94a3b8", marginBottom: 4 }}>Indirizzo From *</div>
+            <div style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", marginBottom: 4 }}>Indirizzo From *</div>
             <input
               style={S.input}
               placeholder="allarmi@example.com"
@@ -5901,7 +5901,7 @@ function NotificationsTab() {
             />
           </div>
           <div>
-            <div style={{ fontSize: 11, color: "#94a3b8", marginBottom: 4 }}>Username SMTP</div>
+            <div style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", marginBottom: 4 }}>Username SMTP</div>
             <input
               style={S.input}
               placeholder="(opzionale)"
@@ -5910,7 +5910,7 @@ function NotificationsTab() {
             />
           </div>
           <div>
-            <div style={{ fontSize: 11, color: "#94a3b8", marginBottom: 4 }}>Password SMTP</div>
+            <div style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", marginBottom: 4 }}>Password SMTP</div>
             <input
               style={S.input}
               type="password"
@@ -5920,7 +5920,7 @@ function NotificationsTab() {
             />
           </div>
           <div style={{ gridColumn: "1 / -1" }}>
-            <label style={{ fontSize: 13, color: "#e2e8f0", cursor: "pointer", display: "flex", alignItems: "center", gap: 8 }}>
+            <label style={{ fontSize: 13, color: "var(--brand-text, #e2e8f0)", cursor: "pointer", display: "flex", alignItems: "center", gap: 8 }}>
               <input
                 type="checkbox"
                 checked={smtp.starttls ?? true}
@@ -6255,15 +6255,15 @@ function RuntimeConnectionTab() {
   };
 
   const INPUT: React.CSSProperties = {
-    background: "#020617", color: "#e2e8f0", border: "1px solid #334155",
+    background: "#020617", color: "var(--brand-text, #e2e8f0)", border: "1px solid var(--brand-surface-2, #334155)",
     borderRadius: 4, padding: "6px 8px", fontSize: 13,
   };
   const BTN: React.CSSProperties = {
     padding: "6px 14px", borderRadius: 5, cursor: "pointer", fontSize: 13,
-    border: "1px solid #334155", background: "#1e293b", color: "#e2e8f0",
+    border: "1px solid var(--brand-surface-2, #334155)", background: "var(--brand-surface, #1e293b)", color: "var(--brand-text, #e2e8f0)",
   };
   const BTN_PRIMARY: React.CSSProperties = {
-    ...BTN, background: "#1d4ed8", border: "1px solid #2563eb", color: "#fff", fontWeight: 600,
+    ...BTN, background: "#1d4ed8", border: "1px solid var(--brand-primary-hover, #2563eb)", color: "#fff", fontWeight: 600,
   };
   const BTN_RED: React.CSSProperties = {
     ...BTN, background: "#450a0a", border: "1px solid #dc2626", color: "#fca5a5",
@@ -6277,7 +6277,7 @@ function RuntimeConnectionTab() {
     <div style={{ padding: 24, maxWidth: 600, display: "flex", flexDirection: "column", gap: 20 }}>
       {/* Connection config */}
       <section>
-        <div style={{ fontSize: 13, fontWeight: 600, color: "#94a3b8", marginBottom: 12, textTransform: "uppercase", letterSpacing: 1 }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: "var(--brand-text-muted, #94a3b8)", marginBottom: 12, textTransform: "uppercase", letterSpacing: 1 }}>
           Connessione runtime remoto
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -6302,37 +6302,37 @@ function RuntimeConnectionTab() {
             >{discovering ? "Cerco…" : "Cerca runtime"}</button>
           </div>
           {discovered !== null && (
-            <div style={{ background: "#0f172a", border: "1px solid #334155", borderRadius: 4, padding: "6px 8px" }}>
+            <div style={{ background: "var(--brand-bg, #0f172a)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, padding: "6px 8px" }}>
               {discovered.length === 0
                 ? <span style={{ fontSize: 12, color: "#64748b" }}>Nessun runtime trovato sulla rete locale.</span>
                 : discovered.map((r) => (
                     <div
                       key={r.admin_url}
                       style={{ display: "flex", alignItems: "center", gap: 8, padding: "3px 0",
-                        borderBottom: "1px solid #1e293b", cursor: "pointer" }}
+                        borderBottom: "1px solid var(--brand-surface, #1e293b)", cursor: "pointer" }}
                       onClick={() => { setTargetUrl(r.admin_url); if (connected) handleDisconnect(); setDiscovered(null); }}
                     >
-                      <span style={{ fontSize: 12, color: "#94a3b8", flex: 1 }}>
+                      <span style={{ fontSize: 12, color: "var(--brand-text-muted, #94a3b8)", flex: 1 }}>
                         {r.name}{r.version ? ` v${r.version}` : ""}
                       </span>
-                      <span style={{ fontSize: 11, color: "#475569" }}>{r.admin_url}</span>
+                      <span style={{ fontSize: 11, color: "var(--brand-border, #475569)" }}>{r.admin_url}</span>
                     </div>
                   ))
               }
             </div>
           )}
-          <span style={{ fontSize: 10, color: "#475569" }}>
+          <span style={{ fontSize: 10, color: "var(--brand-border, #475569)" }}>
             Porta 8444 = accesso admin (deploy). Porta 8443 = viewer operatori.
           </span>
           <div style={{ display: "flex", gap: 8 }}>
             <div style={{ flex: 1 }}>
-              <label style={{ fontSize: 11, color: "#64748b", display: "block", marginBottom: 4 }}>Utente <span style={{ color: "#475569" }}>(opzionale)</span></label>
+              <label style={{ fontSize: 11, color: "#64748b", display: "block", marginBottom: 4 }}>Utente <span style={{ color: "var(--brand-border, #475569)" }}>(opzionale)</span></label>
               <input style={{ ...INPUT, width: "100%", boxSizing: "border-box" }}
                 placeholder="lascia vuoto se il runtime non ha utenti" value={targetUser}
                 onChange={(e) => setTargetUser(e.target.value)} />
             </div>
             <div style={{ flex: 1 }}>
-              <label style={{ fontSize: 11, color: "#64748b", display: "block", marginBottom: 4 }}>Password <span style={{ color: "#475569" }}>(opzionale)</span></label>
+              <label style={{ fontSize: 11, color: "#64748b", display: "block", marginBottom: 4 }}>Password <span style={{ color: "var(--brand-border, #475569)" }}>(opzionale)</span></label>
               <input style={{ ...INPUT, width: "100%", boxSizing: "border-box" }}
                 type="password" placeholder="••••••••" value={targetPass}
                 onChange={(e) => setTargetPass(e.target.value)}
@@ -6358,8 +6358,8 @@ function RuntimeConnectionTab() {
       {/* Status */}
       <section style={{
         padding: "10px 14px", borderRadius: 6,
-        background: connected ? "#052e16" : status === "error" ? "#1c0a0a" : "#0f172a",
-        border: `1px solid ${connected ? "#16a34a" : status === "error" ? "#dc2626" : "#1e293b"}`,
+        background: connected ? "#052e16" : status === "error" ? "#1c0a0a" : "var(--brand-bg, #0f172a)",
+        border: `1px solid ${connected ? "#16a34a" : status === "error" ? "#dc2626" : "var(--brand-surface, #1e293b)"}`,
       }}>
         {connected && (
           <span style={{ color: "#4ade80", fontWeight: 600, fontSize: 13 }}>
@@ -6367,10 +6367,10 @@ function RuntimeConnectionTab() {
           </span>
         )}
         {status === "idle" && (
-          <span style={{ color: "#475569", fontSize: 13 }}>Non connesso</span>
+          <span style={{ color: "var(--brand-border, #475569)", fontSize: 13 }}>Non connesso</span>
         )}
         {status === "connecting" && (
-          <span style={{ color: "#94a3b8", fontSize: 13 }}>Connessione in corso…</span>
+          <span style={{ color: "var(--brand-text-muted, #94a3b8)", fontSize: 13 }}>Connessione in corso…</span>
         )}
         {status === "error" && (
           <span style={{ color: "#fca5a5", fontSize: 13, whiteSpace: "pre-wrap" }}>✗ {statusMsg}</span>
@@ -6383,10 +6383,10 @@ function RuntimeConnectionTab() {
       {/* Deploy */}
       {connected && (
         <section>
-          <div style={{ fontSize: 13, fontWeight: 600, color: "#94a3b8", marginBottom: 12, textTransform: "uppercase", letterSpacing: 1 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: "var(--brand-text-muted, #94a3b8)", marginBottom: 12, textTransform: "uppercase", letterSpacing: 1 }}>
             Deploy progetto
           </div>
-          <p style={{ fontSize: 12, color: "#475569", margin: "0 0 10px" }}>
+          <p style={{ fontSize: 12, color: "var(--brand-border, #475569)", margin: "0 0 10px" }}>
             Esporta il progetto attivo e lo attiva sul runtime target.
           </p>
           {!deployDone && (
@@ -6397,12 +6397,12 @@ function RuntimeConnectionTab() {
           )}
           {deployLog.length > 0 && (
             <div style={{
-              marginTop: 10, background: "#020617", border: "1px solid #1e293b",
+              marginTop: 10, background: "#020617", border: "1px solid var(--brand-surface, #1e293b)",
               borderRadius: 4, padding: "8px 10px", maxHeight: 180, overflowY: "auto",
               fontFamily: "monospace", fontSize: 12,
             }}>
               {deployLog.map((l, i) => (
-                <div key={i} style={{ color: l.startsWith("✗") ? "#f87171" : l.startsWith("🚀") ? "#4ade80" : "#94a3b8" }}>{l}</div>
+                <div key={i} style={{ color: l.startsWith("✗") ? "#f87171" : l.startsWith("🚀") ? "#4ade80" : "var(--brand-text-muted, #94a3b8)" }}>{l}</div>
               ))}
             </div>
           )}
@@ -6413,8 +6413,8 @@ function RuntimeConnectionTab() {
           )}
 
           {/* Danger: rimuovi il progetto attivo dal runtime */}
-          <div style={{ marginTop: 16, paddingTop: 12, borderTop: "1px solid #1e293b" }}>
-            <p style={{ fontSize: 12, color: "#475569", margin: "0 0 8px" }}>
+          <div style={{ marginTop: 16, paddingTop: 12, borderTop: "1px solid var(--brand-surface, #1e293b)" }}>
+            <p style={{ fontSize: 12, color: "var(--brand-border, #475569)", margin: "0 0 8px" }}>
               Elimina il progetto attualmente attivo sul runtime (es. per ripartire pulito).
             </p>
             <button style={{ ...BTN_RED, opacity: deletingRemote ? 0.6 : 1 }}
@@ -6433,7 +6433,7 @@ function RuntimeConnectionTab() {
       {/* Remote logs */}
       {connected && (
         <section>
-          <div style={{ fontSize: 13, fontWeight: 600, color: "#94a3b8", marginBottom: 8, textTransform: "uppercase", letterSpacing: 1 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: "var(--brand-text-muted, #94a3b8)", marginBottom: 8, textTransform: "uppercase", letterSpacing: 1 }}>
             Log remoti
           </div>
           <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
@@ -6447,21 +6447,21 @@ function RuntimeConnectionTab() {
             </button>
           </div>
           <div style={{
-            background: "#020617", border: "1px solid #1e293b", borderRadius: 4,
+            background: "#020617", border: "1px solid var(--brand-surface, #1e293b)", borderRadius: 4,
             padding: "8px 10px", maxHeight: 200, overflowY: "auto",
             fontFamily: "monospace", fontSize: 11,
           }}>
             {remoteLogs === null
-              ? <span style={{ color: "#475569" }}>Nessun log caricato. Premi Aggiorna.</span>
+              ? <span style={{ color: "var(--brand-border, #475569)" }}>Nessun log caricato. Premi Aggiorna.</span>
               : remoteLogs.length === 0
-                ? <span style={{ color: "#475569" }}>Nessun log disponibile.</span>
+                ? <span style={{ color: "var(--brand-border, #475569)" }}>Nessun log disponibile.</span>
                 : remoteLogs.map((l, i) => {
                     const lvl = l.level.toUpperCase();
-                    const color = lvl === "WARN" ? "#fb923c" : lvl === "ERROR" ? "#f87171" : lvl === "DEBUG" ? "#475569" : "#94a3b8";
+                    const color = lvl === "WARN" ? "#fb923c" : lvl === "ERROR" ? "#f87171" : lvl === "DEBUG" ? "var(--brand-border, #475569)" : "var(--brand-text-muted, #94a3b8)";
                     const ts = new Date(l.ts_ms).toLocaleTimeString("it-IT");
                     return (
                       <div key={i} style={{ color, marginBottom: 1 }}>
-                        <span style={{ color: "#475569", marginRight: 6 }}>{ts}</span>
+                        <span style={{ color: "var(--brand-border, #475569)", marginRight: 6 }}>{ts}</span>
                         <span style={{ marginRight: 6 }}>{lvl}</span>
                         {l.message}
                       </div>
@@ -6475,22 +6475,22 @@ function RuntimeConnectionTab() {
       {/* Live tag panel via /ws/remote/tags relay */}
       {connected && (
         <section>
-          <div style={{ fontSize: 13, fontWeight: 600, color: "#94a3b8", marginBottom: 8, textTransform: "uppercase", letterSpacing: 1 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: "var(--brand-text-muted, #94a3b8)", marginBottom: 8, textTransform: "uppercase", letterSpacing: 1 }}>
             Variabili live ({liveTags.size})
           </div>
           <div style={{
-            background: "#020617", border: "1px solid #1e293b", borderRadius: 4,
+            background: "#020617", border: "1px solid var(--brand-surface, #1e293b)", borderRadius: 4,
             padding: "6px 8px", maxHeight: 220, overflowY: "auto",
             fontFamily: "monospace", fontSize: 11,
           }}>
             {liveTags.size === 0
-              ? <span style={{ color: "#475569" }}>Nessuna variabile ricevuta…</span>
+              ? <span style={{ color: "var(--brand-border, #475569)" }}>Nessuna variabile ricevuta…</span>
               : Array.from(liveTags.entries()).slice(0, 50).map(([id, t]) => {
                   const qColor = t.quality === "Good" ? "#4ade80" : t.quality === "Bad" ? "#f87171" : "#fb923c";
                   return (
-                    <div key={id} style={{ display: "flex", gap: 8, borderBottom: "1px solid #0f172a", padding: "1px 0" }}>
+                    <div key={id} style={{ display: "flex", gap: 8, borderBottom: "1px solid var(--brand-bg, #0f172a)", padding: "1px 0" }}>
                       <span style={{ color: "#64748b", width: 180, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flexShrink: 0 }} title={id}>{id}</span>
-                      <span style={{ color: "#e2e8f0", flex: 1 }}>{JSON.stringify(t.value)}</span>
+                      <span style={{ color: "var(--brand-text, #e2e8f0)", flex: 1 }}>{JSON.stringify(t.value)}</span>
                       <span style={{ color: qColor, width: 36, textAlign: "right", flexShrink: 0 }}>{t.quality === "Good" ? "OK" : t.quality === "Bad" ? "BAD" : "UNC"}</span>
                     </div>
                   );
@@ -6502,7 +6502,7 @@ function RuntimeConnectionTab() {
 
       {/* Package build */}
       <section>
-        <div style={{ fontSize: 13, fontWeight: 600, color: "#94a3b8", marginBottom: 8, textTransform: "uppercase", letterSpacing: 1 }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: "var(--brand-text-muted, #94a3b8)", marginBottom: 8, textTransform: "uppercase", letterSpacing: 1 }}>
           Pacchetto runtime
         </div>
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
@@ -6521,12 +6521,12 @@ function RuntimeConnectionTab() {
         </div>
         {buildLog.length > 0 && (
           <div style={{
-            background: "#020617", border: "1px solid #1e293b", borderRadius: 4,
+            background: "#020617", border: "1px solid var(--brand-surface, #1e293b)", borderRadius: 4,
             padding: "8px 10px", maxHeight: 150, overflowY: "auto",
             fontFamily: "monospace", fontSize: 11, marginBottom: 8,
           }}>
             {buildLog.map((l, i) => (
-              <div key={i} style={{ color: l.startsWith("ERROR") ? "#f87171" : l === "DONE" ? "#4ade80" : l.startsWith("WARN") ? "#fb923c" : "#94a3b8" }}>{l}</div>
+              <div key={i} style={{ color: l.startsWith("ERROR") ? "#f87171" : l === "DONE" ? "#4ade80" : l.startsWith("WARN") ? "#fb923c" : "var(--brand-text-muted, #94a3b8)" }}>{l}</div>
             ))}
           </div>
         )}
@@ -6540,13 +6540,13 @@ function RuntimeConnectionTab() {
                   display: "flex", alignItems: "center", gap: 8, padding: "4px 6px",
                   borderRadius: 4, cursor: "pointer", marginBottom: 2,
                   background: selectedPkg === p.name ? "#1e3a5f" : "transparent",
-                  border: `1px solid ${selectedPkg === p.name ? "#3b82f6" : "transparent"}`,
+                  border: `1px solid ${selectedPkg === p.name ? "var(--brand-primary, #3b82f6)" : "transparent"}`,
                 }}>
-                <span style={{ fontSize: 12, color: "#e2e8f0", flex: 1, fontFamily: "monospace" }}>{p.name}</span>
-                <span style={{ fontSize: 11, color: "#475569" }}>
+                <span style={{ fontSize: 12, color: "var(--brand-text, #e2e8f0)", flex: 1, fontFamily: "monospace" }}>{p.name}</span>
+                <span style={{ fontSize: 11, color: "var(--brand-border, #475569)" }}>
                   {(p.size_bytes / 1024 / 1024).toFixed(1)} MB
                 </span>
-                <span style={{ fontSize: 10, color: "#334155" }}>
+                <span style={{ fontSize: 10, color: "var(--brand-surface-2, #334155)" }}>
                   {new Date(p.mtime_ms).toLocaleDateString("it-IT")}
                 </span>
               </div>
@@ -6558,7 +6558,7 @@ function RuntimeConnectionTab() {
       {/* Device SSH deploy */}
       {packages.length > 0 && (
         <section>
-          <div style={{ fontSize: 13, fontWeight: 600, color: "#94a3b8", marginBottom: 8, textTransform: "uppercase", letterSpacing: 1 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: "var(--brand-text-muted, #94a3b8)", marginBottom: 8, textTransform: "uppercase", letterSpacing: 1 }}>
             Installa su dispositivo
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -6607,7 +6607,7 @@ function RuntimeConnectionTab() {
                 value={deviceTmpDir}
                 onChange={(e) => setDeviceTmpDir(e.target.value)} />
             </div>
-            <span style={{ fontSize: 10, color: "#475569" }}>
+            <span style={{ fontSize: 10, color: "var(--brand-border, #475569)" }}>
               Richiede <code>sshpass</code> e <code>scp</code> sul sistema locale. Il dispositivo deve avere accesso SSH e <code>sudo</code>.
             </span>
             <button
@@ -6618,12 +6618,12 @@ function RuntimeConnectionTab() {
             </button>
             {deviceLog.length > 0 && (
               <div style={{
-                background: "#020617", border: "1px solid #1e293b", borderRadius: 4,
+                background: "#020617", border: "1px solid var(--brand-surface, #1e293b)", borderRadius: 4,
                 padding: "8px 10px", maxHeight: 150, overflowY: "auto",
                 fontFamily: "monospace", fontSize: 11,
               }}>
                 {deviceLog.map((l, i) => (
-                  <div key={i} style={{ color: l.startsWith("ERROR") ? "#f87171" : l === "DONE" ? "#4ade80" : l.startsWith("WARN") ? "#fb923c" : "#94a3b8" }}>{l}</div>
+                  <div key={i} style={{ color: l.startsWith("ERROR") ? "#f87171" : l === "DONE" ? "#4ade80" : l.startsWith("WARN") ? "#fb923c" : "var(--brand-text-muted, #94a3b8)" }}>{l}</div>
                 ))}
               </div>
             )}
@@ -6810,28 +6810,28 @@ function DevicesTab() {
   };
 
   const INPUT: React.CSSProperties = {
-    background: "#020617", color: "#e2e8f0", border: "1px solid #334155",
+    background: "#020617", color: "var(--brand-text, #e2e8f0)", border: "1px solid var(--brand-surface-2, #334155)",
     borderRadius: 4, padding: "5px 8px", fontSize: 12,
   };
   const BTN: React.CSSProperties = {
     padding: "4px 10px", borderRadius: 4, cursor: "pointer", fontSize: 12,
-    border: "1px solid #334155", background: "#1e293b", color: "#e2e8f0",
+    border: "1px solid var(--brand-surface-2, #334155)", background: "var(--brand-surface, #1e293b)", color: "var(--brand-text, #e2e8f0)",
   };
 
   return (
     <div style={{ padding: 24, display: "flex", flexDirection: "column", gap: 20, maxWidth: 800 }}>
-      <div style={{ fontSize: 13, fontWeight: 600, color: "#94a3b8", textTransform: "uppercase", letterSpacing: 1 }}>
+      <div style={{ fontSize: 13, fontWeight: 600, color: "var(--brand-text-muted, #94a3b8)", textTransform: "uppercase", letterSpacing: 1 }}>
         Device registrati
       </div>
 
       {/* Device table */}
       {devices.length === 0 ? (
-        <p style={{ fontSize: 12, color: "#475569", margin: 0 }}>Nessun device salvato. Aggiungine uno qui sotto.</p>
+        <p style={{ fontSize: 12, color: "var(--brand-border, #475569)", margin: 0 }}>Nessun device salvato. Aggiungine uno qui sotto.</p>
       ) : (
         <div style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
             <thead>
-              <tr style={{ borderBottom: "1px solid #334155", color: "#64748b" }}>
+              <tr style={{ borderBottom: "1px solid var(--brand-surface-2, #334155)", color: "#64748b" }}>
                 <th style={{ textAlign: "left", padding: "6px 8px" }}>Label</th>
                 <th style={{ textAlign: "left", padding: "6px 8px" }}>URL</th>
                 <th style={{ textAlign: "center", padding: "6px 8px" }}>Stato</th>
@@ -6847,9 +6847,9 @@ function DevicesTab() {
                 const fp = st?.fingerprint ?? null;
                 const match = localFp && fp ? (localFp === fp ? "sync" : "diff") : "unknown";
                 return (
-                  <tr key={d.url} style={{ borderBottom: "1px solid #1e293b" }}>
-                    <td style={{ padding: "8px", color: "#e2e8f0", fontWeight: 600 }}>{d.label}</td>
-                    <td style={{ padding: "8px", color: "#94a3b8", fontFamily: "monospace", fontSize: 11 }}>{d.url}</td>
+                  <tr key={d.url} style={{ borderBottom: "1px solid var(--brand-surface, #1e293b)" }}>
+                    <td style={{ padding: "8px", color: "var(--brand-text, #e2e8f0)", fontWeight: 600 }}>{d.label}</td>
+                    <td style={{ padding: "8px", color: "var(--brand-text-muted, #94a3b8)", fontFamily: "monospace", fontSize: 11 }}>{d.url}</td>
                     <td style={{ padding: "8px", textAlign: "center" }}>
                       {online === null || checking
                         ? <span style={{ color: "#64748b" }}>…</span>
@@ -6858,7 +6858,7 @@ function DevicesTab() {
                           : <span style={{ color: "#f87171" }}>● offline</span>}
                     </td>
                     <td style={{ padding: "8px", textAlign: "center" }}>
-                      {!online ? <span style={{ color: "#475569" }}>—</span>
+                      {!online ? <span style={{ color: "var(--brand-border, #475569)" }}>—</span>
                         : match === "sync"    ? <span style={{ color: "#34d399" }}>✓ in sync</span>
                         : match === "diff"    ? <span style={{ color: "#fb923c" }}>✗ diff. versione</span>
                         : <span style={{ color: "#64748b" }}>? n/d</span>}
@@ -6866,7 +6866,7 @@ function DevicesTab() {
                     <td style={{ padding: "8px", textAlign: "right" }}>
                       <div style={{ display: "flex", gap: 4, justifyContent: "flex-end" }}>
                         <button style={BTN} onClick={() => handleConnect(d)} title="Imposta come runtime target e connetti">Connetti</button>
-                        <button style={{ ...BTN, background: "#1e3a5f", borderColor: "#2563eb", color: "#93c5fd" }}
+                        <button style={{ ...BTN, background: "#1e3a5f", borderColor: "var(--brand-primary-hover, #2563eb)", color: "#93c5fd" }}
                           disabled={deployingUrl === d.url}
                           onClick={() => void handleDeploy(d)}>
                           {deployingUrl === d.url ? "Deploy…" : "Deploy"}
@@ -6885,17 +6885,17 @@ function DevicesTab() {
 
       {/* Deploy log */}
       {deployLog.length > 0 && (
-        <div style={{ background: "#020617", border: "1px solid #1e293b", borderRadius: 4,
+        <div style={{ background: "#020617", border: "1px solid var(--brand-surface, #1e293b)", borderRadius: 4,
           padding: "8px 10px", maxHeight: 150, overflowY: "auto", fontFamily: "monospace", fontSize: 11 }}>
           {deployLog.map((l, i) => (
-            <div key={i} style={{ color: l.startsWith("✗") ? "#f87171" : l.startsWith("🚀") ? "#4ade80" : "#94a3b8" }}>{l}</div>
+            <div key={i} style={{ color: l.startsWith("✗") ? "#f87171" : l.startsWith("🚀") ? "#4ade80" : "var(--brand-text-muted, #94a3b8)" }}>{l}</div>
           ))}
         </div>
       )}
 
       {/* Add device form */}
       <div>
-        <div style={{ fontSize: 13, fontWeight: 600, color: "#94a3b8", textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: "var(--brand-text-muted, #94a3b8)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>
           Aggiungi device
         </div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end" }}>
@@ -6920,7 +6920,7 @@ function DevicesTab() {
               value={addForm.pass} onChange={(e) => setAddForm((f) => ({ ...f, pass: e.target.value }))} />
           </div>
           <button
-            style={{ ...BTN, background: "#1e3a5f", borderColor: "#2563eb", color: "#93c5fd", padding: "5px 14px" }}
+            style={{ ...BTN, background: "#1e3a5f", borderColor: "var(--brand-primary-hover, #2563eb)", color: "#93c5fd", padding: "5px 14px" }}
             disabled={!addForm.url || !addForm.user}
             onClick={() => {
               const label = addForm.label.trim() || addForm.url;
@@ -6933,7 +6933,7 @@ function DevicesTab() {
           >Aggiungi</button>
         </div>
         {localFp && (
-          <div style={{ marginTop: 10, fontSize: 11, color: "#475569" }}>
+          <div style={{ marginTop: 10, fontSize: 11, color: "var(--brand-border, #475569)" }}>
             Firma locale: <span style={{ fontFamily: "monospace", color: "#64748b" }}>{localFp.substring(0, 16)}…</span>
           </div>
         )}
@@ -7142,7 +7142,7 @@ function BackupsTab() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-      <div style={{ color: "#94a3b8", fontSize: 13, lineHeight: 1.5 }}>
+      <div style={{ color: "var(--brand-text-muted, #94a3b8)", fontSize: 13, lineHeight: 1.5 }}>
         Snapshot point-in-time del progetto (project.yaml + synoptics + users.yaml)
         salvati sotto <code>{`<project>/.bak/`}</code>. Il runtime ne crea uno automaticamente
         ogni N minuti se avviato con <code>--auto-backup-interval-minutes</code>.
@@ -7163,8 +7163,8 @@ function BackupsTab() {
           onClick={refresh}
           disabled={busy}
           style={{
-            padding: "6px 14px", background: "#1e293b", color: "#cbd5e1",
-            border: "1px solid #334155", borderRadius: 4,
+            padding: "6px 14px", background: "var(--brand-surface, #1e293b)", color: "var(--brand-text-2, #cbd5e1)",
+            border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4,
             cursor: busy ? "wait" : "pointer", fontSize: 13,
           }}
         >
@@ -7185,26 +7185,26 @@ function BackupsTab() {
       ) : (
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
           <thead>
-            <tr style={{ borderBottom: "1px solid #334155" }}>
-              <th style={{ textAlign: "left", padding: "6px 8px", color: "#94a3b8", fontWeight: 600 }}>Nome</th>
-              <th style={{ textAlign: "left", padding: "6px 8px", color: "#94a3b8", fontWeight: 600 }}>Creato</th>
-              <th style={{ textAlign: "right", padding: "6px 8px", color: "#94a3b8", fontWeight: 600 }}>Dimensione</th>
-              <th style={{ textAlign: "right", padding: "6px 8px", color: "#94a3b8", fontWeight: 600 }}>Azioni</th>
+            <tr style={{ borderBottom: "1px solid var(--brand-surface-2, #334155)" }}>
+              <th style={{ textAlign: "left", padding: "6px 8px", color: "var(--brand-text-muted, #94a3b8)", fontWeight: 600 }}>Nome</th>
+              <th style={{ textAlign: "left", padding: "6px 8px", color: "var(--brand-text-muted, #94a3b8)", fontWeight: 600 }}>Creato</th>
+              <th style={{ textAlign: "right", padding: "6px 8px", color: "var(--brand-text-muted, #94a3b8)", fontWeight: 600 }}>Dimensione</th>
+              <th style={{ textAlign: "right", padding: "6px 8px", color: "var(--brand-text-muted, #94a3b8)", fontWeight: 600 }}>Azioni</th>
             </tr>
           </thead>
           <tbody>
             {list.map((b) => (
-              <tr key={b.name} style={{ borderBottom: "1px solid #1e293b" }}>
-                <td style={{ padding: "6px 8px", color: "#cbd5e1", fontFamily: "monospace" }}>{b.name}</td>
-                <td style={{ padding: "6px 8px", color: "#94a3b8" }}>{fmtDate(b.created_at_ms)}</td>
-                <td style={{ padding: "6px 8px", color: "#94a3b8", textAlign: "right" }}>{fmtSize(b.size_bytes)}</td>
+              <tr key={b.name} style={{ borderBottom: "1px solid var(--brand-surface, #1e293b)" }}>
+                <td style={{ padding: "6px 8px", color: "var(--brand-text-2, #cbd5e1)", fontFamily: "monospace" }}>{b.name}</td>
+                <td style={{ padding: "6px 8px", color: "var(--brand-text-muted, #94a3b8)" }}>{fmtDate(b.created_at_ms)}</td>
+                <td style={{ padding: "6px 8px", color: "var(--brand-text-muted, #94a3b8)", textAlign: "right" }}>{fmtSize(b.size_bytes)}</td>
                 <td style={{ padding: "6px 8px", textAlign: "right" }}>
                   <button
                     onClick={() => restore(b.name)}
                     disabled={busy}
                     style={{
                       marginRight: 4, padding: "3px 10px",
-                      background: "#3b82f6", color: "#fff",
+                      background: "var(--brand-primary, #3b82f6)", color: "#fff",
                       border: "none", borderRadius: 3, cursor: busy ? "wait" : "pointer",
                       fontSize: 12,
                     }}

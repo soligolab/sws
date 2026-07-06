@@ -9,6 +9,7 @@ import { ReAuthModal } from "@/components/ReAuthModal";
 import { WelcomeScreen } from "@/components/WelcomeScreen";
 import { ConfigView } from "@/config/ConfigView";
 import { EditorShell } from "@/editor/EditorShell";
+import { getBrand } from "@/branding";
 import { useAppStore } from "@/store";
 import { useLogStream } from "@/ws/logStream";
 import { useTagStream } from "@/ws/tagStream";
@@ -21,20 +22,20 @@ type Mode = "edit" | "config";
 // ── Role gate for admin port ──────────────────────────────────────────────────
 
 const HDR_BTN_DENY: React.CSSProperties = {
-  padding: "8px 20px", background: "#334155", color: "#cbd5e1",
-  border: "1px solid #475569", borderRadius: 4, cursor: "pointer", fontSize: 14,
+  padding: "8px 20px", background: "var(--brand-surface-2, #334155)", color: "var(--brand-text-2, #cbd5e1)",
+  border: "1px solid var(--brand-border, #475569)", borderRadius: 4, cursor: "pointer", fontSize: 14,
 };
 
 function AccessDenied({ role, onLogout }: { role: string; onLogout: () => void }) {
   return (
     <div style={{
       display: "flex", flexDirection: "column", alignItems: "center",
-      justifyContent: "center", height: "100vh", background: "#0f172a",
-      color: "#e2e8f0", gap: 16, fontFamily: "system-ui",
+      justifyContent: "center", height: "100vh", background: "var(--brand-bg, #0f172a)",
+      color: "var(--brand-text, #e2e8f0)", gap: 16, fontFamily: "system-ui",
     }}>
       <div style={{ fontSize: 48 }}>🔒</div>
       <div style={{ fontSize: 20, fontWeight: 600 }}>Accesso negato</div>
-      <div style={{ fontSize: 14, color: "#94a3b8", maxWidth: 400, textAlign: "center" }}>
+      <div style={{ fontSize: 14, color: "var(--brand-text-muted, #94a3b8)", maxWidth: 400, textAlign: "center" }}>
         Il pannello IDE richiede ruolo <strong>Supervisor</strong> o <strong>Admin</strong>.
         Sei autenticato come <strong>{role}</strong>.
       </div>
@@ -47,9 +48,9 @@ function AccessDenied({ role, onLogout }: { role: string; onLogout: () => void }
 
 const HDR_BTN: React.CSSProperties = {
   padding: "4px 10px",
-  background: "#334155",
-  color: "#cbd5e1",
-  border: "1px solid #475569",
+  background: "var(--brand-surface-2, #334155)",
+  color: "var(--brand-text-2, #cbd5e1)",
+  border: "1px solid var(--brand-border, #475569)",
   borderRadius: 4,
   cursor: "pointer",
   fontSize: 12,
@@ -60,8 +61,8 @@ const DROP_PANEL: React.CSSProperties = {
   position: "absolute",
   right: 0,
   top: "calc(100% + 4px)",
-  background: "#1e293b",
-  border: "1px solid #334155",
+  background: "var(--brand-surface, #1e293b)",
+  border: "1px solid var(--brand-surface-2, #334155)",
   borderRadius: 6,
   padding: "4px 0",
   minWidth: 180,
@@ -75,7 +76,7 @@ const DROP_ITEM: React.CSSProperties = {
   textAlign: "left",
   background: "transparent",
   border: "none",
-  color: "#cbd5e1",
+  color: "var(--brand-text-2, #cbd5e1)",
   padding: "7px 14px",
   fontSize: 13,
   cursor: "pointer",
@@ -83,9 +84,34 @@ const DROP_ITEM: React.CSSProperties = {
 
 const DROP_SEP: React.CSSProperties = {
   height: 1,
-  background: "#334155",
+  background: "var(--brand-surface-2, #334155)",
   margin: "4px 0",
 };
+
+// ── Brand logo (top-left) ─────────────────────────────────────────────────────
+// Shows the active white-label brand's logo image, falling back to the brand
+// short-name text if the image is missing/broken. See @/branding.
+
+function BrandLogo() {
+  const brand = getBrand();
+  const [failed, setFailed] = useState(false);
+  if (brand.logoUrl && !failed) {
+    return (
+      <img
+        src={brand.logoUrl}
+        alt={brand.name}
+        title={brand.name}
+        style={{ height: 26, width: "auto", display: "block" }}
+        onError={() => setFailed(true)}
+      />
+    );
+  }
+  return (
+    <strong style={{ letterSpacing: 1, fontSize: 15, color: "var(--brand-text, #e2e8f0)" }}>
+      {brand.shortName}
+    </strong>
+  );
+}
 
 // ── GridDropdown (edit mode only) ─────────────────────────────────────────────
 
@@ -121,11 +147,11 @@ function GridDropdown() {
           </div>
           <div style={{ padding: "4px 14px 6px", display: "flex", flexDirection: "column", gap: 6 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <span style={{ fontSize: 12, color: "#94a3b8", flex: 1 }}>Dimensione</span>
+              <span style={{ fontSize: 12, color: "var(--brand-text-muted, #94a3b8)", flex: 1 }}>Dimensione</span>
               <select
                 value={gridSize}
                 onChange={(e) => setGridSize(Number(e.target.value))}
-                style={{ background: "#0f172a", color: "#e2e8f0", border: "1px solid #334155", borderRadius: 4, padding: "2px 6px", fontSize: 12, cursor: "pointer" }}
+                style={{ background: "var(--brand-bg, #0f172a)", color: "var(--brand-text, #e2e8f0)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, padding: "2px 6px", fontSize: 12, cursor: "pointer" }}
               >
                 {[0, 5, 10, 20, 40].map((n) => (
                   <option key={n} value={n}>{n === 0 ? "Off" : `${n}px`}</option>
@@ -137,9 +163,9 @@ function GridDropdown() {
                 type="checkbox"
                 checked={snapEnabled}
                 onChange={(e) => setSnap(e.target.checked)}
-                style={{ accentColor: "#3b82f6" }}
+                style={{ accentColor: "var(--brand-primary, #3b82f6)" }}
               />
-              <span style={{ fontSize: 12, color: "#94a3b8" }}>Snap alla griglia</span>
+              <span style={{ fontSize: 12, color: "var(--brand-text-muted, #94a3b8)" }}>Snap alla griglia</span>
             </label>
           </div>
         </div>
@@ -325,17 +351,17 @@ function MainMenu({ mode, onLogout, onCloseProject }: { mode: Mode; onLogout: ()
   const saveBtnColor =
     saveStatus === "error" ? "#fca5a5" :
     saveStatus === "ok"    ? "#86efac" :
-    saveStatus === "saving"? "#94a3b8" :
-                             "#cbd5e1";
+    saveStatus === "saving"? "var(--brand-text-muted, #94a3b8)" :
+                             "var(--brand-text-2, #cbd5e1)";
 
   return (
     <div ref={ref} style={{ position: "relative" }}>
       <button
         style={{
           ...HDR_BTN,
-          background: saveStatus === "saving" ? "#374151" : saveStatus === "ok" ? "#166534" : saveStatus === "error" ? "#7f1d1d" : "#334155",
+          background: saveStatus === "saving" ? "#374151" : saveStatus === "ok" ? "#166534" : saveStatus === "error" ? "#7f1d1d" : "var(--brand-surface-2, #334155)",
           color: saveBtnColor,
-          borderColor: saveStatus === "error" ? "#991b1b" : saveStatus === "ok" ? "#15803d" : "#475569",
+          borderColor: saveStatus === "error" ? "#991b1b" : saveStatus === "ok" ? "#15803d" : "var(--brand-border, #475569)",
           minWidth: 90,
         }}
         onClick={() => setOpen((v) => !v)}
@@ -359,7 +385,7 @@ function MainMenu({ mode, onLogout, onCloseProject }: { mode: Mode; onLogout: ()
           {mode === "edit" && (
             <>
               <button
-                style={{ ...DROP_ITEM, color: saveStatus === "error" ? "#fca5a5" : saveStatus === "ok" ? "#86efac" : "#cbd5e1" }}
+                style={{ ...DROP_ITEM, color: saveStatus === "error" ? "#fca5a5" : saveStatus === "ok" ? "#86efac" : "var(--brand-text-2, #cbd5e1)" }}
                 disabled={saveStatus === "saving"}
                 onClick={() => { incSaveSerial(); setOpen(false); }}
               >
@@ -376,14 +402,14 @@ function MainMenu({ mode, onLogout, onCloseProject }: { mode: Mode; onLogout: ()
           {authRole === "Admin" && (
             <>
               <button
-                style={{ ...DROP_ITEM, color: ioBusy === "export" ? "#94a3b8" : "#cbd5e1" }}
+                style={{ ...DROP_ITEM, color: ioBusy === "export" ? "var(--brand-text-muted, #94a3b8)" : "var(--brand-text-2, #cbd5e1)" }}
                 disabled={ioBusy !== null}
                 onClick={() => { handleExport(); setOpen(false); }}
               >
                 {ioBusy === "export" ? "Esporto…" : "Esporta progetto"}
               </button>
               <button
-                style={{ ...DROP_ITEM, color: ioBusy === "import" ? "#94a3b8" : "#cbd5e1" }}
+                style={{ ...DROP_ITEM, color: ioBusy === "import" ? "var(--brand-text-muted, #94a3b8)" : "var(--brand-text-2, #cbd5e1)" }}
                 disabled={ioBusy !== null}
                 onClick={() => { fileInputRef.current?.click(); setOpen(false); }}
               >
@@ -414,7 +440,7 @@ function MainMenu({ mode, onLogout, onCloseProject }: { mode: Mode; onLogout: ()
         <div style={{
           position: "absolute", top: "100%", right: 0, marginTop: 4, zIndex: 9000,
           whiteSpace: "nowrap", padding: "4px 10px", borderRadius: 4,
-          background: "#0f172a", border: "1px solid #334155",
+          background: "var(--brand-bg, #0f172a)", border: "1px solid var(--brand-surface-2, #334155)",
           fontSize: 11, color: ioStatus.startsWith("✓") ? "#86efac" : "#fca5a5",
         }}>
           {ioStatus}
@@ -732,19 +758,19 @@ export function App() {
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100vh", fontFamily: "system-ui, sans-serif", color: "#e2e8f0", background: "#0f172a" }}>
+    <div style={{ display: "flex", flexDirection: "column", height: "100vh", fontFamily: "system-ui, sans-serif", color: "var(--brand-text, #e2e8f0)", background: "var(--brand-bg, #0f172a)" }}>
       {/* Header */}
       <header style={{
         height: 48,
-        background: "#1e293b",
-        borderBottom: "1px solid #334155",
+        background: "var(--brand-surface, #1e293b)",
+        borderBottom: "1px solid var(--brand-surface-2, #334155)",
         display: "flex",
         alignItems: "center",
         padding: "0 16px",
         gap: 16,
         flexShrink: 0,
       }}>
-        <strong style={{ letterSpacing: 1, fontSize: 15, color: "#e2e8f0" }}>SWS</strong>
+        <BrandLogo />
         {(() => {
           // ARCH-004: remote runtime indicator. Visible only when the SPA is
           // pointing at a non-default runtime origin. Click to disconnect →
@@ -767,7 +793,7 @@ export function App() {
                 padding: "2px 8px",
                 background: "#1e3a8a",
                 color: "#bfdbfe",
-                border: "1px solid #2563eb",
+                border: "1px solid var(--brand-primary-hover, #2563eb)",
                 borderRadius: 10,
                 cursor: "pointer",
                 fontSize: 11,
@@ -782,7 +808,7 @@ export function App() {
             </button>
           );
         })()}
-        <span style={{ color: "#475569", flex: 1, fontSize: 13 }}>
+        <span style={{ color: "var(--brand-border, #475569)", flex: 1, fontSize: 13 }}>
           {t("app.project")}: {project?.meta.name ?? "—"}
         </span>
         <div style={{ display: "flex", gap: 4 }}>
@@ -795,7 +821,7 @@ export function App() {
                 borderRadius: 4,
                 border: "none",
                 cursor: "pointer",
-                background: effectiveMode === m ? "#3b82f6" : "#334155",
+                background: effectiveMode === m ? "var(--brand-primary, #3b82f6)" : "var(--brand-surface-2, #334155)",
                 color: "#fff",
                 fontWeight: effectiveMode === m ? 600 : 400,
                 fontSize: 13,
@@ -805,7 +831,7 @@ export function App() {
             </button>
           ))}
         </div>
-        <span style={{ color: "#475569", fontSize: 13 }}>
+        <span style={{ color: "var(--brand-border, #475569)", fontSize: 13 }}>
           {t("app.user")}: {authUser ?? "—"}
           {authRole && (
             <span style={{
@@ -814,8 +840,8 @@ export function App() {
               borderRadius: 3,
               background: authRole === "Admin" ? "#7c2d12"
                 : authRole === "Supervisor" ? "#7e22ce"
-                : authRole === "Operator" ? "#1e3a8a" : "#334155",
-              color: "#e2e8f0",
+                : authRole === "Operator" ? "#1e3a8a" : "var(--brand-surface-2, #334155)",
+              color: "var(--brand-text, #e2e8f0)",
               fontSize: 11,
               fontWeight: 600,
             }}>
@@ -873,9 +899,9 @@ export function App() {
           title={logOpen ? "Nascondi pannello log" : "Mostra pannello log"}
           style={{
             padding: "4px 10px",
-            background: logOpen ? "#1e3a8a" : "#334155",
-            color: "#cbd5e1",
-            border: "1px solid #475569",
+            background: logOpen ? "#1e3a8a" : "var(--brand-surface-2, #334155)",
+            color: "var(--brand-text-2, #cbd5e1)",
+            border: "1px solid var(--brand-border, #475569)",
             borderRadius: 4,
             cursor: "pointer",
             fontSize: 12,
@@ -930,8 +956,8 @@ export function App() {
         <div style={{
           display: "flex",
           alignItems: "center",
-          background: "#0f172a",
-          borderBottom: "1px solid #334155",
+          background: "var(--brand-bg, #0f172a)",
+          borderBottom: "1px solid var(--brand-surface-2, #334155)",
           padding: "0 8px",
           gap: 2,
           flexShrink: 0,
@@ -943,10 +969,10 @@ export function App() {
               key={p.id}
               onClick={() => setCurrentPage(p.id)}
               style={{
-                background: p.id === currentPageId ? "#1e293b" : "transparent",
-                color: p.id === currentPageId ? "#e2e8f0" : "#64748b",
-                border: p.id === currentPageId ? "1px solid #334155" : "1px solid transparent",
-                borderBottom: p.id === currentPageId ? "1px solid #1e293b" : "1px solid transparent",
+                background: p.id === currentPageId ? "var(--brand-surface, #1e293b)" : "transparent",
+                color: p.id === currentPageId ? "var(--brand-text, #e2e8f0)" : "#64748b",
+                border: p.id === currentPageId ? "1px solid var(--brand-surface-2, #334155)" : "1px solid transparent",
+                borderBottom: p.id === currentPageId ? "1px solid var(--brand-surface, #1e293b)" : "1px solid transparent",
                 borderRadius: "4px 4px 0 0",
                 padding: "3px 12px",
                 cursor: "pointer",
@@ -978,12 +1004,12 @@ export function App() {
       {/* Unsaved-changes confirmation dialog */}
       {confirmPending && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999 }}>
-          <div style={{ background: "#1e293b", border: "1px solid #334155", borderRadius: 8, padding: "24px 28px", maxWidth: 360, width: "90%", display: "flex", flexDirection: "column", gap: 16 }}>
-            <div style={{ fontSize: 15, fontWeight: 600, color: "#e2e8f0" }}>Modifiche non salvate</div>
-            <div style={{ fontSize: 13, color: "#94a3b8" }}>Ci sono modifiche al sinottico non ancora salvate. Cosa vuoi fare?</div>
+          <div style={{ background: "var(--brand-surface, #1e293b)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 8, padding: "24px 28px", maxWidth: 360, width: "90%", display: "flex", flexDirection: "column", gap: 16 }}>
+            <div style={{ fontSize: 15, fontWeight: 600, color: "var(--brand-text, #e2e8f0)" }}>Modifiche non salvate</div>
+            <div style={{ fontSize: 13, color: "var(--brand-text-muted, #94a3b8)" }}>Ci sono modifiche al sinottico non ancora salvate. Cosa vuoi fare?</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               <button
-                style={{ ...HDR_BTN, background: "#1d4ed8", color: "#fff", border: "1px solid #2563eb", padding: "8px 16px", fontSize: 13 }}
+                style={{ ...HDR_BTN, background: "#1d4ed8", color: "#fff", border: "1px solid var(--brand-primary-hover, #2563eb)", padding: "8px 16px", fontSize: 13 }}
                 disabled={waitingForSave}
                 onClick={() => { incSaveSerial(); setWaitingForSave(true); }}
               >

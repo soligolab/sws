@@ -126,7 +126,7 @@ export function LogPanel({ open, onClose }: LogPanelProps) {
     <div style={panelStyle}>
       {/* ── Header bar ───────────────────────────────────────────────── */}
       <div style={headerStyle}>
-        <strong style={{ fontSize: 12, color: isHistMode ? "#f59e0b" : "#e2e8f0", letterSpacing: 0.5 }}>
+        <strong style={{ fontSize: 12, color: isHistMode ? "#f59e0b" : "var(--brand-text, #e2e8f0)", letterSpacing: 0.5 }}>
           {isHistMode ? `LOG ${selDate}` : "LOG"}
         </strong>
         <span style={{ color: "#64748b", fontSize: 11 }}>
@@ -151,7 +151,7 @@ export function LogPanel({ open, onClose }: LogPanelProps) {
             <button
               onClick={loadHistFile}
               disabled={!selDate || histLoading}
-              style={btn("#334155")}
+              style={btn("var(--brand-surface-2, #334155)")}
             >
               {histLoading ? "…" : "Carica"}
             </button>
@@ -168,10 +168,10 @@ export function LogPanel({ open, onClose }: LogPanelProps) {
 
         {!isHistMode && (
           <>
-            <button onClick={() => setPaused((p) => !p)} style={btn(paused ? "#7e22ce" : "#334155")}>
+            <button onClick={() => setPaused((p) => !p)} style={btn(paused ? "#7e22ce" : "var(--brand-surface-2, #334155)")}>
               {paused ? "▶ Riprendi" : "⏸ Pausa"}
             </button>
-            <button onClick={clearLogs} style={btn("#334155")}>
+            <button onClick={clearLogs} style={btn("var(--brand-surface-2, #334155)")}>
               Cancella
             </button>
           </>
@@ -181,7 +181,7 @@ export function LogPanel({ open, onClose }: LogPanelProps) {
           onClick={() => downloadAsJsonl(filtered, isHistMode ? selDate : todayLocalIso())}
           disabled={filtered.length === 0}
           title="Scarica i log visualizzati (rispetta i filtri) come file JSONL"
-          style={{ ...btn("#334155"), opacity: filtered.length === 0 ? 0.5 : 1 }}
+          style={{ ...btn("var(--brand-surface-2, #334155)"), opacity: filtered.length === 0 ? 0.5 : 1 }}
         >
           ⬇ Scarica
         </button>
@@ -213,11 +213,11 @@ export function LogPanel({ open, onClose }: LogPanelProps) {
                   setLevels(next);
                 }}
                 style={{
-                  ...btn(on ? LEVEL_COLOR[lv] : "#334155"),
+                  ...btn(on ? LEVEL_COLOR[lv] : "var(--brand-surface-2, #334155)"),
                   fontSize: 10,
                   padding: "3px 6px",
                   fontWeight: on ? 700 : 400,
-                  color: on ? "#0f172a" : "#94a3b8",
+                  color: on ? "var(--brand-bg, #0f172a)" : "var(--brand-text-muted, #94a3b8)",
                   opacity: on ? 1 : 0.7,
                 }}
               >
@@ -227,7 +227,7 @@ export function LogPanel({ open, onClose }: LogPanelProps) {
           })}
         </div>
 
-        <button onClick={onClose} title="Chiudi pannello" style={btn("#334155")}>
+        <button onClick={onClose} title="Chiudi pannello" style={btn("var(--brand-surface-2, #334155)")}>
           ✕
         </button>
       </div>
@@ -290,7 +290,7 @@ function highlight(text: string, search: string): React.ReactNode {
   while ((m = re.exec(text)) !== null) {
     if (m.index > last) parts.push(text.slice(last, m.index));
     parts.push(
-      <mark key={parts.length} style={{ background: "#fde047", color: "#0f172a", padding: "0 1px" }}>
+      <mark key={parts.length} style={{ background: "#fde047", color: "var(--brand-bg, #0f172a)", padding: "0 1px" }}>
         {m[0]}
       </mark>,
     );
@@ -346,7 +346,7 @@ const panelStyle: React.CSSProperties = {
   height: 240,
   flexShrink: 0,
   background: "#0b1220",
-  borderTop: "1px solid #334155",
+  borderTop: "1px solid var(--brand-surface-2, #334155)",
   display: "flex",
   flexDirection: "column",
   overflow: "hidden",
@@ -357,8 +357,8 @@ const headerStyle: React.CSSProperties = {
   alignItems: "center",
   gap: 6,
   padding: "6px 8px",
-  background: "#0f172a",
-  borderBottom: "1px solid #334155",
+  background: "var(--brand-bg, #0f172a)",
+  borderBottom: "1px solid var(--brand-surface-2, #334155)",
   flexShrink: 0,
 };
 
@@ -376,7 +376,7 @@ const rowStyle: React.CSSProperties = {
   gap: 8,
   padding: "1px 8px",
   whiteSpace: "nowrap",
-  color: "#cbd5e1",
+  color: "var(--brand-text-2, #cbd5e1)",
 };
 
 const tsCell: React.CSSProperties = {
@@ -392,7 +392,7 @@ const lvCell: React.CSSProperties = {
 };
 
 const tgtCell: React.CSSProperties = {
-  color: "#94a3b8",
+  color: "var(--brand-text-muted, #94a3b8)",
   width: 180,
   flexShrink: 0,
   overflow: "hidden",
@@ -414,15 +414,15 @@ const fieldsStyle: React.CSSProperties = {
 
 const fieldChip: React.CSSProperties = {
   fontSize: 11,
-  background: "#1e293b",
-  border: "1px solid #334155",
+  background: "var(--brand-surface, #1e293b)",
+  border: "1px solid var(--brand-surface-2, #334155)",
   borderRadius: 3,
   padding: "0 5px",
   whiteSpace: "nowrap",
 };
 
 const fieldKey: React.CSSProperties = {
-  color: "#94a3b8",
+  color: "var(--brand-text-muted, #94a3b8)",
 };
 
 const fieldEq: React.CSSProperties = {
@@ -431,7 +431,7 @@ const fieldEq: React.CSSProperties = {
 };
 
 const fieldVal: React.CSSProperties = {
-  color: "#e2e8f0",
+  color: "var(--brand-text, #e2e8f0)",
 };
 
 const bodyEmpty: React.CSSProperties = {
@@ -445,9 +445,9 @@ const bodyEmpty: React.CSSProperties = {
 };
 
 const inputStyle: React.CSSProperties = {
-  background: "#0f172a",
-  color: "#e2e8f0",
-  border: "1px solid #334155",
+  background: "var(--brand-bg, #0f172a)",
+  color: "var(--brand-text, #e2e8f0)",
+  border: "1px solid var(--brand-surface-2, #334155)",
   borderRadius: 4,
   padding: "3px 8px",
   fontSize: 12,
@@ -457,8 +457,8 @@ const inputStyle: React.CSSProperties = {
 function btn(bg: string): React.CSSProperties {
   return {
     background: bg,
-    color: "#e2e8f0",
-    border: "1px solid #334155",
+    color: "var(--brand-text, #e2e8f0)",
+    border: "1px solid var(--brand-surface-2, #334155)",
     borderRadius: 4,
     padding: "4px 8px",
     cursor: "pointer",

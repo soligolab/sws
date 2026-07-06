@@ -13,8 +13,8 @@ const OVERLAY: React.CSSProperties = {
 };
 
 const CARD: React.CSSProperties = {
-  background: "#1e293b",
-  border: "1px solid #334155",
+  background: "var(--brand-surface, #1e293b)",
+  border: "1px solid var(--brand-surface-2, #334155)",
   borderRadius: 10,
   padding: "28px 32px",
   width: 320,
@@ -24,21 +24,21 @@ const CARD: React.CSSProperties = {
   boxShadow: "0 8px 32px rgba(0,0,0,0.5)",
 };
 
-const LABEL: React.CSSProperties = { fontSize: 12, color: "#94a3b8", marginBottom: 4 };
+const LABEL: React.CSSProperties = { fontSize: 12, color: "var(--brand-text-muted, #94a3b8)", marginBottom: 4 };
 
 const INPUT: React.CSSProperties = {
   width: "100%",
-  background: "#0f172a",
-  border: "1px solid #475569",
+  background: "var(--brand-bg, #0f172a)",
+  border: "1px solid var(--brand-border, #475569)",
   borderRadius: 5,
-  color: "#e2e8f0",
+  color: "var(--brand-text, #e2e8f0)",
   padding: "7px 10px",
   fontSize: 13,
   boxSizing: "border-box",
 };
 
 const BTN_PRIMARY: React.CSSProperties = {
-  background: "#3b82f6",
+  background: "var(--brand-primary, #3b82f6)",
   color: "#fff",
   border: "none",
   borderRadius: 5,
@@ -119,7 +119,7 @@ export function ReAuthModal() {
       <div style={OVERLAY}>
         <div style={CARD}>
           <div>
-            <div style={{ fontSize: 15, fontWeight: 700, color: "#e2e8f0", marginBottom: 4 }}>
+            <div style={{ fontSize: 15, fontWeight: 700, color: "var(--brand-text, #e2e8f0)", marginBottom: 4 }}>
               Nessun progetto attivo
             </div>
             <div style={{ fontSize: 12, color: "#64748b" }}>
@@ -138,11 +138,11 @@ export function ReAuthModal() {
     <div style={OVERLAY}>
       <div style={CARD}>
         <div>
-          <div style={{ fontSize: 15, fontWeight: 700, color: "#e2e8f0", marginBottom: 4 }}>
+          <div style={{ fontSize: 15, fontWeight: 700, color: "var(--brand-text, #e2e8f0)", marginBottom: 4 }}>
             Sessione scaduta
           </div>
           <div style={{ fontSize: 12, color: "#64748b" }}>
-            Inserisci la password per continuare come <strong style={{ color: "#94a3b8" }}>{authUser}</strong>.
+            Inserisci la password per continuare come <strong style={{ color: "var(--brand-text-muted, #94a3b8)" }}>{authUser}</strong>.
           </div>
         </div>
 

@@ -26,9 +26,9 @@ import { canConfigureProject } from "@/auth/permissions";
 
 const HDR_BTN: React.CSSProperties = {
   padding: "4px 10px",
-  background: "#334155",
-  color: "#cbd5e1",
-  border: "1px solid #475569",
+  background: "var(--brand-surface-2, #334155)",
+  color: "var(--brand-text-2, #cbd5e1)",
+  border: "1px solid var(--brand-border, #475569)",
   borderRadius: 4,
   cursor: "pointer",
   fontSize: 12,
@@ -39,11 +39,11 @@ function AccessDenied({ role, onLogout }: { role: string; onLogout: () => void }
   return (
     <div style={{
       display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-      height: "100vh", background: "#0f172a", color: "#e2e8f0", gap: 16, fontFamily: "system-ui",
+      height: "100vh", background: "var(--brand-bg, #0f172a)", color: "var(--brand-text, #e2e8f0)", gap: 16, fontFamily: "system-ui",
     }}>
       <div style={{ fontSize: 48 }}>🔒</div>
       <div style={{ fontSize: 20, fontWeight: 600 }}>Accesso negato</div>
-      <div style={{ fontSize: 14, color: "#94a3b8", maxWidth: 400, textAlign: "center" }}>
+      <div style={{ fontSize: 14, color: "var(--brand-text-muted, #94a3b8)", maxWidth: 400, textAlign: "center" }}>
         Il pannello admin richiede ruolo <strong>Supervisor</strong> o <strong>Admin</strong>.
         Sei autenticato come <strong>{role}</strong>.
       </div>
@@ -186,12 +186,12 @@ export function AdminApp() {
   const remote = getRuntimeBaseUrl();
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100vh", fontFamily: "system-ui, sans-serif", color: "#e2e8f0", background: "#0f172a" }}>
+    <div style={{ display: "flex", flexDirection: "column", height: "100vh", fontFamily: "system-ui, sans-serif", color: "var(--brand-text, #e2e8f0)", background: "var(--brand-bg, #0f172a)" }}>
       <header style={{
-        height: 48, background: "#1e293b", borderBottom: "1px solid #334155",
+        height: 48, background: "var(--brand-surface, #1e293b)", borderBottom: "1px solid var(--brand-surface-2, #334155)",
         display: "flex", alignItems: "center", padding: "0 16px", gap: 16, flexShrink: 0,
       }}>
-        <strong style={{ letterSpacing: 1, fontSize: 15, color: "#e2e8f0" }}>SWS Admin</strong>
+        <strong style={{ letterSpacing: 1, fontSize: 15, color: "var(--brand-text, #e2e8f0)" }}>SWS Admin</strong>
         {remote && (
           <button
             onClick={() => {
@@ -202,7 +202,7 @@ export function AdminApp() {
             }}
             style={{
               padding: "2px 8px", background: "#1e3a8a", color: "#bfdbfe",
-              border: "1px solid #2563eb", borderRadius: 10, cursor: "pointer",
+              border: "1px solid var(--brand-primary-hover, #2563eb)", borderRadius: 10, cursor: "pointer",
               fontSize: 11, fontWeight: 600, display: "flex", alignItems: "center", gap: 4,
             }}
           >
@@ -210,12 +210,12 @@ export function AdminApp() {
             <span style={{ fontFamily: "monospace" }}>{(() => { try { return new URL(remote).host; } catch { return remote; } })()}</span>
           </button>
         )}
-        <span style={{ color: "#475569", flex: 1, fontSize: 13 }}>
+        <span style={{ color: "var(--brand-border, #475569)", flex: 1, fontSize: 13 }}>
           {t("app.user")}: {authUser ?? "—"}
           {authRole && (
             <span style={{
-              marginLeft: 6, padding: "1px 6px", borderRadius: 3, fontSize: 11, fontWeight: 600, color: "#e2e8f0",
-              background: authRole === "Admin" ? "#7c2d12" : authRole === "Supervisor" ? "#7e22ce" : "#334155",
+              marginLeft: 6, padding: "1px 6px", borderRadius: 3, fontSize: 11, fontWeight: 600, color: "var(--brand-text, #e2e8f0)",
+              background: authRole === "Admin" ? "#7c2d12" : authRole === "Supervisor" ? "#7e22ce" : "var(--brand-surface-2, #334155)",
             }}>
               {authRole}
             </span>

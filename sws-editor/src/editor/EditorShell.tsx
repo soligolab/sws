@@ -15,20 +15,20 @@ import type { ButtonAction, FunctionDef, GridCell, RadioOption, SubCellEntry, Su
 // ── Shared styles ─────────────────────────────────────────────────────────────
 
 const PANEL: React.CSSProperties = {
-  background: "#1e293b",
-  color: "#cbd5e1",
+  background: "var(--brand-surface, #1e293b)",
+  color: "var(--brand-text-2, #cbd5e1)",
   display: "flex",
   flexDirection: "column",
   gap: 8,
   padding: 12,
   overflowY: "auto",
 };
-const LABEL: React.CSSProperties = { fontSize: 11, color: "#94a3b8", marginBottom: 2 };
+const LABEL: React.CSSProperties = { fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", marginBottom: 2 };
 const INPUT: React.CSSProperties = {
   width: "100%",
-  background: "#0f172a",
-  color: "#e2e8f0",
-  border: "1px solid #334155",
+  background: "var(--brand-bg, #0f172a)",
+  color: "var(--brand-text, #e2e8f0)",
+  border: "1px solid var(--brand-surface-2, #334155)",
   borderRadius: 4,
   padding: "3px 6px",
   fontSize: 13,
@@ -69,8 +69,8 @@ function SymbolGallery({ value, onChange }: { value: string; onChange: (v: strin
             title={tile.label}
             onClick={() => onChange(tile.id)}
             style={{
-              background: sel ? "#1e3a5f" : "#0f172a",
-              border: `2px solid ${sel ? "#facc15" : "#334155"}`,
+              background: sel ? "#1e3a5f" : "var(--brand-bg, #0f172a)",
+              border: `2px solid ${sel ? "#facc15" : "var(--brand-surface-2, #334155)"}`,
               borderRadius: 4,
               cursor: "pointer",
               padding: "4px 2px 3px",
@@ -145,20 +145,20 @@ function SymbolPickerModal({ onPick, onCancel }: {
       onClick={(e) => { if (e.target === e.currentTarget) onCancel(); }}
     >
       <div style={{
-        background: "#0f172a", border: "1px solid #334155", borderRadius: 8,
+        background: "var(--brand-bg, #0f172a)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 8,
         width: 420, maxHeight: "80vh",
         display: "flex", flexDirection: "column", overflow: "hidden",
       }}>
-        <div style={{ padding: "10px 14px", borderBottom: "1px solid #1e293b", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <span style={{ fontSize: 13, color: "#cbd5e1", fontWeight: 600 }}>Scegli simbolo</span>
+        <div style={{ padding: "10px 14px", borderBottom: "1px solid var(--brand-surface, #1e293b)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <span style={{ fontSize: 13, color: "var(--brand-text-2, #cbd5e1)", fontWeight: 600 }}>Scegli simbolo</span>
           <button onClick={onCancel} style={{ background: "transparent", border: "none", color: "#64748b", cursor: "pointer", fontSize: 16 }}>✕</button>
         </div>
         <div style={{ overflowY: "auto", padding: 12, flex: 1 }}>
           <SymbolGallery value={selected} onChange={setSelected} />
         </div>
-        <div style={{ padding: "8px 14px", borderTop: "1px solid #1e293b", display: "flex", justifyContent: "flex-end", gap: 8 }}>
-          <button onClick={onCancel} style={{ padding: "4px 14px", fontSize: 12, background: "#1e293b", border: "1px solid #334155", color: "#94a3b8", borderRadius: 4, cursor: "pointer" }}>Annulla</button>
-          <button onClick={() => onPick(selected)} style={{ padding: "4px 14px", fontSize: 12, background: "#1e3a5f", border: "1px solid #3b82f6", color: "#93c5fd", borderRadius: 4, cursor: "pointer" }}>Inserisci</button>
+        <div style={{ padding: "8px 14px", borderTop: "1px solid var(--brand-surface, #1e293b)", display: "flex", justifyContent: "flex-end", gap: 8 }}>
+          <button onClick={onCancel} style={{ padding: "4px 14px", fontSize: 12, background: "var(--brand-surface, #1e293b)", border: "1px solid var(--brand-surface-2, #334155)", color: "var(--brand-text-muted, #94a3b8)", borderRadius: 4, cursor: "pointer" }}>Annulla</button>
+          <button onClick={() => onPick(selected)} style={{ padding: "4px 14px", fontSize: 12, background: "#1e3a5f", border: "1px solid var(--brand-primary, #3b82f6)", color: "#93c5fd", borderRadius: 4, cursor: "pointer" }}>Inserisci</button>
         </div>
       </div>
     </div>
@@ -711,7 +711,7 @@ export function EditorShell() {
             cell selected  → GridCellEditor for the cell
             grid selected  → ObjectProps for the grid
             nothing        → PageProps                   */}
-      <aside style={{ ...PANEL, width: 280, borderLeft: "1px solid #334155" }}>
+      <aside style={{ ...PANEL, width: 280, borderLeft: "1px solid var(--brand-surface-2, #334155)" }}>
         {multi ? (
           <>
             <span style={{ fontSize: 11, fontWeight: 700, color: "#64748b", letterSpacing: 1 }}>
@@ -764,7 +764,7 @@ export function EditorShell() {
                       `slot ${pathLabel}`,
                     ]}
                   />
-                  <div style={{ fontSize: 10, color: "#475569", marginBottom: 6 }}>
+                  <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", marginBottom: 6 }}>
                     Sub-cella interna ({parentSub.orientation === "rows" ? "alto/basso" : "sinistra/destra"}).
                   </div>
                   <CellStructureActions
@@ -778,14 +778,14 @@ export function EditorShell() {
                     onJoinSplit={() => joinSplitCell(currentPageId, selected.id,
                       selectedSubCell.row, selectedSubCell.col, path)}
                   />
-                  <label style={{ fontSize: 11, color: "#94a3b8", display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
+                  <label style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
                     Colore sfondo:
-                    <input type="color" value={entry.bg_color ?? "#1e293b"}
+                    <input type="color" value={entry.bg_color ?? "var(--brand-surface, #1e293b)"}
                       onChange={(e) => updateSub({ bg_color: e.target.value })}
-                      style={{ width: 28, height: 22, border: "1px solid #334155", background: "transparent", cursor: "pointer" }} />
+                      style={{ width: 28, height: 22, border: "1px solid var(--brand-surface-2, #334155)", background: "transparent", cursor: "pointer" }} />
                     {entry.bg_color && (
                       <button onClick={() => updateSub({ bg_color: undefined })}
-                        style={{ background: "transparent", border: "1px solid #334155", color: "#94a3b8", borderRadius: 4, padding: "1px 8px", fontSize: 10, cursor: "pointer" }}>
+                        style={{ background: "transparent", border: "1px solid var(--brand-surface-2, #334155)", color: "var(--brand-text-muted, #94a3b8)", borderRadius: 4, padding: "1px 8px", fontSize: 10, cursor: "pointer" }}>
                         reset
                       </button>
                     )}
@@ -999,14 +999,14 @@ function ShortcutHelp({ onClose }: { onClose: () => void }) {
     >
       <div
         style={{
-          background: "#0f172a", border: "1px solid #334155", borderRadius: 8,
+          background: "var(--brand-bg, #0f172a)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 8,
           padding: "20px 28px", minWidth: 400, maxHeight: "80vh", overflowY: "auto",
           boxShadow: "0 8px 32px rgba(0,0,0,0.6)",
         }}
         onClick={(e) => e.stopPropagation()}
       >
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-          <span style={{ fontSize: 14, fontWeight: 600, color: "#e2e8f0" }}>Scorciatoie da tastiera</span>
+          <span style={{ fontSize: 14, fontWeight: 600, color: "var(--brand-text, #e2e8f0)" }}>Scorciatoie da tastiera</span>
           <button
             onClick={onClose}
             style={{ background: "none", border: "none", color: "#64748b", cursor: "pointer", fontSize: 16, lineHeight: 1 }}
@@ -1017,18 +1017,18 @@ function ShortcutHelp({ onClose }: { onClose: () => void }) {
             {SHORTCUTS.map(([key, desc]) =>
               desc === "" ? (
                 <tr key={key}>
-                  <td colSpan={2} style={{ color: "#475569", fontWeight: 700, fontSize: 10,
+                  <td colSpan={2} style={{ color: "var(--brand-border, #475569)", fontWeight: 700, fontSize: 10,
                     letterSpacing: 0.5, textTransform: "uppercase", paddingTop: 10, paddingBottom: 4 }}>
                     {key}
                   </td>
                 </tr>
               ) : (
-                <tr key={key} style={{ borderBottom: "1px solid #1e293b" }}>
-                  <td style={{ padding: "5px 12px 5px 0", color: "#94a3b8", fontFamily: "monospace",
+                <tr key={key} style={{ borderBottom: "1px solid var(--brand-surface, #1e293b)" }}>
+                  <td style={{ padding: "5px 12px 5px 0", color: "var(--brand-text-muted, #94a3b8)", fontFamily: "monospace",
                     whiteSpace: "nowrap", minWidth: 160 }}>
                     {key}
                   </td>
-                  <td style={{ padding: "5px 0", color: "#cbd5e1" }}>{desc}</td>
+                  <td style={{ padding: "5px 0", color: "var(--brand-text-2, #cbd5e1)" }}>{desc}</td>
                 </tr>
               )
             )}
@@ -1052,7 +1052,7 @@ function ZOrderBar({
 }) {
   if (objectCount < 2) return null;
   const btnStyle: React.CSSProperties = {
-    background: "#0f172a", border: "1px solid #334155", color: "#94a3b8",
+    background: "var(--brand-bg, #0f172a)", border: "1px solid var(--brand-surface-2, #334155)", color: "var(--brand-text-muted, #94a3b8)",
     borderRadius: 3, cursor: "pointer", fontSize: 11, padding: "2px 6px",
     flex: 1, textAlign: "center" as const,
   };
@@ -1075,14 +1075,14 @@ type BreadcrumbPart = string | { label: string; onClick?: () => void };
 
 function PanelBreadcrumb({ parts }: { parts: BreadcrumbPart[] }) {
   return (
-    <div style={{ fontSize: 10, color: "#475569", marginBottom: 6, display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" }}>
+    <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", marginBottom: 6, display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" }}>
       {parts.map((p, i) => {
         const part = typeof p === "string" ? { label: p } : p;
         const isLast = i === parts.length - 1;
         const clickable = !isLast && !!part.onClick;
         return (
           <span key={i} style={{ display: "flex", alignItems: "center", gap: 4 }}>
-            {i > 0 && <span style={{ color: "#334155" }}>›</span>}
+            {i > 0 && <span style={{ color: "var(--brand-surface-2, #334155)" }}>›</span>}
             {clickable ? (
               <button
                 type="button"
@@ -1090,7 +1090,7 @@ function PanelBreadcrumb({ parts }: { parts: BreadcrumbPart[] }) {
                 title="Torna a questo livello"
                 style={{
                   background: "transparent", border: "none", padding: 0,
-                  color: "#3b82f6", cursor: "pointer", fontSize: 10,
+                  color: "var(--brand-primary, #3b82f6)", cursor: "pointer", fontSize: 10,
                   textDecoration: "underline dotted",
                   font: "inherit",
                 }}
@@ -1098,7 +1098,7 @@ function PanelBreadcrumb({ parts }: { parts: BreadcrumbPart[] }) {
                 {part.label}
               </button>
             ) : (
-              <span style={{ color: isLast ? "#94a3b8" : "#475569" }}>{part.label}</span>
+              <span style={{ color: isLast ? "var(--brand-text-muted, #94a3b8)" : "var(--brand-border, #475569)" }}>{part.label}</span>
             )}
           </span>
         );
@@ -1146,14 +1146,14 @@ function CollapsibleSection({
     });
   };
   return (
-    <div style={{ borderTop: "1px solid #1e293b", paddingTop: 4, marginTop: 4 }}>
+    <div style={{ borderTop: "1px solid var(--brand-surface, #1e293b)", paddingTop: 4, marginTop: 4 }}>
       <button
         type="button"
         onClick={toggle}
         style={{
           width: "100%", display: "flex", alignItems: "center", gap: 6,
           background: "transparent", border: "none", padding: "4px 0",
-          color: "#94a3b8", fontSize: 11, fontWeight: 700, letterSpacing: 0.5,
+          color: "var(--brand-text-muted, #94a3b8)", fontSize: 11, fontWeight: 700, letterSpacing: 0.5,
           textAlign: "left", cursor: "pointer",
         }}
       >
@@ -1162,7 +1162,7 @@ function CollapsibleSection({
         {headerExtra}
       </button>
       {!open && hint && (
-        <div style={{ fontSize: 10, color: "#475569", fontStyle: "italic", margin: "0 0 4px 16px" }}>
+        <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", fontStyle: "italic", margin: "0 0 4px 16px" }}>
           {hint}
         </div>
       )}
@@ -1204,7 +1204,7 @@ function resolveParentSubGrid(cell: GridCell | undefined, path: ("a" | "b")[]): 
 // ── Cell range / structure action toolbars ────────────────────────────────────
 
 const ACT_BTN: React.CSSProperties = {
-  background: "#1e293b", border: "1px solid #334155", color: "#e2e8f0",
+  background: "var(--brand-surface, #1e293b)", border: "1px solid var(--brand-surface-2, #334155)", color: "var(--brand-text, #e2e8f0)",
   padding: "4px 10px", borderRadius: 4, cursor: "pointer", fontSize: 11,
 };
 
@@ -1228,7 +1228,7 @@ function SubCellAddChild({ onAdd }: { onAdd: (type: string) => void }) {
   const [type, setType] = useState("rect");
   return (
     <div style={{ marginTop: 8 }}>
-      <div style={{ fontSize: 11, color: "#94a3b8", marginBottom: 4 }}>
+      <div style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", marginBottom: 4 }}>
         Aggiungi un oggetto in questo slot:
       </div>
       <div style={{ display: "flex", gap: 6 }}>
@@ -1241,12 +1241,12 @@ function SubCellAddChild({ onAdd }: { onAdd: (type: string) => void }) {
         </select>
         <button
           onClick={() => onAdd(type)}
-          style={{ background: "#1d4ed8", border: "1px solid #2563eb", color: "#bfdbfe", borderRadius: 4, cursor: "pointer", fontSize: 12, padding: "2px 10px", flexShrink: 0 }}
+          style={{ background: "#1d4ed8", border: "1px solid var(--brand-primary-hover, #2563eb)", color: "#bfdbfe", borderRadius: 4, cursor: "pointer", fontSize: 12, padding: "2px 10px", flexShrink: 0 }}
         >
           + Aggiungi
         </button>
       </div>
-      <p style={{ fontSize: 10, color: "#475569", margin: "4px 0 0" }}>
+      <p style={{ fontSize: 10, color: "var(--brand-border, #475569)", margin: "4px 0 0" }}>
         Oppure: copia un oggetto dalla pagina (Ctrl+C) e premi Ctrl+V con la cella padre selezionata.
       </p>
     </div>
@@ -1308,7 +1308,7 @@ function PageProps({
 }) {
   return (
     <>
-      <div style={{ fontSize: 11, color: "#475569", marginBottom: 4 }}>Pagina</div>
+      <div style={{ fontSize: 11, color: "var(--brand-border, #475569)", marginBottom: 4 }}>Pagina</div>
       <div>
         <div style={LABEL}>Nome</div>
         <input
@@ -1335,7 +1335,7 @@ function PageProps({
           />
         </div>
       </div>
-      <div style={{ fontSize: 10, color: "#475569", marginTop: 4, marginBottom: 2, fontWeight: 700, letterSpacing: 0.5 }}>
+      <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", marginTop: 4, marginBottom: 2, fontWeight: 700, letterSpacing: 0.5 }}>
         DIMENSIONI PAGINA
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 6px" }}>
@@ -1360,7 +1360,7 @@ function PageProps({
           />
         </div>
       </div>
-      <p style={{ fontSize: 10, color: "#475569", margin: "2px 0 0" }}>
+      <p style={{ fontSize: 10, color: "var(--brand-border, #475569)", margin: "2px 0 0" }}>
         Vuoto = fluido (riempie il contenitore). Con valori impostati, un bordo tratteggiato blu indica i limiti della pagina.
       </p>
       <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8 }}>
@@ -1371,7 +1371,7 @@ function PageProps({
           onChange={(e) => onChange({ auto_rotate_skip: e.target.checked || undefined })}
           style={{ cursor: "pointer" }}
         />
-        <label htmlFor="auto-rotate-skip" style={{ fontSize: 11, color: "#94a3b8", cursor: "pointer" }}>
+        <label htmlFor="auto-rotate-skip" style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", cursor: "pointer" }}>
           Escludi dal ciclo automatico (kiosk)
         </label>
       </div>
@@ -1389,7 +1389,7 @@ function PageProps({
           }}
         />
       </div>
-      <p style={{ fontSize: 11, color: "#475569", margin: "8px 0 0" }}>
+      <p style={{ fontSize: 11, color: "var(--brand-border, #475569)", margin: "8px 0 0" }}>
         Seleziona un oggetto sul canvas per modificarne le proprietà.
       </p>
     </>
@@ -1424,10 +1424,10 @@ function MultiSelectionProps({
   onBatchChange: (patch: Partial<SynopticObject>) => void;
 }) {
   const btn: React.CSSProperties = {
-    background: "#0f172a",
-    border: "1px solid #334155",
+    background: "var(--brand-bg, #0f172a)",
+    border: "1px solid var(--brand-surface-2, #334155)",
     borderRadius: 4,
-    color: "#cbd5e1",
+    color: "var(--brand-text-2, #cbd5e1)",
     cursor: "pointer",
     fontSize: 13,
     padding: "6px 0",
@@ -1435,14 +1435,14 @@ function MultiSelectionProps({
   };
   return (
     <>
-      <div style={{ fontSize: 11, color: "#475569", marginBottom: 4 }}>
+      <div style={{ fontSize: 11, color: "var(--brand-border, #475569)", marginBottom: 4 }}>
         Selezione multipla
       </div>
-      <div style={{ fontSize: 13, color: "#e2e8f0", marginBottom: 4 }}>
+      <div style={{ fontSize: 13, color: "var(--brand-text, #e2e8f0)", marginBottom: 4 }}>
         {count} oggetti selezionati
       </div>
 
-      <div style={{ fontSize: 10, color: "#475569", marginTop: 4, fontWeight: 700, letterSpacing: 0.5 }}>
+      <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", marginTop: 4, fontWeight: 700, letterSpacing: 0.5 }}>
         ALLINEA ORIZZONTALE
       </div>
       <div style={{ display: "flex", gap: 4 }}>
@@ -1451,7 +1451,7 @@ function MultiSelectionProps({
         <button style={btn} title="Allinea a destra"     onClick={() => onAlign("right")}>⇥</button>
       </div>
 
-      <div style={{ fontSize: 10, color: "#475569", marginTop: 6, fontWeight: 700, letterSpacing: 0.5 }}>
+      <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", marginTop: 6, fontWeight: 700, letterSpacing: 0.5 }}>
         ALLINEA VERTICALE
       </div>
       <div style={{ display: "flex", gap: 4 }}>
@@ -1460,7 +1460,7 @@ function MultiSelectionProps({
         <button style={btn} title="Allinea in basso"     onClick={() => onAlign("bottom")}>⤓</button>
       </div>
 
-      <div style={{ fontSize: 10, color: "#475569", marginTop: 6, fontWeight: 700, letterSpacing: 0.5 }}>
+      <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", marginTop: 6, fontWeight: 700, letterSpacing: 0.5 }}>
         DISTRIBUISCI (≥3 oggetti)
       </div>
       <div style={{ display: "flex", gap: 4 }}>
@@ -1468,7 +1468,7 @@ function MultiSelectionProps({
         <button style={btn} title="Distribuisci verticale"   onClick={() => onAlign("distribute-y")}>⇕</button>
       </div>
 
-      <div style={{ height: 1, background: "#334155", margin: "8px 0" }} />
+      <div style={{ height: 1, background: "var(--brand-surface-2, #334155)", margin: "8px 0" }} />
 
       <div style={{ display: "flex", gap: 4 }}>
         <button style={{ ...btn, background: "#1e3a8a", color: "#bfdbfe" }} onClick={onDuplicate}>
@@ -1479,12 +1479,12 @@ function MultiSelectionProps({
         </button>
       </div>
 
-      <div style={{ height: 1, background: "#334155", margin: "8px 0" }} />
+      <div style={{ height: 1, background: "var(--brand-surface-2, #334155)", margin: "8px 0" }} />
 
-      <div style={{ fontSize: 10, color: "#475569", fontWeight: 700, letterSpacing: 0.5 }}>
+      <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", fontWeight: 700, letterSpacing: 0.5 }}>
         PROPRIETÀ COMUNI
       </div>
-      <p style={{ fontSize: 10, color: "#475569", margin: "2px 0 6px" }}>
+      <p style={{ fontSize: 10, color: "var(--brand-border, #475569)", margin: "2px 0 6px" }}>
         {allSameType
           ? `Tipo "${selectedObjects[0].type}" — campi vuoti = valori diversi (vari).`
           : "Tipi diversi — solo sezioni universali."}
@@ -1508,7 +1508,7 @@ function MultiSelectionProps({
         />
       )}
 
-      <p style={{ fontSize: 10, color: "#475569", marginTop: 8 }}>
+      <p style={{ fontSize: 10, color: "var(--brand-border, #475569)", marginTop: 8 }}>
         Shift+click per aggiungere/togliere dalla selezione. Ctrl-C/V, Ctrl-D,
         Ctrl-Z/Y, Canc come scorciatoie.
       </p>
@@ -1591,7 +1591,7 @@ function CrossTypeProps({
 
   return (
     <>
-      <div style={{ fontSize: 10, color: "#475569", marginTop: 4, fontWeight: 700, letterSpacing: 0.5 }}>POSIZIONE</div>
+      <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", marginTop: 4, fontWeight: 700, letterSpacing: 0.5 }}>POSIZIONE</div>
       <div style={grid2}>
         {field("X", numInput("x", 0))}
         {field("Y", numInput("y", 0))}
@@ -1599,57 +1599,57 @@ function CrossTypeProps({
         {field("Altezza", numInput("height", 40))}
       </div>
 
-      <div style={{ fontSize: 10, color: "#475569", marginTop: 8, fontWeight: 700, letterSpacing: 0.5 }}>ASPETTO</div>
-      {field("Fill", colorInput("fill", "#3b82f6"))}
+      <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", marginTop: 8, fontWeight: 700, letterSpacing: 0.5 }}>ASPETTO</div>
+      {field("Fill", colorInput("fill", "var(--brand-primary, #3b82f6)"))}
       {field("Stroke", colorInput("stroke", "#ffffff"))}
       <div style={grid2}>
         {field("Stroke W", numInput("stroke_width", 1))}
         {field("Opacity", numInput("opacity", 1))}
       </div>
 
-      <div style={{ fontSize: 10, color: "#475569", marginTop: 8, fontWeight: 700, letterSpacing: 0.5 }}>TRASFORMAZIONE</div>
+      <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", marginTop: 8, fontWeight: 700, letterSpacing: 0.5 }}>TRASFORMAZIONE</div>
       <div style={grid2}>
         {field("Rotazione (°)", numInput("rotation", 0))}
         {field("Z-index", numInput("z_index", 0))}
       </div>
       <div style={{ display: "flex", gap: 8 }}>
-        <label style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: "#cbd5e1" }}>
+        <label style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: "var(--brand-text-2, #cbd5e1)" }}>
           <input type="checkbox"
             checked={!isMixed("flip_h") && !!(mergedProps.flip_h)}
             onChange={(e) => onChange({ flip_h: e.target.checked })}
-            style={{ accentColor: "#3b82f6" }}
+            style={{ accentColor: "var(--brand-primary, #3b82f6)" }}
           /> Flip H
         </label>
-        <label style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: "#cbd5e1" }}>
+        <label style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: "var(--brand-text-2, #cbd5e1)" }}>
           <input type="checkbox"
             checked={!isMixed("flip_v") && !!(mergedProps.flip_v)}
             onChange={(e) => onChange({ flip_v: e.target.checked })}
-            style={{ accentColor: "#3b82f6" }}
+            style={{ accentColor: "var(--brand-primary, #3b82f6)" }}
           /> Flip V
         </label>
       </div>
       {field("Transizione (ms)", numInput("transition_duration_ms", 0))}
 
-      <div style={{ fontSize: 10, color: "#475569", marginTop: 8, fontWeight: 700, letterSpacing: 0.5 }}>VISIBILITÀ</div>
-      <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#cbd5e1", cursor: "pointer" }}>
+      <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", marginTop: 8, fontWeight: 700, letterSpacing: 0.5 }}>VISIBILITÀ</div>
+      <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--brand-text-2, #cbd5e1)", cursor: "pointer" }}>
         <input type="checkbox"
           checked={!isMixed("visible") && mergedProps.visible !== false}
           onChange={(e) => onChange({ visible: e.target.checked })}
-          style={{ accentColor: "#3b82f6" }}
+          style={{ accentColor: "var(--brand-primary, #3b82f6)" }}
         /> Visibile
       </label>
       {field("Tag visibilità", tagInput("visible_tag", "tag.bool…"))}
 
-      <div style={{ fontSize: 10, color: "#475569", marginTop: 8, fontWeight: 700, letterSpacing: 0.5 }}>TAG</div>
+      <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", marginTop: 8, fontWeight: 700, letterSpacing: 0.5 }}>TAG</div>
       {field("Tag", tagInput("tag", "tag.id…"))}
       {field("Formato", textInput("format", "{value}"))}
 
-      <div style={{ fontSize: 10, color: "#475569", marginTop: 8, fontWeight: 700, letterSpacing: 0.5 }}>INDICATORE QUALITÀ</div>
-      <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#cbd5e1", cursor: "pointer" }}>
+      <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", marginTop: 8, fontWeight: 700, letterSpacing: 0.5 }}>INDICATORE QUALITÀ</div>
+      <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--brand-text-2, #cbd5e1)", cursor: "pointer" }}>
         <input type="checkbox"
           checked={!isMixed("quality_dot") && mergedProps.quality_dot !== false}
           onChange={(e) => onChange({ quality_dot: e.target.checked ? undefined : false })}
-          style={{ accentColor: "#3b82f6" }}
+          style={{ accentColor: "var(--brand-primary, #3b82f6)" }}
         /> Mostra indicatore qualità
       </label>
       {mergedProps.quality_dot !== false && (
@@ -1660,7 +1660,7 @@ function CrossTypeProps({
         </>
       )}
 
-      <div style={{ fontSize: 10, color: "#475569", marginTop: 8, fontWeight: 700, letterSpacing: 0.5 }}>EVENTI</div>
+      <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", marginTop: 8, fontWeight: 700, letterSpacing: 0.5 }}>EVENTI</div>
       <EventFunctionPicker
         label="Al click (on_press)"
         fnName={(mergedProps.on_press_fn as string | undefined)}
@@ -1773,7 +1773,7 @@ function ObjectProps({
         />
       )}
       <div style={{ fontSize: 10, color: "#64748b", margin: "-2px 0 6px", display: "flex", gap: 6 }}>
-        <span style={{ background: "#1e293b", padding: "1px 6px", borderRadius: 3, color: "#94a3b8", fontWeight: 600 }}>
+        <span style={{ background: "var(--brand-surface, #1e293b)", padding: "1px 6px", borderRadius: 3, color: "var(--brand-text-muted, #94a3b8)", fontWeight: 600 }}>
           {obj.type}
         </span>
         <span style={{ fontFamily: "monospace" }}>{obj.id}</span>
@@ -1825,7 +1825,7 @@ function ObjectProps({
       {/* Stroke */}
       {hasStroke && (
         <>
-          {field("Bordo", <BindableInput obj={obj} propName="stroke" onChange={onChange}>{colorInput("stroke", "#e2e8f0")}</BindableInput>)}
+          {field("Bordo", <BindableInput obj={obj} propName="stroke" onChange={onChange}>{colorInput("stroke", "var(--brand-text, #e2e8f0)")}</BindableInput>)}
           {field("Spessore bordo", <BindableInput obj={obj} propName="stroke_width" onChange={onChange}>{numInput("stroke_width", 1)}</BindableInput>)}
         </>
       )}
@@ -1838,7 +1838,7 @@ function ObjectProps({
         <>
           {field("Testo (statico)", <BindableInput obj={obj} propName="text" onChange={onChange}>{textInput("text", "Es. Temperatura caldaia")}</BindableInput>)}
           {field("Formato (se bound)", <BindableInput obj={obj} propName="format" onChange={onChange}>{textInput("format", "{value:.1f} °C")}</BindableInput>)}
-          <p style={{ fontSize: 10, color: "#475569", margin: "0 0 4px" }}>
+          <p style={{ fontSize: 10, color: "var(--brand-border, #475569)", margin: "0 0 4px" }}>
             Se è impostato un Tag, vince il formato (usa <code>{"{value}"}</code>); altrimenti viene
             mostrato il testo statico.
           </p>
@@ -1900,7 +1900,7 @@ function ObjectProps({
               </select>
             </div>
           </div>
-          {field("Colore testo", <BindableInput obj={obj} propName="color" onChange={onChange}>{colorInput("color", "#e2e8f0")}</BindableInput>)}
+          {field("Colore testo", <BindableInput obj={obj} propName="color" onChange={onChange}>{colorInput("color", "var(--brand-text, #e2e8f0)")}</BindableInput>)}
         </>
       )}
 
@@ -1966,7 +1966,7 @@ function ObjectProps({
                 style={{
                   ...INPUT,
                   cursor: "pointer",
-                  borderColor: targetMissing ? "#dc2626" : (INPUT.border ? undefined : "#334155"),
+                  borderColor: targetMissing ? "#dc2626" : (INPUT.border ? undefined : "var(--brand-surface-2, #334155)"),
                 }}
                 value={obj.target_page ?? ""}
                 onChange={(e) => onChange({ target_page: e.target.value || undefined })}
@@ -2001,7 +2001,7 @@ function ObjectProps({
             <div><div style={LABEL}>Max</div><BindableInput obj={obj} propName="max" onChange={onChange}>{numInput("max", 100)}</BindableInput></div>
           </div>
           {field("Unità", <BindableInput obj={obj} propName="unit" onChange={onChange}>{textInput("unit", "")}</BindableInput>)}
-          <div style={{ fontSize: 10, color: "#475569", marginTop: 4, marginBottom: 2, fontWeight: 700 }}>SOGLIE</div>
+          <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", marginTop: 4, marginBottom: 2, fontWeight: 700 }}>SOGLIE</div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
             <div><div style={LABEL}>Warn Low</div><BindableInput obj={obj} propName="warn_low" onChange={onChange}>{numInput("warn_low", 0)}</BindableInput></div>
             <div><div style={LABEL}>Warn High</div><BindableInput obj={obj} propName="warn_high" onChange={onChange}>{numInput("warn_high", 0)}</BindableInput></div>
@@ -2135,8 +2135,8 @@ function ObjectProps({
             <div><div style={LABEL}>Max</div><BindableInput obj={obj} propName="max" onChange={onChange}>{numInput("max", 100)}</BindableInput></div>
           </div>
           {field("Unità", <BindableInput obj={obj} propName="unit" onChange={onChange}>{textInput("unit", "")}</BindableInput>)}
-          {field("Colore barra", <BindableInput obj={obj} propName="fill" onChange={onChange}>{colorInput("fill", "#3b82f6")}</BindableInput>)}
-          <div style={{ fontSize: 10, color: "#475569", marginTop: 4, marginBottom: 2, fontWeight: 700 }}>SOGLIE</div>
+          {field("Colore barra", <BindableInput obj={obj} propName="fill" onChange={onChange}>{colorInput("fill", "var(--brand-primary, #3b82f6)")}</BindableInput>)}
+          <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", marginTop: 4, marginBottom: 2, fontWeight: 700 }}>SOGLIE</div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
             <div><div style={LABEL}>Warn Low</div><BindableInput obj={obj} propName="warn_low" onChange={onChange}>{numInput("warn_low", 0)}</BindableInput></div>
             <div><div style={LABEL}>Warn High</div><BindableInput obj={obj} propName="warn_high" onChange={onChange}>{numInput("warn_high", 0)}</BindableInput></div>
@@ -2167,13 +2167,13 @@ function ObjectProps({
             <div><div style={LABEL}>Y min</div><BindableInput obj={obj} propName="y_min" onChange={onChange}>{numInput("y_min", 0)}</BindableInput></div>
             <div><div style={LABEL}>Y max</div><BindableInput obj={obj} propName="y_max" onChange={onChange}>{numInput("y_max", 100)}</BindableInput></div>
           </div>
-          <p style={{ fontSize: 10, color: "#475569", margin: "2px 0 0" }}>
+          <p style={{ fontSize: 10, color: "var(--brand-border, #475569)", margin: "2px 0 0" }}>
             Lascia Y min/max a 0 per autofit.
           </p>
-          {field("Colore linea principale", <BindableInput obj={obj} propName="line_color" onChange={onChange}>{colorInput("line_color", "#3b82f6")}</BindableInput>)}
+          {field("Colore linea principale", <BindableInput obj={obj} propName="line_color" onChange={onChange}>{colorInput("line_color", "var(--brand-primary, #3b82f6)")}</BindableInput>)}
 
           {/* Multi-tag overlay: extra series share the same axes */}
-          <div style={{ fontSize: 10, color: "#475569", marginTop: 6, marginBottom: 2, fontWeight: 700, letterSpacing: 0.5 }}>
+          <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", marginTop: 6, marginBottom: 2, fontWeight: 700, letterSpacing: 0.5 }}>
             ALTRI TAG (OVERLAY)
           </div>
           {(obj.extra_tags ?? []).map((t, i) => (
@@ -2206,7 +2206,7 @@ function ObjectProps({
           </button>
 
           {/* OPC-UA historian backfill */}
-          <label style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8, fontSize: 11, color: "#94a3b8", cursor: "pointer" }}>
+          <label style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8, fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", cursor: "pointer" }}>
             <input
               type="checkbox"
               checked={obj.opcua_backfill ?? false}
@@ -2251,7 +2251,7 @@ function ObjectProps({
                 style={{
                   maxWidth: "100%", maxHeight: 80, objectFit: "contain",
                   filter: "invert(1) brightness(0.85)", borderRadius: 4,
-                  border: "1px solid #1e293b",
+                  border: "1px solid var(--brand-surface, #1e293b)",
                 }}
               />
             </div>
@@ -2268,7 +2268,7 @@ function ObjectProps({
       {/* Grid layout */}
       {obj.type === "grid" && (
         <>
-          <div style={{ fontSize: 10, color: "#475569", marginTop: 4, marginBottom: 2, fontWeight: 700, letterSpacing: 0.5 }}>
+          <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", marginTop: 4, marginBottom: 2, fontWeight: 700, letterSpacing: 0.5 }}>
             GRIGLIA
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 6px" }}>
@@ -2289,12 +2289,12 @@ function ObjectProps({
               />
             </div>
           </div>
-          <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#cbd5e1", marginTop: 6, cursor: "pointer" }}>
+          <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--brand-text-2, #cbd5e1)", marginTop: 6, cursor: "pointer" }}>
             <input
               type="checkbox"
               checked={obj.grid_show_borders !== false}
               onChange={(e) => onChange({ grid_show_borders: e.target.checked })}
-              style={{ accentColor: "#3b82f6" }}
+              style={{ accentColor: "var(--brand-primary, #3b82f6)" }}
             />
             Mostra bordi
           </label>
@@ -2316,7 +2316,7 @@ function ObjectProps({
               </div>
             </div>
           )}
-          <p style={{ fontSize: 10, color: "#475569", margin: "6px 0 0" }}>
+          <p style={{ fontSize: 10, color: "var(--brand-border, #475569)", margin: "6px 0 0" }}>
             Clicca su una cella nel canvas per modificarne le proprietà.
           </p>
         </>
@@ -2326,7 +2326,7 @@ function ObjectProps({
       {obj.type === "text_list" && (
         <>
           {field("Tag", tagInput("es. valvola.stato"))}
-          <div style={{ fontSize: 10, color: "#475569", marginTop: 4, marginBottom: 2, fontWeight: 700 }}>VOCI</div>
+          <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", marginTop: 4, marginBottom: 2, fontWeight: 700 }}>VOCI</div>
           {(obj.text_list_entries ?? []).map((e, i) => (
             <div key={i} style={{ display: "flex", gap: 4, marginBottom: 4, alignItems: "center" }}>
               <input style={{ ...INPUT, width: 54 }} placeholder="val" value={String(e.value)}
@@ -2338,9 +2338,9 @@ function ObjectProps({
                 }} />
               <input style={{ ...INPUT, flex: 1 }} placeholder="etichetta" value={e.label}
                 onChange={(ev) => { const next = [...(obj.text_list_entries ?? [])]; next[i] = { ...e, label: ev.target.value }; onChange({ text_list_entries: next }); }} />
-              <input type="color" value={e.color ?? "#e2e8f0"} title="Colore testo"
+              <input type="color" value={e.color ?? "var(--brand-text, #e2e8f0)"} title="Colore testo"
                 onChange={(ev) => { const next = [...(obj.text_list_entries ?? [])]; next[i] = { ...e, color: ev.target.value }; onChange({ text_list_entries: next }); }}
-                style={{ width: 28, height: 24, padding: 1, border: "1px solid #334155", borderRadius: 3, cursor: "pointer" }} />
+                style={{ width: 28, height: 24, padding: 1, border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 3, cursor: "pointer" }} />
               <button style={{ ...INPUT, padding: "0 6px", cursor: "pointer" }}
                 onClick={() => { const next = (obj.text_list_entries ?? []).filter((_, j) => j !== i); onChange({ text_list_entries: next }); }}>✕</button>
             </div>
@@ -2379,12 +2379,12 @@ function ObjectProps({
           {field("Gap barre (0-0.9)", numInput("bar_gap", 0.2))}
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             {[["bar_show_values","Valori"], ["bar_show_labels","Etichette"], ["bar_show_thresholds","Soglie"]].map(([k,l]) => (
-              <label key={k} style={{ fontSize: 11, color: "#94a3b8", display: "flex", gap: 3, alignItems: "center" }}>
+              <label key={k} style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "flex", gap: 3, alignItems: "center" }}>
                 <input type="checkbox" checked={!!(obj as any)[k]} onChange={(e) => onChange({ [k]: e.target.checked })} />{l}
               </label>
             ))}
           </div>
-          <div style={{ fontSize: 10, color: "#475569", marginTop: 6, marginBottom: 2, fontWeight: 700 }}>SERIE</div>
+          <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", marginTop: 6, marginBottom: 2, fontWeight: 700 }}>SERIE</div>
           {(obj.bar_series ?? []).map((s, i) => (
             <div key={i} style={{ display: "flex", gap: 4, marginBottom: 4, alignItems: "center" }}>
               <TagInput style={{ ...INPUT, flex: 1 }} placeholder="tag" value={s.tag}
@@ -2392,7 +2392,7 @@ function ObjectProps({
               <input style={{ ...INPUT, width: 60 }} placeholder="label" value={s.label}
                 onChange={(e) => { const next = [...(obj.bar_series ?? [])]; next[i] = { ...s, label: e.target.value }; onChange({ bar_series: next }); }} />
               <input type="color" value={s.color} onChange={(e) => { const next = [...(obj.bar_series ?? [])]; next[i] = { ...s, color: e.target.value }; onChange({ bar_series: next }); }}
-                style={{ width: 28, height: 24, padding: 1, border: "1px solid #334155", borderRadius: 3 }} />
+                style={{ width: 28, height: 24, padding: 1, border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 3 }} />
               <button style={{ ...INPUT, padding: "0 6px", cursor: "pointer" }}
                 onClick={() => onChange({ bar_series: (obj.bar_series ?? []).filter((_, j) => j !== i) })}>✕</button>
             </div>
@@ -2401,7 +2401,7 @@ function ObjectProps({
             onClick={() => onChange({ bar_series: [...(obj.bar_series ?? []), { tag: "", label: `Serie ${(obj.bar_series?.length ?? 0) + 1}`, color: "#3b82f6" }] })}>
             + Aggiungi serie
           </button>
-          <div style={{ fontSize: 10, color: "#475569", marginTop: 2, marginBottom: 2, fontWeight: 700 }}>SOGLIE</div>
+          <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", marginTop: 2, marginBottom: 2, fontWeight: 700 }}>SOGLIE</div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
             <div><div style={LABEL}>Warn High</div>{numInput("warn_high", 0)}</div>
             <div><div style={LABEL}>Alarm High</div>{numInput("alarm_high", 0)}</div>
@@ -2421,14 +2421,14 @@ function ObjectProps({
           {(obj.pie_mode ?? "pie") === "donut" && field("Raggio interno (0.1-0.8)", numInput("pie_inner_ratio", 0.5))}
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             {[["pie_show_labels","Percentuali"], ["pie_show_legend","Legenda"]].map(([k,l]) => (
-              <label key={k} style={{ fontSize: 11, color: "#94a3b8", display: "flex", gap: 3, alignItems: "center" }}>
+              <label key={k} style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "flex", gap: 3, alignItems: "center" }}>
                 <input type="checkbox" checked={!!(obj as any)[k]} onChange={(e) => onChange({ [k]: e.target.checked })} />{l}
               </label>
             ))}
           </div>
           {(obj.pie_mode ?? "pie") === "donut" && field("Testo centro", textInput("pie_center_text", ""))}
           {(obj.pie_mode ?? "pie") === "donut" && field("Tag centro", tagInput("es. totale.kw"))}
-          <div style={{ fontSize: 10, color: "#475569", marginTop: 6, marginBottom: 2, fontWeight: 700 }}>SLICE</div>
+          <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", marginTop: 6, marginBottom: 2, fontWeight: 700 }}>SLICE</div>
           {(obj.pie_slices ?? []).map((s, i) => (
             <div key={i} style={{ display: "flex", gap: 4, marginBottom: 4, alignItems: "center" }}>
               <TagInput style={{ ...INPUT, flex: 1 }} placeholder="tag" value={s.tag}
@@ -2436,7 +2436,7 @@ function ObjectProps({
               <input style={{ ...INPUT, width: 60 }} placeholder="label" value={s.label}
                 onChange={(e) => { const next = [...(obj.pie_slices ?? [])]; next[i] = { ...s, label: e.target.value }; onChange({ pie_slices: next }); }} />
               <input type="color" value={s.color} onChange={(e) => { const next = [...(obj.pie_slices ?? [])]; next[i] = { ...s, color: e.target.value }; onChange({ pie_slices: next }); }}
-                style={{ width: 28, height: 24, padding: 1, border: "1px solid #334155", borderRadius: 3 }} />
+                style={{ width: 28, height: 24, padding: 1, border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 3 }} />
               <button style={{ ...INPUT, padding: "0 6px", cursor: "pointer" }}
                 onClick={() => onChange({ pie_slices: (obj.pie_slices ?? []).filter((_, j) => j !== i) })}>✕</button>
             </div>
@@ -2461,7 +2461,7 @@ function ObjectProps({
           </div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             {[["spark_fill","Fill area"], ["spark_show_last","Mostra ultimo"]].map(([k,l]) => (
-              <label key={k} style={{ fontSize: 11, color: "#94a3b8", display: "flex", gap: 3, alignItems: "center" }}>
+              <label key={k} style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "flex", gap: 3, alignItems: "center" }}>
                 <input type="checkbox" checked={!!(obj as any)[k]} onChange={(e) => onChange({ [k]: e.target.checked })} />{l}
               </label>
             ))}
@@ -2483,7 +2483,7 @@ function ObjectProps({
           {field("Prefisso ID allarme", <input style={INPUT} placeholder="es. zona1." value={obj.alarm_viewer_id_prefix ?? ""} onChange={(e) => onChange({ alarm_viewer_id_prefix: e.target.value })} />)}
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             {[["alarm_viewer_show_ack","Mostra ACK"], ["alarm_viewer_show_ts","Timestamp"], ["alarm_viewer_show_empty","Mostra vuoto"]].map(([k,l]) => (
-              <label key={k} style={{ fontSize: 11, color: "#94a3b8", display: "flex", gap: 3, alignItems: "center" }}>
+              <label key={k} style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "flex", gap: 3, alignItems: "center" }}>
                 <input type="checkbox" checked={!!(obj as any)[k] || (obj as any)[k] === undefined} onChange={(e) => onChange({ [k]: e.target.checked })} />{l}
               </label>
             ))}
@@ -2563,8 +2563,8 @@ function ObjectProps({
           {(obj.pipe_style === "tube" || obj.pipe_gradient) && (
             <>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
-                <div>{field("Colore chiaro", colorInput("gradient_light_color", "#94a3b8"))}</div>
-                <div>{field("Colore scuro",  colorInput("gradient_dark_color",  "#334155"))}</div>
+                <div>{field("Colore chiaro", colorInput("gradient_light_color", "var(--brand-text-muted, #94a3b8)"))}</div>
+                <div>{field("Colore scuro",  colorInput("gradient_dark_color",  "var(--brand-surface-2, #334155)"))}</div>
               </div>
             </>
           )}
@@ -2599,7 +2599,7 @@ function ObjectProps({
               </div>
             </div>
             {field("Livello statico (0–1)", numInput("fill_level", 0))}
-            {field("Colore fluido", colorInput("fill_color", "#3b82f6"))}
+            {field("Colore fluido", colorInput("fill_color", "var(--brand-primary, #3b82f6)"))}
           </CollapsibleSection>
 
           {/* Markers */}
@@ -2664,7 +2664,7 @@ function ObjectProps({
 
           {/* Connection anchoring */}
           <CollapsibleSection title="Aggancio oggetti" storageKey="pipe-anchor">
-            <p style={{ fontSize: 10, color: "#475569", margin: "0 0 6px" }}>
+            <p style={{ fontSize: 10, color: "var(--brand-border, #475569)", margin: "0 0 6px" }}>
               Quando impostato, il primo / ultimo waypoint segue l'oggetto collegato.
             </p>
             {field("ID oggetto sorgente", textInput("from_obj_id", "es. pump-1"))}
@@ -2693,7 +2693,7 @@ function ObjectProps({
 
           {/* Waypoints editor */}
           <CollapsibleSection title="Waypoint" storageKey="pipe-points">
-            <p style={{ fontSize: 10, color: "#475569", margin: "0 0 4px" }}>
+            <p style={{ fontSize: 10, color: "var(--brand-border, #475569)", margin: "0 0 4px" }}>
               Trascina i punti gialli sul canvas. Usa ± per aggiungere/rimuovere.
             </p>
             {(obj.points ?? []).map((pt, i) => (
@@ -2756,21 +2756,21 @@ function ObjectProps({
             </BindableInput>
           )}
           <div style={{ display: "flex", gap: 12, marginTop: 4 }}>
-            <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#cbd5e1", cursor: "pointer" }}>
+            <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--brand-text-2, #cbd5e1)", cursor: "pointer" }}>
               <input
                 type="checkbox"
                 checked={!!obj.flip_h}
                 onChange={(e) => onChange({ flip_h: e.target.checked || undefined })}
-                style={{ accentColor: "#3b82f6" }}
+                style={{ accentColor: "var(--brand-primary, #3b82f6)" }}
               />
               Flip orizzontale
             </label>
-            <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#cbd5e1", cursor: "pointer" }}>
+            <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--brand-text-2, #cbd5e1)", cursor: "pointer" }}>
               <input
                 type="checkbox"
                 checked={!!obj.flip_v}
                 onChange={(e) => onChange({ flip_v: e.target.checked || undefined })}
-                style={{ accentColor: "#3b82f6" }}
+                style={{ accentColor: "var(--brand-primary, #3b82f6)" }}
               />
               Flip verticale
             </label>
@@ -2809,7 +2809,7 @@ function ObjectProps({
               >↺</button>
             </div>
           )}
-          <p style={{ fontSize: 10, color: "#475569", margin: "0 0 4px" }}>
+          <p style={{ fontSize: 10, color: "var(--brand-border, #475569)", margin: "0 0 4px" }}>
             0 = nessuna animazione. Anima fill/stroke/opacity/rotazione bindati. Testo, font-size, src e geometrie restano discreti.
           </p>
         </CollapsibleSection>
@@ -2830,16 +2830,16 @@ function ObjectProps({
             style={{ ...INPUT, cursor: "pointer", padding: "3px 8px", height: 26 }}
           >▲</button>
         </div>
-        <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#cbd5e1", marginTop: 4, cursor: "pointer" }}>
+        <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--brand-text-2, #cbd5e1)", marginTop: 4, cursor: "pointer" }}>
           <input
             type="checkbox"
             checked={obj.visible !== false}
             onChange={(e) => onChange({ visible: e.target.checked })}
-            style={{ accentColor: "#3b82f6" }}
+            style={{ accentColor: "var(--brand-primary, #3b82f6)" }}
           />
           Visibile (statico)
         </label>
-        <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#cbd5e1", marginTop: 4, cursor: "pointer" }}>
+        <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--brand-text-2, #cbd5e1)", marginTop: 4, cursor: "pointer" }}>
           <input
             type="checkbox"
             checked={obj.locked === true}
@@ -2872,12 +2872,12 @@ function ObjectProps({
           </p>
         ) : (
           <>
-            <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#cbd5e1", cursor: "pointer" }}>
+            <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--brand-text-2, #cbd5e1)", cursor: "pointer" }}>
               <input
                 type="checkbox"
                 checked={obj.quality_dot !== false}
                 onChange={(e) => onChange({ quality_dot: e.target.checked ? undefined : false })}
-                style={{ accentColor: "#3b82f6" }}
+                style={{ accentColor: "var(--brand-primary, #3b82f6)" }}
               />
               Mostra indicatore qualità
             </label>
@@ -2898,7 +2898,7 @@ function ObjectProps({
         storageKey="events"
         headerExtra={
           (obj.on_press_fn || obj.on_release_fn)
-            ? <span style={{ fontSize: 10, color: "#3b82f6", fontWeight: 700 }}>
+            ? <span style={{ fontSize: 10, color: "var(--brand-primary, #3b82f6)", fontWeight: 700 }}>
                 ({(obj.on_press_fn ? 1 : 0) + (obj.on_release_fn ? 1 : 0)})
               </span>
             : null
@@ -2918,7 +2918,7 @@ function ObjectProps({
           functions={functions}
           onChange={(fn, args) => onChange({ on_release_fn: fn, on_release_args: args })}
         />
-        <p style={{ fontSize: 10, color: "#475569", margin: "0 0 4px" }}>
+        <p style={{ fontSize: 10, color: "var(--brand-border, #475569)", margin: "0 0 4px" }}>
           Definisci le funzioni nel pannello laterale (sezione FUNZIONI). I valori
           dei parametri sono sostituiti per binding; lascia vuoto per usare il default.
         </p>
@@ -2929,7 +2929,7 @@ function ObjectProps({
         title="Binding attivi"
         storageKey="bindings"
         headerExtra={
-          <span style={{ fontSize: 10, color: obj.bindings && Object.keys(obj.bindings).length > 0 ? "#3b82f6" : "#475569", fontWeight: 700 }}>
+          <span style={{ fontSize: 10, color: obj.bindings && Object.keys(obj.bindings).length > 0 ? "var(--brand-primary, #3b82f6)" : "var(--brand-border, #475569)", fontWeight: 700 }}>
             ({obj.bindings ? Object.keys(obj.bindings).length : 0})
           </span>
         }
@@ -2941,8 +2941,8 @@ function ObjectProps({
           Object.entries(obj.bindings).map(([prop, tagId]) => (
             <div key={prop} style={{ display: "flex", gap: 4, alignItems: "center", fontSize: 12, marginBottom: 2 }}>
               <span style={{ color: "#64748b", flex: "0 0 auto" }}>{prop}</span>
-              <span style={{ color: "#475569" }}>→</span>
-              <span style={{ color: "#3b82f6", flex: 1 }}>{tagId || "(nessun tag)"}</span>
+              <span style={{ color: "var(--brand-border, #475569)" }}>→</span>
+              <span style={{ color: "var(--brand-primary, #3b82f6)", flex: 1 }}>{tagId || "(nessun tag)"}</span>
               <button
                 title="Rimuovi binding"
                 onClick={() => {
@@ -2994,7 +2994,7 @@ function RadioOptionsEditor({
 
   return (
     <div>
-      <div style={{ fontSize: 10, color: "#475569", marginTop: 4, marginBottom: 4, fontWeight: 700 }}>
+      <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", marginTop: 4, marginBottom: 4, fontWeight: 700 }}>
         OPZIONI RADIO
       </div>
       {options.map((opt, i) => (
@@ -3045,11 +3045,11 @@ function TableRowsEditor({
 
   return (
     <div>
-      <div style={{ fontSize: 10, color: "#475569", marginTop: 4, marginBottom: 4, fontWeight: 700 }}>
+      <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", marginTop: 4, marginBottom: 4, fontWeight: 700 }}>
         RIGHE TABELLA
       </div>
       {rows.map((row, i) => (
-        <div key={i} style={{ background: "#0f172a", borderRadius: 4, padding: "6px 8px", marginBottom: 6 }}>
+        <div key={i} style={{ background: "var(--brand-bg, #0f172a)", borderRadius: 4, padding: "6px 8px", marginBottom: 6 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
             <span style={{ fontSize: 11, color: "#64748b" }}>Riga {i + 1}</span>
             <button
@@ -3136,7 +3136,7 @@ function EventFunctionPicker({
         ))}
       </select>
       {fn && fn.params.length > 0 && (
-        <div style={{ marginTop: 4, paddingLeft: 6, borderLeft: "2px solid #334155" }}>
+        <div style={{ marginTop: 4, paddingLeft: 6, borderLeft: "2px solid var(--brand-surface-2, #334155)" }}>
           {fn.params.map((p) => {
             const v = (args ?? {})[p.name];
             return (
@@ -3144,7 +3144,7 @@ function EventFunctionPicker({
                 <div style={{ ...LABEL, fontSize: 10 }}>
                   {p.name}
                   {p.default !== undefined && (
-                    <span style={{ color: "#475569" }}> (default: {String(p.default)})</span>
+                    <span style={{ color: "var(--brand-border, #475569)" }}> (default: {String(p.default)})</span>
                   )}
                 </div>
                 <input
@@ -3206,8 +3206,8 @@ function GridCellEditor({
 }) {
   const [newChildType, setNewChildType] = useState("rect");
   return (
-    <div style={{ marginTop: 8, borderTop: "1px solid #334155", paddingTop: 8 }}>
-      <div style={{ fontSize: 10, color: "#3b82f6", fontWeight: 700, letterSpacing: 0.5, marginBottom: 6 }}>
+    <div style={{ marginTop: 8, borderTop: "1px solid var(--brand-surface-2, #334155)", paddingTop: 8 }}>
+      <div style={{ fontSize: 10, color: "var(--brand-primary, #3b82f6)", fontWeight: 700, letterSpacing: 0.5, marginBottom: 6 }}>
         CELLA {cell.row + 1},{cell.col + 1}
       </div>
 
@@ -3236,7 +3236,7 @@ function GridCellEditor({
           <input
             type="color"
             style={{ ...INPUT, padding: 2, height: 28, width: 44, cursor: "pointer", flex: "none" }}
-            value={cell.bg_color ?? "#1e293b"}
+            value={cell.bg_color ?? "var(--brand-surface, #1e293b)"}
             onChange={(e) => onChange({ bg_color: e.target.value })}
           />
           <input
@@ -3258,12 +3258,12 @@ function GridCellEditor({
         />
       </div>
 
-      <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#cbd5e1", marginBottom: 6, cursor: "pointer" }}>
+      <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--brand-text-2, #cbd5e1)", marginBottom: 6, cursor: "pointer" }}>
         <input
           type="checkbox"
           checked={cell.visible !== false}
           onChange={(e) => onChange({ visible: e.target.checked || undefined })}
-          style={{ accentColor: "#3b82f6" }}
+          style={{ accentColor: "var(--brand-primary, #3b82f6)" }}
         />
         Visibile (statico)
       </label>
@@ -3278,7 +3278,7 @@ function GridCellEditor({
         />
       </div>
 
-      <div style={{ fontSize: 10, color: "#475569", fontWeight: 700, letterSpacing: 0.5, marginBottom: 4 }}>
+      <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", fontWeight: 700, letterSpacing: 0.5, marginBottom: 4 }}>
         EVENTI CELLA
       </div>
       <div style={{ marginBottom: 4 }}>
@@ -3304,20 +3304,20 @@ function GridCellEditor({
         </select>
       </div>
 
-      <div style={{ fontSize: 10, color: "#475569", fontWeight: 700, letterSpacing: 0.5, marginBottom: 4 }}>
+      <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", fontWeight: 700, letterSpacing: 0.5, marginBottom: 4 }}>
         OGGETTO FIGLIO
       </div>
       {cell.child ? (
         <>
           <div style={{
             display: "flex", alignItems: "center", gap: 6, marginBottom: 8,
-            padding: "4px 8px", background: "#0f172a", border: "1px solid #1e3a5f", borderRadius: 4,
+            padding: "4px 8px", background: "var(--brand-bg, #0f172a)", border: "1px solid #1e3a5f", borderRadius: 4,
           }}>
             <span style={{ flex: 1, fontSize: 11, color: "#93c5fd" }}>
               {cell.child.type}{cell.child.name ? ` — ${cell.child.name}` : ""}
             </span>
           </div>
-          <p style={{ fontSize: 10, color: "#475569", margin: "0 0 8px" }}>
+          <p style={{ fontSize: 10, color: "var(--brand-border, #475569)", margin: "0 0 8px" }}>
             Clicca il figlio nel canvas per modificarne le proprietà.
           </p>
           <div style={{ display: "flex", gap: 6 }}>
@@ -3328,7 +3328,7 @@ function GridCellEditor({
                 state.setClipboard([cell.child!], state.currentPageId);
                 onChange({ child: undefined });
               }}
-              style={{ background: "#0f172a", border: "1px solid #334155", color: "#94a3b8", borderRadius: 4, cursor: "pointer", fontSize: 11, padding: "2px 8px" }}
+              style={{ background: "var(--brand-bg, #0f172a)", border: "1px solid var(--brand-surface-2, #334155)", color: "var(--brand-text-muted, #94a3b8)", borderRadius: 4, cursor: "pointer", fontSize: 11, padding: "2px 8px" }}
             >
               ✂ Taglia
             </button>
@@ -3353,12 +3353,12 @@ function GridCellEditor({
             </select>
             <button
               onClick={() => onChange({ child: makeDefaultChild(newChildType) })}
-              style={{ background: "#1d4ed8", border: "1px solid #2563eb", color: "#bfdbfe", borderRadius: 4, cursor: "pointer", fontSize: 12, padding: "2px 10px", flexShrink: 0 }}
+              style={{ background: "#1d4ed8", border: "1px solid var(--brand-primary-hover, #2563eb)", color: "#bfdbfe", borderRadius: 4, cursor: "pointer", fontSize: 12, padding: "2px 10px", flexShrink: 0 }}
             >
               + Aggiungi
             </button>
           </div>
-          <p style={{ fontSize: 10, color: "#475569", margin: "0 0 4px" }}>
+          <p style={{ fontSize: 10, color: "var(--brand-border, #475569)", margin: "0 0 4px" }}>
             Oppure: copia un oggetto dalla pagina (Ctrl+C) e premi Ctrl+V con questa cella selezionata.
           </p>
         </>

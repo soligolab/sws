@@ -80,13 +80,13 @@ export function LoginScreen({ onCancel }: { onCancel?: () => void } = {}) {
       display: "flex",
       alignItems: "center",
       justifyContent: "center",
-      background: "#0f172a",
-      color: "#e2e8f0",
+      background: "var(--brand-bg, #0f172a)",
+      color: "var(--brand-text, #e2e8f0)",
       fontFamily: "system-ui, sans-serif",
     }}>
       <form onSubmit={submit} style={{
-        background: "#1e293b",
-        border: "1px solid #334155",
+        background: "var(--brand-surface, #1e293b)",
+        border: "1px solid var(--brand-surface-2, #334155)",
         borderRadius: 10,
         padding: "32px 36px",
         width: 320,
@@ -100,7 +100,7 @@ export function LoginScreen({ onCancel }: { onCancel?: () => void } = {}) {
           <span style={{ color: "#64748b", fontSize: 13 }}>Soligo Web SCADA</span>
         </div>
         <div>
-          <label style={{ fontSize: 11, color: "#94a3b8", display: "block", marginBottom: 4 }}>Utente</label>
+          <label style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "block", marginBottom: 4 }}>Utente</label>
           <input
             type="text"
             value={username}
@@ -111,7 +111,7 @@ export function LoginScreen({ onCancel }: { onCancel?: () => void } = {}) {
           />
         </div>
         <div>
-          <label style={{ fontSize: 11, color: "#94a3b8", display: "block", marginBottom: 4 }}>Password</label>
+          <label style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "block", marginBottom: 4 }}>Password</label>
           <input
             type="password"
             value={password}
@@ -131,7 +131,7 @@ export function LoginScreen({ onCancel }: { onCancel?: () => void } = {}) {
           type="submit"
           disabled={busy || !password || isLocked}
           style={{
-            background: isLocked ? "#334155" : busy ? "#1e3a8a" : "#3b82f6",
+            background: isLocked ? "var(--brand-surface-2, #334155)" : busy ? "#1e3a8a" : "var(--brand-primary, #3b82f6)",
             color: isLocked ? "#64748b" : "#fff",
             border: "none", borderRadius: 4,
             padding: "8px 12px", cursor: (busy || isLocked) ? "default" : "pointer",
@@ -157,7 +157,7 @@ export function LoginScreen({ onCancel }: { onCancel?: () => void } = {}) {
             ← Torna all'elenco progetti
           </button>
         )}
-        <p style={{ fontSize: 11, color: "#475569", margin: 0 }}>
+        <p style={{ fontSize: 11, color: "var(--brand-border, #475569)", margin: 0 }}>
           Sessioni in-memory: un riavvio del runtime ti disconnette automaticamente.
         </p>
       </form>
@@ -167,11 +167,11 @@ export function LoginScreen({ onCancel }: { onCancel?: () => void } = {}) {
 
 const input: React.CSSProperties = {
   width: "100%",
-  background: "#0f172a",
-  border: "1px solid #334155",
+  background: "var(--brand-bg, #0f172a)",
+  border: "1px solid var(--brand-surface-2, #334155)",
   borderRadius: 4,
   padding: "7px 10px",
-  color: "#e2e8f0",
+  color: "var(--brand-text, #e2e8f0)",
   fontSize: 14,
   boxSizing: "border-box",
 };

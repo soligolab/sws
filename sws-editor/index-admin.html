@@ -5,6 +5,24 @@
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>SWS Admin</title>
+    <style>
+      /* Brand color tokens — defaults = SWS palette. Overridden at boot by
+         applyBranding() (see src/branding). Defined here so colors resolve
+         before JS runs (no flash). Keep in sync with SWS_FALLBACK. */
+      :root {
+        --brand-bg: #0f172a;
+        --brand-surface: #1e293b;
+        --brand-surface-2: #334155;
+        --brand-border: #475569;
+        --brand-text: #e2e8f0;
+        --brand-text-2: #cbd5e1;
+        --brand-text-muted: #94a3b8;
+        --brand-primary: #3b82f6;
+        --brand-primary-hover: #2563eb;
+        --brand-on-primary: #ffffff;
+      }
+      html { background: var(--brand-bg); }
+    </style>
   </head>
   <body>
     <div id="root"></div>

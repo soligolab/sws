@@ -2,9 +2,9 @@ import { TagInput } from "@/components/TagInput";
 import type { SynopticObject } from "@/types";
 
 const BTN: React.CSSProperties = {
-  background: "#0f172a",
-  color: "#94a3b8",
-  border: "1px solid #334155",
+  background: "var(--brand-bg, #0f172a)",
+  color: "var(--brand-text-muted, #94a3b8)",
+  border: "1px solid var(--brand-surface-2, #334155)",
   borderRadius: 4,
   padding: "3px 6px",
   fontSize: 13,
@@ -15,9 +15,9 @@ const BTN: React.CSSProperties = {
 
 const INPUT: React.CSSProperties = {
   width: "100%",
-  background: "#0f172a",
-  color: "#e2e8f0",
-  border: "1px solid #334155",
+  background: "var(--brand-bg, #0f172a)",
+  color: "var(--brand-text, #e2e8f0)",
+  border: "1px solid var(--brand-surface-2, #334155)",
   borderRadius: 4,
   padding: "3px 6px",
   fontSize: 13,
@@ -61,7 +61,7 @@ export function BindableInput({ obj, propName, onChange, children }: Props) {
       <div style={{ flex: 1, minWidth: 0 }}>
         {isBound ? (
           <TagInput
-            style={{ ...INPUT, borderColor: "#3b82f6" }}
+            style={{ ...INPUT, borderColor: "var(--brand-primary, #3b82f6)" }}
             placeholder="es. demo.rotation"
             value={bound}
             onChange={handleTagChange}
@@ -73,8 +73,8 @@ export function BindableInput({ obj, propName, onChange, children }: Props) {
       <button
         style={{
           ...BTN,
-          color: isBound ? "#3b82f6" : "#475569",
-          borderColor: isBound ? "#1d4ed8" : "#334155",
+          color: isBound ? "var(--brand-primary, #3b82f6)" : "var(--brand-border, #475569)",
+          borderColor: isBound ? "#1d4ed8" : "var(--brand-surface-2, #334155)",
         }}
         title={isBound ? `Bound a "${bound}" — clicca per scollegare` : "Lega a un tag"}
         onClick={handleToggle}
