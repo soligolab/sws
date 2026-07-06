@@ -120,9 +120,9 @@ export function ProjectIO() {
 function btnStyle(active: boolean): React.CSSProperties {
   return {
     padding: "4px 10px",
-    background: active ? "#1e3a8a" : "#334155",
-    color: "#cbd5e1",
-    border: "1px solid #475569",
+    background: active ? "#1e3a8a" : "var(--brand-surface-2, #334155)",
+    color: "var(--brand-text-2, #cbd5e1)",
+    border: "1px solid var(--brand-border, #475569)",
     borderRadius: 4,
     cursor: active ? "default" : "pointer",
     fontSize: 12,

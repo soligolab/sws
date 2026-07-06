@@ -1,0 +1,19 @@
+{
+  "id": "acme",
+  "name": "ACME Automation",
+  "shortName": "ACME",
+  "logo": "logo.svg",
+  "favicon": "favicon.svg",
+  "colors": {
+    "bg": "#0b1220",
+    "surface": "#101a2e",
+    "surface2": "#1b2942",
+    "border": "#2c4266",
+    "text": "#e8eef8",
+    "text2": "#c3d0e6",
+    "textMuted": "#8598b6",
+    "primary": "#12b886",
+    "primaryHover": "#0ca678",
+    "onPrimary": "#ffffff"
+  }
+}

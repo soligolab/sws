@@ -17,7 +17,7 @@ function RuntimeIdleScreen() {
     <div style={{
       display: "flex", flexDirection: "column", alignItems: "center",
       justifyContent: "center", height: "100vh",
-      background: "#0f172a", color: "#e2e8f0", gap: 16,
+      background: "var(--brand-bg, #0f172a)", color: "var(--brand-text, #e2e8f0)", gap: 16,
       fontFamily: "system-ui, sans-serif",
     }}>
       <svg width="48" height="48" viewBox="0 0 24 24" fill="none"
@@ -25,15 +25,15 @@ function RuntimeIdleScreen() {
         <circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/>
       </svg>
       <h2 style={{ margin: 0, fontSize: 20, fontWeight: 600 }}>Nessun progetto attivo</h2>
-      <p style={{ margin: 0, color: "#94a3b8", textAlign: "center", maxWidth: 320 }}>
+      <p style={{ margin: 0, color: "var(--brand-text-muted, #94a3b8)", textAlign: "center", maxWidth: 320 }}>
         Nessun progetto è stato caricato su questo runtime.<br/>
         Contattare l'amministratore.
       </p>
       <button
         onClick={() => window.location.reload()}
         style={{
-          padding: "8px 20px", borderRadius: 6, background: "#1e293b",
-          color: "#e2e8f0", border: "1px solid #334155", cursor: "pointer", fontSize: 14,
+          padding: "8px 20px", borderRadius: 6, background: "var(--brand-surface, #1e293b)",
+          color: "var(--brand-text, #e2e8f0)", border: "1px solid var(--brand-surface-2, #334155)", cursor: "pointer", fontSize: 14,
         }}
       >
         Riprova
@@ -108,7 +108,7 @@ export function RuntimeViewer() {
   return (
     <div style={{
       display: "flex", flexDirection: "column", height: "100vh",
-      fontFamily: "system-ui, sans-serif", color: "#e2e8f0", background: "#0f172a",
+      fontFamily: "system-ui, sans-serif", color: "var(--brand-text, #e2e8f0)", background: "var(--brand-bg, #0f172a)",
     }}>
       <AlarmBanner />
       <RuntimeView />

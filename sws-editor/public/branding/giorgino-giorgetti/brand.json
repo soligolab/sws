@@ -1,0 +1,19 @@
+{
+  "id": "giorgino-giorgetti",
+  "name": "Giorgino & Giorgetti",
+  "shortName": "G&G",
+  "logo": "logo.svg",
+  "favicon": "favicon.svg",
+  "colors": {
+    "bg": "#1a140d",
+    "surface": "#241c12",
+    "surface2": "#3a2e1c",
+    "border": "#5a4626",
+    "text": "#f5ecdd",
+    "text2": "#e0d2bb",
+    "textMuted": "#b09a78",
+    "primary": "#e0a021",
+    "primaryHover": "#c98a12",
+    "onPrimary": "#1a140d"
+  }
+}

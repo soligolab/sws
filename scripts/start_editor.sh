@@ -103,6 +103,21 @@ ensure_frontend_built() {
 }
 ensure_frontend_built
 
+# ── Sync branding → dist ──────────────────────────────────────────────────────
+# public/branding/ è la SORGENTE, dist/branding/ è ciò che l'app serve/legge.
+# Vite copia public→dist solo al build, ma cambiare brand non deve richiedere un
+# rebuild: risincronizziamo sempre (copia istantanea) così "edita
+# public/branding/active.json + riavvia" cambia davvero il brand.
+sync_branding() {
+  local src="$REPO_ROOT/sws-editor/public/branding"
+  local dst="$REPO_ROOT/sws-editor/dist/branding"
+  if [ -d "$src" ] && [ -d "$REPO_ROOT/sws-editor/dist" ]; then
+    rm -rf "$dst" && cp -r "$src" "$dst"
+    echo "[editor] branding sincronizzato (attivo: $(grep -o '\"brand\"[^,}]*' "$src/active.json" 2>/dev/null || echo '?'))"
+  fi
+}
+sync_branding
+
 WWW_DIST="$REPO_ROOT/sws-editor/dist"
 WWW_ARGS=()
 if [ -f "$WWW_DIST/index-admin.html" ]; then

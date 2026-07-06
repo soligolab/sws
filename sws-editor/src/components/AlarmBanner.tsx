@@ -6,7 +6,7 @@ import { useAlarmStream } from "@/ws/alarmStream";
 import type { AlarmSeverity, AlarmState, IsaState } from "@/types";
 
 const SEV_COLOR: Record<AlarmSeverity, string> = {
-  Info:     "#3b82f6",
+  Info:     "var(--brand-primary, #3b82f6)",
   Warning:  "#eab308",
   Critical: "#ef4444",
 };
@@ -23,7 +23,7 @@ const ISA_LABEL: Record<IsaState, string> = {
 function isaStyle(state: IsaState, color: string): React.CSSProperties {
   const base: React.CSSProperties = {
     background: color,
-    color: "#0f172a",
+    color: "var(--brand-bg, #0f172a)",
     padding: "1px 8px",
     borderRadius: 10,
     fontWeight: 700,
@@ -72,9 +72,9 @@ export function AlarmBanner() {
   if (alerting.length === 0) {
     return (
       <div style={{
-        height: 32, background: "#1e293b", color: "#94a3b8",
+        height: 32, background: "var(--brand-surface, #1e293b)", color: "var(--brand-text-muted, #94a3b8)",
         display: "flex", alignItems: "center", padding: "0 16px",
-        fontSize: 13, borderBottom: "1px solid #334155",
+        fontSize: 13, borderBottom: "1px solid var(--brand-surface-2, #334155)",
       }}>
         {t("alarm.noAlarms")}
       </div>
@@ -108,7 +108,7 @@ export function AlarmBanner() {
         height: 32,
         background: `${color}22`,
         borderBottom: `1px solid ${color}`,
-        color: "#e2e8f0",
+        color: "var(--brand-text, #e2e8f0)",
         display: "flex", alignItems: "center", padding: "0 16px",
         fontSize: 13, gap: 12,
       }}>
@@ -127,7 +127,7 @@ export function AlarmBanner() {
           <button
             onClick={handleAck}
             style={{
-              background: color, color: "#0f172a", border: "none",
+              background: color, color: "var(--brand-bg, #0f172a)", border: "none",
               borderRadius: 4, padding: "2px 12px", cursor: "pointer",
               fontWeight: 600, fontSize: 12,
             }}

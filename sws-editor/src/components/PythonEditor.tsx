@@ -61,7 +61,7 @@ export const PythonEditor = forwardRef<PythonEditorHandle, PythonEditorProps>(
           EditorView.theme({
             "&": { height: "100%", fontSize: "13px" },
             ".cm-scroller": { fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" },
-            ".cm-content": { caretColor: "#e2e8f0" },
+            ".cm-content": { caretColor: "var(--brand-text, #e2e8f0)" },
           }),
           EditorView.updateListener.of((u) => {
             if (u.docChanged) onChangeRef.current(u.state.doc.toString());
@@ -115,7 +115,7 @@ export const PythonEditor = forwardRef<PythonEditorHandle, PythonEditorProps>(
           width: "100%",
           minHeight: 0,
           background: "#282c34", // matches one-dark
-          border: "1px solid #334155",
+          border: "1px solid var(--brand-surface-2, #334155)",
           borderRadius: 4,
           overflow: "hidden",
         }}

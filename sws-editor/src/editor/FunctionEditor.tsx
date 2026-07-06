@@ -70,8 +70,8 @@ export function FunctionEditor({ fn, onPatch, onPersist, onClose }: FunctionEdit
       flex: 1,
       display: "flex",
       flexDirection: "column",
-      background: "#0f172a",
-      color: "#e2e8f0",
+      background: "var(--brand-bg, #0f172a)",
+      color: "var(--brand-text, #e2e8f0)",
       minWidth: 0,
     }}>
       {/* Header: title + close */}
@@ -80,8 +80,8 @@ export function FunctionEditor({ fn, onPatch, onPersist, onClose }: FunctionEdit
         alignItems: "center",
         gap: 12,
         padding: "10px 16px",
-        background: "#1e293b",
-        borderBottom: "1px solid #334155",
+        background: "var(--brand-surface, #1e293b)",
+        borderBottom: "1px solid var(--brand-surface-2, #334155)",
         flexShrink: 0,
       }}>
         <strong style={{ fontSize: 14, letterSpacing: 0.3 }}>Funzione Python</strong>
@@ -111,9 +111,9 @@ export function FunctionEditor({ fn, onPatch, onPersist, onClose }: FunctionEdit
           onClick={handleSave}
           disabled={saving || !isDirty}
           style={{
-            background: isDirty ? "#166534" : "#334155",
-            color:      isDirty ? "#bbf7d0" : "#94a3b8",
-            border: `1px solid ${isDirty ? "#15803d" : "#475569"}`,
+            background: isDirty ? "#166534" : "var(--brand-surface-2, #334155)",
+            color:      isDirty ? "#bbf7d0" : "var(--brand-text-muted, #94a3b8)",
+            border: `1px solid ${isDirty ? "#15803d" : "var(--brand-border, #475569)"}`,
             borderRadius: 4,
             padding: "5px 14px",
             cursor: saving || !isDirty ? "default" : "pointer",
@@ -127,9 +127,9 @@ export function FunctionEditor({ fn, onPatch, onPersist, onClose }: FunctionEdit
           onClick={onClose}
           title="Chiudi (torna al canvas)"
           style={{
-            background: "#334155",
-            color: "#cbd5e1",
-            border: "1px solid #475569",
+            background: "var(--brand-surface-2, #334155)",
+            color: "var(--brand-text-2, #cbd5e1)",
+            border: "1px solid var(--brand-border, #475569)",
             borderRadius: 4,
             padding: "5px 10px",
             cursor: "pointer",
@@ -159,8 +159,8 @@ export function FunctionEditor({ fn, onPatch, onPersist, onClose }: FunctionEdit
         <aside style={{
           width: 280,
           padding: 14,
-          borderRight: "1px solid #334155",
-          background: "#0f172a",
+          borderRight: "1px solid var(--brand-surface-2, #334155)",
+          background: "var(--brand-bg, #0f172a)",
           overflowY: "auto",
           flexShrink: 0,
           display: "flex",
@@ -191,7 +191,7 @@ export function FunctionEditor({ fn, onPatch, onPersist, onClose }: FunctionEdit
             PARAMETRI
           </div>
           {fn.params.length === 0 && (
-            <p style={{ fontSize: 11, color: "#475569", margin: 0 }}>
+            <p style={{ fontSize: 11, color: "var(--brand-border, #475569)", margin: 0 }}>
               Nessun parametro. La funzione si chiama "nuda".
             </p>
           )}
@@ -241,7 +241,7 @@ export function FunctionEditor({ fn, onPatch, onPersist, onClose }: FunctionEdit
             + Aggiungi parametro
           </button>
 
-          <p style={{ fontSize: 10, color: "#475569", margin: "8px 0 0" }}>
+          <p style={{ fontSize: 10, color: "var(--brand-border, #475569)", margin: "8px 0 0" }}>
             Bindings: <code>tags.read(id)</code>, <code>tags.write(id, value)</code>, <code>print(...)</code>.
             I parametri della funzione sono disponibili come variabili globali nel corpo Python.
           </p>
@@ -264,13 +264,13 @@ export function FunctionEditor({ fn, onPatch, onPersist, onClose }: FunctionEdit
 }
 
 const LABEL_STYLE: React.CSSProperties = {
-  fontSize: 11, color: "#94a3b8", display: "block", marginBottom: 4,
+  fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "block", marginBottom: 4,
 };
 const INPUT_STYLE: React.CSSProperties = {
   width: "100%",
-  background: "#0f172a",
-  color: "#e2e8f0",
-  border: "1px solid #334155",
+  background: "var(--brand-bg, #0f172a)",
+  color: "var(--brand-text, #e2e8f0)",
+  border: "1px solid var(--brand-surface-2, #334155)",
   borderRadius: 4,
   padding: "5px 8px",
   fontSize: 13,

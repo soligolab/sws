@@ -64,10 +64,10 @@ export function TagInput({ value, onChange, placeholder, style }: TagInputProps)
           type="button"
           style={{
             flexShrink: 0,
-            background: "#1e293b",
-            border: "1px solid #475569",
+            background: "var(--brand-surface, #1e293b)",
+            border: "1px solid var(--brand-border, #475569)",
             borderRadius: 4,
-            color: "#94a3b8",
+            color: "var(--brand-text-muted, #94a3b8)",
             cursor: "pointer",
             padding: "0 6px",
             fontSize: 11,
@@ -89,8 +89,8 @@ export function TagInput({ value, onChange, placeholder, style }: TagInputProps)
             left: 0,
             right: 0,
             zIndex: 9999,
-            background: "#0f172a",
-            border: "1px solid #334155",
+            background: "var(--brand-bg, #0f172a)",
+            border: "1px solid var(--brand-surface-2, #334155)",
             borderRadius: 4,
             maxHeight: 200,
             overflowY: "auto",
@@ -104,10 +104,10 @@ export function TagInput({ value, onChange, placeholder, style }: TagInputProps)
             placeholder="Filtra tag…"
             style={{
               width: "100%",
-              background: "#1e293b",
+              background: "var(--brand-surface, #1e293b)",
               border: "none",
-              borderBottom: "1px solid #334155",
-              color: "#e2e8f0",
+              borderBottom: "1px solid var(--brand-surface-2, #334155)",
+              color: "var(--brand-text, #e2e8f0)",
               padding: "5px 8px",
               fontSize: 11,
               boxSizing: "border-box",
@@ -121,11 +121,11 @@ export function TagInput({ value, onChange, placeholder, style }: TagInputProps)
             <div
               key={t.id}
               style={{ padding: "5px 8px", cursor: "pointer", display: "flex", gap: 8, alignItems: "baseline" }}
-              onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.background = "#1e293b"; }}
+              onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.background = "var(--brand-surface, #1e293b)"; }}
               onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.background = ""; }}
               onMouseDown={() => select(t.id)}
             >
-              <span style={{ color: "#e2e8f0", fontFamily: "monospace", fontSize: 12 }}>{t.id}</span>
+              <span style={{ color: "var(--brand-text, #e2e8f0)", fontFamily: "monospace", fontSize: 12 }}>{t.id}</span>
               {t.description && (
                 <span style={{ color: "#64748b", fontSize: 11, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                   {t.description}

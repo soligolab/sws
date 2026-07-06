@@ -63,13 +63,13 @@ export function ChangePasswordScreen() {
       display: "flex",
       alignItems: "center",
       justifyContent: "center",
-      background: "#0f172a",
-      color: "#e2e8f0",
+      background: "var(--brand-bg, #0f172a)",
+      color: "var(--brand-text, #e2e8f0)",
       fontFamily: "system-ui, sans-serif",
     }}>
       <form onSubmit={submit} style={{
-        background: "#1e293b",
-        border: "1px solid #334155",
+        background: "var(--brand-surface, #1e293b)",
+        border: "1px solid var(--brand-surface-2, #334155)",
         borderRadius: 10,
         padding: "32px 36px",
         width: 360,
@@ -81,7 +81,7 @@ export function ChangePasswordScreen() {
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
           <strong style={{ fontSize: 18, letterSpacing: 1 }}>Cambio password</strong>
         </div>
-        <p style={{ color: "#94a3b8", fontSize: 12, margin: 0 }}>
+        <p style={{ color: "var(--brand-text-muted, #94a3b8)", fontSize: 12, margin: 0 }}>
           Benvenuto <strong>{authUser}</strong>. Per continuare devi impostare una nuova password.
         </p>
 
@@ -114,7 +114,7 @@ export function ChangePasswordScreen() {
           <button type="submit" disabled={busy || !oldPassword || !newPassword}
                   style={{
                     flex: 1,
-                    background: busy ? "#1e3a8a" : "#3b82f6",
+                    background: busy ? "#1e3a8a" : "var(--brand-primary, #3b82f6)",
                     color: "#fff", border: "none", borderRadius: 4,
                     padding: "8px 12px", cursor: busy ? "default" : "pointer",
                     fontSize: 14, fontWeight: 600,
@@ -123,8 +123,8 @@ export function ChangePasswordScreen() {
           </button>
           <button type="button" onClick={() => { void api.logout().catch(() => {}); clearAuth(); }}
                   style={{
-                    background: "#334155", color: "#cbd5e1",
-                    border: "1px solid #475569", borderRadius: 4,
+                    background: "var(--brand-surface-2, #334155)", color: "var(--brand-text-2, #cbd5e1)",
+                    border: "1px solid var(--brand-border, #475569)", borderRadius: 4,
                     padding: "8px 12px", cursor: "pointer", fontSize: 13,
                   }}>
             Esci
@@ -136,16 +136,16 @@ export function ChangePasswordScreen() {
 }
 
 const label: React.CSSProperties = {
-  fontSize: 11, color: "#94a3b8", display: "block", marginBottom: 4,
+  fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "block", marginBottom: 4,
 };
 
 const input: React.CSSProperties = {
   width: "100%",
-  background: "#0f172a",
-  border: "1px solid #334155",
+  background: "var(--brand-bg, #0f172a)",
+  border: "1px solid var(--brand-surface-2, #334155)",
   borderRadius: 4,
   padding: "7px 10px",
-  color: "#e2e8f0",
+  color: "var(--brand-text, #e2e8f0)",
   fontSize: 14,
   boxSizing: "border-box",
 };

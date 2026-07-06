@@ -17,7 +17,7 @@ const OVERLAY: React.CSSProperties = {
   zIndex: 9999,
 };
 const CARD: React.CSSProperties = {
-  background: "#1e293b", border: "1px solid #334155", borderRadius: 10,
+  background: "var(--brand-surface, #1e293b)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 10,
   width: 580, maxHeight: "80vh",
   display: "flex", flexDirection: "column",
   boxShadow: "0 8px 40px rgba(0,0,0,0.6)",
@@ -58,10 +58,10 @@ export function ImageBrowser({ onSelect, onClose }: Props) {
 
         {/* Header */}
         <div style={{
-          padding: "12px 16px", borderBottom: "1px solid #334155",
+          padding: "12px 16px", borderBottom: "1px solid var(--brand-surface-2, #334155)",
           display: "flex", alignItems: "center", gap: 8,
         }}>
-          <span style={{ flex: 1, fontWeight: 700, color: "#e2e8f0", fontSize: 14 }}>
+          <span style={{ flex: 1, fontWeight: 700, color: "var(--brand-text, #e2e8f0)", fontSize: 14 }}>
             Libreria immagini
           </span>
           <input
@@ -69,8 +69,8 @@ export function ImageBrowser({ onSelect, onClose }: Props) {
             type="text"
             placeholder="Cerca…"
             style={{
-              background: "#0f172a", border: "1px solid #475569", borderRadius: 4,
-              color: "#e2e8f0", padding: "4px 10px", fontSize: 12, width: 170, outline: "none",
+              background: "var(--brand-bg, #0f172a)", border: "1px solid var(--brand-border, #475569)", borderRadius: 4,
+              color: "var(--brand-text, #e2e8f0)", padding: "4px 10px", fontSize: 12, width: 170, outline: "none",
             }}
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
@@ -88,14 +88,14 @@ export function ImageBrowser({ onSelect, onClose }: Props) {
 
         {/* Tabs */}
         {catalog && (
-          <div style={{ display: "flex", borderBottom: "1px solid #334155", padding: "0 8px", flexShrink: 0 }}>
+          <div style={{ display: "flex", borderBottom: "1px solid var(--brand-surface-2, #334155)", padding: "0 8px", flexShrink: 0 }}>
             {catalog.categories.map((c, i) => (
               <button
                 key={c.id}
                 onClick={() => { setActiveTab(i); setFilter(""); }}
                 style={{
                   background: "none", border: "none",
-                  borderBottom: i === activeTab ? "2px solid #3b82f6" : "2px solid transparent",
+                  borderBottom: i === activeTab ? "2px solid var(--brand-primary, #3b82f6)" : "2px solid transparent",
                   color: i === activeTab ? "#93c5fd" : "#64748b",
                   padding: "8px 12px", fontSize: 12, cursor: "pointer",
                   whiteSpace: "nowrap",
@@ -139,8 +139,8 @@ export function ImageBrowser({ onSelect, onClose }: Props) {
                 transition: "border-color 0.1s, background 0.1s",
               }}
               onMouseEnter={(e) => {
-                (e.currentTarget as HTMLElement).style.borderColor = "#3b82f6";
-                (e.currentTarget as HTMLElement).style.background = "#1e293b";
+                (e.currentTarget as HTMLElement).style.borderColor = "var(--brand-primary, #3b82f6)";
+                (e.currentTarget as HTMLElement).style.background = "var(--brand-surface, #1e293b)";
               }}
               onMouseLeave={(e) => {
                 (e.currentTarget as HTMLElement).style.borderColor = "#1e3a5f";
@@ -157,7 +157,7 @@ export function ImageBrowser({ onSelect, onClose }: Props) {
                 }}
               />
               <span style={{
-                fontSize: 9, color: "#94a3b8", textAlign: "center",
+                fontSize: 9, color: "var(--brand-text-muted, #94a3b8)", textAlign: "center",
                 overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
                 width: "100%",
               }}>
@@ -170,8 +170,8 @@ export function ImageBrowser({ onSelect, onClose }: Props) {
         {/* Footer */}
         {cat && (
           <div style={{
-            padding: "6px 16px", borderTop: "1px solid #1e293b",
-            fontSize: 10, color: "#475569",
+            padding: "6px 16px", borderTop: "1px solid var(--brand-surface, #1e293b)",
+            fontSize: 10, color: "var(--brand-border, #475569)",
             display: "flex", gap: 12,
           }}>
             <span>{items.length} di {cat.items.length} simboli</span>

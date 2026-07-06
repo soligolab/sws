@@ -4,7 +4,16 @@
 >
 > Ambienti di test: vedi [docs/TEST_SETUPS.md](docs/TEST_SETUPS.md) (casa, dev server, dispositivi Yocto).
 
-**Last session**: 2026-06-20 — Issue #2 risolto (causa radice reale) + revisione documentazione. Tutto su `main`.
+**Last session**: 2026-07-06 — T-35 branding/white-label editor+viewer (branch `feat/T-35-branding`, da verificare in browser dal maintainer).
+
+- **Sessione 2026-07-06 — T-35 branding / white-label** (branch `feat/T-35-branding`, non ancora mergiato):
+  - **Obiettivo**: distribuire editor+viewer sotto marchi diversi (SWS madre + OEM demo ACME, Giorgino & Giorgetti). Deciso con il maintainer: selezione via file JSON a runtime, re-theme completo, ambito editor **e** viewer, runtime Rust intatto.
+  - **Cartella** [sws-editor/public/branding/](sws-editor/public/branding/): `active.json` (`{ "brand": "sws" }`) + una sottocartella per brand con `brand.json` (nome, logo, favicon, 10 token colore), `logo.svg`, `favicon.svg` (loghi placeholder da sostituire).
+  - **Loader** [sws-editor/src/branding/index.ts](sws-editor/src/branding/index.ts): `loadBranding()` (active.json → brand.json, fallback SWS), `applyBranding()` (CSS var `--brand-*` su `:root` + `document.title` + favicon), `getBrand()`. Agganciato in [admin-main.tsx](sws-editor/src/admin-main.tsx) e [main.tsx](sws-editor/src/main.tsx) prima del render. Token di default (palette SWS) definiti in `:root` in `index.html`/`index-admin.html` (no flash).
+  - **Logo**: header IDE ([App.tsx](sws-editor/src/App.tsx), componente `BrandLogo` con fallback testo) + nav viewer ([RuntimeView.tsx](sws-editor/src/runtime-view/RuntimeView.tsx)).
+  - **Re-theme completo**: ~977 colori di chrome negli stili inline → `var(--brand-*, #fallback)` via sed protetto. **Protetti (restano letterali)**: colori-dato oggetti canvas (`fill`/`stroke`/`*_color`/serie in `EditorShell`), rendering widget SVG (`fill=`/`stroke=` in `SvgCanvas`), colori stato/allarme. Nessun `var()` finito in attributi SVG.
+  - **Verifiche fatte**: `pnpm build` verde su ogni fase; `git status` → **nessuna modifica sotto `sws-runtime/`**; script Node che valida i 3 brand (logo/favicon esistono, 10 colori presenti) e dimostra lo switch (title + `--brand-surface` cambiano per brand). Token referenziati == token definiti.
+  - **DA FARE (maintainer, in browser)**: `./scripts/start_editor.sh` → verificare logo/palette/titolo SWS; poi editare `public/branding/active.json` → `acme` / `giorgino-giorgetti`, hard-refresh, verificare che cambino logo, colori, titolo, favicon; verificare il viewer (8443) via `start_runtime.sh`. Se ok → squash merge in `main`.
 
 - **Sessione 2026-06-20 (sera) — GitHub issue #2: import progetto non funzionava**:
   - **Causa radice reale** (non era il backend, né la cache, né il rendering): l'`<input type=file>` dell'import progetto viveva dentro il dropdown del MainMenu (`{open && …}`). Il bottone "Importa progetto" fa `fileInputRef.current?.click(); setOpen(false)`: chiudendo il menu, React **smontava l'input** mentre il file-dialog nativo era ancora aperto → alla selezione del file l'`onChange` non scattava più → `handleImport` e la `PUT /api/project/import` **non venivano mai eseguiti**. Il sintomo "i tag non vengono importati" nasceva perché l'import non partiva affatto. I test curl funzionavano perché bypassavano la UI.
@@ -114,6 +123,7 @@
 - [x] **Verifica T-34** — ✅ automatizzata con `scripts/test_t34.sh` (18/18 test verdi, 2026-06-20). Copre: no-auth, auto-open, versionamento+migrate, remote deploy, elimina remoto.
 - [x] **TLS opzionale** — ✅ in main.
 - [x] **`feat/pyenv-support`** — ✅ già integrato in `main` (`ba6e3c8`, `start_runtime.sh` righe 54-60). Branch remoto ridondante rimosso (2026-06-22).
+- [ ] **Verifica browser T-35 branding** — su `feat/T-35-branding`: logo/palette/titolo per brand + switch via `active.json`, IDE (8460/8444) e viewer (8443). Se ok → squash merge in `main`.
 - [ ] **Verifica manuale T-27** — packaging tarball + installer. Comandi sotto.
 - [ ] **Verifica manuale T-24/T-25/T-26** — fingerprint/device dashboard, remote logs, git commit/push. Comandi sotto.
 - [ ] **Debito: `sws-kiosk` non rispetta `--viewer-port`** (hardcoded `https://localhost:8443` nel wayland spawn). Fix triviale in `main.rs` se/quando si usa il kiosk su device multi-istanza.

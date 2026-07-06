@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { api } from "@/api/client";
+import { getBrand } from "@/branding";
 import { SvgCanvas } from "@/canvas/SvgCanvas";
 import { AlarmHistory } from "@/components/AlarmHistory";
 import { useAppStore } from "@/store";
@@ -30,8 +31,8 @@ const TOAST_PANEL: React.CSSProperties = {
 };
 
 const TOAST_CARD = (hasError: boolean): React.CSSProperties => ({
-  background: "#1e293b",
-  border: `1px solid ${hasError ? "#991b1b" : "#334155"}`,
+  background: "var(--brand-surface, #1e293b)",
+  border: `1px solid ${hasError ? "#991b1b" : "var(--brand-surface-2, #334155)"}`,
   borderRadius: 8,
   padding: "10px 14px",
   boxShadow: "0 4px 16px rgba(0,0,0,0.5)",
@@ -58,7 +59,7 @@ function ScriptToasts({ toasts, onClose }: { toasts: ScriptToast[]; onClose: (id
         return (
           <div key={t.id} style={TOAST_CARD(hasError)}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-              <span style={{ color: "#94a3b8", fontWeight: 700, fontSize: 11 }}>
+              <span style={{ color: "var(--brand-text-muted, #94a3b8)", fontWeight: 700, fontSize: 11 }}>
                 ⚡ {t.fn}
               </span>
               <button
@@ -68,7 +69,7 @@ function ScriptToasts({ toasts, onClose }: { toasts: ScriptToast[]; onClose: (id
                 ✕
               </button>
             </div>
-            {t.stdout && <pre style={{ ...PRE, color: "#e2e8f0" }}>{t.stdout.trimEnd()}</pre>}
+            {t.stdout && <pre style={{ ...PRE, color: "var(--brand-text, #e2e8f0)" }}>{t.stdout.trimEnd()}</pre>}
             {t.stderr && <pre style={{ ...PRE, color: "#fbbf24", marginTop: t.stdout ? 4 : 0 }}>{t.stderr.trimEnd()}</pre>}
             {t.error  && <pre style={{ ...PRE, color: "#fca5a5", marginTop: (t.stdout || t.stderr) ? 4 : 0 }}>{t.error.trimEnd()}</pre>}
           </div>
@@ -86,7 +87,7 @@ function ScriptToasts({ toasts, onClose }: { toasts: ScriptToast[]; onClose: (id
 // order or review acknowledged-but-still-active conditions.
 
 const SEV_COLOR: Record<AlarmSeverity, string> = {
-  Info:     "#3b82f6",
+  Info:     "var(--brand-primary, #3b82f6)",
   Warning:  "#eab308",
   Critical: "#ef4444",
 };
@@ -159,7 +160,7 @@ function AlarmPanel() {
   const visibleActive = active.filter((a) => !shelvedIds.has(a.def.id));
   const badgeColor = unack.filter((a) => !shelvedIds.has(a.def.id)).length > 0
     ? "#ef4444"
-    : (visibleActive.length > 0 ? "#eab308" : "#475569");
+    : (visibleActive.length > 0 ? "#eab308" : "var(--brand-border, #475569)");
 
   return (
     <div style={{ position: "fixed", top: 80, right: 16, zIndex: 7500, pointerEvents: "auto" }}>
@@ -167,9 +168,9 @@ function AlarmPanel() {
         onClick={() => setOpen((v) => !v)}
         title={visibleActive.length === 0 ? "Nessun allarme attivo" : `${visibleActive.length} attivi`}
         style={{
-          background: "#1e293b",
+          background: "var(--brand-surface, #1e293b)",
           border: `1px solid ${badgeColor}`,
-          color: "#e2e8f0",
+          color: "var(--brand-text, #e2e8f0)",
           padding: "6px 12px",
           borderRadius: 999,
           cursor: "pointer",
@@ -183,12 +184,12 @@ function AlarmPanel() {
         <span style={{ color: badgeColor, fontSize: 14 }}>🔔</span>
         <span>Allarmi</span>
         {visibleActive.length > 0 && (
-          <span style={{ background: badgeColor, color: "#0f172a", padding: "1px 7px", borderRadius: 10, fontWeight: 700, fontSize: 11 }}>
+          <span style={{ background: badgeColor, color: "var(--brand-bg, #0f172a)", padding: "1px 7px", borderRadius: 10, fontWeight: 700, fontSize: 11 }}>
             {visibleActive.length}
           </span>
         )}
         {shelved.length > 0 && (
-          <span style={{ background: "#475569", color: "#e2e8f0", padding: "1px 6px", borderRadius: 10, fontSize: 11 }} title="Soppresso">
+          <span style={{ background: "var(--brand-border, #475569)", color: "var(--brand-text, #e2e8f0)", padding: "1px 6px", borderRadius: 10, fontSize: 11 }} title="Soppresso">
             ⏸{shelved.length}
           </span>
         )}
@@ -197,15 +198,15 @@ function AlarmPanel() {
       {open && (
         <div style={{
           position: "absolute", top: 38, right: 0, width: 400, maxHeight: "75vh",
-          background: "#0f172a", border: "1px solid #334155", borderRadius: 8,
+          background: "var(--brand-bg, #0f172a)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 8,
           overflow: "hidden", display: "flex", flexDirection: "column",
           boxShadow: "0 6px 20px rgba(0,0,0,0.5)",
         }}>
           {/* Header with tabs */}
           <div style={{
             display: "flex", alignItems: "center", justifyContent: "space-between",
-            padding: "6px 12px", borderBottom: "1px solid #334155",
-            background: "#1e293b", fontSize: 12, color: "#94a3b8",
+            padding: "6px 12px", borderBottom: "1px solid var(--brand-surface-2, #334155)",
+            background: "var(--brand-surface, #1e293b)", fontSize: 12, color: "var(--brand-text-muted, #94a3b8)",
           }}>
             <div style={{ display: "flex", gap: 2 }}>
               {(["attivi", "storico"] as const).map((t) => (
@@ -214,9 +215,9 @@ function AlarmPanel() {
                   onClick={() => setPanelTab(t)}
                   style={{
                     padding: "2px 10px", fontSize: 11, borderRadius: 4, cursor: "pointer",
-                    background: panelTab === t ? "#334155" : "transparent",
+                    background: panelTab === t ? "var(--brand-surface-2, #334155)" : "transparent",
                     border: "none",
-                    color: panelTab === t ? "#e2e8f0" : "#64748b",
+                    color: panelTab === t ? "var(--brand-text, #e2e8f0)" : "#64748b",
                     textTransform: "capitalize",
                   }}
                 >
@@ -225,7 +226,7 @@ function AlarmPanel() {
               ))}
             </div>
             {panelTab === "attivi" && unack.filter(a => !shelvedIds.has(a.def.id)).length > 1 && (
-              <button onClick={handleAckAll} style={{ background: "#334155", border: "none", color: "#e2e8f0", padding: "2px 10px", borderRadius: 4, cursor: "pointer", fontSize: 11 }}>
+              <button onClick={handleAckAll} style={{ background: "var(--brand-surface-2, #334155)", border: "none", color: "var(--brand-text, #e2e8f0)", padding: "2px 10px", borderRadius: 4, cursor: "pointer", fontSize: 11 }}>
                 ACK tutti
               </button>
             )}
@@ -246,18 +247,18 @@ function AlarmPanel() {
               const color = SEV_COLOR[a.def.severity ?? "Warning"];
               const isShelving = shelveOpen === a.def.id;
               return (
-                <div key={a.def.id} style={{ borderBottom: "1px solid #1e293b" }}>
+                <div key={a.def.id} style={{ borderBottom: "1px solid var(--brand-surface, #1e293b)" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", opacity: a.acknowledged ? 0.55 : 1 }}>
                     <span style={{ width: 10, height: 10, borderRadius: "50%", background: color, flexShrink: 0 }} />
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ color: "#e2e8f0", fontSize: 12, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.def.id}</div>
-                      <div style={{ color: "#94a3b8", fontSize: 11, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.def.message}</div>
+                      <div style={{ color: "var(--brand-text, #e2e8f0)", fontSize: 12, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.def.id}</div>
+                      <div style={{ color: "var(--brand-text-muted, #94a3b8)", fontSize: 11, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.def.message}</div>
                     </div>
                     {/* Shelve button */}
                     <button
                       onClick={() => { setShelveOpen(isShelving ? null : a.def.id); setShelveReason(""); setShelveHours(8); }}
                       title="Sopprimi per manutenzione"
-                      style={{ background: isShelving ? "#78350f" : "transparent", border: `1px solid ${isShelving ? "#d97706" : "#334155"}`, color: "#d97706", padding: "2px 6px", borderRadius: 4, cursor: "pointer", fontSize: 11 }}
+                      style={{ background: isShelving ? "#78350f" : "transparent", border: `1px solid ${isShelving ? "#d97706" : "var(--brand-surface-2, #334155)"}`, color: "#d97706", padding: "2px 6px", borderRadius: 4, cursor: "pointer", fontSize: 11 }}
                     >
                       🔧
                     </button>
@@ -265,7 +266,7 @@ function AlarmPanel() {
                     {a.acknowledged ? (
                       <span style={{ color: "#64748b", fontSize: 10, fontStyle: "italic" }}>ACK</span>
                     ) : (
-                      <button onClick={() => handleAck(a)} style={{ background: color, color: "#0f172a", border: "none", borderRadius: 4, padding: "2px 10px", cursor: "pointer", fontWeight: 600, fontSize: 11 }}>ACK</button>
+                      <button onClick={() => handleAck(a)} style={{ background: color, color: "var(--brand-bg, #0f172a)", border: "none", borderRadius: 4, padding: "2px 10px", cursor: "pointer", fontWeight: 600, fontSize: 11 }}>ACK</button>
                     )}
                   </div>
                   {/* Inline shelve form */}
@@ -276,15 +277,15 @@ function AlarmPanel() {
                         placeholder="Motivo (es. manutenzione programmata)"
                         value={shelveReason}
                         onChange={(e) => setShelveReason(e.target.value)}
-                        style={{ background: "#0f172a", border: "1px solid #334155", borderRadius: 4, color: "#e2e8f0", fontSize: 12, padding: "4px 8px" }}
+                        style={{ background: "var(--brand-bg, #0f172a)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, color: "var(--brand-text, #e2e8f0)", fontSize: 12, padding: "4px 8px" }}
                       />
                       <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                        <label style={{ fontSize: 11, color: "#94a3b8" }}>Durata (h):</label>
+                        <label style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)" }}>Durata (h):</label>
                         <input
                           type="number" min={0} max={720} step={1}
                           value={shelveHours}
                           onChange={(e) => setShelveHours(parseInt(e.target.value) || 0)}
-                          style={{ width: 55, background: "#0f172a", border: "1px solid #334155", borderRadius: 4, color: "#e2e8f0", fontSize: 12, padding: "3px 6px", textAlign: "center" }}
+                          style={{ width: 55, background: "var(--brand-bg, #0f172a)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, color: "var(--brand-text, #e2e8f0)", fontSize: 12, padding: "3px 6px", textAlign: "center" }}
                         />
                         <span style={{ fontSize: 11, color: "#64748b" }}>(0 = indefinito)</span>
                         <button
@@ -303,14 +304,14 @@ function AlarmPanel() {
             {/* Shelved section */}
             {shelved.length > 0 && (
               <>
-                <div style={{ padding: "4px 12px", background: "#1e293b", fontSize: 10, color: "#64748b", fontWeight: 700, letterSpacing: 0.5, borderBottom: "1px solid #334155" }}>
+                <div style={{ padding: "4px 12px", background: "var(--brand-surface, #1e293b)", fontSize: 10, color: "#64748b", fontWeight: 700, letterSpacing: 0.5, borderBottom: "1px solid var(--brand-surface-2, #334155)" }}>
                   SOPPRESSI ({shelved.length})
                 </div>
                 {shelved.map((sh) => (
-                  <div key={sh.alarm_id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 12px", borderBottom: "1px solid #1e293b", opacity: 0.7 }}>
+                  <div key={sh.alarm_id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 12px", borderBottom: "1px solid var(--brand-surface, #1e293b)", opacity: 0.7 }}>
                     <span style={{ fontSize: 12 }}>⏸</span>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ color: "#94a3b8", fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{sh.alarm_id}</div>
+                      <div style={{ color: "var(--brand-text-muted, #94a3b8)", fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{sh.alarm_id}</div>
                       <div style={{ color: "#64748b", fontSize: 11 }}>
                         {sh.reason}
                         {sh.until_ms > 0 && ` · fino ${new Date(sh.until_ms).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}`}
@@ -320,7 +321,7 @@ function AlarmPanel() {
                     <button
                       onClick={() => handleUnshelve(sh.alarm_id)}
                       title="Riattiva allarme"
-                      style={{ background: "transparent", border: "1px solid #334155", color: "#94a3b8", padding: "2px 8px", borderRadius: 4, cursor: "pointer", fontSize: 11 }}
+                      style={{ background: "transparent", border: "1px solid var(--brand-surface-2, #334155)", color: "var(--brand-text-muted, #94a3b8)", padding: "2px 8px", borderRadius: 4, cursor: "pointer", fontSize: 11 }}
                     >
                       Riattiva
                     </button>
@@ -366,9 +367,9 @@ function RecipeModal({ onClose, username }: { onClose: () => void; username: str
       background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center",
     }} onClick={onClose}>
       <div style={{
-        background: "#0f172a", border: "1px solid #334155", borderRadius: 8,
+        background: "var(--brand-bg, #0f172a)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 8,
         padding: 24, minWidth: 380, maxWidth: 520, maxHeight: "80vh",
-        overflowY: "auto", color: "#e2e8f0",
+        overflowY: "auto", color: "var(--brand-text, #e2e8f0)",
       }} onClick={(e) => e.stopPropagation()}>
         <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 16 }}>Applica Ricetta</div>
         {recipes.length === 0 ? (
@@ -377,7 +378,7 @@ function RecipeModal({ onClose, username }: { onClose: () => void; username: str
           recipes.map((r) => (
             <div key={r.id} style={{
               display: "flex", justifyContent: "space-between", alignItems: "center",
-              padding: "8px 0", borderBottom: "1px solid #1e293b",
+              padding: "8px 0", borderBottom: "1px solid var(--brand-surface, #1e293b)",
             }}>
               <div>
                 <div style={{ fontSize: 13, fontWeight: 600 }}>{r.name}</div>
@@ -403,8 +404,8 @@ function RecipeModal({ onClose, username }: { onClose: () => void; username: str
           </div>
         )}
         <button onClick={onClose} style={{
-          marginTop: 16, padding: "6px 16px", borderRadius: 4, border: "1px solid #334155",
-          background: "transparent", color: "#94a3b8", cursor: "pointer", fontSize: 12,
+          marginTop: 16, padding: "6px 16px", borderRadius: 4, border: "1px solid var(--brand-surface-2, #334155)",
+          background: "transparent", color: "var(--brand-text-muted, #94a3b8)", cursor: "pointer", fontSize: 12,
         }}>
           Chiudi
         </button>
@@ -544,12 +545,20 @@ export function RuntimeView() {
           alignItems: "center",
           gap: 2,
           padding: "0 8px",
-          background: "#0f172a",
-          borderBottom: "1px solid #334155",
+          background: "var(--brand-bg, #0f172a)",
+          borderBottom: "1px solid var(--brand-surface-2, #334155)",
           height: 36,
           flexShrink: 0,
           overflowX: "auto",
         }}>
+          {getBrand().logoUrl && (
+            <img
+              src={getBrand().logoUrl!}
+              alt={getBrand().name}
+              title={getBrand().name}
+              style={{ height: 20, width: "auto", marginRight: 8, flexShrink: 0 }}
+            />
+          )}
           <div style={{ flex: 1, display: "flex", gap: 2 }}>
           {pages.map((p) => (
             <button
@@ -563,7 +572,7 @@ export function RuntimeView() {
                 opacity: p.auto_rotate_skip ? 0.5 : 1,
                 fontSize: 13,
                 fontWeight: p.id === currentPageId ? 700 : 400,
-                background: p.id === currentPageId ? "#3b82f6" : "transparent",
+                background: p.id === currentPageId ? "var(--brand-primary, #3b82f6)" : "transparent",
                 color: p.id === currentPageId ? "#fff" : "#64748b",
                 whiteSpace: "nowrap",
               }}
@@ -579,7 +588,7 @@ export function RuntimeView() {
               title={autoRotate ? "Ferma rotazione automatica" : "Avvia rotazione automatica"}
               style={{
                 padding: "2px 8px",
-                border: `1px solid ${autoRotate ? "#3b82f6" : "#334155"}`,
+                border: `1px solid ${autoRotate ? "var(--brand-primary, #3b82f6)" : "var(--brand-surface-2, #334155)"}`,
                 borderRadius: 4,
                 background: autoRotate ? "#1d4ed8" : "transparent",
                 color: autoRotate ? "#fff" : "#64748b",
@@ -600,15 +609,15 @@ export function RuntimeView() {
               style={{
                 width: 44,
                 padding: "2px 4px",
-                background: "#1e293b",
-                border: "1px solid #334155",
+                background: "var(--brand-surface, #1e293b)",
+                border: "1px solid var(--brand-surface-2, #334155)",
                 borderRadius: 4,
-                color: "#94a3b8",
+                color: "var(--brand-text-muted, #94a3b8)",
                 fontSize: 12,
                 textAlign: "center",
               }}
             />
-            <span style={{ color: "#475569", fontSize: 11 }}>s</span>
+            <span style={{ color: "var(--brand-border, #475569)", fontSize: 11 }}>s</span>
           </div>
           {/* Recipe apply button */}
           <button
@@ -617,7 +626,7 @@ export function RuntimeView() {
             style={{
               marginLeft: 8,
               padding: "2px 8px",
-              border: "1px solid #334155",
+              border: "1px solid var(--brand-surface-2, #334155)",
               borderRadius: 4,
               background: "transparent",
               color: "#64748b",
@@ -728,8 +737,8 @@ function FunctionTestPanel({
         style={{
           position: "fixed", bottom: 16, left: 16, zIndex: 8000,
           width: 40, height: 40, borderRadius: "50%",
-          background: "#1e293b", border: "1px solid #334155",
-          color: "#94a3b8", cursor: "pointer", fontSize: 18,
+          background: "var(--brand-surface, #1e293b)", border: "1px solid var(--brand-surface-2, #334155)",
+          color: "var(--brand-text-muted, #94a3b8)", cursor: "pointer", fontSize: 18,
           boxShadow: "0 4px 12px rgba(0,0,0,0.4)",
         }}
       >
@@ -742,27 +751,27 @@ function FunctionTestPanel({
     <div
       style={{
         position: "fixed", bottom: 16, left: 16, zIndex: 8000,
-        background: "#0f172a", border: "1px solid #334155", borderRadius: 8,
+        background: "var(--brand-bg, #0f172a)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 8,
         padding: "12px 14px", minWidth: 320, maxWidth: 420,
         boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
       }}
     >
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-        <span style={{ fontSize: 13, fontWeight: 600, color: "#e2e8f0" }}>🧪 Test funzioni</span>
+        <span style={{ fontSize: 13, fontWeight: 600, color: "var(--brand-text, #e2e8f0)" }}>🧪 Test funzioni</span>
         <button
           onClick={() => setOpen(false)}
           style={{ background: "none", border: "none", color: "#64748b", cursor: "pointer", fontSize: 14 }}
         >×</button>
       </div>
-      <label style={{ fontSize: 11, color: "#94a3b8", display: "block", marginBottom: 4 }}>
+      <label style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "block", marginBottom: 4 }}>
         Funzione
       </label>
       <select
         value={selected.id}
         onChange={(e) => setSelectedId(e.target.value)}
         style={{
-          width: "100%", background: "#1e293b", color: "#e2e8f0",
-          border: "1px solid #334155", borderRadius: 4, padding: "4px 6px",
+          width: "100%", background: "var(--brand-surface, #1e293b)", color: "var(--brand-text, #e2e8f0)",
+          border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, padding: "4px 6px",
           fontSize: 12, marginBottom: 8,
         }}
       >
@@ -786,7 +795,7 @@ function FunctionTestPanel({
             const placeholder = p.default !== undefined ? String(p.default) : "(nessun default)";
             return (
               <div key={p.name} style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <span style={{ fontSize: 11, color: "#94a3b8", minWidth: 90,
+                <span style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", minWidth: 90,
                   fontFamily: "monospace", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                   {p.name}
                 </span>
@@ -796,8 +805,8 @@ function FunctionTestPanel({
                   placeholder={placeholder}
                   onChange={(e) => setArg(p.name, e.target.value)}
                   style={{
-                    flex: 1, background: "#1e293b", color: "#e2e8f0",
-                    border: "1px solid #334155", borderRadius: 3, padding: "2px 6px",
+                    flex: 1, background: "var(--brand-surface, #1e293b)", color: "var(--brand-text, #e2e8f0)",
+                    border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 3, padding: "2px 6px",
                     fontSize: 11, fontFamily: "monospace",
                   }}
                 />

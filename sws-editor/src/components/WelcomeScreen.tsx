@@ -5,8 +5,8 @@ import type { ProjectListEntry, TemplateEntry } from "@/types";
 // ── styles ────────────────────────────────────────────────────────────────────
 
 const CARD: React.CSSProperties = {
-  background: "#1e293b",
-  border: "1px solid #334155",
+  background: "var(--brand-surface, #1e293b)",
+  border: "1px solid var(--brand-surface-2, #334155)",
   borderRadius: 8,
   padding: "12px 16px",
   display: "flex",
@@ -18,7 +18,7 @@ const CARD: React.CSSProperties = {
 
 const BTN_PRIMARY: React.CSSProperties = {
   padding: "8px 20px",
-  background: "#3b82f6",
+  background: "var(--brand-primary, #3b82f6)",
   color: "#fff",
   border: "none",
   borderRadius: 6,
@@ -30,8 +30,8 @@ const BTN_PRIMARY: React.CSSProperties = {
 const BTN_GHOST: React.CSSProperties = {
   padding: "8px 20px",
   background: "transparent",
-  color: "#94a3b8",
-  border: "1px solid #334155",
+  color: "var(--brand-text-muted, #94a3b8)",
+  border: "1px solid var(--brand-surface-2, #334155)",
   borderRadius: 6,
   cursor: "pointer",
   fontSize: 14,
@@ -40,9 +40,9 @@ const BTN_GHOST: React.CSSProperties = {
 const INPUT: React.CSSProperties = {
   width: "100%",
   padding: "8px 12px",
-  background: "#0f172a",
-  color: "#e2e8f0",
-  border: "1px solid #334155",
+  background: "var(--brand-bg, #0f172a)",
+  color: "var(--brand-text, #e2e8f0)",
+  border: "1px solid var(--brand-surface-2, #334155)",
   borderRadius: 6,
   fontSize: 14,
   boxSizing: "border-box",
@@ -113,9 +113,9 @@ function NewProjectModal({
 
   const TAB_STYLE = (active: boolean): React.CSSProperties => ({
     padding: "6px 18px",
-    background: active ? "#3b82f6" : "transparent",
-    color: active ? "#fff" : "#94a3b8",
-    border: "1px solid " + (active ? "#3b82f6" : "#334155"),
+    background: active ? "var(--brand-primary, #3b82f6)" : "transparent",
+    color: active ? "#fff" : "var(--brand-text-muted, #94a3b8)",
+    border: "1px solid " + (active ? "var(--brand-primary, #3b82f6)" : "var(--brand-surface-2, #334155)"),
     borderRadius: 6,
     cursor: "pointer",
     fontSize: 13,
@@ -132,14 +132,14 @@ function NewProjectModal({
       zIndex: 200,
     }} onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div style={{
-        background: "#1e293b",
-        border: "1px solid #334155",
+        background: "var(--brand-surface, #1e293b)",
+        border: "1px solid var(--brand-surface-2, #334155)",
         borderRadius: 12,
         padding: 28,
         width: 440,
         maxWidth: "90vw",
       }}>
-        <h2 style={{ margin: "0 0 20px", fontSize: 18, color: "#e2e8f0" }}>Nuovo progetto</h2>
+        <h2 style={{ margin: "0 0 20px", fontSize: 18, color: "var(--brand-text, #e2e8f0)" }}>Nuovo progetto</h2>
 
         {/* tabs */}
         <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
@@ -161,7 +161,7 @@ function NewProjectModal({
         {tab === "zip" && (
           <>
             <div style={{ marginBottom: 16 }}>
-              <label style={{ fontSize: 12, color: "#94a3b8", display: "block", marginBottom: 6 }}>
+              <label style={{ fontSize: 12, color: "var(--brand-text-muted, #94a3b8)", display: "block", marginBottom: 6 }}>
                 File ZIP (esportazione SWS)
               </label>
               <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
@@ -172,7 +172,7 @@ function NewProjectModal({
                 >
                   Scegli file…
                 </button>
-                <span style={{ fontSize: 13, color: zipFile ? "#e2e8f0" : "#64748b", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                <span style={{ fontSize: 13, color: zipFile ? "var(--brand-text, #e2e8f0)" : "#64748b", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                   {zipFile ? zipFile.name : "Nessun file selezionato"}
                 </span>
               </div>
@@ -194,8 +194,8 @@ function NewProjectModal({
               />
             </div>
             <div style={{ marginBottom: 16 }}>
-              <label style={{ fontSize: 12, color: "#94a3b8", display: "block", marginBottom: 6 }}>
-                Nome progetto <span style={{ color: "#475569" }}>(opzionale — usa il nome dal ZIP se vuoto)</span>
+              <label style={{ fontSize: 12, color: "var(--brand-text-muted, #94a3b8)", display: "block", marginBottom: 6 }}>
+                Nome progetto <span style={{ color: "var(--brand-border, #475569)" }}>(opzionale — usa il nome dal ZIP se vuoto)</span>
               </label>
               <input
                 style={INPUT}
@@ -211,7 +211,7 @@ function NewProjectModal({
         {/* Vuoto / template tab: shared name field */}
         {tab !== "zip" && (
           <div style={{ marginBottom: 16 }}>
-            <label style={{ fontSize: 12, color: "#94a3b8", display: "block", marginBottom: 6 }}>
+            <label style={{ fontSize: 12, color: "var(--brand-text-muted, #94a3b8)", display: "block", marginBottom: 6 }}>
               Nome progetto
             </label>
             <input
@@ -231,7 +231,7 @@ function NewProjectModal({
         {/* template selector */}
         {tab === "template" && templates.length > 0 && (
           <div style={{ marginBottom: 16 }}>
-            <label style={{ fontSize: 12, color: "#94a3b8", display: "block", marginBottom: 6 }}>
+            <label style={{ fontSize: 12, color: "var(--brand-text-muted, #94a3b8)", display: "block", marginBottom: 6 }}>
               Template
             </label>
             <select
@@ -360,7 +360,7 @@ function DeploySection() {
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
         <div>
-          <label style={{ fontSize: 11, color: "#94a3b8", display: "block", marginBottom: 3 }}>Architettura target</label>
+          <label style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "block", marginBottom: 3 }}>Architettura target</label>
           <select
             style={{ ...INPUT, cursor: "pointer" }}
             value={arch}
@@ -371,7 +371,7 @@ function DeploySection() {
           </select>
         </div>
         <div>
-          <label style={{ fontSize: 11, color: "#94a3b8", display: "block", marginBottom: 3 }}>Path remoto</label>
+          <label style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "block", marginBottom: 3 }}>Path remoto</label>
           <input
             style={INPUT}
             placeholder="/data/user/sws"
@@ -383,7 +383,7 @@ function DeploySection() {
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 8 }}>
         <div>
-          <label style={{ fontSize: 11, color: "#94a3b8", display: "block", marginBottom: 3 }}>Host SSH</label>
+          <label style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "block", marginBottom: 3 }}>Host SSH</label>
           <input
             style={INPUT}
             placeholder="192.168.1.59"
@@ -392,7 +392,7 @@ function DeploySection() {
           />
         </div>
         <div>
-          <label style={{ fontSize: 11, color: "#94a3b8", display: "block", marginBottom: 3 }}>Porta</label>
+          <label style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "block", marginBottom: 3 }}>Porta</label>
           <input
             style={{ ...INPUT, width: 60 }}
             type="number"
@@ -406,11 +406,11 @@ function DeploySection() {
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
         <div>
-          <label style={{ fontSize: 11, color: "#94a3b8", display: "block", marginBottom: 3 }}>Utente SSH</label>
+          <label style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "block", marginBottom: 3 }}>Utente SSH</label>
           <input style={INPUT} placeholder="root" value={user} onChange={(e) => setUser(e.target.value)} />
         </div>
         <div>
-          <label style={{ fontSize: 11, color: "#94a3b8", display: "block", marginBottom: 3 }}>Password SSH</label>
+          <label style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "block", marginBottom: 3 }}>Password SSH</label>
           <input style={INPUT} type="password" placeholder="••••••" value={password} onChange={(e) => setPassword(e.target.value)} />
         </div>
       </div>
@@ -419,7 +419,7 @@ function DeploySection() {
         <div
           ref={logsRef}
           style={{
-            background: "#0a0f1a", border: "1px solid #1e293b", borderRadius: 6,
+            background: "#0a0f1a", border: "1px solid var(--brand-surface, #1e293b)", borderRadius: 6,
             padding: "8px 10px", maxHeight: 140, overflowY: "auto",
             fontFamily: "monospace", fontSize: 11, lineHeight: 1.6,
           }}
@@ -431,7 +431,7 @@ function DeploySection() {
                 color: line.startsWith("ERROR:") ? "#fca5a5"
                   : line.startsWith("WARN:") ? "#fbbf24"
                   : line === "DONE" ? "#22c55e"
-                  : "#94a3b8",
+                  : "var(--brand-text-muted, #94a3b8)",
               }}
             >
               {line}
@@ -504,8 +504,8 @@ function RemoteRuntimeModal({
   const TAB_BTN = (active: boolean): React.CSSProperties => ({
     padding: "6px 16px",
     background: active ? "#1e3a8a" : "transparent",
-    color: active ? "#bfdbfe" : "#94a3b8",
-    border: active ? "1px solid #2563eb" : "1px solid transparent",
+    color: active ? "#bfdbfe" : "var(--brand-text-muted, #94a3b8)",
+    border: active ? "1px solid var(--brand-primary-hover, #2563eb)" : "1px solid transparent",
     borderRadius: 6,
     cursor: "pointer",
     fontSize: 13,
@@ -519,11 +519,11 @@ function RemoteRuntimeModal({
       display: "flex", alignItems: "center", justifyContent: "center",
     }} onClick={onClose}>
       <div style={{
-        background: "#0f172a", border: "1px solid #334155",
+        background: "var(--brand-bg, #0f172a)", border: "1px solid var(--brand-surface-2, #334155)",
         borderRadius: 10, padding: 24,
         width: 520, maxWidth: "92vw",
       }} onClick={(e) => e.stopPropagation()}>
-        <div style={{ fontSize: 18, fontWeight: 700, color: "#e2e8f0", marginBottom: 12 }}>
+        <div style={{ fontSize: 18, fontWeight: 700, color: "var(--brand-text, #e2e8f0)", marginBottom: 12 }}>
           📡 Runtime remoto
         </div>
 
@@ -542,7 +542,7 @@ function RemoteRuntimeModal({
               ripristini al locale.
             </div>
 
-            <label style={{ fontSize: 11, color: "#94a3b8", display: "block", marginBottom: 4 }}>
+            <label style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "block", marginBottom: 4 }}>
               URL del runtime
             </label>
             <div style={{ display: "flex", gap: 8, marginBottom: 4 }}>
@@ -708,7 +708,7 @@ export function WelcomeScreen({ onProjectOpened }: WelcomeScreenProps) {
     <div style={{
       display: "flex", flexDirection: "column", alignItems: "center",
       justifyContent: "center", height: "100vh",
-      background: "#0f172a", color: "#e2e8f0",
+      background: "var(--brand-bg, #0f172a)", color: "var(--brand-text, #e2e8f0)",
       fontFamily: "system-ui, sans-serif",
     }}>
       {showNew && (
@@ -727,7 +727,7 @@ export function WelcomeScreen({ onProjectOpened }: WelcomeScreenProps) {
       <div style={{ width: 480, maxWidth: "90vw" }}>
         {/* logo / title */}
         <div style={{ textAlign: "center", marginBottom: 32 }}>
-          <div style={{ fontSize: 36, fontWeight: 700, letterSpacing: 2, color: "#e2e8f0" }}>SWS</div>
+          <div style={{ fontSize: 36, fontWeight: 700, letterSpacing: 2, color: "var(--brand-text, #e2e8f0)" }}>SWS</div>
           <div style={{ color: "#64748b", fontSize: 14, marginTop: 4 }}>
             Seleziona o crea un progetto per iniziare
           </div>
@@ -741,7 +741,7 @@ export function WelcomeScreen({ onProjectOpened }: WelcomeScreenProps) {
           {!loading && projects.length === 0 && (
             <div style={{
               textAlign: "center", color: "#64748b", padding: 32,
-              border: "1px dashed #334155", borderRadius: 8,
+              border: "1px dashed var(--brand-surface-2, #334155)", borderRadius: 8,
             }}>
               Nessun progetto trovato. Crea il tuo primo progetto.
             </div>
@@ -756,7 +756,7 @@ export function WelcomeScreen({ onProjectOpened }: WelcomeScreenProps) {
 
             const ACT_BTN: React.CSSProperties = {
               background: "none", border: "none", cursor: "pointer",
-              color: "#94a3b8", fontSize: 15, padding: "2px 5px",
+              color: "var(--brand-text-muted, #94a3b8)", fontSize: 15, padding: "2px 5px",
               borderRadius: 4, lineHeight: 1,
             };
 
@@ -767,7 +767,7 @@ export function WelcomeScreen({ onProjectOpened }: WelcomeScreenProps) {
                   style={{
                     ...CARD,
                     opacity: dimmed ? 0.45 : 1,
-                    borderColor: isOpening ? "#3b82f6" : isBusy ? "#f59e0b" : "#334155",
+                    borderColor: isOpening ? "var(--brand-primary, #3b82f6)" : isBusy ? "#f59e0b" : "var(--brand-surface-2, #334155)",
                     cursor: (openingName || actionBusy || isEditing) ? "default" : "pointer",
                   }}
                   onClick={() => {
@@ -776,7 +776,7 @@ export function WelcomeScreen({ onProjectOpened }: WelcomeScreenProps) {
                 >
                   {/* icon */}
                   <div style={{
-                    width: 40, height: 40, borderRadius: 8, background: "#334155",
+                    width: 40, height: 40, borderRadius: 8, background: "var(--brand-surface-2, #334155)",
                     display: "flex", alignItems: "center", justifyContent: "center",
                     fontSize: 20, flexShrink: 0,
                   }}>📁</div>
@@ -797,7 +797,7 @@ export function WelcomeScreen({ onProjectOpened }: WelcomeScreenProps) {
                         onClick={(e) => e.stopPropagation()}
                       />
                     ) : (
-                      <div style={{ fontWeight: 600, fontSize: 15, color: "#e2e8f0" }}>{p.name}</div>
+                      <div style={{ fontWeight: 600, fontSize: 15, color: "var(--brand-text, #e2e8f0)" }}>{p.name}</div>
                     )}
                     <div style={{ fontSize: 12, color: "#64748b", marginTop: 2 }}>
                       Ultima modifica: {formatDate(p.last_modified_ms)}
@@ -811,29 +811,29 @@ export function WelcomeScreen({ onProjectOpened }: WelcomeScreenProps) {
                     >
                       <button
                         title="Rinomina"
-                        style={{ ...ACT_BTN, color: isRenaming ? "#3b82f6" : "#94a3b8" }}
+                        style={{ ...ACT_BTN, color: isRenaming ? "var(--brand-primary, #3b82f6)" : "var(--brand-text-muted, #94a3b8)" }}
                         onClick={() => setEditing({ name: p.name, mode: "rename", value: p.name })}
                       >✎</button>
                       <button
                         title="Duplica"
-                        style={{ ...ACT_BTN, color: isDuping ? "#a855f7" : "#94a3b8" }}
+                        style={{ ...ACT_BTN, color: isDuping ? "#a855f7" : "var(--brand-text-muted, #94a3b8)" }}
                         onClick={() => setEditing({ name: p.name, mode: "duplicate", value: p.name + " (copia)" })}
                       >⧉</button>
                       <button
                         title="Elimina"
                         style={{ ...ACT_BTN }}
                         onMouseEnter={(e) => (e.currentTarget.style.color = "#ef4444")}
-                        onMouseLeave={(e) => (e.currentTarget.style.color = "#94a3b8")}
+                        onMouseLeave={(e) => (e.currentTarget.style.color = "var(--brand-text-muted, #94a3b8)")}
                         onClick={() => handleDelete(p.name)}
                       >✕</button>
                     </div>
                   )}
 
                   {/* status label */}
-                  {isOpening && <div style={{ fontSize: 13, color: "#94a3b8", flexShrink: 0 }}>Apro…</div>}
+                  {isOpening && <div style={{ fontSize: 13, color: "var(--brand-text-muted, #94a3b8)", flexShrink: 0 }}>Apro…</div>}
                   {isBusy   && <div style={{ fontSize: 13, color: "#f59e0b", flexShrink: 0 }}>…</div>}
                   {!isOpening && !isBusy && (
-                    <div style={{ fontSize: 13, color: "#3b82f6", fontWeight: 500, flexShrink: 0, marginLeft: 4 }}>Apri →</div>
+                    <div style={{ fontSize: 13, color: "var(--brand-primary, #3b82f6)", fontWeight: 500, flexShrink: 0, marginLeft: 4 }}>Apri →</div>
                   )}
                 </div>
 
@@ -842,13 +842,13 @@ export function WelcomeScreen({ onProjectOpened }: WelcomeScreenProps) {
                   <div
                     style={{
                       display: "flex", gap: 8, alignItems: "center",
-                      padding: "8px 12px", background: "#1e293b",
+                      padding: "8px 12px", background: "var(--brand-surface, #1e293b)",
                       border: "1px solid #a855f7", borderTop: "none",
                       borderRadius: "0 0 8px 8px",
                     }}
                     onClick={(e) => e.stopPropagation()}
                   >
-                    <span style={{ fontSize: 12, color: "#94a3b8", whiteSpace: "nowrap" }}>Nome copia:</span>
+                    <span style={{ fontSize: 12, color: "var(--brand-text-muted, #94a3b8)", whiteSpace: "nowrap" }}>Nome copia:</span>
                     <input
                       autoFocus
                       style={{ ...INPUT, padding: "4px 8px", fontSize: 13, flex: 1 }}
@@ -890,7 +890,7 @@ export function WelcomeScreen({ onProjectOpened }: WelcomeScreenProps) {
         {/* runtime selector — small footer row */}
         <div style={{
           marginTop: 20, paddingTop: 14,
-          borderTop: "1px solid #1e293b",
+          borderTop: "1px solid var(--brand-surface, #1e293b)",
           display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
           fontSize: 12, color: "#64748b",
         }}>
@@ -898,9 +898,9 @@ export function WelcomeScreen({ onProjectOpened }: WelcomeScreenProps) {
             <>
               <span style={{ fontSize: 14 }}>📡</span>
               <span>Connesso a</span>
-              <span style={{ color: "#3b82f6", fontFamily: "monospace" }}>{remoteRuntime}</span>
+              <span style={{ color: "var(--brand-primary, #3b82f6)", fontFamily: "monospace" }}>{remoteRuntime}</span>
               <button
-                style={{ background: "transparent", border: "none", color: "#94a3b8", cursor: "pointer", fontSize: 11, textDecoration: "underline dotted" }}
+                style={{ background: "transparent", border: "none", color: "var(--brand-text-muted, #94a3b8)", cursor: "pointer", fontSize: 11, textDecoration: "underline dotted" }}
                 onClick={() => setShowRuntime(true)}
               >
                 cambia
@@ -910,7 +910,7 @@ export function WelcomeScreen({ onProjectOpened }: WelcomeScreenProps) {
             <>
               <span>Runtime locale</span>
               <button
-                style={{ background: "transparent", border: "none", color: "#3b82f6", cursor: "pointer", fontSize: 12, textDecoration: "underline dotted" }}
+                style={{ background: "transparent", border: "none", color: "var(--brand-primary, #3b82f6)", cursor: "pointer", fontSize: 12, textDecoration: "underline dotted" }}
                 onClick={() => setShowRuntime(true)}
               >
                 📡 Connetti a runtime remoto…

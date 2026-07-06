@@ -7,12 +7,12 @@ import type { ObjectGroup, ProjectInfo, SynopticObject } from "@/types";
 
 const S = {
   panel: {
-    background: "#1e293b",
-    color: "#cbd5e1",
+    background: "var(--brand-surface, #1e293b)",
+    color: "var(--brand-text-2, #cbd5e1)",
     display: "flex" as const,
     flexDirection: "column" as const,
     width: 220,
-    borderRight: "1px solid #334155",
+    borderRight: "1px solid var(--brand-surface-2, #334155)",
     overflow: "hidden" as const,
     flexShrink: 0,
   },
@@ -21,8 +21,8 @@ const S = {
     alignItems: "center",
     justifyContent: "space-between",
     padding: "6px 10px",
-    background: "#0f172a",
-    borderBottom: "1px solid #334155",
+    background: "var(--brand-bg, #0f172a)",
+    borderBottom: "1px solid var(--brand-surface-2, #334155)",
     cursor: "pointer",
     fontSize: 11,
     fontWeight: 700,
@@ -36,7 +36,7 @@ const S = {
     transform: open ? "rotate(90deg)" : "rotate(0deg)",
     transition: "transform 0.15s",
     fontSize: 10,
-    color: "#475569",
+    color: "var(--brand-border, #475569)",
   }),
   body: {
     overflowY: "auto" as const,
@@ -50,13 +50,13 @@ const S = {
     padding: "3px 12px",
     cursor: "pointer",
     fontSize: 12,
-    background: active ? "#334155" : "transparent",
-    color: active ? "#e2e8f0" : "#94a3b8",
+    background: active ? "var(--brand-surface-2, #334155)" : "transparent",
+    color: active ? "var(--brand-text, #e2e8f0)" : "var(--brand-text-muted, #94a3b8)",
   }),
   iconBtn: {
     background: "transparent",
     border: "none",
-    color: "#475569",
+    color: "var(--brand-border, #475569)",
     cursor: "pointer",
     fontSize: 12,
     padding: "0 2px",
@@ -64,9 +64,9 @@ const S = {
     flexShrink: 0,
   } as React.CSSProperties,
   objBtn: {
-    background: "#0f172a",
-    color: "#cbd5e1",
-    border: "1px solid #334155",
+    background: "var(--brand-bg, #0f172a)",
+    color: "var(--brand-text-2, #cbd5e1)",
+    border: "1px solid var(--brand-surface-2, #334155)",
     borderRadius: 4,
     padding: "4px 6px",
     cursor: "pointer",
@@ -194,9 +194,9 @@ function PagesSection() {
                 onClick={(e) => e.stopPropagation()}
                 style={{
                   flex: 1,
-                  background: "#0f172a",
-                  color: "#e2e8f0",
-                  border: "1px solid #475569",
+                  background: "var(--brand-bg, #0f172a)",
+                  color: "var(--brand-text, #e2e8f0)",
+                  border: "1px solid var(--brand-border, #475569)",
                   borderRadius: 3,
                   padding: "1px 4px",
                   fontSize: 12,
@@ -330,13 +330,13 @@ function PaletteGroupAccordion({ group, onAdd }: { group: PaletteGroup; onAdd: (
   return (
     <div>
       <div
-        style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "4px 10px", cursor: "pointer", background: "#0a111e", borderBottom: "1px solid #1e293b" }}
+        style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "4px 10px", cursor: "pointer", background: "#0a111e", borderBottom: "1px solid var(--brand-surface, #1e293b)" }}
         onClick={() => setOpen((v) => !v)}
       >
         <span style={{ fontSize: 10, fontWeight: 700, color: group.color, letterSpacing: 0.5 }}>
           {group.category.toUpperCase()}
         </span>
-        <span style={{ fontSize: 9, color: "#475569" }}>{open ? "▼" : "▶"}</span>
+        <span style={{ fontSize: 9, color: "var(--brand-border, #475569)" }}>{open ? "▼" : "▶"}</span>
       </div>
       {open && (
         <div style={{ padding: "4px 8px", display: "flex", flexDirection: "column", gap: 2 }}>
@@ -660,7 +660,7 @@ function ObjectsSection() {
         >
           {isGrid ? (
             <button
-              style={{ ...S.iconBtn, width: 14, fontSize: 8, color: cellsWithChildren.length > 0 ? "#94a3b8" : "#334155", flexShrink: 0 }}
+              style={{ ...S.iconBtn, width: 14, fontSize: 8, color: cellsWithChildren.length > 0 ? "var(--brand-text-muted, #94a3b8)" : "var(--brand-surface-2, #334155)", flexShrink: 0 }}
               title={isExpanded ? "Comprimi" : "Espandi"}
               onClick={(e) => { e.stopPropagation(); if (cellsWithChildren.length > 0) toggleExpandGrid(o.id); }}
             >
@@ -672,7 +672,7 @@ function ObjectsSection() {
           {o.locked && (
             <span title="Bloccato" style={{ fontSize: 10, flexShrink: 0, opacity: 0.7 }}>🔒</span>
           )}
-          <span style={{ fontSize: 9, color: "#475569", width: 34, flexShrink: 0, textTransform: "uppercase", letterSpacing: 0.5 }}>
+          <span style={{ fontSize: 9, color: "var(--brand-border, #475569)", width: 34, flexShrink: 0, textTransform: "uppercase", letterSpacing: 0.5 }}>
             {o.type.slice(0, 5)}
           </span>
           {isRen ? (
@@ -685,7 +685,7 @@ function ObjectsSection() {
                 if (e.key === "Enter") commitRename();
                 else if (e.key === "Escape") { setRenaming(null); setDraft(""); }
               }}
-              style={{ flex: 1, minWidth: 0, background: "#0f172a", color: "#e2e8f0", border: "1px solid #334155", borderRadius: 3, padding: "1px 4px", fontSize: 11 }}
+              style={{ flex: 1, minWidth: 0, background: "var(--brand-bg, #0f172a)", color: "var(--brand-text, #e2e8f0)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 3, padding: "1px 4px", fontSize: 11 }}
             />
           ) : (
             <span
@@ -710,14 +710,14 @@ function ObjectsSection() {
               style={{ ...S.row(isChildSel), paddingLeft: indent + 24, paddingRight: 4, gap: 4, color: isChildSel ? "#5eead4" : "#64748b", background: isChildSel ? "#0f2922" : "transparent" }}
               title={`Cella R${c.row + 1}, C${c.col + 1}`}
             >
-              <span style={{ fontSize: 10, flexShrink: 0, color: "#475569" }}>↳</span>
-              <span style={{ fontSize: 9, color: "#475569", width: 34, flexShrink: 0, textTransform: "uppercase", letterSpacing: 0.5 }}>
+              <span style={{ fontSize: 10, flexShrink: 0, color: "var(--brand-border, #475569)" }}>↳</span>
+              <span style={{ fontSize: 9, color: "var(--brand-border, #475569)", width: 34, flexShrink: 0, textTransform: "uppercase", letterSpacing: 0.5 }}>
                 {c.child!.type.slice(0, 5)}
               </span>
               <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 11 }}>
                 {childLabel}
               </span>
-              <span style={{ fontSize: 9, color: "#334155", flexShrink: 0 }}>R{c.row + 1},{c.col + 1}</span>
+              <span style={{ fontSize: 9, color: "var(--brand-surface-2, #334155)", flexShrink: 0 }}>R{c.row + 1},{c.col + 1}</span>
             </div>
           );
         })}
@@ -729,17 +729,17 @@ function ObjectsSection() {
 
   return (
     <Section title={`OGGETTI PAGINA (${allObjects.length})`} defaultOpen={false}>
-      <div style={{ padding: "4px 8px", borderBottom: "1px solid #1e293b" }}>
+      <div style={{ padding: "4px 8px", borderBottom: "1px solid var(--brand-surface, #1e293b)" }}>
         <input
           type="text"
           placeholder="Filtra per nome / tipo…"
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
-          style={{ width: "100%", boxSizing: "border-box", background: "#0f172a", color: "#e2e8f0", border: "1px solid #334155", borderRadius: 3, padding: "3px 6px", fontSize: 11 }}
+          style={{ width: "100%", boxSizing: "border-box", background: "var(--brand-bg, #0f172a)", color: "var(--brand-text, #e2e8f0)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 3, padding: "3px 6px", fontSize: 11 }}
         />
       </div>
       {selectedIds.length >= 2 && (
-        <div style={{ padding: "3px 8px", borderBottom: "1px solid #1e293b" }}>
+        <div style={{ padding: "3px 8px", borderBottom: "1px solid var(--brand-surface, #1e293b)" }}>
           <button
             onClick={() => groupObjects(selectedIds)}
             style={{ ...S.objBtn, flex: "none", width: "100%", borderStyle: "dashed", color: "#38bdf8", borderColor: "#0ea5e9", fontSize: 11 }}
@@ -750,7 +750,7 @@ function ObjectsSection() {
       )}
       <div style={{ ...S.body, maxHeight: 280 }}>
         {tree.length === 0 && (
-          <p style={{ padding: "8px 12px", fontSize: 11, color: "#475569", margin: 0 }}>
+          <p style={{ padding: "8px 12px", fontSize: 11, color: "var(--brand-border, #475569)", margin: 0 }}>
             {fq ? "Nessun oggetto corrisponde al filtro." : "Nessun oggetto su questa pagina. Aggiungili dalla palette qui sopra."}
           </p>
         )}
@@ -762,9 +762,9 @@ function ObjectsSection() {
               padding: "6px 10px",
               fontSize: 10,
               color: "#64748b",
-              borderTop: "1px dashed #334155",
-              borderBottom: "1px dashed #334155",
-              background: dropTarget?.kind === "root" ? "#1e3a5f" : "#0f172a",
+              borderTop: "1px dashed var(--brand-surface-2, #334155)",
+              borderBottom: "1px dashed var(--brand-surface-2, #334155)",
+              background: dropTarget?.kind === "root" ? "#1e3a5f" : "var(--brand-bg, #0f172a)",
               textAlign: "center" as const,
               fontStyle: "italic" as const,
             }}
@@ -794,7 +794,7 @@ function ObjectsSection() {
                     gap: 4, paddingRight: 4,
                     background: allMembersSel ? "#1e3a5f" : "#172033",
                     color: allMembersSel ? "#93c5fd" : "#64748b",
-                    borderBottom: "1px solid #1e293b",
+                    borderBottom: "1px solid var(--brand-surface, #1e293b)",
                     ...indicatorFor("group", group.id),
                   }}
                   title="Click per selezionare tutti i membri · trascina per riordinare · tasto destro per opzioni"
@@ -817,7 +817,7 @@ function ObjectsSection() {
                         if (e.key === "Enter") commitRenameGroup();
                         else if (e.key === "Escape") { setRenamingGroup(null); setGroupDraft(""); }
                       }}
-                      style={{ flex: 1, minWidth: 0, background: "#0f172a", color: "#e2e8f0", border: "1px solid #334155", borderRadius: 3, padding: "1px 4px", fontSize: 11 }}
+                      style={{ flex: 1, minWidth: 0, background: "var(--brand-bg, #0f172a)", color: "var(--brand-text, #e2e8f0)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 3, padding: "1px 4px", fontSize: 11 }}
                     />
                   ) : (
                     <span
@@ -920,8 +920,8 @@ function ObjectsContextMenu({
 
   const menuStyle: React.CSSProperties = {
     position: "fixed", left: x, top: y, zIndex: 1000,
-    background: "#0f172a", color: "#cbd5e1",
-    border: "1px solid #334155", borderRadius: 4,
+    background: "var(--brand-bg, #0f172a)", color: "var(--brand-text-2, #cbd5e1)",
+    border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4,
     boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
     fontSize: 12, minWidth: 200,
     padding: "4px 0",
@@ -931,8 +931,8 @@ function ObjectsContextMenu({
     display: "flex", alignItems: "center", gap: 8,
   };
   const danger: React.CSSProperties = { ...item, color: "#fca5a5" };
-  const sep: React.CSSProperties = { borderTop: "1px solid #1e293b", margin: "4px 0" };
-  const sub: React.CSSProperties = { padding: "3px 24px", fontSize: 11, color: "#94a3b8", cursor: "pointer" };
+  const sep: React.CSSProperties = { borderTop: "1px solid var(--brand-surface, #1e293b)", margin: "4px 0" };
+  const sub: React.CSSProperties = { padding: "3px 24px", fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", cursor: "pointer" };
 
   const stop = (e: React.MouseEvent) => e.stopPropagation();
 
@@ -956,7 +956,7 @@ function ObjectsContextMenu({
           <div style={sep} />
           <div style={{ ...item, color: "#64748b", cursor: "default" }}>Sposta in gruppo →</div>
           {groups.length === 0 && (
-            <div style={{ ...sub, color: "#475569", fontStyle: "italic" }}>nessun gruppo</div>
+            <div style={{ ...sub, color: "var(--brand-border, #475569)", fontStyle: "italic" }}>nessun gruppo</div>
           )}
           {groups.map((g) => (
             <div key={g.id} style={sub} onClick={() => { actions.moveToGroup(state.id, g.id); close(); }}>
@@ -1037,7 +1037,7 @@ function FunctionsSection({ onFunctionsChanged }: { onFunctionsChanged: () => vo
     <Section title={`FUNZIONI (${functions.length})`} defaultOpen={false}>
       <div style={{ ...S.body, maxHeight: 240 }}>
         {functions.length === 0 && (
-          <p style={{ padding: "8px 12px", fontSize: 11, color: "#475569", margin: 0 }}>
+          <p style={{ padding: "8px 12px", fontSize: 11, color: "var(--brand-border, #475569)", margin: 0 }}>
             Nessuna funzione. Crea una funzione qui sotto e collegala agli
             eventi degli oggetti.
           </p>
@@ -1072,8 +1072,8 @@ function FunctionsSection({ onFunctionsChanged }: { onFunctionsChanged: () => vo
                   }}
                   style={{
                     flex: 1, minWidth: 0,
-                    background: "#0f172a", color: "#e2e8f0",
-                    border: "1px solid #334155", borderRadius: 3,
+                    background: "var(--brand-bg, #0f172a)", color: "var(--brand-text, #e2e8f0)",
+                    border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 3,
                     padding: "1px 4px", fontSize: 11,
                   }}
                 />
@@ -1152,7 +1152,7 @@ function TagsSection() {
   if (tags.length === 0) {
     return (
       <Section title="TAG" defaultOpen={false}>
-        <p style={{ padding: "8px 12px", fontSize: 11, color: "#475569", margin: 0 }}>
+        <p style={{ padding: "8px 12px", fontSize: 11, color: "var(--brand-border, #475569)", margin: 0 }}>
           Nessun tag — carica un progetto.
         </p>
       </Section>
@@ -1168,7 +1168,7 @@ function TagsSection() {
             <div key={t.id} style={{ ...S.row(), gap: 6, justifyContent: "space-between" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 5, minWidth: 0 }}>
                 {tv ? dot(tv.quality) : (
-                  <span style={{ display: "inline-block", width: 6, height: 6, borderRadius: "50%", background: "#334155", flexShrink: 0 }} />
+                  <span style={{ display: "inline-block", width: 6, height: 6, borderRadius: "50%", background: "var(--brand-surface-2, #334155)", flexShrink: 0 }} />
                 )}
                 <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 11 }}>
                   {t.id}
@@ -1197,7 +1197,7 @@ function SourcesSection({ project }: { project: ProjectInfo | null }) {
     <Section title={`SORGENTI (${sources.length})`} defaultOpen={false}>
       <div style={{ ...S.body, maxHeight: 200 }}>
         {sources.length === 0 ? (
-          <p style={{ padding: "8px 12px", fontSize: 11, color: "#475569", margin: 0 }}>
+          <p style={{ padding: "8px 12px", fontSize: 11, color: "var(--brand-border, #475569)", margin: 0 }}>
             Nessuna sorgente configurata.
           </p>
         ) : (
@@ -1231,7 +1231,7 @@ function SourcesSection({ project }: { project: ProjectInfo | null }) {
         <div style={{ padding: "4px 12px" }}>
           <span
             onClick={() => navigateToConfig("protocols")}
-            style={{ fontSize: 10, color: "#475569", fontStyle: "italic", cursor: "pointer" }}
+            style={{ fontSize: 10, color: "var(--brand-border, #475569)", fontStyle: "italic", cursor: "pointer" }}
           >
             Vai alla configurazione →
           </span>
@@ -1295,9 +1295,9 @@ function HistorySection() {
 
   const btn = (enabled: boolean): React.CSSProperties => ({
     flex: 1,
-    background: enabled ? "#0f172a" : "#1e293b",
-    color: enabled ? "#cbd5e1" : "#475569",
-    border: "1px solid #334155",
+    background: enabled ? "var(--brand-bg, #0f172a)" : "var(--brand-surface, #1e293b)",
+    color: enabled ? "var(--brand-text-2, #cbd5e1)" : "var(--brand-border, #475569)",
+    border: "1px solid var(--brand-surface-2, #334155)",
     borderRadius: 4,
     padding: "3px 0",
     cursor: enabled ? "pointer" : "not-allowed",
@@ -1305,7 +1305,7 @@ function HistorySection() {
   });
 
   return (
-    <div style={{ borderTop: "1px solid #334155", flexShrink: 0 }}>
+    <div style={{ borderTop: "1px solid var(--brand-surface-2, #334155)", flexShrink: 0 }}>
       <div style={S.sectionHead(open)} onClick={() => setOpen((v) => !v)}>
         <span>CRONOLOGIA ({totalSteps} step)</span>
         <span style={S.chevron(open)}>▶</span>
@@ -1314,7 +1314,7 @@ function HistorySection() {
         <>
           <div style={{ overflowY: "auto", maxHeight: 180 }}>
             {/* Stato iniziale */}
-            <div style={{ ...S.row(false), fontSize: 11, color: "#475569", fontStyle: "italic" }}>
+            <div style={{ ...S.row(false), fontSize: 11, color: "var(--brand-border, #475569)", fontStyle: "italic" }}>
               Stato iniziale
             </div>
             {/* Past entries — oldest to newest, clicking jumps to that state */}

@@ -113,6 +113,20 @@ ensure_frontend_built() {
 }
 ensure_frontend_built
 
+# ── Sync branding → dist ──────────────────────────────────────────────────────
+# public/branding/ è la SORGENTE, dist/branding/ è ciò che il runtime serve.
+# Risincronizziamo sempre (copia istantanea) così cambiare brand non richiede un
+# rebuild del frontend.
+sync_branding() {
+  local src="$REPO_ROOT/sws-editor/public/branding"
+  local dst="$REPO_ROOT/sws-editor/dist/branding"
+  if [ -d "$src" ] && [ -d "$REPO_ROOT/sws-editor/dist" ]; then
+    rm -rf "$dst" && cp -r "$src" "$dst"
+    echo "[runtime] branding sincronizzato (attivo: $(grep -o '\"brand\"[^,}]*' "$src/active.json" 2>/dev/null || echo '?'))"
+  fi
+}
+sync_branding
+
 WWW_DIST="$REPO_ROOT/sws-editor/dist"
 WWW_ARGS=()
 if [ -f "$WWW_DIST/index.html" ]; then

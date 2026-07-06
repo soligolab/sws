@@ -942,7 +942,7 @@ export function SvgCanvas({
       <TrendExpandedModal
         tags={[expandedTrendObj.tag ?? "", ...(expandedTrendObj.extra_tags ?? [])].filter(Boolean)}
         windowS={expandedTrendObj.window_s ?? 60}
-        lineColor={expandedTrendObj.line_color ?? "#3b82f6"}
+        lineColor={expandedTrendObj.line_color ?? "var(--brand-primary, #3b82f6)"}
         yMin={expandedTrendObj.y_min}
         yMax={expandedTrendObj.y_max}
         opcuaBackfill={expandedTrendObj.opcua_backfill}
@@ -1706,7 +1706,7 @@ function AlarmViewerWidget({ width, height, mode, maxRows, prefix, allowedSev, s
     .slice(0, maxRows);
 
   const sevColor = (sev: string) =>
-    sev === "Critical" ? "#ef4444" : sev === "Warning" ? "#f59e0b" : "#3b82f6";
+    sev === "Critical" ? "#ef4444" : sev === "Warning" ? "#f59e0b" : "var(--brand-primary, #3b82f6)";
 
   const handleAck = useCallback(async (id: string) => {
     try {
@@ -1724,9 +1724,9 @@ function AlarmViewerWidget({ width, height, mode, maxRows, prefix, allowedSev, s
     overflow: "hidden",
     fontFamily: "monospace",
     fontSize: 11,
-    color: "#e2e8f0",
+    color: "var(--brand-text, #e2e8f0)",
     borderRadius: 4,
-    border: "1px solid #334155",
+    border: "1px solid var(--brand-surface-2, #334155)",
     boxSizing: "border-box",
   };
 
@@ -1734,7 +1734,7 @@ function AlarmViewerWidget({ width, height, mode, maxRows, prefix, allowedSev, s
     return (
       <div style={containerStyle}>
         {showEmpty && (
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: "#475569" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: "var(--brand-border, #475569)" }}>
             Nessun allarme attivo
           </div>
         )}
@@ -1766,12 +1766,12 @@ function AlarmViewerWidget({ width, height, mode, maxRows, prefix, allowedSev, s
         return (
         <div key={a.def.id} style={{
           display: "flex", alignItems: "center", gap: 4, padding: "2px 6px",
-          borderBottom: "1px solid #1e293b",
+          borderBottom: "1px solid var(--brand-surface, #1e293b)",
           background: sevColor(sev) + "18",
         }}>
           <span style={{ color: sevColor(sev), flexShrink: 0 }}>●</span>
           {showTs && a.activated_at_ms && (
-            <span style={{ color: "#475569", flexShrink: 0 }}>
+            <span style={{ color: "var(--brand-border, #475569)", flexShrink: 0 }}>
               {new Date(a.activated_at_ms).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}
             </span>
           )}
@@ -1781,7 +1781,7 @@ function AlarmViewerWidget({ width, height, mode, maxRows, prefix, allowedSev, s
           {showAck && canAck && !a.acknowledged && (
             <button
               onClick={(e) => { e.stopPropagation(); void handleAck(a.def.id); }}
-              style={{ fontSize: 9, padding: "1px 4px", background: "#1e293b", border: "1px solid #334155", borderRadius: 2, color: "#94a3b8", cursor: "pointer", flexShrink: 0 }}>
+              style={{ fontSize: 9, padding: "1px 4px", background: "var(--brand-surface, #1e293b)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 2, color: "var(--brand-text-muted, #94a3b8)", cursor: "pointer", flexShrink: 0 }}>
               ACK
             </button>
           )}
@@ -2031,7 +2031,7 @@ function SvgObject(p: ObjProps) {
     return (
       <>
         <line x1={obj.x} y1={obj.y} x2={x2} y2={y2}
-          stroke={obj.stroke ?? "#e2e8f0"} strokeWidth={obj.stroke_width ?? 2}
+          stroke={obj.stroke ?? "var(--brand-text, #e2e8f0)"} strokeWidth={obj.stroke_width ?? 2}
           style={{ cursor: editCursor, ...transitionStyle(obj) }}
           onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()} />
         {selected && <>
@@ -2075,7 +2075,7 @@ function SvgObject(p: ObjProps) {
           : Number(flTag.value))
       : (obj.fill_level ?? 0);
     const fillLevel = clamp(rawLevel, 0, 1);
-    const fillColor = obj.fill_color ?? "#3b82f6";
+    const fillColor = obj.fill_color ?? "var(--brand-primary, #3b82f6)";
     const fillOffset = (obj.fill_direction ?? "start-to-end") === "start-to-end"
       ? (1 - fillLevel) : fillLevel;
 
@@ -2205,7 +2205,7 @@ function SvgObject(p: ObjProps) {
     const weight    = obj.font_weight ?? "normal";
     const style     = obj.font_style ?? "normal";
     const anchor    = obj.text_anchor ?? "start";
-    const colour    = obj.color ?? obj.fill ?? "#e2e8f0";
+    const colour    = obj.color ?? obj.fill ?? "var(--brand-text, #e2e8f0)";
     // Selection rect is a rough estimate — SVG text has no width attr without measuring.
     const approxW   = Math.max(40, content.length * size * 0.6);
     const dx        = anchor === "middle" ? -approxW / 2 : anchor === "end" ? -approxW : 0;
@@ -2248,8 +2248,8 @@ function SvgObject(p: ObjProps) {
         }}>
         {applyTransform(obj, w, h, <>
           <rect x={obj.x} y={obj.y} width={w} height={h} rx={6}
-            fill={obj.fill ?? "#3b82f6"}
-            stroke={selected ? "#facc15" : "#2563eb"} strokeWidth={selected ? 2 : 1}
+            fill={obj.fill ?? "var(--brand-primary, #3b82f6)"}
+            stroke={selected ? "#facc15" : "var(--brand-primary-hover, #2563eb)"} strokeWidth={selected ? 2 : 1}
             style={transitionStyle(obj)} />
           <text x={obj.x + w / 2} y={obj.y + h / 2 + 5}
             textAnchor="middle" fill="#fff" fontSize={14} fontWeight={600}
@@ -2275,8 +2275,8 @@ function SvgObject(p: ObjProps) {
         }}>
         {applyTransform(obj, w, h, <>
           <rect x={obj.x} y={obj.y} width={w} height={h} rx={4}
-            fill={obj.fill ?? "#0f172a"}
-            stroke={selected ? "#facc15" : "#3b82f6"} strokeWidth={selected ? 2 : 1.5}
+            fill={obj.fill ?? "var(--brand-bg, #0f172a)"}
+            stroke={selected ? "#facc15" : "var(--brand-primary, #3b82f6)"} strokeWidth={selected ? 2 : 1.5}
             style={transitionStyle(obj)} />
           <text x={obj.x + 10} y={obj.y + h / 2 + 5} fill="#3b82f6" fontSize={14}
             style={{ pointerEvents: "none" }}>▶</text>
@@ -2301,10 +2301,10 @@ function SvgObject(p: ObjProps) {
       : String(tv.value) === String(onVal)
     );
     const ledColor = tv == null
-      ? "#334155"
+      ? "var(--brand-surface-2, #334155)"
       : tv.quality === "Bad"
         ? "#ef4444"
-        : isOn ? (obj.on_color ?? "#22c55e") : (obj.off_color ?? "#334155");
+        : isOn ? (obj.on_color ?? "#22c55e") : (obj.off_color ?? "var(--brand-surface-2, #334155)");
     const glowColor = isOn ? (obj.on_color ?? "#22c55e") : "transparent";
 
     const ledW = r * 2;
@@ -2342,7 +2342,7 @@ function SvgObject(p: ObjProps) {
     const pct = clamp((rawVal - min) / (max - min), 0, 1);
     const barColor =
       thresholdColor(rawVal, obj.alarm_low, obj.warn_low, obj.warn_high, obj.alarm_high)
-      ?? (obj.fill ?? "#3b82f6");
+      ?? (obj.fill ?? "var(--brand-primary, #3b82f6)");
     const barW = Math.round(pct * w);
 
     return (
@@ -2526,7 +2526,7 @@ function SvgObject(p: ObjProps) {
           style={{ display: "flex", flexDirection: "column", gap: 2, padding: "4px 0" }}
         >
           {obj.label && (
-            <span style={{ color: "#94a3b8", fontSize: 11, textAlign: "center" }}>
+            <span style={{ color: "var(--brand-text-muted, #94a3b8)", fontSize: 11, textAlign: "center" }}>
               {obj.label}
             </span>
           )}
@@ -2534,10 +2534,10 @@ function SvgObject(p: ObjProps) {
             type="range"
             min={min} max={max} step={obj.step ?? 1} value={rawVal}
             onChange={(e) => onWriteTag?.(obj.tag!, Number(e.target.value))}
-            style={{ width: "100%", accentColor: obj.fill ?? "#3b82f6", cursor: "pointer" }}
+            style={{ width: "100%", accentColor: obj.fill ?? "var(--brand-primary, #3b82f6)", cursor: "pointer" }}
           />
           {obj.show_value !== false && (
-            <span style={{ color: "#e2e8f0", fontSize: 12, textAlign: "center" }}>
+            <span style={{ color: "var(--brand-text, #e2e8f0)", fontSize: 12, textAlign: "center" }}>
               {rawVal.toFixed(obj.step && obj.step < 1 ? 2 : 0)}{obj.unit ? ` ${obj.unit}` : ""}
             </span>
           )}
@@ -2582,8 +2582,8 @@ function SvgObject(p: ObjProps) {
         >
           <div style={{
             width: 18, height: 18, borderRadius: 3, flexShrink: 0,
-            background: isChecked ? (obj.fill ?? "#3b82f6") : "transparent",
-            border: `2px solid ${isChecked ? (obj.fill ?? "#3b82f6") : "#64748b"}`,
+            background: isChecked ? (obj.fill ?? "var(--brand-primary, #3b82f6)") : "transparent",
+            border: `2px solid ${isChecked ? (obj.fill ?? "var(--brand-primary, #3b82f6)") : "#64748b"}`,
             display: "flex", alignItems: "center", justifyContent: "center",
           }}>
             {isChecked && (
@@ -2593,7 +2593,7 @@ function SvgObject(p: ObjProps) {
               </svg>
             )}
           </div>
-          <span style={{ color: "#e2e8f0", fontSize: 13, userSelect: "none" }}>
+          <span style={{ color: "var(--brand-text, #e2e8f0)", fontSize: 13, userSelect: "none" }}>
             {obj.label ?? ""}
           </span>
           {tv && tv.quality !== "Good" && (
@@ -2645,7 +2645,7 @@ function SvgObject(p: ObjProps) {
           style={{ display: "flex", flexDirection: "column", gap: 2 }}
         >
           {obj.label && (
-            <span style={{ color: "#94a3b8", fontSize: 11, marginBottom: 4 }}>{obj.label}</span>
+            <span style={{ color: "var(--brand-text-muted, #94a3b8)", fontSize: 11, marginBottom: 4 }}>{obj.label}</span>
           )}
           <div style={{ display: "flex", flexDirection: isH ? "row" : "column", gap: isH ? 12 : 4 }}>
             {opts.map((opt, i) => (
@@ -2655,9 +2655,9 @@ function SvgObject(p: ObjProps) {
                   name={obj.id}
                   checked={currentVal !== null && String(currentVal) === String(opt.value)}
                   onChange={() => onWriteTag?.(obj.tag!, opt.value as string | number | boolean)}
-                  style={{ accentColor: obj.fill ?? "#3b82f6", cursor: "pointer" }}
+                  style={{ accentColor: obj.fill ?? "var(--brand-primary, #3b82f6)", cursor: "pointer" }}
                 />
-                <span style={{ color: "#e2e8f0", fontSize: 13, userSelect: "none" }}>
+                <span style={{ color: "var(--brand-text, #e2e8f0)", fontSize: 13, userSelect: "none" }}>
                   {opt.label}
                 </span>
               </label>
@@ -2730,7 +2730,7 @@ function SvgObject(p: ObjProps) {
                   {row.label}
                 </text>
                 <text x={obj.x + colLabel + 8} y={ry + 16}
-                  fill={tv ? (tv.quality === "Good" ? "#e2e8f0" : tv.quality === "Bad" ? "#ef4444" : "#eab308") : "#475569"}
+                  fill={tv ? (tv.quality === "Good" ? "var(--brand-text, #e2e8f0)" : tv.quality === "Bad" ? "#ef4444" : "#eab308") : "var(--brand-border, #475569)"}
                   fontSize={12} style={{ pointerEvents: "none" }}>
                   {valText}
                 </text>
@@ -2794,7 +2794,7 @@ function SvgObject(p: ObjProps) {
                 windowS={obj.window_s ?? 60}
                 width={w}
                 height={h}
-                lineColor={obj.line_color ?? "#3b82f6"}
+                lineColor={obj.line_color ?? "var(--brand-primary, #3b82f6)"}
                 yMin={obj.y_min}
                 yMax={obj.y_max}
                 opcuaBackfill={obj.opcua_backfill}
@@ -2835,7 +2835,7 @@ function SvgObject(p: ObjProps) {
       (e) => String(e.value) === String(liveVal)
     );
     const label = entry ? entry.label : (obj.text_list_default ?? (liveVal !== undefined ? String(liveVal) : "N/D"));
-    const textFill = entry ? (entry.color ?? obj.color ?? "#f1f5f9") : (obj.text_list_default_color ?? "#94a3b8");
+    const textFill = entry ? (entry.color ?? obj.color ?? "#f1f5f9") : (obj.text_list_default_color ?? "var(--brand-text-muted, #94a3b8)");
     const size = obj.font_size ?? 16;
     const anchor = obj.text_anchor ?? "middle";
     const cx = obj.x + (obj.width ?? 120) / 2;
@@ -3051,7 +3051,7 @@ function SvgObject(p: ObjProps) {
 
   if (obj.type === "sparkline") {
     const w = obj.width ?? 120; const h = obj.height ?? 30;
-    const color = obj.spark_color ?? "#3b82f6";
+    const color = obj.spark_color ?? "var(--brand-primary, #3b82f6)";
     const strokeW = obj.spark_stroke_width ?? 1.5;
     const windowS = obj.spark_window_s ?? 60;
 
@@ -3356,7 +3356,7 @@ function SvgObject(p: ObjProps) {
                   <rect
                     x={colX[c]} y={rowY[r]} width={cellW} height={cellH}
                     fill="none"
-                    stroke={isCellSel ? "#facc15" : "#475569"}
+                    stroke={isCellSel ? "#facc15" : "var(--brand-border, #475569)"}
                     strokeWidth={isCellSel ? 1.5 : 1}
                     strokeDasharray="4 3"
                     opacity={isCellSel ? 0.9 : 0.5}
