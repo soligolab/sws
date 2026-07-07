@@ -4,7 +4,16 @@
 >
 > Ambienti di test: vedi [docs/TEST_SETUPS.md](docs/TEST_SETUPS.md) (casa, dev server, dispositivi Yocto).
 
-**Last session**: 2026-07-06 — T-35 branding/white-label editor+viewer (branch `feat/T-35-branding`, da verificare in browser dal maintainer).
+**Last session**: 2026-07-07 — T-37 build unico pacchetti editor+runtime (branch `feat/T-37-build-deploy` **pushato su origin**, verificato in locale, da testare l'install su device dal maintainer).
+
+- **Sessione 2026-07-07 — T-37 build pacchetti distribuibili editor + runtime** (branch `feat/T-37-build-deploy` pushato su origin, non ancora mergiato):
+  - **Obiettivo**: un solo script che compila e crea in `dist/` i pacchetti distribuibili sia dell'editor sia del runtime. Deciso col maintainer: output in `dist/`, editor **portabile** (scompatta ed esegui), compilare **anche aarch64**.
+  - **Nuovo** [scripts/build_deploy.sh](scripts/build_deploy.sh): compila SPA + binario `sws-runtime` (release) **una volta per arch**, poi stagia **4 tarball** in `dist/`: `sws-runtime-<v>-linux-{x86_64,aarch64}` e `sws-editor-<v>-linux-{x86_64,aarch64}`. Editor e runtime = stesso binario, differiscono solo per launcher/installer incluso. aarch64 via `scripts/yocto/build.sh` in **sottoprocesso** (l'env dell'SDK non contamina la shell host); se l'SDK manca → skip con avviso (o errore se `--aarch64-only`). Flag: `--host-only`, `--aarch64-only`, `--no-rust`, `--no-spa`, `--out DIR`. `scripts/package.sh` (backend T-28) **lasciato intatto**.
+  - **Pacchetto editor**: nuovi [deploy/editor/run-editor.sh](deploy/editor/run-editor.sh) (IDE-only su :8460, dati portabili in `./data/`, no root/systemd, no-auth come `start_editor.sh`) + [deploy/editor/README.md](deploy/editor/README.md).
+  - **Pacchetto runtime aarch64**: nuovo [deploy/yocto/install.sh](deploy/yocto/install.sh) — installer self-contained che installa sotto `/data/user/sws` (rootfs read-only Pixsys, **non** `/opt`) con service systemd + `runtime.env` seed. Modellato sul blocco on-device di `scripts/yocto/deploy.sh`. Il runtime x86_64 usa l'installer `deploy/generic-linux/` (→ `/opt/sws`).
+  - **Fix incluso**: [deploy/generic-linux/sws-runtime-launch.sh](deploy/generic-linux/sws-runtime-launch.sh) e [deploy/yocto/sws-runtime-launch.sh](deploy/yocto/sws-runtime-launch.sh) non passavano `--viewer-port`/`--admin-port` → un runtime installato era IDE-only su 8444 e non serviva mai il viewer su 8443. Aggiunti `--viewer-port 8443 --admin-port 8444`. Senza questo, "runtime" ed "editor" sarebbero identici.
+  - **Verifiche fatte (locale, SDK presente)**: `./scripts/build_deploy.sh` → 4 tarball (~13-14 MB). Binario aarch64 confermato `ELF … ARM aarch64`, editor x86_64 `x86-64`. Contenuti: runtime porta `install.sh`+`.service`+launch (viewer-port presente), editor porta `run-editor.sh`+`README` senza installer. aarch64 install.sh → `/data/user/sws`. **Editor eseguito**: scompattato, `run-editor.sh` → `/health` = `ok`, `/` serve la SPA admin, log conferma "IDE-only mode", `./data/{config,projects}` creati. `cargo build --release` + `pnpm build` verdi (dentro build_deploy).
+  - **DA FARE (maintainer)**: su un device Pixsys reale, scp del tarball `sws-runtime-*-linux-aarch64.tar.gz`, `tar xzf` + `sudo ./install.sh`, verificare viewer su `https://<device>:8443` e IDE su `:8444`. Su PC: scompattare `sws-editor-*` e `./run-editor.sh`. Se ok → squash merge in `main`.
 
 - **Sessione 2026-07-06 — T-35 branding / white-label** (branch `feat/T-35-branding`, non ancora mergiato):
   - **Obiettivo**: distribuire editor+viewer sotto marchi diversi (SWS madre + OEM demo ACME, Giorgino & Giorgetti). Deciso con il maintainer: selezione via file JSON a runtime, re-theme completo, ambito editor **e** viewer, runtime Rust intatto.
@@ -123,6 +132,7 @@
 - [x] **Verifica T-34** — ✅ automatizzata con `scripts/test_t34.sh` (18/18 test verdi, 2026-06-20). Copre: no-auth, auto-open, versionamento+migrate, remote deploy, elimina remoto.
 - [x] **TLS opzionale** — ✅ in main.
 - [x] **`feat/pyenv-support`** — ✅ già integrato in `main` (`ba6e3c8`, `start_runtime.sh` righe 54-60). Branch remoto ridondante rimosso (2026-06-22).
+- [ ] **Verifica T-37 pacchetti su device** — su `feat/T-37-build-deploy`: install del tarball `sws-runtime-*-linux-aarch64.tar.gz` su un Pixsys reale (`sudo ./install.sh` → `/data/user/sws`), viewer su `:8443` + IDE su `:8444`; su PC scompattare `sws-editor-*` e `./run-editor.sh`. Se ok → squash merge in `main`.
 - [ ] **Verifica browser T-35 branding** — su `feat/T-35-branding`: logo/palette/titolo per brand + switch via `active.json`, IDE (8460/8444) e viewer (8443). Se ok → squash merge in `main`.
 - [ ] **Verifica manuale T-27** — packaging tarball + installer. Comandi sotto.
 - [ ] **Verifica manuale T-24/T-25/T-26** — fingerprint/device dashboard, remote logs, git commit/push. Comandi sotto.
