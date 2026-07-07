@@ -102,7 +102,7 @@ export function ProjectIO() {
       />
       {status && (
         <span style={{
-          color: status.startsWith("Errore") ? "#fca5a5" : "#86efac",
+          color: status.startsWith("Errore") ? "var(--brand-danger-soft, #fca5a5)" : "var(--brand-success-soft, #86efac)",
           fontSize: 11,
           marginLeft: 4,
           maxWidth: 280,

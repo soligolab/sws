@@ -97,7 +97,7 @@ export function LoginScreen({ onCancel }: { onCancel?: () => void } = {}) {
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
           <strong style={{ fontSize: 20, letterSpacing: 1 }}>SWS</strong>
-          <span style={{ color: "#64748b", fontSize: 13 }}>Soligo Web SCADA</span>
+          <span style={{ color: "var(--brand-text-subtle, #64748b)", fontSize: 13 }}>Soligo Web SCADA</span>
         </div>
         <div>
           <label style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "block", marginBottom: 4 }}>Utente</label>
@@ -123,7 +123,7 @@ export function LoginScreen({ onCancel }: { onCancel?: () => void } = {}) {
           />
         </div>
         {error && (
-          <div style={{ color: "#fca5a5", fontSize: 12, background: "#7f1d1d33", padding: "6px 10px", borderRadius: 4 }}>
+          <div style={{ color: "var(--brand-danger-soft, #fca5a5)", fontSize: 12, background: "#7f1d1d33", padding: "6px 10px", borderRadius: 4 }}>
             {isLocked ? `Account bloccato. Riprova tra ${countdown}s.` : error}
           </div>
         )}
@@ -132,7 +132,7 @@ export function LoginScreen({ onCancel }: { onCancel?: () => void } = {}) {
           disabled={busy || !password || isLocked}
           style={{
             background: isLocked ? "var(--brand-surface-2, #334155)" : busy ? "#1e3a8a" : "var(--brand-primary, #3b82f6)",
-            color: isLocked ? "#64748b" : "#fff",
+            color: isLocked ? "var(--brand-text-subtle, #64748b)" : busy ? "#fff" : "var(--brand-on-primary, #fff)",
             border: "none", borderRadius: 4,
             padding: "8px 12px", cursor: (busy || isLocked) ? "default" : "pointer",
             fontSize: 14, fontWeight: 600,
@@ -146,7 +146,7 @@ export function LoginScreen({ onCancel }: { onCancel?: () => void } = {}) {
             onClick={onCancel}
             style={{
               background: "transparent",
-              color: "#64748b",
+              color: "var(--brand-text-subtle, #64748b)",
               border: "none",
               cursor: "pointer",
               fontSize: 13,

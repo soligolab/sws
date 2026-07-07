@@ -7,8 +7,8 @@ import type { AlarmSeverity, AlarmState, IsaState } from "@/types";
 
 const SEV_COLOR: Record<AlarmSeverity, string> = {
   Info:     "var(--brand-primary, #3b82f6)",
-  Warning:  "#eab308",
-  Critical: "#ef4444",
+  Warning:  "var(--brand-warning, #eab308)",
+  Critical: "var(--brand-danger, #ef4444)",
 };
 
 // ISA-18.2 state labels and visual hints.

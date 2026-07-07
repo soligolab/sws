@@ -64,7 +64,7 @@ export const SWS_FALLBACK: Brand = {
 };
 
 // colors key → CSS custom property name.
-const CSS_VARS: Record<keyof BrandColors, string> = {
+export const CSS_VARS: Record<keyof BrandColors, string> = {
   bg: "--brand-bg",
   surface: "--brand-surface",
   surface2: "--brand-surface-2",

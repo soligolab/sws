@@ -6,11 +6,11 @@ import type { LogEvent, LogFileEntry, LogLevel } from "@/types";
 const LEVELS: LogLevel[] = ["TRACE", "DEBUG", "INFO", "WARN", "ERROR"];
 
 const LEVEL_COLOR: Record<LogLevel, string> = {
-  TRACE: "#64748b",
+  TRACE: "var(--brand-text-subtle, #64748b)",
   DEBUG: "#0ea5e9",
-  INFO:  "#22c55e",
-  WARN:  "#f59e0b",
-  ERROR: "#ef4444",
+  INFO:  "var(--brand-success, #22c55e)",
+  WARN:  "var(--brand-warning, #f59e0b)",
+  ERROR: "var(--brand-danger, #ef4444)",
 };
 
 /** Default-enabled levels. TRACE/DEBUG off by default — too chatty. */
@@ -126,10 +126,10 @@ export function LogPanel({ open, onClose }: LogPanelProps) {
     <div style={panelStyle}>
       {/* ── Header bar ───────────────────────────────────────────────── */}
       <div style={headerStyle}>
-        <strong style={{ fontSize: 12, color: isHistMode ? "#f59e0b" : "var(--brand-text, #e2e8f0)", letterSpacing: 0.5 }}>
+        <strong style={{ fontSize: 12, color: isHistMode ? "var(--brand-warning, #f59e0b)" : "var(--brand-text, #e2e8f0)", letterSpacing: 0.5 }}>
           {isHistMode ? `LOG ${selDate}` : "LOG"}
         </strong>
-        <span style={{ color: "#64748b", fontSize: 11 }}>
+        <span style={{ color: "var(--brand-text-subtle, #64748b)", fontSize: 11 }}>
           {filtered.length}/{source.length}
         </span>
 
@@ -163,7 +163,7 @@ export function LogPanel({ open, onClose }: LogPanelProps) {
           </button>
         )}
         {histError && (
-          <span style={{ color: "#ef4444", fontSize: 11 }}>{histError}</span>
+          <span style={{ color: "var(--brand-danger, #ef4444)", fontSize: 11 }}>{histError}</span>
         )}
 
         {!isHistMode && (
@@ -380,7 +380,7 @@ const rowStyle: React.CSSProperties = {
 };
 
 const tsCell: React.CSSProperties = {
-  color: "#64748b",
+  color: "var(--brand-text-subtle, #64748b)",
   width: 92,
   flexShrink: 0,
 };
@@ -426,7 +426,7 @@ const fieldKey: React.CSSProperties = {
 };
 
 const fieldEq: React.CSSProperties = {
-  color: "#64748b",
+  color: "var(--brand-text-subtle, #64748b)",
   margin: "0 2px",
 };
 
@@ -439,7 +439,7 @@ const bodyEmpty: React.CSSProperties = {
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
-  color: "#64748b",
+  color: "var(--brand-text-subtle, #64748b)",
   fontSize: 12,
   padding: 16,
 };

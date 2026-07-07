@@ -26,7 +26,7 @@ const S = {
     cursor: "pointer",
     fontSize: 11,
     fontWeight: 700,
-    color: "#64748b",
+    color: "var(--brand-text-subtle, #64748b)",
     letterSpacing: 1,
     userSelect: "none",
     flexShrink: 0,
@@ -249,7 +249,7 @@ function PagesSection() {
               ...S.objBtn,
               flex: "1 1 auto",
               borderStyle: "dashed",
-              color: "#64748b",
+              color: "var(--brand-text-subtle, #64748b)",
             }}
           >
             + Nuova pagina
@@ -261,7 +261,7 @@ function PagesSection() {
               ...S.objBtn,
               flex: "0 0 auto",
               borderStyle: "dashed",
-              color: "#64748b",
+              color: "var(--brand-text-subtle, #64748b)",
               padding: "4px 8px",
             }}
           >
@@ -330,7 +330,7 @@ function PaletteGroupAccordion({ group, onAdd }: { group: PaletteGroup; onAdd: (
   return (
     <div>
       <div
-        style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "4px 10px", cursor: "pointer", background: "#0a111e", borderBottom: "1px solid var(--brand-surface, #1e293b)" }}
+        style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "4px 10px", cursor: "pointer", background: "var(--brand-bg, #0a111e)", borderBottom: "1px solid var(--brand-surface, #1e293b)" }}
         onClick={() => setOpen((v) => !v)}
       >
         <span style={{ fontSize: 10, fontWeight: 700, color: group.color, letterSpacing: 0.5 }}>
@@ -698,7 +698,7 @@ function ObjectsSection() {
           )}
           <button style={S.iconBtn} title="Rinomina" onClick={(e) => { e.stopPropagation(); startRename(o.id, o.name ?? ""); }}>✎</button>
           <button style={S.iconBtn} title="Duplica" onClick={(e) => { e.stopPropagation(); duplicateObject(o.id); }}>⧉</button>
-          <button style={{ ...S.iconBtn, color: "#ef4444" }} title="Elimina" onClick={(e) => { e.stopPropagation(); deleteObject(o.id); }}>×</button>
+          <button style={{ ...S.iconBtn, color: "var(--brand-danger, #ef4444)" }} title="Elimina" onClick={(e) => { e.stopPropagation(); deleteObject(o.id); }}>×</button>
         </div>
         {isExpanded && cellsWithChildren.map((c) => {
           const isChildSel = selectedCellChild?.objectId === o.id && selectedCellChild.row === c.row && selectedCellChild.col === c.col;
@@ -707,7 +707,7 @@ function ObjectsSection() {
             <div
               key={`${o.id}-${c.row}-${c.col}`}
               onClick={() => { selectObject(o.id); setSelectedCell({ objectId: o.id, row: c.row, col: c.col }); setSelectedCellChild({ objectId: o.id, row: c.row, col: c.col }); }}
-              style={{ ...S.row(isChildSel), paddingLeft: indent + 24, paddingRight: 4, gap: 4, color: isChildSel ? "#5eead4" : "#64748b", background: isChildSel ? "#0f2922" : "transparent" }}
+              style={{ ...S.row(isChildSel), paddingLeft: indent + 24, paddingRight: 4, gap: 4, color: isChildSel ? "#5eead4" : "var(--brand-text-subtle, #64748b)", background: isChildSel ? "#0f2922" : "transparent" }}
               title={`Cella R${c.row + 1}, C${c.col + 1}`}
             >
               <span style={{ fontSize: 10, flexShrink: 0, color: "var(--brand-border, #475569)" }}>↳</span>
@@ -761,7 +761,7 @@ function ObjectsSection() {
             style={{
               padding: "6px 10px",
               fontSize: 10,
-              color: "#64748b",
+              color: "var(--brand-text-subtle, #64748b)",
               borderTop: "1px dashed var(--brand-surface-2, #334155)",
               borderBottom: "1px dashed var(--brand-surface-2, #334155)",
               background: dropTarget?.kind === "root" ? "#1e3a5f" : "var(--brand-bg, #0f172a)",
@@ -792,8 +792,8 @@ function ObjectsSection() {
                   style={{
                     ...S.row(allMembersSel),
                     gap: 4, paddingRight: 4,
-                    background: allMembersSel ? "#1e3a5f" : "#172033",
-                    color: allMembersSel ? "#93c5fd" : "#64748b",
+                    background: allMembersSel ? "#1e3a5f" : "var(--brand-bg, #172033)",
+                    color: allMembersSel ? "#93c5fd" : "var(--brand-text-subtle, #64748b)",
                     borderBottom: "1px solid var(--brand-surface, #1e293b)",
                     ...indicatorFor("group", group.id),
                   }}
@@ -833,7 +833,7 @@ function ObjectsSection() {
                     onClick={(e) => { e.stopPropagation(); startRenameGroup(group.id, group.name); }}
                   >✎</button>
                   <button
-                    style={{ ...S.iconBtn, color: "#f59e0b" }} title="Separa gruppo"
+                    style={{ ...S.iconBtn, color: "var(--brand-warning, #f59e0b)" }} title="Separa gruppo"
                     onClick={(e) => {
                       e.stopPropagation();
                       if (window.confirm(`Separare il gruppo "${group.name}"? Gli oggetti torneranno alla radice.`)) {
@@ -930,7 +930,7 @@ function ObjectsContextMenu({
     padding: "5px 12px", cursor: "pointer",
     display: "flex", alignItems: "center", gap: 8,
   };
-  const danger: React.CSSProperties = { ...item, color: "#fca5a5" };
+  const danger: React.CSSProperties = { ...item, color: "var(--brand-danger-soft, #fca5a5)" };
   const sep: React.CSSProperties = { borderTop: "1px solid var(--brand-surface, #1e293b)", margin: "4px 0" };
   const sub: React.CSSProperties = { padding: "3px 24px", fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", cursor: "pointer" };
 
@@ -954,7 +954,7 @@ function ObjectsContextMenu({
             </div>
           )}
           <div style={sep} />
-          <div style={{ ...item, color: "#64748b", cursor: "default" }}>Sposta in gruppo →</div>
+          <div style={{ ...item, color: "var(--brand-text-subtle, #64748b)", cursor: "default" }}>Sposta in gruppo →</div>
           {groups.length === 0 && (
             <div style={{ ...sub, color: "var(--brand-border, #475569)", fontStyle: "italic" }}>nessun gruppo</div>
           )}
@@ -1053,7 +1053,7 @@ function FunctionsSection({ onFunctionsChanged }: { onFunctionsChanged: () => vo
               title={f.description ?? f.name}
             >
               <span style={{
-                fontSize: 9, color: "#22c55e", width: 24, flexShrink: 0,
+                fontSize: 9, color: "var(--brand-success, #22c55e)", width: 24, flexShrink: 0,
                 textTransform: "uppercase", letterSpacing: 0.5,
               }}>
                 fn
@@ -1100,7 +1100,7 @@ function FunctionsSection({ onFunctionsChanged }: { onFunctionsChanged: () => vo
                 onClick={(e) => { e.stopPropagation(); handleDuplicate(f.id); }}
               >⧉</button>
               <button
-                style={{ ...S.iconBtn, color: "#ef4444" }}
+                style={{ ...S.iconBtn, color: "var(--brand-danger, #ef4444)" }}
                 title="Elimina"
                 onClick={(e) => { e.stopPropagation(); handleDelete(f.id); }}
               >×</button>
@@ -1115,7 +1115,7 @@ function FunctionsSection({ onFunctionsChanged }: { onFunctionsChanged: () => vo
               flex: "none",
               width: "100%",
               borderStyle: "dashed",
-              color: "#64748b",
+              color: "var(--brand-text-subtle, #64748b)",
             }}
           >
             + Nuova funzione
@@ -1135,7 +1135,7 @@ function TagsSection() {
   const tags = project?.tags ?? [];
 
   const dot = (q: string) => {
-    const color = q === "Good" ? "#22c55e" : q === "Bad" ? "#ef4444" : "#eab308";
+    const color = q === "Good" ? "var(--brand-success, #22c55e)" : q === "Bad" ? "var(--brand-danger, #ef4444)" : "var(--brand-warning, #eab308)";
     return (
       <span
         style={{
@@ -1175,7 +1175,7 @@ function TagsSection() {
                 </span>
               </div>
               {tv != null && (
-                <span style={{ color: "#64748b", fontSize: 11, flexShrink: 0 }}>
+                <span style={{ color: "var(--brand-text-subtle, #64748b)", fontSize: 11, flexShrink: 0 }}>
                   {String(tv.value)}
                 </span>
               )}
@@ -1217,7 +1217,7 @@ function SourcesSection({ project }: { project: ProjectInfo | null }) {
                   : src.kind === "opcua_client" ? "#1d4733"
                   : "#1e3a5f",
                 color: src.kind === "mqtt" ? "#c4b5fd"
-                  : src.kind === "opcua_client" ? "#86efac"
+                  : src.kind === "opcua_client" ? "var(--brand-success-soft, #86efac)"
                   : "#93c5fd",
                 flexShrink: 0,
               }}>

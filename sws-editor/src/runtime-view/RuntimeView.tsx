@@ -3,6 +3,7 @@ import { api } from "@/api/client";
 import { getBrand } from "@/branding";
 import { SvgCanvas } from "@/canvas/SvgCanvas";
 import { AlarmHistory } from "@/components/AlarmHistory";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { useAppStore } from "@/store";
 import { useAlarmStream } from "@/ws/alarmStream";
 import { useTagStream, tryTagWriteWs, sendSubscribe } from "@/ws/tagStream";
@@ -64,14 +65,14 @@ function ScriptToasts({ toasts, onClose }: { toasts: ScriptToast[]; onClose: (id
               </span>
               <button
                 onClick={() => onClose(t.id)}
-                style={{ background: "none", border: "none", color: "#64748b", cursor: "pointer", fontSize: 14, lineHeight: 1, padding: 0, marginLeft: 10 }}
+                style={{ background: "none", border: "none", color: "var(--brand-text-subtle, #64748b)", cursor: "pointer", fontSize: 14, lineHeight: 1, padding: 0, marginLeft: 10 }}
               >
                 ✕
               </button>
             </div>
             {t.stdout && <pre style={{ ...PRE, color: "var(--brand-text, #e2e8f0)" }}>{t.stdout.trimEnd()}</pre>}
-            {t.stderr && <pre style={{ ...PRE, color: "#fbbf24", marginTop: t.stdout ? 4 : 0 }}>{t.stderr.trimEnd()}</pre>}
-            {t.error  && <pre style={{ ...PRE, color: "#fca5a5", marginTop: (t.stdout || t.stderr) ? 4 : 0 }}>{t.error.trimEnd()}</pre>}
+            {t.stderr && <pre style={{ ...PRE, color: "var(--brand-warning-soft, #fbbf24)", marginTop: t.stdout ? 4 : 0 }}>{t.stderr.trimEnd()}</pre>}
+            {t.error  && <pre style={{ ...PRE, color: "var(--brand-danger-soft, #fca5a5)", marginTop: (t.stdout || t.stderr) ? 4 : 0 }}>{t.error.trimEnd()}</pre>}
           </div>
         );
       })}
@@ -88,8 +89,8 @@ function ScriptToasts({ toasts, onClose }: { toasts: ScriptToast[]; onClose: (id
 
 const SEV_COLOR: Record<AlarmSeverity, string> = {
   Info:     "var(--brand-primary, #3b82f6)",
-  Warning:  "#eab308",
-  Critical: "#ef4444",
+  Warning:  "var(--brand-warning, #eab308)",
+  Critical: "var(--brand-danger, #ef4444)",
 };
 
 function AlarmPanel() {
@@ -159,8 +160,8 @@ function AlarmPanel() {
   // Active = not shelved; shown in main list
   const visibleActive = active.filter((a) => !shelvedIds.has(a.def.id));
   const badgeColor = unack.filter((a) => !shelvedIds.has(a.def.id)).length > 0
-    ? "#ef4444"
-    : (visibleActive.length > 0 ? "#eab308" : "var(--brand-border, #475569)");
+    ? "var(--brand-danger, #ef4444)"
+    : (visibleActive.length > 0 ? "var(--brand-warning, #eab308)" : "var(--brand-border, #475569)");
 
   return (
     <div style={{ position: "fixed", top: 80, right: 16, zIndex: 7500, pointerEvents: "auto" }}>
@@ -217,7 +218,7 @@ function AlarmPanel() {
                     padding: "2px 10px", fontSize: 11, borderRadius: 4, cursor: "pointer",
                     background: panelTab === t ? "var(--brand-surface-2, #334155)" : "transparent",
                     border: "none",
-                    color: panelTab === t ? "var(--brand-text, #e2e8f0)" : "#64748b",
+                    color: panelTab === t ? "var(--brand-text, #e2e8f0)" : "var(--brand-text-subtle, #64748b)",
                     textTransform: "capitalize",
                   }}
                 >
@@ -242,7 +243,7 @@ function AlarmPanel() {
           {/* Active alarms */}
           {panelTab === "attivi" && <div style={{ overflowY: "auto", flex: 1 }}>
             {visibleActive.length === 0 && shelved.length === 0 ? (
-              <div style={{ padding: 16, color: "#64748b", fontSize: 12, textAlign: "center" }}>Nessun allarme attivo.</div>
+              <div style={{ padding: 16, color: "var(--brand-text-subtle, #64748b)", fontSize: 12, textAlign: "center" }}>Nessun allarme attivo.</div>
             ) : visibleActive.map((a) => {
               const color = SEV_COLOR[a.def.severity ?? "Warning"];
               const isShelving = shelveOpen === a.def.id;
@@ -258,13 +259,13 @@ function AlarmPanel() {
                     <button
                       onClick={() => { setShelveOpen(isShelving ? null : a.def.id); setShelveReason(""); setShelveHours(8); }}
                       title="Sopprimi per manutenzione"
-                      style={{ background: isShelving ? "#78350f" : "transparent", border: `1px solid ${isShelving ? "#d97706" : "var(--brand-surface-2, #334155)"}`, color: "#d97706", padding: "2px 6px", borderRadius: 4, cursor: "pointer", fontSize: 11 }}
+                      style={{ background: isShelving ? "var(--brand-warning-bg, #78350f)" : "transparent", border: `1px solid ${isShelving ? "#d97706" : "var(--brand-surface-2, #334155)"}`, color: "#d97706", padding: "2px 6px", borderRadius: 4, cursor: "pointer", fontSize: 11 }}
                     >
                       🔧
                     </button>
                     {/* ACK button */}
                     {a.acknowledged ? (
-                      <span style={{ color: "#64748b", fontSize: 10, fontStyle: "italic" }}>ACK</span>
+                      <span style={{ color: "var(--brand-text-subtle, #64748b)", fontSize: 10, fontStyle: "italic" }}>ACK</span>
                     ) : (
                       <button onClick={() => handleAck(a)} style={{ background: color, color: "var(--brand-bg, #0f172a)", border: "none", borderRadius: 4, padding: "2px 10px", cursor: "pointer", fontWeight: 600, fontSize: 11 }}>ACK</button>
                     )}
@@ -287,7 +288,7 @@ function AlarmPanel() {
                           onChange={(e) => setShelveHours(parseInt(e.target.value) || 0)}
                           style={{ width: 55, background: "var(--brand-bg, #0f172a)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, color: "var(--brand-text, #e2e8f0)", fontSize: 12, padding: "3px 6px", textAlign: "center" }}
                         />
-                        <span style={{ fontSize: 11, color: "#64748b" }}>(0 = indefinito)</span>
+                        <span style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)" }}>(0 = indefinito)</span>
                         <button
                           onClick={() => handleShelve(a.def.id)}
                           style={{ marginLeft: "auto", background: "#92400e", border: "none", color: "#fef3c7", padding: "3px 12px", borderRadius: 4, cursor: "pointer", fontSize: 11, fontWeight: 600 }}
@@ -304,7 +305,7 @@ function AlarmPanel() {
             {/* Shelved section */}
             {shelved.length > 0 && (
               <>
-                <div style={{ padding: "4px 12px", background: "var(--brand-surface, #1e293b)", fontSize: 10, color: "#64748b", fontWeight: 700, letterSpacing: 0.5, borderBottom: "1px solid var(--brand-surface-2, #334155)" }}>
+                <div style={{ padding: "4px 12px", background: "var(--brand-surface, #1e293b)", fontSize: 10, color: "var(--brand-text-subtle, #64748b)", fontWeight: 700, letterSpacing: 0.5, borderBottom: "1px solid var(--brand-surface-2, #334155)" }}>
                   SOPPRESSI ({shelved.length})
                 </div>
                 {shelved.map((sh) => (
@@ -312,7 +313,7 @@ function AlarmPanel() {
                     <span style={{ fontSize: 12 }}>⏸</span>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ color: "var(--brand-text-muted, #94a3b8)", fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{sh.alarm_id}</div>
-                      <div style={{ color: "#64748b", fontSize: 11 }}>
+                      <div style={{ color: "var(--brand-text-subtle, #64748b)", fontSize: 11 }}>
                         {sh.reason}
                         {sh.until_ms > 0 && ` · fino ${new Date(sh.until_ms).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}`}
                         {sh.until_ms === 0 && " · indefinito"}
@@ -373,7 +374,7 @@ function RecipeModal({ onClose, username }: { onClose: () => void; username: str
       }} onClick={(e) => e.stopPropagation()}>
         <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 16 }}>Applica Ricetta</div>
         {recipes.length === 0 ? (
-          <div style={{ color: "#64748b", fontSize: 13 }}>Nessuna ricetta disponibile.</div>
+          <div style={{ color: "var(--brand-text-subtle, #64748b)", fontSize: 13 }}>Nessuna ricetta disponibile.</div>
         ) : (
           recipes.map((r) => (
             <div key={r.id} style={{
@@ -382,7 +383,7 @@ function RecipeModal({ onClose, username }: { onClose: () => void; username: str
             }}>
               <div>
                 <div style={{ fontSize: 13, fontWeight: 600 }}>{r.name}</div>
-                <div style={{ fontSize: 11, color: "#64748b" }}>{r.id} · {r.setpoints_count} setpoint</div>
+                <div style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)" }}>{r.id} · {r.setpoints_count} setpoint</div>
               </div>
               <button
                 onClick={() => apply(r.id)}
@@ -399,7 +400,7 @@ function RecipeModal({ onClose, username }: { onClose: () => void; username: str
           ))
         )}
         {result && (
-          <div style={{ marginTop: 12, fontSize: 12, color: result.startsWith("✓") ? "#22c55e" : "#ef4444" }}>
+          <div style={{ marginTop: 12, fontSize: 12, color: result.startsWith("✓") ? "var(--brand-success, #22c55e)" : "var(--brand-danger, #ef4444)" }}>
             {result}
           </div>
         )}
@@ -573,7 +574,7 @@ export function RuntimeView() {
                 fontSize: 13,
                 fontWeight: p.id === currentPageId ? 700 : 400,
                 background: p.id === currentPageId ? "var(--brand-primary, #3b82f6)" : "transparent",
-                color: p.id === currentPageId ? "#fff" : "#64748b",
+                color: p.id === currentPageId ? "var(--brand-on-primary, #fff)" : "var(--brand-text-subtle, #64748b)",
                 whiteSpace: "nowrap",
               }}
             >
@@ -591,7 +592,7 @@ export function RuntimeView() {
                 border: `1px solid ${autoRotate ? "var(--brand-primary, #3b82f6)" : "var(--brand-surface-2, #334155)"}`,
                 borderRadius: 4,
                 background: autoRotate ? "#1d4ed8" : "transparent",
-                color: autoRotate ? "#fff" : "#64748b",
+                color: autoRotate ? "#fff" : "var(--brand-text-subtle, #64748b)",
                 cursor: "pointer",
                 fontSize: 12,
                 whiteSpace: "nowrap",
@@ -629,7 +630,7 @@ export function RuntimeView() {
               border: "1px solid var(--brand-surface-2, #334155)",
               borderRadius: 4,
               background: "transparent",
-              color: "#64748b",
+              color: "var(--brand-text-subtle, #64748b)",
               cursor: "pointer",
               fontSize: 12,
               whiteSpace: "nowrap",
@@ -638,6 +639,7 @@ export function RuntimeView() {
           >
             ⚗ Ricette
           </button>
+          <span style={{ marginLeft: 8, flexShrink: 0 }}><ThemeToggle compact /></span>
         </nav>
       )}
 
@@ -760,7 +762,7 @@ function FunctionTestPanel({
         <span style={{ fontSize: 13, fontWeight: 600, color: "var(--brand-text, #e2e8f0)" }}>🧪 Test funzioni</span>
         <button
           onClick={() => setOpen(false)}
-          style={{ background: "none", border: "none", color: "#64748b", cursor: "pointer", fontSize: 14 }}
+          style={{ background: "none", border: "none", color: "var(--brand-text-subtle, #64748b)", cursor: "pointer", fontSize: 14 }}
         >×</button>
       </div>
       <label style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "block", marginBottom: 4 }}>
@@ -780,12 +782,12 @@ function FunctionTestPanel({
         ))}
       </select>
       {selected.description && (
-        <div style={{ fontSize: 11, color: "#64748b", fontStyle: "italic", marginBottom: 8 }}>
+        <div style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", fontStyle: "italic", marginBottom: 8 }}>
           {selected.description}
         </div>
       )}
       {selected.params.length === 0 ? (
-        <div style={{ fontSize: 11, color: "#64748b", padding: "4px 0", fontStyle: "italic" }}>
+        <div style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", padding: "4px 0", fontStyle: "italic" }}>
           Nessun parametro definito.
         </div>
       ) : (

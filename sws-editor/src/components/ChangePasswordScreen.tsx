@@ -105,7 +105,7 @@ export function ChangePasswordScreen() {
         </div>
 
         {error && (
-          <div style={{ color: "#fca5a5", fontSize: 12, background: "#7f1d1d33", padding: "6px 10px", borderRadius: 4 }}>
+          <div style={{ color: "var(--brand-danger-soft, #fca5a5)", fontSize: 12, background: "#7f1d1d33", padding: "6px 10px", borderRadius: 4 }}>
             {error}
           </div>
         )}
@@ -115,7 +115,7 @@ export function ChangePasswordScreen() {
                   style={{
                     flex: 1,
                     background: busy ? "#1e3a8a" : "var(--brand-primary, #3b82f6)",
-                    color: "#fff", border: "none", borderRadius: 4,
+                    color: busy ? "#fff" : "var(--brand-on-primary, #fff)", border: "none", borderRadius: 4,
                     padding: "8px 12px", cursor: busy ? "default" : "pointer",
                     fontSize: 14, fontWeight: 600,
                   }}>

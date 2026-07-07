@@ -78,7 +78,7 @@ export function ImageBrowser({ onSelect, onClose }: Props) {
           <button
             onClick={onClose}
             style={{
-              background: "none", border: "none", color: "#64748b",
+              background: "none", border: "none", color: "var(--brand-text-subtle, #64748b)",
               cursor: "pointer", fontSize: 20, lineHeight: 1, padding: "0 4px",
             }}
           >
@@ -96,7 +96,7 @@ export function ImageBrowser({ onSelect, onClose }: Props) {
                 style={{
                   background: "none", border: "none",
                   borderBottom: i === activeTab ? "2px solid var(--brand-primary, #3b82f6)" : "2px solid transparent",
-                  color: i === activeTab ? "#93c5fd" : "#64748b",
+                  color: i === activeTab ? "#93c5fd" : "var(--brand-text-subtle, #64748b)",
                   padding: "8px 12px", fontSize: 12, cursor: "pointer",
                   whiteSpace: "nowrap",
                 }}
@@ -116,12 +116,12 @@ export function ImageBrowser({ onSelect, onClose }: Props) {
           display: "flex", flexWrap: "wrap", gap: 6, alignContent: "flex-start",
         }}>
           {!catalog && (
-            <div style={{ color: "#64748b", fontSize: 12, padding: 16, width: "100%" }}>
+            <div style={{ color: "var(--brand-text-subtle, #64748b)", fontSize: 12, padding: 16, width: "100%" }}>
               Caricamento catalogo…
             </div>
           )}
           {catalog && items.length === 0 && (
-            <div style={{ color: "#64748b", fontSize: 12, padding: 16, width: "100%" }}>
+            <div style={{ color: "var(--brand-text-subtle, #64748b)", fontSize: 12, padding: 16, width: "100%" }}>
               Nessun risultato per "{filter}"
             </div>
           )}
