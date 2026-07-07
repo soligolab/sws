@@ -70,7 +70,7 @@ function SymbolGallery({ value, onChange }: { value: string; onChange: (v: strin
             onClick={() => onChange(tile.id)}
             style={{
               background: sel ? "#1e3a5f" : "var(--brand-bg, #0f172a)",
-              border: `2px solid ${sel ? "#facc15" : "var(--brand-surface-2, #334155)"}`,
+              border: `2px solid ${sel ? "var(--brand-warning-soft, #facc15)" : "var(--brand-surface-2, #334155)"}`,
               borderRadius: 4,
               cursor: "pointer",
               padding: "4px 2px 3px",
@@ -85,7 +85,7 @@ function SymbolGallery({ value, onChange }: { value: string; onChange: (v: strin
             <div style={{ width: 44, height: 38, display: "flex", alignItems: "center", justifyContent: "center" }}>
               {isBi && (tile as { meta: SymbolMeta }).meta.render ? (
                 <svg width={40} height={38} viewBox="0 0 100 100" style={{ overflow: "visible" }}>
-                  {(tile as { meta: SymbolMeta }).meta.render!({ state: "on", off: "#64748b", on: "#22c55e", alarm: "#ef4444" })}
+                  {(tile as { meta: SymbolMeta }).meta.render!({ state: "on", off: "var(--brand-text-subtle, #64748b)", on: "var(--brand-success, #22c55e)", alarm: "var(--brand-danger, #ef4444)" })}
                 </svg>
               ) : (
                 <img
@@ -99,7 +99,7 @@ function SymbolGallery({ value, onChange }: { value: string; onChange: (v: strin
             </div>
             <span style={{
               fontSize: 8,
-              color: sel ? "#facc15" : "#64748b",
+              color: sel ? "var(--brand-warning-soft, #facc15)" : "var(--brand-text-subtle, #64748b)",
               lineHeight: 1.1,
               textAlign: "center",
               maxWidth: "100%",
@@ -151,7 +151,7 @@ function SymbolPickerModal({ onPick, onCancel }: {
       }}>
         <div style={{ padding: "10px 14px", borderBottom: "1px solid var(--brand-surface, #1e293b)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <span style={{ fontSize: 13, color: "var(--brand-text-2, #cbd5e1)", fontWeight: 600 }}>Scegli simbolo</span>
-          <button onClick={onCancel} style={{ background: "transparent", border: "none", color: "#64748b", cursor: "pointer", fontSize: 16 }}>✕</button>
+          <button onClick={onCancel} style={{ background: "transparent", border: "none", color: "var(--brand-text-subtle, #64748b)", cursor: "pointer", fontSize: 16 }}>✕</button>
         </div>
         <div style={{ overflowY: "auto", padding: 12, flex: 1 }}>
           <SymbolGallery value={selected} onChange={setSelected} />
@@ -439,13 +439,13 @@ export function EditorShell() {
         addObject({ type, x, y, width: 120, height: 80, fill: "#4a90d9" });
         break;
       case "line":
-        addObject({ type, x, y, x2: x + 120, y2: y, stroke: "#e2e8f0", stroke_width: 2 });
+        addObject({ type, x, y, x2: x + 120, y2: y, stroke: "var(--brand-text, #e2e8f0)", stroke_width: 2 });
         break;
       case "text":
-        addObject({ type, x, y: y + 14, text: "Testo", font_size: 14, color: "#e2e8f0", text_anchor: "start" });
+        addObject({ type, x, y: y + 14, text: "Testo", font_size: 14, color: "var(--brand-text, #e2e8f0)", text_anchor: "start" });
         break;
       case "button":
-        addObject({ type, x, y, width: 120, height: 40, fill: "#3b82f6", label: "Bottone", write_value: true });
+        addObject({ type, x, y, width: 120, height: 40, fill: "var(--brand-primary, #3b82f6)", label: "Bottone", write_value: true });
         break;
       case "navbutton":
         addObject({ type, x, y, width: 140, height: 36, label: "Vai alla pagina" });
@@ -464,10 +464,10 @@ export function EditorShell() {
         addObject({ type, x, y, width: 180, height: 180, min: 0, max: 100, label: "Gauge" });
         break;
       case "led":
-        addObject({ type, x, y, width: 40, height: 40, on_value: true, on_color: "#22c55e", off_color: "#374151" });
+        addObject({ type, x, y, width: 40, height: 40, on_value: true, on_color: "var(--brand-success, #22c55e)", off_color: "#374151" });
         break;
       case "progress_bar":
-        addObject({ type, x, y, width: 200, height: 30, min: 0, max: 100, fill: "#3b82f6", show_value: true });
+        addObject({ type, x, y, width: 200, height: 30, min: 0, max: 100, fill: "var(--brand-primary, #3b82f6)", show_value: true });
         break;
       case "table":
         addObject({ type, x, y, width: 300, height: 120,
@@ -475,37 +475,37 @@ export function EditorShell() {
         break;
       case "trend":
         addObject({ type, x, y, width: 360, height: 180,
-          tag: "", window_s: 60, line_color: "#3b82f6" });
+          tag: "", window_s: 60, line_color: "var(--brand-primary, #3b82f6)" });
         break;
       case "text_list":
         addObject({ type, x, y, width: 120, height: 32, font_size: 16, text_anchor: "middle",
           text_list_entries: [
-            { value: 0, label: "Chiuso", color: "#94a3b8" },
-            { value: 1, label: "Aperto", color: "#22c55e" },
+            { value: 0, label: "Chiuso", color: "var(--brand-text-muted, #94a3b8)" },
+            { value: 1, label: "Aperto", color: "var(--brand-success, #22c55e)" },
           ],
-          text_list_default: "N/D", text_list_default_color: "#ef4444" });
+          text_list_default: "N/D", text_list_default_color: "var(--brand-danger, #ef4444)" });
         break;
       case "bar_chart":
         addObject({ type, x, y, width: 240, height: 180, min: 0, max: 100,
           bar_orientation: "vertical", bar_show_values: true, bar_show_labels: true,
           bar_show_thresholds: true, bar_gap: 0.2,
           bar_series: [
-            { tag: "", label: "Linea 1", color: "#3b82f6" },
-            { tag: "", label: "Linea 2", color: "#22c55e" },
+            { tag: "", label: "Linea 1", color: "var(--brand-primary, #3b82f6)" },
+            { tag: "", label: "Linea 2", color: "var(--brand-success, #22c55e)" },
           ] });
         break;
       case "pie_chart":
         addObject({ type, x, y, width: 200, height: 200, pie_mode: "pie",
           pie_show_labels: true,
           pie_slices: [
-            { tag: "", label: "Zona 1", color: "#3b82f6" },
-            { tag: "", label: "Zona 2", color: "#22c55e" },
-            { tag: "", label: "Zona 3", color: "#f59e0b" },
+            { tag: "", label: "Zona 1", color: "var(--brand-primary, #3b82f6)" },
+            { tag: "", label: "Zona 2", color: "var(--brand-success, #22c55e)" },
+            { tag: "", label: "Zona 3", color: "var(--brand-warning, #f59e0b)" },
           ] });
         break;
       case "sparkline":
         addObject({ type, x, y, width: 120, height: 30, tag: "",
-          spark_window_s: 60, spark_color: "#3b82f6",
+          spark_window_s: 60, spark_color: "var(--brand-primary, #3b82f6)",
           spark_fill: true, spark_fill_opacity: 0.2, spark_stroke_width: 1.5 });
         break;
       case "alarm_viewer":
@@ -525,7 +525,7 @@ export function EditorShell() {
           grid_rows: 2, grid_cols: 2,
           grid_cells: [],
           grid_show_borders: true,
-          grid_border_color: "#64748b" });
+          grid_border_color: "var(--brand-text-subtle, #64748b)" });
         break;
       case "pipe":
         addObject({
@@ -533,7 +533,7 @@ export function EditorShell() {
           points: [{ x, y }, { x: x + 120, y }, { x: x + 120, y: y + 80 }],
           routing: "straight",
           pipe_style: "flat",
-          stroke: "#64748b",
+          stroke: "var(--brand-text-subtle, #64748b)",
           stroke_width: 8,
         });
         break;
@@ -659,9 +659,9 @@ export function EditorShell() {
               width: 80,
               height: 80,
               symbol_id: symbolId,
-              state_off_color: "#64748b",
-              state_on_color: "#22c55e",
-              state_alarm_color: "#ef4444",
+              state_off_color: "var(--brand-text-subtle, #64748b)",
+              state_on_color: "var(--brand-success, #22c55e)",
+              state_alarm_color: "var(--brand-danger, #ef4444)",
             });
             setSymbolPickPos(null);
           }}
@@ -714,7 +714,7 @@ export function EditorShell() {
       <aside style={{ ...PANEL, width: 280, borderLeft: "1px solid var(--brand-surface-2, #334155)" }}>
         {multi ? (
           <>
-            <span style={{ fontSize: 11, fontWeight: 700, color: "#64748b", letterSpacing: 1 }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: "var(--brand-text-subtle, #64748b)", letterSpacing: 1 }}>
               PROPRIETÀ
             </span>
             <MultiSelectionProps
@@ -791,7 +791,7 @@ export function EditorShell() {
                     )}
                   </label>
                   {isSplit ? (
-                    <div style={{ fontSize: 11, color: "#64748b", marginTop: 8 }}>
+                    <div style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", marginTop: 8 }}>
                       Questa sub-cella è ora divisa. Seleziona una delle sue
                       sotto-celle nel canvas per editarne il contenuto.
                     </div>
@@ -915,7 +915,7 @@ export function EditorShell() {
           // ── Regular object (or grid with no cell selected) ─────────────
           return (
             <>
-              <span style={{ fontSize: 11, fontWeight: 700, color: "#64748b", letterSpacing: 1 }}>
+              <span style={{ fontSize: 11, fontWeight: 700, color: "var(--brand-text-subtle, #64748b)", letterSpacing: 1 }}>
                 PROPRIETÀ
               </span>
               <ZOrderBar id={selected.id} objectCount={objects.length} onReorder={reorderObject} />
@@ -930,7 +930,7 @@ export function EditorShell() {
           );
         })() : (
           <>
-            <span style={{ fontSize: 11, fontWeight: 700, color: "#64748b", letterSpacing: 1 }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: "var(--brand-text-subtle, #64748b)", letterSpacing: 1 }}>
               PROPRIETÀ
             </span>
             <PageProps
@@ -1009,7 +1009,7 @@ function ShortcutHelp({ onClose }: { onClose: () => void }) {
           <span style={{ fontSize: 14, fontWeight: 600, color: "var(--brand-text, #e2e8f0)" }}>Scorciatoie da tastiera</span>
           <button
             onClick={onClose}
-            style={{ background: "none", border: "none", color: "#64748b", cursor: "pointer", fontSize: 16, lineHeight: 1 }}
+            style={{ background: "none", border: "none", color: "var(--brand-text-subtle, #64748b)", cursor: "pointer", fontSize: 16, lineHeight: 1 }}
           >×</button>
         </div>
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
@@ -1157,7 +1157,7 @@ function CollapsibleSection({
           textAlign: "left", cursor: "pointer",
         }}
       >
-        <span style={{ fontSize: 9, color: "#64748b", width: 10 }}>{open ? "▼" : "▶"}</span>
+        <span style={{ fontSize: 9, color: "var(--brand-text-subtle, #64748b)", width: 10 }}>{open ? "▼" : "▶"}</span>
         <span style={{ flex: 1, textTransform: "uppercase" }}>{title}</span>
         {headerExtra}
       </button>
@@ -1474,7 +1474,7 @@ function MultiSelectionProps({
         <button style={{ ...btn, background: "#1e3a8a", color: "#bfdbfe" }} onClick={onDuplicate}>
           Duplica
         </button>
-        <button style={{ ...btn, background: "#7f1d1d", color: "#fca5a5", borderColor: "#991b1b" }} onClick={onDelete}>
+        <button style={{ ...btn, background: "var(--brand-danger-bg, #7f1d1d)", color: "var(--brand-danger-soft, #fca5a5)", borderColor: "#991b1b" }} onClick={onDelete}>
           Elimina
         </button>
       </div>
@@ -1654,9 +1654,9 @@ function CrossTypeProps({
       </label>
       {mergedProps.quality_dot !== false && (
         <>
-          {field("Colore Buono (Good)", colorInput("quality_dot_good_color", "#22c55e"))}
-          {field("Colore Incerto (Uncert.)", colorInput("quality_dot_uncertain_color", "#eab308"))}
-          {field("Colore Errore (Bad)", colorInput("quality_dot_bad_color", "#ef4444"))}
+          {field("Colore Buono (Good)", colorInput("quality_dot_good_color", "var(--brand-success, #22c55e)"))}
+          {field("Colore Incerto (Uncert.)", colorInput("quality_dot_uncertain_color", "var(--brand-warning, #eab308)"))}
+          {field("Colore Errore (Bad)", colorInput("quality_dot_bad_color", "var(--brand-danger, #ef4444)"))}
         </>
       )}
 
@@ -1772,7 +1772,7 @@ function ObjectProps({
           onChange={(e) => onChange({ name: e.target.value || undefined })}
         />
       )}
-      <div style={{ fontSize: 10, color: "#64748b", margin: "-2px 0 6px", display: "flex", gap: 6 }}>
+      <div style={{ fontSize: 10, color: "var(--brand-text-subtle, #64748b)", margin: "-2px 0 6px", display: "flex", gap: 6 }}>
         <span style={{ background: "var(--brand-surface, #1e293b)", padding: "1px 6px", borderRadius: 3, color: "var(--brand-text-muted, #94a3b8)", fontWeight: 600 }}>
           {obj.type}
         </span>
@@ -1983,7 +1983,7 @@ function ObjectProps({
               </select>
             )}
             {targetMissing && (
-              <div style={{ fontSize: 11, color: "#fca5a5", marginTop: -4 }}>
+              <div style={{ fontSize: 11, color: "var(--brand-danger-soft, #fca5a5)", marginTop: -4 }}>
                 La pagina di destinazione è stata eliminata. Seleziona un'altra pagina o rimuovi il navbutton.
               </div>
             )}
@@ -2120,7 +2120,7 @@ function ObjectProps({
                 }} />
             </BindableInput>
           )}
-          {field("Colore ON",  <BindableInput obj={obj} propName="on_color" onChange={onChange}>{colorInput("on_color",  "#22c55e")}</BindableInput>)}
+          {field("Colore ON",  <BindableInput obj={obj} propName="on_color" onChange={onChange}>{colorInput("on_color",  "var(--brand-success, #22c55e)")}</BindableInput>)}
           {field("Colore OFF", <BindableInput obj={obj} propName="off_color" onChange={onChange}>{colorInput("off_color", "#374151")}</BindableInput>)}
         </>
       )}
@@ -2190,7 +2190,7 @@ function ObjectProps({
               />
               <button
                 title="Rimuovi"
-                style={{ background: "transparent", border: "none", color: "#ef4444", cursor: "pointer", fontSize: 14, padding: "0 4px" }}
+                style={{ background: "transparent", border: "none", color: "var(--brand-danger, #ef4444)", cursor: "pointer", fontSize: 14, padding: "0 4px" }}
                 onClick={() => {
                   const next = (obj.extra_tags ?? []).filter((_, j) => j !== i);
                   onChange({ extra_tags: next.length ? next : undefined });
@@ -2199,7 +2199,7 @@ function ObjectProps({
             </div>
           ))}
           <button
-            style={{ ...INPUT, cursor: "pointer", color: "#64748b", borderStyle: "dashed", width: "100%" }}
+            style={{ ...INPUT, cursor: "pointer", color: "var(--brand-text-subtle, #64748b)", borderStyle: "dashed", width: "100%" }}
             onClick={() => onChange({ extra_tags: [...(obj.extra_tags ?? []), ""] })}
           >
             + Aggiungi tag
@@ -2305,12 +2305,12 @@ function ObjectProps({
                 <input
                   type="color"
                   style={{ ...INPUT, padding: 2, height: 28, width: 44, cursor: "pointer", flex: "none" }}
-                  value={obj.grid_border_color ?? "#64748b"}
+                  value={obj.grid_border_color ?? "var(--brand-text-subtle, #64748b)"}
                   onChange={(e) => onChange({ grid_border_color: e.target.value })}
                 />
                 <input
                   type="text" style={INPUT}
-                  value={obj.grid_border_color ?? "#64748b"}
+                  value={obj.grid_border_color ?? "var(--brand-text-subtle, #64748b)"}
                   onChange={(e) => onChange({ grid_border_color: e.target.value })}
                 />
               </div>
@@ -2346,11 +2346,11 @@ function ObjectProps({
             </div>
           ))}
           <button style={{ ...INPUT, width: "100%", cursor: "pointer", marginBottom: 4 }}
-            onClick={() => onChange({ text_list_entries: [...(obj.text_list_entries ?? []), { value: 0, label: "Stato", color: "#e2e8f0" }] })}>
+            onClick={() => onChange({ text_list_entries: [...(obj.text_list_entries ?? []), { value: 0, label: "Stato", color: "var(--brand-text, #e2e8f0)" }] })}>
             + Aggiungi voce
           </button>
           {field("Testo default", <input style={INPUT} value={obj.text_list_default ?? ""} onChange={(e) => onChange({ text_list_default: e.target.value })} />)}
-          {field("Colore default", <input type="color" value={obj.text_list_default_color ?? "#94a3b8"} onChange={(e) => onChange({ text_list_default_color: e.target.value })} style={{ width: 40, height: 24, padding: 1, border: "1px solid #334155", borderRadius: 3 }} />)}
+          {field("Colore default", <input type="color" value={obj.text_list_default_color ?? "var(--brand-text-muted, #94a3b8)"} onChange={(e) => onChange({ text_list_default_color: e.target.value })} style={{ width: 40, height: 24, padding: 1, border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 3 }} />)}
           {field("Font size", numInput("font_size", 16))}
           {field("Allineamento", (
             <select style={INPUT} value={obj.text_anchor ?? "middle"} onChange={(e) => onChange({ text_anchor: e.target.value as any })}>
@@ -2398,7 +2398,7 @@ function ObjectProps({
             </div>
           ))}
           <button style={{ ...INPUT, width: "100%", cursor: "pointer", marginBottom: 4 }}
-            onClick={() => onChange({ bar_series: [...(obj.bar_series ?? []), { tag: "", label: `Serie ${(obj.bar_series?.length ?? 0) + 1}`, color: "#3b82f6" }] })}>
+            onClick={() => onChange({ bar_series: [...(obj.bar_series ?? []), { tag: "", label: `Serie ${(obj.bar_series?.length ?? 0) + 1}`, color: "var(--brand-primary, #3b82f6)" }] })}>
             + Aggiungi serie
           </button>
           <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", marginTop: 2, marginBottom: 2, fontWeight: 700 }}>SOGLIE</div>
@@ -2442,7 +2442,7 @@ function ObjectProps({
             </div>
           ))}
           <button style={{ ...INPUT, width: "100%", cursor: "pointer" }}
-            onClick={() => { const colors = ["#3b82f6","#22c55e","#f59e0b","#ef4444","#a855f7","#06b6d4"]; onChange({ pie_slices: [...(obj.pie_slices ?? []), { tag: "", label: `Slice ${(obj.pie_slices?.length ?? 0) + 1}`, color: colors[(obj.pie_slices?.length ?? 0) % colors.length] }] }); }}>
+            onClick={() => { const colors = ["var(--brand-primary, #3b82f6)","var(--brand-success, #22c55e)","var(--brand-warning, #f59e0b)","var(--brand-danger, #ef4444)","#a855f7","#06b6d4"]; onChange({ pie_slices: [...(obj.pie_slices ?? []), { tag: "", label: `Slice ${(obj.pie_slices?.length ?? 0) + 1}`, color: colors[(obj.pie_slices?.length ?? 0) % colors.length] }] }); }}>
             + Aggiungi slice
           </button>
         </>
@@ -2453,7 +2453,7 @@ function ObjectProps({
         <>
           {field("Tag", tagInput("es. flow.rate"))}
           {field("Finestra (s)", numInput("spark_window_s", 60))}
-          {field("Colore linea", <input type="color" value={obj.spark_color ?? "#3b82f6"} onChange={(e) => onChange({ spark_color: e.target.value })} style={{ width: 40, height: 24, padding: 1, border: "1px solid #334155", borderRadius: 3 }} />)}
+          {field("Colore linea", <input type="color" value={obj.spark_color ?? "var(--brand-primary, #3b82f6)"} onChange={(e) => onChange({ spark_color: e.target.value })} style={{ width: 40, height: 24, padding: 1, border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 3 }} />)}
           {field("Spessore (px)", numInput("spark_stroke_width", 1.5))}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
             <div><div style={LABEL}>Y min</div>{numInput("y_min", 0)}</div>
@@ -2488,7 +2488,7 @@ function ObjectProps({
               </label>
             ))}
           </div>
-          {field("Sfondo vuoto", <input type="color" value={obj.alarm_viewer_bg_color ?? "#0f172a"} onChange={(e) => onChange({ alarm_viewer_bg_color: e.target.value })} style={{ width: 40, height: 24, padding: 1, border: "1px solid #334155", borderRadius: 3 }} />)}
+          {field("Sfondo vuoto", <input type="color" value={obj.alarm_viewer_bg_color ?? "var(--brand-bg, #0f172a)"} onChange={(e) => onChange({ alarm_viewer_bg_color: e.target.value })} style={{ width: 40, height: 24, padding: 1, border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 3 }} />)}
         </>
       )}
 
@@ -2512,9 +2512,9 @@ function ObjectProps({
               onChange={(v) => onChange({ alarm_tag: v || undefined })}
             />
           )}
-          {field("Colore OFF",   <BindableInput obj={obj} propName="state_off_color"   onChange={onChange}>{colorInput("state_off_color",   "#64748b")}</BindableInput>)}
-          {field("Colore ON",    <BindableInput obj={obj} propName="state_on_color"    onChange={onChange}>{colorInput("state_on_color",    "#22c55e")}</BindableInput>)}
-          {field("Colore ALARM", <BindableInput obj={obj} propName="state_alarm_color" onChange={onChange}>{colorInput("state_alarm_color", "#ef4444")}</BindableInput>)}
+          {field("Colore OFF",   <BindableInput obj={obj} propName="state_off_color"   onChange={onChange}>{colorInput("state_off_color",   "var(--brand-text-subtle, #64748b)")}</BindableInput>)}
+          {field("Colore ON",    <BindableInput obj={obj} propName="state_on_color"    onChange={onChange}>{colorInput("state_on_color",    "var(--brand-success, #22c55e)")}</BindableInput>)}
+          {field("Colore ALARM", <BindableInput obj={obj} propName="state_alarm_color" onChange={onChange}>{colorInput("state_alarm_color", "var(--brand-danger, #ef4444)")}</BindableInput>)}
         </>
       )}
 
@@ -2549,7 +2549,7 @@ function ObjectProps({
           {/* Stroke */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
             <div>
-              {field("Colore tubo", colorInput("stroke", "#64748b"))}
+              {field("Colore tubo", colorInput("stroke", "var(--brand-text-subtle, #64748b)"))}
             </div>
             <div>
               {field("Spessore (px)", numInput("stroke_width", 8))}
@@ -2644,9 +2644,9 @@ function ObjectProps({
                 onChange={(v) => onChange({ alarm_tag: v || undefined })} />
             )}
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6 }}>
-              <div>{field("OFF",   colorInput("state_off_color",   "#64748b"))}</div>
-              <div>{field("ON",    colorInput("state_on_color",    "#22c55e"))}</div>
-              <div>{field("ALARM", colorInput("state_alarm_color", "#ef4444"))}</div>
+              <div>{field("OFF",   colorInput("state_off_color",   "var(--brand-text-subtle, #64748b)"))}</div>
+              <div>{field("ON",    colorInput("state_on_color",    "var(--brand-success, #22c55e)"))}</div>
+              <div>{field("ALARM", colorInput("state_alarm_color", "var(--brand-danger, #ef4444)"))}</div>
             </div>
           </CollapsibleSection>
 
@@ -2698,7 +2698,7 @@ function ObjectProps({
             </p>
             {(obj.points ?? []).map((pt, i) => (
               <div key={i} style={{ display: "flex", gap: 4, alignItems: "center", marginBottom: 3 }}>
-                <span style={{ fontSize: 11, color: "#64748b", width: 18, flexShrink: 0 }}>{i}</span>
+                <span style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", width: 18, flexShrink: 0 }}>{i}</span>
                 <input type="number" style={{ ...INPUT, width: 58 }} value={pt.x}
                   onChange={(e) => {
                     const pts = [...(obj.points ?? [])];
@@ -2844,7 +2844,7 @@ function ObjectProps({
             type="checkbox"
             checked={obj.locked === true}
             onChange={(e) => onChange({ locked: e.target.checked ? true : undefined })}
-            style={{ accentColor: "#f59e0b" }}
+            style={{ accentColor: "var(--brand-warning, #f59e0b)" }}
           />
           Bloccato (non selezionabile nell'editor)
         </label>
@@ -2866,7 +2866,7 @@ function ObjectProps({
         hint={!obj.tag ? "Imposta un tag (sezione Tag) per personalizzare i colori." : undefined}
       >
         {!obj.tag ? (
-          <p style={{ fontSize: 11, color: "#64748b", margin: "0 0 4px" }}>
+          <p style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", margin: "0 0 4px" }}>
             Questo oggetto non ha un tag bound. L'indicatore di qualità verrà
             mostrato automaticamente quando colleghi un tag.
           </p>
@@ -2883,9 +2883,9 @@ function ObjectProps({
             </label>
             {obj.quality_dot !== false && (
               <>
-                {field("Colore Buono (Good)",    colorInput("quality_dot_good_color",      "#22c55e"))}
-                {field("Colore Incerto (Uncert.)", colorInput("quality_dot_uncertain_color", "#eab308"))}
-                {field("Colore Errore (Bad)",    colorInput("quality_dot_bad_color",       "#ef4444"))}
+                {field("Colore Buono (Good)",    colorInput("quality_dot_good_color",      "var(--brand-success, #22c55e)"))}
+                {field("Colore Incerto (Uncert.)", colorInput("quality_dot_uncertain_color", "var(--brand-warning, #eab308)"))}
+                {field("Colore Errore (Bad)",    colorInput("quality_dot_bad_color",       "var(--brand-danger, #ef4444)"))}
               </>
             )}
           </>
@@ -2940,7 +2940,7 @@ function ObjectProps({
         {obj.bindings && Object.keys(obj.bindings).length > 0 ? (
           Object.entries(obj.bindings).map(([prop, tagId]) => (
             <div key={prop} style={{ display: "flex", gap: 4, alignItems: "center", fontSize: 12, marginBottom: 2 }}>
-              <span style={{ color: "#64748b", flex: "0 0 auto" }}>{prop}</span>
+              <span style={{ color: "var(--brand-text-subtle, #64748b)", flex: "0 0 auto" }}>{prop}</span>
               <span style={{ color: "var(--brand-border, #475569)" }}>→</span>
               <span style={{ color: "var(--brand-primary, #3b82f6)", flex: 1 }}>{tagId || "(nessun tag)"}</span>
               <button
@@ -2950,12 +2950,12 @@ function ObjectProps({
                   delete next[prop];
                   onChange({ bindings: Object.keys(next).length > 0 ? next : undefined });
                 }}
-                style={{ ...LABEL, cursor: "pointer", background: "transparent", border: "none", color: "#ef4444", padding: "0 4px" }}
+                style={{ ...LABEL, cursor: "pointer", background: "transparent", border: "none", color: "var(--brand-danger, #ef4444)", padding: "0 4px" }}
               >×</button>
             </div>
           ))
         ) : (
-          <p style={{ fontSize: 11, color: "#64748b", margin: "0 0 4px" }}>
+          <p style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", margin: "0 0 4px" }}>
             Nessun binding attivo su questo oggetto.
           </p>
         )}
@@ -2965,7 +2965,7 @@ function ObjectProps({
         onClick={onDelete}
         style={{
           marginTop: 4,
-          background: "#7f1d1d", color: "#fca5a5",
+          background: "var(--brand-danger-bg, #7f1d1d)", color: "var(--brand-danger-soft, #fca5a5)",
           border: "1px solid #991b1b", borderRadius: 4,
           padding: "5px 10px", cursor: "pointer", fontSize: 13,
         }}
@@ -3014,7 +3014,7 @@ function RadioOptionsEditor({
             onChange={(e) => update(i, { value: parseVal(e.target.value) })}
           />
           <button
-            style={{ background: "transparent", border: "none", color: "#ef4444", cursor: "pointer", fontSize: 14, padding: "0 2px" }}
+            style={{ background: "transparent", border: "none", color: "var(--brand-danger, #ef4444)", cursor: "pointer", fontSize: 14, padding: "0 2px" }}
             onClick={() => onChange(options.filter((_, idx) => idx !== i))}
           >
             ×
@@ -3022,7 +3022,7 @@ function RadioOptionsEditor({
         </div>
       ))}
       <button
-        style={{ ...INPUT, cursor: "pointer", color: "#64748b", borderStyle: "dashed", width: "100%" }}
+        style={{ ...INPUT, cursor: "pointer", color: "var(--brand-text-subtle, #64748b)", borderStyle: "dashed", width: "100%" }}
         onClick={() => onChange([...options, { label: `Opzione ${options.length + 1}`, value: String(options.length + 1) }])}
       >
         + Aggiungi opzione
@@ -3051,9 +3051,9 @@ function TableRowsEditor({
       {rows.map((row, i) => (
         <div key={i} style={{ background: "var(--brand-bg, #0f172a)", borderRadius: 4, padding: "6px 8px", marginBottom: 6 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-            <span style={{ fontSize: 11, color: "#64748b" }}>Riga {i + 1}</span>
+            <span style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)" }}>Riga {i + 1}</span>
             <button
-              style={{ background: "transparent", border: "none", color: "#ef4444", cursor: "pointer", fontSize: 13 }}
+              style={{ background: "transparent", border: "none", color: "var(--brand-danger, #ef4444)", cursor: "pointer", fontSize: 13 }}
               onClick={() => onChange(rows.filter((_, idx) => idx !== i))}
             >
               ×
@@ -3077,7 +3077,7 @@ function TableRowsEditor({
         </div>
       ))}
       <button
-        style={{ ...INPUT, cursor: "pointer", color: "#64748b", borderStyle: "dashed", width: "100%" }}
+        style={{ ...INPUT, cursor: "pointer", color: "var(--brand-text-subtle, #64748b)", borderStyle: "dashed", width: "100%" }}
         onClick={() => onChange([...rows, { label: `Tag ${rows.length + 1}`, tag: "", format: "{value:.1f}" }])}
       >
         + Aggiungi riga
@@ -3182,8 +3182,8 @@ function makeDefaultChild(type: string): SynopticObject {
   const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
   const base: SynopticObject = { id, type: type as SynopticObject["type"], x: 0, y: 0 };
   switch (type) {
-    case "rect":         return { ...base, width: 80, height: 60, fill: "#334155" };
-    case "ellipse":      return { ...base, width: 60, height: 60, fill: "#334155" };
+    case "rect":         return { ...base, width: 80, height: 60, fill: "var(--brand-surface-2, #334155)" };
+    case "ellipse":      return { ...base, width: 60, height: 60, fill: "var(--brand-surface-2, #334155)" };
     case "text":         return { ...base, width: 80, height: 30, label: "Testo" };
     case "button":       return { ...base, width: 80, height: 32, label: "Pulsante" };
     case "led":          return { ...base, width: 40, height: 40 };
@@ -3335,7 +3335,7 @@ function GridCellEditor({
             <button
               title="Rimuovi figlio"
               onClick={() => onChange({ child: undefined })}
-              style={{ background: "#7f1d1d", border: "1px solid #991b1b", color: "#fca5a5", borderRadius: 4, cursor: "pointer", fontSize: 11, padding: "2px 8px" }}
+              style={{ background: "var(--brand-danger-bg, #7f1d1d)", border: "1px solid #991b1b", color: "var(--brand-danger-soft, #fca5a5)", borderRadius: 4, cursor: "pointer", fontSize: 11, padding: "2px 8px" }}
             >
               ✕ Rimuovi
             </button>

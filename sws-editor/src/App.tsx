@@ -6,6 +6,7 @@ import { ChangePasswordScreen } from "@/components/ChangePasswordScreen";
 import { LogPanel } from "@/components/LogPanel";
 import { LoginScreen } from "@/components/LoginScreen";
 import { ReAuthModal } from "@/components/ReAuthModal";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { WelcomeScreen } from "@/components/WelcomeScreen";
 import { ConfigView } from "@/config/ConfigView";
 import { EditorShell } from "@/editor/EditorShell";
@@ -142,7 +143,7 @@ function GridDropdown() {
       </button>
       {open && (
         <div style={DROP_PANEL}>
-          <div style={{ padding: "6px 14px 2px", fontSize: 11, color: "#64748b", fontWeight: 700, letterSpacing: 0.5 }}>
+          <div style={{ padding: "6px 14px 2px", fontSize: 11, color: "var(--brand-text-subtle, #64748b)", fontWeight: 700, letterSpacing: 0.5 }}>
             GRIGLIA
           </div>
           <div style={{ padding: "4px 14px 6px", display: "flex", flexDirection: "column", gap: 6 }}>
@@ -237,14 +238,14 @@ function RuntimeCtrl() {
     setTimeout(() => setBusy(false), 3000);
   };
 
-  const dotColor = running === null ? "#64748b" : running ? "#22c55e" : "#ef4444";
+  const dotColor = running === null ? "var(--brand-text-subtle, #64748b)" : running ? "var(--brand-success, #22c55e)" : "var(--brand-danger, #ef4444)";
   const dotTitle = running === null ? "Stato sconosciuto" : running ? "Acquisizione attiva" : "Acquisizione ferma";
 
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
       {needsUpdate && (
         <button
-          style={{ ...HDR_BTN, background: "#78350f", border: "1px solid #f59e0b", color: "#fde68a", opacity: migrating ? 0.6 : 1 }}
+          style={{ ...HDR_BTN, background: "var(--brand-warning-bg, #78350f)", border: "1px solid var(--brand-warning, #f59e0b)", color: "#fde68a", opacity: migrating ? 0.6 : 1 }}
           disabled={migrating}
           onClick={handleMigrate}
           title={`Progetto salvato da ${savedBy ?? "versione sconosciuta"}, runtime ${runtimeVersion}. Clicca per aggiornare.`}
@@ -349,8 +350,8 @@ function MainMenu({ mode, onLogout, onCloseProject }: { mode: Mode; onLogout: ()
                               "Salva tutto";
 
   const saveBtnColor =
-    saveStatus === "error" ? "#fca5a5" :
-    saveStatus === "ok"    ? "#86efac" :
+    saveStatus === "error" ? "var(--brand-danger-soft, #fca5a5)" :
+    saveStatus === "ok"    ? "var(--brand-success-soft, #86efac)" :
     saveStatus === "saving"? "var(--brand-text-muted, #94a3b8)" :
                              "var(--brand-text-2, #cbd5e1)";
 
@@ -359,7 +360,7 @@ function MainMenu({ mode, onLogout, onCloseProject }: { mode: Mode; onLogout: ()
       <button
         style={{
           ...HDR_BTN,
-          background: saveStatus === "saving" ? "#374151" : saveStatus === "ok" ? "#166534" : saveStatus === "error" ? "#7f1d1d" : "var(--brand-surface-2, #334155)",
+          background: saveStatus === "saving" ? "#374151" : saveStatus === "ok" ? "var(--brand-success-bg, #166534)" : saveStatus === "error" ? "var(--brand-danger-bg, #7f1d1d)" : "var(--brand-surface-2, #334155)",
           color: saveBtnColor,
           borderColor: saveStatus === "error" ? "#991b1b" : saveStatus === "ok" ? "#15803d" : "var(--brand-border, #475569)",
           minWidth: 90,
@@ -385,14 +386,14 @@ function MainMenu({ mode, onLogout, onCloseProject }: { mode: Mode; onLogout: ()
           {mode === "edit" && (
             <>
               <button
-                style={{ ...DROP_ITEM, color: saveStatus === "error" ? "#fca5a5" : saveStatus === "ok" ? "#86efac" : "var(--brand-text-2, #cbd5e1)" }}
+                style={{ ...DROP_ITEM, color: saveStatus === "error" ? "var(--brand-danger-soft, #fca5a5)" : saveStatus === "ok" ? "var(--brand-success-soft, #86efac)" : "var(--brand-text-2, #cbd5e1)" }}
                 disabled={saveStatus === "saving"}
                 onClick={() => { incSaveSerial(); setOpen(false); }}
               >
                 {saveBtnLabel}
               </button>
               {saveStatus === "error" && saveError && (
-                <div style={{ padding: "2px 14px 6px", fontSize: 11, color: "#fca5a5", wordBreak: "break-word" }}>
+                <div style={{ padding: "2px 14px 6px", fontSize: 11, color: "var(--brand-danger-soft, #fca5a5)", wordBreak: "break-word" }}>
                   {saveError}
                 </div>
               )}
@@ -441,7 +442,7 @@ function MainMenu({ mode, onLogout, onCloseProject }: { mode: Mode; onLogout: ()
           position: "absolute", top: "100%", right: 0, marginTop: 4, zIndex: 9000,
           whiteSpace: "nowrap", padding: "4px 10px", borderRadius: 4,
           background: "var(--brand-bg, #0f172a)", border: "1px solid var(--brand-surface-2, #334155)",
-          fontSize: 11, color: ioStatus.startsWith("✓") ? "#86efac" : "#fca5a5",
+          fontSize: 11, color: ioStatus.startsWith("✓") ? "var(--brand-success-soft, #86efac)" : "var(--brand-danger-soft, #fca5a5)",
         }}>
           {ioStatus}
         </div>
@@ -822,7 +823,7 @@ export function App() {
                 border: "none",
                 cursor: "pointer",
                 background: effectiveMode === m ? "var(--brand-primary, #3b82f6)" : "var(--brand-surface-2, #334155)",
-                color: "#fff",
+                color: effectiveMode === m ? "var(--brand-on-primary, #fff)" : "var(--brand-text, #e2e8f0)",
                 fontWeight: effectiveMode === m ? 600 : 400,
                 fontSize: 13,
               }}
@@ -841,7 +842,9 @@ export function App() {
               background: authRole === "Admin" ? "#7c2d12"
                 : authRole === "Supervisor" ? "#7e22ce"
                 : authRole === "Operator" ? "#1e3a8a" : "var(--brand-surface-2, #334155)",
-              color: "var(--brand-text, #e2e8f0)",
+              // I 3 ruoli con bg fisso scuro usano testo chiaro fisso; il Viewer
+              // (bg = surface-2, tematico) usa il testo tematico.
+              color: authRole === "Viewer" ? "var(--brand-text, #e2e8f0)" : "#f8fafc",
               fontSize: 11,
               fontWeight: 600,
             }}>
@@ -859,12 +862,12 @@ export function App() {
             remoteDeployStatus === "error"   ? "✗ Sync err" :
             "Deploy";
           const dotColor =
-            remoteDeployStatus === "syncing" ? "#f59e0b" :
-            remoteDeployStatus === "ok"      ? "#4ade80" :
-            remoteDeployStatus === "error"   ? "#ef4444" :
-            rtConnected ? "#4ade80" : "#ef4444";
+            remoteDeployStatus === "syncing" ? "var(--brand-warning, #f59e0b)" :
+            remoteDeployStatus === "ok"      ? "var(--brand-success-soft, #4ade80)" :
+            remoteDeployStatus === "error"   ? "var(--brand-danger, #ef4444)" :
+            rtConnected ? "var(--brand-success-soft, #4ade80)" : "var(--brand-danger, #ef4444)";
           const btnExtra = rtConnected
-            ? { background: "#14532d", color: "#4ade80", border: "1px solid #16a34a" }
+            ? { background: "#14532d", color: "var(--brand-success-soft, #4ade80)", border: "1px solid #16a34a" }
             : {};
           const titleStr = rtConnected
             ? "Connesso — salva per sincronizzare automaticamente. Clicca per disconnettere."
@@ -909,6 +912,7 @@ export function App() {
         >
           Log
         </button>
+        <ThemeToggle compact />
         <MainMenu mode={effectiveMode} onLogout={handleLogout} onCloseProject={handleCloseProject} />
       </header>
 
@@ -970,7 +974,7 @@ export function App() {
               onClick={() => setCurrentPage(p.id)}
               style={{
                 background: p.id === currentPageId ? "var(--brand-surface, #1e293b)" : "transparent",
-                color: p.id === currentPageId ? "var(--brand-text, #e2e8f0)" : "#64748b",
+                color: p.id === currentPageId ? "var(--brand-text, #e2e8f0)" : "var(--brand-text-subtle, #64748b)",
                 border: p.id === currentPageId ? "1px solid var(--brand-surface-2, #334155)" : "1px solid transparent",
                 borderBottom: p.id === currentPageId ? "1px solid var(--brand-surface, #1e293b)" : "1px solid transparent",
                 borderRadius: "4px 4px 0 0",
@@ -1016,7 +1020,7 @@ export function App() {
                 {waitingForSave ? "Salvataggio…" : "Salva e chiudi"}
               </button>
               <button
-                style={{ ...HDR_BTN, background: "#7f1d1d", color: "#fca5a5", border: "1px solid #991b1b", padding: "8px 16px", fontSize: 13 }}
+                style={{ ...HDR_BTN, background: "var(--brand-danger-bg, #7f1d1d)", color: "var(--brand-danger-soft, #fca5a5)", border: "1px solid #991b1b", padding: "8px 16px", fontSize: 13 }}
                 onClick={() => {
                   const pending = confirmPending;
                   setConfirmPending(null);

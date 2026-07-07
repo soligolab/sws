@@ -1,6 +1,7 @@
 // TODO (ADR 0001): evaluate Redux Toolkit as an alternative before M1 freeze.
 import { create } from "zustand";
 import { setAuthToken } from "@/api/client";
+import { applyAppearance, getStoredMode, type ThemeMode } from "@/theme";
 import type {
   AlarmDef,
   AlarmState,
@@ -226,6 +227,10 @@ interface AppState {
   setReAuthNeeded: (v: boolean) => void;
   clearAuth: () => void;
   setNoActiveProject: (flag: boolean) => void;
+
+  /** Light/dark theme preference (persisted in localStorage by @/theme). */
+  themeMode: ThemeMode;
+  setThemeMode: (m: ThemeMode) => void;
 
   setProject: (p: ProjectInfo) => void;
   setProjectLoadError: (msg: string | null) => void;
@@ -482,6 +487,9 @@ export const useAppStore = create<AppState>((set, get) => {
     },
 
     setNoActiveProject: (flag) => set({ noActiveProject: flag }),
+
+    themeMode: getStoredMode(),
+    setThemeMode: (m) => { applyAppearance(m); set({ themeMode: m }); },
 
     setProject: (project) => set({ project, projectLoadError: null, customSymbols: project.custom_symbols ?? [] }),
     setProjectLoadError: (msg) => set({ projectLoadError: msg }),

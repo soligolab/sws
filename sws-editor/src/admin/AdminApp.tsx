@@ -112,7 +112,7 @@ export function AdminApp() {
   };
 
   const RTN_BTN: React.CSSProperties = rtConnected
-    ? { ...HDR_BTN, background: "#14532d", color: "#4ade80", border: "1px solid #16a34a" }
+    ? { ...HDR_BTN, background: "#14532d", color: "var(--brand-success-soft, #4ade80)", border: "1px solid #16a34a" }
     : HDR_BTN;
 
   // Proactive token refresh

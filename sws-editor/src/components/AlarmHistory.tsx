@@ -4,8 +4,8 @@ import type { AlarmEvent, AlarmSeverity } from "@/types";
 
 const SEV_COLOR: Record<AlarmSeverity, string> = {
   Info:     "var(--brand-primary, #3b82f6)",
-  Warning:  "#eab308",
-  Critical: "#ef4444",
+  Warning:  "var(--brand-warning, #eab308)",
+  Critical: "var(--brand-danger, #ef4444)",
 };
 
 function fmtTs(ms: number | null): string {
@@ -57,12 +57,12 @@ export function AlarmHistory({ alarmId }: AlarmHistoryProps) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <span style={{ fontSize: 11, fontWeight: 700, color: "#64748b", letterSpacing: 0.5 }}>
+        <span style={{ fontSize: 11, fontWeight: 700, color: "var(--brand-text-subtle, #64748b)", letterSpacing: 0.5 }}>
           STORICO ALLARMI {alarmId ? `— ${alarmId}` : ""}
         </span>
         <button
           onClick={() => { setPage(0); load(); }}
-          style={{ fontSize: 10, background: "var(--brand-surface, #1e293b)", border: "1px solid var(--brand-surface-2, #334155)", color: "#64748b", borderRadius: 3, padding: "2px 8px", cursor: "pointer" }}
+          style={{ fontSize: 10, background: "var(--brand-surface, #1e293b)", border: "1px solid var(--brand-surface-2, #334155)", color: "var(--brand-text-subtle, #64748b)", borderRadius: 3, padding: "2px 8px", cursor: "pointer" }}
         >
           ↺ Aggiorna
         </button>
@@ -77,7 +77,7 @@ export function AlarmHistory({ alarmId }: AlarmHistoryProps) {
           <div style={{ overflowX: "auto" }}>
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
               <thead>
-                <tr style={{ background: "var(--brand-bg, #0f172a)", color: "#64748b" }}>
+                <tr style={{ background: "var(--brand-bg, #0f172a)", color: "var(--brand-text-subtle, #64748b)" }}>
                   {["Allarme", "Severità", "Attivato", "Confermato da", "Rientrato", "Durata"].map((h) => (
                     <th key={h} style={{ padding: "4px 8px", textAlign: "left", fontWeight: 600, borderBottom: "1px solid var(--brand-surface, #1e293b)", whiteSpace: "nowrap" }}>{h}</th>
                   ))}
@@ -88,7 +88,7 @@ export function AlarmHistory({ alarmId }: AlarmHistoryProps) {
                   <tr key={i} style={{ background: i % 2 === 0 ? "var(--brand-bg, #0f172a)" : "#0a1120" }}>
                     <td style={{ padding: "3px 8px", color: "var(--brand-text-2, #cbd5e1)" }}>
                       <div style={{ fontWeight: 600 }}>{ev.alarm_id}</div>
-                      <div style={{ color: "#64748b", fontSize: 10 }}>{ev.alarm_message}</div>
+                      <div style={{ color: "var(--brand-text-subtle, #64748b)", fontSize: 10 }}>{ev.alarm_message}</div>
                     </td>
                     <td style={{ padding: "3px 8px" }}>
                       <span style={{
@@ -103,15 +103,15 @@ export function AlarmHistory({ alarmId }: AlarmHistoryProps) {
                     <td style={{ padding: "3px 8px", color: "var(--brand-text-muted, #94a3b8)" }}>
                       {ev.ts_acked_ms ? (
                         <span>
-                          <span style={{ color: "#22c55e" }}>{ev.acked_by ?? "—"}</span>
+                          <span style={{ color: "var(--brand-success, #22c55e)" }}>{ev.acked_by ?? "—"}</span>
                           <span style={{ color: "var(--brand-border, #475569)", fontSize: 10 }}> {fmtTs(ev.ts_acked_ms)}</span>
                         </span>
                       ) : (
-                        <span style={{ color: "#ef4444" }}>Non confermato</span>
+                        <span style={{ color: "var(--brand-danger, #ef4444)" }}>Non confermato</span>
                       )}
                     </td>
                     <td style={{ padding: "3px 8px", color: "var(--brand-text-muted, #94a3b8)", whiteSpace: "nowrap" }}>
-                      {ev.ts_normalized_ms ? fmtTs(ev.ts_normalized_ms) : <span style={{ color: "#eab308" }}>Attivo</span>}
+                      {ev.ts_normalized_ms ? fmtTs(ev.ts_normalized_ms) : <span style={{ color: "var(--brand-warning, #eab308)" }}>Attivo</span>}
                     </td>
                     <td style={{ padding: "3px 8px", color: "var(--brand-text-muted, #94a3b8)" }}>{fmtDuration(ev.duration_s)}</td>
                   </tr>
@@ -127,7 +127,7 @@ export function AlarmHistory({ alarmId }: AlarmHistoryProps) {
               onClick={() => setPage((p) => p - 1)}
               style={{ fontSize: 11, padding: "2px 10px", background: "var(--brand-surface, #1e293b)", border: "1px solid var(--brand-surface-2, #334155)", color: page === 0 ? "var(--brand-surface-2, #334155)" : "var(--brand-text-muted, #94a3b8)", borderRadius: 3, cursor: page === 0 ? "default" : "pointer" }}
             >◀ Prec</button>
-            <span style={{ fontSize: 11, color: "#64748b", alignSelf: "center" }}>Pag. {page + 1}</span>
+            <span style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", alignSelf: "center" }}>Pag. {page + 1}</span>
             <button
               disabled={!hasMore}
               onClick={() => setPage((p) => p + 1)}

@@ -6,9 +6,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>SWS Admin</title>
     <style>
-      /* Brand color tokens — defaults = SWS palette. Overridden at boot by
-         applyBranding() (see src/branding). Defined here so colors resolve
-         before JS runs (no flash). Keep in sync with SWS_FALLBACK. */
+      /* Brand + theme color tokens. Defaults = SWS dark palette; overridden at
+         boot by applyBranding()/applyAppearance() as inline props on :root (see
+         src/branding, src/theme). Defined here so colors resolve before JS runs
+         (no flash). The [data-theme="light"] block is the no-JS fallback — the
+         runtime writes the same tokens as inline props. Keep in sync with
+         SWS_FALLBACK and src/theme.ts. */
       :root {
         --brand-bg: #0f172a;
         --brand-surface: #1e293b;
@@ -16,13 +19,63 @@
         --brand-border: #475569;
         --brand-text: #e2e8f0;
         --brand-text-2: #cbd5e1;
-        --brand-text-muted: #94a3b8;
+        --brand-text-muted: #a3b2c9;
+        --brand-text-subtle: #8b9bb5;
         --brand-primary: #3b82f6;
         --brand-primary-hover: #2563eb;
-        --brand-on-primary: #ffffff;
+        --brand-on-primary: #0f172a;
+        --brand-danger: #ef4444;
+        --brand-danger-soft: #fca5a5;
+        --brand-danger-bg: #7f1d1d;
+        --brand-on-danger: #0f172a;
+        --brand-success: #22c55e;
+        --brand-success-soft: #4ade80;
+        --brand-success-bg: #166534;
+        --brand-on-success: #0f172a;
+        --brand-warning: #f59e0b;
+        --brand-warning-soft: #facc15;
+        --brand-warning-bg: #78350f;
+        --brand-on-warning: #0f172a;
+      }
+      :root[data-theme="light"] {
+        --brand-bg: #f8fafc;
+        --brand-surface: #ffffff;
+        --brand-surface-2: #f1f5f9;
+        --brand-border: #cbd5e1;
+        --brand-text: #0f172a;
+        --brand-text-2: #334155;
+        --brand-text-muted: #576475;
+        --brand-text-subtle: #6b7890;
+        --brand-on-primary: #0f172a;
+        --brand-danger: #dc2626;
+        --brand-danger-soft: #b91c1c;
+        --brand-danger-bg: #fee2e2;
+        --brand-on-danger: #f8fafc;
+        --brand-success: #15803d;
+        --brand-success-soft: #166534;
+        --brand-success-bg: #dcfce7;
+        --brand-on-success: #f8fafc;
+        --brand-warning: #b45309;
+        --brand-warning-soft: #92400e;
+        --brand-warning-bg: #fef3c7;
+        --brand-on-warning: #f8fafc;
       }
       html { background: var(--brand-bg); }
     </style>
+    <script>
+      /* Pre-paint: set data-theme from the stored preference (default: follow
+         system) before React/branding boots, so there is no dark<->light flash.
+         Kept minimal and dependency-free. Mirrors src/theme.ts resolveMode(). */
+      (function () {
+        try {
+          var m = localStorage.getItem("sws.theme") || "system";
+          var dark = m === "dark" || (m !== "light" &&
+            window.matchMedia("(prefers-color-scheme: dark)").matches);
+          document.documentElement.setAttribute("data-theme", dark ? "dark" : "light");
+          document.documentElement.style.setProperty("color-scheme", dark ? "dark" : "light");
+        } catch (e) {}
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

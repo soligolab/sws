@@ -21,7 +21,7 @@ function RuntimeIdleScreen() {
       fontFamily: "system-ui, sans-serif",
     }}>
       <svg width="48" height="48" viewBox="0 0 24 24" fill="none"
-           stroke="#3b82f6" strokeWidth="1.5">
+           stroke="var(--brand-primary, #3b82f6)" strokeWidth="1.5">
         <circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/>
       </svg>
       <h2 style={{ margin: 0, fontSize: 20, fontWeight: 600 }}>Nessun progetto attivo</h2>

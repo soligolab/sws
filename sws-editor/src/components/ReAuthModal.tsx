@@ -39,7 +39,7 @@ const INPUT: React.CSSProperties = {
 
 const BTN_PRIMARY: React.CSSProperties = {
   background: "var(--brand-primary, #3b82f6)",
-  color: "#fff",
+  color: "var(--brand-on-primary, #fff)",
   border: "none",
   borderRadius: 5,
   padding: "8px 0",
@@ -51,7 +51,7 @@ const BTN_PRIMARY: React.CSSProperties = {
 
 const BTN_GHOST: React.CSSProperties = {
   background: "transparent",
-  color: "#64748b",
+  color: "var(--brand-text-subtle, #64748b)",
   border: "none",
   fontSize: 12,
   cursor: "pointer",
@@ -122,7 +122,7 @@ export function ReAuthModal() {
             <div style={{ fontSize: 15, fontWeight: 700, color: "var(--brand-text, #e2e8f0)", marginBottom: 4 }}>
               Nessun progetto attivo
             </div>
-            <div style={{ fontSize: 12, color: "#64748b" }}>
+            <div style={{ fontSize: 12, color: "var(--brand-text-subtle, #64748b)" }}>
               Il runtime si è riavviato senza un progetto aperto. Torna alla schermata di benvenuto per selezionare un progetto.
             </div>
           </div>
@@ -141,7 +141,7 @@ export function ReAuthModal() {
           <div style={{ fontSize: 15, fontWeight: 700, color: "var(--brand-text, #e2e8f0)", marginBottom: 4 }}>
             Sessione scaduta
           </div>
-          <div style={{ fontSize: 12, color: "#64748b" }}>
+          <div style={{ fontSize: 12, color: "var(--brand-text-subtle, #64748b)" }}>
             Inserisci la password per continuare come <strong style={{ color: "var(--brand-text-muted, #94a3b8)" }}>{authUser}</strong>.
           </div>
         </div>
@@ -162,7 +162,7 @@ export function ReAuthModal() {
           </div>
 
           {error && (
-            <div style={{ fontSize: 12, color: "#fca5a5" }}>{error}</div>
+            <div style={{ fontSize: 12, color: "var(--brand-danger-soft, #fca5a5)" }}>{error}</div>
           )}
 
           <button type="submit" style={BTN_PRIMARY} disabled={busy || !password}>

@@ -19,7 +19,7 @@ const CARD: React.CSSProperties = {
 const BTN_PRIMARY: React.CSSProperties = {
   padding: "8px 20px",
   background: "var(--brand-primary, #3b82f6)",
-  color: "#fff",
+  color: "var(--brand-on-primary, #fff)",
   border: "none",
   borderRadius: 6,
   cursor: "pointer",
@@ -172,7 +172,7 @@ function NewProjectModal({
                 >
                   Scegli file…
                 </button>
-                <span style={{ fontSize: 13, color: zipFile ? "var(--brand-text, #e2e8f0)" : "#64748b", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                <span style={{ fontSize: 13, color: zipFile ? "var(--brand-text, #e2e8f0)" : "var(--brand-text-subtle, #64748b)", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                   {zipFile ? zipFile.name : "Nessun file selezionato"}
                 </span>
               </div>
@@ -222,7 +222,7 @@ function NewProjectModal({
               placeholder="es. impianto-nord"
               onKeyDown={(e) => { if (e.key === "Enter") handleCreate(); if (e.key === "Escape") onClose(); }}
             />
-            <div style={{ fontSize: 11, color: "#64748b", marginTop: 4 }}>
+            <div style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", marginTop: 4 }}>
               Sarà usato come nome della cartella. Solo lettere, cifre, trattini e underscore.
             </div>
           </div>
@@ -244,7 +244,7 @@ function NewProjectModal({
               ))}
             </select>
             {templates.find((t) => t.id === selectedTpl)?.description && (
-              <div style={{ fontSize: 12, color: "#64748b", marginTop: 6 }}>
+              <div style={{ fontSize: 12, color: "var(--brand-text-subtle, #64748b)", marginTop: 6 }}>
                 {templates.find((t) => t.id === selectedTpl)!.description}
               </div>
             )}
@@ -252,7 +252,7 @@ function NewProjectModal({
         )}
 
         {error && (
-          <div style={{ color: "#fca5a5", fontSize: 13, marginBottom: 14 }}>{error}</div>
+          <div style={{ color: "var(--brand-danger-soft, #fca5a5)", fontSize: 13, marginBottom: 14 }}>{error}</div>
         )}
 
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
@@ -352,7 +352,7 @@ function DeploySection() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-      <div style={{ fontSize: 12, color: "#64748b", lineHeight: 1.5 }}>
+      <div style={{ fontSize: 12, color: "var(--brand-text-subtle, #64748b)", lineHeight: 1.5 }}>
         Scarica il binario <code>sws-runtime</code> da GitHub Releases e lo
         installa sul dispositivo remoto via SCP. Richiede <code>sshpass</code>
         e <code>scp</code> installati sulla macchina locale.
@@ -428,9 +428,9 @@ function DeploySection() {
             <div
               key={i}
               style={{
-                color: line.startsWith("ERROR:") ? "#fca5a5"
-                  : line.startsWith("WARN:") ? "#fbbf24"
-                  : line === "DONE" ? "#22c55e"
+                color: line.startsWith("ERROR:") ? "var(--brand-danger-soft, #fca5a5)"
+                  : line.startsWith("WARN:") ? "var(--brand-warning-soft, #fbbf24)"
+                  : line === "DONE" ? "var(--brand-success, #22c55e)"
                   : "var(--brand-text-muted, #94a3b8)",
               }}
             >
@@ -535,7 +535,7 @@ function RemoteRuntimeModal({
 
         {tab === "connect" && (
           <>
-            <div style={{ fontSize: 12, color: "#64748b", marginBottom: 16 }}>
+            <div style={{ fontSize: 12, color: "var(--brand-text-subtle, #64748b)", marginBottom: 16 }}>
               Connetti l'editor a un runtime SWS in esecuzione su un'altra macchina
               (tipicamente il PX30 sul campo). L'URL viene salvato nel browser
               (localStorage) e usato da tutte le chiamate API/WS finché non lo
@@ -562,12 +562,12 @@ function RemoteRuntimeModal({
               </button>
             </div>
             {probed === "ok" && (
-              <div style={{ fontSize: 12, color: "#22c55e", marginBottom: 8 }}>
+              <div style={{ fontSize: 12, color: "var(--brand-success, #22c55e)", marginBottom: 8 }}>
                 ✓ Il runtime risponde a /health. Pronto per connettersi.
               </div>
             )}
             {probed === "fail" && error && (
-              <div style={{ fontSize: 12, color: "#fca5a5", marginBottom: 8, lineHeight: 1.4 }}>
+              <div style={{ fontSize: 12, color: "var(--brand-danger-soft, #fca5a5)", marginBottom: 8, lineHeight: 1.4 }}>
                 {error}
               </div>
             )}
@@ -728,7 +728,7 @@ export function WelcomeScreen({ onProjectOpened }: WelcomeScreenProps) {
         {/* logo / title */}
         <div style={{ textAlign: "center", marginBottom: 32 }}>
           <div style={{ fontSize: 36, fontWeight: 700, letterSpacing: 2, color: "var(--brand-text, #e2e8f0)" }}>SWS</div>
-          <div style={{ color: "#64748b", fontSize: 14, marginTop: 4 }}>
+          <div style={{ color: "var(--brand-text-subtle, #64748b)", fontSize: 14, marginTop: 4 }}>
             Seleziona o crea un progetto per iniziare
           </div>
         </div>
@@ -736,11 +736,11 @@ export function WelcomeScreen({ onProjectOpened }: WelcomeScreenProps) {
         {/* project list */}
         <div style={{ marginBottom: 16 }}>
           {loading && (
-            <div style={{ textAlign: "center", color: "#64748b", padding: 24 }}>Carico…</div>
+            <div style={{ textAlign: "center", color: "var(--brand-text-subtle, #64748b)", padding: 24 }}>Carico…</div>
           )}
           {!loading && projects.length === 0 && (
             <div style={{
-              textAlign: "center", color: "#64748b", padding: 32,
+              textAlign: "center", color: "var(--brand-text-subtle, #64748b)", padding: 32,
               border: "1px dashed var(--brand-surface-2, #334155)", borderRadius: 8,
             }}>
               Nessun progetto trovato. Crea il tuo primo progetto.
@@ -767,7 +767,7 @@ export function WelcomeScreen({ onProjectOpened }: WelcomeScreenProps) {
                   style={{
                     ...CARD,
                     opacity: dimmed ? 0.45 : 1,
-                    borderColor: isOpening ? "var(--brand-primary, #3b82f6)" : isBusy ? "#f59e0b" : "var(--brand-surface-2, #334155)",
+                    borderColor: isOpening ? "var(--brand-primary, #3b82f6)" : isBusy ? "var(--brand-warning, #f59e0b)" : "var(--brand-surface-2, #334155)",
                     cursor: (openingName || actionBusy || isEditing) ? "default" : "pointer",
                   }}
                   onClick={() => {
@@ -799,7 +799,7 @@ export function WelcomeScreen({ onProjectOpened }: WelcomeScreenProps) {
                     ) : (
                       <div style={{ fontWeight: 600, fontSize: 15, color: "var(--brand-text, #e2e8f0)" }}>{p.name}</div>
                     )}
-                    <div style={{ fontSize: 12, color: "#64748b", marginTop: 2 }}>
+                    <div style={{ fontSize: 12, color: "var(--brand-text-subtle, #64748b)", marginTop: 2 }}>
                       Ultima modifica: {formatDate(p.last_modified_ms)}
                     </div>
                   </div>
@@ -822,7 +822,7 @@ export function WelcomeScreen({ onProjectOpened }: WelcomeScreenProps) {
                       <button
                         title="Elimina"
                         style={{ ...ACT_BTN }}
-                        onMouseEnter={(e) => (e.currentTarget.style.color = "#ef4444")}
+                        onMouseEnter={(e) => (e.currentTarget.style.color = "var(--brand-danger, #ef4444)")}
                         onMouseLeave={(e) => (e.currentTarget.style.color = "var(--brand-text-muted, #94a3b8)")}
                         onClick={() => handleDelete(p.name)}
                       >✕</button>
@@ -831,7 +831,7 @@ export function WelcomeScreen({ onProjectOpened }: WelcomeScreenProps) {
 
                   {/* status label */}
                   {isOpening && <div style={{ fontSize: 13, color: "var(--brand-text-muted, #94a3b8)", flexShrink: 0 }}>Apro…</div>}
-                  {isBusy   && <div style={{ fontSize: 13, color: "#f59e0b", flexShrink: 0 }}>…</div>}
+                  {isBusy   && <div style={{ fontSize: 13, color: "var(--brand-warning, #f59e0b)", flexShrink: 0 }}>…</div>}
                   {!isOpening && !isBusy && (
                     <div style={{ fontSize: 13, color: "var(--brand-primary, #3b82f6)", fontWeight: 500, flexShrink: 0, marginLeft: 4 }}>Apri →</div>
                   )}
@@ -871,7 +871,7 @@ export function WelcomeScreen({ onProjectOpened }: WelcomeScreenProps) {
         </div>
 
         {error && (
-          <div style={{ color: "#fca5a5", fontSize: 13, marginBottom: 14, textAlign: "center" }}>
+          <div style={{ color: "var(--brand-danger-soft, #fca5a5)", fontSize: 13, marginBottom: 14, textAlign: "center" }}>
             {error}
           </div>
         )}
@@ -892,7 +892,7 @@ export function WelcomeScreen({ onProjectOpened }: WelcomeScreenProps) {
           marginTop: 20, paddingTop: 14,
           borderTop: "1px solid var(--brand-surface, #1e293b)",
           display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-          fontSize: 12, color: "#64748b",
+          fontSize: 12, color: "var(--brand-text-subtle, #64748b)",
         }}>
           {remoteRuntime ? (
             <>

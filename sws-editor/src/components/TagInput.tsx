@@ -127,14 +127,14 @@ export function TagInput({ value, onChange, placeholder, style }: TagInputProps)
             >
               <span style={{ color: "var(--brand-text, #e2e8f0)", fontFamily: "monospace", fontSize: 12 }}>{t.id}</span>
               {t.description && (
-                <span style={{ color: "#64748b", fontSize: 11, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                <span style={{ color: "var(--brand-text-subtle, #64748b)", fontSize: 11, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                   {t.description}
                 </span>
               )}
             </div>
           ))}
           {filtered.length === 0 && (
-            <div style={{ padding: "6px 8px", fontSize: 11, color: "#64748b" }}>Nessun tag trovato</div>
+            <div style={{ padding: "6px 8px", fontSize: 11, color: "var(--brand-text-subtle, #64748b)" }}>Nessun tag trovato</div>
           )}
         </div>
       )}

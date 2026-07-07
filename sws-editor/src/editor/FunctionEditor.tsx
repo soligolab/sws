@@ -85,9 +85,9 @@ export function FunctionEditor({ fn, onPatch, onPersist, onClose }: FunctionEdit
         flexShrink: 0,
       }}>
         <strong style={{ fontSize: 14, letterSpacing: 0.3 }}>Funzione Python</strong>
-        <code style={{ color: "#22c55e", fontSize: 12 }}>{fn.name || "(senza nome)"}</code>
+        <code style={{ color: "var(--brand-success, #22c55e)", fontSize: 12 }}>{fn.name || "(senza nome)"}</code>
         {isDirty && (
-          <span style={{ color: "#fbbf24", fontSize: 11, fontWeight: 600 }}>● modifiche non salvate</span>
+          <span style={{ color: "var(--brand-warning-soft, #fbbf24)", fontSize: 11, fontWeight: 600 }}>● modifiche non salvate</span>
         )}
         <div style={{ flex: 1 }} />
         <select
@@ -111,7 +111,7 @@ export function FunctionEditor({ fn, onPatch, onPersist, onClose }: FunctionEdit
           onClick={handleSave}
           disabled={saving || !isDirty}
           style={{
-            background: isDirty ? "#166534" : "var(--brand-surface-2, #334155)",
+            background: isDirty ? "var(--brand-success-bg, #166534)" : "var(--brand-surface-2, #334155)",
             color:      isDirty ? "#bbf7d0" : "var(--brand-text-muted, #94a3b8)",
             border: `1px solid ${isDirty ? "#15803d" : "var(--brand-border, #475569)"}`,
             borderRadius: 4,
@@ -145,8 +145,8 @@ export function FunctionEditor({ fn, onPatch, onPersist, onClose }: FunctionEdit
         <div style={{
           padding: "6px 16px",
           background: "#7f1d1d33",
-          borderBottom: "1px solid #7f1d1d",
-          color: "#fca5a5",
+          borderBottom: "1px solid var(--brand-danger-bg, #7f1d1d)",
+          color: "var(--brand-danger-soft, #fca5a5)",
           fontSize: 12,
         }}>
           {error}
@@ -187,7 +187,7 @@ export function FunctionEditor({ fn, onPatch, onPersist, onClose }: FunctionEdit
             />
           </div>
 
-          <div style={{ marginTop: 4, fontSize: 11, color: "#64748b", fontWeight: 700, letterSpacing: 0.5 }}>
+          <div style={{ marginTop: 4, fontSize: 11, color: "var(--brand-text-subtle, #64748b)", fontWeight: 700, letterSpacing: 0.5 }}>
             PARAMETRI
           </div>
           {fn.params.length === 0 && (
@@ -226,7 +226,7 @@ export function FunctionEditor({ fn, onPatch, onPersist, onClose }: FunctionEdit
                 <button
                   style={{
                     background: "transparent", border: "none",
-                    color: "#ef4444", cursor: "pointer", fontSize: 14, padding: "0 4px",
+                    color: "var(--brand-danger, #ef4444)", cursor: "pointer", fontSize: 14, padding: "0 4px",
                   }}
                   onClick={() => removeParam(i)}
                   title="Rimuovi parametro"
@@ -235,7 +235,7 @@ export function FunctionEditor({ fn, onPatch, onPersist, onClose }: FunctionEdit
             );
           })}
           <button
-            style={{ ...INPUT_STYLE, cursor: "pointer", color: "#64748b", borderStyle: "dashed", textAlign: "left" }}
+            style={{ ...INPUT_STYLE, cursor: "pointer", color: "var(--brand-text-subtle, #64748b)", borderStyle: "dashed", textAlign: "left" }}
             onClick={addParam}
           >
             + Aggiungi parametro
