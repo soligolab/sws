@@ -4,7 +4,7 @@
 >
 > Ambienti di test: vedi [docs/TEST_SETUPS.md](docs/TEST_SETUPS.md) (casa, dev server, dispositivi Yocto).
 
-**Last session**: 2026-07-08 — T-38 brand Pixsys white-label **squash-mergiato in `main`** (`cfee5f1`); branch mergiati eliminati.
+**Last session**: 2026-07-08 — T-38 brand Pixsys white-label **squash-mergiato in `main`** (`cfee5f1`); branch mergiati eliminati; poi **T-37 build_deploy squash-mergiato** (`2a991e9`) e `main` **pushato su origin**.
 
 - **Sessione 2026-07-08 — T-38 brand Pixsys white-label** (squash-mergiato in `main` come `cfee5f1`):
   - **Obiettivo**: il cliente Pixsys vuole editor+viewer sotto il proprio marchio, usando i colori del sito pixsys.net. Sfrutta l'infrastruttura white-label di T-35 + tema chiaro/scuro di T-36 → **solo asset statici + JSON, nessun codice, runtime Rust intatto**.
@@ -12,10 +12,10 @@
   - **Nuovo brand** [sws-editor/public/branding/pixsys/](sws-editor/public/branding/pixsys/): `brand.json` (name "Pixsys — Elevate your process", shortName "Pixsys", 10 token — neutri = default SWS, accento = rosso Pixsys), `logo.svg` (mark autentico: asterisco rosso in anello ellittico blu + wordmark "pixsys" **in rosso** — leggibile sia su tema scuro sia chiaro, dato che il logo è un `<img>` che non eredita `currentColor`), `favicon.svg` (mark su tile bianco arrotondato).
   - **`active.json` → `pixsys`** (brand attivo di default), ora su `main`.
   - **Verifiche fatte**: `pnpm build` verde; `git status` → **nessuna modifica sotto `sws-runtime/`**; script Node di validazione (10 token presenti, asset esistono, SVG ben formati con i colori Pixsys, switch acme→pixsys cambia title + `--brand-primary`).
-  - **Merge + pulizia**: squash-merge in `main` (`cfee5f1`) su richiesta del maintainer; eliminati i branch già mergiati (`feat/T-34-…`, `feat/T-35-branding`, `feat/tls-optional`, `feat/T-38-pixsys-branding`). **Tenuti**: `feat/T-37-build-deploy` (NON mergiato — codice build_deploy/deploy solo sul branch + origin, attende test su device), `archive/office-line-2026-05-21`, `backup/friday-phase-a1`.
+  - **Merge + pulizia**: squash-merge in `main` (`cfee5f1`) su richiesta del maintainer; eliminati i branch già mergiati (`feat/T-34-…`, `feat/T-35-branding`, `feat/tls-optional`, `feat/T-38-pixsys-branding`). Subito dopo, su richiesta, **anche `feat/T-37-build-deploy` squash-mergiato** (`2a991e9`) — i 6 file `scripts/build_deploy.sh` + `deploy/{editor,yocto,generic-linux}/*` sono ora in `main`; `main` pushato su `origin`. **Tenuti**: `archive/office-line-2026-05-21`, `backup/friday-phase-a1` (il branch `feat/T-37-build-deploy` locale/origin resta, ma è ora mergiato — eliminabile a discrezione del maintainer).
   - **DA FARE (maintainer, in browser)**: `./scripts/start_editor.sh` (8460) e viewer via `start_runtime.sh` (8443) → verificare logo/accento rosso/titolo/favicon Pixsys, in **tema chiaro e scuro** (il logo deve restare leggibile in entrambi).
 
-- **Sessione 2026-07-07 — T-37 build pacchetti distribuibili editor + runtime** (branch `feat/T-37-build-deploy` pushato su origin, non ancora mergiato):
+- **Sessione 2026-07-07 — T-37 build pacchetti distribuibili editor + runtime** (squash-mergiato in `main` il 2026-07-08 come `2a991e9`; `main` pushato su origin):
   - **Obiettivo**: un solo script che compila e crea in `dist/` i pacchetti distribuibili sia dell'editor sia del runtime. Deciso col maintainer: output in `dist/`, editor **portabile** (scompatta ed esegui), compilare **anche aarch64**.
   - **Nuovo** [scripts/build_deploy.sh](scripts/build_deploy.sh): compila SPA + binario `sws-runtime` (release) **una volta per arch**, poi stagia **4 tarball** in `dist/`: `sws-runtime-<v>-linux-{x86_64,aarch64}` e `sws-editor-<v>-linux-{x86_64,aarch64}`. Editor e runtime = stesso binario, differiscono solo per launcher/installer incluso. aarch64 via `scripts/yocto/build.sh` in **sottoprocesso** (l'env dell'SDK non contamina la shell host); se l'SDK manca → skip con avviso (o errore se `--aarch64-only`). Flag: `--host-only`, `--aarch64-only`, `--no-rust`, `--no-spa`, `--out DIR`. `scripts/package.sh` (backend T-28) **lasciato intatto**.
   - **Pacchetto editor**: nuovi [deploy/editor/run-editor.sh](deploy/editor/run-editor.sh) (IDE-only su :8460, dati portabili in `./data/`, no root/systemd, no-auth come `start_editor.sh`) + [deploy/editor/README.md](deploy/editor/README.md).
@@ -130,7 +130,7 @@
   - Bottone "Aggiorna" + toggle "● Live" (poll ogni 5 s); auto-stop alla disconnessione.
   - Box scrollabile max 200 px, timestamp HH:MM:SS, colori INFO/WARN/ERROR/DEBUG.
 
-**Branch corrente**: `main`. Pulizia branch del 2026-07-08: eliminati i branch già mergiati `feat/T-34-runtime-single-project-versioning`, `feat/T-35-branding`, `feat/tls-optional`, `feat/T-38-pixsys-branding`. Restano in locale: `feat/T-37-build-deploy` (NON mergiato — attende test su device, presente anche su origin), `archive/office-line-2026-05-21`, `backup/friday-phase-a1` (tenuti apposta).
+**Branch corrente**: `main` (pushato su origin, 2026-07-08). Pulizia branch del 2026-07-08: eliminati i branch già mergiati `feat/T-34-runtime-single-project-versioning`, `feat/T-35-branding`, `feat/tls-optional`, `feat/T-38-pixsys-branding`. Restano in locale: `feat/T-37-build-deploy` (ora **mergiato** in `main`, presente anche su origin — eliminabile a discrezione del maintainer), `archive/office-line-2026-05-21`, `backup/friday-phase-a1` (tenuti apposta).
 
 ---
 
@@ -141,7 +141,7 @@
 - [x] **Verifica T-34** — ✅ automatizzata con `scripts/test_t34.sh` (18/18 test verdi, 2026-06-20). Copre: no-auth, auto-open, versionamento+migrate, remote deploy, elimina remoto.
 - [x] **TLS opzionale** — ✅ in main.
 - [x] **`feat/pyenv-support`** — ✅ già integrato in `main` (`ba6e3c8`, `start_runtime.sh` righe 54-60). Branch remoto ridondante rimosso (2026-06-22).
-- [ ] **Verifica T-37 pacchetti su device** — su `feat/T-37-build-deploy`: install del tarball `sws-runtime-*-linux-aarch64.tar.gz` su un Pixsys reale (`sudo ./install.sh` → `/data/user/sws`), viewer su `:8443` + IDE su `:8444`; su PC scompattare `sws-editor-*` e `./run-editor.sh`. Se ok → squash merge in `main`.
+- [x] **T-37 build_deploy** — ✅ squash-mergiato in `main` (`2a991e9`, 2026-07-08) su richiesta del maintainer; `main` pushato su origin. **Resta consigliato** il test su device reale: install del tarball `sws-runtime-*-linux-aarch64.tar.gz` su un Pixsys (`sudo ./install.sh` → `/data/user/sws`), viewer su `:8443` + IDE su `:8444`; su PC scompattare `sws-editor-*` e `./run-editor.sh`.
 - [ ] **Verifica browser T-35 branding** — su `feat/T-35-branding`: logo/palette/titolo per brand + switch via `active.json`, IDE (8460/8444) e viewer (8443). Se ok → squash merge in `main`.
 - [x] **T-38 brand Pixsys** — ✅ squash-mergiato in `main` (`cfee5f1`, 2026-07-08). Verifica browser (logo/accento rosso/favicon in tema chiaro e scuro) resta consigliata al maintainer al prossimo avvio.
 - [ ] **Verifica manuale T-27** — packaging tarball + installer. Comandi sotto.
