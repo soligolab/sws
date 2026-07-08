@@ -4,15 +4,16 @@
 >
 > Ambienti di test: vedi [docs/TEST_SETUPS.md](docs/TEST_SETUPS.md) (casa, dev server, dispositivi Yocto).
 
-**Last session**: 2026-07-08 — T-38 brand Pixsys white-label (branch `feat/T-38-pixsys-branding`, da verificare in browser dal maintainer).
+**Last session**: 2026-07-08 — T-38 brand Pixsys white-label **squash-mergiato in `main`** (`cfee5f1`); branch mergiati eliminati.
 
-- **Sessione 2026-07-08 — T-38 brand Pixsys white-label** (branch `feat/T-38-pixsys-branding`, non ancora mergiato):
+- **Sessione 2026-07-08 — T-38 brand Pixsys white-label** (squash-mergiato in `main` come `cfee5f1`):
   - **Obiettivo**: il cliente Pixsys vuole editor+viewer sotto il proprio marchio, usando i colori del sito pixsys.net. Sfrutta l'infrastruttura white-label di T-35 + tema chiaro/scuro di T-36 → **solo asset statici + JSON, nessun codice, runtime Rust intatto**.
   - **Colori ufficiali** estratti dal logo `pixsys-1.svg`: rosso `#D2232A` (mark) → accento `primary` (hover `#b01d23`); blu `#25408F` (anello) usato nel mark. Slogan "Elevate your process".
   - **Nuovo brand** [sws-editor/public/branding/pixsys/](sws-editor/public/branding/pixsys/): `brand.json` (name "Pixsys — Elevate your process", shortName "Pixsys", 10 token — neutri = default SWS, accento = rosso Pixsys), `logo.svg` (mark autentico: asterisco rosso in anello ellittico blu + wordmark "pixsys" **in rosso** — leggibile sia su tema scuro sia chiaro, dato che il logo è un `<img>` che non eredita `currentColor`), `favicon.svg` (mark su tile bianco arrotondato).
-  - **`active.json` → `pixsys`** (brand attivo di default) **sul branch**. Su `main` resta `acme`.
+  - **`active.json` → `pixsys`** (brand attivo di default), ora su `main`.
   - **Verifiche fatte**: `pnpm build` verde; `git status` → **nessuna modifica sotto `sws-runtime/`**; script Node di validazione (10 token presenti, asset esistono, SVG ben formati con i colori Pixsys, switch acme→pixsys cambia title + `--brand-primary`).
-  - **DA FARE (maintainer, in browser)**: `./scripts/start_editor.sh` (8460) e viewer via `start_runtime.sh` (8443) → verificare logo/accento rosso/titolo/favicon Pixsys, in **tema chiaro e scuro** (il logo deve restare leggibile in entrambi). Se ok → squash merge in `main`.
+  - **Merge + pulizia**: squash-merge in `main` (`cfee5f1`) su richiesta del maintainer; eliminati i branch già mergiati (`feat/T-34-…`, `feat/T-35-branding`, `feat/tls-optional`, `feat/T-38-pixsys-branding`). **Tenuti**: `feat/T-37-build-deploy` (NON mergiato — codice build_deploy/deploy solo sul branch + origin, attende test su device), `archive/office-line-2026-05-21`, `backup/friday-phase-a1`.
+  - **DA FARE (maintainer, in browser)**: `./scripts/start_editor.sh` (8460) e viewer via `start_runtime.sh` (8443) → verificare logo/accento rosso/titolo/favicon Pixsys, in **tema chiaro e scuro** (il logo deve restare leggibile in entrambi).
 
 - **Sessione 2026-07-07 — T-37 build pacchetti distribuibili editor + runtime** (branch `feat/T-37-build-deploy` pushato su origin, non ancora mergiato):
   - **Obiettivo**: un solo script che compila e crea in `dist/` i pacchetti distribuibili sia dell'editor sia del runtime. Deciso col maintainer: output in `dist/`, editor **portabile** (scompatta ed esegui), compilare **anche aarch64**.
@@ -129,7 +130,7 @@
   - Bottone "Aggiorna" + toggle "● Live" (poll ogni 5 s); auto-stop alla disconnessione.
   - Box scrollabile max 200 px, timestamp HH:MM:SS, colori INFO/WARN/ERROR/DEBUG.
 
-**Branch corrente**: `main` — unico branch sia in locale sia in remoto. Pulizia branch del 2026-06-22: eliminato il residuo locale stantio `fix/issue2-export-import` (superato da `main`) e confermata l'assenza di `feat/pyenv-support` sul remote (pyenv già in `main`).
+**Branch corrente**: `main`. Pulizia branch del 2026-07-08: eliminati i branch già mergiati `feat/T-34-runtime-single-project-versioning`, `feat/T-35-branding`, `feat/tls-optional`, `feat/T-38-pixsys-branding`. Restano in locale: `feat/T-37-build-deploy` (NON mergiato — attende test su device, presente anche su origin), `archive/office-line-2026-05-21`, `backup/friday-phase-a1` (tenuti apposta).
 
 ---
 
@@ -142,7 +143,7 @@
 - [x] **`feat/pyenv-support`** — ✅ già integrato in `main` (`ba6e3c8`, `start_runtime.sh` righe 54-60). Branch remoto ridondante rimosso (2026-06-22).
 - [ ] **Verifica T-37 pacchetti su device** — su `feat/T-37-build-deploy`: install del tarball `sws-runtime-*-linux-aarch64.tar.gz` su un Pixsys reale (`sudo ./install.sh` → `/data/user/sws`), viewer su `:8443` + IDE su `:8444`; su PC scompattare `sws-editor-*` e `./run-editor.sh`. Se ok → squash merge in `main`.
 - [ ] **Verifica browser T-35 branding** — su `feat/T-35-branding`: logo/palette/titolo per brand + switch via `active.json`, IDE (8460/8444) e viewer (8443). Se ok → squash merge in `main`.
-- [ ] **Verifica browser T-38 brand Pixsys** — su `feat/T-38-pixsys-branding`: logo Pixsys + accento rosso `#D2232A` + titolo/favicon, IDE (8460/8444) e viewer (8443), leggibilità logo in **tema chiaro e scuro**. Se ok → squash merge in `main`.
+- [x] **T-38 brand Pixsys** — ✅ squash-mergiato in `main` (`cfee5f1`, 2026-07-08). Verifica browser (logo/accento rosso/favicon in tema chiaro e scuro) resta consigliata al maintainer al prossimo avvio.
 - [ ] **Verifica manuale T-27** — packaging tarball + installer. Comandi sotto.
 - [ ] **Verifica manuale T-24/T-25/T-26** — fingerprint/device dashboard, remote logs, git commit/push. Comandi sotto.
 - [ ] **Debito: `sws-kiosk` non rispetta `--viewer-port`** (hardcoded `https://localhost:8443` nel wayland spawn). Fix triviale in `main.rs` se/quando si usa il kiosk su device multi-istanza.
