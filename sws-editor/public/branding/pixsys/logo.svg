@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 32" role="img" aria-label="Pixsys">
+  <!-- Pixsys mark (official): red asterisk inside a blue elliptical ring, scaled to fit. -->
+  <g transform="translate(0.712 0.424) scale(0.48)">
+    <ellipse fill="none" stroke="#25408F" stroke-width="3" cx="29.6" cy="32.5" rx="21.2" ry="23"/>
+    <path fill="#D2232A" d="M0.6,31.8v0.7v0.7h5C18.5,33.2,29,44.5,29,58.4v5.4h0.6h0.6v-5.4c0-13.9,10.4-25.2,23.3-25.2h5v-0.7v-0.7h-5c-12.9,0-23.3-11.3-23.3-25.2V1.2h-0.6H29v5.4c0,13.9-10.4,25.2-23.3,25.2H0.6z"/>
+  </g>
+  <!-- Wordmark in Pixsys red — legible on both light and dark headers. -->
+  <text x="35" y="22" font-family="system-ui,-apple-system,sans-serif" font-size="17" font-weight="700" letter-spacing="0.5" fill="#D2232A">pixsys</text>
+</svg>
