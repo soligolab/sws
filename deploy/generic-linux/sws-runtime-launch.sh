@@ -31,8 +31,12 @@ export SWS_ADMIN_USER SWS_ADMIN_PASSWORD
 : "${SWS_VIEWER_PASSWORD:=}"
 export SWS_SUPERVISOR_PASSWORD SWS_OPERATOR_PASSWORD SWS_VIEWER_PASSWORD
 
+# Runtime role: serve BOTH the operator viewer (8443) and the admin IDE (8444).
+# Without --viewer-port the viewer never binds and this would be IDE-only.
 exec "$SWS_INSTALL/bin/sws-runtime" \
     --config         "$SWS_DATA/config" \
     --projects-root  "$SWS_DATA/projects" \
     --templates-root "$SWS_INSTALL/templates" \
-    --www            "$SWS_INSTALL/www"
+    --www            "$SWS_INSTALL/www" \
+    --viewer-port    8443 \
+    --admin-port     8444
