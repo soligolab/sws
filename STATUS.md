@@ -4,7 +4,15 @@
 >
 > Ambienti di test: vedi [docs/TEST_SETUPS.md](docs/TEST_SETUPS.md) (casa, dev server, dispositivi Yocto).
 
-**Last session**: 2026-07-08 — T-38 brand Pixsys white-label **squash-mergiato in `main`** (`cfee5f1`); branch mergiati eliminati; poi **T-37 build_deploy squash-mergiato** (`2a991e9`) e `main` **pushato su origin**.
+**Last session**: 2026-07-09 — fix tema chiaro su righelli canvas + pannello LOG (colori hardcoded → `var(--brand-*)`); **squash-mergiato in `main`** (`fix/light-theme-ruler-log`) e pushato su origin, confermato dal maintainer in browser.
+
+- **Sessione 2026-07-09 — fix tema chiaro: righelli canvas + pannello LOG** (branch `fix/light-theme-ruler-log`, squash-mergiato in `main` e pushato):
+  - **Sintomo (maintainer)**: col tema chiaro attivo, le strisce dei righelli del canvas e il pannello LOG restavano scuri, col testo grigio a basso contrasto.
+  - **Causa**: colori hardcoded del tema scuro (`#0f172a`, `#334155`, `#64748b`, `#0b1220`) invece delle CSS var `--brand-*` del tema (T-36). Il testo era già tematizzato → dark-on-dark in tema chiaro.
+  - **Fix** [SvgCanvas.tsx](sws-editor/src/canvas/SvgCanvas.tsx) (blocco righelli ~1485-1566) + [LogPanel.tsx](sws-editor/src/components/LogPanel.tsx): righello e pannello leggono `var(--brand-bg/surface/surface-2/text-muted)`; nel righello `fill`/`stroke` spostati da attributi SVG a `style` inline (var() affidabile su tutti i browser). Corretto anche il testo `<mark>` della ricerca log (fissato `#0f172a`: sfondo giallo non tematizzato). **Superficie canvas lasciata invariata**: è lo sfondo pagina del progetto (dato utente), non chrome.
+  - **Non toccato**: colore `DEBUG` del log (`#0ea5e9`, ~2.9:1 su chiaro, ma off di default) — segnalato al maintainer, non richiesto.
+  - `pnpm build` verde; confermato in browser dal maintainer.
+
 
 - **Sessione 2026-07-08 — T-38 brand Pixsys white-label** (squash-mergiato in `main` come `cfee5f1`):
   - **Obiettivo**: il cliente Pixsys vuole editor+viewer sotto il proprio marchio, usando i colori del sito pixsys.net. Sfrutta l'infrastruttura white-label di T-35 + tema chiaro/scuro di T-36 → **solo asset statici + JSON, nessun codice, runtime Rust intatto**.
