@@ -290,7 +290,7 @@ function highlight(text: string, search: string): React.ReactNode {
   while ((m = re.exec(text)) !== null) {
     if (m.index > last) parts.push(text.slice(last, m.index));
     parts.push(
-      <mark key={parts.length} style={{ background: "#fde047", color: "var(--brand-bg, #0f172a)", padding: "0 1px" }}>
+      <mark key={parts.length} style={{ background: "#fde047", color: "#0f172a", padding: "0 1px" }}>
         {m[0]}
       </mark>,
     );
@@ -345,7 +345,7 @@ function downloadAsJsonl(events: LogEvent[], dateTag: string): void {
 const panelStyle: React.CSSProperties = {
   height: 240,
   flexShrink: 0,
-  background: "#0b1220",
+  background: "var(--brand-bg, #0b1220)",
   borderTop: "1px solid var(--brand-surface-2, #334155)",
   display: "flex",
   flexDirection: "column",

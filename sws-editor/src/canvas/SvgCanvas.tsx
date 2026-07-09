@@ -1483,7 +1483,7 @@ export function SvgCanvas({
         for (let v = firstTickY; v <= maxY; v += niceStep) ticksY.push(v);
 
         const rulerStyle: React.CSSProperties = {
-          fill: "#0f172a", stroke: "#334155", strokeWidth: 1,
+          fill: "var(--brand-bg, #0f172a)", stroke: "var(--brand-surface-2, #334155)", strokeWidth: 1,
           cursor: "crosshair",
         };
 
@@ -1506,9 +1506,10 @@ export function SvgCanvas({
               if (sx < RULER_PX) return null;
               return (
                 <g key={`tx-${v}`} style={{ pointerEvents: "none" }}>
-                  <line x1={sx} y1={RULER_PX - 5} x2={sx} y2={RULER_PX} stroke="#64748b" strokeWidth={1} />
+                  <line x1={sx} y1={RULER_PX - 5} x2={sx} y2={RULER_PX} strokeWidth={1}
+                    style={{ stroke: "var(--brand-text-muted, #64748b)" }} />
                   <text x={sx + 2} y={11}
-                    style={{ fontSize: 9, fill: "#64748b", fontFamily: "monospace" }}>
+                    style={{ fontSize: 9, fill: "var(--brand-text-muted, #64748b)", fontFamily: "monospace" }}>
                     {v}
                   </text>
                 </g>
@@ -1531,9 +1532,10 @@ export function SvgCanvas({
               if (sy < RULER_PX) return null;
               return (
                 <g key={`ty-${v}`} style={{ pointerEvents: "none" }}>
-                  <line x1={RULER_PX - 5} y1={sy} x2={RULER_PX} y2={sy} stroke="#64748b" strokeWidth={1} />
+                  <line x1={RULER_PX - 5} y1={sy} x2={RULER_PX} y2={sy} strokeWidth={1}
+                    style={{ stroke: "var(--brand-text-muted, #64748b)" }} />
                   <text x={2} y={sy + 8} transform={`rotate(-90 ${10} ${sy})`}
-                    style={{ fontSize: 9, fill: "#64748b", fontFamily: "monospace" }}>
+                    style={{ fontSize: 9, fill: "var(--brand-text-muted, #64748b)", fontFamily: "monospace" }}>
                     {v}
                   </text>
                 </g>
@@ -1541,14 +1543,14 @@ export function SvgCanvas({
             })}
             {/* Corner square */}
             <rect x={0} y={0} width={RULER_PX} height={RULER_PX}
-              fill="#1e293b" stroke="#334155" strokeWidth={1}
-              style={{ cursor: "pointer" }}
+              strokeWidth={1}
+              style={{ fill: "var(--brand-surface, #1e293b)", stroke: "var(--brand-surface-2, #334155)", cursor: "pointer" }}
               onClick={(e) => { e.stopPropagation(); toggleRulers(); }}
             >
               <title>Nascondi righelli</title>
             </rect>
             <text x={RULER_PX / 2} y={RULER_PX / 2 + 3} textAnchor="middle"
-              style={{ fontSize: 10, fill: "#64748b", pointerEvents: "none", fontFamily: "monospace" }}>
+              style={{ fontSize: 10, fill: "var(--brand-text-muted, #64748b)", pointerEvents: "none", fontFamily: "monospace" }}>
               ⟂
             </text>
           </g>
@@ -1558,9 +1560,10 @@ export function SvgCanvas({
       {/* Ruler toggle button when rulers are hidden — small icon top-left. */}
       {onMove && !showRulers && (
         <g style={{ cursor: "pointer" }} onClick={(e) => { e.stopPropagation(); toggleRulers(); }}>
-          <rect x={2} y={2} width={20} height={20} fill="#1e293b" stroke="#334155" />
+          <rect x={2} y={2} width={20} height={20}
+            style={{ fill: "var(--brand-surface, #1e293b)", stroke: "var(--brand-surface-2, #334155)" }} />
           <text x={12} y={16} textAnchor="middle"
-            style={{ fontSize: 11, fill: "#64748b", fontFamily: "monospace", pointerEvents: "none" }}>⟂</text>
+            style={{ fontSize: 11, fill: "var(--brand-text-muted, #64748b)", fontFamily: "monospace", pointerEvents: "none" }}>⟂</text>
           <title>Mostra righelli</title>
         </g>
       )}
