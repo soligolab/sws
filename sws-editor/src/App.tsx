@@ -3,16 +3,20 @@ import { useTranslation } from "react-i18next";
 import { api, AuthError, getRuntimeBaseUrl, NoProjectError, PasswordChangeRequiredError, RuntimeUnavailableError, setRuntimeBaseUrl } from "@/api/client";
 import { AlarmBanner } from "@/components/AlarmBanner";
 import { ChangePasswordScreen } from "@/components/ChangePasswordScreen";
+import { BrandLogo } from "@/components/BrandLogo";
+import { DirtyIndicator } from "@/components/DirtyIndicator";
+import { HDR_BTN } from "@/components/headerStyles";
+import { MainMenu } from "@/components/MainMenu";
+import { RuntimeCtrl } from "@/components/RuntimeCtrl";
+import { UserMenu } from "@/components/UserMenu";
 import { LogPanel } from "@/components/LogPanel";
 import { LoginScreen } from "@/components/LoginScreen";
 import { ReAuthModal } from "@/components/ReAuthModal";
-import { ThemeToggle } from "@/components/ThemeToggle";
-import { UiLangSelect } from "@/components/UiLangSelect";
 import { WelcomeScreen } from "@/components/WelcomeScreen";
 import { ConfigView } from "@/config/ConfigView";
 import { EditorShell } from "@/editor/EditorShell";
 import { getBrand } from "@/branding";
-import { useAppStore } from "@/store";
+import { selectIsDirty, useAppStore } from "@/store";
 import { pickInitialPageId } from "@/pageLayout";
 import { useLogStream } from "@/ws/logStream";
 import { useTagStream } from "@/ws/tagStream";
@@ -49,407 +53,6 @@ function AccessDenied({ role, onLogout }: { role: string; onLogout: () => void }
 
 // ── Shared header-button style ────────────────────────────────────────────────
 
-const HDR_BTN: React.CSSProperties = {
-  padding: "4px 10px",
-  background: "var(--brand-surface-2, #334155)",
-  color: "var(--brand-text-2, #cbd5e1)",
-  border: "1px solid var(--brand-border, #475569)",
-  borderRadius: 4,
-  cursor: "pointer",
-  fontSize: 12,
-  whiteSpace: "nowrap",
-};
-
-const DROP_PANEL: React.CSSProperties = {
-  position: "absolute",
-  right: 0,
-  top: "calc(100% + 4px)",
-  background: "var(--brand-surface, #1e293b)",
-  border: "1px solid var(--brand-surface-2, #334155)",
-  borderRadius: 6,
-  padding: "4px 0",
-  minWidth: 180,
-  zIndex: 100,
-  boxShadow: "0 4px 16px rgba(0,0,0,0.4)",
-};
-
-const DROP_ITEM: React.CSSProperties = {
-  display: "block",
-  width: "100%",
-  textAlign: "left",
-  background: "transparent",
-  border: "none",
-  color: "var(--brand-text-2, #cbd5e1)",
-  padding: "7px 14px",
-  fontSize: 13,
-  cursor: "pointer",
-};
-
-const DROP_SEP: React.CSSProperties = {
-  height: 1,
-  background: "var(--brand-surface-2, #334155)",
-  margin: "4px 0",
-};
-
-// ── Brand logo (top-left) ─────────────────────────────────────────────────────
-// Shows the active white-label brand's logo image, falling back to the brand
-// short-name text if the image is missing/broken. See @/branding.
-
-function BrandLogo() {
-  const brand = getBrand();
-  const [failed, setFailed] = useState(false);
-  if (brand.logoUrl && !failed) {
-    return (
-      <img
-        src={brand.logoUrl}
-        alt={brand.name}
-        title={brand.name}
-        style={{ height: 26, width: "auto", display: "block" }}
-        onError={() => setFailed(true)}
-      />
-    );
-  }
-  return (
-    <strong style={{ letterSpacing: 1, fontSize: 15, color: "var(--brand-text, #e2e8f0)" }}>
-      {brand.shortName}
-    </strong>
-  );
-}
-
-// ── GridDropdown (edit mode only) ─────────────────────────────────────────────
-
-function GridDropdown() {
-  const { t } = useTranslation();
-  const [open, setOpen] = useState(false);
-  const ref             = useRef<HTMLDivElement>(null);
-  const gridSize        = useAppStore((s) => s.gridSize);
-  const snapEnabled     = useAppStore((s) => s.snapEnabled);
-  const setGridSize     = useAppStore((s) => s.setGridSize);
-  const setSnap         = useAppStore((s) => s.setSnapEnabled);
-
-  // Close on outside click
-  useEffect(() => {
-    if (!open) return;
-    const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [open]);
-
-  const label = gridSize === 0 ? t("header.gridOff") : `${t("header.grid")}: ${gridSize}px`;
-
-  return (
-    <div ref={ref} style={{ position: "relative" }}>
-      <button style={HDR_BTN} onClick={() => setOpen((v) => !v)}>
-        {label} ▾
-      </button>
-      {open && (
-        <div style={DROP_PANEL}>
-          <div style={{ padding: "6px 14px 2px", fontSize: 11, color: "var(--brand-text-subtle, #64748b)", fontWeight: 700, letterSpacing: 0.5 }}>
-            {t("header.gridSection")}
-          </div>
-          <div style={{ padding: "4px 14px 6px", display: "flex", flexDirection: "column", gap: 6 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <span style={{ fontSize: 12, color: "var(--brand-text-muted, #94a3b8)", flex: 1 }}>{t("header.gridSize")}</span>
-              <select
-                value={gridSize}
-                onChange={(e) => setGridSize(Number(e.target.value))}
-                style={{ background: "var(--brand-bg, #0f172a)", color: "var(--brand-text, #e2e8f0)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, padding: "2px 6px", fontSize: 12, cursor: "pointer" }}
-              >
-                {[0, 5, 10, 20, 40].map((n) => (
-                  <option key={n} value={n}>{n === 0 ? "Off" : `${n}px`}</option>
-                ))}
-                {/* i18n: "Off" è invariato tra le lingue */}
-              </select>
-            </div>
-            <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
-              <input
-                type="checkbox"
-                checked={snapEnabled}
-                onChange={(e) => setSnap(e.target.checked)}
-                style={{ accentColor: "var(--brand-primary, #3b82f6)" }}
-              />
-              <span style={{ fontSize: 12, color: "var(--brand-text-muted, #94a3b8)" }}>{t("header.gridSnap")}</span>
-            </label>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ── RuntimeCtrl (admin/supervisor only) ──────────────────────────────────────
-
-function RuntimeCtrl() {
-  const { t } = useTranslation();
-  const authRole              = useAppStore((s) => s.authRole);
-  const [running, setRunning] = useState<boolean | null>(null);
-  const [busy, setBusy]       = useState(false);
-  const [needsUpdate, setNeedsUpdate] = useState(false);
-  const [savedBy, setSavedBy] = useState<string | null>(null);
-  const [runtimeVersion, setRuntimeVersion] = useState<string>("");
-  const [migrating, setMigrating] = useState(false);
-
-  useEffect(() => {
-    let alive = true;
-    const poll = async () => {
-      try {
-        const s = await api.getSystemStatus();
-        if (alive) {
-          setRunning(s.sources_running);
-          setNeedsUpdate(s.project_needs_update);
-          setSavedBy(s.project_saved_by);
-          setRuntimeVersion(s.runtime_version);
-        }
-      } catch { /* ignore — runtime may be restarting */ }
-    };
-    poll();
-    const id = setInterval(poll, 5000);
-    return () => { alive = false; clearInterval(id); };
-  }, []);
-
-  if (!canConfigureProject(authRole)) return null;
-
-  const handleMigrate = async () => {
-    if (!confirm(t("header.migrateConfirm", { savedBy: savedBy ?? t("header.unknownVersion"), runtime: runtimeVersion }))) return;
-    setMigrating(true);
-    try {
-      await api.migrateProject();
-      setNeedsUpdate(false);
-    } catch { /* ignore — banner stays until next poll */ }
-    finally { setMigrating(false); }
-  };
-
-  const handleToggle = async () => {
-    if (busy) return;
-    setBusy(true);
-    try {
-      if (running) await api.systemStop();
-      else         await api.systemStart();
-      const s = await api.getSystemStatus();
-      setRunning(s.sources_running);
-    } catch { /* ignore */ }
-    finally { setBusy(false); }
-  };
-
-  const handleReboot = async () => {
-    if (!confirm("Riavviare il runtime? Tutti i WebSocket si disconnetteranno per ~2s.")) return;
-    setBusy(true);
-    try { await api.systemReboot(); } catch { /* ignore */ }
-    setTimeout(() => setBusy(false), 3000);
-  };
-
-  const dotColor = running === null ? "var(--brand-text-subtle, #64748b)" : running ? "var(--brand-success, #22c55e)" : "var(--brand-danger, #ef4444)";
-  const dotTitle = running === null ? t("header.acqUnknown") : running ? t("header.acqRunning") : t("header.acqStopped");
-
-  return (
-    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-      {needsUpdate && (
-        <button
-          style={{ ...HDR_BTN, background: "var(--brand-warning-bg, #78350f)", border: "1px solid var(--brand-warning, #f59e0b)", color: "#fde68a", opacity: migrating ? 0.6 : 1 }}
-          disabled={migrating}
-          onClick={handleMigrate}
-          title={t("header.updateProjectTitle", { savedBy: savedBy ?? t("header.unknownVersion"), runtime: runtimeVersion })}
-        >
-          {migrating ? t("header.updating") : t("header.updateProjectBtn")}
-        </button>
-      )}
-      <span
-        title={dotTitle}
-        style={{ width: 8, height: 8, borderRadius: "50%", background: dotColor, display: "inline-block", flexShrink: 0 }}
-      />
-      <button
-        style={{ ...HDR_BTN, opacity: busy ? 0.6 : 1 }}
-        disabled={busy || running === null}
-        onClick={handleToggle}
-        title={running ? t("header.stopTitle") : t("header.startTitle")}
-      >
-        {busy ? "…" : running ? t("header.stop") : t("header.start")}
-      </button>
-      <button
-        style={{ ...HDR_BTN, opacity: busy ? 0.6 : 1 }}
-        disabled={busy}
-        onClick={handleReboot}
-        title={t("header.rebootTitle")}
-      >
-        {t("header.reboot")}
-      </button>
-    </div>
-  );
-}
-
-// ── MainMenu (always visible) ─────────────────────────────────────────────────
-
-function MainMenu({ mode, onLogout, onCloseProject }: { mode: Mode; onLogout: () => void; onCloseProject: () => void }) {
-  const { t } = useTranslation();
-  const [open, setOpen]       = useState(false);
-  const ref                   = useRef<HTMLDivElement>(null);
-  const authRole              = useAppStore((s) => s.authRole);
-  const saveStatus            = useAppStore((s) => s.saveStatus);
-  const saveError             = useAppStore((s) => s.saveError);
-  const incSaveSerial         = useAppStore((s) => s.incSaveSerial);
-  const setProject            = useAppStore((s) => s.setProject);
-  const setPages              = useAppStore((s) => s.setPages);
-  const fileInputRef          = useRef<HTMLInputElement>(null);
-  const [ioBusy, setIoBusy]   = useState<"export" | "import" | null>(null);
-  const [ioStatus, setIoStat] = useState<string | null>(null);
-
-  // Close on outside click
-  useEffect(() => {
-    if (!open) return;
-    const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [open]);
-
-  const handleExport = async () => {
-    setIoBusy("export"); setIoStat(null);
-    try {
-      const res      = await api.exportProjectZip();
-      const cd       = res.headers.get("content-disposition");
-      const filename = (/filename="([^"]+)"/.exec(cd ?? "") ?? [])[1]
-        ?? (() => { const d = new Date(); const p = (n: number) => String(n).padStart(2,"0"); return `sws-project-${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}.zip`; })();
-      const blob = await res.blob();
-      const url  = URL.createObjectURL(blob);
-      const a    = Object.assign(document.createElement("a"), { href: url, download: filename });
-      document.body.appendChild(a); a.click(); document.body.removeChild(a);
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
-      setIoStat(`✓ ${filename}`);
-    } catch (e: any) { setIoStat(`${t("header.error")}: ${e?.message ?? e}`); }
-    finally { setIoBusy(null); setTimeout(() => setIoStat(null), 5000); }
-  };
-
-  const handleImport = async (file: File) => {
-    if (!confirm(t("menu.importConfirm"))) return;
-    setIoBusy("import"); setIoStat(null);
-    try {
-      await api.importProjectZip(file);
-      const project = await api.getProject();
-      setProject(project);
-      const names = await api.listSynoptics();
-      if (names.length > 0) {
-        const pages = await Promise.all(names.map((n) => api.getSynoptic(n)));
-        setPages(pages, pickInitialPageId(pages, project.page_layout?.home_page_id));
-      } else {
-        setPages([], "");
-      }
-      const tagCount = project.tags?.length ?? 0;
-      setIoStat(t("menu.imported", { file: file.name, count: tagCount }));
-    } catch (e: any) { setIoStat(`${t("header.error")}: ${e?.message ?? e}`); }
-    finally { setIoBusy(null); setTimeout(() => setIoStat(null), 6000); }
-  };
-
-  const saveBtnLabel =
-    saveStatus === "saving" ? t("header.saving") :
-    saveStatus === "ok"     ? t("header.saved")   :
-    saveStatus === "error"  ? t("header.saveErrorBtn") :
-                              t("menu.saveAll");
-
-  const saveBtnColor =
-    saveStatus === "error" ? "var(--brand-danger-soft, #fca5a5)" :
-    saveStatus === "ok"    ? "var(--brand-success-soft, #86efac)" :
-    saveStatus === "saving"? "var(--brand-text-muted, #94a3b8)" :
-                             "var(--brand-text-2, #cbd5e1)";
-
-  return (
-    <div ref={ref} style={{ position: "relative" }}>
-      <button
-        style={{
-          ...HDR_BTN,
-          background: saveStatus === "saving" ? "#374151" : saveStatus === "ok" ? "var(--brand-success-bg, #166534)" : saveStatus === "error" ? "var(--brand-danger-bg, #7f1d1d)" : "var(--brand-surface-2, #334155)",
-          color: saveBtnColor,
-          borderColor: saveStatus === "error" ? "#991b1b" : saveStatus === "ok" ? "#15803d" : "var(--brand-border, #475569)",
-          minWidth: 90,
-        }}
-        onClick={() => setOpen((v) => !v)}
-        title={saveStatus === "error" ? (saveError ?? t("header.error")) : t("header.menuTitle")}
-      >
-        ☰ {t("header.menu")} {saveStatus === "saving" ? "⟳" : saveStatus === "ok" ? "✓" : saveStatus === "error" ? "⚠" : ""}
-      </button>
-      {/* L'input file vive FUORI dal dropdown: cliccare "Importa progetto" chiude
-          il menu (setOpen(false)); se l'input fosse dentro {open && …} verrebbe
-          smontato mentre il file-dialog nativo è ancora aperto e l'onChange non
-          scatterebbe più → l'import non partirebbe (GitHub issue #2). */}
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept=".zip,application/zip"
-        style={{ display: "none" }}
-        onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) handleImport(f); }}
-      />
-      {open && (
-        <div style={DROP_PANEL}>
-          {mode === "edit" && (
-            <>
-              <button
-                style={{ ...DROP_ITEM, color: saveStatus === "error" ? "var(--brand-danger-soft, #fca5a5)" : saveStatus === "ok" ? "var(--brand-success-soft, #86efac)" : "var(--brand-text-2, #cbd5e1)" }}
-                disabled={saveStatus === "saving"}
-                onClick={() => { incSaveSerial(); setOpen(false); }}
-              >
-                {saveBtnLabel}
-              </button>
-              {saveStatus === "error" && saveError && (
-                <div style={{ padding: "2px 14px 6px", fontSize: 11, color: "var(--brand-danger-soft, #fca5a5)", wordBreak: "break-word" }}>
-                  {saveError}
-                </div>
-              )}
-              <div style={DROP_SEP} />
-            </>
-          )}
-          {authRole === "Admin" && (
-            <>
-              <button
-                style={{ ...DROP_ITEM, color: ioBusy === "export" ? "var(--brand-text-muted, #94a3b8)" : "var(--brand-text-2, #cbd5e1)" }}
-                disabled={ioBusy !== null}
-                onClick={() => { handleExport(); setOpen(false); }}
-              >
-                {ioBusy === "export" ? t("menu.exporting") : t("menu.exportProject")}
-              </button>
-              <button
-                style={{ ...DROP_ITEM, color: ioBusy === "import" ? "var(--brand-text-muted, #94a3b8)" : "var(--brand-text-2, #cbd5e1)" }}
-                disabled={ioBusy !== null}
-                onClick={() => { fileInputRef.current?.click(); setOpen(false); }}
-              >
-                {ioBusy === "import" ? t("menu.importing") : t("menu.importProject")}
-              </button>
-              <div style={DROP_SEP} />
-            </>
-          )}
-          <button
-            style={DROP_ITEM}
-            onClick={() => { onCloseProject(); setOpen(false); }}
-          >
-            {t("menu.closeProject")}
-          </button>
-          <div style={DROP_SEP} />
-          <button
-            style={DROP_ITEM}
-            onClick={() => { onLogout(); setOpen(false); }}
-          >
-            {t("menu.logout")}
-          </button>
-        </div>
-      )}
-      {/* Lo stato export/import vive FUORI dal dropdown: il menu si chiude al
-          click di "Importa progetto", quindi un messaggio interno non verrebbe
-          mai visto. Qui resta visibile come piccolo toast sotto il bottone. */}
-      {ioStatus && (
-        <div style={{
-          position: "absolute", top: "100%", right: 0, marginTop: 4, zIndex: 9000,
-          whiteSpace: "nowrap", padding: "4px 10px", borderRadius: 4,
-          background: "var(--brand-bg, #0f172a)", border: "1px solid var(--brand-surface-2, #334155)",
-          fontSize: 11, color: ioStatus.startsWith("✓") ? "var(--brand-success-soft, #86efac)" : "var(--brand-danger-soft, #fca5a5)",
-        }}>
-          {ioStatus}
-        </div>
-      )}
-    </div>
-  );
-}
-
 const LOG_PANEL_KEY = "sws.logPanel.open";
 
 export function App() {
@@ -458,9 +61,18 @@ export function App() {
   const setMode          = useAppStore((s) => s.setAppMode);
   const configTab        = useAppStore((s) => s.configTab);
   const navigateToConfig = useAppStore((s) => s.navigateToConfig);
+  // Log drawer: state stays here (App owns <LogPanel>), the toggle moved into
+  // the ☰ menu — it is a diagnostic, not a per-minute control.
   const [logOpen, setLogOpen] = useState<boolean>(() => {
     try { return localStorage.getItem(LOG_PANEL_KEY) === "1"; } catch { return false; }
   });
+  const toggleLog = () => {
+    setLogOpen((prev) => {
+      const next = !prev;
+      try { localStorage.setItem(LOG_PANEL_KEY, next ? "1" : "0"); } catch { /* ignore */ }
+      return next;
+    });
+  };
 
   // Stream runtime logs and tag values whenever the user is authenticated.
   useLogStream();
@@ -479,16 +91,14 @@ export function App() {
   const setNoActiveProject     = useAppStore((s) => s.setNoActiveProject);
   const reAuthNeeded           = useAppStore((s) => s.reAuthNeeded);
   const setReAuthNeeded        = useAppStore((s) => s.setReAuthNeeded);
-  const pages          = useAppStore((s) => s.pages);
-  const currentPageId  = useAppStore((s) => s.currentPageId);
-  const setCurrentPage = useAppStore((s) => s.setCurrentPage);
   const setPages       = useAppStore((s) => s.setPages);
   const setFaceplates  = useAppStore((s) => s.setFaceplates);
   const project             = useAppStore((s) => s.project);
   const setProject          = useAppStore((s) => s.setProject);
   const setProjectLoadError = useAppStore((s) => s.setProjectLoadError);
-  const isDirty             = useAppStore((s) => s.isDirty);
-  const incSaveSerial       = useAppStore((s) => s.incSaveSerial);
+  const isDirty             = useAppStore(selectIsDirty);
+  const saveAll             = useAppStore((s) => s.saveAll);
+  const resetDirty          = useAppStore((s) => s.resetDirty);
   const saveStatus          = useAppStore((s) => s.saveStatus);
   const remoteDeployStatus  = useAppStore((s) => s.remoteDeployStatus);
 
@@ -678,13 +288,18 @@ export function App() {
       .catch(() => { /* non-critical — no faceplates configured */ });
   }, [authToken, mustChangePassword]);
 
+  // resetDirty() before leaving: after a "close without saving" the store
+  // still holds the modified pages, and a later F5 on the WelcomeScreen
+  // would raise the beforeunload prompt for a project that is no longer open.
   const executeClose = async () => {
+    resetDirty();
     try { await api.closeProject(); } catch { /* ignore */ }
     clearAuth();
     setNoActiveProject(true);
   };
 
   const executeLogout = async () => {
+    resetDirty();
     try { await api.logout(); } catch { /* ignore */ }
     try { await api.closeProject(); } catch { /* ignore */ }
     clearAuth();
@@ -701,11 +316,12 @@ export function App() {
     executeClose();
   };
 
-  // After triggering a save via incSaveSerial(), wait for isDirty to clear
-  // (save succeeded) or saveStatus "error" (save failed) before closing.
+  // After triggering saveAll(), wait for saveStatus "ok" (save succeeded) or
+  // "error" (save failed) before closing. Keyed on saveStatus rather than on
+  // isDirty: a section that stays dirty would otherwise hang here forever.
   useEffect(() => {
     if (!waitingForSave) return;
-    if (!isDirty) {
+    if (saveStatus === "ok") {
       setWaitingForSave(false);
       const pending = confirmPending;
       setConfirmPending(null);
@@ -716,7 +332,39 @@ export function App() {
       setConfirmPending(null);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [waitingForSave, isDirty, saveStatus]);
+  }, [waitingForSave, saveStatus]);
+
+  // Ctrl+S / Cmd+S — global, so it works in Configuration mode too (where
+  // EditorShell is unmounted). preventDefault unconditionally, otherwise the
+  // browser's own "Save page" dialog leaks through when nothing is dirty.
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== "s") return;
+      e.preventDefault();
+      void useAppStore.getState().saveAll();
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, []);
+
+  // Warn before the tab is closed/reloaded with unsaved changes. Attached
+  // only while dirty, so it costs nothing the rest of the time. Closing the
+  // project and logging out don't unload the document (they re-render the
+  // WelcomeScreen in place) and are guarded by their own dialog.
+  useEffect(() => {
+    if (!isDirty) return;
+    const handler = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ""; };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [isDirty]);
+
+  // Tab title: "● Project — Brand" while dirty. Layers on top of the title
+  // set once at boot by applyBranding().
+  useEffect(() => {
+    const brand = getBrand();
+    const base  = project?.meta.name ? `${project.meta.name} — ${brand.shortName}` : brand.name;
+    document.title = isDirty ? `● ${base}` : base;
+  }, [isDirty, project?.meta.name]);
 
   // Blank while the first getProject()+whoami() round-trip is in flight.
   if (bootstrapping) return null;
@@ -811,9 +459,11 @@ export function App() {
             </button>
           );
         })()}
-        <span style={{ color: "var(--brand-border, #475569)", flex: 1, fontSize: 13 }}>
+        <span style={{ color: "var(--brand-border, #475569)", fontSize: 13 }}>
           {t("app.project")}: {project?.meta.name ?? "—"}
         </span>
+        <DirtyIndicator />
+        <span style={{ flex: 1 }} />
         <div style={{ display: "flex", gap: 4 }}>
           {allowedModes.map((m) => (
             <button
@@ -834,27 +484,6 @@ export function App() {
             </button>
           ))}
         </div>
-        <span style={{ color: "var(--brand-border, #475569)", fontSize: 13 }}>
-          {t("app.user")}: {authUser ?? "—"}
-          {authRole && (
-            <span style={{
-              marginLeft: 6,
-              padding: "1px 6px",
-              borderRadius: 3,
-              background: authRole === "Admin" ? "#7c2d12"
-                : authRole === "Supervisor" ? "#7e22ce"
-                : authRole === "Operator" ? "#1e3a8a" : "var(--brand-surface-2, #334155)",
-              // I 3 ruoli con bg fisso scuro usano testo chiaro fisso; il Viewer
-              // (bg = surface-2, tematico) usa il testo tematico.
-              color: authRole === "Viewer" ? "var(--brand-text, #e2e8f0)" : "#f8fafc",
-              fontSize: 11,
-              fontWeight: 600,
-            }}>
-              {authRole}
-            </span>
-          )}
-        </span>
-        {effectiveMode === "edit" && <GridDropdown />}
         <RuntimeCtrl />
         {/* Remote deploy target indicator — shows sync status when connected */}
         {(() => {
@@ -895,28 +524,13 @@ export function App() {
             </button>
           );
         })()}
-        <button
-          onClick={() => {
-            const next = !logOpen;
-            setLogOpen(next);
-            try { localStorage.setItem(LOG_PANEL_KEY, next ? "1" : "0"); } catch { /* ignore */ }
-          }}
-          title={logOpen ? t("header.logHide") : t("header.logShow")}
-          style={{
-            padding: "4px 10px",
-            background: logOpen ? "#1e3a8a" : "var(--brand-surface-2, #334155)",
-            color: "var(--brand-text-2, #cbd5e1)",
-            border: "1px solid var(--brand-border, #475569)",
-            borderRadius: 4,
-            cursor: "pointer",
-            fontSize: 12,
-          }}
-        >
-          {t("header.log")}
-        </button>
-        <UiLangSelect compact />
-        <ThemeToggle compact />
-        <MainMenu mode={effectiveMode} onLogout={handleLogout} onCloseProject={handleCloseProject} />
+        <UserMenu onLogout={handleLogout} />
+        <MainMenu
+          onLogout={handleLogout}
+          onCloseProject={handleCloseProject}
+          logOpen={logOpen}
+          onToggleLog={toggleLog}
+        />
       </header>
 
       {/* Alarm banner */}
@@ -957,41 +571,6 @@ export function App() {
         </div>
       )}
 
-      {/* Page tabs (editor mode only) */}
-      {effectiveMode === "edit" && (
-        <div style={{
-          display: "flex",
-          alignItems: "center",
-          background: "var(--brand-bg, #0f172a)",
-          borderBottom: "1px solid var(--brand-surface-2, #334155)",
-          padding: "0 8px",
-          gap: 2,
-          flexShrink: 0,
-          height: 32,
-          overflowX: "auto",
-        }}>
-          {pages.map((p) => (
-            <button
-              key={p.id}
-              onClick={() => setCurrentPage(p.id)}
-              style={{
-                background: p.id === currentPageId ? "var(--brand-surface, #1e293b)" : "transparent",
-                color: p.id === currentPageId ? "var(--brand-text, #e2e8f0)" : "var(--brand-text-subtle, #64748b)",
-                border: p.id === currentPageId ? "1px solid var(--brand-surface-2, #334155)" : "1px solid transparent",
-                borderBottom: p.id === currentPageId ? "1px solid var(--brand-surface, #1e293b)" : "1px solid transparent",
-                borderRadius: "4px 4px 0 0",
-                padding: "3px 12px",
-                cursor: "pointer",
-                fontSize: 13,
-                whiteSpace: "nowrap",
-              }}
-            >
-              {p.name}
-            </button>
-          ))}
-        </div>
-      )}
-
       {/* Main area */}
       <main style={{ display: "flex", flex: 1, overflow: "hidden" }}>
         {effectiveMode === "edit"   && <EditorShell />}
@@ -1017,7 +596,7 @@ export function App() {
               <button
                 style={{ ...HDR_BTN, background: "#1d4ed8", color: "#fff", border: "1px solid var(--brand-primary-hover, #2563eb)", padding: "8px 16px", fontSize: 13 }}
                 disabled={waitingForSave}
-                onClick={() => { incSaveSerial(); setWaitingForSave(true); }}
+                onClick={() => { void saveAll(); setWaitingForSave(true); }}
               >
                 {waitingForSave ? t("header.saving") : t("unsaved.saveClose")}
               </button>

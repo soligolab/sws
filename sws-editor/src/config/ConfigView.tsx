@@ -290,6 +290,11 @@ function QuickCreateTagModal({
 // visibile scorrendo il contenuto. `label` per varianti ("Salva tutti",
 // "Salva tabella"); `disabled` per i save condizionati (es. !dirty); `notice`
 // per un messaggio esplicito (verde, o rosso se inizia con "Errore"/"✗").
+//
+// Passando `section` + `dirty` la barra diventa anche la sorgente dello stato
+// "modifiche non salvate" a livello di app: registra nello store come salvare
+// questa sezione, così l'indicatore in header si accende e Ctrl+S ("Salva
+// tutto") svuota anche la bozza della tab attiva.
 function SaveBar({
   onSave,
   saving,
@@ -298,15 +303,35 @@ function SaveBar({
   label = "Salva",
   disabled = false,
   notice,
+  section,
+  dirty,
 }: {
-  onSave: () => void;
+  /** I handler delle tab sono `async`: il tipo lo dichiara così `saveAll()`
+   *  può attendere davvero il flush della bozza. */
+  onSave: () => void | Promise<void>;
   saving: boolean;
   saved: boolean;
   savedNotice?: string;
   label?: string;
   disabled?: boolean;
   notice?: string | null;
+  /** Chiave della sezione nel registro delle bozze pendenti. */
+  section?: string;
+  /** True se la bozza locale differisce da quanto salvato. */
+  dirty?: boolean;
 }) {
+  const registerPendingSection = useAppStore((s) => s.registerPendingSection);
+  // onSave cambia identità a ogni render della tab: tenerlo in una ref evita
+  // di ri-registrare (e quindi ri-renderizzare) a ogni battuta di tasto.
+  const onSaveRef = useRef(onSave);
+  onSaveRef.current = onSave;
+
+  useEffect(() => {
+    if (!section) return;
+    registerPendingSection(section, dirty ? async () => { await onSaveRef.current(); } : null);
+    return () => registerPendingSection(section, null);
+  }, [section, dirty, registerPendingSection]);
+
   const noticeIsError = !!notice && (/^(errore|✗|✕)/i).test(notice.trim());
   return (
     <div style={{
@@ -431,7 +456,8 @@ function TagsTab() {
 
   return (
     <div style={S.section}>
-      <SaveBar onSave={handleSave} saving={saving} saved={saved} />
+      <SaveBar onSave={handleSave} saving={saving} saved={saved}
+        section="tags" dirty={JSON.stringify(tags) !== JSON.stringify(storeProject?.tags ?? [])} />
       {showImport && (
         <div style={{
           position: "fixed", inset: 0, zIndex: 8000,
@@ -3887,6 +3913,9 @@ function ProtocolsTab() {
         saving={saving}
         saved={saved}
         savedNotice="✓ Salvato — sorgenti ricollegate al volo."
+        section="sources"
+        dirty={pendingTags.length > 0
+          || JSON.stringify(sources) !== JSON.stringify(storeProject?.sources ?? [])}
       />
       <div style={S.sectionTitle}>SORGENTI DATI / PROTOCOLLI</div>
       <div style={S.notice}>
@@ -4091,7 +4120,8 @@ function AlarmsTab() {
 
   return (
     <div style={S.section}>
-      <SaveBar onSave={handleSave} saving={saving} saved={saved} />
+      <SaveBar onSave={handleSave} saving={saving} saved={saved}
+        section="alarms" dirty={JSON.stringify(alarms) !== JSON.stringify(storeProject?.alarms ?? [])} />
       <div style={S.sectionTitle}>ALLARMI</div>
       <div style={S.notice}>
         Ogni allarme osserva una variabile e si attiva quando la condizione è
@@ -5442,7 +5472,8 @@ function DatastoresTab() {
 
   return (
     <div style={{ padding: 16 }}>
-      <SaveBar onSave={save} saving={saving} saved={saved} disabled={!dirty} />
+      <SaveBar onSave={save} saving={saving} saved={saved} disabled={!dirty}
+        section="datastores" dirty={dirty} />
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
         <span style={{ fontSize: 13, color: "var(--brand-text-muted, #94a3b8)", flex: 1 }}>
           Configura i backend di persistenza dati storici. Ogni variabile con &quot;history&quot; attivo
@@ -6304,7 +6335,12 @@ function NotificationsTab() {
 
   return (
     <div style={S.section}>
-      <SaveBar onSave={handleSave} saving={saving} saved={saved} />
+      <SaveBar onSave={handleSave} saving={saving} saved={saved}
+        section="notifications"
+        dirty={JSON.stringify((enabled || tgEnabled)
+                 ? { smtp: enabled ? smtp : undefined, telegram: tgEnabled ? tg : undefined }
+                 : null)
+             !== JSON.stringify(storeProject?.notifications ?? null)} />
       <div style={S.sectionTitle}>NOTIFICHE EMAIL</div>
       <div style={S.notice}>
         Configura un server SMTP per inviare email al momento dell'attivazione di
@@ -7607,7 +7643,9 @@ function LanguagesTab() {
 
   return (
     <div style={S.section}>
-      <SaveBar onSave={handleSave} saving={saving} saved={saved} label={t("langtab.save")} savedNotice={t("langtab.saved")} />
+      <SaveBar onSave={handleSave} saving={saving} saved={saved} label={t("langtab.save")} savedNotice={t("langtab.saved")}
+        section="languages"
+        dirty={JSON.stringify(table) !== JSON.stringify(storeTable ?? { default: "", langs: [], entries: [] })} />
       <div style={{ fontSize: 12, color: "var(--brand-text-muted, #94a3b8)", marginBottom: 12, lineHeight: 1.5 }}>{t("langtab.intro")}</div>
 
       <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 12, flexWrap: "wrap" }}>

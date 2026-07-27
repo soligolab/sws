@@ -44,6 +44,26 @@ export function effectiveSizeMode(pageLayout: PageLayoutConfig | undefined | nul
   return pageLayout?.size_mode ?? "fixed";
 }
 
+/** Page size the editor's "fit page" should target, or null when there is
+ *  nothing to fit: "fluid" mode declares no size, and a "fixed" page may
+ *  legitimately have no width/height yet. In "ratio" mode a page without
+ *  explicit dimensions still fits the reference resolution. */
+export function editorFitSize(
+  page: Pick<SynopticPage, "width" | "height"> | undefined | null,
+  pageLayout: PageLayoutConfig | undefined | null,
+): { width: number; height: number } | null {
+  const mode = effectiveSizeMode(pageLayout);
+  if (mode === "fluid") return null;
+  if (page?.width && page?.height) return { width: page.width, height: page.height };
+  if (mode === "ratio") {
+    // referenceResolutionFor may return a whole ASPECT_RATIOS entry — keep
+    // only the two fields the caller declares.
+    const { width, height } = referenceResolutionFor(pageLayout?.aspect_ratio);
+    return { width, height };
+  }
+  return null;
+}
+
 /** Which page id the viewer should open at mount. Prefers `homePageId` when
  *  it's present in `pages` (that list is already server-filtered by the
  *  operator's zones — an id absent from it means "not allowed for this

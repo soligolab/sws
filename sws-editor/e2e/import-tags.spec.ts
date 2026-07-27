@@ -46,11 +46,11 @@ test("import progetto via menu fa comparire i tag (issue #2)", async ({ page, re
   await page.goto(BASE, { waitUntil: "networkidle" });
   await page.waitForTimeout(1000);
 
-  // 3. Importa via menu: ☰ Menu → Importa progetto → scegli ZIP.
+  // 3. Importa via menu: ☰ Menu → "Sostituisci da copia sul PC…" → scegli ZIP.
   await page.getByRole("button", { name: /Menu/ }).first().click();
   const [chooser] = await Promise.all([
     page.waitForEvent("filechooser"),
-    page.getByRole("button", { name: /Importa progetto/ }).click(),
+    page.getByRole("button", { name: /copia sul PC/ }).click(),
   ]);
   await chooser.setFiles(zipPath);
   await page.waitForTimeout(2500);

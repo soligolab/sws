@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { useAppStore } from "@/store";
 import type { ThemeMode } from "@/theme";
 
@@ -7,13 +8,14 @@ import type { ThemeMode } from "@/theme";
 
 const ORDER: ThemeMode[] = ["system", "light", "dark"];
 
-const META: Record<ThemeMode, { icon: string; label: string }> = {
-  system: { icon: "🖥️", label: "Sistema" },
-  light:  { icon: "☀️", label: "Chiaro" },
-  dark:   { icon: "🌙", label: "Scuro" },
+const ICON: Record<ThemeMode, string> = {
+  system: "🖥️",
+  light:  "☀️",
+  dark:   "🌙",
 };
 
 export function ThemeToggle({ compact = false }: { compact?: boolean }) {
+  const { t } = useTranslation();
   const themeMode    = useAppStore((s) => s.themeMode);
   const setThemeMode = useAppStore((s) => s.setThemeMode);
 
@@ -22,12 +24,12 @@ export function ThemeToggle({ compact = false }: { compact?: boolean }) {
     setThemeMode(ORDER[(i + 1) % ORDER.length]);
   };
 
-  const meta = META[themeMode];
+  const label = t(`theme.${themeMode}`);
   return (
     <button
       onClick={next}
-      title={`Tema: ${meta.label} — clic per cambiare`}
-      aria-label={`Tema: ${meta.label}`}
+      title={t("theme.title", { label })}
+      aria-label={t("theme.title", { label })}
       style={{
         padding: compact ? "4px 8px" : "4px 10px",
         background: "var(--brand-surface-2, #334155)",
@@ -42,8 +44,8 @@ export function ThemeToggle({ compact = false }: { compact?: boolean }) {
         gap: 6,
       }}
     >
-      <span aria-hidden>{meta.icon}</span>
-      {!compact && <span>{meta.label}</span>}
+      <span aria-hidden>{ICON[themeMode]}</span>
+      {!compact && <span>{label}</span>}
     </button>
   );
 }
