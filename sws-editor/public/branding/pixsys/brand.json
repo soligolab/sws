@@ -15,5 +15,12 @@
     "primary": "#D2232A",
     "primaryHover": "#b01d23",
     "onPrimary": "#ffffff"
-  }
+  },
+  "device_presets": [
+    { "label": "Pixsys WP570 — 7\" (1024×600)", "width": 1024, "height": 600 },
+    { "label": "Pixsys WP800 — 8\" 4:3 (1024×768)", "width": 1024, "height": 768 },
+    { "label": "Pixsys WP815/WP615 — 10.1\" (1280×800)", "width": 1280, "height": 800 },
+    { "label": "Pixsys WP820/WP620 — 12.1\" (1280×800)", "width": 1280, "height": 800 },
+    { "label": "Pixsys WP830/WP630 — 15.6\" (1366×768)", "width": 1366, "height": 768 }
+  ]
 }

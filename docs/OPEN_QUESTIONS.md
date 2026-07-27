@@ -166,6 +166,16 @@ d'attacco ampia sul dispositivo di campo (peggio in no-auth).
 
 **Decided**: A+B+D in lavorazione (2026-07-26). C/E/F = product phase.
 
+**Nota correlata (2026-07-27)**: il gruppo `project_lifecycle` in `router.rs` è **pre-auth** per
+necessità — la WelcomeScreen deve poter creare/aprire il primo progetto quando nessuna sessione
+esiste. Con la scelta della cartella di destinazione quel gruppo espone anche `GET /api/fs/browse-dirs`
+e `POST /api/fs/mkdir`: navigazione del filesystem del dispositivo e creazione cartelle **senza
+autenticazione e senza whitelist di radici**. È coerente con la postura PoC/LAN-fidata e non aggiunge
+una classe di capacità nuova (`POST /api/projects` con `parent_path` fa già `create_dir_all` su un
+percorso arbitrario), ma **tutta questa superficie va chiusa quando il PoC diventa prodotto**: o
+autenticando il gruppo dopo il primo bootstrap, o confinando `/api/fs/*` a un insieme di radici
+consentite. Da affrontare insieme a E.
+
 ---
 
 ## Adding new questions

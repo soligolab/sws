@@ -9,6 +9,20 @@ and this project adheres to [CalVer](https://calver.org/) (`YYYY.MM[.patch]`).
 
 ### Added
 
+- **Creazione cartelle dal selettore di destinazione + apertura progetto da uno ZIP sul PC.**
+  - **`POST /api/fs/mkdir`** (`{parent, name}` → `201 {path}`), accanto a `browse-dirs`: parte pura estratta in `resolve_new_dir()` (testabile senza `AppState`, riusa `safe_project_name`), `create_dir` e **non** `create_dir_all` così un refuso in `parent` non materializza un albero; `AlreadyExists` → 409, `PermissionDenied` → 403. Nel gruppo **pre-auth** `project_lifecycle` come `browse-dirs` — vedi la nota aggiunta in `docs/OPEN_QUESTIONS.md` sulla superficie `/api/fs/*` da chiudere al passaggio a prodotto.
+  - **Pulsante "＋ Nuova cartella"** nel `DirectoryBrowser`, con riga di input inline (Invio crea, Esc annulla) invece di `prompt()` — non traducibile, non stilabile, soppresso in alcune webview kiosk. Dopo la creazione si naviga *dentro* la nuova cartella.
+  - **"📂 Apri da file ZIP…"** nella WelcomeScreen: il percorso esisteva già ma era invisibile dietro "Nuovo progetto → Da ZIP". È **non distruttivo** (crea un progetto nuovo via `POST /api/projects/upload`), a differenza della voce omonima nel ☰ che sostituisce il progetto attivo.
+
+- **Percorso progetto a scelta in creazione + elenco progetti recenti automatico + preset dispositivo legati al brand.**
+  - **Registro progetti** (`sws-web/src/project_registry.rs`, nuovo): `config_dir/known_projects.json`, mappa `nome → {path, last_opened_ms}`, toccato automaticamente da create/open/upload — copre sia i progetti in `projects_root` sia quelli a percorso esterno (Documenti, backup share...).
+  - **`parent_path` opzionale** in `CreateProjectRequest` e `?parent_path=` su `POST /api/projects/upload`: percorso assoluto libero (nessuna whitelist), assente = comportamento invariato.
+  - **`GET /api/projects`** ora restituisce l'unione scan+registro ordinata per `last_opened_ms` decrescente, con nuovi campi `path`, `last_opened_ms`, `external`.
+  - **`rename`/`duplicate`/`delete`** con trattamento differenziato per le voci esterne: rename non sposta la cartella, duplicate crea una cartella sorella, delete de-registra soltanto (mai cancella file fuori dal controllo dell'editor).
+  - **`GET /api/fs/browse-dirs`** (nuovo): mini file-browser server-side per la UI di scelta cartella.
+  - **Frontend**: `NewProjectModal` con selettore cartella destinazione + `DirectoryBrowser`; lista progetti con path/badge "esterno"/azione "Rimuovi dall'elenco".
+  - **Preset dispositivo per brand**: `Brand.devicePresets` da `brand.json` (`device_presets`); i 5 modelli Pixsys spostati da `pageLayout.ts` hardcoded a `public/branding/pixsys/brand.json`; `getDevicePresets()` = standard + brand attivo, dropdown raggruppato per `<optgroup>`.
+
 - **Gestione pagine synoptic: dimensionamento progetto-wide, riordino, miniature, home page, audit collegamenti, lock.**
   - **Dimensionamento pagina** (impostazione di progetto, non per-pagina): **Fisso** (1:1 pixel reale, nessuno scaling — pensato per un dispositivo noto, es. pannello HMI, con scrollbar/margine se la finestra reale non combacia); **Solo proporzioni** (rapporto scelto — 16:9/4:3/21:9/1:1/personalizzato — con risoluzione di riferimento standard, scala mantenendo le proporzioni come il comportamento storico); **Fluido** (nessuna dimensione dichiarata, disegno 1:1 nella viewport disponibile). Modello dati `PageSizeMode`/`PageLayoutConfig` su `Project` (`sws-core`), endpoint `PUT /api/project/page-layout`. Passare a "Proporzioni" propaga automaticamente la risoluzione standard a tutte le pagine esistenti.
   - **Blocco rigido ai confini pagina in editor**: drag e resize di un oggetto ora si fermano al bordo pagina (quando Fisso/Proporzioni), invece di poter uscire liberamente come prima.

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api, getRuntimeBaseUrl, setRuntimeBaseUrl } from "@/api/client";
-import type { ProjectListEntry, TemplateEntry } from "@/types";
+import type { BrowseDirEntry, ProjectListEntry, TemplateEntry } from "@/types";
 
 // ── styles ────────────────────────────────────────────────────────────────────
 
@@ -59,6 +59,187 @@ function formatDate(ms: number | null): string {
   });
 }
 
+/** JS-side mirror of the server's `safe_project_name` — display-only preview
+ *  of the final folder name; the real validation always happens server-side. */
+function previewSafeName(raw: string): string {
+  const trimmed = raw.trim();
+  if (!trimmed || trimmed === "." || trimmed === "..") return "";
+  return trimmed.replace(/[/\\:*?"<>|\x00]/g, "");
+}
+
+// ── DirectoryBrowser ──────────────────────────────────────────────────────────
+//
+// Mini file-browser backing the "destination folder" picker: navigates the
+// runtime's filesystem via GET /api/fs/browse-dirs (no whitelist — the
+// maintainer archives projects in Documents/backup shares outside the
+// editor's own projects_root).
+
+function DirectoryBrowser({
+  initialPath,
+  onSelect,
+  onClose,
+}: {
+  initialPath?: string;
+  onSelect: (path: string) => void;
+  onClose: () => void;
+}) {
+  const { t } = useTranslation();
+  const [current, setCurrent] = useState<string>(initialPath ?? "");
+  const [parent, setParent]   = useState<string | null>(null);
+  const [dirs, setDirs]       = useState<BrowseDirEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError]     = useState<string | null>(null);
+  // null = the "new folder" input row is hidden.
+  const [newName, setNewName] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
+
+  const load = async (path?: string) => {
+    setLoading(true); setError(null);
+    try {
+      const res = await api.browseDirs(path || undefined);
+      setCurrent(res.path);
+      setParent(res.parent);
+      setDirs(res.dirs);
+    } catch (e: any) {
+      setError(t("welcome.browseError", { err: e?.message ?? e }));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { load(initialPath); /* eslint-disable-line react-hooks/exhaustive-deps */ }, []);
+
+  // Not optimistic: mkdir is a local filesystem call, and showing a folder
+  // that failed to be created would be worse than the round trip. On success
+  // we navigate INTO the new folder — the next click is "use this folder".
+  const handleCreateDir = async () => {
+    const name = (newName ?? "").trim();
+    if (!name || creating) return;
+    setCreating(true); setError(null);
+    try {
+      const res = await api.createDir(current, name);
+      setNewName(null);
+      await load(res.path);
+    } catch (e: any) {
+      setError(t("welcome.mkdirError", { err: e?.message ?? e }));
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const ROW: React.CSSProperties = {
+    padding: "8px 12px",
+    cursor: "pointer",
+    borderBottom: "1px solid var(--brand-surface-2, #334155)",
+    fontSize: 13,
+  };
+
+  return (
+    <div
+      style={{
+        position: "fixed", inset: 0,
+        background: "rgba(0,0,0,0.7)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        zIndex: 300,
+      }}
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div style={{
+        background: "var(--brand-surface, #1e293b)",
+        border: "1px solid var(--brand-surface-2, #334155)",
+        borderRadius: 10,
+        padding: 20,
+        width: 460, maxWidth: "90vw",
+        maxHeight: "70vh",
+        display: "flex", flexDirection: "column",
+      }}>
+        <div style={{ fontSize: 16, fontWeight: 600, color: "var(--brand-text, #e2e8f0)", marginBottom: 10 }}>
+          {t("welcome.directoryBrowserTitle")}
+        </div>
+        <div style={{
+          fontSize: 12, fontFamily: "monospace", color: "var(--brand-text-muted, #94a3b8)",
+          marginBottom: 10, wordBreak: "break-all",
+        }}>
+          {current}
+        </div>
+        <div style={{
+          flex: 1, overflowY: "auto", minHeight: 160,
+          border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 6, marginBottom: 12,
+        }}>
+          {newName !== null && (
+            <div style={{ ...ROW, cursor: "default", display: "flex", gap: 6, alignItems: "center" }}>
+              <span>📁</span>
+              <input
+                autoFocus
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") { e.preventDefault(); handleCreateDir(); }
+                  if (e.key === "Escape") { e.preventDefault(); setNewName(null); setError(null); }
+                }}
+                placeholder={t("welcome.newFolderPlaceholder")}
+                style={{
+                  flex: 1, background: "var(--brand-bg, #0f172a)", color: "var(--brand-text, #e2e8f0)",
+                  border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4,
+                  padding: "3px 6px", fontSize: 13,
+                }}
+              />
+              <button style={BTN_GHOST} disabled={creating} onClick={handleCreateDir}>✓</button>
+              <button style={BTN_GHOST} onClick={() => { setNewName(null); setError(null); }}>✕</button>
+            </div>
+          )}
+          {parent !== null && (
+            <div
+              style={{ ...ROW, color: "var(--brand-text-muted, #94a3b8)" }}
+              onClick={() => load(parent)}
+            >
+              ⬆ ..
+            </div>
+          )}
+          {loading && (
+            <div style={{ padding: 16, textAlign: "center", color: "var(--brand-text-subtle, #64748b)" }}>
+              {t("welcome.loading")}
+            </div>
+          )}
+          {!loading && dirs.length === 0 && (
+            <div style={{ padding: 16, textAlign: "center", color: "var(--brand-text-subtle, #64748b)" }}>
+              {t("welcome.noSubfolders")}
+            </div>
+          )}
+          {!loading && dirs.map((d) => (
+            <div
+              key={d.path}
+              style={{ ...ROW, color: "var(--brand-text, #e2e8f0)" }}
+              onClick={() => load(d.path)}
+              onMouseEnter={(e) => (e.currentTarget.style.background = "var(--brand-surface-2, #334155)")}
+              onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+            >
+              📁 {d.name}
+            </div>
+          ))}
+        </div>
+        {error && (
+          <div style={{ color: "var(--brand-danger-soft, #fca5a5)", fontSize: 12, marginBottom: 10 }}>
+            {error}
+          </div>
+        )}
+        <div style={{ display: "flex", gap: 8, justifyContent: "space-between" }}>
+          <button style={BTN_GHOST} disabled={!current || newName !== null}
+            onClick={() => { setNewName(""); setError(null); }}>
+            ＋ {t("welcome.newFolder")}
+          </button>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button style={BTN_GHOST} onClick={onClose}>{t("common.cancel")}</button>
+            <button style={BTN_PRIMARY} onClick={() => onSelect(current)} disabled={!current}>
+              {t("welcome.useThisFolder")}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── NewProjectModal ───────────────────────────────────────────────────────────
 
 type NewProjectTab = "empty" | "template" | "zip";
@@ -66,16 +247,21 @@ type NewProjectTab = "empty" | "template" | "zip";
 function NewProjectModal({
   onClose,
   onCreate,
+  initialTab = "empty",
 }: {
   onClose: () => void;
   onCreate: (name: string) => void;
+  /** Tab to open on. "zip" is used by the "open from a ZIP on my PC" entry. */
+  initialTab?: NewProjectTab;
 }) {
   const { t } = useTranslation();
-  const [tab, setTab]                 = useState<NewProjectTab>("empty");
+  const [tab, setTab]                 = useState<NewProjectTab>(initialTab);
   const [name, setName]               = useState("");
   const [templates, setTemplates]     = useState<TemplateEntry[]>([]);
   const [selectedTpl, setSelectedTpl] = useState<string>("");
   const [zipFile, setZipFile]         = useState<File | null>(null);
+  const [parentPath, setParentPath]   = useState("");
+  const [showBrowser, setShowBrowser] = useState(false);
   const [busy, setBusy]               = useState(false);
   const [error, setError]             = useState<string | null>(null);
   const nameRef                       = useRef<HTMLInputElement>(null);
@@ -93,17 +279,18 @@ function NewProjectModal({
 
   const handleCreate = async () => {
     setBusy(true); setError(null);
+    const trimmedParent = parentPath.trim() || undefined;
     try {
       if (tab === "zip") {
         if (!zipFile) { setError(t("welcome.errNoZip")); setBusy(false); return; }
         // name is optional — backend reads it from manifest.json if blank
         const nameOverride = name.trim() || undefined;
-        const result = await api.uploadProjectZip(zipFile, nameOverride);
+        const result = await api.uploadProjectZip(zipFile, nameOverride, trimmedParent);
         onCreate(result.name);
       } else {
         const trimmed = name.trim();
         if (!trimmed) { setError(t("welcome.errNoName")); setBusy(false); return; }
-        await api.createProject({ name: trimmed, template: tab === "template" ? selectedTpl : undefined });
+        await api.createProject({ name: trimmed, template: tab === "template" ? selectedTpl : undefined, parent_path: trimmedParent });
         onCreate(trimmed);
       }
     } catch (e: any) {
@@ -253,6 +440,38 @@ function NewProjectModal({
           </div>
         )}
 
+        {/* destination folder — shared across all 3 tabs */}
+        <div style={{ marginBottom: 16 }}>
+          <label style={{ fontSize: 12, color: "var(--brand-text-muted, #94a3b8)", display: "block", marginBottom: 6 }}>
+            {t("welcome.destinationFolder")}
+          </label>
+          <div style={{ display: "flex", gap: 8 }}>
+            <input
+              style={{ ...INPUT, flex: 1, fontFamily: "monospace", fontSize: 13 }}
+              value={parentPath}
+              onChange={(e) => { setParentPath(e.target.value); setError(null); }}
+              placeholder={t("welcome.destinationDefault")}
+            />
+            <button
+              style={{ ...BTN_GHOST, padding: "6px 14px", fontSize: 13, whiteSpace: "nowrap" }}
+              onClick={() => setShowBrowser(true)}
+              disabled={busy}
+            >
+              {t("welcome.browse")}
+            </button>
+          </div>
+          <div style={{
+            fontSize: 11, color: "var(--brand-text-subtle, #64748b)", marginTop: 4,
+            fontFamily: "monospace", wordBreak: "break-all",
+          }}>
+            {t("welcome.finalPathPreview", {
+              path: `${parentPath.trim() || t("welcome.destinationDefault")}/${
+                previewSafeName(name) || (tab === "zip" ? t("welcome.nameFromZipPlaceholder") : "…")
+              }`,
+            })}
+          </div>
+        </div>
+
         {error && (
           <div style={{ color: "var(--brand-danger-soft, #fca5a5)", fontSize: 13, marginBottom: 14 }}>{error}</div>
         )}
@@ -264,6 +483,14 @@ function NewProjectModal({
           </button>
         </div>
       </div>
+
+      {showBrowser && (
+        <DirectoryBrowser
+          initialPath={parentPath.trim() || undefined}
+          onSelect={(path) => { setParentPath(path); setShowBrowser(false); }}
+          onClose={() => setShowBrowser(false)}
+        />
+      )}
     </div>
   );
 }
@@ -625,6 +852,7 @@ export function WelcomeScreen({ onProjectOpened }: WelcomeScreenProps) {
   const [openingName, setOpening] = useState<string | null>(null);
   const [error, setError]         = useState<string | null>(null);
   const [showNew, setShowNew]     = useState(false);
+  const [newTab, setNewTab]       = useState<NewProjectTab>("empty");
   const [showRuntime, setShowRuntime] = useState(false);
   const [editing, setEditing]     = useState<EditingState | null>(null);
   const [actionBusy, setActionBusy] = useState<string | null>(null);
@@ -662,14 +890,17 @@ export function WelcomeScreen({ onProjectOpened }: WelcomeScreenProps) {
     await handleOpen(name);
   };
 
-  const handleDelete = async (name: string) => {
-    if (!window.confirm(t("welcome.confirmDelete", { name }))) return;
-    setActionBusy(name); setError(null);
+  const handleDelete = async (p: ProjectListEntry) => {
+    const confirmMsg = p.external
+      ? t("welcome.confirmRemoveExternal", { name: p.name })
+      : t("welcome.confirmDelete", { name: p.name });
+    if (!window.confirm(confirmMsg)) return;
+    setActionBusy(p.name); setError(null);
     try {
-      await api.deleteProject(name);
+      await api.deleteProject(p.name);
       await loadProjects();
     } catch (e: any) {
-      setError(t("welcome.errDelete", { name, err: e?.message ?? e }));
+      setError(t(p.external ? "welcome.errRemove" : "welcome.errDelete", { name: p.name, err: e?.message ?? e }));
     } finally {
       setActionBusy(null);
     }
@@ -718,6 +949,7 @@ export function WelcomeScreen({ onProjectOpened }: WelcomeScreenProps) {
         <NewProjectModal
           onClose={() => setShowNew(false)}
           onCreate={handleCreated}
+          initialTab={newTab}
         />
       )}
       {showRuntime && (
@@ -800,10 +1032,31 @@ export function WelcomeScreen({ onProjectOpened }: WelcomeScreenProps) {
                         onClick={(e) => e.stopPropagation()}
                       />
                     ) : (
-                      <div style={{ fontWeight: 600, fontSize: 15, color: "var(--brand-text, #e2e8f0)" }}>{p.name}</div>
+                      <div style={{ fontWeight: 600, fontSize: 15, color: "var(--brand-text, #e2e8f0)", display: "flex", alignItems: "center", gap: 6 }}>
+                        {p.name}
+                        {p.external && (
+                          <span style={{
+                            fontSize: 10, fontWeight: 500, color: "var(--brand-text-subtle, #64748b)",
+                            border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, padding: "1px 5px",
+                          }}>
+                            {t("welcome.externalBadge")}
+                          </span>
+                        )}
+                      </div>
                     )}
                     <div style={{ fontSize: 12, color: "var(--brand-text-subtle, #64748b)", marginTop: 2 }}>
-                      {t("welcome.lastModified", { date: formatDate(p.last_modified_ms) })}
+                      {p.last_opened_ms
+                        ? t("welcome.lastOpened", { date: formatDate(p.last_opened_ms) })
+                        : t("welcome.lastModified", { date: formatDate(p.last_modified_ms) })}
+                    </div>
+                    <div
+                      style={{
+                        fontSize: 11, color: "var(--brand-text-subtle, #64748b)", marginTop: 1,
+                        fontFamily: "monospace", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                      }}
+                      title={p.path}
+                    >
+                      {p.path}
                     </div>
                   </div>
 
@@ -823,11 +1076,11 @@ export function WelcomeScreen({ onProjectOpened }: WelcomeScreenProps) {
                         onClick={() => setEditing({ name: p.name, mode: "duplicate", value: p.name + " (copia)" })}
                       >⧉</button>
                       <button
-                        title={t("editor.delete")}
+                        title={p.external ? t("welcome.removeFromList") : t("editor.delete")}
                         style={{ ...ACT_BTN }}
                         onMouseEnter={(e) => (e.currentTarget.style.color = "var(--brand-danger, #ef4444)")}
                         onMouseLeave={(e) => (e.currentTarget.style.color = "var(--brand-text-muted, #94a3b8)")}
-                        onClick={() => handleDelete(p.name)}
+                        onClick={() => handleDelete(p)}
                       >✕</button>
                     </div>
                   )}
@@ -879,14 +1132,24 @@ export function WelcomeScreen({ onProjectOpened }: WelcomeScreenProps) {
           </div>
         )}
 
-        {/* new project button */}
-        <div style={{ textAlign: "center" }}>
+        {/* new project + open a copy that lives on the user's PC. The ZIP
+            path is non-destructive (POST /api/projects/upload creates a new
+            project) — unlike ☰ → "Sostituisci da copia sul PC". */}
+        <div style={{ display: "flex", gap: 8 }}>
           <button
-            style={{ ...BTN_PRIMARY, width: "100%", padding: "12px 0", fontSize: 15 }}
-            onClick={() => setShowNew(true)}
+            style={{ ...BTN_PRIMARY, flex: 1, padding: "12px 0", fontSize: 15 }}
+            onClick={() => { setNewTab("empty"); setShowNew(true); }}
             disabled={!!openingName}
           >
             {t("welcome.newProjectBtn")}
+          </button>
+          <button
+            style={{ ...BTN_GHOST, padding: "12px 16px", fontSize: 14 }}
+            onClick={() => { setNewTab("zip"); setShowNew(true); }}
+            disabled={!!openingName}
+            title={t("welcome.openFromZipTitle")}
+          >
+            {t("welcome.openFromZip")}
           </button>
         </div>
 

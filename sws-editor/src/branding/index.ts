@@ -31,6 +31,12 @@ export interface BrandColors {
   onPrimary: string;
 }
 
+export interface DevicePreset {
+  label: string;
+  width: number;
+  height: number;
+}
+
 export interface Brand {
   id: string;
   name: string;
@@ -38,6 +44,10 @@ export interface Brand {
   logoUrl: string | null;
   faviconUrl: string | null;
   colors: BrandColors;
+  /** Brand-specific device resolution presets (e.g. Pixsys WP-series panels),
+   *  offered alongside the generic standard resolutions in the page-size
+   *  picker. Empty for brands with no hardware line of their own. */
+  devicePresets: DevicePreset[];
 }
 
 // Hardcoded SWS palette — used when active.json / brand.json can't be loaded
@@ -61,6 +71,7 @@ export const SWS_FALLBACK: Brand = {
     primaryHover: "#2563eb",
     onPrimary: "#ffffff",
   },
+  devicePresets: [],
 };
 
 // colors key → CSS custom property name.
@@ -110,6 +121,7 @@ export async function loadBranding(): Promise<Brand> {
       logoUrl: meta.logo ? `/branding/${id}/${meta.logo}` : null,
       faviconUrl: meta.favicon ? `/branding/${id}/${meta.favicon}` : null,
       colors: { ...SWS_FALLBACK.colors, ...(meta.colors ?? {}) },
+      devicePresets: meta.device_presets ?? [],
     };
   } catch (err) {
     console.warn("[branding] falling back to SWS:", err);

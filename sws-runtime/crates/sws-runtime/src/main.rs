@@ -706,6 +706,11 @@ async fn main() -> anyhow::Result<()> {
     }
     let audit = Arc::new(sws_audit::AuditLog::open(config_dir.join("audit.jsonl"), audit_key));
 
+    // Known-projects registry (recent projects list + custom-path projects
+    // outside projects_root). Borrows config_dir; build() below takes it by
+    // value afterward, so this must load first.
+    let known_projects = Arc::new(sws_web::project_registry::ProjectRegistry::load(&config_dir).await);
+
     let (runtime_app, admin_app) = sws_web::router::build(
         tag_db,
         bus,
@@ -730,6 +735,7 @@ async fn main() -> anyhow::Result<()> {
         args.www.clone(),
         args.no_admin,
         audit,
+        known_projects,
     );
 
     // Runtime listener (synoptic, optional-auth): only started when --viewer-port is given.
