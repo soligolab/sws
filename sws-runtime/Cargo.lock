@@ -3925,8 +3925,10 @@ name = "sws-audit"
 version = "0.1.0-dev"
 dependencies = [
  "anyhow",
+ "hmac 0.12.1",
  "serde",
  "serde_json",
+ "sha2 0.10.9",
  "tokio",
  "tracing",
 ]
@@ -4133,6 +4135,7 @@ dependencies = [
  "serde_json",
  "serde_yaml",
  "sha2 0.10.9",
+ "sws-audit",
  "sws-auth",
  "sws-core",
  "sws-historian",

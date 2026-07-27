@@ -12,7 +12,7 @@ objects:
   y: 12
   width: 130
   height: 32
-  label: "◀ Precedente"
+  label: "{{precedente}}"
   target_page: page3
   group_id: g_nav
   locked: true
@@ -23,7 +23,7 @@ objects:
   y: 12
   width: 130
   height: 32
-  label: "Successiva ▶"
+  label: "{{successiva}}"
   target_page: page1
   group_id: g_nav
   locked: true
@@ -32,7 +32,7 @@ objects:
   type: text
   x: 400
   y: 30
-  text: "Page 4 — Fill color dinamico"
+  text: "{{page_4_fill_color_dinamico}}"
   font_size: 16
   font_weight: bold
   text_anchor: middle
@@ -45,7 +45,7 @@ objects:
   type: text
   x: 20
   y: 65
-  text: "Scegli un colore → scrivi demo.fill_color:"
+  text: "{{scegli_un_colore_scrivi_demo_fill_color}}"
   font_size: 12
   color: "#64748b"
 
@@ -55,7 +55,7 @@ objects:
   y: 82
   width: 90
   height: 36
-  label: "● Rosso"
+  label: "{{rosso_2}}"
   fill: "#dc2626"
   tag: demo.fill_color
   write_value: "#dc2626"
@@ -66,7 +66,7 @@ objects:
   y: 82
   width: 90
   height: 36
-  label: "● Verde"
+  label: "{{verde_2}}"
   fill: "#16a34a"
   tag: demo.fill_color
   write_value: "#16a34a"
@@ -77,7 +77,7 @@ objects:
   y: 82
   width: 90
   height: 36
-  label: "● Blu"
+  label: "{{blu_2}}"
   fill: "#2563eb"
   tag: demo.fill_color
   write_value: "#2563eb"
@@ -88,7 +88,7 @@ objects:
   y: 82
   width: 90
   height: 36
-  label: "● Arancio"
+  label: "{{arancio}}"
   fill: "#ea580c"
   tag: demo.fill_color
   write_value: "#ea580c"
@@ -99,7 +99,7 @@ objects:
   y: 82
   width: 90
   height: 36
-  label: "● Viola"
+  label: "{{viola}}"
   fill: "#9333ea"
   tag: demo.fill_color
   write_value: "#9333ea"
@@ -110,7 +110,7 @@ objects:
   y: 82
   width: 90
   height: 36
-  label: "● Teal"
+  label: "{{teal}}"
   fill: "#0d9488"
   tag: demo.fill_color
   write_value: "#0d9488"
@@ -130,7 +130,7 @@ objects:
   type: text
   x: 20
   y: 148
-  text: "Anteprima live (fill → demo.fill_color):"
+  text: "{{anteprima_live_fill_demo_fill_color}}"
   font_size: 12
   color: "#64748b"
 
@@ -149,7 +149,7 @@ objects:
   type: text
   x: 80
   y: 260
-  text: "rect"
+  text: "{{rect}}"
   font_size: 10
   text_anchor: middle
   color: "#475569"
@@ -169,7 +169,7 @@ objects:
   type: text
   x: 220
   y: 260
-  text: "ellipse"
+  text: "{{ellipse}}"
   font_size: 10
   text_anchor: middle
   color: "#475569"
@@ -180,7 +180,7 @@ objects:
   y: 165
   width: 120
   height: 40
-  label: "Bottone"
+  label: "{{bottone}}"
   fill: "#3b82f6"
   bindings:
     fill: demo.fill_color
@@ -189,7 +189,7 @@ objects:
   type: text
   x: 360
   y: 260
-  text: "button"
+  text: "{{button}}"
   font_size: 10
   text_anchor: middle
   color: "#475569"
@@ -212,7 +212,7 @@ objects:
   type: text
   x: 540
   y: 260
-  text: "progress_bar"
+  text: "{{progress_bar}}"
   font_size: 10
   text_anchor: middle
   color: "#475569"
@@ -222,7 +222,7 @@ objects:
   type: text
   x: 20
   y: 290
-  text: "Il tag demo.fill_color è condiviso con Page 3: anche il rect lì cambierà colore."
+  text: "{{il_tag_demo_fill_color_e_condiviso_con_p}}"
   font_size: 11
   color: "#475569"
 

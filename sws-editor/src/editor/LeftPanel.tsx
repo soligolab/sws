@@ -1,7 +1,10 @@
 import React, { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
 import { useAppStore } from "@/store";
-import type { ObjectGroup, ProjectInfo, SynopticObject } from "@/types";
+import { SvgCanvas } from "@/canvas/SvgCanvas";
+import { ASPECT_RATIOS, findBrokenNavLinks, findOrphanPageIds, referenceResolutionFor } from "@/pageLayout";
+import type { ObjectGroup, PageLayoutConfig, PageSizeMode, ProjectInfo, SynopticObject, SynopticPage } from "@/types";
 
 // ── Shared styles ─────────────────────────────────────────────────────────────
 
@@ -85,17 +88,24 @@ function Section({
   title,
   children,
   defaultOpen = true,
+  headerAction,
 }: {
   title: string;
   children: React.ReactNode;
   defaultOpen?: boolean;
+  /** Optional extra control rendered in the header, before the chevron
+   *  (e.g. a ⚙ settings button). Clicks on it don't toggle the section. */
+  headerAction?: React.ReactNode;
 }) {
   const [open, setOpen] = useState(defaultOpen);
   return (
     <div style={{ flexShrink: 0 }}>
       <div style={S.sectionHead(open)} onClick={() => setOpen((v) => !v)}>
         <span>{title}</span>
-        <span style={S.chevron(open)}>▶</span>
+        <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+          {headerAction && <span onClick={(e) => e.stopPropagation()}>{headerAction}</span>}
+          <span style={S.chevron(open)}>▶</span>
+        </span>
       </div>
       {open && <div>{children}</div>}
     </div>
@@ -105,6 +115,7 @@ function Section({
 // ── Pages section ─────────────────────────────────────────────────────────────
 
 function PagesSection() {
+  const { t } = useTranslation();
   const pages         = useAppStore((s) => s.pages);
   const currentPageId = useAppStore((s) => s.currentPageId);
   const setCurrentPage = useAppStore((s) => s.setCurrentPage);
@@ -112,11 +123,21 @@ function PagesSection() {
   const deletePage    = useAppStore((s) => s.deletePage);
   const renamePage    = useAppStore((s) => s.renamePage);
   const reorderPage   = useAppStore((s) => s.reorderPage);
+  const movePage      = useAppStore((s) => s.movePage);
   const duplicatePage = useAppStore((s) => s.duplicatePage);
+  const updatePageProps = useAppStore((s) => s.updatePageProps);
+  const project       = useAppStore((s) => s.project);
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingValue, setEditingValue] = useState("");
+  const [draggedId, setDraggedId] = useState<string | null>(null);
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [linkReportOpen, setLinkReportOpen] = useState(false);
   const importInputRef = useRef<HTMLInputElement>(null);
+
+  const homePageId = project?.page_layout?.home_page_id;
+  const orphanIds = findOrphanPageIds(pages, homePageId);
 
   // Single-page YAML export — calls the runtime endpoint, then triggers a
   // browser download using the filename it returned. Persisted page state
@@ -134,7 +155,7 @@ function PagesSection() {
       a.remove();
       URL.revokeObjectURL(url);
     } catch (e) {
-      window.alert(`Esportazione fallita: ${e instanceof Error ? e.message : String(e)}`);
+      window.alert(t("editor.exportFailed", { err: e instanceof Error ? e.message : String(e) }));
     }
   };
 
@@ -153,7 +174,7 @@ function PagesSection() {
       useAppStore.getState().setPages(pagesLoaded);
       useAppStore.getState().setCurrentPage(res.id);
     } catch (e) {
-      window.alert(`Importazione fallita: ${e instanceof Error ? e.message : String(e)}`);
+      window.alert(t("editor.importFailed", { err: e instanceof Error ? e.message : String(e) }));
     }
   };
 
@@ -170,17 +191,93 @@ function PagesSection() {
     setEditingValue("");
   };
 
+  // Drag & drop reorder — simple linear list (no nesting like ObjectsSection's
+  // tree), so a minimal draggedId/dragOverId pair is enough; drop lands the
+  // dragged page at the hovered row's index.
+  const onRowDragStart = (e: React.DragEvent, id: string) => {
+    setDraggedId(id);
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("application/x-sws-page", id);
+  };
+  const onRowDragOver = (e: React.DragEvent, id: string) => {
+    if (!draggedId || draggedId === id) return;
+    e.preventDefault();
+    setDragOverId(id);
+  };
+  const onRowDrop = (e: React.DragEvent, targetId: string) => {
+    e.preventDefault();
+    setDragOverId(null);
+    if (!draggedId || draggedId === targetId) { setDraggedId(null); return; }
+    const toIndex = pages.findIndex((p) => p.id === targetId);
+    if (toIndex >= 0) movePage(draggedId, toIndex);
+    setDraggedId(null);
+  };
+
   return (
-    <Section title="PAGINE">
+    <Section
+      title={t("editor.sectionPages")}
+      headerAction={
+        <>
+          <button style={S.iconBtn} title="Verifica collegamenti (link rotti + pagine orfane)"
+            onClick={() => setLinkReportOpen(true)}>🔗</button>
+          <button style={S.iconBtn} title="Impostazioni pagine del progetto"
+            onClick={() => setSettingsOpen(true)}>⚙</button>
+        </>
+      }
+    >
+      {settingsOpen && (
+        <PageLayoutSettingsModal project={project} pages={pages} onClose={() => setSettingsOpen(false)} />
+      )}
+      {linkReportOpen && (
+        <LinkReportModal
+          pages={pages}
+          orphanIds={orphanIds}
+          onClose={() => setLinkReportOpen(false)}
+          onJumpTo={(pageId, objId) => {
+            setCurrentPage(pageId);
+            if (objId) useAppStore.getState().selectObject(objId);
+            setLinkReportOpen(false);
+          }}
+        />
+      )}
       <div style={S.body}>
         {pages.map((p, pi) => (
           <div
             key={p.id}
-            style={{ ...S.row(p.id === currentPageId), justifyContent: "space-between" }}
+            draggable
+            onDragStart={(e) => onRowDragStart(e, p.id)}
+            onDragOver={(e) => onRowDragOver(e, p.id)}
+            onDragLeave={() => setDragOverId((cur) => (cur === p.id ? null : cur))}
+            onDrop={(e) => onRowDrop(e, p.id)}
+            onDragEnd={() => { setDraggedId(null); setDragOverId(null); }}
+            style={{
+              ...S.row(p.id === currentPageId), justifyContent: "space-between",
+              gap: 6,
+              ...(dragOverId === p.id ? { borderTop: "2px solid var(--brand-primary, #3b82f6)" } : {}),
+              opacity: draggedId === p.id ? 0.5 : 1,
+            }}
             onClick={() => editingId !== p.id && setCurrentPage(p.id)}
-            onDoubleClick={() => beginRename(p.id, p.name)}
-            title="Doppio click per rinominare"
+            onDoubleClick={() => !p.locked && beginRename(p.id, p.name)}
+            title={t("editor.dblRename")}
           >
+            <div style={{
+              width: 32, height: 20, flexShrink: 0, borderRadius: 2, overflow: "hidden",
+              background: p.background || "var(--brand-bg, #0f172a)",
+              border: "1px solid var(--brand-surface-2, #334155)",
+              pointerEvents: "none",
+            }}>
+              {/* Read-only preview: no onMove/onSelect -> !onMove viewer branch.
+                  sizeMode forced to "ratio" so the thumbnail is always a
+                  letterbox-fit scale-down, regardless of the project's real
+                  sizeMode (fixed-mode's 1:1-no-scaling would otherwise blow
+                  up this tiny box). */}
+              <SvgCanvas
+                objects={p.objects}
+                pageWidth={p.width || 1920}
+                pageHeight={p.height || 1080}
+                sizeMode="ratio"
+              />
+            </div>
             {editingId === p.id ? (
               <input
                 autoFocus
@@ -204,31 +301,43 @@ function PagesSection() {
               />
             ) : (
               <>
+                {p.id === homePageId && (
+                  <span title="Pagina iniziale (home)" style={{ flexShrink: 0 }}>🏠</span>
+                )}
+                {orphanIds.has(p.id) && (
+                  <span title="Pagina orfana: nessun collegamento la raggiunge e non è la home" style={{ flexShrink: 0 }}>⚠️</span>
+                )}
                 <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, minWidth: 0 }}>
                   {p.name}
                 </span>
                 <span style={{ display: "flex", gap: 2, flexShrink: 0 }}>
+                  <button
+                    style={S.iconBtn}
+                    title={p.locked ? "Sblocca pagina" : "Blocca pagina (sola lettura)"}
+                    onClick={(e) => { e.stopPropagation(); updatePageProps(p.id, { locked: !p.locked }); }}
+                  >{p.locked ? "🔒" : "🔓"}</button>
                   {pi > 0 && (
-                    <button style={S.iconBtn} title="Sposta su"
+                    <button style={S.iconBtn} title={t("editor.moveUp")}
                       onClick={(e) => { e.stopPropagation(); reorderPage(p.id, "up"); }}>↑</button>
                   )}
                   {pi < pages.length - 1 && (
-                    <button style={S.iconBtn} title="Sposta giù"
+                    <button style={S.iconBtn} title={t("editor.moveDown")}
                       onClick={(e) => { e.stopPropagation(); reorderPage(p.id, "down"); }}>↓</button>
                   )}
-                  <button style={S.iconBtn} title="Duplica pagina"
+                  <button style={S.iconBtn} title={t("editor.duplicatePage")}
                     onClick={(e) => { e.stopPropagation(); duplicatePage(p.id); }}>⧉</button>
-                  <button style={S.iconBtn} title="Esporta pagina (.yaml)"
+                  <button style={S.iconBtn} title={t("editor.exportPage")}
                     onClick={(e) => { e.stopPropagation(); handleExportPage(p.name); }}>⬇</button>
                   <button
                     style={S.iconBtn}
-                    title="Rinomina"
+                    title={t("editor.rename")}
+                    disabled={p.locked}
                     onClick={(e) => { e.stopPropagation(); beginRename(p.id, p.name); }}
                   >✎</button>
                   {pages.length > 1 && (
                     <button
                       style={S.iconBtn}
-                      title="Elimina pagina"
+                      title={t("editor.deletePage")}
                       onClick={(e) => {
                         e.stopPropagation();
                         if (window.confirm(`Eliminare la pagina "${p.name}"? L'azione è annullabile con Ctrl-Z.`)) {
@@ -256,7 +365,7 @@ function PagesSection() {
           </button>
           <button
             onClick={() => importInputRef.current?.click()}
-            title="Importa pagina da file .yaml"
+            title={t("editor.importPage")}
             style={{
               ...S.objBtn,
               flex: "0 0 auto",
@@ -284,6 +393,177 @@ function PagesSection() {
   );
 }
 
+// ── Page layout settings modal (project-wide) ────────────────────────────────
+// Size mode (Fixed/Ratio/Fluid) + aspect ratio + home page. Q8-adjacent page
+// management work: dimensioning is a per-PROJECT setting (not per-page).
+
+function PageLayoutSettingsModal({
+  project, pages, onClose,
+}: {
+  project: ProjectInfo | null;
+  pages: SynopticPage[];
+  onClose: () => void;
+}) {
+  const updateProjectPageLayout = useAppStore((s) => s.updateProjectPageLayout);
+  const updatePageProps = useAppStore((s) => s.updatePageProps);
+  const [sizeMode, setSizeMode] = useState<PageSizeMode>(project?.page_layout?.size_mode ?? "fixed");
+  const [aspectRatio, setAspectRatio] = useState<string>(project?.page_layout?.aspect_ratio ?? ASPECT_RATIOS[0].ratio);
+  const [homePageId, setHomePageId] = useState<string>(project?.page_layout?.home_page_id ?? "");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const ref = referenceResolutionFor(aspectRatio);
+
+  const handleSave = async () => {
+    setSaving(true); setError(null);
+    const cfg: PageLayoutConfig = {
+      size_mode: sizeMode,
+      aspect_ratio: sizeMode === "ratio" ? aspectRatio : undefined,
+      home_page_id: homePageId || undefined,
+    };
+    try {
+      await api.updatePageLayout(cfg);
+      updateProjectPageLayout(cfg);
+      // "Ratio" mode: every page must share the same standard reference
+      // resolution — otherwise a page with a stale literal width/height
+      // (e.g. 800×480, a different ratio) would letterbox-scale against the
+      // WRONG aspect ratio at runtime. Client-side only; the maintainer still
+      // saves the project explicitly like any other canvas edit.
+      if (sizeMode === "ratio") {
+        for (const p of pages) updatePageProps(p.id, { width: ref.width, height: ref.height });
+      }
+      onClose();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.65)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }}
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div style={{ background: "var(--brand-surface, #1e293b)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 8, padding: 20, width: "min(90vw, 420px)", display: "flex", flexDirection: "column", gap: 14 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div style={{ fontWeight: 700, color: "var(--brand-text, #e2e8f0)" }}>Impostazioni pagine del progetto</div>
+          <button style={{ background: "transparent", border: "none", color: "var(--brand-text-subtle, #64748b)", cursor: "pointer", fontSize: 16 }} onClick={onClose}>✕</button>
+        </div>
+
+        <div>
+          <div style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", marginBottom: 6 }}>Modalità dimensionamento</div>
+          {([
+            { v: "fixed" as const, label: "Fisso (1:1, nessuno scaling)" },
+            { v: "ratio" as const, label: "Solo proporzioni (scala mantenendo il rapporto)" },
+            { v: "fluid" as const, label: "Fluido (nessuna dimensione dichiarata)" },
+          ]).map((opt) => (
+            <label key={opt.v} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "var(--brand-text-2, #cbd5e1)", padding: "4px 0", cursor: "pointer" }}>
+              <input type="radio" name="sizeMode" checked={sizeMode === opt.v} onChange={() => setSizeMode(opt.v)} />
+              {opt.label}
+            </label>
+          ))}
+        </div>
+
+        {sizeMode === "ratio" && (
+          <div>
+            <div style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", marginBottom: 4 }}>Rapporto</div>
+            <select value={aspectRatio} onChange={(e) => setAspectRatio(e.target.value)}
+              style={{ background: "var(--brand-bg, #0f172a)", color: "var(--brand-text, #e2e8f0)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, padding: "4px 8px", fontSize: 12, width: "100%" }}>
+              {ASPECT_RATIOS.map((a) => <option key={a.ratio} value={a.ratio}>{a.label}</option>)}
+            </select>
+            <div style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", marginTop: 4 }}>
+              Risoluzione di riferimento: {ref.width}×{ref.height}
+            </div>
+          </div>
+        )}
+
+        <div>
+          <div style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", marginBottom: 4 }}>Pagina iniziale (home)</div>
+          <select value={homePageId} onChange={(e) => setHomePageId(e.target.value)}
+            style={{ background: "var(--brand-bg, #0f172a)", color: "var(--brand-text, #e2e8f0)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, padding: "4px 8px", fontSize: 12, width: "100%" }}>
+            <option value="">— Prima pagina della lista —</option>
+            {pages.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+          </select>
+        </div>
+
+        {error && <div style={{ color: "var(--brand-danger, #ef4444)", fontSize: 12 }}>Errore: {error}</div>}
+
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+          <button style={{ background: "transparent", color: "var(--brand-text-subtle, #64748b)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, padding: "5px 12px", cursor: "pointer", fontSize: 13 }} onClick={onClose}>Annulla</button>
+          <button style={{ background: "var(--brand-success-bg, #166534)", color: "#bbf7d0", border: "1px solid #15803d", borderRadius: 4, padding: "5px 12px", cursor: "pointer", fontSize: 13 }} disabled={saving} onClick={handleSave}>
+            {saving ? "Salvataggio…" : "Salva"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Link report modal (broken navbutton targets + orphaned pages) ───────────
+// Consolidates points "link rotti" + "pagine orfane" in one report, since both
+// come from the same navbutton graph traversal.
+
+function LinkReportModal({
+  pages, orphanIds, onClose, onJumpTo,
+}: {
+  pages: SynopticPage[];
+  orphanIds: Set<string>;
+  onClose: () => void;
+  onJumpTo: (pageId: string, objId?: string) => void;
+}) {
+  const broken = findBrokenNavLinks(pages);
+  const orphanPages = pages.filter((p) => orphanIds.has(p.id));
+
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.65)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }}
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div style={{ background: "var(--brand-surface, #1e293b)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 8, padding: 20, width: "min(90vw, 460px)", maxHeight: "80vh", display: "flex", flexDirection: "column", gap: 14 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div style={{ fontWeight: 700, color: "var(--brand-text, #e2e8f0)" }}>Verifica collegamenti</div>
+          <button style={{ background: "transparent", border: "none", color: "var(--brand-text-subtle, #64748b)", cursor: "pointer", fontSize: 16 }} onClick={onClose}>✕</button>
+        </div>
+
+        <div style={{ overflow: "auto", flex: 1 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: "var(--brand-text-subtle, #64748b)", letterSpacing: 0.5, marginBottom: 6 }}>
+            LINK ROTTI ({broken.length})
+          </div>
+          {broken.length === 0 ? (
+            <div style={{ fontSize: 12, color: "var(--brand-text-muted, #94a3b8)", marginBottom: 14 }}>Nessun collegamento rotto.</div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 14 }}>
+              {broken.map((b) => (
+                <div key={`${b.pageId}:${b.objId}`} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, background: "#450a0a33", border: "1px solid #991b1b", borderRadius: 4, padding: "4px 8px" }}>
+                  <span style={{ flex: 1, color: "var(--brand-danger-soft, #fca5a5)" }}>
+                    <strong>{b.pageName}</strong> → "{b.objName}" punta a pagina inesistente ("{b.targetId}")
+                  </span>
+                  <button style={S.iconBtn} onClick={() => onJumpTo(b.pageId, b.objId)}>Vai</button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div style={{ fontSize: 11, fontWeight: 700, color: "var(--brand-text-subtle, #64748b)", letterSpacing: 0.5, marginBottom: 6 }}>
+            PAGINE ORFANE ({orphanPages.length})
+          </div>
+          {orphanPages.length === 0 ? (
+            <div style={{ fontSize: 12, color: "var(--brand-text-muted, #94a3b8)" }}>Nessuna pagina orfana.</div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              {orphanPages.map((p) => (
+                <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, background: "#78350f22", border: "1px solid #92400e", borderRadius: 4, padding: "4px 8px" }}>
+                  <span style={{ flex: 1, color: "var(--brand-warning, #f59e0b)" }}>
+                    "{p.name}" — nessun collegamento la raggiunge e non è la home
+                  </span>
+                  <button style={S.iconBtn} onClick={() => onJumpTo(p.id)}>Vai</button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Objects palette section ───────────────────────────────────────────────────
 
 interface PaletteItem { type: SynopticObject["type"]; label: string; icon: string }
@@ -303,6 +583,8 @@ const PALETTE_GROUPS: PaletteGroup[] = [
     { type: "checkbox",  label: "Checkbox", icon: "☑" },
     { type: "radio",     label: "Radio",    icon: "◉" },
     { type: "slider",    label: "Slider",   icon: "↔" },
+    { type: "lang_selector", label: "Lingua ▾", icon: "🌐" },
+    { type: "lang_button",   label: "Lingua btn", icon: "🏳" },
   ]},
   { category: "Display", color: "#fb923c", items: [
     { type: "gauge",        label: "Gauge",      icon: "◔" },
@@ -326,6 +608,7 @@ const PALETTE_GROUPS: PaletteGroup[] = [
 ];
 
 function PaletteGroupAccordion({ group, onAdd }: { group: PaletteGroup; onAdd: (type: SynopticObject["type"]) => void }) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(group.defaultOpen ?? false);
   return (
     <div>
@@ -334,20 +617,20 @@ function PaletteGroupAccordion({ group, onAdd }: { group: PaletteGroup; onAdd: (
         onClick={() => setOpen((v) => !v)}
       >
         <span style={{ fontSize: 10, fontWeight: 700, color: group.color, letterSpacing: 0.5 }}>
-          {group.category.toUpperCase()}
+          {t(`editor.palette.group.${group.category}`).toUpperCase()}
         </span>
         <span style={{ fontSize: 9, color: "var(--brand-border, #475569)" }}>{open ? "▼" : "▶"}</span>
       </div>
       {open && (
         <div style={{ padding: "4px 8px", display: "flex", flexDirection: "column", gap: 2 }}>
-          {group.items.map(({ type, label, icon }) => (
+          {group.items.map(({ type, icon }) => (
             <button
               key={type}
               onClick={() => onAdd(type)}
               style={{ ...S.objBtn, flex: "none", width: "100%", display: "flex", alignItems: "center", gap: 6 }}
             >
               <span style={{ fontSize: 14, color: group.color, flexShrink: 0, width: 18, textAlign: "center" as const }}>{icon}</span>
-              <span>{label}</span>
+              <span>{t(`editor.palette.item.${type}`)}</span>
             </button>
           ))}
         </div>
@@ -357,8 +640,9 @@ function PaletteGroupAccordion({ group, onAdd }: { group: PaletteGroup; onAdd: (
 }
 
 function ObjectPalette({ onAdd }: { onAdd: (type: SynopticObject["type"]) => void }) {
+  const { t } = useTranslation();
   return (
-    <Section title="OGGETTI">
+    <Section title={t("editor.sectionObjects")}>
       {PALETTE_GROUPS.map((group) => (
         <PaletteGroupAccordion key={group.category} group={group} onAdd={onAdd} />
       ))}
@@ -398,6 +682,7 @@ type ContextMenuState =
   | { kind: "group";  id: string; x: number; y: number };
 
 function ObjectsSection() {
+  const { t } = useTranslation();
   const pages               = useAppStore((s) => s.pages);
   const currentPageId       = useAppStore((s) => s.currentPageId);
   const selectedId          = useAppStore((s) => s.selectedObjectId);
@@ -661,7 +946,7 @@ function ObjectsSection() {
           {isGrid ? (
             <button
               style={{ ...S.iconBtn, width: 14, fontSize: 8, color: cellsWithChildren.length > 0 ? "var(--brand-text-muted, #94a3b8)" : "var(--brand-surface-2, #334155)", flexShrink: 0 }}
-              title={isExpanded ? "Comprimi" : "Espandi"}
+              title={isExpanded ? t("editor.collapse") : t("editor.expand")}
               onClick={(e) => { e.stopPropagation(); if (cellsWithChildren.length > 0) toggleExpandGrid(o.id); }}
             >
               {cellsWithChildren.length > 0 ? (isExpanded ? "▼" : "▶") : "·"}
@@ -670,7 +955,7 @@ function ObjectsSection() {
             <span style={{ width: 14, flexShrink: 0 }} />
           )}
           {o.locked && (
-            <span title="Bloccato" style={{ fontSize: 10, flexShrink: 0, opacity: 0.7 }}>🔒</span>
+            <span title={t("editor.locked")} style={{ fontSize: 10, flexShrink: 0, opacity: 0.7 }}>🔒</span>
           )}
           <span style={{ fontSize: 9, color: "var(--brand-border, #475569)", width: 34, flexShrink: 0, textTransform: "uppercase", letterSpacing: 0.5 }}>
             {o.type.slice(0, 5)}
@@ -690,15 +975,15 @@ function ObjectsSection() {
           ) : (
             <span
               onDoubleClick={(e) => { e.stopPropagation(); startRename(o.id, o.name ?? ""); }}
-              title="Doppio click per rinominare"
+              title={t("editor.dblRename")}
               style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 11 }}
             >
               {label}
             </span>
           )}
-          <button style={S.iconBtn} title="Rinomina" onClick={(e) => { e.stopPropagation(); startRename(o.id, o.name ?? ""); }}>✎</button>
-          <button style={S.iconBtn} title="Duplica" onClick={(e) => { e.stopPropagation(); duplicateObject(o.id); }}>⧉</button>
-          <button style={{ ...S.iconBtn, color: "var(--brand-danger, #ef4444)" }} title="Elimina" onClick={(e) => { e.stopPropagation(); deleteObject(o.id); }}>×</button>
+          <button style={S.iconBtn} title={t("editor.rename")} onClick={(e) => { e.stopPropagation(); startRename(o.id, o.name ?? ""); }}>✎</button>
+          <button style={S.iconBtn} title={t("editor.duplicate")} onClick={(e) => { e.stopPropagation(); duplicateObject(o.id); }}>⧉</button>
+          <button style={{ ...S.iconBtn, color: "var(--brand-danger, #ef4444)" }} title={t("editor.delete")} onClick={(e) => { e.stopPropagation(); deleteObject(o.id); }}>×</button>
         </div>
         {isExpanded && cellsWithChildren.map((c) => {
           const isChildSel = selectedCellChild?.objectId === o.id && selectedCellChild.row === c.row && selectedCellChild.col === c.col;
@@ -728,11 +1013,11 @@ function ObjectsSection() {
   const tree = buildTree();
 
   return (
-    <Section title={`OGGETTI PAGINA (${allObjects.length})`} defaultOpen={false}>
+    <Section title={`${t("editor.sectionPageObjects")} (${allObjects.length})`} defaultOpen={false}>
       <div style={{ padding: "4px 8px", borderBottom: "1px solid var(--brand-surface, #1e293b)" }}>
         <input
           type="text"
-          placeholder="Filtra per nome / tipo…"
+          placeholder={t("editor.filterPlaceholder")}
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
           style={{ width: "100%", boxSizing: "border-box", background: "var(--brand-bg, #0f172a)", color: "var(--brand-text, #e2e8f0)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 3, padding: "3px 6px", fontSize: 11 }}
@@ -751,7 +1036,7 @@ function ObjectsSection() {
       <div style={{ ...S.body, maxHeight: 280 }}>
         {tree.length === 0 && (
           <p style={{ padding: "8px 12px", fontSize: 11, color: "var(--brand-border, #475569)", margin: 0 }}>
-            {fq ? "Nessun oggetto corrisponde al filtro." : "Nessun oggetto su questa pagina. Aggiungili dalla palette qui sopra."}
+            {fq ? t("editor.noMatch") : t("editor.noObjects")}
           </p>
         )}
         {dragItem?.kind === "object" && (
@@ -797,12 +1082,12 @@ function ObjectsSection() {
                     borderBottom: "1px solid var(--brand-surface, #1e293b)",
                     ...indicatorFor("group", group.id),
                   }}
-                  title="Click per selezionare tutti i membri · trascina per riordinare · tasto destro per opzioni"
+                  title={t("editor.groupSelectHint")}
                 >
                   <button
                     style={{ ...S.iconBtn, width: 14, fontSize: 8, flexShrink: 0 }}
                     onClick={(e) => { e.stopPropagation(); toggleExpandGroup(group.id); }}
-                    title={isExpanded ? "Comprimi" : "Espandi"}
+                    title={isExpanded ? t("editor.collapse") : t("editor.expand")}
                   >
                     {isExpanded ? "▼" : "▶"}
                   </button>
@@ -822,18 +1107,18 @@ function ObjectsSection() {
                   ) : (
                     <span
                       onDoubleClick={(e) => { e.stopPropagation(); startRenameGroup(group.id, group.name); }}
-                      title="Doppio click per rinominare"
+                      title={t("editor.dblRename")}
                       style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 11 }}
                     >
                       {group.name} ({members.length})
                     </span>
                   )}
                   <button
-                    style={S.iconBtn} title="Rinomina gruppo"
+                    style={S.iconBtn} title={t("editor.renameGroup")}
                     onClick={(e) => { e.stopPropagation(); startRenameGroup(group.id, group.name); }}
                   >✎</button>
                   <button
-                    style={{ ...S.iconBtn, color: "var(--brand-warning, #f59e0b)" }} title="Separa gruppo"
+                    style={{ ...S.iconBtn, color: "var(--brand-warning, #f59e0b)" }} title={t("editor.ungroup")}
                     onClick={(e) => {
                       e.stopPropagation();
                       if (window.confirm(`Separare il gruppo "${group.name}"? Gli oggetti torneranno alla radice.`)) {
@@ -898,6 +1183,7 @@ function ObjectsContextMenu({
   groups: ObjectGroup[];
   currentSelection: string[];
 }) {
+  const { t } = useTranslation();
   // Close on outside click + Esc. Mounted in a fixed-position overlay so it
   // floats above the rest of the panel; no portal needed since z-index alone
   // wins inside this stacking context.
@@ -954,7 +1240,7 @@ function ObjectsContextMenu({
             </div>
           )}
           <div style={sep} />
-          <div style={{ ...item, color: "var(--brand-text-subtle, #64748b)", cursor: "default" }}>Sposta in gruppo →</div>
+          <div style={{ ...item, color: "var(--brand-text-subtle, #64748b)", cursor: "default" }}>{t("editor.moveToGroup")}</div>
           {groups.length === 0 && (
             <div style={{ ...sub, color: "var(--brand-border, #475569)", fontStyle: "italic" }}>nessun gruppo</div>
           )}
@@ -994,6 +1280,7 @@ function ObjectsContextMenu({
 // host can persist the new list to PUT /api/project/functions.
 
 function FunctionsSection({ onFunctionsChanged }: { onFunctionsChanged: () => void }) {
+  const { t } = useTranslation();
   const project          = useAppStore((s) => s.project);
   const selectedFnId     = useAppStore((s) => s.selectedFunctionId);
   const selectFunction   = useAppStore((s) => s.selectFunction);
@@ -1034,7 +1321,7 @@ function FunctionsSection({ onFunctionsChanged }: { onFunctionsChanged: () => vo
   };
 
   return (
-    <Section title={`FUNZIONI (${functions.length})`} defaultOpen={false}>
+    <Section title={`${t("editor.sectionFunctions")} (${functions.length})`} defaultOpen={false}>
       <div style={{ ...S.body, maxHeight: 240 }}>
         {functions.length === 0 && (
           <p style={{ padding: "8px 12px", fontSize: 11, color: "var(--brand-border, #475569)", margin: 0 }}>
@@ -1091,17 +1378,17 @@ function FunctionsSection({ onFunctionsChanged }: { onFunctionsChanged: () => vo
               )}
               <button
                 style={S.iconBtn}
-                title="Rinomina"
+                title={t("editor.rename")}
                 onClick={(e) => { e.stopPropagation(); startRename(f.id, f.name); }}
               >✎</button>
               <button
                 style={S.iconBtn}
-                title="Duplica"
+                title={t("editor.duplicate")}
                 onClick={(e) => { e.stopPropagation(); handleDuplicate(f.id); }}
               >⧉</button>
               <button
                 style={{ ...S.iconBtn, color: "var(--brand-danger, #ef4444)" }}
-                title="Elimina"
+                title={t("editor.delete")}
                 onClick={(e) => { e.stopPropagation(); handleDelete(f.id); }}
               >×</button>
             </div>
@@ -1190,11 +1477,12 @@ function TagsSection() {
 // ── Sources section ───────────────────────────────────────────────────────────
 
 function SourcesSection({ project }: { project: ProjectInfo | null }) {
+  const { t } = useTranslation();
   const navigateToConfig = useAppStore((s) => s.navigateToConfig);
   const sources = project?.sources ?? [];
 
   return (
-    <Section title={`SORGENTI (${sources.length})`} defaultOpen={false}>
+    <Section title={`${t("editor.sectionSources")} (${sources.length})`} defaultOpen={false}>
       <div style={{ ...S.body, maxHeight: 200 }}>
         {sources.length === 0 ? (
           <p style={{ padding: "8px 12px", fontSize: 11, color: "var(--brand-border, #475569)", margin: 0 }}>
@@ -1206,7 +1494,7 @@ function SourcesSection({ project }: { project: ProjectInfo | null }) {
               key={src.id}
               onClick={() => navigateToConfig("protocols")}
               style={{ ...S.row(false), justifyContent: "space-between", cursor: "pointer" }}
-              title="Vai alla configurazione protocolli"
+              title={t("editor.gotoProtocols")}
             >
               <span style={{ fontSize: 11, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, minWidth: 0 }}>
                 {src.id}
@@ -1248,9 +1536,22 @@ interface LeftPanelProps {
   onFunctionsChanged: () => void;
 }
 
+// Resizable width, persisted across sessions (like other editor UI prefs
+// such as sws.uiLang). Plain localStorage — this is layout-only, no other
+// component needs to react to it, so no Zustand store entry is needed.
+const LEFT_PANEL_WIDTH_KEY = "sws.leftPanelWidth";
+const LEFT_PANEL_MIN = 160;
+const LEFT_PANEL_MAX = 480;
+
 export function LeftPanel({ onAddObject, onFunctionsChanged }: LeftPanelProps) {
   const project    = useAppStore((s) => s.project);
   const setProject = useAppStore((s) => s.setProject);
+
+  const [panelWidth, setPanelWidth] = useState<number>(() => {
+    const stored = Number(localStorage.getItem(LEFT_PANEL_WIDTH_KEY));
+    return stored >= LEFT_PANEL_MIN && stored <= LEFT_PANEL_MAX ? stored : 220;
+  });
+  const widthRef = useRef(panelWidth);
 
   useEffect(() => {
     api.getProject()
@@ -1258,8 +1559,30 @@ export function LeftPanel({ onAddObject, onFunctionsChanged }: LeftPanelProps) {
       .catch(() => {});
   }, []);
 
+  const onResizeStart = (e: React.MouseEvent) => {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startWidth = panelWidth;
+    document.body.style.cursor = "ew-resize";
+    document.body.style.userSelect = "none";
+    const onMove = (ev: MouseEvent) => {
+      const next = Math.min(LEFT_PANEL_MAX, Math.max(LEFT_PANEL_MIN, startWidth + (ev.clientX - startX)));
+      widthRef.current = next;
+      setPanelWidth(next);
+    };
+    const onUp = () => {
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+      localStorage.setItem(LEFT_PANEL_WIDTH_KEY, String(widthRef.current));
+    };
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+  };
+
   return (
-    <div style={S.panel}>
+    <div style={{ ...S.panel, width: panelWidth, position: "relative" }}>
       <div style={{ overflowY: "auto" as const, flex: 1 }}>
         <PagesSection />
         <ObjectPalette onAdd={onAddObject} />
@@ -1270,6 +1593,12 @@ export function LeftPanel({ onAddObject, onFunctionsChanged }: LeftPanelProps) {
       </div>
 
       <HistorySection />
+
+      <div
+        onMouseDown={onResizeStart}
+        title="Trascina per ridimensionare"
+        style={{ position: "absolute", top: 0, right: -3, bottom: 0, width: 6, cursor: "ew-resize", zIndex: 10 }}
+      />
     </div>
   );
 }
@@ -1277,6 +1606,7 @@ export function LeftPanel({ onAddObject, onFunctionsChanged }: LeftPanelProps) {
 // ── History section (cronologia visuale) ──────────────────────────────────────
 
 function HistorySection() {
+  const { t } = useTranslation();
   const past         = useAppStore((s) => s.past);
   const future       = useAppStore((s) => s.future);
   const undo         = useAppStore((s) => s.undo);
@@ -1323,7 +1653,7 @@ function HistorySection() {
                 key={idx}
                 onClick={() => jumpToPast(idx)}
                 style={{ ...S.row(false), fontSize: 11, paddingLeft: 16, cursor: "pointer" }}
-                title={`Torna a: ${entry.label}`}
+                title={t("editor.historyBack", { label: entry.label })}
               >
                 {entry.label}
               </div>
@@ -1358,7 +1688,7 @@ function HistorySection() {
                   opacity: 0.5,
                   fontStyle: "italic",
                 }}
-                title={`Ripristina: ${entry.label}`}
+                title={t("editor.historyRestore", { label: entry.label })}
               >
                 {entry.label}
               </div>

@@ -2,15 +2,19 @@
 import { create } from "zustand";
 import { setAuthToken } from "@/api/client";
 import { applyAppearance, getStoredMode, type ThemeMode } from "@/theme";
+import { getStoredProjectLang, setStoredProjectLang, getStoredEditorPreviewLang, setStoredEditorPreviewLang } from "@/i18n/projectI18n";
 import type {
   AlarmDef,
+  LanguageTable,
   AlarmState,
   CustomSymbol,
   FaceplateDef,
   FunctionDef,
   GridCell,
   LogEvent,
+  NotificationConfig,
   ObjectGroup,
+  PageLayoutConfig,
   ProjectInfo,
   SourceDef,
   SubCellEntry,
@@ -150,7 +154,7 @@ export type AlignMode =
 
 export type Role = "Viewer" | "Operator" | "Supervisor" | "Admin";
 export type AppMode = "edit" | "config";
-export type AppConfigTab = "tags" | "protocols" | "alarms" | "scripts" | "faceplates" | "recipes" | "notifications" | "datastores" | "users" | "resources" | "system" | "backups" | "devices" | "runtime";
+export type AppConfigTab = "tags" | "protocols" | "alarms" | "scripts" | "faceplates" | "recipes" | "notifications" | "languages" | "datastores" | "users" | "resources" | "system" | "backups" | "devices" | "runtime";
 
 interface AppState {
   // Auth
@@ -232,11 +236,25 @@ interface AppState {
   themeMode: ThemeMode;
   setThemeMode: (m: ThemeMode) => void;
 
+  /** Lingua CORRENTE dei contenuti di progetto (tabella lingue, T-40).
+   *  Asse indipendente dalla lingua UI. "" = usa il default della tabella. */
+  projectLang: string;
+  setProjectLang: (code: string) => void;
+
+  /** Lingua di ANTEPRIMA dell'editor: in quale lingua il canvas dell'IDE
+   *  risolve i token degli oggetti. Impostata dal tab Lingue; "" = default
+   *  della tabella. Indipendente da projectLang (lingua attiva del viewer). */
+  editorPreviewLang: string;
+  setEditorPreviewLang: (code: string) => void;
+
   setProject: (p: ProjectInfo) => void;
   setProjectLoadError: (msg: string | null) => void;
   updateProjectTags: (tags: TagDef[]) => void;
   updateProjectSources: (sources: SourceDef[]) => void;
+  updateProjectLanguages: (languages: LanguageTable) => void;
   updateProjectAlarms: (alarms: AlarmDef[]) => void;
+  updateProjectNotifications: (notifications: NotificationConfig | null) => void;
+  updateProjectPageLayout: (pageLayout: PageLayoutConfig | null) => void;
   updateProjectFunctions: (functions: FunctionDef[]) => void;
   updateProjectCustomSymbols: (symbols: CustomSymbol[]) => void;
   setFaceplates: (faceplates: FaceplateDef[]) => void;
@@ -257,8 +275,9 @@ interface AppState {
   deletePage: (id: string) => void;
   renamePage: (id: string, name: string) => void;
   reorderPage: (id: string, dir: "up" | "down") => void;
+  movePage: (id: string, toIndex: number) => void;
   duplicatePage: (id: string) => void;
-  updatePageProps: (id: string, patch: Partial<Pick<SynopticPage, "name" | "background" | "width" | "height" | "auto_rotate_skip" | "zones">>) => void;
+  updatePageProps: (id: string, patch: Partial<Pick<SynopticPage, "name" | "background" | "width" | "height" | "auto_rotate_skip" | "zones" | "locked">>) => void;
   updateGridCell: (pageId: string, objectId: string, cell: GridCell) => void;
   setSelectedCellRange: (range: { objectId: string; r1: number; c1: number; r2: number; c2: number } | null) => void;
   setSelectedSubCell: (sub: { objectId: string; row: number; col: number; path: ("a" | "b")[] } | null) => void;
@@ -491,6 +510,12 @@ export const useAppStore = create<AppState>((set, get) => {
     themeMode: getStoredMode(),
     setThemeMode: (m) => { applyAppearance(m); set({ themeMode: m }); },
 
+    projectLang: getStoredProjectLang(),
+    setProjectLang: (code) => { setStoredProjectLang(code); set({ projectLang: code }); },
+
+    editorPreviewLang: getStoredEditorPreviewLang(),
+    setEditorPreviewLang: (code) => { setStoredEditorPreviewLang(code); set({ editorPreviewLang: code }); },
+
     setProject: (project) => set({ project, projectLoadError: null, customSymbols: project.custom_symbols ?? [] }),
     setProjectLoadError: (msg) => set({ projectLoadError: msg }),
 
@@ -500,8 +525,17 @@ export const useAppStore = create<AppState>((set, get) => {
     updateProjectSources: (sources) =>
       set((s) => ({ project: s.project ? { ...s.project, sources } : s.project })),
 
+    updateProjectLanguages: (languages) =>
+      set((s) => ({ project: s.project ? { ...s.project, languages } : s.project })),
+
     updateProjectAlarms: (alarms) =>
       set((s) => ({ project: s.project ? { ...s.project, alarms } : s.project })),
+
+    updateProjectNotifications: (notifications) =>
+      set((s) => ({ project: s.project ? { ...s.project, notifications: notifications ?? undefined } : s.project })),
+
+    updateProjectPageLayout: (pageLayout) =>
+      set((s) => ({ project: s.project ? { ...s.project, page_layout: pageLayout ?? undefined } : s.project })),
 
     updateProjectFunctions: (functions) =>
       set((s) => ({ project: s.project ? { ...s.project, functions } : s.project })),
@@ -683,6 +717,19 @@ export const useAppStore = create<AppState>((set, get) => {
         const [page] = pages.splice(idx, 1);
         const newIdx = dir === "up" ? Math.max(0, idx - 1) : Math.min(pages.length, idx + 1);
         pages.splice(newIdx, 0, page);
+        return { pages };
+      });
+    },
+
+    movePage: (id, toIndex) => {
+      pushHistory("Riordina pagine");
+      set((s) => {
+        const idx = s.pages.findIndex((p) => p.id === id);
+        if (idx < 0) return s;
+        const pages = [...s.pages];
+        const [page] = pages.splice(idx, 1);
+        const clamped = Math.max(0, Math.min(pages.length, toIndex));
+        pages.splice(clamped, 0, page);
         return { pages };
       });
     },
@@ -1000,13 +1047,27 @@ export const useAppStore = create<AppState>((set, get) => {
     addObject: (partial) => {
       pushHistory(`Aggiungi ${partial.type}`);
       const obj: SynopticObject = { ...partial, id: genId() };
-      set((s) => ({
-        pages: s.pages.map((p) =>
-          p.id === s.currentPageId ? { ...p, objects: [...p.objects, obj] } : p
-        ),
-        selectedObjectId: obj.id,
-        selectedObjectIds: [obj.id],
-      }));
+      set((s) => {
+        // Nessuna pagina corrente valida (progetto vuoto senza sinottici, o
+        // currentPageId disallineato): crea al volo una prima pagina con dentro
+        // l'oggetto, così la palette funziona anche a progetto appena creato.
+        if (!s.pages.some((p) => p.id === s.currentPageId)) {
+          const page: SynopticPage = { ...makePage(`Page ${s.pages.length + 1}`), objects: [obj] };
+          return {
+            pages: [...s.pages, page],
+            currentPageId: page.id,
+            selectedObjectId: obj.id,
+            selectedObjectIds: [obj.id],
+          };
+        }
+        return {
+          pages: s.pages.map((p) =>
+            p.id === s.currentPageId ? { ...p, objects: [...p.objects, obj] } : p
+          ),
+          selectedObjectId: obj.id,
+          selectedObjectIds: [obj.id],
+        };
+      });
     },
 
     updateObject: (id, patch) => {

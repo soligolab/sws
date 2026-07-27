@@ -12,7 +12,7 @@ objects:
   type: text
   x: 450
   y: 24
-  text: "🎨  Controlli — fill color + label + alarm"
+  text: "{{controlli_fill_color_label_alarm}}"
   font_size: 18
   font_weight: bold
   text_anchor: middle
@@ -26,7 +26,7 @@ objects:
   y: 14
   width: 150
   height: 30
-  label: "◀ Griglia"
+  label: "{{griglia}}"
   target_page: gp_page1
   group_id: g_nav
   locked: true
@@ -38,7 +38,7 @@ objects:
   type: text
   x: 30
   y: 75
-  text: "demo.fill_color (pilota il rect in cella (1,3) della pagina Griglia):"
+  text: "{{demo_fill_color_pilota_il_rect_in_cella}}"
   font_size: 11
   color: "#94a3b8"
 
@@ -48,7 +48,7 @@ objects:
   y: 90
   width: 110
   height: 38
-  label: "● Rosso"
+  label: "{{rosso}}"
   fill: "#dc2626"
   tag: demo.fill_color
   write_value: "#dc2626"
@@ -59,7 +59,7 @@ objects:
   y: 90
   width: 110
   height: 38
-  label: "● Verde"
+  label: "{{verde}}"
   fill: "#16a34a"
   tag: demo.fill_color
   write_value: "#16a34a"
@@ -70,7 +70,7 @@ objects:
   y: 90
   width: 110
   height: 38
-  label: "● Blu"
+  label: "{{blu}}"
   fill: "#2563eb"
   tag: demo.fill_color
   write_value: "#2563eb"
@@ -81,7 +81,7 @@ objects:
   y: 90
   width: 110
   height: 38
-  label: "● Arancio"
+  label: "{{arancio}}"
   fill: "#ea580c"
   tag: demo.fill_color
   write_value: "#ea580c"
@@ -92,7 +92,7 @@ objects:
   y: 90
   width: 110
   height: 38
-  label: "● Viola"
+  label: "{{viola}}"
   fill: "#9333ea"
   tag: demo.fill_color
   write_value: "#9333ea"
@@ -102,7 +102,7 @@ objects:
   type: text
   x: 30
   y: 155
-  text: "Anteprima fill:"
+  text: "{{anteprima_fill}}"
   font_size: 11
   color: "#94a3b8"
 
@@ -133,7 +133,7 @@ objects:
   type: text
   x: 30
   y: 270
-  text: "Trigger allarme counter>80 (scrive counter):"
+  text: "{{trigger_allarme_counter_80_scrive_counte}}"
   font_size: 11
   color: "#94a3b8"
 
@@ -144,7 +144,7 @@ objects:
   width: 150
   height: 40
   fill: "#16a34a"
-  label: "counter = 50"
+  label: "{{counter_50}}"
   tag: counter
   write_value: 50
 
@@ -155,7 +155,7 @@ objects:
   width: 150
   height: 40
   fill: "#dc2626"
-  label: "counter = 95"
+  label: "{{counter_95}}"
   tag: counter
   write_value: 95
 
@@ -176,7 +176,7 @@ objects:
   type: text
   x: 30
   y: 380
-  text: "Demo S-27 UX: in editor prova drag&drop nel tree (LeftPanel), tasto destro sulle righe (context menu), rulers + guide (toggle ⟂ in alto-sx)."
+  text: "{{demo_s_27_ux_in_editor_prova_drag_drop_n}}"
   font_size: 11
   color: "#475569"
 
@@ -184,7 +184,7 @@ objects:
   type: text
   x: 30
   y: 400
-  text: "Demo grid S-23: clicca una cella, poi 'Dividi orizzontalmente/verticalmente' nel pannello destra (split locale). Shift+click su altre celle per merge."
+  text: "{{demo_grid_s_23_clicca_una_cella_poi_divi}}"
   font_size: 11
   color: "#475569"
 

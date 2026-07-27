@@ -70,3 +70,8 @@ alarms:
       threshold: 5000
     message: "Pressione processo oltre soglia"
     severity: Warning
+
+languages:
+  default: it
+  langs: [it, en]
+  entries: []

@@ -16,6 +16,13 @@ use tracing::{debug, info, warn};
 
 mod sparkplug;
 
+/// Limite dimensione pacchetto MQTT in/out. Il default di rumqttc (10 KB) è
+/// troppo basso per payload realistici (JSON di telemetria, discovery Home
+/// Assistant, birth certificate Sparkplug): un messaggio più grande fa
+/// ritornare `Err` a `eventloop.poll()` e rompe la connessione. Alziamo a 5 MB
+/// come guardia anti-OOM ragionevole, applicata a tutti i client del crate.
+pub(crate) const MAX_PACKET_SIZE_BYTES: usize = 5 * 1024 * 1024;
+
 /// Runs the MQTT subscription + publish loop until `cancel` fires,
 /// reconnecting on any error. Tags with a `publish_topic` set in their
 /// TopicMapping register on the write bus and forward writes as MQTT
@@ -49,6 +56,7 @@ async fn run_session(
     cancel: CancellationToken,
 ) -> anyhow::Result<()> {
     let mut opts = MqttOptions::new(&cfg.client_id, &cfg.host, cfg.port);
+    opts.set_max_packet_size(MAX_PACKET_SIZE_BYTES, MAX_PACKET_SIZE_BYTES);
     opts.set_keep_alive(Duration::from_secs(u64::from(cfg.keep_alive_secs.unwrap_or(10))));
     if let Some(clean) = cfg.clean_session {
         opts.set_clean_session(clean);
@@ -275,7 +283,7 @@ pub struct BrowseParams {
     pub password: Option<String>,
     pub tls_enabled: bool,
     pub ca_cert_path: Option<String>,
-    /// How long to listen for incoming publishes. Capped to 15 s by the caller.
+    /// How long to listen for incoming publishes. Capped to 120 s by the caller.
     pub duration_secs: u8,
 }
 
@@ -291,6 +299,7 @@ pub struct BrowsedTopic {
 pub async fn browse(params: BrowseParams) -> Vec<BrowsedTopic> {
     let cid = format!("{}-browse", params.client_id);
     let mut opts = MqttOptions::new(&cid, &params.host, params.port);
+    opts.set_max_packet_size(MAX_PACKET_SIZE_BYTES, MAX_PACKET_SIZE_BYTES);
     opts.set_keep_alive(Duration::from_secs(10));
     opts.set_clean_session(true);
 

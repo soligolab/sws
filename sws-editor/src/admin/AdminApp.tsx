@@ -101,7 +101,7 @@ export function AdminApp() {
 
   const handleRuntimeStatusClick = () => {
     if (rtConnected) {
-      if (window.confirm("Disconnettere il runtime remoto?")) {
+      if (window.confirm(t("admin.disconnectConfirm"))) {
         localStorage.removeItem("sws.runtime.connected");
         setRtConnected(false);
         window.dispatchEvent(new CustomEvent("sws:runtime-disconnected"));
@@ -221,8 +221,8 @@ export function AdminApp() {
             </span>
           )}
         </span>
-        <button style={RTN_BTN} onClick={handleRuntimeStatusClick} title={rtConnected ? "Runtime connesso — clicca per disconnettere" : "Configura connessione al runtime remoto"}>
-          {rtConnected ? "● Connesso" : "Connetti runtime"}
+        <button style={RTN_BTN} onClick={handleRuntimeStatusClick} title={rtConnected ? t("admin.runtimeConnectedTitle") : t("admin.runtimeConfigTitle")}>
+          {rtConnected ? "● Connesso" : t("admin.connectRuntime")}
         </button>
         <button style={HDR_BTN} onClick={handleCloseProject}>Chiudi progetto</button>
         <button style={HDR_BTN} onClick={handleLogout}>Esci</button>

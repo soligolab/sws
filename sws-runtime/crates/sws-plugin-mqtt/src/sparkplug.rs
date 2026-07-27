@@ -102,6 +102,7 @@ async fn session(
     cancel: CancellationToken,
 ) -> anyhow::Result<()> {
     let mut opts = MqttOptions::new(&cfg.client_id, &cfg.host, cfg.port);
+    opts.set_max_packet_size(crate::MAX_PACKET_SIZE_BYTES, crate::MAX_PACKET_SIZE_BYTES);
     opts.set_keep_alive(Duration::from_secs(u64::from(cfg.keep_alive_secs.unwrap_or(10))));
     if let Some(clean) = cfg.clean_session { opts.set_clean_session(clean); }
 

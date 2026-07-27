@@ -716,10 +716,24 @@ pub struct SmtpConfig {
     pub starttls: Option<bool>,
 }
 
+/// Telegram Bot API channel. Sends text messages to one or more chat IDs via
+/// `https://api.telegram.org/bot<token>/sendMessage`. Used both as an alarm
+/// notification channel and by the `send_telegram(text)` script binding.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TelegramConfig {
+    /// Bot token from BotFather. Secret — masked on GET like the SMTP password.
+    pub bot_token: String,
+    /// Destination chat IDs (numeric, or `@channelusername`). Messages go to all.
+    #[serde(default)]
+    pub chat_ids: Vec<String>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct NotificationConfig {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub smtp: Option<SmtpConfig>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub telegram: Option<TelegramConfig>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -753,6 +767,74 @@ pub struct Project {
     /// `None` on projects written before this field existed.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub saved_by: Option<String>,
+    /// Project-level language table for translating the messages the author
+    /// writes into synoptic objects. Purely client-side (the viewer resolves
+    /// `{{token}}` references); the runtime only persists it. See T-40.
+    #[serde(default)]
+    pub languages: LanguageTable,
+    /// Project-wide page sizing/scaling mode + home page. `None` = legacy
+    /// behavior = equivalent to `Fixed` (every project authored before this
+    /// field existed already has literal per-page width/height).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub page_layout: Option<PageLayoutConfig>,
+}
+
+/// How synoptic pages are sized and scaled at runtime.
+/// - `Fixed`: page has a literal width/height matching a known target device;
+///   the viewer renders it 1:1 (no scaling) — a window/screen mismatch shows
+///   scrollbars or empty margin, never distortion or cropping.
+/// - `Ratio`: the project picks an aspect ratio (e.g. "16:9"); pages use a
+///   standard reference resolution for that ratio, and the viewer scales to
+///   fit the real screen while preserving proportions (letterbox).
+/// - `Fluid`: no nominal page size at all; content draws literally into
+///   whatever viewport is available (1 design unit = 1 real pixel), no
+///   scaling, no guaranteed cross-viewport layout.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum PageSizeMode {
+    Fixed,
+    Ratio,
+    Fluid,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PageLayoutConfig {
+    pub size_mode: PageSizeMode,
+    /// Aspect ratio label ("16:9" / "4:3" / "21:9" / "1:1" / "custom"). Only
+    /// meaningful when `size_mode == Ratio`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub aspect_ratio: Option<String>,
+    /// Id of the page the viewer opens by default (and the kiosk auto-rotate
+    /// cycle restarts from). `None` = fall back to the first page allowed by
+    /// the operator's zones.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub home_page_id: Option<String>,
+}
+
+/// Tabella lingue di progetto: messaggi nativi + traduzioni, indicizzati per
+/// token/chiave. Il viewer risolve i riferimenti `{{token}}` nei campi testo
+/// degli oggetti secondo la lingua corrente.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct LanguageTable {
+    /// Codice della lingua sorgente/predefinita (es. "it"). Vuoto se non impostata.
+    #[serde(default)]
+    pub default: String,
+    /// Codici lingua presenti nella tabella, in ordine (es. ["it","en","de"]).
+    #[serde(default)]
+    pub langs: Vec<String>,
+    /// Voci messaggio, una per token.
+    #[serde(default)]
+    pub entries: Vec<LangEntry>,
+}
+
+/// Una voce della tabella lingue: un token e le sue traduzioni per codice lingua.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct LangEntry {
+    /// Token/chiave usato negli oggetti come `{{key}}`.
+    pub key: String,
+    /// codice lingua → testo tradotto.
+    #[serde(default)]
+    pub values: std::collections::BTreeMap<String, String>,
 }
 
 /// Version of this runtime build, stamped into `project.yaml` on every save.

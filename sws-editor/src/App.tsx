@@ -7,11 +7,13 @@ import { LogPanel } from "@/components/LogPanel";
 import { LoginScreen } from "@/components/LoginScreen";
 import { ReAuthModal } from "@/components/ReAuthModal";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { UiLangSelect } from "@/components/UiLangSelect";
 import { WelcomeScreen } from "@/components/WelcomeScreen";
 import { ConfigView } from "@/config/ConfigView";
 import { EditorShell } from "@/editor/EditorShell";
 import { getBrand } from "@/branding";
 import { useAppStore } from "@/store";
+import { pickInitialPageId } from "@/pageLayout";
 import { useLogStream } from "@/ws/logStream";
 import { useTagStream } from "@/ws/tagStream";
 import { canEditProject, canConfigureProject } from "@/auth/permissions";
@@ -28,6 +30,7 @@ const HDR_BTN_DENY: React.CSSProperties = {
 };
 
 function AccessDenied({ role, onLogout }: { role: string; onLogout: () => void }) {
+  const { t } = useTranslation();
   return (
     <div style={{
       display: "flex", flexDirection: "column", alignItems: "center",
@@ -35,12 +38,11 @@ function AccessDenied({ role, onLogout }: { role: string; onLogout: () => void }
       color: "var(--brand-text, #e2e8f0)", gap: 16, fontFamily: "system-ui",
     }}>
       <div style={{ fontSize: 48 }}>🔒</div>
-      <div style={{ fontSize: 20, fontWeight: 600 }}>Accesso negato</div>
+      <div style={{ fontSize: 20, fontWeight: 600 }}>{t("accessDenied.title")}</div>
       <div style={{ fontSize: 14, color: "var(--brand-text-muted, #94a3b8)", maxWidth: 400, textAlign: "center" }}>
-        Il pannello IDE richiede ruolo <strong>Supervisor</strong> o <strong>Admin</strong>.
-        Sei autenticato come <strong>{role}</strong>.
+        {t("accessDenied.requires")} {t("accessDenied.authenticatedAs", { role })}
       </div>
-      <button style={HDR_BTN_DENY} onClick={onLogout}>Logout</button>
+      <button style={HDR_BTN_DENY} onClick={onLogout}>{t("accessDenied.logout")}</button>
     </div>
   );
 }
@@ -117,6 +119,7 @@ function BrandLogo() {
 // ── GridDropdown (edit mode only) ─────────────────────────────────────────────
 
 function GridDropdown() {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const ref             = useRef<HTMLDivElement>(null);
   const gridSize        = useAppStore((s) => s.gridSize);
@@ -134,7 +137,7 @@ function GridDropdown() {
     return () => document.removeEventListener("mousedown", handler);
   }, [open]);
 
-  const label = gridSize === 0 ? "Griglia: Off" : `Griglia: ${gridSize}px`;
+  const label = gridSize === 0 ? t("header.gridOff") : `${t("header.grid")}: ${gridSize}px`;
 
   return (
     <div ref={ref} style={{ position: "relative" }}>
@@ -144,11 +147,11 @@ function GridDropdown() {
       {open && (
         <div style={DROP_PANEL}>
           <div style={{ padding: "6px 14px 2px", fontSize: 11, color: "var(--brand-text-subtle, #64748b)", fontWeight: 700, letterSpacing: 0.5 }}>
-            GRIGLIA
+            {t("header.gridSection")}
           </div>
           <div style={{ padding: "4px 14px 6px", display: "flex", flexDirection: "column", gap: 6 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <span style={{ fontSize: 12, color: "var(--brand-text-muted, #94a3b8)", flex: 1 }}>Dimensione</span>
+              <span style={{ fontSize: 12, color: "var(--brand-text-muted, #94a3b8)", flex: 1 }}>{t("header.gridSize")}</span>
               <select
                 value={gridSize}
                 onChange={(e) => setGridSize(Number(e.target.value))}
@@ -157,6 +160,7 @@ function GridDropdown() {
                 {[0, 5, 10, 20, 40].map((n) => (
                   <option key={n} value={n}>{n === 0 ? "Off" : `${n}px`}</option>
                 ))}
+                {/* i18n: "Off" è invariato tra le lingue */}
               </select>
             </div>
             <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
@@ -166,7 +170,7 @@ function GridDropdown() {
                 onChange={(e) => setSnap(e.target.checked)}
                 style={{ accentColor: "var(--brand-primary, #3b82f6)" }}
               />
-              <span style={{ fontSize: 12, color: "var(--brand-text-muted, #94a3b8)" }}>Snap alla griglia</span>
+              <span style={{ fontSize: 12, color: "var(--brand-text-muted, #94a3b8)" }}>{t("header.gridSnap")}</span>
             </label>
           </div>
         </div>
@@ -178,6 +182,7 @@ function GridDropdown() {
 // ── RuntimeCtrl (admin/supervisor only) ──────────────────────────────────────
 
 function RuntimeCtrl() {
+  const { t } = useTranslation();
   const authRole              = useAppStore((s) => s.authRole);
   const [running, setRunning] = useState<boolean | null>(null);
   const [busy, setBusy]       = useState(false);
@@ -207,10 +212,7 @@ function RuntimeCtrl() {
   if (!canConfigureProject(authRole)) return null;
 
   const handleMigrate = async () => {
-    if (!confirm(
-      `Il progetto è stato salvato dalla versione ${savedBy ?? "sconosciuta"}, ` +
-      `il runtime è la ${runtimeVersion}. Aggiornare il progetto al formato corrente?`
-    )) return;
+    if (!confirm(t("header.migrateConfirm", { savedBy: savedBy ?? t("header.unknownVersion"), runtime: runtimeVersion }))) return;
     setMigrating(true);
     try {
       await api.migrateProject();
@@ -239,7 +241,7 @@ function RuntimeCtrl() {
   };
 
   const dotColor = running === null ? "var(--brand-text-subtle, #64748b)" : running ? "var(--brand-success, #22c55e)" : "var(--brand-danger, #ef4444)";
-  const dotTitle = running === null ? "Stato sconosciuto" : running ? "Acquisizione attiva" : "Acquisizione ferma";
+  const dotTitle = running === null ? t("header.acqUnknown") : running ? t("header.acqRunning") : t("header.acqStopped");
 
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -248,9 +250,9 @@ function RuntimeCtrl() {
           style={{ ...HDR_BTN, background: "var(--brand-warning-bg, #78350f)", border: "1px solid var(--brand-warning, #f59e0b)", color: "#fde68a", opacity: migrating ? 0.6 : 1 }}
           disabled={migrating}
           onClick={handleMigrate}
-          title={`Progetto salvato da ${savedBy ?? "versione sconosciuta"}, runtime ${runtimeVersion}. Clicca per aggiornare.`}
+          title={t("header.updateProjectTitle", { savedBy: savedBy ?? t("header.unknownVersion"), runtime: runtimeVersion })}
         >
-          {migrating ? "Aggiorno…" : "⚠ Aggiorna progetto"}
+          {migrating ? t("header.updating") : t("header.updateProjectBtn")}
         </button>
       )}
       <span
@@ -261,17 +263,17 @@ function RuntimeCtrl() {
         style={{ ...HDR_BTN, opacity: busy ? 0.6 : 1 }}
         disabled={busy || running === null}
         onClick={handleToggle}
-        title={running ? "Ferma acquisizione dati" : "Avvia acquisizione dati"}
+        title={running ? t("header.stopTitle") : t("header.startTitle")}
       >
-        {busy ? "…" : running ? "Stop" : "Start"}
+        {busy ? "…" : running ? t("header.stop") : t("header.start")}
       </button>
       <button
         style={{ ...HDR_BTN, opacity: busy ? 0.6 : 1 }}
         disabled={busy}
         onClick={handleReboot}
-        title="Riavvia il processo runtime (exec-replace, ~2s di disconnessione)"
+        title={t("header.rebootTitle")}
       >
-        Reboot
+        {t("header.reboot")}
       </button>
     </div>
   );
@@ -280,6 +282,7 @@ function RuntimeCtrl() {
 // ── MainMenu (always visible) ─────────────────────────────────────────────────
 
 function MainMenu({ mode, onLogout, onCloseProject }: { mode: Mode; onLogout: () => void; onCloseProject: () => void }) {
+  const { t } = useTranslation();
   const [open, setOpen]       = useState(false);
   const ref                   = useRef<HTMLDivElement>(null);
   const authRole              = useAppStore((s) => s.authRole);
@@ -315,16 +318,12 @@ function MainMenu({ mode, onLogout, onCloseProject }: { mode: Mode; onLogout: ()
       document.body.appendChild(a); a.click(); document.body.removeChild(a);
       setTimeout(() => URL.revokeObjectURL(url), 1000);
       setIoStat(`✓ ${filename}`);
-    } catch (e: any) { setIoStat(`Errore: ${e?.message ?? e}`); }
+    } catch (e: any) { setIoStat(`${t("header.error")}: ${e?.message ?? e}`); }
     finally { setIoBusy(null); setTimeout(() => setIoStat(null), 5000); }
   };
 
   const handleImport = async (file: File) => {
-    if (!confirm(
-      "Sostituire l'intero progetto corrente?\n" +
-      "I synoptic non inclusi nel bundle saranno eliminati.\n" +
-      "Le password MQTT non sono incluse: dovrai re-immetterle dopo l'import."
-    )) return;
+    if (!confirm(t("menu.importConfirm"))) return;
     setIoBusy("import"); setIoStat(null);
     try {
       await api.importProjectZip(file);
@@ -333,21 +332,21 @@ function MainMenu({ mode, onLogout, onCloseProject }: { mode: Mode; onLogout: ()
       const names = await api.listSynoptics();
       if (names.length > 0) {
         const pages = await Promise.all(names.map((n) => api.getSynoptic(n)));
-        setPages(pages, pages[0].id);
+        setPages(pages, pickInitialPageId(pages, project.page_layout?.home_page_id));
       } else {
         setPages([], "");
       }
       const tagCount = project.tags?.length ?? 0;
-      setIoStat(`✓ Importato ${file.name} (${tagCount} tag)`);
-    } catch (e: any) { setIoStat(`Errore: ${e?.message ?? e}`); }
+      setIoStat(t("menu.imported", { file: file.name, count: tagCount }));
+    } catch (e: any) { setIoStat(`${t("header.error")}: ${e?.message ?? e}`); }
     finally { setIoBusy(null); setTimeout(() => setIoStat(null), 6000); }
   };
 
   const saveBtnLabel =
-    saveStatus === "saving" ? "Salvataggio…" :
-    saveStatus === "ok"     ? "✓ Salvato"   :
-    saveStatus === "error"  ? "❌ Errore salvataggio" :
-                              "Salva tutto";
+    saveStatus === "saving" ? t("header.saving") :
+    saveStatus === "ok"     ? t("header.saved")   :
+    saveStatus === "error"  ? t("header.saveErrorBtn") :
+                              t("menu.saveAll");
 
   const saveBtnColor =
     saveStatus === "error" ? "var(--brand-danger-soft, #fca5a5)" :
@@ -366,9 +365,9 @@ function MainMenu({ mode, onLogout, onCloseProject }: { mode: Mode; onLogout: ()
           minWidth: 90,
         }}
         onClick={() => setOpen((v) => !v)}
-        title={saveStatus === "error" ? (saveError ?? "Errore") : "Menu principale"}
+        title={saveStatus === "error" ? (saveError ?? t("header.error")) : t("header.menuTitle")}
       >
-        ☰ Menu {saveStatus === "saving" ? "⟳" : saveStatus === "ok" ? "✓" : saveStatus === "error" ? "⚠" : ""}
+        ☰ {t("header.menu")} {saveStatus === "saving" ? "⟳" : saveStatus === "ok" ? "✓" : saveStatus === "error" ? "⚠" : ""}
       </button>
       {/* L'input file vive FUORI dal dropdown: cliccare "Importa progetto" chiude
           il menu (setOpen(false)); se l'input fosse dentro {open && …} verrebbe
@@ -407,14 +406,14 @@ function MainMenu({ mode, onLogout, onCloseProject }: { mode: Mode; onLogout: ()
                 disabled={ioBusy !== null}
                 onClick={() => { handleExport(); setOpen(false); }}
               >
-                {ioBusy === "export" ? "Esporto…" : "Esporta progetto"}
+                {ioBusy === "export" ? t("menu.exporting") : t("menu.exportProject")}
               </button>
               <button
                 style={{ ...DROP_ITEM, color: ioBusy === "import" ? "var(--brand-text-muted, #94a3b8)" : "var(--brand-text-2, #cbd5e1)" }}
                 disabled={ioBusy !== null}
                 onClick={() => { fileInputRef.current?.click(); setOpen(false); }}
               >
-                {ioBusy === "import" ? "Importo…" : "Importa progetto"}
+                {ioBusy === "import" ? t("menu.importing") : t("menu.importProject")}
               </button>
               <div style={DROP_SEP} />
             </>
@@ -423,14 +422,14 @@ function MainMenu({ mode, onLogout, onCloseProject }: { mode: Mode; onLogout: ()
             style={DROP_ITEM}
             onClick={() => { onCloseProject(); setOpen(false); }}
           >
-            Chiudi progetto
+            {t("menu.closeProject")}
           </button>
           <div style={DROP_SEP} />
           <button
             style={DROP_ITEM}
             onClick={() => { onLogout(); setOpen(false); }}
           >
-            Esci
+            {t("menu.logout")}
           </button>
         </div>
       )}
@@ -450,11 +449,6 @@ function MainMenu({ mode, onLogout, onCloseProject }: { mode: Mode; onLogout: ()
     </div>
   );
 }
-
-const MODE_LABELS: Record<Mode, string> = {
-  edit:   "Editor",
-  config: "Configurazione",
-};
 
 const LOG_PANEL_KEY = "sws.logPanel.open";
 
@@ -658,9 +652,17 @@ export function App() {
 
     api.listSynoptics()
       .then(async (names) => {
-        if (names.length === 0) return;
+        // Progetto senza synoptic (es. appena creato vuoto): azzera le pagine,
+        // altrimenti resterebbe in memoria il contenuto del progetto precedente.
+        if (names.length === 0) { setPages([], ""); return; }
         const loaded = await Promise.all(names.map((n) => api.getSynoptic(n)));
-        setPages(loaded, loaded[0].id);
+        // Letto imperativamente dallo store (non da una chiusura locale): questo
+        // effetto lancia getProject() e listSynoptics() come due catene .then
+        // indipendenti, quindi project potrebbe non essere ancora stato settato
+        // quando arriviamo qui — in quel caso home_page_id è undefined e
+        // pickInitialPageId degrada al comportamento di oggi (prima pagina).
+        const homePageId = useAppStore.getState().project?.page_layout?.home_page_id;
+        setPages(loaded, pickInitialPageId(loaded, homePageId));
       })
       .catch((e) => {
         if (e instanceof AuthError) clearAuth();
@@ -669,7 +671,7 @@ export function App() {
 
     api.listFaceplates()
       .then(async (ids) => {
-        if (ids.length === 0) return;
+        if (ids.length === 0) { setFaceplates([]); return; }
         const loaded = await Promise.all(ids.map((id) => api.getFaceplate(id)));
         setFaceplates(loaded);
       })
@@ -784,12 +786,12 @@ export function App() {
           return (
             <button
               onClick={() => {
-                if (window.confirm(`Disconnetti dal runtime remoto ${host}? Tornerai al runtime locale.`)) {
+                if (window.confirm(t("header.remoteDisconnectConfirm", { host }))) {
                   setRuntimeBaseUrl(null);
                   window.location.reload();
                 }
               }}
-              title={`Connesso a ${remote}. Clicca per tornare al runtime locale.`}
+              title={t("header.remoteConnected", { url: remote })}
               style={{
                 padding: "2px 8px",
                 background: "#1e3a8a",
@@ -828,7 +830,7 @@ export function App() {
                 fontSize: 13,
               }}
             >
-              {MODE_LABELS[m]}
+              {t(m === "edit" ? "header.mode.editor" : "header.mode.config")}
             </button>
           ))}
         </div>
@@ -857,10 +859,10 @@ export function App() {
         {/* Remote deploy target indicator — shows sync status when connected */}
         {(() => {
           const syncLabel =
-            remoteDeployStatus === "syncing" ? "⟳ Sync…" :
-            remoteDeployStatus === "ok"      ? "✓ Synced" :
-            remoteDeployStatus === "error"   ? "✗ Sync err" :
-            "Deploy";
+            remoteDeployStatus === "syncing" ? t("header.syncing") :
+            remoteDeployStatus === "ok"      ? t("header.synced") :
+            remoteDeployStatus === "error"   ? t("header.syncError") :
+            t("header.deploy");
           const dotColor =
             remoteDeployStatus === "syncing" ? "var(--brand-warning, #f59e0b)" :
             remoteDeployStatus === "ok"      ? "var(--brand-success-soft, #4ade80)" :
@@ -870,13 +872,13 @@ export function App() {
             ? { background: "#14532d", color: "var(--brand-success-soft, #4ade80)", border: "1px solid #16a34a" }
             : {};
           const titleStr = rtConnected
-            ? "Connesso — salva per sincronizzare automaticamente. Clicca per disconnettere."
-            : "Clicca per configurare la connessione al runtime remoto";
+            ? t("header.deployConnectedTitle")
+            : t("header.deployConfigTitle");
           return (
             <button
               onClick={() => {
                 if (rtConnected) {
-                  if (window.confirm("Disconnettere dal runtime remoto?")) {
+                  if (window.confirm(t("header.deployDisconnectConfirm"))) {
                     localStorage.removeItem("sws.runtime.connected");
                     setRtConnected(false);
                     window.dispatchEvent(new CustomEvent("sws:runtime-disconnected"));
@@ -899,7 +901,7 @@ export function App() {
             setLogOpen(next);
             try { localStorage.setItem(LOG_PANEL_KEY, next ? "1" : "0"); } catch { /* ignore */ }
           }}
-          title={logOpen ? "Nascondi pannello log" : "Mostra pannello log"}
+          title={logOpen ? t("header.logHide") : t("header.logShow")}
           style={{
             padding: "4px 10px",
             background: logOpen ? "#1e3a8a" : "var(--brand-surface-2, #334155)",
@@ -910,8 +912,9 @@ export function App() {
             fontSize: 12,
           }}
         >
-          Log
+          {t("header.log")}
         </button>
+        <UiLangSelect compact />
         <ThemeToggle compact />
         <MainMenu mode={effectiveMode} onLogout={handleLogout} onCloseProject={handleCloseProject} />
       </header>
@@ -928,8 +931,7 @@ export function App() {
         }}>
           <span style={{ color: "#a8a29e" }}>⏱</span>
           <span>
-            La sessione scade dopo {Math.round(devTtlBanner.ttlSecs / 60)} min.
-            Disattivarla per lo sviluppo?
+            {t("header.ttlBanner", { min: Math.round(devTtlBanner.ttlSecs / 60) })}
           </span>
           <button
             onClick={handleDisableTtl}
@@ -941,7 +943,7 @@ export function App() {
               fontSize: 11,
             }}
           >
-            {ttlBusy ? "…" : "Disattiva"}
+            {ttlBusy ? "…" : t("header.deactivate")}
           </button>
           <button
             onClick={() => setDevTtlBanner(null)}
@@ -1009,15 +1011,15 @@ export function App() {
       {confirmPending && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999 }}>
           <div style={{ background: "var(--brand-surface, #1e293b)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 8, padding: "24px 28px", maxWidth: 360, width: "90%", display: "flex", flexDirection: "column", gap: 16 }}>
-            <div style={{ fontSize: 15, fontWeight: 600, color: "var(--brand-text, #e2e8f0)" }}>Modifiche non salvate</div>
-            <div style={{ fontSize: 13, color: "var(--brand-text-muted, #94a3b8)" }}>Ci sono modifiche al sinottico non ancora salvate. Cosa vuoi fare?</div>
+            <div style={{ fontSize: 15, fontWeight: 600, color: "var(--brand-text, #e2e8f0)" }}>{t("unsaved.title")}</div>
+            <div style={{ fontSize: 13, color: "var(--brand-text-muted, #94a3b8)" }}>{t("unsaved.body")}</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               <button
                 style={{ ...HDR_BTN, background: "#1d4ed8", color: "#fff", border: "1px solid var(--brand-primary-hover, #2563eb)", padding: "8px 16px", fontSize: 13 }}
                 disabled={waitingForSave}
                 onClick={() => { incSaveSerial(); setWaitingForSave(true); }}
               >
-                {waitingForSave ? "Salvataggio…" : "Salva e chiudi"}
+                {waitingForSave ? t("header.saving") : t("unsaved.saveClose")}
               </button>
               <button
                 style={{ ...HDR_BTN, background: "var(--brand-danger-bg, #7f1d1d)", color: "var(--brand-danger-soft, #fca5a5)", border: "1px solid #991b1b", padding: "8px 16px", fontSize: 13 }}
@@ -1028,13 +1030,13 @@ export function App() {
                   else executeLogout();
                 }}
               >
-                Chiudi senza salvare
+                {t("unsaved.discard")}
               </button>
               <button
                 style={{ ...HDR_BTN, padding: "8px 16px", fontSize: 13 }}
                 onClick={() => { setConfirmPending(null); setWaitingForSave(false); }}
               >
-                Annulla
+                {t("common.cancel")}
               </button>
             </div>
           </div>

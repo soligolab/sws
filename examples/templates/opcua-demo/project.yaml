@@ -70,3 +70,148 @@ alarms:
     severity: Critical
 
 functions: []
+
+languages:
+  default: it
+  langs: [it, en]
+  entries:
+    - key: "opc_ua_live"
+      values:
+        it: "🔌  OPC-UA — Live"
+        en: "🔌  OPC-UA — Live"
+    - key: "5_nodi_sottoscritti_via_subscription_int"
+      values:
+        it: "5 nodi sottoscritti via subscription_interval_ms=500"
+        en: "5 nodes subscribed via subscription_interval_ms=500"
+    - key: "tabella_nodi"
+      values:
+        it: "Tabella nodi ▶"
+        en: "Node table ▶"
+    - key: "temperatura_c"
+      values:
+        it: "Temperatura (°C)"
+        en: "Temperature (°C)"
+    - key: "pressione_kpa"
+      values:
+        it: "Pressione (kPa)"
+        en: "Pressure (kPa)"
+    - key: "stato_macchina_euromap_77"
+      values:
+        it: "Stato macchina (Euromap 77)"
+        en: "Machine state (Euromap 77)"
+    - key: "pronto"
+      values:
+        it: "Pronto"
+        en: "Ready"
+    - key: "cycle_time"
+      values:
+        it: "Cycle Time"
+        en: "Cycle Time"
+    - key: "trend_live_temperatura_pressione"
+      values:
+        it: "Trend live (temperatura · pressione)"
+        en: "Live trend (temperature · pressure)"
+    - key: "endpoint_opc_tcp_localhost_4840_security"
+      values:
+        it: "▸ Endpoint: opc.tcp://localhost:4840 — security_policy: None — vedere SETUP.md per Basic256Sha256"
+        en: "▸ Endpoint: opc.tcp://localhost:4840 — security_policy: None — see SETUP.md for Basic256Sha256"
+    - key: "opc_ua_tabella_nodi"
+      values:
+        it: "🔌  OPC-UA — Tabella nodi"
+        en: "🔌  OPC-UA — Tabella nodi"
+    - key: "live"
+      values:
+        it: "◀ Live"
+        en: "◀ Live"
+    - key: "mapping_nodeid_tag_corrente_live"
+      values:
+        it: "Mapping NodeId → Tag corrente (live)"
+        en: "NodeId → Tag mapping (live)"
+    - key: "nodeid"
+      values:
+        it: "NodeId"
+        en: "NodeId"
+    - key: "tag_sws"
+      values:
+        it: "Tag SWS"
+        en: "Tag SWS"
+    - key: "valore"
+      values:
+        it: "Valore"
+        en: "Value"
+    - key: "unita"
+      values:
+        it: "Unità"
+        en: "Unit"
+    - key: "ns_1_s_temperature"
+      values:
+        it: "ns=1;s=Temperature"
+        en: "ns=1;s=Temperature"
+    - key: "sim_temperature"
+      values:
+        it: "sim.temperature"
+        en: "sim.temperature"
+    - key: "c"
+      values:
+        it: "°C"
+        en: "°C"
+    - key: "ns_1_s_pressure"
+      values:
+        it: "ns=1;s=Pressure"
+        en: "ns=1;s=Pressure"
+    - key: "sim_pressure"
+      values:
+        it: "sim.pressure"
+        en: "sim.pressure"
+    - key: "kpa"
+      values:
+        it: "kPa"
+        en: "kPa"
+    - key: "ns_2_s_cycletime"
+      values:
+        it: "ns=2;s=CycleTime"
+        en: "ns=2;s=CycleTime"
+    - key: "sim_cycle_time"
+      values:
+        it: "sim.cycle_time"
+        en: "sim.cycle_time"
+    - key: "s_euromap_77"
+      values:
+        it: "s (Euromap 77)"
+        en: "s (Euromap 77)"
+    - key: "ns_2_s_machinestate"
+      values:
+        it: "ns=2;s=MachineState"
+        en: "ns=2;s=MachineState"
+    - key: "sim_machine_state"
+      values:
+        it: "sim.machine_state"
+        en: "sim.machine_state"
+    - key: "string"
+      values:
+        it: "string"
+        en: "string"
+    - key: "ns_2_s_machineready"
+      values:
+        it: "ns=2;s=MachineReady"
+        en: "ns=2;s=MachineReady"
+    - key: "sim_machine_ready"
+      values:
+        it: "sim.machine_ready"
+        en: "sim.machine_ready"
+    - key: "bool"
+      values:
+        it: "bool"
+        en: "bool"
+    - key: "suggerimento_in_configurazione_protocoll"
+      values:
+        it: "Suggerimento: in Configurazione → Protocolli → OPC-UA, premi 🤖 Rileva Euromap per importare automaticamente i nodi canonici Euromap 77/83."
+        en: "Tip: in Configuration → Protocols → OPC-UA, press 🤖 Detect Euromap to automatically import the canonical Euromap 77/83 nodes."
+    - key: "browse_manuale_sfoglia_server_apre_un_tr"
+      values:
+        it: "Browse manuale: 🔍 Sfoglia server apre un tree lazy-load partendo da ObjectsFolder."
+        en: "Manual browse: 🔍 Browse server opens a lazy-load tree starting from ObjectsFolder."
+    - key: "per_testare_in_locale_npx_y_node_opcua_s"
+      values:
+        it: "▸ Per testare in locale: npx -y node-opcua-server  (oppure Prosys OPC UA Simulation Server)"
+        en: "▸ To test locally: npx -y node-opcua-server  (or Prosys OPC UA Simulation Server)"

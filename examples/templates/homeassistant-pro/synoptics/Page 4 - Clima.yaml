@@ -11,7 +11,7 @@ objects:
   type: text
   x: 400
   y: 20
-  text: "CLIMA — 5 Stanze"
+  text: "{{clima_5_stanze}}"
   font_size: 17
   font_weight: bold
   text_anchor: middle
@@ -22,7 +22,7 @@ objects:
   type: text
   x: 400
   y: 40
-  text: "Temperatura · Umidità · Comfort Index · Trend storico"
+  text: "{{temperatura_umidita_comfort_index_trend}}"
   font_size: 10
   text_anchor: middle
   color: "#475569"
@@ -35,7 +35,7 @@ objects:
   y: 572
   width: 120
   height: 34
-  label: "◎ Panoramica"
+  label: "{{panoramica_2}}"
   target_page: pro_p1
   locked: true
 
@@ -45,7 +45,7 @@ objects:
   y: 572
   width: 120
   height: 34
-  label: "☀ Fotovoltaico"
+  label: "{{fotovoltaico}}"
   target_page: pro_p2
   locked: true
 
@@ -55,7 +55,7 @@ objects:
   y: 572
   width: 120
   height: 34
-  label: "⚡ Batt & Rete"
+  label: "{{batt_rete}}"
   target_page: pro_p3
   locked: true
 
@@ -65,7 +65,7 @@ objects:
   y: 572
   width: 120
   height: 34
-  label: "◉ Clima"
+  label: "{{clima_3}}"
   target_page: pro_p4
   fill: "#1e293b"
   locked: true
@@ -76,7 +76,7 @@ objects:
   y: 572
   width: 120
   height: 34
-  label: "🔌 Carichi"
+  label: "{{carichi}}"
   target_page: pro_p5
   locked: true
 
@@ -86,7 +86,7 @@ objects:
   y: 572
   width: 120
   height: 34
-  label: "🔒 Sicurezza"
+  label: "{{sicurezza}}"
   target_page: pro_p6
   locked: true
 
@@ -110,7 +110,7 @@ objects:
   type: text
   x: 80
   y: 76
-  text: "Stanza"
+  text: "{{stanza}}"
   font_size: 10
   font_weight: bold
   text_anchor: middle
@@ -120,7 +120,7 @@ objects:
   type: text
   x: 200
   y: 76
-  text: "Temperatura"
+  text: "{{temperatura}}"
   font_size: 10
   font_weight: bold
   text_anchor: middle
@@ -130,7 +130,7 @@ objects:
   type: text
   x: 310
   y: 76
-  text: "Umidità"
+  text: "{{umidita}}"
   font_size: 10
   font_weight: bold
   text_anchor: middle
@@ -140,7 +140,7 @@ objects:
   type: text
   x: 400
   y: 76
-  text: "Barra"
+  text: "{{barra}}"
   font_size: 10
   font_weight: bold
   text_anchor: middle
@@ -160,7 +160,7 @@ objects:
   type: text
   x: 80
   y: 104
-  text: "Soggiorno"
+  text: "{{soggiorno}}"
   font_size: 12
   font_weight: bold
   text_anchor: middle
@@ -213,7 +213,7 @@ objects:
   type: text
   x: 80
   y: 138
-  text: "Studio"
+  text: "{{studio}}"
   font_size: 12
   font_weight: bold
   text_anchor: middle
@@ -266,7 +266,7 @@ objects:
   type: text
   x: 80
   y: 172
-  text: "Lavanderia"
+  text: "{{lavanderia}}"
   font_size: 12
   font_weight: bold
   text_anchor: middle
@@ -319,7 +319,7 @@ objects:
   type: text
   x: 80
   y: 206
-  text: "Bagno PT"
+  text: "{{bagno_pt}}"
   font_size: 12
   font_weight: bold
   text_anchor: middle
@@ -372,7 +372,7 @@ objects:
   type: text
   x: 80
   y: 240
-  text: "Loc. Tecnico"
+  text: "{{loc_tecnico}}"
   font_size: 12
   font_weight: bold
   text_anchor: middle
@@ -425,7 +425,7 @@ objects:
   type: text
   x: 80
   y: 276
-  text: "Media 5 stanze"
+  text: "{{media_5_stanze}}"
   font_size: 12
   font_weight: bold
   text_anchor: middle
@@ -446,7 +446,7 @@ objects:
   type: text
   x: 310
   y: 262
-  text: "Pressione"
+  text: "{{pressione}}"
   font_size: 9
   text_anchor: middle
   color: "#475569"
@@ -476,7 +476,7 @@ objects:
   type: text
   x: 80
   y: 310
-  text: "Comfort Soggiorno"
+  text: "{{comfort_soggiorno}}"
   font_size: 11
   text_anchor: middle
   color: "#64748b"
@@ -508,7 +508,7 @@ objects:
   type: text
   x: 214
   y: 350
-  text: "100 = T 22°C + U 50%"
+  text: "{{100_t_22_c_u_50}}"
   font_size: 9
   text_anchor: middle
   color: "#334155"
@@ -532,7 +532,7 @@ objects:
   type: text
   x: 618
   y: 76
-  text: "GAUGE — TEMPERATURA MEDIA"
+  text: "{{gauge_temperatura_media}}"
   font_size: 10
   font_weight: bold
   text_anchor: middle
@@ -567,7 +567,7 @@ objects:
   type: text
   x: 700
   y: 152
-  text: "Comfort Index"
+  text: "{{comfort_index}}"
   font_size: 9
   text_anchor: middle
   color: "#334155"
@@ -590,7 +590,7 @@ objects:
   type: text
   x: 400
   y: 374
-  text: "Temperature Soggiorno · Studio · Lavanderia — 2 ore"
+  text: "{{temperature_soggiorno_studio_lavanderia}}"
   font_size: 10
   text_anchor: middle
   color: "#64748b"
@@ -612,7 +612,7 @@ objects:
   type: text
   x: 24
   y: 540
-  text: "— Soggiorno (°C)"
+  text: "{{soggiorno_c}}"
   font_size: 9
   color: "#3b82f6"
 
@@ -620,7 +620,7 @@ objects:
   type: text
   x: 200
   y: 540
-  text: "— Studio (°C)"
+  text: "{{studio_c}}"
   font_size: 9
   color: "#60a5fa"
 
@@ -628,7 +628,7 @@ objects:
   type: text
   x: 360
   y: 540
-  text: "— Lavanderia (°C)"
+  text: "{{lavanderia_c}}"
   font_size: 9
   color: "#93c5fd"
 
@@ -636,6 +636,6 @@ objects:
   type: text
   x: 650
   y: 540
-  text: "Storico SQLite 365 gg"
+  text: "{{storico_sqlite_365_gg}}"
   font_size: 9
   color: "#334155"

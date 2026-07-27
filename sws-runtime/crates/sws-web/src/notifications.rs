@@ -18,7 +18,7 @@ use lettre::{
     message::header::ContentType,
     transport::smtp::authentication::Credentials,
 };
-use tokio::sync::{broadcast, RwLock};
+use tokio::sync::{broadcast, mpsc, RwLock};
 use tokio_util::sync::CancellationToken;
 use tracing::{info, warn};
 use sws_core::{AlarmDb, AlarmState, IsaState, NotificationConfig, SmtpConfig};
@@ -73,7 +73,7 @@ fn send_email_sync(
     Ok(())
 }
 
-fn alarm_email_body(state: &AlarmState, kind: &str) -> String {
+fn alarm_body(state: &AlarmState, kind: &str) -> String {
     format!(
         "{kind}\n\nAllarme:   {}\nMessaggio: {}\nSeverità:  {:?}\nTag:       {}\nValore:    {}\nAttivato:  {} ms\n",
         state.def.id,
@@ -90,33 +90,38 @@ pub struct NotificationSupervisor {
 }
 
 impl NotificationSupervisor {
+    /// `telegram_tx` is a handle onto the shared `TelegramSender` channel
+    /// (created once per open project). When present, every alarm activation
+    /// (and escalation) is also pushed to the global Telegram chats.
     pub fn start(
         alarm_db: Arc<AlarmDb>,
         config: NotificationConfig,
+        telegram_tx: Option<mpsc::UnboundedSender<String>>,
     ) -> Self {
         let cancel = CancellationToken::new();
         let cancel_clone = cancel.clone();
-        let config = Arc::new(config);
+        let smtp: Option<Arc<SmtpConfig>> = config.smtp.map(Arc::new);
+        let telegram = telegram_tx;
+
+        // No channel configured at all → run a cancellable no-op so lifecycle
+        // (stop) stays uniform.
+        if smtp.is_none() && telegram.is_none() {
+            tokio::spawn(async move {
+                loop {
+                    tokio::select! {
+                        _ = tokio::time::sleep(std::time::Duration::from_secs(60)) => {}
+                        _ = cancel_clone.cancelled() => break,
+                    }
+                }
+            });
+            return Self { cancel };
+        }
 
         tokio::spawn(async move {
-            let smtp = match &config.smtp {
-                Some(s) => Arc::new(s.clone()),
-                None => {
-                    // No SMTP config — still run escalation timer (no-op) so the task
-                    // structure is consistent. Skips all sends.
-                    loop {
-                        tokio::select! {
-                            _ = tokio::time::sleep(std::time::Duration::from_secs(60)) => {}
-                            _ = cancel_clone.cancelled() => break,
-                        }
-                    }
-                    return;
-                }
-            };
-
-            // Task A: subscribe to alarm broadcasts, send email on activation.
+            // Task A: subscribe to alarm broadcasts, notify on activation.
             let mut alarm_rx = alarm_db.subscribe();
-            let smtp_a = Arc::clone(&smtp);
+            let smtp_a = smtp.clone();
+            let tg_a = telegram.clone();
             let cancel_a = cancel_clone.clone();
             tokio::spawn(async move {
                 loop {
@@ -125,22 +130,27 @@ impl NotificationSupervisor {
                             match res {
                                 Ok(state) => {
                                     if state.isa_state != IsaState::ActiveUnacked { continue; }
-                                    let to = match &state.def.notify_email {
-                                        Some(v) if !v.is_empty() => v.clone(),
-                                        _ => continue,
-                                    };
-                                    let subject = format!("[SWS ALARM] {} — {}", state.def.id, state.def.message);
-                                    let body    = alarm_email_body(&state, "ALLARME ATTIVO");
-                                    let smtp    = Arc::clone(&smtp_a);
-                                    tokio::spawn(async move {
-                                        let smtp  = smtp;
-                                        let to    = to;
-                                        match tokio::task::spawn_blocking(move || send_email_sync(&smtp, &to, &subject, &body)).await {
-                                            Ok(Ok(())) => info!(alarm = %state.def.id, "alarm email sent"),
-                                            Ok(Err(e)) => warn!(alarm = %state.def.id, "alarm email failed: {e}"),
-                                            Err(e)     => warn!("alarm email task panicked: {e}"),
+                                    let body = alarm_body(&state, "🔴 ALLARME ATTIVO");
+                                    // Email (opt-in per-alarm via notify_email).
+                                    if let Some(smtp) = &smtp_a {
+                                        if let Some(to) = state.def.notify_email.clone().filter(|v| !v.is_empty()) {
+                                            let subject = format!("[SWS ALARM] {} — {}", state.def.id, state.def.message);
+                                            let body = body.clone();
+                                            let smtp = Arc::clone(smtp);
+                                            let id = state.def.id.clone();
+                                            tokio::spawn(async move {
+                                                match tokio::task::spawn_blocking(move || send_email_sync(&smtp, &to, &subject, &body)).await {
+                                                    Ok(Ok(())) => info!(alarm = %id, "alarm email sent"),
+                                                    Ok(Err(e)) => warn!(alarm = %id, "alarm email failed: {e}"),
+                                                    Err(e)     => warn!("alarm email task panicked: {e}"),
+                                                }
+                                            });
                                         }
-                                    });
+                                    }
+                                    // Telegram (global chats — every activation).
+                                    if let Some(tx) = &tg_a {
+                                        let _ = tx.send(body);
+                                    }
                                 }
                                 Err(broadcast::error::RecvError::Lagged(n)) => {
                                     warn!("notification alarm subscriber lagged by {n}");
@@ -153,10 +163,10 @@ impl NotificationSupervisor {
                 }
             });
 
-            // Task B: escalation checker — runs every 60 s.
-            // Tracks which (alarm_id, activated_at_ms) pairs were already escalated
-            // to avoid duplicate emails.
-            let smtp_b = Arc::clone(&smtp);
+            // Task B: escalation checker — runs every 60 s. Fires once per
+            // activation when past `escalate_after_s`.
+            let smtp_b = smtp.clone();
+            let tg_b = telegram.clone();
             let escalated: Arc<RwLock<HashSet<(String, u64)>>> = Arc::new(RwLock::new(HashSet::new()));
             loop {
                 tokio::select! {
@@ -168,26 +178,34 @@ impl NotificationSupervisor {
                 let mut guard = escalated.write().await;
                 for state in &snapshot {
                     if state.isa_state != IsaState::ActiveUnacked { continue; }
+                    // Timing gate: escalation only makes sense with a delay set.
                     let delay_s = match state.def.escalate_after_s { Some(d) if d > 0.0 => d, _ => continue };
-                    let to = match &state.def.escalate_to { Some(v) if !v.is_empty() => v.clone(), _ => continue };
                     let act_ms = match state.activated_at_ms { Some(ms) => ms, None => continue };
                     if now < act_ms + (delay_s * 1000.0) as u64 { continue; }
                     let key = (state.def.id.clone(), act_ms);
                     if guard.contains(&key) { continue; }
                     guard.insert(key);
-                    let subject = format!("[SWS ESCALATION] {} — {}", state.def.id, state.def.message);
-                    let body    = alarm_email_body(state, "ESCALATION: allarme non riconosciuto");
-                    let smtp    = Arc::clone(&smtp_b);
-                    let state   = state.clone();
-                    tokio::spawn(async move {
-                        let smtp  = smtp;
-                        let to    = to;
-                        match tokio::task::spawn_blocking(move || send_email_sync(&smtp, &to, &subject, &body)).await {
-                            Ok(Ok(())) => info!(alarm = %state.def.id, "escalation email sent"),
-                            Ok(Err(e)) => warn!(alarm = %state.def.id, "escalation email failed: {e}"),
-                            Err(e)     => warn!("escalation task panicked: {e}"),
+                    let body = alarm_body(state, "⏫ ESCALATION: allarme non riconosciuto");
+                    // Email escalation (only if escalate_to recipients set).
+                    if let Some(smtp) = &smtp_b {
+                        if let Some(to) = state.def.escalate_to.clone().filter(|v| !v.is_empty()) {
+                            let subject = format!("[SWS ESCALATION] {} — {}", state.def.id, state.def.message);
+                            let body = body.clone();
+                            let smtp = Arc::clone(smtp);
+                            let id = state.def.id.clone();
+                            tokio::spawn(async move {
+                                match tokio::task::spawn_blocking(move || send_email_sync(&smtp, &to, &subject, &body)).await {
+                                    Ok(Ok(())) => info!(alarm = %id, "escalation email sent"),
+                                    Ok(Err(e)) => warn!(alarm = %id, "escalation email failed: {e}"),
+                                    Err(e)     => warn!("escalation task panicked: {e}"),
+                                }
+                            });
                         }
-                    });
+                    }
+                    // Telegram escalation (global chats).
+                    if let Some(tx) = &tg_b {
+                        let _ = tx.send(body);
+                    }
                 }
             }
         });

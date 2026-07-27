@@ -18,6 +18,15 @@ pub struct SynopticPage {
     /// Zone restriction: if set, only users whose `allowed_zones` intersects this list
     /// can view or load this page. Empty list or None = accessible to all.
     #[serde(skip_serializing_if = "Option::is_none")] pub zones:        Option<Vec<String>>,
+    /// When true, this page is skipped by the kiosk auto-rotate cycle. Was
+    /// missing from this mirror (pre-existing gap: GET /api/synoptics/:name
+    /// deserializes through this struct and would silently drop it on
+    /// round-trip) — added here alongside `locked` since both are read via
+    /// the same endpoint.
+    #[serde(skip_serializing_if = "Option::is_none")] pub auto_rotate_skip: Option<bool>,
+    /// When true, the page is read-only in the editor (no object/property edits).
+    /// Does not block duplicate/delete (already confirm-gated separately).
+    #[serde(skip_serializing_if = "Option::is_none")] pub locked:       Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

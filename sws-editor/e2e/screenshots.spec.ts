@@ -30,6 +30,7 @@ test.use({
 
 /** Open the IDE; dismiss the WelcomeScreen if a project isn't already active. */
 async function openIde(page: Page) {
+  await page.addInitScript(() => { try { localStorage.setItem("sws.uiLang","it"); } catch {} });
   await page.goto(ADMIN_URL, { waitUntil: "networkidle" });
   await page.waitForTimeout(800);
 

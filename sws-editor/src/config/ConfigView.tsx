@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { api, getAuthToken, type CreateUserBody, type DiscoveredRuntime, type UpdateUserBody, type UserRole, type UserSummary } from "@/api/client";
 import { TagInput } from "@/components/TagInput";
 import { PythonEditor, type PythonEditorHandle } from "@/components/PythonEditor";
@@ -9,6 +10,10 @@ import type {
   AlarmCondition,
   AlarmDef,
   AlarmSeverity,
+  AuditEntry,
+  AuditVerifyReport,
+  LanguageTable,
+  LangEntry,
   BrowsedTopic,
   DatastoreBackendConfig,
   DatastoreConfig,
@@ -39,6 +44,7 @@ import type {
   RecipeDef,
   RecipeSummary,
   SmtpConfig,
+  TelegramConfig,
   S7DataType,
   S7Source,
   S7TagMapping,
@@ -214,6 +220,7 @@ function QuickCreateTagModal({
   onConfirm: (tag: TagDef) => void;
   onClose: () => void;
 }) {
+  const { t } = useTranslation();
   const [id, setId] = useState(initialId.trim());
   const [description, setDescription] = useState("");
   const [dataType, setDataType] = useState<TagDataType>("float");
@@ -239,7 +246,7 @@ function QuickCreateTagModal({
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           <div>
-            <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 }}>ID tag *</label>
+            <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 }}>{t("cfg.tagIdReq")}</label>
             <input
               style={S.input}
               value={id}
@@ -250,7 +257,7 @@ function QuickCreateTagModal({
             />
           </div>
           <div>
-            <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 }}>Descrizione (opz.)</label>
+            <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 }}>{t("cfg.descriptionOpt")}</label>
             <input
               style={S.input}
               value={description}
@@ -260,7 +267,7 @@ function QuickCreateTagModal({
             />
           </div>
           <div>
-            <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 }}>Tipo dato</label>
+            <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 }}>{t("cfg.dataType")}</label>
             <select style={{ ...S.input, cursor: "pointer" }} value={dataType} onChange={(e) => setDataType(e.target.value as TagDataType)}>
               <option value="float">Float</option>
               <option value="int">Int</option>
@@ -270,35 +277,55 @@ function QuickCreateTagModal({
           </div>
         </div>
         <div style={{ display: "flex", gap: 8, marginTop: 16, justifyContent: "flex-end" }}>
-          <button style={S.btn("ghost")} onClick={onClose}>Annulla</button>
-          <button style={S.btn("primary")} onClick={create} disabled={!id.trim()}>Crea</button>
+          <button style={S.btn("ghost")} onClick={onClose}>{t("common.cancel")}</button>
+          <button style={S.btn("primary")} onClick={create} disabled={!id.trim()}>{t("cfg.create")}</button>
         </div>
       </div>
     </div>
   );
 }
 
+// Barra di salvataggio uniforme: sempre in ALTO A DESTRA di ogni tab, tasto
+// VERDE, con feedback di conferma "✓ Salvato". Sticky in cima così resta
+// visibile scorrendo il contenuto. `label` per varianti ("Salva tutti",
+// "Salva tabella"); `disabled` per i save condizionati (es. !dirty); `notice`
+// per un messaggio esplicito (verde, o rosso se inizia con "Errore"/"✗").
 function SaveBar({
   onSave,
   saving,
   saved,
   savedNotice = "✓ Salvato — modifiche applicate immediatamente.",
+  label = "Salva",
+  disabled = false,
+  notice,
 }: {
   onSave: () => void;
   saving: boolean;
   saved: boolean;
   savedNotice?: string;
+  label?: string;
+  disabled?: boolean;
+  notice?: string | null;
 }) {
+  const noticeIsError = !!notice && (/^(errore|✗|✕)/i).test(notice.trim());
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 16 }}>
-      <button style={S.btn("success")} onClick={onSave} disabled={saving}>
-        {saving ? "Salvataggio…" : "Salva"}
-      </button>
-      {saved && (
+    <div style={{
+      display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 12,
+      marginBottom: 16, position: "sticky", top: 0, zIndex: 5,
+      padding: "8px 0", background: "var(--brand-bg, #0f172a)",
+    }}>
+      {notice != null ? (
+        <span style={{ fontSize: 12, color: noticeIsError ? "var(--brand-danger, #ef4444)" : "var(--brand-success, #22c55e)" }}>
+          {notice}
+        </span>
+      ) : saved ? (
         <span style={{ fontSize: 12, color: "var(--brand-success, #22c55e)" }}>
           {savedNotice}
         </span>
-      )}
+      ) : null}
+      <button style={S.btn("success")} onClick={onSave} disabled={saving || disabled}>
+        {saving ? "Salvataggio…" : label}
+      </button>
     </div>
   );
 }
@@ -321,6 +348,7 @@ function collectSourceTagIds(project: ReturnType<typeof useAppStore.getState>["p
 }
 
 function TagsTab() {
+  const { t } = useTranslation();
   const storeProject        = useAppStore((s) => s.project);
   const updateProjectTags   = useAppStore((s) => s.updateProjectTags);
   const tagValues           = useAppStore((s) => s.tagValues);
@@ -403,6 +431,7 @@ function TagsTab() {
 
   return (
     <div style={S.section}>
+      <SaveBar onSave={handleSave} saving={saving} saved={saved} />
       {showImport && (
         <div style={{
           position: "fixed", inset: 0, zIndex: 8000,
@@ -446,7 +475,7 @@ function TagsTab() {
               </div>
             )}
             <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-              <button style={S.btn("ghost")} onClick={() => { setShowImport(false); setImportMsg(null); setImportText(""); }}>Annulla</button>
+              <button style={S.btn("ghost")} onClick={() => { setShowImport(false); setImportMsg(null); setImportText(""); }}>{t("common.cancel")}</button>
               <button style={S.btn("primary")} onClick={handleImportSubmit} disabled={!importText.trim()}>
                 Importa
               </button>
@@ -457,19 +486,19 @@ function TagsTab() {
       <div style={S.sectionTitle}>VARIABILI (TAG)</div>
       <div style={S.notice}>
         Le variabili definiscono i punti dati del progetto. Collega ogni variabile a un
-        registro nella sezione <em>Protocolli</em> per ricevere i valori in tempo reale.
+        registro nella sezione <em>{t("config.tabs.protocols")}</em> per ricevere i valori in tempo reale.
         Valore attuale visibile solo se il runtime è in esecuzione.
       </div>
 
       <table style={S.table}>
         <thead>
           <tr>
-            <th style={{ ...S.th, width: "22%" }}>ID variabile</th>
-            <th style={{ ...S.th, width: "25%" }}>Descrizione</th>
-            <th style={{ ...S.th, width: "9%" }}>Tipo</th>
-            <th style={{ ...S.th, width: "6%", textAlign: "center" }}>Storico</th>
-            <th style={{ ...S.th, width: "16%" }}>Datastore</th>
-            <th style={{ ...S.th, width: "12%" }}>Valore live</th>
+            <th style={{ ...S.th, width: "22%" }}>{t("cfg.tagId")}</th>
+            <th style={{ ...S.th, width: "25%" }}>{t("cfg.description")}</th>
+            <th style={{ ...S.th, width: "9%" }}>{t("cfg.type")}</th>
+            <th style={{ ...S.th, width: "6%", textAlign: "center" }}>{t("cfg.history")}</th>
+            <th style={{ ...S.th, width: "16%" }}>{t("cfg.datastore")}</th>
+            <th style={{ ...S.th, width: "12%" }}>{t("cfg.liveValue")}</th>
             <th style={S.th} />
           </tr>
         </thead>
@@ -491,7 +520,7 @@ function TagsTab() {
                 <td style={S.td}>
                   <input
                     style={S.input}
-                    placeholder="Descrizione opzionale"
+                    placeholder={t("cfg.descriptionOptional")}
                     value={tag.description}
                     onChange={(e) => updateTag(i, { description: e.target.value })}
                   />
@@ -505,7 +534,7 @@ function TagsTab() {
                     <option value="bool">Bool</option>
                     <option value="int">Int</option>
                     <option value="float">Float</option>
-                    <option value="string">Stringa</option>
+                    <option value="string">{t("cfg.stringType")}</option>
                   </select>
                 </td>
                 <td style={{ ...S.td, textAlign: "center" }}>
@@ -554,7 +583,7 @@ function TagsTab() {
                       fontFamily: "monospace",
                       fontWeight: "bold",
                     }}
-                    title="Espressione calcolata (Python)"
+                    title={t("cfg.computedExpr")}
                     onClick={() => toggleExpr(i)}
                   >
                     λ
@@ -588,8 +617,8 @@ function TagsTab() {
 
       <div style={{ marginTop: 10, display: "flex", gap: 8, flexWrap: "wrap" }}>
         <button style={S.btn("ghost")} onClick={addTag}>+ Aggiungi variabile</button>
-        <button style={S.btn("ghost")} onClick={handleExportCsv} title="Scarica i tag correnti come CSV">⬇ Esporta CSV</button>
-        <button style={S.btn("ghost")} onClick={() => setShowImport(true)} title="Importa tag da file CSV">⬆ Importa CSV</button>
+        <button style={S.btn("ghost")} onClick={handleExportCsv} title={t("cfg.downloadTagsCsv")}>⬇ Esporta CSV</button>
+        <button style={S.btn("ghost")} onClick={() => setShowImport(true)} title={t("cfg.importTagsCsv")}>⬆ Importa CSV</button>
       </div>
 
       {/* Orphan source tags — present in protocol sources but missing from project.tags */}
@@ -614,7 +643,7 @@ function TagsTab() {
                 <span style={{ fontSize: 10, color: "var(--brand-surface-2, #334155)", padding: "1px 5px",
                                border: "1px solid var(--brand-surface, #1e293b)", borderRadius: 3 }}>da sorgente</span>
                 <button
-                  title="Aggiunge alla lista variabili con history abilitato"
+                  title={t("cfg.addTagWithHistory")}
                   style={{ fontSize: 11, padding: "2px 8px", background: "#1e3a5f",
                            color: "#93c5fd", border: "1px solid #1e40af", borderRadius: 3, cursor: "pointer" }}
                   onClick={() => setTags(prev => [...prev, {
@@ -625,7 +654,7 @@ function TagsTab() {
                   Abilita storico
                 </button>
                 <button
-                  title="Aggiunge alla lista variabili senza history"
+                  title={t("cfg.addTagNoHistory")}
                   style={{ fontSize: 11, padding: "2px 8px", background: "var(--brand-surface-2, #334155)",
                            color: "var(--brand-text-2, #cbd5e1)", border: "1px solid var(--brand-border, #475569)", borderRadius: 3, cursor: "pointer" }}
                   onClick={() => setTags(prev => [...prev, {
@@ -639,8 +668,6 @@ function TagsTab() {
           </div>
         );
       })()}
-
-      <SaveBar onSave={handleSave} saving={saving} saved={saved} />
     </div>
   );
 }
@@ -774,6 +801,7 @@ function S7SourceCard({
   onDelete: () => void;
   onCreateTag: (t: TagDef) => void;
 }) {
+  const { t } = useTranslation();
   const [collapsed, setCollapsed] = useState(false);
 
   function upd(patch: Partial<S7Source>) {
@@ -841,7 +869,7 @@ function S7SourceCard({
             <input
               value={tm.tag}
               onChange={(e) => updateTag(idx, { tag: e.target.value })}
-              placeholder="tag id"
+              placeholder={t("cfg.tagIdPh")}
               style={{ background: "var(--brand-bg, #0f172a)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, color: "var(--brand-text, #e2e8f0)", padding: "4px 6px", fontSize: 12, width: 160 }}
             />
             <select
@@ -859,7 +887,7 @@ function S7SourceCard({
                 type="number"
                 value={tm.db_num}
                 onChange={(e) => updateTag(idx, { db_num: Number(e.target.value) })}
-                title="DB number"
+                title={t("cfg.dbNumber")}
                 style={{ background: "var(--brand-bg, #0f172a)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, color: "var(--brand-text, #e2e8f0)", padding: "4px 6px", fontSize: 12, width: 60 }}
               />
             )}
@@ -904,7 +932,7 @@ function S7SourceCard({
             <button
               style={S.btnXs}
               onClick={() => { if (tm.tag) onCreateTag({ id: tm.tag, data_type: "float", description: "", history: false }); }}
-              title="Crea variabile"
+              title={t("cfg.createTag")}
             >+var</button>
             <button style={S.btnXs} onClick={() => removeTag(idx)}>✕</button>
           </div>
@@ -943,6 +971,7 @@ function EnIpSourceCard({
   onDelete: () => void;
   onCreateTag: (t: TagDef) => void;
 }) {
+  const { t } = useTranslation();
   const [collapsed, setCollapsed] = useState(false);
 
   function upd(patch: Partial<EnIpSource>) { onChange({ ...source, ...patch }); }
@@ -990,12 +1019,12 @@ function EnIpSourceCard({
           <div key={idx} style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 6, flexWrap: "wrap" }}>
             <input
               value={tm.tag} onChange={(e) => updateTag(idx, { tag: e.target.value })}
-              placeholder="sws tag id"
+              placeholder={t("cfg.swsTagIdPh")}
               style={{ background: "var(--brand-bg, #0f172a)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, color: "var(--brand-text, #e2e8f0)", padding: "4px 6px", fontSize: 12, width: 150 }}
             />
             <input
               value={tm.plc_tag} onChange={(e) => updateTag(idx, { plc_tag: e.target.value })}
-              placeholder="PLC tag (es. Motor_Speed)"
+              placeholder={t("cfg.plcTag")}
               style={{ background: "var(--brand-bg, #0f172a)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, color: "var(--brand-text, #e2e8f0)", padding: "4px 6px", fontSize: 12, width: 180 }}
             />
             <select
@@ -1017,7 +1046,7 @@ function EnIpSourceCard({
             <button
               style={S.btnXs}
               onClick={() => { if (tm.tag) onCreateTag({ id: tm.tag, data_type: "float", description: "", history: false }); }}
-              title="Crea variabile"
+              title={t("cfg.createTag")}
             >+var</button>
             <button style={S.btnXs} onClick={() => upd({ tags: source.tags.filter((_, i) => i !== idx) })}>✕</button>
           </div>
@@ -1043,6 +1072,7 @@ function HaBrowseModal({
   onSelect: (entityId: string, attribute?: string) => void;
   onClose: () => void;
 }) {
+  const { t } = useTranslation();
   const [entities, setEntities] = useState<HaBrowsedEntity[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -1094,7 +1124,7 @@ function HaBrowseModal({
         <div style={{ padding: "10px 16px", borderBottom: "1px solid #1e3a5f", display: "flex", gap: 10 }}>
           <input
             style={{ ...S.input, flex: 1 }}
-            placeholder="Cerca entity_id, nome, stato…"
+            placeholder={t("cfg.searchEntity")}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             autoFocus
@@ -1104,7 +1134,7 @@ function HaBrowseModal({
             value={domainFilter}
             onChange={(e) => setDomainFilter(e.target.value)}
           >
-            <option value="">Tutti i domini</option>
+            <option value="">{t("cfg.allDomains")}</option>
             {domains.map((d) => <option key={d} value={d}>{d}</option>)}
           </select>
         </div>
@@ -1207,6 +1237,7 @@ function HomeAssistantSourceCard({
   onDelete: () => void;
   onCreateTag: (tag: TagDef) => void;
 }) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(true);
   const [quickCreate, setQuickCreate] = useState<{ rowIdx: number; prefill: string } | null>(null);
   const [browse, setBrowse] = useState<HaBrowseTarget | null>(null);
@@ -1250,12 +1281,12 @@ function HomeAssistantSourceCard({
         <div style={{ padding: "14px 16px" }}>
           <div style={{ display: "grid", gridTemplateColumns: "120px 1fr 1fr", gap: 12, marginBottom: 16 }}>
             <div>
-              <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 }}>ID sorgente</label>
+              <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 }}>{t("cfg.sourceId")}</label>
               <input style={S.input} value={source.id}
                 onChange={(e) => setField("id", e.target.value)} spellCheck={false} />
             </div>
             <div>
-              <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 }}>URL HomeAssistant</label>
+              <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 }}>{t("cfg.haUrl")}</label>
               <input style={S.input} placeholder="http://homeassistant.local:8123"
                 value={source.url}
                 onChange={(e) => setField("url", e.target.value)} spellCheck={false} />
@@ -1287,11 +1318,11 @@ function HomeAssistantSourceCard({
           <table style={{ ...S.table, marginBottom: 8 }}>
             <thead>
               <tr>
-                <th style={{ ...S.th, width: "18%" }}>Tag SWS</th>
-                <th style={{ ...S.th, width: "25%" }}>Entity ID HA</th>
-                <th style={{ ...S.th, width: "14%" }}>Attributo</th>
-                <th style={{ ...S.th, width: "14%" }}>Dominio write</th>
-                <th style={{ ...S.th, width: "14%" }}>Servizio write</th>
+                <th style={{ ...S.th, width: "18%" }}>{t("cfg.swsTag")}</th>
+                <th style={{ ...S.th, width: "25%" }}>{t("cfg.haEntityId")}</th>
+                <th style={{ ...S.th, width: "14%" }}>{t("cfg.attribute")}</th>
+                <th style={{ ...S.th, width: "14%" }}>{t("cfg.writeDomain")}</th>
+                <th style={{ ...S.th, width: "14%" }}>{t("cfg.writeService")}</th>
                 <th style={S.th} />
               </tr>
             </thead>
@@ -1311,7 +1342,7 @@ function HomeAssistantSourceCard({
                         value={e.tag} onChange={(v) => setEntity(i, { tag: v })} />
                       <button
                         style={{ ...S.btn("ghost"), padding: "4px 7px", fontSize: 14, lineHeight: 1 }}
-                        title="Crea variabile"
+                        title={t("cfg.createTag")}
                         onClick={() => setQuickCreate({ rowIdx: i, prefill: e.tag })}
                       >＋</button>
                     </div>
@@ -1324,7 +1355,7 @@ function HomeAssistantSourceCard({
                         spellCheck={false} />
                       <button
                         style={{ ...S.btn("ghost"), padding: "4px 7px", fontSize: 13, lineHeight: 1 }}
-                        title="Sfoglia entità disponibili"
+                        title={t("cfg.browseEntities")}
                         onClick={() => setBrowse({ rowIdx: i, field: "entity_id" })}
                       >🔍</button>
                     </div>
@@ -1337,7 +1368,7 @@ function HomeAssistantSourceCard({
                         spellCheck={false} />
                       <button
                         style={{ ...S.btn("ghost"), padding: "4px 7px", fontSize: 13, lineHeight: 1 }}
-                        title="Sfoglia attributi disponibili"
+                        title={t("cfg.browseAttributes")}
                         onClick={() => setBrowse({ rowIdx: i, field: "attribute" })}
                       >🔍</button>
                     </div>
@@ -1407,6 +1438,7 @@ function OpcUaSourceCard({
   onDelete: () => void;
   onCreateTag: (tag: TagDef) => void;
 }) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(true);
   const [quickCreate, setQuickCreate] = useState<{ rowIdx: number; prefill: string } | null>(null);
   const [browseOpen, setBrowseOpen] = useState(false);
@@ -1480,18 +1512,18 @@ function OpcUaSourceCard({
         <button
           style={S.btn("danger")}
           onClick={(e) => { e.stopPropagation(); onDelete(); }}
-        >Elimina</button>
+        >{t("common.delete")}</button>
       </div>
 
       {open && (
         <>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
             <div>
-              <label style={S.label}>ID sorgente</label>
+              <label style={S.label}>{t("cfg.sourceId")}</label>
               <input style={S.input} value={source.id} onChange={(e) => setField("id", e.target.value)} />
             </div>
             <div>
-              <label style={S.label}>Endpoint URL</label>
+              <label style={S.label}>{t("cfg.endpointUrl")}</label>
               <input
                 style={S.input}
                 placeholder="opc.tcp://192.168.1.100:4840"
@@ -1500,7 +1532,7 @@ function OpcUaSourceCard({
               />
             </div>
             <div>
-              <label style={S.label}>Security policy</label>
+              <label style={S.label}>{t("cfg.securityPolicy")}</label>
               <select
                 style={S.input}
                 value={source.security_policy}
@@ -1515,7 +1547,7 @@ function OpcUaSourceCard({
               </select>
             </div>
             <div>
-              <label style={S.label}>Subscription interval (ms)</label>
+              <label style={S.label}>{t("cfg.subInterval")}</label>
               <input
                 type="number" min={50} step={50} style={S.input}
                 value={source.subscription_interval_ms}
@@ -1549,7 +1581,7 @@ function OpcUaSourceCard({
           {source.auth.kind === "username_password" && (
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 8 }}>
               <div>
-                <label style={S.label}>Username</label>
+                <label style={S.label}>{t("cfg.username")}</label>
                 <input
                   style={S.input}
                   value={source.auth.username}
@@ -1560,11 +1592,11 @@ function OpcUaSourceCard({
                 />
               </div>
               <div>
-                <label style={S.label}>Password</label>
+                <label style={S.label}>{t("cfg.password")}</label>
                 <input
                   type="password"
                   style={S.input}
-                  placeholder="(lascia vuoto se usi password_env)"
+                  placeholder={t("cfg.emptyIfPwdEnv")}
                   value={source.auth.password ?? ""}
                   onChange={(e) => setAuth({
                     ...(source.auth as Extract<OpcUaAuth, { kind: "username_password" }>),
@@ -1573,7 +1605,7 @@ function OpcUaSourceCard({
                 />
               </div>
               <div>
-                <label style={S.label}>Password env var</label>
+                <label style={S.label}>{t("cfg.passwordEnvVar")}</label>
                 <input
                   style={S.input}
                   placeholder="SWS_OPCUA_PWD"
@@ -1623,8 +1655,8 @@ function OpcUaSourceCard({
                 <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
                   <thead>
                     <tr style={{ borderBottom: "1px solid var(--brand-surface-2, #334155)" }}>
-                      <th style={{ textAlign: "left", padding: "3px 6px", color: "var(--brand-text-muted, #94a3b8)" }}>File</th>
-                      <th style={{ textAlign: "left", padding: "3px 6px", color: "var(--brand-text-muted, #94a3b8)" }}>Stato</th>
+                      <th style={{ textAlign: "left", padding: "3px 6px", color: "var(--brand-text-muted, #94a3b8)" }}>{t("cfg.file")}</th>
+                      <th style={{ textAlign: "left", padding: "3px 6px", color: "var(--brand-text-muted, #94a3b8)" }}>{t("cfg.state")}</th>
                       <th style={{ textAlign: "right", padding: "3px 6px", color: "var(--brand-text-muted, #94a3b8)" }}>Byte</th>
                       <th style={{ width: 80 }}></th>
                     </tr>
@@ -1652,7 +1684,7 @@ function OpcUaSourceCard({
                             <button
                               style={{ ...S.btn("ghost"), padding: "1px 6px", fontSize: 10 }}
                               onClick={() => handleTrustCert(c.filename)}
-                            >Trust</button>
+                            >{t("cfg.trust")}</button>
                           )}
                           <button
                             style={{ ...S.btn("danger"), padding: "1px 6px", fontSize: 10 }}
@@ -1676,12 +1708,12 @@ function OpcUaSourceCard({
               <button
                 style={S.btn("ghost")}
                 onClick={() => setBrowseOpen(true)}
-                title="Sfoglia l'address space del server e seleziona i nodi"
+                title={t("cfg.browseAddressSpace")}
               >🔍 Sfoglia server</button>
               <button
                 style={S.btn("ghost")}
                 onClick={() => setEuromapOpen(true)}
-                title="Rileva variabili standard Euromap 77 / 83"
+                title={t("cfg.detectEuromap")}
               >🤖 Rileva Euromap</button>
             </div>
           </div>
@@ -1693,9 +1725,9 @@ function OpcUaSourceCard({
             <table style={{ width: "100%", marginTop: 8, borderCollapse: "collapse", fontSize: 12 }}>
               <thead>
                 <tr style={{ borderBottom: "1px solid var(--brand-surface, #1e293b)" }}>
-                  <th style={{ textAlign: "left", padding: "4px 6px", color: "var(--brand-text-muted, #94a3b8)" }}>Tag</th>
-                  <th style={{ textAlign: "left", padding: "4px 6px", color: "var(--brand-text-muted, #94a3b8)" }}>NodeId</th>
-                  <th style={{ textAlign: "left", padding: "4px 6px", color: "var(--brand-text-muted, #94a3b8)" }}>Descrizione</th>
+                  <th style={{ textAlign: "left", padding: "4px 6px", color: "var(--brand-text-muted, #94a3b8)" }}>{t("cfg.tag")}</th>
+                  <th style={{ textAlign: "left", padding: "4px 6px", color: "var(--brand-text-muted, #94a3b8)" }}>{t("cfg.nodeId")}</th>
+                  <th style={{ textAlign: "left", padding: "4px 6px", color: "var(--brand-text-muted, #94a3b8)" }}>{t("cfg.description")}</th>
                   <th style={{ width: 36 }}></th>
                 </tr>
               </thead>
@@ -1710,7 +1742,7 @@ function OpcUaSourceCard({
                           style={{ ...S.input, padding: "2px 6px", flex: 1 }}
                         />
                         <button
-                          title="Crea nuova variabile"
+                          title={t("cfg.createNewTag")}
                           style={{ ...S.btn("ghost"), padding: "2px 6px" }}
                           onClick={() => setQuickCreate({ rowIdx: i, prefill: n.tag })}
                         >＋</button>
@@ -1826,6 +1858,7 @@ function OpcUaServerSourceCard({
   onDelete: () => void;
   onCreateTag: (tag: TagDef) => void;
 }) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(true);
   const [quickCreate, setQuickCreate] = useState<{ rowIdx: number; prefill: string } | null>(null);
 
@@ -1868,18 +1901,18 @@ function OpcUaServerSourceCard({
         <div style={{ padding: "14px 16px" }}>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 100px 1fr", gap: 12, marginBottom: 16 }}>
             <div>
-              <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 }}>ID sorgente</label>
+              <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 }}>{t("cfg.sourceId")}</label>
               <input style={S.input} value={source.id}
                 onChange={(e) => setField("id", e.target.value)} spellCheck={false} />
             </div>
             <div>
-              <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 }}>Porta TCP</label>
+              <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 }}>{t("cfg.tcpPort")}</label>
               <input style={S.input} type="number" min={1} max={65535}
                 value={source.port}
                 onChange={(e) => setField("port", Number(e.target.value))} />
             </div>
             <div>
-              <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 }}>Namespace URI</label>
+              <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 }}>{t("cfg.namespaceUri")}</label>
               <input style={S.input} value={source.namespace_uri}
                 onChange={(e) => setField("namespace_uri", e.target.value)} spellCheck={false} />
             </div>
@@ -1891,8 +1924,8 @@ function OpcUaServerSourceCard({
           <table style={{ ...S.table, marginBottom: 8 }}>
             <thead>
               <tr>
-                <th style={{ ...S.th, width: "45%" }}>Variabile (ID tag)</th>
-                <th style={{ ...S.th, width: "45%" }}>Node ID OPC-UA (opzionale)</th>
+                <th style={{ ...S.th, width: "45%" }}>{t("cfg.variableTagId")}</th>
+                <th style={{ ...S.th, width: "45%" }}>{t("cfg.opcuaNodeIdOpt")}</th>
                 <th style={S.th} />
               </tr>
             </thead>
@@ -1912,7 +1945,7 @@ function OpcUaServerSourceCard({
                         value={n.tag} onChange={(v) => setNode(i, { tag: v })} />
                       <button
                         style={{ ...S.btn("ghost"), padding: "4px 7px", fontSize: 14, lineHeight: 1 }}
-                        title="Crea variabile"
+                        title={t("cfg.createTag")}
                         onClick={() => setQuickCreate({ rowIdx: i, prefill: n.tag })}
                       >＋</button>
                     </div>
@@ -1963,6 +1996,7 @@ function OpcUaBrowseModal({
   onClose: () => void;
   onImport: (picked: OpcUaBrowsedNode[]) => void;
 }) {
+  const { t } = useTranslation();
   // children[parentNodeId | "@root"] = level returned by browse_one_level
   const [children, setChildren] = useState<Record<string, OpcUaBrowsedNode[]>>({});
   // expanded folder keys; "@root" is always logically expanded.
@@ -2135,7 +2169,7 @@ function OpcUaBrowseModal({
               : `${pickedList.length} nod${pickedList.length === 1 ? "o" : "i"} selezionat${pickedList.length === 1 ? "o" : "i"}.`}
           </div>
           <div style={{ display: "flex", gap: 8 }}>
-            <button style={S.btn("ghost")} onClick={onClose}>Annulla</button>
+            <button style={S.btn("ghost")} onClick={onClose}>{t("common.cancel")}</button>
             <button
               style={S.btn("primary")}
               disabled={pickedList.length === 0}
@@ -2166,6 +2200,7 @@ function OpcUaEuromapModal({
   onCreateTag: (tag: TagDef) => void;
   onImport: (picked: OpcUaEuromapVariable[], autoCreateTags: boolean) => void;
 }) {
+  const { t } = useTranslation();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<{
@@ -2275,10 +2310,10 @@ function OpcUaEuromapModal({
               <thead>
                 <tr style={{ background: "var(--brand-bg, #0f172a)", borderBottom: "1px solid var(--brand-surface, #1e293b)", textAlign: "left" }}>
                   <th style={{ padding: "8px 12px", color: "var(--brand-text-muted, #94a3b8)", fontWeight: 600, width: 24 }}></th>
-                  <th style={{ padding: "8px 12px", color: "var(--brand-text-muted, #94a3b8)", fontWeight: 600, width: 40 }}>Spec</th>
-                  <th style={{ padding: "8px 12px", color: "var(--brand-text-muted, #94a3b8)", fontWeight: 600 }}>Variabile</th>
-                  <th style={{ padding: "8px 12px", color: "var(--brand-text-muted, #94a3b8)", fontWeight: 600 }}>Tag suggerito</th>
-                  <th style={{ padding: "8px 12px", color: "var(--brand-text-muted, #94a3b8)", fontWeight: 600 }}>NodeId</th>
+                  <th style={{ padding: "8px 12px", color: "var(--brand-text-muted, #94a3b8)", fontWeight: 600, width: 40 }}>{t("cfg.spec")}</th>
+                  <th style={{ padding: "8px 12px", color: "var(--brand-text-muted, #94a3b8)", fontWeight: 600 }}>{t("cfg.variable")}</th>
+                  <th style={{ padding: "8px 12px", color: "var(--brand-text-muted, #94a3b8)", fontWeight: 600 }}>{t("cfg.suggestedTag")}</th>
+                  <th style={{ padding: "8px 12px", color: "var(--brand-text-muted, #94a3b8)", fontWeight: 600 }}>{t("cfg.nodeId")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -2342,7 +2377,7 @@ function OpcUaEuromapModal({
             <button style={S.btn("ghost")} onClick={runScan} disabled={busy}>
               {busy ? "Scansione…" : "↻ Riprova"}
             </button>
-            <button style={S.btn("ghost")} onClick={onClose}>Annulla</button>
+            <button style={S.btn("ghost")} onClick={onClose}>{t("common.cancel")}</button>
             <button
               style={S.btn("primary")}
               disabled={pickedVariables.length === 0}
@@ -2368,6 +2403,7 @@ function ModbusSourceCard({
   onDelete: () => void;
   onCreateTag: (tag: TagDef) => void;
 }) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(true);
   const [quickCreate, setQuickCreate] = useState<{ rowIdx: number; prefill: string } | null>(null);
 
@@ -2420,7 +2456,7 @@ function ModbusSourceCard({
             marginBottom: 16,
           }}>
             <div>
-              <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 }}>ID sorgente</label>
+              <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 }}>{t("cfg.sourceId")}</label>
               <input
                 style={S.input}
                 value={source.id}
@@ -2429,7 +2465,7 @@ function ModbusSourceCard({
               />
             </div>
             <div>
-              <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 }}>Host / IP</label>
+              <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 }}>{t("cfg.hostIp")}</label>
               <input
                 style={S.input}
                 value={source.host}
@@ -2438,7 +2474,7 @@ function ModbusSourceCard({
               />
             </div>
             <div>
-              <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 }}>Porta</label>
+              <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 }}>{t("cfg.port")}</label>
               <input
                 style={S.input}
                 type="number"
@@ -2448,7 +2484,7 @@ function ModbusSourceCard({
               />
             </div>
             <div>
-              <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 }}>Unit ID</label>
+              <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 }}>{t("cfg.unitId")}</label>
               <input
                 style={S.input}
                 type="number"
@@ -2461,9 +2497,7 @@ function ModbusSourceCard({
 
           <div style={{ marginBottom: 16, display: "grid", gridTemplateColumns: "160px 1fr", gap: 12 }}>
             <div>
-              <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 }}>
-                Intervallo poll (ms)
-              </label>
+              <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 }}>{t("cfg.pollInterval")}</label>
               <input
                 style={S.input}
                 type="number"
@@ -2481,10 +2515,10 @@ function ModbusSourceCard({
           <table style={{ ...S.table, marginBottom: 8 }}>
             <thead>
               <tr>
-                <th style={{ ...S.th, width: "40%" }}>Variabile (ID tag)</th>
-                <th style={{ ...S.th, width: "20%" }}>Indirizzo reg.</th>
-                <th style={{ ...S.th, width: "20%" }}>Scala (×)</th>
-                <th style={{ ...S.th, width: "20%" }}>Tipo dato</th>
+                <th style={{ ...S.th, width: "40%" }}>{t("cfg.variableTagId")}</th>
+                <th style={{ ...S.th, width: "20%" }}>{t("cfg.registerAddr")}</th>
+                <th style={{ ...S.th, width: "20%" }}>{t("cfg.scale")}</th>
+                <th style={{ ...S.th, width: "20%" }}>{t("cfg.dataType")}</th>
                 <th style={S.th} />
               </tr>
             </thead>
@@ -2508,7 +2542,7 @@ function ModbusSourceCard({
                       />
                       <button
                         style={{ ...S.btn("ghost"), padding: "4px 7px", fontSize: 14, lineHeight: 1 }}
-                        title="Crea variabile"
+                        title={t("cfg.createTag")}
                         onClick={() => setQuickCreate({ rowIdx: i, prefill: r.tag })}
                       >＋</button>
                     </div>
@@ -2574,6 +2608,7 @@ function ModbusRtuSourceCard({
   onDelete: () => void;
   onCreateTag: (tag: TagDef) => void;
 }) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(true);
   const [quickCreate, setQuickCreate] = useState<{ rowIdx: number; prefill: string } | null>(null);
 
@@ -2625,24 +2660,24 @@ function ModbusRtuSourceCard({
             marginBottom: 16,
           }}>
             <div>
-              <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 }}>ID sorgente</label>
+              <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 }}>{t("cfg.sourceId")}</label>
               <input style={S.input} value={source.id}
                 onChange={(e) => setField("id", e.target.value)} spellCheck={false} />
             </div>
             <div>
-              <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 }}>Dispositivo seriale</label>
+              <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 }}>{t("cfg.serialDevice")}</label>
               <input style={S.input} value={source.device}
                 onChange={(e) => setField("device", e.target.value)} spellCheck={false}
                 placeholder="/dev/ttyUSB0" />
             </div>
             <div>
-              <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 }}>Baud rate</label>
+              <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 }}>{t("cfg.baudRate")}</label>
               <input style={S.input} type="number" min={1200} max={921600} step={100}
                 value={source.baud_rate}
                 onChange={(e) => setField("baud_rate", Number(e.target.value))} />
             </div>
             <div>
-              <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 }}>Parità</label>
+              <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 }}>{t("cfg.parity")}</label>
               <select style={S.input} value={source.parity}
                 onChange={(e) => setField("parity", e.target.value)}>
                 <option value="N">Nessuna (N)</option>
@@ -2651,7 +2686,7 @@ function ModbusRtuSourceCard({
               </select>
             </div>
             <div>
-              <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 }}>Bit dati</label>
+              <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 }}>{t("cfg.dataBits")}</label>
               <select style={S.input} value={source.data_bits}
                 onChange={(e) => setField("data_bits", Number(e.target.value))}>
                 <option value={8}>8</option>
@@ -2659,7 +2694,7 @@ function ModbusRtuSourceCard({
               </select>
             </div>
             <div>
-              <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 }}>Bit stop</label>
+              <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 }}>{t("cfg.stopBits")}</label>
               <select style={S.input} value={source.stop_bits}
                 onChange={(e) => setField("stop_bits", Number(e.target.value))}>
                 <option value={1}>1</option>
@@ -2670,13 +2705,13 @@ function ModbusRtuSourceCard({
 
           <div style={{ marginBottom: 16, display: "grid", gridTemplateColumns: "80px 160px 1fr", gap: 12 }}>
             <div>
-              <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 }}>Unit ID</label>
+              <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 }}>{t("cfg.unitId")}</label>
               <input style={S.input} type="number" min={0} max={255}
                 value={source.unit_id}
                 onChange={(e) => setField("unit_id", Number(e.target.value))} />
             </div>
             <div>
-              <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 }}>Intervallo poll (ms)</label>
+              <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 }}>{t("cfg.pollInterval")}</label>
               <input style={S.input} type="number" min={100}
                 value={source.poll_interval_ms}
                 onChange={(e) => setField("poll_interval_ms", Number(e.target.value))} />
@@ -2690,10 +2725,10 @@ function ModbusRtuSourceCard({
           <table style={{ ...S.table, marginBottom: 8 }}>
             <thead>
               <tr>
-                <th style={{ ...S.th, width: "40%" }}>Variabile (ID tag)</th>
-                <th style={{ ...S.th, width: "20%" }}>Indirizzo reg.</th>
-                <th style={{ ...S.th, width: "20%" }}>Scala (×)</th>
-                <th style={{ ...S.th, width: "20%" }}>Tipo dato</th>
+                <th style={{ ...S.th, width: "40%" }}>{t("cfg.variableTagId")}</th>
+                <th style={{ ...S.th, width: "20%" }}>{t("cfg.registerAddr")}</th>
+                <th style={{ ...S.th, width: "20%" }}>{t("cfg.scale")}</th>
+                <th style={{ ...S.th, width: "20%" }}>{t("cfg.dataType")}</th>
                 <th style={S.th} />
               </tr>
             </thead>
@@ -2717,7 +2752,7 @@ function ModbusRtuSourceCard({
                       />
                       <button
                         style={{ ...S.btn("ghost"), padding: "4px 7px", fontSize: 14, lineHeight: 1 }}
-                        title="Crea variabile"
+                        title={t("cfg.createTag")}
                         onClick={() => setQuickCreate({ rowIdx: i, prefill: r.tag })}
                       >＋</button>
                     </div>
@@ -2773,9 +2808,11 @@ function MqttSourceCard({
   onDelete: () => void;
   onCreateTag: (tag: TagDef) => void;
 }) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(true);
   const [quickCreate, setQuickCreate] = useState<{ rowIdx: number; prefill: string } | null>(null);
   const [browseOpen, setBrowseOpen] = useState(false);
+  const [jsonExtractOpen, setJsonExtractOpen] = useState(false);
 
   const setField = <K extends keyof MqttSource>(k: K, v: MqttSource[K]) =>
     onChange({ ...source, [k]: v });
@@ -2811,6 +2848,15 @@ function MqttSourceCard({
           >
             Sfoglia broker
           </button>
+          {!source.sparkplug && (
+            <button
+              style={S.btn("ghost")}
+              onClick={(e) => { e.stopPropagation(); setJsonExtractOpen(true); }}
+              title="Incolla un payload JSON ed estrai le variabili come righe di mappatura"
+            >
+              Estrai da JSON
+            </button>
+          )}
           <button
             style={S.btn("danger")}
             onClick={(e) => { e.stopPropagation(); onDelete(); }}
@@ -2830,7 +2876,7 @@ function MqttSourceCard({
             marginBottom: 16,
           }}>
             <div>
-              <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 }}>ID sorgente</label>
+              <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 }}>{t("cfg.sourceId")}</label>
               <input
                 style={S.input}
                 value={source.id}
@@ -2839,7 +2885,7 @@ function MqttSourceCard({
               />
             </div>
             <div>
-              <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 }}>Host / IP</label>
+              <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 }}>{t("cfg.hostIp")}</label>
               <input
                 style={S.input}
                 value={source.host}
@@ -2848,7 +2894,7 @@ function MqttSourceCard({
               />
             </div>
             <div>
-              <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 }}>Porta</label>
+              <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 }}>{t("cfg.port")}</label>
               <input
                 style={S.input}
                 type="number"
@@ -2858,7 +2904,7 @@ function MqttSourceCard({
               />
             </div>
             <div>
-              <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 }}>Client ID</label>
+              <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 }}>{t("cfg.clientId")}</label>
               <input
                 style={S.input}
                 value={source.client_id}
@@ -2898,10 +2944,10 @@ function MqttSourceCard({
           <table style={{ ...S.table, marginBottom: 8 }}>
             <thead>
               <tr>
-                <th style={{ ...S.th, width: "18%" }}>Variabile (ID tag)</th>
-                <th style={{ ...S.th, width: "32%" }}>Topic in (subscribe)</th>
-                <th style={{ ...S.th, width: "14%" }}>JSON path (opz.)</th>
-                <th style={{ ...S.th, width: "22%" }}>Topic out (publish, opz.)</th>
+                <th style={{ ...S.th, width: "18%" }}>{t("cfg.variableTagId")}</th>
+                <th style={{ ...S.th, width: "32%" }}>{t("cfg.topicIn")}</th>
+                <th style={{ ...S.th, width: "14%" }}>{t("cfg.jsonPathOpt")}</th>
+                <th style={{ ...S.th, width: "22%" }}>{t("cfg.topicOut")}</th>
                 <th style={{ ...S.th, width: "6%" }}>QoS</th>
                 <th style={S.th} />
               </tr>
@@ -2914,20 +2960,20 @@ function MqttSourceCard({
                   </td>
                 </tr>
               )}
-              {source.topics.map((t, i) => (
+              {source.topics.map((tp, i) => (
                 <tr key={i} style={{ background: i % 2 === 0 ? "transparent" : "var(--brand-bg, #0f172a)33" }}>
                   <td style={S.td}>
                     <div style={{ display: "flex", gap: 4 }}>
                       <TagInput
                         style={S.inputSm}
                         placeholder="pump1.speed"
-                        value={t.tag}
+                        value={tp.tag}
                         onChange={(v) => setTopic(i, { tag: v })}
                       />
                       <button
                         style={{ ...S.btn("ghost"), padding: "4px 7px", fontSize: 14, lineHeight: 1 }}
-                        title="Crea variabile"
-                        onClick={() => setQuickCreate({ rowIdx: i, prefill: t.tag })}
+                        title={t("cfg.createTag")}
+                        onClick={() => setQuickCreate({ rowIdx: i, prefill: tp.tag })}
                       >＋</button>
                     </div>
                   </td>
@@ -2935,7 +2981,7 @@ function MqttSourceCard({
                     <input
                       style={S.inputSm}
                       placeholder="plant/floor1/temperature"
-                      value={t.topic}
+                      value={tp.topic}
                       onChange={(e) => setTopic(i, { topic: e.target.value })}
                       spellCheck={false}
                     />
@@ -2944,7 +2990,7 @@ function MqttSourceCard({
                     <input
                       style={S.inputSm}
                       placeholder="es. temperature"
-                      value={t.json_path ?? ""}
+                      value={tp.json_path ?? ""}
                       onChange={(e) => setTopic(i, { json_path: e.target.value || undefined })}
                       spellCheck={false}
                     />
@@ -2953,7 +2999,7 @@ function MqttSourceCard({
                     <input
                       style={S.inputSm}
                       placeholder="es. plant/floor1/cmd"
-                      value={t.publish_topic ?? ""}
+                      value={tp.publish_topic ?? ""}
                       onChange={(e) => setTopic(i, { publish_topic: e.target.value || undefined })}
                       spellCheck={false}
                     />
@@ -2961,7 +3007,7 @@ function MqttSourceCard({
                   <td style={S.td}>
                     <select
                       style={{ ...S.inputSm, cursor: "pointer" }}
-                      value={t.qos ?? ""}
+                      value={tp.qos ?? ""}
                       onChange={(e) => setTopic(i, { qos: e.target.value === "" ? undefined : Number(e.target.value) })}
                     >
                       <option value="">def.</option>
@@ -3003,6 +3049,16 @@ function MqttSourceCard({
           onClose={() => setBrowseOpen(false)}
         />
       )}
+      {jsonExtractOpen && (
+        <MqttJsonExtractModal
+          source={source}
+          onGenerate={(rows, tags) => {
+            onChange({ ...source, topics: [...source.topics, ...rows] });
+            tags.forEach(onCreateTag);
+          }}
+          onClose={() => setJsonExtractOpen(false)}
+        />
+      )}
     </div>
   );
 }
@@ -3018,13 +3074,14 @@ function MqttBrowseModal({
   onImport: (topics: TopicMapping[]) => void;
   onClose: () => void;
 }) {
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<BrowsedTopic[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   // Per topic: suggested json_path (top-level key of JSON payload, if any).
   const [jsonPathPick, setJsonPathPick] = useState<Record<string, string>>({});
-  const [duration, setDuration] = useState(8);
+  const [duration, setDuration] = useState(30);
   const [filter, setFilter] = useState("");
 
   const startBrowse = async () => {
@@ -3104,10 +3161,10 @@ function MqttBrowseModal({
 
         {/* Controls */}
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)" }}>Durata (s)</label>
+          <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)" }}>{t("cfg.durationS")}</label>
           <input
             style={{ ...S.input, width: 60 }}
-            type="number" min={2} max={15}
+            type="number" min={2} max={120}
             value={duration}
             onChange={(e) => setDuration(Number(e.target.value))}
             disabled={loading}
@@ -3133,7 +3190,7 @@ function MqttBrowseModal({
           <>
             <input
               style={S.input}
-              placeholder="Filtra topic…"
+              placeholder={t("cfg.filterTopic")}
               value={filter}
               onChange={(e) => setFilter(e.target.value)}
             />
@@ -3145,9 +3202,9 @@ function MqttBrowseModal({
                       <input type="checkbox" onChange={toggleAll}
                         checked={visible.length > 0 && visible.every(t => selected.has(t.topic))} />
                     </th>
-                    <th style={{ ...S.th, width: "36%" }}>Topic</th>
-                    <th style={{ ...S.th, width: "32%" }}>Anteprima payload</th>
-                    <th style={{ ...S.th }}>JSON path (opz.)</th>
+                    <th style={{ ...S.th, width: "36%" }}>{t("cfg.topic")}</th>
+                    <th style={{ ...S.th, width: "32%" }}>{t("cfg.payloadPreview")}</th>
+                    <th style={{ ...S.th }}>{t("cfg.jsonPathOpt")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -3205,12 +3262,193 @@ function MqttBrowseModal({
 
         {/* Footer */}
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
-          <button style={S.btn("ghost")} onClick={onClose}>Chiudi</button>
+          <button style={S.btn("ghost")} onClick={onClose}>{t("common.close")}</button>
           {result !== null && (
             <button style={S.btn("primary")} onClick={doImport} disabled={selected.size === 0}>
               Importa selezionati ({selected.size})
             </button>
           )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── MqttJsonExtractModal ──────────────────────────────────────────────────────
+// Incolla un payload JSON di esempio, appiattiscilo a variabili "foglia" (path
+// dot-separated) col tipo dedotto, scegli quali usare e genera una riga di
+// TopicMapping per ciascuna (stesso topic, json_path = path). Opzionalmente crea
+// anche i TagDef col tipo corrispondente (come l'import OPC-UA). Il backend
+// naviga già i json_path annidati (decode_payload/navigate in sws-plugin-mqtt).
+
+type JsonLeaf = { path: string; type: TagDataType; sample: string };
+
+/** Appiattisce un oggetto JSON in variabili foglia scalari (bool/number/string).
+ *  Ricorre negli oggetti annidati (`parent.child`); salta array e null perché
+ *  non raggiungibili col dot-path del plugin. */
+function flattenJsonLeaves(obj: unknown, prefix = ""): JsonLeaf[] {
+  if (obj === null || typeof obj !== "object" || Array.isArray(obj)) return [];
+  const out: JsonLeaf[] = [];
+  for (const [k, v] of Object.entries(obj as Record<string, unknown>)) {
+    const path = prefix ? `${prefix}.${k}` : k;
+    if (v === null || Array.isArray(v)) continue;
+    if (typeof v === "object") { out.push(...flattenJsonLeaves(v, path)); continue; }
+    let type: TagDataType;
+    if (typeof v === "boolean") type = "bool";
+    else if (typeof v === "number") type = Number.isInteger(v) ? "int" : "float";
+    else type = "string";
+    out.push({ path, type, sample: String(v) });
+  }
+  return out;
+}
+
+/** Base per il tag suggerito: ultimo segmento del topic, ripulito. */
+function sanitizeTagBase(topic: string): string {
+  const leaf = (topic.split("/").pop() ?? topic).trim();
+  return leaf.replace(/[^A-Za-z0-9._-]+/g, "_").replace(/^[._]+|[._]+$/g, "");
+}
+
+function MqttJsonExtractModal({
+  source,
+  onGenerate,
+  onClose,
+}: {
+  source: MqttSource;
+  onGenerate: (rows: TopicMapping[], tags: TagDef[]) => void;
+  onClose: () => void;
+}) {
+  const lastTopic = [...source.topics].reverse().find((t) => t.topic.trim() !== "")?.topic ?? "";
+  const [topic, setTopic] = useState(lastTopic);
+  const [jsonText, setJsonText] = useState("");
+  const [leaves, setLeaves] = useState<JsonLeaf[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [tagNames, setTagNames] = useState<Record<string, string>>({});
+  const [autoCreateTags, setAutoCreateTags] = useState(true);
+  const [filter, setFilter] = useState("");
+
+  const analyze = () => {
+    setError(null);
+    let parsed: unknown;
+    try { parsed = JSON.parse(jsonText); }
+    catch { setError("JSON non valido."); setLeaves(null); return; }
+    if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
+      setError("Il JSON deve essere un oggetto { … }."); setLeaves(null); return;
+    }
+    const ls = flattenJsonLeaves(parsed);
+    if (ls.length === 0) { setError("Nessuna variabile estraibile dall'oggetto."); setLeaves([]); return; }
+    const base = sanitizeTagBase(topic);
+    setLeaves(ls);
+    setSelected(new Set(ls.map((l) => l.path)));
+    setTagNames(Object.fromEntries(ls.map((l) => [l.path, base ? `${base}.${l.path}` : l.path])));
+  };
+
+  const visible = (leaves ?? []).filter((l) => l.path.toLowerCase().includes(filter.trim().toLowerCase()));
+  const toggle = (path: string) => setSelected((prev) => {
+    const next = new Set(prev); if (next.has(path)) next.delete(path); else next.add(path); return next;
+  });
+  const toggleAll = () => setSelected((prev) => {
+    const allSel = visible.length > 0 && visible.every((l) => prev.has(l.path));
+    const next = new Set(prev);
+    for (const l of visible) { if (allSel) next.delete(l.path); else next.add(l.path); }
+    return next;
+  });
+
+  const generate = () => {
+    const chosen = (leaves ?? []).filter((l) => selected.has(l.path));
+    const rows: TopicMapping[] = chosen.map((l) => ({
+      tag: (tagNames[l.path] ?? "").trim(),
+      topic: topic.trim(),
+      json_path: l.path,
+    }));
+    const tags: TagDef[] = autoCreateTags
+      ? chosen
+          .filter((l) => (tagNames[l.path] ?? "").trim() !== "")
+          .map((l) => ({ id: (tagNames[l.path] ?? "").trim(), description: `MQTT ${topic.trim()} · ${l.path}`, data_type: l.type }))
+      : [];
+    onGenerate(rows, tags);
+    onClose();
+  };
+
+  const canGenerate = topic.trim() !== "" && selected.size > 0;
+
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.65)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }}>
+      <div style={{ background: "var(--brand-surface, #1e293b)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 8, padding: 20, width: "min(92vw, 780px)", maxHeight: "85vh", display: "flex", flexDirection: "column", gap: 12 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div style={{ fontWeight: 700, color: "var(--brand-text, #e2e8f0)" }}>Estrai variabili da JSON</div>
+          <button style={{ ...S.btn("ghost"), padding: "4px 8px" }} onClick={onClose}>✕</button>
+        </div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)" }}>Topic</label>
+          <input style={S.input} placeholder="zigbee2mqtt/presa.sandokan" value={topic} onChange={(e) => setTopic(e.target.value)} spellCheck={false} />
+        </div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)" }}>JSON di esempio (payload del topic)</label>
+          <textarea
+            style={{ ...S.input, minHeight: 90, fontFamily: "monospace", fontSize: 11, resize: "vertical" }}
+            placeholder={'{"energy":2284.4,"state":"ON","update":{"state":"idle"}}'}
+            value={jsonText} onChange={(e) => setJsonText(e.target.value)} spellCheck={false}
+          />
+        </div>
+
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <button style={S.btn("primary")} onClick={analyze} disabled={jsonText.trim() === ""}>Analizza</button>
+          {leaves !== null && leaves.length > 0 && (
+            <span style={{ fontSize: 12, color: "var(--brand-text-subtle, #64748b)" }}>{leaves.length} variabili — {selected.size} selezionate</span>
+          )}
+        </div>
+
+        {error && (
+          <div style={{ ...S.notice, background: "#450a0a", borderColor: "#991b1b", color: "var(--brand-danger-soft, #fca5a5)" }}>{error}</div>
+        )}
+
+        {leaves !== null && leaves.length > 0 && (
+          <>
+            <input style={S.input} placeholder="Filtra variabili…" value={filter} onChange={(e) => setFilter(e.target.value)} />
+            <div style={{ overflow: "auto", flex: 1, minHeight: 0, maxHeight: "42vh" }}>
+              <table style={{ ...S.table, tableLayout: "fixed" }}>
+                <thead>
+                  <tr>
+                    <th style={{ ...S.th, width: 32 }}>
+                      <input type="checkbox" onChange={toggleAll} checked={visible.length > 0 && visible.every((l) => selected.has(l.path))} />
+                    </th>
+                    <th style={{ ...S.th, width: "32%" }}>Variabile (JSON path)</th>
+                    <th style={{ ...S.th, width: "12%" }}>Tipo</th>
+                    <th style={{ ...S.th, width: "18%" }}>Campione</th>
+                    <th style={{ ...S.th }}>Tag</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {visible.length === 0 && (
+                    <tr><td colSpan={5} style={{ ...S.td, textAlign: "center", color: "var(--brand-border, #475569)", padding: 12 }}>Nessuna variabile corrisponde al filtro.</td></tr>
+                  )}
+                  {visible.map((l) => (
+                    <tr key={l.path} style={{ background: selected.has(l.path) ? "#172554" : "transparent" }}>
+                      <td style={S.td}><input type="checkbox" checked={selected.has(l.path)} onChange={() => toggle(l.path)} /></td>
+                      <td style={{ ...S.td, fontFamily: "monospace", fontSize: 11, wordBreak: "break-all" }}>{l.path}</td>
+                      <td style={{ ...S.td, fontSize: 11, color: "var(--brand-text-muted, #94a3b8)" }}>{l.type}</td>
+                      <td style={{ ...S.td, fontFamily: "monospace", fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={l.sample}>{l.sample.length > 18 ? l.sample.slice(0, 18) + "…" : l.sample}</td>
+                      <td style={S.td}>
+                        <input style={S.inputSm} value={tagNames[l.path] ?? ""} onChange={(e) => setTagNames((prev) => ({ ...prev, [l.path]: e.target.value }))} spellCheck={false} />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--brand-text-2, #cbd5e1)" }}>
+              <input type="checkbox" checked={autoCreateTags} onChange={(e) => setAutoCreateTags(e.target.checked)} />
+              Crea anche i tag (con il tipo dedotto)
+            </label>
+          </>
+        )}
+
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+          <button style={S.btn("ghost")} onClick={onClose}>Chiudi</button>
+          <button style={S.btn("primary")} onClick={generate} disabled={!canGenerate}>Genera righe ({selected.size})</button>
         </div>
       </div>
     </div>
@@ -3234,13 +3472,14 @@ function MqttAuthSection({
   source: MqttSource;
   onChange: (patch: Partial<MqttSource>) => void;
 }) {
+  const { t } = useTranslation();
   const [show, setShow] = useState(false);
   return (
     <>
       <SectionHeader>AUTENTICAZIONE</SectionHeader>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
         <div>
-          <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 }}>Username</label>
+          <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 }}>{t("cfg.username")}</label>
           <input
             style={S.input}
             value={source.username ?? ""}
@@ -3299,12 +3538,13 @@ function MqttConnectionSection({
   source: MqttSource;
   onChange: (patch: Partial<MqttSource>) => void;
 }) {
+  const { t } = useTranslation();
   return (
     <>
       <SectionHeader>CONNESSIONE</SectionHeader>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginBottom: 12 }}>
         <div>
-          <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 }}>Keep-alive (s)</label>
+          <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 }}>{t("cfg.keepAlive")}</label>
           <input
             style={S.input}
             type="number" min={1} max={3600}
@@ -3314,7 +3554,7 @@ function MqttConnectionSection({
           />
         </div>
         <div>
-          <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 }}>QoS di default</label>
+          <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 }}>{t("cfg.defaultQos")}</label>
           <select
             style={{ ...S.input, cursor: "pointer" }}
             value={source.qos ?? ""}
@@ -3327,7 +3567,7 @@ function MqttConnectionSection({
           </select>
         </div>
         <div>
-          <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 }}>Clean session</label>
+          <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 }}>{t("cfg.cleanSession")}</label>
           <select
             style={{ ...S.input, cursor: "pointer" }}
             value={source.clean_session === undefined ? "" : source.clean_session ? "true" : "false"}
@@ -3350,6 +3590,7 @@ function MqttTlsSection({
   tls?: MqttTlsConfig;
   onChange: (tls: MqttTlsConfig | undefined) => void;
 }) {
+  const { t } = useTranslation();
   const current: MqttTlsConfig = tls ?? { enabled: false };
   const setField = <K extends keyof MqttTlsConfig>(k: K, v: MqttTlsConfig[K]) =>
     onChange({ ...current, [k]: v });
@@ -3374,7 +3615,7 @@ function MqttTlsSection({
           spellCheck={false}
           disabled={!current.enabled}
         />
-        <label style={{ fontSize: 11, color: "var(--brand-warning-soft, #fbbf24)", cursor: "pointer" }} title="Non ancora implementato">
+        <label style={{ fontSize: 11, color: "var(--brand-warning-soft, #fbbf24)", cursor: "pointer" }} title={t("cfg.notImplemented")}>
           <input
             type="checkbox"
             checked={current.insecure_skip_verify ?? false}
@@ -3396,6 +3637,7 @@ function MqttLastWillSection({
   lw?: MqttLastWill;
   onChange: (lw: MqttLastWill | undefined) => void;
 }) {
+  const { t } = useTranslation();
   const enabled = !!lw;
   const current: MqttLastWill = lw ?? { topic: "", payload: "", qos: 0, retain: false };
   const setField = <K extends keyof MqttLastWill>(k: K, v: MqttLastWill[K]) =>
@@ -3417,7 +3659,7 @@ function MqttLastWillSection({
       {enabled && (
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto auto", gap: 12, marginBottom: 12, alignItems: "end" }}>
           <div>
-            <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 }}>Topic</label>
+            <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 }}>{t("cfg.topic")}</label>
             <input
               style={S.input}
               placeholder="plant/floor1/status"
@@ -3427,7 +3669,7 @@ function MqttLastWillSection({
             />
           </div>
           <div>
-            <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 }}>Payload</label>
+            <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 }}>{t("cfg.payload")}</label>
             <input
               style={S.input}
               placeholder="es. offline"
@@ -3474,6 +3716,7 @@ function SparkplugSection({
   onChange: (spb: SparkplugConfig | undefined) => void;
   onCreateTag: (t: TagDef) => void;
 }) {
+  const { t } = useTranslation();
   const enabled = !!spb;
   const current: SparkplugConfig = spb ?? { group_id: "", host_id: "SWS-SCADA", metrics: [] };
 
@@ -3508,7 +3751,7 @@ function SparkplugSection({
         <>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
             <div>
-              <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 }}>Group ID</label>
+              <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 }}>{t("cfg.groupId")}</label>
               <input
                 style={S.input}
                 placeholder="plant-a"
@@ -3518,7 +3761,7 @@ function SparkplugSection({
               />
             </div>
             <div>
-              <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 }}>SCADA Host ID</label>
+              <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 }}>{t("cfg.scadaHostId")}</label>
               <input
                 style={S.input}
                 value={current.host_id}
@@ -3534,12 +3777,12 @@ function SparkplugSection({
             <div key={idx} style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 6, flexWrap: "wrap" }}>
               <input
                 value={m.tag} onChange={(e) => updateMetric(idx, { tag: e.target.value })}
-                placeholder="sws tag id"
+                placeholder={t("cfg.swsTagIdPh")}
                 style={{ background: "var(--brand-bg, #0f172a)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, color: "var(--brand-text, #e2e8f0)", padding: "4px 6px", fontSize: 12, width: 160 }}
               />
               <input
                 value={m.metric_name} onChange={(e) => updateMetric(idx, { metric_name: e.target.value })}
-                placeholder="Sparkplug metric name"
+                placeholder={t("cfg.sparkplugMetric")}
                 style={{ background: "var(--brand-bg, #0f172a)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, color: "var(--brand-text, #e2e8f0)", padding: "4px 6px", fontSize: 12, width: 200 }}
               />
               <label style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: "var(--brand-text-muted, #94a3b8)" }}>
@@ -3549,7 +3792,7 @@ function SparkplugSection({
               <button
                 style={S.btnXs}
                 onClick={() => { if (m.tag) onCreateTag({ id: m.tag, data_type: "float", description: "", history: false }); }}
-                title="Crea variabile"
+                title={t("cfg.createTag")}
               >+var</button>
               <button style={S.btnXs} onClick={() => removeMetric(idx)}>✕</button>
             </div>
@@ -3639,6 +3882,12 @@ function ProtocolsTab() {
 
   return (
     <div style={S.section}>
+      <SaveBar
+        onSave={handleSave}
+        saving={saving}
+        saved={saved}
+        savedNotice="✓ Salvato — sorgenti ricollegate al volo."
+      />
       <div style={S.sectionTitle}>SORGENTI DATI / PROTOCOLLI</div>
       <div style={S.notice}>
         Configura le connessioni ai dispositivi di campo. Supportati: <strong>Modbus TCP</strong>
@@ -3784,12 +4033,6 @@ function ProtocolsTab() {
           {pendingTags.map(t => t.id).join(", ")}
         </div>
       )}
-      <SaveBar
-        onSave={handleSave}
-        saving={saving}
-        saved={saved}
-        savedNotice="✓ Salvato — sorgenti ricollegate al volo."
-      />
     </div>
   );
 }
@@ -3807,6 +4050,7 @@ function emptyAlarm(): AlarmDef {
 }
 
 function AlarmsTab() {
+  const { t } = useTranslation();
   const storeProject        = useAppStore((s) => s.project);
   const updateProjectAlarms = useAppStore((s) => s.updateProjectAlarms);
   const liveAlarms          = useAppStore((s) => s.alarms);
@@ -3847,6 +4091,7 @@ function AlarmsTab() {
 
   return (
     <div style={S.section}>
+      <SaveBar onSave={handleSave} saving={saving} saved={saved} />
       <div style={S.sectionTitle}>ALLARMI</div>
       <div style={S.notice}>
         Ogni allarme osserva una variabile e si attiva quando la condizione è
@@ -3859,13 +4104,13 @@ function AlarmsTab() {
         <thead>
           <tr>
             <th style={{ ...S.th, width: "16%" }}>ID</th>
-            <th style={{ ...S.th, width: "18%" }}>Tag</th>
-            <th style={{ ...S.th, width: "10%" }}>Condizione</th>
-            <th style={{ ...S.th, width: "10%" }}>Soglia</th>
-            <th style={{ ...S.th, width: "8%" }} title="Isteresi: l'allarme rientra solo quando il valore supera (soglia ± dead-band)">Dead-band</th>
-            <th style={{ ...S.th, width: "10%" }}>Severità</th>
-            <th style={{ ...S.th, width: "20%" }}>Messaggio</th>
-            <th style={{ ...S.th, width: "6%" }}>Stato</th>
+            <th style={{ ...S.th, width: "18%" }}>{t("cfg.tag")}</th>
+            <th style={{ ...S.th, width: "10%" }}>{t("cfg.condition")}</th>
+            <th style={{ ...S.th, width: "10%" }}>{t("cfg.threshold")}</th>
+            <th style={{ ...S.th, width: "8%" }} title={t("cfg.hysteresis2")}>{t("cfg.deadBand")}</th>
+            <th style={{ ...S.th, width: "10%" }}>{t("cfg.severity")}</th>
+            <th style={{ ...S.th, width: "20%" }}>{t("cfg.message")}</th>
+            <th style={{ ...S.th, width: "6%" }}>{t("cfg.state")}</th>
             <th style={S.th} />
           </tr>
         </thead>
@@ -3903,7 +4148,7 @@ function AlarmsTab() {
                     if (isComposite) {
                       return (
                         <span style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", fontStyle: "italic" }}
-                          title="Condizione composita (And/Or/Not): modifica nel YAML">
+                          title={t("cfg.compositeCondition")}>
                           {alm.condition.kind}
                         </span>
                       );
@@ -3976,7 +4221,7 @@ function AlarmsTab() {
                       step="any"
                       min="0"
                       placeholder="0"
-                      title="Isteresi: l'allarme rientra solo a (soglia ± dead-band)"
+                      title={t("cfg.hysteresis1")}
                       value={alm.dead_band ?? ""}
                       onChange={(e) => updateAlarm(i, { dead_band: e.target.value !== "" ? Number(e.target.value) : undefined })}
                     />
@@ -4002,7 +4247,7 @@ function AlarmsTab() {
                   />
                   <input
                     style={{ ...S.inputSm, marginTop: 4, fontSize: 11 }}
-                    placeholder="🔔 URL webhook (opz.)"
+                    placeholder={t("cfg.webhookUrl")}
                     value={alm.notify_url ?? ""}
                     onChange={(e) => updateAlarm(i, { notify_url: e.target.value || undefined })}
                   />
@@ -4010,29 +4255,29 @@ function AlarmsTab() {
                     <input
                       style={{ ...S.inputSm, width: "50%", fontSize: 11 }}
                       type="number" step="any" min="0"
-                      placeholder="on_delay s"
-                      title="Ritardo attivazione (s): la condizione deve essere vera per almeno N secondi"
+                      placeholder={t("cfg.onDelayS")}
+                      title={t("cfg.onDelayHint")}
                       value={alm.on_delay_s ?? ""}
                       onChange={(e) => updateAlarm(i, { on_delay_s: e.target.value !== "" ? Number(e.target.value) : undefined })}
                     />
                     <input
                       style={{ ...S.inputSm, width: "50%", fontSize: 11 }}
                       type="number" step="any" min="0"
-                      placeholder="off_delay s"
-                      title="Ritardo disattivazione (s): la condizione deve essere falsa per almeno N secondi prima del rientro"
+                      placeholder={t("cfg.offDelayS")}
+                      title={t("cfg.offDelayHint")}
                       value={alm.off_delay_s ?? ""}
                       onChange={(e) => updateAlarm(i, { off_delay_s: e.target.value !== "" ? Number(e.target.value) : undefined })}
                     />
                   </div>
                   <TagInput
                     style={{ ...S.inputSm, marginTop: 4, fontSize: 11 }}
-                    placeholder="⊘ inhibit_tag (opz.)"
+                    placeholder={t("cfg.inhibitTag")}
                     value={alm.inhibit_tag ?? ""}
                     onChange={(v) => updateAlarm(i, { inhibit_tag: v || undefined })}
                   />
                   <input
                     style={{ ...S.inputSm, marginTop: 4, fontSize: 11 }}
-                    placeholder="✉ email destinatari (virgola)"
+                    placeholder={t("cfg.emailRecipients")}
                     title="notify_email: invia email su attivazione (separati da virgola)"
                     value={alm.notify_email?.join(", ") ?? ""}
                     onChange={(e) => {
@@ -4045,14 +4290,14 @@ function AlarmsTab() {
                     <input
                       style={{ ...S.inputSm, width: "40%", fontSize: 11 }}
                       type="number" step="any" min="0"
-                      placeholder="escalate s"
+                      placeholder={t("cfg.escalateS")}
                       title="escalate_after_s: secondi dopo cui inviare escalation se non ACKato"
                       value={alm.escalate_after_s ?? ""}
                       onChange={(e) => updateAlarm(i, { escalate_after_s: e.target.value !== "" ? Number(e.target.value) : undefined })}
                     />
                     <input
                       style={{ ...S.inputSm, width: "60%", fontSize: 11 }}
-                      placeholder="→ email escalation"
+                      placeholder={t("cfg.emailEscalation")}
                       title="escalate_to: destinatari escalation (separati da virgola)"
                       value={alm.escalate_to?.join(", ") ?? ""}
                       onChange={(e) => {
@@ -4089,8 +4334,6 @@ function AlarmsTab() {
       <div style={{ marginTop: 10, display: "flex", gap: 8 }}>
         <button style={S.btn("ghost")} onClick={addAlarm}>+ Aggiungi allarme</button>
       </div>
-
-      <SaveBar onSave={handleSave} saving={saving} saved={saved} />
     </div>
   );
 }
@@ -4131,6 +4374,7 @@ function MetricCard({ icon, label, value }: { icon: string; label: string; value
 }
 
 function GitOpsPanel() {
+  const { t } = useTranslation();
   const [gitStatus, setGitStatus] = useState<import("../types").GitStatus | null>(null);
   const [gitError, setGitError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -4250,7 +4494,7 @@ function GitOpsPanel() {
                   setCommitMsg("");
                 }
               }}
-              placeholder="Messaggio di commit…"
+              placeholder={t("cfg.commitMessage")}
               style={{ flex: 1, background: "var(--brand-bg, #020617)", color: "var(--brand-text, #e2e8f0)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, padding: "5px 8px", fontSize: 12 }}
               autoFocus
             />
@@ -4262,7 +4506,7 @@ function GitOpsPanel() {
                 setCommitMsg("");
               }}
               style={{ padding: "5px 10px", background: "var(--brand-success, #22c55e)", border: "none", borderRadius: 4, color: "var(--brand-on-success, #fff)", fontSize: 12, cursor: "pointer" }}
-            >Salva</button>
+            >{t("common.save")}</button>
             <button
               onClick={() => { setShowCommitForm(false); setCommitMsg(""); }}
               style={{ padding: "5px 10px", background: "var(--brand-surface, #1e293b)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, color: "var(--brand-text-muted, #94a3b8)", fontSize: 12, cursor: "pointer" }}
@@ -4385,6 +4629,96 @@ function SystemTab() {
       </div>
       <TlsSection />
       <GitOpsPanel />
+      <AuditSection />
+    </div>
+  );
+}
+
+// ── Audit log section (inside SystemTab, Admin-only, OPEN_QUESTIONS Q8) ──────
+// Read-only view of the append-only, hash-chained audit trail: who did what
+// (login, tag writes, script exec, project config changes) + a one-click
+// integrity check against the on-disk hash chain.
+
+function AuditSection() {
+  const [entries, setEntries] = useState<AuditEntry[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [verify, setVerify] = useState<AuditVerifyReport | null>(null);
+  const [verifying, setVerifying] = useState(false);
+
+  const load = async () => {
+    setLoading(true); setError(null);
+    try { setEntries(await api.getAuditTail(200)); }
+    catch (e: unknown) { setError(e instanceof Error ? e.message : String(e)); }
+    finally { setLoading(false); }
+  };
+
+  useEffect(() => { void load(); }, []);
+
+  const runVerify = async () => {
+    setVerifying(true); setVerify(null);
+    try { setVerify(await api.getAuditVerify()); }
+    catch (e: unknown) { setVerify({ ok: false, entries: 0, reason: e instanceof Error ? e.message : String(e) }); }
+    finally { setVerifying(false); }
+  };
+
+  const fmtTs = (ms: number) => new Date(ms).toLocaleString();
+
+  return (
+    <div>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+        <span style={{ fontSize: 12, fontWeight: 700, color: "var(--brand-text-subtle, #64748b)", letterSpacing: 1, flex: 1 }}>
+          AUDIT LOG
+        </span>
+        <button style={S.btn("ghost")} onClick={load} disabled={loading}>{loading ? "Aggiorno…" : "Aggiorna"}</button>
+        <button style={S.btn("ghost")} onClick={runVerify} disabled={verifying}>{verifying ? "Verifico…" : "Verifica integrità"}</button>
+      </div>
+
+      {verify && (
+        <div style={{
+          marginBottom: 10, fontSize: 12, borderRadius: 6, padding: "8px 12px",
+          background: verify.ok ? "var(--brand-success-bg, #166534)" : "#450a0a",
+          border: `1px solid ${verify.ok ? "#15803d" : "#991b1b"}`,
+          color: verify.ok ? "#bbf7d0" : "var(--brand-danger-soft, #fca5a5)",
+        }}>
+          {verify.ok
+            ? `✓ Catena integra — ${verify.entries} entry verificate.`
+            : `✗ Catena compromessa alla entry #${verify.broken_at ?? "?"} — ${verify.reason ?? "motivo sconosciuto"}`}
+        </div>
+      )}
+
+      {error && (
+        <div style={{ color: "var(--brand-danger-soft, #fca5a5)", fontSize: 12, marginBottom: 8 }}>Errore: {error}</div>
+      )}
+
+      <div style={{ maxHeight: 320, overflow: "auto", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 6 }}>
+        <table style={{ ...S.table, tableLayout: "fixed" }}>
+          <thead>
+            <tr>
+              <th style={{ ...S.th, width: 150 }}>Quando</th>
+              <th style={{ ...S.th, width: 110 }}>Chi</th>
+              <th style={{ ...S.th, width: 140 }}>Azione</th>
+              <th style={S.th}>Dettaglio</th>
+            </tr>
+          </thead>
+          <tbody>
+            {entries.length === 0 && !loading && (
+              <tr><td colSpan={4} style={{ ...S.td, textAlign: "center", color: "var(--brand-border, #475569)", padding: 16 }}>Nessuna entry.</td></tr>
+            )}
+            {[...entries].reverse().map((e) => (
+              <tr key={e.seq}>
+                <td style={{ ...S.td, fontSize: 11 }}>{fmtTs(e.ts_ms)}</td>
+                <td style={{ ...S.td, fontSize: 11, fontFamily: "monospace" }}>{e.actor ?? "—"}</td>
+                <td style={{ ...S.td, fontSize: 11, fontFamily: "monospace" }}>{e.action}</td>
+                <td style={{ ...S.td, fontSize: 11, fontFamily: "monospace", color: "var(--brand-text-muted, #94a3b8)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+                  title={JSON.stringify(e.detail)}>
+                  {JSON.stringify(e.detail)}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
@@ -4563,6 +4897,7 @@ function TlsSection() {
 const ROLES: UserRole[] = ["Viewer", "Operator", "Supervisor", "Admin"];
 
 function UsersTab() {
+  const { t } = useTranslation();
   const authUser = useAppStore((s) => s.authUser);
   const [users, setUsers] = useState<UserSummary[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -4695,13 +5030,13 @@ function UsersTab() {
           <table style={S.table}>
             <thead>
               <tr>
-                <th style={S.th}>Utente</th>
-                <th style={S.th}>Ruolo</th>
-                <th style={S.th}>Cambio pwd</th>
-                <th style={S.th}>Scadenza sessione</th>
-                <th style={S.th} title="Zone accessibili (vuoto = tutte)">Zone</th>
-                <th style={S.th}>Aggiornato</th>
-                <th style={S.th}>Reset password</th>
+                <th style={S.th}>{t("cfg.user")}</th>
+                <th style={S.th}>{t("cfg.role")}</th>
+                <th style={S.th}>{t("cfg.changePwd")}</th>
+                <th style={S.th}>{t("cfg.sessionExpiry")}</th>
+                <th style={S.th} title={t("cfg.accessibleZones")}>{t("cfg.zones")}</th>
+                <th style={S.th}>{t("cfg.updated")}</th>
+                <th style={S.th}>{t("cfg.resetPassword")}</th>
                 <th style={S.th}></th>
               </tr>
             </thead>
@@ -4749,8 +5084,8 @@ function UsersTab() {
                           onPatch(u.username, { session_ttl_secs: ttl });
                         }}
                       >
-                        <option value="default">Predefinita</option>
-                        <option value="never">Mai</option>
+                        <option value="default">{t("cfg.default")}</option>
+                        <option value="never">{t("cfg.never")}</option>
                         <option value="1800">30 min</option>
                         <option value="3600">1 ora</option>
                         <option value="7200">2 ore</option>
@@ -4769,8 +5104,8 @@ function UsersTab() {
                     <td style={S.td}>
                       <input
                         style={{ ...S.inputSm, fontSize: 11, minWidth: 120 }}
-                        placeholder="zona1, zona2 (vuoto=tutte)"
-                        title="Zone accessibili: inserisci id separati da virgola. Vuoto = nessuna restrizione."
+                        placeholder={t("cfg.zonesPlaceholder")}
+                        title={t("cfg.accessibleZonesHint")}
                         value={(u.allowed_zones ?? []).join(", ")}
                         disabled={busy}
                         onChange={(e) => {
@@ -4787,7 +5122,7 @@ function UsersTab() {
                         <input
                           type="password"
                           value={resetBuf[u.username] ?? ""}
-                          placeholder="nuova password"
+                          placeholder={t("cfg.newPasswordPh")}
                           onChange={(e) => setResetBuf((prev) => ({ ...prev, [u.username]: e.target.value }))}
                           style={{ ...S.inputSm, minWidth: 140 }}
                         />
@@ -4829,7 +5164,7 @@ function UsersTab() {
           alignItems: "end",
         }}>
           <div>
-            <label style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "block", marginBottom: 4 }}>Username</label>
+            <label style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "block", marginBottom: 4 }}>{t("cfg.username")}</label>
             <input
               type="text"
               value={newUser.username}
@@ -4839,7 +5174,7 @@ function UsersTab() {
             />
           </div>
           <div>
-            <label style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "block", marginBottom: 4 }}>Password iniziale</label>
+            <label style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "block", marginBottom: 4 }}>{t("cfg.initialPassword")}</label>
             <input
               type="password"
               value={newUser.password}
@@ -4848,7 +5183,7 @@ function UsersTab() {
             />
           </div>
           <div>
-            <label style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "block", marginBottom: 4 }}>Ruolo</label>
+            <label style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "block", marginBottom: 4 }}>{t("cfg.role")}</label>
             <select
               value={newUser.role}
               onChange={(e) => setNewUser((s) => ({ ...s, role: e.target.value as UserRole }))}
@@ -4886,6 +5221,7 @@ const LICENSE_OPTIONS = ["CC0 1.0", "CC-BY 4.0", "Apache-2.0", "MIT", "BSD-2-Cla
 const EMPTY_FORM = { label: "", url: "", author: "", source: "", license: "CC0 1.0" };
 
 function ResourcesTab() {
+  const { t } = useTranslation();
   const customSymbols          = useAppStore((s) => s.customSymbols);
   const updateProjectCustomSymbols = useAppStore((s) => s.updateProjectCustomSymbols);
   const [form, setForm] = useState(EMPTY_FORM);
@@ -4960,7 +5296,7 @@ function ResourcesTab() {
                     <button
                       onClick={() => remove(s.id)}
                       style={{ background: "transparent", border: "1px solid var(--brand-danger-bg, #7f1d1d)", borderRadius: 4, color: "var(--brand-danger-soft, #fca5a5)", cursor: "pointer", padding: "2px 8px", fontSize: 12 }}
-                    >Rimuovi</button>
+                    >{t("props.remove")}</button>
                   </td>
                 </tr>
               ))}
@@ -4990,7 +5326,7 @@ function ResourcesTab() {
             </select>
           </div>
           <div>
-            <div style={lbl}>Autore</div>
+            <div style={lbl}>{t("cfg.author")}</div>
             <input style={inp} placeholder="es. Wikimedia Commons / Mario Rossi" value={form.author} onChange={(e) => setForm((f) => ({ ...f, author: e.target.value }))} />
           </div>
           <div style={{ gridColumn: "1 / -1" }}>
@@ -5031,11 +5367,13 @@ function newOdbcConfig(): DatastoreBackendConfig {
 }
 
 function DatastoresTab() {
+  const { t } = useTranslation();
   const project = useAppStore((s) => s.project);
   const [datastores, setDatastores] = useState<DatastoreConfig[]>(project?.datastores ?? []);
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
   const [statusMap, setStatusMap] = useState<Record<string, { ok: boolean; msg: string }>>({});
   const [statsMap, setStatsMap]   = useState<Record<string, DatastoreStats | null>>({});
 
@@ -5071,6 +5409,8 @@ function DatastoresTab() {
     try {
       await api.saveDatastores(datastores);
       setDirty(false);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
     } catch (e) {
       setSaveError(String(e));
     } finally {
@@ -5102,6 +5442,7 @@ function DatastoresTab() {
 
   return (
     <div style={{ padding: 16 }}>
+      <SaveBar onSave={save} saving={saving} saved={saved} disabled={!dirty} />
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
         <span style={{ fontSize: 13, color: "var(--brand-text-muted, #94a3b8)", flex: 1 }}>
           Configura i backend di persistenza dati storici. Ogni variabile con &quot;history&quot; attivo
@@ -5109,10 +5450,6 @@ function DatastoresTab() {
         </span>
         <button onClick={addDatastore} style={{ background: "#0ea5e9", color: "#0f172a", border: "none", borderRadius: 4, padding: "4px 10px", cursor: "pointer", fontSize: 12 }}>
           + Aggiungi
-        </button>
-        <button onClick={save} disabled={!dirty || saving}
-          style={{ background: dirty ? "var(--brand-success, #22c55e)" : "var(--brand-surface-2, #334155)", color: dirty ? "var(--brand-on-success, #fff)" : "var(--brand-text, #e2e8f0)", border: "none", borderRadius: 4, padding: "4px 10px", cursor: dirty ? "pointer" : "default", fontSize: 12 }}>
-          {saving ? "Salvo…" : "Salva"}
         </button>
       </div>
       {saveError && <div style={{ color: "var(--brand-danger-soft, #f87171)", fontSize: 12, marginBottom: 8 }}>{saveError}</div>}
@@ -5133,7 +5470,7 @@ function DatastoresTab() {
               <input
                 value={ds.label}
                 onChange={(e) => patchDs(ds.id, { label: e.target.value })}
-                placeholder="Etichetta"
+                placeholder={t("cfg.labelField")}
                 style={{ ...inputStyle, flex: 1, fontWeight: 600, fontSize: 13 }}
               />
               <input
@@ -5150,8 +5487,8 @@ function DatastoresTab() {
                 <option value="postgres">PostgreSQL</option>
                 <option value="odbc">ODBC</option>
               </select>
-              <button onClick={() => testDs(ds.id)} style={{ background: "#0ea5e9", color: "#0f172a", border: "none", borderRadius: 4, padding: "3px 8px", cursor: "pointer", fontSize: 11 }}>Test</button>
-              <button onClick={() => loadStats(ds.id)} style={{ background: "var(--brand-border, #475569)", color: "var(--brand-text, #e2e8f0)", border: "none", borderRadius: 4, padding: "3px 8px", cursor: "pointer", fontSize: 11 }}>Stats</button>
+              <button onClick={() => testDs(ds.id)} style={{ background: "#0ea5e9", color: "#0f172a", border: "none", borderRadius: 4, padding: "3px 8px", cursor: "pointer", fontSize: 11 }}>{t("common.test")}</button>
+              <button onClick={() => loadStats(ds.id)} style={{ background: "var(--brand-border, #475569)", color: "var(--brand-text, #e2e8f0)", border: "none", borderRadius: 4, padding: "3px 8px", cursor: "pointer", fontSize: 11 }}>{t("common.stats")}</button>
               <button onClick={() => removeDatastore(ds.id)} style={{ background: "var(--brand-danger, #ef4444)", color: "var(--brand-on-danger, #fff)", border: "none", borderRadius: 4, padding: "3px 8px", cursor: "pointer", fontSize: 11 }}>X</button>
             </div>
 
@@ -5177,7 +5514,7 @@ function DatastoresTab() {
             {/* Backend-specific fields */}
             {ds.backend.kind === "sqlite" && (
               <div style={cellStyle}>
-                <span style={labelStyle}>Percorso file</span>
+                <span style={labelStyle}>{t("cfg.filePath")}</span>
                 <input value={ds.backend.path} onChange={(e) => patchBackend(ds.id, { path: e.target.value })} style={inputStyle} placeholder=".history/historian.db" />
               </div>
             )}
@@ -5216,18 +5553,18 @@ function DatastoresTab() {
             {/* Retention */}
             <div style={{ display: "flex", gap: 16, marginTop: 8 }}>
               <div>
-                <span style={labelStyle}>Max righe per tag</span>
+                <span style={labelStyle}>{t("cfg.maxRowsPerTag")}</span>
                 <input type="number" min={0}
                   value={ds.retention_rows ?? ""}
                   onChange={(e) => patchDs(ds.id, { retention_rows: e.target.value ? Number(e.target.value) : undefined })}
-                  style={{ ...inputStyle, width: 120 }} placeholder="illimitato" />
+                  style={{ ...inputStyle, width: 120 }} placeholder={t("cfg.unlimited")} />
               </div>
               <div>
-                <span style={labelStyle}>Giorni di ritenzione</span>
+                <span style={labelStyle}>{t("cfg.retentionDays")}</span>
                 <input type="number" min={0}
                   value={ds.retention_days ?? ""}
                   onChange={(e) => patchDs(ds.id, { retention_days: e.target.value ? Number(e.target.value) : undefined })}
-                  style={{ ...inputStyle, width: 120 }} placeholder="illimitato" />
+                  style={{ ...inputStyle, width: 120 }} placeholder={t("cfg.unlimited")} />
               </div>
             </div>
           </div>
@@ -5258,6 +5595,7 @@ function triggerLabel(t: ScriptTriggerKind): string {
 }
 
 function GlobalScriptsTab() {
+  const { t } = useTranslation();
   const project = useAppStore((s) => s.project);
   const [scripts, setScripts] = useState<GlobalScriptDef[]>(
     () => project?.global_scripts ?? []
@@ -5309,7 +5647,9 @@ function GlobalScriptsTab() {
   }
 
   return (
-    <div style={{ display: "flex", gap: 16, height: "calc(100vh - 120px)", overflow: "hidden" }}>
+    <div style={{ display: "flex", flexDirection: "column", height: "calc(100vh - 120px)" }}>
+      <SaveBar onSave={handleSave} saving={saving} saved={false} label="Salva tutti" notice={msg} />
+      <div style={{ display: "flex", gap: 16, flex: 1, overflow: "hidden" }}>
       {/* Left: script list */}
       <div style={{ width: 240, flexShrink: 0, display: "flex", flexDirection: "column", gap: 8 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -5349,12 +5689,6 @@ function GlobalScriptsTab() {
             </div>
           ))}
         </div>
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          style={{ background: saving ? "#374151" : "#10b981", color: saving ? "#fff" : "#0f172a", border: "none", borderRadius: 6, padding: "8px 16px", cursor: saving ? "default" : "pointer", fontSize: 14, fontWeight: 600 }}
-        >{saving ? "Salvataggio…" : "Salva tutti"}</button>
-        {msg && <div style={{ fontSize: 12, color: msg.startsWith("Errore") ? "var(--brand-danger, #ef4444)" : "var(--brand-success, #22c55e)" }}>{msg}</div>}
       </div>
 
       {/* Right: editor */}
@@ -5380,7 +5714,7 @@ function GlobalScriptsTab() {
 
           {/* Trigger type */}
           <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
-            <label style={{ fontSize: 13, color: "var(--brand-text-muted, #94a3b8)" }}>Trigger</label>
+            <label style={{ fontSize: 13, color: "var(--brand-text-muted, #94a3b8)" }}>{t("cfg.trigger")}</label>
             <select
               value={cur.trigger.kind}
               onChange={(e) => {
@@ -5394,10 +5728,10 @@ function GlobalScriptsTab() {
               }}
               style={{ background: "var(--brand-surface, #1e293b)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, color: "var(--brand-text, #e2e8f0)", padding: "4px 8px", fontSize: 13 }}
             >
-              <option value="startup">Avvio progetto</option>
+              <option value="startup">{t("cfg.projectStart")}</option>
               <option value="interval">Intervallo (secondi)</option>
               <option value="cron">Cron (5 campi)</option>
-              <option value="tag_change">Cambio tag</option>
+              <option value="tag_change">{t("cfg.tagChange")}</option>
             </select>
 
             {cur.trigger.kind === "interval" && (
@@ -5430,7 +5764,7 @@ function GlobalScriptsTab() {
                   onChange={(e) => updateTrigger(selected, { edge: e.target.value as "rising" | "falling" | "any" })}
                   style={{ background: "var(--brand-surface, #1e293b)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, color: "var(--brand-text, #e2e8f0)", padding: "4px 8px", fontSize: 13 }}
                 >
-                  <option value="any">Qualsiasi</option>
+                  <option value="any">{t("cfg.any")}</option>
                   <option value="rising">Rising (0→1)</option>
                   <option value="falling">Falling (1→0)</option>
                 </select>
@@ -5453,6 +5787,7 @@ function GlobalScriptsTab() {
           Seleziona o crea uno script
         </div>
       )}
+      </div>
     </div>
   );
 }
@@ -5460,6 +5795,7 @@ function GlobalScriptsTab() {
 // ── FACEPLATES tab ────────────────────────────────────────────────────────────
 
 function FaceplatesTab() {
+  const { t } = useTranslation();
   const storeFaceplates   = useAppStore((s) => s.faceplates);
   const setFaceplates     = useAppStore((s) => s.setFaceplates);
   const [faceplates, setLocal] = useState<FaceplateDef[]>(storeFaceplates);
@@ -5560,8 +5896,8 @@ function FaceplatesTab() {
             <span style={{ flex: 1 }} />
             {loadErr && <span style={{ fontSize: 12, color: "var(--brand-danger, #ef4444)" }}>{loadErr}</span>}
             {saved && <span style={{ fontSize: 12, color: "var(--brand-success, #22c55e)" }}>✓ Salvato</span>}
-            <button style={S.btn("danger")} onClick={deleteCurrent}>Elimina</button>
-            <button style={S.btn("primary")} onClick={saveCurrent} disabled={saving}>
+            <button style={S.btn("danger")} onClick={deleteCurrent}>{t("common.delete")}</button>
+            <button style={S.btn("success")} onClick={saveCurrent} disabled={saving}>
               {saving ? "Salvataggio…" : "Salva"}
             </button>
           </div>
@@ -5577,7 +5913,7 @@ function FaceplatesTab() {
                 />
               </div>
               <div>
-                <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 }}>Label</label>
+                <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 }}>{t("cfg.labelWord")}</label>
                 <input
                   style={S.input}
                   value={current.label}
@@ -5631,6 +5967,7 @@ function genRecipeId() {
 }
 
 function RecipesTab() {
+  const { t } = useTranslation();
   const [recipes, setRecipes]     = useState<RecipeSummary[]>([]);
   const [selected, setSelected]   = useState<RecipeDef | null>(null);
   const [loading, setLoading]     = useState(false);
@@ -5712,14 +6049,14 @@ function RecipesTab() {
           <div style={{ display: "flex", gap: 4 }}>
             <input
               style={{ ...S.inputSm, flex: 1 }}
-              placeholder="ID (es. prodotto-a)"
+              placeholder={t("cfg.idExample")}
               value={newId}
               onChange={(e) => setNewId(e.target.value)}
               spellCheck={false}
             />
             <input
               style={{ ...S.inputSm, flex: 1 }}
-              placeholder="Nome"
+              placeholder={t("cfg.name")}
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
               spellCheck={false}
@@ -5762,20 +6099,20 @@ function RecipesTab() {
                   style={{ ...S.inputSm, flex: 1 }}
                   value={selected.name}
                   onChange={(e) => setSelected({ ...selected, name: e.target.value })}
-                  placeholder="Nome ricetta"
+                  placeholder={t("cfg.recipeName")}
                   spellCheck={false}
                 />
-                <button style={S.btn("primary")} onClick={saveSelected} disabled={loading}>
+                <button style={S.btn("success")} onClick={saveSelected} disabled={loading}>
                   {loading ? "…" : saved ? "✓ Salvato" : "Salva"}
                 </button>
-                <button style={S.btn("danger")} onClick={deleteSelected} title="Elimina ricetta">✕</button>
+                <button style={S.btn("danger")} onClick={deleteSelected} title={t("cfg.deleteRecipe")}>✕</button>
               </div>
 
               <table style={{ ...S.table, flex: 1 }}>
                 <thead>
                   <tr>
-                    <th style={{ ...S.th, width: "45%" }}>Tag</th>
-                    <th style={{ ...S.th, width: "40%" }}>Valore setpoint</th>
+                    <th style={{ ...S.th, width: "45%" }}>{t("cfg.tag")}</th>
+                    <th style={{ ...S.th, width: "40%" }}>{t("cfg.setpointValue")}</th>
                     <th style={S.th} />
                   </tr>
                 </thead>
@@ -5836,24 +6173,40 @@ function emptySmtp(): SmtpConfig {
 }
 
 function NotificationsTab() {
+  const { t } = useTranslation();
   const storeProject = useAppStore((s) => s.project);
+  const updateProjectNotifications = useAppStore((s) => s.updateProjectNotifications);
   const initial = storeProject?.notifications ?? null;
 
   const [enabled, setEnabled] = useState<boolean>(initial?.smtp != null);
   const [smtp, setSmtp] = useState<SmtpConfig>(initial?.smtp ?? emptySmtp());
+  const [tgEnabled, setTgEnabled] = useState<boolean>(initial?.telegram != null);
+  const [tg, setTg] = useState<TelegramConfig>(initial?.telegram ?? { bot_token: "", chat_ids: [] });
+  const [testing, setTesting] = useState(false);
+  const [testMsg, setTestMsg] = useState<string | null>(null);
+  const [detecting, setDetecting] = useState(false);
+  const [detected, setDetected] = useState<{ id: string; label: string; type: string }[]>([]);
+  const [detectMsg, setDetectMsg] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const patchSmtp = (patch: Partial<SmtpConfig>) =>
     setSmtp((prev) => ({ ...prev, ...patch }));
+  const patchTg = (patch: Partial<TelegramConfig>) =>
+    setTg((prev) => ({ ...prev, ...patch }));
 
   const handleSave = async () => {
     setSaving(true);
     setError(null);
     try {
-      const config: NotificationConfig | null = enabled ? { smtp } : null;
+      const config: NotificationConfig | null = (enabled || tgEnabled)
+        ? { smtp: enabled ? smtp : undefined, telegram: tgEnabled ? tg : undefined }
+        : null;
       await api.saveNotifications(config);
+      // Keep the store in sync so switching tabs and returning shows the saved
+      // config (the tab re-initialises from storeProject.notifications).
+      updateProjectNotifications(config);
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
     } catch (e: unknown) {
@@ -5863,8 +6216,95 @@ function NotificationsTab() {
     }
   };
 
+  // Test chiamando DIRETTAMENTE la Bot API di Telegram dal browser (invia header
+  // CORS permissivi): così la prova funziona dal solo editor, senza dipendere da
+  // un runtime attivo/raggiungibile. Richiede il token in chiaro (non mascherato).
+  const handleTestTelegram = async () => {
+    setTesting(true);
+    setTestMsg(null);
+    const token = tg.bot_token.trim();
+    try {
+      if (token === "" || token === "********") {
+        setTestMsg("✗ Inserisci il bot token (in chiaro) per fare la prova.");
+        return;
+      }
+      if (tg.chat_ids.length === 0) {
+        setTestMsg("✗ Inserisci almeno una chat ID.");
+        return;
+      }
+      for (const chat of tg.chat_ids) {
+        const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ chat_id: chat, text: "✅ Messaggio di test da SWS." }),
+        });
+        if (!res.ok) {
+          const body = await res.json().catch(() => null);
+          throw new Error(`chat ${chat}: ${body?.description ?? `HTTP ${res.status}`}`);
+        }
+      }
+      setTestMsg("✓ Messaggio inviato — controlla Telegram.");
+    } catch (e: unknown) {
+      setTestMsg("✗ " + (e instanceof Error ? e.message : String(e)));
+    } finally {
+      setTesting(false);
+    }
+  };
+
+  // Rileva le chat che hanno scritto al bot chiamando getUpdates dal browser.
+  // Auto-retry perché subito dopo un messaggio l'update può tardare qualche
+  // secondo a comparire.
+  const handleDetectChats = async () => {
+    const token = tg.bot_token.trim();
+    if (token === "" || token === "********") {
+      setDetectMsg("✗ Inserisci il bot token (in chiaro) per rilevare le chat.");
+      return;
+    }
+    setDetecting(true);
+    setDetectMsg(null);
+    setDetected([]);
+    try {
+      const attempts = 5;
+      for (let i = 0; i < attempts; i++) {
+        const res = await fetch(`https://api.telegram.org/bot${token}/getUpdates`);
+        const body = await res.json().catch(() => null);
+        if (!body || body.ok !== true) {
+          throw new Error(body?.description ?? `HTTP ${res.status}`);
+        }
+        // Estrai l'oggetto `chat` da qualunque tipo di update, deduplica per id.
+        const byId = new Map<string, { id: string; label: string; type: string }>();
+        for (const upd of body.result as Record<string, unknown>[]) {
+          const container = (upd.message ?? upd.edited_message ?? upd.channel_post ??
+            upd.edited_channel_post ?? upd.my_chat_member ?? upd.chat_member) as
+            { chat?: { id: number; type: string; title?: string; first_name?: string; last_name?: string; username?: string } } | undefined;
+          const chat = container?.chat;
+          if (!chat) continue;
+          const id = String(chat.id);
+          const label = chat.title
+            ?? [chat.first_name, chat.last_name].filter(Boolean).join(" ")
+            ?? (chat.username ? "@" + chat.username : id);
+          byId.set(id, { id, label: label || id, type: chat.type });
+        }
+        if (byId.size > 0) {
+          setDetected([...byId.values()]);
+          return;
+        }
+        if (i < attempts - 1) await new Promise((r) => setTimeout(r, 1500));
+      }
+      setDetectMsg("Nessuna chat trovata. Scrivi /start al bot (o aggiungilo al gruppo e manda un messaggio), poi premi Rileva di nuovo.");
+    } catch (e: unknown) {
+      setDetectMsg("✗ " + (e instanceof Error ? e.message : String(e)));
+    } finally {
+      setDetecting(false);
+    }
+  };
+
+  const addChatId = (id: string) =>
+    patchTg({ chat_ids: tg.chat_ids.includes(id) ? tg.chat_ids : [...tg.chat_ids, id] });
+
   return (
     <div style={S.section}>
+      <SaveBar onSave={handleSave} saving={saving} saved={saved} />
       <div style={S.sectionTitle}>NOTIFICHE EMAIL</div>
       <div style={S.notice}>
         Configura un server SMTP per inviare email al momento dell'attivazione di
@@ -5895,7 +6335,7 @@ function NotificationsTab() {
             />
           </div>
           <div>
-            <div style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", marginBottom: 4 }}>Porta</div>
+            <div style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", marginBottom: 4 }}>{t("cfg.port")}</div>
             <input
               style={S.input}
               type="number"
@@ -5917,7 +6357,7 @@ function NotificationsTab() {
             <div style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", marginBottom: 4 }}>Username SMTP</div>
             <input
               style={S.input}
-              placeholder="(opzionale)"
+              placeholder={t("cfg.optional")}
               value={smtp.username ?? ""}
               onChange={(e) => patchSmtp({ username: e.target.value || undefined })}
             />
@@ -5927,7 +6367,7 @@ function NotificationsTab() {
             <input
               style={S.input}
               type="password"
-              placeholder="(opzionale)"
+              placeholder={t("cfg.optional")}
               value={smtp.password ?? ""}
               onChange={(e) => patchSmtp({ password: e.target.value || undefined })}
             />
@@ -5945,11 +6385,112 @@ function NotificationsTab() {
         </div>
       )}
 
+      <div style={{ ...S.sectionTitle, marginTop: 24 }}>NOTIFICHE TELEGRAM</div>
+      <div style={S.notice}>
+        Invia un messaggio Telegram all'attivazione di ogni allarme e, dagli script,
+        con <em>send_telegram("testo")</em>. Crea un bot con <em>@BotFather</em>, poi
+        incolla il token e le chat ID di destinazione.
+      </div>
+
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
+        <label style={{ fontSize: 13, color: "var(--brand-text, #e2e8f0)", cursor: "pointer", display: "flex", alignItems: "center", gap: 8 }}>
+          <input
+            type="checkbox"
+            checked={tgEnabled}
+            onChange={(e) => setTgEnabled(e.target.checked)}
+          />
+          Abilita notifiche Telegram
+        </label>
+      </div>
+
+      {tgEnabled && (
+        <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 12, maxWidth: 640 }}>
+          <div>
+            <div style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", marginBottom: 4 }}>Bot token *</div>
+            <input
+              style={S.input}
+              type="password"
+              placeholder="123456789:ABCdef..."
+              value={tg.bot_token}
+              onChange={(e) => patchTg({ bot_token: e.target.value })}
+            />
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 6 }}>
+              <button
+                style={S.btn("ghost")}
+                onClick={handleDetectChats}
+                disabled={detecting || tg.bot_token.trim() === "" || tg.bot_token === "********"}
+                title="Chiama getUpdates e mostra le chat che hanno scritto al bot"
+              >
+                {detecting ? "Rilevamento…" : "Rileva chat"}
+              </button>
+              {detectMsg && (
+                <span style={{ fontSize: 11, color: detectMsg.startsWith("✗") ? "var(--brand-danger, #ef4444)" : "var(--brand-text-muted, #94a3b8)" }}>
+                  {detectMsg}
+                </span>
+              )}
+            </div>
+            {detected.length > 0 && (
+              <div style={{ marginTop: 8, border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 6, overflow: "hidden" }}>
+                {detected.map((c) => {
+                  const added = tg.chat_ids.includes(c.id);
+                  return (
+                    <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "6px 10px", borderBottom: "1px solid var(--brand-surface-2, #334155)" }}>
+                      <span style={{ fontSize: 12, color: "var(--brand-text, #e2e8f0)", flex: 1 }}>
+                        {c.label} <span style={{ color: "var(--brand-text-subtle, #64748b)", fontFamily: "monospace" }}>· {c.id} · {c.type}</span>
+                      </span>
+                      <button
+                        style={{ ...S.btn("ghost"), padding: "2px 10px", fontSize: 12 }}
+                        onClick={() => addChatId(c.id)}
+                        disabled={added}
+                      >
+                        {added ? "✓ aggiunta" : "Aggiungi"}
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+          <div>
+            <div style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", marginBottom: 4 }}>Chat ID — una per riga *</div>
+            <textarea
+              style={{ ...S.input, minHeight: 60, fontFamily: "monospace", fontSize: 12, resize: "vertical" }}
+              placeholder={"-1001234567890\n123456789"}
+              value={tg.chat_ids.join("\n")}
+              onChange={(e) => patchTg({ chat_ids: e.target.value.split(/[\n,]+/).map((c) => c.trim()).filter(Boolean) })}
+              spellCheck={false}
+            />
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <button
+              style={S.btn("ghost")}
+              onClick={handleTestTelegram}
+              disabled={testing || tg.bot_token.trim() === "" || tg.chat_ids.length === 0}
+            >
+              {testing ? "Invio…" : "Invia test"}
+            </button>
+            {testMsg && (
+              <span style={{ fontSize: 12, color: testMsg.startsWith("✓") ? "var(--brand-success, #22c55e)" : "var(--brand-danger, #ef4444)" }}>
+                {testMsg}
+              </span>
+            )}
+          </div>
+
+          <div style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", lineHeight: 1.7, background: "var(--brand-bg, #0f172a)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 6, padding: "10px 12px" }}>
+            <strong style={{ color: "var(--brand-text-2, #cbd5e1)" }}>Come configurare</strong>
+            <ol style={{ margin: "6px 0 0", paddingLeft: 18 }}>
+              <li>Su Telegram apri <em>@BotFather</em> → <code>/newbot</code>, segui le istruzioni e copia il <em>token</em> del bot. Incollalo qui sopra.</li>
+              <li>Scrivi <code>/start</code> (o un messaggio) al bot; per un gruppo/canale, aggiungilo e manda un messaggio lì.</li>
+              <li>Premi <em>Rileva chat</em> e <em>Aggiungi</em> le chat trovate (i gruppi hanno ID negativo <code>-100…</code>). In alternativa inserisci manualmente le chat ID.</li>
+              <li>Premi <em>Invia test</em> per verificare, poi <em>Salva</em>.</li>
+            </ol>
+          </div>
+        </div>
+      )}
+
       {error && (
         <div style={{ color: "var(--brand-danger, #ef4444)", fontSize: 12, marginTop: 8 }}>{error}</div>
       )}
-
-      <SaveBar onSave={handleSave} saving={saving} saved={saved} />
     </div>
   );
 }
@@ -5964,6 +6505,7 @@ const RT_PASS_KEY = "sws.runtime.targetPass";
 const RT_CONN_KEY = "sws.runtime.connected";
 
 function RuntimeConnectionTab() {
+  const { t } = useTranslation();
   const authToken = useAppStore((s) => s.authToken);
   const setRemoteConnected = useAppStore((s) => s.setRemoteConnected);
 
@@ -6294,7 +6836,7 @@ function RuntimeConnectionTab() {
           Connessione runtime remoto
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)" }}>URL del runtime target — porta admin (8444)</label>
+          <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)" }}>{t("cfg.targetRuntimeUrl")}</label>
           <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
             <input style={{ ...INPUT, flex: 1, boxSizing: "border-box" }}
               placeholder="https://192.168.1.10:8444"
@@ -6303,13 +6845,13 @@ function RuntimeConnectionTab() {
             />
             <button
               style={{ ...BTN, whiteSpace: "nowrap", flexShrink: 0 }}
-              title="Apri il health-check in una nuova scheda per accettare il certificato TLS"
+              title={t("cfg.openHealthTls")}
               disabled={!target}
               onClick={() => { if (target) window.open(`${target}/health`, "_blank"); }}
             >Accetta cert TLS ↗</button>
             <button
               style={{ ...BTN, whiteSpace: "nowrap", flexShrink: 0 }}
-              title="Cerca runtime SWS sulla rete locale via mDNS (~2 s)"
+              title={t("cfg.discoverMdns")}
               disabled={discovering}
               onClick={handleDiscover}
             >{discovering ? "Cerco…" : "Cerca runtime"}</button>
@@ -6339,13 +6881,13 @@ function RuntimeConnectionTab() {
           </span>
           <div style={{ display: "flex", gap: 8 }}>
             <div style={{ flex: 1 }}>
-              <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 4 }}>Utente <span style={{ color: "var(--brand-border, #475569)" }}>(opzionale)</span></label>
+              <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 4 }}>{t("cfg.user")} <span style={{ color: "var(--brand-border, #475569)" }}>(opzionale)</span></label>
               <input style={{ ...INPUT, width: "100%", boxSizing: "border-box" }}
-                placeholder="lascia vuoto se il runtime non ha utenti" value={targetUser}
+                placeholder={t("cfg.emptyIfNoUsers")} value={targetUser}
                 onChange={(e) => setTargetUser(e.target.value)} />
             </div>
             <div style={{ flex: 1 }}>
-              <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 4 }}>Password <span style={{ color: "var(--brand-border, #475569)" }}>(opzionale)</span></label>
+              <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 4 }}>{t("cfg.password")} <span style={{ color: "var(--brand-border, #475569)" }}>(opzionale)</span></label>
               <input style={{ ...INPUT, width: "100%", boxSizing: "border-box" }}
                 type="password" placeholder="••••••••" value={targetPass}
                 onChange={(e) => setTargetPass(e.target.value)}
@@ -6359,9 +6901,9 @@ function RuntimeConnectionTab() {
               </button>
             )}
             {connected && (
-              <button style={BTN_RED} onClick={handleDisconnect}>Disconnetti</button>
+              <button style={BTN_RED} onClick={handleDisconnect}>{t("cfg.disconnect")}</button>
             )}
-            <button style={BTN} onClick={handleDownloadCert} disabled={!target} title="Scarica il cert TLS del target (poi importarlo nel browser)">
+            <button style={BTN} onClick={handleDownloadCert} disabled={!target} title={t("cfg.downloadTargetCert")}>
               Scarica cert TLS
             </button>
           </div>
@@ -6380,7 +6922,7 @@ function RuntimeConnectionTab() {
           </span>
         )}
         {status === "idle" && (
-          <span style={{ color: "var(--brand-border, #475569)", fontSize: 13 }}>Non connesso</span>
+          <span style={{ color: "var(--brand-border, #475569)", fontSize: 13 }}>{t("cfg.notConnected")}</span>
         )}
         {status === "connecting" && (
           <span style={{ color: "var(--brand-text-muted, #94a3b8)", fontSize: 13 }}>Connessione in corso…</span>
@@ -6524,11 +7066,11 @@ function RuntimeConnectionTab() {
             {building ? "Build in corso…" : "Build completo"}
           </button>
           <button style={{ ...BTN, opacity: building ? 0.6 : 1 }} disabled={building}
-            onClick={() => void handleBuild(true, false)} title="Salta cargo build, rigenera solo SPA">
+            onClick={() => void handleBuild(true, false)} title={t("cfg.skipCargo")}>
             ⚡ Solo UI
           </button>
           <button style={{ ...BTN, opacity: building ? 0.6 : 1 }} disabled={building}
-            onClick={() => void handleBuild(false, true)} title="Salta pnpm build, ricompila solo il binario Rust">
+            onClick={() => void handleBuild(false, true)} title={t("cfg.skipPnpm")}>
             ⚡ Solo Rust
           </button>
         </div>
@@ -6588,13 +7130,13 @@ function RuntimeConnectionTab() {
             </div>
             <div style={{ display: "flex", gap: 8 }}>
               <div style={{ flex: 1 }}>
-                <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 4 }}>Host SSH</label>
+                <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 4 }}>{t("cfg.sshHost")}</label>
                 <input style={{ ...INPUT, width: "100%", boxSizing: "border-box" as const }}
                   placeholder="192.168.1.50" value={deviceHost}
                   onChange={(e) => setDeviceHost(e.target.value)} />
               </div>
               <div style={{ width: 70 }}>
-                <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 4 }}>Porta</label>
+                <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 4 }}>{t("cfg.port")}</label>
                 <input style={{ ...INPUT, width: "100%", boxSizing: "border-box" as const }}
                   type="number" value={devicePort}
                   onChange={(e) => setDevicePort(Number(e.target.value))} />
@@ -6602,20 +7144,20 @@ function RuntimeConnectionTab() {
             </div>
             <div style={{ display: "flex", gap: 8 }}>
               <div style={{ flex: 1 }}>
-                <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 4 }}>Utente SSH</label>
+                <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 4 }}>{t("cfg.sshUser")}</label>
                 <input style={{ ...INPUT, width: "100%", boxSizing: "border-box" as const }}
                   placeholder="root" value={deviceUser}
                   onChange={(e) => setDeviceUser(e.target.value)} />
               </div>
               <div style={{ flex: 1 }}>
-                <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 4 }}>Password SSH</label>
+                <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 4 }}>{t("cfg.sshPassword")}</label>
                 <input style={{ ...INPUT, width: "100%", boxSizing: "border-box" as const }}
                   type="password" placeholder="••••••••" value={devicePass}
                   onChange={(e) => setDevicePass(e.target.value)} />
               </div>
             </div>
             <div>
-              <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 4 }}>Cartella temporanea remota</label>
+              <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 4 }}>{t("cfg.remoteTmpDir")}</label>
               <input style={{ ...INPUT, width: "100%", boxSizing: "border-box" as const }}
                 value={deviceTmpDir}
                 onChange={(e) => setDeviceTmpDir(e.target.value)} />
@@ -6736,6 +7278,7 @@ interface DeviceState {
 }
 
 function DevicesTab() {
+  const { t } = useTranslation();
   const [devices, setDevices] = useState<SavedDevice[]>(() => {
     try { return JSON.parse(localStorage.getItem(DEVICES_KEY) ?? "[]"); }
     catch { return []; }
@@ -6845,11 +7388,11 @@ function DevicesTab() {
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
             <thead>
               <tr style={{ borderBottom: "1px solid var(--brand-surface-2, #334155)", color: "var(--brand-text-subtle, #64748b)" }}>
-                <th style={{ textAlign: "left", padding: "6px 8px" }}>Label</th>
+                <th style={{ textAlign: "left", padding: "6px 8px" }}>{t("cfg.labelWord")}</th>
                 <th style={{ textAlign: "left", padding: "6px 8px" }}>URL</th>
-                <th style={{ textAlign: "center", padding: "6px 8px" }}>Stato</th>
-                <th style={{ textAlign: "center", padding: "6px 8px" }}>Firma</th>
-                <th style={{ textAlign: "right", padding: "6px 8px" }}>Azioni</th>
+                <th style={{ textAlign: "center", padding: "6px 8px" }}>{t("cfg.state")}</th>
+                <th style={{ textAlign: "center", padding: "6px 8px" }}>{t("cfg.fingerprint")}</th>
+                <th style={{ textAlign: "right", padding: "6px 8px" }}>{t("cfg.actions")}</th>
               </tr>
             </thead>
             <tbody>
@@ -6878,7 +7421,7 @@ function DevicesTab() {
                     </td>
                     <td style={{ padding: "8px", textAlign: "right" }}>
                       <div style={{ display: "flex", gap: 4, justifyContent: "flex-end" }}>
-                        <button style={BTN} onClick={() => handleConnect(d)} title="Imposta come runtime target e connetti">Connetti</button>
+                        <button style={BTN} onClick={() => handleConnect(d)} title={t("cfg.setTargetConnect")}>{t("cfg.connect")}</button>
                         <button style={{ ...BTN, background: "#1e3a5f", borderColor: "var(--brand-primary-hover, #2563eb)", color: "#93c5fd" }}
                           disabled={deployingUrl === d.url}
                           onClick={() => void handleDeploy(d)}>
@@ -6913,22 +7456,22 @@ function DevicesTab() {
         </div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end" }}>
           <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)" }}>Label</label>
+            <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)" }}>{t("cfg.labelWord")}</label>
             <input style={{ ...INPUT, width: 120 }} placeholder="PLC-01"
               value={addForm.label} onChange={(e) => setAddForm((f) => ({ ...f, label: e.target.value }))} />
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)" }}>URL admin (8444)</label>
+            <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)" }}>{t("cfg.adminUrl")}</label>
             <input style={{ ...INPUT, width: 200 }} placeholder="https://192.168.1.10:8444"
               value={addForm.url} onChange={(e) => setAddForm((f) => ({ ...f, url: e.target.value.trim() }))} />
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)" }}>Utente</label>
+            <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)" }}>{t("cfg.user")}</label>
             <input style={{ ...INPUT, width: 90 }} placeholder="admin"
               value={addForm.user} onChange={(e) => setAddForm((f) => ({ ...f, user: e.target.value }))} />
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)" }}>Password</label>
+            <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)" }}>{t("cfg.password")}</label>
             <input style={{ ...INPUT, width: 110 }} type="password" placeholder="••••••••"
               value={addForm.pass} onChange={(e) => setAddForm((f) => ({ ...f, pass: e.target.value }))} />
           </div>
@@ -6943,7 +7486,7 @@ function DevicesTab() {
               setAddForm({ label: "", url: "", user: "admin", pass: "" });
               void checkDevice(newDevice);
             }}
-          >Aggiungi</button>
+          >{t("cfg.add")}</button>
         </div>
         {localFp && (
           <div style={{ marginTop: 10, fontSize: 11, color: "var(--brand-border, #475569)" }}>
@@ -6957,26 +7500,210 @@ function DevicesTab() {
 
 // ── ConfigView root ───────────────────────────────────────────────────────────
 
-type ConfigTab = "tags" | "protocols" | "alarms" | "datastores" | "scripts" | "faceplates" | "recipes" | "notifications" | "users" | "resources" | "system" | "backups" | "devices" | "runtime";
+// ── Languages tab (T-40): project message translation table ─────────────────
+function LanguagesTab() {
+  const { t } = useTranslation();
+  const storeTable       = useAppStore((s) => s.project?.languages);
+  const updateLanguages  = useAppStore((s) => s.updateProjectLanguages);
+  const editorPreviewLang = useAppStore((s) => s.editorPreviewLang);
+  const setEditorPreviewLang = useAppStore((s) => s.setEditorPreviewLang);
+  const [table, setTable] = useState<LanguageTable>(() => storeTable ?? { default: "", langs: [], entries: [] });
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved]   = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+  // Filtro (per colonna: "key" o codice lingua) + ordinamento (solo visuale).
+  const [filters, setFilters] = useState<Record<string, string>>({});
+  const [sort, setSort] = useState<{ col: string; dir: "asc" | "desc" } | null>(null);
 
-const TAB_LABELS: Record<ConfigTab, string> = {
-  tags:        "Variabili",
-  protocols:   "Protocolli",
-  alarms:      "Allarmi",
-  datastores:  "Datastore",
-  scripts:       "Script",
-  faceplates:    "Faceplates",
-  recipes:       "Ricette",
-  notifications: "Notifiche",
-  users:         "Utenti",
-  resources:   "Risorse",
-  system:      "Stato",
-  backups:     "Backup",
-  devices:     "Device",
-  runtime:     "Runtime",
-};
+  useEffect(() => { if (storeTable) setTable(storeTable); }, [storeTable]);
+
+  const patch = (p: Partial<LanguageTable>) => setTable((tb) => ({ ...tb, ...p }));
+
+  const cellText = (e: LangEntry, col: string) => (col === "key" ? e.key : e.values[col] ?? "");
+  const setFilter = (col: string, q: string) => setFilters((f) => ({ ...f, [col]: q }));
+  const toggleSort = (col: string) =>
+    setSort((s) => (s?.col !== col ? { col, dir: "asc" } : s.dir === "asc" ? { col, dir: "desc" } : null));
+
+  // Vista filtrata+ordinata che CONSERVA l'indice originale in table.entries:
+  // gli handler di modifica lavorano su quell'indice, non sulla posizione a video.
+  const view = (() => {
+    const rows = table.entries
+      .map((e, origIdx) => ({ e, origIdx }))
+      .filter(({ e }) =>
+        Object.entries(filters).every(([col, q]) =>
+          !q.trim() || cellText(e, col).toLowerCase().includes(q.trim().toLowerCase())));
+    if (sort) {
+      const dir = sort.dir === "asc" ? 1 : -1;
+      rows.sort((a, b) => cellText(a.e, sort.col).localeCompare(cellText(b.e, sort.col), undefined, { numeric: true }) * dir);
+    }
+    return rows;
+  })();
+
+  const addLang = () => {
+    const code = window.prompt(t("langtab.langCodePrompt"))?.trim().toLowerCase();
+    if (!code || table.langs.includes(code)) return;
+    patch({ langs: [...table.langs, code], default: table.default || code });
+  };
+  const removeLang = (code: string) => {
+    // Ripulisci filtro/ordinamento riferiti alla colonna rimossa, altrimenti un
+    // filtro stale su una lingua sparita nasconderebbe righe.
+    setFilters((f) => { const n = { ...f }; delete n[code]; return n; });
+    setSort((s) => (s?.col === code ? null : s));
+    setTable((tb) => ({
+      default: tb.default === code ? (tb.langs.find((l) => l !== code) ?? "") : tb.default,
+      langs: tb.langs.filter((l) => l !== code),
+      entries: tb.entries.map((e) => { const v = { ...e.values }; delete v[code]; return { ...e, values: v }; }),
+    }));
+  };
+  const addRow = () => { setFilters({}); setSort(null); patch({ entries: [...table.entries, { key: "", values: {} }] }); };
+  const removeRow = (idx: number) => patch({ entries: table.entries.filter((_, i) => i !== idx) });
+  const setKey = (idx: number, key: string) =>
+    patch({ entries: table.entries.map((e, i) => (i === idx ? { ...e, key } : e)) });
+  const setVal = (idx: number, code: string, val: string) =>
+    patch({ entries: table.entries.map((e, i) => (i === idx ? { ...e, values: { ...e.values, [code]: val } } : e)) });
+
+  const handleSave = async () => {
+    const clean: LanguageTable = { ...table, entries: table.entries.filter((e) => e.key.trim() !== "") };
+    setSaving(true);
+    try { await api.updateLanguages(clean); updateLanguages(clean); setTable(clean); setSaved(true); setTimeout(() => setSaved(false), 3000); }
+    finally { setSaving(false); }
+  };
+
+  const exportCsv = () => {
+    const cols = ["key", ...table.langs];
+    const esc = (v: string) => (/[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v);
+    const rows = table.entries.map((e) => [e.key, ...table.langs.map((l) => e.values[l] ?? "")].map(esc).join(","));
+    const csv = [cols.join(","), ...rows].join("\n");
+    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8;" }));
+    const a = Object.assign(document.createElement("a"), { href: url, download: "languages.csv" });
+    a.click(); URL.revokeObjectURL(url);
+  };
+
+  const importCsv = async (file: File) => {
+    const text = await file.text();
+    const lines = text.split(/\r?\n/).filter((l) => l.trim() !== "");
+    if (lines.length < 1) return;
+    // parser CSV minimale con supporto virgolette
+    const parse = (line: string): string[] => {
+      const out: string[] = []; let cur = "", q = false;
+      for (let i = 0; i < line.length; i++) { const c = line[i];
+        if (q) { if (c === '"') { if (line[i + 1] === '"') { cur += '"'; i++; } else q = false; } else cur += c; }
+        else if (c === '"') q = true; else if (c === ",") { out.push(cur); cur = ""; } else cur += c; }
+      out.push(cur); return out;
+    };
+    const header = parse(lines[0]).map((h) => h.trim());
+    const langs = header.slice(1).filter(Boolean);
+    const entries: LangEntry[] = lines.slice(1).map((l) => {
+      const cells = parse(l); const values: Record<string, string> = {};
+      langs.forEach((lang, i) => { if (cells[i + 1] !== undefined) values[lang] = cells[i + 1]; });
+      return { key: (cells[0] ?? "").trim(), values };
+    }).filter((e) => e.key !== "");
+    setFilters({}); setSort(null); // le lingue cambiano: filtro/ordinamento vecchi non valgono più
+    setTable((tb) => ({ default: tb.default || langs[0] || "", langs, entries }));
+  };
+
+  const CELL: React.CSSProperties = { border: "1px solid var(--brand-surface-2, #334155)", padding: 0 };
+  const IN: React.CSSProperties = { width: "100%", background: "transparent", border: "none", color: "var(--brand-text, #e2e8f0)", padding: "5px 8px", fontSize: 12, boxSizing: "border-box" };
+
+  return (
+    <div style={S.section}>
+      <SaveBar onSave={handleSave} saving={saving} saved={saved} label={t("langtab.save")} savedNotice={t("langtab.saved")} />
+      <div style={{ fontSize: 12, color: "var(--brand-text-muted, #94a3b8)", marginBottom: 12, lineHeight: 1.5 }}>{t("langtab.intro")}</div>
+
+      <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 12, flexWrap: "wrap" }}>
+        <span style={{ fontSize: 12, color: "var(--brand-text-2, #cbd5e1)" }}>{t("langtab.projectLang")}:</span>
+        <select value={table.default} onChange={(e) => patch({ default: e.target.value })}
+          title={t("langtab.projectLangHint")}
+          style={{ background: "var(--brand-bg, #0f172a)", color: "var(--brand-text, #e2e8f0)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, padding: "3px 8px", fontSize: 12 }}>
+          {table.langs.length === 0 && <option value="">—</option>}
+          {table.langs.map((l) => <option key={l} value={l}>{l}</option>)}
+        </select>
+        <span style={{ fontSize: 12, color: "var(--brand-text-2, #cbd5e1)", marginLeft: 6 }}>{t("langtab.editorLang")}:</span>
+        <select value={table.langs.includes(editorPreviewLang) ? editorPreviewLang : table.default}
+          onChange={(e) => setEditorPreviewLang(e.target.value)}
+          title={t("langtab.editorLangHint")}
+          style={{ background: "var(--brand-bg, #0f172a)", color: "var(--brand-text, #e2e8f0)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, padding: "3px 8px", fontSize: 12 }}>
+          {table.langs.length === 0 && <option value="">—</option>}
+          {table.langs.map((l) => <option key={l} value={l}>{l}</option>)}
+        </select>
+        <button onClick={addLang} style={S.btn("primary")}>{t("langtab.addLang")}</button>
+        <div style={{ flex: 1 }} />
+        <button onClick={exportCsv} style={S.btn("ghost")} disabled={table.entries.length === 0}>{t("langtab.exportCsv")}</button>
+        <button onClick={() => fileRef.current?.click()} style={S.btn("ghost")}>{t("langtab.importCsv")}</button>
+        <input ref={fileRef} type="file" accept=".csv,text/csv" style={{ display: "none" }}
+          onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) importCsv(f); }} />
+      </div>
+
+      {table.langs.length === 0 ? (
+        <div style={{ color: "var(--brand-text-subtle, #64748b)", fontSize: 13, padding: 20 }}>{t("langtab.noLangs")}</div>
+      ) : (
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+          <thead>
+            <tr>
+              <th style={{ ...S.th, width: "24%" }}>
+                <span onClick={() => toggleSort("key")} title={t("langtab.sortHint")} style={{ cursor: "pointer", userSelect: "none" }}>
+                  {t("langtab.key")}{sort?.col === "key" ? (sort.dir === "asc" ? " ▲" : " ▼") : ""}
+                </span>
+              </th>
+              {table.langs.map((l) => (
+                <th key={l} style={{ ...S.th }}>
+                  <span onClick={() => toggleSort(l)} title={t("langtab.sortHint")} style={{ cursor: "pointer", userSelect: "none" }}>
+                    {l}{l === table.default ? " ★" : ""}{sort?.col === l ? (sort.dir === "asc" ? " ▲" : " ▼") : ""}
+                  </span>
+                  <button onClick={() => removeLang(l)} title={t("langtab.removeLang")}
+                    style={{ marginLeft: 6, background: "transparent", border: "none", color: "var(--brand-danger, #ef4444)", cursor: "pointer" }}>✕</button>
+                </th>
+              ))}
+              <th style={{ ...S.th, width: 32 }} />
+            </tr>
+            <tr>
+              <th style={{ ...CELL, padding: 0 }}>
+                <input value={filters["key"] ?? ""} onChange={(ev) => setFilter("key", ev.target.value)}
+                  placeholder={t("langtab.filterPlaceholder")} style={{ ...IN, fontFamily: "monospace" }} spellCheck={false} />
+              </th>
+              {table.langs.map((l) => (
+                <th key={l} style={{ ...CELL, padding: 0 }}>
+                  <input value={filters[l] ?? ""} onChange={(ev) => setFilter(l, ev.target.value)}
+                    placeholder={t("langtab.filterPlaceholder")} style={IN} />
+                </th>
+              ))}
+              <th style={{ ...CELL, padding: 0 }} />
+            </tr>
+          </thead>
+          <tbody>
+            {view.map(({ e, origIdx }) => (
+              <tr key={origIdx}>
+                <td style={CELL}>
+                  <input value={e.key} onChange={(ev) => setKey(origIdx, ev.target.value)} placeholder="start_pompa"
+                    style={{ ...IN, fontFamily: "monospace" }} spellCheck={false} />
+                </td>
+                {table.langs.map((l) => (
+                  <td key={l} style={CELL}>
+                    <input value={e.values[l] ?? ""} onChange={(ev) => setVal(origIdx, l, ev.target.value)} style={IN} />
+                  </td>
+                ))}
+                <td style={{ ...CELL, textAlign: "center" }}>
+                  <button onClick={() => removeRow(origIdx)} style={{ background: "transparent", border: "none", color: "var(--brand-danger, #ef4444)", cursor: "pointer", fontSize: 14 }}>✕</button>
+                </td>
+              </tr>
+            ))}
+            {view.length === 0 && (
+              <tr><td colSpan={table.langs.length + 2} style={{ ...CELL, color: "var(--brand-text-subtle, #64748b)", padding: 16, textAlign: "center" }}>
+                {table.entries.length === 0 ? t("langtab.empty") : t("langtab.noMatch")}
+              </td></tr>
+            )}
+          </tbody>
+        </table>
+      )}
+      <button onClick={addRow} style={{ ...S.btn("ghost"), marginTop: 10 }} disabled={table.langs.length === 0}>{t("langtab.addRow")}</button>
+    </div>
+  );
+}
+
+type ConfigTab = "tags" | "protocols" | "alarms" | "datastores" | "scripts" | "faceplates" | "recipes" | "notifications" | "languages" | "users" | "resources" | "system" | "backups" | "devices" | "runtime";
 
 export function ConfigView() {
+  const { t } = useTranslation();
   const storeTab    = useAppStore((s) => s.configTab) as ConfigTab;
   const setStoreTab = useAppStore((s) => s.setConfigTab);
   const [tab, setTab] = useState<ConfigTab>(storeTab);
@@ -7000,8 +7727,8 @@ export function ConfigView() {
   }, [tab, isAdmin]);
 
   const visibleTabs: ConfigTab[] = isAdmin
-    ? ["tags", "protocols", "alarms", "scripts", "faceplates", "recipes", "notifications", "datastores", "users", "resources", "backups", "system", "devices", "runtime"]
-    : ["tags", "protocols", "alarms", "scripts", "faceplates", "recipes", "notifications", "resources", "system"];
+    ? ["tags", "protocols", "alarms", "scripts", "faceplates", "recipes", "notifications", "languages", "datastores", "users", "resources", "backups", "system", "devices", "runtime"]
+    : ["tags", "protocols", "alarms", "scripts", "faceplates", "recipes", "notifications", "languages", "resources", "system"];
 
   // Bounce non-admins off the backups, datastores, devices tabs.
   useEffect(() => {
@@ -7030,9 +7757,9 @@ export function ConfigView() {
     <div style={S.page}>
       {/* Tab bar */}
       <div style={S.tabBar}>
-        {visibleTabs.map((t) => (
-          <button key={t} style={S.tab(tab === t)} onClick={() => handleSetTab(t)}>
-            {TAB_LABELS[t]}
+        {visibleTabs.map((tb) => (
+          <button key={tb} style={S.tab(tab === tb)} onClick={() => handleSetTab(tb)}>
+            {t(`config.tabs.${tb}`)}
           </button>
         ))}
       </div>
@@ -7058,6 +7785,7 @@ export function ConfigView() {
             {tab === "faceplates"  && <FaceplatesTab />}
             {tab === "recipes"        && <RecipesTab />}
             {tab === "notifications"  && <NotificationsTab />}
+            {tab === "languages"      && <LanguagesTab />}
             {tab === "datastores"     && isAdmin && <DatastoresTab />}
             {tab === "users"       && isAdmin && <UsersTab />}
             {tab === "resources"   && <ResourcesTab />}
@@ -7080,6 +7808,7 @@ export function ConfigView() {
 // automatically when `--auto-backup-interval-minutes` is set.
 
 function BackupsTab() {
+  const { t } = useTranslation();
   type BackupInfo = { name: string; created_at_ms: number; size_bytes: number };
   const [list, setList]       = useState<BackupInfo[] | null>(null);
   const [busy, setBusy]       = useState(false);
@@ -7199,10 +7928,10 @@ function BackupsTab() {
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
           <thead>
             <tr style={{ borderBottom: "1px solid var(--brand-surface-2, #334155)" }}>
-              <th style={{ textAlign: "left", padding: "6px 8px", color: "var(--brand-text-muted, #94a3b8)", fontWeight: 600 }}>Nome</th>
-              <th style={{ textAlign: "left", padding: "6px 8px", color: "var(--brand-text-muted, #94a3b8)", fontWeight: 600 }}>Creato</th>
-              <th style={{ textAlign: "right", padding: "6px 8px", color: "var(--brand-text-muted, #94a3b8)", fontWeight: 600 }}>Dimensione</th>
-              <th style={{ textAlign: "right", padding: "6px 8px", color: "var(--brand-text-muted, #94a3b8)", fontWeight: 600 }}>Azioni</th>
+              <th style={{ textAlign: "left", padding: "6px 8px", color: "var(--brand-text-muted, #94a3b8)", fontWeight: 600 }}>{t("cfg.name")}</th>
+              <th style={{ textAlign: "left", padding: "6px 8px", color: "var(--brand-text-muted, #94a3b8)", fontWeight: 600 }}>{t("cfg.created")}</th>
+              <th style={{ textAlign: "right", padding: "6px 8px", color: "var(--brand-text-muted, #94a3b8)", fontWeight: 600 }}>{t("cfg.size")}</th>
+              <th style={{ textAlign: "right", padding: "6px 8px", color: "var(--brand-text-muted, #94a3b8)", fontWeight: 600 }}>{t("cfg.actions")}</th>
             </tr>
           </thead>
           <tbody>
@@ -7231,7 +7960,7 @@ function BackupsTab() {
                       border: "1px solid var(--brand-danger-bg, #7f1d1d)", borderRadius: 3,
                       cursor: busy ? "wait" : "pointer", fontSize: 12,
                     }}
-                  >Elimina</button>
+                  >{t("common.delete")}</button>
                 </td>
               </tr>
             ))}

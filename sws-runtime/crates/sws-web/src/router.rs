@@ -1,7 +1,7 @@
 use std::{collections::HashMap, io::{Cursor, Read, Write}, path::PathBuf, sync::Arc};
 use axum::{
     body::Bytes,
-    extract::{ws::{Message, WebSocket, WebSocketUpgrade}, Path, Query, Request, State},
+    extract::{ws::{Message, WebSocket, WebSocketUpgrade}, Extension, Path, Query, Request, State},
     http::{header, StatusCode},
     middleware::{self, Next},
     response::{IntoResponse, Response},
@@ -14,7 +14,7 @@ use serde::Deserialize;
 use sws_auth::{AuthState, Credentials, LoginError, LoginOk, Role};
 use sws_core::{
     AlarmDb, AlarmDef, AlarmEvent, AlarmState, CustomSymbol, FunctionDef, GlobalScriptDef,
-    LogBus, LogEvent, NotificationConfig, Project, ProjectMeta, SourceDef, TagDb, TagDef,
+    LanguageTable, LogBus, LogEvent, NotificationConfig, PageLayoutConfig, Project, ProjectMeta, SourceDef, TagDb, TagDef,
     TagId, TagQuality, TagState, TagValue, TagWriteBus, WriteError,
     MAX_FUNCTION_CODE_BYTES,
 };
@@ -79,6 +79,10 @@ pub struct AppState {
     pub recipe_log: Arc<RwLock<Vec<RecipeApplyEvent>>>,
     /// Active notification supervisor (email + escalation). Replaced on project open.
     pub notification_supervisor: Arc<RwLock<Option<NotificationSupervisor>>>,
+    /// Active Telegram sender (drains the shared message channel). `None` when
+    /// no Telegram channel is configured. Its `sender()` is shared by the alarm
+    /// supervisor and the script `send_telegram` binding. Replaced on project open.
+    pub telegram_sender: Arc<RwLock<Option<crate::telegram::TelegramSender>>>,
     /// Runtime config directory (where tls.crt/tls.key live). Used by TLS management endpoints.
     pub config_dir: Arc<PathBuf>,
     /// Path to the TLS certificate PEM for `GET /cert` (browser import).
@@ -91,6 +95,10 @@ pub struct AppState {
     /// Currently-connected remote runtime target (set by POST /api/remote/connect).
     /// `None` when no remote is connected. Used by the WS relay handlers.
     pub remote_target: Arc<RwLock<Option<crate::remote::RemoteTarget>>>,
+    /// Append-only, hash-chained audit log (OPEN_QUESTIONS Q8). One process-wide
+    /// log spanning project open/close — not reset on project switch, so the
+    /// trail of "who did what" survives across projects.
+    pub audit: Arc<sws_audit::AuditLog>,
 }
 
 /// Resolve the active project directory or return 503. Used at the top
@@ -121,16 +129,21 @@ pub fn build(
     config_dir: Arc<PathBuf>,
     cert_path: Option<Arc<PathBuf>>,
     www_dir: Option<PathBuf>,
+    // Operator-only hardening (--no-admin): drop `/api/script/exec` (ad-hoc code
+    // execution) from the viewer. Button-bound `/api/script/run/:name` stays.
+    lockdown: bool,
+    audit: Arc<sws_audit::AuditLog>,
 ) -> (Router, Router) {
-    let state = AppState { db, bus, alarms, historian, registry, py, auth, supervisor, script_supervisor, functions, derived_tags, project_dir, projects_root, templates_root, logs, logs_dir, started_at, ip_allowlist, recipe_log: Arc::new(RwLock::new(Vec::new())), notification_supervisor: Arc::new(RwLock::new(None)), config_dir, cert_path, build_running: crate::packaging::new_build_lock(), repo_root: crate::packaging::new_repo_root(), remote_target: Arc::new(RwLock::new(None)) };
+    let state = AppState { db, bus, alarms, historian, registry, py, auth, supervisor, script_supervisor, functions, derived_tags, project_dir, projects_root, templates_root, logs, logs_dir, started_at, ip_allowlist, recipe_log: Arc::new(RwLock::new(Vec::new())), notification_supervisor: Arc::new(RwLock::new(None)), telegram_sender: Arc::new(RwLock::new(None)), config_dir, cert_path, build_running: crate::packaging::new_build_lock(), repo_root: crate::packaging::new_repo_root(), remote_target: Arc::new(RwLock::new(None)), audit };
     // Build the runtime router (8443) before consuming state for admin.
-    let runtime_app = build_runtime_inner(state.clone(), www_dir.clone());
+    let runtime_app = build_runtime_inner(state.clone(), www_dir.clone(), lockdown);
 
     // Routes that need Admin privileges (PUT /api/project/* — schema edits,
     // plus the multi-user CRUD).
     let admin_routes = Router::new()
         .route("/api/project/tags",           put(update_project_tags))
         .route("/api/project/tags/import-csv", post(import_tags_csv))
+        .route("/api/project/languages",      put(update_project_languages))
         .route("/api/project/sources",        put(update_project_sources))
         .route("/api/project/alarms",         put(update_project_alarms))
         .route("/api/project/functions",      put(update_project_functions))
@@ -138,6 +151,8 @@ pub fn build(
         .route("/api/project/datastores",      put(update_project_datastores))
         .route("/api/project/global-scripts",  put(update_project_global_scripts))
         .route("/api/project/notifications",   put(update_project_notifications))
+        .route("/api/project/page-layout",     put(update_project_page_layout))
+        .route("/api/notifications/test-telegram", post(test_telegram))
         .route("/api/project/rollback",        post(trigger_rollback))
         // Bulk project export/import (single ZIP carrying project.yaml +
         // every synoptic). Destructive on the import side — Admin only.
@@ -161,6 +176,9 @@ pub fn build(
         .route("/api/build/package",       post(crate::packaging::build_package))
         .route("/api/build/packages",      get(crate::packaging::list_packages))
         .route("/api/deploy/device",       post(crate::packaging::deploy_device))
+        // Audit log (OPEN_QUESTIONS Q8): who-did-what trail, tamper-evident.
+        .route("/api/audit",               get(get_audit_tail))
+        .route("/api/audit/verify",        get(get_audit_verify))
         .route_layer(middleware::from_fn(require_admin));
 
     // Routes that need Operator+ (tag writes, alarm ACK, script exec,
@@ -417,18 +435,22 @@ pub fn build(
 /// Routes NOT included here: project editing (`PUT /api/project/*`), synoptic
 /// editing (`PUT /api/synoptics/*`), backups, users, system control, project
 /// lifecycle, log viewer, source browse, datastore admin.
-fn build_runtime_inner(state: AppState, www_dir: Option<PathBuf>) -> Router {
+fn build_runtime_inner(state: AppState, www_dir: Option<PathBuf>, lockdown: bool) -> Router {
     // Operator-required routes: tag writes, alarm ops, recipe apply, scripts.
-    let operator_routes = Router::new()
+    let mut operator_routes = Router::new()
         .route("/api/tags/:id",          put(write_tag))
         .route("/api/alarms/:id/ack",    post(ack_alarm))
         .route("/api/alarms/:id/shelve", post(shelve_alarm).delete(unshelve_alarm))
         .route("/api/alarms/shelved",    get(list_shelved_alarms))
         .route("/api/recipes/:id/apply", post(apply_recipe))
-        .route("/api/script/exec",       post(exec_script))
         .route("/api/script/run/:name",  post(run_function))
-        .route("/api/system",            get(crate::system::get_system_status))
-        .route_layer(middleware::from_fn(require_operator));
+        .route("/api/system",            get(crate::system::get_system_status));
+    // Ad-hoc arbitrary-code execution: dropped in operator-only mode (--no-admin).
+    // Button-bound `/api/script/run/:name` (named FunctionDef) stays available.
+    if !lockdown {
+        operator_routes = operator_routes.route("/api/script/exec", post(exec_script));
+    }
+    let operator_routes = operator_routes.route_layer(middleware::from_fn(require_operator));
 
     // Anonymous-readable routes: synoptic, tags, alarms, history, WS streams.
     let read_routes = Router::new()
@@ -723,8 +745,14 @@ async fn login(
         }
     }
     match s.auth.login(&creds).await {
-        Ok(ok) => Json(ok).into_response(),
-        Err(LoginError::BadCredentials) => StatusCode::UNAUTHORIZED.into_response(),
+        Ok(ok) => {
+            s.audit.log("auth.login", Some(creds.username.clone()), serde_json::json!({"role": ok.role}));
+            Json(ok).into_response()
+        }
+        Err(LoginError::BadCredentials) => {
+            s.audit.log("auth.login_failed", Some(creds.username.clone()), serde_json::json!({}));
+            StatusCode::UNAUTHORIZED.into_response()
+        }
         Err(LoginError::RateLimited { retry_after_secs }) => (
             StatusCode::TOO_MANY_REQUESTS,
             [(axum::http::header::RETRY_AFTER, retry_after_secs.to_string())],
@@ -757,7 +785,11 @@ async fn logout(
     let token = req.headers().get(header::AUTHORIZATION)
         .and_then(|h| h.to_str().ok())
         .and_then(|h| h.strip_prefix("Bearer "));
-    if let Some(t) = token { s.auth.logout(t).await; }
+    if let Some(t) = token {
+        let actor = s.auth.validate(t).await.map(|si| si.username);
+        s.auth.logout(t).await;
+        s.audit.log("auth.logout", actor, serde_json::json!({}));
+    }
     StatusCode::NO_CONTENT
 }
 
@@ -906,9 +938,11 @@ struct WriteTagBody { value: TagValue }
 
 async fn write_tag(
     State(s): State<AppState>,
+    Extension(user): Extension<AuthUser>,
     Path(id): Path<String>,
     Json(body): Json<WriteTagBody>,
 ) -> StatusCode {
+    s.audit.log("tag.write", Some(user.username), serde_json::json!({"tag": id.clone(), "value": body.value.clone()}));
     // Prefer routing through a plugin (so the value is pushed to the device).
     // If no plugin owns the tag (purely virtual / scripted tags), fall back to
     // setting the TagDb directly so the UI write path keeps working.
@@ -952,8 +986,10 @@ struct ScriptResult {
 
 async fn exec_script(
     State(s): State<AppState>,
+    Extension(user): Extension<AuthUser>,
     Json(body): Json<ScriptBody>,
 ) -> Json<ScriptResult> {
+    s.audit.log("script.exec", Some(user.username), serde_json::json!({"bytes": body.code.len()}));
     match s.py.execute(body.code).await {
         Ok(ExecOutput { stdout, stderr, sandboxed }) => {
             metrics::counter!("sws_script_exec_total", "endpoint" => "exec", "status" => "ok").increment(1);
@@ -1374,6 +1410,30 @@ async fn ack_alarm(
     if s.alarms.ack(&id, by).await { StatusCode::NO_CONTENT } else { StatusCode::NOT_FOUND }
 }
 
+// ── Audit log (OPEN_QUESTIONS Q8) ────────────────────────────────────────────
+
+#[derive(serde::Deserialize)]
+struct AuditQuery {
+    #[serde(default = "default_audit_limit")]
+    limit: usize,
+}
+fn default_audit_limit() -> usize { 200 }
+
+/// `GET /api/audit?limit=N` (Admin) — most recent N entries of the append-only
+/// audit trail, oldest first within the window.
+async fn get_audit_tail(
+    State(s): State<AppState>,
+    Query(q): Query<AuditQuery>,
+) -> Json<Vec<sws_audit::AuditEntry>> {
+    Json(s.audit.tail(q.limit).await)
+}
+
+/// `GET /api/audit/verify` (Admin) — re-reads the on-disk log and checks the
+/// hash chain (+ HMAC signature, when SWS_AUDIT_KEY is set) end to end.
+async fn get_audit_verify(State(s): State<AppState>) -> Json<sws_audit::VerifyReport> {
+    Json(s.audit.verify_self().await)
+}
+
 #[derive(serde::Deserialize, Default)]
 struct AlarmHistoryQuery {
     alarm_id: Option<String>,
@@ -1503,6 +1563,11 @@ fn mask_project_secrets(project: &mut Project) {
                 smtp.password = Some(MASKED_PASSWORD.to_string());
             }
         }
+        if let Some(tg) = &mut notif.telegram {
+            if !tg.bot_token.is_empty() {
+                tg.bot_token = MASKED_PASSWORD.to_string();
+            }
+        }
     }
 }
 
@@ -1522,6 +1587,8 @@ where
         global_scripts: vec![],
         notifications: None,
         saved_by: None,
+        languages: Default::default(),
+        page_layout: None,
     });
     f(&mut project);
     if let Err(e) = tokio::fs::create_dir_all(project_dir).await {
@@ -1540,8 +1607,10 @@ where
 
 async fn update_project_tags(
     State(s): State<AppState>,
+    Extension(user): Extension<AuthUser>,
     Json(tags): Json<Vec<TagDef>>,
 ) -> StatusCode {
+    s.audit.log("project.change", Some(user.username), serde_json::json!({"what": "tags", "count": tags.len()}));
     // Compute diff against current TagDb so newly-defined tags get seeded
     // and orphans get evicted — no runtime restart required.
     let current_ids: std::collections::HashSet<TagId> =
@@ -1575,6 +1644,18 @@ async fn update_project_tags(
     }
     *s.derived_tags.write().await = derived;
     status
+}
+
+/// PUT /api/project/languages
+/// Body: the full `LanguageTable` (default lang, lang codes, entries). Persists
+/// it into project.yaml. Purely project data — no runtime state to reconcile
+/// (the viewer resolves `{{token}}` client-side). See T-40.
+async fn update_project_languages(
+    State(s): State<AppState>,
+    Json(table): Json<LanguageTable>,
+) -> StatusCode {
+    let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c };
+    patch_project(&dir, |p| p.languages = table).await
 }
 
 /// POST /api/project/tags/import-csv
@@ -1674,8 +1755,10 @@ async fn import_tags_csv(
 
 async fn update_project_sources(
     State(s): State<AppState>,
+    Extension(user): Extension<AuthUser>,
     Json(mut sources): Json<Vec<SourceDef>>,
 ) -> StatusCode {
+    s.audit.log("project.change", Some(user.username), serde_json::json!({"what": "sources", "count": sources.len()}));
     let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c };
     // Restore masked secrets: any MQTT source whose password came back as
     // the placeholder string is interpreted as "leave unchanged" — we look
@@ -1709,8 +1792,10 @@ async fn update_project_sources(
 
 async fn update_project_alarms(
     State(s): State<AppState>,
+    Extension(user): Extension<AuthUser>,
     Json(alarms): Json<Vec<AlarmDef>>,
 ) -> StatusCode {
+    s.audit.log("project.change", Some(user.username), serde_json::json!({"what": "alarms", "count": alarms.len()}));
     // Hot-reload: AlarmDb::load fully replaces the registry (clear + insert).
     // In-flight active alarms are reset; the next TagDb update will re-evaluate
     // and re-fire any still-tripped conditions.
@@ -2203,9 +2288,11 @@ struct RunBody {
 /// Returns the same shape as `/api/script/exec` so callers share a path.
 async fn run_function(
     State(s): State<AppState>,
+    Extension(user): Extension<AuthUser>,
     Path(name): Path<String>,
     body: Option<Json<RunBody>>,
 ) -> Response {
+    s.audit.log("script.run", Some(user.username), serde_json::json!({"name": name.clone()}));
     let code = {
         let map = s.functions.read().await;
         match map.get(&name) {
@@ -3326,7 +3413,7 @@ async fn mqtt_browse_handler(
         }
     }
 
-    let duration = req.duration_secs.unwrap_or(8).min(15);
+    let duration = req.duration_secs.unwrap_or(30).min(120);
     let params = sws_plugin_mqtt::BrowseParams {
         host: req.host,
         port: req.port,
@@ -3565,8 +3652,10 @@ async fn ha_browse_handler(
 /// Saves to project.yaml and hot-swaps the supervisor.
 async fn update_project_global_scripts(
     State(s): State<AppState>,
+    Extension(user): Extension<AuthUser>,
     Json(scripts): Json<Vec<GlobalScriptDef>>,
 ) -> StatusCode {
+    s.audit.log("project.change", Some(user.username), serde_json::json!({"what": "global_scripts", "count": scripts.len()}));
     let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c };
     let status = patch_project(&dir, |p| p.global_scripts = scripts.clone()).await;
     if status == StatusCode::NO_CONTENT {
@@ -3575,10 +3664,14 @@ async fn update_project_global_scripts(
             old.stop();
         }
         if !scripts.is_empty() {
+            // Reuse the running Telegram sink (if any) so restarted scripts keep
+            // the send_telegram binding.
+            let telegram_tx = s.telegram_sender.read().await.as_ref().map(|ts| ts.sender());
             let sc = crate::global_scripts::GlobalScriptSupervisor::start(
                 scripts,
                 s.db.clone(),
                 s.bus.clone(),
+                telegram_tx,
             );
             *s.script_supervisor.write().await = Some(sc);
         }
@@ -3755,19 +3848,32 @@ async fn soft_reload_project(s: &AppState, dir: &std::path::Path) {
 /// Preserves the existing SMTP password if the caller sends the masked placeholder.
 async fn update_project_notifications(
     State(s): State<AppState>,
+    Extension(user): Extension<AuthUser>,
     Json(config): Json<Option<NotificationConfig>>,
 ) -> StatusCode {
+    s.audit.log("project.change", Some(user.username), serde_json::json!({"what": "notifications", "enabled": config.is_some()}));
     let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c };
 
-    // Preserve existing password when the UI sends the masked placeholder.
+    // Preserve existing secrets when the UI sends the masked placeholder
+    // (SMTP password, Telegram bot token).
     let config = if let Some(mut cfg) = config {
-        if let Some(smtp) = &mut cfg.smtp {
-            if smtp.password.as_deref() == Some(MASKED_PASSWORD) {
-                // Load the real password from disk.
-                if let Ok(existing) = Project::load(&dir) {
-                    smtp.password = existing.notifications
-                        .and_then(|n| n.smtp)
-                        .and_then(|s| s.password);
+        let needs_smtp = cfg.smtp.as_ref().map(|s| s.password.as_deref() == Some(MASKED_PASSWORD)).unwrap_or(false);
+        let needs_tg   = cfg.telegram.as_ref().map(|t| t.bot_token == MASKED_PASSWORD).unwrap_or(false);
+        if needs_smtp || needs_tg {
+            if let Ok(existing) = Project::load(&dir) {
+                let existing_notif = existing.notifications;
+                if needs_smtp {
+                    if let Some(smtp) = &mut cfg.smtp {
+                        smtp.password = existing_notif.as_ref().and_then(|n| n.smtp.as_ref()).and_then(|s| s.password.clone());
+                    }
+                }
+                if needs_tg {
+                    if let (Some(tg), Some(tok)) = (
+                        cfg.telegram.as_mut(),
+                        existing_notif.as_ref().and_then(|n| n.telegram.as_ref()).map(|t| t.bot_token.clone()),
+                    ) {
+                        tg.bot_token = tok;
+                    }
                 }
             }
         }
@@ -3779,7 +3885,13 @@ async fn update_project_notifications(
     let config_clone = config.clone();
     let status = patch_project(&dir, |p| p.notifications = config_clone).await;
     if status == StatusCode::NO_CONTENT {
-        // Hot-swap notification supervisor.
+        // Hot-swap the Telegram sender (config swap keeps the script `tx` alive)
+        // then restart the notification supervisor with the shared sink.
+        let telegram_tx = crate::telegram::restart_sender(
+            &s, config.as_ref().and_then(|n| n.telegram.clone()),
+        ).await;
+        // Aggiorna anche il sink delle funzioni (engine condiviso) senza reopen.
+        s.py.set_telegram_sink(telegram_tx.clone());
         if let Some(old) = s.notification_supervisor.write().await.take() {
             old.stop();
         }
@@ -3787,9 +3899,63 @@ async fn update_project_notifications(
             let sup = crate::notifications::NotificationSupervisor::start(
                 s.alarms.clone(),
                 cfg,
+                telegram_tx,
             );
             *s.notification_supervisor.write().await = Some(sup);
         }
     }
     status
+}
+
+/// `PUT /api/project/page-layout` — save the project-wide page sizing mode
+/// (Fixed/Ratio/Fluid) + home page. `null` body clears it (reverts to legacy
+/// Fixed default).
+async fn update_project_page_layout(
+    State(s): State<AppState>,
+    Extension(user): Extension<AuthUser>,
+    Json(config): Json<Option<PageLayoutConfig>>,
+) -> StatusCode {
+    let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c };
+    let config_clone = config.clone();
+    let status = patch_project(&dir, |p| p.page_layout = config_clone).await;
+    if status == StatusCode::NO_CONTENT {
+        s.audit.log("project.change", Some(user.username), serde_json::json!({"what": "page_layout"}));
+    }
+    status
+}
+
+#[derive(serde::Deserialize)]
+struct TestTelegramRequest {
+    bot_token: String,
+    #[serde(default)]
+    chat_ids: Vec<String>,
+    #[serde(default)]
+    text: Option<String>,
+}
+
+/// `POST /api/notifications/test-telegram` — send a one-off test message with
+/// the supplied Telegram config. Restores the real token when the UI sends the
+/// masked placeholder. 204 on success; 502 + error text on failure so the UI
+/// can show why (bad token, wrong chat id, no network…).
+async fn test_telegram(
+    State(s): State<AppState>,
+    Json(req): Json<TestTelegramRequest>,
+) -> Response {
+    let mut token = req.bot_token;
+    if token == MASKED_PASSWORD {
+        if let Ok(dir) = active_dir(&s).await {
+            if let Ok(existing) = Project::load(&dir) {
+                if let Some(tok) = existing.notifications.and_then(|n| n.telegram).map(|t| t.bot_token) {
+                    token = tok;
+                }
+            }
+        }
+    }
+    let text = req.text.filter(|t| !t.trim().is_empty())
+        .unwrap_or_else(|| "✅ Messaggio di test da SWS.".to_string());
+    let client = reqwest::Client::new();
+    match crate::telegram::send_message(&client, &token, &req.chat_ids, &text).await {
+        Ok(()) => StatusCode::NO_CONTENT.into_response(),
+        Err(e) => (StatusCode::BAD_GATEWAY, format!("{e:#}")).into_response(),
+    }
 }

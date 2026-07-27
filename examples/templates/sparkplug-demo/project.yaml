@@ -144,3 +144,8 @@ synoptics:
         suffix: " °C"
         font_size: 14
         color: "#f97316"
+
+languages:
+  default: it
+  langs: [it, en]
+  entries: []

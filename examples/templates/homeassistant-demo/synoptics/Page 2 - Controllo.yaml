@@ -11,7 +11,7 @@ objects:
   type: text
   x: 400
   y: 22
-  text: "HOME ASSISTANT — CONTROLLO"
+  text: "{{home_assistant_controllo}}"
   font_size: 18
   font_weight: bold
   text_anchor: middle
@@ -23,7 +23,7 @@ objects:
   type: text
   x: 400
   y: 42
-  text: "Attuatori con write-back diretto su HomeAssistant"
+  text: "{{attuatori_con_write_back_diretto_su_home}}"
   font_size: 11
   text_anchor: middle
   color: "#475569"
@@ -37,7 +37,7 @@ objects:
   y: 572
   width: 220
   height: 34
-  label: "◎ Panoramica"
+  label: "{{panoramica_2}}"
   target_page: ha_page1
   group_id: g_nav
   locked: true
@@ -48,7 +48,7 @@ objects:
   y: 572
   width: 220
   height: 34
-  label: "◉ Controllo"
+  label: "{{controllo_2}}"
   target_page: ha_page2
   fill: "#1e293b"
   group_id: g_nav
@@ -60,7 +60,7 @@ objects:
   y: 572
   width: 220
   height: 34
-  label: "📈 Storico"
+  label: "{{storico}}"
   target_page: ha_page3
   group_id: g_nav
   locked: true
@@ -72,7 +72,7 @@ objects:
   type: text
   x: 200
   y: 70
-  text: "LUCI"
+  text: "{{luci}}"
   font_size: 13
   font_weight: bold
   text_anchor: middle
@@ -94,7 +94,7 @@ objects:
   type: text
   x: 60
   y: 112
-  text: "Soggiorno"
+  text: "{{soggiorno}}"
   font_size: 13
   color: "#e2e8f0"
 
@@ -114,7 +114,7 @@ objects:
   y: 98
   width: 54
   height: 28
-  label: "ON"
+  label: "{{on}}"
   fill: "#d97706"
   tag: luce.soggiorno
   write_value: true
@@ -125,7 +125,7 @@ objects:
   y: 98
   width: 54
   height: 28
-  label: "OFF"
+  label: "{{off}}"
   fill: "#374151"
   tag: luce.soggiorno
   write_value: false
@@ -135,7 +135,7 @@ objects:
   type: text
   x: 60
   y: 152
-  text: "Cucina"
+  text: "{{cucina}}"
   font_size: 13
   color: "#e2e8f0"
 
@@ -155,7 +155,7 @@ objects:
   y: 138
   width: 54
   height: 28
-  label: "ON"
+  label: "{{on}}"
   fill: "#d97706"
   tag: luce.cucina
   write_value: true
@@ -166,7 +166,7 @@ objects:
   y: 138
   width: 54
   height: 28
-  label: "OFF"
+  label: "{{off}}"
   fill: "#374151"
   tag: luce.cucina
   write_value: false
@@ -176,7 +176,7 @@ objects:
   type: text
   x: 60
   y: 192
-  text: "Esterna"
+  text: "{{esterna}}"
   font_size: 13
   color: "#e2e8f0"
 
@@ -196,7 +196,7 @@ objects:
   y: 178
   width: 54
   height: 28
-  label: "ON"
+  label: "{{on}}"
   fill: "#d97706"
   tag: luce.esterno
   write_value: true
@@ -207,7 +207,7 @@ objects:
   y: 178
   width: 54
   height: 28
-  label: "OFF"
+  label: "{{off}}"
   fill: "#374151"
   tag: luce.esterno
   write_value: false
@@ -217,7 +217,7 @@ objects:
   type: text
   x: 60
   y: 232
-  text: "Ventilatore"
+  text: "{{ventilatore}}"
   font_size: 13
   color: "#e2e8f0"
 
@@ -237,7 +237,7 @@ objects:
   y: 218
   width: 54
   height: 28
-  label: "ON"
+  label: "{{on}}"
   fill: "#0891b2"
   tag: ventilatore.camera
   write_value: true
@@ -248,7 +248,7 @@ objects:
   y: 218
   width: 54
   height: 28
-  label: "OFF"
+  label: "{{off}}"
   fill: "#374151"
   tag: ventilatore.camera
   write_value: false
@@ -260,7 +260,7 @@ objects:
   type: text
   x: 590
   y: 70
-  text: "RISCALDAMENTO"
+  text: "{{riscaldamento}}"
   font_size: 13
   font_weight: bold
   text_anchor: middle
@@ -281,7 +281,7 @@ objects:
   type: text
   x: 450
   y: 110
-  text: "Temperatura attuale"
+  text: "{{temperatura_attuale}}"
   font_size: 11
   color: "#94a3b8"
 
@@ -300,7 +300,7 @@ objects:
   type: text
   x: 450
   y: 140
-  text: "Setpoint HA"
+  text: "{{setpoint_ha}}"
   font_size: 11
   color: "#94a3b8"
 
@@ -319,7 +319,7 @@ objects:
   type: text
   x: 450
   y: 168
-  text: "Nuovo setpoint:"
+  text: "{{nuovo_setpoint}}"
   font_size: 11
   color: "#94a3b8"
 
@@ -350,7 +350,7 @@ objects:
   type: text
   x: 590
   y: 225
-  text: "Scrivere: HA chiama input_number.set_value"
+  text: "{{scrivere_ha_chiama_input_number_set_valu}}"
   font_size: 9
   text_anchor: middle
   color: "#475569"
@@ -360,7 +360,7 @@ objects:
   type: text
   x: 200
   y: 310
-  text: "IRRIGAZIONE"
+  text: "{{irrigazione}}"
   font_size: 13
   font_weight: bold
   text_anchor: middle
@@ -381,7 +381,7 @@ objects:
   type: text
   x: 60
   y: 352
-  text: "Durata (minuti):"
+  text: "{{durata_minuti}}"
   font_size: 12
   color: "#94a3b8"
 
@@ -412,7 +412,7 @@ objects:
   type: text
   x: 60
   y: 415
-  text: "Durata impostata:"
+  text: "{{durata_impostata}}"
   font_size: 10
   color: "#475569"
 
@@ -433,7 +433,7 @@ objects:
   type: text
   x: 590
   y: 310
-  text: "MODALITÀ"
+  text: "{{modalita}}"
   font_size: 13
   font_weight: bold
   text_anchor: middle
@@ -454,7 +454,7 @@ objects:
   type: text
   x: 450
   y: 358
-  text: "Modalità notturna"
+  text: "{{modalita_notturna}}"
   font_size: 13
   color: "#e2e8f0"
 
@@ -474,7 +474,7 @@ objects:
   y: 378
   width: 110
   height: 34
-  label: "🌙 Attiva"
+  label: "{{attiva}}"
   fill: "#7c3aed"
   tag: modalita.notturna
   write_value: true
@@ -485,7 +485,7 @@ objects:
   y: 378
   width: 110
   height: 34
-  label: "☀ Disattiva"
+  label: "{{disattiva}}"
   fill: "#374151"
   tag: modalita.notturna
   write_value: false
@@ -494,7 +494,7 @@ objects:
   type: text
   x: 590
   y: 435
-  text: "Scrive su input_boolean.night_mode in HA"
+  text: "{{scrive_su_input_boolean_night_mode_in_ha}}"
   font_size: 9
   text_anchor: middle
   color: "#475569"
@@ -515,7 +515,7 @@ objects:
   type: text
   x: 60
   y: 530
-  text: "Write-back: ogni modifica qui viene inviata a HomeAssistant via WebSocket (call_service). Riconnessione automatica se HA non è raggiungibile."
+  text: "{{write_back_ogni_modifica_qui_viene_invia}}"
   font_size: 10
   color: "#475569"
 
@@ -523,6 +523,6 @@ objects:
   type: text
   x: 60
   y: 548
-  text: "Bool → turn_on / turn_off  •  Float/Int → service_data: {value: N}  •  Latenza tipica: < 200 ms su rete locale"
+  text: "{{bool_turn_on_turn_off_float_int_service}}"
   font_size: 10
   color: "#334155"

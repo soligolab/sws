@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { TagInput } from "@/components/TagInput";
 import type { SynopticObject } from "@/types";
 
@@ -37,6 +38,7 @@ interface Props {
  * 🔗 button → removes the binding (restores static editor).
  */
 export function BindableInput({ obj, propName, onChange, children }: Props) {
+  const { t } = useTranslation();
   const bound = obj.bindings?.[propName];
   const isBound = bound !== undefined;
 
@@ -62,7 +64,7 @@ export function BindableInput({ obj, propName, onChange, children }: Props) {
         {isBound ? (
           <TagInput
             style={{ ...INPUT, borderColor: "var(--brand-primary, #3b82f6)" }}
-            placeholder="es. demo.rotation"
+            placeholder={t("tagInput.bindPlaceholder")}
             value={bound}
             onChange={handleTagChange}
           />
@@ -76,7 +78,7 @@ export function BindableInput({ obj, propName, onChange, children }: Props) {
           color: isBound ? "var(--brand-primary, #3b82f6)" : "var(--brand-border, #475569)",
           borderColor: isBound ? "#1d4ed8" : "var(--brand-surface-2, #334155)",
         }}
-        title={isBound ? `Bound a "${bound}" — clicca per scollegare` : "Lega a un tag"}
+        title={isBound ? `Bound a "${bound}" — clicca per scollegare` : t("tagInput.bindTo")}
         onClick={handleToggle}
       >
         {isBound ? "🔗" : "🔓"}

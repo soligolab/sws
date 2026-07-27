@@ -14,6 +14,7 @@ pub mod router;
 pub mod source_supervisor;
 pub mod synoptic;
 pub mod system;
+pub mod telegram;
 pub mod templates;
 
 pub use global_scripts::GlobalScriptSupervisor;

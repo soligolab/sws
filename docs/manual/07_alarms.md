@@ -250,6 +250,45 @@ notifications:
 Le email di notifica contengono: messaggio allarme, valore del tag, timestamp di attivazione.
 Le email di escalation includono anche il tempo trascorso dall'attivazione.
 
+### Telegram
+
+Un canale in uscita per ricevere i messaggi su Telegram (allarmi + escalation) e per inviare
+messaggi dagli script. Configura in **Configurazione → Notifiche → Notifiche Telegram**:
+
+```yaml
+notifications:
+  telegram:
+    bot_token: "123456789:ABCdef..."   # da @BotFather
+    chat_ids: ["111206798", "-1001234567890"]   # destinatari (chat globali)
+```
+
+Passi guidati nel pannello:
+
+1. Su Telegram crea un bot con **@BotFather** (`/newbot`) e copia il **token**. Incollalo nel campo.
+2. Scrivi `/start` al bot (o aggiungilo a un gruppo/canale e manda un messaggio lì).
+3. Premi **Rileva chat**: SWS elenca le chat che hanno scritto al bot → **Aggiungi** quelle volute
+   (i gruppi hanno ID negativo `-100…`). In alternativa inserisci le chat ID a mano.
+4. Premi **Invia test** per verificare, poi **Salva**.
+
+> **Nota**: *Invia test* e *Rileva chat* chiamano l'API di Telegram **direttamente dal browser**,
+> quindi funzionano anche dal solo editor (senza runtime). L'invio effettivo su allarme parte invece
+> dal **runtime**: assicurati che il dispositivo raggiunga `api.telegram.org`. Il `bot_token` è
+> mascherato (`********`) nelle risposte del server.
+
+**Ogni allarme che si attiva** (e le escalation) viene inviato a tutte le `chat_ids` configurate.
+A differenza delle email (opt-in per-allarme via `notify_email`), Telegram è un feed globale.
+
+#### Invio da script
+
+La funzione **`send_telegram("testo")`** è disponibile negli **script globali** e nelle **funzioni**:
+
+```python
+if tags["serbatoio.livello"] > 95:
+    send_telegram(f"⚠️ Serbatoio quasi pieno: {tags['serbatoio.livello']}%")
+```
+
+Se Telegram non è configurato, la chiamata solleva un errore leggibile ("Telegram non configurato").
+
 ---
 
 ## Storico allarmi

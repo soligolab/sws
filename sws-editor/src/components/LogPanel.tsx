@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
 import { useAppStore } from "@/store";
 import type { LogEvent, LogFileEntry, LogLevel } from "@/types";
@@ -27,6 +28,7 @@ interface LogPanelProps {
  * substring, free-text search with `<mark>` highlight in messages.
  */
 export function LogPanel({ open, onClose }: LogPanelProps) {
+  const { t } = useTranslation();
   const authRole  = useAppStore((s) => s.authRole);
   const logs      = useAppStore((s) => s.logs);
   const clearLogs = useAppStore((s) => s.clearLogs);
@@ -141,7 +143,7 @@ export function LogPanel({ open, onClose }: LogPanelProps) {
               onChange={(e) => setSelDate(e.target.value)}
               style={{ ...inputStyle, cursor: "pointer", maxWidth: 140 }}
             >
-              <option value="">Storico…</option>
+              <option value="">{t("logs.history")}</option>
               {logFiles.map((f) => (
                 <option key={f.date} value={f.date}>
                   {f.date} ({(f.size_bytes / 1024).toFixed(0)} KB)
@@ -153,7 +155,7 @@ export function LogPanel({ open, onClose }: LogPanelProps) {
               disabled={!selDate || histLoading}
               style={btn("var(--brand-surface-2, #334155)")}
             >
-              {histLoading ? "…" : "Carica"}
+              {histLoading ? "…" : t("logs.load")}
             </button>
           </>
         )}
@@ -180,7 +182,7 @@ export function LogPanel({ open, onClose }: LogPanelProps) {
         <button
           onClick={() => downloadAsJsonl(filtered, isHistMode ? selDate : todayLocalIso())}
           disabled={filtered.length === 0}
-          title="Scarica i log visualizzati (rispetta i filtri) come file JSONL"
+          title={t("logs.downloadTitle")}
           style={{ ...btn("var(--brand-surface-2, #334155)"), opacity: filtered.length === 0 ? 0.5 : 1 }}
         >
           ⬇ Scarica
@@ -190,14 +192,14 @@ export function LogPanel({ open, onClose }: LogPanelProps) {
           type="text"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Cerca nel messaggio…"
+          placeholder={t("logs.searchPlaceholder")}
           style={{ ...inputStyle, flex: 1, minWidth: 120 }}
         />
         <input
           type="text"
           value={targetFilter}
           onChange={(e) => setTargetFilter(e.target.value)}
-          placeholder="target (es. mqtt)"
+          placeholder={t("logs.targetPlaceholder")}
           style={{ ...inputStyle, width: 160 }}
         />
 
@@ -227,7 +229,7 @@ export function LogPanel({ open, onClose }: LogPanelProps) {
           })}
         </div>
 
-        <button onClick={onClose} title="Chiudi pannello" style={btn("var(--brand-surface-2, #334155)")}>
+        <button onClick={onClose} title={t("logs.closeTitle")} style={btn("var(--brand-surface-2, #334155)")}>
           ✕
         </button>
       </div>
@@ -240,8 +242,8 @@ export function LogPanel({ open, onClose }: LogPanelProps) {
       ) : filtered.length === 0 ? (
         <div style={bodyEmpty}>
           {source.length === 0
-            ? "Nessun log ricevuto. Avvia un'azione per vedere arrivare gli eventi."
-            : "Nessun log corrisponde ai filtri correnti."}
+            ? t("logs.empty")
+            : t("logs.noMatch")}
         </div>
       ) : (
         <div ref={listRef} onScroll={onScroll} style={listStyle}>

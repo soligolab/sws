@@ -22,11 +22,13 @@ pub struct GlobalScriptSupervisor {
 }
 
 impl GlobalScriptSupervisor {
-    /// Spawn tasks for all enabled scripts in `scripts`.
+    /// Spawn tasks for all enabled scripts in `scripts`. `telegram_tx`, when
+    /// present, backs the `send_telegram(text)` binding inside each script.
     pub fn start(
         scripts: Vec<GlobalScriptDef>,
         db: Arc<TagDb>,
         bus: Arc<TagWriteBus>,
+        telegram_tx: Option<tokio::sync::mpsc::UnboundedSender<String>>,
     ) -> Self {
         let cancel = CancellationToken::new();
 
@@ -37,6 +39,7 @@ impl GlobalScriptSupervisor {
             }
             let cancel_child = cancel.child_token();
             let py = PyEngine::new(db.clone(), bus.clone());
+            py.set_telegram_sink(telegram_tx.clone());
             let db_clone = db.clone();
 
             let id = script.id.clone();

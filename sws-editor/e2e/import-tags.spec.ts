@@ -39,6 +39,10 @@ test("import progetto via menu fa comparire i tag (issue #2)", async ({ page, re
 
   page.on("dialog", (d) => d.accept());
 
+  // Pin the UI language to Italian so the (Italian) selectors below match
+  // regardless of the test browser's locale (i18n, T-39).
+  await page.addInitScript(() => { try { localStorage.setItem("sws.uiLang", "it"); } catch {} });
+
   await page.goto(BASE, { waitUntil: "networkidle" });
   await page.waitForTimeout(1000);
 

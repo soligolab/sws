@@ -144,3 +144,8 @@ synoptics:
         label: "Imposta velocità (rpm)"
         min: 0
         max: 3000
+
+languages:
+  default: it
+  langs: [it, en]
+  entries: []

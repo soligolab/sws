@@ -4,6 +4,12 @@ background: "#0f172a"
 width: 880
 height: 660
 objects:
+- id: lang_sel_auto
+  type: lang_selector
+  x: 782
+  y: 8
+  width: 90
+  height: 26
 
 # ══════════════════════════════════════════════════════════════════
 # HEADER
@@ -12,7 +18,7 @@ objects:
   type: text
   x: 440
   y: 24
-  text: "🔌  OPC-UA — Live"
+  text: "{{opc_ua_live}}"
   font_size: 20
   font_weight: bold
   text_anchor: middle
@@ -24,7 +30,7 @@ objects:
   type: text
   x: 440
   y: 44
-  text: "5 nodi sottoscritti via subscription_interval_ms=500"
+  text: "{{5_nodi_sottoscritti_via_subscription_int}}"
   font_size: 11
   text_anchor: middle
   color: "#475569"
@@ -37,7 +43,7 @@ objects:
   y: 14
   width: 180
   height: 30
-  label: "Tabella nodi ▶"
+  label: "{{tabella_nodi}}"
   target_page: opc_page2
   group_id: g_nav
   locked: true
@@ -51,7 +57,7 @@ objects:
   y: 70
   width: 220
   height: 220
-  label: "Temperatura (°C)"
+  label: "{{temperatura_c}}"
   tag: sim.temperature
   min: -20
   max: 80
@@ -65,7 +71,7 @@ objects:
   y: 70
   width: 220
   height: 220
-  label: "Pressione (kPa)"
+  label: "{{pressione_kpa}}"
   tag: sim.pressure
   min: 0
   max: 10
@@ -78,7 +84,7 @@ objects:
   type: text
   x: 510
   y: 95
-  text: "Stato macchina (Euromap 77)"
+  text: "{{stato_macchina_euromap_77}}"
   font_size: 11
   color: "#64748b"
 
@@ -97,7 +103,7 @@ objects:
   type: text
   x: 510
   y: 175
-  text: "Pronto"
+  text: "{{pronto}}"
   font_size: 11
   color: "#64748b"
 
@@ -116,7 +122,7 @@ objects:
   type: text
   x: 600
   y: 175
-  text: "Cycle Time"
+  text: "{{cycle_time}}"
   font_size: 11
   color: "#64748b"
 
@@ -151,7 +157,7 @@ objects:
   type: text
   x: 20
   y: 310
-  text: "Trend live (temperatura · pressione)"
+  text: "{{trend_live_temperatura_pressione}}"
   font_size: 12
   color: "#94a3b8"
 
@@ -174,7 +180,7 @@ objects:
   type: text
   x: 440
   y: 600
-  text: "▸ Endpoint: opc.tcp://localhost:4840 — security_policy: None — vedere SETUP.md per Basic256Sha256"
+  text: "{{endpoint_opc_tcp_localhost_4840_security}}"
   font_size: 9
   text_anchor: middle
   color: "#334155"
