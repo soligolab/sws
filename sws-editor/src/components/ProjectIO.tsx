@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
 import { useAppStore } from "@/store";
 
@@ -10,6 +11,7 @@ import { useAppStore } from "@/store";
  * the controls for non-Admin is purely cosmetic.
  */
 export function ProjectIO() {
+  const { t } = useTranslation();
   const authRole = useAppStore((s) => s.authRole);
   const setProject = useAppStore((s) => s.setProject);
   const setPages = useAppStore((s) => s.setPages);
@@ -80,18 +82,18 @@ export function ProjectIO() {
       <button
         onClick={onExport}
         disabled={busy !== null}
-        title="Esporta il progetto come ZIP"
+        title={t("projectIO.exportTitle")}
         style={btnStyle(busy === "export")}
       >
-        {busy === "export" ? "Esporto…" : "Esporta"}
+        {busy === "export" ? t("projectIO.exporting") : t("common.export")}
       </button>
       <button
         onClick={onImportClick}
         disabled={busy !== null}
-        title="Importa un progetto da ZIP (sostituisce quello corrente)"
+        title={t("projectIO.importTitle")}
         style={btnStyle(busy === "import")}
       >
-        {busy === "import" ? "Importo…" : "Importa"}
+        {busy === "import" ? t("projectIO.importing") : t("common.import")}
       </button>
       <input
         ref={fileInput}

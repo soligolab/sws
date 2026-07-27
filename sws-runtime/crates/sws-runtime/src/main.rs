@@ -108,6 +108,14 @@ struct Args {
     #[arg(long, default_value_t = 8444u16)]
     admin_port: u16,
 
+    /// Operator-only hardening (CRA attack-surface reduction, OPEN_QUESTIONS Q8):
+    /// do NOT bind the admin/IDE port at all and drop the ad-hoc `/api/script/exec`
+    /// endpoint from the viewer. Only the operator viewer + button-bound functions
+    /// remain. Requires --viewer-port. Config edits, project management and
+    /// arbitrary script execution become unavailable on the device.
+    #[arg(long)]
+    no_admin: bool,
+
     /// Plain HTTP port for the TLS certificate acceptance helper page.
     /// Serves a small interactive page (no cert needed) that guides the user
     /// to accept the self-signed certificate and then redirects to the HTTPS IDE.
@@ -689,6 +697,15 @@ async fn main() -> anyhow::Result<()> {
     let http_cert_path: Option<PathBuf> = cert_path.as_ref().map(|p| (**p).clone());
     let config_dir = Arc::new(args.config.clone());
 
+    // Append-only audit log (OPEN_QUESTIONS Q8). One file spanning the process
+    // lifetime (not per-project) so the trail survives project switches.
+    // SWS_AUDIT_KEY (if set) enables HMAC signing on top of the hash chain.
+    let audit_key = std::env::var("SWS_AUDIT_KEY").ok().filter(|k| !k.is_empty()).map(|k| k.into_bytes());
+    if audit_key.is_none() {
+        info!("SWS_AUDIT_KEY not set — audit log is hash-chained but unsigned (tamper-evident, not tamper-resistant)");
+    }
+    let audit = Arc::new(sws_audit::AuditLog::open(config_dir.join("audit.jsonl"), audit_key));
+
     let (runtime_app, admin_app) = sws_web::router::build(
         tag_db,
         bus,
@@ -711,6 +728,8 @@ async fn main() -> anyhow::Result<()> {
         config_dir,
         cert_path,
         args.www.clone(),
+        args.no_admin,
+        audit,
     );
 
     // Runtime listener (synoptic, optional-auth): only started when --viewer-port is given.
@@ -730,10 +749,21 @@ async fn main() -> anyhow::Result<()> {
         None
     };
 
-    // Admin listener (all routes, auth required): always 0.0.0.0.
-    let admin_addr: SocketAddr = format!("0.0.0.0:{}", args.admin_port).parse()?;
-    let admin_listener = TcpListener::bind(admin_addr).await?;
-    info!(addr = %admin_addr, tls = acceptor.is_some(), "admin listener ready");
+    // Admin listener (all routes, auth required): 0.0.0.0. Skipped entirely in
+    // operator-only mode (--no-admin), which removes the IDE/admin surface from
+    // the device (OPEN_QUESTIONS Q8).
+    if args.no_admin && args.viewer_port.is_none() {
+        anyhow::bail!("--no-admin richiede --viewer-port (altrimenti nessuna porta verrebbe servita)");
+    }
+    let admin_listener: Option<TcpListener> = if args.no_admin {
+        warn!("--no-admin: superficie IDE/admin DISABILITATA (solo viewer operatore + funzioni bound)");
+        None
+    } else {
+        let admin_addr: SocketAddr = format!("0.0.0.0:{}", args.admin_port).parse()?;
+        let l = TcpListener::bind(admin_addr).await?;
+        info!(addr = %admin_addr, tls = acceptor.is_some(), "admin listener ready");
+        Some(l)
+    };
 
     // HTTP companion listener: plain HTTP, no TLS. Serves a cert-acceptance helper
     // page so users can approve the self-signed cert without knowing the /health URL.
@@ -882,8 +912,13 @@ async fn main() -> anyhow::Result<()> {
                 Ok(x) => x,
                 Err(e) => { warn!("runtime accept error: {e}"); continue; }
             },
-            res = admin_listener.accept() => match res {
-                Ok((s, p)) => (s, p, 1u8),
+            res = async {
+                match admin_listener.as_ref() {
+                    Some(l) => l.accept().await.map(|(s, p)| (s, p, 1u8)),
+                    None    => std::future::pending::<std::io::Result<_>>().await,
+                }
+            } => match res {
+                Ok(x) => x,
                 Err(e) => { warn!("admin accept error: {e}"); continue; }
             },
             res = async {

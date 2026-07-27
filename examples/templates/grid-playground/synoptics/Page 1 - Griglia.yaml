@@ -4,6 +4,12 @@ background: "#0f172a"
 width: 900
 height: 720
 objects:
+- id: lang_sel_auto
+  type: lang_selector
+  x: 802
+  y: 8
+  width: 90
+  height: 26
 
 # ══════════════════════════════════════════════════════════════════
 # HEADER (locked + grouped)
@@ -12,7 +18,7 @@ objects:
   type: text
   x: 450
   y: 24
-  text: "🗂  GRID PLAYGROUND — 4×4 con sub-cell fino a 4 livelli"
+  text: "{{grid_playground_4_4_con_sub_cell_fino_a}}"
   font_size: 18
   font_weight: bold
   text_anchor: middle
@@ -24,7 +30,7 @@ objects:
   type: text
   x: 450
   y: 44
-  text: "Pannello: rect / ellipse / text / gauge / led / symbol / button / slider come figli di cella"
+  text: "{{pannello_rect_ellipse_text_gauge_led_sym}}"
   font_size: 10
   text_anchor: middle
   color: "#475569"
@@ -37,7 +43,7 @@ objects:
   y: 14
   width: 150
   height: 30
-  label: "Controlli ▶"
+  label: "{{controlli}}"
   target_page: gp_page2
   group_id: g_header
   locked: true
@@ -97,7 +103,7 @@ objects:
                     type: text
                     x: 0
                     y: 0
-                    text: "L3"
+                    text: "{{l3}}"
                     font_size: 12
                     font_weight: bold
                     text_anchor: middle
@@ -155,7 +161,7 @@ objects:
         y: 0
         width: 170
         height: 140
-        label: "Counter"
+        label: "{{counter}}"
         tag: counter
         min: 0
         max: 100
@@ -207,7 +213,7 @@ objects:
         width: 150
         height: 50
         fill: "#3b82f6"
-        label: "Counter ▲ +1"
+        label: "{{counter_1}}"
         on_press_fn: fnc_Inc
         on_press_args:
           tag: counter
@@ -256,7 +262,7 @@ objects:
         width: 150
         height: 50
         fill: "#dc2626"
-        label: "Counter ▼ −1"
+        label: "{{counter_1_2}}"
         on_press_fn: fnc_Dec
         on_press_args:
           tag: counter
@@ -273,7 +279,7 @@ objects:
         width: 150
         height: 50
         fill: "#0d9488"
-        label: "Toggle pompa"
+        label: "{{toggle_pompa}}"
         on_press_fn: fnc_Toggle
         on_press_args:
           tag: pump.running
@@ -329,7 +335,7 @@ objects:
             type: text
             x: 0
             y: 0
-            text: "TOP"
+            text: "{{top}}"
             font_size: 14
             font_weight: bold
             text_anchor: middle
@@ -361,7 +367,7 @@ objects:
                 type: text
                 x: 0
                 y: 0
-                text: "A.A"
+                text: "{{a_a}}"
                 font_size: 12
                 text_anchor: middle
                 color: "#e2e8f0"
@@ -371,7 +377,7 @@ objects:
                 type: text
                 x: 0
                 y: 0
-                text: "A.B"
+                text: "{{a_b}}"
                 font_size: 12
                 text_anchor: middle
                 color: "#94a3b8"
@@ -399,7 +405,7 @@ objects:
             type: text
             x: 0
             y: 0
-            text: "ON only"
+            text: "{{on_only}}"
             font_size: 12
             font_weight: bold
             text_anchor: middle
@@ -410,7 +416,7 @@ objects:
             type: text
             x: 0
             y: 0
-            text: "always"
+            text: "{{always}}"
             font_size: 11
             text_anchor: middle
             color: "#94a3b8"

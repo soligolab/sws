@@ -12,7 +12,7 @@ objects:
   type: text
   x: 400
   y: 22
-  text: "🏠  DOMOTICA & CONTROLLO"
+  text: "{{domotica_controllo}}"
   font_size: 20
   font_weight: bold
   text_anchor: middle
@@ -26,7 +26,7 @@ objects:
   y: 14
   width: 130
   height: 30
-  label: "◀ Sicurezza"
+  label: "{{sicurezza_5}}"
   target_page: cl_page4
   group_id: g_nav
   locked: true
@@ -37,7 +37,7 @@ objects:
   y: 14
   width: 55
   height: 30
-  label: "⌂"
+  label: "{{msg}}"
   target_page: cl_page1
   group_id: g_nav
   locked: true
@@ -48,7 +48,7 @@ objects:
   y: 14
   width: 130
   height: 30
-  label: "☀ Solare ▶"
+  label: "{{solare_3}}"
   target_page: cl_page2
   group_id: g_nav
   locked: true
@@ -60,7 +60,7 @@ objects:
   type: text
   x: 20
   y: 60
-  text: "TAPPARELLE"
+  text: "{{tapparelle}}"
   font_size: 13
   font_weight: bold
   color: "#94a3b8"
@@ -77,7 +77,7 @@ objects:
   type: text
   x: 20
   y: 78
-  text: "Aggiornare SHELLY_*_ID in project.yaml con i MAC reali"
+  text: "{{aggiornare_shelly_id_in_project_yaml_con}}"
   font_size: 9
   color: "#374151"
 
@@ -96,7 +96,7 @@ objects:
   type: text
   x: 30
   y: 106
-  text: "Ufficio / Garage"
+  text: "{{ufficio_garage}}"
   font_size: 11
   font_weight: bold
   color: "#cbd5e1"
@@ -128,7 +128,7 @@ objects:
   y: 140
   width: 52
   height: 28
-  label: "▲ Su"
+  label: "{{su}}"
   fill: "#1d4ed8"
   tag: shutter.garage
   write_value: "open"
@@ -139,7 +139,7 @@ objects:
   y: 140
   width: 52
   height: 28
-  label: "■ Stop"
+  label: "{{stop}}"
   fill: "#374151"
   tag: shutter.garage
   write_value: "stop"
@@ -150,7 +150,7 @@ objects:
   y: 140
   width: 52
   height: 28
-  label: "▼ Giù"
+  label: "{{giu}}"
   fill: "#7c3aed"
   tag: shutter.garage
   write_value: "close"
@@ -170,7 +170,7 @@ objects:
   type: text
   x: 230
   y: 106
-  text: "Bagno"
+  text: "{{bagno}}"
   font_size: 11
   font_weight: bold
   color: "#cbd5e1"
@@ -202,7 +202,7 @@ objects:
   y: 140
   width: 52
   height: 28
-  label: "▲ Su"
+  label: "{{su}}"
   fill: "#1d4ed8"
   tag: shutter.bagno
   write_value: "open"
@@ -213,7 +213,7 @@ objects:
   y: 140
   width: 52
   height: 28
-  label: "■ Stop"
+  label: "{{stop}}"
   fill: "#374151"
   tag: shutter.bagno
   write_value: "stop"
@@ -224,7 +224,7 @@ objects:
   y: 140
   width: 52
   height: 28
-  label: "▼ Giù"
+  label: "{{giu}}"
   fill: "#7c3aed"
   tag: shutter.bagno
   write_value: "close"
@@ -244,7 +244,7 @@ objects:
   type: text
   x: 30
   y: 228
-  text: "Soggiorno DX"
+  text: "{{soggiorno_dx}}"
   font_size: 11
   font_weight: bold
   color: "#cbd5e1"
@@ -276,7 +276,7 @@ objects:
   y: 262
   width: 52
   height: 28
-  label: "▲ Su"
+  label: "{{su}}"
   fill: "#1d4ed8"
   tag: shutter.sogg_dx
   write_value: "open"
@@ -287,7 +287,7 @@ objects:
   y: 262
   width: 52
   height: 28
-  label: "■ Stop"
+  label: "{{stop}}"
   fill: "#374151"
   tag: shutter.sogg_dx
   write_value: "stop"
@@ -298,7 +298,7 @@ objects:
   y: 262
   width: 52
   height: 28
-  label: "▼ Giù"
+  label: "{{giu}}"
   fill: "#7c3aed"
   tag: shutter.sogg_dx
   write_value: "close"
@@ -318,7 +318,7 @@ objects:
   type: text
   x: 230
   y: 228
-  text: "Soggiorno SX"
+  text: "{{soggiorno_sx}}"
   font_size: 11
   font_weight: bold
   color: "#cbd5e1"
@@ -350,7 +350,7 @@ objects:
   y: 262
   width: 52
   height: 28
-  label: "▲ Su"
+  label: "{{su}}"
   fill: "#1d4ed8"
   tag: shutter.sogg_sx
   write_value: "open"
@@ -361,7 +361,7 @@ objects:
   y: 262
   width: 52
   height: 28
-  label: "■ Stop"
+  label: "{{stop}}"
   fill: "#374151"
   tag: shutter.sogg_sx
   write_value: "stop"
@@ -372,7 +372,7 @@ objects:
   y: 262
   width: 52
   height: 28
-  label: "▼ Giù"
+  label: "{{giu}}"
   fill: "#7c3aed"
   tag: shutter.sogg_sx
   write_value: "close"
@@ -396,7 +396,7 @@ objects:
   type: text
   x: 460
   y: 60
-  text: "POMPA DI CALORE"
+  text: "{{pompa_di_calore}}"
   font_size: 13
   font_weight: bold
   color: "#a855f7"
@@ -416,7 +416,7 @@ objects:
   type: text
   x: 786
   y: 68
-  text: "ON"
+  text: "{{on}}"
   font_size: 9
   color: "#a855f7"
 
@@ -430,7 +430,7 @@ objects:
   min: 0
   max: 3500
   unit: "W"
-  label: "Potenza"
+  label: "{{potenza_2}}"
   warn_high: 2500
   alarm_high: 3200
 
@@ -438,7 +438,7 @@ objects:
   type: text
   x: 450
   y: 238
-  text: "Tensione:"
+  text: "{{tensione}}"
   font_size: 11
   color: "#64748b"
 - id: cl5_pdc_v_val
@@ -455,7 +455,7 @@ objects:
   type: text
   x: 450
   y: 258
-  text: "Corrente:"
+  text: "{{corrente}}"
   font_size: 11
   color: "#64748b"
 - id: cl5_pdc_i_val
@@ -472,7 +472,7 @@ objects:
   type: text
   x: 450
   y: 278
-  text: "Energia tot.:"
+  text: "{{energia_tot}}"
   font_size: 11
   color: "#64748b"
 - id: cl5_pdc_e_val
@@ -489,7 +489,7 @@ objects:
   type: text
   x: 450
   y: 298
-  text: "Power Factor:"
+  text: "{{power_factor}}"
   font_size: 11
   color: "#64748b"
 - id: cl5_pdc_pf_val
@@ -507,7 +507,7 @@ objects:
   type: text
   x: 450
   y: 320
-  text: "Potenza — ultima ora"
+  text: "{{potenza_ultima_ora}}"
   font_size: 10
   color: "#475569"
 
@@ -526,7 +526,7 @@ objects:
   type: text
   x: 460
   y: 440
-  text: "DISPOSITIVI ESPHOME"
+  text: "{{dispositivi_esphome}}"
   font_size: 12
   font_weight: bold
   color: "#64748b"
@@ -535,7 +535,7 @@ objects:
   type: text
   x: 460
   y: 458
-  text: "Configurare in project.yaml quando i topic ESPHome MQTT sono noti"
+  text: "{{configurare_in_project_yaml_quando_i_top}}"
   font_size: 9
   color: "#374151"
 
@@ -554,7 +554,7 @@ objects:
   type: text
   x: 470
   y: 484
-  text: "Sensore Posta"
+  text: "{{sensore_posta}}"
   font_size: 11
   font_weight: bold
   color: "#cbd5e1"
@@ -563,7 +563,7 @@ objects:
   type: text
   x: 470
   y: 500
-  text: "(ESPHome — offline)"
+  text: "{{esphome_offline}}"
   font_size: 9
   color: "#374151"
 
@@ -593,7 +593,7 @@ objects:
   type: text
   x: 640
   y: 484
-  text: "Laghetto"
+  text: "{{laghetto}}"
   font_size: 11
   font_weight: bold
   color: "#cbd5e1"
@@ -602,7 +602,7 @@ objects:
   type: text
   x: 640
   y: 500
-  text: "(ESPHome — da configurare)"
+  text: "{{esphome_da_configurare}}"
   font_size: 9
   color: "#374151"
 
@@ -613,7 +613,7 @@ objects:
   type: text
   x: 20
   y: 352
-  text: "GARAGE SEZIONALE"
+  text: "{{garage_sezionale_2}}"
   font_size: 12
   font_weight: bold
   color: "#64748b"
@@ -643,7 +643,7 @@ objects:
   type: text
   x: 70
   y: 390
-  text: "Porta garage:"
+  text: "{{porta_garage}}"
   font_size: 12
   color: "#64748b"
 
@@ -661,7 +661,7 @@ objects:
   type: text
   x: 70
   y: 408
-  text: "Il garage si controlla fisicamente o tramite automazione HA"
+  text: "{{il_garage_si_controlla_fisicamente_o_tra}}"
   font_size: 9
   color: "#334155"
 
@@ -670,7 +670,7 @@ objects:
   type: text
   x: 400
   y: 610
-  text: "Tapparelle: shellies/DEVICE_ID/roller/0/command · PDC: dds661/pompa-di-calore/state"
+  text: "{{tapparelle_shellies_device_id_roller_0_c}}"
   font_size: 9
   text_anchor: middle
   color: "#1e293b"

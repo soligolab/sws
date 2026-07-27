@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
 import type { AlarmEvent, AlarmSeverity } from "@/types";
 
@@ -30,6 +31,7 @@ interface AlarmHistoryProps {
 const PAGE_SIZE = 50;
 
 export function AlarmHistory({ alarmId }: AlarmHistoryProps) {
+  const { t } = useTranslation();
   const [events, setEvents] = useState<AlarmEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(0);
@@ -69,16 +71,16 @@ export function AlarmHistory({ alarmId }: AlarmHistoryProps) {
       </div>
 
       {loading && events.length === 0 ? (
-        <div style={{ color: "var(--brand-border, #475569)", fontSize: 12, textAlign: "center", padding: 16 }}>Caricamento…</div>
+        <div style={{ color: "var(--brand-border, #475569)", fontSize: 12, textAlign: "center", padding: 16 }}>{t("alarmHist.loading")}</div>
       ) : events.length === 0 ? (
-        <div style={{ color: "var(--brand-border, #475569)", fontSize: 12, textAlign: "center", padding: 16 }}>Nessun evento registrato</div>
+        <div style={{ color: "var(--brand-border, #475569)", fontSize: 12, textAlign: "center", padding: 16 }}>{t("alarmHist.noEvents")}</div>
       ) : (
         <>
           <div style={{ overflowX: "auto" }}>
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
               <thead>
                 <tr style={{ background: "var(--brand-bg, #0f172a)", color: "var(--brand-text-subtle, #64748b)" }}>
-                  {["Allarme", "Severità", "Attivato", "Confermato da", "Rientrato", "Durata"].map((h) => (
+                  {[t("alarmHist.colAlarm"), t("alarmHist.colSeverity"), t("alarmHist.colActivated"), t("alarmHist.colAckBy"), t("alarmHist.colCleared"), t("alarmHist.colDuration")].map((h) => (
                     <th key={h} style={{ padding: "4px 8px", textAlign: "left", fontWeight: 600, borderBottom: "1px solid var(--brand-surface, #1e293b)", whiteSpace: "nowrap" }}>{h}</th>
                   ))}
                 </tr>
@@ -107,11 +109,11 @@ export function AlarmHistory({ alarmId }: AlarmHistoryProps) {
                           <span style={{ color: "var(--brand-border, #475569)", fontSize: 10 }}> {fmtTs(ev.ts_acked_ms)}</span>
                         </span>
                       ) : (
-                        <span style={{ color: "var(--brand-danger, #ef4444)" }}>Non confermato</span>
+                        <span style={{ color: "var(--brand-danger, #ef4444)" }}>{t("alarmHist.unacked")}</span>
                       )}
                     </td>
                     <td style={{ padding: "3px 8px", color: "var(--brand-text-muted, #94a3b8)", whiteSpace: "nowrap" }}>
-                      {ev.ts_normalized_ms ? fmtTs(ev.ts_normalized_ms) : <span style={{ color: "var(--brand-warning, #eab308)" }}>Attivo</span>}
+                      {ev.ts_normalized_ms ? fmtTs(ev.ts_normalized_ms) : <span style={{ color: "var(--brand-warning, #eab308)" }}>{t("alarmHist.active")}</span>}
                     </td>
                     <td style={{ padding: "3px 8px", color: "var(--brand-text-muted, #94a3b8)" }}>{fmtDuration(ev.duration_s)}</td>
                   </tr>
@@ -126,13 +128,13 @@ export function AlarmHistory({ alarmId }: AlarmHistoryProps) {
               disabled={page === 0}
               onClick={() => setPage((p) => p - 1)}
               style={{ fontSize: 11, padding: "2px 10px", background: "var(--brand-surface, #1e293b)", border: "1px solid var(--brand-surface-2, #334155)", color: page === 0 ? "var(--brand-surface-2, #334155)" : "var(--brand-text-muted, #94a3b8)", borderRadius: 3, cursor: page === 0 ? "default" : "pointer" }}
-            >◀ Prec</button>
+            >{t("alarmHist.prev")}</button>
             <span style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", alignSelf: "center" }}>Pag. {page + 1}</span>
             <button
               disabled={!hasMore}
               onClick={() => setPage((p) => p + 1)}
               style={{ fontSize: 11, padding: "2px 10px", background: "var(--brand-surface, #1e293b)", border: "1px solid var(--brand-surface-2, #334155)", color: !hasMore ? "var(--brand-surface-2, #334155)" : "var(--brand-text-muted, #94a3b8)", borderRadius: 3, cursor: !hasMore ? "default" : "pointer" }}
-            >Succ ▶</button>
+            >{t("alarmHist.next")}</button>
           </div>
         </>
       )}

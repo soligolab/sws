@@ -4,7 +4,8 @@ import { TrendExpandedModal } from "@/canvas/TrendExpanded";
 import { getAuthToken } from "@/api/client";
 import { useAppStore } from "@/store";
 import { SYMBOLS } from "@/symbols/library";
-import type { AlarmSeverity, CustomSymbol, FaceplateDef, GridCell, PipePoint, SynopticObject, TagState } from "@/types";
+import { clampToPage } from "@/pageLayout";
+import type { AlarmSeverity, CustomSymbol, FaceplateDef, GridCell, PageSizeMode, PipePoint, SynopticObject, TagState } from "@/types";
 
 // ── Canvas props ──────────────────────────────────────────────────────────────
 
@@ -25,6 +26,10 @@ interface SvgCanvasProps {
   pageWidth?: number;
   /** Page design height in px. Shows a dashed boundary rect in edit mode. */
   pageHeight?: number;
+  /** Project-wide page sizing mode — only affects viewer (!onMove) rendering:
+   *  "fixed" = 1:1 no scaling; "ratio" = scale-to-fit preserving AR (letterbox,
+   *  today's behavior); "fluid" = 100%/100%, no viewBox. Default "fixed". */
+  sizeMode?: PageSizeMode;
   /** Current page id — keys persisted ruler guides in localStorage. */
   pageId?: string;
   /** Currently selected grid cell in edit mode. */
@@ -374,6 +379,7 @@ export function SvgCanvas({
   faceplates = [],
   pageWidth,
   pageHeight,
+  sizeMode = "fixed",
   pageId,
   selectedCell,
   selectedCellChild,
@@ -749,7 +755,10 @@ export function SvgCanvas({
           if (handle.includes("t")) { y = snap(startObj.y + dy); height = snap(startObj.height - dy); }
           if (handle.includes("b")) { height = snap(startObj.height + dy); }
         }
-        if (width >= 4 && height >= 4) onMove(objId, { x, y, width, height });
+        if (width >= 4 && height >= 4) {
+          const clamped = clampToPage(x, y, width, height, pageWidth, pageHeight);
+          onMove(objId, { x: clamped.x, y: clamped.y, width, height });
+        }
       }
     } else if (dragRef.current && onMove) {
       // Object drag — coords in SVG space with edge snapping
@@ -827,6 +836,13 @@ export function SvgCanvas({
       if (snapX === null) newX = snap(rawX);
       if (snapY === null) newY = snap(rawY);
       setSnapLines({ x: snapX, y: snapY });
+
+      // Hard-clamp to page bounds — skipped for lines (dx2/dy2) and
+      // multi-waypoint shapes (points), whose bounding box isn't just x/y+w/h.
+      if (dragRef.current.dx2 === undefined && !dragRef.current.startPoints) {
+        const clamped = clampToPage(newX, newY, dw, dh, pageWidth, pageHeight);
+        newX = clamped.x; newY = clamped.y;
+      }
 
       const patch: Partial<SynopticObject> = { x: newX, y: newY };
       if (dragRef.current.dx2 !== undefined) {
@@ -951,10 +967,23 @@ export function SvgCanvas({
     )}
     <svg
       ref={svgRef}
-      width="100%" height="100%"
-      {...(!onMove && pageWidth && pageHeight
-        ? { viewBox: `0 0 ${pageWidth} ${pageHeight}`, preserveAspectRatio: "xMidYMid meet" }
-        : {})}
+      {...(() => {
+        // Viewer-only (!onMove) sizing per project sizeMode. In the editor
+        // (onMove present) this never applies — the editor's own zoom/pan
+        // (viewT.zoom/panX/panY on the inner <g>) is independent of sizeMode.
+        if (onMove || !pageWidth || !pageHeight) {
+          return { width: "100%", height: "100%" };
+        }
+        if (sizeMode === "fixed") {
+          // 1:1 real pixels, no scaling — a window/screen size mismatch shows
+          // scrollbars or empty margin (handled by the container), never
+          // distortion or cropping.
+          return { width: pageWidth, height: pageHeight };
+        }
+        // "ratio" — scale-to-fit preserving aspect ratio (letterbox), today's
+        // long-standing behavior against the standard reference resolution.
+        return { width: "100%", height: "100%", viewBox: `0 0 ${pageWidth} ${pageHeight}`, preserveAspectRatio: "xMidYMid meet" };
+      })()}
       style={{ background, display: "block", userSelect: "none",
                cursor: panDragRef.current ? "grabbing" : undefined }}
       onMouseDown={handleSvgMouseDown}
@@ -2288,6 +2317,82 @@ function SvgObject(p: ObjProps) {
             {obj.label ?? "Go to page"}
           </text>
         </>)}
+      </g>
+    );
+  }
+
+  // ── LANGUAGE BUTTON (T-40) ──────────────────────────────────────────────────
+  if (obj.type === "lang_button") {
+    const w = obj.width ?? 80; const h = obj.height ?? 32;
+    const code = obj.target_lang ?? "";
+    const st = useAppStore.getState();
+    const active = st.projectLang ? st.projectLang === code : st.project?.languages?.default === code;
+    return (
+      <g style={{ cursor: isEditMode ? editCursor : "pointer" }}
+        onMouseDown={isEditMode ? handleMouseDown : undefined}
+        onClick={(e) => {
+          e.stopPropagation();
+          if (!isEditMode && code) useAppStore.getState().setProjectLang(code);
+          else if (isEditMode) onSelect?.(obj.id);
+        }}>
+        {applyTransform(obj, w, h, <>
+          <rect x={obj.x} y={obj.y} width={w} height={h} rx={4}
+            fill={obj.fill ?? (active ? "var(--brand-primary, #3b82f6)" : "var(--brand-surface-2, #334155)")}
+            stroke={selected ? "#facc15" : "var(--brand-border, #475569)"} strokeWidth={selected ? 2 : 1}
+            style={transitionStyle(obj)} />
+          <text x={obj.x + w / 2} y={obj.y + h / 2 + 5} textAnchor="middle"
+            fill={active ? "#fff" : "var(--brand-text, #e2e8f0)"} fontSize={13} fontWeight={active ? 700 : 400}
+            style={{ pointerEvents: "none" }}>
+            {obj.label ?? (code ? code.toUpperCase() : "LANG")}
+          </text>
+        </>)}
+      </g>
+    );
+  }
+
+  // ── LANGUAGE SELECTOR (T-40) ────────────────────────────────────────────────
+  if (obj.type === "lang_selector") {
+    const w = obj.width ?? 120; const h = obj.height ?? 32;
+    const st = useAppStore.getState();
+    const langs = st.project?.languages?.langs ?? [];
+    const cur = st.projectLang || st.project?.languages?.default || "";
+
+    if (isEditMode) {
+      // Edit mode: static SVG preview, draggable — a live <select> inside a
+      // foreignObject (view mode below) swallows the mousedown before it
+      // reaches this <g>, so dragging never started even with disabled={true}.
+      // Same fix pattern as slider/table/text_list: real form control only in
+      // view mode, plain shape here.
+      return (
+        <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()}
+          style={{ cursor: editCursor }}>
+          {selRect(obj.x, obj.y, w, h)}
+          <rect x={obj.x} y={obj.y} width={w} height={h} rx={4}
+            fill={obj.fill ?? "var(--brand-surface-2, #334155)"}
+            stroke="var(--brand-border, #475569)" strokeWidth={1} />
+          <text x={obj.x + 8} y={obj.y + h / 2 + 5} fill="var(--brand-text, #e2e8f0)" fontSize={13}
+            style={{ pointerEvents: "none" }}>
+            {cur ? cur.toUpperCase() : (langs[0] ?? "—")} ▾
+          </text>
+        </g>
+      );
+    }
+
+    return (
+      <g style={{ cursor: "default" }}>
+        {applyTransform(obj, w, h,
+          <foreignObject x={obj.x} y={obj.y} width={w} height={h}>
+            <select value={cur}
+              onChange={(e) => useAppStore.getState().setProjectLang(e.target.value)}
+              style={{ width: "100%", height: "100%", boxSizing: "border-box",
+                background: obj.fill ?? "var(--brand-surface-2, #334155)", color: "var(--brand-text, #e2e8f0)",
+                border: "1px solid var(--brand-border, #475569)",
+                borderRadius: 4, fontSize: 13, padding: "0 6px" }}>
+              {langs.length === 0 && <option value="">—</option>}
+              {langs.map((l) => <option key={l} value={l}>{l.toUpperCase()}</option>)}
+            </select>
+          </foreignObject>
+        )}
       </g>
     );
   }

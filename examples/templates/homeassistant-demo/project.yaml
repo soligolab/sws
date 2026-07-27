@@ -331,3 +331,276 @@ alarms:
       kind: bool_true
     message: "Movimento rilevato area esterna"
     severity: Info
+
+languages:
+  default: it
+  langs: [it, en]
+  entries:
+    - key: "home_assistant_panoramica"
+      values:
+        it: "HOME ASSISTANT — PANORAMICA"
+        en: "HOME ASSISTANT — OVERVIEW"
+    - key: "clima_energia_sicurezza_luci"
+      values:
+        it: "Clima · Energia · Sicurezza · Luci"
+        en: "Climate · Energy · Security · Lights"
+    - key: "panoramica"
+      values:
+        it: "◉ Panoramica"
+        en: "◉ Overview"
+    - key: "controllo"
+      values:
+        it: "⚙ Controllo"
+        en: "⚙ Control"
+    - key: "storico"
+      values:
+        it: "📈 Storico"
+        en: "📈 History"
+    - key: "clima"
+      values:
+        it: "CLIMA"
+        en: "CLIMATE"
+    - key: "interno"
+      values:
+        it: "INTERNO"
+        en: "INDOOR"
+    - key: "comfort"
+      values:
+        it: "Comfort:"
+        en: "Comfort:"
+    - key: "esterno"
+      values:
+        it: "ESTERNO"
+        en: "OUTDOOR"
+    - key: "delta"
+      values:
+        it: "Delta:"
+        en: "Delta:"
+    - key: "energia"
+      values:
+        it: "ENERGIA"
+        en: "ENERGY"
+    - key: "potenza_istantanea"
+      values:
+        it: "POTENZA ISTANTANEA"
+        en: "INSTANT POWER"
+    - key: "sicurezza"
+      values:
+        it: "SICUREZZA"
+        en: "SECURITY"
+    - key: "porta_principale"
+      values:
+        it: "Porta principale"
+        en: "Main door"
+    - key: "movimento_ingresso"
+      values:
+        it: "Movimento ingresso"
+        en: "Entrance motion"
+    - key: "garage"
+      values:
+        it: "Garage"
+        en: "Garage"
+    - key: "modalita_notturna"
+      values:
+        it: "Modalità notturna"
+        en: "Night mode"
+    - key: "luci"
+      values:
+        it: "LUCI"
+        en: "LIGHTS"
+    - key: "soggiorno"
+      values:
+        it: "Soggiorno"
+        en: "Living room"
+    - key: "cucina"
+      values:
+        it: "Cucina"
+        en: "Kitchen"
+    - key: "esterna"
+      values:
+        it: "Esterna"
+        en: "Outdoor"
+    - key: "ventilatore"
+      values:
+        it: "Ventilatore"
+        en: "Ventilatore"
+    - key: "riscaldamento"
+      values:
+        it: "RISCALDAMENTO"
+        en: "HEATING"
+    - key: "temperatura_attuale"
+      values:
+        it: "Temperatura attuale"
+        en: "Current temperature"
+    - key: "setpoint_corrente"
+      values:
+        it: "Setpoint corrente"
+        en: "Current setpoint"
+    - key: "sole"
+      values:
+        it: "☀ SOLE"
+        en: "☀ SUN"
+    - key: "elevazione"
+      values:
+        it: "elevazione"
+        en: "elevation"
+    - key: "home_assistant_controllo"
+      values:
+        it: "HOME ASSISTANT — CONTROLLO"
+        en: "HOME ASSISTANT — CONTROL"
+    - key: "attuatori_con_write_back_diretto_su_home"
+      values:
+        it: "Attuatori con write-back diretto su HomeAssistant"
+        en: "Actuators with direct write-back to HomeAssistant"
+    - key: "panoramica_2"
+      values:
+        it: "◎ Panoramica"
+        en: "◎ Overview"
+    - key: "controllo_2"
+      values:
+        it: "◉ Controllo"
+        en: "◉ Control"
+    - key: "on"
+      values:
+        it: "ON"
+        en: "ON"
+    - key: "off"
+      values:
+        it: "OFF"
+        en: "OFF"
+    - key: "setpoint_ha"
+      values:
+        it: "Setpoint HA"
+        en: "HA setpoint"
+    - key: "nuovo_setpoint"
+      values:
+        it: "Nuovo setpoint:"
+        en: "New setpoint:"
+    - key: "scrivere_ha_chiama_input_number_set_valu"
+      values:
+        it: "Scrivere: HA chiama input_number.set_value"
+        en: "Write: HA calls input_number.set_value"
+    - key: "irrigazione"
+      values:
+        it: "IRRIGAZIONE"
+        en: "IRRIGAZIONE"
+    - key: "durata_minuti"
+      values:
+        it: "Durata (minuti):"
+        en: "Duration (minutes):"
+    - key: "durata_impostata"
+      values:
+        it: "Durata impostata:"
+        en: "Set duration:"
+    - key: "modalita"
+      values:
+        it: "MODALITÀ"
+        en: "MODE"
+    - key: "attiva"
+      values:
+        it: "🌙 Attiva"
+        en: "🌙 Activate"
+    - key: "disattiva"
+      values:
+        it: "☀ Disattiva"
+        en: "☀ Deactivate"
+    - key: "scrive_su_input_boolean_night_mode_in_ha"
+      values:
+        it: "Scrive su input_boolean.night_mode in HA"
+        en: "Writes to input_boolean.night_mode in HA"
+    - key: "write_back_ogni_modifica_qui_viene_invia"
+      values:
+        it: "Write-back: ogni modifica qui viene inviata a HomeAssistant via WebSocket (call_service). Riconnessione automatica se HA non è raggiungibile."
+        en: "Write-back: every change here is sent to HomeAssistant via WebSocket (call_service). Automatic reconnection if HA is unreachable."
+    - key: "bool_turn_on_turn_off_float_int_service"
+      values:
+        it: "Bool → turn_on / turn_off  •  Float/Int → service_data: {value: N}  •  Latenza tipica: < 200 ms su rete locale"
+        en: "Bool → turn_on / turn_off  •  Float/Int → service_data: {value: N}  •  Typical latency: < 200 ms on local network"
+    - key: "home_assistant_storico"
+      values:
+        it: "HOME ASSISTANT — STORICO"
+        en: "HOME ASSISTANT — HISTORY"
+    - key: "tag_derivati_trend_statistiche"
+      values:
+        it: "Tag derivati · Trend · Statistiche"
+        en: "Derived tags · Trend · Statistics"
+    - key: "storico_2"
+      values:
+        it: "◉ Storico"
+        en: "◉ History"
+    - key: "tag_derivati_calcolati_in_sws_da_espress"
+      values:
+        it: "TAG DERIVATI (calcolati in SWS da espressioni Python)"
+        en: "DERIVED TAGS (computed in SWS from Python expressions)"
+    - key: "costo_energia_h"
+      values:
+        it: "Costo energia (€/h):"
+        en: "Energy cost (€/h):"
+    - key: "potenza_w_0_25_1000"
+      values:
+        it: "potenza_W × 0.25 / 1000"
+        en: "power_W × 0.25 / 1000"
+    - key: "delta_int_ext_c"
+      values:
+        it: "Delta Int–Ext (°C):"
+        en: "Delta In–Out (°C):"
+    - key: "sala_temperatura_esterno_temperatura"
+      values:
+        it: "sala.temperatura − esterno.temperatura"
+        en: "sala.temperatura − esterno.temperatura"
+    - key: "indice_comfort_0_100"
+      values:
+        it: "Indice comfort (0–100):"
+        en: "Comfort index (0–100):"
+    - key: "t_ideale_22_c_h_ideale_50_score_0_100"
+      values:
+        it: "T ideale 22°C + H ideale 50% → score 0–100"
+        en: "Ideal T 22°C + ideal H 50% → score 0–100"
+    - key: "valori_live_tag_con_history_abilitata"
+      values:
+        it: "VALORI LIVE — TAG CON HISTORY ABILITATA"
+        en: "LIVE VALUES — TAGS WITH HISTORY ENABLED"
+    - key: "temp_soggiorno"
+      values:
+        it: "Temp. Soggiorno"
+        en: "Living-room temp."
+    - key: "history_true_persiste_su_sqlite"
+      values:
+        it: "history: true → persiste su SQLite"
+        en: "history: true → persists to SQLite"
+    - key: "temp_esterna"
+      values:
+        it: "Temp. Esterna"
+        en: "Outdoor temp."
+    - key: "potenza"
+      values:
+        it: "Potenza"
+        en: "Power"
+    - key: "come_usare_lo_storico"
+      values:
+        it: "COME USARE LO STORICO"
+        en: "HOW TO USE THE HISTORY"
+    - key: "i_tag_con_history_true_vengono_campionat"
+      values:
+        it: "▶  I tag con history: true vengono campionati ogni volta che cambiano e salvati nel DB SQLite di SWS."
+        en: "▶  Tags with history: true are sampled whenever they change and saved to the SWS SQLite DB."
+    - key: "in_runtime_pannello_log_trend_puoi_visua"
+      values:
+        it: "▶  In Runtime → pannello Log/Trend puoi visualizzare l'andamento temporale di sala.temperatura, esterno.temperatura, energia.potenza_w."
+        en: "▶  In Runtime → Log/Trend panel you can view the time trend of sala.temperatura, esterno.temperatura, energia.potenza_w."
+    - key: "api_rest_get_api_history_tag_from_ms_to"
+      values:
+        it: "▶  API REST: GET /api/history/{tag}?from_ms=&to_ms=  — oppure ⬇ CSV dal pannello Trend per export in Excel."
+        en: "▶  REST API: GET /api/history/{tag}?from_ms=&to_ms=  — or ⬇ CSV from the Trend panel to export to Excel."
+    - key: "get_api_history_tag_stats_from_ms_to_ms"
+      values:
+        it: "▶  GET /api/history/{tag}/stats?from_ms=&to_ms= restituisce min/max/avg/σ sulla finestra temporale scelta."
+        en: "▶  GET /api/history/{tag}/stats?from_ms=&to_ms= returns min/max/avg/σ over the chosen time window."
+    - key: "tag_derivati_expression_ricalcolati_ad_o"
+      values:
+        it: "Tag derivati (expression): ricalcolati ad ogni aggiornamento di qualsiasi tag — non richiedono history per funzionare."
+        en: "Derived tags (expression): recomputed on every tag update — they don't need history to work."
+    - key: "esempio_energia_costo_ora_eur_tags_energ"
+      values:
+        it: "  Esempio: energia.costo_ora_eur  =  tags['energia.potenza_w'] * 0.25 / 1000"
+        en: "  Esempio: energia.costo_ora_eur  =  tags['energia.potenza_w'] * 0.25 / 1000"

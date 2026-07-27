@@ -12,7 +12,7 @@ objects:
   y: 12
   width: 130
   height: 32
-  label: "◀ Precedente"
+  label: "{{precedente}}"
   target_page: page1
   group_id: g_nav
   locked: true
@@ -23,7 +23,7 @@ objects:
   y: 12
   width: 130
   height: 32
-  label: "Successiva ▶"
+  label: "{{successiva}}"
   target_page: page3
   group_id: g_nav
   locked: true
@@ -32,7 +32,7 @@ objects:
   type: text
   x: 400
   y: 30
-  text: "Page 2 — Benvenuto"
+  text: "{{page_2_benvenuto}}"
   font_size: 16
   font_weight: bold
   text_anchor: middle
@@ -45,7 +45,7 @@ objects:
   type: text
   x: 400
   y: 180
-  text: "Benvenuto nel demo SWS"
+  text: "{{benvenuto_nel_demo_sws}}"
   font_size: 28
   font_weight: bold
   text_anchor: middle
@@ -55,7 +55,7 @@ objects:
   type: text
   x: 400
   y: 215
-  text: "Naviga le 4 pagine con i pulsanti ◀ / ▶ in cima."
+  text: "{{naviga_le_4_pagine_con_i_pulsanti_in_cim}}"
   font_size: 14
   text_anchor: middle
   color: "#64748b"
@@ -64,7 +64,7 @@ objects:
   type: text
   x: 400
   y: 280
-  text: "Page 1 — counter + MQTT echo round-trip"
+  text: "{{page_1_counter_mqtt_echo_round_trip}}"
   font_size: 13
   text_anchor: middle
   color: "#475569"
@@ -73,7 +73,7 @@ objects:
   type: text
   x: 400
   y: 305
-  text: "Page 3 — showcase di tutti i tipi di widget con binding"
+  text: "{{page_3_showcase_di_tutti_i_tipi_di_widge}}"
   font_size: 13
   text_anchor: middle
   color: "#475569"
@@ -82,7 +82,7 @@ objects:
   type: text
   x: 400
   y: 330
-  text: "Page 4 — demo fill color (write su demo.fill_color)"
+  text: "{{page_4_demo_fill_color_write_su_demo_fil}}"
   font_size: 13
   text_anchor: middle
   color: "#475569"

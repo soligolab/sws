@@ -12,7 +12,7 @@ objects:
   type: text
   x: 440
   y: 24
-  text: "🔌  OPC-UA — Tabella nodi"
+  text: "{{opc_ua_tabella_nodi}}"
   font_size: 20
   font_weight: bold
   text_anchor: middle
@@ -26,7 +26,7 @@ objects:
   y: 14
   width: 180
   height: 30
-  label: "◀ Live"
+  label: "{{live}}"
   target_page: opc_page1
   group_id: g_nav
   locked: true
@@ -35,7 +35,7 @@ objects:
   type: text
   x: 440
   y: 50
-  text: "Mapping NodeId → Tag corrente (live)"
+  text: "{{mapping_nodeid_tag_corrente_live}}"
   font_size: 11
   text_anchor: middle
   color: "#475569"
@@ -47,7 +47,7 @@ objects:
   type: text
   x: 30
   y: 85
-  text: "NodeId"
+  text: "{{nodeid}}"
   font_size: 11
   font_weight: bold
   color: "#94a3b8"
@@ -56,7 +56,7 @@ objects:
   type: text
   x: 320
   y: 85
-  text: "Tag SWS"
+  text: "{{tag_sws}}"
   font_size: 11
   font_weight: bold
   color: "#94a3b8"
@@ -65,7 +65,7 @@ objects:
   type: text
   x: 540
   y: 85
-  text: "Valore"
+  text: "{{valore}}"
   font_size: 11
   font_weight: bold
   color: "#94a3b8"
@@ -74,7 +74,7 @@ objects:
   type: text
   x: 740
   y: 85
-  text: "Unità"
+  text: "{{unita}}"
   font_size: 11
   font_weight: bold
   color: "#94a3b8"
@@ -84,14 +84,14 @@ objects:
   type: text
   x: 30
   y: 120
-  text: "ns=1;s=Temperature"
+  text: "{{ns_1_s_temperature}}"
   font_size: 11
   color: "#cbd5e1"
 - id: o2_r1_tag
   type: text
   x: 320
   y: 120
-  text: "sim.temperature"
+  text: "{{sim_temperature}}"
   font_size: 11
   color: "#cbd5e1"
 - id: o2_r1_val
@@ -106,7 +106,7 @@ objects:
   type: text
   x: 740
   y: 120
-  text: "°C"
+  text: "{{c}}"
   font_size: 11
   color: "#64748b"
 
@@ -115,14 +115,14 @@ objects:
   type: text
   x: 30
   y: 145
-  text: "ns=1;s=Pressure"
+  text: "{{ns_1_s_pressure}}"
   font_size: 11
   color: "#cbd5e1"
 - id: o2_r2_tag
   type: text
   x: 320
   y: 145
-  text: "sim.pressure"
+  text: "{{sim_pressure}}"
   font_size: 11
   color: "#cbd5e1"
 - id: o2_r2_val
@@ -137,7 +137,7 @@ objects:
   type: text
   x: 740
   y: 145
-  text: "kPa"
+  text: "{{kpa}}"
   font_size: 11
   color: "#64748b"
 
@@ -146,14 +146,14 @@ objects:
   type: text
   x: 30
   y: 170
-  text: "ns=2;s=CycleTime"
+  text: "{{ns_2_s_cycletime}}"
   font_size: 11
   color: "#cbd5e1"
 - id: o2_r3_tag
   type: text
   x: 320
   y: 170
-  text: "sim.cycle_time"
+  text: "{{sim_cycle_time}}"
   font_size: 11
   color: "#cbd5e1"
 - id: o2_r3_val
@@ -168,7 +168,7 @@ objects:
   type: text
   x: 740
   y: 170
-  text: "s (Euromap 77)"
+  text: "{{s_euromap_77}}"
   font_size: 11
   color: "#64748b"
 
@@ -177,14 +177,14 @@ objects:
   type: text
   x: 30
   y: 195
-  text: "ns=2;s=MachineState"
+  text: "{{ns_2_s_machinestate}}"
   font_size: 11
   color: "#cbd5e1"
 - id: o2_r4_tag
   type: text
   x: 320
   y: 195
-  text: "sim.machine_state"
+  text: "{{sim_machine_state}}"
   font_size: 11
   color: "#cbd5e1"
 - id: o2_r4_val
@@ -199,7 +199,7 @@ objects:
   type: text
   x: 740
   y: 195
-  text: "string"
+  text: "{{string}}"
   font_size: 11
   color: "#64748b"
 
@@ -208,14 +208,14 @@ objects:
   type: text
   x: 30
   y: 220
-  text: "ns=2;s=MachineReady"
+  text: "{{ns_2_s_machineready}}"
   font_size: 11
   color: "#cbd5e1"
 - id: o2_r5_tag
   type: text
   x: 320
   y: 220
-  text: "sim.machine_ready"
+  text: "{{sim_machine_ready}}"
   font_size: 11
   color: "#cbd5e1"
 - id: o2_r5_val
@@ -230,7 +230,7 @@ objects:
   type: text
   x: 740
   y: 220
-  text: "bool"
+  text: "{{bool}}"
   font_size: 11
   color: "#64748b"
 
@@ -239,7 +239,7 @@ objects:
   type: text
   x: 30
   y: 290
-  text: "Suggerimento: in Configurazione → Protocolli → OPC-UA, premi 🤖 Rileva Euromap per importare automaticamente i nodi canonici Euromap 77/83."
+  text: "{{suggerimento_in_configurazione_protocoll}}"
   font_size: 11
   color: "#94a3b8"
 
@@ -247,7 +247,7 @@ objects:
   type: text
   x: 30
   y: 312
-  text: "Browse manuale: 🔍 Sfoglia server apre un tree lazy-load partendo da ObjectsFolder."
+  text: "{{browse_manuale_sfoglia_server_apre_un_tr}}"
   font_size: 11
   color: "#94a3b8"
 
@@ -258,7 +258,7 @@ objects:
   type: text
   x: 440
   y: 540
-  text: "▸ Per testare in locale: npx -y node-opcua-server  (oppure Prosys OPC UA Simulation Server)"
+  text: "{{per_testare_in_locale_npx_y_node_opcua_s}}"
   font_size: 9
   text_anchor: middle
   color: "#334155"

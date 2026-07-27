@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { api, NoProjectError, RateLimitedError, RuntimeUnavailableError } from "@/api/client";
 import { useAppStore } from "@/store";
 
@@ -60,6 +61,7 @@ const BTN_GHOST: React.CSSProperties = {
 };
 
 export function ReAuthModal() {
+  const { t } = useTranslation();
   const authUser           = useAppStore((s) => s.authUser);
   const setAuth            = useAppStore((s) => s.setAuth);
   const setReAuthNeeded    = useAppStore((s) => s.setReAuthNeeded);
@@ -89,10 +91,10 @@ export function ReAuthModal() {
       } else {
         setError(
           e instanceof RuntimeUnavailableError
-            ? "Runtime non raggiungibile."
+            ? t("auth.runtimeUnreachable")
             : e instanceof RateLimitedError
             ? `Troppi tentativi. Riprova tra ${e.retryAfterSecs}s.`
-            : "Password errata. Riprova."
+            : t("auth.wrongPassword")
         );
         setPassword("");
         setTimeout(() => inputRef.current?.focus(), 50);
@@ -148,7 +150,7 @@ export function ReAuthModal() {
 
         <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           <div>
-            <div style={LABEL}>Password</div>
+            <div style={LABEL}>{t("auth.password")}</div>
             <input
               ref={inputRef}
               type="password"
@@ -166,7 +168,7 @@ export function ReAuthModal() {
           )}
 
           <button type="submit" style={BTN_PRIMARY} disabled={busy || !password}>
-            {busy ? "Accesso in corso…" : "Riautentica"}
+            {busy ? t("auth.reauthInProgress") : t("auth.reauth")}
           </button>
         </form>
 

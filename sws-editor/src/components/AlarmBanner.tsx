@@ -11,14 +11,6 @@ const SEV_COLOR: Record<AlarmSeverity, string> = {
   Critical: "var(--brand-danger, #ef4444)",
 };
 
-// ISA-18.2 state labels and visual hints.
-const ISA_LABEL: Record<IsaState, string> = {
-  normal:          "Normal",
-  active_unacked:  "Attivo · Non confermato",
-  active_acked:    "Attivo · Confermato",
-  normal_unacked:  "Rientrato · Non confermato",
-};
-
 // Blinking animation only for active-unacked (the most urgent state).
 function isaStyle(state: IsaState, color: string): React.CSSProperties {
   const base: React.CSSProperties = {
@@ -116,7 +108,7 @@ export function AlarmBanner() {
           {alerting.length} {unacked.length > 0 ? `· ${unacked.length} non conf.` : ""}
         </span>
         <span style={{ fontSize: 10, color, flexShrink: 0 }}>
-          {ISA_LABEL[mostUrgent.isa_state]}
+          {t(`alarm.isa.${mostUrgent.isa_state}`)}
         </span>
         <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
           <strong style={{ color }}>{mostUrgent.def.id}</strong>

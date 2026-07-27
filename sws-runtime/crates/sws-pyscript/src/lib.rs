@@ -23,7 +23,7 @@
 
 use std::{
     ffi::CString,
-    sync::{atomic::{AtomicBool, Ordering}, Arc},
+    sync::{atomic::{AtomicBool, Ordering}, Arc, Mutex},
     time::Duration,
 };
 use pyo3::prelude::*;
@@ -31,6 +31,7 @@ use pyo3::types::PyDict;
 use serde::Serialize;
 use sws_core::{TagDb, TagQuality, TagValue, TagWriteBus};
 use tokio::runtime::Handle;
+use tokio::sync::mpsc;
 use tracing::{info, warn};
 
 const DEFAULT_TIMEOUT_MS: u64 = 5_000;
@@ -121,6 +122,28 @@ struct TagApi {
     handle: Handle,
 }
 
+/// Injected into script globals as the callable `send_telegram(text)`. Pushes
+/// the text onto the shared Telegram channel owned by `sws-web` (which does the
+/// actual HTTP). `sws-pyscript` stays HTTP-free — it only holds the sender.
+#[pyclass]
+struct Notifier {
+    tx: Option<mpsc::UnboundedSender<String>>,
+}
+
+#[pymethods]
+impl Notifier {
+    fn __call__(&self, text: String) -> PyResult<()> {
+        match &self.tx {
+            Some(tx) => tx.send(text).map_err(|_| {
+                PyErr::new::<pyo3::exceptions::PyRuntimeError, _>("canale Telegram non disponibile")
+            }),
+            None => Err(PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
+                "Telegram non configurato (Configurazione → Notifiche)",
+            )),
+        }
+    }
+}
+
 #[pymethods]
 impl TagApi {
     /// Read the current value of `id`. Returns the Python-native type
@@ -198,6 +221,10 @@ pub struct Engine {
     bus: Arc<TagWriteBus>,
     sandbox: Arc<AtomicBool>,
     timeout: Duration,
+    /// Backs the `send_telegram(text)` binding. Interior-mutable + shared across
+    /// clones so the sink can be (re)set at runtime on the shared engine used by
+    /// functions. `None` inside = Telegram not configured.
+    telegram_tx: Arc<Mutex<Option<mpsc::UnboundedSender<String>>>>,
 }
 
 #[derive(Debug, Clone, Serialize, Default)]
@@ -226,6 +253,16 @@ impl Engine {
             bus,
             sandbox: Arc::new(AtomicBool::new(sandbox)),
             timeout: Duration::from_millis(timeout_ms),
+            telegram_tx: Arc::new(Mutex::new(None)),
+        }
+    }
+
+    /// Set (or clear) the Telegram sink backing the `send_telegram(text)`
+    /// binding. Interior-mutable: takes `&self` so the shared engine (functions)
+    /// can be updated at project open / notifications save.
+    pub fn set_telegram_sink(&self, tx: Option<mpsc::UnboundedSender<String>>) {
+        if let Ok(mut guard) = self.telegram_tx.lock() {
+            *guard = tx;
         }
     }
 
@@ -253,9 +290,10 @@ impl Engine {
         let bus     = self.bus.clone();
         let sandbox = self.is_sandboxed();
         let timeout = self.timeout;
+        let telegram = self.telegram_tx.lock().ok().and_then(|g| g.clone());
 
         let work = tokio::task::spawn_blocking(move || {
-            run_in_python(db, bus, handle, sandbox, code, args, timeout)
+            run_in_python(db, bus, handle, sandbox, code, args, timeout, telegram)
         });
 
         match tokio::time::timeout(timeout, work).await {
@@ -371,6 +409,7 @@ fn probe_restricted_python() -> bool {
     Python::with_gil(|py| py.import("RestrictedPython").is_ok())
 }
 
+#[allow(clippy::too_many_arguments)]
 fn run_in_python(
     db: Arc<TagDb>,
     bus: Arc<TagWriteBus>,
@@ -379,6 +418,7 @@ fn run_in_python(
     user_source: String,
     args: serde_json::Map<String, serde_json::Value>,
     timeout: Duration,
+    telegram_tx: Option<mpsc::UnboundedSender<String>>,
 ) -> Result<ExecOutput, String> {
     // Arm the kill switch.  A timer thread flips `kill_flag` after `timeout`;
     // the Python trace function detects it and raises KeyboardInterrupt.
@@ -392,9 +432,11 @@ fn run_in_python(
 
     Python::with_gil(|py| -> PyResult<ExecOutput> {
         let api          = Py::new(py, TagApi { db, bus, handle })?;
+        let notifier     = Py::new(py, Notifier { tx: telegram_tx })?;
         let kill_switch  = Py::new(py, KillSwitch { flag: kill_flag })?;
         let globals = PyDict::new(py);
         globals.set_item("tags", api)?;
+        globals.set_item("send_telegram", notifier)?;
         globals.set_item("__sws_kill_switch__", kill_switch)?;
         globals.set_item("__sws_user_source__", user_source)?;
         globals.set_item("__sws_sandbox__", sandbox)?;

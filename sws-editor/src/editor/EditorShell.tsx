@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
 import { SvgCanvas } from "@/canvas/SvgCanvas";
 import { LeftPanel } from "@/editor/LeftPanel";
@@ -7,10 +8,12 @@ import { TagInput } from "@/components/TagInput";
 import { BindableInput } from "@/components/BindableInput";
 import { ImageBrowser } from "@/components/ImageBrowser";
 import { SYMBOL_LIST } from "@/symbols/library";
+import { DEVICE_PRESETS, effectiveSizeMode } from "@/pageLayout";
 import type { SymbolMeta } from "@/symbols/library";
 import { useAppStore } from "@/store";
+import { localizeObjects } from "@/i18n/projectI18n";
 import type { AlignMode } from "@/store";
-import type { ButtonAction, FunctionDef, GridCell, RadioOption, SubCellEntry, SubGrid, SynopticObject, TableRow } from "@/types";
+import type { ButtonAction, FunctionDef, GridCell, PageSizeMode, RadioOption, SubCellEntry, SubGrid, SynopticObject, TableRow } from "@/types";
 
 // ── Shared styles ─────────────────────────────────────────────────────────────
 
@@ -23,6 +26,10 @@ const PANEL: React.CSSProperties = {
   padding: 12,
   overflowY: "auto",
 };
+const RIGHT_PANEL_WIDTH_KEY = "sws.rightPanelWidth";
+const RIGHT_PANEL_MIN = 220;
+const RIGHT_PANEL_MAX = 560;
+
 const LABEL: React.CSSProperties = { fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", marginBottom: 2 };
 const INPUT: React.CSSProperties = {
   width: "100%",
@@ -124,6 +131,7 @@ function SymbolPickerModal({ onPick, onCancel }: {
   onPick: (symbolId: string) => void;
   onCancel: () => void;
 }) {
+  const { t } = useTranslation();
   const [selected, setSelected] = useState("pump");
 
   useEffect(() => {
@@ -150,15 +158,15 @@ function SymbolPickerModal({ onPick, onCancel }: {
         display: "flex", flexDirection: "column", overflow: "hidden",
       }}>
         <div style={{ padding: "10px 14px", borderBottom: "1px solid var(--brand-surface, #1e293b)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <span style={{ fontSize: 13, color: "var(--brand-text-2, #cbd5e1)", fontWeight: 600 }}>Scegli simbolo</span>
+          <span style={{ fontSize: 13, color: "var(--brand-text-2, #cbd5e1)", fontWeight: 600 }}>{t("symbol.choose")}</span>
           <button onClick={onCancel} style={{ background: "transparent", border: "none", color: "var(--brand-text-subtle, #64748b)", cursor: "pointer", fontSize: 16 }}>✕</button>
         </div>
         <div style={{ overflowY: "auto", padding: 12, flex: 1 }}>
           <SymbolGallery value={selected} onChange={setSelected} />
         </div>
         <div style={{ padding: "8px 14px", borderTop: "1px solid var(--brand-surface, #1e293b)", display: "flex", justifyContent: "flex-end", gap: 8 }}>
-          <button onClick={onCancel} style={{ padding: "4px 14px", fontSize: 12, background: "var(--brand-surface, #1e293b)", border: "1px solid var(--brand-surface-2, #334155)", color: "var(--brand-text-muted, #94a3b8)", borderRadius: 4, cursor: "pointer" }}>Annulla</button>
-          <button onClick={() => onPick(selected)} style={{ padding: "4px 14px", fontSize: 12, background: "#1e3a5f", border: "1px solid var(--brand-primary, #3b82f6)", color: "#93c5fd", borderRadius: 4, cursor: "pointer" }}>Inserisci</button>
+          <button onClick={onCancel} style={{ padding: "4px 14px", fontSize: 12, background: "var(--brand-surface, #1e293b)", border: "1px solid var(--brand-surface-2, #334155)", color: "var(--brand-text-muted, #94a3b8)", borderRadius: 4, cursor: "pointer" }}>{t("common.cancel")}</button>
+          <button onClick={() => onPick(selected)} style={{ padding: "4px 14px", fontSize: 12, background: "#1e3a5f", border: "1px solid var(--brand-primary, #3b82f6)", color: "#93c5fd", borderRadius: 4, cursor: "pointer" }}>{t("symbol.insert")}</button>
         </div>
       </div>
     </div>
@@ -213,6 +221,7 @@ export function EditorShell() {
   const tagValues       = useAppStore((s) => s.tagValues);
   const gridSize        = useAppStore((s) => s.gridSize);
   const snapEnabled     = useAppStore((s) => s.snapEnabled);
+  const editorPreviewLang = useAppStore((s) => s.editorPreviewLang);
   const addObject       = useAppStore((s) => s.addObject);
   const updateObject    = useAppStore((s) => s.updateObject);
   const deleteObject    = useAppStore((s) => s.deleteObject);
@@ -251,6 +260,19 @@ export function EditorShell() {
 
   const currentPage = pages.find((p) => p.id === currentPageId);
   const objects     = currentPage?.objects ?? [];
+  // Il canvas mostra i messaggi {{token}} risolti nella lingua di ANTEPRIMA
+  // scelta nel tab Configurazione → Lingue (store `editorPreviewLang`); il
+  // pannello proprietà lavora su `objects` grezzi così l'autore vede/edita i
+  // token (T-40). Fallback al default della tabella se la lingua scelta non
+  // esiste nel progetto corrente (regge il cambio progetto).
+  const projLangs   = project?.languages?.langs ?? [];
+  const previewLang = projLangs.includes(editorPreviewLang)
+    ? editorPreviewLang
+    : (project?.languages?.default ?? "");
+  const canvasObjects = useMemo(
+    () => localizeObjects(objects, previewLang, project?.languages),
+    [objects, previewLang, project?.languages],
+  );
   const selected    = objects.find((o) => o.id === selectedId) ?? null;
   const multi       = selectedIds.length > 1;
   const functions   = project?.functions ?? [];
@@ -288,6 +310,37 @@ export function EditorShell() {
   const [helpOpen, setHelpOpen] = useState(false);
   const [symbolPickPos, setSymbolPickPos] = useState<{ x: number; y: number } | null>(null);
   const [pendingImagePos, setPendingImagePos] = useState<{ x: number; y: number } | null>(null);
+
+  // Right (properties) panel resizable width, persisted like the left panel's.
+  // The <aside> sits at the far right of the layout, so its resize handle is
+  // on its LEFT border and dragging left/right maps to width the opposite way
+  // around from LeftPanel's own handle (on its right border).
+  const [rightPanelWidth, setRightPanelWidth] = useState<number>(() => {
+    const stored = Number(localStorage.getItem(RIGHT_PANEL_WIDTH_KEY));
+    return stored >= RIGHT_PANEL_MIN && stored <= RIGHT_PANEL_MAX ? stored : 280;
+  });
+  const rightWidthRef = useRef(rightPanelWidth);
+  const onRightResizeStart = (e: React.MouseEvent) => {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startWidth = rightPanelWidth;
+    document.body.style.cursor = "ew-resize";
+    document.body.style.userSelect = "none";
+    const onMove = (ev: MouseEvent) => {
+      const next = Math.min(RIGHT_PANEL_MAX, Math.max(RIGHT_PANEL_MIN, startWidth - (ev.clientX - startX)));
+      rightWidthRef.current = next;
+      setRightPanelWidth(next);
+    };
+    const onUp = () => {
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+      localStorage.setItem(RIGHT_PANEL_WIDTH_KEY, String(rightWidthRef.current));
+    };
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+  };
 
   const handleSelect = (id: string | null, shift?: boolean) => {
     if (id === null) { selectObject(null); return; }
@@ -449,6 +502,12 @@ export function EditorShell() {
         break;
       case "navbutton":
         addObject({ type, x, y, width: 140, height: 36, label: "Vai alla pagina" });
+        break;
+      case "lang_selector":
+        addObject({ type, x, y, width: 120, height: 32 });
+        break;
+      case "lang_button":
+        addObject({ type, x, y, width: 70, height: 32, target_lang: "" });
         break;
       case "checkbox":
         addObject({ type, x, y, width: 120, height: 30, label: "Checkbox", checked_value: true, unchecked_value: false });
@@ -677,7 +736,7 @@ export function EditorShell() {
       {/* Canvas */}
       <div style={{ flex: 1, overflow: "hidden" }}>
         <SvgCanvas
-          objects={objects}
+          objects={canvasObjects}
           tagValues={tagValues}
           background={currentPage?.background}
           selectedId={selectedId}
@@ -695,7 +754,7 @@ export function EditorShell() {
           selectedSubCell={selectedSubCell}
           onSelect={handleSelect}
           onSelectMany={selectMany}
-          onMove={(id, patch) => updateObject(id, patch)}
+          onMove={currentPage?.locked ? () => {} : (id, patch) => updateObject(id, patch)}
           onSelectCell={(objectId, row, col) => setSelectedCell({ objectId, row, col })}
           onSelectCellChild={(objectId, row, col) => setSelectedCellChild({ objectId, row, col })}
           onSelectCellRange={(objectId, r1, c1, r2, c2) =>
@@ -711,7 +770,16 @@ export function EditorShell() {
             cell selected  → GridCellEditor for the cell
             grid selected  → ObjectProps for the grid
             nothing        → PageProps                   */}
-      <aside style={{ ...PANEL, width: 280, borderLeft: "1px solid var(--brand-surface-2, #334155)" }}>
+      <aside style={{ ...PANEL, width: rightPanelWidth, borderLeft: "1px solid var(--brand-surface-2, #334155)", position: "relative" }}>
+        <div
+          onMouseDown={onRightResizeStart}
+          title="Trascina per ridimensionare"
+          style={{ position: "absolute", top: 0, left: -3, bottom: 0, width: 6, cursor: "ew-resize", zIndex: 10 }}
+        />
+        {/* Locked page: fieldset[disabled] natively disables every nested
+            form control (inputs/selects/buttons) in one shot — no need to
+            thread a `disabled` prop through every ObjectProps variant. */}
+        <fieldset disabled={!!currentPage?.locked} style={{ border: "none", margin: 0, padding: 0, display: "contents" }}>
         {multi ? (
           <>
             <span style={{ fontSize: 11, fontWeight: 700, color: "var(--brand-text-subtle, #64748b)", letterSpacing: 1 }}>
@@ -940,10 +1008,13 @@ export function EditorShell() {
               height={currentPage?.height}
               auto_rotate_skip={currentPage?.auto_rotate_skip}
               zones={currentPage?.zones}
+              locked={currentPage?.locked}
+              sizeMode={effectiveSizeMode(project?.page_layout)}
               onChange={(patch) => updatePageProps(currentPageId, patch)}
             />
           </>
         )}
+        </fieldset>
       </aside>
       {helpOpen && <ShortcutHelp onClose={() => setHelpOpen(false)} />}
     </div>
@@ -953,41 +1024,42 @@ export function EditorShell() {
 // ── Keyboard shortcut help overlay ───────────────────────────────────────────
 
 const SHORTCUTS = [
-  ["Navigazione canvas", ""],
-  ["Ctrl + rotella",    "Zoom centrato sul cursore"],
-  ["Rotella",           "Pan verticale"],
-  ["Shift + rotella",   "Pan orizzontale"],
-  ["Click medio + drag","Pan libero"],
-  ["Ctrl+0",            "Reset zoom 100%"],
-  ["Ctrl+Shift+0",      "Adatta alla vista (fit)"],
-  ["Selezione", ""],
-  ["Click",             "Seleziona oggetto"],
-  ["Shift+click",       "Aggiungi/togli dalla selezione"],
-  ["Drag su sfondo",    "Rettangolo di selezione"],
-  ["Ctrl+A",            "Seleziona tutto"],
-  ["Modifica", ""],
-  ["Canc / Backspace",  "Elimina selezione"],
-  ["Ctrl+C",            "Copia"],
-  ["Ctrl+X",            "Taglia"],
-  ["Ctrl+V",            "Incolla (anche cross-page)"],
-  ["Ctrl+D",            "Duplica"],
-  ["Ctrl+Z",            "Annulla (Undo)"],
-  ["Ctrl+Y",            "Ripristina (Redo)"],
-  ["Frecce",            "Sposta di 1 px"],
-  ["Shift+Frecce",      "Sposta di 1 passo griglia"],
-  ["Shift + drag angolo", "Ridimensiona mantenendo aspect ratio"],
+  ["shortcut.navCanvas", ""],
+  ["Ctrl + rotella",    "shortcut.zoomCursor"],
+  ["Rotella",           "shortcut.panV"],
+  ["Shift + rotella",   "shortcut.panH"],
+  ["Click medio + drag","shortcut.panFree"],
+  ["Ctrl+0",            "shortcut.zoomReset"],
+  ["Ctrl+Shift+0",      "shortcut.zoomFit"],
+  ["shortcut.selection", ""],
+  ["Click",             "shortcut.selectObj"],
+  ["Shift+click",       "shortcut.toggleSel"],
+  ["Drag su sfondo",    "shortcut.rubberBand"],
+  ["Ctrl+A",            "shortcut.selectAll"],
+  ["shortcut.edit", ""],
+  ["Canc / Backspace",  "shortcut.deleteSel"],
+  ["Ctrl+C",            "shortcut.copy"],
+  ["Ctrl+X",            "shortcut.cut"],
+  ["Ctrl+V",            "shortcut.paste"],
+  ["Ctrl+D",            "shortcut.duplicate"],
+  ["Ctrl+Z",            "shortcut.undo"],
+  ["Ctrl+Y",            "shortcut.redo"],
+  ["Frecce",            "shortcut.move1px"],
+  ["Shift+Frecce",      "shortcut.moveGrid"],
+  ["Shift + drag angolo", "shortcut.resizeAspect"],
   ["Z-order", ""],
-  ["Ctrl+]",            "Porta avanti"],
-  ["Ctrl+Shift+]",      "Primo piano"],
-  ["Ctrl+[",            "Porta indietro"],
-  ["Ctrl+Shift+[",      "Manda in fondo"],
-  ["Gruppi", ""],
-  ["Ctrl+G",            "Raggruppa selezione (≥2 oggetti)"],
-  ["Altro", ""],
-  ["?",                 "Mostra/nasconde questa guida"],
+  ["Ctrl+]",            "shortcut.bringForward"],
+  ["Ctrl+Shift+]",      "shortcut.bringFront"],
+  ["Ctrl+[",            "shortcut.sendBackward"],
+  ["Ctrl+Shift+[",      "shortcut.sendBack"],
+  ["shortcut.groups", ""],
+  ["Ctrl+G",            "shortcut.group"],
+  ["shortcut.other", ""],
+  ["?",                 "shortcut.toggleHelp"],
 ];
 
 function ShortcutHelp({ onClose }: { onClose: () => void }) {
+  const { t } = useTranslation();
   return (
     <div
       style={{
@@ -1006,7 +1078,7 @@ function ShortcutHelp({ onClose }: { onClose: () => void }) {
         onClick={(e) => e.stopPropagation()}
       >
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-          <span style={{ fontSize: 14, fontWeight: 600, color: "var(--brand-text, #e2e8f0)" }}>Scorciatoie da tastiera</span>
+          <span style={{ fontSize: 14, fontWeight: 600, color: "var(--brand-text, #e2e8f0)" }}>{t("shortcut.title")}</span>
           <button
             onClick={onClose}
             style={{ background: "none", border: "none", color: "var(--brand-text-subtle, #64748b)", cursor: "pointer", fontSize: 16, lineHeight: 1 }}
@@ -1019,7 +1091,7 @@ function ShortcutHelp({ onClose }: { onClose: () => void }) {
                 <tr key={key}>
                   <td colSpan={2} style={{ color: "var(--brand-border, #475569)", fontWeight: 700, fontSize: 10,
                     letterSpacing: 0.5, textTransform: "uppercase", paddingTop: 10, paddingBottom: 4 }}>
-                    {key}
+                    {t(key)}
                   </td>
                 </tr>
               ) : (
@@ -1028,7 +1100,7 @@ function ShortcutHelp({ onClose }: { onClose: () => void }) {
                     whiteSpace: "nowrap", minWidth: 160 }}>
                     {key}
                   </td>
-                  <td style={{ padding: "5px 0", color: "var(--brand-text-2, #cbd5e1)" }}>{desc}</td>
+                  <td style={{ padding: "5px 0", color: "var(--brand-text-2, #cbd5e1)" }}>{t(desc)}</td>
                 </tr>
               )
             )}
@@ -1050,6 +1122,7 @@ function ZOrderBar({
   objectCount: number;
   onReorder: (id: string, dir: "front" | "forward" | "backward" | "back") => void;
 }) {
+  const { t } = useTranslation();
   if (objectCount < 2) return null;
   const btnStyle: React.CSSProperties = {
     background: "var(--brand-bg, #0f172a)", border: "1px solid var(--brand-surface-2, #334155)", color: "var(--brand-text-muted, #94a3b8)",
@@ -1058,10 +1131,10 @@ function ZOrderBar({
   };
   return (
     <div style={{ display: "flex", gap: 3, marginBottom: 6 }}>
-      <button style={btnStyle} title="Porta in primo piano (Ctrl+Shift+])" onClick={() => onReorder(id, "front")}>⬆⬆</button>
-      <button style={btnStyle} title="Avanti (Ctrl+])" onClick={() => onReorder(id, "forward")}>↑</button>
-      <button style={btnStyle} title="Indietro (Ctrl+[)" onClick={() => onReorder(id, "backward")}>↓</button>
-      <button style={btnStyle} title="Manda in fondo (Ctrl+Shift+[)" onClick={() => onReorder(id, "back")}>⬇⬇</button>
+      <button style={btnStyle} title={t("props.bringToFront")} onClick={() => onReorder(id, "front")}>⬆⬆</button>
+      <button style={btnStyle} title={t("props.forward")} onClick={() => onReorder(id, "forward")}>↑</button>
+      <button style={btnStyle} title={t("props.backward")} onClick={() => onReorder(id, "backward")}>↓</button>
+      <button style={btnStyle} title={t("props.sendToBack")} onClick={() => onReorder(id, "back")}>⬇⬇</button>
     </div>
   );
 }
@@ -1074,6 +1147,7 @@ function ZOrderBar({
 type BreadcrumbPart = string | { label: string; onClick?: () => void };
 
 function PanelBreadcrumb({ parts }: { parts: BreadcrumbPart[] }) {
+  const { t } = useTranslation();
   return (
     <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", marginBottom: 6, display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" }}>
       {parts.map((p, i) => {
@@ -1087,7 +1161,7 @@ function PanelBreadcrumb({ parts }: { parts: BreadcrumbPart[] }) {
               <button
                 type="button"
                 onClick={part.onClick}
-                title="Torna a questo livello"
+                title={t("props.backToLevel")}
                 style={{
                   background: "transparent", border: "none", padding: 0,
                   color: "var(--brand-primary, #3b82f6)", cursor: "pointer", fontSize: 10,
@@ -1261,6 +1335,7 @@ function CellStructureActions({ isMerged, isSplit, onUnmerge, onSplitRows, onSpl
   onSplitCols: () => void;
   onJoinSplit: () => void;
 }) {
+  const { t } = useTranslation();
   return (
     <div style={{ display: "flex", gap: 6, marginBottom: 12, flexWrap: "wrap" }}>
       {isMerged && (
@@ -1270,10 +1345,10 @@ function CellStructureActions({ isMerged, isSplit, onUnmerge, onSplitRows, onSpl
       )}
       {!isMerged && !isSplit && (
         <>
-          <button onClick={onSplitRows} style={ACT_BTN} title="Crea due sub-celle sovrapposte (alto/basso)">
+          <button onClick={onSplitRows} style={ACT_BTN} title={t("props.splitV")}>
             ⬓ Dividi orizzontalmente
           </button>
-          <button onClick={onSplitCols} style={ACT_BTN} title="Crea due sub-celle affiancate (sinistra/destra)">
+          <button onClick={onSplitCols} style={ACT_BTN} title={t("props.splitH")}>
             ⬔ Dividi verticalmente
           </button>
         </>
@@ -1296,6 +1371,8 @@ function PageProps({
   height,
   auto_rotate_skip,
   zones,
+  locked,
+  sizeMode,
   onChange,
 }: {
   name: string;
@@ -1304,33 +1381,45 @@ function PageProps({
   height?: number;
   auto_rotate_skip?: boolean;
   zones?: string[];
+  locked?: boolean;
+  sizeMode: PageSizeMode;
   onChange: (patch: Partial<{ name: string; background: string; width: number | undefined; height: number | undefined; auto_rotate_skip: boolean | undefined; zones: string[] | undefined }>) => void;
 }) {
+  const { t } = useTranslation();
+  const ro = !!locked; // read-only when the page is locked
   return (
     <>
-      <div style={{ fontSize: 11, color: "var(--brand-border, #475569)", marginBottom: 4 }}>Pagina</div>
+      <div style={{ fontSize: 11, color: "var(--brand-border, #475569)", marginBottom: 4 }}>{t("props.pageT")}</div>
+      {locked && (
+        <div style={{ fontSize: 11, color: "var(--brand-warning, #f59e0b)", background: "#451a0322", border: "1px solid #92400e", borderRadius: 4, padding: "4px 8px", marginBottom: 8 }}>
+          🔒 Pagina bloccata — sola lettura. Sblocca dall'elenco pagine per modificare.
+        </div>
+      )}
       <div>
         <div style={LABEL}>Nome</div>
         <input
           type="text"
           style={INPUT}
           value={name}
+          disabled={ro}
           onChange={(e) => onChange({ name: e.target.value })}
         />
       </div>
       <div>
-        <div style={LABEL}>Sfondo</div>
+        <div style={LABEL}>{t("props.background")}</div>
         <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
           <input
             type="color"
             style={{ ...INPUT, padding: 2, height: 28, width: 44, cursor: "pointer", flex: "none" }}
             value={background}
+            disabled={ro}
             onChange={(e) => onChange({ background: e.target.value })}
           />
           <input
             type="text"
             style={{ ...INPUT }}
             value={background}
+            disabled={ro}
             onChange={(e) => onChange({ background: e.target.value })}
           />
         </div>
@@ -1338,36 +1427,70 @@ function PageProps({
       <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", marginTop: 4, marginBottom: 2, fontWeight: 700, letterSpacing: 0.5 }}>
         DIMENSIONI PAGINA
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 6px" }}>
-        <div>
-          <div style={LABEL}>Larghezza (px)</div>
-          <input
-            type="number"
-            style={INPUT}
-            placeholder="fluida"
-            value={width ?? ""}
-            onChange={(e) => onChange({ width: e.target.value ? Number(e.target.value) : undefined })}
-          />
-        </div>
-        <div>
-          <div style={LABEL}>Altezza (px)</div>
-          <input
-            type="number"
-            style={INPUT}
-            placeholder="fluida"
-            value={height ?? ""}
-            onChange={(e) => onChange({ height: e.target.value ? Number(e.target.value) : undefined })}
-          />
-        </div>
-      </div>
-      <p style={{ fontSize: 10, color: "var(--brand-border, #475569)", margin: "2px 0 0" }}>
-        Vuoto = fluido (riempie il contenitore). Con valori impostati, un bordo tratteggiato blu indica i limiti della pagina.
-      </p>
+      {sizeMode === "fixed" && (
+        <>
+          <div style={{ marginBottom: 6 }}>
+            <div style={LABEL}>Preset dispositivo</div>
+            <select
+              disabled={ro}
+              style={{ ...INPUT, cursor: ro ? "default" : "pointer" }}
+              value=""
+              onChange={(e) => {
+                const preset = DEVICE_PRESETS.find((d) => d.label === e.target.value);
+                if (preset) onChange({ width: preset.width, height: preset.height });
+              }}
+            >
+              <option value="">Personalizzato…</option>
+              {DEVICE_PRESETS.map((d) => <option key={d.label} value={d.label}>{d.label}</option>)}
+            </select>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 6px" }}>
+            <div>
+              <div style={LABEL}>{t("props.widthPx")}</div>
+              <input
+                type="number"
+                style={INPUT}
+                disabled={ro}
+                placeholder={t("props.fluid")}
+                value={width ?? ""}
+                onChange={(e) => onChange({ width: e.target.value ? Number(e.target.value) : undefined })}
+              />
+            </div>
+            <div>
+              <div style={LABEL}>{t("props.heightPx")}</div>
+              <input
+                type="number"
+                style={INPUT}
+                disabled={ro}
+                placeholder={t("props.fluid")}
+                value={height ?? ""}
+                onChange={(e) => onChange({ height: e.target.value ? Number(e.target.value) : undefined })}
+              />
+            </div>
+          </div>
+          <p style={{ fontSize: 10, color: "var(--brand-border, #475569)", margin: "2px 0 0" }}>
+            Dimensione esatta (1:1, nessuno scaling a runtime). Un bordo tratteggiato blu indica i limiti della pagina.
+          </p>
+        </>
+      )}
+      {sizeMode === "ratio" && (
+        <p style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", margin: "0 0 4px" }}>
+          Dimensione fissata dalle <em>Impostazioni pagine del progetto</em> (rapporto comune a
+          tutte le pagine): {width ?? "—"}×{height ?? "—"}. Scala mantenendo le proporzioni a runtime.
+        </p>
+      )}
+      {sizeMode === "fluid" && (
+        <p style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", margin: "0 0 4px" }}>
+          Nessuna dimensione dichiarata (modalità Fluida): il contenuto si disegna 1:1 nella
+          viewport disponibile, senza scaling né confini.
+        </p>
+      )}
       <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8 }}>
         <input
           type="checkbox"
           id="auto-rotate-skip"
           checked={auto_rotate_skip ?? false}
+          disabled={ro}
           onChange={(e) => onChange({ auto_rotate_skip: e.target.checked || undefined })}
           style={{ cursor: "pointer" }}
         />
@@ -1376,12 +1499,13 @@ function PageProps({
         </label>
       </div>
       <div style={{ marginTop: 8 }}>
-        <div style={LABEL}>Zone (vuoto = tutti)</div>
+        <div style={LABEL}>{t("props.zonesAll")}</div>
         <input
           type="text"
           style={INPUT}
-          placeholder="zona1, zona2"
-          title="Zone accessibili: id separati da virgola. Vuoto = nessuna restrizione."
+          disabled={ro}
+          placeholder={t("props.zonesPlaceholder")}
+          title={t("props.zonesHint")}
           value={(zones ?? []).join(", ")}
           onChange={(e) => {
             const zlist = e.target.value ? e.target.value.split(",").map((z) => z.trim()).filter(Boolean) : undefined;
@@ -1423,6 +1547,7 @@ function MultiSelectionProps({
   onDelete: () => void;
   onBatchChange: (patch: Partial<SynopticObject>) => void;
 }) {
+  const { t } = useTranslation();
   const btn: React.CSSProperties = {
     background: "var(--brand-bg, #0f172a)",
     border: "1px solid var(--brand-surface-2, #334155)",
@@ -1446,26 +1571,26 @@ function MultiSelectionProps({
         ALLINEA ORIZZONTALE
       </div>
       <div style={{ display: "flex", gap: 4 }}>
-        <button style={btn} title="Allinea a sinistra"   onClick={() => onAlign("left")}>⇤</button>
-        <button style={btn} title="Centra orizzontale"   onClick={() => onAlign("center-x")}>↔</button>
-        <button style={btn} title="Allinea a destra"     onClick={() => onAlign("right")}>⇥</button>
+        <button style={btn} title={t("props.alignLeft")}   onClick={() => onAlign("left")}>⇤</button>
+        <button style={btn} title={t("props.centerH")}   onClick={() => onAlign("center-x")}>↔</button>
+        <button style={btn} title={t("props.alignRight")}     onClick={() => onAlign("right")}>⇥</button>
       </div>
 
       <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", marginTop: 6, fontWeight: 700, letterSpacing: 0.5 }}>
         ALLINEA VERTICALE
       </div>
       <div style={{ display: "flex", gap: 4 }}>
-        <button style={btn} title="Allinea in alto"      onClick={() => onAlign("top")}>⤒</button>
-        <button style={btn} title="Centra verticale"     onClick={() => onAlign("middle-y")}>↕</button>
-        <button style={btn} title="Allinea in basso"     onClick={() => onAlign("bottom")}>⤓</button>
+        <button style={btn} title={t("props.alignTop")}      onClick={() => onAlign("top")}>⤒</button>
+        <button style={btn} title={t("props.centerV")}     onClick={() => onAlign("middle-y")}>↕</button>
+        <button style={btn} title={t("props.alignBottom")}     onClick={() => onAlign("bottom")}>⤓</button>
       </div>
 
       <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", marginTop: 6, fontWeight: 700, letterSpacing: 0.5 }}>
         DISTRIBUISCI (≥3 oggetti)
       </div>
       <div style={{ display: "flex", gap: 4 }}>
-        <button style={btn} title="Distribuisci orizzontale" onClick={() => onAlign("distribute-x")}>⇔</button>
-        <button style={btn} title="Distribuisci verticale"   onClick={() => onAlign("distribute-y")}>⇕</button>
+        <button style={btn} title={t("props.distributeH")} onClick={() => onAlign("distribute-x")}>⇔</button>
+        <button style={btn} title={t("props.distributeV")}   onClick={() => onAlign("distribute-y")}>⇕</button>
       </div>
 
       <div style={{ height: 1, background: "var(--brand-surface-2, #334155)", margin: "8px 0" }} />
@@ -1529,6 +1654,7 @@ function CrossTypeProps({
   functions: FunctionDef[];
   onChange: (patch: Partial<SynopticObject>) => void;
 }) {
+  const { t } = useTranslation();
   const field = (label: string, content: React.ReactNode) => (
     <div key={label}>
       <div style={LABEL}>{label}</div>
@@ -1593,24 +1719,24 @@ function CrossTypeProps({
     <>
       <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", marginTop: 4, fontWeight: 700, letterSpacing: 0.5 }}>POSIZIONE</div>
       <div style={grid2}>
-        {field("X", numInput("x", 0))}
-        {field("Y", numInput("y", 0))}
-        {field("Larghezza", numInput("width", 100))}
-        {field("Altezza", numInput("height", 40))}
+        {field(t("props.xLabel"), numInput("x", 0))}
+        {field(t("props.yLabel"), numInput("y", 0))}
+        {field(t("props.width"), numInput("width", 100))}
+        {field(t("props.height"), numInput("height", 40))}
       </div>
 
       <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", marginTop: 8, fontWeight: 700, letterSpacing: 0.5 }}>ASPETTO</div>
-      {field("Fill", colorInput("fill", "var(--brand-primary, #3b82f6)"))}
-      {field("Stroke", colorInput("stroke", "#ffffff"))}
+      {field(t("props.fill"), colorInput("fill", "var(--brand-primary, #3b82f6)"))}
+      {field(t("props.stroke"), colorInput("stroke", "#ffffff"))}
       <div style={grid2}>
-        {field("Stroke W", numInput("stroke_width", 1))}
-        {field("Opacity", numInput("opacity", 1))}
+        {field(t("props.strokeW"), numInput("stroke_width", 1))}
+        {field(t("props.opacity"), numInput("opacity", 1))}
       </div>
 
       <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", marginTop: 8, fontWeight: 700, letterSpacing: 0.5 }}>TRASFORMAZIONE</div>
       <div style={grid2}>
-        {field("Rotazione (°)", numInput("rotation", 0))}
-        {field("Z-index", numInput("z_index", 0))}
+        {field(t("props.rotationDegSym"), numInput("rotation", 0))}
+        {field(t("props.zIndex"), numInput("z_index", 0))}
       </div>
       <div style={{ display: "flex", gap: 8 }}>
         <label style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: "var(--brand-text-2, #cbd5e1)" }}>
@@ -1628,7 +1754,7 @@ function CrossTypeProps({
           /> Flip V
         </label>
       </div>
-      {field("Transizione (ms)", numInput("transition_duration_ms", 0))}
+      {field(t("props.transition"), numInput("transition_duration_ms", 0))}
 
       <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", marginTop: 8, fontWeight: 700, letterSpacing: 0.5 }}>VISIBILITÀ</div>
       <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--brand-text-2, #cbd5e1)", cursor: "pointer" }}>
@@ -1638,11 +1764,11 @@ function CrossTypeProps({
           style={{ accentColor: "var(--brand-primary, #3b82f6)" }}
         /> Visibile
       </label>
-      {field("Tag visibilità", tagInput("visible_tag", "tag.bool…"))}
+      {field(t("props.tagVisibility"), tagInput("visible_tag", "tag.bool…"))}
 
       <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", marginTop: 8, fontWeight: 700, letterSpacing: 0.5 }}>TAG</div>
-      {field("Tag", tagInput("tag", "tag.id…"))}
-      {field("Formato", textInput("format", "{value}"))}
+      {field(t("props.tag"), tagInput("tag", "tag.id…"))}
+      {field(t("props.format"), textInput("format", "{value}"))}
 
       <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", marginTop: 8, fontWeight: 700, letterSpacing: 0.5 }}>INDICATORE QUALITÀ</div>
       <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--brand-text-2, #cbd5e1)", cursor: "pointer" }}>
@@ -1654,9 +1780,9 @@ function CrossTypeProps({
       </label>
       {mergedProps.quality_dot !== false && (
         <>
-          {field("Colore Buono (Good)", colorInput("quality_dot_good_color", "var(--brand-success, #22c55e)"))}
-          {field("Colore Incerto (Uncert.)", colorInput("quality_dot_uncertain_color", "var(--brand-warning, #eab308)"))}
-          {field("Colore Errore (Bad)", colorInput("quality_dot_bad_color", "var(--brand-danger, #ef4444)"))}
+          {field(t("props.colorGood"), colorInput("quality_dot_good_color", "var(--brand-success, #22c55e)"))}
+          {field(t("props.colorUncertain"), colorInput("quality_dot_uncertain_color", "var(--brand-warning, #eab308)"))}
+          {field(t("props.colorBad"), colorInput("quality_dot_bad_color", "var(--brand-danger, #ef4444)"))}
         </>
       )}
 
@@ -1697,7 +1823,15 @@ function ObjectProps({
   onChange: (p: Partial<SynopticObject>) => void;
   onDelete: () => void;
 }) {
+  const { t } = useTranslation();
   const [imgBrowserOpen, setImgBrowserOpen] = useState(false);
+  const projLangs = useAppStore((s) => s.project?.languages?.langs) ?? [];
+  // NB: selezionare l'array `entries` (riferimento stabile nello store) e
+  // derivare le chiavi in useMemo. Un selettore che fa `.map()` ritornerebbe
+  // un nuovo array a ogni render → snapshot instabile → loop infinito e crash
+  // del pannello (regressione T-40).
+  const langEntries = useAppStore((s) => s.project?.languages?.entries);
+  const langKeys = useMemo(() => langEntries?.map((e) => e.key).filter(Boolean) ?? [], [langEntries]);
 
   const field = (label: string, content: React.ReactNode) => (
     <div key={label}>
@@ -1764,7 +1898,7 @@ function ObjectProps({
     <>
       {/* Identità compatta — 1 riga "Nome [input]" + 1 riga "type · id".
           Sostituisce le 3 righe sparse precedenti per recuperare ~30 px. */}
-      {field("Nome",
+      {field(t("props.name"),
         <input
           type="text" style={INPUT}
           placeholder={obj.type}
@@ -1820,44 +1954,60 @@ function ObjectProps({
 
       {/* Fill */}
       {(obj.type === "rect" || obj.type === "ellipse" || obj.type === "button" || obj.type === "navbutton") &&
-        field("Colore", <BindableInput obj={obj} propName="fill" onChange={onChange}>{colorInput("fill", "#4a90d9")}</BindableInput>)}
+        field(t("props.color"), <BindableInput obj={obj} propName="fill" onChange={onChange}>{colorInput("fill", "#4a90d9")}</BindableInput>)}
 
       {/* Stroke */}
       {hasStroke && (
         <>
-          {field("Bordo", <BindableInput obj={obj} propName="stroke" onChange={onChange}>{colorInput("stroke", "var(--brand-text, #e2e8f0)")}</BindableInput>)}
-          {field("Spessore bordo", <BindableInput obj={obj} propName="stroke_width" onChange={onChange}>{numInput("stroke_width", 1)}</BindableInput>)}
+          {field(t("props.border"), <BindableInput obj={obj} propName="stroke" onChange={onChange}>{colorInput("stroke", "var(--brand-text, #e2e8f0)")}</BindableInput>)}
+          {field(t("props.borderThickness"), <BindableInput obj={obj} propName="stroke_width" onChange={onChange}>{numInput("stroke_width", 1)}</BindableInput>)}
         </>
       )}
 
       {/* Tag binding */}
-      {!["navbutton","gauge","slider","checkbox","radio","led","progress_bar","trend","pipe"].includes(obj.type) && field("Tag", tagInput("es. pump1.speed"))}
+      {!["navbutton","gauge","slider","checkbox","radio","led","progress_bar","trend","pipe"].includes(obj.type) && field(t("props.tag"), tagInput("es. pump1.speed"))}
+
+      {/* Token picker (T-40): insert {{key}} into the primary text field so the
+          viewer resolves it per the project language table. */}
+      {langKeys.length > 0 && ("text" in obj || "label" in obj || ["text","button","navbutton","led","checkbox","gauge","progress_bar","slider","symbol","bar_chart","pie_chart","alarm_viewer"].includes(obj.type)) && field(t("props.insertToken"),
+        <select style={{ ...INPUT, cursor: "pointer" }} value=""
+          onChange={(e) => {
+            const key = e.target.value; if (!key) return;
+            const fieldName = obj.type === "text" ? "text" : "label";
+            const prev = (obj as unknown as Record<string, unknown>)[fieldName];
+            const base = typeof prev === "string" ? prev : "";
+            onChange({ [fieldName]: `${base}{{${key}}}` } as Partial<SynopticObject>);
+          }}>
+          <option value="">{t("props.insertTokenHint")}</option>
+          {langKeys.map((k) => <option key={k} value={k}>{`{{${k}}}`}</option>)}
+        </select>
+      )}
 
       {/* Text object: static content + typography */}
       {obj.type === "text" && (
         <>
-          {field("Testo (statico)", <BindableInput obj={obj} propName="text" onChange={onChange}>{textInput("text", "Es. Temperatura caldaia")}</BindableInput>)}
-          {field("Formato (se bound)", <BindableInput obj={obj} propName="format" onChange={onChange}>{textInput("format", "{value:.1f} °C")}</BindableInput>)}
+          {field(t("props.textStatic"), <BindableInput obj={obj} propName="text" onChange={onChange}>{textInput("text", "Es. Temperatura caldaia")}</BindableInput>)}
+          {field(t("props.formatBound"), <BindableInput obj={obj} propName="format" onChange={onChange}>{textInput("format", "{value:.1f} °C")}</BindableInput>)}
           <p style={{ fontSize: 10, color: "var(--brand-border, #475569)", margin: "0 0 4px" }}>
             Se è impostato un Tag, vince il formato (usa <code>{"{value}"}</code>); altrimenti viene
             mostrato il testo statico.
           </p>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
-            <div><div style={LABEL}>Dimensione (px)</div><BindableInput obj={obj} propName="font_size" onChange={onChange}>{numInput("font_size", 14)}</BindableInput></div>
+            <div><div style={LABEL}>{t("props.dimensionPx")}</div><BindableInput obj={obj} propName="font_size" onChange={onChange}>{numInput("font_size", 14)}</BindableInput></div>
             <div>
-              <div style={LABEL}>Allineamento</div>
+              <div style={LABEL}>{t("props.alignment")}</div>
               <select
                 style={{ ...INPUT, cursor: "pointer" }}
                 value={obj.text_anchor ?? "start"}
                 onChange={(e) => onChange({ text_anchor: e.target.value as "start" | "middle" | "end" })}
               >
-                <option value="start">Sinistra</option>
-                <option value="middle">Centro</option>
-                <option value="end">Destra</option>
+                <option value="start">{t("props.left")}</option>
+                <option value="middle">{t("props.center")}</option>
+                <option value="end">{t("props.right")}</option>
               </select>
             </div>
           </div>
-          {field("Font family",
+          {field(t("props.fontFamily"),
             <BindableInput obj={obj} propName="font_family" onChange={onChange}>
               <input
                 type="text" style={INPUT}
@@ -1880,8 +2030,8 @@ function ObjectProps({
                   onChange({ font_weight: Number.isFinite(n) && v.match(/^\d+$/) ? n : v });
                 }}
               >
-                <option value="normal">Normal (400)</option>
-                <option value="bold">Bold (700)</option>
+                <option value="normal">{t("props.normal400")}</option>
+                <option value="bold">{t("props.bold700")}</option>
                 <option value="300">300</option>
                 <option value="500">500</option>
                 <option value="600">600</option>
@@ -1895,25 +2045,25 @@ function ObjectProps({
                 value={obj.font_style ?? "normal"}
                 onChange={(e) => onChange({ font_style: e.target.value as "normal" | "italic" })}
               >
-                <option value="normal">Normal</option>
-                <option value="italic">Italic</option>
+                <option value="normal">{t("props.normalOpt")}</option>
+                <option value="italic">{t("props.italic")}</option>
               </select>
             </div>
           </div>
-          {field("Colore testo", <BindableInput obj={obj} propName="color" onChange={onChange}>{colorInput("color", "var(--brand-text, #e2e8f0)")}</BindableInput>)}
+          {field(t("props.colorText"), <BindableInput obj={obj} propName="color" onChange={onChange}>{colorInput("color", "var(--brand-text, #e2e8f0)")}</BindableInput>)}
         </>
       )}
 
       {/* Button label + write value + built-in action */}
       {obj.type === "button" && (
         <>
-          {field("Etichetta", <BindableInput obj={obj} propName="label" onChange={onChange}>{textInput("label", "Bottone")}</BindableInput>)}
-          {field("Valore scrittura",
+          {field(t("props.label"), <BindableInput obj={obj} propName="label" onChange={onChange}>{textInput("label", "Bottone")}</BindableInput>)}
+          {field(t("props.writeValue"),
             <BindableInput obj={obj} propName="write_value" onChange={onChange}>
               <input
                 type="text"
                 style={INPUT}
-                placeholder="true / 1 / testo"
+                placeholder={t("props.trueHint")}
                 value={obj.write_value !== undefined ? String(obj.write_value) : ""}
                 onChange={(e) => {
                   const raw = e.target.value;
@@ -1924,7 +2074,7 @@ function ObjectProps({
               />
             </BindableInput>
           )}
-          {field("Azione built-in",
+          {field(t("props.builtinAction"),
             <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
               <select
                 style={{ ...INPUT, cursor: "pointer" }}
@@ -1936,10 +2086,10 @@ function ObjectProps({
                   else onChange({ button_action: { type: t } as ButtonAction });
                 }}
               >
-                <option value="">— nessuna —</option>
-                <option value="login">Login modal</option>
-                <option value="logout">Logout (torna read-only)</option>
-                <option value="navigate">Naviga a URL</option>
+                <option value="">{t("props.dashNone")}</option>
+                <option value="login">{t("props.loginModal")}</option>
+                <option value="logout">{t("props.logoutReadonly")}</option>
+                <option value="navigate">{t("props.navigateUrl")}</option>
               </select>
               {obj.button_action?.type === "navigate" && (
                 <input
@@ -1960,8 +2110,8 @@ function ObjectProps({
         const targetMissing = !!obj.target_page && !pages.some((p) => p.id === obj.target_page);
         return (
           <>
-            {field("Etichetta", <BindableInput obj={obj} propName="label" onChange={onChange}>{textInput("label", "Vai alla pagina")}</BindableInput>)}
-            {field("Pagina di destinazione",
+            {field(t("props.label"), <BindableInput obj={obj} propName="label" onChange={onChange}>{textInput("label", "Vai alla pagina")}</BindableInput>)}
+            {field(t("props.targetPage"),
               <select
                 style={{
                   ...INPUT,
@@ -1971,7 +2121,7 @@ function ObjectProps({
                 value={obj.target_page ?? ""}
                 onChange={(e) => onChange({ target_page: e.target.value || undefined })}
               >
-                <option value="">— seleziona —</option>
+                <option value="">{t("props.dashSelect")}</option>
                 {pages.map((p) => (
                   <option key={p.id} value={p.id}>{p.name}</option>
                 ))}
@@ -1991,24 +2141,45 @@ function ObjectProps({
         );
       })()}
 
+      {/* Language button (T-40) */}
+      {obj.type === "lang_button" && (
+        <>
+          {field(t("props.label"), <BindableInput obj={obj} propName="label" onChange={onChange}>{textInput("label", "IT")}</BindableInput>)}
+          {field(t("props.targetLang"),
+            <select style={{ ...INPUT, cursor: "pointer" }} value={obj.target_lang ?? ""}
+              onChange={(e) => onChange({ target_lang: e.target.value || undefined })}>
+              <option value="">{t("props.dashSelect")}</option>
+              {projLangs.map((l) => <option key={l} value={l}>{l}</option>)}
+            </select>
+          )}
+        </>
+      )}
+
+      {/* Language selector (T-40) — auto-lists the project languages */}
+      {obj.type === "lang_selector" && (
+        <div style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", padding: "4px 0" }}>
+          {t("props.langSelectorHint")}
+        </div>
+      )}
+
       {/* Gauge */}
       {obj.type === "gauge" && (
         <>
-          {field("Etichetta", <BindableInput obj={obj} propName="label" onChange={onChange}>{textInput("label", "Gauge")}</BindableInput>)}
-          {field("Tag", tagInput("es. pump1.speed"))}
+          {field(t("props.label"), <BindableInput obj={obj} propName="label" onChange={onChange}>{textInput("label", "Gauge")}</BindableInput>)}
+          {field(t("props.tag"), tagInput("es. pump1.speed"))}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
             <div><div style={LABEL}>Min</div><BindableInput obj={obj} propName="min" onChange={onChange}>{numInput("min", 0)}</BindableInput></div>
             <div><div style={LABEL}>Max</div><BindableInput obj={obj} propName="max" onChange={onChange}>{numInput("max", 100)}</BindableInput></div>
           </div>
-          {field("Unità", <BindableInput obj={obj} propName="unit" onChange={onChange}>{textInput("unit", "")}</BindableInput>)}
+          {field(t("props.unit"), <BindableInput obj={obj} propName="unit" onChange={onChange}>{textInput("unit", "")}</BindableInput>)}
           <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", marginTop: 4, marginBottom: 2, fontWeight: 700 }}>SOGLIE</div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
-            <div><div style={LABEL}>Warn Low</div><BindableInput obj={obj} propName="warn_low" onChange={onChange}>{numInput("warn_low", 0)}</BindableInput></div>
-            <div><div style={LABEL}>Warn High</div><BindableInput obj={obj} propName="warn_high" onChange={onChange}>{numInput("warn_high", 0)}</BindableInput></div>
-            <div><div style={LABEL}>Alarm Low</div><BindableInput obj={obj} propName="alarm_low" onChange={onChange}>{numInput("alarm_low", 0)}</BindableInput></div>
-            <div><div style={LABEL}>Alarm High</div><BindableInput obj={obj} propName="alarm_high" onChange={onChange}>{numInput("alarm_high", 0)}</BindableInput></div>
+            <div><div style={LABEL}>{t("props.warnLow")}</div><BindableInput obj={obj} propName="warn_low" onChange={onChange}>{numInput("warn_low", 0)}</BindableInput></div>
+            <div><div style={LABEL}>{t("props.warnHigh")}</div><BindableInput obj={obj} propName="warn_high" onChange={onChange}>{numInput("warn_high", 0)}</BindableInput></div>
+            <div><div style={LABEL}>{t("props.alarmLow")}</div><BindableInput obj={obj} propName="alarm_low" onChange={onChange}>{numInput("alarm_low", 0)}</BindableInput></div>
+            <div><div style={LABEL}>{t("props.alarmHigh")}</div><BindableInput obj={obj} propName="alarm_high" onChange={onChange}>{numInput("alarm_high", 0)}</BindableInput></div>
           </div>
-          {field("Mostra valore",
+          {field(t("props.showValue"),
             <input type="checkbox" checked={!!obj.show_value}
               onChange={(e) => onChange({ show_value: e.target.checked })} />
           )}
@@ -2018,27 +2189,27 @@ function ObjectProps({
       {/* Slider */}
       {obj.type === "slider" && (
         <>
-          {field("Tag", tagInput("es. pump1.speed"))}
+          {field(t("props.tag"), tagInput("es. pump1.speed"))}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6 }}>
             <div><div style={LABEL}>Min</div><BindableInput obj={obj} propName="min" onChange={onChange}>{numInput("min", 0)}</BindableInput></div>
             <div><div style={LABEL}>Max</div><BindableInput obj={obj} propName="max" onChange={onChange}>{numInput("max", 100)}</BindableInput></div>
             <div><div style={LABEL}>Step</div><BindableInput obj={obj} propName="step" onChange={onChange}>{numInput("step", 1)}</BindableInput></div>
           </div>
-          {field("Orientamento",
+          {field(t("props.orientation"),
             <select
               style={{ ...INPUT, cursor: "pointer" }}
               value={obj.orientation ?? "horizontal"}
               onChange={(e) => onChange({ orientation: e.target.value as "horizontal" | "vertical" })}
             >
-              <option value="horizontal">Orizzontale</option>
-              <option value="vertical">Verticale</option>
+              <option value="horizontal">{t("props.horizontal")}</option>
+              <option value="vertical">{t("props.vertical")}</option>
             </select>
           )}
-          {field("Mostra valore",
+          {field(t("props.showValue"),
             <input type="checkbox" checked={!!obj.show_value}
               onChange={(e) => onChange({ show_value: e.target.checked })} />
           )}
-          {field("Solo lettura",
+          {field(t("props.readOnly"),
             <input type="checkbox" checked={!!obj.read_only}
               onChange={(e) => onChange({ read_only: e.target.checked })} />
           )}
@@ -2048,11 +2219,11 @@ function ObjectProps({
       {/* Checkbox */}
       {obj.type === "checkbox" && (
         <>
-          {field("Etichetta", <BindableInput obj={obj} propName="label" onChange={onChange}>{textInput("label", "Checkbox")}</BindableInput>)}
-          {field("Tag", tagInput("es. pump1.run"))}
-          {field("Valore ON",
+          {field(t("props.label"), <BindableInput obj={obj} propName="label" onChange={onChange}>{textInput("label", "Checkbox")}</BindableInput>)}
+          {field(t("props.tag"), tagInput("es. pump1.run"))}
+          {field(t("props.valueOn"),
             <BindableInput obj={obj} propName="checked_value" onChange={onChange}>
-              <input type="text" style={INPUT} placeholder="true / 1 / testo"
+              <input type="text" style={INPUT} placeholder={t("props.trueHint")}
                 value={obj.checked_value !== undefined ? String(obj.checked_value) : ""}
                 onChange={(e) => {
                   const raw = e.target.value;
@@ -2062,9 +2233,9 @@ function ObjectProps({
                 }} />
             </BindableInput>
           )}
-          {field("Valore OFF",
+          {field(t("props.valueOff"),
             <BindableInput obj={obj} propName="unchecked_value" onChange={onChange}>
-              <input type="text" style={INPUT} placeholder="false / 0 / testo"
+              <input type="text" style={INPUT} placeholder={t("props.falseHint")}
                 value={obj.unchecked_value !== undefined ? String(obj.unchecked_value) : ""}
                 onChange={(e) => {
                   const raw = e.target.value;
@@ -2074,7 +2245,7 @@ function ObjectProps({
                 }} />
             </BindableInput>
           )}
-          {field("Solo lettura",
+          {field(t("props.readOnly"),
             <input type="checkbox" checked={!!obj.read_only}
               onChange={(e) => onChange({ read_only: e.target.checked })} />
           )}
@@ -2084,16 +2255,16 @@ function ObjectProps({
       {/* Radio */}
       {obj.type === "radio" && (
         <>
-          {field("Etichetta", <BindableInput obj={obj} propName="label" onChange={onChange}>{textInput("label", "Radio")}</BindableInput>)}
-          {field("Tag", tagInput("es. pump1.mode"))}
-          {field("Orientamento",
+          {field(t("props.label"), <BindableInput obj={obj} propName="label" onChange={onChange}>{textInput("label", "Radio")}</BindableInput>)}
+          {field(t("props.tag"), tagInput("es. pump1.mode"))}
+          {field(t("props.orientation"),
             <select
               style={{ ...INPUT, cursor: "pointer" }}
               value={obj.orientation ?? "vertical"}
               onChange={(e) => onChange({ orientation: e.target.value as "horizontal" | "vertical" })}
             >
-              <option value="vertical">Verticale</option>
-              <option value="horizontal">Orizzontale</option>
+              <option value="vertical">{t("props.vertical")}</option>
+              <option value="horizontal">{t("props.horizontal")}</option>
             </select>
           )}
           <RadioOptionsEditor
@@ -2106,11 +2277,11 @@ function ObjectProps({
       {/* LED */}
       {obj.type === "led" && (
         <>
-          {field("Etichetta", <BindableInput obj={obj} propName="label" onChange={onChange}>{textInput("label", "")}</BindableInput>)}
-          {field("Tag", tagInput("es. pump1.run"))}
-          {field("Valore ON",
+          {field(t("props.label"), <BindableInput obj={obj} propName="label" onChange={onChange}>{textInput("label", "")}</BindableInput>)}
+          {field(t("props.tag"), tagInput("es. pump1.run"))}
+          {field(t("props.valueOn"),
             <BindableInput obj={obj} propName="on_value" onChange={onChange}>
-              <input type="text" style={INPUT} placeholder="true / 1 / testo"
+              <input type="text" style={INPUT} placeholder={t("props.trueHint")}
                 value={obj.on_value !== undefined ? String(obj.on_value) : ""}
                 onChange={(e) => {
                   const raw = e.target.value;
@@ -2120,30 +2291,30 @@ function ObjectProps({
                 }} />
             </BindableInput>
           )}
-          {field("Colore ON",  <BindableInput obj={obj} propName="on_color" onChange={onChange}>{colorInput("on_color",  "var(--brand-success, #22c55e)")}</BindableInput>)}
-          {field("Colore OFF", <BindableInput obj={obj} propName="off_color" onChange={onChange}>{colorInput("off_color", "#374151")}</BindableInput>)}
+          {field(t("props.colorOn"),  <BindableInput obj={obj} propName="on_color" onChange={onChange}>{colorInput("on_color",  "var(--brand-success, #22c55e)")}</BindableInput>)}
+          {field(t("props.colorOff"), <BindableInput obj={obj} propName="off_color" onChange={onChange}>{colorInput("off_color", "#374151")}</BindableInput>)}
         </>
       )}
 
       {/* Progress bar */}
       {obj.type === "progress_bar" && (
         <>
-          {field("Etichetta", <BindableInput obj={obj} propName="label" onChange={onChange}>{textInput("label", "")}</BindableInput>)}
-          {field("Tag", tagInput("es. tank1.level"))}
+          {field(t("props.label"), <BindableInput obj={obj} propName="label" onChange={onChange}>{textInput("label", "")}</BindableInput>)}
+          {field(t("props.tag"), tagInput("es. tank1.level"))}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
             <div><div style={LABEL}>Min</div><BindableInput obj={obj} propName="min" onChange={onChange}>{numInput("min", 0)}</BindableInput></div>
             <div><div style={LABEL}>Max</div><BindableInput obj={obj} propName="max" onChange={onChange}>{numInput("max", 100)}</BindableInput></div>
           </div>
-          {field("Unità", <BindableInput obj={obj} propName="unit" onChange={onChange}>{textInput("unit", "")}</BindableInput>)}
-          {field("Colore barra", <BindableInput obj={obj} propName="fill" onChange={onChange}>{colorInput("fill", "var(--brand-primary, #3b82f6)")}</BindableInput>)}
+          {field(t("props.unit"), <BindableInput obj={obj} propName="unit" onChange={onChange}>{textInput("unit", "")}</BindableInput>)}
+          {field(t("props.colorBar"), <BindableInput obj={obj} propName="fill" onChange={onChange}>{colorInput("fill", "var(--brand-primary, #3b82f6)")}</BindableInput>)}
           <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", marginTop: 4, marginBottom: 2, fontWeight: 700 }}>SOGLIE</div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
-            <div><div style={LABEL}>Warn Low</div><BindableInput obj={obj} propName="warn_low" onChange={onChange}>{numInput("warn_low", 0)}</BindableInput></div>
-            <div><div style={LABEL}>Warn High</div><BindableInput obj={obj} propName="warn_high" onChange={onChange}>{numInput("warn_high", 0)}</BindableInput></div>
-            <div><div style={LABEL}>Alarm Low</div><BindableInput obj={obj} propName="alarm_low" onChange={onChange}>{numInput("alarm_low", 0)}</BindableInput></div>
-            <div><div style={LABEL}>Alarm High</div><BindableInput obj={obj} propName="alarm_high" onChange={onChange}>{numInput("alarm_high", 0)}</BindableInput></div>
+            <div><div style={LABEL}>{t("props.warnLow")}</div><BindableInput obj={obj} propName="warn_low" onChange={onChange}>{numInput("warn_low", 0)}</BindableInput></div>
+            <div><div style={LABEL}>{t("props.warnHigh")}</div><BindableInput obj={obj} propName="warn_high" onChange={onChange}>{numInput("warn_high", 0)}</BindableInput></div>
+            <div><div style={LABEL}>{t("props.alarmLow")}</div><BindableInput obj={obj} propName="alarm_low" onChange={onChange}>{numInput("alarm_low", 0)}</BindableInput></div>
+            <div><div style={LABEL}>{t("props.alarmHigh")}</div><BindableInput obj={obj} propName="alarm_high" onChange={onChange}>{numInput("alarm_high", 0)}</BindableInput></div>
           </div>
-          {field("Mostra valore",
+          {field(t("props.showValue"),
             <input type="checkbox" checked={!!obj.show_value}
               onChange={(e) => onChange({ show_value: e.target.checked })} />
           )}
@@ -2161,8 +2332,8 @@ function ObjectProps({
       {/* Trend */}
       {obj.type === "trend" && (
         <>
-          {field("Tag", tagInput("es. boiler.t"))}
-          {field("Finestra (s)", <BindableInput obj={obj} propName="window_s" onChange={onChange}>{numInput("window_s", 60)}</BindableInput>)}
+          {field(t("props.tag"), tagInput("es. boiler.t"))}
+          {field(t("props.windowS"), <BindableInput obj={obj} propName="window_s" onChange={onChange}>{numInput("window_s", 60)}</BindableInput>)}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
             <div><div style={LABEL}>Y min</div><BindableInput obj={obj} propName="y_min" onChange={onChange}>{numInput("y_min", 0)}</BindableInput></div>
             <div><div style={LABEL}>Y max</div><BindableInput obj={obj} propName="y_max" onChange={onChange}>{numInput("y_max", 100)}</BindableInput></div>
@@ -2170,18 +2341,18 @@ function ObjectProps({
           <p style={{ fontSize: 10, color: "var(--brand-border, #475569)", margin: "2px 0 0" }}>
             Lascia Y min/max a 0 per autofit.
           </p>
-          {field("Colore linea principale", <BindableInput obj={obj} propName="line_color" onChange={onChange}>{colorInput("line_color", "var(--brand-primary, #3b82f6)")}</BindableInput>)}
+          {field(t("props.colorMainLine"), <BindableInput obj={obj} propName="line_color" onChange={onChange}>{colorInput("line_color", "var(--brand-primary, #3b82f6)")}</BindableInput>)}
 
           {/* Multi-tag overlay: extra series share the same axes */}
           <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", marginTop: 6, marginBottom: 2, fontWeight: 700, letterSpacing: 0.5 }}>
             ALTRI TAG (OVERLAY)
           </div>
-          {(obj.extra_tags ?? []).map((t, i) => (
+          {(obj.extra_tags ?? []).map((tg, i) => (
             <div key={i} style={{ display: "flex", gap: 4, marginBottom: 4, alignItems: "center" }}>
               <TagInput
                 style={{ ...INPUT, flex: 1 }}
-                placeholder="es. boiler.pressure"
-                value={t}
+                placeholder={t("props.exBoiler")}
+                value={tg}
                 onChange={(v) => {
                   const next = [...(obj.extra_tags ?? [])];
                   next[i] = v;
@@ -2189,7 +2360,7 @@ function ObjectProps({
                 }}
               />
               <button
-                title="Rimuovi"
+                title={t("props.remove")}
                 style={{ background: "transparent", border: "none", color: "var(--brand-danger, #ef4444)", cursor: "pointer", fontSize: 14, padding: "0 4px" }}
                 onClick={() => {
                   const next = (obj.extra_tags ?? []).filter((_, j) => j !== i);
@@ -2220,7 +2391,7 @@ function ObjectProps({
       {/* Image (external URL) */}
       {obj.type === "image" && (
         <>
-          {field("URL immagine",
+          {field(t("props.imageUrl"),
             <div style={{ display: "flex", gap: 4 }}>
               <BindableInput obj={obj} propName="src" onChange={onChange}>
                 <input
@@ -2237,7 +2408,7 @@ function ObjectProps({
                   padding: "0 8px", fontSize: 12,
                 }}
                 onClick={() => setImgBrowserOpen(true)}
-                title="Sfoglia libreria immagini"
+                title={t("props.browseImages")}
               >
                 ⋯
               </button>
@@ -2281,7 +2452,7 @@ function ObjectProps({
               />
             </div>
             <div>
-              <div style={LABEL}>Colonne</div>
+              <div style={LABEL}>{t("props.columns")}</div>
               <input
                 type="number" min={1} max={20} style={INPUT}
                 value={obj.grid_cols ?? 2}
@@ -2300,7 +2471,7 @@ function ObjectProps({
           </label>
           {obj.grid_show_borders !== false && (
             <div style={{ marginTop: 4 }}>
-              <div style={LABEL}>Colore bordi</div>
+              <div style={LABEL}>{t("props.colorBorders")}</div>
               <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
                 <input
                   type="color"
@@ -2325,7 +2496,7 @@ function ObjectProps({
       {/* Text List */}
       {obj.type === "text_list" && (
         <>
-          {field("Tag", tagInput("es. valvola.stato"))}
+          {field(t("props.tag"), tagInput("es. valvola.stato"))}
           <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", marginTop: 4, marginBottom: 2, fontWeight: 700 }}>VOCI</div>
           {(obj.text_list_entries ?? []).map((e, i) => (
             <div key={i} style={{ display: "flex", gap: 4, marginBottom: 4, alignItems: "center" }}>
@@ -2336,9 +2507,9 @@ function ObjectProps({
                   const next = [...(obj.text_list_entries ?? [])]; next[i] = { ...e, value: v };
                   onChange({ text_list_entries: next });
                 }} />
-              <input style={{ ...INPUT, flex: 1 }} placeholder="etichetta" value={e.label}
+              <input style={{ ...INPUT, flex: 1 }} placeholder={t("props.labelPh")} value={e.label}
                 onChange={(ev) => { const next = [...(obj.text_list_entries ?? [])]; next[i] = { ...e, label: ev.target.value }; onChange({ text_list_entries: next }); }} />
-              <input type="color" value={e.color ?? "var(--brand-text, #e2e8f0)"} title="Colore testo"
+              <input type="color" value={e.color ?? "var(--brand-text, #e2e8f0)"} title={t("props.colorText")}
                 onChange={(ev) => { const next = [...(obj.text_list_entries ?? [])]; next[i] = { ...e, color: ev.target.value }; onChange({ text_list_entries: next }); }}
                 style={{ width: 28, height: 24, padding: 1, border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 3, cursor: "pointer" }} />
               <button style={{ ...INPUT, padding: "0 6px", cursor: "pointer" }}
@@ -2349,14 +2520,14 @@ function ObjectProps({
             onClick={() => onChange({ text_list_entries: [...(obj.text_list_entries ?? []), { value: 0, label: "Stato", color: "var(--brand-text, #e2e8f0)" }] })}>
             + Aggiungi voce
           </button>
-          {field("Testo default", <input style={INPUT} value={obj.text_list_default ?? ""} onChange={(e) => onChange({ text_list_default: e.target.value })} />)}
-          {field("Colore default", <input type="color" value={obj.text_list_default_color ?? "var(--brand-text-muted, #94a3b8)"} onChange={(e) => onChange({ text_list_default_color: e.target.value })} style={{ width: 40, height: 24, padding: 1, border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 3 }} />)}
-          {field("Font size", numInput("font_size", 16))}
-          {field("Allineamento", (
+          {field(t("props.textDefault"), <input style={INPUT} value={obj.text_list_default ?? ""} onChange={(e) => onChange({ text_list_default: e.target.value })} />)}
+          {field(t("props.colorDefault"), <input type="color" value={obj.text_list_default_color ?? "var(--brand-text-muted, #94a3b8)"} onChange={(e) => onChange({ text_list_default_color: e.target.value })} style={{ width: 40, height: 24, padding: 1, border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 3 }} />)}
+          {field(t("props.fontSize"), numInput("font_size", 16))}
+          {field(t("props.alignment"), (
             <select style={INPUT} value={obj.text_anchor ?? "middle"} onChange={(e) => onChange({ text_anchor: e.target.value as any })}>
-              <option value="start">Sinistra</option>
-              <option value="middle">Centro</option>
-              <option value="end">Destra</option>
+              <option value="start">{t("props.left")}</option>
+              <option value="middle">{t("props.center")}</option>
+              <option value="end">{t("props.right")}</option>
             </select>
           ))}
         </>
@@ -2365,18 +2536,18 @@ function ObjectProps({
       {/* Bar Chart */}
       {obj.type === "bar_chart" && (
         <>
-          {field("Orientamento", (
+          {field(t("props.orientation"), (
             <select style={INPUT} value={obj.bar_orientation ?? "vertical"} onChange={(e) => onChange({ bar_orientation: e.target.value as any })}>
-              <option value="vertical">Verticale</option>
-              <option value="horizontal">Orizzontale</option>
+              <option value="vertical">{t("props.vertical")}</option>
+              <option value="horizontal">{t("props.horizontal")}</option>
             </select>
           ))}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
             <div><div style={LABEL}>Min</div>{numInput("min", 0)}</div>
             <div><div style={LABEL}>Max</div>{numInput("max", 100)}</div>
           </div>
-          {field("Unità", textInput("unit", ""))}
-          {field("Gap barre (0-0.9)", numInput("bar_gap", 0.2))}
+          {field(t("props.unit"), textInput("unit", ""))}
+          {field(t("props.barGap"), numInput("bar_gap", 0.2))}
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             {[["bar_show_values","Valori"], ["bar_show_labels","Etichette"], ["bar_show_thresholds","Soglie"]].map(([k,l]) => (
               <label key={k} style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "flex", gap: 3, alignItems: "center" }}>
@@ -2403,8 +2574,8 @@ function ObjectProps({
           </button>
           <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", marginTop: 2, marginBottom: 2, fontWeight: 700 }}>SOGLIE</div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
-            <div><div style={LABEL}>Warn High</div>{numInput("warn_high", 0)}</div>
-            <div><div style={LABEL}>Alarm High</div>{numInput("alarm_high", 0)}</div>
+            <div><div style={LABEL}>{t("props.warnHigh")}</div>{numInput("warn_high", 0)}</div>
+            <div><div style={LABEL}>{t("props.alarmHigh")}</div>{numInput("alarm_high", 0)}</div>
           </div>
         </>
       )}
@@ -2412,13 +2583,13 @@ function ObjectProps({
       {/* Pie / Donut Chart */}
       {obj.type === "pie_chart" && (
         <>
-          {field("Modalità", (
+          {field(t("props.mode"), (
             <select style={INPUT} value={obj.pie_mode ?? "pie"} onChange={(e) => onChange({ pie_mode: e.target.value as any })}>
-              <option value="pie">Pie (cerchio pieno)</option>
-              <option value="donut">Donut (anello)</option>
+              <option value="pie">{t("props.pieFull")}</option>
+              <option value="donut">{t("props.donut")}</option>
             </select>
           ))}
-          {(obj.pie_mode ?? "pie") === "donut" && field("Raggio interno (0.1-0.8)", numInput("pie_inner_ratio", 0.5))}
+          {(obj.pie_mode ?? "pie") === "donut" && field(t("props.innerRadius"), numInput("pie_inner_ratio", 0.5))}
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             {[["pie_show_labels","Percentuali"], ["pie_show_legend","Legenda"]].map(([k,l]) => (
               <label key={k} style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "flex", gap: 3, alignItems: "center" }}>
@@ -2426,8 +2597,8 @@ function ObjectProps({
               </label>
             ))}
           </div>
-          {(obj.pie_mode ?? "pie") === "donut" && field("Testo centro", textInput("pie_center_text", ""))}
-          {(obj.pie_mode ?? "pie") === "donut" && field("Tag centro", tagInput("es. totale.kw"))}
+          {(obj.pie_mode ?? "pie") === "donut" && field(t("props.textCenter"), textInput("pie_center_text", ""))}
+          {(obj.pie_mode ?? "pie") === "donut" && field(t("props.tagCenter"), tagInput("es. totale.kw"))}
           <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", marginTop: 6, marginBottom: 2, fontWeight: 700 }}>SLICE</div>
           {(obj.pie_slices ?? []).map((s, i) => (
             <div key={i} style={{ display: "flex", gap: 4, marginBottom: 4, alignItems: "center" }}>
@@ -2451,10 +2622,10 @@ function ObjectProps({
       {/* Sparkline */}
       {obj.type === "sparkline" && (
         <>
-          {field("Tag", tagInput("es. flow.rate"))}
-          {field("Finestra (s)", numInput("spark_window_s", 60))}
-          {field("Colore linea", <input type="color" value={obj.spark_color ?? "var(--brand-primary, #3b82f6)"} onChange={(e) => onChange({ spark_color: e.target.value })} style={{ width: 40, height: 24, padding: 1, border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 3 }} />)}
-          {field("Spessore (px)", numInput("spark_stroke_width", 1.5))}
+          {field(t("props.tag"), tagInput("es. flow.rate"))}
+          {field(t("props.windowS"), numInput("spark_window_s", 60))}
+          {field(t("props.colorLine"), <input type="color" value={obj.spark_color ?? "var(--brand-primary, #3b82f6)"} onChange={(e) => onChange({ spark_color: e.target.value })} style={{ width: 40, height: 24, padding: 1, border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 3 }} />)}
+          {field(t("props.thicknessPx"), numInput("spark_stroke_width", 1.5))}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
             <div><div style={LABEL}>Y min</div>{numInput("y_min", 0)}</div>
             <div><div style={LABEL}>Y max</div>{numInput("y_max", 0)}</div>
@@ -2466,21 +2637,21 @@ function ObjectProps({
               </label>
             ))}
           </div>
-          {obj.spark_fill && field("Opacità fill", numInput("spark_fill_opacity", 0.2))}
+          {obj.spark_fill && field(t("props.opacityFill"), numInput("spark_fill_opacity", 0.2))}
         </>
       )}
 
       {/* Alarm Viewer */}
       {obj.type === "alarm_viewer" && (
         <>
-          {field("Modalità", (
+          {field(t("props.mode"), (
             <select style={INPUT} value={obj.alarm_viewer_mode ?? "list"} onChange={(e) => onChange({ alarm_viewer_mode: e.target.value as any })}>
-              <option value="list">Lista</option>
-              <option value="banner">Banner scorrevole</option>
+              <option value="list">{t("props.list")}</option>
+              <option value="banner">{t("props.scrollingBanner")}</option>
             </select>
           ))}
-          {field("Max righe", numInput("alarm_viewer_max_rows", 5))}
-          {field("Prefisso ID allarme", <input style={INPUT} placeholder="es. zona1." value={obj.alarm_viewer_id_prefix ?? ""} onChange={(e) => onChange({ alarm_viewer_id_prefix: e.target.value })} />)}
+          {field(t("props.maxRows"), numInput("alarm_viewer_max_rows", 5))}
+          {field(t("props.alarmIdPrefix"), <input style={INPUT} placeholder={t("props.exZone")} value={obj.alarm_viewer_id_prefix ?? ""} onChange={(e) => onChange({ alarm_viewer_id_prefix: e.target.value })} />)}
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             {[["alarm_viewer_show_ack","Mostra ACK"], ["alarm_viewer_show_ts","Timestamp"], ["alarm_viewer_show_empty","Mostra vuoto"]].map(([k,l]) => (
               <label key={k} style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "flex", gap: 3, alignItems: "center" }}>
@@ -2488,33 +2659,33 @@ function ObjectProps({
               </label>
             ))}
           </div>
-          {field("Sfondo vuoto", <input type="color" value={obj.alarm_viewer_bg_color ?? "var(--brand-bg, #0f172a)"} onChange={(e) => onChange({ alarm_viewer_bg_color: e.target.value })} style={{ width: 40, height: 24, padding: 1, border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 3 }} />)}
+          {field(t("props.emptyBackground"), <input type="color" value={obj.alarm_viewer_bg_color ?? "var(--brand-bg, #0f172a)"} onChange={(e) => onChange({ alarm_viewer_bg_color: e.target.value })} style={{ width: 40, height: 24, padding: 1, border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 3 }} />)}
         </>
       )}
 
       {/* Symbol (built-in SCADA library + custom project symbols) */}
       {obj.type === "symbol" && (
         <>
-          {field("Simbolo",
+          {field(t("props.symbol"),
             <SymbolGallery value={obj.symbol_id ?? "pump"} onChange={(v) => onChange({ symbol_id: v as any })} />
           )}
-          {field("Tag stato (truthy → ON)",
+          {field(t("props.tagState"),
             <TagInput
-              style={INPUT} placeholder="es. pump1.running"
+              style={INPUT} placeholder={t("props.exRunning")}
               value={obj.state_tag ?? ""}
               onChange={(v) => onChange({ state_tag: v || undefined })}
             />
           )}
-          {field("Tag allarme (truthy → ALARM)",
+          {field(t("props.tagAlarm"),
             <TagInput
-              style={INPUT} placeholder="es. pump1.fault"
+              style={INPUT} placeholder={t("props.exFault")}
               value={obj.alarm_tag ?? ""}
               onChange={(v) => onChange({ alarm_tag: v || undefined })}
             />
           )}
-          {field("Colore OFF",   <BindableInput obj={obj} propName="state_off_color"   onChange={onChange}>{colorInput("state_off_color",   "var(--brand-text-subtle, #64748b)")}</BindableInput>)}
-          {field("Colore ON",    <BindableInput obj={obj} propName="state_on_color"    onChange={onChange}>{colorInput("state_on_color",    "var(--brand-success, #22c55e)")}</BindableInput>)}
-          {field("Colore ALARM", <BindableInput obj={obj} propName="state_alarm_color" onChange={onChange}>{colorInput("state_alarm_color", "var(--brand-danger, #ef4444)")}</BindableInput>)}
+          {field(t("props.colorOff"),   <BindableInput obj={obj} propName="state_off_color"   onChange={onChange}>{colorInput("state_off_color",   "var(--brand-text-subtle, #64748b)")}</BindableInput>)}
+          {field(t("props.colorOn"),    <BindableInput obj={obj} propName="state_on_color"    onChange={onChange}>{colorInput("state_on_color",    "var(--brand-success, #22c55e)")}</BindableInput>)}
+          {field(t("props.colorAlarm"), <BindableInput obj={obj} propName="state_alarm_color" onChange={onChange}>{colorInput("state_alarm_color", "var(--brand-danger, #ef4444)")}</BindableInput>)}
         </>
       )}
 
@@ -2524,14 +2695,14 @@ function ObjectProps({
           {/* Routing + style */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
             <div>
-              <div style={LABEL}>Percorso</div>
+              <div style={LABEL}>{t("props.path")}</div>
               <select style={{ ...INPUT, cursor: "pointer" }}
                 value={obj.routing ?? "straight"}
                 onChange={(e) => onChange({ routing: e.target.value as "straight" | "orthogonal" | "diagonal" | "bezier" })}>
-                <option value="straight">Linee dirette</option>
-                <option value="bezier">Curvo (bezier)</option>
-                <option value="orthogonal">90° ortogonale</option>
-                <option value="diagonal">45° diagonale</option>
+                <option value="straight">{t("props.straightLines")}</option>
+                <option value="bezier">{t("props.curved")}</option>
+                <option value="orthogonal">{t("props.ortho90")}</option>
+                <option value="diagonal">{t("props.diag45")}</option>
               </select>
             </div>
             <div>
@@ -2539,9 +2710,9 @@ function ObjectProps({
               <select style={{ ...INPUT, cursor: "pointer" }}
                 value={obj.pipe_style ?? "flat"}
                 onChange={(e) => onChange({ pipe_style: e.target.value as "flat" | "tube" | "wire" })}>
-                <option value="flat">Piatto</option>
-                <option value="tube">Tubo 3D</option>
-                <option value="wire">Cavo/filo</option>
+                <option value="flat">{t("props.flat")}</option>
+                <option value="tube">{t("props.pipe3d")}</option>
+                <option value="wire">{t("props.wire")}</option>
               </select>
             </div>
           </div>
@@ -2549,38 +2720,38 @@ function ObjectProps({
           {/* Stroke */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
             <div>
-              {field("Colore tubo", colorInput("stroke", "var(--brand-text-subtle, #64748b)"))}
+              {field(t("props.colorPipe"), colorInput("stroke", "var(--brand-text-subtle, #64748b)"))}
             </div>
             <div>
-              {field("Spessore (px)", numInput("stroke_width", 8))}
+              {field(t("props.thicknessPx"), numInput("stroke_width", 8))}
             </div>
           </div>
 
           {/* Tratteggio */}
-          {field("Tratteggio (es. 6,3)", textInput("stroke_dasharray", "6,3"))}
+          {field(t("props.dashArray"), textInput("stroke_dasharray", "6,3"))}
 
           {/* Gradiente (tube style) */}
           {(obj.pipe_style === "tube" || obj.pipe_gradient) && (
             <>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
-                <div>{field("Colore chiaro", colorInput("gradient_light_color", "var(--brand-text-muted, #94a3b8)"))}</div>
-                <div>{field("Colore scuro",  colorInput("gradient_dark_color",  "var(--brand-surface-2, #334155)"))}</div>
+                <div>{field(t("props.colorLight"), colorInput("gradient_light_color", "var(--brand-text-muted, #94a3b8)"))}</div>
+                <div>{field(t("props.colorDark"),  colorInput("gradient_dark_color",  "var(--brand-surface-2, #334155)"))}</div>
               </div>
             </>
           )}
 
           {/* Fill level */}
-          <CollapsibleSection title="Riempimento fluido" storageKey="pipe-fill">
-            {field("Tag livello",
+          <CollapsibleSection title={t("props.fluidFill")} storageKey="pipe-fill">
+            {field(t("props.tagLevel"),
               <TagInput
-                style={INPUT} placeholder="es. tank1.level"
+                style={INPUT} placeholder={t("props.exLevel")}
                 value={obj.fill_level_tag ?? ""}
                 onChange={(v) => onChange({ fill_level_tag: v || undefined })}
               />
             )}
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
               <div>
-                <div style={LABEL}>Scala tag</div>
+                <div style={LABEL}>{t("props.tagScale")}</div>
                 <select style={{ ...INPUT, cursor: "pointer" }}
                   value={obj.fill_level_scale ?? "0-100"}
                   onChange={(e) => onChange({ fill_level_scale: e.target.value as "0-1" | "0-100" })}>
@@ -2589,110 +2760,110 @@ function ObjectProps({
                 </select>
               </div>
               <div>
-                <div style={LABEL}>Direzione</div>
+                <div style={LABEL}>{t("props.direction")}</div>
                 <select style={{ ...INPUT, cursor: "pointer" }}
                   value={obj.fill_direction ?? "start-to-end"}
                   onChange={(e) => onChange({ fill_direction: e.target.value as "start-to-end" | "end-to-start" })}>
-                  <option value="start-to-end">Inizio → Fine</option>
-                  <option value="end-to-start">Fine → Inizio</option>
+                  <option value="start-to-end">{t("props.startToEnd")}</option>
+                  <option value="end-to-start">{t("props.endToStart")}</option>
                 </select>
               </div>
             </div>
-            {field("Livello statico (0–1)", numInput("fill_level", 0))}
-            {field("Colore fluido", colorInput("fill_color", "var(--brand-primary, #3b82f6)"))}
+            {field(t("props.staticLevel"), numInput("fill_level", 0))}
+            {field(t("props.colorFluid"), colorInput("fill_color", "var(--brand-primary, #3b82f6)"))}
           </CollapsibleSection>
 
           {/* Markers */}
-          <CollapsibleSection title="Marker estremità" storageKey="pipe-markers">
+          <CollapsibleSection title={t("props.endMarker")} storageKey="pipe-markers">
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
               <div>
-                <div style={LABEL}>Marker inizio</div>
+                <div style={LABEL}>{t("props.markerStart")}</div>
                 <select style={{ ...INPUT, cursor: "pointer" }}
                   value={obj.start_marker ?? "none"}
                   onChange={(e) => onChange({ start_marker: e.target.value as "none" | "arrow" | "dot" | "flange" })}>
-                  <option value="none">Nessuno</option>
-                  <option value="arrow">Freccia</option>
-                  <option value="dot">Pallino</option>
-                  <option value="flange">Flangia</option>
+                  <option value="none">{t("props.noneM")}</option>
+                  <option value="arrow">{t("props.arrow")}</option>
+                  <option value="dot">{t("props.dot")}</option>
+                  <option value="flange">{t("props.flange")}</option>
                 </select>
               </div>
               <div>
-                <div style={LABEL}>Marker fine</div>
+                <div style={LABEL}>{t("props.markerEnd")}</div>
                 <select style={{ ...INPUT, cursor: "pointer" }}
                   value={obj.end_marker ?? "none"}
                   onChange={(e) => onChange({ end_marker: e.target.value as "none" | "arrow" | "dot" | "flange" })}>
-                  <option value="none">Nessuno</option>
-                  <option value="arrow">Freccia</option>
-                  <option value="dot">Pallino</option>
-                  <option value="flange">Flangia</option>
+                  <option value="none">{t("props.noneM")}</option>
+                  <option value="arrow">{t("props.arrow")}</option>
+                  <option value="dot">{t("props.dot")}</option>
+                  <option value="flange">{t("props.flange")}</option>
                 </select>
               </div>
             </div>
-            {field("Dimensione marker", numInput("marker_size", 1))}
+            {field(t("props.markerSize"), numInput("marker_size", 1))}
           </CollapsibleSection>
 
           {/* State coloring */}
-          <CollapsibleSection title="Stato e allarme" storageKey="pipe-state">
-            {field("Tag stato (truthy → ON)",
-              <TagInput style={INPUT} placeholder="es. pump1.running"
+          <CollapsibleSection title={t("props.stateAndAlarm")} storageKey="pipe-state">
+            {field(t("props.tagState"),
+              <TagInput style={INPUT} placeholder={t("props.exRunning")}
                 value={obj.state_tag ?? ""}
                 onChange={(v) => onChange({ state_tag: v || undefined })} />
             )}
-            {field("Tag allarme (truthy → ALARM)",
-              <TagInput style={INPUT} placeholder="es. pump1.fault"
+            {field(t("props.tagAlarm"),
+              <TagInput style={INPUT} placeholder={t("props.exFault")}
                 value={obj.alarm_tag ?? ""}
                 onChange={(v) => onChange({ alarm_tag: v || undefined })} />
             )}
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6 }}>
-              <div>{field("OFF",   colorInput("state_off_color",   "var(--brand-text-subtle, #64748b)"))}</div>
-              <div>{field("ON",    colorInput("state_on_color",    "var(--brand-success, #22c55e)"))}</div>
-              <div>{field("ALARM", colorInput("state_alarm_color", "var(--brand-danger, #ef4444)"))}</div>
+              <div>{field(t("props.off"),   colorInput("state_off_color",   "var(--brand-text-subtle, #64748b)"))}</div>
+              <div>{field(t("props.on"),    colorInput("state_on_color",    "var(--brand-success, #22c55e)"))}</div>
+              <div>{field(t("props.alarmWord"), colorInput("state_alarm_color", "var(--brand-danger, #ef4444)"))}</div>
             </div>
           </CollapsibleSection>
 
           {/* Label */}
-          <CollapsibleSection title="Etichetta" storageKey="pipe-label">
-            {field("Testo", textInput("pipe_label", "es. P-101"))}
-            {field("Tag valore",
-              <TagInput style={INPUT} placeholder="es. flow1.value"
+          <CollapsibleSection title={t("props.label")} storageKey="pipe-label">
+            {field(t("props.text"), textInput("pipe_label", "es. P-101"))}
+            {field(t("props.tagValue"),
+              <TagInput style={INPUT} placeholder={t("props.exFlow")}
                 value={obj.pipe_label_tag ?? ""}
                 onChange={(v) => onChange({ pipe_label_tag: v || undefined })} />
             )}
-            {field("Formato", textInput("pipe_label_format", "{value:.1f}"))}
-            {field("Offset (px)", numInput("pipe_label_offset", 10))}
+            {field(t("props.format"), textInput("pipe_label_format", "{value:.1f}"))}
+            {field(t("props.offsetPx"), numInput("pipe_label_offset", 10))}
           </CollapsibleSection>
 
           {/* Connection anchoring */}
-          <CollapsibleSection title="Aggancio oggetti" storageKey="pipe-anchor">
+          <CollapsibleSection title={t("props.snapObjects")} storageKey="pipe-anchor">
             <p style={{ fontSize: 10, color: "var(--brand-border, #475569)", margin: "0 0 6px" }}>
               Quando impostato, il primo / ultimo waypoint segue l'oggetto collegato.
             </p>
-            {field("ID oggetto sorgente", textInput("from_obj_id", "es. pump-1"))}
-            <div style={LABEL}>Porta sorgente</div>
+            {field(t("props.sourceObjId"), textInput("from_obj_id", "es. pump-1"))}
+            <div style={LABEL}>{t("props.sourcePort")}</div>
             <select style={{ ...INPUT, cursor: "pointer" }}
               value={obj.from_port ?? "center"}
               onChange={(e) => onChange({ from_port: e.target.value as "top" | "bottom" | "left" | "right" | "center" })}>
-              <option value="center">Centro</option>
-              <option value="top">Sopra</option>
-              <option value="bottom">Sotto</option>
-              <option value="left">Sinistra</option>
-              <option value="right">Destra</option>
+              <option value="center">{t("props.center")}</option>
+              <option value="top">{t("props.above")}</option>
+              <option value="bottom">{t("props.below")}</option>
+              <option value="left">{t("props.left")}</option>
+              <option value="right">{t("props.right")}</option>
             </select>
-            {field("ID oggetto destinazione", textInput("to_obj_id", "es. tank-1"))}
-            <div style={LABEL}>Porta destinazione</div>
+            {field(t("props.targetObjId"), textInput("to_obj_id", "es. tank-1"))}
+            <div style={LABEL}>{t("props.targetPort")}</div>
             <select style={{ ...INPUT, cursor: "pointer" }}
               value={obj.to_port ?? "center"}
               onChange={(e) => onChange({ to_port: e.target.value as "top" | "bottom" | "left" | "right" | "center" })}>
-              <option value="center">Centro</option>
-              <option value="top">Sopra</option>
-              <option value="bottom">Sotto</option>
-              <option value="left">Sinistra</option>
-              <option value="right">Destra</option>
+              <option value="center">{t("props.center")}</option>
+              <option value="top">{t("props.above")}</option>
+              <option value="bottom">{t("props.below")}</option>
+              <option value="left">{t("props.left")}</option>
+              <option value="right">{t("props.right")}</option>
             </select>
           </CollapsibleSection>
 
           {/* Waypoints editor */}
-          <CollapsibleSection title="Waypoint" storageKey="pipe-points">
+          <CollapsibleSection title={t("props.waypoint")} storageKey="pipe-points">
             <p style={{ fontSize: 10, color: "var(--brand-border, #475569)", margin: "0 0 4px" }}>
               Trascina i punti gialli sul canvas. Usa ± per aggiungere/rimuovere.
             </p>
@@ -2713,7 +2884,7 @@ function ObjectProps({
                   }} />
                 {(obj.points ?? []).length > 2 && (
                   <button style={{ ...INPUT, cursor: "pointer", padding: "2px 6px", width: 22 }}
-                    title="Rimuovi waypoint"
+                    title={t("props.removeWaypoint")}
                     onClick={() => {
                       const pts = (obj.points ?? []).filter((_, idx) => idx !== i);
                       onChange({ points: pts });
@@ -2737,8 +2908,8 @@ function ObjectProps({
 
       {/* ── Cross-cutting: rotation / flip / opacity (advanced, collapsed) */}
       {SUPPORTS_TRANSFORM.has(obj.type) && (
-        <CollapsibleSection title="Trasformazione" storageKey="transform">
-          {field("Rotazione (gradi)",
+        <CollapsibleSection title={t("props.transform")} storageKey="transform">
+          {field(t("props.rotationDeg"),
             <BindableInput obj={obj} propName="rotation" onChange={onChange}>
               <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
                 <input
@@ -2748,7 +2919,7 @@ function ObjectProps({
                   style={{ ...INPUT, flex: 1 }}
                 />
                 <button
-                  title="Resetta a 0°"
+                  title={t("props.resetTo0deg")}
                   onClick={() => onChange({ rotation: undefined })}
                   style={{ ...INPUT, cursor: "pointer", padding: "3px 6px", width: 28 }}
                 >↺</button>
@@ -2775,7 +2946,7 @@ function ObjectProps({
               Flip verticale
             </label>
           </div>
-          {field("Opacità (0–1)",
+          {field(t("props.opacityRange"),
             <BindableInput obj={obj} propName="opacity" onChange={onChange}>
               <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
                 <input
@@ -2786,14 +2957,14 @@ function ObjectProps({
                   style={{ ...INPUT, flex: 1 }}
                 />
                 <button
-                  title="Resetta a 1"
+                  title={t("props.resetTo1")}
                   onClick={() => onChange({ opacity: undefined })}
                   style={{ ...INPUT, cursor: "pointer", padding: "3px 6px", width: 28 }}
                 >↺</button>
               </div>
             </BindableInput>
           )}
-          {field("Durata transizione (ms)",
+          {field(t("props.transitionMs"),
             <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
               <input
                 type="number"
@@ -2803,7 +2974,7 @@ function ObjectProps({
                 style={{ ...INPUT, flex: 1 }}
               />
               <button
-                title="Disattiva animazione"
+                title={t("props.disableAnim")}
                 onClick={() => onChange({ transition_duration_ms: undefined })}
                 style={{ ...INPUT, cursor: "pointer", padding: "3px 6px", width: 28 }}
               >↺</button>
@@ -2816,16 +2987,16 @@ function ObjectProps({
       )}
 
       {/* ── Cross-cutting: layer & visibility (advanced, collapsed) ─── */}
-      <CollapsibleSection title="Layer e Visibilità" storageKey="layer">
+      <CollapsibleSection title={t("props.layerVisibility")} storageKey="layer">
         <div style={{ display: "grid", gridTemplateColumns: "1fr auto auto", gap: 4, alignItems: "end" }}>
           <div><div style={LABEL}>z-index</div><BindableInput obj={obj} propName="z_index" onChange={onChange}>{numInput("z_index", 0)}</BindableInput></div>
           <button
-            title="Porta indietro (-1)"
+            title={t("props.sendBackward")}
             onClick={() => onChange({ z_index: (obj.z_index ?? 0) - 1 })}
             style={{ ...INPUT, cursor: "pointer", padding: "3px 8px", height: 26 }}
           >▼</button>
           <button
-            title="Porta avanti (+1)"
+            title={t("props.bringForward")}
             onClick={() => onChange({ z_index: (obj.z_index ?? 0) + 1 })}
             style={{ ...INPUT, cursor: "pointer", padding: "3px 8px", height: 26 }}
           >▲</button>
@@ -2849,10 +3020,10 @@ function ObjectProps({
           Bloccato (non selezionabile nell'editor)
         </label>
         <div>
-          <div style={LABEL}>Tag visibilità (override)</div>
+          <div style={LABEL}>{t("props.tagVisOverride")}</div>
           <TagInput
             style={INPUT}
-            placeholder="es. valvola.aperta"
+            placeholder={t("props.exValve")}
             value={obj.visible_tag ?? ""}
             onChange={(v) => onChange({ visible_tag: v || undefined })}
           />
@@ -2861,7 +3032,7 @@ function ObjectProps({
 
       {/* ── Quality dot — always present; hint when no tag bound ──────── */}
       <CollapsibleSection
-        title="Indicatore qualità"
+        title={t("props.qualityIndicator")}
         storageKey="quality"
         hint={!obj.tag ? "Imposta un tag (sezione Tag) per personalizzare i colori." : undefined}
       >
@@ -2883,9 +3054,9 @@ function ObjectProps({
             </label>
             {obj.quality_dot !== false && (
               <>
-                {field("Colore Buono (Good)",    colorInput("quality_dot_good_color",      "var(--brand-success, #22c55e)"))}
-                {field("Colore Incerto (Uncert.)", colorInput("quality_dot_uncertain_color", "var(--brand-warning, #eab308)"))}
-                {field("Colore Errore (Bad)",    colorInput("quality_dot_bad_color",       "var(--brand-danger, #ef4444)"))}
+                {field(t("props.colorGood"),    colorInput("quality_dot_good_color",      "var(--brand-success, #22c55e)"))}
+                {field(t("props.colorUncertain"), colorInput("quality_dot_uncertain_color", "var(--brand-warning, #eab308)"))}
+                {field(t("props.colorBad"),    colorInput("quality_dot_bad_color",       "var(--brand-danger, #ef4444)"))}
               </>
             )}
           </>
@@ -2894,7 +3065,7 @@ function ObjectProps({
 
       {/* ── Event scripts (advanced, collapsed) ─────────────────────── */}
       <CollapsibleSection
-        title="Eventi"
+        title={t("props.events")}
         storageKey="events"
         headerExtra={
           (obj.on_press_fn || obj.on_release_fn)
@@ -2926,7 +3097,7 @@ function ObjectProps({
 
       {/* ── Binding attivi (audit) — always shown with count ──────────── */}
       <CollapsibleSection
-        title="Binding attivi"
+        title={t("props.activeBindings")}
         storageKey="bindings"
         headerExtra={
           <span style={{ fontSize: 10, color: obj.bindings && Object.keys(obj.bindings).length > 0 ? "var(--brand-primary, #3b82f6)" : "var(--brand-border, #475569)", fontWeight: 700 }}>
@@ -2944,7 +3115,7 @@ function ObjectProps({
               <span style={{ color: "var(--brand-border, #475569)" }}>→</span>
               <span style={{ color: "var(--brand-primary, #3b82f6)", flex: 1 }}>{tagId || "(nessun tag)"}</span>
               <button
-                title="Rimuovi binding"
+                title={t("props.removeBinding")}
                 onClick={() => {
                   const next = { ...obj.bindings! };
                   delete next[prop];
@@ -2985,6 +3156,7 @@ function RadioOptionsEditor({
   options: RadioOption[];
   onChange: (opts: RadioOption[]) => void;
 }) {
+  const { t } = useTranslation();
   const update = (i: number, patch: Partial<RadioOption>) =>
     onChange(options.map((o, idx) => (idx === i ? { ...o, ...patch } : o)));
 
@@ -3001,14 +3173,14 @@ function RadioOptionsEditor({
         <div key={i} style={{ display: "flex", gap: 4, marginBottom: 4, alignItems: "center" }}>
           <input
             type="text"
-            placeholder="Etichetta"
+            placeholder={t("props.label")}
             style={{ ...INPUT, flex: 1 }}
             value={opt.label}
             onChange={(e) => update(i, { label: e.target.value })}
           />
           <input
             type="text"
-            placeholder="Valore"
+            placeholder={t("props.value")}
             style={{ ...INPUT, flex: 1 }}
             value={String(opt.value)}
             onChange={(e) => update(i, { value: parseVal(e.target.value) })}
@@ -3040,6 +3212,7 @@ function TableRowsEditor({
   rows: TableRow[];
   onChange: (rows: TableRow[]) => void;
 }) {
+  const { t } = useTranslation();
   const update = (i: number, patch: Partial<TableRow>) =>
     onChange(rows.map((r, idx) => (idx === i ? { ...r, ...patch } : r)));
 
@@ -3059,19 +3232,19 @@ function TableRowsEditor({
               ×
             </button>
           </div>
-          <div style={LABEL}>Etichetta</div>
+          <div style={LABEL}>{t("props.label")}</div>
           <input type="text" style={{ ...INPUT, marginBottom: 4 }} value={row.label}
             onChange={(e) => update(i, { label: e.target.value })} />
           <div style={LABEL}>Tag</div>
           <div style={{ marginBottom: 4 }}>
             <TagInput
               style={INPUT}
-              placeholder="es. pump1.speed"
+              placeholder={t("props.exSpeed")}
               value={row.tag}
               onChange={(v) => update(i, { tag: v })}
             />
           </div>
-          <div style={LABEL}>Formato</div>
+          <div style={LABEL}>{t("props.format")}</div>
           <input type="text" style={INPUT} placeholder="{value:.1f}" value={row.format ?? ""}
             onChange={(e) => update(i, { format: e.target.value || undefined })} />
         </div>
@@ -3106,6 +3279,7 @@ function EventFunctionPicker({
     args: Record<string, string | number | boolean> | undefined,
   ) => void;
 }) {
+  const { t } = useTranslation();
   const fn = functions.find((f) => f.name === fnName);
 
   const setArg = (paramName: string, raw: string) => {
@@ -3130,7 +3304,7 @@ function EventFunctionPicker({
           onChange(v, v ? undefined : undefined);
         }}
       >
-        <option value="">— nessuna —</option>
+        <option value="">{t("props.dashNone")}</option>
         {functions.map((f) => (
           <option key={f.id} value={f.name}>{f.name}</option>
         ))}
@@ -3204,6 +3378,7 @@ function GridCellEditor({
   functions: FunctionDef[];
   onChange: (patch: Partial<GridCell>) => void;
 }) {
+  const { t } = useTranslation();
   const [newChildType, setNewChildType] = useState("rect");
   return (
     <div style={{ marginTop: 8, borderTop: "1px solid var(--brand-surface-2, #334155)", paddingTop: 8 }}>
@@ -3213,7 +3388,7 @@ function GridCellEditor({
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 6px", marginBottom: 6 }}>
         <div>
-          <div style={LABEL}>Rowspan</div>
+          <div style={LABEL}>{t("props.rowspan")}</div>
           <input
             type="number" min={1} max={10} style={INPUT}
             value={cell.rowspan ?? 1}
@@ -3221,7 +3396,7 @@ function GridCellEditor({
           />
         </div>
         <div>
-          <div style={LABEL}>Colspan</div>
+          <div style={LABEL}>{t("props.colspan")}</div>
           <input
             type="number" min={1} max={10} style={INPUT}
             value={cell.colspan ?? 1}
@@ -3231,7 +3406,7 @@ function GridCellEditor({
       </div>
 
       <div style={{ marginBottom: 6 }}>
-        <div style={LABEL}>Colore sfondo</div>
+        <div style={LABEL}>{t("props.colBg")}</div>
         <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
           <input
             type="color"
@@ -3249,7 +3424,7 @@ function GridCellEditor({
       </div>
 
       <div style={{ marginBottom: 6 }}>
-        <div style={LABEL}>Immagine sfondo (URL)</div>
+        <div style={LABEL}>{t("props.bgImageUrl")}</div>
         <input
           type="text" style={INPUT}
           placeholder="https://…"
@@ -3269,10 +3444,10 @@ function GridCellEditor({
       </label>
 
       <div style={{ marginBottom: 6 }}>
-        <div style={LABEL}>Tag visibilità</div>
+        <div style={LABEL}>{t("props.tagVisibility")}</div>
         <TagInput
           style={INPUT}
-          placeholder="es. valvola.aperta"
+          placeholder={t("props.exValve")}
           value={cell.visible_tag ?? ""}
           onChange={(v) => onChange({ visible_tag: v || undefined })}
         />
@@ -3282,24 +3457,24 @@ function GridCellEditor({
         EVENTI CELLA
       </div>
       <div style={{ marginBottom: 4 }}>
-        <div style={LABEL}>On press</div>
+        <div style={LABEL}>{t("props.onPress")}</div>
         <select
           style={{ ...INPUT, cursor: "pointer" }}
           value={cell.on_press_fn ?? ""}
           onChange={(e) => onChange({ on_press_fn: e.target.value || undefined })}
         >
-          <option value="">— nessuna —</option>
+          <option value="">{t("props.dashNone")}</option>
           {functions.map((f) => <option key={f.id} value={f.name}>{f.name}</option>)}
         </select>
       </div>
       <div style={{ marginBottom: 8 }}>
-        <div style={LABEL}>On release</div>
+        <div style={LABEL}>{t("props.onRelease")}</div>
         <select
           style={{ ...INPUT, cursor: "pointer" }}
           value={cell.on_release_fn ?? ""}
           onChange={(e) => onChange({ on_release_fn: e.target.value || undefined })}
         >
-          <option value="">— nessuna —</option>
+          <option value="">{t("props.dashNone")}</option>
           {functions.map((f) => <option key={f.id} value={f.name}>{f.name}</option>)}
         </select>
       </div>
@@ -3322,7 +3497,7 @@ function GridCellEditor({
           </p>
           <div style={{ display: "flex", gap: 6 }}>
             <button
-              title="Taglia — rimette il figlio nel clipboard di pagina"
+              title={t("props.cutChild")}
               onClick={() => {
                 const state = useAppStore.getState();
                 state.setClipboard([cell.child!], state.currentPageId);
@@ -3333,7 +3508,7 @@ function GridCellEditor({
               ✂ Taglia
             </button>
             <button
-              title="Rimuovi figlio"
+              title={t("props.removeChild")}
               onClick={() => onChange({ child: undefined })}
               style={{ background: "var(--brand-danger-bg, #7f1d1d)", border: "1px solid #991b1b", color: "var(--brand-danger-soft, #fca5a5)", borderRadius: 4, cursor: "pointer", fontSize: 11, padding: "2px 8px" }}
             >

@@ -1,10 +1,14 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
 import { getBrand } from "@/branding";
 import { SvgCanvas } from "@/canvas/SvgCanvas";
+import { effectiveSizeMode } from "@/pageLayout";
 import { AlarmHistory } from "@/components/AlarmHistory";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { UiLangSelect } from "@/components/UiLangSelect";
 import { useAppStore } from "@/store";
+import { localizeObjects, effectiveProjectLang } from "@/i18n/projectI18n";
 import { useAlarmStream } from "@/ws/alarmStream";
 import { useTagStream, tryTagWriteWs, sendSubscribe } from "@/ws/tagStream";
 import type { AlarmSeverity, AlarmState, FunctionDef, RecipeSummary, ShelvedAlarm } from "@/types";
@@ -94,6 +98,7 @@ const SEV_COLOR: Record<AlarmSeverity, string> = {
 };
 
 function AlarmPanel() {
+  const { t } = useTranslation();
   useAlarmStream();
 
   const alarms = useAppStore((s) => s.alarms);
@@ -141,7 +146,7 @@ function AlarmPanel() {
   const handleShelve = async (id: string) => {
     const ms = shelveHours > 0 ? shelveHours * 3_600_000 : 0;
     try {
-      await api.shelveAlarm(id, shelveReason || "Manutenzione", ms, "operator");
+      await api.shelveAlarm(id, shelveReason || t("viewer.maintenance"), ms, "operator");
       const updated = await api.listShelved();
       setShelved(updated);
       setShelveOpen(null);
@@ -167,7 +172,7 @@ function AlarmPanel() {
     <div style={{ position: "fixed", top: 80, right: 16, zIndex: 7500, pointerEvents: "auto" }}>
       <button
         onClick={() => setOpen((v) => !v)}
-        title={visibleActive.length === 0 ? "Nessun allarme attivo" : `${visibleActive.length} attivi`}
+        title={visibleActive.length === 0 ? t("viewer.noActiveAlarms") : `${visibleActive.length} ${t("viewer.active")}`}
         style={{
           background: "var(--brand-surface, #1e293b)",
           border: `1px solid ${badgeColor}`,
@@ -183,14 +188,14 @@ function AlarmPanel() {
         }}
       >
         <span style={{ color: badgeColor, fontSize: 14 }}>🔔</span>
-        <span>Allarmi</span>
+        <span>{t("viewer.alarms")}</span>
         {visibleActive.length > 0 && (
           <span style={{ background: badgeColor, color: "var(--brand-bg, #0f172a)", padding: "1px 7px", borderRadius: 10, fontWeight: 700, fontSize: 11 }}>
             {visibleActive.length}
           </span>
         )}
         {shelved.length > 0 && (
-          <span style={{ background: "var(--brand-border, #475569)", color: "var(--brand-text, #e2e8f0)", padding: "1px 6px", borderRadius: 10, fontSize: 11 }} title="Soppresso">
+          <span style={{ background: "var(--brand-border, #475569)", color: "var(--brand-text, #e2e8f0)", padding: "1px 6px", borderRadius: 10, fontSize: 11 }} title={t("viewer.suppressed")}>
             ⏸{shelved.length}
           </span>
         )}
@@ -210,19 +215,19 @@ function AlarmPanel() {
             background: "var(--brand-surface, #1e293b)", fontSize: 12, color: "var(--brand-text-muted, #94a3b8)",
           }}>
             <div style={{ display: "flex", gap: 2 }}>
-              {(["attivi", "storico"] as const).map((t) => (
+              {(["attivi", "storico"] as const).map((pt) => (
                 <button
-                  key={t}
-                  onClick={() => setPanelTab(t)}
+                  key={pt}
+                  onClick={() => setPanelTab(pt)}
                   style={{
                     padding: "2px 10px", fontSize: 11, borderRadius: 4, cursor: "pointer",
-                    background: panelTab === t ? "var(--brand-surface-2, #334155)" : "transparent",
+                    background: panelTab === pt ? "var(--brand-surface-2, #334155)" : "transparent",
                     border: "none",
-                    color: panelTab === t ? "var(--brand-text, #e2e8f0)" : "var(--brand-text-subtle, #64748b)",
+                    color: panelTab === pt ? "var(--brand-text, #e2e8f0)" : "var(--brand-text-subtle, #64748b)",
                     textTransform: "capitalize",
                   }}
                 >
-                  {t === "attivi" ? `Attivi (${visibleActive.length})` : "Storico"}
+                  {pt === "attivi" ? `${t("viewer.activeTab")} (${visibleActive.length})` : t("viewer.history")}
                 </button>
               ))}
             </div>
@@ -258,7 +263,7 @@ function AlarmPanel() {
                     {/* Shelve button */}
                     <button
                       onClick={() => { setShelveOpen(isShelving ? null : a.def.id); setShelveReason(""); setShelveHours(8); }}
-                      title="Sopprimi per manutenzione"
+                      title={t("viewer.suppressForMaintenance")}
                       style={{ background: isShelving ? "var(--brand-warning-bg, #78350f)" : "transparent", border: `1px solid ${isShelving ? "#d97706" : "var(--brand-surface-2, #334155)"}`, color: "#d97706", padding: "2px 6px", borderRadius: 4, cursor: "pointer", fontSize: 11 }}
                     >
                       🔧
@@ -275,7 +280,7 @@ function AlarmPanel() {
                     <div style={{ padding: "6px 12px 10px", background: "#1a1a2e", display: "flex", flexDirection: "column", gap: 6 }}>
                       <input
                         autoFocus
-                        placeholder="Motivo (es. manutenzione programmata)"
+                        placeholder={t("viewer.reasonPlaceholder")}
                         value={shelveReason}
                         onChange={(e) => setShelveReason(e.target.value)}
                         style={{ background: "var(--brand-bg, #0f172a)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, color: "var(--brand-text, #e2e8f0)", fontSize: 12, padding: "4px 8px" }}
@@ -321,7 +326,7 @@ function AlarmPanel() {
                     </div>
                     <button
                       onClick={() => handleUnshelve(sh.alarm_id)}
-                      title="Riattiva allarme"
+                      title={t("viewer.reactivateAlarm")}
                       style={{ background: "transparent", border: "1px solid var(--brand-surface-2, #334155)", color: "var(--brand-text-muted, #94a3b8)", padding: "2px 8px", borderRadius: 4, cursor: "pointer", fontSize: 11 }}
                     >
                       Riattiva
@@ -340,6 +345,7 @@ function AlarmPanel() {
 // ── RecipeModal ───────────────────────────────────────────────────────────────
 
 function RecipeModal({ onClose, username }: { onClose: () => void; username: string }) {
+  const { t } = useTranslation();
   const [recipes, setRecipes]   = useState<RecipeSummary[]>([]);
   const [applying, setApplying] = useState<string | null>(null);
   const [result, setResult]     = useState<string>("");
@@ -356,7 +362,7 @@ function RecipeModal({ onClose, username }: { onClose: () => void; username: str
       setResult(`✓ ${r.applied}/${r.total} setpoint scritti` +
         (r.errors.length > 0 ? ` — Errori: ${r.errors.join(", ")}` : ""));
     } catch {
-      setResult("Errore: impossibile applicare la ricetta.");
+      setResult(t("viewer.recipeApplyError"));
     } finally {
       setApplying(null);
     }
@@ -394,7 +400,7 @@ function RecipeModal({ onClose, username }: { onClose: () => void; username: str
                   opacity: applying === r.id ? 0.6 : 1,
                 }}
               >
-                {applying === r.id ? "…" : "Applica"}
+                {applying === r.id ? "…" : t("viewer.apply")}
               </button>
             </div>
           ))
@@ -418,10 +424,14 @@ function RecipeModal({ onClose, username }: { onClose: () => void; username: str
 // ── RuntimeView ───────────────────────────────────────────────────────────────
 
 export function RuntimeView() {
+  const { t } = useTranslation();
   const pages               = useAppStore((s) => s.pages);
   const currentPageId       = useAppStore((s) => s.currentPageId);
   const setCurrentPage      = useAppStore((s) => s.setCurrentPage);
   const tagValues           = useAppStore((s) => s.tagValues);
+  const project             = useAppStore((s) => s.project);
+  const languageTable       = useAppStore((s) => s.project?.languages);
+  const projectLang         = useAppStore((s) => s.projectLang);
   const customSymbols       = useAppStore((s) => s.customSymbols);
   const faceplates          = useAppStore((s) => s.faceplates);
   const autoRotate          = useAppStore((s) => s.autoRotate);
@@ -440,11 +450,16 @@ export function RuntimeView() {
     if (rotatablePages.length < 2) return;
     const id = setInterval(() => {
       const idx = rotatablePages.findIndex((p) => p.id === currentPageId);
-      const next = rotatablePages[(idx + 1) % rotatablePages.length];
+      const wrapping = idx + 1 >= rotatablePages.length;
+      // When the cycle wraps back to the start, restart from the home page
+      // (if set and not skipped) instead of the literal first rotatable page.
+      const homeId = project?.page_layout?.home_page_id;
+      const home = wrapping && homeId ? rotatablePages.find((p) => p.id === homeId) : undefined;
+      const next = home ?? rotatablePages[(idx + 1) % rotatablePages.length];
       setCurrentPage(next.id);
     }, autoRotateIntervalS * 1000);
     return () => clearInterval(id);
-  }, [autoRotate, autoRotateIntervalS, pages, currentPageId, setCurrentPage]);
+  }, [autoRotate, autoRotateIntervalS, pages, currentPageId, setCurrentPage, project]);
 
   useTagStream();
 
@@ -452,6 +467,7 @@ export function RuntimeView() {
   // so it sends delta frames only for those tags (bandwidth optimization).
   // When the page changes, re-subscribe to the new page's tags.
   const currentPage = pages.find((p) => p.id === currentPageId);
+  const sizeMode = effectiveSizeMode(project?.page_layout);
   const pageTagIds = useMemo(() => {
     const ids = new Set<string>();
     for (const obj of currentPage?.objects ?? []) {
@@ -483,7 +499,12 @@ export function RuntimeView() {
 
   const closeToast = (id: string) => setToasts((ts) => ts.filter((t) => t.id !== id));
 
-  const objects = currentPage?.objects ?? [];
+  // Localizza i messaggi {{token}} nella lingua contenuti corrente (T-40).
+  const effLang = effectiveProjectLang(languageTable) || projectLang;
+  const objects = useMemo(
+    () => localizeObjects(currentPage?.objects ?? [], effLang, languageTable),
+    [currentPage?.objects, effLang, languageTable],
+  );
 
   const handleWriteTag = (tagId: string, value: string | number | boolean) => {
     // Prefer the bidirectional WS path (zero HTTP round-trip + token reuse).
@@ -586,7 +607,7 @@ export function RuntimeView() {
           <div style={{ display: "flex", alignItems: "center", gap: 4, marginLeft: 8, flexShrink: 0 }}>
             <button
               onClick={() => setAutoRotate(!autoRotate)}
-              title={autoRotate ? "Ferma rotazione automatica" : "Avvia rotazione automatica"}
+              title={autoRotate ? t("viewer.stopRotation") : t("viewer.startRotation")}
               style={{
                 padding: "2px 8px",
                 border: `1px solid ${autoRotate ? "var(--brand-primary, #3b82f6)" : "var(--brand-surface-2, #334155)"}`,
@@ -606,7 +627,7 @@ export function RuntimeView() {
               max={3600}
               value={autoRotateIntervalS}
               onChange={(e) => setAutoRotateIntervalS(Math.max(5, parseInt(e.target.value) || 30))}
-              title="Intervallo rotazione (secondi)"
+              title={t("viewer.rotationInterval")}
               style={{
                 width: 44,
                 padding: "2px 4px",
@@ -623,7 +644,7 @@ export function RuntimeView() {
           {/* Recipe apply button */}
           <button
             onClick={() => setRecipeOpen(true)}
-            title="Applica ricetta"
+            title={t("viewer.applyRecipe")}
             style={{
               marginLeft: 8,
               padding: "2px 8px",
@@ -639,12 +660,13 @@ export function RuntimeView() {
           >
             ⚗ Ricette
           </button>
-          <span style={{ marginLeft: 8, flexShrink: 0 }}><ThemeToggle compact /></span>
+          <span style={{ marginLeft: 8, flexShrink: 0 }}><UiLangSelect compact /></span>
+          <span style={{ marginLeft: 6, flexShrink: 0 }}><ThemeToggle compact /></span>
         </nav>
       )}
 
       {/* Canvas */}
-      <div style={{ flex: 1, overflow: "hidden" }}>
+      <div style={{ flex: 1, overflow: sizeMode === "fixed" ? "auto" : "hidden" }}>
         <SvgCanvas
           objects={objects}
           tagValues={tagValues}
@@ -653,6 +675,7 @@ export function RuntimeView() {
           faceplates={faceplates}
           pageWidth={currentPage?.width}
           pageHeight={currentPage?.height}
+          sizeMode={sizeMode}
           onWriteTag={handleWriteTag}
           onScript={handleScript}
           onNavigate={setCurrentPage}

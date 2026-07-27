@@ -36,7 +36,10 @@ export type SynopticObjectType =
   // Layout
   | "grid"
   // Faceplate instance (parametric reusable component)
-  | "faceplate";
+  | "faceplate"
+  // Language switch controls (T-40): change the project content language
+  | "lang_selector"
+  | "lang_button";
 
 /** Identifier of a SCADA symbol — either a hand-rolled JSX builtin or a
  *  vendored SVG file. The library at `@/symbols/library` maps ids to metadata
@@ -165,6 +168,8 @@ export interface SynopticObject {
   stroke_width?: number;
   // Page navigation
   target_page?: string;
+  /** Language switch controls (T-40): the language code this lang_button sets. */
+  target_lang?: string;
   // Numeric range (gauge, slider, progress_bar)
   min?: number;
   max?: number;
@@ -404,6 +409,8 @@ export interface SynopticPage {
   auto_rotate_skip?: boolean;
   /** Zone restriction: if set, only users whose allowed_zones intersects this list can view the page. */
   zones?: string[];
+  /** When true, the page is read-only in the editor (no object/property edits). */
+  locked?: boolean;
 }
 
 export interface Project {
@@ -816,8 +823,27 @@ export interface SmtpConfig {
   starttls?: boolean;
 }
 
+export interface TelegramConfig {
+  /** Bot token from BotFather. Masked ("********") on GET responses. */
+  bot_token: string;
+  /** Destination chat IDs (numeric or @channelusername). Messages go to all. */
+  chat_ids: string[];
+}
+
 export interface NotificationConfig {
   smtp?: SmtpConfig;
+  telegram?: TelegramConfig;
+}
+
+/** How synoptic pages are sized/scaled at runtime — project-wide setting. */
+export type PageSizeMode = "fixed" | "ratio" | "fluid";
+
+export interface PageLayoutConfig {
+  size_mode: PageSizeMode;
+  /** Aspect ratio label ("16:9" | "4:3" | "21:9" | "1:1" | "custom"). Only meaningful when size_mode === "ratio". */
+  aspect_ratio?: string;
+  /** Id of the page the viewer opens by default and the kiosk rotation restarts from. */
+  home_page_id?: string;
 }
 
 export interface ProjectInfo {
@@ -830,6 +856,27 @@ export interface ProjectInfo {
   datastores?: DatastoreConfig[];
   global_scripts?: GlobalScriptDef[];
   notifications?: NotificationConfig;
+  languages?: LanguageTable;
+  page_layout?: PageLayoutConfig;
+}
+
+// ── Project language table (T-40) ──────────────────────────────────────────
+// Traduzioni dei messaggi che l'autore scrive negli oggetti. Il viewer risolve
+// i riferimenti `{{token}}` nei campi testo secondo la lingua corrente.
+
+/** Una voce: un token/chiave e le sue traduzioni per codice lingua. */
+export interface LangEntry {
+  key: string;
+  /** codice lingua → testo tradotto */
+  values: Record<string, string>;
+}
+
+export interface LanguageTable {
+  /** Codice della lingua sorgente/predefinita (es. "it"). */
+  default: string;
+  /** Codici lingua presenti, in ordine (es. ["it","en","de"]). */
+  langs: string[];
+  entries: LangEntry[];
 }
 
 // ── Reusable Python functions ──────────────────────────────────────────────
@@ -967,6 +1014,25 @@ export interface AlarmEvent {
   ts_normalized_ms: number | null;
   duration_s: number | null;
   acked_by: string | null;
+}
+
+/** One entry of the append-only, hash-chained audit log (OPEN_QUESTIONS Q8). */
+export interface AuditEntry {
+  seq: number;
+  ts_ms: number;
+  actor: string | null;
+  action: string;
+  detail: unknown;
+  prev_hash: string;
+  hash: string;
+  sig?: string | null;
+}
+
+export interface AuditVerifyReport {
+  ok: boolean;
+  entries: number;
+  broken_at?: number | null;
+  reason?: string | null;
 }
 
 export interface ShelvedAlarm {

@@ -12,7 +12,7 @@ objects:
   type: text
   x: 400
   y: 22
-  text: "☀  IMPIANTO SOLARE"
+  text: "{{impianto_solare}}"
   font_size: 20
   font_weight: bold
   text_anchor: middle
@@ -26,7 +26,7 @@ objects:
   y: 14
   width: 130
   height: 30
-  label: "◀ Panoramica"
+  label: "{{panoramica}}"
   target_page: cl_page1
   group_id: g_nav
   locked: true
@@ -37,7 +37,7 @@ objects:
   y: 14
   width: 130
   height: 30
-  label: "Contatori ▶"
+  label: "{{contatori_3}}"
   target_page: cl_page3
   group_id: g_nav
   locked: true
@@ -71,7 +71,7 @@ objects:
   type: text
   x: 140
   y: 68
-  text: "PANNELLI FV"
+  text: "{{pannelli_fv}}"
   font_size: 13
   font_weight: bold
   text_anchor: middle
@@ -91,7 +91,7 @@ objects:
   type: text
   x: 90
   y: 162
-  text: "Stringa PV1"
+  text: "{{stringa_pv1}}"
   font_size: 11
   color: "#78716c"
 
@@ -105,13 +105,13 @@ objects:
   min: 0
   max: 2
   unit: "kW"
-  label: "PV1"
+  label: "{{pv1}}"
 
 - id: cl2_pv2_lbl
   type: text
   x: 220
   y: 162
-  text: "Stringa PV2"
+  text: "{{stringa_pv2}}"
   font_size: 11
   color: "#78716c"
 
@@ -125,14 +125,14 @@ objects:
   min: 0
   max: 2
   unit: "kW"
-  label: "PV2"
+  label: "{{pv2}}"
 
 # Totale PV
 - id: cl2_pv_tot_lbl
   type: text
   x: 140
   y: 310
-  text: "Totale generato"
+  text: "{{totale_generato}}"
   font_size: 11
   text_anchor: middle
   color: "#64748b"
@@ -163,7 +163,7 @@ objects:
   type: text
   x: 30
   y: 378
-  text: "Produzione oggi"
+  text: "{{produzione_oggi}}"
   font_size: 10
   color: "#64748b"
 
@@ -181,7 +181,7 @@ objects:
   type: text
   x: 165
   y: 378
-  text: "Totale storico"
+  text: "{{totale_storico}}"
   font_size: 10
   color: "#64748b"
 
@@ -213,7 +213,7 @@ objects:
   type: text
   x: 440
   y: 68
-  text: "BATTERIA"
+  text: "{{batteria}}"
   font_size: 13
   font_weight: bold
   text_anchor: middle
@@ -239,7 +239,7 @@ objects:
   min: 0
   max: 100
   unit: "%"
-  label: "SOC Batteria"
+  label: "{{soc_batteria}}"
   warn_low: 20
   alarm_low: 10
 
@@ -273,7 +273,7 @@ objects:
   type: text
   x: 310
   y: 390
-  text: "Tensione:"
+  text: "{{tensione}}"
   font_size: 11
   color: "#64748b"
 - id: cl2_bat_v_val
@@ -290,7 +290,7 @@ objects:
   type: text
   x: 310
   y: 412
-  text: "Potenza:"
+  text: "{{potenza}}"
   font_size: 11
   color: "#64748b"
 - id: cl2_bat_p_val
@@ -307,7 +307,7 @@ objects:
   type: text
   x: 310
   y: 432
-  text: "+ = carica / − = scarica"
+  text: "{{carica_scarica}}"
   font_size: 9
   color: "#374155"
 
@@ -316,7 +316,7 @@ objects:
   type: text
   x: 310
   y: 455
-  text: "Andamento (1h)"
+  text: "{{andamento_1h}}"
   font_size: 10
   color: "#475569"
 
@@ -348,7 +348,7 @@ objects:
   type: text
   x: 710
   y: 68
-  text: "RETE & INVERTER"
+  text: "{{rete_inverter}}"
   font_size: 13
   font_weight: bold
   text_anchor: middle
@@ -374,7 +374,7 @@ objects:
   min: 45
   max: 58
   unit: "V"
-  label: "Batteria"
+  label: "{{batteria_2}}"
   warn_low: 48
 
 # Feed-in/out
@@ -382,7 +382,7 @@ objects:
   type: text
   x: 600
   y: 288
-  text: "Scambio rete:"
+  text: "{{scambio_rete}}"
   font_size: 11
   color: "#64748b"
 - id: cl2_feed_val
@@ -399,7 +399,7 @@ objects:
   type: text
   x: 600
   y: 326
-  text: "negativo = importo da rete"
+  text: "{{negativo_importo_da_rete}}"
   font_size: 9
   color: "#374151"
 
@@ -408,7 +408,7 @@ objects:
   type: text
   x: 600
   y: 358
-  text: "Consumo casa:"
+  text: "{{consumo_casa_2}}"
   font_size: 11
   color: "#64748b"
 - id: cl2_cons_val
@@ -436,7 +436,7 @@ objects:
   type: text
   x: 612
   y: 424
-  text: "INVERTER"
+  text: "{{inverter_2}}"
   font_size: 11
   font_weight: bold
   color: "#475569"
@@ -445,7 +445,7 @@ objects:
   type: text
   x: 612
   y: 444
-  text: "Stato:"
+  text: "{{stato}}"
   font_size: 11
   color: "#64748b"
 - id: cl2_inv_status_val
@@ -462,7 +462,7 @@ objects:
   type: text
   x: 612
   y: 462
-  text: "Temp modulo:"
+  text: "{{temp_modulo}}"
   font_size: 11
   color: "#64748b"
 - id: cl2_inv_temp_val
@@ -485,7 +485,7 @@ objects:
   min: 0
   max: 80
   unit: "°C"
-  label: "Temp."
+  label: "{{temp}}"
   warn_high: 60
   alarm_high: 75
 

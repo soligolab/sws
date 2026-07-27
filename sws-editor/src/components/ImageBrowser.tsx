@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { createPortal } from "react-dom";
 
 interface CatalogItem { id: string; path: string; label: string; }
@@ -25,6 +26,7 @@ const CARD: React.CSSProperties = {
 };
 
 export function ImageBrowser({ onSelect, onClose }: Props) {
+  const { t } = useTranslation();
   const [catalog,    setCatalog]    = useState<Catalog | null>(null);
   const [activeTab,  setActiveTab]  = useState(0);
   const [filter,     setFilter]     = useState("");
@@ -67,7 +69,7 @@ export function ImageBrowser({ onSelect, onClose }: Props) {
           <input
             ref={filterRef}
             type="text"
-            placeholder="Cerca…"
+            placeholder={t("common.search")}
             style={{
               background: "var(--brand-bg, #0f172a)", border: "1px solid var(--brand-border, #475569)", borderRadius: 4,
               color: "var(--brand-text, #e2e8f0)", padding: "4px 10px", fontSize: 12, width: 170, outline: "none",

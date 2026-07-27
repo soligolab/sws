@@ -2,6 +2,8 @@ import type {
   AlarmDef,
   AlarmEvent,
   AlarmState,
+  AuditEntry,
+  AuditVerifyReport,
   CustomSymbol,
   DatastoreConfig,
   DatastoreListItem,
@@ -16,6 +18,7 @@ import type {
   MqttBrowseRequest,
   MqttBrowseResponse,
   NotificationConfig,
+  PageLayoutConfig,
   OpcUaBrowseRequest,
   OpcUaBrowseResponse,
   OpcUaCertEntry,
@@ -33,6 +36,7 @@ import type {
   RecipeSummary,
   ShelvedAlarm,
   SynopticPage,
+  LanguageTable,
   TagDef,
   TemplateEntry,
 } from "@/types";
@@ -293,6 +297,13 @@ export const api = {
       method: "POST",
       headers: { "Content-Type": "text/plain; charset=utf-8" },
       body: csvText,
+    }),
+
+  updateLanguages: (table: LanguageTable) =>
+    request<void>("/api/project/languages", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(table),
     }),
 
   updateSources: (sources: SourceDef[]) =>
@@ -681,6 +692,11 @@ export const api = {
     }),
   removeTlsCert:     () => request<void>("/api/system/tls",          { method: "DELETE" }),
 
+  getAuditTail: (limit = 200): Promise<AuditEntry[]> =>
+    request(`/api/audit?limit=${limit}`),
+  getAuditVerify: (): Promise<AuditVerifyReport> =>
+    request("/api/audit/verify"),
+
   // Datastores (runtime stats + admin ops)
   listDatastores: () => request<DatastoreListItem[]>("/api/datastores"),
 
@@ -728,6 +744,22 @@ export const api = {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(config),
+    }),
+
+  updatePageLayout: (config: PageLayoutConfig | null) =>
+    request<void>("/api/project/page-layout", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(config),
+    }),
+
+  /** Send a one-off Telegram test message. Resolves on success; rejects with
+   *  the server's error text (bad token / chat id / network) on failure. */
+  testTelegram: (req: { bot_token: string; chat_ids: string[]; text?: string }) =>
+    request<void>("/api/notifications/test-telegram", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(req),
     }),
 
   getGitStatus: () =>

@@ -65,3 +65,116 @@ functions:
     params:
       - name: tag
         default: pump.running
+
+languages:
+  default: it
+  langs: [it, en]
+  entries:
+    - key: "grid_playground_4_4_con_sub_cell_fino_a"
+      values:
+        it: "🗂  GRID PLAYGROUND — 4×4 con sub-cell fino a 4 livelli"
+        en: "🗂  GRID PLAYGROUND — 4×4 with sub-cells up to 4 levels"
+    - key: "pannello_rect_ellipse_text_gauge_led_sym"
+      values:
+        it: "Pannello: rect / ellipse / text / gauge / led / symbol / button / slider come figli di cella"
+        en: "Panel: rect / ellipse / text / gauge / led / symbol / button / slider as cell children"
+    - key: "controlli"
+      values:
+        it: "Controlli ▶"
+        en: "Controls ▶"
+    - key: "l3"
+      values:
+        it: "L3"
+        en: "L3"
+    - key: "counter"
+      values:
+        it: "Counter"
+        en: "Counter"
+    - key: "counter_1"
+      values:
+        it: "Counter ▲ +1"
+        en: "Counter ▲ +1"
+    - key: "counter_1_2"
+      values:
+        it: "Counter ▼ −1"
+        en: "Counter ▼ −1"
+    - key: "toggle_pompa"
+      values:
+        it: "Toggle pompa"
+        en: "Toggle pump"
+    - key: "top"
+      values:
+        it: "TOP"
+        en: "TOP"
+    - key: "a_a"
+      values:
+        it: "A.A"
+        en: "A.A"
+    - key: "a_b"
+      values:
+        it: "A.B"
+        en: "A.B"
+    - key: "on_only"
+      values:
+        it: "ON only"
+        en: "ON only"
+    - key: "always"
+      values:
+        it: "always"
+        en: "always"
+    - key: "controlli_fill_color_label_alarm"
+      values:
+        it: "🎨  Controlli — fill color + label + alarm"
+        en: "🎨  Controls — fill color + label + alarm"
+    - key: "griglia"
+      values:
+        it: "◀ Griglia"
+        en: "◀ Grid"
+    - key: "demo_fill_color_pilota_il_rect_in_cella"
+      values:
+        it: "demo.fill_color (pilota il rect in cella (1,3) della pagina Griglia):"
+        en: "demo.fill_color (drives the rect in cell (1,3) of the Grid page):"
+    - key: "rosso"
+      values:
+        it: "● Rosso"
+        en: "● Red"
+    - key: "verde"
+      values:
+        it: "● Verde"
+        en: "● Green"
+    - key: "blu"
+      values:
+        it: "● Blu"
+        en: "● Blue"
+    - key: "arancio"
+      values:
+        it: "● Arancio"
+        en: "● Orange"
+    - key: "viola"
+      values:
+        it: "● Viola"
+        en: "● Purple"
+    - key: "anteprima_fill"
+      values:
+        it: "Anteprima fill:"
+        en: "Fill preview:"
+    - key: "trigger_allarme_counter_80_scrive_counte"
+      values:
+        it: "Trigger allarme counter>80 (scrive counter):"
+        en: "Alarm trigger counter>80 (writes counter):"
+    - key: "counter_50"
+      values:
+        it: "counter = 50"
+        en: "counter = 50"
+    - key: "counter_95"
+      values:
+        it: "counter = 95"
+        en: "counter = 95"
+    - key: "demo_s_27_ux_in_editor_prova_drag_drop_n"
+      values:
+        it: "Demo S-27 UX: in editor prova drag&drop nel tree (LeftPanel), tasto destro sulle righe (context menu), rulers + guide (toggle ⟂ in alto-sx)."
+        en: "S-27 UX demo: in the editor try drag&drop in the tree (LeftPanel), right-click on rows (context menu), rulers + guides (⟂ toggle top-left)."
+    - key: "demo_grid_s_23_clicca_una_cella_poi_divi"
+      values:
+        it: "Demo grid S-23: clicca una cella, poi 'Dividi orizzontalmente/verticalmente' nel pannello destra (split locale). Shift+click su altre celle per merge."
+        en: "Grid demo S-23: click a cell, then 'Split horizontally/vertically' in the right panel (local split). Shift+click other cells to merge."

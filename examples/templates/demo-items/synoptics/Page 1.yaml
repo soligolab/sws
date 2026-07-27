@@ -4,6 +4,12 @@ background: "#0f172a"
 width: 800
 height: 660
 objects:
+- id: lang_sel_auto
+  type: lang_selector
+  x: 702
+  y: 8
+  width: 90
+  height: 26
 
 # ── Navigation header (uniforme su tutte le 4 pagine) ────────────────────────
 - id: p1_nav_prev
@@ -12,7 +18,7 @@ objects:
   y: 12
   width: 130
   height: 32
-  label: "◀ Precedente"
+  label: "{{precedente}}"
   target_page: page4
   group_id: g_nav
   locked: true
@@ -23,7 +29,7 @@ objects:
   y: 12
   width: 130
   height: 32
-  label: "Successiva ▶"
+  label: "{{successiva}}"
   target_page: page2
   group_id: g_nav
   locked: true
@@ -32,7 +38,7 @@ objects:
   type: text
   x: 400
   y: 30
-  text: "Page 1 — Counter + MQTT echo"
+  text: "{{page_1_counter_mqtt_echo}}"
   font_size: 16
   font_weight: bold
   text_anchor: middle
@@ -77,7 +83,7 @@ objects:
   y: 74.0
   tag: ''
   format: '{value}'
-  text: PROVA
+  text: "{{prova}}"
   font_size: 29.0
   font_weight: bold
   text_anchor: middle
@@ -90,7 +96,7 @@ objects:
   y: 70.0
   tag: ''
   format: '{value}'
-  text: Testo2
+  text: "{{testo2}}"
   font_size: 18.0
   font_weight: 500
   text_anchor: end
@@ -105,7 +111,7 @@ objects:
   width: 120.0
   height: 40.0
   fill: '#3b82f6'
-  label: Btn. UP
+  label: "{{btn_up}}"
   write_value: true
   z_index: 0
   visible: true
@@ -132,7 +138,7 @@ objects:
   width: 120.0
   height: 40.0
   fill: '#3b82f6'
-  label: Btn. DOWN
+  label: "{{btn_down}}"
   write_value: true
   z_index: 0
   visible: true
@@ -146,7 +152,7 @@ objects:
   x: 240.0
   y: 520.0
   tag: counter
-  text: Testo
+  text: "{{testo}}"
   font_size: 47.0
   text_anchor: start
   color: '#e2e8f0'
@@ -173,7 +179,7 @@ objects:
   height: 40.0
   fill: '#1e3a8a'
   tag: demo.button
-  label: MQTT LED ON
+  label: "{{mqtt_led_on}}"
   write_value: true
   z_index: 0
   visible: true
@@ -201,7 +207,7 @@ objects:
   height: 40.0
   fill: '#1e3a8a'
   tag: demo.button
-  label: MQTT LED OFF
+  label: "{{mqtt_led_off}}"
   write_value: false
   z_index: 0
   visible: true
@@ -213,7 +219,7 @@ objects:
   y: 100.0
   width: 180.0
   height: 180.0
-  label: Counter
+  label: "{{counter}}"
   tag: counter
   min: 0.0
   max: 100.0

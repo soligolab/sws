@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useAppStore } from "@/store";
 
 interface TagInputProps {
@@ -13,6 +14,7 @@ interface TagInputProps {
  * Free-text entry is always allowed.
  */
 export function TagInput({ value, onChange, placeholder, style }: TagInputProps) {
+  const { t } = useTranslation();
   const tags         = useAppStore((s) => s.project?.tags ?? []);
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef     = useRef<HTMLInputElement>(null);
@@ -76,7 +78,7 @@ export function TagInput({ value, onChange, placeholder, style }: TagInputProps)
           onMouseDown={(e) => e.preventDefault()}
           onClick={() => { setFilter(""); setOpen((o) => !o); }}
           tabIndex={-1}
-          title="Seleziona tag"
+          title={t("tagInput.select")}
         >
           ▾
         </button>
@@ -101,7 +103,7 @@ export function TagInput({ value, onChange, placeholder, style }: TagInputProps)
           <input
             ref={filterRef}
             type="text"
-            placeholder="Filtra tag…"
+            placeholder={t("tagInput.filterPlaceholder")}
             style={{
               width: "100%",
               background: "var(--brand-surface, #1e293b)",
@@ -134,7 +136,7 @@ export function TagInput({ value, onChange, placeholder, style }: TagInputProps)
             </div>
           ))}
           {filtered.length === 0 && (
-            <div style={{ padding: "6px 8px", fontSize: 11, color: "var(--brand-text-subtle, #64748b)" }}>Nessun tag trovato</div>
+            <div style={{ padding: "6px 8px", fontSize: 11, color: "var(--brand-text-subtle, #64748b)" }}>{t("tagInput.noTags")}</div>
           )}
         </div>
       )}

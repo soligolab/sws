@@ -143,14 +143,18 @@ with manual Protobuf structs (prost), SCADA Host STATE, NCMD write-back. _(T-08)
 `async-opcua` 0.18 client (subscribe/write/browse/Euromap auto-detect, security policies
 Basic256Sha256) + server (exposes SWS tags as OPC-UA nodes). _(S-62/63)_
 
-### Phase 5 — PoC public demo 🔲 IN PROGRESS
-Workflow refinement (T-22…T-26), documentation update (current session), then:
-- Two-terminal dev simulation (`start_runtime.sh --instance N`)
-- Network discovery of active runtimes (mDNS)
-- Multi-device management from IDE
-- Runtime standalone packaging (generic Linux installer)
-- Documentation site (Docusaurus) — deferred post-workflow
-- Short demo video
+### Phase 5 — PoC public demo 🔲 QUASI COMPLETA
+Workflow refinement (T-22…T-26) + documentazione fatti. Stato item (riconciliato 2026-07-26):
+- ✅ Two-terminal dev simulation — `start_runtime.sh --instance N` / `start_editor.sh --instance N`.
+- ✅ Network discovery (mDNS) — `sws-web/src/discover.rs` + `GET /api/discover` (`_sws._tcp.local.`).
+- ✅ Multi-device management dall'IDE — ConfigView `DevicesTab` + `POST /api/deploy/device`.
+- ✅ Runtime standalone packaging — `deploy/generic-linux/` (`install.sh`, `sws-runtime.service`, launch wrapper) + `scripts/build_deploy.sh` (T-37).
+- ✅ Manuale utente — 16 capitoli markdown in `docs/manual/`. Il "sito Docusaurus" originario è **superato** da questo manuale per il PoC (rivalutabile al product phase).
+- 🔲 Short demo video — **unico residuo**, task del maintainer (fuori dallo scope di Claude Code).
+
+Oltre alla demo, migliorie architetturali identificate 2026-07-26 (isolamento runtime↔IDE):
+vedi `OPEN_QUESTIONS.md` Q8. In lavorazione: modalità runtime `--no-admin` (operator-only) +
+gating endpoint pericolosi + audit log reale (`sws-audit`).
 
 ### Realistic PoC-complete horizon
 Phase 5 is the last PoC phase. After the demo the decision is "graduate to product" or "park the experiment." Either is fine.

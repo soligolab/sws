@@ -11,7 +11,7 @@ objects:
   type: text
   x: 400
   y: 20
-  text: "FOTOVOLTAICO — Solarman 2 Stringhe"
+  text: "{{fotovoltaico_solarman_2_stringhe}}"
   font_size: 17
   font_weight: bold
   text_anchor: middle
@@ -22,7 +22,7 @@ objects:
   type: text
   x: 400
   y: 40
-  text: "Tensione · Corrente · Potenza per stringa · Inverter · Storico"
+  text: "{{tensione_corrente_potenza_per_stringa_in}}"
   font_size: 10
   text_anchor: middle
   color: "#475569"
@@ -35,7 +35,7 @@ objects:
   y: 572
   width: 120
   height: 34
-  label: "◎ Panoramica"
+  label: "{{panoramica_2}}"
   target_page: pro_p1
   locked: true
 
@@ -45,7 +45,7 @@ objects:
   y: 572
   width: 120
   height: 34
-  label: "◉ Fotovoltaico"
+  label: "{{fotovoltaico_3}}"
   target_page: pro_p2
   fill: "#1e293b"
   locked: true
@@ -56,7 +56,7 @@ objects:
   y: 572
   width: 120
   height: 34
-  label: "⚡ Batt & Rete"
+  label: "{{batt_rete}}"
   target_page: pro_p3
   locked: true
 
@@ -66,7 +66,7 @@ objects:
   y: 572
   width: 120
   height: 34
-  label: "🌡 Clima"
+  label: "{{clima}}"
   target_page: pro_p4
   locked: true
 
@@ -76,7 +76,7 @@ objects:
   y: 572
   width: 120
   height: 34
-  label: "🔌 Carichi"
+  label: "{{carichi}}"
   target_page: pro_p5
   locked: true
 
@@ -86,7 +86,7 @@ objects:
   y: 572
   width: 120
   height: 34
-  label: "🔒 Sicurezza"
+  label: "{{sicurezza}}"
   target_page: pro_p6
   locked: true
 
@@ -109,7 +109,7 @@ objects:
   type: text
   x: 100
   y: 78
-  text: "POTENZA TOTALE FV"
+  text: "{{potenza_totale_fv}}"
   font_size: 11
   font_weight: bold
   text_anchor: middle
@@ -142,7 +142,7 @@ objects:
   type: text
   x: 590
   y: 78
-  text: "Produzione oggi"
+  text: "{{produzione_oggi}}"
   font_size: 10
   text_anchor: middle
   color: "#16a34a"
@@ -162,7 +162,7 @@ objects:
   type: text
   x: 730
   y: 78
-  text: "Lifetime"
+  text: "{{lifetime}}"
   font_size: 10
   text_anchor: middle
   color: "#16a34a"
@@ -186,7 +186,7 @@ objects:
   type: text
   x: 200
   y: 136
-  text: "STRINGA 1"
+  text: "{{stringa_1}}"
   font_size: 13
   font_weight: bold
   text_anchor: middle
@@ -208,7 +208,7 @@ objects:
   type: text
   x: 100
   y: 166
-  text: "Tensione"
+  text: "{{tensione}}"
   font_size: 10
   text_anchor: middle
   color: "#475569"
@@ -228,7 +228,7 @@ objects:
   type: text
   x: 100
   y: 204
-  text: "V"
+  text: "{{v}}"
   font_size: 12
   text_anchor: middle
   color: "#16a34a"
@@ -250,7 +250,7 @@ objects:
   type: text
   x: 290
   y: 166
-  text: "Corrente"
+  text: "{{corrente}}"
   font_size: 10
   text_anchor: middle
   color: "#475569"
@@ -270,7 +270,7 @@ objects:
   type: text
   x: 290
   y: 204
-  text: "A"
+  text: "{{a}}"
   font_size: 12
   text_anchor: middle
   color: "#16a34a"
@@ -292,7 +292,7 @@ objects:
   type: text
   x: 200
   y: 284
-  text: "Potenza PV1"
+  text: "{{potenza_pv1}}"
   font_size: 10
   text_anchor: middle
   color: "#475569"
@@ -316,7 +316,7 @@ objects:
   type: text
   x: 600
   y: 136
-  text: "STRINGA 2"
+  text: "{{stringa_2}}"
   font_size: 13
   font_weight: bold
   text_anchor: middle
@@ -338,7 +338,7 @@ objects:
   type: text
   x: 500
   y: 166
-  text: "Tensione"
+  text: "{{tensione}}"
   font_size: 10
   text_anchor: middle
   color: "#475569"
@@ -358,7 +358,7 @@ objects:
   type: text
   x: 500
   y: 204
-  text: "V"
+  text: "{{v}}"
   font_size: 12
   text_anchor: middle
   color: "#16a34a"
@@ -379,7 +379,7 @@ objects:
   type: text
   x: 690
   y: 166
-  text: "Corrente"
+  text: "{{corrente}}"
   font_size: 10
   text_anchor: middle
   color: "#475569"
@@ -399,7 +399,7 @@ objects:
   type: text
   x: 690
   y: 204
-  text: "A"
+  text: "{{a}}"
   font_size: 12
   text_anchor: middle
   color: "#16a34a"
@@ -420,7 +420,7 @@ objects:
   type: text
   x: 600
   y: 284
-  text: "Potenza PV2"
+  text: "{{potenza_pv2}}"
   font_size: 10
   text_anchor: middle
   color: "#475569"
@@ -444,7 +444,7 @@ objects:
   type: text
   x: 400
   y: 348
-  text: "Corrente PV1 vs PV2 — 1 ora"
+  text: "{{corrente_pv1_vs_pv2_1_ora}}"
   font_size: 10
   text_anchor: middle
   color: "#64748b"
@@ -465,7 +465,7 @@ objects:
   type: text
   x: 24
   y: 498
-  text: "— PV1 corrente (A)"
+  text: "{{pv1_corrente_a}}"
   font_size: 9
   color: "#22c55e"
 
@@ -473,7 +473,7 @@ objects:
   type: text
   x: 200
   y: 498
-  text: "— PV2 corrente (A)"
+  text: "{{pv2_corrente_a}}"
   font_size: 9
   color: "#86efac"
 
@@ -496,7 +496,7 @@ objects:
   type: text
   x: 90
   y: 527
-  text: "T. interna inv."
+  text: "{{t_interna_inv}}"
   font_size: 10
   text_anchor: middle
   color: "#64748b"
@@ -516,7 +516,7 @@ objects:
   type: text
   x: 240
   y: 527
-  text: "T. modulo inv."
+  text: "{{t_modulo_inv}}"
   font_size: 10
   text_anchor: middle
   color: "#64748b"
@@ -547,7 +547,7 @@ objects:
   type: text
   x: 550
   y: 527
-  text: "Generazione oggi"
+  text: "{{generazione_oggi}}"
   font_size: 10
   text_anchor: middle
   color: "#64748b"
@@ -567,7 +567,7 @@ objects:
   type: text
   x: 720
   y: 527
-  text: "Autoconsumo"
+  text: "{{autoconsumo}}"
   font_size: 10
   text_anchor: middle
   color: "#64748b"

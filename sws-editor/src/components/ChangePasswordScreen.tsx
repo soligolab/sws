@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
 import { useAppStore } from "@/store";
 
@@ -10,6 +11,7 @@ import { useAppStore } from "@/store";
  * remounts into the normal UI.
  */
 export function ChangePasswordScreen() {
+  const { t } = useTranslation();
   const authUser              = useAppStore((s) => s.authUser);
   const setMustChangePassword = useAppStore((s) => s.setMustChangePassword);
   const clearAuth             = useAppStore((s) => s.clearAuth);
@@ -25,15 +27,15 @@ export function ChangePasswordScreen() {
     setError(null);
 
     if (newPassword.length < 4) {
-      setError("La nuova password deve avere almeno 4 caratteri.");
+      setError(t("auth.pwTooShort"));
       return;
     }
     if (newPassword !== confirm) {
-      setError("Le due password non coincidono.");
+      setError(t("auth.pwMismatch"));
       return;
     }
     if (newPassword === oldPassword) {
-      setError("La nuova password deve essere diversa dalla precedente.");
+      setError(t("auth.pwSameAsOld"));
       return;
     }
 
@@ -47,9 +49,9 @@ export function ChangePasswordScreen() {
         // Token rejected: drop the session and bounce back to login.
         clearAuth();
       } else if (msg.includes("400") || msg.includes("invalid_password")) {
-        setError("La vecchia password non è corretta.");
+        setError(t("auth.pwOldWrong"));
       } else {
-        setError("Errore nel cambio password. Riprova.");
+        setError(t("auth.pwChangeError"));
         console.warn("change-password failed:", e);
       }
     } finally {
@@ -79,26 +81,26 @@ export function ChangePasswordScreen() {
         boxShadow: "0 10px 30px rgba(0,0,0,0.4)",
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
-          <strong style={{ fontSize: 18, letterSpacing: 1 }}>Cambio password</strong>
+          <strong style={{ fontSize: 18, letterSpacing: 1 }}>{t("auth.changeTitle")}</strong>
         </div>
         <p style={{ color: "var(--brand-text-muted, #94a3b8)", fontSize: 12, margin: 0 }}>
           Benvenuto <strong>{authUser}</strong>. Per continuare devi impostare una nuova password.
         </p>
 
         <div>
-          <label style={label}>Password attuale</label>
+          <label style={label}>{t("auth.currentPassword")}</label>
           <input type="password" value={oldPassword}
                  onChange={(e) => setOldPassword(e.target.value)}
                  autoComplete="current-password" autoFocus style={input} />
         </div>
         <div>
-          <label style={label}>Nuova password</label>
+          <label style={label}>{t("auth.newPassword")}</label>
           <input type="password" value={newPassword}
                  onChange={(e) => setNewPassword(e.target.value)}
                  autoComplete="new-password" style={input} />
         </div>
         <div>
-          <label style={label}>Conferma nuova password</label>
+          <label style={label}>{t("auth.confirmNewPassword")}</label>
           <input type="password" value={confirm}
                  onChange={(e) => setConfirm(e.target.value)}
                  autoComplete="new-password" style={input} />
@@ -119,7 +121,7 @@ export function ChangePasswordScreen() {
                     padding: "8px 12px", cursor: busy ? "default" : "pointer",
                     fontSize: 14, fontWeight: 600,
                   }}>
-            {busy ? "Aggiornamento…" : "Cambia password"}
+            {busy ? t("auth.changing") : t("auth.changeBtn")}
           </button>
           <button type="button" onClick={() => { void api.logout().catch(() => {}); clearAuth(); }}
                   style={{

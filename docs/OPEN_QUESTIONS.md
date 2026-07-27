@@ -139,6 +139,35 @@ rimane un'opzione post-PoC.
 
 ---
 
+## Q8 — Isolamento runtime ↔ IDE
+
+**Context**: La spec long-term prevede **due container separati** (`sws-runtime` + `sws-editor`) che
+condividono la cartella progetto. Il PoC li ha **collassati in un unico processo**: `router::build`
+costruisce `runtime_app` (viewer 8443, `optional_auth`) e `admin_app` (IDE 8444, `require_auth`) dallo
+**stesso `AppState`** (`state.clone()`), stesso processo e stesso runtime Tokio. L'isolamento è solo a
+livello di **porta + auth**, non di processo. Conseguenza: operazioni IDE (config edit, `/api/script/exec`
+ad-hoc, upload/delete progetto, `package.sh`, reload config) girano nello stesso spazio dell'acquisizione
+dati live + HMI operatore; uno script fuori controllo o un panic di plugin può degradarla. Superficie
+d'attacco ampia sul dispositivo di campo (peggio in no-auth).
+
+**Options / roadmap** (dal quick-win al product-phase):
+- **A — Modalità runtime "operator-only" (`--no-admin` / `--admin-port 0`)**: non bindare affatto
+  `admin_app`; sul dispositivo gira solo il viewer + API minima. Riusa i due router già separati.
+- **B — Gating endpoint pericolosi**: in operator-only (o sempre in no-auth) disabilitare
+  `/api/script/exec`, project upload/delete/import, package build. Difesa in profondità.
+- **C — Reload config granulare** (per-source, validate-before-apply) invece del riavvio di tutti i supervisor.
+- **D — Audit log reale** (`sws-audit`, oggi stub): append-only + hash-chain SHA-256/HMAC, cablato su
+  auth/tag-write/modifiche progetto/esecuzioni script.
+- **E — (product) Split in due processi** (engine vs web-admin) come da spec.
+- **F — (product) Python out-of-process** (Q1 opzione B): worker isolato via IPC.
+
+**Default for PoC**: implementare **A + B** (massimo isolamento pratico con poco codice) e **D**
+(chiude il gap compliance più vistoso). C/E/F deferiti al product phase.
+
+**Decided**: A+B+D in lavorazione (2026-07-26). C/E/F = product phase.
+
+---
+
 ## Adding new questions
 
 When Claude Code adds a new question, follow the format above:

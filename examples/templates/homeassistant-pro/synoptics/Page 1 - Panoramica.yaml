@@ -5,13 +5,19 @@ width: 800
 height: 620
 
 objects:
+- id: lang_sel_auto
+  type: lang_selector
+  x: 702
+  y: 8
+  width: 90
+  height: 26
 
 # ── HEADER ────────────────────────────────────────────────────────────────────
 - id: pro1_title
   type: text
   x: 400
   y: 20
-  text: "HOMEASSISTANT PRO — PANORAMICA"
+  text: "{{homeassistant_pro_panoramica}}"
   font_size: 17
   font_weight: bold
   text_anchor: middle
@@ -22,7 +28,7 @@ objects:
   type: text
   x: 400
   y: 40
-  text: "Flusso energia · Clima · Sicurezza · Presenza"
+  text: "{{flusso_energia_clima_sicurezza_presenza}}"
   font_size: 10
   text_anchor: middle
   color: "#475569"
@@ -35,7 +41,7 @@ objects:
   y: 572
   width: 120
   height: 34
-  label: "◉ Panoramica"
+  label: "{{panoramica}}"
   target_page: pro_p1
   fill: "#1e293b"
   locked: true
@@ -46,7 +52,7 @@ objects:
   y: 572
   width: 120
   height: 34
-  label: "☀ Fotovoltaico"
+  label: "{{fotovoltaico}}"
   target_page: pro_p2
   locked: true
 
@@ -56,7 +62,7 @@ objects:
   y: 572
   width: 120
   height: 34
-  label: "⚡ Batt & Rete"
+  label: "{{batt_rete}}"
   target_page: pro_p3
   locked: true
 
@@ -66,7 +72,7 @@ objects:
   y: 572
   width: 120
   height: 34
-  label: "🌡 Clima"
+  label: "{{clima}}"
   target_page: pro_p4
   locked: true
 
@@ -76,7 +82,7 @@ objects:
   y: 572
   width: 120
   height: 34
-  label: "🔌 Carichi"
+  label: "{{carichi}}"
   target_page: pro_p5
   locked: true
 
@@ -86,7 +92,7 @@ objects:
   y: 572
   width: 120
   height: 34
-  label: "🔒 Sicurezza"
+  label: "{{sicurezza}}"
   target_page: pro_p6
   locked: true
 
@@ -98,7 +104,7 @@ objects:
   type: text
   x: 400
   y: 62
-  text: "FLUSSO ENERGIA"
+  text: "{{flusso_energia}}"
   font_size: 11
   font_weight: bold
   text_anchor: middle
@@ -120,7 +126,7 @@ objects:
   type: text
   x: 99
   y: 91
-  text: "☀ FOTOVOLTAICO"
+  text: "{{fotovoltaico_2}}"
   font_size: 10
   font_weight: bold
   text_anchor: middle
@@ -175,7 +181,7 @@ objects:
   type: text
   x: 285
   y: 91
-  text: "🔋 BATTERIA"
+  text: "{{batteria}}"
   font_size: 10
   font_weight: bold
   text_anchor: middle
@@ -230,7 +236,7 @@ objects:
   type: text
   x: 471
   y: 91
-  text: "🏠 CONSUMO CASA"
+  text: "{{consumo_casa}}"
   font_size: 10
   font_weight: bold
   text_anchor: middle
@@ -285,7 +291,7 @@ objects:
   type: text
   x: 679
   y: 91
-  text: "⚡ RETE ELETTRICA"
+  text: "{{rete_elettrica}}"
   font_size: 10
   font_weight: bold
   text_anchor: middle
@@ -340,7 +346,7 @@ objects:
   type: text
   x: 220
   y: 196
-  text: "CLIMA"
+  text: "{{clima_2}}"
   font_size: 11
   font_weight: bold
   text_anchor: middle
@@ -362,7 +368,7 @@ objects:
   type: text
   x: 90
   y: 224
-  text: "Stanza"
+  text: "{{stanza}}"
   font_size: 9
   font_weight: bold
   text_anchor: middle
@@ -372,7 +378,7 @@ objects:
   type: text
   x: 240
   y: 224
-  text: "Temp."
+  text: "{{temp}}"
   font_size: 9
   font_weight: bold
   text_anchor: middle
@@ -382,7 +388,7 @@ objects:
   type: text
   x: 330
   y: 224
-  text: "Umidità"
+  text: "{{umidita}}"
   font_size: 9
   font_weight: bold
   text_anchor: middle
@@ -403,7 +409,7 @@ objects:
   type: text
   x: 90
   y: 248
-  text: "Soggiorno"
+  text: "{{soggiorno}}"
   font_size: 11
   text_anchor: middle
   color: "#93c5fd"
@@ -444,7 +450,7 @@ objects:
   type: text
   x: 90
   y: 270
-  text: "Studio"
+  text: "{{studio}}"
   font_size: 11
   text_anchor: middle
   color: "#94a3b8"
@@ -475,7 +481,7 @@ objects:
   type: text
   x: 90
   y: 292
-  text: "Lavanderia"
+  text: "{{lavanderia}}"
   font_size: 11
   text_anchor: middle
   color: "#94a3b8"
@@ -506,7 +512,7 @@ objects:
   type: text
   x: 90
   y: 314
-  text: "Bagno PT"
+  text: "{{bagno_pt}}"
   font_size: 11
   text_anchor: middle
   color: "#94a3b8"
@@ -537,7 +543,7 @@ objects:
   type: text
   x: 90
   y: 336
-  text: "Loc. Tecnico"
+  text: "{{loc_tecnico}}"
   font_size: 11
   text_anchor: middle
   color: "#94a3b8"
@@ -577,7 +583,7 @@ objects:
   type: text
   x: 90
   y: 362
-  text: "Media"
+  text: "{{media}}"
   font_size: 11
   font_weight: bold
   text_anchor: middle
@@ -612,7 +618,7 @@ objects:
   type: text
   x: 220
   y: 384
-  text: "SICUREZZA"
+  text: "{{sicurezza_2}}"
   font_size: 11
   font_weight: bold
   text_anchor: middle
@@ -634,7 +640,7 @@ objects:
   type: text
   x: 110
   y: 412
-  text: "Garage"
+  text: "{{garage}}"
   font_size: 11
   color: "#94a3b8"
 
@@ -652,7 +658,7 @@ objects:
   type: text
   x: 110
   y: 432
-  text: "Porta principale"
+  text: "{{porta_principale}}"
   font_size: 11
   color: "#94a3b8"
 
@@ -670,7 +676,7 @@ objects:
   type: text
   x: 110
   y: 452
-  text: "Porta studio"
+  text: "{{porta_studio}}"
   font_size: 11
   color: "#94a3b8"
 
@@ -689,7 +695,7 @@ objects:
   type: text
   x: 290
   y: 412
-  text: "Soggiorno SX"
+  text: "{{soggiorno_sx}}"
   font_size: 11
   color: "#94a3b8"
 
@@ -707,7 +713,7 @@ objects:
   type: text
   x: 290
   y: 432
-  text: "Soggiorno DX"
+  text: "{{soggiorno_dx}}"
   font_size: 11
   color: "#94a3b8"
 
@@ -725,7 +731,7 @@ objects:
   type: text
   x: 290
   y: 452
-  text: "Cucina SX"
+  text: "{{cucina_sx}}"
   font_size: 11
   color: "#94a3b8"
 
@@ -743,7 +749,7 @@ objects:
   type: text
   x: 290
   y: 472
-  text: "Cucina DX"
+  text: "{{cucina_dx}}"
   font_size: 11
   color: "#94a3b8"
 
@@ -761,7 +767,7 @@ objects:
   type: text
   x: 290
   y: 492
-  text: "Lavanderia"
+  text: "{{lavanderia}}"
   font_size: 11
   color: "#94a3b8"
 
@@ -780,7 +786,7 @@ objects:
   type: text
   x: 24
   y: 475
-  text: "Ingresso:"
+  text: "{{ingresso}}"
   font_size: 10
   color: "#475569"
 
@@ -798,7 +804,7 @@ objects:
   type: text
   x: 24
   y: 495
-  text: "Esterno:"
+  text: "{{esterno}}"
   font_size: 10
   color: "#475569"
 
@@ -816,7 +822,7 @@ objects:
   type: text
   x: 24
   y: 515
-  text: "Perimetro:"
+  text: "{{perimetro}}"
   font_size: 10
   color: "#475569"
 
@@ -854,7 +860,7 @@ objects:
   type: text
   x: 136
   y: 516
-  text: "NE · NO · O"
+  text: "{{ne_no_o}}"
   font_size: 9
   color: "#334155"
 
@@ -866,7 +872,7 @@ objects:
   type: text
   x: 614
   y: 196
-  text: "PRESENZA & LUCI"
+  text: "{{presenza_luci}}"
   font_size: 11
   font_weight: bold
   text_anchor: middle
@@ -888,7 +894,7 @@ objects:
   type: text
   x: 450
   y: 228
-  text: "Mauro a casa:"
+  text: "{{mauro_a_casa}}"
   font_size: 12
   color: "#94a3b8"
 
@@ -916,7 +922,7 @@ objects:
   type: text
   x: 450
   y: 256
-  text: "Elevazione solare:"
+  text: "{{elevazione_solare}}"
   font_size: 12
   color: "#94a3b8"
 
@@ -945,7 +951,7 @@ objects:
   type: text
   x: 614
   y: 284
-  text: "LUCI ESTERNE"
+  text: "{{luci_esterne}}"
   font_size: 10
   font_weight: bold
   text_anchor: middle
@@ -955,7 +961,7 @@ objects:
   type: text
   x: 450
   y: 306
-  text: "Cancelletto"
+  text: "{{cancelletto}}"
   font_size: 12
   color: "#94a3b8"
 
@@ -973,7 +979,7 @@ objects:
   type: text
   x: 450
   y: 328
-  text: "Viale centrale"
+  text: "{{viale_centrale}}"
   font_size: 12
   color: "#94a3b8"
 
@@ -991,7 +997,7 @@ objects:
   type: text
   x: 450
   y: 350
-  text: "Strada DX"
+  text: "{{strada_dx}}"
   font_size: 12
   color: "#94a3b8"
 
@@ -1019,7 +1025,7 @@ objects:
   type: text
   x: 614
   y: 380
-  text: "TAPPARELLE"
+  text: "{{tapparelle}}"
   font_size: 10
   font_weight: bold
   text_anchor: middle
@@ -1029,7 +1035,7 @@ objects:
   type: text
   x: 450
   y: 400
-  text: "Soggiorno SX"
+  text: "{{soggiorno_sx}}"
   font_size: 11
   color: "#94a3b8"
 
@@ -1047,7 +1053,7 @@ objects:
   type: text
   x: 450
   y: 420
-  text: "Soggiorno DX"
+  text: "{{soggiorno_dx}}"
   font_size: 11
   color: "#94a3b8"
 
@@ -1065,7 +1071,7 @@ objects:
   type: text
   x: 450
   y: 440
-  text: "Bagno PT"
+  text: "{{bagno_pt}}"
   font_size: 11
   color: "#94a3b8"
 
@@ -1083,7 +1089,7 @@ objects:
   type: text
   x: 450
   y: 460
-  text: "Garage"
+  text: "{{garage}}"
   font_size: 11
   color: "#94a3b8"
 
@@ -1104,7 +1110,7 @@ objects:
   y: 522
   width: 328
   height: 32
-  label: "→ Controllo completo luci e tapparelle"
+  label: "{{controllo_completo_luci_e_tapparelle}}"
   target_page: pro_p6
   fill: "#172554"
   locked: true

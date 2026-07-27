@@ -866,3 +866,624 @@ alarms:
     dead_band: 5.0
     message: "Umidità soggiorno elevata: {value:.0f}%"
     severity: Warning
+
+languages:
+  default: it
+  langs: [it, en]
+  entries:
+    - key: "homeassistant_pro_panoramica"
+      values:
+        it: "HOMEASSISTANT PRO — PANORAMICA"
+        en: "HOMEASSISTANT PRO — OVERVIEW"
+    - key: "flusso_energia_clima_sicurezza_presenza"
+      values:
+        it: "Flusso energia · Clima · Sicurezza · Presenza"
+        en: "Energy flow · Climate · Security · Presence"
+    - key: "panoramica"
+      values:
+        it: "◉ Panoramica"
+        en: "◉ Overview"
+    - key: "fotovoltaico"
+      values:
+        it: "☀ Fotovoltaico"
+        en: "☀ Photovoltaic"
+    - key: "batt_rete"
+      values:
+        it: "⚡ Batt & Rete"
+        en: "⚡ Batt & Grid"
+    - key: "clima"
+      values:
+        it: "🌡 Clima"
+        en: "🌡 Climate"
+    - key: "carichi"
+      values:
+        it: "🔌 Carichi"
+        en: "🔌 Loads"
+    - key: "sicurezza"
+      values:
+        it: "🔒 Sicurezza"
+        en: "🔒 Security"
+    - key: "flusso_energia"
+      values:
+        it: "FLUSSO ENERGIA"
+        en: "ENERGY FLOW"
+    - key: "fotovoltaico_2"
+      values:
+        it: "☀ FOTOVOLTAICO"
+        en: "☀ PHOTOVOLTAIC"
+    - key: "batteria"
+      values:
+        it: "🔋 BATTERIA"
+        en: "🔋 BATTERY"
+    - key: "consumo_casa"
+      values:
+        it: "🏠 CONSUMO CASA"
+        en: "🏠 HOUSE CONSUMPTION"
+    - key: "rete_elettrica"
+      values:
+        it: "⚡ RETE ELETTRICA"
+        en: "⚡ POWER GRID"
+    - key: "clima_2"
+      values:
+        it: "CLIMA"
+        en: "CLIMATE"
+    - key: "stanza"
+      values:
+        it: "Stanza"
+        en: "Room"
+    - key: "temp"
+      values:
+        it: "Temp."
+        en: "Temp."
+    - key: "umidita"
+      values:
+        it: "Umidità"
+        en: "Humidity"
+    - key: "soggiorno"
+      values:
+        it: "Soggiorno"
+        en: "Living room"
+    - key: "studio"
+      values:
+        it: "Studio"
+        en: "Studio"
+    - key: "lavanderia"
+      values:
+        it: "Lavanderia"
+        en: "Laundry"
+    - key: "bagno_pt"
+      values:
+        it: "Bagno PT"
+        en: "Bathroom GF"
+    - key: "loc_tecnico"
+      values:
+        it: "Loc. Tecnico"
+        en: "Utility room"
+    - key: "media"
+      values:
+        it: "Media"
+        en: "Average"
+    - key: "sicurezza_2"
+      values:
+        it: "SICUREZZA"
+        en: "SECURITY"
+    - key: "garage"
+      values:
+        it: "Garage"
+        en: "Garage"
+    - key: "porta_principale"
+      values:
+        it: "Porta principale"
+        en: "Main door"
+    - key: "porta_studio"
+      values:
+        it: "Porta studio"
+        en: "Studio door"
+    - key: "soggiorno_sx"
+      values:
+        it: "Soggiorno SX"
+        en: "Living room L"
+    - key: "soggiorno_dx"
+      values:
+        it: "Soggiorno DX"
+        en: "Living room R"
+    - key: "cucina_sx"
+      values:
+        it: "Cucina SX"
+        en: "Kitchen L"
+    - key: "cucina_dx"
+      values:
+        it: "Cucina DX"
+        en: "Kitchen R"
+    - key: "ingresso"
+      values:
+        it: "Ingresso:"
+        en: "Entrance:"
+    - key: "esterno"
+      values:
+        it: "Esterno:"
+        en: "Outdoor:"
+    - key: "perimetro"
+      values:
+        it: "Perimetro:"
+        en: "Perimeter:"
+    - key: "ne_no_o"
+      values:
+        it: "NE · NO · O"
+        en: "NE · NO · O"
+    - key: "presenza_luci"
+      values:
+        it: "PRESENZA & LUCI"
+        en: "PRESENCE & LIGHTS"
+    - key: "mauro_a_casa"
+      values:
+        it: "Mauro a casa:"
+        en: "Mauro at home:"
+    - key: "elevazione_solare"
+      values:
+        it: "Elevazione solare:"
+        en: "Solar elevation:"
+    - key: "luci_esterne"
+      values:
+        it: "LUCI ESTERNE"
+        en: "OUTDOOR LIGHTS"
+    - key: "cancelletto"
+      values:
+        it: "Cancelletto"
+        en: "Gate"
+    - key: "viale_centrale"
+      values:
+        it: "Viale centrale"
+        en: "Central path"
+    - key: "strada_dx"
+      values:
+        it: "Strada DX"
+        en: "Road R"
+    - key: "tapparelle"
+      values:
+        it: "TAPPARELLE"
+        en: "ROLLER SHUTTERS"
+    - key: "controllo_completo_luci_e_tapparelle"
+      values:
+        it: "→ Controllo completo luci e tapparelle"
+        en: "→ Full control of lights and shutters"
+    - key: "fotovoltaico_solarman_2_stringhe"
+      values:
+        it: "FOTOVOLTAICO — Solarman 2 Stringhe"
+        en: "PHOTOVOLTAIC — Solarman 2 Strings"
+    - key: "tensione_corrente_potenza_per_stringa_in"
+      values:
+        it: "Tensione · Corrente · Potenza per stringa · Inverter · Storico"
+        en: "Voltage · Current · Power per string · Inverter · History"
+    - key: "panoramica_2"
+      values:
+        it: "◎ Panoramica"
+        en: "◎ Overview"
+    - key: "fotovoltaico_3"
+      values:
+        it: "◉ Fotovoltaico"
+        en: "◉ Photovoltaic"
+    - key: "potenza_totale_fv"
+      values:
+        it: "POTENZA TOTALE FV"
+        en: "TOTAL PV POWER"
+    - key: "produzione_oggi"
+      values:
+        it: "Produzione oggi"
+        en: "Produced today"
+    - key: "lifetime"
+      values:
+        it: "Lifetime"
+        en: "Lifetime"
+    - key: "stringa_1"
+      values:
+        it: "STRINGA 1"
+        en: "STRING 1"
+    - key: "tensione"
+      values:
+        it: "Tensione"
+        en: "Voltage"
+    - key: "v"
+      values:
+        it: "V"
+        en: "V"
+    - key: "corrente"
+      values:
+        it: "Corrente"
+        en: "Current"
+    - key: "a"
+      values:
+        it: "A"
+        en: "A"
+    - key: "potenza_pv1"
+      values:
+        it: "Potenza PV1"
+        en: "PV1 power"
+    - key: "stringa_2"
+      values:
+        it: "STRINGA 2"
+        en: "STRING 2"
+    - key: "potenza_pv2"
+      values:
+        it: "Potenza PV2"
+        en: "PV2 power"
+    - key: "corrente_pv1_vs_pv2_1_ora"
+      values:
+        it: "Corrente PV1 vs PV2 — 1 ora"
+        en: "PV1 vs PV2 current — 1 hour"
+    - key: "pv1_corrente_a"
+      values:
+        it: "— PV1 corrente (A)"
+        en: "— PV1 corrente (A)"
+    - key: "pv2_corrente_a"
+      values:
+        it: "— PV2 corrente (A)"
+        en: "— PV2 corrente (A)"
+    - key: "t_interna_inv"
+      values:
+        it: "T. interna inv."
+        en: "Inv. internal T."
+    - key: "t_modulo_inv"
+      values:
+        it: "T. modulo inv."
+        en: "Inv. module T."
+    - key: "generazione_oggi"
+      values:
+        it: "Generazione oggi"
+        en: "Generated today"
+    - key: "autoconsumo"
+      values:
+        it: "Autoconsumo"
+        en: "Self-consumption"
+    - key: "batteria_rete_elettrica"
+      values:
+        it: "BATTERIA & RETE ELETTRICA"
+        en: "BATTERY & POWER GRID"
+    - key: "soc_tensione_corrente_scambio_rete_stori"
+      values:
+        it: "SoC · Tensione · Corrente · Scambio rete · Storico"
+        en: "SoC · Voltage · Current · Grid exchange · History"
+    - key: "batt_rete_2"
+      values:
+        it: "◉ Batt & Rete"
+        en: "◉ Batt & Grid"
+    - key: "batteria_lifepo4"
+      values:
+        it: "🔋 BATTERIA LiFePO4"
+        en: "🔋 LiFePO4 BATTERY"
+    - key: "potenza"
+      values:
+        it: "Potenza"
+        en: "Power"
+    - key: "temperatura"
+      values:
+        it: "Temperatura"
+        en: "Temperature"
+    - key: "cicli_carica"
+      values:
+        it: "Cicli carica"
+        en: "Charge cycles"
+    - key: "caricata_oggi"
+      values:
+        it: "Caricata oggi"
+        en: "Charged today"
+    - key: "scaricata_oggi"
+      values:
+        it: "Scaricata oggi"
+        en: "Discharged today"
+    - key: "capacita_nominale"
+      values:
+        it: "Capacità nominale"
+        en: "Rated capacity"
+    - key: "frequenza"
+      values:
+        it: "Frequenza"
+        en: "Frequency"
+    - key: "hz"
+      values:
+        it: "Hz"
+        en: "Hz"
+    - key: "scambio"
+      values:
+        it: "Scambio"
+        en: "Exchange"
+    - key: "acquisto"
+      values:
+        it: "Acquisto"
+        en: "Purchase"
+    - key: "vendita"
+      values:
+        it: "Vendita"
+        en: "Export sale"
+    - key: "saldo_fv"
+      values:
+        it: "Saldo FV"
+        en: "PV balance"
+    - key: "prelevata_oggi"
+      values:
+        it: "Prelevata oggi"
+        en: "Drawn today"
+    - key: "immessa_oggi"
+      values:
+        it: "Immessa oggi"
+        en: "Fed-in today"
+    - key: "immessa_lifetime"
+      values:
+        it: "Immessa lifetime"
+        en: "Fed-in lifetime"
+    - key: "soc_batteria_tensione_rete_1_ora"
+      values:
+        it: "SoC batteria + Tensione rete — 1 ora"
+        en: "Battery SoC + Grid voltage — 1 hour"
+    - key: "soc_batteria"
+      values:
+        it: "— SoC batteria (%)"
+        en: "— SoC batteria (%)"
+    - key: "tensione_rete_v"
+      values:
+        it: "— Tensione rete (V)"
+        en: "— Tensione rete (V)"
+    - key: "positivo_scambio_immissione"
+      values:
+        it: "Positivo scambio = immissione"
+        en: "Positive exchange = feed-in"
+    - key: "clima_5_stanze"
+      values:
+        it: "CLIMA — 5 Stanze"
+        en: "CLIMATE — 5 Rooms"
+    - key: "temperatura_umidita_comfort_index_trend"
+      values:
+        it: "Temperatura · Umidità · Comfort Index · Trend storico"
+        en: "Temperature · Humidity · Comfort Index · Historical trend"
+    - key: "clima_3"
+      values:
+        it: "◉ Clima"
+        en: "◉ Climate"
+    - key: "barra"
+      values:
+        it: "Barra"
+        en: "Bar"
+    - key: "media_5_stanze"
+      values:
+        it: "Media 5 stanze"
+        en: "5-room average"
+    - key: "pressione"
+      values:
+        it: "Pressione"
+        en: "Pressure"
+    - key: "comfort_soggiorno"
+      values:
+        it: "Comfort Soggiorno"
+        en: "Living-room comfort"
+    - key: "100_t_22_c_u_50"
+      values:
+        it: "100 = T 22°C + U 50%"
+        en: "100 = T 22°C + H 50%"
+    - key: "gauge_temperatura_media"
+      values:
+        it: "GAUGE — TEMPERATURA MEDIA"
+        en: "GAUGE — AVERAGE TEMPERATURE"
+    - key: "comfort_index"
+      values:
+        it: "Comfort Index"
+        en: "Comfort Index"
+    - key: "temperature_soggiorno_studio_lavanderia"
+      values:
+        it: "Temperature Soggiorno · Studio · Lavanderia — 2 ore"
+        en: "Living-room · Studio · Laundry temperatures — 2 hours"
+    - key: "soggiorno_c"
+      values:
+        it: "— Soggiorno (°C)"
+        en: "— Soggiorno (°C)"
+    - key: "studio_c"
+      values:
+        it: "— Studio (°C)"
+        en: "— Studio (°C)"
+    - key: "lavanderia_c"
+      values:
+        it: "— Lavanderia (°C)"
+        en: "— Lavanderia (°C)"
+    - key: "storico_sqlite_365_gg"
+      values:
+        it: "Storico SQLite 365 gg"
+        en: "SQLite history 365 days"
+    - key: "carichi_elettrici"
+      values:
+        it: "CARICHI ELETTRICI"
+        en: "ELECTRICAL LOADS"
+    - key: "cucina_sonoff_pompa_di_calore_kpi_energe"
+      values:
+        it: "Cucina Sonoff · Pompa di Calore · KPI Energetici"
+        en: "Sonoff kitchen · Heat pump · Energy KPIs"
+    - key: "carichi_2"
+      values:
+        it: "◉ Carichi"
+        en: "◉ Loads"
+    - key: "consumo_casa_2"
+      values:
+        it: "Consumo casa"
+        en: "House consumption"
+    - key: "costo_ora"
+      values:
+        it: "Costo ora"
+        en: "Cost/hour"
+    - key: "saldo_fv_casa"
+      values:
+        it: "Saldo FV-Casa"
+        en: "PV-House balance"
+    - key: "consumo_oggi"
+      values:
+        it: "Consumo oggi"
+        en: "Consumed today"
+    - key: "cucina_contatore_sonoff"
+      values:
+        it: "🍳 CUCINA — Contatore Sonoff"
+        en: "🍳 KITCHEN — Sonoff meter"
+    - key: "w"
+      values:
+        it: "W"
+        en: "W"
+    - key: "energia_totale"
+      values:
+        it: "Energia totale"
+        en: "Total energy"
+    - key: "pompa_di_calore"
+      values:
+        it: "🌀 POMPA DI CALORE"
+        en: "🌀 HEAT PUMP"
+    - key: "potenza_istantanea_vs_consumo_casa"
+      values:
+        it: "Potenza istantanea vs consumo casa"
+        en: "Instant power vs house consumption"
+    - key: "potenza_cucina_vs_pompa_di_calore_vs_con"
+      values:
+        it: "Potenza Cucina vs Pompa di Calore vs Consumo Casa — 1 ora"
+        en: "Kitchen vs Heat pump vs House consumption — 1 hour"
+    - key: "cucina_w"
+      values:
+        it: "— Cucina (W)"
+        en: "— Cucina (W)"
+    - key: "pompa_calore_w"
+      values:
+        it: "— Pompa calore (W)"
+        en: "— Pompa calore (W)"
+    - key: "consumo_casa_kw_1000"
+      values:
+        it: "— Consumo casa (kW×1000)"
+        en: "— Consumo casa (kW×1000)"
+    - key: "sicurezza_controllo"
+      values:
+        it: "SICUREZZA & CONTROLLO"
+        en: "SECURITY & CONTROL"
+    - key: "porte_finestre_perimetro_luci_write_back"
+      values:
+        it: "Porte · Finestre · Perimetro · Luci write-back · Tapparelle write-back"
+        en: "Doors · Windows · Perimeter · Lights write-back · Shutters write-back"
+    - key: "sicurezza_3"
+      values:
+        it: "◉ Sicurezza"
+        en: "◉ Security"
+    - key: "sensori_sicurezza"
+      values:
+        it: "SENSORI SICUREZZA"
+        en: "SECURITY SENSORS"
+    - key: "porte"
+      values:
+        it: "PORTE"
+        en: "DOORS"
+    - key: "garage_sezionale"
+      values:
+        it: "Garage sezionale"
+        en: "Sectional garage"
+    - key: "portoncino_ingresso"
+      values:
+        it: "Portoncino ingresso"
+        en: "Entrance door"
+    - key: "portoncino_studio"
+      values:
+        it: "Portoncino studio"
+        en: "Studio door"
+    - key: "finestre"
+      values:
+        it: "FINESTRE"
+        en: "WINDOWS"
+    - key: "perimetro_movimento"
+      values:
+        it: "PERIMETRO & MOVIMENTO"
+        en: "PERIMETER & MOTION"
+    - key: "perimetro_nord_est"
+      values:
+        it: "Perimetro Nord-Est"
+        en: "North-East perimeter"
+    - key: "perimetro_nord_ovest"
+      values:
+        it: "Perimetro Nord-Ovest"
+        en: "North-West perimeter"
+    - key: "perimetro_ovest"
+      values:
+        it: "Perimetro Ovest"
+        en: "West perimeter"
+    - key: "movimento_ingresso"
+      values:
+        it: "Movimento ingresso"
+        en: "Entrance motion"
+    - key: "movimento_esterno"
+      values:
+        it: "Movimento esterno"
+        en: "Outdoor motion"
+    - key: "persona_ai"
+      values:
+        it: "Persona (AI)"
+        en: "Person (AI)"
+    - key: "veicolo_ai"
+      values:
+        it: "Veicolo (AI)"
+        en: "Vehicle (AI)"
+    - key: "piazzale"
+      values:
+        it: "Piazzale"
+        en: "Yard"
+    - key: "mauro_a_casa_2"
+      values:
+        it: "Mauro a casa"
+        en: "Mauro at home"
+    - key: "luci_esterne_write_back"
+      values:
+        it: "💡 LUCI ESTERNE — write-back"
+        en: "💡 OUTDOOR LIGHTS — write-back"
+    - key: "on"
+      values:
+        it: "ON"
+        en: "ON"
+    - key: "off"
+      values:
+        it: "OFF"
+        en: "OFF"
+    - key: "true_ha_switch_turn_on_false_turn_off"
+      values:
+        it: "true → HA: switch.turn_on / false → turn_off"
+        en: "true → HA: switch.turn_on / false → turn_off"
+    - key: "tapparelle_write_back"
+      values:
+        it: "🪟 TAPPARELLE — write-back"
+        en: "🪟 ROLLER SHUTTERS — write-back"
+    - key: "tapparella"
+      values:
+        it: "Tapparella"
+        en: "Roller shutter"
+    - key: "stato"
+      values:
+        it: "Stato"
+        en: "State"
+    - key: "su"
+      values:
+        it: "SÙ"
+        en: "UP"
+    - key: "giu"
+      values:
+        it: "GIÙ"
+        en: "DOWN"
+    - key: "su_2"
+      values:
+        it: "▲ SÙ"
+        en: "▲ UP"
+    - key: "giu_2"
+      values:
+        it: "▼ GIÙ"
+        en: "▼ DOWN"
+    - key: "su_ha_cover_open_cover"
+      values:
+        it: "▲ SÙ → HA: cover.open_cover"
+        en: "▲ UP → HA: cover.open_cover"
+    - key: "giu_ha_cover_close_cover"
+      values:
+        it: "▼ GIÙ → HA: cover.close_cover"
+        en: "▼ DOWN → HA: cover.close_cover"
+    - key: "stato_true_aperta_false_chiusa"
+      values:
+        it: "Stato: true = aperta / false = chiusa"
+        en: "State: true = open / false = closed"
+    - key: "sole_elevazione"
+      values:
+        it: "Sole elevazione"
+        en: "Sun elevation"

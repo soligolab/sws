@@ -11,7 +11,7 @@ objects:
   type: text
   x: 400
   y: 20
-  text: "BATTERIA & RETE ELETTRICA"
+  text: "{{batteria_rete_elettrica}}"
   font_size: 17
   font_weight: bold
   text_anchor: middle
@@ -22,7 +22,7 @@ objects:
   type: text
   x: 400
   y: 40
-  text: "SoC · Tensione · Corrente · Scambio rete · Storico"
+  text: "{{soc_tensione_corrente_scambio_rete_stori}}"
   font_size: 10
   text_anchor: middle
   color: "#475569"
@@ -35,7 +35,7 @@ objects:
   y: 572
   width: 120
   height: 34
-  label: "◎ Panoramica"
+  label: "{{panoramica_2}}"
   target_page: pro_p1
   locked: true
 
@@ -45,7 +45,7 @@ objects:
   y: 572
   width: 120
   height: 34
-  label: "☀ Fotovoltaico"
+  label: "{{fotovoltaico}}"
   target_page: pro_p2
   locked: true
 
@@ -55,7 +55,7 @@ objects:
   y: 572
   width: 120
   height: 34
-  label: "◉ Batt & Rete"
+  label: "{{batt_rete_2}}"
   target_page: pro_p3
   fill: "#1e293b"
   locked: true
@@ -66,7 +66,7 @@ objects:
   y: 572
   width: 120
   height: 34
-  label: "🌡 Clima"
+  label: "{{clima}}"
   target_page: pro_p4
   locked: true
 
@@ -76,7 +76,7 @@ objects:
   y: 572
   width: 120
   height: 34
-  label: "🔌 Carichi"
+  label: "{{carichi}}"
   target_page: pro_p5
   locked: true
 
@@ -86,7 +86,7 @@ objects:
   y: 572
   width: 120
   height: 34
-  label: "🔒 Sicurezza"
+  label: "{{sicurezza}}"
   target_page: pro_p6
   locked: true
 
@@ -98,7 +98,7 @@ objects:
   type: text
   x: 200
   y: 60
-  text: "🔋 BATTERIA LiFePO4"
+  text: "{{batteria_lifepo4}}"
   font_size: 13
   font_weight: bold
   text_anchor: middle
@@ -153,7 +153,7 @@ objects:
   type: text
   x: 50
   y: 232
-  text: "Tensione"
+  text: "{{tensione}}"
   font_size: 10
   color: "#475569"
 
@@ -173,7 +173,7 @@ objects:
   type: text
   x: 50
   y: 254
-  text: "Corrente"
+  text: "{{corrente}}"
   font_size: 10
   color: "#475569"
 
@@ -193,7 +193,7 @@ objects:
   type: text
   x: 50
   y: 276
-  text: "Potenza"
+  text: "{{potenza}}"
   font_size: 10
   color: "#475569"
 
@@ -213,7 +213,7 @@ objects:
   type: text
   x: 50
   y: 298
-  text: "Temperatura"
+  text: "{{temperatura}}"
   font_size: 10
   color: "#475569"
 
@@ -233,7 +233,7 @@ objects:
   type: text
   x: 50
   y: 320
-  text: "Cicli carica"
+  text: "{{cicli_carica}}"
   font_size: 10
   color: "#475569"
 
@@ -253,7 +253,7 @@ objects:
   type: text
   x: 50
   y: 342
-  text: "Caricata oggi"
+  text: "{{caricata_oggi}}"
   font_size: 10
   color: "#475569"
 
@@ -272,7 +272,7 @@ objects:
   type: text
   x: 50
   y: 360
-  text: "Scaricata oggi"
+  text: "{{scaricata_oggi}}"
   font_size: 10
   color: "#475569"
 
@@ -292,7 +292,7 @@ objects:
   type: text
   x: 50
   y: 378
-  text: "Capacità nominale"
+  text: "{{capacita_nominale}}"
   font_size: 10
   color: "#334155"
 
@@ -315,7 +315,7 @@ objects:
   type: text
   x: 610
   y: 60
-  text: "⚡ RETE ELETTRICA"
+  text: "{{rete_elettrica}}"
   font_size: 13
   font_weight: bold
   text_anchor: middle
@@ -337,7 +337,7 @@ objects:
   type: text
   x: 510
   y: 92
-  text: "Tensione"
+  text: "{{tensione}}"
   font_size: 10
   text_anchor: middle
   color: "#475569"
@@ -357,7 +357,7 @@ objects:
   type: text
   x: 510
   y: 134
-  text: "V"
+  text: "{{v}}"
   font_size: 11
   text_anchor: middle
   color: "#64748b"
@@ -381,7 +381,7 @@ objects:
   type: text
   x: 720
   y: 92
-  text: "Frequenza"
+  text: "{{frequenza}}"
   font_size: 10
   text_anchor: middle
   color: "#475569"
@@ -401,7 +401,7 @@ objects:
   type: text
   x: 720
   y: 134
-  text: "Hz"
+  text: "{{hz}}"
   font_size: 11
   text_anchor: middle
   color: "#64748b"
@@ -424,7 +424,7 @@ objects:
   type: text
   x: 510
   y: 200
-  text: "Corrente"
+  text: "{{corrente}}"
   font_size: 10
   text_anchor: middle
   color: "#475569"
@@ -445,7 +445,7 @@ objects:
   type: text
   x: 720
   y: 200
-  text: "Scambio"
+  text: "{{scambio}}"
   font_size: 10
   text_anchor: middle
   color: "#475569"
@@ -466,7 +466,7 @@ objects:
   type: text
   x: 480
   y: 252
-  text: "Acquisto"
+  text: "{{acquisto}}"
   font_size: 10
   text_anchor: middle
   color: "#ef4444"
@@ -486,7 +486,7 @@ objects:
   type: text
   x: 620
   y: 252
-  text: "Vendita"
+  text: "{{vendita}}"
   font_size: 10
   text_anchor: middle
   color: "#22c55e"
@@ -506,7 +506,7 @@ objects:
   type: text
   x: 760
   y: 252
-  text: "Saldo FV"
+  text: "{{saldo_fv}}"
   font_size: 10
   text_anchor: middle
   color: "#a3e635"
@@ -536,7 +536,7 @@ objects:
   type: text
   x: 480
   y: 302
-  text: "Prelevata oggi"
+  text: "{{prelevata_oggi}}"
   font_size: 9
   text_anchor: middle
   color: "#475569"
@@ -556,7 +556,7 @@ objects:
   type: text
   x: 620
   y: 302
-  text: "Immessa oggi"
+  text: "{{immessa_oggi}}"
   font_size: 9
   text_anchor: middle
   color: "#475569"
@@ -576,7 +576,7 @@ objects:
   type: text
   x: 760
   y: 302
-  text: "Immessa lifetime"
+  text: "{{immessa_lifetime}}"
   font_size: 9
   text_anchor: middle
   color: "#334155"
@@ -600,7 +600,7 @@ objects:
   type: text
   x: 400
   y: 404
-  text: "SoC batteria + Tensione rete — 1 ora"
+  text: "{{soc_batteria_tensione_rete_1_ora}}"
   font_size: 10
   text_anchor: middle
   color: "#64748b"
@@ -621,7 +621,7 @@ objects:
   type: text
   x: 24
   y: 554
-  text: "— SoC batteria (%)"
+  text: "{{soc_batteria}}"
   font_size: 9
   color: "#f59e0b"
 
@@ -629,7 +629,7 @@ objects:
   type: text
   x: 200
   y: 554
-  text: "— Tensione rete (V)"
+  text: "{{tensione_rete_v}}"
   font_size: 9
   color: "#94a3b8"
 
@@ -637,6 +637,6 @@ objects:
   type: text
   x: 600
   y: 554
-  text: "Positivo scambio = immissione"
+  text: "{{positivo_scambio_immissione}}"
   font_size: 9
   color: "#334155"

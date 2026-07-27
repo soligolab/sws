@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { api, getRuntimeBaseUrl, setRuntimeBaseUrl } from "@/api/client";
 import type { ProjectListEntry, TemplateEntry } from "@/types";
 
@@ -69,6 +70,7 @@ function NewProjectModal({
   onClose: () => void;
   onCreate: (name: string) => void;
 }) {
+  const { t } = useTranslation();
   const [tab, setTab]                 = useState<NewProjectTab>("empty");
   const [name, setName]               = useState("");
   const [templates, setTemplates]     = useState<TemplateEntry[]>([]);
@@ -93,19 +95,19 @@ function NewProjectModal({
     setBusy(true); setError(null);
     try {
       if (tab === "zip") {
-        if (!zipFile) { setError("Seleziona un file ZIP da importare."); setBusy(false); return; }
+        if (!zipFile) { setError(t("welcome.errNoZip")); setBusy(false); return; }
         // name is optional — backend reads it from manifest.json if blank
         const nameOverride = name.trim() || undefined;
         const result = await api.uploadProjectZip(zipFile, nameOverride);
         onCreate(result.name);
       } else {
         const trimmed = name.trim();
-        if (!trimmed) { setError("Inserisci un nome per il progetto."); setBusy(false); return; }
+        if (!trimmed) { setError(t("welcome.errNoName")); setBusy(false); return; }
         await api.createProject({ name: trimmed, template: tab === "template" ? selectedTpl : undefined });
         onCreate(trimmed);
       }
     } catch (e: any) {
-      setError(e?.message ?? "Errore nella creazione.");
+      setError(e?.message ?? t("welcome.errCreate"));
     } finally {
       setBusy(false);
     }
@@ -122,7 +124,7 @@ function NewProjectModal({
     fontWeight: active ? 600 : 400,
   });
 
-  const createLabel = busy ? "Creo…" : tab === "zip" ? "Carica e crea" : "Crea progetto";
+  const createLabel = busy ? t("welcome.creating") : tab === "zip" ? t("welcome.uploadCreate") : t("welcome.createProject");
 
   return (
     <div style={{
@@ -139,21 +141,21 @@ function NewProjectModal({
         width: 440,
         maxWidth: "90vw",
       }}>
-        <h2 style={{ margin: "0 0 20px", fontSize: 18, color: "var(--brand-text, #e2e8f0)" }}>Nuovo progetto</h2>
+        <h2 style={{ margin: "0 0 20px", fontSize: 18, color: "var(--brand-text, #e2e8f0)" }}>{t("welcome.newProject")}</h2>
 
         {/* tabs */}
         <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
-          <button style={TAB_STYLE(tab === "empty")} onClick={() => setTab("empty")}>Vuoto</button>
+          <button style={TAB_STYLE(tab === "empty")} onClick={() => setTab("empty")}>{t("welcome.empty")}</button>
           <button
             style={TAB_STYLE(tab === "template")}
             onClick={() => setTab("template")}
             disabled={templates.length === 0}
-            title={templates.length === 0 ? "Nessun template disponibile" : undefined}
+            title={templates.length === 0 ? t("welcome.noTemplates") : undefined}
           >
-            Da template
+            {t("welcome.fromTemplate")}
           </button>
           <button style={TAB_STYLE(tab === "zip")} onClick={() => setTab("zip")}>
-            Da ZIP
+            {t("welcome.fromZip")}
           </button>
         </div>
 
@@ -162,7 +164,7 @@ function NewProjectModal({
           <>
             <div style={{ marginBottom: 16 }}>
               <label style={{ fontSize: 12, color: "var(--brand-text-muted, #94a3b8)", display: "block", marginBottom: 6 }}>
-                File ZIP (esportazione SWS)
+                {t("welcome.zipFileLabel")}
               </label>
               <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                 <button
@@ -170,10 +172,10 @@ function NewProjectModal({
                   onClick={() => fileInputRef.current?.click()}
                   disabled={busy}
                 >
-                  Scegli file…
+                  {t("welcome.chooseFile")}
                 </button>
                 <span style={{ fontSize: 13, color: zipFile ? "var(--brand-text, #e2e8f0)" : "var(--brand-text-subtle, #64748b)", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                  {zipFile ? zipFile.name : "Nessun file selezionato"}
+                  {zipFile ? zipFile.name : t("welcome.noFileSelected")}
                 </span>
               </div>
               <input
@@ -195,13 +197,13 @@ function NewProjectModal({
             </div>
             <div style={{ marginBottom: 16 }}>
               <label style={{ fontSize: 12, color: "var(--brand-text-muted, #94a3b8)", display: "block", marginBottom: 6 }}>
-                Nome progetto <span style={{ color: "var(--brand-border, #475569)" }}>(opzionale — usa il nome dal ZIP se vuoto)</span>
+                {t("welcome.projectNameLabel")} <span style={{ color: "var(--brand-border, #475569)" }}>{t("welcome.projectNameZipOptional")}</span>
               </label>
               <input
                 style={INPUT}
                 value={name}
                 onChange={(e) => { setName(e.target.value); setError(null); }}
-                placeholder="Lascia vuoto per usare il nome dal ZIP"
+                placeholder={t("welcome.zipNamePlaceholder")}
                 onKeyDown={(e) => { if (e.key === "Enter") handleCreate(); if (e.key === "Escape") onClose(); }}
               />
             </div>
@@ -212,18 +214,18 @@ function NewProjectModal({
         {tab !== "zip" && (
           <div style={{ marginBottom: 16 }}>
             <label style={{ fontSize: 12, color: "var(--brand-text-muted, #94a3b8)", display: "block", marginBottom: 6 }}>
-              Nome progetto
+              {t("welcome.projectNameLabel")}
             </label>
             <input
               ref={nameRef}
               style={INPUT}
               value={name}
               onChange={(e) => { setName(e.target.value); setError(null); }}
-              placeholder="es. impianto-nord"
+              placeholder={t("welcome.namePlaceholder")}
               onKeyDown={(e) => { if (e.key === "Enter") handleCreate(); if (e.key === "Escape") onClose(); }}
             />
             <div style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", marginTop: 4 }}>
-              Sarà usato come nome della cartella. Solo lettere, cifre, trattini e underscore.
+              {t("welcome.folderNameHint")}
             </div>
           </div>
         )}
@@ -232,20 +234,20 @@ function NewProjectModal({
         {tab === "template" && templates.length > 0 && (
           <div style={{ marginBottom: 16 }}>
             <label style={{ fontSize: 12, color: "var(--brand-text-muted, #94a3b8)", display: "block", marginBottom: 6 }}>
-              Template
+              {t("welcome.template")}
             </label>
             <select
               style={{ ...INPUT, cursor: "pointer" }}
               value={selectedTpl}
               onChange={(e) => setSelectedTpl(e.target.value)}
             >
-              {templates.map((t) => (
-                <option key={t.id} value={t.id}>{t.label}</option>
+              {templates.map((tpl) => (
+                <option key={tpl.id} value={tpl.id}>{tpl.label}</option>
               ))}
             </select>
-            {templates.find((t) => t.id === selectedTpl)?.description && (
+            {templates.find((tpl) => tpl.id === selectedTpl)?.description && (
               <div style={{ fontSize: 12, color: "var(--brand-text-subtle, #64748b)", marginTop: 6 }}>
-                {templates.find((t) => t.id === selectedTpl)!.description}
+                {templates.find((tpl) => tpl.id === selectedTpl)!.description}
               </div>
             )}
           </div>
@@ -256,7 +258,7 @@ function NewProjectModal({
         )}
 
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
-          <button style={BTN_GHOST} onClick={onClose} disabled={busy}>Annulla</button>
+          <button style={BTN_GHOST} onClick={onClose} disabled={busy}>{t("common.cancel")}</button>
           <button style={{ ...BTN_PRIMARY, opacity: busy ? 0.6 : 1 }} onClick={handleCreate} disabled={busy}>
             {createLabel}
           </button>
@@ -292,6 +294,7 @@ function saveDeployCreds(host: string, creds: { port: number; user: string; pass
 }
 
 function DeploySection() {
+  const { t } = useTranslation();
   const [arch, setArch]           = useState<"amd64" | "arm64">("arm64");
   const [host, setHost]           = useState("");
   const [port, setPort]           = useState(22);
@@ -360,7 +363,7 @@ function DeploySection() {
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
         <div>
-          <label style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "block", marginBottom: 3 }}>Architettura target</label>
+          <label style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "block", marginBottom: 3 }}>{t("welcome.targetArch")}</label>
           <select
             style={{ ...INPUT, cursor: "pointer" }}
             value={arch}
@@ -371,7 +374,7 @@ function DeploySection() {
           </select>
         </div>
         <div>
-          <label style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "block", marginBottom: 3 }}>Path remoto</label>
+          <label style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "block", marginBottom: 3 }}>{t("welcome.remotePath")}</label>
           <input
             style={INPUT}
             placeholder="/data/user/sws"
@@ -383,7 +386,7 @@ function DeploySection() {
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 8 }}>
         <div>
-          <label style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "block", marginBottom: 3 }}>Host SSH</label>
+          <label style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "block", marginBottom: 3 }}>{t("welcome.sshHost")}</label>
           <input
             style={INPUT}
             placeholder="192.168.1.59"
@@ -392,7 +395,7 @@ function DeploySection() {
           />
         </div>
         <div>
-          <label style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "block", marginBottom: 3 }}>Porta</label>
+          <label style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "block", marginBottom: 3 }}>{t("welcome.port")}</label>
           <input
             style={{ ...INPUT, width: 60 }}
             type="number"
@@ -406,11 +409,11 @@ function DeploySection() {
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
         <div>
-          <label style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "block", marginBottom: 3 }}>Utente SSH</label>
+          <label style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "block", marginBottom: 3 }}>{t("welcome.sshUser")}</label>
           <input style={INPUT} placeholder="root" value={user} onChange={(e) => setUser(e.target.value)} />
         </div>
         <div>
-          <label style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "block", marginBottom: 3 }}>Password SSH</label>
+          <label style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "block", marginBottom: 3 }}>{t("welcome.sshPassword")}</label>
           <input style={INPUT} type="password" placeholder="••••••" value={password} onChange={(e) => setPassword(e.target.value)} />
         </div>
       </div>
@@ -446,7 +449,7 @@ function DeploySection() {
         disabled={!host || !user || deploying}
         onClick={handleDeploy}
       >
-        {deploying ? "Deploy in corso…" : done ? "✓ Deploy completato" : hasError ? "Riprova deploy" : "Deploy"}
+        {deploying ? t("welcome.deploying") : done ? t("welcome.deployDone") : hasError ? t("welcome.retryDeploy") : t("welcome.deploy")}
       </button>
     </div>
   );
@@ -459,6 +462,7 @@ function RemoteRuntimeModal({
   current: string;
   onClose: () => void;
 }) {
+  const { t } = useTranslation();
   const [tab, setTab]         = useState<"connect" | "deploy">("connect");
   const [url, setUrl]         = useState(current);
   const [probing, setProbing] = useState(false);
@@ -524,13 +528,13 @@ function RemoteRuntimeModal({
         width: 520, maxWidth: "92vw",
       }} onClick={(e) => e.stopPropagation()}>
         <div style={{ fontSize: 18, fontWeight: 700, color: "var(--brand-text, #e2e8f0)", marginBottom: 12 }}>
-          📡 Runtime remoto
+          {t("welcome.remoteRuntimeTitle")}
         </div>
 
         {/* Tab selector */}
         <div style={{ display: "flex", gap: 6, marginBottom: 16 }}>
-          <button style={TAB_BTN(tab === "connect")} onClick={() => setTab("connect")}>Connetti</button>
-          <button style={TAB_BTN(tab === "deploy")} onClick={() => setTab("deploy")}>Deploy binario</button>
+          <button style={TAB_BTN(tab === "connect")} onClick={() => setTab("connect")}>{t("welcome.connect")}</button>
+          <button style={TAB_BTN(tab === "deploy")} onClick={() => setTab("deploy")}>{t("welcome.deployBinary")}</button>
         </div>
 
         {tab === "connect" && (
@@ -543,7 +547,7 @@ function RemoteRuntimeModal({
             </div>
 
             <label style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "block", marginBottom: 4 }}>
-              URL del runtime
+              {t("welcome.runtimeUrl")}
             </label>
             <div style={{ display: "flex", gap: 8, marginBottom: 4 }}>
               <input
@@ -558,12 +562,12 @@ function RemoteRuntimeModal({
                 onClick={probe}
                 disabled={!normalised || probing}
               >
-                {probing ? "Test…" : "Test"}
+                {probing ? t("welcome.testing") : t("common.test")}
               </button>
             </div>
             {probed === "ok" && (
               <div style={{ fontSize: 12, color: "var(--brand-success, #22c55e)", marginBottom: 8 }}>
-                ✓ Il runtime risponde a /health. Pronto per connettersi.
+                {t("welcome.healthOk")}
               </div>
             )}
             {probed === "fail" && error && (
@@ -577,19 +581,17 @@ function RemoteRuntimeModal({
                 <button
                   style={{ ...BTN_GHOST, marginRight: "auto" }}
                   onClick={reset}
-                  title="Ripristina runtime locale (same-origin)"
+                  title={t("welcome.restoreLocal")}
                 >
-                  ↺ Torna al locale
+                  {t("welcome.backToLocal")}
                 </button>
               )}
-              <button style={BTN_GHOST} onClick={onClose}>Annulla</button>
+              <button style={BTN_GHOST} onClick={onClose}>{t("common.cancel")}</button>
               <button
                 style={{ ...BTN_PRIMARY, opacity: probed === "ok" ? 1 : 0.5 }}
                 onClick={connect}
                 disabled={probed !== "ok"}
-              >
-                Connetti
-              </button>
+              >{t("welcome.connect")}</button>
             </div>
           </>
         )}
@@ -598,7 +600,7 @@ function RemoteRuntimeModal({
           <>
             <DeploySection />
             <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 12 }}>
-              <button style={BTN_GHOST} onClick={onClose}>Chiudi</button>
+              <button style={BTN_GHOST} onClick={onClose}>{t("common.close")}</button>
             </div>
           </>
         )}
@@ -617,6 +619,7 @@ interface WelcomeScreenProps {
 type EditingState = { name: string; mode: "rename" | "duplicate"; value: string };
 
 export function WelcomeScreen({ onProjectOpened }: WelcomeScreenProps) {
+  const { t } = useTranslation();
   const [projects, setProjects]   = useState<ProjectListEntry[]>([]);
   const [loading, setLoading]     = useState(true);
   const [openingName, setOpening] = useState<string | null>(null);
@@ -633,7 +636,7 @@ export function WelcomeScreen({ onProjectOpened }: WelcomeScreenProps) {
       const list = await api.listProjects();
       setProjects(list);
     } catch (e: any) {
-      setError(e?.message ?? "Impossibile caricare la lista dei progetti.");
+      setError(e?.message ?? t("welcome.loadListError"));
     } finally {
       setLoading(false);
     }
@@ -647,7 +650,7 @@ export function WelcomeScreen({ onProjectOpened }: WelcomeScreenProps) {
       await api.openProject(name);
       onProjectOpened();
     } catch (e: any) {
-      setError(`Errore apertura "${name}": ${e?.message ?? e}`);
+      setError(t("welcome.errOpen", { name, err: e?.message ?? e }));
     } finally {
       setOpening(null);
     }
@@ -660,13 +663,13 @@ export function WelcomeScreen({ onProjectOpened }: WelcomeScreenProps) {
   };
 
   const handleDelete = async (name: string) => {
-    if (!window.confirm(`Eliminare il progetto "${name}"? L'operazione non è reversibile.`)) return;
+    if (!window.confirm(t("welcome.confirmDelete", { name }))) return;
     setActionBusy(name); setError(null);
     try {
       await api.deleteProject(name);
       await loadProjects();
     } catch (e: any) {
-      setError(`Errore eliminazione "${name}": ${e?.message ?? e}`);
+      setError(t("welcome.errDelete", { name, err: e?.message ?? e }));
     } finally {
       setActionBusy(null);
     }
@@ -682,7 +685,7 @@ export function WelcomeScreen({ onProjectOpened }: WelcomeScreenProps) {
       await api.renameProject(name, newName);
       await loadProjects();
     } catch (e: any) {
-      setError(`Errore rinomina "${name}": ${e?.message ?? e}`);
+      setError(t("welcome.errRename", { name, err: e?.message ?? e }));
     } finally {
       setActionBusy(null);
     }
@@ -698,7 +701,7 @@ export function WelcomeScreen({ onProjectOpened }: WelcomeScreenProps) {
       await api.duplicateProject(name, newName);
       await loadProjects();
     } catch (e: any) {
-      setError(`Errore duplicazione "${name}": ${e?.message ?? e}`);
+      setError(t("welcome.errDuplicate", { name, err: e?.message ?? e }));
     } finally {
       setActionBusy(null);
     }
@@ -729,21 +732,21 @@ export function WelcomeScreen({ onProjectOpened }: WelcomeScreenProps) {
         <div style={{ textAlign: "center", marginBottom: 32 }}>
           <div style={{ fontSize: 36, fontWeight: 700, letterSpacing: 2, color: "var(--brand-text, #e2e8f0)" }}>SWS</div>
           <div style={{ color: "var(--brand-text-subtle, #64748b)", fontSize: 14, marginTop: 4 }}>
-            Seleziona o crea un progetto per iniziare
+            {t("welcome.selectOrCreate")}
           </div>
         </div>
 
         {/* project list */}
         <div style={{ marginBottom: 16 }}>
           {loading && (
-            <div style={{ textAlign: "center", color: "var(--brand-text-subtle, #64748b)", padding: 24 }}>Carico…</div>
+            <div style={{ textAlign: "center", color: "var(--brand-text-subtle, #64748b)", padding: 24 }}>{t("welcome.loading")}</div>
           )}
           {!loading && projects.length === 0 && (
             <div style={{
               textAlign: "center", color: "var(--brand-text-subtle, #64748b)", padding: 32,
               border: "1px dashed var(--brand-surface-2, #334155)", borderRadius: 8,
             }}>
-              Nessun progetto trovato. Crea il tuo primo progetto.
+              {t("welcome.noProjects")}
             </div>
           )}
           {!loading && projects.map((p) => {
@@ -800,7 +803,7 @@ export function WelcomeScreen({ onProjectOpened }: WelcomeScreenProps) {
                       <div style={{ fontWeight: 600, fontSize: 15, color: "var(--brand-text, #e2e8f0)" }}>{p.name}</div>
                     )}
                     <div style={{ fontSize: 12, color: "var(--brand-text-subtle, #64748b)", marginTop: 2 }}>
-                      Ultima modifica: {formatDate(p.last_modified_ms)}
+                      {t("welcome.lastModified", { date: formatDate(p.last_modified_ms) })}
                     </div>
                   </div>
 
@@ -810,17 +813,17 @@ export function WelcomeScreen({ onProjectOpened }: WelcomeScreenProps) {
                       onClick={(e) => e.stopPropagation()}
                     >
                       <button
-                        title="Rinomina"
+                        title={t("editor.rename")}
                         style={{ ...ACT_BTN, color: isRenaming ? "var(--brand-primary, #3b82f6)" : "var(--brand-text-muted, #94a3b8)" }}
                         onClick={() => setEditing({ name: p.name, mode: "rename", value: p.name })}
                       >✎</button>
                       <button
-                        title="Duplica"
+                        title={t("editor.duplicate")}
                         style={{ ...ACT_BTN, color: isDuping ? "#a855f7" : "var(--brand-text-muted, #94a3b8)" }}
                         onClick={() => setEditing({ name: p.name, mode: "duplicate", value: p.name + " (copia)" })}
                       >⧉</button>
                       <button
-                        title="Elimina"
+                        title={t("editor.delete")}
                         style={{ ...ACT_BTN }}
                         onMouseEnter={(e) => (e.currentTarget.style.color = "var(--brand-danger, #ef4444)")}
                         onMouseLeave={(e) => (e.currentTarget.style.color = "var(--brand-text-muted, #94a3b8)")}
@@ -830,10 +833,10 @@ export function WelcomeScreen({ onProjectOpened }: WelcomeScreenProps) {
                   )}
 
                   {/* status label */}
-                  {isOpening && <div style={{ fontSize: 13, color: "var(--brand-text-muted, #94a3b8)", flexShrink: 0 }}>Apro…</div>}
+                  {isOpening && <div style={{ fontSize: 13, color: "var(--brand-text-muted, #94a3b8)", flexShrink: 0 }}>{t("welcome.opening")}</div>}
                   {isBusy   && <div style={{ fontSize: 13, color: "var(--brand-warning, #f59e0b)", flexShrink: 0 }}>…</div>}
                   {!isOpening && !isBusy && (
-                    <div style={{ fontSize: 13, color: "var(--brand-primary, #3b82f6)", fontWeight: 500, flexShrink: 0, marginLeft: 4 }}>Apri →</div>
+                    <div style={{ fontSize: 13, color: "var(--brand-primary, #3b82f6)", fontWeight: 500, flexShrink: 0, marginLeft: 4 }}>{t("welcome.open")}</div>
                   )}
                 </div>
 
@@ -848,7 +851,7 @@ export function WelcomeScreen({ onProjectOpened }: WelcomeScreenProps) {
                     }}
                     onClick={(e) => e.stopPropagation()}
                   >
-                    <span style={{ fontSize: 12, color: "var(--brand-text-muted, #94a3b8)", whiteSpace: "nowrap" }}>Nome copia:</span>
+                    <span style={{ fontSize: 12, color: "var(--brand-text-muted, #94a3b8)", whiteSpace: "nowrap" }}>{t("welcome.copyName")}</span>
                     <input
                       autoFocus
                       style={{ ...INPUT, padding: "4px 8px", fontSize: 13, flex: 1 }}
@@ -883,7 +886,7 @@ export function WelcomeScreen({ onProjectOpened }: WelcomeScreenProps) {
             onClick={() => setShowNew(true)}
             disabled={!!openingName}
           >
-            + Nuovo progetto
+            {t("welcome.newProjectBtn")}
           </button>
         </div>
 
@@ -897,7 +900,7 @@ export function WelcomeScreen({ onProjectOpened }: WelcomeScreenProps) {
           {remoteRuntime ? (
             <>
               <span style={{ fontSize: 14 }}>📡</span>
-              <span>Connesso a</span>
+              <span>{t("welcome.connectedTo")}</span>
               <span style={{ color: "var(--brand-primary, #3b82f6)", fontFamily: "monospace" }}>{remoteRuntime}</span>
               <button
                 style={{ background: "transparent", border: "none", color: "var(--brand-text-muted, #94a3b8)", cursor: "pointer", fontSize: 11, textDecoration: "underline dotted" }}
@@ -908,12 +911,12 @@ export function WelcomeScreen({ onProjectOpened }: WelcomeScreenProps) {
             </>
           ) : (
             <>
-              <span>Runtime locale</span>
+              <span>{t("welcome.localRuntime")}</span>
               <button
                 style={{ background: "transparent", border: "none", color: "var(--brand-primary, #3b82f6)", cursor: "pointer", fontSize: 12, textDecoration: "underline dotted" }}
                 onClick={() => setShowRuntime(true)}
               >
-                📡 Connetti a runtime remoto…
+                {t("welcome.connectRemote")}
               </button>
             </>
           )}

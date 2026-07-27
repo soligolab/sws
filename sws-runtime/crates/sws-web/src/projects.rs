@@ -184,6 +184,8 @@ pub async fn create_project(
                 global_scripts: vec![],
                 notifications: None,
                 saved_by: None,
+                languages: Default::default(),
+                page_layout: None,
             };
             let yaml = match project.stamp_and_serialize() {
                 Ok(y) => y,
@@ -268,6 +270,7 @@ pub async fn open_project(
     if let Some(ns) = s.notification_supervisor.write().await.take() {
         ns.stop();
     }
+    crate::telegram::stop_sender(&s).await;
     s.db.clear().await;
     s.historian.clear().await;
     s.alarms.load(vec![]).await;
@@ -328,6 +331,13 @@ pub async fn open_project(
             }).await;
         }
         s.supervisor.reload(project.sources).await;
+        // Telegram sender (shared by alarm channel + script send_telegram),
+        // created before both supervisors so each gets the same sink.
+        let telegram_tx = crate::telegram::restart_sender(
+            &s, project.notifications.as_ref().and_then(|n| n.telegram.clone()),
+        ).await;
+        // Il send_telegram delle FUNZIONI passa dall'engine condiviso s.py.
+        s.py.set_telegram_sink(telegram_tx.clone());
         // Start global scripts after sources so tag values exist.
         if !project.global_scripts.is_empty() {
             let n = project.global_scripts.len();
@@ -335,13 +345,14 @@ pub async fn open_project(
                 project.global_scripts,
                 s.db.clone(),
                 s.bus.clone(),
+                telegram_tx.clone(),
             );
             info!(scripts = n, "global script supervisor started");
             *s.script_supervisor.write().await = Some(sc);
         }
-        // Start notification supervisor if SMTP is configured.
+        // Start notification supervisor if SMTP or Telegram is configured.
         if let Some(notif) = project.notifications {
-            let ns = NotificationSupervisor::start(s.alarms.clone(), notif);
+            let ns = NotificationSupervisor::start(s.alarms.clone(), notif, telegram_tx);
             info!("notification supervisor started");
             *s.notification_supervisor.write().await = Some(ns);
         }
@@ -393,6 +404,7 @@ pub async fn close_project(State(s): State<AppState>) -> Response {
     if let Some(ns) = s.notification_supervisor.write().await.take() {
         ns.stop();
     }
+    crate::telegram::stop_sender(&s).await;
     s.db.clear().await;
     s.historian.swap_store(None).await; // RAM-only between projects
     s.alarms.load(vec![]).await;

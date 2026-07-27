@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { api, RateLimitedError, RuntimeUnavailableError } from "@/api/client";
 import { useAppStore } from "@/store";
 
@@ -12,6 +13,7 @@ import { useAppStore } from "@/store";
  * everyone out automatically.
  */
 export function LoginScreen({ onCancel }: { onCancel?: () => void } = {}) {
+  const { t } = useTranslation();
   const setAuth = useAppStore((s) => s.setAuth);
   const [username, setUsername] = useState("admin");
   const [password, setPassword] = useState("");
@@ -64,9 +66,9 @@ export function LoginScreen({ onCancel }: { onCancel?: () => void } = {}) {
         setCountdown(e.retryAfterSecs);
         setError(`Troppi tentativi falliti. Riprova tra ${e.retryAfterSecs}s.`);
       } else if (e instanceof RuntimeUnavailableError) {
-        setError("Runtime non raggiungibile. Avvia ./scripts/dev.sh e riprova.");
+        setError(t("auth.runtimeUnreachable"));
       } else {
-        setError("Credenziali non valide.");
+        setError(t("auth.invalidCredentials"));
       }
       console.warn("login failed:", e);
     } finally {
@@ -100,7 +102,7 @@ export function LoginScreen({ onCancel }: { onCancel?: () => void } = {}) {
           <span style={{ color: "var(--brand-text-subtle, #64748b)", fontSize: 13 }}>Soligo Web SCADA</span>
         </div>
         <div>
-          <label style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "block", marginBottom: 4 }}>Utente</label>
+          <label style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "block", marginBottom: 4 }}>{t("auth.user")}</label>
           <input
             type="text"
             value={username}
@@ -111,7 +113,7 @@ export function LoginScreen({ onCancel }: { onCancel?: () => void } = {}) {
           />
         </div>
         <div>
-          <label style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "block", marginBottom: 4 }}>Password</label>
+          <label style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "block", marginBottom: 4 }}>{t("auth.password")}</label>
           <input
             type="password"
             value={password}
@@ -138,7 +140,7 @@ export function LoginScreen({ onCancel }: { onCancel?: () => void } = {}) {
             fontSize: 14, fontWeight: 600,
           }}
         >
-          {isLocked ? `Bloccato (${countdown}s)` : busy ? "Accesso…" : "Accedi"}
+          {isLocked ? `${t("auth.locked", { s: countdown })}` : busy ? t("auth.loggingIn") : t("auth.login")}
         </button>
         {onCancel && (
           <button

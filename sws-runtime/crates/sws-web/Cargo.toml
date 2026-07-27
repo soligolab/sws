@@ -26,6 +26,7 @@ sws-core          = { path = "../sws-core" }
 sws-historian     = { path = "../sws-historian" }
 sws-pyscript      = { path = "../sws-pyscript" }
 sws-auth          = { path = "../sws-auth" }
+sws-audit         = { path = "../sws-audit" }
 sws-plugin-modbus         = { path = "../sws-plugin-modbus" }
 sws-plugin-mqtt           = { path = "../sws-plugin-mqtt" }
 sws-plugin-opcua          = { path = "../sws-plugin-opcua" }

@@ -5,13 +5,19 @@ width: 800
 height: 620
 
 objects:
+- id: lang_sel_auto
+  type: lang_selector
+  x: 702
+  y: 8
+  width: 90
+  height: 26
 
 # ── HEADER ────────────────────────────────────────────────────────────────────
 - id: ha1_title
   type: text
   x: 400
   y: 22
-  text: "HOME ASSISTANT — PANORAMICA"
+  text: "{{home_assistant_panoramica}}"
   font_size: 18
   font_weight: bold
   text_anchor: middle
@@ -23,7 +29,7 @@ objects:
   type: text
   x: 400
   y: 42
-  text: "Clima · Energia · Sicurezza · Luci"
+  text: "{{clima_energia_sicurezza_luci}}"
   font_size: 11
   text_anchor: middle
   color: "#475569"
@@ -37,7 +43,7 @@ objects:
   y: 572
   width: 220
   height: 34
-  label: "◉ Panoramica"
+  label: "{{panoramica}}"
   target_page: ha_page1
   fill: "#1e293b"
   group_id: g_nav
@@ -49,7 +55,7 @@ objects:
   y: 572
   width: 220
   height: 34
-  label: "⚙ Controllo"
+  label: "{{controllo}}"
   target_page: ha_page2
   group_id: g_nav
   locked: true
@@ -60,7 +66,7 @@ objects:
   y: 572
   width: 220
   height: 34
-  label: "📈 Storico"
+  label: "{{storico}}"
   target_page: ha_page3
   group_id: g_nav
   locked: true
@@ -70,7 +76,7 @@ objects:
   type: text
   x: 200
   y: 70
-  text: "CLIMA"
+  text: "{{clima}}"
   font_size: 12
   font_weight: bold
   text_anchor: middle
@@ -92,7 +98,7 @@ objects:
   type: text
   x: 120
   y: 100
-  text: "INTERNO"
+  text: "{{interno}}"
   font_size: 10
   font_weight: bold
   text_anchor: middle
@@ -123,7 +129,7 @@ objects:
   type: text
   x: 120
   y: 180
-  text: "Comfort:"
+  text: "{{comfort}}"
   font_size: 10
   text_anchor: middle
   color: "#475569"
@@ -154,7 +160,7 @@ objects:
   type: text
   x: 300
   y: 100
-  text: "ESTERNO"
+  text: "{{esterno}}"
   font_size: 10
   font_weight: bold
   text_anchor: middle
@@ -185,7 +191,7 @@ objects:
   type: text
   x: 300
   y: 180
-  text: "Delta:"
+  text: "{{delta}}"
   font_size: 10
   text_anchor: middle
   color: "#475569"
@@ -205,7 +211,7 @@ objects:
   type: text
   x: 590
   y: 70
-  text: "ENERGIA"
+  text: "{{energia}}"
   font_size: 12
   font_weight: bold
   text_anchor: middle
@@ -226,7 +232,7 @@ objects:
   type: text
   x: 530
   y: 100
-  text: "POTENZA ISTANTANEA"
+  text: "{{potenza_istantanea}}"
   font_size: 10
   font_weight: bold
   text_anchor: middle
@@ -281,7 +287,7 @@ objects:
   type: text
   x: 200
   y: 220
-  text: "SICUREZZA"
+  text: "{{sicurezza}}"
   font_size: 12
   font_weight: bold
   text_anchor: middle
@@ -303,7 +309,7 @@ objects:
   type: text
   x: 60
   y: 258
-  text: "Porta principale"
+  text: "{{porta_principale}}"
   font_size: 12
   color: "#94a3b8"
 
@@ -331,7 +337,7 @@ objects:
   type: text
   x: 60
   y: 288
-  text: "Movimento ingresso"
+  text: "{{movimento_ingresso}}"
   font_size: 12
   color: "#94a3b8"
 
@@ -350,7 +356,7 @@ objects:
   type: text
   x: 60
   y: 318
-  text: "Garage"
+  text: "{{garage}}"
   font_size: 12
   color: "#94a3b8"
 
@@ -378,7 +384,7 @@ objects:
   type: text
   x: 60
   y: 348
-  text: "Modalità notturna"
+  text: "{{modalita_notturna}}"
   font_size: 12
   color: "#94a3b8"
 
@@ -397,7 +403,7 @@ objects:
   type: text
   x: 590
   y: 220
-  text: "LUCI"
+  text: "{{luci}}"
   font_size: 12
   font_weight: bold
   text_anchor: middle
@@ -418,7 +424,7 @@ objects:
   type: text
   x: 450
   y: 258
-  text: "Soggiorno"
+  text: "{{soggiorno}}"
   font_size: 12
   color: "#94a3b8"
 
@@ -436,7 +442,7 @@ objects:
   type: text
   x: 450
   y: 288
-  text: "Cucina"
+  text: "{{cucina}}"
   font_size: 12
   color: "#94a3b8"
 
@@ -454,7 +460,7 @@ objects:
   type: text
   x: 450
   y: 318
-  text: "Esterna"
+  text: "{{esterna}}"
   font_size: 12
   color: "#94a3b8"
 
@@ -472,7 +478,7 @@ objects:
   type: text
   x: 450
   y: 348
-  text: "Ventilatore"
+  text: "{{ventilatore}}"
   font_size: 12
   color: "#94a3b8"
 
@@ -491,7 +497,7 @@ objects:
   type: text
   x: 200
   y: 390
-  text: "RISCALDAMENTO"
+  text: "{{riscaldamento}}"
   font_size: 12
   font_weight: bold
   text_anchor: middle
@@ -512,7 +518,7 @@ objects:
   type: text
   x: 60
   y: 428
-  text: "Temperatura attuale"
+  text: "{{temperatura_attuale}}"
   font_size: 11
   color: "#94a3b8"
 
@@ -531,7 +537,7 @@ objects:
   type: text
   x: 60
   y: 458
-  text: "Setpoint corrente"
+  text: "{{setpoint_corrente}}"
   font_size: 11
   color: "#94a3b8"
 
@@ -574,7 +580,7 @@ objects:
   type: text
   x: 590
   y: 410
-  text: "☀ SOLE"
+  text: "{{sole}}"
   font_size: 12
   font_weight: bold
   text_anchor: middle
@@ -595,7 +601,7 @@ objects:
   type: text
   x: 590
   y: 468
-  text: "elevazione"
+  text: "{{elevazione}}"
   font_size: 10
   text_anchor: middle
   color: "#78716c"
