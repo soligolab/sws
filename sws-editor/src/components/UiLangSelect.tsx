@@ -5,14 +5,14 @@ import { UI_LANGS, setUiLang } from "@/i18n";
 // contenuti di progetto. Stile compatto adatto all'header.
 
 export function UiLangSelect({ compact = false }: { compact?: boolean }) {
-  const { i18n } = useTranslation();
+  const { t, i18n } = useTranslation();
   const current = i18n.language;
   return (
     <select
       value={current}
       onChange={(e) => setUiLang(e.target.value)}
-      title="Lingua interfaccia / Interface language"
-      aria-label="Lingua interfaccia"
+      title={t("uiLang.title")}
+      aria-label={t("uiLang.label")}
       style={{
         background: "var(--brand-surface-2, #334155)",
         color: "var(--brand-text-2, #cbd5e1)",

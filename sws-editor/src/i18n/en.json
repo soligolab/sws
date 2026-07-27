@@ -2,7 +2,9 @@
   "app": {
     "title": "SWS Editor",
     "project": "Project",
-    "user": "User"
+    "user": "User",
+    "unsavedShort": "unsaved",
+    "unsavedHint": "Unsaved changes — click to save (Ctrl+S)"
   },
   "common": {
     "save": "Save",
@@ -68,7 +70,27 @@
     "migrateConfirm": "The project was saved by version {{savedBy}}, the runtime is {{runtime}}. Update the project to the current format?",
     "remoteDisconnectConfirm": "Disconnect from remote runtime {{host}}? You will return to the local runtime.",
     "deactivate": "Deactivate",
-    "ttlBanner": "The session expires after {{min}} min. Disable it for development?"
+    "ttlBanner": "The session expires after {{min}} min. Disable it for development?",
+    "rebootConfirm": "Reboot the runtime? All WebSockets will disconnect for ~2s.",
+    "userMenuTitle": "User: {{user}}",
+    "preferences": "PREFERENCES"
+  },
+  "theme": {
+    "label": "Theme",
+    "system": "System",
+    "light": "Light",
+    "dark": "Dark",
+    "title": "Theme: {{label}} — click to change"
+  },
+  "toolbar": {
+    "undoTitle": "Undo (Ctrl+Z)",
+    "redoTitle": "Redo (Ctrl+Y)",
+    "zoomLevel": "Zoom level",
+    "zoomResetTitle": "Zoom 100% (Ctrl+0)",
+    "fitPage": "Fit page",
+    "fitPageTitle": "Fit the page to the window (Ctrl+Shift+0)",
+    "fitPageUnavailable": "Page size not defined (fluid mode)",
+    "fitObjectsTitle": "Fit to objects"
   },
   "unsaved": {
     "title": "Unsaved changes",
@@ -85,7 +107,10 @@
     "closeProject": "Close project",
     "logout": "Log out",
     "importConfirm": "Replace the entire current project?\nSynoptics not included in the bundle will be removed.\nMQTT passwords are not included: you will need to re-enter them after import.",
-    "imported": "Imported {{file}} ({{count}} tags)"
+    "imported": "Imported {{file}} ({{count}} tags)",
+    "logPanel": "Log panel",
+    "saveCopyToPc": "💾 Save a copy to my PC…",
+    "openFromPc": "📂 Replace from a copy on my PC…"
   },
   "roles": {
     "admin": "Admin",
@@ -188,7 +213,9 @@
     }
   },
   "canvas": {
-    "empty": "No objects on this page."
+    "empty": "No objects on this page.",
+    "rulersShow": "Show rulers",
+    "rulersHide": "Hide rulers"
   },
   "viewer": {
     "maintenance": "Maintenance",
@@ -343,7 +370,8 @@
     "connectRuntime": "Connect runtime"
   },
   "uiLang": {
-    "label": "Interface language"
+    "label": "Interface language",
+    "title": "Interface language / Lingua interfaccia"
   },
   "auth": {
     "user": "User",
@@ -571,7 +599,7 @@
     "panH": "Horizontal pan",
     "panFree": "Free pan",
     "zoomReset": "Reset zoom 100%",
-    "zoomFit": "Fit to view",
+    "zoomFit": "Fit page to window",
     "selection": "Selection",
     "selectObj": "Select object",
     "toggleSel": "Add/remove from selection",

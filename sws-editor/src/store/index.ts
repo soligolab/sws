@@ -1,6 +1,6 @@
 // TODO (ADR 0001): evaluate Redux Toolkit as an alternative before M1 freeze.
 import { create } from "zustand";
-import { setAuthToken } from "@/api/client";
+import { api, setAuthToken } from "@/api/client";
 import { applyAppearance, getStoredMode, type ThemeMode } from "@/theme";
 import { getStoredProjectLang, setStoredProjectLang, getStoredEditorPreviewLang, setStoredEditorPreviewLang } from "@/i18n/projectI18n";
 import type {
@@ -28,6 +28,10 @@ import type {
 export interface HistoryEntry {
   pages: SynopticPage[];
   label: string;
+  /** Value of `pagesRev` for the state stored in `pages`. Carried through
+   *  undo/redo so the dirty check survives time travel: undoing back to the
+   *  revision that was saved makes the project clean again. */
+  rev: number;
 }
 
 // Cap the in-memory log list. The runtime keeps ~1000 events in its ring,
@@ -212,15 +216,46 @@ interface AppState {
   logs: LogEvent[];
   gridSize: number;
   snapEnabled: boolean;
+  /** Canvas rulers visible. Two entry points (editor toolbar + the corner
+   *  square inside the canvas), hence global rather than local to SvgCanvas. */
+  showRulers: boolean;
+  toggleRulers: () => void;
 
-  /** Incremented by incSaveSerial() to trigger a save in EditorShell. */
-  saveSerial: number;
   saveStatus: "idle" | "saving" | "ok" | "error";
   saveError: string | null;
-  /** True when the canvas has unsaved changes (cleared on load and on save success). */
-  isDirty: boolean;
-  incSaveSerial: () => void;
+
+  // ── Unsaved-changes tracking ──────────────────────────────────────────
+  //
+  // Two independent sources feed `selectIsDirty`:
+  //
+  //  1. `pages` — a monotonic revision counter. Every mutation bumps it and
+  //     stamps the pre-mutation value into the history entry, so undo/redo
+  //     restore the revision along with the pages. A save records the
+  //     current revision in `savedPagesRev`.
+  //  2. everything else — a registry of components that hold an unsaved
+  //     draft (ConfigView tabs, the function editor). Each registers *how*
+  //     to save itself, so `saveAll()` can flush them.
+  //
+  // Deliberately NOT dirty-tracked: the `updateProject*` setters. Those tabs
+  // PUT to the API first and only then update the store, so the store copy
+  // always matches disk — marking them dirty would make the project dirty
+  // forever.
+  /** Monotonic revision of `pages`. Only ever set by mutations and time travel. */
+  pagesRev: number;
+  /** Value of `pagesRev` at the last fully successful save. */
+  savedPagesRev: number;
+  /** Sections with an unsaved draft, keyed by owner → flush function. */
+  pendingSections: Record<string, () => Promise<void>>;
+  /** Register (or, with `save === null`, deregister) a section holding a draft. */
+  registerPendingSection: (key: string, save: (() => Promise<void>) | null) => void;
+  /** Mark the current page revision as persisted. Only after a *complete* save. */
+  markPagesSaved: () => void;
+  /** Drop all unsaved-changes state (used when closing a project or logging out). */
+  resetDirty: () => void;
   setSaveStatus: (s: "idle" | "saving" | "ok" | "error", e?: string | null) => void;
+  /** Persist everything: pending section drafts first, then all pages and
+   *  (for Admins) the project-level collections. Callable from any mode. */
+  saveAll: () => Promise<void>;
 
   /** True when the session token expired mid-session. Shows ReAuthModal overlay. */
   reAuthNeeded: boolean;
@@ -396,6 +431,49 @@ const first = makePage("Page 1");
 const persisted = readPersistedAuth();
 if (persisted) setAuthToken(persisted.token);
 
+/** Pending timeout that flips `saveStatus` back from "ok" to "idle". */
+let saveOkTimer: number | null = null;
+
+const RULERS_KEY = "sws.canvas.showRulers";
+/** Rulers default to visible; only an explicit "0" hides them. */
+function readShowRulers(): boolean {
+  try { return localStorage.getItem(RULERS_KEY) !== "0"; }
+  catch { return true; }
+}
+
+const errText = (e: unknown) => (e instanceof Error ? e.message : String(e));
+
+/**
+ * After a successful save, push the project to the connected remote runtime.
+ * Fire-and-forget: the header Deploy button reflects `remoteDeployStatus`.
+ */
+function autoDeployIfConnected() {
+  const { remoteConnected, authToken: tok } = useAppStore.getState();
+  if (!remoteConnected) return;
+  useAppStore.setState({ remoteDeployStatus: "syncing" });
+  const hdrs: HeadersInit = tok ? { "Authorization": `Bearer ${tok}` } : {};
+  fetch("/api/remote/deploy", { method: "POST", headers: hdrs })
+    .then(async (res) => {
+      if (res.body) {
+        const rdr = res.body.getReader();
+        while (!(await rdr.read()).done) { /* drain streaming body */ }
+      }
+      useAppStore.setState({ remoteDeployStatus: res.ok ? "ok" : "error" });
+    })
+    .catch(() => useAppStore.setState({ remoteDeployStatus: "error" }))
+    .finally(() => {
+      setTimeout(() => useAppStore.setState({ remoteDeployStatus: "idle" }), 3000);
+    });
+}
+
+/**
+ * True when anything is unsaved: the canvas has moved away from the revision
+ * that was last persisted, or some section holds a draft. Returns a boolean
+ * (not an object), so it is safe with zustand's default equality check.
+ */
+export const selectIsDirty = (s: AppState) =>
+  s.pagesRev !== s.savedPagesRev || Object.keys(s.pendingSections).length > 0;
+
 export const useAppStore = create<AppState>((set, get) => {
   // Suspend per-mutation history pushes while > 0. Lets a drag/resize
   // capture one history entry up front (at beginInteraction) instead of
@@ -409,22 +487,22 @@ export const useAppStore = create<AppState>((set, get) => {
    */
   const pushHistory = (label: string) => {
     if (interactionDepth > 0) return;
-    const { pages, past } = get();
-    const entry: HistoryEntry = { pages: clonePages(pages), label };
+    const { pages, past, pagesRev } = get();
+    const entry: HistoryEntry = { pages: clonePages(pages), label, rev: pagesRev };
     const trimmed = past.length >= HISTORY_LIMIT
       ? past.slice(past.length - HISTORY_LIMIT + 1)
       : past;
-    set({ past: [...trimmed, entry], future: [], isDirty: true });
+    set({ past: [...trimmed, entry], future: [], pagesRev: pagesRev + 1 });
   };
 
   /** Force-push a history entry even mid-interaction; used by begin. */
   const pushHistoryUnconditional = (label: string) => {
-    const { pages, past } = get();
-    const entry: HistoryEntry = { pages: clonePages(pages), label };
+    const { pages, past, pagesRev } = get();
+    const entry: HistoryEntry = { pages: clonePages(pages), label, rev: pagesRev };
     const trimmed = past.length >= HISTORY_LIMIT
       ? past.slice(past.length - HISTORY_LIMIT + 1)
       : past;
-    set({ past: [...trimmed, entry], future: [], isDirty: true });
+    set({ past: [...trimmed, entry], future: [], pagesRev: pagesRev + 1 });
   };
 
   /** Helper: object id → page id (current page only). */
@@ -464,10 +542,12 @@ export const useAppStore = create<AppState>((set, get) => {
     logs: [],
     gridSize: 10,
     snapEnabled: true,
-    saveSerial: 0,
+    showRulers: readShowRulers(),
     saveStatus: "idle",
     saveError: null,
-    isDirty: false,
+    pagesRev: 0,
+    savedPagesRev: 0,
+    pendingSections: {},
 
     setAuth: (token, username, role, mustChangePassword = false, expiresAtMs) => {
       setAuthToken(token);
@@ -676,7 +756,9 @@ export const useAppStore = create<AppState>((set, get) => {
         selectedSubCell: null,
         past: [],
         future: [],
-        isDirty: false,
+        // Freshly loaded from disk: revision baseline resets to clean.
+        pagesRev: 0,
+        savedPagesRev: 0,
       }),
 
     addPage: () => {
@@ -1340,14 +1422,15 @@ export const useAppStore = create<AppState>((set, get) => {
     },
 
     undo: () => {
-      const { past, future, pages } = get();
+      const { past, future, pages, pagesRev } = get();
       if (past.length === 0) return;
       const prev = past[past.length - 1];
       const currentLabel = prev.label;
       set({
         past: past.slice(0, past.length - 1),
-        future: [{ pages: clonePages(pages), label: currentLabel }, ...future].slice(0, HISTORY_LIMIT),
+        future: [{ pages: clonePages(pages), label: currentLabel, rev: pagesRev }, ...future].slice(0, HISTORY_LIMIT),
         pages: prev.pages,
+        pagesRev: prev.rev,
         selectedObjectId: null,
         selectedObjectIds: [],
         selectedCell: null,
@@ -1358,14 +1441,15 @@ export const useAppStore = create<AppState>((set, get) => {
     },
 
     redo: () => {
-      const { past, future, pages } = get();
+      const { past, future, pages, pagesRev } = get();
       if (future.length === 0) return;
       const next = future[0];
       const currentLabel = next.label;
       set({
-        past: [...past, { pages: clonePages(pages), label: currentLabel }].slice(-HISTORY_LIMIT),
+        past: [...past, { pages: clonePages(pages), label: currentLabel, rev: pagesRev }].slice(-HISTORY_LIMIT),
         future: future.slice(1),
         pages: next.pages,
+        pagesRev: next.rev,
         selectedObjectId: null,
         selectedObjectIds: [],
         selectedCell: null,
@@ -1379,17 +1463,18 @@ export const useAppStore = create<AppState>((set, get) => {
     canRedo: () => get().future.length > 0,
 
     jumpToPast: (index) => {
-      const { past, future, pages } = get();
+      const { past, future, pages, pagesRev } = get();
       if (index < 0 || index >= past.length) return;
       const target = past[index];
       const currentLabel = past.length > 0 ? past[past.length - 1].label : "Modifica";
       const newFuture = [
         ...past.slice(index + 1),
-        { pages: clonePages(pages), label: currentLabel },
+        { pages: clonePages(pages), label: currentLabel, rev: pagesRev },
         ...future,
       ].slice(0, HISTORY_LIMIT);
       set({
         pages: target.pages,
+        pagesRev: target.rev,
         past: past.slice(0, index),
         future: newFuture,
         selectedObjectId: null,
@@ -1402,17 +1487,18 @@ export const useAppStore = create<AppState>((set, get) => {
     },
 
     jumpToFuture: (index) => {
-      const { past, future, pages } = get();
+      const { past, future, pages, pagesRev } = get();
       if (index < 0 || index >= future.length) return;
       const target = future[index];
       const currentLabel = past.length > 0 ? past[past.length - 1].label : "Modifica";
       const newPast = [
         ...past,
-        { pages: clonePages(pages), label: currentLabel },
+        { pages: clonePages(pages), label: currentLabel, rev: pagesRev },
         ...future.slice(0, index),
       ].slice(-HISTORY_LIMIT);
       set({
         pages: target.pages,
+        pagesRev: target.rev,
         past: newPast,
         future: future.slice(index + 1),
         selectedObjectId: null,
@@ -1463,6 +1549,12 @@ export const useAppStore = create<AppState>((set, get) => {
 
     setGridSize: (gridSize) => set({ gridSize }),
     setSnapEnabled: (snapEnabled) => set({ snapEnabled }),
+    toggleRulers: () => set((s) => {
+      const showRulers = !s.showRulers;
+      try { localStorage.setItem(RULERS_KEY, showRulers ? "1" : "0"); }
+      catch { /* quota — ignore */ }
+      return { showRulers };
+    }),
 
     appMode: "edit",
     configTab: "tags",
@@ -1487,8 +1579,72 @@ export const useAppStore = create<AppState>((set, get) => {
       set({ remoteConnected: connected, remoteUrl: connected ? (url ?? null) : null }),
     remoteDeployStatus: "idle",
 
-    incSaveSerial: () => set((s) => ({ saveSerial: s.saveSerial + 1 })),
     setSaveStatus: (saveStatus, saveError = null) => set({ saveStatus, saveError }),
+
+    registerPendingSection: (key, save) =>
+      set((s) => {
+        const next = { ...s.pendingSections };
+        if (save) next[key] = save; else delete next[key];
+        return { pendingSections: next };
+      }),
+
+    markPagesSaved: () => set((s) => ({ savedPagesRev: s.pagesRev })),
+
+    resetDirty: () => set((s) => ({ savedPagesRev: s.pagesRev, pendingSections: {} })),
+
+    saveAll: async () => {
+      if (get().saveStatus === "saving") return;
+      if (saveOkTimer !== null) { window.clearTimeout(saveOkTimer); saveOkTimer = null; }
+      set({ saveStatus: "saving", saveError: null });
+
+      const failures: string[] = [];
+
+      // 1. Flush section drafts owned by ConfigView tabs / the function
+      //    editor. Each PUTs to its own endpoint and refreshes the store.
+      const pending = Object.entries(get().pendingSections);
+      const flushed = await Promise.allSettled(pending.map(([, save]) => save()));
+      flushed.forEach((r, i) => {
+        if (r.status === "rejected") failures.push(`${pending[i][0]}: ${errText(r.reason)}`);
+      });
+
+      // Re-read: the flush above mutated `project`.
+      const state = get();
+      const isAdmin = state.authRole === "Admin";
+
+      // 2. Every page (not just the current one), plus the project-level
+      //    collections. Those endpoints are Admin-only on the server, so
+      //    skip them for other roles instead of collecting a 403.
+      const tasks: Promise<unknown>[] = state.pages.map((p) => api.saveSynoptic(p));
+      if (isAdmin && state.project) {
+        tasks.push(api.updateTags(state.project.tags ?? []));
+        tasks.push(api.updateSources(state.project.sources ?? []));
+        tasks.push(api.updateAlarms(state.project.alarms ?? []));
+        tasks.push(api.updateFunctions(state.project.functions ?? []));
+        tasks.push(api.updateCustomSymbols(state.customSymbols ?? []));
+      }
+      const results = await Promise.allSettled(tasks);
+      results.forEach((r) => {
+        if (r.status === "rejected") failures.push(errText(r.reason));
+      });
+
+      if (failures.length > 0) {
+        set({ saveStatus: "error", saveError: failures.join("; ") });
+        return;
+      }
+
+      // All-or-nothing: only a fully successful save clears the dirty flag.
+      // On a partial failure some pages are on disk and some are not, so
+      // "modified" is the only honest answer; a retry re-PUTs everything
+      // (the endpoints are idempotent).
+      set({ saveStatus: "ok" });
+      get().markPagesSaved();
+      saveOkTimer = window.setTimeout(() => {
+        saveOkTimer = null;
+        if (get().saveStatus === "ok") set({ saveStatus: "idle" });
+      }, 2000);
+
+      autoDeployIfConnected();
+    },
 
     groupObjects: (ids, name) => {
       if (ids.length < 1) return;
@@ -1525,6 +1681,7 @@ export const useAppStore = create<AppState>((set, get) => {
     },
 
     renameGroup: (groupId, name) => {
+      pushHistory("Rinomina gruppo");
       set((s) => ({
         pages: s.pages.map((p) => p.id !== s.currentPageId ? p : {
           ...p,

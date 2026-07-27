@@ -1,14 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
-import { SvgCanvas } from "@/canvas/SvgCanvas";
+import { SvgCanvas, type CanvasViewApi } from "@/canvas/SvgCanvas";
+import { EditorToolbar } from "@/editor/EditorToolbar";
 import { LeftPanel } from "@/editor/LeftPanel";
+import { PageTabs } from "@/editor/PageTabs";
 import { FunctionEditor } from "@/editor/FunctionEditor";
 import { TagInput } from "@/components/TagInput";
 import { BindableInput } from "@/components/BindableInput";
 import { ImageBrowser } from "@/components/ImageBrowser";
 import { SYMBOL_LIST } from "@/symbols/library";
-import { effectiveSizeMode, getDevicePresets, STANDARD_DEVICE_PRESETS } from "@/pageLayout";
+import { editorFitSize, effectiveSizeMode, getDevicePresets, STANDARD_DEVICE_PRESETS } from "@/pageLayout";
 import { getBrand } from "@/branding";
 import type { SymbolMeta } from "@/symbols/library";
 import { useAppStore } from "@/store";
@@ -255,12 +257,19 @@ export function EditorShell() {
   const splitCell           = useAppStore((s) => s.splitCell);
   const joinSplitCell       = useAppStore((s) => s.joinSplitCell);
   const updateSubCellAt     = useAppStore((s) => s.updateSubCellAt);
-  const saveSerial       = useAppStore((s) => s.saveSerial);
-  const saveStatus       = useAppStore((s) => s.saveStatus);
-  const storeSaveStatus  = useAppStore((s) => s.setSaveStatus);
 
   const currentPage = pages.find((p) => p.id === currentPageId);
   const objects     = currentPage?.objects ?? [];
+
+  // Canvas viewport: the transform itself lives inside SvgCanvas (pan writes
+  // at mousemove rate), we only mirror the zoom *factor* for the toolbar
+  // readout — SvgCanvas reports it only when it actually changes.
+  const viewApi = useRef<CanvasViewApi | null>(null);
+  const [zoom, setZoom] = useState(1);
+  const fitPageSize = useMemo(
+    () => editorFitSize(currentPage, project?.page_layout),
+    [currentPage?.width, currentPage?.height, project?.page_layout],
+  );
   // Il canvas mostra i messaggi {{token}} risolti nella lingua di ANTEPRIMA
   // scelta nel tab Configurazione → Lingue (store `editorPreviewLang`); il
   // pannello proprietà lavora su `objects` grezzi così l'autore vede/edita i
@@ -600,77 +609,6 @@ export function EditorShell() {
     }
   };
 
-  // Persist EVERYTHING in one shot: all synoptic pages + project sections
-  // (tags / sources / alarms / functions / custom_symbols). Each section maps
-  // to a separate `PUT /api/project/*` endpoint — patch-style on the backend
-  // (loads from disk, overwrites one field, rewrites the YAML). Admin-only
-  // endpoints are skipped for non-Admin so the call doesn't 403.
-  const saveOkTimer = useRef<number | null>(null);
-
-  const handleSave = async () => {
-    if (saveStatus === "saving") return;
-    if (saveOkTimer.current !== null) {
-      window.clearTimeout(saveOkTimer.current);
-      saveOkTimer.current = null;
-    }
-    storeSaveStatus("saving", null);
-
-    const state = useAppStore.getState();
-    const role  = state.authRole;
-    const isAdmin = role === "Admin";
-
-    const tasks: Promise<unknown>[] = [];
-    // Synoptic pages: every page is persisted, not just the current one.
-    // Operator+ can write synoptics; Viewer is gated upstream.
-    for (const page of state.pages) {
-      tasks.push(api.saveSynoptic(page));
-    }
-    // Project-level sections: admin-only on the server.
-    if (isAdmin && state.project) {
-      tasks.push(api.updateTags(state.project.tags ?? []));
-      tasks.push(api.updateSources(state.project.sources ?? []));
-      tasks.push(api.updateAlarms(state.project.alarms ?? []));
-      tasks.push(api.updateFunctions(state.project.functions ?? []));
-      tasks.push(api.updateCustomSymbols(state.customSymbols ?? []));
-    }
-
-    const results = await Promise.allSettled(tasks);
-    const failed  = results.filter((r) => r.status === "rejected") as PromiseRejectedResult[];
-    if (failed.length === 0) {
-      storeSaveStatus("ok");
-      useAppStore.setState({ isDirty: false });
-      saveOkTimer.current = window.setTimeout(() => storeSaveStatus("idle"), 2000);
-      // Auto-sync al runtime remoto se connesso.
-      const { remoteConnected, authToken: tok } = useAppStore.getState();
-      if (remoteConnected) {
-        useAppStore.setState({ remoteDeployStatus: "syncing" });
-        const hdrs: HeadersInit = tok ? { "Authorization": `Bearer ${tok}` } : {};
-        fetch("/api/remote/deploy", { method: "POST", headers: hdrs })
-          .then(async (res) => {
-            if (res.body) {
-              const rdr = res.body.getReader();
-              while (!(await rdr.read()).done) { /* drain streaming body */ }
-            }
-            useAppStore.setState({ remoteDeployStatus: res.ok ? "ok" : "error" });
-          })
-          .catch(() => useAppStore.setState({ remoteDeployStatus: "error" }))
-          .finally(() => {
-            setTimeout(() => useAppStore.setState({ remoteDeployStatus: "idle" }), 3000);
-          });
-      }
-    } else {
-      const msg = failed
-        .map((f) => (f.reason instanceof Error ? f.reason.message : String(f.reason)))
-        .join("; ");
-      storeSaveStatus("error", msg);
-    }
-  };
-
-  // Respond to save requests from the header dropdown (incSaveSerial).
-  useEffect(() => {
-    if (saveSerial > 0) handleSave();
-  }, [saveSerial]);
-
   // When a project-level function is selected, take over the whole main
   // area with the full-screen FunctionEditor. The LeftPanel stays on the
   // left (so the user can keep navigating between functions) but canvas
@@ -698,7 +636,13 @@ export function EditorShell() {
   }
 
   return (
-    <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
+    // Column: contextual toolbar, page tabs, then the panels row. minWidth 0
+    // matters — <main> is a flex row and the canvas would otherwise squeeze
+    // the two strips.
+    <div style={{ display: "flex", flexDirection: "column", flex: 1, minWidth: 0, overflow: "hidden" }}>
+      <EditorToolbar viewApi={viewApi} zoom={zoom} canFitPage={fitPageSize !== null} />
+      <PageTabs />
+      <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
       {pendingImagePos && (
         <ImageBrowser
           onSelect={(path) => {
@@ -762,6 +706,9 @@ export function EditorShell() {
             setSelectedCellRange({ objectId, r1, c1, r2, c2 })}
           onSelectSubCell={(objectId, row, col, path) =>
             setSelectedSubCell({ objectId, row, col, path })}
+          viewApi={viewApi}
+          onZoomChange={setZoom}
+          fitPageSize={fitPageSize}
         />
       </div>
 
@@ -1018,6 +965,7 @@ export function EditorShell() {
         </fieldset>
       </aside>
       {helpOpen && <ShortcutHelp onClose={() => setHelpOpen(false)} />}
+      </div>
     </div>
   );
 }

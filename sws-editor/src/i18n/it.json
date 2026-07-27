@@ -2,7 +2,9 @@
   "app": {
     "title": "SWS Editor",
     "project": "Progetto",
-    "user": "Utente"
+    "user": "Utente",
+    "unsavedShort": "non salvato",
+    "unsavedHint": "Modifiche non salvate — clic per salvare (Ctrl+S)"
   },
   "common": {
     "save": "Salva",
@@ -68,7 +70,27 @@
     "migrateConfirm": "Il progetto è stato salvato dalla versione {{savedBy}}, il runtime è la {{runtime}}. Aggiornare il progetto al formato corrente?",
     "remoteDisconnectConfirm": "Disconnetti dal runtime remoto {{host}}? Tornerai al runtime locale.",
     "deactivate": "Disattiva",
-    "ttlBanner": "La sessione scade dopo {{min}} min. Disattivarla per lo sviluppo?"
+    "ttlBanner": "La sessione scade dopo {{min}} min. Disattivarla per lo sviluppo?",
+    "rebootConfirm": "Riavviare il runtime? Tutti i WebSocket si disconnetteranno per ~2s.",
+    "userMenuTitle": "Utente: {{user}}",
+    "preferences": "PREFERENZE"
+  },
+  "theme": {
+    "label": "Tema",
+    "system": "Sistema",
+    "light": "Chiaro",
+    "dark": "Scuro",
+    "title": "Tema: {{label}} — clic per cambiare"
+  },
+  "toolbar": {
+    "undoTitle": "Annulla (Ctrl+Z)",
+    "redoTitle": "Ripristina (Ctrl+Y)",
+    "zoomLevel": "Livello di zoom",
+    "zoomResetTitle": "Zoom 100% (Ctrl+0)",
+    "fitPage": "Adatta pagina",
+    "fitPageTitle": "Adatta la pagina alla finestra (Ctrl+Shift+0)",
+    "fitPageUnavailable": "Dimensioni pagina non definite (modalità fluida)",
+    "fitObjectsTitle": "Adatta agli oggetti"
   },
   "unsaved": {
     "title": "Modifiche non salvate",
@@ -85,7 +107,10 @@
     "closeProject": "Chiudi progetto",
     "logout": "Esci",
     "importConfirm": "Sostituire l'intero progetto corrente?\nI synoptic non inclusi nel bundle saranno eliminati.\nLe password MQTT non sono incluse: dovrai re-immetterle dopo l'import.",
-    "imported": "Importato {{file}} ({{count}} tag)"
+    "imported": "Importato {{file}} ({{count}} tag)",
+    "logPanel": "Pannello log",
+    "saveCopyToPc": "💾 Salva copia sul PC…",
+    "openFromPc": "📂 Sostituisci da copia sul PC…"
   },
   "roles": {
     "admin": "Admin",
@@ -188,7 +213,9 @@
     }
   },
   "canvas": {
-    "empty": "Nessun oggetto in questa pagina."
+    "empty": "Nessun oggetto in questa pagina.",
+    "rulersShow": "Mostra righelli",
+    "rulersHide": "Nascondi righelli"
   },
   "viewer": {
     "maintenance": "Manutenzione",
@@ -343,7 +370,8 @@
     "connectRuntime": "Connetti runtime"
   },
   "uiLang": {
-    "label": "Lingua interfaccia"
+    "label": "Lingua interfaccia",
+    "title": "Lingua interfaccia / Interface language"
   },
   "auth": {
     "user": "Utente",
@@ -571,7 +599,7 @@
     "panH": "Pan orizzontale",
     "panFree": "Pan libero",
     "zoomReset": "Reset zoom 100%",
-    "zoomFit": "Adatta alla vista (fit)",
+    "zoomFit": "Adatta la pagina alla finestra",
     "selection": "Selezione",
     "selectObj": "Seleziona oggetto",
     "toggleSel": "Aggiungi/togli dalla selezione",

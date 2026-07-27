@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { TrendCanvas } from "@/canvas/TrendCanvas";
 import { TrendExpandedModal } from "@/canvas/TrendExpanded";
 import { getAuthToken } from "@/api/client";
@@ -8,6 +9,28 @@ import { clampToPage } from "@/pageLayout";
 import type { AlarmSeverity, CustomSymbol, FaceplateDef, GridCell, PageSizeMode, PipePoint, SynopticObject, TagState } from "@/types";
 
 // ── Canvas props ──────────────────────────────────────────────────────────────
+
+/**
+ * Imperative handle for driving zoom/pan from outside the canvas (the editor
+ * toolbar). Zoom/pan deliberately stay in local refs here rather than in the
+ * store: pan writes at mousemove rate, and a store write per mousemove would
+ * re-run every subscriber's selector across the whole app. The toolbar only
+ * needs the zoom *factor*, which never changes during a pan.
+ *
+ * Rule of thumb for this component: discrete toggles → store; continuous view
+ * transform → local ref + this handle.
+ */
+export interface CanvasViewApi {
+  /** Zoom to an absolute factor, anchored at the centre of the viewport. */
+  setZoom(z: number): void;
+  /** Back to 100% at the pan origin. */
+  resetView(): void;
+  /** Fit the whole page into the viewport. Falls back to fitObjects() when
+   *  the page has no declared size (fluid mode). */
+  fitPage(): void;
+  /** Fit the bounding box of the objects on the page. */
+  fitObjects(): void;
+}
 
 interface SvgCanvasProps {
   objects: SynopticObject[];
@@ -57,6 +80,14 @@ interface SvgCanvasProps {
   onSelectCellRange?: (objectId: string, r1: number, c1: number, r2: number, c2: number) => void;
   /** Click on slot "a" or "b" inside a split cell. */
   onSelectSubCell?: (objectId: string, row: number, col: number, path: ("a" | "b")[]) => void;
+
+  // ── Editor viewport control (edit mode only) ────────────────────────────
+  /** Ref filled with the zoom/pan handle, for an external toolbar. */
+  viewApi?: React.RefObject<CanvasViewApi | null>;
+  /** Fired when the zoom factor changes — never during a pan. */
+  onZoomChange?: (zoom: number) => void;
+  /** Page size "Fit page" should target; null when undeterminable (fluid). */
+  fitPageSize?: { width: number; height: number } | null;
 }
 
 interface DragState {
@@ -396,7 +427,11 @@ export function SvgCanvas({
   onSelectCellChild,
   onSelectCellRange,
   onSelectSubCell,
+  viewApi,
+  onZoomChange,
+  fitPageSize = null,
 }: SvgCanvasProps) {
+  const { t } = useTranslation();
   // Resolved selection set: prefer the explicit array, fall back to the
   // legacy single-id prop, then to "nothing selected".
   const selIds = selectedIds ?? (selectedId ? [selectedId] : []);
@@ -457,10 +492,10 @@ export function SvgCanvas({
   // hit-testing, render, and snap-delete zone all agree.
   const RULER_PX = 20;
   type Guide = { id: string; axis: "h" | "v"; pos: number };
-  const [showRulers, setShowRulers] = useState(() => {
-    try { return localStorage.getItem("sws.canvas.showRulers") !== "0"; }
-    catch { return true; }
-  });
+  // In the store, not local state: the toolbar toggles the same flag as the
+  // corner square below, and a discrete toggle is cheap to keep global.
+  const showRulers   = useAppStore((s) => s.showRulers);
+  const toggleRulers = useAppStore((s) => s.toggleRulers);
   const [guides, setGuides] = useState<Guide[]>([]);
   // Track which guide (if any) is being dragged. `pendingAxis` is set during
   // a brand-new drag from a ruler (no id yet); the guide is committed on
@@ -486,22 +521,39 @@ export function SvgCanvas({
     catch { /* quota — ignore */ }
   };
 
-  const toggleRulers = () => {
-    setShowRulers((v) => {
-      const next = !v;
-      try { localStorage.setItem("sws.canvas.showRulers", next ? "1" : "0"); }
-      catch { /* ignore */ }
-      return next;
-    });
-  };
-
+  // Single point where zoom/pan change. Reports the zoom factor upward only
+  // when it actually changed, so a pan (which reuses the current z) never
+  // re-renders the parent.
+  const lastReportedZoom = useRef(1);
   const applyView = (z: number, px: number, py: number) => {
     zoomRef.current = z;
     panRef.current = { x: px, y: py };
     setViewT({ zoom: z, panX: px, panY: py });
+    if (z !== lastReportedZoom.current) {
+      lastReportedZoom.current = z;
+      onZoomChange?.(z);
+    }
   };
 
-  const fitView = () => {
+  /** Zoom to `newZ` keeping the point under (cx, cy) — element-relative screen
+   *  px — fixed. Shared by the wheel gesture and the toolbar. */
+  const zoomAt = (newZ: number, cx: number, cy: number) => {
+    const oldZ = zoomRef.current;
+    const z = Math.max(0.1, Math.min(8, newZ));
+    const svgX = (cx - panRef.current.x) / oldZ;
+    const svgY = (cy - panRef.current.y) / oldZ;
+    applyView(z, cx - svgX * z, cy - svgY * z);
+  };
+
+  /** Toolbar/slider entry point: zoom about the centre of the drawing area. */
+  const setZoomCentered = (z: number) => {
+    const el = svgRef.current;
+    if (!el) return;
+    const rOff = showRulers ? RULER_PX : 0;
+    zoomAt(z, (el.clientWidth + rOff) / 2, (el.clientHeight + rOff) / 2);
+  };
+
+  const fitObjects = () => {
     const el = svgRef.current;
     if (!el || objects.length === 0) { applyView(1, 0, 0); return; }
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
@@ -516,7 +568,42 @@ export function SvgCanvas({
     applyView(z, (cw - W * z) / 2 - minX * z, (ch - H * z) / 2 - minY * z);
   };
 
+  /** Fit the whole page — the "get me back to the whole drawing" affordance.
+   *  Without a declared page size (fluid mode) there is nothing to fit, so
+   *  fall back to the object bounding box. */
+  const fitPage = () => {
+    const el = svgRef.current;
+    if (!el || !fitPageSize) { fitObjects(); return; }
+    const { width: W, height: H } = fitPageSize;
+    const rOff = showRulers ? RULER_PX : 0;
+    const MARGIN = 24;                       // breathing room, screen px per side
+    const cw = el.clientWidth, ch = el.clientHeight;
+    const availW = Math.max(50, cw - rOff - 2 * MARGIN);
+    const availH = Math.max(50, ch - rOff - 2 * MARGIN);
+    const z = Math.max(0.1, Math.min(4, Math.min(availW / W, availH / H)));
+    applyView(z, rOff + (cw - rOff - W * z) / 2, rOff + (ch - rOff - H * z) / 2);
+  };
+
+  // Ctrl+Shift+0 must fit the CURRENT page: the keydown handler below is
+  // registered once, so it reaches fitPage through a ref instead of its
+  // captured closure.
+  const fitPageRef = useRef(fitPage);
+  fitPageRef.current = fitPage;
+
+  // No dependency array on purpose: fitPage must always see the current
+  // `fitPageSize`, otherwise it keeps fitting the previous page after a
+  // page switch.
+  useImperativeHandle(viewApi, () => ({
+    setZoom: setZoomCentered,
+    resetView: () => applyView(1, 0, 0),
+    fitPage,
+    fitObjects,
+  }));
+
   // Non-passive wheel listener for zoom + pan via scroll.
+  // The handler closes over the first `zoomAt`/`fitPage`; that is fine (and
+  // deliberate) because they only touch refs and the stable setViewT — don't
+  // "fix" this by adding dependencies, it would re-register on every render.
   useEffect(() => {
     if (!onMove) return; // only in edit mode
     const el = svgRef.current;
@@ -529,11 +616,7 @@ export function SvgCanvas({
       if (e.ctrlKey) {
         // Zoom centred on cursor
         const factor = e.deltaY > 0 ? 1 / 1.1 : 1.1;
-        const oldZ = zoomRef.current;
-        const newZ = Math.max(0.1, Math.min(8, oldZ * factor));
-        const svgCX = (cx - panRef.current.x) / oldZ;
-        const svgCY = (cy - panRef.current.y) / oldZ;
-        applyView(newZ, cx - svgCX * newZ, cy - svgCY * newZ);
+        zoomAt(zoomRef.current * factor, cx, cy);
       } else {
         // Pan
         const dx = e.shiftKey ? -e.deltaY : -e.deltaX;
@@ -542,7 +625,7 @@ export function SvgCanvas({
       }
     };
     const resetHandler = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === "0") { e.preventDefault(); fitView(); }
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === "0") { e.preventDefault(); fitPageRef.current(); }
       else if ((e.ctrlKey || e.metaKey) && e.key === "0") { e.preventDefault(); applyView(1, 0, 0); }
     };
     el.addEventListener("wheel", handler, { passive: false });
@@ -1576,7 +1659,7 @@ export function SvgCanvas({
               style={{ fill: "var(--brand-surface, #1e293b)", stroke: "var(--brand-surface-2, #334155)", cursor: "pointer" }}
               onClick={(e) => { e.stopPropagation(); toggleRulers(); }}
             >
-              <title>Nascondi righelli</title>
+              <title>{t("canvas.rulersHide")}</title>
             </rect>
             <text x={RULER_PX / 2} y={RULER_PX / 2 + 3} textAnchor="middle"
               style={{ fontSize: 10, fill: "var(--brand-text-muted, #64748b)", pointerEvents: "none", fontFamily: "monospace" }}>
@@ -1593,25 +1676,13 @@ export function SvgCanvas({
             style={{ fill: "var(--brand-surface, #1e293b)", stroke: "var(--brand-surface-2, #334155)" }} />
           <text x={12} y={16} textAnchor="middle"
             style={{ fontSize: 11, fill: "var(--brand-text-muted, #64748b)", fontFamily: "monospace", pointerEvents: "none" }}>⟂</text>
-          <title>Mostra righelli</title>
+          <title>{t("canvas.rulersShow")}</title>
         </g>
       )}
 
-      {/* Zoom level badge + fit button — top-right corner, outside the transform */}
-      {onMove && (
-        <g>
-          <text x="100%" y={18} textAnchor="end" dx={viewT.zoom !== 1 ? -30 : -6}
-            style={{ fontSize: 11, fill: "#64748b", pointerEvents: "none", fontFamily: "monospace" }}>
-            {Math.round(viewT.zoom * 100)}%
-          </text>
-          <text x="100%" y={18} textAnchor="end" dx={-6}
-            style={{ fontSize: 11, fill: "#475569", cursor: "pointer", fontFamily: "monospace" }}
-            onClick={fitView}>
-            <title>Adatta alla vista (Ctrl+Shift+0)</title>
-            ⊡
-          </text>
-        </g>
-      )}
+      {/* The zoom readout and the fit button used to live here, in the canvas
+          corner. They are now in the editor toolbar (EditorToolbar), which
+          also carries the zoom slider — one readout, one place. */}
 
       {/* Mouse position indicator — bottom-left, outside the transform */}
       {onMove && mousePos && (

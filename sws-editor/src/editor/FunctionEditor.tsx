@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { PythonEditor, type PythonEditorHandle } from "@/components/PythonEditor";
+import { useAppStore } from "@/store";
 import type { FunctionDef } from "@/types";
 
 interface FunctionEditorProps {
@@ -53,6 +54,17 @@ export function FunctionEditor({ fn, onPatch, onPersist, onClose }: FunctionEdit
       setSaving(false);
     }
   };
+
+  // Report the pending draft app-wide: the header indicator lights up and
+  // "Save all" / Ctrl+S flushes this function too. Held in a ref because
+  // handleSave is a new closure on every render.
+  const registerPendingSection = useAppStore((s) => s.registerPendingSection);
+  const saveRef = useRef(handleSave);
+  saveRef.current = handleSave;
+  useEffect(() => {
+    registerPendingSection("function", isDirty ? () => saveRef.current() : null);
+    return () => registerPendingSection("function", null);
+  }, [isDirty, registerPendingSection]);
 
   const setParam = (idx: number, patch: Partial<{ name: string; default: string | number | boolean | undefined }>) => {
     const next = fn.params.map((p, i) => (i === idx ? { ...p, ...patch } : p));
