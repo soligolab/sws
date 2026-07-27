@@ -6,26 +6,21 @@
 >
 > **Pulizia 2026-07-27**: rimossi i task già chiusi e le sezioni di verifica ormai superate; le sessioni mergiate **e** verificate fino al 2026-07-09 sono compresse in «Storico». Il dettaglio integrale resta in `CHANGELOG.md` e nella history git.
 
-**Last session**: 2026-07-27 (3) — **Migliorie editor, 4 blocchi**: stato "modifiche non salvate" + Ctrl+S, controlli di zoom + toolbar contestuale, header a due livelli, creazione cartelle + copia progetto sul PC. **Nessuno testato in browser.**
+**Last session**: 2026-07-27 (3) — **Migliorie editor, 4 blocchi**: stato "modifiche non salvate" + Ctrl+S, controlli di zoom + toolbar contestuale, header a due livelli, creazione cartelle + copia progetto sul PC. **Validati in browser dal maintainer e squash-mergiati in `main`** in due commit (`2ef99e6` catena cartelle/progetti, `3bddb66` catena editor/header).
 
-> ⚠️ **Mappa dei branch aperti (2026-07-27)** — nessuno testato in browser, tutti da validare:
->
-> | # | Branch | Base | Contenuto |
-> |---|--------|------|-----------|
-> | A | `feat/project-location-and-brand-presets` | `main` | percorso progetto a scelta, progetti recenti, preset per brand *(lavoro del mattino)* |
-> | A1 | `feat/fs-mkdir` | **A** | `POST /api/fs/mkdir` + "Nuova cartella" + "Apri da file ZIP" |
-> | B | `feat/dirty-state-and-save` | `main` | stato "non salvato", Ctrl+S, `saveAll()` |
-> | B1 | `feat/editor-zoom-toolbar` | **B** | zoom (adatta pagina/100%/slider) + toolbar editor |
-> | B2 | `feat/slim-app-header` | **B1** | header a due livelli + copia sul PC trovabile |
->
-> Due catene **indipendenti fra loro**: A→A1 tocca WelcomeScreen/backend, B→B1→B2 tocca editor/header. Testare i due tip (`feat/fs-mkdir` e `feat/slim-app-header`); ogni catena si può mergiare con un unico squash del suo tip. L'incatenamento serve a evitare conflitti quasi certi su `App.tsx`/`EditorShell.tsx`/`WelcomeScreen.tsx`.
+> Branch di lavoro rimasti in locale, già assorbiti in `main` — eliminabili a discrezione del maintainer:
+> `feat/project-location-and-brand-presets` → `feat/fs-mkdir` (catena A) e
+> `feat/dirty-state-and-save` → `feat/editor-zoom-toolbar` → `feat/slim-app-header` (catena B).
+> Erano incatenati per evitare conflitti su `App.tsx`/`EditorShell.tsx`/`WelcomeScreen.tsx`; al merge
+> l'unico conflitto di codice fra le due catene è stata la riga di import di `pageLayout` in
+> `EditorShell.tsx`.
 
 - **Sessione 2026-07-27 (3d) — cartelle + copia sul PC (branch `feat/fs-mkdir`)**:
   - **`POST /api/fs/mkdir`** accanto a `browse-dirs`: parte pura `resolve_new_dir()` (testabile senza `AppState`, riusa `safe_project_name`), `create_dir` e **non** `create_dir_all` — un refuso in `parent` non deve materializzare un albero. 409 su esistente, 403 su permessi.
   - **Postura di sicurezza**: la route entra nel gruppo **pre-auth** `project_lifecycle` come `browse-dirs`, perché il selettore serve prima che esista una sessione. Non aggiunge capacità nuove (`POST /api/projects` con `parent_path` fa già `create_dir_all` arbitrario), ma la superficie `/api/fs/*` pre-auth è ora annotata in `docs/OPEN_QUESTIONS.md` sotto Q8 come debito da chiudere al passaggio a prodotto.
   - **UI**: "＋ Nuova cartella" nel `DirectoryBrowser` con input inline (Invio/Esc) — non `prompt()`, che non è traducibile né stilabile ed è soppresso in alcune webview kiosk (questa app gira su WebPanel). Dopo la creazione si entra nella cartella nuova.
   - **"📂 Apri da file ZIP…"** nella WelcomeScreen: esisteva già dietro "Nuovo progetto → Da ZIP", ora ha un ingresso proprio. È **non distruttivo** (nuovo progetto), a differenza della voce nel ☰.
-  - **Verifica**: `cargo check -p sws-web` + `cargo test -p sws-web` (17 test, 2 nuovi) + `pnpm build` verdi. **Non testato in browser.**
+  - **Verifica**: `cargo check -p sws-web` + `cargo test -p sws-web` (17 test, 2 nuovi) + `pnpm build` verdi; **validato in browser dal maintainer**.
 
 - **Sessione 2026-07-27 (2) — percorso progetto a scelta + progetti recenti + preset brand (branch `feat/project-location-and-brand-presets`)**:
   - **Registro `known_projects.json`** (nuovo `sws-web/src/project_registry.rs`): mappa `nome → {path, last_opened_ms}`, persistito in `config_dir`, caricato in `AppState.known_projects`. Toccato automaticamente da `create_project`, `open_project` e `upload_project_zip` — copre sia i progetti in `projects_root` sia quelli a percorso custom.
@@ -35,7 +30,7 @@
   - **Nuovo endpoint `GET /api/fs/browse-dirs`**: mini file-browser server-side (elenca sottocartelle, naviga su/giù), nessuna whitelist, default `$HOME`/`projects_root` se `path` assente.
   - **Frontend**: `WelcomeScreen.tsx` → `NewProjectModal` ha una sezione "Cartella di destinazione" (comune alle 3 tab: vuoto/template/ZIP) con campo testo + pulsante "Sfoglia…" che apre il nuovo componente `DirectoryBrowser`; anteprima live del path finale. Ogni card progetto mostra il `path` come sottotitolo/tooltip, badge "esterno" e — per le voci esterne — l'azione "Elimina" diventa "Rimuovi dall'elenco".
   - **Preset dispositivo legati al brand**: `Brand.devicePresets` (letto da `meta.device_presets` in `brand.json`); i 5 modelli Pixsys (WP570/WP800/WP815-615/WP820-620/WP830-630) spostati da `pageLayout.ts` (hardcoded) a `public/branding/pixsys/brand.json`. `DEVICE_PRESETS` → `STANDARD_DEVICE_PRESETS` + nuova `getDevicePresets()` = standard + preset del brand attivo; dropdown raggruppato in due `<optgroup>`.
-  - **Verifica**: `cargo build -p sws-core -p sws-web -p sws-runtime` + `cargo test -p sws-web` (15 test) + `pnpm build` verdi. **Non ancora testato in browser/end-to-end.**
+  - **Verifica**: `cargo build -p sws-core -p sws-web -p sws-runtime` + `cargo test -p sws-web` (15 test) + `pnpm build` verdi; **validato in browser dal maintainer**.
   - **Nota di processo**: lavoro inizialmente iniziato per errore sul working tree di `main` — spostato su branch dedicato prima del commit.
 
 - **Sessione 2026-07-27 (3b) — zoom + toolbar editor (branch `feat/editor-zoom-toolbar`)**:
@@ -60,7 +55,7 @@
   - **`saveAll()` nello store** al posto di `saveSerial`: svuota prima le bozze registrate, poi salva pagine + sezioni di progetto (Admin). "Salva tutto" nel ☰ non è più editor-only. `waitingForSave` ora aspetta `saveStatus === "ok"` e non `!isDirty` (altrimenti una tab sporca bloccherebbe "Salva e chiudi" all'infinito).
   - **UI**: `DirtyIndicator` (pallino ambra cliccabile) accanto al nome progetto nell'header di app, `●` nel titolo scheda, `Ctrl+S` globale, `beforeunload` solo mentre sporco, `resetDirty()` su chiudi-progetto/logout (altrimenti dopo un "chiudi scartando" un F5 chiederebbe conferma per un progetto non più aperto).
   - **Fix collaterale**: `renameGroup` mutava le pagine senza `pushHistory` — invisibile sia a undo sia al flag.
-  - **Verifica**: `pnpm build` verde; nuovo `tests/dirtyState.test.ts` 6/6 verde (undo fino al salvato, redo, undo oltre il salvato, bozze indipendenti dal canvas, resetDirty). **Non testato in browser.** Nota: `pnpm lint` non parte sulla dev box (manca `eslint-plugin-react-hooks` in `node_modules`) — preesistente.
+  - **Verifica**: `pnpm build` verde; nuovo `tests/dirtyState.test.ts` 6/6 verde (undo fino al salvato, redo, undo oltre il salvato, bozze indipendenti dal canvas, resetDirty); **validato in browser dal maintainer**. Nota: `pnpm lint` non parte sulla dev box (manca `eslint-plugin-react-hooks` in `node_modules`) — preesistente.
   - **DA FARE (browser)**: vedi elenco validazioni in sospeso.
 
 - **Sessione 2026-07-27 (1) — gestione pagine + pannelli ridimensionabili + fix lang_selector (branch `fix/T-40-regressions`, squash-mergiato in `main`)**:
@@ -133,18 +128,10 @@
 
 > Unica traccia del lavoro ancora aperto. Aggiorna man mano che gli item si chiudono.
 
-> **Piano "migliorie editor" (2026-07-27)**: 4 blocchi decisi col maintainer — (1) stato "non salvato" ✅, `feat/dirty-state-and-save`; (2) zoom + toolbar contestuale ✅, `feat/editor-zoom-toolbar`; (3) header a due livelli ✅, `feat/slim-app-header`; (4) creazione cartelle nel picker + copia progetto sul PC ✅ fatto, branch `feat/fs-mkdir` sopra `feat/project-location-and-brand-presets`. Piano completo in `~/.claude/plans/ci-sono-alcune-migliorie-keen-key.md`.
+> **Piano "migliorie editor" (2026-07-27)**: 4 blocchi decisi col maintainer — (1) stato "non salvato" ✅, `feat/dirty-state-and-save`; (2) zoom + toolbar contestuale ✅, `feat/editor-zoom-toolbar`; (3) header a due livelli ✅, `feat/slim-app-header`; (4) creazione cartelle nel picker + copia progetto sul PC ✅ fatto, branch `feat/fs-mkdir` sopra `feat/project-location-and-brand-presets`. Tutti e 4 mergiati in `main` il 2026-07-27 dopo validazione in browser.
 
 **Validazioni in sospeso (browser / runtime reale)**
 
-- [ ] **Catena B: `feat/dirty-state-and-save` → `feat/editor-zoom-toolbar` → `feat/slim-app-header`** (testare il tip: contiene tutti e tre):
-  - *Stato salvataggio*: pallino "non salvato" + `●` nel titolo scheda; `Ctrl+S` in Editor **e** in Configurazione; disegna→salva→undo torna sporco, redo torna pulito; F5 con canvas sporco chiede conferma; "Chiudi progetto → scarta" poi F5 **non** chiede nulla; modifica un tag in Configurazione → pallino acceso.
-  - *Zoom*: Ctrl+rotella poi slider → la percentuale concorda; Ctrl+0; Ctrl+Shift+0 adatta la **pagina**; pan col tasto centrale senza scatti nella toolbar; cambio pagina; progetto in modalità **fluida** → "Adatta pagina" disabilitato; righelli commutati dall'angolo del canvas e dalla toolbar → stesso stato.
-  - *Header*: Admin/Supervisor/Operator → Esporta/Importa solo Admin, Start/Stop/Reboot solo con permessi di configurazione, menu 👤 identico per tutti; import ZIP dal ☰ funzionante (issue #2); `pnpm exec playwright test e2e/import-tags.spec.ts e2e/editor.spec.ts`.
-- [ ] **Catena A: `feat/project-location-and-brand-presets` → `feat/fs-mkdir`** (testare il tip, contiene entrambi):
-  - Percorso progetto a scelta, elenco progetti recenti, preset dispositivo per brand.
-  - Sfoglia → **＋ Nuova cartella** → creata, ci si entra, "Usa questa cartella" → il progetto nasce lì e compare con badge "esterno". Provare nome duplicato (409) e nome non valido (es. `a/b`, `..`) → errore leggibile sotto la lista.
-  - WelcomeScreen → **📂 Apri da file ZIP…** → crea un progetto nuovo senza toccare quello attivo.
 - [ ] **Audit log + `--no-admin`** (2026-07-26): vista Audit in Configurazione → Sistema; `--no-admin` su un device reale (richiede `--viewer-port`).
 - [ ] **Telegram** (2026-07-26): rebuild+restart runtime per attivare allarmi Telegram e `send_telegram` negli script; validare l'uniformazione del tasto Salva.
 - [ ] **MQTT** (2026-07-24): riavvio runtime per il cap browse a 120 s; hard-refresh per palette su progetto vuoto e "Estrai da JSON".
