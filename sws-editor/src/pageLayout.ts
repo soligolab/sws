@@ -1,9 +1,10 @@
 // Project-wide page sizing (OPEN_QUESTIONS-adjacent page-management work):
-// standard reference resolutions for "Solo proporzioni" mode + a mixed
-// device-preset library (real Pixsys WebPanel models + generic standards)
-// for "Fisso" mode. Pure data/helpers, no React.
+// standard reference resolutions for "Solo proporzioni" mode + a
+// brand-extensible device-preset library for "Fisso" mode. Pure data/helpers,
+// no React.
 
 import type { PageLayoutConfig, PageSizeMode, SynopticPage } from "@/types";
+import { getBrand } from "@/branding";
 
 /** Aspect ratios offered in the "Solo proporzioni" mode picker, with their
  *  standard reference/authoring resolution. */
@@ -20,22 +21,21 @@ export function referenceResolutionFor(aspectRatio: string | undefined): { width
   return found ?? { width: ASPECT_RATIOS[0].width, height: ASPECT_RATIOS[0].height };
 }
 
-/** Device presets for "Fisso" mode — precompiles width/height in PageProps.
- *  Mixes real Pixsys WebPanel resolutions (WebPanel-VolA4 datasheet) with
- *  generic standard resolutions, so any target device/screen is covered. */
-export const DEVICE_PRESETS: { label: string; width: number; height: number }[] = [
-  // Pixsys WebPanel (4 distinct resolutions across the 8 WP models)
-  { label: "Pixsys WP570 — 7\" (1024×600)", width: 1024, height: 600 },
-  { label: "Pixsys WP800 — 8\" 4:3 (1024×768)", width: 1024, height: 768 },
-  { label: "Pixsys WP815/WP615 — 10.1\" (1280×800)", width: 1280, height: 800 },
-  { label: "Pixsys WP820/WP620 — 12.1\" (1280×800)", width: 1280, height: 800 },
-  { label: "Pixsys WP830/WP630 — 15.6\" (1366×768)", width: 1366, height: 768 },
-  // Generic standards
+/** Generic standard resolutions for "Fisso" mode — always available
+ *  regardless of the active brand. */
+export const STANDARD_DEVICE_PRESETS: { label: string; width: number; height: number }[] = [
   { label: "HD 16:9 (1280×720)", width: 1280, height: 720 },
   { label: "Full HD 16:9 (1920×1080)", width: 1920, height: 1080 },
   { label: "21:9 UltraWide (2560×1080)", width: 2560, height: 1080 },
   { label: "Quadrato (1080×1080)", width: 1080, height: 1080 },
 ];
+
+/** Device presets for "Fisso" mode — the standard resolutions plus any
+ *  hardware models declared by the active brand (e.g. Pixsys WP-series
+ *  panels in public/branding/pixsys/brand.json → "device_presets"). */
+export function getDevicePresets(): { label: string; width: number; height: number }[] {
+  return [...STANDARD_DEVICE_PRESETS, ...getBrand().devicePresets];
+}
 
 /** Effective size_mode for a project — `undefined`/absent config = legacy
  *  behavior = "fixed" (every project authored before this feature already

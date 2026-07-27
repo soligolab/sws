@@ -1050,6 +1050,26 @@ export interface ProjectListEntry {
   name: string;
   has_project_yaml: boolean;
   last_modified_ms: number | null;
+  /** Absolute path on the runtime's filesystem — may live outside the
+   *  editor's default projects_root (custom parent_path chosen at creation). */
+  path: string;
+  /** Last create/open timestamp (registry-tracked); null for a legacy
+   *  project never touched by the recent-projects registry yet. */
+  last_opened_ms: number | null;
+  /** True when the project's folder is NOT a direct child of projects_root
+   *  — drives softer "remove from list" vs. destructive "delete" UI. */
+  external: boolean;
+}
+
+export interface BrowseDirEntry {
+  name: string;
+  path: string;
+}
+
+export interface BrowseDirsResponse {
+  path: string;
+  parent: string | null;
+  dirs: BrowseDirEntry[];
 }
 
 export interface TemplateEntry {

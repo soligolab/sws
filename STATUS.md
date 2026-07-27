@@ -6,7 +6,37 @@
 >
 > **Pulizia 2026-07-27**: rimossi i task già chiusi e le sezioni di verifica ormai superate; le sessioni mergiate **e** verificate fino al 2026-07-09 sono compresse in «Storico». Il dettaglio integrale resta in `CHANGELOG.md` e nella history git.
 
-**Last session**: 2026-07-27 (1) — **Gestione pagine synoptic (dimensionamento/lock/home/collegamenti) + pannelli editor ridimensionabili + fix drag "Lingua ▾"**. Validato dal maintainer in browser; intera catena `fix/T-40-regressions` squash-mergiata in `main` (`c4d8e62`) e pushata.
+**Last session**: 2026-07-27 (3d) — **Creazione cartelle nel selettore + apertura progetto da ZIP sul PC** (branch `feat/fs-mkdir`, basato su `feat/project-location-and-brand-presets`, NON testato in browser). Quarto e ultimo blocco del piano "migliorie editor".
+
+> ⚠️ **Mappa dei branch aperti (2026-07-27)** — nessuno testato in browser, tutti da validare:
+>
+> | # | Branch | Base | Contenuto |
+> |---|--------|------|-----------|
+> | A | `feat/project-location-and-brand-presets` | `main` | percorso progetto a scelta, progetti recenti, preset per brand *(lavoro del mattino)* |
+> | A1 | `feat/fs-mkdir` | **A** | `POST /api/fs/mkdir` + "Nuova cartella" + "Apri da file ZIP" |
+> | B | `feat/dirty-state-and-save` | `main` | stato "non salvato", Ctrl+S, `saveAll()` |
+> | B1 | `feat/editor-zoom-toolbar` | **B** | zoom (adatta pagina/100%/slider) + toolbar editor |
+> | B2 | `feat/slim-app-header` | **B1** | header a due livelli + copia sul PC trovabile |
+>
+> Due catene **indipendenti fra loro**: A→A1 tocca WelcomeScreen/backend, B→B1→B2 tocca editor/header. Testare i due tip (`feat/fs-mkdir` e `feat/slim-app-header`); ogni catena si può mergiare con un unico squash del suo tip. L'incatenamento serve a evitare conflitti quasi certi su `App.tsx`/`EditorShell.tsx`/`WelcomeScreen.tsx`.
+
+- **Sessione 2026-07-27 (3d) — cartelle + copia sul PC (branch `feat/fs-mkdir`)**:
+  - **`POST /api/fs/mkdir`** accanto a `browse-dirs`: parte pura `resolve_new_dir()` (testabile senza `AppState`, riusa `safe_project_name`), `create_dir` e **non** `create_dir_all` — un refuso in `parent` non deve materializzare un albero. 409 su esistente, 403 su permessi.
+  - **Postura di sicurezza**: la route entra nel gruppo **pre-auth** `project_lifecycle` come `browse-dirs`, perché il selettore serve prima che esista una sessione. Non aggiunge capacità nuove (`POST /api/projects` con `parent_path` fa già `create_dir_all` arbitrario), ma la superficie `/api/fs/*` pre-auth è ora annotata in `docs/OPEN_QUESTIONS.md` sotto Q8 come debito da chiudere al passaggio a prodotto.
+  - **UI**: "＋ Nuova cartella" nel `DirectoryBrowser` con input inline (Invio/Esc) — non `prompt()`, che non è traducibile né stilabile ed è soppresso in alcune webview kiosk (questa app gira su WebPanel). Dopo la creazione si entra nella cartella nuova.
+  - **"📂 Apri da file ZIP…"** nella WelcomeScreen: esisteva già dietro "Nuovo progetto → Da ZIP", ora ha un ingresso proprio. È **non distruttivo** (nuovo progetto), a differenza della voce nel ☰.
+  - **Verifica**: `cargo check -p sws-web` + `cargo test -p sws-web` (17 test, 2 nuovi) + `pnpm build` verdi. **Non testato in browser.**
+
+- **Sessione 2026-07-27 (2) — percorso progetto a scelta + progetti recenti + preset brand (branch `feat/project-location-and-brand-presets`)**:
+  - **Registro `known_projects.json`** (nuovo `sws-web/src/project_registry.rs`): mappa `nome → {path, last_opened_ms}`, persistito in `config_dir`, caricato in `AppState.known_projects`. Toccato automaticamente da `create_project`, `open_project` e `upload_project_zip` — copre sia i progetti in `projects_root` sia quelli a percorso custom.
+  - **Percorso a scelta in creazione**: `CreateProjectRequest.parent_path` (+ query `?parent_path=` su upload ZIP) opzionale, path assoluto validato/creato con `create_dir_all`; assente = comportamento invariato (`projects_root`). Nessuna whitelist di radici (scelta esplicita del maintainer — PoC, LAN fidata).
+  - **`list_projects`** ora unisce la scansione legacy di `projects_root` con lo snapshot del registro, **ordinata per `last_opened_ms` decrescente** (elenco "progetti recenti"); nuovi campi DTO `path`, `last_opened_ms`, `external`.
+  - **`rename`/`duplicate`/`delete`**: risoluzione via registro; comportamento differenziato per le voci **esterne** (path fuori da `projects_root`) — rename non sposta la cartella (solo `meta.name` + chiave registro), duplicate crea una cartella sorella nello stesso genitore, delete **de-registra soltanto** senza toccare i file (mai cancellare a sorpresa dentro Documenti/backup del maintainer).
+  - **Nuovo endpoint `GET /api/fs/browse-dirs`**: mini file-browser server-side (elenca sottocartelle, naviga su/giù), nessuna whitelist, default `$HOME`/`projects_root` se `path` assente.
+  - **Frontend**: `WelcomeScreen.tsx` → `NewProjectModal` ha una sezione "Cartella di destinazione" (comune alle 3 tab: vuoto/template/ZIP) con campo testo + pulsante "Sfoglia…" che apre il nuovo componente `DirectoryBrowser`; anteprima live del path finale. Ogni card progetto mostra il `path` come sottotitolo/tooltip, badge "esterno" e — per le voci esterne — l'azione "Elimina" diventa "Rimuovi dall'elenco".
+  - **Preset dispositivo legati al brand**: `Brand.devicePresets` (letto da `meta.device_presets` in `brand.json`); i 5 modelli Pixsys (WP570/WP800/WP815-615/WP820-620/WP830-630) spostati da `pageLayout.ts` (hardcoded) a `public/branding/pixsys/brand.json`. `DEVICE_PRESETS` → `STANDARD_DEVICE_PRESETS` + nuova `getDevicePresets()` = standard + preset del brand attivo; dropdown raggruppato in due `<optgroup>`.
+  - **Verifica**: `cargo build -p sws-core -p sws-web -p sws-runtime` + `cargo test -p sws-web` (15 test) + `pnpm build` verdi. **Non ancora testato in browser/end-to-end.**
+  - **Nota di processo**: lavoro inizialmente iniziato per errore sul working tree di `main` — spostato su branch dedicato prima del commit.
 
 - **Sessione 2026-07-27 (1) — gestione pagine + pannelli ridimensionabili + fix lang_selector (branch `fix/T-40-regressions`, squash-mergiato in `main`)**:
   - **Dimensionamento pagina** (project-wide): Fisso (1:1 no-scaling)/Solo proporzioni (scale-to-fit su risoluzione standard)/Fluido; `PageSizeMode`/`PageLayoutConfig` su `Project`, endpoint `PUT /api/project/page-layout`; passare a "Proporzioni" propaga la risoluzione a tutte le pagine. Clamp rigido ai confini in editor. Preset dispositivo (5 Pixsys WebPanel + 4 standard) in Proprietà pagina. Pannello "Impostazioni pagine progetto" (⚙): modalità + rapporto + home page.
@@ -80,7 +110,10 @@
 
 **Validazioni in sospeso (browser / runtime reale)**
 
-- [ ] **Branch `feat/project-location-and-brand-presets`** — percorso progetto a scelta, elenco progetti recenti, preset dispositivo per brand. Mai testato end-to-end. Se ok → squash merge in `main`.
+- [ ] **Catena A: `feat/project-location-and-brand-presets` → `feat/fs-mkdir`** (testare il tip, contiene entrambi):
+  - Percorso progetto a scelta, elenco progetti recenti, preset dispositivo per brand.
+  - Sfoglia → **＋ Nuova cartella** → creata, ci si entra, "Usa questa cartella" → il progetto nasce lì e compare con badge "esterno". Provare nome duplicato (409) e nome non valido (es. `a/b`, `..`) → errore leggibile sotto la lista.
+  - WelcomeScreen → **📂 Apri da file ZIP…** → crea un progetto nuovo senza toccare quello attivo.
 - [ ] **Audit log + `--no-admin`** (2026-07-26): vista Audit in Configurazione → Sistema; `--no-admin` su un device reale (richiede `--viewer-port`).
 - [ ] **Telegram** (2026-07-26): rebuild+restart runtime per attivare allarmi Telegram e `send_telegram` negli script; validare l'uniformazione del tasto Salva.
 - [ ] **MQTT** (2026-07-24): riavvio runtime per il cap browse a 120 s; hard-refresh per palette su progetto vuoto e "Estrai da JSON".

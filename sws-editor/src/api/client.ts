@@ -4,6 +4,7 @@ import type {
   AlarmState,
   AuditEntry,
   AuditVerifyReport,
+  BrowseDirsResponse,
   CustomSymbol,
   DatastoreConfig,
   DatastoreListItem,
@@ -569,11 +570,24 @@ export const api = {
   listProjects: () =>
     request<ProjectListEntry[]>("/api/projects"),
 
-  createProject: (req: { name: string; template?: string }) =>
+  createProject: (req: { name: string; template?: string; parent_path?: string }) =>
     request<{ name: string }>("/api/projects", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(req),
+    }),
+
+  browseDirs: (path?: string) =>
+    request<BrowseDirsResponse>(
+      `/api/fs/browse-dirs${path ? `?path=${encodeURIComponent(path)}` : ""}`,
+    ),
+
+  /** Create one folder inside `parent` (which must already exist). */
+  createDir: (parent: string, name: string) =>
+    request<{ path: string }>("/api/fs/mkdir", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ parent, name }),
     }),
 
   openProject: (name: string) =>
@@ -785,10 +799,12 @@ export const api = {
     });
   },
 
-  uploadProjectZip: async (file: Blob, name?: string): Promise<{ name: string }> => {
-    const url = name
-      ? `${getBaseUrl()}/api/projects/upload?name=${encodeURIComponent(name)}`
-      : `${getBaseUrl()}/api/projects/upload`;
+  uploadProjectZip: async (file: Blob, name?: string, parentPath?: string): Promise<{ name: string }> => {
+    const params = new URLSearchParams();
+    if (name) params.set("name", name);
+    if (parentPath) params.set("parent_path", parentPath);
+    const qs = params.toString();
+    const url = `${getBaseUrl()}/api/projects/upload${qs ? `?${qs}` : ""}`;
     const headers = new Headers({ "Content-Type": "application/zip" });
     if (TOKEN) headers.set("Authorization", `Bearer ${TOKEN}`);
     const res = await fetch(url, { method: "POST", headers, body: file });

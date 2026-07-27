@@ -31,6 +31,18 @@ pub struct ProjectListEntry {
     pub name: String,
     pub has_project_yaml: bool,
     pub last_modified_ms: Option<u64>,
+    /// Absolute path on the server's filesystem — lets the UI disambiguate
+    /// projects living outside the default `projects_root`.
+    pub path: String,
+    /// When this project was last created/opened (registry-tracked). `None`
+    /// for a legacy root-scoped project never touched by the new code path
+    /// yet — sorts after every timestamped entry.
+    pub last_opened_ms: Option<u64>,
+    /// True when the project's path is NOT a direct child of `projects_root`
+    /// (i.e. a custom parent_path was chosen at creation). Drives softer
+    /// rename/delete semantics in the UI (never touches the maintainer's own
+    /// folder on disk).
+    pub external: bool,
 }
 
 #[derive(Deserialize)]
@@ -40,6 +52,12 @@ pub struct CreateProjectRequest {
     /// When None, a minimal `project.yaml` is written instead.
     #[serde(default)]
     pub template: Option<String>,
+    /// Optional absolute parent directory to create the project under, instead
+    /// of the default `projects_root` (e.g. the maintainer's Documents folder,
+    /// or a backup share). Must be an absolute path; created if missing. When
+    /// absent, behavior is 100% unchanged from before this field existed.
+    #[serde(default)]
+    pub parent_path: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -52,6 +70,8 @@ pub struct OpenProjectResponse {
 
 /// Sanitize a user-supplied project name into a safe folder name.
 /// Rejects empty / dot-prefixed / parent-traversal / slash-bearing inputs.
+/// Also used to validate plain folder names (see `POST /api/fs/mkdir`) — the
+/// rules are exactly the same.
 pub fn safe_project_name(name: &str) -> Result<String, &'static str> {
     let trimmed = name.trim();
     if trimmed.is_empty() {
@@ -81,44 +101,94 @@ pub fn safe_project_name(name: &str) -> Result<String, &'static str> {
 /// session.
 pub async fn list_projects(State(s): State<AppState>) -> Response {
     let root: &StdPath = s.projects_root.as_path();
-    let mut entries: Vec<ProjectListEntry> = Vec::new();
+    let mut by_name: std::collections::HashMap<String, ProjectListEntry> =
+        std::collections::HashMap::new();
 
-    let mut dir = match tokio::fs::read_dir(root).await {
-        Ok(d) => d,
-        Err(e) => {
-            warn!("list_projects: cannot read {}: {e}", root.display());
-            return Json::<Vec<ProjectListEntry>>(vec![]).into_response();
+    // 1. Legacy scan of projects_root — finds pre-existing root-scoped
+    //    projects that predate the registry and were never create/open'd
+    //    through the new code path yet.
+    match tokio::fs::read_dir(root).await {
+        Ok(mut dir) => {
+            while let Ok(Some(entry)) = dir.next_entry().await {
+                let path = entry.path();
+                let name = match path.file_name().and_then(|n| n.to_str()) {
+                    Some(n) => n.to_string(),
+                    None => continue,
+                };
+                if name.starts_with('.') {
+                    continue;
+                }
+                let meta = match tokio::fs::metadata(&path).await {
+                    Ok(m) if m.is_dir() => m,
+                    _ => continue,
+                };
+                let yaml_path = path.join("project.yaml");
+                // Skip directories that don't look like projects (e.g. the
+                // `logs/` subdirectory the runtime creates by default).
+                if !tokio::fs::try_exists(&yaml_path).await.unwrap_or(false) {
+                    continue;
+                }
+                let last_modified_ms = meta
+                    .modified()
+                    .ok()
+                    .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+                    .map(|d| d.as_millis() as u64);
+                by_name.insert(
+                    name.clone(),
+                    ProjectListEntry {
+                        name,
+                        has_project_yaml: true,
+                        last_modified_ms,
+                        path: path.to_string_lossy().to_string(),
+                        last_opened_ms: None,
+                        external: false,
+                    },
+                );
+            }
         }
-    };
-    while let Ok(Some(entry)) = dir.next_entry().await {
-        let path = entry.path();
-        let name = match path.file_name().and_then(|n| n.to_str()) {
-            Some(n) => n.to_string(),
-            None => continue,
-        };
-        if name.starts_with('.') {
-            continue;
-        }
-        let meta = match tokio::fs::metadata(&path).await {
-            Ok(m) if m.is_dir() => m,
-            _ => continue,
-        };
-        let yaml_path = path.join("project.yaml");
-        let has_project_yaml = tokio::fs::try_exists(&yaml_path).await.unwrap_or(false);
-        // Skip directories that don't look like projects (e.g. the `logs/`
-        // subdirectory that the runtime creates inside projects_root by default).
-        if !has_project_yaml {
-            continue;
-        }
-        let last_modified_ms = meta
-            .modified()
-            .ok()
-            .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
-            .map(|d| d.as_millis() as u64);
-        entries.push(ProjectListEntry { name, has_project_yaml, last_modified_ms });
+        Err(e) => warn!("list_projects: cannot read {}: {e}", root.display()),
     }
 
-    entries.sort_by(|a, b| a.name.cmp(&b.name));
+    // 2. Registry entries — covers projects created/opened at a custom
+    //    parent_path (never found by the scan above), and refreshes
+    //    last_opened_ms/path for anything the scan already picked up.
+    for (name, reg_entry) in s.known_projects.snapshot().await {
+        let yaml_path = reg_entry.path.join("project.yaml");
+        if !tokio::fs::try_exists(&yaml_path).await.unwrap_or(false) {
+            // Stale entry (folder moved/deleted outside SWS) — skip rather
+            // than show a dead link in the welcome list.
+            continue;
+        }
+        let external = reg_entry.path.parent() != Some(root);
+        let last_modified_ms = tokio::fs::metadata(&reg_entry.path)
+            .await
+            .ok()
+            .and_then(|m| m.modified().ok())
+            .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+            .map(|d| d.as_millis() as u64);
+        by_name.insert(
+            name.clone(),
+            ProjectListEntry {
+                name,
+                has_project_yaml: true,
+                last_modified_ms,
+                path: reg_entry.path.to_string_lossy().to_string(),
+                last_opened_ms: Some(reg_entry.last_opened_ms),
+                external,
+            },
+        );
+    }
+
+    let mut entries: Vec<ProjectListEntry> = by_name.into_values().collect();
+    // Most recently opened first; untouched legacy entries (no registry
+    // timestamp) sort after every timestamped one, alphabetically among
+    // themselves.
+    entries.sort_by(|a, b| {
+        b.last_opened_ms
+            .unwrap_or(0)
+            .cmp(&a.last_opened_ms.unwrap_or(0))
+            .then_with(|| a.name.cmp(&b.name))
+    });
     Json(entries).into_response()
 }
 
@@ -132,7 +202,30 @@ pub async fn create_project(
         Ok(n) => n,
         Err(msg) => return (StatusCode::BAD_REQUEST, msg).into_response(),
     };
-    let target = s.projects_root.join(&safe_name);
+
+    // Resolve the parent directory: default projects_root (unchanged behavior)
+    // or a maintainer-chosen absolute path (Documents folder, backup share...).
+    let parent_dir: PathBuf = match req.parent_path.as_deref().filter(|p| !p.trim().is_empty()) {
+        Some(p) => {
+            let parent = PathBuf::from(p);
+            if !parent.is_absolute() {
+                return (StatusCode::BAD_REQUEST, "parent_path must be an absolute path").into_response();
+            }
+            if let Err(e) = tokio::fs::create_dir_all(&parent).await {
+                warn!("create_project: mkdir parent {}: {e}", parent.display());
+                return (StatusCode::BAD_REQUEST, format!("cannot create/access parent_path: {e}")).into_response();
+            }
+            parent
+        }
+        None => s.projects_root.as_ref().clone(),
+    };
+
+    // Uniqueness must hold across BOTH the projects_root scan and the registry
+    // (a name already used by an external project can't be reused here).
+    if s.known_projects.get_path(&safe_name).await.is_some() {
+        return (StatusCode::CONFLICT, "project already exists").into_response();
+    }
+    let target = parent_dir.join(&safe_name);
     if tokio::fs::try_exists(&target).await.unwrap_or(false) {
         return (StatusCode::CONFLICT, "project already exists").into_response();
     }
@@ -204,6 +297,11 @@ pub async fn create_project(
         }
     }
 
+    // Every created project — root-scoped or at a custom parent_path — enters
+    // the known-projects registry, so the "recent projects" list picks it up
+    // immediately (not just custom-path ones).
+    s.known_projects.touch(&safe_name, &target).await;
+
     (
         StatusCode::CREATED,
         Json(serde_json::json!({ "name": safe_name })),
@@ -224,7 +322,12 @@ pub async fn open_project(
         Ok(n) => n,
         Err(msg) => return (StatusCode::BAD_REQUEST, msg).into_response(),
     };
-    let project_dir = s.projects_root.join(&safe_name);
+    // Resolve via the registry first (covers custom-path/external projects),
+    // falling back to the default projects_root location as before.
+    let project_dir = match s.known_projects.get_path(&safe_name).await {
+        Some(p) => p,
+        None => s.projects_root.join(&safe_name),
+    };
     if !tokio::fs::try_exists(&project_dir).await.unwrap_or(false) {
         return (StatusCode::NOT_FOUND, "project not found").into_response();
     }
@@ -380,7 +483,12 @@ pub async fn open_project(
     if let Err(e) = tokio::fs::write(&marker, project_dir.to_string_lossy().as_bytes()).await {
         warn!("open_project: could not write .active-project marker: {e}");
     }
-    *s.project_dir.write().await = Some(project_dir);
+    *s.project_dir.write().await = Some(project_dir.clone());
+
+    // Every successful open — not just creation — refreshes last_opened_ms,
+    // which is what makes this a "recent projects" list rather than just a
+    // "created projects" list.
+    s.known_projects.touch(&safe_name, &project_dir).await;
 
     Json(OpenProjectResponse {
         name: safe_name,
@@ -425,8 +533,30 @@ pub struct RenameRequest {
     pub new_name: String,
 }
 
-/// `DELETE /api/projects/:name` — permanently remove a project folder.
-/// Returns 409 if the project is currently open.
+/// A project's directory is "external" when it doesn't live directly under
+/// `projects_root` (i.e. it was created at a maintainer-chosen custom
+/// `parent_path`). Derived from the path rather than stored, so there's
+/// nothing to keep in sync.
+fn is_external(dir: &StdPath, root: &StdPath) -> bool {
+    dir.parent() != Some(root)
+}
+
+/// Resolve a project name to its directory: registry first (covers external
+/// and any previously-touched root project), falling back to the legacy
+/// `projects_root/<name>` location.
+async fn resolve_project_dir(s: &AppState, name: &str) -> PathBuf {
+    match s.known_projects.get_path(name).await {
+        Some(p) => p,
+        None => s.projects_root.join(name),
+    }
+}
+
+/// `DELETE /api/projects/:name` — remove a project. For a root-scoped project
+/// this deletes the folder on disk (today's behavior); for an external
+/// project (custom parent_path, e.g. the maintainer's Documents folder or a
+/// backup share) it only de-registers it from the known-projects list —
+/// files the maintainer deliberately placed outside the editor are never
+/// touched.
 pub async fn delete_project(
     State(s): State<AppState>,
     Path(name): Path<String>,
@@ -435,7 +565,7 @@ pub async fn delete_project(
         Ok(n) => n,
         Err(msg) => return (StatusCode::BAD_REQUEST, msg).into_response(),
     };
-    let target = s.projects_root.join(&safe_name);
+    let target = resolve_project_dir(&s, &safe_name).await;
     if !tokio::fs::try_exists(&target).await.unwrap_or(false) {
         return StatusCode::NOT_FOUND.into_response();
     }
@@ -446,10 +576,18 @@ pub async fn delete_project(
                 .into_response();
         }
     }
+
+    if is_external(&target, s.projects_root.as_path()) {
+        s.known_projects.remove(&safe_name).await;
+        info!(name = %safe_name, path = %target.display(), "external project removed from list (files untouched)");
+        return StatusCode::NO_CONTENT.into_response();
+    }
+
     if let Err(e) = tokio::fs::remove_dir_all(&target).await {
         warn!("delete_project: remove {}: {e}", target.display());
         return (StatusCode::INTERNAL_SERVER_ERROR, "cannot delete project dir").into_response();
     }
+    s.known_projects.remove(&safe_name).await;
     // Clear the auto-open marker if it pointed at the deleted project, so the
     // runtime doesn't try to reopen a missing directory on next restart.
     let marker = s.projects_root.join(".active-project");
@@ -462,9 +600,12 @@ pub async fn delete_project(
     StatusCode::NO_CONTENT.into_response()
 }
 
-/// `POST /api/projects/:name/rename` — rename a project folder.
+/// `POST /api/projects/:name/rename` — rename a project.
 /// Body: `{ "new_name": "..." }`.
-/// If the project is currently open, updates the active project_dir pointer.
+/// Root-scoped: renames the physical folder under `projects_root` (today's
+/// behavior). External (custom parent_path): the folder is left exactly
+/// where the maintainer put it — only `meta.name` and the registry key
+/// change.
 pub async fn rename_project(
     State(s): State<AppState>,
     Path(name): Path<String>,
@@ -481,11 +622,27 @@ pub async fn rename_project(
     if old_name == new_name {
         return (StatusCode::BAD_REQUEST, "new name is the same as the current name").into_response();
     }
-    let old_dir = s.projects_root.join(&old_name);
-    let new_dir = s.projects_root.join(&new_name);
+    let old_dir = resolve_project_dir(&s, &old_name).await;
     if !tokio::fs::try_exists(&old_dir).await.unwrap_or(false) {
         return StatusCode::NOT_FOUND.into_response();
     }
+    // The new name must be free both in the registry and in projects_root.
+    if s.known_projects.get_path(&new_name).await.is_some() {
+        return (StatusCode::CONFLICT, "a project with the new name already exists").into_response();
+    }
+
+    if is_external(&old_dir, s.projects_root.as_path()) {
+        let yaml_path = old_dir.join("project.yaml");
+        if let Err(e) = patch_project_name(&yaml_path, &new_name).await {
+            warn!("rename_project: patch meta.name {}: {e}", yaml_path.display());
+            return (StatusCode::INTERNAL_SERVER_ERROR, "cannot update project.yaml").into_response();
+        }
+        s.known_projects.rename_key(&old_name, &new_name).await;
+        info!(old = %old_name, new = %new_name, path = %old_dir.display(), "external project renamed (folder unchanged)");
+        return Json(serde_json::json!({ "name": new_name })).into_response();
+    }
+
+    let new_dir = s.projects_root.join(&new_name);
     if tokio::fs::try_exists(&new_dir).await.unwrap_or(false) {
         return (StatusCode::CONFLICT, "a project with the new name already exists").into_response();
     }
@@ -500,12 +657,16 @@ pub async fn rename_project(
             *lock = Some(new_dir.clone());
         }
     }
+    s.known_projects.remove(&old_name).await;
+    s.known_projects.touch(&new_name, &new_dir).await;
     info!(old = %old_name, new = %new_name, "project renamed");
     Json(serde_json::json!({ "name": new_name })).into_response()
 }
 
 /// `POST /api/projects/:name/duplicate` — copy a project to a new folder.
 /// Body: `{ "new_name": "..." }`.
+/// External projects are duplicated as a sibling folder next to the
+/// original (same custom parent), not pulled into `projects_root`.
 pub async fn duplicate_project(
     State(s): State<AppState>,
     Path(name): Path<String>,
@@ -519,11 +680,21 @@ pub async fn duplicate_project(
         Ok(n) => n,
         Err(msg) => return (StatusCode::BAD_REQUEST, msg).into_response(),
     };
-    let src_dir = s.projects_root.join(&src_name);
-    let dst_dir = s.projects_root.join(&dst_name);
+    let src_dir = resolve_project_dir(&s, &src_name).await;
     if !tokio::fs::try_exists(&src_dir).await.unwrap_or(false) {
         return StatusCode::NOT_FOUND.into_response();
     }
+    if s.known_projects.get_path(&dst_name).await.is_some() {
+        return (StatusCode::CONFLICT, "a project with the new name already exists").into_response();
+    }
+    let dst_dir = if is_external(&src_dir, s.projects_root.as_path()) {
+        match src_dir.parent() {
+            Some(parent) => parent.join(&dst_name),
+            None => return (StatusCode::INTERNAL_SERVER_ERROR, "source project has no parent directory").into_response(),
+        }
+    } else {
+        s.projects_root.join(&dst_name)
+    };
     if tokio::fs::try_exists(&dst_dir).await.unwrap_or(false) {
         return (StatusCode::CONFLICT, "a project with the new name already exists").into_response();
     }
@@ -532,8 +703,160 @@ pub async fn duplicate_project(
         let _ = tokio::fs::remove_dir_all(&dst_dir).await;
         return (StatusCode::INTERNAL_SERVER_ERROR, "copy failed").into_response();
     }
+    s.known_projects.touch(&dst_name, &dst_dir).await;
     info!(src = %src_name, dst = %dst_name, "project duplicated");
     (StatusCode::CREATED, Json(serde_json::json!({ "name": dst_name }))).into_response()
+}
+
+// ── Mini file-browser (choose a project parent directory) ────────────────────
+
+#[derive(Deserialize)]
+pub struct BrowseDirsQuery {
+    #[serde(default)]
+    pub path: Option<String>,
+}
+
+#[derive(Serialize)]
+pub struct BrowseDirEntry {
+    pub name: String,
+    pub path: String,
+}
+
+#[derive(Serialize)]
+pub struct BrowseDirsResponse {
+    pub path: String,
+    pub parent: Option<String>,
+    pub dirs: Vec<BrowseDirEntry>,
+}
+
+/// `GET /api/fs/browse-dirs?path=<abs|absent>` — backend for the "choose a
+/// destination folder" UI shown when creating a project. Lists only the
+/// subdirectories of `path` (or a sensible default when absent: `$HOME`,
+/// falling back to `projects_root`). No whitelist by design — same
+/// pre-auth/LAN-trusted posture as the rest of the project-lifecycle
+/// endpoints; the maintainer explicitly wants free navigation, not a
+/// restricted picker.
+pub async fn browse_dirs(
+    State(s): State<AppState>,
+    Query(q): Query<BrowseDirsQuery>,
+) -> Response {
+    let current: PathBuf = match q.path.as_deref().filter(|p| !p.trim().is_empty()) {
+        Some(p) => {
+            let p = PathBuf::from(p);
+            if !p.is_absolute() {
+                return (StatusCode::BAD_REQUEST, "path must be absolute").into_response();
+            }
+            p
+        }
+        None => std::env::var("HOME")
+            .map(PathBuf::from)
+            .unwrap_or_else(|_| s.projects_root.as_ref().clone()),
+    };
+
+    let mut dir = match tokio::fs::read_dir(&current).await {
+        Ok(d) => d,
+        Err(e) => {
+            return (
+                StatusCode::BAD_REQUEST,
+                format!("cannot list {}: {e}", current.display()),
+            )
+                .into_response();
+        }
+    };
+
+    let mut dirs = Vec::new();
+    while let Ok(Some(entry)) = dir.next_entry().await {
+        let path = entry.path();
+        let name = match path.file_name().and_then(|n| n.to_str()) {
+            Some(n) => n.to_string(),
+            None => continue,
+        };
+        if name.starts_with('.') {
+            continue;
+        }
+        match tokio::fs::metadata(&path).await {
+            Ok(m) if m.is_dir() => {}
+            _ => continue,
+        }
+        dirs.push(BrowseDirEntry { name, path: path.to_string_lossy().to_string() });
+    }
+    dirs.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+
+    let parent = current.parent().map(|p| p.to_string_lossy().to_string());
+    Json(BrowseDirsResponse {
+        path: current.to_string_lossy().to_string(),
+        parent,
+        dirs,
+    })
+    .into_response()
+}
+
+#[derive(Deserialize)]
+pub struct CreateDirRequest {
+    /// Absolute path of the (already existing) parent directory.
+    pub parent: String,
+    /// Name of the folder to create inside `parent`.
+    pub name: String,
+}
+
+#[derive(Serialize)]
+pub struct CreateDirResponse {
+    pub path: String,
+}
+
+/// Pure part of `POST /api/fs/mkdir`: validate the inputs and build the target
+/// path. Split out from the handler so it can be unit-tested without an
+/// `AppState` or a filesystem.
+fn resolve_new_dir(parent: &str, name: &str) -> Result<PathBuf, &'static str> {
+    let trimmed = parent.trim();
+    let p = PathBuf::from(trimmed);
+    if trimmed.is_empty() || !p.is_absolute() {
+        return Err("parent must be an absolute path");
+    }
+    // A folder name has the same constraints as a project name.
+    let safe = safe_project_name(name)?;
+    Ok(p.join(safe))
+}
+
+/// `POST /api/fs/mkdir` — create one directory, for the "new folder" button in
+/// the destination picker. Pre-auth like `browse_dirs` and the rest of the
+/// project-lifecycle group: the picker is reachable from the WelcomeScreen
+/// before any session exists, which is precisely when the first project (and
+/// its folder) gets created. This adds no new capability class — an
+/// unauthenticated caller can already materialise arbitrary directory trees
+/// via `POST /api/projects` / `?parent_path=` (both `create_dir_all`).
+pub async fn create_dir(
+    State(_s): State<AppState>,
+    Json(req): Json<CreateDirRequest>,
+) -> Response {
+    let target = match resolve_new_dir(&req.parent, &req.name) {
+        Ok(p) => p,
+        Err(e) => return (StatusCode::BAD_REQUEST, e).into_response(),
+    };
+
+    // The parent must already exist: `create_dir` (not `create_dir_all`) so a
+    // typo in `parent` can't silently produce a whole tree.
+    match tokio::fs::metadata(target.parent().unwrap_or(&target)).await {
+        Ok(m) if m.is_dir() => {}
+        _ => return (StatusCode::BAD_REQUEST, "parent directory does not exist").into_response(),
+    }
+
+    match tokio::fs::create_dir(&target).await {
+        Ok(()) => {
+            info!(path = %target.display(), "directory created");
+            (
+                StatusCode::CREATED,
+                Json(CreateDirResponse { path: target.to_string_lossy().to_string() }),
+            )
+                .into_response()
+        }
+        Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists =>
+            (StatusCode::CONFLICT, "directory already exists").into_response(),
+        Err(e) if e.kind() == std::io::ErrorKind::PermissionDenied =>
+            (StatusCode::FORBIDDEN, format!("cannot create {}: {e}", target.display())).into_response(),
+        Err(e) =>
+            (StatusCode::BAD_REQUEST, format!("cannot create {}: {e}", target.display())).into_response(),
+    }
 }
 
 // ── Upload from ZIP ───────────────────────────────────────────────────────────
@@ -545,6 +868,11 @@ pub struct UploadQuery {
     /// rejected with 400.
     #[serde(default)]
     pub name: Option<String>,
+    /// Optional absolute parent directory to create the project under,
+    /// mirroring `CreateProjectRequest::parent_path`. Absent = projects_root
+    /// (unchanged behavior).
+    #[serde(default)]
+    pub parent_path: Option<String>,
 }
 
 // Minimal manifest — we only need `name` to derive the folder name.
@@ -595,9 +923,31 @@ pub async fn upload_project_zip(
         Err(msg) => return (StatusCode::BAD_REQUEST, msg).into_response(),
     };
 
-    // 3. Reject if the folder already exists — include the real name so the
-    //    client can display a confirmation dialog before deleting + re-uploading.
-    let target = s.projects_root.join(&safe_name);
+    // 3. Resolve the parent directory (default projects_root, or a
+    //    maintainer-chosen absolute path), then reject if the folder already
+    //    exists — include the real name so the client can display a
+    //    confirmation dialog before deleting + re-uploading.
+    let parent_dir: PathBuf = match q.parent_path.as_deref().filter(|p| !p.trim().is_empty()) {
+        Some(p) => {
+            let parent = PathBuf::from(p);
+            if !parent.is_absolute() {
+                return (StatusCode::BAD_REQUEST, "parent_path must be an absolute path").into_response();
+            }
+            if let Err(e) = tokio::fs::create_dir_all(&parent).await {
+                warn!("upload_project_zip: mkdir parent {}: {e}", parent.display());
+                return (StatusCode::BAD_REQUEST, format!("cannot create/access parent_path: {e}")).into_response();
+            }
+            parent
+        }
+        None => s.projects_root.as_ref().clone(),
+    };
+    if s.known_projects.get_path(&safe_name).await.is_some() {
+        return (
+            StatusCode::CONFLICT,
+            axum::Json(serde_json::json!({ "name": safe_name })),
+        ).into_response();
+    }
+    let target = parent_dir.join(&safe_name);
     if tokio::fs::try_exists(&target).await.unwrap_or(false) {
         return (
             StatusCode::CONFLICT,
@@ -649,6 +999,7 @@ pub async fn upload_project_zip(
         }
     }
 
+    s.known_projects.touch(&safe_name, &target).await;
     info!(name = %safe_name, "project created from uploaded ZIP");
     (StatusCode::CREATED, Json(serde_json::json!({ "name": safe_name }))).into_response()
 }
@@ -730,6 +1081,23 @@ mod tests {
         assert!(safe_project_name("foo\\bar").is_err());
         assert!(safe_project_name("foo:bar").is_err());
         assert!(safe_project_name(&"x".repeat(100)).is_err());
+    }
+
+    #[test]
+    fn resolve_new_dir_accepts_and_joins() {
+        assert_eq!(resolve_new_dir("/tmp", "nuova").unwrap(), PathBuf::from("/tmp/nuova"));
+        // both sides are trimmed
+        assert_eq!(resolve_new_dir("  /tmp  ", " nuova ").unwrap(), PathBuf::from("/tmp/nuova"));
+    }
+
+    #[test]
+    fn resolve_new_dir_rejects_relative_parent_and_bad_names() {
+        assert!(resolve_new_dir("tmp", "x").is_err());        // not absolute
+        assert!(resolve_new_dir("", "x").is_err());
+        assert!(resolve_new_dir("/tmp", "").is_err());
+        assert!(resolve_new_dir("/tmp", "..").is_err());      // traversal
+        assert!(resolve_new_dir("/tmp", "a/b").is_err());     // no nesting
+        assert!(resolve_new_dir("/tmp", ".hidden").is_err());
     }
 }
 

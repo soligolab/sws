@@ -8,7 +8,8 @@ import { TagInput } from "@/components/TagInput";
 import { BindableInput } from "@/components/BindableInput";
 import { ImageBrowser } from "@/components/ImageBrowser";
 import { SYMBOL_LIST } from "@/symbols/library";
-import { DEVICE_PRESETS, effectiveSizeMode } from "@/pageLayout";
+import { effectiveSizeMode, getDevicePresets, STANDARD_DEVICE_PRESETS } from "@/pageLayout";
+import { getBrand } from "@/branding";
 import type { SymbolMeta } from "@/symbols/library";
 import { useAppStore } from "@/store";
 import { localizeObjects } from "@/i18n/projectI18n";
@@ -1436,12 +1437,19 @@ function PageProps({
               style={{ ...INPUT, cursor: ro ? "default" : "pointer" }}
               value=""
               onChange={(e) => {
-                const preset = DEVICE_PRESETS.find((d) => d.label === e.target.value);
+                const preset = getDevicePresets().find((d) => d.label === e.target.value);
                 if (preset) onChange({ width: preset.width, height: preset.height });
               }}
             >
               <option value="">Personalizzato…</option>
-              {DEVICE_PRESETS.map((d) => <option key={d.label} value={d.label}>{d.label}</option>)}
+              <optgroup label="Standard">
+                {STANDARD_DEVICE_PRESETS.map((d) => <option key={d.label} value={d.label}>{d.label}</option>)}
+              </optgroup>
+              {getBrand().devicePresets.length > 0 && (
+                <optgroup label={getBrand().shortName}>
+                  {getBrand().devicePresets.map((d) => <option key={d.label} value={d.label}>{d.label}</option>)}
+                </optgroup>
+              )}
             </select>
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 6px" }}>

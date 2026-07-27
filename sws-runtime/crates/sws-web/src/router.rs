@@ -99,6 +99,10 @@ pub struct AppState {
     /// log spanning project open/close — not reset on project switch, so the
     /// trail of "who did what" survives across projects.
     pub audit: Arc<sws_audit::AuditLog>,
+    /// Known-projects registry (name -> path + last_opened_ms), touched on every
+    /// create/open. Backs the "recent projects" list and lets projects live
+    /// outside `projects_root` (custom parent path chosen at creation).
+    pub known_projects: Arc<crate::project_registry::ProjectRegistry>,
 }
 
 /// Resolve the active project directory or return 503. Used at the top
@@ -133,8 +137,9 @@ pub fn build(
     // execution) from the viewer. Button-bound `/api/script/run/:name` stays.
     lockdown: bool,
     audit: Arc<sws_audit::AuditLog>,
+    known_projects: Arc<crate::project_registry::ProjectRegistry>,
 ) -> (Router, Router) {
-    let state = AppState { db, bus, alarms, historian, registry, py, auth, supervisor, script_supervisor, functions, derived_tags, project_dir, projects_root, templates_root, logs, logs_dir, started_at, ip_allowlist, recipe_log: Arc::new(RwLock::new(Vec::new())), notification_supervisor: Arc::new(RwLock::new(None)), telegram_sender: Arc::new(RwLock::new(None)), config_dir, cert_path, build_running: crate::packaging::new_build_lock(), repo_root: crate::packaging::new_repo_root(), remote_target: Arc::new(RwLock::new(None)), audit };
+    let state = AppState { db, bus, alarms, historian, registry, py, auth, supervisor, script_supervisor, functions, derived_tags, project_dir, projects_root, templates_root, logs, logs_dir, started_at, ip_allowlist, recipe_log: Arc::new(RwLock::new(Vec::new())), notification_supervisor: Arc::new(RwLock::new(None)), telegram_sender: Arc::new(RwLock::new(None)), config_dir, cert_path, build_running: crate::packaging::new_build_lock(), repo_root: crate::packaging::new_repo_root(), remote_target: Arc::new(RwLock::new(None)), audit, known_projects };
     // Build the runtime router (8443) before consuming state for admin.
     let runtime_app = build_runtime_inner(state.clone(), www_dir.clone(), lockdown);
 
@@ -356,7 +361,16 @@ pub fn build(
         .route("/api/projects/upload",
             post(crate::projects::upload_project_zip))
         .route("/api/templates",
-            get(crate::templates::list_templates));
+            get(crate::templates::list_templates))
+        // Mini directory browser backing the "choose a destination folder"
+        // picker in the New Project dialog. Pre-auth like the rest of this
+        // group — no session exists yet when creating the first project.
+        .route("/api/fs/browse-dirs",
+            get(crate::projects::browse_dirs))
+        // "New folder" inside that picker. Same pre-auth posture — see the
+        // handler doc comment for why this adds no new capability.
+        .route("/api/fs/mkdir",
+            post(crate::projects::create_dir));
 
     // Install the Prometheus recorder once. Calling this multiple times in
     // the same process (e.g. tests that build several routers) is safe.
