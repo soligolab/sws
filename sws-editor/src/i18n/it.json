@@ -4,7 +4,11 @@
     "project": "Progetto",
     "user": "Utente",
     "unsavedShort": "non salvato",
-    "unsavedHint": "Modifiche non salvate — clic per salvare (Ctrl+S)"
+    "unsavedHint": "Modifiche non salvate — clic per salvare (Ctrl+S)",
+    "projectChangedOutside": "Il progetto sul runtime è cambiato (deploy o modifica esterna). Questa pagina mostra ancora la versione precedente.",
+    "reloadNow": "Ricarica",
+    "dismiss": "Ignora",
+    "newBuildAvailable": "È disponibile una versione aggiornata dell'interfaccia. Ricarica per applicarla."
   },
   "common": {
     "save": "Salva",
@@ -106,7 +110,7 @@
     "importing": "Importo…",
     "closeProject": "Chiudi progetto",
     "logout": "Esci",
-    "importConfirm": "Sostituire l'intero progetto corrente?\nI synoptic non inclusi nel bundle saranno eliminati.\nLe password MQTT non sono incluse: dovrai re-immetterle dopo l'import.",
+    "importConfirm": "Sostituire l'intero progetto corrente?\nI synoptic non inclusi nel bundle saranno eliminati.\nIl bundle contiene anche le credenziali (password e token), che verranno ripristinate come sono.",
     "imported": "Importato {{file}} ({{count}} tag)",
     "logPanel": "Pannello log",
     "saveCopyToPc": "💾 Salva copia sul PC…",
@@ -237,7 +241,8 @@
     "active": "attivi",
     "activeTab": "Attivi",
     "ackAll": "ACK tutti",
-    "shelve": "Sopprimi"
+    "shelve": "Sopprimi",
+    "projectUpdated": "Progetto aggiornato"
   },
   "alarm": {
     "noAlarms": "Nessun allarme attivo",
@@ -336,8 +341,8 @@
     "noMatch": "Nessun log corrisponde ai filtri correnti."
   },
   "projectIO": {
-    "importConfirm": "Sostituire l'intero progetto corrente?\nLe password MQTT non sono incluse nel bundle: dovrai re-immetterle dopo l'import.",
-    "exportTitle": "Esporta il progetto come ZIP",
+    "importConfirm": "Sostituire l'intero progetto corrente?\nIl bundle contiene anche le credenziali (password e token), che verranno ripristinate come sono.",
+    "exportTitle": "Esporta il progetto come ZIP (contiene password e token: conservalo in modo sicuro)",
     "exporting": "Esporto…",
     "importTitle": "Importa un progetto da ZIP (sostituisce quello corrente)",
     "importing": "Importo…"
@@ -361,7 +366,8 @@
     "filterPlaceholder": "Filtra tag…",
     "noTags": "Nessun tag trovato",
     "bindTo": "Lega a un tag",
-    "bindPlaceholder": "es. demo.rotation"
+    "bindPlaceholder": "es. demo.rotation",
+    "noTagsInProject": "Nessuna variabile disponibile. Dichiarale in Configurazione → Variabili, oppure aggiungi una sorgente: le variabili mappate dai protocolli compaiono qui automaticamente."
   },
   "admin": {
     "disconnectConfirm": "Disconnettere il runtime remoto?",
@@ -782,7 +788,14 @@
     "maxRowsPerTag": "Max righe per tag",
     "retentionDays": "Giorni di ritenzione",
     "add": "Aggiungi",
-    "connect": "Connetti"
+    "connect": "Connetti",
+    "telegramColHint": "Instradamento Telegram di questo allarme. \"Chat predefinite\" = quelle di Configurazione → Notifiche (comportamento storico).",
+    "tgModeGlobal": "Chat predefinite",
+    "tgModeChats": "Chat specifiche",
+    "tgModeOff": "Non notificare",
+    "tgChatIdsPh": "chat ID (virgola)",
+    "tgChatIdsHint": "telegram_chat_ids: solo queste chat riceveranno l'allarme. Usa \"Rileva chat\" in Notifiche per conoscere gli ID.",
+    "tgChatIdsMissing": "⚠ nessuna chat: l'allarme non verrà notificato"
   },
   "langtab": {
     "intro": "Traduci i messaggi che scrivi negli oggetti. Nei campi testo usa {{chiave}}; qui definisci le traduzioni per ogni lingua.",

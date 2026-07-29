@@ -73,5 +73,10 @@ export default defineConfig({
     environment: "jsdom",
     globals: true,
     setupFiles: [],
+    // Solo i test unitari. `e2e/` sono spec Playwright: vitest le raccoglieva e
+    // le contava come 5 file falliti a ogni esecuzione (fallisce l'import di
+    // `@playwright/test` fuori dal suo runner), rendendo `pnpm test` rosso
+    // sempre e quindi inutile come verifica. Le e2e girano con `pnpm test:e2e`.
+    include: ["tests/**/*.{test,spec}.{ts,tsx}"],
   },
 });

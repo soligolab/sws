@@ -88,6 +88,12 @@ interface SvgCanvasProps {
   onZoomChange?: (zoom: number) => void;
   /** Page size "Fit page" should target; null when undeterminable (fluid). */
   fitPageSize?: { width: number; height: number } | null;
+
+  /** Viewer only, `sizeMode === "fixed"`: fattore di riduzione applicato alla
+   *  pagina quando non entra nel contenitore. Lo calcola chi conosce lo spazio
+   *  disponibile (RuntimeView), con cap a 1 — si rimpicciolisce, non si
+   *  ingrandisce. Default 1 = comportamento 1:1 storico. */
+  fitScale?: number;
 }
 
 interface DragState {
@@ -430,6 +436,7 @@ export function SvgCanvas({
   viewApi,
   onZoomChange,
   fitPageSize = null,
+  fitScale = 1,
 }: SvgCanvasProps) {
   const { t } = useTranslation();
   // Resolved selection set: prefer the explicit array, fall back to the
@@ -1058,10 +1065,18 @@ export function SvgCanvas({
           return { width: "100%", height: "100%" };
         }
         if (sizeMode === "fixed") {
-          // 1:1 real pixels, no scaling — a window/screen size mismatch shows
-          // scrollbars or empty margin (handled by the container), never
-          // distortion or cropping.
-          return { width: pageWidth, height: pageHeight };
+          // Pixel reali quando la pagina entra (fitScale === 1): è la promessa
+          // della modalità "fisso" su un dispositivo noto. Quando non entra si
+          // rimpicciolisce mantenendo le proporzioni (il viewBox regge lo
+          // scaling) invece di mostrare scrollbar — sul pannello WP620 le barre
+          // rubavano 70px di chrome più una ventina per sé stesse.
+          if (fitScale >= 1) return { width: pageWidth, height: pageHeight };
+          return {
+            width: Math.round(pageWidth * fitScale),
+            height: Math.round(pageHeight * fitScale),
+            viewBox: `0 0 ${pageWidth} ${pageHeight}`,
+            preserveAspectRatio: "xMidYMid meet",
+          };
         }
         // "ratio" — scale-to-fit preserving aspect ratio (letterbox), today's
         // long-standing behavior against the standard reference resolution.

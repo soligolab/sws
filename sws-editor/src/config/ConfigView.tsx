@@ -4,12 +4,14 @@ import { api, getAuthToken, type CreateUserBody, type DiscoveredRuntime, type Up
 import { TagInput } from "@/components/TagInput";
 import { PythonEditor, type PythonEditorHandle } from "@/components/PythonEditor";
 import { ThemeToggle } from "@/components/ThemeToggle";
-import { useAppStore } from "@/store";
+import { selectIsDirty, useAppStore } from "@/store";
+import { sourceTagIds } from "@/tagCatalog";
 import { canConfigureProject } from "@/auth/permissions";
 import type {
   AlarmCondition,
   AlarmDef,
   AlarmSeverity,
+  AlarmTelegramMode,
   AuditEntry,
   AuditVerifyReport,
   LanguageTable,
@@ -295,6 +297,10 @@ function QuickCreateTagModal({
 // "modifiche non salvate" a livello di app: registra nello store come salvare
 // questa sezione, così l'indicatore in header si accende e Ctrl+S ("Salva
 // tutto") svuota anche la bozza della tab attiva.
+/** Sentinella con cui il backend maschera i segreti già salvati (password SMTP,
+ *  bot token Telegram). Rimandarla indietro invariata lascia il valore com'è. */
+const MASKED = "********";
+
 function SaveBar({
   onSave,
   saving,
@@ -356,21 +362,6 @@ function SaveBar({
 }
 
 // ── TAG tab ───────────────────────────────────────────────────────────────────
-
-function collectSourceTagIds(project: ReturnType<typeof useAppStore.getState>["project"]): string[] {
-  if (!project) return [];
-  const ids = new Set<string>();
-  for (const src of project.sources ?? []) {
-    const s = src as any;
-    for (const e of s.entities  ?? []) if (e?.tag) ids.add(e.tag);   // HomeAssistant
-    for (const r of s.registers ?? []) if (r?.tag) ids.add(r.tag);   // Modbus TCP/RTU
-    for (const t of s.tags      ?? []) if (t?.tag) ids.add(t.tag);   // S7, EtherNet/IP
-    for (const n of s.nodes     ?? []) if (n?.tag) ids.add(n.tag);   // OPC-UA
-    for (const t of s.topics    ?? []) if (t?.tag) ids.add(t.tag);   // MQTT
-    for (const m of s.metrics   ?? []) if (m?.tag) ids.add(m.tag);   // Sparkplug B
-  }
-  return [...ids].sort();
-}
 
 function TagsTab() {
   const { t } = useTranslation();
@@ -456,8 +447,15 @@ function TagsTab() {
 
   return (
     <div style={S.section}>
-      <SaveBar onSave={handleSave} saving={saving} saved={saved}
-        section="tags" dirty={JSON.stringify(tags) !== JSON.stringify(storeProject?.tags ?? [])} />
+{/* Volutamente NON registrata in `pendingSections`: un confronto strutturale
+          bozza-vs-store non esprime l'intenzione dell'utente, e con "Salva tutto"
+          che svuota le bozze una bozza momentaneamente disallineata veniva
+          scritta su disco. Il 2026-07-28 questo ha azzerato le variabili di un
+          progetto (audit: `{"count": 0, "what": "tags"}` contro 16 su disco).
+          Questa tab si salva solo col proprio pulsante, come prima. Si potrà
+          ri-abilitare quando traccerà l'intenzione reale, come fanno Notifiche
+          (flag `touched`) e Datastore (flag `dirty` locale). */}
+      <SaveBar onSave={handleSave} saving={saving} saved={saved} />
       {showImport && (
         <div style={{
           position: "fixed", inset: 0, zIndex: 8000,
@@ -650,7 +648,7 @@ function TagsTab() {
       {/* Orphan source tags — present in protocol sources but missing from project.tags */}
       {(() => {
         const explicitIds = new Set(tags.map(t => t.id));
-        const orphanIds = collectSourceTagIds(storeProject).filter(id => !explicitIds.has(id));
+        const orphanIds = [...sourceTagIds(storeProject).keys()].filter(id => !explicitIds.has(id));
         if (orphanIds.length === 0) return null;
         return (
           <div style={{ marginTop: 16, borderTop: "1px solid var(--brand-surface, #1e293b)", paddingTop: 12 }}>
@@ -892,9 +890,9 @@ function S7SourceCard({
         <div style={{ fontSize: 12, fontWeight: 700, color: "var(--brand-text-subtle, #64748b)", marginBottom: 8 }}>TAG ({source.tags.length})</div>
         {source.tags.map((tm, idx) => (
           <div key={idx} style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 6, flexWrap: "wrap" }}>
-            <input
+            <TagInput
               value={tm.tag}
-              onChange={(e) => updateTag(idx, { tag: e.target.value })}
+              onChange={(v) => updateTag(idx, { tag: v })}
               placeholder={t("cfg.tagIdPh")}
               style={{ background: "var(--brand-bg, #0f172a)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, color: "var(--brand-text, #e2e8f0)", padding: "4px 6px", fontSize: 12, width: 160 }}
             />
@@ -1043,8 +1041,8 @@ function EnIpSourceCard({
         <div style={{ fontSize: 12, fontWeight: 700, color: "var(--brand-text-subtle, #64748b)", marginBottom: 8 }}>TAG ({source.tags.length})</div>
         {source.tags.map((tm, idx) => (
           <div key={idx} style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 6, flexWrap: "wrap" }}>
-            <input
-              value={tm.tag} onChange={(e) => updateTag(idx, { tag: e.target.value })}
+            <TagInput
+              value={tm.tag} onChange={(v) => updateTag(idx, { tag: v })}
               placeholder={t("cfg.swsTagIdPh")}
               style={{ background: "var(--brand-bg, #0f172a)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, color: "var(--brand-text, #e2e8f0)", padding: "4px 6px", fontSize: 12, width: 150 }}
             />
@@ -3801,8 +3799,8 @@ function SparkplugSection({
           </div>
           {current.metrics.map((m, idx) => (
             <div key={idx} style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 6, flexWrap: "wrap" }}>
-              <input
-                value={m.tag} onChange={(e) => updateMetric(idx, { tag: e.target.value })}
+              <TagInput
+                value={m.tag} onChange={(v) => updateMetric(idx, { tag: v })}
                 placeholder={t("cfg.swsTagIdPh")}
                 style={{ background: "var(--brand-bg, #0f172a)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, color: "var(--brand-text, #e2e8f0)", padding: "4px 6px", fontSize: 12, width: 160 }}
               />
@@ -3913,9 +3911,6 @@ function ProtocolsTab() {
         saving={saving}
         saved={saved}
         savedNotice="✓ Salvato — sorgenti ricollegate al volo."
-        section="sources"
-        dirty={pendingTags.length > 0
-          || JSON.stringify(sources) !== JSON.stringify(storeProject?.sources ?? [])}
       />
       <div style={S.sectionTitle}>SORGENTI DATI / PROTOCOLLI</div>
       <div style={S.notice}>
@@ -4120,14 +4115,23 @@ function AlarmsTab() {
 
   return (
     <div style={S.section}>
-      <SaveBar onSave={handleSave} saving={saving} saved={saved}
-        section="alarms" dirty={JSON.stringify(alarms) !== JSON.stringify(storeProject?.alarms ?? [])} />
+{/* Volutamente NON registrata in `pendingSections`: un confronto strutturale
+          bozza-vs-store non esprime l'intenzione dell'utente, e con "Salva tutto"
+          che svuota le bozze una bozza momentaneamente disallineata veniva
+          scritta su disco. Il 2026-07-28 questo ha azzerato le variabili di un
+          progetto (audit: `{"count": 0, "what": "tags"}` contro 16 su disco).
+          Questa tab si salva solo col proprio pulsante, come prima. Si potrà
+          ri-abilitare quando traccerà l'intenzione reale, come fanno Notifiche
+          (flag `touched`) e Datastore (flag `dirty` locale). */}
+      <SaveBar onSave={handleSave} saving={saving} saved={saved} />
       <div style={S.sectionTitle}>ALLARMI</div>
       <div style={S.notice}>
         Ogni allarme osserva una variabile e si attiva quando la condizione è
         soddisfatta. Condizioni disponibili: <em>above</em> / <em>below</em>
         (soglia numerica) e <em>bool_equals</em> (per tag booleani). Lo stato
-        attivo è mostrato nella barra in alto della UI.
+        attivo è mostrato nella barra in alto della UI. La colonna
+        <em> Telegram</em> decide, per ogni allarme, se il messaggio va alle chat
+        configurate in Notifiche, solo a chat proprie, o a nessuno.
       </div>
 
       <table style={S.table}>
@@ -4140,6 +4144,7 @@ function AlarmsTab() {
             <th style={{ ...S.th, width: "8%" }} title={t("cfg.hysteresis2")}>{t("cfg.deadBand")}</th>
             <th style={{ ...S.th, width: "10%" }}>{t("cfg.severity")}</th>
             <th style={{ ...S.th, width: "20%" }}>{t("cfg.message")}</th>
+            <th style={{ ...S.th, width: "12%" }} title={t("cfg.telegramColHint")}>Telegram</th>
             <th style={{ ...S.th, width: "6%" }}>{t("cfg.state")}</th>
             <th style={S.th} />
           </tr>
@@ -4147,7 +4152,7 @@ function AlarmsTab() {
         <tbody>
           {alarms.length === 0 && (
             <tr>
-              <td colSpan={9} style={{ ...S.td, color: "var(--brand-border, #475569)", textAlign: "center", padding: 12 }}>
+              <td colSpan={10} style={{ ...S.td, color: "var(--brand-border, #475569)", textAlign: "center", padding: 12 }}>
                 Nessun allarme definito.
               </td>
             </tr>
@@ -4337,6 +4342,57 @@ function AlarmsTab() {
                       }}
                     />
                   </div>
+                </td>
+                <td style={S.td}>
+                  {/* Instradamento Telegram. L'assenza del campo vale "global":
+                      è il comportamento che gli allarmi avevano prima che
+                      l'impostazione esistesse, e leggerla come "off" spegnerebbe
+                      in silenzio notifiche già in servizio. */}
+                  <select
+                    style={{ ...S.inputSm, cursor: "pointer", fontSize: 11 }}
+                    title={t("cfg.telegramColHint")}
+                    value={alm.telegram_mode ?? "global"}
+                    onChange={(e) => {
+                      const mode = e.target.value as AlarmTelegramMode;
+                      updateAlarm(i, {
+                        // "global" torna a essere assenza del campo: il YAML resta
+                        // quello di prima per gli allarmi che non lo usano.
+                        telegram_mode: mode === "global" ? undefined : mode,
+                        // Le chat si conservano passando per "off" e tornando a
+                        // "chats"; si buttano solo scegliendo "global", dove non
+                        // hanno più significato.
+                        telegram_chat_ids: mode === "global" ? undefined : alm.telegram_chat_ids,
+                      });
+                    }}
+                  >
+                    <option value="global">{t("cfg.tgModeGlobal")}</option>
+                    <option value="chats">{t("cfg.tgModeChats")}</option>
+                    <option value="off">{t("cfg.tgModeOff")}</option>
+                  </select>
+                  {alm.telegram_mode === "chats" && (
+                    <>
+                      <input
+                        style={{ ...S.inputSm, marginTop: 4, fontSize: 11 }}
+                        placeholder={t("cfg.tgChatIdsPh")}
+                        title={t("cfg.tgChatIdsHint")}
+                        value={alm.telegram_chat_ids?.join(", ") ?? ""}
+                        onChange={(e) => {
+                          const raw = e.target.value;
+                          const ids = raw ? raw.split(",").map((x) => x.trim()).filter(Boolean) : [];
+                          // Si tiene [] invece di undefined: con undefined la riga
+                          // tornerebbe indistinguibile da "chat non ancora scritte"
+                          // e il runtime non potrebbe segnalare l'impostazione
+                          // incompleta.
+                          updateAlarm(i, { telegram_chat_ids: ids });
+                        }}
+                      />
+                      {!alm.telegram_chat_ids?.length && (
+                        <div style={{ fontSize: 10, color: "var(--brand-warning, #eab308)", marginTop: 2 }}>
+                          {t("cfg.tgChatIdsMissing")}
+                        </div>
+                      )}
+                    </>
+                  )}
                 </td>
                 <td style={{ ...S.td, textAlign: "center" }}>
                   {live ? (
@@ -5784,9 +5840,9 @@ function GlobalScriptsTab() {
             )}
             {cur.trigger.kind === "tag_change" && (
               <>
-                <input
+                <TagInput
                   value={cur.trigger.tag}
-                  onChange={(e) => updateTrigger(selected, { tag: e.target.value })}
+                  onChange={(v) => updateTrigger(selected, { tag: v })}
                   placeholder="es. pump1.running"
                   style={{ background: "var(--brand-surface, #1e293b)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, color: "var(--brand-text, #e2e8f0)", padding: "4px 8px", fontSize: 13, width: 200 }}
                 />
@@ -6222,10 +6278,29 @@ function NotificationsTab() {
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const patchSmtp = (patch: Partial<SmtpConfig>) =>
+  // "L'utente ha toccato qualcosa in questa tab".
+  //
+  // NON si usa un confronto strutturale bozza-vs-store per decidere se la
+  // sezione è da salvare: il token Telegram arriva mascherato dalle GET, quindi
+  // una bozza appena montata può risultare "diversa" dallo store senza che
+  // nessuno abbia modificato nulla — e da quando "Salva tutto" svuota le bozze
+  // pendenti, quel disallineamento veniva scritto su disco. Con `tgEnabled`
+  // falso il payload esce SENZA la sezione telegram e il backend cancella il
+  // token salvato. È il bug per cui il token "spariva" dopo Salva tutto.
+  const [touched, setTouched] = useState(false);
+
+  // Il server rimanda il token come "********" quando ne ha uno salvato: è il
+  // segnale che c'è, non un valore da riscrivere.
+  const tokenSaved = tg.bot_token === MASKED;
+
+  const patchSmtp = (patch: Partial<SmtpConfig>) => {
+    setTouched(true);
     setSmtp((prev) => ({ ...prev, ...patch }));
-  const patchTg = (patch: Partial<TelegramConfig>) =>
+  };
+  const patchTg = (patch: Partial<TelegramConfig>) => {
+    setTouched(true);
     setTg((prev) => ({ ...prev, ...patch }));
+  };
 
   const handleSave = async () => {
     setSaving(true);
@@ -6235,6 +6310,7 @@ function NotificationsTab() {
         ? { smtp: enabled ? smtp : undefined, telegram: tgEnabled ? tg : undefined }
         : null;
       await api.saveNotifications(config);
+      setTouched(false);
       // Keep the store in sync so switching tabs and returning shows the saved
       // config (the tab re-initialises from storeProject.notifications).
       updateProjectNotifications(config);
@@ -6253,28 +6329,15 @@ function NotificationsTab() {
   const handleTestTelegram = async () => {
     setTesting(true);
     setTestMsg(null);
-    const token = tg.bot_token.trim();
     try {
-      if (token === "" || token === "********") {
-        setTestMsg("✗ Inserisci il bot token (in chiaro) per fare la prova.");
-        return;
-      }
       if (tg.chat_ids.length === 0) {
         setTestMsg("✗ Inserisci almeno una chat ID.");
         return;
       }
-      for (const chat of tg.chat_ids) {
-        const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ chat_id: chat, text: "✅ Messaggio di test da SWS." }),
-        });
-        if (!res.ok) {
-          const body = await res.json().catch(() => null);
-          throw new Error(`chat ${chat}: ${body?.description ?? `HTTP ${res.status}`}`);
-        }
-      }
-      setTestMsg("✓ Messaggio inviato — controlla Telegram.");
+      // Il token va al server così com'è: se è il placeholder (o vuoto) usa
+      // quello salvato. Così la prova percorre la stessa catena degli allarmi.
+      await api.testTelegram({ bot_token: tg.bot_token, chat_ids: tg.chat_ids });
+      setTestMsg("✓ Messaggio inviato dal runtime.");
     } catch (e: unknown) {
       setTestMsg("✗ " + (e instanceof Error ? e.message : String(e)));
     } finally {
@@ -6282,44 +6345,29 @@ function NotificationsTab() {
     }
   };
 
-  // Rileva le chat che hanno scritto al bot chiamando getUpdates dal browser.
+  // Rileva le chat che hanno scritto al bot, e invia il messaggio di prova,
+  // passando **dal runtime**: il server risolve il token salvato quando la UI
+  // non lo ha in chiaro (dopo un cambio di tab non lo ha mai, perché un
+  // segreto non viene mai rimandato al browser).
+  //
+  // Prima entrambe le operazioni chiamavano l'API di Telegram dal browser.
+  // Funzionavano solo appena dopo aver digitato il token — da cui il "perdo il
+  // token" — e soprattutto provavano un percorso che non è quello di
+  // produzione: gli allarmi partono dal runtime, non dal browser. È il motivo
+  // per cui un test poteva passare mentre il dispositivo non aveva alcuna
+  // configurazione.
+  //
   // Auto-retry perché subito dopo un messaggio l'update può tardare qualche
-  // secondo a comparire.
+  // secondo a comparire in getUpdates.
   const handleDetectChats = async () => {
-    const token = tg.bot_token.trim();
-    if (token === "" || token === "********") {
-      setDetectMsg("✗ Inserisci il bot token (in chiaro) per rilevare le chat.");
-      return;
-    }
     setDetecting(true);
     setDetectMsg(null);
     setDetected([]);
     try {
       const attempts = 5;
       for (let i = 0; i < attempts; i++) {
-        const res = await fetch(`https://api.telegram.org/bot${token}/getUpdates`);
-        const body = await res.json().catch(() => null);
-        if (!body || body.ok !== true) {
-          throw new Error(body?.description ?? `HTTP ${res.status}`);
-        }
-        // Estrai l'oggetto `chat` da qualunque tipo di update, deduplica per id.
-        const byId = new Map<string, { id: string; label: string; type: string }>();
-        for (const upd of body.result as Record<string, unknown>[]) {
-          const container = (upd.message ?? upd.edited_message ?? upd.channel_post ??
-            upd.edited_channel_post ?? upd.my_chat_member ?? upd.chat_member) as
-            { chat?: { id: number; type: string; title?: string; first_name?: string; last_name?: string; username?: string } } | undefined;
-          const chat = container?.chat;
-          if (!chat) continue;
-          const id = String(chat.id);
-          const label = chat.title
-            ?? [chat.first_name, chat.last_name].filter(Boolean).join(" ")
-            ?? (chat.username ? "@" + chat.username : id);
-          byId.set(id, { id, label: label || id, type: chat.type });
-        }
-        if (byId.size > 0) {
-          setDetected([...byId.values()]);
-          return;
-        }
+        const chats = await api.detectTelegramChats(tg.bot_token);
+        if (chats.length > 0) { setDetected(chats); return; }
         if (i < attempts - 1) await new Promise((r) => setTimeout(r, 1500));
       }
       setDetectMsg("Nessuna chat trovata. Scrivi /start al bot (o aggiungilo al gruppo e manda un messaggio), poi premi Rileva di nuovo.");
@@ -6337,10 +6385,7 @@ function NotificationsTab() {
     <div style={S.section}>
       <SaveBar onSave={handleSave} saving={saving} saved={saved}
         section="notifications"
-        dirty={JSON.stringify((enabled || tgEnabled)
-                 ? { smtp: enabled ? smtp : undefined, telegram: tgEnabled ? tg : undefined }
-                 : null)
-             !== JSON.stringify(storeProject?.notifications ?? null)} />
+        dirty={touched} />
       <div style={S.sectionTitle}>NOTIFICHE EMAIL</div>
       <div style={S.notice}>
         Configura un server SMTP per inviare email al momento dell'attivazione di
@@ -6353,7 +6398,7 @@ function NotificationsTab() {
           <input
             type="checkbox"
             checked={enabled}
-            onChange={(e) => setEnabled(e.target.checked)}
+            onChange={(e) => { setTouched(true); setEnabled(e.target.checked); }}
           />
           Abilita notifiche SMTP
         </label>
@@ -6423,9 +6468,11 @@ function NotificationsTab() {
 
       <div style={{ ...S.sectionTitle, marginTop: 24 }}>NOTIFICHE TELEGRAM</div>
       <div style={S.notice}>
-        Invia un messaggio Telegram all'attivazione di ogni allarme e, dagli script,
+        Invia un messaggio Telegram all'attivazione degli allarmi e, dagli script,
         con <em>send_telegram("testo")</em>. Crea un bot con <em>@BotFather</em>, poi
-        incolla il token e le chat ID di destinazione.
+        incolla il token e le chat ID di destinazione. Queste sono le chat
+        <em> predefinite</em>: nella tab Allarmi ogni allarme può usarne di proprie
+        o non notificare affatto.
       </div>
 
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
@@ -6433,7 +6480,7 @@ function NotificationsTab() {
           <input
             type="checkbox"
             checked={tgEnabled}
-            onChange={(e) => setTgEnabled(e.target.checked)}
+            onChange={(e) => { setTouched(true); setTgEnabled(e.target.checked); }}
           />
           Abilita notifiche Telegram
         </label>
@@ -6442,19 +6489,29 @@ function NotificationsTab() {
       {tgEnabled && (
         <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 12, maxWidth: 640 }}>
           <div>
-            <div style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", marginBottom: 4 }}>Bot token *</div>
+            <div style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", marginBottom: 4, display: "flex", alignItems: "center", gap: 8 }}>
+              <span>Bot token *</span>
+              {tokenSaved && (
+                <span style={{ color: "var(--brand-success, #22c55e)", fontSize: 11 }}>
+                  ✓ salvato sul server
+                </span>
+              )}
+            </div>
+            {/* Il token arriva mascherato dalle GET: mostrare "********" nel
+                campo faceva sembrare che il dato fosse andato perso. Meglio un
+                campo vuoto che dice esplicitamente com'è la situazione. */}
             <input
               style={S.input}
               type="password"
-              placeholder="123456789:ABCdef..."
-              value={tg.bot_token}
+              placeholder={tokenSaved ? "già salvato — scrivi qui solo per sostituirlo" : "123456789:ABCdef..."}
+              value={tokenSaved && tg.bot_token === MASKED ? "" : tg.bot_token}
               onChange={(e) => patchTg({ bot_token: e.target.value })}
             />
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 6 }}>
               <button
                 style={S.btn("ghost")}
                 onClick={handleDetectChats}
-                disabled={detecting || tg.bot_token.trim() === "" || tg.bot_token === "********"}
+                disabled={detecting || (tg.bot_token.trim() === "" && !tokenSaved)}
                 title="Chiama getUpdates e mostra le chat che hanno scritto al bot"
               >
                 {detecting ? "Rilevamento…" : "Rileva chat"}
@@ -6501,7 +6558,7 @@ function NotificationsTab() {
             <button
               style={S.btn("ghost")}
               onClick={handleTestTelegram}
-              disabled={testing || tg.bot_token.trim() === "" || tg.chat_ids.length === 0}
+              disabled={testing || (tg.bot_token.trim() === "" && !tokenSaved) || tg.chat_ids.length === 0}
             >
               {testing ? "Invio…" : "Invia test"}
             </button>
@@ -6806,6 +6863,9 @@ function RuntimeConnectionTab() {
   const handleDeploy = async () => {
     setDeploying(true); setDeployLog([]); setDeployDone(false);
     try {
+      const ok = await flushBeforeDeploy((m) => setDeployLog((l) => [...l, m]));
+      if (!ok) { setDeploying(false); return; }
+
       const res = await fetch("/api/remote/deploy", {
         method: "POST",
         headers: authToken ? { "Authorization": `Bearer ${authToken}` } : {},
@@ -7230,6 +7290,30 @@ function RuntimeConnectionTab() {
 const DEVICES_KEY = "sws.saved-devices";
 
 /** Core deploy logic, reusable from RuntimeConnectionTab and DevicesTab. */
+/**
+ * Svuota le modifiche non salvate prima di un deploy.
+ *
+ * Entrambi i percorsi di deploy costruiscono lo ZIP leggendo il progetto **da
+ * disco** (`/api/project/export` lato server), quindi senza questo passaggio un
+ * deploy con modifiche pendenti spedisce lo stato precedente: i log dicono
+ * "completato" e sul dispositivo si continua a vedere la versione vecchia.
+ *
+ * Ritorna false se il salvataggio è fallito: in quel caso il deploy va annullato
+ * invece di pubblicare qualcosa di diverso da ciò che l'autore vede.
+ */
+async function flushBeforeDeploy(onLog: (msg: string) => void): Promise<boolean> {
+  if (!selectIsDirty(useAppStore.getState())) return true;
+  onLog("Salvataggio modifiche non salvate…");
+  await useAppStore.getState().saveAll();
+  const st = useAppStore.getState();
+  if (st.saveStatus === "error") {
+    onLog(`✗ Salvataggio fallito, deploy annullato: ${st.saveError ?? "errore sconosciuto"}`);
+    return false;
+  }
+  onLog("✓ Salvato");
+  return true;
+}
+
 async function deployToTarget(
   target: string,
   user: string,
@@ -7237,6 +7321,7 @@ async function deployToTarget(
   onLog: (msg: string) => void,
 ): Promise<boolean> {
   try {
+    if (!await flushBeforeDeploy(onLog)) return false;
     onLog("Esportazione progetto dal runtime locale…");
     const exportRes = await api.exportProjectZip();
     const cd = exportRes.headers.get("content-disposition") ?? "";
@@ -7643,9 +7728,7 @@ function LanguagesTab() {
 
   return (
     <div style={S.section}>
-      <SaveBar onSave={handleSave} saving={saving} saved={saved} label={t("langtab.save")} savedNotice={t("langtab.saved")}
-        section="languages"
-        dirty={JSON.stringify(table) !== JSON.stringify(storeTable ?? { default: "", langs: [], entries: [] })} />
+      <SaveBar onSave={handleSave} saving={saving} saved={saved} label={t("langtab.save")} savedNotice={t("langtab.saved")} />
       <div style={{ fontSize: 12, color: "var(--brand-text-muted, #94a3b8)", marginBottom: 12, lineHeight: 1.5 }}>{t("langtab.intro")}</div>
 
       <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 12, flexWrap: "wrap" }}>

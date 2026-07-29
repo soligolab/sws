@@ -169,6 +169,54 @@ pub struct AlarmDef {
     /// Email addresses to notify on escalation.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub escalate_to: Option<Vec<String>>,
+    /// Where this alarm's Telegram message goes. **Absent means `Global`**, so
+    /// projects written before this field existed keep notifying every chat —
+    /// which is what they did, and silently changing that would lose alarms.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub telegram_mode: Option<AlarmTelegramMode>,
+    /// Chats for `AlarmTelegramMode::Chats`. Ignored in the other two modes.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub telegram_chat_ids: Option<Vec<String>>,
+}
+
+/// Per-alarm Telegram routing.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum AlarmTelegramMode {
+    /// The chats configured in Configuration → Notifications. The default.
+    #[default]
+    Global,
+    /// Only the chats listed in `telegram_chat_ids`.
+    Chats,
+    /// No Telegram message for this alarm.
+    Off,
+}
+
+/// Resolved routing for one alarm — what the notification supervisor acts on.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TelegramRouting {
+    /// Don't send.
+    Skip,
+    /// Send to the globally configured chats.
+    GlobalChats,
+    /// Send only to these chats. May be **empty**, which the caller reports as a
+    /// misconfiguration rather than quietly falling back to the global chats:
+    /// "specific chats" with none listed is an unfinished setting, and falling
+    /// back would broadcast an alarm the user was trying to narrow.
+    Chats(Vec<String>),
+}
+
+impl AlarmDef {
+    /// Where this alarm's Telegram message should go.
+    pub fn telegram_routing(&self) -> TelegramRouting {
+        match self.telegram_mode.unwrap_or_default() {
+            AlarmTelegramMode::Global => TelegramRouting::GlobalChats,
+            AlarmTelegramMode::Off => TelegramRouting::Skip,
+            AlarmTelegramMode::Chats => {
+                TelegramRouting::Chats(self.telegram_chat_ids.clone().unwrap_or_default())
+            }
+        }
+    }
 }
 
 /// Live alarm state — serialized in WS/REST snapshots.
@@ -653,6 +701,8 @@ mod tests {
             notify_email: None,
             escalate_after_s: None,
             escalate_to: None,
+            telegram_mode: None,
+            telegram_chat_ids: None,
         }
     }
 
@@ -824,5 +874,66 @@ mod tests {
         // Inhibit clears → alarm re-evaluates using cached value, activates
         db.evaluate("maintenance", &ts(TagValue::Bool(false))).await;
         assert_eq!(db.snapshot().await[0].isa_state, IsaState::ActiveUnacked, "inhibit cleared");
+    }
+
+    // ── Instradamento Telegram per allarme ────────────────────────────────────
+
+    #[test]
+    fn telegram_routing_assente_significa_chat_globali() {
+        // I progetti scritti prima di questo campo notificavano tutte le chat.
+        // Se l'assenza valesse "non notificare", aggiornare SWS spegnerebbe in
+        // silenzio le notifiche di allarmi già in servizio.
+        let d = def("a1", "t", AlarmCondition::BoolTrue);
+        assert_eq!(d.telegram_routing(), TelegramRouting::GlobalChats);
+        // E deve restare assente in YAML, non comparire come `global`.
+        let y = serde_yaml::to_string(&d).unwrap();
+        assert!(!y.contains("telegram_mode"), "campo scritto anche se assente:\n{y}");
+    }
+
+    #[test]
+    fn telegram_routing_off_non_manda_nulla() {
+        let mut d = def("a2", "t", AlarmCondition::BoolTrue);
+        d.telegram_mode = Some(AlarmTelegramMode::Off);
+        // Chat rimaste da una scelta precedente: non devono resuscitare l'invio.
+        d.telegram_chat_ids = Some(vec!["123".into()]);
+        assert_eq!(d.telegram_routing(), TelegramRouting::Skip);
+    }
+
+    #[test]
+    fn telegram_routing_chat_specifiche() {
+        let mut d = def("a3", "t", AlarmCondition::BoolTrue);
+        d.telegram_mode = Some(AlarmTelegramMode::Chats);
+        d.telegram_chat_ids = Some(vec!["1".into(), "2".into()]);
+        assert_eq!(d.telegram_routing(), TelegramRouting::Chats(vec!["1".into(), "2".into()]));
+    }
+
+    #[test]
+    fn telegram_routing_chat_specifiche_vuote_non_ricadono_sul_globale() {
+        // Impostazione incompleta: l'utente stava restringendo i destinatari.
+        // Ricadere sulle chat globali manderebbe l'allarme proprio a tutti.
+        let mut d = def("a4", "t", AlarmCondition::BoolTrue);
+        d.telegram_mode = Some(AlarmTelegramMode::Chats);
+        assert_eq!(d.telegram_routing(), TelegramRouting::Chats(vec![]));
+    }
+
+    #[test]
+    fn telegram_mode_off_sopravvive_al_giro_su_yaml() {
+        // `off` in YAML è un token booleano (YAML 1.1: off/on/no/yes). Se
+        // serializzatore e parser non sono d'accordo, l'allarme messo a "non
+        // notificare" torna dal disco come errore di parsing — cioè il progetto
+        // non si apre più. Il giro completo è l'unica verifica che conta.
+        let mut d = def("a6", "t", AlarmCondition::BoolTrue);
+        d.telegram_mode = Some(AlarmTelegramMode::Off);
+        let y = serde_yaml::to_string(&d).unwrap();
+        let back: AlarmDef = serde_yaml::from_str(&y).expect("rilettura di telegram_mode: off");
+        assert_eq!(back.telegram_routing(), TelegramRouting::Skip, "YAML prodotto:\n{y}");
+    }
+
+    #[test]
+    fn telegram_mode_si_deserializza_in_snake_case() {
+        let d: AlarmDef = serde_yaml::from_str(
+            "id: a5\ntag: t\ncondition:\n  kind: bool_true\nmessage: m\ntelegram_mode: chats\ntelegram_chat_ids: ['-100123']\n",
+        ).unwrap();
+        assert_eq!(d.telegram_routing(), TelegramRouting::Chats(vec!["-100123".into()]));
     }
 }

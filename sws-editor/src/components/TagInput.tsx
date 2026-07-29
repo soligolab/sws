@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useAppStore } from "@/store";
+import { tagCatalog } from "@/tagCatalog";
 
 interface TagInputProps {
   value: string;
@@ -15,7 +16,12 @@ interface TagInputProps {
  */
 export function TagInput({ value, onChange, placeholder, style }: TagInputProps) {
   const { t } = useTranslation();
-  const tags         = useAppStore((s) => s.project?.tags ?? []);
+  // Non solo `project.tags`: in molti progetti le variabili nascono dalle
+  // mappature delle sorgenti (topic MQTT, registri Modbus, nodi OPC-UA) e non
+  // vengono dichiarate a mano — guardando solo i tag dichiarati il selettore
+  // risultava vuoto proprio nei progetti più realistici.
+  const project = useAppStore((s) => s.project);
+  const tags    = useMemo(() => tagCatalog(project), [project]);
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef     = useRef<HTMLInputElement>(null);
   const filterRef    = useRef<HTMLInputElement>(null);
@@ -37,9 +43,11 @@ export function TagInput({ value, onChange, placeholder, style }: TagInputProps)
     if (open) filterRef.current?.focus();
   }, [open]);
 
+  const q = filter.trim().toLowerCase();
   const filtered = tags.filter(
-    (t) => !filter || t.id.toLowerCase().includes(filter.toLowerCase())
-              || (t.description ?? "").toLowerCase().includes(filter.toLowerCase())
+    (t) => !q || t.id.toLowerCase().includes(q)
+              || (t.description ?? "").toLowerCase().includes(q)
+              || (t.source ?? "").toLowerCase().includes(q)
   );
 
   const select = (id: string) => {
@@ -61,7 +69,7 @@ export function TagInput({ value, onChange, placeholder, style }: TagInputProps)
         spellCheck={false}
         autoComplete="off"
       />
-      {tags.length > 0 && (
+      {(
         <button
           type="button"
           style={{
@@ -83,7 +91,7 @@ export function TagInput({ value, onChange, placeholder, style }: TagInputProps)
           ▾
         </button>
       )}
-      {open && tags.length > 0 && (
+      {open && (
         <div
           style={{
             position: "absolute",
@@ -133,10 +141,18 @@ export function TagInput({ value, onChange, placeholder, style }: TagInputProps)
                   {t.description}
                 </span>
               )}
+              {t.origin === "source" && (
+                <span style={{ marginLeft: "auto", flexShrink: 0, fontSize: 10, color: "var(--brand-text-subtle, #64748b)" }}
+                  title="Variabile dedotta dalle mappature di questa sorgente, non dichiarata in Configurazione → Variabili">
+                  ↗ {t.source}
+                </span>
+              )}
             </div>
           ))}
           {filtered.length === 0 && (
-            <div style={{ padding: "6px 8px", fontSize: 11, color: "var(--brand-text-subtle, #64748b)" }}>{t("tagInput.noTags")}</div>
+            <div style={{ padding: "8px", fontSize: 11, color: "var(--brand-text-subtle, #64748b)", lineHeight: 1.5 }}>
+              {tags.length === 0 ? t("tagInput.noTagsInProject") : t("tagInput.noTags")}
+            </div>
           )}
         </div>
       )}

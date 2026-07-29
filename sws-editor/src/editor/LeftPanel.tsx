@@ -409,6 +409,7 @@ function PageLayoutSettingsModal({
   const [sizeMode, setSizeMode] = useState<PageSizeMode>(project?.page_layout?.size_mode ?? "fixed");
   const [aspectRatio, setAspectRatio] = useState<string>(project?.page_layout?.aspect_ratio ?? ASPECT_RATIOS[0].ratio);
   const [homePageId, setHomePageId] = useState<string>(project?.page_layout?.home_page_id ?? "");
+  const [hideChrome, setHideChrome] = useState<boolean>(project?.page_layout?.hide_viewer_chrome ?? false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -420,6 +421,7 @@ function PageLayoutSettingsModal({
       size_mode: sizeMode,
       aspect_ratio: sizeMode === "ratio" ? aspectRatio : undefined,
       home_page_id: homePageId || undefined,
+      hide_viewer_chrome: hideChrome || undefined,
     };
     try {
       await api.updatePageLayout(cfg);
@@ -483,6 +485,22 @@ function PageLayoutSettingsModal({
             <option value="">— Prima pagina della lista —</option>
             {pages.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
+        </div>
+
+        <div>
+          <label style={{ display: "flex", alignItems: "flex-start", gap: 8, fontSize: 12, color: "var(--brand-text-2, #cbd5e1)", cursor: "pointer" }}>
+            <input type="checkbox" checked={hideChrome} onChange={(e) => setHideChrome(e.target.checked)}
+              style={{ marginTop: 2, accentColor: "var(--brand-primary, #3b82f6)" }} />
+            <span>
+              Viewer a schermo pieno: nascondi barra superiore e fascia allarmi
+              <div style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", marginTop: 3, lineHeight: 1.45 }}>
+                Sul pannello viene renderizzata solo l'area della pagina. Gli allarmi
+                attivi compaiono sovrapposti, senza rubare spazio. <strong>Attenzione</strong>:
+                senza la barra la navigazione tra pagine può avvenire solo con oggetti
+                "Pulsante pagina" sul synoptic o con la rotazione automatica.
+              </div>
+            </span>
+          </label>
         </div>
 
         {error && <div style={{ color: "var(--brand-danger, #ef4444)", fontSize: 12 }}>Errore: {error}</div>}

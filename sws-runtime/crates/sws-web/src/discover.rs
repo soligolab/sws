@@ -48,6 +48,9 @@ fn browse_mdns_blocking(timeout_secs: u64) -> Vec<DiscoveredRuntime> {
                     .and_then(|s| s.parse().ok())
                     .unwrap_or(8444);
                 let version = info.get_property_val_str("version").map(str::to_string);
+                // Default "https" per i runtime che non annunciano lo schema
+                // (versioni precedenti a questo campo).
+                let scheme = info.get_property_val_str("scheme").unwrap_or("https");
 
                 let ip = info
                     .get_addresses_v4()
@@ -59,8 +62,8 @@ fn browse_mdns_blocking(timeout_secs: u64) -> Vec<DiscoveredRuntime> {
                 if let Some(ip) = ip {
                     runtimes.push(DiscoveredRuntime {
                         name: info.get_fullname().to_string(),
-                        admin_url: format!("https://{}:{}", ip, admin_port),
-                        viewer_url: format!("https://{}:{}", ip, viewer_port),
+                        admin_url: format!("{}://{}:{}", scheme, ip, admin_port),
+                        viewer_url: format!("{}://{}:{}", scheme, ip, viewer_port),
                         version,
                     });
                 }

@@ -776,6 +776,17 @@ export const api = {
       body: JSON.stringify(req),
     }),
 
+  /** Elenca le chat che hanno scritto al bot, chiedendolo al runtime. Passare
+   *  il token così com'è: se è il placeholder mascherato (o vuoto) il server
+   *  usa quello salvato — il browser non ha mai il segreto in chiaro dopo un
+   *  cambio di tab. */
+  detectTelegramChats: (botToken: string) =>
+    request<{ id: string; label: string; type: string }[]>("/api/notifications/telegram-chats", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ bot_token: botToken }),
+    }),
+
   getGitStatus: () =>
     request<import("../types").GitStatus>("/api/project/git-status"),
 

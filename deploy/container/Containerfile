@@ -1,0 +1,83 @@
+# SWS runtime — immagine container aarch64 per device Pixsys OS con podman.
+#
+# NON compila nulla: il binario arriva già cross-compilato da
+# `scripts/yocto/build.sh` (SDK Pixsys), che è la catena di build preferita
+# del progetto. Compilare Rust dentro un'immagine arm64 in emulazione QEMU
+# richiederebbe ore; qui la build dura secondi.
+#
+# Il contesto di build è la directory staging preparata da
+# `scripts/build_container.sh` (bin/, www/, templates/), non la radice del
+# repo: tenerlo piccolo evita di impacchettare target/ e node_modules.
+#
+# Percorso separato e indipendente da `sws-runtime/docker/Dockerfile`, che
+# resta il flusso container legacy per x86 (vedi docs/DEPLOY_PX30.md).
+
+# ubuntu:24.04 non è una scelta estetica. Il binario cross-compilato dichiara:
+#   NEEDED  libpython3.12.so.1.0
+#   simboli fino a GLIBC_2.39
+# quindi la base deve avere insieme Python 3.12 e glibc >= 2.39:
+#   debian:bookworm-slim  glibc 2.36 + Python 3.11  → doppiamente incompatibile
+#   debian:trixie-slim    glibc 2.41 + Python 3.13  → manca libpython3.12
+#   ubuntu:24.04          glibc 2.39 + Python 3.12  → combacia
+# Se un giorno l'SDK Pixsys passa a un'altra minor di Python, questa riga va
+# cambiata di conseguenza (ricontrollare con `readelf -d` sul binario).
+FROM ubuntu:24.04
+
+# python3: PyO3 gira con `auto-initialize`, quindi serve l'interprete completo
+#   (stdlib inclusa), non la sola libpython.
+# python3-pip + RestrictedPython: senza, il motore script parte NON sandboxato
+#   con un warning all'avvio. L'immagine legacy aveva esattamente questo buco.
+# curl: usato dall'HEALTHCHECK qui sotto.
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        ca-certificates \
+        curl \
+        python3 \
+        libpython3.12t64 \
+        python3-pip && \
+    pip install --no-cache-dir --break-system-packages "RestrictedPython>=7.0" && \
+    apt-get purge -y python3-pip && apt-get autoremove -y && \
+    rm -rf /var/lib/apt/lists/*
+
+COPY bin/sws-runtime /usr/local/bin/sws-runtime
+COPY templates/      /var/sws/templates/
+
+# La SPA NON sta nell'immagine: vive nel volume `sws-www`, popolato da
+# install-container.sh con l'archivio `sws-www-<ver>.tar.gz` (~3 MB).
+# Motivo: cotta dentro, ogni modifica al frontend imponeva di ricostruire e
+# ritrasferire i 59 MB dell'immagine anche senza toccare il binario Rust —
+# ed è già capitato di ritrovarsi sul dispositivo una SPA vecchia mentre i
+# dati di progetto erano aggiornati, con conseguente caccia al fantasma.
+# Conseguenza accettata: l'immagine da sola non serve la SPA. L'installer
+# rifiuta di procedere se il volume resta vuoto.
+
+# Punti di mount dei dati persistenti. Vanno montati come volumi podman:
+# senza, config e progetti vivono nel layer scrivibile e spariscono col
+# container. /var/sws/www è il mount della SPA (vedi sopra).
+RUN mkdir -p /var/sws/config /var/sws/projects /var/sws/www
+
+# 8443 viewer operatori, 8444 IDE/admin.
+# Volutamente NON esposta la 9090: nel runtime non esiste alcun listener
+# Prometheus, l'EXPOSE nell'immagine legacy è un residuo della spec.
+EXPOSE 8443 8444
+
+# http, non https: il runtime parte in HTTP finché non esiste config/tls.crt
+# (sws-runtime/src/main.rs, avvio del listener). L'healthcheck legacy
+# interrogava https e restava rosso per sempre.
+# NB: HEALTHCHECK non esiste nella spec OCI — va costruito con
+# `podman build --format docker`, altrimenti podman lo scarta con un warning.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+    CMD curl -fs http://localhost:8443/health || exit 1
+
+# Nessun entrypoint script: niente SWS_ADMIN_PASSWORD obbligatorio (il
+# no-auth mode è lo stato normale del PoC) e i flag stanno tutti nel CMD,
+# così `podman run ... <altri flag>` li può sostituire.
+# --viewer-port è indispensabile: senza, il viewer non va mai in ascolto e
+# l'immagine servirebbe solo l'IDE (era il difetto del Dockerfile legacy).
+ENTRYPOINT ["/usr/local/bin/sws-runtime"]
+CMD ["--config", "/var/sws/config", \
+     "--projects-root", "/var/sws/projects", \
+     "--templates-root", "/var/sws/templates", \
+     "--www", "/var/sws/www", \
+     "--viewer-port", "8443", \
+     "--admin-port", "8444"]

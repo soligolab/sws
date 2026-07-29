@@ -844,6 +844,12 @@ export interface PageLayoutConfig {
   aspect_ratio?: string;
   /** Id of the page the viewer opens by default and the kiosk rotation restarts from. */
   home_page_id?: string;
+  /** Viewer a schermo pieno: nasconde la barra di navigazione superiore e la
+   *  fascia allarmi, così sul pannello viene renderizzata solo l'area della
+   *  pagina. Gli allarmi attivi compaiono sovrapposti, senza rubare spazio.
+   *  Non riguarda l'header dell'IDE. Con la barra nascosta la navigazione tra
+   *  pagine passa dagli oggetti `navbutton` o dalla rotazione automatica. */
+  hide_viewer_chrome?: boolean;
 }
 
 export interface ProjectInfo {
@@ -938,7 +944,18 @@ export interface AlarmDef {
   escalate_after_s?: number;
   /** Email recipients for escalation. */
   escalate_to?: string[];
+  /**
+   * Where this alarm's Telegram message goes. **Absent = "global"**: projects
+   * written before this field existed notified every configured chat, and
+   * treating absence as "off" would silently mute alarms already in service.
+   */
+  telegram_mode?: AlarmTelegramMode;
+  /** Chats for `telegram_mode: "chats"`. Ignored in the other two modes. */
+  telegram_chat_ids?: string[];
 }
+
+/** Per-alarm Telegram routing: configured chats / only its own / none. */
+export type AlarmTelegramMode = "global" | "chats" | "off";
 
 export interface RecipeSetpoint {
   tag: string;

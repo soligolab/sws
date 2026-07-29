@@ -63,6 +63,13 @@
         --brand-on-warning: #f8fafc;
       }
       html { background: var(--brand-bg); }
+      /* Reset di layout. Senza `margin: 0` il body conserva gli 8px di default
+         dell'UA: contro una radice `height: 100vh` fanno 816px in 800 e
+         producono una scrollbar del documento SEMPRE, su qualunque schermo —
+         il difetto visto sul pannello WP620. `overflow: hidden` perché
+         viewer e IDE gestiscono lo scorrimento nei propri contenitori. */
+      html, body { height: 100%; margin: 0; overflow: hidden; }
+      #root { height: 100%; }
       /* Used by the built-in "fan" symbol when state === "on". */
       @keyframes sws-fan-spin {
         from { transform: rotate(0deg); }

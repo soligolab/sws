@@ -404,6 +404,10 @@ async fn main() -> anyhow::Result<()> {
         }
     });
 
+    // Servizi da avviare dopo router::build() per il progetto aperto al boot:
+    // (notifiche, script globali). `None` = nessun progetto auto-aperto.
+    let mut boot_services: Option<(Option<sws_core::NotificationConfig>, Vec<sws_core::GlobalScriptDef>)> = None;
+
     if let Some(project_path) = project_arg {
         // Legacy auto-open path: bootstrap exactly as the single-project
         // runtime did, then mark this dir as active.
@@ -451,6 +455,18 @@ async fn main() -> anyhow::Result<()> {
                         .and_then(|r| r.primary_sqlite_store());
                     historian.swap_store(hist_store).await;
                 }
+                // Notifiche e script globali si mettono da parte qui: i loro
+                // supervisori vivono in AppState, che nasce in router::build()
+                // più sotto, quindi non si possono avviare adesso. Prima
+                // venivano semplicemente ignorati — vedi il commento su
+                // start_project_services.
+                //
+                // Il blocco qui sopra è la stessa classe di problema, trovata in
+                // parallelo: questo percorso di avvio ricopiava a mano quello che
+                // fa `open_project` e ogni pezzo dimenticato resta invisibile
+                // finché non serve. Lo storico e le notifiche erano due di quei
+                // pezzi.
+                boot_services = Some((project.notifications.clone(), project.global_scripts.clone()));
                 alarm_db.load(project.alarms).await;
                 supervisor.reload(project.sources).await;
                 // Seed the function registry. Duplicates from project.yaml
@@ -722,7 +738,7 @@ async fn main() -> anyhow::Result<()> {
     // value afterward, so this must load first.
     let known_projects = Arc::new(sws_web::project_registry::ProjectRegistry::load(&config_dir).await);
 
-    let (runtime_app, admin_app) = sws_web::router::build(
+    let (runtime_app, admin_app, app_state) = sws_web::router::build(
         tag_db,
         bus,
         alarm_db,
@@ -748,6 +764,20 @@ async fn main() -> anyhow::Result<()> {
         audit,
         known_projects,
     );
+
+    // Servizi del progetto auto-aperto al boot: canale Telegram, script globali,
+    // supervisore delle notifiche. Vanno qui perché vivono in AppState, che
+    // esiste solo da build() in poi.
+    //
+    // Senza questo, dopo ogni riavvio del dispositivo gli allarmi non mandavano
+    // né email né Telegram e gli script globali non partivano, finché qualcuno
+    // non riapriva il progetto dall'IDE — e riaprirlo non è qualcosa che si
+    // faccia su un pannello in servizio. Verificato sul dispositivo: al boot
+    // nessuna riga "notification supervisor started", dopo un POST
+    // /api/projects/<n>/open la riga compare e l'allarme manda il messaggio.
+    if let Some((notifications, global_scripts)) = boot_services {
+        sws_web::projects::start_project_services(&app_state, notifications, global_scripts).await;
+    }
 
     // Runtime listener (synoptic, optional-auth): only started when --viewer-port is given.
     // Omitting --viewer-port starts in IDE-only mode (start_editor.sh on developer's PC).
@@ -838,7 +868,7 @@ async fn main() -> anyhow::Result<()> {
 
     // Announce this runtime on the local network via mDNS (viewer port only).
     // Skipped in IDE-only mode (no viewer port = no service to discover).
-    let _mdns_svc = args.viewer_port.map(|vp| announce_mdns(vp, args.admin_port));
+    let _mdns_svc = args.viewer_port.map(|vp| announce_mdns(vp, args.admin_port, acceptor.is_some()));
 
     // Kiosk-mode browser spawn: once /health answers OK, run the operator-
     // provided shell command (typically a kiosk browser). Fire-and-forget —
@@ -947,7 +977,12 @@ async fn main() -> anyhow::Result<()> {
                 Ok(x) => x,
                 Err(e) => { warn!("http accept error: {e}"); continue; }
             },
-            _ = tokio::signal::ctrl_c() => {
+            // SIGINT (Ctrl-C, interactive) *and* SIGTERM (podman stop,
+            // systemctl stop, container OOM handling). Handling only SIGINT
+            // meant every supervised stop waited out the grace period and
+            // ended in SIGKILL — 10 s per `podman stop` and, worse, a hard
+            // kill in the middle of a project.yaml / SQLite write.
+            _ = shutdown_signal() => {
                 info!("shutdown signal received");
                 break;
             }
@@ -1016,6 +1051,40 @@ async fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
+/// Resolves when the process is asked to stop: SIGINT (Ctrl-C) or SIGTERM.
+///
+/// SIGTERM is the one supervisors actually send — `podman stop`, `systemctl
+/// stop`. Listening only for SIGINT made every managed stop hit the grace
+/// period and get SIGKILLed, which can truncate an in-flight write.
+///
+/// On non-Unix targets only SIGINT is available; the SIGTERM arm is compiled
+/// out rather than emulated.
+async fn shutdown_signal() {
+    #[cfg(unix)]
+    {
+        use tokio::signal::unix::{signal, SignalKind};
+        // If the handler cannot be installed we still want Ctrl-C to work,
+        // so fall back to a future that never completes instead of panicking.
+        let mut sigterm = match signal(SignalKind::terminate()) {
+            Ok(s) => s,
+            Err(e) => {
+                warn!("cannot install SIGTERM handler: {e} — only SIGINT will stop the runtime");
+                let _ = tokio::signal::ctrl_c().await;
+                return;
+            }
+        };
+        tokio::select! {
+            _ = tokio::signal::ctrl_c() => {}
+            _ = sigterm.recv()          => {}
+        }
+    }
+
+    #[cfg(not(unix))]
+    {
+        let _ = tokio::signal::ctrl_c().await;
+    }
+}
+
 /// Single-project fallback for auto-open: if exactly one directory under
 /// `projects_root` contains a `project.yaml`, return its path. Returns `None`
 /// when there are zero or more than one (the WelcomeScreen then takes over).
@@ -1047,7 +1116,7 @@ fn single_project_dir(projects_root: &std::path::Path) -> Option<std::path::Path
 /// The ServiceDaemon must stay alive for the announcement to remain visible;
 /// drop it to unregister. Returns `None` if the daemon or registration fails
 /// (non-fatal — mDNS is optional).
-fn announce_mdns(viewer_port: u16, admin_port: u16) -> Option<mdns_sd::ServiceDaemon> {
+fn announce_mdns(viewer_port: u16, admin_port: u16, tls: bool) -> Option<mdns_sd::ServiceDaemon> {
     use mdns_sd::{ServiceDaemon, ServiceInfo};
 
     let daemon = ServiceDaemon::new()
@@ -1063,8 +1132,14 @@ fn announce_mdns(viewer_port: u16, admin_port: u16) -> Option<mdns_sd::ServiceDa
 
     let host_fqdn = format!("{}.local.", hostname);
     let admin_port_str = admin_port.to_string();
+    // Lo schema va annunciato, non indovinato: il runtime parte in HTTP finché
+    // non esiste un certificato, e un client che assume https costruisce URL
+    // che non rispondono. Chi ascolta usa "https" come default per restare
+    // compatibile con runtime più vecchi che non pubblicano questa proprietà.
+    let scheme = if tls { "https" } else { "http" };
     let properties = [
         ("admin_port", admin_port_str.as_str()),
+        ("scheme", scheme),
         ("version", env!("CARGO_PKG_VERSION")),
     ];
 
