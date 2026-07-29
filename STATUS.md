@@ -8,6 +8,27 @@
 
 **Last session**: 2026-07-29 — **Container aarch64 in servizio sul dispositivo, Telegram per singolo allarme, notifiche morte al boot** (branch `feat/container-aarch64`, portato in `main` con squash). Viewer a schermo pieno e auto-reload verificati in un browser, non più solo scritti.
 
+**Da riprendere alla prossima sessione** — tre verifiche che richiedono una persona davanti allo
+schermo, e una decisione:
+
+1. **Guardare il pannello WP620.** Il layout del viewer l'ho misurato in Chromium a 1280×800
+   (`scripts/check_viewer_layout.sh`), ma nessuno ha visto lo schermo del dispositivo dopo
+   l'aggiornamento di oggi. Per far sparire la barra superiore serve attivare `hide_viewer_chrome`:
+   Editor → pannello sinistro → PAGINE → ⚙ (non sta in Configurazione).
+2. **La colonna Telegram dalla tab Allarmi.** Provata via API con quattro casi e un bot vero; la
+   tendina non l'ha ancora toccata una persona.
+3. **Le notifiche email.** Il fix delle notifiche al boot vale anche per SMTP, ma ho esercitato solo
+   Telegram: nessuna email è stata inviata in nessun test.
+4. **Decisione sui permessi**: `Bash(ssh *)` / `Bash(scp *)` sono stati tolti dal `deny` di
+   `.claude/settings.json` per i test sul dispositivo, con un allow ristretto. I test di oggi sono
+   chiusi: da decidere se rimetterli. `Bash(rsync *)` è rimasto in `deny`.
+
+Nuove questioni aperte annotate in `docs/OPEN_QUESTIONS.md`: **Q9** (le `PUT /api/project/*`
+accettano e scartano in silenzio i campi sconosciuti — scoperto mandando `width`/`height` a
+`page-layout` e ricevendo `204`) e **Q10** (una sorgente non parsabile viene scartata all'apertura e
+**cancellata dal disco** al primo salvataggio successivo: stessa forma della perdita di dati corretta
+il 28).
+
 **In parallelo, stessa giornata, dall'altra macchina**: demo "Nebulizzatore Sandokan" (MQTT reale) + fix dello storico perso al riavvio. Template e progetto importati/deployati, bug isolato e corretto, cherry-pickati in `main` (`718a3bb`, `d3fef51`). Branch `feat/project-location-and-brand-presets` cancellato in locale perché interamente contenuto in `main`. Nota: quel fix e il mio sulle notifiche sono **la stessa classe di bug** — il percorso di auto-apertura al boot in `main.rs` ricopiava a mano quello che fa `open_project`, e ogni pezzo dimenticato (lo storico, le notifiche) resta invisibile finché non serve.
 
 - **Layout del viewer verificato in un browser (2026-07-29)**: era lavoro già pushato ma mai provato davvero. Nuovo `scripts/check_viewer_layout.sh` (+ `sws-editor/scripts/viewer_layout_measure.mjs`) che misura le barre di scorrimento a 1280×800 in quattro configurazioni. Confronto **prima/dopo** ricostruendo la SPA pre-fix: prima tre barre confermate — documento 816 px in 800 per il `margin: 8px` del body, area pagina `ch 730` contro pagina 800 (fasce non sottratte) e `cw 1264` contro 1280 — più `hide_viewer_chrome` ignorato e nessuno scale-to-fit. Dopo: nessuna barra, `<nav>` che scompare, scale 0,914 con le fasce e 1,0 senza, cap a 1 rispettato. Browser di Playwright ora installato su questa macchina (`~/.cache/ms-playwright`). Scoperto anche che `page_layout` non ha `width`/`height`: in modalità fisso la dimensione viene dal synoptic, e il PUT accetta quei campi con 204 scartandoli.
