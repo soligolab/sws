@@ -6,14 +6,22 @@
 >
 > **Pulizia 2026-07-27**: rimossi i task già chiusi e le sezioni di verifica ormai superate; le sessioni mergiate **e** verificate fino al 2026-07-09 sono compresse in «Storico». Il dettaglio integrale resta in `CHANGELOG.md` e nella history git.
 
-**Last session**: 2026-07-27 (3) — **Migliorie editor, 4 blocchi**: stato "modifiche non salvate" + Ctrl+S, controlli di zoom + toolbar contestuale, header a due livelli, creazione cartelle + copia progetto sul PC. **Validati in browser dal maintainer e squash-mergiati in `main`** in due commit (`2ef99e6` catena cartelle/progetti, `3bddb66` catena editor/header).
+**Last session**: 2026-07-29 — **Demo "Nebulizzatore Sandokan" (MQTT reale) + fix storico perso al riavvio**. Template + progetto importato/deployato, bug isolato e corretto, cherry-pickati in `main` (`718a3bb`, `d3fef51`). Branch `feat/project-location-and-brand-presets` cancellato in locale (contenuto interamente in `main`, sia via la catena A sotto sia via questi due commit).
 
 > Branch di lavoro rimasti in locale, già assorbiti in `main` — eliminabili a discrezione del maintainer:
-> `feat/project-location-and-brand-presets` → `feat/fs-mkdir` (catena A) e
+> `feat/fs-mkdir` (ex catena A, base `feat/project-location-and-brand-presets` — quest'ultimo già
+> cancellato) e
 > `feat/dirty-state-and-save` → `feat/editor-zoom-toolbar` → `feat/slim-app-header` (catena B).
 > Erano incatenati per evitare conflitti su `App.tsx`/`EditorShell.tsx`/`WelcomeScreen.tsx`; al merge
 > l'unico conflitto di codice fra le due catene è stata la riga di import di `pageLayout` in
 > `EditorShell.tsx`.
+
+- **Sessione 2026-07-29 — demo Sandokan (MQTT reale) + fix storico perso al riavvio (cherry-pick diretto in `main`, non branch dedicato — vedi nota di processo)**:
+  - **Template `examples/templates/nebulizzatore-sandokan/`**: presa smart Zigbee2MQTT reale (NEO NAS-WR01B, `zigbee2mqtt/presa.sandokan` su `192.168.1.6:1883`) che alimenta un nebulizzatore antizanzare — sorgente MQTT multi-`json_path` sullo stesso topic, storico SQLite, due allarmi soglia 1W (`Above`/`Below`, l'unico modo per avere due notifiche Telegram distinte accensione/spegnimento — il motore invia Telegram solo sull'attivazione, mai sul rientro), pagina con simbolo pompa animato + 3 trend separati (potenza/corrente/tensione, assi indipendenti per non schiacciare i valori piccoli contro la tensione). Bot Telegram reale rilevato via `getUpdates` (stessa tecnica del pulsante "Rileva chat") e configurato **solo** nei progetti locali gitignored, mai nel template committato. Importato come progetto "Sandokan" su IDE e runtime (creazione indipendente su entrambi via l'endpoint pre-auth, non il flusso "Deploy" one-click che avrebbe cancellato il progetto "default" già attivo sul runtime).
+  - **Bug trovato durante il test**: il maintainer nota che il trend non mostra lo storico pregresso all'apertura pagina, solo i dati da quel momento in poi. Isolato confrontando una query SQLite diretta (448 campioni dalle 21:54 della sera prima) con la risposta API nello stesso istante (15 campioni, solo dal riavvio del processo delle 06:49) — il percorso di boot "legacy auto-open" in `main.rs` non chiamava mai `historian.swap_store(...)`, a differenza di `open_project` (handler HTTP) che lo fa correttamente dal commit `2911d14`. Fix: stessa chiamata aggiunta al percorso di boot. Verificato in log (`historian: swapped to project SQLite`) e via API (storico completo tornato).
+  - **Preset "Tutto"** nel pop-up espanso del trend (oltre 1h/8h/24h/7d): risolve `fromMs` dal campione più vecchio via l'endpoint stats già esistente.
+  - **Nota di processo**: lavoro fatto sul branch `feat/project-location-and-brand-presets` (che nel frattempo un'altra sessione aveva già in parte squash-mergiato in `main` tramite una catena diversa, `feat/fs-mkdir`). Uno squash dell'intero branch avrebbe ri-toccato file già superati da lavoro indipendente su `main` (refactor `App.tsx`/header/toolbar); invece, dopo aver riallineato `main` a `origin/main`, **cherry-pick mirato** dei soli 2 commit realmente nuovi (`718a3bb` demo, `d3fef51` fix storico) — nessun conflitto, `cargo build`+`pnpm build` verdi. Branch locale cancellato dopo la verifica; il branch remoto resta finché `main` non viene pushato (per non lasciare il lavoro assente da GitHub nel frattempo).
+  - **Verifica**: `cargo build` (sws-core/-web/-runtime) + `pnpm build` verdi; storico e allarmi confermati via API sul runtime live dopo il riavvio; **validato dal maintainer** ("funziona").
 
 - **Sessione 2026-07-27 (3d) — cartelle + copia sul PC (branch `feat/fs-mkdir`)**:
   - **`POST /api/fs/mkdir`** accanto a `browse-dirs`: parte pura `resolve_new_dir()` (testabile senza `AppState`, riusa `safe_project_name`), `create_dir` e **non** `create_dir_all` — un refuso in `parent` non deve materializzare un albero. 409 su esistente, 403 su permessi.
