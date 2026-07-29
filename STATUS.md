@@ -84,6 +84,14 @@
 > quindi dopo il `gc` non sono più recuperabili — a differenza dei branch qui sotto, il cui
 > contenuto vive in `main`.
 
+> **`feat/container-aarch64` chiuso il 2026-07-29**, punta `634665c809ee7680270546199e86b6ccf328ab10`.
+> 18 commit dal 27 al 29 luglio (container podman aarch64, deploy sul dispositivo, viewer a schermo
+> pieno, Telegram per-allarme, notifiche morte al boot, segreti nei bundle, perdita di dati di
+> "Salva tutto"), entrati in `main` con lo squash `72b6b3c`. Il **contenuto** è in `main`; quello che
+> si perde dopo il `gc` è la storia granulare — i 18 messaggi di commit, che erano la parte più
+> documentata della sessione. Il riassunto vive nel messaggio di `72b6b3c` e il dettaglio in
+> `CHANGELOG.md` e nelle voci qui sopra.
+
 > **Branch chiusi il 2026-07-29.** Le due catene dell'editor sono entrate in `main` con gli squash
 > `2ef99e6` (catena A: percorso progetto, progetti recenti, preset per brand, creazione cartelle,
 > apertura da ZIP) e `3bddb66` (catena B: stato non salvato + Ctrl+S, controlli zoom, header a due
