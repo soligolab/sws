@@ -440,6 +440,17 @@ async fn main() -> anyhow::Result<()> {
                     Ok(None) => {} // no datastores configured
                     Err(e) => warn!("datastore registry init failed: {e:#}"),
                 }
+                // Wire the historian's read path to this project's SQLite store —
+                // mirrors open_project (sws-web/src/projects.rs). Without this, a
+                // plain process restart leaves GET /api/history/* (and therefore
+                // the trend widget) seeing only samples recorded since this boot,
+                // never the history already on disk, even though writes keep
+                // landing in SQLite via the registry's recorder either way.
+                {
+                    let hist_store = registry.read().await.as_ref()
+                        .and_then(|r| r.primary_sqlite_store());
+                    historian.swap_store(hist_store).await;
+                }
                 alarm_db.load(project.alarms).await;
                 supervisor.reload(project.sources).await;
                 // Seed the function registry. Duplicates from project.yaml
