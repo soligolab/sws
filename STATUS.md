@@ -69,6 +69,20 @@
     2. **"Cerca runtime" non lo trova**: due cause indipendenti, nessuna risolvibile lato container. (a) mDNS è link-local e **non attraversa subnet diverse** — la dev box è su `192.168.0.201`, il device su `192.168.1.34` (debito già noto); (b) anche a parità di subnet, sulla rete rootless di podman il multicast non raggiunge la LAN: servirebbe `--network host`. Da riprovare con IDE e device sulla stessa subnet e container in host network.
   - **Permessi**: `Bash(ssh *)`/`Bash(scp *)` erano in **deny** (il deny vince sull'allow, `docs/CLAUDE_CODE_SETUP.md:248`); su indicazione del maintainer sono stati tolti dal deny e sostituiti da un allow ristretto a `user@192.168.1.34`. `Bash(rsync *)` resta in deny. **Da rivalutare a fine test.**
 
+> **La storia della linea "office" è conservata dal tag `archive/office-2026-05-21`** (commit
+> `4d93de8`), presente in locale **e su `origin`** dal 2026-07-29. I tag non vengono potati dal `gc`:
+> quei 151 commit restano raggiungibili anche se i branch che li puntavano non esistono più. Vale la
+> pena saperlo prima di allarmarsi: cancellando `archive/office-line-2026-05-21` avevo scritto che la
+> storia andava perduta, ed era falso — il tag c'era già, semplicemente non l'avevo cercato.
+>
+> **`backup/friday-phase-a1` eliminato il 2026-07-29** (locale + remoto), punta `42babe9`. Era un
+> backup del venerdì sera 15 maggio sulla stessa linea "office": si separava a `f1cd49f` con **un
+> solo commit proprio**, il frontend di Phase A1 in corso d'opera (`WelcomeScreen` di 406 righe).
+> Superato due volte — dalla versione completa sulla linea office (`a4fa839`, raggiungibile dal tag) e
+> da quella indipendente sulla linea di `main` (`5f17bf1`, dove `WelcomeScreen.tsx` è oggi 1190
+> righe). I 63 commit condivisi restano raggiungibili dal tag: l'eliminazione ha reso irraggiungibile
+> solo quel WIP.
+
 > **`archive/office-line-2026-05-21` eliminato il 2026-07-29** (locale + remoto), punta
 > `4d93de8e76fe479be77c9714d9378716f2a46da9`. Non era un branch di feature: era una **linea di
 > sviluppo parallela e non correlata** — nessun antenato in comune con `main`, radice diversa
