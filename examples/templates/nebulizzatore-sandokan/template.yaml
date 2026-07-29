@@ -1,0 +1,3 @@
+id: nebulizzatore-sandokan
+label: "Nebulizzatore antizanzare (MQTT/Zigbee2MQTT)"
+description: "Monitoraggio di una presa smart Zigbee2MQTT (NEO NAS-WR01B / Tuya TS011F) che alimenta un nebulizzatore antizanzare a pompa: legge stato/potenza/corrente/tensione/energia dallo stesso topic MQTT con json_path multipli, registra lo storico su SQLite, mostra tre grafici trend separati (potenza/corrente/tensione, assi indipendenti) per vedere quando la pompa si accende/spegne, e due allarmi (soglia 1 W) pronti per notifiche Telegram su accensione/spegnimento. Dopo l'import configura il bot Telegram in ConfigView → Notifiche (il template non include credenziali). Broker di riferimento: 192.168.1.6:1883 — verifica di avere accesso alla rete del broker prima di aprire il progetto."

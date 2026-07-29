@@ -1,0 +1,87 @@
+meta:
+  name: nebulizzatore-sandokan
+  version: 0.1.0
+
+tags:
+- id: sandokan.state
+  description: "Sandokan — stato presa (ON/OFF)"
+  data_type: string
+- id: sandokan.power
+  description: "Sandokan — potenza istantanea (W)"
+  data_type: float
+  history: true
+- id: sandokan.current
+  description: "Sandokan — corrente istantanea (A)"
+  data_type: float
+  history: true
+- id: sandokan.voltage
+  description: "Sandokan — tensione di rete (V)"
+  data_type: float
+  history: true
+- id: sandokan.energy
+  description: "Sandokan — energia totale consumata (kWh)"
+  data_type: float
+  history: true
+- id: sandokan.linkquality
+  description: "Sandokan — qualità del segnale Zigbee (0-255)"
+  data_type: int
+- id: sandokan.running
+  description: "Pompa in funzione (derivato: potenza > 1 W)"
+  data_type: bool
+  expression: "tags['sandokan.power'] > 1.0"
+
+sources:
+- kind: mqtt
+  id: mqtt-sandokan
+  host: 192.168.1.6
+  port: 1883
+  client_id: sws-sandokan
+  topics:
+  - tag: sandokan.state
+    topic: zigbee2mqtt/presa.sandokan
+    json_path: state
+  - tag: sandokan.power
+    topic: zigbee2mqtt/presa.sandokan
+    json_path: power
+  - tag: sandokan.current
+    topic: zigbee2mqtt/presa.sandokan
+    json_path: current
+  - tag: sandokan.voltage
+    topic: zigbee2mqtt/presa.sandokan
+    json_path: voltage
+  - tag: sandokan.energy
+    topic: zigbee2mqtt/presa.sandokan
+    json_path: energy
+  - tag: sandokan.linkquality
+    topic: zigbee2mqtt/presa.sandokan
+    json_path: linkquality
+
+alarms:
+- id: sandokan_power_on
+  tag: sandokan.power
+  condition:
+    kind: above
+    threshold: 1.0
+  dead_band: 0.3
+  message: "🦟 Nebulizzatore Sandokan: pompa ACCESA (potenza sopra 1 W)"
+  severity: Info
+- id: sandokan_power_off
+  tag: sandokan.power
+  condition:
+    kind: below
+    threshold: 0.1
+  dead_band: 0.05
+  message: "🦟 Nebulizzatore Sandokan: pompa SPENTA (potenza tornata a 0 W)"
+  severity: Info
+
+functions: []
+custom_symbols: []
+
+datastores:
+- id: default
+  label: "Storico locale"
+  backend:
+    kind: sqlite
+    path: .history/historian.db
+
+global_scripts: []
