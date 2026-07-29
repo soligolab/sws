@@ -24,6 +24,50 @@ use sws_core::{DatastoreBackendConfig, DatastoreConfig, Project, ProjectMeta};
 use sws_historian::DatastoreRegistry;
 use tracing::{info, warn};
 
+/// Avvia i servizi che vivono quanto il progetto aperto: canale Telegram, script
+/// globali, supervisore delle notifiche.
+///
+/// Esiste come funzione condivisa perché **tre** percorsi aprono un progetto —
+/// `open_project` (dall'IDE), `system_start` (presa in carico dall'operatore) e
+/// l'auto-apertura al boot in `main.rs` — e quest'ultimo se l'era dimenticata.
+/// Effetto sul dispositivo: dopo ogni riavvio gli allarmi non mandavano né email
+/// né Telegram e gli script globali non partivano, finché qualcuno non riapriva
+/// il progetto dall'IDE. Il sintomo riportato dal maintainer era proprio "la
+/// notifica di test mi arriva ma il messaggio dell'allarme no": il test invia da
+/// sé, l'allarme dipende da questo supervisore.
+///
+/// Va chiamata **dopo** `supervisor.reload(sources)`, così gli script globali
+/// trovano i valori dei tag già popolati.
+pub async fn start_project_services(
+    s: &AppState,
+    notifications: Option<sws_core::NotificationConfig>,
+    global_scripts: Vec<sws_core::GlobalScriptDef>,
+) {
+    // Il canale Telegram si crea prima dei due supervisori, così condividono
+    // lo stesso sink e una riconfigurazione a caldo li aggiorna entrambi.
+    let sinks = crate::telegram::restart_sender(
+        s, notifications.as_ref().and_then(|n| n.telegram.clone()),
+    ).await;
+    // Il send_telegram delle FUNZIONI passa dall'engine condiviso s.py.
+    s.py.set_telegram_sink(sinks.as_ref().map(|k| k.text.clone()));
+    if !global_scripts.is_empty() {
+        let n = global_scripts.len();
+        let sc = GlobalScriptSupervisor::start(
+            global_scripts,
+            s.db.clone(),
+            s.bus.clone(),
+            sinks.as_ref().map(|k| k.text.clone()),
+        );
+        info!(scripts = n, "global script supervisor started");
+        *s.script_supervisor.write().await = Some(sc);
+    }
+    if let Some(notif) = notifications {
+        let ns = NotificationSupervisor::start(s.alarms.clone(), notif, sinks.map(|k| k.messages));
+        info!("notification supervisor started");
+        *s.notification_supervisor.write().await = Some(ns);
+    }
+}
+
 // ── DTOs ─────────────────────────────────────────────────────────────────────
 
 #[derive(Serialize)]
@@ -434,31 +478,7 @@ pub async fn open_project(
             }).await;
         }
         s.supervisor.reload(project.sources).await;
-        // Telegram sender (shared by alarm channel + script send_telegram),
-        // created before both supervisors so each gets the same sink.
-        let telegram_tx = crate::telegram::restart_sender(
-            &s, project.notifications.as_ref().and_then(|n| n.telegram.clone()),
-        ).await;
-        // Il send_telegram delle FUNZIONI passa dall'engine condiviso s.py.
-        s.py.set_telegram_sink(telegram_tx.clone());
-        // Start global scripts after sources so tag values exist.
-        if !project.global_scripts.is_empty() {
-            let n = project.global_scripts.len();
-            let sc = GlobalScriptSupervisor::start(
-                project.global_scripts,
-                s.db.clone(),
-                s.bus.clone(),
-                telegram_tx.clone(),
-            );
-            info!(scripts = n, "global script supervisor started");
-            *s.script_supervisor.write().await = Some(sc);
-        }
-        // Start notification supervisor if SMTP or Telegram is configured.
-        if let Some(notif) = project.notifications {
-            let ns = NotificationSupervisor::start(s.alarms.clone(), notif, telegram_tx);
-            info!("notification supervisor started");
-            *s.notification_supervisor.write().await = Some(ns);
-        }
+        start_project_services(&s, project.notifications, project.global_scripts).await;
         {
             let mut map = s.functions.write().await;
             for f in project.functions {

@@ -809,6 +809,13 @@ pub struct PageLayoutConfig {
     /// the operator's zones.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub home_page_id: Option<String>,
+    /// Viewer a schermo pieno: nasconde la barra di navigazione e la fascia
+    /// allarmi, così sul pannello si renderizza solo l'area della pagina. Gli
+    /// allarmi attivi compaiono sovrapposti. Non riguarda l'header dell'IDE.
+    /// `Option` + `skip_serializing_if` per non toccare i project.yaml
+    /// esistenti che non hanno il campo.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hide_viewer_chrome: Option<bool>,
 }
 
 /// Tabella lingue di progetto: messaggi nativi + traduzioni, indicizzati per

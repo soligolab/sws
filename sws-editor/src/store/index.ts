@@ -1562,7 +1562,14 @@ export const useAppStore = create<AppState>((set, get) => {
     setConfigTab: (configTab) => set({ configTab }),
     navigateToConfig: (tab) => set({ appMode: "config", configTab: tab }),
 
-    autoRotate: false,
+    // Ripreso da localStorage: `setAutoRotate` lo scriveva ma nessuno lo
+    // rileggeva all'avvio, quindi dopo un reboot del pannello la rotazione
+    // tornava sempre spenta — ed è l'unico modo di cambiare pagina su un
+    // viewer a schermo pieno senza oggetti navbutton.
+    autoRotate: (() => {
+      try { return localStorage.getItem("sws:autoRotate") === "true"; }
+      catch { return false; }
+    })(),
     autoRotateIntervalS: parseInt(localStorage.getItem("sws:autoRotateIntervalS") ?? "30", 10) || 30,
     setAutoRotate: (autoRotate) => {
       localStorage.setItem("sws:autoRotate", String(autoRotate));
@@ -1611,14 +1618,24 @@ export const useAppStore = create<AppState>((set, get) => {
       const state = get();
       const isAdmin = state.authRole === "Admin";
 
-      // 2. Every page (not just the current one), plus the project-level
-      //    collections. Those endpoints are Admin-only on the server, so
-      //    skip them for other roles instead of collecting a 403.
+      // 2. Le pagine (tutte, non solo quella corrente) più le sole collezioni
+      //    di cui l'editor è proprietario.
+      //
+      //    Tags, sources e alarms NON si scrivono più da qui, ed è una
+      //    correzione, non una semplificazione: questa funzione spingeva la
+      //    copia in memoria sopra quella su disco, e un momento in cui la
+      //    copia è più povera del disco cancella dati. È successo davvero —
+      //    audit log del 2026-07-28, `{"count": 0, "what": "tags"}` su un
+      //    progetto che sul disco aveva 16 variabili. Quelle tre collezioni
+      //    appartengono alle tab di Configurazione, che si salvano da sole
+      //    attraverso i propri endpoint; `pendingSections` copre il caso in
+      //    cui l'utente abbia una bozza aperta.
+      //
+      //    Restano functions e custom_symbols: si modificano dall'editor
+      //    (FunctionEditor, symbol picker) e non hanno altro percorso di
+      //    salvataggio.
       const tasks: Promise<unknown>[] = state.pages.map((p) => api.saveSynoptic(p));
       if (isAdmin && state.project) {
-        tasks.push(api.updateTags(state.project.tags ?? []));
-        tasks.push(api.updateSources(state.project.sources ?? []));
-        tasks.push(api.updateAlarms(state.project.alarms ?? []));
         tasks.push(api.updateFunctions(state.project.functions ?? []));
         tasks.push(api.updateCustomSymbols(state.customSymbols ?? []));
       }

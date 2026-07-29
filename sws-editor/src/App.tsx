@@ -20,6 +20,8 @@ import { selectIsDirty, useAppStore } from "@/store";
 import { pickInitialPageId } from "@/pageLayout";
 import { useLogStream } from "@/ws/logStream";
 import { useTagStream } from "@/ws/tagStream";
+import { useProjectWatcher } from "@/ws/projectWatcher";
+import { useBuildWatcher } from "@/ws/buildWatcher";
 import { canEditProject, canConfigureProject } from "@/auth/permissions";
 
 // Port 8444 — full IDE (canvas editor + ConfigView + project management).
@@ -111,6 +113,14 @@ export function App() {
   const [bootstrapping, setBootstrapping] = useState(true);
 
   const [confirmPending, setConfirmPending] = useState<"close" | "logout" | null>(null);
+  // Il progetto sul runtime è cambiato sotto di noi (deploy da un altro IDE,
+  // pull GitOps, modifica dei file sul dispositivo). NON si ricarica da soli:
+  // in editor ci può essere lavoro non salvato, e sovrascriverlo senza chiedere
+  // sarebbe peggio del mostrare dati vecchi. Il viewer invece si aggiorna da sé.
+  const [projectChangedOutside, setProjectChangedOutside] = useState(false);
+  // Frontend nuovo servito dal runtime. Mai automatico qui: un reload
+  // butterebbe via le modifiche non salvate.
+  const [newBuildAvailable, setNewBuildAvailable] = useState(false);
   const [waitingForSave, setWaitingForSave] = useState(false);
 
   // Remote deploy target connection state — persisted in localStorage by RuntimeConnectionTab.
@@ -334,6 +344,22 @@ export function App() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [waitingForSave, saveStatus]);
 
+  // I salvataggi dell'autore cambiano il fingerprint tanto quanto un deploy
+  // esterno: senza questa guardia l'avviso comparirebbe dopo ogni Ctrl+S.
+  // Il polling è a 10 s e un salvataggio dura meno di 1 s, quindi 20 s di
+  // finestra bastano per attribuire il cambio a noi.
+  const lastLocalSaveAt = useRef(0);
+  useEffect(() => {
+    if (saveStatus === "ok") lastLocalSaveAt.current = Date.now();
+  }, [saveStatus]);
+
+  useBuildWatcher(() => setNewBuildAvailable(true));
+
+  useProjectWatcher(() => {
+    if (Date.now() - lastLocalSaveAt.current < 20_000) return; // è stato un nostro salvataggio
+    setProjectChangedOutside(true);
+  });
+
   // Ctrl+S / Cmd+S — global, so it works in Configuration mode too (where
   // EditorShell is unmounted). preventDefault unconditionally, otherwise the
   // browser's own "Save page" dialog leaks through when nothing is dirty.
@@ -534,6 +560,52 @@ export function App() {
       </header>
 
       {/* Alarm banner */}
+      {newBuildAvailable && (
+        <div style={{
+          background: "var(--brand-primary, #3b82f6)", borderBottom: "1px solid var(--brand-primary-hover, #2563eb)",
+          padding: "6px 16px", display: "flex", alignItems: "center", gap: 12,
+          fontSize: 12, color: "#fff", flexShrink: 0,
+        }}>
+          <span>⬆</span>
+          <span style={{ flex: 1 }}>{t("app.newBuildAvailable")}</span>
+          <button
+            style={{ ...HDR_BTN, background: "transparent", color: "#fff", borderColor: "#fff" }}
+            onClick={() => window.location.reload()}
+          >
+            {t("app.reloadNow")}
+          </button>
+          <button
+            style={{ ...HDR_BTN, background: "transparent", color: "#fff", border: "none" }}
+            onClick={() => setNewBuildAvailable(false)}
+            title={t("app.dismiss")}
+          >
+            ✕
+          </button>
+        </div>
+      )}
+      {projectChangedOutside && (
+        <div style={{
+          background: "var(--brand-warning-bg, #78350f)", borderBottom: "1px solid var(--brand-warning, #f59e0b)",
+          padding: "6px 16px", display: "flex", alignItems: "center", gap: 12,
+          fontSize: 12, color: "#fde68a", flexShrink: 0,
+        }}>
+          <span>⟳</span>
+          <span style={{ flex: 1 }}>{t("app.projectChangedOutside")}</span>
+          <button
+            style={{ ...HDR_BTN, background: "transparent", color: "#fde68a", borderColor: "var(--brand-warning, #f59e0b)" }}
+            onClick={() => window.location.reload()}
+          >
+            {t("app.reloadNow")}
+          </button>
+          <button
+            style={{ ...HDR_BTN, background: "transparent", color: "#fde68a", border: "none" }}
+            onClick={() => setProjectChangedOutside(false)}
+            title={t("app.dismiss")}
+          >
+            ✕
+          </button>
+        </div>
+      )}
       <AlarmBanner />
 
       {/* Dev-mode TTL banner: suggests disabling session expiry during development */}

@@ -1,0 +1,63 @@
+# Quadlet unit per il runtime SWS in container podman (rootless).
+#
+# Installato da `install-container.sh` in
+#   ~/.config/containers/systemd/sws-runtime.container
+# da cui systemd genera automaticamente `sws-runtime.service`. Con podman >= 4.4
+# è il modo supportato per far gestire un container da systemd: non serve
+# `podman generate systemd`, e l'unit non va rigenerata quando cambia l'immagine.
+#
+# Perché serve: un container rootless NON riparte dopo un reboot nemmeno con
+# `--restart=unless-stopped` — quel flag vale solo finché il servizio utente di
+# podman è vivo. Serve `loginctl enable-linger` più un'unit utente, ed è quello
+# che l'installer configura.
+#
+# Comandi (come utente, senza sudo):
+#   systemctl --user status  sws-runtime
+#   systemctl --user restart sws-runtime
+#   journalctl --user -u sws-runtime -f
+
+[Unit]
+Description=SWS runtime (container podman)
+Documentation=file:///data/user/sws-container/README
+After=network-online.target
+Wants=network-online.target
+
+[Container]
+Image=localhost/sws-runtime:0.1.0-dev
+ContainerName=sws-runtime
+
+# 8443 viewer operatori, 8444 IDE/admin. Porte > 1024: rootless le binda
+# senza privilegi. In modalità host-network l'installer commenta queste due
+# righe e mette Network=host (necessario perché il multicast mDNS raggiunga
+# la LAN — sulla rete bridge di podman non esce).
+PublishPort=8443:8443
+PublishPort=8444:8444
+
+# Bind mount su un percorso esplicito dell'host invece di volumi nominati:
+# i dati (progetti, config, historian) restano visibili e copiabili in
+# /data/user/sws senza passare da `podman volume inspect`, e la partizione
+# /data è quella scrivibile sui device Pixsys — stessa collocazione del
+# percorso di installazione nativo.
+#
+# Funziona sotto rootless perché il container gira come root e in rootless
+# l'UID 0 del container è mappato sull'utente dell'host: i file creati
+# risultano di `user`, che è il proprietario di /data/user/sws. (Con podman
+# rootful il mapping sarebbe diverso e i permessi andrebbero rivisti.)
+#
+# La SPA sta anch'essa qui e non nell'immagine: aggiornare il frontend non
+# richiede di ricostruire l'immagine (vedi Containerfile).
+Volume=/data/user/sws/www:/var/sws/www
+Volume=/data/user/sws/config:/var/sws/config
+Volume=/data/user/sws/projects:/var/sws/projects
+Volume=/data/user/sws/logs:/var/sws/logs
+
+[Service]
+Restart=always
+RestartSec=5
+# Il runtime gestisce SIGTERM e chiude in ~1 s; 30 s è margine abbondante e
+# serve a non farlo mai finire in SIGKILL a metà di una scrittura su
+# project.yaml o sull'SQLite dell'historian.
+TimeoutStopSec=30
+
+[Install]
+WantedBy=default.target

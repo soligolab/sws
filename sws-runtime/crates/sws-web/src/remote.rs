@@ -125,6 +125,48 @@ pub async fn connect_remote(
         }
     };
 
+    // Verify the URL really points at an ADMIN/IDE port before declaring the
+    // connection good. Two reasons this check has to exist:
+    //  - in no-auth mode the block above performs NO request at all, so any
+    //    reachable (or even unreachable) URL used to turn the UI green;
+    //  - probing /health would not help: it answers on the viewer port too.
+    // The project-lifecycle routes live only on the admin port (dual-port
+    // architecture), so `GET /api/projects` is the discriminating probe — it
+    // is pre-auth there, hence usable with or without a token.
+    // Without this, connecting to the viewer port succeeded and the failure
+    // surfaced only later as "404 Not Found" + "405 Method Not Allowed"
+    // in the middle of a deploy.
+    let probe_url = format!("{url}/api/projects");
+    let mut probe = client.get(&probe_url);
+    if !token.is_empty() {
+        probe = probe.bearer_auth(&token);
+    }
+    match probe.send().await {
+        Ok(r) if r.status().is_success() => {}
+        Ok(r) if r.status() == StatusCode::NOT_FOUND => {
+            return (StatusCode::BAD_GATEWAY, Json(ConnectResult {
+                ok: false,
+                error: Some(format!(
+                    "{url} answers but exposes no project API — this looks like the \
+                     viewer port. Use the IDE/admin port instead (8444 by default)."
+                )),
+            }));
+        }
+        Ok(r) => {
+            let code = r.status();
+            return (StatusCode::BAD_GATEWAY, Json(ConnectResult {
+                ok: false,
+                error: Some(format!("Target returned {code} on /api/projects")),
+            }));
+        }
+        Err(e) => {
+            return (StatusCode::BAD_GATEWAY, Json(ConnectResult {
+                ok: false,
+                error: Some(format!("Cannot reach {url}: {e}")),
+            }));
+        }
+    }
+
     let connected_at_ms = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()

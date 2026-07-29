@@ -2,6 +2,9 @@
 //!
 //! `NotificationSupervisor` subscribes to the AlarmDb broadcast channel and:
 //!   1. Sends email to `def.notify_email` recipients on transition to ActiveUnacked.
+//!   1b. Sends a Telegram message per `def.telegram_routing()` — global chats
+//!       (the default, and what alarms did before the setting existed), the
+//!       alarm's own chats, or nothing.
 //!   2. Every 60 s, scans for ActiveUnacked alarms past `escalate_after_s` and
 //!      sends escalation email to `def.escalate_to` recipients (once per activation).
 //!
@@ -21,7 +24,8 @@ use lettre::{
 use tokio::sync::{broadcast, mpsc, RwLock};
 use tokio_util::sync::CancellationToken;
 use tracing::{info, warn};
-use sws_core::{AlarmDb, AlarmState, IsaState, NotificationConfig, SmtpConfig};
+use sws_core::{AlarmDb, AlarmState, IsaState, NotificationConfig, SmtpConfig, TelegramRouting};
+use crate::telegram::TelegramMessage;
 
 fn now_ms() -> u64 {
     SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_millis() as u64
@@ -85,18 +89,46 @@ fn alarm_body(state: &AlarmState, kind: &str) -> String {
     )
 }
 
+/// Queue `body` for Telegram according to the alarm's own routing.
+///
+/// The empty-`Chats` case is reported, not silently patched: it means the user
+/// picked "specific chats" and hasn't listed any, and either alternative —
+/// dropping without a word, or falling back to every chat — hides a
+/// half-finished setting behind behaviour they didn't ask for.
+fn send_telegram(
+    tx: &mpsc::UnboundedSender<TelegramMessage>,
+    state: &AlarmState,
+    body: String,
+) {
+    match state.def.telegram_routing() {
+        TelegramRouting::Skip => {}
+        TelegramRouting::GlobalChats => {
+            let _ = tx.send(TelegramMessage::global(body));
+        }
+        TelegramRouting::Chats(chats) if chats.is_empty() => {
+            warn!(
+                alarm = %state.def.id,
+                "telegram: modo 'chat specifiche' senza nessuna chat — nessun messaggio inviato",
+            );
+        }
+        TelegramRouting::Chats(chats) => {
+            let _ = tx.send(TelegramMessage::to_chats(body, chats));
+        }
+    }
+}
+
 pub struct NotificationSupervisor {
     cancel: CancellationToken,
 }
 
 impl NotificationSupervisor {
     /// `telegram_tx` is a handle onto the shared `TelegramSender` channel
-    /// (created once per open project). When present, every alarm activation
-    /// (and escalation) is also pushed to the global Telegram chats.
+    /// (created once per open project). When present, each alarm activation and
+    /// escalation is routed by `AlarmDef::telegram_routing()`.
     pub fn start(
         alarm_db: Arc<AlarmDb>,
         config: NotificationConfig,
-        telegram_tx: Option<mpsc::UnboundedSender<String>>,
+        telegram_tx: Option<mpsc::UnboundedSender<TelegramMessage>>,
     ) -> Self {
         let cancel = CancellationToken::new();
         let cancel_clone = cancel.clone();
@@ -147,9 +179,9 @@ impl NotificationSupervisor {
                                             });
                                         }
                                     }
-                                    // Telegram (global chats — every activation).
+                                    // Telegram, instradato dal singolo allarme.
                                     if let Some(tx) = &tg_a {
-                                        let _ = tx.send(body);
+                                        send_telegram(tx, &state, body);
                                     }
                                 }
                                 Err(broadcast::error::RecvError::Lagged(n)) => {
@@ -202,9 +234,9 @@ impl NotificationSupervisor {
                             });
                         }
                     }
-                    // Telegram escalation (global chats).
+                    // Telegram escalation, con lo stesso instradamento.
                     if let Some(tx) = &tg_b {
-                        let _ = tx.send(body);
+                        send_telegram(tx, state, body);
                     }
                 }
             }

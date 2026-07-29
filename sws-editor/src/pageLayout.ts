@@ -64,6 +64,25 @@ export function editorFitSize(
   return null;
 }
 
+/** Fattore di scala per la modalità "fisso" nel viewer: la pagina va
+ *  rimpicciolita quando non entra nello spazio disponibile, invece di far
+ *  comparire barre di scorrimento.
+ *
+ *  **Cap a 1 voluto**: si rimpicciolisce, non si ingrandisce. La modalità
+ *  "fisso" esiste per targetizzare un dispositivo noto — quando le misure
+ *  combaciano lo scale è esattamente 1 e i pixel restano 1:1; ingrandire
+ *  sfocherebbe il disegno. Ritorna 1 anche quando le dimensioni non sono
+ *  determinabili, cioè nessuna riduzione. */
+export function viewerFitScale(
+  availWidth: number | undefined,
+  availHeight: number | undefined,
+  pageWidth: number | undefined,
+  pageHeight: number | undefined,
+): number {
+  if (!availWidth || !availHeight || !pageWidth || !pageHeight) return 1;
+  return Math.min(1, availWidth / pageWidth, availHeight / pageHeight);
+}
+
 /** Which page id the viewer should open at mount. Prefers `homePageId` when
  *  it's present in `pages` (that list is already server-filtered by the
  *  operator's zones — an id absent from it means "not allowed for this

@@ -111,8 +111,20 @@ fi
 
 echo ""
 echo "==> Installation complete."
-echo "    Viewer  (operators):  https://$(hostname -I | awk '{print $1}'):8443"
-echo "    Admin   (IDE):        https://$(hostname -I | awk '{print $1}'):8444"
+# `hostname -I` è un'opzione di net-tools: dove /usr/bin/hostname è quello di
+# coreutils (Pixsys OS, per esempio) fallisce, e con `set -euo pipefail` la
+# sostituzione fallita abortiva lo script proprio su questo messaggio finale,
+# a installazione già completata. `ip` c'è su qualunque Linux recente ed elenca
+# tutti gli indirizzi, non solo il primo.
+lan_ips() {
+    ip -4 -o addr show scope global 2>/dev/null \
+        | awk '{split($4,a,"/"); printf "%s ", a[1]}' || true
+}
+IPS="$(lan_ips)"; IPS="${IPS% }"; [ -n "$IPS" ] || IPS="localhost"
+for a in $IPS; do
+    echo "    Viewer  (operators):  https://$a:8443"
+    echo "    Admin   (IDE):        https://$a:8444"
+done
 echo "    Logs:                 journalctl -u $SERVICE_NAME -f"
 echo "    Config:               $SWS_HOME/runtime.env"
 echo "    Projects:             $SWS_HOME/projects/"

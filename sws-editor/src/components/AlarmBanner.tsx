@@ -34,7 +34,16 @@ function sev(state: AlarmState): AlarmSeverity {
   return state.def.severity ?? "Warning";
 }
 
-export function AlarmBanner() {
+/**
+ * Fascia allarmi in cima al viewer.
+ *
+ * `overlay`: modalità "viewer a schermo pieno" (impostazione di progetto
+ * `hide_viewer_chrome`). La fascia sparisce del tutto quando non ci sono
+ * allarmi — invece di occupare 32px per dire "nessun allarme" — e quando ce ne
+ * sono compare **sovrapposta** al synoptic, senza rubare spazio alla pagina.
+ * Senza `overlay` resta il comportamento storico: sempre presente, nel flusso.
+ */
+export function AlarmBanner({ overlay = false }: { overlay?: boolean } = {}) {
   const { t } = useTranslation();
   useAlarmStream();
 
@@ -60,6 +69,9 @@ export function AlarmBanner() {
       .sort((a, b) => priority(a) - priority(b) || (b.activated_at_ms ?? 0) - (a.activated_at_ms ?? 0))[0];
     return { alerting, unacked, mostUrgent };
   }, [alarms]);
+
+  // In overlay non si mostra nulla a riposo: è il senso della modalità.
+  if (alerting.length === 0 && overlay) return null;
 
   if (alerting.length === 0) {
     return (
@@ -98,11 +110,17 @@ export function AlarmBanner() {
       <style>{`@keyframes sws-blink { 50% { opacity: 0.3; } }`}</style>
       <div style={{
         height: 32,
-        background: `${color}22`,
+        boxSizing: "border-box",
+        background: overlay ? `${color}dd` : `${color}22`,
         borderBottom: `1px solid ${color}`,
         color: "var(--brand-text, #e2e8f0)",
         display: "flex", alignItems: "center", padding: "0 16px",
         fontSize: 13, gap: 12,
+        // Sovrapposto: sopra il synoptic, senza spostarlo. Sfondo più opaco
+        // perché qui sotto c'è il disegno, non lo sfondo dell'app.
+        ...(overlay ? {
+          position: "fixed" as const, top: 0, left: 0, right: 0, zIndex: 8500,
+        } : {}),
       }}>
         <span style={isaStyle(mostUrgent.isa_state, color)}>
           {alerting.length} {unacked.length > 0 ? `· ${unacked.length} non conf.` : ""}

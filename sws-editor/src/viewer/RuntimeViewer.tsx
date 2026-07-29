@@ -1,4 +1,5 @@
-import { useEffect } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   api,
   AuthError,
@@ -9,6 +10,9 @@ import {
 import { useAppStore } from "@/store";
 import { AlarmBanner } from "@/components/AlarmBanner";
 import { RuntimeView } from "@/runtime-view/RuntimeView";
+import { pickInitialPageId } from "@/pageLayout";
+import { useProjectWatcher } from "@/ws/projectWatcher";
+import { useBuildWatcher } from "@/ws/buildWatcher";
 
 // ── Idle screen (no active project on this runtime) ───────────────────────────
 
@@ -48,6 +52,11 @@ function RuntimeIdleScreen() {
 // No login prompt, no project management — just the live synoptic.
 
 export function RuntimeViewer() {
+  const { t } = useTranslation();
+  const [updatedNotice, setUpdatedNotice] = useState(false);
+  const noticeTimer = useRef<number | null>(null);
+  const hideChrome = useAppStore((s) => s.project?.page_layout?.hide_viewer_chrome === true);
+  useEffect(() => () => { if (noticeTimer.current) window.clearTimeout(noticeTimer.current); }, []);
   const noActiveProject     = useAppStore((s) => s.noActiveProject);
   const setNoActiveProject  = useAppStore((s) => s.setNoActiveProject);
   const setProject          = useAppStore((s) => s.setProject);
@@ -56,6 +65,54 @@ export function RuntimeViewer() {
   const clearAuth           = useAppStore((s) => s.clearAuth);
   const setAuth             = useAppStore((s) => s.setAuth);
   const setMustChangePassword = useAppStore((s) => s.setMustChangePassword);
+
+  // Carica (o ricarica) progetto, pagine e faceplate dal runtime.
+  // `keepPageId`: se quella pagina esiste ancora si resta lì — a un ricarico
+  // automatico l'operatore non deve vedersi spostare la pagina sotto le mani.
+  const loadProjectData = useCallback(async (keepPageId?: string) => {
+    const p = await api.getProject();
+    setNoActiveProject(false);
+    setProject(p);
+
+    const names = await api.listSynoptics();
+    if (names.length > 0) {
+      const pages = await Promise.all(names.map((n) => api.getSynoptic(n)));
+      const keep = keepPageId && pages.some((x) => x.id === keepPageId)
+        ? keepPageId
+        : pickInitialPageId(pages, p.page_layout?.home_page_id);
+      setPages(pages, keep);
+    } else {
+      setPages([], "");
+    }
+
+    const ids = await api.listFaceplates().catch(() => [] as string[]);
+    if (ids.length > 0) {
+      const loaded = await Promise.all(ids.map((id) => api.getFaceplate(id)));
+      setFaceplates(loaded);
+    }
+  }, [setNoActiveProject, setProject, setPages, setFaceplates]);
+
+  // Il runtime ricarica il progetto da solo a ogni open/deploy, ma non lo dice
+  // ai client: senza questo, dopo un deploy il pannello continua a mostrare la
+  // versione precedente finché non lo si ricarica a mano.
+  useProjectWatcher((fp) => {
+    if (fp === null) { setNoActiveProject(true); return; }
+    const current = useAppStore.getState().currentPageId;
+    void loadProjectData(current)
+      .then(() => {
+        // Avviso breve: l'operatore deve capire PERCHÉ la schermata è
+        // cambiata sotto le sue mani, senza dovere premere nulla.
+        setUpdatedNotice(true);
+        if (noticeTimer.current) window.clearTimeout(noticeTimer.current);
+        noticeTimer.current = window.setTimeout(() => setUpdatedNotice(false), 4000);
+      })
+      .catch(() => setNoActiveProject(true));
+  });
+
+  // Frontend nuovo distribuito → ricarica. Un bundle nuovo si carica solo
+  // ricaricando la pagina, e sul pannello non c'è nessuno che possa premere un
+  // pulsante. Scelta del maintainer: viewer automatico, IDE con avviso.
+  useBuildWatcher(() => window.location.reload());
 
   // On mount: detect whether a project is active and load its data.
   useEffect(() => {
@@ -110,7 +167,21 @@ export function RuntimeViewer() {
       display: "flex", flexDirection: "column", height: "100vh",
       fontFamily: "system-ui, sans-serif", color: "var(--brand-text, #e2e8f0)", background: "var(--brand-bg, #0f172a)",
     }}>
-      <AlarmBanner />
+      {/* A schermo pieno la fascia allarmi non occupa spazio: sparisce a
+          riposo e compare sovrapposta quando c'è un allarme attivo. */}
+      <AlarmBanner overlay={hideChrome} />
+      {updatedNotice && (
+        <div style={{
+          position: "fixed", top: 12, right: 12, zIndex: 9500,
+          background: "var(--brand-surface, #1e293b)",
+          border: "1px solid var(--brand-success, #22c55e)",
+          color: "var(--brand-success-soft, #86efac)",
+          borderRadius: 6, padding: "6px 12px", fontSize: 13,
+          boxShadow: "0 4px 16px rgba(0,0,0,0.4)", pointerEvents: "none",
+        }}>
+          ⟳ {t("viewer.projectUpdated")}
+        </div>
+      )}
       <RuntimeView />
     </div>
   );

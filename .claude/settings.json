@@ -2,6 +2,8 @@
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
   "permissions": {
     "allow": [
+      "Bash(ssh user@192.168.1.* *)",
+      "Bash(scp * user@192.168.1.*:*)",
       "Bash(cargo *)",
       "Bash(cd sws-runtime && cargo *)",
       "Bash(cd sws-editor && pnpm *)",
@@ -103,8 +105,6 @@
       "Bash(curl * | bash*)",
       "Bash(wget * | sh*)",
       "Bash(wget * | bash*)",
-      "Bash(ssh *)",
-      "Bash(scp *)",
       "Bash(rsync *)"
     ],
     "ask": [

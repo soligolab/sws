@@ -8,7 +8,6 @@ use serde::{Deserialize, Serialize};
 use sws_core::{AlarmDb, TagDb};
 use sysinfo::{Disks, System};
 
-use crate::global_scripts::GlobalScriptSupervisor;
 use crate::router::{active_dir, AppState};
 use crate::source_supervisor::SourceSupervisor;
 
@@ -157,26 +156,7 @@ pub async fn system_start(State(s): State<AppState>) -> StatusCode {
         }
     };
     s.supervisor.reload(project.sources).await;
-    // Telegram sender (shared by alarm channel + script send_telegram). Created
-    // before both supervisors so each gets the same sink.
-    let telegram_tx = crate::telegram::restart_sender(
-        &s, project.notifications.as_ref().and_then(|n| n.telegram.clone()),
-    ).await;
-    // Il send_telegram delle FUNZIONI passa dall'engine condiviso s.py.
-    s.py.set_telegram_sink(telegram_tx.clone());
-    if !project.global_scripts.is_empty() {
-        let sc = GlobalScriptSupervisor::start(
-            project.global_scripts,
-            s.db.clone(),
-            s.bus.clone(),
-            telegram_tx.clone(),
-        );
-        *s.script_supervisor.write().await = Some(sc);
-    }
-    if let Some(notif) = project.notifications {
-        let ns = crate::notifications::NotificationSupervisor::start(s.alarms.clone(), notif, telegram_tx);
-        *s.notification_supervisor.write().await = Some(ns);
-    }
+    crate::projects::start_project_services(&s, project.notifications, project.global_scripts).await;
     tracing::info!("runtime acquisition started by operator");
     StatusCode::NO_CONTENT
 }
@@ -439,6 +419,8 @@ mod tests {
             notify_email: None,
             escalate_after_s: None,
             escalate_to: None,
+            telegram_mode: None,
+            telegram_chat_ids: None,
         }]).await;
 
         let state = TagState {

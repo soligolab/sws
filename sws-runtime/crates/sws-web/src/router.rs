@@ -138,7 +138,10 @@ pub fn build(
     lockdown: bool,
     audit: Arc<sws_audit::AuditLog>,
     known_projects: Arc<crate::project_registry::ProjectRegistry>,
-) -> (Router, Router) {
+    // Lo `AppState` torna al chiamante insieme ai due router: `main.rs` deve
+    // avviare i servizi del progetto auto-aperto al boot (notifiche, script
+    // globali) e quei supervisori vivono qui dentro.
+) -> (Router, Router, AppState) {
     let state = AppState { db, bus, alarms, historian, registry, py, auth, supervisor, script_supervisor, functions, derived_tags, project_dir, projects_root, templates_root, logs, logs_dir, started_at, ip_allowlist, recipe_log: Arc::new(RwLock::new(Vec::new())), notification_supervisor: Arc::new(RwLock::new(None)), telegram_sender: Arc::new(RwLock::new(None)), config_dir, cert_path, build_running: crate::packaging::new_build_lock(), repo_root: crate::packaging::new_repo_root(), remote_target: Arc::new(RwLock::new(None)), audit, known_projects };
     // Build the runtime router (8443) before consuming state for admin.
     let runtime_app = build_runtime_inner(state.clone(), www_dir.clone(), lockdown);
@@ -158,6 +161,7 @@ pub fn build(
         .route("/api/project/notifications",   put(update_project_notifications))
         .route("/api/project/page-layout",     put(update_project_page_layout))
         .route("/api/notifications/test-telegram", post(test_telegram))
+        .route("/api/notifications/telegram-chats", post(detect_telegram_chats))
         .route("/api/project/rollback",        post(trigger_rollback))
         // Bulk project export/import (single ZIP carrying project.yaml +
         // every synoptic). Destructive on the import side — Admin only.
@@ -437,7 +441,9 @@ pub fn build(
         .allow_methods(Any)
         .allow_headers(Any);
 
-    (runtime_app, app.layer(cors).with_state(state))
+    // `state` serve anche al chiamante, quindi si clona per il router admin.
+    let admin_app = app.layer(cors).with_state(state.clone());
+    (runtime_app, admin_app, state)
 }
 
 /// Build the runtime router served on port 8443 (synoptic view only).
@@ -1888,11 +1894,21 @@ async fn update_project_datastores(
 // ── Project import / export (Admin only) ─────────────────────────────────────
 //
 // Bundle layout inside the ZIP:
-//   manifest.json         {"format_version":"1.0","name":"...","exported_at_ms":...,"secrets_masked":true}
-//   project.yaml          MQTT passwords stripped (`None`)
+//   manifest.json         {"format_version":"1.0","name":"...","exported_at_ms":...,"secrets_masked":false}
+//   project.yaml          complete, secrets included
 //   synoptics/<name>.yaml one per page, name sanitised via `safe_filename`
+//   users.yaml            when present, so accounts travel with the project
 //
-// `users.yaml` is NEVER included — password hashes stay on the host runtime.
+// **The bundle carries secrets in clear.** Passwords and tokens entered in a
+// project are project data: a backup that drops them does not restore, and a
+// deploy that drops them lands a project that cannot connect. Whoever holds the
+// bundle is responsible for storing it safely — decisione del maintainer,
+// 2026-07-29. `secrets_masked` stays in the manifest for format compatibility
+// and is now always `false`; nothing in the codebase reads it.
+//
+// This is deliberately NOT the same as the `********` masking on GET responses
+// (`MASKED_PASSWORD`): that keeps secrets out of the browser and is restored
+// server-side on save. Here the bundle is the medium of backup and transfer.
 
 const BUNDLE_FORMAT_VERSION: &str = "1.0";
 
@@ -1907,11 +1923,10 @@ struct BundleManifest {
 /// Build a ZIP of the active project from `dir` (same logic as the export
 /// endpoint but callable internally — used by `remote_deploy`).
 pub(crate) async fn build_project_zip(dir: &std::path::Path) -> anyhow::Result<Vec<u8>> {
-    let mut project = Project::load(dir)
+    // Segreti inclusi: il dispositivo che riceve il deploy deve potersi
+    // collegare al broker, e prima la password MQTT veniva spogliata proprio qui.
+    let project = Project::load(dir)
         .map_err(|e| anyhow::anyhow!("cannot load project: {e}"))?;
-    for src in &mut project.sources {
-        if let SourceDef::Mqtt(c) = src { c.password = None; }
-    }
     let pages = load_all_synoptics(&synoptics_dir_at(dir)).await
         .map_err(|e| anyhow::anyhow!("cannot read synoptics: {e}"))?;
     let project_name = project.meta.name.clone();
@@ -1923,7 +1938,7 @@ pub(crate) async fn build_project_zip(dir: &std::path::Path) -> anyhow::Result<V
         format_version: BUNDLE_FORMAT_VERSION.into(),
         name:           project_name,
         exported_at_ms,
-        secrets_masked: true,
+        secrets_masked: false,
     };
     let users_yaml = std::fs::read_to_string(dir.join("users.yaml")).ok();
     build_export_zip(&manifest, &project, &pages, users_yaml.as_deref())
@@ -1931,19 +1946,15 @@ pub(crate) async fn build_project_zip(dir: &std::path::Path) -> anyhow::Result<V
 
 async fn export_project_zip(State(s): State<AppState>) -> Response {
     let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
-    // 1. Load the project from disk and strip MQTT passwords.
-    let mut project = match Project::load(&dir) {
+    // 1. Load the project from disk, secrets included (see the bundle notes
+    //    above): un export che li perde non è un backup ripristinabile.
+    let project = match Project::load(&dir) {
         Ok(p)  => p,
         Err(e) => {
             warn!("export: cannot load project: {e}");
             return (StatusCode::INTERNAL_SERVER_ERROR, "cannot load project").into_response();
         }
     };
-    for src in &mut project.sources {
-        if let SourceDef::Mqtt(c) = src {
-            c.password = None;
-        }
-    }
 
     // 2. Load every synoptic page from disk.
     let pages = match load_all_synoptics(&synoptics_dir_at(&dir)).await {
@@ -1964,7 +1975,7 @@ async fn export_project_zip(State(s): State<AppState>) -> Response {
         format_version: BUNDLE_FORMAT_VERSION.into(),
         name:           project_name.clone(),
         exported_at_ms,
-        secrets_masked: true,
+        secrets_masked: false,
     };
 
     // Include users.yaml if present so credentials travel with the project.
@@ -2087,8 +2098,10 @@ async fn import_project_zip(State(s): State<AppState>, body: Bytes) -> Response 
         Err(e) => return (StatusCode::BAD_REQUEST,
             format!("project.yaml parse error: {e}")).into_response(),
     };
-    // Defensive: scrub the "********" sentinel in case an older client
-    // included it in the bundle. Treat as "no password set".
+    // Defensive: scrub the "********" sentinel in case a client built the bundle
+    // from a masked GET response. Treat as "no password set" — persisting the
+    // sentinel would look like a configured password and fail at connect time
+    // with no clue why. Bundles exported by the runtime carry the real secret.
     for src in &mut project.sources {
         if let SourceDef::Mqtt(c) = src {
             if matches!(&c.password, Some(p) if p == MASKED_PASSWORD) {
@@ -3680,7 +3693,7 @@ async fn update_project_global_scripts(
         if !scripts.is_empty() {
             // Reuse the running Telegram sink (if any) so restarted scripts keep
             // the send_telegram binding.
-            let telegram_tx = s.telegram_sender.read().await.as_ref().map(|ts| ts.sender());
+            let telegram_tx = s.telegram_sender.read().await.as_ref().map(|ts| ts.text_sender());
             let sc = crate::global_scripts::GlobalScriptSupervisor::start(
                 scripts,
                 s.db.clone(),
@@ -3868,6 +3881,25 @@ async fn update_project_notifications(
     s.audit.log("project.change", Some(user.username), serde_json::json!({"what": "notifications", "enabled": config.is_some()}));
     let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c };
 
+    // Difesa in profondità: se stiamo per perdere un bot_token già salvato,
+    // dirlo. Non è ipotetico — un client che manda `notifications` senza la
+    // sezione `telegram` (bozza della UI disallineata) cancellava il token in
+    // silenzio, e la sola guardia sul placeholder mascherato non lo copriva.
+    // Qui non si cambia semantica (disabilitare Telegram deve poterlo
+    // rimuovere), si rende l'evento visibile nel log invece che invisibile.
+    if let Ok(existing) = Project::load(&dir) {
+        let had_token = existing.notifications.as_ref()
+            .and_then(|n| n.telegram.as_ref())
+            .map(|t| !t.bot_token.trim().is_empty())
+            .unwrap_or(false);
+        let keeps_telegram = config.as_ref().map(|c| c.telegram.is_some()).unwrap_or(false);
+        if had_token && !keeps_telegram {
+            warn!(
+                "notifications: la nuova configurazione non contiene Telegram —                  il bot_token salvato viene rimosso. Se non era intenzionale,                  ri-inseriscilo in Configurazione → Notifiche."
+            );
+        }
+    }
+
     // Preserve existing secrets when the UI sends the masked placeholder
     // (SMTP password, Telegram bot token).
     let config = if let Some(mut cfg) = config {
@@ -3901,11 +3933,11 @@ async fn update_project_notifications(
     if status == StatusCode::NO_CONTENT {
         // Hot-swap the Telegram sender (config swap keeps the script `tx` alive)
         // then restart the notification supervisor with the shared sink.
-        let telegram_tx = crate::telegram::restart_sender(
+        let sinks = crate::telegram::restart_sender(
             &s, config.as_ref().and_then(|n| n.telegram.clone()),
         ).await;
         // Aggiorna anche il sink delle funzioni (engine condiviso) senza reopen.
-        s.py.set_telegram_sink(telegram_tx.clone());
+        s.py.set_telegram_sink(sinks.as_ref().map(|k| k.text.clone()));
         if let Some(old) = s.notification_supervisor.write().await.take() {
             old.stop();
         }
@@ -3913,7 +3945,7 @@ async fn update_project_notifications(
             let sup = crate::notifications::NotificationSupervisor::start(
                 s.alarms.clone(),
                 cfg,
-                telegram_tx,
+                sinks.map(|k| k.messages),
             );
             *s.notification_supervisor.write().await = Some(sup);
         }
@@ -3939,6 +3971,88 @@ async fn update_project_page_layout(
 }
 
 #[derive(serde::Deserialize)]
+struct DetectChatsRequest {
+    #[serde(default)]
+    bot_token: String,
+}
+
+#[derive(serde::Serialize)]
+struct DetectedChat {
+    id: String,
+    label: String,
+    #[serde(rename = "type")]
+    kind: String,
+}
+
+/// `POST /api/notifications/telegram-chats` — elenca le chat che hanno scritto
+/// al bot (`getUpdates`), risolvendo il token salvato quando la UI non lo ha in
+/// chiaro. Prima questo giro lo faceva il browser: funzionava solo appena dopo
+/// aver digitato il token, e non diceva nulla sulla capacità del runtime di
+/// raggiungere Telegram.
+async fn detect_telegram_chats(
+    State(s): State<AppState>,
+    Json(req): Json<DetectChatsRequest>,
+) -> Response {
+    let mut token = req.bot_token;
+    if token == MASKED_PASSWORD || token.trim().is_empty() {
+        if let Ok(dir) = active_dir(&s).await {
+            if let Ok(existing) = Project::load(&dir) {
+                if let Some(tok) = existing.notifications.and_then(|n| n.telegram).map(|t| t.bot_token) {
+                    token = tok;
+                }
+            }
+        }
+    }
+    if token.trim().is_empty() {
+        return (StatusCode::BAD_REQUEST, "nessun bot token salvato né fornito").into_response();
+    }
+
+    let client = reqwest::Client::new();
+    let url = format!("https://api.telegram.org/bot{}/getUpdates", token.trim());
+    let body: serde_json::Value = match client.get(&url).send().await {
+        Ok(r) => match r.json().await {
+            Ok(j) => j,
+            Err(e) => return (StatusCode::BAD_GATEWAY, format!("risposta non valida da Telegram: {e}")).into_response(),
+        },
+        Err(e) => return (StatusCode::BAD_GATEWAY, format!("impossibile raggiungere Telegram: {e}")).into_response(),
+    };
+    if body.get("ok").and_then(|v| v.as_bool()) != Some(true) {
+        let desc = body.get("description").and_then(|v| v.as_str()).unwrap_or("errore sconosciuto");
+        return (StatusCode::BAD_GATEWAY, format!("Telegram: {desc}")).into_response();
+    }
+
+    // Un update può portare la chat in campi diversi a seconda del tipo di
+    // evento; si guardano tutti quelli che nella pratica compaiono.
+    let mut seen: std::collections::BTreeMap<String, DetectedChat> = Default::default();
+    for upd in body.get("result").and_then(|v| v.as_array()).map(|a| a.as_slice()).unwrap_or(&[]) {
+        let chat = ["message", "edited_message", "channel_post", "edited_channel_post", "my_chat_member", "chat_member"]
+            .iter()
+            .filter_map(|k| upd.get(*k))
+            .filter_map(|c| c.get("chat"))
+            .next();
+        let Some(chat) = chat else { continue };
+        let Some(id) = chat.get("id").and_then(|v| v.as_i64()) else { continue };
+        let id = id.to_string();
+        let str_of = |k: &str| chat.get(k).and_then(|v| v.as_str()).unwrap_or("").to_string();
+        let title = str_of("title");
+        let label = if !title.is_empty() {
+            title
+        } else {
+            let name = format!("{} {}", str_of("first_name"), str_of("last_name")).trim().to_string();
+            if !name.is_empty() { name }
+            else if !str_of("username").is_empty() { format!("@{}", str_of("username")) }
+            else { id.clone() }
+        };
+        seen.entry(id.clone()).or_insert(DetectedChat {
+            id,
+            label,
+            kind: str_of("type"),
+        });
+    }
+    Json(seen.into_values().collect::<Vec<_>>()).into_response()
+}
+
+#[derive(serde::Deserialize)]
 struct TestTelegramRequest {
     bot_token: String,
     #[serde(default)]
@@ -3956,7 +4070,11 @@ async fn test_telegram(
     Json(req): Json<TestTelegramRequest>,
 ) -> Response {
     let mut token = req.bot_token;
-    if token == MASKED_PASSWORD {
+    // Placeholder o campo vuoto: la UI non ha il token in chiaro (il server non
+    // lo rimanda mai indietro), quindi si usa quello salvato. È ciò che rende
+    // il test utilizzabile dopo un semplice cambio di tab, e soprattutto ciò
+    // che fa provare la STESSA catena che manda gli allarmi.
+    if token == MASKED_PASSWORD || token.trim().is_empty() {
         if let Ok(dir) = active_dir(&s).await {
             if let Ok(existing) = Project::load(&dir) {
                 if let Some(tok) = existing.notifications.and_then(|n| n.telegram).map(|t| t.bot_token) {
@@ -3971,5 +4089,75 @@ async fn test_telegram(
     match crate::telegram::send_message(&client, &token, &req.chat_ids, &text).await {
         Ok(()) => StatusCode::NO_CONTENT.into_response(),
         Err(e) => (StatusCode::BAD_GATEWAY, format!("{e:#}")).into_response(),
+    }
+}
+
+#[cfg(test)]
+mod bundle_tests {
+    use super::*;
+
+    /// Un progetto minimo su disco con dentro tutti i tipi di segreto che il
+    /// modello prevede: password MQTT, bot token Telegram, password SMTP.
+    fn project_with_secrets(dir: &std::path::Path) {
+        std::fs::write(dir.join("project.yaml"), r#"
+meta:
+  name: segreti
+  version: "1"
+tags: []
+sources:
+  - kind: mqtt
+    id: broker
+    host: 127.0.0.1
+    username: utente
+    password: password-mqtt-vera
+    topics: []
+notifications:
+  smtp:
+    host: smtp.example.com
+    from: sws@example.com
+    username: utente
+    password: password-smtp-vera
+  telegram:
+    bot_token: "1234567890:TOKEN-TELEGRAM-VERO"
+    chat_ids: ["-100999"]
+"#).unwrap();
+        std::fs::create_dir_all(dir.join("synoptics")).unwrap();
+    }
+
+    fn zip_entry(zip: &[u8], name: &str) -> String {
+        let mut a = zip::ZipArchive::new(Cursor::new(zip.to_vec())).unwrap();
+        let mut f = a.by_name(name).unwrap_or_else(|_| panic!("{name} assente dal bundle"));
+        let mut s = String::new();
+        std::io::Read::read_to_string(&mut f, &mut s).unwrap();
+        s
+    }
+
+    /// I segreti sono dati di progetto e devono viaggiare: un backup che li
+    /// perde non ripristina, e un deploy che li perde consegna al dispositivo un
+    /// progetto che non riesce a collegarsi. Decisione del maintainer, 2026-07-29.
+    ///
+    /// Prima la password MQTT veniva azzerata in `build_project_zip`, che è la
+    /// funzione usata **anche dal deploy remoto** (`remote.rs`): il dispositivo
+    /// riceveva quindi un broker senza credenziali, mentre nello stesso bundle
+    /// viaggiavano in chiaro token Telegram e password SMTP — e il manifest
+    /// dichiarava `secrets_masked: true`.
+    #[tokio::test]
+    async fn il_bundle_porta_tutti_i_segreti() {
+        let tmp = tempfile::tempdir().unwrap();
+        project_with_secrets(tmp.path());
+
+        let zip = build_project_zip(tmp.path()).await.expect("build zip");
+        let yaml = zip_entry(&zip, "project.yaml");
+
+        assert!(yaml.contains("password-mqtt-vera"), "password MQTT persa:\n{yaml}");
+        assert!(yaml.contains("TOKEN-TELEGRAM-VERO"), "bot token Telegram perso:\n{yaml}");
+        assert!(yaml.contains("password-smtp-vera"), "password SMTP persa:\n{yaml}");
+        // Nessun segreto sostituito dal sentinella della UI.
+        assert!(!yaml.contains(MASKED_PASSWORD), "un segreto è stato mascherato:\n{yaml}");
+
+        // Il manifest deve dirlo, così chi riceve il bundle sa cosa ha in mano.
+        let manifest = zip_entry(&zip, "manifest.json");
+        let m: serde_json::Value = serde_json::from_str(&manifest).unwrap();
+        assert_eq!(m["secrets_masked"], serde_json::json!(false), "manifest: {manifest}");
     }
 }

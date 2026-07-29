@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
 import { getBrand } from "@/branding";
 import { SvgCanvas } from "@/canvas/SvgCanvas";
-import { effectiveSizeMode } from "@/pageLayout";
+import { viewerFitScale, effectiveSizeMode } from "@/pageLayout";
 import { AlarmHistory } from "@/components/AlarmHistory";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { UiLangSelect } from "@/components/UiLangSelect";
@@ -97,7 +97,10 @@ const SEV_COLOR: Record<AlarmSeverity, string> = {
   Critical: "var(--brand-danger, #ef4444)",
 };
 
-function AlarmPanel() {
+/** `bellTop`: offset verticale della campanella. Era 80 hardcoded, numero che
+ *  assumeva l'esistenza di entrambe le fasce (allarmi 33 + nav 37 + margine).
+ *  A schermo pieno quelle fasce non ci sono e la campanella deve salire. */
+function AlarmPanel({ bellTop = 80 }: { bellTop?: number }) {
   const { t } = useTranslation();
   useAlarmStream();
 
@@ -169,7 +172,7 @@ function AlarmPanel() {
     : (visibleActive.length > 0 ? "var(--brand-warning, #eab308)" : "var(--brand-border, #475569)");
 
   return (
-    <div style={{ position: "fixed", top: 80, right: 16, zIndex: 7500, pointerEvents: "auto" }}>
+    <div style={{ position: "fixed", top: bellTop, right: 16, zIndex: 7500, pointerEvents: "auto" }}>
       <button
         onClick={() => setOpen((v) => !v)}
         title={visibleActive.length === 0 ? t("viewer.noActiveAlarms") : `${visibleActive.length} ${t("viewer.active")}`}
@@ -468,6 +471,31 @@ export function RuntimeView() {
   // When the page changes, re-subscribe to the new page's tags.
   const currentPage = pages.find((p) => p.id === currentPageId);
   const sizeMode = effectiveSizeMode(project?.page_layout);
+  const hideChrome = project?.page_layout?.hide_viewer_chrome === true;
+
+  // Misura del contenitore del canvas per la modalità "fisso": la pagina va
+  // rimpicciolita quando non entra, invece di far comparire scrollbar. Serve
+  // la dimensione reale, quindi ResizeObserver e non una media query.
+  const canvasBoxRef = useRef<HTMLDivElement>(null);
+  const [box, setBox] = useState<{ w: number; h: number } | null>(null);
+  useEffect(() => {
+    const el = canvasBoxRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(([entry]) => {
+      const r = entry.contentRect;
+      setBox({ w: r.width, h: r.height });
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  // Cap a 1: si rimpicciolisce, non si ingrandisce. La modalità "fisso" esiste
+  // per targetizzare un dispositivo noto — se le misure combaciano lo scale è
+  // esattamente 1 e i pixel restano 1:1; ingrandire sfocherebbe il disegno.
+  const fitScale = useMemo(() => {
+    if (sizeMode !== "fixed") return 1;
+    return viewerFitScale(box?.w, box?.h, currentPage?.width, currentPage?.height);
+  }, [sizeMode, box, currentPage?.width, currentPage?.height]);
   const pageTagIds = useMemo(() => {
     const ids = new Set<string>();
     for (const obj of currentPage?.objects ?? []) {
@@ -560,8 +588,11 @@ export function RuntimeView() {
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
     >
-      {/* Page navigation bar */}
-      {pages.length > 1 && (
+      {/* Page navigation bar — assente in modalità "viewer a schermo pieno"
+          (impostazione di progetto hide_viewer_chrome): sul pannello si
+          renderizza solo l'area della pagina. boxSizing perché senza, i 36px
+          dichiarati diventano 37 col bordo e la pagina non torna. */}
+      {pages.length > 1 && !hideChrome && (
         <nav style={{
           display: "flex",
           alignItems: "center",
@@ -570,6 +601,7 @@ export function RuntimeView() {
           background: "var(--brand-bg, #0f172a)",
           borderBottom: "1px solid var(--brand-surface-2, #334155)",
           height: 36,
+          boxSizing: "border-box",
           flexShrink: 0,
           overflowX: "auto",
         }}>
@@ -665,8 +697,9 @@ export function RuntimeView() {
         </nav>
       )}
 
-      {/* Canvas */}
-      <div style={{ flex: 1, overflow: sizeMode === "fixed" ? "auto" : "hidden" }}>
+      {/* Canvas. overflow hidden anche in "fixed": la pagina che non entra
+          viene rimpicciolita (fitScale) invece di far comparire scrollbar. */}
+      <div ref={canvasBoxRef} style={{ flex: 1, overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center" }}>
         <SvgCanvas
           objects={objects}
           tagValues={tagValues}
@@ -676,6 +709,7 @@ export function RuntimeView() {
           pageWidth={currentPage?.width}
           pageHeight={currentPage?.height}
           sizeMode={sizeMode}
+          fitScale={fitScale}
           onWriteTag={handleWriteTag}
           onScript={handleScript}
           onNavigate={setCurrentPage}
@@ -683,7 +717,8 @@ export function RuntimeView() {
       </div>
 
       {/* Alarm panel (top-right floating, dropdown with per-row ACK) */}
-      <AlarmPanel />
+      {/* A schermo pieno non c'è chrome sopra: la campanella sale in alto. */}
+      <AlarmPanel bellTop={hideChrome ? 12 : 80} />
 
       {/* Function test panel (bottom-left floating — operator picks a
           project function, edits parameter overrides, runs ad-hoc). */}

@@ -11,6 +11,13 @@
 //! The sender holds its config in a `RwLock` so a notifications-config save can
 //! hot-swap it (`set_config`) without invalidating the channel `tx` already
 //! handed to the script engine — scripts keep working across config changes.
+//!
+//! Two channels feed the same drainer, on purpose:
+//!   - `TelegramMessage`, which can name its own chats — used by alarms, whose
+//!     routing is per-alarm (`AlarmDef::telegram_routing`);
+//!   - plain `String`, which always goes to the configured chats — that is the
+//!     type `sws-pyscript` holds for `send_telegram(text)`, and keeping it
+//!     avoids threading a `sws-web` type into the script crate.
 
 use std::sync::Arc;
 use tokio::sync::{mpsc, RwLock};
@@ -19,6 +26,25 @@ use tracing::{info, warn};
 use sws_core::TelegramConfig;
 
 use crate::router::AppState;
+
+/// A queued Telegram message.
+#[derive(Debug, Clone)]
+pub struct TelegramMessage {
+    pub text: String,
+    /// Chats to send to. `None` → the chats configured in Notifications.
+    pub chat_ids: Option<Vec<String>>,
+}
+
+impl TelegramMessage {
+    /// To the globally configured chats.
+    pub fn global(text: String) -> Self {
+        Self { text, chat_ids: None }
+    }
+    /// To specific chats only.
+    pub fn to_chats(text: String, chat_ids: Vec<String>) -> Self {
+        Self { text, chat_ids: Some(chat_ids) }
+    }
+}
 
 /// Send `text` to every chat in `chat_ids`. Returns an error on the first
 /// failed request/response so callers (e.g. the test endpoint) can surface it.
@@ -56,7 +82,8 @@ pub async fn send_message(
 /// sends each to the currently-configured chats. Cloneable `sender()` handles
 /// are shared by the alarm supervisor and the script engine; both just push text.
 pub struct TelegramSender {
-    tx: mpsc::UnboundedSender<String>,
+    tx: mpsc::UnboundedSender<TelegramMessage>,
+    text_tx: mpsc::UnboundedSender<String>,
     cfg: Arc<RwLock<Option<TelegramConfig>>>,
     cancel: CancellationToken,
 }
@@ -65,7 +92,8 @@ impl TelegramSender {
     /// Start the drainer with `initial` config (may be `None`: messages are then
     /// dropped with a warning until `set_config` supplies a config).
     pub fn start(initial: Option<TelegramConfig>) -> Self {
-        let (tx, mut rx) = mpsc::unbounded_channel::<String>();
+        let (tx, mut rx) = mpsc::unbounded_channel::<TelegramMessage>();
+        let (text_tx, mut text_rx) = mpsc::unbounded_channel::<String>();
         let cfg = Arc::new(RwLock::new(initial));
         let cancel = CancellationToken::new();
         let cfg_task = Arc::clone(&cfg);
@@ -73,32 +101,37 @@ impl TelegramSender {
         tokio::spawn(async move {
             let client = reqwest::Client::new();
             loop {
-                tokio::select! {
-                    msg = rx.recv() => match msg {
-                        Some(text) => {
-                            let snapshot = cfg_task.read().await.clone();
-                            match snapshot {
-                                Some(c) => {
-                                    if let Err(e) = send_message(&client, &c.bot_token, &c.chat_ids, &text).await {
-                                        warn!("telegram send failed: {e:#}");
-                                    } else {
-                                        info!("telegram message sent to {} chat(s)", c.chat_ids.len());
-                                    }
-                                }
-                                None => warn!("telegram message dropped: channel not configured"),
-                            }
-                        }
-                        None => break,
-                    },
+                let msg = tokio::select! {
+                    m = rx.recv() => match m { Some(m) => m, None => break },
+                    // Gli script mandano solo testo: destinatari globali.
+                    t = text_rx.recv() => match t { Some(t) => TelegramMessage::global(t), None => break },
                     _ = cancel_task.cancelled() => break,
+                };
+                let snapshot = cfg_task.read().await.clone();
+                let Some(c) = snapshot else {
+                    warn!("telegram message dropped: channel not configured");
+                    continue;
+                };
+                // Chat mirate (allarme con `telegram_mode: chats`) o quelle globali.
+                let chats = msg.chat_ids.as_deref().unwrap_or(&c.chat_ids);
+                if let Err(e) = send_message(&client, &c.bot_token, chats, &msg.text).await {
+                    warn!("telegram send failed: {e:#}");
+                } else {
+                    info!("telegram message sent to {} chat(s)", chats.len());
                 }
             }
         });
-        Self { tx, cfg, cancel }
+        Self { tx, text_tx, cfg, cancel }
     }
 
-    /// A cloneable sender handle. Pushing text is non-blocking.
-    pub fn sender(&self) -> mpsc::UnboundedSender<String> {
+    /// Cloneable handle for text-only senders (scripts): always the configured
+    /// chats. Pushing is non-blocking.
+    pub fn text_sender(&self) -> mpsc::UnboundedSender<String> {
+        self.text_tx.clone()
+    }
+
+    /// Cloneable handle for senders that choose their own chats (alarms).
+    pub fn message_sender(&self) -> mpsc::UnboundedSender<TelegramMessage> {
         self.tx.clone()
     }
 
@@ -109,6 +142,22 @@ impl TelegramSender {
 
     pub fn stop(self) {
         self.cancel.cancel();
+    }
+}
+
+/// The two sinks onto a running `TelegramSender`, handed out together because
+/// every start site wires both: scripts push text, alarms push messages.
+#[derive(Clone)]
+pub struct TelegramSinks {
+    /// `send_telegram(text)` from scripts → configured chats.
+    pub text: mpsc::UnboundedSender<String>,
+    /// Alarms → configured chats or the alarm's own.
+    pub messages: mpsc::UnboundedSender<TelegramMessage>,
+}
+
+impl TelegramSinks {
+    fn of(sender: &TelegramSender) -> Self {
+        Self { text: sender.text_sender(), messages: sender.message_sender() }
     }
 }
 
@@ -128,15 +177,19 @@ pub async fn stop_sender(s: &AppState) {
 pub async fn restart_sender(
     s: &AppState,
     telegram: Option<TelegramConfig>,
-) -> Option<mpsc::UnboundedSender<String>> {
-    let telegram = telegram.filter(|t| !t.bot_token.trim().is_empty() && !t.chat_ids.is_empty());
+) -> Option<TelegramSinks> {
+    // Si filtra solo sul token: un progetto può non avere chat globali e avere
+    // solo allarmi con chat proprie (`telegram_mode: chats`). Scartando la
+    // configurazione per `chat_ids` vuoto quei messaggi finirebbero cestinati
+    // con "channel not configured", che non è il problema reale.
+    let telegram = telegram.filter(|t| !t.bot_token.trim().is_empty());
     let mut guard = s.telegram_sender.write().await;
     if let Some(existing) = guard.as_ref() {
         existing.set_config(telegram).await;
-        return Some(existing.sender());
+        return Some(TelegramSinks::of(existing));
     }
     let sender = TelegramSender::start(telegram);
-    let tx = sender.sender();
+    let sinks = TelegramSinks::of(&sender);
     *guard = Some(sender);
-    Some(tx)
+    Some(sinks)
 }

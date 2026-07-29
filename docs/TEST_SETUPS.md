@@ -99,6 +99,33 @@ Due modi di guardare la UI:
 Prima di lanciare un test SSH, **chiedere sempre al maintainer** quale device usare e
 a quale indirizzo.
 
+### GUI del pannello (Pixsys OS, verificato su un WP620 il 2026-07-28)
+
+Il display del pannello è pilotato da **Chromium su Weston**, non dal runtime:
+
+| Cosa | Dove |
+|---|---|
+| Unit del browser | `chromium@main-app.service` (system unit, `User=user`) |
+| Lanciato da | `/usr/bin/chromium-start main-app` |
+| URL mostrato | letto via **D-Bus**, non da un file |
+
+```bash
+# quale URL sta mostrando il pannello
+busctl --system call net.pixsys.Config1 /net/pixsys/Config1/WebBrowser/MainApp \
+    net.pixsys.Config1.WebBrowser GetUrl          # → s "http://127.0.0.1:8443"
+# cambiarlo: stessa interfaccia, SetUrl
+# ricaricare la pagina sul pannello (funziona senza sudo dall'account `user`)
+systemctl restart chromium@main-app.service
+```
+
+**Perché serve saperlo**: il browser del pannello non ricarica da sé, e una SPA
+già caricata resta quella. Dopo un aggiornamento del **frontend** il pannello
+va ricaricato una volta (riavviando quell'unit); dopo un semplice cambio di
+**progetto** invece non serve, perché la SPA dalla versione del 2026-07-28
+sorveglia il fingerprint e si aggiorna da sola. Diagnosticare questo come "il
+deploy non funziona" costa parecchio tempo: il runtime e i file possono essere
+perfettamente aggiornati mentre a schermo resta la pagina di ore prima.
+
 ### Procedura ricorrente del maintainer (non automatizzata)
 
 Il maintainer esegue **manualmente** sul dev server, prima di ogni sessione di test su un

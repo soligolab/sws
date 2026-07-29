@@ -4,7 +4,11 @@
     "project": "Project",
     "user": "User",
     "unsavedShort": "unsaved",
-    "unsavedHint": "Unsaved changes — click to save (Ctrl+S)"
+    "unsavedHint": "Unsaved changes — click to save (Ctrl+S)",
+    "projectChangedOutside": "The project on the runtime changed (deploy or external edit). This page still shows the previous version.",
+    "reloadNow": "Reload",
+    "dismiss": "Dismiss",
+    "newBuildAvailable": "An updated version of the interface is available. Reload to apply it."
   },
   "common": {
     "save": "Save",
@@ -106,7 +110,7 @@
     "importing": "Importing…",
     "closeProject": "Close project",
     "logout": "Log out",
-    "importConfirm": "Replace the entire current project?\nSynoptics not included in the bundle will be removed.\nMQTT passwords are not included: you will need to re-enter them after import.",
+    "importConfirm": "Replace the entire current project?\nSynoptics not included in the bundle will be removed.\nThe bundle also carries credentials (passwords and tokens), which are restored as they are.",
     "imported": "Imported {{file}} ({{count}} tags)",
     "logPanel": "Log panel",
     "saveCopyToPc": "💾 Save a copy to my PC…",
@@ -237,7 +241,8 @@
     "active": "active",
     "activeTab": "Active",
     "ackAll": "ACK all",
-    "shelve": "Suppress"
+    "shelve": "Suppress",
+    "projectUpdated": "Project updated"
   },
   "alarm": {
     "noAlarms": "No active alarms",
@@ -336,8 +341,8 @@
     "noMatch": "No log matches the current filters."
   },
   "projectIO": {
-    "importConfirm": "Replace the entire current project?\nMQTT passwords are not included in the bundle: you will need to re-enter them after import.",
-    "exportTitle": "Export the project as ZIP",
+    "importConfirm": "Replace the entire current project?\nThe bundle also carries credentials (passwords and tokens), which are restored as they are.",
+    "exportTitle": "Export the project as ZIP (contains passwords and tokens: store it securely)",
     "exporting": "Exporting…",
     "importTitle": "Import a project from ZIP (replaces the current one)",
     "importing": "Importing…"
@@ -361,7 +366,8 @@
     "filterPlaceholder": "Filter tags…",
     "noTags": "No tag found",
     "bindTo": "Bind to a tag",
-    "bindPlaceholder": "e.g. demo.rotation"
+    "bindPlaceholder": "e.g. demo.rotation",
+    "noTagsInProject": "No variables available. Declare them in Configuration → Variables, or add a source: variables mapped from protocols show up here automatically."
   },
   "admin": {
     "disconnectConfirm": "Disconnect from the remote runtime?",
@@ -782,7 +788,14 @@
     "maxRowsPerTag": "Max rows per tag",
     "retentionDays": "Retention days",
     "add": "Add",
-    "connect": "Connect"
+    "connect": "Connect",
+    "telegramColHint": "Telegram routing for this alarm. \"Default chats\" = the ones in Configuration → Notifications (historic behaviour).",
+    "tgModeGlobal": "Default chats",
+    "tgModeChats": "Specific chats",
+    "tgModeOff": "Do not notify",
+    "tgChatIdsPh": "chat IDs (comma)",
+    "tgChatIdsHint": "telegram_chat_ids: only these chats receive the alarm. Use \"Detect chats\" in Notifications to find the IDs.",
+    "tgChatIdsMissing": "⚠ no chat: this alarm will not be notified"
   },
   "langtab": {
     "intro": "Translate the messages you write into objects. In text fields use {{key}}; here you define the translations for each language.",

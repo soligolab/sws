@@ -91,6 +91,43 @@ cd sws-editor && pnpm test:e2e        # headless
 cd sws-editor && pnpm test:e2e:ui     # debug UI
 ```
 
+### `check_viewer_layout.sh` — barre di scorrimento sul pannello
+
+Verifica che il viewer non produca barre di scorrimento su un pannello 1280×800
+(il WP620), con e senza la barra superiore. Si avvia da solo: crea un runtime
+temporaneo, un progetto da template con le pagine portate a 1280×800, e misura
+col browser di Playwright.
+
+```sh
+pnpm --dir sws-editor build     # serve la dist compilata
+cargo build -p sws-runtime
+./scripts/check_viewer_layout.sh
+```
+
+Esce 0 solo se non c'è nessuna barra in **nessuna** delle quattro configurazioni
+(chrome visibile, chrome nascosto, finestra più piccola della pagina, finestra
+più grande). Esiste perché le tre barre che si vedevano sul dispositivo avevano
+tre cause indipendenti e "pochi pixel di troppo" non si notano a occhio:
+misurare è l'unico modo di sapere se sono tornate.
+
+### `check_spa_autoreload.sh` — il pannello prende la SPA nuova?
+
+Verifica che il viewer si ricarichi da solo quando sul dispositivo arriva un
+frontend aggiornato (cioè dopo `install-container.sh --www-only`). Simula il
+deploy rinominando il chunk di entry con un hash diverso — lo stesso segnale che
+Vite produce a ogni build — e controlla che la pagina si ricarichi servendo il
+bundle nuovo.
+
+```sh
+pnpm --dir sws-editor build
+cargo build -p sws-runtime
+./scripts/check_spa_autoreload.sh     # dura ~45 s: l'intervallo del watcher è 30 s
+```
+
+Esiste perché sul WP620 il pannello ha continuato a mostrare la versione vecchia
+dopo un aggiornamento, e lì non c'è nessuno che possa premere ricarica: "il
+deploy è andato" non significa "il pannello sta mostrando la versione nuova".
+
 ---
 
 ## `start_editor.sh` — IDE locale sul PC sviluppatore
