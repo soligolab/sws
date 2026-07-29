@@ -9,6 +9,10 @@ and this project adheres to [CalVer](https://calver.org/) (`YYYY.MM[.patch]`).
 
 ### Added
 
+- **Template demo "Nebulizzatore antizanzare Sandokan"** (`examples/templates/nebulizzatore-sandokan/`): sorgente MQTT/Zigbee2MQTT che legge stato/potenza/corrente/tensione/energia dallo stesso topic con `json_path` multipli, storico SQLite, due allarmi a soglia 1W (accensione/spegnimento pompa) e una pagina con simbolo pompa animato, letture live e tre grafici trend separati (assi indipendenti). Nessuna credenziale nel template — il bot Telegram va configurato dopo l'import.
+
+- **Nuovo preset "Tutto" nel pop-up espanso del trend** (`TrendExpanded.tsx`), oltre a Live/1h/8h/24h/7d: risolve `fromMs` dal campione più vecchio disponibile (via l'endpoint `GET /api/history/:tag/stats` già esistente) per caricare l'intero storico registrato.
+
 - **Creazione cartelle dal selettore di destinazione + apertura progetto da uno ZIP sul PC.**
   - **`POST /api/fs/mkdir`** (`{parent, name}` → `201 {path}`), accanto a `browse-dirs`: parte pura estratta in `resolve_new_dir()` (testabile senza `AppState`, riusa `safe_project_name`), `create_dir` e **non** `create_dir_all` così un refuso in `parent` non materializza un albero; `AlreadyExists` → 409, `PermissionDenied` → 403. Nel gruppo **pre-auth** `project_lifecycle` come `browse-dirs` — vedi la nota aggiunta in `docs/OPEN_QUESTIONS.md` sulla superficie `/api/fs/*` da chiudere al passaggio a prodotto.
   - **Pulsante "＋ Nuova cartella"** nel `DirectoryBrowser`, con riga di input inline (Invio crea, Esc annulla) invece di `prompt()` — non traducibile, non stilabile, soppresso in alcune webview kiosk. Dopo la creazione si naviga *dentro* la nuova cartella.
@@ -74,6 +78,8 @@ and this project adheres to [CalVer](https://calver.org/) (`YYYY.MM[.patch]`).
 - **MQTT browse — durata scansione configurabile fino a 120 s** (`sws-runtime/crates/sws-web/src/router.rs`, `sws-plugin-mqtt/src/lib.rs`, `sws-editor/src/config/ConfigView.tsx`). Il "Sfoglia broker" ora ascolta di default **30 s** (prima 8) con cap **120 s** (prima 15), utile per topic non-retained che pubblicano di rado (es. dispositivi zigbee2mqtt fermi).
 
 ### Fixed
+
+- **Storico perso ad ogni riavvio del processo** (`sws-runtime/crates/sws-runtime/src/main.rs`). Il percorso di boot che riapre automaticamente l'ultimo progetto attivo (marker `.active-project`) faceva tutto quello che fa `POST /api/projects/:name/open` **tranne** ricollegare il historian al SQLite del progetto (`historian.swap_store`, introdotto in `2911d14` ma mai propagato al percorso di avvio). Le nuove scritture continuavano ad arrivare regolarmente, ma `GET /api/history/*` (quindi il widget trend, l'export CSV, le stats) vedeva solo i campioni accumulati in RAM da quel riavvio in poi, mai lo storico già su disco — bug strutturale, non specifico di un progetto.
 
 - **Oggetto "Lingua ▾" (`lang_selector`) non trascinabile in editor** (`sws-editor/src/canvas/SvgCanvas.tsx`). Era l'unico controllo a montare un `<select>` HTML reale (dentro `foreignObject`) anche in modalità editor (solo `disabled`), che intercettava il mousedown prima che il drag potesse partire. Riallineato al pattern già usato da slider/tabelle: preview SVG statico in editor, widget reale solo a runtime.
 
