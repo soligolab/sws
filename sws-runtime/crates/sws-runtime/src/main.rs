@@ -50,7 +50,8 @@ struct Args {
     templates_root: PathBuf,
 
     /// Legacy single-project flag. When set, the runtime auto-opens this
-    /// project at boot (backwards compat for dev.sh and operator containers).
+    /// project at boot (backwards compat for the launcher scripts and operator
+    /// containers).
     /// When unset, the runtime starts with no active project — the
     /// WelcomeScreen lists candidates from `--projects-root`.
     #[arg(long)]
@@ -253,7 +254,7 @@ async fn main() -> anyhow::Result<()> {
 
     // `from_default_env()` with RUST_LOG unset yields an empty filter that
     // rejects every event — that silently disabled the log panel until now.
-    // Fall back to INFO so dev.sh and the container both produce logs out
+    // Fall back to INFO so the launcher scripts and the container both produce logs out
     // of the box; power users still override with RUST_LOG=debug etc.
     let env_filter = EnvFilter::try_from_default_env()
         .unwrap_or_else(|_| EnvFilter::new("info"));

@@ -5,7 +5,8 @@
  * docs/manual/screenshots/.
  *
  * Prerequisiti:
- *   - dev.sh in esecuzione (runtime 8443/8444 + Vite 5173)
+ *   - ./scripts/start_runtime.sh in esecuzione (viewer 8443 + IDE 8444; la SPA è
+ *     servita dal runtime, non c'è più un dev server Vite su 5173)
  *   - SWS_ADMIN_PASSWORD=admin (default dev)
  *
  * Esecuzione:

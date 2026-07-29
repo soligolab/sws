@@ -87,7 +87,7 @@ pub async fn build_package(
             return (
                 StatusCode::SERVICE_UNAVAILABLE,
                 "Build non disponibile: scripts/package.sh non trovato nella directory corrente.\n\
-                 Esegui il runtime dalla radice del repository (./scripts/dev.sh).",
+                 Esegui il runtime dalla radice del repository (./scripts/start_runtime.sh).",
             ).into_response();
         }
     };

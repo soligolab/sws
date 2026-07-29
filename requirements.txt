@@ -6,8 +6,8 @@
 #
 #     pip install -r requirements.txt
 #
-# scripts/dev.sh prefers `python3` from PATH; install into the same
+# scripts/start_runtime.sh prefers `python3` from PATH; install into the same
 # interpreter PyO3 will pick up (controlled by `PYO3_PYTHON`, default
-# `python3` in scripts/dev.sh).
+# `python3` in scripts/start_runtime.sh).
 
 RestrictedPython>=7.0

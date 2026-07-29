@@ -22,9 +22,10 @@ I NodeId di Prosys cambiano fra release (`ns=3;s=...` o `ns=5;s=...`): usa **�
 
 ## 2. Apri il template
 
-1. Avvia SWS: `./scripts/dev.sh`
+1. Avvia SWS: `./scripts/start_runtime.sh`
 2. WelcomeScreen → "Crea nuovo da template" → **OPC-UA Demo (BL-005)** → dai un nome al progetto e crea.
-3. Login (admin/admin di default per `dev.sh`) → la sorgente OPC-UA `sim-opcua` parte sola.
+3. Login se hai avviato con `SWS_ADMIN_USER`/`SWS_ADMIN_PASSWORD` (senza quelle variabili il
+   runtime parte in no-auth e si entra diretti) → la sorgente OPC-UA `sim-opcua` parte sola.
 
 ## 3. Tipiche modifiche
 

@@ -49,7 +49,7 @@ auth:
 
 `password_env` always wins over `password` so secrets can stay out of the
 YAML on disk. Set the env var when launching the runtime
-(e.g. `SWS_OPCUA_PWD=… ./scripts/dev.sh`).
+(e.g. `SWS_OPCUA_PWD=… ./scripts/start_runtime.sh`).
 
 ### Security policies
 
@@ -148,7 +148,7 @@ visible in the GUI's address-space browser.
 
 ```sh
 # Terminal A — runtime + editor
-./scripts/dev.sh both
+./scripts/start_runtime.sh
 
 # Terminal B — simulator (example)
 npx node-opcua-server-example

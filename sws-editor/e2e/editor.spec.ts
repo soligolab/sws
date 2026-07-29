@@ -2,9 +2,10 @@ import { test, expect, type Page } from "@playwright/test";
 
 /**
  * Golden-path editor flow:
- *   1. Login as admin (dev.sh seeds the credentials).
- *   2. Skip the WelcomeScreen (open the existing dev project) — when dev.sh
- *      runs with --project it auto-opens, so this usually no-ops.
+ *   1. Login as admin (start_runtime.sh must be given SWS_ADMIN_USER /
+ *      SWS_ADMIN_PASSWORD — it seeds no user on its own; see playwright.config.ts).
+ *   2. Skip the WelcomeScreen — the runtime auto-opens the only project under
+ *      `--projects-root`, so this usually no-ops.
  *   3. Add a rectangle via the palette.
  *   4. Save the project ("Salva tutto" in the hamburger menu).
  *   5. Reload the page.
@@ -31,9 +32,10 @@ async function login(page: Page, username = "admin", password = "admin") {
 }
 
 async function openProjectFromWelcomeIfNeeded(page: Page) {
-  // WelcomeScreen only renders when no project is active. dev.sh auto-opens
-  // .run/projects/dev — but a fresh clone can land here. Try the first
-  // "Apri" button if visible; otherwise no-op.
+  // WelcomeScreen only renders when no project is active. The runtime
+  // auto-opens the only project present under `--projects-root` — but a fresh
+  // clone (no projects yet) lands here. Try the first "Apri" button if
+  // visible; otherwise no-op.
   const openBtn = page.getByRole("button", { name: /^Apri$/i }).first();
   if (await openBtn.isVisible().catch(() => false)) {
     await openBtn.click();

@@ -6,7 +6,7 @@ Logs in via POST /api/auth/login, then loops writing
     value = offset + amplitude * sin(2π * t / period)
 to the chosen tag every `--interval` seconds.
 
-Usage (defaults match scripts/dev.sh):
+Usage (defaults match scripts/start_runtime.sh):
     scripts/demo-sine.py
     scripts/demo-sine.py --tag flow --period 20 --amplitude 25 --offset 50
 
