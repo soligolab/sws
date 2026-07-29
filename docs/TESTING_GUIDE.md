@@ -15,7 +15,7 @@
 
 - [ ] Rust toolchain — stable, edition 2021 (`rustup show` shows ≥ 1.75).
 - [ ] Node.js 21+ with `corepack` (or `pnpm` directly).
-- [ ] System `python3` (`PYO3_PYTHON=python3` is set by `dev.sh`).
+- [ ] System `python3` (`PYO3_PYTHON=python3` is set by the launcher scripts).
 - [ ] A browser able to ignore self-signed cert warnings (Firefox / Chrome / Chromium / Edge).
 - [ ] Optional: `curl` and `jq` for headless checks.
 
@@ -31,11 +31,11 @@ Optional simulators (only needed for the protocol sections):
 ```sh
 git clone …  # or pull latest
 cd sws
-./scripts/dev.sh both
+./scripts/start_runtime.sh
 ```
 
-- [ ] **1.1** The script prints two banners: runtime on `https://localhost:8443` + editor on `https://localhost:5173`.
-- [ ] **1.2** Browser to `https://localhost:5173`. Accept the self-signed cert if prompted (Firefox: Advanced → Accept).
+- [ ] **1.1** The script prints one banner with two URLs: operator viewer on port **8443** and IDE/admin on **8444**. On a fresh `.run/config` (no certificate) they are `http://`, not `https://` — the banner says which. There is no Vite dev server on 5173 any more: the runtime serves the built SPA from `sws-editor/dist`.
+- [ ] **1.2** Browser to the IDE URL (`http://localhost:8444`). Over HTTPS, accept the self-signed cert if prompted (Firefox: Advanced → Accept), or open the plain-HTTP companion page on port 8080 first, which walks through accepting it.
 - [ ] **1.3** Login screen appears with autofocus on the password field. Empty submit is disabled.
 - [ ] **1.4** Type `admin` / `admin` (env-seeded). After submit you land on the editor with the demo project pre-opened (you see "Page 1" / "Demo …" in the page list).
 - [ ] **1.5** Hit `https://localhost:8443/health` with `curl -k` → returns `ok`.
@@ -279,7 +279,7 @@ If you have a real Euromap 77/83 device, click **🤖 Rileva Euromap**. Otherwis
 - [ ] **5.31** Check disk: `<project>/.bak/<UTC-timestamp>/{project.yaml, synoptics/, users.yaml}` populated.
 - [ ] **5.32** Make a change on a page + save. Click **Ripristina** on the backup → confirm → page reverts to backup state.
 - [ ] **5.33** **Elimina** a backup → row disappears.
-- [ ] **5.34** **Auto-backup**: stop dev.sh, restart with `--auto-backup-interval-minutes 1 --auto-backup-retention 5` (edit `scripts/dev.sh` or run runtime directly). After 1 minute a new backup appears in the list. After 5 you start pruning oldest.
+- [ ] **5.34** **Auto-backup**: stop `start_runtime.sh`, restart with `--auto-backup-interval-minutes 1 --auto-backup-retention 5` (edit `scripts/start_runtime.sh` or run the runtime binary directly). After 1 minute a new backup appears in the list. After 5 you start pruning oldest.
 
 ---
 
@@ -387,8 +387,10 @@ TOKEN=$(curl -ks -X POST https://localhost:8443/api/auth/login \
 
 ### ARCH-002 — Remote runtime via VITE_RUNTIME_URL
 
-- [ ] **10.4** Two hosts (or two ports). On host A: `./scripts/dev.sh runtime`. On host B: `VITE_RUNTIME_URL=https://hostA:8443 ./scripts/dev.sh editor`.
+- [ ] **10.4** Two hosts (or two ports). On host A: `./scripts/start_runtime.sh`. On host B: `./scripts/start_editor.sh` (IDE only, port 8460), then point it at host A from the UI: ConfigView → Runtime → **Connetti** with `http://hostA:8444` (the **admin** port — the viewer port 8443 has no project-lifecycle routes, so a deploy would fail with 404/405). The URL is stored in `localStorage["sws.runtimeBaseUrl"]`, which takes priority over everything else in `api/client.ts`.
 - [ ] **10.5** Browser to host B's editor → all API + WS go to host A.
+
+> `VITE_RUNTIME_URL` still works, but only for `pnpm dev` (the Vite proxy target): the launcher scripts serve the built SPA and never start Vite.
 
 ### ARCH-003 — Kiosk browser
 
@@ -404,8 +406,9 @@ Covered in §2.9-2.12 above.
 ## 11. Playwright e2e (task 9.1)
 
 ```sh
-# Terminal A — keep dev.sh running
-./scripts/dev.sh both
+# Terminal A — keep the runtime running. The admin env vars are required:
+# start_runtime.sh seeds no user, and the e2e tests perform a login.
+SWS_ADMIN_USER=admin SWS_ADMIN_PASSWORD=admin ./scripts/start_runtime.sh
 
 # Terminal B (first run only)
 cd sws-editor && npx playwright install chromium
@@ -436,7 +439,7 @@ cd sws-editor && corepack pnpm type-check && corepack pnpm build
 
 ## 13. Headless restart / persistence
 
-- [ ] **13.1** Stop dev.sh. Restart it. Browser refresh → previous project re-opens, pages + tags + alarms intact (project.yaml + synoptics on disk).
+- [ ] **13.1** Stop `start_runtime.sh`. Restart it. Browser refresh → previous project re-opens, pages + tags + alarms intact (project.yaml + synoptics on disk).
 - [ ] **13.2** `.run/logs/runtime-YYYY-MM-DD.jsonl` updated through the day; older days rotated. `SWS_LOG_RETENTION_DAYS=N` controls retention (default 7).
 - [ ] **13.3** Login sessions are in-memory only — every runtime restart logs everyone out. Expected and documented in `LoginScreen.tsx`.
 
@@ -445,7 +448,7 @@ cd sws-editor && corepack pnpm type-check && corepack pnpm build
 ## 14. Bug-hunt edge cases
 
 - [ ] **14.1** Rename page → save → reload. Old `.yaml` file removed; new one present (fix `ff32e40`).
-- [ ] **14.2** Fresh clone: `rm -rf .run && ./scripts/dev.sh` → demo seeded from `examples/demo/` on the first run.
+- [ ] **14.2** Fresh clone: `rm -rf .run && ./scripts/start_runtime.sh` → **no** project is seeded any more (`dev.sh` used to create one): the WelcomeScreen opens with an empty project list and the bundled templates from `--templates-root`. Create one from a template and it becomes the project auto-opened at the next start.
 - [ ] **14.3** No password env → runtime refuses to start with a clear error.
 - [ ] **14.4** Invalid YAML on the synoptic import → 400 with the parse error in the response body; nothing written on disk.
 - [ ] **14.5** Same `id` on two synoptic files (after manual fiddle) → save_synoptic removes the stale duplicate.
