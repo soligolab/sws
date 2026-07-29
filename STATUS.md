@@ -69,6 +69,21 @@
     2. **"Cerca runtime" non lo trova**: due cause indipendenti, nessuna risolvibile lato container. (a) mDNS è link-local e **non attraversa subnet diverse** — la dev box è su `192.168.0.201`, il device su `192.168.1.34` (debito già noto); (b) anche a parità di subnet, sulla rete rootless di podman il multicast non raggiunge la LAN: servirebbe `--network host`. Da riprovare con IDE e device sulla stessa subnet e container in host network.
   - **Permessi**: `Bash(ssh *)`/`Bash(scp *)` erano in **deny** (il deny vince sull'allow, `docs/CLAUDE_CODE_SETUP.md:248`); su indicazione del maintainer sono stati tolti dal deny e sostituiti da un allow ristretto a `user@192.168.1.34`. `Bash(rsync *)` resta in deny. **Da rivalutare a fine test.**
 
+> **`archive/office-line-2026-05-21` eliminato il 2026-07-29** (locale + remoto), punta
+> `4d93de8e76fe479be77c9714d9378716f2a46da9`. Non era un branch di feature: era una **linea di
+> sviluppo parallela e non correlata** — nessun antenato in comune con `main`, radice diversa
+> (`522df09`), 151 commit dal 10 al 21 maggio, dall'`Initial commit` fino a `feat(rbac): restrict
+> Operator/Viewer to runtime-only`. Copriva TagDb, Modbus, MQTT, auth, historian, UX dell'editor,
+> oggetto grid, OPC-UA, `sws-kiosk`, cross-build Yocto, RBAC — tutto rifatto meglio sulla linea di
+> `main`, che alla data della cancellazione era avanti di 59.742 righe rispetto a quella punta.
+>
+> Solo 4 file esistevano lì e non in `main`: `ProjectIO.tsx` (rimosso di proposito), `scripts/dev.sh`
+> (sostituito da `start_runtime.sh`/`start_editor.sh` — i riferimenti rimasti indietro sono stati
+> corretti in `ed17fe9`), `SWS_Repository_Bootstrap_Prompt.md` e un piano del 14 maggio poi
+> realizzato (`BindableInput`). **Nota: quei 151 commit non erano raggiungibili da nessun altro ref**,
+> quindi dopo il `gc` non sono più recuperabili — a differenza dei branch qui sotto, il cui
+> contenuto vive in `main`.
+
 > **Branch chiusi il 2026-07-29.** Le due catene dell'editor sono entrate in `main` con gli squash
 > `2ef99e6` (catena A: percorso progetto, progetti recenti, preset per brand, creazione cartelle,
 > apertura da ZIP) e `3bddb66` (catena B: stato non salvato + Ctrl+S, controlli zoom, header a due
