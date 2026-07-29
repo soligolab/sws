@@ -1,0 +1,154 @@
+id: page1
+name: "Sandokan"
+background: "#0f172a"
+width: 900
+height: 920
+
+objects:
+- id: s_title
+  type: text
+  x: 450
+  y: 30
+  text: "🦟 Nebulizzatore Antizanzare — Sandokan"
+  font_size: 22
+  font_weight: bold
+  text_anchor: middle
+  color: "#e2e8f0"
+
+- id: s_state
+  type: text
+  x: 450
+  y: 58
+  tag: sandokan.state
+  format: "Stato: {value}"
+  font_size: 15
+  text_anchor: middle
+  color: "#94a3b8"
+
+- id: s_pump
+  name: Pompa
+  type: symbol
+  x: 40
+  y: 90
+  width: 100
+  height: 100
+  symbol_id: pump
+  state_tag: sandokan.running
+  state_off_color: "#64748b"
+  state_on_color: "#22c55e"
+  state_alarm_color: "#ef4444"
+  transition_duration_ms: 300
+
+- id: s_power
+  type: text
+  x: 180
+  y: 105
+  tag: sandokan.power
+  format: "Potenza: {value} W"
+  font_size: 18
+  font_weight: 600
+  color: "#f59e0b"
+
+- id: s_current
+  type: text
+  x: 180
+  y: 135
+  tag: sandokan.current
+  format: "Corrente: {value} A"
+  font_size: 18
+  font_weight: 600
+  color: "#3b82f6"
+
+- id: s_voltage
+  type: text
+  x: 180
+  y: 165
+  tag: sandokan.voltage
+  format: "Tensione: {value} V"
+  font_size: 18
+  font_weight: 600
+  color: "#a855f7"
+
+- id: s_energy
+  type: text
+  x: 180
+  y: 195
+  tag: sandokan.energy
+  format: "Energia totale: {value} kWh"
+  font_size: 15
+  color: "#94a3b8"
+
+- id: s_linkquality
+  type: text
+  x: 180
+  y: 218
+  tag: sandokan.linkquality
+  format: "Segnale Zigbee: {value}/255"
+  font_size: 12
+  color: "#64748b"
+
+- id: s_gauge_power
+  type: gauge
+  x: 650
+  y: 70
+  width: 180
+  height: 160
+  label: "Potenza (W)"
+  tag: sandokan.power
+  min: 0
+  max: 50
+  transition_duration_ms: 200
+
+- id: s_trend1_label
+  type: text
+  x: 40
+  y: 245
+  text: "Potenza (W) — ultima ora"
+  font_size: 13
+  color: "#94a3b8"
+
+- id: s_trend_power
+  type: trend
+  x: 40
+  y: 260
+  width: 820
+  height: 190
+  tag: sandokan.power
+  line_color: "#f59e0b"
+  window_s: 3600
+
+- id: s_trend2_label
+  type: text
+  x: 40
+  y: 465
+  text: "Corrente (A) — ultima ora"
+  font_size: 13
+  color: "#94a3b8"
+
+- id: s_trend_current
+  type: trend
+  x: 40
+  y: 480
+  width: 820
+  height: 190
+  tag: sandokan.current
+  line_color: "#3b82f6"
+  window_s: 3600
+
+- id: s_trend3_label
+  type: text
+  x: 40
+  y: 685
+  text: "Tensione (V) — ultima ora"
+  font_size: 13
+  color: "#94a3b8"
+
+- id: s_trend_voltage
+  type: trend
+  x: 40
+  y: 700
+  width: 820
+  height: 190
+  tag: sandokan.voltage
+  line_color: "#a855f7"
+  window_s: 3600
