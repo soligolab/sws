@@ -69,13 +69,30 @@
     2. **"Cerca runtime" non lo trova**: due cause indipendenti, nessuna risolvibile lato container. (a) mDNS è link-local e **non attraversa subnet diverse** — la dev box è su `192.168.0.201`, il device su `192.168.1.34` (debito già noto); (b) anche a parità di subnet, sulla rete rootless di podman il multicast non raggiunge la LAN: servirebbe `--network host`. Da riprovare con IDE e device sulla stessa subnet e container in host network.
   - **Permessi**: `Bash(ssh *)`/`Bash(scp *)` erano in **deny** (il deny vince sull'allow, `docs/CLAUDE_CODE_SETUP.md:248`); su indicazione del maintainer sono stati tolti dal deny e sostituiti da un allow ristretto a `user@192.168.1.34`. `Bash(rsync *)` resta in deny. **Da rivalutare a fine test.**
 
-> Branch di lavoro rimasti in locale, già assorbiti in `main` — eliminabili a discrezione del maintainer:
-> `feat/fs-mkdir` (ex catena A, base `feat/project-location-and-brand-presets` — quest'ultimo già
-> cancellato) e
-> `feat/dirty-state-and-save` → `feat/editor-zoom-toolbar` → `feat/slim-app-header` (catena B).
+> **Branch chiusi il 2026-07-29.** Le due catene dell'editor sono entrate in `main` con gli squash
+> `2ef99e6` (catena A: percorso progetto, progetti recenti, preset per brand, creazione cartelle,
+> apertura da ZIP) e `3bddb66` (catena B: stato non salvato + Ctrl+S, controlli zoom, header a due
+> livelli, rimozione di `ProjectIO`). Lo squash crea hash nuovi, quindi `git branch --merged` non li
+> elencava pur essendo il contenuto già dentro: verificato funzione per funzione (`selectIsDirty`,
+> `setZoomCentered`, `MainMenu`, `getDevicePresets`, `fs/mkdir`, `openFromZip`) e per dimensione dei
+> file condivisi, dove `main` è sempre il più grande. Un merge tardivo avrebbe **riportato indietro**
+> il codice: quei branch contengono la vecchia firma di `router::build`, il vecchio export di
+> `alarm.rs` e la gestione segnali con solo `ctrl_c`.
+>
+> Punte cancellate, recuperabili con `git checkout <sha>`:
+>
+> | branch | punta |
+> |---|---|
+> | `feat/dirty-state-and-save` | `435de806d7337a27269eb7f8e1c78c8bfc9e851e` |
+> | `feat/editor-zoom-toolbar` | `68dec23842f1f149be4ff167f9def20ee46a6c35` |
+> | `feat/fs-mkdir` | `e3001a75e23df9102fd5fecd867b911d4c2016bc` |
+> | `feat/slim-app-header` | `9ae8acc83c085f71ecc5ae72cc0393722cdb4836` |
+> | `feat/project-location-and-brand-presets` | `80d948c69a9715d6360e529f2ea0a513ec69e417` (locale) / `918c274365218d52b14e10e6b61eecf6a3bf0874` (remoto) |
+>
 > Erano incatenati per evitare conflitti su `App.tsx`/`EditorShell.tsx`/`WelcomeScreen.tsx`; al merge
 > l'unico conflitto di codice fra le due catene è stata la riga di import di `pageLayout` in
-> `EditorShell.tsx`.
+> `EditorShell.tsx`. `feat/container-aarch64` resta in piedi (mergiato in `main` come `72b6b3c`):
+> `CLAUDE.md` chiede di non cancellare i branch subito dopo il merge.
 
 - **Sessione 2026-07-29 — demo Sandokan (MQTT reale) + fix storico perso al riavvio (cherry-pick diretto in `main`, non branch dedicato — vedi nota di processo)**:
   - **Template `examples/templates/nebulizzatore-sandokan/`**: presa smart Zigbee2MQTT reale (NEO NAS-WR01B, `zigbee2mqtt/presa.sandokan` su `192.168.1.6:1883`) che alimenta un nebulizzatore antizanzare — sorgente MQTT multi-`json_path` sullo stesso topic, storico SQLite, due allarmi soglia 1W (`Above`/`Below`, l'unico modo per avere due notifiche Telegram distinte accensione/spegnimento — il motore invia Telegram solo sull'attivazione, mai sul rientro), pagina con simbolo pompa animato + 3 trend separati (potenza/corrente/tensione, assi indipendenti per non schiacciare i valori piccoli contro la tensione). Bot Telegram reale rilevato via `getUpdates` (stessa tecnica del pulsante "Rileva chat") e configurato **solo** nei progetti locali gitignored, mai nel template committato. Importato come progetto "Sandokan" su IDE e runtime (creazione indipendente su entrambi via l'endpoint pre-auth, non il flusso "Deploy" one-click che avrebbe cancellato il progetto "default" già attivo sul runtime).
