@@ -178,6 +178,57 @@ consentite. Da affrontare insieme a E.
 
 ---
 
+## Q9 — Le `PUT /api/project/*` accettano e scartano in silenzio i campi sconosciuti
+
+**Context**: emerso il 2026-07-29 provando il layout del viewer. Ho mandato
+`PUT /api/project/page-layout` con `width` e `height`: risposta `204 No Content`, campi scartati —
+`PageLayoutConfig` non li ha, in modalità *fisso* le dimensioni vengono dal synoptic. Nessun errore,
+nessun avviso: la chiamata sembra riuscita e non fa quello che chi la scrive crede. Vale per tutte le
+`PUT` del progetto, perché serde per default ignora i campi extra. Lo stesso meccanismo ha un lato
+utile — è quello che permette a un `project.yaml` scritto da un binario più nuovo di aprirsi su uno
+più vecchio (vedi `deserialize_sources_tolerant`) — quindi non è ovvio che la risposta sia "rifiutare
+sempre".
+
+**Options**:
+1. `#[serde(deny_unknown_fields)]` sui payload delle API di scrittura, tolleranza mantenuta solo
+   nella deserializzazione del progetto da disco. Distingue i due casi: un client che sbaglia va
+   corretto, un file scritto da una versione futura no.
+2. Accettare ma **rispondere con la lista dei campi ignorati** (header o corpo), così la UI può
+   segnalarlo senza rompere i client esistenti.
+3. Lasciare com'è e documentare campo per campo. Costa zero ora e continua a costare ogni volta che
+   qualcuno perde tempo su una chiamata "riuscita".
+
+**Default for PoC**: opzione 3, non per scelta ma per inerzia — è lo stato attuale.
+
+**Decided**: not yet.
+
+---
+
+## Q10 — Una sorgente non parsabile viene scartata in silenzio, e il salvataggio successivo la cancella
+
+**Context**: emerso il 2026-07-29 scrivendo un fixture di test. `Project::load` usa
+`deserialize_sources_tolerant`, che salta le sorgenti con `kind` sconosciuto **o con un campo
+obbligatorio mancante** e prosegue con un warning nel log. La tolleranza è voluta e serve
+(forward-compat: un progetto scritto da un binario più nuovo si apre su uno più vecchio). Il problema
+è quello che viene dopo: il progetto in memoria non ha più quella sorgente, e la prima `PUT` che
+riscrive `project.yaml` la **elimina dal disco**. Un errore di battitura in un campo, o l'apertura con
+un binario più vecchio, e la sorgente sparisce senza che nessuno l'abbia chiesto — la stessa forma
+della perdita di dati di `saveAll` corretta il 2026-07-28.
+
+**Options**:
+1. Conservare le voci non parsate come `serde_json::Value` opaco e riscriverle intatte al salvataggio.
+   Costa un campo in più nel modello, ma nessuna sorgente viene mai perduta.
+2. Rifiutare l'apertura del progetto se una sorgente non è parsabile. Onesto ma butta via la
+   forward-compat, che è il motivo per cui la tolleranza esiste.
+3. Aprire in sola lettura quando qualcosa è stato scartato, e chiedere conferma esplicita prima del
+   primo salvataggio.
+
+**Default for PoC**: comportamento attuale (opzione implicita: si scarta e si perde al salvataggio).
+
+**Decided**: not yet.
+
+---
+
 ## Adding new questions
 
 When Claude Code adds a new question, follow the format above:

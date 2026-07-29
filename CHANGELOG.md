@@ -7,6 +7,10 @@ and this project adheres to [CalVer](https://calver.org/) (`YYYY.MM[.patch]`).
 
 ## [Unreleased]
 
+### Changed
+
+- **Pulizia dei branch**: da 8 a 1. `feat/container-aarch64` portato in `main` con squash (`72b6b3c`) — era l'unico con contenuto da mergiare. Gli altri sei erano già assorbiti (le due catene dell'editor, entrate con `2ef99e6`/`3bddb66`) o superati (`archive/office-line-2026-05-21` e `backup/friday-phase-a1`, due linee di sviluppo **non correlate** a `main`: radice diversa, nessun antenato in comune). Mergiarli avrebbe riportato indietro il codice — contenevano la vecchia firma di `router::build`, il vecchio export di `alarm.rs` e la gestione segnali con solo `ctrl_c`. Punte annotate in `STATUS.md`; la linea "office" è conservata dal tag `archive/office-2026-05-21`, ora anche su `origin`.
+
 ### Fixed
 
 - **Le istruzioni rimandavano a `scripts/dev.sh`, che non esiste più** — 26 riferimenti in 11 file, rimasti indietro da quando `dev.sh` è stato diviso in `start_runtime.sh` + `start_editor.sh`. Non era solo storia: `playwright.config.ts` e `e2e/editor.spec.ts` indicavano quello script per preparare l'ambiente di test, `docs/TESTING_GUIDE.md` (8 riferimenti) e `docs/OPCUA_SETUP.md` lo usavano come procedura, e il messaggio d'errore di `packaging.rs` lo suggeriva **all'utente**. Chi le seguiva sbatteva contro un file assente.
