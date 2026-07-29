@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { TrendCanvas } from "./TrendCanvas";
+import { api } from "@/api/client";
 
 interface TrendExpandedProps {
   tags: string[];
@@ -12,14 +13,17 @@ interface TrendExpandedProps {
   onClose: () => void;
 }
 
-type RangePreset = "live" | "1h" | "8h" | "24h" | "7d";
+type RangePreset = "live" | "1h" | "8h" | "24h" | "7d" | "all";
 
+// "all" has no fixed span — its range is resolved from the earliest recorded
+// sample (see the effect below), not from `seconds`.
 const PRESETS: { id: RangePreset; label: string; seconds: number | null }[] = [
   { id: "live", label: "Live",  seconds: null },
   { id: "1h",   label: "1h",   seconds: 3600 },
   { id: "8h",   label: "8h",   seconds: 28800 },
   { id: "24h",  label: "24h",  seconds: 86400 },
   { id: "7d",   label: "7d",   seconds: 604800 },
+  { id: "all",  label: "Tutto", seconds: null },
 ];
 
 export function TrendExpandedModal({
@@ -38,6 +42,29 @@ export function TrendExpandedModal({
   const [hiddenIndices, setHiddenIndices] = useState<Set<number>>(new Set());
   const [canvasSize, setCanvasSize] = useState({ w: 800, h: 420 });
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // "Tutto": resolved once per selection from the earliest sample across all
+  // series (via GET /api/history/:tag/stats), not a fixed span like the other
+  // presets — so it needs an async lookup instead of pure now-anchored math.
+  const [allRange, setAllRange] = useState<{ fromMs: number; toMs: number } | null>(null);
+  const [allLoading, setAllLoading] = useState(false);
+
+  useEffect(() => {
+    if (preset !== "all") { setAllRange(null); return; }
+    let cancelled = false;
+    setAllLoading(true);
+    Promise.all(tags.filter(Boolean).map((t) => api.getHistoryStats(t).catch(() => null)))
+      .then((stats) => {
+        if (cancelled) return;
+        const firstTimestamps = stats
+          .map((s) => s?.first_ts)
+          .filter((v): v is number => v != null);
+        const fromMs = firstTimestamps.length > 0 ? Math.min(...firstTimestamps) : Date.now();
+        setAllRange({ fromMs, toMs: Date.now() });
+      })
+      .finally(() => { if (!cancelled) setAllLoading(false); });
+    return () => { cancelled = true; };
+  }, [preset, tags.join(",")]);
 
   // Resize observer to fill modal body.
   useEffect(() => {
@@ -59,27 +86,32 @@ export function TrendExpandedModal({
   }, [onClose]);
 
   const activePreset = PRESETS.find((p) => p.id === preset)!;
-  const isLive = activePreset.seconds === null;
-  const spanMs = isLive ? windowS * 1000 : activePreset.seconds! * 1000;
+  const isLive = preset === "live";
+  const isAll  = preset === "all";
+  const spanMs = isLive ? windowS * 1000 : isAll ? 0 : activePreset.seconds! * 1000;
 
-  // Compute explicit historical range (null when live).
+  // Compute explicit historical range (undefined when live).
   let fromMs: number | undefined;
   let toMs: number | undefined;
-  if (!isLive) {
+  if (isAll) {
+    fromMs = allRange?.fromMs;
+    toMs   = allRange?.toMs;
+  } else if (!isLive) {
     const now = Date.now();
     toMs   = now - offsetMs;
     fromMs = toMs - spanMs;
   }
 
+  const panDisabled = isLive || isAll;
   const panStep = Math.round(spanMs * 0.25);
 
   const panBack = useCallback(() => {
-    if (!isLive) setOffsetMs((o) => o + panStep);
-  }, [isLive, panStep]);
+    if (!panDisabled) setOffsetMs((o) => o + panStep);
+  }, [panDisabled, panStep]);
 
   const panForward = useCallback(() => {
-    if (!isLive) setOffsetMs((o) => Math.max(0, o - panStep));
-  }, [isLive, panStep]);
+    if (!panDisabled) setOffsetMs((o) => Math.max(0, o - panStep));
+  }, [panDisabled, panStep]);
 
   const toggleSeries = (idx: number) => {
     setHiddenIndices((prev) => {
@@ -134,26 +166,26 @@ export function TrendExpandedModal({
             ))}
           </div>
 
-          {/* Pan buttons (disabled in live mode) */}
+          {/* Pan buttons (disabled in live/all mode) */}
           <button
             onClick={panBack}
-            disabled={isLive}
+            disabled={panDisabled}
             title="Indietro"
             style={{
-              padding: "2px 8px", fontSize: 12, borderRadius: 4, cursor: isLive ? "default" : "pointer",
+              padding: "2px 8px", fontSize: 12, borderRadius: 4, cursor: panDisabled ? "default" : "pointer",
               border: "1px solid #334155", background: "#1e293b",
-              color: isLive ? "#334155" : "#94a3b8",
+              color: panDisabled ? "#334155" : "#94a3b8",
             }}
           >◀</button>
           <button
             onClick={panForward}
-            disabled={isLive || offsetMs === 0}
+            disabled={panDisabled || offsetMs === 0}
             title="Avanti"
             style={{
               padding: "2px 8px", fontSize: 12, borderRadius: 4,
-              cursor: (isLive || offsetMs === 0) ? "default" : "pointer",
+              cursor: (panDisabled || offsetMs === 0) ? "default" : "pointer",
               border: "1px solid #334155", background: "#1e293b",
-              color: (isLive || offsetMs === 0) ? "#334155" : "#94a3b8",
+              color: (panDisabled || offsetMs === 0) ? "#334155" : "#94a3b8",
             }}
           >▶</button>
 
@@ -183,6 +215,10 @@ export function TrendExpandedModal({
                 );
               })}
             </div>
+          )}
+
+          {isAll && allLoading && (
+            <span style={{ fontSize: 11, color: "#64748b", marginLeft: 6 }}>Carico…</span>
           )}
 
           <div style={{ flex: 1 }} />
