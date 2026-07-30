@@ -400,10 +400,18 @@ pub async fn open_project(
     // directory instead of the shared global historian.
     if project.datastores.is_empty() {
         project.datastores.push(default_datastore());
-        if let Ok(y) = project.stamp_and_serialize() {
-            let _ = std::fs::write(project_dir.join("project.yaml"), y);
-        }
-        info!(name = %project.meta.name, "injected default datastore into legacy project");
+        // Solo in memoria: **aprire un progetto non deve modificarlo.**
+        //
+        // Prima qui si riscriveva `project.yaml`, e quella riscrittura passava
+        // fuori da `patch_project`: si portava via le sorgenti che questa versione
+        // non sa leggere e le chiavi di primo livello sconosciute, all'apertura e
+        // senza che nessuno avesse chiesto un salvataggio. Verificato con
+        // `scripts/check_project_write_safety.sh`, che ha colto proprio questo.
+        //
+        // Il runtime funziona identico: la registry dei datastore si costruisce
+        // dal progetto in memoria. Il file si aggiorna al primo salvataggio vero,
+        // che è il momento in cui l'utente si aspetta che cambi.
+        info!(name = %project.meta.name, "default datastore iniettato in memoria (file non modificato)");
     }
 
     // 2. Project is valid — clear the current runtime state.
