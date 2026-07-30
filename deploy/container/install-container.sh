@@ -22,7 +22,7 @@
 #   ./install-container.sh --image sws-runtime-<ver>-aarch64-image.tar.gz \
 #                          --www   sws-www-<ver>.tar.gz
 #   ./install-container.sh --www-only sws-www-<ver>.tar.gz   # solo frontend, ~3 MB
-#   ./install-container.sh --host-network      # Network=host (serve per mDNS)
+#   ./install-container.sh --bridge            # rete bridge: NIENTE discovery mDNS
 #   ./install-container.sh --data /altro/path  # directory dati alternativa
 #   ./install-container.sh --no-autostart      # solo podman run, nessuna unit
 #   ./install-container.sh --uninstall         # rimuove servizio e container
@@ -42,7 +42,13 @@ UNIT_SRC="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/sws-runtime.container"
 IMAGE_ARCHIVE=""
 WWW_ARCHIVE=""
 WWW_ONLY=0
-HOST_NETWORK=0
+# Rete host per default. Sulla rete rootless di podman il multicast mDNS non
+# esce dal container, quindi "Cerca runtime" nell'IDE non trova mai il
+# dispositivo: chi installa senza flag deve ottenere la configurazione che
+# funziona, non quella che va poi corretta. Verificato sul dispositivo il
+# 2026-07-30: in bridge `/api/discover` risponde `[]`, in host network trova il
+# runtime con l'URL corretto.
+HOST_NETWORK=1
 AUTOSTART=1
 UNINSTALL=0
 PURGE=0
@@ -54,6 +60,10 @@ while [ $# -gt 0 ]; do
         --www-only)      WWW_ARCHIVE="$2"; WWW_ONLY=1; shift 2 ;;
         --data)          DATA="$2"; shift 2 ;;
         --tag)           TAG="$2"; shift 2 ;;
+        --bridge)        HOST_NETWORK=0; shift ;;
+        # Accettata per compatibilità: era la flag da passare quando il default
+        # era la rete bridge. Ora non cambia niente, ma non deve dare errore a
+        # chi la ha nelle dita o in uno script.
         --host-network)  HOST_NETWORK=1; shift ;;
         --no-autostart)  AUTOSTART=0; shift ;;
         --uninstall)     UNINSTALL=1; shift ;;
@@ -211,9 +221,12 @@ if [ "$AUTOSTART" -eq 1 ]; then
         sed -e 's/^PublishPort=/#PublishPort=/' \
             -e 's/^ContainerName=/Network=host\nContainerName=/' \
             "$UNIT_SRC" > "$UNIT_DIR/$NAME.container"
-        echo "    Network=host (mDNS raggiunge la LAN)"
+        echo "    Network=host (default — il multicast mDNS raggiunge la LAN)"
     else
         install -m 0644 "$UNIT_SRC" "$UNIT_DIR/$NAME.container"
+        echo "    rete bridge (--bridge): porte pubblicate 8443/8444, ma"
+        echo "    ATTENZIONE: \"Cerca runtime\" nell'IDE non troverà questo dispositivo." >&2
+        echo "               Collegarsi a mano con http://<ip>:8444." >&2
     fi
     sed -i "s|^Image=.*|Image=$TAG|" "$UNIT_DIR/$NAME.container"
     # La unit ha /data/user/sws hardcoded: riscrivere i mount se --data diverso.
