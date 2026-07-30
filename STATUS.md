@@ -30,10 +30,79 @@ Scelta del maintainer: le modifiche erano troppe da validare branch per branch, 
 test condividono un runtime e ognuno apre i propri progetti. Da isolare prima di poterlo usare come
 gate; il limite è scritto in testa allo script.
 
-**Resta da provare sul dispositivo**: il deploy che conserva il database e il pulsante utenti
-richiedono l'immagine aarch64 ricostruita (`build_container.sh --no-spa` + `install-container.sh
---image`). Il resto è SPA (`--www-only`). E resta il fallimento stabile di `lang-table`, che nel viewer
-non risolve `{{token}}`: da capire se è il test o la funzione.
+**Resta da provare sul dispositivo**: il deploy che conserva il database e il pulsante utenti — il
+codice è **già sul dispositivo** dalla sera del 30 (immagine ricostruita e installata dal registry),
+ma nessuno li ha esercitati. Resta il fallimento stabile di `lang-table`, che nel viewer non risolve
+`{{token}}`: da capire se è il test o la funzione.
+
+---
+
+## Sessione 2026-07-30 (sera, dev server) — il container si distribuisce da un registry
+
+Il maintainer ha chiesto di aggiornare il runtime sul WP620 (`user@192.168.1.84`), poi un deploy
+pulito, poi tutta la procedura di compilazione/pubblicazione/installazione.
+
+**Dove siamo arrivati**: l'immagine aarch64 è pubblicata su `ghcr.io/soligolab/sws-runtime` come
+package **pubblico**, e il dispositivo la scarica **senza credenziali** — verificato, `podman login
+--get-login ghcr.io` risponde *not logged into* e il pull riesce lo stesso. Portare una versione
+nuova era copiare 59 MB via `scp` più un secondo artefatto con la SPA; ora è
+`install-container.sh --pull`, e si trasferisce solo il layer cambiato (il binario è 14,3 MB
+compressi, i 50 MB di base e apt il dispositivo li ha già).
+
+- **La SPA è entrata nell'immagine** (decisione del maintainer): stava fuori per non ritrasferire
+  59 MB a ogni modifica del frontend, ragione caduta con la deduplicazione dei layer. Sta **dopo** il
+  binario, perché un layer che cambia invalida quelli sotto. Sparisce `--www-only`, sparisce il modo
+  di avere SPA e binario di versioni diverse sullo stesso dispositivo.
+- **Aggiornamenti a comando, non automatici** (decisione del maintainer): `podman auto-update` c'è e
+  il SO fornisce già il timer, ma su una macchina in servizio un riavvio non richiesto è peggio di un
+  aggiornamento tardivo.
+- **La rete host è il default dell'installer.** Senza, "Cerca runtime" non trova **mai** un runtime in
+  container: sulla rete rootless di podman il multicast non esce. Misurato dallo stesso editor a
+  pochi minuti di distanza — `--bridge` → `/api/discover` risponde `[]`, default → trova il runtime
+  con `admin_url http://192.168.1.84:8444`.
+- **Job CI della pubblicazione disattivato**: costruiva l'immagine *legacy* (quella coi quattro
+  difetti) e la pubblicava all'indirizzo che il badge del README promette. Non è correggibile in CI —
+  il binario buono richiede l'SDK Yocto Pixsys, che sui runner GitHub non c'è.
+
+**Il bug della giornata**: `--uninstall --purge` seguito da un'installazione **non** dava un
+dispositivo pulito. Il purge svuota i bind mount, e l'installer migrava i dati dai volumi nominati
+pre-2026-07-28 *proprio perché* la cartella era vuota — cioè per definizione dopo un purge. Il
+dispositivo è tornato in servizio con un progetto `test1` di due giorni prima, aperto come attivo.
+Ora la migrazione è dietro `--migrate-volumes`. **Stessa forma degli altri tre casi della
+settimana**: un automatismo che deduce l'intenzione dell'utente da uno stato ambiguo.
+
+**Due errori miei, entrambi utili da ricordare**:
+
+- Ho concluso che il package GHCR fosse privato perché un `curl` sul manifest dava `401`. GHCR
+  pretende un bearer token **anche per le immagini pubbliche**: quel 401 non dimostra niente. La
+  verifica giusta è token anonimo da `ghcr.io/token?scope=...` e poi il manifest.
+- Ho messo le `LABEL` OCI subito dopo il `FROM`, invalidando la cache di tutto ciò che segue: la
+  build è rimasta 15 minuti a ricostruire sotto QEMU il layer `apt` che era già pronto. In fondo al
+  Containerfile la stessa build dura 2,7 secondi.
+
+**Sessione precedente**: 2026-07-29 — **Container aarch64 in servizio sul dispositivo, Telegram per singolo allarme, notifiche morte al boot** (branch `feat/container-aarch64`, portato in `main` con squash). Viewer a schermo pieno e auto-reload verificati in un browser, non più solo scritti.
+
+**Da riprendere (2026-07-30 sera)**:
+
+1. **`feat/container-registry-procedure` aspetta il tuo via libera per il merge** — `91b8687`
+   (registry, SPA nell'immagine, `--migrate-volumes`) e `52ea5d3` (documentazione in tre fasi +
+   README). Provato sul dispositivo, non ancora confermato da te. Gli altri due branch container sono
+   già in `main` (`c028b16`, `add86bb`).
+2. **Il purge non è stato riprovato dopo la correzione**: il dispositivo aveva sopra il tuo `Test034`
+   e distruggerlo per un test non valeva il prezzo. Da fare sul prossimo dispositivo da azzerare
+   davvero — `--uninstall --purge` + install → `GET /api/projects` deve dare `[]`.
+3. **`/api/discover` mostra ogni runtime due volte.** Cosmetico, causa individuata e non corretta:
+   `browse_mdns_blocking` (`sws-web/src/discover.rs`) accumula una voce per ogni evento
+   `ServiceResolved` senza deduplicare per `fullname`. L'annotazione precedente ("una entry per
+   indirizzo") era **sbagliata**: misurato, le due voci portano lo stesso indirizzo.
+4. **Backup lasciati sul dispositivo**, in `~` di `user@192.168.1.84`:
+   `sws-data-backup-20260730-144812.tar.gz` (progetto `pippo` e config del 29) e
+   `volbackup-sws-{projects,config,logs}-20260730.tar` (i volumi nominati prima di rimuoverli).
+   Da cancellare quando sei sicuro che non servano.
+
+> **Nota di metodo**: su questa macchina girano **più sessioni Claude contemporanee sullo stesso
+> checkout**. `git status` può cambiare fra due comandi consecutivi e un branch può cambiare sotto
+> una build lunga: per build e deploy conviene un worktree isolato su un commit fisso.
 
 **Sessione precedente**: 2026-07-29 — **Container aarch64 in servizio sul dispositivo, Telegram per singolo allarme, notifiche morte al boot** (branch `feat/container-aarch64`, portato in `main` con squash). Viewer a schermo pieno e auto-reload verificati in un browser, non più solo scritti.
 
