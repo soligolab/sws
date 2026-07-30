@@ -74,6 +74,19 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
 # così `podman run ... <altri flag>` li può sostituire.
 # --viewer-port è indispensabile: senza, il viewer non va mai in ascolto e
 # l'immagine servirebbe solo l'IDE (era il difetto del Dockerfile legacy).
+# Metadati OCI. `image.source` non è decorativo: è il campo con cui GHCR collega
+# il package al repository, quindi la pagina del package mostra README e licenza
+# invece di essere un artefatto anonimo. `image.licenses` dichiara l'AGPL, che è
+# la licenza del progetto e viaggia con un'immagine pubblica.
+#
+# In fondo e non dopo il FROM, ed è una differenza da 15 minuti: una LABEL in
+# testa invalida la cache di tutto ciò che segue, quindi il layer apt (~60 MB,
+# costruito sotto emulazione QEMU) verrebbe rifatto da zero a ogni ritocco dei
+# metadati. Provato: 10 minuti solo per arrivare a configurare python3.12.
+LABEL org.opencontainers.image.source="https://github.com/soligolab/sws" \
+      org.opencontainers.image.description="SWS runtime (aarch64) — viewer 8443, IDE/admin 8444. La SPA non è nell'immagine: va montata in /var/sws/www." \
+      org.opencontainers.image.licenses="AGPL-3.0-only"
+
 ENTRYPOINT ["/usr/local/bin/sws-runtime"]
 CMD ["--config", "/var/sws/config", \
      "--projects-root", "/var/sws/projects", \
