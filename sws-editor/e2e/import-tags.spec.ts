@@ -1,4 +1,5 @@
-import { test, expect } from "@playwright/test";
+import { expect } from "@playwright/test";
+import { test, authHeaders, ensureLoggedIn } from "./fixtures";
 import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -18,16 +19,21 @@ import { join } from "node:path";
  * progetto sorgente con un tag, ne esporta lo ZIP, poi importa in un progetto
  * vuoto attraverso il menu.
  */
-const BASE = "https://localhost:8444/";
+import { ADMIN } from "./_env";
+const BASE = `${ADMIN}/`;
 
 test("import progetto via menu fa comparire i tag (issue #2)", async ({ page, request }) => {
   // 1. Prepara un progetto sorgente con un tag e ne esporta lo ZIP.
+  //    Creazione e apertura sono pre-auth; il token si chiede DOPO l'apertura,
+  //    perché aprire un progetto invalida le sessioni.
   await request.post(`${BASE}api/projects`, { data: { name: "e2e-src" } });
   await request.post(`${BASE}api/projects/e2e-src/open`);
+  const headers = await authHeaders(request);
   await request.put(`${BASE}api/project/tags`, {
     data: [{ id: "pippo", description: "test1", data_type: "float", history: true }],
+    headers,
   });
-  const zipResp = await request.get(`${BASE}api/project/export`);
+  const zipResp = await request.get(`${BASE}api/project/export`, { headers });
   expect(zipResp.ok()).toBeTruthy();
   const zipDir = mkdtempSync(join(tmpdir(), "sws-e2e-"));
   const zipPath = join(zipDir, "export.zip");
@@ -39,29 +45,31 @@ test("import progetto via menu fa comparire i tag (issue #2)", async ({ page, re
 
   page.on("dialog", (d) => d.accept());
 
-  // Pin the UI language to Italian so the (Italian) selectors below match
-  // regardless of the test browser's locale (i18n, T-39).
-  await page.addInitScript(() => { try { localStorage.setItem("sws.uiLang", "it"); } catch {} });
-
   await page.goto(BASE, { waitUntil: "networkidle" });
+  await ensureLoggedIn(page);
   await page.waitForTimeout(1000);
 
   // 3. Importa via menu: ☰ Menu → "Sostituisci da copia sul PC…" → scegli ZIP.
   await page.getByRole("button", { name: /Menu/ }).first().click();
   const [chooser] = await Promise.all([
     page.waitForEvent("filechooser"),
-    page.getByRole("button", { name: /copia sul PC/ }).click(),
+    // Filtro esatto: da quando esiste anche "💾 Salva copia sul PC…" un filtro
+    // su /copia sul PC/ ne trovava due e Playwright rifiutava l'ambiguità.
+    page.getByRole("button", { name: /Sostituisci da copia sul PC/ }).click(),
   ]);
   await chooser.setFiles(zipPath);
   await page.waitForTimeout(2500);
 
   // 4. Il progetto attivo ora è "test" con il tag "pippo".
-  const proj = await page.evaluate(async () => {
-    const r = await fetch("/api/project");
-    const j = await r.json();
-    return { tags: (j.tags || []).map((t: any) => t.id) };
-  });
-  expect(proj.tags).toContain("pippo");
+  // Si legge dal contesto API autenticato e NON con un `fetch` dentro la pagina:
+  // quel fetch non porta il token che la SPA aggiunge da sé in `api/client.ts`,
+  // quindi rispondeva 401 e la lista dei tag risultava vuota — il test falliva
+  // per come guardava, non per ciò che guardava. Il token si richiede ora perché
+  // l'import ha riaperto un progetto, invalidando quello di prima.
+  const after = await request.get(`${BASE}api/project`, { headers: await authHeaders(request) });
+  expect(after.ok()).toBeTruthy();
+  const tagIds = ((await after.json()).tags ?? []).map((t: any) => t.id);
+  expect(tagIds).toContain("pippo");
 
   // 5. Configurazione → Variabili mostra il tag nel DOM (navigazione via UI).
   await page.getByRole("button", { name: /^Configurazione$/ }).click();
