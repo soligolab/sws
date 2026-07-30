@@ -222,6 +222,30 @@ impl DatastoreRegistry {
         }
     }
 
+    /// Tag con campioni nel backend indicato.
+    pub async fn list_backend_tags(&self, id: &str) -> anyhow::Result<Vec<String>> {
+        match self.backends.iter().find(|(bid, _)| bid == id) {
+            Some((_, b)) => b.tags().await,
+            None => anyhow::bail!("datastore '{id}' not found"),
+        }
+    }
+
+    /// Cancella lo storico di un tag nel backend indicato.
+    pub async fn delete_backend_tag(&self, id: &str, tag: &str) -> anyhow::Result<u64> {
+        match self.backends.iter().find(|(bid, _)| bid == id) {
+            Some((_, b)) => b.delete_tag(tag).await,
+            None => anyhow::bail!("datastore '{id}' not found"),
+        }
+    }
+
+    /// `VACUUM` sul backend indicato. Ritorna (byte prima, byte dopo).
+    pub async fn vacuum_backend(&self, id: &str) -> anyhow::Result<(u64, u64)> {
+        match self.backends.iter().find(|(bid, _)| bid == id) {
+            Some((_, b)) => b.vacuum().await,
+            None => anyhow::bail!("datastore '{id}' not found"),
+        }
+    }
+
     /// Return a list of all configured backend ids.
     pub fn backend_ids(&self) -> Vec<String> {
         self.backends.iter().map(|(id, _)| id.clone()).collect()
