@@ -1592,44 +1592,177 @@ fn mask_project_secrets(project: &mut Project) {
 }
 
 /// Read project.yaml (or build a minimal default), apply `f`, write back.
-async fn patch_project<F>(project_dir: &std::path::Path, f: F) -> StatusCode
+/// Applica `f` al progetto su disco e riscrive `project.yaml`.
+///
+/// Tre garanzie, tutte nate da perdite di dati reali:
+///
+/// 1. **Non si scrive mai un progetto che non si è riusciti a leggere.** Prima
+///    un `project.yaml` illeggibile veniva sostituito da un progetto *vuoto*
+///    chiamato "default": il file sopravviveva all'apertura con un avviso nel
+///    log, e il primo salvataggio in qualunque tab lo azzerava. Un file assente
+///    resta invece il caso legittimo di un progetto nuovo, e viene creato.
+/// 2. **Le sorgenti che la struttura tipizzata non sa leggere si conservano.**
+///    `deserialize_sources_tolerant` le scarta di proposito (forward-compat), ma
+///    scartarle in lettura e riscrivere senza di loro significa cancellarle.
+/// 3. **Le chiavi di primo livello sconosciute si conservano.** Così un
+///    `project.yaml` scritto da una versione più nuova si apre su una più vecchia
+///    *e sopravvive a un salvataggio*, che è la forward-compat che il punto 2
+///    prometteva solo a metà.
+///
+/// Restituisce una `Response` e non uno `StatusCode` perché il rifiuto del punto
+/// 1 deve poter spiegare cosa è successo: un 500 muto porterebbe l'utente a
+/// riprovare, ed è l'unico caso in cui riprovare non serve a niente.
+async fn patch_project<F>(project_dir: &std::path::Path, f: F) -> Response
 where
     F: FnOnce(&mut Project),
 {
-    let mut project = Project::load(project_dir).unwrap_or_else(|_| Project {
-        meta: ProjectMeta { name: "default".into(), version: "0.1.0".into() },
-        tags: vec![],
-        sources: vec![],
-        alarms: vec![],
-        functions: vec![],
-        custom_symbols: vec![],
-        datastores: vec![],
-        global_scripts: vec![],
-        notifications: None,
-        saved_by: None,
-        languages: Default::default(),
-        page_layout: None,
-    });
+    let path = project_dir.join("project.yaml");
+    // Il testo grezzo serve due volte: per distinguere "assente" da "illeggibile",
+    // e per recuperare ciò che la struttura tipizzata non rappresenta.
+    let raw_text = tokio::fs::read_to_string(&path).await.ok();
+
+    let mut project = match &raw_text {
+        Some(text) => match serde_yaml::from_str::<Project>(text) {
+            Ok(p) => p,
+            Err(e) => {
+                warn!(path = %path.display(), "patch_project: project.yaml non caricabile, salvataggio rifiutato: {e}");
+                return (
+                    StatusCode::CONFLICT,
+                    format!(
+                        "project.yaml non è caricabile e il salvataggio è stato rifiutato per non \
+                         sovrascriverlo: il file su disco è intatto.\n\nErrore: {e}\n\nCorreggi il \
+                         file a mano oppure ripristina un backup dalla tab Backup.",
+                    ),
+                ).into_response();
+            }
+        },
+        // Nessun file: progetto nuovo, si crea.
+        None => Project {
+            meta: ProjectMeta { name: "default".into(), version: "0.1.0".into() },
+            tags: vec![],
+            sources: vec![],
+            alarms: vec![],
+            functions: vec![],
+            custom_symbols: vec![],
+            datastores: vec![],
+            global_scripts: vec![],
+            notifications: None,
+            saved_by: None,
+            languages: Default::default(),
+            page_layout: None,
+        },
+    };
     f(&mut project);
     if let Err(e) = tokio::fs::create_dir_all(project_dir).await {
         warn!("cannot create project dir: {e}");
-        return StatusCode::INTERNAL_SERVER_ERROR;
+        return StatusCode::INTERNAL_SERVER_ERROR.into_response();
     }
-    let path = project_dir.join("project.yaml");
-    match project.stamp_and_serialize() {
-        Ok(yaml) => match tokio::fs::write(&path, yaml).await {
-            Ok(_)  => StatusCode::NO_CONTENT,
-            Err(e) => { warn!("write project.yaml: {e}"); StatusCode::INTERNAL_SERVER_ERROR }
-        },
-        Err(e) => { warn!("serialize project: {e}"); StatusCode::INTERNAL_SERVER_ERROR }
+    let yaml = match project.stamp_and_serialize() {
+        Ok(y) => y,
+        Err(e) => {
+            warn!("serialize project: {e}");
+            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
+    };
+    let yaml = match raw_text.as_deref() {
+        Some(raw) => merge_preserved(&yaml, raw),
+        None => yaml,
+    };
+    match tokio::fs::write(&path, yaml).await {
+        Ok(_)  => StatusCode::NO_CONTENT.into_response(),
+        Err(e) => {
+            warn!("write project.yaml: {e}");
+            StatusCode::INTERNAL_SERVER_ERROR.into_response()
+        }
     }
+}
+
+/// Rimette nel YAML da scrivere ciò che la struttura `Project` non rappresenta:
+/// le sorgenti che non si parsano e le chiavi di primo livello sconosciute.
+///
+/// Le sorgenti preservate finiscono **in coda** alla lista: l'ordine relativo
+/// rispetto a quelle conosciute non è recuperabile senza un'identità stabile, e
+/// conservare la voce conta più di conservarne la posizione.
+///
+/// Se qualcosa non si parsa (a partire dal file grezzo) si restituisce il YAML
+/// tipizzato invariato: questa funzione può solo aggiungere, mai far fallire un
+/// salvataggio.
+fn merge_preserved(typed_yaml: &str, raw_yaml: &str) -> String {
+    let (Ok(mut typed), Ok(raw)) = (
+        serde_yaml::from_str::<serde_yaml::Value>(typed_yaml),
+        serde_yaml::from_str::<serde_yaml::Value>(raw_yaml),
+    ) else {
+        return typed_yaml.to_string();
+    };
+    let (Some(typed_map), Some(raw_map)) = (typed.as_mapping().cloned(), raw.as_mapping()) else {
+        return typed_yaml.to_string();
+    };
+
+    // Nomi delle sorgenti che la struttura tipizzata sta già scrivendo.
+    let typed_names: std::collections::HashSet<String> = typed_map
+        .get(serde_yaml::Value::from("sources"))
+        .and_then(|v| v.as_sequence())
+        .map(|seq| {
+            seq.iter()
+                .filter_map(|e| e.get("name").and_then(|n| n.as_str()).map(|s| s.to_string()))
+                .collect()
+        })
+        .unwrap_or_default();
+
+    // Sorgenti da conservare: quelle che non si parsano **e** che non sono già
+    // presenti fra le tipizzate.
+    //
+    // Il secondo controllo non è teorico: senza di lui basta una piccola
+    // asimmetria fra come `SourceDef` si serializza e come si deserializza per
+    // far sembrare "non parsabile" una sorgente valida — che verrebbe quindi
+    // accodata a una copia di sé stessa, raddoppiando a ogni salvataggio. Un
+    // test lo ha colto subito (`non_duplica_le_sorgenti_conosciute`).
+    let unparsed: Vec<serde_yaml::Value> = raw_map
+        .get(serde_yaml::Value::from("sources"))
+        .and_then(|v| v.as_sequence())
+        .map(|seq| {
+            seq.iter()
+                .filter(|entry| serde_yaml::from_value::<SourceDef>((*entry).clone()).is_err())
+                .filter(|entry| {
+                    entry.get("name").and_then(|n| n.as_str())
+                        .map(|n| !typed_names.contains(n))
+                        .unwrap_or(true)   // senza nome non si può dedurre: si conserva
+                })
+                .cloned()
+                .collect()
+        })
+        .unwrap_or_default();
+
+    let out = typed.as_mapping_mut().expect("verificato sopra");
+    if !unparsed.is_empty() {
+        let key = serde_yaml::Value::from("sources");
+        let mut seq = out.get(&key).and_then(|v| v.as_sequence()).cloned().unwrap_or_default();
+        let kept = unparsed.len();
+        seq.extend(unparsed);
+        out.insert(key, serde_yaml::Value::Sequence(seq));
+        info!(kept, "patch_project: sorgenti non riconosciute conservate nel salvataggio");
+    }
+
+    // Chiavi di primo livello che il file aveva e la struttura non conosce.
+    let mut extra = 0usize;
+    for (k, v) in raw_map {
+        if !typed_map.contains_key(k) {
+            out.insert(k.clone(), v.clone());
+            extra += 1;
+        }
+    }
+    if extra > 0 {
+        info!(extra, "patch_project: chiavi di primo livello sconosciute conservate");
+    }
+
+    serde_yaml::to_string(&typed).unwrap_or_else(|_| typed_yaml.to_string())
 }
 
 async fn update_project_tags(
     State(s): State<AppState>,
     Extension(user): Extension<AuthUser>,
     Json(tags): Json<Vec<TagDef>>,
-) -> StatusCode {
+) -> Response {
     s.audit.log("project.change", Some(user.username), serde_json::json!({"what": "tags", "count": tags.len()}));
     // Compute diff against current TagDb so newly-defined tags get seeded
     // and orphans get evicted — no runtime restart required.
@@ -1651,10 +1784,10 @@ async fn update_project_tags(
         .filter_map(|t| t.expression.as_ref().map(|e| (t.id.clone(), e.clone())))
         .collect();
 
-    let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c };
-    let status = patch_project(&dir, |p| p.tags = tags).await;
-    if status != StatusCode::NO_CONTENT {
-        return status;
+    let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
+    let res = patch_project(&dir, |p| p.tags = tags).await;
+    if res.status() != StatusCode::NO_CONTENT {
+        return res;
     }
     for t in &to_add {
         s.db.set(t.id.clone(), t.initial_value(), TagQuality::Uncertain).await;
@@ -1663,7 +1796,7 @@ async fn update_project_tags(
         s.db.remove(id).await;
     }
     *s.derived_tags.write().await = derived;
-    status
+    res
 }
 
 /// PUT /api/project/languages
@@ -1673,8 +1806,8 @@ async fn update_project_tags(
 async fn update_project_languages(
     State(s): State<AppState>,
     Json(table): Json<LanguageTable>,
-) -> StatusCode {
-    let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c };
+) -> Response {
+    let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
     patch_project(&dir, |p| p.languages = table).await
 }
 
@@ -1741,7 +1874,7 @@ async fn import_tags_csv(
 
     // Merge: load current, upsert imported.
     let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
-    let status = patch_project(&dir, |p| {
+    let res = patch_project(&dir, |p| {
         for new_tag in &imported {
             if let Some(existing) = p.tags.iter_mut().find(|t| t.id == new_tag.id) {
                 *existing = new_tag.clone();
@@ -1750,8 +1883,8 @@ async fn import_tags_csv(
             }
         }
     }).await;
-    if status != StatusCode::NO_CONTENT {
-        return status.into_response();
+    if res.status() != StatusCode::NO_CONTENT {
+        return res;
     }
     // Seed any newly-added tags into TagDb.
     let current_ids: std::collections::HashSet<TagId> = s.db.snapshot().await.into_keys().collect();
@@ -1777,9 +1910,9 @@ async fn update_project_sources(
     State(s): State<AppState>,
     Extension(user): Extension<AuthUser>,
     Json(mut sources): Json<Vec<SourceDef>>,
-) -> StatusCode {
+) -> Response {
     s.audit.log("project.change", Some(user.username), serde_json::json!({"what": "sources", "count": sources.len()}));
-    let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c };
+    let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
     // Restore masked secrets: any MQTT source whose password came back as
     // the placeholder string is interpreted as "leave unchanged" — we look
     // the previous value up from the on-disk project. Without this round
@@ -1803,29 +1936,29 @@ async fn update_project_sources(
     // set. New/removed sources are spawned/cancelled in-place — no runtime
     // restart needed.
     let clone = sources.clone();
-    let status = patch_project(&dir, |p| p.sources = sources).await;
-    if status == StatusCode::NO_CONTENT {
+    let res = patch_project(&dir, |p| p.sources = sources).await;
+    if res.status() == StatusCode::NO_CONTENT {
         s.supervisor.reload(clone).await;
     }
-    status
+    res
 }
 
 async fn update_project_alarms(
     State(s): State<AppState>,
     Extension(user): Extension<AuthUser>,
     Json(alarms): Json<Vec<AlarmDef>>,
-) -> StatusCode {
+) -> Response {
     s.audit.log("project.change", Some(user.username), serde_json::json!({"what": "alarms", "count": alarms.len()}));
     // Hot-reload: AlarmDb::load fully replaces the registry (clear + insert).
     // In-flight active alarms are reset; the next TagDb update will re-evaluate
     // and re-fire any still-tripped conditions.
-    let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c };
+    let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
     let clone = alarms.clone();
-    let status = patch_project(&dir, |p| p.alarms = alarms).await;
-    if status == StatusCode::NO_CONTENT {
+    let res = patch_project(&dir, |p| p.alarms = alarms).await;
+    if res.status() == StatusCode::NO_CONTENT {
         s.alarms.load(clone).await;
     }
-    status
+    res
 }
 
 /// Validate + persist + hot-swap the reusable Python functions list.
@@ -1866,28 +1999,28 @@ async fn update_project_functions(
 
     let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
     let clone = functions.clone();
-    let status = patch_project(&dir, |p| p.functions = functions).await;
-    if status == StatusCode::NO_CONTENT {
+    let res = patch_project(&dir, |p| p.functions = functions).await;
+    if res.status() == StatusCode::NO_CONTENT {
         let mut map = s.functions.write().await;
         map.clear();
         for f in clone { map.insert(f.name.clone(), f); }
     }
-    status.into_response()
+    res
 }
 
 async fn update_project_custom_symbols(
     State(s): State<AppState>,
     Json(symbols): Json<Vec<CustomSymbol>>,
-) -> StatusCode {
-    let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c };
+) -> Response {
+    let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
     patch_project(&dir, |p| p.custom_symbols = symbols).await
 }
 
 async fn update_project_datastores(
     State(s): State<AppState>,
     Json(datastores): Json<Vec<sws_core::DatastoreConfig>>,
-) -> StatusCode {
-    let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c };
+) -> Response {
+    let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
     patch_project(&dir, |p| p.datastores = datastores).await
 }
 
@@ -3681,11 +3814,11 @@ async fn update_project_global_scripts(
     State(s): State<AppState>,
     Extension(user): Extension<AuthUser>,
     Json(scripts): Json<Vec<GlobalScriptDef>>,
-) -> StatusCode {
+) -> Response {
     s.audit.log("project.change", Some(user.username), serde_json::json!({"what": "global_scripts", "count": scripts.len()}));
-    let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c };
-    let status = patch_project(&dir, |p| p.global_scripts = scripts.clone()).await;
-    if status == StatusCode::NO_CONTENT {
+    let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
+    let res = patch_project(&dir, |p| p.global_scripts = scripts.clone()).await;
+    if res.status() == StatusCode::NO_CONTENT {
         // Hot-swap: cancel running scripts, start new set.
         if let Some(old) = s.script_supervisor.write().await.take() {
             old.stop();
@@ -3703,7 +3836,7 @@ async fn update_project_global_scripts(
             *s.script_supervisor.write().await = Some(sc);
         }
     }
-    status
+    res
 }
 
 // ── T-24 Project fingerprint ─────────────────────────────────────────────────
@@ -3877,9 +4010,9 @@ async fn update_project_notifications(
     State(s): State<AppState>,
     Extension(user): Extension<AuthUser>,
     Json(config): Json<Option<NotificationConfig>>,
-) -> StatusCode {
+) -> Response {
     s.audit.log("project.change", Some(user.username), serde_json::json!({"what": "notifications", "enabled": config.is_some()}));
-    let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c };
+    let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
 
     // Difesa in profondità: se stiamo per perdere un bot_token già salvato,
     // dirlo. Non è ipotetico — un client che manda `notifications` senza la
@@ -3929,8 +4062,8 @@ async fn update_project_notifications(
     };
 
     let config_clone = config.clone();
-    let status = patch_project(&dir, |p| p.notifications = config_clone).await;
-    if status == StatusCode::NO_CONTENT {
+    let res = patch_project(&dir, |p| p.notifications = config_clone).await;
+    if res.status() == StatusCode::NO_CONTENT {
         // Hot-swap the Telegram sender (config swap keeps the script `tx` alive)
         // then restart the notification supervisor with the shared sink.
         let sinks = crate::telegram::restart_sender(
@@ -3950,7 +4083,7 @@ async fn update_project_notifications(
             *s.notification_supervisor.write().await = Some(sup);
         }
     }
-    status
+    res
 }
 
 /// `PUT /api/project/page-layout` — save the project-wide page sizing mode
@@ -3960,14 +4093,14 @@ async fn update_project_page_layout(
     State(s): State<AppState>,
     Extension(user): Extension<AuthUser>,
     Json(config): Json<Option<PageLayoutConfig>>,
-) -> StatusCode {
-    let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c };
+) -> Response {
+    let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
     let config_clone = config.clone();
-    let status = patch_project(&dir, |p| p.page_layout = config_clone).await;
-    if status == StatusCode::NO_CONTENT {
+    let res = patch_project(&dir, |p| p.page_layout = config_clone).await;
+    if res.status() == StatusCode::NO_CONTENT {
         s.audit.log("project.change", Some(user.username), serde_json::json!({"what": "page_layout"}));
     }
-    status
+    res
 }
 
 #[derive(serde::Deserialize)]
@@ -4159,5 +4292,72 @@ notifications:
         let manifest = zip_entry(&zip, "manifest.json");
         let m: serde_json::Value = serde_json::from_str(&manifest).unwrap();
         assert_eq!(m["secrets_masked"], serde_json::json!(false), "manifest: {manifest}");
+    }
+}
+
+#[cfg(test)]
+mod write_safety_tests {
+    use super::merge_preserved;
+
+    /// Il YAML che la struttura tipizzata produrrebbe: contiene solo ciò che sa
+    /// rappresentare.
+    const TYPED: &str = "meta:\n  name: impianto\n  version: '1'\nsources:\n- kind: mqtt\n  name: broker\n  url: mqtt://localhost:1883\ntags: []\n";
+
+    #[test]
+    fn conserva_una_sorgente_che_non_si_parsa() {
+        // Il caso di Q10: sul disco c'è una sorgente di un protocollo che questa
+        // versione non conosce. Veniva scartata in lettura (di proposito) e poi
+        // cancellata dalla riscrittura — cioè persa per sempre al primo
+        // salvataggio di una qualunque altra sezione.
+        let raw = "meta:\n  name: impianto\n  version: '1'\nsources:\n- kind: mqtt\n  name: broker\n  url: mqtt://localhost:1883\n- kind: protocollo_futuro\n  name: misterioso\n  parametro: 42\n";
+        let out = merge_preserved(TYPED, raw);
+        assert!(out.contains("protocollo_futuro"), "sorgente sconosciuta persa:\n{out}");
+        assert!(out.contains("misterioso"), "nome della sorgente sconosciuta perso:\n{out}");
+        assert!(out.contains("broker"), "sorgente conosciuta persa:\n{out}");
+    }
+
+    #[test]
+    fn una_lista_sostituita_dall_utente_conserva_comunque_le_non_parsabili() {
+        // L'utente riscrive le sorgenti dalla tab Protocolli: la sua lista vince,
+        // ma la voce che la UI non ha mai visto non può essere stata "rimossa da
+        // lui", quindi resta.
+        let typed_svuotato = "meta:\n  name: impianto\n  version: '1'\nsources: []\ntags: []\n";
+        let raw = "meta:\n  name: impianto\n  version: '1'\nsources:\n- kind: protocollo_futuro\n  name: misterioso\n";
+        let out = merge_preserved(typed_svuotato, raw);
+        assert!(out.contains("protocollo_futuro"), "conservazione mancata su lista svuotata:\n{out}");
+    }
+
+    #[test]
+    fn conserva_le_chiavi_di_primo_livello_sconosciute() {
+        let raw = "meta:\n  name: impianto\n  version: '1'\nsources: []\nimpostazioni_future:\n  qualcosa: vero\n";
+        let out = merge_preserved(TYPED, raw);
+        assert!(out.contains("impostazioni_future"), "chiave sconosciuta persa:\n{out}");
+        assert!(out.contains("qualcosa"), "contenuto della chiave sconosciuta perso:\n{out}");
+    }
+
+    #[test]
+    fn non_duplica_le_sorgenti_conosciute() {
+        // Il file grezzo e quello tipizzato contengono la stessa sorgente: deve
+        // comparire una volta sola, altrimenti ogni salvataggio raddoppierebbe.
+        let raw = "meta:\n  name: impianto\n  version: '1'\nsources:\n- kind: mqtt\n  name: broker\n  url: mqtt://localhost:1883\ntags: []\n";
+        let out = merge_preserved(TYPED, raw);
+        assert_eq!(out.matches("name: broker").count(), 1, "sorgente duplicata:\n{out}");
+    }
+
+    #[test]
+    fn il_valore_tipizzato_vince_sulle_chiavi_conosciute() {
+        // Se il file grezzo e la patch discordano su una chiave conosciuta, deve
+        // vincere la patch: è la modifica che l'utente ha appena chiesto.
+        let raw = "meta:\n  name: nome_vecchio\n  version: '1'\nsources: []\n";
+        let out = merge_preserved(TYPED, raw);
+        assert!(out.contains("impianto"), "la patch non ha vinto:\n{out}");
+        assert!(!out.contains("nome_vecchio"), "il valore vecchio è sopravvissuto:\n{out}");
+    }
+
+    #[test]
+    fn un_file_grezzo_illeggibile_non_fa_fallire_il_salvataggio() {
+        // merge_preserved può solo aggiungere: se il grezzo non si parsa,
+        // restituisce il tipizzato invariato invece di rompere la scrittura.
+        assert_eq!(merge_preserved(TYPED, "questo: [non è: yaml valido"), TYPED);
     }
 }
