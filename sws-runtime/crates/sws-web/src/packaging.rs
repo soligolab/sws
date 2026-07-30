@@ -1,9 +1,11 @@
 //! T-28 — IDE Package Builder + SSH Device Deployer
 //!
 //! Endpoints (Admin only, port 8444):
-//!   POST /api/build/package   — run scripts/package.sh, stream log
-//!   GET  /api/build/packages  — list built tarballs in dist/
-//!   POST /api/deploy/device   — SCP tarball + run install.sh via SSH
+//!   POST /api/build/package             — run scripts/package.sh, stream log
+//!   GET  /api/build/packages            — list built tarballs in dist/
+//!   POST /api/deploy/device             — SCP tarball + run install.sh via SSH
+//!   GET  /api/build/container-packages  — list built container image+www pairs in dist/
+//!   POST /api/deploy/device-container   — SCP image+www+installer + run install-container.sh via SSH
 
 use axum::{
     body::Body,
@@ -216,6 +218,70 @@ pub async fn list_packages(State(s): State<AppState>) -> impl IntoResponse {
     axum::Json(files)
 }
 
+// ── GET /api/build/container-packages ─────────────────────────────────────────
+
+/// Parse a container image archive name (`sws-runtime-<version>-<arch>-image.tar.gz`)
+/// into `(version, arch)`. Returns `None` for anything else in `dist/`
+/// (native binary tarballs, the SPA archive itself, stray files...).
+fn parse_image_tarball(name: &str) -> Option<(String, String)> {
+    let rest = name.strip_prefix("sws-runtime-")?;
+    for arch in ["aarch64", "x86_64"] {
+        if let Some(version) = rest.strip_suffix(&format!("-{arch}-image.tar.gz")) {
+            return Some((version.to_string(), arch.to_string()));
+        }
+    }
+    None
+}
+
+#[derive(Debug, Serialize)]
+pub struct ContainerPackage {
+    pub image_tarball: String,
+    /// `None` when no `sws-www-<version>.tar.gz` exists alongside the image —
+    /// the frontend should refuse to deploy until one is built too (the SPA
+    /// is never baked into the image, see Containerfile.*).
+    pub www_tarball: Option<String>,
+    pub arch: String,
+    pub version: String,
+    pub size_bytes: u64,
+    pub mtime_ms: u64,
+}
+
+pub async fn list_container_packages(State(s): State<AppState>) -> impl IntoResponse {
+    let repo = match s.repo_root.as_ref() {
+        Some(p) => p.clone(),
+        None => return axum::Json(Vec::<ContainerPackage>::new()),
+    };
+
+    let dist = repo.join("dist");
+    let mut out: Vec<ContainerPackage> = Vec::new();
+
+    if let Ok(mut rd) = tokio::fs::read_dir(&dist).await {
+        while let Ok(Some(entry)) = rd.next_entry().await {
+            let path = entry.path();
+            let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("").to_string();
+            let Some((version, arch)) = parse_image_tarball(&name) else { continue };
+            let Ok(meta) = tokio::fs::metadata(&path).await else { continue };
+            let mtime_ms = meta.modified().ok()
+                .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+                .map(|d| d.as_millis() as u64)
+                .unwrap_or(0);
+            let www_name = format!("sws-www-{version}.tar.gz");
+            let www_tarball = if dist.join(&www_name).exists() { Some(www_name) } else { None };
+            out.push(ContainerPackage {
+                image_tarball: name,
+                www_tarball,
+                arch,
+                version,
+                size_bytes: meta.len(),
+                mtime_ms,
+            });
+        }
+    }
+
+    out.sort_by(|a, b| b.mtime_ms.cmp(&a.mtime_ms));
+    axum::Json(out)
+}
+
 // ── POST /api/deploy/device ───────────────────────────────────────────────────
 
 #[derive(Debug, Deserialize)]
@@ -373,6 +439,190 @@ pub async fn deploy_device(
         .unwrap()
 }
 
+// ── POST /api/deploy/device-container ─────────────────────────────────────────
+
+/// Sanitize a `dist/`-relative filename and resolve it to an absolute path,
+/// rejecting anything that isn't a plain basename actually inside `dist/`
+/// (symlink escapes included) — same checks `deploy_device` inlines for its
+/// single tarball, factored out here because this handler needs it twice.
+fn resolve_dist_file(repo: &std::path::Path, name: &str) -> Result<PathBuf, String> {
+    let basename = PathBuf::from(name)
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("")
+        .to_string();
+    if !basename.ends_with(".tar.gz") || basename.is_empty() {
+        return Err(format!("nome file non valido: {name}"));
+    }
+    let dist_dir = repo.join("dist");
+    let path = dist_dir.join(&basename);
+    if !path.exists() {
+        return Err(format!("file non trovato: dist/{basename}"));
+    }
+    let canon = path.canonicalize().map_err(|_| "file non trovato".to_string())?;
+    let canon_dist = dist_dir.canonicalize().map_err(|_| "dist/ non trovata".to_string())?;
+    if !canon.starts_with(&canon_dist) {
+        return Err(format!("{basename} è fuori da dist/"));
+    }
+    Ok(path)
+}
+
+#[derive(Debug, Deserialize)]
+pub struct DeviceContainerDeployRequest {
+    /// Container image archive (basename only, must exist in dist/).
+    pub image_tarball: String,
+    /// SPA archive (basename only, must exist in dist/) — the image never
+    /// bundles the frontend, see Containerfile.aarch64/.x86_64.
+    pub www_tarball: String,
+    pub host: String,
+    #[serde(default = "default_ssh_port")]
+    pub port: u16,
+    pub user: String,
+    pub password: String,
+    #[serde(default = "default_remote_dir")]
+    pub remote_dir: String,
+}
+
+/// Same shape as `deploy_device`, but installs the runtime **as a rootless
+/// Podman container** instead of the native binary: ships the image+SPA
+/// archives plus `deploy/container/install-container.sh` and its quadlet
+/// unit (install-container.sh reads the unit from its own directory, so both
+/// must land in the same `remote_dir`), then runs the installer over SSH —
+/// **without `sudo`**, unlike the native-binary path, because rootless
+/// Podman needs none.
+pub async fn deploy_device_container(
+    State(s): State<AppState>,
+    EJson(req): EJson<DeviceContainerDeployRequest>,
+) -> Response {
+    let repo = match s.repo_root.as_ref() {
+        Some(p) => p.clone(),
+        None => {
+            return (StatusCode::SERVICE_UNAVAILABLE,
+                "repo_root non disponibile\n").into_response();
+        }
+    };
+
+    if !validate_remote_path(&req.remote_dir) {
+        return (StatusCode::BAD_REQUEST,
+            "remote_dir non valido: deve essere un percorso assoluto senza '..' né caratteri speciali\n"
+        ).into_response();
+    }
+
+    let image_path = match resolve_dist_file(&repo, &req.image_tarball) {
+        Ok(p) => p,
+        Err(e) => return (StatusCode::BAD_REQUEST, format!("{e}\n")).into_response(),
+    };
+    let www_path = match resolve_dist_file(&repo, &req.www_tarball) {
+        Ok(p) => p,
+        Err(e) => return (StatusCode::BAD_REQUEST, format!("{e}\n")).into_response(),
+    };
+
+    let installer_src = repo.join("deploy/container/install-container.sh");
+    let quadlet_src = repo.join("deploy/container/sws-runtime.container");
+    if !installer_src.exists() || !quadlet_src.exists() {
+        return (StatusCode::INTERNAL_SERVER_ERROR,
+            "deploy/container/install-container.sh o sws-runtime.container mancante nel repo\n"
+        ).into_response();
+    }
+
+    let image_basename = image_path.file_name().unwrap().to_str().unwrap().to_string();
+    let www_basename = www_path.file_name().unwrap().to_str().unwrap().to_string();
+
+    let (tx, rx) = tokio::sync::mpsc::channel::<String>(128);
+
+    tokio::spawn(async move {
+        let send = |msg: &str| { let _ = tx.try_send(format!("{msg}\n")); };
+
+        let use_sshpass = sshpass_available();
+        if !use_sshpass {
+            send("WARN: sshpass non trovato — la password verrà ignorata. Assicurati che la chiave SSH sia preconfigurata.");
+        }
+
+        let host_str = format!("{}@{}", req.user, req.host);
+        let port_str = req.port.to_string();
+
+        // ── 1. Crea remote_dir ──────────────────────────────────────────────
+        // A differenza di deploy_device (che scp-a dentro /tmp/..., quasi
+        // sempre già presente), qui remote_dir deve esistere PRIMA di ognuno
+        // dei quattro scp che seguono, non solo prima dell'estrazione.
+        send(&format!("==> mkdir -p {} sul device", req.remote_dir));
+        let ok = run_ssh_cmd(
+            use_sshpass, &req.password,
+            "ssh",
+            &["-p", &port_str, "-o", "StrictHostKeyChecking=no",
+              &host_str, &format!("mkdir -p {}", req.remote_dir)],
+            &send,
+        ).await;
+        if !ok { return; }
+
+        // ── 2. SCP dei quattro file (immagine, SPA, installer, quadlet) ────
+        let uploads: [(&str, &std::path::Path); 4] = [
+            ("immagine", image_path.as_path()),
+            ("SPA", www_path.as_path()),
+            ("installer", installer_src.as_path()),
+            ("unit quadlet", quadlet_src.as_path()),
+        ];
+        for (label, local) in uploads {
+            send(&format!("==> SCP {label}: {} → {}:{}", local.display(), host_str, req.remote_dir));
+            let ok = run_ssh_cmd(
+                use_sshpass, &req.password,
+                "scp",
+                &["-P", &port_str, "-o", "StrictHostKeyChecking=no",
+                  local.to_str().unwrap_or(""), &format!("{host_str}:{}/", req.remote_dir)],
+                &send,
+            ).await;
+            if !ok { return; }
+        }
+        send("==> SCP completato");
+
+        // ── 3. Esegui install-container.sh (NESSUN sudo: podman rootless) ──
+        send("==> Installazione (install-container.sh, podman rootless — nessun sudo richiesto)...");
+        let install_cmd = format!(
+            "cd {dir} && chmod +x install-container.sh && ./install-container.sh --image {img} --www {www}",
+            dir = req.remote_dir, img = image_basename, www = www_basename,
+        );
+        let ok = run_ssh_cmd(
+            use_sshpass, &req.password,
+            "ssh",
+            &["-p", &port_str, "-o", "StrictHostKeyChecking=no",
+              &host_str, &install_cmd],
+            &send,
+        ).await;
+        if !ok { return; }
+
+        // ── 4. Health check ─────────────────────────────────────────────────
+        // http, non https: il container parte in HTTP finché non c'è un
+        // certificato TLS in config/ (stesso motivo dell'HEALTHCHECK
+        // nel Containerfile).
+        send("==> Health check...");
+        let hc_cmd = "sleep 3 && curl -fs http://localhost:8443/health";
+        let ok = run_ssh_cmd(
+            use_sshpass, &req.password,
+            "ssh",
+            &["-p", &port_str, "-o", "StrictHostKeyChecking=no",
+              &host_str, hc_cmd],
+            &send,
+        ).await;
+        if ok {
+            send("==> Health check: OK");
+        } else {
+            send("WARN: health check non risponde — il servizio potrebbe ancora essere in avvio");
+        }
+
+        send("DONE");
+    });
+
+    let stream = tokio_stream::wrappers::ReceiverStream::new(rx)
+        .map(|line| Ok::<_, Infallible>(axum::body::Bytes::from(line)));
+
+    Response::builder()
+        .status(StatusCode::OK)
+        .header("content-type", "text/plain; charset=utf-8")
+        .header("x-content-type-options", "nosniff")
+        .body(Body::from_stream(stream))
+        .unwrap()
+}
+
 // ── SSH helper ────────────────────────────────────────────────────────────────
 
 async fn run_ssh_cmd(
@@ -400,5 +650,45 @@ async fn run_ssh_cmd(
             send(&format!("ERROR: impossibile eseguire {prog}: {e}"));
             false
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_image_tarball_extracts_version_and_arch() {
+        assert_eq!(
+            parse_image_tarball("sws-runtime-0.1.0-dev-x86_64-image.tar.gz"),
+            Some(("0.1.0-dev".to_string(), "x86_64".to_string())),
+        );
+        assert_eq!(
+            parse_image_tarball("sws-runtime-1.2.3-aarch64-image.tar.gz"),
+            Some(("1.2.3".to_string(), "aarch64".to_string())),
+        );
+    }
+
+    #[test]
+    fn parse_image_tarball_rejects_unrelated_files() {
+        assert_eq!(parse_image_tarball("sws-www-0.1.0-dev.tar.gz"), None);
+        assert_eq!(parse_image_tarball("sws-0.1.0-dev-linux-x86_64.tar.gz"), None);
+        assert_eq!(parse_image_tarball("random-file.tar.gz"), None);
+        // arch presente ma senza il suffisso -image: non è un'immagine container.
+        assert_eq!(parse_image_tarball("sws-runtime-0.1.0-dev-x86_64.tar.gz"), None);
+    }
+
+    #[test]
+    fn validate_remote_path_accepts_absolute_clean_paths() {
+        assert!(validate_remote_path("/tmp/sws-deploy"));
+        assert!(validate_remote_path("/data/user/sws"));
+    }
+
+    #[test]
+    fn validate_remote_path_rejects_relative_traversal_and_shell_metacharacters() {
+        assert!(!validate_remote_path("relative/dir"));
+        assert!(!validate_remote_path("/tmp/../etc"));
+        assert!(!validate_remote_path("/tmp/foo; rm -rf /"));
+        assert!(!validate_remote_path("/tmp/$(whoami)"));
     }
 }
