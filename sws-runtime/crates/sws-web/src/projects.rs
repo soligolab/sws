@@ -577,9 +577,31 @@ async fn resolve_project_dir(s: &AppState, name: &str) -> PathBuf {
 /// backup share) it only de-registers it from the known-projects list —
 /// files the maintainer deliberately placed outside the editor are never
 /// touched.
+/// Query params for `DELETE /api/projects/:name`.
+#[derive(Deserialize, Default)]
+pub struct DeleteQuery {
+    /// `true` → rimuovi solo gli artefatti di **progettazione** (`project.yaml`,
+    /// `synoptics/`) e lascia intatto tutto lo stato locale del dispositivo.
+    ///
+    /// Serve al deploy remoto, che prima di caricare il progetto nuovo cancellava
+    /// la cartella intera — portandosi via `.history/`, cioè il database storico.
+    /// Lo storico è l'unica cosa in un progetto che **non si può ricreare**: le
+    /// pagine si riesportano dall'IDE, i mesi di campioni no.
+    ///
+    /// Il default (nessun parametro) resta distruttivo: è il pulsante "Elimina"
+    /// della WelcomeScreen, dove cancellare tutto è la richiesta esplicita.
+    #[serde(default)]
+    pub preserve_state: bool,
+}
+
+/// Ciò che il deploy sovrascrive: artefatti di progettazione, prodotti dall'IDE
+/// e riesportabili in qualsiasi momento.
+const DESIGN_ARTIFACTS: &[&str] = &["project.yaml", "synoptics"];
+
 pub async fn delete_project(
     State(s): State<AppState>,
     Path(name): Path<String>,
+    Query(q): Query<DeleteQuery>,
 ) -> Response {
     let safe_name = match safe_project_name(&name) {
         Ok(n) => n,
@@ -600,6 +622,32 @@ pub async fn delete_project(
     if is_external(&target, s.projects_root.as_path()) {
         s.known_projects.remove(&safe_name).await;
         info!(name = %safe_name, path = %target.display(), "external project removed from list (files untouched)");
+        return StatusCode::NO_CONTENT.into_response();
+    }
+
+    // Deploy: si rimuovono solo gli artefatti di progettazione. `.history/` (il
+    // database), `.bak/`, `recipes/`, `.opcua-pki/` e `users.yaml` restano dove
+    // sono — sono stato del dispositivo, non del progetto che stai distribuendo.
+    // Il progetto NON viene rimosso da `known_projects`: la cartella esiste
+    // ancora e sta per ricevere i file nuovi.
+    if q.preserve_state {
+        for name in DESIGN_ARTIFACTS {
+            let path = target.join(name);
+            let res = if tokio::fs::metadata(&path).await.map(|m| m.is_dir()).unwrap_or(false) {
+                tokio::fs::remove_dir_all(&path).await
+            } else {
+                match tokio::fs::remove_file(&path).await {
+                    Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+                    other => other,
+                }
+            };
+            if let Err(e) = res {
+                warn!("delete_project(preserve_state): remove {}: {e}", path.display());
+                return (StatusCode::INTERNAL_SERVER_ERROR, "cannot clear design files")
+                    .into_response();
+            }
+        }
+        info!(name = %safe_name, "design files cleared, local state preserved (deploy)");
         return StatusCode::NO_CONTENT.into_response();
     }
 
@@ -893,6 +941,21 @@ pub struct UploadQuery {
     /// (unchanged behavior).
     #[serde(default)]
     pub parent_path: Option<String>,
+    /// `true` → questa è la seconda metà di un deploy: la cartella target
+    /// **esiste già** (l'ha appena svuotata dei soli file di progettazione
+    /// `DELETE …?preserve_state=true`) e va riempita senza rifiutare il conflitto.
+    ///
+    /// Cambia tre comportamenti, tutti necessari perché lo stato locale sopravviva:
+    ///   - i due controlli di conflitto (progetto già noto / cartella esistente)
+    ///     non si applicano;
+    ///   - `users.yaml` presente nello ZIP viene **saltato**: gli account del
+    ///     dispositivo sono stato locale e si aggiornano solo su richiesta
+    ///     esplicita (Configurazione → Runtime), non di straforo con un deploy;
+    ///   - in caso di errore **non** si fa `remove_dir_all` della cartella —
+    ///     il rollback distruttivo cancellerebbe proprio il database che stiamo
+    ///     cercando di preservare.
+    #[serde(default)]
+    pub deploy: bool,
 }
 
 // Minimal manifest — we only need `name` to derive the folder name.
@@ -961,14 +1024,15 @@ pub async fn upload_project_zip(
         }
         None => s.projects_root.as_ref().clone(),
     };
-    if s.known_projects.get_path(&safe_name).await.is_some() {
+    // In deploy la cartella DEVE esistere già: il conflitto non è un errore.
+    if !q.deploy && s.known_projects.get_path(&safe_name).await.is_some() {
         return (
             StatusCode::CONFLICT,
             axum::Json(serde_json::json!({ "name": safe_name })),
         ).into_response();
     }
     let target = parent_dir.join(&safe_name);
-    if tokio::fs::try_exists(&target).await.unwrap_or(false) {
+    if !q.deploy && tokio::fs::try_exists(&target).await.unwrap_or(false) {
         return (
             StatusCode::CONFLICT,
             axum::Json(serde_json::json!({ "name": safe_name })),
@@ -983,9 +1047,24 @@ pub async fn upload_project_zip(
     //    We trust the manifest.json name and skip it; everything else lands at
     //    its relative path under `target`. We refuse `..` components.
     let file_names: Vec<String> = archive.file_names().map(|n| n.to_string()).collect();
+    // Rollback: solo per una cartella creata da noi adesso. In deploy la cartella
+    // conteneva già `.history/` & co. e cancellarla vanificherebbe tutto il fix.
+    let rollback = |target: std::path::PathBuf, deploy: bool| async move {
+        if !deploy {
+            let _ = tokio::fs::remove_dir_all(&target).await;
+        }
+    };
     for entry_name in &file_names {
         if entry_name == "manifest.json" {
             continue; // metadata only — not needed on disk
+        }
+        // Deploy: gli utenti del dispositivo non si toccano. Preservarli alla
+        // cancellazione non basterebbe — il bundle contiene `users.yaml` e
+        // l'estrazione lo riscriverebbe comunque, chiudendo fuori dal pannello
+        // chi lo stava usando.
+        if q.deploy && entry_name == "users.yaml" {
+            info!("deploy: users.yaml dello ZIP ignorato — account del dispositivo preservati");
+            continue;
         }
         // Safety: reject traversal paths.
         if entry_name.contains("..") || entry_name.starts_with('/') {
@@ -997,7 +1076,7 @@ pub async fn upload_project_zip(
         if let Some(parent) = dest.parent() {
             if let Err(e) = tokio::fs::create_dir_all(parent).await {
                 warn!("upload_project_zip: mkdir {}: {e}", parent.display());
-                let _ = tokio::fs::remove_dir_all(&target).await;
+                rollback(target.clone(), q.deploy).await;
                 return (StatusCode::INTERNAL_SERVER_ERROR, "cannot create subdirectory")
                     .into_response();
             }
@@ -1006,14 +1085,14 @@ pub async fn upload_project_zip(
             Ok(Some(bytes)) => {
                 if let Err(e) = tokio::fs::write(&dest, bytes).await {
                     warn!("upload_project_zip: write {entry_name}: {e}");
-                    let _ = tokio::fs::remove_dir_all(&target).await;
+                    rollback(target.clone(), q.deploy).await;
                     return (StatusCode::INTERNAL_SERVER_ERROR, "write failed").into_response();
                 }
             }
             Ok(None) => { /* entry disappeared between listing and reading — skip */ }
             Err(e) => {
                 warn!("upload_project_zip: read {entry_name}: {e}");
-                let _ = tokio::fs::remove_dir_all(&target).await;
+                rollback(target.clone(), q.deploy).await;
                 return (StatusCode::INTERNAL_SERVER_ERROR, "zip read failed").into_response();
             }
         }
