@@ -83,6 +83,21 @@ impl SqliteBackend {
         Ok(deleted)
     }
 
+    /// Tag con campioni nel DB (vedi `SqliteStore::distinct_tags`).
+    pub async fn tags(&self) -> anyhow::Result<Vec<String>> {
+        self.store.distinct_tags().await
+    }
+
+    /// Cancella lo storico di un tag.
+    pub async fn delete_tag(&self, tag: &str) -> anyhow::Result<u64> {
+        self.store.delete_tag(tag).await
+    }
+
+    /// `VACUUM` + checkpoint WAL. Ritorna (byte prima, byte dopo).
+    pub async fn vacuum(&self) -> anyhow::Result<(u64, u64)> {
+        self.store.vacuum().await
+    }
+
     pub async fn export(
         &self,
         tags: &[String],

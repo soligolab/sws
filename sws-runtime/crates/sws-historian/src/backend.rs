@@ -127,6 +127,35 @@ impl DatastoreBackend {
         }
     }
 
+    /// Tag con campioni nel database.
+    ///
+    /// Implementato per SQLite, che è il caso della gestione database sul
+    /// dispositivo. Per Postgres/ODBC si dichiara non supportato invece di
+    /// restituire una lista vuota: una lista vuota si leggerebbe come "nessun
+    /// tag orfano", che è un'informazione falsa.
+    pub async fn tags(&self) -> anyhow::Result<Vec<String>> {
+        match self {
+            DatastoreBackend::Sqlite(b) => b.tags().await,
+            _ => anyhow::bail!("elenco tag supportato solo sui datastore SQLite"),
+        }
+    }
+
+    /// Cancella lo storico di un tag.
+    pub async fn delete_tag(&self, tag: &str) -> anyhow::Result<u64> {
+        match self {
+            DatastoreBackend::Sqlite(b) => b.delete_tag(tag).await,
+            _ => anyhow::bail!("cancellazione per tag supportata solo sui datastore SQLite"),
+        }
+    }
+
+    /// `VACUUM` + checkpoint WAL. Ritorna (byte prima, byte dopo).
+    pub async fn vacuum(&self) -> anyhow::Result<(u64, u64)> {
+        match self {
+            DatastoreBackend::Sqlite(b) => b.vacuum().await,
+            _ => anyhow::bail!("VACUUM è specifico di SQLite"),
+        }
+    }
+
     /// Export raw samples for a set of tags in a time range. Used by the CSV
     /// export endpoint. Returns `(tag_id, samples)` pairs.
     pub async fn export(
