@@ -6,7 +6,36 @@
 >
 > **Pulizia 2026-07-27**: rimossi i task già chiusi e le sezioni di verifica ormai superate; le sessioni mergiate **e** verificate fino al 2026-07-09 sono compresse in «Storico». Il dettaglio integrale resta in `CHANGELOG.md` e nella history git.
 
-**Last session**: 2026-07-29 — **Container aarch64 in servizio sul dispositivo, Telegram per singolo allarme, notifiche morte al boot** (branch `feat/container-aarch64`, portato in `main` con squash). Viewer a schermo pieno e auto-reload verificati in un browser, non più solo scritti.
+**Last session**: 2026-07-30 — **tre branch portati in `main` con squash e validati in un solo giro**
+(`d0d9110` sicurezza in scrittura del progetto, `9f20d06` deploy/database/utenti, `631e6d2` impalcatura
+e2e). Il punto di ritorno è il tag **`pre-merge-2026-07-30`**, anche su `origin`: da lì si torna con
+`git reset --hard pre-merge-2026-07-30`.
+
+Scelta del maintainer: le modifiche erano troppe da validare branch per branch, quindi si allinea
+`main` e si valida una volta. Il vantaggio pratico è che i sei script di verifica coesistono solo qui.
+
+**Batteria completa su `main` fuso** — `cargo check` verde, Rust 21+6+27 test, frontend 20/20,
+`pnpm build` verde, e i sei controlli:
+
+| controllo | esito |
+|---|---|
+| `check_project_write_safety.sh` | 9/9 (4/9 senza il fix) |
+| `check_deploy_preserve.sh` | storico 500→500, utenti/ricette/backup intatti, 4 casi utenti |
+| `check_database_mgmt.sh` | orfani, cancellazione, spazio recuperato, retention |
+| `check_multiselect_drag.sh` | ancora e seguace entrambi dx=120 dy=60 |
+| `check_viewer_layout.sh` | nessuna scrollbar in 4 configurazioni su 4 |
+| `check_spa_autoreload.sh` | ricarica dopo ~28 s col bundle nuovo |
+
+`check_e2e.sh` **non** è nella batteria: passa 3-4 test su 6 e quali cambia fra esecuzioni, perché i
+test condividono un runtime e ognuno apre i propri progetti. Da isolare prima di poterlo usare come
+gate; il limite è scritto in testa allo script.
+
+**Resta da provare sul dispositivo**: il deploy che conserva il database e il pulsante utenti
+richiedono l'immagine aarch64 ricostruita (`build_container.sh --no-spa` + `install-container.sh
+--image`). Il resto è SPA (`--www-only`). E resta il fallimento stabile di `lang-table`, che nel viewer
+non risolve `{{token}}`: da capire se è il test o la funzione.
+
+**Sessione precedente**: 2026-07-29 — **Container aarch64 in servizio sul dispositivo, Telegram per singolo allarme, notifiche morte al boot** (branch `feat/container-aarch64`, portato in `main` con squash). Viewer a schermo pieno e auto-reload verificati in un browser, non più solo scritti.
 
 **Permessi `ssh`/`scp`** (deciso il 2026-07-30, non più in sospeso): restano fuori dal `deny` di
 `.claude/settings.json` finché il test sul dispositivo non è chiuso — se serve indagare insieme, senza
