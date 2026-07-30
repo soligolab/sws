@@ -175,6 +175,8 @@ pub fn build(
         .route("/api/backups/:name/restore",
             post(crate::backups::restore_backup_handler))
         .route("/api/auth/users",         get(list_users).post(create_user))
+        // Lato ricevente di "Aggiorna utenti sul dispositivo".
+        .route("/api/auth/users-file",    put(crate::projects::replace_users_file))
         .route("/api/auth/users/:username",
             axum::routing::put(update_user).delete(delete_user))
         // Remote deploy: download binary from GitHub Releases + SCP to device.
@@ -238,6 +240,8 @@ pub fn build(
         .route("/api/remote/status",       get(crate::remote::remote_status))
         .route("/api/remote/deploy",       post(crate::remote::remote_deploy))
         .route("/api/remote/project/delete", post(crate::remote::delete_remote_project))
+        // Allineamento esplicito degli account: il deploy non li tocca.
+        .route("/api/remote/users",        post(crate::remote::remote_push_users))
         .route("/ws/remote/:sub",          get(crate::remote_relay::ws_relay_handler))
         .route_layer(middleware::from_fn(require_admin));
 

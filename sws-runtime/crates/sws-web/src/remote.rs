@@ -217,14 +217,7 @@ fn read_bundle_meta(zip: &[u8]) -> (Option<String>, Vec<String>) {
         .and_then(|v| v["name"].as_str().map(|s| s.to_string()));
     // `users.yaml` è `{ users: [ { username, password_hash, … } ] }` (sws-auth).
     let users = entry(&mut archive, "users.yaml")
-        .and_then(|txt| serde_yaml::from_str::<serde_yaml::Value>(&txt).ok())
-        .map(|v| {
-            v["users"].as_sequence().map(|seq| {
-                seq.iter()
-                    .filter_map(|u| u["username"].as_str().map(|s| s.to_string()))
-                    .collect::<Vec<_>>()
-            }).unwrap_or_default()
-        })
+        .map(|txt| read_usernames(&txt))
         .unwrap_or_default();
     (name, users)
 }
@@ -277,6 +270,93 @@ async fn report_user_divergence(
     }
     send("    Il deploy NON modifica gli account del dispositivo.");
     send("    Per allinearli: Configurazione → Runtime → \"Aggiorna utenti sul dispositivo\".");
+}
+
+
+/// `POST /api/remote/users` — spedisce `users.yaml` del progetto locale al
+/// runtime remoto connesso, sostituendo gli account del dispositivo.
+///
+/// Esiste perché il deploy **non** li tocca più (decisione del maintainer): chi
+/// aggiunge un utente nell'IDE deve poterlo mandare sul dispositivo, ma come
+/// azione dichiarata, non come effetto collaterale invisibile di un deploy.
+///
+/// Si trasferisce il **file**, non le password: contiene gli hash Argon2, quindi
+/// gli account arrivano funzionanti senza che né l'IDE né questa richiesta
+/// vedano mai una password in chiaro.
+pub async fn remote_push_users(
+    State(s): State<AppState>,
+    Extension(user): Extension<AuthUser>,
+) -> Response {
+    let target = match s.remote_target.read().await.clone() {
+        Some(t) => t,
+        None => return (StatusCode::BAD_REQUEST, "Nessun runtime remoto connesso").into_response(),
+    };
+    let proj_dir = match s.project_dir.read().await.clone() {
+        Some(d) => d,
+        None => return (StatusCode::BAD_REQUEST, "Nessun progetto attivo").into_response(),
+    };
+    let users_path = proj_dir.join("users.yaml");
+    let yaml = match tokio::fs::read_to_string(&users_path).await {
+        Ok(y) => y,
+        Err(_) => return (
+            StatusCode::BAD_REQUEST,
+            "Il progetto locale non ha utenti definiti: non c'è nulla da inviare.",
+        ).into_response(),
+    };
+    let count = read_usernames(&yaml).len();
+    if count == 0 {
+        // Rifiutare è più sicuro che obbedire: spedire una lista vuota
+        // chiuderebbe fuori dal pannello chiunque lo stia usando.
+        return (
+            StatusCode::BAD_REQUEST,
+            "Il progetto locale non ha utenti: inviarli lascerebbe il dispositivo senza account.",
+        ).into_response();
+    }
+
+    s.audit.log("remote.push_users", Some(user.username), serde_json::json!({
+        "url": target.url, "users": count,
+    }));
+
+    let client = make_remote_client();
+    let base = target.url.trim_end_matches('/');
+    let mut req = client
+        .put(format!("{base}/api/auth/users-file"))
+        .header("Content-Type", "application/x-yaml")
+        .body(yaml);
+    if !target.token.is_empty() {
+        req = req.header("Authorization", format!("Bearer {}", target.token));
+    }
+    match req.send().await {
+        Ok(r) if r.status().is_success() => (
+            StatusCode::OK,
+            Json(serde_json::json!({
+                "users": count,
+                "note": "Le sessioni aperte sul dispositivo sono state invalidate: chi era collegato deve rifare il login.",
+            })),
+        ).into_response(),
+        Ok(r) if r.status() == StatusCode::UNAUTHORIZED || r.status() == StatusCode::FORBIDDEN => (
+            StatusCode::BAD_GATEWAY,
+            "Il dispositivo ha rifiutato la richiesta (non autorizzato). Sostituire gli account \
+             richiede una connessione con credenziali admin: riconnettiti compilando utente e \
+             password del dispositivo, poi riprova.".to_string(),
+        ).into_response(),
+        Ok(r) => {
+            let code = r.status();
+            let body = r.text().await.unwrap_or_default();
+            (StatusCode::BAD_GATEWAY, format!("Il dispositivo ha risposto {code}: {body}")).into_response()
+        }
+        Err(e) => (StatusCode::BAD_GATEWAY, format!("Richiesta al dispositivo fallita: {e}")).into_response(),
+    }
+}
+
+/// Username contenuti in un `users.yaml` (`{ users: [ { username, … } ] }`).
+pub fn read_usernames(yaml: &str) -> Vec<String> {
+    serde_yaml::from_str::<serde_yaml::Value>(yaml)
+        .ok()
+        .and_then(|v| v["users"].as_sequence().map(|seq| {
+            seq.iter().filter_map(|u| u["username"].as_str().map(|s| s.to_string())).collect()
+        }))
+        .unwrap_or_default()
 }
 
 /// Percent-encode a string for use in a URL path segment (simple ASCII-safe version).

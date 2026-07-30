@@ -6,11 +6,12 @@
 
 use crate::global_scripts::GlobalScriptSupervisor;
 use crate::notifications::NotificationSupervisor;
-use crate::router::{active_dir, AppState};
+use crate::router::{active_dir, AppState, AuthUser};
 use crate::templates::copy_dir_all;
 use axum::{
     body::Bytes,
     extract::{Path, Query, State},
+    Extension,
     http::StatusCode,
     response::{IntoResponse, Response},
     Json,
@@ -1121,6 +1122,52 @@ fn read_zip_entry<R: Read + std::io::Seek>(
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
+
+
+/// `PUT /api/auth/users-file` — sostituisce `users.yaml` del progetto attivo con
+/// il corpo della richiesta (YAML), poi ricarica lo store di autenticazione.
+///
+/// È il lato ricevente di "Aggiorna utenti sul dispositivo": il deploy non tocca
+/// più gli account, quindi serve un modo dichiarato per allinearli. Si trasferisce
+/// il file, che contiene gli hash Argon2 — le password restano ignote a chi lo
+/// spedisce.
+///
+/// Due rifiuti deliberati, entrambi perché il danno sarebbe irreversibile e
+/// scoperto tardi (nessuno riesce più a entrare nel pannello):
+///   - YAML non valido o senza la chiave `users`;
+///   - lista **vuota**, che lascerebbe il dispositivo senza account.
+///
+/// Ricaricare lo store invalida tutte le sessioni: chi era collegato rifà il
+/// login. È inevitabile — le credenziali sono cambiate — e va detto al chiamante.
+pub async fn replace_users_file(
+    State(s): State<AppState>,
+    Extension(user): Extension<AuthUser>,
+    body: String,
+) -> Response {
+    let names = crate::remote::read_usernames(&body);
+    if names.is_empty() {
+        return (
+            StatusCode::BAD_REQUEST,
+            "users.yaml non valido o senza utenti: rifiutato per non lasciare il dispositivo senza account.",
+        ).into_response();
+    }
+    let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
+    let path = dir.join("users.yaml");
+    if let Err(e) = tokio::fs::write(&path, body.as_bytes()).await {
+        warn!("replace_users_file: write {}: {e}", path.display());
+        return (StatusCode::INTERNAL_SERVER_ERROR, "cannot write users.yaml").into_response();
+    }
+    s.audit.log("auth.users_replaced", Some(user.username), serde_json::json!({
+        "count": names.len(), "users": names.clone(),
+    }));
+    if let Err(e) = s.auth.swap_store(path, build_seed_accounts()).await {
+        warn!("replace_users_file: swap_store: {e:#}");
+        return (StatusCode::INTERNAL_SERVER_ERROR, format!("utenti scritti ma non ricaricati: {e}"))
+            .into_response();
+    }
+    info!(count = names.len(), "users.yaml replaced from remote — all sessions invalidated");
+    (StatusCode::OK, Json(serde_json::json!({ "users": names.len() }))).into_response()
+}
 
 /// Default per-project SQLite datastore injected when a project has none.
 /// Stores history inside the project directory so it travels with backups.

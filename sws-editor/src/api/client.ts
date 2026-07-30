@@ -874,6 +874,16 @@ export const api = {
   remoteDeleteProject: () =>
     request<void>("/api/remote/project/delete", { method: "POST" }),
 
+  /** POST /api/remote/users — invia `users.yaml` del progetto locale al runtime
+   *  remoto connesso, sostituendo gli account del dispositivo.
+   *
+   *  Azione separata dal deploy di proposito: il deploy non tocca gli account,
+   *  perché cambiare chi può accedere a un pannello in servizio non deve essere
+   *  un effetto collaterale. Trasferisce il file (hash Argon2 inclusi), non le
+   *  password in chiaro. Invalida le sessioni aperte sul dispositivo. */
+  pushUsersToRuntime: () =>
+    request<{ users: number; note?: string }>("/api/remote/users", { method: "POST" }),
+
   /** POST /api/project/migrate — re-save the active project in the current
    *  runtime format (clears the version-mismatch warning). */
   migrateProject: () =>

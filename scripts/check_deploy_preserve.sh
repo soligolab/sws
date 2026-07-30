@@ -101,3 +101,27 @@ grep -q operatore_dispositivo "$SCR/tgt/projects/impianto/users.yaml" 2>/dev/nul
   && echo "  ✓ utenti del dispositivo conservati" || echo "  ✗ utenti del dispositivo sovrascritti"
 ls "$SCR/tgt/projects/impianto/synoptics/" 2>/dev/null | grep -qi "nuova" \
   && echo "  ✓ pagine aggiornate dal deploy" || echo "  ✗ pagine NON aggiornate"
+
+echo "=== 2. utenti: dispositivo con account + connessione senza credenziali → deve rifiutare ==="
+echo -n "  risposta: "; curl -s -X POST "$S/remote/users" | head -c 200; echo
+grep -q operatore_dispositivo "$SCR/tgt/projects/impianto/users.yaml" 2>/dev/null \
+  && echo "  ✓ nulla è stato cambiato sul dispositivo" || echo "  ✗ account del dispositivo alterati"
+
+echo "=== 3. rifiuto di una lista vuota (lascerebbe il dispositivo senza account) ==="
+cp "$SCR/src/projects/impianto/users.yaml" "$SCR/src/users.yaml.bak"
+printf 'users: []\n' > "$SCR/src/projects/impianto/users.yaml"
+echo -n "  risposta: "; curl -s -X POST "$S/remote/users" | head -c 160; echo
+before=$(grep -c username "$SCR/tgt/projects/impianto/users.yaml" 2>/dev/null || echo 0)
+[ "$before" -gt 0 ] && echo "  ✓ il dispositivo ha ancora i suoi account ($before)" || echo "  ✗ account persi"
+cp "$SCR/src/users.yaml.bak" "$SCR/src/projects/impianto/users.yaml"
+
+echo "=== 4. percorso felice: dispositivo senza account → invio consentito ==="
+# Si toglie users.yaml dal target e si riapre il progetto: il runtime torna in
+# no-auth, che è la condizione in cui il pulsante serve davvero (primo
+# allineamento di un dispositivo nuovo).
+rm -f "$SCR/tgt/projects/impianto/users.yaml"
+curl -s -X POST "$T/projects/impianto/open" >/dev/null; sleep 1
+echo -n "  invio: "; curl -s -X POST "$S/remote/users" | head -c 200; echo
+echo "  users.yaml sul target ora: $(grep username "$SCR/tgt/projects/impianto/users.yaml" 2>/dev/null | sed 's/.*: //' | tr '\n' ' ')"
+grep -q admin_ide "$SCR/tgt/projects/impianto/users.yaml" 2>/dev/null \
+  && echo "  ✓ utenti allineati su richiesta esplicita" || echo "  ✗ allineamento non avvenuto"
