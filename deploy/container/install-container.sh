@@ -4,9 +4,9 @@
 # eseguire SUL DISPOSITIVO come utente normale (nessun sudo, podman rootless).
 #
 # Fa quello che altrimenti sono sei comandi da ricordare a memoria: prepara la
-# directory dati, carica l'immagine, srotola la SPA, installa l'unit quadlet,
-# abilita il linger (senza cui un container rootless non riparte dopo il
-# reboot) e avvia il servizio.
+# directory dati, procura l'immagine, installa l'unit quadlet, abilita il linger
+# (senza cui un container rootless non riparte dopo il reboot) e avvia il
+# servizio.
 #
 # I dati stanno in bind mount su un percorso esplicito dell'host
 # (/data/user/sws per default), non in volumi nominati: restano visibili e
@@ -16,32 +16,45 @@
 #   /data/user/sws/projects   progetti (dati utente)
 #   /data/user/sws/config     certificati TLS, registro progetti
 #   /data/user/sws/logs       log JSONL rotati
-#   /data/user/sws/www        SPA — aggiornabile senza ricostruire l'immagine
+#
+# La SPA NON è più fra questi: dal 2026-07-30 sta dentro l'immagine, quindi
+# arriva e si aggiorna con essa. Una /data/user/sws/www lasciata da
+# un'installazione precedente non serve più (e non viene toccata).
 #
 # Uso:
-#   ./install-container.sh --image sws-runtime-<ver>-aarch64-image.tar.gz \
-#                          --www   sws-www-<ver>.tar.gz
-#   ./install-container.sh --www-only sws-www-<ver>.tar.gz   # solo frontend, ~3 MB
+#   ./install-container.sh --pull              # dal registry: la strada normale
+#   ./install-container.sh --pull REF          # ...da un riferimento specifico
+#   ./install-container.sh --image ARCHIVIO    # da archivio: dispositivi senza rete
 #   ./install-container.sh --bridge            # rete bridge: NIENTE discovery mDNS
 #   ./install-container.sh --data /altro/path  # directory dati alternativa
+#   ./install-container.sh --migrate-volumes   # recupera i dati dai volumi nominati
+#                                              # delle installazioni pre-2026-07-28
 #   ./install-container.sh --no-autostart      # solo podman run, nessuna unit
 #   ./install-container.sh --uninstall         # rimuove servizio e container
 #   ./install-container.sh --uninstall --purge # ...e anche i dati (!)
 #
 # Prerequisiti: podman >= 4.4 (quadlet), mappature subuid/subgid per l'utente
-# corrente, ~1 GB liberi nello storage di podman.
+# corrente, ~1 GB liberi nello storage di podman. Con --pull, rete verso il
+# registry: l'immagine è pubblica, quindi nessuna credenziale.
 
 set -euo pipefail
 
 TAG="localhost/sws-runtime:0.1.0-dev"
+REGISTRY_REF="ghcr.io/soligolab/sws-runtime:0.1.0-dev-arm64"
 NAME="sws-runtime"
 DATA="/data/user/sws"
 UNIT_DIR="$HOME/.config/containers/systemd"
 UNIT_SRC="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/sws-runtime.container"
 
 IMAGE_ARCHIVE=""
-WWW_ARCHIVE=""
-WWW_ONLY=0
+PULL=0
+# La migrazione dai volumi nominati (layout pre-2026-07-28) è opt-in, e non più
+# automatica quando la cartella dati è vuota. Automatica faceva danni: dopo un
+# `--uninstall --purge` la cartella È vuota per definizione, quindi la
+# reinstallazione ripescava i dati che il purge aveva appena eliminato. Visto
+# dal vivo il 2026-07-30, con un progetto di due giorni prima tornato in servizio
+# su un dispositivo che doveva essere pulito.
+MIGRATE_VOLUMES=0
 # Rete host per default. Sulla rete rootless di podman il multicast mDNS non
 # esce dal container, quindi "Cerca runtime" nell'IDE non trova mai il
 # dispositivo: chi installa senza flag deve ottenere la configurazione che
@@ -56,8 +69,24 @@ PURGE=0
 while [ $# -gt 0 ]; do
     case "$1" in
         --image)         IMAGE_ARCHIVE="$2"; shift 2 ;;
-        --www)           WWW_ARCHIVE="$2"; shift 2 ;;
-        --www-only)      WWW_ARCHIVE="$2"; WWW_ONLY=1; shift 2 ;;
+        # --pull accetta un riferimento opzionale: senza, il default pubblico.
+        # Il `case` distingue un argomento da un'altra flag guardando il primo
+        # carattere, così `--pull --bridge` non ingoia `--bridge` come immagine.
+        --pull)
+            PULL=1
+            if [ $# -ge 2 ] && [ "${2#-}" = "$2" ]; then REGISTRY_REF="$2"; shift 2; else shift; fi
+            ;;
+        --migrate-volumes) MIGRATE_VOLUMES=1; shift ;;
+        # La SPA è nell'immagine dal 2026-07-30. Queste due flag non fanno più
+        # niente: fallire dicendolo è meglio di un no-op silenzioso, che
+        # lascerebbe credere di aver aggiornato il frontend.
+        --www|--www-only)
+            echo "ERRORE: $1 non esiste più — la SPA è dentro l'immagine dal 2026-07-30." >&2
+            echo "        Per aggiornare il frontend si aggiorna l'immagine:" >&2
+            echo "          ./install-container.sh --pull" >&2
+            echo "        L'archivio sws-www-*.tar.gz non viene più prodotto dalla build." >&2
+            exit 1
+            ;;
         --data)          DATA="$2"; shift 2 ;;
         --tag)           TAG="$2"; shift 2 ;;
         --bridge)        HOST_NETWORK=0; shift ;;
@@ -91,43 +120,17 @@ if [ "$UNINSTALL" -eq 1 ]; then
     exit 0
 fi
 
-# ── Aggiornamento della sola SPA ──────────────────────────────────────────────
-# Il percorso veloce: la SPA è un bind mount, quindi basta sostituire i file.
-# Il runtime serve i file statici a ogni richiesta, non li tiene in memoria:
-# non serve nemmeno riavviare il container, basta ricaricare la pagina.
-if [ "$WWW_ONLY" -eq 1 ]; then
-    [ -f "$WWW_ARCHIVE" ] || { echo "ERRORE: archivio SPA non trovato: $WWW_ARCHIVE" >&2; exit 1; }
-    echo "==> aggiorno solo la SPA in $DATA/www"
-    mkdir -p "$DATA/www"
-    # Prima si srotola a fianco e si valida: se il tar è troncato non si resta
-    # con una SPA mutilata.
-    rm -rf "$DATA/.www-new"
-    mkdir -p "$DATA/.www-new"
-    tar xzf "$WWW_ARCHIVE" -C "$DATA/.www-new"
-    [ -f "$DATA/.www-new/index.html" ] || {
-        echo "ERRORE: l'archivio non contiene index.html — SPA lasciata invariata." >&2
-        rm -rf "$DATA/.www-new"; exit 1; }
-    # Si sostituisce il CONTENUTO, non la directory: `mv` della directory
-    # montata romperebbe il bind mount, perché il container ne tiene l'inode e
-    # continuerebbe a vedere quella vecchia (spostata) → 404 su tutta la SPA.
-    # Verificato sul dispositivo: era esattamente quello che succedeva.
-    find "$DATA/www" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
-    cp -a "$DATA/.www-new/." "$DATA/www/"
-    rm -rf "$DATA/.www-new"
-    echo "    fatto — ricarica la pagina nel browser (niente riavvio necessario)."
-    exit 0
-fi
-
 # ── 0. Validazione degli input ────────────────────────────────────────────────
 # Tutto ciò che può far fallire l'installazione va controllato PRIMA di fermare
 # il servizio. Succedeva il contrario: il passo 4 rimuoveva il container e solo
 # il passo 5 si accorgeva che mancava la unit quadlet, lasciando il dispositivo
 # senza runtime e senza modo di ripartire. Visto dal vivo il 2026-07-29.
+if [ "$PULL" -eq 1 ] && [ -n "$IMAGE_ARCHIVE" ]; then
+    echo "ERRORE: --pull e --image insieme non hanno senso: scegli da dove arriva l'immagine." >&2
+    exit 1
+fi
 if [ -n "$IMAGE_ARCHIVE" ] && [ ! -f "$IMAGE_ARCHIVE" ]; then
     echo "ERRORE: archivio immagine non trovato: $IMAGE_ARCHIVE" >&2; exit 1
-fi
-if [ -n "$WWW_ARCHIVE" ] && [ ! -f "$WWW_ARCHIVE" ]; then
-    echo "ERRORE: archivio SPA non trovato: $WWW_ARCHIVE" >&2; exit 1
 fi
 if [ "$AUTOSTART" -eq 1 ] && [ ! -f "$UNIT_SRC" ]; then
     echo "ERRORE: manca la unit quadlet $UNIT_SRC" >&2
@@ -139,7 +142,7 @@ fi
 
 # ── 1. Directory dati ─────────────────────────────────────────────────────────
 echo "==> [1/6] directory dati $DATA"
-for d in projects config logs www; do
+for d in projects config logs; do
     if [ -d "$DATA/$d" ]; then
         echo "    $d (già presente, contenuto conservato)"
     else
@@ -151,48 +154,69 @@ for d in projects config logs www; do
     fi
 done
 
-# Migrazione dai volumi nominati della versione precedente: senza questo, dopo
-# l'aggiornamento il runtime partirebbe con i progetti "spariti" (in realtà
-# ancora nel vecchio volume, ma non più montati).
-for pair in "sws-projects:projects" "sws-config:config" "sws-logs:logs"; do
-    vol="${pair%%:*}"; sub="${pair##*:}"
-    if podman volume exists "$vol" 2>/dev/null && [ -z "$(ls -A "$DATA/$sub" 2>/dev/null)" ]; then
-        src="$(podman volume inspect "$vol" --format '{{.Mountpoint}}' 2>/dev/null || true)"
-        if [ -n "$src" ] && [ -n "$(ls -A "$src" 2>/dev/null)" ]; then
-            echo "    migrazione dal volume $vol → $DATA/$sub"
-            cp -a "$src/." "$DATA/$sub/"
+# La www di un'installazione precedente non serve più (la SPA è nell'immagine).
+# Segnalata e non cancellata: è roba dell'utente sul suo disco, e cancellare a
+# sorpresa non è mai il comportamento giusto di un installer.
+if [ -d "$DATA/www" ]; then
+    echo "    www (non più usata: la SPA è nell'immagine — la lascio dov'è)"
+fi
+
+# Migrazione dai volumi nominati del layout pre-2026-07-28: solo su richiesta
+# esplicita. Automatica era una trappola — la condizione "cartella vuota" è
+# esattamente lo stato in cui `--uninstall --purge` lascia il dispositivo,
+# quindi una reinstallazione dopo un purge resuscitava i dati appena eliminati.
+if [ "$MIGRATE_VOLUMES" -eq 1 ]; then
+    for pair in "sws-projects:projects" "sws-config:config" "sws-logs:logs"; do
+        vol="${pair%%:*}"; sub="${pair##*:}"
+        if podman volume exists "$vol" 2>/dev/null && [ -z "$(ls -A "$DATA/$sub" 2>/dev/null)" ]; then
+            src="$(podman volume inspect "$vol" --format '{{.Mountpoint}}' 2>/dev/null || true)"
+            if [ -n "$src" ] && [ -n "$(ls -A "$src" 2>/dev/null)" ]; then
+                echo "    migrazione dal volume $vol → $DATA/$sub"
+                cp -a "$src/." "$DATA/$sub/"
+            fi
         fi
-    fi
-done
+    done
+elif podman volume exists sws-projects 2>/dev/null; then
+    echo "    NOTA: esistono ancora i volumi nominati di un'installazione precedente."
+    echo "          Se i progetti sembrano spariti: --migrate-volumes li recupera."
+fi
 
 # ── 2. Immagine ───────────────────────────────────────────────────────────────
-if [ -n "$IMAGE_ARCHIVE" ]; then
-    [ -f "$IMAGE_ARCHIVE" ] || { echo "ERRORE: archivio non trovato: $IMAGE_ARCHIVE" >&2; exit 1; }
+# Prima di toccare il servizio in esecuzione: se l'immagine non si procura, il
+# dispositivo deve restare esattamente com'era.
+if [ "$PULL" -eq 1 ]; then
+    echo "==> [2/6] scarico $REGISTRY_REF"
+    podman pull "$REGISTRY_REF" || {
+        echo "ERRORE: pull fallito. Il runtime in esecuzione non è stato toccato." >&2
+        echo "        L'immagine è pubblica: se la rete verso il registry non c'è," >&2
+        echo "        usa --image <archivio> sul percorso offline." >&2
+        exit 1; }
+    TAG="$REGISTRY_REF"
+elif [ -n "$IMAGE_ARCHIVE" ]; then
     echo "==> [2/6] carico l'immagine da $IMAGE_ARCHIVE"
     podman load -i "$IMAGE_ARCHIVE" | tail -1
 else
-    echo "==> [2/6] nessun archivio immagine indicato, uso quella già presente"
+    echo "==> [2/6] nessuna immagine indicata, uso quella già presente"
 fi
 podman image exists "$TAG" || {
-    echo "ERRORE: immagine $TAG assente. Passa --image <archivio> o --tag <altro>." >&2
+    echo "ERRORE: immagine $TAG assente. Passa --pull, --image <archivio> o --tag <altro>." >&2
     exit 1
 }
 
-# ── 3. SPA ────────────────────────────────────────────────────────────────────
-if [ -n "$WWW_ARCHIVE" ]; then
-    [ -f "$WWW_ARCHIVE" ] || { echo "ERRORE: archivio SPA non trovato: $WWW_ARCHIVE" >&2; exit 1; }
-    echo "==> [3/6] srotolo la SPA in $DATA/www"
-    rm -rf "$DATA/www"; mkdir -p "$DATA/www"
-    tar xzf "$WWW_ARCHIVE" -C "$DATA/www"
+# ── 3. La SPA è dentro l'immagine ─────────────────────────────────────────────
+# Controllata qui e non data per scontata: un'immagine costruita senza il layer
+# www risponderebbe alle API servendo però una interfaccia vuota, e dal browser
+# quella diagnosi è tutt'altro che ovvia (già costata tempo quando la SPA
+# viaggiava a parte e il bind mount restava vuoto).
+echo "==> [3/6] verifico che l'immagine contenga la SPA"
+if podman run --rm --entrypoint /usr/bin/test "$TAG" -f /var/sws/www/index.html 2>/dev/null; then
+    echo "    /var/sws/www/index.html presente"
 else
-    echo "==> [3/6] nessun archivio SPA indicato, uso quella già in $DATA/www"
+    echo "ERRORE: l'immagine $TAG non contiene /var/sws/www/index.html." >&2
+    echo "        È stata costruita prima del 2026-07-30, quando la SPA viaggiava a parte?" >&2
+    echo "        Ricostruiscila con scripts/build_container.sh. Nessuna modifica effettuata." >&2
+    exit 1
 fi
-# La SPA non è nell'immagine: senza questi file il runtime risponde alle API ma
-# non serve nessuna interfaccia, e la diagnosi dal browser è tutt'altro che ovvia.
-[ -f "$DATA/www/index.html" ] || {
-    echo "ERRORE: $DATA/www non contiene index.html." >&2
-    echo "        Passa --www sws-www-<ver>.tar.gz: la SPA non è dentro l'immagine." >&2
-    exit 1; }
 
 # ── 4. Container preesistente ─────────────────────────────────────────────────
 # Va rimosso comunque: un container creato da un'immagine precedente continua a
@@ -202,8 +226,10 @@ systemctl --user stop "$NAME" 2>/dev/null || true
 podman rm -f "$NAME" >/dev/null 2>&1 || true
 
 # ── 5. Avvio ──────────────────────────────────────────────────────────────────
+# Nessun mount per www: la SPA è contenuto dell'immagine, e montarci sopra una
+# directory dell'host la nasconderebbe — è esattamente come si otterrebbe una
+# interfaccia vuota senza capire perché.
 MOUNTS=(
-    -v "$DATA/www:/var/sws/www"
     -v "$DATA/config:/var/sws/config"
     -v "$DATA/projects:/var/sws/projects"
     -v "$DATA/logs:/var/sws/logs"
@@ -281,8 +307,9 @@ for i in $(seq 1 30); do
         for a in $IPS; do
             echo "    viewer : http://$a:8443     IDE : http://$a:8444"
         done
-        echo "    dati   : $DATA"
-        [ "$AUTOSTART" -eq 1 ] && echo "    stato  : systemctl --user status $NAME"
+        echo "    dati     : $DATA"
+        echo "    immagine : $TAG"
+        [ "$AUTOSTART" -eq 1 ] && echo "    stato    : systemctl --user status $NAME"
         echo "==> fatto."
         exit 0
     fi
