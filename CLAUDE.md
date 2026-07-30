@@ -46,6 +46,15 @@ Ogni task del roadmap (T-01…T-20 e oltre) segue questo flusso:
 
 I commit meta (STATUS.md, CHANGELOG.md, CLAUDE.md, memory) vanno direttamente su `main`.
 
+## Piani di lavoro
+
+I piani della modalità di pianificazione stanno in `~/.claude/plans/`, che è **per macchina** e non
+viaggia con git. Se un piano riguarda lavoro destinato a continuare in un'altra sessione o su un'altra
+macchina, copialo in `docs/plans/<data>-<slug>.md` e committalo; nella home restano gli usa-e-getta.
+
+Serve perché il maintainer lavora da due macchine (server in ufficio, PC nell'ufficio di casa): il
+2026-07-30 l'analisi scritta di notte a casa non è arrivata in ufficio, mentre il codice sì.
+
 ## At the end of every session
 
 1. Ensure CI would pass (`cargo check` / `pnpm build` green).
