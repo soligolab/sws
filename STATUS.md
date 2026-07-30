@@ -8,6 +8,10 @@
 
 **Last session**: 2026-07-29 — **Container aarch64 in servizio sul dispositivo, Telegram per singolo allarme, notifiche morte al boot** (branch `feat/container-aarch64`, portato in `main` con squash). Viewer a schermo pieno e auto-reload verificati in un browser, non più solo scritti.
 
+**Permessi `ssh`/`scp`** (deciso il 2026-07-30, non più in sospeso): restano fuori dal `deny` di
+`.claude/settings.json` finché il test sul dispositivo non è chiuso — se serve indagare insieme, senza
+accesso non si può — e si rimettono subito dopo. `Bash(rsync *)` resta in `deny`.
+
 **Da riprendere alla prossima sessione** — tre verifiche che richiedono una persona davanti allo
 schermo, e una decisione:
 
