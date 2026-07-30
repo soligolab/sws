@@ -1,12 +1,12 @@
-import { test, expect } from "@playwright/test";
-const ADMIN = "https://localhost:8444";
+import { test, expect, ensureLoggedIn } from "./fixtures";
+import { ADMIN } from "./_env";
 test.use({ ignoreHTTPSErrors: true, viewport: { width: 1440, height: 900 } });
 
 test("bug1: click object does not blank the page", async ({ page }) => {
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
-  await page.addInitScript(() => { try { localStorage.setItem("sws.uiLang","it"); } catch {} });
   await page.goto(`${ADMIN}/`, { waitUntil: "networkidle" });
+  await ensureLoggedIn(page);
   await page.waitForTimeout(800);
   const apri = page.getByRole("button", { name: /^Apri/ }).first();
   if (await apri.isVisible({ timeout: 1500 }).catch(() => false)) { await apri.click(); await page.waitForTimeout(1000); }
@@ -24,11 +24,11 @@ test("bug1: click object does not blank the page", async ({ page }) => {
 });
 
 test("bug2: new empty project has empty canvas", async ({ page, request }) => {
-  await page.addInitScript(() => { try { localStorage.setItem("sws.uiLang","it"); } catch {} });
   // create empty project via API and a fresh page load into it
   await request.post(`${ADMIN}/api/projects`, { data: { name: "empty-check" } });
   await request.post(`${ADMIN}/api/projects/empty-check/open`);
   await page.goto(`${ADMIN}/`, { waitUntil: "networkidle" });
+  await ensureLoggedIn(page);
   await page.waitForTimeout(1000);
   const apri = page.getByRole("button", { name: /^Apri/ }).first();
   if (await apri.isVisible({ timeout: 1500 }).catch(() => false)) { await apri.click(); await page.waitForTimeout(1000); }

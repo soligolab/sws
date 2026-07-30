@@ -44,7 +44,18 @@ export default defineConfig({
   },
   projects: [
     {
+      // Il gate: le verifiche vere. `screenshots.spec.ts` è escluso perché non
+      // verifica niente — cattura immagini per la documentazione, e 10 dei 16
+      // test della cartella sono suoi. Tenerlo dentro renderebbe il gate lento e
+      // rumoroso senza aumentare di una riga ciò che controlla.
       name: "chromium",
+      testIgnore: /screenshots\.spec\.ts/,
+      use: { ...devices["Desktop Chrome"] },
+    },
+    {
+      // Su richiesta: `pnpm test:e2e --project=screenshots`.
+      name: "screenshots",
+      testMatch: /screenshots\.spec\.ts/,
       use: { ...devices["Desktop Chrome"] },
     },
   ],

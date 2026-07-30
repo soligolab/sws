@@ -1,7 +1,7 @@
 /**
  * Screenshot capture spec for the SWS manual (docs/manual/screenshots/).
  *
- * Targets a RUNNING runtime that serves the built SPA on https://localhost:8444
+ * Targets a RUNNING runtime that serves the built SPA (indirizzi in ./_env.ts)
  * (start it with ./scripts/start_runtime.sh). The runtime is mono-project and
  * no-auth by default, so there is no login step and the IDE opens straight into
  * the active project.
@@ -11,7 +11,8 @@
  *   npx playwright test e2e/screenshots.spec.ts --project=chromium
  */
 
-import { test, type Page } from "@playwright/test";
+import { type Page } from "@playwright/test";
+import { test } from "./fixtures";
 import * as path from "path";
 import { fileURLToPath } from "url";
 
@@ -19,8 +20,9 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const SHOTS = path.join(__dirname, "..", "..", "docs", "manual", "screenshots");
 
-const ADMIN_URL = "https://localhost:8444/";
-const VIEWER_URL = "https://localhost:8443/";
+import { ADMIN, VIEWER } from "./_env";
+const ADMIN_URL = `${ADMIN}/`;
+const VIEWER_URL = `${VIEWER}/`;
 
 test.use({
   baseURL: ADMIN_URL,

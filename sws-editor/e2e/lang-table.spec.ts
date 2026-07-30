@@ -3,19 +3,25 @@
  * Requires a running runtime (with the /api/project/languages route) on 8444/8443.
  *   npx playwright test e2e/lang-table.spec.ts --project=chromium
  */
-import { test, expect, request as pwRequest } from "@playwright/test";
+import { expect, request as pwRequest } from "@playwright/test";
+import { test, authHeaders } from "./fixtures";
 
-const ADMIN = "https://localhost:8444";
-const VIEWER = "https://localhost:8443";
+import { ADMIN, VIEWER } from "./_env";
 
 test.use({ ignoreHTTPSErrors: true, viewport: { width: 1200, height: 800 } });
 
 test("PUT languages persists + viewer resolves {{token}} on lang switch", async ({ page }) => {
-  const api = await pwRequest.newContext({ ignoreHTTPSErrors: true });
+  // Creazione e apertura del progetto passano fuori dall'auth (pre-auth, servono
+  // alla WelcomeScreen senza sessione), quindi non serve token qui.
+  const bootstrap = await pwRequest.newContext({ ignoreHTTPSErrors: true });
+  await bootstrap.post(`${ADMIN}/api/projects`, { data: { name: "lang-e2e" } });
+  await bootstrap.post(`${ADMIN}/api/projects/lang-e2e/open`);
 
-  // 1. Fresh project with a text object using a {{token}}.
-  await api.post(`${ADMIN}/api/projects`, { data: { name: "lang-e2e" } });
-  await api.post(`${ADMIN}/api/projects/lang-e2e/open`);
+  // Il token si chiede DOPO l'apertura: aprire un progetto invalida le sessioni.
+  const api = await pwRequest.newContext({
+    ignoreHTTPSErrors: true,
+    extraHTTPHeaders: await authHeaders(bootstrap),
+  });
   // language table: it/en, token "greet"
   const table = {
     default: "it",

@@ -1,4 +1,5 @@
-import { test, expect, type Page } from "@playwright/test";
+import { expect, type Page } from "@playwright/test";
+import { test } from "./fixtures";
 
 /**
  * Golden-path editor flow:
@@ -26,8 +27,13 @@ async function login(page: Page, username = "admin", password = "admin") {
   const userInput = page.locator('input[autocomplete="username"]');
   await userInput.fill(username);
   await passwordInput.fill(password);
-  await page.getByRole("button", { name: /Accedi/i }).click();
-  // After login the header shows the user pill. Wait for the editor shell.
+  await page.getByRole("button", { name: /Accedi|Log ?in/i }).click();
+  // Dopo il login può comparire la WelcomeScreen (nessun progetto attivo) invece
+  // della shell dell'editor: si apre il primo progetto disponibile e solo allora
+  // si attende il menu. Prima il test aspettava il menu subito e andava in
+  // timeout ogni volta che il runtime non aveva un progetto aperto.
+  const apri = page.getByRole("button", { name: /^Apri$/i }).first();
+  if (await apri.isVisible({ timeout: 3_000 }).catch(() => false)) await apri.click();
   await expect(page.locator('button:has-text("☰ Menu")')).toBeVisible({ timeout: 15_000 });
 }
 
@@ -58,15 +64,40 @@ async function addRect(page: Page) {
   await page.getByRole("button", { name: /Rettangolo/i }).first().click();
 }
 
-function blueRectsLocator(page: Page) {
-  // The rect default fill is `#3b82f6` (palette blue). Page-boundary
-  // indicator is stroke-only, so it has fill="none" and won't match.
-  return page.locator('svg rect[fill="#3b82f6"]');
+/** Quanti rettangoli "nuovi" ci sono **sul canvas**.
+ *
+ *  Si conta con `evaluate` sull'`<svg>` di area maggiore, non con un locator su
+ *  tutto il documento: il pannello sinistro contiene una **miniatura** della
+ *  pagina, quindi ogni oggetto del canvas compare due volte nel DOM e il conteggio
+ *  raddoppiava (atteso 1, ricevuto 2). Stessa trappola già pagata in
+ *  `multiselect_drag_measure.mjs`.
+ *
+ *  I riempimenti accettati sono tre: `#4a90d9` è il default attuale della palette
+ *  (`EditorShell.tsx`, `case "rect"`), gli altri due coprono il valore di prima e
+ *  la forma `var(--brand-*)` introdotta col branding.
+ */
+async function countCanvasRects(page: Page): Promise<number> {
+  return page.evaluate(() => {
+    const canvas = [...document.querySelectorAll("svg")].reduce(
+      (best: { el: SVGSVGElement; area: number } | null, s) => {
+        const r = (s as SVGSVGElement).getBoundingClientRect();
+        const area = r.width * r.height;
+        return !best || area > best.area ? { el: s as SVGSVGElement, area } : best;
+      }, null)?.el;
+    if (!canvas) return 0;
+    return [...canvas.querySelectorAll("rect")].filter((r) => {
+      const f = r.getAttribute("fill") ?? "";
+      return f === "#4a90d9" || f === "#3b82f6" || f.includes("brand-primary");
+    }).length;
+  });
 }
 
 async function saveAll(page: Page) {
   await page.locator('button:has-text("☰ Menu")').click();
-  await page.getByRole("button", { name: /^Salva tutto$/i }).click();
+  // Senza ancore: l'etichetta è dinamica (`MainMenu.tsx` la cambia in
+  // "Salvataggio…"/"Salvato"/errore) e può portare l'indicatore di modifiche non
+  // salvate. Un `/^Salva tutto$/` esatto si rompe a ogni decorazione.
+  await page.getByRole("button", { name: /Salva tutto/i }).first().click();
   // The button label flips to "✓ Salvato" briefly. Don't assert on it —
   // just wait for the dropdown to close (avoids race with the next action).
   await expect(page.locator('button:has-text("☰ Menu")')).toBeVisible();
@@ -78,9 +109,9 @@ test.describe("editor golden path", () => {
     await openProjectFromWelcomeIfNeeded(page);
     await ensureEditMode(page);
 
-    const before = await blueRectsLocator(page).count();
+    const before = await countCanvasRects(page);
     await addRect(page);
-    await expect.poll(() => blueRectsLocator(page).count()).toBe(before + 1);
+    await expect.poll(() => countCanvasRects(page)).toBe(before + 1);
 
     await saveAll(page);
 
@@ -95,7 +126,7 @@ test.describe("editor golden path", () => {
     await ensureEditMode(page);
 
     // The rect we added should still be on the page.
-    await expect.poll(() => blueRectsLocator(page).count()).toBeGreaterThanOrEqual(before + 1);
+    await expect.poll(() => countCanvasRects(page)).toBeGreaterThanOrEqual(before + 1);
   });
 
   test("login form shows error on wrong password", async ({ page }) => {
@@ -104,7 +135,7 @@ test.describe("editor golden path", () => {
     await expect(passwordInput).toBeVisible();
     await page.locator('input[autocomplete="username"]').fill("admin");
     await passwordInput.fill("definitely-wrong-password");
-    await page.getByRole("button", { name: /Accedi/i }).click();
+    await page.getByRole("button", { name: /Accedi|Log ?in/i }).click();
     await expect(page.getByText(/Credenziali non valide/)).toBeVisible({ timeout: 10_000 });
   });
 });
