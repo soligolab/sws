@@ -344,6 +344,75 @@ impl SqliteStore {
         }
     }
 
+    /// Tag che hanno campioni nel database.
+    ///
+    /// Non coincide con i tag del progetto: un tag rinominato o rimosso lascia il
+    /// proprio storico nel DB, e quello storico non è raggiungibile da nessuna
+    /// pagina — è la definizione di "orfano" nella gestione database.
+    pub async fn distinct_tags(&self) -> anyhow::Result<Vec<String>> {
+        let conn = self.conn.clone();
+        task::spawn_blocking(move || -> anyhow::Result<Vec<String>> {
+            let c = conn.blocking_lock();
+            let mut stmt = c.prepare("SELECT DISTINCT tag FROM samples ORDER BY tag")?;
+            let rows = stmt.query_map([], |r| r.get::<_, String>(0))?;
+            let mut out = Vec::new();
+            for r in rows { out.push(r?); }
+            Ok(out)
+        }).await?
+    }
+
+    /// Cancella tutti i campioni di un tag. Ritorna quante righe sono sparite.
+    ///
+    /// Lo spazio su disco **non** si libera da sé: SQLite riusa le pagine ma non
+    /// restringe il file. Serve `vacuum()` dopo, ed è la ragione per cui i due
+    /// comandi stanno accanto nella UI.
+    pub async fn delete_tag(&self, tag: &str) -> anyhow::Result<u64> {
+        let conn = self.conn.clone();
+        let tag = tag.to_string();
+        task::spawn_blocking(move || -> anyhow::Result<u64> {
+            let c = conn.blocking_lock();
+            let n = c.execute("DELETE FROM samples WHERE tag = ?1", params![tag])?;
+            Ok(n as u64)
+        }).await?
+    }
+
+    /// `VACUUM` + checkpoint del WAL. Ritorna la dimensione del file prima e dopo.
+    ///
+    /// Il checkpoint serve perché qui SQLite gira in WAL: senza `TRUNCATE` il
+    /// `-wal` resta grande e il recupero di spazio sembra non aver funzionato.
+    pub async fn vacuum(&self) -> anyhow::Result<(u64, u64)> {
+        let file_size = |p: &std::path::Path| -> u64 {
+            let main = std::fs::metadata(p).map(|m| m.len()).unwrap_or(0);
+            let wal  = std::fs::metadata(p.with_extension("db-wal")).map(|m| m.len()).unwrap_or(0);
+            main + wal
+        };
+        // Il checkpoint va fatto PRIMA di misurare, non insieme al VACUUM.
+        // Misurando `main + wal` a WAL ancora pieno, il confronto registrava lo
+        // spostamento dei dati dal WAL al file principale invece dello spazio
+        // liberato — e riportava il file *cresciuto* dopo un VACUUM riuscito.
+        // Visto in `scripts/check_database_mgmt.sh`: 1.161.848 → 1.276.888 byte.
+        let conn = self.conn.clone();
+        {
+            let conn = conn.clone();
+            task::spawn_blocking(move || -> anyhow::Result<()> {
+                let c = conn.blocking_lock();
+                c.execute_batch("PRAGMA wal_checkpoint(TRUNCATE);")?;
+                Ok(())
+            }).await??;
+        }
+        let before = file_size(&self.path);
+        task::spawn_blocking(move || -> anyhow::Result<()> {
+            let c = conn.blocking_lock();
+            // Anche DOPO serve il checkpoint: in modalità WAL il VACUUM riscrive
+            // l'intero database nel nuovo WAL, quindi misurando subito si
+            // conterebbe due volte lo stesso contenuto — il file risultava
+            // cresciuto di mezzo megabyte dopo aver liberato spazio.
+            c.execute_batch("VACUUM; PRAGMA wal_checkpoint(TRUNCATE);")?;
+            Ok(())
+        }).await??;
+        Ok((before, file_size(&self.path)))
+    }
+
     /// Delete excess rows per tag, keeping only the `max_rows` most-recent.
     /// Returns total rows deleted.
     pub async fn prune_excess_rows(&self, max_rows: u64) -> anyhow::Result<u64> {

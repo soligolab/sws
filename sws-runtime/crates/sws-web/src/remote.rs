@@ -194,6 +194,171 @@ fn make_remote_client() -> reqwest::Client {
         .expect("reqwest client")
 }
 
+/// Nome del progetto e utenti contenuti in un bundle di export.
+///
+/// Si legge dal bundle e non dallo stato locale perché è *questo* che arriverà
+/// sul target: il nome decide se il deploy sta ridistribuendo lo stesso progetto
+/// (e quindi va preservato lo stato del dispositivo), gli utenti servono solo per
+/// dire al maintainer se differiscono da quelli sul dispositivo.
+fn read_bundle_meta(zip: &[u8]) -> (Option<String>, Vec<String>) {
+    let entry = |a: &mut zip::ZipArchive<std::io::Cursor<&[u8]>>, name: &str| -> Option<String> {
+        use std::io::Read;
+        let mut e = a.by_name(name).ok()?;
+        let mut buf = String::new();
+        e.read_to_string(&mut buf).ok()?;
+        Some(buf)
+    };
+    let mut archive = match zip::ZipArchive::new(std::io::Cursor::new(zip)) {
+        Ok(a) => a,
+        Err(_) => return (None, Vec::new()),
+    };
+    let name = entry(&mut archive, "manifest.json")
+        .and_then(|txt| serde_json::from_str::<serde_json::Value>(&txt).ok())
+        .and_then(|v| v["name"].as_str().map(|s| s.to_string()));
+    // `users.yaml` è `{ users: [ { username, password_hash, … } ] }` (sws-auth).
+    let users = entry(&mut archive, "users.yaml")
+        .map(|txt| read_usernames(&txt))
+        .unwrap_or_default();
+    (name, users)
+}
+
+/// Confronta gli utenti del bundle con quelli sul dispositivo e lo riferisce nel
+/// log del deploy. Non modifica nulla: allineare gli account è un'azione
+/// esplicita ("Aggiorna utenti sul dispositivo" in Configurazione → Runtime),
+/// perché un deploy che cambia chi può accedere a un pannello in servizio è
+/// esattamente il genere di effetto collaterale che non si vuole scoprire dopo.
+async fn report_user_divergence(
+    client: &reqwest::Client,
+    base: &str,
+    auth_hdr: &Option<String>,
+    bundle_users: &[String],
+    send: &impl Fn(&str),
+) {
+    let mut r = client.get(format!("{base}/api/auth/users"));
+    if let Some(h) = auth_hdr { r = r.header("Authorization", h); }
+    let device_users: Vec<String> = match r.send().await {
+        Ok(resp) if resp.status().is_success() => {
+            let v: serde_json::Value = resp.json().await.unwrap_or_default();
+            v.as_array().map(|a| a.iter()
+                .filter_map(|u| u["username"].as_str().map(|s| s.to_string()))
+                .collect()).unwrap_or_default()
+        }
+        // Lista non leggibile: il dispositivo ha utenti configurati e la
+        // connessione non ha un token admin. Il confronto non si può fare, ma
+        // **tacere è la scelta peggiore**: è il caso in cui il dispositivo ha
+        // account veri, cioè quello in cui sapere che il deploy non li ha
+        // toccati conta di più.
+        _ => {
+            send("ⓘ Il deploy non ha modificato gli account del dispositivo.");
+            send("    Elenco non verificabile da qui: connettiti con credenziali admin per confrontarlo.");
+            return;
+        }
+    };
+    if bundle_users.is_empty() && device_users.is_empty() { return; }
+
+    let mut only_project: Vec<&String> = bundle_users.iter().filter(|u| !device_users.contains(u)).collect();
+    let mut only_device:  Vec<&String> = device_users.iter().filter(|u| !bundle_users.contains(u)).collect();
+    only_project.sort(); only_device.sort();
+    if only_project.is_empty() && only_device.is_empty() { return; }
+
+    send("⚠ Gli utenti del progetto e quelli del dispositivo differiscono:");
+    if !only_project.is_empty() {
+        send(&format!("    solo nel progetto: {}", only_project.iter().map(|s| s.as_str()).collect::<Vec<_>>().join(", ")));
+    }
+    if !only_device.is_empty() {
+        send(&format!("    solo sul dispositivo: {}", only_device.iter().map(|s| s.as_str()).collect::<Vec<_>>().join(", ")));
+    }
+    send("    Il deploy NON modifica gli account del dispositivo.");
+    send("    Per allinearli: Configurazione → Runtime → \"Aggiorna utenti sul dispositivo\".");
+}
+
+
+/// `POST /api/remote/users` — spedisce `users.yaml` del progetto locale al
+/// runtime remoto connesso, sostituendo gli account del dispositivo.
+///
+/// Esiste perché il deploy **non** li tocca più (decisione del maintainer): chi
+/// aggiunge un utente nell'IDE deve poterlo mandare sul dispositivo, ma come
+/// azione dichiarata, non come effetto collaterale invisibile di un deploy.
+///
+/// Si trasferisce il **file**, non le password: contiene gli hash Argon2, quindi
+/// gli account arrivano funzionanti senza che né l'IDE né questa richiesta
+/// vedano mai una password in chiaro.
+pub async fn remote_push_users(
+    State(s): State<AppState>,
+    Extension(user): Extension<AuthUser>,
+) -> Response {
+    let target = match s.remote_target.read().await.clone() {
+        Some(t) => t,
+        None => return (StatusCode::BAD_REQUEST, "Nessun runtime remoto connesso").into_response(),
+    };
+    let proj_dir = match s.project_dir.read().await.clone() {
+        Some(d) => d,
+        None => return (StatusCode::BAD_REQUEST, "Nessun progetto attivo").into_response(),
+    };
+    let users_path = proj_dir.join("users.yaml");
+    let yaml = match tokio::fs::read_to_string(&users_path).await {
+        Ok(y) => y,
+        Err(_) => return (
+            StatusCode::BAD_REQUEST,
+            "Il progetto locale non ha utenti definiti: non c'è nulla da inviare.",
+        ).into_response(),
+    };
+    let count = read_usernames(&yaml).len();
+    if count == 0 {
+        // Rifiutare è più sicuro che obbedire: spedire una lista vuota
+        // chiuderebbe fuori dal pannello chiunque lo stia usando.
+        return (
+            StatusCode::BAD_REQUEST,
+            "Il progetto locale non ha utenti: inviarli lascerebbe il dispositivo senza account.",
+        ).into_response();
+    }
+
+    s.audit.log("remote.push_users", Some(user.username), serde_json::json!({
+        "url": target.url, "users": count,
+    }));
+
+    let client = make_remote_client();
+    let base = target.url.trim_end_matches('/');
+    let mut req = client
+        .put(format!("{base}/api/auth/users-file"))
+        .header("Content-Type", "application/x-yaml")
+        .body(yaml);
+    if !target.token.is_empty() {
+        req = req.header("Authorization", format!("Bearer {}", target.token));
+    }
+    match req.send().await {
+        Ok(r) if r.status().is_success() => (
+            StatusCode::OK,
+            Json(serde_json::json!({
+                "users": count,
+                "note": "Le sessioni aperte sul dispositivo sono state invalidate: chi era collegato deve rifare il login.",
+            })),
+        ).into_response(),
+        Ok(r) if r.status() == StatusCode::UNAUTHORIZED || r.status() == StatusCode::FORBIDDEN => (
+            StatusCode::BAD_GATEWAY,
+            "Il dispositivo ha rifiutato la richiesta (non autorizzato). Sostituire gli account \
+             richiede una connessione con credenziali admin: riconnettiti compilando utente e \
+             password del dispositivo, poi riprova.".to_string(),
+        ).into_response(),
+        Ok(r) => {
+            let code = r.status();
+            let body = r.text().await.unwrap_or_default();
+            (StatusCode::BAD_GATEWAY, format!("Il dispositivo ha risposto {code}: {body}")).into_response()
+        }
+        Err(e) => (StatusCode::BAD_GATEWAY, format!("Richiesta al dispositivo fallita: {e}")).into_response(),
+    }
+}
+
+/// Username contenuti in un `users.yaml` (`{ users: [ { username, … } ] }`).
+pub fn read_usernames(yaml: &str) -> Vec<String> {
+    serde_yaml::from_str::<serde_yaml::Value>(yaml)
+        .ok()
+        .and_then(|v| v["users"].as_sequence().map(|seq| {
+            seq.iter().filter_map(|u| u["username"].as_str().map(|s| s.to_string())).collect()
+        }))
+        .unwrap_or_default()
+}
+
 /// Percent-encode a string for use in a URL path segment (simple ASCII-safe version).
 fn pct_encode(s: &str) -> String {
     s.chars().map(|c| match c {
@@ -231,6 +396,11 @@ pub async fn remote_deploy(
         };
         send(&format!("✓ Esportato ({:.1} KB)", zip.len() as f64 / 1024.0));
 
+        // Nome con cui il progetto arriverà sul target: si legge dal manifest
+        // dello ZIP appena costruito, così è esattamente quello che userà
+        // l'upload — e non una ricostruzione dal nome della cartella locale.
+        let (deploy_name, bundle_users) = read_bundle_meta(&zip);
+
         let client = make_remote_client();
         let base = target.url.trim_end_matches('/').to_string();
         let auth_hdr: Option<String> = if target.token.is_empty() { None }
@@ -238,7 +408,11 @@ pub async fn remote_deploy(
 
         // Single-project runtime: wipe every existing project on the target so
         // the deploy fully overwrites it (not just the same-named one).
-        send("Pulizia progetti esistenti sul target…");
+        // Vero se sul target esisteva un progetto con lo stesso nome e ne abbiamo
+        // conservato lo stato: solo allora l'upload deve accettare la cartella
+        // già esistente (e non cancellarla in caso di errore).
+        let mut preserved_same_name = false;
+        send("Aggiornamento progetto sul target…");
         let mut r = client.get(format!("{base}/api/projects"));
         if let Some(h) = &auth_hdr { r = r.header("Authorization", h); }
         match r.send().await {
@@ -253,10 +427,28 @@ pub async fn remote_deploy(
                     }
                     for item in arr {
                         if let Some(n) = item["name"].as_str() {
-                            let mut rd = client.delete(format!("{base}/api/projects/{}", pct_encode(n)));
+                            // Stesso nome = stai ridistribuendo QUESTO progetto: si
+                            // rimuovono solo i file di progettazione e si lascia lo
+                            // stato del dispositivo (database storico in testa).
+                            // Nome diverso = lo stai sostituendo con un altro
+                            // progetto, e preservarne lo storico non ha senso.
+                            let same = deploy_name.as_deref() == Some(n);
+                            let url = if same {
+                                format!("{base}/api/projects/{}?preserve_state=true", pct_encode(n))
+                            } else {
+                                format!("{base}/api/projects/{}", pct_encode(n))
+                            };
+                            let mut rd = client.delete(url);
                             if let Some(h) = &auth_hdr { rd = rd.header("Authorization", h); }
                             match rd.send().await {
-                                Ok(d) if d.status().is_success() => send(&format!("  ✓ rimosso \"{n}\"")),
+                                Ok(d) if d.status().is_success() => {
+                                    if same {
+                                        preserved_same_name = true;
+                                        send(&format!("  ✓ \"{n}\": pagine sostituite, database e backup conservati"));
+                                    } else {
+                                        send(&format!("  ✓ rimosso \"{n}\""));
+                                    }
+                                }
                                 Ok(d) => send(&format!("  ⚠ \"{n}\": {}", d.status())),
                                 Err(e) => send(&format!("  ⚠ \"{n}\": {e}")),
                             }
@@ -270,7 +462,18 @@ pub async fn remote_deploy(
 
         // Upload ZIP
         send("Upload ZIP al target…");
-        let mut req = client.post(format!("{base}/api/projects/upload"))
+        let upload_url = if preserved_same_name {
+            // `deploy=true`: la cartella esiste già (svuotata dei soli file di
+            // progettazione), `users.yaml` dello ZIP va ignorato e un errore non
+            // deve cancellare la cartella.
+            match &deploy_name {
+                Some(n) => format!("{base}/api/projects/upload?deploy=true&name={}", pct_encode(n)),
+                None    => format!("{base}/api/projects/upload?deploy=true"),
+            }
+        } else {
+            format!("{base}/api/projects/upload")
+        };
+        let mut req = client.post(upload_url)
             .header("Content-Type", "application/zip")
             .body(zip.clone());
         if let Some(h) = &auth_hdr { req = req.header("Authorization", h); }
@@ -331,6 +534,11 @@ pub async fn remote_deploy(
         match r.send().await {
             Ok(o) if o.status().is_success() => {
                 send(&format!("✓ \"{uploaded_name}\" attivo sul runtime"));
+                // Gli account del dispositivo non vengono toccati dal deploy. Se
+                // differiscono da quelli del progetto lo si dice qui: la scelta è
+                // deliberata, ma se resta invisibile chi aggiunge un utente
+                // nell'IDE si aspetta di trovarlo sul dispositivo e non lo trova.
+                report_user_divergence(&client, &base, &auth_hdr, &bundle_users, &send).await;
                 send("🚀 Deploy completato!");
             }
             Ok(o) => send(&format!("✗ Attivazione fallita: {}", o.status())),
@@ -408,5 +616,63 @@ pub async fn remote_status(State(s): State<AppState>) -> Json<RemoteStatus> {
             connected_at_ms: Some(t.connected_at_ms),
         }),
         None => Json(RemoteStatus { connected: false, url: None, connected_at_ms: None }),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io::Write;
+
+    /// Costruisce uno ZIP di export minimo in memoria.
+    fn bundle(manifest: Option<&str>, users: Option<&str>) -> Vec<u8> {
+        let mut buf = Vec::new();
+        {
+            let mut z = zip::ZipWriter::new(std::io::Cursor::new(&mut buf));
+            let opts: zip::write::FileOptions<()> = zip::write::FileOptions::default();
+            if let Some(m) = manifest {
+                z.start_file("manifest.json", opts).unwrap();
+                z.write_all(m.as_bytes()).unwrap();
+            }
+            z.start_file("project.yaml", opts).unwrap();
+            z.write_all(b"meta:\n  name: impianto\n").unwrap();
+            if let Some(u) = users {
+                z.start_file("users.yaml", opts).unwrap();
+                z.write_all(u.as_bytes()).unwrap();
+            }
+            z.finish().unwrap();
+        }
+        buf
+    }
+
+    /// Il nome decide se il deploy prende il percorso che PRESERVA lo stato del
+    /// dispositivo (nome uguale) o quello distruttivo (nome diverso). Se questa
+    /// lettura fallisce in silenzio si torna a cancellare il database: è la
+    /// ragione per cui il caso ha un test e non un'ispezione a occhio.
+    #[test]
+    fn legge_nome_e_utenti_dal_bundle() {
+        let z = bundle(
+            Some(r#"{"name":"impianto","version":"1"}"#),
+            Some("users:\n  - username: admin_ide\n    role: Admin\n  - username: operatore\n    role: Operator\n"),
+        );
+        let (name, users) = read_bundle_meta(&z);
+        assert_eq!(name.as_deref(), Some("impianto"));
+        assert_eq!(users, vec!["admin_ide".to_string(), "operatore".to_string()]);
+    }
+
+    #[test]
+    fn bundle_senza_users_yaml_non_ha_utenti() {
+        let (name, users) = read_bundle_meta(&bundle(Some(r#"{"name":"x"}"#), None));
+        assert_eq!(name.as_deref(), Some("x"));
+        assert!(users.is_empty());
+    }
+
+    #[test]
+    fn bundle_illeggibile_non_finge_un_nome() {
+        // Nessun nome → il deploy NON deve credere di stare ridistribuendo lo
+        // stesso progetto: meglio il comportamento distruttivo di prima che
+        // sovrapporre pagine nuove a un progetto diverso.
+        assert_eq!(read_bundle_meta(b"non uno zip").0, None);
+        assert_eq!(read_bundle_meta(&bundle(None, None)).0, None);
     }
 }
