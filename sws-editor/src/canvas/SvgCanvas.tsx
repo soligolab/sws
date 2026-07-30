@@ -104,6 +104,14 @@ interface DragState {
   dy2?: number;
   /** For pipe objects: initial waypoints captured at drag start so all points shift uniformly. */
   startPoints?: PipePoint[];
+  /** Anchor object's own x/y at drag start — lets group-drag compute a
+   *  stable delta (newX/newY minus these) instead of a cumulative one. */
+  startX: number;
+  startY: number;
+  /** When the dragged object is part of a multi-selection: starting geometry
+   *  of every OTHER selected object, so the same rigid delta applied to the
+   *  anchor (after snapping/clamping) can be applied to the whole group. */
+  groupStart?: { id: string; x: number; y: number; x2?: number; y2?: number; points?: PipePoint[] }[];
 }
 
 interface ResizeState {
@@ -948,6 +956,26 @@ export function SvgCanvas({
         patch.y = patch.points[0].y;
       }
       onMove(dragRef.current.objId, patch);
+
+      // Group drag: shift every other selected object by the same rigid
+      // delta the anchor just moved by (post snapping/clamping), so the
+      // whole selection moves together instead of only the object under
+      // the cursor.
+      if (dragRef.current.groupStart && dragRef.current.groupStart.length > 0) {
+        const dx = newX - dragRef.current.startX;
+        const dy = newY - dragRef.current.startY;
+        for (const g of dragRef.current.groupStart) {
+          const followerPatch: Partial<SynopticObject> = { x: g.x + dx, y: g.y + dy };
+          if (g.x2 !== undefined) {
+            followerPatch.x2 = g.x2 + dx;
+            followerPatch.y2 = (g.y2 ?? 0) + dy;
+          }
+          if (g.points) {
+            followerPatch.points = g.points.map((pp) => ({ x: pp.x + dx, y: pp.y + dy }));
+          }
+          onMove(g.id, followerPatch);
+        }
+      }
     } else if (selDragRef.current) {
       // Selection rect update — coords in SVG space
       const updated: SelRect = { ...selDragRef.current, curX: pt.x, curY: pt.y };
@@ -1028,6 +1056,8 @@ export function SvgCanvas({
       objId:   obj.id,
       offsetX: pt.x - (obj.x ?? 0),
       offsetY: pt.y - (obj.y ?? 0),
+      startX:  obj.x ?? 0,
+      startY:  obj.y ?? 0,
     };
     if (obj.type === "line") {
       ds.dx2 = (obj.x2 ?? obj.x + 100) - (obj.x ?? 0);
@@ -1037,6 +1067,23 @@ export function SvgCanvas({
       ds.offsetX = pt.x - obj.points[0].x;
       ds.offsetY = pt.y - obj.points[0].y;
       ds.startPoints = obj.points.map((p) => ({ ...p }));
+    }
+    // Group drag: when the clicked object is part of a multi-selection,
+    // capture every OTHER selected object's starting geometry so the same
+    // rigid delta (computed from the anchor's snapped/clamped position each
+    // tick) can be applied to the whole group, not just the object under
+    // the cursor.
+    if (selIds.length > 1 && selSet.has(obj.id)) {
+      ds.groupStart = objects
+        .filter((o) => o.id !== obj.id && selSet.has(o.id))
+        .map((o) => ({
+          id: o.id,
+          x: o.x ?? 0,
+          y: o.y ?? 0,
+          x2: o.type === "line" ? (o.x2 ?? o.x + 100) : undefined,
+          y2: o.type === "line" ? (o.y2 ?? o.y ?? 0)  : undefined,
+          points: o.type === "pipe" ? o.points?.map((pp) => ({ ...pp })) : undefined,
+        }));
     }
     openInteraction("Sposta oggetto");
     dragRef.current = ds;
@@ -1154,6 +1201,7 @@ export function SvgCanvas({
               objects={objects}
               tagValues={tagValues}
               selected={selSet.has(obj.id)}
+              selectedCount={selIds.length}
               isEditMode={inEdit}
               customSymbols={customSymbols}
               faceplates={faceplates}
@@ -1719,6 +1767,11 @@ interface ObjProps {
   objects: SynopticObject[];
   tagValues: Record<string, TagState>;
   selected: boolean;
+  /** Size of the current multi-selection (whole page, not just this object).
+   *  Used to tell "drag one of several already-selected objects" (preserve
+   *  the group) apart from "click a single selected object" (default 0/1 —
+   *  unused, so nested/non-interactive SvgObject instances need not pass it). */
+  selectedCount?: number;
   isEditMode: boolean;
   customSymbols: CustomSymbol[];
   faceplates?: FaceplateDef[];
@@ -1911,13 +1964,18 @@ function AlarmViewerWidget({ width, height, mode, maxRows, prefix, allowedSev, s
 }
 
 function SvgObject(p: ObjProps) {
-  const { objects, tagValues, selected, isEditMode, customSymbols, faceplates = [], selectedCell, selectedCellChild, selectedCellRange, onSelect, onStartDrag, onWriteTag, onScript, onNavigate, onSelectCell, onSelectCellChild, onSelectCellRange, onExpandTrend } = p;
+  const { objects, tagValues, selected, selectedCount = 0, isEditMode, customSymbols, faceplates = [], selectedCell, selectedCellChild, selectedCellRange, onSelect, onStartDrag, onWriteTag, onScript, onNavigate, onSelectCell, onSelectCellChild, onSelectCellRange, onExpandTrend } = p;
   const obj = resolveObject(p.obj, tagValues);
 
   const handleMouseDown = (e: React.MouseEvent<SVGElement>) => {
     if (obj.locked && isEditMode) return;
     e.stopPropagation();
-    onSelect?.(obj.id, e.shiftKey);
+    // Plain click on an object that's already part of a multi-selection:
+    // don't collapse the selection down to just this object — preserve it
+    // so the upcoming drag moves the whole group. Shift-click (toggle) and
+    // clicking an object outside the current selection behave as before.
+    const isPartOfMultiSelect = !e.shiftKey && selected && selectedCount > 1;
+    if (!isPartOfMultiSelect) onSelect?.(obj.id, e.shiftKey);
     // Don't start a drag when the user is just shift-clicking to extend
     // a multi-selection; otherwise the position would jump on the very
     // first click in the additive flow.
