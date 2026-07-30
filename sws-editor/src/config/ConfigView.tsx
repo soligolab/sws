@@ -5522,6 +5522,97 @@ function DatastoresTab() {
     } catch { /* ignore */ }
   };
 
+  // ── Gestione database ──────────────────────────────────────────────────────
+  // `purge` ed `export` esistevano già nel backend e nel client da tempo, senza
+  // che nessun pulsante li chiamasse. Qui vengono collegati, insieme ai due
+  // nuovi (tag orfani, vacuum). Il backup completo NON si duplica: la tab
+  // "Backup" già include `.history/`.
+  const [mgmtMsg, setMgmtMsg] = useState<Record<string, string>>({});
+  const [tagsMap, setTagsMap] = useState<Record<string, { db_tags: string[]; orphan_tags: string[] } | null>>({});
+  const [busyMgmt, setBusyMgmt] = useState<Record<string, boolean>>({});
+
+  const withBusy = async (id: string, fn: () => Promise<string>) => {
+    setBusyMgmt((m) => ({ ...m, [id]: true }));
+    setMgmtMsg((m) => ({ ...m, [id]: "" }));
+    try {
+      const msg = await fn();
+      setMgmtMsg((m) => ({ ...m, [id]: msg }));
+    } catch (e: any) {
+      setMgmtMsg((m) => ({ ...m, [id]: `✗ ${e?.message ?? String(e)}` }));
+    } finally {
+      setBusyMgmt((m) => ({ ...m, [id]: false }));
+    }
+  };
+
+  const doPurge = (ds: DatastoreConfig) => {
+    // Si riusa la retention già configurata per il backend: una pulizia manuale
+    // che applicasse regole diverse da quelle automatiche sarebbe una sorpresa.
+    const rows = ds.retention_rows, days = ds.retention_days;
+    if (!rows && !days) {
+      setMgmtMsg((m) => ({ ...m, [ds.id]: "✗ Nessuna retention configurata: imposta righe o giorni e salva, poi ripeti." }));
+      return;
+    }
+    const desc = [rows ? `${rows} righe per tag` : null, days ? `${days} giorni` : null].filter(Boolean).join(" · ");
+    if (!window.confirm(`Pulire ora "${ds.id}" mantenendo ${desc}?\n\nI campioni fuori da questi limiti vengono cancellati. Operazione irreversibile.`)) return;
+    void withBusy(ds.id, async () => {
+      const r = await api.purgeDatastore(ds.id, { retention_rows: rows, retention_days: days });
+      await loadStats(ds.id);
+      return `✓ ${r.deleted.toLocaleString()} campioni cancellati. Usa "Recupera spazio" per restringere il file.`;
+    });
+  };
+
+  const doExport = (ds: DatastoreConfig) =>
+    void withBusy(ds.id, async () => {
+      const tags = (await api.listDatastoreTags(ds.id)).db_tags;
+      if (tags.length === 0) return "Nessun dato da esportare.";
+      const data = await api.exportDatastore(ds.id, { tags });
+      // CSV: una riga per campione. Formato scelto perché è quello che si apre
+      // senza attrezzi, che è il punto di un export manuale.
+      const rows = ["tag,timestamp_ms,value,quality"];
+      for (const t of data) {
+        for (const smp of t.samples) {
+          rows.push(`${t.tag_id},${(smp as any).ts_ms ?? ""},${String((smp as any).value ?? "")},${(smp as any).quality ?? ""}`);
+        }
+      }
+      const blob = new Blob([rows.join("\n")], { type: "text/csv;charset=utf-8" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `${ds.id}-storico.csv`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+      return `✓ Esportati ${rows.length - 1} campioni da ${data.length} tag.`;
+    });
+
+  const loadTags = (ds: DatastoreConfig) =>
+    void withBusy(ds.id, async () => {
+      const r = await api.listDatastoreTags(ds.id);
+      setTagsMap((m) => ({ ...m, [ds.id]: r }));
+      return r.orphan_tags.length === 0
+        ? `✓ Nessun tag orfano (${r.db_tags.length} tag nel database).`
+        : `${r.orphan_tags.length} tag orfani su ${r.db_tags.length} nel database.`;
+    });
+
+  const doDeleteTag = (ds: DatastoreConfig, tag: string) => {
+    if (!window.confirm(`Cancellare tutto lo storico del tag "${tag}"?\n\nOperazione irreversibile.`)) return;
+    void withBusy(ds.id, async () => {
+      const r = await api.deleteTagHistory(ds.id, tag);
+      const fresh = await api.listDatastoreTags(ds.id);
+      setTagsMap((m) => ({ ...m, [ds.id]: fresh }));
+      await loadStats(ds.id);
+      return `✓ "${tag}": ${r.deleted.toLocaleString()} campioni cancellati.`;
+    });
+  };
+
+  const doVacuum = (ds: DatastoreConfig) =>
+    void withBusy(ds.id, async () => {
+      const r = await api.vacuumDatastore(ds.id);
+      await loadStats(ds.id);
+      const mb = (n: number) => (n / 1024 / 1024).toFixed(2);
+      return r.bytes_freed > 0
+        ? `✓ Liberati ${mb(r.bytes_freed)} MB (da ${mb(r.bytes_before)} a ${mb(r.bytes_after)} MB).`
+        : `Nessuno spazio da liberare (file a ${mb(r.bytes_after)} MB).`;
+    });
+
   const cellStyle: React.CSSProperties = { padding: "4px 8px", borderBottom: "1px solid var(--brand-surface, #1e293b)", verticalAlign: "top" };
   const labelStyle: React.CSSProperties = { fontSize: 12, color: "var(--brand-text-muted, #94a3b8)", display: "block", marginBottom: 2 };
   const inputStyle: React.CSSProperties = { width: "100%", background: "var(--brand-surface, #1e293b)", border: "1px solid var(--brand-surface-2, #334155)", color: "#f1f5f9", borderRadius: 4, padding: "3px 6px", fontSize: 12 };
@@ -5597,6 +5688,67 @@ function DatastoresTab() {
                 )}
               </div>
             )}
+
+            {/* ── Gestione database ────────────────────────────────────────
+                Purge ed export esistevano nel backend da tempo senza che nessun
+                pulsante li chiamasse; tag orfani e recupero spazio sono nuovi.
+                Il backup completo non si duplica qui: la tab "Backup" include
+                già `.history/`. */}
+            <div style={{ border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 5, padding: 8, marginBottom: 8 }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: "var(--brand-text-muted, #94a3b8)", marginBottom: 6 }}>
+                GESTIONE DATABASE
+              </div>
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+                <button onClick={() => doPurge(ds)} disabled={busyMgmt[ds.id]}
+                  title="Applica ora la retention configurata sopra, senza aspettare la pulizia automatica."
+                  style={{ background: "var(--brand-surface, #1e293b)", color: "var(--brand-text, #e2e8f0)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, padding: "3px 8px", cursor: "pointer", fontSize: 11 }}>
+                  Pulisci ora
+                </button>
+                <button onClick={() => doExport(ds)} disabled={busyMgmt[ds.id]}
+                  title="Scarica tutto lo storico in CSV (una riga per campione)."
+                  style={{ background: "var(--brand-surface, #1e293b)", color: "var(--brand-text, #e2e8f0)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, padding: "3px 8px", cursor: "pointer", fontSize: 11 }}>
+                  Esporta CSV
+                </button>
+                <button onClick={() => loadTags(ds)} disabled={busyMgmt[ds.id]}
+                  title="Tag che hanno storico nel database ma che il runtime non conosce più (rinominati o rimossi dal progetto)."
+                  style={{ background: "var(--brand-surface, #1e293b)", color: "var(--brand-text, #e2e8f0)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, padding: "3px 8px", cursor: "pointer", fontSize: 11 }}>
+                  Cerca tag orfani
+                </button>
+                <button onClick={() => doVacuum(ds)} disabled={busyMgmt[ds.id]}
+                  title="VACUUM + checkpoint WAL: restringe il file dopo una cancellazione. SQLite non libera lo spazio da sé."
+                  style={{ background: "var(--brand-surface, #1e293b)", color: "var(--brand-text, #e2e8f0)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, padding: "3px 8px", cursor: "pointer", fontSize: 11 }}>
+                  Recupera spazio
+                </button>
+                {busyMgmt[ds.id] && <span style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)" }}>in corso…</span>}
+              </div>
+
+              {mgmtMsg[ds.id] && (
+                <div style={{ fontSize: 11, marginTop: 6, color: mgmtMsg[ds.id].startsWith("✗") ? "var(--brand-danger-soft, #f87171)" : "var(--brand-text-muted, #94a3b8)" }}>
+                  {mgmtMsg[ds.id]}
+                </div>
+              )}
+
+              {tagsMap[ds.id] && tagsMap[ds.id]!.orphan_tags.length > 0 && (
+                <div style={{ marginTop: 6 }}>
+                  <div style={{ fontSize: 11, color: "var(--brand-warning, #eab308)", marginBottom: 4 }}>
+                    Tag orfani — hanno storico ma non esistono più nel progetto:
+                  </div>
+                  {tagsMap[ds.id]!.orphan_tags.map((tag) => (
+                    <div key={tag} style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 2 }}>
+                      <code style={{ fontSize: 11, color: "var(--brand-text, #e2e8f0)" }}>{tag}</code>
+                      <button onClick={() => doDeleteTag(ds, tag)} disabled={busyMgmt[ds.id]}
+                        style={{ background: "var(--brand-danger, #ef4444)", color: "var(--brand-on-danger, #fff)", border: "none", borderRadius: 4, padding: "1px 6px", cursor: "pointer", fontSize: 10 }}>
+                        Elimina storico
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div style={{ fontSize: 10, color: "var(--brand-text-subtle, #64748b)", marginTop: 6 }}>
+                Il backup completo del database è nella tab <strong>Backup</strong>: include già <code>.history/</code>.
+              </div>
+            </div>
 
             {/* Backend-specific fields */}
             {ds.backend.kind === "sqlite" && (

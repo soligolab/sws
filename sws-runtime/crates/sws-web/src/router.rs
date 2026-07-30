@@ -305,6 +305,9 @@ pub fn build(
         .route("/api/datastores/:id/stats", get(datastore_stats))
         .route("/api/datastores/:id/test",
             post(datastore_test).route_layer(require_admin_layer.clone()))
+        .route("/api/datastores/:id/tags",  get(datastore_tags))
+        .route("/api/datastores/:id/delete-tag", post(datastore_delete_tag))
+        .route("/api/datastores/:id/vacuum", post(datastore_vacuum))
         .route("/api/datastores/:id/purge",
             post(datastore_purge).route_layer(require_admin_layer.clone()))
         .route("/api/datastores/:id/export",
@@ -1372,6 +1375,76 @@ async fn datastore_purge(
     };
     match reg.purge_backend(&id, body.retention_rows, body.retention_days).await {
         Ok(n)  => Json(serde_json::json!({ "deleted": n })).into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+    }
+}
+
+/// `GET /api/datastores/:id/tags` — tag presenti nel database, con l'indicazione
+/// di quali sono **orfani**: hanno campioni ma il runtime non conosce più quel
+/// tag, tipicamente dopo una rinomina o una rimozione dal progetto. Il loro
+/// storico occupa spazio e non è raggiungibile da nessuna pagina.
+///
+/// Il confronto usa i tag che il runtime ha davvero in memoria (`TagDb`), non
+/// solo `project.tags`: in molti progetti i tag nascono dalle mappature delle
+/// sorgenti, e confrontarsi con la sola lista dichiarata marcherebbe come orfani
+/// tag perfettamente in uso.
+async fn datastore_tags(
+    State(s): State<AppState>,
+    Path(id): Path<String>,
+) -> Response {
+    let Some(reg) = s.registry.read().await.as_ref().map(Arc::clone) else {
+        return (StatusCode::NOT_FOUND, "no datastores configured").into_response();
+    };
+    let db_tags = match reg.list_backend_tags(&id).await {
+        Ok(t) => t,
+        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+    };
+    let live: std::collections::HashSet<String> =
+        s.db.snapshot().await.keys().cloned().collect();
+    let orphan: Vec<String> = db_tags.iter().filter(|t| !live.contains(*t)).cloned().collect();
+    Json(serde_json::json!({ "db_tags": db_tags, "orphan_tags": orphan })).into_response()
+}
+
+#[derive(serde::Deserialize)]
+struct DeleteTagBody { tag: String }
+
+/// `POST /api/datastores/:id/delete-tag` — cancella lo storico di un tag.
+/// Irreversibile e audit-logged: è una cancellazione di dati su richiesta admin.
+async fn datastore_delete_tag(
+    State(s): State<AppState>,
+    Extension(user): Extension<AuthUser>,
+    Path(id): Path<String>,
+    Json(body): Json<DeleteTagBody>,
+) -> Response {
+    let Some(reg) = s.registry.read().await.as_ref().map(Arc::clone) else {
+        return (StatusCode::NOT_FOUND, "no datastores configured").into_response();
+    };
+    s.audit.log("datastore.delete_tag", Some(user.username), serde_json::json!({
+        "datastore": id.clone(), "tag": body.tag.clone(),
+    }));
+    match reg.delete_backend_tag(&id, &body.tag).await {
+        Ok(n)  => Json(serde_json::json!({ "deleted": n })).into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+    }
+}
+
+/// `POST /api/datastores/:id/vacuum` — recupera lo spazio su disco.
+/// Ritorna le dimensioni prima e dopo: senza quelle non si distingue un VACUUM
+/// riuscito da uno che non aveva nulla da liberare.
+async fn datastore_vacuum(
+    State(s): State<AppState>,
+    Extension(user): Extension<AuthUser>,
+    Path(id): Path<String>,
+) -> Response {
+    let Some(reg) = s.registry.read().await.as_ref().map(Arc::clone) else {
+        return (StatusCode::NOT_FOUND, "no datastores configured").into_response();
+    };
+    s.audit.log("datastore.vacuum", Some(user.username), serde_json::json!({ "datastore": id.clone() }));
+    match reg.vacuum_backend(&id).await {
+        Ok((before, after)) => Json(serde_json::json!({
+            "bytes_before": before, "bytes_after": after,
+            "bytes_freed": before.saturating_sub(after),
+        })).into_response(),
         Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
     }
 }

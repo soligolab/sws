@@ -727,6 +727,32 @@ export const api = {
       body: JSON.stringify(body),
     }),
 
+  /** GET /api/datastores/:id/tags — tag con campioni nel DB, con quelli
+   *  **orfani** già individuati: hanno storico ma il runtime non conosce più
+   *  quel tag (rinominato o rimosso). Il confronto lo fa il backend contro i tag
+   *  che ha davvero in memoria, non contro la sola lista dichiarata. */
+  listDatastoreTags: (id: string) =>
+    request<{ db_tags: string[]; orphan_tags: string[] }>(
+      `/api/datastores/${encodeURIComponent(id)}/tags`,
+    ),
+
+  /** POST /api/datastores/:id/delete-tag — cancella lo storico di un tag.
+   *  Irreversibile, audit-logged lato runtime. */
+  deleteTagHistory: (id: string, tag: string) =>
+    request<{ deleted: number }>(`/api/datastores/${encodeURIComponent(id)}/delete-tag`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tag }),
+    }),
+
+  /** POST /api/datastores/:id/vacuum — recupera spazio su disco (SQLite).
+   *  Ritorna le dimensioni prima/dopo: senza quelle non si distingue un VACUUM
+   *  riuscito da uno che non aveva nulla da liberare. */
+  vacuumDatastore: (id: string) =>
+    request<{ bytes_before: number; bytes_after: number; bytes_freed: number }>(
+      `/api/datastores/${encodeURIComponent(id)}/vacuum`, { method: "POST" },
+    ),
+
   exportDatastore: (id: string, opts?: { tags?: string[]; fromMs?: number; toMs?: number }) => {
     const params = new URLSearchParams();
     if (opts?.tags?.length)    params.set("tags",    opts.tags.join(","));
