@@ -27,9 +27,14 @@ Image=localhost/sws-runtime:0.1.0-dev
 ContainerName=sws-runtime
 
 # 8443 viewer operatori, 8444 IDE/admin. Porte > 1024: rootless le binda
-# senza privilegi. In modalità host-network l'installer commenta queste due
-# righe e mette Network=host (necessario perché il multicast mDNS raggiunga
-# la LAN — sulla rete bridge di podman non esce).
+# senza privilegi.
+#
+# ATTENZIONE: queste due righe valgono solo in modalità bridge, che NON è più
+# il default. `install-container.sh` senza flag le commenta e mette
+# Network=host, perché sulla rete rootless di podman il multicast mDNS non esce
+# dal container e "Cerca runtime" nell'IDE non trova mai il dispositivo. Restano
+# qui, e non sostituite da Network=host, perché è l'installer a scegliere: con
+# `--bridge` il file viene copiato così com'è.
 PublishPort=8443:8443
 PublishPort=8444:8444
 

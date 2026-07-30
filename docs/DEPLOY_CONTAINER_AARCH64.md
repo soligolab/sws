@@ -157,7 +157,8 @@ Opzioni:
 | `--www ARCHIVIO` | srotola la SPA; obbligatorio al primo giro (non è nell'immagine) |
 | `--www-only ARCHIVIO` | aggiorna solo la SPA e esce |
 | `--data DIR` | directory dati alternativa (default `/data/user/sws`) |
-| `--host-network` | `Network=host` — **necessario perché la discovery mDNS funzioni** |
+| `--bridge` | rete bridge con porte pubblicate, **al prezzo della discovery mDNS** (vedi sotto) |
+| `--host-network` | non serve più: `Network=host` è il default. Accettata per compatibilità |
 | `--no-autostart` | solo `podman run`, nessuna unit systemd: non riparte dopo il reboot |
 | `--uninstall` | rimuove servizio e container, **conserva i dati** |
 | `--uninstall --purge` | rimuove anche i dati, quindi i progetti |
@@ -184,20 +185,31 @@ journalctl --user -u sws-runtime -f
 Quadlet e non `podman generate systemd`: è il meccanismo supportato da podman
 4.4+ e l'unit non va rigenerata quando cambia l'immagine.
 
-### Discovery mDNS: serve la rete host
+### Discovery mDNS: la rete host è il default
 
-Sulla rete bridge di podman il multicast non esce verso la LAN, quindi
-"Cerca runtime" nell'IDE non trova il dispositivo. Con `--host-network` invece
-funziona — verificato: da un'altra macchina della LAN `GET /api/discover`
-restituisce il device.
+Sulla rete rootless di podman (`slirp4netns`) il multicast non esce verso la
+LAN, quindi "Cerca runtime" nell'IDE non trova il dispositivo. Per questo
+`Network=host` è il **default** dell'installer dal 2026-07-30: chi installa
+senza flag ottiene la configurazione che funziona. `--bridge` torna al
+comportamento precedente, e l'installer in quel caso lo dice esplicitamente.
+
+Misurato sul dispositivo il 2026-07-30, dallo stesso editor e a pochi minuti di
+distanza: in bridge `GET /api/discover` risponde `[]`; in host network
+restituisce il runtime con `admin_url http://192.168.1.84:8444`. Un altro
+indizio che la rete host è effettiva: l'istanza annunciata passa dall'ID del
+container (`e6ddc6b11b87`) all'hostname del dispositivo.
 
 Attenzione a due dettagli emersi provandolo:
 
 - Il runtime annuncia lo **schema** reale (`http` finché non c'è un
   certificato). Le versioni precedenti annunciavano sempre `https`, quindi anche
   quando la discovery funzionava l'URL offerto non rispondeva.
-- Un device con più interfacce compare **più volte** in `/api/discover`, una per
-  indirizzo. Non è un errore, ma nella UI si vedono duplicati.
+- Lo stesso runtime compare **due volte** in `/api/discover`. La causa non è
+  "un'entry per indirizzo" come si era annotato: misurato il 2026-07-30, le due
+  voci portano lo **stesso** indirizzo. È `browse_mdns_blocking`
+  (`sws-web/src/discover.rs`) che accumula una voce per ogni evento
+  `ServiceResolved` senza deduplicare per `fullname`, e mDNS ne emette più di
+  uno. Difetto solo cosmetico, non ancora corretto.
 
 ## Verifica
 
@@ -213,10 +225,18 @@ podman 5.0.2-dev rootless):
 | progetto dopo reinstall dell'immagine | conservato (volumi nominati) |
 | log in `/var/sws/logs` nel volume | ok — `runtime-2026-07-28.jsonl` |
 | unit systemd utente | `active`, `NRestarts=0` |
-| discovery mDNS da altra macchina della LAN | ok **solo** con `--host-network` |
+| discovery mDNS da altra macchina della LAN | ok in rete host, `[]` in bridge |
 
-Resta da provare: il **reboot** del dispositivo, l'unica verifica che il linger
-e la unit facciano davvero ripartire il container da soli.
+Aggiunte il **2026-07-30**, sullo stesso dispositivo (WP620, `192.168.1.84`):
+
+| Verifica | Esito |
+|---|---|
+| immagine sul dispositivo = immagine costruita | stesso ID `8aec2579…`, da `main` `35efe1c` con albero pulito |
+| deploy pulito (`--uninstall --purge` + install) | ok, ma **ripesca i dati dai volumi nominati** — vedi Limiti noti |
+| `--bridge` → `GET /api/discover` dall'editor | `[]` (nessun rilevamento) |
+| default host network → `GET /api/discover` | trova il runtime, `admin_url http://192.168.1.84:8444` |
+| `healthy` in rete host | ok, ~1 s dopo l'avvio |
+| avvio al boot dopo un riavvio reale | ok (2026-07-29, container già `healthy` a 1h07 di uptime) |
 
 
 ```bash
@@ -249,8 +269,16 @@ risposte 200, quindi `/` non entra nella cache offline.
 
 - **Modbus RTU**: la seriale non è passata al container. Serve
   `--device /dev/ttyUSB0` (l'utente del device è già nel gruppo `dialout`).
-- **mDNS**: richiede `--host-network` (vedi sopra). Sulla rete bridge il
-  multicast non esce.
+- **mDNS**: funziona in rete host, che è il default (vedi sopra). Con `--bridge`
+  il multicast non esce e il dispositivo non viene rilevato.
+- **`--uninstall --purge` seguito da un'installazione non dà un dispositivo
+  pulito.** Visto dal vivo il 2026-07-30: il purge svuota i bind mount, e al
+  passo 1 l'installer migra i dati dai volumi nominati della versione
+  pre-2026-07-28 proprio perché la cartella di destinazione è vuota. Il
+  dispositivo si è ritrovato con un progetto `test1` di due giorni prima, aperto
+  come progetto attivo. Rimedio finché il codice non cambia: dopo il purge
+  eliminare anche i volumi (`podman volume rm sws-projects sws-config sws-logs`),
+  esportandoli prima con `podman volume export` se contengono qualcosa che serve.
 - **TLS**: il runtime parte in HTTP. Si abilita da ConfigView → Stato →
   Certificato TLS; il certificato finisce nel volume `sws-config` e sopravvive
   al riavvio del container.
