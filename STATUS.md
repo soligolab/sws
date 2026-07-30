@@ -6,13 +6,78 @@
 >
 > **Pulizia 2026-07-27**: rimossi i task già chiusi e le sezioni di verifica ormai superate; le sessioni mergiate **e** verificate fino al 2026-07-09 sono compresse in «Storico». Il dettaglio integrale resta in `CHANGELOG.md` e nella history git.
 
-**Last session**: 2026-07-30 — **tre branch portati in `main` con squash e validati in un solo giro**
-(`d0d9110` sicurezza in scrittura del progetto, `9f20d06` deploy/database/utenti, `631e6d2` impalcatura
-e2e). Il punto di ritorno è il tag **`pre-merge-2026-07-30`**, anche su `origin`: da lì si torna con
-`git reset --hard pre-merge-2026-07-30`.
+**Last session**: 2026-07-30 (sera 2) — **container come via standard anche per x86_64 + installazione
+da IDE via SSH** (branch `feat/container-x86_64`, non ancora mergiato). Vedi sezione dedicata sotto.
+
+**Sessione precedente (2026-07-30, sera 1)**: **tre branch portati in `main` con squash e validati in
+un solo giro** (`d0d9110` sicurezza in scrittura del progetto, `9f20d06` deploy/database/utenti,
+`631e6d2` impalcatura e2e). Il punto di ritorno è il tag **`pre-merge-2026-07-30`**, anche su
+`origin`: da lì si torna con `git reset --hard pre-merge-2026-07-30`.
 
 Scelta del maintainer: le modifiche erano troppe da validare branch per branch, quindi si allinea
 `main` e si valida una volta. Il vantaggio pratico è che i sei script di verifica coesistono solo qui.
+
+---
+
+## Sessione 2026-07-30 (sera 2) — container x86_64 + installazione da IDE (branch `feat/container-x86_64`)
+
+Richiesta del maintainer: il container deve diventare **la via standard** per il runtime, sia su
+arm64 sia su x86_64, e l'installazione deve poter partire **dall'IDE** (Configurazione → Runtime),
+riusando le credenziali SSH già in UI. Confermato con l'utente: **solo Podman** per ora (Docker
+avrebbe richiesto un secondo percorso completo — niente quadlet lì — rimandato).
+
+**Parte A — build x86_64** (mancava del tutto: verificato leggendo `docs/DEPLOY_PX30.md` per
+intero che il commento nel Containerfile che vi rimandava per "x86 legacy" era sbagliato — quel
+doc copre target ARM64 generici buildati da un laptop x86, non un target x86_64):
+- `deploy/container/Containerfile` → rinominato `Containerfile.aarch64`; nuovo `Containerfile.x86_64`
+  gemello (nessun SDK, binario nativo `cargo build --release`, nessun cross-compile).
+- Nuovo `scripts/build_container_x86_64.sh`, ricalca `build_container.sh` riga per riga.
+- **Verifica `readelf` fondamentale, non skippabile**: il primo tentativo con `debian:bookworm-slim`
+  (ipotesi ragionevole, stessa base della legacy) si sarebbe rivelato **rotto all'avvio** — il
+  binario buildato su questa macchina (Python non di sistema, tipo pyenv) dichiara
+  `libpython3.13.so.1.0` + `GLIBC_2.39`, che bookworm-slim non ha. Corretto a `debian:trixie-slim`
+  (glibc 2.41 + Python 3.13) **prima** di distribuire qualunque cosa, verificato con `podman run`
+  diretto: `healthy`, `/health` 200, template non vuoti, RestrictedPython attivo, nessun
+  `SWS_ADMIN_PASSWORD` richiesto.
+- **Limite dichiarato in `docs/DEPLOY_CONTAINER_X86_64.md`**: a differenza del binario Yocto
+  (SDK fisso, riproducibile), un binario x86_64 nativo lega glibc/Python alla macchina che lo
+  builda — la riga `FROM` del Containerfile.x86_64 **va riverificata per ogni macchina di build
+  diversa**, non è un valore universale.
+- Test end-to-end di `install-container.sh` fatto **senza toccare le istanze dev già attive sulla
+  stessa macchina** (porte 8443/8444/8460 già occupate): copia temporanea dello script con porte
+  remappate (28443/28444) + `--data` in scratch dir — mkdir, `podman load`, unpack SPA, avvio,
+  `/health ok dopo 2s`; istanze live verificate intatte dopo.
+
+**Parte B — installazione container dall'IDE via SSH**: nuovo endpoint
+`POST /api/deploy/device-container` (`sws-web/src/packaging.rs`), stesso pattern shell-out
+SSH/SCP già usato da `deploy_device` (il binario nudo — nessuna libreria SSH Rust, `sshpass`/`scp`/
+`ssh` di sistema via `tokio::process::Command`), ma: carica **quattro** file (immagine, SPA,
+`install-container.sh`, il quadlet — l'installer legge quest'ultimo da una posizione relativa a
+sé stesso, quindi devono stare nella stessa directory remota) ed esegue l'installer **senza
+`sudo`** (podman rootless — differenza reale rispetto al binario nudo, comunicata anche in UI).
+Nuovo `GET /api/build/container-packages` elenca le coppie immagine+SPA già buildate in `dist/`
+(pattern `sws-runtime-<versione>-{aarch64,x86_64}-image.tar.gz`), segnala se manca l'archivio SPA
+corrispondente (l'immagine non lo contiene mai). Frontend: `ConfigView.tsx` → tab Runtime →
+"Installa su dispositivo" ha ora un selettore **Binario nativo / Container (Podman)**, stessi
+campi host/porta/utente/password/directory remota riusati identici — solo l'elenco pacchetti e
+l'endpoint chiamato cambiano.
+
+**Verifica end-to-end del deploy via SSH**: fatta su questa stessa macchina (self-SSH, chiave
+temporaneamente autorizzata e rimossa subito dopo il test, nessun accesso nuovo dato che c'era
+già shell completa) contro un'istanza runtime usa-e-getta su porta dedicata (per non toccare le
+istanze dev live): `GET /api/build/container-packages` trova l'immagine x86_64 già costruita,
+`POST /api/deploy/device-container` esegue correttamente mkdir + 4× scp + invocazione di
+`install-container.sh` (fallito solo sull'ultimo passo per un limite **pre-esistente e non mio**
+dello script — `/data/user/sws` non esiste su questa macchina generica, assunzione valida solo su
+device Pixsys reali).
+
+**Verifica**: `cargo build`/`cargo test -p sws-web` (31 test, 4 nuovi su `parse_image_tarball`/
+`validate_remote_path`) + `pnpm build`/`pnpm test` (20/20) verdi.
+
+**Resta da fare**: mergiare `feat/container-x86_64` dopo validazione del maintainer; provare il
+deploy container da IDE verso un device Pixsys reale (non solo self-SSH); considerare se
+aggiornare la messaggistica "il container è la via standard" anche in `README.md`/altri doc di
+primo impatto, non solo nei doc di deploy dedicati.
 
 **Batteria completa su `main` fuso** — `cargo check` verde, Rust 21+6+27 test, frontend 20/20,
 `pnpm build` verde, e i sei controlli:

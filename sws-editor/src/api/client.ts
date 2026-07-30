@@ -877,6 +877,10 @@ export const api = {
   listPackages: () =>
     request<import("../types").PackageFile[]>("/api/build/packages"),
 
+  /** GET /api/build/container-packages — list built container image+SPA pairs in dist/. */
+  listContainerPackages: () =>
+    request<import("../types").ContainerPackage[]>("/api/build/container-packages"),
+
   // ── Remote runtime bridge ─────────────────────────────────────────────────
   // These calls hit the *local* runtime's proxy endpoints (see remote.rs).
   // The local runtime handles the actual connection to the remote device.

@@ -22,6 +22,50 @@ and this project adheres to [CalVer](https://calver.org/) (`YYYY.MM[.patch]`).
 
 ### Added
 
+- **Il container come via standard anche su x86_64, con installazione dall'IDE via SSH** (branch
+  `feat/container-x86_64`). Il percorso "buono" (`deploy/container/`, quello senza i quattro
+  difetti dell'immagine legacy) copriva solo aarch64/Yocto; ora ha un gemello per x86_64 e si può
+  installare da Configurazione → Runtime senza uscire dall'IDE.
+  - `deploy/container/Containerfile` → rinominato `Containerfile.aarch64`; nuovo
+    `Containerfile.x86_64` gemello, nessun SDK — binario nativo `cargo build --release`, nessun
+    cross-compile. Nuovo `scripts/build_container_x86_64.sh`, ricalca `build_container.sh` passo
+    per passo.
+  - **La base `debian:bookworm-slim` ipotizzata all'inizio era sbagliata, e si sarebbe scoperto solo
+    all'avvio del container**: il binario buildato su questa macchina (un python3 non di sistema)
+    dichiara `libpython3.13.so.1.0` + `GLIBC_2.39`, che bookworm-slim non ha. Corretto a
+    `debian:trixie-slim` **prima** di distribuire qualunque cosa, verificando con `readelf` come già
+    documentato per aarch64 — non assumendo che la stessa base vada bene ovunque. A differenza del
+    binario Yocto (SDK fisso), un binario x86_64 nativo lega glibc/Python alla macchina che lo
+    builda: chi rifà la build su un'altra macchina deve rifare la stessa verifica, non copiare
+    questo risultato — documentato esplicitamente in `docs/DEPLOY_CONTAINER_X86_64.md`.
+  - Corretto anche un rimando sbagliato nella doc esistente: il commento nel Containerfile diceva
+    che `docs/DEPLOY_PX30.md` era "il flusso legacy per x86" — non è vero, quel documento copre
+    target ARM64 generici buildati *da* un laptop x86, non un target x86_64. Non esisteva prima
+    nessun percorso documentato per un target x86_64.
+  - **Installazione container dall'IDE**: nuovo `POST /api/deploy/device-container`
+    (`sws-web/src/packaging.rs`), stesso pattern SSH/SCP già in uso per il binario nudo
+    (`deploy_device` — shell-out a `sshpass`/`scp`/`ssh` di sistema, nessuna libreria SSH Rust), ma
+    carica **quattro** file (immagine, SPA, `install-container.sh`, il quadlet — l'installer legge
+    quest'ultimo da una posizione relativa a sé stesso, devono stare nella stessa directory remota)
+    ed esegue l'installer **senza `sudo`**, perché Podman rootless non ne ha bisogno — differenza
+    comunicata anche in UI. Nuovo `GET /api/build/container-packages` elenca le coppie
+    immagine+SPA già buildate in `dist/`, segnalando quando manca l'archivio SPA corrispondente
+    (l'immagine non lo contiene mai). In `ConfigView.tsx` → tab Runtime → "Installa su dispositivo",
+    nuovo selettore **Binario nativo / Container (Podman)**: stessi campi host/porta/utente/
+    password/directory remota, riusati identici — solo l'elenco pacchetti e l'endpoint cambiano.
+  - Deciso col maintainer: **solo Podman per ora**. Docker avrebbe richiesto un secondo percorso di
+    installazione completo (niente quadlet lì, gestione dell'avvio al boot diversa), rimandato a
+    quando/se servirà davvero.
+  - Verificato senza toccare le istanze di sviluppo già attive sulla stessa macchina (porte
+    8443/8444/8460 occupate): `install-container.sh` testato con porte/dati remappati su una copia
+    temporanea (mkdir, `podman load`, unpack SPA, avvio, `/health ok dopo 2s`); il deploy via SSH
+    testato con self-SSH (chiave autorizzata solo per la durata del test, rimossa subito dopo)
+    contro un'istanza runtime usa-e-getta su porta dedicata — mkdir, i quattro `scp`, invocazione
+    di `install-container.sh` tutti riusciti; istanze dev live verificate intatte dopo entrambi i
+    test.
+  - `cargo test -p sws-web` (31 test, 4 nuovi su `parse_image_tarball`/`validate_remote_path`) +
+    `pnpm build`/`pnpm test` (20/20) verdi.
+
 - **Sezione "Gestione database"** nella tab Datastore di Configurazione (chiesto dal maintainer: *"aggiungi una sezione per la gestione dei database del dispositivo come clean, rimozione tabelle non in uso, backup e tutte le funzioni utili"*). Sta nella tab Datastore e non in Runtime perché quando apri la ConfigView **del dispositivo** è lì che compaiono i suoi backend; "Runtime" riguarda la connessione verso un *altro* runtime, un concetto diverso.
   - **Pulisci ora** ed **Esporta CSV** collegano due endpoint che **esistevano già nel backend e nel client, senza che nessun pulsante li chiamasse** (`purge`, `export`). Il purge riusa la retention configurata per il backend — una pulizia manuale con regole diverse da quelle automatiche sarebbe una sorpresa — e rifiuta di partire se non ne è configurata nessuna.
   - **Cerca tag orfani** (nuovo): tag che hanno campioni nel database ma che il runtime non conosce più, tipicamente dopo una rinomina o una rimozione. Il confronto usa i tag che il runtime ha **in memoria** (`TagDb`), non la sola lista dichiarata in `project.tags`: in molti progetti i tag nascono dalle mappature delle sorgenti, e confrontarsi con la lista dichiarata marcherebbe come orfani tag perfettamente in uso. Ogni orfano ha il proprio "Elimina storico", audit-logged.

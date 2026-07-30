@@ -59,6 +59,7 @@ import type {
   TopicMapping,
   SavedDevice,
   PackageFile,
+  ContainerPackage,
 } from "@/types";
 
 // ── Shared styles ─────────────────────────────────────────────────────────────
@@ -6801,6 +6802,14 @@ function RuntimeConnectionTab() {
   const [deviceTmpDir, setDeviceTmpDir] = useState("/tmp/sws-deploy");
   const [deviceLog, setDeviceLog]       = useState<string[]>([]);
   const [deviceDeploying, setDeviceDeploying] = useState(false);
+  // Installazione container (Podman) via SSH — stessi campi host/porta/utente/
+  // password/remote_dir sopra, riusati identici; cambia solo cosa si spedisce
+  // e quale comando gira sul device (install-container.sh, nessun sudo).
+  const [deployMode, setDeployMode]           = useState<"binary" | "container">("binary");
+  const [containerPackages, setContainerPackages] = useState<ContainerPackage[]>([]);
+  const [selectedContainerPkg, setSelectedContainerPkg] = useState("");
+  const [containerLog, setContainerLog]       = useState<string[]>([]);
+  const [containerDeploying, setContainerDeploying] = useState(false);
 
   const target = targetUrl.trim().replace(/\/$/, "");
 
@@ -6954,6 +6963,16 @@ function RuntimeConnectionTab() {
 
   useEffect(() => { void fetchPackages(); }, []);
 
+  const fetchContainerPackages = useCallback(async () => {
+    try {
+      const pkgs = await api.listContainerPackages();
+      setContainerPackages(pkgs);
+      if (pkgs.length > 0 && !selectedContainerPkg) setSelectedContainerPkg(pkgs[0].image_tarball);
+    } catch { /* ignore */ }
+  }, [selectedContainerPkg]);
+
+  useEffect(() => { void fetchContainerPackages(); }, []);
+
   const handleBuild = async (noRust = false, noSpa = false) => {
     setBuilding(true);
     setBuildLog([]);
@@ -7010,6 +7029,38 @@ function RuntimeConnectionTab() {
       setDeviceLog((l) => [...l, `ERROR: ${String(e)}`]);
     } finally {
       setDeviceDeploying(false);
+    }
+  };
+
+  const handleContainerDeploy = async () => {
+    const pkg = containerPackages.find((p) => p.image_tarball === selectedContainerPkg);
+    if (!pkg || !pkg.www_tarball || !deviceHost || !deviceUser) return;
+    setContainerDeploying(true);
+    setContainerLog([]);
+    try {
+      const token = getAuthToken() ?? "";
+      const res = await fetch("/api/deploy/device-container", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          image_tarball: pkg.image_tarball, www_tarball: pkg.www_tarball,
+          host: deviceHost, port: devicePort,
+          user: deviceUser, password: devicePass, remote_dir: deviceTmpDir,
+        }),
+      });
+      if (!res.ok) { setContainerLog([`ERROR: ${res.status} ${res.statusText}`]); return; }
+      const reader = res.body?.getReader();
+      if (!reader) return;
+      const dec = new TextDecoder();
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        dec.decode(value).split("\n").filter(Boolean).forEach((line) => setContainerLog((l) => [...l, line]));
+      }
+    } catch (e: unknown) {
+      setContainerLog((l) => [...l, `ERROR: ${String(e)}`]);
+    } finally {
+      setContainerDeploying(false);
     }
   };
 
@@ -7385,24 +7436,56 @@ function RuntimeConnectionTab() {
         )}
       </section>
 
-      {/* Device SSH deploy */}
-      {packages.length > 0 && (
+      {/* Device SSH deploy — binario nativo o container Podman, stesse credenziali */}
+      {(packages.length > 0 || containerPackages.length > 0) && (
         <section>
           <div style={{ fontSize: 13, fontWeight: 600, color: "var(--brand-text-muted, #94a3b8)", marginBottom: 8, textTransform: "uppercase", letterSpacing: 1 }}>
             Installa su dispositivo
           </div>
+          <div style={{ display: "flex", gap: 4, marginBottom: 10 }}>
+            <button
+              style={{ ...(deployMode === "binary" ? BTN_PRIMARY : BTN), padding: "5px 12px", fontSize: 12 }}
+              onClick={() => setDeployMode("binary")}>
+              Binario nativo
+            </button>
+            <button
+              style={{ ...(deployMode === "container" ? BTN_PRIMARY : BTN), padding: "5px 12px", fontSize: 12 }}
+              disabled={containerPackages.length === 0}
+              title={containerPackages.length === 0 ? "Nessuna immagine container in dist/ — build_container.sh o build_container_x86_64.sh" : undefined}
+              onClick={() => setDeployMode("container")}>
+              Container (Podman)
+            </button>
+          </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            <div>
-              <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 4 }}>
-                Pacchetto selezionato
-              </label>
-              <select
-                value={selectedPkg}
-                onChange={(e) => setSelectedPkg(e.target.value)}
-                style={{ ...INPUT, width: "100%", boxSizing: "border-box" as const }}>
-                {packages.map((p) => <option key={p.name} value={p.name}>{p.name}</option>)}
-              </select>
-            </div>
+            {deployMode === "binary" ? (
+              <div>
+                <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 4 }}>
+                  Pacchetto selezionato
+                </label>
+                <select
+                  value={selectedPkg}
+                  onChange={(e) => setSelectedPkg(e.target.value)}
+                  style={{ ...INPUT, width: "100%", boxSizing: "border-box" as const }}>
+                  {packages.map((p) => <option key={p.name} value={p.name}>{p.name}</option>)}
+                </select>
+              </div>
+            ) : (
+              <div>
+                <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 4 }}>
+                  Immagine selezionata
+                </label>
+                <select
+                  value={selectedContainerPkg}
+                  onChange={(e) => setSelectedContainerPkg(e.target.value)}
+                  style={{ ...INPUT, width: "100%", boxSizing: "border-box" as const }}>
+                  {containerPackages.map((p) => (
+                    <option key={p.image_tarball} value={p.image_tarball} disabled={!p.www_tarball}>
+                      {p.image_tarball} ({p.arch}){!p.www_tarball ? " — manca SPA, non installabile" : ""}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
             <div style={{ display: "flex", gap: 8 }}>
               <div style={{ flex: 1 }}>
                 <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 4 }}>{t("cfg.sshHost")}</label>
@@ -7437,25 +7520,52 @@ function RuntimeConnectionTab() {
                 value={deviceTmpDir}
                 onChange={(e) => setDeviceTmpDir(e.target.value)} />
             </div>
-            <span style={{ fontSize: 10, color: "var(--brand-border, #475569)" }}>
-              Richiede <code>sshpass</code> e <code>scp</code> sul sistema locale. Il dispositivo deve avere accesso SSH e <code>sudo</code>.
-            </span>
-            <button
-              style={{ ...BTN_PRIMARY, opacity: (deviceDeploying || !deviceHost || !selectedPkg) ? 0.6 : 1 }}
-              disabled={deviceDeploying || !deviceHost || !selectedPkg}
-              onClick={() => void handleDeviceDeploy()}>
-              {deviceDeploying ? "Deploy in corso…" : "🚀 Installa / Aggiorna"}
-            </button>
-            {deviceLog.length > 0 && (
-              <div style={{
-                background: "var(--brand-bg, #020617)", border: "1px solid var(--brand-surface, #1e293b)", borderRadius: 4,
-                padding: "8px 10px", maxHeight: 150, overflowY: "auto",
-                fontFamily: "monospace", fontSize: 11,
-              }}>
-                {deviceLog.map((l, i) => (
-                  <div key={i} style={{ color: l.startsWith("ERROR") ? "var(--brand-danger-soft, #f87171)" : l === "DONE" ? "var(--brand-success-soft, #4ade80)" : l.startsWith("WARN") ? "#fb923c" : "var(--brand-text-muted, #94a3b8)" }}>{l}</div>
-                ))}
-              </div>
+            {deployMode === "binary" ? (
+              <>
+                <span style={{ fontSize: 10, color: "var(--brand-border, #475569)" }}>
+                  Richiede <code>sshpass</code> e <code>scp</code> sul sistema locale. Il dispositivo deve avere accesso SSH e <code>sudo</code>.
+                </span>
+                <button
+                  style={{ ...BTN_PRIMARY, opacity: (deviceDeploying || !deviceHost || !selectedPkg) ? 0.6 : 1 }}
+                  disabled={deviceDeploying || !deviceHost || !selectedPkg}
+                  onClick={() => void handleDeviceDeploy()}>
+                  {deviceDeploying ? "Deploy in corso…" : "🚀 Installa / Aggiorna"}
+                </button>
+                {deviceLog.length > 0 && (
+                  <div style={{
+                    background: "var(--brand-bg, #020617)", border: "1px solid var(--brand-surface, #1e293b)", borderRadius: 4,
+                    padding: "8px 10px", maxHeight: 150, overflowY: "auto",
+                    fontFamily: "monospace", fontSize: 11,
+                  }}>
+                    {deviceLog.map((l, i) => (
+                      <div key={i} style={{ color: l.startsWith("ERROR") ? "var(--brand-danger-soft, #f87171)" : l === "DONE" ? "var(--brand-success-soft, #4ade80)" : l.startsWith("WARN") ? "#fb923c" : "var(--brand-text-muted, #94a3b8)" }}>{l}</div>
+                    ))}
+                  </div>
+                )}
+              </>
+            ) : (
+              <>
+                <span style={{ fontSize: 10, color: "var(--brand-border, #475569)" }}>
+                  Richiede <code>sshpass</code> e <code>scp</code> sul sistema locale. Podman rootless sul dispositivo — <strong>nessun <code>sudo</code> richiesto</strong>, a differenza del binario nativo.
+                </span>
+                <button
+                  style={{ ...BTN_PRIMARY, opacity: (containerDeploying || !deviceHost || !selectedContainerPkg) ? 0.6 : 1 }}
+                  disabled={containerDeploying || !deviceHost || !selectedContainerPkg}
+                  onClick={() => void handleContainerDeploy()}>
+                  {containerDeploying ? "Deploy in corso…" : "🐳 Installa / Aggiorna container"}
+                </button>
+                {containerLog.length > 0 && (
+                  <div style={{
+                    background: "var(--brand-bg, #020617)", border: "1px solid var(--brand-surface, #1e293b)", borderRadius: 4,
+                    padding: "8px 10px", maxHeight: 150, overflowY: "auto",
+                    fontFamily: "monospace", fontSize: 11,
+                  }}>
+                    {containerLog.map((l, i) => (
+                      <div key={i} style={{ color: l.startsWith("ERROR") ? "var(--brand-danger-soft, #f87171)" : l === "DONE" ? "var(--brand-success-soft, #4ade80)" : l.startsWith("WARN") ? "#fb923c" : "var(--brand-text-muted, #94a3b8)" }}>{l}</div>
+                    ))}
+                  </div>
+                )}
+              </>
             )}
           </div>
         </section>
