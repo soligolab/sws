@@ -6611,6 +6611,7 @@ function RuntimeConnectionTab() {
   const [deploying, setDeploying]   = useState(false);
   const [deployDone, setDeployDone] = useState(false);
   const [deletingRemote, setDeletingRemote] = useState(false);
+  const [pushingUsers, setPushingUsers] = useState(false);
   const [remoteMsg, setRemoteMsg]   = useState<string | null>(null);
   const [discovering, setDiscovering] = useState(false);
   const [discovered, setDiscovered]   = useState<DiscoveredRuntime[] | null>(null);
@@ -6905,6 +6906,27 @@ function RuntimeConnectionTab() {
     }
   };
 
+  // Allineamento esplicito degli account. Il deploy non li tocca — cambiare chi
+  // entra in un pannello in servizio non deve essere un effetto collaterale —
+  // quindi questo è l'unico percorso. Chiede conferma perché invalida le
+  // sessioni aperte sul dispositivo.
+  const handlePushUsers = async () => {
+    if (!window.confirm(
+      "Sostituire gli utenti del dispositivo con quelli di questo progetto?\n\n" +
+      "Chi è collegato al dispositivo dovrà rifare il login. Le password vengono " +
+      "trasferite già cifrate, quindi gli account restano validi."
+    )) return;
+    setPushingUsers(true); setRemoteMsg(null);
+    try {
+      const res = await api.pushUsersToRuntime();
+      setRemoteMsg(`✓ ${res.users} utente(i) inviati al dispositivo.${res.note ? " " + res.note : ""}`);
+    } catch (e: any) {
+      setRemoteMsg(`✗ ${e?.message ?? String(e)}`);
+    } finally {
+      setPushingUsers(false);
+    }
+  };
+
   const INPUT: React.CSSProperties = {
     background: "var(--brand-bg, #020617)", color: "var(--brand-text, #e2e8f0)", border: "1px solid var(--brand-surface-2, #334155)",
     borderRadius: 4, padding: "6px 8px", fontSize: 13,
@@ -7068,6 +7090,11 @@ function RuntimeConnectionTab() {
             <p style={{ fontSize: 12, color: "var(--brand-border, #475569)", margin: "0 0 8px" }}>
               Elimina il progetto attualmente attivo sul runtime (es. per ripartire pulito).
             </p>
+            <button style={{ ...BTN, opacity: pushingUsers ? 0.6 : 1 }}
+              title="Sostituisce gli utenti del dispositivo con quelli di questo progetto. Il deploy, da solo, non li modifica."
+              onClick={handlePushUsers} disabled={pushingUsers}>
+              {pushingUsers ? "Invio…" : "Aggiorna utenti sul dispositivo"}
+            </button>
             <button style={{ ...BTN_RED, opacity: deletingRemote ? 0.6 : 1 }}
               onClick={handleDeleteRemoteProject} disabled={deletingRemote}>
               {deletingRemote ? "Eliminazione…" : "Elimina progetto sul runtime"}

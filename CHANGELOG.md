@@ -11,6 +11,14 @@ and this project adheres to [CalVer](https://calver.org/) (`YYYY.MM[.patch]`).
 
 - **Pulizia dei branch**: da 8 a 1. `feat/container-aarch64` portato in `main` con squash (`72b6b3c`) — era l'unico con contenuto da mergiare. Gli altri sei erano già assorbiti (le due catene dell'editor, entrate con `2ef99e6`/`3bddb66`) o superati (`archive/office-line-2026-05-21` e `backup/friday-phase-a1`, due linee di sviluppo **non correlate** a `main`: radice diversa, nessun antenato in comune). Mergiarli avrebbe riportato indietro il codice — contenevano la vecchia firma di `router::build`, il vecchio export di `alarm.rs` e la gestione segnali con solo `ctrl_c`. Punte annotate in `STATUS.md`; la linea "office" è conservata dal tag `archive/office-2026-05-21`, ora anche su `origin`.
 
+### Added
+
+- **"Aggiorna utenti sul dispositivo"** in Configurazione → Runtime, seconda metà della decisione sugli account: il deploy non li tocca, quindi serve un percorso **dichiarato** per allinearli. Nuovi `POST /api/remote/users` (lato IDE: legge `users.yaml` del progetto e lo spedisce) e `PUT /api/auth/users-file` (lato dispositivo: sostituisce il file e ricarica lo store, audit-logged con l'elenco degli username). Si trasferisce il **file**, non le password: contiene gli hash Argon2, quindi gli account arrivano funzionanti senza che l'IDE o la richiesta vedano mai una password in chiaro.
+  - **Due rifiuti deliberati**, perché il danno sarebbe irreversibile e scoperto tardi — nessuno riesce più a entrare nel pannello: una lista **vuota** (bloccata già lato IDE, con messaggio esplicito) e uno YAML non valido o senza la chiave `users` (bloccato lato dispositivo).
+  - Un 401/403 dal dispositivo non riporta più il codice grezzo ma dice cosa fare: riconnettersi con le credenziali admin. È il caso normale quando il dispositivo ha account veri.
+  - Ricaricare lo store invalida le sessioni aperte: la risposta lo dichiara e la conferma nell'IDE lo dice prima di procedere.
+  - Verificato in `scripts/check_deploy_preserve.sh`: dispositivo con account e connessione senza credenziali → rifiutato senza toccare nulla; lista vuota → rifiutata, account del dispositivo intatti; dispositivo senza account → invio consentito e utenti allineati.
+
 ### Fixed
 
 - **Il deploy cancellava il database storico del dispositivo** (segnalato dal maintainer: *"il deploy va a ricaricare nel progetto anche l'eventuale database, questo non deve succedere"*). Il meccanismo, verificato nel codice: `remote_deploy` cancellava **ogni** progetto presente sul target (`remote.rs`, commento esplicito: *"wipe every existing project"*), e `delete_project` fa `remove_dir_all` sull'intera cartella — quindi si portava via `.history/`. Non era una sovrascrittura: lo ZIP di export non contiene affatto lo storico. Il database veniva **cancellato** e poi ricreato vuoto dal `CREATE TABLE IF NOT EXISTS` al riavvio, da cui l'impressione che fosse "ricaricato".
