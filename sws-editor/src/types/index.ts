@@ -1160,6 +1160,17 @@ export interface PackageFile {
   mtime_ms: number;
 }
 
+export interface ContainerPackage {
+  image_tarball: string;
+  /** null quando manca l'archivio SPA con la stessa versione — l'immagine
+   *  non include mai la SPA, il deploy container va bloccato finché non c'è. */
+  www_tarball: string | null;
+  arch: string;
+  version: string;
+  size_bytes: number;
+  mtime_ms: number;
+}
+
 export interface TextListEntry {
   value: number | string | boolean;
   label: string;
