@@ -6,8 +6,9 @@
 >
 > **Pulizia 2026-07-27**: rimossi i task già chiusi e le sezioni di verifica ormai superate; le sessioni mergiate **e** verificate fino al 2026-07-09 sono compresse in «Storico». Il dettaglio integrale resta in `CHANGELOG.md` e nella history git.
 
-**Last session**: 2026-07-31 — **fix deploy container (hang, log, output remoto) + percorso dati
-brand-aware** (branch `feat/container-x86_64`, non ancora mergiato). Vedi sezione dedicata sotto.
+**Last session**: 2026-07-31 (ufficio, dev server) — **branch allineati e i due percorsi container
+riconciliati**. Vedi la sezione qui sotto. Prima di questa, la sessione da casa della notte stessa:
+fix deploy container + percorso dati brand-aware, già in `main`.
 
 **Sessione precedente (2026-07-30, sera 1)**: **tre branch portati in `main` con squash e validati in
 un solo giro** (`d0d9110` sicurezza in scrittura del progetto, `9f20d06` deploy/database/utenti,
@@ -16,6 +17,72 @@ un solo giro** (`d0d9110` sicurezza in scrittura del progetto, `9f20d06` deploy/
 
 Scelta del maintainer: le modifiche erano troppe da validare branch per branch, quindi si allinea
 `main` e si valida una volta. Il vantaggio pratico è che i sei script di verifica coesistono solo qui.
+
+---
+
+## Sessione 2026-07-31 (ufficio) — allineamento dei branch e riconciliazione dei due percorsi container
+
+Il maintainer arriva in ufficio dopo aver lavorato da casa la notte, fa il pull e trova sette branch
+locali. Richiesta: allineare tutto, poi riprendere.
+
+**Allineamento.** `main` era indietro di 6 commit (fast-forward `2bf742a` → `d17a181`, fatto con
+`git fetch origin main:main` per non toccare il working tree — su questa macchina girano più sessioni
+sullo stesso checkout). Tutti e sette i branch locali erano identici ai rispettivi remoti: niente di
+divergente, niente perso.
+
+**Sei branch su sette avevano il contenuto già in `main`** e sono stati chiusi con un merge `-s ours`
+ciascuno, come già fatto la notte per `fix/multiselect-drag` e `feat/container-x86_64`: nessuna
+modifica al codice, solo il collegamento storico, così `git branch --merged` li riconosce. Albero di
+`main` verificato byte-identico a `origin/main` dopo i cinque merge.
+
+| branch | perché è chiuso |
+|---|---|
+| `fix/project-write-safety` | squash `d0d9110`; poi `main` ci ha riscritto sopra — il diff verso `main` è di sole rimozioni |
+| `fix/deploy-preserve-database` | squash `9f20d06`; 8 file su 15 byte-identici, gli altri superati da `9cd0a3f`/`9c368da` |
+| `chore/e2e-and-docs` | squash `631e6d2`; unico residuo un paragrafo `STATUS.md` **duplicato**, non portato |
+| `fix/container-host-network-default` | squash `c028b16`; merge a secco → albero identico a `main` |
+| `chore/disable-legacy-container-publish` | squash `add86bb`; merge a secco → albero identico a `main` |
+| `fix/multiselect-drag` | già chiuso la notte con `d17a181` |
+
+**Il problema vero: i due percorsi container si contraddicevano.** `feat/container-registry-procedure`
+(30 sera, ufficio) aveva messo la SPA **dentro** l'immagine e reso `--pull` la strada normale. Il
+lavoro della notte da casa (`9c368da`, container x86_64 + installazione dall'IDE via SSH) è partito
+dal layout **precedente**, con la SPA fuori: `Containerfile` sdoppiato in `.aarch64`/`.x86_64` senza
+il `COPY www/`, e un `POST /api/deploy/device-container` che trasferisce quattro file e invoca
+`install-container.sh --image X --www Y`. Mergiare il branch così com'era **avrebbe rotto** "Installa
+su dispositivo", perché l'installer del registry rifiuta `--www` con un errore esplicito.
+
+**Decisione del maintainer**: vale quella del 30 sera — SPA nell'immagine — estesa a entrambe le
+architetture. Riconciliato sul branch (merge `5cf634d`):
+
+- Il merge meccanico era quasi pulito: i due lati toccano file quasi disgiunti (solo
+  `docs/DEPLOY_CONTAINER_AARCH64.md` e `scripts/build_container.sh` in comune), e git ha seguito da
+  solo la rinomina `Containerfile` → `Containerfile.aarch64` portandoci sopra le modifiche del branch.
+  Unico conflitto l'introduzione del documento aarch64, risolta tenendo entrambe le indicazioni.
+- `Containerfile.x86_64` allineato al gemello: `COPY www/` come ultimo layer di contenuto,
+  `/var/sws/www` non è più un punto di mount.
+- `build_container_x86_64.sh`: `--push`/`--registry` e i controlli preliminari del gemello (albero
+  pulito, `podman login`, entrambi *prima* della build), tag `<versione>-amd64` e `<sha>-amd64`,
+  niente più archivio SPA separato.
+- `packaging.rs`: tre file invece di quattro, niente `--www` nel comando remoto, via `www_tarball` da
+  `ContainerPackage` e dalla richiesta di deploy. Un client più vecchio che lo manda ancora non rompe
+  niente (serde ignora i campi in più — è il lato utile di **Q9**). Nuovo test sull'assenza di `--www`.
+- Il deploy SSH dall'IDE resta come **percorso offline** accanto a `--pull`: un dispositivo in campo
+  che non raggiunge il registry è il caso normale, non un ripiego di serie B.
+
+**Verificato**: `cargo check --workspace` verde, `cargo test -p sws-web` 34/34 (1 nuovo), `pnpm build`
+verde, `pnpm test` 20/20, `bash -n` sui tre script toccati.
+
+**NON verificato**: nessuna immagine è stata ricostruita in questa sessione e nessun dispositivo è
+stato toccato. In particolare la verifica x86_64 del 2026-07-30 (`docs/DEPLOY_CONTAINER_X86_64.md`
+§Verifica) **precede** questo cambio ed è stata fatta con la SPA fuori dall'immagine: va rifatta.
+
+**Da riprendere**:
+
+1. **Ricostruire e riprovare le due immagini** — `build_container.sh --push` (serve l'SDK Yocto) e
+   `build_container_x86_64.sh`, poi `install-container.sh --pull` su un dispositivo e "Installa su
+   dispositivo" dall'IDE sul percorso offline. È l'unica cosa che chiude davvero questa riconciliazione.
+2. **`feat/container-registry-procedure` aspetta il tuo via libera** per lo squash merge in `main`.
 
 ---
 
