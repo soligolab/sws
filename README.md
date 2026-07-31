@@ -110,7 +110,7 @@ credentials:
 
 ```bash
 # on the device (podman rootless, no sudo)
-./install-container.sh --pull        # ghcr.io/soligolab/sws-runtime:0.1.0-dev-arm64
+./install-container.sh --pull        # ghcr.io/soligolab/sws-runtime:latest-arm64
 ```
 
 The full procedure — cross-compile, publish, install and update — is in

@@ -193,7 +193,7 @@ eseguire dal dispositivo:
 TOK=$(curl -s "https://ghcr.io/token?scope=repository:soligolab/sws-runtime:pull&service=ghcr.io" \
       | sed -n 's/.*"token":"\([^"]*\)".*/\1/p')
 curl -s -o /dev/null -w "%{http_code}\n" -H "Authorization: Bearer $TOK" \
-     https://ghcr.io/v2/soligolab/sws-runtime/manifests/0.1.0-dev-arm64   # 200 = pubblico
+     https://ghcr.io/v2/soligolab/sws-runtime/manifests/latest-arm64   # 200 = pubblico
 ```
 
 ## 3. Installare sul dispositivo
@@ -310,7 +310,7 @@ Opzioni:
 
 | Flag | Effetto |
 |---|---|
-| `--pull [REF]` | scarica dal registry (default `ghcr.io/soligolab/sws-runtime:0.1.0-dev-arm64`) |
+| `--pull [REF]` | scarica dal registry (default `ghcr.io/soligolab/sws-runtime:latest-arm64`) |
 | `--image ARCHIVIO` | carica da archivio: dispositivi senza rete verso il registry |
 | `--data DIR` | directory dati alternativa (default `/data/user/sws`) |
 | `--migrate-volumes` | recupera i dati dai volumi nominati pre-2026-07-28 |

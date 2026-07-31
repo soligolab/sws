@@ -153,15 +153,18 @@ rm -rf "$CTX"
 if [ "$PUSH" -eq 1 ]; then
     TAG_VERSION="${REGISTRY}:${VERSION}-amd64"
     TAG_COMMIT="${REGISTRY}:${GIT_SHA}-amd64"
+    # Mobile, come nel gemello aarch64. Suffisso -amd64: il default
+    # dell'installer è `latest-arm64`, quindi su x86_64 questo va passato a mano.
+    TAG_LATEST="${REGISTRY}:latest-amd64"
     echo "==> [4/4] pubblicazione su $REGISTRY"
-    podman tag "$IMAGE" "$TAG_VERSION"
-    podman tag "$IMAGE" "$TAG_COMMIT"
-    for t in "$TAG_VERSION" "$TAG_COMMIT"; do
+    for t in "$TAG_VERSION" "$TAG_COMMIT" "$TAG_LATEST"; do
+        podman tag "$IMAGE" "$t"
         echo "    push $t"
         podman push "$t"
     done
     echo
-    echo "    sul dispositivo:  ./install-container.sh --pull $TAG_VERSION"
+    echo "    sul dispositivo:  ./install-container.sh --pull $TAG_LATEST"
+    echo "    per inchiodare la versione:  ./install-container.sh --pull $TAG_VERSION"
 fi
 
 # ── 4b. Archivio trasferibile (ripiego offline) ───────────────────────────────

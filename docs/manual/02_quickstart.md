@@ -144,7 +144,7 @@ Con il runtime in HTTP (default) ometti `-k` e usa `http://`; con TLS attivo usa
 ```bash
 # Health check (porta viewer)
 curl http://localhost:8443/health
-# → {"status":"ok","version":"0.1.0-dev"}
+# → {"status":"ok","version":"2026.7.0"}
 
 # Elenco tag (porta viewer, no-auth)
 curl http://localhost:8443/api/tags

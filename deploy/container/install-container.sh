@@ -39,8 +39,17 @@
 
 set -euo pipefail
 
-TAG="localhost/sws-runtime:0.1.0-dev"
-REGISTRY_REF="ghcr.io/soligolab/sws-runtime:0.1.0-dev-arm64"
+# Ripiego per il caso "nessuna immagine indicata, uso quella già presente".
+# Con --image il riferimento vero si legge da `podman load`, con --pull è
+# REGISTRY_REF: questo valore serve solo quando non si procura niente.
+TAG="localhost/sws-runtime:latest"
+TAG_EXPLICIT=0
+# Tag MOBILE di proposito: `--pull` senza argomenti prende l'ultima pubblicata.
+# Non rende gli aggiornamenti automatici — il pull resta un comando che qualcuno
+# deve dare. Evita invece il caso in cui un default pinnato non viene aggiornato
+# a una release e i dispositivi restano indietro senza che nessuno se ne accorga.
+# Per inchiodare una versione: `--pull ghcr.io/soligolab/sws-runtime:2026.07-arm64`.
+REGISTRY_REF="ghcr.io/soligolab/sws-runtime:latest-arm64"
 NAME="sws-runtime"
 DATA="/data/user/sws"
 UNIT_DIR="$HOME/.config/containers/systemd"
@@ -88,7 +97,7 @@ while [ $# -gt 0 ]; do
             exit 1
             ;;
         --data)          DATA="$2"; shift 2 ;;
-        --tag)           TAG="$2"; shift 2 ;;
+        --tag)           TAG="$2"; TAG_EXPLICIT=1; shift 2 ;;
         --bridge)        HOST_NETWORK=0; shift ;;
         # Accettata per compatibilità: era la flag da passare quando il default
         # era la rete bridge. Ora non cambia niente, ma non deve dare errore a
@@ -194,7 +203,22 @@ if [ "$PULL" -eq 1 ]; then
     TAG="$REGISTRY_REF"
 elif [ -n "$IMAGE_ARCHIVE" ]; then
     echo "==> [2/6] carico l'immagine da $IMAGE_ARCHIVE"
-    podman load -i "$IMAGE_ARCHIVE" | tail -1
+    # Il riferimento si legge da `podman load`, non si indovina. Prima era
+    # cablato a `localhost/sws-runtime:0.1.0-dev`: alla prima release con un
+    # numero diverso l'installazione offline sarebbe morta su "immagine
+    # assente" davanti a un archivio perfettamente valido, e il messaggio
+    # avrebbe mandato a cercare il problema dalla parte sbagliata.
+    LOAD_OUT=$(podman load -i "$IMAGE_ARCHIVE")
+    echo "$LOAD_OUT" | tail -1
+    LOADED=$(echo "$LOAD_OUT" | sed -n 's/^Loaded image: *//p' | tail -1)
+    if [ "$TAG_EXPLICIT" -eq 1 ]; then
+        : # --tag esplicito: vince su quello che dice l'archivio.
+    elif [ -n "$LOADED" ]; then
+        TAG="$LOADED"
+    else
+        echo "    NOTA: nome dell'immagine non riconosciuto nell'output di podman load," >&2
+        echo "          uso $TAG. Se non combacia, passa --tag <riferimento>." >&2
+    fi
 else
     echo "==> [2/6] nessuna immagine indicata, uso quella già presente"
 fi
@@ -202,6 +226,7 @@ podman image exists "$TAG" || {
     echo "ERRORE: immagine $TAG assente. Passa --pull, --image <archivio> o --tag <altro>." >&2
     exit 1
 }
+echo "    immagine: $TAG"
 
 # ── 3. La SPA è dentro l'immagine ─────────────────────────────────────────────
 # Controllata qui e non data per scontata: un'immagine costruita senza il layer

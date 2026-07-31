@@ -2,7 +2,7 @@
 
 **Soligo Web SCADA** è una piattaforma SCADA open-source, web-based, progettata per hardware industriale embedded ARM64. Questo manuale copre installazione, configurazione, utilizzo operativo e deploy.
 
-> **Versione documentata**: 0.1.0-dev (PoC)
+> **Versione documentata**: 2026.7.0 (PoC)
 > **Licenza**: AGPL-3.0 — © Soligo Lab
 
 ---

@@ -752,6 +752,14 @@ mod tests {
 
     #[test]
     fn parse_image_tarball_extracts_version_and_arch() {
+        // CalVer, la forma reale dalla release 2026.7.0 in poi.
+        assert_eq!(
+            parse_image_tarball("sws-runtime-2026.7.0-aarch64-image.tar.gz"),
+            Some(("2026.7.0".to_string(), "aarch64".to_string())),
+        );
+        // Versione con suffisso di pre-release: era la forma prima di 2026.7.0
+        // e resta il caso interessante, perché contiene trattini come il resto
+        // del nome.
         assert_eq!(
             parse_image_tarball("sws-runtime-0.1.0-dev-x86_64-image.tar.gz"),
             Some(("0.1.0-dev".to_string(), "x86_64".to_string())),
