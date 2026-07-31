@@ -25,6 +25,33 @@ pushato e l'immagine container è sul registry. Dettaglio nella sezione qui sott
 > - **Tre cose non ancora provate**, tutte annotate sotto: il percorso `--pull` dal registry su un
 >   dispositivo vero, il percorso **x86_64** dopo la riconciliazione, e la pill del container su un
 >   runtime realmente in container invece che forzato con `SWS_CONTAINER_ENGINE`.
+> - **Non esiste più nessun branch**, né in locale né su `origin`: c'è solo `main`. Registro qui
+>   sotto.
+
+## Registro dei branch chiusi il 2026-07-31
+
+Tutti e sette cancellati, locale **e** `origin`, su richiesta del maintainer. **Non si è perso
+niente**, e stavolta la frase è verificabile invece che rassicurante: ogni punta era stata chiusa con
+un merge in `main`, e un merge conserva entrambi i genitori — quindi ogni commit resta **raggiungibile
+da `main`**. Il `gc` non li può potare e `git log <sha>` funziona per sempre. È una situazione diversa
+da quella del 2026-07-29, dove i branch erano entrati con il **solo** squash: là le punte diventavano
+irraggiungibili e questo registro era una scialuppa di salvataggio, qui è solo una comodità.
+
+Verificato prima di cancellare con `git merge-base --is-ancestor <branch> main` su tutti e sette.
+
+| branch | punta | merge di chiusura | contenuto |
+|---|---|---|---|
+| `feat/container-registry-procedure` | `e8aa31c` | `704cc86` | registry, SPA nell'immagine, riconciliazione x86_64, discovery, bottone Viewer, slider |
+| `chore/disable-legacy-container-publish` | `482481c` | `14a5d4a` | stop alla pubblicazione CI dell'immagine legacy, metadati OCI |
+| `chore/e2e-and-docs` | `c656711` | `de1b490` | la suite end-to-end torna eseguibile, regola sui piani condivisi |
+| `fix/container-host-network-default` | `d9ee20d` | `2e80c81` | rete host come default dell'installer, `--bridge` per tornare indietro |
+| `fix/deploy-preserve-database` | `2a5033d` | `17a227b` | il deploy non cancella il database, gestione database, pulsante utenti |
+| `fix/project-write-safety` | `22ae221` | `b0533bd` | un salvataggio non può più azzerare o impoverire `project.yaml` |
+| `fix/multiselect-drag` | `d37b738` | `d17a181` | tentativo **rotto** di fix del drag multi-selezione; il fix vero è altrove in `main` |
+
+Per rivedere il lavoro di uno di questi isolato: `git log <punta>`, oppure
+`git log <chiusura>^1..<chiusura>^2` per i soli commit che quel branch aggiungeva. Per farlo tornare
+un branch vero: `git branch <nome> <punta>`.
 
 **Sessione precedente (2026-07-30, sera 1)**: **tre branch portati in `main` con squash e validati in
 un solo giro** (`d0d9110` sicurezza in scrittura del progetto, `9f20d06` deploy/database/utenti,
