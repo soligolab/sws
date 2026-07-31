@@ -1,5 +1,6 @@
 use axum::{response::IntoResponse, Json};
 use serde::Serialize;
+use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
 #[derive(Serialize)]
@@ -8,6 +9,56 @@ pub struct DiscoveredRuntime {
     admin_url: String,
     viewer_url: String,
     version: Option<String>,
+    /// Motore del container (`podman`, `docker`, o `container` generico) quando
+    /// il runtime gira dentro un container; `None` quando gira nudo sull'host
+    /// **oppure** quando è più vecchio di questa proprietà. I due casi non si
+    /// distinguono di proposito: annunciare "nativo" per un runtime che
+    /// semplicemente non lo dice sarebbe un'affermazione senza prove.
+    container: Option<String>,
+}
+
+/// Scegli l'indirizzo da offrire, preferendo un IPv4 raggiungibile dalla rete.
+///
+/// Serve perché `enable_addr_auto()` annuncia **tutti** gli indirizzi
+/// dell'host, loopback compreso, e `get_addresses_v4()` restituisce un
+/// `HashSet`: prendere il primo che capita dava un URL diverso a ogni giro, e
+/// una volta su tre `127.0.0.1` — inutilizzabile da un'altra macchina, che è
+/// esattamente il caso d'uso di questa funzione. L'ordinamento non è
+/// cosmetico: rende la scelta ripetibile, altrimenti la deduplica per nome
+/// terrebbe la prima risposta arrivata e quindi un indirizzo a caso.
+fn pick_address(v4: &[String], any: &[String]) -> Option<String> {
+    let mut routable: Vec<&String> = v4.iter().filter(|a| !is_loopback(a)).collect();
+    routable.sort();
+    if let Some(a) = routable.first() {
+        return Some((*a).clone());
+    }
+    let mut all_v4: Vec<&String> = v4.iter().collect();
+    all_v4.sort();
+    if let Some(a) = all_v4.first() {
+        return Some((*a).clone());
+    }
+    let mut rest: Vec<&String> = any.iter().filter(|a| !is_loopback(a)).collect();
+    rest.sort();
+    rest.first().map(|a| (*a).clone()).or_else(|| {
+        let mut all: Vec<&String> = any.iter().collect();
+        all.sort();
+        all.first().map(|a| (*a).clone())
+    })
+}
+
+fn is_loopback(addr: &str) -> bool {
+    addr.starts_with("127.") || addr == "::1"
+}
+
+/// Una risposta successiva per lo stesso servizio va preferita solo se porta un
+/// indirizzo raggiungibile al posto di un loopback.
+///
+/// Non è teoria: mdns-sd consegna `ServiceResolved` man mano che impara gli
+/// indirizzi, e la **prima** risposta può portare solo `127.0.0.1`. Tenendo
+/// sempre la prima, un runtime su un'altra macchina finiva offerto come
+/// `http://127.0.0.1:8444` — misurato, capitava circa due volte su tre.
+fn prefer_new_address(old: &str, new: &str) -> bool {
+    is_loopback(old) && !is_loopback(new)
 }
 
 /// GET /api/discover — browse mDNS for _sws._tcp.local. services for ~2 s.
@@ -32,7 +83,16 @@ fn browse_mdns_blocking(timeout_secs: u64) -> Vec<DiscoveredRuntime> {
         Err(_) => return vec![],
     };
 
-    let mut runtimes = Vec::new();
+    let mut runtimes: Vec<DiscoveredRuntime> = Vec::new();
+    // Un servizio produce più `ServiceResolved` nella stessa finestra di
+    // ascolto, uno per risposta ricevuta: senza questa mappa lo stesso runtime
+    // compariva tre volte nell'elenco (misurato in locale).
+    //
+    // Non basta però scartare i doppioni: le risposte non sono equivalenti, e
+    // la prima può portare solo il loopback. Si tiene quindi l'indirizzo scelto
+    // per ogni nome, così una risposta successiva può promuovere la voce a un
+    // indirizzo raggiungibile.
+    let mut seen: HashMap<String, (usize, String)> = HashMap::new();
     let deadline = Instant::now() + Duration::from_secs(timeout_secs);
 
     loop {
@@ -42,6 +102,7 @@ fn browse_mdns_blocking(timeout_secs: u64) -> Vec<DiscoveredRuntime> {
         }
         match receiver.recv_timeout(remaining) {
             Ok(ServiceEvent::ServiceResolved(info)) => {
+                let fullname = info.get_fullname().to_string();
                 let viewer_port = info.get_port();
                 let admin_port: u16 = info
                     .get_property_val_str("admin_port")
@@ -51,21 +112,50 @@ fn browse_mdns_blocking(timeout_secs: u64) -> Vec<DiscoveredRuntime> {
                 // Default "https" per i runtime che non annunciano lo schema
                 // (versioni precedenti a questo campo).
                 let scheme = info.get_property_val_str("scheme").unwrap_or("https");
+                let container = info
+                    .get_property_val_str("container")
+                    .map(str::trim)
+                    .filter(|s| !s.is_empty())
+                    .map(str::to_string);
 
-                let ip = info
+                let v4: Vec<String> = info
                     .get_addresses_v4()
                     .into_iter()
-                    .next()
                     .map(|a| a.to_string())
-                    .or_else(|| info.get_addresses().iter().next().map(|a| a.to_string()));
+                    .collect();
+                let ip = pick_address(
+                    &v4,
+                    &info
+                        .get_addresses()
+                        .iter()
+                        .map(|a| a.to_string())
+                        .collect::<Vec<_>>(),
+                );
 
-                if let Some(ip) = ip {
-                    runtimes.push(DiscoveredRuntime {
-                        name: info.get_fullname().to_string(),
-                        admin_url: format!("{}://{}:{}", scheme, ip, admin_port),
-                        viewer_url: format!("{}://{}:{}", scheme, ip, viewer_port),
-                        version,
-                    });
+                // Una risposta senza indirizzo non è utilizzabile e viene
+                // lasciata cadere senza registrarla, altrimenti scarterebbe
+                // come duplicata la risposta successiva che l'indirizzo ce l'ha.
+                let Some(ip) = ip else { continue };
+
+                let entry = DiscoveredRuntime {
+                    name: fullname.clone(),
+                    admin_url: format!("{}://{}:{}", scheme, ip, admin_port),
+                    viewer_url: format!("{}://{}:{}", scheme, ip, viewer_port),
+                    version,
+                    container,
+                };
+
+                match seen.get(&fullname) {
+                    None => {
+                        seen.insert(fullname, (runtimes.len(), ip));
+                        runtimes.push(entry);
+                    }
+                    Some((idx, old_ip)) if prefer_new_address(old_ip, &ip) => {
+                        let idx = *idx;
+                        runtimes[idx] = entry;
+                        seen.insert(fullname, (idx, ip));
+                    }
+                    Some(_) => {}
                 }
             }
             Ok(_) => {}
@@ -75,4 +165,73 @@ fn browse_mdns_blocking(timeout_secs: u64) -> Vec<DiscoveredRuntime> {
 
     let _ = daemon.shutdown();
     runtimes
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{pick_address, prefer_new_address};
+
+    fn v(items: &[&str]) -> Vec<String> {
+        items.iter().map(|s| s.to_string()).collect()
+    }
+
+    /// Il caso che ha motivato la funzione: l'annuncio porta loopback e LAN
+    /// insieme, e va offerto l'indirizzo che un'altra macchina può usare.
+    #[test]
+    fn preferisce_l_indirizzo_di_rete_al_loopback() {
+        assert_eq!(
+            pick_address(&v(&["127.0.0.1", "192.168.0.201"]), &[]),
+            Some("192.168.0.201".to_string())
+        );
+    }
+
+    /// Con più indirizzi di rete la scelta dev'essere ripetibile: la deduplica
+    /// per nome tiene la prima risposta, e un ordine casuale renderebbe l'URL
+    /// offerto diverso a ogni ricerca.
+    #[test]
+    fn la_scelta_e_deterministica_con_piu_indirizzi() {
+        let a = pick_address(&v(&["192.168.60.200", "192.168.1.84"]), &[]);
+        let b = pick_address(&v(&["192.168.1.84", "192.168.60.200"]), &[]);
+        assert_eq!(a, b);
+        assert_eq!(a, Some("192.168.1.84".to_string()));
+    }
+
+    /// Un runtime raggiungibile solo in loopback (istanza di sviluppo sulla
+    /// stessa macchina) resta utilizzabile: meglio 127.0.0.1 che niente.
+    #[test]
+    fn ripiega_sul_loopback_quando_non_c_e_altro() {
+        assert_eq!(
+            pick_address(&v(&["127.0.0.1"]), &[]),
+            Some("127.0.0.1".to_string())
+        );
+    }
+
+    #[test]
+    fn usa_gli_altri_indirizzi_quando_non_ci_sono_ipv4() {
+        assert_eq!(
+            pick_address(&[], &v(&["::1", "fe80::1"])),
+            Some("fe80::1".to_string())
+        );
+    }
+
+    #[test]
+    fn senza_alcun_indirizzo_non_produce_una_voce() {
+        assert_eq!(pick_address(&[], &[]), None);
+    }
+
+    /// La prima risposta per un servizio può portare solo il loopback: quando
+    /// ne arriva una con l'indirizzo di rete, la voce va promossa.
+    #[test]
+    fn promuove_la_voce_quando_arriva_un_indirizzo_raggiungibile() {
+        assert!(prefer_new_address("127.0.0.1", "192.168.0.201"));
+    }
+
+    /// Le altre combinazioni non devono muovere niente, altrimenti l'elenco
+    /// cambierebbe a ogni risposta ricevuta.
+    #[test]
+    fn non_retrocede_ne_rimpiazza_a_parita_di_qualita() {
+        assert!(!prefer_new_address("192.168.0.201", "127.0.0.1"));
+        assert!(!prefer_new_address("192.168.0.201", "192.168.60.200"));
+        assert!(!prefer_new_address("127.0.0.1", "127.0.0.1"));
+    }
 }
