@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api, getAuthToken, type CreateUserBody, type DiscoveredRuntime, type UpdateUserBody, type UserRole, type UserSummary } from "@/api/client";
+import { getBrand } from "@/branding";
 import { TagInput } from "@/components/TagInput";
 import { PythonEditor, type PythonEditorHandle } from "@/components/PythonEditor";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -6810,6 +6811,11 @@ function RuntimeConnectionTab() {
   const [selectedContainerPkg, setSelectedContainerPkg] = useState("");
   const [containerLog, setContainerLog]       = useState<string[]>([]);
   const [containerDeploying, setContainerDeploying] = useState(false);
+  // Percorso dati sul device (install-container.sh --data): vuoto = default
+  // dello script. Il modello scelto dal dropdown brand-aware pre-compila
+  // questo campo, che resta comunque sempre editabile — è anche il "modello
+  // custom" richiesto, senza bisogno di uno stato separato.
+  const [dataPath, setDataPath] = useState("");
 
   const target = targetUrl.trim().replace(/\/$/, "");
 
@@ -7046,6 +7052,7 @@ function RuntimeConnectionTab() {
           image_tarball: pkg.image_tarball, www_tarball: pkg.www_tarball,
           host: deviceHost, port: devicePort,
           user: deviceUser, password: devicePass, remote_dir: deviceTmpDir,
+          data_path: dataPath,
         }),
       });
       if (!res.ok) { setContainerLog([`ERROR: ${res.status} ${res.statusText}`]); return; }
@@ -7520,6 +7527,36 @@ function RuntimeConnectionTab() {
                 value={deviceTmpDir}
                 onChange={(e) => setDeviceTmpDir(e.target.value)} />
             </div>
+            {deployMode === "container" && (
+              <div>
+                {getBrand().dataPathPresets.length > 0 && (
+                  <>
+                    <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 4 }}>
+                      Modello dispositivo
+                    </label>
+                    <select
+                      value=""
+                      style={{ ...INPUT, width: "100%", boxSizing: "border-box" as const, marginBottom: 8 }}
+                      onChange={(e) => {
+                        const preset = getBrand().dataPathPresets.find((d) => d.label === e.target.value);
+                        if (preset) setDataPath(preset.path);
+                      }}>
+                      <option value="">Scegli un modello…</option>
+                      <optgroup label={getBrand().shortName}>
+                        {getBrand().dataPathPresets.map((d) => <option key={d.label} value={d.label}>{d.label}</option>)}
+                      </optgroup>
+                    </select>
+                  </>
+                )}
+                <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 4 }}>
+                  Percorso dati sul device
+                </label>
+                <input style={{ ...INPUT, width: "100%", boxSizing: "border-box" as const }}
+                  placeholder="/data/user/sws (default dello script)"
+                  value={dataPath}
+                  onChange={(e) => setDataPath(e.target.value)} />
+              </div>
+            )}
             {deployMode === "binary" ? (
               <>
                 <span style={{ fontSize: 10, color: "var(--brand-border, #475569)" }}>

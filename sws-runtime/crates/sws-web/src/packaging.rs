@@ -21,6 +21,7 @@ use std::{
 };
 use tokio::process::Command;
 use tokio_stream::StreamExt;
+use tracing::{error, info, warn};
 
 use crate::router::AppState;
 
@@ -33,6 +34,24 @@ pub fn new_build_lock() -> BuildLock {
 }
 
 // ── Helpers shared with deploy ────────────────────────────────────────────────
+
+/// Mirror a progress/error line from a streaming build/deploy handler into the
+/// app's main `tracing` logger (JSONL log files + Log viewer panel), not just
+/// the ephemeral HTTP chunked stream the browser reads. `$target` must be a
+/// literal — tracing callsites are cached as statics, so it can't be a
+/// runtime value.
+macro_rules! log_deploy_line {
+    ($target:literal, $msg:expr) => {{
+        let msg = $msg;
+        if msg.starts_with("ERROR") {
+            error!(target: $target, "{msg}");
+        } else if msg.starts_with("WARN") {
+            warn!(target: $target, "{msg}");
+        } else {
+            info!(target: $target, "{msg}");
+        }
+    }};
+}
 
 fn sshpass_available() -> bool {
     std::process::Command::new("which")
@@ -109,6 +128,7 @@ pub async fn build_package(
     tokio::spawn(async move {
         let send = |msg: &str| {
             let _ = tx.try_send(format!("{msg}\n"));
+            log_deploy_line!("sws_web::build", msg);
         };
 
         let script = repo.join("scripts/package.sh");
@@ -356,7 +376,10 @@ pub async fn deploy_device(
     let (tx, rx) = tokio::sync::mpsc::channel::<String>(128);
 
     tokio::spawn(async move {
-        let send = |msg: &str| { let _ = tx.try_send(format!("{msg}\n")); };
+        let send = |msg: &str| {
+            let _ = tx.try_send(format!("{msg}\n"));
+            log_deploy_line!("sws_web::deploy", msg);
+        };
 
         let use_sshpass = sshpass_available();
         if !use_sshpass {
@@ -481,6 +504,25 @@ pub struct DeviceContainerDeployRequest {
     pub password: String,
     #[serde(default = "default_remote_dir")]
     pub remote_dir: String,
+    /// Override for install-container.sh's `--data` (device data directory).
+    /// Empty string = let the script use its own default (`/data/user/sws`,
+    /// the Pixsys Yocto convention) — the right path differs per device
+    /// model, see the IDE's brand-specific data-path presets.
+    #[serde(default)]
+    pub data_path: String,
+}
+
+/// Build the remote `install-container.sh` invocation. Split out from
+/// `deploy_device_container` so it's unit-testable without an actual SSH
+/// round-trip — mirrors `resolve_dist_file`/`parse_image_tarball` above.
+fn build_install_cmd(remote_dir: &str, image: &str, www: &str, data_path: &str) -> String {
+    let mut cmd = format!(
+        "cd {remote_dir} && chmod +x install-container.sh && ./install-container.sh --image {image} --www {www}"
+    );
+    if !data_path.is_empty() {
+        cmd.push_str(&format!(" --data {data_path}"));
+    }
+    cmd
 }
 
 /// Same shape as `deploy_device`, but installs the runtime **as a rootless
@@ -507,6 +549,11 @@ pub async fn deploy_device_container(
             "remote_dir non valido: deve essere un percorso assoluto senza '..' né caratteri speciali\n"
         ).into_response();
     }
+    if !req.data_path.is_empty() && !validate_remote_path(&req.data_path) {
+        return (StatusCode::BAD_REQUEST,
+            "data_path non valido: deve essere un percorso assoluto senza '..' né caratteri speciali\n"
+        ).into_response();
+    }
 
     let image_path = match resolve_dist_file(&repo, &req.image_tarball) {
         Ok(p) => p,
@@ -531,7 +578,10 @@ pub async fn deploy_device_container(
     let (tx, rx) = tokio::sync::mpsc::channel::<String>(128);
 
     tokio::spawn(async move {
-        let send = |msg: &str| { let _ = tx.try_send(format!("{msg}\n")); };
+        let send = |msg: &str| {
+            let _ = tx.try_send(format!("{msg}\n"));
+            log_deploy_line!("sws_web::deploy_container", msg);
+        };
 
         let use_sshpass = sshpass_available();
         if !use_sshpass {
@@ -577,10 +627,7 @@ pub async fn deploy_device_container(
 
         // ── 3. Esegui install-container.sh (NESSUN sudo: podman rootless) ──
         send("==> Installazione (install-container.sh, podman rootless — nessun sudo richiesto)...");
-        let install_cmd = format!(
-            "cd {dir} && chmod +x install-container.sh && ./install-container.sh --image {img} --www {www}",
-            dir = req.remote_dir, img = image_basename, www = www_basename,
-        );
+        let install_cmd = build_install_cmd(&req.remote_dir, &image_basename, &www_basename, &req.data_path);
         let ok = run_ssh_cmd(
             use_sshpass, &req.password,
             "ssh",
@@ -632,22 +679,77 @@ async fn run_ssh_cmd(
     args: &[&str],
     send: &impl Fn(&str),
 ) -> bool {
-    let status = if use_sshpass {
-        let mut full_args = vec!["-p", password, prog];
+    // ConnectTimeout copre l'host irraggiungibile in entrambi i casi. BatchMode=yes
+    // va aggiunto SOLO quando non usiamo sshpass: forza ssh/scp a fallire subito
+    // invece di restare appesi in un prompt interattivo (password o
+    // keyboard-interactive) che qui non può mai ricevere risposta — questo
+    // processo backend non ha un terminale né un DISPLAY funzionante per
+    // ssh-askpass. Con sshpass invece serve che ssh TENTI l'auth a password
+    // (è quello che sshpass intercetta), quindi BatchMode=yes andrebbe a
+    // rompere proprio il meccanismo che dovrebbe abilitare.
+    let mut cmd = if use_sshpass {
+        let mut full_args = vec!["-p", password, prog, "-o", "ConnectTimeout=10"];
         full_args.extend_from_slice(args);
-        Command::new("sshpass").args(&full_args).status().await
+        let mut c = Command::new("sshpass");
+        c.args(&full_args);
+        c
     } else {
-        Command::new(prog).args(args).status().await
+        let mut full_args = vec!["-o", "BatchMode=yes", "-o", "ConnectTimeout=10"];
+        full_args.extend_from_slice(args);
+        let mut c = Command::new(prog);
+        c.args(&full_args);
+        c
     };
 
-    match status {
+    // Prima catturavamo solo lo stato di uscita: stdout/stderr di ssh/scp (e
+    // dell'eventuale comando remoto, tipo l'output di install-container.sh)
+    // finivano ereditati dallo stdio del processo backend — invisibili sia
+    // nello stream della UI sia nei log. Un "exit 1" da solo non dice nulla
+    // di utile: catturiamo e inoltriamo ogni riga, così l'errore vero (quello
+    // stampato sul device) arriva nel log come tutto il resto.
+    cmd.stdout(std::process::Stdio::piped());
+    cmd.stderr(std::process::Stdio::piped());
+
+    let mut child = match cmd.spawn() {
+        Ok(c) => c,
+        Err(e) => {
+            send(&format!("ERROR: impossibile eseguire {prog}: {e}"));
+            return false;
+        }
+    };
+
+    use tokio::io::{AsyncBufReadExt, BufReader};
+    let stdout = child.stdout.take();
+    let stderr = child.stderr.take();
+    let drain_stdout = async {
+        if let Some(s) = stdout {
+            let mut lines = BufReader::new(s).lines();
+            while let Ok(Some(line)) = lines.next_line().await {
+                send(&format!("    {line}"));
+            }
+        }
+    };
+    let drain_stderr = async {
+        if let Some(s) = stderr {
+            let mut lines = BufReader::new(s).lines();
+            while let Ok(Some(line)) = lines.next_line().await {
+                send(&format!("    {line}"));
+            }
+        }
+    };
+    // Concorrenti, non in sequenza: altrimenti se il comando scrive tanto su
+    // uno dei due flussi mentre drieniamo solo l'altro, il buffer del pipe
+    // (~64KB) si riempie e il processo resta bloccato in scrittura.
+    tokio::join!(drain_stdout, drain_stderr);
+
+    match child.wait().await {
         Ok(s) if s.success() => true,
         Ok(s) => {
             send(&format!("ERROR: {} fallito (exit {})", prog, s.code().unwrap_or(-1)));
             false
         }
         Err(e) => {
-            send(&format!("ERROR: impossibile eseguire {prog}: {e}"));
+            send(&format!("ERROR: impossibile attendere {prog}: {e}"));
             false
         }
     }
@@ -690,5 +792,25 @@ mod tests {
         assert!(!validate_remote_path("/tmp/../etc"));
         assert!(!validate_remote_path("/tmp/foo; rm -rf /"));
         assert!(!validate_remote_path("/tmp/$(whoami)"));
+    }
+
+    #[test]
+    fn build_install_cmd_omits_data_flag_when_empty() {
+        let cmd = build_install_cmd("/tmp/sws-deploy", "img.tar.gz", "www.tar.gz", "");
+        assert_eq!(
+            cmd,
+            "cd /tmp/sws-deploy && chmod +x install-container.sh && \
+             ./install-container.sh --image img.tar.gz --www www.tar.gz"
+        );
+    }
+
+    #[test]
+    fn build_install_cmd_appends_data_flag_when_present() {
+        let cmd = build_install_cmd("/tmp/sws-deploy", "img.tar.gz", "www.tar.gz", "/opt/sws-data");
+        assert_eq!(
+            cmd,
+            "cd /tmp/sws-deploy && chmod +x install-container.sh && \
+             ./install-container.sh --image img.tar.gz --www www.tar.gz --data /opt/sws-data"
+        );
     }
 }

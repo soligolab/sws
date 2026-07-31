@@ -6,8 +6,8 @@
 >
 > **Pulizia 2026-07-27**: rimossi i task già chiusi e le sezioni di verifica ormai superate; le sessioni mergiate **e** verificate fino al 2026-07-09 sono compresse in «Storico». Il dettaglio integrale resta in `CHANGELOG.md` e nella history git.
 
-**Last session**: 2026-07-30 (sera 2) — **container come via standard anche per x86_64 + installazione
-da IDE via SSH** (branch `feat/container-x86_64`, non ancora mergiato). Vedi sezione dedicata sotto.
+**Last session**: 2026-07-31 — **fix deploy container (hang, log, output remoto) + percorso dati
+brand-aware** (branch `feat/container-x86_64`, non ancora mergiato). Vedi sezione dedicata sotto.
 
 **Sessione precedente (2026-07-30, sera 1)**: **tre branch portati in `main` con squash e validati in
 un solo giro** (`d0d9110` sicurezza in scrittura del progetto, `9f20d06` deploy/database/utenti,
@@ -16,6 +16,67 @@ un solo giro** (`d0d9110` sicurezza in scrittura del progetto, `9f20d06` deploy/
 
 Scelta del maintainer: le modifiche erano troppe da validare branch per branch, quindi si allinea
 `main` e si valida una volta. Il vantaggio pratico è che i sei script di verifica coesistono solo qui.
+
+---
+
+## Sessione 2026-07-31 — fix deploy container (hang, log, output remoto) + percorso dati brand-aware (branch `feat/container-x86_64`)
+
+Continuazione della sessione precedente sullo stesso branch, non ancora mergiato. Il maintainer ha
+provato il flusso "Installa su dispositivo → Container" dall'IDE verso un device reale
+(192.168.1.169) e ha riportato due problemi.
+
+**Il deploy restava bloccato dopo il `mkdir` iniziale, senza errore.** `run_ssh_cmd` (condivisa da
+`deploy_device` e `deploy_device_container`) passava solo `-o StrictHostKeyChecking=no`: senza
+`sshpass` e senza una chiave SSH già autorizzata, `ssh`/`scp` tentavano un prompt interattivo che
+il processo backend — nessun terminale, nessun `DISPLAY` funzionante — non può mai soddisfare, e
+restavano appesi indefinitamente. Aggiunto `-o BatchMode=yes` (solo quando non si usa `sshpass`,
+perché altrimenti romperebbe proprio il meccanismo con cui `sshpass` intercetta il prompt) e
+`-o ConnectTimeout=10` su entrambi i percorsi. Riprodotto lo scenario esatto del maintainer
+(self-SSH, nessuna chiave autorizzata): prima del fix restava appeso, dopo fallisce in 0,14 s con
+un errore chiaro.
+
+**I messaggi del deploy non arrivavano al logger principale**, solo allo stream HTTP effimero del
+modale — `packaging.rs` non aveva nessuna chiamata `tracing::`. Aggiunta una macro
+(`log_deploy_line!`) che specchia ogni riga nel logger globale (già instradato da `main.rs` verso
+`LogBusLayer` → file JSONL + pannello Log), usata nei tre handler streaming (`build_package`,
+`deploy_device`, `deploy_device_container`).
+
+**Un `exit 1` senza spiegazione, anche dopo il fix del hang**: `run_ssh_cmd` catturava solo lo
+stato di uscita, non stdout/stderr — l'output reale del comando remoto (incluso quello di
+`install-container.sh` sul device) finiva ereditato dallo stdio del processo backend, invisibile
+sia nella UI sia nei log. Riscritta per catturare e inoltrare ogni riga (con un rientro di 4 spazi
+per distinguerla dalle righe `==>` proprie). Verificato via self-SSH: il log ora mostra il vero
+errore stampato sul device, non solo il codice di uscita.
+
+**Percorso dati sul device brand-aware**: il fallimento reale sul device del maintainer era
+`install-container.sh` che non riusciva a creare `/data/user/sws` (permessi) — confermato solo
+grazie al fix precedente, che finalmente mostra l'output remoto. Il maintainer ha confermato che
+il percorso giusto cambia da prodotto a prodotto, e ha chiesto un menù a tendina per il modello del
+device, con i modelli definiti nel branding dell'IDE (chi ha il brand Pixsys vede i modelli
+Pixsys, brand SWS vede solo il custom). Ricalcato esattamente il pattern già esistente per i
+preset di risoluzione pagina (`Brand.devicePresets` / `EditorShell.tsx`): nuovo
+`Brand.dataPathPresets: {label, path}[]`, popolato da `data_path_presets` in `brand.json` (oggi
+solo Pixsys, un modello: `/data/user/sws`, la convenzione comune a tutta la linea Yocto WP-series).
+`install-container.sh` non è stato toccato — `--data` esisteva già come flag; serviva solo che il
+backend lo passasse. Nuovo campo `DeviceContainerDeployRequest.data_path` (stringa vuota =
+comportamento identico a oggi), validato con la stessa `validate_remote_path` già usata per
+`remote_dir`, e una `build_install_cmd` estratta per essere testabile in isolamento.
+
+**Verifica end-to-end via self-SSH** (stessa tecnica delle sessioni precedenti: chiave autorizzata
+solo per la durata del test, ripristinata subito dopo) con `--data /tmp/sws-deploy-data-test`: la
+directory dati, il caricamento immagine, l'unpack della SPA, la riscrittura dei mount nella unit
+quadlet e l'avvio sono andati **tutti a buon fine** — `/health ok dopo 2s`, primo deploy container
+davvero completo (non solo parziale) di questa serie di test. Ripulito con
+`install-container.sh --uninstall --purge` (nota per il futuro: il purge non ricorda il `--data`
+usato all'installazione — va ripassato esplicitamente, altrimenti prova a ripulire il default).
+
+**Verifica**: `cargo test -p sws-web` → 33/33 (2 nuovi su `build_install_cmd`) + `pnpm build`/
+`pnpm test` (20/20) verdi. Istanze dev live (porta 8460) verificate intatte dopo ogni test.
+
+**Resta da fare**: riprovare il deploy verso il device reale 192.168.1.169 scegliendo il modello
+Pixsys (o un percorso custom, se quel device non segue la convenzione `/data/user/sws`); il resto
+di "Resta da fare" della sessione precedente (aggiornare README con "container è la via
+standard") è ancora aperto.
 
 ---
 
