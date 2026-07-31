@@ -65,6 +65,31 @@ and this project adheres to [CalVer](https://calver.org/) (`YYYY.MM[.patch]`).
     test.
   - `cargo test -p sws-web` (31 test, 4 nuovi su `parse_image_tarball`/`validate_remote_path`) +
     `pnpm build`/`pnpm test` (20/20) verdi.
+  - **Il deploy restava bloccato dopo il primo comando, senza errore**: senza `sshpass` e senza
+    chiave SSH preconfigurata, `ssh`/`scp` tentavano un prompt interattivo che il backend —
+    nessun terminale — non può mai soddisfare. Aggiunto `-o BatchMode=yes` (solo quando non si
+    usa `sshpass`, per non rompere il meccanismo con cui intercetta il prompt) e
+    `-o ConnectTimeout=10` in `run_ssh_cmd`, condivisa da `deploy_device` e
+    `deploy_device_container`: ora fallisce in frazioni di secondo con un errore chiaro invece di
+    restare appeso indefinitamente.
+  - **I messaggi di deploy ora arrivano anche al logger principale** (file JSONL + pannello Log),
+    non solo allo stream HTTP effimero del modale — `packaging.rs` non aveva nessuna chiamata
+    `tracing::`. E **l'output remoto reale è catturato**, non solo il codice di uscita:
+    `run_ssh_cmd` ereditava lo stdio invece di catturarlo, quindi un `exit 1` non diceva mai
+    perché.
+  - **Percorso dati del device selezionabile per modello, brand-aware**: il fallimento reale su
+    un device Pixsys era `install-container.sh` che non riusciva a creare `/data/user/sws`
+    (permessi) — visibile solo grazie al fix precedente. Nuovo `Brand.dataPathPresets` in
+    `sws-editor/src/branding/index.ts` (stesso meccanismo di `devicePresets`, già usato per i
+    preset di risoluzione pagina): un menù a tendina in "Installa su dispositivo" precompila il
+    percorso in base al modello scelto, filtrato per brand attivo — oggi un modello Pixsys
+    (`/data/user/sws`), nessuno per SWS (solo percorso libero). `install-container.sh` non
+    cambia, `--data` esisteva già; nuovo `DeviceContainerDeployRequest.data_path` nel backend,
+    validato con la stessa `validate_remote_path` di `remote_dir`.
+  - Verificato via self-SSH con un percorso dati alternativo: primo deploy container end-to-end
+    davvero completo di questa serie (directory dati, caricamento immagine, SPA, mount quadlet,
+    avvio, health check tutti riusciti — non solo parziale come nei test precedenti).
+    `cargo test -p sws-web` → 33/33 (2 nuovi), `pnpm build`/`pnpm test` 20/20 verdi.
 
 - **Sezione "Gestione database"** nella tab Datastore di Configurazione (chiesto dal maintainer: *"aggiungi una sezione per la gestione dei database del dispositivo come clean, rimozione tabelle non in uso, backup e tutte le funzioni utili"*). Sta nella tab Datastore e non in Runtime perché quando apri la ConfigView **del dispositivo** è lì che compaiono i suoi backend; "Runtime" riguarda la connessione verso un *altro* runtime, un concetto diverso.
   - **Pulisci ora** ed **Esporta CSV** collegano due endpoint che **esistevano già nel backend e nel client, senza che nessun pulsante li chiamasse** (`purge`, `export`). Il purge riusa la retention configurata per il backend — una pulizia manuale con regole diverse da quelle automatiche sarebbe una sorpresa — e rifiuta di partire se non ne è configurata nessuna.

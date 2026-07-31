@@ -37,6 +37,11 @@ export interface DevicePreset {
   height: number;
 }
 
+export interface DataPathPreset {
+  label: string;
+  path: string;
+}
+
 export interface Brand {
   id: string;
   name: string;
@@ -48,6 +53,10 @@ export interface Brand {
    *  offered alongside the generic standard resolutions in the page-size
    *  picker. Empty for brands with no hardware line of their own. */
   devicePresets: DevicePreset[];
+  /** Brand-specific default data-directory paths for the container install
+   *  flow (e.g. Pixsys Yocto devices only have /data/user/<user> writable).
+   *  Empty for brands with no fixed device convention — custom path only. */
+  dataPathPresets: DataPathPreset[];
 }
 
 // Hardcoded SWS palette — used when active.json / brand.json can't be loaded
@@ -72,6 +81,7 @@ export const SWS_FALLBACK: Brand = {
     onPrimary: "#ffffff",
   },
   devicePresets: [],
+  dataPathPresets: [],
 };
 
 // colors key → CSS custom property name.
@@ -122,6 +132,7 @@ export async function loadBranding(): Promise<Brand> {
       faviconUrl: meta.favicon ? `/branding/${id}/${meta.favicon}` : null,
       colors: { ...SWS_FALLBACK.colors, ...(meta.colors ?? {}) },
       devicePresets: meta.device_presets ?? [],
+      dataPathPresets: meta.data_path_presets ?? [],
     };
   } catch (err) {
     console.warn("[branding] falling back to SWS:", err);
