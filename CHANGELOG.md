@@ -20,6 +20,8 @@ and this project adheres to [CalVer](https://calver.org/) (`YYYY.MM[.patch]`).
 
 ### Fixed
 
+- **Preset dispositivo WP830/WP630 con la risoluzione sbagliata**: erano dichiarati 1366×768, il pannello è **1920×1080** (segnalato dal maintainer). Il preset serve a dare a una pagina nuova la dimensione giusta del dispositivo: sbagliato, produceva un synoptic disegnato per uno schermo che non esiste, che in modalità *proporzioni* veniva scalato e in modalità *fisso* lasciava una fascia vuota. Corretto in `public/branding/pixsys/brand.json`. **Nota**: il preset agisce solo alla creazione, quindi i progetti già disegnati con la misura vecchia restano a 1366×768 finché non si cambia a mano la dimensione della pagina.
+
 - **`/api/discover` elencava lo stesso runtime tre volte, e una volta su tre offriva `127.0.0.1`.** Due difetti nello stesso punto, il secondo emerso mentre si correggeva il primo.
   - `browse_mdns_blocking` accumulava una voce per ogni evento `ServiceResolved`, e mdns-sd ne consegna uno per risposta ricevuta. Misurato in locale: **3 voci** per un solo runtime prima della correzione, 1 dopo (10 esecuzioni su 10).
   - Deduplicare per nome però non bastava, ed è il motivo per cui la prima stesura era peggiore del problema: `enable_addr_auto()` annuncia **tutti** gli indirizzi dell'host, loopback compreso, `get_addresses_v4()` restituisce un `HashSet`, e le risposte non sono equivalenti — la prima può portare solo `127.0.0.1`. Tenendo la prima si offriva un URL inutilizzabile da un'altra macchina, cioè esattamente il caso d'uso della funzione. Ora la scelta dell'indirizzo è ordinata (ripetibile) e preferisce un IPv4 non-loopback, e una risposta successiva **promuove** la voce se porta un indirizzo raggiungibile.
