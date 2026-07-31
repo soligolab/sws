@@ -22,12 +22,21 @@ pushato e l'immagine container è sul registry. Dettaglio nella sezione qui sott
 > - **Il WP630 in ufficio ha ancora `0.1.0-dev`**: l'installazione di stamattina precede la release.
 >   Per aggiornarlo basta `./install-container.sh --pull` sul dispositivo — prenderà `latest-arm64`,
 >   cioè `2026.7.0`, e scaricherà solo i layer cambiati.
-> - **Due cose non ancora provate**: `install-container.sh --pull` dal registry su un dispositivo
->   vero (sul WP630 si è usato il percorso offline `--image`), e la pill del container su un runtime
->   realmente in container invece che forzato con `SWS_CONTAINER_ENGINE`. Il percorso **x86_64**
->   invece è stato chiuso, vedi sotto.
+> - **Dall'IDE si installa dal registry** (ultima cosa fatta): Configurazione → Runtime → Installa su
+>   dispositivo → Container (Podman) ha un selettore di sorgente, Registry di default, più una spunta
+>   di installazione pulita. È il rimedio al caso che ha aperto la giornata — un archivio vecchio
+>   installato perché era l'unico in `dist/`.
+> - **Tre cose non ancora provate su un dispositivo vero**: `install-container.sh --pull` dal registry
+>   (sul WP630 si è usato il percorso offline `--image`), **l'installazione pulita con un `--data` non
+>   standard** — va guardato dal vivo *quale* directory sparisce — e la pill del container su un
+>   runtime realmente in container invece che forzato con `SWS_CONTAINER_ENGINE`. Il percorso
+>   **x86_64** invece è chiuso, vedi sotto.
 > - **Non esiste più nessun branch**, né in locale né su `origin`: c'è solo `main`. Registro qui
 >   sotto.
+> - **La release `2026.7.0` non contiene il lavoro di fine giornata** (x86_64 dentro il builder,
+>   installazione dal registry): quello sta in `main` sotto `[Unreleased]`. Se serve portarlo su un
+>   dispositivo, va tagliata una `2026.7.1` e ripubblicate le immagini — non l'ho fatto di iniziativa
+>   perché una release è una decisione, non un passaggio meccanico.
 
 ## Registro dei branch chiusi il 2026-07-31
 
@@ -61,6 +70,59 @@ un solo giro** (`d0d9110` sicurezza in scrittura del progetto, `9f20d06` deploy/
 
 Scelta del maintainer: le modifiche erano troppe da validare branch per branch, quindi si allinea
 `main` e si valida una volta. Il vantaggio pratico è che i sei script di verifica coesistono solo qui.
+
+---
+
+## "Installa su dispositivo" installa dal registry (2026-07-31)
+
+Validato dal maintainer e portato in `main` con squash. Piano in
+`docs/plans/2026-07-31-installa-da-registry.md`, copiato lì apposta perché quelli in
+`~/.claude/plans/` non viaggiano con git — serve se il lavoro riprende da casa.
+
+Nasce dal caso concreto di stamattina: il WP630 installato dall'IDE scegliendo l'unico archivio
+presente, `0.1.0-dev` del giorno prima, con un frontend vecchio a bordo. Il menù non sbagliava —
+elencava fedelmente l'unica cosa che c'era. Il percorso registry esisteva dal 30 luglio ma dall'IDE
+non era raggiungibile.
+
+**Cosa c'è ora**: un selettore di sorgente — **Registry** (default) o **Archivio locale** — e una
+spunta **Installazione pulita**. Dal registry sul dispositivo arrivano solo installer e unit quadlet,
+pochi kB invece di 59 MB.
+
+**Le due cose non ovvie**, entrambe emerse leggendo il codice e non progettando a tavolino:
+
+1. **`--uninstall --purge` fa `exit 0`** e non prosegue mai con l'installazione, quindi un'installazione
+   pulita è due comandi remoti, non una flag in più.
+2. **Il purge deve ripetere `--data`.** Fa `rm -rf "$DATA"` prendendo il valore dalle flag: senza
+   ripeterlo avrebbe cancellato il default `/data/user/sws` lasciando intatti i dati veri — distrutti
+   i dati sbagliati, mancati quelli giusti. C'è un test dedicato che lo protegge.
+
+**Tua decisione sull'ordine**: nuova flag `--pull-only` che procura l'immagine ed esce, così la
+sequenza è `scp → pull-only → purge → install`. Se il pull fallisce non si cancella niente.
+
+**Corretto anche il default cablato**: `install-container.sh` aveva `latest-arm64` fisso, che su
+x86_64 scarica un'immagine che non parte. Ora compone il tag da `uname -m` sul dispositivo — che è
+l'unico a saperlo, visto che dall'IDE si installa su macchine diverse da quella di sviluppo.
+
+**Verificato**:
+
+- `cargo test -p sws-web` 53 (12 nuovi) + `sws-runtime` 9, `pnpm test` 32/32 (6 nuovi),
+  `cargo check --workspace`, `pnpm build`, `bash -n` verdi.
+- `install-container.sh` provato per davvero: su questa macchina x86_64 `--pull-only` compone
+  `latest-amd64` (prima sarebbe stato `latest-arm64`); con `uname -m` finto a `armv7l` fallisce
+  senza toccare niente; un riferimento esplicito continua a vincere; `--uninstall` non pretende
+  un'architettura nota.
+- **Sequenza dei comandi remoti misurata con un `ssh` finto in `PATH`**, senza bisogno di un
+  dispositivo. Registry + pulizia + `--data /opt/sws-data`: due `scp`, poi `--pull-only`, poi
+  `--uninstall --purge --data /opt/sws-data`, poi `--pull --data /opt/sws-data`. Da archivio +
+  pulizia: tre `scp` e **nessun** `--pull-only`, perché l'immagine è già lì. Registry senza pulizia:
+  due `scp` e basta.
+- Pannello provato in un browser: selettore, campo riferimento che compare solo in modalità registry,
+  conferma che nomina la cartella, `clean_install` nel payload, spunta che si azzera dopo l'uso.
+- Compatibilità col payload vecchio verificata con `curl`: solo `image_tarball` + credenziali
+  continua a risolvere in modalità archivio, esattamente come prima.
+
+**Non verificato**: niente di tutto questo è stato provato su un dispositivo vero. In particolare il
+purge con un `--data` non standard va guardato dal vivo, controllando *quale* directory sparisce.
 
 ---
 
