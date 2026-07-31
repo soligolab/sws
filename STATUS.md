@@ -15,16 +15,17 @@ pushato e l'immagine container è sul registry. Dettaglio nella sezione qui sott
 > - **`main` è la verità**: tutti e sette i branch sono chiusi e riconosciuti da `git branch
 >   --merged`. Nessuno ha contenuto che `main` non abbia — verificato con merge a secco uno per uno,
 >   non dedotto. Restano in piedi solo come storia, come chiede `CLAUDE.md`.
-> - **Release `2026.7.0`**, tag git `v2026.7.0`. L'immagine aarch64 è su
->   `ghcr.io/soligolab/sws-runtime` con tre tag: `2026.7.0-arm64`, `21bd613-arm64`, **`latest-arm64`**
->   (mobile, è il default di `install-container.sh --pull`). Tutti e tre verificati pubblici con
->   token anonimo, HTTP 200.
+> - **Release `2026.7.0`**, tag git `v2026.7.0`. Su `ghcr.io/soligolab/sws-runtime` ci sono **entrambe
+>   le architetture**, ciascuna con tre tag: `2026.7.0-<arch>`, `<sha>-<arch>` e **`latest-<arch>`**
+>   (mobile; `latest-arm64` è il default di `install-container.sh --pull`). Verificati pubblici con
+>   token anonimo — HTTP 200 — e con l'architettura letta dal manifest, non dedotta dal nome.
 > - **Il WP630 in ufficio ha ancora `0.1.0-dev`**: l'installazione di stamattina precede la release.
 >   Per aggiornarlo basta `./install-container.sh --pull` sul dispositivo — prenderà `latest-arm64`,
 >   cioè `2026.7.0`, e scaricherà solo i layer cambiati.
-> - **Tre cose non ancora provate**, tutte annotate sotto: il percorso `--pull` dal registry su un
->   dispositivo vero, il percorso **x86_64** dopo la riconciliazione, e la pill del container su un
->   runtime realmente in container invece che forzato con `SWS_CONTAINER_ENGINE`.
+> - **Due cose non ancora provate**: `install-container.sh --pull` dal registry su un dispositivo
+>   vero (sul WP630 si è usato il percorso offline `--image`), e la pill del container su un runtime
+>   realmente in container invece che forzato con `SWS_CONTAINER_ENGINE`. Il percorso **x86_64**
+>   invece è stato chiuso, vedi sotto.
 > - **Non esiste più nessun branch**, né in locale né su `origin`: c'è solo `main`. Registro qui
 >   sotto.
 
@@ -60,6 +61,51 @@ un solo giro** (`d0d9110` sicurezza in scrittura del progetto, `9f20d06` deploy/
 
 Scelta del maintainer: le modifiche erano troppe da validare branch per branch, quindi si allinea
 `main` e si valida una volta. Il vantaggio pratico è che i sei script di verifica coesistono solo qui.
+
+---
+
+## Container x86_64: stessa base dell'arm64, compilato dentro un builder (2026-07-31, dopo la release)
+
+Richiesta del maintainer prima di partire: *"fare il container a partire dallo stesso sistema usato
+per l'immagine arm, credo debian trixie"*. Due correzioni di fatto, entrambe rilevanti:
+
+1. **L'immagine arm64 non è Debian trixie, è `ubuntu:24.04`.**
+2. **La base non si sceglie: la impone il binario.** PyO3 gira con `auto-initialize`, quindi il
+   binario linka la `libpython` dell'ambiente che lo compila.
+
+Il secondo punto rendeva la richiesta impossibile da soddisfare cambiando una riga. Misurato: lo
+**stesso commit** dà `libpython3.11` + `GLIBC_2.34` compilato sul dev server (Debian 12) e
+`libpython3.13` sulla macchina di casa (python da pyenv). Due immagini diverse dallo stesso codice, e
+nessuna delle due compatibile con `ubuntu:24.04`. Il `FROM debian:trixie-slim` che c'era descriveva
+una sola di quelle due macchine.
+
+**Soluzione**: nuovo `deploy/container/Containerfile.x86_64.builder` — `ubuntu:24.04` con toolchain
+Rust e `python3-dev` — dentro cui `build_container_x86_64.sh` lancia il `cargo build`. È per x86_64
+quello che l'SDK Yocto Pixsys è per aarch64: un ambiente di compilazione fisso. Chiude il **«limite
+noto: riproducibilità legata alla macchina di build»** che quel documento si portava dietro, e con
+esso la necessità di riverificare a mano la riga `FROM` a ogni postazione.
+
+**La verifica `readelf` è diventata automatica**: lo script confronta la libpython richiesta dal
+binario con quella della base e si ferma spiegando che il container *"partirebbe e morirebbe su
+`cannot open shared object file`"*. Prima era una riga di documentazione che chiedeva di rifarla a
+mano, e il difetto sarebbe emerso al primo `podman run` sul dispositivo.
+
+**Un difetto emerso costruendo le due immagini di seguito**: il tag **locale** non portava
+l'architettura, quindi la seconda build si prendeva il nome della prima e
+`podman run sws-runtime:2026.7.0` dava quella costruita per ultima. Corretto in entrambi gli script
+(`sws-runtime:<versione>-arm64` / `-amd64`). I tag del registry non lo mostravano perché lì il
+suffisso c'era già. **Nota su podman 4.x**: `podman untag <ref>` rimuove **tutti** i nomi
+dell'immagine, non solo quello indicato — scoperto lasciando l'immagine senza tag.
+
+**Verificato, misurando**: `readelf` sul binario prodotto → `libpython3.12` + `GLIBC_2.39`. Immagine
+avviata su porte 8591/8592 per non toccare le istanze di sviluppo → `/health` su entrambe le porte,
+`index.html` e bundle serviti dall'immagine, SPA admin, 10 template, RestrictedPython disponibile
+senza warning, `podman ps` → `healthy`, Python 3.12.3 dentro il container. Pubblicata come
+`2026.7.0-amd64`, `f25c8d5-amd64`, `latest-amd64`: tutte pubbliche, e l'architettura del manifest
+letta dal registry dice `amd64 linux`.
+
+**Non provato**: avvio automatico al boot su questa macchina, e `install-container.sh --pull` verso
+questa immagine da un host x86_64 pulito.
 
 ---
 
