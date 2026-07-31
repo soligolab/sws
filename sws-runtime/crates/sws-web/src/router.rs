@@ -187,6 +187,12 @@ pub fn build(
         .route("/api/build/package",       post(crate::packaging::build_package))
         .route("/api/build/packages",      get(crate::packaging::list_packages))
         .route("/api/deploy/device",       post(crate::packaging::deploy_device))
+        // Container install via SSH — stesso deploy del binario nudo sopra,
+        // ma installa il runtime come container Podman rootless (nessun sudo).
+        .route("/api/build/container-packages",
+            get(crate::packaging::list_container_packages))
+        .route("/api/deploy/device-container",
+            post(crate::packaging::deploy_device_container))
         // Audit log (OPEN_QUESTIONS Q8): who-did-what trail, tamper-evident.
         .route("/api/audit",               get(get_audit_tail))
         .route("/api/audit/verify",        get(get_audit_verify))

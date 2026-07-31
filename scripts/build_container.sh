@@ -108,7 +108,7 @@ cp -r "$REPO/examples/templates/." "$CTX/templates/"
 echo "==> [3/4] podman build --platform linux/arm64 -t $IMAGE"
 podman build --platform linux/arm64 --format docker \
     -t "$IMAGE" \
-    -f "$REPO/deploy/container/Containerfile" \
+    -f "$REPO/deploy/container/Containerfile.aarch64" \
     "$CTX"
 rm -rf "$CTX"
 
