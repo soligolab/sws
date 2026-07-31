@@ -117,8 +117,14 @@ The full procedure — cross-compile, publish, install and update — is in
 [docs/DEPLOY_CONTAINER_AARCH64.md](docs/DEPLOY_CONTAINER_AARCH64.md). The `-arm64` tag suffix is
 deliberate: the image is not a multi-arch manifest list.
 
-A [`compose.yaml`](compose.yaml) also exists for x86_64 hosts, but that path predates no-auth mode
-and still expects `SWS_ADMIN_PASSWORD`; prefer the scripts above for the current PoC workflow.
+An **x86_64** twin exists for developer machines and generic amd64 hosts — same installer, same
+experience, natively built with no SDK: see
+[docs/DEPLOY_CONTAINER_X86_64.md](docs/DEPLOY_CONTAINER_X86_64.md). Either image can also be
+installed straight from the IDE over SSH (*ConfigView → Runtime → Installa su dispositivo*), which
+copies the archive instead of pulling — the fallback for a device that cannot reach the registry.
+
+A [`compose.yaml`](compose.yaml) also exists, but that path predates no-auth mode and still expects
+`SWS_ADMIN_PASSWORD`; prefer the scripts above for the current PoC workflow.
 
 ---
 

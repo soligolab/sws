@@ -1,38 +1,40 @@
 #!/usr/bin/env bash
 #
-# Costruisce l'immagine container aarch64 del runtime SWS e — con --push — la
-# pubblica sul registry, che è la strada normale per portarla sui dispositivi.
+# Costruisce l'immagine container x86_64 (amd64) del runtime SWS e — con
+# --push — la pubblica sul registry. Gemello di scripts/build_container.sh
+# (aarch64): stesso flusso, nessun SDK di cross-compile, qui l'architettura di
+# build e quella target coincidono e basta un `cargo build --release` nativo.
 #
-# L'immagine NON compila nulla: incarta il binario prodotto dal cross-compile
-# con l'SDK Yocto Pixsys (scripts/yocto/build.sh) e la SPA già buildata.
-# Compilare Rust dentro un'immagine arm64 emulata richiederebbe ore.
+# L'immagine NON compila nulla: incarta il binario già buildato e la SPA già
+# buildata.
 #
-# La SPA è DENTRO l'immagine dal 2026-07-30: col registry i layer si
-# deduplicano, quindi un frontend nuovo trasferisce ~0,4 MB e non i 59 MB
-# dell'immagine intera, e sul dispositivo non c'è più un secondo artefatto da
-# copiare né il rischio di SPA e binario di versioni diverse.
+# La SPA è DENTRO l'immagine dal 2026-07-30, come nel percorso aarch64: col
+# registry i layer si deduplicano, quindi un frontend nuovo trasferisce il solo
+# layer della SPA e non l'immagine intera, e sul dispositivo non c'è più un
+# secondo artefatto da copiare né il rischio di SPA e binario di versioni
+# diverse.
 #
 # Due modi di consegnare l'immagine:
 #
 #   --push        → registry (default ghcr.io/soligolab/sws-runtime), poi sul
 #                   dispositivo `install-container.sh --pull`. Un aggiornamento
-#                   scarica il solo layer cambiato (~14 MB il binario).
-#   (default)     → archivio dist/sws-runtime-<versione>-aarch64-image.tar.gz
-#                   (~59 MB) da copiare via scp: il ripiego per un dispositivo
-#                   senza rete verso il registry.
+#                   scarica il solo layer cambiato.
+#   (default)     → archivio dist/sws-runtime-<versione>-x86_64-image.tar.gz
+#                   da copiare via scp: il ripiego per un dispositivo senza
+#                   rete verso il registry.
 #
 # Uso:
-#   ./scripts/build_container.sh                    # cross-build + immagine + archivio
-#   ./scripts/build_container.sh --push             # ...e pubblica sul registry
-#   ./scripts/build_container.sh --no-save --push    # solo pubblicazione, nessun archivio
-#   ./scripts/build_container.sh --no-rust          # riusa il binario aarch64 esistente
-#   ./scripts/build_container.sh --no-spa           # riusa sws-editor/dist così com'è
-#   ./scripts/build_container.sh --registry REF     # altro repository di destinazione
-#   ./scripts/build_container.sh --out DIR          # directory di output (default dist/)
+#   ./scripts/build_container_x86_64.sh                 # build + immagine + archivio
+#   ./scripts/build_container_x86_64.sh --push          # ...e pubblica sul registry
+#   ./scripts/build_container_x86_64.sh --no-save --push # solo pubblicazione
+#   ./scripts/build_container_x86_64.sh --no-rust       # riusa il binario x86_64 esistente
+#   ./scripts/build_container_x86_64.sh --no-spa        # riusa sws-editor/dist così com'è
+#   ./scripts/build_container_x86_64.sh --registry REF  # altro repository di destinazione
+#   ./scripts/build_container_x86_64.sh --out DIR       # directory di output (default dist/)
 #
-# Requisiti: SDK Yocto Pixsys in /usr/local/oecore-x86_64/ (salvo --no-rust),
-#            podman, rete per scaricare ubuntu:24.04 e — con --push — un
-#            `podman login` già fatto sul registry.
+# Requisiti: Rust/cargo (nessun SDK speciale), podman, rete per scaricare
+#            debian:trixie-slim e — con --push — un `podman login` già fatto
+#            sul registry.
 
 set -euo pipefail
 
@@ -45,8 +47,7 @@ SAVE=1
 PUSH=0
 REGISTRY="ghcr.io/soligolab/sws-runtime"
 OUT_DIR="$REPO/dist"
-SDK_ENV="/usr/local/oecore-x86_64/environment-setup-cortexa35-pixsys-linux"
-BIN="$REPO/sws-runtime/target/aarch64-unknown-linux-gnu/release/sws-runtime"
+BIN="$REPO/sws-runtime/target/release/sws-runtime"
 SPA_DIST="$REPO/sws-editor/dist"
 
 while [ $# -gt 0 ]; do
@@ -61,15 +62,9 @@ while [ $# -gt 0 ]; do
     esac
 done
 
-if [ "$BUILD_RUST" -eq 1 ] && [ ! -f "$SDK_ENV" ]; then
-    echo "ERRORE: SDK Yocto Pixsys non trovato ($SDK_ENV)." >&2
-    echo "        Installalo, oppure passa --no-rust per riusare un binario esistente." >&2
-    exit 1
-fi
-
 # ── Controlli preliminari alla pubblicazione ──────────────────────────────────
-# Tutti PRIMA della build: una cross-compilazione dura minuti, e scoprire alla
-# fine che manca il login (o che l'albero è sporco) è tempo buttato.
+# Tutti PRIMA della build, per la stessa ragione del percorso aarch64: scoprire
+# alla fine che manca il login (o che l'albero è sporco) è tempo buttato.
 GIT_SHA=""
 if [ "$PUSH" -eq 1 ]; then
     # L'immagine porta un tag col commit da cui nasce. Con l'albero sporco quel
@@ -100,39 +95,36 @@ VERSION=$(cd "$REPO/sws-runtime" && cargo metadata --no-deps --format-version 1 
       print(next(p['version'] for p in pkgs if p['name']=='sws-runtime'))")
 IMAGE="sws-runtime:${VERSION}"
 
-echo "==> SWS runtime container image ${VERSION} (linux/arm64)"
+echo "==> SWS runtime container image ${VERSION} (linux/amd64)"
 
-# ── 1. Cross-compile ──────────────────────────────────────────────────────────
-# In a subprocess on purpose: yocto/build.sh sources the SDK environment into
-# its own shell, which would otherwise clobber PATH/pkg-config for the rest of
-# this script. Same reasoning as scripts/build_deploy.sh.
+# ── 1. Build ───────────────────────────────────────────────────────────────────
 if [ "$BUILD_RUST" -eq 1 ]; then
-    if [ "$BUILD_SPA" -eq 1 ]; then
-        echo "==> [1/4] cross-compile (binary + SPA)"
-        bash "$REPO/scripts/yocto/build.sh" release
-    else
-        echo "==> [1/4] cross-compile (binary only)"
-        bash "$REPO/scripts/yocto/build.sh" release --no-spa
-    fi
+    echo "==> [1/4] cargo build --release --bin sws-runtime"
+    (cd "$REPO/sws-runtime" && cargo build --release --bin sws-runtime)
 else
     echo "==> [1/4] skipped (--no-rust)"
+fi
+
+if [ "$BUILD_SPA" -eq 1 ]; then
+    echo "==> [1b/4] pnpm build (SPA)"
+    (cd "$REPO/sws-editor" && pnpm build)
+else
+    echo "==> [1b/4] skipped (--no-spa)"
 fi
 
 [ -f "$BIN" ]                || { echo "ERROR: missing $BIN" >&2; exit 1; }
 [ -f "$SPA_DIST/index.html" ] || { echo "ERROR: missing SPA at $SPA_DIST (drop --no-spa)" >&2; exit 1; }
 
-# Guard against the classic mistake of feeding the host binary to an arm64
-# image: it would build fine and fail only at `podman run` on the device.
-if ! file "$BIN" | grep -q "ARM aarch64"; then
-    echo "ERROR: $BIN is not an aarch64 binary:" >&2
+# Guard against the classic mistake of feeding a foreign-arch binary to an
+# amd64 image — same principle as build_container.sh's aarch64 check.
+if ! file "$BIN" | grep -q "x86-64"; then
+    echo "ERROR: $BIN is not an x86_64 binary:" >&2
     file "$BIN" >&2
     exit 1
 fi
 
 # ── 2. Stage the build context ────────────────────────────────────────────────
-# A dedicated staging dir keeps the context at ~40 MB. Building from the repo
-# root would tar up target/ and node_modules — gigabytes.
-CTX="$OUT_DIR/container-context"
+CTX="$OUT_DIR/container-context-x86_64"
 echo "==> [2/4] staging build context in $CTX"
 rm -rf "$CTX"
 mkdir -p "$CTX/bin" "$CTX/templates" "$CTX/www"
@@ -141,27 +133,26 @@ cp -r "$REPO/examples/templates/." "$CTX/templates/"
 cp -r "$SPA_DIST/." "$CTX/www/"
 
 # ── 3. Build the image ────────────────────────────────────────────────────────
-# --format docker is required, not cosmetic: HEALTHCHECK has no place in the
-# OCI image spec, so with the default (oci) podman drops it with a warning and
-# `podman ps` would never report healthy.
-echo "==> [3/4] podman build --platform linux/arm64 -t $IMAGE"
-podman build --platform linux/arm64 --format docker \
+# --format docker è indispensabile, non cosmetico: HEALTHCHECK non esiste nella
+# spec OCI, senza --format docker podman lo scarta con un warning silenzioso.
+echo "==> [3/4] podman build --platform linux/amd64 -t $IMAGE"
+podman build --platform linux/amd64 --format docker \
     -t "$IMAGE" \
-    -f "$REPO/deploy/container/Containerfile.aarch64" \
+    -f "$REPO/deploy/container/Containerfile.x86_64" \
     "$CTX"
 rm -rf "$CTX"
 
 # ── 4a. Pubblicazione sul registry ────────────────────────────────────────────
 # Due tag per la stessa immagine: uno mobile che i dispositivi seguono, uno
-# immutabile che dice da quale commit nasce. Senza il secondo, fra sei mesi
-# "cosa c'è sul dispositivo" non ha risposta.
+# immutabile che dice da quale commit nasce.
 #
-# Il suffisso -arm64 è deliberato: questa NON è una manifest list multi-arch, e
-# un tag nudo farebbe fallire un pull su x86 con un errore incomprensibile
-# ("no matching manifest"), invece di dire che quell'immagine è solo per arm64.
+# Il suffisso -amd64 è deliberato e speculare al -arm64 del percorso aarch64:
+# questa NON è una manifest list multi-arch, e un tag nudo farebbe fallire un
+# pull su arm64 con un errore incomprensibile ("no matching manifest") invece
+# di dire che quell'immagine è solo per amd64.
 if [ "$PUSH" -eq 1 ]; then
-    TAG_VERSION="${REGISTRY}:${VERSION}-arm64"
-    TAG_COMMIT="${REGISTRY}:${GIT_SHA}-arm64"
+    TAG_VERSION="${REGISTRY}:${VERSION}-amd64"
+    TAG_COMMIT="${REGISTRY}:${GIT_SHA}-amd64"
     echo "==> [4/4] pubblicazione su $REGISTRY"
     podman tag "$IMAGE" "$TAG_VERSION"
     podman tag "$IMAGE" "$TAG_COMMIT"
@@ -177,7 +168,7 @@ fi
 # Serve solo dove il registry non è raggiungibile: la SPA è dentro l'immagine,
 # quindi questo archivio è l'unico artefatto da copiare.
 if [ "$SAVE" -eq 1 ]; then
-    ARCHIVE="$OUT_DIR/sws-runtime-${VERSION}-aarch64-image.tar"
+    ARCHIVE="$OUT_DIR/sws-runtime-${VERSION}-x86_64-image.tar"
     echo "==> [4b] podman save → ${ARCHIVE}.gz"
     mkdir -p "$OUT_DIR"
     rm -f "$ARCHIVE" "$ARCHIVE.gz"

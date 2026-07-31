@@ -3,22 +3,28 @@
 > Percorso per i device **Pixsys OS** (aarch64) dove il runtime deve girare in
 > un container podman rootless, invece che come servizio systemd nativo.
 >
-> Non sostituisce gli altri due percorsi:
-> - **binario nativo Yocto** (`docs/YOCTO_CROSSCOMPILE.md`) — resta il percorso
->   preferito quando si può installare come servizio di sistema;
-> - **container x86 legacy** (`docs/DEPLOY_PX30.md`, `compose.yaml`,
->   `sws-runtime/docker/Dockerfile`) — flusso storico, **non** quello descritto qui.
->   La sua pubblicazione automatica in CI è disattivata: costruiva un'immagine
->   che non parte, all'indirizzo che il README pubblicizza.
->
 > **In breve**: `build_container.sh --push` sulla macchina di sviluppo,
 > `install-container.sh --pull` sul dispositivo. Il resto di questo documento
 > spiega il perché di ogni pezzo — serve quando qualcosa non torna, non per un
 > aggiornamento di routine.
+>
+> Per un device **x86_64** (non aarch64), stesso installer e stessa esperienza, vedi
+> `docs/DEPLOY_CONTAINER_X86_64.md` — non `docs/DEPLOY_PX30.md`, che copre target
+> ARM64 generici (Raspberry Pi, Jetson...) buildati da un laptop x86, non un target
+> x86_64.
+>
+> Non sostituisce il percorso **binario nativo Yocto**
+> (`docs/YOCTO_CROSSCOMPILE.md`) — resta preferibile quando si può installare come
+> servizio di sistema invece che in container.
+>
+> Il **container x86 legacy** (`docs/DEPLOY_PX30.md`, `compose.yaml`,
+> `sws-runtime/docker/Dockerfile`) è un flusso storico, **non** quello descritto
+> qui. La sua pubblicazione automatica in CI è disattivata: costruiva un'immagine
+> che non parte, all'indirizzo che il README pubblicizza.
 
 ## Come è fatta l'immagine
 
-`deploy/container/Containerfile` **non compila nulla**. Copia dentro il binario
+`deploy/container/Containerfile.aarch64` **non compila nulla**. Copia dentro il binario
 già cross-compilato dall'SDK Pixsys, la SPA e i template. Una build Rust dentro
 un'immagine arm64 emulata richiederebbe ore; così dura secondi (a parte
 l'`apt-get`, che sotto QEMU resta lento la prima volta).

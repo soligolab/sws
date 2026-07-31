@@ -113,10 +113,11 @@ misurare è l'unico modo di sapere se sono tornate.
 ### `check_spa_autoreload.sh` — il pannello prende la SPA nuova?
 
 Verifica che il viewer si ricarichi da solo quando sul dispositivo arriva un
-frontend aggiornato (cioè dopo `install-container.sh --www-only`). Simula il
-deploy rinominando il chunk di entry con un hash diverso — lo stesso segnale che
-Vite produce a ogni build — e controlla che la pagina si ricarichi servendo il
-bundle nuovo.
+frontend aggiornato (cioè dopo un `install-container.sh --pull` che porta
+un'immagine con la SPA nuova; fino al 2026-07-30 era `--www-only`, quando la
+SPA viaggiava a parte). Simula il deploy rinominando il chunk di entry con un
+hash diverso — lo stesso segnale che Vite produce a ogni build — e controlla
+che la pagina si ricarichi servendo il bundle nuovo.
 
 ```sh
 pnpm --dir sws-editor build
