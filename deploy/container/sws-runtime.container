@@ -27,7 +27,7 @@ Wants=network-online.target
 # l'immagine giusta senza doverla costruire. `install-container.sh` riscrive
 # comunque questa riga con ciò che ha effettivamente installato (--pull, --image
 # o --tag), quindi qui conta solo come default sensato.
-Image=ghcr.io/soligolab/sws-runtime:0.1.0-dev-arm64
+Image=ghcr.io/soligolab/sws-runtime:latest-arm64
 ContainerName=sws-runtime
 
 # 8443 viewer operatori, 8444 IDE/admin. Porte > 1024: rootless le binda

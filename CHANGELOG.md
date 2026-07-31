@@ -3,9 +3,30 @@
 All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
-and this project adheres to [CalVer](https://calver.org/) (`YYYY.MM[.patch]`).
+and this project adheres to [CalVer](https://calver.org/) (`YYYY.M.PATCH` — mese senza zero iniziale
+e patch obbligatoria, perché Cargo rifiuta sia `2026.07` sia `2026.7`).
 
 ## [Unreleased]
+
+## [2026.7.0] — 2026-07-31
+
+Prima release con un numero vero: si esce da `0.1.0-dev`. Il contenuto è il lavoro di luglio, la cui
+parte più consistente è il passaggio del container alla distribuzione da registry.
+
+- **Versione applicata a tutto il monorepo**: `sws-runtime/Cargo.toml` (che è la sorgente da cui gli
+  script di build la leggono), `sws-editor/package.json`, `sws-kiosk`. Compare in `/health`,
+  nell'annuncio mDNS e nei nomi degli artefatti.
+- **L'immagine container si pubblica anche su un tag mobile `latest-<arch>`**, oltre a
+  `<versione>-<arch>` e `<sha>-<arch>`. È il nuovo default di `install-container.sh --pull`: un
+  dispositivo prende l'ultima pubblicata senza che qualcuno debba ricordarsi di aggiornare un numero
+  dentro lo script a ogni release — che è esattamente il modo in cui i dispositivi restano indietro
+  in silenzio. **Non rende gli aggiornamenti automatici**: il pull resta un comando che qualcuno dà,
+  come deciso il 2026-07-30. Per inchiodare una versione si passa il riferimento per esteso.
+- **`install-container.sh` non indovina più il nome dell'immagine caricata**: lo legge dall'output di
+  `podman load`. Era cablato a `localhost/sws-runtime:0.1.0-dev`, quindi la prima release con un
+  numero diverso avrebbe fatto morire l'installazione **offline** su *"immagine assente"* davanti a
+  un archivio perfettamente valido — con un messaggio che mandava a cercare il problema dalla parte
+  sbagliata. Un `--tag` esplicito continua a vincere.
 
 ### Added
 

@@ -376,7 +376,7 @@ curl -k https://localhost:8444/api/build/packages \
 
 ```json
 [
-  { "name": "sws-0.1.0-dev-linux-x86_64.tar.gz", "size_bytes": 12582912, "mtime_ms": 1735600000000 }
+  { "name": "sws-2026.7.0-linux-x86_64.tar.gz", "size_bytes": 12582912, "mtime_ms": 1735600000000 }
 ]
 ```
 
@@ -389,7 +389,7 @@ curl -k -X POST https://localhost:8444/api/deploy/device \
   -H "Authorization: Bearer $TOKEN" \
   -H 'Content-Type: application/json' \
   -d '{
-    "tarball": "sws-0.1.0-dev-linux-x86_64.tar.gz",
+    "tarball": "sws-2026.7.0-linux-x86_64.tar.gz",
     "host": "192.168.1.10",
     "port": 22,
     "user": "root",

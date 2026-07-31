@@ -23,8 +23,8 @@ Dal repository, esegui lo script di packaging:
 
 Questo produce:
 ```
-dist/sws-0.1.0-dev-linux-x86_64.tar.gz   (su x86_64)
-dist/sws-0.1.0-dev-linux-aarch64.tar.gz   (su ARM64)
+dist/sws-2026.7.0-linux-x86_64.tar.gz   (su x86_64)
+dist/sws-2026.7.0-linux-aarch64.tar.gz   (su ARM64)
 ```
 
 Flags opzionali:
@@ -36,7 +36,7 @@ Flags opzionali:
 ### 2. Trasferimento al target
 
 ```bash
-scp dist/sws-0.1.0-dev-linux-x86_64.tar.gz utente@192.168.1.10:/tmp/
+scp dist/sws-2026.7.0-linux-x86_64.tar.gz utente@192.168.1.10:/tmp/
 ```
 
 ### 3. Installazione
@@ -44,8 +44,8 @@ scp dist/sws-0.1.0-dev-linux-x86_64.tar.gz utente@192.168.1.10:/tmp/
 ```bash
 # Sul server target
 cd /tmp
-tar xzf sws-0.1.0-dev-linux-x86_64.tar.gz
-cd sws-0.1.0-dev-linux-x86_64
+tar xzf sws-2026.7.0-linux-x86_64.tar.gz
+cd sws-2026.7.0-linux-x86_64
 sudo ./install.sh
 ```
 

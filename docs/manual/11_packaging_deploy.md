@@ -53,7 +53,7 @@ non è disponibile (il messaggio lo indica).
 ./scripts/package.sh --no-rust --no-spa # solo impacchetta
 ```
 
-Output: `dist/sws-0.1.0-dev-linux-x86_64.tar.gz`
+Output: `dist/sws-2026.7.0-linux-x86_64.tar.gz`
 
 ---
 
@@ -92,7 +92,7 @@ Click **📦 Deploy su device**.
 Il sistema esegue in sequenza, con log in streaming:
 
 ```
-==> SCP: dist/sws-0.1.0-dev-linux-x86_64.tar.gz → user@192.168.1.10:/tmp/sws-deploy/
+==> SCP: dist/sws-2026.7.0-linux-x86_64.tar.gz → user@192.168.1.10:/tmp/sws-deploy/
 ==> SCP completato
 ==> Estrazione tarball...
 ==> Installazione (install.sh)...
@@ -139,13 +139,13 @@ Se preferisci non usare la UI, il deploy manuale è sempre disponibile:
 ./scripts/package.sh
 
 # 2. SCP
-scp dist/sws-0.1.0-dev-linux-x86_64.tar.gz utente@device:/tmp/
+scp dist/sws-2026.7.0-linux-x86_64.tar.gz utente@device:/tmp/
 
 # 3. SSH + install
 ssh utente@device "
   cd /tmp
-  tar xzf sws-0.1.0-dev-linux-x86_64.tar.gz
-  cd sws-0.1.0-dev-linux-x86_64
+  tar xzf sws-2026.7.0-linux-x86_64.tar.gz
+  cd sws-2026.7.0-linux-x86_64
   sudo ./install.sh
 "
 

@@ -162,15 +162,19 @@ rm -rf "$CTX"
 if [ "$PUSH" -eq 1 ]; then
     TAG_VERSION="${REGISTRY}:${VERSION}-arm64"
     TAG_COMMIT="${REGISTRY}:${GIT_SHA}-arm64"
+    # Terzo tag, mobile: è il default di `install-container.sh --pull`, così un
+    # dispositivo prende l'ultima pubblicata senza che qualcuno debba ricordarsi
+    # di aggiornare un numero dentro lo script a ogni release.
+    TAG_LATEST="${REGISTRY}:latest-arm64"
     echo "==> [4/4] pubblicazione su $REGISTRY"
-    podman tag "$IMAGE" "$TAG_VERSION"
-    podman tag "$IMAGE" "$TAG_COMMIT"
-    for t in "$TAG_VERSION" "$TAG_COMMIT"; do
+    for t in "$TAG_VERSION" "$TAG_COMMIT" "$TAG_LATEST"; do
+        podman tag "$IMAGE" "$t"
         echo "    push $t"
         podman push "$t"
     done
     echo
-    echo "    sul dispositivo:  ./install-container.sh --pull $TAG_VERSION"
+    echo "    sul dispositivo:  ./install-container.sh --pull            # $TAG_LATEST"
+    echo "    per inchiodare la versione:  ./install-container.sh --pull $TAG_VERSION"
 fi
 
 # ── 4b. Archivio trasferibile (ripiego offline) ───────────────────────────────
