@@ -98,7 +98,11 @@ fi
 VERSION=$(cd "$REPO/sws-runtime" && cargo metadata --no-deps --format-version 1 \
     | python3 -c "import json,sys; pkgs=json.load(sys.stdin)['packages']; \
       print(next(p['version'] for p in pkgs if p['name']=='sws-runtime'))")
-IMAGE="sws-runtime:${VERSION}"
+# Il suffisso di architettura è nel tag LOCALE, non solo in quelli del
+# registry: senza, una build x86_64 si prende lo stesso nome e
+# `podman run sws-runtime:<versione>` dà quella costruita per ultima.
+# Capitato davvero il 2026-07-31, costruendo le due immagini di seguito.
+IMAGE="sws-runtime:${VERSION}-arm64"
 
 echo "==> SWS runtime container image ${VERSION} (linux/arm64)"
 

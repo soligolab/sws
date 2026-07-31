@@ -2,9 +2,12 @@
 # esperienza del percorso aarch64 (Containerfile.aarch64), su una macchina di
 # sviluppo/device x86_64 qualunque.
 #
-# NON compila nulla: il binario arriva già compilato NATIVAMENTE (nessun SDK di
-# cross-compile necessario — a differenza di aarch64, qui l'architettura di
-# build e quella target coincidono) da `scripts/build_container_x86_64.sh`.
+# NON compila nulla: il binario arriva già compilato da
+# `scripts/build_container_x86_64.sh`, che lo produce dentro l'immagine
+# `Containerfile.x86_64.builder`. Nessun cross-compile — l'architettura di build
+# e quella target coincidono — ma nemmeno una compilazione sull'host, che
+# legherebbe l'immagine alla macchina che la costruisce (vedi il commento sul
+# `FROM` qui sotto).
 #
 # Il contesto di build è la directory staging preparata da quello script
 # (bin/, templates/, www/), non la radice del repo: tenerlo piccolo evita di
@@ -14,21 +17,23 @@
 # (immagine legacy, disattivata in CI) e da `Containerfile.aarch64` (device
 # Pixsys Yocto). Vedi docs/DEPLOY_CONTAINER_X86_64.md.
 
-# debian:bookworm-slim NON basta — verificato con readelf, non assunto: il
-# binario nativo buildato su questa macchina (Debian 12 con un python3.13 da
-# fonte esterna, es. pyenv) dichiara:
-#   NEEDED  libpython3.13.so.1.0
-#   simboli fino a GLIBC_2.39
-# quindi la base deve avere insieme Python 3.13 e glibc >= 2.39:
-#   debian:bookworm-slim  glibc 2.36 + Python 3.11  → doppiamente incompatibile
-#   debian:trixie-slim    glibc 2.41 + Python 3.13  → combacia
-# QUESTO NON È UNIVERSALE: chi builda su un'altra macchina, con un altro
-# python3 di sistema, deve rifare `readelf -d`/`-V` sul proprio binario prima
-# di fidarsi di questa riga — è lo stesso principio già documentato per
-# Containerfile.aarch64, qui ancora più rilevante perché non c'è un SDK fisso
-# a garantire un binario identico da una macchina all'altra (vedi il limite
-# di riproducibilità in docs/DEPLOY_CONTAINER_X86_64.md).
-FROM debian:trixie-slim
+# `ubuntu:24.04`, la STESSA base dell'immagine aarch64.
+#
+# Non è una preferenza: la base la impone il binario. PyO3 gira con
+# `auto-initialize`, quindi il binario linka la `libpython` dell'ambiente che lo
+# compila. Prima si compilava sull'host e la riga `FROM` andava riverificata a
+# mano su ogni macchina di build — una Debian 12 produce un binario che chiede
+# `libpython3.11.so.1.0`, una macchina con pyenv `libpython3.13`, e l'immagine
+# risultava diversa da una postazione all'altra.
+#
+# Ora il binario si compila dentro `Containerfile.x86_64.builder`, che è pure
+# `ubuntu:24.04`: linka Python 3.12 e glibc 2.39, cioè esattamente ciò che
+# questa base offre. La verifica `readelf` non è sparita, la fa
+# `build_container_x86_64.sh` sul binario prodotto e si ferma se non combacia.
+#
+# Il risultato è che le due architetture sono gemelle: aarch64 ha l'SDK Yocto
+# Pixsys a garantire un binario sempre uguale, x86_64 ha l'immagine builder.
+FROM ubuntu:24.04
 
 # python3: PyO3 gira con `auto-initialize`, quindi serve l'interprete completo
 #   (stdlib inclusa), non la sola libpython.
@@ -40,7 +45,7 @@ RUN apt-get update && \
         ca-certificates \
         curl \
         python3 \
-        libpython3.13 \
+        libpython3.12t64 \
         python3-pip && \
     pip install --no-cache-dir --break-system-packages "RestrictedPython>=7.0" && \
     apt-get purge -y python3-pip && apt-get autoremove -y && \
