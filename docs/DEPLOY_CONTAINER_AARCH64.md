@@ -310,7 +310,8 @@ Opzioni:
 
 | Flag | Effetto |
 |---|---|
-| `--pull [REF]` | scarica dal registry (default `ghcr.io/soligolab/sws-runtime:latest-arm64`) |
+| `--pull [REF]` | scarica dal registry. Senza `REF`: `ghcr.io/soligolab/sws-runtime:latest-<arch>`, con `<arch>` dedotta **qui sul dispositivo** da `uname -m` |
+| `--pull-only [REF]` | procura l'immagine ed esce, senza toccare il servizio in esecuzione |
 | `--image ARCHIVIO` | carica da archivio: dispositivi senza rete verso il registry |
 | `--data DIR` | directory dati alternativa (default `/data/user/sws`) |
 | `--migrate-volumes` | recupera i dati dai volumi nominati pre-2026-07-28 |
@@ -324,6 +325,23 @@ Opzioni:
 Senza né `--pull` né `--image` l'installer riusa l'immagine già presente sul
 dispositivo: utile per riscrivere la unit (per esempio passando a `--bridge`)
 senza ritrasferire niente.
+
+### Dall'IDE, senza toccare il terminale
+
+Configurazione → Runtime → **Installa su dispositivo** → *Container (Podman)*
+fa le stesse cose via SSH. La sorgente si sceglie lì:
+
+- **Registry** (default): sul dispositivo arrivano solo l'installer e la unit
+  (pochi kB) e il resto lo scarica lui. Il campo *Riferimento immagine* è
+  facoltativo — vuoto significa `latest-<arch>`, con l'architettura decisa dal
+  dispositivo.
+- **Archivio locale**: copia via `scp` un `.tar.gz` da `dist/` (~59 MB). Serve
+  dove il registry non si raggiunge.
+
+La spunta **Installazione pulita** aggiunge un `--uninstall --purge` prima
+dell'installazione, con conferma. Dal registry l'immagine viene procurata prima
+di cancellare (`--pull-only`): se il pull fallisce non si cancella niente e il
+dispositivo resta com'è, invece di restare senza dati **e** senza runtime.
 
 ### Avvio automatico al boot
 

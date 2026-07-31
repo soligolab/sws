@@ -485,11 +485,27 @@ fn resolve_dist_file(repo: &std::path::Path, name: &str) -> Result<PathBuf, Stri
 
 #[derive(Debug, Deserialize)]
 pub struct DeviceContainerDeployRequest {
-    /// Container image archive (basename only, must exist in dist/).
+    /// Archivio immagine in `dist/` (solo basename). Obbligatorio **soltanto**
+    /// in modalità archivio: dal registry non si copia niente e resta vuoto.
     /// La SPA non ha più un campo suo: dal 2026-07-30 sta dentro l'immagine
     /// (vedi Containerfile.aarch64/.x86_64). Un client più vecchio che manda
     /// ancora `www_tarball` non rompe niente — serde ignora i campi in più.
+    #[serde(default)]
     pub image_tarball: String,
+    /// `"registry"` o `"archive"`. Assente = si deduce dal resto, vedi
+    /// `resolve_image_spec`: è così che un IDE più vecchio, che questo campo
+    /// non lo manda, continua a installare dal proprio archivio.
+    #[serde(default)]
+    pub image_source: Option<String>,
+    /// Riferimento del registry. Vuoto = lo compone l'installer sul dispositivo
+    /// da `uname -m`: l'IDE non sa su che architettura sta installando.
+    #[serde(default)]
+    pub image_ref: String,
+    /// Azzera i dati del dispositivo prima di installare (`--uninstall
+    /// --purge`). Mai desumibile da altri campi e `false` per default: un
+    /// default sbagliato qui cancella progetti su una macchina in servizio.
+    #[serde(default)]
+    pub clean_install: bool,
     pub host: String,
     #[serde(default = "default_ssh_port")]
     pub port: u16,
@@ -505,13 +521,120 @@ pub struct DeviceContainerDeployRequest {
     pub data_path: String,
 }
 
+/// Da dove arriva l'immagine sul dispositivo.
+///
+/// `Registry` con riferimento **vuoto** significa "decidilo tu": l'architettura
+/// la deduce `install-container.sh` da `uname -m` sul dispositivo, che è l'unico
+/// a saperla con certezza — dall'IDE si installa su macchine diverse da quella
+/// di sviluppo.
+///
+/// Che sia un enum e non due `Option` incrociati non è estetica: garantisce per
+/// costruzione che `--pull` e `--image` non finiscano mai nello stesso comando,
+/// combinazione che l'installer rifiuta.
+#[derive(Debug, PartialEq)]
+enum ImageSpec {
+    Archive(String),
+    Registry(String),
+}
+
+/// Caratteri ammessi in un riferimento di registry. `:` e `@` servono per tag e
+/// digest; tutto il resto è escluso perché il riferimento finisce interpolato in
+/// un comando eseguito via SSH sul dispositivo, esattamente come `remote_dir`.
+fn registry_ref_is_safe(r: &str) -> bool {
+    !r.is_empty()
+        && r.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | ':' | '/' | '@' | '-'))
+        // Un riferimento che inizia con `-` verrebbe scartato in SILENZIO
+        // dall'installer, che lo scambierebbe per una flag e ripiegherebbe sul
+        // default: si installerebbe un'immagine diversa da quella chiesta.
+        && !r.starts_with('-')
+}
+
+/// Decide da dove prendere l'immagine, validando quel che serve.
+///
+/// `source` è `Option` e non ha un default a "registry" di proposito: un IDE
+/// più vecchio manda solo `image_tarball` e nessuna sorgente, e interpretarlo
+/// come "registry" gli farebbe ignorare in silenzio l'archivio che ha scelto,
+/// scaricando dal registry un'immagine che nessuno ha chiesto.
+fn resolve_image_spec(
+    source: Option<&str>,
+    image_tarball: &str,
+    image_ref: &str,
+) -> Result<ImageSpec, String> {
+    let want_archive = match source {
+        Some("archive") => true,
+        Some("registry") => false,
+        Some(other) => return Err(format!("sorgente immagine sconosciuta: {other}")),
+        None => !image_tarball.is_empty(),
+    };
+
+    if want_archive {
+        if image_tarball.is_empty() {
+            return Err("sorgente 'archive' senza image_tarball".to_string());
+        }
+        return Ok(ImageSpec::Archive(image_tarball.to_string()));
+    }
+
+    if image_ref.is_empty() {
+        return Ok(ImageSpec::Registry(String::new()));
+    }
+    if !registry_ref_is_safe(image_ref) {
+        return Err(format!("riferimento immagine non valido: {image_ref}"));
+    }
+    Ok(ImageSpec::Registry(image_ref.to_string()))
+}
+
+/// Prefisso comune dei comandi remoti. Estratto perché le tre varianti
+/// (installazione, pull-only, purge) non divergano nel tempo.
+fn install_sh(remote_dir: &str) -> String {
+    format!("cd {remote_dir} && chmod +x install-container.sh && ./install-container.sh")
+}
+
 /// Build the remote `install-container.sh` invocation. Split out from
 /// `deploy_device_container` so it's unit-testable without an actual SSH
 /// round-trip — mirrors `resolve_dist_file`/`parse_image_tarball` above.
-fn build_install_cmd(remote_dir: &str, image: &str, data_path: &str) -> String {
-    let mut cmd = format!(
-        "cd {remote_dir} && chmod +x install-container.sh && ./install-container.sh --image {image}"
-    );
+fn build_install_cmd(remote_dir: &str, image: &ImageSpec, data_path: &str) -> String {
+    let mut cmd = install_sh(remote_dir);
+    match image {
+        ImageSpec::Archive(f) => cmd.push_str(&format!(" --image {f}")),
+        ImageSpec::Registry(r) if r.is_empty() => cmd.push_str(" --pull"),
+        ImageSpec::Registry(r) => cmd.push_str(&format!(" --pull {r}")),
+    }
+    if !data_path.is_empty() {
+        cmd.push_str(&format!(" --data {data_path}"));
+    }
+    cmd
+}
+
+/// Comando che procura l'immagine e basta, da eseguire **prima** di un purge.
+///
+/// `None` in modalità archivio: lì l'immagine è già stata copiata via scp, non
+/// c'è niente da procurare e nessuna rete da cui dipendere.
+fn build_pull_only_cmd(remote_dir: &str, image: &ImageSpec) -> Option<String> {
+    match image {
+        ImageSpec::Archive(_) => None,
+        ImageSpec::Registry(r) => {
+            let mut cmd = install_sh(remote_dir);
+            cmd.push_str(" --pull-only");
+            if !r.is_empty() {
+                cmd.push_str(&format!(" {r}"));
+            }
+            Some(cmd)
+        }
+    }
+}
+
+/// Comando che azzera i dati del dispositivo.
+///
+/// **Deve ripetere `--data`.** L'installer fa `rm -rf "$DATA"` e `DATA` viene
+/// dal parsing delle flag: senza ripetere il percorso scelto nel pannello, il
+/// purge cancellerebbe il default `/data/user/sws` lasciando intatti i dati veri
+/// — cioè distruggerebbe i dati sbagliati e mancherebbe quelli giusti.
+///
+/// È un comando a sé e non un'opzione dell'installazione perché `--uninstall`
+/// esce con `exit 0` e non prosegue mai.
+fn build_purge_cmd(remote_dir: &str, data_path: &str) -> String {
+    let mut cmd = install_sh(remote_dir);
+    cmd.push_str(" --uninstall --purge");
     if !data_path.is_empty() {
         cmd.push_str(&format!(" --data {data_path}"));
     }
@@ -526,9 +649,14 @@ fn build_install_cmd(remote_dir: &str, image: &str, data_path: &str) -> String {
 /// **without `sudo`**, unlike the native-binary path, because rootless
 /// Podman needs none.
 ///
-/// Questo è il percorso **offline**: copia un archivio da ~59 MB via scp.
-/// Quando il dispositivo raggiunge il registry, `install-container.sh --pull`
-/// trasferisce solo il layer cambiato — vedi docs/DEPLOY_CONTAINER_AARCH64.md.
+/// Due sorgenti per l'immagine. Dal **registry** si copiano solo installer e
+/// unit (pochi kB) e il dispositivo scarica i layer che gli mancano: è la
+/// strada normale. Da **archivio** si copiano ~59 MB via scp: serve dove il
+/// registry non si raggiunge, che in campo è il caso normale.
+///
+/// Con `clean_install` l'immagine viene procurata **prima** di cancellare i
+/// dati (`--pull-only`), non dopo: altrimenti un pull fallito su un purge già
+/// eseguito lascerebbe il dispositivo senza dati e senza runtime.
 pub async fn deploy_device_container(
     State(s): State<AppState>,
     EJson(req): EJson<DeviceContainerDeployRequest>,
@@ -552,10 +680,26 @@ pub async fn deploy_device_container(
         ).into_response();
     }
 
-    let image_path = match resolve_dist_file(&repo, &req.image_tarball) {
-        Ok(p) => p,
+    let image_spec = match resolve_image_spec(
+        req.image_source.as_deref(),
+        &req.image_tarball,
+        &req.image_ref,
+    ) {
+        Ok(spec) => spec,
         Err(e) => return (StatusCode::BAD_REQUEST, format!("{e}\n")).into_response(),
     };
+
+    // L'archivio si risolve solo se serve davvero: con la sorgente registry
+    // `dist/` può non esistere affatto, ed è il caso di chi installa senza aver
+    // mai fatto una build.
+    let image_path = match &image_spec {
+        ImageSpec::Archive(name) => match resolve_dist_file(&repo, name) {
+            Ok(p) => Some(p),
+            Err(e) => return (StatusCode::BAD_REQUEST, format!("{e}\n")).into_response(),
+        },
+        ImageSpec::Registry(_) => None,
+    };
+
     let installer_src = repo.join("deploy/container/install-container.sh");
     let quadlet_src = repo.join("deploy/container/sws-runtime.container");
     if !installer_src.exists() || !quadlet_src.exists() {
@@ -564,7 +708,13 @@ pub async fn deploy_device_container(
         ).into_response();
     }
 
-    let image_basename = image_path.file_name().unwrap().to_str().unwrap().to_string();
+    // Riga di riepilogo composta qui, dove i dati ci sono ancora tutti.
+    let source_line = match &image_spec {
+        ImageSpec::Archive(name) => format!("==> immagine: archivio {name}"),
+        ImageSpec::Registry(r) if r.is_empty() =>
+            "==> immagine: registry (latest-<arch>, l'architettura la decide il dispositivo)".to_string(),
+        ImageSpec::Registry(r) => format!("==> immagine: registry ({r})"),
+    };
 
     let (tx, rx) = tokio::sync::mpsc::channel::<String>(128);
 
@@ -581,6 +731,7 @@ pub async fn deploy_device_container(
 
         let host_str = format!("{}@{}", req.user, req.host);
         let port_str = req.port.to_string();
+        send(&source_line);
 
         // ── 1. Crea remote_dir ──────────────────────────────────────────────
         // A differenza di deploy_device (che scp-a dentro /tmp/..., quasi
@@ -596,13 +747,19 @@ pub async fn deploy_device_container(
         ).await;
         if !ok { return; }
 
-        // ── 2. SCP dei tre file (immagine, installer, quadlet) ─────────────
-        // La SPA non è più fra questi: viaggia dentro l'immagine.
-        let uploads: [(&str, &std::path::Path); 3] = [
-            ("immagine", image_path.as_path()),
-            ("installer", installer_src.as_path()),
-            ("unit quadlet", quadlet_src.as_path()),
-        ];
+        // ── 2. SCP ─────────────────────────────────────────────────────────
+        // Installer e unit sempre: l'installer legge la unit da una posizione
+        // relativa a sé stesso, quindi devono atterrare nella stessa directory.
+        // L'immagine solo dal percorso offline — dal registry se la procura il
+        // dispositivo, ed è lì che si risparmiano i 59 MB.
+        // La SPA non è fra questi in nessuno dei due casi: viaggia dentro
+        // l'immagine dal 2026-07-30.
+        let mut uploads: Vec<(&str, &std::path::Path)> = Vec::with_capacity(3);
+        if let Some(p) = image_path.as_deref() {
+            uploads.push(("immagine", p));
+        }
+        uploads.push(("installer", installer_src.as_path()));
+        uploads.push(("unit quadlet", quadlet_src.as_path()));
         for (label, local) in uploads {
             send(&format!("==> SCP {label}: {} → {}:{}", local.display(), host_str, req.remote_dir));
             let ok = run_ssh_cmd(
@@ -616,9 +773,51 @@ pub async fn deploy_device_container(
         }
         send("==> SCP completato");
 
+        // ── 2-bis. Installazione pulita ────────────────────────────────────
+        // L'ordine è: procura l'immagine, POI cancella. Al contrario, un pull
+        // fallito dopo un purge già eseguito lascerebbe il dispositivo senza
+        // dati e senza runtime — e senza rete non ci sarebbe modo di rimediare
+        // da remoto. Dal percorso offline non serve: l'immagine è appena
+        // arrivata via scp.
+        if req.clean_install {
+            if let Some(pull_cmd) = build_pull_only_cmd(&req.remote_dir, &image_spec) {
+                send("==> Procuro l'immagine PRIMA di azzerare i dati...");
+                let ok = run_ssh_cmd(
+                    use_sshpass, &req.password,
+                    "ssh",
+                    &["-p", &port_str, "-o", "StrictHostKeyChecking=no",
+                      &host_str, &pull_cmd],
+                    &send,
+                ).await;
+                if !ok {
+                    send("ERROR: immagine non procurata. Nessun dato è stato cancellato e il runtime è intatto.");
+                    return;
+                }
+            }
+
+            let purged = if req.data_path.is_empty() { "/data/user/sws" } else { &req.data_path };
+            send(&format!("WARN: installazione pulita — azzero progetti, configurazione e storico in {purged}"));
+            let purge_cmd = build_purge_cmd(&req.remote_dir, &req.data_path);
+            let ok = run_ssh_cmd(
+                use_sshpass, &req.password,
+                "ssh",
+                &["-p", &port_str, "-o", "StrictHostKeyChecking=no",
+                  &host_str, &purge_cmd],
+                &send,
+            ).await;
+            if !ok {
+                // Fermarsi e dichiarare lo stato reale: installare sopra una
+                // directory dati in stato ignoto sarebbe peggio del fallimento.
+                send("ERROR: azzeramento fallito. Il servizio è stato rimosso e i dati potrebbero \
+                      essere cancellati solo in parte. Ripeti SENZA \"installazione pulita\" per \
+                      rimettere in servizio il runtime.");
+                return;
+            }
+        }
+
         // ── 3. Esegui install-container.sh (NESSUN sudo: podman rootless) ──
         send("==> Installazione (install-container.sh, podman rootless — nessun sudo richiesto)...");
-        let install_cmd = build_install_cmd(&req.remote_dir, &image_basename, &req.data_path);
+        let install_cmd = build_install_cmd(&req.remote_dir, &image_spec, &req.data_path);
         let ok = run_ssh_cmd(
             use_sshpass, &req.password,
             "ssh",
@@ -793,9 +992,14 @@ mod tests {
         assert!(!validate_remote_path("/tmp/$(whoami)"));
     }
 
+    fn archive(f: &str) -> ImageSpec { ImageSpec::Archive(f.to_string()) }
+    fn registry(r: &str) -> ImageSpec { ImageSpec::Registry(r.to_string()) }
+
+    /// Il percorso offline è già stato collaudato su un dispositivo vero: la
+    /// stringa che produce non deve cambiare di un carattere.
     #[test]
     fn build_install_cmd_omits_data_flag_when_empty() {
-        let cmd = build_install_cmd("/tmp/sws-deploy", "img.tar.gz", "");
+        let cmd = build_install_cmd("/tmp/sws-deploy", &archive("img.tar.gz"), "");
         assert_eq!(
             cmd,
             "cd /tmp/sws-deploy && chmod +x install-container.sh && \
@@ -807,17 +1011,145 @@ mod tests {
     /// più passare `--www`, che l'installer ora rifiuta con un errore esplicito.
     #[test]
     fn build_install_cmd_never_passes_www() {
-        let cmd = build_install_cmd("/tmp/sws-deploy", "img.tar.gz", "/opt/sws-data");
+        let cmd = build_install_cmd("/tmp/sws-deploy", &archive("img.tar.gz"), "/opt/sws-data");
         assert!(!cmd.contains("--www"), "comando inatteso: {cmd}");
     }
 
     #[test]
     fn build_install_cmd_appends_data_flag_when_present() {
-        let cmd = build_install_cmd("/tmp/sws-deploy", "img.tar.gz", "/opt/sws-data");
+        let cmd = build_install_cmd("/tmp/sws-deploy", &archive("img.tar.gz"), "/opt/sws-data");
         assert_eq!(
             cmd,
             "cd /tmp/sws-deploy && chmod +x install-container.sh && \
              ./install-container.sh --image img.tar.gz --data /opt/sws-data"
         );
+    }
+
+    /// Senza riferimento il tag lo compone il dispositivo da `uname -m`: il
+    /// comando deve dire `--pull` e basta, non inventare un'architettura.
+    #[test]
+    fn build_install_cmd_registry_senza_riferimento() {
+        let cmd = build_install_cmd("/tmp/sws-deploy", &registry(""), "");
+        assert_eq!(
+            cmd,
+            "cd /tmp/sws-deploy && chmod +x install-container.sh && \
+             ./install-container.sh --pull"
+        );
+    }
+
+    #[test]
+    fn build_install_cmd_registry_con_riferimento_e_data() {
+        let cmd = build_install_cmd(
+            "/tmp/sws-deploy",
+            &registry("ghcr.io/soligolab/sws-runtime:2026.7.0-amd64"),
+            "/opt/sws-data",
+        );
+        assert_eq!(
+            cmd,
+            "cd /tmp/sws-deploy && chmod +x install-container.sh && \
+             ./install-container.sh --pull ghcr.io/soligolab/sws-runtime:2026.7.0-amd64 \
+             --data /opt/sws-data"
+        );
+    }
+
+    /// L'installer rifiuta `--pull` e `--image` insieme: l'enum deve renderlo
+    /// impossibile, non solo improbabile.
+    #[test]
+    fn build_install_cmd_non_mescola_mai_pull_e_image() {
+        for spec in [archive("img.tar.gz"), registry(""), registry("reg:tag")] {
+            let cmd = build_install_cmd("/tmp/d", &spec, "/data/user/sws");
+            assert!(
+                !(cmd.contains("--pull") && cmd.contains("--image")),
+                "comando con entrambe le flag: {cmd}"
+            );
+        }
+    }
+
+    /// Il test che protegge dal cancellare la directory sbagliata: senza
+    /// `--data`, il purge azzererebbe il default invece del percorso scelto.
+    #[test]
+    fn build_purge_cmd_porta_lo_stesso_data() {
+        let cmd = build_purge_cmd("/tmp/sws-deploy", "/opt/sws-data");
+        assert_eq!(
+            cmd,
+            "cd /tmp/sws-deploy && chmod +x install-container.sh && \
+             ./install-container.sh --uninstall --purge --data /opt/sws-data"
+        );
+    }
+
+    #[test]
+    fn build_purge_cmd_omette_data_se_vuoto_ma_purga_sempre() {
+        let cmd = build_purge_cmd("/tmp/sws-deploy", "");
+        assert!(cmd.ends_with("--uninstall --purge"), "comando inatteso: {cmd}");
+        assert!(!cmd.contains("--data"));
+    }
+
+    /// In modalità archivio l'immagine è già sul dispositivo: non c'è niente da
+    /// procurare, quindi nessun comando.
+    #[test]
+    fn build_pull_only_cmd_solo_per_il_registry() {
+        assert_eq!(build_pull_only_cmd("/tmp/d", &archive("img.tar.gz")), None);
+        assert_eq!(
+            build_pull_only_cmd("/tmp/d", &registry("")).as_deref(),
+            Some("cd /tmp/d && chmod +x install-container.sh && ./install-container.sh --pull-only")
+        );
+        assert_eq!(
+            build_pull_only_cmd("/tmp/d", &registry("reg:tag")).as_deref(),
+            Some("cd /tmp/d && chmod +x install-container.sh && ./install-container.sh --pull-only reg:tag")
+        );
+    }
+
+    #[test]
+    fn resolve_image_spec_senza_sorgente_e_senza_archivio_va_al_registry() {
+        assert_eq!(resolve_image_spec(None, "", ""), Ok(ImageSpec::Registry(String::new())));
+    }
+
+    /// Compatibilità: un IDE più vecchio manda solo `image_tarball`. Non deve
+    /// vedersi ignorare l'archivio scelto in favore del registry.
+    #[test]
+    fn resolve_image_spec_client_vecchio_resta_su_archivio() {
+        assert_eq!(
+            resolve_image_spec(None, "sws-runtime-2026.7.0-aarch64-image.tar.gz", ""),
+            Ok(archive("sws-runtime-2026.7.0-aarch64-image.tar.gz"))
+        );
+    }
+
+    #[test]
+    fn resolve_image_spec_archive_senza_tarball_e_errore() {
+        assert!(resolve_image_spec(Some("archive"), "", "").is_err());
+    }
+
+    #[test]
+    fn resolve_image_spec_rifiuta_sorgente_sconosciuta() {
+        assert!(resolve_image_spec(Some("ftp"), "", "").is_err());
+    }
+
+    #[test]
+    fn resolve_image_spec_accetta_tag_e_digest() {
+        assert!(resolve_image_spec(Some("registry"), "", "ghcr.io/soligolab/sws-runtime:latest-arm64").is_ok());
+        assert!(resolve_image_spec(
+            Some("registry"), "",
+            "ghcr.io/soligolab/sws-runtime@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+        ).is_ok());
+    }
+
+    /// Il riferimento finisce interpolato in un comando eseguito via SSH sul
+    /// dispositivo: stessa classe di rischio di `remote_dir`.
+    #[test]
+    fn resolve_image_spec_rifiuta_riferimenti_pericolosi() {
+        for cattivo in [
+            "reg:tag; rm -rf /",
+            "$(id)",
+            "`id`",
+            "reg tag",
+            "reg:tag && reboot",
+            // Verrebbe scambiato per una flag e scartato in silenzio.
+            "--pull",
+        ] {
+            assert!(
+                resolve_image_spec(Some("registry"), "", cattivo).is_err(),
+                "accettato un riferimento pericoloso: {cattivo}"
+            );
+        }
     }
 }
