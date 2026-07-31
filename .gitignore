@@ -44,3 +44,7 @@ sbom.cdx.json
 /.run-editor/
 /.run-editor-*/
 REMOVED_DOC.md
+
+# Build del container x86_64 dentro l'immagine builder (vedi scripts/build_container_x86_64.sh)
+/sws-runtime/target-container-x86_64/
+/.cargo-container-x86_64/

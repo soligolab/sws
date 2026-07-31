@@ -118,7 +118,8 @@ The full procedure — cross-compile, publish, install and update — is in
 deliberate: the image is not a multi-arch manifest list.
 
 An **x86_64** twin exists for developer machines and generic amd64 hosts — same installer, same
-experience, natively built with no SDK: see
+experience, same `ubuntu:24.04` base. Its binary is compiled inside a builder image rather than on
+the host, so the result does not depend on the machine that builds it: see
 [docs/DEPLOY_CONTAINER_X86_64.md](docs/DEPLOY_CONTAINER_X86_64.md). Either image can also be
 installed straight from the IDE over SSH (*ConfigView → Runtime → Installa su dispositivo*), which
 copies the archive instead of pulling — the fallback for a device that cannot reach the registry.

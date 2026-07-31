@@ -11,38 +11,47 @@
 
 ## Come è fatta l'immagine
 
-`deploy/container/Containerfile.x86_64` **non compila nulla**. Copia dentro un
-binario già compilato **nativamente** (nessun SDK, nessun cross-compile — a
-differenza di aarch64, qui l'architettura di build e quella target
-coincidono), la SPA e i template. La SPA è l'ultimo layer di contenuto, dopo
-il binario, perché è quella che cambia più spesso.
+`deploy/container/Containerfile.x86_64` **non compila nulla**. Copia dentro il
+binario, la SPA e i template. La SPA è l'ultimo layer di contenuto, dopo il
+binario, perché è quella che cambia più spesso.
 
-### Perché `debian:trixie-slim` e non `debian:bookworm-slim` (su QUESTA macchina)
+Il binario però **non arriva dall'host**: lo produce
+`deploy/container/Containerfile.x86_64.builder`, un'immagine di sola
+compilazione con la toolchain Rust, dentro cui `scripts/build_container_x86_64.sh`
+lancia il `cargo build`.
 
-**Attenzione, a differenza del percorso aarch64: qui non c'è un SDK fisso.**
-Il binario nativo linka contro il glibc/Python della macchina che lo builda —
-diversa da un laptop all'altro. La riga `FROM` di `Containerfile.x86_64` **va
-riverificata ad ogni macchina di build diversa**, con lo stesso comando già
-usato per aarch64:
+### Perché `ubuntu:24.04`, la stessa base dell'aarch64
 
-```bash
-readelf -d sws-runtime/target/release/sws-runtime | grep NEEDED
-readelf -V sws-runtime/target/release/sws-runtime | grep -o 'GLIBC_[0-9.]*' | sort -uV | tail -1
+**La base non si sceglie: la impone il binario.** PyO3 gira con
+`auto-initialize`, quindi il binario linka la `libpython` dell'ambiente che lo
+compila — è lo stesso vincolo del percorso aarch64, dove `readelf` sul binario
+dell'SDK Pixsys dice `libpython3.12` + `GLIBC_2.39` e da lì viene `ubuntu:24.04`.
+
+Finché il binario x86_64 si compilava sull'host, quel vincolo puntava a un
+bersaglio mobile: la libpython era quella della macchina di sviluppo. Misurato
+sul dev server di ufficio (Debian 12): `libpython3.11.so.1.0` e `GLIBC_2.34`.
+Sulla macchina di casa, con un python3.13 da pyenv, `libpython3.13`. **Due
+immagini diverse dallo stesso commit**, e nessuna delle due combaciava con la
+base dell'arm64.
+
+Compilando dentro il builder, che è pure `ubuntu:24.04`, il binario linka
+sempre Python 3.12 e glibc 2.39 — cioè esattamente ciò che la base finale
+offre. Le due architetture tornano gemelle, e chiunque ricostruisca ottiene lo
+stesso risultato: il builder è per x86_64 quello che l'SDK Yocto Pixsys è per
+aarch64, un ambiente di compilazione fisso.
+
+**La verifica `readelf` non è sparita, è diventata automatica.**
+`build_container_x86_64.sh` la esegue sul binario prodotto e si ferma se la
+libpython richiesta non è quella della base:
+
+```
+ERRORE: il binario chiede libpython3.11, l'immagine finale offre libpython3.12.
+        Il container partirebbe e morirebbe su 'cannot open shared object file'.
 ```
 
-Misurato su questa macchina (Debian 12 con un python3.13 non di sistema, es.
-pyenv): `libpython3.13.so.1.0` e `GLIBC_2.39`. Quindi qui la base deve avere
-**insieme** Python 3.13 e glibc ≥ 2.39:
-
-| Base | glibc | Python | Esito (su questa macchina) |
-|---|---|---|---|
-| `debian:bookworm-slim` | 2.36 | 3.11 | ❌ doppiamente incompatibile |
-| **`debian:trixie-slim`** | **2.41** | **3.13** | ✅ |
-| `ubuntu:24.04` | 2.39 | 3.12 | ❌ manca `libpython3.13` |
-
-Su un'altra macchina di sviluppo (Python di sistema diverso) questa tabella
-**cambia** — rifare la verifica, non copiare il risultato. È il limite di
-riproducibilità descritto sotto.
+Prima quel controllo era una riga di documentazione che diceva «ricordati di
+rifarlo a mano»: il difetto sarebbe emerso al primo `podman run` sul
+dispositivo, con un messaggio che non spiega niente.
 
 ### Vincolo sul kernel dell'host
 
@@ -59,27 +68,29 @@ Stesse quattro correzioni del percorso aarch64 (vedi
 legacy") — `CMD` completo con `--viewer-port`/`--www`, nessun entrypoint che
 pretende `SWS_ADMIN_PASSWORD`, template copiati, RestrictedPython installato.
 
-## Limite noto: riproducibilità legata alla macchina di build
+## Riproducibilità: risolta il 2026-07-31
 
-A differenza del binario Yocto aarch64 (SDK fisso, stesso binario da qualunque
-macchina lo costruisca), un binario x86_64 nativo dipende dal glibc/Python
-della macchina che esegue `cargo build --release` — oggi diverso da laptop a
-laptop del maintainer. Per l'uso previsto (verificare che il container si
-comporti allo stesso modo su x86 e su aarch64, sulle proprie macchine di
-sviluppo) è un compromesso accettabile: non serve un artefatto trasferibile a
-device x86_64 sconosciuti in campo. **Se in futuro servirà** (es. spedire
-un'immagine x86_64 a un cliente con un device diverso da quello di build), il
-punto di ripartenza è compilare dentro un'immagine builder con una base
-fissa — lo stage `builder` di `sws-runtime/docker/Dockerfile` (l'immagine
-legacy) è già quel pattern, andrebbe solo ripulito dei suoi 4 difetti noti
-invece di ricostruito da zero.
+Questo documento conteneva un «limite noto»: il binario x86_64 nativo dipendeva
+dal glibc/Python della macchina che eseguiva `cargo build --release`, quindi
+l'immagine era diversa da un laptop all'altro. Era accettato come compromesso,
+con l'annotazione che il rimedio sarebbe stato compilare dentro un'immagine
+builder a base fissa.
+
+**È quello che si è fatto**: `Containerfile.x86_64.builder`. Il limite non c'è
+più, e con esso è sparita la necessità di riverificare a mano la riga `FROM` a
+ogni postazione.
+
+Il prezzo è la prima compilazione, che dentro il container parte da zero. Le
+successive riusano i layer del builder e la cache dei crate
+(`.cargo-container-x86_64/`, `target-container-x86_64/`, entrambe ignorate da
+git). Volendo saltarla del tutto c'è `--no-rust`, che riusa il binario già
+prodotto — utile quando si tocca solo la SPA.
 
 ## Build (sulla macchina di sviluppo)
 
-Prerequisiti: **nessun SDK** — solo `cargo`/toolchain Rust (già presente sulle
-macchine di sviluppo del progetto), `podman`, rete verso Docker Hub per
-`debian:trixie-slim` (o la base che risulta corretta dopo la verifica
-`readelf` sopra).
+Prerequisiti: **nessun SDK e nessuna toolchain Rust sull'host** — la toolchain
+vive nell'immagine builder. Servono solo `podman`, `pnpm` per la SPA, e rete
+verso Docker Hub per `ubuntu:24.04`.
 
 ```bash
 ./scripts/build_container_x86_64.sh              # build nativa + immagine + archivio
@@ -142,6 +153,15 @@ testo comune a entrambe le architetture, non duplicato qui.
 
 ## Verifica
 
+### 2026-07-30 — superata, da leggere solo come storia
+
+Le due voci qui sotto valgono per un'immagine costruita **prima** di due
+cambiamenti sostanziali: la SPA è entrata nell'immagine (quel test usava un
+`--www` a parte, flag che oggi non esiste più) e la base è passata da
+`debian:trixie-slim` a `ubuntu:24.04` con la compilazione dentro il builder.
+Restano qui perché descrivono controlli che vale la pena ripetere, non perché
+provino qualcosa dell'immagine attuale.
+
 Eseguita su questa macchina il 2026-07-30 (Debian 12, podman 5.4.2 rootless),
 in due passi: prima l'immagine da sola (`podman run` diretto), poi l'intero
 installer (con porte/dati remappati su una copia temporanea per non
@@ -162,14 +182,39 @@ macchina — il percorso aarch64 lo ha già verificato su device reale
 (`docs/DEPLOY_CONTAINER_AARCH64.md` §Verifica) e l'installer è lo stesso
 identico script, quindi il rischio è basso, ma non è stato ripetuto qui.
 
-**Quella verifica precede il passaggio della SPA dentro l'immagine** (stessa
-giornata, ordine invertito rispetto a come è finita in `main`): è stata fatta
-con un'immagine senza SPA e un `--www` a parte. Va rifatta con un'immagine
-costruita dallo script attuale prima di considerare provato il percorso x86_64.
+### 2026-07-31 — immagine attuale
+
+Immagine `2026.7.0-amd64` compilata dentro il builder, base `ubuntu:24.04`, SPA
+nell'immagine. Provata su questa macchina (Debian 12, podman 4.3.1 rootless) con
+porte 8591/8592 per non toccare le istanze di sviluppo.
+
+| Verifica | Esito |
+|---|---|
+| `readelf` sul binario prodotto | `libpython3.12`, `GLIBC_2.39` — combacia con `ubuntu:24.04`, controllo eseguito dallo script |
+| `/health` sulla porta viewer | ok |
+| `/health` sulla porta admin | ok |
+| `index.html` servito dall'immagine | ok |
+| bundle JS dell'entry servito | ok (`assets/main-*.js`) |
+| SPA admin (`index-admin.html`) | ok |
+| `GET /api/templates` | 10 template |
+| RestrictedPython | disponibile, **nessun** warning "NOT available" |
+| `podman ps` | `healthy` |
+| Python dentro l'immagine | 3.12.3, `libpython3.12.so.1.0` presente |
+
+Il confronto che conta: lo stesso commit compilato **sull'host** produce un
+binario che chiede `libpython3.11` + `GLIBC_2.34`, incompatibile con questa
+base. Dentro il builder chiede `libpython3.12` + `GLIBC_2.39`. È la differenza
+fra un'immagine che parte e una che muore su `cannot open shared object file`.
+
+Non ancora provato: l'avvio automatico al boot (quadlet + linger) su questa
+macchina, e `install-container.sh --pull` verso questa immagine da un host
+x86_64 pulito.
 
 ## Limiti noti
 
 Stessi del percorso aarch64 (`docs/DEPLOY_CONTAINER_AARCH64.md` §"Limiti
 noti"): Modbus RTU non passato al container, mDNS solo in rete host, purge
-seguito da migrazione da volumi nominati, TLS parte disattivato. Più il
-limite di riproducibilità specifico di questo percorso, vedi sopra.
+seguito da migrazione da volumi nominati, TLS parte disattivato.
+
+Il limite di riproducibilità che era specifico di questo percorso **non c'è
+più** dal 2026-07-31, vedi la sezione sopra.

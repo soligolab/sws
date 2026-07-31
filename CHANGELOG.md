@@ -8,6 +8,17 @@ e patch obbligatoria, perché Cargo rifiuta sia `2026.07` sia `2026.7`).
 
 ## [Unreleased]
 
+### Changed
+
+- **Il container x86_64 usa la stessa base dell'aarch64 (`ubuntu:24.04`) e si compila dentro un'immagine builder** (richiesta del maintainer: *"fare il container a partire dallo stesso sistema usato per l'immagine arm"*). Chiude il «limite noto: riproducibilità legata alla macchina di build» che il documento del percorso x86_64 si portava dietro dal 2026-07-30.
+  - **La base non si sceglie, la impone il binario.** PyO3 gira con `auto-initialize`, quindi il binario linka la `libpython` dell'ambiente che lo compila. Finché si compilava sull'host, quel vincolo puntava a un bersaglio mobile: misurato, il binario prodotto sul dev server di ufficio (Debian 12) chiede `libpython3.11.so.1.0` e `GLIBC_2.34`, quello della macchina di casa (python3.13 da pyenv) chiede `libpython3.13`. **Due immagini diverse dallo stesso commit**, e nessuna delle due compatibile con la base dell'arm64. Il `FROM debian:trixie-slim` che c'era descriveva una sola di quelle macchine.
+  - Nuovo `deploy/container/Containerfile.x86_64.builder`: `ubuntu:24.04` + toolchain Rust + `python3-dev`. `build_container_x86_64.sh` ci lancia dentro il `cargo build`, su una `target-container-x86_64/` dedicata — mescolarla con la `target/` dell'host darebbe link incoerenti fra oggetti compilati contro libpython diverse. È per x86_64 quello che l'SDK Yocto Pixsys è per aarch64: un ambiente di compilazione fisso.
+  - **La verifica `readelf` diventa automatica.** Era una riga di documentazione che chiedeva di rifarla a mano su ogni postazione; ora lo script confronta la `libpython` richiesta dal binario con quella della base e si ferma spiegando che il container *"partirebbe e morirebbe su `cannot open shared object file`"*. Prima quel difetto emergeva al primo `podman run` sul dispositivo, con un messaggio che non spiega niente.
+  - Niente più toolchain Rust richiesta sull'host per questo percorso: bastano `podman` e `pnpm`.
+  - **Verificato**: `readelf` sul binario prodotto dà `libpython3.12` + `GLIBC_2.39`, contro `libpython3.11` + `GLIBC_2.34` dello stesso commit compilato sull'host. Immagine avviata e provata — `/health` su entrambe le porte, `index.html` e bundle serviti dall'immagine, SPA admin, 10 template, RestrictedPython disponibile senza warning, `podman ps` → `healthy`, Python 3.12.3 dentro il container.
+
+- **Il tag locale delle immagini container porta l'architettura** (`sws-runtime:<versione>-arm64` / `-amd64`). Senza, le due build si rubavano il nome a vicenda: costruendo aarch64 e poi x86_64 di seguito, `localhost/sws-runtime:2026.7.0` finiva per essere l'immagine **amd64** e un `podman run` su quel tag dava quella costruita per ultima. Capitato davvero, e i tag del registry non lo mostravano perché lì il suffisso c'era già.
+
 ## [2026.7.0] — 2026-07-31
 
 Prima release con un numero vero: si esce da `0.1.0-dev`. Il contenuto è il lavoro di luglio, la cui

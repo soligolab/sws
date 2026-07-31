@@ -32,9 +32,9 @@
 #   ./scripts/build_container_x86_64.sh --registry REF  # altro repository di destinazione
 #   ./scripts/build_container_x86_64.sh --out DIR       # directory di output (default dist/)
 #
-# Requisiti: Rust/cargo (nessun SDK speciale), podman, rete per scaricare
-#            debian:trixie-slim e — con --push — un `podman login` già fatto
-#            sul registry.
+# Requisiti: podman, pnpm per la SPA, rete per scaricare ubuntu:24.04 e — con
+#            --push — un `podman login` già fatto sul registry. NON serve una
+#            toolchain Rust sull'host: vive nell'immagine builder.
 
 set -euo pipefail
 
@@ -47,8 +47,13 @@ SAVE=1
 PUSH=0
 REGISTRY="ghcr.io/soligolab/sws-runtime"
 OUT_DIR="$REPO/dist"
-BIN="$REPO/sws-runtime/target/release/sws-runtime"
+# Non `target/release/`: quella è la build dell'host, con un'altra libpython.
+BIN="$REPO/sws-runtime/target-container-x86_64/release/sws-runtime"
 SPA_DIST="$REPO/sws-editor/dist"
+BUILDER_IMAGE="sws-runtime-builder:x86_64"
+# Python della base `ubuntu:24.04`, che builder e immagine finale condividono.
+# Cambiando quella base va cambiato anche questo, e lo script lo fa notare.
+EXPECTED_PY="3.12"
 
 while [ $# -gt 0 ]; do
     case "$1" in
@@ -93,14 +98,40 @@ fi
 VERSION=$(cd "$REPO/sws-runtime" && cargo metadata --no-deps --format-version 1 \
     | python3 -c "import json,sys; pkgs=json.load(sys.stdin)['packages']; \
       print(next(p['version'] for p in pkgs if p['name']=='sws-runtime'))")
-IMAGE="sws-runtime:${VERSION}"
+# Suffisso di architettura anche nel tag locale: vedi il commento gemello
+# in build_container.sh.
+IMAGE="sws-runtime:${VERSION}-amd64"
 
 echo "==> SWS runtime container image ${VERSION} (linux/amd64)"
 
 # ── 1. Build ───────────────────────────────────────────────────────────────────
+# Il binario si compila DENTRO l'immagine builder, non sull'host. Con PyO3 in
+# `auto-initialize` il binario linka la libpython dell'ambiente che lo compila:
+# compilandolo sull'host, l'immagine finale dipendeva da come è fatta la
+# macchina di build — una Debian 12 produce un binario che chiede
+# `libpython3.11.so.1.0`, che l'immagine finale (ubuntu:24.04, Python 3.12) non
+# ha. Il builder è la stessa base dell'immagine finale, quindi combaciano per
+# costruzione. È l'equivalente x86_64 dell'SDK Yocto fisso del percorso aarch64.
 if [ "$BUILD_RUST" -eq 1 ]; then
-    echo "==> [1/4] cargo build --release --bin sws-runtime"
-    (cd "$REPO/sws-runtime" && cargo build --release --bin sws-runtime)
+    echo "==> [1/4] immagine builder (toolchain Rust su ubuntu:24.04)"
+    podman build --platform linux/amd64 \
+        -t "$BUILDER_IMAGE" \
+        -f "$REPO/deploy/container/Containerfile.x86_64.builder" \
+        "$REPO/deploy/container"
+
+    echo "==> [1a/4] cargo build --release --bin sws-runtime (dentro il builder)"
+    # --target-dir dedicata: la `target/` dell'host contiene oggetti compilati
+    # con un'altra libpython e un altro glibc, e mescolarli darebbe link
+    # incoerenti difficili da diagnosticare. CARGO_HOME dentro il repo così i
+    # crate scaricati sopravvivono fra un'esecuzione e l'altra.
+    podman run --rm \
+        --platform linux/amd64 \
+        -v "$REPO":/src:Z \
+        -w /src/sws-runtime \
+        -e CARGO_HOME=/src/.cargo-container-x86_64 \
+        -e CARGO_TARGET_DIR=/src/sws-runtime/target-container-x86_64 \
+        "$BUILDER_IMAGE" \
+        cargo build --release --bin sws-runtime
 else
     echo "==> [1/4] skipped (--no-rust)"
 fi
@@ -112,7 +143,7 @@ else
     echo "==> [1b/4] skipped (--no-spa)"
 fi
 
-[ -f "$BIN" ]                || { echo "ERROR: missing $BIN" >&2; exit 1; }
+[ -f "$BIN" ]                || { echo "ERROR: missing $BIN — togli --no-rust" >&2; exit 1; }
 [ -f "$SPA_DIST/index.html" ] || { echo "ERROR: missing SPA at $SPA_DIST (drop --no-spa)" >&2; exit 1; }
 
 # Guard against the classic mistake of feeding a foreign-arch binary to an
@@ -122,6 +153,22 @@ if ! file "$BIN" | grep -q "x86-64"; then
     file "$BIN" >&2
     exit 1
 fi
+
+# La verifica readelf non è sparita col builder: è passata da "ricordarsi di
+# rifarla a mano" a "lo script si ferma da solo". Se un giorno il builder o la
+# base finale cambiassero Python senza che l'altra segua, il difetto salterebbe
+# fuori QUI e non al primo `podman run` sul dispositivo, con un messaggio che
+# non spiega niente.
+NEEDED_PY=$(readelf -d "$BIN" | sed -n 's/.*\[libpython\([0-9.]*\)\.so.*/\1/p' | head -1)
+if [ "$NEEDED_PY" != "$EXPECTED_PY" ]; then
+    echo "ERRORE: il binario chiede libpython${NEEDED_PY:-?}, l'immagine finale offre libpython$EXPECTED_PY." >&2
+    echo "        Il container partirebbe e morirebbe su 'cannot open shared object file'." >&2
+    echo "        Controlla che Containerfile.x86_64 e Containerfile.x86_64.builder abbiano lo stesso FROM." >&2
+    readelf -d "$BIN" | grep NEEDED >&2
+    exit 1
+fi
+NEEDED_GLIBC=$(readelf -V "$BIN" | grep -o 'GLIBC_[0-9.]*' | sort -uV | tail -1)
+echo "    binario: libpython$NEEDED_PY, $NEEDED_GLIBC — combacia con la base"
 
 # ── 2. Stage the build context ────────────────────────────────────────────────
 CTX="$OUT_DIR/container-context-x86_64"
