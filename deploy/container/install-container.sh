@@ -23,7 +23,10 @@
 #
 # Uso:
 #   ./install-container.sh --pull              # dal registry: la strada normale
+#                                              # tag latest-<arch>, con <arch>
+#                                              # dedotta qui da `uname -m`
 #   ./install-container.sh --pull REF          # ...da un riferimento specifico
+#   ./install-container.sh --pull-only         # procura l'immagine ed esce
 #   ./install-container.sh --image ARCHIVIO    # da archivio: dispositivi senza rete
 #   ./install-container.sh --bridge            # rete bridge: NIENTE discovery mDNS
 #   ./install-container.sh --data /altro/path  # directory dati alternativa
@@ -48,8 +51,15 @@ TAG_EXPLICIT=0
 # Non rende gli aggiornamenti automatici — il pull resta un comando che qualcuno
 # deve dare. Evita invece il caso in cui un default pinnato non viene aggiornato
 # a una release e i dispositivi restano indietro senza che nessuno se ne accorga.
-# Per inchiodare una versione: `--pull ghcr.io/soligolab/sws-runtime:2026.07-arm64`.
-REGISTRY_REF="ghcr.io/soligolab/sws-runtime:latest-arm64"
+# Per inchiodare una versione: `--pull ghcr.io/soligolab/sws-runtime:2026.7.0-arm64`.
+#
+# Il TAG però non è cablato qui: il suffisso di architettura si compone al passo
+# 0 da `uname -m`. Era `latest-arm64` fisso, e su un dispositivo x86_64 scaricava
+# un'immagine che non parte — con l'installazione lanciata dall'IDE il dispositivo
+# non è quasi mai la macchina da cui si installa, quindi indovinare non va bene.
+REGISTRY_IMAGE="ghcr.io/soligolab/sws-runtime"
+REGISTRY_REF=""
+REGISTRY_REF_EXPLICIT=0
 NAME="sws-runtime"
 DATA="/data/user/sws"
 UNIT_DIR="$HOME/.config/containers/systemd"
@@ -57,6 +67,11 @@ UNIT_SRC="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/sws-runtime.container"
 
 IMAGE_ARCHIVE=""
 PULL=0
+# `--pull-only` procura l'immagine e basta. Esiste per rendere sicura
+# l'installazione pulita lanciata dall'IDE: il purge cancella i dati, e se
+# l'immagine si scoprisse irraggiungibile DOPO, il dispositivo resterebbe senza
+# dati e senza runtime. Procurandola prima, quando si cancella è già in casa.
+PULL_ONLY=0
 # La migrazione dai volumi nominati (layout pre-2026-07-28) è opt-in, e non più
 # automatica quando la cartella dati è vuota. Automatica faceva danni: dopo un
 # `--uninstall --purge` la cartella È vuota per definizione, quindi la
@@ -83,7 +98,13 @@ while [ $# -gt 0 ]; do
         # carattere, così `--pull --bridge` non ingoia `--bridge` come immagine.
         --pull)
             PULL=1
-            if [ $# -ge 2 ] && [ "${2#-}" = "$2" ]; then REGISTRY_REF="$2"; shift 2; else shift; fi
+            if [ $# -ge 2 ] && [ "${2#-}" = "$2" ]; then REGISTRY_REF="$2"; REGISTRY_REF_EXPLICIT=1; shift 2; else shift; fi
+            ;;
+        # Procura l'immagine ed esce, senza toccare il servizio in esecuzione.
+        # Accetta lo stesso riferimento opzionale di --pull.
+        --pull-only)
+            PULL=1; PULL_ONLY=1
+            if [ $# -ge 2 ] && [ "${2#-}" = "$2" ]; then REGISTRY_REF="$2"; REGISTRY_REF_EXPLICIT=1; shift 2; else shift; fi
             ;;
         --migrate-volumes) MIGRATE_VOLUMES=1; shift ;;
         # La SPA è nell'immagine dal 2026-07-30. Queste due flag non fanno più
@@ -141,7 +162,29 @@ fi
 if [ -n "$IMAGE_ARCHIVE" ] && [ ! -f "$IMAGE_ARCHIVE" ]; then
     echo "ERRORE: archivio immagine non trovato: $IMAGE_ARCHIVE" >&2; exit 1
 fi
-if [ "$AUTOSTART" -eq 1 ] && [ ! -f "$UNIT_SRC" ]; then
+# L'architettura la sa il dispositivo, non chi lancia l'installazione: dall'IDE
+# si installa su macchine diverse da quella di sviluppo. Qui e non prima perché
+# --uninstall esce sopra e non deve mai pretendere un'architettura nota.
+if [ "$PULL" -eq 1 ] && [ "$REGISTRY_REF_EXPLICIT" -eq 0 ]; then
+    case "$(uname -m)" in
+        aarch64|arm64) REGISTRY_REF="$REGISTRY_IMAGE:latest-arm64" ;;
+        x86_64|amd64)  REGISTRY_REF="$REGISTRY_IMAGE:latest-amd64" ;;
+        *)
+            # Caso reale: userspace a 32 bit su SoC aarch64 dà `armv7l`. Con il
+            # vecchio default cablato si scaricava un'immagine inavviabile e la
+            # diagnosi partiva dalla parte sbagliata.
+            echo "ERRORE: architettura $(uname -m) non riconosciuta." >&2
+            echo "        Sono pubblicate solo latest-arm64 e latest-amd64." >&2
+            echo "        Passa il riferimento per esteso (--pull <registry>:<tag>)" >&2
+            echo "        oppure installa da archivio (--image <file>)." >&2
+            echo "        Nessuna modifica effettuata." >&2
+            exit 1
+            ;;
+    esac
+fi
+# --pull-only non installa niente, quindi la unit non le serve: pretenderla
+# farebbe fallire il passo che deve solo procurare l'immagine.
+if [ "$AUTOSTART" -eq 1 ] && [ "$PULL_ONLY" -eq 0 ] && [ ! -f "$UNIT_SRC" ]; then
     echo "ERRORE: manca la unit quadlet $UNIT_SRC" >&2
     echo "        Copiala accanto a questo script (sta in deploy/container/)," >&2
     echo "        oppure passa --no-autostart per installare senza avvio al boot." >&2
@@ -150,6 +193,10 @@ if [ "$AUTOSTART" -eq 1 ] && [ ! -f "$UNIT_SRC" ]; then
 fi
 
 # ── 1. Directory dati ─────────────────────────────────────────────────────────
+# Saltata con --pull-only: chi sta solo procurando un'immagine non si aspetta
+# che gli venga creata una gerarchia di cartelle sul dispositivo, e quando
+# --pull-only precede un purge sarebbero comunque cancellate un attimo dopo.
+if [ "$PULL_ONLY" -eq 0 ]; then
 echo "==> [1/6] directory dati $DATA"
 for d in projects config logs; do
     if [ -d "$DATA/$d" ]; then
@@ -189,6 +236,7 @@ elif podman volume exists sws-projects 2>/dev/null; then
     echo "    NOTA: esistono ancora i volumi nominati di un'installazione precedente."
     echo "          Se i progetti sembrano spariti: --migrate-volumes li recupera."
 fi
+fi   # fine del blocco saltato da --pull-only
 
 # ── 2. Immagine ───────────────────────────────────────────────────────────────
 # Prima di toccare il servizio in esecuzione: se l'immagine non si procura, il
@@ -227,6 +275,14 @@ podman image exists "$TAG" || {
     exit 1
 }
 echo "    immagine: $TAG"
+
+# --pull-only si ferma qui: l'immagine è sul dispositivo e il servizio in
+# esecuzione non è stato toccato. Chi chiama può ora cancellare i dati sapendo
+# che l'installazione successiva non dipende più dalla rete.
+if [ "$PULL_ONLY" -eq 1 ]; then
+    echo "==> immagine procurata. Niente altro toccato (--pull-only)."
+    exit 0
+fi
 
 # ── 3. La SPA è dentro l'immagine ─────────────────────────────────────────────
 # Controllata qui e non data per scontata: un'immagine costruita senza il layer

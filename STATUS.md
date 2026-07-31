@@ -64,6 +64,59 @@ Scelta del maintainer: le modifiche erano troppe da validare branch per branch, 
 
 ---
 
+## "Installa su dispositivo" installa dal registry (2026-07-31, branch `feat/install-from-registry`)
+
+**Non ancora in `main`**: aspetta la tua validazione. Piano in
+`docs/plans/2026-07-31-installa-da-registry.md`, copiato lì apposta perché quelli in
+`~/.claude/plans/` non viaggiano con git.
+
+Nasce dal caso concreto di stamattina: il WP630 installato dall'IDE scegliendo l'unico archivio
+presente, `0.1.0-dev` del giorno prima, con un frontend vecchio a bordo. Il menù non sbagliava —
+elencava fedelmente l'unica cosa che c'era. Il percorso registry esisteva dal 30 luglio ma dall'IDE
+non era raggiungibile.
+
+**Cosa c'è ora**: un selettore di sorgente — **Registry** (default) o **Archivio locale** — e una
+spunta **Installazione pulita**. Dal registry sul dispositivo arrivano solo installer e unit quadlet,
+pochi kB invece di 59 MB.
+
+**Le due cose non ovvie**, entrambe emerse leggendo il codice e non progettando a tavolino:
+
+1. **`--uninstall --purge` fa `exit 0`** e non prosegue mai con l'installazione, quindi un'installazione
+   pulita è due comandi remoti, non una flag in più.
+2. **Il purge deve ripetere `--data`.** Fa `rm -rf "$DATA"` prendendo il valore dalle flag: senza
+   ripeterlo avrebbe cancellato il default `/data/user/sws` lasciando intatti i dati veri — distrutti
+   i dati sbagliati, mancati quelli giusti. C'è un test dedicato che lo protegge.
+
+**Tua decisione sull'ordine**: nuova flag `--pull-only` che procura l'immagine ed esce, così la
+sequenza è `scp → pull-only → purge → install`. Se il pull fallisce non si cancella niente.
+
+**Corretto anche il default cablato**: `install-container.sh` aveva `latest-arm64` fisso, che su
+x86_64 scarica un'immagine che non parte. Ora compone il tag da `uname -m` sul dispositivo — che è
+l'unico a saperlo, visto che dall'IDE si installa su macchine diverse da quella di sviluppo.
+
+**Verificato**:
+
+- `cargo test -p sws-web` 53 (12 nuovi) + `sws-runtime` 9, `pnpm test` 32/32 (6 nuovi),
+  `cargo check --workspace`, `pnpm build`, `bash -n` verdi.
+- `install-container.sh` provato per davvero: su questa macchina x86_64 `--pull-only` compone
+  `latest-amd64` (prima sarebbe stato `latest-arm64`); con `uname -m` finto a `armv7l` fallisce
+  senza toccare niente; un riferimento esplicito continua a vincere; `--uninstall` non pretende
+  un'architettura nota.
+- **Sequenza dei comandi remoti misurata con un `ssh` finto in `PATH`**, senza bisogno di un
+  dispositivo. Registry + pulizia + `--data /opt/sws-data`: due `scp`, poi `--pull-only`, poi
+  `--uninstall --purge --data /opt/sws-data`, poi `--pull --data /opt/sws-data`. Da archivio +
+  pulizia: tre `scp` e **nessun** `--pull-only`, perché l'immagine è già lì. Registry senza pulizia:
+  due `scp` e basta.
+- Pannello provato in un browser: selettore, campo riferimento che compare solo in modalità registry,
+  conferma che nomina la cartella, `clean_install` nel payload, spunta che si azzera dopo l'uso.
+- Compatibilità col payload vecchio verificata con `curl`: solo `image_tarball` + credenziali
+  continua a risolvere in modalità archivio, esattamente come prima.
+
+**Non verificato**: niente di tutto questo è stato provato su un dispositivo vero. In particolare il
+purge con un `--data` non standard va guardato dal vivo, controllando *quale* directory sparisce.
+
+---
+
 ## Container x86_64: stessa base dell'arm64, compilato dentro un builder (2026-07-31, dopo la release)
 
 Richiesta del maintainer prima di partire: *"fare il container a partire dallo stesso sistema usato

@@ -8,6 +8,24 @@ e patch obbligatoria, perché Cargo rifiuta sia `2026.07` sia `2026.7`).
 
 ## [Unreleased]
 
+### Added
+
+- **"Installa su dispositivo" installa dal registry**, non più solo da un archivio in `dist/`. Un selettore sceglie la sorgente: **Registry** (default) oppure **Archivio locale** per i dispositivi senza rete. Dal registry sul dispositivo arrivano solo l'installer e la unit quadlet — pochi kB invece di 59 MB — e il resto lo scarica lui, riusando i layer che ha già.
+  - Nasce da un caso concreto: il 2026-07-31 il WP630 è stato installato dall'IDE scegliendo l'unico archivio presente, `0.1.0-dev` del giorno prima, e si è portato a casa un frontend vecchio. Il menù non sbagliava — elencava fedelmente l'unica cosa che c'era. Il percorso registry esisteva dal 30 luglio ed era documentato come la strada normale, ma dall'IDE non era raggiungibile.
+  - Campo **Riferimento immagine** facoltativo per inchiodare una versione; vuoto significa `latest-<arch>`.
+  - **L'architettura la deduce il dispositivo.** `install-container.sh` compone il riferimento da `uname -m` (`aarch64`→`arm64`, `x86_64`→`amd64`) invece di avere `latest-arm64` cablato: su un dispositivo x86_64 quel default scaricava un'immagine che non parte. Un'architettura non riconosciuta (es. `armv7l`, userspace a 32 bit su SoC aarch64) fallisce al passo 0, senza toccare il dispositivo. Vale anche da riga di comando, non solo dall'IDE.
+  - Tre `disabled` impedivano di arrivare alla funzione proprio nel caso in cui serve: il pannello spariva con `dist/` vuota, il bottone *Container (Podman)* era disabilitato senza archivi e quello di installazione pretendeva un pacchetto selezionato. Rilassati.
+
+- **Spunta "Installazione pulita"**: azzera progetti, utenti, configurazione e storico del dispositivo prima di installare (`--uninstall --purge`). Conservativa per default, con conferma che **nomina la cartella** che verrà cancellata.
+  - **L'immagine si procura prima di cancellare**, con la nuova flag `--pull-only`: al contrario, un pull fallito dopo un purge già eseguito lascerebbe il dispositivo senza dati *e* senza runtime, senza modo di rimediare da remoto. Dal percorso offline non serve — l'immagine è appena arrivata via `scp`.
+  - Il comando di purge **ripete `--data`**. L'installer fa `rm -rf "$DATA"` prendendo il valore dalle flag: senza ripeterlo avrebbe cancellato il default `/data/user/sws` lasciando intatti i dati veri, cioè avrebbe distrutto i dati sbagliati e mancato quelli giusti. È coperto da un test dedicato.
+  - La spunta si azzera dopo l'uso: una seconda installazione fatta di fretta non deve cancellare un dispositivo perché la casella era rimasta accesa.
+
+### Fixed
+
+- **Il menù delle immagini non si aggiornava mai**: l'elenco di `dist/` si legge al montaggio della tab e le immagini si costruiscono da shell, quindi una appena prodotta non compariva finché non si ricaricava la pagina. Aggiunto un pulsante di ricarica accanto al menù. È la meccanica esatta con cui il 2026-07-31 su un dispositivo è finito un archivio del giorno prima.
+- **Gli errori del backend venivano buttati via**: su risposta non-OK il pannello mostrava solo `status`/`statusText`, scartando il corpo che porta il messaggio in italiano (*"riferimento immagine non valido: …"*). Ora lo mostra.
+
 ### Changed
 
 - **Il container x86_64 usa la stessa base dell'aarch64 (`ubuntu:24.04`) e si compila dentro un'immagine builder** (richiesta del maintainer: *"fare il container a partire dallo stesso sistema usato per l'immagine arm"*). Chiude il «limite noto: riproducibilità legata alla macchina di build» che il documento del percorso x86_64 si portava dietro dal 2026-07-30.
