@@ -129,6 +129,24 @@ Esiste perché sul WP620 il pannello ha continuato a mostrare la versione vecchi
 dopo un aggiornamento, e lì non c'è nessuno che possa premere ricarica: "il
 deploy è andato" non significa "il pannello sta mostrando la versione nuova".
 
+### `check_discover.sh` — "Cerca runtime" dice la verità?
+
+Avvia due runtime in sequenza, uno dichiarato in container e uno nativo, e
+controlla su `GET /api/discover` tre cose: che la proprietà `container` valga
+quello che deve, che il runtime compaia **una volta sola**, e che l'indirizzo
+offerto non sia `127.0.0.1`.
+
+```sh
+cargo build -p sws-runtime
+./scripts/check_discover.sh          # 3 giri, ~30 s
+GIRI=10 ./scripts/check_discover.sh  # più giri quando si tocca discover.rs
+```
+
+I giri multipli non sono zelo: il difetto dell'indirizzo era intermittente e con
+una sola esecuzione passava comunque due volte su tre. In sequenza e non in
+parallelo perché l'istanza mDNS prende il nome dall'hostname — due runtime sulla
+stessa macchina si annuncerebbero con lo stesso nome.
+
 ---
 
 ## `start_editor.sh` — IDE locale sul PC sviluppatore

@@ -145,6 +145,11 @@ export interface DiscoveredRuntime {
   admin_url: string;
   viewer_url: string;
   version: string | null;
+  /** Motore del container (`podman`, `docker`, o `container` generico) quando il
+   *  runtime gira in un container. `null` quando gira nativo sull'host **o**
+   *  quando è più vecchio di questa proprietà: i due casi non si distinguono,
+   *  quindi l'assenza non va mostrata come "nativo". */
+  container: string | null;
 }
 
 export interface UserSummary {

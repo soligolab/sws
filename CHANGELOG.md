@@ -7,6 +7,19 @@ and this project adheres to [CalVer](https://calver.org/) (`YYYY.MM[.patch]`).
 
 ## [Unreleased]
 
+### Added
+
+- **"Cerca runtime" distingue i runtime in container.** Cercando i dispositivi sulla rete non c'era modo di sapere quali girassero in container, cioè quale procedura di aggiornamento usare — `install-container.sh` o il deploy del binario nudo. Ora la riga porta una pill `📦 podman` / `📦 docker`.
+  - Il runtime annuncia una proprietà mDNS `container` col nome del motore, accanto a `admin_port`/`scheme`/`version`. Il rilevamento è **a runtime**, non cotto nell'immagine: `/run/.containerenv` (podman), `/.dockerenv` (docker), con ripiego sul cgroup per le configurazioni rootless dove il file non c'è. Così funziona anche sull'immagine legacy e su un dispositivo già installato, senza ricostruire niente — e non mente se la stessa immagine viene eseguita da un motore diverso. `SWS_CONTAINER_ENGINE` forza il valore dove il rilevamento non arriva; deliberatamente **non** impostata nei nostri Containerfile.
+  - Un runtime nativo non annuncia la proprietà **affatto**, e nemmeno uno più vecchio di questo campo: la pill compare solo quando c'è un'affermazione da mostrare, mai per dedurre "nativo" da un'assenza.
+
+### Fixed
+
+- **`/api/discover` elencava lo stesso runtime tre volte, e una volta su tre offriva `127.0.0.1`.** Due difetti nello stesso punto, il secondo emerso mentre si correggeva il primo.
+  - `browse_mdns_blocking` accumulava una voce per ogni evento `ServiceResolved`, e mdns-sd ne consegna uno per risposta ricevuta. Misurato in locale: **3 voci** per un solo runtime prima della correzione, 1 dopo (10 esecuzioni su 10).
+  - Deduplicare per nome però non bastava, ed è il motivo per cui la prima stesura era peggiore del problema: `enable_addr_auto()` annuncia **tutti** gli indirizzi dell'host, loopback compreso, `get_addresses_v4()` restituisce un `HashSet`, e le risposte non sono equivalenti — la prima può portare solo `127.0.0.1`. Tenendo la prima si offriva un URL inutilizzabile da un'altra macchina, cioè esattamente il caso d'uso della funzione. Ora la scelta dell'indirizzo è ordinata (ripetibile) e preferisce un IPv4 non-loopback, e una risposta successiva **promuove** la voce se porta un indirizzo raggiungibile.
+  - Nuovo `scripts/check_discover.sh`: due runtime (uno dichiarato in container, uno nativo), N giri, controlla numero di voci, valore di `container` e assenza di loopback nell'URL. I giri multipli non sono zelo — il difetto dell'indirizzo era intermittente e con una sola esecuzione passava comunque due volte su tre.
+
 ### Changed
 
 - **Riconciliati i due percorsi container, che si erano contraddetti sulla posizione della SPA.** Il lavoro su x86_64 e sull'installazione dall'IDE via SSH è nato la stessa giornata del passaggio al registry, ma sul layout *precedente*: `main` è finito con la SPA fuori dall'immagine (bind mount `www`, `--www` obbligatorio) mentre il branch del registry l'aveva già messa dentro. Vale la decisione presa il 2026-07-30, **SPA nell'immagine**, estesa ora a entrambe le architetture.

@@ -7198,6 +7198,24 @@ function RuntimeConnectionTab() {
                       <span style={{ fontSize: 12, color: "var(--brand-text-muted, #94a3b8)", flex: 1 }}>
                         {r.name}{r.version ? ` v${r.version}` : ""}
                       </span>
+                      {/* Pill solo sui runtime in container: dice quale procedura
+                          di aggiornamento usare (install-container.sh / immagine)
+                          invece del deploy del binario nudo. Un runtime nativo
+                          non ha pill — e nemmeno uno più vecchio di questo
+                          campo, che non lo annuncia: l'assenza non afferma
+                          niente. */}
+                      {r.container && (
+                        <span
+                          title={`Runtime in container (${r.container}) — si aggiorna con install-container.sh, non col deploy del binario`}
+                          style={{
+                            fontSize: 10, lineHeight: 1.6, padding: "0 6px", borderRadius: 999,
+                            whiteSpace: "nowrap", flexShrink: 0,
+                            color: "var(--brand-primary, #38bdf8)",
+                            background: "var(--brand-surface, #1e293b)",
+                            border: "1px solid var(--brand-surface-2, #334155)",
+                          }}
+                        >📦 {r.container}</span>
+                      )}
                       <span style={{ fontSize: 11, color: "var(--brand-border, #475569)" }}>{r.admin_url}</span>
                     </div>
                   ))

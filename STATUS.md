@@ -77,11 +77,46 @@ verde, `pnpm test` 20/20, `bash -n` sui tre script toccati.
 stato toccato. In particolare la verifica x86_64 del 2026-07-30 (`docs/DEPLOY_CONTAINER_X86_64.md`
 §Verifica) **precede** questo cambio ed è stata fatta con la SPA fuori dall'immagine: va rifatta.
 
+### Poi: "Cerca runtime" distingue i container (stessa sessione)
+
+Segnalazione del maintainer: cercando i runtime sulla rete non c'è modo di sapere quali girino in
+container. Serve per una ragione pratica — dice quale procedura di aggiornamento usare.
+
+**Fatto**: il runtime annuncia una proprietà mDNS `container` col nome del motore, e la riga in
+ConfigView porta una pill `📦 podman` / `📦 docker`. Il rilevamento è **a runtime**
+(`/run/.containerenv`, `/.dockerenv`, ripiego sul cgroup), non cotto nell'immagine: funziona anche
+sull'immagine legacy e sui dispositivi già installati senza ricostruire niente, e non mente se la
+stessa immagine viene eseguita da un motore diverso. Un runtime nativo **non annuncia la proprietà**,
+quindi niente pill — l'assenza non viene interpretata come "nativo".
+
+**Nel farlo sono usciti due difetti nella discovery, entrambi corretti**:
+
+1. Il doppione già annotato (era item 3 del 30 sera) era in realtà un **triplo**: misurato in locale,
+   3 voci per un solo runtime. Causa confermata: `browse_mdns_blocking` accumulava una voce per ogni
+   `ServiceResolved`, e mdns-sd ne consegna uno per risposta ricevuta.
+2. **Il difetto più serio l'ho quasi introdotto io.** Deduplicare per nome tenendo la prima risposta
+   sembrava ovvio, ma le risposte non sono equivalenti: `enable_addr_auto()` annuncia tutti gli
+   indirizzi dell'host, loopback compreso, e la prima può portare solo `127.0.0.1`. La prima stesura
+   offriva `http://127.0.0.1:8444` **due volte su tre** — un URL inutilizzabile da un'altra macchina,
+   cioè peggio del doppione che stavo correggendo. Se ne è accorto il confronto prima/dopo, non la
+   rilettura del codice. Ora la scelta dell'indirizzo è ordinata e preferisce un IPv4 non-loopback, e
+   una risposta successiva promuove la voce se porta un indirizzo migliore.
+
+**Verificato**: nuovo `scripts/check_discover.sh` (due runtime, N giri, controlla numero di voci +
+valore di `container` + assenza di loopback) → 6/6 su 3 giri, e 10/10 nel confronto prima/dopo.
+Misura prima/dopo con la deduplica disattivata: 3 voci → 1. `cargo test` 41 (sws-web, 7 nuovi) + 9
+(sws-runtime, 5 nuovi), `pnpm build`/`pnpm test` 20/20 verdi.
+
+**Non verificato**: la pill non è stata vista in un browser — provata a livello di API. Si vede al
+primo "Cerca runtime" dall'IDE.
+
 **Da riprendere**:
 
 1. **Ricostruire e riprovare le due immagini** — `build_container.sh --push` (serve l'SDK Yocto) e
    `build_container_x86_64.sh`, poi `install-container.sh --pull` su un dispositivo e "Installa su
    dispositivo" dall'IDE sul percorso offline. È l'unica cosa che chiude davvero questa riconciliazione.
+   L'occasione serve anche per vedere la pill su un runtime in container **vero**, non forzato con
+   `SWS_CONTAINER_ENGINE`.
 2. **`feat/container-registry-procedure` aspetta il tuo via libera** per lo squash merge in `main`.
 
 ---
@@ -284,10 +319,10 @@ settimana**: un automatismo che deduce l'intenzione dell'utente da uno stato amb
 2. **Il purge non è stato riprovato dopo la correzione**: il dispositivo aveva sopra il tuo `Test034`
    e distruggerlo per un test non valeva il prezzo. Da fare sul prossimo dispositivo da azzerare
    davvero — `--uninstall --purge` + install → `GET /api/projects` deve dare `[]`.
-3. **`/api/discover` mostra ogni runtime due volte.** Cosmetico, causa individuata e non corretta:
-   `browse_mdns_blocking` (`sws-web/src/discover.rs`) accumula una voce per ogni evento
-   `ServiceResolved` senza deduplicare per `fullname`. L'annotazione precedente ("una entry per
-   indirizzo") era **sbagliata**: misurato, le due voci portano lo stesso indirizzo.
+3. ~~**`/api/discover` mostra ogni runtime due volte.**~~ **Corretto il 2026-07-31** (vedi la sezione
+   in cima). La causa era quella individuata — `browse_mdns_blocking` accumulava una voce per evento
+   `ServiceResolved` — ma il conteggio era per difetto: misurate **tre** voci, non due. E deduplicare
+   da solo non bastava: teneva la prima risposta, che spesso porta solo il loopback.
 4. **Backup lasciati sul dispositivo**, in `~` di `user@192.168.1.84`:
    `sws-data-backup-20260730-144812.tar.gz` (progetto `pippo` e config del 29) e
    `volbackup-sws-{projects,config,logs}-20260730.tar` (i volumi nominati prima di rimuoverli).
