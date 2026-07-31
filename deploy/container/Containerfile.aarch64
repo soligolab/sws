@@ -9,8 +9,11 @@
 # `scripts/build_container.sh` (bin/, templates/, www/), non la radice del
 # repo: tenerlo piccolo evita di impacchettare target/ e node_modules.
 #
-# Percorso separato e indipendente da `sws-runtime/docker/Dockerfile`, che
-# resta il flusso container legacy per x86 (vedi docs/DEPLOY_PX30.md).
+# Percorso separato e indipendente da `sws-runtime/docker/Dockerfile` (immagine
+# legacy, disattivata in CI). Per x86_64 vedi Containerfile.x86_64 accanto a
+# questo file + docs/DEPLOY_CONTAINER_X86_64.md — non docs/DEPLOY_PX30.md, che
+# copre target ARM64 generici (Raspberry Pi, Jetson...) buildati da un laptop
+# x86, non un target x86_64.
 
 # ubuntu:24.04 non è una scelta estetica. Il binario cross-compilato dichiara:
 #   NEEDED  libpython3.12.so.1.0

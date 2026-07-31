@@ -1,0 +1,97 @@
+# SWS runtime — immagine container x86_64 (amd64), stesso installer e stessa
+# esperienza del percorso aarch64 (Containerfile.aarch64), su una macchina di
+# sviluppo/device x86_64 qualunque.
+#
+# NON compila nulla: il binario arriva già compilato NATIVAMENTE (nessun SDK di
+# cross-compile necessario — a differenza di aarch64, qui l'architettura di
+# build e quella target coincidono) da `scripts/build_container_x86_64.sh`.
+#
+# Il contesto di build è la directory staging preparata da quello script
+# (bin/, templates/, www/), non la radice del repo: tenerlo piccolo evita di
+# impacchettare target/ e node_modules.
+#
+# Percorso separato e indipendente da `sws-runtime/docker/Dockerfile`
+# (immagine legacy, disattivata in CI) e da `Containerfile.aarch64` (device
+# Pixsys Yocto). Vedi docs/DEPLOY_CONTAINER_X86_64.md.
+
+# debian:bookworm-slim NON basta — verificato con readelf, non assunto: il
+# binario nativo buildato su questa macchina (Debian 12 con un python3.13 da
+# fonte esterna, es. pyenv) dichiara:
+#   NEEDED  libpython3.13.so.1.0
+#   simboli fino a GLIBC_2.39
+# quindi la base deve avere insieme Python 3.13 e glibc >= 2.39:
+#   debian:bookworm-slim  glibc 2.36 + Python 3.11  → doppiamente incompatibile
+#   debian:trixie-slim    glibc 2.41 + Python 3.13  → combacia
+# QUESTO NON È UNIVERSALE: chi builda su un'altra macchina, con un altro
+# python3 di sistema, deve rifare `readelf -d`/`-V` sul proprio binario prima
+# di fidarsi di questa riga — è lo stesso principio già documentato per
+# Containerfile.aarch64, qui ancora più rilevante perché non c'è un SDK fisso
+# a garantire un binario identico da una macchina all'altra (vedi il limite
+# di riproducibilità in docs/DEPLOY_CONTAINER_X86_64.md).
+FROM debian:trixie-slim
+
+# python3: PyO3 gira con `auto-initialize`, quindi serve l'interprete completo
+#   (stdlib inclusa), non la sola libpython.
+# python3-pip + RestrictedPython: senza, il motore script parte NON sandboxato
+#   con un warning all'avvio. L'immagine legacy aveva esattamente questo buco.
+# curl: usato dall'HEALTHCHECK qui sotto.
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        ca-certificates \
+        curl \
+        python3 \
+        libpython3.13 \
+        python3-pip && \
+    pip install --no-cache-dir --break-system-packages "RestrictedPython>=7.0" && \
+    apt-get purge -y python3-pip && apt-get autoremove -y && \
+    rm -rf /var/lib/apt/lists/*
+
+COPY bin/sws-runtime /usr/local/bin/sws-runtime
+COPY templates/      /var/sws/templates/
+
+# La SPA sta DENTRO l'immagine, come nel percorso aarch64 e per le stesse
+# ragioni (vedi il commento esteso in Containerfile.aarch64): col registry i
+# layer si deduplicano, quindi un frontend nuovo trasferisce il solo layer
+# della SPA e non l'immagine intera, e non esiste più il modo di ritrovarsi sul
+# dispositivo una SPA di versione diversa dal binario.
+#
+# Sta DOPO il binario e non prima: è il layer che cambia più spesso, e un layer
+# che cambia invalida tutti quelli sotto.
+COPY www/            /var/sws/www/
+
+# Punti di mount dei dati persistenti. Vanno montati come volumi podman:
+# senza, config e progetti vivono nel layer scrivibile e spariscono col
+# container. /var/sws/www NON è fra questi: è contenuto dell'immagine.
+RUN mkdir -p /var/sws/config /var/sws/projects
+
+# 8443 viewer operatori, 8444 IDE/admin.
+EXPOSE 8443 8444
+
+# http, non https: il runtime parte in HTTP finché non esiste config/tls.crt
+# (sws-runtime/src/main.rs, avvio del listener). L'healthcheck legacy
+# interrogava https e restava rosso per sempre.
+# NB: HEALTHCHECK non esiste nella spec OCI — va costruito con
+# `podman build --format docker`, altrimenti podman lo scarta con un warning.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+    CMD curl -fs http://localhost:8443/health || exit 1
+
+# Nessun entrypoint script: niente SWS_ADMIN_PASSWORD obbligatorio (il
+# no-auth mode è lo stato normale del PoC) e i flag stanno tutti nel CMD,
+# così `podman run ... <altri flag>` li può sostituire.
+# --viewer-port è indispensabile: senza, il viewer non va mai in ascolto e
+# l'immagine servirebbe solo l'IDE (era il difetto del Dockerfile legacy).
+# Metadati OCI in fondo e non dopo il FROM: una LABEL in testa invalida la
+# cache di tutto ciò che segue. Qui il layer apt è nativo e non emulato, quindi
+# costa secondi e non minuti, ma la regola resta la stessa del percorso
+# aarch64, dove è già costata 15 minuti di build.
+LABEL org.opencontainers.image.source="https://github.com/soligolab/sws" \
+      org.opencontainers.image.description="SWS runtime (x86_64) — viewer 8443, IDE/admin 8444, SPA inclusa. Montare i dati su /var/sws/{config,projects,logs}." \
+      org.opencontainers.image.licenses="AGPL-3.0-only"
+
+ENTRYPOINT ["/usr/local/bin/sws-runtime"]
+CMD ["--config", "/var/sws/config", \
+     "--projects-root", "/var/sws/projects", \
+     "--templates-root", "/var/sws/templates", \
+     "--www", "/var/sws/www", \
+     "--viewer-port", "8443", \
+     "--admin-port", "8444"]

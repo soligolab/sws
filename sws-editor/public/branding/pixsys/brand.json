@@ -22,5 +22,8 @@
     { "label": "Pixsys WP815/WP615 — 10.1\" (1280×800)", "width": 1280, "height": 800 },
     { "label": "Pixsys WP820/WP620 — 12.1\" (1280×800)", "width": 1280, "height": 800 },
     { "label": "Pixsys WP830/WP630 — 15.6\" (1366×768)", "width": 1366, "height": 768 }
+  ],
+  "data_path_presets": [
+    { "label": "Pixsys (Yocto WP5xx/WP6xx/WP8xx) — /data/user/sws", "path": "/data/user/sws" }
   ]
 }
