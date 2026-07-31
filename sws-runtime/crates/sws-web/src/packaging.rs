@@ -4,8 +4,8 @@
 //!   POST /api/build/package             — run scripts/package.sh, stream log
 //!   GET  /api/build/packages            — list built tarballs in dist/
 //!   POST /api/deploy/device             — SCP tarball + run install.sh via SSH
-//!   GET  /api/build/container-packages  — list built container image+www pairs in dist/
-//!   POST /api/deploy/device-container   — SCP image+www+installer + run install-container.sh via SSH
+//!   GET  /api/build/container-packages  — list built container image archives in dist/
+//!   POST /api/deploy/device-container   — SCP image+installer + run install-container.sh via SSH
 
 use axum::{
     body::Body,
@@ -256,10 +256,6 @@ fn parse_image_tarball(name: &str) -> Option<(String, String)> {
 #[derive(Debug, Serialize)]
 pub struct ContainerPackage {
     pub image_tarball: String,
-    /// `None` when no `sws-www-<version>.tar.gz` exists alongside the image —
-    /// the frontend should refuse to deploy until one is built too (the SPA
-    /// is never baked into the image, see Containerfile.*).
-    pub www_tarball: Option<String>,
     pub arch: String,
     pub version: String,
     pub size_bytes: u64,
@@ -285,11 +281,8 @@ pub async fn list_container_packages(State(s): State<AppState>) -> impl IntoResp
                 .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
                 .map(|d| d.as_millis() as u64)
                 .unwrap_or(0);
-            let www_name = format!("sws-www-{version}.tar.gz");
-            let www_tarball = if dist.join(&www_name).exists() { Some(www_name) } else { None };
             out.push(ContainerPackage {
                 image_tarball: name,
-                www_tarball,
                 arch,
                 version,
                 size_bytes: meta.len(),
@@ -493,10 +486,10 @@ fn resolve_dist_file(repo: &std::path::Path, name: &str) -> Result<PathBuf, Stri
 #[derive(Debug, Deserialize)]
 pub struct DeviceContainerDeployRequest {
     /// Container image archive (basename only, must exist in dist/).
+    /// La SPA non ha più un campo suo: dal 2026-07-30 sta dentro l'immagine
+    /// (vedi Containerfile.aarch64/.x86_64). Un client più vecchio che manda
+    /// ancora `www_tarball` non rompe niente — serde ignora i campi in più.
     pub image_tarball: String,
-    /// SPA archive (basename only, must exist in dist/) — the image never
-    /// bundles the frontend, see Containerfile.aarch64/.x86_64.
-    pub www_tarball: String,
     pub host: String,
     #[serde(default = "default_ssh_port")]
     pub port: u16,
@@ -515,9 +508,9 @@ pub struct DeviceContainerDeployRequest {
 /// Build the remote `install-container.sh` invocation. Split out from
 /// `deploy_device_container` so it's unit-testable without an actual SSH
 /// round-trip — mirrors `resolve_dist_file`/`parse_image_tarball` above.
-fn build_install_cmd(remote_dir: &str, image: &str, www: &str, data_path: &str) -> String {
+fn build_install_cmd(remote_dir: &str, image: &str, data_path: &str) -> String {
     let mut cmd = format!(
-        "cd {remote_dir} && chmod +x install-container.sh && ./install-container.sh --image {image} --www {www}"
+        "cd {remote_dir} && chmod +x install-container.sh && ./install-container.sh --image {image}"
     );
     if !data_path.is_empty() {
         cmd.push_str(&format!(" --data {data_path}"));
@@ -526,12 +519,16 @@ fn build_install_cmd(remote_dir: &str, image: &str, www: &str, data_path: &str) 
 }
 
 /// Same shape as `deploy_device`, but installs the runtime **as a rootless
-/// Podman container** instead of the native binary: ships the image+SPA
-/// archives plus `deploy/container/install-container.sh` and its quadlet
-/// unit (install-container.sh reads the unit from its own directory, so both
-/// must land in the same `remote_dir`), then runs the installer over SSH —
+/// Podman container** instead of the native binary: ships the image archive
+/// plus `deploy/container/install-container.sh` and its quadlet unit
+/// (install-container.sh reads the unit from its own directory, so both must
+/// land in the same `remote_dir`), then runs the installer over SSH —
 /// **without `sudo`**, unlike the native-binary path, because rootless
 /// Podman needs none.
+///
+/// Questo è il percorso **offline**: copia un archivio da ~59 MB via scp.
+/// Quando il dispositivo raggiunge il registry, `install-container.sh --pull`
+/// trasferisce solo il layer cambiato — vedi docs/DEPLOY_CONTAINER_AARCH64.md.
 pub async fn deploy_device_container(
     State(s): State<AppState>,
     EJson(req): EJson<DeviceContainerDeployRequest>,
@@ -559,11 +556,6 @@ pub async fn deploy_device_container(
         Ok(p) => p,
         Err(e) => return (StatusCode::BAD_REQUEST, format!("{e}\n")).into_response(),
     };
-    let www_path = match resolve_dist_file(&repo, &req.www_tarball) {
-        Ok(p) => p,
-        Err(e) => return (StatusCode::BAD_REQUEST, format!("{e}\n")).into_response(),
-    };
-
     let installer_src = repo.join("deploy/container/install-container.sh");
     let quadlet_src = repo.join("deploy/container/sws-runtime.container");
     if !installer_src.exists() || !quadlet_src.exists() {
@@ -573,7 +565,6 @@ pub async fn deploy_device_container(
     }
 
     let image_basename = image_path.file_name().unwrap().to_str().unwrap().to_string();
-    let www_basename = www_path.file_name().unwrap().to_str().unwrap().to_string();
 
     let (tx, rx) = tokio::sync::mpsc::channel::<String>(128);
 
@@ -594,7 +585,7 @@ pub async fn deploy_device_container(
         // ── 1. Crea remote_dir ──────────────────────────────────────────────
         // A differenza di deploy_device (che scp-a dentro /tmp/..., quasi
         // sempre già presente), qui remote_dir deve esistere PRIMA di ognuno
-        // dei quattro scp che seguono, non solo prima dell'estrazione.
+        // dei tre scp che seguono, non solo prima dell'estrazione.
         send(&format!("==> mkdir -p {} sul device", req.remote_dir));
         let ok = run_ssh_cmd(
             use_sshpass, &req.password,
@@ -605,10 +596,10 @@ pub async fn deploy_device_container(
         ).await;
         if !ok { return; }
 
-        // ── 2. SCP dei quattro file (immagine, SPA, installer, quadlet) ────
-        let uploads: [(&str, &std::path::Path); 4] = [
+        // ── 2. SCP dei tre file (immagine, installer, quadlet) ─────────────
+        // La SPA non è più fra questi: viaggia dentro l'immagine.
+        let uploads: [(&str, &std::path::Path); 3] = [
             ("immagine", image_path.as_path()),
-            ("SPA", www_path.as_path()),
             ("installer", installer_src.as_path()),
             ("unit quadlet", quadlet_src.as_path()),
         ];
@@ -627,7 +618,7 @@ pub async fn deploy_device_container(
 
         // ── 3. Esegui install-container.sh (NESSUN sudo: podman rootless) ──
         send("==> Installazione (install-container.sh, podman rootless — nessun sudo richiesto)...");
-        let install_cmd = build_install_cmd(&req.remote_dir, &image_basename, &www_basename, &req.data_path);
+        let install_cmd = build_install_cmd(&req.remote_dir, &image_basename, &req.data_path);
         let ok = run_ssh_cmd(
             use_sshpass, &req.password,
             "ssh",
@@ -796,21 +787,29 @@ mod tests {
 
     #[test]
     fn build_install_cmd_omits_data_flag_when_empty() {
-        let cmd = build_install_cmd("/tmp/sws-deploy", "img.tar.gz", "www.tar.gz", "");
+        let cmd = build_install_cmd("/tmp/sws-deploy", "img.tar.gz", "");
         assert_eq!(
             cmd,
             "cd /tmp/sws-deploy && chmod +x install-container.sh && \
-             ./install-container.sh --image img.tar.gz --www www.tar.gz"
+             ./install-container.sh --image img.tar.gz"
         );
+    }
+
+    /// La SPA sta dentro l'immagine dal 2026-07-30: il comando remoto non deve
+    /// più passare `--www`, che l'installer ora rifiuta con un errore esplicito.
+    #[test]
+    fn build_install_cmd_never_passes_www() {
+        let cmd = build_install_cmd("/tmp/sws-deploy", "img.tar.gz", "/opt/sws-data");
+        assert!(!cmd.contains("--www"), "comando inatteso: {cmd}");
     }
 
     #[test]
     fn build_install_cmd_appends_data_flag_when_present() {
-        let cmd = build_install_cmd("/tmp/sws-deploy", "img.tar.gz", "www.tar.gz", "/opt/sws-data");
+        let cmd = build_install_cmd("/tmp/sws-deploy", "img.tar.gz", "/opt/sws-data");
         assert_eq!(
             cmd,
             "cd /tmp/sws-deploy && chmod +x install-container.sh && \
-             ./install-container.sh --image img.tar.gz --www www.tar.gz --data /opt/sws-data"
+             ./install-container.sh --image img.tar.gz --data /opt/sws-data"
         );
     }
 }

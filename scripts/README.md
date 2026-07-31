@@ -113,10 +113,11 @@ misurare è l'unico modo di sapere se sono tornate.
 ### `check_spa_autoreload.sh` — il pannello prende la SPA nuova?
 
 Verifica che il viewer si ricarichi da solo quando sul dispositivo arriva un
-frontend aggiornato (cioè dopo `install-container.sh --www-only`). Simula il
-deploy rinominando il chunk di entry con un hash diverso — lo stesso segnale che
-Vite produce a ogni build — e controlla che la pagina si ricarichi servendo il
-bundle nuovo.
+frontend aggiornato (cioè dopo un `install-container.sh --pull` che porta
+un'immagine con la SPA nuova; fino al 2026-07-30 era `--www-only`, quando la
+SPA viaggiava a parte). Simula il deploy rinominando il chunk di entry con un
+hash diverso — lo stesso segnale che Vite produce a ogni build — e controlla
+che la pagina si ricarichi servendo il bundle nuovo.
 
 ```sh
 pnpm --dir sws-editor build
@@ -127,6 +128,24 @@ cargo build -p sws-runtime
 Esiste perché sul WP620 il pannello ha continuato a mostrare la versione vecchia
 dopo un aggiornamento, e lì non c'è nessuno che possa premere ricarica: "il
 deploy è andato" non significa "il pannello sta mostrando la versione nuova".
+
+### `check_discover.sh` — "Cerca runtime" dice la verità?
+
+Avvia due runtime in sequenza, uno dichiarato in container e uno nativo, e
+controlla su `GET /api/discover` tre cose: che la proprietà `container` valga
+quello che deve, che il runtime compaia **una volta sola**, e che l'indirizzo
+offerto non sia `127.0.0.1`.
+
+```sh
+cargo build -p sws-runtime
+./scripts/check_discover.sh          # 3 giri, ~30 s
+GIRI=10 ./scripts/check_discover.sh  # più giri quando si tocca discover.rs
+```
+
+I giri multipli non sono zelo: il difetto dell'indirizzo era intermittente e con
+una sola esecuzione passava comunque due volte su tre. In sequenza e non in
+parallelo perché l'istanza mDNS prende il nome dall'hostname — due runtime sulla
+stessa macchina si annuncerebbero con lo stesso nome.
 
 ---
 

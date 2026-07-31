@@ -7,7 +7,41 @@ and this project adheres to [CalVer](https://calver.org/) (`YYYY.MM[.patch]`).
 
 ## [Unreleased]
 
+### Added
+
+- **Bottone "🖥 Viewer ↗" nell'header dell'editor**: apre la pagina operatore del runtime in una scheda nuova del browser, per vedere se risponde senza andare a cercare l'indirizzo. Sta accanto a Deploy perché la domanda *"ha funzionato?"* arriva subito dopo averlo premuto.
+  - **Quale runtime**: quello a cui l'IDE è connesso, se c'è — dopo un deploy è l'unico che interessa. Senza connessione ricade sul runtime che sta servendo la SPA. Lo stato della connessione viene chiesto al server al montaggio dell'header, perché `remoteUrl` nello store lo scrive solo `RuntimeConnectionTab`: chi ricarica l'IDE e non passa da Configurazione avrebbe avuto il bottone puntato al runtime sbagliato.
+  - **Sonda `/health` prima di aprire** (scelta del maintainer): il caso normale in cui si preme questo bottone è "il dispositivo non risponde più", e aprire comunque darebbe una scheda bianca con un errore del browser. Quando fallisce su `https` il messaggio nomina il certificato self-signed non ancora accettato — è l'unica delle cause possibili che si risolve senza toccare il dispositivo, ed è quella che sorprende.
+  - **La porta del viewer è dedotta** come `admin − 1` (scelta del maintainer: zero lavoro sul backend, corretta per ogni installazione esistente — `start_runtime.sh` usa 8443/8444 e 8445/8446, il `CMD` dei Containerfile 8443/8444). È una convenzione e non un dato, quindi l'URL dedotto è **mostrato nel tooltip** invece di essere aperto in silenzio, e il bottone sparisce quando la deduzione non ha senso (URL senza porta esplicita). Nuovo `viewerUrlFromAdmin()` puro in `src/runtimeUrl.ts` con 6 test.
+
+- **"Cerca runtime" distingue i runtime in container.** Cercando i dispositivi sulla rete non c'era modo di sapere quali girassero in container, cioè quale procedura di aggiornamento usare — `install-container.sh` o il deploy del binario nudo. Ora la riga porta una pill `📦 podman` / `📦 docker`.
+  - Il runtime annuncia una proprietà mDNS `container` col nome del motore, accanto a `admin_port`/`scheme`/`version`. Il rilevamento è **a runtime**, non cotto nell'immagine: `/run/.containerenv` (podman), `/.dockerenv` (docker), con ripiego sul cgroup per le configurazioni rootless dove il file non c'è. Così funziona anche sull'immagine legacy e su un dispositivo già installato, senza ricostruire niente — e non mente se la stessa immagine viene eseguita da un motore diverso. `SWS_CONTAINER_ENGINE` forza il valore dove il rilevamento non arriva; deliberatamente **non** impostata nei nostri Containerfile.
+  - Un runtime nativo non annuncia la proprietà **affatto**, e nemmeno uno più vecchio di questo campo: la pill compare solo quando c'è un'affermazione da mostrare, mai per dedurre "nativo" da un'assenza.
+
+### Fixed
+
+- **L'oggetto slider ignorava l'orientamento verticale** (segnalato dal maintainer). La proprietà si sceglieva nel pannello, veniva salvata e sopravviveva al round-trip — c'è anche nel mirror Rust (`synoptic.rs`) — ma **nessuno la leggeva**: né l'anteprima nell'editor né il controllo a runtime. Era una dimenticanza del solo slider: `radio_group` onora `orientation` e il grafico a barre `bar_orientation`.
+  - A runtime il controllo nativo viene **ruotato di −90°** invece di usare `writing-mode: vertical-rl`. Quest'ultimo è lo standard moderno ma richiede Chrome 120+/Firefox 129+/WebKit 17.4+, e sul browser dei pannelli Yocto non sappiamo cosa ci sia: dove non fosse supportato lo slider resterebbe orizzontale, cioè il difetto di partenza ma più difficile da riconoscere. La rotazione funziona su qualunque motore e conserva il comportamento nativo su touch e tastiera. −90° e non +90° perché porta il `min` in basso.
+  - Anche l'**anteprima nell'editor** ora è verticale: finché restava orizzontale, cambiare orientamento continuava a "non fare niente" anche col runtime corretto.
+  - **Nota d'uso**: l'orientamento non cambia la geometria dell'oggetto. Uno slider lasciato alla dimensione di default della toolbar (200×40) e messo verticale diventa un moncone — misurato, 15×23 px: va reso più alto che largo.
+
+- **Lo slider ignorava anche `read_only`**: la spunta "Sola lettura" esisteva nel pannello proprietà e non faceva niente, quindi un comando dichiarato in sola lettura scriveva comunque il tag. Su un HMI industriale non è un dettaglio cosmetico. Ora l'`<input type="range">` è `disabled`. Trovato leggendo il codice per l'orientamento; `checkbox` — l'unico altro oggetto che offre la spunta — la onorava già.
+
+- **Preset dispositivo WP830/WP630 con la risoluzione sbagliata**: erano dichiarati 1366×768, il pannello è **1920×1080** (segnalato dal maintainer). Il preset serve a dare a una pagina nuova la dimensione giusta del dispositivo: sbagliato, produceva un synoptic disegnato per uno schermo che non esiste, che in modalità *proporzioni* veniva scalato e in modalità *fisso* lasciava una fascia vuota. Corretto in `public/branding/pixsys/brand.json`. **Nota**: il preset agisce solo alla creazione, quindi i progetti già disegnati con la misura vecchia restano a 1366×768 finché non si cambia a mano la dimensione della pagina.
+
+- **`/api/discover` elencava lo stesso runtime tre volte, e una volta su tre offriva `127.0.0.1`.** Due difetti nello stesso punto, il secondo emerso mentre si correggeva il primo.
+  - `browse_mdns_blocking` accumulava una voce per ogni evento `ServiceResolved`, e mdns-sd ne consegna uno per risposta ricevuta. Misurato in locale: **3 voci** per un solo runtime prima della correzione, 1 dopo (10 esecuzioni su 10).
+  - Deduplicare per nome però non bastava, ed è il motivo per cui la prima stesura era peggiore del problema: `enable_addr_auto()` annuncia **tutti** gli indirizzi dell'host, loopback compreso, `get_addresses_v4()` restituisce un `HashSet`, e le risposte non sono equivalenti — la prima può portare solo `127.0.0.1`. Tenendo la prima si offriva un URL inutilizzabile da un'altra macchina, cioè esattamente il caso d'uso della funzione. Ora la scelta dell'indirizzo è ordinata (ripetibile) e preferisce un IPv4 non-loopback, e una risposta successiva **promuove** la voce se porta un indirizzo raggiungibile.
+  - Nuovo `scripts/check_discover.sh`: due runtime (uno dichiarato in container, uno nativo), N giri, controlla numero di voci, valore di `container` e assenza di loopback nell'URL. I giri multipli non sono zelo — il difetto dell'indirizzo era intermittente e con una sola esecuzione passava comunque due volte su tre.
+
 ### Changed
+
+- **Riconciliati i due percorsi container, che si erano contraddetti sulla posizione della SPA.** Il lavoro su x86_64 e sull'installazione dall'IDE via SSH è nato la stessa giornata del passaggio al registry, ma sul layout *precedente*: `main` è finito con la SPA fuori dall'immagine (bind mount `www`, `--www` obbligatorio) mentre il branch del registry l'aveva già messa dentro. Vale la decisione presa il 2026-07-30, **SPA nell'immagine**, estesa ora a entrambe le architetture.
+  - `Containerfile.x86_64` allineato al gemello aarch64: `COPY www/` come ultimo layer di contenuto, niente più `/var/sws/www` fra le directory da montare.
+  - `build_container_x86_64.sh` guadagna `--push`/`--registry` e i controlli preliminari del gemello (albero pulito, `podman login`), pubblica `<versione>-amd64` e `<sha>-amd64`, e non produce più l'archivio SPA separato.
+  - **`POST /api/deploy/device-container` non trasferisce più la SPA**: tre file invece di quattro, e il comando remoto non passa `--www` — che l'installer del registry rifiuta con un errore esplicito, quindi lasciarlo avrebbe rotto "Installa su dispositivo" a ogni uso. Via anche `www_tarball` da `ContainerPackage` e dalla richiesta di deploy; un client più vecchio che lo manda ancora non rompe niente, serde ignora i campi in più (vedi Q9 in `OPEN_QUESTIONS.md`, qui il lato utile del comportamento). Nuovo test che verifica l'assenza di `--www` nel comando costruito.
+  - Il deploy SSH dall'IDE resta come **percorso offline** — copia un archivio da ~59 MB — accanto a `--pull`, che trasferisce il solo layer cambiato. Non è un ripiego di serie B: un dispositivo in campo che non raggiunge il registry è il caso normale.
+  - `docs/DEPLOY_CONTAINER_X86_64.md` e il README aggiornati di conseguenza; la verifica x86_64 del 2026-07-30 è annotata come **precedente** al cambio, quindi da rifare.
 
 - **Il runtime in container si distribuisce da un registry, non più via `scp`.** L'immagine aarch64 è pubblicata su `ghcr.io/soligolab/sws-runtime` come package **pubblico**: il dispositivo la scarica senza credenziali (verificato — `podman login --get-login ghcr.io` risponde *not logged into* e il pull riesce lo stesso). Portare una versione nuova era copiare 59 MB e ricordarsi il secondo artefatto con la SPA; ora è `install-container.sh --pull`, e siccome i layer si deduplicano si trasferisce solo ciò che è cambiato — il binario pesa 14,3 MB compressi, i 50 MB di base e apt il dispositivo li ha già.
   - **La SPA entra nell'immagine**, come ultimo layer di contenuto. Stava fuori per non ritrasferire 59 MB a ogni modifica del frontend: col registry quella ragione cade (il layer della SPA è 0,4 MB) e cade anche il rischio di avere sul dispositivo una SPA di una versione diversa dal binario, che è già costato una caccia al fantasma. Sta **dopo** il binario perché un layer che cambia invalida quelli sotto: invertirli farebbe ritrasferire 14 MB per un ritocco al frontend. Via il bind mount di `www`, e `--www`/`--www-only` ora falliscono spiegando cosa usare invece di essere no-op silenziosi.
@@ -45,12 +79,11 @@ and this project adheres to [CalVer](https://calver.org/) (`YYYY.MM[.patch]`).
   - **Installazione container dall'IDE**: nuovo `POST /api/deploy/device-container`
     (`sws-web/src/packaging.rs`), stesso pattern SSH/SCP già in uso per il binario nudo
     (`deploy_device` — shell-out a `sshpass`/`scp`/`ssh` di sistema, nessuna libreria SSH Rust), ma
-    carica **quattro** file (immagine, SPA, `install-container.sh`, il quadlet — l'installer legge
+    carica **tre** file (immagine, `install-container.sh`, il quadlet — l'installer legge
     quest'ultimo da una posizione relativa a sé stesso, devono stare nella stessa directory remota)
     ed esegue l'installer **senza `sudo`**, perché Podman rootless non ne ha bisogno — differenza
-    comunicata anche in UI. Nuovo `GET /api/build/container-packages` elenca le coppie
-    immagine+SPA già buildate in `dist/`, segnalando quando manca l'archivio SPA corrispondente
-    (l'immagine non lo contiene mai). In `ConfigView.tsx` → tab Runtime → "Installa su dispositivo",
+    comunicata anche in UI. Nuovo `GET /api/build/container-packages` elenca le immagini già
+    buildate in `dist/`. In `ConfigView.tsx` → tab Runtime → "Installa su dispositivo",
     nuovo selettore **Binario nativo / Container (Podman)**: stessi campi host/porta/utente/
     password/directory remota, riusati identici — solo l'elenco pacchetti e l'endpoint cambiano.
   - Deciso col maintainer: **solo Podman per ora**. Docker avrebbe richiesto un secondo percorso di
@@ -60,9 +93,10 @@ and this project adheres to [CalVer](https://calver.org/) (`YYYY.MM[.patch]`).
     8443/8444/8460 occupate): `install-container.sh` testato con porte/dati remappati su una copia
     temporanea (mkdir, `podman load`, unpack SPA, avvio, `/health ok dopo 2s`); il deploy via SSH
     testato con self-SSH (chiave autorizzata solo per la durata del test, rimossa subito dopo)
-    contro un'istanza runtime usa-e-getta su porta dedicata — mkdir, i quattro `scp`, invocazione
+    contro un'istanza runtime usa-e-getta su porta dedicata — mkdir, gli `scp`, invocazione
     di `install-container.sh` tutti riusciti; istanze dev live verificate intatte dopo entrambi i
-    test.
+    test. **Quella verifica precede la riconciliazione qui sotto** ed è stata fatta con la SPA
+    fuori dall'immagine: va rifatta.
   - `cargo test -p sws-web` (31 test, 4 nuovi su `parse_image_tarball`/`validate_remote_path`) +
     `pnpm build`/`pnpm test` (20/20) verdi.
   - **Il deploy restava bloccato dopo il primo comando, senza errore**: senza `sshpass` e senza

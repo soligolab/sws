@@ -23,7 +23,11 @@ After=network-online.target
 Wants=network-online.target
 
 [Container]
-Image=localhost/sws-runtime:0.1.0-dev
+# Riferimento pubblico sul registry: chi copia questa unit a mano ottiene
+# l'immagine giusta senza doverla costruire. `install-container.sh` riscrive
+# comunque questa riga con ciò che ha effettivamente installato (--pull, --image
+# o --tag), quindi qui conta solo come default sensato.
+Image=ghcr.io/soligolab/sws-runtime:0.1.0-dev-arm64
 ContainerName=sws-runtime
 
 # 8443 viewer operatori, 8444 IDE/admin. Porte > 1024: rootless le binda
@@ -49,9 +53,9 @@ PublishPort=8444:8444
 # risultano di `user`, che è il proprietario di /data/user/sws. (Con podman
 # rootful il mapping sarebbe diverso e i permessi andrebbero rivisti.)
 #
-# La SPA sta anch'essa qui e non nell'immagine: aggiornare il frontend non
-# richiede di ricostruire l'immagine (vedi Containerfile).
-Volume=/data/user/sws/www:/var/sws/www
+# Qui stanno solo i DATI. La SPA non è più fra questi: dal 2026-07-30 è dentro
+# l'immagine, e montarci sopra una directory dell'host la nasconderebbe (con
+# l'effetto di una interfaccia vuota e nessun indizio del perché).
 Volume=/data/user/sws/config:/var/sws/config
 Volume=/data/user/sws/projects:/var/sws/projects
 Volume=/data/user/sws/logs:/var/sws/logs

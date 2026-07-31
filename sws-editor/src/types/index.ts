@@ -1160,11 +1160,10 @@ export interface PackageFile {
   mtime_ms: number;
 }
 
+/** Un'immagine container pronta in `dist/`. Dal 2026-07-30 la SPA sta dentro
+ *  l'immagine, quindi non c'è più un secondo archivio da abbinare. */
 export interface ContainerPackage {
   image_tarball: string;
-  /** null quando manca l'archivio SPA con la stessa versione — l'immagine
-   *  non include mai la SPA, il deploy container va bloccato finché non c'è. */
-  www_tarball: string | null;
   arch: string;
   version: string;
   size_bytes: number;

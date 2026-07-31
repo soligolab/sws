@@ -6,7 +6,7 @@
 # richiederebbe ore; qui la build dura secondi.
 #
 # Il contesto di build è la directory staging preparata da
-# `scripts/build_container.sh` (bin/, www/, templates/), non la radice del
+# `scripts/build_container.sh` (bin/, templates/, www/), non la radice del
 # repo: tenerlo piccolo evita di impacchettare target/ e node_modules.
 #
 # Percorso separato e indipendente da `sws-runtime/docker/Dockerfile` (immagine
@@ -45,19 +45,24 @@ RUN apt-get update && \
 COPY bin/sws-runtime /usr/local/bin/sws-runtime
 COPY templates/      /var/sws/templates/
 
-# La SPA NON sta nell'immagine: vive nel volume `sws-www`, popolato da
-# install-container.sh con l'archivio `sws-www-<ver>.tar.gz` (~3 MB).
-# Motivo: cotta dentro, ogni modifica al frontend imponeva di ricostruire e
-# ritrasferire i 59 MB dell'immagine anche senza toccare il binario Rust —
-# ed è già capitato di ritrovarsi sul dispositivo una SPA vecchia mentre i
-# dati di progetto erano aggiornati, con conseguente caccia al fantasma.
-# Conseguenza accettata: l'immagine da sola non serve la SPA. L'installer
-# rifiuta di procedere se il volume resta vuoto.
+# La SPA sta DENTRO l'immagine, dal 2026-07-30. Fino a quel giorno viaggiava a
+# parte, in un archivio da srotolare in un bind mount, per non dover
+# ritrasferire 59 MB a ogni modifica del frontend. Quella ragione è caduta col
+# passaggio al registry: i layer si deduplicano, quindi un frontend nuovo
+# trasferisce il solo layer della SPA (~0,4 MB) e non l'immagine intera. In
+# cambio l'installazione è un `podman pull` e basta — nessun secondo artefatto
+# da copiare, e nessun modo di ritrovarsi sul dispositivo una SPA di una
+# versione diversa dal binario, che è già costata una caccia al fantasma.
+#
+# Sta DOPO il binario e non prima: è il layer che cambia più spesso, e un layer
+# che cambia invalida tutti quelli sotto. Invertirli farebbe ritrasferire i
+# 14 MB del binario a ogni ritocco del frontend.
+COPY www/            /var/sws/www/
 
 # Punti di mount dei dati persistenti. Vanno montati come volumi podman:
 # senza, config e progetti vivono nel layer scrivibile e spariscono col
-# container. /var/sws/www è il mount della SPA (vedi sopra).
-RUN mkdir -p /var/sws/config /var/sws/projects /var/sws/www
+# container. /var/sws/www NON è fra questi: è contenuto dell'immagine.
+RUN mkdir -p /var/sws/config /var/sws/projects
 
 # 8443 viewer operatori, 8444 IDE/admin.
 # Volutamente NON esposta la 9090: nel runtime non esiste alcun listener
@@ -87,7 +92,7 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
 # costruito sotto emulazione QEMU) verrebbe rifatto da zero a ogni ritocco dei
 # metadati. Provato: 10 minuti solo per arrivare a configurare python3.12.
 LABEL org.opencontainers.image.source="https://github.com/soligolab/sws" \
-      org.opencontainers.image.description="SWS runtime (aarch64) — viewer 8443, IDE/admin 8444. La SPA non è nell'immagine: va montata in /var/sws/www." \
+      org.opencontainers.image.description="SWS runtime (aarch64) — viewer 8443, IDE/admin 8444, SPA inclusa. Montare i dati su /var/sws/{config,projects,logs}." \
       org.opencontainers.image.licenses="AGPL-3.0-only"
 
 ENTRYPOINT ["/usr/local/bin/sws-runtime"]

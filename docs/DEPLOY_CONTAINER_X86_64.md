@@ -14,7 +14,8 @@
 `deploy/container/Containerfile.x86_64` **non compila nulla**. Copia dentro un
 binario già compilato **nativamente** (nessun SDK, nessun cross-compile — a
 differenza di aarch64, qui l'architettura di build e quella target
-coincidono), la SPA e i template.
+coincidono), la SPA e i template. La SPA è l'ultimo layer di contenuto, dopo
+il binario, perché è quella che cambia più spesso.
 
 ### Perché `debian:trixie-slim` e non `debian:bookworm-slim` (su QUESTA macchina)
 
@@ -82,40 +83,58 @@ macchine di sviluppo del progetto), `podman`, rete verso Docker Hub per
 
 ```bash
 ./scripts/build_container_x86_64.sh              # build nativa + immagine + archivio
+./scripts/build_container_x86_64.sh --push       # ...e pubblica sul registry
 ./scripts/build_container_x86_64.sh --no-rust    # riusa il binario x86_64 esistente
 ./scripts/build_container_x86_64.sh --no-save    # solo immagine, niente archivio
 ```
 
-Produce gli stessi **due** artefatti del percorso aarch64:
+Produce **un solo** artefatto, come il percorso aarch64:
 
 | Artefatto | Contenuto | Dimensione (misurata) |
 |---|---|---|
-| `dist/sws-runtime-<versione>-x86_64-image.tar.gz` | immagine: binario + template | ~63 MB |
-| `dist/sws-www-<versione>.tar.gz` | la SPA | ~0,4 MB |
+| `dist/sws-runtime-<versione>-x86_64-image.tar.gz` | immagine: binario + SPA + template | ~63 MB |
 
-Stessa ragione del percorso aarch64 per tenere la SPA fuori dall'immagine
-(bind mount, aggiornabile senza ricostruire/ritrasferire l'immagine intera).
+La SPA sta **dentro** l'immagine dal 2026-07-30 — non c'è più un secondo
+archivio da abbinare. La ragione per tenerla fuori (non ritrasferire 59 MB per
+una modifica al solo frontend) è caduta col passaggio al registry, dove i layer
+si deduplicano; vedi `docs/DEPLOY_CONTAINER_AARCH64.md` §"Come è fatta
+l'immagine".
+
+Con `--push` l'immagine finisce su `ghcr.io/soligolab/sws-runtime` con due tag,
+`<versione>-amd64` e `<commit>-amd64`. Il suffisso `-amd64` è speculare al
+`-arm64` del percorso aarch64 e serve: non è una manifest list multi-arch, e un
+tag nudo farebbe fallire un pull su arm64 con un `no matching manifest`
+incomprensibile.
 
 Lo script rifiuta di procedere se il binario in `target/release/` non è
-x86-64 (stesso principio della guardia aarch64, verifica con `file`).
+x86-64 (stesso principio della guardia aarch64, verifica con `file`), e — con
+`--push` — se l'albero di lavoro è sporco o manca il `podman login`.
 
 ## Installazione sul device
 
 **Identica al percorso aarch64** — `deploy/container/install-container.sh`
-non ha alcuna logica specifica per architettura, funziona invariato:
+non ha alcuna logica specifica per architettura, funziona invariato.
+
+Dal registry, la strada normale:
+
+```bash
+scp deploy/container/install-container.sh \
+    deploy/container/sws-runtime.container  user@<device>:/tmp/
+ssh user@<device>
+cd /tmp && ./install-container.sh --pull ghcr.io/soligolab/sws-runtime:<versione>-amd64
+```
+
+Da archivio, per un dispositivo che non raggiunge il registry:
 
 ```bash
 scp dist/sws-runtime-<versione>-x86_64-image.tar.gz \
-    dist/sws-www-<versione>.tar.gz \
     deploy/container/install-container.sh \
     deploy/container/sws-runtime.container  user@<device>:/tmp/
 ssh user@<device>
-cd /tmp && ./install-container.sh \
-    --image sws-runtime-<versione>-x86_64-image.tar.gz \
-    --www   sws-www-<versione>.tar.gz
+cd /tmp && ./install-container.sh --image sws-runtime-<versione>-x86_64-image.tar.gz
 ```
 
-Per tutto il resto — dove stanno i dati, aggiornare solo il frontend, avvio
+Per tutto il resto — dove stanno i dati, aggiornare il frontend, avvio
 automatico al boot (quadlet + linger), discovery mDNS e perché la rete host è
 il default, elenco flag — vedi
 `docs/DEPLOY_CONTAINER_AARCH64.md` §"Installazione sul device" in poi: è
@@ -142,6 +161,11 @@ Non ancora provato: avvio automatico al boot (quadlet + linger) su questa
 macchina — il percorso aarch64 lo ha già verificato su device reale
 (`docs/DEPLOY_CONTAINER_AARCH64.md` §Verifica) e l'installer è lo stesso
 identico script, quindi il rischio è basso, ma non è stato ripetuto qui.
+
+**Quella verifica precede il passaggio della SPA dentro l'immagine** (stessa
+giornata, ordine invertito rispetto a come è finita in `main`): è stata fatta
+con un'immagine senza SPA e un `--www` a parte. Va rifatta con un'immagine
+costruita dallo script attuale prima di considerare provato il percorso x86_64.
 
 ## Limiti noti
 
