@@ -8,6 +8,7 @@ import { DirtyIndicator } from "@/components/DirtyIndicator";
 import { HDR_BTN } from "@/components/headerStyles";
 import { MainMenu } from "@/components/MainMenu";
 import { RuntimeCtrl } from "@/components/RuntimeCtrl";
+import { ViewerLink } from "@/components/ViewerLink";
 import { UserMenu } from "@/components/UserMenu";
 import { LogPanel } from "@/components/LogPanel";
 import { LoginScreen } from "@/components/LoginScreen";
@@ -511,6 +512,10 @@ export function App() {
           ))}
         </div>
         <RuntimeCtrl />
+        {/* Apre la pagina operatore del runtime — quello connesso se c'è,
+            altrimenti il locale. Sta accanto a Deploy di proposito: la domanda
+            "ha funzionato?" arriva subito dopo averlo premuto. */}
+        <ViewerLink />
         {/* Remote deploy target indicator — shows sync status when connected */}
         {(() => {
           const syncLabel =
