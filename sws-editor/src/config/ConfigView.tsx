@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api, getAuthToken, type CreateUserBody, type DiscoveredRuntime, type UpdateUserBody, type UserRole, type UserSummary } from "@/api/client";
 import { getBrand } from "@/branding";
+import { containerDeployPayload, effectiveDataPath, type ContainerSource } from "@/containerDeploy";
 import { TagInput } from "@/components/TagInput";
 import { PythonEditor, type PythonEditorHandle } from "@/components/PythonEditor";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -6816,6 +6817,14 @@ function RuntimeConnectionTab() {
   // questo campo, che resta comunque sempre editabile — è anche il "modello
   // custom" richiesto, senza bisogno di uno stato separato.
   const [dataPath, setDataPath] = useState("");
+  // Registry per default: è la strada documentata come normale dal 2026-07-30 e
+  // trasferisce solo i layer cambiati. L'archivio resta per i dispositivi che il
+  // registry non lo raggiungono, che in campo sono il caso normale.
+  const [containerSource, setContainerSource] = useState<ContainerSource>("registry");
+  // Vuoto = il tag lo compone il dispositivo da `uname -m`. Si riempie solo per
+  // inchiodare una versione precisa.
+  const [imageRef, setImageRef] = useState("");
+  const [cleanInstall, setCleanInstall] = useState(false);
 
   const target = targetUrl.trim().replace(/\/$/, "");
 
@@ -7039,8 +7048,12 @@ function RuntimeConnectionTab() {
   };
 
   const handleContainerDeploy = async () => {
-    const pkg = containerPackages.find((p) => p.image_tarball === selectedContainerPkg);
-    if (!pkg || !deviceHost || !deviceUser) return;
+    if (!deviceHost || !deviceUser) return;
+    if (containerSource === "archive" && !selectedContainerPkg) return;
+    // Conferma prima di qualunque cosa, e nominando la cartella: è l'unico
+    // punto della UI in cui un clic cancella i progetti di un dispositivo.
+    if (cleanInstall &&
+        !window.confirm(t("cfg.cleanInstallConfirm", { path: effectiveDataPath(dataPath) }))) return;
     setContainerDeploying(true);
     setContainerLog([]);
     try {
@@ -7048,14 +7061,23 @@ function RuntimeConnectionTab() {
       const res = await fetch("/api/deploy/device-container", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({
-          image_tarball: pkg.image_tarball,
+        body: JSON.stringify(containerDeployPayload({
+          source: containerSource,
+          imageTarball: selectedContainerPkg,
+          imageRef,
+          cleanInstall,
           host: deviceHost, port: devicePort,
-          user: deviceUser, password: devicePass, remote_dir: deviceTmpDir,
-          data_path: dataPath,
-        }),
+          user: deviceUser, password: devicePass, remoteDir: deviceTmpDir,
+          dataPath,
+        })),
       });
-      if (!res.ok) { setContainerLog([`ERROR: ${res.status} ${res.statusText}`]); return; }
+      if (!res.ok) {
+        // Il corpo porta il messaggio in italiano del backend ("riferimento
+        // immagine non valido: …"); mostrare solo lo status lo buttava via.
+        const detail = await res.text().catch(() => "");
+        setContainerLog([`ERROR: ${res.status} ${res.statusText}${detail.trim() ? ` — ${detail.trim()}` : ""}`]);
+        return;
+      }
       const reader = res.body?.getReader();
       if (!reader) return;
       const dec = new TextDecoder();
@@ -7068,6 +7090,9 @@ function RuntimeConnectionTab() {
       setContainerLog((l) => [...l, `ERROR: ${String(e)}`]);
     } finally {
       setContainerDeploying(false);
+      // La spunta non sopravvive all'uso: una seconda installazione fatta di
+      // fretta non deve azzerare il dispositivo perché la casella era rimasta.
+      setCleanInstall(false);
     }
   };
 
@@ -7461,8 +7486,11 @@ function RuntimeConnectionTab() {
         )}
       </section>
 
-      {/* Device SSH deploy — binario nativo o container Podman, stesse credenziali */}
-      {(packages.length > 0 || containerPackages.length > 0) && (
+      {/* Device SSH deploy — binario nativo o container Podman, stesse credenziali.
+          Sempre visibile: col registry l'installazione container non dipende più
+          da cosa c'è in dist/, quindi una dist/ vuota non deve far sparire il
+          pannello proprio a chi non ha ancora costruito niente. */}
+      {(
         <section>
           <div style={{ fontSize: 13, fontWeight: 600, color: "var(--brand-text-muted, #94a3b8)", marginBottom: 8, textTransform: "uppercase", letterSpacing: 1 }}>
             Installa su dispositivo
@@ -7475,8 +7503,6 @@ function RuntimeConnectionTab() {
             </button>
             <button
               style={{ ...(deployMode === "container" ? BTN_PRIMARY : BTN), padding: "5px 12px", fontSize: 12 }}
-              disabled={containerPackages.length === 0}
-              title={containerPackages.length === 0 ? "Nessuna immagine container in dist/ — build_container.sh o build_container_x86_64.sh" : undefined}
               onClick={() => setDeployMode("container")}>
               Container (Podman)
             </button>
@@ -7495,20 +7521,66 @@ function RuntimeConnectionTab() {
                 </select>
               </div>
             ) : (
-              <div>
-                <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 4 }}>
-                  Immagine selezionata
-                </label>
-                <select
-                  value={selectedContainerPkg}
-                  onChange={(e) => setSelectedContainerPkg(e.target.value)}
-                  style={{ ...INPUT, width: "100%", boxSizing: "border-box" as const }}>
-                  {containerPackages.map((p) => (
-                    <option key={p.image_tarball} value={p.image_tarball}>
-                      {p.image_tarball} ({p.arch})
-                    </option>
-                  ))}
-                </select>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                <div>
+                  <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 4 }}>
+                    {t("cfg.imageSource")}
+                  </label>
+                  <div style={{ display: "flex", gap: 4 }}>
+                    <button
+                      style={{ ...(containerSource === "registry" ? BTN_PRIMARY : BTN), padding: "5px 12px", fontSize: 12 }}
+                      onClick={() => setContainerSource("registry")}>
+                      {t("cfg.imageSourceRegistry")}
+                    </button>
+                    <button
+                      style={{ ...(containerSource === "archive" ? BTN_PRIMARY : BTN), padding: "5px 12px", fontSize: 12 }}
+                      disabled={containerPackages.length === 0}
+                      title={containerPackages.length === 0 ? t("cfg.noContainerImages") : undefined}
+                      onClick={() => setContainerSource("archive")}>
+                      {t("cfg.imageSourceArchive")}
+                    </button>
+                  </div>
+                </div>
+                {containerSource === "archive" ? (
+                  <div>
+                    <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 4 }}>
+                      Immagine selezionata
+                    </label>
+                    {/* L'elenco si legge al montaggio della tab. Le immagini si
+                        costruiscono da shell, quindi una appena prodotta non
+                        compare finché non si ricarica la pagina: è così che il
+                        2026-07-31 è finito su un dispositivo un archivio del
+                        giorno prima, l'unico che c'era. */}
+                    <div style={{ display: "flex", gap: 6 }}>
+                      <select
+                        value={selectedContainerPkg}
+                        onChange={(e) => setSelectedContainerPkg(e.target.value)}
+                        style={{ ...INPUT, flex: 1, boxSizing: "border-box" as const }}>
+                        {containerPackages.map((p) => (
+                          <option key={p.image_tarball} value={p.image_tarball}>
+                            {p.image_tarball} ({p.arch})
+                          </option>
+                        ))}
+                      </select>
+                      <button style={{ ...BTN, flexShrink: 0 }}
+                        title={t("cfg.reloadImages")}
+                        onClick={() => void fetchContainerPackages()}>↻</button>
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 4 }}>
+                      {t("cfg.imageRef")}
+                    </label>
+                    <input style={{ ...INPUT, width: "100%", boxSizing: "border-box" as const }}
+                      placeholder="ghcr.io/soligolab/sws-runtime:2026.7.0-arm64"
+                      value={imageRef}
+                      onChange={(e) => setImageRef(e.target.value)} />
+                    <span style={{ fontSize: 10, color: "var(--brand-border, #475569)" }}>
+                      {t("cfg.imageRefHint")}
+                    </span>
+                  </div>
+                )}
               </div>
             )}
             <div style={{ display: "flex", gap: 8 }}>
@@ -7603,11 +7675,28 @@ function RuntimeConnectionTab() {
                 <span style={{ fontSize: 10, color: "var(--brand-border, #475569)" }}>
                   Richiede <code>sshpass</code> e <code>scp</code> sul sistema locale. Podman rootless sul dispositivo — <strong>nessun <code>sudo</code> richiesto</strong>, a differenza del binario nativo.
                 </span>
+                {/* Vale per entrambe le sorgenti: agisce sui dati del
+                    dispositivo, non sull'immagine. Stile del blocco "danger"
+                    già usato per l'eliminazione del progetto remoto. */}
+                <div style={{ borderTop: "1px solid var(--brand-surface, #1e293b)", paddingTop: 8 }}>
+                  <label style={{ display: "flex", alignItems: "flex-start", gap: 6, cursor: "pointer" }}>
+                    <input type="checkbox" checked={cleanInstall}
+                      onChange={(e) => setCleanInstall(e.target.checked)} />
+                    <span style={{ fontSize: 12, color: cleanInstall ? "var(--brand-danger-soft, #f87171)" : "var(--brand-text-2, #cbd5e1)" }}>
+                      {t("cfg.cleanInstall")}
+                      <span style={{ display: "block", fontSize: 10, color: "var(--brand-border, #475569)" }}>
+                        {t("cfg.cleanInstallHint", { path: effectiveDataPath(dataPath) })}
+                      </span>
+                    </span>
+                  </label>
+                </div>
                 <button
-                  style={{ ...BTN_PRIMARY, opacity: (containerDeploying || !deviceHost || !selectedContainerPkg) ? 0.6 : 1 }}
-                  disabled={containerDeploying || !deviceHost || !selectedContainerPkg}
+                  style={{ ...(cleanInstall ? BTN_RED : BTN_PRIMARY), opacity: (containerDeploying || !deviceHost || !deviceUser || (containerSource === "archive" && !selectedContainerPkg)) ? 0.6 : 1 }}
+                  disabled={containerDeploying || !deviceHost || !deviceUser || (containerSource === "archive" && !selectedContainerPkg)}
                   onClick={() => void handleContainerDeploy()}>
-                  {containerDeploying ? "Deploy in corso…" : "🐳 Installa / Aggiorna container"}
+                  {containerDeploying
+                    ? "Deploy in corso…"
+                    : cleanInstall ? t("cfg.cleanInstallBtn") : "🐳 Installa / Aggiorna container"}
                 </button>
                 {containerLog.length > 0 && (
                   <div style={{
