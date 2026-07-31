@@ -51,6 +51,7 @@ Verificato prima di cancellare con `git merge-base --is-ancestor <branch> main` 
 
 | branch | punta | merge di chiusura | contenuto |
 |---|---|---|---|
+| `feat/install-from-registry` | `ae961c7` | `d9478f1` | installazione dal registry dall'IDE, `--pull-only`, installazione pulita |
 | `feat/container-registry-procedure` | `e8aa31c` | `704cc86` | registry, SPA nell'immagine, riconciliazione x86_64, discovery, bottone Viewer, slider |
 | `chore/disable-legacy-container-publish` | `482481c` | `14a5d4a` | stop alla pubblicazione CI dell'immagine legacy, metadati OCI |
 | `chore/e2e-and-docs` | `c656711` | `de1b490` | la suite end-to-end torna eseguibile, regola sui piani condivisi |
