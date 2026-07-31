@@ -20,6 +20,13 @@ and this project adheres to [CalVer](https://calver.org/) (`YYYY.MM[.patch]`).
 
 ### Fixed
 
+- **L'oggetto slider ignorava l'orientamento verticale** (segnalato dal maintainer). La proprietà si sceglieva nel pannello, veniva salvata e sopravviveva al round-trip — c'è anche nel mirror Rust (`synoptic.rs`) — ma **nessuno la leggeva**: né l'anteprima nell'editor né il controllo a runtime. Era una dimenticanza del solo slider: `radio_group` onora `orientation` e il grafico a barre `bar_orientation`.
+  - A runtime il controllo nativo viene **ruotato di −90°** invece di usare `writing-mode: vertical-rl`. Quest'ultimo è lo standard moderno ma richiede Chrome 120+/Firefox 129+/WebKit 17.4+, e sul browser dei pannelli Yocto non sappiamo cosa ci sia: dove non fosse supportato lo slider resterebbe orizzontale, cioè il difetto di partenza ma più difficile da riconoscere. La rotazione funziona su qualunque motore e conserva il comportamento nativo su touch e tastiera. −90° e non +90° perché porta il `min` in basso.
+  - Anche l'**anteprima nell'editor** ora è verticale: finché restava orizzontale, cambiare orientamento continuava a "non fare niente" anche col runtime corretto.
+  - **Nota d'uso**: l'orientamento non cambia la geometria dell'oggetto. Uno slider lasciato alla dimensione di default della toolbar (200×40) e messo verticale diventa un moncone — misurato, 15×23 px: va reso più alto che largo.
+
+- **Lo slider ignorava anche `read_only`**: la spunta "Sola lettura" esisteva nel pannello proprietà e non faceva niente, quindi un comando dichiarato in sola lettura scriveva comunque il tag. Su un HMI industriale non è un dettaglio cosmetico. Ora l'`<input type="range">` è `disabled`. Trovato leggendo il codice per l'orientamento; `checkbox` — l'unico altro oggetto che offre la spunta — la onorava già.
+
 - **Preset dispositivo WP830/WP630 con la risoluzione sbagliata**: erano dichiarati 1366×768, il pannello è **1920×1080** (segnalato dal maintainer). Il preset serve a dare a una pagina nuova la dimensione giusta del dispositivo: sbagliato, produceva un synoptic disegnato per uno schermo che non esiste, che in modalità *proporzioni* veniva scalato e in modalità *fisso* lasciava una fascia vuota. Corretto in `public/branding/pixsys/brand.json`. **Nota**: il preset agisce solo alla creazione, quindi i progetti già disegnati con la misura vecchia restano a 1366×768 finché non si cambia a mano la dimensione della pagina.
 
 - **`/api/discover` elencava lo stesso runtime tre volte, e una volta su tre offriva `127.0.0.1`.** Due difetti nello stesso punto, il secondo emerso mentre si correggeva il primo.

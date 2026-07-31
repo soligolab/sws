@@ -155,6 +155,34 @@ nuovo utilizzabile. Nuovo `viewerUrlFromAdmin()` puro con 6 test; `pnpm test` 26
 `getRuntimeBaseUrl()` restituisce la stringa **vuota** e non `null`, il bottone spariva del tutto nel
 caso "non connesso". L'ha trovata la prova in browser, non la rilettura — la build era verde.
 
+### Anche: lo slider ignorava orientamento e sola lettura
+
+Segnalato dal maintainer: «l'oggetto slider se metti orientamento verticale non cambia nulla». Vero,
+e il valore **veniva salvato correttamente** — c'è anche nel mirror Rust, quindi sopravvive al
+round-trip: semplicemente non lo leggeva nessuno, né l'anteprima nell'editor né il controllo a
+runtime. Dimenticanza del solo slider: `radio_group` onora `orientation`, il grafico a barre
+`bar_orientation`.
+
+A runtime il controllo nativo viene **ruotato di −90°** (scelta del maintainer) invece di usare
+`writing-mode: vertical-rl`: quest'ultimo è lo standard moderno ma vuole Chrome 120+/WebKit 17.4+, e
+sul browser dei pannelli Yocto non sappiamo cosa ci sia — dove non fosse supportato lo slider
+resterebbe orizzontale, cioè il difetto di partenza ma più difficile da riconoscere.
+
+**Secondo difetto, trovato leggendo il codice per il primo**: lo slider ignorava anche `read_only`.
+La spunta "Sola lettura" c'era nel pannello e non faceva niente, quindi un comando dichiarato in sola
+lettura scriveva comunque il tag. Corretto (`disabled`). `checkbox`, l'unico altro oggetto che offre
+quella spunta, la onorava già.
+
+**Verificato in un browser, misurando**: nel viewer, orizzontale 192×15 senza trasformazione,
+verticale 15×245 ruotato, verticale in sola lettura 15×245 ruotato **e `disabled=true`**;
+nell'editor, binario orizzontale lungo 200 px e binario verticale lungo 278 px.
+
+**Da sapere**: l'orientamento non tocca la geometria dell'oggetto. Uno slider lasciato alla dimensione
+di default della toolbar (200×40) e messo verticale diventa un moncone — misurato, 15×23 px. Va reso
+più alto che largo. Se conviene che il cambio di orientamento inverta da sé larghezza e altezza, è una
+riga, ma è una decisione da prendere: cambiare la geometria di un oggetto in risposta a una proprietà
+è una sorpresa, e va nella history dell'undo.
+
 ### Anche: WP830/WP630 sono 1920×1080
 
 Segnalato dal maintainer: il preset dispositivo li dichiarava 1366×768. Corretto in
