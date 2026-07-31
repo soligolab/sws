@@ -73,9 +73,24 @@ architetture. Riconciliato sul branch (merge `5cf634d`):
 **Verificato**: `cargo check --workspace` verde, `cargo test -p sws-web` 34/34 (1 nuovo), `pnpm build`
 verde, `pnpm test` 20/20, `bash -n` sui tre script toccati.
 
-**NON verificato**: nessuna immagine è stata ricostruita in questa sessione e nessun dispositivo è
-stato toccato. In particolare la verifica x86_64 del 2026-07-30 (`docs/DEPLOY_CONTAINER_X86_64.md`
-§Verifica) **precede** questo cambio ed è stata fatta con la SPA fuori dall'immagine: va rifatta.
+**Poi verificato sul dispositivo dal maintainer, poche ore dopo** — il pezzo che qui risultava
+mancante. Installazione dall'IDE su un **WP630** (`wp630-a-p3-07a077.local`, due indirizzi:
+`192.168.1.120` e `192.168.60.177`), percorso offline `--image`. Il log conferma che è girato il
+codice riconciliato e non quello precedente:
+
+- **tre** `scp` invece di quattro — immagine, installer, unit quadlet: la SPA non viaggia più a parte;
+- `==> [3/6] verifico che l'immagine contenga la SPA` → `/var/sws/www/index.html presente`, il
+  controllo che esiste solo nell'installer del branch;
+- `Network=host (default)`, `linger già attivo`, `/health ok dopo 2s`, `Health check: OK`, `DONE`;
+- poi `connected to remote runtime http://192.168.1.120:8444`.
+
+Tempi: ~1,6 s di `scp` per l'immagine, ~18 s di `podman load`, ~47 s in tutto dal `mkdir` al `DONE`.
+L'IDE girava in modalità **solo-IDE** (`--viewer-port not set`, porta 8460), cioè `start_editor.sh`
+sul PC: è il caso d'uso previsto, editor sul PC e runtime sul dispositivo.
+
+**Resta non verificato**: il percorso `--pull` dal registry (qui si è usato `--image`), e il percorso
+**x86_64** — la sua verifica del 2026-07-30 (`docs/DEPLOY_CONTAINER_X86_64.md` §Verifica) precede
+questo cambio ed è stata fatta con la SPA fuori dall'immagine.
 
 ### Poi: "Cerca runtime" distingue i container (stessa sessione)
 
@@ -110,14 +125,53 @@ Misura prima/dopo con la deduplica disattivata: 3 voci → 1. `cargo test` 41 (s
 **Non verificato**: la pill non è stata vista in un browser — provata a livello di API. Si vede al
 primo "Cerca runtime" dall'IDE.
 
+### Poi: bottone "🖥 Viewer ↗" nell'header (stessa sessione)
+
+Richiesta del maintainer: dall'editor, un bottone che apra la pagina del runtime in una scheda del
+browser, per vedere se risponde. Sta accanto a Deploy — la domanda *"ha funzionato?"* arriva subito
+dopo aver premuto quello.
+
+Apre il runtime **connesso** se c'è, altrimenti quello che serve la SPA. Lo stato della connessione
+viene chiesto al server al montaggio dell'header e non solo letto dallo store: `remoteUrl` lo scrive
+soltanto `RuntimeConnectionTab`, quindi chi ricarica l'IDE senza passare da Configurazione si sarebbe
+trovato il bottone puntato al runtime locale mentre era connesso a un dispositivo.
+
+**Due scelte tue**, entrambe con una conseguenza da ricordare:
+
+- **Sonda `/health` prima di aprire**, invece di aprire e basta. Funziona perché `/health` è pre-auth
+  su entrambe le porte e il runtime manda CORS permissivo — la risposta è leggibile, non un opaco.
+- **La porta del viewer è dedotta** come `admin − 1` invece di essere esposta dal runtime. Corretta
+  per ogni installazione esistente (8443/8444, 8445/8446, `CMD` dei Containerfile), ma resta una
+  convenzione: **chi avvia con porte fuori convenzione ottiene un indirizzo sbagliato**. Mitigato
+  mostrando l'URL dedotto nel tooltip e facendo sparire il bottone quando dedurre non ha senso.
+
+**Verificato in un browser** (non solo in build), tre casi: non connesso → punta al locale e col
+viewer assente non apre niente ma mostra il messaggio; connesso a un secondo runtime via API **senza
+mai aprire Configurazione** → punta al viewer di quello e apre la pagina vera (è il caso che
+l'interrogazione al server serve a coprire); viewer spento → nessuna scheda, messaggio, bottone di
+nuovo utilizzabile. Nuovo `viewerUrlFromAdmin()` puro con 6 test; `pnpm test` 26/26.
+
+**Una regressione mia, presa in tempo**: avevo scritto `??` dove serviva `||`, e siccome
+`getRuntimeBaseUrl()` restituisce la stringa **vuota** e non `null`, il bottone spariva del tutto nel
+caso "non connesso". L'ha trovata la prova in browser, non la rilettura — la build era verde.
+
+### Anche: WP830/WP630 sono 1920×1080
+
+Segnalato dal maintainer: il preset dispositivo li dichiarava 1366×768. Corretto in
+`brand.json`. **Il preset agisce solo alla creazione della pagina**, quindi i progetti già disegnati
+con la misura vecchia restano a 1366×768 finché non si cambia a mano la dimensione — se ce n'è
+qualcuno in servizio, va sistemato a mano.
+
 **Da riprendere**:
 
-1. **Ricostruire e riprovare le due immagini** — `build_container.sh --push` (serve l'SDK Yocto) e
-   `build_container_x86_64.sh`, poi `install-container.sh --pull` su un dispositivo e "Installa su
-   dispositivo" dall'IDE sul percorso offline. È l'unica cosa che chiude davvero questa riconciliazione.
-   L'occasione serve anche per vedere la pill su un runtime in container **vero**, non forzato con
-   `SWS_CONTAINER_ENGINE`.
-2. **`feat/container-registry-procedure` aspetta il tuo via libera** per lo squash merge in `main`.
+1. **Provare `install-container.sh --pull`** dal registry: l'installazione sul WP630 ha usato il
+   percorso offline `--image`, quindi il percorso registry con la SPA nell'immagine non è ancora
+   stato esercitato su un dispositivo. Serve `build_container.sh --push` (e l'SDK Yocto).
+2. **Il percorso x86_64 va riprovato**: `build_container_x86_64.sh` non è stato eseguito dopo la
+   riconciliazione, e la sua verifica del 30 precede il cambio.
+3. L'occasione di 1 e 2 serve anche per **vedere la pill del container su un runtime vero**, non
+   forzato con `SWS_CONTAINER_ENGINE`, e per guardare il bottone Viewer contro un dispositivo reale.
+4. **`feat/container-registry-procedure` aspetta il tuo via libera** per lo squash merge in `main`.
 
 ---
 
