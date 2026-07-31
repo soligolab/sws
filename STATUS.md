@@ -6,9 +6,25 @@
 >
 > **Pulizia 2026-07-27**: rimossi i task già chiusi e le sezioni di verifica ormai superate; le sessioni mergiate **e** verificate fino al 2026-07-09 sono compresse in «Storico». Il dettaglio integrale resta in `CHANGELOG.md` e nella history git.
 
-**Last session**: 2026-07-31 (ufficio, dev server) — **branch allineati e i due percorsi container
-riconciliati**. Vedi la sezione qui sotto. Prima di questa, la sessione da casa della notte stessa:
-fix deploy container + percorso dati brand-aware, già in `main`.
+**Last session**: 2026-07-31 (ufficio, dev server) — **release `2026.7.0`, tutto in `main`, niente in
+sospeso**. Il maintainer parte per le ferie: nessun branch resta con lavoro non mergiato, `main` è
+pushato e l'immagine container è sul registry. Dettaglio nella sezione qui sotto.
+
+> ## Da dove ripartire (letto per primo al rientro)
+>
+> - **`main` è la verità**: tutti e sette i branch sono chiusi e riconosciuti da `git branch
+>   --merged`. Nessuno ha contenuto che `main` non abbia — verificato con merge a secco uno per uno,
+>   non dedotto. Restano in piedi solo come storia, come chiede `CLAUDE.md`.
+> - **Release `2026.7.0`**, tag git `v2026.7.0`. L'immagine aarch64 è su
+>   `ghcr.io/soligolab/sws-runtime` con tre tag: `2026.7.0-arm64`, `21bd613-arm64`, **`latest-arm64`**
+>   (mobile, è il default di `install-container.sh --pull`). Tutti e tre verificati pubblici con
+>   token anonimo, HTTP 200.
+> - **Il WP630 in ufficio ha ancora `0.1.0-dev`**: l'installazione di stamattina precede la release.
+>   Per aggiornarlo basta `./install-container.sh --pull` sul dispositivo — prenderà `latest-arm64`,
+>   cioè `2026.7.0`, e scaricherà solo i layer cambiati.
+> - **Tre cose non ancora provate**, tutte annotate sotto: il percorso `--pull` dal registry su un
+>   dispositivo vero, il percorso **x86_64** dopo la riconciliazione, e la pill del container su un
+>   runtime realmente in container invece che forzato con `SWS_CONTAINER_ENGINE`.
 
 **Sessione precedente (2026-07-30, sera 1)**: **tre branch portati in `main` con squash e validati in
 un solo giro** (`d0d9110` sicurezza in scrittura del progetto, `9f20d06` deploy/database/utenti,
@@ -17,6 +33,35 @@ un solo giro** (`d0d9110` sicurezza in scrittura del progetto, `9f20d06` deploy/
 
 Scelta del maintainer: le modifiche erano troppe da validare branch per branch, quindi si allinea
 `main` e si valida una volta. Il vantaggio pratico è che i sei script di verifica coesistono solo qui.
+
+---
+
+## Release 2026.7.0 (2026-07-31) — prima release con un numero vero
+
+Chiusura della sessione prima delle ferie del maintainer: tutto in `main`, tutto pushato, immagine
+pubblicata.
+
+**Il numero**: `0.1.0-dev` → **`2026.7.0`**. CalVer come da `CONTEXT.md`, ma con una correzione di
+forma imposta dal toolchain: `2026.07` è rifiutato da Cargo (lo zero iniziale nel minor non è SemVer
+valido) e `2026.7` pure (la patch non è opzionale). Il formato reale è quindi **`YYYY.M.PATCH`** —
+annotato in `CONTEXT.md`, perché la riga diceva un'altra cosa. Il confronto resta numerico, quindi
+`2026.7.0` precede correttamente `2026.10.0`: è solo l'ordinamento alfabetico dei tag che inganna.
+
+**Tag mobile `latest-<arch>`** accanto a `<versione>-<arch>` e `<sha>-<arch>` (scelta del maintainer),
+ed è il nuovo default di `install-container.sh --pull`. La ragione è concreta: un default pinnato va
+aggiornato nello script a ogni release, e la volta che qualcuno se ne dimentica i dispositivi restano
+indietro **in silenzio** — che è esattamente lo stato in cui era `0.1.0-dev`. Non rende gli
+aggiornamenti automatici: il pull resta un comando che qualcuno dà.
+
+**Un difetto che la release avrebbe fatto esplodere subito**: `install-container.sh` aveva
+`TAG="localhost/sws-runtime:0.1.0-dev"` cablato e dopo `podman load` verificava proprio quello. Con
+un numero diverso l'installazione **offline** sarebbe morta su *"immagine assente"* davanti a un
+archivio valido, mandando a cercare il problema dalla parte sbagliata. Ora il riferimento si legge
+dall'output di `podman load`; un `--tag` esplicito continua a vincere.
+
+**Pubblicato e verificato**: `build_container.sh --push` da `main` pulito al commit `21bd613`. I tre
+tag interrogati con token anonimo da `ghcr.io/token` (la tecnica giusta, imparata il 30 quando un
+`curl` diretto aveva dato `401` anche su un package pubblico) → **HTTP 200 tutti e tre**.
 
 ---
 
