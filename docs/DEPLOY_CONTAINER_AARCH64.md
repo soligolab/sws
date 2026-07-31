@@ -3,6 +3,11 @@
 > Percorso per i device **Pixsys OS** (aarch64) dove il runtime deve girare in
 > un container podman rootless, invece che come servizio systemd nativo.
 >
+> **In breve**: `build_container.sh --push` sulla macchina di sviluppo,
+> `install-container.sh --pull` sul dispositivo. Il resto di questo documento
+> spiega il perché di ogni pezzo — serve quando qualcosa non torna, non per un
+> aggiornamento di routine.
+>
 > Per un device **x86_64** (non aarch64), stesso installer e stessa esperienza, vedi
 > `docs/DEPLOY_CONTAINER_X86_64.md` — non `docs/DEPLOY_PX30.md`, che copre target
 > ARM64 generici (Raspberry Pi, Jetson...) buildati da un laptop x86, non un target
@@ -11,6 +16,11 @@
 > Non sostituisce il percorso **binario nativo Yocto**
 > (`docs/YOCTO_CROSSCOMPILE.md`) — resta preferibile quando si può installare come
 > servizio di sistema invece che in container.
+>
+> Il **container x86 legacy** (`docs/DEPLOY_PX30.md`, `compose.yaml`,
+> `sws-runtime/docker/Dockerfile`) è un flusso storico, **non** quello descritto
+> qui. La sua pubblicazione automatica in CI è disattivata: costruiva un'immagine
+> che non parte, all'indirizzo che il README pubblicizza.
 
 ## Come è fatta l'immagine
 
@@ -63,54 +73,181 @@ Il Dockerfile legacy ha quattro difetti che questo percorso evita:
 Inoltre l'immagine installa **RestrictedPython**: senza, il motore script parte
 non sandboxato con un warning all'avvio.
 
-## Build (sulla macchina di sviluppo)
+## La procedura in tre fasi
+
+**Compilare** sulla macchina di sviluppo (l'unica con l'SDK) → **pubblicare** sul
+registry → **installare** sul dispositivo con un comando. La strada offline con
+l'archivio resta, per i dispositivi che il registry non lo vedono.
+
+```
+ macchina di sviluppo                 ghcr.io                   dispositivo
+ ────────────────────                 ───────                   ───────────
+ build_container.sh --push  ────────►  immagine  ────────────►  install-container.sh --pull
+   (SDK Yocto + podman)                pubblica                   (nessuna credenziale)
+```
+
+## 1. Compilare
 
 Prerequisiti: SDK Pixsys in `/usr/local/oecore-x86_64/`, `podman`, binfmt
 aarch64 registrato (`ls /proc/sys/fs/binfmt_misc/qemu-aarch64`), rete verso
 Docker Hub per `ubuntu:24.04`.
 
 ```bash
-./scripts/build_container.sh              # cross-build + immagine + archivio
-./scripts/build_container.sh --no-rust    # riusa il binario aarch64 esistente
-./scripts/build_container.sh --no-save    # solo immagine, niente archivio
+./scripts/build_container.sh                     # cross-build + immagine + archivio
+./scripts/build_container.sh --no-rust           # riusa il binario aarch64 esistente
+./scripts/build_container.sh --no-spa            # riusa sws-editor/dist così com'è
+./scripts/build_container.sh --no-save --push    # solo pubblicazione, niente archivio
 ```
 
-Produce **due** artefatti:
+L'immagine contiene **tutto ciò che serve**: binario, template e la SPA. Un solo
+artefatto, quindi nessun modo di ritrovarsi sul dispositivo una SPA di una
+versione diversa dal binario — è già costato una caccia al fantasma quando
+viaggiavano separate.
 
-| Artefatto | Contenuto | Dimensione |
+| Artefatto | Quando serve | Dimensione |
 |---|---|---|
-| `dist/sws-runtime-<versione>-aarch64-image.tar.gz` | immagine: binario + template | ~59 MB |
-| `dist/sws-www-<versione>.tar.gz` | la SPA | ~0,4 MB |
-
-La SPA **non è nell'immagine**: sta in un bind mount sul dispositivo, così una
-modifica al solo frontend non impone di ricostruire e ritrasferire 59 MB. È un
-problema già capitato: dati di progetto aggiornati e SPA vecchia sul
-dispositivo, con conseguente caccia al fantasma.
+| immagine sul registry | strada normale (`--push`) | 64,8 MB in totale, ma vedi sotto |
+| `dist/sws-runtime-<versione>-aarch64-image.tar.gz` | dispositivi senza rete | ~59 MB |
 
 Lo script rifiuta di procedere se il binario in
 `target/aarch64-unknown-linux-gnu/release/` non è ARM aarch64: senza quel
 controllo un binario host finirebbe nell'immagine e l'errore salterebbe fuori
 solo al `podman run` sul device.
 
-## Installazione sul device
+### L'ordine dei layer non è estetico
+
+| Layer | Dimensione | Cambia |
+|---|---|---|
+| base `ubuntu:24.04` | 103 MB | mai |
+| apt + python + RestrictedPython | 59 MB | quasi mai |
+| **binario** | 35 MB (14,3 compressi) | a ogni modifica Rust |
+| **SPA** | 0,4 MB | a ogni modifica frontend |
+
+Un layer che cambia invalida tutti quelli **sotto** di sé, e col registry si
+trasferisce solo ciò che è cambiato. Da qui due regole già pagate a caro prezzo:
+la SPA sta **dopo** il binario (invertirli farebbe ritrasferire 14 MB per un
+ritocco al frontend) e le `LABEL` stanno **in fondo** — messe dopo il `FROM`
+invalidano il layer `apt`, che sotto emulazione QEMU si ricostruisce in 15
+minuti contro i 2,7 secondi di una build con la cache calda. Misurato, non
+supposto.
+
+## 2. Pubblicare
+
+Serve una volta sola: un token GitHub e il login sulla macchina di sviluppo.
+
+**Token**: `github.com` → Settings → Developer settings → Personal access tokens
+→ **Tokens (classic)** → *Generate new token (classic)*, scope **`write:packages`**
+(spuntandolo arriva anche `read:packages`; `repo` solo se il repository è
+privato). Scadenza a termine, non "No expiration". I token *fine-grained* hanno
+un supporto disomogeneo per i package: per GHCR usare i classic.
+
+**Login** (una volta, sulla macchina che pubblica):
 
 ```bash
-scp dist/sws-runtime-<versione>-aarch64-image.tar.gz \
-    dist/sws-www-<versione>.tar.gz \
-    deploy/container/install-container.sh \
+podman login ghcr.io -u <utente-github>
+# incolla il token alla richiesta Password: — MAI in --password, che lo
+# lascerebbe nella history della shell e nell'output di ps
+```
+
+**Pubblicazione**:
+
+```bash
+./scripts/build_container.sh --push
+```
+
+Due tag per la stessa immagine:
+
+| Tag | A cosa serve |
+|---|---|
+| `ghcr.io/soligolab/sws-runtime:<versione>-arm64` | mobile: è quello che i dispositivi seguono |
+| `ghcr.io/soligolab/sws-runtime:<sha>-arm64` | immutabile: dice da quale commit nasce |
+
+Il suffisso `-arm64` è deliberato: l'immagine **non** è una manifest list
+multi-arch, e un tag nudo farebbe fallire un pull su x86 con un `no matching
+manifest` incomprensibile invece di dire che quell'immagine è solo per arm64.
+
+Lo script si rifiuta di pubblicare **con l'albero di lavoro sporco** o senza
+login, e controlla entrambe le cose *prima* della cross-compilazione: scoprire
+dopo minuti di build che manca il login è tempo buttato. La ragione della prima
+guardia: il tag di provenienza indicherebbe un commit che non contiene ciò che
+stai pubblicando, e fra sei mesi «cosa c'è sul dispositivo» non avrebbe risposta.
+
+### Rendere pubblico il package (solo la prima volta)
+
+I package su GHCR nascono **privati**, e un package privato costringerebbe a
+mettere un token anche sui dispositivi. Da rendere pubblico a mano:
+
+`https://github.com/users/soligolab/packages/container/sws-runtime/settings` →
+Danger Zone → *Change visibility* → **Public** (chiede di riscrivere
+`sws-runtime` per conferma).
+
+> Il percorso `github.com/orgs/soligolab/...` dà 404: `soligolab` è un account
+> utente, non un'organizzazione.
+
+**Come si verifica che sia davvero pubblico.** Non con un `curl` nudo: GHCR
+pretende un bearer token anche per le immagini pubbliche, quindi risponde `401`
+in ogni caso e quel `401` **non dimostra niente**. La verifica giusta, da
+eseguire dal dispositivo:
+
+```bash
+TOK=$(curl -s "https://ghcr.io/token?scope=repository:soligolab/sws-runtime:pull&service=ghcr.io" \
+      | sed -n 's/.*"token":"\([^"]*\)".*/\1/p')
+curl -s -o /dev/null -w "%{http_code}\n" -H "Authorization: Bearer $TOK" \
+     https://ghcr.io/v2/soligolab/sws-runtime/manifests/0.1.0-dev-arm64   # 200 = pubblico
+```
+
+## 3. Installare sul dispositivo
+
+```bash
+scp deploy/container/install-container.sh \
     deploy/container/sws-runtime.container  user@<device>:/tmp/
-ssh user@<device>
-cd /tmp && ./install-container.sh \
-    --image sws-runtime-<versione>-aarch64-image.tar.gz \
-    --www   sws-www-<versione>.tar.gz
+ssh user@<device> 'cd /tmp && ./install-container.sh --pull'
+```
+
+Nessuna credenziale sul dispositivo: l'immagine è pubblica. **Verificato**: il
+dispositivo di prova non è loggato su `ghcr.io` (`podman login --get-login`
+risponde *not logged into*) e scarica lo stesso.
+
+Un **aggiornamento** successivo è lo stesso comando: base e apt sono già lì,
+quindi si trasferisce solo il layer cambiato.
+
+```bash
+ssh user@<device> 'cd /tmp && ./install-container.sh --pull'                    # ultima versione
+ssh user@<device> 'cd /tmp && ./install-container.sh --pull <registry>:<sha>-arm64'  # versione precisa
 ```
 
 L'installer gira **come utente normale, senza sudo** (podman rootless) ed è
-idempotente: prepara le directory dati, carica l'immagine, srotola la SPA,
-installa l'unit quadlet, abilita il linger e attende `/health`. I dati
-esistenti non si toccano; il container precedente **va** rimosso, perché
-continuerebbe a usare l'immagine vecchia anche dopo un `podman load` sullo
-stesso tag.
+idempotente: prepara le directory dati, procura l'immagine, verifica che
+contenga la SPA, installa l'unit quadlet, abilita il linger e attende `/health`.
+I dati esistenti non si toccano; il container precedente **va** rimosso, perché
+continuerebbe a usare l'immagine vecchia anche dopo aver scaricato la nuova
+sullo stesso tag.
+
+Il pull avviene **prima** di fermare il servizio: se la rete non c'è, il
+dispositivo resta esattamente com'era invece di restare senza runtime.
+
+### Ripiego offline
+
+Per un dispositivo che il registry non lo raggiunge, l'immagine viaggia come
+archivio — ed è l'unico file da copiare, la SPA è dentro:
+
+```bash
+./scripts/build_container.sh                    # produce dist/…-aarch64-image.tar.gz
+scp dist/sws-runtime-<versione>-aarch64-image.tar.gz \
+    deploy/container/install-container.sh \
+    deploy/container/sws-runtime.container  user@<device>:/tmp/
+ssh user@<device> 'cd /tmp && ./install-container.sh --image sws-runtime-<versione>-aarch64-image.tar.gz'
+```
+
+### Aggiornare il dispositivo automaticamente: perché non lo facciamo
+
+`podman auto-update` funzionerebbe: basterebbe
+`Label=io.containers.autoupdate=registry` nella unit e
+`systemctl --user enable --now podman-auto-update.timer` (Pixsys OS fornisce già
+quelle unit, disabilitate). **Scelta esplicita di non attivarlo**: su una
+macchina in servizio un riavvio del runtime che nessuno ha chiesto è peggio di
+un aggiornamento tardivo, e un push sbagliato arriverebbe sul campo da solo.
+Gli aggiornamenti si fanno a comando.
 
 ### Dove stanno i dati
 
@@ -123,48 +260,70 @@ dell'installazione nativa.
 /data/user/sws/projects   progetti (dati utente)
 /data/user/sws/config     certificati TLS, registro progetti
 /data/user/sws/logs       log JSONL rotati
-/data/user/sws/www        la SPA
 ```
+
+Qui ci sono **solo i dati**. La SPA non è più fra questi: dal 2026-07-30 sta
+nell'immagine, e la unit non monta più `www` — montare una directory dell'host
+sopra `/var/sws/www` nasconderebbe la SPA dell'immagine, con l'effetto di una
+interfaccia vuota e nessun indizio del perché. Una `/data/user/sws/www` lasciata
+da un'installazione precedente è innocua: l'installer la segnala e **non** la
+tocca.
 
 Funziona sotto rootless perché il container gira come root e in rootless
 l'UID 0 del container è mappato sull'utente dell'host: i file creati risultano
 di `user`, proprietario di `/data/user/sws`. Con podman **rootful** il mapping
 sarebbe diverso e i permessi andrebbero rivisti.
 
-`/data/user` è scrivibile dall'utente, `/data` no: da qui la scelta del
-percorso. L'installer migra automaticamente i dati dai volumi nominati della
-versione precedente, altrimenti dopo l'aggiornamento i progetti sembrerebbero
-spariti.
+`/data/user` è scrivibile dall'utente, `/data` no: da qui la scelta del percorso.
 
-### Aggiornare solo il frontend
+### Aggiornare il frontend
+
+Non esiste più una strada separata: si aggiorna l'immagine, e basta.
 
 ```bash
-scp dist/sws-www-<versione>.tar.gz user@<device>:/tmp/
-ssh user@<device> 'cd /tmp && ./install-container.sh --www-only sws-www-<versione>.tar.gz'
+ssh user@<device> 'cd /tmp && ./install-container.sh --pull'
 ```
 
-Meno di un secondo, **senza riavviare il container**: il runtime legge i file
-statici a ogni richiesta, quindi basta ricaricare la pagina nel browser.
+Trasferisce il solo layer della SPA (~0,4 MB) e riavvia il container, che
+impiega un paio di secondi. Il prezzo rispetto al vecchio `--www-only`, che
+scriveva nel bind mount senza riavviare, è quel riavvio; in cambio non esiste
+più il modo di avere sul dispositivo una SPA e un binario di versioni diverse.
 
-Lo script sostituisce il **contenuto** della directory, non la directory: un
-`mv` di quella montata romperebbe il bind mount, perché il container ne tiene
-l'inode e continuerebbe a vedere quella vecchia — cioè 404 su tutta la SPA
-finché non si riavvia il container. Verificato sul dispositivo, era esattamente
-quello che succedeva.
+### Recuperare i progetti da un'installazione pre-2026-07-28
+
+Le versioni precedenti tenevano i dati in volumi nominati
+(`sws-projects`, `sws-config`, `sws-logs`) invece che in bind mount. Se dopo un
+aggiornamento i progetti sembrano spariti, sono lì:
+
+```bash
+./install-container.sh --pull --migrate-volumes
+```
+
+**È opt-in di proposito.** Prima la migrazione scattava da sola quando la
+cartella di destinazione era vuota — che è esattamente lo stato in cui
+`--uninstall --purge` lascia il dispositivo. Risultato visto dal vivo il
+2026-07-30: un deploy che doveva essere pulito si è ritrovato in servizio un
+progetto di due giorni prima, ripescato dal vecchio volume. Quando i volumi
+esistono ancora, l'installer lo dice senza toccarli.
 
 Opzioni:
 
 | Flag | Effetto |
 |---|---|
-| `--image ARCHIVIO` | carica l'immagine; senza, usa quella già presente |
-| `--www ARCHIVIO` | srotola la SPA; obbligatorio al primo giro (non è nell'immagine) |
-| `--www-only ARCHIVIO` | aggiorna solo la SPA e esce |
+| `--pull [REF]` | scarica dal registry (default `ghcr.io/soligolab/sws-runtime:0.1.0-dev-arm64`) |
+| `--image ARCHIVIO` | carica da archivio: dispositivi senza rete verso il registry |
 | `--data DIR` | directory dati alternativa (default `/data/user/sws`) |
+| `--migrate-volumes` | recupera i dati dai volumi nominati pre-2026-07-28 |
 | `--bridge` | rete bridge con porte pubblicate, **al prezzo della discovery mDNS** (vedi sotto) |
 | `--host-network` | non serve più: `Network=host` è il default. Accettata per compatibilità |
 | `--no-autostart` | solo `podman run`, nessuna unit systemd: non riparte dopo il reboot |
 | `--uninstall` | rimuove servizio e container, **conserva i dati** |
 | `--uninstall --purge` | rimuove anche i dati, quindi i progetti |
+| `--www`, `--www-only` | dismesse: falliscono spiegando che la SPA è nell'immagine |
+
+Senza né `--pull` né `--image` l'installer riusa l'immagine già presente sul
+dispositivo: utile per riscrivere la unit (per esempio passando a `--bridge`)
+senza ritrasferire niente.
 
 ### Avvio automatico al boot
 
@@ -234,12 +393,35 @@ Aggiunte il **2026-07-30**, sullo stesso dispositivo (WP620, `192.168.1.84`):
 
 | Verifica | Esito |
 |---|---|
-| immagine sul dispositivo = immagine costruita | stesso ID `8aec2579…`, da `main` `35efe1c` con albero pulito |
-| deploy pulito (`--uninstall --purge` + install) | ok, ma **ripesca i dati dai volumi nominati** — vedi Limiti noti |
+| immagine sul dispositivo = immagine costruita | stesso ID, da `main` con albero pulito verificato prima e dopo |
+| deploy pulito (`--uninstall --purge` + install) | ok, ma **ripescava i dati dai volumi nominati** — corretto con `--migrate-volumes` |
 | `--bridge` → `GET /api/discover` dall'editor | `[]` (nessun rilevamento) |
 | default host network → `GET /api/discover` | trova il runtime, `admin_url http://192.168.1.84:8444` |
 | `healthy` in rete host | ok, ~1 s dopo l'avvio |
 | avvio al boot dopo un riavvio reale | ok (2026-07-29, container già `healthy` a 1h07 di uptime) |
+
+Procedura dal registry, provata la sera del **2026-07-30** sullo stesso device:
+
+| Verifica | Esito |
+|---|---|
+| `--push` con albero sporco | **rifiutato**, nessuna pubblicazione |
+| pull con ogni immagine locale cancellata (`podman rmi -f` + `image prune -af`) | scarica davvero, 1 min 05 s per l'installazione completa |
+| **credenziali sul dispositivo** | nessuna: `podman login --get-login ghcr.io` → *not logged into*, e il pull riesce lo stesso |
+| SPA servita dall'immagine | mount solo `projects`/`logs`/`config`, bundle nuovo servito su `:8444` |
+| progetto e storico dopo l'aggiornamento | `Test034` intatto, `historian: swapped to project SQLite samples=386` |
+| `healthy` dopo il pull | 13 s |
+| discovery dall'editor del dev server | trova il runtime (due voci: difetto cosmetico noto) |
+| ripiego offline `--image` | ok, stessa installazione dall'archivio |
+| `--www` / `--www-only` | falliscono con il messaggio che rimanda a `--pull` |
+| `--pull` insieme a `--image` | rifiutato |
+| `--host-network` (compatibilità) | accettata, nessun errore |
+
+Non provato di proposito: `--uninstall --purge` seguito da installazione, che
+sarebbe la prova diretta della correzione sui volumi. Il dispositivo aveva sopra
+il progetto di prova del maintainer e distruggerlo per un test non valeva il
+prezzo; i volumi nominati su quel device non esistono più, quindi la trappola lì
+non è nemmeno riproducibile. Da rifare sul prossimo dispositivo che debba essere
+azzerato davvero.
 
 
 ```bash
@@ -252,7 +434,9 @@ curl -fs http://localhost:8444/health
 
 Poi dal browser: `http://<device>:8443` (viewer) e `http://<device>:8444` (IDE).
 Un runtime appena installato non ha progetti: si carica dall'editor con
-ConfigView → Runtime → Connetti su `http://<device>:8444` → Deploy.
+ConfigView → Runtime → Connetti su `http://<device>:8444` → Deploy. Nota la
+porta: le route di lifecycle progetto esistono **solo** sulla 8444, e `http`,
+non `https`, finché non si genera un certificato.
 
 Per verificare la persistenza: `podman restart sws-runtime` e ricontrollare che
 il progetto ci sia ancora.
@@ -274,17 +458,9 @@ risposte 200, quindi `/` non entra nella cache offline.
   `--device /dev/ttyUSB0` (l'utente del device è già nel gruppo `dialout`).
 - **mDNS**: funziona in rete host, che è il default (vedi sopra). Con `--bridge`
   il multicast non esce e il dispositivo non viene rilevato.
-- **`--uninstall --purge` seguito da un'installazione non dà un dispositivo
-  pulito.** Visto dal vivo il 2026-07-30: il purge svuota i bind mount, e al
-  passo 1 l'installer migra i dati dai volumi nominati della versione
-  pre-2026-07-28 proprio perché la cartella di destinazione è vuota. Il
-  dispositivo si è ritrovato con un progetto `test1` di due giorni prima, aperto
-  come progetto attivo. Rimedio finché il codice non cambia: dopo il purge
-  eliminare anche i volumi (`podman volume rm sws-projects sws-config sws-logs`),
-  esportandoli prima con `podman volume export` se contengono qualcosa che serve.
 - **TLS**: il runtime parte in HTTP. Si abilita da ConfigView → Stato →
-  Certificato TLS; il certificato finisce nel volume `sws-config` e sopravvive
-  al riavvio del container.
+  Certificato TLS; il certificato finisce in `/data/user/sws/config` e
+  sopravvive al riavvio e alla sostituzione del container.
 - L'immagine gira come **root nel container** (che sotto rootless è comunque un
   utente non privilegiato sull'host), coerente con `User=root` dell'unit
   systemd nativa. Da stringere quando il PoC diventa prodotto.

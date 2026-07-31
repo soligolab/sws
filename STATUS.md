@@ -6,8 +6,9 @@
 >
 > **Pulizia 2026-07-27**: rimossi i task già chiusi e le sezioni di verifica ormai superate; le sessioni mergiate **e** verificate fino al 2026-07-09 sono compresse in «Storico». Il dettaglio integrale resta in `CHANGELOG.md` e nella history git.
 
-**Last session**: 2026-07-31 — **fix deploy container (hang, log, output remoto) + percorso dati
-brand-aware** (branch `feat/container-x86_64`, non ancora mergiato). Vedi sezione dedicata sotto.
+**Last session**: 2026-07-31 (ufficio, dev server) — **branch allineati e i due percorsi container
+riconciliati**. Vedi la sezione qui sotto. Prima di questa, la sessione da casa della notte stessa:
+fix deploy container + percorso dati brand-aware, già in `main`.
 
 **Sessione precedente (2026-07-30, sera 1)**: **tre branch portati in `main` con squash e validati in
 un solo giro** (`d0d9110` sicurezza in scrittura del progetto, `9f20d06` deploy/database/utenti,
@@ -16,6 +17,189 @@ un solo giro** (`d0d9110` sicurezza in scrittura del progetto, `9f20d06` deploy/
 
 Scelta del maintainer: le modifiche erano troppe da validare branch per branch, quindi si allinea
 `main` e si valida una volta. Il vantaggio pratico è che i sei script di verifica coesistono solo qui.
+
+---
+
+## Sessione 2026-07-31 (ufficio) — allineamento dei branch e riconciliazione dei due percorsi container
+
+Il maintainer arriva in ufficio dopo aver lavorato da casa la notte, fa il pull e trova sette branch
+locali. Richiesta: allineare tutto, poi riprendere.
+
+**Allineamento.** `main` era indietro di 6 commit (fast-forward `2bf742a` → `d17a181`, fatto con
+`git fetch origin main:main` per non toccare il working tree — su questa macchina girano più sessioni
+sullo stesso checkout). Tutti e sette i branch locali erano identici ai rispettivi remoti: niente di
+divergente, niente perso.
+
+**Sei branch su sette avevano il contenuto già in `main`** e sono stati chiusi con un merge `-s ours`
+ciascuno, come già fatto la notte per `fix/multiselect-drag` e `feat/container-x86_64`: nessuna
+modifica al codice, solo il collegamento storico, così `git branch --merged` li riconosce. Albero di
+`main` verificato byte-identico a `origin/main` dopo i cinque merge.
+
+| branch | perché è chiuso |
+|---|---|
+| `fix/project-write-safety` | squash `d0d9110`; poi `main` ci ha riscritto sopra — il diff verso `main` è di sole rimozioni |
+| `fix/deploy-preserve-database` | squash `9f20d06`; 8 file su 15 byte-identici, gli altri superati da `9cd0a3f`/`9c368da` |
+| `chore/e2e-and-docs` | squash `631e6d2`; unico residuo un paragrafo `STATUS.md` **duplicato**, non portato |
+| `fix/container-host-network-default` | squash `c028b16`; merge a secco → albero identico a `main` |
+| `chore/disable-legacy-container-publish` | squash `add86bb`; merge a secco → albero identico a `main` |
+| `fix/multiselect-drag` | già chiuso la notte con `d17a181` |
+
+**Il problema vero: i due percorsi container si contraddicevano.** `feat/container-registry-procedure`
+(30 sera, ufficio) aveva messo la SPA **dentro** l'immagine e reso `--pull` la strada normale. Il
+lavoro della notte da casa (`9c368da`, container x86_64 + installazione dall'IDE via SSH) è partito
+dal layout **precedente**, con la SPA fuori: `Containerfile` sdoppiato in `.aarch64`/`.x86_64` senza
+il `COPY www/`, e un `POST /api/deploy/device-container` che trasferisce quattro file e invoca
+`install-container.sh --image X --www Y`. Mergiare il branch così com'era **avrebbe rotto** "Installa
+su dispositivo", perché l'installer del registry rifiuta `--www` con un errore esplicito.
+
+**Decisione del maintainer**: vale quella del 30 sera — SPA nell'immagine — estesa a entrambe le
+architetture. Riconciliato sul branch (merge `5cf634d`):
+
+- Il merge meccanico era quasi pulito: i due lati toccano file quasi disgiunti (solo
+  `docs/DEPLOY_CONTAINER_AARCH64.md` e `scripts/build_container.sh` in comune), e git ha seguito da
+  solo la rinomina `Containerfile` → `Containerfile.aarch64` portandoci sopra le modifiche del branch.
+  Unico conflitto l'introduzione del documento aarch64, risolta tenendo entrambe le indicazioni.
+- `Containerfile.x86_64` allineato al gemello: `COPY www/` come ultimo layer di contenuto,
+  `/var/sws/www` non è più un punto di mount.
+- `build_container_x86_64.sh`: `--push`/`--registry` e i controlli preliminari del gemello (albero
+  pulito, `podman login`, entrambi *prima* della build), tag `<versione>-amd64` e `<sha>-amd64`,
+  niente più archivio SPA separato.
+- `packaging.rs`: tre file invece di quattro, niente `--www` nel comando remoto, via `www_tarball` da
+  `ContainerPackage` e dalla richiesta di deploy. Un client più vecchio che lo manda ancora non rompe
+  niente (serde ignora i campi in più — è il lato utile di **Q9**). Nuovo test sull'assenza di `--www`.
+- Il deploy SSH dall'IDE resta come **percorso offline** accanto a `--pull`: un dispositivo in campo
+  che non raggiunge il registry è il caso normale, non un ripiego di serie B.
+
+**Verificato**: `cargo check --workspace` verde, `cargo test -p sws-web` 34/34 (1 nuovo), `pnpm build`
+verde, `pnpm test` 20/20, `bash -n` sui tre script toccati.
+
+**Poi verificato sul dispositivo dal maintainer, poche ore dopo** — il pezzo che qui risultava
+mancante. Installazione dall'IDE su un **WP630** (`wp630-a-p3-07a077.local`, due indirizzi:
+`192.168.1.120` e `192.168.60.177`), percorso offline `--image`. Il log conferma che è girato il
+codice riconciliato e non quello precedente:
+
+- **tre** `scp` invece di quattro — immagine, installer, unit quadlet: la SPA non viaggia più a parte;
+- `==> [3/6] verifico che l'immagine contenga la SPA` → `/var/sws/www/index.html presente`, il
+  controllo che esiste solo nell'installer del branch;
+- `Network=host (default)`, `linger già attivo`, `/health ok dopo 2s`, `Health check: OK`, `DONE`;
+- poi `connected to remote runtime http://192.168.1.120:8444`.
+
+Tempi: ~1,6 s di `scp` per l'immagine, ~18 s di `podman load`, ~47 s in tutto dal `mkdir` al `DONE`.
+L'IDE girava in modalità **solo-IDE** (`--viewer-port not set`, porta 8460), cioè `start_editor.sh`
+sul PC: è il caso d'uso previsto, editor sul PC e runtime sul dispositivo.
+
+**Resta non verificato**: il percorso `--pull` dal registry (qui si è usato `--image`), e il percorso
+**x86_64** — la sua verifica del 2026-07-30 (`docs/DEPLOY_CONTAINER_X86_64.md` §Verifica) precede
+questo cambio ed è stata fatta con la SPA fuori dall'immagine.
+
+### Poi: "Cerca runtime" distingue i container (stessa sessione)
+
+Segnalazione del maintainer: cercando i runtime sulla rete non c'è modo di sapere quali girino in
+container. Serve per una ragione pratica — dice quale procedura di aggiornamento usare.
+
+**Fatto**: il runtime annuncia una proprietà mDNS `container` col nome del motore, e la riga in
+ConfigView porta una pill `📦 podman` / `📦 docker`. Il rilevamento è **a runtime**
+(`/run/.containerenv`, `/.dockerenv`, ripiego sul cgroup), non cotto nell'immagine: funziona anche
+sull'immagine legacy e sui dispositivi già installati senza ricostruire niente, e non mente se la
+stessa immagine viene eseguita da un motore diverso. Un runtime nativo **non annuncia la proprietà**,
+quindi niente pill — l'assenza non viene interpretata come "nativo".
+
+**Nel farlo sono usciti due difetti nella discovery, entrambi corretti**:
+
+1. Il doppione già annotato (era item 3 del 30 sera) era in realtà un **triplo**: misurato in locale,
+   3 voci per un solo runtime. Causa confermata: `browse_mdns_blocking` accumulava una voce per ogni
+   `ServiceResolved`, e mdns-sd ne consegna uno per risposta ricevuta.
+2. **Il difetto più serio l'ho quasi introdotto io.** Deduplicare per nome tenendo la prima risposta
+   sembrava ovvio, ma le risposte non sono equivalenti: `enable_addr_auto()` annuncia tutti gli
+   indirizzi dell'host, loopback compreso, e la prima può portare solo `127.0.0.1`. La prima stesura
+   offriva `http://127.0.0.1:8444` **due volte su tre** — un URL inutilizzabile da un'altra macchina,
+   cioè peggio del doppione che stavo correggendo. Se ne è accorto il confronto prima/dopo, non la
+   rilettura del codice. Ora la scelta dell'indirizzo è ordinata e preferisce un IPv4 non-loopback, e
+   una risposta successiva promuove la voce se porta un indirizzo migliore.
+
+**Verificato**: nuovo `scripts/check_discover.sh` (due runtime, N giri, controlla numero di voci +
+valore di `container` + assenza di loopback) → 6/6 su 3 giri, e 10/10 nel confronto prima/dopo.
+Misura prima/dopo con la deduplica disattivata: 3 voci → 1. `cargo test` 41 (sws-web, 7 nuovi) + 9
+(sws-runtime, 5 nuovi), `pnpm build`/`pnpm test` 20/20 verdi.
+
+**Non verificato**: la pill non è stata vista in un browser — provata a livello di API. Si vede al
+primo "Cerca runtime" dall'IDE.
+
+### Poi: bottone "🖥 Viewer ↗" nell'header (stessa sessione)
+
+Richiesta del maintainer: dall'editor, un bottone che apra la pagina del runtime in una scheda del
+browser, per vedere se risponde. Sta accanto a Deploy — la domanda *"ha funzionato?"* arriva subito
+dopo aver premuto quello.
+
+Apre il runtime **connesso** se c'è, altrimenti quello che serve la SPA. Lo stato della connessione
+viene chiesto al server al montaggio dell'header e non solo letto dallo store: `remoteUrl` lo scrive
+soltanto `RuntimeConnectionTab`, quindi chi ricarica l'IDE senza passare da Configurazione si sarebbe
+trovato il bottone puntato al runtime locale mentre era connesso a un dispositivo.
+
+**Due scelte tue**, entrambe con una conseguenza da ricordare:
+
+- **Sonda `/health` prima di aprire**, invece di aprire e basta. Funziona perché `/health` è pre-auth
+  su entrambe le porte e il runtime manda CORS permissivo — la risposta è leggibile, non un opaco.
+- **La porta del viewer è dedotta** come `admin − 1` invece di essere esposta dal runtime. Corretta
+  per ogni installazione esistente (8443/8444, 8445/8446, `CMD` dei Containerfile), ma resta una
+  convenzione: **chi avvia con porte fuori convenzione ottiene un indirizzo sbagliato**. Mitigato
+  mostrando l'URL dedotto nel tooltip e facendo sparire il bottone quando dedurre non ha senso.
+
+**Verificato in un browser** (non solo in build), tre casi: non connesso → punta al locale e col
+viewer assente non apre niente ma mostra il messaggio; connesso a un secondo runtime via API **senza
+mai aprire Configurazione** → punta al viewer di quello e apre la pagina vera (è il caso che
+l'interrogazione al server serve a coprire); viewer spento → nessuna scheda, messaggio, bottone di
+nuovo utilizzabile. Nuovo `viewerUrlFromAdmin()` puro con 6 test; `pnpm test` 26/26.
+
+**Una regressione mia, presa in tempo**: avevo scritto `??` dove serviva `||`, e siccome
+`getRuntimeBaseUrl()` restituisce la stringa **vuota** e non `null`, il bottone spariva del tutto nel
+caso "non connesso". L'ha trovata la prova in browser, non la rilettura — la build era verde.
+
+### Anche: lo slider ignorava orientamento e sola lettura
+
+Segnalato dal maintainer: «l'oggetto slider se metti orientamento verticale non cambia nulla». Vero,
+e il valore **veniva salvato correttamente** — c'è anche nel mirror Rust, quindi sopravvive al
+round-trip: semplicemente non lo leggeva nessuno, né l'anteprima nell'editor né il controllo a
+runtime. Dimenticanza del solo slider: `radio_group` onora `orientation`, il grafico a barre
+`bar_orientation`.
+
+A runtime il controllo nativo viene **ruotato di −90°** (scelta del maintainer) invece di usare
+`writing-mode: vertical-rl`: quest'ultimo è lo standard moderno ma vuole Chrome 120+/WebKit 17.4+, e
+sul browser dei pannelli Yocto non sappiamo cosa ci sia — dove non fosse supportato lo slider
+resterebbe orizzontale, cioè il difetto di partenza ma più difficile da riconoscere.
+
+**Secondo difetto, trovato leggendo il codice per il primo**: lo slider ignorava anche `read_only`.
+La spunta "Sola lettura" c'era nel pannello e non faceva niente, quindi un comando dichiarato in sola
+lettura scriveva comunque il tag. Corretto (`disabled`). `checkbox`, l'unico altro oggetto che offre
+quella spunta, la onorava già.
+
+**Verificato in un browser, misurando**: nel viewer, orizzontale 192×15 senza trasformazione,
+verticale 15×245 ruotato, verticale in sola lettura 15×245 ruotato **e `disabled=true`**;
+nell'editor, binario orizzontale lungo 200 px e binario verticale lungo 278 px.
+
+**Da sapere**: l'orientamento non tocca la geometria dell'oggetto. Uno slider lasciato alla dimensione
+di default della toolbar (200×40) e messo verticale diventa un moncone — misurato, 15×23 px. Va reso
+più alto che largo. Se conviene che il cambio di orientamento inverta da sé larghezza e altezza, è una
+riga, ma è una decisione da prendere: cambiare la geometria di un oggetto in risposta a una proprietà
+è una sorpresa, e va nella history dell'undo.
+
+### Anche: WP830/WP630 sono 1920×1080
+
+Segnalato dal maintainer: il preset dispositivo li dichiarava 1366×768. Corretto in
+`brand.json`. **Il preset agisce solo alla creazione della pagina**, quindi i progetti già disegnati
+con la misura vecchia restano a 1366×768 finché non si cambia a mano la dimensione — se ce n'è
+qualcuno in servizio, va sistemato a mano.
+
+**Da riprendere**:
+
+1. **Provare `install-container.sh --pull`** dal registry: l'installazione sul WP630 ha usato il
+   percorso offline `--image`, quindi il percorso registry con la SPA nell'immagine non è ancora
+   stato esercitato su un dispositivo. Serve `build_container.sh --push` (e l'SDK Yocto).
+2. **Il percorso x86_64 va riprovato**: `build_container_x86_64.sh` non è stato eseguito dopo la
+   riconciliazione, e la sua verifica del 30 precede il cambio.
+3. L'occasione di 1 e 2 serve anche per **vedere la pill del container su un runtime vero**, non
+   forzato con `SWS_CONTAINER_ENGINE`, e per guardare il bottone Viewer contro un dispositivo reale.
+4. **`feat/container-registry-procedure` aspetta il tuo via libera** per lo squash merge in `main`.
 
 ---
 
@@ -217,10 +401,10 @@ settimana**: un automatismo che deduce l'intenzione dell'utente da uno stato amb
 2. **Il purge non è stato riprovato dopo la correzione**: il dispositivo aveva sopra il tuo `Test034`
    e distruggerlo per un test non valeva il prezzo. Da fare sul prossimo dispositivo da azzerare
    davvero — `--uninstall --purge` + install → `GET /api/projects` deve dare `[]`.
-3. **`/api/discover` mostra ogni runtime due volte.** Cosmetico, causa individuata e non corretta:
-   `browse_mdns_blocking` (`sws-web/src/discover.rs`) accumula una voce per ogni evento
-   `ServiceResolved` senza deduplicare per `fullname`. L'annotazione precedente ("una entry per
-   indirizzo") era **sbagliata**: misurato, le due voci portano lo stesso indirizzo.
+3. ~~**`/api/discover` mostra ogni runtime due volte.**~~ **Corretto il 2026-07-31** (vedi la sezione
+   in cima). La causa era quella individuata — `browse_mdns_blocking` accumulava una voce per evento
+   `ServiceResolved` — ma il conteggio era per difetto: misurate **tre** voci, non due. E deduplicare
+   da solo non bastava: teneva la prima risposta, che spesso porta solo il loopback.
 4. **Backup lasciati sul dispositivo**, in `~` di `user@192.168.1.84`:
    `sws-data-backup-20260730-144812.tar.gz` (progetto `pippo` e config del 29) e
    `volbackup-sws-{projects,config,logs}-20260730.tar` (i volumi nominati prima di rimuoverli).

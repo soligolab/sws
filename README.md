@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/soligolab/sws/actions/workflows/ci.yml/badge.svg)](https://github.com/soligolab/sws/actions/workflows/ci.yml)
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
-[![Container: GHCR](https://img.shields.io/badge/Container-GHCR-green.svg)](https://github.com/orgs/soligolab/packages)
+[![Container: GHCR](https://img.shields.io/badge/Container-GHCR-green.svg)](https://github.com/soligolab/sws/pkgs/container/sws-runtime)
 
 An open-source, web-based SCADA platform for embedded industrial hardware. SWS runs on ARM64
 devices (Rockchip PX30, RK3399) as well as generic Linux, with soft real-time tag streaming, a
@@ -102,11 +102,29 @@ network, use `./scripts/start_editor.sh` (IDE on `8460`) and connect to the runt
 
 See [`scripts/README.md`](scripts/README.md) for the full launcher reference.
 
-### Containers (optional)
+### Containers
 
-A [`compose.yaml`](compose.yaml) is provided for container-based deployment on x86_64 / ARM64
-hosts. Note that the compose path predates no-auth mode and still expects `SWS_ADMIN_PASSWORD`;
-prefer the scripts above for the current PoC workflow.
+The runtime ships as a published **arm64** image for Pixsys OS / Rockchip panels. It is
+self-contained — binary, templates and the SPA — and the package is public, so devices need no
+credentials:
+
+```bash
+# on the device (podman rootless, no sudo)
+./install-container.sh --pull        # ghcr.io/soligolab/sws-runtime:0.1.0-dev-arm64
+```
+
+The full procedure — cross-compile, publish, install and update — is in
+[docs/DEPLOY_CONTAINER_AARCH64.md](docs/DEPLOY_CONTAINER_AARCH64.md). The `-arm64` tag suffix is
+deliberate: the image is not a multi-arch manifest list.
+
+An **x86_64** twin exists for developer machines and generic amd64 hosts — same installer, same
+experience, natively built with no SDK: see
+[docs/DEPLOY_CONTAINER_X86_64.md](docs/DEPLOY_CONTAINER_X86_64.md). Either image can also be
+installed straight from the IDE over SSH (*ConfigView → Runtime → Installa su dispositivo*), which
+copies the archive instead of pulling — the fallback for a device that cannot reach the registry.
+
+A [`compose.yaml`](compose.yaml) also exists, but that path predates no-auth mode and still expects
+`SWS_ADMIN_PASSWORD`; prefer the scripts above for the current PoC workflow.
 
 ---
 

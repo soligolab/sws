@@ -7,7 +7,7 @@
 # build e quella target coincidono) da `scripts/build_container_x86_64.sh`.
 #
 # Il contesto di build è la directory staging preparata da quello script
-# (bin/, templates/), non la radice del repo: tenerlo piccolo evita di
+# (bin/, templates/, www/), non la radice del repo: tenerlo piccolo evita di
 # impacchettare target/ e node_modules.
 #
 # Percorso separato e indipendente da `sws-runtime/docker/Dockerfile`
@@ -49,17 +49,20 @@ RUN apt-get update && \
 COPY bin/sws-runtime /usr/local/bin/sws-runtime
 COPY templates/      /var/sws/templates/
 
-# La SPA NON sta nell'immagine: vive nel volume `sws-www`, popolato da
-# install-container.sh con l'archivio `sws-www-<ver>.tar.gz` (~3 MB).
-# Stesso motivo del percorso aarch64: separare frontend e binario evita di
-# ricostruire/ritrasferire l'intera immagine per una modifica solo UI.
-# Conseguenza accettata: l'immagine da sola non serve la SPA. L'installer
-# rifiuta di procedere se il volume resta vuoto.
+# La SPA sta DENTRO l'immagine, come nel percorso aarch64 e per le stesse
+# ragioni (vedi il commento esteso in Containerfile.aarch64): col registry i
+# layer si deduplicano, quindi un frontend nuovo trasferisce il solo layer
+# della SPA e non l'immagine intera, e non esiste più il modo di ritrovarsi sul
+# dispositivo una SPA di versione diversa dal binario.
+#
+# Sta DOPO il binario e non prima: è il layer che cambia più spesso, e un layer
+# che cambia invalida tutti quelli sotto.
+COPY www/            /var/sws/www/
 
 # Punti di mount dei dati persistenti. Vanno montati come volumi podman:
 # senza, config e progetti vivono nel layer scrivibile e spariscono col
-# container. /var/sws/www è il mount della SPA (vedi sopra).
-RUN mkdir -p /var/sws/config /var/sws/projects /var/sws/www
+# container. /var/sws/www NON è fra questi: è contenuto dell'immagine.
+RUN mkdir -p /var/sws/config /var/sws/projects
 
 # 8443 viewer operatori, 8444 IDE/admin.
 EXPOSE 8443 8444
@@ -77,8 +80,12 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
 # così `podman run ... <altri flag>` li può sostituire.
 # --viewer-port è indispensabile: senza, il viewer non va mai in ascolto e
 # l'immagine servirebbe solo l'IDE (era il difetto del Dockerfile legacy).
+# Metadati OCI in fondo e non dopo il FROM: una LABEL in testa invalida la
+# cache di tutto ciò che segue. Qui il layer apt è nativo e non emulato, quindi
+# costa secondi e non minuti, ma la regola resta la stessa del percorso
+# aarch64, dove è già costata 15 minuti di build.
 LABEL org.opencontainers.image.source="https://github.com/soligolab/sws" \
-      org.opencontainers.image.description="SWS runtime (x86_64) — viewer 8443, IDE/admin 8444. La SPA non è nell'immagine: va montata in /var/sws/www." \
+      org.opencontainers.image.description="SWS runtime (x86_64) — viewer 8443, IDE/admin 8444, SPA inclusa. Montare i dati su /var/sws/{config,projects,logs}." \
       org.opencontainers.image.licenses="AGPL-3.0-only"
 
 ENTRYPOINT ["/usr/local/bin/sws-runtime"]

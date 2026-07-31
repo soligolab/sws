@@ -2749,15 +2749,53 @@ function SvgObject(p: ObjProps) {
     const min = obj.min ?? 0; const max = obj.max ?? 100;
     const rawVal = tv ? Number(tv.value) : min;
     const trackY = obj.y + h / 2;
+    // Stessa convenzione di radio_group: la proprietà è opzionale e l'assenza
+    // vale "horizontal", che è come si comportava lo slider prima che
+    // l'orientamento venisse letto.
+    const isVertical = obj.orientation === "vertical";
+    const readOnly = !!obj.read_only;
+    const accent = obj.fill ?? "var(--brand-primary, #3b82f6)";
+    const valueText = `${rawVal.toFixed(obj.step && obj.step < 1 ? 2 : 0)}${obj.unit ? ` ${obj.unit}` : ""}`;
 
     if (isEditMode) {
       // Edit mode: static SVG preview, draggable
+      const labelEl = obj.label ? (
+        <text x={obj.x + w / 2} y={obj.y + 12} textAnchor="middle"
+          fill="#94a3b8" fontSize={11} style={{ pointerEvents: "none" }}>{obj.label}</text>
+      ) : null;
+
+      if (isVertical) {
+        // L'anteprima deve cambiare insieme al runtime: finché restava
+        // orizzontale, cambiare orientamento "non faceva niente" anche quando
+        // il valore veniva salvato correttamente.
+        const top = obj.y + (obj.label ? 18 : 4);
+        const bottom = obj.y + h - 4;
+        const len = Math.max(8, bottom - top);
+        const cx = obj.x + w / 2;
+        return (
+          <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()}
+             style={{ cursor: editCursor }}>
+            {selRect(obj.x, obj.y, w, h)}
+            {labelEl}
+            <rect x={cx - 3} y={top} width={6} height={len} rx={3} fill="#334155" />
+            {/* Il riempimento parte dal basso: il minimo sta in fondo, come
+                nel controllo ruotato a runtime. */}
+            <rect x={cx - 3} y={top + len * 0.5} width={6} height={len * 0.5} rx={3} fill="#3b82f6" />
+            <circle cx={cx} cy={top + len * 0.5} r={10}
+              fill="#3b82f6" stroke="#1d4ed8" strokeWidth={2} />
+            <text x={cx + 14} y={top + 4} fill="#64748b" fontSize={10}
+              style={{ pointerEvents: "none" }}>{max}</text>
+            <text x={cx + 14} y={bottom} fill="#64748b" fontSize={10}
+              style={{ pointerEvents: "none" }}>{min}</text>
+          </g>
+        );
+      }
+
       return (
         <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()}
            style={{ cursor: editCursor }}>
           {selRect(obj.x, obj.y, w, h)}
-          {obj.label && <text x={obj.x + w / 2} y={obj.y + 12} textAnchor="middle"
-            fill="#94a3b8" fontSize={11} style={{ pointerEvents: "none" }}>{obj.label}</text>}
+          {labelEl}
           <rect x={obj.x} y={trackY - 3} width={w} height={6} rx={3} fill="#334155" />
           <rect x={obj.x} y={trackY - 3} width={w * 0.5} height={6} rx={3} fill="#3b82f6" />
           <circle cx={obj.x + w * 0.5} cy={trackY} r={10}
@@ -2770,7 +2808,71 @@ function SvgObject(p: ObjProps) {
       );
     }
 
-    // View mode: foreignObject with native range input
+    // View mode: foreignObject with native range input.
+    //
+    // `disabled` e non solo un cursore diverso: la spunta "Sola lettura" era
+    // offerta nel pannello proprietà e non faceva niente, quindi uno slider
+    // dichiarato in sola lettura scriveva comunque il tag.
+    const commonInput = {
+      type: "range" as const,
+      min, max,
+      step: obj.step ?? 1,
+      value: rawVal,
+      disabled: readOnly,
+      onChange: (e: React.ChangeEvent<HTMLInputElement>) =>
+        onWriteTag?.(obj.tag!, Number(e.target.value)),
+    };
+
+    if (isVertical) {
+      // Rotazione e non `writing-mode: vertical-rl`: quest'ultimo è lo standard
+      // moderno ma vuole Chrome 120+/WebKit 17.4+, e sul browser dei pannelli
+      // Yocto non sappiamo cosa ci sia — dove non è supportato lo slider
+      // resterebbe orizzontale, cioè il difetto di partenza ma più difficile da
+      // riconoscere. La rotazione funziona su qualunque motore e conserva il
+      // comportamento nativo su touch e tastiera.
+      //
+      // -90° e non +90°: porta l'estremo `min` (a sinistra) in basso, che è
+      // dove ci si aspetta il minimo di uno slider verticale.
+      const labelH = obj.label ? 18 : 0;
+      const valueH = obj.show_value !== false ? 18 : 0;
+      // La lunghezza del controllo ruotato va data in pixel: dopo la rotazione
+      // il riquadro di layout resta quello di prima, quindi non può ricavarla
+      // da un `height: 100%` del contenitore.
+      const trackLen = Math.max(24, h - labelH - valueH - 8);
+      return (
+        <foreignObject x={obj.x} y={obj.y} width={w} height={h}>
+          <div style={{
+            display: "flex", flexDirection: "column", alignItems: "center",
+            justifyContent: "center", gap: 2, height: "100%", boxSizing: "border-box",
+          }}>
+            {obj.label && (
+              <span style={{ color: "var(--brand-text-muted, #94a3b8)", fontSize: 11, textAlign: "center" }}>
+                {obj.label}
+              </span>
+            )}
+            <div style={{
+              height: trackLen, display: "flex", alignItems: "center", justifyContent: "center",
+            }}>
+              <input
+                {...commonInput}
+                style={{
+                  width: trackLen,
+                  transform: "rotate(-90deg)",
+                  accentColor: accent,
+                  cursor: readOnly ? "default" : "pointer",
+                }}
+              />
+            </div>
+            {obj.show_value !== false && (
+              <span style={{ color: "var(--brand-text, #e2e8f0)", fontSize: 12, textAlign: "center" }}>
+                {valueText}
+              </span>
+            )}
+          </div>
+        </foreignObject>
+      );
+    }
+
     const foH = h + (obj.label ? 20 : 0);
     return (
       <foreignObject x={obj.x} y={obj.y} width={w} height={foH}>
@@ -2783,14 +2885,12 @@ function SvgObject(p: ObjProps) {
             </span>
           )}
           <input
-            type="range"
-            min={min} max={max} step={obj.step ?? 1} value={rawVal}
-            onChange={(e) => onWriteTag?.(obj.tag!, Number(e.target.value))}
-            style={{ width: "100%", accentColor: obj.fill ?? "var(--brand-primary, #3b82f6)", cursor: "pointer" }}
+            {...commonInput}
+            style={{ width: "100%", accentColor: accent, cursor: readOnly ? "default" : "pointer" }}
           />
           {obj.show_value !== false && (
             <span style={{ color: "var(--brand-text, #e2e8f0)", fontSize: 12, textAlign: "center" }}>
-              {rawVal.toFixed(obj.step && obj.step < 1 ? 2 : 0)}{obj.unit ? ` ${obj.unit}` : ""}
+              {valueText}
             </span>
           )}
         </div>
