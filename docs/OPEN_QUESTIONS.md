@@ -229,6 +229,73 @@ della perdita di dati di `saveAll` corretta il 2026-07-28.
 
 ---
 
+## Q11 — Estendere `BrandColors` con `secondary`/`accent`, o tenerli solo nell'artwork?
+
+**Context**: emerso il 2026-08-01 applicando la palette KATODO al brand "sws" (arancio primario
+`#DD5D21`, ma anche oro `#D9B200` e azzurro `#7EB5E1` nel brief originale, vedi
+`docs/branding/BRAND_SWS.md`). Lo schema `BrandColors` in `sws-editor/src/branding/index.ts` ha oggi
+10 campi e nessuno slot per un secondo o terzo colore di brand — solo `primary`/`primaryHover`/
+`onPrimary` sono configurabili per-brand.
+
+**Options**:
+1. Aggiungere `secondary`/`accent` a `BrandColors` e ai relativi `CSS_VARS`, disponibili come
+   `var(--brand-secondary)`/`var(--brand-accent)` per chi li vuole usare nella UI.
+2. Lasciarli solo come colori dell'artwork del logo (SVG), senza diventare token CSS — nessuna UI
+   dell'app li userebbe mai per scelta.
+3. Aggiungerli solo quando un componente reale ne avrà bisogno (YAGNI) — per ora oro e azzurro
+   restano descritti nel brief ma non nel codice.
+
+**Default for PoC**: opzione 3 — nessuna estensione dello schema in questo giro.
+
+**Decided**: not yet.
+
+---
+
+## Q12 — I neutri di `theme.ts` restano condivisi fra tutti i brand, o diventano override per-brand?
+
+**Context**: emerso il 2026-08-01 nello stesso lavoro di Q11. `BrandColors` porta anche 7 campi
+neutri (`bg/surface/surface2/border/text/text2/textMuted`), ma `theme.ts` li sovrascrive sempre dopo
+`applyBranding()` con `DARK_NEUTRALS`/`LIGHT_NEUTRALS` **condivisi fra tutti i brand** (commento
+esplicito nel codice: "il tema controlla i neutri... il branding controlla l'accento"). Impostare lo
+sfondo "sws" al grafite `#2B2B2B` del brief non avrebbe quindi alcun effetto oggi — servirebbe
+toccare i neutri condivisi, cambiando anche pixsys/acme/giorgino-giorgetti.
+
+**Options**:
+1. Tenere il design attuale: neutri condivisi, solo l'accento è per-brand. Più semplice, meno
+   probabilità che un brand rompa il contrasto WCAG calcolato per gli altri.
+   `theme.ts:readableOn()`.
+2. Permettere a un brand di override opzionale dei neutri (fallback ai valori condivisi se assente),
+   così "sws" può avere davvero uno sfondo grafite senza toccare gli altri brand.
+
+**Default for PoC**: opzione 1 — nessun cambiamento, i campi neutri di `brand.json` restano di fatto
+inerti (ereditati da `theme.ts`).
+
+**Decided**: not yet.
+
+---
+
+## Q13 — Come arrivano davvero gli sfondi di boot su un pannello Pixsys reale?
+
+**Context**: emerso il 2026-08-01 preparando lo scaffold per gli export PNG del brief (6 risoluzioni,
+`docs/branding/boot-backgrounds/`). Sono pensati per il boot splash **OS-level** del pannello Pixsys,
+ma nessun meccanismo del genere esiste oggi in questo repo — verificato con grep su `docs/`,
+`deploy/`, `scripts/`, `sws-editor/src/`: nessun riferimento a psplash o equivalente. Il kiosk SWS
+(`sws-kiosk`) apre solo una URL fullscreen dopo che il sistema è già partito; non gestisce lo splash
+di boot.
+
+**Options**:
+1. Consegna manuale al maintainer, che li carica con lo strumento di configurazione Pixsys — nessuna
+   integrazione in questo repo, mai.
+2. Se Yocto/Pixsys espone una recipe per il boot splash, documentarla in `docs/YOCTO_CROSSCOMPILE.md`
+   e versionare gli asset finali lì invece che in `docs/branding/`.
+
+**Default for PoC**: opzione 1 — richiede la conoscenza del maintainer sul tooling Pixsys reale, non
+deducibile dal codice.
+
+**Decided**: not yet.
+
+---
+
 ## Adding new questions
 
 When Claude Code adds a new question, follow the format above:
