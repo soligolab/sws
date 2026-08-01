@@ -216,6 +216,7 @@ interface AppState {
   logs: LogEvent[];
   gridSize: number;
   snapEnabled: boolean;
+  gridColor: string;
   /** Canvas rulers visible. Two entry points (editor toolbar + the corner
    *  square inside the canvas), hence global rather than local to SvgCanvas. */
   showRulers: boolean;
@@ -312,7 +313,7 @@ interface AppState {
   reorderPage: (id: string, dir: "up" | "down") => void;
   movePage: (id: string, toIndex: number) => void;
   duplicatePage: (id: string) => void;
-  updatePageProps: (id: string, patch: Partial<Pick<SynopticPage, "name" | "background" | "width" | "height" | "auto_rotate_skip" | "zones" | "locked">>) => void;
+  updatePageProps: (id: string, patch: Partial<Pick<SynopticPage, "name" | "background" | "background_dark" | "width" | "height" | "auto_rotate_skip" | "zones" | "locked">>) => void;
   updateGridCell: (pageId: string, objectId: string, cell: GridCell) => void;
   setSelectedCellRange: (range: { objectId: string; r1: number; c1: number; r2: number; c2: number } | null) => void;
   setSelectedSubCell: (sub: { objectId: string; row: number; col: number; path: ("a" | "b")[] } | null) => void;
@@ -403,6 +404,7 @@ interface AppState {
   // Canvas settings
   setGridSize: (size: number) => void;
   setSnapEnabled: (enabled: boolean) => void;
+  setGridColor: (color: string) => void;
 
   // App-level navigation (allows cross-view navigation, e.g. LeftPanel → ConfigView)
   appMode: AppMode;
@@ -542,6 +544,7 @@ export const useAppStore = create<AppState>((set, get) => {
     logs: [],
     gridSize: 10,
     snapEnabled: true,
+    gridColor: "#1e293b",
     showRulers: readShowRulers(),
     saveStatus: "idle",
     saveError: null,
@@ -1549,6 +1552,7 @@ export const useAppStore = create<AppState>((set, get) => {
 
     setGridSize: (gridSize) => set({ gridSize }),
     setSnapEnabled: (snapEnabled) => set({ snapEnabled }),
+    setGridColor: (gridColor) => set({ gridColor }),
     toggleRulers: () => set((s) => {
       const showRulers = !s.showRulers;
       try { localStorage.setItem(RULERS_KEY, showRulers ? "1" : "0"); }

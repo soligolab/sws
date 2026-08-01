@@ -399,6 +399,9 @@ export interface SynopticPage {
   name: string;
   objects: SynopticObject[];
   background?: string;
+  /** Background used when the active theme is dark. Falls back to `background`
+   *  when unset, so pages saved before this field existed render unchanged. */
+  background_dark?: string;
   /** Canvas design width in px. Undefined = fluid (fills the container). */
   width?: number;
   /** Canvas design height in px. Undefined = fluid (fills the container). */

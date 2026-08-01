@@ -41,6 +41,8 @@ interface SvgCanvasProps {
   selectedIds?: string[];
   gridSize?: number;
   snapEnabled?: boolean;
+  /** Grid dot/line color. Editor-only setting (see the grid's visibility gate). */
+  gridColor?: string;
   /** Custom symbols defined in the project (persisted in project.yaml). */
   customSymbols?: CustomSymbol[];
   /** Faceplate definitions for rendering faceplate instances. */
@@ -420,6 +422,7 @@ export function SvgCanvas({
   selectedIds,
   gridSize = 10,
   snapEnabled = true,
+  gridColor = "#1e293b",
   customSymbols = [],
   faceplates = [],
   pageWidth,
@@ -1140,20 +1143,23 @@ export function SvgCanvas({
       onMouseUp={endDrag}
       onMouseLeave={endDrag}
     >
-      {/* Pattern def is in global SVG space so it tiles correctly after pan */}
-      {gridSize > 0 && (
+      {/* Pattern def is in global SVG space so it tiles correctly after pan.
+          Editor-only (onMove absent in the viewer) and snap-linked: the grid
+          is a positioning aid, showing it when snap is off or in the viewer
+          would be a visual artifact with no purpose. */}
+      {onMove && snapEnabled && gridSize > 0 && (
         <defs>
           <pattern id="sws-grid" width={gridSize} height={gridSize} patternUnits="userSpaceOnUse">
             <path
               d={`M ${gridSize} 0 L 0 0 0 ${gridSize}`}
-              fill="none" stroke="#1e293b" strokeWidth="0.5"
+              fill="none" stroke={gridColor} strokeWidth="0.5"
             />
           </pattern>
         </defs>
       )}
       {/* All zoomed+panned content is inside this group */}
       <g transform={`translate(${viewT.panX}, ${viewT.panY}) scale(${viewT.zoom})`}>
-      {gridSize > 0 && <rect x={-50000} y={-50000} width={100000} height={100000} fill="url(#sws-grid)" />}
+      {onMove && snapEnabled && gridSize > 0 && <rect x={-50000} y={-50000} width={100000} height={100000} fill="url(#sws-grid)" />}
 
       {/* Page boundary indicator — edit mode only, when dimensions are defined */}
       {onMove && pageWidth && pageHeight && (

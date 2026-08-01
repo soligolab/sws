@@ -136,6 +136,20 @@ export function resolveMode(mode: ThemeMode): ResolvedTheme {
 }
 
 /**
+ * Sceglie lo sfondo pagina giusto per il tema attivo. `backgroundDark` è
+ * opzionale: se non impostato si ricade su `background`, così una pagina
+ * salvata prima dell'introduzione di questo campo resta identica in
+ * entrambi i temi invece di sparire in un colore non scelto da nessuno.
+ */
+export function resolvePageBackground(
+  background: string | undefined,
+  backgroundDark: string | undefined,
+  mode: ThemeMode,
+): string | undefined {
+  return resolveMode(mode) === "dark" ? (backgroundDark || background) : background;
+}
+
+/**
  * Applica il tema alla pagina: scrive i token neutri + stato come proprietà
  * inline su :root (l'accento resta quello del brand), imposta data-theme,
  * color-scheme e il meta theme-color, e persiste la preferenza.

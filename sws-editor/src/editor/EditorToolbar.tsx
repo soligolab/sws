@@ -89,6 +89,8 @@ export function EditorToolbar({
   const snapEnabled  = useAppStore((s) => s.snapEnabled);
   const setGridSize  = useAppStore((s) => s.setGridSize);
   const setSnap      = useAppStore((s) => s.setSnapEnabled);
+  const gridColor    = useAppStore((s) => s.gridColor);
+  const setGridColor = useAppStore((s) => s.setGridColor);
   const showRulers   = useAppStore((s) => s.showRulers);
   const toggleRulers = useAppStore((s) => s.toggleRulers);
 
@@ -117,6 +119,9 @@ export function EditorToolbar({
           style={{ accentColor: "var(--brand-primary, #3b82f6)" }} />
         {t("header.gridSnap")}
       </label>
+      <input type="color" value={gridColor} onChange={(e) => setGridColor(e.target.value)}
+        style={{ width: 22, height: 22, padding: 0, border: "none", background: "none", cursor: "pointer" }}
+        title={t("header.gridColor")} />
 
       <div style={SEP} />
 
