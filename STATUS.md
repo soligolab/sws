@@ -38,6 +38,63 @@ pushato e l'immagine container è sul registry. Dettaglio nella sezione qui sott
 >   dispositivo, va tagliata una `2026.7.1` e ripubblicate le immagini — non l'ho fatto di iniziativa
 >   perché una release è una decisione, non un passaggio meccanico.
 
+## Verificato 2026-08-01: installazione container dall'IDE, via registry, su x86_64
+
+Il maintainer ha chiesto di provare la procedura "cliente" — installazione container dall'IDE,
+sorgente Registry — su questa macchina di sviluppo (x86_64), dopo essersi assicurato che non ci
+fossero runtime già attivi (trovato e rimosso un container di test residuo, `0.1.0-dev`, con
+`install-container.sh --uninstall`, non solo `podman stop`, perché l'unit systemd lo faceva
+ripartire da solo).
+
+**Un problema trovato e risolto, non nel codice**: primo tentativo fallito con `422 Unprocessable
+Entity — missing field www_tarball`. Causa: il processo IDE su questa macchina (`.run-editor`,
+porta 8460) girava ininterrottamente dal 2026-07-31 mattina, da prima che arrivasse tutto il
+lavoro pomeridiano in ufficio (registry, SPA-nell'immagine, `www_tarball` rimosso dal payload) —
+il `git pull` aveva aggiornato i sorgenti su disco ma non il binario già caricato in memoria.
+Risolto con `./scripts/start_editor.sh` (ricompila e riavvia pulito). **Lezione**: dopo un `git
+pull` che porta codice backend, un processo IDE/runtime già in esecuzione va riavviato — i
+sorgenti aggiornati sul disco non bastano da soli.
+
+**Dopo il riavvio, self-SSH da IDE verso questa stessa macchina** (sorgente Registry, riferimento
+immagine vuoto → l'installer ha dedotto `latest-amd64` da solo, percorso dati custom
+`/home/max_xxv/sws_container`): installazione riuscita. Chiude la verifica x86_64 della procedura
+"installa dal registry dall'IDE" iniziata il 2026-07-31 (lì provata solo su `main`, non ancora
+end-to-end da IDE). Resta com'era il resto della lista dei "non ancora provate": `--pull` sul
+WP630 reale (arm64), installazione pulita con `--data` non standard dal vivo, pill del container
+non forzata via `SWS_CONTAINER_ENGINE`.
+
+## Fatto 2026-08-01: griglia di posizionamento + sfondo pagina light/dark + impostazioni progetto nel pannello destro
+
+Richiesto dal maintainer il 2026-08-01, implementato lo stesso giorno.
+
+**Griglia** (`SvgCanvas.tsx`, non è mai stata a puntini — è un tratteggio a L, forma non cambiata
+perché non richiesto): il gate era solo `gridSize > 0`, senza nessun controllo su edit-mode né
+`snapEnabled` — **appariva anche nel viewer/runtime**, bug reale trovato leggendo il codice, non
+solo assunto. Corretto in `{onMove && snapEnabled && gridSize > 0 && (...)}` su entrambi i punti
+che disegnano il pattern. Il passo era già legato a `gridSize` (la stessa variabile che guida lo
+snap reale), nulla da collegare. Colore: nuovo `gridColor` nello store (sessione, non persistito,
+come `gridSize`/`snapEnabled` suoi vicini diretti), picker in `EditorToolbar.tsx`.
+
+**Sfondo pagina**: nuovo campo opzionale `background_dark` su `SynopticPage` — `background`
+resta il colore "chiaro"/default, nessuna migrazione dei `project.yaml` esistenti (fallback su
+`background` quando `background_dark` non è impostato). Risolto al tema attivo via una nuova
+`resolvePageBackground()` in `theme.ts`, letta sia in `EditorShell.tsx` sia in `RuntimeView.tsx`.
+Nessun hook reattivo "isDark" esisteva prima — non ne serviva uno nuovo, `resolveMode(themeMode)`
+già esistente basta, letto ai due call site.
+
+**Impostazioni pagine progetto**: spostate dal modale dietro l'icona ⚙ (poco visibile, nel
+pannello sinistro) a una sezione dedicata nel pannello destro, sotto "Proprietà" pagina — non
+fusa con quella per non confondere impostazioni di progetto (modalità dimensionamento, rapporto,
+home page, hide-chrome) con proprietà della singola pagina. Salvataggio rimasto esplicito e
+separato dal salvataggio a batch delle pagine, non per pigrizia: `store/index.ts` dichiara
+esplicitamente che i setter `updateProject*` sono deliberatamente non dirty-tracked, per non
+rompere il meccanismo `pagesRev`/`savedPagesRev` pensato per le pagine — unificarli avrebbe
+rischiato di riprodurre il bug "dirty per sempre" che quel commento descrive.
+
+**Verifica**: `pnpm build`/`pnpm test` (32/32) + `cargo build`/`cargo test -p sws-web` (53/53)
+verdi. Nessuna modifica al backend Rust: le pagine viaggiano come YAML generico
+(`serde_yaml::Value`), un campo opzionale in più non tocca `project.rs`.
+
 ## Registro dei branch chiusi il 2026-07-31
 
 Tutti e sette cancellati, locale **e** `origin`, su richiesta del maintainer. **Non si è perso

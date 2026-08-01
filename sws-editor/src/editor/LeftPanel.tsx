@@ -3,8 +3,8 @@ import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
 import { useAppStore } from "@/store";
 import { SvgCanvas } from "@/canvas/SvgCanvas";
-import { ASPECT_RATIOS, findBrokenNavLinks, findOrphanPageIds, referenceResolutionFor } from "@/pageLayout";
-import type { ObjectGroup, PageLayoutConfig, PageSizeMode, ProjectInfo, SynopticObject, SynopticPage } from "@/types";
+import { findBrokenNavLinks, findOrphanPageIds } from "@/pageLayout";
+import type { ObjectGroup, ProjectInfo, SynopticObject, SynopticPage } from "@/types";
 
 // ── Shared styles ─────────────────────────────────────────────────────────────
 
@@ -132,7 +132,6 @@ function PagesSection() {
   const [editingValue, setEditingValue] = useState("");
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
-  const [settingsOpen, setSettingsOpen] = useState(false);
   const [linkReportOpen, setLinkReportOpen] = useState(false);
   const importInputRef = useRef<HTMLInputElement>(null);
 
@@ -217,17 +216,10 @@ function PagesSection() {
     <Section
       title={t("editor.sectionPages")}
       headerAction={
-        <>
-          <button style={S.iconBtn} title="Verifica collegamenti (link rotti + pagine orfane)"
-            onClick={() => setLinkReportOpen(true)}>🔗</button>
-          <button style={S.iconBtn} title="Impostazioni pagine del progetto"
-            onClick={() => setSettingsOpen(true)}>⚙</button>
-        </>
+        <button style={S.iconBtn} title="Verifica collegamenti (link rotti + pagine orfane)"
+          onClick={() => setLinkReportOpen(true)}>🔗</button>
       }
     >
-      {settingsOpen && (
-        <PageLayoutSettingsModal project={project} pages={pages} onClose={() => setSettingsOpen(false)} />
-      )}
       {linkReportOpen && (
         <LinkReportModal
           pages={pages}
@@ -390,129 +382,6 @@ function PagesSection() {
         </div>
       </div>
     </Section>
-  );
-}
-
-// ── Page layout settings modal (project-wide) ────────────────────────────────
-// Size mode (Fixed/Ratio/Fluid) + aspect ratio + home page. Q8-adjacent page
-// management work: dimensioning is a per-PROJECT setting (not per-page).
-
-function PageLayoutSettingsModal({
-  project, pages, onClose,
-}: {
-  project: ProjectInfo | null;
-  pages: SynopticPage[];
-  onClose: () => void;
-}) {
-  const updateProjectPageLayout = useAppStore((s) => s.updateProjectPageLayout);
-  const updatePageProps = useAppStore((s) => s.updatePageProps);
-  const [sizeMode, setSizeMode] = useState<PageSizeMode>(project?.page_layout?.size_mode ?? "fixed");
-  const [aspectRatio, setAspectRatio] = useState<string>(project?.page_layout?.aspect_ratio ?? ASPECT_RATIOS[0].ratio);
-  const [homePageId, setHomePageId] = useState<string>(project?.page_layout?.home_page_id ?? "");
-  const [hideChrome, setHideChrome] = useState<boolean>(project?.page_layout?.hide_viewer_chrome ?? false);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const ref = referenceResolutionFor(aspectRatio);
-
-  const handleSave = async () => {
-    setSaving(true); setError(null);
-    const cfg: PageLayoutConfig = {
-      size_mode: sizeMode,
-      aspect_ratio: sizeMode === "ratio" ? aspectRatio : undefined,
-      home_page_id: homePageId || undefined,
-      hide_viewer_chrome: hideChrome || undefined,
-    };
-    try {
-      await api.updatePageLayout(cfg);
-      updateProjectPageLayout(cfg);
-      // "Ratio" mode: every page must share the same standard reference
-      // resolution — otherwise a page with a stale literal width/height
-      // (e.g. 800×480, a different ratio) would letterbox-scale against the
-      // WRONG aspect ratio at runtime. Client-side only; the maintainer still
-      // saves the project explicitly like any other canvas edit.
-      if (sizeMode === "ratio") {
-        for (const p of pages) updatePageProps(p.id, { width: ref.width, height: ref.height });
-      }
-      onClose();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.65)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }}
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div style={{ background: "var(--brand-surface, #1e293b)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 8, padding: 20, width: "min(90vw, 420px)", display: "flex", flexDirection: "column", gap: 14 }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <div style={{ fontWeight: 700, color: "var(--brand-text, #e2e8f0)" }}>Impostazioni pagine del progetto</div>
-          <button style={{ background: "transparent", border: "none", color: "var(--brand-text-subtle, #64748b)", cursor: "pointer", fontSize: 16 }} onClick={onClose}>✕</button>
-        </div>
-
-        <div>
-          <div style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", marginBottom: 6 }}>Modalità dimensionamento</div>
-          {([
-            { v: "fixed" as const, label: "Fisso (1:1, nessuno scaling)" },
-            { v: "ratio" as const, label: "Solo proporzioni (scala mantenendo il rapporto)" },
-            { v: "fluid" as const, label: "Fluido (nessuna dimensione dichiarata)" },
-          ]).map((opt) => (
-            <label key={opt.v} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "var(--brand-text-2, #cbd5e1)", padding: "4px 0", cursor: "pointer" }}>
-              <input type="radio" name="sizeMode" checked={sizeMode === opt.v} onChange={() => setSizeMode(opt.v)} />
-              {opt.label}
-            </label>
-          ))}
-        </div>
-
-        {sizeMode === "ratio" && (
-          <div>
-            <div style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", marginBottom: 4 }}>Rapporto</div>
-            <select value={aspectRatio} onChange={(e) => setAspectRatio(e.target.value)}
-              style={{ background: "var(--brand-bg, #0f172a)", color: "var(--brand-text, #e2e8f0)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, padding: "4px 8px", fontSize: 12, width: "100%" }}>
-              {ASPECT_RATIOS.map((a) => <option key={a.ratio} value={a.ratio}>{a.label}</option>)}
-            </select>
-            <div style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", marginTop: 4 }}>
-              Risoluzione di riferimento: {ref.width}×{ref.height}
-            </div>
-          </div>
-        )}
-
-        <div>
-          <div style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", marginBottom: 4 }}>Pagina iniziale (home)</div>
-          <select value={homePageId} onChange={(e) => setHomePageId(e.target.value)}
-            style={{ background: "var(--brand-bg, #0f172a)", color: "var(--brand-text, #e2e8f0)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, padding: "4px 8px", fontSize: 12, width: "100%" }}>
-            <option value="">— Prima pagina della lista —</option>
-            {pages.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-          </select>
-        </div>
-
-        <div>
-          <label style={{ display: "flex", alignItems: "flex-start", gap: 8, fontSize: 12, color: "var(--brand-text-2, #cbd5e1)", cursor: "pointer" }}>
-            <input type="checkbox" checked={hideChrome} onChange={(e) => setHideChrome(e.target.checked)}
-              style={{ marginTop: 2, accentColor: "var(--brand-primary, #3b82f6)" }} />
-            <span>
-              Viewer a schermo pieno: nascondi barra superiore e fascia allarmi
-              <div style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", marginTop: 3, lineHeight: 1.45 }}>
-                Sul pannello viene renderizzata solo l'area della pagina. Gli allarmi
-                attivi compaiono sovrapposti, senza rubare spazio. <strong>Attenzione</strong>:
-                senza la barra la navigazione tra pagine può avvenire solo con oggetti
-                "Pulsante pagina" sul synoptic o con la rotazione automatica.
-              </div>
-            </span>
-          </label>
-        </div>
-
-        {error && <div style={{ color: "var(--brand-danger, #ef4444)", fontSize: 12 }}>Errore: {error}</div>}
-
-        <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
-          <button style={{ background: "transparent", color: "var(--brand-text-subtle, #64748b)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, padding: "5px 12px", cursor: "pointer", fontSize: 13 }} onClick={onClose}>Annulla</button>
-          <button style={{ background: "var(--brand-success-bg, #166534)", color: "#bbf7d0", border: "1px solid #15803d", borderRadius: 4, padding: "5px 12px", cursor: "pointer", fontSize: 13 }} disabled={saving} onClick={handleSave}>
-            {saving ? "Salvataggio…" : "Salva"}
-          </button>
-        </div>
-      </div>
-    </div>
   );
 }
 

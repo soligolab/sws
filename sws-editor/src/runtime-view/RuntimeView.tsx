@@ -4,6 +4,7 @@ import { api } from "@/api/client";
 import { getBrand } from "@/branding";
 import { SvgCanvas } from "@/canvas/SvgCanvas";
 import { viewerFitScale, effectiveSizeMode } from "@/pageLayout";
+import { resolvePageBackground } from "@/theme";
 import { AlarmHistory } from "@/components/AlarmHistory";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { UiLangSelect } from "@/components/UiLangSelect";
@@ -433,6 +434,7 @@ export function RuntimeView() {
   const setCurrentPage      = useAppStore((s) => s.setCurrentPage);
   const tagValues           = useAppStore((s) => s.tagValues);
   const project             = useAppStore((s) => s.project);
+  const themeMode           = useAppStore((s) => s.themeMode);
   const languageTable       = useAppStore((s) => s.project?.languages);
   const projectLang         = useAppStore((s) => s.projectLang);
   const customSymbols       = useAppStore((s) => s.customSymbols);
@@ -703,7 +705,7 @@ export function RuntimeView() {
         <SvgCanvas
           objects={objects}
           tagValues={tagValues}
-          background={currentPage?.background}
+          background={resolvePageBackground(currentPage?.background, currentPage?.background_dark, themeMode)}
           customSymbols={customSymbols}
           faceplates={faceplates}
           pageWidth={currentPage?.width}

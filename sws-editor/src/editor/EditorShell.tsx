@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
 import { SvgCanvas, type CanvasViewApi } from "@/canvas/SvgCanvas";
+import { resolvePageBackground } from "@/theme";
 import { EditorToolbar } from "@/editor/EditorToolbar";
 import { LeftPanel } from "@/editor/LeftPanel";
 import { PageTabs } from "@/editor/PageTabs";
@@ -10,13 +11,13 @@ import { TagInput } from "@/components/TagInput";
 import { BindableInput } from "@/components/BindableInput";
 import { ImageBrowser } from "@/components/ImageBrowser";
 import { SYMBOL_LIST } from "@/symbols/library";
-import { editorFitSize, effectiveSizeMode, getDevicePresets, STANDARD_DEVICE_PRESETS } from "@/pageLayout";
+import { ASPECT_RATIOS, editorFitSize, effectiveSizeMode, getDevicePresets, referenceResolutionFor, STANDARD_DEVICE_PRESETS } from "@/pageLayout";
 import { getBrand } from "@/branding";
 import type { SymbolMeta } from "@/symbols/library";
 import { useAppStore } from "@/store";
 import { localizeObjects } from "@/i18n/projectI18n";
 import type { AlignMode } from "@/store";
-import type { ButtonAction, FunctionDef, GridCell, PageSizeMode, RadioOption, SubCellEntry, SubGrid, SynopticObject, TableRow } from "@/types";
+import type { ButtonAction, FunctionDef, GridCell, PageLayoutConfig, PageSizeMode, RadioOption, SubCellEntry, SubGrid, SynopticObject, TableRow } from "@/types";
 
 // ── Shared styles ─────────────────────────────────────────────────────────────
 
@@ -224,6 +225,8 @@ export function EditorShell() {
   const tagValues       = useAppStore((s) => s.tagValues);
   const gridSize        = useAppStore((s) => s.gridSize);
   const snapEnabled     = useAppStore((s) => s.snapEnabled);
+  const gridColor       = useAppStore((s) => s.gridColor);
+  const themeMode       = useAppStore((s) => s.themeMode);
   const editorPreviewLang = useAppStore((s) => s.editorPreviewLang);
   const addObject       = useAppStore((s) => s.addObject);
   const updateObject    = useAppStore((s) => s.updateObject);
@@ -683,11 +686,12 @@ export function EditorShell() {
         <SvgCanvas
           objects={canvasObjects}
           tagValues={tagValues}
-          background={currentPage?.background}
+          background={resolvePageBackground(currentPage?.background, currentPage?.background_dark, themeMode)}
           selectedId={selectedId}
           selectedIds={selectedIds}
           gridSize={gridSize}
           snapEnabled={snapEnabled}
+          gridColor={gridColor}
           customSymbols={customSymbols}
           faceplates={faceplates}
           pageWidth={currentPage?.width}
@@ -952,6 +956,7 @@ export function EditorShell() {
             <PageProps
               name={currentPage?.name ?? ""}
               background={currentPage?.background ?? "#1a1a2e"}
+              background_dark={currentPage?.background_dark}
               width={currentPage?.width}
               height={currentPage?.height}
               auto_rotate_skip={currentPage?.auto_rotate_skip}
@@ -960,6 +965,10 @@ export function EditorShell() {
               sizeMode={effectiveSizeMode(project?.page_layout)}
               onChange={(patch) => updatePageProps(currentPageId, patch)}
             />
+            <span style={{ fontSize: 11, fontWeight: 700, color: "var(--brand-text-subtle, #64748b)", letterSpacing: 1, marginTop: 8, display: "block" }}>
+              IMPOSTAZIONI PROGETTO
+            </span>
+            <ProjectPageLayoutSettings />
           </>
         )}
         </fieldset>
@@ -1316,6 +1325,7 @@ function CellStructureActions({ isMerged, isSplit, onUnmerge, onSplitRows, onSpl
 function PageProps({
   name,
   background,
+  background_dark,
   width,
   height,
   auto_rotate_skip,
@@ -1326,13 +1336,14 @@ function PageProps({
 }: {
   name: string;
   background: string;
+  background_dark?: string;
   width?: number;
   height?: number;
   auto_rotate_skip?: boolean;
   zones?: string[];
   locked?: boolean;
   sizeMode: PageSizeMode;
-  onChange: (patch: Partial<{ name: string; background: string; width: number | undefined; height: number | undefined; auto_rotate_skip: boolean | undefined; zones: string[] | undefined }>) => void;
+  onChange: (patch: Partial<{ name: string; background: string; background_dark: string | undefined; width: number | undefined; height: number | undefined; auto_rotate_skip: boolean | undefined; zones: string[] | undefined }>) => void;
 }) {
   const { t } = useTranslation();
   const ro = !!locked; // read-only when the page is locked
@@ -1355,7 +1366,7 @@ function PageProps({
         />
       </div>
       <div>
-        <div style={LABEL}>{t("props.background")}</div>
+        <div style={LABEL}>{t("props.backgroundLight")}</div>
         <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
           <input
             type="color"
@@ -1370,6 +1381,26 @@ function PageProps({
             value={background}
             disabled={ro}
             onChange={(e) => onChange({ background: e.target.value })}
+          />
+        </div>
+      </div>
+      <div>
+        <div style={LABEL}>{t("props.backgroundDark")}</div>
+        <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+          <input
+            type="color"
+            style={{ ...INPUT, padding: 2, height: 28, width: 44, cursor: "pointer", flex: "none" }}
+            value={background_dark || background}
+            disabled={ro}
+            onChange={(e) => onChange({ background_dark: e.target.value })}
+          />
+          <input
+            type="text"
+            style={{ ...INPUT }}
+            value={background_dark ?? ""}
+            placeholder={background}
+            disabled={ro}
+            onChange={(e) => onChange({ background_dark: e.target.value || undefined })}
           />
         </div>
       </div>
@@ -1473,6 +1504,119 @@ function PageProps({
         Seleziona un oggetto sul canvas per modificarne le proprietà.
       </p>
     </>
+  );
+}
+
+// ── Project-wide page layout settings ─────────────────────────────────────────
+// Size mode (Fixed/Ratio/Fluid) + aspect ratio + home page + hide-chrome. Era
+// un modale dietro un'icona ⚙ poco visibile nel pannello sinistro — spostato
+// qui, sezione a sé nel pannello destro (non fusa con "Proprietà" della
+// pagina corrente: queste impostazioni valgono per l'intero progetto, non
+// solo per la pagina selezionata). Salvataggio esplicito e separato dal
+// salvataggio a batch delle pagine — non un compromesso di comodità: lo
+// stesso store dichiara (store/index.ts) che i setter `updateProject*` sono
+// deliberatamente non dirty-tracked, per non rompere il tracking pensato per
+// `pagesRev`/`savedPagesRev`.
+function ProjectPageLayoutSettings() {
+  const project = useAppStore((s) => s.project);
+  const pages = useAppStore((s) => s.pages);
+  const updateProjectPageLayout = useAppStore((s) => s.updateProjectPageLayout);
+  const updatePageProps = useAppStore((s) => s.updatePageProps);
+  const [sizeMode, setSizeMode] = useState<PageSizeMode>(project?.page_layout?.size_mode ?? "fixed");
+  const [aspectRatio, setAspectRatio] = useState<string>(project?.page_layout?.aspect_ratio ?? ASPECT_RATIOS[0].ratio);
+  const [homePageId, setHomePageId] = useState<string>(project?.page_layout?.home_page_id ?? "");
+  const [hideChrome, setHideChrome] = useState<boolean>(project?.page_layout?.hide_viewer_chrome ?? false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const ref = referenceResolutionFor(aspectRatio);
+
+  const handleSave = async () => {
+    setSaving(true); setError(null);
+    const cfg: PageLayoutConfig = {
+      size_mode: sizeMode,
+      aspect_ratio: sizeMode === "ratio" ? aspectRatio : undefined,
+      home_page_id: homePageId || undefined,
+      hide_viewer_chrome: hideChrome || undefined,
+    };
+    try {
+      await api.updatePageLayout(cfg);
+      updateProjectPageLayout(cfg);
+      // "Ratio" mode: every page must share the same standard reference
+      // resolution — otherwise a page with a stale literal width/height
+      // (e.g. 800×480, a different ratio) would letterbox-scale against the
+      // WRONG aspect ratio at runtime. Client-side only; the maintainer still
+      // saves the project explicitly like any other canvas edit.
+      if (sizeMode === "ratio") {
+        for (const p of pages) updatePageProps(p.id, { width: ref.width, height: ref.height });
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 4 }}>
+      <div>
+        <div style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", marginBottom: 6 }}>Modalità dimensionamento</div>
+        {([
+          { v: "fixed" as const, label: "Fisso (1:1, nessuno scaling)" },
+          { v: "ratio" as const, label: "Solo proporzioni (scala mantenendo il rapporto)" },
+          { v: "fluid" as const, label: "Fluido (nessuna dimensione dichiarata)" },
+        ]).map((opt) => (
+          <label key={opt.v} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "var(--brand-text-2, #cbd5e1)", padding: "4px 0", cursor: "pointer" }}>
+            <input type="radio" name="sizeMode" checked={sizeMode === opt.v} onChange={() => setSizeMode(opt.v)} />
+            {opt.label}
+          </label>
+        ))}
+      </div>
+
+      {sizeMode === "ratio" && (
+        <div>
+          <div style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", marginBottom: 4 }}>Rapporto</div>
+          <select value={aspectRatio} onChange={(e) => setAspectRatio(e.target.value)}
+            style={{ background: "var(--brand-bg, #0f172a)", color: "var(--brand-text, #e2e8f0)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, padding: "4px 8px", fontSize: 12, width: "100%" }}>
+            {ASPECT_RATIOS.map((a) => <option key={a.ratio} value={a.ratio}>{a.label}</option>)}
+          </select>
+          <div style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", marginTop: 4 }}>
+            Risoluzione di riferimento: {ref.width}×{ref.height}
+          </div>
+        </div>
+      )}
+
+      <div>
+        <div style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", marginBottom: 4 }}>Pagina iniziale (home)</div>
+        <select value={homePageId} onChange={(e) => setHomePageId(e.target.value)}
+          style={{ background: "var(--brand-bg, #0f172a)", color: "var(--brand-text, #e2e8f0)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, padding: "4px 8px", fontSize: 12, width: "100%" }}>
+          <option value="">— Prima pagina della lista —</option>
+          {pages.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+        </select>
+      </div>
+
+      <div>
+        <label style={{ display: "flex", alignItems: "flex-start", gap: 8, fontSize: 12, color: "var(--brand-text-2, #cbd5e1)", cursor: "pointer" }}>
+          <input type="checkbox" checked={hideChrome} onChange={(e) => setHideChrome(e.target.checked)}
+            style={{ marginTop: 2, accentColor: "var(--brand-primary, #3b82f6)" }} />
+          <span>
+            Viewer a schermo pieno: nascondi barra superiore e fascia allarmi
+            <div style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", marginTop: 3, lineHeight: 1.45 }}>
+              Sul pannello viene renderizzata solo l'area della pagina. Gli allarmi
+              attivi compaiono sovrapposti, senza rubare spazio. <strong>Attenzione</strong>:
+              senza la barra la navigazione tra pagine può avvenire solo con oggetti
+              "Pulsante pagina" sul synoptic o con la rotazione automatica.
+            </div>
+          </span>
+        </label>
+      </div>
+
+      {error && <div style={{ color: "var(--brand-danger, #ef4444)", fontSize: 12 }}>Errore: {error}</div>}
+
+      <button style={{ alignSelf: "flex-start", background: "var(--brand-success-bg, #166534)", color: "#bbf7d0", border: "1px solid #15803d", borderRadius: 4, padding: "5px 12px", cursor: "pointer", fontSize: 13 }} disabled={saving} onClick={handleSave}>
+        {saving ? "Salvataggio…" : "Salva impostazioni progetto"}
+      </button>
+    </div>
   );
 }
 
