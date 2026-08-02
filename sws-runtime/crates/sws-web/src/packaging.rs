@@ -245,7 +245,7 @@ pub async fn list_packages(State(s): State<AppState>) -> impl IntoResponse {
 /// (native binary tarballs, the SPA archive itself, stray files...).
 fn parse_image_tarball(name: &str) -> Option<(String, String)> {
     let rest = name.strip_prefix("sws-runtime-")?;
-    for arch in ["aarch64", "x86_64"] {
+    for arch in ["aarch64-generic", "aarch64", "x86_64"] {
         if let Some(version) = rest.strip_suffix(&format!("-{arch}-image.tar.gz")) {
             return Some((version.to_string(), arch.to_string()));
         }
@@ -966,6 +966,21 @@ mod tests {
         assert_eq!(
             parse_image_tarball("sws-runtime-1.2.3-aarch64-image.tar.gz"),
             Some(("1.2.3".to_string(), "aarch64".to_string())),
+        );
+    }
+
+    #[test]
+    fn parse_image_tarball_distinguishes_generic_from_sdk_aarch64() {
+        // Il percorso generico (senza SDK Pixsys, scripts/build_container_
+        // aarch64_generic.sh) non deve confondersi con quello Pixsys-tuned:
+        // stesso target architetturale, garanzie diverse.
+        assert_eq!(
+            parse_image_tarball("sws-runtime-2026.7.0-aarch64-generic-image.tar.gz"),
+            Some(("2026.7.0".to_string(), "aarch64-generic".to_string())),
+        );
+        assert_eq!(
+            parse_image_tarball("sws-runtime-2026.7.0-aarch64-image.tar.gz"),
+            Some(("2026.7.0".to_string(), "aarch64".to_string())),
         );
     }
 
