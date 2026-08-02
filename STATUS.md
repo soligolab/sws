@@ -47,6 +47,18 @@ script/Containerfile, non solo qui):
 `sws-runtime:2026.7.0-arm64-generic`, archivio `dist/sws-runtime-2026.7.0-aarch64-generic-image.tar.gz`
 (65 MB). `cargo test -p sws-web` 54/54 verde.
 
+**Aggiornamento stesso giorno — quinto problema trovato testando davvero il deploy**: primo
+tentativo di installazione fallito perché il device di prova era x86_64, non arm64 — il messaggio
+di `install-container.sh` ("immagine senza SPA") è fuorviante in quel caso, il vero problema è un
+mismatch di architettura (verificato montando l'immagine con `podman image mount` + `podman
+unshare`: la SPA c'era). Nel frattempo, rigenerare l'immagine x86_64 con la versione corrente ha
+fatto scoprire che la build aarch64-generic (sudo) aveva lasciato **root-owned anche
+`sws-editor/dist/`** (non solo gli artefatti del proprio percorso) — `pnpm build`, lanciato
+direttamente sull'host e non in un container, gira come root sotto sudo. Bloccava qualunque
+`pnpm build` successivo con `EACCES`. Corretto lo script con un `trap ... EXIT` che restituisce
+tutto (`dist/`, `sws-editor/dist/`, i due artefatti di build) a `$SUDO_USER` all'uscita, a
+successo o fallimento — non serve più un chown a mano dopo.
+
 **Non ancora fatto**: installazione/avvio reale del container risultante (via `install-container.sh`
 o dall'IDE) — il maintainer vuole prima mergiare il codice, poi testare. Se possibile, sarebbe utile
 anche un confronto diretto con una build sul device arm64 reale (`tc620-a-p3-c6-07aff9.local`,

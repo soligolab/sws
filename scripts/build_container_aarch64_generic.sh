@@ -51,14 +51,41 @@
 # funziona. Lo script va quindi lanciato con `sudo ./scripts/build_container_
 # aarch64_generic.sh`. Effetto collaterale: podman "vero" non rimappa gli UID
 # sui bind mount, quindi target-container-aarch64-generic/,
-# .cargo-container-aarch64-generic/ e l'archivio in dist/ restano di
-# proprietà di root — va fatto un `sudo chown -R $(whoami): ...` (o `sudo
-# rm -rf`) dopo, per ripulire.
+# .cargo-container-aarch64-generic/, dist/ e sws-editor/dist/ (pnpm build,
+# lanciato direttamente e non in un container) finirebbero di proprietà di
+# root — lo script stesso li restituisce all'utente originale all'uscita
+# (vedi il `trap restore_ownership EXIT` qui sotto), non serve più farlo a
+# mano.
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+# Lo script gira con sudo (vedi il controllo root più sotto): tutto ciò che
+# root scrive — dist/, sws-editor/dist/ (pnpm build gira come root, non
+# dentro un container), target-container-aarch64-generic/,
+# .cargo-container-aarch64-generic/ — resterebbe altrimenti di sua proprietà,
+# inutilizzabile dall'utente normale (persino un `pnpm build` successivo
+# fallisce con EACCES, successo il 2026-08-02: pnpm prova a *ricreare*
+# dist/assets/, non solo scriverci dentro, e non può farlo su una directory
+# posseduta da root). Il trap gira SEMPRE all'uscita — successo, `--no-rust`,
+# o uno `set -e` che interrompe a metà: uno script che fallisce non deve
+# comunque lasciare artefatti root-owned in giro. `$SUDO_USER` è l'utente
+# originale che ha lanciato `sudo`; senza sudo (o se root fa girare lo
+# script direttamente, senza passare da un utente normale) non c'è nulla da
+# restituire, quindi non fa nulla.
+restore_ownership() {
+    if [ -n "${SUDO_USER:-}" ]; then
+        chown -R "$SUDO_USER:$(id -gn "$SUDO_USER")" \
+            "$REPO/dist" \
+            "$REPO/sws-editor/dist" \
+            "$REPO/sws-runtime/target-container-aarch64-generic" \
+            "$REPO/.cargo-container-aarch64-generic" \
+            2>/dev/null || true
+    fi
+}
+trap restore_ownership EXIT
 
 BUILD_RUST=1
 BUILD_SPA=1
@@ -110,8 +137,8 @@ if [ "$BUILD_RUST" -eq 1 ] && [ "$(id -u)" -ne 0 ]; then
     echo "        podman rootless non riesce a eseguire binari arm64 sotto QEMU" >&2
     echo "        su questa famiglia di kernel/crun)." >&2
     echo "          sudo ./scripts/build_container_aarch64_generic.sh" >&2
-    echo "        Gli artefatti (target-container-aarch64-generic/, dist/*aarch64-generic*)" >&2
-    echo "        resteranno di proprietà di root — serve un chown dopo." >&2
+    echo "        (gli artefatti tornano dell'utente originale all'uscita, non serve" >&2
+    echo "        un chown a mano dopo)." >&2
     exit 1
 fi
 

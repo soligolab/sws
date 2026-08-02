@@ -158,9 +158,12 @@ l'emulazione QEMU non attraversa la user namespace del container (l'exec del
 binario arm64 fallisce con "Exec format error" anche a registrazione binfmt
 corretta), con `sudo podman` funziona. Effetto collaterale: podman non-rootless
 non rimappa gli UID sui bind mount, quindi `target-container-aarch64-generic/`,
-`.cargo-container-aarch64-generic/` e l'archivio in `dist/` restano di proprietà
-di `root` — serve un `sudo chown -R $(whoami): ...` dopo per ripulire. Lo script
-verifica da solo entrambi i prerequisiti (binfmt registrato, `id -u` è 0) e si
+`.cargo-container-aarch64-generic/`, `dist/` e `sws-editor/dist/` (la SPA, che
+lo script builda direttamente sull'host e non dentro un container)
+finirebbero di proprietà di `root` — lo script li restituisce da solo
+all'utente originale (`$SUDO_USER`) all'uscita, con un `trap ... EXIT` che
+gira sia a successo sia a fallimento a metà, non serve un `chown` a mano.
+Lo script verifica da solo entrambi i prerequisiti (binfmt registrato, `id -u` è 0) e si
 ferma con un messaggio chiaro se mancano, invece di fallire più avanti con un
 errore di rete poco comprensibile (sotto `sudo podman`, senza `--network host`
 — che lo script già passa — la rete bridge di default non passa il DNS
