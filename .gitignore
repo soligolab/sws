@@ -48,3 +48,10 @@ REMOVED_DOC.md
 # Build del container x86_64 dentro l'immagine builder (vedi scripts/build_container_x86_64.sh)
 /sws-runtime/target-container-x86_64/
 /.cargo-container-x86_64/
+
+# Build del container aarch64 generico, emulato QEMU (vedi
+# scripts/build_container_aarch64_generic.sh) — di norma root-owned, essendo
+# l'unico percorso container che richiede sudo (podman rootless non regge
+# l'emulazione QEMU su questo host, vedi docs/DEPLOY_CONTAINER_AARCH64.md).
+/sws-runtime/target-container-aarch64-generic/
+/.cargo-container-aarch64-generic/

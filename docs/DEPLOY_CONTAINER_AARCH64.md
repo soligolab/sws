@@ -131,6 +131,66 @@ invalidano il layer `apt`, che sotto emulazione QEMU si ricostruisce in 15
 minuti contro i 2,7 secondi di una build con la cache calda. Misurato, non
 supposto.
 
+### Percorso generico (senza SDK Pixsys)
+
+Quando l'SDK Yocto Pixsys non è disponibile — o il target non è un device Pixsys
+(Raspberry Pi, VM cloud arm64, qualunque device aarch64 generico) — c'è un
+percorso gemello che non lo richiede:
+
+```bash
+sudo ./scripts/build_container_aarch64_generic.sh                 # build + immagine + archivio
+sudo ./scripts/build_container_aarch64_generic.sh --no-rust        # riusa il binario esistente
+```
+
+Compila dentro `deploy/container/Containerfile.aarch64-generic.builder` (stesso
+`ubuntu:24.04` del percorso x86_64 — vedi `docs/DEPLOY_CONTAINER_X86_64.md`),
+non con l'SDK: build-arch e target-arch non coincidono, quindi gira **tutta**
+sotto emulazione QEMU, non solo il layer `apt` del passaggio sopra — sensibilmente
+più lenta della build SDK (secondi) e di quella x86_64 nativa. Stesso prerequisito
+binfmt della build SDK (`ls /proc/sys/fs/binfmt_misc/qemu-aarch64`; se assente,
+`sudo apt install qemu-user-static`, o su distro dove quel pacchetto non c'è,
+`sudo podman run --rm --privileged docker.io/multiarch/qemu-user-static --reset
+-p yes`), qui usato per l'intera compilazione e non solo per l'ultimo layer.
+
+**A differenza di tutto il resto della famiglia container, va lanciato con
+`sudo`** — verificato empiricamente (2026-08-01): su podman rootless + crun
+l'emulazione QEMU non attraversa la user namespace del container (l'exec del
+binario arm64 fallisce con "Exec format error" anche a registrazione binfmt
+corretta), con `sudo podman` funziona. Effetto collaterale: podman non-rootless
+non rimappa gli UID sui bind mount, quindi `target-container-aarch64-generic/`,
+`.cargo-container-aarch64-generic/` e l'archivio in `dist/` restano di proprietà
+di `root` — serve un `sudo chown -R $(whoami): ...` dopo per ripulire. Lo script
+verifica da solo entrambi i prerequisiti (binfmt registrato, `id -u` è 0) e si
+ferma con un messaggio chiaro se mancano, invece di fallire più avanti con un
+errore di rete poco comprensibile (sotto `sudo podman`, senza `--network host`
+— che lo script già passa — la rete bridge di default non passa il DNS
+dell'host e `ports.ubuntu.com`/crates.io risultano irraggiungibili anche se
+l'host li risolve benissimo).
+
+**`cc` va in SIGSEGV sotto QEMU compilando `aws-lc-sys`** (dietro `rustls`, via
+`reqwest`): la sua assembly ARM scritta a mano per NEON+SHA3 fa crashare
+l'assemblatore in emulazione — limite noto di QEMU con certe estensioni
+crypto ARM, non un bug del codice SWS. Lo script imposta
+`AWS_LC_SYS_NO_ASM=1` (ripiega sulle implementazioni C portabili) e forza il
+builder su CMake (richiede `cmake` nell'immagine builder — vedi
+`Containerfile.aarch64-generic.builder`), che a sua volta accetta `NO_ASM`
+**solo con `opt-level` esattamente 0** (`CARGO_PROFILE_RELEASE_OPT_LEVEL=0`,
+verificato leggendo `builder/cmake_builder.rs` di aws-lc-sys, non assunto) —
+nessuna ottimizzazione, binario sensibilmente più lento a runtime. Va bene per
+verificare che il container si installi e parta, non per misurare prestazioni;
+solo per questa build, non tocca `Cargo.toml` né gli altri percorsi.
+
+**Non sostituisce il percorso SDK per un device Pixsys reale**: niente tuning
+cortex-a35, niente ABI pinning esatto all'OS Pixsys — solo la stessa base
+`ubuntu:24.04` del resto della famiglia container, verificata con lo stesso
+controllo `readelf` (vedi lo script). Per questo l'archivio e i tag di
+pubblicazione portano il suffisso **`-generic`**
+(`dist/sws-runtime-<versione>-aarch64-generic-image.tar.gz`,
+`ghcr.io/soligolab/sws-runtime:latest-arm64-generic`): non sono mai raggiungibili
+dal default automatico di `install-container.sh --pull` (che senza argomento
+cerca `latest-arm64`, l'immagine Pixsys-tuned) — vanno installati sempre con un
+riferimento esplicito.
+
 ## 2. Pubblicare
 
 Serve una volta sola: un token GitHub e il login sulla macchina di sviluppo.

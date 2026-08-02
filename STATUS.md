@@ -6,9 +6,52 @@
 >
 > **Pulizia 2026-07-27**: rimossi i task già chiusi e le sezioni di verifica ormai superate; le sessioni mergiate **e** verificate fino al 2026-07-09 sono compresse in «Storico». Il dettaglio integrale resta in `CHANGELOG.md` e nella history git.
 
-**Last session**: 2026-07-31 (ufficio, dev server) — **release `2026.7.0`, tutto in `main`, niente in
-sospeso**. Il maintainer parte per le ferie: nessun branch resta con lavoro non mergiato, `main` è
-pushato e l'immagine container è sul registry. Dettaglio nella sezione qui sotto.
+**Last session**: 2026-08-02 — **percorso container aarch64 "generico" (senza SDK Pixsys)**,
+build verificata end-to-end. Vedi sezione dedicata qui sotto. Non ancora pushato.
+
+## 2026-08-02: build container aarch64 generica, senza SDK — verificata (non ancora installata/testata su device)
+
+Richiesto perché l'SDK Yocto Pixsys non era disponibile: nuovo percorso gemello di
+`Containerfile.x86_64`/`.builder` ma per aarch64, senza cross-compile — compila dentro
+`Containerfile.aarch64-generic.builder` (stesso `ubuntu:24.04`) sotto **emulazione QEMU**, dato
+che build-arch (x86_64) e target-arch (arm64) non coincidono. Nuovi
+`scripts/build_container_aarch64_generic.sh`, `parse_image_tarball` esteso con `"aarch64-generic"`,
+sezione dedicata in `docs/DEPLOY_CONTAINER_AARCH64.md`.
+
+**Non sostituisce il percorso SDK per un device Pixsys reale** — niente tuning cortex-a35, niente
+ABI pinning esatto all'OS Pixsys. Tag/archivio sempre col suffisso `-generic`, mai raggiungibile
+dal default automatico di `install-container.sh --pull`.
+
+**Quattro problemi reali trovati testando, non solo temuti** (tutti documentati nei commenti dello
+script/Containerfile, non solo qui):
+1. **QEMU rootless non funziona**: podman rootless + crun non riesce a eseguire binari arm64 sotto
+   emulazione anche a registrazione binfmt corretta ("Exec format error"). Serve `sudo` per l'intero
+   script — unico percorso container di questo progetto che lo richiede. Effetto collaterale: gli
+   artefatti (`target-container-aarch64-generic/`, `.cargo-container-aarch64-generic/`,
+   l'archivio in `dist/`) restano root-owned, serve chown/rm manuale.
+2. **DNS non passa sotto `sudo podman`**: la rete bridge di default non passa il resolver
+   dell'host, `ports.ubuntu.com`/crates.io irraggiungibili pur risolvendo bene sull'host. Fix:
+   `--network host` su tutte le chiamate podman dello script.
+3. **`cc` va in SIGSEGV compilando l'assembly ARM NEON+SHA3 di `aws-lc-sys`** (dietro rustls) sotto
+   QEMU — limite noto di QEMU con certe estensioni crypto, non un bug SWS. Fix:
+   `AWS_LC_SYS_NO_ASM=1`, che però forza il builder CMake di aws-lc-sys (richiede `cmake`
+   nell'immagine builder) e che a sua volta accetta `NO_ASM` solo con `opt-level` **esattamente 0**
+   (`CARGO_PROFILE_RELEASE_OPT_LEVEL=0`) — binario non ottimizzato, accettabile per verificare che
+   il container si installi e parta, non per misurare prestazioni.
+4. **`cc1` (il compilatore stesso) è andato in SIGSEGV una volta compilando un file C ordinario**
+   (niente assembly, niente crypto) — bug non deterministico di QEMU sotto carico di compilazione
+   pesante. Un semplice rilancio dello script (nessuna modifica) è passato la seconda volta.
+
+**Verificato**: build completa (~27 minuti di `cargo build` emulato), `readelf` conferma
+`libpython3.12`/`GLIBC_2.39` coerenti con la base, immagine taggata
+`sws-runtime:2026.7.0-arm64-generic`, archivio `dist/sws-runtime-2026.7.0-aarch64-generic-image.tar.gz`
+(65 MB). `cargo test -p sws-web` 54/54 verde.
+
+**Non ancora fatto**: installazione/avvio reale del container risultante (via `install-container.sh`
+o dall'IDE) — il maintainer vuole prima mergiare il codice, poi testare. Se possibile, sarebbe utile
+anche un confronto diretto con una build sul device arm64 reale (`tc620-a-p3-c6-07aff9.local`,
+citato dal maintainer come alternativa a QEMU) per capire se vale la pena preferirla in futuro,
+vista quanto si è rivelata fragile l'emulazione su questo host.
 
 > ## Da dove ripartire (letto per primo al rientro)
 >

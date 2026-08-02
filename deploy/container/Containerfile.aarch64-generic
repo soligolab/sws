@@ -1,0 +1,82 @@
+# SWS runtime — immagine container aarch64 "generica", senza SDK Pixsys.
+#
+# Gemella di Containerfile.aarch64 (device Pixsys OS, binario cross-compilato
+# con l'SDK Yocto) ma con garanzie diverse: qui il binario arriva da
+# `scripts/build_container_aarch64_generic.sh`, che lo compila dentro
+# `Containerfile.aarch64-generic.builder` in emulazione QEMU (build lenta,
+# nessun cross-linking, nessuna toolchain speciale sull'host) — utile per
+# testare senza accesso all'SDK e per device aarch64 NON Pixsys (Raspberry
+# Pi, VM cloud arm64, ecc). Non pensata per sostituire il percorso SDK su un
+# device Pixsys reale: niente tuning cortex-a35, niente ABI pinning esatto
+# all'OS Pixsys — solo la stessa base ubuntu:24.04 del resto della famiglia
+# container. Vedi docs/DEPLOY_CONTAINER_AARCH64.md, sezione "Percorso
+# generico".
+#
+# Il contesto di build è la directory staging preparata da quello script
+# (bin/, templates/, www/), non la radice del repo: tenerlo piccolo evita di
+# impacchettare target/ e node_modules.
+
+# ubuntu:24.04, la STESSA base di Containerfile.aarch64/Containerfile.x86_64.
+# Il vincolo è lo stesso dei due gemelli: PyO3 con `auto-initialize` linka la
+# libpython dell'ambiente che compila, e il builder (stesso ubuntu:24.04)
+# garantisce che combaci per costruzione — verificato comunque con `readelf`
+# alla fine dello script di build, non solo assunto.
+FROM ubuntu:24.04
+
+# python3: PyO3 gira con `auto-initialize`, quindi serve l'interprete completo
+#   (stdlib inclusa), non la sola libpython.
+# python3-pip + RestrictedPython: senza, il motore script parte NON sandboxato
+#   con un warning all'avvio. L'immagine legacy aveva esattamente questo buco.
+# curl: usato dall'HEALTHCHECK qui sotto.
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        ca-certificates \
+        curl \
+        python3 \
+        libpython3.12t64 \
+        python3-pip && \
+    pip install --no-cache-dir --break-system-packages "RestrictedPython>=7.0" && \
+    apt-get purge -y python3-pip && apt-get autoremove -y && \
+    rm -rf /var/lib/apt/lists/*
+
+COPY bin/sws-runtime /usr/local/bin/sws-runtime
+COPY templates/      /var/sws/templates/
+
+# La SPA sta DENTRO l'immagine, come negli altri due percorsi container e per
+# le stesse ragioni: col registry i layer si deduplicano, un frontend nuovo
+# trasferisce il solo layer della SPA, e non c'è modo di ritrovarsi sul
+# dispositivo una SPA di versione diversa dal binario.
+#
+# Sta DOPO il binario e non prima: è il layer che cambia più spesso, e un
+# layer che cambia invalida tutti quelli sotto.
+COPY www/            /var/sws/www/
+
+# Punti di mount dei dati persistenti. Vanno montati come volumi podman:
+# senza, config e progetti vivono nel layer scrivibile e spariscono col
+# container. /var/sws/www NON è fra questi: è contenuto dell'immagine.
+RUN mkdir -p /var/sws/config /var/sws/projects
+
+# 8443 viewer operatori, 8444 IDE/admin.
+EXPOSE 8443 8444
+
+# http, non https: il runtime parte in HTTP finché non esiste config/tls.crt
+# (sws-runtime/src/main.rs, avvio del listener).
+# NB: HEALTHCHECK non esiste nella spec OCI — va costruito con
+# `podman build --format docker`, altrimenti podman lo scarta con un warning.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+    CMD curl -fs http://localhost:8443/health || exit 1
+
+# Nessun entrypoint script: niente SWS_ADMIN_PASSWORD obbligatorio (il
+# no-auth mode è lo stato normale del PoC) e i flag stanno tutti nel CMD,
+# così `podman run ... <altri flag>` li può sostituire.
+LABEL org.opencontainers.image.source="https://github.com/soligolab/sws" \
+      org.opencontainers.image.description="SWS runtime (aarch64, generico — non Pixsys-tuned) — viewer 8443, IDE/admin 8444, SPA inclusa. Montare i dati su /var/sws/{config,projects,logs}." \
+      org.opencontainers.image.licenses="AGPL-3.0-only"
+
+ENTRYPOINT ["/usr/local/bin/sws-runtime"]
+CMD ["--config", "/var/sws/config", \
+     "--projects-root", "/var/sws/projects", \
+     "--templates-root", "/var/sws/templates", \
+     "--www", "/var/sws/www", \
+     "--viewer-port", "8443", \
+     "--admin-port", "8444"]
