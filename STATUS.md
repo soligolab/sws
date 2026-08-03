@@ -6,8 +6,53 @@
 >
 > **Pulizia 2026-07-27**: rimossi i task già chiusi e le sezioni di verifica ormai superate; le sessioni mergiate **e** verificate fino al 2026-07-09 sono compresse in «Storico». Il dettaglio integrale resta in `CHANGELOG.md` e nella history git.
 
-**Last session**: 2026-08-02 — **percorso container aarch64 "generico" (senza SDK Pixsys)**,
-build verificata end-to-end. Vedi sezione dedicata qui sotto. Non ancora pushato.
+**Last session**: 2026-08-03 — **fix reconnect MQTT + watchdog sorgenti**, trovato indagando
+una segnalazione del maintainer sul device `tc620-a-p3-c6-07aff9.local`. Vedi sezione dedicata
+qui sotto. Non ancora mergiato (branch `fix/mqtt-reconnect-watchdog`), non pushato.
+
+## 2026-08-03: sorgente MQTT morta per sempre dopo la caduta del broker — reconnect + watchdog
+
+Il maintainer ha segnalato: progetto **Sandokan** su device arm64 in container, "se chiudo l'IDE
+il database e i grafici smettono di funzionare". Verificato dal vivo via SSH sul device
+(`tc620-a-p3-c6-07aff9.local`, chiavi già disponibili sul dev server):
+
+- Il container era `Up 22h (healthy)` — il processo runtime non si era mai fermato.
+- `GET /api/tags` mostrava tutte le tag di Sandokan con `quality: "Good"` ma valori e
+  `timestamp_ms` **fermi a 10 ore prima**, esattamente l'istante dell'ultima riga di log —
+  dopo la quale il journal era **completamente silenzioso**, nessun warning nemmeno uno.
+- Il broker MQTT esterno (`192.168.1.6:1883`) risultava irraggiungibile al momento del
+  controllo (test TCP diretto fallito) ed è **indipendente dal PC/IDE del maintainer**
+  (confermato da lui: non si spegne insieme all'IDE).
+
+**Causa reale, trovata nel codice, non un problema di rete che si aggiusta da solo**:
+`sws-plugin-mqtt/src/lib.rs` (path MQTT "plain", quello usato da Sandokan) non aveva **nessun
+loop di riconnessione** — alla prima sessione caduta il task moriva per sempre. Il commento di
+modulo prometteva "reconnect on session error with 5s backoff", ma il pattern vero esisteva già
+solo nel modulo gemello `sparkplug.rs` (`run_sparkplug`, loop con backoff 5s). In più,
+`source_supervisor.rs` controllava i task morti **solo** dentro `reload()`, invocato solo da
+un'azione utente esplicita (apri/chiudi progetto, salva config) — nessun watchdog periodico.
+Combinati, questo spiega perfettamente la segnalazione: l'unico modo *attuale* per far
+ripartire una sorgente MQTT caduta era riaprire il progetto dall'IDE (si vede proprio la
+sequenza `stopping source task` → `starting MQTT task` nel log di un redeploy), quindi "IDE
+chiuso" coincideva sempre con "dati fermi" — non per una dipendenza reale dal client, ma perché
+riaprire da IDE era l'unico trigger di restart esistente.
+
+**Fatto** (branch `fix/mqtt-reconnect-watchdog`):
+- `sws-plugin-mqtt/src/lib.rs`: il path plain ora fa retry-con-backoff 5s, mirror esatto di
+  `sparkplug.rs::run_sparkplug`.
+- `sws-web/src/source_supervisor.rs`: nuovo watchdog periodico (ogni 30s) che rileva e rilancia
+  qualunque sorgente il cui task sia terminato da solo — generico per tutti gli 8 tipi
+  (Modbus TCP/RTU, MQTT, OPC-UA client/server, HomeAssistant, S7, EnIP), non solo MQTT. Aggiunto
+  il campo `def: SourceDef` a `RunningSource` per permettere il rilancio senza richiedere la
+  definizione dall'esterno.
+
+**Verificato**: `cargo check --workspace` verde, `cargo test -p sws-plugin-mqtt -p sws-web`
+54/54 verdi (nessuna regressione). **Non verificato dal vivo con un broker reale**: un test
+manuale con `mosquitto` locale è stato tentato ma bloccato dal profilo AppArmor di sistema su
+questo dev server (`/etc/apparmor.d/mosquitto` confina il binario a leggere solo
+`/etc/mosquitto/*`, non file temporanei) — non ha senso aggirarlo con `sudo` su una macchina
+condivisa per un test usa-e-getta. Da verificare sul device reale o con un broker che rispetti
+il percorso consentito dal profilo.
 
 ## 2026-08-02: build container aarch64 generica, senza SDK — verificata (non ancora installata/testata su device)
 

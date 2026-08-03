@@ -26,6 +26,9 @@ struct RunningSource {
     config_json: Json,
     /// Tag ids registered on the write bus for this source — released on stop.
     owned_tags: Vec<String>,
+    /// Kept so the watchdog can respawn this source without needing the
+    /// caller to supply the definition again.
+    def: SourceDef,
 }
 
 pub struct SourceSupervisor {
@@ -41,12 +44,44 @@ pub struct SourceSupervisor {
 
 impl SourceSupervisor {
     pub fn new(db: Arc<TagDb>, bus: Arc<TagWriteBus>) -> Arc<Self> {
-        Arc::new(Self {
+        let this = Arc::new(Self {
             db,
             bus,
             opcua_pki_root: tokio::sync::RwLock::new(default_pki_root()),
             sources: Mutex::new(HashMap::new()),
-        })
+        });
+        let watchdog = this.clone();
+        tokio::spawn(async move { watchdog.watchdog_loop().await });
+        this
+    }
+
+    /// Periodically checks for source tasks that ended on their own (plugin
+    /// bug, unhandled error) without an explicit stop/reload from the user,
+    /// and respawns them. `reload()` already catches this on the next user
+    /// action (project open/close, config save) — this loop is what catches
+    /// it in between, so a dead source doesn't sit dead until someone happens
+    /// to touch the IDE.
+    async fn watchdog_loop(self: Arc<Self>) {
+        let mut tick = tokio::time::interval(std::time::Duration::from_secs(30));
+        loop {
+            tick.tick().await;
+            self.restart_dead_sources().await;
+        }
+    }
+
+    async fn restart_dead_sources(self: &Arc<Self>) {
+        let dead: Vec<(String, SourceDef)> = {
+            let map = self.sources.lock().await;
+            map.iter()
+                .filter(|(_, r)| r.handle.is_finished())
+                .map(|(id, r)| (id.clone(), r.def.clone()))
+                .collect()
+        };
+        for (id, def) in dead {
+            warn!(source = %id, "watchdog: source task ended unexpectedly — restarting");
+            self.stop_one(&id).await;
+            self.start_one(def).await;
+        }
     }
 
     /// Set the PKI root used by the OPC-UA plugin's secure-channel
@@ -124,6 +159,7 @@ impl SourceSupervisor {
         let cancel = CancellationToken::new();
         let config_json = serde_json::to_value(&def).unwrap_or(Json::Null);
         let owned_tags = tags_of(&def);
+        let def_for_store = def.clone();
 
         let db = self.db.clone();
         let bus = self.bus.clone();
@@ -188,7 +224,7 @@ impl SourceSupervisor {
 
         self.sources.lock().await.insert(
             id,
-            RunningSource { handle, cancel, config_json, owned_tags },
+            RunningSource { handle, cancel, config_json, owned_tags, def: def_for_store },
         );
     }
 
