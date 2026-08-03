@@ -23,6 +23,23 @@ e patch obbligatoria, perché Cargo rifiuta sia `2026.07` sia `2026.7`).
 
 ### Fixed
 
+- **Una sorgente MQTT che perde il broker restava morta per sempre**, e l'unico modo per
+  farla ripartire era riaprire/ridistribuire il progetto dall'IDE — da cui la falsa impressione
+  segnalata dal maintainer che "chiudere l'IDE" fermasse database e grafici sul device. In
+  realtà il runtime in container restava vivo e "healthy": era la sorgente `sws-plugin-mqtt`
+  (path "plain", non-Sparkplug) a non avere alcun loop di riconnessione — il commento di modulo
+  prometteva "reconnect on session error with 5s backoff" ma non era implementato, a differenza
+  del modulo gemello Sparkplug B che quel pattern ce l'ha già. Aggiunto lo stesso retry-con-backoff
+  di `sparkplug.rs` al path MQTT plain.
+  - Aggiunto anche un **watchdog periodico** (ogni 30 s) nel `SourceSupervisor`, generico per
+    tutti i tipi di sorgente (Modbus/OPC-UA/S7/EnIP compresi, non solo MQTT): rileva un task
+    terminato da solo (bug/panic/errore non gestito) e lo rilancia, invece di aspettare la
+    prossima azione utente esplicita (`reload()` lo fa già, ma solo su apertura/chiusura
+    progetto o salvataggio config).
+  - Trovato indagando dal vivo sul device `tc620-a-p3-c6-07aff9.local` (progetto Sandokan):
+    tag ferme da ~10 ore con `quality: Good` e nessuna riga di log nel frattempo, nonostante il
+    broker MQTT esterno risultasse irraggiungibile.
+
 - **Il menù delle immagini non si aggiornava mai**: l'elenco di `dist/` si legge al montaggio della tab e le immagini si costruiscono da shell, quindi una appena prodotta non compariva finché non si ricaricava la pagina. Aggiunto un pulsante di ricarica accanto al menù. È la meccanica esatta con cui il 2026-07-31 su un dispositivo è finito un archivio del giorno prima.
 - **Gli errori del backend venivano buttati via**: su risposta non-OK il pannello mostrava solo `status`/`statusText`, scartando il corpo che porta il messaggio in italiano (*"riferimento immagine non valido: …"*). Ora lo mostra.
 
