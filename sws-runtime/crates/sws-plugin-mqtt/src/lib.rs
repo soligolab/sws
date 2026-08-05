@@ -166,6 +166,7 @@ async fn run_session(
     info!(
         source = %cfg.id,
         host = %cfg.host, port = cfg.port,
+        client_id = %cfg.client_id,
         topics = cfg.topics.len(),
         writers = writers.len(),
         "MQTT subscribing"

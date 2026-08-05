@@ -6,9 +6,85 @@
 >
 > **Pulizia 2026-07-27**: rimossi i task già chiusi e le sezioni di verifica ormai superate; le sessioni mergiate **e** verificate fino al 2026-07-09 sono compresse in «Storico». Il dettaglio integrale resta in `CHANGELOG.md` e nella history git.
 
-**Last session**: 2026-08-03 — **fix reconnect MQTT + watchdog sorgenti**, trovato indagando
-una segnalazione del maintainer sul device `tc620-a-p3-c6-07aff9.local`. Vedi sezione dedicata
-qui sotto. Non ancora mergiato (branch `fix/mqtt-reconnect-watchdog`), non pushato.
+**Last session**: 2026-08-05 — **Client ID MQTT: modalità Random + override manuale per-device**,
+per il vero incidente dietro il "torna a fermarsi" di oggi (non era il fix di martedì, era una
+collisione di client_id fra l'IDE locale e il device). Vedi sezione dedicata qui sotto. Non
+ancora mergiato (branch `feat/mqtt-client-id-management`), non pushato.
+
+## 2026-08-05: collisione di client_id MQTT fra IDE e device — Random mode + override per-device
+
+Il maintainer è tornato dopo l'incidente di martedì (fix reconnect+watchdog) segnalando che il
+device `tc620-a-p3-c6-07aff9.local` aveva "perso di nuovo il broker MQTT". **Verificato dal vivo
+che non era un regressione del fix**: il container era `healthy` da 22h, il retry-con-backoff
+ritentava puntualmente ogni 5s esattamente come progettato, e il broker esterno risultava
+irraggiungibile *dal device* — ma il maintainer, connesso con MQTT Explorer dallo stesso PC,
+raggiungeva lo stesso broker senza problemi. Il broker era su, non era un problema di rete.
+
+**Causa reale**: `client_id: sws-sandokan-ide` in `project.yaml` — letterale, quindi identico su
+ogni istanza che apre il progetto. Sul dev server, alle 15:41 (un minuto prima che il device
+iniziasse a saltare) era stata avviata una copia locale dello stesso progetto Sandokan
+nell'IDE locale (`start_editor.sh`, porta 8460), stesso `client_id` verso lo stesso broker. Per
+specifica MQTT il broker disconnette la sessione più vecchia quando l'altra si ripresenta col
+suo client_id — e col retry-con-backoff di martedì **entrambe le parti** ora ritentano ogni 5s,
+quindi il conflitto si perpetua invece di risolversi da solo dopo un kick. Aggravante: il default
+quando il campo è vuoto è `"sws-runtime"` fisso (`sws-core/src/project.rs`) — chiunque non lo
+imposti esplicitamente collide comunque, non solo in questo caso specifico.
+
+**Deciso col maintainer** (in chat, con più giri di `AskUserQuestion` sui dettagli implementativi
+prima di scrivere codice): due meccanismi alternativi, non sovrapponibili, entrambi per singola
+sorgente MQTT:
+
+1. **"Random Client ID"**: ogni istanza — IDE compresa — incolla al `client_id` configurato un
+   id persistente e univoco (`config_dir/instance_id`, generato una sola volta, stesso pattern
+   già usato per il certificato TLS — non rigenerato a ogni riavvio). Nessuna azione manuale
+   richiesta; le sorgenti MQTT create da ora in poi nascono con questa modalità già attiva.
+2. **Override manuale per-device**: un pulsante "Invia Client ID al dispositivo connesso" nel
+   pannello sorgente, per fissare un valore esatto su un device specifico (es. per farlo
+   combaciare con una ACL del broker). Persistito **fuori da `project.yaml`**
+   (`config_dir/mqtt_client_id_overrides.yaml` sul device), così un redeploy del progetto non lo
+   cancella.
+
+**Fatto** (branch `feat/mqtt-client-id-management`):
+- `sws-core/src/project.rs`: nuovo `RandomClientId { enabled, position }` su `MqttConfig`
+  (campo opzionale — progetti esistenti senza il campo si comportano esattamente come prima,
+  nessuna migrazione).
+- `sws-runtime/src/main.rs`: `load_or_create_instance_id`, mirror esatto del pattern
+  load-or-generate-and-save del certificato TLS. Nessuna dipendenza nuova (id breve da entropia
+  di sistema, non serve robustezza crittografica per distinguere una manciata di istanze).
+- `sws-web/src/projects.rs`: `resolve_mqtt_client_ids` — un solo punto, chiamato in
+  `open_project` subito prima di `supervisor.reload(...)`, muta il `client_id` effettivo prima
+  che arrivi al supervisor (che resta generico, nessuna modifica). Copre automaticamente sia il
+  path MQTT plain sia Sparkplug B, senza toccare i plugin. Nuovo endpoint
+  `PUT /api/mqtt/source/:id/client-id-override` (rifiuta con 400 se la sorgente ha Random attivo).
+- `sws-web/remote.rs`: proxy `POST /api/remote/mqtt-client-id`, stesso schema di
+  `remote_push_users`/"Aggiorna utenti sul dispositivo".
+- `sws-plugin-mqtt/src/lib.rs` + `sparkplug.rs`: aggiunto `client_id` ai log "MQTT subscribing" /
+  "Sparkplug B connected" — prima non c'era modo di verificare da log quale id stesse usando
+  un'istanza, dettaglio che è servito subito in fase di verifica.
+- Frontend: `MqttRandomClientIdSection` in `ConfigView.tsx` (toggle + posizione + pulsante invio,
+  visibile solo con Random disattivo e device connesso), nuove sorgenti create con Random attivo
+  di default (`emptyMqtt()`).
+
+**Verificato dal vivo** (non solo `cargo check`/`pnpm build`), usando le due istanze locali già
+presenti su questo dev server come "IDE + secondo device simulato" (`start_editor.sh` porta 8460
++ `--instance 2` temporanea su 8462, poi rimossa):
+- Retrocompatibilità: `project.yaml` di Sandokan invariato (nessun `random_client_id`) →
+  `client_id` risolto identico al letterale.
+- Random mode: stesso progetto aperto su due istanze → `sws-sandokan-ide-1778ef` (istanza 1) vs
+  `sws-sandokan-ide-2a4494` (istanza 2) — stessa etichetta riconoscibile, id diversi, **esattamente
+  lo scenario dell'incidente, risolto senza alcuna azione manuale**.
+- Override manuale: applicato via `curl`, effetto immediato in log, **sopravvive a
+  chiusura+riapertura del progetto** (persistito nel file separato, non nello stato in memoria).
+- Conflitto: con Random attivo, un override rimasto nel file viene ignorato (non
+  applicato) e l'endpoint rifiuta un nuovo tentativo con 400.
+- `cargo check --workspace`, `cargo test -p sws-web -p sws-core -p sws-plugin-mqtt` (54 test
+  sws-web, nessuna regressione), `pnpm build`, `pnpm test` (32/32) verdi.
+
+**Non ancora provato**: sul device reale (serve rebuild+redeploy del container, non fatto in
+questa sessione — la verifica sopra è stata interamente sul dev server). Il pulsante "Invia
+Client ID al dispositivo connesso" è stato verificato lato backend via `curl` diretto
+all'endpoint device-side, non attraverso il flusso UI completo IDE→proxy→device (richiede un
+device reale connesso, non riproducibile qui).
 
 ## 2026-08-03: sorgente MQTT morta per sempre dopo la caduta del broker — reconnect + watchdog
 

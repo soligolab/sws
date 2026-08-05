@@ -6,10 +6,10 @@ pub mod tag;
 pub use alarm::{AlarmCondition, AlarmDb, AlarmDef, AlarmEvent, AlarmSeverity, AlarmState, AlarmTelegramMode, IsaState, ShelvedAlarm, TelegramRouting};
 pub use logbus::{LogBus, LogEvent, DEFAULT_LOG_CAPACITY};
 pub use project::{
-    CustomSymbol, CustomSymbolAttribution, DatastoreBackendConfig, DatastoreConfig, EntityMapping,
+    AffixPosition, CustomSymbol, CustomSymbolAttribution, DatastoreBackendConfig, DatastoreConfig, EntityMapping,
     EnIpConfig, EnIpDataType, EnIpTagMapping, FunctionDef, FunctionParam, GlobalScriptDef,
     HomeAssistantConfig, LangEntry, LanguageTable, ModbusRtuConfig, ModbusTcpConfig, MqttConfig, MqttLastWill, MqttTlsConfig,
-    NotificationConfig, OpcUaAuth, OpcUaClientConfig, OpcUaNodeMapping, OpcUaServerConfig,
+    NotificationConfig, OpcUaAuth, OpcUaClientConfig, OpcUaNodeMapping, OpcUaServerConfig, RandomClientId,
     OpcUaServerNodeMapping, PageLayoutConfig, PageSizeMode, Project, ProjectMeta, RegisterMapping, S7Config, S7DataType,
     S7TagMapping, ScriptTrigger, SmtpConfig, SourceDef, SparkplugConfig, SparkplugMetricMapping,
     TagDef, TelegramConfig, TopicMapping, MAX_FUNCTION_CODE_BYTES,

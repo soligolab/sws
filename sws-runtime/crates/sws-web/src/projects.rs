@@ -21,7 +21,7 @@ use std::{
     io::{Cursor, Read},
     path::{Path as StdPath, PathBuf},
 };
-use sws_core::{DatastoreBackendConfig, DatastoreConfig, Project, ProjectMeta};
+use sws_core::{AffixPosition, DatastoreBackendConfig, DatastoreConfig, Project, ProjectMeta, SourceDef};
 use sws_historian::DatastoreRegistry;
 use tracing::{info, warn};
 
@@ -486,7 +486,8 @@ pub async fn open_project(
                 tokio::spawn(async move { store.append_alarm_event(&ev).await; });
             }).await;
         }
-        s.supervisor.reload(project.sources).await;
+        resolve_mqtt_client_ids(&project.meta.name, &mut project.sources, &s.config_dir, &s.instance_id);
+    s.supervisor.reload(project.sources).await;
         start_project_services(&s, project.notifications, project.global_scripts).await;
         {
             let mut map = s.functions.write().await;
@@ -1175,6 +1176,137 @@ pub async fn replace_users_file(
     }
     info!(count = names.len(), "users.yaml replaced from remote — all sessions invalidated");
     (StatusCode::OK, Json(serde_json::json!({ "users": names.len() }))).into_response()
+}
+
+// ── MQTT client_id resolution ───────────────────────────────────────────────
+//
+// `client_id` in project.yaml is a literal string, identical on every
+// instance that opens the project — IDE included. Deploying the same
+// project to several devices (or testing from the IDE while a device is
+// live) makes them all connect to the broker with the exact same
+// client_id, and the broker (standard MQTT behaviour: a new connection
+// with an already-connected client_id evicts the old session) keeps
+// kicking whichever side is older. Two independent opt-in mitigations,
+// applied in `resolve_mqtt_client_ids` right before sources start:
+//   - `random_client_id` (in project.yaml, travels with the project):
+//     glues this instance's persisted `instance_id` to `client_id` as a
+//     prefix/suffix, so every instance — IDE and every device — gets a
+//     distinct-but-recognizable id automatically.
+//   - a manual per-device override (NOT in project.yaml, see
+//     `set_mqtt_client_id_override` below): lets an operator pin an exact
+//     client_id on one specific device, e.g. to match a broker ACL.
+// The two are mutually exclusive per source: Random wins if enabled, the
+// override endpoint refuses to write one while it's on.
+
+fn client_id_overrides_path(config_dir: &StdPath) -> PathBuf {
+    config_dir.join("mqtt_client_id_overrides.yaml")
+}
+
+fn load_client_id_overrides(config_dir: &StdPath) -> std::collections::HashMap<String, String> {
+    std::fs::read_to_string(client_id_overrides_path(config_dir))
+        .ok()
+        .and_then(|text| serde_yaml::from_str(&text).ok())
+        .unwrap_or_default()
+}
+
+fn save_client_id_overrides(
+    config_dir: &StdPath,
+    overrides: &std::collections::HashMap<String, String>,
+) -> std::io::Result<()> {
+    std::fs::create_dir_all(config_dir)?;
+    let yaml = serde_yaml::to_string(overrides)
+        .unwrap_or_default();
+    std::fs::write(client_id_overrides_path(config_dir), yaml)
+}
+
+/// Applies, in place, the effective wire `client_id` of every MQTT source in
+/// `sources`. Called once, right before the resolved list reaches
+/// `SourceSupervisor::reload` — the supervisor itself stays generic and
+/// never sees the literal project.yaml value.
+fn resolve_mqtt_client_ids(
+    project_name: &str,
+    sources: &mut [SourceDef],
+    config_dir: &StdPath,
+    instance_id: &str,
+) {
+    let overrides = load_client_id_overrides(config_dir);
+    for src in sources.iter_mut() {
+        let SourceDef::Mqtt(cfg) = src else { continue };
+        if cfg.random_client_id.as_ref().is_some_and(|r| r.enabled) {
+            let position = cfg.random_client_id.as_ref().unwrap().position;
+            cfg.client_id = match position {
+                AffixPosition::Suffix => format!("{}-{instance_id}", cfg.client_id),
+                AffixPosition::Prefix => format!("{instance_id}-{}", cfg.client_id),
+            };
+            continue;
+        }
+        if let Some(over) = overrides.get(&format!("{project_name}/{}", cfg.id)) {
+            cfg.client_id = over.clone();
+        }
+    }
+}
+
+#[derive(Deserialize)]
+pub struct ClientIdOverrideBody {
+    #[serde(default)]
+    pub client_id: Option<String>,
+}
+
+/// `PUT /api/mqtt/source/:id/client-id-override` — force a specific wire
+/// `client_id` for one MQTT source, on **this device only**, without
+/// touching `project.yaml`. Persisted in
+/// `config_dir/mqtt_client_id_overrides.yaml` — external to the project, so
+/// a redeploy doesn't silently erase it. Send `client_id: null` (or an
+/// empty string) to clear a previously-set override.
+///
+/// Refuses (400) if the source has `random_client_id` enabled: the two
+/// mechanisms are alternatives, not layered — overriding a value the
+/// device already derives on its own would be confusing state to reason
+/// about ("what is this device's client_id right now?" should have exactly
+/// one answer).
+pub async fn set_mqtt_client_id_override(
+    State(s): State<AppState>,
+    Path(source_id): Path<String>,
+    Json(body): Json<ClientIdOverrideBody>,
+) -> Response {
+    let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
+    let mut project = match Project::load(&dir) {
+        Ok(p) => p,
+        Err(e) => {
+            return (StatusCode::INTERNAL_SERVER_ERROR, format!("project parse error: {e}"))
+                .into_response();
+        }
+    };
+
+    let mqtt_cfg = project.sources.iter().find_map(|src| match src {
+        SourceDef::Mqtt(cfg) if cfg.id == source_id => Some(cfg),
+        _ => None,
+    });
+    let Some(cfg) = mqtt_cfg else {
+        return (StatusCode::NOT_FOUND, "nessuna sorgente MQTT con questo id").into_response();
+    };
+    if cfg.random_client_id.as_ref().is_some_and(|r| r.enabled) {
+        return (
+            StatusCode::BAD_REQUEST,
+            "questa sorgente ha \"Random Client ID\" attivo: disattivalo prima di impostare un override manuale",
+        ).into_response();
+    }
+
+    let key = format!("{}/{source_id}", project.meta.name);
+    let mut overrides = load_client_id_overrides(&s.config_dir);
+    match body.client_id.as_deref().map(str::trim) {
+        Some(v) if !v.is_empty() => { overrides.insert(key, v.to_string()); }
+        _ => { overrides.remove(&key); }
+    }
+    if let Err(e) = save_client_id_overrides(&s.config_dir, &overrides) {
+        warn!("set_mqtt_client_id_override: write failed: {e}");
+        return (StatusCode::INTERNAL_SERVER_ERROR, "impossibile salvare l'override").into_response();
+    }
+
+    resolve_mqtt_client_ids(&project.meta.name, &mut project.sources, &s.config_dir, &s.instance_id);
+    let (started, stopped, replaced) = s.supervisor.reload(project.sources).await;
+    info!(source = %source_id, started, stopped, replaced, "mqtt client_id override applied");
+    (StatusCode::OK, Json(serde_json::json!({ "applied": true }))).into_response()
 }
 
 /// Default per-project SQLite datastore injected when a project has none.

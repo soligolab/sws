@@ -135,7 +135,7 @@ async fn session(
         .map_err(|e| anyhow::anyhow!("publish STATE ONLINE: {e}"))?;
 
     info!(source = %cfg.id, group = %spb.group_id, host = %spb.host_id,
-          "Sparkplug B connected");
+          client_id = %cfg.client_id, "Sparkplug B connected");
 
     // Build metric-name → index lookup for fast dispatch.
     let metric_idx: HashMap<String, usize> = spb.metrics.iter().enumerate()
