@@ -103,6 +103,11 @@ pub struct AppState {
     /// create/open. Backs the "recent projects" list and lets projects live
     /// outside `projects_root` (custom parent path chosen at creation).
     pub known_projects: Arc<crate::project_registry::ProjectRegistry>,
+    /// Short id unique to this runtime instance, persisted in
+    /// `config_dir/instance_id`. Used to derive collision-free MQTT client
+    /// ids when a source has `random_client_id` enabled (see
+    /// `resolve_mqtt_client_ids` in `projects.rs`).
+    pub instance_id: Arc<String>,
 }
 
 /// Resolve the active project directory or return 503. Used at the top
@@ -138,11 +143,12 @@ pub fn build(
     lockdown: bool,
     audit: Arc<sws_audit::AuditLog>,
     known_projects: Arc<crate::project_registry::ProjectRegistry>,
+    instance_id: Arc<String>,
     // Lo `AppState` torna al chiamante insieme ai due router: `main.rs` deve
     // avviare i servizi del progetto auto-aperto al boot (notifiche, script
     // globali) e quei supervisori vivono qui dentro.
 ) -> (Router, Router, AppState) {
-    let state = AppState { db, bus, alarms, historian, registry, py, auth, supervisor, script_supervisor, functions, derived_tags, project_dir, projects_root, templates_root, logs, logs_dir, started_at, ip_allowlist, recipe_log: Arc::new(RwLock::new(Vec::new())), notification_supervisor: Arc::new(RwLock::new(None)), telegram_sender: Arc::new(RwLock::new(None)), config_dir, cert_path, build_running: crate::packaging::new_build_lock(), repo_root: crate::packaging::new_repo_root(), remote_target: Arc::new(RwLock::new(None)), audit, known_projects };
+    let state = AppState { db, bus, alarms, historian, registry, py, auth, supervisor, script_supervisor, functions, derived_tags, project_dir, projects_root, templates_root, logs, logs_dir, started_at, ip_allowlist, recipe_log: Arc::new(RwLock::new(Vec::new())), notification_supervisor: Arc::new(RwLock::new(None)), telegram_sender: Arc::new(RwLock::new(None)), config_dir, cert_path, build_running: crate::packaging::new_build_lock(), repo_root: crate::packaging::new_repo_root(), remote_target: Arc::new(RwLock::new(None)), audit, known_projects, instance_id };
     // Build the runtime router (8443) before consuming state for admin.
     let runtime_app = build_runtime_inner(state.clone(), www_dir.clone(), lockdown);
 
@@ -177,6 +183,10 @@ pub fn build(
         .route("/api/auth/users",         get(list_users).post(create_user))
         // Lato ricevente di "Aggiorna utenti sul dispositivo".
         .route("/api/auth/users-file",    put(crate::projects::replace_users_file))
+        // Lato ricevente di "Invia Client ID al dispositivo connesso" —
+        // override per-device del client_id MQTT, esterno a project.yaml.
+        .route("/api/mqtt/source/:id/client-id-override",
+            put(crate::projects::set_mqtt_client_id_override))
         .route("/api/auth/users/:username",
             axum::routing::put(update_user).delete(delete_user))
         // Remote deploy: download binary from GitHub Releases + SCP to device.
@@ -248,6 +258,9 @@ pub fn build(
         .route("/api/remote/project/delete", post(crate::remote::delete_remote_project))
         // Allineamento esplicito degli account: il deploy non li tocca.
         .route("/api/remote/users",        post(crate::remote::remote_push_users))
+        // "Invia Client ID al dispositivo connesso" — override per-device del
+        // client_id MQTT, esterno a project.yaml.
+        .route("/api/remote/mqtt-client-id", post(crate::remote::remote_push_mqtt_client_id))
         .route("/ws/remote/:sub",          get(crate::remote_relay::ws_relay_handler))
         .route_layer(middleware::from_fn(require_admin));
 

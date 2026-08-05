@@ -298,6 +298,32 @@ pub struct MqttConfig {
     /// Regular `topics` mapping is ignored when this is present.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub sparkplug: Option<SparkplugConfig>,
+
+    /// When enabled, the runtime derives the wire client_id by gluing an
+    /// instance-specific id to `client_id` (used as a prefix/suffix label)
+    /// instead of using `client_id` literally. Avoids collisions when the
+    /// same project is opened from the IDE and/or deployed to several
+    /// devices against the same broker — each instance would otherwise
+    /// connect with the exact same client_id and keep kicking each other.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub random_client_id: Option<RandomClientId>,
+}
+
+/// See `MqttConfig::random_client_id`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RandomClientId {
+    #[serde(default)]
+    pub enabled: bool,
+    #[serde(default)]
+    pub position: AffixPosition,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum AffixPosition {
+    #[default]
+    Suffix,
+    Prefix,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

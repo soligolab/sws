@@ -740,6 +740,10 @@ function emptyMqtt(): MqttSource {
     port: 1883,
     client_id: `sws-${genId()}`,
     topics: [],
+    // Nuove sorgenti nascono con Random attivo di default: il client_id
+    // letterale collide silenziosamente se lo stesso progetto viene aperto
+    // dall'IDE e/o deployato su più device verso lo stesso broker.
+    random_client_id: { enabled: true, position: "suffix" },
   };
 }
 
@@ -2941,6 +2945,11 @@ function MqttSourceCard({
             </div>
           </div>
 
+          <MqttRandomClientIdSection
+            source={source}
+            onChange={(patch) => onChange({ ...source, ...patch })}
+          />
+
           <MqttAuthSection
             source={source}
             onChange={(patch) => onChange({ ...source, ...patch })}
@@ -3653,6 +3662,107 @@ function MqttTlsSection({
           skip verify (not impl.)
         </label>
       </div>
+    </>
+  );
+}
+
+/// Client ID MQTT: letterale (identico su ogni istanza che apre il progetto,
+/// IDE compreso — rischio di collisione se lo stesso progetto gira anche su
+/// uno o più device) oppure "Random" (ogni istanza glue un id persistente
+/// univoco al client_id, usato come prefisso/suffisso). Le due modalità sono
+/// alternative: quando Random è attivo l'invio manuale al device non ha
+/// senso (il device si genera già il proprio id) e si nasconde.
+function MqttRandomClientIdSection({
+  source,
+  onChange,
+}: {
+  source: MqttSource;
+  onChange: (patch: Partial<MqttSource>) => void;
+}) {
+  const remoteConnected = useAppStore((s) => s.remoteConnected);
+  const enabled = source.random_client_id?.enabled ?? false;
+  const position = source.random_client_id?.position ?? "suffix";
+
+  const setRandom = (patch: Partial<{ enabled: boolean; position: "prefix" | "suffix" }>) =>
+    onChange({ random_client_id: { enabled, position, ...patch } });
+
+  const [pushValue, setPushValue] = useState("");
+  const [pushing, setPushing] = useState(false);
+  const [pushMsg, setPushMsg] = useState<string | null>(null);
+
+  const handlePush = async () => {
+    const label = pushValue.trim() || "(vuoto = rimuove un eventuale override già impostato)";
+    if (!window.confirm(
+      `Impostare "${label}" come client_id di "${source.id}" sul dispositivo connesso?`
+    )) return;
+    setPushing(true); setPushMsg(null);
+    try {
+      await api.pushMqttClientIdOverride(source.id, pushValue.trim() || null);
+      setPushMsg(pushValue.trim() ? "✓ Inviato al dispositivo." : "✓ Override rimosso dal dispositivo.");
+    } catch (e: any) {
+      setPushMsg(`✗ ${e?.message ?? String(e)}`);
+    } finally {
+      setPushing(false);
+    }
+  };
+
+  return (
+    <>
+      <SectionHeader>CLIENT ID</SectionHeader>
+      <div style={{ display: "grid", gridTemplateColumns: "auto 220px 1fr", gap: 12, marginBottom: 8, alignItems: "center" }}>
+        <label style={{ fontSize: 12, color: "var(--brand-text-2, #cbd5e1)", cursor: "pointer" }}>
+          <input
+            type="checkbox"
+            checked={enabled}
+            onChange={(e) => setRandom({ enabled: e.target.checked })}
+            style={{ marginRight: 6 }}
+          />
+          Random Client ID
+        </label>
+        <select
+          style={S.input}
+          value={position}
+          onChange={(e) => setRandom({ position: e.target.value as "prefix" | "suffix" })}
+          disabled={!enabled}
+        >
+          <option value="suffix">client_id come suffisso</option>
+          <option value="prefix">client_id come prefisso</option>
+        </select>
+        <span style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)" }}>
+          {enabled
+            ? "Ogni istanza (IDE e ogni device) aggiunge un id univoco persistente — client_id resta solo l'etichetta."
+            : "client_id letterale: identico su ogni istanza che apre questo progetto."}
+        </span>
+      </div>
+
+      {!enabled && (
+        <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8 }}>
+          <input
+            style={{ ...S.input, flex: 1 }}
+            placeholder="client_id da inviare al dispositivo connesso"
+            value={pushValue}
+            onChange={(e) => setPushValue(e.target.value)}
+            disabled={!remoteConnected || pushing}
+            spellCheck={false}
+          />
+          <button
+            style={S.btn("ghost")}
+            onClick={handlePush}
+            disabled={!remoteConnected || pushing}
+            title={remoteConnected ? "" : "Connettiti a un dispositivo da Configurazione → Runtime per usare questo pulsante"}
+          >
+            {pushing ? "Invio…" : "Invia Client ID al dispositivo connesso"}
+          </button>
+        </div>
+      )}
+      {pushMsg && (
+        <div style={{
+          fontSize: 12, marginBottom: 12,
+          color: pushMsg.startsWith("✓") ? "var(--brand-success-soft, #4ade80)" : "var(--brand-danger-soft, #f87171)",
+        }}>
+          {pushMsg}
+        </div>
+      )}
     </>
   );
 }

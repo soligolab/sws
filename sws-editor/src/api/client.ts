@@ -919,6 +919,18 @@ export const api = {
   pushUsersToRuntime: () =>
     request<{ users: number; note?: string }>("/api/remote/users", { method: "POST" }),
 
+  /** POST /api/remote/mqtt-client-id — invia al dispositivo connesso un
+   *  client_id esplicito per una sorgente MQTT del progetto locale, senza
+   *  toccare project.yaml (persistito sul device, esterno al progetto).
+   *  `clientId: null` rimuove un override già impostato. Il device rifiuta
+   *  con errore se quella sorgente ha "Random Client ID" attivo. */
+  pushMqttClientIdOverride: (sourceId: string, clientId: string | null) =>
+    request<{ applied: boolean }>("/api/remote/mqtt-client-id", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ source_id: sourceId, client_id: clientId }),
+    }),
+
   /** POST /api/project/migrate — re-save the active project in the current
    *  runtime format (clears the version-mismatch warning). */
   migrateProject: () =>

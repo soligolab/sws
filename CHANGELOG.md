@@ -21,6 +21,29 @@ e patch obbligatoria, perché Cargo rifiuta sia `2026.07` sia `2026.7`).
   - Il comando di purge **ripete `--data`**. L'installer fa `rm -rf "$DATA"` prendendo il valore dalle flag: senza ripeterlo avrebbe cancellato il default `/data/user/sws` lasciando intatti i dati veri, cioè avrebbe distrutto i dati sbagliati e mancato quelli giusti. È coperto da un test dedicato.
   - La spunta si azzera dopo l'uso: una seconda installazione fatta di fretta non deve cancellare un dispositivo perché la casella era rimasta accesa.
 
+### Added
+
+- **Client ID MQTT: modalità "Random" + invio manuale al device**, per evitare che lo stesso
+  `client_id` letterale collida quando il progetto è aperto sia dall'IDE sia deployato su uno o
+  più device verso lo stesso broker (il broker, per specifica MQTT, disconnette la sessione più
+  vecchia ogni volta che l'altra si ripresenta — nasce da un incidente reale sul progetto
+  Sandokan, vedi sotto in Fixed).
+  - **"Random Client ID"** (per sorgente MQTT, in `project.yaml`): ogni istanza — IDE compresa —
+    incolla al `client_id` configurato un id casuale generato una sola volta e persistito
+    (`config_dir/instance_id`, stesso pattern del certificato TLS), come prefisso o suffisso a
+    scelta. `client_id` resta solo l'etichetta leggibile; l'id sul filo cambia per istanza ma
+    resta riconoscibile. **Le sorgenti MQTT create da ora in poi nascono con Random attivo di
+    default** — quelle esistenti restano invariate (campo opzionale, nessuna migrazione).
+  - **Override manuale per-device**: pulsante "Invia Client ID al dispositivo connesso" nel
+    pannello sorgente MQTT (visibile solo con Random disattivo e un device connesso), per fissare
+    un client_id esatto su un device specifico — es. per farlo combaciare con una ACL del broker.
+    Persistito in un file separato sul device (`config_dir/mqtt_client_id_overrides.yaml`),
+    **esterno a `project.yaml`**: un redeploy del progetto non lo cancella. Nuovo endpoint
+    `PUT /api/mqtt/source/:id/client-id-override` (device) + proxy
+    `POST /api/remote/mqtt-client-id` (IDE → device connesso, stesso schema di "Aggiorna utenti
+    sul dispositivo"). Rifiuta con 400 se quella sorgente ha Random attivo — le due modalità sono
+    alternative, non sovrapponibili.
+
 ### Fixed
 
 - **Una sorgente MQTT che perde il broker restava morta per sempre**, e l'unico modo per

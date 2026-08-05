@@ -724,6 +724,8 @@ async fn main() -> anyhow::Result<()> {
         .map(|_| Arc::new(args.config.join("tls.crt")));
     let http_cert_path: Option<PathBuf> = cert_path.as_ref().map(|p| (**p).clone());
     let config_dir = Arc::new(args.config.clone());
+    let instance_id = Arc::new(load_or_create_instance_id(&config_dir));
+    info!(instance_id = %instance_id, "runtime instance id (used for random MQTT client ids)");
 
     // Append-only audit log (OPEN_QUESTIONS Q8). One file spanning the process
     // lifetime (not per-project) so the trail survives project switches.
@@ -764,6 +766,7 @@ async fn main() -> anyhow::Result<()> {
         args.no_admin,
         audit,
         known_projects,
+        instance_id,
     );
 
     // Servizi del progetto auto-aperto al boot: canale Telegram, script globali,
@@ -1272,6 +1275,36 @@ fn try_load_existing_tls(
         .with_single_cert(certs, key)
         .context("building TLS ServerConfig")?;
     Ok(TlsAcceptor::from(Arc::new(tls_cfg)))
+}
+
+/// Load (or create) a short random id identifying this runtime instance,
+/// persisted in `config_dir/instance_id` — same load-or-generate-and-save
+/// pattern as the TLS cert above, so it survives restarts/updates but
+/// differs between the IDE and every deployed device. Used to derive
+/// collision-free MQTT client ids (see `RandomClientId` in sws-core).
+/// Not a UUID/crypto-grade id on purpose: it only needs to disambiguate a
+/// handful of concurrent instances against the same broker, and pulling in
+/// a `rand`/`uuid` dependency for that would be overkill for the PoC.
+fn load_or_create_instance_id(config_dir: &std::path::Path) -> String {
+    let path = config_dir.join("instance_id");
+    if let Ok(existing) = std::fs::read_to_string(&path) {
+        let trimmed = existing.trim();
+        if !trimmed.is_empty() {
+            return trimmed.to_string();
+        }
+    }
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_nanos())
+        .unwrap_or(0);
+    let seed = (nanos as u64) ^ (u64::from(std::process::id()) << 32);
+    let id = format!("{:06x}", seed & 0xff_ffff);
+    if let Err(e) = std::fs::create_dir_all(config_dir)
+        .and_then(|()| std::fs::write(&path, &id))
+    {
+        warn!("could not persist instance_id ({e}) — using it for this run only");
+    }
+    id
 }
 
 /// Build (or reuse) a self-signed TLS certificate with SANs:
