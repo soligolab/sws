@@ -12,7 +12,7 @@
 //! to those tags fall back to the direct `TagDb` path (or 503 if the bus
 //! was the only path).
 
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, sync::Arc, time::{Duration, SystemTime, UNIX_EPOCH}};
 use serde_json::Value as Json;
 use sws_core::{SourceDef, TagDb, TagWriteBus};
 use tokio::{sync::Mutex, task::JoinHandle};
@@ -29,6 +29,11 @@ struct RunningSource {
     /// Kept so the watchdog can respawn this source without needing the
     /// caller to supply the definition again.
     def: SourceDef,
+    /// Opt-in staleness guard (see `MqttConfig::max_silence_secs`): if none
+    /// of `owned_tags` updates within this window, the watchdog restarts
+    /// the source even though its task is still running — catches a
+    /// connection that reports "alive" but silently stopped producing data.
+    max_silence: Option<Duration>,
 }
 
 pub struct SourceSupervisor {
@@ -66,6 +71,7 @@ impl SourceSupervisor {
         loop {
             tick.tick().await;
             self.restart_dead_sources().await;
+            self.restart_stale_sources().await;
         }
     }
 
@@ -82,6 +88,48 @@ impl SourceSupervisor {
             self.stop_one(&id).await;
             self.start_one(def).await;
         }
+    }
+
+    /// Catches a source whose task is still running — no error, nothing for
+    /// `restart_dead_sources` to see — but has stopped producing data
+    /// entirely. Only sources that opt in via `max_silence` (today: MQTT's
+    /// `max_silence_secs`) are checked; everything else is untouched.
+    /// A source with no recorded update yet (still connecting) is left
+    /// alone rather than treated as stale, so a slow first connection on
+    /// startup doesn't get caught in a restart loop.
+    async fn restart_stale_sources(self: &Arc<Self>) {
+        let candidates: Vec<(String, SourceDef, Vec<String>, Duration)> = {
+            let map = self.sources.lock().await;
+            map.iter()
+                .filter_map(|(id, r)| {
+                    let max_silence = r.max_silence?;
+                    Some((id.clone(), r.def.clone(), r.owned_tags.clone(), max_silence))
+                })
+                .collect()
+        };
+        let now_ms = now_ms();
+        for (id, def, owned_tags, max_silence) in candidates {
+            let Some(last_update) = self.most_recent_update(&owned_tags).await else { continue };
+            let silence = Duration::from_millis(now_ms.saturating_sub(last_update));
+            if silence > max_silence {
+                warn!(source = %id, ?silence, ?max_silence,
+                      "watchdog: source stale (nessun dato aggiornato) — restarting");
+                self.stop_one(&id).await;
+                self.start_one(def).await;
+            }
+        }
+    }
+
+    /// Most recent `timestamp_ms` among `tags`, or `None` if none of them
+    /// has ever been set.
+    async fn most_recent_update(&self, tags: &[String]) -> Option<u64> {
+        let mut latest: Option<u64> = None;
+        for tag in tags {
+            if let Some(state) = self.db.get(tag).await {
+                latest = Some(latest.map_or(state.timestamp_ms, |l| l.max(state.timestamp_ms)));
+            }
+        }
+        latest
     }
 
     /// Set the PKI root used by the OPC-UA plugin's secure-channel
@@ -159,6 +207,7 @@ impl SourceSupervisor {
         let cancel = CancellationToken::new();
         let config_json = serde_json::to_value(&def).unwrap_or(Json::Null);
         let owned_tags = tags_of(&def);
+        let max_silence = max_silence_of(&def);
         let def_for_store = def.clone();
 
         let db = self.db.clone();
@@ -224,7 +273,7 @@ impl SourceSupervisor {
 
         self.sources.lock().await.insert(
             id,
-            RunningSource { handle, cancel, config_json, owned_tags, def: def_for_store },
+            RunningSource { handle, cancel, config_json, owned_tags, def: def_for_store, max_silence },
         );
     }
 
@@ -258,6 +307,10 @@ impl SourceSupervisor {
     }
 }
 
+fn now_ms() -> u64 {
+    SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_millis() as u64
+}
+
 fn source_id(s: &SourceDef) -> &str {
     match s {
         SourceDef::ModbusTcp(c)      => &c.id,
@@ -268,6 +321,19 @@ fn source_id(s: &SourceDef) -> &str {
         SourceDef::HomeAssistant(c)  => &c.id,
         SourceDef::S7(c)             => &c.id,
         SourceDef::EnIp(c)           => &c.id,
+    }
+}
+
+/// Opt-in staleness threshold for a source, if it exposes one. Only MQTT
+/// does today (see `MqttConfig::max_silence_secs`) — MQTT is push-based
+/// with no natural reporting interval, so a "no data in N seconds" guard
+/// makes sense there in a way it wouldn't for a fixed-rate poller. Other
+/// source types can gain the same field later without touching the
+/// watchdog itself, which only needs a duration + `owned_tags`.
+fn max_silence_of(s: &SourceDef) -> Option<Duration> {
+    match s {
+        SourceDef::Mqtt(c) => c.max_silence_secs.map(Duration::from_secs),
+        _ => None,
     }
 }
 
@@ -290,4 +356,46 @@ fn tags_of(s: &SourceDef) -> Vec<String> {
 /// fine for unattached/dev runs.
 fn default_pki_root() -> std::path::PathBuf {
     std::env::temp_dir().join("sws-opcua-pki")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use sws_core::{TagQuality, TagValue};
+
+    fn supervisor() -> Arc<SourceSupervisor> {
+        SourceSupervisor::new(Arc::new(TagDb::new(16)), Arc::new(TagWriteBus::new()))
+    }
+
+    #[tokio::test]
+    async fn most_recent_update_prende_il_timestamp_piu_recente() {
+        let sup = supervisor();
+        sup.db.set("a".into(), TagValue::Int(1), TagQuality::Good).await;
+        tokio::time::sleep(Duration::from_millis(5)).await;
+        sup.db.set("b".into(), TagValue::Int(2), TagQuality::Good).await;
+
+        let a = sup.db.get("a").await.unwrap().timestamp_ms;
+        let b = sup.db.get("b").await.unwrap().timestamp_ms;
+        assert!(b >= a, "il secondo set deve avere un timestamp >= al primo");
+
+        let latest = sup.most_recent_update(&["a".to_string(), "b".to_string()]).await;
+        assert_eq!(latest, Some(b));
+    }
+
+    #[tokio::test]
+    async fn most_recent_update_none_se_nessuna_tag_ha_mai_un_valore() {
+        let sup = supervisor();
+        let latest = sup.most_recent_update(&["mai-impostata".to_string()]).await;
+        assert_eq!(latest, None);
+    }
+
+    #[tokio::test]
+    async fn most_recent_update_ignora_le_tag_sconosciute_fra_quelle_note() {
+        let sup = supervisor();
+        sup.db.set("nota".into(), TagValue::Bool(true), TagQuality::Good).await;
+        let known = sup.db.get("nota").await.unwrap().timestamp_ms;
+
+        let latest = sup.most_recent_update(&["nota".to_string(), "ignota".to_string()]).await;
+        assert_eq!(latest, Some(known));
+    }
 }

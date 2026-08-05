@@ -307,6 +307,16 @@ pub struct MqttConfig {
     /// connect with the exact same client_id and keep kicking each other.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub random_client_id: Option<RandomClientId>,
+
+    /// Opt-in staleness guard: if no tag owned by this source updates within
+    /// this many seconds, the watchdog in `SourceSupervisor` restarts it —
+    /// independent of any error from the MQTT client, which may report
+    /// "connected" even when a stuck/half-open session stops producing data.
+    /// Off by default: MQTT is push-based with no natural reporting
+    /// interval, so a guessed default would risk restarting sources that are
+    /// legitimately just quiet.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_silence_secs: Option<u64>,
 }
 
 /// See `MqttConfig::random_client_id`.
