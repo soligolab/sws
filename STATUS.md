@@ -6,10 +6,72 @@
 >
 > **Pulizia 2026-07-27**: rimossi i task già chiusi e le sezioni di verifica ormai superate; le sessioni mergiate **e** verificate fino al 2026-07-09 sono compresse in «Storico». Il dettaglio integrale resta in `CHANGELOG.md` e nella history git.
 
-**Last session**: 2026-08-05 — **Client ID MQTT: modalità Random + override manuale per-device**,
-per il vero incidente dietro il "torna a fermarsi" di oggi (non era il fix di martedì, era una
-collisione di client_id fra l'IDE locale e il device). Vedi sezione dedicata qui sotto. Non
-ancora mergiato (branch `feat/mqtt-client-id-management`), non pushato.
+**Last session**: 2026-08-05 (sera) — **timeout su `eventloop.poll()` sospeso + staleness
+detection generica**, per un secondo incidente MQTT reale trovato lo stesso giorno sul device.
+Vedi sezione dedicata qui sotto. Non ancora mergiato (branch `fix/mqtt-poll-timeout-staleness`,
+creato sopra `feat/mqtt-client-id-management` perché main non ha ancora quel lavoro), non
+pushato, non ancora verificato sul device reale (serve rebuild+redeploy).
+
+## 2026-08-05 (sera): sessione MQTT bloccata per sempre senza errore — timeout su poll() + staleness
+
+Il maintainer ha segnalato che il problema MQTT "sembra esserci ancora" quando apre la pagina
+viewer (`:8443`) dal browser mentre il runtime gira sul device — sua ipotesi, non certezza.
+Chiesto esplicitamente un audit approfondito di tutta l'implementazione MQTT, raccogliendo tutti
+i dubbi prima di agire.
+
+**Ipotesi del maintainer esclusa con certezza** (tre indagini in parallelo, codice alla mano):
+nessun percorso di codice collega l'apertura/moltiplicazione di sessioni viewer (`:8443`,
+`/ws/tags`) né eventi di login/sessione/`/api/remote/connect` a `SourceSupervisor` o
+`MqttConfig`. Il polling è strutturalmente indipendente dal numero di client (broadcast puro,
+nessun contatore, nessun hook on-connect) — verificato riga per riga.
+
+**Cosa è successo davvero**, ricostruito dal log del device (`tc620-a-p3-c6-07aff9.local`):
+tra le 20:18 e le 20:20 una serie di redeploy ravvicinati (il maintainer stava configurando
+"Random Client ID") causa normali cicli di riconnessione. Poi, dalle 20:20:11 in poi, **silenzio
+totale nel log per oltre 95 minuti** (verificato più volte nell'arco della sessione, mai
+auto-ripreso), tag congelate a `quality: "Good"`. Il maintainer conferma che il dispositivo
+Zigbee era attivo in quella finestra: non era "nessun dato legittimo", era una sessione bloccata
+per davvero — anche col client_id ormai reso univoco dal fix precedente (quindi non è una
+recidiva della collisione di client_id, è un problema diverso).
+
+**Causa individuata leggendo `rumqttc` 0.24.0**: il keep-alive interno dovrebbe far fallire
+`eventloop.poll()` entro ~2× `keep_alive_secs` in caso di connessione morta. Il fix di martedì
+però reagisce solo a un `Err` *restituito* — se quella singola chiamata resta sospesa per sempre
+(stato interno incoerente dopo la sequenza di riconnessioni ravvicinate), il retry-con-backoff
+non scatta mai, perché `run_session` non torna. Combacia esattamente: l'ultima riga di log è
+"MQTT subscribing" (subito prima del loop `poll()`), poi nulla.
+
+**Gap secondario, confermato assente in ogni plugin**: nessun meccanismo verifica "sto
+ricevendo dati aggiornati?" indipendentemente da un errore di libreria.
+
+**Deciso col maintainer**: chiudere entrambi.
+
+**Fatto** (branch `fix/mqtt-poll-timeout-staleness`, sopra `feat/mqtt-client-id-management`):
+- `sws-plugin-mqtt/src/lib.rs` + `sparkplug.rs`: `eventloop.poll()` avvolto in
+  `tokio::time::timeout` (soglia proporzionale a `keep_alive_secs`, minimo 30s). Se scade, viene
+  trattato come sessione morta e rientra nel retry-con-backoff già esistente — nessuna nuova
+  logica di retry, solo il buco che lo bypassava chiuso.
+- `sws-core/src/project.rs`: nuovo `MqttConfig.max_silence_secs: Option<u64>` — opzionale,
+  **disattivo di default** (a differenza di Random Client ID: un valore indovinato rischierebbe
+  di riavviare sorgenti legittimamente silenziose, dato che MQTT è push-based senza un
+  intervallo naturale).
+- `sws-web/src/source_supervisor.rs`: watchdog esteso con `restart_stale_sources` — per ogni
+  sorgente con `max_silence` impostato, calcola il `timestamp_ms` più recente fra i suoi
+  `owned_tags` e la riavvia se supera la soglia, anche se il task non è mai andato in errore.
+  Una sorgente senza ancora nessun dato (appena avviata) viene lasciata stare invece di essere
+  trattata come stale, per non innescare un loop di riavvii durante una connessione iniziale
+  lenta. Meccanismo agnostico rispetto al tipo di sorgente (lavora solo su `owned_tags` + una
+  soglia) — per ora solo MQTT espone il campo; estendere agli altri 7 tipi è un lavoro a parte,
+  lasciato per una sessione futura.
+
+**Verificato**: `cargo check --workspace` pulito, `cargo test -p sws-web -p sws-core -p
+sws-plugin-mqtt` 58/58 verdi (3 nuovi test su `most_recent_update`, nessuna regressione).
+**Non verificato dal vivo end-to-end**: un broker locale per riprodurre "connessione viva ma
+silenziosa" non è stato possibile allestirlo su questo dev server (mosquitto bloccato da
+AppArmor per file fuori da `/etc/mosquitto/*`, il broker reale non è raggiungibile da qui). Da
+verificare sul device reale dopo rebuild+redeploy: impostare `max_silence_secs` su Sandokan e
+controllare che un futuro blocco silenzioso venga recuperato entro un tick del watchdog (~30s)
+invece di restare bloccato per ore.
 
 ## 2026-08-05: collisione di client_id MQTT fra IDE e device — Random mode + override per-device
 

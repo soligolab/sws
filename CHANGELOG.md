@@ -46,6 +46,19 @@ e patch obbligatoria, perché Cargo rifiuta sia `2026.07` sia `2026.7`).
 
 ### Fixed
 
+- **Una sessione MQTT poteva restare bloccata per sempre senza errore**, bypassando
+  completamente il retry-con-backoff aggiunto martedì: quel fix reagisce solo a un `Err`
+  restituito da `eventloop.poll()`, ma se quella singola chiamata resta sospesa (osservato dal
+  vivo su un device reale dopo una sequenza di riconnessioni ravvicinate), `run_session` non
+  torna né con successo né con errore, quindi il retry non scatta mai. Ora `eventloop.poll()` è
+  avvolto in un timeout (proporzionale a `keep_alive_secs`, minimo 30s) sia nel path MQTT plain
+  sia in Sparkplug B: se scade, viene trattato come sessione morta e rientra nel retry esistente.
+- **Aggiunta una rete di sicurezza generica**: nuovo campo opzionale (disattivo di default)
+  `max_silence_secs` su una sorgente MQTT — se nessuna delle sue tag si aggiorna entro quella
+  soglia, il watchdog del `SourceSupervisor` la riavvia anche se il task non è mai andato in
+  errore. Chiude un gap confermato assente in *tutti* i plugin: nessun meccanismo verificava mai
+  "sto ricevendo dati aggiornati?" indipendentemente da un errore esplicito di connessione.
+
 - **Una sorgente MQTT che perde il broker restava morta per sempre**, e l'unico modo per
   farla ripartire era riaprire/ridistribuire il progetto dall'IDE — da cui la falsa impressione
   segnalata dal maintainer che "chiudere l'IDE" fermasse database e grafici sul device. In
