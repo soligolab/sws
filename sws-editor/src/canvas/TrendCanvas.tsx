@@ -19,7 +19,18 @@ import type { Sample, TrendSeriesStyle } from "@/types";
  * Y range: hard `[yMin, yMax]` if both > 0 (config), otherwise autofit.
  */
 
-const PALETTE = ["#3b82f6", "#22c55e", "#eab308", "#ef4444", "#a855f7", "#06b6d4"];
+/** Shared with TrendExpanded.tsx so the two views never drift on which
+ *  color a given series index gets. */
+export const PALETTE = ["#3b82f6", "#22c55e", "#eab308", "#ef4444", "#a855f7", "#06b6d4"];
+
+/** Resolves the display color for series `i`: explicit per-trace style wins,
+ *  then `lineColor` for the first series (legacy), then the shared palette. */
+export function resolveSeriesColor(i: number, lineColor?: string, seriesStyles?: TrendSeriesStyle[]): string {
+  const styleColor = seriesStyles?.[i]?.color;
+  if (styleColor) return styleColor;
+  if (i === 0 && lineColor) return lineColor;
+  return PALETTE[i % PALETTE.length];
+}
 
 const DASH_MAP: Record<NonNullable<TrendSeriesStyle["dash"]>, number[]> = {
   solid: [],
@@ -148,12 +159,10 @@ export function TrendCanvas({
 
   const isHistorical = explicitFromMs !== undefined && explicitToMs !== undefined;
 
-  const colors = useMemo(() => tags.map((_, i) => {
-    const styleColor = seriesStyles?.[i]?.color;
-    if (styleColor) return styleColor;
-    if (i === 0 && lineColor) return lineColor;
-    return PALETTE[i % PALETTE.length];
-  }), [tags, lineColor, seriesStyles]);
+  const colors = useMemo(
+    () => tags.map((_, i) => resolveSeriesColor(i, lineColor, seriesStyles)),
+    [tags, lineColor, seriesStyles]
+  );
 
   useEffect(() => {
     setSeries(tags.map(() => []));
@@ -186,10 +195,10 @@ export function TrendCanvas({
 
     let firstTick = true;
     const tick = async () => {
-      const now = Date.now();
+      const { tMin, tSpan } = getXDomain();
       const backfill = firstTick && opcuaBackfill;
       firstTick = false;
-      await fetch(now - windowS * 1000, now, backfill);
+      await fetch(tMin, tMin + tSpan, backfill);
     };
     tick();
     const id = setInterval(tick, pollMs);
@@ -281,10 +290,7 @@ export function TrendCanvas({
     }
 
     // X domain: explicit historical range or rolling live window.
-    const now = Date.now();
-    const tMin = isHistorical ? explicitFromMs! : now - windowS * 1000;
-    const tMax = isHistorical ? explicitToMs!   : now;
-    const tSpan = Math.max(1, tMax - tMin);
+    const { tMin, tSpan } = getXDomain();
 
     // Y domain: per-canvas, computed from numeric samples across all series.
     let vMin = Number.POSITIVE_INFINITY;
@@ -536,12 +542,8 @@ export function TrendCanvas({
           <button
             title="Scarica CSV"
             onClick={() => {
-              const now = Date.now();
-              api.exportHistoryCsv(
-                tags.filter(Boolean),
-                isHistorical ? explicitFromMs! : now - windowS * 1000,
-                isHistorical ? explicitToMs!   : now,
-              );
+              const { tMin, tSpan } = getXDomain();
+              api.exportHistoryCsv(tags.filter(Boolean), tMin, tMin + tSpan);
             }}
             style={SMALL_BTN}
             onMouseEnter={(e) => (e.currentTarget.style.opacity = "1")}

@@ -6,6 +6,7 @@ import { getAuthToken } from "@/api/client";
 import { AlarmBellPanel } from "@/components/AlarmBellPanel";
 import { AlarmBanner } from "@/components/AlarmBanner";
 import { DataTable, type DataTableColumn } from "@/components/DataTable";
+import { SEV_COLOR } from "@/alarmSeverity";
 import { useAppStore } from "@/store";
 import { SYMBOLS } from "@/symbols/library";
 import { clampToPage } from "@/pageLayout";
@@ -1886,8 +1887,7 @@ function AlarmViewerWidget({ width, height, mode, maxRows, prefix, allowedSev, s
     .sort((a, b) => (b.activated_at_ms ?? 0) - (a.activated_at_ms ?? 0))
     .slice(0, maxRows);
 
-  const sevColor = (sev: string) =>
-    sev === "Critical" ? "#ef4444" : sev === "Warning" ? "#f59e0b" : "var(--brand-primary, #3b82f6)";
+  const sevColor = (sev: string) => SEV_COLOR[(sev as AlarmSeverity) ?? "Info"] ?? SEV_COLOR.Info;
 
   const handleAck = useCallback(async (id: string) => {
     try {

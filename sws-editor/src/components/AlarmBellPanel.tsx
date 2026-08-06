@@ -5,6 +5,7 @@ import { api } from "@/api/client";
 import { useAppStore } from "@/store";
 import { useAlarmStream } from "@/ws/alarmStream";
 import { AlarmHistory } from "@/components/AlarmHistory";
+import { SEV_COLOR } from "@/alarmSeverity";
 import type { AlarmSeverity, AlarmState, ShelvedAlarm } from "@/types";
 
 // ── AlarmBellPanel ────────────────────────────────────────────────────────────
@@ -14,12 +15,6 @@ import type { AlarmSeverity, AlarmState, ShelvedAlarm } from "@/types";
 // SCADA piazzabile (`alarm_bell`) invece che fisso in alto a destra. Il
 // dropdown esce dal proprio `foreignObject` via portale in `document.body`,
 // ancorato alla posizione a schermo del bottone (funziona con zoom/pan canvas).
-
-const SEV_COLOR: Record<AlarmSeverity, string> = {
-  Info:     "var(--brand-primary, #3b82f6)",
-  Warning:  "var(--brand-warning, #eab308)",
-  Critical: "var(--brand-danger, #ef4444)",
-};
 
 export interface AlarmBellPanelProps {
   idPrefix?: string;

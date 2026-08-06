@@ -3,13 +3,8 @@ import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
 import { useAppStore } from "@/store";
 import { useAlarmStream } from "@/ws/alarmStream";
+import { SEV_COLOR } from "@/alarmSeverity";
 import type { AlarmSeverity, AlarmState, IsaState } from "@/types";
-
-const SEV_COLOR: Record<AlarmSeverity, string> = {
-  Info:     "var(--brand-primary, #3b82f6)",
-  Warning:  "var(--brand-warning, #eab308)",
-  Critical: "var(--brand-danger, #ef4444)",
-};
 
 // Blinking animation only for active-unacked (the most urgent state).
 function isaStyle(state: IsaState, color: string): React.CSSProperties {

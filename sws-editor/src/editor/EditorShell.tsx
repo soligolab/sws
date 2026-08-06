@@ -177,11 +177,15 @@ function SymbolPickerModal({ onPick, onCancel }: {
   );
 }
 
-/** Object types that support rotation/flip/opacity in the canvas. */
+/** Object types that support rotation/flip/opacity in the canvas.
+ *  Keep in sync with the `applyTransform()` call sites in SvgCanvas.tsx —
+ *  `lang_button`/`lang_selector` were rendered with it there but missing
+ *  here, so their transform panel was unreachable in the properties UI. */
 const SUPPORTS_TRANSFORM = new Set([
   "rect", "ellipse", "text", "image",
   "gauge", "led", "progress_bar", "table",
   "button", "navbutton", "symbol",
+  "lang_button", "lang_selector",
 ]);
 
 // ── Multi-selection helpers ───────────────────────────────────────────────────
@@ -1997,6 +2001,33 @@ function ObjectProps({
     );
   };
 
+  /** Severity checkbox row shared by every alarm-display widget
+   *  (alarm_bell, alarm_banner, alarm_viewer) — previously copy-pasted
+   *  per widget (and missing entirely for alarm_viewer, despite the
+   *  underlying field/renderer support already existing there). */
+  const severityFilterField = (key: "alarm_bell_severities" | "alarm_banner_severities" | "alarm_viewer_severities") => (
+    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+      {(["Info", "Warning", "Critical"] as const).map((sev) => {
+        const list = (obj[key] as AlarmSeverity[] | undefined) ?? [];
+        const checked = list.length === 0 || list.includes(sev);
+        return (
+          <label key={sev} style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "flex", gap: 3, alignItems: "center" }}>
+            <input
+              type="checkbox"
+              checked={checked}
+              onChange={(e) => {
+                const all: AlarmSeverity[] = ["Info", "Warning", "Critical"];
+                const current = list.length === 0 ? all : list;
+                const next = e.target.checked ? [...current, sev] : current.filter((s) => s !== sev);
+                onChange({ [key]: next.length === all.length ? undefined : next } as Partial<SynopticObject>);
+              }}
+            />{sev}
+          </label>
+        );
+      })}
+    </div>
+  );
+
   const BOX_TYPES = ["rect", "ellipse", "button", "navbutton", "checkbox", "radio", "slider", "gauge", "led", "progress_bar", "table", "trend", "symbol", "grid"];
   const isShape = BOX_TYPES.includes(obj.type);
   const hasStroke = obj.type === "rect" || obj.type === "ellipse" || obj.type === "line";
@@ -2829,6 +2860,7 @@ function ObjectProps({
           ))}
           {field(t("props.maxRows"), numInput("alarm_viewer_max_rows", 5))}
           {field(t("props.alarmIdPrefix"), <input style={INPUT} placeholder={t("props.exZone")} value={obj.alarm_viewer_id_prefix ?? ""} onChange={(e) => onChange({ alarm_viewer_id_prefix: e.target.value })} />)}
+          {field(t("props.severity"), severityFilterField("alarm_viewer_severities"))}
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             {[["alarm_viewer_show_ack","Mostra ACK"], ["alarm_viewer_show_ts","Timestamp"], ["alarm_viewer_show_empty","Mostra vuoto"]].map(([k,l]) => (
               <label key={k} style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "flex", gap: 3, alignItems: "center" }}>
@@ -2847,28 +2879,7 @@ function ObjectProps({
             {t("props.alarmBellHint")}
           </div>
           {field(t("props.alarmIdPrefix"), <input style={INPUT} placeholder={t("props.exZone")} value={obj.alarm_bell_id_prefix ?? ""} onChange={(e) => onChange({ alarm_bell_id_prefix: e.target.value })} />)}
-          {field(t("props.severity"), (
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              {(["Info", "Warning", "Critical"] as const).map((sev) => {
-                const list = obj.alarm_bell_severities ?? [];
-                const checked = list.length === 0 || list.includes(sev);
-                return (
-                  <label key={sev} style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "flex", gap: 3, alignItems: "center" }}>
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      onChange={(e) => {
-                        const all: AlarmSeverity[] = ["Info", "Warning", "Critical"];
-                        const current = list.length === 0 ? all : list;
-                        const next = e.target.checked ? [...current, sev] : current.filter((s) => s !== sev);
-                        onChange({ alarm_bell_severities: next.length === all.length ? undefined : next });
-                      }}
-                    />{sev}
-                  </label>
-                );
-              })}
-            </div>
-          ))}
+          {field(t("props.severity"), severityFilterField("alarm_bell_severities"))}
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             {[["alarm_bell_show_history", t("props.showHistory")], ["alarm_bell_show_shelve", t("props.showShelve")]].map(([k, l]) => (
               <label key={k} style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "flex", gap: 3, alignItems: "center" }}>
@@ -2884,28 +2895,7 @@ function ObjectProps({
       {obj.type === "alarm_banner" && (
         <>
           {field(t("props.alarmIdPrefix"), <input style={INPUT} placeholder={t("props.exZone")} value={obj.alarm_banner_id_prefix ?? ""} onChange={(e) => onChange({ alarm_banner_id_prefix: e.target.value })} />)}
-          {field(t("props.severity"), (
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              {(["Info", "Warning", "Critical"] as const).map((sev) => {
-                const list = obj.alarm_banner_severities ?? [];
-                const checked = list.length === 0 || list.includes(sev);
-                return (
-                  <label key={sev} style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "flex", gap: 3, alignItems: "center" }}>
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      onChange={(e) => {
-                        const all: AlarmSeverity[] = ["Info", "Warning", "Critical"];
-                        const current = list.length === 0 ? all : list;
-                        const next = e.target.checked ? [...current, sev] : current.filter((s) => s !== sev);
-                        onChange({ alarm_banner_severities: next.length === all.length ? undefined : next });
-                      }}
-                    />{sev}
-                  </label>
-                );
-              })}
-            </div>
-          ))}
+          {field(t("props.severity"), severityFilterField("alarm_banner_severities"))}
         </>
       )}
 
@@ -3310,36 +3300,43 @@ function ObjectProps({
       </CollapsibleSection>
 
       {/* ── Event scripts (advanced, collapsed) ─────────────────────── */}
-      <CollapsibleSection
-        title={t("props.events")}
-        storageKey="events"
-        headerExtra={
-          (obj.on_press_fn || obj.on_release_fn)
-            ? <span style={{ fontSize: 10, color: "var(--brand-primary, #3b82f6)", fontWeight: 700 }}>
-                ({(obj.on_press_fn ? 1 : 0) + (obj.on_release_fn ? 1 : 0)})
-              </span>
-            : null
-        }
-      >
-        <EventFunctionPicker
-          label="On press"
-          fnName={obj.on_press_fn}
-          args={obj.on_press_args}
-          functions={functions}
-          onChange={(fn, args) => onChange({ on_press_fn: fn, on_press_args: args })}
-        />
-        <EventFunctionPicker
-          label="On release"
-          fnName={obj.on_release_fn}
-          args={obj.on_release_args}
-          functions={functions}
-          onChange={(fn, args) => onChange({ on_release_fn: fn, on_release_args: args })}
-        />
-        <p style={{ fontSize: 10, color: "var(--brand-border, #475569)", margin: "0 0 4px" }}>
-          Definisci le funzioni nel pannello laterale (sezione FUNZIONI). I valori
-          dei parametri sono sostituiti per binding; lascia vuoto per usare il default.
-        </p>
-      </CollapsibleSection>
+      {/* Not for `grid`: it dispatches on_press_fn/on_release_fn per-cell
+       *  (GridCell, edited in that object's own panel below), not at the
+       *  object level — SvgCanvas.tsx's press/release dispatcher explicitly
+       *  skips grid objects, so obj.on_press_fn/on_release_fn here would be
+       *  dead config a user could set but that would never fire. */}
+      {obj.type !== "grid" && (
+        <CollapsibleSection
+          title={t("props.events")}
+          storageKey="events"
+          headerExtra={
+            (obj.on_press_fn || obj.on_release_fn)
+              ? <span style={{ fontSize: 10, color: "var(--brand-primary, #3b82f6)", fontWeight: 700 }}>
+                  ({(obj.on_press_fn ? 1 : 0) + (obj.on_release_fn ? 1 : 0)})
+                </span>
+              : null
+          }
+        >
+          <EventFunctionPicker
+            label="On press"
+            fnName={obj.on_press_fn}
+            args={obj.on_press_args}
+            functions={functions}
+            onChange={(fn, args) => onChange({ on_press_fn: fn, on_press_args: args })}
+          />
+          <EventFunctionPicker
+            label="On release"
+            fnName={obj.on_release_fn}
+            args={obj.on_release_args}
+            functions={functions}
+            onChange={(fn, args) => onChange({ on_release_fn: fn, on_release_args: args })}
+          />
+          <p style={{ fontSize: 10, color: "var(--brand-border, #475569)", margin: "0 0 4px" }}>
+            Definisci le funzioni nel pannello laterale (sezione FUNZIONI). I valori
+            dei parametri sono sostituiti per binding; lascia vuoto per usare il default.
+          </p>
+        </CollapsibleSection>
+      )}
 
       {/* ── Binding attivi (audit) — always shown with count ──────────── */}
       <CollapsibleSection
