@@ -15,7 +15,7 @@ interface TrendExpandedProps {
   onClose: () => void;
 }
 
-type RangePreset = "live" | "1h" | "8h" | "24h" | "7d" | "all";
+type RangePreset = "live" | "1h" | "8h" | "24h" | "7d" | "all" | "custom";
 
 // "all" has no fixed span — its range is resolved from the earliest recorded
 // sample (see the effect below), not from `seconds`.
@@ -42,6 +42,9 @@ export function TrendExpandedModal({
   const [preset, setPreset] = useState<RangePreset>("live");
   // Historical range anchor: pan shifts this offset (ms before now).
   const [offsetMs, setOffsetMs] = useState(0);
+  // Drag-to-zoom range, set via onRangeSelect on the canvas below (T-48).
+  // Lives alongside the preset system as its own pseudo-preset ("custom").
+  const [customRange, setCustomRange] = useState<{ fromMs: number; toMs: number } | null>(null);
   const [hiddenIndices, setHiddenIndices] = useState<Set<number>>(new Set());
   const [canvasSize, setCanvasSize] = useState({ w: 800, h: 420 });
   const containerRef = useRef<HTMLDivElement>(null);
@@ -88,15 +91,19 @@ export function TrendExpandedModal({
     return () => window.removeEventListener("keydown", handler);
   }, [onClose]);
 
-  const activePreset = PRESETS.find((p) => p.id === preset)!;
-  const isLive = preset === "live";
-  const isAll  = preset === "all";
-  const spanMs = isLive ? windowS * 1000 : isAll ? 0 : activePreset.seconds! * 1000;
+  const activePreset = PRESETS.find((p) => p.id === preset);
+  const isLive   = preset === "live";
+  const isAll    = preset === "all";
+  const isCustom = preset === "custom";
+  const spanMs = isLive ? windowS * 1000 : (isAll || isCustom) ? 0 : activePreset!.seconds! * 1000;
 
   // Compute explicit historical range (undefined when live).
   let fromMs: number | undefined;
   let toMs: number | undefined;
-  if (isAll) {
+  if (isCustom && customRange) {
+    fromMs = customRange.fromMs;
+    toMs   = customRange.toMs;
+  } else if (isAll) {
     fromMs = allRange?.fromMs;
     toMs   = allRange?.toMs;
   } else if (!isLive) {
@@ -105,7 +112,7 @@ export function TrendExpandedModal({
     fromMs = toMs - spanMs;
   }
 
-  const panDisabled = isLive || isAll;
+  const panDisabled = isLive || isAll || isCustom;
   const panStep = Math.round(spanMs * 0.25);
 
   const panBack = useCallback(() => {
@@ -157,7 +164,7 @@ export function TrendExpandedModal({
             {PRESETS.map((p) => (
               <button
                 key={p.id}
-                onClick={() => { setPreset(p.id); setOffsetMs(0); }}
+                onClick={() => { setPreset(p.id); setOffsetMs(0); setCustomRange(null); }}
                 style={{
                   padding: "2px 8px", fontSize: 11, borderRadius: 4, cursor: "pointer",
                   border: "1px solid",
@@ -169,9 +176,17 @@ export function TrendExpandedModal({
                 {p.label}
               </button>
             ))}
+            {isCustom && (
+              <span style={{
+                padding: "2px 8px", fontSize: 11, borderRadius: 4,
+                border: "1px solid #3b82f6", background: "#1e3a5f", color: "#93c5fd",
+              }}>
+                Selezione
+              </span>
+            )}
           </div>
 
-          {/* Pan buttons (disabled in live/all mode) */}
+          {/* Pan buttons (disabled in live/all/custom mode) */}
           <button
             onClick={panBack}
             disabled={panDisabled}
@@ -252,6 +267,9 @@ export function TrendExpandedModal({
             toMs={toMs}
             hiddenIndices={hiddenIndices}
             seriesStyles={seriesStyles}
+            onRangeSelect={(rFromMs, rToMs) => { setCustomRange({ fromMs: rFromMs, toMs: rToMs }); setPreset("custom"); }}
+            zoomed={isCustom}
+            onResetZoom={() => { setPreset("live"); setOffsetMs(0); setCustomRange(null); }}
           />
         </div>
       </div>
