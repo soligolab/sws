@@ -46,6 +46,17 @@ e patch obbligatoria, perché Cargo rifiuta sia `2026.07` sia `2026.7`).
 
 ### Fixed
 
+- **Cambiando progetto (chiudi + apri/crea un altro) per un istante restava visibile la
+  grafica (e il banner allarmi) del progetto precedente**: lo store dell'IDE non azzerava mai
+  `pages`/`project`/`customSymbols`/`faceplates`/`alarms` alla chiusura, e il remount
+  dell'editor al nuovo progetto era sincrono mentre i dati nuovi arrivavano solo dopo un
+  round-trip di rete — nella finestra fra i due, il canvas mostrava ancora lo stato vecchio.
+  Nuova azione `resetProjectState()` nello store, chiamata prima di ogni cambio di
+  `noActiveProject` (chiusura e apertura/creazione progetto). Verificato con un test
+  automatizzato (Playwright) che campiona il DOM ogni ~60ms durante la transizione: prima del
+  fix il canvas/banner del progetto precedente compariva per una finestra osservabile, dopo il
+  fix zero occorrenze su 15 campionamenti.
+
 - **Una sessione MQTT poteva restare bloccata per sempre senza errore**, bypassando
   completamente il retry-con-backoff aggiunto martedì: quel fix reagisce solo a un `Err`
   restituito da `eventloop.poll()`, ma se quella singola chiamata resta sospesa (osservato dal
