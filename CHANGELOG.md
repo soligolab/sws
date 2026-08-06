@@ -10,6 +10,42 @@ e patch obbligatoria, perché Cargo rifiuta sia `2026.07` sia `2026.7`).
 
 ### Added
 
+- **Allarmi piazzabili come oggetti canvas**: due nuovi tipi SCADA, `alarm_bell`
+  (campanella con dropdown attivi/storico/ack/shelve) e `alarm_banner` (barra con
+  blink/ACK/priorità ISA-18.2), piazzabili su qualunque pagina invece che solo come
+  chrome fissa globale. Nessuna migrazione automatica — la chrome fissa resta finché
+  non viene rimossa manualmente (task successivo, con gate manuale).
+- **Componente `DataTable` condiviso** (sort per colonna + filtro, dataset piccoli):
+  sostituisce la lista Ricette in Config e aggiunge una terza modalità "Tabella"
+  all'oggetto `alarm_viewer`.
+- **Trend**: stile per-traccia (colore/spessore/tratteggio/riempimento/smoothing per
+  ogni serie), drag-to-zoom sull'area del grafico (widget compatto ed espanso, con
+  reset), pulsanti pan ◀/▶ sul widget compatto.
+- **Watchdog MQTT (`max_silence_secs`) ora impostabile dall'IDE** (Config → Protocolli
+  → sorgente MQTT → Connessione) — esisteva solo lato backend da settimane, l'unico
+  modo di attivarlo era modificare `project.yaml` a mano.
+
+### Fixed
+
+- **Cancellare o rinominare una pagina non persisteva davvero**: `deletePage`/
+  `renamePage` erano solo in-memory, `saveAll()` faceva solo upsert delle pagine
+  correnti, e non esisteva `DELETE /api/synoptics/:name` (a differenza di
+  faceplates/recipes). Il file della pagina "cancellata" restava orfano su disco e
+  ricompariva a ogni riapertura progetto o riavvio del processo. Aggiunta la route +
+  tracciamento dei nomi pagina noti su disco, per cancellare il file giusto a ogni
+  salvataggio.
+- **Il mirror Rust↔TypeScript di `SynopticObject` (e `SynopticPage`) mancava di
+  decine di campi**, silenziosamente scartati da serde a ogni save/reload — non solo
+  sul Trend (dove è stato notato), ma su `alarm_viewer`, `sparkline`, `pipe`/
+  connettore (waypoints e routing inclusi), `bar_chart`, `pie_chart`, istanze
+  `faceplate`, `lang_selector`, e il colore di sfondo dark-mode della pagina. Un
+  confronto sistematico ha trovato e chiuso 62+ campi mancanti in un colpo solo.
+- **Colori severità allarme incoerenti fra widget**: `alarm_viewer` mostrava un
+  giallo diverso da `alarm_bell`/`alarm_banner` per lo stesso livello "Warning" —
+  unificati in un'unica costante condivisa.
+- **Filtro severità mancante su `alarm_viewer`**: il campo dati e il supporto nel
+  renderer esistevano già, ma nessuna UI per impostarlo.
+
 - **"Installa su dispositivo" installa dal registry**, non più solo da un archivio in `dist/`. Un selettore sceglie la sorgente: **Registry** (default) oppure **Archivio locale** per i dispositivi senza rete. Dal registry sul dispositivo arrivano solo l'installer e la unit quadlet — pochi kB invece di 59 MB — e il resto lo scarica lui, riusando i layer che ha già.
   - Nasce da un caso concreto: il 2026-07-31 il WP630 è stato installato dall'IDE scegliendo l'unico archivio presente, `0.1.0-dev` del giorno prima, e si è portato a casa un frontend vecchio. Il menù non sbagliava — elencava fedelmente l'unica cosa che c'era. Il percorso registry esisteva dal 30 luglio ed era documentato come la strada normale, ma dall'IDE non era raggiungibile.
   - Campo **Riferimento immagine** facoltativo per inchiodare una versione; vuoto significa `latest-<arch>`.
