@@ -385,6 +385,19 @@ export const api = {
       body: JSON.stringify(page),
     }),
 
+  deleteSynoptic: async (name: string) => {
+    try {
+      await request<void>(`/api/synoptics/${encodeURIComponent(name)}`, { method: "DELETE" });
+    } catch (e) {
+      // Idempotent: saveSynoptic already removes a stale same-id file left
+      // behind by a rename (see save_synoptic on the backend), so the old
+      // name's file may already be gone by the time this runs in parallel
+      // with the rest of saveAll() — a 404 here is not a real failure.
+      if (e instanceof Error && e.message.includes(": 404 ")) return;
+      throw e;
+    }
+  },
+
   // Single-page YAML export — returns the file body + filename pulled from
   // the Content-Disposition header so the UI can trigger a browser download
   // with the same name the runtime produced.
