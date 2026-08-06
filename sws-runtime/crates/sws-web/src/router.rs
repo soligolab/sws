@@ -270,7 +270,7 @@ pub fn build(
     // admin_routes above; this group only covers what the frontend
     // editor saves.
     let supervisor_routes = Router::new()
-        .route("/api/synoptics/:name", put(save_synoptic))
+        .route("/api/synoptics/:name", put(save_synoptic).delete(delete_synoptic))
         .route("/api/synoptics/import", post(import_synoptic_yaml))
         // mDNS discovery: scan LAN for _sws._tcp.local. services (~2 s).
         // Supervisor+ only — used from the RuntimeConnectionTab deploy panel.
@@ -2819,6 +2819,24 @@ async fn save_synoptic(
     }
 
     StatusCode::NO_CONTENT
+}
+
+/// `DELETE /api/synoptics/:name` — removes the page's YAML file from disk.
+/// Without this, `deletePage`/`renamePage` in the editor were purely
+/// in-memory: `list_synoptics` enumerates every `*.yaml` under `synoptics/`,
+/// so a page removed only from the in-memory array reappeared on the next
+/// load (project reopen, deploy zip, viewer refresh) because its file was
+/// never actually removed. Same pattern as `delete_faceplate`/`delete_recipe`.
+async fn delete_synoptic(
+    State(s): State<AppState>,
+    Path(name): Path<String>,
+) -> StatusCode {
+    let project_dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c };
+    let path = synoptics_dir_at(&project_dir).join(format!("{}.yaml", safe_filename(&name)));
+    match tokio::fs::remove_file(&path).await {
+        Ok(()) => StatusCode::NO_CONTENT,
+        Err(_) => StatusCode::NOT_FOUND,
+    }
 }
 
 // ── Faceplate endpoints ──────────────────────────────────────────────────────

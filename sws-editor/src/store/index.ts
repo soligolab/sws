@@ -245,6 +245,11 @@ interface AppState {
   pagesRev: number;
   /** Value of `pagesRev` at the last fully successful save. */
   savedPagesRev: number;
+  /** Page names known to exist on disk, snapshotted whenever pages are freshly
+   *  loaded (setPages). Used by saveAll() to detect pages deleted/renamed since
+   *  then — a name that dropped out of the current `pages` array but is still
+   *  in here means its file on disk needs to be removed, not just left orphaned. */
+  persistedPageNames: string[];
   /** Sections with an unsaved draft, keyed by owner → flush function. */
   pendingSections: Record<string, () => Promise<void>>;
   /** Register (or, with `save === null`, deregister) a section holding a draft. */
@@ -556,6 +561,7 @@ export const useAppStore = create<AppState>((set, get) => {
     saveError: null,
     pagesRev: 0,
     savedPagesRev: 0,
+    persistedPageNames: [],
     pendingSections: {},
 
     setAuth: (token, username, role, mustChangePassword = false, expiresAtMs) => {
@@ -773,6 +779,10 @@ export const useAppStore = create<AppState>((set, get) => {
         // Freshly loaded from disk: revision baseline resets to clean.
         pagesRev: 0,
         savedPagesRev: 0,
+        // Snapshot of what's actually on disk right now, so saveAll() can
+        // later tell a deleted/renamed page apart from one that was simply
+        // never loaded in the first place.
+        persistedPageNames: pages.map((p) => p.name),
       }),
 
     addPage: () => {
@@ -1654,6 +1664,14 @@ export const useAppStore = create<AppState>((set, get) => {
         tasks.push(api.updateFunctions(state.project.functions ?? []));
         tasks.push(api.updateCustomSymbols(state.customSymbols ?? []));
       }
+      // Names present when pages were last loaded but missing from the
+      // current array: deleted, or renamed (old name orphaned, new name
+      // already covered by the upsert above). Their files never disappear
+      // from disk on their own — list_synoptics just enumerates *.yaml, so
+      // a page "deleted" only in memory silently reappears on next load.
+      const currentNames = new Set(state.pages.map((p) => p.name));
+      const namesToDelete = state.persistedPageNames.filter((n) => !currentNames.has(n));
+      tasks.push(...namesToDelete.map((n) => api.deleteSynoptic(n)));
       const results = await Promise.allSettled(tasks);
       results.forEach((r) => {
         if (r.status === "rejected") failures.push(errText(r.reason));
@@ -1668,6 +1686,7 @@ export const useAppStore = create<AppState>((set, get) => {
       // On a partial failure some pages are on disk and some are not, so
       // "modified" is the only honest answer; a retry re-PUTs everything
       // (the endpoints are idempotent).
+      set({ persistedPageNames: state.pages.map((p) => p.name) });
       set({ saveStatus: "ok" });
       get().markPagesSaved();
       saveOkTimer = window.setTimeout(() => {
