@@ -17,7 +17,7 @@ import type { SymbolMeta } from "@/symbols/library";
 import { useAppStore } from "@/store";
 import { localizeObjects } from "@/i18n/projectI18n";
 import type { AlignMode } from "@/store";
-import type { ButtonAction, FunctionDef, GridCell, PageLayoutConfig, PageSizeMode, RadioOption, SubCellEntry, SubGrid, SynopticObject, TableRow } from "@/types";
+import type { ButtonAction, FunctionDef, GridCell, PageLayoutConfig, PageSizeMode, RadioOption, SubCellEntry, SubGrid, SynopticObject, TableRow, TrendSeriesStyle } from "@/types";
 
 // ── Shared styles ─────────────────────────────────────────────────────────────
 
@@ -2430,7 +2430,71 @@ function ObjectProps({
       )}
 
       {/* Trend */}
-      {obj.type === "trend" && (
+      {obj.type === "trend" && (() => {
+        // Riga di stile per-traccia (spessore/dash/riempimento/smoothing),
+        // indice 0 = obj.tag, indice i = extra_tags[i-1]. Il colore della
+        // serie 0 resta gestito dal campo line_color qui sopra (legacy);
+        // le tracce extra non avevano finora nessun controllo colore, quindi
+        // qui lo esponiamo solo per idx > 0.
+        const trendStyleRow = (idx: number, opts: { showColor: boolean }) => {
+          const styles = obj.trend_series_styles ?? [];
+          const s: TrendSeriesStyle = styles[idx] ?? {};
+          const patchStyle = (patch: Partial<TrendSeriesStyle>) => {
+            const next = [...styles];
+            while (next.length <= idx) next.push({});
+            next[idx] = { ...next[idx], ...patch };
+            onChange({ trend_series_styles: next });
+          };
+          return (
+            <div style={{ display: "flex", gap: 5, alignItems: "center", flexWrap: "wrap", marginTop: 2, marginBottom: 6, paddingLeft: 4, borderLeft: "2px solid var(--brand-surface-2, #334155)" }}>
+              {opts.showColor && (
+                <input
+                  type="color"
+                  value={s.color ?? "#3b82f6"}
+                  onChange={(e) => patchStyle({ color: e.target.value })}
+                  title={t("props.color")}
+                  style={{ width: 26, height: 22, padding: 1, border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 3 }}
+                />
+              )}
+              <input
+                type="number" min={0.5} max={10} step={0.5}
+                value={s.width ?? 1.5}
+                title={t("props.strokeWidth")}
+                onChange={(e) => patchStyle({ width: e.target.value === "" ? undefined : Number(e.target.value) })}
+                style={{ ...INPUT, width: 46, padding: "2px 4px" }}
+              />
+              <select
+                value={s.dash ?? "solid"}
+                title={t("props.dashPattern")}
+                onChange={(e) => patchStyle({ dash: e.target.value === "solid" ? undefined : (e.target.value as TrendSeriesStyle["dash"]) })}
+                style={{ ...INPUT, width: 84, padding: "2px 4px" }}
+              >
+                <option value="solid">{t("props.dashSolid")}</option>
+                <option value="dashed">{t("props.dashDashed")}</option>
+                <option value="dotted">{t("props.dashDotted")}</option>
+              </select>
+              <label style={{ fontSize: 10, color: "var(--brand-text-muted, #94a3b8)", display: "flex", gap: 2, alignItems: "center" }}>
+                <input type="checkbox" checked={s.fill ?? false} onChange={(e) => patchStyle({ fill: e.target.checked || undefined })} />
+                {t("props.fillArea")}
+              </label>
+              {s.fill && (
+                <input
+                  type="number" min={0} max={1} step={0.05}
+                  value={s.fill_opacity ?? 0.15}
+                  title={t("props.fillOpacity")}
+                  onChange={(e) => patchStyle({ fill_opacity: e.target.value === "" ? undefined : Number(e.target.value) })}
+                  style={{ ...INPUT, width: 46, padding: "2px 4px" }}
+                />
+              )}
+              <label style={{ fontSize: 10, color: "var(--brand-text-muted, #94a3b8)", display: "flex", gap: 2, alignItems: "center" }}>
+                <input type="checkbox" checked={s.smooth ?? false} onChange={(e) => patchStyle({ smooth: e.target.checked || undefined })} />
+                {t("props.smoothCurve")}
+              </label>
+            </div>
+          );
+        };
+
+        return (
         <>
           {field(t("props.tag"), tagInput("es. boiler.t"))}
           {field(t("props.windowS"), <BindableInput obj={obj} propName="window_s" onChange={onChange}>{numInput("window_s", 60)}</BindableInput>)}
@@ -2442,31 +2506,35 @@ function ObjectProps({
             Lascia Y min/max a 0 per autofit.
           </p>
           {field(t("props.colorMainLine"), <BindableInput obj={obj} propName="line_color" onChange={onChange}>{colorInput("line_color", "var(--brand-primary, #3b82f6)")}</BindableInput>)}
+          {trendStyleRow(0, { showColor: false })}
 
           {/* Multi-tag overlay: extra series share the same axes */}
           <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", marginTop: 6, marginBottom: 2, fontWeight: 700, letterSpacing: 0.5 }}>
             ALTRI TAG (OVERLAY)
           </div>
           {(obj.extra_tags ?? []).map((tg, i) => (
-            <div key={i} style={{ display: "flex", gap: 4, marginBottom: 4, alignItems: "center" }}>
-              <TagInput
-                style={{ ...INPUT, flex: 1 }}
-                placeholder={t("props.exBoiler")}
-                value={tg}
-                onChange={(v) => {
-                  const next = [...(obj.extra_tags ?? [])];
-                  next[i] = v;
-                  onChange({ extra_tags: next });
-                }}
-              />
-              <button
-                title={t("props.remove")}
-                style={{ background: "transparent", border: "none", color: "var(--brand-danger, #ef4444)", cursor: "pointer", fontSize: 14, padding: "0 4px" }}
-                onClick={() => {
-                  const next = (obj.extra_tags ?? []).filter((_, j) => j !== i);
-                  onChange({ extra_tags: next.length ? next : undefined });
-                }}
-              >×</button>
+            <div key={i}>
+              <div style={{ display: "flex", gap: 4, marginBottom: 4, alignItems: "center" }}>
+                <TagInput
+                  style={{ ...INPUT, flex: 1 }}
+                  placeholder={t("props.exBoiler")}
+                  value={tg}
+                  onChange={(v) => {
+                    const next = [...(obj.extra_tags ?? [])];
+                    next[i] = v;
+                    onChange({ extra_tags: next });
+                  }}
+                />
+                <button
+                  title={t("props.remove")}
+                  style={{ background: "transparent", border: "none", color: "var(--brand-danger, #ef4444)", cursor: "pointer", fontSize: 14, padding: "0 4px" }}
+                  onClick={() => {
+                    const next = (obj.extra_tags ?? []).filter((_, j) => j !== i);
+                    onChange({ extra_tags: next.length ? next : undefined });
+                  }}
+                >×</button>
+              </div>
+              {trendStyleRow(i + 1, { showColor: true })}
             </div>
           ))}
           <button
@@ -2486,7 +2554,8 @@ function ObjectProps({
             Backfill da storico OPC-UA al caricamento
           </label>
         </>
-      )}
+        );
+      })()}
 
       {/* Image (external URL) */}
       {obj.type === "image" && (

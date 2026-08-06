@@ -1102,6 +1102,7 @@ export function SvgCanvas({
         yMin={expandedTrendObj.y_min}
         yMax={expandedTrendObj.y_max}
         opcuaBackfill={expandedTrendObj.opcua_backfill}
+        seriesStyles={expandedTrendObj.trend_series_styles}
         onClose={() => setExpandedTrendObj(null)}
       />
     )}
@@ -3156,6 +3157,7 @@ function SvgObject(p: ObjProps) {
                 yMin={obj.y_min}
                 yMax={obj.y_max}
                 opcuaBackfill={obj.opcua_backfill}
+                seriesStyles={obj.trend_series_styles}
               />
             </foreignObject>
             {onExpandTrend && (

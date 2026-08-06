@@ -86,6 +86,15 @@ pub struct SynopticObject {
     #[serde(skip_serializing_if = "Option::is_none")] pub y_max:          Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")] pub line_color:     Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")] pub extra_tags:     Option<Vec<String>>,
+    /// When true, backfills from the OPC-UA server's historian on mount.
+    /// Was missing from this mirror (same round-trip-drop gap as
+    /// `auto_rotate_skip` above) — the checkbox in the editor appeared to
+    /// work until the next save/reload silently reset it.
+    #[serde(skip_serializing_if = "Option::is_none")] pub opcua_backfill: Option<bool>,
+    /// Per-trace style overrides (width/dash/fill/smooth/color), parallel to
+    /// [tag, ...extra_tags]. Generic JSON passthrough like `options`/`table_rows`
+    /// above — the frontend owns the shape (see TrendSeriesStyle in types/index.ts).
+    #[serde(skip_serializing_if = "Option::is_none")] pub trend_series_styles: Option<Value>,
     // Layer / visibility (cross-cutting)
     #[serde(skip_serializing_if = "Option::is_none")] pub z_index:        Option<i32>,
     #[serde(skip_serializing_if = "Option::is_none")] pub visible:        Option<bool>,

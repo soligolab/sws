@@ -604,7 +604,15 @@
     "targetLang": "Lingua di destinazione",
     "langSelectorHint": "Elenca automaticamente le lingue del progetto (tab Lingue).",
     "insertToken": "Inserisci token",
-    "insertTokenHint": "+ inserisci {{token}}…"
+    "insertTokenHint": "+ inserisci {{token}}…",
+    "strokeWidth": "Spessore linea",
+    "dashPattern": "Tipo linea",
+    "dashSolid": "Continua",
+    "dashDashed": "Tratteggiata",
+    "dashDotted": "Punteggiata",
+    "fillArea": "Riempi area",
+    "fillOpacity": "Opacità riempimento",
+    "smoothCurve": "Arrotonda curva"
   },
   "shortcut": {
     "navCanvas": "Navigazione canvas",

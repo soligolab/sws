@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "@/api/client";
-import type { Sample } from "@/types";
+import type { Sample, TrendSeriesStyle } from "@/types";
 
 /**
  * Multi-tag trend chart on a 2D canvas. Polls GET /api/history/:tag for each
@@ -20,6 +20,48 @@ import type { Sample } from "@/types";
  */
 
 const PALETTE = ["#3b82f6", "#22c55e", "#eab308", "#ef4444", "#a855f7", "#06b6d4"];
+
+const DASH_MAP: Record<NonNullable<TrendSeriesStyle["dash"]>, number[]> = {
+  solid: [],
+  dashed: [6, 3],
+  dotted: [1, 3],
+};
+
+/** Splits a series into contiguous runs of plottable {x,y} points, breaking
+ *  wherever a sample can't be coerced to a number (mirrors the old
+ *  "pen lifts on null" stroke logic, now shared with fill). */
+function buildRuns(points: Sample[], xAt: (ts: number) => number, yAt: (v: number) => number): { x: number; y: number }[][] {
+  const runs: { x: number; y: number }[][] = [];
+  let current: { x: number; y: number }[] = [];
+  for (const p of points) {
+    const n = sampleToNumber(p.value);
+    if (n === null) {
+      if (current.length) { runs.push(current); current = []; }
+      continue;
+    }
+    current.push({ x: xAt(p.ts_ms), y: yAt(n) });
+  }
+  if (current.length) runs.push(current);
+  return runs;
+}
+
+/** Traces `pts` onto the current path starting from a `moveTo` on the first
+ *  point. `smooth`: cosmetic corner-rounding via midpoint quadratic curves —
+ *  not resampling, doesn't alter recorded values. */
+function tracePoints(ctx: CanvasRenderingContext2D, pts: { x: number; y: number }[], smooth: boolean) {
+  ctx.moveTo(pts[0].x, pts[0].y);
+  if (!smooth || pts.length < 3) {
+    for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+    return;
+  }
+  for (let i = 1; i < pts.length - 1; i++) {
+    const midX = (pts[i].x + pts[i + 1].x) / 2;
+    const midY = (pts[i].y + pts[i + 1].y) / 2;
+    ctx.quadraticCurveTo(pts[i].x, pts[i].y, midX, midY);
+  }
+  const last = pts[pts.length - 1];
+  ctx.lineTo(last.x, last.y);
+}
 
 interface TrendCanvasProps {
   /** Tag IDs to plot. First entry uses lineColor (if given) or the palette. */
@@ -41,6 +83,8 @@ interface TrendCanvasProps {
   toMs?: number;
   /** Indices of series to hide (0-based, parallel to tags). */
   hiddenIndices?: Set<number>;
+  /** Per-trace style (width/dash/fill/smooth), parallel to tags. */
+  seriesStyles?: TrendSeriesStyle[];
 }
 
 function sampleToNumber(v: Sample["value"]): number | null {
@@ -76,6 +120,7 @@ export function TrendCanvas({
   fromMs: explicitFromMs,
   toMs: explicitToMs,
   hiddenIndices,
+  seriesStyles,
 }: TrendCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [series, setSeries] = useState<Sample[][]>(() => tags.map(() => []));
@@ -84,9 +129,11 @@ export function TrendCanvas({
   const isHistorical = explicitFromMs !== undefined && explicitToMs !== undefined;
 
   const colors = useMemo(() => tags.map((_, i) => {
+    const styleColor = seriesStyles?.[i]?.color;
+    if (styleColor) return styleColor;
     if (i === 0 && lineColor) return lineColor;
     return PALETTE[i % PALETTE.length];
-  }), [tags, lineColor]);
+  }), [tags, lineColor, seriesStyles]);
 
   useEffect(() => {
     setSeries(tags.map(() => []));
@@ -241,20 +288,44 @@ export function TrendCanvas({
     series.forEach((points, idx) => {
       if (points.length < 1) return;
       if (hiddenIndices?.has(idx)) return;
-      ctx.strokeStyle = colors[idx];
-      ctx.lineWidth = 1.5;
-      ctx.lineJoin = "round";
-      ctx.beginPath();
-      let pen = false;
-      for (const p of points) {
-        const n = sampleToNumber(p.value);
-        if (n === null) { pen = false; continue; }
-        const x = xAt(p.ts_ms);
-        const y = yAt(n);
-        if (!pen) { ctx.moveTo(x, y); pen = true; }
-        else      { ctx.lineTo(x, y); }
+      const style = seriesStyles?.[idx];
+      const color = colors[idx];
+      const smooth = style?.smooth ?? false;
+      const runs = buildRuns(points, xAt, yAt);
+
+      // Area fill under the curve, one closed path per contiguous run —
+      // closed down to the plot baseline (yAt(yLo) === PAD_TOP + plotH).
+      if (style?.fill) {
+        ctx.fillStyle = color;
+        ctx.globalAlpha = style.fill_opacity ?? 0.15;
+        for (const run of runs) {
+          if (run.length < 2) continue;
+          ctx.beginPath();
+          tracePoints(ctx, run, smooth);
+          ctx.lineTo(run[run.length - 1].x, PAD_TOP + plotH);
+          ctx.lineTo(run[0].x, PAD_TOP + plotH);
+          ctx.closePath();
+          ctx.fill();
+        }
+        ctx.globalAlpha = 1;
       }
-      ctx.stroke();
+
+      ctx.strokeStyle = color;
+      ctx.lineWidth = style?.width ?? 1.5;
+      ctx.lineJoin = "round";
+      ctx.setLineDash(DASH_MAP[style?.dash ?? "solid"]);
+      for (const run of runs) {
+        if (run.length < 1) continue;
+        ctx.beginPath();
+        if (run.length === 1) {
+          ctx.moveTo(run[0].x, run[0].y);
+          ctx.lineTo(run[0].x, run[0].y);
+        } else {
+          tracePoints(ctx, run, smooth);
+        }
+        ctx.stroke();
+      }
+      ctx.setLineDash([]);
     });
 
     // ── Legend (top-left, when >1 series) ──
@@ -353,7 +424,7 @@ export function TrendCanvas({
         ctx.fillText(fmtValue(lastN), PAD_LEFT + plotW - 4, PAD_TOP + 4);
       }
     }
-  }, [series, width, height, colors, yMin, yMax, hoverX, tags.join(","), windowS, isHistorical, explicitFromMs, explicitToMs, hiddenIndices]);
+  }, [series, width, height, colors, yMin, yMax, hoverX, tags.join(","), windowS, isHistorical, explicitFromMs, explicitToMs, hiddenIndices, seriesStyles]);
 
   const hasSeries = series.some((s) => s.length > 0);
 

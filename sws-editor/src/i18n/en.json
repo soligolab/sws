@@ -604,7 +604,15 @@
     "targetLang": "Target language",
     "langSelectorHint": "Automatically lists the project languages (Languages tab).",
     "insertToken": "Insert token",
-    "insertTokenHint": "+ insert {{token}}…"
+    "insertTokenHint": "+ insert {{token}}…",
+    "strokeWidth": "Line width",
+    "dashPattern": "Dash pattern",
+    "dashSolid": "Solid",
+    "dashDashed": "Dashed",
+    "dashDotted": "Dotted",
+    "fillArea": "Fill area",
+    "fillOpacity": "Fill opacity",
+    "smoothCurve": "Smooth curve"
   },
   "shortcut": {
     "navCanvas": "Canvas navigation",
