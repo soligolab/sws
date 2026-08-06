@@ -1973,6 +1973,11 @@ function AlarmViewerWidget({ width, height, mode, maxRows, prefix, allowedSev, s
 function SvgObject(p: ObjProps) {
   const { objects, tagValues, selected, selectedCount = 0, isEditMode, customSymbols, faceplates = [], selectedCell, selectedCellChild, selectedCellRange, onSelect, onStartDrag, onWriteTag, onScript, onNavigate, onSelectCell, onSelectCellChild, onSelectCellRange, onExpandTrend } = p;
   const obj = resolveObject(p.obj, tagValues);
+  // Drag-to-zoom range for the "trend" object type (T-48). Declared
+  // unconditionally (rules of hooks) even though only the trend branch uses
+  // it — this component instance is keyed by obj.id, so the state persists
+  // correctly across re-renders of the same object, isolated per object.
+  const [trendZoom, setTrendZoom] = useState<{ fromMs: number; toMs: number } | null>(null);
 
   const handleMouseDown = (e: React.MouseEvent<SVGElement>) => {
     if (obj.locked && isEditMode) return;
@@ -3158,6 +3163,11 @@ function SvgObject(p: ObjProps) {
                 yMax={obj.y_max}
                 opcuaBackfill={obj.opcua_backfill}
                 seriesStyles={obj.trend_series_styles}
+                fromMs={trendZoom?.fromMs}
+                toMs={trendZoom?.toMs}
+                onRangeSelect={(fromMs, toMs) => setTrendZoom({ fromMs, toMs })}
+                zoomed={trendZoom !== null}
+                onResetZoom={() => setTrendZoom(null)}
               />
             </foreignObject>
             {onExpandTrend && (

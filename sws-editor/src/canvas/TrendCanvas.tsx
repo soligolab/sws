@@ -85,7 +85,22 @@ interface TrendCanvasProps {
   hiddenIndices?: Set<number>;
   /** Per-trace style (width/dash/fill/smooth), parallel to tags. */
   seriesStyles?: TrendSeriesStyle[];
+  /** Drag-select a region on the plot to zoom into that time range. Fires on
+   *  mouse-up when the drag exceeds a small pixel threshold (below it, it's
+   *  treated as a plain hover click, preserving today's behaviour). */
+  onRangeSelect?: (fromMs: number, toMs: number) => void;
+  /** Shows a "reset zoom" button (same corner as the CSV download button)
+   *  when the caller is currently displaying a range set via onRangeSelect. */
+  zoomed?: boolean;
+  onResetZoom?: () => void;
 }
+
+const SMALL_BTN: React.CSSProperties = {
+  background: "#1e293b", border: "1px solid #334155",
+  color: "#64748b", borderRadius: 3, cursor: "pointer",
+  fontSize: 10, padding: "2px 5px", lineHeight: 1.4,
+  opacity: 0.7,
+};
 
 function sampleToNumber(v: Sample["value"]): number | null {
   if (typeof v === "number")  return Number.isFinite(v) ? v : null;
@@ -121,10 +136,15 @@ export function TrendCanvas({
   toMs: explicitToMs,
   hiddenIndices,
   seriesStyles,
+  onRangeSelect,
+  zoomed = false,
+  onResetZoom,
 }: TrendCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [series, setSeries] = useState<Sample[][]>(() => tags.map(() => []));
   const [hoverX, setHoverX] = useState<number | null>(null);
+  const [dragStartX, setDragStartX] = useState<number | null>(null);
+  const [dragCurX, setDragCurX] = useState<number | null>(null);
 
   const isHistorical = explicitFromMs !== undefined && explicitToMs !== undefined;
 
@@ -181,6 +201,53 @@ export function TrendCanvas({
   const PAD_BOTTOM = 18;
   const PAD_LEFT   = 6;
   const PAD_RIGHT  = 48;
+  const plotW = width - PAD_LEFT - PAD_RIGHT;
+
+  // X domain (same math as the draw effect below) — exposed at component
+  // scope so the drag-to-zoom handler can convert screen-x → timestamp
+  // without duplicating/desyncing the logic.
+  const getXDomain = () => {
+    const now = Date.now();
+    const tMin = isHistorical ? explicitFromMs! : now - windowS * 1000;
+    const tMax = isHistorical ? explicitToMs!   : now;
+    return { tMin, tSpan: Math.max(1, tMax - tMin) };
+  };
+
+  const DRAG_THRESHOLD_PX = 8;
+
+  // The canvas is drawn in its own nominal `width`/`height` coordinate space
+  // (PAD_LEFT, plotW, xAt(...) are all in that space), but when the synoptic
+  // page is rendered at a zoom/fitScale other than 100% (auto-fit, editor
+  // zoom), the canvas's on-screen box (getBoundingClientRect) is smaller or
+  // larger than that nominal size. Without rescaling, raw client-pixel deltas
+  // get plugged into the nominal-space math, and the drag box/crosshair drift
+  // away from the actual cursor as soon as the page isn't at exactly 100%.
+  const toCanvasX = (e: { clientX: number; currentTarget: HTMLCanvasElement }) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const scale = rect.width > 0 ? width / rect.width : 1;
+    return (e.clientX - rect.left) * scale;
+  };
+
+  const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (!onRangeSelect) return;
+    const x = toCanvasX(e);
+    setDragStartX(x);
+    setDragCurX(x);
+  };
+
+  const handleMouseUp = () => {
+    if (dragStartX === null || dragCurX === null) return;
+    const delta = Math.abs(dragCurX - dragStartX);
+    if (delta > DRAG_THRESHOLD_PX && onRangeSelect) {
+      const { tMin, tSpan } = getXDomain();
+      const toTs = (x: number) => tMin + ((x - PAD_LEFT) / plotW) * tSpan;
+      const a = toTs(dragStartX);
+      const b = toTs(dragCurX);
+      onRangeSelect(Math.min(a, b), Math.max(a, b));
+    }
+    setDragStartX(null);
+    setDragCurX(null);
+  };
 
   // Drawing pass — runs on every state change.
   useEffect(() => {
@@ -236,8 +303,7 @@ export function TrendCanvas({
     if (yLo === yHi) { yLo -= 0.5; yHi += 0.5; }
     const ySpan = Math.max(1e-9, yHi - yLo);
 
-    const plotW = width  - PAD_LEFT - PAD_RIGHT;
-    const plotH = height - PAD_TOP  - PAD_BOTTOM;
+    const plotH = height - PAD_TOP - PAD_BOTTOM;
     const xAt = (ts: number) => PAD_LEFT + ((ts - tMin) / tSpan) * plotW;
     const yAt = (v: number)  => PAD_TOP  + plotH - ((v - yLo) / ySpan) * plotH;
 
@@ -347,6 +413,18 @@ export function TrendCanvas({
       });
     }
 
+    // ── Drag-to-zoom selection rectangle ──
+    if (dragStartX !== null && dragCurX !== null) {
+      const x0 = Math.max(PAD_LEFT, Math.min(dragStartX, dragCurX));
+      const x1 = Math.min(PAD_LEFT + plotW, Math.max(dragStartX, dragCurX));
+      if (x1 > x0) {
+        ctx.fillStyle = "rgba(59,130,246,0.18)";
+        ctx.fillRect(x0, PAD_TOP, x1 - x0, plotH);
+        ctx.strokeStyle = "#3b82f6";
+        ctx.strokeRect(x0 + 0.5, PAD_TOP + 0.5, x1 - x0 - 1, plotH - 1);
+      }
+    }
+
     // ── Hover crosshair + per-series tooltip ──
     if (hoverX !== null && hoverX >= PAD_LEFT && hoverX <= PAD_LEFT + plotW) {
       // Vertical crosshair
@@ -424,7 +502,7 @@ export function TrendCanvas({
         ctx.fillText(fmtValue(lastN), PAD_LEFT + plotW - 4, PAD_TOP + 4);
       }
     }
-  }, [series, width, height, colors, yMin, yMax, hoverX, tags.join(","), windowS, isHistorical, explicitFromMs, explicitToMs, hiddenIndices, seriesStyles]);
+  }, [series, width, height, colors, yMin, yMax, hoverX, tags.join(","), windowS, isHistorical, explicitFromMs, explicitToMs, hiddenIndices, seriesStyles, dragStartX, dragCurX]);
 
   const hasSeries = series.some((s) => s.length > 0);
 
@@ -432,36 +510,46 @@ export function TrendCanvas({
     <div style={{ position: "relative", width, height, display: "block" }}>
       <canvas
         ref={canvasRef}
-        style={{ width, height, display: "block" }}
+        style={{ width, height, display: "block", cursor: onRangeSelect ? "crosshair" : "default" }}
+        onMouseDown={(e) => { e.stopPropagation(); handleMouseDown(e); }}
         onMouseMove={(e) => {
-          const rect = e.currentTarget.getBoundingClientRect();
-          setHoverX(e.clientX - rect.left);
+          const x = toCanvasX(e);
+          setHoverX(x);
+          if (dragStartX !== null) setDragCurX(x);
         }}
-        onMouseLeave={() => setHoverX(null)}
+        onMouseUp={handleMouseUp}
+        onMouseLeave={() => { setHoverX(null); setDragStartX(null); setDragCurX(null); }}
       />
       {hasSeries && (
-        <button
-          title="Scarica CSV"
-          onClick={() => {
-            const now = Date.now();
-            api.exportHistoryCsv(
-              tags.filter(Boolean),
-              isHistorical ? explicitFromMs! : now - windowS * 1000,
-              isHistorical ? explicitToMs!   : now,
-            );
-          }}
-          style={{
-            position: "absolute", top: 4, right: 4,
-            background: "#1e293b", border: "1px solid #334155",
-            color: "#64748b", borderRadius: 3, cursor: "pointer",
-            fontSize: 10, padding: "2px 5px", lineHeight: 1.4,
-            opacity: 0.7,
-          }}
-          onMouseEnter={(e) => (e.currentTarget.style.opacity = "1")}
-          onMouseLeave={(e) => (e.currentTarget.style.opacity = "0.7")}
-        >
-          ⬇ CSV
-        </button>
+        <div style={{ position: "absolute", top: 4, right: 4, display: "flex", gap: 4 }}>
+          {zoomed && onResetZoom && (
+            <button
+              title="Reset zoom"
+              onClick={onResetZoom}
+              style={SMALL_BTN}
+              onMouseEnter={(e) => (e.currentTarget.style.opacity = "1")}
+              onMouseLeave={(e) => (e.currentTarget.style.opacity = "0.7")}
+            >
+              ⟲
+            </button>
+          )}
+          <button
+            title="Scarica CSV"
+            onClick={() => {
+              const now = Date.now();
+              api.exportHistoryCsv(
+                tags.filter(Boolean),
+                isHistorical ? explicitFromMs! : now - windowS * 1000,
+                isHistorical ? explicitToMs!   : now,
+              );
+            }}
+            style={SMALL_BTN}
+            onMouseEnter={(e) => (e.currentTarget.style.opacity = "1")}
+            onMouseLeave={(e) => (e.currentTarget.style.opacity = "0.7")}
+          >
+            ⬇ CSV
+          </button>
+        </div>
       )}
     </div>
   );
