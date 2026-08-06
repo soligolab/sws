@@ -294,6 +294,12 @@ interface AppState {
   updateProjectFunctions: (functions: FunctionDef[]) => void;
   updateProjectCustomSymbols: (symbols: CustomSymbol[]) => void;
   setFaceplates: (faceplates: FaceplateDef[]) => void;
+  /** Clears every project-scoped field (project, pages, custom symbols,
+   *  faceplates, selection/history) back to "nothing loaded". Call this
+   *  BEFORE switching `noActiveProject` in either direction, so the
+   *  EditorShell never remounts showing the previous project's canvas
+   *  while the new project's data is still in flight. */
+  resetProjectState: () => void;
 
   // ── Function CRUD (project-level reusable Python). All mutations push to
   //    `past` for undo and need to be persisted with api.updateFunctions
@@ -630,6 +636,11 @@ export const useAppStore = create<AppState>((set, get) => {
       })),
 
     setFaceplates: (faceplates) => set({ faceplates }),
+
+    resetProjectState: () => {
+      get().setPages([], "");
+      set({ project: null, projectLoadError: null, customSymbols: [], faceplates: [], alarms: {} });
+    },
 
     // ── Function CRUD ──────────────────────────────────────────────────────
     // Mutations live in the in-memory `project.functions`; the caller is

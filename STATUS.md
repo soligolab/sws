@@ -6,11 +6,53 @@
 >
 > **Pulizia 2026-07-27**: rimossi i task già chiusi e le sezioni di verifica ormai superate; le sessioni mergiate **e** verificate fino al 2026-07-09 sono compresse in «Storico». Il dettaglio integrale resta in `CHANGELOG.md` e nella history git.
 
-**Last session**: 2026-08-05 (sera) — **timeout su `eventloop.poll()` sospeso + staleness
-detection generica**, per un secondo incidente MQTT reale trovato lo stesso giorno sul device.
-Vedi sezione dedicata qui sotto. Non ancora mergiato (branch `fix/mqtt-poll-timeout-staleness`,
-creato sopra `feat/mqtt-client-id-management` perché main non ha ancora quel lavoro), non
-pushato, non ancora verificato sul device reale (serve rebuild+redeploy).
+**Last session**: 2026-08-06 — **flash della grafica/allarmi del progetto precedente al cambio
+progetto** nell'IDE. Vedi sezione dedicata qui sotto. Non ancora mergiato (branch
+`fix/project-switch-stale-canvas-flash`, sopra `fix/mqtt-poll-timeout-staleness`), non pushato.
+
+## 2026-08-06: flash della grafica (e degli allarmi) del progetto precedente al cambio progetto
+
+Il maintainer ha segnalato: aprendo Sandokan, chiudendo il progetto e creandone uno vuoto, per
+un istante vede ancora la grafica del progetto precedente. Ha anche sollevato il sospetto che il
+nuovo progetto "si portasse dietro" la sorgente MQTT di Sandokan (stesso client_id) — **escluso
+con i timestamp esatti del log reale** (`~/.run-editor/logs/runtime-2026-08-06.jsonl`): l'ultima
+riga MQTT di Sandokan e la riga `"stopping source task"` sono a 14 ms di distanza, e nessuna riga
+MQTT compare più in nessuna delle aperture/chiusure successive di "vuoto". Il log MQTT che il
+maintainer vedeva era semplicemente quello di **Sandokan rimasto aperto dal giorno prima** sullo
+stesso processo `start_editor.sh` (mai chiuso esplicitamente dopo i miei test di verifica) —
+comportamento corretto, non un bug.
+
+**Il flash grafico invece era reale.** Causa: lo store Zustand dell'IDE (`store/index.ts`) è un
+singleton che sopravvive allo smontaggio dei componenti — nessuna azione azzerava
+`pages`/`project`/`customSymbols`/`faceplates` alla chiusura del progetto (`App.tsx`
+`executeClose` faceva solo `resetDirty/closeProject/clearAuth/setNoActiveProject`). All'apertura
+del progetto successivo, `onProjectOpened` chiama `setNoActiveProject(false)` **in modo
+sincrono**, rimontando subito l'`EditorShell` — che legge `pages` direttamente dallo store senza
+nessuna guardia "progetto non ancora caricato". I dati veri arrivano solo dopo, in modo
+asincrono (`api.getProject()`/`api.listSynoptics()`). La finestra fra il remount sincrono e la
+risoluzione asincrona era il flash osservato.
+
+**Fatto** (branch `fix/project-switch-stale-canvas-flash`):
+- Nuova azione `resetProjectState()` nello store (`store/index.ts`), che riusa `setPages([], "")`
+  già esistente e in più azzera `project`, `projectLoadError`, `customSymbols`, `faceplates`.
+- Chiamata in `App.tsx`: in `executeClose` (igiene alla chiusura) e — il fix che conta —
+  **prima** di `setNoActiveProject(false)` dentro `onProjectOpened`, così l'`EditorShell` si
+  rimonta già vuoto invece che con lo stato del progetto precedente.
+- **Trovato durante la verifica automatizzata** (non a tavolino): il banner allarmi mostrava
+  anch'esso per un istante l'allarme del progetto precedente (`alarms` è un campo separato dello
+  store, non toccato dal fix iniziale). Esteso `resetProjectState()` per azzerare anche `alarms`.
+
+**Verificato con un test end-to-end automatizzato**, non solo a occhio: Playwright headless
+(pacchetto installato al volo nello scratchpad, browser Chromium già in cache ma di revisione
+diversa — lanciato puntando esplicitamente al binario in `~/.cache/ms-playwright/chromium-1223/`)
+guida l'IDE reale su `:8460` — apre Sandokan, conferma il caricamento (`"Nebulizzatore"` nel
+DOM), chiude, crea un progetto vuoto, e campiona il testo della pagina ogni ~60ms per ~900ms
+durante la transizione. **Prima** del fix sugli allarmi: rilevata un'occorrenza reale del banner
+"sandokan_power_off" durante la transizione (screenshot salvato). **Dopo** entrambi i fix: zero
+occorrenze su 15 campionamenti, ripetuto due volte. `pnpm build`/`pnpm test` (32/32) verdi.
+
+**Non ancora provato**: sul device reale (questo fix è solo frontend, quindi non richiede
+rebuild del binario Rust — basta la nuova SPA nell'immagine al prossimo giro di build/deploy).
 
 ## 2026-08-05 (sera): sessione MQTT bloccata per sempre senza errore — timeout su poll() + staleness
 
