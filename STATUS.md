@@ -6,9 +6,64 @@
 >
 > **Pulizia 2026-07-27**: rimossi i task già chiusi e le sezioni di verifica ormai superate; le sessioni mergiate **e** verificate fino al 2026-07-09 sono compresse in «Storico». Il dettaglio integrale resta in `CHANGELOG.md` e nella history git.
 
-**Last session**: 2026-08-06 — **flash della grafica/allarmi del progetto precedente al cambio
-progetto** nell'IDE. Vedi sezione dedicata qui sotto. Non ancora mergiato (branch
-`fix/project-switch-stale-canvas-flash`, sopra `fix/mqtt-poll-timeout-staleness`), non pushato.
+**Last session**: 2026-08-06 — **trovato perché il device reale aveva perso Random Client ID
+dopo un riavvio** (nonostante il maintainer non l'avesse mai disattivato) e **unificato i due
+percorsi di apertura progetto** che causavano il problema. Vedi sezione dedicata qui sotto. Non
+ancora mergiato (branch `fix/unify-project-boot-open-path`, sopra
+`fix/project-switch-stale-canvas-flash`), non pushato.
+
+## 2026-08-06: il boot con `--project` ignorava Random Client ID (e ignorerebbe qualunque cosa) — unificato con `open_project`
+
+Il maintainer ha notato che i grafici di Sandokan sul device reale (`tc620-a-p3-c6-07aff9.local`)
+si erano fermati verso le 7:30, pur non avendo toccato il device — e soprattutto: **il progetto
+aveva Random Client ID attivo, mai disattivato**, eppure il log mostrava il client_id letterale
+(`sws-sandokan-ide`, non `<id>-sws-sandokan-ide`).
+
+**Ricostruito con i log reali**: il container era stato ricreato ieri sera alle 23:16 (un
+redeploy, non toccato da nessuno stamattina). Al boot successivo il client_id era tornato
+letterale — mentre il file `project.yaml` sul device ha davvero `random_client_id: enabled: true`
+(un mio grep troncato in una risposta precedente aveva fatto credere il contrario). Stamattina i
+miei stessi test sul flash della grafica (sessione precedente) hanno aperto Sandokan più volte
+sull'editor locale con lo stesso client_id letterale, verso lo stesso broker reale — collidendo
+col device, ora anch'esso letterale per lo stesso motivo. Da lì i kick delle 7:29-7:34, poi il
+device è cascato nel bug del `poll()` sospeso (non ancora distribuito), silenzio da allora.
+
+**Causa radice**: `sws-runtime/src/main.rs` ha un secondo percorso di caricamento progetto — il
+boot con `--project`, usato a ogni riavvio del processo/container — che **ricopiava a mano** la
+logica di `open_project` (`sws-web/src/projects.rs`) invece di riusarla. Un commento già nel
+codice, scritto in una sessione precedente per un problema analogo (storico/notifiche dimenticati
+allo stesso modo), lo diceva esplicitamente. Quando ho aggiunto `resolve_mqtt_client_ids` per il
+fix di Random Client ID, l'ho collegato solo dentro `open_project` — non in questo secondo
+percorso. È la **terza volta** che questa duplicazione perde un pezzo.
+
+**Deciso col maintainer**: niente più toppe — eliminare la duplicazione.
+
+**Fatto** (branch `fix/unify-project-boot-open-path`):
+- Nuova funzione condivisa `apply_loaded_project` (`sws-web/src/projects.rs`): seed dei tag
+  derivati, `populate_tags`, registry datastore, swap storico, carico allarmi (+ wiring del
+  journal), risoluzione client_id MQTT, `supervisor.reload`, registro funzioni. Non avvia
+  notifiche/script globali (serve un `AppState` che al boot non esiste ancora) — ritorna
+  `(notifications, global_scripts)` perché il chiamante li avvii quando può.
+- `open_project` e il boot in `main.rs` ora chiamano entrambi questa funzione, passando i propri
+  pezzi (`AppState` nel primo caso, le variabili individuali costruite prima di `AppState` nel
+  secondo). `config_dir`/`instance_id` spostati più in alto in `main.rs` — servono già al boot,
+  non solo più avanti per `router::build`.
+- Un futuro passo di apertura progetto dimenticato in un solo posto non è più possibile: c'è un
+  solo posto.
+
+**Verificato dal vivo** (non solo `cargo check`/`test`): un'istanza di prova lanciata con
+`--project` puntato alla copia locale di Sandokan (Random Client ID attivo, `position: suffix`)
+— **prima** del fix: log mostra client_id letterale al boot (bug riprodotto). Trovato anche un
+errore mio nella prima verifica: `cargo check`/`cargo test` non ricompilano il binario eseguibile
+principale (`target/debug/sws-runtime`) di un crate `bin`, serve `cargo build` — il primo giro di
+verifica testava ancora il binario vecchio. **Dopo** `cargo build` e il fix: log mostra
+`"client_id":"sws-sandokan-ide-69dcbe"` — risolto correttamente anche al boot, non solo aprendo
+da IDE. `cargo test -p sws-web -p sws-core -p sws-plugin-mqtt -p sws-runtime` 58+9 verdi.
+
+**Non ancora fatto**: redeploy sul device reale (questa sessione ha solo diagnosticato +
+sistemato il codice, non toccato il device). Il maintainer aveva messo in pausa qualunque
+redeploy finché non si capiva la causa — ora chiarita, il redeploy può includere anche questo fix
+oltre a reconnect/staleness e client_id.
 
 ## 2026-08-06: flash della grafica (e degli allarmi) del progetto precedente al cambio progetto
 

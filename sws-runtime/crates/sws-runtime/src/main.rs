@@ -12,7 +12,7 @@ use rcgen::{CertificateParams, KeyPair, SanType};
 use std::{net::{IpAddr, SocketAddr}, path::PathBuf, sync::Arc};
 use sws_auth::{AuthState, Role};
 use sws_core::{AlarmDb, LogBus, TagDb, TagQuality, TagWriteBus, DEFAULT_LOG_CAPACITY};
-use sws_historian::{DatastoreRegistry, Historian};
+use sws_historian::Historian;
 use sws_pyscript::Engine as PyEngine;
 use sws_web::{router::{DerivedTagsRegistry, RegistryCell, ScriptSupervisorCell}, SourceSupervisor};
 use tokio::net::TcpListener;
@@ -306,6 +306,13 @@ async fn main() -> anyhow::Result<()> {
         None
     };
 
+    // Computed here (before the project auto-open below, which needs it to
+    // resolve MQTT client ids) rather than nearer its other uses further
+    // down — see `apply_loaded_project` in sws-web::projects.
+    let config_dir = Arc::new(args.config.clone());
+    let instance_id = Arc::new(load_or_create_instance_id(&config_dir));
+    info!(instance_id = %instance_id, "runtime instance id (used for random MQTT client ids)");
+
     let tag_db    = Arc::new(TagDb::new(256));
     let bus       = Arc::new(TagWriteBus::new());
     let alarm_db  = Arc::new(AlarmDb::new(64));
@@ -415,70 +422,23 @@ async fn main() -> anyhow::Result<()> {
         supervisor.set_pki_root(project_path.join(".opcua-pki")).await;
         match sws_core::project::Project::load(&project_path) {
             Ok(project) => {
-                info!(
-                    name = %project.meta.name,
-                    tags = project.tags.len(),
-                    alarms = project.alarms.len(),
-                    functions = project.functions.len(),
-                    "project loaded (legacy --project auto-open)",
-                );
-                // Seed derived tags before populate_tags so they start Uncertain.
-                {
-                    let mut derived = derived_tags.write().await;
-                    for t in &project.tags {
-                        if let Some(expr) = &t.expression {
-                            derived.push((t.id.clone(), expr.clone()));
-                        }
-                    }
-                }
-                project.populate_tags(&tag_db).await;
-                // Build datastore registry while project is still whole (before
-                // field moves below).
-                match DatastoreRegistry::from_project(&project, &project_path).await {
-                    Ok(Some(reg)) => {
-                        info!(
-                            backends = reg.backend_ids().len(),
-                            "datastore registry initialized"
-                        );
-                        *registry.write().await = Some(reg);
-                    }
-                    Ok(None) => {} // no datastores configured
-                    Err(e) => warn!("datastore registry init failed: {e:#}"),
-                }
-                // Wire the historian's read path to this project's SQLite store —
-                // mirrors open_project (sws-web/src/projects.rs). Without this, a
-                // plain process restart leaves GET /api/history/* (and therefore
-                // the trend widget) seeing only samples recorded since this boot,
-                // never the history already on disk, even though writes keep
-                // landing in SQLite via the registry's recorder either way.
-                {
-                    let hist_store = registry.read().await.as_ref()
-                        .and_then(|r| r.primary_sqlite_store());
-                    historian.swap_store(hist_store).await;
-                }
-                // Notifiche e script globali si mettono da parte qui: i loro
+                // Notifiche e script globali si mettono da parte: i loro
                 // supervisori vivono in AppState, che nasce in router::build()
-                // più sotto, quindi non si possono avviare adesso. Prima
-                // venivano semplicemente ignorati — vedi il commento su
+                // più sotto, quindi non si possono avviare adesso — vedi
                 // start_project_services.
                 //
-                // Il blocco qui sopra è la stessa classe di problema, trovata in
-                // parallelo: questo percorso di avvio ricopiava a mano quello che
-                // fa `open_project` e ogni pezzo dimenticato resta invisibile
-                // finché non serve. Lo storico e le notifiche erano due di quei
-                // pezzi.
-                boot_services = Some((project.notifications.clone(), project.global_scripts.clone()));
-                alarm_db.load(project.alarms).await;
-                supervisor.reload(project.sources).await;
-                // Seed the function registry. Duplicates from project.yaml
-                // are silently last-wins; PUT /api/project/functions
-                // enforces unique names from then on.
-                {
-                    let mut map = functions.write().await;
-                    for f in project.functions {
-                        map.insert(f.name.clone(), f);
-                    }
-                }
+                // Il resto del caricamento passa da `apply_loaded_project`,
+                // condivisa con `open_project` (sws-web/src/projects.rs): prima
+                // questo percorso ricopiava quella logica a mano, e ogni pezzo
+                // dimenticato restava invisibile finché non serviva — storico,
+                // notifiche e più di recente la risoluzione del client_id MQTT
+                // sono finiti mancanti così, in tre occasioni separate.
+                let (notifications, global_scripts) = sws_web::projects::apply_loaded_project(
+                    &project_path, project,
+                    &tag_db, &registry, &historian, &alarm_db, &supervisor,
+                    &derived_tags, &functions, &config_dir, &instance_id,
+                ).await;
+                boot_services = Some((notifications, global_scripts));
             }
             Err(e) => {
                 warn!("project.yaml not found or invalid — starting with empty tag database: {e:#}");
@@ -723,9 +683,6 @@ async fn main() -> anyhow::Result<()> {
     let cert_path: Option<Arc<PathBuf>> = acceptor.as_ref()
         .map(|_| Arc::new(args.config.join("tls.crt")));
     let http_cert_path: Option<PathBuf> = cert_path.as_ref().map(|p| (**p).clone());
-    let config_dir = Arc::new(args.config.clone());
-    let instance_id = Arc::new(load_or_create_instance_id(&config_dir));
-    info!(instance_id = %instance_id, "runtime instance id (used for random MQTT client ids)");
 
     // Append-only audit log (OPEN_QUESTIONS Q8). One file spanning the process
     // lifetime (not per-project) so the trail survives project switches.

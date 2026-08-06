@@ -46,6 +46,16 @@ e patch obbligatoria, perché Cargo rifiuta sia `2026.07` sia `2026.7`).
 
 ### Fixed
 
+- **Random Client ID (e ogni altro effetto di apertura progetto) spariva silenziosamente a ogni
+  riavvio del processo/container**, perché il boot con `--project` (usato dal device e da
+  qualunque riavvio) ricopiava a mano la logica di `open_project` invece di riusarla, e
+  ovviamente non replicava i passi aggiunti dopo — in questo caso la risoluzione del client_id
+  MQTT. Estratta una funzione condivisa `apply_loaded_project` (`sws-web/src/projects.rs`),
+  richiamata sia da `open_project` sia dal boot in `main.rs`: un passo di apertura progetto ora
+  si aggiunge in un solo punto, non due. Verificato dal vivo: lo stesso progetto (Random Client
+  ID attivo) risolve correttamente il client_id sia aperto dall'IDE sia al boot del processo con
+  `--project`, cosa che prima falliva silenziosamente per il secondo caso.
+
 - **Cambiando progetto (chiudi + apri/crea un altro) per un istante restava visibile la
   grafica (e il banner allarmi) del progetto precedente**: lo store dell'IDE non azzerava mai
   `pages`/`project`/`customSymbols`/`faceplates`/`alarms` alla chiusura, e il remount

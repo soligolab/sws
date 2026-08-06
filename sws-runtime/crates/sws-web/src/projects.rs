@@ -6,7 +6,8 @@
 
 use crate::global_scripts::GlobalScriptSupervisor;
 use crate::notifications::NotificationSupervisor;
-use crate::router::{active_dir, AppState, AuthUser};
+use crate::router::{active_dir, AppState, AuthUser, DerivedTagsRegistry, FunctionsRegistry, RegistryCell};
+use crate::source_supervisor::SourceSupervisor;
 use crate::templates::copy_dir_all;
 use axum::{
     body::Bytes,
@@ -20,9 +21,13 @@ use serde::{Deserialize, Serialize};
 use std::{
     io::{Cursor, Read},
     path::{Path as StdPath, PathBuf},
+    sync::Arc,
 };
-use sws_core::{AffixPosition, DatastoreBackendConfig, DatastoreConfig, Project, ProjectMeta, SourceDef};
-use sws_historian::DatastoreRegistry;
+use sws_core::{
+    AffixPosition, AlarmDb, DatastoreBackendConfig, DatastoreConfig, GlobalScriptDef,
+    NotificationConfig, Project, ProjectMeta, SourceDef, TagDb,
+};
+use sws_historian::{DatastoreRegistry, Historian};
 use tracing::{info, warn};
 
 /// Avvia i servizi che vivono quanto il progetto aperto: canale Telegram, script
@@ -359,6 +364,97 @@ pub async fn create_project(
 /// AlarmDb / supervisor / functions registry, swaps AuthState to the new
 /// `users.yaml`. **Invalidates all current session tokens** — clients
 /// must re-login.
+/// Applies an already-loaded `Project` to the live runtime pieces: seeds
+/// derived tags, populates `TagDb`, initialises the datastore registry,
+/// swaps the historian to the project's SQLite store, loads alarms (with
+/// the journal→SQLite wiring), resolves MQTT client ids
+/// (`resolve_mqtt_client_ids`), reloads the source supervisor, and
+/// populates the function registry.
+///
+/// Does **not** start notification/global-script services — those need an
+/// `AppState` that doesn't exist yet at one of the two call sites (see
+/// below) — so it returns `(notifications, global_scripts)` for the
+/// caller to start once it can.
+///
+/// Shared by `open_project` (this file — HTTP handler, `AppState` already
+/// built) and the boot-time project auto-open in `sws-runtime/src/main.rs`
+/// (runs *before* `AppState` exists, on the individual pieces that later
+/// get assembled into it). Before this function existed the two paths
+/// hand-copied each other, and a step added to one and not the other
+/// stayed invisible until it was needed — the historian/notifications
+/// wiring and, most recently, MQTT client id resolution all went missing
+/// this way in turn. One function, one place to add the next step.
+#[allow(clippy::too_many_arguments)]
+pub async fn apply_loaded_project(
+    project_dir: &StdPath,
+    mut project: Project,
+    db: &Arc<TagDb>,
+    registry: &RegistryCell,
+    historian: &Arc<Historian>,
+    alarms: &Arc<AlarmDb>,
+    supervisor: &Arc<SourceSupervisor>,
+    derived_tags: &DerivedTagsRegistry,
+    functions: &FunctionsRegistry,
+    config_dir: &StdPath,
+    instance_id: &str,
+) -> (Option<NotificationConfig>, Vec<GlobalScriptDef>) {
+    info!(
+        name = %project.meta.name,
+        tags = project.tags.len(),
+        alarms = project.alarms.len(),
+        functions = project.functions.len(),
+        "project opened",
+    );
+    // Seed derived tags before populate_tags so they start Uncertain until
+    // the evaluator task computes the first real value.
+    {
+        let derived: Vec<(String, String)> = project.tags.iter()
+            .filter_map(|t| t.expression.as_ref().map(|e| (t.id.clone(), e.clone())))
+            .collect();
+        *derived_tags.write().await = derived;
+    }
+    project.populate_tags(db).await;
+    // Init datastore registry before consuming the project fields.
+    match DatastoreRegistry::from_project(&project, project_dir).await {
+        Ok(Some(reg)) => {
+            reg.clone().spawn_recorder(db.clone());
+            info!(backends = project.datastores.len(), "datastore registry initialised");
+            *registry.write().await = Some(reg);
+        }
+        Ok(None) => {
+            *registry.write().await = None;
+        }
+        Err(e) => {
+            warn!("apply_loaded_project: datastore registry init failed: {e:#}");
+            *registry.write().await = None;
+        }
+    }
+    // Swap the global historian's SQLite to this project's primary store.
+    // All history reads/writes now go to <project>/.history/historian.db.
+    {
+        let hist_store = registry.read().await.as_ref()
+            .and_then(|r| r.primary_sqlite_store());
+        historian.swap_store(hist_store).await;
+    }
+    alarms.load(project.alarms).await;
+    // Wire the alarm journal → SQLite if a store is open.
+    if let Some(store) = historian.sqlite_store().await {
+        alarms.set_journal_callback(move |ev| {
+            let store = store.clone();
+            tokio::spawn(async move { store.append_alarm_event(&ev).await; });
+        }).await;
+    }
+    resolve_mqtt_client_ids(&project.meta.name, &mut project.sources, config_dir, instance_id);
+    supervisor.reload(project.sources).await;
+    {
+        let mut map = functions.write().await;
+        for f in project.functions {
+            map.insert(f.name.clone(), f);
+        }
+    }
+    (project.notifications, project.global_scripts)
+}
+
 pub async fn open_project(
     State(s): State<AppState>,
     Path(name): Path<String>,
@@ -439,63 +535,12 @@ pub async fn open_project(
     s.supervisor.set_pki_root(project_dir.join(".opcua-pki")).await;
 
     // 3. Apply the new project.
-    {
-        info!(
-            name = %project.meta.name,
-            tags = project.tags.len(),
-            alarms = project.alarms.len(),
-            functions = project.functions.len(),
-            "project opened",
-        );
-        // Seed derived tags before populate_tags so they start Uncertain
-        // until the evaluator task computes the first real value.
-        {
-            let derived: Vec<(String, String)> = project.tags.iter()
-                .filter_map(|t| t.expression.as_ref().map(|e| (t.id.clone(), e.clone())))
-                .collect();
-            *s.derived_tags.write().await = derived;
-        }
-        project.populate_tags(&s.db).await;
-        // Init datastore registry before consuming the project fields.
-        match DatastoreRegistry::from_project(&project, &project_dir).await {
-            Ok(Some(reg)) => {
-                reg.clone().spawn_recorder(s.db.clone());
-                info!(backends = project.datastores.len(), "datastore registry initialised");
-                *s.registry.write().await = Some(reg);
-            }
-            Ok(None) => {
-                *s.registry.write().await = None;
-            }
-            Err(e) => {
-                warn!("open_project: datastore registry init failed: {e:#}");
-                *s.registry.write().await = None;
-            }
-        }
-        // Swap the global historian's SQLite to this project's primary store.
-        // All history reads/writes now go to <project>/.history/historian.db.
-        {
-            let hist_store = s.registry.read().await.as_ref()
-                .and_then(|r| r.primary_sqlite_store());
-            s.historian.swap_store(hist_store).await;
-        }
-        s.alarms.load(project.alarms).await;
-        // Wire the alarm journal → SQLite if a store is open.
-        if let Some(store) = s.historian.sqlite_store().await {
-            s.alarms.set_journal_callback(move |ev| {
-                let store = store.clone();
-                tokio::spawn(async move { store.append_alarm_event(&ev).await; });
-            }).await;
-        }
-        resolve_mqtt_client_ids(&project.meta.name, &mut project.sources, &s.config_dir, &s.instance_id);
-    s.supervisor.reload(project.sources).await;
-        start_project_services(&s, project.notifications, project.global_scripts).await;
-        {
-            let mut map = s.functions.write().await;
-            for f in project.functions {
-                map.insert(f.name.clone(), f);
-            }
-        }
-    }
+    let (notifications, global_scripts) = apply_loaded_project(
+        &project_dir, project,
+        &s.db, &s.registry, &s.historian, &s.alarms, &s.supervisor,
+        &s.derived_tags, &s.functions, &s.config_dir, &s.instance_id,
+    ).await;
+    start_project_services(&s, notifications, global_scripts).await;
 
     // 4. Swap auth store. Drops all sessions → forces re-login.
     if let Err(e) = s.auth.swap_store(project_dir.join("users.yaml"), seed).await {
