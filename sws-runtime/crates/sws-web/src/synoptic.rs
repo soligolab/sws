@@ -170,6 +170,12 @@ pub struct SynopticObject {
     #[serde(skip_serializing_if = "Option::is_none")] pub alarm_viewer_show_empty:    Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")] pub alarm_viewer_mode:          Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")] pub alarm_viewer_bg_color:      Option<String>,
+    // Alarm bell (type === "alarm_bell") — new in this session (T-42), mirrored
+    // from day one so it doesn't repeat the alarm_viewer gap above.
+    #[serde(skip_serializing_if = "Option::is_none")] pub alarm_bell_id_prefix:     Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub alarm_bell_severities:    Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub alarm_bell_show_history:  Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub alarm_bell_show_shelve:   Option<bool>,
     // Sparkline (type === "sparkline") — same pre-existing gap as alarm_viewer above.
     #[serde(skip_serializing_if = "Option::is_none")] pub spark_window_s:        Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")] pub spark_color:           Option<String>,

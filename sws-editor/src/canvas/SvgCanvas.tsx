@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { TrendCanvas } from "@/canvas/TrendCanvas";
 import { TrendExpandedModal } from "@/canvas/TrendExpanded";
 import { getAuthToken } from "@/api/client";
+import { AlarmBellPanel } from "@/components/AlarmBellPanel";
 import { useAppStore } from "@/store";
 import { SYMBOLS } from "@/symbols/library";
 import { clampToPage } from "@/pageLayout";
@@ -3495,6 +3496,39 @@ function SvgObject(p: ObjProps) {
             prefix={prefix} allowedSev={allowedSev}
             showAck={showAck} showTs={showTs} showEmpty={showEmpty}
             bgColor={obj.alarm_viewer_bg_color}
+          />
+        </foreignObject>
+      </g>
+    );
+  }
+
+  // ── ALARM BELL ────────────────────────────────────────────────────────────────
+
+  if (obj.type === "alarm_bell") {
+    const w = obj.width ?? 130; const h = obj.height ?? 34;
+
+    if (isEditMode) {
+      return (
+        <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()} style={{ cursor: editCursor }}>
+          {selRect(obj.x, obj.y, w, h)}
+          <rect x={obj.x} y={obj.y} width={w} height={h} rx={h / 2} fill="#0f172a" stroke={selected ? "#facc15" : "#334155"} strokeWidth={selected ? 2 : 1} />
+          <text x={obj.x + w / 2} y={obj.y + h / 2} textAnchor="middle" dominantBaseline="central" fill="#64748b" fontSize={12} style={{ pointerEvents: "none" }}>
+            🔔 Allarmi
+          </text>
+        </g>
+      );
+    }
+
+    return (
+      <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()}>
+        {selRect(obj.x, obj.y, w, h)}
+        <foreignObject x={obj.x} y={obj.y} width={w} height={h}>
+          <AlarmBellPanel
+            idPrefix={obj.alarm_bell_id_prefix}
+            allowedSev={obj.alarm_bell_severities}
+            showHistory={obj.alarm_bell_show_history ?? true}
+            showShelve={obj.alarm_bell_show_shelve ?? true}
+            badgeFill={obj.fill}
           />
         </foreignObject>
       </g>

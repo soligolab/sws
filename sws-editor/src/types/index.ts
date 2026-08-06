@@ -29,6 +29,7 @@ export type SynopticObjectType =
   | "pie_chart"
   | "sparkline"
   | "alarm_viewer"
+  | "alarm_bell"
   // SCADA symbols (pump/valve/motor/tank/fan from the built-in library)
   | "symbol"
   // Pipe / connector (multi-waypoint path with fill-level animation)
@@ -383,6 +384,11 @@ export interface SynopticObject {
   alarm_viewer_show_empty?: boolean;
   alarm_viewer_mode?: "list" | "banner";
   alarm_viewer_bg_color?: string;
+  // ── Alarm Bell (type === "alarm_bell") ────────────────────────────────
+  alarm_bell_id_prefix?: string;
+  alarm_bell_severities?: AlarmSeverity[];
+  alarm_bell_show_history?: boolean;
+  alarm_bell_show_shelve?: boolean;
 }
 
 // ── Faceplate definitions ─────────────────────────────────────────────────────
