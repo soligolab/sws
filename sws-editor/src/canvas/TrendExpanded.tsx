@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { TrendCanvas } from "./TrendCanvas";
 import { api } from "@/api/client";
+import type { TrendSeriesStyle } from "@/types";
 
 interface TrendExpandedProps {
   tags: string[];
@@ -10,6 +11,7 @@ interface TrendExpandedProps {
   yMax?: number;
   pollMs?: number;
   opcuaBackfill?: boolean;
+  seriesStyles?: TrendSeriesStyle[];
   onClose: () => void;
 }
 
@@ -34,6 +36,7 @@ export function TrendExpandedModal({
   yMax,
   pollMs,
   opcuaBackfill,
+  seriesStyles,
   onClose,
 }: TrendExpandedProps) {
   const [preset, setPreset] = useState<RangePreset>("live");
@@ -122,7 +125,9 @@ export function TrendExpandedModal({
   };
 
   const PALETTE = ["#3b82f6", "#22c55e", "#eab308", "#ef4444", "#a855f7", "#06b6d4"];
-  const colors = tags.map((_, i) => (i === 0 && lineColor ? lineColor : PALETTE[i % PALETTE.length]));
+  const colors = tags.map((_, i) =>
+    seriesStyles?.[i]?.color ?? (i === 0 && lineColor ? lineColor : PALETTE[i % PALETTE.length])
+  );
 
   return (
     <div
@@ -246,6 +251,7 @@ export function TrendExpandedModal({
             fromMs={fromMs}
             toMs={toMs}
             hiddenIndices={hiddenIndices}
+            seriesStyles={seriesStyles}
           />
         </div>
       </div>

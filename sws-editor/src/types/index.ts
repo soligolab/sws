@@ -122,6 +122,21 @@ export interface TableRow {
   format?: string;
 }
 
+/** Per-trace style override for a trend chart series (index 0 = the trend
+ *  object's own `tag`, index i = `extra_tags[i-1]`). */
+export interface TrendSeriesStyle {
+  color?: string;
+  /** Stroke width in px. Default 1.5. */
+  width?: number;
+  dash?: "solid" | "dashed" | "dotted";
+  /** Fill the area under the curve. */
+  fill?: boolean;
+  /** 0..1. Default 0.15. */
+  fill_opacity?: number;
+  /** Cosmetic corner-rounding (midpoint quadratic), not resampling. */
+  smooth?: boolean;
+}
+
 /**
  * Built-in runtime action for a pressable object.
  * - "login"    → opens the login modal overlay on the synoptic.
@@ -206,6 +221,9 @@ export interface SynopticObject {
   extra_tags?: string[];
   /** When true, backfills from the OPC-UA server's historian on mount. */
   opcua_backfill?: boolean;
+  /** Per-trace style (width/dash/fill/smooth), parallel to [tag, ...extra_tags].
+   *  `line_color` above remains the legacy fallback for index 0's color. */
+  trend_series_styles?: TrendSeriesStyle[];
   // ── Layer / visibility (cross-cutting) ────────────────────────────────
   /** Render order. Higher draws on top. Default 0; ties broken by array order. */
   z_index?: number;
