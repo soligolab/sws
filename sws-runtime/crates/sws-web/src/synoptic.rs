@@ -159,6 +159,74 @@ pub struct SynopticObject {
     // TypeScript discriminated union on the Rust side. The runtime SPA reads
     // the raw `type` field directly; the backend never interprets it.
     #[serde(skip_serializing_if = "Option::is_none")] pub button_action:              Option<Value>,
+    // Alarm viewer (type === "alarm_viewer") — pre-existing widget, these 8
+    // fields were never mirrored here: every save silently dropped them, the
+    // same class of bug documented above for auto_rotate_skip/opcua_backfill.
+    #[serde(skip_serializing_if = "Option::is_none")] pub alarm_viewer_max_rows:      Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub alarm_viewer_severities:    Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub alarm_viewer_id_prefix:     Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub alarm_viewer_show_ack:      Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub alarm_viewer_show_ts:       Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub alarm_viewer_show_empty:    Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub alarm_viewer_mode:          Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub alarm_viewer_bg_color:      Option<String>,
+    // Sparkline (type === "sparkline") — same pre-existing gap as alarm_viewer above.
+    #[serde(skip_serializing_if = "Option::is_none")] pub spark_window_s:        Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub spark_color:           Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub spark_stroke_width:    Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub spark_fill:            Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub spark_fill_opacity:    Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub spark_show_last:       Option<bool>,
+    // Pipe / connector (type === "pipe") — same pre-existing gap.
+    #[serde(skip_serializing_if = "Option::is_none")] pub points:                Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub routing:               Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub pipe_style:            Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub pipe_gradient:         Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub gradient_light_color:  Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub gradient_dark_color:   Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub fill_level:            Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub fill_level_tag:        Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub fill_level_scale:      Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub fill_color:            Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub fill_direction:        Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub start_marker:          Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub end_marker:            Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub marker_size:           Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub pipe_label:            Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub pipe_label_tag:        Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub pipe_label_format:     Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub pipe_label_offset:     Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub stroke_dasharray:      Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub from_obj_id:           Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub from_port:             Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub to_obj_id:             Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub to_port:               Option<String>,
+    // Faceplate instance (type === "faceplate") — same pre-existing gap.
+    #[serde(skip_serializing_if = "Option::is_none")] pub faceplate_id:          Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub faceplate_params:      Option<Value>,
+    // Text list (type === "text_list") — same pre-existing gap.
+    #[serde(skip_serializing_if = "Option::is_none")] pub text_list_entries:       Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub text_list_default:       Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub text_list_default_color: Option<String>,
+    // Bar chart (type === "bar_chart") — same pre-existing gap.
+    #[serde(skip_serializing_if = "Option::is_none")] pub bar_series:            Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub bar_orientation:       Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub bar_show_values:       Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub bar_show_labels:       Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub bar_show_thresholds:   Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub bar_gap:               Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub bar_y_label:           Option<String>,
+    // Pie / donut chart (type === "pie_chart") — same pre-existing gap.
+    #[serde(skip_serializing_if = "Option::is_none")] pub pie_slices:            Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub pie_mode:              Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub pie_inner_ratio:       Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub pie_show_labels:       Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub pie_center_text:       Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub pie_center_tag:        Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub pie_center_format:     Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub pie_show_legend:       Option<bool>,
+    // Language selector (type === "lang_selector") — same pre-existing gap.
+    #[serde(skip_serializing_if = "Option::is_none")] pub target_lang:           Option<String>,
 }
 
 // Note: `symbol_kind` and `symbol_path` are NOT stored on the object —
