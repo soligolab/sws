@@ -96,6 +96,7 @@ export function App() {
   const setReAuthNeeded        = useAppStore((s) => s.setReAuthNeeded);
   const setPages       = useAppStore((s) => s.setPages);
   const setFaceplates  = useAppStore((s) => s.setFaceplates);
+  const resetProjectState = useAppStore((s) => s.resetProjectState);
   const project             = useAppStore((s) => s.project);
   const setProject          = useAppStore((s) => s.setProject);
   const setProjectLoadError = useAppStore((s) => s.setProjectLoadError);
@@ -306,6 +307,7 @@ export function App() {
     resetDirty();
     try { await api.closeProject(); } catch { /* ignore */ }
     clearAuth();
+    resetProjectState();
     setNoActiveProject(true);
   };
 
@@ -412,6 +414,11 @@ export function App() {
             } catch {
               clearAuth(); // has users → LoginScreen correct
             }
+            // Clear any leftover project/pages from before this screen was
+            // shown, so EditorShell remounts empty instead of flashing the
+            // previous project's canvas while the real data is still in
+            // flight (fetched by the effect below, keyed on authToken).
+            resetProjectState();
             setNoActiveProject(false);
           }}
       />

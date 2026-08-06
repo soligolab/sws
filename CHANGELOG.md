@@ -21,7 +21,64 @@ e patch obbligatoria, perché Cargo rifiuta sia `2026.07` sia `2026.7`).
   - Il comando di purge **ripete `--data`**. L'installer fa `rm -rf "$DATA"` prendendo il valore dalle flag: senza ripeterlo avrebbe cancellato il default `/data/user/sws` lasciando intatti i dati veri, cioè avrebbe distrutto i dati sbagliati e mancato quelli giusti. È coperto da un test dedicato.
   - La spunta si azzera dopo l'uso: una seconda installazione fatta di fretta non deve cancellare un dispositivo perché la casella era rimasta accesa.
 
+### Added
+
+- **Client ID MQTT: modalità "Random" + invio manuale al device**, per evitare che lo stesso
+  `client_id` letterale collida quando il progetto è aperto sia dall'IDE sia deployato su uno o
+  più device verso lo stesso broker (il broker, per specifica MQTT, disconnette la sessione più
+  vecchia ogni volta che l'altra si ripresenta — nasce da un incidente reale sul progetto
+  Sandokan, vedi sotto in Fixed).
+  - **"Random Client ID"** (per sorgente MQTT, in `project.yaml`): ogni istanza — IDE compresa —
+    incolla al `client_id` configurato un id casuale generato una sola volta e persistito
+    (`config_dir/instance_id`, stesso pattern del certificato TLS), come prefisso o suffisso a
+    scelta. `client_id` resta solo l'etichetta leggibile; l'id sul filo cambia per istanza ma
+    resta riconoscibile. **Le sorgenti MQTT create da ora in poi nascono con Random attivo di
+    default** — quelle esistenti restano invariate (campo opzionale, nessuna migrazione).
+  - **Override manuale per-device**: pulsante "Invia Client ID al dispositivo connesso" nel
+    pannello sorgente MQTT (visibile solo con Random disattivo e un device connesso), per fissare
+    un client_id esatto su un device specifico — es. per farlo combaciare con una ACL del broker.
+    Persistito in un file separato sul device (`config_dir/mqtt_client_id_overrides.yaml`),
+    **esterno a `project.yaml`**: un redeploy del progetto non lo cancella. Nuovo endpoint
+    `PUT /api/mqtt/source/:id/client-id-override` (device) + proxy
+    `POST /api/remote/mqtt-client-id` (IDE → device connesso, stesso schema di "Aggiorna utenti
+    sul dispositivo"). Rifiuta con 400 se quella sorgente ha Random attivo — le due modalità sono
+    alternative, non sovrapponibili.
+
 ### Fixed
+
+- **Random Client ID (e ogni altro effetto di apertura progetto) spariva silenziosamente a ogni
+  riavvio del processo/container**, perché il boot con `--project` (usato dal device e da
+  qualunque riavvio) ricopiava a mano la logica di `open_project` invece di riusarla, e
+  ovviamente non replicava i passi aggiunti dopo — in questo caso la risoluzione del client_id
+  MQTT. Estratta una funzione condivisa `apply_loaded_project` (`sws-web/src/projects.rs`),
+  richiamata sia da `open_project` sia dal boot in `main.rs`: un passo di apertura progetto ora
+  si aggiunge in un solo punto, non due. Verificato dal vivo: lo stesso progetto (Random Client
+  ID attivo) risolve correttamente il client_id sia aperto dall'IDE sia al boot del processo con
+  `--project`, cosa che prima falliva silenziosamente per il secondo caso.
+
+- **Cambiando progetto (chiudi + apri/crea un altro) per un istante restava visibile la
+  grafica (e il banner allarmi) del progetto precedente**: lo store dell'IDE non azzerava mai
+  `pages`/`project`/`customSymbols`/`faceplates`/`alarms` alla chiusura, e il remount
+  dell'editor al nuovo progetto era sincrono mentre i dati nuovi arrivavano solo dopo un
+  round-trip di rete — nella finestra fra i due, il canvas mostrava ancora lo stato vecchio.
+  Nuova azione `resetProjectState()` nello store, chiamata prima di ogni cambio di
+  `noActiveProject` (chiusura e apertura/creazione progetto). Verificato con un test
+  automatizzato (Playwright) che campiona il DOM ogni ~60ms durante la transizione: prima del
+  fix il canvas/banner del progetto precedente compariva per una finestra osservabile, dopo il
+  fix zero occorrenze su 15 campionamenti.
+
+- **Una sessione MQTT poteva restare bloccata per sempre senza errore**, bypassando
+  completamente il retry-con-backoff aggiunto martedì: quel fix reagisce solo a un `Err`
+  restituito da `eventloop.poll()`, ma se quella singola chiamata resta sospesa (osservato dal
+  vivo su un device reale dopo una sequenza di riconnessioni ravvicinate), `run_session` non
+  torna né con successo né con errore, quindi il retry non scatta mai. Ora `eventloop.poll()` è
+  avvolto in un timeout (proporzionale a `keep_alive_secs`, minimo 30s) sia nel path MQTT plain
+  sia in Sparkplug B: se scade, viene trattato come sessione morta e rientra nel retry esistente.
+- **Aggiunta una rete di sicurezza generica**: nuovo campo opzionale (disattivo di default)
+  `max_silence_secs` su una sorgente MQTT — se nessuna delle sue tag si aggiorna entro quella
+  soglia, il watchdog del `SourceSupervisor` la riavvia anche se il task non è mai andato in
+  errore. Chiude un gap confermato assente in *tutti* i plugin: nessun meccanismo verificava mai
+  "sto ricevendo dati aggiornati?" indipendentemente da un errore esplicito di connessione.
 
 - **Una sorgente MQTT che perde il broker restava morta per sempre**, e l'unico modo per
   farla ripartire era riaprire/ridistribuire il progetto dall'IDE — da cui la falsa impressione

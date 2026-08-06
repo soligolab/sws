@@ -6,9 +6,244 @@
 >
 > **Pulizia 2026-07-27**: rimossi i task già chiusi e le sezioni di verifica ormai superate; le sessioni mergiate **e** verificate fino al 2026-07-09 sono compresse in «Storico». Il dettaglio integrale resta in `CHANGELOG.md` e nella history git.
 
-**Last session**: 2026-08-03 — **fix reconnect MQTT + watchdog sorgenti**, trovato indagando
-una segnalazione del maintainer sul device `tc620-a-p3-c6-07aff9.local`. Vedi sezione dedicata
-qui sotto. Non ancora mergiato (branch `fix/mqtt-reconnect-watchdog`), non pushato.
+**Last session**: 2026-08-06 — **trovato perché il device reale aveva perso Random Client ID
+dopo un riavvio** (nonostante il maintainer non l'avesse mai disattivato) e **unificato i due
+percorsi di apertura progetto** che causavano il problema. Vedi sezione dedicata qui sotto. Non
+ancora mergiato (branch `fix/unify-project-boot-open-path`, sopra
+`fix/project-switch-stale-canvas-flash`), non pushato.
+
+## 2026-08-06: il boot con `--project` ignorava Random Client ID (e ignorerebbe qualunque cosa) — unificato con `open_project`
+
+Il maintainer ha notato che i grafici di Sandokan sul device reale (`tc620-a-p3-c6-07aff9.local`)
+si erano fermati verso le 7:30, pur non avendo toccato il device — e soprattutto: **il progetto
+aveva Random Client ID attivo, mai disattivato**, eppure il log mostrava il client_id letterale
+(`sws-sandokan-ide`, non `<id>-sws-sandokan-ide`).
+
+**Ricostruito con i log reali**: il container era stato ricreato ieri sera alle 23:16 (un
+redeploy, non toccato da nessuno stamattina). Al boot successivo il client_id era tornato
+letterale — mentre il file `project.yaml` sul device ha davvero `random_client_id: enabled: true`
+(un mio grep troncato in una risposta precedente aveva fatto credere il contrario). Stamattina i
+miei stessi test sul flash della grafica (sessione precedente) hanno aperto Sandokan più volte
+sull'editor locale con lo stesso client_id letterale, verso lo stesso broker reale — collidendo
+col device, ora anch'esso letterale per lo stesso motivo. Da lì i kick delle 7:29-7:34, poi il
+device è cascato nel bug del `poll()` sospeso (non ancora distribuito), silenzio da allora.
+
+**Causa radice**: `sws-runtime/src/main.rs` ha un secondo percorso di caricamento progetto — il
+boot con `--project`, usato a ogni riavvio del processo/container — che **ricopiava a mano** la
+logica di `open_project` (`sws-web/src/projects.rs`) invece di riusarla. Un commento già nel
+codice, scritto in una sessione precedente per un problema analogo (storico/notifiche dimenticati
+allo stesso modo), lo diceva esplicitamente. Quando ho aggiunto `resolve_mqtt_client_ids` per il
+fix di Random Client ID, l'ho collegato solo dentro `open_project` — non in questo secondo
+percorso. È la **terza volta** che questa duplicazione perde un pezzo.
+
+**Deciso col maintainer**: niente più toppe — eliminare la duplicazione.
+
+**Fatto** (branch `fix/unify-project-boot-open-path`):
+- Nuova funzione condivisa `apply_loaded_project` (`sws-web/src/projects.rs`): seed dei tag
+  derivati, `populate_tags`, registry datastore, swap storico, carico allarmi (+ wiring del
+  journal), risoluzione client_id MQTT, `supervisor.reload`, registro funzioni. Non avvia
+  notifiche/script globali (serve un `AppState` che al boot non esiste ancora) — ritorna
+  `(notifications, global_scripts)` perché il chiamante li avvii quando può.
+- `open_project` e il boot in `main.rs` ora chiamano entrambi questa funzione, passando i propri
+  pezzi (`AppState` nel primo caso, le variabili individuali costruite prima di `AppState` nel
+  secondo). `config_dir`/`instance_id` spostati più in alto in `main.rs` — servono già al boot,
+  non solo più avanti per `router::build`.
+- Un futuro passo di apertura progetto dimenticato in un solo posto non è più possibile: c'è un
+  solo posto.
+
+**Verificato dal vivo** (non solo `cargo check`/`test`): un'istanza di prova lanciata con
+`--project` puntato alla copia locale di Sandokan (Random Client ID attivo, `position: suffix`)
+— **prima** del fix: log mostra client_id letterale al boot (bug riprodotto). Trovato anche un
+errore mio nella prima verifica: `cargo check`/`cargo test` non ricompilano il binario eseguibile
+principale (`target/debug/sws-runtime`) di un crate `bin`, serve `cargo build` — il primo giro di
+verifica testava ancora il binario vecchio. **Dopo** `cargo build` e il fix: log mostra
+`"client_id":"sws-sandokan-ide-69dcbe"` — risolto correttamente anche al boot, non solo aprendo
+da IDE. `cargo test -p sws-web -p sws-core -p sws-plugin-mqtt -p sws-runtime` 58+9 verdi.
+
+**Non ancora fatto**: redeploy sul device reale (questa sessione ha solo diagnosticato +
+sistemato il codice, non toccato il device). Il maintainer aveva messo in pausa qualunque
+redeploy finché non si capiva la causa — ora chiarita, il redeploy può includere anche questo fix
+oltre a reconnect/staleness e client_id.
+
+## 2026-08-06: flash della grafica (e degli allarmi) del progetto precedente al cambio progetto
+
+Il maintainer ha segnalato: aprendo Sandokan, chiudendo il progetto e creandone uno vuoto, per
+un istante vede ancora la grafica del progetto precedente. Ha anche sollevato il sospetto che il
+nuovo progetto "si portasse dietro" la sorgente MQTT di Sandokan (stesso client_id) — **escluso
+con i timestamp esatti del log reale** (`~/.run-editor/logs/runtime-2026-08-06.jsonl`): l'ultima
+riga MQTT di Sandokan e la riga `"stopping source task"` sono a 14 ms di distanza, e nessuna riga
+MQTT compare più in nessuna delle aperture/chiusure successive di "vuoto". Il log MQTT che il
+maintainer vedeva era semplicemente quello di **Sandokan rimasto aperto dal giorno prima** sullo
+stesso processo `start_editor.sh` (mai chiuso esplicitamente dopo i miei test di verifica) —
+comportamento corretto, non un bug.
+
+**Il flash grafico invece era reale.** Causa: lo store Zustand dell'IDE (`store/index.ts`) è un
+singleton che sopravvive allo smontaggio dei componenti — nessuna azione azzerava
+`pages`/`project`/`customSymbols`/`faceplates` alla chiusura del progetto (`App.tsx`
+`executeClose` faceva solo `resetDirty/closeProject/clearAuth/setNoActiveProject`). All'apertura
+del progetto successivo, `onProjectOpened` chiama `setNoActiveProject(false)` **in modo
+sincrono**, rimontando subito l'`EditorShell` — che legge `pages` direttamente dallo store senza
+nessuna guardia "progetto non ancora caricato". I dati veri arrivano solo dopo, in modo
+asincrono (`api.getProject()`/`api.listSynoptics()`). La finestra fra il remount sincrono e la
+risoluzione asincrona era il flash osservato.
+
+**Fatto** (branch `fix/project-switch-stale-canvas-flash`):
+- Nuova azione `resetProjectState()` nello store (`store/index.ts`), che riusa `setPages([], "")`
+  già esistente e in più azzera `project`, `projectLoadError`, `customSymbols`, `faceplates`.
+- Chiamata in `App.tsx`: in `executeClose` (igiene alla chiusura) e — il fix che conta —
+  **prima** di `setNoActiveProject(false)` dentro `onProjectOpened`, così l'`EditorShell` si
+  rimonta già vuoto invece che con lo stato del progetto precedente.
+- **Trovato durante la verifica automatizzata** (non a tavolino): il banner allarmi mostrava
+  anch'esso per un istante l'allarme del progetto precedente (`alarms` è un campo separato dello
+  store, non toccato dal fix iniziale). Esteso `resetProjectState()` per azzerare anche `alarms`.
+
+**Verificato con un test end-to-end automatizzato**, non solo a occhio: Playwright headless
+(pacchetto installato al volo nello scratchpad, browser Chromium già in cache ma di revisione
+diversa — lanciato puntando esplicitamente al binario in `~/.cache/ms-playwright/chromium-1223/`)
+guida l'IDE reale su `:8460` — apre Sandokan, conferma il caricamento (`"Nebulizzatore"` nel
+DOM), chiude, crea un progetto vuoto, e campiona il testo della pagina ogni ~60ms per ~900ms
+durante la transizione. **Prima** del fix sugli allarmi: rilevata un'occorrenza reale del banner
+"sandokan_power_off" durante la transizione (screenshot salvato). **Dopo** entrambi i fix: zero
+occorrenze su 15 campionamenti, ripetuto due volte. `pnpm build`/`pnpm test` (32/32) verdi.
+
+**Non ancora provato**: sul device reale (questo fix è solo frontend, quindi non richiede
+rebuild del binario Rust — basta la nuova SPA nell'immagine al prossimo giro di build/deploy).
+
+## 2026-08-05 (sera): sessione MQTT bloccata per sempre senza errore — timeout su poll() + staleness
+
+Il maintainer ha segnalato che il problema MQTT "sembra esserci ancora" quando apre la pagina
+viewer (`:8443`) dal browser mentre il runtime gira sul device — sua ipotesi, non certezza.
+Chiesto esplicitamente un audit approfondito di tutta l'implementazione MQTT, raccogliendo tutti
+i dubbi prima di agire.
+
+**Ipotesi del maintainer esclusa con certezza** (tre indagini in parallelo, codice alla mano):
+nessun percorso di codice collega l'apertura/moltiplicazione di sessioni viewer (`:8443`,
+`/ws/tags`) né eventi di login/sessione/`/api/remote/connect` a `SourceSupervisor` o
+`MqttConfig`. Il polling è strutturalmente indipendente dal numero di client (broadcast puro,
+nessun contatore, nessun hook on-connect) — verificato riga per riga.
+
+**Cosa è successo davvero**, ricostruito dal log del device (`tc620-a-p3-c6-07aff9.local`):
+tra le 20:18 e le 20:20 una serie di redeploy ravvicinati (il maintainer stava configurando
+"Random Client ID") causa normali cicli di riconnessione. Poi, dalle 20:20:11 in poi, **silenzio
+totale nel log per oltre 95 minuti** (verificato più volte nell'arco della sessione, mai
+auto-ripreso), tag congelate a `quality: "Good"`. Il maintainer conferma che il dispositivo
+Zigbee era attivo in quella finestra: non era "nessun dato legittimo", era una sessione bloccata
+per davvero — anche col client_id ormai reso univoco dal fix precedente (quindi non è una
+recidiva della collisione di client_id, è un problema diverso).
+
+**Causa individuata leggendo `rumqttc` 0.24.0**: il keep-alive interno dovrebbe far fallire
+`eventloop.poll()` entro ~2× `keep_alive_secs` in caso di connessione morta. Il fix di martedì
+però reagisce solo a un `Err` *restituito* — se quella singola chiamata resta sospesa per sempre
+(stato interno incoerente dopo la sequenza di riconnessioni ravvicinate), il retry-con-backoff
+non scatta mai, perché `run_session` non torna. Combacia esattamente: l'ultima riga di log è
+"MQTT subscribing" (subito prima del loop `poll()`), poi nulla.
+
+**Gap secondario, confermato assente in ogni plugin**: nessun meccanismo verifica "sto
+ricevendo dati aggiornati?" indipendentemente da un errore di libreria.
+
+**Deciso col maintainer**: chiudere entrambi.
+
+**Fatto** (branch `fix/mqtt-poll-timeout-staleness`, sopra `feat/mqtt-client-id-management`):
+- `sws-plugin-mqtt/src/lib.rs` + `sparkplug.rs`: `eventloop.poll()` avvolto in
+  `tokio::time::timeout` (soglia proporzionale a `keep_alive_secs`, minimo 30s). Se scade, viene
+  trattato come sessione morta e rientra nel retry-con-backoff già esistente — nessuna nuova
+  logica di retry, solo il buco che lo bypassava chiuso.
+- `sws-core/src/project.rs`: nuovo `MqttConfig.max_silence_secs: Option<u64>` — opzionale,
+  **disattivo di default** (a differenza di Random Client ID: un valore indovinato rischierebbe
+  di riavviare sorgenti legittimamente silenziose, dato che MQTT è push-based senza un
+  intervallo naturale).
+- `sws-web/src/source_supervisor.rs`: watchdog esteso con `restart_stale_sources` — per ogni
+  sorgente con `max_silence` impostato, calcola il `timestamp_ms` più recente fra i suoi
+  `owned_tags` e la riavvia se supera la soglia, anche se il task non è mai andato in errore.
+  Una sorgente senza ancora nessun dato (appena avviata) viene lasciata stare invece di essere
+  trattata come stale, per non innescare un loop di riavvii durante una connessione iniziale
+  lenta. Meccanismo agnostico rispetto al tipo di sorgente (lavora solo su `owned_tags` + una
+  soglia) — per ora solo MQTT espone il campo; estendere agli altri 7 tipi è un lavoro a parte,
+  lasciato per una sessione futura.
+
+**Verificato**: `cargo check --workspace` pulito, `cargo test -p sws-web -p sws-core -p
+sws-plugin-mqtt` 58/58 verdi (3 nuovi test su `most_recent_update`, nessuna regressione).
+**Non verificato dal vivo end-to-end**: un broker locale per riprodurre "connessione viva ma
+silenziosa" non è stato possibile allestirlo su questo dev server (mosquitto bloccato da
+AppArmor per file fuori da `/etc/mosquitto/*`, il broker reale non è raggiungibile da qui). Da
+verificare sul device reale dopo rebuild+redeploy: impostare `max_silence_secs` su Sandokan e
+controllare che un futuro blocco silenzioso venga recuperato entro un tick del watchdog (~30s)
+invece di restare bloccato per ore.
+
+## 2026-08-05: collisione di client_id MQTT fra IDE e device — Random mode + override per-device
+
+Il maintainer è tornato dopo l'incidente di martedì (fix reconnect+watchdog) segnalando che il
+device `tc620-a-p3-c6-07aff9.local` aveva "perso di nuovo il broker MQTT". **Verificato dal vivo
+che non era un regressione del fix**: il container era `healthy` da 22h, il retry-con-backoff
+ritentava puntualmente ogni 5s esattamente come progettato, e il broker esterno risultava
+irraggiungibile *dal device* — ma il maintainer, connesso con MQTT Explorer dallo stesso PC,
+raggiungeva lo stesso broker senza problemi. Il broker era su, non era un problema di rete.
+
+**Causa reale**: `client_id: sws-sandokan-ide` in `project.yaml` — letterale, quindi identico su
+ogni istanza che apre il progetto. Sul dev server, alle 15:41 (un minuto prima che il device
+iniziasse a saltare) era stata avviata una copia locale dello stesso progetto Sandokan
+nell'IDE locale (`start_editor.sh`, porta 8460), stesso `client_id` verso lo stesso broker. Per
+specifica MQTT il broker disconnette la sessione più vecchia quando l'altra si ripresenta col
+suo client_id — e col retry-con-backoff di martedì **entrambe le parti** ora ritentano ogni 5s,
+quindi il conflitto si perpetua invece di risolversi da solo dopo un kick. Aggravante: il default
+quando il campo è vuoto è `"sws-runtime"` fisso (`sws-core/src/project.rs`) — chiunque non lo
+imposti esplicitamente collide comunque, non solo in questo caso specifico.
+
+**Deciso col maintainer** (in chat, con più giri di `AskUserQuestion` sui dettagli implementativi
+prima di scrivere codice): due meccanismi alternativi, non sovrapponibili, entrambi per singola
+sorgente MQTT:
+
+1. **"Random Client ID"**: ogni istanza — IDE compresa — incolla al `client_id` configurato un
+   id persistente e univoco (`config_dir/instance_id`, generato una sola volta, stesso pattern
+   già usato per il certificato TLS — non rigenerato a ogni riavvio). Nessuna azione manuale
+   richiesta; le sorgenti MQTT create da ora in poi nascono con questa modalità già attiva.
+2. **Override manuale per-device**: un pulsante "Invia Client ID al dispositivo connesso" nel
+   pannello sorgente, per fissare un valore esatto su un device specifico (es. per farlo
+   combaciare con una ACL del broker). Persistito **fuori da `project.yaml`**
+   (`config_dir/mqtt_client_id_overrides.yaml` sul device), così un redeploy del progetto non lo
+   cancella.
+
+**Fatto** (branch `feat/mqtt-client-id-management`):
+- `sws-core/src/project.rs`: nuovo `RandomClientId { enabled, position }` su `MqttConfig`
+  (campo opzionale — progetti esistenti senza il campo si comportano esattamente come prima,
+  nessuna migrazione).
+- `sws-runtime/src/main.rs`: `load_or_create_instance_id`, mirror esatto del pattern
+  load-or-generate-and-save del certificato TLS. Nessuna dipendenza nuova (id breve da entropia
+  di sistema, non serve robustezza crittografica per distinguere una manciata di istanze).
+- `sws-web/src/projects.rs`: `resolve_mqtt_client_ids` — un solo punto, chiamato in
+  `open_project` subito prima di `supervisor.reload(...)`, muta il `client_id` effettivo prima
+  che arrivi al supervisor (che resta generico, nessuna modifica). Copre automaticamente sia il
+  path MQTT plain sia Sparkplug B, senza toccare i plugin. Nuovo endpoint
+  `PUT /api/mqtt/source/:id/client-id-override` (rifiuta con 400 se la sorgente ha Random attivo).
+- `sws-web/remote.rs`: proxy `POST /api/remote/mqtt-client-id`, stesso schema di
+  `remote_push_users`/"Aggiorna utenti sul dispositivo".
+- `sws-plugin-mqtt/src/lib.rs` + `sparkplug.rs`: aggiunto `client_id` ai log "MQTT subscribing" /
+  "Sparkplug B connected" — prima non c'era modo di verificare da log quale id stesse usando
+  un'istanza, dettaglio che è servito subito in fase di verifica.
+- Frontend: `MqttRandomClientIdSection` in `ConfigView.tsx` (toggle + posizione + pulsante invio,
+  visibile solo con Random disattivo e device connesso), nuove sorgenti create con Random attivo
+  di default (`emptyMqtt()`).
+
+**Verificato dal vivo** (non solo `cargo check`/`pnpm build`), usando le due istanze locali già
+presenti su questo dev server come "IDE + secondo device simulato" (`start_editor.sh` porta 8460
++ `--instance 2` temporanea su 8462, poi rimossa):
+- Retrocompatibilità: `project.yaml` di Sandokan invariato (nessun `random_client_id`) →
+  `client_id` risolto identico al letterale.
+- Random mode: stesso progetto aperto su due istanze → `sws-sandokan-ide-1778ef` (istanza 1) vs
+  `sws-sandokan-ide-2a4494` (istanza 2) — stessa etichetta riconoscibile, id diversi, **esattamente
+  lo scenario dell'incidente, risolto senza alcuna azione manuale**.
+- Override manuale: applicato via `curl`, effetto immediato in log, **sopravvive a
+  chiusura+riapertura del progetto** (persistito nel file separato, non nello stato in memoria).
+- Conflitto: con Random attivo, un override rimasto nel file viene ignorato (non
+  applicato) e l'endpoint rifiuta un nuovo tentativo con 400.
+- `cargo check --workspace`, `cargo test -p sws-web -p sws-core -p sws-plugin-mqtt` (54 test
+  sws-web, nessuna regressione), `pnpm build`, `pnpm test` (32/32) verdi.
+
+**Non ancora provato**: sul device reale (serve rebuild+redeploy del container, non fatto in
+questa sessione — la verifica sopra è stata interamente sul dev server). Il pulsante "Invia
+Client ID al dispositivo connesso" è stato verificato lato backend via `curl` diretto
+all'endpoint device-side, non attraverso il flusso UI completo IDE→proxy→device (richiede un
+device reale connesso, non riproducibile qui).
 
 ## 2026-08-03: sorgente MQTT morta per sempre dopo la caduta del broker — reconnect + watchdog
 
