@@ -573,6 +573,11 @@ export interface MqttSource {
   // ── Connection tuning ──────────────────────────────────────────────
   keep_alive_secs?: number;
   clean_session?: boolean;
+  /** Watchdog: if none of this source's tags update within this many seconds,
+   *  the SourceSupervisor restarts it even if the connection never errored —
+   *  catches a session that's technically alive but the broker has gone
+   *  silent. Disabled (no watchdog) when unset. */
+  max_silence_secs?: number;
   /** 0 / 1 / 2 — falls back to 0. */
   qos?: number;
   tls?: MqttTlsConfig;

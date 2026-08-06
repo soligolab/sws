@@ -3616,6 +3616,21 @@ function MqttConnectionSection({
           </select>
         </div>
       </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 12, marginBottom: 12 }}>
+        <div>
+          <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 }}>{t("cfg.maxSilenceSecs")}</label>
+          <input
+            style={{ ...S.input, maxWidth: 160 }}
+            type="number" min={1}
+            value={source.max_silence_secs ?? ""}
+            placeholder={t("cfg.maxSilenceSecsPlaceholder")}
+            onChange={(e) => onChange({ max_silence_secs: e.target.value === "" ? undefined : Number(e.target.value) })}
+          />
+          <p style={{ fontSize: 10, color: "var(--brand-border, #475569)", margin: "4px 0 0" }}>
+            {t("cfg.maxSilenceSecsHint")}
+          </p>
+        </div>
+      </div>
     </>
   );
 }
