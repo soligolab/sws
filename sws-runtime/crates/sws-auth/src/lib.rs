@@ -13,8 +13,6 @@
 //! Out of scope: refresh tokens, OAuth/LDAP, per-zone ABAC, audit trail
 //! of user mutations (the existing audit-log v1 covers it).
 
-pub mod session;
-
 use std::{
     collections::HashMap,
     path::PathBuf,
