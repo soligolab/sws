@@ -551,6 +551,14 @@ export interface MqttSource {
   last_will?: MqttLastWill;
   /** Sparkplug B mode: when set, topics[] is ignored and payloads are protobuf. */
   sparkplug?: SparkplugConfig;
+  /** When enabled, the runtime glues a per-instance random id to `client_id`
+   *  (used as a prefix/suffix label) instead of using it literally — avoids
+   *  collisions when the same project is opened from the IDE and/or
+   *  deployed to several devices against the same broker. */
+  random_client_id?: {
+    enabled: boolean;
+    position: "prefix" | "suffix";
+  };
 }
 
 // ── OPC-UA client source (BL-005) ─────────────────────────────────────────

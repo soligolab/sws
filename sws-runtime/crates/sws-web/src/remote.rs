@@ -349,6 +349,61 @@ pub async fn remote_push_users(
     }
 }
 
+#[derive(Deserialize)]
+pub struct PushClientIdBody {
+    pub source_id: String,
+    /// `None`/stringa vuota cancella un override già impostato sul device.
+    #[serde(default)]
+    pub client_id: Option<String>,
+}
+
+/// `POST /api/remote/mqtt-client-id` — inoltra al dispositivo connesso un
+/// override manuale del client_id MQTT per una sorgente, senza toccare
+/// `project.yaml`. Lato "Invia Client ID al dispositivo connesso" del
+/// pannello sorgente MQTT: stesso schema di `remote_push_users` sopra, solo
+/// che qui a decidere cosa è "accettabile" è il dispositivo stesso (rifiuta
+/// con 400 se quella sorgente ha Random Client ID attivo).
+pub async fn remote_push_mqtt_client_id(
+    State(s): State<AppState>,
+    Extension(user): Extension<AuthUser>,
+    Json(body): Json<PushClientIdBody>,
+) -> Response {
+    let target = match s.remote_target.read().await.clone() {
+        Some(t) => t,
+        None => return (StatusCode::BAD_REQUEST, "Nessun runtime remoto connesso").into_response(),
+    };
+
+    s.audit.log("remote.push_mqtt_client_id", Some(user.username), serde_json::json!({
+        "url": target.url, "source_id": body.source_id, "client_id": body.client_id,
+    }));
+
+    let client = make_remote_client();
+    let base = target.url.trim_end_matches('/');
+    let mut req = client
+        .put(format!("{base}/api/mqtt/source/{}/client-id-override", body.source_id))
+        .json(&serde_json::json!({ "client_id": body.client_id }));
+    if !target.token.is_empty() {
+        req = req.header("Authorization", format!("Bearer {}", target.token));
+    }
+    match req.send().await {
+        Ok(r) if r.status().is_success() => (
+            StatusCode::OK,
+            Json(serde_json::json!({ "applied": true })),
+        ).into_response(),
+        Ok(r) if r.status() == StatusCode::UNAUTHORIZED || r.status() == StatusCode::FORBIDDEN => (
+            StatusCode::BAD_GATEWAY,
+            "Il dispositivo ha rifiutato la richiesta (non autorizzato). Riconnettiti con \
+             credenziali admin e riprova.".to_string(),
+        ).into_response(),
+        Ok(r) => {
+            let code = r.status();
+            let body = r.text().await.unwrap_or_default();
+            (StatusCode::BAD_GATEWAY, format!("Il dispositivo ha risposto {code}: {body}")).into_response()
+        }
+        Err(e) => (StatusCode::BAD_GATEWAY, format!("Richiesta al dispositivo fallita: {e}")).into_response(),
+    }
+}
+
 /// Username contenuti in un `users.yaml` (`{ users: [ { username, … } ] }`).
 pub fn read_usernames(yaml: &str) -> Vec<String> {
     serde_yaml::from_str::<serde_yaml::Value>(yaml)

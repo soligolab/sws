@@ -6,7 +6,8 @@
 
 use crate::global_scripts::GlobalScriptSupervisor;
 use crate::notifications::NotificationSupervisor;
-use crate::router::{active_dir, AppState, AuthUser};
+use crate::router::{active_dir, AppState, AuthUser, DerivedTagsRegistry, FunctionsRegistry, RegistryCell};
+use crate::source_supervisor::SourceSupervisor;
 use crate::templates::copy_dir_all;
 use axum::{
     body::Bytes,
@@ -20,9 +21,13 @@ use serde::{Deserialize, Serialize};
 use std::{
     io::{Cursor, Read},
     path::{Path as StdPath, PathBuf},
+    sync::Arc,
 };
-use sws_core::{DatastoreBackendConfig, DatastoreConfig, Project, ProjectMeta};
-use sws_historian::DatastoreRegistry;
+use sws_core::{
+    AffixPosition, AlarmDb, DatastoreBackendConfig, DatastoreConfig, GlobalScriptDef,
+    NotificationConfig, Project, ProjectMeta, SourceDef, TagDb,
+};
+use sws_historian::{DatastoreRegistry, Historian};
 use tracing::{info, warn};
 
 /// Avvia i servizi che vivono quanto il progetto aperto: canale Telegram, script
@@ -359,6 +364,97 @@ pub async fn create_project(
 /// AlarmDb / supervisor / functions registry, swaps AuthState to the new
 /// `users.yaml`. **Invalidates all current session tokens** — clients
 /// must re-login.
+/// Applies an already-loaded `Project` to the live runtime pieces: seeds
+/// derived tags, populates `TagDb`, initialises the datastore registry,
+/// swaps the historian to the project's SQLite store, loads alarms (with
+/// the journal→SQLite wiring), resolves MQTT client ids
+/// (`resolve_mqtt_client_ids`), reloads the source supervisor, and
+/// populates the function registry.
+///
+/// Does **not** start notification/global-script services — those need an
+/// `AppState` that doesn't exist yet at one of the two call sites (see
+/// below) — so it returns `(notifications, global_scripts)` for the
+/// caller to start once it can.
+///
+/// Shared by `open_project` (this file — HTTP handler, `AppState` already
+/// built) and the boot-time project auto-open in `sws-runtime/src/main.rs`
+/// (runs *before* `AppState` exists, on the individual pieces that later
+/// get assembled into it). Before this function existed the two paths
+/// hand-copied each other, and a step added to one and not the other
+/// stayed invisible until it was needed — the historian/notifications
+/// wiring and, most recently, MQTT client id resolution all went missing
+/// this way in turn. One function, one place to add the next step.
+#[allow(clippy::too_many_arguments)]
+pub async fn apply_loaded_project(
+    project_dir: &StdPath,
+    mut project: Project,
+    db: &Arc<TagDb>,
+    registry: &RegistryCell,
+    historian: &Arc<Historian>,
+    alarms: &Arc<AlarmDb>,
+    supervisor: &Arc<SourceSupervisor>,
+    derived_tags: &DerivedTagsRegistry,
+    functions: &FunctionsRegistry,
+    config_dir: &StdPath,
+    instance_id: &str,
+) -> (Option<NotificationConfig>, Vec<GlobalScriptDef>) {
+    info!(
+        name = %project.meta.name,
+        tags = project.tags.len(),
+        alarms = project.alarms.len(),
+        functions = project.functions.len(),
+        "project opened",
+    );
+    // Seed derived tags before populate_tags so they start Uncertain until
+    // the evaluator task computes the first real value.
+    {
+        let derived: Vec<(String, String)> = project.tags.iter()
+            .filter_map(|t| t.expression.as_ref().map(|e| (t.id.clone(), e.clone())))
+            .collect();
+        *derived_tags.write().await = derived;
+    }
+    project.populate_tags(db).await;
+    // Init datastore registry before consuming the project fields.
+    match DatastoreRegistry::from_project(&project, project_dir).await {
+        Ok(Some(reg)) => {
+            reg.clone().spawn_recorder(db.clone());
+            info!(backends = project.datastores.len(), "datastore registry initialised");
+            *registry.write().await = Some(reg);
+        }
+        Ok(None) => {
+            *registry.write().await = None;
+        }
+        Err(e) => {
+            warn!("apply_loaded_project: datastore registry init failed: {e:#}");
+            *registry.write().await = None;
+        }
+    }
+    // Swap the global historian's SQLite to this project's primary store.
+    // All history reads/writes now go to <project>/.history/historian.db.
+    {
+        let hist_store = registry.read().await.as_ref()
+            .and_then(|r| r.primary_sqlite_store());
+        historian.swap_store(hist_store).await;
+    }
+    alarms.load(project.alarms).await;
+    // Wire the alarm journal → SQLite if a store is open.
+    if let Some(store) = historian.sqlite_store().await {
+        alarms.set_journal_callback(move |ev| {
+            let store = store.clone();
+            tokio::spawn(async move { store.append_alarm_event(&ev).await; });
+        }).await;
+    }
+    resolve_mqtt_client_ids(&project.meta.name, &mut project.sources, config_dir, instance_id);
+    supervisor.reload(project.sources).await;
+    {
+        let mut map = functions.write().await;
+        for f in project.functions {
+            map.insert(f.name.clone(), f);
+        }
+    }
+    (project.notifications, project.global_scripts)
+}
+
 pub async fn open_project(
     State(s): State<AppState>,
     Path(name): Path<String>,
@@ -439,62 +535,12 @@ pub async fn open_project(
     s.supervisor.set_pki_root(project_dir.join(".opcua-pki")).await;
 
     // 3. Apply the new project.
-    {
-        info!(
-            name = %project.meta.name,
-            tags = project.tags.len(),
-            alarms = project.alarms.len(),
-            functions = project.functions.len(),
-            "project opened",
-        );
-        // Seed derived tags before populate_tags so they start Uncertain
-        // until the evaluator task computes the first real value.
-        {
-            let derived: Vec<(String, String)> = project.tags.iter()
-                .filter_map(|t| t.expression.as_ref().map(|e| (t.id.clone(), e.clone())))
-                .collect();
-            *s.derived_tags.write().await = derived;
-        }
-        project.populate_tags(&s.db).await;
-        // Init datastore registry before consuming the project fields.
-        match DatastoreRegistry::from_project(&project, &project_dir).await {
-            Ok(Some(reg)) => {
-                reg.clone().spawn_recorder(s.db.clone());
-                info!(backends = project.datastores.len(), "datastore registry initialised");
-                *s.registry.write().await = Some(reg);
-            }
-            Ok(None) => {
-                *s.registry.write().await = None;
-            }
-            Err(e) => {
-                warn!("open_project: datastore registry init failed: {e:#}");
-                *s.registry.write().await = None;
-            }
-        }
-        // Swap the global historian's SQLite to this project's primary store.
-        // All history reads/writes now go to <project>/.history/historian.db.
-        {
-            let hist_store = s.registry.read().await.as_ref()
-                .and_then(|r| r.primary_sqlite_store());
-            s.historian.swap_store(hist_store).await;
-        }
-        s.alarms.load(project.alarms).await;
-        // Wire the alarm journal → SQLite if a store is open.
-        if let Some(store) = s.historian.sqlite_store().await {
-            s.alarms.set_journal_callback(move |ev| {
-                let store = store.clone();
-                tokio::spawn(async move { store.append_alarm_event(&ev).await; });
-            }).await;
-        }
-        s.supervisor.reload(project.sources).await;
-        start_project_services(&s, project.notifications, project.global_scripts).await;
-        {
-            let mut map = s.functions.write().await;
-            for f in project.functions {
-                map.insert(f.name.clone(), f);
-            }
-        }
-    }
+    let (notifications, global_scripts) = apply_loaded_project(
+        &project_dir, project,
+        &s.db, &s.registry, &s.historian, &s.alarms, &s.supervisor,
+        &s.derived_tags, &s.functions, &s.config_dir, &s.instance_id,
+    ).await;
+    start_project_services(&s, notifications, global_scripts).await;
 
     // 4. Swap auth store. Drops all sessions → forces re-login.
     if let Err(e) = s.auth.swap_store(project_dir.join("users.yaml"), seed).await {
@@ -1175,6 +1221,137 @@ pub async fn replace_users_file(
     }
     info!(count = names.len(), "users.yaml replaced from remote — all sessions invalidated");
     (StatusCode::OK, Json(serde_json::json!({ "users": names.len() }))).into_response()
+}
+
+// ── MQTT client_id resolution ───────────────────────────────────────────────
+//
+// `client_id` in project.yaml is a literal string, identical on every
+// instance that opens the project — IDE included. Deploying the same
+// project to several devices (or testing from the IDE while a device is
+// live) makes them all connect to the broker with the exact same
+// client_id, and the broker (standard MQTT behaviour: a new connection
+// with an already-connected client_id evicts the old session) keeps
+// kicking whichever side is older. Two independent opt-in mitigations,
+// applied in `resolve_mqtt_client_ids` right before sources start:
+//   - `random_client_id` (in project.yaml, travels with the project):
+//     glues this instance's persisted `instance_id` to `client_id` as a
+//     prefix/suffix, so every instance — IDE and every device — gets a
+//     distinct-but-recognizable id automatically.
+//   - a manual per-device override (NOT in project.yaml, see
+//     `set_mqtt_client_id_override` below): lets an operator pin an exact
+//     client_id on one specific device, e.g. to match a broker ACL.
+// The two are mutually exclusive per source: Random wins if enabled, the
+// override endpoint refuses to write one while it's on.
+
+fn client_id_overrides_path(config_dir: &StdPath) -> PathBuf {
+    config_dir.join("mqtt_client_id_overrides.yaml")
+}
+
+fn load_client_id_overrides(config_dir: &StdPath) -> std::collections::HashMap<String, String> {
+    std::fs::read_to_string(client_id_overrides_path(config_dir))
+        .ok()
+        .and_then(|text| serde_yaml::from_str(&text).ok())
+        .unwrap_or_default()
+}
+
+fn save_client_id_overrides(
+    config_dir: &StdPath,
+    overrides: &std::collections::HashMap<String, String>,
+) -> std::io::Result<()> {
+    std::fs::create_dir_all(config_dir)?;
+    let yaml = serde_yaml::to_string(overrides)
+        .unwrap_or_default();
+    std::fs::write(client_id_overrides_path(config_dir), yaml)
+}
+
+/// Applies, in place, the effective wire `client_id` of every MQTT source in
+/// `sources`. Called once, right before the resolved list reaches
+/// `SourceSupervisor::reload` — the supervisor itself stays generic and
+/// never sees the literal project.yaml value.
+fn resolve_mqtt_client_ids(
+    project_name: &str,
+    sources: &mut [SourceDef],
+    config_dir: &StdPath,
+    instance_id: &str,
+) {
+    let overrides = load_client_id_overrides(config_dir);
+    for src in sources.iter_mut() {
+        let SourceDef::Mqtt(cfg) = src else { continue };
+        if cfg.random_client_id.as_ref().is_some_and(|r| r.enabled) {
+            let position = cfg.random_client_id.as_ref().unwrap().position;
+            cfg.client_id = match position {
+                AffixPosition::Suffix => format!("{}-{instance_id}", cfg.client_id),
+                AffixPosition::Prefix => format!("{instance_id}-{}", cfg.client_id),
+            };
+            continue;
+        }
+        if let Some(over) = overrides.get(&format!("{project_name}/{}", cfg.id)) {
+            cfg.client_id = over.clone();
+        }
+    }
+}
+
+#[derive(Deserialize)]
+pub struct ClientIdOverrideBody {
+    #[serde(default)]
+    pub client_id: Option<String>,
+}
+
+/// `PUT /api/mqtt/source/:id/client-id-override` — force a specific wire
+/// `client_id` for one MQTT source, on **this device only**, without
+/// touching `project.yaml`. Persisted in
+/// `config_dir/mqtt_client_id_overrides.yaml` — external to the project, so
+/// a redeploy doesn't silently erase it. Send `client_id: null` (or an
+/// empty string) to clear a previously-set override.
+///
+/// Refuses (400) if the source has `random_client_id` enabled: the two
+/// mechanisms are alternatives, not layered — overriding a value the
+/// device already derives on its own would be confusing state to reason
+/// about ("what is this device's client_id right now?" should have exactly
+/// one answer).
+pub async fn set_mqtt_client_id_override(
+    State(s): State<AppState>,
+    Path(source_id): Path<String>,
+    Json(body): Json<ClientIdOverrideBody>,
+) -> Response {
+    let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
+    let mut project = match Project::load(&dir) {
+        Ok(p) => p,
+        Err(e) => {
+            return (StatusCode::INTERNAL_SERVER_ERROR, format!("project parse error: {e}"))
+                .into_response();
+        }
+    };
+
+    let mqtt_cfg = project.sources.iter().find_map(|src| match src {
+        SourceDef::Mqtt(cfg) if cfg.id == source_id => Some(cfg),
+        _ => None,
+    });
+    let Some(cfg) = mqtt_cfg else {
+        return (StatusCode::NOT_FOUND, "nessuna sorgente MQTT con questo id").into_response();
+    };
+    if cfg.random_client_id.as_ref().is_some_and(|r| r.enabled) {
+        return (
+            StatusCode::BAD_REQUEST,
+            "questa sorgente ha \"Random Client ID\" attivo: disattivalo prima di impostare un override manuale",
+        ).into_response();
+    }
+
+    let key = format!("{}/{source_id}", project.meta.name);
+    let mut overrides = load_client_id_overrides(&s.config_dir);
+    match body.client_id.as_deref().map(str::trim) {
+        Some(v) if !v.is_empty() => { overrides.insert(key, v.to_string()); }
+        _ => { overrides.remove(&key); }
+    }
+    if let Err(e) = save_client_id_overrides(&s.config_dir, &overrides) {
+        warn!("set_mqtt_client_id_override: write failed: {e}");
+        return (StatusCode::INTERNAL_SERVER_ERROR, "impossibile salvare l'override").into_response();
+    }
+
+    resolve_mqtt_client_ids(&project.meta.name, &mut project.sources, &s.config_dir, &s.instance_id);
+    let (started, stopped, replaced) = s.supervisor.reload(project.sources).await;
+    info!(source = %source_id, started, stopped, replaced, "mqtt client_id override applied");
+    (StatusCode::OK, Json(serde_json::json!({ "applied": true }))).into_response()
 }
 
 /// Default per-project SQLite datastore injected when a project has none.

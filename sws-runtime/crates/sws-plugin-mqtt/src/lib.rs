@@ -166,9 +166,23 @@ async fn run_session(
     info!(
         source = %cfg.id,
         host = %cfg.host, port = cfg.port,
+        client_id = %cfg.client_id,
         topics = cfg.topics.len(),
         writers = writers.len(),
         "MQTT subscribing"
+    );
+
+    // `eventloop.poll()` reacting with an `Err` is already handled by the
+    // retry loop in `run` — but a poll() that never resolves at all (neither
+    // Ok nor Err) bypasses that entirely, since `run_session` simply never
+    // returns. Observed for real: after a burst of rapid reconnects the
+    // session went silent forever with no error and no auto-recovery.
+    // rumqttc's own keep-alive should surface a dead connection as an Err
+    // within ~2x keep_alive_secs; this timeout is a generous multiple of
+    // that as a backstop against poll() hanging for whatever reason, not a
+    // replacement for it.
+    let poll_timeout = Duration::from_secs(
+        u64::from(cfg.keep_alive_secs.unwrap_or(10)).saturating_mul(3).max(30)
     );
 
     loop {
@@ -191,8 +205,13 @@ async fn run_session(
             }
 
             // Inbound: poll the eventloop for incoming packets.
-            res = eventloop.poll() => {
-                let event = res.map_err(|e| anyhow::anyhow!("eventloop: {e}"))?;
+            res = tokio::time::timeout(poll_timeout, eventloop.poll()) => {
+                let event = match res {
+                    Err(_) => return Err(anyhow::anyhow!(
+                        "eventloop.poll() sospeso da oltre {poll_timeout:?} — tratteremo come sessione morta"
+                    )),
+                    Ok(inner) => inner.map_err(|e| anyhow::anyhow!("eventloop: {e}"))?,
+                };
                 if let Event::Incoming(Packet::Publish(p)) = event {
                     let mut matched = false;
                     for topic in &cfg.topics {

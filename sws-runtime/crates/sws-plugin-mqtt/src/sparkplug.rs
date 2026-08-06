@@ -135,7 +135,14 @@ async fn session(
         .map_err(|e| anyhow::anyhow!("publish STATE ONLINE: {e}"))?;
 
     info!(source = %cfg.id, group = %spb.group_id, host = %spb.host_id,
-          "Sparkplug B connected");
+          client_id = %cfg.client_id, "Sparkplug B connected");
+
+    // See the identical comment in lib.rs::run_session: a poll() that never
+    // resolves (neither Ok nor Err) bypasses the retry-with-backoff in
+    // run_sparkplug entirely, since this function would just never return.
+    let poll_timeout = Duration::from_secs(
+        u64::from(cfg.keep_alive_secs.unwrap_or(10)).saturating_mul(3).max(30)
+    );
 
     // Build metric-name → index lookup for fast dispatch.
     let metric_idx: HashMap<String, usize> = spb.metrics.iter().enumerate()
@@ -175,8 +182,13 @@ async fn session(
                 }
             }
 
-            res = eventloop.poll() => {
-                let event = res.map_err(|e| anyhow::anyhow!("eventloop: {e}"))?;
+            res = tokio::time::timeout(poll_timeout, eventloop.poll()) => {
+                let event = match res {
+                    Err(_) => return Err(anyhow::anyhow!(
+                        "eventloop.poll() sospeso da oltre {poll_timeout:?} — tratteremo come sessione morta"
+                    )),
+                    Ok(inner) => inner.map_err(|e| anyhow::anyhow!("eventloop: {e}"))?,
+                };
                 if let Event::Incoming(Packet::Publish(p)) = event {
                     handle_message(&p.topic, &p.payload, db, spb, &metric_idx).await;
                 }
