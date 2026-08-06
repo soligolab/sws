@@ -2824,6 +2824,7 @@ function ObjectProps({
             <select style={INPUT} value={obj.alarm_viewer_mode ?? "list"} onChange={(e) => onChange({ alarm_viewer_mode: e.target.value as any })}>
               <option value="list">{t("props.list")}</option>
               <option value="banner">{t("props.scrollingBanner")}</option>
+              <option value="table">{t("props.table")}</option>
             </select>
           ))}
           {field(t("props.maxRows"), numInput("alarm_viewer_max_rows", 5))}

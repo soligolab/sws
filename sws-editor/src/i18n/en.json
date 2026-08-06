@@ -424,6 +424,7 @@
     "forward": "Forward (Ctrl+])",
     "builtinAction": "Built-in action",
     "scrollingBanner": "Scrolling banner",
+    "table": "Table (sort/filter)",
     "activeBindings": "Active bindings",
     "border": "Border",
     "wire": "Cable/wire",

@@ -383,7 +383,7 @@ export interface SynopticObject {
   alarm_viewer_show_ack?: boolean;
   alarm_viewer_show_ts?: boolean;
   alarm_viewer_show_empty?: boolean;
-  alarm_viewer_mode?: "list" | "banner";
+  alarm_viewer_mode?: "list" | "banner" | "table";
   alarm_viewer_bg_color?: string;
   // ── Alarm Bell (type === "alarm_bell") ────────────────────────────────
   alarm_bell_id_prefix?: string;
