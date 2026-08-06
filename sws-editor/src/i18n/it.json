@@ -828,7 +828,9 @@
     "tgModeOff": "Non notificare",
     "tgChatIdsPh": "chat ID (virgola)",
     "tgChatIdsHint": "telegram_chat_ids: solo queste chat riceveranno l'allarme. Usa \"Rileva chat\" in Notifiche per conoscere gli ID.",
-    "tgChatIdsMissing": "⚠ nessuna chat: l'allarme non verrà notificato"
+    "tgChatIdsMissing": "⚠ nessuna chat: l'allarme non verrà notificato",
+    "recipeId": "ID",
+    "setpointsCount": "Setpoint"
   },
   "langtab": {
     "intro": "Traduci i messaggi che scrivi negli oggetti. Nei campi testo usa {{chiave}}; qui definisci le traduzioni per ogni lingua.",

@@ -828,7 +828,9 @@
     "tgModeOff": "Do not notify",
     "tgChatIdsPh": "chat IDs (comma)",
     "tgChatIdsHint": "telegram_chat_ids: only these chats receive the alarm. Use \"Detect chats\" in Notifications to find the IDs.",
-    "tgChatIdsMissing": "⚠ no chat: this alarm will not be notified"
+    "tgChatIdsMissing": "⚠ no chat: this alarm will not be notified",
+    "recipeId": "ID",
+    "setpointsCount": "Setpoints"
   },
   "langtab": {
     "intro": "Translate the messages you write into objects. In text fields use {{key}}; here you define the translations for each language.",
