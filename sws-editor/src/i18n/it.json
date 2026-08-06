@@ -424,6 +424,7 @@
     "forward": "Avanti (Ctrl+])",
     "builtinAction": "Azione built-in",
     "scrollingBanner": "Banner scorrevole",
+    "table": "Tabella (ordina/filtra)",
     "activeBindings": "Binding attivi",
     "border": "Bordo",
     "wire": "Cavo/filo",

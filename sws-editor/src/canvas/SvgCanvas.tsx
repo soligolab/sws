@@ -5,10 +5,11 @@ import { TrendExpandedModal } from "@/canvas/TrendExpanded";
 import { getAuthToken } from "@/api/client";
 import { AlarmBellPanel } from "@/components/AlarmBellPanel";
 import { AlarmBanner } from "@/components/AlarmBanner";
+import { DataTable, type DataTableColumn } from "@/components/DataTable";
 import { useAppStore } from "@/store";
 import { SYMBOLS } from "@/symbols/library";
 import { clampToPage } from "@/pageLayout";
-import type { AlarmSeverity, CustomSymbol, FaceplateDef, GridCell, PageSizeMode, PipePoint, SynopticObject, TagState } from "@/types";
+import type { AlarmSeverity, AlarmState, CustomSymbol, FaceplateDef, GridCell, PageSizeMode, PipePoint, SynopticObject, TagState } from "@/types";
 
 // ── Canvas props ──────────────────────────────────────────────────────────────
 
@@ -1865,7 +1866,7 @@ function SparklineWidget({ tag, windowS, width, height, color, strokeWidth, fill
 // ── AlarmViewerWidget ─────────────────────────────────────────────────────────
 
 function AlarmViewerWidget({ width, height, mode, maxRows, prefix, allowedSev, showAck, showTs, showEmpty, bgColor }: {
-  width: number; height: number; mode: "list" | "banner";
+  width: number; height: number; mode: "list" | "banner" | "table";
   maxRows: number; prefix: string;
   allowedSev?: AlarmSeverity[];
   showAck: boolean; showTs: boolean; showEmpty: boolean;
@@ -1935,6 +1936,49 @@ function AlarmViewerWidget({ width, height, mode, maxRows, prefix, allowedSev, s
           {text}
         </div>
         <style>{`@keyframes sws-marquee { 0%{transform:translateX(100%)} 100%{transform:translateX(-100%)} }`}</style>
+      </div>
+    );
+  }
+
+  if (mode === "table") {
+    const severityRank = (s: string) => (s === "Critical" ? 0 : s === "Warning" ? 1 : 2);
+    const columns: DataTableColumn<AlarmState>[] = [
+      {
+        key: "severity", header: "●", width: 22, align: "center", filterable: false,
+        accessor: (a) => severityRank(a.def.severity ?? "Warning"),
+        render: (a) => <span style={{ color: sevColor(a.def.severity ?? "Warning") }}>●</span>,
+      },
+      { key: "id", header: "ID", accessor: (a) => a.def.id },
+      { key: "message", header: "Messaggio", accessor: (a) => a.def.message ?? "" },
+      ...(showTs ? [{
+        key: "ts", header: "Attivato", width: 68, filterable: false,
+        accessor: (a: AlarmState) => a.activated_at_ms ?? 0,
+        render: (a: AlarmState) => a.activated_at_ms
+          ? new Date(a.activated_at_ms).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })
+          : "—",
+      } satisfies DataTableColumn<AlarmState>] : []),
+      ...(showAck ? [{
+        key: "ack", header: "ACK", width: 56, align: "center" as const, sortable: false, filterable: false,
+        accessor: () => "",
+        render: (a: AlarmState) => canAck && !a.acknowledged ? (
+          <button
+            onClick={(e) => { e.stopPropagation(); void handleAck(a.def.id); }}
+            style={{ fontSize: 9, padding: "1px 6px", background: "var(--brand-surface, #1e293b)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 2, color: "var(--brand-text-muted, #94a3b8)", cursor: "pointer" }}
+          >
+            ACK
+          </button>
+        ) : a.acknowledged ? <span style={{ color: "var(--brand-text-subtle, #64748b)", fontStyle: "italic" }}>ACK</span> : null,
+      } satisfies DataTableColumn<AlarmState>] : []),
+    ];
+    return (
+      <div style={{ width, height, boxSizing: "border-box" }}>
+        <DataTable<AlarmState>
+          columns={columns}
+          rows={filtered}
+          rowKey={(a) => a.def.id}
+          maxHeight={height}
+          compact
+        />
       </div>
     );
   }
