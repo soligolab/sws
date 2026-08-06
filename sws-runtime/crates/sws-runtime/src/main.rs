@@ -1,5 +1,3 @@
-// TODO: load project, start tag engine, connect comm plugins.
-
 mod log_file;
 mod log_layer;
 

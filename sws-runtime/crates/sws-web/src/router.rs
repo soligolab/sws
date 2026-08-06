@@ -11,7 +11,7 @@ use axum::{
 use tower_http::cors::{Any, CorsLayer};
 use tower_http::services::{ServeDir, ServeFile};
 use serde::Deserialize;
-use sws_auth::{AuthState, Credentials, LoginError, LoginOk, Role};
+use sws_auth::{AuthState, Credentials, LoginError, Role};
 use sws_core::{
     AlarmDb, AlarmDef, AlarmEvent, AlarmState, CustomSymbol, FunctionDef, GlobalScriptDef,
     LanguageTable, LogBus, LogEvent, NotificationConfig, PageLayoutConfig, Project, ProjectMeta, SourceDef, TagDb, TagDef,
@@ -875,9 +875,6 @@ async fn whoami(req: Request) -> Json<Whoami> {
         must_change_password: user.must_change_password,
     })
 }
-
-#[allow(dead_code)]
-fn _force_login_ok_used(_: LoginOk) {}
 
 // ── User CRUD (admin) ────────────────────────────────────────────────────────
 

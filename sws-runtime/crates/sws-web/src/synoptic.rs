@@ -12,6 +12,10 @@ pub struct SynopticPage {
     #[serde(default)]
     pub objects: Vec<SynopticObject>,
     #[serde(skip_serializing_if = "Option::is_none")] pub background:   Option<String>,
+    /// Dark-theme override of `background`. Same drop-on-round-trip gap as
+    /// `auto_rotate_skip` below — found during a systematic TS↔Rust field
+    /// audit, not from a specific bug report.
+    #[serde(skip_serializing_if = "Option::is_none")] pub background_dark: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")] pub width:        Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")] pub height:       Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")] pub groups:       Option<Value>,
