@@ -17,7 +17,7 @@ import type { SymbolMeta } from "@/symbols/library";
 import { useAppStore } from "@/store";
 import { localizeObjects } from "@/i18n/projectI18n";
 import type { AlignMode } from "@/store";
-import type { ButtonAction, FunctionDef, GridCell, PageLayoutConfig, PageSizeMode, RadioOption, SubCellEntry, SubGrid, SynopticObject, TableRow, TrendSeriesStyle } from "@/types";
+import type { AlarmSeverity, ButtonAction, FunctionDef, GridCell, PageLayoutConfig, PageSizeMode, RadioOption, SubCellEntry, SubGrid, SynopticObject, TableRow, TrendSeriesStyle } from "@/types";
 
 // ── Shared styles ─────────────────────────────────────────────────────────────
 
@@ -584,6 +584,10 @@ export function EditorShell() {
         addObject({ type, x, y, width: 360, height: 160,
           alarm_viewer_max_rows: 5, alarm_viewer_mode: "list",
           alarm_viewer_show_ack: true, alarm_viewer_show_ts: true, alarm_viewer_show_empty: true });
+        break;
+      case "alarm_bell":
+        addObject({ type, x, y, width: 130, height: 34,
+          alarm_bell_show_history: true, alarm_bell_show_shelve: true });
         break;
       case "image":
         setPendingImagePos({ x, y });
@@ -2829,6 +2833,46 @@ function ObjectProps({
             ))}
           </div>
           {field(t("props.emptyBackground"), <input type="color" value={obj.alarm_viewer_bg_color ?? "var(--brand-bg, #0f172a)"} onChange={(e) => onChange({ alarm_viewer_bg_color: e.target.value })} style={{ width: 40, height: 24, padding: 1, border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 3 }} />)}
+        </>
+      )}
+
+      {/* Alarm Bell — click apre sempre il dropdown allarmi, nessuna azione configurabile */}
+      {obj.type === "alarm_bell" && (
+        <>
+          <div style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", marginBottom: 4 }}>
+            {t("props.alarmBellHint")}
+          </div>
+          {field(t("props.alarmIdPrefix"), <input style={INPUT} placeholder={t("props.exZone")} value={obj.alarm_bell_id_prefix ?? ""} onChange={(e) => onChange({ alarm_bell_id_prefix: e.target.value })} />)}
+          {field(t("props.severity"), (
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              {(["Info", "Warning", "Critical"] as const).map((sev) => {
+                const list = obj.alarm_bell_severities ?? [];
+                const checked = list.length === 0 || list.includes(sev);
+                return (
+                  <label key={sev} style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "flex", gap: 3, alignItems: "center" }}>
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={(e) => {
+                        const all: AlarmSeverity[] = ["Info", "Warning", "Critical"];
+                        const current = list.length === 0 ? all : list;
+                        const next = e.target.checked ? [...current, sev] : current.filter((s) => s !== sev);
+                        onChange({ alarm_bell_severities: next.length === all.length ? undefined : next });
+                      }}
+                    />{sev}
+                  </label>
+                );
+              })}
+            </div>
+          ))}
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {[["alarm_bell_show_history", t("props.showHistory")], ["alarm_bell_show_shelve", t("props.showShelve")]].map(([k, l]) => (
+              <label key={k} style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "flex", gap: 3, alignItems: "center" }}>
+                <input type="checkbox" checked={!!(obj as any)[k] || (obj as any)[k] === undefined} onChange={(e) => onChange({ [k]: e.target.checked } as Partial<SynopticObject>)} />{l}
+              </label>
+            ))}
+          </div>
+          {field(t("props.color"), <BindableInput obj={obj} propName="fill" onChange={onChange}>{colorInput("fill", "var(--brand-surface, #1e293b)")}</BindableInput>)}
         </>
       )}
 

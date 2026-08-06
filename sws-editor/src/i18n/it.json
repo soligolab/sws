@@ -215,6 +215,7 @@
         "bar_chart": "Bar Chart",
         "pie_chart": "Pie Chart",
         "alarm_viewer": "Allarmi",
+        "alarm_bell": "Campanella allarmi",
         "symbol": "Simbolo",
         "pipe": "Tubazione",
         "grid": "Griglia",
@@ -612,7 +613,11 @@
     "dashDotted": "Punteggiata",
     "fillArea": "Riempi area",
     "fillOpacity": "Opacità riempimento",
-    "smoothCurve": "Arrotonda curva"
+    "smoothCurve": "Arrotonda curva",
+    "severity": "Severità",
+    "alarmBellHint": "Il click apre sempre il dropdown allarmi — nessuna azione configurabile.",
+    "showHistory": "Mostra storico",
+    "showShelve": "Mostra sospendi/riattiva"
   },
   "shortcut": {
     "navCanvas": "Navigazione canvas",

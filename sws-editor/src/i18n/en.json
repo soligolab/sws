@@ -215,6 +215,7 @@
         "bar_chart": "Bar Chart",
         "pie_chart": "Pie Chart",
         "alarm_viewer": "Alarms",
+        "alarm_bell": "Alarm bell",
         "symbol": "Symbol",
         "pipe": "Pipe",
         "grid": "Grid",
@@ -612,7 +613,11 @@
     "dashDotted": "Dotted",
     "fillArea": "Fill area",
     "fillOpacity": "Fill opacity",
-    "smoothCurve": "Smooth curve"
+    "smoothCurve": "Smooth curve",
+    "severity": "Severity",
+    "alarmBellHint": "Clicking always opens the alarm dropdown — no configurable action.",
+    "showHistory": "Show history",
+    "showShelve": "Show shelve/unshelve"
   },
   "shortcut": {
     "navCanvas": "Canvas navigation",
