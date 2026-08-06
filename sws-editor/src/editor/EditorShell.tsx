@@ -589,6 +589,9 @@ export function EditorShell() {
         addObject({ type, x, y, width: 130, height: 34,
           alarm_bell_show_history: true, alarm_bell_show_shelve: true });
         break;
+      case "alarm_banner":
+        addObject({ type, x, y, width: 600, height: 32 });
+        break;
       case "image":
         setPendingImagePos({ x, y });
         return; // addObject called after image is chosen in browser
@@ -2873,6 +2876,35 @@ function ObjectProps({
             ))}
           </div>
           {field(t("props.color"), <BindableInput obj={obj} propName="fill" onChange={onChange}>{colorInput("fill", "var(--brand-surface, #1e293b)")}</BindableInput>)}
+        </>
+      )}
+
+      {/* Alarm Banner */}
+      {obj.type === "alarm_banner" && (
+        <>
+          {field(t("props.alarmIdPrefix"), <input style={INPUT} placeholder={t("props.exZone")} value={obj.alarm_banner_id_prefix ?? ""} onChange={(e) => onChange({ alarm_banner_id_prefix: e.target.value })} />)}
+          {field(t("props.severity"), (
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              {(["Info", "Warning", "Critical"] as const).map((sev) => {
+                const list = obj.alarm_banner_severities ?? [];
+                const checked = list.length === 0 || list.includes(sev);
+                return (
+                  <label key={sev} style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "flex", gap: 3, alignItems: "center" }}>
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={(e) => {
+                        const all: AlarmSeverity[] = ["Info", "Warning", "Critical"];
+                        const current = list.length === 0 ? all : list;
+                        const next = e.target.checked ? [...current, sev] : current.filter((s) => s !== sev);
+                        onChange({ alarm_banner_severities: next.length === all.length ? undefined : next });
+                      }}
+                    />{sev}
+                  </label>
+                );
+              })}
+            </div>
+          ))}
         </>
       )}
 

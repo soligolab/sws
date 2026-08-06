@@ -34,16 +34,23 @@ function sev(state: AlarmState): AlarmSeverity {
   return state.def.severity ?? "Warning";
 }
 
-/**
- * Fascia allarmi in cima al viewer.
- *
- * `overlay`: modalità "viewer a schermo pieno" (impostazione di progetto
- * `hide_viewer_chrome`). La fascia sparisce del tutto quando non ci sono
- * allarmi — invece di occupare 32px per dire "nessun allarme" — e quando ce ne
- * sono compare **sovrapposta** al synoptic, senza rubare spazio alla pagina.
- * Senza `overlay` resta il comportamento storico: sempre presente, nel flusso.
- */
-export function AlarmBanner({ overlay = false }: { overlay?: boolean } = {}) {
+export interface AlarmBannerProps {
+  /** Modalità "viewer a schermo pieno" (impostazione di progetto
+   *  `hide_viewer_chrome`): sparisce del tutto a riposo, sovrapposta fixed
+   *  top quando c'è qualcosa da mostrare. Solo per la vecchia chrome fissa. */
+  overlay?: boolean;
+  /** Per l'oggetto SCADA piazzabile `alarm_banner`: riempie il box del
+   *  foreignObject invece di occupare 100% larghezza fissa in cima. */
+  boxed?: boolean;
+  /** Altezza in modalità non-boxed (default storico: 32px). */
+  height?: number;
+  idPrefix?: string;
+  allowedSev?: AlarmSeverity[];
+}
+
+/** Fascia allarmi — chrome fissa storica (`overlay`/inline) o oggetto SCADA
+ *  piazzabile (`boxed`), stessa logica di priorità ISA/blink/ACK. */
+export function AlarmBanner({ overlay = false, boxed = false, height = 32, idPrefix = "", allowedSev }: AlarmBannerProps = {}) {
   const { t } = useTranslation();
   useAlarmStream();
 
@@ -52,7 +59,11 @@ export function AlarmBanner({ overlay = false }: { overlay?: boolean } = {}) {
   const authUser = useAppStore((s) => s.authUser);
 
   const { alerting, unacked, mostUrgent } = useMemo(() => {
-    const list = Object.values(alarms);
+    const list = Object.values(alarms).filter((a) => {
+      if (idPrefix && !a.def.id.startsWith(idPrefix)) return false;
+      if (allowedSev && allowedSev.length > 0 && !allowedSev.includes(a.def.severity!)) return false;
+      return true;
+    });
     // "alerting" = any state that is not Normal
     const alerting = list.filter((a) => a.isa_state !== "normal");
     const unacked  = list.filter((a) =>
@@ -68,17 +79,24 @@ export function AlarmBanner({ overlay = false }: { overlay?: boolean } = {}) {
       .slice()
       .sort((a, b) => priority(a) - priority(b) || (b.activated_at_ms ?? 0) - (a.activated_at_ms ?? 0))[0];
     return { alerting, unacked, mostUrgent };
-  }, [alarms]);
+  }, [alarms, idPrefix, allowedSev]);
 
   // In overlay non si mostra nulla a riposo: è il senso della modalità.
   if (alerting.length === 0 && overlay) return null;
 
+  const sizeStyle: React.CSSProperties = boxed
+    ? { width: "100%", height: "100%", boxSizing: "border-box" }
+    : { height };
+
   if (alerting.length === 0) {
     return (
       <div style={{
-        height: 32, background: "var(--brand-surface, #1e293b)", color: "var(--brand-text-muted, #94a3b8)",
+        ...sizeStyle, background: "var(--brand-surface, #1e293b)", color: "var(--brand-text-muted, #94a3b8)",
         display: "flex", alignItems: "center", padding: "0 16px",
-        fontSize: 13, borderBottom: "1px solid var(--brand-surface-2, #334155)",
+        fontSize: 13,
+        border: boxed ? "1px solid var(--brand-surface-2, #334155)" : undefined,
+        borderBottom: boxed ? undefined : "1px solid var(--brand-surface-2, #334155)",
+        borderRadius: boxed ? 4 : undefined,
       }}>
         {t("alarm.noAlarms")}
       </div>
@@ -109,10 +127,12 @@ export function AlarmBanner({ overlay = false }: { overlay?: boolean } = {}) {
       {/* Blink keyframe injected once */}
       <style>{`@keyframes sws-blink { 50% { opacity: 0.3; } }`}</style>
       <div style={{
-        height: 32,
+        ...sizeStyle,
         boxSizing: "border-box",
         background: overlay ? `${color}dd` : `${color}22`,
-        borderBottom: `1px solid ${color}`,
+        border: boxed ? `1px solid ${color}` : undefined,
+        borderBottom: boxed ? undefined : `1px solid ${color}`,
+        borderRadius: boxed ? 4 : undefined,
         color: "var(--brand-text, #e2e8f0)",
         display: "flex", alignItems: "center", padding: "0 16px",
         fontSize: 13, gap: 12,

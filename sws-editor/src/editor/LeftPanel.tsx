@@ -485,6 +485,7 @@ const PALETTE_GROUPS: PaletteGroup[] = [
     { type: "pie_chart",    label: "Pie Chart",  icon: "◑" },
     { type: "alarm_viewer", label: "Allarmi",    icon: "⚠" },
     { type: "alarm_bell",   label: "Campanella allarmi", icon: "🔔" },
+    { type: "alarm_banner", label: "Barra allarmi", icon: "▬" },
   ]},
   { category: "SCADA", color: "#f472b6", items: [
     { type: "symbol", label: "Simbolo",   icon: "⚙" },

@@ -4,6 +4,7 @@ import { TrendCanvas } from "@/canvas/TrendCanvas";
 import { TrendExpandedModal } from "@/canvas/TrendExpanded";
 import { getAuthToken } from "@/api/client";
 import { AlarmBellPanel } from "@/components/AlarmBellPanel";
+import { AlarmBanner } from "@/components/AlarmBanner";
 import { useAppStore } from "@/store";
 import { SYMBOLS } from "@/symbols/library";
 import { clampToPage } from "@/pageLayout";
@@ -3529,6 +3530,37 @@ function SvgObject(p: ObjProps) {
             showHistory={obj.alarm_bell_show_history ?? true}
             showShelve={obj.alarm_bell_show_shelve ?? true}
             badgeFill={obj.fill}
+          />
+        </foreignObject>
+      </g>
+    );
+  }
+
+  // ── ALARM BANNER ──────────────────────────────────────────────────────────────
+
+  if (obj.type === "alarm_banner") {
+    const w = obj.width ?? 600; const h = obj.height ?? 32;
+
+    if (isEditMode) {
+      return (
+        <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()} style={{ cursor: editCursor }}>
+          {selRect(obj.x, obj.y, w, h)}
+          <rect x={obj.x} y={obj.y} width={w} height={h} rx={4} fill="#0f172a" stroke={selected ? "#facc15" : "#334155"} strokeWidth={selected ? 2 : 1} />
+          <text x={obj.x + w / 2} y={obj.y + h / 2} textAnchor="middle" dominantBaseline="central" fill="#64748b" fontSize={12} style={{ pointerEvents: "none" }}>
+            Barra Allarmi
+          </text>
+        </g>
+      );
+    }
+
+    return (
+      <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()}>
+        {selRect(obj.x, obj.y, w, h)}
+        <foreignObject x={obj.x} y={obj.y} width={w} height={h}>
+          <AlarmBanner
+            boxed
+            idPrefix={obj.alarm_banner_id_prefix}
+            allowedSev={obj.alarm_banner_severities}
           />
         </foreignObject>
       </g>
