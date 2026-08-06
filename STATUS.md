@@ -6,11 +6,98 @@
 >
 > **Pulizia 2026-07-27**: rimossi i task già chiusi e le sezioni di verifica ormai superate; le sessioni mergiate **e** verificate fino al 2026-07-09 sono compresse in «Storico». Il dettaglio integrale resta in `CHANGELOG.md` e nella history git.
 
-**Last session**: 2026-08-06 — **trovato perché il device reale aveva perso Random Client ID
-dopo un riavvio** (nonostante il maintainer non l'avesse mai disattivato) e **unificato i due
-percorsi di apertura progetto** che causavano il problema. Vedi sezione dedicata qui sotto. Non
-ancora mergiato (branch `fix/unify-project-boot-open-path`, sopra
-`fix/project-switch-stale-canvas-flash`), non pushato.
+**Last session**: 2026-08-06 (notte) — **sessione lunga in autonomia** (il maintainer è andato a
+dormire a metà, chiedendo di proseguire i task pianificati e poi di indagare migliorie): T-41
+(pagine cancellate/rinominate ora persistono davvero), un fix sistemico al mirror Rust↔TypeScript
+(62 campi mancanti su `SynopticObject`), T-42/T-43 (campanella e barra allarmi piazzabili,
+**verificati dal maintainer in browser**), T-44/T-45 (DataTable condiviso + Ricette + modalità
+tabella su alarm_viewer, verificati solo da me con harness/build+test — **non ancora provati dal
+maintainer**), e infine un audit di qualità del codice (due Explore agent) con una serie di fix
+mirati (vedi sezioni dedicate sotto). Tutto sul branch `fix/T-41-page-delete-persist`, **non
+ancora mergiato in main**, non pushato. T-46 (rimozione vecchia chrome allarmi) deliberatamente
+rimandato — vedi nota su [[project_t46_alarm_chrome_removal]] in memoria: dopo T-46 gli allarmi
+diventano per-pagina opt-in, non un fallback globale.
+
+**Da fare alla ripresa**: provare in browser T-44 (Config → Ricette, sort/filtro) e T-45
+(alarm_viewer → modalità Tabella) e i fix dell'audit (severità allarmi uniformi, watchdog MQTT
+`max_silence_secs` ora in UI sotto Connessione, trasformazione disponibile su lang_button/
+lang_selector) — poi, se tutto ok, squash-merge dell'intero branch in main. Rivedere anche
+`docs/plans/2026-08-06-audit-widget-e-codice.md` (proposte non implementate: BindableInput
+mancante su vari campi, color picker mancante su slider/checkbox/radio, possibile widget
+faceplate/setpoint/XY-plot, ecc.) e decidere cosa vale la pena fare.
+
+**Nota a parte**: il branch `feat/trend-compact-pan` (pulsanti pan ◀/▶ + passo configurabile sul
+Trend compatto, da una sessione precedente a stanotte) resta isolato e non mergiato — con il
+drag-to-zoom di T-48 ora in main, potrebbe essere in parte ridondante. Da decidere se
+riprenderlo, scartarlo o riconciliarlo con T-47/T-48 prima di chiudere il branch.
+
+## 2026-08-06 (notte): T-41…T-45 + audit qualità codice (branch `fix/T-41-page-delete-persist`)
+
+Sessione partita dai pulsanti pan sul Trend compatto (poi isolati sul branch
+`feat/trend-compact-pan`, vedi nota sopra), proseguita con un blackout elettrico a metà (nessuna
+perdita — tutto il lavoro già scritto su disco, solo un `cargo build` da rifare) e conclusa in
+autonomia notturna su richiesta esplicita del maintainer.
+
+**T-41 — bugfix prioritario**: `deletePage`/`renamePage` erano puramente in-memory nello store;
+`saveAll()` faceva solo upsert; non esisteva `DELETE /api/synoptics/:name` (a differenza di
+faceplates/recipes, che ce l'hanno già). Il file della pagina "cancellata" restava orfano su
+disco e ricompariva a ogni riapertura progetto. Aggiunta la route, `api.deleteSynoptic` (tollera
+un 404 — `save_synoptic` pulisce già da solo il file di un rename per `id`, quindi una delete in
+parallelo può trovarlo già sparito), e `persistedPageNames` nello store per far chiamare
+`deleteSynoptic` su ogni nome sparito dall'ultimo caricamento. Verificato dal vivo con
+un'istanza isolata: delete + riavvio completo del processo, doppia delete idempotente, contenuto
+dello zip di deploy. Rimossi anche gli orfani reali già presenti su Sandokan (`Page 2.yaml`,
+`Sandokan (copia).yaml`, confermato dal maintainer come scarti, in entrambe le copie del
+progetto).
+
+**Fix sistemico — mirror Rust↔TypeScript**: scoperto per caso debuggando perché lo stile
+per-traccia del Trend (T-47) non persisteva — `SynopticObject` in `sws-web/src/synoptic.rs` è
+uno specchio manuale del tipo TypeScript, e un campo non dichiarato lì sparisce silenziosamente
+a ogni save/reload (serde ignora i campi sconosciuti). Un confronto sistematico (script ad-hoc)
+ha trovato **62 campi mancanti**, non solo nel Trend: `alarm_viewer` (tutti e 8 i suoi campi),
+`sparkline`, `pipe`/connettore (waypoints e routing inclusi), `bar_chart`, `pie_chart`,
+`faceplate` instance, `lang_selector` — tutti rotti allo stesso modo da prima di questa sessione.
+Aggiunti tutti (tipizzati dove banale, `Option<Value>` generico per gli array di oggetti
+annidati, stesso pattern di `options`/`table_rows`). Verificato dal vivo con un'istanza isolata:
+impostati campi di alarm_viewer/sparkline/pipe via PUT, riavviato il processo, confermato che
+sopravvivono. Un secondo giro dello stesso script dopo T-42/T-43 (che aggiungono `alarm_bell`/
+`alarm_banner`) ha confermato 0 campi mancanti anche lì — mirrorati da subito, non dopo essere
+scoperti rotti.
+
+**T-42/T-43 — allarmi piazzabili, verificati dal maintainer in browser**: nuovi oggetti SCADA
+`alarm_bell` (campanella, dropdown attivi/storico/ack/shelve) e `alarm_banner` (barra, blink/ACK/
+priorità ISA-18.2), estraendo la logica condivisa in `AlarmBellPanel.tsx` e riusando
+`AlarmBanner.tsx` esistente. Nessuna migrazione automatica: la chrome fissa (campanella in alto a
+destra, barra in cima) resta finché non viene rimossa manualmente in **T-46** — deliberatamente
+rimandato, richiede sia T-42+T-43 fatti sia una conferma page-by-page che ogni pagina che deve
+mostrare allarmi abbia davvero l'oggetto piazzato (nota completa in memoria,
+`project_t46_alarm_chrome_removal`).
+
+**T-44/T-45 — non ancora provati dal maintainer**: componente `DataTable` condiviso (sort per
+colonna + filtro, nessuna virtualizzazione — dataset piccoli tipo allarmi/ricette), sostituisce
+la lista Ricette in ConfigView; `alarm_viewer` guadagna una terza modalità "Tabella" che riusa lo
+stesso componente. Verificati con harness Playwright isolato (sort/filtro funzionanti) e
+build/test, ma non ancora nel browser reale del maintainer.
+
+**Audit di qualità del codice** (su richiesta esplicita, due Explore agent in parallelo — uno sul
+catalogo widget, uno sul codice): trovati e sistemati subito (bassa rischiosità, stesso pattern
+di verifica di tutta la sessione) altri due gap dello stesso tipo di bug (`SynopticPage.
+background_dark` mancante da Rust; `MqttConfig.max_silence_secs` mai esposto in UI — ora
+impostabile in Config → Protocolli → sorgente MQTT → Connessione, chiude un loose end della
+sessione precedente su Sandokan), colori severità allarme unificati (`alarm_viewer` usava un hex
+diverso da bell/banner per "Warning"), filtro severità aggiunto ad `alarm_viewer` (aveva il campo
+dati ma nessuna UI), completato `getXDomain()` in `TrendCanvas.tsx` (T-48 lo usava solo per il
+drag-to-zoom, non per polling/draw/CSV — stessa classe di bug del Trend già vista e sistemata
+solo a metà), deduplicata la palette colori fra Trend compatto ed espanso, corretto
+`SUPPORTS_TRANSFORM` (mancavano `lang_button`/`lang_selector`), nascosto un pannello UI morto
+(eventi su `grid`), rimosso codice morto (`_force_login_ok_used`, modulo `sws-auth::session` mai
+implementato). Il resto dei findings (BindableInput mancante su vari campi, color picker mancante
+su slider/checkbox/radio, widget `faceplate` non piazzabile da UI, possibili nuovi tipi widget) è
+**documentato, non implementato** — vedi `docs/plans/2026-08-06-audit-widget-e-codice.md`.
+
+`cargo test -p sws-web -p sws-auth -p sws-core -p sws-plugin-mqtt -p sws-runtime`: 98/98 verdi.
+`pnpm build`/`test`: verdi in ogni punto della sessione. `cargo build` rifatto ogni volta che
+serviva un binario aggiornato per una verifica dal vivo (non solo `cargo check`).
 
 ## 2026-08-06: il boot con `--project` ignorava Random Client ID (e ignorerebbe qualunque cosa) — unificato con `open_project`
 
