@@ -6,6 +6,9 @@
 //!   POST /api/deploy/device             — SCP tarball + run install.sh via SSH
 //!   GET  /api/build/container-packages  — list built container image archives in dist/
 //!   POST /api/deploy/device-container   — SCP image+installer + run install-container.sh via SSH
+//!   POST /api/deploy/device-container/manage — lifecycle on an already-installed
+//!        container: status/start/stop/restart/enable/disable/restart-policy/uninstall,
+//!        locally or over SSH
 
 use axum::{
     body::Body,
@@ -860,6 +863,189 @@ pub async fn deploy_device_container(
         .unwrap()
 }
 
+// ── POST /api/deploy/device-container/manage ───────────────────────────────────
+
+/// Fixed container/unit name — same hardcoded value `install-container.sh` and
+/// `sws-runtime.container` use. Not user-configurable anywhere in the IDE today,
+/// so a single constant here is enough (no per-install naming to track).
+const CONTAINER_NAME: &str = "sws-runtime";
+
+#[derive(Debug, Deserialize)]
+pub struct ContainerManageRequest {
+    /// `true` = no SSH, run the command on the host running this backend
+    /// process. The escape hatch for the situation that motivated this
+    /// endpoint: a stray container on the dev machine itself, with no SSH
+    /// server configured toward `localhost`.
+    #[serde(default)]
+    pub local: bool,
+    #[serde(default)]
+    pub host: String,
+    #[serde(default = "default_ssh_port")]
+    pub port: u16,
+    #[serde(default)]
+    pub user: String,
+    #[serde(default)]
+    pub password: String,
+    /// "status" | "start" | "stop" | "restart" | "enable" | "disable"
+    /// | "set_restart_policy" | "uninstall".
+    pub action: String,
+    /// "always" | "on-failure" | "no" — only read for `set_restart_policy`.
+    #[serde(default)]
+    pub restart_policy: String,
+    /// Also wipe the data directory — only read for `uninstall`.
+    #[serde(default)]
+    pub purge: bool,
+    /// Data directory to wipe when `purge` is set. Empty = the installer's own
+    /// default (`/data/user/sws`), same convention as `effectiveDataPath()` on
+    /// the frontend and `build_purge_cmd` above.
+    #[serde(default)]
+    pub data_path: String,
+}
+
+/// Restart policies accepted by `set_restart_policy`, matching systemd's
+/// `Restart=` directive. A closed set — unlike `registry_ref_is_safe` above,
+/// there's no need for a char-class validator when the whole domain is three
+/// fixed strings.
+fn restart_policy_is_safe(p: &str) -> bool {
+    matches!(p, "always" | "on-failure" | "no")
+}
+
+/// Build the single shell command for a container lifecycle action. Pure and
+/// unit-testable without SSH/processes, same shape as `build_install_cmd` /
+/// `build_purge_cmd` above. Acts on the unit **already installed** on the
+/// target (fixed name, see `CONTAINER_NAME`) — no `remote_dir` involved, unlike
+/// `deploy_device_container`: this works even for a device set up in an
+/// earlier session or by hand.
+fn build_manage_cmd(
+    action: &str,
+    restart_policy: &str,
+    purge: bool,
+    data_path: &str,
+) -> Result<String, String> {
+    let name = CONTAINER_NAME;
+    match action {
+        // NOTA: `systemctl --user is-enabled` risponde sempre "generated" per
+        // una unit quadlet — è generata da zero a ogni daemon-reload/boot
+        // dalla sezione [Install] del file .container, non da un unit file
+        // persistente, quindi non ha uno stato enabled/disabled classico da
+        // interrogare. Verificato dal vivo: dopo un `disable` la risposta di
+        // `is-enabled` non cambia. L'unico segnale vero è la riga `WantedBy=`
+        // nel file sorgente stesso — la stessa che `enable`/`disable` sotto
+        // commentano/scommentano.
+        "status" => Ok(format!(
+            "echo '== systemctl --user status =='; systemctl --user status {name} --no-pager -l || true; \
+             echo; echo '== avvio automatico al boot =='; \
+             (grep -q '^WantedBy=' ~/.config/containers/systemd/{name}.container 2>/dev/null \
+                && echo 'abilitato' || echo 'disabilitato'); \
+             echo; echo '== linger =='; loginctl show-user \"$USER\" --property=Linger || true; \
+             echo; echo '== container =='; podman ps -a --filter name={name} || true"
+        )),
+        "start" | "stop" | "restart" => Ok(format!("systemctl --user {action} {name}")),
+        // `systemctl --user enable/disable` è un no-op per una unit generata da
+        // quadlet (vedi nota sopra): l'unico modo reale di cambiare l'avvio al
+        // boot è commentare/scommentare `WantedBy=` nel file sorgente e far
+        // rigenerare la unit con `daemon-reload` — stesso meccanismo di
+        // `set_restart_policy` sotto. Non tocca lo stato corrente (nessun
+        // `--now`): un `disable` non ferma il container in esecuzione.
+        "enable" => Ok(format!(
+            "sed -i 's/^#\\(WantedBy=.*\\)/\\1/' ~/.config/containers/systemd/{name}.container \
+             && systemctl --user daemon-reload"
+        )),
+        "disable" => Ok(format!(
+            "sed -i 's/^\\(WantedBy=.*\\)/#\\1/' ~/.config/containers/systemd/{name}.container \
+             && systemctl --user daemon-reload"
+        )),
+        "set_restart_policy" => {
+            if !restart_policy_is_safe(restart_policy) {
+                return Err(format!("policy di restart non valida: {restart_policy}"));
+            }
+            Ok(format!(
+                "sed -i \"s/^Restart=.*/Restart={restart_policy}/\" \
+                 ~/.config/containers/systemd/{name}.container && systemctl --user daemon-reload"
+            ))
+        }
+        "uninstall" => {
+            let mut cmd = format!(
+                "systemctl --user disable --now {name} 2>/dev/null || true; \
+                 rm -f ~/.config/containers/systemd/{name}.container; \
+                 systemctl --user daemon-reload 2>/dev/null || true; \
+                 podman rm -f {name} >/dev/null 2>&1 || true"
+            );
+            if purge {
+                let data = if data_path.is_empty() { "/data/user/sws" } else { data_path };
+                if !validate_remote_path(data) {
+                    return Err(
+                        "data_path non valido: deve essere un percorso assoluto senza '..' né caratteri speciali"
+                            .to_string(),
+                    );
+                }
+                cmd.push_str(&format!("; rm -rf {data}"));
+            }
+            Ok(cmd)
+        }
+        other => Err(format!("azione sconosciuta: {other}")),
+    }
+}
+
+/// Lifecycle actions (status/start/stop/restart/enable/disable/restart-policy/
+/// uninstall) on an already-installed `sws-runtime` container — either locally
+/// on this host (`local: true`) or over SSH, same streaming-response shape as
+/// `deploy_device_container` above (one line per chunk, `DONE`/`ERROR:` markers
+/// the frontend log viewer already knows how to color).
+pub async fn manage_device_container(EJson(req): EJson<ContainerManageRequest>) -> Response {
+    let cmd = match build_manage_cmd(&req.action, &req.restart_policy, req.purge, &req.data_path) {
+        Ok(c) => c,
+        Err(e) => return (StatusCode::BAD_REQUEST, format!("{e}\n")).into_response(),
+    };
+    if !req.local && (req.host.is_empty() || req.user.is_empty()) {
+        return (StatusCode::BAD_REQUEST, "host e user sono obbligatori in modalità remota\n").into_response();
+    }
+
+    let (tx, rx) = tokio::sync::mpsc::channel::<String>(128);
+
+    tokio::spawn(async move {
+        let send = |msg: &str| {
+            let _ = tx.try_send(format!("{msg}\n"));
+            log_deploy_line!("sws_web::manage_container", msg);
+        };
+
+        send(&format!(
+            "==> azione: {} ({})",
+            req.action,
+            if req.local { "locale" } else { "remoto" }
+        ));
+
+        let ok = if req.local {
+            run_local_cmd(&cmd, &send).await
+        } else {
+            let use_sshpass = sshpass_available();
+            if !use_sshpass {
+                send("WARN: sshpass non trovato — la password verrà ignorata. Assicurati che la chiave SSH sia preconfigurata.");
+            }
+            let host_str = format!("{}@{}", req.user, req.host);
+            let port_str = req.port.to_string();
+            run_ssh_cmd(
+                use_sshpass, &req.password,
+                "ssh",
+                &["-p", &port_str, "-o", "StrictHostKeyChecking=no", &host_str, &cmd],
+                &send,
+            ).await
+        };
+
+        send(if ok { "DONE" } else { "ERROR: azione fallita" });
+    });
+
+    let stream = tokio_stream::wrappers::ReceiverStream::new(rx)
+        .map(|line| Ok::<_, Infallible>(axum::body::Bytes::from(line)));
+
+    Response::builder()
+        .status(StatusCode::OK)
+        .header("content-type", "text/plain; charset=utf-8")
+        .header("x-content-type-options", "nosniff")
+        .body(Body::from_stream(stream))
+        .unwrap()
+}
+
 // ── SSH helper ────────────────────────────────────────────────────────────────
 
 async fn run_ssh_cmd(
@@ -940,6 +1126,62 @@ async fn run_ssh_cmd(
         }
         Err(e) => {
             send(&format!("ERROR: impossibile attendere {prog}: {e}"));
+            false
+        }
+    }
+}
+
+// ── Local execution helper ──────────────────────────────────────────────────────
+
+/// Same shape as `run_ssh_cmd` above (drains stdout/stderr concurrently, streams
+/// each line via `send`, returns whether the command exited 0) but runs the
+/// command **on this host**, no SSH — the local half of manage/uninstall
+/// actions. Mirrors the streaming pattern `build_package` already uses for
+/// local process output (concurrent stdout/stderr drain, not a buffering
+/// `.output()` that would withhold all feedback until the command finishes).
+async fn run_local_cmd(cmd: &str, send: &impl Fn(&str)) -> bool {
+    let mut c = Command::new("sh");
+    c.arg("-c").arg(cmd);
+    c.stdout(std::process::Stdio::piped());
+    c.stderr(std::process::Stdio::piped());
+
+    let mut child = match c.spawn() {
+        Ok(c) => c,
+        Err(e) => {
+            send(&format!("ERROR: impossibile eseguire il comando: {e}"));
+            return false;
+        }
+    };
+
+    use tokio::io::{AsyncBufReadExt, BufReader};
+    let stdout = child.stdout.take();
+    let stderr = child.stderr.take();
+    let drain_stdout = async {
+        if let Some(s) = stdout {
+            let mut lines = BufReader::new(s).lines();
+            while let Ok(Some(line)) = lines.next_line().await {
+                send(&format!("    {line}"));
+            }
+        }
+    };
+    let drain_stderr = async {
+        if let Some(s) = stderr {
+            let mut lines = BufReader::new(s).lines();
+            while let Ok(Some(line)) = lines.next_line().await {
+                send(&format!("    {line}"));
+            }
+        }
+    };
+    tokio::join!(drain_stdout, drain_stderr);
+
+    match child.wait().await {
+        Ok(s) if s.success() => true,
+        Ok(s) => {
+            send(&format!("ERROR: comando fallito (exit {})", s.code().unwrap_or(-1)));
+            false
+        }
+        Err(e) => {
+            send(&format!("ERROR: impossibile attendere il comando: {e}"));
             false
         }
     }
@@ -1166,5 +1408,118 @@ mod tests {
                 "accettato un riferimento pericoloso: {cattivo}"
             );
         }
+    }
+
+    #[test]
+    fn restart_policy_is_safe_accetta_solo_i_tre_valori_systemd() {
+        assert!(restart_policy_is_safe("always"));
+        assert!(restart_policy_is_safe("on-failure"));
+        assert!(restart_policy_is_safe("no"));
+        assert!(!restart_policy_is_safe("unless-stopped")); // sintassi Docker, non systemd
+        assert!(!restart_policy_is_safe("always; rm -rf /"));
+        assert!(!restart_policy_is_safe(""));
+    }
+
+    #[test]
+    fn build_manage_cmd_status_include_tutte_le_sezioni() {
+        let cmd = build_manage_cmd("status", "", false, "").unwrap();
+        assert!(cmd.contains("systemctl --user status sws-runtime"));
+        // Non `is-enabled` (sempre "generated" per una unit quadlet, vedi nota
+        // sopra build_manage_cmd) — il segnale vero è la riga WantedBy= letta
+        // dal file sorgente.
+        assert!(cmd.contains("grep -q '^WantedBy=' ~/.config/containers/systemd/sws-runtime.container"));
+        assert!(cmd.contains("loginctl show-user \"$USER\" --property=Linger"));
+        assert!(cmd.contains("podman ps -a --filter name=sws-runtime"));
+    }
+
+    #[test]
+    fn build_manage_cmd_start_stop_restart() {
+        for (action, expected) in [
+            ("start", "systemctl --user start sws-runtime"),
+            ("stop", "systemctl --user stop sws-runtime"),
+            ("restart", "systemctl --user restart sws-runtime"),
+        ] {
+            assert_eq!(build_manage_cmd(action, "", false, "").unwrap(), expected);
+        }
+    }
+
+    /// `systemctl --user enable/disable` è un no-op per una unit generata da
+    /// quadlet (verificato dal vivo: `is-enabled` non cambia dopo `disable`) —
+    /// l'unica leva reale è la riga `WantedBy=` nel file .container stesso.
+    #[test]
+    fn build_manage_cmd_enable_disable_editano_wantedby_non_systemctl() {
+        let en = build_manage_cmd("enable", "", false, "").unwrap();
+        assert!(!en.contains("systemctl --user enable"), "deve editare il file, non chiamare enable: {en}");
+        assert!(en.contains("WantedBy"));
+        assert!(en.contains("daemon-reload"));
+
+        let dis = build_manage_cmd("disable", "", false, "").unwrap();
+        assert!(!dis.contains("systemctl --user disable"), "deve editare il file, non chiamare disable: {dis}");
+        assert!(dis.contains("WantedBy"));
+        assert!(dis.contains("daemon-reload"));
+    }
+
+    /// `enable`/`disable` NON devono portare `--now`: toccano solo
+    /// l'abilitazione al boot, non lo stato corrente del servizio.
+    #[test]
+    fn build_manage_cmd_enable_disable_non_toccano_now() {
+        assert!(!build_manage_cmd("enable", "", false, "").unwrap().contains("--now"));
+        assert!(!build_manage_cmd("disable", "", false, "").unwrap().contains("--now"));
+    }
+
+    #[test]
+    fn build_manage_cmd_set_restart_policy_riscrive_la_unit() {
+        let cmd = build_manage_cmd("set_restart_policy", "on-failure", false, "").unwrap();
+        assert_eq!(
+            cmd,
+            "sed -i \"s/^Restart=.*/Restart=on-failure/\" \
+             ~/.config/containers/systemd/sws-runtime.container && systemctl --user daemon-reload"
+        );
+    }
+
+    #[test]
+    fn build_manage_cmd_set_restart_policy_rifiuta_valori_non_ammessi() {
+        assert!(build_manage_cmd("set_restart_policy", "unless-stopped", false, "").is_err());
+        assert!(build_manage_cmd("set_restart_policy", "always; rm -rf /", false, "").is_err());
+    }
+
+    /// `disable --now` + rimozione unit + `podman rm -f`, stesso ordine del
+    /// blocco `--uninstall` in install-container.sh (righe 136-151) — senza
+    /// purge non deve toccare i dati.
+    #[test]
+    fn build_manage_cmd_uninstall_senza_purge() {
+        let cmd = build_manage_cmd("uninstall", "", false, "").unwrap();
+        assert!(cmd.contains("systemctl --user disable --now sws-runtime"));
+        assert!(cmd.contains("rm -f ~/.config/containers/systemd/sws-runtime.container"));
+        assert!(cmd.contains("systemctl --user daemon-reload"));
+        assert!(cmd.contains("podman rm -f sws-runtime"));
+        assert!(!cmd.contains("rm -rf"), "senza purge non deve cancellare dati: {cmd}");
+    }
+
+    /// Stesso principio di `build_purge_cmd_porta_lo_stesso_data`: il percorso
+    /// dati deve essere quello scelto dall'utente, non un default indovinato.
+    #[test]
+    fn build_manage_cmd_uninstall_con_purge_usa_il_data_path_scelto() {
+        let cmd = build_manage_cmd("uninstall", "", true, "/opt/sws-data").unwrap();
+        assert!(cmd.ends_with("rm -rf /opt/sws-data"), "comando inatteso: {cmd}");
+    }
+
+    #[test]
+    fn build_manage_cmd_uninstall_con_purge_e_data_path_vuoto_usa_il_default() {
+        let cmd = build_manage_cmd("uninstall", "", true, "").unwrap();
+        assert!(cmd.ends_with("rm -rf /data/user/sws"), "comando inatteso: {cmd}");
+    }
+
+    /// Stessa classe di rischio di `validate_remote_path`: il path finisce
+    /// interpolato in un comando eseguito via SSH o in locale.
+    #[test]
+    fn build_manage_cmd_uninstall_con_purge_rifiuta_data_path_pericoloso() {
+        assert!(build_manage_cmd("uninstall", "", true, "/tmp/foo; rm -rf /").is_err());
+        assert!(build_manage_cmd("uninstall", "", true, "relative/dir").is_err());
+    }
+
+    #[test]
+    fn build_manage_cmd_rifiuta_azione_sconosciuta() {
+        assert!(build_manage_cmd("reboot", "", false, "").is_err());
     }
 }

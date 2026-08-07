@@ -130,6 +130,79 @@ Se `sshpass` non è disponibile, il deploy usa SSH senza password
 
 ---
 
+## Deploy container (Podman)
+
+Alternativa al binario nativo: installa il runtime come **container Podman
+rootless**, gestito da systemd tramite una unit **quadlet** — nessun `sudo`
+richiesto sul device, a differenza del binario nativo.
+
+### Dalla UI
+
+Nel form **Installa su dispositivo**, scegli **Container (Podman)** invece di
+**Binario nativo**. Compaiono campi aggiuntivi:
+
+| Campo | Descrizione | Default |
+|-------|-------------|---------|
+| **Sorgente immagine** | Registry (scarica sul device) o Archivio locale (SCP di ~59 MB) | Registry |
+| **Riferimento immagine** | Solo con Registry — vuoto = ultima immagine per l'architettura del device | — |
+| **Percorso dati sul device** | Directory per progetti/config/log | `/data/user/sws` |
+| **Installazione pulita** | Azzera i dati esistenti prima di installare (richiede conferma) | Disattivato |
+
+I campi Host/Porta/Utente/Password/Directory remota sono gli stessi del
+binario nativo, sopra.
+
+Click **🐳 Installa / Aggiorna container**. Il servizio si avvia automaticamente
+al boot (via `loginctl enable-linger` + `[Install] WantedBy=default.target`
+nella unit quadlet) — un container rootless non riparte da solo dopo un
+reboot senza questi due elementi.
+
+### Gestione container
+
+Sotto il pannello di installazione, la sezione **Gestione container** agisce
+su un container **già installato** (su questa stessa macchina o su un
+device remoto, indipendentemente da quando/come è stato installato):
+
+| Ambito | Come funziona |
+|--------|---------------|
+| **Locale** (default) | Nessun SSH — comandi diretti sul host che esegue l'IDE. Pensato per il caso più comune: un container installato per test sulla stessa macchina, che collide con `start_runtime.sh` sulle stesse porte. |
+| **Remoto** | Riusa i campi SSH del pannello di installazione sopra. |
+
+Azioni disponibili:
+
+- **Stato** — riepilogo `systemctl status`, avvio automatico al boot, linger,
+  stato del container.
+- **Avvia / Ferma / Riavvia** — `systemctl --user start/stop/restart`.
+- **Abilita / Disabilita avvio al boot** — commenta/scommenta `WantedBy=` nella
+  unit quadlet e ricarica systemd. *Non* usa `systemctl enable/disable`: per
+  una unit generata da quadlet è un no-op (rigenerata da zero a ogni
+  `daemon-reload`/boot dalla sezione `[Install]` del file `.container`, non da
+  un unit file persistente). Non tocca lo stato corrente: disabilitare non
+  ferma un container in esecuzione.
+- **Policy di restart** — riscrive `Restart=` nella unit (Sempre / Solo su
+  errore / Mai) e ricarica systemd. Cambia solo cosa succede al *prossimo*
+  stop/crash, non riavvia il servizio.
+- **Disinstalla** (zona pericolosa) — rimuove servizio, unit quadlet e
+  container. Con **"Cancella anche i dati"** (richiede conferma), cancella
+  anche la directory dati — altrimenti resta sul disco.
+
+### Comandi equivalenti da riga di comando
+
+```bash
+# Installazione
+./deploy/container/install-container.sh --pull
+
+# Gestione
+systemctl --user status  sws-runtime
+systemctl --user restart sws-runtime
+journalctl --user -u sws-runtime -f
+
+# Disinstallazione
+./deploy/container/install-container.sh --uninstall            # dati conservati
+./deploy/container/install-container.sh --uninstall --purge    # dati compresi
+```
+
+---
+
 ## Alternativa: deploy manuale
 
 Se preferisci non usare la UI, il deploy manuale è sempre disponibile:
