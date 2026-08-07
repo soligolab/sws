@@ -215,6 +215,8 @@
         "bar_chart": "Bar Chart",
         "pie_chart": "Pie Chart",
         "alarm_viewer": "Allarmi",
+        "alarm_bell": "Campanella allarmi",
+        "alarm_banner": "Barra allarmi",
         "symbol": "Simbolo",
         "pipe": "Tubazione",
         "grid": "Griglia",
@@ -422,6 +424,7 @@
     "forward": "Avanti (Ctrl+])",
     "builtinAction": "Azione built-in",
     "scrollingBanner": "Banner scorrevole",
+    "table": "Tabella (ordina/filtra)",
     "activeBindings": "Binding attivi",
     "border": "Bordo",
     "wire": "Cavo/filo",
@@ -612,7 +615,11 @@
     "dashDotted": "Punteggiata",
     "fillArea": "Riempi area",
     "fillOpacity": "Opacità riempimento",
-    "smoothCurve": "Arrotonda curva"
+    "smoothCurve": "Arrotonda curva",
+    "severity": "Severità",
+    "alarmBellHint": "Il click apre sempre il dropdown allarmi — nessuna azione configurabile.",
+    "showHistory": "Mostra storico",
+    "showShelve": "Mostra sospendi/riattiva"
   },
   "shortcut": {
     "navCanvas": "Navigazione canvas",
@@ -720,6 +727,9 @@
     "hysteresis2": "Isteresi: l'allarme rientra solo quando il valore supera (soglia ± dead-band)",
     "jsonPathOpt": "JSON path (opz.)",
     "keepAlive": "Keep-alive (s)",
+    "maxSilenceSecs": "Watchdog silenzio (s)",
+    "maxSilenceSecsPlaceholder": "disattivato",
+    "maxSilenceSecsHint": "Riavvia questa sorgente se nessuna delle sue tag si aggiorna entro questi secondi — copre una sessione connessa ma con il broker diventato silenzioso. Vuoto = disattivato.",
     "labelWord": "Label",
     "message": "Messaggio",
     "commitMessage": "Messaggio di commit…",
@@ -822,7 +832,9 @@
     "tgModeOff": "Non notificare",
     "tgChatIdsPh": "chat ID (virgola)",
     "tgChatIdsHint": "telegram_chat_ids: solo queste chat riceveranno l'allarme. Usa \"Rileva chat\" in Notifiche per conoscere gli ID.",
-    "tgChatIdsMissing": "⚠ nessuna chat: l'allarme non verrà notificato"
+    "tgChatIdsMissing": "⚠ nessuna chat: l'allarme non verrà notificato",
+    "recipeId": "ID",
+    "setpointsCount": "Setpoint"
   },
   "langtab": {
     "intro": "Traduci i messaggi che scrivi negli oggetti. Nei campi testo usa {{chiave}}; qui definisci le traduzioni per ogni lingua.",

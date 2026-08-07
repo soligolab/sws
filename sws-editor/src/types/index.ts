@@ -29,6 +29,8 @@ export type SynopticObjectType =
   | "pie_chart"
   | "sparkline"
   | "alarm_viewer"
+  | "alarm_bell"
+  | "alarm_banner"
   // SCADA symbols (pump/valve/motor/tank/fan from the built-in library)
   | "symbol"
   // Pipe / connector (multi-waypoint path with fill-level animation)
@@ -381,8 +383,16 @@ export interface SynopticObject {
   alarm_viewer_show_ack?: boolean;
   alarm_viewer_show_ts?: boolean;
   alarm_viewer_show_empty?: boolean;
-  alarm_viewer_mode?: "list" | "banner";
+  alarm_viewer_mode?: "list" | "banner" | "table";
   alarm_viewer_bg_color?: string;
+  // ── Alarm Bell (type === "alarm_bell") ────────────────────────────────
+  alarm_bell_id_prefix?: string;
+  alarm_bell_severities?: AlarmSeverity[];
+  alarm_bell_show_history?: boolean;
+  alarm_bell_show_shelve?: boolean;
+  // ── Alarm Banner (type === "alarm_banner") ────────────────────────────
+  alarm_banner_id_prefix?: string;
+  alarm_banner_severities?: AlarmSeverity[];
 }
 
 // ── Faceplate definitions ─────────────────────────────────────────────────────
@@ -563,6 +573,11 @@ export interface MqttSource {
   // ── Connection tuning ──────────────────────────────────────────────
   keep_alive_secs?: number;
   clean_session?: boolean;
+  /** Watchdog: if none of this source's tags update within this many seconds,
+   *  the SourceSupervisor restarts it even if the connection never errored —
+   *  catches a session that's technically alive but the broker has gone
+   *  silent. Disabled (no watchdog) when unset. */
+  max_silence_secs?: number;
   /** 0 / 1 / 2 — falls back to 0. */
   qos?: number;
   tls?: MqttTlsConfig;

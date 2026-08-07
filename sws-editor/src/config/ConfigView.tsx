@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { api, getAuthToken, type CreateUserBody, type DiscoveredRuntime, type UpdateUserBody, type UserRole, type UserSummary } from "@/api/client";
 import { getBrand } from "@/branding";
 import { containerDeployPayload, effectiveDataPath, type ContainerSource } from "@/containerDeploy";
+import { DataTable, type DataTableColumn } from "@/components/DataTable";
 import { TagInput } from "@/components/TagInput";
 import { PythonEditor, type PythonEditorHandle } from "@/components/PythonEditor";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -3615,6 +3616,21 @@ function MqttConnectionSection({
           </select>
         </div>
       </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 12, marginBottom: 12 }}>
+        <div>
+          <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 }}>{t("cfg.maxSilenceSecs")}</label>
+          <input
+            style={{ ...S.input, maxWidth: 160 }}
+            type="number" min={1}
+            value={source.max_silence_secs ?? ""}
+            placeholder={t("cfg.maxSilenceSecsPlaceholder")}
+            onChange={(e) => onChange({ max_silence_secs: e.target.value === "" ? undefined : Number(e.target.value) })}
+          />
+          <p style={{ fontSize: 10, color: "var(--brand-border, #475569)", margin: "4px 0 0" }}>
+            {t("cfg.maxSilenceSecsHint")}
+          </p>
+        </div>
+      </div>
     </>
   );
 }
@@ -6386,6 +6402,12 @@ function RecipesTab() {
       setpoints: prev.setpoints.filter((_, i) => i !== idx),
     } : null);
 
+  const recipeColumns: DataTableColumn<RecipeSummary>[] = [
+    { key: "name", header: t("cfg.name"), accessor: (r) => r.name },
+    { key: "id", header: t("cfg.recipeId"), accessor: (r) => r.id },
+    { key: "setpoints_count", header: t("cfg.setpointsCount"), accessor: (r) => r.setpoints_count, filterable: false, align: "right", width: 60 },
+  ];
+
   return (
     <div style={S.section}>
       <div style={S.sectionTitle}>RICETTE (ISA-88)</div>
@@ -6415,26 +6437,16 @@ function RecipesTab() {
             />
             <button style={S.btn("primary")} onClick={createRecipe}>+</button>
           </div>
-          <div style={{ flex: 1, overflowY: "auto", border: "1px solid var(--brand-surface, #1e293b)", borderRadius: 4 }}>
-            {recipes.length === 0 && (
-              <div style={{ padding: 12, color: "var(--brand-border, #475569)", fontSize: 12 }}>Nessuna ricetta.</div>
-            )}
-            {recipes.map((r) => (
-              <div
-                key={r.id}
-                style={{
-                  padding: "8px 10px",
-                  cursor: "pointer",
-                  background: selected?.id === r.id ? "#1e3a5f" : "transparent",
-                  borderBottom: "1px solid var(--brand-surface, #1e293b)",
-                  fontSize: 12,
-                }}
-                onClick={() => selectRecipe(r.id)}
-              >
-                <div style={{ fontWeight: 600, color: "var(--brand-text, #e2e8f0)" }}>{r.name}</div>
-                <div style={{ color: "var(--brand-text-subtle, #64748b)" }}>{r.id} · {r.setpoints_count} setpoint</div>
-              </div>
-            ))}
+          <div style={{ flex: 1, overflowY: "auto" }}>
+            <DataTable<RecipeSummary>
+              columns={recipeColumns}
+              rows={recipes}
+              rowKey={(r) => r.id}
+              onRowClick={(r) => selectRecipe(r.id)}
+              selectedRowKey={selected?.id}
+              emptyLabel="Nessuna ricetta."
+              compact
+            />
           </div>
         </div>
 
