@@ -6,11 +6,16 @@
 >
 > **Pulizia 2026-07-27**: rimossi i task già chiusi e le sezioni di verifica ormai superate; le sessioni mergiate **e** verificate fino al 2026-07-09 sono compresse in «Storico». Il dettaglio integrale resta in `CHANGELOG.md` e nella history git.
 
-**Last session**: 2026-08-07 — avviato un nuovo filone: motore di rendering **LVGL** per target
-embedded (framebuffer/DRM/Wayland, in futuro ESP32), come seconda modalità di progetto accanto
-al web. Sessione dedicata solo ad analisi architetturale + fondamenta (Fase 1), non a
-rendering funzionante. Vedi sezione dedicata sotto e `docs/plans/2026-08-07-lvgl-engine.md` per
-il piano completo.
+**Last session**: 2026-08-07 (notte, in autonomia) — proseguito il filone motore **LVGL** avviato
+in serata (Fase 1: analisi + scaffolding) fino a **Fase 2 (interprete widget) + Fase 3 (wizard
+progetto + filtro palette)**, su richiesta esplicita del maintainer di procedere da solo fino al
+mattino, un branch per fase per sicurezza. Risultato: interprete `SynopticObject` → widget LVGL
+funzionante e verificato end-to-end (rect/text/button/led/slider), wizard di creazione progetto
+con scelta target Web/LVGL, palette oggetti filtrata di conseguenza — **ma nessun export
+immagine**, bloccato da un bug upstream confermato (non nostro) nel crate `lvgl` 0.6.2, vedi
+sezione dedicata sotto e `docs/OPEN_QUESTIONS.md` Q14 per l'analisi completa (backtrace GDB
+incluso). Tre branch separati, nessuno mergiato: `feature/lvgl` (Fase 1) → `feature/lvgl-2-render-engine`
+(Fase 2) → `feature/lvgl-3-project-wizard` (Fase 3, tip attuale). **Da provare dal maintainer.**
 
 **Sessione precedente**: 2026-08-06 (notte) — **sessione lunga in autonomia** (il maintainer è andato a
 dormire a metà, chiedendo di proseguire i task pianificati e poi di indagare migliorie): T-41
@@ -78,12 +83,97 @@ SDL2** (iterazione rapida senza hardware, prima di framebuffer/DRM o Wayland rea
 del wizard di creazione progetto (scelta target + pre-config area di lavoro/colori per tutti i
 progetti) è **rimandata a dopo** una prima demo funzionante del motore, non in questo blocco.
 
-**Da fare alla ripresa**: Fase 2 — spike sul simulatore SDL2 (richiede `libsdl2-dev`, non
+**Nota**: il paragrafo seguente rifletteva il piano a fine Fase 1 (spike SDL2). Il piano è
+cambiato in corsa nella sessione notturna successiva (vedi sezione dedicata sotto) — niente
+SDL2 (bloccato: `libsdl2-dev` non installabile senza sudo su questo dev server, e comunque
+inutile senza schermo), e l'ordine Fase 2 → Fase 3 è stato eseguito per intero. Lasciato per
+memoria storica di come è stato pianificato inizialmente.
+
+~~Da fare alla ripresa: Fase 2 — spike sul simulatore SDL2 (richiede `libsdl2-dev`, non
 installato su questo dev server, da valutare se installarlo qui o solo sulla macchina di casa),
 client WS/REST verso un'istanza `sws-runtime` reale, porting minimo di `resolveObject()`/soglie
 da `SvgCanvas.tsx`, primi tipi widget (`rect`, `text`, `button`, `led`, `slider`). Roadmap
 completa (Fasi 3-6: wizard, backend HW reali, container podman multi-arch, ampliamento catalogo,
-ESP32) in `docs/plans/2026-08-07-lvgl-engine.md`.
+ESP32) in `docs/plans/2026-08-07-lvgl-engine.md`.~~
+
+---
+
+## 2026-08-07 (notte): motore LVGL — Fase 2 (interprete widget) + Fase 3 (wizard progetto)
+
+Continuazione autonoma della sessione serale (Fase 1 sopra), su richiesta esplicita del
+maintainer prima di andare a dormire: "prova a portare avanti in autonomia le varie fasi fino a
+domani mattina, fai un branch per ogni fase per sicurezza… prova ad arrivare almeno fino a
+implementare la possibilità di creare il progetto LVGL dall'IDE e di piazzare i principali
+oggetti disponibili e vederli". Traguardo raggiunto, con un limite onesto documentato sotto
+(niente export immagine).
+
+### Fase 2 — `feature/lvgl-2-render-engine` (da `feature/lvgl`)
+
+**Adattamento imposto dall'ambiente**: niente simulatore SDL2 come pianificato a fine Fase 1 —
+`libsdl2-dev` non è installabile qui (`sudo` è in `deny` esplicito in `.claude/settings.json`,
+fallisce subito senza prompt) e comunque un simulatore interattivo non sarebbe visibile su
+questo dev server headless. Il motore renderizza quindi solo widget (nessun canale di
+verifica visiva) — vedi il bug sotto sul perché nemmeno il redraw in memoria funziona ancora.
+
+**Implementato**: `sws-lvgl-viewer` è ora un client REST/WS reale — `client.rs` fa `GET
+/api/synoptics/:name` (percorso via `Url::path_segments_mut()`, gestisce nomi pagina con spazi)
+e legge il primo snapshot di `/ws/tags`; `tls.rs` fornisce un `rustls::ClientConfig` che accetta
+il certificato self-signed del runtime (stesso compromesso del browser al primo accesso, scope
+volutamente ristretto a runtime locali/dev espliciti). `model.rs` è un sottoinsieme minimo e
+tollerante di `SynopticObject`/`SynopticPage` (`#[serde(default)]` ovunque — ignora silenziosamente
+i ~130 campi che questo motore non conosce ancora). `lvgl_render.rs` è l'interprete vero e
+proprio: porta da `SvgCanvas.tsx` la logica di `resolveObject()`/`thresholdColor()`/`formatValue()`/
+`isVisible()` per i 5 tipi widget MVP (rect→`Obj` con style bg color, text→`Label` con soglie
+colore, button→`Btn`+`Label` figlio, led→`Led` con `on()`/`off()` + colore in base a on_value/
+qualità tag, slider→`Slider` con range/valore via `lv_bar_set_range`/`set_value` raw FFI, perché
+`lv_slider_t` è internamente uno specializzato `lv_bar_t` e il binding safe non espone setter
+dedicati per slider). Riuso diretto di `sws_core::{TagValue,TagQuality}` (path-dependency su
+`sws-core`) invece di una terza copia dei tipi wire.
+
+**Bug bloccante confermato, non nostro** (analisi completa in `docs/OPEN_QUESTIONS.md` Q14):
+`lvgl::Display::register()` — e identicamente `register_raw()` — tengono un puntatore verso un
+`DrawBuffer` che vive in una variabile locale alla funzione stessa, distrutta al ritorno. LVGL
+resta con un dangling pointer; il primo `task_handler()` segfaulta in modo sistematico e
+deterministico (confermato via `coredumpctl debug` + backtrace GDB completo: `lv_color_fill`
+chiamato con puntatore spazzatura e un conteggio pixel di ~4 miliardi). Riprodotto identico a
+qualunque risoluzione, con o senza thread dedicato, con la config vendorizzata o quella reale
+degli esempi ufficiali, persino chiamando `task_handler()` immediatamente dopo `register()` senza
+codice intermedio — non è un errore di configurazione nostro, è strutturale nel crate (che lo
+ammette: `DrawBuffer::get_ptr()` ha un commento `// TODO: needs to be 'static somehow`).
+`sws-lvgl-viewer` quindi **crea correttamente tutti i widget ma non tenta il redraw**: si ferma
+subito dopo, riportando un riepilogo testuale di cosa è stato interpretato. Verificato dal vivo
+contro un'istanza `sws-runtime` isolata con `examples/templates/demo-items` "Page 1": 11/18
+oggetti supportati creati correttamente (i restanti 7 — navbutton/ellipse/trend/gauge/symbol/
+lang_selector — correttamente segnalati come non ancora supportati), **`EXIT: 0`, nessun crash**.
+
+### Fase 3 — `feature/lvgl-3-project-wizard` (da `feature/lvgl-2-render-engine`)
+
+**`Project::target`** (nuovo campo in `sws-core/src/project.rs`, `Option<ProjectTarget>` con
+`kind: web | lvgl_framebuffer | lvgl_wayland` + `framebuffer_device` opzionale; `None` = web,
+comportamento invariato per ogni progetto esistente) esposto in `ProjectInfo` lato TypeScript.
+`CreateProjectRequest` (`sws-web/src/projects.rs`) accetta ora un `target` opzionale, applicato
+solo ai progetti vuoti (i template restano sempre web per ora — non sono stati pensati per
+LVGL). **Wizard** (`WelcomeScreen.tsx` → `NewProjectModal`, tab "vuoto"): select Web/LVGL-
+Framebuffer/LVGL-Wayland, con campo device framebuffer quando pertinente. **Palette filtrata**
+(`LeftPanel.tsx`): per progetti LVGL, `PALETTE_GROUPS` mostra solo `rect`/`text`/`button`/`led`/
+`slider` (stesso elenco di `SUPPORTED_TYPES` nel motore Rust — tenerli allineati quando il
+catalogo cresce), gruppi rimasti vuoti nascosti invece che mostrati senza contenuto.
+
+**Verificato end-to-end** contro un'istanza `sws-runtime` isolata: progetto creato via
+`POST /api/projects` con `target: {kind: "lvgl_framebuffer", framebuffer_device: "/dev/fb0"}`
+(stessa chiamata che fa il wizard), verificato persistito via `GET /api/project`; 5 widget
+piazzati via `PUT /api/synoptics/:name` (stessa API della canvas dell'editor); `sws-lvgl-viewer`
+li ha interpretati tutti e cinque correttamente. `cargo check --workspace` e `pnpm build`
+entrambi verdi.
+
+**Da fare alla ripresa**: il maintainer testa/valuta i tre branch (rollback libero se qualcosa
+non convince — nessuno è mergiato). Se si conferma la via, sbloccare l'export immagine è il
+passo successivo: tre opzioni valutate in Q14 (vendorizzare un fix minimo del crate `lvgl`,
+scrivere uno shim C che bypassa il modulo `Display` difettoso usando solo `lvgl-sys` raw, o
+cambiare binding — es. `rlvgl`, reimplementazione Rust-nativa trovata durante la ricerca
+iniziale). Nessuna scelta fatta stanotte: rischio giudicato troppo alto per procedere senza
+supervisione. Poi: Fase 4 (backend HW reali, richiede hardware/schermo reale — fuori portata di
+questo dev server headless), Fase 5 (container podman multi-arch per `sws-lvgl-viewer`).
 
 ---
 
