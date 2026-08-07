@@ -78,7 +78,20 @@ birth/LWT, NCMD write-back. Nessuna dipendenza esterna oltre a `prost`.
 plugin è un crate del workspace (`sws-plugin-modbus`, `sws-plugin-opcua`, `sws-plugin-mqtt`,
 `sws-plugin-ha`, `sws-plugin-s7`, `sws-plugin-enip`) compilato direttamente nel binario
 `sws-runtime`. Il dynamic `.so` è stato deferito al product phase. `sws-plugin-api` esiste
-ma il suo ruolo attuale è solo definire i trait condivisi tra i crate.
+solo come skeleton della futura ABI C — non definisce trait condivisi (verificato 2026-08-07,
+vedi nota sotto).
+
+**Nota (2026-08-07)**: verificato lo stato reale dello skeleton prima che qualcuno ci lavori
+sopra. `sws-plugin-api/src/lib.rs` è 45 righe: solo quattro struct `#[repr(C)]`
+(`SwsPluginManifest`, `PluginKind`, `TagQuality`, `TagValue`) più un commento di modulo con
+`TODO: finalize ABI, write dlopen-based loader, add example plugin crate.` — nessun trait,
+nessun loader. È dichiarato come path-dependency in tre `Cargo.toml` (`sws-plugin-modbus`,
+`sws-plugin-opcua`, `sws-plugin-mqtt`) ma **mai importato** in nessuno dei tre (`grep -rn "use
+sws_plugin_api"` → zero risultati nel workspace); `sws-plugin-modbus/src/lib.rs:2` lo conferma
+esplicitamente: `// sws-plugin-api is deferred until third-party plugin support is needed.`
+Promemoria per quando si affronterà il dynamic loading in product phase: decidere se
+completare lo skeleton (loader dlopen + crate plugin di esempio) o rimuoverlo insieme alle
+path-dependency Cargo oggi inutilizzate nei tre plugin.
 
 ---
 
