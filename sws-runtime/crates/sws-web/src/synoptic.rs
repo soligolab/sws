@@ -99,6 +99,16 @@ pub struct SynopticObject {
     /// [tag, ...extra_tags]. Generic JSON passthrough like `options`/`table_rows`
     /// above — the frontend owns the shape (see TrendSeriesStyle in types/index.ts).
     #[serde(skip_serializing_if = "Option::is_none")] pub trend_series_styles: Option<Value>,
+    /// Seconds moved per ◀/▶ pan click on the compact Trend widget. Defaults
+    /// to 25% of window_s when unset.
+    #[serde(skip_serializing_if = "Option::is_none")] pub pan_step_s: Option<f64>,
+    // XY plot (live point + trail, not a time series). `tag` above is the X axis.
+    #[serde(skip_serializing_if = "Option::is_none")] pub y_tag: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub xy_trail_s: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub xy_x_min: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub xy_x_max: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub xy_y_min: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub xy_y_max: Option<f64>,
     // Layer / visibility (cross-cutting)
     #[serde(skip_serializing_if = "Option::is_none")] pub z_index:        Option<i32>,
     #[serde(skip_serializing_if = "Option::is_none")] pub visible:        Option<bool>,
@@ -120,6 +130,7 @@ pub struct SynopticObject {
     #[serde(skip_serializing_if = "Option::is_none")] pub font_style:     Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")] pub text_anchor:    Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")] pub color:          Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub text_color_by_threshold: Option<bool>,
     // Built-in SCADA symbol (type === "symbol")
     #[serde(skip_serializing_if = "Option::is_none")] pub symbol_id:        Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")] pub state_off_color:  Option<String>,
@@ -184,6 +195,9 @@ pub struct SynopticObject {
     // mirrored from day one, same reasoning as alarm_bell above.
     #[serde(skip_serializing_if = "Option::is_none")] pub alarm_banner_id_prefix:   Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")] pub alarm_banner_severities:  Option<Value>,
+    // Recipe panel (type === "recipe_panel") — new in this session, mirrored
+    // from day one, same reasoning as alarm_bell/alarm_banner above.
+    #[serde(skip_serializing_if = "Option::is_none")] pub recipe_panel_id_prefix:   Option<String>,
     // Sparkline (type === "sparkline") — same pre-existing gap as alarm_viewer above.
     #[serde(skip_serializing_if = "Option::is_none")] pub spark_window_s:        Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")] pub spark_color:           Option<String>,

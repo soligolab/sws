@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
 import { getBrand } from "@/branding";
@@ -6,12 +6,13 @@ import { SvgCanvas } from "@/canvas/SvgCanvas";
 import { viewerFitScale, effectiveSizeMode } from "@/pageLayout";
 import { resolvePageBackground } from "@/theme";
 import { AlarmBellPanel } from "@/components/AlarmBellPanel";
+import { RecipePanel } from "@/components/RecipePanel";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { UiLangSelect } from "@/components/UiLangSelect";
 import { useAppStore } from "@/store";
 import { localizeObjects, effectiveProjectLang } from "@/i18n/projectI18n";
 import { useTagStream, tryTagWriteWs, sendSubscribe } from "@/ws/tagStream";
-import type { FunctionDef, RecipeSummary } from "@/types";
+import type { FunctionDef } from "@/types";
 
 // ── Script output toast ───────────────────────────────────────────────────────
 
@@ -103,30 +104,7 @@ function AlarmPanel({ bellTop = 80 }: { bellTop?: number }) {
 
 // ── RecipeModal ───────────────────────────────────────────────────────────────
 
-function RecipeModal({ onClose, username }: { onClose: () => void; username: string }) {
-  const { t } = useTranslation();
-  const [recipes, setRecipes]   = useState<RecipeSummary[]>([]);
-  const [applying, setApplying] = useState<string | null>(null);
-  const [result, setResult]     = useState<string>("");
-
-  useEffect(() => {
-    api.listRecipes().then(setRecipes).catch(() => setRecipes([]));
-  }, []);
-
-  const apply = useCallback(async (id: string) => {
-    setApplying(id);
-    setResult("");
-    try {
-      const r = await api.applyRecipe(id, username || "operator");
-      setResult(`✓ ${r.applied}/${r.total} setpoint scritti` +
-        (r.errors.length > 0 ? ` — Errori: ${r.errors.join(", ")}` : ""));
-    } catch {
-      setResult(t("viewer.recipeApplyError"));
-    } finally {
-      setApplying(null);
-    }
-  }, [username]);
-
+function RecipeModal({ onClose }: { onClose: () => void }) {
   return (
     <div style={{
       position: "fixed", inset: 0, zIndex: 2000,
@@ -138,37 +116,7 @@ function RecipeModal({ onClose, username }: { onClose: () => void; username: str
         overflowY: "auto", color: "var(--brand-text, #e2e8f0)",
       }} onClick={(e) => e.stopPropagation()}>
         <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 16 }}>Applica Ricetta</div>
-        {recipes.length === 0 ? (
-          <div style={{ color: "var(--brand-text-subtle, #64748b)", fontSize: 13 }}>Nessuna ricetta disponibile.</div>
-        ) : (
-          recipes.map((r) => (
-            <div key={r.id} style={{
-              display: "flex", justifyContent: "space-between", alignItems: "center",
-              padding: "8px 0", borderBottom: "1px solid var(--brand-surface, #1e293b)",
-            }}>
-              <div>
-                <div style={{ fontSize: 13, fontWeight: 600 }}>{r.name}</div>
-                <div style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)" }}>{r.id} · {r.setpoints_count} setpoint</div>
-              </div>
-              <button
-                onClick={() => apply(r.id)}
-                disabled={applying === r.id}
-                style={{
-                  padding: "4px 12px", borderRadius: 4, border: "none",
-                  background: "#1d4ed8", color: "#fff", cursor: "pointer", fontSize: 12,
-                  opacity: applying === r.id ? 0.6 : 1,
-                }}
-              >
-                {applying === r.id ? "…" : t("viewer.apply")}
-              </button>
-            </div>
-          ))
-        )}
-        {result && (
-          <div style={{ marginTop: 12, fontSize: 12, color: result.startsWith("✓") ? "var(--brand-success, #22c55e)" : "var(--brand-danger, #ef4444)" }}>
-            {result}
-          </div>
-        )}
+        <RecipePanel />
         <button onClick={onClose} style={{
           marginTop: 16, padding: "6px 16px", borderRadius: 4, border: "1px solid var(--brand-surface-2, #334155)",
           background: "transparent", color: "var(--brand-text-muted, #94a3b8)", cursor: "pointer", fontSize: 12,
@@ -201,7 +149,6 @@ export function RuntimeView() {
 
   const [toasts, setToasts]         = useState<ScriptToast[]>([]);
   const [recipeOpen, setRecipeOpen] = useState(false);
-  const username = useAppStore((s) => s.authUser) ?? "operator";
 
   // Kiosk auto-rotate: advance to the next non-skipped page on a fixed interval.
   useEffect(() => {
@@ -486,7 +433,7 @@ export function RuntimeView() {
 
       {/* Recipe apply modal */}
       {recipeOpen && (
-        <RecipeModal onClose={() => setRecipeOpen(false)} username={username} />
+        <RecipeModal onClose={() => setRecipeOpen(false)} />
       )}
     </div>
   );
