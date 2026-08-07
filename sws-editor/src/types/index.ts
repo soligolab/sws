@@ -18,9 +18,11 @@ export type SynopticObjectType =
   | "checkbox"
   | "radio"
   | "slider"
+  | "setpoint"
   // Displays
   | "gauge"
   | "led"
+  | "state_lamp"
   | "progress_bar"
   | "table"
   | "trend"
@@ -31,10 +33,14 @@ export type SynopticObjectType =
   | "alarm_viewer"
   | "alarm_bell"
   | "alarm_banner"
+  // Recipe list + apply, promoted from the fixed RecipeModal (RuntimeView.tsx)
+  | "recipe_panel"
   // SCADA symbols (pump/valve/motor/tank/fan from the built-in library)
   | "symbol"
   // Pipe / connector (multi-waypoint path with fill-level animation)
   | "pipe"
+  // Live point + trailing trail against two tags (trajectory/position, not time)
+  | "xy_plot"
   // Layout
   | "grid"
   // Faceplate instance (parametric reusable component)
@@ -178,6 +184,10 @@ export interface SynopticObject {
   text_anchor?: "start" | "middle" | "end";
   /** Text fill colour (preferred over `fill` for the text object). */
   color?: string;
+  /** When true and the text is tag-bound with a numeric value, `color` is
+   *  overridden by warn_low/warn_high/alarm_low/alarm_high (same thresholdColor()
+   *  used by gauge/progress_bar) whenever a threshold is crossed. */
+  text_color_by_threshold?: boolean;
   // Line / stroke
   x2?: number;
   y2?: number;
@@ -226,6 +236,21 @@ export interface SynopticObject {
   /** Per-trace style (width/dash/fill/smooth), parallel to [tag, ...extra_tags].
    *  `line_color` above remains the legacy fallback for index 0's color. */
   trend_series_styles?: TrendSeriesStyle[];
+  /** Seconds moved per ◀/▶ pan click on the compact widget. Defaults to 25%
+   *  of window_s when unset. Not used by the "Espandi" modal (its own pan). */
+  pan_step_s?: number;
+  // ── XY plot (live point + trail, not a time series) ───────────────────────
+  /** Y-axis tag. `tag` (generic) is the X-axis. Distinct role from `extra_tags`,
+   *  which overlays series on the same axis rather than pairing a second axis. */
+  y_tag?: string;
+  /** How long a sample stays in the trail before expiring, in seconds. */
+  xy_trail_s?: number;
+  /** Axis range; autofit from observed samples when omitted (all four independent
+   *  since X and Y need separate ranges, unlike the single y_min/y_max on trend). */
+  xy_x_min?: number;
+  xy_x_max?: number;
+  xy_y_min?: number;
+  xy_y_max?: number;
   // ── Layer / visibility (cross-cutting) ────────────────────────────────
   /** Render order. Higher draws on top. Default 0; ties broken by array order. */
   z_index?: number;
@@ -393,6 +418,9 @@ export interface SynopticObject {
   // ── Alarm Banner (type === "alarm_banner") ────────────────────────────
   alarm_banner_id_prefix?: string;
   alarm_banner_severities?: AlarmSeverity[];
+  // ── Recipe Panel (type === "recipe_panel") ─────────────────────────────
+  /** Only show recipes whose id starts with this prefix. Unset/empty = all. */
+  recipe_panel_id_prefix?: string;
 }
 
 // ── Faceplate definitions ─────────────────────────────────────────────────────
@@ -1218,6 +1246,12 @@ export interface TextListEntry {
   value: number | string | boolean;
   label: string;
   color?: string;
+  /** Optional validity range — when either bound is set, this entry matches
+   *  by range (`value_min <= v < value_max`, half-open) instead of by exact
+   *  `value`. Lets entries express buckets like "10-20 → marcia lenta"
+   *  without breaking existing entries, which keep matching by exact value. */
+  value_min?: number;
+  value_max?: number;
 }
 
 export interface BarChartSeries {

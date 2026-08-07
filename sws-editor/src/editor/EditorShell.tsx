@@ -13,11 +13,12 @@ import { ImageBrowser } from "@/components/ImageBrowser";
 import { SYMBOL_LIST } from "@/symbols/library";
 import { ASPECT_RATIOS, editorFitSize, effectiveSizeMode, getDevicePresets, referenceResolutionFor, STANDARD_DEVICE_PRESETS } from "@/pageLayout";
 import { getBrand } from "@/branding";
+import { genId } from "@/id";
 import type { SymbolMeta } from "@/symbols/library";
 import { useAppStore } from "@/store";
 import { localizeObjects } from "@/i18n/projectI18n";
 import type { AlignMode } from "@/store";
-import type { AlarmSeverity, ButtonAction, FunctionDef, GridCell, PageLayoutConfig, PageSizeMode, RadioOption, SubCellEntry, SubGrid, SynopticObject, TableRow, TrendSeriesStyle } from "@/types";
+import type { AlarmSeverity, ButtonAction, FunctionDef, GridCell, PageLayoutConfig, PageSizeMode, RadioOption, SubCellEntry, SubGrid, SynopticObject, TableRow, TextListEntry, TrendSeriesStyle } from "@/types";
 
 // ── Shared styles ─────────────────────────────────────────────────────────────
 
@@ -536,11 +537,22 @@ export function EditorShell() {
       case "slider":
         addObject({ type, x, y, width: 200, height: 40, min: 0, max: 100, step: 1, orientation: "horizontal" });
         break;
+      case "setpoint":
+        addObject({ type, x, y, width: 140, height: 56, label: "Setpoint", min: 0, max: 100, step: 1 });
+        break;
       case "gauge":
         addObject({ type, x, y, width: 180, height: 180, min: 0, max: 100, label: "Gauge" });
         break;
       case "led":
         addObject({ type, x, y, width: 40, height: 40, on_value: true, on_color: "var(--brand-success, #22c55e)", off_color: "#374151" });
+        break;
+      case "state_lamp":
+        addObject({ type, x, y, width: 140, height: 24, font_size: 13,
+          text_list_entries: [
+            { value: 0, label: "Fermo", color: "var(--brand-text-muted, #94a3b8)" },
+            { value: 1, label: "Marcia", color: "var(--brand-success, #22c55e)" },
+            { value: 2, label: "Allarme", color: "var(--brand-danger, #ef4444)" },
+          ] });
         break;
       case "progress_bar":
         addObject({ type, x, y, width: 200, height: 30, min: 0, max: 100, fill: "var(--brand-primary, #3b82f6)", show_value: true });
@@ -552,6 +564,10 @@ export function EditorShell() {
       case "trend":
         addObject({ type, x, y, width: 360, height: 180,
           tag: "", window_s: 60, line_color: "var(--brand-primary, #3b82f6)" });
+        break;
+      case "xy_plot":
+        addObject({ type, x, y, width: 200, height: 200,
+          xy_trail_s: 30, line_color: "var(--brand-primary, #3b82f6)" });
         break;
       case "text_list":
         addObject({ type, x, y, width: 120, height: 32, font_size: 16, text_anchor: "middle",
@@ -596,6 +612,9 @@ export function EditorShell() {
       case "alarm_banner":
         addObject({ type, x, y, width: 600, height: 32 });
         break;
+      case "recipe_panel":
+        addObject({ type, x, y, width: 260, height: 160 });
+        break;
       case "image":
         setPendingImagePos({ x, y });
         return; // addObject called after image is chosen in browser
@@ -619,6 +638,9 @@ export function EditorShell() {
           stroke: "var(--brand-text-subtle, #64748b)",
           stroke_width: 8,
         });
+        break;
+      case "faceplate":
+        addObject({ type, x, y, width: 120, height: 80 });
         break;
     }
   };
@@ -1937,6 +1959,7 @@ function ObjectProps({
   const { t } = useTranslation();
   const [imgBrowserOpen, setImgBrowserOpen] = useState(false);
   const projLangs = useAppStore((s) => s.project?.languages?.langs) ?? [];
+  const faceplates = useAppStore((s) => s.faceplates);
   // NB: selezionare l'array `entries` (riferimento stabile nello store) e
   // derivare le chiavi in useMemo. Un selettore che fa `.map()` ritornerebbe
   // un nuovo array a ogni render → snapshot instabile → loop infinito e crash
@@ -2028,6 +2051,100 @@ function ObjectProps({
     </div>
   );
 
+  /** "VOCI" editor shared by text_list and state_lamp — both drive a shape/text
+   *  purely off the same text_list_entries field (value → label → color). */
+  // Sovrapposizione/buco fra la voce `i` e la sua vicina numerica successiva
+  // (ordinate per value_min, non per ordine nell'array — l'array resta ciò
+  // che decide chi vince in caso di sovrapposizione reale, vedi
+  // matchTextListEntry in SvgCanvas.tsx; qui serve solo a capire cosa è
+  // "adiacente" numericamente). Solo per voci con un range impostato — le
+  // voci a valore esatto sono un punto, non un intervallo, restano fuori.
+  // Il confine è semi-aperto (min ≤ v < max) per scelta esplicita del
+  // maintainer: nessun cambio di semantica qui, solo comunicarla meglio.
+  const rangeWarning = (entries: TextListEntry[] | undefined, i: number): string | null => {
+    const list = entries ?? [];
+    const e = list[i];
+    if (!e || (e.value_min === undefined && e.value_max === undefined)) return null;
+    const thisMax = e.value_max ?? Infinity;
+    const ranged = list
+      .map((entry, idx) => ({ entry, idx }))
+      .filter(({ entry }) => entry.value_min !== undefined || entry.value_max !== undefined)
+      .sort((a, b) => (a.entry.value_min ?? -Infinity) - (b.entry.value_min ?? -Infinity));
+    const pos = ranged.findIndex(({ idx }) => idx === i);
+    const next = pos >= 0 ? ranged[pos + 1] : undefined;
+    if (!next) return null;
+    const nextMin = next.entry.value_min ?? -Infinity;
+    const nextLabel = next.entry.label || "?";
+    if (nextMin < thisMax) return `⚠ ${t("props.rangeOverlap", { label: nextLabel })}`;
+    if (nextMin > thisMax) return `⚠ ${t("props.rangeGap", { from: thisMax, to: nextMin, label: nextLabel })}`;
+    return null;
+  };
+
+  const textListEntriesField = () => (
+    <>
+      <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", marginTop: 4, marginBottom: 2, fontWeight: 700 }}>VOCI</div>
+      {(obj.text_list_entries ?? []).map((e, i) => {
+        const warning = rangeWarning(obj.text_list_entries, i);
+        return (
+        <div key={i} style={{ display: "flex", flexDirection: "column", gap: 3, marginBottom: 6, padding: 4, border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4 }}>
+          <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+            <input style={{ ...INPUT, width: 54 }} placeholder="val" value={String(e.value)}
+              onChange={(ev) => {
+                const raw = ev.target.value;
+                const v = raw === "true" ? true : raw === "false" ? false : isNaN(Number(raw)) || raw === "" ? raw : Number(raw);
+                const next = [...(obj.text_list_entries ?? [])]; next[i] = { ...e, value: v };
+                onChange({ text_list_entries: next });
+              }} />
+            <input style={{ ...INPUT, flex: 1 }} placeholder={t("props.labelPh")} value={e.label}
+              onChange={(ev) => { const next = [...(obj.text_list_entries ?? [])]; next[i] = { ...e, label: ev.target.value }; onChange({ text_list_entries: next }); }} />
+            <input type="color" value={e.color ?? "var(--brand-text, #e2e8f0)"} title={t("props.colorText")}
+              onChange={(ev) => { const next = [...(obj.text_list_entries ?? [])]; next[i] = { ...e, color: ev.target.value }; onChange({ text_list_entries: next }); }}
+              style={{ width: 28, height: 24, padding: 1, border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 3, cursor: "pointer" }} />
+            <button style={{ ...INPUT, width: "auto", padding: "0 6px", cursor: "pointer" }}
+              onClick={() => { const next = (obj.text_list_entries ?? []).filter((_, j) => j !== i); onChange({ text_list_entries: next }); }}>✕</button>
+          </div>
+          {/* Range di validità opzionale — indentato sotto label+colore per
+              suggerire che è un affinamento del "val" a sinistra, non un
+              campo alla pari. Vuoti = confronto esatto su "val" come oggi.
+              Notazione [min–max) esplicita: il max è escluso (semi-aperto),
+              vedi rangeWarning sopra e props.rangeHint sotto per il perché. */}
+          <div style={{ display: "flex", gap: 4, alignItems: "center", paddingLeft: 58 }}>
+            <span style={{ fontSize: 11, color: "var(--brand-border, #475569)" }}>[</span>
+            <input style={{ ...INPUT, width: 56 }} type="number" placeholder={t("props.rangeMin")}
+              value={e.value_min ?? ""}
+              onChange={(ev) => {
+                const raw = ev.target.value;
+                const next = [...(obj.text_list_entries ?? [])]; next[i] = { ...e, value_min: raw === "" ? undefined : Number(raw) };
+                onChange({ text_list_entries: next });
+              }} />
+            <span style={{ fontSize: 10, color: "var(--brand-border, #475569)" }}>–</span>
+            <input style={{ ...INPUT, width: 56 }} type="number" placeholder={t("props.rangeMax")}
+              value={e.value_max ?? ""}
+              onChange={(ev) => {
+                const raw = ev.target.value;
+                const next = [...(obj.text_list_entries ?? [])]; next[i] = { ...e, value_max: raw === "" ? undefined : Number(raw) };
+                onChange({ text_list_entries: next });
+              }} />
+            <span style={{ fontSize: 11, color: "var(--brand-border, #475569)" }}>)</span>
+          </div>
+          {warning && (
+            <div style={{ fontSize: 10, color: "var(--brand-warning, #f59e0b)", paddingLeft: 58 }}>
+              {warning}
+            </div>
+          )}
+        </div>
+        );
+      })}
+      <button style={{ ...INPUT, width: "100%", cursor: "pointer", marginBottom: 4 }}
+        onClick={() => onChange({ text_list_entries: [...(obj.text_list_entries ?? []), { value: 0, label: "Stato", color: "var(--brand-text, #e2e8f0)" }] })}>
+        + Aggiungi voce
+      </button>
+      <p style={{ fontSize: 10, color: "var(--brand-border, #475569)", margin: "-2px 0 4px" }}>
+        {t("props.rangeHint")}
+      </p>
+    </>
+  );
+
   const BOX_TYPES = ["rect", "ellipse", "button", "navbutton", "checkbox", "radio", "slider", "gauge", "led", "progress_bar", "table", "trend", "symbol", "grid"];
   const isShape = BOX_TYPES.includes(obj.type);
   const hasStroke = obj.type === "rect" || obj.type === "ellipse" || obj.type === "line";
@@ -2103,7 +2220,7 @@ function ObjectProps({
       )}
 
       {/* Tag binding */}
-      {!["navbutton","gauge","slider","checkbox","radio","led","progress_bar","trend","pipe"].includes(obj.type) && field(t("props.tag"), tagInput("es. pump1.speed"))}
+      {!["navbutton","gauge","slider","checkbox","radio","led","progress_bar","trend","pipe","text_list","state_lamp","setpoint","xy_plot"].includes(obj.type) && field(t("props.tag"), tagInput("es. pump1.speed"))}
 
       {/* Token picker (T-40): insert {{key}} into the primary text field so the
           viewer resolves it per the project language table. */}
@@ -2189,6 +2306,27 @@ function ObjectProps({
             </div>
           </div>
           {field(t("props.colorText"), <BindableInput obj={obj} propName="color" onChange={onChange}>{colorInput("color", "var(--brand-text, #e2e8f0)")}</BindableInput>)}
+          <label style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 4, fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", cursor: "pointer" }}>
+            <input
+              type="checkbox"
+              checked={!!obj.text_color_by_threshold}
+              onChange={(e) => onChange({ text_color_by_threshold: e.target.checked || undefined })}
+            />
+            {t("props.colorByThreshold")}
+          </label>
+          {obj.text_color_by_threshold && (
+            <>
+              <p style={{ fontSize: 10, color: "var(--brand-border, #475569)", margin: "2px 0 4px" }}>
+                {t("props.colorByThresholdHint")}
+              </p>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+                <div><div style={LABEL}>{t("props.warnLow")}</div><BindableInput obj={obj} propName="warn_low" onChange={onChange}>{numInput("warn_low", 0)}</BindableInput></div>
+                <div><div style={LABEL}>{t("props.warnHigh")}</div><BindableInput obj={obj} propName="warn_high" onChange={onChange}>{numInput("warn_high", 0)}</BindableInput></div>
+                <div><div style={LABEL}>{t("props.alarmLow")}</div><BindableInput obj={obj} propName="alarm_low" onChange={onChange}>{numInput("alarm_low", 0)}</BindableInput></div>
+                <div><div style={LABEL}>{t("props.alarmHigh")}</div><BindableInput obj={obj} propName="alarm_high" onChange={onChange}>{numInput("alarm_high", 0)}</BindableInput></div>
+              </div>
+            </>
+          )}
         </>
       )}
 
@@ -2328,6 +2466,7 @@ function ObjectProps({
       {obj.type === "slider" && (
         <>
           {field(t("props.tag"), tagInput("es. pump1.speed"))}
+          {field(t("props.color"), <BindableInput obj={obj} propName="fill" onChange={onChange}>{colorInput("fill", "var(--brand-primary, #3b82f6)")}</BindableInput>)}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6 }}>
             <div><div style={LABEL}>Min</div><BindableInput obj={obj} propName="min" onChange={onChange}>{numInput("min", 0)}</BindableInput></div>
             <div><div style={LABEL}>Max</div><BindableInput obj={obj} propName="max" onChange={onChange}>{numInput("max", 100)}</BindableInput></div>
@@ -2354,11 +2493,30 @@ function ObjectProps({
         </>
       )}
 
+      {/* Setpoint */}
+      {obj.type === "setpoint" && (
+        <>
+          {field(t("props.label"), <BindableInput obj={obj} propName="label" onChange={onChange}>{textInput("label", "Setpoint")}</BindableInput>)}
+          {field(t("props.tag"), tagInput("es. pump1.speed_sp"))}
+          {field(t("props.unit"), <BindableInput obj={obj} propName="unit" onChange={onChange}>{textInput("unit", "")}</BindableInput>)}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6 }}>
+            <div><div style={LABEL}>Min</div><BindableInput obj={obj} propName="min" onChange={onChange}>{numInput("min", 0)}</BindableInput></div>
+            <div><div style={LABEL}>Max</div><BindableInput obj={obj} propName="max" onChange={onChange}>{numInput("max", 100)}</BindableInput></div>
+            <div><div style={LABEL}>Step</div><BindableInput obj={obj} propName="step" onChange={onChange}>{numInput("step", 1)}</BindableInput></div>
+          </div>
+          {field(t("props.readOnly"),
+            <input type="checkbox" checked={!!obj.read_only}
+              onChange={(e) => onChange({ read_only: e.target.checked })} />
+          )}
+        </>
+      )}
+
       {/* Checkbox */}
       {obj.type === "checkbox" && (
         <>
           {field(t("props.label"), <BindableInput obj={obj} propName="label" onChange={onChange}>{textInput("label", "Checkbox")}</BindableInput>)}
           {field(t("props.tag"), tagInput("es. pump1.run"))}
+          {field(t("props.color"), <BindableInput obj={obj} propName="fill" onChange={onChange}>{colorInput("fill", "var(--brand-primary, #3b82f6)")}</BindableInput>)}
           {field(t("props.valueOn"),
             <BindableInput obj={obj} propName="checked_value" onChange={onChange}>
               <input type="text" style={INPUT} placeholder={t("props.trueHint")}
@@ -2395,6 +2553,7 @@ function ObjectProps({
         <>
           {field(t("props.label"), <BindableInput obj={obj} propName="label" onChange={onChange}>{textInput("label", "Radio")}</BindableInput>)}
           {field(t("props.tag"), tagInput("es. pump1.mode"))}
+          {field(t("props.color"), <BindableInput obj={obj} propName="fill" onChange={onChange}>{colorInput("fill", "var(--brand-primary, #3b82f6)")}</BindableInput>)}
           {field(t("props.orientation"),
             <select
               style={{ ...INPUT, cursor: "pointer" }}
@@ -2536,6 +2695,10 @@ function ObjectProps({
         <>
           {field(t("props.tag"), tagInput("es. boiler.t"))}
           {field(t("props.windowS"), <BindableInput obj={obj} propName="window_s" onChange={onChange}>{numInput("window_s", 60)}</BindableInput>)}
+          {field(t("props.panStepS"), numInput("pan_step_s", Math.round((obj.window_s ?? 60) * 0.25)))}
+          <p style={{ fontSize: 10, color: "var(--brand-border, #475569)", margin: "-4px 0 0" }}>
+            {t("props.panStepSHint")}
+          </p>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
             <div><div style={LABEL}>Y min</div><BindableInput obj={obj} propName="y_min" onChange={onChange}>{numInput("y_min", 0)}</BindableInput></div>
             <div><div style={LABEL}>Y max</div><BindableInput obj={obj} propName="y_max" onChange={onChange}>{numInput("y_max", 100)}</BindableInput></div>
@@ -2594,6 +2757,32 @@ function ObjectProps({
         </>
         );
       })()}
+
+      {/* XY plot */}
+      {obj.type === "xy_plot" && (
+        <>
+          {field(t("props.xTag"), tagInput("es. gantry.pos_x"))}
+          {field(t("props.yTag"),
+            <TagInput
+              style={INPUT}
+              placeholder="es. gantry.pos_y"
+              value={obj.y_tag ?? ""}
+              onChange={(v) => onChange({ y_tag: v || undefined })}
+            />
+          )}
+          {field(t("props.trailS"), <BindableInput obj={obj} propName="xy_trail_s" onChange={onChange}>{numInput("xy_trail_s", 30)}</BindableInput>)}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+            <div><div style={LABEL}>X min</div><BindableInput obj={obj} propName="xy_x_min" onChange={onChange}>{numInput("xy_x_min", 0)}</BindableInput></div>
+            <div><div style={LABEL}>X max</div><BindableInput obj={obj} propName="xy_x_max" onChange={onChange}>{numInput("xy_x_max", 100)}</BindableInput></div>
+            <div><div style={LABEL}>Y min</div><BindableInput obj={obj} propName="xy_y_min" onChange={onChange}>{numInput("xy_y_min", 0)}</BindableInput></div>
+            <div><div style={LABEL}>Y max</div><BindableInput obj={obj} propName="xy_y_max" onChange={onChange}>{numInput("xy_y_max", 100)}</BindableInput></div>
+          </div>
+          <p style={{ fontSize: 10, color: "var(--brand-border, #475569)", margin: "2px 0 0" }}>
+            Lascia min/max vuoti per autofit sui campioni osservati.
+          </p>
+          {field(t("props.colorMainLine"), <BindableInput obj={obj} propName="line_color" onChange={onChange}>{colorInput("line_color", "var(--brand-primary, #3b82f6)")}</BindableInput>)}
+        </>
+      )}
 
       {/* Image (external URL) */}
       {obj.type === "image" && (
@@ -2704,29 +2893,7 @@ function ObjectProps({
       {obj.type === "text_list" && (
         <>
           {field(t("props.tag"), tagInput("es. valvola.stato"))}
-          <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", marginTop: 4, marginBottom: 2, fontWeight: 700 }}>VOCI</div>
-          {(obj.text_list_entries ?? []).map((e, i) => (
-            <div key={i} style={{ display: "flex", gap: 4, marginBottom: 4, alignItems: "center" }}>
-              <input style={{ ...INPUT, width: 54 }} placeholder="val" value={String(e.value)}
-                onChange={(ev) => {
-                  const raw = ev.target.value;
-                  const v = raw === "true" ? true : raw === "false" ? false : isNaN(Number(raw)) || raw === "" ? raw : Number(raw);
-                  const next = [...(obj.text_list_entries ?? [])]; next[i] = { ...e, value: v };
-                  onChange({ text_list_entries: next });
-                }} />
-              <input style={{ ...INPUT, flex: 1 }} placeholder={t("props.labelPh")} value={e.label}
-                onChange={(ev) => { const next = [...(obj.text_list_entries ?? [])]; next[i] = { ...e, label: ev.target.value }; onChange({ text_list_entries: next }); }} />
-              <input type="color" value={e.color ?? "var(--brand-text, #e2e8f0)"} title={t("props.colorText")}
-                onChange={(ev) => { const next = [...(obj.text_list_entries ?? [])]; next[i] = { ...e, color: ev.target.value }; onChange({ text_list_entries: next }); }}
-                style={{ width: 28, height: 24, padding: 1, border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 3, cursor: "pointer" }} />
-              <button style={{ ...INPUT, padding: "0 6px", cursor: "pointer" }}
-                onClick={() => { const next = (obj.text_list_entries ?? []).filter((_, j) => j !== i); onChange({ text_list_entries: next }); }}>✕</button>
-            </div>
-          ))}
-          <button style={{ ...INPUT, width: "100%", cursor: "pointer", marginBottom: 4 }}
-            onClick={() => onChange({ text_list_entries: [...(obj.text_list_entries ?? []), { value: 0, label: "Stato", color: "var(--brand-text, #e2e8f0)" }] })}>
-            + Aggiungi voce
-          </button>
+          {textListEntriesField()}
           {field(t("props.textDefault"), <input style={INPUT} value={obj.text_list_default ?? ""} onChange={(e) => onChange({ text_list_default: e.target.value })} />)}
           {field(t("props.colorDefault"), <input type="color" value={obj.text_list_default_color ?? "var(--brand-text-muted, #94a3b8)"} onChange={(e) => onChange({ text_list_default_color: e.target.value })} style={{ width: 40, height: 24, padding: 1, border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 3 }} />)}
           {field(t("props.fontSize"), numInput("font_size", 16))}
@@ -2740,6 +2907,17 @@ function ObjectProps({
         </>
       )}
 
+      {/* State Lamp — same data model as text_list (value→label→color), shape instead of text */}
+      {obj.type === "state_lamp" && (
+        <>
+          {field(t("props.tag"), tagInput("es. valvola.stato"))}
+          {textListEntriesField()}
+          <p style={{ fontSize: 10, color: "var(--brand-border, #475569)", margin: "-2px 0 4px" }}>
+            {t("props.stateLampHint")}
+          </p>
+        </>
+      )}
+
       {/* Bar Chart */}
       {obj.type === "bar_chart" && (
         <>
@@ -2750,8 +2928,8 @@ function ObjectProps({
             </select>
           ))}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
-            <div><div style={LABEL}>Min</div>{numInput("min", 0)}</div>
-            <div><div style={LABEL}>Max</div>{numInput("max", 100)}</div>
+            <div><div style={LABEL}>Min</div><BindableInput obj={obj} propName="min" onChange={onChange}>{numInput("min", 0)}</BindableInput></div>
+            <div><div style={LABEL}>Max</div><BindableInput obj={obj} propName="max" onChange={onChange}>{numInput("max", 100)}</BindableInput></div>
           </div>
           {field(t("props.unit"), textInput("unit", ""))}
           {field(t("props.barGap"), numInput("bar_gap", 0.2))}
@@ -2771,7 +2949,7 @@ function ObjectProps({
                 onChange={(e) => { const next = [...(obj.bar_series ?? [])]; next[i] = { ...s, label: e.target.value }; onChange({ bar_series: next }); }} />
               <input type="color" value={s.color} onChange={(e) => { const next = [...(obj.bar_series ?? [])]; next[i] = { ...s, color: e.target.value }; onChange({ bar_series: next }); }}
                 style={{ width: 28, height: 24, padding: 1, border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 3 }} />
-              <button style={{ ...INPUT, padding: "0 6px", cursor: "pointer" }}
+              <button style={{ ...INPUT, width: "auto", padding: "0 6px", cursor: "pointer" }}
                 onClick={() => onChange({ bar_series: (obj.bar_series ?? []).filter((_, j) => j !== i) })}>✕</button>
             </div>
           ))}
@@ -2781,8 +2959,8 @@ function ObjectProps({
           </button>
           <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", marginTop: 2, marginBottom: 2, fontWeight: 700 }}>SOGLIE</div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
-            <div><div style={LABEL}>{t("props.warnHigh")}</div>{numInput("warn_high", 0)}</div>
-            <div><div style={LABEL}>{t("props.alarmHigh")}</div>{numInput("alarm_high", 0)}</div>
+            <div><div style={LABEL}>{t("props.warnHigh")}</div><BindableInput obj={obj} propName="warn_high" onChange={onChange}>{numInput("warn_high", 0)}</BindableInput></div>
+            <div><div style={LABEL}>{t("props.alarmHigh")}</div><BindableInput obj={obj} propName="alarm_high" onChange={onChange}>{numInput("alarm_high", 0)}</BindableInput></div>
           </div>
         </>
       )}
@@ -2796,7 +2974,7 @@ function ObjectProps({
               <option value="donut">{t("props.donut")}</option>
             </select>
           ))}
-          {(obj.pie_mode ?? "pie") === "donut" && field(t("props.innerRadius"), numInput("pie_inner_ratio", 0.5))}
+          {(obj.pie_mode ?? "pie") === "donut" && field(t("props.innerRadius"), <BindableInput obj={obj} propName="pie_inner_ratio" onChange={onChange}>{numInput("pie_inner_ratio", 0.5)}</BindableInput>)}
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             {[["pie_show_labels","Percentuali"], ["pie_show_legend","Legenda"]].map(([k,l]) => (
               <label key={k} style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "flex", gap: 3, alignItems: "center" }}>
@@ -2804,8 +2982,15 @@ function ObjectProps({
               </label>
             ))}
           </div>
-          {(obj.pie_mode ?? "pie") === "donut" && field(t("props.textCenter"), textInput("pie_center_text", ""))}
-          {(obj.pie_mode ?? "pie") === "donut" && field(t("props.tagCenter"), tagInput("es. totale.kw"))}
+          {(obj.pie_mode ?? "pie") === "donut" && field(t("props.textCenter"), <BindableInput obj={obj} propName="pie_center_text" onChange={onChange}>{textInput("pie_center_text", "")}</BindableInput>)}
+          {(obj.pie_mode ?? "pie") === "donut" && field(t("props.tagCenter"),
+            <TagInput
+              style={INPUT} placeholder="es. totale.kw"
+              value={obj.pie_center_tag ?? ""}
+              onChange={(v) => onChange({ pie_center_tag: v || undefined })}
+            />
+          )}
+          {(obj.pie_mode ?? "pie") === "donut" && obj.pie_center_tag && field(t("props.format"), textInput("pie_center_format", "{value}"))}
           <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", marginTop: 6, marginBottom: 2, fontWeight: 700 }}>SLICE</div>
           {(obj.pie_slices ?? []).map((s, i) => (
             <div key={i} style={{ display: "flex", gap: 4, marginBottom: 4, alignItems: "center" }}>
@@ -2815,7 +3000,7 @@ function ObjectProps({
                 onChange={(e) => { const next = [...(obj.pie_slices ?? [])]; next[i] = { ...s, label: e.target.value }; onChange({ pie_slices: next }); }} />
               <input type="color" value={s.color} onChange={(e) => { const next = [...(obj.pie_slices ?? [])]; next[i] = { ...s, color: e.target.value }; onChange({ pie_slices: next }); }}
                 style={{ width: 28, height: 24, padding: 1, border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 3 }} />
-              <button style={{ ...INPUT, padding: "0 6px", cursor: "pointer" }}
+              <button style={{ ...INPUT, width: "auto", padding: "0 6px", cursor: "pointer" }}
                 onClick={() => onChange({ pie_slices: (obj.pie_slices ?? []).filter((_, j) => j !== i) })}>✕</button>
             </div>
           ))}
@@ -2830,12 +3015,12 @@ function ObjectProps({
       {obj.type === "sparkline" && (
         <>
           {field(t("props.tag"), tagInput("es. flow.rate"))}
-          {field(t("props.windowS"), numInput("spark_window_s", 60))}
+          {field(t("props.windowS"), <BindableInput obj={obj} propName="spark_window_s" onChange={onChange}>{numInput("spark_window_s", 60)}</BindableInput>)}
           {field(t("props.colorLine"), <input type="color" value={obj.spark_color ?? "var(--brand-primary, #3b82f6)"} onChange={(e) => onChange({ spark_color: e.target.value })} style={{ width: 40, height: 24, padding: 1, border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 3 }} />)}
           {field(t("props.thicknessPx"), numInput("spark_stroke_width", 1.5))}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
-            <div><div style={LABEL}>Y min</div>{numInput("y_min", 0)}</div>
-            <div><div style={LABEL}>Y max</div>{numInput("y_max", 0)}</div>
+            <div><div style={LABEL}>Y min</div><BindableInput obj={obj} propName="y_min" onChange={onChange}>{numInput("y_min", 0)}</BindableInput></div>
+            <div><div style={LABEL}>Y max</div><BindableInput obj={obj} propName="y_max" onChange={onChange}>{numInput("y_max", 0)}</BindableInput></div>
           </div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             {[["spark_fill","Fill area"], ["spark_show_last","Mostra ultimo"]].map(([k,l]) => (
@@ -2858,7 +3043,7 @@ function ObjectProps({
               <option value="table">{t("props.table")}</option>
             </select>
           ))}
-          {field(t("props.maxRows"), numInput("alarm_viewer_max_rows", 5))}
+          {field(t("props.maxRows"), <BindableInput obj={obj} propName="alarm_viewer_max_rows" onChange={onChange}>{numInput("alarm_viewer_max_rows", 5)}</BindableInput>)}
           {field(t("props.alarmIdPrefix"), <input style={INPUT} placeholder={t("props.exZone")} value={obj.alarm_viewer_id_prefix ?? ""} onChange={(e) => onChange({ alarm_viewer_id_prefix: e.target.value })} />)}
           {field(t("props.severity"), severityFilterField("alarm_viewer_severities"))}
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -2899,6 +3084,16 @@ function ObjectProps({
         </>
       )}
 
+      {/* Recipe panel — lista ricette + applica, promosso dal modale fisso di RuntimeView.tsx */}
+      {obj.type === "recipe_panel" && (
+        <>
+          <div style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", marginBottom: 4 }}>
+            {t("props.recipePanelHint")}
+          </div>
+          {field(t("props.recipeIdPrefix"), <input style={INPUT} placeholder="es. linea1-" value={obj.recipe_panel_id_prefix ?? ""} onChange={(e) => onChange({ recipe_panel_id_prefix: e.target.value })} />)}
+        </>
+      )}
+
       {/* Symbol (built-in SCADA library + custom project symbols) */}
       {obj.type === "symbol" && (
         <>
@@ -2924,6 +3119,47 @@ function ObjectProps({
           {field(t("props.colorAlarm"), <BindableInput obj={obj} propName="state_alarm_color" onChange={onChange}>{colorInput("state_alarm_color", "var(--brand-danger, #ef4444)")}</BindableInput>)}
         </>
       )}
+
+      {/* Faceplate instance (parametric reusable component, defined in Config → Faceplates) */}
+      {obj.type === "faceplate" && (() => {
+        const defn = faceplates.find((f) => f.id === obj.faceplate_id);
+        return (
+          <>
+            {field(t("props.faceplate"), (
+              <select
+                style={{ ...INPUT, cursor: "pointer" }}
+                value={obj.faceplate_id ?? ""}
+                onChange={(e) => onChange({ faceplate_id: e.target.value || undefined, faceplate_params: {} })}
+              >
+                <option value="">{t("props.faceplateChoose")}</option>
+                {faceplates.map((f) => <option key={f.id} value={f.id}>{f.label}</option>)}
+              </select>
+            ))}
+            {!defn && obj.faceplate_id && (
+              <p style={{ fontSize: 10, color: "var(--brand-warning, #f59e0b)", margin: "2px 0 4px" }}>
+                {t("props.faceplateMissing")}
+              </p>
+            )}
+            {defn && defn.params.length > 0 && (
+              <>
+                <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", marginTop: 6, marginBottom: 2, fontWeight: 700, letterSpacing: 0.5 }}>
+                  {t("props.faceplateParams")}
+                </div>
+                {defn.params.map((p) => (
+                  <div key={p}>
+                    <div style={LABEL}>{p}</div>
+                    <input
+                      type="text" style={INPUT}
+                      value={obj.faceplate_params?.[p] ?? ""}
+                      onChange={(e) => onChange({ faceplate_params: { ...(obj.faceplate_params ?? {}), [p]: e.target.value } })}
+                    />
+                  </div>
+                ))}
+              </>
+            )}
+          </>
+        );
+      })()}
 
       {/* ── Pipe / connector ────────────────────────────────────────────────── */}
       {obj.type === "pipe" && (
@@ -2956,7 +3192,7 @@ function ObjectProps({
           {/* Stroke */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
             <div>
-              {field(t("props.colorPipe"), colorInput("stroke", "var(--brand-text-subtle, #64748b)"))}
+              {field(t("props.colorPipe"), <BindableInput obj={obj} propName="stroke" onChange={onChange}>{colorInput("stroke", "var(--brand-text-subtle, #64748b)")}</BindableInput>)}
             </div>
             <div>
               {field(t("props.thicknessPx"), numInput("stroke_width", 8))}
@@ -2970,8 +3206,8 @@ function ObjectProps({
           {(obj.pipe_style === "tube" || obj.pipe_gradient) && (
             <>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
-                <div>{field(t("props.colorLight"), colorInput("gradient_light_color", "var(--brand-text-muted, #94a3b8)"))}</div>
-                <div>{field(t("props.colorDark"),  colorInput("gradient_dark_color",  "var(--brand-surface-2, #334155)"))}</div>
+                <div>{field(t("props.colorLight"), <BindableInput obj={obj} propName="gradient_light_color" onChange={onChange}>{colorInput("gradient_light_color", "var(--brand-text-muted, #94a3b8)")}</BindableInput>)}</div>
+                <div>{field(t("props.colorDark"),  <BindableInput obj={obj} propName="gradient_dark_color" onChange={onChange}>{colorInput("gradient_dark_color",  "var(--brand-surface-2, #334155)")}</BindableInput>)}</div>
               </div>
             </>
           )}
@@ -3006,7 +3242,7 @@ function ObjectProps({
               </div>
             </div>
             {field(t("props.staticLevel"), numInput("fill_level", 0))}
-            {field(t("props.colorFluid"), colorInput("fill_color", "var(--brand-primary, #3b82f6)"))}
+            {field(t("props.colorFluid"), <BindableInput obj={obj} propName="fill_color" onChange={onChange}>{colorInput("fill_color", "var(--brand-primary, #3b82f6)")}</BindableInput>)}
           </CollapsibleSection>
 
           {/* Markers */}
@@ -3035,7 +3271,7 @@ function ObjectProps({
                 </select>
               </div>
             </div>
-            {field(t("props.markerSize"), numInput("marker_size", 1))}
+            {field(t("props.markerSize"), <BindableInput obj={obj} propName="marker_size" onChange={onChange}>{numInput("marker_size", 1)}</BindableInput>)}
           </CollapsibleSection>
 
           {/* State coloring */}
@@ -3596,7 +3832,7 @@ const CELL_CHILD_TYPES: { value: string; label: string }[] = [
 ];
 
 function makeDefaultChild(type: string): SynopticObject {
-  const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+  const id = genId();
   const base: SynopticObject = { id, type: type as SynopticObject["type"], x: 0, y: 0 };
   switch (type) {
     case "rect":         return { ...base, width: 80, height: 60, fill: "var(--brand-surface-2, #334155)" };

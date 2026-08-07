@@ -2,15 +2,18 @@ import { useCallback, useEffect, useImperativeHandle, useRef, useState } from "r
 import { useTranslation } from "react-i18next";
 import { TrendCanvas } from "@/canvas/TrendCanvas";
 import { TrendExpandedModal } from "@/canvas/TrendExpanded";
+import { XyPlotCanvas } from "@/canvas/XyPlotCanvas";
 import { getAuthToken } from "@/api/client";
 import { AlarmBellPanel } from "@/components/AlarmBellPanel";
 import { AlarmBanner } from "@/components/AlarmBanner";
+import { RecipePanel } from "@/components/RecipePanel";
 import { DataTable, type DataTableColumn } from "@/components/DataTable";
 import { SEV_COLOR } from "@/alarmSeverity";
+import { genId } from "@/id";
 import { useAppStore } from "@/store";
 import { SYMBOLS } from "@/symbols/library";
 import { clampToPage } from "@/pageLayout";
-import type { AlarmSeverity, AlarmState, CustomSymbol, FaceplateDef, GridCell, PageSizeMode, PipePoint, SynopticObject, TagState } from "@/types";
+import type { AlarmSeverity, AlarmState, CustomSymbol, FaceplateDef, GridCell, PageSizeMode, PipePoint, SynopticObject, TagState, TextListEntry } from "@/types";
 
 // ── Canvas props ──────────────────────────────────────────────────────────────
 
@@ -322,6 +325,28 @@ function thresholdColor(
   if (warnHigh  !== undefined && value >= warnHigh)  return "#eab308";
   if (warnLow   !== undefined && value <= warnLow)   return "#eab308";
   return null;
+}
+
+/** Find the `text_list_entries` entry matching a live value — shared by
+ *  `text_list` and `state_lamp`. An entry with either `value_min`/`value_max`
+ *  set matches by range (half-open: `min <= v < max`, so adjacent buckets
+ *  like [10,20) and [20,30) don't overlap); otherwise falls back to the
+ *  original exact-value match, so existing saved entries keep working
+ *  unchanged. First matching entry in array order wins. */
+function matchTextListEntry(
+  entries: TextListEntry[] | undefined,
+  liveVal: unknown,
+): TextListEntry | undefined {
+  const v = typeof liveVal === "number" ? liveVal : Number(liveVal);
+  return (entries ?? []).find((e) => {
+    if (e.value_min !== undefined || e.value_max !== undefined) {
+      if (!Number.isFinite(v)) return false;
+      if (e.value_min !== undefined && v < e.value_min) return false;
+      if (e.value_max !== undefined && v >= e.value_max) return false;
+      return true;
+    }
+    return String(e.value) === String(liveVal);
+  });
 }
 
 function formatValue(value: number | string | boolean, format?: string): string {
@@ -1011,7 +1036,7 @@ export function SvgCanvas({
         persistGuides(guides.map((g) => g.id === ref.id ? { ...g, pos: Math.round(draggingGuide.pos) } : g));
       } else {
         const newGuide: Guide = {
-          id: `g${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`,
+          id: genId("g"),
           axis: ref.axis,
           pos: Math.round(draggingGuide.pos),
         };
@@ -2024,6 +2049,11 @@ function SvgObject(p: ObjProps) {
   // it — this component instance is keyed by obj.id, so the state persists
   // correctly across re-renders of the same object, isolated per object.
   const [trendZoom, setTrendZoom] = useState<{ fromMs: number; toMs: number } | null>(null);
+  // Draft text for the "setpoint" object type (T-46+ widget audit): null while
+  // showing the live tag value, a string while the operator is typing a new
+  // one — write only fires on explicit confirm (Enter/button), never on every
+  // keystroke. Same unconditional-hooks reasoning as trendZoom above.
+  const [setpointDraft, setSetpointDraft] = useState<string | null>(null);
 
   const handleMouseDown = (e: React.MouseEvent<SVGElement>) => {
     if (obj.locked && isEditMode) return;
@@ -2439,7 +2469,10 @@ function SvgObject(p: ObjProps) {
     const weight    = obj.font_weight ?? "normal";
     const style     = obj.font_style ?? "normal";
     const anchor    = obj.text_anchor ?? "start";
-    const colour    = obj.color ?? obj.fill ?? "var(--brand-text, #e2e8f0)";
+    const staticColour = obj.color ?? obj.fill ?? "var(--brand-text, #e2e8f0)";
+    const colour    = (obj.text_color_by_threshold && tv && Number.isFinite(Number(tv.value)))
+      ? (thresholdColor(Number(tv.value), obj.alarm_low, obj.warn_low, obj.warn_high, obj.alarm_high) ?? staticColour)
+      : staticColour;
     // Selection rect is a rough estimate — SVG text has no width attr without measuring.
     const approxW   = Math.max(40, content.length * size * 0.6);
     const dx        = anchor === "middle" ? -approxW / 2 : anchor === "end" ? -approxW : 0;
@@ -2638,6 +2671,39 @@ function SvgObject(p: ObjProps) {
             </text>
           )}
         </>)}
+      </g>
+    );
+  }
+
+  // ── STATE LAMP ───────────────────────────────────────────────────────────────
+  // Same data model as text_list (text_list_entries: value→label→color), but
+  // renders a colored circle (like led) with the matched entry's label next to
+  // it, instead of just text — a middle ground between a binary led and a
+  // purely-textual state readout.
+
+  if (obj.type === "state_lamp") {
+    const h = obj.height ?? 24;
+    const r = h / 2;
+    const cx = obj.x + r; const cy = obj.y + r;
+    const tv = obj.tag ? tagValues[obj.tag] : undefined;
+    const entry = tv != null ? matchTextListEntry(obj.text_list_entries, tv.value) : undefined;
+    const lampColor = entry ? (entry.color ?? "var(--brand-text, #e2e8f0)") : "var(--brand-surface-2, #334155)";
+    const label = entry ? entry.label : (obj.text_list_default ?? "");
+    const labelColor = entry ? lampColor : (obj.text_list_default_color ?? "var(--brand-text-muted, #94a3b8)");
+    const size = obj.font_size ?? 13;
+
+    return (
+      <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()} style={{ cursor: editCursor }}>
+        {selRect(obj.x, obj.y, obj.width ?? 140, h)}
+        <circle cx={cx} cy={cy} r={r - 2} fill={lampColor} style={transitionStyle(obj)} />
+        <circle cx={cx - (r - 2) * 0.25} cy={cy - (r - 2) * 0.25} r={(r - 2) * 0.3} fill="white" opacity={0.3} style={{ pointerEvents: "none" }} />
+        {label && (
+          <text x={obj.x + h + 6} y={cy + size / 3} fill={labelColor} fontSize={size}
+            style={{ pointerEvents: "none" }}>
+            {label}
+          </text>
+        )}
+        {tv && obj.quality_dot !== false && <QDot x={obj.x} y={obj.y} quality={tv.quality} />}
       </g>
     );
   }
@@ -2956,6 +3022,105 @@ function SvgObject(p: ObjProps) {
     );
   }
 
+  // ── SETPOINT ─────────────────────────────────────────────────────────────────
+  // Numeric value entry with explicit confirm (button + Enter) — unlike
+  // `slider`, which writes on every drag. Shows the live current value
+  // alongside the input so the operator can see what they're changing from.
+
+  if (obj.type === "setpoint") {
+    const w = obj.width ?? 140; const h = obj.height ?? 56;
+    const tv = obj.tag ? tagValues[obj.tag] : undefined;
+    const currentVal = tv ? Number(tv.value) : undefined;
+    const unit = obj.unit ? ` ${obj.unit}` : "";
+    const readOnly = !!obj.read_only;
+
+    if (isEditMode) {
+      // Static look-alike of the real layout (label / "Attuale: …" / input +
+      // "✓" button) instead of a generic box — same tagValues already in
+      // scope, same pattern gauge/text/progress_bar use to show live values
+      // in edit-mode without any new polling. No foreignObject, no <input>,
+      // nothing writable: purely decorative shapes.
+      const hasLabel = !!obj.label;
+      const labelY = obj.y + 13;
+      const currentY = obj.y + (hasLabel ? 27 : 13);
+      const rowY = currentY + 6;
+      const rowH = Math.max(18, h - (rowY - obj.y) - 4);
+      const btnW = 22;
+      const inputW = Math.max(20, w - btnW - 12);
+      const currentText = currentVal !== undefined && Number.isFinite(currentVal) ? `${currentVal}${unit}` : "—";
+      return (
+        <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()} style={{ cursor: editCursor }}>
+          {selRect(obj.x, obj.y, w, h)}
+          <rect x={obj.x} y={obj.y} width={w} height={h} rx={4} fill="#0f172a" stroke={selected ? "#facc15" : "#334155"} strokeWidth={selected ? 2 : 1} />
+          {hasLabel && (
+            <text x={obj.x + 4} y={labelY} fill="#94a3b8" fontSize={11} style={{ pointerEvents: "none" }}>{obj.label}</text>
+          )}
+          <text x={obj.x + 4} y={currentY} fill="#64748b" fontSize={10} style={{ pointerEvents: "none" }}>
+            Attuale: {currentText}
+          </text>
+          <rect x={obj.x + 4} y={rowY} width={inputW} height={rowH} rx={4} fill="#0f172a" stroke="#334155" style={{ pointerEvents: "none" }} />
+          <text x={obj.x + 4 + 6} y={rowY + rowH / 2} dominantBaseline="central" fill="#e2e8f0" fontSize={12} style={{ pointerEvents: "none" }}>
+            {currentVal !== undefined && Number.isFinite(currentVal) ? currentVal : ""}
+          </text>
+          <rect x={obj.x + 4 + inputW + 4} y={rowY} width={btnW} height={rowH} rx={4} fill="#3b82f6" style={{ pointerEvents: "none" }} />
+          <text x={obj.x + 4 + inputW + 4 + btnW / 2} y={rowY + rowH / 2} textAnchor="middle" dominantBaseline="central" fill="#fff" fontSize={12} style={{ pointerEvents: "none" }}>✓</text>
+        </g>
+      );
+    }
+
+    const commit = () => {
+      if (setpointDraft === null || !obj.tag) return;
+      const n = Number(setpointDraft);
+      if (!Number.isFinite(n)) return; // leave the draft as-is so the operator can fix it
+      onWriteTag?.(obj.tag, n);
+      setSetpointDraft(null);
+    };
+
+    return (
+      <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()}>
+        {selRect(obj.x, obj.y, w, h)}
+        <foreignObject x={obj.x} y={obj.y} width={w} height={h}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 3, padding: "4px 2px", boxSizing: "border-box", height: "100%" }}>
+            {obj.label && (
+              <span style={{ color: "var(--brand-text-muted, #94a3b8)", fontSize: 11 }}>{obj.label}</span>
+            )}
+            <span style={{ color: "var(--brand-text-subtle, #64748b)", fontSize: 10 }}>
+              Attuale: {currentVal !== undefined && Number.isFinite(currentVal) ? `${currentVal}${unit}` : "—"}
+            </span>
+            <div style={{ display: "flex", gap: 4 }}>
+              <input
+                type="number"
+                min={obj.min} max={obj.max} step={obj.step ?? 1}
+                disabled={readOnly}
+                value={setpointDraft ?? (currentVal !== undefined && Number.isFinite(currentVal) ? currentVal : "")}
+                onChange={(e) => setSetpointDraft(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") commit(); }}
+                onClick={(e) => e.stopPropagation()}
+                style={{
+                  flex: 1, minWidth: 0, boxSizing: "border-box",
+                  background: "var(--brand-bg, #0f172a)", border: "1px solid var(--brand-surface-2, #334155)",
+                  borderRadius: 4, color: "var(--brand-text, #e2e8f0)", padding: "3px 6px", fontSize: 12,
+                }}
+              />
+              <button
+                disabled={readOnly || setpointDraft === null}
+                onClick={(e) => { e.stopPropagation(); commit(); }}
+                title="Scrivi"
+                style={{
+                  background: "var(--brand-primary, #3b82f6)", border: "none", borderRadius: 4,
+                  color: "#fff", cursor: readOnly ? "default" : "pointer", padding: "0 10px", fontSize: 12,
+                  opacity: (readOnly || setpointDraft === null) ? 0.5 : 1, flexShrink: 0,
+                }}
+              >
+                ✓
+              </button>
+            </div>
+          </div>
+        </foreignObject>
+      </g>
+    );
+  }
+
   // ── CHECKBOX ────────────────────────────────────────────────────────────────
 
   if (obj.type === "checkbox") {
@@ -3214,6 +3379,7 @@ function SvgObject(p: ObjProps) {
                 onRangeSelect={(fromMs, toMs) => setTrendZoom({ fromMs, toMs })}
                 zoomed={trendZoom !== null}
                 onResetZoom={() => setTrendZoom(null)}
+                panStepS={obj.pan_step_s}
               />
             </foreignObject>
             {onExpandTrend && (
@@ -3242,14 +3408,73 @@ function SvgObject(p: ObjProps) {
     );
   }
 
+  // ── XY PLOT ──────────────────────────────────────────────────────────────────
+  // Live point + trailing trail against two tags (trajectory/position), not a
+  // time series — see XyPlotCanvas for the sampling/trail logic.
+
+  if (obj.type === "xy_plot") {
+    const w = obj.width ?? 200; const h = obj.height ?? 200;
+
+    if (isEditMode) {
+      // Static axes + a fixed center point instead of the generic box — same
+      // frame (PAD) as XyPlotCanvas below, no sampling/trail (that needs a
+      // live tick interval, not appropriate for a static edit-mode preview).
+      const PAD = 22;
+      const plotW = Math.max(1, w - PAD * 2);
+      const plotH = Math.max(1, h - PAD * 2);
+      const xMinText = obj.xy_x_min !== undefined ? String(obj.xy_x_min) : "auto";
+      const xMaxText = obj.xy_x_max !== undefined ? String(obj.xy_x_max) : "auto";
+      const yMinText = obj.xy_y_min !== undefined ? String(obj.xy_y_min) : "auto";
+      const yMaxText = obj.xy_y_max !== undefined ? String(obj.xy_y_max) : "auto";
+      return (
+        <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()} style={{ cursor: editCursor }}>
+          {selRect(obj.x, obj.y, w, h)}
+          <rect x={obj.x} y={obj.y} width={w} height={h} rx={4} fill="#0f172a" stroke={selected ? "#facc15" : "#334155"} strokeWidth={selected ? 2 : 1} />
+          {obj.tag && obj.y_tag && (
+            <text x={obj.x + w / 2} y={obj.y + 12} textAnchor="middle" fill="#64748b" fontSize={9} style={{ pointerEvents: "none" }}>
+              {obj.tag} / {obj.y_tag}
+            </text>
+          )}
+          <rect x={obj.x + PAD} y={obj.y + PAD} width={plotW} height={plotH} fill="none" stroke="#334155" style={{ pointerEvents: "none" }} />
+          <circle cx={obj.x + PAD + plotW / 2} cy={obj.y + PAD + plotH / 2} r={4} fill={obj.line_color ?? "#3b82f6"} style={{ pointerEvents: "none" }} />
+          <text x={obj.x + PAD} y={obj.y + h - 6} fill="#475569" fontSize={9} style={{ pointerEvents: "none" }}>{xMinText}</text>
+          <text x={obj.x + PAD + plotW} y={obj.y + h - 6} textAnchor="end" fill="#475569" fontSize={9} style={{ pointerEvents: "none" }}>{xMaxText}</text>
+          <text x={obj.x + 2} y={obj.y + PAD + 8} fill="#475569" fontSize={9} style={{ pointerEvents: "none" }}>{yMaxText}</text>
+          <text x={obj.x + 2} y={obj.y + PAD + plotH} fill="#475569" fontSize={9} style={{ pointerEvents: "none" }}>{yMinText}</text>
+        </g>
+      );
+    }
+
+    const xv = obj.tag ? tagValues[obj.tag] : undefined;
+    const yv = obj.y_tag ? tagValues[obj.y_tag] : undefined;
+
+    return (
+      <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()}>
+        {selRect(obj.x, obj.y, w, h)}
+        <foreignObject x={obj.x} y={obj.y} width={w} height={h}>
+          <XyPlotCanvas
+            xValue={xv ? Number(xv.value) : undefined}
+            yValue={yv ? Number(yv.value) : undefined}
+            trailS={obj.xy_trail_s}
+            width={w}
+            height={h}
+            lineColor={obj.line_color}
+            xMin={obj.xy_x_min}
+            xMax={obj.xy_x_max}
+            yMin={obj.xy_y_min}
+            yMax={obj.xy_y_max}
+          />
+        </foreignObject>
+      </g>
+    );
+  }
+
   // ── TEXT LIST ────────────────────────────────────────────────────────────────
 
   if (obj.type === "text_list") {
     const tv = obj.tag ? tagValues[obj.tag] : undefined;
     const liveVal = tv?.value;
-    const entry = (obj.text_list_entries ?? []).find(
-      (e) => String(e.value) === String(liveVal)
-    );
+    const entry = matchTextListEntry(obj.text_list_entries, liveVal);
     const label = entry ? entry.label : (obj.text_list_default ?? (liveVal !== undefined ? String(liveVal) : "N/D"));
     const textFill = entry ? (entry.color ?? obj.color ?? "#f1f5f9") : (obj.text_list_default_color ?? "var(--brand-text-muted, #94a3b8)");
     const size = obj.font_size ?? 16;
@@ -3606,6 +3831,45 @@ function SvgObject(p: ObjProps) {
             idPrefix={obj.alarm_banner_id_prefix}
             allowedSev={obj.alarm_banner_severities}
           />
+        </foreignObject>
+      </g>
+    );
+  }
+
+  // ── RECIPE PANEL ────────────────────────────────────────────────────────────
+
+  if (obj.type === "recipe_panel") {
+    const w = obj.width ?? 260; const h = obj.height ?? 160;
+
+    if (isEditMode) {
+      // Static skeleton (header bar + a few placeholder rows) instead of the
+      // generic box — purely decorative, no store access, communicates "a
+      // list of things" without pretending to know the real recipe list.
+      const rowH = 12; const rowGap = 6; const rowX = obj.x + 8;
+      const rowW = w - 16;
+      const firstRowY = obj.y + 30;
+      const rowCount = Math.max(0, Math.min(3, Math.floor((h - 38) / (rowH + rowGap))));
+      return (
+        <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()} style={{ cursor: editCursor }}>
+          {selRect(obj.x, obj.y, w, h)}
+          <rect x={obj.x} y={obj.y} width={w} height={h} rx={4} fill="#1e293b" stroke={selected ? "#facc15" : "#334155"} strokeWidth={selected ? 2 : 1} style={{ pointerEvents: "none" }} />
+          <rect x={obj.x} y={obj.y} width={w} height={20} rx={4} fill="#334155" style={{ pointerEvents: "none" }} />
+          <text x={obj.x + 8} y={obj.y + 14} fill="#94a3b8" fontSize={10} style={{ pointerEvents: "none" }}>📋 Ricette</text>
+          {Array.from({ length: rowCount }, (_, i) => (
+            <rect key={i} x={rowX} y={firstRowY + i * (rowH + rowGap)} width={rowW} height={rowH} rx={3}
+              fill="#334155" opacity={0.6} style={{ pointerEvents: "none" }} />
+          ))}
+        </g>
+      );
+    }
+
+    return (
+      <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()}>
+        {selRect(obj.x, obj.y, w, h)}
+        <foreignObject x={obj.x} y={obj.y} width={w} height={h}>
+          <div style={{ width: w, height: h, overflowY: "auto", boxSizing: "border-box", padding: 6, background: "var(--brand-surface, #1e293b)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4 }}>
+            <RecipePanel idPrefix={obj.recipe_panel_id_prefix} compact />
+          </div>
         </foreignObject>
       </g>
     );
@@ -3971,8 +4235,9 @@ function SvgObject(p: ObjProps) {
           {selRect(obj.x, obj.y, w, h)}
           <rect x={obj.x} y={obj.y} width={w} height={h}
             fill="none" stroke="#f59e0b" strokeWidth={1.5} strokeDasharray="4 2"
-            style={{ cursor: editCursor }} onMouseDown={handleMouseDown} />
-          <text x={obj.x + 4} y={obj.y + 14} fill="#f59e0b" fontSize={11} fontFamily="monospace">
+            style={{ cursor: editCursor }} onMouseDown={handleMouseDown}
+            onClick={(e) => e.stopPropagation()} />
+          <text x={obj.x + 4} y={obj.y + 14} fill="#f59e0b" fontSize={11} fontFamily="monospace" style={{ pointerEvents: "none" }}>
             {obj.faceplate_id ?? "faceplate"}
           </text>
         </>
@@ -3988,22 +4253,53 @@ function SvgObject(p: ObjProps) {
         tag: subStr(child.tag),
         label: subStr(child.label),
         name: subStr(child.name),
+        // `text` was missing: the built-in `motor_basic` faceplate's own
+        // title ("motor-title", a `text` object with `text: "{label}"`)
+        // never got substituted — found live, verifying the new edit-mode
+        // preview, where it became visible for the first time (edit-mode
+        // used to show a generic box instead of the real children).
+        text: subStr(child.text),
       };
     }
 
     if (isEditMode) {
-      // Edit mode: show a labelled placeholder rect + click to select
+      // Edit mode: render the faceplate's own children (same substituteParams
+      // as view mode) for a faithful preview — each child shows its own
+      // edit-mode rendering, all static, no new polling. Children sit under
+      // pointerEvents:none so they never intercept the click; a single
+      // transparent hit-rect on top (same size as the faceplate) carries
+      // select/drag, with onClick stopPropagation — same pattern as `symbol`/
+      // `gauge`'s dedicated hit-area, and the one this block was missing
+      // entirely (root cause of "faceplate not selectable from the canvas").
       return (
         <>
           {selRect(obj.x, obj.y, w, h)}
+          <g transform={`translate(${obj.x}, ${obj.y})`} style={{ pointerEvents: "none" }}>
+            {defn.objects.map((child, i) => {
+              const resolved = substituteParams(child);
+              return (
+                <SvgObject
+                  key={child.id ?? i}
+                  obj={resolved}
+                  objects={objects}
+                  tagValues={tagValues}
+                  selected={false}
+                  isEditMode={true}
+                  customSymbols={customSymbols}
+                  faceplates={faceplates}
+                  onWriteTag={onWriteTag}
+                  onScript={onScript}
+                  onNavigate={onNavigate}
+                />
+              );
+            })}
+          </g>
           <rect x={obj.x} y={obj.y} width={w} height={h}
-            fill="#1e293b" stroke="#f59e0b" strokeWidth={1.5} strokeDasharray="4 2"
-            style={{ cursor: "move" }} onMouseDown={handleMouseDown} />
-          <text x={obj.x + 4} y={obj.y + 14} fill="#f59e0b" fontSize={11} fontFamily="monospace">
+            fill="transparent"
+            style={{ cursor: "move" }} onMouseDown={handleMouseDown}
+            onClick={(e) => e.stopPropagation()} />
+          <text x={obj.x + 4} y={obj.y + h - 4} fill="#f59e0b" fontSize={9} fontFamily="monospace" style={{ pointerEvents: "none" }}>
             {defn.label}
-          </text>
-          <text x={obj.x + 4} y={obj.y + 28} fill="#64748b" fontSize={10}>
-            {Object.entries(params).map(([k, v]) => `${k}=${v}`).join(" ")}
           </text>
         </>
       );
