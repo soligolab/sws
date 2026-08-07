@@ -21,6 +21,7 @@ export type SynopticObjectType =
   // Displays
   | "gauge"
   | "led"
+  | "state_lamp"
   | "progress_bar"
   | "table"
   | "trend"

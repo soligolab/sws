@@ -2647,6 +2647,41 @@ function SvgObject(p: ObjProps) {
     );
   }
 
+  // ── STATE LAMP ───────────────────────────────────────────────────────────────
+  // Same data model as text_list (text_list_entries: value→label→color), but
+  // renders a colored circle (like led) with the matched entry's label next to
+  // it, instead of just text — a middle ground between a binary led and a
+  // purely-textual state readout.
+
+  if (obj.type === "state_lamp") {
+    const h = obj.height ?? 24;
+    const r = h / 2;
+    const cx = obj.x + r; const cy = obj.y + r;
+    const tv = obj.tag ? tagValues[obj.tag] : undefined;
+    const entry = tv != null
+      ? (obj.text_list_entries ?? []).find((e) => String(e.value) === String(tv.value))
+      : undefined;
+    const lampColor = entry ? (entry.color ?? "var(--brand-text, #e2e8f0)") : "var(--brand-surface-2, #334155)";
+    const label = entry ? entry.label : (obj.text_list_default ?? "");
+    const labelColor = entry ? lampColor : (obj.text_list_default_color ?? "var(--brand-text-muted, #94a3b8)");
+    const size = obj.font_size ?? 13;
+
+    return (
+      <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()} style={{ cursor: editCursor }}>
+        {selRect(obj.x, obj.y, obj.width ?? 140, h)}
+        <circle cx={cx} cy={cy} r={r - 2} fill={lampColor} style={transitionStyle(obj)} />
+        <circle cx={cx - (r - 2) * 0.25} cy={cy - (r - 2) * 0.25} r={(r - 2) * 0.3} fill="white" opacity={0.3} style={{ pointerEvents: "none" }} />
+        {label && (
+          <text x={obj.x + h + 6} y={cy + size / 3} fill={labelColor} fontSize={size}
+            style={{ pointerEvents: "none" }}>
+            {label}
+          </text>
+        )}
+        {tv && obj.quality_dot !== false && <QDot x={obj.x} y={obj.y} quality={tv.quality} />}
+      </g>
+    );
+  }
+
   // ── PROGRESS BAR ────────────────────────────────────────────────────────────
 
   if (obj.type === "progress_bar") {

@@ -543,6 +543,14 @@ export function EditorShell() {
       case "led":
         addObject({ type, x, y, width: 40, height: 40, on_value: true, on_color: "var(--brand-success, #22c55e)", off_color: "#374151" });
         break;
+      case "state_lamp":
+        addObject({ type, x, y, width: 140, height: 24, font_size: 13,
+          text_list_entries: [
+            { value: 0, label: "Fermo", color: "var(--brand-text-muted, #94a3b8)" },
+            { value: 1, label: "Marcia", color: "var(--brand-success, #22c55e)" },
+            { value: 2, label: "Allarme", color: "var(--brand-danger, #ef4444)" },
+          ] });
+        break;
       case "progress_bar":
         addObject({ type, x, y, width: 200, height: 30, min: 0, max: 100, fill: "var(--brand-primary, #3b82f6)", show_value: true });
         break;
@@ -2036,6 +2044,36 @@ function ObjectProps({
     </div>
   );
 
+  /** "VOCI" editor shared by text_list and state_lamp — both drive a shape/text
+   *  purely off the same text_list_entries field (value → label → color). */
+  const textListEntriesField = () => (
+    <>
+      <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", marginTop: 4, marginBottom: 2, fontWeight: 700 }}>VOCI</div>
+      {(obj.text_list_entries ?? []).map((e, i) => (
+        <div key={i} style={{ display: "flex", gap: 4, marginBottom: 4, alignItems: "center" }}>
+          <input style={{ ...INPUT, width: 54 }} placeholder="val" value={String(e.value)}
+            onChange={(ev) => {
+              const raw = ev.target.value;
+              const v = raw === "true" ? true : raw === "false" ? false : isNaN(Number(raw)) || raw === "" ? raw : Number(raw);
+              const next = [...(obj.text_list_entries ?? [])]; next[i] = { ...e, value: v };
+              onChange({ text_list_entries: next });
+            }} />
+          <input style={{ ...INPUT, flex: 1 }} placeholder={t("props.labelPh")} value={e.label}
+            onChange={(ev) => { const next = [...(obj.text_list_entries ?? [])]; next[i] = { ...e, label: ev.target.value }; onChange({ text_list_entries: next }); }} />
+          <input type="color" value={e.color ?? "var(--brand-text, #e2e8f0)"} title={t("props.colorText")}
+            onChange={(ev) => { const next = [...(obj.text_list_entries ?? [])]; next[i] = { ...e, color: ev.target.value }; onChange({ text_list_entries: next }); }}
+            style={{ width: 28, height: 24, padding: 1, border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 3, cursor: "pointer" }} />
+          <button style={{ ...INPUT, padding: "0 6px", cursor: "pointer" }}
+            onClick={() => { const next = (obj.text_list_entries ?? []).filter((_, j) => j !== i); onChange({ text_list_entries: next }); }}>✕</button>
+        </div>
+      ))}
+      <button style={{ ...INPUT, width: "100%", cursor: "pointer", marginBottom: 4 }}
+        onClick={() => onChange({ text_list_entries: [...(obj.text_list_entries ?? []), { value: 0, label: "Stato", color: "var(--brand-text, #e2e8f0)" }] })}>
+        + Aggiungi voce
+      </button>
+    </>
+  );
+
   const BOX_TYPES = ["rect", "ellipse", "button", "navbutton", "checkbox", "radio", "slider", "gauge", "led", "progress_bar", "table", "trend", "symbol", "grid"];
   const isShape = BOX_TYPES.includes(obj.type);
   const hasStroke = obj.type === "rect" || obj.type === "ellipse" || obj.type === "line";
@@ -2111,7 +2149,7 @@ function ObjectProps({
       )}
 
       {/* Tag binding */}
-      {!["navbutton","gauge","slider","checkbox","radio","led","progress_bar","trend","pipe"].includes(obj.type) && field(t("props.tag"), tagInput("es. pump1.speed"))}
+      {!["navbutton","gauge","slider","checkbox","radio","led","progress_bar","trend","pipe","text_list","state_lamp"].includes(obj.type) && field(t("props.tag"), tagInput("es. pump1.speed"))}
 
       {/* Token picker (T-40): insert {{key}} into the primary text field so the
           viewer resolves it per the project language table. */}
@@ -2740,29 +2778,7 @@ function ObjectProps({
       {obj.type === "text_list" && (
         <>
           {field(t("props.tag"), tagInput("es. valvola.stato"))}
-          <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", marginTop: 4, marginBottom: 2, fontWeight: 700 }}>VOCI</div>
-          {(obj.text_list_entries ?? []).map((e, i) => (
-            <div key={i} style={{ display: "flex", gap: 4, marginBottom: 4, alignItems: "center" }}>
-              <input style={{ ...INPUT, width: 54 }} placeholder="val" value={String(e.value)}
-                onChange={(ev) => {
-                  const raw = ev.target.value;
-                  const v = raw === "true" ? true : raw === "false" ? false : isNaN(Number(raw)) || raw === "" ? raw : Number(raw);
-                  const next = [...(obj.text_list_entries ?? [])]; next[i] = { ...e, value: v };
-                  onChange({ text_list_entries: next });
-                }} />
-              <input style={{ ...INPUT, flex: 1 }} placeholder={t("props.labelPh")} value={e.label}
-                onChange={(ev) => { const next = [...(obj.text_list_entries ?? [])]; next[i] = { ...e, label: ev.target.value }; onChange({ text_list_entries: next }); }} />
-              <input type="color" value={e.color ?? "var(--brand-text, #e2e8f0)"} title={t("props.colorText")}
-                onChange={(ev) => { const next = [...(obj.text_list_entries ?? [])]; next[i] = { ...e, color: ev.target.value }; onChange({ text_list_entries: next }); }}
-                style={{ width: 28, height: 24, padding: 1, border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 3, cursor: "pointer" }} />
-              <button style={{ ...INPUT, padding: "0 6px", cursor: "pointer" }}
-                onClick={() => { const next = (obj.text_list_entries ?? []).filter((_, j) => j !== i); onChange({ text_list_entries: next }); }}>✕</button>
-            </div>
-          ))}
-          <button style={{ ...INPUT, width: "100%", cursor: "pointer", marginBottom: 4 }}
-            onClick={() => onChange({ text_list_entries: [...(obj.text_list_entries ?? []), { value: 0, label: "Stato", color: "var(--brand-text, #e2e8f0)" }] })}>
-            + Aggiungi voce
-          </button>
+          {textListEntriesField()}
           {field(t("props.textDefault"), <input style={INPUT} value={obj.text_list_default ?? ""} onChange={(e) => onChange({ text_list_default: e.target.value })} />)}
           {field(t("props.colorDefault"), <input type="color" value={obj.text_list_default_color ?? "var(--brand-text-muted, #94a3b8)"} onChange={(e) => onChange({ text_list_default_color: e.target.value })} style={{ width: 40, height: 24, padding: 1, border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 3 }} />)}
           {field(t("props.fontSize"), numInput("font_size", 16))}
@@ -2773,6 +2789,17 @@ function ObjectProps({
               <option value="end">{t("props.right")}</option>
             </select>
           ))}
+        </>
+      )}
+
+      {/* State Lamp — same data model as text_list (value→label→color), shape instead of text */}
+      {obj.type === "state_lamp" && (
+        <>
+          {field(t("props.tag"), tagInput("es. valvola.stato"))}
+          {textListEntriesField()}
+          <p style={{ fontSize: 10, color: "var(--brand-border, #475569)", margin: "-2px 0 4px" }}>
+            {t("props.stateLampHint")}
+          </p>
         </>
       )}
 

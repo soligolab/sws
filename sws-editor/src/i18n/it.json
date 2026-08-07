@@ -207,6 +207,7 @@
         "slider": "Slider",
         "gauge": "Gauge",
         "led": "LED",
+        "state_lamp": "Lampada multi-stato",
         "progress_bar": "Progress",
         "table": "Tabella",
         "trend": "Trend",
@@ -629,6 +630,7 @@
     "severity": "Severità",
     "alarmBellHint": "Il click apre sempre il dropdown allarmi — nessuna azione configurabile.",
     "recipePanelHint": "Elenca le ricette e permette all'operatore di applicarne una, come Menu → Applica ricetta.",
+    "stateLampHint": "Stesse voci di Lista testi, disegnate come un pallino colorato con etichetta invece di solo testo.",
     "recipeIdPrefix": "Prefisso id ricetta",
     "showHistory": "Mostra storico",
     "showShelve": "Mostra sospendi/riattiva"
