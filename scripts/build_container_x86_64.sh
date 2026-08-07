@@ -41,6 +41,10 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(cd "$SCRIPT_DIR/.." && pwd)"
 
+usage() {
+    sed -n '2,37p' "${BASH_SOURCE[0]}" | sed 's/^#//; s/^ //'
+}
+
 BUILD_RUST=1
 BUILD_SPA=1
 SAVE=1
@@ -57,13 +61,14 @@ EXPECTED_PY="3.12"
 
 while [ $# -gt 0 ]; do
     case "$1" in
+        -h|--help)  usage; exit 0 ;;
         --no-rust)  BUILD_RUST=0; shift ;;
         --no-spa)   BUILD_SPA=0;  shift ;;
         --no-save)  SAVE=0;       shift ;;
         --push)     PUSH=1;       shift ;;
         --registry) REGISTRY="$2"; shift 2 ;;
         --out)      OUT_DIR="$2"; shift 2 ;;
-        *) echo "Flag non riconosciuta: $1" >&2; exit 1 ;;
+        *) echo "Flag non riconosciuta: $1 (--help per l'elenco)" >&2; exit 1 ;;
     esac
 done
 
@@ -112,9 +117,20 @@ echo "==> SWS runtime container image ${VERSION} (linux/amd64)"
 # `libpython3.11.so.1.0`, che l'immagine finale (ubuntu:24.04, Python 3.12) non
 # ha. Il builder è la stessa base dell'immagine finale, quindi combaciano per
 # costruzione. È l'equivalente x86_64 dell'SDK Yocto fisso del percorso aarch64.
+#
+# --network host su entrambe le invocazioni podman: questo script gira
+# normalmente rootless (non serve sudo, a differenza del gemello
+# aarch64-generico), ma se viene comunque lanciato da root — es. da dentro
+# `build_containers_all.sh` invocato con `sudo` per il passo aarch64-generico
+# che quello sì lo richiede — la rete bridge di default di podman rootFUL non
+# passa il DNS dell'host al container: `apt-get` dentro l'immagine builder
+# fallisce risolvendo archive.ubuntu.com pur risolvendo benissimo sull'host
+# (capitato dal vivo il 2026-08-07). Stesso identico problema e stessa
+# soluzione già in uso in build_container_aarch64_generic.sh — vedi il
+# commento esteso lì. Innocuo anche in esecuzione rootless normale.
 if [ "$BUILD_RUST" -eq 1 ]; then
     echo "==> [1/4] immagine builder (toolchain Rust su ubuntu:24.04)"
-    podman build --platform linux/amd64 \
+    podman build --platform linux/amd64 --network host \
         -t "$BUILDER_IMAGE" \
         -f "$REPO/deploy/container/Containerfile.x86_64.builder" \
         "$REPO/deploy/container"
@@ -126,6 +142,7 @@ if [ "$BUILD_RUST" -eq 1 ]; then
     # crate scaricati sopravvivono fra un'esecuzione e l'altra.
     podman run --rm \
         --platform linux/amd64 \
+        --network host \
         -v "$REPO":/src:Z \
         -w /src/sws-runtime \
         -e CARGO_HOME=/src/.cargo-container-x86_64 \

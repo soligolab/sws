@@ -194,6 +194,23 @@ dal default automatico di `install-container.sh --pull` (che senza argomento
 cerca `latest-arm64`, l'immagine Pixsys-tuned) — vanno installati sempre con un
 riferimento esplicito.
 
+### Costruire tutte e tre le immagini in un colpo solo
+
+`scripts/build_containers_all.sh` richiama in sequenza `build_container.sh`
+(SDK Pixsys), `build_container_aarch64_generic.sh` e `build_container_x86_64.sh`,
+inoltrando a ciascuno gli stessi argomenti (`--push`, `--no-rust`, `--no-spa`,
+`--registry`, `--out`). Su una macchina senza l'SDK Pixsys — es. l'ufficio —
+salta automaticamente `build_container.sh` con un avviso, e prosegue comunque
+con le altre due (`--require-sdk` per farne invece un errore bloccante).
+
+```bash
+./scripts/build_containers_all.sh              # tutte e tre, salta l'SDK Pixsys se manca
+./scripts/build_containers_all.sh --require-sdk # ...ma fallisce se l'SDK Pixsys manca
+```
+
+Ogni script (compreso questo) accetta anche `-h`/`--help` per un riepilogo
+rapido delle flag senza dover aprire il file.
+
 ## 2. Pubblicare
 
 Serve una volta sola: un token GitHub e il login sulla macchina di sviluppo.

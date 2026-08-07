@@ -39,6 +39,10 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(cd "$SCRIPT_DIR/.." && pwd)"
 
+usage() {
+    sed -n '2,35p' "${BASH_SOURCE[0]}" | sed 's/^#//; s/^ //'
+}
+
 BUILD_RUST=1
 BUILD_SPA=1
 SAVE=1
@@ -51,19 +55,24 @@ SPA_DIST="$REPO/sws-editor/dist"
 
 while [ $# -gt 0 ]; do
     case "$1" in
+        -h|--help)  usage; exit 0 ;;
         --no-rust)  BUILD_RUST=0; shift ;;
         --no-spa)   BUILD_SPA=0;  shift ;;
         --no-save)  SAVE=0;       shift ;;
         --push)     PUSH=1;       shift ;;
         --registry) REGISTRY="$2"; shift 2 ;;
         --out)      OUT_DIR="$2"; shift 2 ;;
-        *) echo "Flag non riconosciuta: $1" >&2; exit 1 ;;
+        *) echo "Flag non riconosciuta: $1 (--help per l'elenco)" >&2; exit 1 ;;
     esac
 done
 
 if [ "$BUILD_RUST" -eq 1 ] && [ ! -f "$SDK_ENV" ]; then
     echo "ERRORE: SDK Yocto Pixsys non trovato ($SDK_ENV)." >&2
     echo "        Installalo, oppure passa --no-rust per riusare un binario esistente." >&2
+    echo "        Questa immagine (Pixsys-tuned) richiede sempre l'SDK: non ha un ripiego" >&2
+    echo "        automatico. Per le altre due immagini (aarch64-generico, x86_64), che non" >&2
+    echo "        lo richiedono, usa:" >&2
+    echo "          ./scripts/build_containers_all.sh   # salta questa in automatico se manca l'SDK" >&2
     exit 1
 fi
 
