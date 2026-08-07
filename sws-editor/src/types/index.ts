@@ -39,6 +39,8 @@ export type SynopticObjectType =
   | "symbol"
   // Pipe / connector (multi-waypoint path with fill-level animation)
   | "pipe"
+  // Live point + trailing trail against two tags (trajectory/position, not time)
+  | "xy_plot"
   // Layout
   | "grid"
   // Faceplate instance (parametric reusable component)
@@ -237,6 +239,18 @@ export interface SynopticObject {
   /** Seconds moved per ◀/▶ pan click on the compact widget. Defaults to 25%
    *  of window_s when unset. Not used by the "Espandi" modal (its own pan). */
   pan_step_s?: number;
+  // ── XY plot (live point + trail, not a time series) ───────────────────────
+  /** Y-axis tag. `tag` (generic) is the X-axis. Distinct role from `extra_tags`,
+   *  which overlays series on the same axis rather than pairing a second axis. */
+  y_tag?: string;
+  /** How long a sample stays in the trail before expiring, in seconds. */
+  xy_trail_s?: number;
+  /** Axis range; autofit from observed samples when omitted (all four independent
+   *  since X and Y need separate ranges, unlike the single y_min/y_max on trend). */
+  xy_x_min?: number;
+  xy_x_max?: number;
+  xy_y_min?: number;
+  xy_y_max?: number;
   // ── Layer / visibility (cross-cutting) ────────────────────────────────
   /** Render order. Higher draws on top. Default 0; ties broken by array order. */
   z_index?: number;

@@ -565,6 +565,10 @@ export function EditorShell() {
         addObject({ type, x, y, width: 360, height: 180,
           tag: "", window_s: 60, line_color: "var(--brand-primary, #3b82f6)" });
         break;
+      case "xy_plot":
+        addObject({ type, x, y, width: 200, height: 200,
+          xy_trail_s: 30, line_color: "var(--brand-primary, #3b82f6)" });
+        break;
       case "text_list":
         addObject({ type, x, y, width: 120, height: 32, font_size: 16, text_anchor: "middle",
           text_list_entries: [
@@ -2152,7 +2156,7 @@ function ObjectProps({
       )}
 
       {/* Tag binding */}
-      {!["navbutton","gauge","slider","checkbox","radio","led","progress_bar","trend","pipe","text_list","state_lamp","setpoint"].includes(obj.type) && field(t("props.tag"), tagInput("es. pump1.speed"))}
+      {!["navbutton","gauge","slider","checkbox","radio","led","progress_bar","trend","pipe","text_list","state_lamp","setpoint","xy_plot"].includes(obj.type) && field(t("props.tag"), tagInput("es. pump1.speed"))}
 
       {/* Token picker (T-40): insert {{key}} into the primary text field so the
           viewer resolves it per the project language table. */}
@@ -2689,6 +2693,32 @@ function ObjectProps({
         </>
         );
       })()}
+
+      {/* XY plot */}
+      {obj.type === "xy_plot" && (
+        <>
+          {field(t("props.xTag"), tagInput("es. gantry.pos_x"))}
+          {field(t("props.yTag"),
+            <TagInput
+              style={INPUT}
+              placeholder="es. gantry.pos_y"
+              value={obj.y_tag ?? ""}
+              onChange={(v) => onChange({ y_tag: v || undefined })}
+            />
+          )}
+          {field(t("props.trailS"), <BindableInput obj={obj} propName="xy_trail_s" onChange={onChange}>{numInput("xy_trail_s", 30)}</BindableInput>)}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+            <div><div style={LABEL}>X min</div><BindableInput obj={obj} propName="xy_x_min" onChange={onChange}>{numInput("xy_x_min", 0)}</BindableInput></div>
+            <div><div style={LABEL}>X max</div><BindableInput obj={obj} propName="xy_x_max" onChange={onChange}>{numInput("xy_x_max", 100)}</BindableInput></div>
+            <div><div style={LABEL}>Y min</div><BindableInput obj={obj} propName="xy_y_min" onChange={onChange}>{numInput("xy_y_min", 0)}</BindableInput></div>
+            <div><div style={LABEL}>Y max</div><BindableInput obj={obj} propName="xy_y_max" onChange={onChange}>{numInput("xy_y_max", 100)}</BindableInput></div>
+          </div>
+          <p style={{ fontSize: 10, color: "var(--brand-border, #475569)", margin: "2px 0 0" }}>
+            Lascia min/max vuoti per autofit sui campioni osservati.
+          </p>
+          {field(t("props.colorMainLine"), <BindableInput obj={obj} propName="line_color" onChange={onChange}>{colorInput("line_color", "var(--brand-primary, #3b82f6)")}</BindableInput>)}
+        </>
+      )}
 
       {/* Image (external URL) */}
       {obj.type === "image" && (
