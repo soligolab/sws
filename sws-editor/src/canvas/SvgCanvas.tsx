@@ -2026,6 +2026,11 @@ function SvgObject(p: ObjProps) {
   // it — this component instance is keyed by obj.id, so the state persists
   // correctly across re-renders of the same object, isolated per object.
   const [trendZoom, setTrendZoom] = useState<{ fromMs: number; toMs: number } | null>(null);
+  // Draft text for the "setpoint" object type (T-46+ widget audit): null while
+  // showing the live tag value, a string while the operator is typing a new
+  // one — write only fires on explicit confirm (Enter/button), never on every
+  // keystroke. Same unconditional-hooks reasoning as trendZoom above.
+  const [setpointDraft, setSetpointDraft] = useState<string | null>(null);
 
   const handleMouseDown = (e: React.MouseEvent<SVGElement>) => {
     if (obj.locked && isEditMode) return;
@@ -2993,6 +2998,83 @@ function SvgObject(p: ObjProps) {
           )}
         </div>
       </foreignObject>
+    );
+  }
+
+  // ── SETPOINT ─────────────────────────────────────────────────────────────────
+  // Numeric value entry with explicit confirm (button + Enter) — unlike
+  // `slider`, which writes on every drag. Shows the live current value
+  // alongside the input so the operator can see what they're changing from.
+
+  if (obj.type === "setpoint") {
+    const w = obj.width ?? 140; const h = obj.height ?? 56;
+    const tv = obj.tag ? tagValues[obj.tag] : undefined;
+    const currentVal = tv ? Number(tv.value) : undefined;
+    const unit = obj.unit ? ` ${obj.unit}` : "";
+    const readOnly = !!obj.read_only;
+
+    if (isEditMode) {
+      return (
+        <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()} style={{ cursor: editCursor }}>
+          {selRect(obj.x, obj.y, w, h)}
+          <rect x={obj.x} y={obj.y} width={w} height={h} rx={4} fill="#0f172a" stroke={selected ? "#facc15" : "#334155"} strokeWidth={selected ? 2 : 1} />
+          <text x={obj.x + w / 2} y={obj.y + h / 2} textAnchor="middle" dominantBaseline="central" fill="#64748b" fontSize={12} style={{ pointerEvents: "none" }}>
+            {obj.label || "Setpoint"}
+          </text>
+        </g>
+      );
+    }
+
+    const commit = () => {
+      if (setpointDraft === null || !obj.tag) return;
+      const n = Number(setpointDraft);
+      if (!Number.isFinite(n)) return; // leave the draft as-is so the operator can fix it
+      onWriteTag?.(obj.tag, n);
+      setSetpointDraft(null);
+    };
+
+    return (
+      <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()}>
+        {selRect(obj.x, obj.y, w, h)}
+        <foreignObject x={obj.x} y={obj.y} width={w} height={h}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 3, padding: "4px 2px", boxSizing: "border-box", height: "100%" }}>
+            {obj.label && (
+              <span style={{ color: "var(--brand-text-muted, #94a3b8)", fontSize: 11 }}>{obj.label}</span>
+            )}
+            <span style={{ color: "var(--brand-text-subtle, #64748b)", fontSize: 10 }}>
+              Attuale: {currentVal !== undefined && Number.isFinite(currentVal) ? `${currentVal}${unit}` : "—"}
+            </span>
+            <div style={{ display: "flex", gap: 4 }}>
+              <input
+                type="number"
+                min={obj.min} max={obj.max} step={obj.step ?? 1}
+                disabled={readOnly}
+                value={setpointDraft ?? (currentVal !== undefined && Number.isFinite(currentVal) ? currentVal : "")}
+                onChange={(e) => setSetpointDraft(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") commit(); }}
+                onClick={(e) => e.stopPropagation()}
+                style={{
+                  flex: 1, minWidth: 0, boxSizing: "border-box",
+                  background: "var(--brand-bg, #0f172a)", border: "1px solid var(--brand-surface-2, #334155)",
+                  borderRadius: 4, color: "var(--brand-text, #e2e8f0)", padding: "3px 6px", fontSize: 12,
+                }}
+              />
+              <button
+                disabled={readOnly || setpointDraft === null}
+                onClick={(e) => { e.stopPropagation(); commit(); }}
+                title="Scrivi"
+                style={{
+                  background: "var(--brand-primary, #3b82f6)", border: "none", borderRadius: 4,
+                  color: "#fff", cursor: readOnly ? "default" : "pointer", padding: "0 10px", fontSize: 12,
+                  opacity: (readOnly || setpointDraft === null) ? 0.5 : 1, flexShrink: 0,
+                }}
+              >
+                ✓
+              </button>
+            </div>
+          </div>
+        </foreignObject>
+      </g>
     );
   }
 

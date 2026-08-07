@@ -470,6 +470,7 @@ const PALETTE_GROUPS: PaletteGroup[] = [
     { type: "checkbox",  label: "Checkbox", icon: "☑" },
     { type: "radio",     label: "Radio",    icon: "◉" },
     { type: "slider",    label: "Slider",   icon: "↔" },
+    { type: "setpoint",  label: "Setpoint", icon: "🎯" },
     { type: "lang_selector", label: "Lingua ▾", icon: "🌐" },
     { type: "lang_button",   label: "Lingua btn", icon: "🏳" },
   ]},

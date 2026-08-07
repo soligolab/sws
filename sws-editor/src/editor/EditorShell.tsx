@@ -537,6 +537,9 @@ export function EditorShell() {
       case "slider":
         addObject({ type, x, y, width: 200, height: 40, min: 0, max: 100, step: 1, orientation: "horizontal" });
         break;
+      case "setpoint":
+        addObject({ type, x, y, width: 140, height: 56, label: "Setpoint", min: 0, max: 100, step: 1 });
+        break;
       case "gauge":
         addObject({ type, x, y, width: 180, height: 180, min: 0, max: 100, label: "Gauge" });
         break;
@@ -2149,7 +2152,7 @@ function ObjectProps({
       )}
 
       {/* Tag binding */}
-      {!["navbutton","gauge","slider","checkbox","radio","led","progress_bar","trend","pipe","text_list","state_lamp"].includes(obj.type) && field(t("props.tag"), tagInput("es. pump1.speed"))}
+      {!["navbutton","gauge","slider","checkbox","radio","led","progress_bar","trend","pipe","text_list","state_lamp","setpoint"].includes(obj.type) && field(t("props.tag"), tagInput("es. pump1.speed"))}
 
       {/* Token picker (T-40): insert {{key}} into the primary text field so the
           viewer resolves it per the project language table. */}
@@ -2415,6 +2418,24 @@ function ObjectProps({
             <input type="checkbox" checked={!!obj.show_value}
               onChange={(e) => onChange({ show_value: e.target.checked })} />
           )}
+          {field(t("props.readOnly"),
+            <input type="checkbox" checked={!!obj.read_only}
+              onChange={(e) => onChange({ read_only: e.target.checked })} />
+          )}
+        </>
+      )}
+
+      {/* Setpoint */}
+      {obj.type === "setpoint" && (
+        <>
+          {field(t("props.label"), <BindableInput obj={obj} propName="label" onChange={onChange}>{textInput("label", "Setpoint")}</BindableInput>)}
+          {field(t("props.tag"), tagInput("es. pump1.speed_sp"))}
+          {field(t("props.unit"), <BindableInput obj={obj} propName="unit" onChange={onChange}>{textInput("unit", "")}</BindableInput>)}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6 }}>
+            <div><div style={LABEL}>Min</div><BindableInput obj={obj} propName="min" onChange={onChange}>{numInput("min", 0)}</BindableInput></div>
+            <div><div style={LABEL}>Max</div><BindableInput obj={obj} propName="max" onChange={onChange}>{numInput("max", 100)}</BindableInput></div>
+            <div><div style={LABEL}>Step</div><BindableInput obj={obj} propName="step" onChange={onChange}>{numInput("step", 1)}</BindableInput></div>
+          </div>
           {field(t("props.readOnly"),
             <input type="checkbox" checked={!!obj.read_only}
               onChange={(e) => onChange({ read_only: e.target.checked })} />
