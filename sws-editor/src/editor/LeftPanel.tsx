@@ -481,6 +481,7 @@ const PALETTE_GROUPS: PaletteGroup[] = [
     { type: "progress_bar", label: "Progress",   icon: "▰" },
     { type: "table",        label: "Tabella",    icon: "≡" },
     { type: "trend",        label: "Trend",      icon: "∿" },
+    { type: "xy_plot",      label: "Grafico XY", icon: "✥" },
     { type: "sparkline",    label: "Sparkline",  icon: "⌇" },
     { type: "text_list",    label: "Lista testi", icon: "≣" },
     { type: "bar_chart",    label: "Bar Chart",  icon: "▐" },

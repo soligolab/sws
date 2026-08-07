@@ -102,6 +102,13 @@ pub struct SynopticObject {
     /// Seconds moved per ◀/▶ pan click on the compact Trend widget. Defaults
     /// to 25% of window_s when unset.
     #[serde(skip_serializing_if = "Option::is_none")] pub pan_step_s: Option<f64>,
+    // XY plot (live point + trail, not a time series). `tag` above is the X axis.
+    #[serde(skip_serializing_if = "Option::is_none")] pub y_tag: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub xy_trail_s: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub xy_x_min: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub xy_x_max: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub xy_y_min: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub xy_y_max: Option<f64>,
     // Layer / visibility (cross-cutting)
     #[serde(skip_serializing_if = "Option::is_none")] pub z_index:        Option<i32>,
     #[serde(skip_serializing_if = "Option::is_none")] pub visible:        Option<bool>,

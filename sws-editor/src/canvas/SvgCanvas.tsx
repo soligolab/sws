@@ -2,6 +2,7 @@ import { useCallback, useEffect, useImperativeHandle, useRef, useState } from "r
 import { useTranslation } from "react-i18next";
 import { TrendCanvas } from "@/canvas/TrendCanvas";
 import { TrendExpandedModal } from "@/canvas/TrendExpanded";
+import { XyPlotCanvas } from "@/canvas/XyPlotCanvas";
 import { getAuthToken } from "@/api/client";
 import { AlarmBellPanel } from "@/components/AlarmBellPanel";
 import { AlarmBanner } from "@/components/AlarmBanner";
@@ -3361,6 +3362,49 @@ function SvgObject(p: ObjProps) {
             )}
           </>
         )}
+      </g>
+    );
+  }
+
+  // ── XY PLOT ──────────────────────────────────────────────────────────────────
+  // Live point + trailing trail against two tags (trajectory/position), not a
+  // time series — see XyPlotCanvas for the sampling/trail logic.
+
+  if (obj.type === "xy_plot") {
+    const w = obj.width ?? 200; const h = obj.height ?? 200;
+
+    if (isEditMode) {
+      return (
+        <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()} style={{ cursor: editCursor }}>
+          {selRect(obj.x, obj.y, w, h)}
+          <rect x={obj.x} y={obj.y} width={w} height={h} rx={4} fill="#0f172a" stroke={selected ? "#facc15" : "#334155"} strokeWidth={selected ? 2 : 1} />
+          <text x={obj.x + w / 2} y={obj.y + h / 2} textAnchor="middle" fill="#64748b" fontSize={12} style={{ pointerEvents: "none" }}>
+            XY Plot{obj.tag && obj.y_tag ? ` — ${obj.tag} / ${obj.y_tag}` : ""}
+          </text>
+        </g>
+      );
+    }
+
+    const xv = obj.tag ? tagValues[obj.tag] : undefined;
+    const yv = obj.y_tag ? tagValues[obj.y_tag] : undefined;
+
+    return (
+      <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()}>
+        {selRect(obj.x, obj.y, w, h)}
+        <foreignObject x={obj.x} y={obj.y} width={w} height={h}>
+          <XyPlotCanvas
+            xValue={xv ? Number(xv.value) : undefined}
+            yValue={yv ? Number(yv.value) : undefined}
+            trailS={obj.xy_trail_s}
+            width={w}
+            height={h}
+            lineColor={obj.line_color}
+            xMin={obj.xy_x_min}
+            xMax={obj.xy_x_max}
+            yMin={obj.xy_y_min}
+            yMax={obj.xy_y_max}
+          />
+        </foreignObject>
       </g>
     );
   }
