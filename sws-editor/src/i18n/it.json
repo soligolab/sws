@@ -219,6 +219,7 @@
         "alarm_banner": "Barra allarmi",
         "symbol": "Simbolo",
         "pipe": "Tubazione",
+        "faceplate": "Faceplate",
         "grid": "Griglia",
         "lang_selector": "Lingua ▾",
         "lang_button": "Lingua btn"
@@ -521,6 +522,10 @@
     "browseImages": "Sfoglia libreria immagini",
     "emptyBackground": "Sfondo vuoto",
     "symbol": "Simbolo",
+    "faceplate": "Faceplate",
+    "faceplateChoose": "— scegli —",
+    "faceplateMissing": "Questo faceplate non esiste più nel progetto.",
+    "faceplateParams": "PARAMETRI",
     "left": "Sinistra",
     "readOnly": "Solo lettura",
     "above": "Sopra",

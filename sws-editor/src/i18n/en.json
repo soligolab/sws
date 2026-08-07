@@ -219,6 +219,7 @@
         "alarm_banner": "Alarm banner",
         "symbol": "Symbol",
         "pipe": "Pipe",
+        "faceplate": "Faceplate",
         "grid": "Grid",
         "lang_selector": "Language ▾",
         "lang_button": "Language btn"
@@ -521,6 +522,10 @@
     "browseImages": "Browse image library",
     "emptyBackground": "Empty background",
     "symbol": "Symbol",
+    "faceplate": "Faceplate",
+    "faceplateChoose": "— choose —",
+    "faceplateMissing": "This faceplate no longer exists in the project.",
+    "faceplateParams": "PARAMETERS",
     "left": "Left",
     "readOnly": "Read only",
     "above": "Above",
