@@ -1246,6 +1246,12 @@ export interface TextListEntry {
   value: number | string | boolean;
   label: string;
   color?: string;
+  /** Optional validity range — when either bound is set, this entry matches
+   *  by range (`value_min <= v < value_max`, half-open) instead of by exact
+   *  `value`. Lets entries express buckets like "10-20 → marcia lenta"
+   *  without breaking existing entries, which keep matching by exact value. */
+  value_min?: number;
+  value_max?: number;
 }
 
 export interface BarChartSeries {
