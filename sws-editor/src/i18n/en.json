@@ -432,6 +432,8 @@
     "centerV": "Center vertically",
     "center": "Center",
     "color": "Color",
+    "colorByThreshold": "Color by threshold",
+    "colorByThresholdHint": "Overrides the static color above when the bound tag crosses a threshold below (same colors as gauge/progress bar).",
     "colorAlarm": "ALARM color",
     "colorGood": "Good color",
     "colorBad": "Bad color",

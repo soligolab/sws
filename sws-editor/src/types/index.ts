@@ -178,6 +178,10 @@ export interface SynopticObject {
   text_anchor?: "start" | "middle" | "end";
   /** Text fill colour (preferred over `fill` for the text object). */
   color?: string;
+  /** When true and the text is tag-bound with a numeric value, `color` is
+   *  overridden by warn_low/warn_high/alarm_low/alarm_high (same thresholdColor()
+   *  used by gauge/progress_bar) whenever a threshold is crossed. */
+  text_color_by_threshold?: boolean;
   // Line / stroke
   x2?: number;
   y2?: number;
