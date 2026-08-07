@@ -3,10 +3,14 @@ import { useTranslation } from "react-i18next";
 import { TrendCanvas } from "@/canvas/TrendCanvas";
 import { TrendExpandedModal } from "@/canvas/TrendExpanded";
 import { getAuthToken } from "@/api/client";
+import { AlarmBellPanel } from "@/components/AlarmBellPanel";
+import { AlarmBanner } from "@/components/AlarmBanner";
+import { DataTable, type DataTableColumn } from "@/components/DataTable";
+import { SEV_COLOR } from "@/alarmSeverity";
 import { useAppStore } from "@/store";
 import { SYMBOLS } from "@/symbols/library";
 import { clampToPage } from "@/pageLayout";
-import type { AlarmSeverity, CustomSymbol, FaceplateDef, GridCell, PageSizeMode, PipePoint, SynopticObject, TagState } from "@/types";
+import type { AlarmSeverity, AlarmState, CustomSymbol, FaceplateDef, GridCell, PageSizeMode, PipePoint, SynopticObject, TagState } from "@/types";
 
 // ── Canvas props ──────────────────────────────────────────────────────────────
 
@@ -1863,7 +1867,7 @@ function SparklineWidget({ tag, windowS, width, height, color, strokeWidth, fill
 // ── AlarmViewerWidget ─────────────────────────────────────────────────────────
 
 function AlarmViewerWidget({ width, height, mode, maxRows, prefix, allowedSev, showAck, showTs, showEmpty, bgColor }: {
-  width: number; height: number; mode: "list" | "banner";
+  width: number; height: number; mode: "list" | "banner" | "table";
   maxRows: number; prefix: string;
   allowedSev?: AlarmSeverity[];
   showAck: boolean; showTs: boolean; showEmpty: boolean;
@@ -1883,8 +1887,7 @@ function AlarmViewerWidget({ width, height, mode, maxRows, prefix, allowedSev, s
     .sort((a, b) => (b.activated_at_ms ?? 0) - (a.activated_at_ms ?? 0))
     .slice(0, maxRows);
 
-  const sevColor = (sev: string) =>
-    sev === "Critical" ? "#ef4444" : sev === "Warning" ? "#f59e0b" : "var(--brand-primary, #3b82f6)";
+  const sevColor = (sev: string) => SEV_COLOR[(sev as AlarmSeverity) ?? "Info"] ?? SEV_COLOR.Info;
 
   const handleAck = useCallback(async (id: string) => {
     try {
@@ -1933,6 +1936,49 @@ function AlarmViewerWidget({ width, height, mode, maxRows, prefix, allowedSev, s
           {text}
         </div>
         <style>{`@keyframes sws-marquee { 0%{transform:translateX(100%)} 100%{transform:translateX(-100%)} }`}</style>
+      </div>
+    );
+  }
+
+  if (mode === "table") {
+    const severityRank = (s: string) => (s === "Critical" ? 0 : s === "Warning" ? 1 : 2);
+    const columns: DataTableColumn<AlarmState>[] = [
+      {
+        key: "severity", header: "●", width: 22, align: "center", filterable: false,
+        accessor: (a) => severityRank(a.def.severity ?? "Warning"),
+        render: (a) => <span style={{ color: sevColor(a.def.severity ?? "Warning") }}>●</span>,
+      },
+      { key: "id", header: "ID", accessor: (a) => a.def.id },
+      { key: "message", header: "Messaggio", accessor: (a) => a.def.message ?? "" },
+      ...(showTs ? [{
+        key: "ts", header: "Attivato", width: 68, filterable: false,
+        accessor: (a: AlarmState) => a.activated_at_ms ?? 0,
+        render: (a: AlarmState) => a.activated_at_ms
+          ? new Date(a.activated_at_ms).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })
+          : "—",
+      } satisfies DataTableColumn<AlarmState>] : []),
+      ...(showAck ? [{
+        key: "ack", header: "ACK", width: 56, align: "center" as const, sortable: false, filterable: false,
+        accessor: () => "",
+        render: (a: AlarmState) => canAck && !a.acknowledged ? (
+          <button
+            onClick={(e) => { e.stopPropagation(); void handleAck(a.def.id); }}
+            style={{ fontSize: 9, padding: "1px 6px", background: "var(--brand-surface, #1e293b)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 2, color: "var(--brand-text-muted, #94a3b8)", cursor: "pointer" }}
+          >
+            ACK
+          </button>
+        ) : a.acknowledged ? <span style={{ color: "var(--brand-text-subtle, #64748b)", fontStyle: "italic" }}>ACK</span> : null,
+      } satisfies DataTableColumn<AlarmState>] : []),
+    ];
+    return (
+      <div style={{ width, height, boxSizing: "border-box" }}>
+        <DataTable<AlarmState>
+          columns={columns}
+          rows={filtered}
+          rowKey={(a) => a.def.id}
+          maxHeight={height}
+          compact
+        />
       </div>
     );
   }
@@ -3495,6 +3541,70 @@ function SvgObject(p: ObjProps) {
             prefix={prefix} allowedSev={allowedSev}
             showAck={showAck} showTs={showTs} showEmpty={showEmpty}
             bgColor={obj.alarm_viewer_bg_color}
+          />
+        </foreignObject>
+      </g>
+    );
+  }
+
+  // ── ALARM BELL ────────────────────────────────────────────────────────────────
+
+  if (obj.type === "alarm_bell") {
+    const w = obj.width ?? 130; const h = obj.height ?? 34;
+
+    if (isEditMode) {
+      return (
+        <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()} style={{ cursor: editCursor }}>
+          {selRect(obj.x, obj.y, w, h)}
+          <rect x={obj.x} y={obj.y} width={w} height={h} rx={h / 2} fill="#0f172a" stroke={selected ? "#facc15" : "#334155"} strokeWidth={selected ? 2 : 1} />
+          <text x={obj.x + w / 2} y={obj.y + h / 2} textAnchor="middle" dominantBaseline="central" fill="#64748b" fontSize={12} style={{ pointerEvents: "none" }}>
+            🔔 Allarmi
+          </text>
+        </g>
+      );
+    }
+
+    return (
+      <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()}>
+        {selRect(obj.x, obj.y, w, h)}
+        <foreignObject x={obj.x} y={obj.y} width={w} height={h}>
+          <AlarmBellPanel
+            idPrefix={obj.alarm_bell_id_prefix}
+            allowedSev={obj.alarm_bell_severities}
+            showHistory={obj.alarm_bell_show_history ?? true}
+            showShelve={obj.alarm_bell_show_shelve ?? true}
+            badgeFill={obj.fill}
+          />
+        </foreignObject>
+      </g>
+    );
+  }
+
+  // ── ALARM BANNER ──────────────────────────────────────────────────────────────
+
+  if (obj.type === "alarm_banner") {
+    const w = obj.width ?? 600; const h = obj.height ?? 32;
+
+    if (isEditMode) {
+      return (
+        <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()} style={{ cursor: editCursor }}>
+          {selRect(obj.x, obj.y, w, h)}
+          <rect x={obj.x} y={obj.y} width={w} height={h} rx={4} fill="#0f172a" stroke={selected ? "#facc15" : "#334155"} strokeWidth={selected ? 2 : 1} />
+          <text x={obj.x + w / 2} y={obj.y + h / 2} textAnchor="middle" dominantBaseline="central" fill="#64748b" fontSize={12} style={{ pointerEvents: "none" }}>
+            Barra Allarmi
+          </text>
+        </g>
+      );
+    }
+
+    return (
+      <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()}>
+        {selRect(obj.x, obj.y, w, h)}
+        <foreignObject x={obj.x} y={obj.y} width={w} height={h}>
+          <AlarmBanner
+            boxed
+            idPrefix={obj.alarm_banner_id_prefix}
+            allowedSev={obj.alarm_banner_severities}
           />
         </foreignObject>
       </g>

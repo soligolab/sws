@@ -215,6 +215,8 @@
         "bar_chart": "Bar Chart",
         "pie_chart": "Pie Chart",
         "alarm_viewer": "Alarms",
+        "alarm_bell": "Alarm bell",
+        "alarm_banner": "Alarm banner",
         "symbol": "Symbol",
         "pipe": "Pipe",
         "grid": "Grid",
@@ -422,6 +424,7 @@
     "forward": "Forward (Ctrl+])",
     "builtinAction": "Built-in action",
     "scrollingBanner": "Scrolling banner",
+    "table": "Table (sort/filter)",
     "activeBindings": "Active bindings",
     "border": "Border",
     "wire": "Cable/wire",
@@ -612,7 +615,11 @@
     "dashDotted": "Dotted",
     "fillArea": "Fill area",
     "fillOpacity": "Fill opacity",
-    "smoothCurve": "Smooth curve"
+    "smoothCurve": "Smooth curve",
+    "severity": "Severity",
+    "alarmBellHint": "Clicking always opens the alarm dropdown — no configurable action.",
+    "showHistory": "Show history",
+    "showShelve": "Show shelve/unshelve"
   },
   "shortcut": {
     "navCanvas": "Canvas navigation",
@@ -720,6 +727,9 @@
     "hysteresis2": "Hysteresis: the alarm clears only when the value crosses (threshold ± dead-band)",
     "jsonPathOpt": "JSON path (opt.)",
     "keepAlive": "Keep-alive (s)",
+    "maxSilenceSecs": "Staleness watchdog (s)",
+    "maxSilenceSecsPlaceholder": "disabled",
+    "maxSilenceSecsHint": "Restart this source if none of its tags update within this many seconds — catches a session that's connected but the broker has gone silent. Leave empty to disable.",
     "labelWord": "Label",
     "message": "Message",
     "commitMessage": "Commit message…",
@@ -822,7 +832,9 @@
     "tgModeOff": "Do not notify",
     "tgChatIdsPh": "chat IDs (comma)",
     "tgChatIdsHint": "telegram_chat_ids: only these chats receive the alarm. Use \"Detect chats\" in Notifications to find the IDs.",
-    "tgChatIdsMissing": "⚠ no chat: this alarm will not be notified"
+    "tgChatIdsMissing": "⚠ no chat: this alarm will not be notified",
+    "recipeId": "ID",
+    "setpointsCount": "Setpoints"
   },
   "langtab": {
     "intro": "Translate the messages you write into objects. In text fields use {{key}}; here you define the translations for each language.",
