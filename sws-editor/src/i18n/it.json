@@ -432,6 +432,8 @@
     "centerV": "Centra verticale",
     "center": "Centro",
     "color": "Colore",
+    "colorByThreshold": "Colora in base a soglia",
+    "colorByThresholdHint": "Sovrascrive il colore statico sopra quando la tag associata supera una soglia sotto (stessi colori di gauge/progress bar).",
     "colorAlarm": "Colore ALARM",
     "colorGood": "Colore Buono (Good)",
     "colorBad": "Colore Errore (Bad)",

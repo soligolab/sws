@@ -2189,6 +2189,27 @@ function ObjectProps({
             </div>
           </div>
           {field(t("props.colorText"), <BindableInput obj={obj} propName="color" onChange={onChange}>{colorInput("color", "var(--brand-text, #e2e8f0)")}</BindableInput>)}
+          <label style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 4, fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", cursor: "pointer" }}>
+            <input
+              type="checkbox"
+              checked={!!obj.text_color_by_threshold}
+              onChange={(e) => onChange({ text_color_by_threshold: e.target.checked || undefined })}
+            />
+            {t("props.colorByThreshold")}
+          </label>
+          {obj.text_color_by_threshold && (
+            <>
+              <p style={{ fontSize: 10, color: "var(--brand-border, #475569)", margin: "2px 0 4px" }}>
+                {t("props.colorByThresholdHint")}
+              </p>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+                <div><div style={LABEL}>{t("props.warnLow")}</div><BindableInput obj={obj} propName="warn_low" onChange={onChange}>{numInput("warn_low", 0)}</BindableInput></div>
+                <div><div style={LABEL}>{t("props.warnHigh")}</div><BindableInput obj={obj} propName="warn_high" onChange={onChange}>{numInput("warn_high", 0)}</BindableInput></div>
+                <div><div style={LABEL}>{t("props.alarmLow")}</div><BindableInput obj={obj} propName="alarm_low" onChange={onChange}>{numInput("alarm_low", 0)}</BindableInput></div>
+                <div><div style={LABEL}>{t("props.alarmHigh")}</div><BindableInput obj={obj} propName="alarm_high" onChange={onChange}>{numInput("alarm_high", 0)}</BindableInput></div>
+              </div>
+            </>
+          )}
         </>
       )}
 
@@ -2328,6 +2349,7 @@ function ObjectProps({
       {obj.type === "slider" && (
         <>
           {field(t("props.tag"), tagInput("es. pump1.speed"))}
+          {field(t("props.color"), <BindableInput obj={obj} propName="fill" onChange={onChange}>{colorInput("fill", "var(--brand-primary, #3b82f6)")}</BindableInput>)}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6 }}>
             <div><div style={LABEL}>Min</div><BindableInput obj={obj} propName="min" onChange={onChange}>{numInput("min", 0)}</BindableInput></div>
             <div><div style={LABEL}>Max</div><BindableInput obj={obj} propName="max" onChange={onChange}>{numInput("max", 100)}</BindableInput></div>
@@ -2359,6 +2381,7 @@ function ObjectProps({
         <>
           {field(t("props.label"), <BindableInput obj={obj} propName="label" onChange={onChange}>{textInput("label", "Checkbox")}</BindableInput>)}
           {field(t("props.tag"), tagInput("es. pump1.run"))}
+          {field(t("props.color"), <BindableInput obj={obj} propName="fill" onChange={onChange}>{colorInput("fill", "var(--brand-primary, #3b82f6)")}</BindableInput>)}
           {field(t("props.valueOn"),
             <BindableInput obj={obj} propName="checked_value" onChange={onChange}>
               <input type="text" style={INPUT} placeholder={t("props.trueHint")}
@@ -2395,6 +2418,7 @@ function ObjectProps({
         <>
           {field(t("props.label"), <BindableInput obj={obj} propName="label" onChange={onChange}>{textInput("label", "Radio")}</BindableInput>)}
           {field(t("props.tag"), tagInput("es. pump1.mode"))}
+          {field(t("props.color"), <BindableInput obj={obj} propName="fill" onChange={onChange}>{colorInput("fill", "var(--brand-primary, #3b82f6)")}</BindableInput>)}
           {field(t("props.orientation"),
             <select
               style={{ ...INPUT, cursor: "pointer" }}

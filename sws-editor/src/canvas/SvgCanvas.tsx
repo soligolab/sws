@@ -2439,7 +2439,10 @@ function SvgObject(p: ObjProps) {
     const weight    = obj.font_weight ?? "normal";
     const style     = obj.font_style ?? "normal";
     const anchor    = obj.text_anchor ?? "start";
-    const colour    = obj.color ?? obj.fill ?? "var(--brand-text, #e2e8f0)";
+    const staticColour = obj.color ?? obj.fill ?? "var(--brand-text, #e2e8f0)";
+    const colour    = (obj.text_color_by_threshold && tv && Number.isFinite(Number(tv.value)))
+      ? (thresholdColor(Number(tv.value), obj.alarm_low, obj.warn_low, obj.warn_high, obj.alarm_high) ?? staticColour)
+      : staticColour;
     // Selection rect is a rough estimate — SVG text has no width attr without measuring.
     const approxW   = Math.max(40, content.length * size * 0.6);
     const dx        = anchor === "middle" ? -approxW / 2 : anchor === "end" ? -approxW : 0;
