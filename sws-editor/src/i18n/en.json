@@ -207,6 +207,7 @@
         "slider": "Slider",
         "gauge": "Gauge",
         "led": "LED",
+        "state_lamp": "State lamp",
         "progress_bar": "Progress",
         "table": "Table",
         "trend": "Trend",
@@ -629,6 +630,7 @@
     "severity": "Severity",
     "alarmBellHint": "Clicking always opens the alarm dropdown — no configurable action.",
     "recipePanelHint": "Lists recipes and lets the operator apply one, same as Menu → Apply recipe.",
+    "stateLampHint": "Same entries as Text list, drawn as a colored dot with its label instead of just text.",
     "recipeIdPrefix": "Recipe id prefix",
     "showHistory": "Show history",
     "showShelve": "Show shelve/unshelve"

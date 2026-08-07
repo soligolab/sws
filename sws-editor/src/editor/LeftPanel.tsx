@@ -476,6 +476,7 @@ const PALETTE_GROUPS: PaletteGroup[] = [
   { category: "Display", color: "#fb923c", items: [
     { type: "gauge",        label: "Gauge",      icon: "◔" },
     { type: "led",          label: "LED",        icon: "●" },
+    { type: "state_lamp",   label: "Lampada multi-stato", icon: "🔴" },
     { type: "progress_bar", label: "Progress",   icon: "▰" },
     { type: "table",        label: "Tabella",    icon: "≡" },
     { type: "trend",        label: "Trend",      icon: "∿" },
