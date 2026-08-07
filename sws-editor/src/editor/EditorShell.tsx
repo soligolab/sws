@@ -18,7 +18,7 @@ import type { SymbolMeta } from "@/symbols/library";
 import { useAppStore } from "@/store";
 import { localizeObjects } from "@/i18n/projectI18n";
 import type { AlignMode } from "@/store";
-import type { AlarmSeverity, ButtonAction, FunctionDef, GridCell, PageLayoutConfig, PageSizeMode, RadioOption, SubCellEntry, SubGrid, SynopticObject, TableRow, TrendSeriesStyle } from "@/types";
+import type { AlarmSeverity, ButtonAction, FunctionDef, GridCell, PageLayoutConfig, PageSizeMode, RadioOption, SubCellEntry, SubGrid, SynopticObject, TableRow, TextListEntry, TrendSeriesStyle } from "@/types";
 
 // ── Shared styles ─────────────────────────────────────────────────────────────
 
@@ -2053,10 +2053,39 @@ function ObjectProps({
 
   /** "VOCI" editor shared by text_list and state_lamp — both drive a shape/text
    *  purely off the same text_list_entries field (value → label → color). */
+  // Sovrapposizione/buco fra la voce `i` e la sua vicina numerica successiva
+  // (ordinate per value_min, non per ordine nell'array — l'array resta ciò
+  // che decide chi vince in caso di sovrapposizione reale, vedi
+  // matchTextListEntry in SvgCanvas.tsx; qui serve solo a capire cosa è
+  // "adiacente" numericamente). Solo per voci con un range impostato — le
+  // voci a valore esatto sono un punto, non un intervallo, restano fuori.
+  // Il confine è semi-aperto (min ≤ v < max) per scelta esplicita del
+  // maintainer: nessun cambio di semantica qui, solo comunicarla meglio.
+  const rangeWarning = (entries: TextListEntry[] | undefined, i: number): string | null => {
+    const list = entries ?? [];
+    const e = list[i];
+    if (!e || (e.value_min === undefined && e.value_max === undefined)) return null;
+    const thisMax = e.value_max ?? Infinity;
+    const ranged = list
+      .map((entry, idx) => ({ entry, idx }))
+      .filter(({ entry }) => entry.value_min !== undefined || entry.value_max !== undefined)
+      .sort((a, b) => (a.entry.value_min ?? -Infinity) - (b.entry.value_min ?? -Infinity));
+    const pos = ranged.findIndex(({ idx }) => idx === i);
+    const next = pos >= 0 ? ranged[pos + 1] : undefined;
+    if (!next) return null;
+    const nextMin = next.entry.value_min ?? -Infinity;
+    const nextLabel = next.entry.label || "?";
+    if (nextMin < thisMax) return `⚠ ${t("props.rangeOverlap", { label: nextLabel })}`;
+    if (nextMin > thisMax) return `⚠ ${t("props.rangeGap", { from: thisMax, to: nextMin, label: nextLabel })}`;
+    return null;
+  };
+
   const textListEntriesField = () => (
     <>
       <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", marginTop: 4, marginBottom: 2, fontWeight: 700 }}>VOCI</div>
-      {(obj.text_list_entries ?? []).map((e, i) => (
+      {(obj.text_list_entries ?? []).map((e, i) => {
+        const warning = rangeWarning(obj.text_list_entries, i);
+        return (
         <div key={i} style={{ display: "flex", flexDirection: "column", gap: 3, marginBottom: 6, padding: 4, border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4 }}>
           <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
             <input style={{ ...INPUT, width: 54 }} placeholder="val" value={String(e.value)}
@@ -2076,9 +2105,12 @@ function ObjectProps({
           </div>
           {/* Range di validità opzionale — indentato sotto label+colore per
               suggerire che è un affinamento del "val" a sinistra, non un
-              campo alla pari. Vuoti = confronto esatto su "val" come oggi. */}
+              campo alla pari. Vuoti = confronto esatto su "val" come oggi.
+              Notazione [min–max) esplicita: il max è escluso (semi-aperto),
+              vedi rangeWarning sopra e props.rangeHint sotto per il perché. */}
           <div style={{ display: "flex", gap: 4, alignItems: "center", paddingLeft: 58 }}>
-            <input style={{ ...INPUT, width: 60 }} type="number" placeholder={t("props.rangeMin")}
+            <span style={{ fontSize: 11, color: "var(--brand-border, #475569)" }}>[</span>
+            <input style={{ ...INPUT, width: 56 }} type="number" placeholder={t("props.rangeMin")}
               value={e.value_min ?? ""}
               onChange={(ev) => {
                 const raw = ev.target.value;
@@ -2086,16 +2118,23 @@ function ObjectProps({
                 onChange({ text_list_entries: next });
               }} />
             <span style={{ fontSize: 10, color: "var(--brand-border, #475569)" }}>–</span>
-            <input style={{ ...INPUT, width: 60 }} type="number" placeholder={t("props.rangeMax")}
+            <input style={{ ...INPUT, width: 56 }} type="number" placeholder={t("props.rangeMax")}
               value={e.value_max ?? ""}
               onChange={(ev) => {
                 const raw = ev.target.value;
                 const next = [...(obj.text_list_entries ?? [])]; next[i] = { ...e, value_max: raw === "" ? undefined : Number(raw) };
                 onChange({ text_list_entries: next });
               }} />
+            <span style={{ fontSize: 11, color: "var(--brand-border, #475569)" }}>)</span>
           </div>
+          {warning && (
+            <div style={{ fontSize: 10, color: "var(--brand-warning, #f59e0b)", paddingLeft: 58 }}>
+              {warning}
+            </div>
+          )}
         </div>
-      ))}
+        );
+      })}
       <button style={{ ...INPUT, width: "100%", cursor: "pointer", marginBottom: 4 }}
         onClick={() => onChange({ text_list_entries: [...(obj.text_list_entries ?? []), { value: 0, label: "Stato", color: "var(--brand-text, #e2e8f0)" }] })}>
         + Aggiungi voce
