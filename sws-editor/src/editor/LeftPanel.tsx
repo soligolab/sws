@@ -488,8 +488,9 @@ const PALETTE_GROUPS: PaletteGroup[] = [
     { type: "alarm_banner", label: "Barra allarmi", icon: "▬" },
   ]},
   { category: "SCADA", color: "#f472b6", items: [
-    { type: "symbol", label: "Simbolo",   icon: "⚙" },
-    { type: "pipe",   label: "Tubazione", icon: "⋯" },
+    { type: "symbol",    label: "Simbolo",   icon: "⚙" },
+    { type: "pipe",      label: "Tubazione", icon: "⋯" },
+    { type: "faceplate", label: "Faceplate", icon: "🧩" },
   ]},
   { category: "Layout", color: "#a78bfa", items: [
     { type: "grid", label: "Griglia", icon: "⊞" },

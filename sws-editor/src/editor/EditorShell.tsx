@@ -621,6 +621,9 @@ export function EditorShell() {
           stroke_width: 8,
         });
         break;
+      case "faceplate":
+        addObject({ type, x, y, width: 120, height: 80 });
+        break;
     }
   };
 
@@ -1938,6 +1941,7 @@ function ObjectProps({
   const { t } = useTranslation();
   const [imgBrowserOpen, setImgBrowserOpen] = useState(false);
   const projLangs = useAppStore((s) => s.project?.languages?.langs) ?? [];
+  const faceplates = useAppStore((s) => s.faceplates);
   // NB: selezionare l'array `entries` (riferimento stabile nello store) e
   // derivare le chiavi in useMemo. Un selettore che fa `.map()` ritornerebbe
   // un nuovo array a ogni render → snapshot instabile → loop infinito e crash
@@ -2960,6 +2964,47 @@ function ObjectProps({
           {field(t("props.colorAlarm"), <BindableInput obj={obj} propName="state_alarm_color" onChange={onChange}>{colorInput("state_alarm_color", "var(--brand-danger, #ef4444)")}</BindableInput>)}
         </>
       )}
+
+      {/* Faceplate instance (parametric reusable component, defined in Config → Faceplates) */}
+      {obj.type === "faceplate" && (() => {
+        const defn = faceplates.find((f) => f.id === obj.faceplate_id);
+        return (
+          <>
+            {field(t("props.faceplate"), (
+              <select
+                style={{ ...INPUT, cursor: "pointer" }}
+                value={obj.faceplate_id ?? ""}
+                onChange={(e) => onChange({ faceplate_id: e.target.value || undefined, faceplate_params: {} })}
+              >
+                <option value="">{t("props.faceplateChoose")}</option>
+                {faceplates.map((f) => <option key={f.id} value={f.id}>{f.label}</option>)}
+              </select>
+            ))}
+            {!defn && obj.faceplate_id && (
+              <p style={{ fontSize: 10, color: "var(--brand-warning, #f59e0b)", margin: "2px 0 4px" }}>
+                {t("props.faceplateMissing")}
+              </p>
+            )}
+            {defn && defn.params.length > 0 && (
+              <>
+                <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", marginTop: 6, marginBottom: 2, fontWeight: 700, letterSpacing: 0.5 }}>
+                  {t("props.faceplateParams")}
+                </div>
+                {defn.params.map((p) => (
+                  <div key={p}>
+                    <div style={LABEL}>{p}</div>
+                    <input
+                      type="text" style={INPUT}
+                      value={obj.faceplate_params?.[p] ?? ""}
+                      onChange={(e) => onChange({ faceplate_params: { ...(obj.faceplate_params ?? {}), [p]: e.target.value } })}
+                    />
+                  </div>
+                ))}
+              </>
+            )}
+          </>
+        );
+      })()}
 
       {/* ── Pipe / connector ────────────────────────────────────────────────── */}
       {obj.type === "pipe" && (
