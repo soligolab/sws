@@ -6,15 +6,20 @@
 >
 > **Pulizia 2026-07-27**: rimossi i task già chiusi e le sezioni di verifica ormai superate; le sessioni mergiate **e** verificate fino al 2026-07-09 sono compresse in «Storico». Il dettaglio integrale resta in `CHANGELOG.md` e nella history git.
 
-**Last session**: 2026-08-06 (notte) — **sessione lunga in autonomia** (il maintainer è andato a
+**Last session**: 2026-08-07 — avviato un nuovo filone: motore di rendering **LVGL** per target
+embedded (framebuffer/DRM/Wayland, in futuro ESP32), come seconda modalità di progetto accanto
+al web. Sessione dedicata solo ad analisi architetturale + fondamenta (Fase 1), non a
+rendering funzionante. Vedi sezione dedicata sotto e `docs/plans/2026-08-07-lvgl-engine.md` per
+il piano completo.
+
+**Sessione precedente**: 2026-08-06 (notte) — **sessione lunga in autonomia** (il maintainer è andato a
 dormire a metà, chiedendo di proseguire i task pianificati e poi di indagare migliorie): T-41
 (pagine cancellate/rinominate ora persistono davvero), un fix sistemico al mirror Rust↔TypeScript
 (62 campi mancanti su `SynopticObject`), T-42/T-43 (campanella e barra allarmi piazzabili,
 **verificati dal maintainer in browser**), T-44/T-45 (DataTable condiviso + Ricette + modalità
 tabella su alarm_viewer, verificati solo da me con harness/build+test — **non ancora provati dal
 maintainer**), e infine un audit di qualità del codice (due Explore agent) con una serie di fix
-mirati (vedi sezioni dedicate sotto). Tutto sul branch `fix/T-41-page-delete-persist`, **non
-ancora mergiato in main**, non pushato. T-46 (rimozione vecchia chrome allarmi) deliberatamente
+mirati (vedi sezioni dedicate sotto). T-46 (rimozione vecchia chrome allarmi) deliberatamente
 rimandato — vedi nota su [[project_t46_alarm_chrome_removal]] in memoria: dopo T-46 gli allarmi
 diventano per-pagina opt-in, non un fallback globale.
 
@@ -30,6 +35,57 @@ faceplate/setpoint/XY-plot, ecc.) e decidere cosa vale la pena fare.
 Trend compatto, da una sessione precedente a stanotte) resta isolato e non mergiato — con il
 drag-to-zoom di T-48 ora in main, potrebbe essere in parte ridondante. Da decidere se
 riprenderlo, scartarlo o riconciliarlo con T-47/T-48 prima di chiudere il branch.
+
+## 2026-08-07: motore di rendering LVGL — Fase 1 (branch `feature/lvgl`)
+
+Nuova richiesta del maintainer: poter generare l'interfaccia in **LVGL** per target embedded
+(disegno diretto su framebuffer/DRM o come client Wayland), come seconda modalità di progetto
+scelta alla creazione (Web vs LVGL, con parametri HW se LVGL — in futuro anche ESP32). Sessione
+di sola analisi architetturale + fondamenta, su un **ramo di lunga durata separato**
+(`feature/lvgl`, non il pattern `feat/T-XX`), con merge periodici da `main` e riunificazione
+quando stabile — **non ancora mergiato**, resta isolato finché il motore non ha almeno un MVP
+funzionante.
+
+**Analisi** (tre Explore agent in parallelo su docs/architettura generale, frontend `sws-editor`,
+backend `sws-runtime`): il motore Rust (`sws-core`/`sws-historian`/`sws-pyscript`/i plugin
+protocollo) è già disaccoppiato dal web (nessuna dipendenza da axum); il backend non renderizza
+mai nulla, espone solo lo schema `SynopticObject`/`SynopticPage` via REST e stream WS
+snapshot+delta (`/ws/tags`, `/ws/alarms`) — tutta l'interpretazione widget-per-widget vive solo
+in TypeScript (`SvgCanvas.tsx`). `sws-kiosk` (GTK4+WebKitGTK) è l'unico precedente concettuale
+ma è solo un wrapper browser, escluso dal cross-compile Yocto perché il sysroot Pixsys non ha
+GTK4/WebKitGTK — è esattamente il gap che LVGL risolverebbe. Verificato anche lato LVGL: v9
+supporta ufficialmente fbdev/DRM/Wayland/simulatore SDL2 (`lv_port_linux`), ma il binding Rust
+ufficiale (`lvgl` crate, `lv_binding_rust`) risulta fermo a LVGL 8.x — gap tecnico registrato,
+non bloccante (vedi `docs/OPEN_QUESTIONS.md` Q14).
+
+**Decisione architetturale** (`docs/adr/0002-lvgl-rendering-engine.md`): il motore LVGL è un
+**nuovo binario Rust separato** (`sws-lvgl-viewer`), client WS/REST verso il runtime `sws-web`
+esistente — stesso ruolo che ha oggi il browser/`sws-kiosk`. **Nessuna modifica al runtime
+esistente** per partire; i protocolli sono già tutti disponibili automaticamente (girano lato
+server, indipendenti dal renderer) — il lavoro vero è solo l'interprete di `SynopticObject` in
+LVGL, per un sottoinsieme di widget più piccolo di quello web.
+
+**Scaffolding fatto**: nuovo crate `sws-runtime/crates/sws-lvgl-viewer` (dipendenza `lvgl` 0.6,
+config vendorizzata, nessuna feature `drivers`/SDL2 ancora, nessuna logica — solo un `main.rs`
+placeholder), escluso dal workspace di default (`exclude` in `sws-runtime/Cargo.toml`, stesso
+motivo/pattern di `sws-kiosk`: richiede un toolchain C/bindgen non garantito ovunque). Verificato
+`cargo check --manifest-path crates/sws-lvgl-viewer/Cargo.toml` verde in isolamento su questo dev
+server (libclang via llvm-14 presente; SDL2 dev headers no, ma non ancora necessari con le
+feature disabilitate). Il resto del workspace non è stato toccato.
+
+**Deciso col maintainer** (via domande esplicite): l'MVP di Fase 2 punterà prima al **simulatore
+SDL2** (iterazione rapida senza hardware, prima di framebuffer/DRM o Wayland reali); l'estensione
+del wizard di creazione progetto (scelta target + pre-config area di lavoro/colori per tutti i
+progetti) è **rimandata a dopo** una prima demo funzionante del motore, non in questo blocco.
+
+**Da fare alla ripresa**: Fase 2 — spike sul simulatore SDL2 (richiede `libsdl2-dev`, non
+installato su questo dev server, da valutare se installarlo qui o solo sulla macchina di casa),
+client WS/REST verso un'istanza `sws-runtime` reale, porting minimo di `resolveObject()`/soglie
+da `SvgCanvas.tsx`, primi tipi widget (`rect`, `text`, `button`, `led`, `slider`). Roadmap
+completa (Fasi 3-6: wizard, backend HW reali, container podman multi-arch, ampliamento catalogo,
+ESP32) in `docs/plans/2026-08-07-lvgl-engine.md`.
+
+---
 
 ## 2026-08-06 (notte): T-41…T-45 + audit qualità codice (branch `fix/T-41-page-delete-persist`)
 

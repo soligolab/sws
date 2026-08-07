@@ -10,6 +10,11 @@ e patch obbligatoria, perché Cargo rifiuta sia `2026.07` sia `2026.7`).
 
 ### Added
 
+- **Avviato il motore di rendering LVGL** per target embedded (framebuffer/DRM/Wayland), come
+  seconda modalità di progetto accanto al web — solo scaffolding e decisione architetturale
+  (ADR 0002) per ora, nessun rendering funzionante. Nuovo crate `sws-lvgl-viewer` (escluso dal
+  workspace di default, come `sws-kiosk`), sviluppato sul branch di lunga durata `feature/lvgl`.
+  Vedi `docs/plans/2026-08-07-lvgl-engine.md` e `docs/OPEN_QUESTIONS.md` Q14.
 - **Allarmi piazzabili come oggetti canvas**: due nuovi tipi SCADA, `alarm_bell`
   (campanella con dropdown attivi/storico/ack/shelve) e `alarm_banner` (barra con
   blink/ACK/priorità ISA-18.2), piazzabili su qualunque pagina invece che solo come
