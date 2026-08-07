@@ -2754,8 +2754,8 @@ function ObjectProps({
             </select>
           ))}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
-            <div><div style={LABEL}>Min</div>{numInput("min", 0)}</div>
-            <div><div style={LABEL}>Max</div>{numInput("max", 100)}</div>
+            <div><div style={LABEL}>Min</div><BindableInput obj={obj} propName="min" onChange={onChange}>{numInput("min", 0)}</BindableInput></div>
+            <div><div style={LABEL}>Max</div><BindableInput obj={obj} propName="max" onChange={onChange}>{numInput("max", 100)}</BindableInput></div>
           </div>
           {field(t("props.unit"), textInput("unit", ""))}
           {field(t("props.barGap"), numInput("bar_gap", 0.2))}
@@ -2785,8 +2785,8 @@ function ObjectProps({
           </button>
           <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", marginTop: 2, marginBottom: 2, fontWeight: 700 }}>SOGLIE</div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
-            <div><div style={LABEL}>{t("props.warnHigh")}</div>{numInput("warn_high", 0)}</div>
-            <div><div style={LABEL}>{t("props.alarmHigh")}</div>{numInput("alarm_high", 0)}</div>
+            <div><div style={LABEL}>{t("props.warnHigh")}</div><BindableInput obj={obj} propName="warn_high" onChange={onChange}>{numInput("warn_high", 0)}</BindableInput></div>
+            <div><div style={LABEL}>{t("props.alarmHigh")}</div><BindableInput obj={obj} propName="alarm_high" onChange={onChange}>{numInput("alarm_high", 0)}</BindableInput></div>
           </div>
         </>
       )}
@@ -2800,7 +2800,7 @@ function ObjectProps({
               <option value="donut">{t("props.donut")}</option>
             </select>
           ))}
-          {(obj.pie_mode ?? "pie") === "donut" && field(t("props.innerRadius"), numInput("pie_inner_ratio", 0.5))}
+          {(obj.pie_mode ?? "pie") === "donut" && field(t("props.innerRadius"), <BindableInput obj={obj} propName="pie_inner_ratio" onChange={onChange}>{numInput("pie_inner_ratio", 0.5)}</BindableInput>)}
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             {[["pie_show_labels","Percentuali"], ["pie_show_legend","Legenda"]].map(([k,l]) => (
               <label key={k} style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "flex", gap: 3, alignItems: "center" }}>
@@ -2808,8 +2808,15 @@ function ObjectProps({
               </label>
             ))}
           </div>
-          {(obj.pie_mode ?? "pie") === "donut" && field(t("props.textCenter"), textInput("pie_center_text", ""))}
-          {(obj.pie_mode ?? "pie") === "donut" && field(t("props.tagCenter"), tagInput("es. totale.kw"))}
+          {(obj.pie_mode ?? "pie") === "donut" && field(t("props.textCenter"), <BindableInput obj={obj} propName="pie_center_text" onChange={onChange}>{textInput("pie_center_text", "")}</BindableInput>)}
+          {(obj.pie_mode ?? "pie") === "donut" && field(t("props.tagCenter"),
+            <TagInput
+              style={INPUT} placeholder="es. totale.kw"
+              value={obj.pie_center_tag ?? ""}
+              onChange={(v) => onChange({ pie_center_tag: v || undefined })}
+            />
+          )}
+          {(obj.pie_mode ?? "pie") === "donut" && obj.pie_center_tag && field(t("props.format"), textInput("pie_center_format", "{value}"))}
           <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", marginTop: 6, marginBottom: 2, fontWeight: 700 }}>SLICE</div>
           {(obj.pie_slices ?? []).map((s, i) => (
             <div key={i} style={{ display: "flex", gap: 4, marginBottom: 4, alignItems: "center" }}>
@@ -2834,12 +2841,12 @@ function ObjectProps({
       {obj.type === "sparkline" && (
         <>
           {field(t("props.tag"), tagInput("es. flow.rate"))}
-          {field(t("props.windowS"), numInput("spark_window_s", 60))}
+          {field(t("props.windowS"), <BindableInput obj={obj} propName="spark_window_s" onChange={onChange}>{numInput("spark_window_s", 60)}</BindableInput>)}
           {field(t("props.colorLine"), <input type="color" value={obj.spark_color ?? "var(--brand-primary, #3b82f6)"} onChange={(e) => onChange({ spark_color: e.target.value })} style={{ width: 40, height: 24, padding: 1, border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 3 }} />)}
           {field(t("props.thicknessPx"), numInput("spark_stroke_width", 1.5))}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
-            <div><div style={LABEL}>Y min</div>{numInput("y_min", 0)}</div>
-            <div><div style={LABEL}>Y max</div>{numInput("y_max", 0)}</div>
+            <div><div style={LABEL}>Y min</div><BindableInput obj={obj} propName="y_min" onChange={onChange}>{numInput("y_min", 0)}</BindableInput></div>
+            <div><div style={LABEL}>Y max</div><BindableInput obj={obj} propName="y_max" onChange={onChange}>{numInput("y_max", 0)}</BindableInput></div>
           </div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             {[["spark_fill","Fill area"], ["spark_show_last","Mostra ultimo"]].map(([k,l]) => (
@@ -2862,7 +2869,7 @@ function ObjectProps({
               <option value="table">{t("props.table")}</option>
             </select>
           ))}
-          {field(t("props.maxRows"), numInput("alarm_viewer_max_rows", 5))}
+          {field(t("props.maxRows"), <BindableInput obj={obj} propName="alarm_viewer_max_rows" onChange={onChange}>{numInput("alarm_viewer_max_rows", 5)}</BindableInput>)}
           {field(t("props.alarmIdPrefix"), <input style={INPUT} placeholder={t("props.exZone")} value={obj.alarm_viewer_id_prefix ?? ""} onChange={(e) => onChange({ alarm_viewer_id_prefix: e.target.value })} />)}
           {field(t("props.severity"), severityFilterField("alarm_viewer_severities"))}
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -2960,7 +2967,7 @@ function ObjectProps({
           {/* Stroke */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
             <div>
-              {field(t("props.colorPipe"), colorInput("stroke", "var(--brand-text-subtle, #64748b)"))}
+              {field(t("props.colorPipe"), <BindableInput obj={obj} propName="stroke" onChange={onChange}>{colorInput("stroke", "var(--brand-text-subtle, #64748b)")}</BindableInput>)}
             </div>
             <div>
               {field(t("props.thicknessPx"), numInput("stroke_width", 8))}
@@ -2974,8 +2981,8 @@ function ObjectProps({
           {(obj.pipe_style === "tube" || obj.pipe_gradient) && (
             <>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
-                <div>{field(t("props.colorLight"), colorInput("gradient_light_color", "var(--brand-text-muted, #94a3b8)"))}</div>
-                <div>{field(t("props.colorDark"),  colorInput("gradient_dark_color",  "var(--brand-surface-2, #334155)"))}</div>
+                <div>{field(t("props.colorLight"), <BindableInput obj={obj} propName="gradient_light_color" onChange={onChange}>{colorInput("gradient_light_color", "var(--brand-text-muted, #94a3b8)")}</BindableInput>)}</div>
+                <div>{field(t("props.colorDark"),  <BindableInput obj={obj} propName="gradient_dark_color" onChange={onChange}>{colorInput("gradient_dark_color",  "var(--brand-surface-2, #334155)")}</BindableInput>)}</div>
               </div>
             </>
           )}
@@ -3010,7 +3017,7 @@ function ObjectProps({
               </div>
             </div>
             {field(t("props.staticLevel"), numInput("fill_level", 0))}
-            {field(t("props.colorFluid"), colorInput("fill_color", "var(--brand-primary, #3b82f6)"))}
+            {field(t("props.colorFluid"), <BindableInput obj={obj} propName="fill_color" onChange={onChange}>{colorInput("fill_color", "var(--brand-primary, #3b82f6)")}</BindableInput>)}
           </CollapsibleSection>
 
           {/* Markers */}
@@ -3039,7 +3046,7 @@ function ObjectProps({
                 </select>
               </div>
             </div>
-            {field(t("props.markerSize"), numInput("marker_size", 1))}
+            {field(t("props.markerSize"), <BindableInput obj={obj} propName="marker_size" onChange={onChange}>{numInput("marker_size", 1)}</BindableInput>)}
           </CollapsibleSection>
 
           {/* State coloring */}
