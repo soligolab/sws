@@ -18,6 +18,7 @@ export type SynopticObjectType =
   | "checkbox"
   | "radio"
   | "slider"
+  | "setpoint"
   // Displays
   | "gauge"
   | "led"
