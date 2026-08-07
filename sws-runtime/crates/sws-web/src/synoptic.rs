@@ -99,6 +99,9 @@ pub struct SynopticObject {
     /// [tag, ...extra_tags]. Generic JSON passthrough like `options`/`table_rows`
     /// above — the frontend owns the shape (see TrendSeriesStyle in types/index.ts).
     #[serde(skip_serializing_if = "Option::is_none")] pub trend_series_styles: Option<Value>,
+    /// Seconds moved per ◀/▶ pan click on the compact Trend widget. Defaults
+    /// to 25% of window_s when unset.
+    #[serde(skip_serializing_if = "Option::is_none")] pub pan_step_s: Option<f64>,
     // Layer / visibility (cross-cutting)
     #[serde(skip_serializing_if = "Option::is_none")] pub z_index:        Option<i32>,
     #[serde(skip_serializing_if = "Option::is_none")] pub visible:        Option<bool>,

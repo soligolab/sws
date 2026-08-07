@@ -3214,6 +3214,7 @@ function SvgObject(p: ObjProps) {
                 onRangeSelect={(fromMs, toMs) => setTrendZoom({ fromMs, toMs })}
                 zoomed={trendZoom !== null}
                 onResetZoom={() => setTrendZoom(null)}
+                panStepS={obj.pan_step_s}
               />
             </foreignObject>
             {onExpandTrend && (

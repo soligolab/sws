@@ -226,6 +226,9 @@ export interface SynopticObject {
   /** Per-trace style (width/dash/fill/smooth), parallel to [tag, ...extra_tags].
    *  `line_color` above remains the legacy fallback for index 0's color. */
   trend_series_styles?: TrendSeriesStyle[];
+  /** Seconds moved per ◀/▶ pan click on the compact widget. Defaults to 25%
+   *  of window_s when unset. Not used by the "Espandi" modal (its own pan). */
+  pan_step_s?: number;
   // ── Layer / visibility (cross-cutting) ────────────────────────────────
   /** Render order. Higher draws on top. Default 0; ties broken by array order. */
   z_index?: number;

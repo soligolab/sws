@@ -2536,6 +2536,10 @@ function ObjectProps({
         <>
           {field(t("props.tag"), tagInput("es. boiler.t"))}
           {field(t("props.windowS"), <BindableInput obj={obj} propName="window_s" onChange={onChange}>{numInput("window_s", 60)}</BindableInput>)}
+          {field(t("props.panStepS"), numInput("pan_step_s", Math.round((obj.window_s ?? 60) * 0.25)))}
+          <p style={{ fontSize: 10, color: "var(--brand-border, #475569)", margin: "-4px 0 0" }}>
+            {t("props.panStepSHint")}
+          </p>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
             <div><div style={LABEL}>Y min</div><BindableInput obj={obj} propName="y_min" onChange={onChange}>{numInput("y_min", 0)}</BindableInput></div>
             <div><div style={LABEL}>Y max</div><BindableInput obj={obj} propName="y_max" onChange={onChange}>{numInput("y_max", 100)}</BindableInput></div>
