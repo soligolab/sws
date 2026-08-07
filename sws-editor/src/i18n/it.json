@@ -217,6 +217,7 @@
         "alarm_viewer": "Allarmi",
         "alarm_bell": "Campanella allarmi",
         "alarm_banner": "Barra allarmi",
+        "recipe_panel": "Ricette",
         "symbol": "Simbolo",
         "pipe": "Tubazione",
         "faceplate": "Faceplate",
@@ -627,6 +628,8 @@
     "smoothCurve": "Arrotonda curva",
     "severity": "Severità",
     "alarmBellHint": "Il click apre sempre il dropdown allarmi — nessuna azione configurabile.",
+    "recipePanelHint": "Elenca le ricette e permette all'operatore di applicarne una, come Menu → Applica ricetta.",
+    "recipeIdPrefix": "Prefisso id ricetta",
     "showHistory": "Mostra storico",
     "showShelve": "Mostra sospendi/riattiva"
   },

@@ -5,6 +5,7 @@ import { TrendExpandedModal } from "@/canvas/TrendExpanded";
 import { getAuthToken } from "@/api/client";
 import { AlarmBellPanel } from "@/components/AlarmBellPanel";
 import { AlarmBanner } from "@/components/AlarmBanner";
+import { RecipePanel } from "@/components/RecipePanel";
 import { DataTable, type DataTableColumn } from "@/components/DataTable";
 import { SEV_COLOR } from "@/alarmSeverity";
 import { genId } from "@/id";
@@ -3611,6 +3612,35 @@ function SvgObject(p: ObjProps) {
             idPrefix={obj.alarm_banner_id_prefix}
             allowedSev={obj.alarm_banner_severities}
           />
+        </foreignObject>
+      </g>
+    );
+  }
+
+  // ── RECIPE PANEL ────────────────────────────────────────────────────────────
+
+  if (obj.type === "recipe_panel") {
+    const w = obj.width ?? 260; const h = obj.height ?? 160;
+
+    if (isEditMode) {
+      return (
+        <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()} style={{ cursor: editCursor }}>
+          {selRect(obj.x, obj.y, w, h)}
+          <rect x={obj.x} y={obj.y} width={w} height={h} rx={4} fill="#0f172a" stroke={selected ? "#facc15" : "#334155"} strokeWidth={selected ? 2 : 1} />
+          <text x={obj.x + w / 2} y={obj.y + h / 2} textAnchor="middle" dominantBaseline="central" fill="#64748b" fontSize={12} style={{ pointerEvents: "none" }}>
+            📋 Ricette
+          </text>
+        </g>
+      );
+    }
+
+    return (
+      <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()}>
+        {selRect(obj.x, obj.y, w, h)}
+        <foreignObject x={obj.x} y={obj.y} width={w} height={h}>
+          <div style={{ width: w, height: h, overflowY: "auto", boxSizing: "border-box", padding: 6, background: "var(--brand-surface, #1e293b)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4 }}>
+            <RecipePanel idPrefix={obj.recipe_panel_id_prefix} compact />
+          </div>
         </foreignObject>
       </g>
     );

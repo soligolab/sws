@@ -31,6 +31,8 @@ export type SynopticObjectType =
   | "alarm_viewer"
   | "alarm_bell"
   | "alarm_banner"
+  // Recipe list + apply, promoted from the fixed RecipeModal (RuntimeView.tsx)
+  | "recipe_panel"
   // SCADA symbols (pump/valve/motor/tank/fan from the built-in library)
   | "symbol"
   // Pipe / connector (multi-waypoint path with fill-level animation)
@@ -400,6 +402,9 @@ export interface SynopticObject {
   // ── Alarm Banner (type === "alarm_banner") ────────────────────────────
   alarm_banner_id_prefix?: string;
   alarm_banner_severities?: AlarmSeverity[];
+  // ── Recipe Panel (type === "recipe_panel") ─────────────────────────────
+  /** Only show recipes whose id starts with this prefix. Unset/empty = all. */
+  recipe_panel_id_prefix?: string;
 }
 
 // ── Faceplate definitions ─────────────────────────────────────────────────────

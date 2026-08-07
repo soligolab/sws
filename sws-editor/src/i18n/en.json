@@ -217,6 +217,7 @@
         "alarm_viewer": "Alarms",
         "alarm_bell": "Alarm bell",
         "alarm_banner": "Alarm banner",
+        "recipe_panel": "Recipes",
         "symbol": "Symbol",
         "pipe": "Pipe",
         "faceplate": "Faceplate",
@@ -627,6 +628,8 @@
     "smoothCurve": "Smooth curve",
     "severity": "Severity",
     "alarmBellHint": "Clicking always opens the alarm dropdown — no configurable action.",
+    "recipePanelHint": "Lists recipes and lets the operator apply one, same as Menu → Apply recipe.",
+    "recipeIdPrefix": "Recipe id prefix",
     "showHistory": "Show history",
     "showShelve": "Show shelve/unshelve"
   },

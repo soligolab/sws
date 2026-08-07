@@ -597,6 +597,9 @@ export function EditorShell() {
       case "alarm_banner":
         addObject({ type, x, y, width: 600, height: 32 });
         break;
+      case "recipe_panel":
+        addObject({ type, x, y, width: 260, height: 160 });
+        break;
       case "image":
         setPendingImagePos({ x, y });
         return; // addObject called after image is chosen in browser
@@ -2936,6 +2939,16 @@ function ObjectProps({
         <>
           {field(t("props.alarmIdPrefix"), <input style={INPUT} placeholder={t("props.exZone")} value={obj.alarm_banner_id_prefix ?? ""} onChange={(e) => onChange({ alarm_banner_id_prefix: e.target.value })} />)}
           {field(t("props.severity"), severityFilterField("alarm_banner_severities"))}
+        </>
+      )}
+
+      {/* Recipe panel — lista ricette + applica, promosso dal modale fisso di RuntimeView.tsx */}
+      {obj.type === "recipe_panel" && (
+        <>
+          <div style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", marginBottom: 4 }}>
+            {t("props.recipePanelHint")}
+          </div>
+          {field(t("props.recipeIdPrefix"), <input style={INPUT} placeholder="es. linea1-" value={obj.recipe_panel_id_prefix ?? ""} onChange={(e) => onChange({ recipe_panel_id_prefix: e.target.value })} />)}
         </>
       )}
 
