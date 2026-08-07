@@ -62,6 +62,10 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(cd "$SCRIPT_DIR/.." && pwd)"
 
+usage() {
+    sed -n '2,44p' "${BASH_SOURCE[0]}" | sed 's/^#//; s/^ //'
+}
+
 # Lo script gira con sudo (vedi il controllo root più sotto): tutto ciò che
 # root scrive — dist/, sws-editor/dist/ (pnpm build gira come root, non
 # dentro un container), target-container-aarch64-generic/,
@@ -104,13 +108,14 @@ EXPECTED_PY="3.12"
 
 while [ $# -gt 0 ]; do
     case "$1" in
+        -h|--help)  usage; exit 0 ;;
         --no-rust)  BUILD_RUST=0; shift ;;
         --no-spa)   BUILD_SPA=0;  shift ;;
         --no-save)  SAVE=0;       shift ;;
         --push)     PUSH=1;       shift ;;
         --registry) REGISTRY="$2"; shift 2 ;;
         --out)      OUT_DIR="$2"; shift 2 ;;
-        *) echo "Flag non riconosciuta: $1" >&2; exit 1 ;;
+        *) echo "Flag non riconosciuta: $1 (--help per l'elenco)" >&2; exit 1 ;;
     esac
 done
 
