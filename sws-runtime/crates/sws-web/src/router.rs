@@ -203,6 +203,11 @@ pub fn build(
             get(crate::packaging::list_container_packages))
         .route("/api/deploy/device-container",
             post(crate::packaging::deploy_device_container))
+        // Lifecycle on an already-installed container (status/start/stop/
+        // restart/enable/disable/restart-policy/uninstall) — locally on this
+        // host or over SSH, independent of any prior deploy's remote_dir.
+        .route("/api/deploy/device-container/manage",
+            post(crate::packaging::manage_device_container))
         // Audit log (OPEN_QUESTIONS Q8): who-did-what trail, tamper-evident.
         .route("/api/audit",               get(get_audit_tail))
         .route("/api/audit/verify",        get(get_audit_verify))

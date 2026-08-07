@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { api, getAuthToken, type CreateUserBody, type DiscoveredRuntime, type UpdateUserBody, type UserRole, type UserSummary } from "@/api/client";
 import { getBrand } from "@/branding";
 import { containerDeployPayload, effectiveDataPath, type ContainerSource } from "@/containerDeploy";
+import { containerManagePayload, type ManageAction, type RestartPolicy } from "@/containerManage";
 import { DataTable, type DataTableColumn } from "@/components/DataTable";
 import { TagInput } from "@/components/TagInput";
 import { PythonEditor, type PythonEditorHandle } from "@/components/PythonEditor";
@@ -6947,6 +6948,18 @@ function RuntimeConnectionTab() {
   // inchiodare una versione precisa.
   const [imageRef, setImageRef] = useState("");
   const [cleanInstall, setCleanInstall] = useState(false);
+  // Gestione di un container già installato: stato/avvia/ferma/riavvia/
+  // abilita-disabilita al boot/policy di restart/disinstalla. Locale (default)
+  // = comandi diretti sul host che esegue il backend, niente SSH — risolve il
+  // caso più comune: un container installato per test sulla stessa macchina
+  // che esegue l'IDE, che collide con `start_runtime.sh` sulle stesse porte.
+  // Remoto riusa gli stessi campi host/porta/utente/password del pannello di
+  // installazione sopra.
+  const [manageLocal, setManageLocal]     = useState(true);
+  const [manageLog, setManageLog]         = useState<string[]>([]);
+  const [managing, setManaging]           = useState(false);
+  const [restartPolicy, setRestartPolicy] = useState<RestartPolicy>("always");
+  const [uninstallPurge, setUninstallPurge] = useState(false);
 
   const target = targetUrl.trim().replace(/\/$/, "");
 
@@ -7215,6 +7228,54 @@ function RuntimeConnectionTab() {
       // La spunta non sopravvive all'uso: una seconda installazione fatta di
       // fretta non deve azzerare il dispositivo perché la casella era rimasta.
       setCleanInstall(false);
+    }
+  };
+
+  const handleManage = async (action: ManageAction) => {
+    if (!manageLocal && (!deviceHost || !deviceUser)) return;
+    // Stessa cautela di handleContainerDeploy: l'unica azione qui distruttiva
+    // è la disinstallazione, e solo con la cancellazione dati merita un
+    // secondo avviso che nomini il percorso.
+    if (action === "uninstall") {
+      const msg = uninstallPurge
+        ? t("cfg.uninstallPurgeConfirm", { path: effectiveDataPath(dataPath) })
+        : t("cfg.uninstallConfirm", { path: effectiveDataPath(dataPath) });
+      if (!window.confirm(msg)) return;
+    }
+    setManaging(true);
+    setManageLog([]);
+    try {
+      const token = getAuthToken() ?? "";
+      const res = await fetch("/api/deploy/device-container/manage", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify(containerManagePayload({
+          local: manageLocal,
+          host: deviceHost, port: devicePort, user: deviceUser, password: devicePass,
+          action,
+          restartPolicy,
+          purge: uninstallPurge,
+          dataPath,
+        })),
+      });
+      if (!res.ok) {
+        const detail = await res.text().catch(() => "");
+        setManageLog([`ERROR: ${res.status} ${res.statusText}${detail.trim() ? ` — ${detail.trim()}` : ""}`]);
+        return;
+      }
+      const reader = res.body?.getReader();
+      if (!reader) return;
+      const dec = new TextDecoder();
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        dec.decode(value).split("\n").filter(Boolean).forEach((line) => setManageLog((l) => [...l, line]));
+      }
+    } catch (e: unknown) {
+      setManageLog((l) => [...l, `ERROR: ${String(e)}`]);
+    } finally {
+      setManaging(false);
+      if (action === "uninstall") setUninstallPurge(false);
     }
   };
 
@@ -7831,6 +7892,84 @@ function RuntimeConnectionTab() {
                     ))}
                   </div>
                 )}
+
+                {/* Gestione di un container già installato — indipendente da
+                    remote_dir: agisce sulla unit già sul dispositivo (o su
+                    questa macchina), non su quanto appena installato sopra. */}
+                <div style={{ borderTop: "1px solid var(--brand-surface, #1e293b)", paddingTop: 10, marginTop: 4 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: "var(--brand-text-2, #cbd5e1)", marginBottom: 8 }}>
+                    {t("cfg.manageTitle")}
+                  </div>
+
+                  <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, marginBottom: 8, cursor: "pointer" }}>
+                    <input type="checkbox" checked={manageLocal}
+                      onChange={(e) => setManageLocal(e.target.checked)} />
+                    {manageLocal ? t("cfg.manageLocal") : t("cfg.manageRemote")}
+                  </label>
+
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
+                    <button style={BTN} disabled={managing || (!manageLocal && (!deviceHost || !deviceUser))}
+                      onClick={() => void handleManage("status")}>{t("cfg.manageStatus")}</button>
+                    <button style={BTN} disabled={managing || (!manageLocal && (!deviceHost || !deviceUser))}
+                      onClick={() => void handleManage("start")}>{t("cfg.manageStart")}</button>
+                    <button style={BTN} disabled={managing || (!manageLocal && (!deviceHost || !deviceUser))}
+                      onClick={() => void handleManage("stop")}>{t("cfg.manageStop")}</button>
+                    <button style={BTN} disabled={managing || (!manageLocal && (!deviceHost || !deviceUser))}
+                      onClick={() => void handleManage("restart")}>{t("cfg.manageRestart")}</button>
+                    <button style={BTN} disabled={managing || (!manageLocal && (!deviceHost || !deviceUser))}
+                      onClick={() => void handleManage("enable")}>{t("cfg.manageEnableBoot")}</button>
+                    <button style={BTN} disabled={managing || (!manageLocal && (!deviceHost || !deviceUser))}
+                      onClick={() => void handleManage("disable")}>{t("cfg.manageDisableBoot")}</button>
+                  </div>
+
+                  <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 10, flexWrap: "wrap" }}>
+                    <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)" }}>{t("cfg.restartPolicy")}</label>
+                    <select
+                      value={restartPolicy}
+                      style={{ ...INPUT, width: 140 }}
+                      onChange={(e) => setRestartPolicy(e.target.value as RestartPolicy)}
+                    >
+                      <option value="always">{t("cfg.restartPolicyAlways")}</option>
+                      <option value="on-failure">{t("cfg.restartPolicyOnFailure")}</option>
+                      <option value="no">{t("cfg.restartPolicyNo")}</option>
+                    </select>
+                    <button style={BTN} disabled={managing || (!manageLocal && (!deviceHost || !deviceUser))}
+                      onClick={() => void handleManage("set_restart_policy")}>
+                      {t("cfg.manageApplyPolicy")}
+                    </button>
+                  </div>
+
+                  <div style={{ borderTop: "1px solid var(--brand-surface, #1e293b)", paddingTop: 8 }}>
+                    <label style={{ display: "flex", alignItems: "flex-start", gap: 6, cursor: "pointer" }}>
+                      <input type="checkbox" checked={uninstallPurge}
+                        onChange={(e) => setUninstallPurge(e.target.checked)} />
+                      <span style={{ fontSize: 12, color: uninstallPurge ? "var(--brand-danger-soft, #f87171)" : "var(--brand-text-2, #cbd5e1)" }}>
+                        {t("cfg.uninstallPurge")}
+                        <span style={{ display: "block", fontSize: 10, color: "var(--brand-border, #475569)" }}>
+                          {t("cfg.uninstallPurgeHint", { path: effectiveDataPath(dataPath) })}
+                        </span>
+                      </span>
+                    </label>
+                    <button
+                      style={{ ...BTN_RED, opacity: (managing || (!manageLocal && (!deviceHost || !deviceUser))) ? 0.6 : 1, marginTop: 6 }}
+                      disabled={managing || (!manageLocal && (!deviceHost || !deviceUser))}
+                      onClick={() => void handleManage("uninstall")}>
+                      {t("cfg.uninstallBtn")}
+                    </button>
+                  </div>
+
+                  {manageLog.length > 0 && (
+                    <div style={{
+                      background: "var(--brand-bg, #020617)", border: "1px solid var(--brand-surface, #1e293b)", borderRadius: 4,
+                      padding: "8px 10px", maxHeight: 150, overflowY: "auto", marginTop: 8,
+                      fontFamily: "monospace", fontSize: 11,
+                    }}>
+                      {manageLog.map((l, i) => (
+                        <div key={i} style={{ color: l.startsWith("ERROR") ? "var(--brand-danger-soft, #f87171)" : l === "DONE" ? "var(--brand-success-soft, #4ade80)" : l.startsWith("WARN") ? "#fb923c" : "var(--brand-text-muted, #94a3b8)" }}>{l}</div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </>
             )}
           </div>
