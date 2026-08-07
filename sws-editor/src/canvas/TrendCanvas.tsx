@@ -104,6 +104,8 @@ interface TrendCanvasProps {
    *  when the caller is currently displaying a range set via onRangeSelect. */
   zoomed?: boolean;
   onResetZoom?: () => void;
+  /** Seconds moved per ◀/▶ click. Defaults to 25% of windowS when omitted. */
+  panStepS?: number;
 }
 
 const SMALL_BTN: React.CSSProperties = {
@@ -133,6 +135,16 @@ function fmtValue(v: number): string {
   return v.toFixed(2);
 }
 
+/** Compact "how far back" label for the pan indicator, e.g. "45s", "12m", "2h05m". */
+function fmtOffset(ms: number): string {
+  const totalMin = Math.round(ms / 60000);
+  if (totalMin < 1) return `${Math.round(ms / 1000)}s`;
+  if (totalMin < 60) return `${totalMin}m`;
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+  return m === 0 ? `${h}h` : `${h}h${m.toString().padStart(2, "0")}m`;
+}
+
 export function TrendCanvas({
   tags,
   windowS,
@@ -150,6 +162,7 @@ export function TrendCanvas({
   onRangeSelect,
   zoomed = false,
   onResetZoom,
+  panStepS,
 }: TrendCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [series, setSeries] = useState<Sample[][]>(() => tags.map(() => []));
@@ -158,6 +171,12 @@ export function TrendCanvas({
   const [dragCurX, setDragCurX] = useState<number | null>(null);
 
   const isHistorical = explicitFromMs !== undefined && explicitToMs !== undefined;
+  // Pan (◀/▶) only makes sense for this widget's own rolling window — when the
+  // caller (TrendExpandedModal, or a drag-to-zoom selection) already drives an
+  // explicit range, isHistorical is true and the pan buttons stay hidden.
+  const panEnabled = !isHistorical;
+  const [offsetMs, setOffsetMs] = useState(0);
+  const panStep = Math.round((panStepS ?? windowS * 0.25) * 1000);
 
   const colors = useMemo(
     () => tags.map((_, i) => resolveSeriesColor(i, lineColor, seriesStyles)),
@@ -166,9 +185,11 @@ export function TrendCanvas({
 
   useEffect(() => {
     setSeries(tags.map(() => []));
+    setOffsetMs(0);
   }, [tags.join(",")]);
 
-  // In historical mode: fetch once when range changes. In live mode: poll.
+  // In historical mode (explicit range) or while panned: fetch once when the
+  // range changes. Live (offsetMs === 0, no explicit range): poll.
   useEffect(() => {
     if (tags.length === 0 || tags.every((t) => !t)) return;
     let cancelled = false;
@@ -188,8 +209,9 @@ export function TrendCanvas({
       }
     };
 
-    if (isHistorical) {
-      fetch(explicitFromMs!, explicitToMs!, false);
+    if (isHistorical || offsetMs !== 0) {
+      const { tMin, tSpan } = getXDomain();
+      fetch(tMin, tMin + tSpan, false);
       return () => { cancelled = true; };
     }
 
@@ -203,22 +225,24 @@ export function TrendCanvas({
     tick();
     const id = setInterval(tick, pollMs);
     return () => { cancelled = true; clearInterval(id); };
-  }, [tags.join(","), windowS, pollMs, opcuaBackfill, isHistorical, explicitFromMs, explicitToMs]);
+  }, [tags.join(","), windowS, pollMs, opcuaBackfill, isHistorical, explicitFromMs, explicitToMs, offsetMs]);
 
   // Layout constants for the plot area
   const PAD_TOP    = 6 + (tags.length > 1 ? 14 : 0); // legend space when multi-tag
-  const PAD_BOTTOM = 18;
+  const PAD_BOTTOM = 18 + (panEnabled ? 14 : 0); // room for the ◀/▶ pan buttons
   const PAD_LEFT   = 6;
   const PAD_RIGHT  = 48;
   const plotW = width - PAD_LEFT - PAD_RIGHT;
 
   // X domain (same math as the draw effect below) — exposed at component
   // scope so the drag-to-zoom handler can convert screen-x → timestamp
-  // without duplicating/desyncing the logic.
+  // without duplicating/desyncing the logic. `offsetMs` shifts the rolling
+  // live window back in time (pan ◀/▶); ignored once isHistorical (explicit
+  // range from the caller, e.g. a drag-to-zoom selection) takes over.
   const getXDomain = () => {
     const now = Date.now();
-    const tMin = isHistorical ? explicitFromMs! : now - windowS * 1000;
-    const tMax = isHistorical ? explicitToMs!   : now;
+    const tMin = isHistorical ? explicitFromMs! : now - offsetMs - windowS * 1000;
+    const tMax = isHistorical ? explicitToMs!   : now - offsetMs;
     return { tMin, tSpan: Math.max(1, tMax - tMin) };
   };
 
@@ -508,7 +532,7 @@ export function TrendCanvas({
         ctx.fillText(fmtValue(lastN), PAD_LEFT + plotW - 4, PAD_TOP + 4);
       }
     }
-  }, [series, width, height, colors, yMin, yMax, hoverX, tags.join(","), windowS, isHistorical, explicitFromMs, explicitToMs, hiddenIndices, seriesStyles, dragStartX, dragCurX]);
+  }, [series, width, height, colors, yMin, yMax, hoverX, tags.join(","), windowS, isHistorical, explicitFromMs, explicitToMs, offsetMs, hiddenIndices, seriesStyles, dragStartX, dragCurX]);
 
   const hasSeries = series.some((s) => s.length > 0);
 
@@ -552,6 +576,53 @@ export function TrendCanvas({
             ⬇ CSV
           </button>
         </div>
+      )}
+      {panEnabled && (
+        <>
+          <button
+            title="Indietro nel tempo"
+            onClick={() => setOffsetMs((o) => o + panStep)}
+            style={{
+              position: "absolute", bottom: 4, left: 4,
+              background: "#1e293b", border: "1px solid #334155",
+              color: "#64748b", borderRadius: 3, cursor: "pointer",
+              fontSize: 10, padding: "2px 5px", lineHeight: 1.4,
+              opacity: 0.7,
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.opacity = "1")}
+            onMouseLeave={(e) => (e.currentTarget.style.opacity = "0.7")}
+          >
+            ◀
+          </button>
+          {offsetMs !== 0 && (
+            <span
+              style={{
+                position: "absolute", bottom: 4, left: "50%", transform: "translateX(-50%)",
+                color: "#64748b", fontSize: 10, background: "#1e293bcc",
+                borderRadius: 3, padding: "2px 5px", lineHeight: 1.4, pointerEvents: "none",
+              }}
+            >
+              -{fmtOffset(offsetMs)}
+            </span>
+          )}
+          <button
+            title="Avanti nel tempo"
+            onClick={() => setOffsetMs((o) => Math.max(0, o - panStep))}
+            disabled={offsetMs === 0}
+            style={{
+              position: "absolute", bottom: 4, right: 4,
+              background: "#1e293b", border: "1px solid #334155",
+              color: offsetMs === 0 ? "#334155" : "#64748b", borderRadius: 3,
+              cursor: offsetMs === 0 ? "default" : "pointer",
+              fontSize: 10, padding: "2px 5px", lineHeight: 1.4,
+              opacity: offsetMs === 0 ? 0.4 : 0.7,
+            }}
+            onMouseEnter={(e) => { if (offsetMs !== 0) e.currentTarget.style.opacity = "1"; }}
+            onMouseLeave={(e) => { if (offsetMs !== 0) e.currentTarget.style.opacity = "0.7"; }}
+          >
+            ▶
+          </button>
+        </>
       )}
     </div>
   );

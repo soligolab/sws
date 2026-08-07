@@ -462,6 +462,8 @@
     "fill": "Fill",
     "endToStart": "End → Start",
     "windowS": "Window (s)",
+    "panStepS": "Pan ◀/▶ step (s)",
+    "panStepSHint": "How far each click moves. Empty = 25% of the window.",
     "flange": "Flange",
     "fontFamily": "Font family",
     "fontSize": "Font size",
