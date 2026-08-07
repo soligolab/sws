@@ -2057,27 +2057,52 @@ function ObjectProps({
     <>
       <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", marginTop: 4, marginBottom: 2, fontWeight: 700 }}>VOCI</div>
       {(obj.text_list_entries ?? []).map((e, i) => (
-        <div key={i} style={{ display: "flex", gap: 4, marginBottom: 4, alignItems: "center" }}>
-          <input style={{ ...INPUT, width: 54 }} placeholder="val" value={String(e.value)}
-            onChange={(ev) => {
-              const raw = ev.target.value;
-              const v = raw === "true" ? true : raw === "false" ? false : isNaN(Number(raw)) || raw === "" ? raw : Number(raw);
-              const next = [...(obj.text_list_entries ?? [])]; next[i] = { ...e, value: v };
-              onChange({ text_list_entries: next });
-            }} />
-          <input style={{ ...INPUT, flex: 1 }} placeholder={t("props.labelPh")} value={e.label}
-            onChange={(ev) => { const next = [...(obj.text_list_entries ?? [])]; next[i] = { ...e, label: ev.target.value }; onChange({ text_list_entries: next }); }} />
-          <input type="color" value={e.color ?? "var(--brand-text, #e2e8f0)"} title={t("props.colorText")}
-            onChange={(ev) => { const next = [...(obj.text_list_entries ?? [])]; next[i] = { ...e, color: ev.target.value }; onChange({ text_list_entries: next }); }}
-            style={{ width: 28, height: 24, padding: 1, border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 3, cursor: "pointer" }} />
-          <button style={{ ...INPUT, padding: "0 6px", cursor: "pointer" }}
-            onClick={() => { const next = (obj.text_list_entries ?? []).filter((_, j) => j !== i); onChange({ text_list_entries: next }); }}>✕</button>
+        <div key={i} style={{ display: "flex", flexDirection: "column", gap: 3, marginBottom: 6, padding: 4, border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4 }}>
+          <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+            <input style={{ ...INPUT, width: 54 }} placeholder="val" value={String(e.value)}
+              onChange={(ev) => {
+                const raw = ev.target.value;
+                const v = raw === "true" ? true : raw === "false" ? false : isNaN(Number(raw)) || raw === "" ? raw : Number(raw);
+                const next = [...(obj.text_list_entries ?? [])]; next[i] = { ...e, value: v };
+                onChange({ text_list_entries: next });
+              }} />
+            <input style={{ ...INPUT, flex: 1 }} placeholder={t("props.labelPh")} value={e.label}
+              onChange={(ev) => { const next = [...(obj.text_list_entries ?? [])]; next[i] = { ...e, label: ev.target.value }; onChange({ text_list_entries: next }); }} />
+            <input type="color" value={e.color ?? "var(--brand-text, #e2e8f0)"} title={t("props.colorText")}
+              onChange={(ev) => { const next = [...(obj.text_list_entries ?? [])]; next[i] = { ...e, color: ev.target.value }; onChange({ text_list_entries: next }); }}
+              style={{ width: 28, height: 24, padding: 1, border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 3, cursor: "pointer" }} />
+            <button style={{ ...INPUT, width: "auto", padding: "0 6px", cursor: "pointer" }}
+              onClick={() => { const next = (obj.text_list_entries ?? []).filter((_, j) => j !== i); onChange({ text_list_entries: next }); }}>✕</button>
+          </div>
+          {/* Range di validità opzionale — indentato sotto label+colore per
+              suggerire che è un affinamento del "val" a sinistra, non un
+              campo alla pari. Vuoti = confronto esatto su "val" come oggi. */}
+          <div style={{ display: "flex", gap: 4, alignItems: "center", paddingLeft: 58 }}>
+            <input style={{ ...INPUT, width: 60 }} type="number" placeholder={t("props.rangeMin")}
+              value={e.value_min ?? ""}
+              onChange={(ev) => {
+                const raw = ev.target.value;
+                const next = [...(obj.text_list_entries ?? [])]; next[i] = { ...e, value_min: raw === "" ? undefined : Number(raw) };
+                onChange({ text_list_entries: next });
+              }} />
+            <span style={{ fontSize: 10, color: "var(--brand-border, #475569)" }}>–</span>
+            <input style={{ ...INPUT, width: 60 }} type="number" placeholder={t("props.rangeMax")}
+              value={e.value_max ?? ""}
+              onChange={(ev) => {
+                const raw = ev.target.value;
+                const next = [...(obj.text_list_entries ?? [])]; next[i] = { ...e, value_max: raw === "" ? undefined : Number(raw) };
+                onChange({ text_list_entries: next });
+              }} />
+          </div>
         </div>
       ))}
       <button style={{ ...INPUT, width: "100%", cursor: "pointer", marginBottom: 4 }}
         onClick={() => onChange({ text_list_entries: [...(obj.text_list_entries ?? []), { value: 0, label: "Stato", color: "var(--brand-text, #e2e8f0)" }] })}>
         + Aggiungi voce
       </button>
+      <p style={{ fontSize: 10, color: "var(--brand-border, #475569)", margin: "-2px 0 4px" }}>
+        {t("props.rangeHint")}
+      </p>
     </>
   );
 
@@ -2885,7 +2910,7 @@ function ObjectProps({
                 onChange={(e) => { const next = [...(obj.bar_series ?? [])]; next[i] = { ...s, label: e.target.value }; onChange({ bar_series: next }); }} />
               <input type="color" value={s.color} onChange={(e) => { const next = [...(obj.bar_series ?? [])]; next[i] = { ...s, color: e.target.value }; onChange({ bar_series: next }); }}
                 style={{ width: 28, height: 24, padding: 1, border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 3 }} />
-              <button style={{ ...INPUT, padding: "0 6px", cursor: "pointer" }}
+              <button style={{ ...INPUT, width: "auto", padding: "0 6px", cursor: "pointer" }}
                 onClick={() => onChange({ bar_series: (obj.bar_series ?? []).filter((_, j) => j !== i) })}>✕</button>
             </div>
           ))}
@@ -2936,7 +2961,7 @@ function ObjectProps({
                 onChange={(e) => { const next = [...(obj.pie_slices ?? [])]; next[i] = { ...s, label: e.target.value }; onChange({ pie_slices: next }); }} />
               <input type="color" value={s.color} onChange={(e) => { const next = [...(obj.pie_slices ?? [])]; next[i] = { ...s, color: e.target.value }; onChange({ pie_slices: next }); }}
                 style={{ width: 28, height: 24, padding: 1, border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 3 }} />
-              <button style={{ ...INPUT, padding: "0 6px", cursor: "pointer" }}
+              <button style={{ ...INPUT, width: "auto", padding: "0 6px", cursor: "pointer" }}
                 onClick={() => onChange({ pie_slices: (obj.pie_slices ?? []).filter((_, j) => j !== i) })}>✕</button>
             </div>
           ))}
