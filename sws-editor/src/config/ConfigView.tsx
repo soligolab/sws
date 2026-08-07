@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { api, getAuthToken, type CreateUserBody, type DiscoveredRuntime, type UpdateUserBody, type UserRole, type UserSummary } from "@/api/client";
 import { getBrand } from "@/branding";
 import { containerDeployPayload, effectiveDataPath, type ContainerSource } from "@/containerDeploy";
+import { genId } from "@/id";
 import { DataTable, type DataTableColumn } from "@/components/DataTable";
 import { TagInput } from "@/components/TagInput";
 import { PythonEditor, type PythonEditorHandle } from "@/components/PythonEditor";
@@ -209,10 +210,6 @@ const S = {
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-
-function genId() {
-  return Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
-}
 
 // ── QuickCreateTagModal ───────────────────────────────────────────────────────
 // Minimal modal that lets the operator create a new tag without switching tab.
@@ -6194,7 +6191,7 @@ function FaceplatesTab() {
   }
 
   function addFaceplate() {
-    const id = `fp-${Date.now().toString(36)}`;
+    const id = genId("fp-");
     const fp: FaceplateDef = { id, label: "Nuovo faceplate", params: ["tag_prefix", "label"], objects: [] };
     setLocal((prev) => [...prev, fp]);
     setSelected(id);

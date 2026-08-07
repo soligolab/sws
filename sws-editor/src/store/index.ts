@@ -2,6 +2,7 @@
 import { create } from "zustand";
 import { api, setAuthToken } from "@/api/client";
 import { applyAppearance, getStoredMode, type ThemeMode } from "@/theme";
+import { genId } from "@/id";
 import { getStoredProjectLang, setStoredProjectLang, getStoredEditorPreviewLang, setStoredEditorPreviewLang } from "@/i18n/projectI18n";
 import type {
   AlarmDef,
@@ -72,10 +73,6 @@ function writePersistedAuth(payload: PersistedAuth | null) {
     if (payload) localStorage.setItem(AUTH_KEY, JSON.stringify(payload));
     else         localStorage.removeItem(AUTH_KEY);
   } catch { /* ignore */ }
-}
-
-function genId(): string {
-  return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 }
 
 function makePage(name: string): SynopticPage {

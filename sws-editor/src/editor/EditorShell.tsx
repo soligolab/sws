@@ -13,6 +13,7 @@ import { ImageBrowser } from "@/components/ImageBrowser";
 import { SYMBOL_LIST } from "@/symbols/library";
 import { ASPECT_RATIOS, editorFitSize, effectiveSizeMode, getDevicePresets, referenceResolutionFor, STANDARD_DEVICE_PRESETS } from "@/pageLayout";
 import { getBrand } from "@/branding";
+import { genId } from "@/id";
 import type { SymbolMeta } from "@/symbols/library";
 import { useAppStore } from "@/store";
 import { localizeObjects } from "@/i18n/projectI18n";
@@ -3631,7 +3632,7 @@ const CELL_CHILD_TYPES: { value: string; label: string }[] = [
 ];
 
 function makeDefaultChild(type: string): SynopticObject {
-  const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+  const id = genId();
   const base: SynopticObject = { id, type: type as SynopticObject["type"], x: 0, y: 0 };
   switch (type) {
     case "rect":         return { ...base, width: 80, height: 60, fill: "var(--brand-surface-2, #334155)" };

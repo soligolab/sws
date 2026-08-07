@@ -7,6 +7,7 @@ import { AlarmBellPanel } from "@/components/AlarmBellPanel";
 import { AlarmBanner } from "@/components/AlarmBanner";
 import { DataTable, type DataTableColumn } from "@/components/DataTable";
 import { SEV_COLOR } from "@/alarmSeverity";
+import { genId } from "@/id";
 import { useAppStore } from "@/store";
 import { SYMBOLS } from "@/symbols/library";
 import { clampToPage } from "@/pageLayout";
@@ -1011,7 +1012,7 @@ export function SvgCanvas({
         persistGuides(guides.map((g) => g.id === ref.id ? { ...g, pos: Math.round(draggingGuide.pos) } : g));
       } else {
         const newGuide: Guide = {
-          id: `g${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`,
+          id: genId("g"),
           axis: ref.axis,
           pos: Math.round(draggingGuide.pos),
         };
