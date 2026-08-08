@@ -13,32 +13,40 @@ e patch obbligatoria, perché Cargo rifiuta sia `2026.07` sia `2026.7`).
 - **Motore di rendering LVGL** per target embedded (framebuffer/Wayland), come seconda modalità
   di progetto accanto al web: nuovo crate `sws-lvgl-viewer` (client REST/WS verso il runtime
   esistente, nessuna modifica al runtime/protocolli) interpreta le pagine synottico e crea i
-  widget LVGL corrispondenti — **13 tipi supportati**: rettangolo, ellisse, linea, testo, bottone,
-  LED, slider, progress bar, checkbox, radio (approssimato con checkbox, LVGL non ne ha uno
-  nativo), gauge (ago + arco su scala 270°, colore dell'arco fissato alla creazione — `lv_meter`
-  non espone un setter per il colore di un indicatore già creato), state_lamp (stesso modello
-  value→label→color di text_list) e table (righe statiche, non un datagrid) — in una **finestra SDL2
-  interattiva** (~60fps). I widget tag-dipendenti si aggiornano dal vivo
-  (connessione `/ws/tags` persistente, mutati sul posto senza essere ricreati) e un **input
-  device puntatore** collegato rende bottone/checkbox/radio/slider realmente cliccabili/
-  trascinabili, con scrittura del tag corrispondente sul backend (`PUT /api/tags/:id`) —
-  verificato end-to-end con click/drag sintetici via X11 XTest, non solo a compilazione. Wizard
-  di creazione progetto esteso con la scelta del target (Web/LVGL + device framebuffer) e
-  palette oggetti dell'editor filtrata di conseguenza per i progetti LVGL. Verificato anche il
-  funzionamento su **Wayland nativo** (non solo XWayland). Sbloccati/corretti quattro bug
-  (analisi completa in `docs/OPEN_QUESTIONS.md` Q14): due upstream — un bug di lifetime in
-  `lvgl::Display::register()` (crate `lvgl` 0.6.2), risolto con uno shim di registrazione
-  display in Rust puro; e un bug in `lvgl-sys` 0.6.2 la cui `strncmp`/`strcmp` — esportate senza
-  guardia, sostituiscono quelle di libc per l'intero processo — potevano corrompere qualunque
-  altra libreria C nello stesso binario (scoperto perché SDL2/D-Bus ci è finito dentro), risolto
-  vendorizzando una copia patchata del crate — e due propri: il colore LED (`on_color`/
-  `off_color`) veniva silenziosamente ignorato (`lv_led` non legge lo `Style` `bg_color` come
-  gli altri widget), e il titolo della finestra SDL2 mostrava caratteri corrotti (mojibake
-  sull'em-dash nel titolo WM_NAME). Sviluppato su otto branch di lunga durata in sequenza
-  (`feature/lvgl` → `feature/lvgl-2-render-engine` → `feature/lvgl-3-project-wizard` →
-  `feature/lvgl-2b-display-fix` → `feature/lvgl-live-updates` → `feature/lvgl-more-widgets` →
-  `feature/lvgl-input-device` → `feature/lvgl-widgets-2`), nessuno ancora mergiato in main. Vedi ADR 0002,
-  `docs/plans/2026-08-07-lvgl-engine.md`.
+  widget LVGL corrispondenti — **14 tipi supportati**: rettangolo, ellisse, linea, testo, bottone,
+  navbutton (naviga tra le pagine di un progetto), LED, slider, progress bar, checkbox, radio
+  (approssimato con checkbox, LVGL non ne ha uno nativo), gauge (ago + arco su scala 270°, colore
+  dell'arco fissato alla creazione — `lv_meter` non espone un setter per il colore di un
+  indicatore già creato), state_lamp (stesso modello value→label→color di text_list) e table
+  (righe statiche, non un datagrid) — in una **finestra SDL2 interattiva** (~60fps), risoluzione
+  derivata dalla prima pagina caricata (non più fissa a compile-time). I widget tag-dipendenti si
+  aggiornano dal vivo (connessione `/ws/tags` persistente, mutati sul posto senza essere
+  ricreati) e un **input device puntatore** collegato rende bottone/checkbox/radio/slider
+  realmente cliccabili/trascinabili, con scrittura del tag corrispondente sul backend
+  (`PUT /api/tags/:id`) — verificato end-to-end con click/drag sintetici via X11 XTest, non solo
+  a compilazione. **Progetti multi-pagina**: un `navbutton` cambia pagina risolvendo il suo
+  `target_page` (l'id interno della pagina, non il nome file) contro l'elenco pagine del
+  progetto. Wizard di creazione progetto esteso con la scelta del target (Web/LVGL + device
+  framebuffer) e palette oggetti dell'editor filtrata di conseguenza per i progetti LVGL.
+  Verificato anche il funzionamento su **Wayland nativo** (non solo XWayland). Sbloccati/corretti
+  cinque bug (analisi completa in `docs/OPEN_QUESTIONS.md` Q14): due upstream — un bug di
+  lifetime in `lvgl::Display::register()` (crate `lvgl` 0.6.2), risolto con uno shim di
+  registrazione display in Rust puro; e un bug in `lvgl-sys` 0.6.2 la cui `strncmp`/`strcmp` —
+  esportate senza guardia, sostituiscono quelle di libc per l'intero processo — potevano
+  corrompere qualunque altra libreria C nello stesso binario (scoperto perché SDL2/D-Bus ci è
+  finito dentro), risolto vendorizzando una copia patchata del crate — e tre propri: il colore
+  LED (`on_color`/`off_color`) veniva silenziosamente ignorato (`lv_led` non legge lo `Style`
+  `bg_color` come gli altri widget); il titolo della finestra SDL2 mostrava caratteri corrotti
+  (mojibake sull'em-dash nel titolo WM_NAME); e un crash SIGSEGV riproducibile (più un artefatto
+  di corruzione testo) durante la navigazione ripetuta tra pagine col catalogo widget completo,
+  bisecato con oltre 10 pagine di prova ad-hoc e risolto passando al pattern standard LVGL per il
+  cambio schermo (`lv_disp_load_scr` + `lv_obj_del` invece di `lv_obj_clean` + riuso in-place) —
+  il meccanismo esatto non è stato isolato con piena certezza, documentato onestamente come tale.
+  Sviluppato su nove branch di lunga durata in sequenza (`feature/lvgl` →
+  `feature/lvgl-2-render-engine` → `feature/lvgl-3-project-wizard` → `feature/lvgl-2b-display-fix`
+  → `feature/lvgl-live-updates` → `feature/lvgl-more-widgets` → `feature/lvgl-input-device` →
+  `feature/lvgl-widgets-2` → `feature/lvgl-multipage-1280x800`), nessuno ancora mergiato in main.
+  Vedi ADR 0002, `docs/plans/2026-08-07-lvgl-engine.md`.
 - **Allarmi piazzabili come oggetti canvas**: due nuovi tipi SCADA, `alarm_bell`
   (campanella con dropdown attivi/storico/ack/shelve) e `alarm_banner` (barra con
   blink/ACK/priorità ISA-18.2), piazzabili su qualunque pagina invece che solo come
