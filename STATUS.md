@@ -94,12 +94,28 @@ in Q14, non chiusi) alcuni gap comportamentali non legati ai nomi: `checked_valu
 line (LVGL disegna sempre pieno) — un progetto che li usa avrebbe un comportamento diverso
 passando da web a LVGL, pur restando nei tipi "con controparte".
 
-**Prossimo passo naturale**: il quinto punto della roadmap originale (container podman, escluso
-esplicitamente da questa sessione), oppure ampliare il catalogo widget oltre i 9 tipi attuali
-verso parità con la palette web (gauge/trend/table/alarm_viewer/symbol — vedi nota in fondo al
-template `lvgl-demo`). Nessuno dei branch (`feature/lvgl-live-updates`,
-`feature/lvgl-more-widgets`, `feature/lvgl-input-device`) è ancora mergiato in `main` — il
-maintainer deve testare di persona con un mouse vero prima di decidere se/come riunificare.
+**Ancora nella stessa sessione** ("procedi con i prossimi 5 step"), nuovo branch
+`feature/lvgl-checkbox-values`: chiuso il primo gap appena trovato — `checkbox`/`radio` ora
+onorano `checked_value`/`unchecked_value` (confronto per stringa, non booleano fisso), sia alla
+creazione sia a ogni frame in `update_bindings`, sia sul click (scrive il valore giusto invece di
+un `TagValue::Bool`). Verificato end-to-end sull'istanza isolata `.run-12`: nuovo widget demo con
+`checked_value: "ON"`/`unchecked_value: "OFF"` (stringa, non booleano) scrive esattamente quelle
+due stringhe sul tag col click sintetico XTest; il checkbox preesistente (nessun `checked_value`
+impostato) continua a scrivere `true`/`false` come prima, nessuna regressione. Il secondo gap
+(`line`/`stroke_dasharray`) si è rivelato **un errore della sessione precedente**: rileggendo
+`SvgCanvas.tsx` riga per riga, `stroke_dasharray` appartiene solo al tipo `pipe` (confermato anche
+dal JSDoc in `types/index.ts`), la linea web è sempre piena — la linea LVGL (sempre piena) era già
+corretta, niente da chiudere. Dettagli completi, incluso perché l'errore è stato preso per buono
+la prima volta, in `docs/OPEN_QUESTIONS.md` Q14 (seguito 6).
+
+**Prossimo passo naturale**: dei restanti 3 punti della roadmap a 5 passi, `trend` e
+`alarm_viewer` servirebbero un client nuovo (storico da `sws-historian`, allarmi — non solo tag
+live) e `symbol` è una domanda architetturale SVG→LVGL non ancora scritta in
+`docs/OPEN_QUESTIONS.md` — tutti e tre probabilmente meritano un branch/un'analisi propria invece
+di un'estensione rapida come questa. In parallelo resta valido: container podman (escluso finora),
+e nessuno dei dieci branch `feature/lvgl-*` è ancora mergiato in `main` — il maintainer deve
+testare di persona (mouse vero + hardware reale, `tc620-a-p3-c6-07aff9.local`) prima di decidere
+se/come riunificare.
 
 **Sessione precedente**: 2026-08-08 (mattina) — il maintainer ha rivisto il lavoro della notte (Fase 1-3
 del motore LVGL) e ha deciso come sbloccare l'export immagine: shim di registrazione display in
