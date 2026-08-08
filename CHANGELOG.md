@@ -13,12 +13,13 @@ e patch obbligatoria, perché Cargo rifiuta sia `2026.07` sia `2026.7`).
 - **Motore di rendering LVGL** per target embedded (framebuffer/Wayland), come seconda modalità
   di progetto accanto al web: nuovo crate `sws-lvgl-viewer` (client REST/WS verso il runtime
   esistente, nessuna modifica al runtime/protocolli) interpreta le pagine synottico e crea i
-  widget LVGL corrispondenti — **14 tipi supportati**: rettangolo, ellisse, linea, testo, bottone,
+  widget LVGL corrispondenti — **15 tipi supportati**: rettangolo, ellisse, linea, testo, bottone,
   navbutton (naviga tra le pagine di un progetto), LED, slider, progress bar, checkbox, radio
   (approssimato con checkbox, LVGL non ne ha uno nativo), gauge (ago + arco su scala 270°, colore
   dell'arco fissato alla creazione — `lv_meter` non espone un setter per il colore di un
-  indicatore già creato), state_lamp (stesso modello value→label→color di text_list) e table
-  (righe statiche, non un datagrid) — in una **finestra SDL2 interattiva** (~60fps), risoluzione
+  indicatore già creato), state_lamp (stesso modello value→label→color di text_list), table
+  (righe statiche, non un datagrid) e trend (`lv_chart`, vedi bullet dedicato sotto) — in una
+  **finestra SDL2 interattiva** (~60fps), risoluzione
   derivata dalla prima pagina caricata (non più fissa a compile-time). I widget tag-dipendenti si
   aggiornano dal vivo (connessione `/ws/tags` persistente, mutati sul posto senza essere
   ricreati) e un **input device puntatore** collegato rende bottone/checkbox/radio/slider
@@ -57,6 +58,16 @@ e patch obbligatoria, perché Cargo rifiuta sia `2026.07` sia `2026.7`).
   corretta una nota precedente in `docs/OPEN_QUESTIONS.md` Q14: `stroke_dasharray` appartiene al
   tipo `pipe`, non `line` — la linea LVGL (sempre piena) era già equivalente al web, non era un
   gap da chiudere.
+- **LVGL — `trend` (`lv_chart`)**: primo widget LVGL che non si limita a `/ws/tags` (solo il
+  valore corrente) — interroga periodicamente lo storico (`GET /api/history/:tag`, stesso
+  endpoint REST del web) con un nuovo poller in background per serie, poll ogni 2s. Modalità
+  `SCATTER` (non `LINE`) per coordinate X vere proporzionali al tempo invece di un indice
+  fittizio; multi-serie (`extra_tags`) con colori da `trend_series_styles`/`line_color` (solo il
+  colore è onorato — spessore/tratteggio/riempimento/smoothing restano gap dichiarati); range Y
+  fisso o autofit. Verificato end-to-end su `.run-12` (autofit, sincronia con slider/gauge/text
+  sullo stesso tag) e multi-serie (due tag con numero di campioni diverso, senza corruzione
+  incrociata). Dettagli tecnici (perché `SCATTER`, perché le coordinate sono relative, perché
+  `point_cnt` non può essere impostato per-serie) in `docs/OPEN_QUESTIONS.md` Q14, seguito 7.
 - **Allarmi piazzabili come oggetti canvas**: due nuovi tipi SCADA, `alarm_bell`
   (campanella con dropdown attivi/storico/ack/shelve) e `alarm_banner` (barra con
   blink/ACK/priorità ISA-18.2), piazzabili su qualunque pagina invece che solo come

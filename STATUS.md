@@ -108,14 +108,32 @@ dal JSDoc in `types/index.ts`), la linea web è sempre piena — la linea LVGL (
 corretta, niente da chiudere. Dettagli completi, incluso perché l'errore è stato preso per buono
 la prima volta, in `docs/OPEN_QUESTIONS.md` Q14 (seguito 6).
 
-**Prossimo passo naturale**: dei restanti 3 punti della roadmap a 5 passi, `trend` e
-`alarm_viewer` servirebbero un client nuovo (storico da `sws-historian`, allarmi — non solo tag
-live) e `symbol` è una domanda architetturale SVG→LVGL non ancora scritta in
-`docs/OPEN_QUESTIONS.md` — tutti e tre probabilmente meritano un branch/un'analisi propria invece
-di un'estensione rapida come questa. In parallelo resta valido: container podman (escluso finora),
-e nessuno dei dieci branch `feature/lvgl-*` è ancora mergiato in `main` — il maintainer deve
-testare di persona (mouse vero + hardware reale, `tc620-a-p3-c6-07aff9.local`) prima di decidere
-se/come riunificare.
+**Ancora nella stessa sessione**, nuovo branch `feature/lvgl-trend`: terzo dei 5 passi, `trend` su
+`lv_chart` — **15 tipi supportati in totale**. Più complesso dei widget precedenti perché è il
+primo a non bastargli `/ws/tags` (solo il valore *corrente*): serve interrogare periodicamente lo
+storico (`GET /api/history/:tag`, stesso endpoint REST del web, nuovo `client::spawn_history_poller`,
+un task per serie, poll ogni 2s). Scelte non ovvie verificate leggendo il sorgente C prima di
+scrivere codice: modalità `SCATTER` (non `LINE`) per una X vera proporzionale al tempo invece di
+un indice fittizio; coordinate X in secondi-dall'inizio-finestra perché `lv_coord_t` è un `i16`
+(un Unix ms ci trabocca); `point_cnt` è dell'intero chart, non per-serie, quindi due tag con
+densità diversa richiedono di ricalcolare il conteggio come il massimo tra le serie e riscriverle
+tutte insieme, non solo quella cambiata (altrimenti l'ultima processata sovrascrive silenziosamente
+le altre). Limite accettato consapevolmente: il poller non si ferma mai (stesso principio degli
+`Style`/contesti `Box::leak` già accettati, ma qui è I/O di rete ricorrente, non un valore inerte).
+Gap MVP dichiarati: solo il colore di `trend_series_styles` è onorato (non spessore/tratteggio/
+riempimento/smoothing), niente pan/zoom/modal espandi (sempre finestra live). Verificato
+end-to-end su `.run-12` (stesso tag dello slider demo, autofit Y, scrittura diretta di valori con
+ritardi per simulare un drag, screenshot) e multi-serie (due tag con numero di campioni diverso,
+colori distinti) su una copia isolata. Palette editor aggiornata (`trend` mancava da
+`LVGL_SUPPORTED_TYPES`). Dettagli completi in `docs/OPEN_QUESTIONS.md` Q14 (seguito 7).
+
+**Prossimo passo naturale**: degli ultimi 2 punti della roadmap a 5 passi, `alarm_viewer`
+servirebbe un client allarmi nuovo (non solo storico tag) e `symbol` è una domanda architetturale
+SVG→LVGL non ancora scritta in `docs/OPEN_QUESTIONS.md` — probabilmente meritano un'analisi/branch
+propri invece di un'estensione rapida come questa. In parallelo resta valido: container podman
+(escluso finora), e nessuno degli undici branch `feature/lvgl-*` è ancora mergiato in `main` — il
+maintainer deve testare di persona (mouse vero + hardware reale, `tc620-a-p3-c6-07aff9.local`)
+prima di decidere se/come riunificare.
 
 **Sessione precedente**: 2026-08-08 (mattina) — il maintainer ha rivisto il lavoro della notte (Fase 1-3
 del motore LVGL) e ha deciso come sbloccare l'export immagine: shim di registrazione display in
