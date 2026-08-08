@@ -127,13 +127,31 @@ ritardi per simulare un drag, screenshot) e multi-serie (due tag con numero di c
 colori distinti) su una copia isolata. Palette editor aggiornata (`trend` mancava da
 `LVGL_SUPPORTED_TYPES`). Dettagli completi in `docs/OPEN_QUESTIONS.md` Q14 (seguito 7).
 
-**Prossimo passo naturale**: degli ultimi 2 punti della roadmap a 5 passi, `alarm_viewer`
-servirebbe un client allarmi nuovo (non solo storico tag) e `symbol` è una domanda architetturale
-SVG→LVGL non ancora scritta in `docs/OPEN_QUESTIONS.md` — probabilmente meritano un'analisi/branch
-propri invece di un'estensione rapida come questa. In parallelo resta valido: container podman
-(escluso finora), e nessuno degli undici branch `feature/lvgl-*` è ancora mergiato in `main` — il
-maintainer deve testare di persona (mouse vero + hardware reale, `tc620-a-p3-c6-07aff9.local`)
-prima di decidere se/come riunificare.
+**Ancora nella stessa sessione**, nuovo branch `feature/lvgl-alarm-viewer`: quarto dei 5 passi,
+`alarm_viewer` (solo modalità `"list"`, `"banner"`/`"table"` segnalati non supportati) —
+**16 tipi supportati in totale**. Più semplice di `trend` per il trasporto (gli allarmi hanno già
+un canale push vero, `/ws/alarms`, non serve un poller REST) ma con un protocollo diverso scoperto
+leggendo `handle_alarms_ws` prima di assumerlo: ogni messaggio (snapshot iniziale incluso) è un
+`AlarmState` "nudo", niente involucro `{type: ...}` come `/ws/tags` — "upsert per id" basta da
+subito, nessuna attesa speciale in `spawn_alarm_subscription`. Righe a slot fisso (come le celle di
+`table`), pulsante ACK per riga con un contesto `RefCell`-based invece del solito `Box::leak` fisso
+(l'allarme assegnato a uno slot cambia da un frame all'altro, a differenza di ogni altro pulsante
+di questo motore). Due bug di layout trovati e risolti durante la verifica dal vivo (non a
+compilazione): padding di default del tema non azzerato (pulsante ACK tagliato dal bordo del
+contenitore) ed elementi di riga incollati al bordo superiore invece che centrati — nessuno dei due
+toccava la correttezza dei dati, solo l'aspetto. Verificato end-to-end su `.run-12`: due allarmi
+demo sullo stesso tag di slider/gauge/trend (soglie 70/90), comparsi in tempo reale via
+`/ws/alarms` scrivendo il tag oltre soglia, click ACK sintetico confermato via `GET /api/alarms`
+(`acknowledged: true`, pulsante sparito dalla riga), ordinamento più-recente-prima confermato con
+due allarmi attivi insieme. Palette editor aggiornata. Dettagli completi in
+`docs/OPEN_QUESTIONS.md` Q14 (seguito 8).
+
+**Prossimo passo naturale**: resta un solo punto della roadmap a 5 passi, `symbol` — una domanda
+architetturale SVG→LVGL non ancora scritta in `docs/OPEN_QUESTIONS.md`, probabilmente merita
+un'analisi propria invece di un'estensione rapida come le precedenti. In parallelo resta valido:
+container podman (escluso finora), e nessuno dei dodici branch `feature/lvgl-*` è ancora mergiato
+in `main` — il maintainer deve testare di persona (mouse vero + hardware reale,
+`tc620-a-p3-c6-07aff9.local`) prima di decidere se/come riunificare.
 
 **Sessione precedente**: 2026-08-08 (mattina) — il maintainer ha rivisto il lavoro della notte (Fase 1-3
 del motore LVGL) e ha deciso come sbloccare l'export immagine: shim di registrazione display in
