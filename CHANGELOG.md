@@ -14,14 +14,19 @@ e patch obbligatoria, perché Cargo rifiuta sia `2026.07` sia `2026.7`).
   di progetto accanto al web: nuovo crate `sws-lvgl-viewer` (client REST/WS verso il runtime
   esistente, nessuna modifica al runtime/protocolli) interpreta le pagine synottico e crea i
   widget LVGL corrispondenti per un primo sottoinsieme (rettangolo, testo, bottone, LED,
-  slider), verificato end-to-end. Wizard di creazione progetto esteso con la scelta del target
-  (Web/LVGL + device framebuffer) e palette oggetti dell'editor filtrata di conseguenza per i
-  progetti LVGL. **Non ancora disponibile l'anteprima visiva** (export immagine/finestra): un
-  bug confermato nel binding Rust ufficiale di LVGL (`lvgl` crate 0.6.2, non nostro — analisi
-  completa in `docs/OPEN_QUESTIONS.md` Q14) impedisce il redraw; il motore crea comunque i
-  widget correttamente e lo riporta a schermo. Sviluppato su tre branch di lunga durata separati
-  (`feature/lvgl` → `feature/lvgl-2-render-engine` → `feature/lvgl-3-project-wizard`), nessuno
-  ancora mergiato in main. Vedi ADR 0002, `docs/plans/2026-08-07-lvgl-engine.md`.
+  slider), con **anteprima visiva reale in una finestra SDL2** aggiornata dal vivo (~60fps),
+  verificato end-to-end con screenshot. Wizard di creazione progetto esteso con la scelta del
+  target (Web/LVGL + device framebuffer) e palette oggetti dell'editor filtrata di conseguenza
+  per i progetti LVGL. Sbloccati due bug upstream confermati (non nostri, analisi completa in
+  `docs/OPEN_QUESTIONS.md` Q14): un bug di lifetime in `lvgl::Display::register()` (crate
+  `lvgl` 0.6.2), risolto con uno shim di registrazione display in Rust puro; e un bug in
+  `lvgl-sys` 0.6.2 la cui `strncmp`/`strcmp` — esportate senza guardia, sostituiscono quelle di
+  libc per l'intero processo — potevano corrompere qualunque altra libreria C nello stesso
+  binario (scoperto perché SDL2/D-Bus ci è finito dentro), risolto vendorizzando una copia
+  patchata del crate. Sviluppato su quattro branch di lunga durata separati (`feature/lvgl` →
+  `feature/lvgl-2-render-engine` → `feature/lvgl-3-project-wizard` →
+  `feature/lvgl-2b-display-fix`), nessuno ancora mergiato in main. Vedi ADR 0002,
+  `docs/plans/2026-08-07-lvgl-engine.md`.
 - **Allarmi piazzabili come oggetti canvas**: due nuovi tipi SCADA, `alarm_bell`
   (campanella con dropdown attivi/storico/ack/shelve) e `alarm_banner` (barra con
   blink/ACK/priorità ISA-18.2), piazzabili su qualunque pagina invece che solo come

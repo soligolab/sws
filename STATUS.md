@@ -6,16 +6,27 @@
 >
 > **Pulizia 2026-07-27**: rimossi i task già chiusi e le sezioni di verifica ormai superate; le sessioni mergiate **e** verificate fino al 2026-07-09 sono compresse in «Storico». Il dettaglio integrale resta in `CHANGELOG.md` e nella history git.
 
-**Last session**: 2026-08-07 (notte, in autonomia) — proseguito il filone motore **LVGL** avviato
+**Last session**: 2026-08-08 (mattina) — il maintainer ha rivisto il lavoro della notte (Fase 1-3
+del motore LVGL) e ha deciso come sbloccare l'export immagine: shim di registrazione display in
+Rust puro (niente vendoring del crate `lvgl`) + simulatore SDL2 interattivo (`libsdl2-dev`
+installato apposta). Implementato su un quarto branch, **entrambi i bug confermati risolti**,
+**finestra SDL2 funzionante con screenshot verificati** (rect/text/button/led/slider tutti
+renderizzati correttamente dal vivo). Nel processo scoperto e risolto un **secondo bug upstream
+indipendente** in `lvgl-sys` (non `lvgl`) — vedi sezione dedicata sotto e `docs/OPEN_QUESTIONS.md`
+Q14 per l'analisi completa di entrambi. Quattro branch separati, nessuno ancora mergiato:
+`feature/lvgl` → `feature/lvgl-2-render-engine` → `feature/lvgl-3-project-wizard` →
+`feature/lvgl-2b-display-fix` (tip attuale, sul quale si basa questo lavoro). **Il motore LVGL
+ora produce output visivo reale, non solo un riepilogo testuale.**
+
+**Sessione precedente**: 2026-08-07 (notte, in autonomia) — proseguito il filone motore **LVGL** avviato
 in serata (Fase 1: analisi + scaffolding) fino a **Fase 2 (interprete widget) + Fase 3 (wizard
 progetto + filtro palette)**, su richiesta esplicita del maintainer di procedere da solo fino al
 mattino, un branch per fase per sicurezza. Risultato: interprete `SynopticObject` → widget LVGL
 funzionante e verificato end-to-end (rect/text/button/led/slider), wizard di creazione progetto
 con scelta target Web/LVGL, palette oggetti filtrata di conseguenza — **ma nessun export
-immagine**, bloccato da un bug upstream confermato (non nostro) nel crate `lvgl` 0.6.2, vedi
-sezione dedicata sotto e `docs/OPEN_QUESTIONS.md` Q14 per l'analisi completa (backtrace GDB
-incluso). Tre branch separati, nessuno mergiato: `feature/lvgl` (Fase 1) → `feature/lvgl-2-render-engine`
-(Fase 2) → `feature/lvgl-3-project-wizard` (Fase 3, tip attuale). **Da provare dal maintainer.**
+immagine**, bloccato da un bug upstream confermato (non nostro) nel crate `lvgl` 0.6.2. Tre
+branch separati: `feature/lvgl` (Fase 1) → `feature/lvgl-2-render-engine` (Fase 2) →
+`feature/lvgl-3-project-wizard` (Fase 3).
 
 **Sessione precedente**: 2026-08-06 (notte) — **sessione lunga in autonomia** (il maintainer è andato a
 dormire a metà, chiedendo di proseguire i task pianificati e poi di indagare migliorie): T-41
@@ -95,6 +106,53 @@ client WS/REST verso un'istanza `sws-runtime` reale, porting minimo di `resolveO
 da `SvgCanvas.tsx`, primi tipi widget (`rect`, `text`, `button`, `led`, `slider`). Roadmap
 completa (Fasi 3-6: wizard, backend HW reali, container podman multi-arch, ampliamento catalogo,
 ESP32) in `docs/plans/2026-08-07-lvgl-engine.md`.~~
+
+---
+
+## 2026-08-08 (mattina): motore LVGL — sblocco redraw (branch `feature/lvgl-2b-display-fix`)
+
+Il maintainer ha rivisto il lavoro della sessione notturna (Fase 1-3, sotto) e ha risposto a
+quattro domande di chiarimento (bug fix, metodo di verifica visiva, strategia di riunione branch,
+ambito wizard) prima di dare il via libera a procedere. Scelte: shim di registrazione display
+(non vendoring del crate `lvgl`), simulatore SDL2 (non export PNG headless — `libsdl2-dev`
+installato apposta sul dev server), merge finale non-squash quando maturo, wizard invariato
+(target solo su progetti vuoti). Poi: **"implementa ora"**.
+
+**Shim di registrazione display** (`src/lvgl_display.rs`, nuovo modulo): bypassa del tutto
+`lvgl::Display::register()`/`DrawBuffer`, usando solo `lvgl-sys` (i bindgen raw) + storage
+`'static` ottenuto con `Box::leak` — 100% Rust sicuro, nessun file C separato (stesso identico
+effetto del "shim C" concordato, ottenuto in un solo linguaggio). Flush callback
+(`unsafe extern "C" fn`) scrive i pixel RGB565→RGB888 in un frame buffer globale
+(`OnceLock<Mutex<Vec<u8>>>`), letto poi dal loop SDL2. `interpret_page()` in `lvgl_render.rs`
+adattata per usare questo modulo invece di `Display::register`, e ora ritorna anche gli `Style`
+creati (devono restare vivi per tutta la finestra, non solo per la singola chiamata).
+
+**Secondo bug scoperto e risolto**: appena collegata la finestra SDL2, nuovo crash — stavolta
+dentro `sdl2::init()` → `libSDL2.so` → `libdbus-1.so` → `lvgl_sys::string_impl::strcmp`.
+`lvgl-sys` 0.6.2 esporta una propria `strcmp`/`strncmp` (`#[no_mangle]`, incondizionata) pensata
+per target senza libc, che su un binario `std` normale **sostituisce quelle di sistema per
+l'intero processo**. La sua `strncmp` era scorretta (`slice::from_raw_parts(ptr, n)` prima di
+confrontare un byte; `strcmp` la chiama con `n = usize::MAX`) — è bastato che SDL2 (per conto
+proprio, via D-Bus) chiamasse la normale `strcmp` di sistema per andarci a sbattere, prima
+ancora di toccare il rendering LVGL vero e proprio. Nessuna feature per disattivarlo: vendorizzata
+una copia locale di `lvgl-sys` (~21 MB, `sws-lvgl-viewer/vendor/lvgl-sys-0.6.2/`, via
+`[patch.crates-io]`) con la sola `strncmp` corretta (scansione byte-per-byte). Analisi completa
+di entrambi i bug in `docs/OPEN_QUESTIONS.md` Q14.
+
+**Verificato dal vivo** (dev server, sessione X11 reale su `:0`/seat0 — non serve il PC di casa):
+finestra SDL2 800×480 aperta senza crash, ~60fps, contro un runtime `sws-web` reale. Due
+screenshot catturati (`import` di ImageMagick, serve l'ID finestra via `xwininfo` — `-window
+root` fallisce sotto XWayland): la Page 1 di `demo-items` (sfondo, rettangolo, testo tutti
+corretti, resto della pagina tagliato oltre gli 480px come da design) e una pagina "Vetrina"
+compatta con tutti e 5 i tipi supportati in una sola schermata — testo, rettangolo verde,
+bottone blu, LED (spento, colore corretto), slider, più un secondo testo con formato numerico
+e colore statico. Tutto corretto.
+
+**Da fare alla ripresa**: il maintainer testa lui stesso la finestra SDL2 (probabilmente anche
+dal PC di casa, non solo dal dev server). Poi, se conferma: decidere quando riunire i quattro
+branch (merge non-squash, timing non ancora deciso — vedi memoria `project_lvgl_engine`), e
+proseguire verso Fase 4 (backend HW reali: framebuffer/DRM/Wayland su device Yocto) o
+ampliamento del catalogo widget (oltre ai 5 attuali).
 
 ---
 
