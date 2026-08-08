@@ -82,6 +82,18 @@ più adatto a un demo multi-pagina reale) durante l'indagine.
 Template diviso in due pagine 1280×800 collegate da navbutton, la seconda dimostra che i tag
 restano sincronizzati attraverso la navigazione. **Non ancora provato su hardware reale.**
 
+**Ancora nella stessa sessione**, nuovo branch `feature/lvgl-badge-compat`: su richiesta del
+maintainer, la palette oggetti dell'editor mostra un badge "L" (angolo dell'icona) sui tipi che
+hanno anche una controparte LVGL, quando il progetto aperto è "web" — verificato con uno
+screenshot reale in browser (Playwright headless, non solo letto il codice). Verificata anche,
+campo per campo tra `sws-web/src/synoptic.rs` e `sws-lvgl-viewer/src/model.rs`, la richiesta che
+lo YAML usi gli stessi nomi tra web e LVGL: **confermato per tutti i 14 tipi supportati** — mai
+verificato sistematicamente prima, solo tenuto allineato per costruzione. Trovati (e documentati
+in Q14, non chiusi) alcuni gap comportamentali non legati ai nomi: `checked_value`/
+`unchecked_value` su checkbox/radio (LVGL scrive solo booleano puro) e `stroke_dasharray` su
+line (LVGL disegna sempre pieno) — un progetto che li usa avrebbe un comportamento diverso
+passando da web a LVGL, pur restando nei tipi "con controparte".
+
 **Prossimo passo naturale**: il quinto punto della roadmap originale (container podman, escluso
 esplicitamente da questa sessione), oppure ampliare il catalogo widget oltre i 9 tipi attuali
 verso parità con la palette web (gauge/trend/table/alarm_viewer/symbol — vedi nota in fondo al
