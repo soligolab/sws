@@ -6,7 +6,42 @@
 >
 > **Pulizia 2026-07-27**: rimossi i task già chiusi e le sezioni di verifica ormai superate; le sessioni mergiate **e** verificate fino al 2026-07-09 sono compresse in «Storico». Il dettaglio integrale resta in `CHANGELOG.md` e nella history git.
 
-**Last session**: 2026-08-08 (mattina) — il maintainer ha rivisto il lavoro della notte (Fase 1-3
+**Last session**: 2026-08-08 (prosecuzione) — completati i primi 4 punti della roadmap proposta
+dopo la verifica del maintainer su `lvgl-01` (esclusi solo i container, come richiesto
+esplicitamente): **live updates** (connessione `/ws/tags` persistente, widget aggiornati sul
+posto invece che ricreati), **più widget** (checkbox/progress_bar/radio/ellipse, 9 tipi
+supportati in totale), **verifica backend Wayland nativo** (confermato: con
+`SDL_VIDEODRIVER=wayland` la finestra non compare nella tree XWayland), e **interattività**
+(nuovo input device puntatore LVGL, click su bottone/checkbox/radio e drag sullo slider
+scrivono i tag sul backend via `PUT /api/tags/:id`). Tre nuovi branch in sequenza sul quarto
+precedente: `feature/lvgl-live-updates` → `feature/lvgl-more-widgets` →
+`feature/lvgl-input-device` (tip attuale). **I due limiti noti lasciati aperti dalla sessione
+precedente sono ora entrambi risolti.**
+
+Nel processo, due bug propri (non upstream) scoperti e corretti: **(1)** il colore LED
+(`on_color`/`off_color` del synottico) veniva silenziosamente ignorato — a differenza degli
+altri widget, `lv_led` non legge lo `Style` `bg_color` per il proprio colore, tiene un campo
+interno impostabile solo con `lv_led_set_color()` via FFI diretta (dettagli in
+`docs/OPEN_QUESTIONS.md` Q14); **(2)** il titolo della finestra SDL2 mostrava caratteri corrotti
+(mojibake sull'em-dash, percorso WM_NAME/X11 — causa di fondo uguale ai glyph mancanti U+2014
+nel synottico, ma un sintomo e un percorso di rendering diversi), corretto togliendo l'em-dash
+da entrambi i posti — il secondo trovato dal maintainer stesso mentre guardava la finestra dal
+vivo durante la sessione. Interattività **verificata end-to-end con click/drag sintetici via
+X11 XTest** (`python-xlib`, ambiente headless senza mouse fisico — non solo compilazione o
+screenshot statico): ogni widget interattivo scrive correttamente il tag atteso sul backend
+(confermato via `GET /api/tags/:id`), il readout si aggiorna dal vivo sullo stesso schermo,
+nessun crash/warning/coredump durante l'intera sessione di test. Template `lvgl-demo` esteso di
+pari passo con ogni nuovo tipo widget (richiesta esplicita del maintainer: "lo useremo in tutte
+le fasi come demo di test"), ora 22 oggetti su un'unica pagina 800×480.
+
+**Prossimo passo naturale**: il quinto punto della roadmap originale (container podman, escluso
+esplicitamente da questa sessione), oppure ampliare il catalogo widget oltre i 9 tipi attuali
+verso parità con la palette web (gauge/trend/table/alarm_viewer/symbol — vedi nota in fondo al
+template `lvgl-demo`). Nessuno dei branch (`feature/lvgl-live-updates`,
+`feature/lvgl-more-widgets`, `feature/lvgl-input-device`) è ancora mergiato in `main` — il
+maintainer deve testare di persona con un mouse vero prima di decidere se/come riunificare.
+
+**Sessione precedente**: 2026-08-08 (mattina) — il maintainer ha rivisto il lavoro della notte (Fase 1-3
 del motore LVGL) e ha deciso come sbloccare l'export immagine: shim di registrazione display in
 Rust puro (niente vendoring del crate `lvgl`) + simulatore SDL2 interattivo (`libsdl2-dev`
 installato apposta). Implementato su un quarto branch, **entrambi i bug confermati risolti**,

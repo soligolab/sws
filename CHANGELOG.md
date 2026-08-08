@@ -13,19 +13,28 @@ e patch obbligatoria, perché Cargo rifiuta sia `2026.07` sia `2026.7`).
 - **Motore di rendering LVGL** per target embedded (framebuffer/Wayland), come seconda modalità
   di progetto accanto al web: nuovo crate `sws-lvgl-viewer` (client REST/WS verso il runtime
   esistente, nessuna modifica al runtime/protocolli) interpreta le pagine synottico e crea i
-  widget LVGL corrispondenti per un primo sottoinsieme (rettangolo, testo, bottone, LED,
-  slider), con **anteprima visiva reale in una finestra SDL2** aggiornata dal vivo (~60fps),
-  verificato end-to-end con screenshot. Wizard di creazione progetto esteso con la scelta del
-  target (Web/LVGL + device framebuffer) e palette oggetti dell'editor filtrata di conseguenza
-  per i progetti LVGL. Sbloccati due bug upstream confermati (non nostri, analisi completa in
-  `docs/OPEN_QUESTIONS.md` Q14): un bug di lifetime in `lvgl::Display::register()` (crate
-  `lvgl` 0.6.2), risolto con uno shim di registrazione display in Rust puro; e un bug in
-  `lvgl-sys` 0.6.2 la cui `strncmp`/`strcmp` — esportate senza guardia, sostituiscono quelle di
-  libc per l'intero processo — potevano corrompere qualunque altra libreria C nello stesso
-  binario (scoperto perché SDL2/D-Bus ci è finito dentro), risolto vendorizzando una copia
-  patchata del crate. Sviluppato su quattro branch di lunga durata separati (`feature/lvgl` →
-  `feature/lvgl-2-render-engine` → `feature/lvgl-3-project-wizard` →
-  `feature/lvgl-2b-display-fix`), nessuno ancora mergiato in main. Vedi ADR 0002,
+  widget LVGL corrispondenti — **9 tipi supportati**: rettangolo, ellisse, testo, bottone, LED,
+  slider, progress bar, checkbox, radio (approssimato con checkbox, LVGL non ne ha uno nativo) —
+  in una **finestra SDL2 interattiva** (~60fps). I widget tag-dipendenti si aggiornano dal vivo
+  (connessione `/ws/tags` persistente, mutati sul posto senza essere ricreati) e un **input
+  device puntatore** collegato rende bottone/checkbox/radio/slider realmente cliccabili/
+  trascinabili, con scrittura del tag corrispondente sul backend (`PUT /api/tags/:id`) —
+  verificato end-to-end con click/drag sintetici via X11 XTest, non solo a compilazione. Wizard
+  di creazione progetto esteso con la scelta del target (Web/LVGL + device framebuffer) e
+  palette oggetti dell'editor filtrata di conseguenza per i progetti LVGL. Verificato anche il
+  funzionamento su **Wayland nativo** (non solo XWayland). Sbloccati/corretti quattro bug
+  (analisi completa in `docs/OPEN_QUESTIONS.md` Q14): due upstream — un bug di lifetime in
+  `lvgl::Display::register()` (crate `lvgl` 0.6.2), risolto con uno shim di registrazione
+  display in Rust puro; e un bug in `lvgl-sys` 0.6.2 la cui `strncmp`/`strcmp` — esportate senza
+  guardia, sostituiscono quelle di libc per l'intero processo — potevano corrompere qualunque
+  altra libreria C nello stesso binario (scoperto perché SDL2/D-Bus ci è finito dentro), risolto
+  vendorizzando una copia patchata del crate — e due propri: il colore LED (`on_color`/
+  `off_color`) veniva silenziosamente ignorato (`lv_led` non legge lo `Style` `bg_color` come
+  gli altri widget), e il titolo della finestra SDL2 mostrava caratteri corrotti (mojibake
+  sull'em-dash nel titolo WM_NAME). Sviluppato su sette branch di lunga durata in sequenza
+  (`feature/lvgl` → `feature/lvgl-2-render-engine` → `feature/lvgl-3-project-wizard` →
+  `feature/lvgl-2b-display-fix` → `feature/lvgl-live-updates` → `feature/lvgl-more-widgets` →
+  `feature/lvgl-input-device`), nessuno ancora mergiato in main. Vedi ADR 0002,
   `docs/plans/2026-08-07-lvgl-engine.md`.
 - **Allarmi piazzabili come oggetti canvas**: due nuovi tipi SCADA, `alarm_bell`
   (campanella con dropdown attivi/storico/ack/shelve) e `alarm_banner` (barra con
