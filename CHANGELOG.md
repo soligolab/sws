@@ -42,11 +42,16 @@ e patch obbligatoria, perché Cargo rifiuta sia `2026.07` sia `2026.7`).
   bisecato con oltre 10 pagine di prova ad-hoc e risolto passando al pattern standard LVGL per il
   cambio schermo (`lv_disp_load_scr` + `lv_obj_del` invece di `lv_obj_clean` + riuso in-place) —
   il meccanismo esatto non è stato isolato con piena certezza, documentato onestamente come tale.
-  Sviluppato su nove branch di lunga durata in sequenza (`feature/lvgl` →
+  Sviluppato su dieci branch di lunga durata in sequenza (`feature/lvgl` →
   `feature/lvgl-2-render-engine` → `feature/lvgl-3-project-wizard` → `feature/lvgl-2b-display-fix`
   → `feature/lvgl-live-updates` → `feature/lvgl-more-widgets` → `feature/lvgl-input-device` →
-  `feature/lvgl-widgets-2` → `feature/lvgl-multipage-1280x800`), nessuno ancora mergiato in main.
-  Vedi ADR 0002, `docs/plans/2026-08-07-lvgl-engine.md`.
+  `feature/lvgl-widgets-2` → `feature/lvgl-multipage-1280x800` → `feature/lvgl-badge-compat`),
+  nessuno ancora mergiato in main. Vedi ADR 0002, `docs/plans/2026-08-07-lvgl-engine.md`.
+- **Palette oggetti**: per un progetto "web", ogni voce con anche una controparte LVGL mostra un
+  piccolo badge "L" sull'icona. Verifica sistematica campo per campo (`sws-web/src/synoptic.rs`
+  vs `sws-lvgl-viewer/src/model.rs`): i nomi combaciano per tutti i tipi supportati da LVGL, ma
+  alcuni comportamenti no (`checked_value`/`unchecked_value` su checkbox/radio,
+  `stroke_dasharray` su line) — documentato in `docs/OPEN_QUESTIONS.md` Q14, non ancora chiuso.
 - **Allarmi piazzabili come oggetti canvas**: due nuovi tipi SCADA, `alarm_bell`
   (campanella con dropdown attivi/storico/ack/shelve) e `alarm_banner` (barra con
   blink/ACK/priorità ISA-18.2), piazzabili su qualunque pagina invece che solo come
