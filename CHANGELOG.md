@@ -13,10 +13,11 @@ e patch obbligatoria, perché Cargo rifiuta sia `2026.07` sia `2026.7`).
 - **Motore di rendering LVGL** per target embedded (framebuffer/Wayland), come seconda modalità
   di progetto accanto al web: nuovo crate `sws-lvgl-viewer` (client REST/WS verso il runtime
   esistente, nessuna modifica al runtime/protocolli) interpreta le pagine synottico e crea i
-  widget LVGL corrispondenti — **11 tipi supportati**: rettangolo, ellisse, linea, testo, bottone,
+  widget LVGL corrispondenti — **13 tipi supportati**: rettangolo, ellisse, linea, testo, bottone,
   LED, slider, progress bar, checkbox, radio (approssimato con checkbox, LVGL non ne ha uno
   nativo), gauge (ago + arco su scala 270°, colore dell'arco fissato alla creazione — `lv_meter`
-  non espone un setter per il colore di un indicatore già creato) — in una **finestra SDL2
+  non espone un setter per il colore di un indicatore già creato), state_lamp (stesso modello
+  value→label→color di text_list) e table (righe statiche, non un datagrid) — in una **finestra SDL2
   interattiva** (~60fps). I widget tag-dipendenti si aggiornano dal vivo
   (connessione `/ws/tags` persistente, mutati sul posto senza essere ricreati) e un **input
   device puntatore** collegato rende bottone/checkbox/radio/slider realmente cliccabili/

@@ -44,6 +44,19 @@ di `lv_line` sono relativi alla posizione dell'oggetto, non assoluti come il res
 `docs/OPEN_QUESTIONS.md` Q14. Verificato anche questo con drag sintetico (spostare lo slider
 muove dal vivo anche il gauge, che riusa `lvgl_demo.value`).
 
+**Ancora nella stessa sessione** (il maintainer ha risposto solo "vai avanti" al resoconto che
+segnalava trend/table/alarm_viewer/symbol/state_lamp come più impegnativi — proseguito solo su
+`state_lamp`/`table`, gli altri tre restano deliberatamente non tentati): aggiunti sullo stesso
+branch `feature/lvgl-widgets-2` — **13 tipi widget in totale**, 28 oggetti nel template.
+`state_lamp` riusa lo stesso modello value→label→color di `text_list` (`lv_obj` normale, non
+`lv_led` — legge `bg_color` dallo `Style` senza sorprese). `table` (righe statiche, non un
+datagrid) ha richiesto più iterazioni del previsto: `lv_table` va a capo dentro la cella se il
+testo non entra in larghezza, e `LV_TABLE_CELL_CTRL_TEXT_CROP` da solo non basta a impedirlo
+(verificato con screenshot, non assunto dal nome della flag) — risolto con colonna qualità a una
+lettera invece di un'abbreviazione più lunga. Verificato dal vivo: scrivere `lvgl_demo.led_on`
+aggiorna insieme LED, state_lamp e la riga tabella corrispondente, tre rese completamente
+diverse dello stesso tag sullo stesso schermo.
+
 **Prossimo passo naturale**: il quinto punto della roadmap originale (container podman, escluso
 esplicitamente da questa sessione), oppure ampliare il catalogo widget oltre i 9 tipi attuali
 verso parità con la palette web (gauge/trend/table/alarm_viewer/symbol — vedi nota in fondo al
