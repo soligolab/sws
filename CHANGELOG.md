@@ -49,9 +49,14 @@ e patch obbligatoria, perché Cargo rifiuta sia `2026.07` sia `2026.7`).
   nessuno ancora mergiato in main. Vedi ADR 0002, `docs/plans/2026-08-07-lvgl-engine.md`.
 - **Palette oggetti**: per un progetto "web", ogni voce con anche una controparte LVGL mostra un
   piccolo badge "L" sull'icona. Verifica sistematica campo per campo (`sws-web/src/synoptic.rs`
-  vs `sws-lvgl-viewer/src/model.rs`): i nomi combaciano per tutti i tipi supportati da LVGL, ma
-  alcuni comportamenti no (`checked_value`/`unchecked_value` su checkbox/radio,
-  `stroke_dasharray` su line) — documentato in `docs/OPEN_QUESTIONS.md` Q14, non ancora chiuso.
+  vs `sws-lvgl-viewer/src/model.rs`): i nomi combaciano per tutti i tipi supportati da LVGL.
+- **LVGL — `checkbox`/`radio` onorano `checked_value`/`unchecked_value`**: confronto per stringa
+  col valore del tag (default `true`/`false`, come il web — non più un booleano fisso), sia in
+  lettura (creazione + aggiornamento a ogni frame) sia in scrittura al click. Verificato con un
+  checkbox demo a valori stringa (`"ON"`/`"OFF"`) sull'istanza isolata `.run-12`. Nel processo,
+  corretta una nota precedente in `docs/OPEN_QUESTIONS.md` Q14: `stroke_dasharray` appartiene al
+  tipo `pipe`, non `line` — la linea LVGL (sempre piena) era già equivalente al web, non era un
+  gap da chiudere.
 - **Allarmi piazzabili come oggetti canvas**: due nuovi tipi SCADA, `alarm_bell`
   (campanella con dropdown attivi/storico/ack/shelve) e `alarm_banner` (barra con
   blink/ACK/priorità ISA-18.2), piazzabili su qualunque pagina invece che solo come
