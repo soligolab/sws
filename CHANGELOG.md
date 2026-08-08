@@ -13,12 +13,12 @@ e patch obbligatoria, perché Cargo rifiuta sia `2026.07` sia `2026.7`).
 - **Motore di rendering LVGL** per target embedded (framebuffer/Wayland), come seconda modalità
   di progetto accanto al web: nuovo crate `sws-lvgl-viewer` (client REST/WS verso il runtime
   esistente, nessuna modifica al runtime/protocolli) interpreta le pagine synottico e crea i
-  widget LVGL corrispondenti — **15 tipi supportati**: rettangolo, ellisse, linea, testo, bottone,
+  widget LVGL corrispondenti — **16 tipi supportati**: rettangolo, ellisse, linea, testo, bottone,
   navbutton (naviga tra le pagine di un progetto), LED, slider, progress bar, checkbox, radio
   (approssimato con checkbox, LVGL non ne ha uno nativo), gauge (ago + arco su scala 270°, colore
   dell'arco fissato alla creazione — `lv_meter` non espone un setter per il colore di un
   indicatore già creato), state_lamp (stesso modello value→label→color di text_list), table
-  (righe statiche, non un datagrid) e trend (`lv_chart`, vedi bullet dedicato sotto) — in una
+  (righe statiche, non un datagrid), trend e alarm_viewer (vedi bullet dedicati sotto) — in una
   **finestra SDL2 interattiva** (~60fps), risoluzione
   derivata dalla prima pagina caricata (non più fissa a compile-time). I widget tag-dipendenti si
   aggiornano dal vivo (connessione `/ws/tags` persistente, mutati sul posto senza essere
@@ -68,6 +68,18 @@ e patch obbligatoria, perché Cargo rifiuta sia `2026.07` sia `2026.7`).
   sullo stesso tag) e multi-serie (due tag con numero di campioni diverso, senza corruzione
   incrociata). Dettagli tecnici (perché `SCATTER`, perché le coordinate sono relative, perché
   `point_cnt` non può essere impostato per-serie) in `docs/OPEN_QUESTIONS.md` Q14, seguito 7.
+- **LVGL — `alarm_viewer`** (solo modalità `"list"`; `"banner"`/`"table"` segnalati come non
+  supportati invece di renderizzare qualcosa di diverso da quanto configurato): righe a slot fisso
+  (dot colorato per severità + età relativa + messaggio troncato + pulsante ACK), riassegnate a
+  ogni frame in base a quali allarmi sono attivi — stesso principio delle celle di `table`. Si
+  appoggia a `/ws/alarms` (un canale push vero, non un poller come `trend`) tramite un nuovo
+  `client::spawn_alarm_subscription`. `POST /api/alarms/:id/ack` sul click, senza header
+  `Authorization` (stesso comportamento già in uso per le scritture tag da checkbox/slider).
+  Verificato end-to-end su `.run-12`: due allarmi demo sullo stesso tag di slider/gauge/trend,
+  comparsi in tempo reale scrivendo il tag oltre soglia, ACK confermato via REST, ordinamento
+  più-recente-prima con due allarmi attivi insieme. Dettagli tecnici (protocollo di `/ws/alarms`,
+  perché il contesto del pulsante ACK usa un `RefCell` invece del solito `Box::leak` fisso) in
+  `docs/OPEN_QUESTIONS.md` Q14, seguito 8.
 - **Allarmi piazzabili come oggetti canvas**: due nuovi tipi SCADA, `alarm_bell`
   (campanella con dropdown attivi/storico/ack/shelve) e `alarm_banner` (barra con
   blink/ACK/priorità ISA-18.2), piazzabili su qualunque pagina invece che solo come
