@@ -57,6 +57,31 @@ lettera invece di un'abbreviazione più lunga. Verificato dal vivo: scrivere `lv
 aggiorna insieme LED, state_lamp e la riga tabella corrispondente, tre rese completamente
 diverse dello stesso tag sullo stesso schermo.
 
+**Richiesta successiva del maintainer**, nuovo branch `feature/lvgl-multipage-1280x800`:
+adattare il demo a uno schermo 1280×800 (da provare anche su un dispositivo reale,
+`tc620-a-p3-c6-07aff9.local`) e gestire più pagine. Risoluzione ora derivata dalla prima pagina
+caricata in sessione invece che costante fissa — il vincolo originale non esisteva più da tempo,
+solo mai rivisto. Nuovo tipo `navbutton`: manda l'**id interno** della pagina di destinazione
+(non il nome file usato dalle REST — sono due cose diverse, verificato prima di assumerle
+uguali) su un canale dedicato, risolto lato client elencando le pagine del progetto.
+
+**Bug serio trovato e risolto durante la verifica dal vivo** (non a compilazione): la prima
+versione di "ricarica pagina" (pulisci lo schermo attivo + ricrea i widget sopra) produceva, su
+navigazioni ripetute col catalogo widget completo, un **crash SIGSEGV** riproducibile
+(backtrace GDB: dentro il ridisegno delle etichette di un gauge) e, separatamente, un artefatto
+visivo di corruzione testo. Bisecato con oltre 10 pagine di prova create ad-hoc; il sintomo si è
+rivelato **non deterministico all'interno della stessa sessione**, la firma tipica di una
+corruzione di memoria a manifestazione ritardata più che di un bug isolabile a una riga precisa
+— a differenza degli altri bug di questo filone, il meccanismo esatto non è stato isolato con
+piena certezza (dettagli onesti in `docs/OPEN_QUESTIONS.md` Q14). Risolto passando al pattern
+standard LVGL per il cambio schermo (schermo nuovo + `lv_disp_load_scr` + `lv_obj_del` del
+vecchio, invece di mutare in-place quello attivo) — stabile su 14+ navigazioni consecutive nei
+test, incluse raffiche rapide. Disabilitato anche `LV_USE_MEM_MONITOR` (overlay di debug, non
+più adatto a un demo multi-pagina reale) durante l'indagine.
+
+Template diviso in due pagine 1280×800 collegate da navbutton, la seconda dimostra che i tag
+restano sincronizzati attraverso la navigazione. **Non ancora provato su hardware reale.**
+
 **Prossimo passo naturale**: il quinto punto della roadmap originale (container podman, escluso
 esplicitamente da questa sessione), oppure ampliare il catalogo widget oltre i 9 tipi attuali
 verso parità con la palette web (gauge/trend/table/alarm_viewer/symbol — vedi nota in fondo al
