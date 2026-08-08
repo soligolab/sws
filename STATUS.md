@@ -18,6 +18,20 @@ Q14 per l'analisi completa di entrambi. Quattro branch separati, nessuno ancora 
 `feature/lvgl-2b-display-fix` (tip attuale, sul quale si basa questo lavoro). **Il motore LVGL
 ora produce output visivo reale, non solo un riepilogo testuale.**
 
+**Verificato dal maintainer di persona** (stesso giorno, in ufficio): ha creato un progetto
+reale (`lvgl-01`) con il wizard scegliendo target LVGL, piazzato 8 oggetti (rect, text, 4
+button, slider, led) via l'editor normale, e lanciato `sws-lvgl-viewer` contro il proprio
+runtime — finestra SDL2 aperta, tutti gli 8 oggetti renderizzati correttamente, nessun crash
+lasciandolo girare per diversi secondi. **Due limiti noti confermati e accettati** (lasciati
+fuori deliberatamente dallo scope di stanotte, non bug): i widget non rispondono a click/drag
+(nessun input device LVGL collegato) e non si aggiornano dal vivo dopo l'apertura (il client
+legge solo lo snapshot iniziale dei tag via WS, non resta iscritto ai delta). Il maintainer ha
+scelto di **fermarsi qui per ora** invece di procedere subito su questi due punti — prossimi
+passi naturali quando si riprende: aggiornamento live dei tag (rischio contenuto, riusa client
+WS esistente) e poi, separatamente, input device per l'interattività (rischio più alto — finora
+2 sottosistemi su 2 toccati in questo crate avevano un bug di lifetime, l'input device è
+territorio non ancora testato).
+
 **Sessione precedente**: 2026-08-07 (notte, in autonomia) — proseguito il filone motore **LVGL** avviato
 in serata (Fase 1: analisi + scaffolding) fino a **Fase 2 (interprete widget) + Fase 3 (wizard
 progetto + filtro palette)**, su richiesta esplicita del maintainer di procedere da solo fino al
