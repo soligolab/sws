@@ -32,7 +32,17 @@ screenshot statico): ogni widget interattivo scrive correttamente il tag atteso 
 (confermato via `GET /api/tags/:id`), il readout si aggiorna dal vivo sullo stesso schermo,
 nessun crash/warning/coredump durante l'intera sessione di test. Template `lvgl-demo` esteso di
 pari passo con ogni nuovo tipo widget (richiesta esplicita del maintainer: "lo useremo in tutte
-le fasi come demo di test"), ora 22 oggetti su un'unica pagina 800×480.
+le fasi come demo di test").
+
+**Proseguito nella stessa sessione** ("vai avanti col lavoro"), quinto branch
+`feature/lvgl-widgets-2`: aggiunti `line` (`lv_line`) e `gauge` (`lv_meter`, ago + arco + valore
+dal vivo, scala 270° come il gauge web) — **11 tipi widget in totale**, ora 25 oggetti nel
+template `lvgl-demo`. Scelti perché LVGL ha un widget nativo diretto per entrambi, a differenza
+di trend/table/alarm_viewer/symbol (composizione o disegno custom, rimandati). Un dettaglio non
+ovvio verificato leggendo il sorgente C prima di scrivere il codice (non dopo un bug): i punti
+di `lv_line` sono relativi alla posizione dell'oggetto, non assoluti come il resto del file — vedi
+`docs/OPEN_QUESTIONS.md` Q14. Verificato anche questo con drag sintetico (spostare lo slider
+muove dal vivo anche il gauge, che riusa `lvgl_demo.value`).
 
 **Prossimo passo naturale**: il quinto punto della roadmap originale (container podman, escluso
 esplicitamente da questa sessione), oppure ampliare il catalogo widget oltre i 9 tipi attuali

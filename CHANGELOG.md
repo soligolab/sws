@@ -13,9 +13,11 @@ e patch obbligatoria, perché Cargo rifiuta sia `2026.07` sia `2026.7`).
 - **Motore di rendering LVGL** per target embedded (framebuffer/Wayland), come seconda modalità
   di progetto accanto al web: nuovo crate `sws-lvgl-viewer` (client REST/WS verso il runtime
   esistente, nessuna modifica al runtime/protocolli) interpreta le pagine synottico e crea i
-  widget LVGL corrispondenti — **9 tipi supportati**: rettangolo, ellisse, testo, bottone, LED,
-  slider, progress bar, checkbox, radio (approssimato con checkbox, LVGL non ne ha uno nativo) —
-  in una **finestra SDL2 interattiva** (~60fps). I widget tag-dipendenti si aggiornano dal vivo
+  widget LVGL corrispondenti — **11 tipi supportati**: rettangolo, ellisse, linea, testo, bottone,
+  LED, slider, progress bar, checkbox, radio (approssimato con checkbox, LVGL non ne ha uno
+  nativo), gauge (ago + arco su scala 270°, colore dell'arco fissato alla creazione — `lv_meter`
+  non espone un setter per il colore di un indicatore già creato) — in una **finestra SDL2
+  interattiva** (~60fps). I widget tag-dipendenti si aggiornano dal vivo
   (connessione `/ws/tags` persistente, mutati sul posto senza essere ricreati) e un **input
   device puntatore** collegato rende bottone/checkbox/radio/slider realmente cliccabili/
   trascinabili, con scrittura del tag corrispondente sul backend (`PUT /api/tags/:id`) —
@@ -31,10 +33,10 @@ e patch obbligatoria, perché Cargo rifiuta sia `2026.07` sia `2026.7`).
   vendorizzando una copia patchata del crate — e due propri: il colore LED (`on_color`/
   `off_color`) veniva silenziosamente ignorato (`lv_led` non legge lo `Style` `bg_color` come
   gli altri widget), e il titolo della finestra SDL2 mostrava caratteri corrotti (mojibake
-  sull'em-dash nel titolo WM_NAME). Sviluppato su sette branch di lunga durata in sequenza
+  sull'em-dash nel titolo WM_NAME). Sviluppato su otto branch di lunga durata in sequenza
   (`feature/lvgl` → `feature/lvgl-2-render-engine` → `feature/lvgl-3-project-wizard` →
   `feature/lvgl-2b-display-fix` → `feature/lvgl-live-updates` → `feature/lvgl-more-widgets` →
-  `feature/lvgl-input-device`), nessuno ancora mergiato in main. Vedi ADR 0002,
+  `feature/lvgl-input-device` → `feature/lvgl-widgets-2`), nessuno ancora mergiato in main. Vedi ADR 0002,
   `docs/plans/2026-08-07-lvgl-engine.md`.
 - **Allarmi piazzabili come oggetti canvas**: due nuovi tipi SCADA, `alarm_bell`
   (campanella con dropdown attivi/storico/ack/shelve) e `alarm_banner` (barra con
