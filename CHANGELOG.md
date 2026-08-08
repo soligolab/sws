@@ -80,6 +80,15 @@ e patch obbligatoria, perché Cargo rifiuta sia `2026.07` sia `2026.7`).
   più-recente-prima con due allarmi attivi insieme. Dettagli tecnici (protocollo di `/ws/alarms`,
   perché il contesto del pulsante ACK usa un `RefCell` invece del solito `Box::leak` fisso) in
   `docs/OPEN_QUESTIONS.md` Q14, seguito 8.
+- **LVGL — `symbol`/`faceplate`: analisi architetturale, nessuna implementazione** (voce nuova
+  `docs/OPEN_QUESTIONS.md` Q15). LVGL 8.x non ha un renderer SVG integrato — un vincolo della
+  libreria, non risolvibile componendo primitive come per gli altri widget. Quattro opzioni
+  presentate (rasterizzazione offline, riscrittura a mano dei soli 17 simboli "builtin",
+  rasterizzazione runtime con una crate SVG, non supportato), con raccomandazione ma nessuna
+  decisione presa — resta al maintainer. `faceplate` isolato come problema diverso e più piccolo
+  (composito di oggetti già ordinari), non affrontato qui. Corretta anche Q6 (Symbol library
+  packaging): i simboli non passano mai da `include_str!()` in `sws-web`, e sono 29 in totale
+  (17 builtin + 12 vendored), non 22 come scritto in precedenza.
 - **Allarmi piazzabili come oggetti canvas**: due nuovi tipi SCADA, `alarm_bell`
   (campanella con dropdown attivi/storico/ack/shelve) e `alarm_banner` (barra con
   blink/ACK/priorità ISA-18.2), piazzabili su qualunque pagina invece che solo come

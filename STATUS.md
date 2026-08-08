@@ -146,12 +146,31 @@ demo sullo stesso tag di slider/gauge/trend (soglie 70/90), comparsi in tempo re
 due allarmi attivi insieme. Palette editor aggiornata. Dettagli completi in
 `docs/OPEN_QUESTIONS.md` Q14 (seguito 8).
 
-**Prossimo passo naturale**: resta un solo punto della roadmap a 5 passi, `symbol` — una domanda
-architetturale SVG→LVGL non ancora scritta in `docs/OPEN_QUESTIONS.md`, probabilmente merita
-un'analisi propria invece di un'estensione rapida come le precedenti. In parallelo resta valido:
-container podman (escluso finora), e nessuno dei dodici branch `feature/lvgl-*` è ancora mergiato
-in `main` — il maintainer deve testare di persona (mouse vero + hardware reale,
-`tc620-a-p3-c6-07aff9.local`) prima di decidere se/come riunificare.
+**Ancora nella stessa sessione**, nuovo branch `feature/lvgl-symbol-analysis`: quinto e ultimo
+punto dei 5 passi, `symbol` — **analisi, non implementazione**, come esplicitamente delimitato
+dall'istruzione originale ("una vera domanda architetturale... non ancora posta"). Scritta come
+nuova `docs/OPEN_QUESTIONS.md` **Q15**: LVGL 8.x (la versione vendorizzata in questo motore) non
+ha alcun renderer SVG integrato — un vincolo della libreria, non componibile con le primitive già
+disponibili come fatto per gli altri quattro widget di questo giro. Verificato il contenuto reale
+da rendere (non assunto dal nome del tipo): 17 simboli "builtin" (JSX/SVG scritti a mano, davvero
+ricolorati per stato), 12 "vendored" (file `.svg` statici, mai ricolorati), `custom_symbols` (SVG
+arbitrario per URL esterno, contenuto non noto in anticipo) — e distinto esplicitamente da
+`faceplate`, un problema diverso e molto più piccolo (composito di oggetti già ordinari, niente
+SVG, probabilmente quasi gratis da supportare) non affrontato qui perché fuori dallo scope dei 5
+passi originali. Quattro opzioni presentate con una raccomandazione ma nessuna decisione presa —
+resta al maintainer. Nel processo, corretta anche una nota sbagliata già presente in Q6 (Symbol
+library packaging): i simboli non passano mai da `include_str!()` in `sws-web` (solo le 3
+faceplate lo fanno) e sono 29 in totale, non 22 come scritto in precedenza — mai verificato a
+fondo prima d'ora.
+
+**Tutti e 5 i passi proposti sono ora completi**: 4 implementati e verificati end-to-end
+(`checked_value`/`unchecked_value`, correzione `line`/`pipe`, `trend`, `alarm_viewer` — **16 tipi
+widget in totale**), 1 analizzato e scritto come domanda aperta (`symbol`, Q15). **Prossimo passo
+naturale**: il maintainer testa con un mouse vero e su hardware reale
+(`tc620-a-p3-c6-07aff9.local`), poi decide se/come riunificare i quattordici branch `feature/lvgl-*`
+(nessuno ancora mergiato in `main`) e se/quando affrontare Q15. In parallelo restano aperti:
+container podman (escluso finora), `pipe` intero (gap esplicito), e il piccolo follow-up
+`faceplate` appena emerso dall'analisi Q15.
 
 **Sessione precedente**: 2026-08-08 (mattina) — il maintainer ha rivisto il lavoro della notte (Fase 1-3
 del motore LVGL) e ha deciso come sbloccare l'export immagine: shim di registrazione display in
