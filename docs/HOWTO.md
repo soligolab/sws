@@ -44,11 +44,16 @@ Prerequisiti (verificati presenti sul dev server il 2026-08-09, ricontrollare se
 esistere — altrimenti `sudo apt install qemu-user-static`), rete per `ubuntu:24.04` e crates.io.
 Niente toolchain Rust da installare sull'host: vive nell'immagine builder, emulata.
 
-**Non ancora testato in questa forma esatta**: solo il percorso SDK-based con LVGL era stato
-scritto prima di questo; il codice per il percorso generico con `--with-lvgl` è pronto e
-committato ma non ancora eseguito con successo (bindgen contro `libclang`, usato per compilare
-`lvgl-sys`, sotto emulazione QEMU è un'incognita in più rispetto al solo `sws-runtime`, che questo
-percorso builda già di routine). Se fallisce, i log di `podman build`/`podman run` dicono dove.
+**Testato con successo il 2026-08-09** (dev server ufficio, dal maintainer stesso): bindgen contro
+`libclang` sotto emulazione QEMU — l'incognita segnalata qui sopra — non si è materializzata,
+`sws-lvgl-viewer` ha compilato in un ELF aarch64 valido (18 MB) esattamente come `sws-runtime`.
+Immagine pubblicata con tre tag (`<versione>-arm64-generic`, `<sha>-arm64-generic`,
+`latest-arm64-generic`) e archivio offline salvato in `dist/`. Un solo intoppo incontrato, già
+corretto nello script: `podman login`/`podman push`, girando anch'essi sotto `sudo` per via del
+controllo root qui sopra, non vedevano il login rootless fatto da utente normale prima del
+comando — lo script ora punta esplicitamente all'`auth.json` di `$SUDO_USER` (via `--authfile`),
+nessun secondo login richiesto. Se qualcos'altro fallisce, i log di `podman build`/`podman run`
+dicono dove.
 
 Senza rete verso il registry, ometti `--push` e copia via `scp` l'archivio prodotto
 (`dist/sws-runtime-<versione>-aarch64-generic-image.tar.gz`).

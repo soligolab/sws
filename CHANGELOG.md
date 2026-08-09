@@ -109,12 +109,17 @@ e patch obbligatoria, perché Cargo rifiuta sia `2026.07` sia `2026.7`).
   dedicato (`deploy/container/Containerfile.aarch64-generic-lvgl.builder`: clang/libclang/
   libsdl2-dev, separato dal builder condiviso così il percorso `sws-runtime`-only non si
   appesantisce). Stesso principio non-regressivo delle altre estensioni `--with-lvgl`: default
-  invariato. Non ancora eseguito con successo — questo percorso richiede root (verificato
-  2026-08-01 per il solo `sws-runtime`) e `sudo` è negato dalla policy dei permessi di questo
-  progetto, stavolta a livello di sistema e non solo come prompt interattivo; il maintainer lo
-  lancerà lui stesso quando conveniente. `docs/HOWTO.md` cap. 1 aggiornato di conseguenza
-  (percorso generico ora primario, percorso SDK preservato come alternativa in un blocco
-  ripiegabile).
+  invariato. Questo percorso richiede root (verificato 2026-08-01 per il solo `sws-runtime`) e
+  `sudo` è negato dalla policy dei permessi di questo progetto a livello di sistema, non solo come
+  prompt interattivo — il maintainer ha lanciato lui stesso la build. **Riuscita**: `sws-lvgl-viewer`
+  compila sotto emulazione QEMU (bindgen/libclang inclusi) esattamente come `sws-runtime`, ELF
+  aarch64 valido da 18 MB, immagine pubblicata su `ghcr.io/soligolab/sws-runtime` con tre tag
+  (verificato che contenga davvero entrambi i binari, non solo dal log dello script). Corretto anche
+  un bug dello script scoperto da questo stesso run: `podman login`/`push`, girando sotto `sudo`
+  insieme al resto, non vedevano il login rootless fatto da utente normale — ora puntano
+  esplicitamente all'`auth.json` di `$SUDO_USER` invece di richiedere un secondo login come root.
+  `docs/HOWTO.md` cap. 1 aggiornato di conseguenza (percorso generico primario, percorso SDK
+  preservato come alternativa in un blocco ripiegabile).
 - **Allarmi piazzabili come oggetti canvas**: due nuovi tipi SCADA, `alarm_bell`
   (campanella con dropdown attivi/storico/ack/shelve) e `alarm_banner` (barra con
   blink/ACK/priorità ISA-18.2), piazzabili su qualunque pagina invece che solo come
