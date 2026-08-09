@@ -210,16 +210,28 @@ macchina quando conveniente, invece di concedere un'eccezione alla policy. `docs
 aggiornato di conseguenza: percorso generico ora primario, percorso SDK preservato come
 alternativa in un blocco ripiegabile, riferimenti immagine corretti da `-arm64` a `-arm64-generic`.
 
-**Prossimo passo naturale**: il maintainer lancia
-`sudo ./scripts/build_container_aarch64_generic.sh --with-lvgl --push` su questo dev server quando
-ha tempo (o senza `--push`, copiando l'archivio via scp) — è l'evento che sblocca sia la verifica
-del cross-compile sia, a seguire, il test Wayland reale su `tc620-a-p3-c6-07aff9.local` con un
-binario `sws-lvgl-viewer` vero (finora provato solo un container usa-e-getta con entrypoint `sh`).
-Se anche questo percorso si scontra con l'incognita bindgen/libclang-sotto-QEMU segnalata in
-`docs/HOWTO.md`, resta il percorso SDK Pixsys-tuned come piano B (richiede una macchina con l'SDK
-installato, non questa). Poi: il maintainer testa con un mouse vero, decide se/come riunificare i
-quindici branch `feature/lvgl-*` (nessuno ancora mergiato in `main`) e se/quando affrontare
-Q15/`pipe`/`faceplate`.
+**Ancora nella stessa sessione — la build reale è riuscita** (lanciata dal maintainer stesso,
+2026-08-09): `sudo ./scripts/build_container_aarch64_generic.sh --with-lvgl --push` ha compilato
+`sws-lvgl-viewer` sotto emulazione QEMU **senza incidenti** — l'incognita bindgen/libclang segnalata
+in `docs/HOWTO.md` non si è materializzata. Verificato di persona (non solo dal log "done" dello
+script): il binario prodotto è un ELF aarch64 valido di 18 MB, di proprietà `max_xxv` (il trap di
+`restore_ownership` ha funzionato); l'immagine pubblicata su `ghcr.io/soligolab/sws-runtime` con
+tre tag (`2026.7.0-arm64-generic`, `<sha>-arm64-generic`, `latest-arm64-generic`) contiene davvero
+sia `sws-runtime` (67 MB) sia `sws-lvgl-viewer` (18 MB) sotto `/usr/local/bin/` — ispezionato
+estraendo i layer del `.tar.gz` salvato in locale, non assunto dal solo output del comando. Un solo
+intoppo incontrato e risolto nello script prima di questo run: `podman login`/`podman push`
+giravano anch'essi sotto `sudo` (necessario per la build QEMU) e non vedevano il login rootless
+fatto da utente normale prima del comando ("nessun login su ghcr.io" pur avendo fatto
+`podman login`) — corretto puntando esplicitamente all'`auth.json` di `$SUDO_USER` via
+`--authfile`, invece di richiedere un secondo login come root. `docs/HOWTO.md` cap. 1 aggiornato
+con l'esito.
+
+**Prossimo passo naturale**: ripetere il test Wayland su `tc620-a-p3-c6-07aff9.local` (§Passo 1-6
+di `docs/HOWTO.md` cap. 1), stavolta con l'immagine `sws-lvgl-viewer` vera appena pubblicata invece
+del container usa-e-getta con entrypoint `sh` usato finora — è il passo che manca per chiudere la
+Fase 4 (rendering LVGL reale su schermo, non solo accesso al socket Wayland). Poi: il maintainer
+testa con un mouse vero, decide se/come riunificare i quindici branch `feature/lvgl-*` (nessuno
+ancora mergiato in `main`) e se/quando affrontare Q15/`pipe`/`faceplate`.
 
 **Sessione precedente**: 2026-08-08 (mattina) — il maintainer ha rivisto il lavoro della notte (Fase 1-3
 del motore LVGL) e ha deciso come sbloccare l'export immagine: shim di registrazione display in
