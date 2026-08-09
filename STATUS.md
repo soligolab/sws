@@ -193,10 +193,33 @@ reali rilevati: 1.9 GB RAM totale, ~200 MB liberi con Chromium+runtime già in e
 sostanzia concretamente la motivazione "risorse" del maintainer. Dettagli completi in
 `docs/OPEN_QUESTIONS.md` Q14 (seguito 9) e `docs/DEPLOY_CONTAINER_AARCH64.md` §4.
 
-**Prossimo passo naturale**: completare la verifica reale serve una cross-compilazione con l'SDK
-Yocto Pixsys (`scripts/yocto/build.sh --with-lvgl`) da una macchina che ce l'ha installato — non
-questa. Poi: il maintainer testa con un mouse vero, decide se/come riunificare i quindici branch
-`feature/lvgl-*` (nessuno ancora mergiato in `main`) e se/quando affrontare Q15/`pipe`/`faceplate`.
+**Ancora nella stessa sessione**, richiesta esplicita del maintainer di preferire per ora il
+percorso **generico aarch64** (nessun SDK/toolchain Pixsys) invece di quello SDK-tuned appena
+descritto: "il build per i prodotti pixsys per ora vorrei farlo come generic arch64 senza usare
+il toolkit, preferisco che il container per ora sia generico e non legato ai prodotti pixsys".
+Stesso identico pattern opt-in `--with-lvgl` esteso anche a
+`scripts/build_container_aarch64_generic.sh` (builda dentro un container QEMU-emulato, nessun SDK
+richiesto sull'host) e nuovo `deploy/container/Containerfile.aarch64-generic-lvgl.builder` (layer
+separato che aggiunge clang/libclang/libsdl2-dev solo per chi passa `--with-lvgl`; il percorso
+`sws-runtime`-only resta invariato). Bloccato al momento di lanciarlo: questo percorso richiede
+root (verificato 2026-08-01, non ripetuto qui) e `sudo` è negato dalla policy dei permessi di
+questo progetto — stavolta la probe (`sudo -n true`) è stata negata direttamente dal sistema di
+permessi, non solo in un prompt interattivo. Il maintainer ha scelto di lanciare lui stesso il
+comando (`sudo ./scripts/build_container_aarch64_generic.sh --with-lvgl --push`) su questa
+macchina quando conveniente, invece di concedere un'eccezione alla policy. `docs/HOWTO.md` cap. 1
+aggiornato di conseguenza: percorso generico ora primario, percorso SDK preservato come
+alternativa in un blocco ripiegabile, riferimenti immagine corretti da `-arm64` a `-arm64-generic`.
+
+**Prossimo passo naturale**: il maintainer lancia
+`sudo ./scripts/build_container_aarch64_generic.sh --with-lvgl --push` su questo dev server quando
+ha tempo (o senza `--push`, copiando l'archivio via scp) — è l'evento che sblocca sia la verifica
+del cross-compile sia, a seguire, il test Wayland reale su `tc620-a-p3-c6-07aff9.local` con un
+binario `sws-lvgl-viewer` vero (finora provato solo un container usa-e-getta con entrypoint `sh`).
+Se anche questo percorso si scontra con l'incognita bindgen/libclang-sotto-QEMU segnalata in
+`docs/HOWTO.md`, resta il percorso SDK Pixsys-tuned come piano B (richiede una macchina con l'SDK
+installato, non questa). Poi: il maintainer testa con un mouse vero, decide se/come riunificare i
+quindici branch `feature/lvgl-*` (nessuno ancora mergiato in `main`) e se/quando affrontare
+Q15/`pipe`/`faceplate`.
 
 **Sessione precedente**: 2026-08-08 (mattina) — il maintainer ha rivisto il lavoro della notte (Fase 1-3
 del motore LVGL) e ha deciso come sbloccare l'export immagine: shim di registrazione display in
