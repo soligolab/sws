@@ -165,12 +165,38 @@ fondo prima d'ora.
 
 **Tutti e 5 i passi proposti sono ora completi**: 4 implementati e verificati end-to-end
 (`checked_value`/`unchecked_value`, correzione `line`/`pipe`, `trend`, `alarm_viewer` — **16 tipi
-widget in totale**), 1 analizzato e scritto come domanda aperta (`symbol`, Q15). **Prossimo passo
-naturale**: il maintainer testa con un mouse vero e su hardware reale
-(`tc620-a-p3-c6-07aff9.local`), poi decide se/come riunificare i quattordici branch `feature/lvgl-*`
-(nessuno ancora mergiato in `main`) e se/quando affrontare Q15. In parallelo restano aperti:
-container podman (escluso finora), `pipe` intero (gap esplicito), e il piccolo follow-up
-`faceplate` appena emerso dall'analisi Q15.
+widget in totale**), 1 analizzato e scritto come domanda aperta (`symbol`, Q15).
+
+**Ancora nella stessa sessione** (richiesta esplicita del maintainer, poi andato a dormire con
+l'istruzione di proseguire in autonomia), nuovo branch `feature/lvgl-pixsys-deploy`: affrontata la
+Fase 4 del piano originale (framebuffer/DRM/Wayland reali) — sostituire Chromium-on-Weston con
+`sws-lvgl-viewer` sui Pixsys per liberare le risorse che il browser consuma oggi. Vincolo esplicito
+del maintainer: LVGL resta un **companion opzionale** di `sws-runtime`, mai un fork — tutto ciò che
+esiste per la versione web (runtime, deploy Yocto, container) continua a funzionare esattamente
+come prima (memoria `feedback_lvgl_deploy_unified`). `scripts/yocto/build.sh` guadagna
+`--with-lvgl` (default off, comportamento di default invariato), nuovo companion systemd
+`deploy/yocto/sws-lvgl-viewer.service` (stesso pattern di `sws-kiosk.service`, non auto-abilitato),
+`Containerfile.aarch64` copia l'intera `bin/` invece del solo `sws-runtime` così la stessa immagine
+può contenere anche il viewer LVGL.
+
+Verifica su hardware reale (`tc620-a-p3-c6-07aff9.local`, credenziali fornite dal maintainer)
+**parziale, non spacciata per completa**: confermato di persona che un container rootless su quel
+device accede al socket Wayland reale solo con `--userns=keep-id` (senza, "Permission denied" per
+via della rimappatura UID di podman rootless — questo era il "non ricordo come" del maintainer),
+provato in modo non distruttivo (container usa e getta, il `sws-runtime` reale in esecuzione da 39h
+sul device non è stato toccato, verificato prima e dopo). **Non verificato**: il rendering LVGL
+vero — produrre un binario aarch64 richiede l'SDK Yocto Pixsys, non installato né sulla macchina
+usata in questa sessione né sul device (nessun toolchain a bordo, solo runtime). Trovato anche che
+`WAYLAND_DISPLAY` sul device reale è `wayland-1`, non `wayland-0` come hardcoded sia nel nuovo unit
+sia nel preesistente `sws-kiosk.service` — mai verificato su hardware reale prima d'ora. Numeri
+reali rilevati: 1.9 GB RAM totale, ~200 MB liberi con Chromium+runtime già in esecuzione —
+sostanzia concretamente la motivazione "risorse" del maintainer. Dettagli completi in
+`docs/OPEN_QUESTIONS.md` Q14 (seguito 9) e `docs/DEPLOY_CONTAINER_AARCH64.md` §4.
+
+**Prossimo passo naturale**: completare la verifica reale serve una cross-compilazione con l'SDK
+Yocto Pixsys (`scripts/yocto/build.sh --with-lvgl`) da una macchina che ce l'ha installato — non
+questa. Poi: il maintainer testa con un mouse vero, decide se/come riunificare i quindici branch
+`feature/lvgl-*` (nessuno ancora mergiato in `main`) e se/quando affrontare Q15/`pipe`/`faceplate`.
 
 **Sessione precedente**: 2026-08-08 (mattina) — il maintainer ha rivisto il lavoro della notte (Fase 1-3
 del motore LVGL) e ha deciso come sbloccare l'export immagine: shim di registrazione display in

@@ -89,6 +89,19 @@ e patch obbligatoria, perché Cargo rifiuta sia `2026.07` sia `2026.7`).
   (composito di oggetti già ordinari), non affrontato qui. Corretta anche Q6 (Symbol library
   packaging): i simboli non passano mai da `include_str!()` in `sws-web`, e sono 29 in totale
   (17 builtin + 12 vendored), non 22 come scritto in precedenza.
+- **LVGL — deploy su Pixsys reali come companion opzionale, non un fork**: `scripts/yocto/build.sh
+  --with-lvgl` (default off) cross-compila anche `sws-lvgl-viewer` nella stessa pipeline di
+  `sws-runtime`; nuovo `deploy/yocto/sws-lvgl-viewer.service` affianca `sws-kiosk.service` come
+  companion opt-in (non auto-abilitato); `Containerfile.aarch64` copia l'intera `bin/` invece del
+  solo `sws-runtime` così la stessa immagine può contenere anche il viewer LVGL, `ENTRYPOINT` di
+  default invariato. In tutti i casi il comportamento senza il nuovo flag/file resta
+  byte-per-byte quello di prima. Verificato su hardware reale (`tc620-a-p3-c6-07aff9.local`):
+  confermato che un container rootless accede al socket Wayland dell'host solo con
+  `--userns=keep-id` (senza, permission denied per la rimappatura UID di podman rootless) — non
+  distruttivo, il `sws-runtime` reale in esecuzione sul device non è stato toccato. Rendering LVGL
+  vero non ancora verificato: serve una cross-compilazione con l'SDK Yocto Pixsys, non disponibile
+  in questa sessione. Dettagli in `docs/OPEN_QUESTIONS.md` Q14, seguito 9, e
+  `docs/DEPLOY_CONTAINER_AARCH64.md` §4.
 - **Allarmi piazzabili come oggetti canvas**: due nuovi tipi SCADA, `alarm_bell`
   (campanella con dropdown attivi/storico/ack/shelve) e `alarm_banner` (barra con
   blink/ACK/priorità ISA-18.2), piazzabili su qualunque pagina invece che solo come
