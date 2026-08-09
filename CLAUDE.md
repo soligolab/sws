@@ -10,6 +10,7 @@
 4. Read `docs/CLAUDE_CODE_SETUP.md` if a permission prompt is confusing — that file explains the `.claude/settings.json` rules.
 5. Read `docs/TEST_SETUPS.md` — where the maintainer actually runs SWS (home Ubuntu desktop, this headless dev server, office Yocto devices). Device addresses change per session — always ask before SSH-ing.
 6. Read `docs/YOCTO_CROSSCOMPILE.md` if you're touching the Yocto cross-build / deploy flow (`scripts/yocto/`, `deploy/yocto/`).
+7. Check `docs/HOWTO.md` if the maintainer asks "come faccio a fare...?" — growing collection of short how-to recipes, one per past question of that shape. Add a new numbered chapter there for each new one instead of answering only in chat.
 
 Then state to the maintainer:
 - What the previous session ended with
