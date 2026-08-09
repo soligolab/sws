@@ -55,6 +55,14 @@ comando — lo script ora punta esplicitamente all'`auth.json` di `$SUDO_USER` (
 nessun secondo login richiesto. Se qualcos'altro fallisce, i log di `podman build`/`podman run`
 dicono dove.
 
+**Un secondo intoppo, trovato solo al primo avvio reale del container** (non alla build): l'immagine
+finale non aveva la libreria SDL2 **runtime** (solo `-dev` nel builder, che è un'immagine intermedia
+mai copiata in quella finale) — `sws-lvgl-viewer` partiva e crashava subito ("cannot open shared
+object file: libSDL2-2.0.so.0"). Corretto: entrambi i `Containerfile` installano ora
+`libsdl2-2.0-0` quando `--with-lvgl` è attivo (via `--build-arg`, automatico — non serve fare
+nulla di diverso, basta ricostruire con uno script aggiornato). Se hai un'immagine costruita
+*prima* di questo fix, ricostruiscila.
+
 Senza rete verso il registry, ometti `--push` e copia via `scp` l'archivio prodotto
 (`dist/sws-runtime-<versione>-aarch64-generic-image.tar.gz`).
 
@@ -130,6 +138,21 @@ Usa il nome che trovi (non quello di questo esempio) nel comando del passo succe
 
 ### Passo 5 — Avviare il container LVGL
 
+`sws-lvgl-viewer` è solo un **client** verso `sws-runtime` (che gira già, non lo tocca) — esattamente
+come lo sarebbe un browser puntato lì. Non serve ricaricare nulla: qualunque progetto sia già
+aperto su `sws-runtime` in questo momento resta quello, il container legge lo stato corrente al
+volo. Se non sai il nome esatto (case-sensitive) della pagina da mostrare — cambia ad ogni
+progetto diverso che carichi durante i test — chiedilo direttamente a `sws-runtime`:
+
+```bash
+curl -s http://127.0.0.1:8443/api/synoptics
+```
+
+Nota il protocollo: **`http`, non `https`** — questo `sws-runtime` non ha ancora un `tls.crt`
+configurato (il runtime parte in HTTP finché non esiste, `sws-runtime/src/main.rs`). Se un
+`curl -k https://...` desse un errore TLS tipo "record overflow"/"packet length too long", è
+proprio questo il sintomo: il server parla HTTP semplice — riprova con `http://`.
+
 ```bash
 podman run -d --name sws-lvgl-viewer \
   --userns=keep-id \
@@ -139,13 +162,21 @@ podman run -d --name sws-lvgl-viewer \
   -e SDL_VIDEODRIVER=wayland \
   --entrypoint sws-lvgl-viewer \
   ghcr.io/soligolab/sws-runtime:latest-arm64-generic \
-  --base-url https://127.0.0.1:8443 --page "<pagina iniziale del progetto>"
+  --base-url http://127.0.0.1:8443 --page "<pagina, es. \"LVGL Demo\">"
+```
+
+**Se incollandolo su SSH la shell si lamenta con qualcosa come `-sh: ghcr.io/...: No such file or
+directory`**, la continuazione multi-riga (`\` a fine riga) non ha retto — capita con alcune
+shell/terminali via SSH (osservato 2026-08-09 su questo device). Stessa identica cosa, tutta su
+una riga sola, immune al problema:
+
+```bash
+podman run -d --name sws-lvgl-viewer --userns=keep-id -v /run/user/1000:/run/user/1000 -e XDG_RUNTIME_DIR=/run/user/1000 -e WAYLAND_DISPLAY=wayland-1 -e SDL_VIDEODRIVER=wayland --entrypoint sws-lvgl-viewer ghcr.io/soligolab/sws-runtime:latest-arm64-generic --base-url http://127.0.0.1:8443 --page "LVGL Demo"
 ```
 
 `--userns=keep-id` non è opzionale: senza, il socket dell'host risulta "Permission denied" dentro
-il container (rootless podman rimappa gli UID per default). Sostituisci `<pagina iniziale del
-progetto>` col nome esatto (case-sensitive) della pagina synottico da cui partire — es.
-`"LVGL Demo"` per il template demo incluso nel repo.
+il container (rootless podman rimappa gli UID per default). Sostituisci `wayland-1`/il nome pagina
+con quello trovato ai passi precedenti, se diverso dall'esempio.
 
 ### Passo 6 — Controllare cosa succede
 
