@@ -87,13 +87,26 @@ che cambiano.
 
 ### Passo 2 — Fermare Chromium
 
+Verificato il 2026-08-09: `user` **non ha affatto sudo** su questo device (non solo "serve la
+password" — non è nei sudoer). Serve autenticarsi come `pixsys` (le credenziali vendor, lo stesso
+utente sotto cui girano tutti i unit Pixsys nel resto di questo repo):
+
 ```bash
+su - pixsys
 sudo systemctl stop chromium@main-app.service
 ```
 
-Chiede la password interattivamente (`user` non ha sudo senza password su questo device). Lo
-schermo probabilmente resta fermo sull'ultimo frame mostrato — atteso, Weston perde il suo unico
-client. Verifica che sia fermo con `systemctl status chromium@main-app.service`.
+(`su -`, login shell — utile se l'unit fosse a livello utente di `pixsys`; verificato poi che non
+lo è, è un system unit vero, `/usr/lib/systemd/system/chromium@.service`: solo `pixsys` ha i
+permessi sudo per fermarlo, `user` no.)
+
+Lo schermo del pannello si svuota — atteso, Weston perde il suo unico client. Verifica lo stato
+con `systemctl status chromium@main-app.service` (si può tornare a `user` prima di controllare,
+non serve restare `pixsys`).
+
+**In arrivo**: PixsysOS 2.1 permetterà di disattivare il browser direttamente da configurazione,
+eliminando questo giro SSH — segnalato dal maintainer (2026-08-09), non ancora verificabile da
+qui.
 
 ### Passo 3 — Scaricare l'immagine sul device (se pubblicata col Passo 0 via `--push`)
 
