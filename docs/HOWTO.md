@@ -24,26 +24,51 @@ tecnici dietro ogni passo qui sotto). Questo capitolo presume un device Pixsys d
 mostra oggi la SPA web, e sostituisce quel display layer con un container LVGL — senza toccare
 `sws-runtime`, che resta acceso per tutto il test.
 
-**Prerequisito bloccante**: serve un'immagine container costruita con `--with-lvgl` da una
-macchina che ha l'SDK Yocto Pixsys installato (`/usr/local/oecore-x86_64/…`). Il rendering LVGL
-vero non è ancora stato verificato end-to-end per questo motivo esatto — solo la meccanica di
-accesso al socket Wayland lo è stata (Passo 4 sotto), con un container diverso.
+**Due percorsi per costruire l'immagine**, scelta esplicita del maintainer (2026-08-09): per ora
+si preferisce il percorso **generico** (nessun SDK Pixsys, build sotto emulazione QEMU) invece di
+quello Pixsys-tuned, anche se più lento — non lega il container a un device specifico. Il percorso
+SDK resta un'alternativa per quando servirà davvero il tuning cortex-a35 (vedi in fondo a questo
+passo).
 
-### Passo 0 — Costruire e pubblicare un'immagine con LVGL incluso
+### Passo 0 — Costruire l'immagine (percorso generico, senza SDK)
 
-Da una macchina **con l'SDK Yocto Pixsys** (non il dev server usato per preparare questo lavoro —
-verificato assente lì):
+**Va lanciato con `sudo`** (non da Claude Code: `sudo` è negato dalla policy dei permessi di
+questo progetto — un umano al terminale lo lancia normalmente):
+
+```bash
+sudo ./scripts/build_container_aarch64_generic.sh --with-lvgl --push
+```
+
+Prerequisiti (verificati presenti sul dev server il 2026-08-09, ricontrollare se cambia macchina):
+`podman`, emulazione QEMU per arm64 registrata (`ls /proc/sys/fs/binfmt_misc/qemu-aarch64` deve
+esistere — altrimenti `sudo apt install qemu-user-static`), rete per `ubuntu:24.04` e crates.io.
+Niente toolchain Rust da installare sull'host: vive nell'immagine builder, emulata.
+
+**Non ancora testato in questa forma esatta**: solo il percorso SDK-based con LVGL era stato
+scritto prima di questo; il codice per il percorso generico con `--with-lvgl` è pronto e
+committato ma non ancora eseguito con successo (bindgen contro `libclang`, usato per compilare
+`lvgl-sys`, sotto emulazione QEMU è un'incognita in più rispetto al solo `sws-runtime`, che questo
+percorso builda già di routine). Se fallisce, i log di `podman build`/`podman run` dicono dove.
+
+Senza rete verso il registry, ometti `--push` e copia via `scp` l'archivio prodotto
+(`dist/sws-runtime-<versione>-aarch64-generic-image.tar.gz`).
+
+Immagine risultante: tag `*-arm64-generic` (non `*-arm64`, che è il percorso SDK-based — usare
+sempre il riferimento esplicito, `install-container.sh --pull` senza argomenti sceglie l'altro).
+
+<details>
+<summary>Alternativa: percorso SDK Pixsys-tuned (quando servirà davvero)</summary>
+
+Da una macchina **con l'SDK Yocto Pixsys** installato (`/usr/local/oecore-x86_64/…` — non
+disponibile su questo dev server):
 
 ```bash
 ./scripts/build_container.sh --with-lvgl --push
 ```
 
-Senza rete verso il registry, ometti `--push` e copia via `scp` l'archivio prodotto
-(`dist/sws-runtime-<versione>-aarch64-image.tar.gz`) — vedi `docs/DEPLOY_CONTAINER_AARCH64.md`
-§"Ripiego offline" per come caricarlo sul device da lì.
-
-Lo script si ferma da solo con un errore leggibile se `sws-lvgl-viewer` non cross-compila (es.
-manca `libsdl2-dev` nel sysroot — rischio noto, non ancora verificato in nessuna direzione).
+Nessun `sudo` richiesto per questo percorso. Produce il tag `*-arm64` (tuning cortex-a35, ABI
+pinning esatto all'OS Pixsys) invece di `*-arm64-generic`.
+</details>
 
 ### Passo 1 — Connettersi al device
 
@@ -68,8 +93,12 @@ client. Verifica che sia fermo con `systemctl status chromium@main-app.service`.
 ### Passo 3 — Scaricare l'immagine sul device (se pubblicata col Passo 0 via `--push`)
 
 ```bash
-podman pull ghcr.io/soligolab/sws-runtime:latest-arm64
+podman pull ghcr.io/soligolab/sws-runtime:latest-arm64-generic
 ```
+
+(`latest-arm64-generic`, non `latest-arm64` — quel tag nudo è il percorso SDK-based, un'immagine
+diversa. `install-container.sh --pull` senza argomento sceglie `latest-arm64`: qui va sempre
+passato il riferimento esplicito.)
 
 ### Passo 4 — Trovare il socket Wayland reale
 
@@ -91,7 +120,7 @@ podman run -d --name sws-lvgl-viewer \
   -e WAYLAND_DISPLAY=wayland-1 \
   -e SDL_VIDEODRIVER=wayland \
   --entrypoint sws-lvgl-viewer \
-  ghcr.io/soligolab/sws-runtime:latest-arm64 \
+  ghcr.io/soligolab/sws-runtime:latest-arm64-generic \
   --base-url https://127.0.0.1:8443 --page "<pagina iniziale del progetto>"
 ```
 

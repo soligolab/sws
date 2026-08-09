@@ -102,6 +102,19 @@ e patch obbligatoria, perché Cargo rifiuta sia `2026.07` sia `2026.7`).
   vero non ancora verificato: serve una cross-compilazione con l'SDK Yocto Pixsys, non disponibile
   in questa sessione. Dettagli in `docs/OPEN_QUESTIONS.md` Q14, seguito 9, e
   `docs/DEPLOY_CONTAINER_AARCH64.md` §4.
+- **LVGL — `--with-lvgl` esteso anche al percorso container generico aarch64 (senza SDK)**: su
+  richiesta esplicita del maintainer di preferire per ora questo percorso invece di quello
+  SDK-tuned Pixsys, `scripts/build_container_aarch64_generic.sh --with-lvgl` builda anche
+  `sws-lvgl-viewer` dentro il container builder QEMU-emulato esistente, con un nuovo layer
+  dedicato (`deploy/container/Containerfile.aarch64-generic-lvgl.builder`: clang/libclang/
+  libsdl2-dev, separato dal builder condiviso così il percorso `sws-runtime`-only non si
+  appesantisce). Stesso principio non-regressivo delle altre estensioni `--with-lvgl`: default
+  invariato. Non ancora eseguito con successo — questo percorso richiede root (verificato
+  2026-08-01 per il solo `sws-runtime`) e `sudo` è negato dalla policy dei permessi di questo
+  progetto, stavolta a livello di sistema e non solo come prompt interattivo; il maintainer lo
+  lancerà lui stesso quando conveniente. `docs/HOWTO.md` cap. 1 aggiornato di conseguenza
+  (percorso generico ora primario, percorso SDK preservato come alternativa in un blocco
+  ripiegabile).
 - **Allarmi piazzabili come oggetti canvas**: due nuovi tipi SCADA, `alarm_bell`
   (campanella con dropdown attivi/storico/ack/shelve) e `alarm_banner` (barra con
   blink/ACK/priorità ISA-18.2), piazzabili su qualunque pagina invece che solo come
