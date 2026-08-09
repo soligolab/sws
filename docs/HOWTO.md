@@ -153,30 +153,26 @@ configurato (il runtime parte in HTTP finché non esiste, `sws-runtime/src/main.
 `curl -k https://...` desse un errore TLS tipo "record overflow"/"packet length too long", è
 proprio questo il sintomo: il server parla HTTP semplice — riprova con `http://`.
 
-```bash
-podman run -d --name sws-lvgl-viewer \
-  --userns=keep-id \
-  -v /run/user/1000:/run/user/1000 \
-  -e XDG_RUNTIME_DIR=/run/user/1000 \
-  -e WAYLAND_DISPLAY=wayland-1 \
-  -e SDL_VIDEODRIVER=wayland \
-  --entrypoint sws-lvgl-viewer \
-  ghcr.io/soligolab/sws-runtime:latest-arm64-generic \
-  --base-url http://127.0.0.1:8443 --page "<pagina, es. \"LVGL Demo\">"
-```
-
-**Se incollandolo su SSH la shell si lamenta con qualcosa come `-sh: ghcr.io/...: No such file or
-directory`**, la continuazione multi-riga (`\` a fine riga) non ha retto — capita con alcune
-shell/terminali via SSH (osservato 2026-08-09 su questo device). Stessa identica cosa, tutta su
-una riga sola, immune al problema:
+**Tutto su una riga sola** — su questo device, incollare la versione multi-riga con `\` a fine
+riga su SSH ha rotto la continuazione due volte di fila (`-sh: ghcr.io/...: No such file or
+directory`: il nome immagine viene interpretato come comando a sé, non come continuazione della
+riga precedente). Non è un problema del comando, è la combo terminale/shell su questo device —
+ma la forma su una riga lo evita del tutto, quindi è quella da usare qui:
 
 ```bash
-podman run -d --name sws-lvgl-viewer --userns=keep-id -v /run/user/1000:/run/user/1000 -e XDG_RUNTIME_DIR=/run/user/1000 -e WAYLAND_DISPLAY=wayland-1 -e SDL_VIDEODRIVER=wayland --entrypoint sws-lvgl-viewer ghcr.io/soligolab/sws-runtime:latest-arm64-generic --base-url http://127.0.0.1:8443 --page "LVGL Demo"
+podman run -d --name sws-lvgl-viewer --network host --userns=keep-id -v /run/user/1000:/run/user/1000 -e XDG_RUNTIME_DIR=/run/user/1000 -e WAYLAND_DISPLAY=wayland-1 -e SDL_VIDEODRIVER=wayland --entrypoint sws-lvgl-viewer ghcr.io/soligolab/sws-runtime:latest-arm64-generic --base-url http://127.0.0.1:8443 --page "LVGL Demo"
 ```
 
-`--userns=keep-id` non è opzionale: senza, il socket dell'host risulta "Permission denied" dentro
-il container (rootless podman rimappa gli UID per default). Sostituisci `wayland-1`/il nome pagina
-con quello trovato ai passi precedenti, se diverso dall'esempio.
+Due flag non opzionali, entrambi verificati sul primo tentativo reale (senza, falliscono in modi
+diversi):
+- `--userns=keep-id`: senza, il socket Wayland dell'host risulta "Permission denied" dentro il
+  container (rootless podman rimappa gli UID per default).
+- `--network host`: senza, il container ha il proprio namespace di rete isolato — `127.0.0.1`
+  dentro punta al container stesso, non all'host dove ascolta `sws-runtime`. Sintomo tipico:
+  `curl` sull'host funziona, lo stesso URL dentro il container dà "Connection refused" nei log.
+
+Sostituisci `wayland-1`/il nome pagina con quello trovato ai passi precedenti, se diverso
+dall'esempio.
 
 ### Passo 6 — Controllare cosa succede
 
