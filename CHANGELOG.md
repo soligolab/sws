@@ -2,11 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
-and this project adheres to [CalVer](https://calver.org/) (`YYYY.M.PATCH` — mese senza zero iniziale
-e patch obbligatoria, perché Cargo rifiuta sia `2026.07` sia `2026.7`).
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
+Dalla release `2.0.0` in poi il progetto adotta [Semantic Versioning](https://semver.org/)
+(`MAJOR.MINOR.PATCH`), non più [CalVer](https://calver.org/): il motore di rendering LVGL è un
+cambio abbastanza grande da giustificare un major bump esplicito invece che il prossimo numero
+di mese in sequenza — vedi nota sotto e `docs/CONTEXT.md`. Le release precedenti (`2026.7.0` e
+prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
+
+## [2.0.0] — 2026-08-11
+
+**Cambio di schema di versioning**: da CalVer (`YYYY.M.PATCH`) a Semantic Versioning
+(`MAJOR.MINOR.PATCH`), a partire da questa release. Il `2` è il motore di rendering **LVGL**
+(dispositivi embedded senza browser, vedi sotto) — un cambiamento abbastanza sostanziale da
+meritare un numero di versione che lo segnali esplicitamente, invece di confondersi nella
+sequenza mensile. Deciso dal maintainer, non dedotto da questa sessione.
 
 ### Added
 

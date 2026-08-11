@@ -214,7 +214,7 @@ These were settled in the spec design rounds and confirmed at bootstrap. **Not u
 | License | AGPL-3.0 (full text in `LICENSE`, verified 2026-05-12) | — |
 | Contributor agreement | DCO (`Signed-off-by:` on every commit) | — |
 | Branching | `feat/T-XX-short-desc` branches → squash merge to main | — |
-| Versioning | CalVer `YYYY.M.PATCH` — prima release `2026.7.0` (2026-07-31); prima ancora `0.1.0-dev` | — |
+| Versioning | SemVer `MAJOR.MINOR.PATCH` dal 2026-08-11 (`2.0.0`); CalVer `YYYY.M.PATCH` prima (`2026.7.0` → `0.1.0-dev`) | — |
 | Reference hardware | Rockchip PX30, RK3399, RK3588 | — |
 | UI language | **Italian** (pragmatic choice for the PoC — only Italian users in scope now) | — |
 | Docs/code language | English | — |
@@ -225,6 +225,13 @@ These were settled in the spec design rounds and confirmed at bootstrap. **Not u
 > senza padding e patch obbligatoria. La decisione (CalVer) non cambia, cambia solo la forma che il
 > toolchain permette di scrivere. Il confronto fra versioni resta numerico, quindi `2026.7.0` precede
 > correttamente `2026.10.0` — è solo l'ordinamento alfabetico dei tag che sembra sbagliato.
+
+> **Nota sul passaggio a SemVer** (2026-08-11, release `2.0.0`): il maintainer ha scelto di
+> abbandonare CalVer a favore di Semantic Versioning puro (`MAJOR.MINOR.PATCH`) in occasione del
+> merge del motore di rendering **LVGL** su `main` — un cambiamento abbastanza grande da
+> giustificare un major bump esplicito (`2`) invece del prossimo numero di mese in sequenza. Non
+> una rinumerazione retroattiva: le release precedenti (`2026.7.0` e prima) restano CalVer così
+> come sono. Vedi `CHANGELOG.md` per il dettaglio.
 
 If a session needs to revisit any of these, **stop and ask the maintainer first**. Don't refactor across architectural decisions in a vibecode session.
 
