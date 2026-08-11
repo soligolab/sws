@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api, getRuntimeBaseUrl, setRuntimeBaseUrl } from "@/api/client";
-import type { BrowseDirEntry, ProjectListEntry, TemplateEntry } from "@/types";
+import type { BrowseDirEntry, ProjectListEntry, ProjectTargetKind, TemplateEntry } from "@/types";
 
 // ── styles ────────────────────────────────────────────────────────────────────
 
@@ -260,6 +260,8 @@ function NewProjectModal({
   const [templates, setTemplates]     = useState<TemplateEntry[]>([]);
   const [selectedTpl, setSelectedTpl] = useState<string>("");
   const [zipFile, setZipFile]         = useState<File | null>(null);
+  const [targetKind, setTargetKind]   = useState<ProjectTargetKind>("web");
+  const [fbDevice, setFbDevice]       = useState("");
   const [parentPath, setParentPath]   = useState("");
   const [showBrowser, setShowBrowser] = useState(false);
   const [busy, setBusy]               = useState(false);
@@ -290,7 +292,12 @@ function NewProjectModal({
       } else {
         const trimmed = name.trim();
         if (!trimmed) { setError(t("welcome.errNoName")); setBusy(false); return; }
-        await api.createProject({ name: trimmed, template: tab === "template" ? selectedTpl : undefined, parent_path: trimmedParent });
+        // Il target si sceglie solo per progetti vuoti — un template porta
+        // già con sé oggetti/pagine pensati per il web (vedi ADR 0002).
+        const target = tab === "empty" && targetKind !== "web"
+          ? { kind: targetKind, framebuffer_device: targetKind === "lvgl_framebuffer" ? (fbDevice.trim() || undefined) : undefined }
+          : undefined;
+        await api.createProject({ name: trimmed, template: tab === "template" ? selectedTpl : undefined, parent_path: trimmedParent, target });
         onCreate(trimmed);
       }
     } catch (e: any) {
@@ -414,6 +421,42 @@ function NewProjectModal({
             <div style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", marginTop: 4 }}>
               {t("welcome.folderNameHint")}
             </div>
+          </div>
+        )}
+
+        {/* target: solo per progetti vuoti (vedi ADR 0002) */}
+        {tab === "empty" && (
+          <div style={{ marginBottom: 16 }}>
+            <label style={{ fontSize: 12, color: "var(--brand-text-muted, #94a3b8)", display: "block", marginBottom: 6 }}>
+              {t("welcome.target")}
+            </label>
+            <select
+              style={{ ...INPUT, cursor: "pointer" }}
+              value={targetKind}
+              onChange={(e) => setTargetKind(e.target.value as ProjectTargetKind)}
+            >
+              <option value="web">{t("welcome.targetWeb")}</option>
+              <option value="lvgl_framebuffer">{t("welcome.targetLvglFramebuffer")}</option>
+              <option value="lvgl_wayland">{t("welcome.targetLvglWayland")}</option>
+            </select>
+            {targetKind !== "web" && (
+              <div style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", marginTop: 6 }}>
+                {t("welcome.targetHint")}
+              </div>
+            )}
+            {targetKind === "lvgl_framebuffer" && (
+              <div style={{ marginTop: 10 }}>
+                <label style={{ fontSize: 12, color: "var(--brand-text-muted, #94a3b8)", display: "block", marginBottom: 6 }}>
+                  {t("welcome.framebufferDeviceLabel")}
+                </label>
+                <input
+                  style={{ ...INPUT, fontFamily: "monospace", fontSize: 13 }}
+                  value={fbDevice}
+                  onChange={(e) => setFbDevice(e.target.value)}
+                  placeholder={t("welcome.framebufferDevicePlaceholder")}
+                />
+              </div>
+            )}
           </div>
         )}
 

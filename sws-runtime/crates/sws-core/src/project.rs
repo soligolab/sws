@@ -813,6 +813,35 @@ pub struct Project {
     /// field existed already has literal per-page width/height).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub page_layout: Option<PageLayoutConfig>,
+    /// Target di rendering del progetto: `None` = legacy/default = Web (ogni
+    /// progetto creato prima di questo campo è implicitamente web). Guida
+    /// il wizard di creazione progetto e il filtro della palette oggetti
+    /// nell'editor (`docs/adr/0002-lvgl-rendering-engine.md`) — non ha
+    /// alcun effetto sul runtime/sui protocolli, che restano identici per
+    /// ogni target (vedi ADR 0002, "protocolli già tutti disponibili").
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub target: Option<ProjectTarget>,
+}
+
+/// Motore di rendering a cui è destinato il progetto.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ProjectTargetKind {
+    /// SPA React/SVG nel browser — il target di sempre, nessun cambiamento.
+    Web,
+    /// Motore LVGL, output su framebuffer/DRM diretto (Fase 4, non ancora implementato).
+    LvglFramebuffer,
+    /// Motore LVGL, come client Wayland (Fase 4, non ancora implementato).
+    LvglWayland,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProjectTarget {
+    pub kind: ProjectTargetKind,
+    /// Percorso del device framebuffer (es. "/dev/fb0"). Significativo solo
+    /// per `kind == LvglFramebuffer`; ignorato altrimenti.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub framebuffer_device: Option<String>,
 }
 
 /// How synoptic pages are sized and scaled at runtime.
