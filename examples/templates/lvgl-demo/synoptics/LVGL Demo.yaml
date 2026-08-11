@@ -100,12 +100,76 @@ objects:
     font_size: 12.0
     color: "#94a3b8"
 
-  # ── prossimi tipi: aggiungere qui man mano (checkbox, progress_bar, radio,
-  #    ellipse/line - vedi lvgl_demo.toggle già riservato per il primo) -----
+  # ── ellipse (statica, nessun tag) ────────────────────────────────────────
+  - id: e1
+    type: ellipse
+    x: 20.0
+    y: 190.0
+    width: 70.0
+    height: 70.0
+    fill: "#f472b6"
+  - id: cap_e1
+    type: text
+    x: 20.0
+    y: 265.0
+    text: "ellipse"
+    font_size: 12.0
+    color: "#94a3b8"
+
+  # ── progress_bar (tag: lvgl_demo.value, stesso valore dello slider) ──────
+  - id: pb1
+    type: progress_bar
+    x: 120.0
+    y: 210.0
+    width: 200.0
+    height: 24.0
+    tag: lvgl_demo.value
+    min: 0.0
+    max: 100.0
+  - id: cap_pb1
+    type: text
+    x: 120.0
+    y: 245.0
+    text: "progress_bar"
+    font_size: 12.0
+    color: "#94a3b8"
+
+  # ── checkbox (tag: lvgl_demo.toggle) ─────────────────────────────────────
+  - id: cb1
+    type: checkbox
+    x: 350.0
+    y: 210.0
+    label: "Checkbox"
+    tag: lvgl_demo.toggle
+  - id: cap_cb1
+    type: text
+    x: 350.0
+    y: 245.0
+    text: "checkbox"
+    font_size: 12.0
+    color: "#94a3b8"
+
+  # ── radio (tag: lvgl_demo.radio_on) — approssimato con checkbox, vedi Q14 ─
+  - id: rd1
+    type: radio
+    x: 530.0
+    y: 210.0
+    label: "Radio (~checkbox)"
+    tag: lvgl_demo.radio_on
+  - id: cap_rd1
+    type: text
+    x: 530.0
+    y: 245.0
+    text: "radio (approssimato)"
+    font_size: 12.0
+    color: "#94a3b8"
+
+  # ── prossimi tipi: aggiungere qui man mano (gauge, trend, table,
+  #    alarm_viewer, symbol...) ────────────────────────────────────────────
   - id: note_future
     type: text
     x: 20.0
     y: 440.0
-    text: "Prossimi widget arrivano qui sotto - vedi lvgl_demo.toggle"
+    text: "Prossimi widget arrivano qui sotto"
     font_size: 11.0
     color: "#5b6b85"
