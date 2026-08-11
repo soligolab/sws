@@ -6,7 +6,42 @@
 >
 > **Pulizia 2026-07-27**: rimossi i task già chiusi e le sezioni di verifica ormai superate; le sessioni mergiate **e** verificate fino al 2026-07-09 sono compresse in «Storico». Il dettaglio integrale resta in `CHANGELOG.md` e nella history git.
 
-**Last session**: 2026-08-10/11 — chiusa la Fase 4 (rendering LVGL reale su hardware Pixsys,
+**Last session**: 2026-08-11 — release **2.0.0**, prima dopo il merge del motore LVGL. Il
+maintainer ha scelto **il `2` per il cambio abbastanza grande da giustificare un major bump**
+(il motore LVGL) e con l'occasione ha abbandonato **CalVer** a favore di **Semantic Versioning**
+puro (`MAJOR.MINOR.PATCH`) come schema di versioning da qui in poi — non una rinumerazione
+retroattiva delle release precedenti (dettagli in `docs/CONTEXT.md` e `CHANGELOG.md`).
+
+Versione aggiornata ovunque (`sws-runtime/Cargo.toml` `[workspace.package]`, propagata a tutti i
+crate che ereditano `version.workspace = true`; `sws-lvgl-viewer` e `sws-kiosk`, esclusi dal
+workspace, versione hardcoded a parte; `sws-editor/package.json`). Verificato con `cargo build
+--release` (workspace + `sws-lvgl-viewer` + `sws-kiosk`, tutti verdi) e `pnpm build`.
+
+Costruite e **pubblicate su `ghcr.io/soligolab/sws-runtime`** (tre tag ciascuna: versione,
+commit, `latest`, per architettura) due immagini:
+- **x86_64** (`scripts/build_container_x86_64.sh`, nessun `sudo` richiesto — build nativa).
+- **aarch64-generic con LVGL** (`scripts/build_container_aarch64_generic.sh --with-lvgl`,
+  richiede `sudo` per l'emulazione QEMU — lanciata dal maintainer stesso, come da policy dei
+  permessi di questo progetto). L'immagine risultante vive nello storage podman di **root**
+  (conseguenza del `sudo`), quindi per pubblicarla senza un secondo giro di `sudo` è stata
+  **ricaricata dall'archivio** (`podman load` dall'archivio `.tar.gz` già restituito all'utente
+  normale dal trap di `restore_ownership` dello script) nello storage rootless, poi taggata e
+  pubblicata da lì — nessun bisogno di rilanciare l'intera build sotto `sudo` solo per il push.
+  Verificato che l'immagine contenga davvero entrambi i binari (`sws-runtime` e
+  `sws-lvgl-viewer`) prima di pubblicare, non assunto dal solo nome del flag `--with-lvgl`.
+- **Non ricostruita** in questo giro l'immagine aarch64 SDK-tuned Pixsys (il percorso alternativo
+  che il maintainer preferisce non usare "per ora").
+
+Committati anche su `main` (dal maintainer, non da questa sessione): un **rewrite completo di
+`README.md`** come overview GitHub-facing (installazione, protocolli, confronto motori
+HTML/LVGL, architettura) — non toccato da queste istruzioni, solo pushato.
+
+**Prossimo passo naturale**: verificare che il discovery mDNS (Configurazione → Runtime) mostri
+`2.0.0` sui runtime reali una volta riavviati con l'immagine nuova. Poi, quando servirà: valutare
+se/quando ricostruire anche l'immagine SDK-tuned Pixsys con questa versione, e proseguire sugli
+altri punti aperti (Q14 seguiti 12+, Q15/`symbol`, pulizia branch `feature/lvgl-*`).
+
+**Sessione precedente**: 2026-08-10/11 — chiusa la Fase 4 (rendering LVGL reale su hardware Pixsys,
 `tc620-a-p3-c6-07aff9.local`) e **mergiati su `main` tutti e 15 i branch** del filone LVGL
 (15 squash-merge sequenziali, uno per fase, nessuna cancellazione di branch — vedi
 `docs/plans/` per il piano, non ancora committato lì perché eseguito interamente in sessione).
