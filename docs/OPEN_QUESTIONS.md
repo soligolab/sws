@@ -741,25 +741,66 @@ per costruzione via ADR 0002 ("duplicazione accettata").
 alcuni campi esistono su entrambi i lati ma LVGL non li **onora** ancora, quindi un progetto che
 li usa avrebbe un comportamento diverso spostandosi da web a LVGL, anche restando nei 14 tipi
 "con controparte":
-- `checkbox`/`radio`: il web confronta il valore del tag con `checked_value`/`unchecked_value`
-  (default `true`/`false`, ma può essere una stringa o un numero qualsiasi — verificato in
-  `SvgCanvas.tsx`, non assunto: `isChecked = String(tv.value) === String(checkedVal)`) — LVGL
-  scrive/legge solo booleano puro (`tag_value_as_bool`/`TagValue::Bool`). Un checkbox web con
-  `checked_value: "RUN"` funzionerebbe silenziosamente in modo diverso su LVGL (scriverebbe
-  `true`, non `"RUN"`).
+- ~~`checkbox`/`radio`: `checked_value`/`unchecked_value` ignorati (solo booleano puro)~~ —
+  **risolto**, vedi aggiornamento "seguito 6" sotto.
 - `button`/`navbutton`: script `on_press_fn`/`on_release_fn` non sono supportati da LVGL (solo
   `write_value` sul click) — già annotato nell'aggiornamento precedente di questa voce.
-- `line`: `stroke_dasharray` (tratteggio) non è supportato — LVGL disegna sempre una linea piena.
+- ~~`line`: `stroke_dasharray` non supportato~~ — **non era un gap reale**, vedi correzione
+  nell'aggiornamento "seguito 6" sotto: il campo appartiene a `pipe`, non a `line`.
 - `gauge`: l'arco non ricolora per soglia superata dal vivo come nel web — già annotato sopra.
+- `pipe`: tipo intero non supportato da LVGL (routing/gradient/fill-level/marker) — non è nella
+  lista `SUPPORTED_TYPES`, già implicito prima d'ora ma reso esplicito qui perché è lui, non
+  `line`, a usare `stroke_dasharray`.
 
 Nessuno di questi è un problema di **nomi** (motivo per cui la verifica richiesta è comunque
 soddisfatta) — sono limiti dell'implementazione LVGL di quel tipo, già in gran parte documentati
-sopra in questa voce caso per caso. Non risolti in questo giro (non richiesto esplicitamente,
-solo la verifica dei nomi) — se il maintainer costruisce un progetto reale con questi campi e
-prova a convertirlo, è il momento di chiudere il gap specifico che emerge, non tutti a priori.
+sopra in questa voce caso per caso.
 
 **Decided**: nomi campo verificati compatibili per costruzione. Badge implementato e verificato
-in browser. Gap comportamentali sopra documentati, non ancora chiusi.
+in browser. `checked_value`/`unchecked_value` chiuso. Gap restanti (`on_press_fn`, arco soglia,
+`pipe` intero) non richiesti esplicitamente, restano aperti finché non emerge un progetto reale
+che li usa.
+
+**Aggiornamento 2026-08-08 (seguito 6) — `checked_value`/`unchecked_value` chiuso, e una
+correzione sul gap `line`**
+
+`checkbox`/`radio` ora onorano `checked_value`/`unchecked_value` invece di un booleano fisso:
+`model.rs` (`SynopticObject`) ha due nuovi campi `Option<serde_json::Value>`; il confronto
+"checked" (`checkbox_is_checked` in `lvgl_render.rs`) usa uguaglianza per stringa contro
+`checked_value` (default `true`, come `SvgCanvas.tsx`: `String(tv.value) === String(checkedVal)`),
+non `tag_value_as_bool` — sia alla creazione sia a ogni frame in `update_bindings` (il tag può
+cambiare da un'altra sorgente, non solo dal click). Il click (`sws_checkbox_toggled_cb`) ora legge
+lo stato CHECKED nativo di LVGL (già aggiornato da LVGL stesso prima dell'evento, come annotato
+sopra) e scrive `checked_value` o `unchecked_value` — precalcolati in `TagValue` alla creazione
+del widget (`CheckboxToggleCtx`, nuovo contesto FFI, stesso principio di `ButtonClickCtx` per il
+bottone) via `serde_json::from_value::<TagValue>`, non un `TagValue::Bool` inventato. `radio`
+eredita il comportamento gratis (`render_radio` delega a `render_checkbox`). Verificato end-to-end
+sull'istanza isolata `.run-12`: aggiunto un terzo widget al template demo (`cb3` in "LVGL Demo
+Pagina 2", tag `lvgl_demo.mode` nuovo, `checked_value: "ON"` / `unchecked_value: "OFF"`, stringa
+non booleano) — click sintetico via XTest ha scritto `"ON"`/`"OFF"` esatti sul tag (confermato via
+`GET /api/tags/lvgl_demo.mode`), non `true`/`false`; il checkbox preesistente `cb2` (nessun
+`checked_value` impostato, quindi default booleano) continua a scrivere `true`/`false` come prima
+— nessuna regressione sul caso comune.
+
+**Correzione**: il gap "`line`: `stroke_dasharray` non supportato" annotato in "seguito 5" era
+sbagliato — verificato rileggendo `SvgCanvas.tsx` riga per riga invece di fidarsi della nota
+precedente. Il blocco che renderizza `obj.type === "line"` (riga ~2293) non legge mai
+`obj.stroke_dasharray`: usa solo `stroke`/`stroke_width`, sempre un tratto pieno. L'unico punto
+del file che legge `obj.stroke_dasharray` è il blocco `pipe` (riga ~2366,
+`pipeStyle === "wire" ? (obj.stroke_dasharray ?? "6,3") : ...`), confermato anche dal commento
+JSDoc in `types/index.ts` riga 361 ("SVG stroke-dasharray value applied to **the pipe body**") —
+il campo è documentato come specifico di `pipe` fin dalla sua definizione, non generico. La linea
+LVGL (sempre piena) è quindi **già** comportamentalmente equivalente alla linea web — non c'era
+nulla da chiudere. Il gap vero è che `pipe` (un tipo composito con routing/gradient/fill-level/
+marker, complessità paragonabile a `trend`/`alarm_viewer`) non è affatto implementato in LVGL —
+fatto già vero prima (assente da `SUPPORTED_TYPES`) ma non reso esplicito come "il tipo a cui
+appartiene `stroke_dasharray`". Non aggiunto alla lista dei 5 passi in corso: nessuna richiesta
+esplicita del maintainer per `pipe`, e la sua complessità meriterebbe una propria valutazione di
+fattibilità separata, non un'aggiunta rapida per analogia col nome del campo.
+
+**Decided**: `checked_value`/`unchecked_value` risolto e verificato. Il gap `line`/dasharray
+rimosso perché non reale; `pipe` intero resta esplicitamente fuori scope, non deciso quando
+affrontarlo.
 
 ---
 

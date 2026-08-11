@@ -61,6 +61,23 @@ objects:
     label: "Toggle demo"
     tag: lvgl_demo.toggle
 
+  # ── checked_value/unchecked_value custom (stringa, non booleano) ────────
+  - id: cb3
+    type: checkbox
+    x: 850.0
+    y: 220.0
+    label: "Modo (stringa ON/OFF)"
+    tag: lvgl_demo.mode
+    checked_value: "ON"
+    unchecked_value: "OFF"
+  - id: cap_cb3
+    type: text
+    x: 850.0
+    y: 256.0
+    text: "checked_value/unchecked_value custom, non true/false"
+    font_size: 12.0
+    color: "#5b6b85"
+
   - id: txt_val2
     type: text
     x: 100.0
