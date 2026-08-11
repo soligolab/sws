@@ -1,0 +1,19 @@
+[package]
+# Escluso dal workspace principale (vedi sws-runtime/Cargo.toml), quindi non può
+# ereditare da [workspace.package] come fanno gli altri crate — stesso motivo/pattern di sws-kiosk.
+name    = "sws-lvgl-viewer"
+version = "2026.7.0"
+edition = "2021"
+license = "AGPL-3.0-only"
+
+[[bin]]
+name = "sws-lvgl-viewer"
+path = "src/main.rs"
+
+[dependencies]
+# LVGL core only for now (no `drivers`/SDL2 yet — quello arriva in Fase 2,
+# quando si sceglie e si prova il backend di output). `use-vendored-config`
+# usa l'`lv_conf.h` di default incluso nel crate: la tuning reale (risoluzione,
+# color depth, budget di memoria per l'HW target) è lavoro di Fase 2, non di
+# questo scaffolding. Vedi docs/adr/0002.
+lvgl = { version = "0.6", default-features = false, features = ["embedded_graphics", "use-vendored-config"] }

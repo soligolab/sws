@@ -309,6 +309,38 @@ deducibile dal codice.
 
 ---
 
+## Q14 — Binding Rust↔LVGL e sequenza dei backend di output
+
+**Context**: emerso il 2026-08-07 avviando il motore di rendering LVGL (`sws-lvgl-viewer`,
+`docs/adr/0002-lvgl-rendering-engine.md`). Il crate ufficiale `lvgl` (`lvgl/lv_binding_rust` su
+crates.io, v0.6.2) offre binding Rust *safe* ma risulta fermo a **LVGL 8.x**, mentre i driver
+Linux moderni e ufficialmente mantenuti (DRM/KMS, Wayland, oltre a fbdev e al simulatore SDL2)
+sono documentati sull'ecosistema **LVGL v9** (`lv_port_linux`). Non è chiaro se il binding v8
+regga quando si arriverà davvero a Wayland/DRM su hardware reale (Fase 4 del piano), né se nel
+frattempo emergano alternative più mature (es. binding community diversi, o bindgen custom
+contro i sorgenti C di LVGL v9).
+
+**Options**:
+1. Restare sul crate ufficiale `lvgl` (v8.x) anche per i backend reali (fbdev/DRM/Wayland),
+   accettando l'eventuale gap di feature/driver rispetto a v9.
+2. Migrare a bindgen custom contro sorgenti C di LVGL v9 vendorizzati, seguendo `lv_port_linux`
+   per i driver — più lavoro FFI, ma allineato ai driver Linux ufficiali oggi mantenuti.
+3. Rivalutare da capo quando si arriva alla Fase 4 (framebuffer/DRM/Wayland reali), sulla base
+   di come si sarà comportato il binding v8 nell'MVP su simulatore SDL2 (Fase 2).
+
+**Default for PoC**: opzione 3 — si parte con il crate ufficiale `lvgl` (v8.x) per l'MVP su
+simulatore SDL2 (velocità di iterazione senza hardware), rimandando la decisione vera a quando
+serve davvero un driver Wayland/DRM su device reale.
+
+**Decided**: not yet.
+
+Nota collegata: questa voce copre anche la domanda "quando/se estrarre un crate `sws-engine`
+puro da `sws-web`" per un ipotetico target LVGL headless che bypassi interamente il layer
+HTTP/WS (Opzione B di ADR 0002) — oggi non giustificato, ma da tenere presente se emergono
+requisiti di deployment realmente headless.
+
+---
+
 ## Adding new questions
 
 When Claude Code adds a new question, follow the format above:
