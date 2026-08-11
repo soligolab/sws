@@ -383,27 +383,57 @@ creazione dei widget (verificata corretta e completa: 11/18 oggetti supportati c
 successo su `examples/templates/demo-items` "Page 1", 7 correttamente segnalati come non ancora
 supportati) e non tenta il redraw.
 
-**Opzioni per sbloccare l'export immagine (Fase 2 successiva)**:
-1. **Vendorizzare/patchare** una copia locale di `lvgl` con il fix minimo (rendere `_buffer`
-   `'static` via `Box::leak` o una `static` globale invece che locale a `register()`). Piccolo
-   nel diff, ma richiede capire a fondo un crate non nostro e fidarsi di non introdurre nuovi bug
-   — rischioso da fare senza un test interattivo con hardware/schermo a disposizione.
-2. **Bypassare il modulo `Display` del crate**: scrivere un piccolo shim C (`build.rs` + `cc`)
-   che chiama direttamente `lv_disp_drv_register` su un buffer `static` C-side, usando solo
-   `lvgl-sys` (i bindgen raw, che non hanno questo problema — il bug è tutto nel layer Rust
-   `Display`/`DrawBuffer`) e i sorgenti LVGL già vendorizzati da `lvgl-sys`. Più lavoro, ma
-   evita del tutto il codice difettoso.
-3. **Cambiare binding**: valutare `rlvgl` (reimplementazione Rust-nativa dei widget LVGL, trovata
-   durante la ricerca iniziale) o altri binding community — ignoto se più maturi su questo fronte
-   specifico, richiede una valutazione a sé.
-4. Aprire una issue upstream su `lvgl/lv_binding_rust` con questo backtrace — il fix più pulito
-   nel lungo periodo, ma non sblocca nel breve.
+**Opzioni per sbloccare l'export immagine, valutate col maintainer il 2026-08-08**:
+1. **Bypassare il modulo `Display` del crate** scrivendo un piccolo shim che chiama
+   `lv_disp_drv_register` direttamente su storage `'static`, usando solo `lvgl-sys` (i bindgen
+   raw, che non hanno questo problema — il bug è tutto nel layer Rust `Display`/`DrawBuffer`).
+   **Scelta dal maintainer** — implementato come Rust puro (`Box::leak`, niente file `.c`
+   separato: stesso identico effetto — storage a vita di programma anziché locale alla
+   funzione — ottenuto con un meccanismo 100% safe di Rust, senza bisogno di un secondo
+   linguaggio/toolchain). Vedi sotto per l'esito.
+2. Vendorizzare/patchare `lvgl` con il fix minimo — scartata (il maintainer ha preferito il
+   bypass, non fidarsi di un patch su codice che non conosciamo a fondo).
+3. Cambiare binding (es. `rlvgl`) — scartata, maturità ignota.
+4. Aprire una issue upstream e rimandare — scartata, si è proceduto subito.
 
-**Default for PoC**: nessuno finché il maintainer non decide — l'interprete widget (la parte di
-valore, il "difficile" per cui vale la pena questo motore) è completo e verificato; il redraw
-resta un TODO esplicito, non un tentativo silenziosamente rotto nel binario.
+**Aggiornamento 2026-08-08 — risolto, con un secondo bug scoperto e risolto nel processo**
 
-**Decided**: not yet.
+Lo shim (`src/lvgl_display.rs`, nuovo modulo) funziona: `task_handler()` non crasha più, i
+widget si vedono. Ma appena collegata una finestra SDL2 per la verifica visiva interattiva
+(scelta del maintainer, `libsdl2-dev` installato appositamente sul dev server), è comparso un
+**secondo bug, indipendente dal primo**: `lvgl-sys` 0.6.2 include una propria reimplementazione
+di `strcmp`/`strncmp` in Rust (`src/string_impl.rs`, pensata per target senza libc), esportata
+senza guardia (`#[no_mangle]`, incondizionata in `lib.rs`: `mod string_impl;`, nessun `#[cfg]`).
+Su un binario `std` normale come questo, **questi simboli sostituiscono quelli della libc di
+sistema per l'intero processo** — non solo per LVGL. La sua `strncmp` faceva
+`slice::from_raw_parts(ptr, n)` **prima** di confrontare un solo byte, e `strcmp` la chiama con
+`n = usize::MAX` — crasha per qualunque puntatore/lunghezza non banale. Confermato via
+`coredumpctl debug -A "-batch -ex bt -ex quit"`: il crash avveniva dentro `sdl2::init()` →
+`libSDL2.so` → `libdbus-1.so` (D-Bus, chiamato da SDL2 durante l'inizializzazione) →
+`lvgl-sys::string_impl::strcmp` — cioè **SDL2, non LVGL**, chiamando la normale `strcmp` di
+sistema, si è ritrovato quella difettosa iniettata da `lvgl-sys`. Non c'era una feature per
+disattivare `string_impl` — nessuna via se non vendorizzare.
+
+**Scelta del maintainer**: vendorizzare `lvgl-sys` 0.6.2 (~21 MB, `vendor/lvgl-sys-0.6.2/` nel
+crate `sws-lvgl-viewer`, referenziato via `[patch.crates-io]` in `Cargo.toml`) con la sola
+`strncmp` corretta — scansione byte-per-byte incrementale via puntatore raw (stesso stile già
+usato correttamente da `strncpy`/`strnlen` nello stesso file), invece di materializzare uno
+slice dell'intera lunghezza richiesta in anticipo. Patch isolata a una funzione, commentata nel
+file con riferimento a questa voce.
+
+**Risultato**: entrambi i fix confermati funzionanti end-to-end. Finestra SDL2 aperta,
+screenshot catturati (`import` via X11 — nota: serve l'ID finestra specifico via `xwininfo`,
+`-window root` fallisce sotto XWayland/Wayland) mostrando sfondo, rettangolo, testo, bottone,
+LED e slider tutti renderizzati correttamente con colori/posizioni/stato corretti, dal vivo,
+contro un runtime `sws-web` reale. `sws-lvgl-viewer` ora gira come loop interattivo (~60fps,
+chiudibile con Esc o dalla finestra) invece che come comando one-shot senza output visivo.
+
+**Decided**: **risolto** (entrambi i bug). La domanda originale di Q14 (binding v8 vs bindgen
+custom su v9, rilevante quando si arriverà a Wayland/DRM reali — Fase 4) resta aperta, ma non è
+più bloccante per lo sviluppo/la verifica del motore su desktop: **Default for PoC** aggiornato
+a opzione 1 (crate ufficiale `lvgl` v8.x, ora con lo shim di registrazione display e
+`lvgl-sys` patchato) — si rivaluta v9/bindgen custom solo se/quando i driver DRM/Wayland
+ufficiali del binding v8 si rivelano insufficienti su hardware reale.
 
 Nota collegata: questa voce copre anche la domanda "quando/se estrarre un crate `sws-engine`
 puro da `sws-web`" per un ipotetico target LVGL headless che bypassi interamente il layer
