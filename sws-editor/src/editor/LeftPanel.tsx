@@ -550,6 +550,7 @@ const LVGL_SUPPORTED_TYPES = new Set<SynopticObject["type"]>([
   "gauge",
   "state_lamp",
   "table",
+  "navbutton",
 ]);
 
 /** Per un progetto target LVGL, mostra solo gli oggetti che il motore sa

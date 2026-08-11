@@ -1,0 +1,97 @@
+id: lvgl_demo_page2
+name: LVGL Demo - Pagina 2
+background: "#111827"
+width: 1280
+height: 800
+objects:
+  - id: t_title2
+    type: text
+    x: 40.0
+    y: 24.0
+    text: "LVGL Demo - Pagina 2"
+    font_size: 26.0
+    font_weight: bold
+    color: "#e2e8f0"
+  - id: t_sub2
+    type: text
+    x: 40.0
+    y: 66.0
+    text: "Stessi tag della pagina 1, vista diversa - dimostra la navigazione"
+    font_size: 14.0
+    color: "#94a3b8"
+
+  # ── gauge grande, centrato (stesso tag della pagina 1: lvgl_demo.value) ──
+  - id: g2
+    type: gauge
+    x: 440.0
+    y: 140.0
+    width: 340.0
+    height: 300.0
+    tag: lvgl_demo.value
+    min: 0.0
+    max: 100.0
+    unit: "%"
+  - id: cap_g2
+    type: text
+    x: 540.0
+    y: 460.0
+    text: "gauge grande - lvgl_demo.value"
+    font_size: 13.0
+    color: "#94a3b8"
+
+  # ── state_lamp + checkbox, riusano lvgl_demo.led_on/toggle ──────────────
+  - id: sl2
+    type: state_lamp
+    x: 100.0
+    y: 220.0
+    height: 32.0
+    tag: lvgl_demo.led_on
+    text_list_entries:
+      - value: true
+        label: "LED acceso"
+        color: "#22c55e"
+      - value: false
+        label: "LED spento"
+        color: "#475569"
+
+  - id: cb2
+    type: checkbox
+    x: 100.0
+    y: 300.0
+    label: "Toggle demo"
+    tag: lvgl_demo.toggle
+
+  - id: txt_val2
+    type: text
+    x: 100.0
+    y: 380.0
+    tag: lvgl_demo.value
+    format: "{value:.1f}"
+    font_size: 22.0
+    color: "#eab308"
+  - id: cap_val2
+    type: text
+    x: 100.0
+    y: 415.0
+    text: "lvgl_demo.value (stesso testo della pagina 1)"
+    font_size: 12.0
+    color: "#5b6b85"
+
+  # ── navigazione: torna alla pagina 1 ─────────────────────────────────────
+  - id: nav_back
+    type: navbutton
+    x: 40.0
+    y: 700.0
+    width: 220.0
+    height: 50.0
+    label: "Pagina 1"
+    target_page: lvgl_demo_page
+    fill: "#1e293b"
+
+  - id: note2
+    type: text
+    x: 40.0
+    y: 760.0
+    text: "Naviga avanti e indietro: i tag restano sincronizzati (sono a livello di progetto, non di pagina)"
+    font_size: 12.0
+    color: "#5b6b85"

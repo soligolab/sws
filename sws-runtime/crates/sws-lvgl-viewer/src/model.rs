@@ -11,12 +11,19 @@
 
 use serde::Deserialize;
 
-// width/height letti (documentano lo schema reale) ma non ancora usati: la
-// risoluzione di rendering è fissa a compile-time (vedi lvgl_render::HOR_RES),
-// non deriva dalla pagina — v. commento su HOR_RES in lvgl_render.rs.
-#[allow(dead_code)]
+// width/height determinano la risoluzione del display LVGL, letti dalla
+// PRIMA pagina caricata in una sessione (vedi lvgl_render::resolve_resolution)
+// — un display fisico reale non cambia risoluzione a ogni cambio pagina,
+// quindi le pagine successive raggiunte per navigazione la ereditano anche se
+// il loro campo width/height dicesse altro.
 #[derive(Debug, Deserialize)]
 pub struct SynopticPage {
+    /// Identificatore stabile della pagina — quello a cui puntano i
+    /// `navbutton.target_page` (**non** il nome file: `GET /api/synoptics/:name`
+    /// risolve per nome file, i navbutton per `id`, sono cose diverse anche
+    /// se spesso coincidono per abitudine — vedi `client::resolve_page_by_id`).
+    #[serde(default)]
+    pub id: Option<String>,
     #[serde(default)]
     pub name: String,
     #[serde(default)]
@@ -104,6 +111,9 @@ pub struct SynopticObject {
 
     // ── table ──
     pub table_rows: Option<Vec<TableRow>>,
+
+    // ── navbutton ──
+    pub target_page: Option<String>,
 }
 
 /// Porta `TextListEntry` di `types/index.ts` — un valore scalare o un range

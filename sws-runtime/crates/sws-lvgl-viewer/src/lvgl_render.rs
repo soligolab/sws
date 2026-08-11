@@ -33,21 +33,32 @@ use sws_core::tag::{TagQuality, TagValue};
 use crate::client::{TagSnapshot, TagSnapshotValue};
 use crate::model::{OnValue, SynopticObject, SynopticPage, TableRow, TextListEntry};
 
-/// Risoluzione fissa a compile-time: `DrawBuffer<const N: usize>` di LVGL
-/// richiede una dimensione nota in compilazione, quindi non può dipendere
-/// dalla `width`/`height` (runtime) della pagina SWS. Su un target embedded
-/// reale la risoluzione è comunque fissa (il pannello ha una dimensione
-/// fisica), quindi questo non è un compromesso ad-hoc: le pagine più grandi
-/// di questa risoluzione verrebbero semplicemente "tagliate" da LVGL stesso,
-/// come accadrebbe su un pannello fisico più piccolo della pagina. Non
-/// influisce sul bug Q14 (riprodotto identico anche a 240×240, la
-/// risoluzione dell'esempio ufficiale del crate).
+/// Risoluzione di default se la pagina non specifica `width`/`height` — non
+/// più un vincolo a compile-time (`lvgl_display::init_display` prende
+/// `hor_res`/`ver_res` a runtime fin dal fix del bug di lifetime in Q14, via
+/// `Box::leak` invece di un `DrawBuffer<const N>`): la risoluzione vera è
+/// quella della **prima** pagina caricata in una sessione, vedi
+/// `resolve_resolution`.
 pub const HOR_RES: u32 = 800;
 pub const VER_RES: u32 = 480;
 
+/// Risoluzione del display per l'intera sessione: quella della prima pagina
+/// caricata (fallback a `HOR_RES`/`VER_RES` se `width`/`height` non
+/// impostati). Chiamata solo per la prima pagina (`interpret_page`) — le
+/// pagine raggiunte per navigazione (`render_page_objects`) riusano il
+/// display già registrato, anche se il loro `width`/`height` fosse diverso:
+/// un pannello fisico reale non cambia risoluzione a ogni cambio pagina,
+/// quindi seguire quella della prima pagina è la scelta corretta, non solo
+/// la più semplice.
+fn resolve_resolution(page: &SynopticPage) -> (u32, u32) {
+    let hor_res = page.width.unwrap_or(HOR_RES as f64).round() as u32;
+    let ver_res = page.height.unwrap_or(VER_RES as f64).round() as u32;
+    (hor_res, ver_res)
+}
+
 const SUPPORTED_TYPES: &[&str] = &[
     "rect", "ellipse", "line", "text", "button", "led", "slider", "progress_bar", "checkbox", "radio", "gauge",
-    "state_lamp", "table",
+    "state_lamp", "table", "navbutton",
 ];
 
 #[derive(Default, Debug)]
@@ -166,6 +177,13 @@ struct WidgetChangeCtx {
     tx: mpsc::Sender<TagCommand>,
 }
 
+/// Contesto per il click di un navbutton: il nome pagina è fisso quanto il
+/// `write_value` di un bottone — letto dal synottico, non dal vivo.
+struct NavClickCtx {
+    target_page: String,
+    tx: mpsc::Sender<String>,
+}
+
 /// Alloca un contesto `'static` per una callback LVGL (`Box::leak`, stesso
 /// principio di `lvgl_display.rs`/`lvgl_indev.rs`: il widget e la sua
 /// callback vivono quanto il processo, mai distrutti prima — niente free
@@ -186,6 +204,19 @@ unsafe extern "C" fn sws_button_clicked_cb(e: *mut lvgl_sys::lv_event_t) {
     }
     let ctx = unsafe { &*(user_data as *const ButtonClickCtx) };
     let _ = ctx.tx.send(TagCommand { tag: ctx.tag.clone(), value: ctx.write_value.clone() });
+}
+
+/// `LV_EVENT_CLICKED` su un navbutton: stesso evento del bottone normale,
+/// contesto diverso (nome pagina invece di tag/valore) — canale separato da
+/// `TagCommand` perché il chiamante deve reagire in modo completamente
+/// diverso (ricaricare la pagina, non scrivere un tag).
+unsafe extern "C" fn sws_navbutton_clicked_cb(e: *mut lvgl_sys::lv_event_t) {
+    let user_data = unsafe { lvgl_sys::lv_event_get_user_data(e) };
+    if user_data.is_null() {
+        return;
+    }
+    let ctx = unsafe { &*(user_data as *const NavClickCtx) };
+    let _ = ctx.tx.send(ctx.target_page.clone());
 }
 
 /// `LV_EVENT_VALUE_CHANGED` su una checkbox/radio: lo stato CHECKED è già
@@ -559,6 +590,41 @@ fn render_button(
             lvgl_sys::lv_obj_add_event_cb(
                 ptr.as_ptr(),
                 Some(sws_button_clicked_cb),
+                lvgl_sys::lv_event_code_t_LV_EVENT_CLICKED,
+                ctx,
+            );
+        }
+    }
+    Ok(())
+}
+
+/// Bottone di navigazione — stessa forma del bottone normale ma sempre
+/// statico (nessun `LiveBinding`, come `render_button`): non scrive un tag,
+/// manda `obj.target_page` su un canale separato (`nav_tx`) che il chiamante
+/// (`main.rs`) usa per ricaricare l'intera pagina, non solo aggiornare un
+/// widget. Bordo blu + ">" al posto della "▶" del web (stesso motivo delle
+/// altre scelte ASCII-only in questo file: niente glyph mancanti nel font
+/// LVGL, vedi Q14).
+fn render_navbutton(
+    screen: &mut lvgl::Obj,
+    obj: &SynopticObject,
+    styles: &mut Vec<Style>,
+    nav_tx: &mpsc::Sender<String>,
+) -> anyhow::Result<()> {
+    let mut btn = Btn::create(screen).map_err(|e| anyhow::anyhow!("Btn::create: {e:?}"))?;
+    set_pos_size(&mut btn, obj, 140.0, 36.0)?;
+    apply_bg_color(&mut btn, obj.fill.as_deref().unwrap_or("#0f172a"), styles)?;
+    let mut lbl = Label::create(&mut btn).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
+    lbl.set_text(&text_cstring(&format!("> {}", obj.label.as_deref().unwrap_or("Go to page"))))
+        .map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
+
+    if let Some(target_page) = &obj.target_page {
+        let ptr = btn.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
+        let ctx = leak_ctx(NavClickCtx { target_page: target_page.clone(), tx: nav_tx.clone() });
+        unsafe {
+            lvgl_sys::lv_obj_add_event_cb(
+                ptr.as_ptr(),
+                Some(sws_navbutton_clicked_cb),
                 lvgl_sys::lv_event_code_t_LV_EVENT_CLICKED,
                 ctx,
             );
@@ -1021,35 +1087,80 @@ fn update_table_data_cells(ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>, rows: &[
     }
 }
 
-/// Registra un display LVGL `HOR_RES`×`VER_RES` (via `lvgl_display::init_display`,
-/// non `lvgl::Display::register()` — vedi commento di modulo) e crea un
-/// widget per ogni oggetto supportato della pagina. **Non chiama
-/// `task_handler()`**: tocca al chiamante guidare il redraw (loop SDL2 in
-/// `main.rs`), ripetutamente per tutta la durata della finestra.
-///
-/// Ritorna anche gli `Style` statici e i `LiveBinding` (widget tag-dipendenti,
-/// con i loro `Style` dinamici): entrambi devono restare vivi quanto la
-/// finestra, non solo quanto questa funzione — LVGL tiene puntatori, non
-/// copie. Il chiamante passa i `LiveBinding` a `update_bindings` a ogni
-/// frame per riflettere i valori tag correnti senza ricreare nulla.
+/// Prima pagina di una sessione: registra il display LVGL alla risoluzione
+/// di questa pagina (`resolve_resolution` — vedi commento su `HOR_RES`) e
+/// delega a `render_page_objects` per la creazione dei widget. Ritorna anche
+/// `hor_res`/`ver_res` risolti: il chiamante li usa per dimensionare la
+/// finestra SDL2 (`main.rs`), che deve combaciare con quanto passato a
+/// `init_display`.
 pub fn interpret_page(
     page: &SynopticPage,
     tags: &TagSnapshot,
-    tx: &mpsc::Sender<TagCommand>,
+    tag_tx: &mpsc::Sender<TagCommand>,
+    nav_tx: &mpsc::Sender<String>,
+) -> anyhow::Result<(RenderSummary, Vec<Style>, Vec<LiveBinding>, u32, u32)> {
+    let (hor_res, ver_res) = resolve_resolution(page);
+    crate::lvgl_display::init_display(hor_res, ver_res)?;
+    let (summary, styles, live) = render_page_objects(page, tags, tag_tx, nav_tx)?;
+    Ok((summary, styles, live, hor_res, ver_res))
+}
+
+/// Crea un widget per ogni oggetto supportato della pagina su uno schermo
+/// **nuovo** (non chiama `init_display` — per quello vedi `interpret_page`,
+/// solo per la prima pagina di una sessione), poi lo carica con
+/// `lv_disp_load_scr` (quello dietro la macro `lv_scr_load` di LVGL — non
+/// esposta dal binding perché `static inline` nell'header C, verificato
+/// prima di reimplementarla a mano) e distrugge lo schermo precedente.
+///
+/// **Perché uno schermo nuovo invece di ripulire quello attivo** (prima
+/// versione di questa funzione, sostituita): `lv_obj_clean` sullo schermo
+/// attivo + ricreazione dei widget ha prodotto, su navigazioni ripetute con
+/// il catalogo widget completo (in particolare `gauge`/`lv_meter`), sia un
+/// crash (`_lv_obj_style_apply_color_filter` su un puntatore non più
+/// valido durante il ridisegno) sia un artefatto visivo distinto (testo con
+/// un pattern a righe sopra) — non risolti aggiungendo un
+/// `lv_obj_invalidate` esplicito. Non è stato isolato il meccanismo esatto
+/// (indagine approfondita ma non conclusiva, vedi Q14), ma
+/// `lv_disp_load_scr`/`lv_obj_del` è il pattern standard e testato di LVGL
+/// per il cambio schermo — schermo vecchio e nuovo restano alberi
+/// completamente separati finché lo scambio non è completo, invece di
+/// mutare in-place quello attivo — e si è mostrato stabile nei test.
+///
+/// **Non chiama `task_handler()`**: tocca al chiamante guidare il redraw
+/// (loop SDL2 in `main.rs`), ripetutamente per tutta la durata della
+/// finestra.
+///
+/// Ritorna anche gli `Style` statici e i `LiveBinding` (widget tag-
+/// dipendenti, con i loro `Style` dinamici): entrambi devono restare vivi
+/// quanto la pagina corrente, non solo quanto questa funzione — LVGL tiene
+/// puntatori, non copie. Il chiamante passa i `LiveBinding` a
+/// `update_bindings` a ogni frame per riflettere i valori tag correnti senza
+/// ricreare nulla, e li sostituisce per intero (non li accumula) alla
+/// prossima chiamata di questa funzione, quando naviga altrove.
+pub fn render_page_objects(
+    page: &SynopticPage,
+    tags: &TagSnapshot,
+    tag_tx: &mpsc::Sender<TagCommand>,
+    nav_tx: &mpsc::Sender<String>,
 ) -> anyhow::Result<(RenderSummary, Vec<Style>, Vec<LiveBinding>)> {
     let mut summary = RenderSummary::default();
     let mut styles: Vec<Style> = Vec::new();
     let mut live: Vec<LiveBinding> = Vec::new();
 
-    crate::lvgl_display::init_display(HOR_RES, VER_RES)?;
+    // Schermo precedente (se c'è già un display registrato — non c'è al
+    // primissimo avvio, lv_disp_get_scr_act restituirebbe comunque lo
+    // schermo di default auto-creato da LVGL, che va trattato allo stesso
+    // modo: distrutto dopo lo scambio, nessun caso speciale per la prima
+    // pagina).
+    let old_scr_ptr = unsafe { lvgl_sys::lv_disp_get_scr_act(core::ptr::null_mut()) };
 
-    // lv_disp_get_scr_act(NULL) = "lo schermo attivo del display di default"
-    // — c'è un solo display registrato, quindi è inequivocabile. Stesso
-    // pattern raw di create_child_obj: lvgl::Obj::from_raw() su un puntatore
-    // ottenuto direttamente da lvgl-sys.
+    // lv_obj_create(NULL) crea uno schermo di primo livello, non un figlio
+    // (stesso motivo per cui create_child_obj esiste per il caso figlio —
+    // vedi il suo commento). Non ancora "attivo": lo diventa solo dopo
+    // lv_disp_load_scr più sotto, quando tutti i widget sono già a posto.
     let mut screen: lvgl::Obj = unsafe {
-        let ptr = lvgl_sys::lv_disp_get_scr_act(core::ptr::null_mut());
-        let nn = core::ptr::NonNull::new(ptr).ok_or_else(|| anyhow::anyhow!("lv_disp_get_scr_act ha restituito null"))?;
+        let ptr = lvgl_sys::lv_obj_create(core::ptr::null_mut());
+        let nn = core::ptr::NonNull::new(ptr).ok_or_else(|| anyhow::anyhow!("lv_obj_create(NULL) ha restituito null"))?;
         <lvgl::Obj as Widget>::from_raw(nn)
     };
     if let Some(bg) = &page.background {
@@ -1071,13 +1182,14 @@ pub fn interpret_page(
             "rect" => render_rect(&mut screen, obj, &mut styles),
             "ellipse" => render_ellipse(&mut screen, obj, &mut styles),
             "line" => render_line(&mut screen, obj, &mut styles),
-            "button" => render_button(&mut screen, obj, &mut styles, tx),
+            "button" => render_button(&mut screen, obj, &mut styles, tag_tx),
+            "navbutton" => render_navbutton(&mut screen, obj, &mut styles, nav_tx),
             "text" => render_text(&mut screen, obj, tags).map(|b| live.push(b)),
             "led" => render_led(&mut screen, obj, tags).map(|b| live.push(b)),
-            "slider" => render_slider(&mut screen, obj, tags, tx).map(|b| live.push(b)),
+            "slider" => render_slider(&mut screen, obj, tags, tag_tx).map(|b| live.push(b)),
             "progress_bar" => render_progress_bar(&mut screen, obj, tags).map(|b| live.push(b)),
-            "checkbox" => render_checkbox(&mut screen, obj, tags, tx).map(|b| live.push(b)),
-            "radio" => render_radio(&mut screen, obj, tags, tx).map(|b| live.push(b)),
+            "checkbox" => render_checkbox(&mut screen, obj, tags, tag_tx).map(|b| live.push(b)),
+            "radio" => render_radio(&mut screen, obj, tags, tag_tx).map(|b| live.push(b)),
             "gauge" => render_gauge(&mut screen, obj, tags).map(|b| live.push(b)),
             "state_lamp" => render_state_lamp(&mut screen, obj, tags).map(|b| live.push(b)),
             "table" => render_table(&mut screen, obj, tags).map(|b| live.push(b)),
@@ -1086,6 +1198,19 @@ pub fn interpret_page(
         match result {
             Ok(()) => summary.rendered.push(format!("{id} ({obj_type})")),
             Err(e) => summary.skipped_unsupported.push(format!("{id} ({obj_type}) — errore: {e}")),
+        }
+    }
+
+    unsafe {
+        let new_scr_ptr = screen.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?.as_ptr();
+        // lv_disp_load_scr (dietro lv_scr_load, vedi commento della
+        // funzione): rende attivo il nuovo schermo. Il vecchio smette di
+        // essere quello attivo ma non viene distrutto da questa chiamata
+        // (auto_del=false dentro la sua implementazione) — tocca a noi,
+        // subito dopo, ora che il nuovo è già a schermo.
+        lvgl_sys::lv_disp_load_scr(new_scr_ptr);
+        if !old_scr_ptr.is_null() {
+            lvgl_sys::lv_obj_del(old_scr_ptr);
         }
     }
 
