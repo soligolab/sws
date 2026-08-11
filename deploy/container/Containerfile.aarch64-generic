@@ -23,6 +23,43 @@
 # alla fine dello script di build, non solo assunto.
 FROM ubuntu:24.04
 
+# Passato da scripts/build_container_aarch64_generic.sh (--build-arg
+# WITH_LVGL=1 quando --with-lvgl è attivo). Serve solo per decidere se
+# installare libsdl2-2.0-0 qui sotto — il builder installa già libsdl2-dev,
+# ma quello vive in un'immagine intermedia separata che non arriva mai qui:
+# sws-lvgl-viewer linka SDL2 dinamicamente, quindi senza la libreria runtime
+# nell'immagine finale parte e crash-a subito ("cannot open shared object
+# file", scoperto sul primo test reale, 2026-08-09 — non un'ipotesi). Non
+# installata incondizionatamente: chi non passa --with-lvgl non deve
+# appesantirsi per una dipendenza che non usa (stesso principio del builder
+# separato in Containerfile.aarch64-generic-lvgl.builder).
+ARG WITH_LVGL=0
+
+# libegl1/libegl-mesa0/libgles2/libgl1-mesa-dri/libwayland-egl1/libgbm1
+# (sotto lo stesso WITH_LVGL, non un flag a parte). Nate come tentativo di
+# risolvere un SIGSEGV sotto SDL_VIDEODRIVER=wayland (non hanno funzionato
+# lì: quel crash è un bug logico interno a SDL2, non una libreria mancante —
+# vedi docs/OPEN_QUESTIONS.md Q14). Servono davvero per
+# **SDL_VIDEODRIVER=kmsdrm** (DRM/KMS diretto via GBM+EGL, senza compositor
+# Wayland/X11 in mezzo): con solo libgbm1+libegl-mesa0, kmsdrm falliva
+# comunque con "SDL error: EGL not initialized" — mancava **libegl1**, il
+# dispatch loader EGL generico che le app caricano (libegl-mesa0 è solo
+# l'implementazione vendor Mesa, caricata poi via ICD — stessa separazione
+# di libgl1/libgl1-mesa-dri; scoperto sul secondo test reale, 2026-08-10).
+# Mesa fornisce EGL/GLES/GBM **software** (nessuna GPU reale richiesta,
+# coerente con l'assenza di driver Mali/Rockchip in questa immagine
+# "generica").
+#
+# libdrm2 esplicito (non lasciato solo alla dipendenza transitiva di
+# libgbm1): src/drm_display.rs linka libdrm direttamente
+# (rustc-link-lib=drm) per il backend "drm" — rendering diretto via API DRM
+# legacy, che bypassa SDL2 del tutto. Aggiunto perché anche kmsdrm (sopra)
+# si è rivelato inutilizzabile su questo hardware: il driver Rockchip
+# mostra schermo nero sul percorso KMS *atomico* (usato sia da SDL2 sia dal
+# driver `drm.c` vendorizzato in lvgl-sys), verificato con `modetest -a` —
+# solo l'API *legacy* (`drmModeSetCrtc`) funziona su questo device, vedi
+# `docs/OPEN_QUESTIONS.md` Q14 per l'indagine completa.
+
 # python3: PyO3 gira con `auto-initialize`, quindi serve l'interprete completo
 #   (stdlib inclusa), non la sola libpython.
 # python3-pip + RestrictedPython: senza, il motore script parte NON sandboxato
@@ -34,12 +71,18 @@ RUN apt-get update && \
         curl \
         python3 \
         libpython3.12t64 \
-        python3-pip && \
+        python3-pip \
+        $( [ "$WITH_LVGL" = "1" ] && echo libsdl2-2.0-0 libegl1 libegl-mesa0 libgles2 libgl1-mesa-dri libwayland-egl1 libgbm1 libdrm2 ) && \
     pip install --no-cache-dir --break-system-packages "RestrictedPython>=7.0" && \
     apt-get purge -y python3-pip && apt-get autoremove -y && \
     rm -rf /var/lib/apt/lists/*
 
-COPY bin/sws-runtime /usr/local/bin/sws-runtime
+# Copia l'intera bin/ (non solo sws-runtime per nome): con --with-lvgl,
+# scripts/build_container_aarch64_generic.sh mette in bin/ anche
+# sws-lvgl-viewer, che finisce così nella stessa immagine — stesso principio
+# di Containerfile.aarch64, vedi lì per i dettagli. ENTRYPOINT resta
+# sws-runtime di default.
+COPY bin/             /usr/local/bin/
 COPY templates/      /var/sws/templates/
 
 # La SPA sta DENTRO l'immagine, come negli altri due percorsi container e per

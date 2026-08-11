@@ -471,6 +471,50 @@ Attenzione a due dettagli emersi provandolo:
   `ServiceResolved` senza deduplicare per `fullname`, e mDNS ne emette più di
   uno. Difetto solo cosmetico, non ancora corretto.
 
+## 4. Modalità LVGL (companion opzionale, non un'immagine diversa)
+
+`sws-lvgl-viewer` (motore di rendering LVGL, `docs/adr/0002-lvgl-rendering-engine.md`) non è un
+prodotto separato: con `scripts/build_container.sh --with-lvgl`, la **stessa** immagine
+`sws-runtime` contiene anche il binario `sws-lvgl-viewer` in `/usr/local/bin/`, senza toccare
+l'`ENTRYPOINT` di default (resta `sws-runtime`) né il comportamento di chi non usa il flag. Chi
+vuole anche un display LVGL locale lancia un **secondo** container dalla stessa immagine con
+l'entrypoint alternativo, puntato al primo container via rete host o indirizzo del device:
+
+```bash
+podman run -d --name sws-lvgl-viewer \
+  --userns=keep-id \
+  -v /run/user/1000:/run/user/1000 \
+  -e XDG_RUNTIME_DIR=/run/user/1000 \
+  -e WAYLAND_DISPLAY=wayland-1 \
+  -e SDL_VIDEODRIVER=wayland \
+  --entrypoint sws-lvgl-viewer \
+  localhost/sws-runtime:<versione>-arm64 \
+  --base-url https://127.0.0.1:8443 --page "<pagina iniziale>"
+```
+
+**`--userns=keep-id` non è opzionale**: senza, il socket Wayland dell'host (proprietario
+`user`/uid reale del device) risulta "Permission denied" dentro il container, perché rootless
+podman per default rimappa gli UID in un namespace separato — verificato di persona il 2026-08-09
+su un TC620 reale (`tc620-a-p3-c6-07aff9.local`), non assunto dalla documentazione podman. Con
+`--userns=keep-id` l'UID del processo dentro il container combacia con quello host, il socket
+diventa visibile e scrivibile.
+
+**`WAYLAND_DISPLAY` non è sempre `wayland-0`**: sul device di verifica il socket reale era
+`/run/user/1000/wayland-1` — controllare con `ls /run/user/1000/wayland-*` prima di lanciare,
+non dare per scontato il nome (anche `deploy/yocto/sws-kiosk.service`, mai verificato su hardware
+reale finché non cross-compila, ha lo stesso `wayland-0` non confermato).
+
+**Cosa è stato verificato e cosa no** (2026-08-09, stessa sessione): confermato che un container
+rootless con `--userns=keep-id` vede e può aprire il socket Wayland reale del device — provato con
+l'immagine `sws-runtime` esistente (nessun binario LVGL coinvolto, solo la meccanica di accesso al
+socket). **Non verificato**: il rendering LVGL vero, perché produrre un binario `sws-lvgl-viewer`
+aarch64 richiede l'SDK Yocto Pixsys (`scripts/yocto/build.sh --with-lvgl`), non installato né sulla
+macchina di sviluppo usata per questa sessione né sul device stesso (nessun toolchain di
+compilazione a bordo, solo runtime). Il comando sopra è quindi un **pattern verificato per la
+parte di accesso a Wayland**, non un test end-to-end completo — il prossimo passo è cross-compilare
+`sws-lvgl-viewer` su una macchina con l'SDK installato e ripetere questo comando con un binario
+vero.
+
 ## Verifica
 
 Esito misurato sul device il 2026-07-28 (Pixsys OS 2.0.0-dev, kernel 6.12.19,

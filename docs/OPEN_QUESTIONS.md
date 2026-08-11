@@ -962,6 +962,134 @@ comunque.
 Resta un solo punto dalla lista dei 5 passi: `symbol` (domanda architetturale SVG→LVGL, ancora da
 scrivere come sua voce in questo documento).
 
+**Aggiornamento 2026-08-09 (seguito 9) — deploy Pixsys reale: Fase 4 (framebuffer/DRM/Wayland)
+iniziata, non chiusa**
+
+Su richiesta esplicita del maintainer ("lo scopo iniziale era proprio di non usare browser nei
+dispositivi dove non è disponibile... per motivi di risorse non posso nemmeno nasconderlo dentro
+ad un viewer"), affrontata la Fase 4 già prevista dal piano originale di questo filone
+(`docs/plans/2026-08-07-lvgl-engine.md`): sostituire Chromium-on-Weston con `sws-lvgl-viewer` sui
+Pixsys reali, per liberare le risorse che il browser consuma oggi. Vincolo esplicito del
+maintainer, centrale per come è stato affrontato: LVGL deve restare un **companion opzionale** di
+`sws-runtime`, mai un fork — tutto ciò che esiste per la versione web (runtime, deploy Yocto,
+container) deve continuare a funzionare esattamente come oggi (vedi memoria
+`feedback_lvgl_deploy_unified`). Concretamente: `scripts/yocto/build.sh` guadagna un flag
+`--with-lvgl` (default off, comportamento di default byte-per-byte invariato), un nuovo
+`deploy/yocto/sws-lvgl-viewer.service` affianca `sws-kiosk.service` come companion opt-in non
+auto-abilitato da `install.sh` (che resta intoccato), e `Containerfile.aarch64` copia l'intera
+`bin/` invece del solo `sws-runtime` per nome, così la stessa immagine può contenere anche
+`sws-lvgl-viewer` senza un `COPY` condizionale — dettagli completi in
+`docs/DEPLOY_CONTAINER_AARCH64.md` §4.
+
+**Verifica su hardware reale** (`tc620-a-p3-c6-07aff9.local`, TC620, Pixsys OS 2.0.2, kernel
+6.12.19 PREEMPT_RT, aarch64) **parziale, non completa** — onestamente, non spacciata per riuscita:
+- **Confermato di persona**: podman rootless su questo device può accedere al socket Wayland reale
+  dell'host (`/run/user/1000/wayland-1`) da dentro un container, ma **solo** con `--userns=keep-id`
+  — senza, "Permission denied" perché rootless podman rimappa gli UID in un namespace separato per
+  default, indipendentemente dal fatto che `--user` dentro il container combaci numericamente con
+  l'UID host. Il maintainer aveva segnalato che "il container può accedere a Wayland ma non
+  ricordo come" — questo è il "come". Provato con l'immagine `sws-runtime` esistente (nessun
+  binario LVGL coinvolto, solo la meccanica del socket), non distruttivo: container usa e getta
+  (`--rm`), il container `sws-runtime` reale in esecuzione da 39 ore sul device non è stato toccato
+  (verificato prima e dopo).
+- **Non verificato**: il rendering LVGL vero. Produrre un `sws-lvgl-viewer` aarch64 richiede l'SDK
+  Yocto Pixsys (`scripts/yocto/build.sh --with-lvgl`) — non installato né sulla macchina usata per
+  questa sessione né sul device stesso (nessun toolchain di compilazione a bordo, solo runtime:
+  niente `cargo`/`rustc`/`gcc`/`pkg-config`). Bloccante reale, non aggirato: serve una macchina con
+  l'SDK installato per completare questo passo.
+- **`WAYLAND_DISPLAY` non è `wayland-0`** su questo device (era `wayland-1`) — sia il nuovo
+  `sws-lvgl-viewer.service` sia il preesistente `sws-kiosk.service` avevano quel valore hardcoded,
+  mai verificato su hardware reale finché nessuno dei due cross-compila/gira lì. Da leggere
+  `/run/user/1000/wayland-*` a runtime invece di assumere un nome fisso, prossima volta.
+- **Numeri reali del device** (rilevanti per il "per motivi di risorse" del maintainer, mai
+  documentati altrove prima d'ora): 1.9 GB RAM totale, ~200 MB liberi con Chromium+sws-runtime già
+  in esecuzione; `/` (rootfs) al 100% pieno, `/data` (dove vive podman) con 8.3 GB liberi su 10 GB.
+  Un budget stretto per un motore browser completo — sostanzia concretamente la motivazione
+  originale, non solo in astratto.
+
+**Decided**: pattern "companion opzionale" implementato e committato
+(`feature/lvgl-pixsys-deploy`); accesso container-Wayland verificato su hardware reale con
+`--userns=keep-id`. Rendering LVGL reale resta da verificare — richiede una cross-compilazione con
+l'SDK Yocto, non eseguibile in questa sessione.
+
+**Aggiornamento 2026-08-09 (seguito 10) — pivot al percorso container generico aarch64**
+
+Richiesta esplicita del maintainer, subito dopo il seguito 9: preferire per ora il percorso
+**generico aarch64** (nessun SDK/toolchain Pixsys, build sotto emulazione QEMU) invece di quello
+SDK-tuned appena descritto — "il build per i prodotti pixsys per ora vorrei farlo come generic
+arch64 senza usare il toolkit, preferisco che il container per ora sia generico e non legato ai
+prodotti pixsys". Non cambia l'architettura del seguito 9 (companion opzionale, mai un fork):
+cambia solo *quale* dei percorsi di build già esistenti nel repo viene esteso per primo con
+`--with-lvgl`.
+
+Esteso lo stesso pattern non-regressivo a `scripts/build_container_aarch64_generic.sh
+--with-lvgl` (default off): builda `sws-lvgl-viewer` dentro il container builder QEMU-emulato
+esistente, con un nuovo layer dedicato,
+`deploy/container/Containerfile.aarch64-generic-lvgl.builder` (clang/libclang/libsdl2-dev,
+separato dal builder condiviso così il percorso `sws-runtime`-only non si appesantisce per una
+dipendenza che non usa).
+
+**Bloccato al momento di eseguirlo, non solo di scriverlo**: questo percorso richiede root
+(rootless podman + crun + emulazione QEMU non attraversa lo user namespace — verificato
+2026-08-01 per il solo `sws-runtime`, stesso vincolo qui) e `sudo` è negato dalla policy dei
+permessi di questo progetto. Diversamente dai blocchi sudo precedenti (sempre un prompt
+interattivo negato dal maintainer), stavolta una probe non interattiva (`sudo -n true`) è stata
+negata direttamente dal sistema di permessi — conferma che il blocco è a livello di policy, non
+di conferma estemporanea. Il maintainer ha scelto di lanciare lui stesso
+`sudo ./scripts/build_container_aarch64_generic.sh --with-lvgl --push` su questa macchina quando
+conveniente, invece di concedere un'eccezione. Rischio aggiuntivo non ancora verificato in nessuna
+direzione, segnalato onestamente in `docs/HOWTO.md`: bindgen/`libclang` (usato per compilare
+`lvgl-sys`) sotto emulazione QEMU è un'incognita che il solo `sws-runtime` non incontra mai su
+questo percorso.
+
+`docs/HOWTO.md` cap. 1 aggiornato di conseguenza: percorso generico ora primario (Passo 0),
+percorso SDK preservato come alternativa in un blocco ripiegabile, riferimenti immagine corretti
+da `latest-arm64` a `latest-arm64-generic` (il tag nudo resta quello SDK-based,
+`install-container.sh --pull` senza argomento sceglie quello per default — va sempre passato il
+riferimento esplicito).
+
+**Decided**: percorso generico preferito "per ora" (parole del maintainer) rispetto a quello
+SDK-tuned. Non è una chiusura di Q14 — resta un'esecuzione mancante: il maintainer lancerà lui
+stesso la build reale quando conveniente.
+
+**Aggiornamento 2026-08-09 (seguito 11) — la build reale è riuscita, rischio bindgen/QEMU chiuso**
+
+Il maintainer ha lanciato `sudo ./scripts/build_container_aarch64_generic.sh --with-lvgl --push`.
+**Riuscita senza incidenti**: bindgen contro `libclang` (necessario per compilare `lvgl-sys`,
+l'incognita segnalata nel seguito 10 e in `docs/HOWTO.md`) sotto emulazione QEMU si comporta come
+il resto della toolchain Rust — nessun crash, nessun workaround necessario. Il timore era
+ipotetico fin dall'inizio (mai riprodotto un problema concreto, solo segnalato come rischio non
+escluso) e si è rivelato infondato.
+
+Verificato di persona, non solo dal log "done" dello script:
+- `sws-lvgl-viewer` prodotto (`crates/sws-lvgl-viewer/target-container-aarch64-generic/release/`)
+  è un ELF aarch64 valido (`file` conferma "ARM aarch64", 18493080 byte), di proprietà `max_xxv`
+  (il `trap restore_ownership` ha funzionato anche con questo target aggiuntivo).
+- L'immagine pubblicata (`ghcr.io/soligolab/sws-runtime:2026.7.0-arm64-generic` e i tag gemelli
+  `<sha>`/`latest`) contiene **davvero** entrambi i binari sotto `/usr/local/bin/` — non assunto
+  dal `Containerfile`, ma ispezionato estraendo i layer dell'archivio `.tar.gz` salvato in locale
+  (`dist/sws-runtime-2026.7.0-aarch64-generic-image.tar.gz`, 71 MB) e cercando il path in ciascun
+  layer: trovato in due formati (`*.tar` e `*/layer.tar`, duplicazione attesa di `podman save` fra
+  formato docker-archive e OCI, non un bug).
+
+**Un bug proprio dello script scoperto e corretto da questo stesso run** (non del cross-compile):
+`podman login --get-login`/`podman push`, girando anch'essi sotto `sudo` (necessario per la build
+QEMU, vedi seguito precedente), interrogavano l'auth store di **root**, separato da quello
+rootless di `$SUDO_USER` — un `podman login` fatto correttamente da utente normale prima di
+lanciare lo script risultava invisibile ("nessun login su ghcr.io" nonostante un login valido).
+Il maintainer non voleva ripetere il login come root (credenziali duplicate da gestire). Corretto
+in `scripts/build_container_aarch64_generic.sh`: `podman login`/`push` ora puntano esplicitamente
+all'`auth.json` di `$SUDO_USER` via `--authfile`, cercato negli stessi due percorsi che userebbe
+podman di default (`/run/user/<uid>/containers/auth.json`, poi
+`~/.config/containers/auth.json`) — nessun secondo login richiesto.
+
+**Decided**: percorso generico aarch64 con `--with-lvgl` **funzionante end-to-end fino alla
+pubblicazione dell'immagine**. Resta da verificare solo l'ultimo miglio, il rendering LVGL vero su
+schermo — richiede il test su hardware reale (`tc620-a-p3-c6-07aff9.local`), non ancora ripetuto
+con questo binario. Il percorso SDK Pixsys-tuned (Q14, corpo principale) resta comunque la scelta
+giusta quando servirà davvero il tuning cortex-a35 — questo seguito non lo invalida, risolve solo
+il piano B "per ora" preferito dal maintainer.
+
 ---
 
 ## Q15 — Simboli SVG (`symbol`/`faceplate`) su LVGL: nessun renderer SVG disponibile

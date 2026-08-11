@@ -33,6 +33,14 @@
 #   ./scripts/build_container_aarch64_generic.sh --no-spa        # riusa sws-editor/dist così com'è
 #   ./scripts/build_container_aarch64_generic.sh --registry REF  # altro repository di destinazione
 #   ./scripts/build_container_aarch64_generic.sh --out DIR       # directory di output (default dist/)
+#   ./scripts/build_container_aarch64_generic.sh --with-lvgl     # include anche sws-lvgl-viewer
+#
+# --with-lvgl è opt-in, non il default: costruisce un secondo strato builder
+# (Containerfile.aarch64-generic-lvgl.builder, clang/libclang/libsdl2-dev in
+# più) e compila anche sws-lvgl-viewer sotto la stessa emulazione QEMU — non
+# ancora provato in questa forma (bindgen contro libclang sotto emulazione è
+# un'incognita in più rispetto al solo sws-runtime). Senza il flag, questo
+# script si comporta esattamente come prima che quel crate esistesse.
 #
 # Requisiti: podman, emulazione QEMU per arm64 registrata sull'host (una
 #            tantum, es. `sudo apt install qemu-user-static` o `sudo podman
@@ -63,7 +71,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 usage() {
-    sed -n '2,44p' "${BASH_SOURCE[0]}" | sed 's/^#//; s/^ //'
+    sed -n '2,66p' "${BASH_SOURCE[0]}" | sed 's/^#//; s/^ //'
 }
 
 # Lo script gira con sudo (vedi il controllo root più sotto): tutto ciò che
@@ -86,6 +94,7 @@ restore_ownership() {
             "$REPO/sws-editor/dist" \
             "$REPO/sws-runtime/target-container-aarch64-generic" \
             "$REPO/.cargo-container-aarch64-generic" \
+            "$REPO/sws-runtime/crates/sws-lvgl-viewer/target-container-aarch64-generic" \
             2>/dev/null || true
     fi
 }
@@ -95,26 +104,34 @@ BUILD_RUST=1
 BUILD_SPA=1
 SAVE=1
 PUSH=0
+WITH_LVGL=0
 REGISTRY="ghcr.io/soligolab/sws-runtime"
 OUT_DIR="$REPO/dist"
 # Dedicata: non collide né con target/ dell'host (altra architettura) né con
 # target/aarch64-unknown-linux-gnu/ del percorso SDK — un binario diverso,
 # non intercambiabile (glibc/Python diversi, nessun tuning cortex-a35).
 BIN="$REPO/sws-runtime/target-container-aarch64-generic/release/sws-runtime"
+LVGL_CRATE_DIR="$REPO/sws-runtime/crates/sws-lvgl-viewer"
+# Dedicata anche questa, per lo stesso motivo di BIN — e per non collidere
+# con crates/sws-lvgl-viewer/target/ usato dai build locali x86_64 (simulatore
+# SDL2 desktop): stesso crate, artefatti incompatibili tra loro.
+LVGL_BIN="$LVGL_CRATE_DIR/target-container-aarch64-generic/release/sws-lvgl-viewer"
 SPA_DIST="$REPO/sws-editor/dist"
 BUILDER_IMAGE="sws-runtime-builder:aarch64-generic"
+LVGL_BUILDER_IMAGE="sws-runtime-builder:aarch64-generic-lvgl"
 # Python della base `ubuntu:24.04`, che builder e immagine finale condividono.
 EXPECTED_PY="3.12"
 
 while [ $# -gt 0 ]; do
     case "$1" in
-        -h|--help)  usage; exit 0 ;;
-        --no-rust)  BUILD_RUST=0; shift ;;
-        --no-spa)   BUILD_SPA=0;  shift ;;
-        --no-save)  SAVE=0;       shift ;;
-        --push)     PUSH=1;       shift ;;
-        --registry) REGISTRY="$2"; shift 2 ;;
-        --out)      OUT_DIR="$2"; shift 2 ;;
+        -h|--help)   usage; exit 0 ;;
+        --no-rust)   BUILD_RUST=0; shift ;;
+        --no-spa)    BUILD_SPA=0;  shift ;;
+        --no-save)   SAVE=0;       shift ;;
+        --push)      PUSH=1;       shift ;;
+        --with-lvgl) WITH_LVGL=1;  shift ;;
+        --registry)  REGISTRY="$2"; shift 2 ;;
+        --out)       OUT_DIR="$2"; shift 2 ;;
         *) echo "Flag non riconosciuta: $1 (--help per l'elenco)" >&2; exit 1 ;;
     esac
 done
@@ -149,6 +166,7 @@ fi
 
 # ── Controlli preliminari alla pubblicazione ──────────────────────────────────
 GIT_SHA=""
+AUTHFILE_ARGS=()
 if [ "$PUSH" -eq 1 ]; then
     if [ -n "$(cd "$REPO" && git status --porcelain 2>/dev/null)" ]; then
         echo "ERRORE: l'albero di lavoro ha modifiche non committate." >&2
@@ -160,9 +178,37 @@ if [ "$PUSH" -eq 1 ]; then
     GIT_SHA=$(cd "$REPO" && git rev-parse --short HEAD)
 
     REGISTRY_HOST="${REGISTRY%%/*}"
-    if ! podman login --get-login "$REGISTRY_HOST" >/dev/null 2>&1; then
+
+    # `podman login` non richiede root — è normale farlo come utente normale
+    # prima di lanciare questo script con sudo (serve root solo per la build,
+    # vedi sopra). Ma root ha un proprio auth store separato da quello
+    # rootless di $SUDO_USER, quindi senza puntarci esplicitamente qui
+    # risulterebbe "nessun login" anche con un login perfettamente valido —
+    # e la correzione sbagliata sarebbe rifare il login come root (un secondo
+    # set di credenziali da gestire, invece di riusare quello che c'è già).
+    # Stessi due percorsi che prova podman stesso in ordine di priorità:
+    # XDG_RUNTIME_DIR (sessione rootless via systemd-logind, il caso comune)
+    # e il config dir come ripiego.
+    if [ -n "${SUDO_USER:-}" ]; then
+        SUDO_UID="$(id -u "$SUDO_USER")"
+        SUDO_HOME="$(getent passwd "$SUDO_USER" | cut -d: -f6)"
+        for candidate in \
+            "/run/user/${SUDO_UID}/containers/auth.json" \
+            "$SUDO_HOME/.config/containers/auth.json"
+        do
+            if [ -f "$candidate" ]; then
+                AUTHFILE_ARGS=(--authfile "$candidate")
+                break
+            fi
+        done
+    fi
+
+    if ! podman login "${AUTHFILE_ARGS[@]}" --get-login "$REGISTRY_HOST" >/dev/null 2>&1; then
         echo "ERRORE: nessun login su $REGISTRY_HOST." >&2
-        echo "        podman login $REGISTRY_HOST -u <utente>" >&2
+        if [ "${#AUTHFILE_ARGS[@]}" -gt 0 ]; then
+            echo "        (controllato anche ${AUTHFILE_ARGS[1]}, il login di \$SUDO_USER=$SUDO_USER)" >&2
+        fi
+        echo "        podman login $REGISTRY_HOST -u <utente>  # come utente normale, non con sudo" >&2
         exit 1
     fi
 fi
@@ -221,6 +267,42 @@ else
     echo "==> [1/4] skipped (--no-rust)"
 fi
 
+# ── 1c. Optional: sws-lvgl-viewer (--with-lvgl) ─────────────────────────────
+# Stessa emulazione QEMU del passo sopra, ma con un builder esteso (clang/
+# libclang per bindgen contro lvgl-sys, libsdl2-dev per il backend SDL2 del
+# crate) e la working directory dentro crates/sws-lvgl-viewer: quel crate ha
+# un .cargo/config.toml locale che imposta DEP_LV_CONFIG_PATH relativo alla
+# cwd, scoperto durante il percorso SDK Pixsys — vale identico qui.
+# Non prova AWS_LC_SYS_NO_ASM: sws-lvgl-viewer fissa `rustls` sul backend
+# `ring` (Cargo.toml del crate), non `aws-lc-rs` — aws-lc-sys potrebbe non
+# comparire affatto nel suo albero di dipendenze. CARGO_PROFILE_RELEASE_
+# OPT_LEVEL=0 resta per prudenza (mitigazione generica, non specifica di
+# aws-lc-sys). Se `ring` avesse un problema analogo sotto QEMU non è stato
+# ancora verificato in nessuna direzione.
+if [ "$BUILD_RUST" -eq 1 ] && [ "$WITH_LVGL" -eq 1 ]; then
+    echo "==> [1c] immagine builder LVGL (+ clang/libclang/libsdl2-dev, emulato arm64)"
+    podman build --platform linux/arm64 --network host \
+        -t "$LVGL_BUILDER_IMAGE" \
+        -f "$REPO/deploy/container/Containerfile.aarch64-generic-lvgl.builder" \
+        "$REPO/deploy/container"
+
+    echo "==> [1c] cargo build --release -p sws-lvgl-viewer (dentro il builder LVGL, emulato — lento)"
+    podman run --rm \
+        --platform linux/arm64 \
+        --network host \
+        -v "$REPO":/src:Z \
+        -w /src/sws-runtime/crates/sws-lvgl-viewer \
+        -e CARGO_HOME=/src/.cargo-container-aarch64-generic \
+        -e CARGO_TARGET_DIR=/src/sws-runtime/crates/sws-lvgl-viewer/target-container-aarch64-generic \
+        -e CARGO_PROFILE_RELEASE_OPT_LEVEL=0 \
+        "$LVGL_BUILDER_IMAGE" \
+        cargo build --release
+elif [ "$WITH_LVGL" -eq 1 ]; then
+    echo "==> [1c] skipped build (--no-rust, riuso $LVGL_BIN esistente)"
+else
+    echo "==> [1c] skipped (passa --with-lvgl per includere sws-lvgl-viewer)"
+fi
+
 if [ "$BUILD_SPA" -eq 1 ]; then
     echo "==> [1b/4] pnpm build (SPA)"
     (cd "$REPO/sws-editor" && pnpm build)
@@ -230,6 +312,9 @@ fi
 
 [ -f "$BIN" ]                || { echo "ERROR: missing $BIN — togli --no-rust" >&2; exit 1; }
 [ -f "$SPA_DIST/index.html" ] || { echo "ERROR: missing SPA at $SPA_DIST (drop --no-spa)" >&2; exit 1; }
+if [ "$WITH_LVGL" -eq 1 ]; then
+    [ -f "$LVGL_BIN" ] || { echo "ERROR: missing $LVGL_BIN (--with-lvgl requested)" >&2; exit 1; }
+fi
 
 # Guardia contro il classico errore di infilare un binario della architettura
 # sbagliata in un'immagine arm64 — stesso principio del controllo aarch64-SDK
@@ -237,6 +322,11 @@ fi
 if ! file "$BIN" | grep -q "ARM aarch64"; then
     echo "ERROR: $BIN is not an aarch64 binary:" >&2
     file "$BIN" >&2
+    exit 1
+fi
+if [ "$WITH_LVGL" -eq 1 ] && ! file "$LVGL_BIN" | grep -q "ARM aarch64"; then
+    echo "ERROR: $LVGL_BIN is not an aarch64 binary:" >&2
+    file "$LVGL_BIN" >&2
     exit 1
 fi
 
@@ -257,12 +347,16 @@ echo "==> [2/4] staging build context in $CTX"
 rm -rf "$CTX"
 mkdir -p "$CTX/bin" "$CTX/templates" "$CTX/www"
 install -m 755 "$BIN" "$CTX/bin/sws-runtime"
+if [ "$WITH_LVGL" -eq 1 ]; then
+    install -m 755 "$LVGL_BIN" "$CTX/bin/sws-lvgl-viewer"
+fi
 cp -r "$REPO/examples/templates/." "$CTX/templates/"
 cp -r "$SPA_DIST/." "$CTX/www/"
 
 # ── 3. Build the image ────────────────────────────────────────────────────────
 echo "==> [3/4] podman build --platform linux/arm64 -t $IMAGE"
 podman build --platform linux/arm64 --network host --format docker \
+    --build-arg "WITH_LVGL=$WITH_LVGL" \
     -t "$IMAGE" \
     -f "$REPO/deploy/container/Containerfile.aarch64-generic" \
     "$CTX"
@@ -277,7 +371,7 @@ if [ "$PUSH" -eq 1 ]; then
     for t in "$TAG_VERSION" "$TAG_COMMIT" "$TAG_LATEST"; do
         podman tag "$IMAGE" "$t"
         echo "    push $t"
-        podman push "$t"
+        podman push "${AUTHFILE_ARGS[@]}" "$t"
     done
     echo
     echo "    Riferimento esplicito richiesto — install-container.sh --pull senza" \

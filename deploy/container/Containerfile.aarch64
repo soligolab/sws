@@ -26,6 +26,36 @@
 # cambiata di conseguenza (ricontrollare con `readelf -d` sul binario).
 FROM ubuntu:24.04
 
+# Passato da scripts/build_container.sh (--build-arg WITH_LVGL=1 quando
+# --with-lvgl è attivo). Serve solo per decidere se installare libsdl2-2.0-0
+# qui sotto: sws-lvgl-viewer linka SDL2 dinamicamente, e senza la libreria
+# runtime nell'immagine finale parte e crasha subito ("cannot open shared
+# object file" — riprodotto sul percorso container generico gemello,
+# 2026-08-09, stessa causa qui perché stesso Containerfile "slim", nessuna
+# libreria grafica installata di default). Non installata incondizionatamente:
+# chi non passa --with-lvgl non deve appesantirsi per una dipendenza che non
+# usa.
+ARG WITH_LVGL=0
+
+# libegl1/libegl-mesa0/libgles2/libgl1-mesa-dri/libwayland-egl1/libgbm1
+# (sotto lo stesso WITH_LVGL): servono per SDL_VIDEODRIVER=kmsdrm (DRM/KMS
+# diretto via GBM+EGL, senza compositor Wayland/X11). libegl1 è il dispatch
+# loader EGL generico che le app caricano — libegl-mesa0 da solo è solo
+# l'implementazione vendor Mesa, caricata poi via ICD (stessa separazione di
+# libgl1/libgl1-mesa-dri): senza libegl1, kmsdrm fallisce con "SDL error:
+# EGL not initialized" (scoperto sul percorso container generico gemello,
+# 2026-08-10, in due passi — prima mancava libgbm1, poi anche libegl1). Mesa
+# fornisce EGL/GLES/GBM software, nessuna GPU reale richiesta — non ancora
+# verificato su questo percorso specifico (mai eseguito con successo, manca
+# l'SDK Yocto).
+#
+# libdrm2 esplicito: src/drm_display.rs linka libdrm direttamente per il
+# backend "drm" (rendering via API DRM legacy, bypassa SDL2 del tutto) —
+# anche kmsdrm si è rivelato inutilizzabile su tc620-a-p3-c6-07aff9.local,
+# il driver Rockchip mostra schermo nero sul percorso KMS *atomico* (usato
+# sia da SDL2 sia dal driver drm.c vendorizzato in lvgl-sys), solo l'API
+# legacy funziona — vedi docs/OPEN_QUESTIONS.md Q14.
+
 # python3: PyO3 gira con `auto-initialize`, quindi serve l'interprete completo
 #   (stdlib inclusa), non la sola libpython.
 # python3-pip + RestrictedPython: senza, il motore script parte NON sandboxato
@@ -37,12 +67,20 @@ RUN apt-get update && \
         curl \
         python3 \
         libpython3.12t64 \
-        python3-pip && \
+        python3-pip \
+        $( [ "$WITH_LVGL" = "1" ] && echo libsdl2-2.0-0 libegl1 libegl-mesa0 libgles2 libgl1-mesa-dri libwayland-egl1 libgbm1 libdrm2 ) && \
     pip install --no-cache-dir --break-system-packages "RestrictedPython>=7.0" && \
     apt-get purge -y python3-pip && apt-get autoremove -y && \
     rm -rf /var/lib/apt/lists/*
 
-COPY bin/sws-runtime /usr/local/bin/sws-runtime
+# Copia l'intera bin/ (non solo sws-runtime per nome): con --with-lvgl,
+# scripts/build_container.sh mette in bin/ anche sws-lvgl-viewer, che finisce
+# così nella stessa immagine senza bisogno di un COPY condizionale (non
+# esprimibile in sintassi Containerfile/Dockerfile semplice). ENTRYPOINT resta
+# sws-runtime di default — chi vuole anche il viewer LVGL lo invoca con
+# `--entrypoint sws-lvgl-viewer` su un secondo container dalla stessa
+# immagine, vedi docs/DEPLOY_CONTAINER_AARCH64.md per il comando completo.
+COPY bin/             /usr/local/bin/
 COPY templates/      /var/sws/templates/
 
 # La SPA sta DENTRO l'immagine, dal 2026-07-30. Fino a quel giorno viaggiava a

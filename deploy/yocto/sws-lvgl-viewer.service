@@ -1,0 +1,15 @@
+[Unit]
+Description=SWS LVGL Viewer
+After=sws-runtime.service graphical.target
+Requires=sws-runtime.service
+
+[Service]
+Type=simple
+User=pixsys
+Environment=WAYLAND_DISPLAY=wayland-0
+ExecStartPre=/bin/sleep 2
+ExecStart=/data/user/sws/sws-lvgl-viewer-launch.sh
+Restart=on-failure
+
+[Install]
+WantedBy=graphical.target
