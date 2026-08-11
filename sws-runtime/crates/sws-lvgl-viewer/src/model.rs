@@ -1,6 +1,7 @@
 //! Sottoinsieme minimo dello schema `SynopticObject`/`SynopticPage` che il
-//! motore LVGL sa interpretare (Fase 2 dell'MVP: rect, text, button, led,
-//! slider). Parser deliberatamente tollerante — `#[serde(default)]` ovunque —
+//! motore LVGL sa interpretare — cresce widget per widget (vedi
+//! `lvgl_render::SUPPORTED_TYPES` per l'elenco aggiornato). Parser
+//! deliberatamente tollerante — `#[serde(default)]` ovunque —
 //! perché lo schema reale ha ~150 campi opzionali (vedi
 //! `sws-web/src/synoptic.rs`) di cui questo motore ne conosce solo una
 //! manciata: tutto il resto viene ignorato silenziosamente da serde, non
@@ -84,7 +85,43 @@ pub struct SynopticObject {
     pub on_color: Option<String>,
     pub off_color: Option<String>,
 
-    // ── slider ──
+    // ── slider / gauge ──
     pub min: Option<f64>,
     pub max: Option<f64>,
+
+    // ── gauge ──
+    pub unit: Option<String>,
+
+    // ── line ──
+    pub x2: Option<f64>,
+    pub y2: Option<f64>,
+    pub stroke_width: Option<f64>,
+
+    // ── state_lamp ── (stesso modello dati di text_list: value→label→color)
+    pub text_list_entries: Option<Vec<TextListEntry>>,
+    pub text_list_default: Option<String>,
+    pub text_list_default_color: Option<String>,
+
+    // ── table ──
+    pub table_rows: Option<Vec<TableRow>>,
+}
+
+/// Porta `TextListEntry` di `types/index.ts` — un valore scalare o un range
+/// (`value_min`/`value_max`, half-open) mappato a `label`/`color`.
+#[derive(Debug, Deserialize, Clone)]
+pub struct TextListEntry {
+    pub value: serde_json::Value,
+    pub label: String,
+    pub color: Option<String>,
+    pub value_min: Option<f64>,
+    pub value_max: Option<f64>,
+}
+
+/// Porta `TableRow` di `types/index.ts`: una riga statica (label fisso, tag
+/// letto dal vivo) — non una tabella dati dinamica (niente sort/pagine).
+#[derive(Debug, Deserialize, Clone)]
+pub struct TableRow {
+    pub label: String,
+    pub tag: String,
+    pub format: Option<String>,
 }

@@ -26,12 +26,12 @@ use std::sync::mpsc;
 
 use cstr_core::CString;
 use lvgl::style::Style;
-use lvgl::widgets::{Bar, Btn, Checkbox, Label, Led, Slider};
+use lvgl::widgets::{Bar, Btn, Checkbox, Label, Led, Line, Meter, Slider, Table};
 use lvgl::{Color, LvError, NativeObject, Part, Widget};
 use sws_core::tag::{TagQuality, TagValue};
 
 use crate::client::{TagSnapshot, TagSnapshotValue};
-use crate::model::{OnValue, SynopticObject, SynopticPage};
+use crate::model::{OnValue, SynopticObject, SynopticPage, TableRow, TextListEntry};
 
 /// Risoluzione fissa a compile-time: `DrawBuffer<const N: usize>` di LVGL
 /// richiede una dimensione nota in compilazione, quindi non può dipendere
@@ -45,8 +45,10 @@ use crate::model::{OnValue, SynopticObject, SynopticPage};
 pub const HOR_RES: u32 = 800;
 pub const VER_RES: u32 = 480;
 
-const SUPPORTED_TYPES: &[&str] =
-    &["rect", "ellipse", "text", "button", "led", "slider", "progress_bar", "checkbox", "radio"];
+const SUPPORTED_TYPES: &[&str] = &[
+    "rect", "ellipse", "line", "text", "button", "led", "slider", "progress_bar", "checkbox", "radio", "gauge",
+    "state_lamp", "table",
+];
 
 #[derive(Default, Debug)]
 pub struct RenderSummary {
@@ -95,6 +97,40 @@ pub enum LiveKind {
         alarm_high: Option<f64>,
         static_color_hex: Option<String>,
         color_style: Option<Style>,
+    },
+    /// Ago e arco seguono il tag dal vivo; il colore dell'arco resta quello
+    /// fissato alla creazione (nessun setter LVGL per il colore di un
+    /// indicatore già creato — vedi `render_gauge`). `value_ptr` è il child
+    /// `Label` col valore numerico, aggiornato come un `Text` qualunque.
+    Gauge {
+        ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
+        needle_indic: *mut lvgl_sys::lv_meter_indicator_t,
+        arc_indic: *mut lvgl_sys::lv_meter_indicator_t,
+        value_ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
+        tag: Option<String>,
+        min: f64,
+        max: f64,
+        unit: Option<String>,
+    },
+    /// Cerchio colorato (come `led`, ma `lv_obj` normale: legge `bg_color`
+    /// dallo `Style` senza le sorprese di `lv_led`) + label testo a fianco,
+    /// entrambi ricalcolati da `match_text_list_entry` a ogni frame.
+    StateLamp {
+        lamp_ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
+        lamp_style: Style,
+        label_ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
+        label_style: Style,
+        tag: Option<String>,
+        entries: Vec<TextListEntry>,
+        default_label: Option<String>,
+        default_color: Option<String>,
+    },
+    /// Tabella statica (righe fisse da `table_rows`, non un datagrid dinamico):
+    /// solo le colonne valore/qualità cambiano dal vivo, la colonna
+    /// label e l'intestazione sono fissate alla creazione.
+    Table {
+        ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
+        rows: Vec<TableRow>,
     },
 }
 
@@ -309,6 +345,65 @@ fn threshold_color(
 
 fn lookup<'a>(tags: &'a TagSnapshot, tag: &Option<String>) -> Option<&'a TagSnapshotValue> {
     tags.get(tag.as_deref()?)
+}
+
+/// Porta `String(value)` di JS per gli scalari che compaiono in
+/// `TextListEntry::value` (numero/stringa/bool) — usato solo per il confronto
+/// per uguaglianza in `match_text_list_entry`.
+fn json_value_as_string(v: &serde_json::Value) -> String {
+    match v {
+        serde_json::Value::Bool(b) => b.to_string(),
+        serde_json::Value::Number(n) => n.to_string(),
+        serde_json::Value::String(s) => s.clone(),
+        other => other.to_string(),
+    }
+}
+
+/// Porta `matchTextListEntry()` di `SvgCanvas.tsx` (riga ~336): un'entry con
+/// `value_min`/`value_max` impostato fa match per range (half-open,
+/// `min <= v < max`), altrimenti per uguaglianza esatta (confronto stringa,
+/// stessa semantica lasca di `String(a) === String(b)` in JS). Prima entry
+/// che fa match vince.
+fn match_text_list_entry<'a>(entries: &'a [TextListEntry], tv: Option<&TagSnapshotValue>) -> Option<&'a TextListEntry> {
+    let tv = tv?;
+    let live_str = tag_value_as_string(&tv.value);
+    let live_num = tag_value_as_f64(&tv.value);
+    entries.iter().find(|e| {
+        if e.value_min.is_some() || e.value_max.is_some() {
+            if let Some(min) = e.value_min {
+                if live_num < min {
+                    return false;
+                }
+            }
+            if let Some(max) = e.value_max {
+                if live_num >= max {
+                    return false;
+                }
+            }
+            true
+        } else {
+            json_value_as_string(&e.value) == live_str
+        }
+    })
+}
+
+/// Una lettera per la colonna qualità della tabella — la versione web usa un
+/// pallino colorato (`qualityColor`), qui una colonna di solo testo:
+/// `lv_table` non ha un modo semplice di colorare il background di una
+/// singola cella (solo bit di controllo generici + un callback
+/// `LV_EVENT_DRAW_PART_BEGIN` per applicarli — troppo per questo primo giro,
+/// vedi Q14). Una sola lettera, non un'abbreviazione più lunga
+/// ("OK"/"BAD"/"UNC"): con `LV_TABLE_CELL_CTRL_TEXT_CROP` la riga resta a
+/// un'altezza di riga singola, ma dentro quello spazio il testo continua
+/// comunque ad andare a capo se non ci sta in larghezza — verificato con
+/// screenshot, non risolvibile solo allargando la colonna quanto basterebbe
+/// per 3 lettere senza sottrarre spazio alle altre due colonne.
+fn quality_abbrev(q: &TagQuality) -> &'static str {
+    match q {
+        TagQuality::Good => "G",
+        TagQuality::Bad => "B",
+        TagQuality::Uncertain => "U",
+    }
 }
 
 /// Porta la parte rilevante di `isVisible()`: `visible_tag` (truthy live)
@@ -664,6 +759,268 @@ fn render_ellipse(screen: &mut lvgl::Obj, obj: &SynopticObject, styles: &mut Vec
     Ok(())
 }
 
+/// Statica, nessun tag (stessa scelta del `line` web — solo forma). A
+/// differenza di quasi tutti gli altri widget di questo file, `lv_line`
+/// disegna i punti **relativi alla posizione dell'oggetto stesso**, non
+/// assoluti sullo schermo (verificato in `lv_line.c`, ramo `LV_EVENT_DRAW_MAIN`:
+/// `p.x = point_array[i].x + area.x1`) — da cui la scelta di passare `(0,0)` e
+/// `(x2-x1, y2-y1)` invece di `(x1,y1)`/`(x2,y2)`. Niente `set_size`: la classe
+/// `lv_line` si auto-dimensiona sul contenuto (`LV_SIZE_CONTENT`), chiamato da
+/// `lv_line_set_points` stesso.
+fn render_line(screen: &mut lvgl::Obj, obj: &SynopticObject, styles: &mut Vec<Style>) -> anyhow::Result<()> {
+    let mut line = Line::create(screen).map_err(|e| anyhow::anyhow!("Line::create: {e:?}"))?;
+    let x1 = obj.x.unwrap_or(0.0);
+    let y1 = obj.y.unwrap_or(0.0);
+    let x2 = obj.x2.unwrap_or(x1 + 100.0);
+    let y2 = obj.y2.unwrap_or(y1);
+    line.set_pos(x1.round() as i16, y1.round() as i16)
+        .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
+
+    // lv_line_set_points salva solo l'indirizzo dell'array ("the array needs
+    // to be alive while the line exists", lv_line.h) — Box::leak per storage
+    // 'static, stesso principio di lvgl_display.rs. La linea non cambia mai
+    // dopo la creazione (statica, come rect/ellipse), quindi due punti bastano
+    // per tutta la vita del widget.
+    let points: &'static [lvgl_sys::lv_point_t; 2] = Box::leak(Box::new([
+        lvgl_sys::lv_point_t { x: 0, y: 0 },
+        lvgl_sys::lv_point_t { x: (x2 - x1).round() as i16, y: (y2 - y1).round() as i16 },
+    ]));
+    let ptr = line.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
+    unsafe {
+        lvgl_sys::lv_line_set_points(ptr.as_ptr(), points.as_ptr(), 2);
+    }
+
+    let mut style = Style::default();
+    if let Some(rgb) = obj.stroke.as_deref().and_then(parse_hex_color) {
+        style.set_line_color(Color::from_rgb(rgb));
+    }
+    style.set_line_width(obj.stroke_width.unwrap_or(2.0).round() as i16);
+    line.add_style(Part::Main, &mut style)
+        .map_err(|e| anyhow::anyhow!("add_style: {e:?}"))?;
+    styles.push(style);
+    Ok(())
+}
+
+/// Ago + arco valore su una scala 270° (stesso range del gauge web,
+/// `lv_meter_set_scale_range`: `rotation` è l'offset dalle ore 3 in senso
+/// orario — verificato in `lv_meter.h`, non assunto dal nome — `rotation=135,
+/// angle_range=270` lascia il varco in basso, stesso aspetto del gauge web).
+///
+/// **Semplificazione dichiarata rispetto al web**: l'arco colorato per soglia
+/// (`thresholdColor`) prende colore solo alla creazione, dal valore iniziale —
+/// `lv_meter` non espone un setter per il colore di un indicatore già creato
+/// (solo `set_indicator_value`/`start_value`/`end_value`, verificato in
+/// `lv_meter.h`), quindi non segue le soglie dal vivo come nel web. L'ago e il
+/// valore numerico restano invece pienamente dal vivo. Vedi Q14.
+fn render_gauge(
+    screen: &mut lvgl::Obj,
+    obj: &SynopticObject,
+    tags: &TagSnapshot,
+) -> anyhow::Result<LiveBinding> {
+    let mut meter = Meter::create(screen).map_err(|e| anyhow::anyhow!("Meter::create: {e:?}"))?;
+    set_pos_size(&mut meter, obj, 160.0, 140.0)?;
+    let ptr = meter.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
+
+    let min = obj.min.unwrap_or(0.0);
+    let max = obj.max.unwrap_or(100.0);
+    let tv = lookup(tags, &obj.tag);
+    let raw = tv.map(|t| tag_value_as_f64(&t.value)).unwrap_or(min).clamp(min.min(max), min.max(max));
+
+    let arc_rgb = threshold_color(raw, obj.alarm_low, obj.warn_low, obj.warn_high, obj.alarm_high)
+        .or_else(|| obj.fill.as_deref().and_then(parse_hex_color))
+        .unwrap_or((34, 197, 94)); // #22c55e, stesso default del web
+
+    let (needle_indic, arc_indic) = unsafe {
+        let scale = lvgl_sys::lv_meter_add_scale(ptr.as_ptr());
+        lvgl_sys::lv_meter_set_scale_range(ptr.as_ptr(), scale, min.round() as i32, max.round() as i32, 270, 135);
+        lvgl_sys::lv_meter_set_scale_ticks(ptr.as_ptr(), scale, 21, 2, 6, lvgl_sys::lv_palette_main(lvgl_sys::lv_palette_t_LV_PALETTE_GREY));
+        lvgl_sys::lv_meter_set_scale_major_ticks(ptr.as_ptr(), scale, 4, 3, 10, Color::from_rgb((148, 163, 184)).into(), 10);
+
+        let arc = lvgl_sys::lv_meter_add_arc(ptr.as_ptr(), scale, 6, Color::from_rgb(arc_rgb).into(), 0);
+        lvgl_sys::lv_meter_set_indicator_start_value(ptr.as_ptr(), arc, min.round() as i32);
+        lvgl_sys::lv_meter_set_indicator_end_value(ptr.as_ptr(), arc, raw.round() as i32);
+
+        let needle =
+            lvgl_sys::lv_meter_add_needle_line(ptr.as_ptr(), scale, 3, Color::from_rgb((226, 232, 240)).into(), -8);
+        lvgl_sys::lv_meter_set_indicator_value(ptr.as_ptr(), needle, raw.round() as i32);
+
+        (needle, arc)
+    };
+
+    // Testo valore, centrato in basso nel quadrante (stesso posto del web) —
+    // widget figlio separato, aggiornato dal vivo come qualunque altro Text.
+    let mut value_label = Label::create(&mut meter).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
+    let w = obj.width.unwrap_or(160.0).round() as i16;
+    let h = obj.height.unwrap_or(140.0).round() as i16;
+    value_label
+        .set_pos(w / 2 - 20, (h as f64 * 0.72) as i16)
+        .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
+    let unit_suffix = obj.unit.as_deref().map(|u| format!(" {u}")).unwrap_or_default();
+    value_label
+        .set_text(&text_cstring(&format!("{raw:.1}{unit_suffix}")))
+        .map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
+    let value_ptr = value_label.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
+
+    Ok(LiveBinding {
+        kind: LiveKind::Gauge {
+            ptr,
+            needle_indic,
+            arc_indic,
+            value_ptr,
+            tag: obj.tag.clone(),
+            min,
+            max,
+            unit: obj.unit.clone(),
+        },
+    })
+}
+
+/// Stesso modello dati di `text_list` (`value`→`label`→`color`, con match per
+/// range o per uguaglianza — vedi `match_text_list_entry`). A differenza del
+/// `led`, il cerchio qui è un `lv_obj` normale con `radius` massimo (stessa
+/// tecnica di `render_ellipse`): legge `bg_color` dallo `Style` senza le
+/// sorprese di `lv_led_set_color` (vedi Q14) — è proprio `lv_led` l'eccezione,
+/// non questo.
+fn render_state_lamp(
+    screen: &mut lvgl::Obj,
+    obj: &SynopticObject,
+    tags: &TagSnapshot,
+) -> anyhow::Result<LiveBinding> {
+    let h = obj.height.unwrap_or(24.0);
+    let entries = obj.text_list_entries.clone().unwrap_or_default();
+    let tv = lookup(tags, &obj.tag);
+    let entry = match_text_list_entry(&entries, tv);
+    let lamp_hex = entry
+        .and_then(|e| e.color.as_deref())
+        .unwrap_or("#334155")
+        .to_string();
+    let label_text = entry
+        .map(|e| e.label.clone())
+        .or_else(|| obj.text_list_default.clone())
+        .unwrap_or_default();
+    let label_hex = if entry.is_some() { lamp_hex.clone() } else { obj.text_list_default_color.clone().unwrap_or("#94a3b8".to_string()) };
+
+    let mut lamp = create_child_obj(screen)?;
+    lamp.set_pos(obj.x.unwrap_or(0.0).round() as i16, obj.y.unwrap_or(0.0).round() as i16)
+        .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
+    lamp.set_size(h.round() as i16, h.round() as i16)
+        .map_err(|e| anyhow::anyhow!("set_size: {e:?}"))?;
+    let mut lamp_style = Style::default();
+    lamp_style.set_radius(lvgl_sys::LV_RADIUS_CIRCLE as i16);
+    if let Some(rgb) = parse_hex_color(&lamp_hex) {
+        lamp_style.set_bg_color(Color::from_rgb(rgb));
+    }
+    lamp.add_style(Part::Main, &mut lamp_style)
+        .map_err(|e| anyhow::anyhow!("add_style: {e:?}"))?;
+    let lamp_ptr = lamp.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
+
+    let mut label = Label::create(screen).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
+    label
+        .set_pos((obj.x.unwrap_or(0.0) + h + 6.0).round() as i16, obj.y.unwrap_or(0.0).round() as i16)
+        .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
+    label
+        .set_text(&text_cstring(&label_text))
+        .map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
+    let mut label_style = Style::default();
+    if let Some(rgb) = parse_hex_color(&label_hex) {
+        label_style.set_text_color(Color::from_rgb(rgb));
+    }
+    label
+        .add_style(Part::Main, &mut label_style)
+        .map_err(|e| anyhow::anyhow!("add_style: {e:?}"))?;
+    let label_ptr = label.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
+
+    Ok(LiveBinding {
+        kind: LiveKind::StateLamp {
+            lamp_ptr,
+            lamp_style,
+            label_ptr,
+            label_style,
+            tag: obj.tag.clone(),
+            entries,
+            default_label: obj.text_list_default.clone(),
+            default_color: obj.text_list_default_color.clone(),
+        },
+    })
+}
+
+/// Tabella statica a 3 colonne (label/valore/qualità) da `table_rows` — non
+/// un datagrid dinamico (niente sort/pagine, stessa scelta della versione
+/// web). `lv_table` si auto-dimensiona sul contenuto (`LV_SIZE_CONTENT`,
+/// come `lv_line`): niente `set_size`, solo `set_pos` + larghezze colonna.
+///
+/// Ogni cella usa `LV_TABLE_CELL_CTRL_TEXT_CROP`: forza l'altezza riga a una
+/// singola riga di testo indipendentemente dal contenuto (verificato in
+/// `lv_table.c` — senza, `lv_table` va a capo dentro la cella e fa crescere
+/// l'intera riga). **Non basta da solo**: dentro quell'altezza fissa il testo
+/// che non entra in larghezza continua comunque ad andare a capo (verificato
+/// con screenshot — "OK"/"UNC" a 45px di colonna si spezzavano su due righe
+/// una lettera per riga). La combinazione che funziona è crop + contenuto
+/// garantito corto: colonna qualità a una sola lettera (`quality_abbrev`),
+/// non un'abbreviazione a 2-3 lettere.
+fn render_table(screen: &mut lvgl::Obj, obj: &SynopticObject, tags: &TagSnapshot) -> anyhow::Result<LiveBinding> {
+    let mut table = Table::create(screen).map_err(|e| anyhow::anyhow!("Table::create: {e:?}"))?;
+    table
+        .set_pos(obj.x.unwrap_or(0.0).round() as i16, obj.y.unwrap_or(0.0).round() as i16)
+        .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
+
+    let rows = obj.table_rows.clone().unwrap_or_default();
+    let row_cnt = (rows.len() + 1) as u16;
+    table.set_col_cnt(3).map_err(|e| anyhow::anyhow!("set_col_cnt: {e:?}"))?;
+    table.set_row_cnt(row_cnt).map_err(|e| anyhow::anyhow!("set_row_cnt: {e:?}"))?;
+
+    let w = obj.width.unwrap_or(300.0);
+    let ptr = table.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
+    unsafe {
+        lvgl_sys::lv_table_set_col_width(ptr.as_ptr(), 0, (w * 0.40) as i16);
+        lvgl_sys::lv_table_set_col_width(ptr.as_ptr(), 1, (w * 0.40) as i16);
+        lvgl_sys::lv_table_set_col_width(ptr.as_ptr(), 2, (w * 0.20) as i16);
+        for row in 0..row_cnt {
+            for col in 0..3 {
+                lvgl_sys::lv_table_add_cell_ctrl(
+                    ptr.as_ptr(),
+                    row,
+                    col,
+                    lvgl_sys::LV_TABLE_CELL_CTRL_TEXT_CROP as lvgl_sys::lv_table_cell_ctrl_t,
+                );
+            }
+        }
+    }
+
+    table
+        .set_cell_value(0, 0, &text_cstring(obj.label.as_deref().unwrap_or("DATI")))
+        .map_err(|e| anyhow::anyhow!("set_cell_value: {e:?}"))?;
+    table
+        .set_cell_value(0, 1, &text_cstring("VAL"))
+        .map_err(|e| anyhow::anyhow!("set_cell_value: {e:?}"))?;
+    table
+        .set_cell_value(0, 2, &text_cstring("Q"))
+        .map_err(|e| anyhow::anyhow!("set_cell_value: {e:?}"))?;
+    for (i, row) in rows.iter().enumerate() {
+        table
+            .set_cell_value((i + 1) as u16, 0, &text_cstring(&row.label))
+            .map_err(|e| anyhow::anyhow!("set_cell_value: {e:?}"))?;
+    }
+    update_table_data_cells(ptr, &rows, tags);
+
+    Ok(LiveBinding { kind: LiveKind::Table { ptr, rows } })
+}
+
+/// Colonne valore/qualità di una riga tabella — condivisa tra creazione e
+/// aggiornamento (stesso principio di `led_state`/`text_color_hex`) così le
+/// due strade non possono divergere.
+fn update_table_data_cells(ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>, rows: &[TableRow], tags: &TagSnapshot) {
+    for (i, row) in rows.iter().enumerate() {
+        let tv = tags.get(&row.tag);
+        let val_text = tv.map(|t| format_value(&t.value, row.format.as_deref())).unwrap_or_else(|| "-".to_string());
+        let qual_text = tv.map(|t| quality_abbrev(&t.quality)).unwrap_or("-");
+        unsafe {
+            lvgl_sys::lv_table_set_cell_value(ptr.as_ptr(), (i + 1) as u16, 1, text_cstring(&val_text).as_ptr());
+            lvgl_sys::lv_table_set_cell_value(ptr.as_ptr(), (i + 1) as u16, 2, text_cstring(qual_text).as_ptr());
+        }
+    }
+}
+
 /// Registra un display LVGL `HOR_RES`×`VER_RES` (via `lvgl_display::init_display`,
 /// non `lvgl::Display::register()` — vedi commento di modulo) e crea un
 /// widget per ogni oggetto supportato della pagina. **Non chiama
@@ -713,6 +1070,7 @@ pub fn interpret_page(
         let result: anyhow::Result<()> = match obj_type {
             "rect" => render_rect(&mut screen, obj, &mut styles),
             "ellipse" => render_ellipse(&mut screen, obj, &mut styles),
+            "line" => render_line(&mut screen, obj, &mut styles),
             "button" => render_button(&mut screen, obj, &mut styles, tx),
             "text" => render_text(&mut screen, obj, tags).map(|b| live.push(b)),
             "led" => render_led(&mut screen, obj, tags).map(|b| live.push(b)),
@@ -720,6 +1078,9 @@ pub fn interpret_page(
             "progress_bar" => render_progress_bar(&mut screen, obj, tags).map(|b| live.push(b)),
             "checkbox" => render_checkbox(&mut screen, obj, tags, tx).map(|b| live.push(b)),
             "radio" => render_radio(&mut screen, obj, tags, tx).map(|b| live.push(b)),
+            "gauge" => render_gauge(&mut screen, obj, tags).map(|b| live.push(b)),
+            "state_lamp" => render_state_lamp(&mut screen, obj, tags).map(|b| live.push(b)),
+            "table" => render_table(&mut screen, obj, tags).map(|b| live.push(b)),
             _ => unreachable!("filtrato da SUPPORTED_TYPES sopra"),
         };
         match result {
@@ -826,6 +1187,57 @@ pub fn update_bindings(bindings: &mut [LiveBinding], tags: &TagSnapshot) {
                         }
                     }
                 }
+            }
+            LiveKind::Gauge { ptr, needle_indic, arc_indic, value_ptr, tag, min, max, unit } => {
+                let raw = lookup(tags, tag)
+                    .map(|t| tag_value_as_f64(&t.value))
+                    .unwrap_or(*min)
+                    .clamp(min.min(*max), min.max(*max));
+                let unit_suffix = unit.as_deref().map(|u| format!(" {u}")).unwrap_or_default();
+                unsafe {
+                    lvgl_sys::lv_meter_set_indicator_value(ptr.as_ptr(), *needle_indic, raw.round() as i32);
+                    lvgl_sys::lv_meter_set_indicator_end_value(ptr.as_ptr(), *arc_indic, raw.round() as i32);
+                    lvgl_sys::lv_label_set_text(
+                        value_ptr.as_ptr(),
+                        text_cstring(&format!("{raw:.1}{unit_suffix}")).as_ptr(),
+                    );
+                }
+            }
+            LiveKind::StateLamp { lamp_ptr, lamp_style, label_ptr, label_style, tag, entries, default_label, default_color } => {
+                let tv = lookup(tags, tag);
+                let entry = match_text_list_entry(entries, tv);
+                let lamp_hex = entry.and_then(|e| e.color.as_deref()).unwrap_or("#334155").to_string();
+                let label_text = entry
+                    .map(|e| e.label.clone())
+                    .or_else(|| default_label.clone())
+                    .unwrap_or_default();
+                let label_hex = if entry.is_some() {
+                    lamp_hex.clone()
+                } else {
+                    default_color.clone().unwrap_or_else(|| "#94a3b8".to_string())
+                };
+                unsafe {
+                    if let Some(rgb) = parse_hex_color(&lamp_hex) {
+                        lamp_style.set_bg_color(Color::from_rgb(rgb));
+                        lvgl_sys::lv_obj_refresh_style(
+                            lamp_ptr.as_ptr(),
+                            Part::Main.into(),
+                            lvgl_sys::lv_style_prop_t_LV_STYLE_BG_COLOR,
+                        );
+                    }
+                    lvgl_sys::lv_label_set_text(label_ptr.as_ptr(), text_cstring(&label_text).as_ptr());
+                    if let Some(rgb) = parse_hex_color(&label_hex) {
+                        label_style.set_text_color(Color::from_rgb(rgb));
+                        lvgl_sys::lv_obj_refresh_style(
+                            label_ptr.as_ptr(),
+                            Part::Main.into(),
+                            lvgl_sys::lv_style_prop_t_LV_STYLE_TEXT_COLOR,
+                        );
+                    }
+                }
+            }
+            LiveKind::Table { ptr, rows } => {
+                update_table_data_cells(*ptr, rows, tags);
             }
         }
     }

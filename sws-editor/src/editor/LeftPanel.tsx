@@ -546,6 +546,10 @@ const LVGL_SUPPORTED_TYPES = new Set<SynopticObject["type"]>([
   "checkbox",
   "radio",
   "ellipse",
+  "line",
+  "gauge",
+  "state_lamp",
+  "table",
 ]);
 
 /** Per un progetto target LVGL, mostra solo gli oggetti che il motore sa
