@@ -9,6 +9,18 @@
 //! confermato (`docs/OPEN_QUESTIONS.md` Q14) — vedi `lvgl_display.rs` per il
 //! perché e per il fix. `task_handler()` non viene chiamato qui: è il
 //! chiamante (il loop SDL2 in `main.rs`) a guidare il redraw ripetutamente.
+//!
+//! **Aggiornamento live** (`LiveBinding`/`update_bindings`): i widget con
+//! stato tag-dipendente (led, slider, text) vengono creati una sola volta;
+//! a ogni frame `update_bindings` ne aggiorna solo il valore, senza
+//! ricrearli. Gli `Style` con colore dinamico vengono mutati sul posto
+//! (`Style::set_bg_color`/`set_text_color`) e poi "rinfrescati" con
+//! `lv_obj_refresh_style` — mutare uno `Style` già assegnato non basta da
+//! solo: LVGL cache lo stile calcolato per oggetto e va detto esplicitamente
+//! che una proprietà è cambiata, altrimenti il vecchio colore resta a
+//! schermo. Creare uno `Style` nuovo a ogni frame invece di mutare quello
+//! esistente avrebbe fatto crescere `styles`/`Vec<LiveBinding>` senza limite
+//! in una sessione lunga.
 
 use cstr_core::CString;
 use lvgl::style::Style;
@@ -37,6 +49,44 @@ const SUPPORTED_TYPES: &[&str] = &["rect", "text", "button", "led", "slider"];
 pub struct RenderSummary {
     pub rendered: Vec<String>,
     pub skipped_unsupported: Vec<String>,
+}
+
+/// Un widget la cui apparenza dipende da un tag e va ricontrollata a ogni
+/// frame — mai ricreato, solo aggiornato (vedi `update_bindings`). Il
+/// puntatore raw è valido quanto il widget stesso (che vive quanto la
+/// finestra: mai distrutto finché il processo non esce).
+pub enum LiveKind {
+    Led {
+        ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
+        tag: Option<String>,
+        on_value: OnValue,
+        on_color: String,
+        off_color: String,
+        style: Style,
+    },
+    Slider {
+        ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
+        tag: Option<String>,
+        min: f64,
+        max: f64,
+    },
+    Text {
+        ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
+        tag: Option<String>,
+        format: Option<String>,
+        static_text: Option<String>,
+        text_color_by_threshold: bool,
+        alarm_low: Option<f64>,
+        warn_low: Option<f64>,
+        warn_high: Option<f64>,
+        alarm_high: Option<f64>,
+        static_color_hex: Option<String>,
+        color_style: Option<Style>,
+    },
+}
+
+pub struct LiveBinding {
+    pub kind: LiveKind,
 }
 
 fn parse_hex_color(s: &str) -> Option<(u8, u8, u8)> {
@@ -104,6 +154,15 @@ fn tag_value_as_string(v: &TagValue) -> String {
     }
 }
 
+fn tag_value_as_bool(v: &TagValue) -> bool {
+    match v {
+        TagValue::Bool(b) => *b,
+        TagValue::Int(i) => *i != 0,
+        TagValue::Float(f) => *f != 0.0,
+        TagValue::Str(s) => !s.trim().is_empty(),
+    }
+}
+
 /// Porta `formatValue()` di `SvgCanvas.tsx`: supporta solo il pattern
 /// `{value:.Nf}` (l'unico usato oggi nei progetti reali); altrimenti stringa
 /// naturale del valore.
@@ -158,6 +217,9 @@ fn lookup<'a>(tags: &'a TagSnapshot, tag: &Option<String>) -> Option<&'a TagSnap
 
 /// Porta la parte rilevante di `isVisible()`: `visible_tag` (truthy live)
 /// prevale su `visible` statico, che a sua volta prevale sul default "true".
+/// Nota: valutata solo alla creazione — un oggetto che diventa visibile/
+/// invisibile dopo un cambio tag non compare/scompare dal vivo (stesso
+/// scope cut degli altri limiti noti, vedi STATUS.md).
 fn is_visible(obj: &SynopticObject, tags: &TagSnapshot) -> bool {
     if let Some(vt) = lookup(tags, &obj.visible_tag) {
         return match &vt.value {
@@ -195,12 +257,32 @@ fn render_rect(screen: &mut lvgl::Obj, obj: &SynopticObject, styles: &mut Vec<St
     Ok(())
 }
 
+/// Calcola il colore testo (soglia se abilitata e valore numerico presente,
+/// altrimenti colore statico) — condiviso tra creazione e aggiornamento così
+/// le due strade non possono divergere.
+fn text_color_hex(
+    tv: Option<&TagSnapshotValue>,
+    text_color_by_threshold: bool,
+    alarm_low: Option<f64>,
+    warn_low: Option<f64>,
+    warn_high: Option<f64>,
+    alarm_high: Option<f64>,
+    static_color_hex: Option<&str>,
+) -> Option<(u8, u8, u8)> {
+    let threshold = if text_color_by_threshold {
+        tv.map(|t| tag_value_as_f64(&t.value))
+            .and_then(|v| threshold_color(v, alarm_low, warn_low, warn_high, alarm_high))
+    } else {
+        None
+    };
+    threshold.or_else(|| static_color_hex.and_then(parse_hex_color))
+}
+
 fn render_text(
     screen: &mut lvgl::Obj,
     obj: &SynopticObject,
     tags: &TagSnapshot,
-    styles: &mut Vec<Style>,
-) -> anyhow::Result<()> {
+) -> anyhow::Result<LiveBinding> {
     let tv = lookup(tags, &obj.tag);
     let content = match tv {
         Some(t) => format_value(&t.value, obj.format.as_deref().or(Some("{value}"))),
@@ -218,26 +300,44 @@ fn render_text(
         .set_text(&text_cstring(&content))
         .map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
 
-    // Porta la precedenza di SvgCanvas.tsx: soglia (se abilitata e valore
-    // numerico) → altrimenti colore statico (color/fill) → altrimenti default
-    // del tema (nessuno style aggiunto).
-    let threshold = if obj.text_color_by_threshold == Some(true) {
-        tv.map(|t| tag_value_as_f64(&t.value))
-            .and_then(|v| threshold_color(v, obj.alarm_low, obj.warn_low, obj.warn_high, obj.alarm_high))
-    } else {
-        None
-    };
-    let static_hex = obj.color.as_deref().or(obj.fill.as_deref());
-    let rgb = threshold.or_else(|| static_hex.and_then(parse_hex_color));
-    if let Some(rgb) = rgb {
+    let text_color_by_threshold = obj.text_color_by_threshold == Some(true);
+    let static_color_hex = obj.color.clone().or_else(|| obj.fill.clone());
+    let rgb = text_color_hex(
+        tv,
+        text_color_by_threshold,
+        obj.alarm_low,
+        obj.warn_low,
+        obj.warn_high,
+        obj.alarm_high,
+        static_color_hex.as_deref(),
+    );
+    let color_style = if let Some(rgb) = rgb {
         let mut style = Style::default();
         style.set_text_color(Color::from_rgb(rgb));
         label
             .add_style(Part::Main, &mut style)
             .map_err(|e| anyhow::anyhow!("add_style: {e:?}"))?;
-        styles.push(style);
-    }
-    Ok(())
+        Some(style)
+    } else {
+        None
+    };
+
+    let ptr = label.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
+    Ok(LiveBinding {
+        kind: LiveKind::Text {
+            ptr,
+            tag: obj.tag.clone(),
+            format: obj.format.clone(),
+            static_text: obj.text.clone(),
+            text_color_by_threshold,
+            alarm_low: obj.alarm_low,
+            warn_low: obj.warn_low,
+            warn_high: obj.warn_high,
+            alarm_high: obj.alarm_high,
+            static_color_hex,
+            color_style,
+        },
+    })
 }
 
 fn render_button(screen: &mut lvgl::Obj, obj: &SynopticObject, styles: &mut Vec<Style>) -> anyhow::Result<()> {
@@ -250,55 +350,68 @@ fn render_button(screen: &mut lvgl::Obj, obj: &SynopticObject, styles: &mut Vec<
     Ok(())
 }
 
-fn render_led(
-    screen: &mut lvgl::Obj,
-    obj: &SynopticObject,
-    tags: &TagSnapshot,
-    styles: &mut Vec<Style>,
-) -> anyhow::Result<()> {
-    let mut led = Led::create(screen).map_err(|e| anyhow::anyhow!("Led::create: {e:?}"))?;
-    let d = obj.width.unwrap_or(24.0);
-    set_pos_size(&mut led, obj, d, d)?;
-
-    let tv = lookup(tags, &obj.tag);
-    let on_value = obj.on_value.clone().unwrap_or(OnValue::Bool(true));
+/// Colore + stato on/off del LED, condiviso tra creazione e aggiornamento.
+fn led_state(
+    tv: Option<&TagSnapshotValue>,
+    on_value: &OnValue,
+    on_color: &str,
+    off_color: &str,
+) -> (bool, bool, String) {
     let is_on = match tv {
         None => false,
-        Some(t) => match &on_value {
+        Some(t) => match on_value {
             OnValue::Bool(want) => tag_value_as_bool(&t.value) == *want,
             OnValue::Str(want) => &tag_value_as_string(&t.value) == want,
         },
     };
     let bad_quality = matches!(tv, Some(t) if t.quality == TagQuality::Bad);
-
     let color_hex = if tv.is_none() {
         "#334155".to_string()
     } else if bad_quality {
         "#ef4444".to_string()
     } else if is_on {
-        obj.on_color.clone().unwrap_or_else(|| "#22c55e".to_string())
+        on_color.to_string()
     } else {
-        obj.off_color.clone().unwrap_or_else(|| "#334155".to_string())
+        off_color.to_string()
     };
-    apply_bg_color(&mut led, &color_hex, styles)?;
+    (is_on, bad_quality, color_hex)
+}
+
+fn render_led(
+    screen: &mut lvgl::Obj,
+    obj: &SynopticObject,
+    tags: &TagSnapshot,
+) -> anyhow::Result<LiveBinding> {
+    let mut led = Led::create(screen).map_err(|e| anyhow::anyhow!("Led::create: {e:?}"))?;
+    let d = obj.width.unwrap_or(24.0);
+    set_pos_size(&mut led, obj, d, d)?;
+
+    let on_value = obj.on_value.clone().unwrap_or(OnValue::Bool(true));
+    let on_color = obj.on_color.clone().unwrap_or_else(|| "#22c55e".to_string());
+    let off_color = obj.off_color.clone().unwrap_or_else(|| "#334155".to_string());
+
+    let tv = lookup(tags, &obj.tag);
+    let (is_on, bad_quality, color_hex) = led_state(tv, &on_value, &on_color, &off_color);
+
+    let mut style = Style::default();
+    if let Some(rgb) = parse_hex_color(&color_hex) {
+        style.set_bg_color(Color::from_rgb(rgb));
+    }
+    led.add_style(Part::Main, &mut style)
+        .map_err(|e| anyhow::anyhow!("add_style: {e:?}"))?;
     if tv.is_some() && (is_on || bad_quality) {
         led.on().map_err(|e| anyhow::anyhow!("led on: {e:?}"))?;
     } else {
         led.off().map_err(|e| anyhow::anyhow!("led off: {e:?}"))?;
     }
-    Ok(())
+
+    let ptr = led.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
+    Ok(LiveBinding {
+        kind: LiveKind::Led { ptr, tag: obj.tag.clone(), on_value, on_color, off_color, style },
+    })
 }
 
-fn tag_value_as_bool(v: &TagValue) -> bool {
-    match v {
-        TagValue::Bool(b) => *b,
-        TagValue::Int(i) => *i != 0,
-        TagValue::Float(f) => *f != 0.0,
-        TagValue::Str(s) => !s.trim().is_empty(),
-    }
-}
-
-fn render_slider(screen: &mut lvgl::Obj, obj: &SynopticObject, tags: &TagSnapshot) -> anyhow::Result<()> {
+fn render_slider(screen: &mut lvgl::Obj, obj: &SynopticObject, tags: &TagSnapshot) -> anyhow::Result<LiveBinding> {
     let mut slider = Slider::create(screen).map_err(|e| anyhow::anyhow!("Slider::create: {e:?}"))?;
     set_pos_size(&mut slider, obj, 200.0, 50.0)?;
 
@@ -309,15 +422,15 @@ fn render_slider(screen: &mut lvgl::Obj, obj: &SynopticObject, tags: &TagSnapsho
         .unwrap_or(min)
         .clamp(min.min(max), min.max(max));
 
+    let ptr = slider.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
     unsafe {
         // lv_slider_t è internamente uno specializzato lv_bar_t in LVGL: non
         // esistono lv_slider_set_range/set_value dedicati, si riusano quelli
         // di bar (confermato dai bindgen bindings reali, non da supposizione).
-        let ptr = slider.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?.as_mut() as *mut _;
-        lvgl_sys::lv_bar_set_range(ptr, min.round() as i32, max.round() as i32);
-        lvgl_sys::lv_bar_set_value(ptr, raw.round() as i32, lvgl::Animation::OFF.into());
+        lvgl_sys::lv_bar_set_range(ptr.as_ptr(), min.round() as i32, max.round() as i32);
+        lvgl_sys::lv_bar_set_value(ptr.as_ptr(), raw.round() as i32, lvgl::Animation::OFF.into());
     }
-    Ok(())
+    Ok(LiveBinding { kind: LiveKind::Slider { ptr, tag: obj.tag.clone(), min, max } })
 }
 
 /// Registra un display LVGL `HOR_RES`×`VER_RES` (via `lvgl_display::init_display`,
@@ -326,13 +439,18 @@ fn render_slider(screen: &mut lvgl::Obj, obj: &SynopticObject, tags: &TagSnapsho
 /// `task_handler()`**: tocca al chiamante guidare il redraw (loop SDL2 in
 /// `main.rs`), ripetutamente per tutta la durata della finestra.
 ///
-/// Ritorna anche gli `Style` creati: devono restare vivi quanto i widget a
-/// cui sono applicati (LVGL tiene un puntatore, non una copia) — validi solo
-/// finché il chiamante non li droppa, quindi vanno tenuti in vita per tutta
-/// la durata della finestra, non solo di questa funzione.
-pub fn interpret_page(page: &SynopticPage, tags: &TagSnapshot) -> anyhow::Result<(RenderSummary, Vec<Style>)> {
+/// Ritorna anche gli `Style` statici e i `LiveBinding` (widget tag-dipendenti,
+/// con i loro `Style` dinamici): entrambi devono restare vivi quanto la
+/// finestra, non solo quanto questa funzione — LVGL tiene puntatori, non
+/// copie. Il chiamante passa i `LiveBinding` a `update_bindings` a ogni
+/// frame per riflettere i valori tag correnti senza ricreare nulla.
+pub fn interpret_page(
+    page: &SynopticPage,
+    tags: &TagSnapshot,
+) -> anyhow::Result<(RenderSummary, Vec<Style>, Vec<LiveBinding>)> {
     let mut summary = RenderSummary::default();
     let mut styles: Vec<Style> = Vec::new();
+    let mut live: Vec<LiveBinding> = Vec::new();
 
     crate::lvgl_display::init_display(HOR_RES, VER_RES)?;
 
@@ -360,12 +478,12 @@ pub fn interpret_page(page: &SynopticPage, tags: &TagSnapshot) -> anyhow::Result
             summary.skipped_unsupported.push(format!("{id} ({obj_type})"));
             continue;
         }
-        let result = match obj_type {
+        let result: anyhow::Result<()> = match obj_type {
             "rect" => render_rect(&mut screen, obj, &mut styles),
-            "text" => render_text(&mut screen, obj, tags, &mut styles),
             "button" => render_button(&mut screen, obj, &mut styles),
-            "led" => render_led(&mut screen, obj, tags, &mut styles),
-            "slider" => render_slider(&mut screen, obj, tags),
+            "text" => render_text(&mut screen, obj, tags).map(|b| live.push(b)),
+            "led" => render_led(&mut screen, obj, tags).map(|b| live.push(b)),
+            "slider" => render_slider(&mut screen, obj, tags).map(|b| live.push(b)),
             _ => unreachable!("filtrato da SUPPORTED_TYPES sopra"),
         };
         match result {
@@ -374,5 +492,91 @@ pub fn interpret_page(page: &SynopticPage, tags: &TagSnapshot) -> anyhow::Result
         }
     }
 
-    Ok((summary, styles))
+    Ok((summary, styles, live))
+}
+
+/// Aggiorna tutti i widget tag-dipendenti in base allo stato corrente dei
+/// tag — chiamata dal chiamante a ogni frame (o quasi). Nessuna allocazione
+/// di `Style` qui: quelli esistenti vengono mutati sul posto e "rinfrescati"
+/// con `lv_obj_refresh_style` (mutare le proprietà di uno `Style` già
+/// assegnato non basta da solo — LVGL cache lo stile calcolato per oggetto).
+pub fn update_bindings(bindings: &mut [LiveBinding], tags: &TagSnapshot) {
+    for b in bindings {
+        match &mut b.kind {
+            LiveKind::Led { ptr, tag, on_value, on_color, off_color, style } => {
+                let tv = lookup(tags, tag);
+                let (is_on, bad_quality, color_hex) = led_state(tv, on_value, on_color, off_color);
+                unsafe {
+                    if let Some(rgb) = parse_hex_color(&color_hex) {
+                        style.set_bg_color(Color::from_rgb(rgb));
+                        lvgl_sys::lv_obj_refresh_style(
+                            ptr.as_ptr(),
+                            Part::Main.into(),
+                            lvgl_sys::lv_style_prop_t_LV_STYLE_BG_COLOR,
+                        );
+                    }
+                    if tv.is_some() && (is_on || bad_quality) {
+                        lvgl_sys::lv_led_on(ptr.as_ptr());
+                    } else {
+                        lvgl_sys::lv_led_off(ptr.as_ptr());
+                    }
+                }
+            }
+            LiveKind::Slider { ptr, tag, min, max } => {
+                let raw = lookup(tags, tag)
+                    .map(|t| tag_value_as_f64(&t.value))
+                    .unwrap_or(*min)
+                    .clamp(min.min(*max), min.max(*max));
+                unsafe {
+                    lvgl_sys::lv_bar_set_value(ptr.as_ptr(), raw.round() as i32, lvgl::Animation::OFF.into());
+                }
+            }
+            LiveKind::Text {
+                ptr,
+                tag,
+                format,
+                static_text,
+                text_color_by_threshold,
+                alarm_low,
+                warn_low,
+                warn_high,
+                alarm_high,
+                static_color_hex,
+                color_style,
+            } => {
+                let tv = lookup(tags, tag);
+                let content = match tv {
+                    Some(t) => format_value(&t.value, format.as_deref().or(Some("{value}"))),
+                    None => static_text
+                        .clone()
+                        .or_else(|| tag.clone())
+                        .unwrap_or_else(|| "Testo".to_string()),
+                };
+                unsafe {
+                    lvgl_sys::lv_label_set_text(ptr.as_ptr(), text_cstring(&content).as_ptr());
+                }
+                if let Some(style) = color_style {
+                    let rgb = text_color_hex(
+                        tv,
+                        *text_color_by_threshold,
+                        *alarm_low,
+                        *warn_low,
+                        *warn_high,
+                        *alarm_high,
+                        static_color_hex.as_deref(),
+                    );
+                    if let Some(rgb) = rgb {
+                        style.set_text_color(Color::from_rgb(rgb));
+                        unsafe {
+                            lvgl_sys::lv_obj_refresh_style(
+                                ptr.as_ptr(),
+                                Part::Main.into(),
+                                lvgl_sys::lv_style_prop_t_LV_STYLE_TEXT_COLOR,
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
 }

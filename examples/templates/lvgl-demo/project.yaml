@@ -1,0 +1,37 @@
+meta:
+  name: lvgl-demo
+  version: 0.1.0
+
+# Target LVGL fin dalla creazione — questo campo sopravvive alla copia del
+# template (vedi sws-web/src/projects.rs: create_project copia project.yaml
+# così com'è, il target del wizard si applica solo ai progetti vuoti).
+target:
+  kind: lvgl_framebuffer
+  framebuffer_device: "/dev/fb0"
+
+# Tag in-memory: nessuna sorgente, scrivibili via API o (quando l'input
+# device sarà collegato — vedi docs/OPEN_QUESTIONS.md Q14) dai widget stessi.
+tags:
+  - id: lvgl_demo.counter
+    description: "Contatore demo — pensato per essere incrementato da un bottone quando l'interattività sarà collegata"
+    data_type: float
+  - id: lvgl_demo.led_on
+    description: "Stato ON/OFF del LED demo"
+    data_type: bool
+  - id: lvgl_demo.value
+    description: "Valore numerico 0-100 — guida sia lo slider sia il testo formattato"
+    data_type: float
+  - id: lvgl_demo.toggle
+    description: "Riservato per il prossimo giro di widget (checkbox/switch)"
+    data_type: bool
+
+sources: []
+alarms: []
+functions: []
+custom_symbols: []
+datastores: []
+global_scripts: []
+languages:
+  default: ""
+  langs: []
+  entries: []

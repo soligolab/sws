@@ -1,0 +1,111 @@
+id: lvgl_demo_page
+name: LVGL Demo
+background: "#0f172a"
+width: 800
+height: 480
+objects:
+  - id: t_title
+    type: text
+    x: 20.0
+    y: 14.0
+    text: "LVGL Demo - motore di rendering"
+    font_size: 20.0
+    font_weight: bold
+    color: "#e2e8f0"
+
+  # ── rect ──────────────────────────────────────────────────────────────────
+  - id: r1
+    type: rect
+    x: 20.0
+    y: 60.0
+    width: 100.0
+    height: 70.0
+    fill: "#22c55e"
+  - id: cap_r1
+    type: text
+    x: 20.0
+    y: 140.0
+    text: "rect"
+    font_size: 12.0
+    color: "#94a3b8"
+
+  # ── button ────────────────────────────────────────────────────────────────
+  - id: b1
+    type: button
+    x: 150.0
+    y: 60.0
+    width: 130.0
+    height: 50.0
+    label: "Bottone"
+    fill: "#3b82f6"
+  - id: cap_b1
+    type: text
+    x: 150.0
+    y: 120.0
+    text: "button"
+    font_size: 12.0
+    color: "#94a3b8"
+
+  # ── led (tag: lvgl_demo.led_on) ──────────────────────────────────────────
+  - id: l1
+    type: led
+    x: 320.0
+    y: 74.0
+    width: 28.0
+    height: 28.0
+    tag: lvgl_demo.led_on
+    on_value: true
+    on_color: "#22c55e"
+    off_color: "#475569"
+  - id: cap_l1
+    type: text
+    x: 305.0
+    y: 120.0
+    text: "led"
+    font_size: 12.0
+    color: "#94a3b8"
+
+  # ── slider (tag: lvgl_demo.value) ────────────────────────────────────────
+  - id: s1
+    type: slider
+    x: 410.0
+    y: 65.0
+    width: 220.0
+    height: 40.0
+    tag: lvgl_demo.value
+    min: 0.0
+    max: 100.0
+  - id: cap_s1
+    type: text
+    x: 410.0
+    y: 120.0
+    text: "slider"
+    font_size: 12.0
+    color: "#94a3b8"
+
+  # ── text formattato (tag: lvgl_demo.value) ───────────────────────────────
+  - id: txt_val
+    type: text
+    x: 670.0
+    y: 65.0
+    tag: lvgl_demo.value
+    format: "{value:.1f}"
+    font_size: 22.0
+    color: "#eab308"
+  - id: cap_val
+    type: text
+    x: 670.0
+    y: 120.0
+    text: "text (formato)"
+    font_size: 12.0
+    color: "#94a3b8"
+
+  # ── prossimi tipi: aggiungere qui man mano (checkbox, progress_bar, radio,
+  #    ellipse/line - vedi lvgl_demo.toggle già riservato per il primo) -----
+  - id: note_future
+    type: text
+    x: 20.0
+    y: 440.0
+    text: "Prossimi widget arrivano qui sotto - vedi lvgl_demo.toggle"
+    font_size: 11.0
+    color: "#5b6b85"

@@ -1,0 +1,3 @@
+id: lvgl-demo
+label: "LVGL Demo"
+description: "Progetto di riferimento per il motore di rendering LVGL (sws-lvgl-viewer) — un oggetto per ogni tipo supportato, con tag dedicati per provare l'aggiornamento live. Cresce insieme al motore: nuovi tipi widget vengono aggiunti qui man mano che diventano disponibili. Vedi docs/OPEN_QUESTIONS.md Q14 e docs/adr/0002-lvgl-rendering-engine.md."
