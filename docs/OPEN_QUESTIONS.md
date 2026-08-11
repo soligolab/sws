@@ -328,9 +328,80 @@ contro i sorgenti C di LVGL v9).
 3. Rivalutare da capo quando si arriva alla Fase 4 (framebuffer/DRM/Wayland reali), sulla base
    di come si sarà comportato il binding v8 nell'MVP su simulatore SDL2 (Fase 2).
 
-**Default for PoC**: opzione 3 — si parte con il crate ufficiale `lvgl` (v8.x) per l'MVP su
-simulatore SDL2 (velocità di iterazione senza hardware), rimandando la decisione vera a quando
-serve davvero un driver Wayland/DRM su device reale.
+**Default for PoC**: opzione 3 — si parte con il crate ufficiale `lvgl` (v8.x) per l'MVP,
+rimandando la decisione vera a quando serve davvero un driver Wayland/DRM su device reale.
+
+**Decided**: not yet — ma vedi l'aggiornamento sotto, che rende l'opzione 1 (restare su v8 anche
+per i backend reali) più rischiosa del previsto e sposta il peso verso l'opzione 2.
+
+---
+
+**Aggiornamento 2026-08-07 (notte) — bug bloccante confermato in `Display::register()`**
+
+Durante l'MVP (Fase 2, sessione notturna in autonomia) si è tentato di renderizzare un frame su
+un buffer in memoria (niente SDL2: `libsdl2-dev` non installabile senza sudo su questo dev
+server, bloccato da policy — vedi `.claude/settings.json` `deny: ["Bash(sudo *)"]` — e comunque
+inutile su un server headless senza display). Il primo `lvgl::task_handler()` dopo la creazione
+dei widget causa un **segfault sistematico e deterministico**, riprodotto:
+- indipendentemente dal contenuto della pagina (crasha anche con zero widget, solo schermo);
+- indipendentemente dalla risoluzione (crasha identico a 800×480 e a 240×240, la risoluzione
+  esatta dell'esempio ufficiale `button_click.rs`);
+- indipendentemente dal thread (stesso crash su thread dedicato con stack 64 MB e su main thread);
+- indipendentemente dal timing (crasha anche chiamando `task_handler()` immediatamente dopo
+  `Display::register()`, senza codice intermedio);
+- indipendentemente dalla config LVGL (stesso crash con la config vendorizzata di default,
+  `LV_MEM_SIZE` 48 KB, e con la config reale degli esempi ufficiali, `LV_MEM_SIZE` 1 MB).
+
+**Root cause, confermata via `coredumpctl debug -A "-batch -ex bt -ex quit"` (backtrace GDB
+completo)**: il crash è dentro `lv_color_fill()` (`lv_color.c:61`), chiamato con un puntatore
+spazzatura (`buf=0xf7bef7bef7bef7be`) e un conteggio pixel assurdo (`px_num=4156487598`, ~4
+miliardi). Risalendo lo stack: `Display::register()` (in `lvgl-0.6.2/src/display.rs:37-51`)
+crea un `DisplayDriver<N>` **locale alla propria function body** (`let mut display_diver = ...`),
+che possiede il buffer di draw (`_buffer: DrawBuffer<N>`, un array `[MaybeUninit<lv_color_t>; N]`
+**inline**, non dietro un puntatore stabile). `DrawBuffer::get_ptr()` (righe 157-178) prende
+l'indirizzo di quell'array e lo passa a `lv_disp_draw_buf_init()`, che LVGL C-side memorizza
+dentro lo stato globale del display (`disp_drv.draw_buf`). Quando `Display::register()` ritorna,
+`display_diver` — e con esso l'intero buffer — **viene distrutto** (fine dello scope): LVGL resta
+con un puntatore pendente verso uno stack frame non più valido. Il codice stesso lo ammette:
+`DrawBuffer::get_ptr()` ha un commento `// TODO: needs to be 'static somehow` seguito da una nota
+sul motivo per cui non è banale risolverlo (`lv_disp_buf_t` contiene un puntatore raw, non può
+stare dentro una `static`). **`Display::register_raw()` (l'API unsafe "di riserva") ha lo
+stesso identico difetto** — chiama `DisplayDriver::new_raw()` ma tiene il risultato in una
+variabile locale altrettanto effimera prima di passarla a `disp_drv_register()`. `DisplayDriver`
+è inoltre `pub(crate)`: non è possibile, dall'esterno del crate, tenerne in vita un'istanza più a
+lungo, né intervenire nella sua allocazione. L'esempio ufficiale `button_click.rs` "funziona"
+solo perché chiama `task_handler()` nello stesso stack frame di `main()`, subito dopo
+`Display::register()` — un caso fortunato di undefined behavior che non sopravvive a un solo
+livello di indirection in più (nel nostro caso: `main → run → interpret_page`), non una garanzia
+del design.
+
+**Conclusione**: `lvgl` 0.6.2 non ha, ad oggi, **nessuna via pubblica sicura** per registrare un
+display che sopravviva oltre la singola chiamata di `register()`/`register_raw()`. Non è un
+errore nostro, non è una questione di config/risoluzione/thread — è un bug strutturale nel
+crate. `sws-lvgl-viewer` (branch `feature/lvgl-2-render-engine`) si ferma quindi subito dopo la
+creazione dei widget (verificata corretta e completa: 11/18 oggetti supportati creati con
+successo su `examples/templates/demo-items` "Page 1", 7 correttamente segnalati come non ancora
+supportati) e non tenta il redraw.
+
+**Opzioni per sbloccare l'export immagine (Fase 2 successiva)**:
+1. **Vendorizzare/patchare** una copia locale di `lvgl` con il fix minimo (rendere `_buffer`
+   `'static` via `Box::leak` o una `static` globale invece che locale a `register()`). Piccolo
+   nel diff, ma richiede capire a fondo un crate non nostro e fidarsi di non introdurre nuovi bug
+   — rischioso da fare senza un test interattivo con hardware/schermo a disposizione.
+2. **Bypassare il modulo `Display` del crate**: scrivere un piccolo shim C (`build.rs` + `cc`)
+   che chiama direttamente `lv_disp_drv_register` su un buffer `static` C-side, usando solo
+   `lvgl-sys` (i bindgen raw, che non hanno questo problema — il bug è tutto nel layer Rust
+   `Display`/`DrawBuffer`) e i sorgenti LVGL già vendorizzati da `lvgl-sys`. Più lavoro, ma
+   evita del tutto il codice difettoso.
+3. **Cambiare binding**: valutare `rlvgl` (reimplementazione Rust-nativa dei widget LVGL, trovata
+   durante la ricerca iniziale) o altri binding community — ignoto se più maturi su questo fronte
+   specifico, richiede una valutazione a sé.
+4. Aprire una issue upstream su `lvgl/lv_binding_rust` con questo backtrace — il fix più pulito
+   nel lungo periodo, ma non sblocca nel breve.
+
+**Default for PoC**: nessuno finché il maintainer non decide — l'interprete widget (la parte di
+valore, il "difficile" per cui vale la pena questo motore) è completo e verificato; il redraw
+resta un TODO esplicito, non un tentativo silenziosamente rotto nel binario.
 
 **Decided**: not yet.
 
