@@ -43,11 +43,10 @@ e patch obbligatoria, perché Cargo rifiuta sia `2026.07` sia `2026.7`).
   bisecato con oltre 10 pagine di prova ad-hoc e risolto passando al pattern standard LVGL per il
   cambio schermo (`lv_disp_load_scr` + `lv_obj_del` invece di `lv_obj_clean` + riuso in-place) —
   il meccanismo esatto non è stato isolato con piena certezza, documentato onestamente come tale.
-  Sviluppato su dieci branch di lunga durata in sequenza (`feature/lvgl` →
-  `feature/lvgl-2-render-engine` → `feature/lvgl-3-project-wizard` → `feature/lvgl-2b-display-fix`
-  → `feature/lvgl-live-updates` → `feature/lvgl-more-widgets` → `feature/lvgl-input-device` →
-  `feature/lvgl-widgets-2` → `feature/lvgl-multipage-1280x800` → `feature/lvgl-badge-compat`),
-  nessuno ancora mergiato in main. Vedi ADR 0002, `docs/plans/2026-08-07-lvgl-engine.md`.
+  Sviluppato su quindici branch di lunga durata in sequenza (`feature/lvgl` → ... →
+  `feature/lvgl-pixsys-deploy`), mergiati su `main` con 15 squash-merge sequenziali, uno per fase
+  logica (branch non cancellati, decisione di pulizia rimandata). Vedi ADR 0002,
+  `docs/plans/2026-08-07-lvgl-engine.md`.
 - **Palette oggetti**: per un progetto "web", ogni voce con anche una controparte LVGL mostra un
   piccolo badge "L" sull'icona. Verifica sistematica campo per campo (`sws-web/src/synoptic.rs`
   vs `sws-lvgl-viewer/src/model.rs`): i nomi combaciano per tutti i tipi supportati da LVGL.
@@ -120,6 +119,24 @@ e patch obbligatoria, perché Cargo rifiuta sia `2026.07` sia `2026.7`).
   esplicitamente all'`auth.json` di `$SUDO_USER` invece di richiedere un secondo login come root.
   `docs/HOWTO.md` cap. 1 aggiornato di conseguenza (percorso generico primario, percorso SDK
   preservato come alternativa in un blocco ripiegabile).
+- **LVGL — rendering reale su hardware Pixsys (`tc620-a-p3-c6-07aff9.local`), backend DRM
+  diretto + touch**: isolato un bug del driver kernel Rockchip out-of-tree di questo device sul
+  percorso di commit KMS **atomico** (confermato con un tool indipendente, `modetest -a` contro
+  `modetest` legacy — non il nostro codice), che produceva schermo nero indipendentemente dal
+  toolkit usato (SDL2/kmsdrm e il driver `lv_drivers/display/drm.c` vendorizzato sono entrambi
+  esclusivamente atomic). Bypassato con un nuovo backend `drm_display.rs`: rendering diretto via
+  API DRM **legacy** (`drmModeSetCrtc`), bindgen contro libdrm, dumb buffer via ioctl raw. Nel
+  processo isolati anche due bug SDL2 upstream distinti (Wayland: `SDL_CreateRenderer`/
+  `SDL_GetWindowSurface` creano un contesto EGL eager indipendentemente dal flag richiesto; X11:
+  `SDL_x11framebuffer.c` hardcoda `depth=32` contro il visual reale) — non risolvibili senza
+  patchare SDL2 a monte, non tentato: il percorso del progetto per questa classe di device è ora
+  il backend DRM diretto. Input touch via nuovo `touch_indev.rs`: legge evdev raw dal symlink
+  dinamico già mantenuto da `find-touchscreen.service` (mai un device path hardcoded), eventi
+  già calibrati da tslib a monte. Due bug estetici trovati nella prima verifica visiva reale e
+  corretti: il gauge non forzava una forma circolare su una box non quadrata, lo slider
+  riempiva l'intera altezza dichiarata invece di un track sottile (`lv_obj_set_ext_click_area`
+  preserva l'area di tocco originale). **Primo rendering LVGL su hardware fisico in questo
+  progetto**, confermato dal maintainer con touch funzionante.
 - **Allarmi piazzabili come oggetti canvas**: due nuovi tipi SCADA, `alarm_bell`
   (campanella con dropdown attivi/storico/ack/shelve) e `alarm_banner` (barra con
   blink/ACK/priorità ISA-18.2), piazzabili su qualunque pagina invece che solo come
