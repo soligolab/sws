@@ -703,6 +703,66 @@ Non ancora provato su hardware reale (il maintainer lo farà su `tc620-a-p3-c6-0
 
 ---
 
+**Aggiornamento 2026-08-08 (seguito 5) — indicatore "L" nella palette + verifica compatibilità
+nomi campo web↔LVGL**
+
+Richiesta del maintainer: nella palette oggetti dell'editor, per un progetto "web", marcare con
+un piccolo badge "L" (angolo in basso a destra dell'icona) i tipi che hanno anche una controparte
+LVGL — l'inverso del filtro già esistente per i progetti LVGL (che invece nasconde del tutto i
+tipi non supportati). E: verificare che lo YAML usi gli stessi nomi di oggetti/proprietà tra web
+e LVGL, così un progetto che usa solo tipi con controparte LVGL sia convertibile tra i due target
+senza dover riscrivere lo YAML — solo `project.yaml`'s `target.kind`.
+
+**Badge implementato** (`LeftPanel.tsx`, `PaletteGroupAccordion`): badge assoluto sovrapposto
+all'icona, mostrato quando `!isLvgl && LVGL_SUPPORTED_TYPES.has(type)` — cioè mai per progetti
+LVGL (dove la palette è già filtrata, il badge sarebbe ridondante). Verificato con uno screenshot
+reale in un browser vero (Playwright headless — Chromium coi flag GUI classici non apriva una
+finestra visibile in questo ambiente, causa confinamento snap; ha bloccato anche la scrittura
+dello screenshot fuori da `$HOME`, aggirato scrivendo lì e poi copiando), non solo letto il
+codice: sulla palette "web" `Rettangolo/Ellisse/Linea/Testo/Bottone/Nav pagina/Checkbox/Radio/
+Slider/Gauge/LED/...` mostrano il badge, `Immagine/Setpoint/Lingua ▾/Lingua btn/...` no —
+esattamente l'insieme atteso. Sulla palette di un progetto LVGL, confermato nessun badge e
+filtro invariato (nessuna regressione).
+
+**Verifica compatibilità nomi**: confronto sistematico campo per campo tra
+`sws-web/src/synoptic.rs` (`SynopticObject`, ~150 campi, schema autoritativo) e
+`sws-lvgl-viewer/src/model.rs` per tutti i 14 tipi oggi supportati da LVGL. **Ogni campo che il
+motore LVGL legge esiste con lo stesso nome nello schema web** (`tag`, `fill`, `x`/`y`,
+`width`/`height`, `label`, `write_value`, `on_value`/`on_color`/`off_color`,
+`min`/`max`/`unit`, `x2`/`y2`/`stroke_width`, `warn_low`/`warn_high`/`alarm_low`/`alarm_high`,
+`text_list_entries`/`text_list_default`/`text_list_default_color`, `table_rows`,
+`target_page`), incluse le sotto-strutture (`TextListEntry`/`TableRow` in Rust ricalcano
+esattamente le interfacce TS omonime). Un file YAML per uno di questi tipi è quindi
+sintatticamente portabile tra i due target: cambiare `target.kind` non fa perdere né rinominare
+nessun campo — non era mai stato verificato sistematicamente prima d'ora, solo tenuto allineato
+per costruzione via ADR 0002 ("duplicazione accettata").
+
+**Ma non è portabilità comportamentale completa** — differenza importante da non nascondere:
+alcuni campi esistono su entrambi i lati ma LVGL non li **onora** ancora, quindi un progetto che
+li usa avrebbe un comportamento diverso spostandosi da web a LVGL, anche restando nei 14 tipi
+"con controparte":
+- `checkbox`/`radio`: il web confronta il valore del tag con `checked_value`/`unchecked_value`
+  (default `true`/`false`, ma può essere una stringa o un numero qualsiasi — verificato in
+  `SvgCanvas.tsx`, non assunto: `isChecked = String(tv.value) === String(checkedVal)`) — LVGL
+  scrive/legge solo booleano puro (`tag_value_as_bool`/`TagValue::Bool`). Un checkbox web con
+  `checked_value: "RUN"` funzionerebbe silenziosamente in modo diverso su LVGL (scriverebbe
+  `true`, non `"RUN"`).
+- `button`/`navbutton`: script `on_press_fn`/`on_release_fn` non sono supportati da LVGL (solo
+  `write_value` sul click) — già annotato nell'aggiornamento precedente di questa voce.
+- `line`: `stroke_dasharray` (tratteggio) non è supportato — LVGL disegna sempre una linea piena.
+- `gauge`: l'arco non ricolora per soglia superata dal vivo come nel web — già annotato sopra.
+
+Nessuno di questi è un problema di **nomi** (motivo per cui la verifica richiesta è comunque
+soddisfatta) — sono limiti dell'implementazione LVGL di quel tipo, già in gran parte documentati
+sopra in questa voce caso per caso. Non risolti in questo giro (non richiesto esplicitamente,
+solo la verifica dei nomi) — se il maintainer costruisce un progetto reale con questi campi e
+prova a convertirlo, è il momento di chiudere il gap specifico che emerge, non tutti a priori.
+
+**Decided**: nomi campo verificati compatibili per costruzione. Badge implementato e verificato
+in browser. Gap comportamentali sopra documentati, non ancora chiusi.
+
+---
+
 ## Adding new questions
 
 When Claude Code adds a new question, follow the format above:

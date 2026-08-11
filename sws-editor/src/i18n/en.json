@@ -180,6 +180,7 @@
     "sectionPages": "PAGES",
     "sectionObjects": "OBJECTS",
     "paletteLvglHint": "LVGL project: only objects already supported by the engine are shown.",
+    "paletteLvglBadgeTitle": "Also available for LVGL projects",
     "sectionPageObjects": "PAGE OBJECTS",
     "sectionFunctions": "FUNCTIONS",
     "sectionSources": "SOURCES",
