@@ -6,7 +6,65 @@
 >
 > **Pulizia 2026-07-27**: rimossi i task già chiusi e le sezioni di verifica ormai superate; le sessioni mergiate **e** verificate fino al 2026-07-09 sono compresse in «Storico». Il dettaglio integrale resta in `CHANGELOG.md` e nella history git.
 
-**Last session**: 2026-08-08 (prosecuzione) — completati i primi 4 punti della roadmap proposta
+**Last session**: 2026-08-10/11 — chiusa la Fase 4 (rendering LVGL reale su hardware Pixsys,
+`tc620-a-p3-c6-07aff9.local`) e **mergiati su `main` tutti e 15 i branch** del filone LVGL
+(15 squash-merge sequenziali, uno per fase, nessuna cancellazione di branch — vedi
+`docs/plans/` per il piano, non ancora committato lì perché eseguito interamente in sessione).
+
+Partita da schermo nero sul device reale nonostante l'accesso Wayland già verificato in
+precedenza. Indagine approfondita sul crash SDL2, su richiesta esplicita del maintainer di
+scendere di livello invece di continuare a indovinare ("lasciar perdere SDL2 per un momento...
+prima di tutto certificare che il video funziona"): isolato un **SIGSEGV Wayland** fino a
+`SDL_CreateRenderer`/`SDL_GetWindowSurface` (bug upstream SDL2 note — creazione EGL eager
+indipendente dal flag richiesto, `libsdl-org/SDL#4650`/`#5386`); passando a X11 (che ha un
+percorso framebuffer dedicato, a differenza di Wayland) emerso un bug **distinto**:
+`SDL_x11framebuffer.c` hardcoda `depth=32` in `XCreateImage` contro il visual reale (depth 24 su
+questo device), causa un `BadValue` su `MIT-SHM X_ShmPutImage`. Tre fix mirati tentati e falliti
+su questo secondo bug — non risolvibile senza patchare SDL2 a monte.
+
+**Causa radice del rendering assente isolata definitivamente con un tool indipendente**, non il
+nostro codice: `modetest -a` (atomic) riproduce lo stesso schermo nero di SDL2/kmsdrm, mentre
+`modetest` (legacy, nessun flag) mostra un pattern di test stabile. Il driver kernel Rockchip
+out-of-tree di questo device (`Tainted: [O]`) ha il **percorso di commit KMS ATOMIC rotto** —
+colpisce SDL2 (tutti i suoi percorsi Wayland/kmsdrm) e il driver `lv_drivers/display/drm.c` già
+vendorizzato, entrambi esclusivamente atomic. Bypassato interamente scrivendo un nuovo backend
+da zero, `drm_display.rs`: rendering diretto via API DRM **legacy** (`drmModeSetCrtc`), bindgen
+contro libdrm, dumb buffer via ioctl raw (formula di encoding ioctl Linux reimplementata a mano
+e verificata byte-esatta contro un riferimento C-preprocessor), conversione RGB888→XRGB8888.
+**Primo rendering LVGL mai visto su hardware fisico in questo progetto.**
+
+Input touch via nuovo `touch_indev.rs`: legge evdev raw da `/dev/input/ts_uinput` (symlink
+dinamico di `find-touchscreen.service` già presente sul device, mai un device path hardcoded —
+i numeri `eventN` non sono stabili tra boot), eventi già calibrati da tslib
+(`ts-uinput.service`) a monte — nessun linking tslib diretto necessario, calibrazione per-asse
+letta dinamicamente via `EVIOCGABS` invece di costanti hardcoded.
+
+Due bug estetici trovati e corretti nella prima verifica visiva reale (mai visibili prima: ogni
+verifica precedente era sul simulatore SDL2 desktop di una macchina diversa, non hardware reale):
+il gauge non forzava una forma circolare per una box non quadrata (220×190 nel template demo,
+ora centra il lato più corto); lo slider riempiva l'intera altezza dichiarata (44px) invece di
+un track sottile (ridotto a 16px centrato, con `lv_obj_set_ext_click_area` per preservare l'area
+di tocco originale). Confermati risolti dal maintainer.
+
+Dettagli completi (backtrace, comandi, output di verifica) in `docs/OPEN_QUESTIONS.md` Q14
+(seguiti 12+, da aggiungere — non ancora scritti come voci separate in questo giro, narrati qui e
+nei messaggi di commit del merge).
+
+**Merge su `main`**: 15 squash-merge sequenziali in ordine cronologico dello stack
+(`feature/lvgl` → ... → `feature/lvgl-pixsys-deploy`), uno per fase logica invece di uno
+schiacciato o 79 commit grezzi — richiesta esplicita del maintainer ("un po' di squash ma
+cercando di mantenere la struttura del lavoro"). Verificato `git diff main
+feature/lvgl-pixsys-deploy` vuoto a fine sequenza (nessuna perdita/duplicazione), `cargo check`
+(workspace + `sws-lvgl-viewer`, escluso dal workspace principale) e `pnpm build` verdi. **I 15
+branch `feature/lvgl-*` non sono stati cancellati** — decisione di pulizia rimandata
+esplicitamente dal maintainer a un secondo momento.
+
+**Prossimo passo naturale**: aggiornare `docs/OPEN_QUESTIONS.md` Q14 con i seguiti 12+ (indagine
+SDL2, backend DRM, touch, fix visivi) non ancora scritti come voci separate — narrati solo qui e
+nei commit del merge finora. Poi: test con un mouse/dito vero più esteso sul device, decidere se/
+quando cancellare i branch ormai mergiati, e se/quando affrontare Q15 (`symbol`/SVG→LVGL).
+
+**Sessione precedente**: 2026-08-08 (prosecuzione) — completati i primi 4 punti della roadmap proposta
 dopo la verifica del maintainer su `lvgl-01` (esclusi solo i container, come richiesto
 esplicitamente): **live updates** (connessione `/ws/tags` persistente, widget aggiornati sul
 posto invece che ricreati), **più widget** (checkbox/progress_bar/radio/ellipse, 9 tipi
