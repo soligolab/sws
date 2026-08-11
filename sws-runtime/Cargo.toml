@@ -3,7 +3,11 @@ resolver = "2"
 members = ["crates/*"]
 # sws-kiosk requires libgtk-4-dev + libwebkitgtk-6.0-dev (not installed everywhere).
 # Build explicitly: cargo build --manifest-path crates/sws-kiosk/Cargo.toml (after: sudo apt install libgtk-4-dev libwebkitgtk-6.0-dev)
-exclude = ["crates/sws-kiosk"]
+# sws-lvgl-viewer builda LVGL da sorgente via bindgen (richiede libclang) e, non appena
+# Fase 2 abilita la feature `drivers`/SDL2, anche libsdl2-dev (non installato ovunque).
+# Build esplicita: cargo build --manifest-path crates/sws-lvgl-viewer/Cargo.toml
+# Vedi docs/adr/0002-lvgl-rendering-engine.md.
+exclude = ["crates/sws-kiosk", "crates/sws-lvgl-viewer"]
 
 [workspace.package]
 version      = "2026.7.0"
