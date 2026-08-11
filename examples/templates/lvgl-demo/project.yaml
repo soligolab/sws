@@ -28,6 +28,9 @@ tags:
   - id: lvgl_demo.radio_on
     description: "Stato spuntato/non spuntato del radio demo (radio è approssimato con una checkbox — vedi Q14) — scrivibile anche cliccando"
     data_type: bool
+  - id: lvgl_demo.mode
+    description: "Dimostra checked_value/unchecked_value custom sulla checkbox (stringhe ON/OFF, non un booleano semplice) — parte vuota, quindi non spuntata (\"\" != \"ON\")"
+    data_type: string
 
 sources: []
 alarms: []

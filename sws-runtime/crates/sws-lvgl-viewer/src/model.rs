@@ -87,6 +87,16 @@ pub struct SynopticObject {
     /// comportamento inventato apposta per LVGL.
     pub write_value: Option<serde_json::Value>,
 
+    // ── checkbox / radio ──
+    /// Valore che rappresenta lo stato "checked" (default `true`, come
+    /// `SvgCanvas.tsx`: `obj.checked_value ?? true`) — confrontato per
+    /// stringa col valore del tag, non un booleano fisso: un progetto può
+    /// usare `"ON"`/`"OFF"` invece di `true`/`false`.
+    pub checked_value: Option<serde_json::Value>,
+    /// Valore scritto sul tag quando l'utente deseleziona (default `false`,
+    /// `obj.unchecked_value ?? false`).
+    pub unchecked_value: Option<serde_json::Value>,
+
     // ── led ──
     pub on_value: Option<OnValue>,
     pub on_color: Option<String>,

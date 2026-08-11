@@ -91,10 +91,14 @@ pub enum LiveKind {
     /// checkbox e radio (approssimato con lo stesso widget — vedi
     /// `render_radio`) condividono lo stesso binding: solo lo stato
     /// checked/unchecked cambia dal vivo, `lv_obj_add_state`/`clear_state`
-    /// con `LV_STATE_CHECKED`.
+    /// con `LV_STATE_CHECKED`. `checked_value` è quello che determina lo
+    /// stato (confronto per stringa col tag, vedi `checkbox_is_checked`),
+    /// non un booleano fisso — serve tenerlo qui per rivalutarlo a ogni
+    /// frame, non solo alla creazione.
     Checkbox {
         ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
         tag: Option<String>,
+        checked_value: serde_json::Value,
     },
     Text {
         ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
@@ -177,6 +181,17 @@ struct WidgetChangeCtx {
     tx: mpsc::Sender<TagCommand>,
 }
 
+/// Contesto per il toggle di una checkbox/radio: a differenza dello slider,
+/// il valore da scrivere NON si legge dal widget (LVGL conosce solo
+/// checked/unchecked, non `checked_value`/`unchecked_value` custom) — va
+/// quindi precalcolato qui, stesso principio di `ButtonClickCtx.write_value`.
+struct CheckboxToggleCtx {
+    tag: String,
+    checked_value: TagValue,
+    unchecked_value: TagValue,
+    tx: mpsc::Sender<TagCommand>,
+}
+
 /// Contesto per il click di un navbutton: il nome pagina è fisso quanto il
 /// `write_value` di un bottone — letto dal synottico, non dal vivo.
 struct NavClickCtx {
@@ -230,9 +245,10 @@ unsafe extern "C" fn sws_checkbox_toggled_cb(e: *mut lvgl_sys::lv_event_t) {
     if target.is_null() || user_data.is_null() {
         return;
     }
-    let ctx = unsafe { &*(user_data as *const WidgetChangeCtx) };
+    let ctx = unsafe { &*(user_data as *const CheckboxToggleCtx) };
     let checked = unsafe { lvgl_sys::lv_obj_has_state(target, lvgl_sys::LV_STATE_CHECKED as lvgl_sys::lv_state_t) };
-    let _ = ctx.tx.send(TagCommand { tag: ctx.tag.clone(), value: TagValue::Bool(checked) });
+    let value = if checked { ctx.checked_value.clone() } else { ctx.unchecked_value.clone() };
+    let _ = ctx.tx.send(TagCommand { tag: ctx.tag.clone(), value });
 }
 
 /// `LV_EVENT_VALUE_CHANGED` su uno slider: fires ripetutamente durante il
@@ -379,14 +395,26 @@ fn lookup<'a>(tags: &'a TagSnapshot, tag: &Option<String>) -> Option<&'a TagSnap
 }
 
 /// Porta `String(value)` di JS per gli scalari che compaiono in
-/// `TextListEntry::value` (numero/stringa/bool) — usato solo per il confronto
-/// per uguaglianza in `match_text_list_entry`.
+/// `TextListEntry::value` / `checked_value` (numero/stringa/bool) — usato per
+/// confronti per uguaglianza lasca (`match_text_list_entry`,
+/// `checkbox_is_checked`), non per output visibile.
 fn json_value_as_string(v: &serde_json::Value) -> String {
     match v {
         serde_json::Value::Bool(b) => b.to_string(),
         serde_json::Value::Number(n) => n.to_string(),
         serde_json::Value::String(s) => s.clone(),
         other => other.to_string(),
+    }
+}
+
+/// Porta la semantica "checked" di `SvgCanvas.tsx`
+/// (`tv != null && String(tv.value) === String(checkedVal)`, riga ~3130):
+/// confronto per stringa contro `checked_value`, non un booleano fisso — un
+/// progetto può usare `checked_value: "ON"` invece di `true`.
+fn checkbox_is_checked(tv: Option<&TagSnapshotValue>, checked_value: &serde_json::Value) -> bool {
+    match tv {
+        Some(t) => tag_value_as_string(&t.value) == json_value_as_string(checked_value),
+        None => false,
     }
 }
 
@@ -768,10 +796,23 @@ fn render_checkbox(
     cb.set_text(&text_cstring(obj.label.as_deref().unwrap_or("Checkbox")))
         .map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
     let ptr = cb.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
-    apply_checked_state(ptr, lookup(tags, &obj.tag).map(|t| tag_value_as_bool(&t.value)).unwrap_or(false));
+
+    // Stessa semantica di SvgCanvas.tsx: checked_value/unchecked_value
+    // default a true/false ma possono essere qualunque scalare (es. stringhe
+    // "ON"/"OFF") — vedi checkbox_is_checked e CheckboxToggleCtx.
+    let checked_value = obj.checked_value.clone().unwrap_or(serde_json::Value::Bool(true));
+    let unchecked_value = obj.unchecked_value.clone().unwrap_or(serde_json::Value::Bool(false));
+    apply_checked_state(ptr, checkbox_is_checked(lookup(tags, &obj.tag), &checked_value));
 
     if let Some(tag) = &obj.tag {
-        let ctx = leak_ctx(WidgetChangeCtx { tag: tag.clone(), tx: tx.clone() });
+        let checked_tag_value = serde_json::from_value::<TagValue>(checked_value.clone()).unwrap_or(TagValue::Bool(true));
+        let unchecked_tag_value = serde_json::from_value::<TagValue>(unchecked_value.clone()).unwrap_or(TagValue::Bool(false));
+        let ctx = leak_ctx(CheckboxToggleCtx {
+            tag: tag.clone(),
+            checked_value: checked_tag_value,
+            unchecked_value: unchecked_tag_value,
+            tx: tx.clone(),
+        });
         unsafe {
             lvgl_sys::lv_obj_add_event_cb(
                 ptr.as_ptr(),
@@ -781,7 +822,7 @@ fn render_checkbox(
             );
         }
     }
-    Ok(LiveBinding { kind: LiveKind::Checkbox { ptr, tag: obj.tag.clone() } })
+    Ok(LiveBinding { kind: LiveKind::Checkbox { ptr, tag: obj.tag.clone(), checked_value } })
 }
 
 /// Approssimazione dichiarata: LVGL non ha un widget "radio" nativo (solo
@@ -1263,9 +1304,8 @@ pub fn update_bindings(bindings: &mut [LiveBinding], tags: &TagSnapshot) {
                     lvgl_sys::lv_bar_set_value(ptr.as_ptr(), raw.round() as i32, lvgl::Animation::OFF.into());
                 }
             }
-            LiveKind::Checkbox { ptr, tag } => {
-                let checked = lookup(tags, tag).map(|t| tag_value_as_bool(&t.value)).unwrap_or(false);
-                apply_checked_state(*ptr, checked);
+            LiveKind::Checkbox { ptr, tag, checked_value } => {
+                apply_checked_state(*ptr, checkbox_is_checked(lookup(tags, tag), checked_value));
             }
             LiveKind::Text {
                 ptr,
