@@ -1,225 +1,214 @@
 id: lvgl_demo_page
 name: LVGL Demo
 background: "#0f172a"
-width: 800
-height: 480
+width: 1280
+height: 800
 objects:
   - id: t_title
     type: text
-    x: 20.0
-    y: 14.0
+    x: 40.0
+    y: 24.0
     text: "LVGL Demo - motore di rendering"
-    font_size: 20.0
+    font_size: 26.0
     font_weight: bold
     color: "#e2e8f0"
 
-  # ── rect ──────────────────────────────────────────────────────────────────
+  # ── riga 1: rect, button, led, slider, text formattato ────────────────────
   - id: r1
     type: rect
-    x: 20.0
-    y: 60.0
-    width: 100.0
-    height: 70.0
+    x: 40.0
+    y: 90.0
+    width: 120.0
+    height: 80.0
     fill: "#22c55e"
   - id: cap_r1
     type: text
-    x: 20.0
-    y: 140.0
+    x: 40.0
+    y: 180.0
     text: "rect"
-    font_size: 12.0
+    font_size: 13.0
     color: "#94a3b8"
 
-  # ── button ────────────────────────────────────────────────────────────────
   - id: b1
     type: button
-    x: 150.0
-    y: 60.0
-    width: 130.0
-    height: 50.0
+    x: 220.0
+    y: 90.0
+    width: 150.0
+    height: 56.0
     label: "Bottone"
     fill: "#3b82f6"
     tag: lvgl_demo.button_pressed
   - id: cap_b1
     type: text
-    x: 150.0
-    y: 120.0
+    x: 220.0
+    y: 180.0
     text: "button"
-    font_size: 12.0
+    font_size: 13.0
     color: "#94a3b8"
 
-  # ── led (tag: lvgl_demo.led_on) ──────────────────────────────────────────
   - id: l1
     type: led
-    x: 320.0
-    y: 74.0
-    width: 28.0
-    height: 28.0
+    x: 440.0
+    y: 104.0
+    width: 32.0
+    height: 32.0
     tag: lvgl_demo.led_on
     on_value: true
     on_color: "#22c55e"
     off_color: "#475569"
   - id: cap_l1
     type: text
-    x: 305.0
-    y: 120.0
+    x: 425.0
+    y: 180.0
     text: "led"
-    font_size: 12.0
+    font_size: 13.0
     color: "#94a3b8"
 
-  # ── slider (tag: lvgl_demo.value) ────────────────────────────────────────
   - id: s1
     type: slider
-    x: 410.0
-    y: 65.0
-    width: 220.0
-    height: 40.0
+    x: 560.0
+    y: 95.0
+    width: 280.0
+    height: 44.0
     tag: lvgl_demo.value
     min: 0.0
     max: 100.0
   - id: cap_s1
     type: text
-    x: 410.0
-    y: 120.0
+    x: 560.0
+    y: 180.0
     text: "slider"
-    font_size: 12.0
+    font_size: 13.0
     color: "#94a3b8"
 
-  # ── text formattato (tag: lvgl_demo.value) ───────────────────────────────
   - id: txt_val
     type: text
-    x: 670.0
-    y: 65.0
+    x: 890.0
+    y: 92.0
     tag: lvgl_demo.value
     format: "{value:.1f}"
-    font_size: 22.0
+    font_size: 26.0
     color: "#eab308"
   - id: cap_val
     type: text
-    x: 670.0
-    y: 120.0
+    x: 890.0
+    y: 180.0
     text: "text (formato)"
-    font_size: 12.0
+    font_size: 13.0
     color: "#94a3b8"
 
-  # ── ellipse (statica, nessun tag) ────────────────────────────────────────
-  - id: e1
-    type: ellipse
-    x: 20.0
-    y: 190.0
-    width: 70.0
-    height: 70.0
-    fill: "#f472b6"
-  - id: cap_e1
-    type: text
-    x: 20.0
-    y: 265.0
-    text: "ellipse"
-    font_size: 12.0
-    color: "#94a3b8"
-
-  # ── progress_bar (tag: lvgl_demo.value, stesso valore dello slider) ──────
-  - id: pb1
-    type: progress_bar
-    x: 120.0
-    y: 210.0
-    width: 200.0
-    height: 24.0
-    tag: lvgl_demo.value
-    min: 0.0
-    max: 100.0
-  - id: cap_pb1
-    type: text
-    x: 120.0
-    y: 245.0
-    text: "progress_bar"
-    font_size: 12.0
-    color: "#94a3b8"
-
-  # ── checkbox (tag: lvgl_demo.toggle) ─────────────────────────────────────
-  - id: cb1
-    type: checkbox
-    x: 350.0
-    y: 210.0
-    label: "Checkbox"
-    tag: lvgl_demo.toggle
-  - id: cap_cb1
-    type: text
-    x: 350.0
-    y: 245.0
-    text: "checkbox"
-    font_size: 12.0
-    color: "#94a3b8"
-
-  # ── radio (tag: lvgl_demo.radio_on) — approssimato con checkbox, vedi Q14 ─
-  - id: rd1
-    type: radio
-    x: 530.0
-    y: 210.0
-    label: "Radio (~checkbox)"
-    tag: lvgl_demo.radio_on
-  - id: cap_rd1
-    type: text
-    x: 530.0
-    y: 245.0
-    text: "radio (approssimato)"
-    font_size: 12.0
-    color: "#94a3b8"
-
-  # ── readout live di lvgl_demo.button_pressed (scritto dal click su
-  #    "Bottone" qui sopra — dimostra il giro completo click → PUT tag →
-  #    delta WS → aggiornamento widget, sullo stesso schermo) ──────────────
-  - id: txt_btn
-    type: text
-    x: 20.0
-    y: 300.0
-    tag: lvgl_demo.button_pressed
-    format: "{value}"
-    font_size: 18.0
-    color: "#38bdf8"
-  - id: cap_txt_btn
-    type: text
-    x: 20.0
-    y: 335.0
-    text: "<- click Bottone"
-    font_size: 12.0
-    color: "#94a3b8"
-
-  # ── gauge (tag: lvgl_demo.value, stesso valore di slider/progress_bar —
-  #    trascinare lo slider muove anche l'ago qui) ──────────────────────────
+  # ── gauge, a destra, alto quanto le prime due righe insieme (tag:
+  #    lvgl_demo.value — trascinare lo slider muove anche questo) ──────────
   - id: g1
     type: gauge
-    x: 220.0
-    y: 270.0
-    width: 160.0
-    height: 140.0
+    x: 990.0
+    y: 90.0
+    width: 220.0
+    height: 190.0
     tag: lvgl_demo.value
     min: 0.0
     max: 100.0
     unit: "%"
 
-  # ── line (statica, nessun tag) ────────────────────────────────────────────
+  # ── riga 2: ellipse, progress_bar, checkbox, radio ─────────────────────────
+  - id: e1
+    type: ellipse
+    x: 40.0
+    y: 260.0
+    width: 90.0
+    height: 90.0
+    fill: "#f472b6"
+  - id: cap_e1
+    type: text
+    x: 40.0
+    y: 360.0
+    text: "ellipse"
+    font_size: 13.0
+    color: "#94a3b8"
+
+  - id: pb1
+    type: progress_bar
+    x: 200.0
+    y: 290.0
+    width: 280.0
+    height: 30.0
+    tag: lvgl_demo.value
+    min: 0.0
+    max: 100.0
+  - id: cap_pb1
+    type: text
+    x: 200.0
+    y: 330.0
+    text: "progress_bar"
+    font_size: 13.0
+    color: "#94a3b8"
+
+  - id: cb1
+    type: checkbox
+    x: 540.0
+    y: 292.0
+    label: "Checkbox"
+    tag: lvgl_demo.toggle
+  - id: cap_cb1
+    type: text
+    x: 540.0
+    y: 330.0
+    text: "checkbox"
+    font_size: 13.0
+    color: "#94a3b8"
+
+  - id: rd1
+    type: radio
+    x: 760.0
+    y: 292.0
+    label: "Radio (~checkbox)"
+    tag: lvgl_demo.radio_on
+  - id: cap_rd1
+    type: text
+    x: 760.0
+    y: 330.0
+    text: "radio (approssimato)"
+    font_size: 13.0
+    color: "#94a3b8"
+
+  # ── riga 3: readout bottone, line, table, state_lamp ────────────────────
+  - id: txt_btn
+    type: text
+    x: 40.0
+    y: 430.0
+    tag: lvgl_demo.button_pressed
+    format: "{value}"
+    font_size: 20.0
+    color: "#38bdf8"
+  - id: cap_txt_btn
+    type: text
+    x: 40.0
+    y: 470.0
+    text: "<- click Bottone"
+    font_size: 13.0
+    color: "#94a3b8"
+
   - id: ln1
     type: line
-    x: 420.0
-    y: 300.0
-    x2: 550.0
-    y2: 340.0
+    x: 260.0
+    y: 440.0
+    x2: 430.0
+    y2: 490.0
     stroke: "#f97316"
     stroke_width: 3.0
   - id: cap_ln1
     type: text
-    x: 420.0
-    y: 350.0
+    x: 260.0
+    y: 500.0
     text: "line"
-    font_size: 12.0
+    font_size: 13.0
     color: "#94a3b8"
 
-  # ── table (righe statiche, riusa 3 tag già esistenti — niente tag nuovi) ──
   - id: tb1
     type: table
-    x: 570.0
-    y: 270.0
-    width: 225.0
+    x: 540.0
+    y: 420.0
+    width: 320.0
     label: "DATI"
     table_rows:
       - label: "LED"
@@ -230,13 +219,11 @@ objects:
         tag: lvgl_demo.value
         format: "{value:.1f}"
 
-  # ── state_lamp (tag: lvgl_demo.led_on, stesso tag del LED — stesso valore,
-  #    resa diversa: dimostra value->label->color invece di on/off) ────────
   - id: sl1
     type: state_lamp
-    x: 20.0
-    y: 380.0
-    height: 24.0
+    x: 950.0
+    y: 420.0
+    height: 26.0
     tag: lvgl_demo.led_on
     text_list_entries:
       - value: true
@@ -247,18 +234,29 @@ objects:
         color: "#475569"
   - id: cap_sl1
     type: text
-    x: 20.0
-    y: 410.0
+    x: 950.0
+    y: 456.0
     text: "state_lamp"
-    font_size: 11.0
+    font_size: 13.0
     color: "#5b6b85"
+
+  # ── navigazione: seconda pagina, stessi tag vista diversa ──────────────
+  - id: nav_p2
+    type: navbutton
+    x: 990.0
+    y: 700.0
+    width: 220.0
+    height: 50.0
+    label: "Pagina 2"
+    target_page: lvgl_demo_page2
+    fill: "#1e293b"
 
   # ── prossimi tipi: aggiungere qui man mano (trend, alarm_viewer,
   #    symbol...) ──────────────────────────────────────────────────────────
   - id: note_future
     type: text
-    x: 20.0
-    y: 440.0
+    x: 40.0
+    y: 750.0
     text: "Prossimi widget arrivano qui sotto"
-    font_size: 11.0
+    font_size: 12.0
     color: "#5b6b85"

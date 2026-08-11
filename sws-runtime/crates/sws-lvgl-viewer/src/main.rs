@@ -7,13 +7,23 @@
 //! interpreta il sottoinsieme di widget supportato (vedi `lvgl_render.rs`) e
 //! li disegna in una finestra SDL2, aggiornando i widget tag-dipendenti dal
 //! vivo (`lvgl_render::update_bindings`) a ogni frame — non solo lo snapshot
-//! iniziale.
+//! iniziale. Bottone/checkbox/radio/slider sono cliccabili/trascinabili
+//! (`lvgl_indev.rs`) e scrivono i tag corrispondenti sul backend.
+//!
+//! **Multi-pagina**: un `navbutton` cliccato manda l'`id:` della pagina di
+//! destinazione su un canale (`nav_rx`, separato da `tag_rx`); il loop
+//! principale (`run_window`) lo riceve, risolve l'id nella pagina giusta
+//! (`client::resolve_page_by_id` — l'id non è il nome file usato dall'API
+//! REST, vedi lì per il perché) e richiama
+//! `lvgl_render::render_page_objects` sullo **stesso** display già
+//! registrato (pulendo prima lo schermo) — un pannello fisico ha un solo
+//! display, la navigazione lo ridisegna, non ne apre un altro. La
+//! risoluzione è quella della prima pagina caricata per l'intera sessione
+//! (vedi `lvgl_render::resolve_resolution`): le pagine raggiunte per
+//! navigazione la ereditano anche se il loro `width`/`height` fosse diverso.
 //!
 //! La registrazione del display bypassa `lvgl::Display::register()` (bug di
 //! lifetime confermato, `docs/OPEN_QUESTIONS.md` Q14) — vedi `lvgl_display.rs`.
-//!
-//! **Limite noto**: niente input (click/drag) — vedi `docs/OPEN_QUESTIONS.md`
-//! Q14 per lo stato di questo e degli altri limiti.
 
 mod client;
 mod lvgl_display;
@@ -43,7 +53,8 @@ struct Args {
     #[arg(long, default_value = "https://127.0.0.1:8443")]
     base_url: String,
 
-    /// Nome della pagina synottico da interpretare (es. "Page 1")
+    /// Nome della pagina synottico da interpretare all'avvio (es. "Page 1") —
+    /// pagina di partenza: la navigazione con i navbutton può portare altrove.
     #[arg(long)]
     page: String,
 }
@@ -76,7 +87,9 @@ fn main() -> anyhow::Result<()> {
     );
 
     let (tag_tx, tag_rx) = mpsc::channel::<TagCommand>();
-    let (summary, _styles, mut live_bindings) = lvgl_render::interpret_page(&page, &initial_tags, &tag_tx)?;
+    let (nav_tx, nav_rx) = mpsc::channel::<String>();
+    let (summary, styles, live_bindings, hor_res, ver_res) =
+        lvgl_render::interpret_page(&page, &initial_tags, &tag_tx, &nav_tx)?;
 
     eprintln!(
         "widget LVGL creati correttamente ({}): {}",
@@ -96,17 +109,16 @@ fn main() -> anyhow::Result<()> {
     // deve quindi esistere già — vedi commento di modulo in lvgl_indev.rs.
     lvgl_indev::init_pointer_indev()?;
 
-    // `_styles` deve restare vivo per tutta la finestra (LVGL tiene un
-    // puntatore ai suoi Style, non una copia) — vive nello stack di questa
-    // funzione, che avvolge l'intero event loop, quindi va bene così. Stesso
-    // discorso per `rt` (task WS in background + PUT dei click) e
-    // `live_bindings` (Style dinamici + puntatori aggiornati a ogni frame).
     run_window(
-        lvgl_render::HOR_RES,
-        lvgl_render::VER_RES,
+        hor_res,
+        ver_res,
         shared_tags,
-        &mut live_bindings,
+        styles,
+        live_bindings,
+        tag_tx,
         tag_rx,
+        nav_tx,
+        nav_rx,
         rt.handle().clone(),
         args.base_url.clone(),
     )?;
@@ -114,12 +126,24 @@ fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 fn run_window(
     hor_res: u32,
     ver_res: u32,
     shared_tags: SharedTagSnapshot,
-    live_bindings: &mut [lvgl_render::LiveBinding],
+    // `styles`/`live_bindings` presi per valore, non `&mut`: la navigazione
+    // li sostituisce per intero (pagina nuova = widget nuovi), non li
+    // aggiorna sul posto come fa `update_bindings` per i valori tag.
+    mut styles: Vec<lvgl::style::Style>,
+    mut live_bindings: Vec<lvgl_render::LiveBinding>,
+    // Cloni dei Sender: quelli passati a interpret_page hanno già cablato i
+    // widget della prima pagina, ma render_page_objects ne serve un altro
+    // paio identico per cablare i widget di ogni pagina successiva raggiunta
+    // navigando.
+    tag_tx: mpsc::Sender<TagCommand>,
     tag_rx: mpsc::Receiver<TagCommand>,
+    nav_tx: mpsc::Sender<String>,
+    nav_rx: mpsc::Receiver<String>,
     rt_handle: tokio::runtime::Handle,
     base_url: String,
 ) -> anyhow::Result<()> {
@@ -169,16 +193,18 @@ fn run_window(
             }
         }
 
-        {
+        let tags_now = {
             // Lock breve: solo per clonare lo stato corrente, mai tenuto
             // durante le chiamate FFI a LVGL più sotto.
             let tags = shared_tags.lock().unwrap_or_else(|e| e.into_inner()).clone();
-            lvgl_render::update_bindings(live_bindings, &tags);
-        }
+            lvgl_render::update_bindings(&mut live_bindings, &tags);
+            tags
+        };
 
         // Qui LVGL processa l'indev (click/drag) e può invocare sincronamente
-        // le callback registrate in lvgl_render.rs, che accodano su tag_tx —
-        // niente I/O di rete dentro quelle callback, solo dopo, qui sotto.
+        // le callback registrate in lvgl_render.rs, che accodano su tag_tx/
+        // nav_tx — niente I/O di rete dentro quelle callback, solo dopo, qui
+        // sotto.
         lvgl::task_handler();
         lvgl::tick_inc(Duration::from_millis(16));
 
@@ -193,6 +219,41 @@ fn run_window(
                     eprintln!("[tag] scrittura '{}' fallita: {e}", cmd.tag);
                 }
             });
+        }
+
+        // Navigazione: al più una per frame (un click è un evento discreto,
+        // non un flusso continuo come il drag) — se ce ne fosse più di una in
+        // coda, le successive si processano ai frame dopo, senza problemi di
+        // correttezza. A differenza della scrittura tag, qui si blocca
+        // davvero il loop di rendering per la durata della fetch: accettabile
+        // per un runtime locale (tipicamente pochi millisecondi), non lo
+        // sarebbe per una pagina servita da lontano.
+        if let Ok(target_page) = nav_rx.try_recv() {
+            match rt_handle.block_on(client::resolve_page_by_id(&base_url, &target_page)) {
+                Ok(new_page) => match lvgl_render::render_page_objects(&new_page, &tags_now, &tag_tx, &nav_tx) {
+                    Ok((summary, new_styles, new_live)) => {
+                        eprintln!(
+                            "navigato a '{}': {} oggetti creati, {} non supportati",
+                            target_page,
+                            summary.rendered.len(),
+                            summary.skipped_unsupported.len()
+                        );
+                        // Sostituzione, non fusione: gli Style/LiveBinding
+                        // vecchi puntano a widget appena distrutti da
+                        // render_page_objects (lv_obj_clean). Droppare gli
+                        // Style dopo è sicuro (nessun Drop personalizzato che
+                        // tocchi LVGL — verificato nel crate prima di
+                        // affidarcisi), ma i contesti Box::leak delle
+                        // callback dei widget vecchi restano orfani per
+                        // sempre: limite noto, accettabile per una sessione
+                        // di test — vedi Q14.
+                        styles = new_styles;
+                        live_bindings = new_live;
+                    }
+                    Err(e) => eprintln!("[nav] rendering di '{target_page}' fallito: {e}"),
+                },
+                Err(e) => eprintln!("[nav] impossibile caricare pagina '{target_page}': {e}"),
+            }
         }
 
         if lvgl_display::copy_frame_rgb888(&mut frame_buf) {
@@ -212,5 +273,10 @@ fn run_window(
             std::thread::sleep(target - elapsed);
         }
     }
+    // `styles`/`live_bindings` vivono fino a qui (fine del loop, fine del
+    // processo in pratica) — LVGL tiene puntatori ai loro contenuti, non
+    // copie, per tutta la durata della finestra.
+    drop(styles);
+    drop(live_bindings);
     Ok(())
 }

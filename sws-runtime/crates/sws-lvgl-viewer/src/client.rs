@@ -32,6 +32,49 @@ pub async fn fetch_page(base_url: &str, page_name: &str) -> anyhow::Result<Synop
     Ok(page)
 }
 
+/// Elenca i nomi file (senza estensione) delle pagine del progetto attivo —
+/// `GET /api/synoptics`, stessi nomi accettati da `fetch_page`. **Non** gli
+/// `id:` interni delle pagine (l'endpoint non li espone, vedi
+/// `resolve_page_by_id` per il motivo per cui serve comunque).
+async fn list_synoptics(base_url: &str) -> anyhow::Result<Vec<String>> {
+    let mut url = reqwest::Url::parse(base_url)?;
+    url.path_segments_mut()
+        .map_err(|_| anyhow::anyhow!("base URL non può avere path segments (cannot-be-a-base)"))?
+        .push("api")
+        .push("synoptics");
+    let client = reqwest::Client::builder().danger_accept_invalid_certs(true).build()?;
+    let resp = client.get(url).send().await?.error_for_status()?;
+    Ok(resp.json::<Vec<String>>().await?)
+}
+
+/// Risolve un `navbutton.target_page` (l'`id:` **interno** della pagina di
+/// destinazione — stessa convenzione del navbutton web, vedi
+/// `SvgCanvas.tsx`/lo store dell'editor) nella pagina corrispondente.
+///
+/// **Non lo stesso valore del nome file**: `GET /api/synoptics/:name`
+/// (`fetch_page`) risolve per nome file (`sws-web/src/router.rs`,
+/// `get_synoptic`: `format!("{name}.yaml")`), ma i `navbutton` puntano
+/// all'`id:` interno della pagina — spesso coincidono per abitudine (l'IDE
+/// li fa combaciare quando genera l'id da un nome semplice), ma non è
+/// garantito, quindi non si può assumere. `GET /api/synoptics` restituisce
+/// solo i nomi file, non gli id, quindi l'unico modo corretto è elencare le
+/// pagine e leggerne l'`id:` una per una finché non si trova quella giusta —
+/// accettabile per un progetto demo con poche pagine, non scalerebbe a
+/// centinaia. Se nessuna pagina ha quell'id, riprova a interpretare
+/// `target_page` come nome file direttamente: fallback permissivo per chi
+/// scrive comunque il filename (funziona comunque se combaciano).
+pub async fn resolve_page_by_id(base_url: &str, target_page_id: &str) -> anyhow::Result<SynopticPage> {
+    let names = list_synoptics(base_url).await?;
+    for name in &names {
+        if let Ok(page) = fetch_page(base_url, name).await {
+            if page.id.as_deref() == Some(target_page_id) {
+                return Ok(page);
+            }
+        }
+    }
+    fetch_page(base_url, target_page_id).await
+}
+
 /// Scrive un valore su un tag — stesso endpoint REST usato dall'editor web
 /// (`PUT /api/tags/:id`, body `{"value": ...}`, `TagValue` è `#[serde(untagged)]`
 /// quindi serializza come scalare JSON nativo). Chiamata da un task spawnato

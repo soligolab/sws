@@ -616,6 +616,93 @@ tag→widget regge con implementazioni eterogenee, non solo con lo stesso tipo d
 
 ---
 
+**Aggiornamento 2026-08-08 (seguito 4) — multi-pagina, risoluzione 1280x800, e un crash serio
+trovato e risolto durante la verifica**
+
+Richiesta del maintainer: adattare il demo a uno schermo 1280×800 (da provare anche su un
+dispositivo reale, `tc620-a-p3-c6-07aff9.local`) e gestire più pagine. Due parti distinte:
+
+**Risoluzione dinamica**: `HOR_RES`/`VER_RES` restano come default, ma la risoluzione vera è
+quella della **prima pagina caricata in sessione** (`resolve_resolution`, legge `width`/`height`
+dalla pagina). Il vincolo originale che li rendeva costanti a compile-time (commento su
+`DrawBuffer<const N>`) non esisteva più da quando `lvgl_display.rs` registra il display a
+runtime — semplicemente non era mai stato rivisto. Le pagine raggiunte per navigazione ereditano
+la risoluzione della prima: un pannello fisico non cambia risoluzione a ogni cambio pagina.
+
+**navbutton**: nuovo tipo, manda l'id della pagina di destinazione su un canale dedicato
+(`nav_tx`, separato da `tag_tx` — stesso principio di canali separati per compiti diversi già
+usato per le scritture tag). Scoperta non ovvia verificata prima di scrivere codice: `target_page`
+punta all'**id interno** della pagina (`SvgCanvas.tsx`, lo store dell'editor — la navigazione web
+è un lookup client-side in `pages.find(p => p.id === ...)`), **non** al nome file usato da
+`GET /api/synoptics/:name` (`sws-web/src/router.rs`, `get_synoptic`: risolve per nome file via
+`safe_filename`). I due valori spesso coincidono per abitudine ma non sono garantiti uguali.
+`client::resolve_page_by_id` elenca le pagine del progetto (`GET /api/synoptics`, solo nomi file)
+e le legge una per una finché non trova quella con l'id giusto, con fallback su nome file diretto
+se nessuna corrisponde — O(n) pagine per ogni navigazione, accettabile per un progetto con poche
+pagine, non scalerebbe a centinaia.
+
+**Il crash**: la prima implementazione di "ricarica pagina" puliva lo schermo attivo
+(`lv_obj_clean`) e ricreava i widget sopra. Funzionava al primo giro, ma la verifica dal vivo
+(non solo compilazione — proprio la disciplina che ha già pagato più volte in questo filone) ha
+trovato, su navigazioni ripetute con il catalogo widget completo: un **crash SIGSEGV**
+riproducibile (backtrace GDB completo: `_lv_obj_style_apply_color_filter` su un puntatore non più
+valido, dentro `draw_ticks_and_labels` — il ridisegno delle etichette numeriche di un
+`gauge`/`lv_meter` — durante `_lv_disp_refr_timer`) e, separatamente, un **artefatto visivo**
+(testo con un pattern a righe sopra, non solo un fotogramma sporco o in ritardo).
+
+Bisezione sistematica per isolare il trigger, oltre 10 pagine di prova create ad-hoc:
+- 2 gauge simultanei sulla stessa pagina (nessuna navigazione): stabile.
+- Navigazione tra pagine senza gauge: stabile.
+- Navigazione verso una pagina con un gauge nuovo (nessun gauge prima): stabile.
+- Navigazione gauge→gauge con solo bottone di navigazione: stabile su più andate e ritorni.
+- Stesso test con `state_lamp` aggiunto, poi anche `checkbox`: ancora stabile.
+- Pagina 1 reale (29 oggetti) → pagina di prova minimale: stabile.
+- Pagina 1 reale → pagina 2 reale (i file originali): **qui il crash tornava** — ma in modo
+  **non deterministico all'interno della stessa sessione di test**, il che ha inizialmente
+  fatto sembrare risolutivo un cambio nel frattempo (v. sotto) che invece non lo era da solo.
+
+Questa non-determinismo — oltre alla natura stessa del sintomo (un puntatore che punta a
+memoria plausibile ma con contenuto sbagliato, non un indirizzo assurdo come nel bug originale
+di `Display::register()`, Q14 sopra) — è la firma tipica di una corruzione di memoria con
+manifestazione ritardata, non di un bug deterministico isolabile a una singola riga letta a
+mente fredda. Non è stato possibile isolare il meccanismo esatto con la stessa certezza degli
+altri bug documentati in questa voce (lì un backtrace GDB indicava una riga precisa con una causa
+leggibile nel sorgente C; qui il backtrace indica solo *dove* esplode, non *perché* la memoria
+lì è già sbagliata).
+
+Nel mezzo dell'indagine, disabilitato anche `LV_USE_MEM_MONITOR` (per tutt'altro motivo: puliva
+un overlay "kB used" sempre visibile in basso a sinistra, ora che il demo è un multi-pagina
+vero). Per una decina di test successivi il crash non si è più presentato, facendo sembrare
+quello la causa — smentito poco dopo da un artefatto di corruzione testo osservato **con
+`LV_USE_MEM_MONITOR` già spento**, poi da un crash "schermo bianco, processo vivo ma non
+risponde ai click" con un `lv_obj_invalidate` esplicito aggiunto come tentativo (anch'esso non
+risolutivo da solo).
+
+**Soluzione**: invece di continuare a rincorrere sintomi su un pattern (`lv_obj_clean` + ricrea
+sullo schermo attivo) mai confermato sicuro per un caso complesso come questo, sostituito con il
+pattern **standard e testato di LVGL per il cambio schermo**: `lv_obj_create(NULL)` (schermo
+nuovo, indipendente) → popolato con i widget della pagina → `lv_disp_load_scr` (la funzione
+dietro la macro `lv_scr_load`, non esposta dal binding perché `static inline` nell'header C,
+reimplementata a mano chiamando `lv_disp_load_scr` direttamente — verificato leggendo
+`lv_disp.c`, non assunto) → `lv_obj_del` dello schermo precedente. Schermo vecchio e nuovo
+restano alberi completamente separati fino allo scambio, invece di mutare in-place quello
+attivo. Verificato stabile su 14+ navigazioni consecutive, incluse raffiche rapide (8 click in
+successione, tutti registrati correttamente) — nessun crash, nessuna corruzione visiva,
+interattività (click checkbox, drag slider) confermata funzionante su schermi appena caricati.
+
+**Perché documentarlo comunque come aperto invece che "risolto" secco**: il meccanismo esatto
+del bug originale non è stato isolato con certezza (a differenza degli altri tre bug in questa
+voce, tutti tracciati a una riga di codice precisa con una spiegazione leggibile). È possibile
+che il nuovo pattern eviti semplicemente la classe di problema senza che se ne capisca il motivo
+esatto — accettabile per procedere (è il pattern che LVGL stesso raccomanda e usa nei propri
+esempi), ma se dovesse ripresentarsi in una forma diversa altrove, vale la pena ricontrollare
+questa voce prima di aprire un'indagine da zero.
+
+**Decided**: multi-pagina implementata e verificata stabile con il pattern `lv_disp_load_scr`.
+Non ancora provato su hardware reale (il maintainer lo farà su `tc620-a-p3-c6-07aff9.local`).
+
+---
+
 ## Adding new questions
 
 When Claude Code adds a new question, follow the format above:
