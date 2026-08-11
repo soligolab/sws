@@ -544,6 +544,78 @@ qui, non decisa implicitamente estendendo `write_value`.
 
 ---
 
+**Aggiornamento 2026-08-08 (seguito 2) — line e gauge, 11 tipi supportati**
+
+Proseguendo verso la parità col catalogo web (nota lasciata nel template `lvgl-demo`: "prossimi
+tipi... gauge, trend, table, alarm_viewer, symbol"), aggiunti `line` (`lv_line`) e `gauge`
+(`lv_meter`) — entrambi scelti perché LVGL ha un widget nativo diretto, a differenza di
+`trend`/`table`/`alarm_viewer`/`symbol` che richiederebbero disegno custom o composizione di più
+widget (deliberatamente rimandati, non è un "prossimo passo" ovvio quanto questi due).
+
+- **`line`**: dettaglio non ovvio scoperto leggendo il sorgente C (`lv_line.c`, ramo
+  `LV_EVENT_DRAW_MAIN`) prima di scrivere il codice, non dopo un bug — i punti passati a
+  `lv_line_set_points` sono **relativi alla posizione dell'oggetto stesso**
+  (`point.x + area.x1`), non assoluti sullo schermo come praticamente tutto il resto di questo
+  file. Assumerli assoluti per analogia con gli altri widget avrebbe piazzato la linea nel posto
+  sbagliato. Stesso avvertimento di `lv_led_set_color`/Q14 sopra: le API LVGL non sono uniformi
+  tra loro, ogni widget nuovo va verificato nel sorgente, non dedotto per analogia. L'array di
+  punti deve restare vivo quanto il widget (dichiarato esplicitamente in `lv_line.h`) —
+  `Box::leak`, stesso principio già in uso per il display/indev.
+- **`gauge`**: scala 270° (`lv_meter_set_scale_range` con `rotation=135`, l'offset dalle ore 3 in
+  senso orario — verificato in `lv_meter.h`) per lo stesso aspetto "varco in basso" del gauge
+  web. Ago e arco seguono il tag dal vivo. **Semplificazione dichiarata**: l'arco non ricolora
+  per soglia superata come nel web (`thresholdColor` a ogni frame) — `lv_meter` non espone un
+  setter per il colore di un indicatore già creato (solo per il suo valore), quindi il colore
+  resta quello scelto alla creazione. Non un bug, un limite dell'API a monte accettato per non
+  dover rimuovere/ricreare l'indicatore a ogni cambio soglia.
+
+Template `lvgl-demo` esteso con entrambi (25 oggetti totali): il gauge riusa `lvgl_demo.value`,
+lo stesso tag di slider/progress_bar/testo formattato — trascinare lo slider muove in tempo
+reale anche ago/arco/valore del gauge, verificato con drag sintetico via X11 XTest (screenshot
+prima/dopo). Nessun nuovo bug scoperto in questa fase.
+
+---
+
+**Aggiornamento 2026-08-08 (seguito 3) — state_lamp e table, 13 tipi supportati**
+
+Il maintainer ha detto solo "vai avanti" dopo il resoconto di line/gauge (che segnalava
+esplicitamente trend/table/alarm_viewer/symbol/state_lamp come più impegnativi) — letto come
+autorizzazione a proseguire su quel fronte, non su tutti e cinque insieme: aggiunti solo
+`state_lamp` e `table`, che hanno un widget LVGL diretto o quasi-diretto; `trend`/`alarm_viewer`
+(nuovi client per storico/allarmi, non solo tag) e `symbol` (SVG→LVGL, una vera domanda
+architetturale) restano deliberatamente non tentati.
+
+- **`state_lamp`**: stesso modello dati di `text_list` (`value`→`label`→`color`, con match per
+  range o uguaglianza — `match_text_list_entry`, portato da `matchTextListEntry()` di
+  `SvgCanvas.tsx`). Il cerchio è un `lv_obj` normale con `radius` massimo — **non** `lv_led` —
+  quindi legge `bg_color` dallo `Style` senza le sorprese già documentate sopra per il LED: è
+  proprio `lv_led` l'eccezione nell'API LVGL, non il comportamento di default.
+- **`table`**: righe statiche da `table_rows` (non un datagrid dinamico, stessa scelta della
+  versione web — niente sort/pagine). `lv_table` ha un binding safe più completo del solito
+  (`Table::create`/`set_cell_value`/`set_row_cnt`/`set_col_cnt` già esposti, solo
+  `set_col_width`/`add_cell_ctrl` via `lvgl-sys` diretto). **Percorso non banale per arrivarci**,
+  utile da registrare per il prossimo widget con celle/testo vincolato in spazio: `lv_table` va
+  a capo dentro la cella se il testo non entra nella larghezza di colonna richiesta (non
+  documentato esplicitamente nell'header, scoperto per tentativi con "VALORE"/"Toggle" prima di
+  leggere `lv_table.c`); `LV_TABLE_CELL_CTRL_TEXT_CROP` fissa l'altezza riga a una singola riga
+  ma **da solo non impedisce l'andare a capo del testo** dentro quello spazio fisso — verificato
+  con screenshot (colonna da 45px, "OK"/"UNC" spezzati una lettera per riga anche con crop
+  attivo), non assunto dal nome della flag. La combinazione che funziona: crop + contenuto
+  garantito corto (colonna qualità a una lettera — "G"/"B"/"U" — invece di un'abbreviazione a
+  2-3 lettere). Verificato anche che `lv_table_set_cell_value` preserva il control-byte della
+  cella tra una scrittura e l'altra (letto nel sorgente C prima di assumerlo, dato che
+  `update_table_data_cells` lo richiama a ogni frame) — se non lo preservasse, il crop
+  sparirebbe al primo aggiornamento live.
+
+Template `lvgl-demo` esteso con entrambi (28 oggetti totali), riusando tag già esistenti — nessun
+tag nuovo: `table_rows` legge `lvgl_demo.led_on`/`toggle`/`value`, `state_lamp` legge
+`lvgl_demo.led_on` (stesso tag del LED). Verificato dal vivo scrivendo `lvgl_demo.led_on` via
+REST: LED, state_lamp e la riga tabella corrispondente si aggiornano insieme, ognuno con una
+resa completamente diversa dello stesso valore — buona controprova che l'architettura
+tag→widget regge con implementazioni eterogenee, non solo con lo stesso tipo di widget ripetuto.
+
+---
+
 ## Adding new questions
 
 When Claude Code adds a new question, follow the format above:

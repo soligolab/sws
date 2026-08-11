@@ -184,8 +184,77 @@ objects:
     font_size: 12.0
     color: "#94a3b8"
 
-  # ── prossimi tipi: aggiungere qui man mano (gauge, trend, table,
-  #    alarm_viewer, symbol...) ────────────────────────────────────────────
+  # ── gauge (tag: lvgl_demo.value, stesso valore di slider/progress_bar —
+  #    trascinare lo slider muove anche l'ago qui) ──────────────────────────
+  - id: g1
+    type: gauge
+    x: 220.0
+    y: 270.0
+    width: 160.0
+    height: 140.0
+    tag: lvgl_demo.value
+    min: 0.0
+    max: 100.0
+    unit: "%"
+
+  # ── line (statica, nessun tag) ────────────────────────────────────────────
+  - id: ln1
+    type: line
+    x: 420.0
+    y: 300.0
+    x2: 550.0
+    y2: 340.0
+    stroke: "#f97316"
+    stroke_width: 3.0
+  - id: cap_ln1
+    type: text
+    x: 420.0
+    y: 350.0
+    text: "line"
+    font_size: 12.0
+    color: "#94a3b8"
+
+  # ── table (righe statiche, riusa 3 tag già esistenti — niente tag nuovi) ──
+  - id: tb1
+    type: table
+    x: 570.0
+    y: 270.0
+    width: 225.0
+    label: "DATI"
+    table_rows:
+      - label: "LED"
+        tag: lvgl_demo.led_on
+      - label: "Toggle"
+        tag: lvgl_demo.toggle
+      - label: "Valore"
+        tag: lvgl_demo.value
+        format: "{value:.1f}"
+
+  # ── state_lamp (tag: lvgl_demo.led_on, stesso tag del LED — stesso valore,
+  #    resa diversa: dimostra value->label->color invece di on/off) ────────
+  - id: sl1
+    type: state_lamp
+    x: 20.0
+    y: 380.0
+    height: 24.0
+    tag: lvgl_demo.led_on
+    text_list_entries:
+      - value: true
+        label: "ON"
+        color: "#22c55e"
+      - value: false
+        label: "OFF"
+        color: "#475569"
+  - id: cap_sl1
+    type: text
+    x: 20.0
+    y: 410.0
+    text: "state_lamp"
+    font_size: 11.0
+    color: "#5b6b85"
+
+  # ── prossimi tipi: aggiungere qui man mano (trend, alarm_viewer,
+  #    symbol...) ──────────────────────────────────────────────────────────
   - id: note_future
     type: text
     x: 20.0
