@@ -879,8 +879,37 @@ fn render_slider(
     tx: &mpsc::Sender<TagCommand>,
 ) -> anyhow::Result<LiveBinding> {
     let mut slider = Slider::create(screen).map_err(|e| anyhow::anyhow!("Slider::create: {e:?}"))?;
-    set_pos_size(&mut slider, obj, 200.0, 50.0)?;
+
+    // lv_slider disegna la traccia grande quanto l'intero oggetto (nessun
+    // padding "di sfondo" che la assottigli, a differenza di come appare
+    // nel web) — scoperto sul primo test su hardware reale
+    // (tc620-a-p3-c6-07aff9.local, 2026-08-10): un box alto 44px (com'è
+    // nella demo) dà una traccia visivamente "grassa". Fix: l'oggetto
+    // stesso è sottile (16px, la convenzione LVGL comune per una traccia
+    // slider), centrato nel box dichiarato — MA con l'area di click estesa
+    // (`lv_obj_set_ext_click_area`, la stessa funzione che `lv_slider_create`
+    // usa già di default per un margine più piccolo — verificato in
+    // vendor/lvgl/src/widgets/lv_slider.c prima di riusarla) fino a coprire
+    // l'intero box originale: tocco preciso quanto prima, solo la traccia
+    // disegnata è sottile.
+    let box_h = obj.height.unwrap_or(50.0);
+    let track_h = 16.0f64.min(box_h);
+    let y_offset = (box_h - track_h) / 2.0;
+    {
+        let x = obj.x.unwrap_or(0.0).round() as i16;
+        let y = (obj.y.unwrap_or(0.0) + y_offset).round() as i16;
+        let width = obj.width.unwrap_or(200.0).round() as i16;
+        slider
+            .set_pos(x, y)
+            .map_err(|e| anyhow::anyhow!("set_pos (slider sottile): {e:?}"))?;
+        slider
+            .set_size(width, track_h.round() as i16)
+            .map_err(|e| anyhow::anyhow!("set_size (slider sottile): {e:?}"))?;
+    }
     let ptr = slider.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
+    unsafe {
+        lvgl_sys::lv_obj_set_ext_click_area(ptr.as_ptr(), y_offset.round() as lvgl_sys::lv_coord_t);
+    }
     // lv_slider_t è internamente uno specializzato lv_bar_t in LVGL: non
     // esistono lv_slider_set_range/set_value dedicati, si riusano quelli di
     // bar (confermato dai bindgen bindings reali, non da supposizione) — vedi
@@ -1073,7 +1102,25 @@ fn render_gauge(
     tags: &TagSnapshot,
 ) -> anyhow::Result<LiveBinding> {
     let mut meter = Meter::create(screen).map_err(|e| anyhow::anyhow!("Meter::create: {e:?}"))?;
-    set_pos_size(&mut meter, obj, 160.0, 140.0)?;
+    // `lv_meter` non forza mai una forma circolare da solo: segue fedelmente
+    // il box assegnato, quindi width != height produce uno sfondo ovale (non
+    // un vero cerchio) — scoperto sul primo test su hardware reale
+    // (tc620-a-p3-c6-07aff9.local, 2026-08-10) con la demo del repo, che ha
+    // width:220/height:190. Forza un quadrato (il lato minore) centrato nel
+    // box originale invece di toccare le dimensioni dichiarate dall'oggetto
+    // — un gauge resta circolare qualunque box gli venga assegnato, come
+    // probabilmente fa già l'SVG web (un cerchio vero, non legato a un
+    // rettangolo contenitore).
+    let box_x = obj.x.unwrap_or(0.0);
+    let box_y = obj.y.unwrap_or(0.0);
+    let box_w = obj.width.unwrap_or(160.0);
+    let box_h = obj.height.unwrap_or(140.0);
+    let side = box_w.min(box_h);
+    let x = (box_x + (box_w - side) / 2.0).round() as i16;
+    let y = (box_y + (box_h - side) / 2.0).round() as i16;
+    let side = side.round() as i16;
+    meter.set_pos(x, y).map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
+    meter.set_size(side, side).map_err(|e| anyhow::anyhow!("set_size: {e:?}"))?;
     let ptr = meter.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
 
     let min = obj.min.unwrap_or(0.0);

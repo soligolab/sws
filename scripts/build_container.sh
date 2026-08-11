@@ -29,6 +29,14 @@
 #   ./scripts/build_container.sh --no-spa           # riusa sws-editor/dist così com'è
 #   ./scripts/build_container.sh --registry REF     # altro repository di destinazione
 #   ./scripts/build_container.sh --out DIR          # directory di output (default dist/)
+#   ./scripts/build_container.sh --with-lvgl        # include anche sws-lvgl-viewer nell'immagine
+#
+# --with-lvgl è opt-in, non il default: sws-lvgl-viewer collega SDL2 di
+# sistema (vedi il suo Cargo.toml), e se il sysroot Yocto Pixsys non ha
+# libsdl2-dev (non ancora verificato) la cross-compilazione fallisce — senza
+# il flag, questo script si comporta esattamente come prima che quel crate
+# esistesse, la pipeline sws-runtime-only non deve mai rompersi per colpa di
+# una dipendenza opzionale.
 #
 # Requisiti: SDK Yocto Pixsys in /usr/local/oecore-x86_64/ (salvo --no-rust),
 #            podman, rete per scaricare ubuntu:24.04 e — con --push — un
@@ -40,28 +48,31 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 usage() {
-    sed -n '2,35p' "${BASH_SOURCE[0]}" | sed 's/^#//; s/^ //'
+    sed -n '2,43p' "${BASH_SOURCE[0]}" | sed 's/^#//; s/^ //'
 }
 
 BUILD_RUST=1
 BUILD_SPA=1
 SAVE=1
 PUSH=0
+WITH_LVGL=0
 REGISTRY="ghcr.io/soligolab/sws-runtime"
 OUT_DIR="$REPO/dist"
 SDK_ENV="/usr/local/oecore-x86_64/environment-setup-cortexa35-pixsys-linux"
 BIN="$REPO/sws-runtime/target/aarch64-unknown-linux-gnu/release/sws-runtime"
+LVGL_BIN="$REPO/sws-runtime/crates/sws-lvgl-viewer/target/aarch64-unknown-linux-gnu/release/sws-lvgl-viewer"
 SPA_DIST="$REPO/sws-editor/dist"
 
 while [ $# -gt 0 ]; do
     case "$1" in
-        -h|--help)  usage; exit 0 ;;
-        --no-rust)  BUILD_RUST=0; shift ;;
-        --no-spa)   BUILD_SPA=0;  shift ;;
-        --no-save)  SAVE=0;       shift ;;
-        --push)     PUSH=1;       shift ;;
-        --registry) REGISTRY="$2"; shift 2 ;;
-        --out)      OUT_DIR="$2"; shift 2 ;;
+        -h|--help)   usage; exit 0 ;;
+        --no-rust)   BUILD_RUST=0; shift ;;
+        --no-spa)    BUILD_SPA=0;  shift ;;
+        --no-save)   SAVE=0;       shift ;;
+        --push)      PUSH=1;       shift ;;
+        --with-lvgl) WITH_LVGL=1;  shift ;;
+        --registry)  REGISTRY="$2"; shift 2 ;;
+        --out)       OUT_DIR="$2"; shift 2 ;;
         *) echo "Flag non riconosciuta: $1 (--help per l'elenco)" >&2; exit 1 ;;
     esac
 done
@@ -120,25 +131,31 @@ echo "==> SWS runtime container image ${VERSION} (linux/arm64)"
 # its own shell, which would otherwise clobber PATH/pkg-config for the rest of
 # this script. Same reasoning as scripts/build_deploy.sh.
 if [ "$BUILD_RUST" -eq 1 ]; then
-    if [ "$BUILD_SPA" -eq 1 ]; then
-        echo "==> [1/4] cross-compile (binary + SPA)"
-        bash "$REPO/scripts/yocto/build.sh" release
-    else
-        echo "==> [1/4] cross-compile (binary only)"
-        bash "$REPO/scripts/yocto/build.sh" release --no-spa
-    fi
+    YOCTO_FLAGS=( release )
+    [ "$BUILD_SPA" -eq 1 ]  || YOCTO_FLAGS+=( --no-spa )
+    [ "$WITH_LVGL" -eq 1 ]  && YOCTO_FLAGS+=( --with-lvgl )
+    echo "==> [1/4] cross-compile (${YOCTO_FLAGS[*]})"
+    bash "$REPO/scripts/yocto/build.sh" "${YOCTO_FLAGS[@]}"
 else
     echo "==> [1/4] skipped (--no-rust)"
 fi
 
 [ -f "$BIN" ]                || { echo "ERROR: missing $BIN" >&2; exit 1; }
 [ -f "$SPA_DIST/index.html" ] || { echo "ERROR: missing SPA at $SPA_DIST (drop --no-spa)" >&2; exit 1; }
+if [ "$WITH_LVGL" -eq 1 ]; then
+    [ -f "$LVGL_BIN" ] || { echo "ERROR: missing $LVGL_BIN (--with-lvgl requested)" >&2; exit 1; }
+fi
 
 # Guard against the classic mistake of feeding the host binary to an arm64
 # image: it would build fine and fail only at `podman run` on the device.
 if ! file "$BIN" | grep -q "ARM aarch64"; then
     echo "ERROR: $BIN is not an aarch64 binary:" >&2
     file "$BIN" >&2
+    exit 1
+fi
+if [ "$WITH_LVGL" -eq 1 ] && ! file "$LVGL_BIN" | grep -q "ARM aarch64"; then
+    echo "ERROR: $LVGL_BIN is not an aarch64 binary:" >&2
+    file "$LVGL_BIN" >&2
     exit 1
 fi
 
@@ -150,6 +167,9 @@ echo "==> [2/4] staging build context in $CTX"
 rm -rf "$CTX"
 mkdir -p "$CTX/bin" "$CTX/templates" "$CTX/www"
 install -m 755 "$BIN" "$CTX/bin/sws-runtime"
+if [ "$WITH_LVGL" -eq 1 ]; then
+    install -m 755 "$LVGL_BIN" "$CTX/bin/sws-lvgl-viewer"
+fi
 cp -r "$REPO/examples/templates/." "$CTX/templates/"
 cp -r "$SPA_DIST/." "$CTX/www/"
 
@@ -159,6 +179,7 @@ cp -r "$SPA_DIST/." "$CTX/www/"
 # `podman ps` would never report healthy.
 echo "==> [3/4] podman build --platform linux/arm64 -t $IMAGE"
 podman build --platform linux/arm64 --format docker \
+    --build-arg "WITH_LVGL=$WITH_LVGL" \
     -t "$IMAGE" \
     -f "$REPO/deploy/container/Containerfile.aarch64" \
     "$CTX"

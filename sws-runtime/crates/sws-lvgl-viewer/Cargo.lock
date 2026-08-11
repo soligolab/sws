@@ -1532,9 +1532,11 @@ name = "sws-lvgl-viewer"
 version = "2026.7.0"
 dependencies = [
  "anyhow",
+ "bindgen",
  "clap",
  "cstr_core",
  "futures-util",
+ "libc",
  "lvgl",
  "lvgl-sys",
  "reqwest",

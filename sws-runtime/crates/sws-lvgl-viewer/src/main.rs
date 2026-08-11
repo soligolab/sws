@@ -29,11 +29,13 @@
 //! lifetime confermato, `docs/OPEN_QUESTIONS.md` Q14) — vedi `lvgl_display.rs`.
 
 mod client;
+mod drm_display;
 mod lvgl_display;
 mod lvgl_indev;
 mod lvgl_render;
 mod model;
 mod tls;
+mod touch_indev;
 
 use std::sync::mpsc;
 use std::time::{Duration, Instant};
@@ -43,6 +45,7 @@ use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 use sdl2::mouse::MouseButton;
 use sdl2::pixels::PixelFormatEnum;
+use sdl2::surface::Surface;
 
 use client::SharedTagSnapshot;
 use lvgl_render::TagCommand;
@@ -60,6 +63,28 @@ struct Args {
     /// pagina di partenza: la navigazione con i navbutton può portare altrove.
     #[arg(long)]
     page: String,
+
+    /// Backend di rendering. "sdl2" (default) apre una finestra SDL2 — vedi
+    /// docs/OPEN_QUESTIONS.md Q14 per i bug noti su Wayland/X11/kmsdrm reali.
+    /// "drm" scrive direttamente sul framebuffer via libdrm (API legacy, non
+    /// atomica — bypassa SDL2 del tutto, vedi drm_display.rs). Touch via
+    /// tslib (vedi touch_indev.rs) se --touch-device è impostato.
+    #[arg(long, default_value = "sdl2")]
+    backend: String,
+
+    /// Device DRM da usare col backend "drm" (es. /dev/dri/card1 — NON è
+    /// sempre card0, verificato su tc620-a-p3-c6-07aff9.local: quello è
+    /// card1, il device di test/sviluppo di questo repo).
+    #[arg(long, default_value = "/dev/dri/card0")]
+    drm_card: String,
+
+    /// Device touch da leggere (solo backend "drm") — il symlink tslib, non
+    /// l'/dev/input/eventN grezzo (quel numero cambia da device a device).
+    /// Vuoto = nessun touch (solo rendering). Verificato su
+    /// tc620-a-p3-c6-07aff9.local: /dev/input/ts_uinput, già calibrato dal
+    /// demone ts-uinput.service.
+    #[arg(long, default_value = "")]
+    touch_device: String,
 }
 
 fn main() -> anyhow::Result<()> {
@@ -113,7 +138,36 @@ fn main() -> anyhow::Result<()> {
     // Deve seguire interpret_page (che chiama lvgl_display::init_display):
     // lv_indev_drv_register si aggancia da solo al display di default, che
     // deve quindi esistere già — vedi commento di modulo in lvgl_indev.rs.
+    // Comune a entrambi i backend: touch_indev.rs (backend "drm") alimenta
+    // lo stesso indev del mouse SDL2, non ne registra uno diverso.
     lvgl_indev::init_pointer_indev()?;
+
+    if args.backend == "drm" {
+        if !args.touch_device.is_empty() {
+            touch_indev::spawn(&args.touch_device, hor_res, ver_res)?;
+        } else {
+            eprintln!("[drm] --touch-device non impostato: nessun input, solo rendering");
+        }
+        run_drm(
+            &args.drm_card,
+            hor_res,
+            ver_res,
+            shared_tags,
+            styles,
+            live_bindings,
+            tag_tx,
+            tag_rx,
+            nav_tx,
+            nav_rx,
+            ack_tx,
+            ack_rx,
+            rt.handle().clone(),
+            args.base_url.clone(),
+            shared_alarms,
+        )?;
+        drop(rt);
+        return Ok(());
+    }
 
     run_window(
         hor_res,
@@ -133,6 +187,114 @@ fn main() -> anyhow::Result<()> {
     )?;
     drop(rt);
     Ok(())
+}
+
+/// Loop di rendering per il backend "drm" — scrive direttamente sul
+/// framebuffer via `DrmDisplay` (API DRM legacy), senza SDL2. Stessa
+/// gestione tag/navigazione/allarmi di `run_window` (vedi lì per i
+/// commenti, qui non ripetuti) — l'unica differenza reale è la sorgente dei
+/// pixel (DRM invece di Canvas/Surface SDL2) e degli eventi di input (il
+/// thread di `touch_indev.rs`, se avviato, invece del loop eventi SDL2:
+/// entrambi alimentano lo stesso `lvgl_indev::set_pointer_state`, il resto
+/// del ciclo non sa/non gli importa quale dei due).
+//
+// allow(unused_assignments) su `styles`: stesso motivo di `run_window`, il
+// compilatore non vede che LVGL tiene puntatori al suo contenuto via FFI —
+// qui più visibile perché il loop non ha mai un `break` che lo "consumi".
+#[allow(clippy::too_many_arguments, unused_variables, unused_assignments)]
+fn run_drm(
+    card_path: &str,
+    hor_res: u32,
+    ver_res: u32,
+    shared_tags: SharedTagSnapshot,
+    mut styles: Vec<lvgl::style::Style>,
+    mut live_bindings: Vec<lvgl_render::LiveBinding>,
+    tag_tx: mpsc::Sender<TagCommand>,
+    tag_rx: mpsc::Receiver<TagCommand>,
+    nav_tx: mpsc::Sender<String>,
+    nav_rx: mpsc::Receiver<String>,
+    ack_tx: mpsc::Sender<String>,
+    ack_rx: mpsc::Receiver<String>,
+    rt_handle: tokio::runtime::Handle,
+    base_url: String,
+    shared_alarms: client::SharedAlarms,
+) -> anyhow::Result<()> {
+    let mut drm = drm_display::DrmDisplay::open(card_path)?;
+    if drm.width != hor_res || drm.height != ver_res {
+        eprintln!(
+            "[drm] attenzione: risoluzione pagina {hor_res}x{ver_res} diversa da quella del \
+             display {}x{} — il rendering potrebbe non riempire lo schermo",
+            drm.width, drm.height
+        );
+    }
+    eprintln!(
+        "[drm] framebuffer aperto su {card_path}: {}x{}",
+        drm.width, drm.height
+    );
+
+    let mut frame_buf = vec![0u8; (hor_res * ver_res * 3) as usize];
+
+    loop {
+        let frame_start = Instant::now();
+
+        let tags_now = {
+            let tags = shared_tags.lock().unwrap_or_else(|e| e.into_inner()).clone();
+            lvgl_render::update_bindings(&mut live_bindings, &tags);
+            tags
+        };
+
+        lvgl::task_handler();
+        lvgl::tick_inc(Duration::from_millis(16));
+
+        while let Ok(cmd) = tag_rx.try_recv() {
+            let base_url = base_url.clone();
+            rt_handle.spawn(async move {
+                if let Err(e) = client::put_tag(&base_url, &cmd.tag, cmd.value).await {
+                    eprintln!("[tag] scrittura '{}' fallita: {e}", cmd.tag);
+                }
+            });
+        }
+
+        while let Ok(alarm_id) = ack_rx.try_recv() {
+            let base_url = base_url.clone();
+            rt_handle.spawn(async move {
+                if let Err(e) = client::ack_alarm(&base_url, &alarm_id).await {
+                    eprintln!("[alarm] ack di '{alarm_id}' fallito: {e}");
+                }
+            });
+        }
+
+        if let Ok(target_page) = nav_rx.try_recv() {
+            match rt_handle.block_on(client::resolve_page_by_id(&base_url, &target_page)) {
+                Ok(new_page) => match lvgl_render::render_page_objects(
+                    &new_page, &tags_now, &tag_tx, &nav_tx, &base_url, &rt_handle, &shared_alarms, &ack_tx,
+                ) {
+                    Ok((summary, new_styles, new_live)) => {
+                        eprintln!(
+                            "navigato a '{}': {} oggetti creati, {} non supportati",
+                            target_page,
+                            summary.rendered.len(),
+                            summary.skipped_unsupported.len()
+                        );
+                        styles = new_styles;
+                        live_bindings = new_live;
+                    }
+                    Err(e) => eprintln!("[nav] rendering di '{target_page}' fallito: {e}"),
+                },
+                Err(e) => eprintln!("[nav] impossibile caricare pagina '{target_page}': {e}"),
+            }
+        }
+
+        if lvgl_display::copy_frame_rgb888(&mut frame_buf) {
+            drm.flush_rgb888(&frame_buf);
+        }
+
+        let elapsed = frame_start.elapsed();
+        let target = Duration::from_millis(16);
+        if elapsed < target {
+            std::thread::sleep(target - elapsed);
+        }
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -164,18 +326,37 @@ fn run_window(
 ) -> anyhow::Result<()> {
     let sdl_context = sdl2::init().map_err(|e| anyhow::anyhow!("sdl2::init: {e}"))?;
     let video = sdl_context.video().map_err(|e| anyhow::anyhow!("sdl2 video subsystem: {e}"))?;
+    // Storia completa di questa finestra, verificata su hardware reale
+    // (tc620-a-p3-c6-07aff9.local, 2026-08-09) perché nessuna delle scelte
+    // sotto è ovvia — vedi anche docs/OPEN_QUESTIONS.md Q14:
+    // 1) Canvas/Renderer (SDL_CreateRenderer) crashava sempre (SIGSEGV) su
+    //    Wayland nativo, con o senza accelerazione GPU (questo container non
+    //    ha alcun driver Mali/EGL) — bug noto upstream (libsdl-org/SDL#4650,
+    //    #5386, libsdl-org/sdl2-compat#266).
+    // 2) Passare alla Surface diretta (SDL_GetWindowSurface) non è bastato:
+    //    stesso identico crash, stesso punto della classe di bug — Wayland
+    //    nativo su questo hardware/SDL2 non regge nessuna delle due vie.
+    // 3) SDL_VIDEODRIVER=x11 (via XWayland, che Weston 13 su questo device
+    //    avvia on-demand) elimina il crash del tutto, ma senza `.borderless()`
+    //    fallisce con un errore X11 pulito ("BadValue" su MIT-SHM
+    //    X_ShmPutImage): il window manager aggiunge una barra del titolo,
+    //    l'area disegnabile reale diventa più piccola di hor_res×ver_res, e
+    //    il blit alla dimensione piena esce dai bordi — stesso meccanismo
+    //    descritto su discourse.libsdl.org per SDL_UpdateWindowRects.
+    //    `.borderless()` è comunque quello che vogliamo per un pannello HMI
+    //    che non deve avere alcuna cornice.
     let window = video
         // Niente em-dash: il titolo finestra passa per WM_NAME (X11/XWayland),
         // non per il font LVGL — stesso genere di problema dei glyph mancanti
         // U+2014 nel synottico (vedi Q14), ma un percorso di rendering
         // completamente diverso (mojibake nella title bar, non un quadratino
-        // mancante). ASCII puro evita entrambe le classi di problema.
+        // mancante). ASCII puro evita entrambe le classi di problema. Il
+        // titolo comunque non si vede mai con `.borderless()` — lasciato per
+        // quando/se si tornerà a una finestra decorata.
         .window("SWS - LVGL viewer", hor_res, ver_res)
         .position_centered()
+        .borderless()
         .build()?;
-    let mut canvas = window.into_canvas().build()?;
-    let texture_creator = canvas.texture_creator();
-    let mut texture = texture_creator.create_texture_streaming(PixelFormatEnum::RGB24, hor_res, ver_res)?;
     let mut event_pump = sdl_context.event_pump().map_err(|e| anyhow::anyhow!("event_pump: {e}"))?;
 
     let mut frame_buf = vec![0u8; (hor_res * ver_res * 3) as usize];
@@ -285,14 +466,23 @@ fn run_window(
         }
 
         if lvgl_display::copy_frame_rgb888(&mut frame_buf) {
-            texture
-                .update(None, &frame_buf, pitch)
-                .map_err(|e| anyhow::anyhow!("texture.update: {e}"))?;
-            canvas.clear();
-            canvas
-                .copy(&texture, None, None)
-                .map_err(|e| anyhow::anyhow!("canvas.copy: {e}"))?;
-            canvas.present();
+            let mut window_surface = window
+                .surface(&event_pump)
+                .map_err(|e| anyhow::anyhow!("window.surface: {e}"))?;
+            let src_surface = Surface::from_data(
+                &mut frame_buf,
+                hor_res,
+                ver_res,
+                pitch as u32,
+                PixelFormatEnum::RGB24,
+            )
+            .map_err(|e| anyhow::anyhow!("Surface::from_data: {e}"))?;
+            src_surface
+                .blit(None, &mut window_surface, None)
+                .map_err(|e| anyhow::anyhow!("blit: {e}"))?;
+            window_surface
+                .update_window()
+                .map_err(|e| anyhow::anyhow!("update_window: {e}"))?;
         }
 
         let elapsed = frame_start.elapsed();

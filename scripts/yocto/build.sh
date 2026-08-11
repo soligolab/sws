@@ -15,9 +15,20 @@
 #   ./scripts/yocto/build.sh             # release build, embeds SPA dist
 #   ./scripts/yocto/build.sh --no-spa    # skip pnpm build of sws-editor
 #   ./scripts/yocto/build.sh debug       # cargo build without --release
+#   ./scripts/yocto/build.sh --with-lvgl # also cross-compile sws-lvgl-viewer
 #
 # Output: sws-runtime/target/aarch64-unknown-linux-gnu/release/sws-runtime
 #         (or debug/ for debug)
+#         with --with-lvgl, also:
+#         sws-runtime/crates/sws-lvgl-viewer/target/aarch64-unknown-linux-gnu/release/sws-lvgl-viewer
+#
+# --with-lvgl is opt-in and separate from the sws-runtime build on purpose:
+# sws-lvgl-viewer links against system SDL2 (see its Cargo.toml), which needs
+# libsdl2-dev present in the Pixsys sysroot — unverified as of this writing.
+# Without the flag, this script's behavior (including exit-on-failure via
+# `set -euo pipefail`) is byte-for-byte what it was before this crate existed;
+# a missing/broken SDL2 dev package on the sysroot must never break the
+# sws-runtime build that everything else depends on.
 #
 # The Vite dist (when built) is at sws-editor/dist/ on the dev box. The
 # deploy script picks both up.
@@ -31,11 +42,13 @@ TARGET_TRIPLE="aarch64-unknown-linux-gnu"
 
 PROFILE="release"
 BUILD_SPA=1
+WITH_LVGL=0
 for arg in "$@"; do
   case "$arg" in
-    debug)    PROFILE="debug" ;;
-    release)  PROFILE="release" ;;
-    --no-spa) BUILD_SPA=0 ;;
+    debug)       PROFILE="debug" ;;
+    release)     PROFILE="release" ;;
+    --no-spa)    BUILD_SPA=0 ;;
+    --with-lvgl) WITH_LVGL=1 ;;
     *) echo "[build] unknown arg: $arg" >&2; exit 2 ;;
   esac
 done
@@ -131,6 +144,28 @@ esac
 echo "[build] cargo build ${CARGO_FLAGS[*]}"
 (cd "$REPO_ROOT/sws-runtime" && cargo build "${CARGO_FLAGS[@]}")
 
+# ── Optional: sws-lvgl-viewer (--with-lvgl) ─────────────────────────────────
+#
+# Excluded from the sws-runtime workspace (see its own Cargo.toml comment),
+# so it needs its own `cargo build` invocation — and it MUST run with that
+# crate's directory as cwd, not via --manifest-path from elsewhere: it has a
+# local .cargo/config.toml that points DEP_LV_CONFIG_PATH at lv_conf/
+# relative to the current directory, and cargo's config discovery walks up
+# from cwd, not from the manifest path.
+
+if [ "$WITH_LVGL" -eq 1 ]; then
+  LVGL_CRATE_DIR="$REPO_ROOT/sws-runtime/crates/sws-lvgl-viewer"
+  LVGL_CARGO_FLAGS=( --target "$TARGET_TRIPLE" )
+  case "$PROFILE" in
+    release) LVGL_CARGO_FLAGS+=( --release ) ;;
+    debug)   : ;;
+  esac
+  echo "[build] cargo build (sws-lvgl-viewer) ${LVGL_CARGO_FLAGS[*]}"
+  (cd "$LVGL_CRATE_DIR" && cargo build "${LVGL_CARGO_FLAGS[@]}")
+else
+  echo "[build] skipping sws-lvgl-viewer (pass --with-lvgl to cross-compile it too)"
+fi
+
 # ── Report ───────────────────────────────────────────────────────────────────
 
 BIN="$REPO_ROOT/sws-runtime/target/$TARGET_TRIPLE/$PROFILE/sws-runtime"
@@ -144,4 +179,16 @@ if [ -f "$BIN" ]; then
 else
   echo "[build] ERROR: expected binary not found at $BIN" >&2
   exit 1
+fi
+
+if [ "$WITH_LVGL" -eq 1 ]; then
+  LVGL_BIN="$LVGL_CRATE_DIR/target/$TARGET_TRIPLE/$PROFILE/sws-lvgl-viewer"
+  if [ -f "$LVGL_BIN" ]; then
+    LVGL_SIZE_HUMAN="$(du -h "$LVGL_BIN" | awk '{print $1}')"
+    echo "[build] lvgl   : $LVGL_BIN  ($LVGL_SIZE_HUMAN)"
+    echo "[build] lvgl   : $(file -b "$LVGL_BIN" 2>/dev/null | head -1)"
+  else
+    echo "[build] ERROR: expected sws-lvgl-viewer binary not found at $LVGL_BIN" >&2
+    exit 1
+  fi
 fi
