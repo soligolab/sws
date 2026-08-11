@@ -9,23 +9,24 @@ target:
   kind: lvgl_framebuffer
   framebuffer_device: "/dev/fb0"
 
-# Tag in-memory: nessuna sorgente, scrivibili via API o (quando l'input
-# device sarà collegato — vedi docs/OPEN_QUESTIONS.md Q14) dai widget stessi.
+# Tag in-memory: nessuna sorgente, scrivibili via API oppure dai widget
+# stessi (click bottone/checkbox/radio, drag slider — input device LVGL
+# collegato, vedi docs/OPEN_QUESTIONS.md Q14).
 tags:
-  - id: lvgl_demo.counter
-    description: "Contatore demo — pensato per essere incrementato da un bottone quando l'interattività sarà collegata"
-    data_type: float
+  - id: lvgl_demo.button_pressed
+    description: "true dopo il click su 'Bottone' — dimostra lv_obj_add_event_cb(LV_EVENT_CLICKED) → PUT /api/tags (write_value, stessa semantica del bottone web)"
+    data_type: bool
   - id: lvgl_demo.led_on
     description: "Stato ON/OFF del LED demo"
     data_type: bool
   - id: lvgl_demo.value
-    description: "Valore numerico 0-100 — guida sia lo slider sia il testo formattato"
+    description: "Valore numerico 0-100 — guida slider e testo formattato; trascinare lo slider scrive qui dal vivo"
     data_type: float
   - id: lvgl_demo.toggle
-    description: "Stato spuntato/non spuntato della checkbox demo"
+    description: "Stato spuntato/non spuntato della checkbox demo — scrivibile anche cliccando la checkbox"
     data_type: bool
   - id: lvgl_demo.radio_on
-    description: "Stato spuntato/non spuntato del radio demo (radio è approssimato con una checkbox — vedi Q14)"
+    description: "Stato spuntato/non spuntato del radio demo (radio è approssimato con una checkbox — vedi Q14) — scrivibile anche cliccando"
     data_type: bool
 
 sources: []

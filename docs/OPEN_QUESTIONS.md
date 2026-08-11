@@ -442,6 +442,108 @@ requisiti di deployment realmente headless.
 
 ---
 
+**Aggiornamento 2026-08-08 (seguito) — dai due limiti noti a motore interattivo con 9 widget**
+
+Dopo la verifica del maintainer su `lvgl-01` (screenshot statico confermato corretto), erano
+emersi due limiti: **(a)** bottoni/slider non rispondevano al click (nessun input device
+registrato) e **(b)** i valori non si aggiornavano dal vivo (i widget venivano creati una sola
+volta dallo snapshot iniziale, `/ws/tags` non veniva più consultato dopo l'avvio). Il maintainer
+ha chiesto di proseguire in autonomia sui primi 4 punti di una roadmap proposta (live updates,
+interattività, più widget, verifica backend Wayland), escludendo solo i container. Stato finale:
+
+1. **Live updates (risolto il limite b)** — `client::spawn_tag_subscription` tiene la
+   connessione `/ws/tags` aperta per tutta la durata della finestra (task `tokio::spawn` in
+   background, stato condiviso `Arc<Mutex<TagSnapshot>>`), invece di chiuderla dopo lo snapshot
+   iniziale. I widget tag-dipendenti (`LiveBinding`/`update_bindings` in `lvgl_render.rs`) non
+   vengono più ricreati: i loro `Style` vengono mutati sul posto e "rinfrescati" con
+   `lv_obj_refresh_style` — necessario perché LVGL cache lo stile calcolato per oggetto, mutare
+   le proprietà di uno `Style` già assegnato non basta da solo (bug facile da non notare: il
+   colore vecchio resta a schermo senza errori/warning).
+
+2. **Più widget** — aggiunti `checkbox`, `progress_bar`, `radio`, `ellipse` (9 tipi supportati in
+   totale). `progress_bar` riusa `Bar` come lo `slider` (entrambi passano da `init_bar_like`,
+   `lv_bar_set_range`/`set_value` — LVGL non ha setter dedicati per lo slider, conferma dai
+   binding reali). `checkbox`/`radio` condividono `Checkbox`: **LVGL non ha un widget radio
+   nativo**, un radio SWS è disegnato come una checkbox quadrata (non tonda) — stessa
+   approssimazione dichiarata nel brief originale ("non pixel-perfect ma accettabile").
+   `ellipse` è un `lv_obj` figlio con `radius` al massimo (`LV_RADIUS_CIRCLE`) — cerchio perfetto
+   se `width == height`, altrimenti una "pillola" stadium-shaped.
+
+   **Bug scoperto durante la verifica (non una regressione di questa fase — preesistente fin dal
+   widget LED originale, mai notato perché nessuno aveva controllato il colore pixel-per-pixel)**:
+   `on_color`/`off_color` del LED, configurati nel synottico, venivano **silenziosamente
+   ignorati** — il LED renderizzava sempre nel colore primario del tema (blu). Causa: `lv_led`
+   (a differenza di quasi tutti gli altri widget LVGL) **non legge lo `Style` `bg_color`** per il
+   proprio colore — tiene un campo interno `color` impostabile solo con `lv_led_set_color()`,
+   inizializzato al colore primario del tema se mai chiamato (confermato nel sorgente C,
+   `lv_led.c`: l'evento `LV_EVENT_DRAW_MAIN` mixa `led->color` con nero in base alla *luminosità*
+   letta dallo `Style`, ma l'**hue** viene sempre da `led->color`, mai dallo `Style` stesso — un
+   dettaglio dell'API facile da assumere sbagliato per analogia con gli altri widget). Fix:
+   `render_led`/`update_bindings` chiamano `lv_led_set_color()` via FFI diretta invece di passare
+   per lo `Style` — stesso principio delle altre chiamate dirette a `lvgl-sys` già presenti nel
+   file per setter non esposti dal binding safe.
+
+3. **Verifica backend Wayland nativo** — confermato che `sws-lvgl-viewer` gira su Wayland nativo
+   (non XWayland): con `SDL_VIDEODRIVER=wayland`, `xwininfo -root -tree` non mostra la finestra
+   nell'albero X11 (assenza = prova di Wayland nativo, non serve altro). Rilevante per la Fase 4
+   (framebuffer/DRM/Wayland reali su device Pixsys) — SDL2 stesso sa già parlare Wayland diretto,
+   non solo tramite compatibilità X11.
+
+4. **Interattività (risolto il limite a)** — nuovo modulo `lvgl_indev.rs`: input device puntatore
+   registrato con lo stesso pattern del display (`lvgl_display.rs` — `_lv_indev_drv_t` ha un
+   `Default` zero-safe generato da bindgen, storage `'static` via `Box::leak`).
+   `lv_indev_drv_register` si aggancia da solo al display di default (verificato nel sorgente C,
+   non assunto), quindi va chiamato dopo `lvgl_display::init_display`. Il loop SDL2 traduce
+   `MouseButtonDown`/`Up`/`Motion` in stato puntatore prima di ogni `task_handler()`. Bottone,
+   checkbox/radio e slider registrano callback FFI (`lv_obj_add_event_cb` su
+   `LV_EVENT_CLICKED`/`LV_EVENT_VALUE_CHANGED`, entrambi verificati nel sorgente C — non assunti
+   dal nome) che accodano una `TagCommand` su un canale `mpsc` — **niente I/O di rete dentro la
+   callback sincrona FFI**: il loop principale drena la coda dopo `task_handler()` e gira ogni
+   scrittura a un task async sul runtime tokio del processo (`client::put_tag`,
+   `PUT /api/tags/:id`, stesso endpoint del bottone web).
+
+   **Scelta di design**: il bottone scrive `write_value` (default `true`) sul proprio tag al
+   click — stessa identica semantica del bottone web (`SvgCanvas.tsx`:
+   `onWriteTag(obj.tag, obj.write_value ?? true)`), non un contatore o altro comportamento
+   inventato apposta per LVGL. Preferito per coerenza con un pattern già scritto e capito, non
+   per mancanza di alternative — un sistema di azioni più ricco (script, azioni multiple) non
+   esiste nemmeno lato web oggi, quindi non c'è nulla da "recuperare": se un giorno il bottone web
+   guadagna un sistema di azioni più ricco, andrà valutato se/come portarlo anche qui.
+
+   **Bug potenziale individuato e corretto in fase di progettazione (non durante testing — la
+   presenza è stata dedotta *prima* di scriverlo, poi confermata efficace)**: `update_bindings`
+   scrive incondizionatamente il valore letto dal tag su slider/progress_bar a ogni frame. Senza
+   guardia, durante un drag questo avrebbe fatto "combattere" lo slider con l'utente per tutta la
+   durata del gesto (il valore nel tag resta quello vecchio finché non arriva il round-trip
+   scrittura+delta WS, tipicamente più lento di un frame). Fix: `update_bindings` salta
+   l'aggiornamento tag-driven quando il widget è in stato `LV_STATE_PRESSED` (drag in corso) —
+   no-op innocuo su `progress_bar`, che condivide il binding ma non entra mai in quello stato in
+   uso normale (nessuna callback registrata lì).
+
+   **Limite noto accettato, non risolto**: lo stesso tipo di "combattimento" è teoricamente
+   possibile — ma per una finestra molto più breve, un solo click discreto invece di un drag
+   sostenuto — su checkbox/radio: `update_bindings` potrebbe riscrivere per un frame o due lo
+   stato appena cambiato dal click, prima che il delta WS di ritorno lo confermi. Non osservato
+   nella verifica (round-trip locale troppo veloce per notarlo), ma non specificamente protetto
+   come per lo slider — proporzione giudicata accettabile per un PoC (finestra di rischio
+   piccola, autocorrettiva, nessun guard equivalente a buon mercato: `LV_STATE_PRESSED` si
+   azzera già nello stesso evento che fa il toggle, prima che il round-trip parta).
+
+   **Verificato end-to-end, non solo a compilazione**: click/drag sintetici via X11 XTest
+   (`python-xlib`, ambiente headless senza mouse fisico) su bottone/checkbox/radio/slider —
+   ognuno scrive correttamente il tag atteso sul backend (confermato via
+   `GET /api/tags/:id`), il readout si aggiorna dal vivo sullo stesso schermo (screenshot
+   prima/dopo), un widget non interattivo (LED) resta inerte al click. Nessun crash/warning/
+   coredump durante l'intera sessione di test.
+
+**Decided**: risolti entrambi i limiti (a) e (b). Motore LVGL ora supporta 9 tipi widget, tutti
+con aggiornamento live, 4 dei quali interattivi (bottone/checkbox/radio/slider). Limite ancora
+aperto e nel roadmap: nessun elemento del catalogo widget web attuale gestisce script/azioni
+multiple sul click — se/quando servirà, la domanda "quale sistema di azioni" va posta di nuovo
+qui, non decisa implicitamente estendendo `write_value`.
+
+---
+
 ## Adding new questions
 
 When Claude Code adds a new question, follow the format above:

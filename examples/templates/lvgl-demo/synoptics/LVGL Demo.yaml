@@ -38,6 +38,7 @@ objects:
     height: 50.0
     label: "Bottone"
     fill: "#3b82f6"
+    tag: lvgl_demo.button_pressed
   - id: cap_b1
     type: text
     x: 150.0
@@ -161,6 +162,25 @@ objects:
     x: 530.0
     y: 245.0
     text: "radio (approssimato)"
+    font_size: 12.0
+    color: "#94a3b8"
+
+  # ── readout live di lvgl_demo.button_pressed (scritto dal click su
+  #    "Bottone" qui sopra — dimostra il giro completo click → PUT tag →
+  #    delta WS → aggiornamento widget, sullo stesso schermo) ──────────────
+  - id: txt_btn
+    type: text
+    x: 20.0
+    y: 300.0
+    tag: lvgl_demo.button_pressed
+    format: "{value}"
+    font_size: 18.0
+    color: "#38bdf8"
+  - id: cap_txt_btn
+    type: text
+    x: 20.0
+    y: 335.0
+    text: "<- click Bottone"
     font_size: 12.0
     color: "#94a3b8"
 
