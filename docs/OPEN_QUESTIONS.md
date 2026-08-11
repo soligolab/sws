@@ -132,10 +132,18 @@ Migrazione a RTK deferita al product phase se necessario. ADR 0001 chiusa come "
 
 **Default for PoC**: B (separate folder in container). Easy to update without rebuilding the binary.
 
-**Decided**: **A (embedded nel binario)**. I 22 simboli SVG built-in e le 3 faceplate
-predefinite (`motor_basic`, `valve_basic`, `tank_level`) sono inclusi via `include_str!()`
-in `sws-web`. Un'eventuale cartella `sws-symbols/` separata con symbol pack aggiuntivi
-rimane un'opzione post-PoC.
+**Decided**: **A (embedded nel binario)**, ma non nel modo descritto qui inizialmente — corretto
+dopo averlo verificato nel sorgente invece di ricopiare la frase originale (Q15, seguito
+all'analisi `symbol`→LVGL, 2026-08-08). Solo le **3 faceplate predefinite**
+(`motor_basic`/`valve_basic`/`tank_level`) sono incluse via `include_str!()`, e sono in
+`sws-web` (`router.rs`). I **simboli veri e propri non passano mai dal binario Rust**: vivono
+interamente lato editor, in `sws-editor/src/symbols/library.tsx` — **17** disegnati a mano come
+JSX/SVG inline (`kind: "builtin"`, davvero ricolorabili per stato) più **12** file `.svg`
+statici serviti da `sws-editor/public/symbols/` (`kind: "vendored"`, mai ricolorati — solo un
+pallino di stato sovrapposto), per un totale di **29**, non 22. Il backend non ha alcuna
+conoscenza semantica dei simboli: sul synottico persiste solo `symbol_id` (stringa opaca),
+la risoluzione kind/path è un lookup lato editor. Un'eventuale cartella `sws-symbols/` separata
+con symbol pack aggiuntivi resta un'opzione post-PoC.
 
 ---
 
@@ -953,6 +961,79 @@ comunque.
 **Decided**: `alarm_viewer` implementato come MVP (solo modalità lista, gap dichiarati sopra).
 Resta un solo punto dalla lista dei 5 passi: `symbol` (domanda architetturale SVG→LVGL, ancora da
 scrivere come sua voce in questo documento).
+
+---
+
+## Q15 — Simboli SVG (`symbol`/`faceplate`) su LVGL: nessun renderer SVG disponibile
+
+**Context**: quinto e ultimo dei "prossimi 5 step" proposti dopo Q14 ("procedi con i prossimi 5
+step") — esplicitamente scoping come *analisi*, non implementazione: "una vera domanda
+architetturale... non ancora posta in `docs/OPEN_QUESTIONS.md`". A differenza dei quattro widget
+precedenti (checkbox/line/trend/alarm_viewer, tutti risolvibili componendo primitive LVGL già
+disponibili — `lv_chart`, `lv_btn`, `lv_obj` colorato, ecc.), `symbol` porta contenuto SVG
+arbitrario, e **LVGL 8.x (la versione vendorizzata in questo motore, vedi Q14) non ha alcun
+renderer SVG integrato** — quel supporto arriva solo in LVGL 9.x, ed è comunque parziale. Questa
+non è una lacuna di implementazione ma un vincolo della libreria stessa: non si risolve scrivendo
+più codice nello stile già usato per gli altri widget.
+
+**Cosa c'è davvero da rendere** (verificato leggendo `sws-editor/src/canvas/SvgCanvas.tsx` e
+`sws-editor/src/symbols/library.tsx`, non assunto dal nome del tipo):
+- **17 simboli "builtin"** (pompa, valvola, motore, serbatoio, ventola...): JSX/SVG scritti a
+  mano, poche forme geometriche semplici per simbolo (cerchi/path/rettangoli in uno spazio
+  100×100), **davvero ricolorati** in base allo stato derivato da `state_tag`/`alarm_tag`
+  (off/on/allarme passano colori diversi dentro il rendering).
+- **12 simboli "vendored"**: file `.svg` statici serviti da `sws-editor/public/symbols/`,
+  complessità variabile (es. `filter.svg` usa un `<pattern>` per il tratteggio), **mai
+  ricolorati** — solo un pallino di stato sovrapposto in un angolo.
+- **`custom_symbols`**: SVG arbitrario fornito dal progetto via URL esterno (`ProjectInfo.
+  custom_symbols`, nessun upload — solo un campo testo con l'URL), quindi contenuto **non
+  conosciuto in anticipo**, impossibile da portare a mano caso per caso.
+- **`faceplate`** è un problema *diverso e molto più semplice*, da non confondere con `symbol`:
+  è un template composito di oggetti già ordinari (rect/text/led...) con sostituzione parametri
+  (`FaceplateDef{objects}` in `synoptic.rs`), non contiene SVG proprio — probabilmente
+  supportabile quasi gratis ricorrendo nello stesso dispatcher già scritto per gli altri tipi,
+  un follow-up separato e nettamente più piccolo di questa domanda (non affrontato qui: fuori
+  dallo scope dei "5 passi" originali, che nominavano solo `symbol`).
+
+**Options**:
+- **A — Rasterizzazione offline/build-time**: convertire ogni SVG (i 29 built-in/vendored; i
+  `custom_symbols` per natura non si possono precompilare) in bitmap `lv_img_dsc_t` a poche
+  risoluzioni fisse. `lv_img_set_recolor` di LVGL applica una tinta uniforme (blend) sopra
+  l'intera bitmap — approssimerebbe la ricolorazione per stato dei builtin solo se la sorgente
+  fosse monocromatica (come un'icona font), perdendo la possibilità di colori diversi per forma
+  interna che i builtin oggi hanno. Non copre affatto `custom_symbols` (contenuto ignoto a
+  build-time).
+- **B — Riscrittura a mano dei soli builtin su primitive LVGL native**: stesso approccio già
+  usato per `ellipse` (approssimata con un `lv_obj` arrotondato) e `radio` (approssimato con
+  `checkbox`) — fattibile per i 17 builtin (poche forme semplici, sorgente sotto controllo),
+  **non estendibile** agli 12 vendored (SVG arbitrario, complessità variabile e sconosciuta in
+  anticipo) né ai `custom_symbols` (contenuto del progetto, non del codice). Copertura parziale
+  ma onesta: i tipi non copribili resterebbero esplicitamente non supportati, non approssimati
+  male.
+- **C — Rasterizzazione a runtime con una crate Rust per SVG** (es. `resvg`+`tiny-skia`, maturi
+  e mantenuti): unico approccio che copre uniformemente tutti e tre i casi (builtin — se anche
+  loro venissero serializzati come vero SVG invece di JSX —, vendored, custom), decodificando e
+  disegnando in un buffer RGBA passato a LVGL come immagine grezza. Costo reale: una dipendenza
+  nuova e non piccola, una pipeline di decodifica/rasterizzazione con le sue implicazioni di
+  memoria/prestazioni su hardware embedded (il target dichiarato di questo motore), e va
+  verificato se `resvg` copre davvero il sottoinsieme SVG usato nei file vendored esistenti
+  (pattern, eventuali gradienti) prima di contarci.
+- **D — Non supportato per ora** (stato di fatto attuale: `symbol` semplicemente assente da
+  `SUPPORTED_TYPES`, oggetto silenziosamente saltato). Più onesto di un'approssimazione a metà,
+  ma lascia un buco reale nella promessa "stesso YAML, portabile tra i target" per qualunque
+  progetto che usi simboli di sistema — probabile per una demo SCADA/industriale tipica (pompe,
+  valvole, serbatoi sono contenuto di dominio comune).
+
+**Default for PoC**: **D** resta lo stato di fatto finché il maintainer non sceglie diversamente
+— coerente con l'istruzione di non decidere le domande architetturali in sessione. Se/quando si
+deciderà di procedere, l'opzione più in linea con lo spirito "MVP dichiarato, non finto" già
+seguito per gli altri widget di questo filone sarebbe **B** applicata solo ai 17 builtin (stesso
+schema di `ellipse`/`radio`: copertura parziale ma vera, gap espliciti per vendored/custom nel
+badge "L" dell'editor e in `docs/OPEN_QUESTIONS.md`), rimandando **C** a quando/se emergerà un
+bisogno reale di simboli vendored/custom su un progetto LVGL concreto — ma questa è una
+raccomandazione, non una decisione presa qui.
+
+**Decided**: not yet.
 
 ---
 
