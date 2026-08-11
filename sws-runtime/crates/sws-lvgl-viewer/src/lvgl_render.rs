@@ -22,6 +22,7 @@
 //! esistente avrebbe fatto crescere `styles`/`Vec<LiveBinding>` senza limite
 //! in una sessione lunga.
 
+use std::cell::RefCell;
 use std::sync::mpsc;
 
 use cstr_core::CString;
@@ -30,7 +31,7 @@ use lvgl::widgets::{Bar, Btn, Chart, Checkbox, Label, Led, Line, Meter, Slider, 
 use lvgl::{Color, LvError, NativeObject, Part, Widget};
 use sws_core::tag::{TagQuality, TagValue};
 
-use crate::client::{self, HistorySample, SharedHistory, TagSnapshot, TagSnapshotValue};
+use crate::client::{self, AlarmStateLite, HistorySample, SharedAlarms, SharedHistory, TagSnapshot, TagSnapshotValue};
 use crate::model::{OnValue, SynopticObject, SynopticPage, TableRow, TextListEntry};
 
 /// Risoluzione di default se la pagina non specifica `width`/`height` — non
@@ -58,7 +59,7 @@ fn resolve_resolution(page: &SynopticPage) -> (u32, u32) {
 
 const SUPPORTED_TYPES: &[&str] = &[
     "rect", "ellipse", "line", "text", "button", "led", "slider", "progress_bar", "checkbox", "radio", "gauge",
-    "state_lamp", "table", "navbutton", "trend",
+    "state_lamp", "table", "navbutton", "trend", "alarm_viewer",
 ];
 
 #[derive(Default, Debug)]
@@ -161,6 +162,19 @@ pub enum LiveKind {
         window_s: u64,
         autofit: bool,
     },
+    /// Lista allarmi attivi (solo modalità `"list"`, vedi `render_alarm_viewer`):
+    /// `rows.len()` slot fissi (uno per `alarm_viewer_max_rows`), il
+    /// contenuto di ciascuno viene riassegnato a ogni frame in base a quali
+    /// allarmi sono attivi in quel momento — stesso principio delle celle di
+    /// `Table`, non widget ricreati.
+    AlarmViewer {
+        shared: SharedAlarms,
+        empty_ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
+        show_empty: bool,
+        rows: Vec<AlarmRowBinding>,
+        prefix: String,
+        allowed_sev: Option<Vec<String>>,
+    },
 }
 
 /// Una serie del trend: il puntatore LVGL, la sorgente dati condivisa col
@@ -173,6 +187,36 @@ pub struct TrendSeriesBinding {
     shared: SharedHistory,
     last_seen_version: u64,
     last_samples: Vec<HistorySample>,
+}
+
+/// Uno slot riga di `alarm_viewer`: identità fissa (creato una volta),
+/// contenuto riassegnato a ogni frame. `dot_style` è posseduto qui (non
+/// spinto nel `Vec<Style>` "statico" del synottico) perché va mutato ogni
+/// volta che cambia l'allarme assegnato a questa riga — stesso principio di
+/// `StateLamp::lamp_style`. `ack_ctx` è `None` quando `alarm_viewer_show_ack`
+/// è `false`: niente pulsante, niente contesto da tenere in vita.
+pub struct AlarmRowBinding {
+    dot_ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
+    dot_style: Style,
+    ts_ptr: Option<core::ptr::NonNull<lvgl_sys::lv_obj_t>>,
+    msg_ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
+    ack_btn_ptr: Option<core::ptr::NonNull<lvgl_sys::lv_obj_t>>,
+    ack_ctx: Option<&'static AlarmAckCtx>,
+}
+
+/// Contesto per il click del pulsante ACK di una riga `alarm_viewer`: a
+/// differenza degli altri pulsanti di questo file, l'id allarme associato a
+/// una riga cambia da un frame all'altro (le righe sono slot fissi, il
+/// contenuto dipende da quali allarmi sono attivi in quel momento — vedi
+/// `AlarmRowBinding`). `RefCell` invece di un valore fisso `Box::leak`-ato
+/// una volta sola: `update_alarm_viewer` lo aggiorna a ogni frame, la
+/// callback lo legge al momento del click — sicuro perché il motore è
+/// single-thread (le callback LVGL sparano sincrone dentro `task_handler()`,
+/// sullo stesso thread del loop di rendering, mai in parallelo con
+/// `update_bindings`).
+struct AlarmAckCtx {
+    current_id: RefCell<String>,
+    tx: mpsc::Sender<String>,
 }
 
 pub struct LiveBinding {
@@ -260,6 +304,25 @@ unsafe extern "C" fn sws_navbutton_clicked_cb(e: *mut lvgl_sys::lv_event_t) {
     let _ = ctx.tx.send(ctx.target_page.clone());
 }
 
+/// `LV_EVENT_CLICKED` sul pulsante ACK di una riga `alarm_viewer`: legge
+/// l'id corrente dal `RefCell` (aggiornato ogni frame da
+/// `update_alarm_viewer`, vedi `AlarmAckCtx`) invece di portarsi dietro un
+/// id fisso deciso alla creazione — la riga può aver cambiato allarme molte
+/// volte da allora. Id vuoto (riga senza allarme assegnato in questo
+/// momento, pulsante comunque nascosto ma la callback potrebbe teoricamente
+/// sparare tra un frame e l'altro) → non manda nulla.
+unsafe extern "C" fn sws_alarm_ack_clicked_cb(e: *mut lvgl_sys::lv_event_t) {
+    let user_data = unsafe { lvgl_sys::lv_event_get_user_data(e) };
+    if user_data.is_null() {
+        return;
+    }
+    let ctx = unsafe { &*(user_data as *const AlarmAckCtx) };
+    let id = ctx.current_id.borrow().clone();
+    if !id.is_empty() {
+        let _ = ctx.tx.send(id);
+    }
+}
+
 /// `LV_EVENT_VALUE_CHANGED` su una checkbox/radio: lo stato CHECKED è già
 /// stato aggiornato da LVGL stesso prima di inviare questo evento (vedi
 /// `lv_obj.c`, ramo `LV_EVENT_RELEASED` — il toggle avviene, poi
@@ -335,6 +398,33 @@ fn trend_series_color(i: usize, obj: &SynopticObject) -> (u8, u8, u8) {
         }
     }
     TREND_PALETTE[i % TREND_PALETTE.len()]
+}
+
+/// Porta `SEV_COLOR` di `alarmSeverity.ts` (i valori di fallback — questo
+/// motore non ha un tema CSS da risolvere, quindi solo l'hex conta).
+fn severity_color(sev: &str) -> (u8, u8, u8) {
+    match sev {
+        "Critical" => (239, 68, 68),  // #ef4444
+        "Warning" => (234, 179, 8),   // #eab308
+        _ => (59, 130, 246),          // #3b82f6 — "Info" e qualunque valore ignoto
+    }
+}
+
+/// A differenza del web (`toLocaleTimeString`, richiede un fuso orario che
+/// questo processo non ha modo di conoscere in modo affidabile senza una
+/// dipendenza in più solo per questo dettaglio), mostra da quanto tempo
+/// l'allarme è attivo ("Ns fa"/"Nm fa"/"Nh fa") invece dell'ora assoluta —
+/// stesso scopo operativo (capire a colpo d'occhio quanto è vecchio un
+/// allarme) senza aggiungere `chrono`/`time` in più.
+fn format_alarm_age(activated_at_ms: u64, now_ms: u64) -> String {
+    let age_s = now_ms.saturating_sub(activated_at_ms) / 1000;
+    if age_s < 60 {
+        format!("{age_s}s fa")
+    } else if age_s < 3600 {
+        format!("{}m fa", age_s / 60)
+    } else {
+        format!("{}h fa", age_s / 3600)
+    }
 }
 
 fn apply_bg_color<W: Widget<Part = Part>>(
@@ -1263,12 +1353,206 @@ fn render_trend(
     Ok(LiveBinding { kind: LiveKind::Trend { ptr, series, window_s, autofit } })
 }
 
+/// Lista allarmi attivi, modalità `"list"` soltanto — `"banner"` (marquee di
+/// un solo allarme) e `"table"` (`DataTable` condiviso, sort/filtro per
+/// colonna) di `AlarmViewerWidget` in `SvgCanvas.tsx` non hanno equivalente
+/// qui: segnalato come non supportato invece di renderizzare una lista al
+/// posto di quanto configurato (stesso principio di `render_trend` per
+/// `alarm_viewer_mode` — vedi la guardia sotto).
+///
+/// `max_rows` slot fissi creati una volta (dot colorato + timestamp
+/// opzionale + messaggio + pulsante ACK opzionale), popolati/nascosti a ogni
+/// frame in `update_alarm_viewer` in base a quali allarmi sono attivi in
+/// quel momento — stesso principio di `render_table`, non widget ricreati.
+/// Niente scroll per righe oltre `max_rows`: stessa `slice(0, maxRows)` del
+/// web, ma senza un contenitore scrollabile in questo giro (gap dichiarato).
+fn render_alarm_viewer(
+    screen: &mut lvgl::Obj,
+    obj: &SynopticObject,
+    styles: &mut Vec<Style>,
+    shared_alarms: &SharedAlarms,
+    ack_tx: &mpsc::Sender<String>,
+) -> anyhow::Result<LiveBinding> {
+    let mode = obj.alarm_viewer_mode.as_deref().unwrap_or("list");
+    if mode != "list" {
+        anyhow::bail!("alarm_viewer_mode '{mode}' non supportato da LVGL (solo 'list')");
+    }
+
+    let width = obj.width.unwrap_or(360.0);
+    let height = obj.height.unwrap_or(160.0);
+    let max_rows = obj.alarm_viewer_max_rows.unwrap_or(5.0).round().clamp(1.0, 50.0) as usize;
+    let show_ack = obj.alarm_viewer_show_ack.unwrap_or(true);
+    let show_ts = obj.alarm_viewer_show_ts.unwrap_or(true);
+    let show_empty = obj.alarm_viewer_show_empty.unwrap_or(true);
+    let prefix = obj.alarm_viewer_id_prefix.clone().unwrap_or_default();
+    let allowed_sev = obj.alarm_viewer_severities.clone();
+
+    let mut container = create_child_obj(screen)?;
+    set_pos_size(&mut container, obj, width, height)?;
+    apply_bg_color(&mut container, obj.alarm_viewer_bg_color.as_deref().unwrap_or("#0f172a"), styles)?;
+    let container_ptr = container.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
+    unsafe {
+        // Niente scroll (vedi commento di funzione) — non solo estetico:
+        // senza, LVGL lascerebbe comunque il contenitore scrollabile col
+        // dito/mouse anche se il contenuto in eccesso resta semplicemente
+        // tagliato, un'affordance fuorviante per qualcosa che non scrolla
+        // davvero.
+        lvgl_sys::lv_obj_clear_flag(container_ptr.as_ptr(), lvgl_sys::LV_OBJ_FLAG_SCROLLABLE as lvgl_sys::lv_obj_flag_t);
+    }
+    // Il tema di default applica un padding interno non nullo ai container
+    // (verificato dal vivo: il pulsante ACK, posizionato assumendo tutta la
+    // `width` disponibile a partire da x=0, risultava tagliato dal bordo
+    // destro) — azzerato esplicitamente così le coordinate assolute delle
+    // righe qui sotto corrispondono davvero allo spazio disponibile, invece
+    // di dover indovinare il padding del tema.
+    let mut pad_style = Style::default();
+    pad_style.set_pad_left(0);
+    pad_style.set_pad_right(0);
+    pad_style.set_pad_top(0);
+    pad_style.set_pad_bottom(0);
+    container
+        .add_style(Part::Main, &mut pad_style)
+        .map_err(|e| anyhow::anyhow!("add_style: {e:?}"))?;
+    styles.push(pad_style);
+
+    let row_h = (height / max_rows as f64).max(16.0);
+    let hidden = lvgl_sys::LV_OBJ_FLAG_HIDDEN as lvgl_sys::lv_obj_flag_t;
+
+    let mut empty_label = Label::create(&mut container).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
+    empty_label.set_pos(4, 4).map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
+    empty_label
+        .set_text(&text_cstring("Nessun allarme attivo"))
+        .map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
+    let mut empty_style = Style::default();
+    empty_style.set_text_color(Color::from_rgb((100, 116, 139))); // #64748b
+    empty_label
+        .add_style(Part::Main, &mut empty_style)
+        .map_err(|e| anyhow::anyhow!("add_style: {e:?}"))?;
+    styles.push(empty_style);
+    let empty_ptr = empty_label.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
+    // Stato iniziale nascosto: il primo update_bindings (che gira prima del
+    // primo frame visibile — vedi main.rs) decide la visibilità corretta
+    // rispettando show_empty, niente da anticipare qui.
+    unsafe {
+        lvgl_sys::lv_obj_add_flag(empty_ptr.as_ptr(), hidden);
+    }
+
+    // Ogni elemento di riga è centrato verticalmente nella propria banda
+    // row_h (non incollato al bordo superiore): un pulsante/etichetta alto
+    // quanto row_h intero risultava visivamente incollato al bordo del
+    // contenitore o troppo schiacciato per mostrare il proprio testo,
+    // verificato dal vivo con screenshot prima di questa versione.
+    let dot_h = 10.0;
+    let text_h = 16.0;
+    let btn_h = 22.0_f64.min(row_h);
+
+    let mut rows = Vec::with_capacity(max_rows);
+    for i in 0..max_rows {
+        let row_top = i as f64 * row_h;
+        let center_y = |elem_h: f64| (row_top + (row_h - elem_h) / 2.0).round() as i16;
+
+        let mut dot = create_child_obj(&mut container)?;
+        dot.set_pos(4, center_y(dot_h)).map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
+        dot.set_size(10, 10).map_err(|e| anyhow::anyhow!("set_size: {e:?}"))?;
+        let mut dot_style = Style::default();
+        dot_style.set_radius(lvgl_sys::LV_RADIUS_CIRCLE as i16);
+        dot.add_style(Part::Main, &mut dot_style).map_err(|e| anyhow::anyhow!("add_style: {e:?}"))?;
+        let dot_ptr = dot.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
+
+        let mut x_cursor: i16 = 20;
+        let ts_ptr = if show_ts {
+            let mut ts_lbl = Label::create(&mut container).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
+            ts_lbl.set_pos(x_cursor, center_y(text_h)).map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
+            ts_lbl.set_text(&text_cstring("")).map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
+            let mut ts_style = Style::default();
+            ts_style.set_text_color(Color::from_rgb((71, 85, 105))); // #475569
+            ts_lbl
+                .add_style(Part::Main, &mut ts_style)
+                .map_err(|e| anyhow::anyhow!("add_style: {e:?}"))?;
+            styles.push(ts_style);
+            let p = ts_lbl.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
+            x_cursor += 46;
+            Some(p)
+        } else {
+            None
+        };
+
+        let ack_w: i16 = if show_ack { 40 } else { 0 };
+        let msg_w = (width as i16 - x_cursor - ack_w - 8).max(20);
+        let mut msg_lbl = Label::create(&mut container).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
+        msg_lbl.set_pos(x_cursor, center_y(text_h)).map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
+        // Altezza fissa a una riga (non row_h, spesso più alta): verificato in
+        // lv_label.c che LV_LABEL_LONG_DOT tronca con "…" solo quando il testo
+        // "a capo" supererebbe l'altezza dichiarata — con un'altezza generosa
+        // (es. row_h su 3 righe) il testo semplicemente va a capo su due righe
+        // invece di troncare, il contrario di quanto serve qui (una riga sola,
+        // come il `text-overflow: ellipsis` del web). Provato dal vivo:
+        // un'altezza pari a row_h mostrava il messaggio spezzato su due righe.
+        msg_lbl.set_size(msg_w, text_h as i16).map_err(|e| anyhow::anyhow!("set_size: {e:?}"))?;
+        msg_lbl.set_text(&text_cstring("")).map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
+        let msg_ptr = msg_lbl.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
+        unsafe {
+            lvgl_sys::lv_label_set_long_mode(msg_ptr.as_ptr(), lvgl_sys::LV_LABEL_LONG_DOT as lvgl_sys::lv_label_long_mode_t);
+        }
+
+        let (ack_btn_ptr, ack_ctx) = if show_ack {
+            let mut btn = Btn::create(&mut container).map_err(|e| anyhow::anyhow!("Btn::create: {e:?}"))?;
+            btn.set_pos(x_cursor + msg_w + 4, center_y(btn_h))
+                .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
+            btn.set_size(ack_w, btn_h as i16).map_err(|e| anyhow::anyhow!("set_size: {e:?}"))?;
+            let mut lbl = Label::create(&mut btn).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
+            lbl.set_text(&text_cstring("ACK")).map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
+            let ptr = btn.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
+            let ctx: &'static AlarmAckCtx = Box::leak(Box::new(AlarmAckCtx {
+                current_id: RefCell::new(String::new()),
+                tx: ack_tx.clone(),
+            }));
+            unsafe {
+                lvgl_sys::lv_obj_add_event_cb(
+                    ptr.as_ptr(),
+                    Some(sws_alarm_ack_clicked_cb),
+                    lvgl_sys::lv_event_code_t_LV_EVENT_CLICKED,
+                    ctx as *const AlarmAckCtx as *mut std::ffi::c_void,
+                );
+            }
+            (Some(ptr), Some(ctx))
+        } else {
+            (None, None)
+        };
+
+        unsafe {
+            lvgl_sys::lv_obj_add_flag(dot_ptr.as_ptr(), hidden);
+            if let Some(p) = ts_ptr {
+                lvgl_sys::lv_obj_add_flag(p.as_ptr(), hidden);
+            }
+            lvgl_sys::lv_obj_add_flag(msg_ptr.as_ptr(), hidden);
+            if let Some(p) = ack_btn_ptr {
+                lvgl_sys::lv_obj_add_flag(p.as_ptr(), hidden);
+            }
+        }
+
+        rows.push(AlarmRowBinding { dot_ptr, dot_style, ts_ptr, msg_ptr, ack_btn_ptr, ack_ctx });
+    }
+
+    Ok(LiveBinding {
+        kind: LiveKind::AlarmViewer {
+            shared: shared_alarms.clone(),
+            empty_ptr,
+            show_empty,
+            rows,
+            prefix,
+            allowed_sev,
+        },
+    })
+}
+
 /// Prima pagina di una sessione: registra il display LVGL alla risoluzione
 /// di questa pagina (`resolve_resolution` — vedi commento su `HOR_RES`) e
 /// delega a `render_page_objects` per la creazione dei widget. Ritorna anche
 /// `hor_res`/`ver_res` risolti: il chiamante li usa per dimensionare la
 /// finestra SDL2 (`main.rs`), che deve combaciare con quanto passato a
 /// `init_display`.
+#[allow(clippy::too_many_arguments)]
 pub fn interpret_page(
     page: &SynopticPage,
     tags: &TagSnapshot,
@@ -1276,10 +1560,13 @@ pub fn interpret_page(
     nav_tx: &mpsc::Sender<String>,
     base_url: &str,
     rt_handle: &tokio::runtime::Handle,
+    shared_alarms: &SharedAlarms,
+    ack_tx: &mpsc::Sender<String>,
 ) -> anyhow::Result<(RenderSummary, Vec<Style>, Vec<LiveBinding>, u32, u32)> {
     let (hor_res, ver_res) = resolve_resolution(page);
     crate::lvgl_display::init_display(hor_res, ver_res)?;
-    let (summary, styles, live) = render_page_objects(page, tags, tag_tx, nav_tx, base_url, rt_handle)?;
+    let (summary, styles, live) =
+        render_page_objects(page, tags, tag_tx, nav_tx, base_url, rt_handle, shared_alarms, ack_tx)?;
     Ok((summary, styles, live, hor_res, ver_res))
 }
 
@@ -1315,6 +1602,7 @@ pub fn interpret_page(
 /// `update_bindings` a ogni frame per riflettere i valori tag correnti senza
 /// ricreare nulla, e li sostituisce per intero (non li accumula) alla
 /// prossima chiamata di questa funzione, quando naviga altrove.
+#[allow(clippy::too_many_arguments)]
 pub fn render_page_objects(
     page: &SynopticPage,
     tags: &TagSnapshot,
@@ -1322,6 +1610,8 @@ pub fn render_page_objects(
     nav_tx: &mpsc::Sender<String>,
     base_url: &str,
     rt_handle: &tokio::runtime::Handle,
+    shared_alarms: &SharedAlarms,
+    ack_tx: &mpsc::Sender<String>,
 ) -> anyhow::Result<(RenderSummary, Vec<Style>, Vec<LiveBinding>)> {
     let mut summary = RenderSummary::default();
     let mut styles: Vec<Style> = Vec::new();
@@ -1374,6 +1664,9 @@ pub fn render_page_objects(
             "state_lamp" => render_state_lamp(&mut screen, obj, tags).map(|b| live.push(b)),
             "table" => render_table(&mut screen, obj, tags).map(|b| live.push(b)),
             "trend" => render_trend(&mut screen, obj, base_url, rt_handle).map(|b| live.push(b)),
+            "alarm_viewer" => {
+                render_alarm_viewer(&mut screen, obj, &mut styles, shared_alarms, ack_tx).map(|b| live.push(b))
+            }
             _ => unreachable!("filtrato da SUPPORTED_TYPES sopra"),
         };
         match result {
@@ -1547,6 +1840,96 @@ pub fn update_bindings(bindings: &mut [LiveBinding], tags: &TagSnapshot) {
             LiveKind::Trend { ptr, series, window_s, autofit } => {
                 update_trend(*ptr, series, *window_s, *autofit);
             }
+            LiveKind::AlarmViewer { shared, empty_ptr, show_empty, rows, prefix, allowed_sev } => {
+                update_alarm_viewer(shared, *empty_ptr, *show_empty, rows, prefix, allowed_sev.as_deref());
+            }
+        }
+    }
+}
+
+/// Aggiorna un `alarm_viewer` (modalità lista): legge `SharedAlarms`,
+/// filtra/ordina/limita esattamente come `AlarmViewerWidget` in
+/// `SvgCanvas.tsx` (solo attivi, `prefix`/`allowed_sev` opzionali, più
+/// recente prima, tagliato a `rows.len()`), poi riassegna ogni slot riga
+/// all'allarme che gli tocca in questo frame — non ricrea mai i widget,
+/// stesso principio di `update_table_data_cells`.
+fn update_alarm_viewer(
+    shared: &SharedAlarms,
+    empty_ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
+    show_empty: bool,
+    rows: &mut [AlarmRowBinding],
+    prefix: &str,
+    allowed_sev: Option<&[String]>,
+) {
+    let mut alarms: Vec<AlarmStateLite> = {
+        let map = shared.lock().unwrap_or_else(|e| e.into_inner());
+        map.values()
+            .filter(|a| a.active)
+            .filter(|a| prefix.is_empty() || a.def.id.starts_with(prefix))
+            .filter(|a| allowed_sev.map_or(true, |sevs| sevs.iter().any(|s| s == &a.def.severity)))
+            .cloned()
+            .collect()
+    };
+    alarms.sort_by(|a, b| b.activated_at_ms.unwrap_or(0).cmp(&a.activated_at_ms.unwrap_or(0)));
+    alarms.truncate(rows.len());
+
+    let hidden = lvgl_sys::LV_OBJ_FLAG_HIDDEN as lvgl_sys::lv_obj_flag_t;
+    unsafe {
+        if alarms.is_empty() && show_empty {
+            lvgl_sys::lv_obj_clear_flag(empty_ptr.as_ptr(), hidden);
+        } else {
+            lvgl_sys::lv_obj_add_flag(empty_ptr.as_ptr(), hidden);
+        }
+    }
+
+    let now_ms = client::now_unix_ms();
+    for (i, row) in rows.iter_mut().enumerate() {
+        match alarms.get(i) {
+            Some(a) => unsafe {
+                let rgb = severity_color(&a.def.severity);
+                row.dot_style.set_bg_color(Color::from_rgb(rgb));
+                lvgl_sys::lv_obj_refresh_style(
+                    row.dot_ptr.as_ptr(),
+                    Part::Main.into(),
+                    lvgl_sys::lv_style_prop_t_LV_STYLE_BG_COLOR,
+                );
+                lvgl_sys::lv_obj_clear_flag(row.dot_ptr.as_ptr(), hidden);
+
+                lvgl_sys::lv_label_set_text(row.msg_ptr.as_ptr(), text_cstring(&a.def.message).as_ptr());
+                lvgl_sys::lv_obj_clear_flag(row.msg_ptr.as_ptr(), hidden);
+
+                if let Some(ts_ptr) = row.ts_ptr {
+                    let ts_text = a.activated_at_ms.map(|ts| format_alarm_age(ts, now_ms)).unwrap_or_default();
+                    lvgl_sys::lv_label_set_text(ts_ptr.as_ptr(), text_cstring(&ts_text).as_ptr());
+                    lvgl_sys::lv_obj_clear_flag(ts_ptr.as_ptr(), hidden);
+                }
+
+                if let (Some(btn_ptr), Some(ctx)) = (row.ack_btn_ptr, row.ack_ctx) {
+                    *ctx.current_id.borrow_mut() = a.def.id.clone();
+                    if a.acknowledged {
+                        lvgl_sys::lv_obj_add_flag(btn_ptr.as_ptr(), hidden);
+                    } else {
+                        lvgl_sys::lv_obj_clear_flag(btn_ptr.as_ptr(), hidden);
+                    }
+                }
+            },
+            None => unsafe {
+                lvgl_sys::lv_obj_add_flag(row.dot_ptr.as_ptr(), hidden);
+                lvgl_sys::lv_obj_add_flag(row.msg_ptr.as_ptr(), hidden);
+                if let Some(p) = row.ts_ptr {
+                    lvgl_sys::lv_obj_add_flag(p.as_ptr(), hidden);
+                }
+                if let Some(p) = row.ack_btn_ptr {
+                    lvgl_sys::lv_obj_add_flag(p.as_ptr(), hidden);
+                }
+                if let Some(ctx) = row.ack_ctx {
+                    // Niente id valido finché questo slot non viene
+                    // riassegnato: se il click arrivasse comunque tra un
+                    // frame e l'altro (pulsante già nascosto, ma la callback
+                    // non lo sa) non manda nulla, vedi sws_alarm_ack_clicked_cb.
+                    ctx.current_id.borrow_mut().clear();
+                }
+            },
         }
     }
 }

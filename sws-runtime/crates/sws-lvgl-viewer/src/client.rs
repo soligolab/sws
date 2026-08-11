@@ -253,7 +253,9 @@ fn apply_entries(map: &mut TagSnapshot, entries: Vec<WsTagEntry>) {
     }
 }
 
-fn ws_url(base_url: &str) -> anyhow::Result<String> {
+/// Condivisa da `/ws/tags` e `/ws/alarms` — stessa conversione schema
+/// http(s)→ws(s), cambia solo il path.
+fn ws_url(base_url: &str, path: &str) -> anyhow::Result<String> {
     let mut ws_url = reqwest::Url::parse(base_url)?;
     let new_scheme = match ws_url.scheme() {
         "https" => "wss",
@@ -263,7 +265,7 @@ fn ws_url(base_url: &str) -> anyhow::Result<String> {
     ws_url
         .set_scheme(new_scheme)
         .map_err(|_| anyhow::anyhow!("impossibile impostare lo schema WS"))?;
-    ws_url.set_path("/ws/tags");
+    ws_url.set_path(path);
     Ok(ws_url.to_string())
 }
 
@@ -274,7 +276,7 @@ fn ws_url(base_url: &str) -> anyhow::Result<String> {
 /// La connessione non viene mai chiusa esplicitamente: muore con il processo
 /// (comportamento accettabile per un viewer che gira finché non lo chiudi).
 pub async fn spawn_tag_subscription(base_url: &str) -> anyhow::Result<SharedTagSnapshot> {
-    let url = ws_url(base_url)?;
+    let url = ws_url(base_url, "/ws/tags")?;
     let connector = tokio_tungstenite::Connector::Rustls(insecure_client_config());
     let (mut stream, _resp) =
         tokio_tungstenite::connect_async_tls_with_config(url.as_str(), None, false, Some(connector)).await?;
@@ -346,4 +348,111 @@ pub async fn spawn_tag_subscription(base_url: &str) -> anyhow::Result<SharedTagS
     });
 
     Ok(shared)
+}
+
+/// Sottoinsieme di `AlarmDef` (`sws-core::alarm`) che `alarm_viewer` in
+/// modalità lista disegna davvero — non l'intera definizione (`condition`,
+/// `notify_url`, `dead_band`, `on_delay_s`/`off_delay_s`, `inhibit_tag`...
+/// restano ignorati silenziosamente, stesso principio di `model.rs`).
+/// `severity` resta una stringa (`"Info"`/`"Warning"`/`"Critical"`, i nomi
+/// delle varianti — `AlarmSeverity` non ha `#[serde(rename_all)]` lato
+/// server, verificato nel sorgente) invece di un enum Rust dedicato: non ci
+/// serve altro che confrontarla per uguaglianza col filtro
+/// `alarm_viewer_severities` e come chiave in `severity_color`.
+#[derive(Debug, Deserialize, Clone)]
+pub struct AlarmDefLite {
+    pub id: String,
+    #[serde(default)]
+    pub message: String,
+    #[serde(default)]
+    pub severity: String,
+}
+
+/// Sottoinsieme di `AlarmState` — `isa_state`/`ack_at_ms`/`normalized_at_ms`/
+/// `last_value` ignorati (non disegnati in modalità lista).
+#[derive(Debug, Deserialize, Clone)]
+pub struct AlarmStateLite {
+    pub def: AlarmDefLite,
+    #[serde(default)]
+    pub active: bool,
+    #[serde(default)]
+    pub acknowledged: bool,
+    #[serde(default)]
+    pub activated_at_ms: Option<u64>,
+}
+
+/// Stato condiviso tra il task WS `/ws/alarms` in background e il loop di
+/// rendering — mappa per `alarm_id`, stesso principio di `SharedTagSnapshot`
+/// (il lettore vuole solo lo stato più recente).
+pub type SharedAlarms = Arc<Mutex<HashMap<String, AlarmStateLite>>>;
+
+/// Si connette a `/ws/alarms` e aggiorna `SharedAlarms` in background, per
+/// tutta la durata del processo (stessa non-terminazione esplicita di
+/// `spawn_tag_subscription`). A differenza di `/ws/tags`, **non** blocca in
+/// attesa di uno snapshot iniziale: il protocollo di `/ws/alarms`
+/// (`handle_alarms_ws` in `sws-web/src/router.rs`) non distingue affatto tra
+/// snapshot e delta a livello di messaggio — ogni messaggio, dal primo
+/// all'ultimo, è semplicemente un `AlarmState` "nudo" (nessun involucro
+/// `{type: ...}` come per i tag), quindi "upsert per id" è già il
+/// trattamento corretto per ogni messaggio, non serve aspettare nulla di
+/// speciale. I widget `alarm_viewer` nascono senza righe popolate e le
+/// riempiono al primo `update_bindings` utile, esattamente come qualunque
+/// altro widget aspetta il primo dato tag — non serve che l'elenco allarmi
+/// sia già pronto al momento della creazione.
+pub async fn spawn_alarm_subscription(base_url: &str) -> anyhow::Result<SharedAlarms> {
+    let url = ws_url(base_url, "/ws/alarms")?;
+    let connector = tokio_tungstenite::Connector::Rustls(insecure_client_config());
+    let (mut stream, _resp) =
+        tokio_tungstenite::connect_async_tls_with_config(url.as_str(), None, false, Some(connector)).await?;
+
+    let shared: SharedAlarms = Arc::new(Mutex::new(HashMap::new()));
+    let shared_bg = shared.clone();
+    tokio::spawn(async move {
+        while let Some(msg) = stream.next().await {
+            let msg = match msg {
+                Ok(m) => m,
+                Err(e) => {
+                    eprintln!("[ws] errore su /ws/alarms: {e} — interrotto l'aggiornamento allarmi");
+                    return;
+                }
+            };
+            let Message::Text(text) = msg else {
+                if matches!(msg, Message::Close(_)) {
+                    eprintln!("[ws] /ws/alarms chiuso dal server — interrotto l'aggiornamento allarmi");
+                    return;
+                }
+                continue;
+            };
+            let Ok(state) = serde_json::from_str::<AlarmStateLite>(&text) else { continue };
+            let mut map = shared_bg.lock().unwrap_or_else(|e| e.into_inner());
+            map.insert(state.def.id.clone(), state);
+        }
+        eprintln!("[ws] connessione /ws/alarms terminata — gli allarmi non si aggiorneranno più");
+    });
+
+    Ok(shared)
+}
+
+/// `POST /api/alarms/:id/ack` — stesso endpoint REST usato dal pulsante ACK
+/// del web (`AlarmViewerWidget`/`AlarmBellPanel`), ma senza header
+/// `Authorization`: questo client non ha mai avuto un concetto di sessione/
+/// ruolo (`PUT /api/tags/:id` da un click checkbox/slider funziona già senza
+/// token in questo ambiente — stesso principio, non un'eccezione nuova per
+/// gli allarmi).
+pub async fn ack_alarm(base_url: &str, alarm_id: &str) -> anyhow::Result<()> {
+    let mut url = reqwest::Url::parse(base_url)?;
+    url.path_segments_mut()
+        .map_err(|_| anyhow::anyhow!("base URL non può avere path segments (cannot-be-a-base)"))?
+        .push("api")
+        .push("alarms")
+        .push(alarm_id)
+        .push("ack");
+    let client = reqwest::Client::builder().danger_accept_invalid_certs(true).build()?;
+    client
+        .post(url)
+        .json(&serde_json::json!({ "by": "lvgl-viewer" }))
+        .send()
+        .await?
+        .error_for_status()?;
+    Ok(())
 }

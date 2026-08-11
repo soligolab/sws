@@ -3,12 +3,15 @@
 //!
 //! Si connette a un runtime `sws-web` già in esecuzione (stesso ruolo che ha
 //! oggi il browser/`sws-kiosk`), legge una pagina synottico + resta iscritto
-//! a `/ws/tags` per tutta la durata della finestra (`client::spawn_tag_subscription`),
+//! a `/ws/tags` e `/ws/alarms` per tutta la durata della finestra
+//! (`client::spawn_tag_subscription`/`spawn_alarm_subscription`),
 //! interpreta il sottoinsieme di widget supportato (vedi `lvgl_render.rs`) e
 //! li disegna in una finestra SDL2, aggiornando i widget tag-dipendenti dal
 //! vivo (`lvgl_render::update_bindings`) a ogni frame — non solo lo snapshot
 //! iniziale. Bottone/checkbox/radio/slider sono cliccabili/trascinabili
-//! (`lvgl_indev.rs`) e scrivono i tag corrispondenti sul backend.
+//! (`lvgl_indev.rs`) e scrivono i tag corrispondenti sul backend; il
+//! pulsante ACK di un `alarm_viewer` manda un id allarme su un canale
+//! dedicato (`ack_tx`/`ack_rx`, stesso principio di `tag_tx`/`nav_tx`).
 //!
 //! **Multi-pagina**: un `navbutton` cliccato manda l'`id:` della pagina di
 //! destinazione su un canale (`nav_rx`, separato da `tag_rx`); il loop
@@ -72,10 +75,11 @@ fn main() -> anyhow::Result<()> {
     // WS in background (avviato dentro spawn_tag_subscription) deve restare
     // vivo per tutta la finestra, non solo per la fetch iniziale.
     let rt = tokio::runtime::Runtime::new()?;
-    let (page, shared_tags) = rt.block_on(async {
+    let (page, shared_tags, shared_alarms) = rt.block_on(async {
         let page = client::fetch_page(&args.base_url, &args.page).await?;
         let shared_tags = client::spawn_tag_subscription(&args.base_url).await?;
-        anyhow::Ok((page, shared_tags))
+        let shared_alarms = client::spawn_alarm_subscription(&args.base_url).await?;
+        anyhow::Ok((page, shared_tags, shared_alarms))
     })?;
 
     let initial_tags = shared_tags.lock().unwrap_or_else(|e| e.into_inner()).clone();
@@ -88,8 +92,10 @@ fn main() -> anyhow::Result<()> {
 
     let (tag_tx, tag_rx) = mpsc::channel::<TagCommand>();
     let (nav_tx, nav_rx) = mpsc::channel::<String>();
-    let (summary, styles, live_bindings, hor_res, ver_res) =
-        lvgl_render::interpret_page(&page, &initial_tags, &tag_tx, &nav_tx, &args.base_url, rt.handle())?;
+    let (ack_tx, ack_rx) = mpsc::channel::<String>();
+    let (summary, styles, live_bindings, hor_res, ver_res) = lvgl_render::interpret_page(
+        &page, &initial_tags, &tag_tx, &nav_tx, &args.base_url, rt.handle(), &shared_alarms, &ack_tx,
+    )?;
 
     eprintln!(
         "widget LVGL creati correttamente ({}): {}",
@@ -119,8 +125,11 @@ fn main() -> anyhow::Result<()> {
         tag_rx,
         nav_tx,
         nav_rx,
+        ack_tx,
+        ack_rx,
         rt.handle().clone(),
         args.base_url.clone(),
+        shared_alarms,
     )?;
     drop(rt);
     Ok(())
@@ -144,8 +153,14 @@ fn run_window(
     tag_rx: mpsc::Receiver<TagCommand>,
     nav_tx: mpsc::Sender<String>,
     nav_rx: mpsc::Receiver<String>,
+    // Manda id allarme da ackare — stesso principio di tag_tx/nav_tx: la
+    // callback FFI del pulsante ACK (lvgl_render.rs) accoda qui, niente I/O
+    // di rete dentro la callback sincrona.
+    ack_tx: mpsc::Sender<String>,
+    ack_rx: mpsc::Receiver<String>,
     rt_handle: tokio::runtime::Handle,
     base_url: String,
+    shared_alarms: client::SharedAlarms,
 ) -> anyhow::Result<()> {
     let sdl_context = sdl2::init().map_err(|e| anyhow::anyhow!("sdl2::init: {e}"))?;
     let video = sdl_context.video().map_err(|e| anyhow::anyhow!("sdl2 video subsystem: {e}"))?;
@@ -221,6 +236,17 @@ fn run_window(
             });
         }
 
+        // ACK allarme dal pulsante di un alarm_viewer: stesso pattern di
+        // tag_rx, girato a un task async invece di bloccare il loop.
+        while let Ok(alarm_id) = ack_rx.try_recv() {
+            let base_url = base_url.clone();
+            rt_handle.spawn(async move {
+                if let Err(e) = client::ack_alarm(&base_url, &alarm_id).await {
+                    eprintln!("[alarm] ack di '{alarm_id}' fallito: {e}");
+                }
+            });
+        }
+
         // Navigazione: al più una per frame (un click è un evento discreto,
         // non un flusso continuo come il drag) — se ce ne fosse più di una in
         // coda, le successive si processano ai frame dopo, senza problemi di
@@ -231,7 +257,7 @@ fn run_window(
         if let Ok(target_page) = nav_rx.try_recv() {
             match rt_handle.block_on(client::resolve_page_by_id(&base_url, &target_page)) {
                 Ok(new_page) => match lvgl_render::render_page_objects(
-                    &new_page, &tags_now, &tag_tx, &nav_tx, &base_url, &rt_handle,
+                    &new_page, &tags_now, &tag_tx, &nav_tx, &base_url, &rt_handle, &shared_alarms, &ack_tx,
                 ) {
                     Ok((summary, new_styles, new_live)) => {
                         eprintln!(

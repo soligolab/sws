@@ -880,6 +880,80 @@ temporale parziali, dichiarati sopra). Restano dalla lista dei 5 passi: `alarm_v
 client allarmi, non solo storico tag) e `symbol` (domanda architetturale SVG→LVGL, non ancora
 scritta come sua voce).
 
+**Aggiornamento 2026-08-08 (seguito 8) — `alarm_viewer`, 16 tipi supportati**
+
+Quarto dei "prossimi 5 step": `alarm_viewer` (solo modalità `"list"`, il default web — `"banner"`
+e `"table"` segnalati come non supportati invece di renderizzare qualcosa di diverso da quanto
+configurato, stesso principio già usato per `alarm_viewer_mode` quanto per `trend`). A differenza
+di `trend` (storico via polling REST), gli allarmi hanno già un canale push vero
+(`/ws/alarms`, stessa porta viewer anonymous-readable di `/ws/tags`) — più semplice da consumare,
+ma con un protocollo diverso scoperto leggendo `handle_alarms_ws` in `sws-web/src/router.rs`
+prima di assumerlo uguale a `/ws/tags`: **ogni** messaggio, dal primo (lo snapshot iniziale)
+all'ultimo, è un singolo `AlarmState` "nudo" senza involucro `{type: snapshot/delta}` — "upsert
+per id" è già il trattamento corretto per ogni messaggio, quindi `client::spawn_alarm_subscription`
+non blocca in attesa di nulla di speciale (a differenza di `spawn_tag_subscription`), semplicemente
+comincia ad aggiornare `SharedAlarms` dal primo messaggio che arriva.
+
+Righe a slot fisso (`alarm_viewer_max_rows`, default 5): create una volta, il contenuto di
+ciascuna riassegnato a ogni frame in base a quali allarmi sono attivi in quel momento (stesso
+principio delle celle di `table`) — non un widget ricreato per ogni allarme. Filtro (solo attivi,
+`alarm_viewer_id_prefix`/`alarm_viewer_severities` opzionali) e ordinamento (più recente prima,
+tagliato a `max_rows`) portati 1:1 da `AlarmViewerWidget` in `SvgCanvas.tsx`. Pulsante ACK per
+riga: **non** un contesto fisso `Box::leak`-ato una volta come tutti gli altri pulsanti di questo
+motore (bottone, checkbox/radio, navbutton) — l'id allarme associato a uno slot riga cambia da un
+frame all'altro (stesso motivo per cui le righe sono slot fissi, non widget ricreati), quindi il
+contesto della callback (`AlarmAckCtx`) porta un `RefCell<String>` che `update_alarm_viewer`
+riscrive ogni frame e la callback legge solo al momento del click — sicuro perché il motore è
+single-thread (le callback LVGL sparano sincrone dentro `task_handler()`, mai in parallelo con
+`update_bindings`). `POST /api/alarms/:id/ack` senza header `Authorization`: stesso principio già
+osservato per `PUT /api/tags/:id` dai click checkbox/slider, non una nuova eccezione.
+
+**Due bug di layout trovati e risolti durante la verifica dal vivo** (non a compilazione), entrambi
+sintomi dello stesso problema di fondo — aver assunto che le coordinate assolute dei figli
+partissero da (0,0) del contenitore:
+1. Il pulsante ACK, posizionato assumendo tutta la `width` dichiarata disponibile a partire da
+   x=0, risultava tagliato dal bordo destro del contenitore — il tema di default applica un
+   padding interno non nullo ai container che non avevo considerato. Risolto azzerando
+   esplicitamente `pad_left`/`pad_right`/`pad_top`/`pad_bottom` sul contenitore stesso (uno `Style`
+   dedicato), invece di indovinare il valore del padding del tema per compensarlo nella matematica
+   di posizionamento.
+2. Etichette/pulsante di riga incollati al bordo superiore della propria banda invece che centrati
+   verticalmente (il pallino colorato lo era già, dalla prima versione — l'incoerenza è saltata
+   all'occhio proprio nello screenshot di verifica): risolto centrando ogni elemento nella propria
+   `row_h` in base alla propria altezza dichiarata, non solo il pallino.
+Nessuno dei due impediva la funzionalità (i dati erano già corretti, i click funzionavano) — pura
+verifica visiva, non individuabile da `cargo check` né da un test che avesse controllato solo lo
+stato REST.
+
+**Verificato end-to-end** su `.run-12`: due allarmi demo aggiunti a `project.yaml`
+(`lvgl_demo.value_warning` sopra 70, `lvgl_demo.value_critical` sopra 90, entrambi su
+`lvgl_demo.value` — stesso tag di slider/gauge/trend, per una storia dimostrativa coerente:
+trascinare lo slider oltre soglia fa comparire un allarme vero). Scritto il tag oltre 70 via
+`PUT /api/tags`: l'allarme è comparso nella finestra LVGL (via `/ws/alarms`, nessun riavvio del
+processo) con pallino giallo, età relativa, messaggio troncato con "…", pulsante ACK. Click
+sintetico XTest sul pulsante → confermato via `GET /api/alarms` che `acknowledged` è diventato
+`true` e il pulsante è sparito dalla riga (mentre l'allarme restava visibile, ancora attivo — non
+confuso con "chiuso"). Scritto poi oltre 90: comparso un secondo allarme con pallino rosso, **sopra**
+il primo (più recente, ordinamento per `activated_at_ms` decrescente confermato) e col proprio
+pulsante ACK indipendente (non ancora cliccato) mentre il primo restava senza pulsante (già acked
+in precedenza) — la riassegnazione delle righe a ogni frame in base allo stato attuale funziona
+senza confondere gli slot. Palette editor aggiornata (`alarm_viewer` mancava da
+`LVGL_SUPPORTED_TYPES`).
+
+**Gap MVP dichiarati**: modalità `"banner"`/`"table"` non renderizzate (segnalate come non
+supportate). Niente scroll per righe oltre `max_rows` (stesso `slice()` del web, ma senza un
+contenitore scrollabile in questo giro). Nessun controllo di ruolo sull'ACK (`canAck` lato web
+controlla `authRole`): questo client non ha mai avuto un concetto di sessione — stessa scelta già
+fatta implicitamente per tutte le altre scritture (tag via checkbox/slider), non una nuova
+eccezione per gli allarmi. Timestamp relativo ("Ns fa"/"Nm fa") invece di ora assoluta
+(`toLocaleTimeString`): niente fuso orario affidabile senza una dipendenza `chrono`/`time` in più
+per un dettaglio cosmetico, e un'età relativa è arguibilmente più utile su un pannello embedded
+comunque.
+
+**Decided**: `alarm_viewer` implementato come MVP (solo modalità lista, gap dichiarati sopra).
+Resta un solo punto dalla lista dei 5 passi: `symbol` (domanda architetturale SVG→LVGL, ancora da
+scrivere come sua voce in questo documento).
+
 ---
 
 ## Adding new questions

@@ -33,7 +33,21 @@ tags:
     data_type: string
 
 sources: []
-alarms: []
+alarms:
+  - id: lvgl_demo.value_warning
+    tag: lvgl_demo.value
+    condition:
+      kind: above
+      threshold: 70.0
+    message: "lvgl_demo.value sopra 70 (trascina lo slider s1)"
+    severity: Warning
+  - id: lvgl_demo.value_critical
+    tag: lvgl_demo.value
+    condition:
+      kind: above
+      threshold: 90.0
+    message: "lvgl_demo.value sopra 90 - critico"
+    severity: Critical
 functions: []
 custom_symbols: []
 datastores: []
