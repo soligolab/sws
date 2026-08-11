@@ -150,6 +150,22 @@ pub struct SynopticObject {
     /// al file: un campo non dichiarato qui viene ignorato, non genera
     /// errori di parsing.
     pub trend_series_styles: Option<Vec<TrendSeriesStyle>>,
+
+    // ── alarm_viewer ──
+    pub alarm_viewer_max_rows: Option<f64>,
+    /// Severità ammesse (`"Info"`/`"Warning"`/`"Critical"`, i nomi delle
+    /// varianti Rust di `AlarmSeverity` — nessun `#[serde(rename_all)]` lato
+    /// server, verificato prima di assumerlo); assente o vuoto = tutte.
+    pub alarm_viewer_severities: Option<Vec<String>>,
+    pub alarm_viewer_id_prefix: Option<String>,
+    pub alarm_viewer_show_ack: Option<bool>,
+    pub alarm_viewer_show_ts: Option<bool>,
+    pub alarm_viewer_show_empty: Option<bool>,
+    /// Solo `"list"` (il default web) è disegnato — `"banner"`/`"table"`
+    /// vengono segnalati come non supportati invece di renderizzare qualcosa
+    /// di diverso da quanto configurato, vedi `render_alarm_viewer`.
+    pub alarm_viewer_mode: Option<String>,
+    pub alarm_viewer_bg_color: Option<String>,
 }
 
 /// Porta (parzialmente) `TrendSeriesStyle` di `types/index.ts` — vedi
