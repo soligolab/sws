@@ -24,7 +24,7 @@
 
 use cstr_core::CString;
 use lvgl::style::Style;
-use lvgl::widgets::{Btn, Label, Led, Slider};
+use lvgl::widgets::{Bar, Btn, Checkbox, Label, Led, Slider};
 use lvgl::{Color, LvError, NativeObject, Part, Widget};
 use sws_core::tag::{TagQuality, TagValue};
 
@@ -43,7 +43,8 @@ use crate::model::{OnValue, SynopticObject, SynopticPage};
 pub const HOR_RES: u32 = 800;
 pub const VER_RES: u32 = 480;
 
-const SUPPORTED_TYPES: &[&str] = &["rect", "text", "button", "led", "slider"];
+const SUPPORTED_TYPES: &[&str] =
+    &["rect", "ellipse", "text", "button", "led", "slider", "progress_bar", "checkbox", "radio"];
 
 #[derive(Default, Debug)]
 pub struct RenderSummary {
@@ -62,13 +63,23 @@ pub enum LiveKind {
         on_value: OnValue,
         on_color: String,
         off_color: String,
-        style: Style,
     },
-    Slider {
+    /// Slider e progress_bar condividono lo stesso binding: `lv_slider_t` è
+    /// internamente uno specializzato `lv_bar_t` (vedi `render_slider`), le
+    /// stesse `lv_bar_set_range`/`set_value` funzionano su entrambi.
+    BarLike {
         ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
         tag: Option<String>,
         min: f64,
         max: f64,
+    },
+    /// checkbox e radio (approssimato con lo stesso widget — vedi
+    /// `render_radio`) condividono lo stesso binding: solo lo stato
+    /// checked/unchecked cambia dal vivo, `lv_obj_add_state`/`clear_state`
+    /// con `LV_STATE_CHECKED`.
+    Checkbox {
+        ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
+        tag: Option<String>,
     },
     Text {
         ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
@@ -393,44 +404,110 @@ fn render_led(
     let tv = lookup(tags, &obj.tag);
     let (is_on, bad_quality, color_hex) = led_state(tv, &on_value, &on_color, &off_color);
 
-    let mut style = Style::default();
+    let ptr = led.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
+    // lv_led NON legge lo style bg_color per il proprio colore (a differenza
+    // di quasi tutti gli altri widget): tiene un campo interno `color`
+    // impostabile solo con lv_led_set_color, di default il colore primario
+    // del tema (blu) — usare lo Style qui sarebbe silenziosamente ignorato,
+    // vedi il sorgente C in lv_led.c (lv_led_event, ramo LV_EVENT_DRAW_MAIN).
     if let Some(rgb) = parse_hex_color(&color_hex) {
-        style.set_bg_color(Color::from_rgb(rgb));
+        unsafe { lvgl_sys::lv_led_set_color(ptr.as_ptr(), Color::from_rgb(rgb).into()) };
     }
-    led.add_style(Part::Main, &mut style)
-        .map_err(|e| anyhow::anyhow!("add_style: {e:?}"))?;
     if tv.is_some() && (is_on || bad_quality) {
         led.on().map_err(|e| anyhow::anyhow!("led on: {e:?}"))?;
     } else {
         led.off().map_err(|e| anyhow::anyhow!("led off: {e:?}"))?;
     }
 
-    let ptr = led.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
     Ok(LiveBinding {
-        kind: LiveKind::Led { ptr, tag: obj.tag.clone(), on_value, on_color, off_color, style },
+        kind: LiveKind::Led { ptr, tag: obj.tag.clone(), on_value, on_color, off_color },
     })
 }
 
 fn render_slider(screen: &mut lvgl::Obj, obj: &SynopticObject, tags: &TagSnapshot) -> anyhow::Result<LiveBinding> {
     let mut slider = Slider::create(screen).map_err(|e| anyhow::anyhow!("Slider::create: {e:?}"))?;
     set_pos_size(&mut slider, obj, 200.0, 50.0)?;
+    let ptr = slider.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
+    // lv_slider_t è internamente uno specializzato lv_bar_t in LVGL: non
+    // esistono lv_slider_set_range/set_value dedicati, si riusano quelli di
+    // bar (confermato dai bindgen bindings reali, non da supposizione) — vedi
+    // init_bar_like, condivisa con progress_bar per lo stesso motivo.
+    init_bar_like(ptr, obj, tags)
+}
 
+fn render_progress_bar(screen: &mut lvgl::Obj, obj: &SynopticObject, tags: &TagSnapshot) -> anyhow::Result<LiveBinding> {
+    let mut bar = Bar::create(screen).map_err(|e| anyhow::anyhow!("Bar::create: {e:?}"))?;
+    set_pos_size(&mut bar, obj, 200.0, 24.0)?;
+    let ptr = bar.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
+    init_bar_like(ptr, obj, tags)
+}
+
+fn init_bar_like(
+    ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
+    obj: &SynopticObject,
+    tags: &TagSnapshot,
+) -> anyhow::Result<LiveBinding> {
     let min = obj.min.unwrap_or(0.0);
     let max = obj.max.unwrap_or(100.0);
     let raw = lookup(tags, &obj.tag)
         .map(|t| tag_value_as_f64(&t.value))
         .unwrap_or(min)
         .clamp(min.min(max), min.max(max));
-
-    let ptr = slider.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
     unsafe {
-        // lv_slider_t è internamente uno specializzato lv_bar_t in LVGL: non
-        // esistono lv_slider_set_range/set_value dedicati, si riusano quelli
-        // di bar (confermato dai bindgen bindings reali, non da supposizione).
         lvgl_sys::lv_bar_set_range(ptr.as_ptr(), min.round() as i32, max.round() as i32);
         lvgl_sys::lv_bar_set_value(ptr.as_ptr(), raw.round() as i32, lvgl::Animation::OFF.into());
     }
-    Ok(LiveBinding { kind: LiveKind::Slider { ptr, tag: obj.tag.clone(), min, max } })
+    Ok(LiveBinding { kind: LiveKind::BarLike { ptr, tag: obj.tag.clone(), min, max } })
+}
+
+fn render_checkbox(screen: &mut lvgl::Obj, obj: &SynopticObject, tags: &TagSnapshot) -> anyhow::Result<LiveBinding> {
+    let mut cb = Checkbox::create(screen).map_err(|e| anyhow::anyhow!("Checkbox::create: {e:?}"))?;
+    // Niente set_size: la checkbox LVGL si dimensiona sul proprio testo, come
+    // la stragrande maggioranza delle implementazioni checkbox — forzare una
+    // size esplicita rischierebbe solo di tagliare l'etichetta.
+    cb.set_pos(obj.x.unwrap_or(0.0).round() as i16, obj.y.unwrap_or(0.0).round() as i16)
+        .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
+    cb.set_text(&text_cstring(obj.label.as_deref().unwrap_or("Checkbox")))
+        .map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
+    let ptr = cb.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
+    apply_checked_state(ptr, lookup(tags, &obj.tag).map(|t| tag_value_as_bool(&t.value)).unwrap_or(false));
+    Ok(LiveBinding { kind: LiveKind::Checkbox { ptr, tag: obj.tag.clone() } })
+}
+
+/// Approssimazione dichiarata: LVGL non ha un widget "radio" nativo (solo
+/// checkbox + una convenzione di stile/gruppo sopra); un radio SWS viene
+/// quindi disegnato come una checkbox (quadrata, non tonda) — stesso spirito
+/// di "graphics won't be pixel-perfect but that's acceptable" del brief
+/// originale. Vedi ADR 0002.
+fn render_radio(screen: &mut lvgl::Obj, obj: &SynopticObject, tags: &TagSnapshot) -> anyhow::Result<LiveBinding> {
+    render_checkbox(screen, obj, tags)
+}
+
+fn apply_checked_state(ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>, checked: bool) {
+    unsafe {
+        if checked {
+            lvgl_sys::lv_obj_add_state(ptr.as_ptr(), lvgl_sys::LV_STATE_CHECKED as lvgl_sys::lv_state_t);
+        } else {
+            lvgl_sys::lv_obj_clear_state(ptr.as_ptr(), lvgl_sys::LV_STATE_CHECKED as lvgl_sys::lv_state_t);
+        }
+    }
+}
+
+/// Approssimazione dichiarata: LVGL non ha un primitivo ellisse — un cerchio
+/// perfetto (raggio d'angolo massimo su un `Obj` altrimenti identico a
+/// `render_rect`) quando `width == height`, altrimenti una "pillola"
+/// stadium-shaped per aspect ratio diversi. Non pixel-perfect ma riconoscibile
+/// — stesso compromesso accettato nel brief originale.
+fn render_ellipse(screen: &mut lvgl::Obj, obj: &SynopticObject, styles: &mut Vec<Style>) -> anyhow::Result<()> {
+    let mut o = create_child_obj(screen)?;
+    set_pos_size(&mut o, obj, 100.0, 100.0)?;
+    apply_bg_color(&mut o, obj.fill.as_deref().unwrap_or("#555555"), styles)?;
+    let mut radius_style = Style::default();
+    radius_style.set_radius(lvgl_sys::LV_RADIUS_CIRCLE as i16);
+    o.add_style(Part::Main, &mut radius_style)
+        .map_err(|e| anyhow::anyhow!("add_style: {e:?}"))?;
+    styles.push(radius_style);
+    Ok(())
 }
 
 /// Registra un display LVGL `HOR_RES`×`VER_RES` (via `lvgl_display::init_display`,
@@ -480,10 +557,14 @@ pub fn interpret_page(
         }
         let result: anyhow::Result<()> = match obj_type {
             "rect" => render_rect(&mut screen, obj, &mut styles),
+            "ellipse" => render_ellipse(&mut screen, obj, &mut styles),
             "button" => render_button(&mut screen, obj, &mut styles),
             "text" => render_text(&mut screen, obj, tags).map(|b| live.push(b)),
             "led" => render_led(&mut screen, obj, tags).map(|b| live.push(b)),
             "slider" => render_slider(&mut screen, obj, tags).map(|b| live.push(b)),
+            "progress_bar" => render_progress_bar(&mut screen, obj, tags).map(|b| live.push(b)),
+            "checkbox" => render_checkbox(&mut screen, obj, tags).map(|b| live.push(b)),
+            "radio" => render_radio(&mut screen, obj, tags).map(|b| live.push(b)),
             _ => unreachable!("filtrato da SUPPORTED_TYPES sopra"),
         };
         match result {
@@ -503,17 +584,12 @@ pub fn interpret_page(
 pub fn update_bindings(bindings: &mut [LiveBinding], tags: &TagSnapshot) {
     for b in bindings {
         match &mut b.kind {
-            LiveKind::Led { ptr, tag, on_value, on_color, off_color, style } => {
+            LiveKind::Led { ptr, tag, on_value, on_color, off_color } => {
                 let tv = lookup(tags, tag);
                 let (is_on, bad_quality, color_hex) = led_state(tv, on_value, on_color, off_color);
                 unsafe {
                     if let Some(rgb) = parse_hex_color(&color_hex) {
-                        style.set_bg_color(Color::from_rgb(rgb));
-                        lvgl_sys::lv_obj_refresh_style(
-                            ptr.as_ptr(),
-                            Part::Main.into(),
-                            lvgl_sys::lv_style_prop_t_LV_STYLE_BG_COLOR,
-                        );
+                        lvgl_sys::lv_led_set_color(ptr.as_ptr(), Color::from_rgb(rgb).into());
                     }
                     if tv.is_some() && (is_on || bad_quality) {
                         lvgl_sys::lv_led_on(ptr.as_ptr());
@@ -522,7 +598,7 @@ pub fn update_bindings(bindings: &mut [LiveBinding], tags: &TagSnapshot) {
                     }
                 }
             }
-            LiveKind::Slider { ptr, tag, min, max } => {
+            LiveKind::BarLike { ptr, tag, min, max } => {
                 let raw = lookup(tags, tag)
                     .map(|t| tag_value_as_f64(&t.value))
                     .unwrap_or(*min)
@@ -530,6 +606,10 @@ pub fn update_bindings(bindings: &mut [LiveBinding], tags: &TagSnapshot) {
                 unsafe {
                     lvgl_sys::lv_bar_set_value(ptr.as_ptr(), raw.round() as i32, lvgl::Animation::OFF.into());
                 }
+            }
+            LiveKind::Checkbox { ptr, tag } => {
+                let checked = lookup(tags, tag).map(|t| tag_value_as_bool(&t.value)).unwrap_or(false);
+                apply_checked_state(*ptr, checked);
             }
             LiveKind::Text {
                 ptr,

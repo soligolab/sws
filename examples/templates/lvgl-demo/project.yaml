@@ -22,7 +22,10 @@ tags:
     description: "Valore numerico 0-100 — guida sia lo slider sia il testo formattato"
     data_type: float
   - id: lvgl_demo.toggle
-    description: "Riservato per il prossimo giro di widget (checkbox/switch)"
+    description: "Stato spuntato/non spuntato della checkbox demo"
+    data_type: bool
+  - id: lvgl_demo.radio_on
+    description: "Stato spuntato/non spuntato del radio demo (radio è approssimato con una checkbox — vedi Q14)"
     data_type: bool
 
 sources: []

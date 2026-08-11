@@ -536,7 +536,17 @@ function PaletteGroupAccordion({ group, onAdd }: { group: PaletteGroup; onAdd: (
 // Sottoinsieme di tipi che il motore LVGL sa interpretare oggi (vedi
 // sws-lvgl-viewer/src/lvgl_render.rs SUPPORTED_TYPES — tenere allineati).
 // Man mano che il motore cresce (Fase 6+), questo elenco cresce con lui.
-const LVGL_SUPPORTED_TYPES = new Set<SynopticObject["type"]>(["rect", "text", "button", "led", "slider"]);
+const LVGL_SUPPORTED_TYPES = new Set<SynopticObject["type"]>([
+  "rect",
+  "text",
+  "button",
+  "led",
+  "slider",
+  "progress_bar",
+  "checkbox",
+  "radio",
+  "ellipse",
+]);
 
 /** Per un progetto target LVGL, mostra solo gli oggetti che il motore sa
  *  già interpretare — evita di far piazzare qualcosa che poi nel viewer
