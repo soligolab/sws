@@ -240,6 +240,25 @@ objects:
     font_size: 13.0
     color: "#5b6b85"
 
+  # ── riga 4: trend (stesso tag dello slider s1 — trascinarlo anima anche
+  #    questa curva; window_s corto e y_min/y_max assenti apposta, per vedere
+  #    sia la finestra scorrere sia l'autofit muoversi durante un test) ─────
+  - id: tr1
+    type: trend
+    x: 40.0
+    y: 540.0
+    width: 460.0
+    height: 140.0
+    tag: lvgl_demo.value
+    window_s: 30.0
+  - id: cap_tr1
+    type: text
+    x: 40.0
+    y: 686.0
+    text: "trend - lvgl_demo.value, 30s, autofit Y (trascina slider s1)"
+    font_size: 12.0
+    color: "#94a3b8"
+
   # ── navigazione: seconda pagina, stessi tag vista diversa ──────────────
   - id: nav_p2
     type: navbutton
@@ -251,11 +270,10 @@ objects:
     target_page: lvgl_demo_page2
     fill: "#1e293b"
 
-  # ── prossimi tipi: aggiungere qui man mano (trend, alarm_viewer,
-  #    symbol...) ──────────────────────────────────────────────────────────
+  # ── prossimi tipi: aggiungere qui man mano (alarm_viewer, symbol...) ────
   - id: note_future
     type: text
-    x: 40.0
+    x: 800.0
     y: 750.0
     text: "Prossimi widget arrivano qui sotto"
     font_size: 12.0

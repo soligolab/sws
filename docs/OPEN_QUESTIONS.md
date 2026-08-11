@@ -802,6 +802,84 @@ fattibilità separata, non un'aggiunta rapida per analogia col nome del campo.
 rimosso perché non reale; `pipe` intero resta esplicitamente fuori scope, non deciso quando
 affrontarlo.
 
+**Aggiornamento 2026-08-08 (seguito 7) — `trend`, 15 tipi supportati**
+
+Terzo dei "prossimi 5 step": `trend` implementato su `lv_chart`, non semplice come i tipi
+precedenti — a differenza di tutti gli altri widget, non basta leggere `/ws/tags` (quello è
+sempre e solo il valore *corrente*): serve interrogare periodicamente lo storico
+(`GET /api/history/:tag`, lo stesso endpoint REST già usato da `TrendCanvas.tsx`, disponibile
+sulla porta viewer anonymous-readable — nessuna modifica al runtime, stesso principio di ADR
+0002). Decisioni non ovvie, verificate leggendo il sorgente C prima di scrivere il codice:
+
+- **`LV_CHART_TYPE_SCATTER`, non `LINE`**: in modalità `LINE` la X di un punto è solo il suo
+  indice nell'array (spaziatura uniforme finta); `SCATTER` accetta una X esplicita per punto
+  (`lv_chart_set_value_by_id2`), quindi il grafico riflette il vero istante di ogni campione
+  invece di far sembrare uniformemente distribuiti campioni che potrebbero non esserlo (gap del
+  tag, deadband dello storico). Costa solo una chiamata diversa, nessuna ragione per non farlo
+  bene.
+- **Coordinate X in secondi-dall'inizio-finestra, non Unix ms assoluti**: `lv_coord_t` è un
+  `i16` (`LV_USE_LARGE_COORD` disattivato in `lv_conf.h`, verificato nei bindgen bindings —
+  `pub type lv_coord_t = i16`), un Unix ms reale (13 cifre) ci trabocca enormemente. Da qui anche
+  il clamp di `window_s` a `i16::MAX` secondi (~9h, ben oltre qualunque finestra trend sensata per
+  un pannello).
+- **`point_cnt` è una proprietà dell'intero `lv_chart_t`, non per-serie** (verificato in
+  `lv_chart.c`): due tag con densità di campionamento diversa nella stessa finestra hanno numeri
+  di campioni diversi, ma `lv_chart_set_point_count` ridimensiona gli array di **ogni** serie sul
+  chart. Chiamarlo dentro un giro per-serie farebbe sì che l'ultima serie processata sovrascriva
+  silenziosamente il conteggio delle precedenti. Soluzione: tenere l'ultimo `Vec<HistorySample>`
+  visto per ciascuna serie (`TrendSeriesBinding::last_samples`), calcolare `point_count` come il
+  massimo su tutte le serie, e riscriverle **tutte** insieme quando una qualunque cambia (non solo
+  quella cambiata) — i punti mancanti di una serie più corta prendono `LV_CHART_POINT_NONE` invece
+  di mostrare l'ultimo valore stantio in quegli slot.
+- **Poller REST separato da `/ws/tags`, non riuso di `SharedTagSnapshot`**: lo storico non è un
+  delta live, va interrogato a intervalli (`client::spawn_history_poller`, un task per serie,
+  poll ogni 2s — stesso `pollMs` di default di `TrendCanvas.tsx`, incluso il backfill OPC-UA solo
+  al primo giro, non a ogni poll). Il chart si aggiorna solo quando il poller produce una versione
+  nuova (`SharedHistory = Arc<Mutex<(u64, Vec<HistorySample>)>>`, contatore di versione), non a
+  ogni frame: un `lv_chart_refresh` a 60fps su dati che cambiano ogni 2s sprecherebbe redraw veri
+  su un pannello embedded, non solo cicli CPU astratti — la stessa attenzione data al costo delle
+  operazioni non vale solo per le chiamate FFI singole ma anche per la cadenza con cui si
+  ripetono.
+
+**Limite noto, accettato consapevolmente**: il poller non ha un modo per essere fermato — vive
+quanto il task tokio lo lascia vivo, cioè quanto il processo. Se il maintainer naviga più volte
+sulla stessa pagina con un trend, ogni visita apre nuovi task di polling e i vecchi non vengono
+mai fermati (continuano a fare I/O di rete verso il runtime per sempre, non solo a occupare
+memoria inerte come gli `Style`/i contesti `Box::leak` già accettati per lo stesso motivo altrove
+in questo file). Accettabile per una sessione di test su un progetto demo con poche pagine; da
+rivedere se/quando questo motore andrà oltre il PoC.
+
+**Gap MVP dichiarati** (nomi compatibili, comportamento parziale — stesso principio delle voci
+precedenti in questa domanda): di `trend_series_styles` solo `color` è onorato — `width`/`dash`/
+`fill`/`fill_opacity`/`smooth` esistono nello schema web ma LVGL disegna sempre una linea sottile
+piena, senza riempimento. Pan ◀/▶, drag-to-zoom e il modal "espandi" di `TrendCanvas.tsx` non
+hanno equivalente: la finestra è sempre quella live (`now - window_s` → `now`), non naviga
+indietro nel tempo.
+
+**Verificato end-to-end** su `.run-12`: nuovo widget `tr1` sulla pagina 1 del template demo,
+stesso tag dello slider `s1` (`lvgl_demo.value`) così trascinarlo anima anche il trend, finestra
+30s, `y_min`/`y_max` assenti apposta per esercitare anche l'autofit. Scritti valori diretti via
+`PUT /api/tags` con ritardi (simula un drag) e confermato via screenshot: punti plottati alla X
+corretta (vicino al bordo destro appena scritti, verso sinistra man mano che invecchiano),
+autofit Y che segue il range effettivo, sincronia con slider/gauge/progress_bar/text/table sullo
+stesso tag, e — verifica non pianificata ma istruttiva — i punti sono correttamente scomparsi del
+tutto quando, per il tempo reale trascorso tra un controllo e l'altro (~75s, molto più dei ~9s
+stimati: i round-trip screenshot-e-analisi costano tempo reale non trascurabile), sono usciti
+dalla finestra di 30s — comportamento corretto della finestra scorrevole, non un bug, ma un
+promemoria a non fidarsi delle proprie stime di tempo trascorso quando si verifica dal vivo.
+Multi-serie verificato separatamente (`extra_tags` con un secondo tag booleano, numero di
+campioni volutamente diverso dalla prima serie, colori distinti da `trend_series_styles`): nessuna
+corruzione tra le due serie, punti mancanti gestiti correttamente, colori rispettati — solo su una
+copia isolata del progetto di test, non nel template spedito (un tag booleano come seconda serie
+non è un buon esempio per la demo reale). Palette editor (`LeftPanel.tsx`) aggiornata: `trend`
+mancava da `LVGL_SUPPORTED_TYPES` (badge "L" + filtro palette progetti LVGL), corretto nello
+stesso giro.
+
+**Decided**: `trend` implementato come MVP (dati corretti e in tempo, styling/navigazione
+temporale parziali, dichiarati sopra). Restano dalla lista dei 5 passi: `alarm_viewer` (serve un
+client allarmi, non solo storico tag) e `symbol` (domanda architetturale SVG→LVGL, non ancora
+scritta come sua voce).
+
 ---
 
 ## Adding new questions

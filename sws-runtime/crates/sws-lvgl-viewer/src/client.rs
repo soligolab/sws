@@ -7,6 +7,7 @@
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use futures_util::StreamExt;
 use serde::Deserialize;
@@ -96,6 +97,113 @@ pub async fn put_tag(base_url: &str, tag: &str, value: TagValue) -> anyhow::Resu
     let client = reqwest::Client::builder().danger_accept_invalid_certs(true).build()?;
     client.put(url).json(&WriteTagBody { value }).send().await?.error_for_status()?;
     Ok(())
+}
+
+/// Timestamp Unix in millisecondi — usato per calcolare la finestra
+/// `from`/`to` di `fetch_history` e, in `lvgl_render`'s Trend, per convertire
+/// i timestamp assoluti dei campioni in coordinate X relative alla finestra
+/// (`lv_coord_t` è un `i16`: non regge un Unix ms assoluto, vedi `render_trend`).
+pub fn now_unix_ms() -> u64 {
+    SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_millis() as u64).unwrap_or(0)
+}
+
+/// Un campione storico — porta `Sample` di `sws-historian` (`ts_ms`, `value`,
+/// `quality`) ma senza `quality`: il trend LVGL non la disegna (il web
+/// nemmeno, in `TrendCanvas`), stesso principio di `TagSnapshotValue` sotto
+/// che non porta il timestamp perché quello non serve a lei.
+#[derive(Debug, Deserialize, Clone)]
+pub struct HistorySample {
+    pub ts_ms: u64,
+    pub value: TagValue,
+}
+
+/// `GET /api/history/:tag?from=&to=&backfill=` — stesso endpoint REST
+/// consumato dal web (`TrendCanvas.tsx` via `api.getHistory`), sulla porta
+/// viewer (anonymous-readable, `sws-web/src/router.rs`).
+pub async fn fetch_history(
+    base_url: &str,
+    tag: &str,
+    from_ms: u64,
+    to_ms: u64,
+    backfill: bool,
+) -> anyhow::Result<Vec<HistorySample>> {
+    let mut url = reqwest::Url::parse(base_url)?;
+    url.path_segments_mut()
+        .map_err(|_| anyhow::anyhow!("base URL non può avere path segments (cannot-be-a-base)"))?
+        .push("api")
+        .push("history")
+        .push(tag);
+    {
+        let mut q = url.query_pairs_mut();
+        q.append_pair("from", &from_ms.to_string());
+        q.append_pair("to", &to_ms.to_string());
+        if backfill {
+            q.append_pair("backfill", "true");
+        }
+    }
+    let client = reqwest::Client::builder().danger_accept_invalid_certs(true).build()?;
+    let resp = client.get(url).send().await?.error_for_status()?;
+    Ok(resp.json::<Vec<HistorySample>>().await?)
+}
+
+/// Stato condiviso tra il task di polling in background (che scrive) e il
+/// loop di rendering (che legge a ogni frame dentro `update_bindings`) — un
+/// `(u64, Vec<HistorySample>)` invece del solo `Vec` come `SharedTagSnapshot`:
+/// il contatore di versione dà al lettore un modo economico per sapere "sono
+/// arrivati dati nuovi da quando ho ridisegnato l'ultima volta" senza
+/// confrontare l'intero vettore a 60fps — un `lv_chart_refresh` a ogni frame
+/// anche quando i dati non cambiano (il poll è ogni 2s, il rendering a
+/// 60fps) sprecherebbe redraw veri su un pannello embedded, non solo cicli
+/// CPU astratti.
+pub type SharedHistory = Arc<Mutex<(u64, Vec<HistorySample>)>>;
+
+/// Interroga periodicamente (ogni 2s, stesso `pollMs` di default di
+/// `TrendCanvas.tsx`) lo storico di un singolo tag e lo pubblica in
+/// `SharedHistory`. Un task per serie, non uno per widget: più semplice da
+/// comporre, il costo di N fetch invece di 1 è accettabile per un pannello
+/// con poche trend a schermo insieme. Il backfill OPC-UA (se richiesto)
+/// parte solo al primo giro, non a ogni poll — stessa logica di
+/// `firstTick && opcuaBackfill` in `TrendCanvas.tsx`.
+///
+/// Non ha un modo per essere fermato: vive quanto il task tokio lo lascia
+/// vivo, cioè quanto il processo — stesso compromesso già accettato per gli
+/// `Style`/i contesti `Box::leak` delle callback (vedi `lvgl_render.rs`), ma
+/// qui è un task che continua a fare I/O di rete, non un valore inerte: se
+/// il maintainer naviga più volte sulla stessa pagina con un trend, ogni
+/// visita apre un nuovo poller e i vecchi non vengono mai fermati — limite
+/// noto, accettabile per una sessione di test, vedi `docs/OPEN_QUESTIONS.md`
+/// Q14.
+pub fn spawn_history_poller(
+    rt_handle: &tokio::runtime::Handle,
+    base_url: String,
+    tag: String,
+    window_s: u64,
+    backfill: bool,
+) -> SharedHistory {
+    let shared: SharedHistory = Arc::new(Mutex::new((0, Vec::new())));
+    let shared_bg = shared.clone();
+    rt_handle.spawn(async move {
+        let mut first = true;
+        let mut interval = tokio::time::interval(std::time::Duration::from_secs(2));
+        loop {
+            interval.tick().await;
+            let now_ms = now_unix_ms();
+            let from_ms = now_ms.saturating_sub(window_s.saturating_mul(1000));
+            let do_backfill = first && backfill;
+            first = false;
+            match fetch_history(&base_url, &tag, from_ms, now_ms, do_backfill).await {
+                Ok(samples) => {
+                    let mut guard = shared_bg.lock().unwrap_or_else(|e| e.into_inner());
+                    guard.0 = guard.0.wrapping_add(1);
+                    guard.1 = samples;
+                }
+                Err(e) => {
+                    eprintln!("[trend] storico di '{tag}' fallito: {e} — riprovo al prossimo poll");
+                }
+            }
+        }
+    });
+    shared
 }
 
 #[derive(Debug, Deserialize)]

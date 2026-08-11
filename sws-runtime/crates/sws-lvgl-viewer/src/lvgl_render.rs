@@ -26,11 +26,11 @@ use std::sync::mpsc;
 
 use cstr_core::CString;
 use lvgl::style::Style;
-use lvgl::widgets::{Bar, Btn, Checkbox, Label, Led, Line, Meter, Slider, Table};
+use lvgl::widgets::{Bar, Btn, Chart, Checkbox, Label, Led, Line, Meter, Slider, Table};
 use lvgl::{Color, LvError, NativeObject, Part, Widget};
 use sws_core::tag::{TagQuality, TagValue};
 
-use crate::client::{TagSnapshot, TagSnapshotValue};
+use crate::client::{self, HistorySample, SharedHistory, TagSnapshot, TagSnapshotValue};
 use crate::model::{OnValue, SynopticObject, SynopticPage, TableRow, TextListEntry};
 
 /// Risoluzione di default se la pagina non specifica `width`/`height` — non
@@ -58,7 +58,7 @@ fn resolve_resolution(page: &SynopticPage) -> (u32, u32) {
 
 const SUPPORTED_TYPES: &[&str] = &[
     "rect", "ellipse", "line", "text", "button", "led", "slider", "progress_bar", "checkbox", "radio", "gauge",
-    "state_lamp", "table", "navbutton",
+    "state_lamp", "table", "navbutton", "trend",
 ];
 
 #[derive(Default, Debug)]
@@ -147,6 +147,32 @@ pub enum LiveKind {
         ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
         rows: Vec<TableRow>,
     },
+    /// Trend: una `lv_chart_series_t` per tag (serie 0 = `tag`, serie 1+ =
+    /// `extra_tags`), ciascuna alimentata dal proprio `SharedHistory` (un
+    /// task di polling REST in background, non `/ws/tags` — la storia non è
+    /// un delta live). `window_s` fissa la finestra temporale e raddoppia da
+    /// costante di conversione (vedi `render_trend`: le coordinate X del
+    /// chart sono secondi-dall'inizio-finestra, non Unix ms assoluti —
+    /// `lv_coord_t` è un `i16`, un Unix ms non ci entrerebbe). `autofit`
+    /// true quando `y_min`/`y_max` sono entrambi assenti nel synottico.
+    Trend {
+        ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
+        series: Vec<TrendSeriesBinding>,
+        window_s: u64,
+        autofit: bool,
+    },
+}
+
+/// Una serie del trend: il puntatore LVGL, la sorgente dati condivisa col
+/// task di polling, e l'ultimo stato visto — `last_seen_version`/
+/// `last_samples` esistono solo per evitare di riscrivere gli stessi punti
+/// (e richiamare `lv_chart_refresh`) a ogni frame quando il poller non ha
+/// ancora prodotto un aggiornamento nuovo (vedi `SharedHistory`).
+pub struct TrendSeriesBinding {
+    ser: *mut lvgl_sys::lv_chart_series_t,
+    shared: SharedHistory,
+    last_seen_version: u64,
+    last_samples: Vec<HistorySample>,
 }
 
 pub struct LiveBinding {
@@ -277,6 +303,38 @@ fn parse_hex_color(s: &str) -> Option<(u8, u8, u8)> {
     let g = u8::from_str_radix(&s[2..4], 16).ok()?;
     let b = u8::from_str_radix(&s[4..6], 16).ok()?;
     Some((r, g, b))
+}
+
+/// Porta `PALETTE` di `TrendCanvas.tsx` — colori di fallback per le serie
+/// oltre la 0 quando non c'è uno stile esplicito.
+const TREND_PALETTE: [(u8, u8, u8); 6] = [
+    (59, 130, 246),  // #3b82f6
+    (34, 197, 94),   // #22c55e
+    (234, 179, 8),   // #eab308
+    (239, 68, 68),   // #ef4444
+    (168, 85, 247),  // #a855f7
+    (6, 182, 212),   // #06b6d4
+];
+
+/// Porta `resolveSeriesColor()` di `TrendCanvas.tsx` (riga ~28): stile
+/// esplicito per indice > tutto, poi (solo per la serie 0) `line_color`,
+/// poi la palette a rotazione.
+fn trend_series_color(i: usize, obj: &SynopticObject) -> (u8, u8, u8) {
+    if let Some(rgb) = obj
+        .trend_series_styles
+        .as_ref()
+        .and_then(|v| v.get(i))
+        .and_then(|s| s.color.as_deref())
+        .and_then(parse_hex_color)
+    {
+        return rgb;
+    }
+    if i == 0 {
+        if let Some(rgb) = obj.line_color.as_deref().and_then(parse_hex_color) {
+            return rgb;
+        }
+    }
+    TREND_PALETTE[i % TREND_PALETTE.len()]
 }
 
 fn apply_bg_color<W: Widget<Part = Part>>(
@@ -1128,6 +1186,83 @@ fn update_table_data_cells(ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>, rows: &[
     }
 }
 
+/// Trend: `lv_chart` in modalità `SCATTER` (non `LINE`) — a differenza di
+/// `LINE`, dove l'asse X è solo l'indice del punto nell'array (spaziatura
+/// uniforme fittizia), `SCATTER` accetta una X esplicita per punto, quindi il
+/// grafico riflette il vero istante di ogni campione invece di far sembrare
+/// uniformemente distribuiti campioni che potrebbero non esserlo (gap del
+/// tag, deadband dello storico, ecc.) — verificato leggendo `lv_chart.h`
+/// prima di scegliere, non assunto. Coordinate X in **secondi dall'inizio
+/// della finestra**, non Unix ms assoluti: `lv_coord_t` è un `i16` (`vedi
+/// LV_USE_LARGE_COORD` in `lv_conf.h`, qui disattivato), un Unix ms reale
+/// (13 cifre) non ci entrerebbe nemmeno lontanamente — da qui anche il
+/// clamp di `window_s` a `i16::MAX` secondi (~9h, ben oltre qualunque
+/// finestra trend sensata per un pannello).
+///
+/// I dati arrivano da un poller REST in background per serie
+/// (`client::spawn_history_poller`), non da `/ws/tags`: lo storico non è un
+/// delta live, va interrogato a intervalli (`GET /api/history/:tag`, come fa
+/// `TrendCanvas.tsx`). `update_bindings` legge `SharedHistory` a ogni frame
+/// ma riscrive il chart solo quando il poller ha prodotto una versione
+/// nuova.
+fn render_trend(
+    screen: &mut lvgl::Obj,
+    obj: &SynopticObject,
+    base_url: &str,
+    rt_handle: &tokio::runtime::Handle,
+) -> anyhow::Result<LiveBinding> {
+    let mut chart = Chart::create(screen).map_err(|e| anyhow::anyhow!("Chart::create: {e:?}"))?;
+    set_pos_size(&mut chart, obj, 360.0, 180.0)?;
+    let ptr = chart.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
+
+    // Stesso range accettato da lv_coord_t (i16) — vedi commento sopra.
+    let window_s = obj.window_s.unwrap_or(60.0).round().clamp(1.0, i16::MAX as f64) as u64;
+    let autofit = obj.y_min.is_none() && obj.y_max.is_none();
+
+    let mut tag_list: Vec<String> = Vec::new();
+    if let Some(t) = obj.tag.as_deref() {
+        if !t.is_empty() {
+            tag_list.push(t.to_string());
+        }
+    }
+    if let Some(extra) = &obj.extra_tags {
+        tag_list.extend(extra.iter().filter(|t| !t.is_empty()).cloned());
+    }
+
+    unsafe {
+        lvgl_sys::lv_chart_set_type(ptr.as_ptr(), lvgl_sys::LV_CHART_TYPE_SCATTER as lvgl_sys::lv_chart_type_t);
+        lvgl_sys::lv_chart_set_div_line_count(ptr.as_ptr(), 3, 3);
+        lvgl_sys::lv_chart_set_range(
+            ptr.as_ptr(),
+            lvgl_sys::LV_CHART_AXIS_PRIMARY_X as lvgl_sys::lv_chart_axis_t,
+            0,
+            window_s as i16,
+        );
+        let (y_lo, y_hi) = match (obj.y_min, obj.y_max) {
+            (Some(lo), Some(hi)) => (lo.round() as i16, hi.round() as i16),
+            _ => (0, 100), // placeholder prima del primo poll quando in autofit
+        };
+        lvgl_sys::lv_chart_set_range(ptr.as_ptr(), lvgl_sys::LV_CHART_AXIS_PRIMARY_Y as lvgl_sys::lv_chart_axis_t, y_lo, y_hi);
+    }
+
+    let backfill = obj.opcua_backfill.unwrap_or(false);
+    let mut series = Vec::with_capacity(tag_list.len());
+    for (i, tag) in tag_list.iter().enumerate() {
+        let rgb = trend_series_color(i, obj);
+        let ser = unsafe {
+            lvgl_sys::lv_chart_add_series(
+                ptr.as_ptr(),
+                Color::from_rgb(rgb).into(),
+                lvgl_sys::LV_CHART_AXIS_PRIMARY_Y as lvgl_sys::lv_chart_axis_t,
+            )
+        };
+        let shared = client::spawn_history_poller(rt_handle, base_url.to_string(), tag.clone(), window_s, backfill);
+        series.push(TrendSeriesBinding { ser, shared, last_seen_version: 0, last_samples: Vec::new() });
+    }
+
+    Ok(LiveBinding { kind: LiveKind::Trend { ptr, series, window_s, autofit } })
+}
+
 /// Prima pagina di una sessione: registra il display LVGL alla risoluzione
 /// di questa pagina (`resolve_resolution` — vedi commento su `HOR_RES`) e
 /// delega a `render_page_objects` per la creazione dei widget. Ritorna anche
@@ -1139,10 +1274,12 @@ pub fn interpret_page(
     tags: &TagSnapshot,
     tag_tx: &mpsc::Sender<TagCommand>,
     nav_tx: &mpsc::Sender<String>,
+    base_url: &str,
+    rt_handle: &tokio::runtime::Handle,
 ) -> anyhow::Result<(RenderSummary, Vec<Style>, Vec<LiveBinding>, u32, u32)> {
     let (hor_res, ver_res) = resolve_resolution(page);
     crate::lvgl_display::init_display(hor_res, ver_res)?;
-    let (summary, styles, live) = render_page_objects(page, tags, tag_tx, nav_tx)?;
+    let (summary, styles, live) = render_page_objects(page, tags, tag_tx, nav_tx, base_url, rt_handle)?;
     Ok((summary, styles, live, hor_res, ver_res))
 }
 
@@ -1183,6 +1320,8 @@ pub fn render_page_objects(
     tags: &TagSnapshot,
     tag_tx: &mpsc::Sender<TagCommand>,
     nav_tx: &mpsc::Sender<String>,
+    base_url: &str,
+    rt_handle: &tokio::runtime::Handle,
 ) -> anyhow::Result<(RenderSummary, Vec<Style>, Vec<LiveBinding>)> {
     let mut summary = RenderSummary::default();
     let mut styles: Vec<Style> = Vec::new();
@@ -1234,6 +1373,7 @@ pub fn render_page_objects(
             "gauge" => render_gauge(&mut screen, obj, tags).map(|b| live.push(b)),
             "state_lamp" => render_state_lamp(&mut screen, obj, tags).map(|b| live.push(b)),
             "table" => render_table(&mut screen, obj, tags).map(|b| live.push(b)),
+            "trend" => render_trend(&mut screen, obj, base_url, rt_handle).map(|b| live.push(b)),
             _ => unreachable!("filtrato da SUPPORTED_TYPES sopra"),
         };
         match result {
@@ -1404,6 +1544,95 @@ pub fn update_bindings(bindings: &mut [LiveBinding], tags: &TagSnapshot) {
             LiveKind::Table { ptr, rows } => {
                 update_table_data_cells(*ptr, rows, tags);
             }
+            LiveKind::Trend { ptr, series, window_s, autofit } => {
+                update_trend(*ptr, series, *window_s, *autofit);
+            }
         }
+    }
+}
+
+/// Aggiorna un chart trend: legge `SharedHistory` per ogni serie, e se
+/// almeno una ha una versione nuova dal poller, riscrive **tutte** le serie
+/// (non solo quella cambiata) e chiama `lv_chart_refresh` una volta sola.
+///
+/// Perché tutte e non solo quella cambiata: `point_cnt` è una proprietà
+/// dell'intero `lv_chart_t`, non per-serie (`lv_chart_set_point_count`
+/// ridimensiona gli array `x_points`/`y_points` di **ogni** serie sul
+/// chart — verificato in `lv_chart.c` prima di scrivere questo codice).
+/// Impostarlo dentro un giro per-serie farebbe sì che l'ultima serie
+/// processata sovrascriva silenziosamente il conteggio delle precedenti;
+/// tenere `last_samples` per serie e riscriverle tutte insieme quando una
+/// qualunque cambia evita quel bug per costruzione, al costo di qualche
+/// riscrittura in più non strettamente necessaria (accettabile: succede al
+/// massimo al ritmo del poll, ogni 2s, non a ogni frame).
+fn update_trend(
+    ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
+    series: &mut [TrendSeriesBinding],
+    window_s: u64,
+    autofit: bool,
+) {
+    let mut any_changed = false;
+    for sb in series.iter_mut() {
+        let (version, samples) = {
+            let guard = sb.shared.lock().unwrap_or_else(|e| e.into_inner());
+            (guard.0, guard.1.clone())
+        };
+        if version != sb.last_seen_version {
+            sb.last_seen_version = version;
+            sb.last_samples = samples;
+            any_changed = true;
+        }
+    }
+    if !any_changed {
+        return;
+    }
+
+    let point_count = series.iter().map(|sb| sb.last_samples.len()).max().unwrap_or(0).max(1);
+    unsafe {
+        lvgl_sys::lv_chart_set_point_count(ptr.as_ptr(), point_count as u16);
+    }
+
+    let now_ms = client::now_unix_ms();
+    let window_start_ms = now_ms.saturating_sub(window_s.saturating_mul(1000));
+    let mut y_lo = f64::INFINITY;
+    let mut y_hi = f64::NEG_INFINITY;
+    for sb in series.iter() {
+        for i in 0..point_count {
+            match sb.last_samples.get(i) {
+                Some(s) => {
+                    let x = (s.ts_ms.saturating_sub(window_start_ms) / 1000).min(window_s) as i16;
+                    let y_f = tag_value_as_f64(&s.value);
+                    y_lo = y_lo.min(y_f);
+                    y_hi = y_hi.max(y_f);
+                    unsafe {
+                        lvgl_sys::lv_chart_set_value_by_id2(ptr.as_ptr(), sb.ser, i as u16, x, y_f.round() as i16);
+                    }
+                }
+                None => unsafe {
+                    // LV_CHART_POINT_NONE su entrambe le coordinate: "non
+                    // disegnare questo punto" (vedi lv_chart.h) — serie più
+                    // corte della point_count del chart (imposta dalla serie
+                    // più lunga, vedi sopra) restano corrette invece di
+                    // mostrare l'ultimo valore stantio in quegli slot.
+                    let none = lvgl_sys::LV_CHART_POINT_NONE as i16;
+                    lvgl_sys::lv_chart_set_value_by_id2(ptr.as_ptr(), sb.ser, i as u16, none, none);
+                },
+            }
+        }
+    }
+
+    if autofit && y_lo.is_finite() && y_hi.is_finite() {
+        let (lo, hi) = if (y_hi - y_lo) < 1.0 { (y_lo - 1.0, y_hi + 1.0) } else { (y_lo, y_hi) };
+        unsafe {
+            lvgl_sys::lv_chart_set_range(
+                ptr.as_ptr(),
+                lvgl_sys::LV_CHART_AXIS_PRIMARY_Y as lvgl_sys::lv_chart_axis_t,
+                lo.round() as i16,
+                hi.round() as i16,
+            );
+        }
+    }
+    unsafe {
+        lvgl_sys::lv_chart_refresh(ptr.as_ptr());
     }
 }
