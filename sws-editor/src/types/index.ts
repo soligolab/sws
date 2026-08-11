@@ -924,6 +924,17 @@ export interface PageLayoutConfig {
   hide_viewer_chrome?: boolean;
 }
 
+/** Motore di rendering a cui è destinato il progetto — vedi
+ *  docs/adr/0002-lvgl-rendering-engine.md. `undefined` = "web" (default
+ *  legacy, ogni progetto creato prima di questo campo). */
+export type ProjectTargetKind = "web" | "lvgl_framebuffer" | "lvgl_wayland";
+
+export interface ProjectTarget {
+  kind: ProjectTargetKind;
+  /** Solo per kind === "lvgl_framebuffer" (es. "/dev/fb0"). */
+  framebuffer_device?: string;
+}
+
 export interface ProjectInfo {
   meta: { name: string; version: string };
   tags: TagDef[];
@@ -936,6 +947,7 @@ export interface ProjectInfo {
   notifications?: NotificationConfig;
   languages?: LanguageTable;
   page_layout?: PageLayoutConfig;
+  target?: ProjectTarget;
 }
 
 // ── Project language table (T-40) ──────────────────────────────────────────

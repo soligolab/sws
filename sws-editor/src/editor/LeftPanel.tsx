@@ -533,11 +533,35 @@ function PaletteGroupAccordion({ group, onAdd }: { group: PaletteGroup; onAdd: (
   );
 }
 
+// Sottoinsieme di tipi che il motore LVGL sa interpretare oggi (vedi
+// sws-lvgl-viewer/src/lvgl_render.rs SUPPORTED_TYPES — tenere allineati).
+// Man mano che il motore cresce (Fase 6+), questo elenco cresce con lui.
+const LVGL_SUPPORTED_TYPES = new Set<SynopticObject["type"]>(["rect", "text", "button", "led", "slider"]);
+
+/** Per un progetto target LVGL, mostra solo gli oggetti che il motore sa
+ *  già interpretare — evita di far piazzare qualcosa che poi nel viewer
+ *  LVGL semplicemente non comparirà. Gruppi che restano senza item vengono
+ *  nascosti del tutto invece di mostrare un accordion vuoto. */
+function paletteForTarget(isLvgl: boolean): PaletteGroup[] {
+  if (!isLvgl) return PALETTE_GROUPS;
+  return PALETTE_GROUPS
+    .map((g) => ({ ...g, items: g.items.filter((i) => LVGL_SUPPORTED_TYPES.has(i.type)) }))
+    .filter((g) => g.items.length > 0);
+}
+
 function ObjectPalette({ onAdd }: { onAdd: (type: SynopticObject["type"]) => void }) {
   const { t } = useTranslation();
+  const targetKind = useAppStore((s) => s.project?.target?.kind);
+  const isLvgl = targetKind === "lvgl_framebuffer" || targetKind === "lvgl_wayland";
+  const groups = paletteForTarget(isLvgl);
   return (
     <Section title={t("editor.sectionObjects")}>
-      {PALETTE_GROUPS.map((group) => (
+      {isLvgl && (
+        <div style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", padding: "0 4px 8px" }}>
+          {t("editor.paletteLvglHint")}
+        </div>
+      )}
+      {groups.map((group) => (
         <PaletteGroupAccordion key={group.category} group={group} onAdd={onAdd} />
       ))}
     </Section>

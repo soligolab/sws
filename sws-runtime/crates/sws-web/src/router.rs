@@ -1748,6 +1748,7 @@ where
             saved_by: None,
             languages: Default::default(),
             page_layout: None,
+            target: None,
         },
     };
     f(&mut project);

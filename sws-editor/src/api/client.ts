@@ -29,6 +29,7 @@ import type {
   OpcUaHistoryRequest,
   ProjectInfo,
   ProjectListEntry,
+  ProjectTarget,
   Sample,
   SourceDef,
   RecipeApplyEvent,
@@ -588,7 +589,7 @@ export const api = {
   listProjects: () =>
     request<ProjectListEntry[]>("/api/projects"),
 
-  createProject: (req: { name: string; template?: string; parent_path?: string }) =>
+  createProject: (req: { name: string; template?: string; parent_path?: string; target?: ProjectTarget }) =>
     request<{ name: string }>("/api/projects", {
       method: "POST",
       headers: { "Content-Type": "application/json" },

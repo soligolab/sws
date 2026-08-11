@@ -25,7 +25,7 @@ use std::{
 };
 use sws_core::{
     AffixPosition, AlarmDb, DatastoreBackendConfig, DatastoreConfig, GlobalScriptDef,
-    NotificationConfig, Project, ProjectMeta, SourceDef, TagDb,
+    NotificationConfig, Project, ProjectMeta, ProjectTarget, SourceDef, TagDb,
 };
 use sws_historian::{DatastoreRegistry, Historian};
 use tracing::{info, warn};
@@ -108,6 +108,11 @@ pub struct CreateProjectRequest {
     /// absent, behavior is 100% unchanged from before this field existed.
     #[serde(default)]
     pub parent_path: Option<String>,
+    /// Target di rendering scelto nel wizard (Web/LVGL). `None` = Web,
+    /// comportamento invariato. Solo per progetti vuoti (`template: None`) —
+    /// i progetti da template restano sempre Web per ora, vedi ADR 0002.
+    #[serde(default)]
+    pub target: Option<ProjectTarget>,
 }
 
 #[derive(Serialize)]
@@ -329,6 +334,7 @@ pub async fn create_project(
                 saved_by: None,
                 languages: Default::default(),
                 page_layout: None,
+                target: req.target.clone(),
             };
             let yaml = match project.stamp_and_serialize() {
                 Ok(y) => y,
