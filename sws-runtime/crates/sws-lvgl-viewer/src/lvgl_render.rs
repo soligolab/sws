@@ -22,6 +22,8 @@
 //! esistente avrebbe fatto crescere `styles`/`Vec<LiveBinding>` senza limite
 //! in una sessione lunga.
 
+use std::sync::mpsc;
+
 use cstr_core::CString;
 use lvgl::style::Style;
 use lvgl::widgets::{Bar, Btn, Checkbox, Label, Led, Slider};
@@ -98,6 +100,89 @@ pub enum LiveKind {
 
 pub struct LiveBinding {
     pub kind: LiveKind,
+}
+
+/// Richiesta di scrittura tag generata da un'interazione utente (click
+/// bottone, toggle checkbox/radio, drag slider). Prodotta da una callback
+/// LVGL — contesto FFI sincrono, niente I/O di rete lì dentro (vedi sotto) —
+/// e consumata dal loop SDL2 in `main.rs`, che la gira a un task async sul
+/// runtime tokio del processo (`client::put_tag`).
+pub struct TagCommand {
+    pub tag: String,
+    pub value: TagValue,
+}
+
+/// Contesto per il click di un bottone: valore fisso da scrivere, stessa
+/// semantica di `SvgCanvas.tsx` (`onWriteTag(obj.tag, obj.write_value ?? true)`)
+/// — non un contatore o altro comportamento specifico di LVGL.
+struct ButtonClickCtx {
+    tag: String,
+    write_value: TagValue,
+    tx: mpsc::Sender<TagCommand>,
+}
+
+/// Contesto per checkbox/radio/slider: il valore da scrivere si legge dal
+/// widget stesso al momento dell'evento (stato checked, valore bar), non è
+/// precalcolato — a differenza del bottone qui non c'è nulla di fisso da
+/// portarsi dietro oltre al tag.
+struct WidgetChangeCtx {
+    tag: String,
+    tx: mpsc::Sender<TagCommand>,
+}
+
+/// Alloca un contesto `'static` per una callback LVGL (`Box::leak`, stesso
+/// principio di `lvgl_display.rs`/`lvgl_indev.rs`: il widget e la sua
+/// callback vivono quanto il processo, mai distrutti prima — niente free
+/// corrispondente, accettato per la stessa ragione degli `Style` in
+/// `styles`/`LiveBinding` — vedi commento di modulo) e lo converte nel
+/// puntatore opaco richiesto da `lv_obj_add_event_cb`.
+fn leak_ctx<T>(ctx: T) -> *mut std::ffi::c_void {
+    Box::leak(Box::new(ctx)) as *mut T as *mut std::ffi::c_void
+}
+
+/// `LV_EVENT_CLICKED` — fired dal livello indev di LVGL (`lv_indev.c`) per
+/// qualunque oggetto clickable su un ciclo press+release completo senza
+/// drag: verificato nel sorgente C, non assunto dal solo nome dell'evento.
+unsafe extern "C" fn sws_button_clicked_cb(e: *mut lvgl_sys::lv_event_t) {
+    let user_data = unsafe { lvgl_sys::lv_event_get_user_data(e) };
+    if user_data.is_null() {
+        return;
+    }
+    let ctx = unsafe { &*(user_data as *const ButtonClickCtx) };
+    let _ = ctx.tx.send(TagCommand { tag: ctx.tag.clone(), value: ctx.write_value.clone() });
+}
+
+/// `LV_EVENT_VALUE_CHANGED` su una checkbox/radio: lo stato CHECKED è già
+/// stato aggiornato da LVGL stesso prima di inviare questo evento (vedi
+/// `lv_obj.c`, ramo `LV_EVENT_RELEASED` — il toggle avviene, poi
+/// `lv_event_send(LV_EVENT_VALUE_CHANGED)`), quindi `lv_obj_has_state` qui
+/// legge già il nuovo valore, non quello precedente al click.
+unsafe extern "C" fn sws_checkbox_toggled_cb(e: *mut lvgl_sys::lv_event_t) {
+    let target = unsafe { lvgl_sys::lv_event_get_target(e) };
+    let user_data = unsafe { lvgl_sys::lv_event_get_user_data(e) };
+    if target.is_null() || user_data.is_null() {
+        return;
+    }
+    let ctx = unsafe { &*(user_data as *const WidgetChangeCtx) };
+    let checked = unsafe { lvgl_sys::lv_obj_has_state(target, lvgl_sys::LV_STATE_CHECKED as lvgl_sys::lv_state_t) };
+    let _ = ctx.tx.send(TagCommand { tag: ctx.tag.clone(), value: TagValue::Bool(checked) });
+}
+
+/// `LV_EVENT_VALUE_CHANGED` su uno slider: fires ripetutamente durante il
+/// drag (non solo al rilascio) — comportamento nativo LVGL, dà un feedback
+/// live coerente con quello che uno slider SCADA normalmente offre.
+/// `lv_bar_get_value` perché lo slider è internamente uno specializzato
+/// `lv_bar_t`, stesso motivo per cui la creazione usa `lv_bar_set_range`/
+/// `set_value` (vedi `init_bar_like`).
+unsafe extern "C" fn sws_slider_changed_cb(e: *mut lvgl_sys::lv_event_t) {
+    let target = unsafe { lvgl_sys::lv_event_get_target(e) };
+    let user_data = unsafe { lvgl_sys::lv_event_get_user_data(e) };
+    if target.is_null() || user_data.is_null() {
+        return;
+    }
+    let ctx = unsafe { &*(user_data as *const WidgetChangeCtx) };
+    let v = unsafe { lvgl_sys::lv_bar_get_value(target) };
+    let _ = ctx.tx.send(TagCommand { tag: ctx.tag.clone(), value: TagValue::Int(v as i64) });
 }
 
 fn parse_hex_color(s: &str) -> Option<(u8, u8, u8)> {
@@ -351,13 +436,39 @@ fn render_text(
     })
 }
 
-fn render_button(screen: &mut lvgl::Obj, obj: &SynopticObject, styles: &mut Vec<Style>) -> anyhow::Result<()> {
+fn render_button(
+    screen: &mut lvgl::Obj,
+    obj: &SynopticObject,
+    styles: &mut Vec<Style>,
+    tx: &mpsc::Sender<TagCommand>,
+) -> anyhow::Result<()> {
     let mut btn = Btn::create(screen).map_err(|e| anyhow::anyhow!("Btn::create: {e:?}"))?;
     set_pos_size(&mut btn, obj, 120.0, 40.0)?;
     apply_bg_color(&mut btn, obj.fill.as_deref().unwrap_or("#3b82f6"), styles)?;
     let mut lbl = Label::create(&mut btn).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
     lbl.set_text(&text_cstring(obj.label.as_deref().unwrap_or("Button")))
         .map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
+
+    if let Some(tag) = &obj.tag {
+        // Stessa semantica del bottone web (SvgCanvas.tsx): scrive
+        // write_value (default true) sul tag al click, non un'azione più
+        // ricca (niente script/azioni multiple — vedi Q14).
+        let write_value = obj
+            .write_value
+            .clone()
+            .and_then(|v| serde_json::from_value::<TagValue>(v).ok())
+            .unwrap_or(TagValue::Bool(true));
+        let ptr = btn.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
+        let ctx = leak_ctx(ButtonClickCtx { tag: tag.clone(), write_value, tx: tx.clone() });
+        unsafe {
+            lvgl_sys::lv_obj_add_event_cb(
+                ptr.as_ptr(),
+                Some(sws_button_clicked_cb),
+                lvgl_sys::lv_event_code_t_LV_EVENT_CLICKED,
+                ctx,
+            );
+        }
+    }
     Ok(())
 }
 
@@ -424,7 +535,12 @@ fn render_led(
     })
 }
 
-fn render_slider(screen: &mut lvgl::Obj, obj: &SynopticObject, tags: &TagSnapshot) -> anyhow::Result<LiveBinding> {
+fn render_slider(
+    screen: &mut lvgl::Obj,
+    obj: &SynopticObject,
+    tags: &TagSnapshot,
+    tx: &mpsc::Sender<TagCommand>,
+) -> anyhow::Result<LiveBinding> {
     let mut slider = Slider::create(screen).map_err(|e| anyhow::anyhow!("Slider::create: {e:?}"))?;
     set_pos_size(&mut slider, obj, 200.0, 50.0)?;
     let ptr = slider.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
@@ -432,7 +548,23 @@ fn render_slider(screen: &mut lvgl::Obj, obj: &SynopticObject, tags: &TagSnapsho
     // esistono lv_slider_set_range/set_value dedicati, si riusano quelli di
     // bar (confermato dai bindgen bindings reali, non da supposizione) — vedi
     // init_bar_like, condivisa con progress_bar per lo stesso motivo.
-    init_bar_like(ptr, obj, tags)
+    let binding = init_bar_like(ptr, obj, tags)?;
+
+    // Solo lo slider è interattivo — non progress_bar, che condivide
+    // init_bar_like ma resta un indicatore read-only (nessuna callback
+    // registrata lì): la wiring va qui, non dentro init_bar_like.
+    if let Some(tag) = &obj.tag {
+        let ctx = leak_ctx(WidgetChangeCtx { tag: tag.clone(), tx: tx.clone() });
+        unsafe {
+            lvgl_sys::lv_obj_add_event_cb(
+                ptr.as_ptr(),
+                Some(sws_slider_changed_cb),
+                lvgl_sys::lv_event_code_t_LV_EVENT_VALUE_CHANGED,
+                ctx,
+            );
+        }
+    }
+    Ok(binding)
 }
 
 fn render_progress_bar(screen: &mut lvgl::Obj, obj: &SynopticObject, tags: &TagSnapshot) -> anyhow::Result<LiveBinding> {
@@ -460,7 +592,12 @@ fn init_bar_like(
     Ok(LiveBinding { kind: LiveKind::BarLike { ptr, tag: obj.tag.clone(), min, max } })
 }
 
-fn render_checkbox(screen: &mut lvgl::Obj, obj: &SynopticObject, tags: &TagSnapshot) -> anyhow::Result<LiveBinding> {
+fn render_checkbox(
+    screen: &mut lvgl::Obj,
+    obj: &SynopticObject,
+    tags: &TagSnapshot,
+    tx: &mpsc::Sender<TagCommand>,
+) -> anyhow::Result<LiveBinding> {
     let mut cb = Checkbox::create(screen).map_err(|e| anyhow::anyhow!("Checkbox::create: {e:?}"))?;
     // Niente set_size: la checkbox LVGL si dimensiona sul proprio testo, come
     // la stragrande maggioranza delle implementazioni checkbox — forzare una
@@ -471,6 +608,18 @@ fn render_checkbox(screen: &mut lvgl::Obj, obj: &SynopticObject, tags: &TagSnaps
         .map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
     let ptr = cb.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
     apply_checked_state(ptr, lookup(tags, &obj.tag).map(|t| tag_value_as_bool(&t.value)).unwrap_or(false));
+
+    if let Some(tag) = &obj.tag {
+        let ctx = leak_ctx(WidgetChangeCtx { tag: tag.clone(), tx: tx.clone() });
+        unsafe {
+            lvgl_sys::lv_obj_add_event_cb(
+                ptr.as_ptr(),
+                Some(sws_checkbox_toggled_cb),
+                lvgl_sys::lv_event_code_t_LV_EVENT_VALUE_CHANGED,
+                ctx,
+            );
+        }
+    }
     Ok(LiveBinding { kind: LiveKind::Checkbox { ptr, tag: obj.tag.clone() } })
 }
 
@@ -479,8 +628,13 @@ fn render_checkbox(screen: &mut lvgl::Obj, obj: &SynopticObject, tags: &TagSnaps
 /// quindi disegnato come una checkbox (quadrata, non tonda) — stesso spirito
 /// di "graphics won't be pixel-perfect but that's acceptable" del brief
 /// originale. Vedi ADR 0002.
-fn render_radio(screen: &mut lvgl::Obj, obj: &SynopticObject, tags: &TagSnapshot) -> anyhow::Result<LiveBinding> {
-    render_checkbox(screen, obj, tags)
+fn render_radio(
+    screen: &mut lvgl::Obj,
+    obj: &SynopticObject,
+    tags: &TagSnapshot,
+    tx: &mpsc::Sender<TagCommand>,
+) -> anyhow::Result<LiveBinding> {
+    render_checkbox(screen, obj, tags, tx)
 }
 
 fn apply_checked_state(ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>, checked: bool) {
@@ -524,6 +678,7 @@ fn render_ellipse(screen: &mut lvgl::Obj, obj: &SynopticObject, styles: &mut Vec
 pub fn interpret_page(
     page: &SynopticPage,
     tags: &TagSnapshot,
+    tx: &mpsc::Sender<TagCommand>,
 ) -> anyhow::Result<(RenderSummary, Vec<Style>, Vec<LiveBinding>)> {
     let mut summary = RenderSummary::default();
     let mut styles: Vec<Style> = Vec::new();
@@ -558,13 +713,13 @@ pub fn interpret_page(
         let result: anyhow::Result<()> = match obj_type {
             "rect" => render_rect(&mut screen, obj, &mut styles),
             "ellipse" => render_ellipse(&mut screen, obj, &mut styles),
-            "button" => render_button(&mut screen, obj, &mut styles),
+            "button" => render_button(&mut screen, obj, &mut styles, tx),
             "text" => render_text(&mut screen, obj, tags).map(|b| live.push(b)),
             "led" => render_led(&mut screen, obj, tags).map(|b| live.push(b)),
-            "slider" => render_slider(&mut screen, obj, tags).map(|b| live.push(b)),
+            "slider" => render_slider(&mut screen, obj, tags, tx).map(|b| live.push(b)),
             "progress_bar" => render_progress_bar(&mut screen, obj, tags).map(|b| live.push(b)),
-            "checkbox" => render_checkbox(&mut screen, obj, tags).map(|b| live.push(b)),
-            "radio" => render_radio(&mut screen, obj, tags).map(|b| live.push(b)),
+            "checkbox" => render_checkbox(&mut screen, obj, tags, tx).map(|b| live.push(b)),
+            "radio" => render_radio(&mut screen, obj, tags, tx).map(|b| live.push(b)),
             _ => unreachable!("filtrato da SUPPORTED_TYPES sopra"),
         };
         match result {
@@ -599,6 +754,21 @@ pub fn update_bindings(bindings: &mut [LiveBinding], tags: &TagSnapshot) {
                 }
             }
             LiveKind::BarLike { ptr, tag, min, max } => {
+                // Se l'utente sta trascinando lo slider in questo momento
+                // (LV_STATE_PRESSED), non sovrascrivere il valore con quello
+                // — ancora vecchio — nello snapshot tag: il round-trip verso
+                // il backend (scrittura + delta WS di ritorno) richiede
+                // qualche frame, e senza questa guardia il valore "salterebbe
+                // indietro" a ogni frame per tutta la durata del drag,
+                // combattendo continuamente il gesto dell'utente. Su
+                // progress_bar (stesso binding, mai in stato PRESSED in uso
+                // normale) questo controllo è un no-op innocuo.
+                let dragging = unsafe {
+                    lvgl_sys::lv_obj_has_state(ptr.as_ptr(), lvgl_sys::LV_STATE_PRESSED as lvgl_sys::lv_state_t)
+                };
+                if dragging {
+                    continue;
+                }
                 let raw = lookup(tags, tag)
                     .map(|t| tag_value_as_f64(&t.value))
                     .unwrap_or(*min)

@@ -73,6 +73,11 @@ pub struct SynopticObject {
 
     // ── button ──
     pub label: Option<String>,
+    /// Valore scritto sul tag al click, come in `SvgCanvas.tsx`
+    /// (`onWriteTag(obj.tag, obj.write_value ?? true)`) — un bottone LVGL
+    /// segue la stessa semantica del bottone web, non un contatore o altro
+    /// comportamento inventato apposta per LVGL.
+    pub write_value: Option<serde_json::Value>,
 
     // ── led ──
     pub on_value: Option<OnValue>,

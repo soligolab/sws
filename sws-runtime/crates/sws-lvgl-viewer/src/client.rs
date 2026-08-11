@@ -32,6 +32,29 @@ pub async fn fetch_page(base_url: &str, page_name: &str) -> anyhow::Result<Synop
     Ok(page)
 }
 
+/// Scrive un valore su un tag — stesso endpoint REST usato dall'editor web
+/// (`PUT /api/tags/:id`, body `{"value": ...}`, `TagValue` è `#[serde(untagged)]`
+/// quindi serializza come scalare JSON nativo). Chiamata da un task spawnato
+/// sul runtime tokio del processo (`Handle::spawn`, non dentro la callback
+/// FFI sincrona di LVGL — vedi `lvgl_render.rs`), quindi può restare async.
+pub async fn put_tag(base_url: &str, tag: &str, value: TagValue) -> anyhow::Result<()> {
+    let mut url = reqwest::Url::parse(base_url)?;
+    url.path_segments_mut()
+        .map_err(|_| anyhow::anyhow!("base URL non può avere path segments (cannot-be-a-base)"))?
+        .push("api")
+        .push("tags")
+        .push(tag);
+
+    #[derive(serde::Serialize)]
+    struct WriteTagBody {
+        value: TagValue,
+    }
+
+    let client = reqwest::Client::builder().danger_accept_invalid_certs(true).build()?;
+    client.put(url).json(&WriteTagBody { value }).send().await?.error_for_status()?;
+    Ok(())
+}
+
 #[derive(Debug, Deserialize)]
 struct WsTagEntry {
     id: String,
