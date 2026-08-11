@@ -89,7 +89,7 @@ fn main() -> anyhow::Result<()> {
     let (tag_tx, tag_rx) = mpsc::channel::<TagCommand>();
     let (nav_tx, nav_rx) = mpsc::channel::<String>();
     let (summary, styles, live_bindings, hor_res, ver_res) =
-        lvgl_render::interpret_page(&page, &initial_tags, &tag_tx, &nav_tx)?;
+        lvgl_render::interpret_page(&page, &initial_tags, &tag_tx, &nav_tx, &args.base_url, rt.handle())?;
 
     eprintln!(
         "widget LVGL creati correttamente ({}): {}",
@@ -230,7 +230,9 @@ fn run_window(
         // sarebbe per una pagina servita da lontano.
         if let Ok(target_page) = nav_rx.try_recv() {
             match rt_handle.block_on(client::resolve_page_by_id(&base_url, &target_page)) {
-                Ok(new_page) => match lvgl_render::render_page_objects(&new_page, &tags_now, &tag_tx, &nav_tx) {
+                Ok(new_page) => match lvgl_render::render_page_objects(
+                    &new_page, &tags_now, &tag_tx, &nav_tx, &base_url, &rt_handle,
+                ) {
                     Ok((summary, new_styles, new_live)) => {
                         eprintln!(
                             "navigato a '{}': {} oggetti creati, {} non supportati",

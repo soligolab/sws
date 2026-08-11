@@ -124,6 +124,40 @@ pub struct SynopticObject {
 
     // ── navbutton ──
     pub target_page: Option<String>,
+
+    // ── trend ──
+    /// Secondi di storico visibili nella finestra (default 60, come
+    /// `SvgCanvas.tsx`/`TrendCanvas`).
+    pub window_s: Option<f64>,
+    /// Range Y fisso quando entrambi impostati; autofit sui dati ricevuti
+    /// quando assenti (stessa semantica di `TrendCanvas`, non un default
+    /// arbitrario).
+    pub y_min: Option<f64>,
+    pub y_max: Option<f64>,
+    /// Colore della serie 0 — fallback legacy quando
+    /// `trend_series_styles[0].color` non è impostato (stessa precedenza di
+    /// `resolveSeriesColor()` in `TrendCanvas.tsx`).
+    pub line_color: Option<String>,
+    /// Tag aggiuntivi sovrapposti sullo stesso trend (serie 1, 2, ...).
+    pub extra_tags: Option<Vec<String>>,
+    /// Backfill dallo storico OPC-UA, solo al primo poll — passthrough del
+    /// parametro querystring `backfill` di `GET /api/history/:tag`.
+    pub opcua_backfill: Option<bool>,
+    /// Solo `color` è onorato da `render_trend`; `width`/`dash`/`fill`/
+    /// `fill_opacity`/`smooth` esistono nello schema web ma non hanno
+    /// equivalente disegnato qui — gap dichiarato (non un nome mancante),
+    /// stesso principio di tolleranza silenziosa di serde spiegato in cima
+    /// al file: un campo non dichiarato qui viene ignorato, non genera
+    /// errori di parsing.
+    pub trend_series_styles: Option<Vec<TrendSeriesStyle>>,
+}
+
+/// Porta (parzialmente) `TrendSeriesStyle` di `types/index.ts` — vedi
+/// `SynopticObject::trend_series_styles` per quali campi sono davvero
+/// disegnati.
+#[derive(Debug, Deserialize, Clone)]
+pub struct TrendSeriesStyle {
+    pub color: Option<String>,
 }
 
 /// Porta `TextListEntry` di `types/index.ts` — un valore scalare o un range
