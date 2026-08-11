@@ -1,0 +1,8 @@
+# Attivo solo quando si builda con la working directory dentro questa
+# cartella (`cd crates/sws-lvgl-viewer && cargo build`) — Cargo cerca
+# .cargo/config.toml a partire dalla cwd, non dal --manifest-path. Buildando
+# da altrove (es. `cargo build --manifest-path crates/sws-lvgl-viewer/Cargo.toml`
+# da sws-runtime/) va esportata a mano:
+#   export DEP_LV_CONFIG_PATH="$(pwd)/crates/sws-lvgl-viewer/lv_conf"
+[env]
+DEP_LV_CONFIG_PATH = { value = "lv_conf", relative = true }

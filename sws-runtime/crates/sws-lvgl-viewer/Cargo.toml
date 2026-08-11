@@ -11,9 +11,35 @@ name = "sws-lvgl-viewer"
 path = "src/main.rs"
 
 [dependencies]
-# LVGL core only for now (no `drivers`/SDL2 yet — quello arriva in Fase 2,
-# quando si sceglie e si prova il backend di output). `use-vendored-config`
-# usa l'`lv_conf.h` di default incluso nel crate: la tuning reale (risoluzione,
-# color depth, budget di memoria per l'HW target) è lavoro di Fase 2, non di
-# questo scaffolding. Vedi docs/adr/0002.
-lvgl = { version = "0.6", default-features = false, features = ["embedded_graphics", "use-vendored-config"] }
+# LVGL core. Config reale (non `use-vendored-config`, il cui LV_MEM_SIZE di
+# 48KB è troppo poco per un display di questa risoluzione) fornita via
+# lv_conf/lv_conf.h — vedi .cargo/config.toml per DEP_LV_CONFIG_PATH. La
+# tuning fine per l'HW target reale è lavoro di Fase 4. Vedi docs/adr/0002 e
+# docs/OPEN_QUESTIONS.md Q14 (bug upstream in Display::register, non ancora
+# risolto: niente feature `embedded_graphics`/export immagine per ora,
+# perché il redraw che le userebbe non è sicuro da chiamare — vedi
+# src/lvgl_render.rs).
+# `embedded_graphics` è nominalmente opzionale ma `input_device/pointer.rs`
+# lo importa incondizionatamente in questa versione — senza la feature non
+# compila affatto, non è una scelta nostra.
+lvgl     = { version = "0.6", default-features = false, features = ["embedded_graphics"] }
+# Accesso FFI diretto: alcuni setter (es. Slider::set_value) non sono ancora
+# esposti dal binding safe `lvgl` 0.6.2 — stessa versione, stesso pattern che il
+# binding usa internamente (vedi src/lvgl_render.rs).
+lvgl-sys = "0.6"
+
+# Riuso diretto dei tipi wire già condivisi da tutto il runtime (TagValue è
+# #[serde(untagged)], TagQuality è una stringa) invece di riscriverli una terza
+# volta accanto al mirror TS e al mirror sws-web/src/synoptic.rs.
+sws-core = { path = "../sws-core" }
+
+tokio          = { version = "1.36", features = ["full"] }
+futures-util   = { version = "0.3",  default-features = false, features = ["std", "sink"] }
+reqwest        = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
+tokio-tungstenite = { version = "0.24", features = ["rustls-tls-webpki-roots"] }
+rustls         = { version = "0.23", features = ["ring"] }
+serde          = { version = "1", features = ["derive"] }
+serde_json     = "1"
+clap           = { version = "4", features = ["derive"] }
+anyhow         = "1"
+cstr_core      = "0.2"
