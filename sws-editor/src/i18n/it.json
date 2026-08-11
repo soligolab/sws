@@ -180,6 +180,7 @@
     "sectionPages": "PAGINE",
     "sectionObjects": "OGGETTI",
     "paletteLvglHint": "Progetto LVGL: solo gli oggetti già supportati dal motore sono mostrati.",
+    "paletteLvglBadgeTitle": "Disponibile anche per i progetti LVGL",
     "sectionPageObjects": "OGGETTI PAGINA",
     "sectionFunctions": "FUNZIONI",
     "sectionSources": "SORGENTI",

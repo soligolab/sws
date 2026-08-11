@@ -501,7 +501,7 @@ const PALETTE_GROUPS: PaletteGroup[] = [
   ]},
 ];
 
-function PaletteGroupAccordion({ group, onAdd }: { group: PaletteGroup; onAdd: (type: SynopticObject["type"]) => void }) {
+function PaletteGroupAccordion({ group, onAdd, showLvglBadge }: { group: PaletteGroup; onAdd: (type: SynopticObject["type"]) => void; showLvglBadge: boolean }) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(group.defaultOpen ?? false);
   return (
@@ -523,7 +523,29 @@ function PaletteGroupAccordion({ group, onAdd }: { group: PaletteGroup; onAdd: (
               onClick={() => onAdd(type)}
               style={{ ...S.objBtn, flex: "none", width: "100%", display: "flex", alignItems: "center", gap: 6 }}
             >
-              <span style={{ fontSize: 14, color: group.color, flexShrink: 0, width: 18, textAlign: "center" as const }}>{icon}</span>
+              <span style={{ position: "relative", fontSize: 14, color: group.color, flexShrink: 0, width: 18, textAlign: "center" as const }}>
+                {icon}
+                {showLvglBadge && LVGL_SUPPORTED_TYPES.has(type) && (
+                  <span
+                    title={t("editor.paletteLvglBadgeTitle")}
+                    style={{
+                      position: "absolute",
+                      bottom: -3,
+                      right: -1,
+                      fontSize: 7,
+                      fontWeight: 700,
+                      lineHeight: 1,
+                      color: "#0f172a",
+                      background: "#fbbf24",
+                      borderRadius: 2,
+                      padding: "1px 2px",
+                      pointerEvents: "none",
+                    }}
+                  >
+                    L
+                  </span>
+                )}
+              </span>
               <span>{t(`editor.palette.item.${type}`)}</span>
             </button>
           ))}
@@ -577,7 +599,7 @@ function ObjectPalette({ onAdd }: { onAdd: (type: SynopticObject["type"]) => voi
         </div>
       )}
       {groups.map((group) => (
-        <PaletteGroupAccordion key={group.category} group={group} onAdd={onAdd} />
+        <PaletteGroupAccordion key={group.category} group={group} onAdd={onAdd} showLvglBadge={!isLvgl} />
       ))}
     </Section>
   );
