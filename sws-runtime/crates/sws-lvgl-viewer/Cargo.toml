@@ -13,20 +13,24 @@ path = "src/main.rs"
 [dependencies]
 # LVGL core. Config reale (non `use-vendored-config`, il cui LV_MEM_SIZE di
 # 48KB è troppo poco per un display di questa risoluzione) fornita via
-# lv_conf/lv_conf.h — vedi .cargo/config.toml per DEP_LV_CONFIG_PATH. La
-# tuning fine per l'HW target reale è lavoro di Fase 4. Vedi docs/adr/0002 e
-# docs/OPEN_QUESTIONS.md Q14 (bug upstream in Display::register, non ancora
-# risolto: niente feature `embedded_graphics`/export immagine per ora,
-# perché il redraw che le userebbe non è sicuro da chiamare — vedi
-# src/lvgl_render.rs).
+# lv_conf/lv_conf.h — vedi .cargo/config.toml per DEP_LV_CONFIG_PATH.
 # `embedded_graphics` è nominalmente opzionale ma `input_device/pointer.rs`
 # lo importa incondizionatamente in questa versione — senza la feature non
 # compila affatto, non è una scelta nostra.
 lvgl     = { version = "0.6", default-features = false, features = ["embedded_graphics"] }
 # Accesso FFI diretto: alcuni setter (es. Slider::set_value) non sono ancora
-# esposti dal binding safe `lvgl` 0.6.2 — stessa versione, stesso pattern che il
-# binding usa internamente (vedi src/lvgl_render.rs).
+# esposti dal binding safe `lvgl` 0.6.2 (vedi src/lvgl_render.rs), e la
+# registrazione del display bypassa del tutto `lvgl::Display`/`DrawBuffer`
+# (bug di lifetime confermato — vedi docs/OPEN_QUESTIONS.md Q14 e
+# src/lvgl_display.rs) usando solo questi binding raw + storage `'static`
+# ottenuto con `Box::leak`.
 lvgl-sys = "0.6"
+# Finestra/texture/event loop per la verifica visiva interattiva (in
+# alternativa reale, non solo teorica, all'export PNG headless — deciso col
+# maintainer il 2026-08-08). Linka libsdl2 di sistema (libsdl2-dev), niente
+# feature bundled/static-link: sul dev server e sul PC di casa il pacchetto
+# è installato via apt, non serve vendorizzare/compilare SDL2 da sorgente.
+sdl2 = "0.38"
 
 # Riuso diretto dei tipi wire già condivisi da tutto il runtime (TagValue è
 # #[serde(untagged)], TagQuality è una stringa) invece di riscriverli una terza
@@ -43,3 +47,16 @@ serde_json     = "1"
 clap           = { version = "4", features = ["derive"] }
 anyhow         = "1"
 cstr_core      = "0.2"
+
+# `lvgl-sys` 0.6.2 esporta una propria strncmp/strcmp (#[no_mangle], per
+# target senza libc) che sostituisce quelle di sistema per l'intero processo
+# — e la sua strncmp fa `slice::from_raw_parts(ptr, n)` PRIMA di confrontare
+# un byte, che crasha per qualunque n grande (strcmp la chiama con
+# n=usize::MAX). Non è un problema solo nostro/di LVGL: SDL2 (via libdbus,
+# durante l'init) ci è finita dentro chiamando la sua normale strcmp.
+# Nessuna feature per disattivarlo — vendorizzata una copia locale con la
+# sola strncmp corretta (scansione byte-per-byte, vedi
+# vendor/lvgl-sys-0.6.2/src/string_impl.rs). Analisi completa in
+# docs/OPEN_QUESTIONS.md Q14.
+[patch.crates-io]
+lvgl-sys = { path = "vendor/lvgl-sys-0.6.2" }

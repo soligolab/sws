@@ -4,26 +4,16 @@
 //! Rust/LVGL invece che React/SVG — stessi campi, stessa semantica di
 //! resolve/soglie/format dov'è ragionevole portarla (vedi ADR 0002).
 //!
-//! **Niente redraw/export immagine qui** (arriverebbe naturalmente dopo la
-//! creazione dei widget, come un passo in più): un giro di
-//! `lvgl::task_handler()` sui widget creati da questo modulo causa oggi un
-//! segfault, causato da un bug di lifetime confermato in
-//! `lvgl::Display::register()` (crate `lvgl` 0.6.2) — vedi
-//! `docs/OPEN_QUESTIONS.md` Q14 per l'analisi completa (backtrace GDB
-//! incluso: puntatore dangling in `lv_color_fill`, perché `DisplayDriver`
-//! — che possiede il buffer registrato in LVGL — è una variabile locale
-//! privata al crate che viene distrutta al ritorno di `register()`/
-//! `register_raw()`, entrambi affetti). Questo modulo si ferma quindi
-//! subito dopo aver creato con successo i widget, che è già la parte
-//! difficile/di valore (l'interprete `SynopticObject` → LVGL): la
-//! registrazione del display e il primo redraw restano un TODO bloccato,
-//! non implementato qui per non lasciare nel binario un percorso che
-//! crasherebbe in modo affidabile ad ogni esecuzione.
+//! La registrazione del display passa da `crate::lvgl_display::init_display()`
+//! invece che da `lvgl::Display::register()`, che ha un bug di lifetime
+//! confermato (`docs/OPEN_QUESTIONS.md` Q14) — vedi `lvgl_display.rs` per il
+//! perché e per il fix. `task_handler()` non viene chiamato qui: è il
+//! chiamante (il loop SDL2 in `main.rs`) a guidare il redraw ripetutamente.
 
 use cstr_core::CString;
 use lvgl::style::Style;
 use lvgl::widgets::{Btn, Label, Led, Slider};
-use lvgl::{Color, Display, DrawBuffer, LvError, NativeObject, Part, Widget};
+use lvgl::{Color, LvError, NativeObject, Part, Widget};
 use sws_core::tag::{TagQuality, TagValue};
 
 use crate::client::{TagSnapshot, TagSnapshotValue};
@@ -330,25 +320,31 @@ fn render_slider(screen: &mut lvgl::Obj, obj: &SynopticObject, tags: &TagSnapsho
     Ok(())
 }
 
-/// Registra un display LVGL (necessario anche solo per avere uno `screen`
-/// come parent — vedi `create_child_obj`) e crea un widget per ogni oggetto
-/// supportato della pagina. **Non chiama `task_handler()`**: vedi il
-/// commento di modulo in cima al file per il perché.
-pub fn interpret_page(page: &SynopticPage, tags: &TagSnapshot) -> anyhow::Result<RenderSummary> {
+/// Registra un display LVGL `HOR_RES`×`VER_RES` (via `lvgl_display::init_display`,
+/// non `lvgl::Display::register()` — vedi commento di modulo) e crea un
+/// widget per ogni oggetto supportato della pagina. **Non chiama
+/// `task_handler()`**: tocca al chiamante guidare il redraw (loop SDL2 in
+/// `main.rs`), ripetutamente per tutta la durata della finestra.
+///
+/// Ritorna anche gli `Style` creati: devono restare vivi quanto i widget a
+/// cui sono applicati (LVGL tiene un puntatore, non una copia) — validi solo
+/// finché il chiamante non li droppa, quindi vanno tenuti in vita per tutta
+/// la durata della finestra, non solo di questa funzione.
+pub fn interpret_page(page: &SynopticPage, tags: &TagSnapshot) -> anyhow::Result<(RenderSummary, Vec<Style>)> {
     let mut summary = RenderSummary::default();
     let mut styles: Vec<Style> = Vec::new();
 
-    let buffer = DrawBuffer::<{ (HOR_RES * VER_RES) as usize }>::default();
-    let display = Display::register(buffer, HOR_RES, VER_RES, |_refresh| {
-        // Mai invocata: nessun task_handler() viene chiamato in questo modulo
-        // (vedi commento di modulo). Tenuta comunque per completare la
-        // registrazione del display, richiesta da get_scr_act()/create().
-    })
-    .map_err(|e| anyhow::anyhow!("Display::register: {e:?}"))?;
+    crate::lvgl_display::init_display(HOR_RES, VER_RES)?;
 
-    let mut screen = display
-        .get_scr_act()
-        .map_err(|e| anyhow::anyhow!("get_scr_act: {e:?}"))?;
+    // lv_disp_get_scr_act(NULL) = "lo schermo attivo del display di default"
+    // — c'è un solo display registrato, quindi è inequivocabile. Stesso
+    // pattern raw di create_child_obj: lvgl::Obj::from_raw() su un puntatore
+    // ottenuto direttamente da lvgl-sys.
+    let mut screen: lvgl::Obj = unsafe {
+        let ptr = lvgl_sys::lv_disp_get_scr_act(core::ptr::null_mut());
+        let nn = core::ptr::NonNull::new(ptr).ok_or_else(|| anyhow::anyhow!("lv_disp_get_scr_act ha restituito null"))?;
+        <lvgl::Obj as Widget>::from_raw(nn)
+    };
     if let Some(bg) = &page.background {
         apply_bg_color(&mut screen, bg, &mut styles)?;
     }
@@ -378,5 +374,5 @@ pub fn interpret_page(page: &SynopticPage, tags: &TagSnapshot) -> anyhow::Result
         }
     }
 
-    Ok(summary)
+    Ok((summary, styles))
 }

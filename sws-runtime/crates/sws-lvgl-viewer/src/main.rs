@@ -1,29 +1,30 @@
-//! `sws-lvgl-viewer` — motore di rendering LVGL, MVP a riga di comando
+//! `sws-lvgl-viewer` — motore di rendering LVGL con finestra SDL2 interattiva
 //! (Fase 2, `docs/adr/0002-lvgl-rendering-engine.md`).
 //!
 //! Si connette a un runtime `sws-web` già in esecuzione (stesso ruolo che ha
 //! oggi il browser/`sws-kiosk`), legge una pagina synottico + lo snapshot dei
-//! tag, e interpreta il sottoinsieme di widget supportato creando i
-//! corrispondenti oggetti LVGL (posizione, colore, testo, stato — vedi
-//! `lvgl_render.rs`).
+//! tag, interpreta il sottoinsieme di widget supportato (vedi
+//! `lvgl_render.rs`) e li disegna in una finestra SDL2 che si aggiorna in
+//! tempo reale con `lvgl::task_handler()`.
 //!
-//! **Export immagine non ancora disponibile**: `lvgl::Display::register()`
-//! (crate `lvgl` 0.6.2) ha un bug di lifetime confermato — vedi
-//! `docs/OPEN_QUESTIONS.md` Q14 per l'analisi completa (backtrace GDB
-//! incluso). Il primo `task_handler()` dopo la creazione dei widget causa un
-//! segfault, quindi questo binario si ferma subito dopo aver creato gli
-//! oggetti e riporta un riepilogo testuale di cosa è stato interpretato,
-//! invece di tentare il redraw che oggi crasherebbe in modo affidabile.
+//! La registrazione del display bypassa `lvgl::Display::register()` (bug di
+//! lifetime confermato, `docs/OPEN_QUESTIONS.md` Q14) — vedi `lvgl_display.rs`.
 
 mod client;
+mod lvgl_display;
 mod lvgl_render;
 mod model;
 mod tls;
 
-use clap::Parser;
+use std::time::{Duration, Instant};
 
-/// Interpreta una pagina synottico SWS con il motore LVGL (crea i widget
-/// corrispondenti) e riporta un riepilogo di cosa è stato interpretato.
+use clap::Parser;
+use sdl2::event::Event;
+use sdl2::keyboard::Keycode;
+use sdl2::pixels::PixelFormatEnum;
+
+/// Interpreta una pagina synottico SWS con il motore LVGL e la mostra in una
+/// finestra SDL2, aggiornata dal vivo.
 #[derive(Parser, Debug)]
 #[command(version)]
 struct Args {
@@ -59,7 +60,7 @@ fn main() -> anyhow::Result<()> {
         tags.len()
     );
 
-    let summary = lvgl_render::interpret_page(&page, &tags)?;
+    let (summary, _styles) = lvgl_render::interpret_page(&page, &tags)?;
 
     eprintln!(
         "widget LVGL creati correttamente ({}): {}",
@@ -73,8 +74,59 @@ fn main() -> anyhow::Result<()> {
             summary.skipped_unsupported.join(", ")
         );
     }
-    eprintln!(
-        "export immagine non tentato (task_handler() crasherebbe — bug upstream, vedi docs/OPEN_QUESTIONS.md Q14)"
-    );
+
+    // `_styles` deve restare vivo per tutta la finestra (LVGL tiene un
+    // puntatore ai suoi Style, non una copia) — vive nello stack di questa
+    // funzione, che avvolge l'intero event loop, quindi va bene così.
+    run_window(lvgl_render::HOR_RES, lvgl_render::VER_RES)
+}
+
+fn run_window(hor_res: u32, ver_res: u32) -> anyhow::Result<()> {
+    let sdl_context = sdl2::init().map_err(|e| anyhow::anyhow!("sdl2::init: {e}"))?;
+    let video = sdl_context.video().map_err(|e| anyhow::anyhow!("sdl2 video subsystem: {e}"))?;
+    let window = video
+        .window("SWS — LVGL viewer", hor_res, ver_res)
+        .position_centered()
+        .build()?;
+    let mut canvas = window.into_canvas().build()?;
+    let texture_creator = canvas.texture_creator();
+    let mut texture = texture_creator.create_texture_streaming(PixelFormatEnum::RGB24, hor_res, ver_res)?;
+    let mut event_pump = sdl_context.event_pump().map_err(|e| anyhow::anyhow!("event_pump: {e}"))?;
+
+    let mut frame_buf = vec![0u8; (hor_res * ver_res * 3) as usize];
+    let pitch = (hor_res * 3) as usize;
+
+    eprintln!("finestra SDL2 aperta — chiudi la finestra o premi Esc per uscire");
+
+    'running: loop {
+        let frame_start = Instant::now();
+
+        lvgl::task_handler();
+        lvgl::tick_inc(Duration::from_millis(16));
+
+        if lvgl_display::copy_frame_rgb888(&mut frame_buf) {
+            texture
+                .update(None, &frame_buf, pitch)
+                .map_err(|e| anyhow::anyhow!("texture.update: {e}"))?;
+            canvas.clear();
+            canvas
+                .copy(&texture, None, None)
+                .map_err(|e| anyhow::anyhow!("canvas.copy: {e}"))?;
+            canvas.present();
+        }
+
+        for event in event_pump.poll_iter() {
+            match event {
+                Event::Quit { .. } | Event::KeyDown { keycode: Some(Keycode::Escape), .. } => break 'running,
+                _ => {}
+            }
+        }
+
+        let elapsed = frame_start.elapsed();
+        let target = Duration::from_millis(16); // ~60 fps
+        if elapsed < target {
+            std::thread::sleep(target - elapsed);
+        }
+    }
     Ok(())
 }
