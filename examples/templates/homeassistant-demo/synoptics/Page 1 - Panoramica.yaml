@@ -617,3 +617,17 @@ objects:
   max: 70
   fill: "#f59e0b"
   background: "#1c1917"
+- id: ha1_alarm_bell
+  type: alarm_bell
+  x: 20.0
+  y: 476.0
+  width: 130.0
+  height: 34.0
+  alarm_bell_show_history: true
+  alarm_bell_show_shelve: true
+- id: ha1_alarm_banner
+  type: alarm_banner
+  x: 20.0
+  y: 530.0
+  width: 760.0
+  height: 70.0

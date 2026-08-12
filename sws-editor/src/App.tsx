@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api, AuthError, getRuntimeBaseUrl, NoProjectError, PasswordChangeRequiredError, RuntimeUnavailableError, setRuntimeBaseUrl } from "@/api/client";
-import { AlarmBanner } from "@/components/AlarmBanner";
 import { ChangePasswordScreen } from "@/components/ChangePasswordScreen";
 import { BrandLogo } from "@/components/BrandLogo";
 import { DirtyIndicator } from "@/components/DirtyIndicator";
@@ -618,7 +617,6 @@ export function App() {
           </button>
         </div>
       )}
-      <AlarmBanner />
 
       {/* Dev-mode TTL banner: suggests disabling session expiry during development */}
       {devTtlBanner && (

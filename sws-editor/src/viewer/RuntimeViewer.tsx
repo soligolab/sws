@@ -8,7 +8,6 @@ import {
   RuntimeUnavailableError,
 } from "@/api/client";
 import { useAppStore } from "@/store";
-import { AlarmBanner } from "@/components/AlarmBanner";
 import { RuntimeView } from "@/runtime-view/RuntimeView";
 import { pickInitialPageId } from "@/pageLayout";
 import { useProjectWatcher } from "@/ws/projectWatcher";
@@ -55,7 +54,6 @@ export function RuntimeViewer() {
   const { t } = useTranslation();
   const [updatedNotice, setUpdatedNotice] = useState(false);
   const noticeTimer = useRef<number | null>(null);
-  const hideChrome = useAppStore((s) => s.project?.page_layout?.hide_viewer_chrome === true);
   useEffect(() => () => { if (noticeTimer.current) window.clearTimeout(noticeTimer.current); }, []);
   const noActiveProject     = useAppStore((s) => s.noActiveProject);
   const setNoActiveProject  = useAppStore((s) => s.setNoActiveProject);
@@ -167,9 +165,6 @@ export function RuntimeViewer() {
       display: "flex", flexDirection: "column", height: "100vh",
       fontFamily: "system-ui, sans-serif", color: "var(--brand-text, #e2e8f0)", background: "var(--brand-bg, #0f172a)",
     }}>
-      {/* A schermo pieno la fascia allarmi non occupa spazio: sparisce a
-          riposo e compare sovrapposta quando c'è un allarme attivo. */}
-      <AlarmBanner overlay={hideChrome} />
       {updatedNotice && (
         <div style={{
           position: "fixed", top: 12, right: 12, zIndex: 9500,

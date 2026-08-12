@@ -896,6 +896,20 @@ objects:
   font_size: 9
   text_anchor: middle
   color: "#334155"
+- id: cl1_alarm_bell
+  type: alarm_bell
+  x: 20.0
+  y: 536.0
+  width: 130.0
+  height: 34.0
+  alarm_bell_show_history: true
+  alarm_bell_show_shelve: true
+- id: cl1_alarm_banner
+  type: alarm_banner
+  x: 20.0
+  y: 590.0
+  width: 760.0
+  height: 70.0
 
 groups:
 - id: g_header

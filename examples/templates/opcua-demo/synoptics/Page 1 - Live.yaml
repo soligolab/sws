@@ -184,6 +184,20 @@ objects:
   font_size: 9
   text_anchor: middle
   color: "#334155"
+- id: o1_alarm_bell
+  type: alarm_bell
+  x: 20.0
+  y: 516.0
+  width: 130.0
+  height: 34.0
+  alarm_bell_show_history: true
+  alarm_bell_show_shelve: true
+- id: o1_alarm_banner
+  type: alarm_banner
+  x: 20.0
+  y: 570.0
+  width: 840.0
+  height: 70.0
 
 groups:
 - id: g_nav

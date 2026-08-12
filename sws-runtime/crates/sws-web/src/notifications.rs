@@ -24,7 +24,7 @@ use lettre::{
 use tokio::sync::{broadcast, mpsc, RwLock};
 use tokio_util::sync::CancellationToken;
 use tracing::{info, warn};
-use sws_core::{AlarmDb, AlarmState, IsaState, NotificationConfig, SmtpConfig, TelegramRouting};
+use sws_core::{AlarmDb, AlarmState, IsaState, NotificationConfig, SmtpConfig, TagValue, TelegramRouting};
 use crate::telegram::TelegramMessage;
 
 fn now_ms() -> u64 {
@@ -77,15 +77,41 @@ fn send_email_sync(
     Ok(())
 }
 
+/// Render a `TagValue` as plain text for a human, not the `{:?}` derive
+/// (which would show e.g. `Float(230.6)` instead of `230.6`).
+fn fmt_value(v: &TagValue) -> String {
+    match v {
+        TagValue::Bool(b)  => if *b { "true".into() } else { "false".into() },
+        TagValue::Int(i)   => i.to_string(),
+        TagValue::Float(f) => f.to_string(),
+        TagValue::Str(s)   => s.clone(),
+    }
+}
+
+/// `dd/mm/yyyy hh:mm:ss UTC` — the `time` crate is built with only the
+/// `std` feature here (no `formatting`/`local-offset`), so this hand-rolls
+/// the same accessor-based pattern already used in `log_file.rs`/`backups.rs`
+/// instead of pulling in more of the crate. UTC, not local time, for the
+/// same reason: no `local-offset` feature enabled.
+fn fmt_activated_at(ms: Option<u64>) -> String {
+    match ms.and_then(|ms| time::OffsetDateTime::from_unix_timestamp((ms / 1000) as i64).ok()) {
+        Some(dt) => format!(
+            "{:02}/{:02}/{:04} {:02}:{:02}:{:02} UTC",
+            dt.day(), u8::from(dt.month()), dt.year(), dt.hour(), dt.minute(), dt.second(),
+        ),
+        None => "—".into(),
+    }
+}
+
 fn alarm_body(state: &AlarmState, kind: &str) -> String {
     format!(
-        "{kind}\n\nAllarme:   {}\nMessaggio: {}\nSeverità:  {:?}\nTag:       {}\nValore:    {}\nAttivato:  {} ms\n",
+        "{kind}\n\nAllarme:   {}\nMessaggio: {}\nSeverità:  {:?}\nTag:       {}\nValore:    {}\nAttivato:  {}\n",
         state.def.id,
         state.def.message,
         state.def.severity,
         state.def.tag,
-        state.last_value.as_ref().map(|v| format!("{v:?}")).unwrap_or_else(|| "—".into()),
-        state.activated_at_ms.unwrap_or(0),
+        state.last_value.as_ref().map(fmt_value).unwrap_or_else(|| "—".into()),
+        fmt_activated_at(state.activated_at_ms),
     )
 }
 

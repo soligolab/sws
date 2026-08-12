@@ -1362,7 +1362,11 @@ pub async fn set_mqtt_client_id_override(
 
 /// Default per-project SQLite datastore injected when a project has none.
 /// Stores history inside the project directory so it travels with backups.
-fn default_datastore() -> DatastoreConfig {
+///
+/// `pub` (not `pub(crate)`): also called from `sws-runtime`'s boot-time
+/// auto-open path (`main.rs`), a different crate — see the injection there
+/// for why it needs to run in both places.
+pub fn default_datastore() -> DatastoreConfig {
     DatastoreConfig {
         id: "default".into(),
         label: "Storico locale".into(),

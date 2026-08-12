@@ -37,8 +37,38 @@ per il demo Sandokan in modalità web, che è quanto serviva stasera.
   maintainer deve ricompilare/aggiornare il container con questo fix per verificarlo sul pannello
   reale.
 
-**Prossimo passo naturale** (di questa sotto-sessione): merge del branch fix quando confermato;
-poi riprendere il deploy LVGL nativo sul pannello risolvendo prima il gruppo `input` per `user`.
+**Prossimo passo naturale** (di questa sotto-sessione): riprendere il deploy LVGL nativo sul
+pannello risolvendo prima il gruppo `input` per `user`.
+
+**Sessione 2026-08-12 — `alarm_banner` multi-allarme, T-46 (rimozione chrome fissa), bugfix
+storico allarmi al boot**. Nato dal maintainer che testava gli allarmi sul progetto Sandokan e ha
+trovato tre problemi reali
+sull'oggetto `alarm_banner` più uno strutturale mai chiuso (T-46):
+- `alarm_banner` mostrava sempre un solo allarme (il più urgente) ignorando l'altezza data
+  all'oggetto, e non filtrava gli allarmi già confermati. Riscritto: lista scrollabile di tutti
+  gli allarmi non confermati, ACK per riga, quelli confermati spariscono.
+- Bordo inferiore tagliato sugli oggetti a filo del bordo pagina: `overflow: hidden` implicito
+  dell'`<svg>` root del canvas, mai reso esplicito. Fix: `overflow: visible`.
+- **T-46 eseguito**: rimossa la chrome fissa allarmi incondizionata, presente in tre punti
+  (`RuntimeViewer.tsx`, `App.tsx`, e un terzo non previsto a piano — `AdminApp.tsx`, trovato
+  durante l'implementazione) — mai aggiornata al modello per-pagina/opt-in di T-42/T-43. Allarmi
+  ora visibili solo tramite oggetti piazzati esplicitamente.
+- **8 dei 11 template** in `examples/templates/` (quelli con pagine synoptic — `enip-demo`,
+  `s7-demo`, `sparkplug-demo` non ne hanno) allineati con `alarm_bell`+`alarm_banner` sulla
+  pagina principale, altrimenti sarebbero rimasti muti dopo la rimozione della chrome fissa.
+  Posizionamento automatico in basso, proporzionale alla pagina — non verificato a occhio contro
+  ogni template, possibili sovrapposizioni minori da aggiustare.
+- **Bug reale trovato sullo storico allarmi**: il maintainer pensava mancasse del tutto; in realtà
+  esiste già via SQLite (`alarm_events`, dietro `/api/alarms/history`), ma il path di
+  auto-apertura progetto al boot (`main.rs`, il caso normale su un device in produzione) non
+  iniettava il datastore di default che invece riceve l'apertura via HTTP — quindi silenziosamente
+  nessuno store, nessuno storico, su un progetto senza `datastores:` esplicito aperto da solo al
+  boot. Sistemato: stessa iniezione in entrambi i path. **Deciso esplicitamente dal maintainer**:
+  niente nuovo storico JSON a doppio file per allarmi+notifiche (idea iniziale della richiesta,
+  ritirata una volta chiarito che il bug SQLite era la causa reale).
+
+`cargo check --workspace` e `pnpm build` verdi. **Da fare**: verifica visiva/funzionale sul vivo
+(bordo, lista multi-allarme, T-46 su Sandokan, un paio di template).
 
 **Last session**: 2026-08-11 — release **2.0.0**, prima dopo il merge del motore LVGL. Il
 maintainer ha scelto **il `2` per il cambio abbastanza grande da giustificare un major bump**
