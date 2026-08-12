@@ -370,6 +370,7 @@ function TagsTab() {
   const storeProject        = useAppStore((s) => s.project);
   const updateProjectTags   = useAppStore((s) => s.updateProjectTags);
   const tagValues           = useAppStore((s) => s.tagValues);
+  const markSaveOk          = useAppStore((s) => s.markSaveOk);
   const datastoreIds        = storeProject?.datastores?.map((d) => ({ id: d.id, label: d.label })) ?? [];
 
   const [tags, setTags]         = useState<TagDef[]>(storeProject?.tags ?? []);
@@ -412,6 +413,12 @@ function TagsTab() {
       updateProjectTags(valid);
       setTags(valid);
       setSaved(true);
+      // Segnala il salvataggio riuscito allo stesso stato globale che
+      // saveAll() usa per la finestra "è stato un salvataggio nostro" del
+      // watcher progetto (App.tsx) — altrimenti un salvataggio qui, che non
+      // passa da saveAll(), fa comparire il banner "progetto cambiato
+      // esternamente" sulla stessa sessione che ha appena salvato.
+      markSaveOk();
       setTimeout(() => setSaved(false), 4000);
     } finally {
       setSaving(false);
@@ -3961,6 +3968,7 @@ function ProtocolsTab() {
   const storeProject           = useAppStore((s) => s.project);
   const updateProjectSources   = useAppStore((s) => s.updateProjectSources);
   const updateProjectTags      = useAppStore((s) => s.updateProjectTags);
+  const markSaveOk             = useAppStore((s) => s.markSaveOk);
 
   const [sources, setSources]  = useState<SourceDef[]>(storeProject?.sources ?? []);
   const [saving, setSaving]    = useState(false);
@@ -4025,6 +4033,11 @@ function ProtocolsTab() {
         setPendingTags([]);
       }
       setSaved(true);
+      // Vedi commento analogo in TagsTab: segnala il salvataggio riuscito
+      // allo stato globale che alimenta la finestra "salvataggio nostro" del
+      // watcher progetto, altrimenti il banner "cambiato esternamente"
+      // scatta anche sulla sessione che ha appena salvato.
+      markSaveOk();
       setTimeout(() => setSaved(false), 5000);
     } finally {
       setSaving(false);
@@ -4205,6 +4218,7 @@ function AlarmsTab() {
   const storeProject        = useAppStore((s) => s.project);
   const updateProjectAlarms = useAppStore((s) => s.updateProjectAlarms);
   const liveAlarms          = useAppStore((s) => s.alarms);
+  const markSaveOk          = useAppStore((s) => s.markSaveOk);
 
   const [alarms, setAlarms] = useState<AlarmDef[]>(storeProject?.alarms ?? []);
   const [saving, setSaving] = useState(false);
@@ -4234,6 +4248,11 @@ function AlarmsTab() {
       updateProjectAlarms(valid);
       setAlarms(valid);
       setSaved(true);
+      // Vedi commento analogo in TagsTab: segnala il salvataggio riuscito
+      // allo stato globale che alimenta la finestra "salvataggio nostro" del
+      // watcher progetto, altrimenti il banner "cambiato esternamente"
+      // scatta anche sulla sessione che ha appena salvato.
+      markSaveOk();
       setTimeout(() => setSaved(false), 4000);
     } finally {
       setSaving(false);
@@ -6228,7 +6247,18 @@ function FaceplatesTab() {
   }
 
   return (
-    <div style={{ display: "flex", flex: 1, overflow: "hidden", height: "100%" }}>
+    <div style={{ display: "flex", flexDirection: "column", flex: 1, overflow: "hidden", height: "100%" }}>
+      <div style={{
+        padding: "10px 12px", borderBottom: "1px solid var(--brand-surface, #1e293b)",
+        color: "var(--brand-text-muted, #94a3b8)", fontSize: 12.5, lineHeight: 1.5, flexShrink: 0,
+      }}>
+        Un <strong>faceplate</strong> è un blocco grafico riutilizzabile e parametrico: lo definisci
+        una volta qui (con parametri come <code>tag_prefix</code>), poi lo piazzi come oggetto sulle
+        pagine — quante volte vuoi, ognuna con i propri valori (es. un blocco "motore" riusato per
+        motore1/motore2 cambiando solo il prefisso tag). A differenza di un oggetto normale, cambiare
+        il faceplate qui aggiorna tutte le istanze che lo usano.
+      </div>
+      <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
       {/* Left: faceplate list */}
       <div style={{ width: 220, borderRight: "1px solid var(--brand-surface, #1e293b)", display: "flex", flexDirection: "column", overflow: "hidden" }}>
         <div style={{ padding: "10px 12px", borderBottom: "1px solid var(--brand-surface, #1e293b)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -6322,6 +6352,7 @@ function FaceplatesTab() {
           Seleziona o crea un faceplate. I faceplate built-in sono motor_basic, valve_basic, tank_level.
         </div>
       )}
+      </div>
     </div>
   );
 }

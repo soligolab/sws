@@ -45,6 +45,12 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   `TagValue` (es. `Float(230.6000061035156)`) invece del numero; "Attivato" mostrava l'epoch in
   millisecondi invece di data/ora leggibile. Entrambi ora in formato testuale (`230.6`,
   `12/08/2026 15:34:09 UTC`).
+- **Falso positivo "progetto cambiato esternamente"**: il banner (alimentato dal polling
+  `useProjectWatcher` su `/api/project/fingerprint`, con esclusione basata su una finestra di 20s
+  dall'ultimo salvataggio locale) compariva anche quando la modifica arrivava dalla stessa sessione
+  IDE, se fatta dalle tab Tag/Sorgenti/Allarmi — le uniche a non passare da `saveAll()` (l'unico
+  punto che aggiornava la finestra di esclusione). Aggiunta `markSaveOk()` allo store, usata anche
+  da questi tre salvataggi, così alimentano lo stesso segnale.
 
 ### Removed
 
@@ -65,6 +71,9 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   della chrome fissa. Posizionamento in basso, calcolato in proporzione alle dimensioni di
   ciascuna pagina — un primo posizionamento ragionevole, non verificato uno per uno contro il
   contenuto esistente di ogni template (possibili piccole sovrapposizioni da aggiustare a vista).
+- Pannello **Faceplates** (Config → Faceplates): aggiunto un paragrafo esplicativo in testa —
+  cos'è un faceplate (blocco grafico riutilizzabile e parametrico) e come si differenzia da un
+  oggetto normale piazzato a mano.
 
 ## [2.0.0] — 2026-08-11
 

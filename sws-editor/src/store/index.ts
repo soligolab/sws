@@ -256,6 +256,9 @@ interface AppState {
   /** Drop all unsaved-changes state (used when closing a project or logging out). */
   resetDirty: () => void;
   setSaveStatus: (s: "idle" | "saving" | "ok" | "error", e?: string | null) => void;
+  /** Segnala "salvataggio riuscito" per i tab che salvano fuori da saveAll()
+   *  (Tag/Sorgenti/Allarmi) — vedi commento sull'implementazione. */
+  markSaveOk: () => void;
   /** Persist everything: pending section drafts first, then all pages and
    *  (for Admins) the project-level collections. Callable from any mode. */
   saveAll: () => Promise<void>;
@@ -1609,6 +1612,20 @@ export const useAppStore = create<AppState>((set, get) => {
     remoteDeployStatus: "idle",
 
     setSaveStatus: (saveStatus, saveError = null) => set({ saveStatus, saveError }),
+
+    /** Per i salvataggi che non passano da saveAll() (tab Tag/Sorgenti/Allarmi
+     *  in ConfigView, che salvano da sole) ma devono comunque alimentare
+     *  `lastLocalSaveAt` in App.tsx — altrimenti il watcher del progetto
+     *  scambia il loro salvataggio per un cambio esterno. Stesso
+     *  saveOkTimer di saveAll() così i due non si pestano i piedi. */
+    markSaveOk: () => {
+      if (saveOkTimer !== null) { window.clearTimeout(saveOkTimer); saveOkTimer = null; }
+      set({ saveStatus: "ok" });
+      saveOkTimer = window.setTimeout(() => {
+        saveOkTimer = null;
+        if (get().saveStatus === "ok") set({ saveStatus: "idle" });
+      }, 2000);
+    },
 
     registerPendingSection: (key, save) =>
       set((s) => {
