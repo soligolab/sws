@@ -10,7 +10,6 @@ import {
   setForceLocalApi,
   setRuntimeBaseUrl,
 } from "@/api/client";
-import { AlarmBanner } from "@/components/AlarmBanner";
 import { ChangePasswordScreen } from "@/components/ChangePasswordScreen";
 import { LoginScreen } from "@/components/LoginScreen";
 import { ReAuthModal } from "@/components/ReAuthModal";
@@ -227,8 +226,6 @@ export function AdminApp() {
         <button style={HDR_BTN} onClick={handleCloseProject}>Chiudi progetto</button>
         <button style={HDR_BTN} onClick={handleLogout}>Esci</button>
       </header>
-
-      <AlarmBanner />
 
       <main style={{ display: "flex", flex: 1, overflow: "hidden" }}>
         <ConfigView />

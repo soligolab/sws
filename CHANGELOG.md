@@ -28,6 +28,43 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   viva sullo stesso broker, il broker disconnette una delle due per spec MQTT — sintomo:
   connessione MQTT che funziona qualche minuto poi si ferma. Ora entrambi i path chiamano
   `resolve_mqtt_client_ids` prima del reload, come `apply_loaded_project`.
+- **`alarm_banner`**: mostrava un solo allarme (il più urgente) indipendentemente dall'altezza data
+  all'oggetto, e non filtrava quelli già confermati (ACK). Riscritto per mostrare l'elenco
+  completo degli allarmi non confermati (`active_unacked`/`normal_unacked`), scrollabile, con ACK
+  per riga — gli allarmi con conferma già data non compaiono più.
+- **Bordo tagliato sugli oggetti a filo del bordo pagina**: l'`<svg>` root del canvas non aveva
+  `overflow` esplicito → ereditava `hidden` di default, che tagliava l'ultimo pixel (bordo
+  compreso) di un oggetto posizionato esattamente a `pageWidth`/`pageHeight`. Aggiunto
+  `overflow: visible`.
+- **Storico allarmi assente sui device che aprono il progetto da soli al boot** (il caso normale
+  in produzione): il path di auto-apertura in `main.rs` non iniettava il datastore SQLite di
+  default che invece riceve l'apertura via HTTP (`open_project`) quando `project.yaml` non ha
+  `datastores:` esplicito — quindi nessuno store, nessun `journal_callback`, storico allarmi
+  silenziosamente vuoto. Ora entrambi i path iniettano lo stesso datastore di default.
+- **Testo notifiche allarme (email/Telegram)**: il campo "Valore" mostrava il `{:?}` grezzo di
+  `TagValue` (es. `Float(230.6000061035156)`) invece del numero; "Attivato" mostrava l'epoch in
+  millisecondi invece di data/ora leggibile. Entrambi ora in formato testuale (`230.6`,
+  `12/08/2026 15:34:09 UTC`).
+
+### Removed
+
+- **Chrome fissa allarmi (T-46)**: rimossa la fascia allarmi globale incondizionata da tre punti
+  (`RuntimeViewer.tsx` — runtime operatore, `App.tsx` — IDE, `AdminApp.tsx` — admin), mai
+  aggiornata a rispettare il modello per-pagina/opt-in introdotto da T-42/T-43 (`alarm_bell`/
+  `alarm_banner` come oggetti piazzabili). Allarmi ora visibili solo tramite oggetti
+  esplicitamente piazzati in pagina, coerente su tutte le viste.
+- Modalità `overlay` di `AlarmBanner.tsx` (chrome fissa storica, `position: fixed`) — codice morto
+  dopo la rimozione sopra, il componente ha ora un solo modo di funzionare (oggetto piazzabile).
+
+### Changed
+
+- Allineati alla nuova convenzione i template in `examples/templates/` che hanno pagine synoptic
+  (8 su 11 — `enip-demo`/`s7-demo`/`sparkplug-demo` non hanno synoptics, solo tag/allarmi):
+  aggiunto un `alarm_bell` + `alarm_banner` alla pagina principale di ciascuno, altrimenti
+  sarebbero rimasti "muti" (allarmi definiti ma senza alcuna indicazione visiva) dopo la rimozione
+  della chrome fissa. Posizionamento in basso, calcolato in proporzione alle dimensioni di
+  ciascuna pagina — un primo posizionamento ragionevole, non verificato uno per uno contro il
+  contenuto esistente di ogni template (possibili piccole sovrapposizioni da aggiustare a vista).
 
 ## [2.0.0] — 2026-08-11
 

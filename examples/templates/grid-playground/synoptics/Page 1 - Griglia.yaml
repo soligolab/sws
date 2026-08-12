@@ -451,6 +451,20 @@ objects:
   transition_duration_ms: 300
   bindings:
     opacity: demo.opacity
+- id: gp1_alarm_bell
+  type: alarm_bell
+  x: 20.0
+  y: 576.0
+  width: 130.0
+  height: 34.0
+  alarm_bell_show_history: true
+  alarm_bell_show_shelve: true
+- id: gp1_alarm_banner
+  type: alarm_banner
+  x: 20.0
+  y: 630.0
+  width: 860.0
+  height: 70.0
 
 groups:
 - id: g_header

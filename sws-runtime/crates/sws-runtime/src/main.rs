@@ -419,7 +419,7 @@ async fn main() -> anyhow::Result<()> {
         // runtime did, then mark this dir as active.
         supervisor.set_pki_root(project_path.join(".opcua-pki")).await;
         match sws_core::project::Project::load(&project_path) {
-            Ok(project) => {
+            Ok(mut project) => {
                 // Notifiche e script globali si mettono da parte: i loro
                 // supervisori vivono in AppState, che nasce in router::build()
                 // più sotto, quindi non si possono avviare adesso — vedi
@@ -431,6 +431,18 @@ async fn main() -> anyhow::Result<()> {
                 // dimenticato restava invisibile finché non serviva — storico,
                 // notifiche e più di recente la risoluzione del client_id MQTT
                 // sono finiti mancanti così, in tre occasioni separate.
+                //
+                // Stesso motivo per l'iniezione qui sotto: `open_project`
+                // inietta un datastore SQLite di default quando il progetto
+                // non ne ha uno esplicito in project.yaml, ma questo path di
+                // auto-apertura al boot — il caso normale in un device in
+                // campo — non lo faceva. Un progetto senza `datastores:`
+                // esplicito partiva quindi senza storico allarmi, in
+                // silenzio: nessuno store SQLite, nessun `journal_callback`
+                // agganciato in `apply_loaded_project`.
+                if project.datastores.is_empty() {
+                    project.datastores.push(sws_web::projects::default_datastore());
+                }
                 let (notifications, global_scripts) = sws_web::projects::apply_loaded_project(
                     &project_path, project,
                     &tag_db, &registry, &historian, &alarm_db, &supervisor,

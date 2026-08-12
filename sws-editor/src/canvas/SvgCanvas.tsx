@@ -1163,6 +1163,10 @@ export function SvgCanvas({
         return { width: "100%", height: "100%", viewBox: `0 0 ${pageWidth} ${pageHeight}`, preserveAspectRatio: "xMidYMid meet" };
       })()}
       style={{ background, display: "block", userSelect: "none",
+               // Senza questo, l'overflow:hidden implicito di <svg> taglia
+               // l'ultimo pixel (bordo compreso) di qualunque oggetto
+               // posizionato a filo con pageWidth/pageHeight.
+               overflow: "visible",
                cursor: panDragRef.current ? "grabbing" : undefined }}
       onMouseDown={handleSvgMouseDown}
       onClick={() => {
@@ -3827,7 +3831,6 @@ function SvgObject(p: ObjProps) {
         {selRect(obj.x, obj.y, w, h)}
         <foreignObject x={obj.x} y={obj.y} width={w} height={h}>
           <AlarmBanner
-            boxed
             idPrefix={obj.alarm_banner_id_prefix}
             allowedSev={obj.alarm_banner_severities}
           />

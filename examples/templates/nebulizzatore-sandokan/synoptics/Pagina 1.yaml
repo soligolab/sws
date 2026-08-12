@@ -152,3 +152,17 @@ objects:
   tag: sandokan.voltage
   line_color: "#a855f7"
   window_s: 3600
+- id: sand1_alarm_bell
+  type: alarm_bell
+  x: 20.0
+  y: 776.0
+  width: 130.0
+  height: 34.0
+  alarm_bell_show_history: true
+  alarm_bell_show_shelve: true
+- id: sand1_alarm_banner
+  type: alarm_banner
+  x: 20.0
+  y: 830.0
+  width: 860.0
+  height: 70.0

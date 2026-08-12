@@ -295,3 +295,17 @@ objects:
     text: "Prossimi widget arrivano qui sotto"
     font_size: 12.0
     color: "#5b6b85"
+  - id: lvgl1_alarm_bell
+    type: alarm_bell
+    x: 20.0
+    y: 656.0
+    width: 130.0
+    height: 34.0
+    alarm_bell_show_history: true
+    alarm_bell_show_shelve: true
+  - id: lvgl1_alarm_banner
+    type: alarm_banner
+    x: 20.0
+    y: 710.0
+    width: 1240.0
+    height: 70.0
