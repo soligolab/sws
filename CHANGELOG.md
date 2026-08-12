@@ -11,6 +11,24 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### Fixed
+
+- **Log Remoti (ConfigView)**: il pannello faceva un fetch diretto dal browser a
+  `{target}/api/auth/login` + `/api/logs`, che fallisce silenziosamente contro un runtime remoto
+  in HTTPS con certificato self-signed (il browser non può essere istruito ad accettarlo) —
+  codice pre-refactor mai migrato al relay `/ws/remote/logs` già usato dalla vista "Live tags".
+  Riscritto sullo stesso pattern: WebSocket via backend locale, niente credenziali duplicate nel
+  browser, niente polling a intervalli (il relay già fa live-tail).
+- **Client ID MQTT random non risolto su reload**: `resolve_mqtt_client_ids` (che compone
+  `client_id` + `instance_id` persistente quando `random_client_id.enabled` è attivo) veniva
+  chiamato solo da `apply_loaded_project` (boot/apertura progetto) e dall'override manuale, ma
+  non da `system_start` (`POST /api/system/start`, bottone "Start" dell'editor) né dal reload
+  dopo import di un bundle synoptic — questi due path passavano al supervisor il `client_id`
+  letterale del progetto, senza suffisso random. Se quell'id nudo collide con un'altra sessione
+  viva sullo stesso broker, il broker disconnette una delle due per spec MQTT — sintomo:
+  connessione MQTT che funziona qualche minuto poi si ferma. Ora entrambi i path chiamano
+  `resolve_mqtt_client_ids` prima del reload, come `apply_loaded_project`.
+
 ## [2.0.0] — 2026-08-11
 
 **Cambio di schema di versioning**: da CalVer (`YYYY.M.PATCH`) a Semantic Versioning

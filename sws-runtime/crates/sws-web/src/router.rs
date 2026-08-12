@@ -2437,6 +2437,7 @@ async fn import_project_zip(State(s): State<AppState>, body: Bytes) -> Response 
         s.db.remove(id).await;
     }
     s.alarms.load(project.alarms.clone()).await;
+    crate::projects::resolve_mqtt_client_ids(&project.meta.name, &mut project.sources, &s.config_dir, &s.instance_id);
     s.supervisor.reload(project.sources.clone()).await;
     {
         let mut map = s.functions.write().await;

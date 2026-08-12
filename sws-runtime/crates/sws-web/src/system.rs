@@ -148,13 +148,14 @@ pub async fn system_start(State(s): State<AppState>) -> StatusCode {
         Ok(d) => d,
         Err(_) => return StatusCode::SERVICE_UNAVAILABLE,
     };
-    let project = match sws_core::Project::load(&project_dir) {
+    let mut project = match sws_core::Project::load(&project_dir) {
         Ok(p) => p,
         Err(e) => {
             tracing::warn!("system_start: project load failed: {e:#}");
             return StatusCode::INTERNAL_SERVER_ERROR;
         }
     };
+    crate::projects::resolve_mqtt_client_ids(&project.meta.name, &mut project.sources, &s.config_dir, &s.instance_id);
     s.supervisor.reload(project.sources).await;
     crate::projects::start_project_services(&s, project.notifications, project.global_scripts).await;
     tracing::info!("runtime acquisition started by operator");
