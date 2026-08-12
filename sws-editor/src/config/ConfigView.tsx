@@ -6896,8 +6896,6 @@ function NotificationsTab() {
 
 // ── RuntimeConnectionTab ─────────────────────────────────────────────────────
 
-interface RemoteLog { ts_ms: number; level: string; message: string; }
-
 const RT_URL_KEY  = "sws.runtime.targetUrl";
 const RT_USER_KEY = "sws.runtime.targetUser";
 const RT_PASS_KEY = "sws.runtime.targetPass";
@@ -6921,11 +6919,6 @@ function RuntimeConnectionTab() {
   const [remoteMsg, setRemoteMsg]   = useState<string | null>(null);
   const [discovering, setDiscovering] = useState(false);
   const [discovered, setDiscovered]   = useState<DiscoveredRuntime[] | null>(null);
-  const [remoteLogs, setRemoteLogs]   = useState<RemoteLog[] | null>(null);
-  const [logFetching, setLogFetching] = useState(false);
-  const [logLive, setLogLive]         = useState(false);
-  const logsWsRef = useRef<WebSocket | null>(null);
-  const logsCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // On mount: remove stale localStorage key, sync actual state from server.
   useEffect(() => {
@@ -7001,7 +6994,6 @@ function RuntimeConnectionTab() {
   const handleDisconnect = useCallback(() => {
     void api.remoteDisconnect().catch(() => {});
     setStatus("idle"); setStatusMsg(null); setDeployLog([]); setDeployDone(false);
-    setRemoteLogs(null); setLogLive(false);
     setRemoteConnected(false);
     window.dispatchEvent(new CustomEvent("sws:runtime-disconnected"));
   }, [setRemoteConnected]);
@@ -7106,53 +7098,6 @@ function RuntimeConnectionTab() {
       setDiscovering(false);
     }
   };
-
-  // Log Remoti: relayed through the local backend's /ws/remote/logs (same
-  // pattern as the live tag panel below), never a direct browser fetch to
-  // `target` — a raw fetch can't accept the remote's self-signed HTTPS cert
-  // and duplicates auth via a second, easily-stale credential pair.
-  const closeLogsSocket = useCallback(() => {
-    if (logsCloseTimerRef.current) { clearTimeout(logsCloseTimerRef.current); logsCloseTimerRef.current = null; }
-    logsWsRef.current?.close();
-    logsWsRef.current = null;
-  }, []);
-
-  const openLogsSocket = useCallback((keepOpen: boolean) => {
-    closeLogsSocket();
-    setLogFetching(true);
-    setRemoteLogs([]);
-    const scheme = window.location.protocol === "https:" ? "wss" : "ws";
-    const token  = getAuthToken();
-    const url    = `${scheme}://${window.location.host}/ws/remote/logs${token ? `?token=${encodeURIComponent(token)}` : ""}`;
-    const ws = new WebSocket(url);
-    logsWsRef.current = ws;
-    ws.onopen = () => {
-      setLogFetching(false);
-      if (!keepOpen) {
-        // Grab the initial history burst the server sends on connect, then
-        // disconnect — reproduces the old one-shot "Aggiorna" without polling.
-        logsCloseTimerRef.current = setTimeout(() => closeLogsSocket(), 400);
-      }
-    };
-    ws.onmessage = (ev) => {
-      try {
-        const event = JSON.parse(ev.data as string) as RemoteLog;
-        setRemoteLogs((prev) => [...(prev ?? []), event].slice(-500));
-      } catch { /* ignore malformed frames */ }
-    };
-    ws.onerror = () => { setLogFetching(false); closeLogsSocket(); };
-  }, [closeLogsSocket]);
-
-  const fetchRemoteLogs = useCallback(() => { openLogsSocket(logLive); }, [openLogsSocket, logLive]);
-
-  useEffect(() => {
-    if (status !== "connected") { closeLogsSocket(); return; }
-    if (logLive) openLogsSocket(true); else closeLogsSocket();
-  }, [status, logLive]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  useEffect(() => {
-    if (status !== "connected") setLogLive(false);
-  }, [status]);
 
   const fetchPackages = useCallback(async () => {
     try { const pkgs = await api.listPackages(); setPackages(pkgs); if (pkgs.length > 0 && !selectedPkg) setSelectedPkg(pkgs[0].name); }
@@ -7449,7 +7394,12 @@ function RuntimeConnectionTab() {
                       key={r.admin_url}
                       style={{ display: "flex", alignItems: "center", gap: 8, padding: "3px 0",
                         borderBottom: "1px solid var(--brand-surface, #1e293b)", cursor: "pointer" }}
-                      onClick={() => { setTargetUrl(r.admin_url); if (connected) handleDisconnect(); setDiscovered(null); }}
+                      onClick={() => {
+                        setTargetUrl(r.admin_url);
+                        try { setDeviceHost(new URL(r.admin_url).hostname); } catch { /* invalid URL — leave Host SSH untouched */ }
+                        if (connected) handleDisconnect();
+                        setDiscovered(null);
+                      }}
                     >
                       <span style={{ fontSize: 12, color: "var(--brand-text-muted, #94a3b8)", flex: 1 }}>
                         {r.name}{r.version ? ` v${r.version}` : ""}
@@ -7592,45 +7542,19 @@ function RuntimeConnectionTab() {
         </section>
       )}
 
-      {/* Remote logs */}
+      {/* Remote logs: non più un pannello a parte — confluiscono nello stesso
+          log viewer dei log locali (cassetto in basso, ☰ Menu → Log), con
+          target prefissato "remote:" così il filtro esistente li isola. Vedi
+          useRemoteLogStream (sws-editor/src/ws/remoteLogStream.ts). */}
       {connected && (
         <section>
           <div style={{ fontSize: 13, fontWeight: 600, color: "var(--brand-text-muted, #94a3b8)", marginBottom: 8, textTransform: "uppercase", letterSpacing: 1 }}>
             Log remoti
           </div>
-          <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
-            <button style={{ ...BTN, opacity: logFetching ? 0.6 : 1 }} disabled={logFetching}
-              onClick={() => { void fetchRemoteLogs(); }}>
-              {logFetching ? "Carico…" : "Aggiorna"}
-            </button>
-            <button style={{ ...BTN, border: logLive ? "1px solid var(--brand-success-soft, #4ade80)" : undefined, color: logLive ? "var(--brand-success-soft, #4ade80)" : undefined }}
-              onClick={() => setLogLive((v) => !v)}>
-              ● Live
-            </button>
-          </div>
-          <div style={{
-            background: "var(--brand-bg, #020617)", border: "1px solid var(--brand-surface, #1e293b)", borderRadius: 4,
-            padding: "8px 10px", maxHeight: 200, overflowY: "auto",
-            fontFamily: "monospace", fontSize: 11,
-          }}>
-            {remoteLogs === null
-              ? <span style={{ color: "var(--brand-border, #475569)" }}>Nessun log caricato. Premi Aggiorna.</span>
-              : remoteLogs.length === 0
-                ? <span style={{ color: "var(--brand-border, #475569)" }}>Nessun log disponibile.</span>
-                : remoteLogs.map((l, i) => {
-                    const lvl = l.level.toUpperCase();
-                    const color = lvl === "WARN" ? "#fb923c" : lvl === "ERROR" ? "var(--brand-danger-soft, #f87171)" : lvl === "DEBUG" ? "var(--brand-border, #475569)" : "var(--brand-text-muted, #94a3b8)";
-                    const ts = new Date(l.ts_ms).toLocaleTimeString("it-IT");
-                    return (
-                      <div key={i} style={{ color, marginBottom: 1 }}>
-                        <span style={{ color: "var(--brand-border, #475569)", marginRight: 6 }}>{ts}</span>
-                        <span style={{ marginRight: 6 }}>{lvl}</span>
-                        {l.message}
-                      </div>
-                    );
-                  })
-            }
-          </div>
+          <span style={{ fontSize: 12, color: "var(--brand-text-subtle, #64748b)" }}>
+            I log del runtime connesso appaiono nel cassetto log dell'IDE (☰ Menu → Log) —
+            filtrali scrivendo <code>remote:</code> nel campo di ricerca per tag.
+          </span>
         </section>
       )}
 
@@ -8142,6 +8066,7 @@ interface DeviceState {
 
 function DevicesTab() {
   const { t } = useTranslation();
+  const setRemoteConnected = useAppStore((s) => s.setRemoteConnected);
   const [devices, setDevices] = useState<SavedDevice[]>(() => {
     try { return JSON.parse(localStorage.getItem(DEVICES_KEY) ?? "[]"); }
     catch { return []; }
@@ -8209,12 +8134,22 @@ function DevicesTab() {
     return () => clearInterval(timer);
   }, [devices, checkAll]);
 
-  const handleConnect = (device: SavedDevice) => {
+  const handleConnect = async (device: SavedDevice) => {
     localStorage.setItem(RT_URL_KEY, device.url);
     localStorage.setItem(RT_USER_KEY, device.user);
     localStorage.setItem(RT_PASS_KEY, device.pass);
-    localStorage.removeItem(RT_CONN_KEY);
-    window.dispatchEvent(new CustomEvent("sws:runtime-connected", { detail: { url: device.url } }));
+    // Prima non chiamava mai l'API di connessione — scriveva solo le
+    // credenziali in localStorage e sparava l'evento, quindi "Connetti" non
+    // connetteva davvero nulla (vedi anche RuntimeConnectionTab.handleConnect,
+    // stesso schema).
+    try {
+      const result = await api.remoteConnect(device.url, device.user || undefined, device.pass || undefined);
+      if (!result.ok) throw new Error(result.error ?? "Connessione fallita");
+      setRemoteConnected(true, device.url);
+      window.dispatchEvent(new CustomEvent("sws:runtime-connected", { detail: { url: device.url } }));
+    } catch (e) {
+      console.warn("DevicesTab: connessione fallita", e);
+    }
   };
 
   const handleDeploy = async (device: SavedDevice) => {

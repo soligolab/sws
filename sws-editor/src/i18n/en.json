@@ -71,6 +71,7 @@
     "saveAndClose": "Save and close",
     "deployConnectedTitle": "Connected — save to sync automatically. Click to disconnect.",
     "deployConfigTitle": "Click to configure the connection to the remote runtime",
+    "deployReconnectTitle": "Click to reconnect to {{url}}",
     "openViewer": "🖥 Viewer ↗",
     "openViewerTitle": "Open {{url}} in a new tab. Checks that it responds first.",
     "viewerProbing": "🖥 Checking…",
