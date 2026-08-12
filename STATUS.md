@@ -20,7 +20,7 @@ prima un fix ai permessi (`usermod -aG input user`, proposto ma non ancora fatto
 prossima sessione). Il runtime web (porta 8443, container `user`) resta comunque su e sufficiente
 per il demo Sandokan in modalità web, che è quanto serviva stasera.
 
-**Due bug trovati e corretti** (branch `fix/remote-logs-mqtt-clientid`, non ancora mergiato):
+**Due bug trovati e corretti**:
 - **Log Remoti (ConfigView)** non caricava nulla contro il pannello: faceva un fetch diretto dal
   browser a `{target}/api/auth/login`+`/api/logs`, che fallisce silenziosamente su HTTPS con
   certificato self-signed. Riscritto sul relay `/ws/remote/logs` già usato dalla vista Live tags
@@ -69,6 +69,25 @@ sull'oggetto `alarm_banner` più uno strutturale mai chiuso (T-46):
 
 `cargo check --workspace` e `pnpm build` verdi. **Da fare**: verifica visiva/funzionale sul vivo
 (bordo, lista multi-allarme, T-46 su Sandokan, un paio di template).
+
+**Sessione 2026-08-12 — falso positivo "progetto cambiato esternamente" + testo Faceplates**. Il
+maintainer ha notato che, connesso dall'IDE a un runtime, modificando Tag/Sorgenti/Allarmi il
+banner "⟳ Il progetto sul
+runtime è cambiato (deploy o modifica esterna)" compariva anche sulla propria sessione. Causa:
+solo `saveAll()` (Sinottici/Funzioni/Simboli custom) aggiornava la finestra di esclusione "è stato
+un salvataggio nostro" che `App.tsx` usa contro il polling di `useProjectWatcher` — Tag/Sorgenti/
+Allarmi salvano da soli e non la toccavano mai. Aggiunta un'azione `markSaveOk()` allo store
+(riusa lo stesso `saveOkTimer` di `saveAll()`, altrimenti l'indicatore "✓ Salvato" nel menu
+sarebbe rimasto bloccato) e usata dai tre salvataggi mancanti. Nessun cambio al backend né al
+meccanismo di polling stesso (è deliberatamente stateless, per intercettare anche cambi non-API).
+
+Anche aggiunto un paragrafo esplicativo in testa al pannello Faceplates (Config → Faceplates):
+il maintainer non ne capiva subito lo scopo — è un blocco grafico riutilizzabile/parametrico,
+diverso dal significato di "faceplate" in altri SCADA (popup di dettaglio di un asset).
+
+`pnpm build` verde. **Da fare**: verifica sul vivo (modificare Tag/Sorgenti/Allarmi dall'IDE
+connesso a un runtime, confermare che il banner non compaia più sulla stessa sessione ma compaia
+ancora per cambi genuinamente esterni).
 
 **Last session**: 2026-08-11 — release **2.0.0**, prima dopo il merge del motore LVGL. Il
 maintainer ha scelto **il `2` per il cambio abbastanza grande da giustificare un major bump**
