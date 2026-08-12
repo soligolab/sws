@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import {
   api,
@@ -81,36 +81,24 @@ export function AdminApp() {
     return () => setForceLocalApi(false);
   }, []);
 
-  // Runtime connection status — persisted in localStorage by RuntimeConnectionTab.
-  const [rtConnected, setRtConnected] = useState(
-    () => localStorage.getItem("sws.runtime.connected") === "1"
-  );
+  // Runtime connection status — letto direttamente dallo store (vedi
+  // App.tsx per lo stesso cambio e il perché: uno specchio locale via
+  // localStorage/eventi poteva disallinearsi da Configurazione → Runtime).
+  const remoteConnected    = useAppStore((s) => s.remoteConnected);
+  const setRemoteConnected = useAppStore((s) => s.setRemoteConnected);
 
-  // Listen for connect/disconnect events emitted by RuntimeConnectionTab.
-  useEffect(() => {
-    const onConn = () => setRtConnected(true);
-    const onDisc = () => setRtConnected(false);
-    window.addEventListener("sws:runtime-connected", onConn);
-    window.addEventListener("sws:runtime-disconnected", onDisc);
-    return () => {
-      window.removeEventListener("sws:runtime-connected", onConn);
-      window.removeEventListener("sws:runtime-disconnected", onDisc);
-    };
-  }, []);
-
-  const handleRuntimeStatusClick = () => {
-    if (rtConnected) {
+  const handleRuntimeStatusClick = async () => {
+    if (remoteConnected) {
       if (window.confirm(t("admin.disconnectConfirm"))) {
-        localStorage.removeItem("sws.runtime.connected");
-        setRtConnected(false);
-        window.dispatchEvent(new CustomEvent("sws:runtime-disconnected"));
+        try { await api.remoteDisconnect(); } catch { /* già scollegato lato server, ignora */ }
+        setRemoteConnected(false);
       }
     } else {
       navigateToConfig("runtime");
     }
   };
 
-  const RTN_BTN: React.CSSProperties = rtConnected
+  const RTN_BTN: React.CSSProperties = remoteConnected
     ? { ...HDR_BTN, background: "#14532d", color: "var(--brand-success-soft, #4ade80)", border: "1px solid #16a34a" }
     : HDR_BTN;
 
@@ -220,8 +208,8 @@ export function AdminApp() {
             </span>
           )}
         </span>
-        <button style={RTN_BTN} onClick={handleRuntimeStatusClick} title={rtConnected ? t("admin.runtimeConnectedTitle") : t("admin.runtimeConfigTitle")}>
-          {rtConnected ? "● Connesso" : t("admin.connectRuntime")}
+        <button style={RTN_BTN} onClick={handleRuntimeStatusClick} title={remoteConnected ? t("admin.runtimeConnectedTitle") : t("admin.runtimeConfigTitle")}>
+          {remoteConnected ? "● Connesso" : t("admin.connectRuntime")}
         </button>
         <button style={HDR_BTN} onClick={handleCloseProject}>Chiudi progetto</button>
         <button style={HDR_BTN} onClick={handleLogout}>Esci</button>

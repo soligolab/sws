@@ -89,6 +89,35 @@ diverso dal significato di "faceplate" in altri SCADA (popup di dettaglio di un 
 connesso a un runtime, confermare che il banner non compaia più sulla stessa sessione ma compaia
 ancora per cambi genuinamente esterni).
 
+**Sessione 2026-08-12 — Deploy button, autofill Host SSH, Log Remoti unificati, pulsante allarmi
+residuo**. Quattro segnalazioni indipendenti del maintainer sull'IDE e sul runtime deployato:
+- **Deploy button**: disconnettersi da lì non chiamava nemmeno `api.remoteDisconnect()` (la
+  sessione restava viva lato server) e non si rifletteva in Configurazione→Runtime — tre fonti di
+  stato indipendenti (`App.tsx`, `AdminApp.tsx`, `RuntimeConnectionTab`). Consolidato sullo store
+  Zustand come unica fonte di verità in `App.tsx`/`AdminApp.tsx`; aggiunta una riconnessione
+  esplicita all'ultimo dispositivo. Trovato anche, sistemando questo, che il "Connetti" nella tab
+  Dispositivi salvati non chiamava mai l'API di connessione — stesso bug lato opposto, corretto.
+- **"Cerca runtime"** ora compila anche "Host SSH" dall'hostname del dispositivo scoperto.
+- **"Log Remoti"**: pannello rimosso (faceva un fetch diretto rotto, mai passato dal relay
+  `/ws/remote/logs` già esistente lato backend). I log del runtime remoto confluiscono ora nello
+  stesso log viewer dei log locali (nuovo hook `useRemoteLogStream`), taggati `remote:` per il
+  filtro già esistente — corrisponde a quanto il maintainer si aspettava.
+- **Pulsante allarmi residuo**: un secondo pezzo di chrome fissa mai trovato prima (`AlarmPanel`
+  in `RuntimeView.tsx`, distinto dalla `<AlarmBanner>` già rimossa la sessione precedente) — ora
+  rimosso anche questo.
+
+`pnpm build` verde.
+
+**Mergiati su `main`** i quattro branch di fix accumulati in questa giornata (uno squash-merge
+ciascuno, in ordine cronologico: `fix/remote-logs-mqtt-clientid`, `feat/alarm-banner-list-t46`,
+`fix/project-changed-false-positive`, `fix/deploy-btn-log-remoti-alarm-panel`) — non restavano
+sincronizzati fra loro (es. `AdminApp.tsx` toccato da più branch in punti diversi) e ogni
+container costruito da un branch specifico non conteneva i fix degli altri. `cargo check
+--workspace` e `pnpm build` verificati verdi dopo ogni squash-merge. Branch non cancellati (pulizia
+a discrezione del maintainer, per convenzione di questo progetto). **Prossimo passo naturale**:
+il maintainer ricompila/pubblica un nuovo container da `main` per avere tutti i fix insieme sul
+pannello.
+
 **Last session**: 2026-08-11 — release **2.0.0**, prima dopo il merge del motore LVGL. Il
 maintainer ha scelto **il `2` per il cambio abbastanza grande da giustificare un major bump**
 (il motore LVGL) e con l'occasione ha abbandonato **CalVer** a favore di **Semantic Versioning**

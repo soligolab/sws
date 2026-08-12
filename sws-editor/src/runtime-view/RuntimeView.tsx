@@ -5,7 +5,6 @@ import { getBrand } from "@/branding";
 import { SvgCanvas } from "@/canvas/SvgCanvas";
 import { viewerFitScale, effectiveSizeMode } from "@/pageLayout";
 import { resolvePageBackground } from "@/theme";
-import { AlarmBellPanel } from "@/components/AlarmBellPanel";
 import { RecipePanel } from "@/components/RecipePanel";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { UiLangSelect } from "@/components/UiLangSelect";
@@ -81,23 +80,6 @@ function ScriptToasts({ toasts, onClose }: { toasts: ScriptToast[]; onClose: (id
           </div>
         );
       })}
-    </div>
-  );
-}
-
-// ── Alarm panel (operator ACK) ───────────────────────────────────────────────
-//
-// Floating top-right panel listing active alarms with per-row ACK. Logica
-// completa in `AlarmBellPanel` (condivisa con l'oggetto SCADA piazzabile
-// `alarm_bell`, T-42) — qui resta solo il posizionamento fisso storico.
-//
-// `bellTop`: offset verticale della campanella. Era 80 hardcoded, numero che
-// assumeva l'esistenza di entrambe le fasce (allarmi 33 + nav 37 + margine).
-// A schermo pieno quelle fasce non ci sono e la campanella deve salire.
-function AlarmPanel({ bellTop = 80 }: { bellTop?: number }) {
-  return (
-    <div style={{ position: "fixed", top: bellTop, right: 16, zIndex: 7500, width: 130, height: 34, pointerEvents: "auto" }}>
-      <AlarmBellPanel />
     </div>
   );
 }
@@ -419,10 +401,6 @@ export function RuntimeView() {
           onNavigate={setCurrentPage}
         />
       </div>
-
-      {/* Alarm panel (top-right floating, dropdown with per-row ACK) */}
-      {/* A schermo pieno non c'è chrome sopra: la campanella sale in alto. */}
-      <AlarmPanel bellTop={hideChrome ? 12 : 80} />
 
       {/* Function test panel (bottom-left floating — operator picks a
           project function, edits parameter overrides, runs ad-hoc). */}

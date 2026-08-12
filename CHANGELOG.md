@@ -13,12 +13,6 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ### Fixed
 
-- **Log Remoti (ConfigView)**: il pannello faceva un fetch diretto dal browser a
-  `{target}/api/auth/login` + `/api/logs`, che fallisce silenziosamente contro un runtime remoto
-  in HTTPS con certificato self-signed (il browser non può essere istruito ad accettarlo) —
-  codice pre-refactor mai migrato al relay `/ws/remote/logs` già usato dalla vista "Live tags".
-  Riscritto sullo stesso pattern: WebSocket via backend locale, niente credenziali duplicate nel
-  browser, niente polling a intervalli (il relay già fa live-tail).
 - **Client ID MQTT random non risolto su reload**: `resolve_mqtt_client_ids` (che compone
   `client_id` + `instance_id` persistente quando `random_client_id.enabled` è attivo) veniva
   chiamato solo da `apply_loaded_project` (boot/apertura progetto) e dall'override manuale, ma
@@ -51,6 +45,33 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   IDE, se fatta dalle tab Tag/Sorgenti/Allarmi — le uniche a non passare da `saveAll()` (l'unico
   punto che aggiornava la finestra di esclusione). Aggiunta `markSaveOk()` allo store, usata anche
   da questi tre salvataggi, così alimentano lo stesso segnale.
+- **Pulsante Deploy (IDE) disallineato da Configurazione→Runtime**: tre fonti di stato
+  indipendenti (`App.tsx`, `AdminApp.tsx`, `RuntimeConnectionTab`) tenevano ciascuna il proprio
+  "connesso/disconnesso" — il click su Deploy per disconnettere non chiamava nemmeno
+  `api.remoteDisconnect()`, quindi la sessione restava viva lato server e Configurazione→Runtime
+  continuava a mostrarla connessa. `App.tsx`/`AdminApp.tsx` ora leggono `remoteConnected`
+  direttamente dallo store condiviso invece di un proprio specchio locale via
+  localStorage/eventi custom; la disconnessione dal bottone Deploy chiama davvero l'API.
+  Aggiunta anche una riconnessione esplicita all'ultimo dispositivo (un click, non automatica
+  all'avvio) quando non connesso, riusando URL/credenziali già salvati.
+- **`DevicesTab` (Configurazione→Runtime→Dispositivi salvati) "Connetti" non connetteva
+  davvero**: scriveva solo le credenziali in `localStorage` e sparava un evento, senza mai
+  chiamare `api.remoteConnect()` — stesso bug della disconnessione sopra, lato connessione.
+- **"Cerca runtime" non compilava "Host SSH"**: selezionare un dispositivo scoperto via mDNS
+  impostava solo l'URL di connessione, mai il campo Host SSH (usato per il deploy via SSH) —
+  ora derivato automaticamente dall'hostname dell'URL scoperto.
+- **Pannello "Log Remoti" (Configurazione→Runtime) non caricava mai nulla**: faceva un fetch
+  diretto dal browser a `{target}/api/auth/login`+`/api/logs`, e usciva silenziosamente ogni
+  volta che utente/password erano vuoti (il caso normale per un runtime senza utenti configurati)
+  — da qui "Nessun log caricato" che non cambiava mai premendo Aggiorna/Live. Il pannello è stato
+  rimosso: i log del runtime remoto confluiscono ora nello stesso log viewer già usato per i log
+  locali (cassetto in basso nell'IDE), con tag `remote:` per isolarli col filtro esistente —
+  nuovo hook `useRemoteLogStream` sul relay `/ws/remote/logs` già esistente lato backend ma mai
+  collegato a una UI.
+- **Pulsante allarmi ancora fisso in alto a destra sul runtime deployato dopo T-46**: un secondo,
+  distinto pezzo di chrome fissa (`AlarmPanel` in `RuntimeView.tsx`, non la `<AlarmBanner>` già
+  rimossa) avvolgeva incondizionatamente `AlarmBellPanel` — rimosso. La visibilità della
+  campanella allarmi ora dipende solo dall'oggetto piazzabile `alarm_bell`, come da disegno T-42.
 
 ### Removed
 

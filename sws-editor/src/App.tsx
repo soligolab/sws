@@ -19,6 +19,7 @@ import { getBrand } from "@/branding";
 import { selectIsDirty, useAppStore } from "@/store";
 import { pickInitialPageId } from "@/pageLayout";
 import { useLogStream } from "@/ws/logStream";
+import { useRemoteLogStream } from "@/ws/remoteLogStream";
 import { useTagStream } from "@/ws/tagStream";
 import { useProjectWatcher } from "@/ws/projectWatcher";
 import { useBuildWatcher } from "@/ws/buildWatcher";
@@ -78,6 +79,7 @@ export function App() {
 
   // Stream runtime logs and tag values whenever the user is authenticated.
   useLogStream();
+  useRemoteLogStream();
   useTagStream();
 
   const authToken              = useAppStore((s) => s.authToken);
@@ -124,10 +126,13 @@ export function App() {
   const [newBuildAvailable, setNewBuildAvailable] = useState(false);
   const [waitingForSave, setWaitingForSave] = useState(false);
 
-  // Remote deploy target connection state — persisted in localStorage by RuntimeConnectionTab.
-  const [rtConnected, setRtConnected] = useState(
-    () => localStorage.getItem("sws.runtime.connected") === "1"
-  );
+  // Remote deploy target connection state — letto direttamente dallo store
+  // (aggiornato da RuntimeConnectionTab/DevicesTab in ConfigView.tsx), non più
+  // da un proprio specchio locale via localStorage/eventi: erano due fonti di
+  // verità indipendenti che potevano disallinearsi (es. disconnessione dal
+  // bottone Deploy che non si rifletteva in Configurazione → Runtime).
+  const remoteConnected    = useAppStore((s) => s.remoteConnected);
+  const setRemoteConnected = useAppStore((s) => s.setRemoteConnected);
 
   // Dev-mode TTL banner: shown to Admin/Supervisor when their session has an expiry.
   // Lets them quickly disable it for convenience during development.
@@ -159,17 +164,6 @@ export function App() {
       setTtlBusy(false);
     }
   };
-  useEffect(() => {
-    const onConn = () => setRtConnected(true);
-    const onDisc = () => setRtConnected(false);
-    window.addEventListener("sws:runtime-connected", onConn);
-    window.addEventListener("sws:runtime-disconnected", onDisc);
-    return () => {
-      window.removeEventListener("sws:runtime-connected", onConn);
-      window.removeEventListener("sws:runtime-disconnected", onDisc);
-    };
-  }, []);
-
   const effectiveMode: Mode =
     (mode === "edit"   && !canEdit)      ? "config" :
     mode;
@@ -533,21 +527,39 @@ export function App() {
             remoteDeployStatus === "syncing" ? "var(--brand-warning, #f59e0b)" :
             remoteDeployStatus === "ok"      ? "var(--brand-success-soft, #4ade80)" :
             remoteDeployStatus === "error"   ? "var(--brand-danger, #ef4444)" :
-            rtConnected ? "var(--brand-success-soft, #4ade80)" : "var(--brand-danger, #ef4444)";
-          const btnExtra = rtConnected
+            remoteConnected ? "var(--brand-success-soft, #4ade80)" : "var(--brand-danger, #ef4444)";
+          const btnExtra = remoteConnected
             ? { background: "#14532d", color: "var(--brand-success-soft, #4ade80)", border: "1px solid #16a34a" }
             : {};
-          const titleStr = rtConnected
+          // Ultimo target salvato da RuntimeConnectionTab (ConfigView.tsx) —
+          // permette un "riconnetti" esplicito con un click, senza tentare
+          // nulla in automatico all'avvio dell'IDE.
+          const lastTargetUrl = !remoteConnected ? localStorage.getItem("sws.runtime.targetUrl") : null;
+          const titleStr = remoteConnected
             ? t("header.deployConnectedTitle")
-            : t("header.deployConfigTitle");
+            : lastTargetUrl
+              ? t("header.deployReconnectTitle", { url: lastTargetUrl })
+              : t("header.deployConfigTitle");
           return (
             <button
-              onClick={() => {
-                if (rtConnected) {
+              onClick={async () => {
+                if (remoteConnected) {
                   if (window.confirm(t("header.deployDisconnectConfirm"))) {
-                    localStorage.removeItem("sws.runtime.connected");
-                    setRtConnected(false);
-                    window.dispatchEvent(new CustomEvent("sws:runtime-disconnected"));
+                    try { await api.remoteDisconnect(); } catch { /* già scollegato lato server, ignora */ }
+                    setRemoteConnected(false);
+                  }
+                } else if (lastTargetUrl) {
+                  const user = localStorage.getItem("sws.runtime.targetUser") || undefined;
+                  const pass = localStorage.getItem("sws.runtime.targetPass") || undefined;
+                  try {
+                    const result = await api.remoteConnect(lastTargetUrl, user, pass);
+                    if (!result.ok) throw new Error(result.error ?? "Connessione fallita");
+                    setRemoteConnected(true, lastTargetUrl);
+                  } catch {
+                    // Ultimo dispositivo irraggiungibile o credenziali cambiate
+                    // — porta l'utente su Configurazione → Runtime per un
+                    // tentativo manuale invece di fallire in silenzio.
+                    navigateToConfig("runtime");
                   }
                 } else {
                   navigateToConfig("runtime");
