@@ -6893,7 +6893,8 @@ function RuntimeConnectionTab() {
   const [remoteLogs, setRemoteLogs]   = useState<RemoteLog[] | null>(null);
   const [logFetching, setLogFetching] = useState(false);
   const [logLive, setLogLive]         = useState(false);
-  const logTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const logsWsRef = useRef<WebSocket | null>(null);
+  const logsCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // On mount: remove stale localStorage key, sync actual state from server.
   useEffect(() => {
@@ -7075,33 +7076,52 @@ function RuntimeConnectionTab() {
     }
   };
 
-  const fetchRemoteLogs = useCallback(async () => {
-    if (!target || !targetUser || !targetPass) return;
+  // Log Remoti: relayed through the local backend's /ws/remote/logs (same
+  // pattern as the live tag panel below), never a direct browser fetch to
+  // `target` — a raw fetch can't accept the remote's self-signed HTTPS cert
+  // and duplicates auth via a second, easily-stale credential pair.
+  const closeLogsSocket = useCallback(() => {
+    if (logsCloseTimerRef.current) { clearTimeout(logsCloseTimerRef.current); logsCloseTimerRef.current = null; }
+    logsWsRef.current?.close();
+    logsWsRef.current = null;
+  }, []);
+
+  const openLogsSocket = useCallback((keepOpen: boolean) => {
+    closeLogsSocket();
     setLogFetching(true);
-    try {
-      const res = await fetch(`${target}/api/auth/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username: targetUser.trim(), password: targetPass }),
-      });
-      if (!res.ok) return;
-      const { token } = await res.json();
-      const lr = await fetch(`${target}/api/logs`, { headers: { Authorization: `Bearer ${token}` } });
-      if (lr.ok) setRemoteLogs(await lr.json());
-    } catch { /* network error, ignore */ } finally {
+    setRemoteLogs([]);
+    const scheme = window.location.protocol === "https:" ? "wss" : "ws";
+    const token  = getAuthToken();
+    const url    = `${scheme}://${window.location.host}/ws/remote/logs${token ? `?token=${encodeURIComponent(token)}` : ""}`;
+    const ws = new WebSocket(url);
+    logsWsRef.current = ws;
+    ws.onopen = () => {
       setLogFetching(false);
-    }
-  }, [target, targetUser, targetPass]);
+      if (!keepOpen) {
+        // Grab the initial history burst the server sends on connect, then
+        // disconnect — reproduces the old one-shot "Aggiorna" without polling.
+        logsCloseTimerRef.current = setTimeout(() => closeLogsSocket(), 400);
+      }
+    };
+    ws.onmessage = (ev) => {
+      try {
+        const event = JSON.parse(ev.data as string) as RemoteLog;
+        setRemoteLogs((prev) => [...(prev ?? []), event].slice(-500));
+      } catch { /* ignore malformed frames */ }
+    };
+    ws.onerror = () => { setLogFetching(false); closeLogsSocket(); };
+  }, [closeLogsSocket]);
+
+  const fetchRemoteLogs = useCallback(() => { openLogsSocket(logLive); }, [openLogsSocket, logLive]);
 
   useEffect(() => {
-    if (logLive && status === "connected") {
-      logTimerRef.current = setInterval(fetchRemoteLogs, 5000);
-    } else {
-      if (logTimerRef.current) { clearInterval(logTimerRef.current); logTimerRef.current = null; }
-      if (status !== "connected") setLogLive(false);
-    }
-    return () => { if (logTimerRef.current) { clearInterval(logTimerRef.current); logTimerRef.current = null; } };
-  }, [logLive, status, fetchRemoteLogs]);
+    if (status !== "connected") { closeLogsSocket(); return; }
+    if (logLive) openLogsSocket(true); else closeLogsSocket();
+  }, [status, logLive]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (status !== "connected") setLogLive(false);
+  }, [status]);
 
   const fetchPackages = useCallback(async () => {
     try { const pkgs = await api.listPackages(); setPackages(pkgs); if (pkgs.length > 0 && !selectedPkg) setSelectedPkg(pkgs[0].name); }

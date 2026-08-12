@@ -1274,7 +1274,7 @@ fn save_client_id_overrides(
 /// `sources`. Called once, right before the resolved list reaches
 /// `SourceSupervisor::reload` — the supervisor itself stays generic and
 /// never sees the literal project.yaml value.
-fn resolve_mqtt_client_ids(
+pub(crate) fn resolve_mqtt_client_ids(
     project_name: &str,
     sources: &mut [SourceDef],
     config_dir: &StdPath,

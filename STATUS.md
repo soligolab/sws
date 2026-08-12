@@ -6,6 +6,40 @@
 >
 > **Pulizia 2026-07-27**: rimossi i task già chiusi e le sezioni di verifica ormai superate; le sessioni mergiate **e** verificate fino al 2026-07-09 sono compresse in «Storico». Il dettaglio integrale resta in `CHANGELOG.md` e nella history git.
 
+**Sessione 2026-08-11 (continuazione, stessa giornata)**: deploy 2.0.0 sul pannello fisico
+(`tc620-a-p3-c6-07aff9.local`) e due bugfix nati dal test del demo Sandokan in web mode.
+
+Deploy LVGL sul pannello: aggiornato il container `sws-runtime` (systemd quadlet, come `user`) a
+2.0.0, verificato sano. Trovato un **container `sws-lvgl-viewer` root**, mai documentato prima,
+attivo da 23h con l'immagine vecchia — era lì per bypassare un problema di permessi reale:
+`/dev/input/event3` (dietro `ts_uinput`) è `root:input` 660 e `user` non è nel gruppo `input` (né
+in `video`, nota già presente). Il maintainer ha vietato esplicitamente qualsiasi soluzione root
+("il container non lo voglio come root in nessun caso") — il container/processo root è stato
+**fermato e rimosso**, nessun sostituto lanciato stasera. Per il touch nativo come `user` serve
+prima un fix ai permessi (`usermod -aG input user`, proposto ma non ancora fatto — riprendere la
+prossima sessione). Il runtime web (porta 8443, container `user`) resta comunque su e sufficiente
+per il demo Sandokan in modalità web, che è quanto serviva stasera.
+
+**Due bug trovati e corretti** (branch `fix/remote-logs-mqtt-clientid`, non ancora mergiato):
+- **Log Remoti (ConfigView)** non caricava nulla contro il pannello: faceva un fetch diretto dal
+  browser a `{target}/api/auth/login`+`/api/logs`, che fallisce silenziosamente su HTTPS con
+  certificato self-signed. Riscritto sul relay `/ws/remote/logs` già usato dalla vista Live tags
+  (stesso pattern, niente credenziali duplicate, niente polling). Non era un problema introdotto
+  dai container — codice pre-refactor mai migrato.
+- **Client ID MQTT random non risolto** su `system_start` (bottone Start) e sul reload dopo import
+  bundle synoptic: entrambi passavano il `client_id` letterale invece di quello con suffisso
+  `instance_id` risolto da `resolve_mqtt_client_ids` (che boot/apertura progetto usa
+  correttamente). Se il progetto usa `random_client_id`, uno Stop→Start o un import bundle
+  ripartiva MQTT con un id nudo, potenzialmente in collisione con un'altra sessione sullo stesso
+  broker — spiega il sintomo riportato dal maintainer su Sandokan ("funziona qualche minuto poi si
+  ferma"). Entrambi i path ora chiamano `resolve_mqtt_client_ids` prima del reload, come
+  `apply_loaded_project`. `cargo check --workspace` e `pnpm build` verdi. **Da fare**: il
+  maintainer deve ricompilare/aggiornare il container con questo fix per verificarlo sul pannello
+  reale.
+
+**Prossimo passo naturale** (di questa sotto-sessione): merge del branch fix quando confermato;
+poi riprendere il deploy LVGL nativo sul pannello risolvendo prima il gruppo `input` per `user`.
+
 **Last session**: 2026-08-11 — release **2.0.0**, prima dopo il merge del motore LVGL. Il
 maintainer ha scelto **il `2` per il cambio abbastanza grande da giustificare un major bump**
 (il motore LVGL) e con l'occasione ha abbandonato **CalVer** a favore di **Semantic Versioning**
