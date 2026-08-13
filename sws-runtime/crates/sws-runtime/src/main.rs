@@ -904,7 +904,7 @@ async fn main() -> anyhow::Result<()> {
                 .unwrap_or_else(|| "sws-kiosk".into());
             info!(binary = %binary.display(), "kiosk-wayland: spawning sws-kiosk");
             match tokio::process::Command::new(&binary)
-                .arg("https://localhost:8443")
+                .arg(format!("https://localhost:{vport}"))
                 .arg("--allow-insecure-tls")
                 .stdin(std::process::Stdio::null())
                 .spawn()
@@ -1181,15 +1181,28 @@ fn announce_mdns(viewer_port: u16, admin_port: u16, tls: bool) -> Option<mdns_sd
         properties.push(("container", engine));
     }
 
+    // T-49: `enable_addr_auto()` pubblica un indirizzo per OGNI interfaccia
+    // locale, comprese le veth residue di container (`vethXXXXXXX`, solo
+    // IPv6 link-local con `%scope`) — un client che scopre questo runtime può
+    // risolvere quell'indirizzo invece della LAN reale, rendendolo
+    // inutilizzabile senza inserire l'IP a mano (misurato: Connetti tentava
+    // `https://fe80::...%veth58fbd0f:8444`). `detect_lan_ip()` individua
+    // esattamente l'indirizzo di uscita reale (routing verso l'esterno, nessun
+    // pacchetto inviato) — se disponibile, annunciamo solo quello; altrimenti
+    // ripieghiamo sul vecchio comportamento (un indirizzo qualunque è meglio
+    // di nessuna scoperta).
+    let lan_ip = detect_lan_ip();
+    let ip_arg = lan_ip.map(|ip| ip.to_string()).unwrap_or_default();
+
     let service_info = match ServiceInfo::new(
         "_sws._tcp.local.",
         &hostname,
         &host_fqdn,
-        "", // empty = enable_addr_auto below
+        ip_arg.as_str(),
         viewer_port,
         &properties[..],
     ) {
-        Ok(info) => info.enable_addr_auto(),
+        Ok(info) => if lan_ip.is_some() { info } else { info.enable_addr_auto() },
         Err(e) => {
             warn!("mDNS: ServiceInfo build failed: {e}");
             return None;
