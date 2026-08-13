@@ -1165,6 +1165,61 @@ raccomandazione, non una decisione presa qui.
 
 ---
 
+## Q16 — Widget `image` su LVGL: nessun decoder raster compilato, e il catalogo bundle è SVG
+
+**Context**: emerso durante una sessione di lavoro autonomo mirata a chiudere il gap "`image` è
+l'unico widget rimasto non supportato in LVGL" (31/32 tipi, per il lavoro fatto su `sws-lvgl-viewer`
+in sessioni precedenti). Un'analisi preliminare (non ancora un'implementazione) lo classificava
+come "caso semplice": `obj.src` nel motore web è un URL raster, e LVGL ha supporto nativo `lv_img`
+— sembrava non servire un renderer SVG come per `symbol` (Q15). Verificando il codice prima di
+scrivere qualunque riga, il quadro è diverso.
+
+**Cosa c'è davvero da rendere** (verificato, non assunto dal tipo dichiarato):
+- Il pannello proprietà di `image` (`EditorShell.tsx:2788-2812`) è un campo testo libero
+  ("https://… o /images/…") più un bottone "Sfoglia immagini" che apre `ImageBrowser.tsx` — il
+  quale legge `/images/catalog.json`, un catalogo di icone bundlate nel frontend
+  (`sws-editor/public/images/{mdi,tabler,equinor,electrical}/*.svg`). **Tutte le voci del catalogo
+  sono file `.svg`**, non raster — lo stesso identico problema di `symbol`/Q15 (LVGL 8.x non ha
+  renderer SVG), non un caso a parte.
+- Il campo resta comunque testo libero: un utente può incollarci un URL PNG/JPG esterno, che
+  quello sì sarebbe un caso "raster puro" risolvibile con un decoder nativo — ma non è il percorso
+  che l'UI stessa incoraggia (il bottone porta al catalogo SVG).
+- Verificato nel `lv_conf.h` di progetto (`sws-lvgl-viewer/lv_conf/lv_conf.h`, non solo il
+  template vendorizzato): `LV_USE_PNG 0`, `LV_USE_SJPG 0`, `LV_USE_GIF 0` — **nessun decoder
+  immagine è compilato nella LVGL vendorizzata usata da questo motore**, quindi nemmeno il caso
+  raster funziona oggi senza toccare la configurazione di build C e aggiungere una dipendenza
+  nativa (`libpng`/libjpeg equivalente) al toolchain di cross-compilazione (sia generic via QEMU
+  sia SDK Yocto) — un cambio che va verificato con una build reale prima di contarci, non
+  eseguibile senza `sudo` (bloccato dalla policy permessi di questa sessione) né senza il
+  maintainer.
+
+**Options**:
+- **A — Abilitare `LV_USE_PNG`/`LV_USE_SJPG`, coprire solo URL raster espliciti**: risolve il
+  sottoinsieme "utente incolla un URL PNG/JPG esterno", richiede scaricare i byte via HTTP lato
+  `sws-lvgl-viewer` e scriverli in un file temporaneo (LVGL legge da filesystem, non da URL),
+  aggiunge una dipendenza C nativa al build — da verificare su entrambe le pipeline
+  (generic/SDK). **Non copre affatto il catalogo SVG bundlato**, cioè il percorso che l'editor
+  stesso propone di default via "Sfoglia immagini".
+- **B — Come Q15, opzione C**: rasterizzazione a runtime via crate Rust (`resvg`+`tiny-skia`) —
+  unica opzione che copre sia il catalogo SVG bundlato sia URL SVG/raster esterni in modo
+  uniforme. Stessi costi già descritti in Q15 (dipendenza nuova, pipeline di decodifica,
+  implicazioni memoria/prestazioni su hardware embedded) — se mai si decidesse di percorrerla, ha
+  senso farlo **una volta sola per entrambi i widget** (`symbol` e `image` condividono lo stesso
+  problema di fondo), non due implementazioni separate.
+- **C — Non supportato per ora** (stato di fatto): `image` resta assente da `SUPPORTED_TYPES` in
+  `sws-lvgl-viewer`, oggetto silenziosamente saltato — coerente con come già si comporta `symbol`.
+
+**Default for PoC**: **C** — nessuna implementazione fatta in questa sessione. Il problema è
+sostanzialmente lo stesso di Q15 (mancanza di un renderer SVG in LVGL 8.x), non un gap separato
+più semplice come inizialmente ipotizzato: non ha senso decidere/implementare una soluzione
+parziale (opzione A, che lascerebbe comunque "muto" il catalogo icone bundlato) senza prima
+sapere se/quando si affronta Q15 nel suo complesso — le due domande vanno probabilmente risolte
+insieme, con la stessa scelta di rasterizzazione.
+
+**Decided**: not yet.
+
+---
+
 ## Adding new questions
 
 When Claude Code adds a new question, follow the format above:
