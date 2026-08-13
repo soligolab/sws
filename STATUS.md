@@ -598,11 +598,6 @@ lang_selector) — poi, se tutto ok, squash-merge dell'intero branch in main. Ri
 mancante su vari campi, color picker mancante su slider/checkbox/radio, possibile widget
 faceplate/setpoint/XY-plot, ecc.) e decidere cosa vale la pena fare.
 
-**Nota a parte**: il branch `feat/trend-compact-pan` (pulsanti pan ◀/▶ + passo configurabile sul
-Trend compatto, da una sessione precedente a stanotte) resta isolato e non mergiato — con il
-drag-to-zoom di T-48 ora in main, potrebbe essere in parte ridondante. Da decidere se
-riprenderlo, scartarlo o riconciliarlo con T-47/T-48 prima di chiudere il branch.
-
 ## 2026-08-07: motore di rendering LVGL — Fase 1 (branch `feature/lvgl`)
 
 Nuova richiesta del maintainer: poter generare l'interfaccia in **LVGL** per target embedded
@@ -788,10 +783,11 @@ questo dev server headless), Fase 5 (container podman multi-arch per `sws-lvgl-v
 
 ## 2026-08-06 (notte): T-41…T-45 + audit qualità codice (branch `fix/T-41-page-delete-persist`)
 
-Sessione partita dai pulsanti pan sul Trend compatto (poi isolati sul branch
-`feat/trend-compact-pan`, vedi nota sopra), proseguita con un blackout elettrico a metà (nessuna
-perdita — tutto il lavoro già scritto su disco, solo un `cargo build` da rifare) e conclusa in
-autonomia notturna su richiesta esplicita del maintainer.
+Sessione partita dai pulsanti pan sul Trend compatto (poi isolati temporaneamente sul branch
+`feat/trend-compact-pan` e in seguito riconciliati col drag-to-zoom di T-48, commit `1824a7e`),
+proseguita con un blackout elettrico a metà (nessuna perdita — tutto il lavoro già scritto su
+disco, solo un `cargo build` da rifare) e conclusa in autonomia notturna su richiesta esplicita
+del maintainer.
 
 **T-41 — bugfix prioritario**: `deletePage`/`renamePage` erano puramente in-memory nello store;
 `saveAll()` faceva solo upsert; non esisteva `DELETE /api/synoptics/:name` (a differenza di
