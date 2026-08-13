@@ -287,14 +287,24 @@ objects:
     target_page: lvgl_demo_page2
     fill: "#1e293b"
 
-  # ── prossimi tipi: aggiungere qui man mano (symbol...) ──────────────────
-  - id: note_future
-    type: text
-    x: 540.0
+  # ── alarm_banner: stesso SharedAlarms di av1, un solo slot (il più
+  #    recente) invece di una lista — unico nuovo widget che entra ancora
+  #    su questa pagina, gli altri quattro sono su "LVGL Demo Pagina 2"
+  #    (qui lo spazio libero reale, dopo l'altezza vera di tb1, non bastava
+  #    per tutti e cinque senza sovrapposizioni).
+  - id: ab1
+    type: alarm_banner
+    x: 40.0
     y: 750.0
-    text: "Prossimi widget arrivano qui sotto"
+    width: 880.0
+    height: 32.0
+  - id: cap_ab1
+    type: text
+    x: 40.0
+    y: 730.0
+    text: "alarm_banner - stesse soglie di av1"
     font_size: 12.0
-    color: "#5b6b85"
+    color: "#94a3b8"
   - id: lvgl1_alarm_bell
     type: alarm_bell
     x: 20.0

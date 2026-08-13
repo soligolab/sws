@@ -137,10 +137,11 @@ dopo averlo verificato nel sorgente invece di ricopiare la frase originale (Q15,
 all'analisi `symbol`→LVGL, 2026-08-08). Solo le **3 faceplate predefinite**
 (`motor_basic`/`valve_basic`/`tank_level`) sono incluse via `include_str!()`, e sono in
 `sws-web` (`router.rs`). I **simboli veri e propri non passano mai dal binario Rust**: vivono
-interamente lato editor, in `sws-editor/src/symbols/library.tsx` — **17** disegnati a mano come
-JSX/SVG inline (`kind: "builtin"`, davvero ricolorabili per stato) più **12** file `.svg`
+interamente lato editor, in `sws-editor/src/symbols/library.tsx` — **16** disegnati a mano come
+JSX/SVG inline (`kind: "builtin"`, davvero ricolorabili per stato — 17 era un errore di conteggio,
+corretto il 2026-08-11 durante il porting LVGL, vedi Q14 seguito 14) più **12** file `.svg`
 statici serviti da `sws-editor/public/symbols/` (`kind: "vendored"`, mai ricolorati — solo un
-pallino di stato sovrapposto), per un totale di **29**, non 22. Il backend non ha alcuna
+pallino di stato sovrapposto), per un totale di **28**, non 22. Il backend non ha alcuna
 conoscenza semantica dei simboli: sul synottico persiste solo `symbol_id` (stringa opaca),
 la risoluzione kind/path è un lookup lato editor. Un'eventuale cartella `sws-symbols/` separata
 con symbol pack aggiuntivi resta un'opzione post-PoC.
@@ -1157,9 +1158,334 @@ progetto** — isolati uno alla volta con log diagnostici temporanei e strumenti
 (`tc620-a-p3-c6-07aff9.local`), non solo dedotto dai log. Nessuna delle correzioni sopra è
 specifica al percorso SDK Pixsys-tuned: si applicano identiche a entrambi i Containerfile.
 
+**Aggiornamento 2026-08-11 (seguito 13) — 21 tipi supportati: `text_list`, `bar_chart`,
+`sparkline`, `alarm_banner`, `faceplate`**
+
+Richiesta esplicita del maintainer, in autonomia su un nuovo branch (`feature/lvgl-widgets-3`):
+"completare il porting dei widget da web a LVGL". Prima di scrivere codice, confronto sistematico
+fra i 32 tipi del catalogo web (`sws-editor/src/types/index.ts`, `SynopticObjectType`) e i 16 già
+supportati — 16 tipi mancanti, di cui **5 implementati in questo giro**, gli altri **11
+deliberatamente rimandati** (dettagli sotto, non un elenco a caso).
+
+- **`text_list`**: sottoinsieme di `state_lamp` già scritto (stessa `match_text_list_entry` contro
+  `text_list_entries`) — solo l'etichetta, senza il cerchio colorato. Nessun campo nuovo nel
+  modello, il più semplice dei cinque.
+- **`bar_chart`**: una `lv_bar` per serie, colore dell'indicatore via `Style` su `Part::Indicator`
+  (mai usato prima in questo file — verificato che l'enum `Part` del crate `lvgl` lo espone prima
+  di usarlo). Solo l'orientamento `"vertical"` (il default web) è disegnato — `"horizontal"`
+  segnalato come non supportato, stesso principio di `alarm_viewer_mode`. **Bug trovato e corretto
+  durante la verifica visiva, non a compilazione**: `lv_bar.c` decide il riempimento orizzontale/
+  verticale confrontando le dimensioni del widget stesso (`hor = barw >= barh`, verificato nel
+  sorgente prima di scrivere il codice) — con poche serie e un box abbastanza largo,
+  `slot_w * (1 - gap)` restava comunque più largo che alto, e le barre si riempivano da sinistra
+  invece che dal basso nonostante l'orientamento `"vertical"` dichiarato (visto letteralmente sullo
+  screenshot: due barre "a pillola" riempite orizzontalmente). Fix: `bar_w` è ora anche clampato a
+  `< plot_h`, garantendo il riempimento verticale indipendentemente da quante serie/quanto gap
+  sceglie il synottico, non solo nel caso comune.
+- **`sparkline`**: stesso principio del `trend` (poller REST in background via
+  `client::spawn_history_poller`, la storia non è un delta live), ma una sola serie, sempre autofit
+  (il tipo non ha `y_min`/`y_max` nello schema) e senza griglia/assi
+  (`lv_chart_set_div_line_count(0, 0)` + `Style` che azzera sfondo/bordo/padding del tema di
+  default — il web non ne ha uno per questo widget). Verificato dal vivo scrivendo una sequenza di
+  valori distinti su `lvgl_demo.value` con un secondo di ritardo fra uno e l'altro: il grafico
+  mostra la spezzata corretta, non solo un punto fermo.
+- **`alarm_banner`**: riquadro compatto per un solo allarme (il più recente fra quelli attivi),
+  stesso `SharedAlarms`/filtro severità-prefix di `alarm_viewer` ma un solo slot invece di
+  `max_rows` — niente ACK (il web non lo prevede neppure lì, è puramente informativo). Verificato
+  dal vivo portando `lvgl_demo.value` sopra soglia: il riquadro passa da "Nessun allarme attivo" al
+  messaggio/pallino colorato corretto.
+- **`faceplate`**: **non bloccato dal vincolo che ferma `symbol`/Q15** — `FaceplateDef.objects` è
+  `Vec<serde_json::Value>` di oggetti già ordinari, nessun SVG. Implementato esattamente come
+  previsto in Q15 stessa ("ricorrendo nello stesso dispatcher già scritto per gli altri tipi"): il
+  match `obj_type → render_*` del loop principale è stato estratto in `dispatch_render` (prima
+  inline dentro `render_page_objects`), così `render_faceplate` può richiamarlo per ciascun figlio
+  senza duplicare la logica. Nuovo `client::fetch_faceplate` (`GET /api/faceplates/:id`, stesso
+  endpoint anonymous-readable già usato dall'editor, verificato anche nel gruppo di route viewer
+  prima di assumerlo) recupera la definizione **in modo bloccante** (`rt_handle.block_on`) durante
+  il rendering della pagina — non in background come i poller: la definizione serve prima di poter
+  creare i widget dei figli, non è un dato che possa arrivare più tardi. Sostituzione `{param}` sui
+  campi `tag`/`label`/`text` (sottoinsieme di quanto fa `substituteParams` in `SvgCanvas.tsx` — solo
+  i campi che il modello di questo motore conosce), coordinate traslate all'origine dell'istanza.
+  **Niente faceplate dentro faceplate** (un figlio di tipo `"faceplate"` viene scartato come
+  qualunque tipo non supportato): evita ricorsione illimitata per un caso d'uso che né il web né
+  questo motore hanno mai previsto, non una limitazione imposta per pigrizia. Verificato dal vivo
+  con un'istanza di `motor_basic` (il faceplate built-in esistente): titolo/etichette/LED
+  renderizzati nella posizione corretta. **Osservazione, non un bug di questo motore**: il campo
+  "Speed:" mostra testo malformato — `motor_basic.yaml` usa `format: "%.0f rpm"` (sintassi printf),
+  ma `format_value` di questo motore (come il resto dello schema web) si aspetta `"{value:.0f}
+  rpm"` — un bug preesistente nel contenuto del faceplate built-in, non toccato in questo giro
+  (fuori scope: contenuto condiviso con la versione web, non specifico di LVGL).
+
+**21 tipi supportati in totale** (16 + questi 5). Palette editor (`LeftPanel.tsx`) aggiornata.
+Template `lvgl-demo` esteso: `alarm_banner` su Pagina 1 (unico spazio libero reale rimasto dopo
+aver riscoperto quanto spazio verticale occupa davvero `tb1`/tabella — un primo tentativo di
+piazzare tutti e cinque su Pagina 1 si è sovrapposto silenziosamente alla tabella, corretto
+spostando gli altri quattro su Pagina 2, che ha spazio libero abbondante), `text_list`/
+`bar_chart`/`sparkline`/`faceplate` su Pagina 2. Verificato end-to-end con screenshot X11 (non solo
+compilazione): tutti e cinque renderizzano, si aggiornano dal vivo scrivendo i tag corrispondenti
+via REST, nessun crash.
+
+**Deliberatamente non affrontati in questo giro, con la ragione specifica per ciascuno** (non
+"tempo finito", una valutazione per tipo):
+- **`symbol`**: bloccato da Q15 — non è una decisione che spetta a una sessione vibecode, per
+  istruzione esplicita del progetto (`CLAUDE.md`/`docs/OPEN_QUESTIONS.md`).
+- **`image`**: stesso genere di vincolo di `symbol` — `obj.src` è un URL a contenuto raster/SVG
+  arbitrario non noto in anticipo, e questo motore non ha (ancora) alcuna pipeline di decodifica
+  immagine configurata (nessun decoder `lv_img` linkato). Non tentato con un'implementazione
+  parziale/rotta.
+- **`grid`**: **non un widget foglia come tutti gli altri di questo motore** — `GridCell`/
+  `SubGrid` in `types/index.ts` sono un vero contenitore ricorsivo (sotto-celle annidate a
+  profondità arbitraria, ciascuna con un `child: SynopticObject` proprio) che il dispatcher attuale
+  (un ciclo piatto su `page.objects`) non può rendere senza un cambio architetturale — i figli di
+  un `grid` non compaiono affatto come oggetti di primo livello nello schema, a differenza dei
+  figli di un `faceplate`. Rimandato esplicitamente, non un'omissione.
+- **`pipe`**: già segnalato in Q14 (seguito 6) come tipo composito (routing/gradient/fill-level/
+  marker) di complessità paragonabile a `trend`/`alarm_viewer` — non affrontato lì, non affrontato
+  qui, stessa valutazione.
+- **`recipe_panel`**: richiederebbe un client REST dedicato per liste ricette + applicazione
+  (`GET`/`POST /api/recipes/*`), un sottosistema a sé quanto `trend`/`alarm_viewer`, non una piccola
+  estensione — buon candidato per un prossimo giro mirato, non per essere infilato insieme ad altri
+  cinque tipi più piccoli.
+- **`alarm_bell`**: nel web è un pannello con dropdown a più viste (attivi/storico/ack/shelve) —
+  complessità sproporzionata rispetto al valore per un pannello embedded, mentre `alarm_viewer`/
+  `alarm_banner` coprono già i casi d'uso principali (lista e riepilogo compatto).
+- **`setpoint`**: l'unico dei tipi rimanenti che richiederebbe un pattern di interazione mai usato
+  in questo motore — inserimento testo/numerico (`lv_textarea` + `lv_keyboard` a schermo, gestione
+  del focus) invece della manipolazione diretta (click/drag) di bottone/checkbox/slider già
+  implementati. Territorio nuovo, non una piccola variazione di un pattern esistente.
+- **`xy_plot`**: a differenza di `trend`/`sparkline` (storico via poller REST), servirebbe un
+  campionamento locale delle posizioni **live** di due tag con un buffer a scorrimento temporale
+  proprio (`xy_trail_s`) — un meccanismo nuovo, non un riuso di `spawn_history_poller`.
+- **`pie_chart`**: **LVGL 8.x non ha un widget torta/donut nativo**. Un donut sarebbe
+  approssimabile componendo più `lv_arc` (uno per spicchio, ciascuno con il proprio intervallo
+  angolare e colore — `lv_arc_set_angles` accetta un intervallo per widget, verificato come
+  possibile ma non tentato), una vera "pie" (piena fino al centro, non un anello) richiederebbe
+  disegno custom su `lv_canvas`. Rimandato: nessuno dei due percorsi è un riuso diretto di
+  primitive già in uso in questo motore.
+- **`lang_selector`/`lang_button`**: **concetto client-side puro** — `useAppStore.getState().
+  projectLang` in `SvgCanvas.tsx` è stato Zustand del browser, senza equivalente lato server/REST.
+  Questo motore non ha mai avuto un concetto di "sessione UI" (a differenza del browser, un
+  processo per dispositivo) — implementarlo richiede prima di capire come si vorrebbe rappresentare
+  la lingua corrente per un client headless, una domanda a sé non posta qui.
+
+**Decided**: 21/32 tipi supportati. Gli 11 rimanenti restano fuori con motivazioni specifiche per
+ciascuno (sopra), non un debito generico — `symbol`/`image` bloccati architetturalmente, `grid`
+richiede un cambio del dispatcher, gli altri otto sono possibili ma ciascuno aprirebbe un fronte di
+lavoro a sé (nuovo sottosistema REST, nuovo pattern di interazione, o un widget LVGL che non esiste
+nativamente).
+
+**Aggiornamento 2026-08-11 (seguito 14) — 29/32 tipi supportati: `symbol` (Q15, opzione B),
+`grid`, `pipe`, `alarm_bell`, `recipe_panel`, `setpoint`, `xy_plot`, `pie_chart`**
+
+Richiesta esplicita del maintainer: "riesci a completare anche gli altri?" — tutti gli 11 tipi
+rimasti dal seguito 13 tranne `image` e `lang_selector`/`lang_button`, che restano fuori per gli
+stessi motivi già scritti sopra (nessuna pipeline di decodifica immagine; concetto client-side
+puro senza equivalente server). Prima di procedere, chiesta al maintainer la decisione
+architetturale che Q15 esplicitamente riserva a lui (non a una sessione vibecode): **opzione B**,
+i soli 17(16) simboli builtin riscritti a mano su primitive LVGL native — vedi "Decided" in Q15
+qui sotto.
+
+- **`symbol`**: LVGL 8.x non ha un canale di disegno vettoriale arbitrario fuori da un
+  `lv_canvas` (verificato in `lv_canvas.h` prima di scegliere questo approccio: espone solo
+  `draw_rect`/`draw_polygon`/`draw_arc`/`draw_line`/`draw_text`, non un path SVG generico). Ogni
+  simbolo web (`<path>`/`<circle>`/`<rect>` arbitrari in uno spazio 100×100) è quindi
+  **semplificato** a 2-4 primitive canvas — forma essenziale fedele, etichette (PI/TT/FT/LT/CMP),
+  animazioni di rotazione e dettagli decorativi minori omessi, stesso principio già usato per
+  `ellipse`≈rettangolo arrotondato e `radio`≈checkbox. Buffer canvas `LV_IMG_CF_TRUE_COLOR_ALPHA`
+  (3 byte/pixel a `LV_COLOR_DEPTH=16` — macro function-like `LV_IMG_PX_SIZE_ALPHA_BYTE` non
+  valutabile da bindgen, calcolata a mano come per `DRM_IOCTL_*` nel backend DRM di Q14):
+  serve l'alfa perché gli angoli del canvas quadrato fuori dalla forma devono restare trasparenti
+  sullo sfondo pagina, non un rettangolo pieno. Ridisegnato solo quando lo stato
+  (`off`/`on`/`alarm`, `resolve_symbol_state` — stessa logica di `truthy()`/`state` in
+  `SvgCanvas.tsx`) cambia davvero, non a ogni frame.
+
+  **Bug trovato e corretto durante la verifica visiva, non a compilazione**: alcune forme
+  "contenitore" (corpo del `tank`, telaio del `fan`, vasca del `level_sensor`, vessel di
+  `mixer`/`agitator`) usavano lo stesso colore dello sfondo pagina (`#0f172a`, lo sfondo di questo
+  motore ovunque) — il web li disegna sempre con uno `stroke` chiaro che li rende visibili anche
+  su sfondo scuro, ma le funzioni `lv_canvas_draw_rect`/`draw_polygon` di questo motore non hanno
+  un bordo impostato. Visto letteralmente sullo screenshot: il corpo del tank spariva, restava
+  visibile solo il liquido colorato sopra, sospeso a mezz'aria. Corretto usando un colore
+  "pannello" più chiaro (`#1e293b`, lo stesso già usato per i container di `alarm_viewer`/
+  `alarm_banner`/`recipe_panel` in questo file) per le 5 forme contenitore coinvolte, invece di
+  aggiungere un bordo a ogni chiamata di disegno (fix più piccolo, stesso risultato visivo).
+
+  **Solo i 16 builtin** (non 17 come scritto per errore in una nota precedente di questa voce —
+  contati di nuovo da `sws-editor/src/symbols/library.tsx`, `grep -c 'kind: "builtin"'` dà 17 ma
+  una riga è il commento di modulo, non un'entry reale). I 12 simboli "vendored" (file `.svg`
+  statici) e i `custom_symbols` restano non supportati — `render_symbol` rifiuta esplicitamente
+  un `symbol_id` che inizia per `"custom:"`, coerente con l'opzione B decisa.
+
+- **`grid`**: **unico tipo di questo motore i cui figli non compaiono affatto in `page.objects`**
+  — a differenza di `faceplate` (che riusa `dispatch_render` sugli stessi oggetti di primo
+  livello, solo con parametri sostituiti), le celle e le loro sotto-suddivisioni
+  (`GridCell`/`SubGrid`, ricorsione senza limite di profondità dichiarato nello schema) sono
+  annidate dentro il campo `grid_cells` dell'oggetto grid stesso. Geometria: colonne/righe di
+  larghezza fissa (`col_widths`/`row_heights`, il resto diviso in parti uguali, stessa logica di
+  `SvgCanvas.tsx`), `rowspan`/`colspan` sommano le celle coperte. Ogni cella/sotto-cella disegna
+  il proprio `bg_color` (rispettando `visible`/`visible_tag`) poi ricorre nel proprio `child` (via
+  `dispatch_render`, coordinate traslate) o nella propria `sub` (split 1×2/2×1 per `ratio`,
+  ricorsivo). Niente `grid` dentro `grid` (stesso principio di faceplate-dentro-faceplate).
+  `on_press_fn`/`on_release_fn` per cella non hanno equivalente — questo motore non esegue script
+  lato client per nessun widget, stessa scelta già presa per `button`/`navbutton`. Verificato dal
+  vivo con una griglia 2×2 (una cella `text` col valore live, una `led` live, una riga intera
+  suddivisa in `sub` 1×2 con un `text` statico e una `checkbox` interattiva): tutte le celle si
+  posizionano correttamente, i binding live (`text`/`led`) dentro le celle si aggiornano come
+  qualunque altro widget di primo livello.
+
+- **`pipe`**: solo routing `"straight"` (segmenti diretti fra i waypoint) —
+  `"orthogonal"`/`"diagonal"`/`"bezier"` segnalati come non supportati, stesso principio di
+  `alarm_viewer_mode`. Riusa il pattern di `render_line` (array di punti relativi all'origine,
+  `Box::leak`-ato) esteso a N punti invece di 2. **Semplificazioni dichiarate**: nessun gradient
+  `"tube"`, nessun marker di inizio/fine, nessuna etichetta al midpoint, e soprattutto **il
+  riempimento non è un livello progressivo ma un cambio di colore statico**, deciso una volta alla
+  creazione dal valore corrente di `fill_level`/`fill_level_tag` (non segue il tag dal vivo, a
+  differenza di quasi tutti gli altri widget — stesso principio già accettato per l'arco soglia
+  del `gauge`). Un vero riempimento progressivo richiederebbe disegnare la pipe su un `lv_canvas`
+  invece che con `lv_line`, non tentato in questo giro. Verificato dal vivo con un percorso a 4
+  waypoint (routing a gradini): la linea segue esattamente i waypoint dichiarati, il colore passa
+  da grigio (stroke) a blu (fill_color) quando il tag di riempimento supera la soglia.
+
+- **`alarm_bell`**: badge con conteggio degli allarmi attivi (filtrati come `alarm_viewer`) + un
+  pannello a comparsa con l'elenco messaggi al click. **Semplificazione dichiarata rispetto al
+  web**: `AlarmBellPanel` in `SvgCanvas.tsx` ha viste multiple (attivi/storico/ack/shelve) — qui
+  solo "attivi", sola lettura (niente ACK dal pannello: per quello c'è già `alarm_viewer`). Righe
+  del pannello aggiornate solo quando il conteggio cambia davvero (il pannello è quasi sempre
+  nascosto, non vale la pena riscrivere `row_ptrs.len()` label a ogni frame).
+
+- **`recipe_panel`**: elenco statico di ricette (`GET /api/recipes`, nuovo `client::fetch_recipes`
+  — chiamata bloccante una sola volta come `render_faceplate`, stesso endpoint anonymous-readable
+  già usato dall'editor) con un pulsante "Applica" per riga che spara `POST /api/recipes/:id/apply`
+  (nuovo `client::apply_recipe`) **in background al click, senza passare da un canale mpsc**: a
+  differenza di tutte le altre callback di questo file, chiama direttamente
+  `rt_handle.spawn(...)` (la stessa API già usata da `client::spawn_history_poller` per i poller)
+  invece di accodare un comando che il loop principale gira poi a un task async — più semplice,
+  ed evita di dover aggiungere una nuova coppia di canali mpsc dedicata (mirror di `ack_tx`/
+  `ack_rx`) replicata in entrambi `run_window`/`run_drm` in `main.rs`. **Gap dichiarato**: lista
+  non aggiornata se le ricette cambiano mentre la pagina è aperta; nessun riscontro visivo del
+  successo/fallimento dell'apply (fire-and-forget, stesso principio del bottone/checkbox che non
+  mostrano se la `PUT /api/tags` è andata a buon fine).
+
+- **`setpoint`**: label col valore corrente + pulsante che apre un overlay a schermo intero con
+  `lv_textarea` + `lv_keyboard` in modalità `LV_KEYBOARD_MODE_NUMBER`. **Primo pattern di
+  interazione a inserimento testo di questo motore** — tutti gli altri widget interattivi
+  (bottone/checkbox/slider) sono manipolazione diretta, non richiedono un tastierino a schermo.
+  `lv_keyboard_set_textarea` collega tastiera e campo: i tasti scrivono direttamente nella
+  textarea assegnata, nessun `lv_group`/focus esplicito necessario per l'uso touch (verificato in
+  `lv_keyboard.c` prima di assumerlo — il gruppo serve per la navigazione da encoder/tastiera
+  fisica, non per il tocco diretto sui tasti). Un valore non numerico digitato non scrive nulla
+  (l'operatore la corregge), stesso principio del `setpointDraft` web. Verificato dal vivo che il
+  valore mostrato segue il tag quando cambia da un'altra sorgente (`LiveKind::Setpoint`); il ciclo
+  completo apri-tastiera→digita→OK→scrittura non è stato testato con click sintetici in questo
+  giro (nessun harness XTest predisposto in questa sessione) — il meccanismo ricalca però
+  esattamente il pattern collaudato di `AlarmAckCtx`/`RecipeApplyCtx`, non territorio nuovo sul
+  lato callback.
+
+- **`xy_plot`**: punto+scia live contro due tag (traiettoria/posizione, **non tempo** — a
+  differenza di `trend`/`sparkline`, l'asse X è il valore del tag `tag`, non il tempo).
+  Campionamento locale dal `TagSnapshot` di ogni frame (nessun poller REST: i valori sono già lì),
+  throttled a un campione ogni ~200ms per non riempire inutilmente i 64 punti del chart a 60fps.
+  Range fisso quando `xy_x_min`/`xy_x_max` (risp. Y) sono entrambi impostati nel synottico,
+  altrimenti autofit sulla scia corrente. Verificato dal vivo: il punto si posiziona
+  correttamente alle coordinate (valore tag X, valore tag Y) dentro il range dichiarato.
+
+- **`pie_chart`**: solo modalità `"donut"` — **LVGL 8.x non ha un widget torta/donut nativo**
+  (verificato prima di scrivere il codice). Un anello reale è ottenuto componendo un
+  `lv_canvas_draw_arc` per spicchio (spessore fisso `raggio × (1 - inner_ratio)`, angoli
+  proporzionali al valore di ciascun tag sul totale, offset -90° così il primo spicchio parte
+  dalle ore 12 come il donut web). `"pie"` pieno fino al centro segnalato come non supportato:
+  richiederebbe disegno custom oltre le primitive canvas disponibili (nessun settore pieno
+  nativo). Nessuno spicchio disegnato quando il totale dei valori è 0 (un arco di ampiezza 0
+  sarebbe comunque invisibile) — verificato che questo non è un bug ma il comportamento atteso:
+  scrivendo valori non-zero sui tag delle serie l'anello compare immediatamente con le proporzioni
+  corrette. Ridisegnato solo quando i valori cambiano davvero (`last_values`), non a ogni frame.
+
+**Verificato end-to-end** su una terza pagina del template `lvgl-demo` con tutti e otto i tipi
+insieme (23 oggetti totali sulla pagina, incluso il titolo e le didascalie): nessun errore nel
+riepilogo "widget creati" del binario, nessun crash durante la sessione di verifica, screenshot
+X11 prima e dopo aver scritto valori non-zero sui tag coinvolti — confermato che gauge/pie_chart/
+grid/xy_plot/pipe rispondono tutti correttamente allo stesso cambiamento di tag condiviso
+(`lvgl_demo.value`/`value2`/`led_on`), non solo isolatamente.
+
+**Decided**: 29/32 tipi supportati in questo giro. **Correzione** (vedi seguito 15 sotto):
+`lang_selector`/`lang_button` non erano affatto inerti — la mia ricerca era stata troppo
+superficiale (cercato solo dentro `SvgCanvas.tsx`, mai guardato `RuntimeView.tsx` né
+`src/i18n/projectI18n.ts`). Il maintainer l'ha notato ("lato web mi sembrava funzionassero") e ho
+verificato meglio prima di procedere. Restano fuori solo `image` (stesso vincolo architetturale di
+`symbol`, nessuna pipeline di decodifica).
+
+**Aggiornamento 2026-08-11 (seguito 15) — 31/32 tipi supportati: `lang_button`/`lang_selector`,
+correzione di un errore di analisi precedente**
+
+Il maintainer ha corretto un mio errore: avevo scritto (seguito 14) che `lang_selector`/
+`lang_button` fossero "inerti anche lato web" perché la mia ricerca (`grep` solo su
+`projectLang`/`languages.entries`/`resolveText` dentro `SvgCanvas.tsx`) non aveva trovato nessun
+consumo del valore. **Sbagliato**: `RuntimeView.tsx` (il viewer operatore, non l'editor — motivo
+per cui `SvgCanvas.tsx` da solo non bastava) importa `localizeObjects`/`effectiveProjectLang` da
+un intero modulo che non avevo mai aperto, `src/i18n/projectI18n.ts` (T-40). Il sistema reale:
+`project.languages` (`LanguageTable{default, langs, entries: LangEntry{key, values}}`) mappa
+token `{{key}}` → traduzioni per codice lingua; i campi testo degli oggetti (`label`/`text`/
+`unit`/`text_list_default`/label dentro `table_rows`/`text_list_entries`, elenco esatto in
+`TEXT_FIELDS` di `projectI18n.ts`) possono contenere questi token; `RuntimeView.tsx` li risolve
+nella lingua corrente (`effectiveProjectLang`, preferenza salvata in `localStorage` → default
+della tabella) prima di renderizzare. `lang_button`/`lang_selector` chiamano
+`setProjectLang(code)`, che aggiorna sia `localStorage` sia lo store Zustand, facendo
+ri-renderizzare `RuntimeView` con la nuova lingua.
+
+**Implementazione LVGL**:
+- Nuovo `client::fetch_languages` (`GET /api/project`, deserializzato in un wrapper minimo con
+  solo il campo `languages` — l'endpoint restituisce l'intero `Project`, ~30 campi non
+  pertinenti, ignorati da serde senza bisogno di dichiararli, stesso principio di tolleranza già
+  spiegato in cima a `model.rs`), chiamato una sola volta all'avvio. Non fatale se fallisce (un
+  progetto senza T-40 configurato, la maggioranza, non ha nulla da tradurre):
+  `LanguageTable::default()` (entries vuoto) rende `resolve_msg`/`localize_object` no-op a costo
+  quasi zero.
+- **Lingua corrente come stato process-wide** (`SharedLang = Arc<Mutex<String>>`), non
+  `localStorage`: questo motore non ha mai avuto un concetto di sessione per-tab come il browser
+  (un processo per dispositivo, non un browser con più tab). Inizializzata al `default` della
+  tabella, mutata dal click su `lang_button`/`lang_selector`.
+- `resolve_msg`/`localize_object` portano `resolveMsg`/`localizeObject` di `projectI18n.ts` 1:1
+  (stesso regex `{{key}}`, stesso fallback lingua-corrente → default-tabella → token grezzo).
+  **Applicati dentro `dispatch_render`** (non con un pre-processing separato su `page.objects`
+  prima del loop): è l'unico punto per cui passano davvero tutti gli oggetti — di primo livello,
+  figli di `faceplate`, figli di `grid` — senza ripetere la stessa logica in tre posti diversi e
+  rischiare che uno dei tre resti disallineato. Ha richiesto aggiungere `lang_table`/`shared_lang`
+  a **sei firme** (`interpret_page`, `render_page_objects`, `dispatch_render`, `render_faceplate`,
+  `render_grid`, `render_grid_slot`) — meccanico ma non evitabile, dato che la localizzazione deve
+  raggiungere ogni punto che crea un oggetto, non solo il loop principale.
+- **Cambio lingua = ricarica pagina**, riusando `nav_tx` con l'id della pagina **corrente** invece
+  di una coda dedicata: un `lang_button` è a tutti gli effetti un `navbutton` verso se stesso.
+  Questo motore non ha un concetto di re-render reattivo come React (i widget si creano una volta
+  sola), quindi il modo per far ripassare tutti gli oggetti da `resolve_msg` con la lingua nuova è
+  lo stesso identico meccanismo già collaudato per la navigazione fra pagine — nessun canale
+  nuovo, nessuna logica di reload dedicata in `main.rs`.
+- `lang_button`: bottone evidenziato (`#3b82f6`, stesso blu "active" del web) se `target_lang`
+  combacia con la lingua corrente, altrimenti tinta neutra esplicita (`#334155`) — non lo stato
+  di default del tema. **Bug trovato e corretto durante la verifica visiva**: il tema di default
+  di LVGL colora già i bottoni in un blu molto simile a `#3b82f6` — senza uno stile esplicito
+  anche per lo stato *inattivo*, i due bottoni (IT/EN) risultavano visivamente indistinguibili
+  nonostante il colore fosse applicato correttamente solo a quello giusto (verificabile solo
+  guardando lo schermo, non dal codice).
+- `lang_selector`: `lv_dropdown` con `languages.langs` come opzioni (`\n`-separate, convenzione
+  LVGL standard verificata in `lv_dropdown.h`), selezione iniziale sulla lingua corrente. Fedele
+  al `<select>` nativo del web — a differenza di `alarm_bell`/altri pannelli di questo motore, qui
+  LVGL ha un widget diretto, nessuna semplificazione necessaria.
+
+**Verificato con un vero click sintetico** (a differenza di `setpoint`/`alarm_bell` nel seguito
+14, dove non c'era ancora `python-xlib` disponibile — installato in questo giro via `pip install
+--user --break-system-packages python-xlib`, nessun `sudo`): screenshot prima del click ("Ciao
+operatore"/"Motore", IT evidenziato, dropdown su "it"), click XTest sul bottone EN, screenshot
+dopo — testo ricaricato in "Hello operator"/"Motor", EN evidenziato, dropdown su "en". Il ciclo
+completo click→cambio `SharedLang`→`nav_tx`→ricarica pagina→`resolve_msg` con la lingua nuova
+funziona end-to-end, non solo per lettura del codice.
+
+**Decided**: 31/32 tipi supportati. Resta fuori solo `image` (nessuna pipeline di decodifica
+immagine configurata in questo motore — genuinamente bloccato, non un errore di analisi come
+`lang_selector`/`lang_button` si sono rivelati essere).
+
 ---
 
-## Q15 — Simboli SVG (`symbol`/`faceplate`) su LVGL: nessun renderer SVG disponibile
+## Q15 — Simboli SVG (`symbol`) su LVGL: nessun renderer SVG disponibile
 
 **Context**: quinto e ultimo dei "prossimi 5 step" proposti dopo Q14 ("procedi con i prossimi 5
 step") — esplicitamente scoping come *analisi*, non implementazione: "una vera domanda
@@ -1188,7 +1514,9 @@ più codice nello stile già usato per gli altri widget.
   (`FaceplateDef{objects}` in `synoptic.rs`), non contiene SVG proprio — probabilmente
   supportabile quasi gratis ricorrendo nello stesso dispatcher già scritto per gli altri tipi,
   un follow-up separato e nettamente più piccolo di questa domanda (non affrontato qui: fuori
-  dallo scope dei "5 passi" originali, che nominavano solo `symbol`).
+  dallo scope dei "5 passi" originali, che nominavano solo `symbol`). **Implementato il
+  2026-08-11** esattamente come previsto qui — vedi Q14 seguito 13. Questa voce (Q15) resta
+  aperta solo per `symbol`, non più per `faceplate`.
 
 **Options**:
 - **A — Rasterizzazione offline/build-time**: convertire ogni SVG (i 29 built-in/vendored; i
@@ -1228,7 +1556,13 @@ badge "L" dell'editor e in `docs/OPEN_QUESTIONS.md`), rimandando **C** a quando/
 bisogno reale di simboli vendored/custom su un progetto LVGL concreto — ma questa è una
 raccomandazione, non una decisione presa qui.
 
-**Decided**: not yet.
+**Decided (2026-08-11)**: **B** — riscrittura a mano dei soli 16 simboli builtin (contati di
+nuovo da `library.tsx`: 17 era un errore di conteggio in una nota precedente) su primitive LVGL
+native, stesso schema di `ellipse`/`radio`. I 12 simboli "vendored" e i `custom_symbols`
+restano esplicitamente non supportati (copertura parziale ma vera, non un'approssimazione a
+metà) — nessuna decisione presa su C (rasterizzazione runtime) per quei due casi, resta
+un'opzione futura se emergerà un bisogno reale. Implementato: 16/16 builtin renderizzati su
+`lv_canvas`, verificato dal vivo — vedi Q14 seguito 14 per il dettaglio tecnico completo.
 
 ---
 

@@ -14,8 +14,18 @@ use serde::Deserialize;
 use sws_core::tag::{TagQuality, TagValue};
 use tokio_tungstenite::tungstenite::Message;
 
-use crate::model::SynopticPage;
+use crate::model::{FaceplateDef, LanguageTable, RecipeListEntry, SynopticPage};
 use crate::tls::insecure_client_config;
+
+/// Lingua *corrente* del progetto (codice, es. `"it"`) — mutabile, a
+/// differenza della `LanguageTable` (tabella token→traduzioni, fissa per
+/// tutta la sessione). Cambiata dal click su `lang_button`/`lang_selector`
+/// (vedi `lvgl_render.rs`), letta a ogni caricamento/ricarica di pagina per
+/// risolvere i token `{{key}}` nella lingua giusta — stesso principio di
+/// `projectLang` in `src/store/index.ts` lato editor, ma un valore
+/// process-wide invece che nello store di un browser (questo motore non ha
+/// mai avuto un concetto di sessione per-tab).
+pub type SharedLang = Arc<Mutex<String>>;
 
 pub async fn fetch_page(base_url: &str, page_name: &str) -> anyhow::Result<SynopticPage> {
     let mut url = reqwest::Url::parse(base_url)?;
@@ -31,6 +41,93 @@ pub async fn fetch_page(base_url: &str, page_name: &str) -> anyhow::Result<Synop
     let resp = client.get(url).send().await?.error_for_status()?;
     let page = resp.json::<SynopticPage>().await?;
     Ok(page)
+}
+
+/// `GET /api/faceplates/:id` — stesso endpoint anonymous-readable usato
+/// dall'editor, registrato anche nel gruppo di route del viewer (vedi
+/// `sws-web/src/router.rs`, righe 517-518), quindi nessun header
+/// `Authorization` qui, stesso principio di `fetch_page`.
+pub async fn fetch_faceplate(base_url: &str, id: &str) -> anyhow::Result<FaceplateDef> {
+    let mut url = reqwest::Url::parse(base_url)?;
+    url.path_segments_mut()
+        .map_err(|_| anyhow::anyhow!("base URL non può avere path segments (cannot-be-a-base)"))?
+        .push("api")
+        .push("faceplates")
+        .push(id);
+
+    let client = reqwest::Client::builder()
+        .danger_accept_invalid_certs(true)
+        .build()?;
+    let resp = client.get(url).send().await?.error_for_status()?;
+    let def = resp.json::<FaceplateDef>().await?;
+    Ok(def)
+}
+
+/// `GET /api/recipes` — elenco statico (`{id, name, setpoints_count}`, non
+/// `RecipeDef` completo — l'endpoint non espone i setpoint stessi, non
+/// servono per mostrare la lista). Chiamata una sola volta al caricamento
+/// della pagina (`render_recipe_panel`), non ripetuta a intervalli: la
+/// lista ricette cambia raramente durante una sessione, un poller sarebbe
+/// I/O ricorrente per un dato quasi statico — gap dichiarato (lista non
+/// aggiornata se le ricette cambiano mentre la pagina è aperta).
+pub async fn fetch_recipes(base_url: &str) -> anyhow::Result<Vec<RecipeListEntry>> {
+    let mut url = reqwest::Url::parse(base_url)?;
+    url.path_segments_mut()
+        .map_err(|_| anyhow::anyhow!("base URL non può avere path segments (cannot-be-a-base)"))?
+        .push("api")
+        .push("recipes");
+    let client = reqwest::Client::builder().danger_accept_invalid_certs(true).build()?;
+    let resp = client.get(url).send().await?.error_for_status()?;
+    let list = resp.json::<Vec<RecipeListEntry>>().await?;
+    Ok(list)
+}
+
+/// `POST /api/recipes/:id/apply` — stesso principio di `client::put_tag`:
+/// nessun header `Authorization` (rotta anonymous-writable sul gruppo
+/// route viewer, stesso trattamento già riservato a `PUT /api/tags/:id` e
+/// `POST /api/alarms/:id/ack`). `applied_by` fisso a `"lvgl"` così un
+/// operatore che guarda lo storico applicazioni sa che è arrivata da questo
+/// motore, non da un utente autenticato via editor/viewer web.
+pub async fn apply_recipe(base_url: String, id: String) -> anyhow::Result<()> {
+    let mut url = reqwest::Url::parse(&base_url)?;
+    url.path_segments_mut()
+        .map_err(|_| anyhow::anyhow!("base URL non può avere path segments (cannot-be-a-base)"))?
+        .push("api")
+        .push("recipes")
+        .push(&id)
+        .push("apply");
+    let client = reqwest::Client::builder().danger_accept_invalid_certs(true).build()?;
+    client
+        .post(url)
+        .json(&serde_json::json!({ "applied_by": "lvgl" }))
+        .send()
+        .await?
+        .error_for_status()?;
+    Ok(())
+}
+
+/// `GET /api/project` — restituisce l'intero `Project` (`sws-core::project`),
+/// di cui a questo motore serve solo `languages`. Deserializzato in un
+/// wrapper minimo invece che nel `Project` completo (che ha ~30 campi non
+/// pertinenti): stesso principio di tolleranza già spiegato in cima a
+/// `model.rs`, i campi non dichiarati vengono ignorati da serde, non
+/// generano errori. Anonymous-readable (stesso gruppo di route del viewer
+/// di `fetch_page`/`fetch_faceplate`), nessun header `Authorization`.
+pub async fn fetch_languages(base_url: &str) -> anyhow::Result<LanguageTable> {
+    #[derive(Deserialize)]
+    struct ProjectLanguagesOnly {
+        #[serde(default)]
+        languages: LanguageTable,
+    }
+    let mut url = reqwest::Url::parse(base_url)?;
+    url.path_segments_mut()
+        .map_err(|_| anyhow::anyhow!("base URL non può avere path segments (cannot-be-a-base)"))?
+        .push("api")
+        .push("project");
+    let client = reqwest::Client::builder().danger_accept_invalid_certs(true).build()?;
+    let resp = client.get(url).send().await?.error_for_status()?;
+    let wrapper = resp.json::<ProjectLanguagesOnly>().await?;
+    Ok(wrapper.languages)
 }
 
 /// Elenca i nomi file (senza estensione) delle pagine del progetto attivo —

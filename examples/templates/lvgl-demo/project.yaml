@@ -29,8 +29,20 @@ tags:
     description: "Stato spuntato/non spuntato del radio demo (radio è approssimato con una checkbox — vedi Q14) — scrivibile anche cliccando"
     data_type: bool
   - id: lvgl_demo.mode
-    description: "Dimostra checked_value/unchecked_value custom sulla checkbox (stringhe ON/OFF, non un booleano semplice) — parte vuota, quindi non spuntata (\"\" != \"ON\")"
+    description: "Dimostra checked_value/unchecked_value custom sulla checkbox (stringhe ON/OFF, non un booleano semplice) — parte vuota, quindi non spuntata (\"\" != \"ON\"); riusato anche dal text_list demo"
     data_type: string
+  - id: lvgl_demo.value2
+    description: "Seconda serie del bar_chart demo — valore indipendente da lvgl_demo.value, per mostrare due barre con range diversi"
+    data_type: float
+  - id: lvgl_demo.motor.running
+    description: "Faceplate demo (motor_basic): LED 'in marcia'"
+    data_type: bool
+  - id: lvgl_demo.motor.speed
+    description: "Faceplate demo (motor_basic): giri/min"
+    data_type: float
+  - id: lvgl_demo.motor.fault
+    description: "Faceplate demo (motor_basic): LED guasto"
+    data_type: bool
 
 sources: []
 alarms:
@@ -53,6 +65,14 @@ custom_symbols: []
 datastores: []
 global_scripts: []
 languages:
-  default: ""
-  langs: []
-  entries: []
+  default: "it"
+  langs: ["it", "en"]
+  entries:
+    - key: greeting
+      values:
+        it: "Ciao operatore"
+        en: "Hello operator"
+    - key: motor_label
+      values:
+        it: "Motore"
+        en: "Motor"

@@ -51,6 +51,51 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   mantenute da pipeline di build separate e possono divergere silenziosamente: un rebuild della
   sola generic, installato con il campo vuoto, portava sul device l'immagine SDK vecchia senza
   alcun avviso (incidente reale di questa sessione).
+- **LVGL — 5 nuovi tipi widget (21/32 supportati)**: `text_list` (sottoinsieme di `state_lamp`,
+  solo l'etichetta), `bar_chart` (una `lv_bar` per serie, riempimento verticale garantito
+  indipendentemente da quante serie/quanto gap sceglie il synottico — bug di orientamento trovato
+  e corretto durante la verifica visiva), `sparkline` (grafico compatto senza assi, riusa il
+  poller storico di `trend`), `alarm_banner` (riquadro compatto per l'allarme attivo più recente,
+  riusa lo stesso `SharedAlarms` di `alarm_viewer`), e `faceplate` (template composito di oggetti
+  ordinari con sostituzione parametri — non contiene SVG, quindi non bloccato dal vincolo che
+  ferma `symbol`; il dispatcher `obj_type → render_*` è stato estratto in una funzione condivisa
+  così `faceplate` può richiamarlo sui propri figli senza duplicare la logica). Verificato
+  end-to-end con screenshot X11, non solo a compilazione. Gli 11 tipi web rimanenti restano fuori
+  con una motivazione specifica per ciascuno (bloccati architetturalmente, richiedono un nuovo
+  sottosistema REST, un pattern di interazione nuovo, o un widget LVGL inesistente) — vedi
+  `docs/OPEN_QUESTIONS.md` Q14 seguito 13.
+- **LVGL — 8 ulteriori tipi widget (29/32 supportati)**: `symbol` (Q15, deciso **opzione B** —
+  solo i 16 simboli builtin, disegnati a mano su un `lv_canvas` con
+  `draw_rect`/`draw_polygon`/`draw_arc`, l'unico canale di disegno abbastanza espressivo di
+  LVGL 8.x fuori dai widget standard), `grid` (contenitore ricorrente — unico tipo di questo
+  motore i cui figli non compaiono in `page.objects`, riusa il dispatcher estratto per
+  `faceplate` con coordinate traslate), `pipe` (solo routing `"straight"`, riempimento statico
+  non live), `alarm_bell` (badge + pannello elenco, senza storico/shelve), `recipe_panel`
+  (nuovo `client::fetch_recipes`/`apply_recipe`, apply via `rt_handle.spawn` diretto dalla
+  callback), `setpoint` (primo pattern di interazione a inserimento testo del motore — overlay
+  con `lv_textarea`+`lv_keyboard` in modalità numerica), `xy_plot` (traiettoria live campionata
+  localmente, non un poller REST) e `pie_chart` (solo modalità donut, componendo
+  `lv_canvas_draw_arc` per spicchio — LVGL 8.x non ha un widget torta nativo). Bug trovato e
+  corretto durante la verifica visiva: alcune forme "contenitore" dei simboli (tank/fan/
+  level_sensor/mixer/agitator) usavano lo stesso colore dello sfondo pagina, invisibili — corretto
+  con un colore pannello più chiaro. Verificato end-to-end con screenshot X11 su una terza pagina
+  demo con tutti e otto i tipi insieme — vedi `docs/OPEN_QUESTIONS.md` Q14 seguito 14.
+- **LVGL — `lang_button`/`lang_selector` (31/32 supportati)**: correzione di un'analisi precedente
+  (erano stati segnalati come "inerti anche lato web" — sbagliato, non avevo trovato
+  `RuntimeView.tsx`/`src/i18n/projectI18n.ts`, il vero sistema di traduzione contenuti T-40).
+  Nuovo `client::fetch_languages` (`GET /api/project`, chiamata una sola volta all'avvio) +
+  `resolve_msg`/`localize_object` (porta 1:1 `resolveMsg`/`localizeObject` di `projectI18n.ts`)
+  applicati dentro `dispatch_render` così ogni oggetto — di primo livello, figlio di `faceplate`,
+  figlio di `grid` — passa dalla stessa risoluzione token `{{key}}`. Lingua corrente come stato
+  process-wide (`SharedLang`, non `localStorage`: questo motore non ha un concetto di sessione
+  per-tab). Un cambio lingua ricarica la pagina corrente riusando `nav_tx` (un `lang_button` è a
+  tutti gli effetti un `navbutton` verso se stesso) invece di una logica di reload dedicata.
+  `lang_selector` usa `lv_dropdown` (fedele al `<select>` nativo del web). Bug trovato e corretto
+  durante la verifica: il tema di default di LVGL colora già i bottoni in un blu simile al blu
+  "active" del web, rendendo IT/EN indistinguibili senza una tinta esplicita anche per lo stato
+  inattivo. **Verificato con un vero click sintetico** (XTest via `python-xlib`, installato senza
+  sudo in questo giro): click su EN → testo/bottone attivo/dropdown passano correttamente
+  all'inglese.
 
 ### Fixed
 
