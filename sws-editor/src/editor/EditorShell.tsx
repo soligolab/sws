@@ -3287,9 +3287,9 @@ function ObjectProps({
                 onChange={(v) => onChange({ alarm_tag: v || undefined })} />
             )}
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6 }}>
-              <div>{field(t("props.off"),   colorInput("state_off_color",   "var(--brand-text-subtle, #64748b)"))}</div>
-              <div>{field(t("props.on"),    colorInput("state_on_color",    "var(--brand-success, #22c55e)"))}</div>
-              <div>{field(t("props.alarmWord"), colorInput("state_alarm_color", "var(--brand-danger, #ef4444)"))}</div>
+              <div>{field(t("props.off"),   <BindableInput obj={obj} propName="state_off_color"   onChange={onChange}>{colorInput("state_off_color",   "var(--brand-text-subtle, #64748b)")}</BindableInput>)}</div>
+              <div>{field(t("props.on"),    <BindableInput obj={obj} propName="state_on_color"    onChange={onChange}>{colorInput("state_on_color",    "var(--brand-success, #22c55e)")}</BindableInput>)}</div>
+              <div>{field(t("props.alarmWord"), <BindableInput obj={obj} propName="state_alarm_color" onChange={onChange}>{colorInput("state_alarm_color", "var(--brand-danger, #ef4444)")}</BindableInput>)}</div>
             </div>
           </CollapsibleSection>
 

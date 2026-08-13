@@ -54,6 +54,13 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ### Fixed
 
+- **`pipe`: i tre colori di stato (`state_off_color`/`state_on_color`/`state_alarm_color`) non
+  erano bindable a un tag**, unico gap rimasto rispetto al resto del pannello proprietà di
+  `pipe` (stroke, gradiente, colore fluido e dimensione marker lo erano già) — e rispetto a
+  `symbol`, che sugli stessi tre campi ha già il binding. Audit del 2026-08-06 li segnalava come
+  gap; verificato che nel frattempo (commit successivi) tutto il resto del binding mancante
+  descritto nello stesso audit (color picker slider/checkbox/radio, resto dei campi di `pipe`)
+  era già stato aggiunto — restavano solo questi tre.
 - **Deploy verso runtime remoto non sincronizzava Faceplates né Recipes**: il bundle di deploy
   (`build_project_zip`/`build_export_zip`) elencava a mano solo `project.yaml`, `synoptics/*.yaml`
   e `users.yaml` — mai esteso per includere `faceplates/*.yaml`/`recipes/*.yaml` (stessa cartella
