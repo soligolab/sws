@@ -13,8 +13,8 @@ backlog, da rivedere insieme al ritorno. Un agente ha prima analizzato `docs/CON
 domanda architetturale da risolvere, niente SSH/sudo/push). Esito dei 5 scelti — **due si sono
 rivelati già fatti in commit successivi ai documenti che li segnalavano** (verificato con
 `git blame` prima di toccare codice, non dato per scontato dal backlog):
-- **T-49 + `sws-kiosk` + pulizia** (branch `fix/mdns-interfaces-kiosk-viewerport`, **non
-  mergiato**): `announce_mdns()` annunciava un indirizzo per ogni interfaccia locale, comprese le
+- **T-49 + `sws-kiosk` + pulizia** (branch `fix/mdns-interfaces-kiosk-viewerport`, **mergiato
+  2026-08-13**): `announce_mdns()` annunciava un indirizzo per ogni interfaccia locale, comprese le
   veth link-local di container — ora annuncia solo `detect_lan_ip()` (già esistente). `sws-kiosk`
   ignorava `--viewer-port` (la variabile `vport` era lì, semplicemente non usata al punto giusto).
   Rimosso anche un TODO morto (ADR 0001 Redux, chiuso da tempo). Verificato inoltre che il
@@ -32,7 +32,7 @@ rivelati già fatti in commit successivi ai documenti che li segnalavano** (veri
   (commit `30eb7451`, 2026-08-07, un giorno dopo l'audit che lo segnalava mancante) e quasi tutto
   il binding di `pipe` pure — restavano solo i tre `state_*_color`, senza `BindableInput` a
   differenza degli stessi campi in `symbol`. Sistemato quel gap puntuale (branch
-  `fix/pipe-state-color-bindable`, **non mergiato**).
+  `fix/pipe-state-color-bindable`, **mergiato 2026-08-13**).
 - **Q14 — consolidamento narrazione hardware reale**: aggiunto un "seguito 12" strutturato che
   raccoglie la saga di bring-up su `tc620-a-p3-c6-07aff9.local` (SIGSEGV Wayland upstream di SDL2,
   tentativi Surface/XWayland/Mesa, scoperta di kmsdrm, schermo nero isolato a un bug del driver
@@ -41,10 +41,29 @@ rivelati già fatti in commit successivi ai documenti che li segnalavano** (veri
   commit, mai scritta come continuazione di Q14. Nessun fatto nuovo, solo consolidamento. Commit
   diretto su `main`.
 
-`cargo check --workspace`/`pnpm build` verdi su tutti i branch con codice. **Prossimo passo
-naturale**: il maintainer rivede i due branch non mergiati (`fix/mdns-interfaces-kiosk-viewerport`,
-`fix/pipe-state-color-bindable`) e conferma, poi squash-merge; le due voci Q16/seguito 12 sono già
-su `main` (pure documentazione, nessun rischio).
+`cargo check --workspace`/`pnpm build` verdi su tutti i branch con codice. Entrambi i branch
+squash-mergiati in `main` il 2026-08-13 dopo revisione del maintainer (vedi sessione di pulizia
+branch più sotto); le due voci Q16/seguito 12 erano già su `main` (pure documentazione, nessun
+rischio).
+
+**Sessione 2026-08-13 (continua) — pulizia branch aperti**. Il maintainer ha segnalato confusione
+su quali branch fossero davvero mergiati o no; verifica sistematica **sul contenuto** (diff dei
+file toccati contro l'attuale `main`, non sugli hash — con lo squash-merge quelli sono sempre
+diversi anche a lavoro incorporato) di tutti i branch non-LVGL:
+- **Già completamente in `main`, eliminati**: `feat/alarm-banner-list-t46`,
+  `feat/container-variant-picker`, `feat/faceplate-preview-and-deploy-sync`,
+  `feat/mdns-hostname-ssh`, `fix/project-changed-false-positive`, `fix/runtime-tab-status-sync`.
+- **Superati da lavoro successivo, eliminati**: `fix/deploy-btn-log-remoti-alarm-panel` (l'unica
+  riga residua, `setTargetUrl(r.admin_url)`, è stata sostituita dalla logica hostname-based di
+  `mdns-hostname-ssh`); `fix/remote-logs-mqtt-clientid` (il fix backend è in `main`, il pannello
+  "Log Remoti" che modificava è stato rimpiazzato dal nuovo hook `remoteLogStream.ts`).
+- **Confermati non mergiati, ora squash-mergiati**: `fix/mdns-interfaces-kiosk-viewerport` e
+  `fix/pipe-state-color-bindable` (vedi voci sopra) — verificati leggendo il codice attuale
+  (`enable_addr_auto()` ancora senza fallback, `pipe` ancora senza `BindableInput` sui
+  `state_*_color`), non solo il diff.
+
+10 branch eliminati in totale. Restano da valutare i ~14 branch della famiglia `feature/lvgl-*`
+(incatenati l'uno sull'altro, verifica più lunga) — non ancora affrontati in questa sessione.
 
 **Sessione 2026-08-13 (continua) — anteprima live Faceplates + deploy non sincronizzava
 faceplates/recipes**. Due richieste sul pannello Config → Faceplates:
