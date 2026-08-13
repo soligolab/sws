@@ -6,6 +6,46 @@
 >
 > **Pulizia 2026-07-27**: rimossi i task già chiusi e le sezioni di verifica ormai superate; le sessioni mergiate **e** verificate fino al 2026-07-09 sono compresse in «Storico». Il dettaglio integrale resta in `CHANGELOG.md` e nella history git.
 
+**Sessione 2026-08-13 (continua) — blocco di lavoro autonomo, 5 task dal backlog**. Il maintainer
+si è allontanato per un paio d'ore chiedendo di identificare e affrontare task corposi dal
+backlog, da rivedere insieme al ritorno. Un agente ha prima analizzato `docs/CONTEXT.md`,
+`docs/OPEN_QUESTIONS.md`, `STATUS.md` e i TODO nel codice per proporre candidati sicuri (nessuna
+domanda architetturale da risolvere, niente SSH/sudo/push). Esito dei 5 scelti — **due si sono
+rivelati già fatti in commit successivi ai documenti che li segnalavano** (verificato con
+`git blame` prima di toccare codice, non dato per scontato dal backlog):
+- **T-49 + `sws-kiosk` + pulizia** (branch `fix/mdns-interfaces-kiosk-viewerport`, **non
+  mergiato**): `announce_mdns()` annunciava un indirizzo per ogni interfaccia locale, comprese le
+  veth link-local di container — ora annuncia solo `detect_lan_ip()` (già esistente). `sws-kiosk`
+  ignorava `--viewer-port` (la variabile `vport` era lì, semplicemente non usata al punto giusto).
+  Rimosso anche un TODO morto (ADR 0001 Redux, chiuso da tempo). Verificato inoltre che il
+  "duplicate entries" in `/api/discover` segnalato in STATUS.md fosse già risolto dalla dedup per
+  `fullname` esistente in `discover.rs` — nota superata, nessun cambio necessario lì.
+- **Faceplate piazzabile dall'editor**: **già fatto** (commit `6796891`, 2026-08-07) — palette,
+  dropdown di scelta e editor parametri esistono e funzionano. Nessun lavoro.
+- **Widget `image` in LVGL**: l'ipotesi iniziale ("caso semplice, URL raster + `lv_img` nativo")
+  non ha retto alla verifica — il catalogo icone bundlato nell'editor è tutto SVG (stesso
+  problema di `symbol`/Q15), e `lv_conf.h` di progetto ha `LV_USE_PNG`/`SJPG`/`GIF` tutti a 0
+  (nessun decoder raster compilato). Documentato come nuova voce **Q16** in
+  `docs/OPEN_QUESTIONS.md` invece di implementare qualcosa di rischioso/incompleto senza
+  supervisione — commit diretto su `main` (meta commit, solo documentazione).
+- **Color picker slider/checkbox/radio + bindable su `pipe`**: il color picker era **già fatto**
+  (commit `30eb7451`, 2026-08-07, un giorno dopo l'audit che lo segnalava mancante) e quasi tutto
+  il binding di `pipe` pure — restavano solo i tre `state_*_color`, senza `BindableInput` a
+  differenza degli stessi campi in `symbol`. Sistemato quel gap puntuale (branch
+  `fix/pipe-state-color-bindable`, **non mergiato**).
+- **Q14 — consolidamento narrazione hardware reale**: aggiunto un "seguito 12" strutturato che
+  raccoglie la saga di bring-up su `tc620-a-p3-c6-07aff9.local` (SIGSEGV Wayland upstream di SDL2,
+  tentativi Surface/XWayland/Mesa, scoperta di kmsdrm, schermo nero isolato a un bug del driver
+  kernel Rockchip sull'API DRM atomica, backend `--backend drm` su API legacy come soluzione,
+  touch reale, primi fix visivi gauge/slider) — prima viveva solo sparsa fra `STATUS.md` e i
+  commit, mai scritta come continuazione di Q14. Nessun fatto nuovo, solo consolidamento. Commit
+  diretto su `main`.
+
+`cargo check --workspace`/`pnpm build` verdi su tutti i branch con codice. **Prossimo passo
+naturale**: il maintainer rivede i due branch non mergiati (`fix/mdns-interfaces-kiosk-viewerport`,
+`fix/pipe-state-color-bindable`) e conferma, poi squash-merge; le due voci Q16/seguito 12 sono già
+su `main` (pure documentazione, nessun rischio).
+
 **Sessione 2026-08-13 (continua) — anteprima live Faceplates + deploy non sincronizzava
 faceplates/recipes**. Due richieste sul pannello Config → Faceplates:
 - **Anteprima live**: nuova terza colonna nel pannello che mostra il faceplate mentre lo si
