@@ -6,6 +6,25 @@
 >
 > **Pulizia 2026-07-27**: rimossi i task già chiusi e le sezioni di verifica ormai superate; le sessioni mergiate **e** verificate fino al 2026-07-09 sono compresse in «Storico». Il dettaglio integrale resta in `CHANGELOG.md` e nella history git.
 
+**Sessione 2026-08-13 — Deploy button/Configurazione→Runtime ancora disallineati + chiarimento
+"regressioni" sul container** (branch `fix/runtime-tab-status-sync`, non ancora mergiato). Il
+maintainer ha ripreso il lavoro e segnalato due cose:
+- **"Regressioni" nel container compilato** (barra/pulsante allarmi tornati fissi in alto,
+  `alarm_banner`/`alarm_bell` ignorati, griglia di sfondo ricomparsa): **non un bug di codice**.
+  Verificato che `main` locale era 4 commit avanti a `origin/main` (tutto il lavoro della sessione
+  precedente — MQTT, T-46, falso positivo, Deploy button/Log Remoti) mai pushato. Un container
+  costruito da `origin` riprende lo stato pre-fix. Serve un `git push` (da confermare
+  esplicitamente, non ancora fatto) + rebuild.
+- **Deploy button verde ma Configurazione→Runtime non risultava connesso**: gap reale lasciato dal
+  fix precedente sul pulsante Deploy — quello aveva reso il pulsante coerente con lo store
+  condiviso, ma `RuntimeConnectionTab` (`ConfigView.tsx`) sincronizzava il proprio stato locale
+  dallo store solo una volta al mount. Un cambio di connessione dall'esterno (es. "Riconnetti"
+  dal pulsante Deploy) con la tab già aperta non si rifletteva. Aggiunto un effetto di
+  risincronizzazione. `pnpm build` verde.
+
+**Prossimo passo naturale**: confermare col maintainer se procedere con `git push` + nuovo build
+container (per chiudere anche il punto 1), poi squash-merge di questo branch su `main`.
+
 **Sessione 2026-08-11 (continuazione, stessa giornata)**: deploy 2.0.0 sul pannello fisico
 (`tc620-a-p3-c6-07aff9.local`) e due bugfix nati dal test del demo Sandokan in web mode.
 
