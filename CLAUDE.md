@@ -1,71 +1,78 @@
 # Claude Code Instructions
 
-> Auto-loaded by Claude Code when this repository is opened. Keep this file short — its job is to point at the real context, not duplicate it.
+> Auto-loaded when this repo is opened. Process and pointers only — never duplicated context.
+> The maintainer writes in Italian; reply in Italian.
 
-## Before doing anything
+## Hard rules
 
-1. Read `docs/CONTEXT.md` — project context, working mode, frozen architectural decisions, phase plan.
-2. Read `STATUS.md` (this directory) — current state, what's working, what the next session should pick up.
-3. Read `docs/OPEN_QUESTIONS.md` — deferred architectural decisions; don't try to settle them in a vibecode session.
-4. Read `docs/CLAUDE_CODE_SETUP.md` if a permission prompt is confusing — that file explains the `.claude/settings.json` rules.
-5. Read `docs/TEST_SETUPS.md` — where the maintainer actually runs SWS (home Ubuntu desktop, this headless dev server, office Yocto devices). Device addresses change per session — always ask before SSH-ing.
-6. Read `docs/YOCTO_CROSSCOMPILE.md` if you're touching the Yocto cross-build / deploy flow (`scripts/yocto/`, `deploy/yocto/`).
-7. Check `docs/HOWTO.md` if the maintainer asks "come faccio a fare...?" — growing collection of short how-to recipes, one per past question of that shape. Add a new numbered chapter there for each new one instead of answering only in chat.
+1. **Never `git push`** without an explicit instruction in the current session. Confirming that a feature works is *not* approval to push.
+2. **Never commit directly to `main`**, except meta commits (`STATUS.md`, `CHANGELOG.md`, `CLAUDE.md`, `docs/**`) and the squash merges described below.
+3. **Never resolve an item in `docs/OPEN_QUESTIONS.md`** — add to it instead.
+4. **Never ask permission for commands allowed in `.claude/settings.json`** (cargo, pnpm, git, ls/cat/grep, mkdir, podman…). Just run them. If a safe, recurring command is denied, propose a specific allow rule — never `Bash(*)`.
+5. **Never SSH into a test device without asking** — addresses change every session.
+6. **`docs/CONTEXT.md` beats `docs/SWS_Project_Specification.md`** wherever they conflict, until the PoC graduates to a product. The spec is the long-term destination; CONTEXT.md is the short-term reality.
 
-Then state to the maintainer:
-- What the previous session ended with
-- What you plan to do in this session
-- Any blockers identified
+## Session start
 
-## Working mode reminders
+Read, in order:
 
-- This is a **proof of concept**, not a product. Ship the smallest thing that works. See `docs/CONTEXT.md` §1.
-- **Local dev**: due script separati con ruoli distinti (dettagli in `scripts/README.md`):
-  - `./scripts/start_runtime.sh` — runtime sul dispositivo: viewer 8443 + IDE/admin 8444 + HTTP companion 8080, auto-apre il progetto `default`.
-  - `./scripts/start_editor.sh` — IDE sul PC sviluppatore: porta 8460 + HTTP companion 8090, nessun viewer. Per il deploy usa ConfigView → Runtime → "Connetti" con l'URL del runtime remoto.
-  - Primo accesso: apri `http://localhost:8080` (runtime) o `http://localhost:8090` (editor) per accettare il certificato self-signed senza uscire dall'app.
-- **Vibecode + solo maintainer + sparse sessions**. Loss of context between sessions is the #1 risk; permission friction is #2.
-- **`.claude/settings.json` covers the routine commands** (cargo, pnpm, git, ls/cat/grep, mkdir, podman, etc.). Don't ask permission for them — just run them. If a command is denied and it's clearly safe and recurring, propose adding a specific allow rule (never `Bash(*)`).
-- **Sessions are 3-4 hours.** Plan tasks that fit. Stop at clean points.
-- **Do not push** to remote without explicit instruction. The `ask` rules deliberately gate `git push`.
+1. `docs/CONTEXT.md` — context, working mode, frozen architectural decisions, phase plan, task roadmap (T-xx).
+2. `STATUS.md` — where the last session stopped, what's working, what to pick up.
+3. `docs/OPEN_QUESTIONS.md` — deferred decisions, off-limits in a vibecode session.
+
+Then state, in three short lines: what the last session ended with, what you plan to do now, any blockers. **Wait for the go-ahead before writing code.**
+
+Read these only when the trigger applies:
+
+| Trigger | File |
+|---|---|
+| Touching `scripts/yocto/` or `deploy/yocto/` | `docs/YOCTO_CROSSCOMPILE.md` |
+| Deploying to or testing on a device | `docs/TEST_SETUPS.md` |
+| A permission prompt looks wrong | `docs/CLAUDE_CODE_SETUP.md` |
+| Maintainer asks "come faccio a…?" | `docs/HOWTO.md` — answer from it, and add a new numbered chapter if the answer isn't there yet |
+| Running the local stack | `scripts/README.md` |
+
+## Working mode
+
+- **Proof of concept, not a product.** Ship the smallest thing that works — see `docs/CONTEXT.md` §1.
+- **Solo maintainer, sparse sessions of 3-4h.** Lost context between sessions is risk #1, permission friction is #2. Plan work that fits one session and stop at clean points.
+- **Local stack:**
+  - `./scripts/start_runtime.sh` — device runtime: viewer 8443 + IDE/admin 8444 + HTTP companion 8080, auto-opens project `default`.
+  - `./scripts/start_editor.sh` — dev-PC IDE: 8460 + HTTP companion 8090, no viewer. Deploy via ConfigView → Runtime → "Connetti" with the remote runtime URL.
+  - First access: open `http://localhost:8080` (runtime) or `:8090` (editor) to accept the self-signed cert without leaving the app.
+
+## Definition of done
+
+`cargo check` green **and** `pnpm build` green **and** the maintainer has confirmed the feature works. All three, before anything reaches `main`.
 
 ## Git workflow per task
 
-Ogni task del roadmap (T-01…T-20 e oltre) segue questo flusso:
+Every roadmap task (T-01…T-20 and beyond):
 
-1. **Branch**: crea `feat/T-XX-short-desc` da `main`:
-   `git checkout main && git checkout -b feat/T-01-pid-symbols`
-2. **Sviluppo**: tutti i commit intermedi nel branch, nessun commit diretto su `main`.
-3. **Verifica**: `cargo check` + `pnpm build` verdi, funzionalità testata dal maintainer.
-4. **Squash merge** quando il maintainer conferma che funziona:
+1. **Branch** from `main`: `git checkout main && git checkout -b feat/T-01-pid-symbols`
+2. **Develop** — all intermediate commits stay on the branch.
+3. **Verify** — meet the definition of done above.
+4. **Squash merge**, only after the maintainer confirms it works:
    ```
    git checkout main
    git merge --squash feat/T-01-pid-symbols
    git commit -s -m "feat(T-01): ..."
    ```
-5. **Non cancellare** il branch dopo il merge — pulizia futura a discrezione del maintainer.
+5. **Don't delete the branch** — cleanup is the maintainer's call.
+6. **Push only when told to**, and name the branch you're about to push before doing it.
 
-I commit meta (STATUS.md, CHANGELOG.md, CLAUDE.md, memory) vanno direttamente su `main`.
+All commits use `-s` (`Signed-off-by:` trailer).
 
-## Piani di lavoro
+## Plans
 
-I piani della modalità di pianificazione stanno in `~/.claude/plans/`, che è **per macchina** e non
-viaggia con git. Se un piano riguarda lavoro destinato a continuare in un'altra sessione o su un'altra
-macchina, copialo in `docs/plans/<data>-<slug>.md` e committalo; nella home restano gli usa-e-getta.
+Planning-mode plans live in `~/.claude/plans/`, which is per-machine and doesn't travel with git. The maintainer works from two machines (office server, home PC): on 2026-07-30 an analysis written at home never made it to the office, while the code did. So if a plan covers work that continues in another session or on another machine, copy it to `docs/plans/<date>-<slug>.md` and commit it. Throwaways stay in the home dir.
 
-Serve perché il maintainer lavora da due macchine (server in ufficio, PC nell'ufficio di casa): il
-2026-07-30 l'analisi scritta di notte a casa non è arrivata in ufficio, mentre il codice sì.
+## Session end — and whenever context is running low
 
-## At the end of every session
+Do this *before* you run out of room, not after:
 
-1. Ensure CI would pass (`cargo check` / `pnpm build` green).
-2. Update `STATUS.md` (what was done, what's next).
+1. `cargo check` / `pnpm build` green.
+2. Update `STATUS.md` — what was done, what's next, anything left half-finished.
 3. Update `CHANGELOG.md` under `[Unreleased]`.
-4. Commit with a clear message and `Signed-off-by:` trailer (`git commit -s`).
-5. If anything architectural came up, add it to `docs/OPEN_QUESTIONS.md` rather than deciding it.
-
-## Long-term destination vs. short-term reality
-
-- `docs/SWS_Project_Specification.md` describes the **long-term destination** (CRA-compliant industrial Web SCADA).
-- `docs/CONTEXT.md` describes the **short-term reality** (PoC, exploratory, solo).
-- **Where they conflict, `CONTEXT.md` wins until the PoC graduates to product.**
+4. Commit with `-s` and a clear message.
+5. Anything architectural that surfaced → append to `docs/OPEN_QUESTIONS.md` rather than deciding it.
