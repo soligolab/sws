@@ -6,6 +6,23 @@
 >
 > **Pulizia 2026-07-27**: rimossi i task già chiusi e le sezioni di verifica ormai superate; le sessioni mergiate **e** verificate fino al 2026-07-09 sono compresse in «Storico». Il dettaglio integrale resta in `CHANGELOG.md` e nella history git.
 
+**Sessione 2026-08-13 (continua) — anteprima live Faceplates + deploy non sincronizzava
+faceplates/recipes** (branch `feat/faceplate-preview-and-deploy-sync`, **non ancora mergiato —
+in attesa di conferma del maintainer**). Due richieste sul pannello Config → Faceplates:
+- **Anteprima live**: nuova terza colonna nel pannello che mostra il faceplate mentre lo si
+  modifica, senza salvare — riusa il rendering già esistente di un `faceplate` piazzato
+  (`SvgObject`/sostituzione `{param}`, ora esportati da `SvgCanvas.tsx`), nessun nuovo stato
+  (legge `current.objects`/`current.params`, già "vivi" prima del salvataggio).
+- **Bug reale trovato**: modificare un faceplate (il maintainer stava provando "Tank Level", uno
+  dei tre built-in) e fare Deploy verso un runtime remoto non portava l'aggiornamento sul device —
+  il bundle di deploy (`build_project_zip`/`build_export_zip`, `router.rs`) elencava a mano solo
+  `project.yaml`+`synoptics/*.yaml`+`users.yaml`, mai esteso per `faceplates/`/`recipes/` (stesso
+  identico gap in entrambe le cartelle). Corretto in export e import, stesso pattern replace-mode
+  già usato per synoptics. `cargo check --workspace` e `pnpm build` verdi.
+
+**Prossimo passo naturale**: il maintainer verifica l'anteprima nel pannello Faceplates e che un
+faceplate modificato arrivi correttamente su un device remoto dopo il Deploy, poi squash-merge.
+
 **Sessione 2026-08-13 — Deploy button/Configurazione→Runtime disallineati, chiarimento
 "regressioni" sul container, selettore variante immagine aarch64**. Il maintainer ha ripreso il
 lavoro e segnalato più cose in sequenza:

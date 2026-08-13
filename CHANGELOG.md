@@ -13,6 +13,13 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ### Added
 
+- **Anteprima live nel pannello Faceplates**: una terza colonna a destra dei campi ID/Label/
+  Parametri/Oggetti mostra un rendering live del faceplate mentre lo si modifica — nessun nuovo
+  stato, legge `current.objects`/`current.params` (già "vivi" prima del salvataggio, la stessa
+  fonte dati che la textarea JSON scrive a ogni tasto valido). Riusa lo stesso rendering di un
+  `faceplate` piazzato su pagina (`SvgObject`/sostituzione `{param}`, ora esportati da
+  `SvgCanvas.tsx`), con valori segnaposto (ogni parametro sostituisce se stesso, non essendoci
+  un'istanza reale in fase di editing della definizione).
 - **Selettore variante immagine aarch64 (Config → Runtime → installazione container, sorgente
   Registry)**: due bottoni "Generic (aarch64)" / "SDK-tuned Pixsys (aarch64)" che precompilano il
   campo "Riferimento immagine" con il tag esplicito corretto (`latest-arm64-generic` o
@@ -24,6 +31,14 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ### Fixed
 
+- **Deploy verso runtime remoto non sincronizzava Faceplates né Recipes**: il bundle di deploy
+  (`build_project_zip`/`build_export_zip`) elencava a mano solo `project.yaml`, `synoptics/*.yaml`
+  e `users.yaml` — mai esteso per includere `faceplates/*.yaml`/`recipes/*.yaml` (stessa cartella
+  flat-YAML-per-id di entrambi). Modificare un faceplate — anche uno dei tre built-in come
+  "Tank Level" — si salvava correttamente in locale ma non arrivava mai sul device remoto dopo il
+  Deploy, che continuava a mostrare la versione vecchia o il built-in compilato nel binario.
+  Corretto in entrambe le direzioni (export include i file, import li scrive con lo stesso
+  replace-mode già usato per synoptics — un file cancellato in locale sparisce anche dal device).
 - **Pulsante Deploy verde ma Configurazione→Runtime ancora "non connesso"**: gap lasciato dal
   fix precedente sul pulsante Deploy — quel fix lo aveva reso coerente con lo store condiviso, ma
   `RuntimeConnectionTab` mostrava il proprio stato da uno stato locale sincronizzato dallo store
