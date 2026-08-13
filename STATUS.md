@@ -242,7 +242,94 @@ a discrezione del maintainer, per convenzione di questo progetto). **Prossimo pa
 il maintainer ricompila/pubblica un nuovo container da `main` per avere tutti i fix insieme sul
 pannello.
 
-**Last session**: 2026-08-11 — release **2.0.0**, prima dopo il merge del motore LVGL. Il
+**Sessione precedente**: 2026-08-11 (prosecuzione) — richiesta esplicita del maintainer, in autonomia su
+un nuovo branch (`feature/lvgl-widgets-3`): "completare il porting dei widget da web a LVGL".
+Confronto sistematico fra i 32 tipi del catalogo web e i 16 già supportati da LVGL: **5 nuovi tipi
+implementati** (`text_list`, `bar_chart`, `sparkline`, `alarm_banner`, `faceplate` — **21/32 in
+totale**), gli altri **11 deliberatamente rimandati con una ragione specifica per ciascuno** (non
+un debito generico): `symbol` resta bloccato da Q15 (non è una decisione da prendere in sessione),
+`image` ha lo stesso genere di vincolo (nessuna pipeline di decodifica configurata), `grid`
+richiederebbe un cambio architetturale del dispatcher (contenitore ricorsivo, non un widget
+foglia), gli altri otto (`pipe`, `recipe_panel`, `alarm_bell`, `setpoint`, `xy_plot`, `pie_chart`,
+`lang_selector`/`lang_button`) aprirebbero ciascuno un fronte di lavoro a sé — dettagli completi in
+`docs/OPEN_QUESTIONS.md` Q14 seguito 13.
+
+Un bug reale trovato e corretto durante la verifica visiva (non a compilazione): `bar_chart`
+riempiva le barre da sinistra invece che dal basso quando poche serie su un box abbastanza largo
+rendevano `slot_w * (1 - gap)` più largo che alto — `lv_bar.c` decide il riempimento orizzontale/
+verticale confrontando le dimensioni del widget stesso, non c'è un flag dedicato. Corretto
+clampando `bar_w < plot_h` sempre, non solo nel caso comune. Un secondo problema (non un bug del
+motore) osservato ma non toccato: il faceplate built-in `motor_basic.yaml` usa una stringa di
+formato in stile printf (`"%.0f rpm"`) che questo motore (come lo schema web) non interpreta —
+contenuto condiviso con la versione web, fuori scope per questo giro.
+
+Verificato end-to-end su un'istanza isolata (`.run-12`) con screenshot X11 per entrambe le pagine
+del template `lvgl-demo`, non solo a compilazione: tutti e cinque i nuovi widget renderizzano e si
+aggiornano dal vivo scrivendo i tag corrispondenti via REST, nessun crash. Palette editor
+(`LeftPanel.tsx`) aggiornata.
+
+**Ancora nella stessa sessione** ("riesci a completare anche gli altri?"): implementati **8 dei
+restanti 11 tipi** — **29/32 in totale**. Prima di procedere, chiesta al maintainer la decisione
+che Q15 riserva esplicitamente a lui (non a una sessione vibecode): **opzione B** per `symbol`, i
+soli 16 simboli builtin (non 17 — errore di conteggio corretto nel processo, vedi Q6/Q15) riscritti
+a mano su primitive LVGL native (`lv_canvas`, l'unico canale di disegno abbastanza espressivo di
+LVGL 8.x fuori dai widget standard — verificato in `lv_canvas.h` prima di scegliere l'approccio).
+Aggiunti anche `grid` (**unico tipo di questo motore i cui figli non compaiono in `page.objects`**
+— contenitore ricorsivo con sotto-suddivisioni, riusa `dispatch_render` con coordinate traslate),
+`pipe` (solo routing `"straight"`, riempimento statico non live), `alarm_bell` (badge + pannello,
+senza storico/shelve), `recipe_panel` (nuovo `client::fetch_recipes`/`apply_recipe`, l'apply
+spara `rt_handle.spawn` direttamente dalla callback invece di una nuova coppia di canali mpsc),
+`setpoint` (**primo pattern di interazione a inserimento testo di questo motore** — overlay con
+`lv_textarea`+`lv_keyboard` in modalità numerica), `xy_plot` (traiettoria live campionata
+localmente, non un poller REST come `trend`) e `pie_chart` (solo modalità donut, componendo
+`lv_canvas_draw_arc` per spicchio — LVGL 8.x non ha un widget torta nativo).
+
+**Bug reale trovato e corretto durante la verifica visiva** (non a compilazione): alcune forme
+"contenitore" dei simboli (corpo del `tank`, telaio del `fan`, vasca del `level_sensor`, vessel di
+`mixer`/`agitator`) usavano lo stesso colore dello sfondo pagina — invisibili, restava visibile
+solo l'accento colorato sopra, sospeso a mezz'aria sullo screenshot. Corretto con un colore
+"pannello" più chiaro, stesso già usato per i container di `alarm_viewer`/`alarm_banner`.
+
+Verificato end-to-end su una terza pagina del template demo con tutti e otto i tipi insieme (23
+oggetti), screenshot X11 prima e dopo aver scritto valori non-zero sui tag condivisi: nessun
+errore nel riepilogo "widget creati", pie_chart/xy_plot/grid/pipe rispondono correttamente allo
+stesso cambio di tag. Non testato con click sintetici in questo giro: il ciclo completo
+apri-tastiera→digita→OK di `setpoint` e l'apertura del pannello di `alarm_bell` (nessun harness
+XTest predisposto in questa sessione) — ricalcano però pattern già collaudati altrove nel file.
+
+**Ancora nella stessa sessione** — il maintainer ha corretto un mio errore: "completa l'implementazione
+di lang_selector/lang_button, però lato web mi sembrava funzionassero". Aveva ragione: la mia
+analisi era stata superficiale (cercato solo dentro `SvgCanvas.tsx`, mai trovato
+`RuntimeView.tsx`/`src/i18n/projectI18n.ts`, il vero sistema di traduzione contenuti T-40 —
+`project.languages` mappa token `{{key}}` → traduzioni, `RuntimeView` li risolve nella lingua
+corrente prima di renderizzare). **31/32 tipi supportati ora**. Nuovo `client::fetch_languages`
+(`GET /api/project`, una sola chiamata all'avvio) + `resolve_msg`/`localize_object` (porta 1:1 la
+logica di `projectI18n.ts`) applicati dentro `dispatch_render` — l'unico punto per cui passano
+davvero tutti gli oggetti (primo livello, figli di `faceplate`, figli di `grid`) senza ripetere la
+stessa logica in tre posti. Lingua corrente come stato process-wide (`SharedLang`, non
+`localStorage` — questo motore non ha un concetto di sessione per-tab). **Cambio lingua = ricarica
+della pagina corrente**, riusando `nav_tx` (un `lang_button` è a tutti gli effetti un `navbutton`
+verso se stesso) invece di una logica di reload dedicata — nessun canale nuovo in `main.rs`.
+`lang_selector` usa `lv_dropdown`, fedele al `<select>` nativo del web. Bug trovato e corretto
+durante la verifica: il tema di default di LVGL colora già i bottoni in blu, IT/EN risultavano
+indistinguibili senza una tinta esplicita anche per lo stato inattivo.
+
+**Verificato con un vero click sintetico**, non solo lettura del codice: installato `python-xlib`
+senza sudo (`pip install --user --break-system-packages`, mai provato prima in questa sessione),
+click XTest sul bottone EN — testo/bottone attivo/dropdown passano correttamente all'inglese,
+confermato con screenshot prima/dopo.
+
+**Resta fuori solo `image`** (nessuna pipeline di decodifica immagine configurata in questo
+motore — genuinamente bloccato architetturalmente, non un errore di analisi). Dettagli completi
+in `docs/OPEN_QUESTIONS.md` Q14 seguito 15.
+
+Nota: questo branch (`feature/lvgl-widgets-3`) è rimasto isolato fino al 2026-08-13, quando è
+stato squash-mergiato in `main` insieme alla pulizia dei 15 branch storici della saga LVGL (vedi
+sessione più recente in testa a questo file). **Prossimo passo naturale**: decidere se/quando
+affrontare `image` (richiederebbe una pipeline di decodifica raster — Q16), poi verificare dal
+vivo (simulatore o hardware) i widget aggiunti qui, mai testati fuori da `.run-12`.
+
+**Sessione precedente**: 2026-08-11 — release **2.0.0**, prima dopo il merge del motore LVGL. Il
 maintainer ha scelto **il `2` per il cambio abbastanza grande da giustificare un major bump**
 (il motore LVGL) e con l'occasione ha abbandonato **CalVer** a favore di **Semantic Versioning**
 puro (`MAJOR.MINOR.PATCH`) come schema di versioning da qui in poi — non una rinumerazione

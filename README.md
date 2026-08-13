@@ -221,14 +221,14 @@ catalog differ.
 | Maturity | Production-grade, the default since day one | Proof-of-concept companion engine, opt-in |
 | Rendering | SVG + Canvas 2D inside a browser engine | Native LVGL widgets, no browser at all |
 | Runs via | Any modern browser, or `sws-kiosk` (GTK4+WebKitGTK fullscreen wrapper) | `sws-lvgl-viewer` — SDL2 desktop simulator, Linux framebuffer, DRM/KMS, or a native Wayland client |
-| Widget coverage | Full catalog — all 32 object types | 16 of 32 types today: rect, text, button, led, slider, progress_bar, checkbox, radio, ellipse, line, gauge, state_lamp, table, navbutton, trend, alarm_viewer |
-| Known gaps | none | no `symbol`/faceplate rendering yet (open architectural question); `radio` is approximated with a square checkbox (LVGL has no native radio widget); Rust↔LVGL binding is pinned to LVGL 8.x pending validation of v9/DRM parity on real hardware |
+| Widget coverage | Full catalog — all 32 object types | 31 of 32 types today: rect, text, button, led, slider, progress_bar, checkbox, radio, ellipse, line, gauge, state_lamp, table, navbutton, trend, alarm_viewer, text_list, bar_chart, sparkline, alarm_banner, faceplate, symbol (16 built-in icons only, hand-drawn on an `lv_canvas` — see below), grid, pipe, alarm_bell, recipe_panel, setpoint, xy_plot, pie_chart (donut mode only), lang_button, lang_selector (project-content translation, `{{token}}` placeholders resolved per-language — a language switch reloads the current page) |
+| Known gaps | none | no `image` rendering (no image-decode pipeline configured); `symbol` covers only the 16 hand-drawn built-ins, not the 12 vendored SVG files or custom symbols; `pie_chart` only draws a donut ring, not a filled pie; `pipe` only supports straight routing and a static (non-live) fill color; `radio` is approximated with a square checkbox (LVGL has no native radio widget); Rust↔LVGL binding is pinned to LVGL 8.x pending validation of v9/DRM parity on real hardware |
 | Footprint | Needs a full browser engine — heavier RAM/CPU; excluded from the Yocto/Pixsys cross-compile sysroot (GTK4/WebKitGTK aren't available there) | Lightweight, no browser engine; scripting stays server-side so the viewer binary needs no embedded Python |
 | Deployment | Always-on, the primary path | Optional systemd companion service, gated by a `--with-lvgl` build flag (default off) — never a fork of the runtime |
 
 **When to use which**: default to HTML/Web — it's the complete, battle-tested path. Reach for
 LVGL only when the target device genuinely can't host a browser engine and the synoptic only
-needs the 16 widget types LVGL currently supports.
+needs the 31 widget types LVGL currently supports.
 
 ---
 

@@ -100,12 +100,24 @@ fn main() -> anyhow::Result<()> {
     // WS in background (avviato dentro spawn_tag_subscription) deve restare
     // vivo per tutta la finestra, non solo per la fetch iniziale.
     let rt = tokio::runtime::Runtime::new()?;
-    let (page, shared_tags, shared_alarms) = rt.block_on(async {
+    let (page, shared_tags, shared_alarms, lang_table) = rt.block_on(async {
         let page = client::fetch_page(&args.base_url, &args.page).await?;
         let shared_tags = client::spawn_tag_subscription(&args.base_url).await?;
         let shared_alarms = client::spawn_alarm_subscription(&args.base_url).await?;
-        anyhow::Ok((page, shared_tags, shared_alarms))
+        // Non fatale: un progetto senza T-40 configurato (la maggioranza)
+        // non ha nulla da tradurre — `LanguageTable::default()` (entries
+        // vuoto) fa sì che `resolve_msg`/`localize_object` siano dei no-op
+        // a costo quasi zero, stesso comportamento di un fetch riuscito ma
+        // con `entries: []`.
+        let lang_table = client::fetch_languages(&args.base_url)
+            .await
+            .unwrap_or_else(|e| {
+                eprintln!("[lang] impossibile leggere project.languages, nessuna traduzione attiva: {e}");
+                model::LanguageTable::default()
+            });
+        anyhow::Ok((page, shared_tags, shared_alarms, lang_table))
     })?;
+    let shared_lang: client::SharedLang = std::sync::Arc::new(std::sync::Mutex::new(lang_table.default.clone()));
 
     let initial_tags = shared_tags.lock().unwrap_or_else(|e| e.into_inner()).clone();
     eprintln!(
@@ -119,7 +131,8 @@ fn main() -> anyhow::Result<()> {
     let (nav_tx, nav_rx) = mpsc::channel::<String>();
     let (ack_tx, ack_rx) = mpsc::channel::<String>();
     let (summary, styles, live_bindings, hor_res, ver_res) = lvgl_render::interpret_page(
-        &page, &initial_tags, &tag_tx, &nav_tx, &args.base_url, rt.handle(), &shared_alarms, &ack_tx,
+        &page, &initial_tags, &tag_tx, &nav_tx, &args.base_url, rt.handle(), &shared_alarms, &ack_tx, &lang_table,
+        &shared_lang,
     )?;
 
     eprintln!(
@@ -164,6 +177,8 @@ fn main() -> anyhow::Result<()> {
             rt.handle().clone(),
             args.base_url.clone(),
             shared_alarms,
+            lang_table,
+            shared_lang,
         )?;
         drop(rt);
         return Ok(());
@@ -184,6 +199,8 @@ fn main() -> anyhow::Result<()> {
         rt.handle().clone(),
         args.base_url.clone(),
         shared_alarms,
+        lang_table,
+        shared_lang,
     )?;
     drop(rt);
     Ok(())
@@ -218,6 +235,8 @@ fn run_drm(
     rt_handle: tokio::runtime::Handle,
     base_url: String,
     shared_alarms: client::SharedAlarms,
+    lang_table: model::LanguageTable,
+    shared_lang: client::SharedLang,
 ) -> anyhow::Result<()> {
     let mut drm = drm_display::DrmDisplay::open(card_path)?;
     if drm.width != hor_res || drm.height != ver_res {
@@ -268,6 +287,7 @@ fn run_drm(
             match rt_handle.block_on(client::resolve_page_by_id(&base_url, &target_page)) {
                 Ok(new_page) => match lvgl_render::render_page_objects(
                     &new_page, &tags_now, &tag_tx, &nav_tx, &base_url, &rt_handle, &shared_alarms, &ack_tx,
+                    &lang_table, &shared_lang,
                 ) {
                     Ok((summary, new_styles, new_live)) => {
                         eprintln!(
@@ -323,6 +343,8 @@ fn run_window(
     rt_handle: tokio::runtime::Handle,
     base_url: String,
     shared_alarms: client::SharedAlarms,
+    lang_table: model::LanguageTable,
+    shared_lang: client::SharedLang,
 ) -> anyhow::Result<()> {
     let sdl_context = sdl2::init().map_err(|e| anyhow::anyhow!("sdl2::init: {e}"))?;
     let video = sdl_context.video().map_err(|e| anyhow::anyhow!("sdl2 video subsystem: {e}"))?;
@@ -439,6 +461,7 @@ fn run_window(
             match rt_handle.block_on(client::resolve_page_by_id(&base_url, &target_page)) {
                 Ok(new_page) => match lvgl_render::render_page_objects(
                     &new_page, &tags_now, &tag_tx, &nav_tx, &base_url, &rt_handle, &shared_alarms, &ack_tx,
+                    &lang_table, &shared_lang,
                 ) {
                     Ok((summary, new_styles, new_live)) => {
                         eprintln!(

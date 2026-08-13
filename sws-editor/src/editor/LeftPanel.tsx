@@ -575,6 +575,21 @@ const LVGL_SUPPORTED_TYPES = new Set<SynopticObject["type"]>([
   "navbutton",
   "trend",
   "alarm_viewer",
+  "text_list",
+  "bar_chart",
+  "sparkline",
+  "alarm_banner",
+  "faceplate",
+  "symbol",
+  "grid",
+  "pipe",
+  "alarm_bell",
+  "recipe_panel",
+  "setpoint",
+  "xy_plot",
+  "pie_chart",
+  "lang_button",
+  "lang_selector",
 ]);
 
 /** Per un progetto target LVGL, mostra solo gli oggetti che il motore sa

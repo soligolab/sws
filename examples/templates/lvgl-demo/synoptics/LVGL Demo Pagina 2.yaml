@@ -94,6 +94,90 @@ objects:
     font_size: 12.0
     color: "#5b6b85"
 
+  # ── text_list: stessa logica dati di state_lamp (value→label→color), solo
+  #    l'etichetta, riusa lvgl_demo.mode già scritto da cb3 qui sopra ──────
+  - id: txl1
+    type: text_list
+    x: 100.0
+    y: 460.0
+    tag: lvgl_demo.mode
+    text_list_entries:
+      - value: "ON"
+        label: "In marcia"
+        color: "#22c55e"
+    text_list_default: "Fermo"
+    text_list_default_color: "#64748b"
+  - id: cap_txl1
+    type: text
+    x: 100.0
+    y: 484.0
+    text: "text_list - lvgl_demo.mode"
+    font_size: 12.0
+    color: "#5b6b85"
+
+  # ── bar_chart: due serie affiancate, lvgl_demo.value (stesso tag del
+  #    gauge qui sopra) + lvgl_demo.value2 indipendente ────────────────────
+  - id: bc1
+    type: bar_chart
+    x: 100.0
+    y: 520.0
+    width: 280.0
+    height: 110.0
+    bar_series:
+      - tag: lvgl_demo.value
+        label: "V1"
+        color: "#3b82f6"
+        min: 0
+        max: 100
+      - tag: lvgl_demo.value2
+        label: "V2"
+        color: "#f59e0b"
+        min: 0
+        max: 100
+  - id: cap_bc1
+    type: text
+    x: 100.0
+    y: 640.0
+    text: "bar_chart - value / value2"
+    font_size: 12.0
+    color: "#5b6b85"
+
+  # ── sparkline: grafico compatto senza assi, stesso tag del gauge ─────────
+  - id: sp1
+    type: sparkline
+    x: 850.0
+    y: 320.0
+    width: 220.0
+    height: 40.0
+    tag: lvgl_demo.value
+    spark_window_s: 30.0
+    spark_color: "#38bdf8"
+  - id: cap_sp1
+    type: text
+    x: 850.0
+    y: 364.0
+    text: "sparkline - lvgl_demo.value, 30s"
+    font_size: 12.0
+    color: "#5b6b85"
+
+  # ── faceplate: istanza del template built-in motor_basic (composito di
+  #    oggetti ordinari, nessun SVG — non bloccato da Q15) ────────────────
+  - id: fp1
+    type: faceplate
+    x: 850.0
+    y: 400.0
+    faceplate_id: motor_basic
+    faceplate_params:
+      tag_prefix: lvgl_demo.motor
+      label: "Motore Demo"
+  - id: cap_fp1
+    type: text
+    x: 850.0
+    y: 484.0
+    text: "faceplate - motor_basic"
+    font_size: 12.0
+    color: "#5b6b85"
+
   # ── navigazione: torna alla pagina 1 ─────────────────────────────────────
   - id: nav_back
     type: navbutton
@@ -103,6 +187,16 @@ objects:
     height: 50.0
     label: "Pagina 1"
     target_page: lvgl_demo_page
+    fill: "#1e293b"
+
+  - id: nav_fwd3
+    type: navbutton
+    x: 280.0
+    y: 700.0
+    width: 220.0
+    height: 50.0
+    label: "Pagina 3"
+    target_page: lvgl_demo_page3
     fill: "#1e293b"
 
   - id: note2

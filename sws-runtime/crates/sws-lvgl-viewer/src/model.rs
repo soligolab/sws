@@ -50,7 +50,7 @@ pub enum OnValue {
 // schema ma non ancora disegnati (styling di dettaglio rimandato oltre l'MVP
 // dei 5 tipi widget — vedi commento in lvgl_render::render_text).
 #[allow(dead_code)]
-#[derive(Debug, Deserialize, Default)]
+#[derive(Debug, Deserialize, Default, Clone)]
 pub struct SynopticObject {
     pub id: Option<String>,
     #[serde(rename = "type")]
@@ -166,6 +166,170 @@ pub struct SynopticObject {
     /// di diverso da quanto configurato, vedi `render_alarm_viewer`.
     pub alarm_viewer_mode: Option<String>,
     pub alarm_viewer_bg_color: Option<String>,
+
+    // ── alarm_banner (riusa SharedAlarms già letto per alarm_viewer) ──
+    pub alarm_banner_id_prefix: Option<String>,
+    pub alarm_banner_severities: Option<Vec<String>>,
+
+    // ── bar_chart ──
+    pub bar_series: Option<Vec<BarChartSeries>>,
+    pub bar_orientation: Option<String>,
+    pub bar_gap: Option<f64>,
+    pub bar_show_values: Option<bool>,
+    pub bar_show_labels: Option<bool>,
+
+    // ── sparkline ── (riusa lo stesso poller storico di trend, vedi
+    // render_sparkline: una sola serie, nessuna decorazione asse/griglia)
+    pub spark_window_s: Option<f64>,
+    pub spark_color: Option<String>,
+
+    // ── faceplate ── (composito di oggetti ordinari, non contiene SVG — non
+    // bloccato dal vincolo che ferma `symbol`, Q15)
+    pub faceplate_id: Option<String>,
+    pub faceplate_params: Option<std::collections::HashMap<String, String>>,
+
+    // ── symbol ── (solo i 17 builtin, vedi Q15 — Decided 2026-08-11, opzione B)
+    pub symbol_id: Option<String>,
+    pub state_tag: Option<String>,
+    pub alarm_tag: Option<String>,
+    pub state_off_color: Option<String>,
+    pub state_on_color: Option<String>,
+    pub state_alarm_color: Option<String>,
+
+    // ── grid ── (contenitore ricorrente: ogni cella può avere un `child`
+    // proprio o una `sub` — vedi render_grid, unico tipo di questo motore
+    // i cui "figli" non compaiono affatto in page.objects)
+    pub grid_rows: Option<f64>,
+    pub grid_cols: Option<f64>,
+    pub col_widths: Option<Vec<f64>>,
+    pub row_heights: Option<Vec<f64>>,
+    pub grid_cells: Option<Vec<GridCell>>,
+    pub grid_show_borders: Option<bool>,
+    pub grid_border_color: Option<String>,
+
+    // ── lang_button ── (lang_selector non ha campi propri oltre a
+    // width/height, la lista lingue viene dalla LanguageTable del progetto)
+    pub target_lang: Option<String>,
+
+    // ── pipe ── (solo routing "straight", vedi render_pipe — gap dichiarati:
+    // niente gradient/marker/animazione di riempimento, fill_level colora
+    // l'intera pipe invece di riempirla progressivamente)
+    pub points: Option<Vec<PipePoint>>,
+    pub routing: Option<String>,
+    pub pipe_style: Option<String>,
+    pub fill_level: Option<f64>,
+    pub fill_level_tag: Option<String>,
+    pub fill_level_scale: Option<String>,
+    pub fill_color: Option<String>,
+
+    // ── alarm_bell ── (badge conteggio + un solo pannello "attivi", niente
+    // storico/shelve — vedi render_alarm_bell)
+    pub alarm_bell_id_prefix: Option<String>,
+    pub alarm_bell_severities: Option<Vec<String>>,
+
+    // ── recipe_panel ──
+    pub recipe_panel_id_prefix: Option<String>,
+
+    // ── setpoint ──
+    pub step: Option<f64>,
+    pub read_only: Option<bool>,
+
+    // ── xy_plot ──
+    pub y_tag: Option<String>,
+    pub xy_trail_s: Option<f64>,
+    pub xy_x_min: Option<f64>,
+    pub xy_x_max: Option<f64>,
+    pub xy_y_min: Option<f64>,
+    pub xy_y_max: Option<f64>,
+
+    // ── pie_chart ── (solo modalità "donut", vedi render_pie_chart — "pie"
+    // pieno-al-centro richiederebbe disegno custom oltre lv_canvas_draw_arc)
+    pub pie_slices: Option<Vec<PieSlice>>,
+    pub pie_mode: Option<String>,
+    pub pie_inner_ratio: Option<f64>,
+}
+
+/// Porta `GridCell` di `types/index.ts`. `child`/`sub` sono `Box` perché
+/// `SynopticObject`/`SubGrid` non hanno una dimensione nota a compile-time
+/// dentro un tipo che li contiene (ricorsione) — serde li deserializza
+/// comunque senza differenze di comportamento rispetto a un campo diretto.
+#[derive(Debug, Deserialize, Clone)]
+pub struct GridCell {
+    pub row: f64,
+    pub col: f64,
+    pub rowspan: Option<f64>,
+    pub colspan: Option<f64>,
+    pub bg_color: Option<String>,
+    pub visible: Option<bool>,
+    pub visible_tag: Option<String>,
+    pub child: Option<Box<SynopticObject>>,
+    pub sub: Option<Box<SubGrid>>,
+}
+
+/// Porta `SubGrid` di `types/index.ts` — suddivisione 1×2/2×1 locale di una
+/// `GridCell`, ricorsiva (`SubCellEntry::sub` può ripetersi).
+#[derive(Debug, Deserialize, Clone)]
+pub struct SubGrid {
+    pub orientation: String,
+    pub ratio: f64,
+    pub a: Option<Box<SubCellEntry>>,
+    pub b: Option<Box<SubCellEntry>>,
+}
+
+/// Porta `SubCellEntry` di `types/index.ts`.
+#[derive(Debug, Deserialize, Clone)]
+pub struct SubCellEntry {
+    pub bg_color: Option<String>,
+    pub visible: Option<bool>,
+    pub visible_tag: Option<String>,
+    pub child: Option<Box<SynopticObject>>,
+    pub sub: Option<Box<SubGrid>>,
+}
+
+/// Porta `PipePoint` di `types/index.ts`.
+#[derive(Debug, Deserialize, Clone, Copy)]
+pub struct PipePoint {
+    pub x: f64,
+    pub y: f64,
+}
+
+/// Voce di `GET /api/recipes` — non `RecipeDef` completo, l'endpoint non
+/// espone i setpoint (vedi `sws-web/src/router.rs::list_recipes`).
+#[derive(Debug, Deserialize, Clone)]
+pub struct RecipeListEntry {
+    pub id: String,
+    pub name: String,
+}
+
+/// Porta `PieSlice` di `types/index.ts`.
+/// `label` non è ancora disegnato: `pie_show_legend` (legenda testuale) non
+/// è implementato in questo giro — gap dichiarato, vedi Q14 seguito 14.
+#[allow(dead_code)]
+#[derive(Debug, Deserialize, Clone)]
+pub struct PieSlice {
+    pub tag: String,
+    pub label: String,
+    pub color: String,
+}
+
+/// Sottoinsieme di `FaceplateDef` (`sws-web/src/synoptic.rs`): solo
+/// `objects` serve a questo motore (`params` è implicito — i nomi che
+/// contano sono quelli usati davvero dentro le stringhe `{param}` dei
+/// figli, non serve validare l'elenco dichiarato).
+#[derive(Debug, Deserialize)]
+pub struct FaceplateDef {
+    #[serde(default)]
+    pub objects: Vec<serde_json::Value>,
+}
+
+/// Porta `BarChartSeries` di `types/index.ts`.
+#[derive(Debug, Deserialize, Clone)]
+pub struct BarChartSeries {
+    pub tag: String,
+    pub label: String,
+    pub color: String,
+    pub min: Option<f64>,
+    pub max: Option<f64>,
 }
 
 /// Porta (parzialmente) `TrendSeriesStyle` di `types/index.ts` — vedi
@@ -194,4 +358,27 @@ pub struct TableRow {
     pub label: String,
     pub tag: String,
     pub format: Option<String>,
+}
+
+/// Porta `LanguageTable` di `types/index.ts` (`sws-core::project::LanguageTable`
+/// lato Rust) — mappa token `{{key}}` → traduzioni per codice lingua. Letta
+/// una sola volta all'avvio (`client::fetch_languages`, `GET /api/project`),
+/// non cambia durante la sessione (a differenza della lingua *corrente*,
+/// che invece è mutabile — vedi `lvgl_render::SharedLang`).
+#[derive(Debug, Deserialize, Clone, Default)]
+pub struct LanguageTable {
+    #[serde(default)]
+    pub default: String,
+    #[serde(default)]
+    pub langs: Vec<String>,
+    #[serde(default)]
+    pub entries: Vec<LangEntry>,
+}
+
+/// Porta `LangEntry` di `types/index.ts`.
+#[derive(Debug, Deserialize, Clone)]
+pub struct LangEntry {
+    pub key: String,
+    #[serde(default)]
+    pub values: std::collections::HashMap<String, String>,
 }
