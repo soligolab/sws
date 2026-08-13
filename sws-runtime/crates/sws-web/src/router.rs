@@ -2161,6 +2161,8 @@ pub(crate) async fn build_project_zip(dir: &std::path::Path) -> anyhow::Result<V
         .map_err(|e| anyhow::anyhow!("cannot load project: {e}"))?;
     let pages = load_all_synoptics(&synoptics_dir_at(dir)).await
         .map_err(|e| anyhow::anyhow!("cannot read synoptics: {e}"))?;
+    let faceplates = read_yaml_dir(&faceplates_dir_at(dir)).await;
+    let recipes = read_yaml_dir(&recipes_dir_at(dir)).await;
     let project_name = project.meta.name.clone();
     let exported_at_ms = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -2173,7 +2175,7 @@ pub(crate) async fn build_project_zip(dir: &std::path::Path) -> anyhow::Result<V
         secrets_masked: false,
     };
     let users_yaml = std::fs::read_to_string(dir.join("users.yaml")).ok();
-    build_export_zip(&manifest, &project, &pages, users_yaml.as_deref())
+    build_export_zip(&manifest, &project, &pages, users_yaml.as_deref(), &faceplates, &recipes)
 }
 
 async fn export_project_zip(State(s): State<AppState>) -> Response {
@@ -2196,6 +2198,8 @@ async fn export_project_zip(State(s): State<AppState>) -> Response {
             return (StatusCode::INTERNAL_SERVER_ERROR, "cannot read synoptics").into_response();
         }
     };
+    let faceplates = read_yaml_dir(&faceplates_dir_at(&dir)).await;
+    let recipes = read_yaml_dir(&recipes_dir_at(&dir)).await;
 
     // 3. Build the ZIP in memory.
     let project_name = project.meta.name.clone();
@@ -2213,7 +2217,7 @@ async fn export_project_zip(State(s): State<AppState>) -> Response {
     // Include users.yaml if present so credentials travel with the project.
     let users_yaml = std::fs::read_to_string(dir.join("users.yaml")).ok();
 
-    let buf = match build_export_zip(&manifest, &project, &pages, users_yaml.as_deref()) {
+    let buf = match build_export_zip(&manifest, &project, &pages, users_yaml.as_deref(), &faceplates, &recipes) {
         Ok(b)  => b,
         Err(e) => {
             warn!("export: zip build failed: {e}");
@@ -2244,6 +2248,8 @@ fn build_export_zip(
     project: &Project,
     pages: &[SynopticPage],
     users_yaml: Option<&str>,
+    faceplates: &[(String, String)],
+    recipes: &[(String, String)],
 ) -> anyhow::Result<Vec<u8>> {
     use zip::write::SimpleFileOptions;
     let mut cursor = Cursor::new(Vec::<u8>::new());
@@ -2265,6 +2271,19 @@ fn build_export_zip(
             z.start_file(path, opts)?;
             z.write_all(serde_yaml::to_string(page)?.as_bytes())?;
         }
+        // Faceplates/recipes di progetto (non i built-in, compilati nel
+        // binario) — mancavano dal bundle: un deploy verso un runtime remoto
+        // non li portava mai, quindi un faceplate built-in modificato in
+        // locale (es. "Tank Level") restava alla versione vecchia/built-in
+        // sul device di destinazione dopo il deploy.
+        for (fname, yaml) in faceplates {
+            z.start_file(format!("faceplates/{fname}"), opts)?;
+            z.write_all(yaml.as_bytes())?;
+        }
+        for (fname, yaml) in recipes {
+            z.start_file(format!("recipes/{fname}"), opts)?;
+            z.write_all(yaml.as_bytes())?;
+        }
         if let Some(users) = users_yaml {
             z.start_file("users.yaml", opts)?;
             z.write_all(users.as_bytes())?;
@@ -2272,6 +2291,30 @@ fn build_export_zip(
         z.finish()?;
     }
     Ok(cursor.into_inner())
+}
+
+/// Elenca e legge ogni `*.yaml` in `dir` come coppie (nome-file, contenuto) —
+/// usato per infilare `faceplates/`/`recipes/` nel bundle di deploy/export
+/// così come sono, senza bisogno di deserializzarli in `FaceplateDef`/
+/// `RecipeDef`: il bundle li porta grezzi, il device di destinazione li
+/// interpreta lui stesso con lo stesso codice usato in locale.
+async fn read_yaml_dir(dir: &std::path::Path) -> Vec<(String, String)> {
+    let mut out = Vec::new();
+    let mut entries = match tokio::fs::read_dir(dir).await {
+        Ok(e) => e,
+        Err(_) => return out,
+    };
+    while let Ok(Some(entry)) = entries.next_entry().await {
+        let path = entry.path();
+        if path.extension().and_then(|e| e.to_str()) != Some("yaml") {
+            continue;
+        }
+        let Some(fname) = path.file_name().and_then(|s| s.to_str()) else { continue };
+        if let Ok(content) = tokio::fs::read_to_string(&path).await {
+            out.push((fname.to_string(), content));
+        }
+    }
+    out
 }
 
 async fn load_all_synoptics(dir: &std::path::Path) -> std::io::Result<Vec<SynopticPage>> {
@@ -2424,6 +2467,19 @@ async fn import_project_zip(State(s): State<AppState>, body: Bytes) -> Response 
         }
     }
 
+    // 5d. Faceplates/recipes di progetto — stesso pattern replace-mode di
+    //     5a-5c sopra, mancava del tutto: il bundle non li portava, quindi un
+    //     faceplate/recipe modificato o cancellato in locale non si
+    //     rifletteva mai sul device dopo un deploy.
+    if let Err(e) = sync_yaml_dir_from_zip(&mut archive, "faceplates", &faceplates_dir_at(project_dir)).await {
+        warn!("import: sync faceplates: {e}");
+        return (StatusCode::INTERNAL_SERVER_ERROR, "sync faceplates").into_response();
+    }
+    if let Err(e) = sync_yaml_dir_from_zip(&mut archive, "recipes", &recipes_dir_at(project_dir)).await {
+        warn!("import: sync recipes: {e}");
+        return (StatusCode::INTERNAL_SERVER_ERROR, "sync recipes").into_response();
+    }
+
     // 6. Hot-reload — mirror the per-section PUT handlers' side effects so
     //    the runtime reflects the new project without a restart.
     let current_ids: std::collections::HashSet<TagId> =
@@ -2475,6 +2531,46 @@ fn read_zip_text(
     let mut buf = String::new();
     file.read_to_string(&mut buf)?;
     Ok(Some(buf))
+}
+
+/// Replace-mode sync of a flat `<prefix>/*.yaml` directory from an import
+/// bundle into `target_dir` — same pattern as the synoptics sync in
+/// `import_project_zip` (write every file the bundle declares, delete any
+/// `*.yaml` already on disk that the bundle doesn't mention), extracted so
+/// `faceplates/` and `recipes/` share it instead of duplicating it twice.
+async fn sync_yaml_dir_from_zip(
+    archive: &mut zip::ZipArchive<Cursor<&[u8]>>,
+    prefix: &str,
+    target_dir: &std::path::Path,
+) -> std::io::Result<()> {
+    tokio::fs::create_dir_all(target_dir).await?;
+    let file_names: Vec<String> = archive.file_names().map(|s| s.to_string()).collect();
+    let bundle_prefix = format!("{prefix}/");
+    let mut kept: std::collections::HashSet<String> = std::collections::HashSet::new();
+    for name in &file_names {
+        let Some(fname) = name.strip_prefix(&bundle_prefix) else { continue };
+        // Solo file diretti dentro prefix/ — nessuna sottocartella attesa.
+        if !fname.ends_with(".yaml") || fname.contains('/') {
+            continue;
+        }
+        if let Some(text) = read_zip_text(archive, name)? {
+            kept.insert(fname.to_string());
+            tokio::fs::write(target_dir.join(fname), text).await?;
+        }
+    }
+    if let Ok(mut entries) = tokio::fs::read_dir(target_dir).await {
+        while let Ok(Some(entry)) = entries.next_entry().await {
+            let path = entry.path();
+            if path.extension().and_then(|e| e.to_str()) != Some("yaml") {
+                continue;
+            }
+            let fname = path.file_name().and_then(|s| s.to_str()).unwrap_or("").to_string();
+            if !kept.contains(&fname) {
+                let _ = tokio::fs::remove_file(&path).await;
+            }
+        }
+    }
+    Ok(())
 }
 
 /// Strip filename-unsafe characters; reused for the download attachment.

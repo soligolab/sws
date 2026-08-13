@@ -9,6 +9,7 @@ import { DataTable, type DataTableColumn } from "@/components/DataTable";
 import { TagInput } from "@/components/TagInput";
 import { PythonEditor, type PythonEditorHandle } from "@/components/PythonEditor";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { SvgObject, substituteFaceplateParams } from "@/canvas/SvgCanvas";
 import { selectIsDirty, useAppStore } from "@/store";
 import { sourceTagIds } from "@/tagCatalog";
 import { canConfigureProject } from "@/auth/permissions";
@@ -59,6 +60,7 @@ import type {
   SparkplugConfig,
   SparkplugMetricMapping,
   SourceDef,
+  SynopticObject,
   TagDataType,
   TagDef,
   TopicMapping,
@@ -6177,6 +6179,65 @@ function GlobalScriptsTab() {
   );
 }
 
+// ── Faceplate live preview ──────────────────────────────────────────────────
+//
+// Renders a faceplate DEFINITION's `objects` the same way a placed `faceplate`
+// instance renders them (SvgCanvas.tsx's `faceplate` branch) — same
+// `substituteFaceplateParams` + `SvgObject` per child — but with no real
+// instance params (there is none here, we're editing the definition itself),
+// so each declared param substitutes to its own name as a visible placeholder
+// (e.g. `{tag_prefix}` → "tag_prefix"), and no live tag data (`tagValues={}}`).
+function FaceplatePreview({
+  objects, params, faceplates,
+}: { objects: SynopticObject[]; params: string[]; faceplates: FaceplateDef[] }) {
+  const dummyParams = Object.fromEntries(params.map((p) => [p, p]));
+
+  const PADDING = 12;
+  const bbox = objects.reduce((acc, o) => {
+    const w = o.width ?? 60, h = o.height ?? 40;
+    return {
+      minX: Math.min(acc.minX, o.x), minY: Math.min(acc.minY, o.y),
+      maxX: Math.max(acc.maxX, o.x + w), maxY: Math.max(acc.maxY, o.y + h),
+    };
+  }, { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity });
+  const hasObjects = Number.isFinite(bbox.minX);
+  const viewBox = hasObjects
+    ? `${bbox.minX - PADDING} ${bbox.minY - PADDING} ${bbox.maxX - bbox.minX + 2 * PADDING} ${bbox.maxY - bbox.minY + 2 * PADDING}`
+    : "0 0 300 220";
+
+  if (!hasObjects) {
+    return (
+      <div style={{
+        display: "flex", alignItems: "center", justifyContent: "center", height: 200,
+        border: "1px dashed var(--brand-surface-2, #334155)", borderRadius: 4,
+        color: "var(--brand-text-subtle, #64748b)", fontSize: 12,
+      }}>
+        Nessun oggetto
+      </div>
+    );
+  }
+
+  return (
+    <svg
+      width="100%" height={240} viewBox={viewBox}
+      style={{ background: "var(--brand-bg, #0f172a)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4 }}
+    >
+      {objects.map((child, i) => (
+        <SvgObject
+          key={child.id ?? i}
+          obj={substituteFaceplateParams(child, dummyParams)}
+          objects={objects}
+          tagValues={{}}
+          selected={false}
+          isEditMode={false}
+          customSymbols={[]}
+          faceplates={faceplates}
+        />
+      ))}
+    </svg>
+  );
+}
+
 // ── FACEPLATES tab ────────────────────────────────────────────────────────────
 
 function FaceplatesTab() {
@@ -6297,53 +6358,64 @@ function FaceplatesTab() {
               {saving ? "Salvataggio…" : "Salva"}
             </button>
           </div>
-          <div style={{ flex: 1, overflow: "auto", padding: "16px" }}>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
-              <div>
-                <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 }}>ID</label>
-                <input
-                  style={S.input}
-                  value={current.id}
-                  onChange={(e) => updateCurrent({ id: e.target.value })}
+          <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
+            <div style={{ flex: 1, overflow: "auto", padding: "16px" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
+                <div>
+                  <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 }}>ID</label>
+                  <input
+                    style={S.input}
+                    value={current.id}
+                    onChange={(e) => updateCurrent({ id: e.target.value })}
+                    spellCheck={false}
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 }}>{t("cfg.labelWord")}</label>
+                  <input
+                    style={S.input}
+                    value={current.label}
+                    onChange={(e) => updateCurrent({ label: e.target.value })}
+                    spellCheck={false}
+                  />
+                </div>
+              </div>
+              <div style={{ marginBottom: 16 }}>
+                <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 }}>
+                  Parametri (uno per riga, es. <code>tag_prefix</code>, <code>label</code>)
+                </label>
+                <textarea
+                  value={current.params.join("\n")}
+                  onChange={(e) => updateCurrent({ params: e.target.value.split("\n").map(s => s.trim()).filter(Boolean) })}
+                  style={{ ...S.input, height: 80, resize: "vertical", fontFamily: "monospace", fontSize: 12 }}
                   spellCheck={false}
                 />
               </div>
               <div>
-                <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 }}>{t("cfg.labelWord")}</label>
-                <input
-                  style={S.input}
-                  value={current.label}
-                  onChange={(e) => updateCurrent({ label: e.target.value })}
+                <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 }}>
+                  Oggetti template (JSON array — usa <code>{"{tag_prefix}"}</code> come placeholder nei campi tag/label)
+                </label>
+                <textarea
+                  value={JSON.stringify(current.objects, null, 2)}
+                  onChange={(e) => {
+                    try {
+                      const parsed = JSON.parse(e.target.value);
+                      if (Array.isArray(parsed)) updateCurrent({ objects: parsed });
+                    } catch { /* invalid JSON — ignore until valid */ }
+                  }}
+                  style={{ ...S.input, height: 340, resize: "vertical", fontFamily: "monospace", fontSize: 12 }}
                   spellCheck={false}
                 />
               </div>
             </div>
-            <div style={{ marginBottom: 16 }}>
-              <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 }}>
-                Parametri (uno per riga, es. <code>tag_prefix</code>, <code>label</code>)
+            {/* Anteprima live: legge current.objects/current.params, gli stessi
+                dati che la textarea "Oggetti" scrive a ogni tasto valido —
+                nessuno stato nuovo, si aggiorna da sé prima ancora di Salva. */}
+            <div style={{ width: 320, flexShrink: 0, borderLeft: "1px solid var(--brand-surface, #1e293b)", padding: "16px", overflow: "auto" }}>
+              <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 6 }}>
+                Anteprima
               </label>
-              <textarea
-                value={current.params.join("\n")}
-                onChange={(e) => updateCurrent({ params: e.target.value.split("\n").map(s => s.trim()).filter(Boolean) })}
-                style={{ ...S.input, height: 80, resize: "vertical", fontFamily: "monospace", fontSize: 12 }}
-                spellCheck={false}
-              />
-            </div>
-            <div>
-              <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 }}>
-                Oggetti template (JSON array — usa <code>{"{tag_prefix}"}</code> come placeholder nei campi tag/label)
-              </label>
-              <textarea
-                value={JSON.stringify(current.objects, null, 2)}
-                onChange={(e) => {
-                  try {
-                    const parsed = JSON.parse(e.target.value);
-                    if (Array.isArray(parsed)) updateCurrent({ objects: parsed });
-                  } catch { /* invalid JSON — ignore until valid */ }
-                }}
-                style={{ ...S.input, height: 340, resize: "vertical", fontFamily: "monospace", fontSize: 12 }}
-                spellCheck={false}
-              />
+              <FaceplatePreview objects={current.objects} params={current.params} faceplates={faceplates} />
             </div>
           </div>
         </div>

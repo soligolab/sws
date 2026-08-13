@@ -1801,7 +1801,7 @@ export function SvgCanvas({
 
 // ── Per-object props ──────────────────────────────────────────────────────────
 
-interface ObjProps {
+export interface ObjProps {
   obj: SynopticObject;
   /** Full list of page objects — used by pipe rendering to resolve anchor points. */
   objects: SynopticObject[];
@@ -2045,7 +2045,28 @@ function AlarmViewerWidget({ width, height, mode, maxRows, prefix, allowedSev, s
   );
 }
 
-function SvgObject(p: ObjProps) {
+/** Substitute `{param}` placeholders in a faceplate child's `tag`/`label`/
+ *  `name`/`text` fields with the given parameter values. Extracted so the
+ *  Faceplates config panel's live preview (`ConfigView.tsx`) can render a
+ *  definition's `objects` the same way a placed `faceplate` instance does,
+ *  without an instance's real `faceplate_params` (it passes placeholder
+ *  values instead, one per declared param name). */
+export function substituteFaceplateParams(
+  child: SynopticObject,
+  params: Record<string, string>,
+): SynopticObject {
+  const subStr = (s: string | undefined) =>
+    s ? s.replace(/\{(\w+)\}/g, (_, k) => params[k] ?? `{${k}}`) : s;
+  return {
+    ...child,
+    tag: subStr(child.tag),
+    label: subStr(child.label),
+    name: subStr(child.name),
+    text: subStr(child.text),
+  };
+}
+
+export function SvgObject(p: ObjProps) {
   const { objects, tagValues, selected, selectedCount = 0, isEditMode, customSymbols, faceplates = [], selectedCell, selectedCellChild, selectedCellRange, onSelect, onStartDrag, onWriteTag, onScript, onNavigate, onSelectCell, onSelectCellChild, onSelectCellRange, onExpandTrend } = p;
   const obj = resolveObject(p.obj, tagValues);
   // Drag-to-zoom range for the "trend" object type (T-48). Declared
@@ -4248,22 +4269,7 @@ function SvgObject(p: ObjProps) {
     }
 
     // Substitute `{param}` placeholders in all string fields of a child object.
-    function substituteParams(child: SynopticObject): SynopticObject {
-      const subStr = (s: string | undefined) =>
-        s ? s.replace(/\{(\w+)\}/g, (_, k) => params[k] ?? `{${k}}`) : s;
-      return {
-        ...child,
-        tag: subStr(child.tag),
-        label: subStr(child.label),
-        name: subStr(child.name),
-        // `text` was missing: the built-in `motor_basic` faceplate's own
-        // title ("motor-title", a `text` object with `text: "{label}"`)
-        // never got substituted — found live, verifying the new edit-mode
-        // preview, where it became visible for the first time (edit-mode
-        // used to show a generic box instead of the real children).
-        text: subStr(child.text),
-      };
-    }
+    const substituteParams = (child: SynopticObject) => substituteFaceplateParams(child, params);
 
     if (isEditMode) {
       // Edit mode: render the faceplate's own children (same substituteParams
