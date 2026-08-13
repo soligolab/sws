@@ -6973,6 +6973,22 @@ const RT_USER_KEY = "sws.runtime.targetUser";
 const RT_PASS_KEY = "sws.runtime.targetPass";
 const RT_CONN_KEY = "sws.runtime.connected";
 
+/** URL admin di un device scoperto, con l'host sostituito dall'hostname mDNS
+ *  quando disponibile (stabile nel tempo, a differenza dell'IP che può
+ *  cambiare per DHCP) — scheme/porta restano quelli di `r.admin_url`, così
+ *  non li si duplica/hardcoda qui. Nota: risolto dal browser (fetch/WS), non
+ *  dal backend come "Host SSH" — l'affidabilità di `.local` qui dipende dal
+ *  sistema dell'utente, non è garantita come lato server. */
+function discoveredAdminUrl(r: DiscoveredRuntime): string {
+  if (!r.hostname) return r.admin_url;
+  try {
+    const u = new URL(r.admin_url);
+    return `${u.protocol}//${r.hostname}:${u.port}`;
+  } catch {
+    return r.admin_url;
+  }
+}
+
 function RuntimeConnectionTab() {
   const { t } = useTranslation();
   const authToken = useAppStore((s) => s.authToken);
@@ -7484,14 +7500,23 @@ function RuntimeConnectionTab() {
                       style={{ display: "flex", alignItems: "center", gap: 8, padding: "3px 0",
                         borderBottom: "1px solid var(--brand-surface, #1e293b)", cursor: "pointer" }}
                       onClick={() => {
-                        setTargetUrl(r.admin_url);
-                        try { setDeviceHost(new URL(r.admin_url).hostname); } catch { /* invalid URL — leave Host SSH untouched */ }
+                        setTargetUrl(discoveredAdminUrl(r));
+                        // L'hostname mDNS (stabile, a differenza dell'IP che può
+                        // cambiare per DHCP) va bene per Host SSH — risolto dal
+                        // resolver del sistema operativo del backend, non dal
+                        // browser. Se assente (runtime più vecchio di questo
+                        // campo), ripiega sull'IP come prima.
+                        if (r.hostname) {
+                          setDeviceHost(r.hostname);
+                        } else {
+                          try { setDeviceHost(new URL(r.admin_url).hostname); } catch { /* invalid URL — leave Host SSH untouched */ }
+                        }
                         if (connected) handleDisconnect();
                         setDiscovered(null);
                       }}
                     >
                       <span style={{ fontSize: 12, color: "var(--brand-text-muted, #94a3b8)", flex: 1 }}>
-                        {r.name}{r.version ? ` v${r.version}` : ""}
+                        {r.hostname || r.name}{r.version ? ` v${r.version}` : ""}
                       </span>
                       {/* Pill solo sui runtime in container: dice quale procedura
                           di aggiornamento usare (install-container.sh / immagine)
@@ -7511,7 +7536,7 @@ function RuntimeConnectionTab() {
                           }}
                         >📦 {r.container}</span>
                       )}
-                      <span style={{ fontSize: 11, color: "var(--brand-border, #475569)" }}>{r.admin_url}</span>
+                      <span style={{ fontSize: 11, color: "var(--brand-border, #475569)" }}>{discoveredAdminUrl(r)}</span>
                     </div>
                   ))
               }

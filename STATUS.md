@@ -7,8 +7,7 @@
 > **Pulizia 2026-07-27**: rimossi i task già chiusi e le sezioni di verifica ormai superate; le sessioni mergiate **e** verificate fino al 2026-07-09 sono compresse in «Storico». Il dettaglio integrale resta in `CHANGELOG.md` e nella history git.
 
 **Sessione 2026-08-13 (continua) — anteprima live Faceplates + deploy non sincronizzava
-faceplates/recipes** (branch `feat/faceplate-preview-and-deploy-sync`, **non ancora mergiato —
-in attesa di conferma del maintainer**). Due richieste sul pannello Config → Faceplates:
+faceplates/recipes**. Due richieste sul pannello Config → Faceplates:
 - **Anteprima live**: nuova terza colonna nel pannello che mostra il faceplate mentre lo si
   modifica, senza salvare — riusa il rendering già esistente di un `faceplate` piazzato
   (`SvgObject`/sostituzione `{param}`, ora esportati da `SvgCanvas.tsx`), nessun nuovo stato
@@ -18,10 +17,22 @@ in attesa di conferma del maintainer**). Due richieste sul pannello Config → F
   il bundle di deploy (`build_project_zip`/`build_export_zip`, `router.rs`) elencava a mano solo
   `project.yaml`+`synoptics/*.yaml`+`users.yaml`, mai esteso per `faceplates/`/`recipes/` (stesso
   identico gap in entrambe le cartelle). Corretto in export e import, stesso pattern replace-mode
-  già usato per synoptics. `cargo check --workspace` e `pnpm build` verdi.
+  già usato per synoptics. **Confermato funzionante dal maintainer, mergiato su `main`.**
 
-**Prossimo passo naturale**: il maintainer verifica l'anteprima nel pannello Faceplates e che un
-faceplate modificato arrivi correttamente su un device remoto dopo il Deploy, poi squash-merge.
+**Sessione 2026-08-13 (continua) — hostname mDNS al posto dell'IP per "Host SSH" e "URL del
+runtime target"**. Il runtime annuncia già un hostname `.local` via mDNS (distinto dall'IP,
+stabile nel tempo), ma `discover.rs` non lo esponeva — "Cerca runtime" mostrava il nome grezzo del
+servizio e compilava "Host SSH" con l'IP. Aggiunto campo `hostname` in `DiscoveredRuntime`
+(backend + tipo frontend), usato per la label della lista e per l'autofill di "Host SSH", esteso
+poi su richiesta anche a "URL del runtime target" (porta admin 8444) con un nuovo helper
+`discoveredAdminUrl()` che ricostruisce l'URL con l'hostname al posto dell'IP, riusando
+scheme/porta da `admin_url`. Nota tenuta nel codice/changelog: per "Host SSH" la risoluzione
+`.local` è lato server (affidabile), per "URL del runtime target" è lato browser (meno uniforme
+tra sistemi) — voluto comunque dal maintainer. Verificato anche che `deviceHost` alimenti già da
+solo tutti i suoi consumatori (deploy pacchetto/container, pannello Gestione) e che non ci siano
+altri punti "IP da scoperta" da sistemare in questo giro (`viewer_url` non è usato altrove;
+"Dispositivi salvati" è un elenco distinto, non alimentato dalla scoperta). **Confermato
+funzionante dal maintainer, mergiato su `main`.**
 
 **Sessione 2026-08-13 — Deploy button/Configurazione→Runtime disallineati, chiarimento
 "regressioni" sul container, selettore variante immagine aarch64**. Il maintainer ha ripreso il

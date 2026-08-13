@@ -6,6 +6,15 @@ use std::time::{Duration, Instant};
 #[derive(Serialize)]
 pub struct DiscoveredRuntime {
     name: String,
+    /// Hostname mDNS pulito (es. `tc620-a-p3-c6-07aff9.local`, senza il punto
+    /// finale FQDN che `mdns-sd` restituisce) — stabile nel tempo a differenza
+    /// dell'IP (che può cambiare per DHCP). Usato lato frontend per "Host SSH"
+    /// (risolto dal resolver del sistema operativo del backend, non dal
+    /// browser: `.local` lì funziona in modo affidabile solo se l'host ha
+    /// Avahi/nss-mdns/systemd-resolved configurato per mDNS). `admin_url`/
+    /// `viewer_url` restano IP-based apposta: sono risolti dal browser, dove
+    /// il supporto `.local` per fetch/WebSocket è incoerente tra sistemi.
+    hostname: String,
     admin_url: String,
     viewer_url: String,
     version: Option<String>,
@@ -103,6 +112,7 @@ fn browse_mdns_blocking(timeout_secs: u64) -> Vec<DiscoveredRuntime> {
         match receiver.recv_timeout(remaining) {
             Ok(ServiceEvent::ServiceResolved(info)) => {
                 let fullname = info.get_fullname().to_string();
+                let hostname = info.get_hostname().trim_end_matches('.').to_string();
                 let viewer_port = info.get_port();
                 let admin_port: u16 = info
                     .get_property_val_str("admin_port")
@@ -139,6 +149,7 @@ fn browse_mdns_blocking(timeout_secs: u64) -> Vec<DiscoveredRuntime> {
 
                 let entry = DiscoveredRuntime {
                     name: fullname.clone(),
+                    hostname: hostname.clone(),
                     admin_url: format!("{}://{}:{}", scheme, ip, admin_port),
                     viewer_url: format!("{}://{}:{}", scheme, ip, viewer_port),
                     version,

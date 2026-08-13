@@ -143,6 +143,12 @@ export type UserRole = "Viewer" | "Operator" | "Supervisor" | "Admin";
 
 export interface DiscoveredRuntime {
   name: string;
+  /** Hostname mDNS pulito (es. "tc620-a-p3-c6-07aff9.local", senza punto
+   *  finale) — stabile nel tempo a differenza dell'IP. Usare per campi
+   *  risolti lato server (es. Host SSH); admin_url/viewer_url restano
+   *  IP-based apposta, risolti dal browser dove il supporto .local è
+   *  incoerente. */
+  hostname: string;
   admin_url: string;
   viewer_url: string;
   version: string | null;
