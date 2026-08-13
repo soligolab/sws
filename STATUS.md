@@ -6,6 +6,29 @@
 >
 > **Pulizia 2026-07-27**: rimossi i task già chiusi e le sezioni di verifica ormai superate; le sessioni mergiate **e** verificate fino al 2026-07-09 sono compresse in «Storico». Il dettaglio integrale resta in `CHANGELOG.md` e nella history git.
 
+**Sessione 2026-08-13 (continua) — pulizia branch LVGL, merge `feature/lvgl-widgets-3`**. Il
+maintainer ha segnalato confusione su quali branch fossero mergiati o no; verifica sistematica
+sul contenuto (non sugli hash) di tutti i 16 branch della famiglia `feature/lvgl-*`:
+- **15 superati, eliminati** (`feature/lvgl`, `-2-render-engine`, `-2b-display-fix`,
+  `-3-project-wizard`, `-live-updates`, `-more-widgets`, `-input-device`, `-widgets-2`,
+  `-multipage-1280x800`, `-badge-compat`, `-checkbox-values`, `-trend`, `-alarm-viewer`,
+  `-symbol-analysis`, `-pixsys-deploy`): un confronto riga-per-riga naive dava >60% "mancante" in
+  ognuno — falso allarme, perché ogni fase è stata **reimplementata a mano su `main`** invece di
+  squash-mergiata letteralmente (verificato con un caso diretto: lo stub "Fase 1" di
+  `feature/lvgl` è sostituito, non estenso, dalla vera Fase 2 su `main`). Il segnale affidabile è
+  stato il match 1:1 fra titolo del branch e commit equivalente su `main`.
+- **`feature/lvgl-widgets-3` — lavoro reale, mergiato**: branchato pulito da `main` (subito dopo
+  la 2.0.0), 3 commit che portano la copertura widget da 16 a 31/32 tipi. `cargo check`/`pnpm
+  build` verdi su entrambi i lati prima del merge; il maintainer ha scelto di fidarsi della build
+  verde e procedere subito, verifica funzionale rimandata. Squash-merge con 4 conflitti risolti a
+  mano (`CHANGELOG.md`/`STATUS.md`/`docs/OPEN_QUESTIONS.md`/template `LVGL Demo.yaml` — tutti
+  divergenze narrative fra le due storie, nessuna logica in conflitto reale).
+
+Più, prima di questo, pulizia di altri 10 branch non-LVGL con lo stesso metodo (6 già del tutto
+in `main`, 2 superati da lavoro successivo, 2 confermati pendenti e ora mergiati — vedi sotto).
+**Totale 26 branch eliminati in questa sessione.** Restano da testare dal vivo i widget aggiunti
+da `widgets-3` (mai provati fuori da un'istanza isolata) — vedi [[project_lvgl_engine]].
+
 **Sessione 2026-08-13 (continua) — blocco di lavoro autonomo, 5 task dal backlog**. Il maintainer
 si è allontanato per un paio d'ore chiedendo di identificare e affrontare task corposi dal
 backlog, da rivedere insieme al ritorno. Un agente ha prima analizzato `docs/CONTEXT.md`,
