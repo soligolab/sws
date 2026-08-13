@@ -1090,6 +1090,73 @@ con questo binario. Il percorso SDK Pixsys-tuned (Q14, corpo principale) resta c
 giusta quando servirà davvero il tuning cortex-a35 — questo seguito non lo invalida, risolve solo
 il piano B "per ora" preferito dal maintainer.
 
+**Aggiornamento 2026-08-10 (seguito 12) — l'ultimo miglio: SIGSEGV Wayland, backend DRM diretto,
+touch reale, primi fix visivi su schermo fisico**
+
+*Consolidato in questa forma strutturata durante una sessione di lavoro autonomo successiva —
+prima viveva solo sparso fra `STATUS.md` e i messaggi dei commit elencati sotto, mai scritto come
+seguito di Q14. Nessun fatto nuovo, solo messo in un unico posto.*
+
+Il test su hardware reale rimasto in sospeso dal seguito 11 ha aperto una catena di bug, tutti
+**upstream (SDL2, driver kernel) o di ambiente (librerie mancanti), non nel codice di questo
+progetto** — isolati uno alla volta con log diagnostici temporanei e strumenti esterni
+(`coredumpctl`, `dmesg`, `modetest`), poi rimossi una volta capito il punto esatto:
+
+1. **SIGSEGV su Wayland nativo** (`2175e39`, `e4c8d84`, `94fee67`, `d1f1901`): `sws-lvgl-viewer`
+   crashava sempre (exit 139) dentro `SDL_CreateRenderer`, identico col renderer accelerato e
+   forzato a software — root cause upstream, non nostra: SDL2 crea sempre una `wl_egl_window`+
+   `EGLSurface` alla creazione finestra su Wayland "anche senza richiedere OpenGL"
+   (`libsdl-org/SDL#4650`, `#5386`), e il container non aveva alcuna libreria EGL/GLES. Sostituire
+   `Canvas`/`Renderer` con la `Surface` diretta di SDL2 (blit software puro) non bastava: stesso
+   bug più a monte, confermato bisezionando anche le chiamate del blit. `SDL_VIDEODRIVER=x11` (via
+   XWayland, che Weston 13 su questo device avvia on-demand) elimina il crash e lo sostituisce con
+   un errore X11 pulito (decorazioni finestra del window manager, mai viste sotto Wayland nativo) —
+   risolto aggiungendo `.borderless()` al builder finestra.
+2. **Libreria EGL/GLES assente, poi dispatch loader assente** (`6597145`, `05fcc11`, `bbfe1ae`):
+   installato Mesa software (`libegl-mesa0`/`libgles2`/`libgl1-mesa-dri`/`libwayland-egl1`) come
+   ipotesi per il SIGSEGV — non richiede una GPU reale, coerente con l'assenza di driver
+   Mali/Rockchip su questo container. Nel frattempo scoperto che il device ha già un percorso
+   Pixsys nativo (`pixsys-launcher`/`pixsys-splash`, in conflitto sistemico con `weston.service`)
+   che pilota lo schermo senza compositor, verosimilmente via DRM diretto — replicato con
+   `SDL_VIDEODRIVER=kmsdrm` (mai provato finora): con Weston fermo, nessun SIGSEGV (i bug
+   Wayland/X11 di SDL2 non toccano kmsdrm), primo errore reale "EGL not initialized" da `libgbm1`
+   mancante, poi ancora da `libegl1` mancante (il dispatch loader generico, pacchetto separato da
+   `libegl-mesa0` che è solo l'implementazione vendor — stessa separazione classica Debian/Ubuntu
+   di `libgl1`/`libgl1-mesa-dri`).
+3. **Schermo nero su kmsdrm nonostante nessun errore** (`0fefcd9`): verificato via
+   `/sys/kernel/debug/dri/1/state` che il piano DRM attivo è allocato correttamente (formato XR24
+   1280×800) — la pipeline KMS funziona, il contenuto scritto sembrava vuoto. Isolato con
+   `modetest` (puro `libdrm`, nessun codice del progetto): il pattern di test si vede con l'API
+   legacy (`drmModeSetCrtc`) ma **non** con quella atomica (`modetest -a`) — **bug del driver
+   kernel Rockchip (`Tainted: OOT_MODULE`) sul percorso atomico**, non di questo progetto né di
+   SDL2/LVGL. SDL2 e il driver `drm.c` già vendorizzato in `lvgl-sys` usano entrambi solo l'API
+   atomica, quindi nessuno dei due poteva funzionare su questo hardware così com'è.
+4. **Backend `--backend drm` — rendering diretto via API DRM legacy** (`ddc4739`): nuovo modulo
+   `src/drm_display.rs`, alternativa a SDL2 (rimasto il default). Apre il device, trova
+   connettore/CRTC, crea un dumb buffer XRGB8888 e lo aggancia con `drmModeSetCrtc` (API legacy,
+   non quella atomica rotta sul kernel di questo device) — bindgen contro `libdrm-dev` invece di
+   FFI scritta a mano o della crate wrapper `drm` (API cambiata più volte fra versioni). **Primo
+   rendering LVGL visibile su schermo fisico in tutto questo filone di lavoro** (`b509b63`).
+5. **Touch reale** (`b509b63`): nuovo modulo `src/touch_indev.rs`, legge evdev grezzo da un device
+   già calibrato/filtrato da `tslib` (`ts-uinput.service`, già attivo sul device — niente bisogno
+   di linkare `tslib` direttamente). Calibrazione dinamica via `EVIOCGABS` invece di costanti
+   fisse. Nuovo flag `--touch-device` (vuoto = nessun input, solo rendering). Ripristinata anche la
+   gestione tag/navigazione/allarmi in `run_drm`, persa nella prima stesura quando "nessun input"
+   sembrava vero.
+6. **Primi fix visivi trovati sul primo test vero su schermo fisico** (`8b2c911`, 2026-08-10): mai
+   emersi prima perché mai visti su un display reale. `render_gauge`: `lv_meter` non forza una
+   forma circolare da solo, segue fedelmente un box non quadrato — corretto forzando un quadrato
+   (lato minore) centrato nel box originale. `render_slider`: `lv_slider` disegna la traccia grande
+   quanto l'intero oggetto (nessun padding) — un box alto 44px dava una traccia "grassa"; risolto
+   rendendo l'oggetto visivamente sottile (16px) ma con l'area di click estesa via
+   `lv_obj_set_ext_click_area` fino a coprire l'intero box originale, tocco preciso quanto prima —
+   importante ora che il touch è reale, non solo mouse SDL2.
+
+**Decided**: il percorso container generico aarch64 con `--with-lvgl` e backend `--backend drm`
+**funziona end-to-end su hardware Pixsys reale**, touch incluso — verificato di persona
+(`tc620-a-p3-c6-07aff9.local`), non solo dedotto dai log. Nessuna delle correzioni sopra è
+specifica al percorso SDK Pixsys-tuned: si applicano identiche a entrambi i Containerfile.
+
 ---
 
 ## Q15 — Simboli SVG (`symbol`/`faceplate`) su LVGL: nessun renderer SVG disponibile
