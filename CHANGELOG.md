@@ -11,6 +11,20 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### Fixed
+
+- **T-49 — mDNS annunciava anche le interfacce veth/docker**: `announce_mdns()` usava
+  `enable_addr_auto()`, che pubblica un indirizzo per ogni interfaccia locale — comprese le veth
+  residue di container (solo IPv6 link-local con `%scope`). Un client che scopriva il runtime
+  poteva risolvere quell'indirizzo invece della LAN reale, rendendo "Connetti" inutilizzabile senza
+  inserire l'IP a mano. Ora si annuncia solo l'indirizzo rilevato da `detect_lan_ip()` (già
+  esistente, routing di uscita reale), con ripiego sul vecchio comportamento se la rilevazione
+  fallisce.
+- **`sws-kiosk` ignorava `--viewer-port`**: lo spawn da `sws-runtime` (kiosk Wayland) passava
+  `https://localhost:8443` a mano invece della porta effettiva già disponibile nella stessa
+  funzione (usata poco sopra per l'health-check) — rompeva il kiosk su un'istanza con porta viewer
+  non standard.
+
 ### Added
 
 - **Anteprima live nel pannello Faceplates**: una terza colonna a destra dei campi ID/Label/

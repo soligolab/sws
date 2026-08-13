@@ -1,4 +1,3 @@
-// TODO (ADR 0001): evaluate Redux Toolkit as an alternative before M1 freeze.
 import { create } from "zustand";
 import { api, setAuthToken } from "@/api/client";
 import { applyAppearance, getStoredMode, type ThemeMode } from "@/theme";
