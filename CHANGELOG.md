@@ -20,6 +20,15 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   `faceplate` piazzato su pagina (`SvgObject`/sostituzione `{param}`, ora esportati da
   `SvgCanvas.tsx`), con valori segnaposto (ogni parametro sostituisce se stesso, non essendoci
   un'istanza reale in fase di editing della definizione).
+- **"Cerca runtime" usa l'hostname mDNS invece dell'IP**: il runtime annuncia già un hostname
+  `.local` stabile (distinto dall'IP, che può cambiare per DHCP) via mDNS, ma non veniva esposto —
+  la lista mostrava il nome grezzo del servizio (`tc620-a-p3-c6-07aff9._sws._tcp.local.`) e
+  "Host SSH"/"URL del runtime target" si compilavano con l'IP. Nuovo campo `hostname` in
+  `DiscoveredRuntime` (backend `discover.rs` + tipo frontend), usato per la label della lista e
+  per l'autofill di entrambi i campi. Per "Host SSH" la risoluzione `.local` è lato server (Avahi/
+  `nss-mdns`, affidabile su Linux); per "URL del runtime target" (connessione HTTP/WS) è invece il
+  browser a risolvere `.local`, meno uniforme tra sistemi — scelta comunque voluta dal maintainer,
+  segnalata in codice non come limite bloccante.
 - **Selettore variante immagine aarch64 (Config → Runtime → installazione container, sorgente
   Registry)**: due bottoni "Generic (aarch64)" / "SDK-tuned Pixsys (aarch64)" che precompilano il
   campo "Riferimento immagine" con il tag esplicito corretto (`latest-arm64-generic` o
