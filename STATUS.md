@@ -6,24 +6,42 @@
 >
 > **Pulizia 2026-07-27**: rimossi i task già chiusi e le sezioni di verifica ormai superate; le sessioni mergiate **e** verificate fino al 2026-07-09 sono compresse in «Storico». Il dettaglio integrale resta in `CHANGELOG.md` e nella history git.
 
-**Sessione 2026-08-13 — Deploy button/Configurazione→Runtime ancora disallineati + chiarimento
-"regressioni" sul container** (branch `fix/runtime-tab-status-sync`, non ancora mergiato). Il
-maintainer ha ripreso il lavoro e segnalato due cose:
+**Sessione 2026-08-13 — Deploy button/Configurazione→Runtime disallineati, chiarimento
+"regressioni" sul container, selettore variante immagine aarch64**. Il maintainer ha ripreso il
+lavoro e segnalato più cose in sequenza:
 - **"Regressioni" nel container compilato** (barra/pulsante allarmi tornati fissi in alto,
   `alarm_banner`/`alarm_bell` ignorati, griglia di sfondo ricomparsa): **non un bug di codice**.
-  Verificato che `main` locale era 4 commit avanti a `origin/main` (tutto il lavoro della sessione
-  precedente — MQTT, T-46, falso positivo, Deploy button/Log Remoti) mai pushato. Un container
-  costruito da `origin` riprende lo stato pre-fix. Serve un `git push` (da confermare
-  esplicitamente, non ancora fatto) + rebuild.
+  Causa 1: `main` locale era 4 commit avanti a `origin/main` (tutto il lavoro della sessione
+  precedente) mai pushato — **pushato** in questa sessione (`git push`, confermato dal
+  maintainer). Causa 2, trovata **dopo** il push+rebuild, quando le regressioni persistevano
+  ancora: il pannello "Installa/Aggiorna container" con il campo "Riferimento immagine" vuoto
+  lascia scegliere il tag al device (`uname -m`), che sceglie sempre `latest-arm64` (l'immagine
+  **SDK-tuned Pixsys**, pipeline di build separata, `scripts/build_container.sh`) — mai
+  `latest-arm64-generic` (quella appena ricompilata, `build_container_aarch64_generic.sh`). Il
+  device aveva quindi scaricato l'immagine SDK vecchia. Corretto manualmente via SSH sul device
+  (`192.168.1.179`): pull esplicito di `latest-arm64-generic`, quadlet aggiornato con l'`Image=`
+  esplicito, riavviato — verificato via hash del bundle servito che combacia con la build locale.
 - **Deploy button verde ma Configurazione→Runtime non risultava connesso**: gap reale lasciato dal
   fix precedente sul pulsante Deploy — quello aveva reso il pulsante coerente con lo store
   condiviso, ma `RuntimeConnectionTab` (`ConfigView.tsx`) sincronizzava il proprio stato locale
   dallo store solo una volta al mount. Un cambio di connessione dall'esterno (es. "Riconnetti"
   dal pulsante Deploy) con la tab già aperta non si rifletteva. Aggiunto un effetto di
-  risincronizzazione. `pnpm build` verde.
+  risincronizzazione. **Mergiato e pushato.**
+- **Selettore variante immagine aarch64** (branch `feat/container-variant-picker`, non ancora
+  mergiato): per evitare che l'incidente sopra si ripeta, due bottoni "Generic (aarch64)" /
+  "SDK-tuned Pixsys (aarch64)" nel pannello Registry precompilano il campo "Riferimento immagine"
+  col tag esplicito corretto, così il campo non resta mai vuoto (e ambiguo) per un'installazione
+  aarch64 fatta da qui. Nessun cambio backend necessario (`image_ref` già fluiva correttamente
+  quando non vuoto). Discusso anche col maintainer il reale vantaggio dell'SDK-tuned rispetto a
+  generic: **solo performance** (l'immagine finale è identica; generic forza `opt-level=0` per
+  tutto il binario per aggirare un bug QEMU nell'assembly di `aws-lc-sys`, oltre a perdere il
+  tuning `-mcpu=cortex-a35`) — non correttezza né accesso hardware. Il maintainer ha scelto di
+  costruire subito la UI di scelta, rimandando un eventuale fix mirato del profilo di
+  ottimizzazione (`[profile.release.package.aws-lc-sys] opt-level=0`) a un secondo momento.
 
-**Prossimo passo naturale**: confermare col maintainer se procedere con `git push` + nuovo build
-container (per chiudere anche il punto 1), poi squash-merge di questo branch su `main`.
+**Prossimo passo naturale**: squash-merge di `feat/container-variant-picker` su `main` quando
+confermato dal maintainer; valutare se/quando vale la pena sistemare l'`opt-level` di
+`aws-lc-sys` per recuperare le prestazioni del build generic senza tornare all'SDK.
 
 **Sessione 2026-08-11 (continuazione, stessa giornata)**: deploy 2.0.0 sul pannello fisico
 (`tc620-a-p3-c6-07aff9.local`) e due bugfix nati dal test del demo Sandokan in web mode.

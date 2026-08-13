@@ -11,6 +11,17 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### Added
+
+- **Selettore variante immagine aarch64 (Config → Runtime → installazione container, sorgente
+  Registry)**: due bottoni "Generic (aarch64)" / "SDK-tuned Pixsys (aarch64)" che precompilano il
+  campo "Riferimento immagine" con il tag esplicito corretto (`latest-arm64-generic` o
+  `latest-arm64`). Prima, lasciare il campo vuoto per un'installazione aarch64 delegava la scelta
+  al device (`uname -m`), che sceglie sempre `latest-arm64` (SDK-tuned) — le due immagini sono
+  mantenute da pipeline di build separate e possono divergere silenziosamente: un rebuild della
+  sola generic, installato con il campo vuoto, portava sul device l'immagine SDK vecchia senza
+  alcun avviso (incidente reale di questa sessione).
+
 ### Fixed
 
 - **Pulsante Deploy verde ma Configurazione→Runtime ancora "non connesso"**: gap lasciato dal

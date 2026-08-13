@@ -7741,6 +7741,31 @@ function RuntimeConnectionTab() {
                   </div>
                 ) : (
                   <div>
+                    {/* Su aarch64 esistono due immagini distinte e mantenute
+                        separatamente (generic via QEMU, SDK-tuned Pixsys) —
+                        un image_ref vuoto lascia decidere al device via
+                        `uname -m`, che sceglie sempre la SDK-tuned (vedi
+                        install-container.sh): un rebuild della sola generic
+                        installava così, senza errori né avvisi, l'immagine
+                        SDK vecchia. Questi due bottoni precompilano il campo
+                        con il tag esplicito, così il campo non resta mai
+                        vuoto per un'installazione aarch64 fatta da qui —
+                        resta comunque modificabile per pinare una versione
+                        specifica invece di "latest".  */}
+                    <div style={{ display: "flex", gap: 4, marginBottom: 6 }}>
+                      <button
+                        style={{ ...BTN, padding: "4px 10px", fontSize: 11 }}
+                        title={t("cfg.imageVariantGenericTitle")}
+                        onClick={() => setImageRef("ghcr.io/soligolab/sws-runtime:latest-arm64-generic")}>
+                        {t("cfg.imageVariantGeneric")}
+                      </button>
+                      <button
+                        style={{ ...BTN, padding: "4px 10px", fontSize: 11 }}
+                        title={t("cfg.imageVariantSdkTitle")}
+                        onClick={() => setImageRef("ghcr.io/soligolab/sws-runtime:latest-arm64")}>
+                        {t("cfg.imageVariantSdk")}
+                      </button>
+                    </div>
                     <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 4 }}>
                       {t("cfg.imageRef")}
                     </label>
