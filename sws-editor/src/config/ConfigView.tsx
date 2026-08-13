@@ -6905,6 +6905,7 @@ function RuntimeConnectionTab() {
   const { t } = useTranslation();
   const authToken = useAppStore((s) => s.authToken);
   const setRemoteConnected = useAppStore((s) => s.setRemoteConnected);
+  const remoteConnectedStore = useAppStore((s) => s.remoteConnected);
 
   const [targetUrl,  setTargetUrl]  = useState(() => localStorage.getItem(RT_URL_KEY)  ?? "");
   const [targetUser, setTargetUser] = useState(() => localStorage.getItem(RT_USER_KEY) ?? "");
@@ -6930,6 +6931,22 @@ function RuntimeConnectionTab() {
       }
     }).catch(() => { /* not critical — start as idle */ });
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Risincronizza lo stato locale quando la connessione cambia da FUORI
+  // questo componente — es. il pulsante Deploy nell'header (App.tsx) che
+  // riconnette/disconnette all'ultimo dispositivo agendo solo sullo store.
+  // Senza questo, se la tab è già montata quando succede, `status` resta
+  // bloccato sul valore di quando aveva montato (il suo unico sync è
+  // l'effetto one-shot sopra), mentre il pulsante Deploy (che legge lo
+  // store direttamente) mostra già lo stato corretto — da qui il
+  // disallineamento fra i due.
+  useEffect(() => {
+    if (remoteConnectedStore && status !== "connected") {
+      setStatus("connected"); setStatusMsg(null);
+    } else if (!remoteConnectedStore && status === "connected") {
+      setStatus("idle");
+    }
+  }, [remoteConnectedStore]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Live tag panel: tag-id → {value, quality, ts} from /ws/remote/tags relay.
   type LiveTagEntry = { value: unknown; quality: string; ts: number };

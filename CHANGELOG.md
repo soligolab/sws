@@ -13,6 +13,13 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ### Fixed
 
+- **Pulsante Deploy verde ma Configurazione→Runtime ancora "non connesso"**: gap lasciato dal
+  fix precedente sul pulsante Deploy — quel fix lo aveva reso coerente con lo store condiviso, ma
+  `RuntimeConnectionTab` mostrava il proprio stato da uno stato locale sincronizzato dallo store
+  solo una volta al mount, mai più. Se la connessione cambiava dall'esterno (es. "Riconnetti
+  all'ultimo dispositivo" dal pulsante Deploy) mentre la tab era già aperta, restava bloccata sul
+  valore di prima. Aggiunto un effetto che risincronizza lo stato locale quando lo store cambia.
+
 - **Client ID MQTT random non risolto su reload**: `resolve_mqtt_client_ids` (che compone
   `client_id` + `instance_id` persistente quando `random_client_id.enabled` è attivo) veniva
   chiamato solo da `apply_loaded_project` (boot/apertura progetto) e dall'override manuale, ma
