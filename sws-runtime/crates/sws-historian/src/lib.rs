@@ -183,12 +183,12 @@ impl Historian {
         };
         drop(buf); // release the read lock before any SQLite I/O
 
-        // SQLite fallback: when from_ms is older than the ring's oldest sample,
-        // prepend the gap from disk. Skip when there's no store or no from_ms.
+        // SQLite fallback: when from_ms (or its absence, i.e. "no lower bound") is
+        // older than the ring's oldest sample, prepend the gap from disk. Skip
+        // only when there's no store or no in-memory samples to anchor against.
         let store_snapshot = self.store.read().await.clone();
-        let mut samples = if let (Some(store), Some(from), Some(oldest)) =
-            (store_snapshot, from_ms, oldest_mem_ts)
-        {
+        let mut samples = if let (Some(store), Some(oldest)) = (store_snapshot, oldest_mem_ts) {
+            let from = from_ms.unwrap_or(0);
             if from < oldest {
                 let sqlite_to = oldest.saturating_sub(1);
                 let mut older = store.query_range(tag, from, sqlite_to).await;
@@ -276,6 +276,23 @@ mod tests {
     async fn unknown_tag_returns_empty() {
         let h = Historian::new(10);
         assert!(h.query("nope", None, None).await.is_empty());
+    }
+
+    #[tokio::test]
+    async fn unbounded_query_reaches_sqlite_past_the_ring() {
+        // Ring cap of 3 wraps well before all 6 samples are written, mirroring
+        // a runtime left running long enough for `max_per_tag` to roll over —
+        // the reported bug: an unbounded query ("Tutto") must still see the
+        // full SQLite history, not just what survives in the RAM ring.
+        let store = crate::sqlite::SqliteStore::open(":memory:").await.unwrap();
+        let h = Historian::with_sqlite(3, store).await.unwrap();
+        for i in 0..6u64 {
+            h.record("t", &st(i * 10, i as f64)).await;
+        }
+        let all = h.query("t", None, None).await;
+        assert_eq!(all.len(), 6);
+        assert_eq!(all[0].ts_ms, 0);
+        assert_eq!(all.last().unwrap().ts_ms, 50);
     }
 
     #[test]

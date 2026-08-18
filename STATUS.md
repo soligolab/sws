@@ -6,6 +6,101 @@
 >
 > **Pulizia 2026-07-27**: rimossi i task già chiusi e le sezioni di verifica ormai superate; le sessioni mergiate **e** verificate fino al 2026-07-09 sono compresse in «Storico». Il dettaglio integrale resta in `CHANGELOG.md` e nella history git.
 
+**Sessione 2026-08-18 (continua) — Backup: due sezioni simmetriche + operazioni complete anche da
+remoto**, stesso branch. Il maintainer ha chiesto perché ci fosse una sola sezione "locale" con
+tabella grande e una sezione remota più piccola/annidata sotto, con solo elenco+download — dopo
+la spiegazione (locale = progetto in editing/design, remoto = stato live realmente in esecuzione
+sul device, dati diversi e non intercambiabili — il deploy infatti esclude sempre `.history/` dal
+device proprio per questo) ha chiesto due riquadri **identici** per stile/azioni. Aggiunti 3
+nuovi proxy in `remote.rs` (`remote_create_backup`, `remote_restore_backup`,
+`remote_delete_backup`, stesso stile di `remote_download_backup` già presente — server-side
+`reqwest` verso `{target.url}/api/backups...`, mai il browser diretto sul device, audit-logged
+per create/restore/delete). Estratto un componente React condiviso `BackupSection`
+(`ConfigView.tsx`) usato due volte — locale e remoto sono ora due riquadri di pari livello,
+stesse 5 azioni (Backup adesso/Aggiorna/Ripristina/Scarica/Elimina) per entrambi, la logica dei
+confirm resta nel chiamante (testo remoto specifica "sul dispositivo remoto connesso" e chiarisce
+che non tocca il progetto locale). Verificato: route registrate correttamente (400 "Nessun
+runtime remoto connesso" quando non connesso, come atteso), `cargo check --workspace`/`pnpm
+build` verdi. **Non ancora verificato il percorso remoto con un device reale connesso.**
+
+**Sessione 2026-08-18 (continua) — intervallo auto-backup per-progetto + download backup (Config
+→ Backup)**, stesso branch `fix/trend-all-range-and-date`. Il maintainer, guardando la tab
+Backup, ha notato che `--auto-backup-interval-minutes` era solo un flag di avvio (uguale per ogni
+progetto, richiede un riavvio per cambiare) e ha chiesto di controllarlo a livello di progetto,
+più un bottone per scaricare i backup del device remoto connesso. Aggiunti
+`Project::auto_backup_interval_minutes`/`auto_backup_retention` (override in `project.yaml`,
+`None` = eredita il default di processo) e riscritto il loop di auto-backup in `main.rs`: prima
+era un `tokio::time::interval` fissato una volta all'avvio (e saltato del tutto se il flag era 0);
+ora tiene un tick fisso da 1 minuto e rilegge il progetto attivo a ogni scatto (tracciando
+"ultimo scatto" per-progetto così cambiare progetto non fa scattare subito un backup basato sul
+tempo trascorso del progetto precedente) — un cambio di intervallo o un cambio progetto ha
+effetto entro un minuto, nessun riavvio. Aggiunto anche **Scarica** per ogni singolo backup
+(nuovo `zip_directory`/`add_dir_to_zip` in `backups.rs`, zip generico che copia i byte così come
+sono — serve perché `.history/historian.db` è binario, non YAML da riserializzare come fa già
+`build_export_zip` altrove), sia locale (`GET /api/backups/:name/download`) sia — quando connesso
+— per il dispositivo remoto (`GET /api/remote/backups`+`/:name/download`, stesso pattern proxy di
+`remote_push_users`/del database), con una sezione dedicata nella UI che elenca i backup del
+device connesso. Verificato end-to-end con un runtime reale: lettura/scrittura di
+`backup-config`, download di uno zip con contenuto corretto (incluso `.history/` con sidecar
+WAL/SHM). `cargo check --workspace`/`pnpm build` verdi, nuovo test `sws-web`
+(`zip_directory_preserves_files_and_binary_content`) verde, 5/5 test `backups` verdi in totale.
+**Non ancora verificato il percorso remoto con un device reale.**
+
+**Sessione 2026-08-18 (continua) — download/upload del database (Config → Datastore → GESTIONE
+DATABASE)**, stesso branch `fix/trend-all-range-and-date` su richiesta esplicita del maintainer
+(per testare tutto insieme). Partito dall'audit richiesto — "GESTIONE DATABASE" aveva già
+test/stats/purge/export-CSV/tag-orfani/vacuum, tutti funzionanti, ma **nessuno con un concetto di
+dispositivo remoto connesso**: agiscono tutti su `getBaseUrl()`, cioè sempre e solo il backend a
+cui l'editor è attaccato (verificato con tre agenti Explore in parallelo: audit frontend, audit
+endpoint backend, audit dei due meccanismi remoti esistenti — SSH per lifecycle
+container/comandi, proxy HTTP via `AppState.remote_target` per azioni "sul device connesso" tipo
+Deploy/push-utenti). Confermato anche che né SSH né il proxy toccano oggi `historian.db`
+(deliberatamente escluso dal bundle di deploy). Decisioni prese col maintainer: costruire
+Download/Upload sia per il progetto locale sia per il device remoto (stesso binario `sws-web`,
+costo aggiuntivo minimo), e per l'upload **niente hot-swap in-process** — si sostituisce il file
+su disco con backup automatico del precedente, ma serve un riavvio del runtime perché il nuovo
+database venga davvero usato (una `Connection` SQLite già aperta continua a scrivere sul vecchio
+file anche dopo la sostituzione).
+
+Implementato: `SqliteStore::vacuum_into` (copia consistente via `VACUUM INTO`, non un `fs::copy` a
+caldo) e `SqliteStore::replace_file_at` (sostituzione con backup timestampato + pulizia sidecar
+`-wal`/`-shm` obsoleti) in `sws-historian`; `DatastoreRegistry`/`DatastoreBackend` estesi con
+`backend_db_path`/`download_backend`/`replace_backend_file`; due nuove route admin-gated
+`GET|POST /api/datastores/:id/download|upload` in `sws-web`; due nuovi proxy
+`GET|POST /api/remote/database/:id/download|upload` in `remote.rs` (stesso stile di
+`remote_push_users`, audit-logged); lato editor due nuovi bottoni "Scarica database"/"Carica
+database" nel box GESTIONE DATABASE, raddoppiati per il device remoto quando `remoteConnected`.
+Verificato end-to-end con `scripts/check_database_mgmt.sh` (esteso con due nuovi passi): download
+produce una copia con lo stesso conteggio campioni del file live, upload risponde con
+`requires_restart: true` e crea davvero il backup su disco. `cargo check --workspace`/`pnpm
+build` verdi, 8/8 test `sws-historian` verdi. **Non ancora verificato il percorso remoto con un
+device reale** (serve un runtime connesso via "Cerca runtime" per provarlo davvero) — segnalati
+anche 5 difetti minori trovati durante l'audit (mancante `require_admin` su
+`tags`/`delete-tag`/`vacuum`, `purge` senza audit-log, commento stale, cast `as any` ridondanti,
+copy fuorviante su "Pulisci ora"), non toccati in questo giro.
+
+**Sessione 2026-08-18 (continua) — bug trend "Tutto" < "24h" + data mancante** (branch
+`fix/trend-all-range-and-date`). Il maintainer, rientrato dalle ferie col runtime lasciato attivo
+su `tc620-a-p3-c6-07aff9.local`, segnala che il preset "Tutto" del trend mostra meno dati di
+"24h" e che assi/tooltip non mostrano mai la data. Due agenti Explore in parallelo (frontend +
+backend) hanno isolato la causa: **non è perdita/pruning di dati** (lo storico è intatto in
+SQLite) — `Historian::query()` (`sws-historian/src/lib.rs`) consultava SQLite solo con un `from`
+esplicito più vecchio del ring RAM (5.000 campioni/tag, si "gira" dopo giorni di uptime); con
+`from: None` (la query "senza limiti" che "Tutto" usa per trovare il vero campione più vecchio via
+`/api/history/:tag/stats`) restituiva solo il ring RAM — "Tutto" finiva per auto-selezionare un
+`fromMs` già dentro la finestra RAM, mentre "24h" (calcolato lato client, indipendente da quella
+query) mostrava correttamente di più. Fix: `from: None` ora trattato come "nessun limite
+inferiore" — raggiunge comunque SQLite. Bonus: questo stesso fix corregge automaticamente anche
+`tag_history_stats` (nessuna riscrittura separata servita, come inizialmente pianificato — passa
+già per la stessa `query()`). Aggiunto test (`unbounded_query_reaches_sqlite_past_the_ring`) che
+riproduce un ring che ha già "girato" e verifica che una query senza bound raggiunga comunque
+SQLite. Corretto anche un doc-comment stale su `DatastoreConfig::retention_days` che parlava di
+uno "sweep notturno" di pruning mai esistito nel codice (pruning è solo manuale, via
+`POST /api/datastores/:id/purge`). Lato frontend: `TrendCanvas.tsx`'s `fmtTime` ora include la
+data (`MM-DD`) quando lo span visualizzato supera le 24h, invariato sotto quella soglia.
+`cargo check --workspace`/`pnpm build` verdi, test storico verdi (7/7). **Non ancora verificato
+dal maintainer sul caso originale** (`state.voltage` su `tc620-a-p3-c6-07aff9.local`).
+
 **Sessione 2026-08-18 — richiesta annotata: download/upload database device (Gestione)**. Il
 maintainer, rientrato da una settimana di ferie, chiede per il pannello "Gestione" (Config →
 Runtime → device connesso) la possibilità di scaricare/caricare il database del dispositivo

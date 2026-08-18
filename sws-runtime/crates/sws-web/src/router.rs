@@ -166,6 +166,7 @@ pub fn build(
         .route("/api/project/global-scripts",  put(update_project_global_scripts))
         .route("/api/project/notifications",   put(update_project_notifications))
         .route("/api/project/page-layout",     put(update_project_page_layout))
+        .route("/api/project/backup-config",   put(update_project_backup_config))
         .route("/api/notifications/test-telegram", post(test_telegram))
         .route("/api/notifications/telegram-chats", post(detect_telegram_chats))
         .route("/api/project/rollback",        post(trigger_rollback))
@@ -180,6 +181,8 @@ pub fn build(
             delete(crate::backups::delete_backup_handler))
         .route("/api/backups/:name/restore",
             post(crate::backups::restore_backup_handler))
+        .route("/api/backups/:name/download",
+            get(crate::backups::download_backup_handler))
         .route("/api/auth/users",         get(list_users).post(create_user))
         // Lato ricevente di "Aggiorna utenti sul dispositivo".
         .route("/api/auth/users-file",    put(crate::projects::replace_users_file))
@@ -266,6 +269,15 @@ pub fn build(
         // "Invia Client ID al dispositivo connesso" — override per-device del
         // client_id MQTT, esterno a project.yaml.
         .route("/api/remote/mqtt-client-id", post(crate::remote::remote_push_mqtt_client_id))
+        // Database del datastore sul dispositivo connesso — non quello locale.
+        .route("/api/remote/database/:id/download", get(crate::remote::remote_download_database))
+        .route("/api/remote/database/:id/upload",   post(crate::remote::remote_upload_database))
+        // Backup del dispositivo connesso — non quelli del progetto locale.
+        .route("/api/remote/backups",
+            get(crate::remote::remote_list_backups).post(crate::remote::remote_create_backup))
+        .route("/api/remote/backups/:name/download", get(crate::remote::remote_download_backup))
+        .route("/api/remote/backups/:name/restore",  post(crate::remote::remote_restore_backup))
+        .route("/api/remote/backups/:name",          delete(crate::remote::remote_delete_backup))
         .route("/ws/remote/:sub",          get(crate::remote_relay::ws_relay_handler))
         .route_layer(middleware::from_fn(require_admin));
 
@@ -335,7 +347,11 @@ pub fn build(
         .route("/api/datastores/:id/purge",
             post(datastore_purge).route_layer(require_admin_layer.clone()))
         .route("/api/datastores/:id/export",
-            get(datastore_export).route_layer(require_admin_layer.clone()));
+            get(datastore_export).route_layer(require_admin_layer.clone()))
+        .route("/api/datastores/:id/download",
+            get(datastore_download).route_layer(require_admin_layer.clone()))
+        .route("/api/datastores/:id/upload",
+            post(datastore_upload).route_layer(require_admin_layer.clone()));
 
     // OPC-UA cert trust management — separate router to avoid matchit
     // conflicts with /api/sources/opcua/browse (literal) vs :id (param).
@@ -1507,6 +1523,76 @@ async fn datastore_export(
     }
 }
 
+/// GET /api/datastores/:id/download — raw SQLite database file, for
+/// archiving. Uses `VACUUM INTO` (via `download_backend`) to produce a
+/// consistent point-in-time copy in a temp file instead of reading the live
+/// file directly — the live file is in WAL mode with continuous writes, so a
+/// plain byte-copy could capture a torn/inconsistent snapshot.
+async fn datastore_download(
+    State(s): State<AppState>,
+    Path(id): Path<String>,
+) -> Response {
+    let Some(reg) = s.registry.read().await.as_ref().map(Arc::clone) else {
+        return (StatusCode::NOT_FOUND, "no datastores configured").into_response();
+    };
+    let now_ms = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis())
+        .unwrap_or(0);
+    let tmp_path = std::env::temp_dir().join(format!("sws-datastore-{id}-{now_ms}.db"));
+
+    if let Err(e) = reg.download_backend(&id, &tmp_path).await {
+        return (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response();
+    }
+
+    let bytes = tokio::fs::read(&tmp_path).await;
+    let _ = tokio::fs::remove_file(&tmp_path).await; // best-effort cleanup
+    match bytes {
+        Ok(bytes) => Response::builder()
+            .status(StatusCode::OK)
+            .header(header::CONTENT_TYPE, "application/octet-stream")
+            .header(
+                header::CONTENT_DISPOSITION,
+                format!("attachment; filename=\"{id}.db\""),
+            )
+            .body(axum::body::Body::from(bytes))
+            .unwrap(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+    }
+}
+
+#[derive(serde::Serialize)]
+struct DatastoreUploadResult {
+    bytes_written: usize,
+    backup_path: String,
+    requires_restart: bool,
+}
+
+/// POST /api/datastores/:id/upload — replace the database file with the
+/// uploaded bytes (raw `application/octet-stream` body, same convention as
+/// `import_project_zip`). Keeps a timestamped backup of the previous file.
+/// Does **not** hot-swap the live connection — an already-open `SqliteStore`
+/// keeps writing to the old (renamed-away) file until the process restarts,
+/// so the response always reports `requires_restart: true` and the caller
+/// must surface that to the user.
+async fn datastore_upload(
+    State(s): State<AppState>,
+    Path(id): Path<String>,
+    body: Bytes,
+) -> Response {
+    let Some(reg) = s.registry.read().await.as_ref().map(Arc::clone) else {
+        return (StatusCode::NOT_FOUND, "no datastores configured").into_response();
+    };
+    match reg.replace_backend_file(&id, body.to_vec()).await {
+        Ok(backup_path) => Json(DatastoreUploadResult {
+            bytes_written: body.len(),
+            backup_path: backup_path.display().to_string(),
+            requires_restart: true,
+        }).into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+    }
+}
+
 // ── Alarm endpoints ──────────────────────────────────────────────────────────
 
 async fn get_alarms(State(s): State<AppState>) -> Json<Vec<AlarmState>> {
@@ -1749,6 +1835,8 @@ where
             languages: Default::default(),
             page_layout: None,
             target: None,
+            auto_backup_interval_minutes: None,
+            auto_backup_retention: None,
         },
     };
     f(&mut project);
@@ -4313,6 +4401,38 @@ async fn update_project_page_layout(
     let res = patch_project(&dir, |p| p.page_layout = config_clone).await;
     if res.status() == StatusCode::NO_CONTENT {
         s.audit.log("project.change", Some(user.username), serde_json::json!({"what": "page_layout"}));
+    }
+    res
+}
+
+#[derive(serde::Deserialize, Clone)]
+struct BackupConfigBody {
+    /// `None` = eredita il default di processo (`--auto-backup-interval-minutes`).
+    interval_minutes: Option<u64>,
+    /// `None` = eredita il default di processo (`--auto-backup-retention`).
+    retention: Option<u64>,
+}
+
+/// `PUT /api/project/backup-config` — override per-progetto dell'intervallo/
+/// retention di auto-backup, letto dal loop in `main.rs` a ogni tick (non
+/// serve un riavvio). Campi `None` tornano a ereditare il default di processo.
+async fn update_project_backup_config(
+    State(s): State<AppState>,
+    Extension(user): Extension<AuthUser>,
+    Json(body): Json<BackupConfigBody>,
+) -> Response {
+    let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
+    let body_clone = body.clone();
+    let res = patch_project(&dir, |p| {
+        p.auto_backup_interval_minutes = body_clone.interval_minutes;
+        p.auto_backup_retention = body_clone.retention;
+    }).await;
+    if res.status() == StatusCode::NO_CONTENT {
+        s.audit.log("project.change", Some(user.username), serde_json::json!({
+            "what": "backup_config",
+            "interval_minutes": body.interval_minutes,
+            "retention": body.retention,
+        }));
     }
     res
 }

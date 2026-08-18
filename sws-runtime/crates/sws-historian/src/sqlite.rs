@@ -413,6 +413,53 @@ impl SqliteStore {
         Ok((before, file_size(&self.path)))
     }
 
+    /// Write a consistent, compacted copy of the live database to `dest`,
+    /// via SQLite's own `VACUUM INTO` — unlike a raw file copy (`std::fs::copy`
+    /// on `self.path()`), this is safe to run while the connection keeps
+    /// recording live samples: SQLite guarantees the destination is a
+    /// point-in-time snapshot, not a torn read of a WAL-mode file.
+    pub async fn vacuum_into(&self, dest: &std::path::Path) -> anyhow::Result<()> {
+        let conn = self.conn.clone();
+        let dest = dest.to_path_buf();
+        task::spawn_blocking(move || -> anyhow::Result<()> {
+            let c = conn.blocking_lock();
+            let dest_str = dest.to_string_lossy().into_owned();
+            c.execute("VACUUM INTO ?1", params![dest_str])?;
+            Ok(())
+        }).await??;
+        Ok(())
+    }
+
+    /// Replace the database file at `path` with `bytes`, keeping the previous
+    /// file as a timestamped backup (`<path>.bak-<epoch_ms>`) instead of
+    /// deleting it outright. Deliberately does **not** touch any already-open
+    /// `SqliteStore` connection to the old file — a POSIX rename doesn't
+    /// affect existing file descriptors, so a live process keeps writing to
+    /// the old (now-renamed-away) inode until it restarts and reopens
+    /// `path`. Callers must surface that a restart is required; this
+    /// function only performs the on-disk swap. Also drops the old file's
+    /// stale `-wal`/`-shm` sidecars, which don't apply to the new database.
+    pub async fn replace_file_at(path: &std::path::Path, bytes: Vec<u8>) -> anyhow::Result<std::path::PathBuf> {
+        let path = path.to_path_buf();
+        task::spawn_blocking(move || -> anyhow::Result<std::path::PathBuf> {
+            let backup = std::path::PathBuf::from(format!(
+                "{}.bak-{}",
+                path.display(),
+                crate::backend::now_ms(),
+            ));
+            if path.exists() {
+                std::fs::rename(&path, &backup)?;
+            }
+            if let Some(parent) = path.parent() {
+                std::fs::create_dir_all(parent)?;
+            }
+            std::fs::write(&path, &bytes)?;
+            let _ = std::fs::remove_file(path.with_extension("db-wal"));
+            let _ = std::fs::remove_file(path.with_extension("db-shm"));
+            Ok(backup)
+        }).await?
+    }
+
     /// Delete excess rows per tag, keeping only the `max_rows` most-recent.
     /// Returns total rows deleted.
     pub async fn prune_excess_rows(&self, max_rows: u64) -> anyhow::Result<u64> {
@@ -446,5 +493,35 @@ impl SqliteStore {
             }
             Ok(deleted)
         }).await?
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn vacuum_into_produces_a_consistent_copy() {
+        let dir = std::env::temp_dir().join(format!("sws-historian-vacuum-into-test-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let src_path = dir.join("src.db");
+        let dest_path = dir.join("dest.db");
+
+        let store = SqliteStore::open(&src_path).await.unwrap();
+        for i in 0..5u64 {
+            let sample = Sample { ts_ms: i * 10, value: TagValue::Float(i as f64), quality: TagQuality::Good };
+            store.append("t", &sample).await;
+        }
+
+        store.vacuum_into(&dest_path).await.unwrap();
+
+        let dest_store = SqliteStore::open(&dest_path).await.unwrap();
+        let dest_samples = dest_store.query_range("t", 0, 1_000_000).await;
+        assert_eq!(dest_samples.len(), 5);
+        assert_eq!(dest_samples[0].ts_ms, 0);
+        assert_eq!(dest_samples.last().unwrap().ts_ms, 40);
+
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

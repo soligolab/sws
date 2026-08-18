@@ -123,17 +123,21 @@ struct Args {
     #[arg(long)]
     http_port: Option<u16>,
 
-    /// Take an automatic backup every N minutes. 0 (default) disables the
-    /// loop. Backups go under `<project>/.bak/<UTC-timestamp>/` and cover
-    /// `project.yaml`, `synoptics/`, and `users.yaml`. Triggered via the
+    /// Default automatic-backup interval in minutes when a project doesn't
+    /// set its own `auto_backup_interval_minutes` in `project.yaml` (Config →
+    /// Backup in the editor). 0 (default) means disabled by default — a
+    /// project can still opt in with its own setting. Backups go under
+    /// `<project>/.bak/<UTC-timestamp>/` and cover `project.yaml`,
+    /// `synoptics/`, `users.yaml`, `.history/`, `recipes/`. Triggered via the
     /// `/api/backups` POST endpoint on demand regardless of this setting.
     #[arg(long, default_value_t = 0u64)]
     auto_backup_interval_minutes: u64,
 
-    /// Keep at most this many auto-backups; older ones are pruned after
-    /// each tick. Manual backups created via the API are also subject to
-    /// this cap. 0 disables pruning (keep everything — careful on small
-    /// disks).
+    /// Default retention (how many auto-backups to keep) when a project
+    /// doesn't set its own `auto_backup_retention`. Older ones are pruned
+    /// after each auto-backup. Manual backups created via the API are also
+    /// subject to this cap. 0 disables pruning (keep everything — careful on
+    /// small disks).
     #[arg(long, default_value_t = 20u64)]
     auto_backup_retention: u64,
 }
@@ -468,33 +472,60 @@ async fn main() -> anyhow::Result<()> {
         info!("no --project specified — starting with no active project (WelcomeScreen will list /api/projects)");
     }
 
-    // Auto-backup loop. Skipped entirely when --auto-backup-interval-minutes
-    // is 0 (the default). Runs on a fixed interval, take a snapshot of the
-    // currently-active project (if any), then prune old snapshots beyond the
-    // retention cap. Errors are logged but the loop continues.
-    if args.auto_backup_interval_minutes > 0 {
+    // Auto-backup loop. Always spawned (not gated on the CLI flag anymore):
+    // a project's own `auto_backup_interval_minutes` (project.yaml) can
+    // enable/override this even when the CLI default is 0, and a project can
+    // be opened/switched/reconfigured at any point during the process
+    // lifetime without a restart — so the effective interval/retention are
+    // re-read from the currently-active project on every tick instead of
+    // being fixed once at startup. Ticks every minute (the flag's own unit),
+    // tracking per-project elapsed time so switching projects doesn't
+    // immediately trigger a backup based on the previous project's clock.
+    {
         let dir_handle = active_dir.clone();
-        let interval_min = args.auto_backup_interval_minutes;
-        let retention = args.auto_backup_retention as usize;
+        let cli_interval_min = args.auto_backup_interval_minutes;
+        let cli_retention = args.auto_backup_retention as usize;
         tokio::spawn(async move {
-            let mut tick = tokio::time::interval(
-                std::time::Duration::from_secs(interval_min * 60),
-            );
-            // First tick fires immediately; skip it so we don't snapshot the
-            // moment the process starts (before the user has done any work).
-            tick.tick().await;
+            let mut tick = tokio::time::interval(std::time::Duration::from_secs(60));
+            tick.tick().await; // skip the immediate first tick
+            let mut last_fired: Option<(PathBuf, std::time::Instant)> = None;
             loop {
                 tick.tick().await;
                 let dir_opt = dir_handle.read().await.clone();
-                let Some(dir) = dir_opt else { continue }; // no project open
+                let Some(dir) = dir_opt else { last_fired = None; continue }; // no project open
+
+                let dir_for_load = dir.clone();
+                let project = tokio::task::spawn_blocking(move || {
+                    sws_core::Project::load(&dir_for_load).ok()
+                }).await.unwrap_or(None);
+                let interval_min = project.as_ref()
+                    .and_then(|p| p.auto_backup_interval_minutes)
+                    .unwrap_or(cli_interval_min);
+                if interval_min == 0 { last_fired = None; continue; } // disabled for this project
+                let retention = project.as_ref()
+                    .and_then(|p| p.auto_backup_retention)
+                    .map(|v| v as usize)
+                    .unwrap_or(cli_retention);
+
+                let due = match &last_fired {
+                    Some((last_dir, at)) if *last_dir == dir =>
+                        at.elapsed() >= std::time::Duration::from_secs(interval_min * 60),
+                    // Project just became active (or first tick since open):
+                    // start the clock now rather than firing immediately, same
+                    // "don't snapshot the moment it starts" spirit as before.
+                    _ => { last_fired = Some((dir.clone(), std::time::Instant::now())); false }
+                };
+                if !due { continue; }
+
                 let dir2 = dir.clone();
                 let result = tokio::task::spawn_blocking(move || {
                     sws_web::backups::backup_now(&dir2)
                 }).await;
+                last_fired = Some((dir.clone(), std::time::Instant::now()));
                 match result {
                     Ok(Ok(path)) => {
                         let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("?").to_string();
-                        info!(backup = %name, "auto-backup created");
+                        info!(backup = %name, interval_min, retention, "auto-backup created");
                         if retention > 0 {
                             let dir3 = dir.clone();
                             let _ = tokio::task::spawn_blocking(move || {
@@ -508,9 +539,9 @@ async fn main() -> anyhow::Result<()> {
             }
         });
         info!(
-            interval_min  = args.auto_backup_interval_minutes,
-            retention     = args.auto_backup_retention,
-            "auto-backup loop started",
+            cli_interval_min = args.auto_backup_interval_minutes,
+            cli_retention    = args.auto_backup_retention,
+            "auto-backup loop started (per-project override via project.yaml checked every tick)",
         );
     }
 

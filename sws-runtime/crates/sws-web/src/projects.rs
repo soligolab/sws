@@ -335,6 +335,8 @@ pub async fn create_project(
                 languages: Default::default(),
                 page_layout: None,
                 target: req.target.clone(),
+                auto_backup_interval_minutes: None,
+                auto_backup_retention: None,
             };
             let yaml = match project.stamp_and_serialize() {
                 Ok(y) => y,

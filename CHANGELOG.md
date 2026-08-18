@@ -13,6 +13,19 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ### Fixed
 
+- **Trend: "Tutto" mostrava meno dati di "24h"**: `Historian::query()` consultava SQLite solo se
+  riceveva un `from` esplicito più vecchio del campione più vecchio ancora nel ring RAM (limitato
+  a 5.000 campioni/tag) — con `from` assente (`None`), come nella query "senza limiti" usata per
+  trovare il campione più vecchio davvero esistente, restituiva solo il ring RAM. Dopo giorni di
+  uptime senza riavvii il ring aveva già "girato", quindi "Tutto" si autolimitava a poche ore
+  mentre "24h" (calcolato lato client come `now - 24h`, indipendente da quella query) mostrava
+  correttamente di più. Ora un `from` assente viene trattato come "nessun limite inferiore" e
+  raggiunge comunque SQLite. Nessun dato è mai stato perso: era un bug nel percorso di lettura,
+  non nella scrittura/retention.
+- **Trend: assi e tooltip mostravano solo l'ora, mai la data**: su un intervallo visualizzato
+  superiore alle 24h (comune ora che "Tutto" funziona davvero) diventava ambiguo capire a quale
+  giorno appartenesse un campione. Aggiunta la data (`MM-DD`) quando lo span supera 24h; sotto
+  quella soglia il formato resta invariato (solo `HH:MM:SS`).
 - **T-49 — mDNS annunciava anche le interfacce veth/docker**: `announce_mdns()` usava
   `enable_addr_auto()`, che pubblica un indirizzo per ogni interfaccia locale — comprese le veth
   residue di container (solo IPv6 link-local con `%scope`). Un client che scopriva il runtime
@@ -27,6 +40,39 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ### Added
 
+- **Intervallo di auto-backup per-progetto + download backup (Config → Backup)**: prima
+  `--auto-backup-interval-minutes`/`--auto-backup-retention` erano solo flag di avvio del
+  processo, uguali per ogni progetto e non cambiabili senza riavviare il runtime. Aggiunti
+  `Project::auto_backup_interval_minutes`/`auto_backup_retention` (override per-progetto in
+  `project.yaml`, editabili da Config → Backup, `PUT /api/project/backup-config`) — `None`
+  eredita il default del processo. Il loop di auto-backup in `main.rs` non è più fissato una
+  volta all'avvio: ora tiene un tick da 1 minuto e a ogni scatto rilegge il progetto attivo,
+  quindi un cambio di intervallo (o l'apertura di un progetto diverso) ha effetto entro un
+  minuto, nessun riavvio necessario. Aggiunto anche **Scarica** per ogni singolo backup (zip
+  dell'intera cartella `.bak/<nome>/`, incluso `.history/`) sia per il progetto locale sia
+  — quando connesso — per il dispositivo remoto (stesso pattern proxy già usato per
+  Deploy/database), con relativo elenco backup del device connesso in una sezione dedicata.
+- **Backup: due sezioni simmetriche + operazioni complete anche da remoto**: la sezione backup
+  del dispositivo remoto (appena aggiunta) permetteva solo l'elenco e il download, in un
+  riquadro visivamente annidato sotto quello locale — ambiguo su quale sezione riguardasse
+  cosa. Aggiunti i proxy `remote_create_backup`/`remote_restore_backup`/`remote_delete_backup`
+  (stesso stile di `remote_download_backup`), così sul device connesso ora si può anche
+  **Backup adesso**/**Ripristina**/Elimina, alla pari del locale. Estratto un componente
+  `BackupSection` condiviso (React) — locale e remoto sono ora due riquadri identici per
+  stile/azioni, non più uno annidato nell'altro. Un ripristino/eliminazione remoto non tocca in
+  alcun modo il progetto locale aperto nell'editor — cambia solo lo stato del device connesso.
+- **Download/upload del database (Config → Datastore → GESTIONE DATABASE)**: "GESTIONE DATABASE"
+  poteva già test/stats/purge/export/tag-orfani/vacuum, ma agiva **sempre e solo sul backend a cui
+  l'editor è attaccato** (locale) — nessuna delle azioni aveva un ramo per il dispositivo remoto
+  connesso via "Cerca runtime". Aggiunti **Scarica database** e **Carica database**, sia per il
+  progetto locale sia (quando connesso) per il dispositivo remoto, tramite lo stesso pattern
+  proxy già usato da Deploy/push-utenti (`remote.rs`, il browser non parla mai direttamente col
+  device). Download via `VACUUM INTO` (copia consistente point-in-time, non un `fs::copy` a
+  caldo su un file WAL in scrittura continua); upload sostituisce il file con backup automatico
+  del precedente ma **senza hot-swap della connessione live** — una `Connection` SQLite già aperta
+  continua a scrivere sul vecchio file anche dopo la sostituzione su disco, quindi serve un
+  riavvio del runtime perché il nuovo database venga davvero usato (segnalato esplicitamente nella
+  risposta e nell'avviso di conferma).
 - **Anteprima live nel pannello Faceplates**: una terza colonna a destra dei campi ID/Label/
   Parametri/Oggetti mostra un rendering live del faceplate mentre lo si modifica — nessun nuovo
   stato, legge `current.objects`/`current.params` (già "vivi" prima del salvataggio, la stessa

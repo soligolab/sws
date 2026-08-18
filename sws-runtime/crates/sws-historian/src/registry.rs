@@ -251,6 +251,32 @@ impl DatastoreRegistry {
         self.backends.iter().map(|(id, _)| id.clone()).collect()
     }
 
+    /// Path del file database del backend indicato (solo SQLite).
+    pub fn backend_db_path(&self, id: &str) -> Option<std::path::PathBuf> {
+        self.backends.iter()
+            .find(|(bid, _)| bid == id)
+            .and_then(|(_, b)| b.db_path().ok())
+    }
+
+    /// Copia consistente (point-in-time, via `VACUUM INTO`) del database del
+    /// backend indicato in `dest`. Solo SQLite.
+    pub async fn download_backend(&self, id: &str, dest: &Path) -> anyhow::Result<()> {
+        match self.backends.iter().find(|(bid, _)| bid == id) {
+            Some((_, b)) => b.download_to(dest).await,
+            None => anyhow::bail!("datastore '{id}' not found"),
+        }
+    }
+
+    /// Sostituisce il file database del backend indicato con `bytes` (backup
+    /// automatico del precedente, nessun hot-swap della connessione live —
+    /// serve un riavvio). Ritorna il path del backup creato.
+    pub async fn replace_backend_file(&self, id: &str, bytes: Vec<u8>) -> anyhow::Result<std::path::PathBuf> {
+        match self.backends.iter().find(|(bid, _)| bid == id) {
+            Some((_, b)) => b.replace_file(bytes).await,
+            None => anyhow::bail!("datastore '{id}' not found"),
+        }
+    }
+
     /// Return the SqliteStore of the first SQLite backend (clone is cheap — Arc-backed).
     /// Used by open_project to give the global Historian the per-project store.
     pub fn primary_sqlite_store(&self) -> Option<crate::sqlite::SqliteStore> {

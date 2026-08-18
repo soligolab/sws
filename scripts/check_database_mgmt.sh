@@ -92,3 +92,31 @@ rows = dict(c.execute("SELECT tag, COUNT(*) FROM samples GROUP BY tag").fetchall
 print("  campioni per tag dopo il purge:", rows)
 print("  ✓ retention applicata" if all(v <= 100 for v in rows.values()) else "  ✗ retention non applicata")
 PY
+
+echo "=== 7. download del file grezzo (VACUUM INTO, copia consistente) ==="
+DL="$SCR/downloaded.db"
+curl -s -o "$DL" "$API/datastores/default/download"
+python3 - "$DB" "$DL" <<'PY'
+import sqlite3, sys
+db, dl = sys.argv[1], sys.argv[2]
+n_live = sqlite3.connect(db).execute("SELECT COUNT(*) FROM samples").fetchone()[0]
+n_dl   = sqlite3.connect(dl).execute("SELECT COUNT(*) FROM samples").fetchone()[0]
+print(f"  campioni: live={n_live}, scaricato={n_dl}")
+print("  ✓ copia consistente" if n_live == n_dl else "  ✗ conteggio diverso")
+PY
+
+echo "=== 8. upload (sostituzione file + backup automatico, nessun hot-swap) ==="
+curl -s -X POST "$API/datastores/default/upload" \
+  -H 'Content-Type: application/octet-stream' --data-binary "@$DL" > "$SCR/up.json"
+python3 - "$SCR/up.json" "$DB" <<'PY'
+import json, os, sys
+d = json.load(open(sys.argv[1]))
+db = sys.argv[2]
+print("  risposta:", d)
+ok_restart = d.get("requires_restart") is True
+ok_backup  = os.path.exists(d.get("backup_path", ""))
+ok_written = d.get("bytes_written", 0) == os.path.getsize(db) or d.get("bytes_written", 0) > 0
+print("  ✓ requires_restart=true" if ok_restart else "  ✗ requires_restart mancante/falso")
+print("  ✓ backup creato:", d.get("backup_path")) if ok_backup else print("  ✗ backup non trovato su disco")
+print("  ✓ bytes_written coerente" if ok_written else "  ✗ bytes_written sospetto")
+PY

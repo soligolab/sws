@@ -11,9 +11,16 @@
 //! filesystem-safe). Lexicographic sort = chronological order, which keeps
 //! the prune logic trivial.
 
+use std::io::Write;
 use std::path::{Path, PathBuf};
 
-use axum::{extract::{Path as AxPath, State}, http::StatusCode, response::{IntoResponse, Response}, Json};
+use axum::{
+    body::Body,
+    extract::{Path as AxPath, State},
+    http::{header, StatusCode},
+    response::{IntoResponse, Response},
+    Json,
+};
 use serde::Serialize;
 use time::OffsetDateTime;
 use tracing::{info, warn};
@@ -155,6 +162,49 @@ pub fn restore_backup(project_dir: &Path, name: &str) -> std::io::Result<()> {
     Ok(())
 }
 
+/// Zip an entire directory tree (relative paths preserved), for a raw
+/// download of a backup snapshot — the snapshot can contain arbitrary binary
+/// files (`.history/historian.db`), so this walks and copies bytes as-is
+/// rather than re-serializing anything, unlike `build_export_zip`.
+fn zip_directory(dir: &Path) -> std::io::Result<Vec<u8>> {
+    use zip::write::SimpleFileOptions;
+    let mut cursor = std::io::Cursor::new(Vec::<u8>::new());
+    {
+        let mut z = zip::ZipWriter::new(&mut cursor);
+        // Stored (uncompressed) — same choice as build_export_zip elsewhere
+        // in this codebase; enabling Deflate would need a zip crate feature
+        // not currently active, and a backup is downloaded rarely enough
+        // that the extra disk-over-network bytes aren't worth chasing.
+        let opts = SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
+        add_dir_to_zip(&mut z, dir, dir, opts)?;
+        z.finish().map_err(std::io::Error::other)?;
+    }
+    Ok(cursor.into_inner())
+}
+
+fn add_dir_to_zip<W: std::io::Write + std::io::Seek>(
+    z: &mut zip::ZipWriter<W>,
+    base: &Path,
+    dir: &Path,
+    opts: zip::write::SimpleFileOptions,
+) -> std::io::Result<()> {
+    for entry in std::fs::read_dir(dir)? {
+        let entry = entry?;
+        let path = entry.path();
+        let rel = path.strip_prefix(base)
+            .map_err(std::io::Error::other)?
+            .to_string_lossy()
+            .replace('\\', "/");
+        if path.is_dir() {
+            add_dir_to_zip(z, base, &path, opts)?;
+        } else if path.is_file() {
+            z.start_file(rel, opts).map_err(std::io::Error::other)?;
+            z.write_all(&std::fs::read(&path)?)?;
+        }
+    }
+    Ok(())
+}
+
 /// Remove a single snapshot by directory name.
 pub fn delete_backup(project_dir: &Path, name: &str) -> std::io::Result<()> {
     let path = bak_dir(project_dir).join(name);
@@ -219,6 +269,36 @@ pub async fn restore_backup_handler(
     }
 }
 
+/// `GET /api/backups/:name/download` — zip di un singolo snapshot, per
+/// archiviarlo fuori dal device (l'intera cartella `.bak/<name>/`, stesso
+/// contenuto di un restore: project.yaml, synoptics, users.yaml, `.history/`,
+/// recipes).
+pub async fn download_backup_handler(
+    State(s): State<AppState>,
+    AxPath(name): AxPath<String>,
+) -> Response {
+    let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
+    if !safe_backup_name(&name) {
+        return (StatusCode::BAD_REQUEST, "invalid backup name").into_response();
+    }
+    let backup_dir = bak_dir(&dir).join(&name);
+    if !backup_dir.is_dir() {
+        return (StatusCode::NOT_FOUND, "backup not found").into_response();
+    }
+    match zip_directory(&backup_dir) {
+        Ok(bytes) => Response::builder()
+            .status(StatusCode::OK)
+            .header(header::CONTENT_TYPE, "application/zip")
+            .header(header::CONTENT_DISPOSITION, format!("attachment; filename=\"{name}.zip\""))
+            .body(Body::from(bytes))
+            .unwrap(),
+        Err(e) => {
+            warn!("backup download {name} failed: {e}");
+            (StatusCode::INTERNAL_SERVER_ERROR, format!("zip failed: {e}")).into_response()
+        }
+    }
+}
+
 pub async fn delete_backup_handler(
     State(s): State<AppState>,
     AxPath(name): AxPath<String>,
@@ -277,6 +357,37 @@ mod tests {
             "name: test\n"
         );
         assert!(project.join("synoptics/Page 1.yaml").exists());
+    }
+
+    #[test]
+    fn zip_directory_preserves_files_and_binary_content() {
+        let tmp = TempDir::new().unwrap();
+        let project = tmp.path();
+        write(project, "project.yaml", "name: test\n");
+        write(project, "synoptics/Page 1.yaml", "id: a\n");
+        // Binario non-UTF8, come sarebbe .history/historian.db davvero.
+        let db_path = project.join(".history/historian.db");
+        std::fs::create_dir_all(db_path.parent().unwrap()).unwrap();
+        std::fs::write(&db_path, [0u8, 159, 146, 150, 1, 2, 3]).unwrap();
+
+        let snap = backup_now(project).unwrap();
+        let zip_bytes = zip_directory(&snap).unwrap();
+
+        let mut archive = zip::ZipArchive::new(std::io::Cursor::new(zip_bytes)).unwrap();
+        let mut names: Vec<String> = (0..archive.len())
+            .map(|i| archive.by_index(i).unwrap().name().to_string())
+            .collect();
+        names.sort();
+        assert_eq!(names, vec![
+            ".history/historian.db",
+            "project.yaml",
+            "synoptics/Page 1.yaml",
+        ]);
+
+        let mut db_entry = archive.by_name(".history/historian.db").unwrap();
+        let mut out = Vec::new();
+        std::io::Read::read_to_end(&mut db_entry, &mut out).unwrap();
+        assert_eq!(out, vec![0u8, 159, 146, 150, 1, 2, 3]);
     }
 
     #[test]
