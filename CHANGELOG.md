@@ -11,6 +11,8 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+## [2.0.1] — 2026-08-18
+
 ### Fixed
 
 - **Trend: "Tutto" mostrava meno dati di "24h"**: `Historian::query()` consultava SQLite solo se
