@@ -6,6 +6,14 @@
 >
 > **Pulizia 2026-07-27**: rimossi i task già chiusi e le sezioni di verifica ormai superate; le sessioni mergiate **e** verificate fino al 2026-07-09 sono compresse in «Storico». Il dettaglio integrale resta in `CHANGELOG.md` e nella history git.
 
+**Sessione 2026-08-18 — richiesta annotata: download/upload database device (Gestione)**. Il
+maintainer, rientrato da una settimana di ferie, chiede per il pannello "Gestione" (Config →
+Runtime → device connesso) la possibilità di scaricare/caricare il database del dispositivo
+connesso, per archiviarlo. **Non ancora indagata**: quale database (storico SQLite? allarmi?
+entrambi?), dove vive sul device, se via SSH (come il resto del pannello Gestione, che usa già
+`deviceHost`) o una nuova route HTTP dedicata. Da affrontare con un piano a parte quando si
+riprende.
+
 **Sessione 2026-08-13 (continua) — pulizia branch LVGL, merge `feature/lvgl-widgets-3`**. Il
 maintainer ha segnalato confusione su quali branch fossero mergiati o no; verifica sistematica
 sul contenuto (non sugli hash) di tutti i 16 branch della famiglia `feature/lvgl-*`:
