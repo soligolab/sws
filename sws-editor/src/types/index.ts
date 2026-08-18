@@ -948,6 +948,12 @@ export interface ProjectInfo {
   languages?: LanguageTable;
   page_layout?: PageLayoutConfig;
   target?: ProjectTarget;
+  /** Override per-progetto dell'intervallo di auto-backup (minuti). `undefined`
+   *  = eredita il default di processo (`--auto-backup-interval-minutes`). */
+  auto_backup_interval_minutes?: number;
+  /** Override per-progetto di quanti auto-backup tenere. `undefined` = eredita
+   *  il default di processo (`--auto-backup-retention`). */
+  auto_backup_retention?: number;
 }
 
 // ── Project language table (T-40) ──────────────────────────────────────────

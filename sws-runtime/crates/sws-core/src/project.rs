@@ -110,8 +110,9 @@ pub struct DatastoreConfig {
     /// Maximum samples kept per tag (ring-buffer behaviour). None = unlimited.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub retention_rows: Option<u64>,
-    /// Maximum age in days. Samples older than this are pruned on the nightly
-    /// sweep. None = keep forever.
+    /// Maximum age in days. Samples older than this are pruned only when the
+    /// maintainer triggers `POST /api/datastores/:id/purge` — there is no
+    /// automatic/scheduled sweep. None = keep forever.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub retention_days: Option<u64>,
 }
@@ -821,6 +822,17 @@ pub struct Project {
     /// ogni target (vedi ADR 0002, "protocolli già tutti disponibili").
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub target: Option<ProjectTarget>,
+    /// Override per-progetto dell'intervallo di auto-backup (minuti). `None`
+    /// = eredita il default di processo (`--auto-backup-interval-minutes`,
+    /// 0 = disabilitato). `Some(0)` disabilita esplicitamente l'auto-backup
+    /// per questo progetto anche se il processo lo ha abilitato globalmente.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub auto_backup_interval_minutes: Option<u64>,
+    /// Override per-progetto di quanti auto-backup tenere (i più vecchi
+    /// vengono potati dopo ogni scatto). `None` = eredita il default di
+    /// processo (`--auto-backup-retention`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub auto_backup_retention: Option<u64>,
 }
 
 /// Motore di rendering a cui è destinato il progetto.

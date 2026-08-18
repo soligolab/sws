@@ -188,6 +188,14 @@ export interface UpdateUserBody {
   allowed_zones?: string[];
 }
 
+/** Headers with the Bearer token attached, for the few endpoints (binary
+ *  download/upload) that bypass `request()` to keep the raw `Response`/body. */
+function authHeaders(extra?: HeadersInit): Headers {
+  const headers = new Headers(extra);
+  if (getAuthToken()) headers.set("Authorization", `Bearer ${getAuthToken()}`);
+  return headers;
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const headers = new Headers(init?.headers);
   if (TOKEN) headers.set("Authorization", `Bearer ${TOKEN}`);
@@ -473,6 +481,67 @@ export const api = {
 
   deleteBackup: (name: string) =>
     request<void>(`/api/backups/${encodeURIComponent(name)}`, { method: "DELETE" }),
+
+  /** GET /api/backups/:name/download — zip di uno snapshot. Ritorna la
+   *  `Response` grezza come `exportProjectZip`, così il chiamante ne fa un
+   *  Blob da scaricare. */
+  downloadBackup: async (name: string): Promise<Response> => {
+    const path = `/api/backups/${encodeURIComponent(name)}/download`;
+    const res = await fetch(`${getBaseUrl()}${path}`, { headers: authHeaders() });
+    if (res.status === 401) throw new AuthError();
+    if (!res.ok) {
+      let body = "";
+      try { body = await res.text(); } catch { /* ignore */ }
+      throw new Error(`API ${path}: ${res.status} ${res.statusText}${body ? ` — ${body}` : ""}`);
+    }
+    return res;
+  },
+
+  /** GET /api/remote/backups — elenco snapshot sul **dispositivo remoto
+   *  connesso** (proxy lato backend locale, stesso principio di
+   *  `pushUsersToRuntime`/`remoteDownloadDatastoreDb`). */
+  remoteListBackups: () =>
+    request<Array<{ name: string; created_at_ms: number; size_bytes: number }>>(
+      "/api/remote/backups",
+    ),
+
+  /** Come `downloadBackup`, ma per uno snapshot sul dispositivo remoto connesso. */
+  remoteDownloadBackup: async (name: string): Promise<Response> => {
+    const path = `/api/remote/backups/${encodeURIComponent(name)}/download`;
+    const res = await fetch(`${getBaseUrl()}${path}`, { headers: authHeaders() });
+    if (res.status === 401) throw new AuthError();
+    if (!res.ok) {
+      let body = "";
+      try { body = await res.text(); } catch { /* ignore */ }
+      throw new Error(`API ${path}: ${res.status} ${res.statusText}${body ? ` — ${body}` : ""}`);
+    }
+    return res;
+  },
+
+  /** Come `createBackup`, ma crea lo snapshot sul dispositivo remoto connesso. */
+  remoteCreateBackup: () =>
+    request<{ name: string }>("/api/remote/backups", { method: "POST" }),
+
+  /** Come `restoreBackup`, ma ripristina sul dispositivo remoto connesso —
+   *  non tocca in alcun modo il progetto locale aperto in questo editor. */
+  remoteRestoreBackup: (name: string) =>
+    request<void>(`/api/remote/backups/${encodeURIComponent(name)}/restore`, { method: "POST" }),
+
+  /** Come `deleteBackup`, ma elimina sul dispositivo remoto connesso. */
+  remoteDeleteBackup: (name: string) =>
+    request<void>(`/api/remote/backups/${encodeURIComponent(name)}`, { method: "DELETE" }),
+
+  /** PUT /api/project/backup-config — override per-progetto dell'intervallo/
+   *  retention di auto-backup. `null`/`undefined` per un campo torna a
+   *  ereditare il default di processo (`--auto-backup-interval-minutes`/
+   *  `--auto-backup-retention`). Nessun riavvio necessario: il loop lo
+   *  rilegge a ogni tick (max 1 minuto di ritardo). */
+  updateBackupConfig: (config: { interval_minutes?: number | null; retention?: number | null }) =>
+    request<void>("/api/project/backup-config", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(config),
+    }),
 
   // Tags
   writeTag: (id: string, value: number | string | boolean) =>
@@ -787,6 +856,76 @@ export const api = {
     return request<{ tag_id: string; samples: Sample[] }[]>(
       `/api/datastores/${encodeURIComponent(id)}/export${qs ? "?" + qs : ""}`,
     );
+  },
+
+  /** GET /api/datastores/:id/download — file SQLite grezzo (copia consistente
+   *  via VACUUM INTO lato server), per archiviarlo. Ritorna la `Response` grezza
+   *  come `exportProjectZip`, così il chiamante ne fa un Blob da scaricare. */
+  downloadDatastoreDb: async (id: string): Promise<Response> => {
+    const path = `/api/datastores/${encodeURIComponent(id)}/download`;
+    const res = await fetch(`${getBaseUrl()}${path}`, { headers: authHeaders() });
+    if (res.status === 401) throw new AuthError();
+    if (!res.ok) {
+      let body = "";
+      try { body = await res.text(); } catch { /* ignore */ }
+      throw new Error(`API ${path}: ${res.status} ${res.statusText}${body ? ` — ${body}` : ""}`);
+    }
+    return res;
+  },
+
+  /** POST /api/datastores/:id/upload — sostituisce il file database (backup
+   *  automatico del precedente lato server). `requires_restart` è sempre
+   *  `true`: nessun hot-swap della connessione live, va riavviato il runtime. */
+  uploadDatastoreDb: async (
+    id: string, file: Blob,
+  ): Promise<{ bytes_written: number; backup_path: string; requires_restart: boolean }> => {
+    const path = `/api/datastores/${encodeURIComponent(id)}/upload`;
+    const res = await fetch(`${getBaseUrl()}${path}`, {
+      method: "POST",
+      headers: authHeaders({ "Content-Type": "application/octet-stream" }),
+      body: file,
+    });
+    if (res.status === 401) throw new AuthError();
+    if (!res.ok) {
+      let body = "";
+      try { body = await res.text(); } catch { /* ignore */ }
+      throw new Error(`API ${path}: ${res.status} ${res.statusText}${body ? ` — ${body}` : ""}`);
+    }
+    return res.json();
+  },
+
+  /** Come `downloadDatastoreDb`, ma per il datastore del **dispositivo remoto
+   *  connesso** (proxy lato backend locale — il browser non parla mai
+   *  direttamente col device, stesso principio di `pushUsersToRuntime`). */
+  remoteDownloadDatastoreDb: async (id: string): Promise<Response> => {
+    const path = `/api/remote/database/${encodeURIComponent(id)}/download`;
+    const res = await fetch(`${getBaseUrl()}${path}`, { headers: authHeaders() });
+    if (res.status === 401) throw new AuthError();
+    if (!res.ok) {
+      let body = "";
+      try { body = await res.text(); } catch { /* ignore */ }
+      throw new Error(`API ${path}: ${res.status} ${res.statusText}${body ? ` — ${body}` : ""}`);
+    }
+    return res;
+  },
+
+  /** Come `uploadDatastoreDb`, ma per il dispositivo remoto connesso. */
+  remoteUploadDatastoreDb: async (
+    id: string, file: Blob,
+  ): Promise<{ bytes_written: number; backup_path: string; requires_restart: boolean }> => {
+    const path = `/api/remote/database/${encodeURIComponent(id)}/upload`;
+    const res = await fetch(`${getBaseUrl()}${path}`, {
+      method: "POST",
+      headers: authHeaders({ "Content-Type": "application/octet-stream" }),
+      body: file,
+    });
+    if (res.status === 401) throw new AuthError();
+    if (!res.ok) {
+      let body = "";
+      try { body = await res.text(); } catch { /* ignore */ }
+      throw new Error(`API ${path}: ${res.status} ${res.statusText}${body ? ` — ${body}` : ""}`);
+    }
+    return res.json();
   },
 
   // Project datastores config (saved as part of PUT /api/project/tags — uses existing endpoint)

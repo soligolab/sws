@@ -122,10 +122,18 @@ function sampleToNumber(v: Sample["value"]): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-function fmtTime(ts: number): string {
+/** Time-only when the visible range fits in a day (unambiguous); prefixes
+ * month-day once it spans more than 24h, since hovering/reading across a
+ * multi-day trend without a date is meaningless (and the range can easily
+ * cross midnight after the runtime has been up for days). */
+function fmtTime(ts: number, spanMs: number, includeSeconds: boolean): string {
   const d = new Date(ts);
   const pad = (n: number) => n.toString().padStart(2, "0");
-  return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+  const time = includeSeconds
+    ? `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
+    : `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  if (spanMs <= 86_400_000) return time;
+  return `${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${time}`;
 }
 
 function fmtValue(v: number): string {
@@ -377,7 +385,7 @@ export function TrendCanvas({
       // Skip leftmost label if too close to edge
       const align = i === 0 ? "left" : i === 4 ? "right" : "center";
       ctx.textAlign = align as CanvasTextAlign;
-      ctx.fillText(fmtTime(ts), x, PAD_TOP + plotH + 3);
+      ctx.fillText(fmtTime(ts, tSpan, false), x, PAD_TOP + plotH + 3);
     }
 
     // ── Lines (one per series) ──
@@ -494,7 +502,7 @@ export function TrendCanvas({
       // Tooltip box
       if (hits.length > 0) {
         ctx.font = "11px ui-monospace, monospace";
-        const tsLabel = fmtTime(tsAtHover);
+        const tsLabel = fmtTime(tsAtHover, tSpan, true);
         const lines = [tsLabel, ...hits.map((h) => `${h.tag}: ${fmtValue(h.value)}`)];
         const lineH = 14;
         const boxW = Math.max(...lines.map((l) => ctx.measureText(l).width)) + 16;

@@ -1,7 +1,7 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 use axum::{
-    body::Body,
-    extract::{Extension, State},
+    body::{Body, Bytes},
+    extract::{Extension, Path, State},
     http::StatusCode,
     response::{IntoResponse, Response},
     Json,
@@ -395,6 +395,279 @@ pub async fn remote_push_mqtt_client_id(
             "Il dispositivo ha rifiutato la richiesta (non autorizzato). Riconnettiti con \
              credenziali admin e riprova.".to_string(),
         ).into_response(),
+        Ok(r) => {
+            let code = r.status();
+            let body = r.text().await.unwrap_or_default();
+            (StatusCode::BAD_GATEWAY, format!("Il dispositivo ha risposto {code}: {body}")).into_response()
+        }
+        Err(e) => (StatusCode::BAD_GATEWAY, format!("Richiesta al dispositivo fallita: {e}")).into_response(),
+    }
+}
+
+/// `GET /api/remote/database/:id/download` — scarica il database del
+/// datastore indicato **dal dispositivo connesso**, non dal progetto locale.
+/// Stesso principio di `remote_push_users`: il backend locale fa lui stesso
+/// la richiesta al dispositivo (token di sessione già in `remote_target`), il
+/// browser non parla mai direttamente col device.
+pub async fn remote_download_database(
+    State(s): State<AppState>,
+    Extension(user): Extension<AuthUser>,
+    Path(id): Path<String>,
+) -> Response {
+    let target = match s.remote_target.read().await.clone() {
+        Some(t) => t,
+        None => return (StatusCode::BAD_REQUEST, "Nessun runtime remoto connesso").into_response(),
+    };
+    s.audit.log("remote.database_download", Some(user.username), serde_json::json!({
+        "url": target.url, "id": id,
+    }));
+
+    let client = make_remote_client();
+    let base = target.url.trim_end_matches('/');
+    let mut req = client.get(format!("{base}/api/datastores/{}/download", pct_encode(&id)));
+    if !target.token.is_empty() {
+        req = req.header("Authorization", format!("Bearer {}", target.token));
+    }
+    match req.send().await {
+        Ok(r) if r.status().is_success() => {
+            let bytes = match r.bytes().await {
+                Ok(b) => b,
+                Err(e) => return (
+                    StatusCode::BAD_GATEWAY,
+                    format!("Lettura della risposta dal dispositivo fallita: {e}"),
+                ).into_response(),
+            };
+            Response::builder()
+                .status(StatusCode::OK)
+                .header("Content-Type", "application/octet-stream")
+                .header("Content-Disposition", format!("attachment; filename=\"{id}.db\""))
+                .body(Body::from(bytes))
+                .unwrap()
+        }
+        Ok(r) => {
+            let code = r.status();
+            let body = r.text().await.unwrap_or_default();
+            (StatusCode::BAD_GATEWAY, format!("Il dispositivo ha risposto {code}: {body}")).into_response()
+        }
+        Err(e) => (StatusCode::BAD_GATEWAY, format!("Richiesta al dispositivo fallita: {e}")).into_response(),
+    }
+}
+
+/// `POST /api/remote/database/:id/upload` — sostituisce il database del
+/// datastore indicato **sul dispositivo connesso**. Inoltra il corpo grezzo
+/// così com'è (già un file SQLite valido, prodotto da un download precedente
+/// o da un backup) e rilancia la risposta JSON del dispositivo (che include
+/// `requires_restart: true` — nessun hot-swap, va riavviato per usare il
+/// nuovo file, vedi `SqliteStore::replace_file_at`).
+pub async fn remote_upload_database(
+    State(s): State<AppState>,
+    Extension(user): Extension<AuthUser>,
+    Path(id): Path<String>,
+    body: Bytes,
+) -> Response {
+    let target = match s.remote_target.read().await.clone() {
+        Some(t) => t,
+        None => return (StatusCode::BAD_REQUEST, "Nessun runtime remoto connesso").into_response(),
+    };
+    s.audit.log("remote.database_upload", Some(user.username), serde_json::json!({
+        "url": target.url, "id": id, "bytes": body.len(),
+    }));
+
+    let client = make_remote_client();
+    let base = target.url.trim_end_matches('/');
+    let mut req = client
+        .post(format!("{base}/api/datastores/{}/upload", pct_encode(&id)))
+        .header("Content-Type", "application/octet-stream")
+        .body(body);
+    if !target.token.is_empty() {
+        req = req.header("Authorization", format!("Bearer {}", target.token));
+    }
+    match req.send().await {
+        Ok(r) if r.status().is_success() => {
+            let body: serde_json::Value = r.json().await.unwrap_or_default();
+            (StatusCode::OK, Json(body)).into_response()
+        }
+        Ok(r) if r.status() == StatusCode::UNAUTHORIZED || r.status() == StatusCode::FORBIDDEN => (
+            StatusCode::BAD_GATEWAY,
+            "Il dispositivo ha rifiutato la richiesta (non autorizzato). Riconnettiti con \
+             credenziali admin e riprova.".to_string(),
+        ).into_response(),
+        Ok(r) => {
+            let code = r.status();
+            let body = r.text().await.unwrap_or_default();
+            (StatusCode::BAD_GATEWAY, format!("Il dispositivo ha risposto {code}: {body}")).into_response()
+        }
+        Err(e) => (StatusCode::BAD_GATEWAY, format!("Richiesta al dispositivo fallita: {e}")).into_response(),
+    }
+}
+
+/// `GET /api/remote/backups` — elenco degli snapshot presenti **sul
+/// dispositivo connesso** (non quelli del progetto locale — la tab Backup
+/// dell'editor mostra già quelli). Stesso principio di proxy di
+/// `remote_download_database`.
+pub async fn remote_list_backups(State(s): State<AppState>) -> Response {
+    let target = match s.remote_target.read().await.clone() {
+        Some(t) => t,
+        None => return (StatusCode::BAD_REQUEST, "Nessun runtime remoto connesso").into_response(),
+    };
+    let client = make_remote_client();
+    let base = target.url.trim_end_matches('/');
+    let mut req = client.get(format!("{base}/api/backups"));
+    if !target.token.is_empty() {
+        req = req.header("Authorization", format!("Bearer {}", target.token));
+    }
+    match req.send().await {
+        Ok(r) if r.status().is_success() => {
+            let body: serde_json::Value = r.json().await.unwrap_or_default();
+            (StatusCode::OK, Json(body)).into_response()
+        }
+        Ok(r) => {
+            let code = r.status();
+            let body = r.text().await.unwrap_or_default();
+            (StatusCode::BAD_GATEWAY, format!("Il dispositivo ha risposto {code}: {body}")).into_response()
+        }
+        Err(e) => (StatusCode::BAD_GATEWAY, format!("Richiesta al dispositivo fallita: {e}")).into_response(),
+    }
+}
+
+/// `GET /api/remote/backups/:name/download` — scarica lo zip di uno snapshot
+/// **dal dispositivo connesso**.
+pub async fn remote_download_backup(
+    State(s): State<AppState>,
+    Extension(user): Extension<AuthUser>,
+    Path(name): Path<String>,
+) -> Response {
+    let target = match s.remote_target.read().await.clone() {
+        Some(t) => t,
+        None => return (StatusCode::BAD_REQUEST, "Nessun runtime remoto connesso").into_response(),
+    };
+    s.audit.log("remote.backup_download", Some(user.username), serde_json::json!({
+        "url": target.url, "name": name,
+    }));
+
+    let client = make_remote_client();
+    let base = target.url.trim_end_matches('/');
+    let mut req = client.get(format!("{base}/api/backups/{}/download", pct_encode(&name)));
+    if !target.token.is_empty() {
+        req = req.header("Authorization", format!("Bearer {}", target.token));
+    }
+    match req.send().await {
+        Ok(r) if r.status().is_success() => {
+            let bytes = match r.bytes().await {
+                Ok(b) => b,
+                Err(e) => return (
+                    StatusCode::BAD_GATEWAY,
+                    format!("Lettura della risposta dal dispositivo fallita: {e}"),
+                ).into_response(),
+            };
+            Response::builder()
+                .status(StatusCode::OK)
+                .header("Content-Type", "application/zip")
+                .header("Content-Disposition", format!("attachment; filename=\"{name}.zip\""))
+                .body(Body::from(bytes))
+                .unwrap()
+        }
+        Ok(r) => {
+            let code = r.status();
+            let body = r.text().await.unwrap_or_default();
+            (StatusCode::BAD_GATEWAY, format!("Il dispositivo ha risposto {code}: {body}")).into_response()
+        }
+        Err(e) => (StatusCode::BAD_GATEWAY, format!("Richiesta al dispositivo fallita: {e}")).into_response(),
+    }
+}
+
+/// `POST /api/remote/backups` — crea uno snapshot **sul dispositivo
+/// connesso** (non del progetto locale). Stesso principio di proxy delle
+/// altre azioni "sul device attualmente connesso".
+pub async fn remote_create_backup(
+    State(s): State<AppState>,
+    Extension(user): Extension<AuthUser>,
+) -> Response {
+    let target = match s.remote_target.read().await.clone() {
+        Some(t) => t,
+        None => return (StatusCode::BAD_REQUEST, "Nessun runtime remoto connesso").into_response(),
+    };
+    let client = make_remote_client();
+    let base = target.url.trim_end_matches('/');
+    let mut req = client.post(format!("{base}/api/backups"));
+    if !target.token.is_empty() {
+        req = req.header("Authorization", format!("Bearer {}", target.token));
+    }
+    let res = match req.send().await {
+        Ok(r) if r.status().is_success() => {
+            let body: serde_json::Value = r.json().await.unwrap_or_default();
+            (StatusCode::OK, Json(body)).into_response()
+        }
+        Ok(r) => {
+            let code = r.status();
+            let body = r.text().await.unwrap_or_default();
+            (StatusCode::BAD_GATEWAY, format!("Il dispositivo ha risposto {code}: {body}")).into_response()
+        }
+        Err(e) => (StatusCode::BAD_GATEWAY, format!("Richiesta al dispositivo fallita: {e}")).into_response(),
+    };
+    if res.status().is_success() {
+        s.audit.log("remote.backup_create", Some(user.username), serde_json::json!({ "url": target.url }));
+    }
+    res
+}
+
+/// `POST /api/remote/backups/:name/restore` — ripristina uno snapshot **sul
+/// dispositivo connesso**, sovrascrivendo project.yaml/synoptics/users.yaml/
+/// `.history`/recipes lì. Non tocca in alcun modo il progetto locale aperto
+/// in questo editor — è il device connesso a cambiare stato.
+pub async fn remote_restore_backup(
+    State(s): State<AppState>,
+    Extension(user): Extension<AuthUser>,
+    Path(name): Path<String>,
+) -> Response {
+    let target = match s.remote_target.read().await.clone() {
+        Some(t) => t,
+        None => return (StatusCode::BAD_REQUEST, "Nessun runtime remoto connesso").into_response(),
+    };
+    s.audit.log("remote.backup_restore", Some(user.username), serde_json::json!({
+        "url": target.url, "name": name,
+    }));
+
+    let client = make_remote_client();
+    let base = target.url.trim_end_matches('/');
+    let mut req = client.post(format!("{base}/api/backups/{}/restore", pct_encode(&name)));
+    if !target.token.is_empty() {
+        req = req.header("Authorization", format!("Bearer {}", target.token));
+    }
+    match req.send().await {
+        Ok(r) if r.status().is_success() => StatusCode::NO_CONTENT.into_response(),
+        Ok(r) => {
+            let code = r.status();
+            let body = r.text().await.unwrap_or_default();
+            (StatusCode::BAD_GATEWAY, format!("Il dispositivo ha risposto {code}: {body}")).into_response()
+        }
+        Err(e) => (StatusCode::BAD_GATEWAY, format!("Richiesta al dispositivo fallita: {e}")).into_response(),
+    }
+}
+
+/// `DELETE /api/remote/backups/:name` — elimina uno snapshot **sul
+/// dispositivo connesso**. Irreversibile, audit-logged.
+pub async fn remote_delete_backup(
+    State(s): State<AppState>,
+    Extension(user): Extension<AuthUser>,
+    Path(name): Path<String>,
+) -> Response {
+    let target = match s.remote_target.read().await.clone() {
+        Some(t) => t,
+        None => return (StatusCode::BAD_REQUEST, "Nessun runtime remoto connesso").into_response(),
+    };
+    s.audit.log("remote.backup_delete", Some(user.username), serde_json::json!({
+        "url": target.url, "name": name,
+    }));
+
+    let client = make_remote_client();
+    let base = target.url.trim_end_matches('/');
+    let mut req = client.delete(format!("{base}/api/backups/{}", pct_encode(&name)));
+    if !target.token.is_empty() {
+        req = req.header("Authorization", format!("Bearer {}", target.token));
+    }
+    match req.send().await {
+        Ok(r) if r.status().is_success() => StatusCode::NO_CONTENT.into_response(),
         Ok(r) => {
             let code = r.status();
             let body = r.text().await.unwrap_or_default();

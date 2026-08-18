@@ -170,6 +170,35 @@ impl DatastoreBackend {
             DatastoreBackend::Odbc(b)     => b.export(tags, from_ms, to_ms).await,
         }
     }
+
+    /// Path of the underlying database file, for a raw download.
+    pub fn db_path(&self) -> anyhow::Result<std::path::PathBuf> {
+        match self {
+            DatastoreBackend::Sqlite(b) => Ok(b.path().to_path_buf()),
+            _ => anyhow::bail!("il download del file grezzo è specifico dei datastore SQLite"),
+        }
+    }
+
+    /// Write a consistent point-in-time copy of the database to `dest`.
+    pub async fn download_to(&self, dest: &std::path::Path) -> anyhow::Result<()> {
+        match self {
+            DatastoreBackend::Sqlite(b) => b.store().vacuum_into(dest).await,
+            _ => anyhow::bail!("il download del file grezzo è specifico dei datastore SQLite"),
+        }
+    }
+
+    /// Replace the database file with `bytes` (see
+    /// `SqliteStore::replace_file_at` — no in-process hot-swap, a restart is
+    /// required for the running connection to pick up the new file).
+    /// Returns the path of the backup kept of the previous file.
+    pub async fn replace_file(&self, bytes: Vec<u8>) -> anyhow::Result<std::path::PathBuf> {
+        match self {
+            DatastoreBackend::Sqlite(b) => {
+                crate::sqlite::SqliteStore::replace_file_at(b.path(), bytes).await
+            }
+            _ => anyhow::bail!("il ripristino da file grezzo è specifico dei datastore SQLite"),
+        }
+    }
 }
 
 /// Helper: current Unix timestamp in milliseconds.
