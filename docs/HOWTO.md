@@ -13,6 +13,7 @@
 ## Indice
 
 1. [Testare `sws-lvgl-viewer` su un Pixsys reale, sostituendo Chromium](#1-testare-sws-lvgl-viewer-su-un-pixsys-reale-sostituendo-chromium)
+2. [Liberare spazio su disco quando è pieno](#2-liberare-spazio-su-disco-quando-è-pieno)
 
 ---
 
@@ -193,3 +194,32 @@ sudo systemctl start chromium@main-app.service
 
 `sws-runtime` non va mai toccato in questa procedura — resta lo stesso container acceso prima,
 durante e dopo.
+
+---
+
+## 2. Liberare spazio su disco quando è pieno
+
+Nato da un crash reale del linker ("Bus error" durante `cargo build`) con disco root al 100%: il
+maggior consumatore è quasi sempre `target/debug` — sia quello del workspace principale sia i due
+esclusi dal workspace (`sws-kiosk`, `sws-lvgl-viewer`, che un `cargo clean` sul workspace non
+tocca). Cargo non fa mai pulizia automatica di questi alberi: crescono indefinitamente finché non
+li si svuota a mano.
+
+```bash
+./scripts/clean_disk_space.sh
+```
+
+Mostra prima un report (dimensione di ciascun candidato + `df -h` attuale), poi chiede conferma.
+Cancella (rigenerabili, nessuna perdita di dati): `target/debug` dei tre alberi Rust,
+`sws-editor/node_modules`, immagini podman *dangling*. **Non tocca** `target/release`, `.bak/`
+dei progetti, le cartelle `.run*` di test/dev — li riporta solo in dimensione, per decidere a
+mano se vale la pena liberarli.
+
+```bash
+./scripts/clean_disk_space.sh -y                # nessuna conferma, per uso non presidiato
+./scripts/clean_disk_space.sh --full-images      # elenca anche le immagini podman "vecchie" (non dangling)
+./scripts/clean_disk_space.sh --cargo-cache      # svuota anche ~/.cargo/registry (impatta tutti i progetti Rust)
+```
+
+Dopo la pulizia il prossimo `cargo build`/`cargo check` ricompila da zero (nessuna cache
+incrementale) — un paio di minuti, normale, non un errore.
