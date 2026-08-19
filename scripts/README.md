@@ -181,6 +181,20 @@ presente o è stale, ricostruirla:
 cd sws-editor && pnpm build
 ```
 
+## `clean_disk_space.sh` — libera spazio quando il disco è pieno
+
+`target/debug` (workspace + `sws-kiosk`/`sws-lvgl-viewer`, esclusi dal workspace e mai toccati da
+un `cargo clean` sul principale) è il maggior consumatore di spazio del repo e cresce senza
+limite — cargo non lo pulisce mai da solo. Nato da un crash reale del linker ("Bus error") con
+disco al 100%. Report + conferma, poi cancella solo cose rigenerabili (`target/debug` dei tre
+alberi, `node_modules`, immagini podman dangling); `target/release`/`.bak/`/`.run*` restano
+intoccati, solo riportati in dimensione. Dettagli: `docs/HOWTO.md` cap. 2.
+
+```sh
+./scripts/clean_disk_space.sh          # interattivo
+./scripts/clean_disk_space.sh -y       # senza conferma
+```
+
 ## `demo-sine.py` — driving a Trend with a sine wave
 
 Quick way to put movement on a `trend` object during the demo. Logs in,
