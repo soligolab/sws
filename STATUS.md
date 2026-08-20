@@ -111,6 +111,153 @@ richiesta del maintainer — `sws-0.1.0-dev-linux-x86_64.tar.gz`,
 `sws-runtime-0.1.0-dev-x86_64-image.tar.gz` e i quattro archivi `2026.7.0` (CalVer, pre-SemVer):
 ~412 MB liberati. Restano solo 2.0.0/2.0.1.
 
+**Sessione 2026-08-20 — bigtask grafici/Trend, Fase 2: scale Y indipendenti per traccia**,
+stesso branch `feat/trend-datetime-format` (il maintainer ha confermato dal vivo che la Fase 1,
+data/ora configurabile, funziona correttamente — "il grafico ora mostra l'ora con la data
+corretta"). Decisione già presa in fase di piano: non due assi sx/dx, ma una scala dedicata per
+ciascuna traccia che la richiede. Nuovo campo `own_scale` su `TrendSeriesStyle`
+(`types/index.ts`) e checkbox "Scala propria" per traccia in `trendStyleRow`
+(`EditorShell.tsx`). In `TrendCanvas.tsx`: il calcolo del dominio Y è diviso in un range
+condiviso (serie senza `own_scale`, comportamento invariato) e un range indipendente per
+ciascuna serie con `own_scale` (autofit sui propri soli campioni — nessun override `y_min`/
+`y_max` per-traccia in questa fase); `yAtFor(idx)` sceglie il mapping giusto per ogni traccia
+disegnata. Layout: `PAD_LEFT` diventa dinamico (`6 + 40px × numero di tracce a scala propria`,
+tracce nascoste non contano), ciascuna con la propria colonna di etichette colorate come la
+traccia agli stessi 5 livelli di tick dell'asse condiviso (stessa posizione Y, valori diversi);
+l'asse condiviso a destra si nasconde da solo se nessuna traccia lo usa più. `own_scale` viaggia
+dentro il `Value` libero di `trend_series_styles` in `synoptic.rs` — nessuna modifica al mirror
+Rust necessaria (già JSON passthrough).
+
+**Verificato dal vivo con screenshot Playwright, prima/dopo**: progetto di test con
+"tensione" (~228, scala condivisa) e "potenza" (0-12, `own_scale: true`) sullo stesso Trend.
+Senza scala propria: potenza completamente schiacciata contro l'asse condiviso (zigzag piatto
+vicino allo zero, quasi invisibile) — riproduce esattamente il problema originale. Con scala
+propria: potenza usa tutta l'altezza del grafico con la propria colonna di etichette (0 →
+11.40) a sinistra, tensione resta sul suo asse condiviso a destra. `pnpm type-check` verde
+(nessuna modifica Rust in questa fase, `cargo check` non necessario). Aggiornata la nota LVGL in
+`docs/OPEN_QUESTIONS.md` (stesso gap, ora confermato: solo asse Y nativo, mai il secondario di
+`lv_chart`). **Piano completo** (Fase 1 + Fase 2 fatte): resta la Fase 3 (stile universale
+sfondo/colori per un sottoinsieme di widget), da decidere se e quando affrontarla.
+
+**Sessione 2026-08-20 — bigtask grafici/Trend, Fase 1: formato data/ora configurabile su due
+righe** (branch `feat/trend-datetime-format`, da `main`). Prima di tre richieste trattate come
+piano a fasi (vedi `docs/plans/` — analisi completa fatta in plan mode, con ricerca su rendering
+Trend, modello di stile degli oggetti, e widget correlati). L'asse X del Trend mostrava già la
+data oltre le 24h (sessione 2026-08-18) ma con formato hardcoded `MM-DD HH:MM`, ordine mese-
+giorno non configurabile. Riscritta `fmtTime()` → `fmtDateTimeParts()` in `TrendCanvas.tsx`:
+7 nuovi campi (`trend_dt_*`) coprono ordine data (gg/mm, mm/gg, aaaa/mm/gg — quest'ultimo
+degrada a mm/gg se l'anno non è richiesto), separatore, 24h/12h con AM/PM, secondi, anno, due
+righe (data sopra/ora sotto — il canvas 2D non supporta multi-riga nativo, disegnate con due
+`fillText` con offset verticale, che impatta anche l'altezza riservata sotto il grafico e nel
+box del tooltip), e forzatura a mostrare sempre la data. Specchiati in `synoptic.rs` (stesso
+pattern di `line_color`). Propagati attraverso `SvgCanvas.tsx` → `TrendCanvas`/`TrendExpanded`
+(2 punti di invocazione). Aggiunta sezione "FORMATO DATA/ORA" nel pannello proprietà
+(`EditorShell.tsx`, vicino a "Finestra"). **Verificato dal vivo con screenshot Playwright** (non
+solo type-check): progetto di test con due tag, storico seminato direttamente in
+`historian.db` su uno span di ~30h — confermato visivamente il doppio ordine (dmy → "19/08",
+mdy → "08/19"), le due righe impilate, il 12h con AM/PM e i secondi attivabili, tutti sulla
+stessa configurazione condivisa fra asse e tooltip (prima i secondi erano hardcoded assenti
+sull'asse e sempre presenti nel tooltip — ora un'unica impostazione per entrambi, coerente con
+la richiesta di controllo completo). `pnpm type-check`/`cargo check -p sws-web` verdi. Aggiunta
+una nota in `docs/OPEN_QUESTIONS.md` sul gap LVGL (asse X nativo puramente numerico, nessuna
+etichetta testuale — non un porting mancato, andrebbe costruito da zero). **Prossima fase**:
+scale Y indipendenti per traccia (decisione già presa: una scala dedicata per traccia, non due
+assi sx/dx).
+
+**Sessione 2026-08-19 (continua) — cartelle nascoste del progetto diventano visibili + migrazione
+automatica**, stesso branch `feat/T-status-remote-gitops-ide-prefs`. `.history/` (storico
+SQLite), `.bak/` (backup) e `.opcua-pki/` (trust store OPC UA) diventano `history/`, `backups/`,
+`opcua-pki/` — letterali sostituiti in `sws-core/project.rs` (default path SQLite),
+`sws-web/{projects,backups,router}.rs`, `main.rs`, più i testi UI corrispondenti in
+`ConfigView.tsx` e due script di verifica (`check_database_mgmt.sh`,
+`check_deploy_preserve.sh`) che li creavano a mano. `.git/` esplicitamente escluso — non è
+nostro da rinominare. Nuova `migrate_legacy_project_dirs()` in `projects.rs`: rinomina le
+cartelle vecchie solo se la nuova non esiste già (mai sovrascrive), e se `project.yaml` ha il
+path SQLite di default esplicito (`.history/historian.db`) lo riscrive al volo — qualunque path
+personalizzato resta intoccato. Agganciata nei due (e soli due) punti che risolvono i path
+storico/PKI per un progetto: l'auto-apertura al boot in `main.rs` e `open_project` in
+`projects.rs` — un audit di `soft_reload_project` (usato dal deploy GitOps) ha confermato che
+quel percorso non tocca mai datastore/PKI, quindi non serve la migrazione anche lì. 5 nuovi test
+(rinomina, idempotenza, mai-sovrascrivere, riscrittura path di default, path personalizzato
+intoccato) verdi, più i 78 test esistenti di `sws-web`/`sws-core`/`sws-runtime` (nessuna
+regressione). **Verificato dal vivo** con un runtime reale: creato un progetto con layout
+"legacy" a mano (`.history/historian.db` con contenuto riconoscibile, `.bak/`, `.opcua-pki/`,
+`project.yaml` con path esplicito vecchio) e riaperto — le tre cartelle sono migrate, il
+contenuto del database è sopravvissuto intatto, il path in `project.yaml` è stato riscritto a
+`history/historian.db`. (Nota di processo: la prima verifica dal vivo ha richiesto un
+`cargo build -p sws-runtime` per rigenerare il binario — `cargo check`/`cargo test` non
+aggiornano il binario `target/debug/sws-runtime` effettivo.)
+
+**Sessione 2026-08-19 (continua) — pulsante "Rinomina progetto…" nel menù ☰**, stesso branch
+`feat/T-status-remote-gitops-ide-prefs`. Richiesto subito dopo "Salva tutto". L'endpoint
+`POST /api/projects/:name/rename` esisteva già (usato dalla WelcomeScreen per rinominare un
+progetto chiuso), ma non era raggiungibile da dentro l'editor con un progetto aperto — aggiunta
+la voce nel menù (gate Supervisor/Admin, come "Riavvia"), un semplice `window.prompt` per il
+nuovo nome (stesso pattern già in uso per il codice lingua in ConfigView), che aggiorna lo store
+locale (`project.meta.name`) dopo la conferma dal server. **Bug trovato per strada**:
+`rename_project` per un progetto root-scoped (il caso comune) rinominava la cartella e il
+registro ma non `meta.name` dentro `project.yaml` — solo il ramo "esterno" lo faceva. Senza il
+fix, un progetto rinominato mentre aperto avrebbe continuato a mostrare il vecchio nome in
+testata (che legge `meta.name`) finché non richiuso e riaperto — corretto patchando
+`meta.name` anche nel ramo root-scoped. Verificato: `cargo check -p sws-web` verde, `pnpm
+type-check` verde (dopo un `pnpm install` — `node_modules` era stato svuotato dallo script di
+pulizia disco della sessione precedente). **Non ancora verificato dal vivo** (rinomina di un
+progetto realmente aperto, controllo che la testata si aggiorni) — il maintainer si occupa lui
+della compilazione in questa fase.
+
+**Sessione 2026-08-19 (continua) — fix reale: GitOps operava sul repo di SWS, non su quello del
+progetto** (branch `feat/T-status-remote-gitops-ide-prefs`). La sessione precedente aveva concluso
+"buona notizia, GitOps opera già solo sul progetto" — falso, per un motivo mai emerso prima: il
+maintainer ha ricompilato e testato dal vivo su "Sandokan" (progetto sotto
+`.run-editor/projects/`, che vive dentro il checkout sorgente di SWS in questo setup di sviluppo),
+vedendo branch/commit/tag del **codice di SWS**. Causa: `GitDeploy::is_git_repo()` controllava
+solo `git rev-parse --git-dir`, che ha successo per qualunque cartella annidata dentro un
+repository qualsiasi (git risale i genitori) — verificato dal vivo:
+`git -C .run-editor/projects/Sandokan rev-parse --show-toplevel` → `/home/max_xxv/sws`. Le
+verifiche precedenti di questa stessa feature avevano sempre usato progetti in `/tmp/...`, fuori
+dall'albero SWS, dove il bug non può manifestarsi — da qui il falso "tutto ok". Fix:
+`is_git_repo()` ora richiede che la cartella del progetto **sia essa stessa** la radice del
+repository (confronto canonicalizzato con `--show-toplevel`), non solo che vi si trovi annidata.
+Punto di fix unico e sufficiente (ogni handler GitOps in `router.rs` già chiama
+`gd.is_git_repo()` come primo controllo). Aggiunti 3 test (repo/sottocartella-dello-stesso-
+repo/fuori-da-ogni-repo — il secondo riproduce in miniatura esattamente il bug di Sandokan),
+verde con `cargo test -p sws-web git_deploy` (3/3). Rinominata anche l'etichetta "GITOPS" →
+"VERSIONAMENTO PROGETTO" (solo il testo visivo, nessun cambio di API/nomi interni). **Non ancora
+verificato dal vivo su Sandokan**: richiede un rebuild di binario+frontend e riavvio dell'istanza
+`.run-editor` in corso — il maintainer si occupa lui della compilazione in questa fase, verifica
+rimandata al prossimo suo rebuild.
+
+**Sessione 2026-08-18 (continua) — Configurazione → Stato: dati remoti, Preferenze IDE, GitOps
+riprogettata** (branch `feat/T-status-remote-gitops-ide-prefs`). Tre richieste sulla tab "Stato":
+1. **RUNTIME/SISTEMA relativi al device connesso**: stesso gap remoto già risolto per Datastore/
+   Backup — `SystemTab` leggeva sempre `GET /api/system` locale, mai `remoteConnected`. A
+   differenza di Datastore/Backup, qui "il runtime" è un concetto singolare: quando connesso, i
+   dati **sostituiscono** quelli locali (nuovo proxy `GET /api/remote/system`, stesso pattern di
+   `remote_list_backups`), non li affiancano — decisione confermata col maintainer prima di
+   implementare. Bonus trovato durante l'audit: `historian_samples` era hardcoded a 0 in
+   `system.rs`, mai calcolato — ora somma davvero `sample_count` da `registry.all_stats()`.
+2. **ASPETTO → nuova tab "Preferenze IDE"**: audit di tutte le impostazioni in `localStorage`
+   nell'editor (una quindicina censite) per capire cos'altro fosse IDE-locale da spostare —
+   solo tema e lingua interfaccia (mai esposta in Configurazione, prima solo nel menu utente 👤)
+   avevano senso lì; le altre (URL runtime override, layout pannelli, righelli canvas...) restano
+   dove sono per ragioni specifiche documentate nel piano. Nuova tab dedicata (confermato col
+   maintainer, non una sotto-sezione di "Stato").
+3. **GitOps**: buona notizia dall'audit — operava già solo sulla cartella del progetto, mai sul
+   codice di SWS (il timore del maintainer era un problema di percezione — la sezione vive dentro
+   "Stato", la stessa tab che mostra versione/uptime del *software* — non un difetto reale).
+   Mancava però un modo di **agganciare** un progetto nuovo a un repository
+   (`GitDeploy::init_remote` esisteva già ma era codice morto, mai collegato) e la **gestione tag**
+   (assente sia lato backend sia UI). Aggiunti `POST /api/project/git/init` (init idempotente +
+   origin opzionale) e route complete per i tag (lista/crea/push/elimina), più un testo esplicito
+   nella UI per chiarire lo scope.
+
+Verificato end-to-end con un runtime reale a ogni passo: route GitOps (init→commit→tag→delete),
+nessun panic all'avvio per le nuove route (`/api/project/git/tags` GET+POST split fra due
+sotto-router con permessi diversi — verificato dal vivo, non solo a compilazione, perché axum
+potrebbe rifiutare un merge con path duplicati), `historian_samples` reale su un progetto con
+storico popolato. `cargo check --workspace`/`pnpm build` verdi, 70/70 test verdi. **Non ancora
+verificato il percorso remoto (RUNTIME/SISTEMA) con un device reale connesso.**
+
 **Sessione 2026-08-18 (continua) — Backup: due sezioni simmetriche + operazioni complete anche da
 remoto**, stesso branch. Il maintainer ha chiesto perché ci fosse una sola sezione "locale" con
 tabella grande e una sezione remota più piccola/annidata sotto, con solo elenco+download — dopo

@@ -240,7 +240,7 @@ Start a simulator first: `npx node-opcua-server-example` (endpoint `opc.tcp://lo
 ##### Security policies (BL-005c)
 
 - [ ] **5.14** Change Security policy to **Basic256Sha256**. Save.
-- [ ] **5.15** Check `<project>/.opcua-pki/<source-id>/` — `own/cert.der` + `own/private.pem` appear (cert + key auto-generated).
+- [ ] **5.15** Check `<project>/opcua-pki/<source-id>/` — `own/cert.der` + `own/private.pem` appear (cert + key auto-generated).
 - [ ] **5.16** First connect attempt usually fails — open the simulator UI (Prosys: Certificates → Rejected, node-opcua: usually permissive) and trust the SWS cert.
 - [ ] **5.17** Within 5 s the runtime retries and connects. Logs show `opcua: connected, creating subscription`.
 
@@ -276,7 +276,7 @@ If you have a real Euromap 77/83 device, click **🤖 Rileva Euromap**. Otherwis
 ### Backup tab (admin)
 
 - [ ] **5.30** Click **+ Backup adesso** → row appears with timestamp + size + create-now (modal close).
-- [ ] **5.31** Check disk: `<project>/.bak/<UTC-timestamp>/{project.yaml, synoptics/, users.yaml}` populated.
+- [ ] **5.31** Check disk: `<project>/backups/<UTC-timestamp>/{project.yaml, synoptics/, users.yaml}` populated.
 - [ ] **5.32** Make a change on a page + save. Click **Ripristina** on the backup → confirm → page reverts to backup state.
 - [ ] **5.33** **Elimina** a backup → row disappears.
 - [ ] **5.34** **Auto-backup**: stop `start_runtime.sh`, restart with `--auto-backup-interval-minutes 1 --auto-backup-retention 5` (edit `scripts/start_runtime.sh` or run the runtime binary directly). After 1 minute a new backup appears in the list. After 5 you start pruning oldest.

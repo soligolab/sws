@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { TrendCanvas, resolveSeriesColor } from "./TrendCanvas";
+import { TrendCanvas, resolveSeriesColor, type TrendDateTimeConfig } from "./TrendCanvas";
 import { api } from "@/api/client";
 import type { TrendSeriesStyle } from "@/types";
 
@@ -12,6 +12,13 @@ interface TrendExpandedProps {
   pollMs?: number;
   opcuaBackfill?: boolean;
   seriesStyles?: TrendSeriesStyle[];
+  dtDateOrder?: TrendDateTimeConfig["dateOrder"];
+  dtSeparator?: TrendDateTimeConfig["separator"];
+  dtTimeFormat?: TrendDateTimeConfig["timeFormat"];
+  dtShowSeconds?: boolean;
+  dtShowYear?: boolean;
+  dtTwoLines?: boolean;
+  dtAlwaysShowDate?: boolean;
   onClose: () => void;
 }
 
@@ -37,6 +44,13 @@ export function TrendExpandedModal({
   pollMs,
   opcuaBackfill,
   seriesStyles,
+  dtDateOrder,
+  dtSeparator,
+  dtTimeFormat,
+  dtShowSeconds,
+  dtShowYear,
+  dtTwoLines,
+  dtAlwaysShowDate,
   onClose,
 }: TrendExpandedProps) {
   const [preset, setPreset] = useState<RangePreset>("live");
@@ -264,6 +278,13 @@ export function TrendExpandedModal({
             toMs={toMs}
             hiddenIndices={hiddenIndices}
             seriesStyles={seriesStyles}
+            dtDateOrder={dtDateOrder}
+            dtSeparator={dtSeparator}
+            dtTimeFormat={dtTimeFormat}
+            dtShowSeconds={dtShowSeconds}
+            dtShowYear={dtShowYear}
+            dtTwoLines={dtTwoLines}
+            dtAlwaysShowDate={dtAlwaysShowDate}
             onRangeSelect={(rFromMs, rToMs) => { setCustomRange({ fromMs: rFromMs, toMs: rToMs }); setPreset("custom"); }}
             zoomed={isCustom}
             onResetZoom={() => { setPreset("live"); setOffsetMs(0); setCustomRange(null); }}

@@ -112,6 +112,8 @@
   },
   "menu": {
     "saveAll": "Save all",
+    "renameProject": "Rename project…",
+    "renamePrompt": "New project name:",
     "exportProject": "Export project",
     "importProject": "Import project",
     "exporting": "Exporting…",
@@ -152,7 +154,8 @@
       "backups": "Backup",
       "devices": "Devices",
       "runtime": "Runtime",
-      "languages": "Languages"
+      "languages": "Languages",
+      "ide": "IDE Preferences"
     }
   },
   "editor": {
@@ -647,6 +650,8 @@
     "fillArea": "Fill area",
     "fillOpacity": "Fill opacity",
     "smoothCurve": "Smooth curve",
+    "ownScale": "Own scale",
+    "ownScaleHint": "This trace uses an independent vertical scale, with its own label column on the left — useful when values are a very different order of magnitude from the other traces.",
     "severity": "Severity",
     "alarmBellHint": "Clicking always opens the alarm dropdown — no configurable action.",
     "recipePanelHint": "Lists recipes and lets the operator apply one, same as Menu → Apply recipe.",

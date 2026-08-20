@@ -576,6 +576,40 @@ pub async fn remote_download_backup(
     }
 }
 
+/// `GET /api/remote/system` — stato RUNTIME/SISTEMA **del dispositivo
+/// connesso**, non del backend a cui l'editor è attaccato. Usata da
+/// `SystemTab` al posto di `GET /api/system` quando `remoteConnected` è
+/// vero — "il runtime" a cui riferirsi è quello connesso, non un secondo
+/// riquadro affiancato (a differenza di Datastore/Backup, dove locale e
+/// remoto sono entrambi dati interessanti). Rilancia il JSON grezzo così
+/// com'è (stesso principio di `remote_list_backups`): non serve un tipo
+/// condiviso, il frontend interpreta lo stesso `SystemStatus` che già
+/// conosce da `GET /api/system`.
+pub async fn remote_system_status(State(s): State<AppState>) -> Response {
+    let target = match s.remote_target.read().await.clone() {
+        Some(t) => t,
+        None => return (StatusCode::BAD_REQUEST, "Nessun runtime remoto connesso").into_response(),
+    };
+    let client = make_remote_client();
+    let base = target.url.trim_end_matches('/');
+    let mut req = client.get(format!("{base}/api/system"));
+    if !target.token.is_empty() {
+        req = req.header("Authorization", format!("Bearer {}", target.token));
+    }
+    match req.send().await {
+        Ok(r) if r.status().is_success() => {
+            let body: serde_json::Value = r.json().await.unwrap_or_default();
+            (StatusCode::OK, Json(body)).into_response()
+        }
+        Ok(r) => {
+            let code = r.status();
+            let body = r.text().await.unwrap_or_default();
+            (StatusCode::BAD_GATEWAY, format!("Il dispositivo ha risposto {code}: {body}")).into_response()
+        }
+        Err(e) => (StatusCode::BAD_GATEWAY, format!("Richiesta al dispositivo fallita: {e}")).into_response(),
+    }
+}
+
 /// `POST /api/remote/backups` — crea uno snapshot **sul dispositivo
 /// connesso** (non del progetto locale). Stesso principio di proxy delle
 /// altre azioni "sul device attualmente connesso".

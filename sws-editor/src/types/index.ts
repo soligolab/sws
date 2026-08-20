@@ -143,6 +143,11 @@ export interface TrendSeriesStyle {
   fill_opacity?: number;
   /** Cosmetic corner-rounding (midpoint quadratic), not resampling. */
   smooth?: boolean;
+  /** When true, this trace gets its own Y-axis (autofit on its own samples
+   *  only), drawn as an extra labeled column on the left of the plot instead
+   *  of sharing the single right-hand axis with the other traces. Default
+   *  false — unaffected traces keep today's shared-scale behaviour. */
+  own_scale?: boolean;
 }
 
 /**
@@ -239,6 +244,24 @@ export interface SynopticObject {
   /** Seconds moved per ◀/▶ pan click on the compact widget. Defaults to 25%
    *  of window_s when unset. Not used by the "Espandi" modal (its own pan). */
   pan_step_s?: number;
+  // ── Trend date/time format (axis labels + hover tooltip) ──────────────────
+  /** Field order for the date portion. "ymd" only shows a year when
+   *  `trend_dt_show_year` is also true — otherwise it degrades to "mdy".
+   *  Default "dmy". */
+  trend_dt_date_order?: "dmy" | "mdy" | "ymd";
+  /** Default "/". */
+  trend_dt_separator?: "-" | "/" | ".";
+  /** Default "24h". */
+  trend_dt_time_format?: "24h" | "12h";
+  /** Default false. Applies uniformly to axis ticks and the hover tooltip. */
+  trend_dt_show_seconds?: boolean;
+  /** Default false (matches the original compact day/month-only format). */
+  trend_dt_show_year?: boolean;
+  /** Stack date above time on two lines instead of one. Default true. */
+  trend_dt_two_lines?: boolean;
+  /** Force the date to always render, even when the visible span fits in a
+   *  day. Default false = keep the existing ">24h" heuristic. */
+  trend_dt_always_show_date?: boolean;
   // ── XY plot (live point + trail, not a time series) ───────────────────────
   /** Y-axis tag. `tag` (generic) is the X-axis. Distinct role from `extra_tags`,
    *  which overlays series on the same axis rather than pairing a second axis. */

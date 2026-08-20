@@ -106,6 +106,15 @@ interface TrendCanvasProps {
   onResetZoom?: () => void;
   /** Seconds moved per ◀/▶ click. Defaults to 25% of windowS when omitted. */
   panStepS?: number;
+  /** Date/time display config for axis ticks + hover tooltip. Unset fields
+   *  fall back to DEFAULT_DT_CONFIG. */
+  dtDateOrder?: TrendDateTimeConfig["dateOrder"];
+  dtSeparator?: TrendDateTimeConfig["separator"];
+  dtTimeFormat?: TrendDateTimeConfig["timeFormat"];
+  dtShowSeconds?: boolean;
+  dtShowYear?: boolean;
+  dtTwoLines?: boolean;
+  dtAlwaysShowDate?: boolean;
 }
 
 const SMALL_BTN: React.CSSProperties = {
@@ -122,18 +131,62 @@ function sampleToNumber(v: Sample["value"]): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-/** Time-only when the visible range fits in a day (unambiguous); prefixes
- * month-day once it spans more than 24h, since hovering/reading across a
- * multi-day trend without a date is meaningless (and the range can easily
- * cross midnight after the runtime has been up for days). */
-function fmtTime(ts: number, spanMs: number, includeSeconds: boolean): string {
+export interface TrendDateTimeConfig {
+  dateOrder: "dmy" | "mdy" | "ymd";
+  separator: "-" | "/" | ".";
+  timeFormat: "24h" | "12h";
+  showSeconds: boolean;
+  showYear: boolean;
+  twoLines: boolean;
+  alwaysShowDate: boolean;
+}
+
+export const DEFAULT_DT_CONFIG: TrendDateTimeConfig = {
+  dateOrder: "dmy",
+  separator: "/",
+  timeFormat: "24h",
+  showSeconds: false,
+  showYear: false,
+  twoLines: true,
+  alwaysShowDate: false,
+};
+
+/** Date shown only once the visible range spans more than 24h (unless
+ * `alwaysShowDate` forces it) — hovering/reading across a multi-day trend
+ * without a date is meaningless (the range can easily cross midnight after
+ * the runtime has been up for days), but a same-day trend doesn't need one.
+ * Returns one line, or two (`line2` = time) when `twoLines` is set and a
+ * date is actually being shown — a single line always covers "time only". */
+function fmtDateTimeParts(ts: number, spanMs: number, cfg: TrendDateTimeConfig): { line1: string; line2?: string } {
   const d = new Date(ts);
   const pad = (n: number) => n.toString().padStart(2, "0");
-  const time = includeSeconds
-    ? `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
-    : `${pad(d.getHours())}:${pad(d.getMinutes())}`;
-  if (spanMs <= 86_400_000) return time;
-  return `${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${time}`;
+
+  let hours = d.getHours();
+  let suffix = "";
+  if (cfg.timeFormat === "12h") {
+    suffix = hours >= 12 ? " PM" : " AM";
+    hours = hours % 12 || 12;
+  }
+  const hourStr = cfg.timeFormat === "12h" ? hours.toString() : pad(hours);
+  const secs = cfg.showSeconds ? `:${pad(d.getSeconds())}` : "";
+  const timeStr = `${hourStr}:${pad(d.getMinutes())}${secs}${suffix}`;
+
+  const showDate = cfg.alwaysShowDate || spanMs > 86_400_000;
+  if (!showDate) return { line1: timeStr };
+
+  const day = pad(d.getDate());
+  const month = pad(d.getMonth() + 1);
+  const year = d.getFullYear().toString();
+  // "ymd" without a year is meaningless — degrades to "mdy" (matches the
+  // original compact format's field order when no year is requested).
+  const order = cfg.showYear ? cfg.dateOrder : (cfg.dateOrder === "ymd" ? "mdy" : cfg.dateOrder);
+  const fields =
+    order === "ymd" ? [year, month, day] :
+    order === "dmy" ? (cfg.showYear ? [day, month, year] : [day, month]) :
+    (cfg.showYear ? [month, day, year] : [month, day]);
+  const dateStr = fields.join(cfg.separator);
+
+  return cfg.twoLines ? { line1: dateStr, line2: timeStr } : { line1: `${dateStr} ${timeStr}` };
 }
 
 function fmtValue(v: number): string {
@@ -171,7 +224,23 @@ export function TrendCanvas({
   zoomed = false,
   onResetZoom,
   panStepS,
+  dtDateOrder,
+  dtSeparator,
+  dtTimeFormat,
+  dtShowSeconds,
+  dtShowYear,
+  dtTwoLines,
+  dtAlwaysShowDate,
 }: TrendCanvasProps) {
+  const dtConfig: TrendDateTimeConfig = {
+    dateOrder: dtDateOrder ?? DEFAULT_DT_CONFIG.dateOrder,
+    separator: dtSeparator ?? DEFAULT_DT_CONFIG.separator,
+    timeFormat: dtTimeFormat ?? DEFAULT_DT_CONFIG.timeFormat,
+    showSeconds: dtShowSeconds ?? DEFAULT_DT_CONFIG.showSeconds,
+    showYear: dtShowYear ?? DEFAULT_DT_CONFIG.showYear,
+    twoLines: dtTwoLines ?? DEFAULT_DT_CONFIG.twoLines,
+    alwaysShowDate: dtAlwaysShowDate ?? DEFAULT_DT_CONFIG.alwaysShowDate,
+  };
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [series, setSeries] = useState<Sample[][]>(() => tags.map(() => []));
   const [hoverX, setHoverX] = useState<number | null>(null);
@@ -189,6 +258,14 @@ export function TrendCanvas({
   const colors = useMemo(
     () => tags.map((_, i) => resolveSeriesColor(i, lineColor, seriesStyles)),
     [tags, lineColor, seriesStyles]
+  );
+
+  // Indices of traces with their own dedicated Y-axis (drawn as extra labeled
+  // columns on the left instead of sharing the single right-hand axis).
+  // Hidden traces don't reserve a column — nothing to label if it's not drawn.
+  const ownScaleIndices = useMemo(
+    () => tags.map((_, i) => i).filter((i) => seriesStyles?.[i]?.own_scale && !hiddenIndices?.has(i)),
+    [tags, seriesStyles, hiddenIndices]
   );
 
   useEffect(() => {
@@ -238,7 +315,11 @@ export function TrendCanvas({
   // Layout constants for the plot area
   const PAD_TOP    = 6 + (tags.length > 1 ? 14 : 0); // legend space when multi-tag
   const PAD_BOTTOM = 18 + (panEnabled ? 14 : 0); // room for the ◀/▶ pan buttons
-  const PAD_LEFT   = 6;
+  const PAD_LEFT_BASE = 6;
+  const OWN_SCALE_COL_W = 40;
+  // One extra labeled column per own-scale trace, stacked to the left of the
+  // plot — the shared axis keeps its usual spot on the right.
+  const PAD_LEFT   = PAD_LEFT_BASE + ownScaleIndices.length * OWN_SCALE_COL_W;
   const PAD_RIGHT  = 48;
   const plotW = width - PAD_LEFT - PAD_RIGHT;
 
@@ -324,26 +405,64 @@ export function TrendCanvas({
     // X domain: explicit historical range or rolling live window.
     const { tMin, tSpan } = getXDomain();
 
-    // Y domain: per-canvas, computed from numeric samples across all series.
+    // Y domain: shared scale, computed only from series NOT using their own
+    // axis (own-scale traces are excluded so a 0-12 trace can't get squashed
+    // by a 230 one sharing the same range, or vice versa).
     let vMin = Number.POSITIVE_INFINITY;
     let vMax = Number.NEGATIVE_INFINITY;
-    for (const s of series) for (const p of s) {
-      const n = sampleToNumber(p.value);
-      if (n !== null) {
-        if (n < vMin) vMin = n;
-        if (n > vMax) vMax = n;
+    series.forEach((s, idx) => {
+      if (ownScaleIndices.includes(idx) || hiddenIndices?.has(idx)) return;
+      for (const p of s) {
+        const n = sampleToNumber(p.value);
+        if (n !== null) {
+          if (n < vMin) vMin = n;
+          if (n > vMax) vMax = n;
+        }
       }
-    }
+    });
     const autoFit = !(yMin !== undefined && yMax !== undefined && (yMin !== 0 || yMax !== 0));
     let yLo = autoFit ? vMin : yMin!;
     let yHi = autoFit ? vMax : yMax!;
     if (!Number.isFinite(yLo) || !Number.isFinite(yHi)) { yLo = 0; yHi = 1; }
     if (yLo === yHi) { yLo -= 0.5; yHi += 0.5; }
     const ySpan = Math.max(1e-9, yHi - yLo);
+    const hasSharedSeries = tags.some((_, idx) => !ownScaleIndices.includes(idx) && !hiddenIndices?.has(idx));
 
-    const plotH = height - PAD_TOP - PAD_BOTTOM;
+    // Independent domain per own-scale trace: autofit on that trace's own
+    // samples only (no y_min/y_max override for these yet — always autofit).
+    const ownDomains = new Map<number, { lo: number; hi: number; span: number }>();
+    for (const idx of ownScaleIndices) {
+      let lo = Number.POSITIVE_INFINITY;
+      let hi = Number.NEGATIVE_INFINITY;
+      for (const p of series[idx] ?? []) {
+        const n = sampleToNumber(p.value);
+        if (n !== null) {
+          if (n < lo) lo = n;
+          if (n > hi) hi = n;
+        }
+      }
+      if (!Number.isFinite(lo) || !Number.isFinite(hi)) { lo = 0; hi = 1; }
+      if (lo === hi) { lo -= 0.5; hi += 0.5; }
+      ownDomains.set(idx, { lo, hi, span: Math.max(1e-9, hi - lo) });
+    }
+
+    // X-axis labels may need a second line (date above time) — reserve the
+    // extra height only when a date is actually going to be shown this draw
+    // (same tSpan-based decision fmtDateTimeParts makes internally).
+    const xAxisShowsDate = dtConfig.alwaysShowDate || tSpan > 86_400_000;
+    const xAxisLineH = 11;
+    const effBottom = PAD_BOTTOM + (xAxisShowsDate && dtConfig.twoLines ? xAxisLineH : 0);
+
+    const plotH = height - PAD_TOP - effBottom;
     const xAt = (ts: number) => PAD_LEFT + ((ts - tMin) / tSpan) * plotW;
     const yAt = (v: number)  => PAD_TOP  + plotH - ((v - yLo) / ySpan) * plotH;
+    // Per-series Y mapper: an own-scale trace maps through its own domain,
+    // everything else shares `yAt` above.
+    const yAtFor = (idx: number) => {
+      const dom = ownDomains.get(idx);
+      if (!dom) return yAt;
+      return (v: number) => PAD_TOP + plotH - ((v - dom.lo) / dom.span) * plotH;
+    };
 
     // ── Grid ──
     ctx.strokeStyle = "#1e293b";
@@ -365,19 +484,42 @@ export function TrendCanvas({
       ctx.stroke();
     }
 
-    // ── Y axis labels (right edge) ──
-    ctx.fillStyle = "#64748b";
-    ctx.font = "10px ui-monospace, monospace";
-    ctx.textAlign = "left";
-    ctx.textBaseline = "middle";
-    for (let i = 0; i <= 4; i++) {
-      const v = yHi - (ySpan * i) / 4;
-      const y = PAD_TOP + (plotH * i) / 4;
-      ctx.fillText(fmtValue(v), PAD_LEFT + plotW + 4, y);
+    // ── Y axis labels (right edge, shared scale) ──
+    // Skipped when every trace has its own scale — a shared axis nobody uses
+    // would just be a confusing, meaningless 0-1 range.
+    if (hasSharedSeries) {
+      ctx.fillStyle = "#64748b";
+      ctx.font = "10px ui-monospace, monospace";
+      ctx.textAlign = "left";
+      ctx.textBaseline = "middle";
+      for (let i = 0; i <= 4; i++) {
+        const v = yHi - (ySpan * i) / 4;
+        const y = PAD_TOP + (plotH * i) / 4;
+        ctx.fillText(fmtValue(v), PAD_LEFT + plotW + 4, y);
+      }
     }
 
+    // ── Y axis labels (left edge, one column per own-scale trace) ──
+    // Same 5 tick y-positions as the shared/right axis (0/25/50/75/100% of
+    // plot height) so all axes line up visually — only the values differ,
+    // each mapped through that trace's own domain. Colored to match the
+    // trace's line so it's clear which axis belongs to which.
+    ctx.font = "10px ui-monospace, monospace";
+    ctx.textAlign = "right";
+    ctx.textBaseline = "middle";
+    ownScaleIndices.forEach((idx, col) => {
+      const dom = ownDomains.get(idx);
+      if (!dom) return;
+      ctx.fillStyle = colors[idx];
+      const xRight = PAD_LEFT_BASE + (col + 1) * OWN_SCALE_COL_W - 4;
+      for (let i = 0; i <= 4; i++) {
+        const v = dom.hi - (dom.span * i) / 4;
+        const y = PAD_TOP + (plotH * i) / 4;
+        ctx.fillText(fmtValue(v), xRight, y);
+      }
+    });
+
     // ── X axis labels (bottom) ──
-    ctx.textAlign = "center";
     ctx.textBaseline = "top";
     for (let i = 0; i <= 4; i++) {
       const ts = tMin + (tSpan * i) / 4;
@@ -385,7 +527,9 @@ export function TrendCanvas({
       // Skip leftmost label if too close to edge
       const align = i === 0 ? "left" : i === 4 ? "right" : "center";
       ctx.textAlign = align as CanvasTextAlign;
-      ctx.fillText(fmtTime(ts, tSpan, false), x, PAD_TOP + plotH + 3);
+      const parts = fmtDateTimeParts(ts, tSpan, dtConfig);
+      ctx.fillText(parts.line1, x, PAD_TOP + plotH + 3);
+      if (parts.line2) ctx.fillText(parts.line2, x, PAD_TOP + plotH + 3 + xAxisLineH);
     }
 
     // ── Lines (one per series) ──
@@ -395,7 +539,7 @@ export function TrendCanvas({
       const style = seriesStyles?.[idx];
       const color = colors[idx];
       const smooth = style?.smooth ?? false;
-      const runs = buildRuns(points, xAt, yAt);
+      const runs = buildRuns(points, xAt, yAtFor(idx));
 
       // Area fill under the curve, one closed path per contiguous run —
       // closed down to the plot baseline (yAt(yLo) === PAD_TOP + plotH).
@@ -490,7 +634,7 @@ export function TrendCanvas({
         if (!best) return;
         const n = sampleToNumber(best.value);
         if (n === null) return;
-        const y = yAt(n);
+        const y = yAtFor(idx)(n);
         hits.push({ tag: tags[idx] ?? "", color: colors[idx], value: n, y });
         // Dot on the sample
         ctx.fillStyle = colors[idx];
@@ -502,8 +646,9 @@ export function TrendCanvas({
       // Tooltip box
       if (hits.length > 0) {
         ctx.font = "11px ui-monospace, monospace";
-        const tsLabel = fmtTime(tsAtHover, tSpan, true);
-        const lines = [tsLabel, ...hits.map((h) => `${h.tag}: ${fmtValue(h.value)}`)];
+        const tsParts = fmtDateTimeParts(tsAtHover, tSpan, dtConfig);
+        const tsLines = tsParts.line2 ? [tsParts.line1, tsParts.line2] : [tsParts.line1];
+        const lines = [...tsLines, ...hits.map((h) => `${h.tag}: ${fmtValue(h.value)}`)];
         const lineH = 14;
         const boxW = Math.max(...lines.map((l) => ctx.measureText(l).width)) + 16;
         const boxH = lines.length * lineH + 8;
@@ -518,10 +663,10 @@ export function TrendCanvas({
         ctx.textAlign = "left";
         ctx.textBaseline = "top";
         lines.forEach((line, i) => {
-          if (i === 0) {
+          if (i < tsLines.length) {
             ctx.fillStyle = "#94a3b8";
           } else {
-            ctx.fillStyle = hits[i - 1].color;
+            ctx.fillStyle = hits[i - tsLines.length].color;
           }
           ctx.fillText(line, bx + 8, by + 4 + i * lineH);
         });
@@ -540,7 +685,7 @@ export function TrendCanvas({
         ctx.fillText(fmtValue(lastN), PAD_LEFT + plotW - 4, PAD_TOP + 4);
       }
     }
-  }, [series, width, height, colors, yMin, yMax, hoverX, tags.join(","), windowS, isHistorical, explicitFromMs, explicitToMs, offsetMs, hiddenIndices, seriesStyles, dragStartX, dragCurX]);
+  }, [series, width, height, colors, yMin, yMax, hoverX, tags.join(","), windowS, isHistorical, explicitFromMs, explicitToMs, offsetMs, hiddenIndices, seriesStyles, dragStartX, dragCurX, dtDateOrder, dtSeparator, dtTimeFormat, dtShowSeconds, dtShowYear, dtTwoLines, dtAlwaysShowDate]);
 
   const hasSeries = series.some((s) => s.length > 0);
 

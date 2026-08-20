@@ -889,6 +889,27 @@ temporale parziali, dichiarati sopra). Restano dalla lista dei 5 passi: `alarm_v
 client allarmi, non solo storico tag) e `symbol` (domanda architetturale SVG→LVGL, non ancora
 scritta come sua voce).
 
+**Aggiornamento 2026-08-20 — gap nuovo, non un porting mancato: formattazione data/ora asse X**
+
+Il lato web (`TrendCanvas.tsx`) ha guadagnato una configurazione completa per data/ora
+sull'asse X e sul tooltip (ordine giorno/mese/anno, separatore, 12h/24h, secondi, anno, due
+righe — vedi CHANGELOG). Il lato LVGL **non disegna alcuna etichetta testuale sull'asse X**
+(coordinate numeriche pure, secondi-dall'inizio-finestra, per il vincolo `i16` di `lv_coord_t`
+descritto sopra): non c'è nulla da parametrizzare, servirebbe costruire da zero un rendering di
+testo sull'asse che oggi non esiste. Non tentato in questa sessione — resta un gap dichiarato,
+non un'omissione silenziosa.
+
+**Aggiornamento 2026-08-20 (seguito) — scale Y indipendenti per traccia, stesso gap confermato**
+
+Fase 2 del piano Trend: il lato web ha guadagnato `trend_series_styles[].own_scale` — una
+traccia con valori di ordine di grandezza molto diverso dalle altre (l'esempio concreto:
+tensione ~230V insieme a potenza 0-12kW) ottiene una scala verticale indipendente, con la
+propria colonna di etichette colorate a sinistra, invece di essere schiacciata contro l'asse
+condiviso. Il lato LVGL usa un solo asse Y nativo (`lv_chart_set_range` su `AXIS_PRIMARY_Y`),
+mai l'asse secondario di `lv_chart` — implementarlo lì richiederebbe o l'asse nativo secondario
+(mai usato oggi, comportamento non verificato per multi-serie) o un disegno custom delle
+etichette, in entrambi i casi lavoro nuovo non tentato in questa sessione.
+
 **Aggiornamento 2026-08-08 (seguito 8) — `alarm_viewer`, 16 tipi supportati**
 
 Quarto dei "prossimi 5 step": `alarm_viewer` (solo modalità `"list"`, il default web — `"banner"`

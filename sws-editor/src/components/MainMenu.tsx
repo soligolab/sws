@@ -30,12 +30,14 @@ export function MainMenu({
   const saveStatus            = useAppStore((s) => s.saveStatus);
   const saveError             = useAppStore((s) => s.saveError);
   const saveAll               = useAppStore((s) => s.saveAll);
+  const project                = useAppStore((s) => s.project);
   const setProject            = useAppStore((s) => s.setProject);
   const setPages              = useAppStore((s) => s.setPages);
   const fileInputRef          = useRef<HTMLInputElement>(null);
   const [ioBusy, setIoBusy]   = useState<"export" | "import" | null>(null);
   const [ioStatus, setIoStat] = useState<string | null>(null);
   const [rebooting, setRebooting] = useState(false);
+  const [renaming, setRenaming] = useState(false);
 
   useOutsideClose(ref, open, () => setOpen(false));
 
@@ -74,6 +76,22 @@ export function MainMenu({
       setIoStat(t("menu.imported", { file: file.name, count: tagCount }));
     } catch (e: any) { setIoStat(`${t("header.error")}: ${e?.message ?? e}`); }
     finally { setIoBusy(null); setTimeout(() => setIoStat(null), 6000); }
+  };
+
+  const handleRename = async () => {
+    const currentName = project?.meta.name ?? "";
+    const newName = window.prompt(t("menu.renamePrompt"), currentName)?.trim();
+    if (!newName || newName === currentName) return;
+    setRenaming(true); setIoStat(null);
+    try {
+      await api.renameProject(currentName, newName);
+      if (project) setProject({ ...project, meta: { ...project.meta, name: newName } });
+    } catch (e: any) {
+      setIoStat(`${t("header.error")}: ${e?.message ?? e}`);
+      setTimeout(() => setIoStat(null), 5000);
+    } finally {
+      setRenaming(false);
+    }
   };
 
   const handleReboot = async () => {
@@ -137,6 +155,15 @@ export function MainMenu({
             <div style={{ padding: "2px 14px 6px", fontSize: 11, color: "var(--brand-danger-soft, #fca5a5)", wordBreak: "break-word" }}>
               {saveError}
             </div>
+          )}
+          {canConfigureProject(authRole) && (
+            <button
+              style={{ ...DROP_ITEM, opacity: renaming ? 0.6 : 1 }}
+              disabled={renaming}
+              onClick={() => { void handleRename(); setOpen(false); }}
+            >
+              {t("menu.renameProject")}
+            </button>
           )}
           <div style={DROP_SEP} />
           {authRole === "Admin" && (

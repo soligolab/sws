@@ -30,9 +30,84 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   `<none>` dangling, anche vecchie versioni taggate — senza mai toccare quella
   in uso). Prima l'unico modo di liberare spazio da immagini vecchie era SSH a
   mano sul device.
+- **Configurazione → Stato mostra il runtime connesso, non l'editor**: le sezioni RUNTIME e
+  SISTEMA leggevano sempre e solo il backend a cui l'editor è attaccato (`GET /api/system`, via
+  `getBaseUrl()`), mai il dispositivo remoto connesso — stesso gap già risolto per Datastore/
+  Backup. Ora, quando connessi via "Cerca runtime", mostrano i dati **del device connesso**
+  (nuovo proxy `GET /api/remote/system`, stesso pattern di `remote_list_backups`), con
+  un'etichetta "dispositivo remoto connesso" per chiarezza — non un secondo riquadro affiancato,
+  "il runtime" qui è un concetto singolare. Quando non connessi, comportamento invariato.
+  **Bonus trovato per strada**: `historian_samples` ("Storico") era hardcoded a 0, mai calcolato
+  — ora somma davvero i campioni di tutti i datastore configurati.
+- **Nuova tab "Preferenze IDE"**: tema chiaro/scuro e lingua interfaccia, prima sparsi fra la
+  sezione ASPETTO (dentro "Stato", mescolata con dati sul runtime) e il solo menu utente 👤
+  (lingua interfaccia non era mai stata esposta in Configurazione). Le altre impostazioni
+  IDE-locali censite durante l'audit (URL runtime override, larghezze pannelli, righelli/guide
+  canvas...) restano dove sono — o precedono l'apertura di un progetto, o sono stato di layout
+  effimero, non "preferenze" nel senso in cui si cercherebbero in un pannello di configurazione.
+- **GitOps: aggancio a un repository + gestione tag**: la sezione già operava correttamente solo
+  sulla cartella del progetto (mai sul codice di SWS), ma un progetto senza `.git` non aveva
+  alcun modo di iniziare — il pannello restava vuoto (`GET /api/project/git-status` 404
+  silenzioso), e `GitDeploy::init_remote` esisteva già ma non era collegato a nessuna route.
+  Aggiunto **"Aggancia a un repository"** (nuovo `POST /api/project/git/init` — `git init`
+  idempotente + `origin` opzionale) e una sezione **tag** completa (crea, elenca, pubblica,
+  elimina — assente sia lato backend sia UI). Aggiunto anche un testo esplicito nella sezione
+  per chiarire lo scope ("versiona questo progetto, non il codice di SWS"). Rinominata
+  l'etichetta della sezione da "GITOPS" a **"VERSIONAMENTO PROGETTO"**.
+- **Rinomina il progetto aperto dal menù ☰**: l'unico modo di rinominare un progetto era chiuderlo
+  e farlo dalla WelcomeScreen (`POST /api/projects/:name/rename`, endpoint già esistente ma mai
+  esposto da dentro l'editor). Aggiunta la voce **"Rinomina progetto…"** nel menù ☰, subito dopo
+  "Salva tutto" (stesso livello di permesso di "Riavvia" — Supervisor/Admin). Corretto anche un
+  piccolo bug collaterale: per un progetto non esterno, rinominare non aggiornava `meta.name` in
+  `project.yaml` (solo la cartella e il registro venivano rinominati) — un progetto aperto al
+  momento del rename avrebbe continuato a mostrare il vecchio nome in testata finché non
+  richiuso e riaperto.
+- **Le cartelle di lavoro del progetto non sono più nascoste**: `.history/` (storico SQLite),
+  `.bak/` (backup) e `.opcua-pki/` (trust store certificati OPC UA) diventano rispettivamente
+  `history/`, `backups/` e `opcua-pki/` — visibili in un file manager qualunque invece che
+  filtrate come "file di sistema". `.git/` resta con il punto: non è nostro da rinominare, è git
+  stesso a richiedere esattamente quel nome. **Migrazione automatica**: alla prima apertura di un
+  progetto esistente (sia all'avvio del runtime sia da "Apri progetto" nell'editor), le cartelle
+  vecchie vengono rinominate a quelle nuove — idempotente (un progetto già migrato, o uno nuovo
+  che non le ha mai avute, non viene toccato) e sicura (se per qualunque motivo esistesse già
+  una cartella con il nome nuovo, quella vecchia viene lasciata intatta invece di essere
+  sovrascritta). Se `project.yaml` specifica esplicitamente il path SQLite di default
+  (`.history/historian.db`), viene riscritto al volo nel nuovo path — qualunque altro path
+  (personalizzato o assoluto) resta invariato.
+- **Trend: formato data/ora completamente configurabile, su due righe**: l'asse X e il tooltip
+  al passaggio del mouse mostravano la data (quando la finestra visibile supera le 24h) in un
+  formato fisso, compatto e in ordine mese-giorno ("americano"), senza alcuna opzione. Aggiunti
+  6 nuovi campi (`trend_dt_date_order`, `trend_dt_separator`, `trend_dt_time_format`,
+  `trend_dt_show_seconds`, `trend_dt_show_year`, `trend_dt_two_lines`,
+  `trend_dt_always_show_date`) nel pannello proprietà del Trend, sezione "Formato data/ora":
+  ordine giorno/mese/anno o mese/giorno o anno/mese/giorno, separatore, 24h o 12h con AM/PM,
+  secondi on/off, anno on/off, data e ora impilate su due righe (il canvas 2D non supporta testo
+  multi-riga nativo — disegnate come due `fillText` separati) invece che su una riga sola, e la
+  possibilità di forzare sempre la data invece di mostrarla solo oltre le 24h. Si applica
+  uniformemente ad asse X e tooltip (prima i secondi erano hardcoded assenti sull'asse e sempre
+  presenti nel tooltip, ora è la stessa impostazione per entrambi).
+- **Trend: scale Y indipendenti per traccia**: con tracce multiple (overlay), un'unica scala
+  verticale condivisa poteva schiacciare visivamente una traccia contro l'altra quando i valori
+  hanno un ordine di grandezza molto diverso (es. tensione ~230V insieme a potenza 0-12kW).
+  Nuovo campo `own_scale` in `trend_series_styles` (checkbox "Scala propria" nel pannello
+  proprietà, per traccia): quando attivo, quella traccia calcola il proprio range in autofit
+  indipendentemente dalle altre e disegna una colonna di etichette dedicata, colorata come la
+  traccia, impilata a sinistra del grafico (l'asse condiviso resta sulla destra, come prima, e
+  si nasconde da solo quando tutte le tracce hanno la propria scala). Nessuna modifica al fetch
+  dei dati — puramente un cambio di rendering/asse.
 
 ### Fixed
 
+- **GitOps operava sul repository di SWS invece che su quello del progetto**:
+  `GitDeploy::is_git_repo()` verificava solo che `git rev-parse --git-dir` avesse successo, il
+  che è vero per **qualunque** cartella annidata dentro un repository qualsiasi (git risale le
+  directory genitrici). In questo setup di sviluppo, `--projects-root` vive dentro il checkout
+  sorgente di SWS stesso: ogni progetto (es. "Sandokan") risultava quindi già "dentro un repo" —
+  quello di SWS — e mostrava branch/commit/tag del codice dell'applicazione invece dei propri.
+  `is_git_repo()` ora richiede che la cartella del progetto **sia essa stessa** la radice del
+  repository (`--show-toplevel`, confrontato canonicalizzato), non solo che vi si trovi annidata
+  dentro. Bug preesistente, non introdotto in questa sessione — in produzione (progetti fuori da
+  un checkout del sorgente SWS) molto probabilmente non si manifestava mai.
 - **Deploy nativo da IDE (`/api/deploy/device`) falliva su un device pulito**: lo SCP del
   tarball avveniva **prima** che `remote_dir` (`/tmp/sws-deploy` di default) esistesse sul
   device — la cartella veniva creata solo dal comando di estrazione successivo, troppo tardi.

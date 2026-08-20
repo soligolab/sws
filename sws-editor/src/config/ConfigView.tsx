@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { api, getAuthToken, type CreateUserBody, type DiscoveredRuntime, type UpdateUserBody, type UserRole, type UserSummary } from "@/api/client";
+import { api, getAuthToken, type CreateUserBody, type DiscoveredRuntime, type SystemStatus, type UpdateUserBody, type UserRole, type UserSummary } from "@/api/client";
 import { getBrand } from "@/branding";
 import { containerDeployPayload, effectiveDataPath, type ContainerSource } from "@/containerDeploy";
 import { containerManagePayload, type ManageAction, type RestartPolicy } from "@/containerManage";
@@ -9,6 +9,7 @@ import { DataTable, type DataTableColumn } from "@/components/DataTable";
 import { TagInput } from "@/components/TagInput";
 import { PythonEditor, type PythonEditorHandle } from "@/components/PythonEditor";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { UiLangSelect } from "@/components/UiLangSelect";
 import { SvgObject, substituteFaceplateParams } from "@/canvas/SvgCanvas";
 import { selectIsDirty, useAppStore } from "@/store";
 import { sourceTagIds } from "@/tagCatalog";
@@ -4574,21 +4575,6 @@ function AlarmsTab() {
 
 // ── SYSTEM tab ───────────────────────────────────────────────────────────────
 
-interface SystemStatus {
-  runtime_version: string;
-  uptime_s: number;
-  active_project: string | null;
-  tag_count: number;
-  source_count: number;
-  alarm_active_count: number;
-  historian_samples: number;
-  cpu_usage_pct: number;
-  mem_used_mb: number;
-  mem_total_mb: number;
-  disk_used_gb: number;
-  disk_total_gb: number;
-}
-
 function ProgressBar({ value, max, color }: { value: number; max: number; color: string }) {
   const pct = max > 0 ? Math.min(100, (value / max) * 100) : 0;
   return (
@@ -4616,6 +4602,24 @@ function GitOpsPanel() {
   const [showCommitForm, setShowCommitForm] = useState(false);
   const [commitMsg, setCommitMsg] = useState("");
 
+  // Progetto non ancora agganciato a un repository: prima non c'era alcun
+  // percorso per iniziare da qui (il pannello restava vuoto). `checkedRepo`
+  // distingue "non ancora controllato" da "controllato, non è un repo" così
+  // non si mostra il form di aggancio per uno sfarfallio durante il primo
+  // caricamento.
+  const [checkedRepo, setCheckedRepo] = useState(false);
+  const [attachUrl, setAttachUrl] = useState("");
+  const [attaching, setAttaching] = useState(false);
+  const [attachErr, setAttachErr] = useState<string | null>(null);
+
+  // Tag — elenco/crea/push/elimina, assente prima d'ora sia lato backend sia UI.
+  const [tags, setTags] = useState<string[] | null>(null);
+  const [tagBusy, setTagBusy] = useState(false);
+  const [tagErr, setTagErr] = useState<string | null>(null);
+  const [showTagForm, setShowTagForm] = useState(false);
+  const [newTagName, setNewTagName] = useState("");
+  const [newTagMsg, setNewTagMsg] = useState("");
+
   const fetchGitStatus = async () => {
     try {
       const gs = await api.getGitStatus();
@@ -4628,10 +4632,25 @@ function GitOpsPanel() {
       } else {
         setGitError(String(e?.message ?? e));
       }
+    } finally {
+      setCheckedRepo(true);
     }
   };
 
   useEffect(() => { void fetchGitStatus(); }, []);
+
+  const fetchTags = async () => {
+    try {
+      setTags(await api.listGitTags());
+      setTagErr(null);
+    } catch (e: any) {
+      setTagErr(String(e?.message ?? e));
+    }
+  };
+
+  useEffect(() => {
+    if (gitStatus) void fetchTags(); else setTags(null);
+  }, [gitStatus]);
 
   const runOp = async (op: () => Promise<{ message: string }>, label: string) => {
     setBusy(true);
@@ -4647,12 +4666,112 @@ function GitOpsPanel() {
     }
   };
 
+  const attachRepo = async () => {
+    setAttaching(true);
+    setAttachErr(null);
+    try {
+      await api.initProjectGit(attachUrl.trim() || undefined);
+      setAttachUrl("");
+      await fetchGitStatus();
+    } catch (e: any) {
+      setAttachErr(String(e?.message ?? e));
+    } finally {
+      setAttaching(false);
+    }
+  };
+
+  const createTag = async () => {
+    const name = newTagName.trim();
+    if (!name) return;
+    setTagBusy(true);
+    setTagErr(null);
+    try {
+      await api.createGitTag(name, newTagMsg.trim() || undefined);
+      setShowTagForm(false);
+      setNewTagName("");
+      setNewTagMsg("");
+      await fetchTags();
+    } catch (e: any) {
+      setTagErr(String(e?.message ?? e));
+    } finally {
+      setTagBusy(false);
+    }
+  };
+
+  const pushTag = async (name: string) => {
+    setTagBusy(true);
+    setTagErr(null);
+    try {
+      await api.pushGitTag(name);
+    } catch (e: any) {
+      setTagErr(String(e?.message ?? e));
+    } finally {
+      setTagBusy(false);
+    }
+  };
+
+  const deleteTag = async (name: string) => {
+    if (!window.confirm(`Eliminare il tag "${name}"? Verrà rimosso anche dal remote se già pubblicato.`)) return;
+    setTagBusy(true);
+    setTagErr(null);
+    try {
+      await api.deleteGitTag(name);
+      await fetchTags();
+    } catch (e: any) {
+      setTagErr(String(e?.message ?? e));
+    } finally {
+      setTagBusy(false);
+    }
+  };
+
+  const header = (
+    <div style={{ fontSize: 12, fontWeight: 700, color: "var(--brand-text-subtle, #64748b)", letterSpacing: 1, marginBottom: 6 }}>
+      VERSIONAMENTO PROGETTO
+    </div>
+  );
+  const intro = (
+    <div style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", marginBottom: 10, lineHeight: 1.5 }}>
+      Versiona <strong>questo progetto</strong> (project.yaml, synoptics, ricette, storico) in un
+      repository git — non riguarda mai il codice di SWS stesso.
+    </div>
+  );
+
   if (gitError) {
     return (
-      <div style={{ color: "var(--brand-danger-soft, #fca5a5)", fontSize: 12, marginTop: 4 }}>Git: {gitError}</div>
+      <div>{header}{intro}<div style={{ color: "var(--brand-danger-soft, #fca5a5)", fontSize: 12 }}>Git: {gitError}</div></div>
     );
   }
-  if (!gitStatus) return null;
+
+  if (!gitStatus) {
+    if (!checkedRepo) return null; // primo caricamento, non ancora sappiamo
+    return (
+      <div>
+        {header}
+        {intro}
+        <div style={{ background: "var(--brand-bg, #0f172a)", border: "1px solid var(--brand-surface, #1e293b)", borderRadius: 6, padding: "12px 14px", display: "flex", flexDirection: "column", gap: 8 }}>
+          <div style={{ fontSize: 12, color: "var(--brand-text-muted, #94a3b8)" }}>
+            Questo progetto non è ancora agganciato a un repository.
+          </div>
+          <div style={{ display: "flex", gap: 6 }}>
+            <input
+              value={attachUrl}
+              onChange={(e) => setAttachUrl(e.target.value)}
+              placeholder="URL del repository (opzionale — vuoto per un repository solo locale)"
+              style={{ flex: 1, background: "var(--brand-bg, #020617)", color: "var(--brand-text, #e2e8f0)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, padding: "5px 8px", fontSize: 12 }}
+            />
+            <button
+              disabled={attaching}
+              onClick={attachRepo}
+              style={{ padding: "5px 12px", background: "var(--brand-primary, #3b82f6)", border: "none", borderRadius: 4, color: "var(--brand-on-primary, #fff)", fontSize: 12, cursor: attaching ? "wait" : "pointer" }}
+            >
+              Aggancia a un repository
+            </button>
+          </div>
+          {attachErr && <div style={{ fontSize: 11, color: "var(--brand-danger-soft, #fca5a5)" }}>{attachErr}</div>}
+        </div>
+      </div>
+    );
+  }
 
   const dateStr = gitStatus.commit_date
     ? new Date(gitStatus.commit_date).toLocaleString("it-IT", { dateStyle: "short", timeStyle: "short" })
@@ -4660,9 +4779,8 @@ function GitOpsPanel() {
 
   return (
     <div>
-      <div style={{ fontSize: 12, fontWeight: 700, color: "var(--brand-text-subtle, #64748b)", letterSpacing: 1, marginBottom: 10 }}>
-        GITOPS
-      </div>
+      {header}
+      {intro}
       <div style={{ background: "var(--brand-bg, #0f172a)", border: "1px solid var(--brand-surface, #1e293b)", borderRadius: 6, padding: "12px 14px", display: "flex", flexDirection: "column", gap: 6 }}>
         <div style={{ display: "flex", gap: 12, flexWrap: "wrap", fontSize: 12 }}>
           <span style={{ color: "var(--brand-text-subtle, #64748b)" }}>Branch:</span>
@@ -4753,18 +4871,118 @@ function GitOpsPanel() {
           </div>
         )}
       </div>
+
+      <div style={{ marginTop: 10, background: "var(--brand-bg, #0f172a)", border: "1px solid var(--brand-surface, #1e293b)", borderRadius: 6, padding: "12px 14px", display: "flex", flexDirection: "column", gap: 8 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{ fontSize: 11, fontWeight: 700, color: "var(--brand-text-subtle, #64748b)", letterSpacing: 1, flex: 1 }}>TAG</span>
+          <button
+            disabled={tagBusy}
+            onClick={() => setShowTagForm((v) => !v)}
+            style={{ padding: "4px 10px", background: "var(--brand-surface, #1e293b)", color: "var(--brand-text-2, #cbd5e1)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, cursor: tagBusy ? "wait" : "pointer", fontSize: 12 }}
+          >
+            + Nuovo tag
+          </button>
+        </div>
+        {showTagForm && (
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            <input
+              value={newTagName}
+              onChange={(e) => setNewTagName(e.target.value)}
+              placeholder="nome (es. v1.2.0)"
+              style={{ flex: 1, minWidth: 120, background: "var(--brand-bg, #020617)", color: "var(--brand-text, #e2e8f0)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, padding: "5px 8px", fontSize: 12 }}
+            />
+            <input
+              value={newTagMsg}
+              onChange={(e) => setNewTagMsg(e.target.value)}
+              placeholder="messaggio (opzionale)"
+              style={{ flex: 2, minWidth: 160, background: "var(--brand-bg, #020617)", color: "var(--brand-text, #e2e8f0)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, padding: "5px 8px", fontSize: 12 }}
+            />
+            <button
+              disabled={tagBusy || !newTagName.trim()}
+              onClick={createTag}
+              style={{ padding: "5px 10px", background: "var(--brand-success, #22c55e)", border: "none", borderRadius: 4, color: "var(--brand-on-success, #fff)", fontSize: 12, cursor: "pointer" }}
+            >{t("common.save")}</button>
+            <button
+              onClick={() => { setShowTagForm(false); setNewTagName(""); setNewTagMsg(""); }}
+              style={{ padding: "5px 10px", background: "var(--brand-surface, #1e293b)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, color: "var(--brand-text-muted, #94a3b8)", fontSize: 12, cursor: "pointer" }}
+            >✕</button>
+          </div>
+        )}
+        {tagErr && <div style={{ fontSize: 11, color: "var(--brand-danger-soft, #fca5a5)" }}>{tagErr}</div>}
+        {tags === null ? (
+          <div style={{ fontSize: 12, color: "var(--brand-text-subtle, #64748b)" }}>Caricamento…</div>
+        ) : tags.length === 0 ? (
+          <div style={{ fontSize: 12, color: "var(--brand-text-subtle, #64748b)", fontStyle: "italic" }}>Nessun tag.</div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            {tags.map((name) => (
+              <div key={name} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <code style={{ flex: 1, fontSize: 12, color: "var(--brand-text-2, #cbd5e1)" }}>{name}</code>
+                {gitStatus.remote_url && (
+                  <button
+                    disabled={tagBusy}
+                    onClick={() => pushTag(name)}
+                    style={{ padding: "3px 10px", background: "#7c3aed", border: "none", borderRadius: 3, color: "#fff", fontSize: 11, cursor: tagBusy ? "wait" : "pointer" }}
+                  >↑ Push</button>
+                )}
+                <button
+                  disabled={tagBusy}
+                  onClick={() => deleteTag(name)}
+                  style={{ padding: "3px 10px", background: "transparent", color: "var(--brand-danger-soft, #fca5a5)", border: "1px solid var(--brand-danger-bg, #7f1d1d)", borderRadius: 3, cursor: tagBusy ? "wait" : "pointer", fontSize: 11 }}
+                >{t("common.delete")}</button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Preferenze IDE ───────────────────────────────────────────────────────────
+//
+// Impostazioni di *questo browser/editor*, non del progetto: mai salvate in
+// project.yaml, sempre in localStorage (ThemeToggle/UiLangSelect già
+// esistenti, prima sparse fra la tab "Stato" — sezione ASPETTO — e il menu
+// utente 👤). Le altre impostazioni IDE-locali censite (URL runtime override,
+// larghezze pannelli, stato cassetto log, righelli/guide canvas...) restano
+// dove sono: la prima precede l'apertura di un progetto (va scelta prima di
+// arrivare qui), le altre sono stato di layout effimero, non "preferenze" nel
+// senso in cui si cercherebbero in un pannello di configurazione.
+function IdePreferencesTab() {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 20, maxWidth: 480 }}>
+      <div style={{ color: "var(--brand-text-muted, #94a3b8)", fontSize: 13, lineHeight: 1.5 }}>
+        Impostazioni di questo editor — non fanno parte del progetto e non si spostano su un
+        altro dispositivo/browser.
+      </div>
+      <div style={{ background: "var(--brand-bg, #0f172a)", border: "1px solid var(--brand-surface, #1e293b)", borderRadius: 6, padding: "10px 14px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+        <div>
+          <div style={{ fontSize: 13, fontWeight: 600, color: "var(--brand-text, #e2e8f0)" }}>Tema chiaro/scuro</div>
+          <div style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", marginTop: 2 }}>"Sistema" segue le preferenze del browser. La scelta è ricordata su questo dispositivo.</div>
+        </div>
+        <ThemeToggle />
+      </div>
+      <div style={{ background: "var(--brand-bg, #0f172a)", border: "1px solid var(--brand-surface, #1e293b)", borderRadius: 6, padding: "10px 14px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+        <div>
+          <div style={{ fontSize: 13, fontWeight: 600, color: "var(--brand-text, #e2e8f0)" }}>Lingua interfaccia</div>
+          <div style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", marginTop: 2 }}>Lingua dei menu e dei testi dell'editor — non la lingua dei contenuti del progetto (tab Lingue).</div>
+        </div>
+        <UiLangSelect />
+      </div>
     </div>
   );
 }
 
 function SystemTab() {
+  const remoteConnected = useAppStore((s) => s.remoteConnected);
   const [status, setStatus] = useState<SystemStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const fetchStatus = async () => {
+  const fetchStatus = async (remote: boolean) => {
     try {
-      const s = await api.getSystemStatus();
+      const s = remote ? await api.remoteGetSystemStatus() : await api.getSystemStatus();
       setStatus(s);
       setError(null);
     } catch (e: any) {
@@ -4772,11 +4990,17 @@ function SystemTab() {
     }
   };
 
+  // "Il runtime" a cui riferirsi è quello connesso quando c'è una connessione
+  // remota attiva — non un secondo riquadro affiancato come per Datastore/
+  // Backup: qui è un concetto singolare. Azzera lo stato al cambio di
+  // sorgente così non si vede per un istante il dato del backend sbagliato.
   useEffect(() => {
-    void fetchStatus();
-    intervalRef.current = setInterval(fetchStatus, 10_000);
+    setStatus(null);
+    setError(null);
+    void fetchStatus(remoteConnected);
+    intervalRef.current = setInterval(() => void fetchStatus(remoteConnected), 10_000);
     return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
-  }, []);
+  }, [remoteConnected]);
 
   const fmtUptime = (s: number) => {
     const h = Math.floor(s / 3600);
@@ -4807,6 +5031,7 @@ function SystemTab() {
       <div>
         <div style={{ fontSize: 12, fontWeight: 700, color: "var(--brand-text-subtle, #64748b)", letterSpacing: 1, marginBottom: 10 }}>
           RUNTIME
+          {remoteConnected && <span style={{ fontWeight: 400, textTransform: "none", letterSpacing: 0, color: "var(--brand-primary, #3b82f6)" }}> — dispositivo remoto connesso</span>}
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
           <MetricCard icon="🖥" label="Versione" value={status.runtime_version} />
@@ -4823,19 +5048,8 @@ function SystemTab() {
       </div>
       <div>
         <div style={{ fontSize: 12, fontWeight: 700, color: "var(--brand-text-subtle, #64748b)", letterSpacing: 1, marginBottom: 10 }}>
-          ASPETTO
-        </div>
-        <div style={{ background: "var(--brand-bg, #0f172a)", border: "1px solid var(--brand-surface, #1e293b)", borderRadius: 6, padding: "10px 14px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-          <div>
-            <div style={{ fontSize: 13, fontWeight: 600, color: "var(--brand-text, #e2e8f0)" }}>Tema chiaro/scuro</div>
-            <div style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", marginTop: 2 }}>"Sistema" segue le preferenze del browser. La scelta è ricordata su questo dispositivo.</div>
-          </div>
-          <ThemeToggle />
-        </div>
-      </div>
-      <div>
-        <div style={{ fontSize: 12, fontWeight: 700, color: "var(--brand-text-subtle, #64748b)", letterSpacing: 1, marginBottom: 10 }}>
           SISTEMA
+          {remoteConnected && <span style={{ fontWeight: 400, textTransform: "none", letterSpacing: 0, color: "var(--brand-primary, #3b82f6)" }}> — dispositivo remoto connesso</span>}
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           <div style={{ background: "var(--brand-bg, #0f172a)", border: "1px solid var(--brand-surface, #1e293b)", borderRadius: 6, padding: "10px 14px" }}>
@@ -5591,7 +5805,7 @@ function ResourcesTab() {
 // ── DATASTORES tab ────────────────────────────────────────────────────────────
 
 function newSqliteConfig(): DatastoreBackendConfig {
-  return { kind: "sqlite", path: ".history/historian.db" };
+  return { kind: "sqlite", path: "history/historian.db" };
 }
 function newPostgresConfig(): DatastoreBackendConfig {
   return { kind: "postgres", host: "localhost", port: 5432, database: "sws", username: "sws", password: "", ssl_mode: "disable", schema: "public" };
@@ -5675,7 +5889,7 @@ function DatastoresTab() {
   // `purge` ed `export` esistevano già nel backend e nel client da tempo, senza
   // che nessun pulsante li chiamasse. Qui vengono collegati, insieme ai due
   // nuovi (tag orfani, vacuum). Il backup completo NON si duplica: la tab
-  // "Backup" già include `.history/`.
+  // "Backup" già include `history/`.
   const [mgmtMsg, setMgmtMsg] = useState<Record<string, string>>({});
   const [tagsMap, setTagsMap] = useState<Record<string, { db_tags: string[]; orphan_tags: string[] } | null>>({});
   const [busyMgmt, setBusyMgmt] = useState<Record<string, boolean>>({});
@@ -5890,7 +6104,7 @@ function DatastoresTab() {
                 Purge ed export esistevano nel backend da tempo senza che nessun
                 pulsante li chiamasse; tag orfani e recupero spazio sono nuovi.
                 Il backup completo non si duplica qui: la tab "Backup" include
-                già `.history/`. */}
+                già `history/`. */}
             <div style={{ border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 5, padding: 8, marginBottom: 8 }}>
               <div style={{ fontSize: 11, fontWeight: 600, color: "var(--brand-text-muted, #94a3b8)", marginBottom: 6 }}>
                 GESTIONE DATABASE
@@ -5968,7 +6182,7 @@ function DatastoresTab() {
               )}
 
               <div style={{ fontSize: 10, color: "var(--brand-text-subtle, #64748b)", marginTop: 6 }}>
-                Il backup completo del database è nella tab <strong>Backup</strong>: include già <code>.history/</code>.
+                Il backup completo del database è nella tab <strong>Backup</strong>: include già <code>history/</code>.
               </div>
             </div>
 
@@ -5976,7 +6190,7 @@ function DatastoresTab() {
             {ds.backend.kind === "sqlite" && (
               <div style={cellStyle}>
                 <span style={labelStyle}>{t("cfg.filePath")}</span>
-                <input value={ds.backend.path} onChange={(e) => patchBackend(ds.id, { path: e.target.value })} style={inputStyle} placeholder=".history/historian.db" />
+                <input value={ds.backend.path} onChange={(e) => patchBackend(ds.id, { path: e.target.value })} style={inputStyle} placeholder="history/historian.db" />
               </div>
             )}
 
@@ -8722,7 +8936,7 @@ function LanguagesTab() {
   );
 }
 
-type ConfigTab = "tags" | "protocols" | "alarms" | "datastores" | "scripts" | "faceplates" | "recipes" | "notifications" | "languages" | "users" | "resources" | "system" | "backups" | "devices" | "runtime";
+type ConfigTab = "tags" | "protocols" | "alarms" | "datastores" | "scripts" | "faceplates" | "recipes" | "notifications" | "languages" | "users" | "resources" | "system" | "backups" | "devices" | "runtime" | "ide";
 
 export function ConfigView() {
   const { t } = useTranslation();
@@ -8749,8 +8963,8 @@ export function ConfigView() {
   }, [tab, isAdmin]);
 
   const visibleTabs: ConfigTab[] = isAdmin
-    ? ["tags", "protocols", "alarms", "scripts", "faceplates", "recipes", "notifications", "languages", "datastores", "users", "resources", "backups", "system", "devices", "runtime"]
-    : ["tags", "protocols", "alarms", "scripts", "faceplates", "recipes", "notifications", "languages", "resources", "system"];
+    ? ["tags", "protocols", "alarms", "scripts", "faceplates", "recipes", "notifications", "languages", "datastores", "users", "resources", "backups", "system", "devices", "runtime", "ide"]
+    : ["tags", "protocols", "alarms", "scripts", "faceplates", "recipes", "notifications", "languages", "resources", "system", "ide"];
 
   // Bounce non-admins off the backups, datastores, devices tabs.
   useEffect(() => {
@@ -8767,7 +8981,7 @@ export function ConfigView() {
     && tab !== "users" && tab !== "resources" && tab !== "system"
     && tab !== "backups" && tab !== "datastores" && tab !== "scripts"
     && tab !== "faceplates" && tab !== "recipes" && tab !== "notifications"
-    && tab !== "devices" && tab !== "runtime";
+    && tab !== "devices" && tab !== "runtime" && tab !== "ide";
 
   // Belt-and-braces: App.tsx already gates mode="config" via effectiveMode,
   // so this is unreachable for non-Supervisor+ today. Kept so a future
@@ -8815,6 +9029,7 @@ export function ConfigView() {
             {tab === "backups"     && isAdmin && <BackupsTab />}
             {tab === "devices"    && isAdmin && <DevicesTab />}
             {tab === "runtime"    && isAdmin && <RuntimeConnectionTab />}
+            {tab === "ide"        && <IdePreferencesTab />}
           </>
         )}
       </div>
@@ -8826,7 +9041,7 @@ export function ConfigView() {
 //
 // Admin-only list / create / restore / delete on `/api/backups`. Backups are
 // snapshots of `project.yaml`, `synoptics/`, and `users.yaml` under
-// `<project>/.bak/<UTC-timestamp>/`. The runtime also takes them
+// `<project>/backups/<UTC-timestamp>/`. The runtime also takes them
 // automatically when `--auto-backup-interval-minutes` is set.
 
 type BackupInfo = { name: string; created_at_ms: number; size_bytes: number };
@@ -9043,7 +9258,7 @@ function BackupsTab() {
     }
   };
 
-  // ── Backup sul dispositivo remoto connesso — cartella .bak/ distinta da
+  // ── Backup sul dispositivo remoto connesso — cartella backups/ distinta da
   // quella locale; un ripristino/eliminazione qui non tocca il progetto
   // aperto in questo editor, solo lo stato del device connesso.
   const [remoteList, setRemoteList] = useState<BackupInfo[] | null>(null);
@@ -9155,8 +9370,8 @@ function BackupsTab() {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       <div style={{ color: "var(--brand-text-muted, #94a3b8)", fontSize: 13, lineHeight: 1.5 }}>
-        Snapshot point-in-time del progetto (project.yaml + synoptics + users.yaml + .history +
-        recipes) salvati sotto <code>{`<project>/.bak/`}</code>. Il runtime ne crea uno
+        Snapshot point-in-time del progetto (project.yaml + synoptics + users.yaml + history +
+        recipes) salvati sotto <code>{`<project>/backups/`}</code>. Il runtime ne crea uno
         automaticamente ogni N minuti — di default secondo il flag di avvio
         <code> --auto-backup-interval-minutes</code>, ma questo progetto può avere il proprio
         intervallo (sotto), a prescindere da come è stato avviato il runtime.

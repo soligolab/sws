@@ -67,7 +67,7 @@ each non-None policy with `MessageSecurityMode::SignAndEncrypt` (the
 | `Aes256Sha256RsaPss`   | Aes256-SHA256-RsaPss          | SignAndEncrypt    |
 
 The runtime auto-generates a self-signed cert + private key under
-`<project>/.opcua-pki/<source-id>/` on first connect, then re-uses the
+`<project>/opcua-pki/<source-id>/` on first connect, then re-uses the
 same keypair on every reconnect so the server's trust list stays stable.
 Each OPC-UA source has its own keypair so different machines see distinct
 client identities.

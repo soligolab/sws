@@ -2687,6 +2687,10 @@ function ObjectProps({
                 <input type="checkbox" checked={s.smooth ?? false} onChange={(e) => patchStyle({ smooth: e.target.checked || undefined })} />
                 {t("props.smoothCurve")}
               </label>
+              <label style={{ fontSize: 10, color: "var(--brand-text-muted, #94a3b8)", display: "flex", gap: 2, alignItems: "center" }} title={t("props.ownScaleHint")}>
+                <input type="checkbox" checked={s.own_scale ?? false} onChange={(e) => patchStyle({ own_scale: e.target.checked || undefined })} />
+                {t("props.ownScale")}
+              </label>
             </div>
           );
         };
@@ -2699,7 +2703,75 @@ function ObjectProps({
           <p style={{ fontSize: 10, color: "var(--brand-border, #475569)", margin: "-4px 0 0" }}>
             {t("props.panStepSHint")}
           </p>
+
+          {/* Formato data/ora (asse X + tooltip) */}
+          <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", marginTop: 8, marginBottom: 2, fontWeight: 700, letterSpacing: 0.5 }}>
+            FORMATO DATA/ORA
+          </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+            <div>
+              <div style={LABEL}>Ordine data</div>
+              <select
+                style={INPUT}
+                value={obj.trend_dt_date_order ?? "dmy"}
+                onChange={(e) => onChange({ trend_dt_date_order: e.target.value as SynopticObject["trend_dt_date_order"] })}
+              >
+                <option value="dmy">GG/MM (europeo)</option>
+                <option value="mdy">MM/GG (americano)</option>
+                <option value="ymd">AAAA/MM/GG</option>
+              </select>
+            </div>
+            <div>
+              <div style={LABEL}>Separatore</div>
+              <select
+                style={INPUT}
+                value={obj.trend_dt_separator ?? "/"}
+                onChange={(e) => onChange({ trend_dt_separator: e.target.value as SynopticObject["trend_dt_separator"] })}
+              >
+                <option value="/">/ (GG/MM)</option>
+                <option value="-">- (GG-MM)</option>
+                <option value=".">. (GG.MM)</option>
+              </select>
+            </div>
+            <div>
+              <div style={LABEL}>Formato ora</div>
+              <select
+                style={INPUT}
+                value={obj.trend_dt_time_format ?? "24h"}
+                onChange={(e) => onChange({ trend_dt_time_format: e.target.value as SynopticObject["trend_dt_time_format"] })}
+              >
+                <option value="24h">24h</option>
+                <option value="12h">12h (AM/PM)</option>
+              </select>
+            </div>
+          </div>
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 6 }}>
+            <label style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", cursor: "pointer" }}>
+              <input type="checkbox" checked={obj.trend_dt_show_year ?? false}
+                onChange={(e) => onChange({ trend_dt_show_year: e.target.checked || undefined })} />
+              Mostra anno
+            </label>
+            <label style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", cursor: "pointer" }}>
+              <input type="checkbox" checked={obj.trend_dt_show_seconds ?? false}
+                onChange={(e) => onChange({ trend_dt_show_seconds: e.target.checked || undefined })} />
+              Mostra secondi
+            </label>
+            <label style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", cursor: "pointer" }}>
+              <input type="checkbox" checked={obj.trend_dt_two_lines ?? true}
+                onChange={(e) => onChange({ trend_dt_two_lines: e.target.checked })} />
+              Data e ora su due righe
+            </label>
+            <label style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", cursor: "pointer" }}>
+              <input type="checkbox" checked={obj.trend_dt_always_show_date ?? false}
+                onChange={(e) => onChange({ trend_dt_always_show_date: e.target.checked || undefined })} />
+              Mostra sempre la data
+            </label>
+          </div>
+          <p style={{ fontSize: 10, color: "var(--brand-border, #475569)", margin: "2px 0 0" }}>
+            Senza "Mostra sempre la data", la data compare solo quando la finestra visibile supera le 24h.
+          </p>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, marginTop: 8 }}>
             <div><div style={LABEL}>Y min</div><BindableInput obj={obj} propName="y_min" onChange={onChange}>{numInput("y_min", 0)}</BindableInput></div>
             <div><div style={LABEL}>Y max</div><BindableInput obj={obj} propName="y_max" onChange={onChange}>{numInput("y_max", 100)}</BindableInput></div>
           </div>

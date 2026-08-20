@@ -26,7 +26,7 @@ curl -s -o /dev/null -X PUT "$API/project/tags" -H 'Content-Type: application/js
   {"id":"temperatura","description":"in uso"},
   {"id":"pressione","description":"in uso"}
 ]'
-DB="$SCR/projects/dbtest/.history/historian.db"
+DB="$SCR/projects/dbtest/history/historian.db"
 mkdir -p "$(dirname "$DB")"
 python3 - "$DB" <<'PY'
 import sqlite3, sys

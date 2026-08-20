@@ -102,6 +102,14 @@ pub struct SynopticObject {
     /// Seconds moved per ◀/▶ pan click on the compact Trend widget. Defaults
     /// to 25% of window_s when unset.
     #[serde(skip_serializing_if = "Option::is_none")] pub pan_step_s: Option<f64>,
+    // Trend date/time format (axis labels + hover tooltip)
+    #[serde(skip_serializing_if = "Option::is_none")] pub trend_dt_date_order:       Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub trend_dt_separator:        Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub trend_dt_time_format:      Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub trend_dt_show_seconds:     Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub trend_dt_show_year:        Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub trend_dt_two_lines:        Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub trend_dt_always_show_date: Option<bool>,
     // XY plot (live point + trail, not a time series). `tag` above is the X axis.
     #[serde(skip_serializing_if = "Option::is_none")] pub y_tag: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")] pub xy_trail_s: Option<f64>,
