@@ -6,6 +6,76 @@
 >
 > **Pulizia 2026-07-27**: rimossi i task già chiusi e le sezioni di verifica ormai superate; le sessioni mergiate **e** verificate fino al 2026-07-09 sono compresse in «Storico». Il dettaglio integrale resta in `CHANGELOG.md` e nella history git.
 
+**Sessione 2026-08-20 — deploy nativo da IDE: due bug reali trovati dal vivo** (branch
+`fix/deploy-device-native-tarball`, da `main`). Il maintainer stava provando a installare il
+runtime nativo su un PC x86 da Configurazione → Runtime e ha incontrato in sequenza:
+1. `scp: dest open "/tmp/sws-deploy/...": No such file or directory` — `deploy_device`
+   (`packaging.rs`) faceva lo SCP del tarball **prima** che `remote_dir` esistesse sul device: la
+   `mkdir -p` era dentro il comando di estrazione successivo, troppo tardi. Un commento già
+   presente nel codice (`deploy_device_container`, che invece la crea per prima) segnalava
+   esplicitamente questa differenza come un'assunzione ottimistica ("quasi sempre già presente")
+   — rivelatasi falsa su un device pulito. Aggiunto lo stesso `mkdir -p` esplicito prima dello
+   SCP, stesso ordine del gemello container.
+2. Dopo aver creato la cartella a mano, `chmod: impossibile accedere a
+   ".../sws-runtime-2.0.0-x86_64-image/install.sh": File o directory non esistente` — causa
+   reale diversa: il maintainer aveva selezionato
+   `sws-runtime-2.0.0-x86_64-image.tar.gz`, un'**immagine container** (per `podman load`, senza
+   alcun `install.sh` — verificato col contenuto vero del tarball, è un archivio OCI a più
+   layer), non un pacchetto nativo. `list_packages` (il selettore del deploy nativo) elencava
+   ogni `*.tar.gz` in `dist/` senza escludere le immagini, a differenza di
+   `list_container_packages` che già le filtra con `parse_image_tarball`. Riusata la stessa
+   funzione per escluderle da `list_packages`, più un controllo lato server in `deploy_device`
+   come difesa in profondità (nel caso un client con lista in cache o una richiesta a mano
+   mandi comunque un'immagine). Il maintainer ha confermato di voler procedere con
+   l'installazione nativa — prossimo passo suo: rigenerare un pacchetto nativo fresco da
+   Config → Runtime → "Costruisci pacchetto" (non il container) e ridistribuirlo.
+3. Con un pacchetto nativo vero (`sws-2.0.1-linux-x86_64.tar.gz`) mkdir e SCP sono andati a
+   buon fine (conferma dal vivo dei due fix sopra), ma l'esecuzione di `install.sh` falliva con
+   `sudo: Authentication failed` × 2 poi `Maximum 3 incorrect authentication attempts` —
+   password corretta. Causa: il comando remoto era un semplice `ssh host "sudo install.sh"`,
+   senza terminale su cui `sudo` potesse mostrare un prompt; la password che `sshpass` fornisce
+   autentica solo la sessione SSH, non il prompt sudo separato sul lato remoto (stesso account
+   Unix, ma un secondo momento di autenticazione). Passato a `sudo -S` (legge la password da
+   stdin) e aggiunta `run_ssh_cmd_stdin` (wrapper attorno a `run_ssh_cmd`, un nuovo parametro
+   opzionale che pipe-a dati sullo stdin del comando SSH remoto e poi lo chiude per segnalare
+   EOF a sudo) — usata solo per questo passo, gli altri 10 punti di chiamata restano su
+   `run_ssh_cmd` invariato. Verificato che nessun'altra invocazione remota nel file usa `sudo`
+   (il percorso container lo evita deliberatamente, podman rootless).
+
+4. Con `sudo -S` il deploy è arrivato in fondo — `install.sh` ha completato tutti i suoi passi
+   (directory, binario, unit systemd, seed di `/etc/sws/runtime.env`, enable+start) e stampato
+   "Installation complete" — ma l'health check **finale** di `deploy_device` è comunque fallito
+   (`ERROR: ssh fallito (exit 35)`, seguito da un WARN "il servizio potrebbe ancora essere in
+   avvio"). Causa reale, confermata leggendo `main.rs`: il TLS è opt-in
+   (`args.config.join("tls.crt").exists()`), mai seminato da `install.sh` al primo giro — un
+   device fresco parla **HTTP semplice** sulla porta 8443, non HTTPS. `curl -sk https://...`
+   contro un server che parla HTTP puro fallisce con un errore SSL (`curl` exit 35, non
+   "connection refused") — l'installazione era già completamente riuscita, solo il controllo
+   sbagliava protocollo. **Confermato dal vivo dalla sessione stessa**:
+   `curl http://192.168.1.169:8443/health` → `ok`. Corretto sia l'health check di
+   `deploy_device` sia quello interno di `deploy/generic-linux/install.sh` (prova prima HTTPS
+   poi HTTP di fallback, invece di assumerne uno) — quest'ultimo anche negli URL stampati a fine
+   installazione, che erano sempre `https://` indipendentemente da cosa il servizio parlasse
+   davvero. Applicato lo stesso fallback anche a `deploy_device_container` (aveva
+   l'assunzione opposta: solo HTTP, niente HTTPS per un device con TLS già attivo da un giro
+   precedente — `config/` persiste tra un deploy e l'altro).
+
+**Verificato**: `cargo check -p sws-web` verde, 32/32 test `packaging` verdi (incluso
+`parse_image_tarball_*`, riusata senza modifiche) dopo ciascuno dei quattro fix. Nessun
+round-trip SSH/sudo live per il fix `sudo -S` (nessun target passwordless disponibile per un
+test end-to-end senza toccare la config SSH/sudo dell'host) — verifica per lettura del codice: i
+fix 1/2 ricalcano il pattern già in produzione in `deploy_device_container`, il fix 3
+(`sudo -S` + stdin) è un pattern standard per automatizzare sudo non interattivo, il fix 4 è
+stato confermato dal vivo (curl diretto all'health endpoint del device reale del maintainer).
+**Il deploy nativo del maintainer è di fatto già riuscito e il runtime gira su
+192.168.1.169** — resta solo da confermare che il prossimo giro di deploy (con il binario
+ricompilato) non stampi più il falso WARN.
+
+**Pulizia collaterale**: rimossi da `dist/` i binari precedenti alla nomenclatura 2.0.0 su
+richiesta del maintainer — `sws-0.1.0-dev-linux-x86_64.tar.gz`,
+`sws-runtime-0.1.0-dev-x86_64-image.tar.gz` e i quattro archivi `2026.7.0` (CalVer, pre-SemVer):
+~412 MB liberati. Restano solo 2.0.0/2.0.1.
+
 **Sessione 2026-08-18 (continua) — Backup: due sezioni simmetriche + operazioni complete anche da
 remoto**, stesso branch. Il maintainer ha chiesto perché ci fosse una sola sezione "locale" con
 tabella grande e una sezione remota più piccola/annidata sotto, con solo elenco+download — dopo
