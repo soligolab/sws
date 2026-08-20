@@ -222,6 +222,13 @@ pub async fn list_packages(State(s): State<AppState>) -> impl IntoResponse {
                 .unwrap_or("")
                 .to_string();
             if !name.ends_with(".tar.gz") { continue; }
+            // Le immagini container (sws-runtime-<versione>-<arch>-image.tar.gz,
+            // per podman load) hanno un layout interno completamente diverso da
+            // un pacchetto nativo (niente install.sh) — mischiarle in questa
+            // lista ha fatto scegliere per sbaglio un'immagine per il deploy
+            // via SSH nativo, che poi falliva cercando install.sh dentro un
+            // archivio OCI. list_container_packages le elenca a parte.
+            if parse_image_tarball(&name).is_some() { continue; }
             if let Ok(meta) = tokio::fs::metadata(&path).await {
                 let mtime_ms = meta.modified().ok()
                     .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
@@ -349,6 +356,15 @@ pub async fn deploy_device(
     if !basename.ends_with(".tar.gz") || basename.is_empty() {
         return (StatusCode::BAD_REQUEST, "tarball non valido\n").into_response();
     }
+    // Un'immagine container (per podman load) non ha install.sh — è per
+    // /api/deploy/device-container, non per questo endpoint. list_packages
+    // non la propone più, ma un client con una lista in cache o una richiesta
+    // fatta a mano potrebbe ancora mandarla qui.
+    if parse_image_tarball(&basename).is_some() {
+        return (StatusCode::BAD_REQUEST,
+            "questo è un'immagine container (per podman load), non un pacchetto nativo: usa il deploy container\n"
+        ).into_response();
+    }
 
     // Canonicalize to catch symlink escapes from dist/.
     let dist_dir = repo.join("dist");
@@ -390,7 +406,23 @@ pub async fn deploy_device(
         let stem = basename.trim_end_matches(".tar.gz");
         let remote_install = format!("{}/{}/install.sh", req.remote_dir, stem);
 
-        // ── 1. SCP upload ─────────────────────────────────────────────────
+        // ── 1. Crea remote_dir ──────────────────────────────────────────────
+        // Deve esistere PRIMA dello scp che segue, non solo prima dell'estrazione
+        // (che lo ricreava via `mkdir -p` come parte del comando tar, troppo
+        // tardi) — un device pulito senza mai un /tmp/sws-deploy preesistente
+        // fa fallire lo scp con "No such file or directory" prima ancora di
+        // arrivare all'estrazione. Stesso ordine già usato da deploy_device_container.
+        send(&format!("==> mkdir -p {} sul device", req.remote_dir));
+        let mkdir_ok = run_ssh_cmd(
+            use_sshpass, &req.password,
+            "ssh",
+            &["-p", &port_str, "-o", "StrictHostKeyChecking=no",
+              &host_str, &format!("mkdir -p {}", req.remote_dir)],
+            &send,
+        ).await;
+        if !mkdir_ok { return; }
+
+        // ── 2. SCP upload ─────────────────────────────────────────────────
         send(&format!("==> SCP: {} → {}:{}", tarball_path.display(), host_str, remote_tar));
 
         let scp_ok = run_ssh_cmd(
@@ -403,9 +435,9 @@ pub async fn deploy_device(
         if !scp_ok { return; }
         send("==> SCP completato");
 
-        // ── 2. Estrai il tarball ──────────────────────────────────────────
+        // ── 3. Estrai il tarball ──────────────────────────────────────────
         send("==> Estrazione tarball...");
-        let extract_cmd = format!("mkdir -p {dir} && tar xzf {tar} -C {dir}",
+        let extract_cmd = format!("tar xzf {tar} -C {dir}",
             dir = req.remote_dir, tar = remote_tar);
         let ok = run_ssh_cmd(
             use_sshpass, &req.password,
@@ -416,21 +448,38 @@ pub async fn deploy_device(
         ).await;
         if !ok { return; }
 
-        // ── 3. Esegui install.sh ──────────────────────────────────────────
+        // ── 4. Esegui install.sh ──────────────────────────────────────────
+        // `sudo -S` legge la password da stdin invece di provare ad aprire un
+        // prompt sul terminale — qui non ce n'è uno (è un comando remoto via
+        // `ssh host cmd`, non una sessione interattiva), quindi un `sudo`
+        // semplice fallisce sempre con "Authentication failed" dopo 3
+        // tentativi a vuoto. La password SSH di sshpass autentica solo la
+        // sessione SSH stessa: sudo sul lato remoto è un prompt separato che
+        // richiede di nuovo la stessa password (stesso account Unix).
         send("==> Installazione (install.sh)...");
-        let install_cmd = format!("chmod +x {remote_install} && sudo {remote_install}");
-        let ok = run_ssh_cmd(
+        let install_cmd = format!("chmod +x {remote_install} && sudo -S {remote_install}");
+        let sudo_stdin = format!("{}\n", req.password);
+        let ok = run_ssh_cmd_stdin(
             use_sshpass, &req.password,
             "ssh",
             &["-p", &port_str, "-o", "StrictHostKeyChecking=no",
               &host_str, &install_cmd],
+            Some(&sudo_stdin),
             &send,
         ).await;
         if !ok { return; }
 
-        // ── 4. Health check ───────────────────────────────────────────────
+        // ── 5. Health check ───────────────────────────────────────────────
+        // Il TLS è opt-in (main.rs: si attiva solo se config/tls.crt esiste,
+        // mai seminato da un primo install) — un device appena installato
+        // parla HTTP semplice sulla stessa porta 8443, non HTTPS. Un device
+        // su cui il maintainer ha già attivato TLS in un giro precedente
+        // (persiste tra un upgrade e l'altro, dato che config/ non viene
+        // toccato) parla invece HTTPS. Prova prima HTTPS (il caso più comune
+        // dopo il primo giorno), poi HTTP come fallback, invece di assumere
+        // uno dei due e fallire sempre nell'altro caso.
         send("==> Health check...");
-        let hc_cmd = "sleep 3 && curl -sk https://localhost:8443/health";
+        let hc_cmd = "sleep 3 && (curl -sk https://localhost:8443/health || curl -s http://localhost:8443/health)";
         let ok = run_ssh_cmd(
             use_sshpass, &req.password,
             "ssh",
@@ -831,11 +880,13 @@ pub async fn deploy_device_container(
         if !ok { return; }
 
         // ── 4. Health check ─────────────────────────────────────────────────
-        // http, non https: il container parte in HTTP finché non c'è un
-        // certificato TLS in config/ (stesso motivo dell'HEALTHCHECK
-        // nel Containerfile).
+        // Il container parte in HTTP finché non c'è un certificato TLS in
+        // config/ (stesso motivo dell'HEALTHCHECK nel Containerfile) — ma se
+        // config/ persiste da un giro precedente in cui il TLS era stato
+        // attivato (upgrade su un volume/bind-mount esistente), il container
+        // riparte in HTTPS. Prova entrambi invece di assumere solo HTTP.
         send("==> Health check...");
-        let hc_cmd = "sleep 3 && curl -fs http://localhost:8443/health";
+        let hc_cmd = "sleep 3 && (curl -sk https://localhost:8443/health || curl -fs http://localhost:8443/health)";
         let ok = run_ssh_cmd(
             use_sshpass, &req.password,
             "ssh",
@@ -1055,6 +1106,24 @@ async fn run_ssh_cmd(
     args: &[&str],
     send: &impl Fn(&str),
 ) -> bool {
+    run_ssh_cmd_stdin(use_sshpass, password, prog, args, None, send).await
+}
+
+/// Same as `run_ssh_cmd`, but when `stdin_data` is `Some`, pipes it to the
+/// spawned process's stdin (then closes it, signalling EOF) before draining
+/// output. Used by the install step in `deploy_device` to feed `sudo -S` a
+/// password non-interactively: a remote `ssh host cmd` has no terminal for
+/// `sudo` to prompt on, and the SSH login password (consumed by sshpass)
+/// only authenticates the SSH session itself — the separate sudo prompt on
+/// the remote end needs the same password fed some other way.
+async fn run_ssh_cmd_stdin(
+    use_sshpass: bool,
+    password: &str,
+    prog: &str,
+    args: &[&str],
+    stdin_data: Option<&str>,
+    send: &impl Fn(&str),
+) -> bool {
     // ConnectTimeout copre l'host irraggiungibile in entrambi i casi. BatchMode=yes
     // va aggiunto SOLO quando non usiamo sshpass: forza ssh/scp a fallire subito
     // invece di restare appesi in un prompt interattivo (password o
@@ -1085,6 +1154,9 @@ async fn run_ssh_cmd(
     // stampato sul device) arriva nel log come tutto il resto.
     cmd.stdout(std::process::Stdio::piped());
     cmd.stderr(std::process::Stdio::piped());
+    if stdin_data.is_some() {
+        cmd.stdin(std::process::Stdio::piped());
+    }
 
     let mut child = match cmd.spawn() {
         Ok(c) => c,
@@ -1093,6 +1165,18 @@ async fn run_ssh_cmd(
             return false;
         }
     };
+
+    if let Some(data) = stdin_data {
+        if let Some(mut stdin) = child.stdin.take() {
+            use tokio::io::AsyncWriteExt;
+            // Errori qui (es. il processo remoto è già morto) si vedranno
+            // comunque nell'exit code / stderr più sotto — non serve gestirli
+            // a parte. `drop(stdin)` chiude il descrittore: è l'EOF che segnala
+            // a `sudo -S` che la password è finita.
+            let _ = stdin.write_all(data.as_bytes()).await;
+            drop(stdin);
+        }
+    }
 
     use tokio::io::{AsyncBufReadExt, BufReader};
     let stdout = child.stdout.take();

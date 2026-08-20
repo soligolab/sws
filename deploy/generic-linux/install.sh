@@ -118,9 +118,14 @@ else
     systemctl start "$SERVICE_NAME"
 fi
 
-# Give the service a moment to start and verify it answers /health.
+# Give the service a moment to start and verify it answers /health. TLS is
+# opt-in (config/tls.crt) and never seeded by this installer, so a fresh
+# install serves plain HTTP on this same port — only a device that already
+# had TLS enabled in a previous run (config/ persists across upgrades)
+# answers HTTPS. Try both instead of assuming one.
 sleep 2
-if curl -sk https://localhost:8443/health | grep -q '"status":"ok"' 2>/dev/null; then
+if curl -sk https://localhost:8443/health 2>/dev/null | grep -q '"status":"ok"' \
+    || curl -s http://localhost:8443/health 2>/dev/null | grep -q '"status":"ok"'; then
     echo "==> Health check: OK"
 else
     echo "    Health check did not respond yet — the service may still be starting."
@@ -139,9 +144,14 @@ lan_ips() {
         | awk '{split($4,a,"/"); printf "%s ", a[1]}' || true
 }
 IPS="$(lan_ips)"; IPS="${IPS% }"; [ -n "$IPS" ] || IPS="localhost"
+# Same opt-in TLS logic as the health check above: print the scheme that
+# actually matches what the runtime will serve, not a hardcoded https that's
+# wrong on every fresh install.
+SCHEME=http
+[ -f "$DATA_DIR/config/tls.crt" ] && SCHEME=https
 for a in $IPS; do
-    echo "    Viewer  (operators):  https://$a:8443"
-    echo "    Admin   (IDE):        https://$a:8444"
+    echo "    Viewer  (operators):  $SCHEME://$a:8443"
+    echo "    Admin   (IDE):        $SCHEME://$a:8444"
 done
 echo "    Logs:                 journalctl -u $SERVICE_NAME -f"
 echo "    Config:               $ENV_FILE"

@@ -11,6 +11,40 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### Fixed
+
+- **Deploy nativo da IDE (`/api/deploy/device`) falliva su un device pulito**: lo SCP del
+  tarball avveniva **prima** che `remote_dir` (`/tmp/sws-deploy` di default) esistesse sul
+  device — la cartella veniva creata solo dal comando di estrazione successivo, troppo tardi.
+  Un device che non l'aveva già da un deploy precedente falliva con
+  `scp: dest open ".../sws-deploy/...": No such file or directory`. Aggiunto un passo esplicito
+  `mkdir -p` **prima** dello SCP, stesso ordine già usato da `/api/deploy/device-container`.
+- **Il selettore del deploy nativo proponeva anche le immagini container**: `list_packages`
+  elencava ogni `*.tar.gz` in `dist/`, comprese le immagini container
+  (`sws-runtime-<versione>-<arch>-image.tar.gz`, per `podman load`) che non hanno `install.sh`
+  al loro interno — un layout completamente diverso da un pacchetto nativo. Selezionarne una per
+  sbaglio nel deploy nativo falliva con
+  `chmod: impossibile accedere a '.../install.sh': File o directory non esistente`. Escluse ora
+  dalla lista (riusando `parse_image_tarball`, già usata da `list_container_packages`), più un
+  controllo lato server in `deploy_device` come difesa in profondità.
+- **`sudo` falliva sempre durante `install.sh` nel deploy nativo**: `sudo: Authentication
+  failed` dopo 3 tentativi, anche con la password corretta. Il comando remoto era un semplice
+  `ssh host "sudo install.sh"` — nessun terminale su cui `sudo` potesse mostrare un prompt, e la
+  password usata da `sshpass` autentica solo la sessione SSH, non il prompt sudo separato sul
+  lato remoto. Passato a `sudo -S` (legge la password da stdin) e aggiunta la possibilità di
+  fornire dati su stdin al comando SSH remoto (`run_ssh_cmd_stdin`), usata solo per questo passo.
+- **L'health check finale del deploy nativo dava sempre esito falso su un'installazione
+  appena fatta**: assumeva HTTPS (`curl -sk https://...`), ma il TLS è opt-in
+  (`config/tls.crt`, mai seminato al primo install) — un device fresco parla HTTP semplice sulla
+  stessa porta 8443. `curl` falliva con un errore SSL (exit 35), non "servizio non ancora
+  pronto" come il messaggio suggeriva: **l'installazione era già riuscita**. Ora prova prima
+  HTTPS poi HTTP di fallback, sia nell'health check di `deploy_device` sia in quello interno di
+  `deploy/generic-linux/install.sh` — quest'ultimo anche negli URL stampati a fine
+  installazione (erano sempre `https://`, ora rispecchiano lo schema realmente attivo).
+  Applicato lo stesso fallback anche all'health check di `deploy_device_container`, che aveva
+  la stessa assunzione ma nella direzione opposta (solo HTTP, niente HTTPS per un device che
+  avesse già il TLS attivo da un giro precedente).
+
 ## [2.0.1] — 2026-08-18
 
 ### Fixed
