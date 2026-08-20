@@ -1132,6 +1132,13 @@ export function SvgCanvas({
         yMax={expandedTrendObj.y_max}
         opcuaBackfill={expandedTrendObj.opcua_backfill}
         seriesStyles={expandedTrendObj.trend_series_styles}
+        dtDateOrder={expandedTrendObj.trend_dt_date_order}
+        dtSeparator={expandedTrendObj.trend_dt_separator}
+        dtTimeFormat={expandedTrendObj.trend_dt_time_format}
+        dtShowSeconds={expandedTrendObj.trend_dt_show_seconds}
+        dtShowYear={expandedTrendObj.trend_dt_show_year}
+        dtTwoLines={expandedTrendObj.trend_dt_two_lines}
+        dtAlwaysShowDate={expandedTrendObj.trend_dt_always_show_date}
         onClose={() => setExpandedTrendObj(null)}
       />
     )}
@@ -3399,6 +3406,13 @@ export function SvgObject(p: ObjProps) {
                 yMax={obj.y_max}
                 opcuaBackfill={obj.opcua_backfill}
                 seriesStyles={obj.trend_series_styles}
+                dtDateOrder={obj.trend_dt_date_order}
+                dtSeparator={obj.trend_dt_separator}
+                dtTimeFormat={obj.trend_dt_time_format}
+                dtShowSeconds={obj.trend_dt_show_seconds}
+                dtShowYear={obj.trend_dt_show_year}
+                dtTwoLines={obj.trend_dt_two_lines}
+                dtAlwaysShowDate={obj.trend_dt_always_show_date}
                 fromMs={trendZoom?.fromMs}
                 toMs={trendZoom?.toMs}
                 onRangeSelect={(fromMs, toMs) => setTrendZoom({ fromMs, toMs })}

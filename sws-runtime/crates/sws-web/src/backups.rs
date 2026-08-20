@@ -1,5 +1,5 @@
 //! Project backups — point-in-time snapshots of the project files
-//! (`project.yaml`, `synoptics/`, `users.yaml`) in `<project>/.bak/<ts>/`.
+//! (`project.yaml`, `synoptics/`, `users.yaml`) in `<project>/backups/<ts>/`.
 //!
 //! Two entry points:
 //!   - the runtime spawns an auto-backup loop on startup when the user
@@ -34,7 +34,7 @@ const BACKED_UP: &[&str] = &[
     "project.yaml",
     "synoptics",
     "users.yaml",
-    ".history",  // per-project SQLite historian — needed to restore on another host
+    "history",   // per-project SQLite historian — needed to restore on another host
     "recipes",   // recipe files (skipped silently if absent)
 ];
 
@@ -50,7 +50,7 @@ pub struct BackupInfo {
 
 /// Directory that holds every snapshot for a given project.
 pub fn bak_dir(project_dir: &Path) -> PathBuf {
-    project_dir.join(".bak")
+    project_dir.join("backups")
 }
 
 fn timestamp_name() -> String {
@@ -115,7 +115,7 @@ pub fn backup_now(project_dir: &Path) -> std::io::Result<PathBuf> {
     Ok(dst)
 }
 
-/// Enumerate every backup directory in `<project>/.bak/`, newest first.
+/// Enumerate every backup directory in `<project>/backups/`, newest first.
 pub fn list_backups(project_dir: &Path) -> Vec<BackupInfo> {
     let dir = bak_dir(project_dir);
     let Ok(entries) = std::fs::read_dir(&dir) else { return Vec::new(); };
@@ -164,7 +164,7 @@ pub fn restore_backup(project_dir: &Path, name: &str) -> std::io::Result<()> {
 
 /// Zip an entire directory tree (relative paths preserved), for a raw
 /// download of a backup snapshot — the snapshot can contain arbitrary binary
-/// files (`.history/historian.db`), so this walks and copies bytes as-is
+/// files (`history/historian.db`), so this walks and copies bytes as-is
 /// rather than re-serializing anything, unlike `build_export_zip`.
 fn zip_directory(dir: &Path) -> std::io::Result<Vec<u8>> {
     use zip::write::SimpleFileOptions;
@@ -270,8 +270,8 @@ pub async fn restore_backup_handler(
 }
 
 /// `GET /api/backups/:name/download` — zip di un singolo snapshot, per
-/// archiviarlo fuori dal device (l'intera cartella `.bak/<name>/`, stesso
-/// contenuto di un restore: project.yaml, synoptics, users.yaml, `.history/`,
+/// archiviarlo fuori dal device (l'intera cartella `backups/<name>/`, stesso
+/// contenuto di un restore: project.yaml, synoptics, users.yaml, `history/`,
 /// recipes).
 pub async fn download_backup_handler(
     State(s): State<AppState>,
@@ -365,8 +365,8 @@ mod tests {
         let project = tmp.path();
         write(project, "project.yaml", "name: test\n");
         write(project, "synoptics/Page 1.yaml", "id: a\n");
-        // Binario non-UTF8, come sarebbe .history/historian.db davvero.
-        let db_path = project.join(".history/historian.db");
+        // Binario non-UTF8, come sarebbe history/historian.db davvero.
+        let db_path = project.join("history/historian.db");
         std::fs::create_dir_all(db_path.parent().unwrap()).unwrap();
         std::fs::write(&db_path, [0u8, 159, 146, 150, 1, 2, 3]).unwrap();
 
@@ -379,12 +379,12 @@ mod tests {
             .collect();
         names.sort();
         assert_eq!(names, vec![
-            ".history/historian.db",
+            "history/historian.db",
             "project.yaml",
             "synoptics/Page 1.yaml",
         ]);
 
-        let mut db_entry = archive.by_name(".history/historian.db").unwrap();
+        let mut db_entry = archive.by_name("history/historian.db").unwrap();
         let mut out = Vec::new();
         std::io::Read::read_to_end(&mut db_entry, &mut out).unwrap();
         assert_eq!(out, vec![0u8, 159, 146, 150, 1, 2, 3]);

@@ -196,6 +196,12 @@ pub fn build(
         .route("/api/deploy/remote",       post(crate::deploy::deploy_remote))
         // Git push: push to default remote/branch. Admin-only (risk of exposing credentials).
         .route("/api/project/git/push",    post(git_push))
+        // Aggancia il progetto a un repository (init + set/replace origin) — stessa
+        // classe di rischio del push (configura dove finiscono commit/tag).
+        .route("/api/project/git/init",    post(git_init))
+        // Push/elimina un tag — stessa classe di rischio di push/rollback.
+        .route("/api/project/git/tags/:name/push", post(push_git_tag))
+        .route("/api/project/git/tags/:name",      delete(delete_git_tag))
         // T-28: local package build + SSH device deploy.
         .route("/api/build/package",       post(crate::packaging::build_package))
         .route("/api/build/packages",      get(crate::packaging::list_packages))
@@ -269,6 +275,8 @@ pub fn build(
         // "Invia Client ID al dispositivo connesso" — override per-device del
         // client_id MQTT, esterno a project.yaml.
         .route("/api/remote/mqtt-client-id", post(crate::remote::remote_push_mqtt_client_id))
+        // Stato RUNTIME/SISTEMA del dispositivo connesso — non del backend locale.
+        .route("/api/remote/system", get(crate::remote::remote_system_status))
         // Database del datastore sul dispositivo connesso — non quello locale.
         .route("/api/remote/database/:id/download", get(crate::remote::remote_download_database))
         .route("/api/remote/database/:id/upload",   post(crate::remote::remote_upload_database))
@@ -294,6 +302,8 @@ pub fn build(
         .route("/api/discover", get(crate::discover::discover_runtimes))
         // Git commit: stage all changes and create a commit.
         .route("/api/project/git/commit", post(git_commit))
+        // Crea un tag — stessa classe di rischio del commit (scrittura locale).
+        .route("/api/project/git/tags",   post(create_git_tag))
         .route_layer(middleware::from_fn(require_supervisor));
 
     // Routes any authenticated user (incl. Viewer) can hit.
@@ -324,6 +334,7 @@ pub fn build(
         .route("/api/recipes/:id",      get(get_recipe).put(save_recipe).delete(delete_recipe))
         // GitOps status (read-only — any authenticated user)
         .route("/api/project/git-status", get(get_git_status))
+        .route("/api/project/git/tags",   get(list_git_tags))
         // Project fingerprint: SHA256 of project.yaml + all synoptics.
         // Clients compare local vs. remote fingerprint to verify deployment sync.
         .route("/api/project/fingerprint", get(get_project_fingerprint))
@@ -3901,7 +3912,7 @@ async fn mqtt_browse_handler(
 //   {pki_root}/{source_id}/trusted/certs/*.der   — explicitly trusted
 //   {pki_root}/{source_id}/rejected/certs/*.der  — rejected / pending review
 //
-// The pki_root lives at {project_dir}/.opcua-pki/ (set by source_supervisor).
+// The pki_root lives at {project_dir}/opcua-pki/ (set by source_supervisor).
 
 #[derive(serde::Serialize)]
 struct OpcUaCertEntry {
@@ -3919,7 +3930,7 @@ async fn opcua_list_certs(
     let Ok(dir) = active_dir(&s).await else {
         return (StatusCode::SERVICE_UNAVAILABLE, "no active project").into_response();
     };
-    let pki_root = dir.join(".opcua-pki").join(&source_id);
+    let pki_root = dir.join("opcua-pki").join(&source_id);
     let mut entries: Vec<OpcUaCertEntry> = vec![];
     for (subdir, status) in [("trusted/certs", "trusted"), ("rejected/certs", "rejected")] {
         let cert_dir = pki_root.join(subdir);
@@ -3945,7 +3956,7 @@ async fn opcua_trust_cert(
     let Ok(dir) = active_dir(&s).await else {
         return (StatusCode::SERVICE_UNAVAILABLE, "no active project").into_response();
     };
-    let pki_root = dir.join(".opcua-pki").join(&source_id);
+    let pki_root = dir.join("opcua-pki").join(&source_id);
     let rejected  = pki_root.join("rejected/certs").join(&filename);
     let trusted   = pki_root.join("trusted/certs");
     if rejected.exists() {
@@ -3971,7 +3982,7 @@ async fn opcua_delete_cert(
     let Ok(dir) = active_dir(&s).await else {
         return (StatusCode::SERVICE_UNAVAILABLE, "no active project").into_response();
     };
-    let pki_root = dir.join(".opcua-pki").join(&source_id);
+    let pki_root = dir.join("opcua-pki").join(&source_id);
     let mut deleted = false;
     for subdir in ["trusted/certs", "rejected/certs"] {
         let path = pki_root.join(subdir).join(&filename);
@@ -4276,6 +4287,98 @@ async fn git_push(State(s): State<AppState>) -> impl IntoResponse {
     }
     match tokio::task::spawn_blocking(move || gd.push()).await {
         Ok(Ok(msg)) => Json(serde_json::json!({ "message": msg })).into_response(),
+        Ok(Err(e)) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+        Err(e)     => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+    }
+}
+
+#[derive(serde::Deserialize)]
+struct GitInitBody {
+    /// `None` = solo `git init` (progetto già locale senza remote, o non
+    /// ancora deciso a quale repository agganciarlo). `Some(url)` = imposta/
+    /// sostituisce anche `origin`.
+    #[serde(default)]
+    remote_url: Option<String>,
+}
+
+/// `POST /api/project/git/init` — aggancia il progetto (non l'app SWS) a un
+/// repository: `git init` (idempotente) + opzionale `origin`. Prima di questo
+/// endpoint `GitOpsPanel` restava vuoto per un progetto senza `.git` — non
+/// c'era modo di iniziare da qui.
+async fn git_init(State(s): State<AppState>, Json(body): Json<GitInitBody>) -> impl IntoResponse {
+    let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
+    let gd = crate::git_deploy::GitDeploy::new(dir);
+    let remote_url = body.remote_url.as_deref().map(str::trim).filter(|u| !u.is_empty()).map(String::from);
+    match tokio::task::spawn_blocking(move || gd.init_remote(remote_url.as_deref())).await {
+        Ok(Ok(())) => StatusCode::NO_CONTENT.into_response(),
+        Ok(Err(e)) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+        Err(e)     => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+    }
+}
+
+/// `GET /api/project/git/tags` — elenco tag del progetto, più recente prima.
+async fn list_git_tags(State(s): State<AppState>) -> impl IntoResponse {
+    let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
+    let gd = crate::git_deploy::GitDeploy::new(dir);
+    if !gd.is_git_repo() {
+        return (StatusCode::BAD_REQUEST, "not a git repository").into_response();
+    }
+    match tokio::task::spawn_blocking(move || gd.list_tags()).await {
+        Ok(Ok(tags)) => Json(tags).into_response(),
+        Ok(Err(e)) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+        Err(e)     => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+    }
+}
+
+#[derive(serde::Deserialize)]
+struct CreateTagBody {
+    name: String,
+    #[serde(default)]
+    message: Option<String>,
+}
+
+/// `POST /api/project/git/tags` — crea un tag (annotato se `message` è dato).
+async fn create_git_tag(State(s): State<AppState>, Json(body): Json<CreateTagBody>) -> impl IntoResponse {
+    let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
+    let gd = crate::git_deploy::GitDeploy::new(dir);
+    if !gd.is_git_repo() {
+        return (StatusCode::BAD_REQUEST, "not a git repository").into_response();
+    }
+    let name = body.name.trim().to_string();
+    if name.is_empty() {
+        return (StatusCode::BAD_REQUEST, "tag name is required").into_response();
+    }
+    let message = body.message.as_deref().map(str::trim).filter(|m| !m.is_empty()).map(String::from);
+    match tokio::task::spawn_blocking(move || gd.create_tag(&name, message.as_deref())).await {
+        Ok(Ok(())) => StatusCode::NO_CONTENT.into_response(),
+        Ok(Err(e)) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+        Err(e)     => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+    }
+}
+
+/// `POST /api/project/git/tags/:name/push` — pubblica un tag esistente su `origin`.
+async fn push_git_tag(State(s): State<AppState>, Path(name): Path<String>) -> impl IntoResponse {
+    let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
+    let gd = crate::git_deploy::GitDeploy::new(dir);
+    if !gd.is_git_repo() {
+        return (StatusCode::BAD_REQUEST, "not a git repository").into_response();
+    }
+    match tokio::task::spawn_blocking(move || gd.push_tag(&name)).await {
+        Ok(Ok(msg)) => Json(serde_json::json!({ "message": msg })).into_response(),
+        Ok(Err(e)) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+        Err(e)     => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+    }
+}
+
+/// `DELETE /api/project/git/tags/:name` — elimina un tag (locale + remote se configurato).
+async fn delete_git_tag(State(s): State<AppState>, Path(name): Path<String>) -> impl IntoResponse {
+    let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
+    let gd = crate::git_deploy::GitDeploy::new(dir);
+    if !gd.is_git_repo() {
+        return (StatusCode::BAD_REQUEST, "not a git repository").into_response();
+    }
+    match tokio::task::spawn_blocking(move || gd.delete_tag(&name)).await {
+        Ok(Ok(())) => StatusCode::NO_CONTENT.into_response(),
         Ok(Err(e)) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
         Err(e)     => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
     }

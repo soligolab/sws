@@ -223,7 +223,7 @@ auth:
 | `Aes256Sha256RsaPss` | AES256-SHA256 | SignAndEncrypt |
 
 Per policy non-None, SWS genera automaticamente un certificato client self-signed
-in `<progetto>/.opcua-pki/<source-id>/`. Il server mostrerà il cert nella lista
+in `<progetto>/opcua-pki/<source-id>/`. Il server mostrerà il cert nella lista
 "certificati non attendibili" al primo collegamento — approvarlo dall'interfaccia
 del server OPC-UA.
 

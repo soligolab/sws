@@ -6,6 +6,7 @@ use axum::{extract::State, http::StatusCode, response::{IntoResponse, Response},
 use rcgen::{CertificateParams, KeyPair, SanType};
 use serde::{Deserialize, Serialize};
 use sws_core::{AlarmDb, TagDb};
+use sws_historian::DatastoreRegistry;
 use sysinfo::{Disks, System};
 
 use crate::router::{active_dir, AppState};
@@ -39,6 +40,7 @@ pub async fn compute_system_status(
     db: &TagDb,
     alarms: &AlarmDb,
     supervisor: &SourceSupervisor,
+    registry: Option<&DatastoreRegistry>,
     project_dir: Option<&Path>,
     started_at: Instant,
 ) -> SystemStatus {
@@ -68,6 +70,14 @@ pub async fn compute_system_status(
     let tag_count = tags.len();
     let source_count = supervisor.running_count().await;
 
+    // Somma i campioni di tutti i datastore configurati — prima era hardcoded
+    // a 0 (mai calcolato). `all_stats()` è lo stesso metodo già usato da
+    // `/api/datastores` per la card di ciascun backend.
+    let historian_samples = match registry {
+        Some(reg) => reg.all_stats().await.iter().map(|(_, s)| s.sample_count).sum(),
+        None => 0,
+    };
+
     SystemStatus {
         runtime_version: env!("CARGO_PKG_VERSION").to_string(),
         uptime_s: started_at.elapsed().as_secs(),
@@ -78,7 +88,7 @@ pub async fn compute_system_status(
         source_count,
         sources_running: source_count > 0,
         alarm_active_count,
-        historian_samples: 0,
+        historian_samples,
         cpu_usage_pct: sys.global_cpu_info().cpu_usage(),
         mem_used_mb: sys.used_memory() / 1_048_576,
         mem_total_mb: sys.total_memory() / 1_048_576,
@@ -89,10 +99,12 @@ pub async fn compute_system_status(
 
 pub async fn get_system_status(State(state): State<AppState>) -> Json<SystemStatus> {
     let dir_guard = state.project_dir.read().await;
+    let registry = state.registry.read().await.clone();
     Json(compute_system_status(
         &state.db,
         &state.alarms,
         &state.supervisor,
+        registry.as_deref(),
         dir_guard.as_deref(),
         state.started_at,
     ).await)
@@ -376,7 +388,7 @@ mod tests {
         let started = Instant::now() - std::time::Duration::from_secs(5);
         let project_path = PathBuf::from("/tmp/demo-project");
 
-        let status = compute_system_status(&db, &alarms, &supervisor, Some(&project_path), started).await;
+        let status = compute_system_status(&db, &alarms, &supervisor, None, Some(&project_path), started).await;
 
         assert_eq!(status.tag_count, 3);
         assert_eq!(status.active_project.as_deref(), Some("demo-project"));
@@ -393,7 +405,7 @@ mod tests {
         let alarms = AlarmDb::new(64);
         alarms.load(vec![]).await;
         let supervisor = make_supervisor();
-        let status = compute_system_status(&db, &alarms, &supervisor, None, Instant::now()).await;
+        let status = compute_system_status(&db, &alarms, &supervisor, None, None, Instant::now()).await;
         assert!(status.active_project.is_none());
         assert_eq!(status.tag_count, 0);
         assert_eq!(status.alarm_active_count, 0);
@@ -432,7 +444,7 @@ mod tests {
         alarms.evaluate("temp", &state).await;
 
         let supervisor = make_supervisor();
-        let status = compute_system_status(&db, &alarms, &supervisor, None, Instant::now()).await;
+        let status = compute_system_status(&db, &alarms, &supervisor, None, None, Instant::now()).await;
         assert_eq!(status.alarm_active_count, 1);
     }
 

@@ -159,6 +159,24 @@ export interface DiscoveredRuntime {
   container: string | null;
 }
 
+export interface SystemStatus {
+  runtime_version: string;
+  uptime_s: number;
+  active_project: string | null;
+  project_saved_by: string | null;
+  project_needs_update: boolean;
+  tag_count: number;
+  source_count: number;
+  sources_running: boolean;
+  alarm_active_count: number;
+  historian_samples: number;
+  cpu_usage_pct: number;
+  mem_used_mb: number;
+  mem_total_mb: number;
+  disk_used_gb: number;
+  disk_total_gb: number;
+}
+
 export interface UserSummary {
   username: string;
   role: UserRole;
@@ -769,23 +787,13 @@ export const api = {
       { method: "DELETE" },
     ),
 
-  getSystemStatus: (): Promise<{
-    runtime_version: string;
-    uptime_s: number;
-    active_project: string | null;
-    project_saved_by: string | null;
-    project_needs_update: boolean;
-    tag_count: number;
-    source_count: number;
-    sources_running: boolean;
-    alarm_active_count: number;
-    historian_samples: number;
-    cpu_usage_pct: number;
-    mem_used_mb: number;
-    mem_total_mb: number;
-    disk_used_gb: number;
-    disk_total_gb: number;
-  }> => request("/api/system"),
+  getSystemStatus: (): Promise<SystemStatus> => request("/api/system"),
+
+  /** Come `getSystemStatus`, ma per il dispositivo remoto connesso — usata da
+   *  `SystemTab` al posto della locale quando `remoteConnected` è vero: "il
+   *  runtime" da mostrare è quello a cui si è connessi, non un secondo
+   *  riquadro affiancato. */
+  remoteGetSystemStatus: (): Promise<SystemStatus> => request("/api/remote/system"),
 
   systemStop:   () => request<void>("/api/system/stop",   { method: "POST" }),
   systemStart:  () => request<void>("/api/system/start",  { method: "POST" }),
@@ -1036,6 +1044,36 @@ export const api = {
   /** POST /api/project/git/push — git push to default remote/branch. */
   pushProject: () =>
     request<{ message: string }>("/api/project/git/push", { method: "POST" }),
+
+  /** POST /api/project/git/init — aggancia il progetto (non l'app SWS) a un
+   *  repository: `git init` (idempotente) + opzionale `remote_url`. Prima
+   *  di questo, un progetto senza `.git` non aveva alcun percorso per
+   *  iniziare a versionarlo da qui. */
+  initProjectGit: (remoteUrl?: string) =>
+    request<void>("/api/project/git/init", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ remote_url: remoteUrl || null }),
+    }),
+
+  /** GET /api/project/git/tags — elenco tag, più recente prima. */
+  listGitTags: () => request<string[]>("/api/project/git/tags"),
+
+  /** POST /api/project/git/tags — crea un tag (annotato se `message` è dato). */
+  createGitTag: (name: string, message?: string) =>
+    request<void>("/api/project/git/tags", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, message: message || null }),
+    }),
+
+  /** POST /api/project/git/tags/:name/push — pubblica un tag su `origin`. */
+  pushGitTag: (name: string) =>
+    request<{ message: string }>(`/api/project/git/tags/${encodeURIComponent(name)}/push`, { method: "POST" }),
+
+  /** DELETE /api/project/git/tags/:name — elimina un tag (locale + remote se configurato). */
+  deleteGitTag: (name: string) =>
+    request<void>(`/api/project/git/tags/${encodeURIComponent(name)}`, { method: "DELETE" }),
 
   /** GET /api/build/packages — list built tarballs in dist/. */
   listPackages: () =>

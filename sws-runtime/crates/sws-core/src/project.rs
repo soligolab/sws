@@ -56,7 +56,7 @@ pub struct TagDef {
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum DatastoreBackendConfig {
     /// Local SQLite file. `path` is relative to the project directory unless
-    /// it starts with `/`. Default path: `.history/historian.db`.
+    /// it starts with `/`. Default path: `history/historian.db`.
     Sqlite {
         #[serde(default = "default_sqlite_history_path")]
         path: String,
@@ -117,7 +117,7 @@ pub struct DatastoreConfig {
     pub retention_days: Option<u64>,
 }
 
-fn default_sqlite_history_path() -> String { ".history/historian.db".into() }
+fn default_sqlite_history_path() -> String { "history/historian.db".into() }
 fn default_pg_port() -> u16 { 5432 }
 fn default_pg_ssl_mode() -> String { "prefer".into() }
 fn default_pg_schema() -> String { "public".into() }
@@ -791,7 +791,7 @@ pub struct Project {
     #[serde(default)]
     pub custom_symbols: Vec<CustomSymbol>,
     /// Named persistent storage backends for tag history. When empty, the
-    /// runtime falls back to a built-in SQLite file under `<project>/.history/`.
+    /// runtime falls back to a built-in SQLite file under `<project>/history/`.
     #[serde(default)]
     pub datastores: Vec<DatastoreConfig>,
     #[serde(default)]

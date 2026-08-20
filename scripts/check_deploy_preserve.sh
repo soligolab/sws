@@ -35,7 +35,7 @@ for pair in "$S src" "$T tgt"; do
 done
 
 # Storico riconoscibile sul TARGET (quello che il deploy non deve toccare).
-TGT_DB="$SCR/tgt/projects/impianto/.history/historian.db"
+TGT_DB="$SCR/tgt/projects/impianto/history/historian.db"
 mkdir -p "$(dirname "$TGT_DB")"
 python3 - "$TGT_DB" <<'PY'
 import sqlite3, sys
@@ -47,7 +47,7 @@ c.commit()
 print(f"  storico sul target: {c.execute('SELECT COUNT(*) FROM samples').fetchone()[0]} campioni")
 PY
 # Backup, ricette e utenti locali del dispositivo.
-mkdir -p "$SCR/tgt/projects/impianto/.bak/2026-01-01T00-00-00Z" "$SCR/tgt/projects/impianto/recipes"
+mkdir -p "$SCR/tgt/projects/impianto/backups/2026-01-01T00-00-00Z" "$SCR/tgt/projects/impianto/recipes"
 echo "ricetta: locale" > "$SCR/tgt/projects/impianto/recipes/mia.yaml"
 cat > "$SCR/tgt/projects/impianto/users.yaml" <<'EOF'
 users:
@@ -92,7 +92,7 @@ fi
 echo "  campioni: $after_samples   (prima: $before_samples)"
 echo "  users.yaml: $(grep username "$SCR/tgt/projects/impianto/users.yaml" 2>/dev/null | sed 's/.*: //' || echo ASSENTE)"
 echo "  ricette: $(cat "$SCR/tgt/projects/impianto/recipes/mia.yaml" 2>/dev/null || echo ASSENTI)"
-echo "  .bak presente: $([ -d "$SCR/tgt/projects/impianto/.bak" ] && echo sì || echo NO)"
+echo "  backups presente: $([ -d "$SCR/tgt/projects/impianto/backups" ] && echo sì || echo NO)"
 echo "  pagine sul target: $(ls "$SCR/tgt/projects/impianto/synoptics/" 2>/dev/null | tr '\n' ' ')"
 echo
 echo "=== esito ==="

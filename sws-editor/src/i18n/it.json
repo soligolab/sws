@@ -112,6 +112,8 @@
   },
   "menu": {
     "saveAll": "Salva tutto",
+    "renameProject": "Rinomina progetto…",
+    "renamePrompt": "Nuovo nome del progetto:",
     "exportProject": "Esporta progetto",
     "importProject": "Importa progetto",
     "exporting": "Esporto…",
@@ -152,7 +154,8 @@
       "backups": "Backup",
       "devices": "Device",
       "runtime": "Runtime",
-      "languages": "Lingue"
+      "languages": "Lingue",
+      "ide": "Preferenze IDE"
     }
   },
   "editor": {
@@ -647,6 +650,8 @@
     "fillArea": "Riempi area",
     "fillOpacity": "Opacità riempimento",
     "smoothCurve": "Arrotonda curva",
+    "ownScale": "Scala propria",
+    "ownScaleHint": "Questa traccia usa una scala verticale indipendente, con la propria colonna di etichette a sinistra — utile quando i valori hanno un ordine di grandezza molto diverso dalle altre tracce.",
     "severity": "Severità",
     "alarmBellHint": "Il click apre sempre il dropdown allarmi — nessuna azione configurabile.",
     "recipePanelHint": "Elenca le ricette e permette all'operatore di applicarne una, come Menu → Applica ricetta.",

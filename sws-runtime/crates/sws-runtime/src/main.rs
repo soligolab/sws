@@ -127,8 +127,8 @@ struct Args {
     /// set its own `auto_backup_interval_minutes` in `project.yaml` (Config →
     /// Backup in the editor). 0 (default) means disabled by default — a
     /// project can still opt in with its own setting. Backups go under
-    /// `<project>/.bak/<UTC-timestamp>/` and cover `project.yaml`,
-    /// `synoptics/`, `users.yaml`, `.history/`, `recipes/`. Triggered via the
+    /// `<project>/backups/<UTC-timestamp>/` and cover `project.yaml`,
+    /// `synoptics/`, `users.yaml`, `history/`, `recipes/`. Triggered via the
     /// `/api/backups` POST endpoint on demand regardless of this setting.
     #[arg(long, default_value_t = 0u64)]
     auto_backup_interval_minutes: u64,
@@ -421,7 +421,13 @@ async fn main() -> anyhow::Result<()> {
     if let Some(project_path) = project_arg {
         // Legacy auto-open path: bootstrap exactly as the single-project
         // runtime did, then mark this dir as active.
-        supervisor.set_pki_root(project_path.join(".opcua-pki")).await;
+        //
+        // Migrate legacy dot-prefixed dirs (.history/.bak/.opcua-pki) to
+        // their visible names BEFORE resolving the PKI root below — same
+        // migration `open_project` runs, see its doc comment for why these
+        // two call sites are the only ones that need it.
+        sws_web::projects::migrate_legacy_project_dirs(&project_path);
+        supervisor.set_pki_root(project_path.join("opcua-pki")).await;
         match sws_core::project::Project::load(&project_path) {
             Ok(mut project) => {
                 // Notifiche e script globali si mettono da parte: i loro

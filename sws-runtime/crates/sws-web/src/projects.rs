@@ -438,7 +438,7 @@ pub async fn apply_loaded_project(
         }
     }
     // Swap the global historian's SQLite to this project's primary store.
-    // All history reads/writes now go to <project>/.history/historian.db.
+    // All history reads/writes now go to <project>/history/historian.db.
     {
         let hist_store = registry.read().await.as_ref()
             .and_then(|r| r.primary_sqlite_store());
@@ -480,6 +480,7 @@ pub async fn open_project(
     if !tokio::fs::try_exists(&project_dir).await.unwrap_or(false) {
         return (StatusCode::NOT_FOUND, "project not found").into_response();
     }
+    migrate_legacy_project_dirs(&project_dir);
 
     // Read seed from env so newly-opened projects without a users.yaml
     // get bootstrapped with admin/etc. — same flow as the legacy
@@ -501,7 +502,7 @@ pub async fn open_project(
     };
     // Retroactively add the per-project default datastore for legacy projects
     // that were created before this field existed (datastores: []).
-    // This ensures every project records history into its own .history/
+    // This ensures every project records history into its own history/
     // directory instead of the shared global historian.
     if project.datastores.is_empty() {
         project.datastores.push(default_datastore());
@@ -540,7 +541,7 @@ pub async fn open_project(
 
     // Point the OPC-UA plugin at this project's PKI dir so cert + key
     // travel with the project (back up + restore included).
-    s.supervisor.set_pki_root(project_dir.join(".opcua-pki")).await;
+    s.supervisor.set_pki_root(project_dir.join("opcua-pki")).await;
 
     // 3. Apply the new project.
     let (notifications, global_scripts) = apply_loaded_project(
@@ -647,7 +648,7 @@ pub struct DeleteQuery {
     /// `synoptics/`) e lascia intatto tutto lo stato locale del dispositivo.
     ///
     /// Serve al deploy remoto, che prima di caricare il progetto nuovo cancellava
-    /// la cartella intera — portandosi via `.history/`, cioè il database storico.
+    /// la cartella intera — portandosi via `history/`, cioè il database storico.
     /// Lo storico è l'unica cosa in un progetto che **non si può ricreare**: le
     /// pagine si riesportano dall'IDE, i mesi di campioni no.
     ///
@@ -688,8 +689,8 @@ pub async fn delete_project(
         return StatusCode::NO_CONTENT.into_response();
     }
 
-    // Deploy: si rimuovono solo gli artefatti di progettazione. `.history/` (il
-    // database), `.bak/`, `recipes/`, `.opcua-pki/` e `users.yaml` restano dove
+    // Deploy: si rimuovono solo gli artefatti di progettazione. `history/` (il
+    // database), `backups/`, `recipes/`, `opcua-pki/` e `users.yaml` restano dove
     // sono — sono stato del dispositivo, non del progetto che stai distribuendo.
     // Il progetto NON viene rimosso da `known_projects`: la cartella esiste
     // ancora e sta per ricevere i file nuovi.
@@ -780,6 +781,14 @@ pub async fn rename_project(
     if let Err(e) = tokio::fs::rename(&old_dir, &new_dir).await {
         warn!("rename_project: rename {old_name} → {new_name}: {e}");
         return (StatusCode::INTERNAL_SERVER_ERROR, "cannot rename project dir").into_response();
+    }
+    // Keep meta.name in sync with the folder/registry name — otherwise a
+    // project renamed while open would keep showing its old name in the UI
+    // (GET /api/project serves project.yaml as-is, never reconciled against
+    // the folder it lives in).
+    let yaml_path = new_dir.join("project.yaml");
+    if let Err(e) = patch_project_name(&yaml_path, &new_name).await {
+        warn!("rename_project: patch meta.name {}: {e}", yaml_path.display());
     }
     // If the renamed project was open, update the active pointer.
     {
@@ -1111,7 +1120,7 @@ pub async fn upload_project_zip(
     //    its relative path under `target`. We refuse `..` components.
     let file_names: Vec<String> = archive.file_names().map(|n| n.to_string()).collect();
     // Rollback: solo per una cartella creata da noi adesso. In deploy la cartella
-    // conteneva già `.history/` & co. e cancellarla vanificherebbe tutto il fix.
+    // conteneva già `history/` & co. e cancellarla vanificherebbe tutto il fix.
     let rollback = |target: std::path::PathBuf, deploy: bool| async move {
         if !deploy {
             let _ = tokio::fs::remove_dir_all(&target).await;
@@ -1373,7 +1382,7 @@ pub fn default_datastore() -> DatastoreConfig {
         id: "default".into(),
         label: "Storico locale".into(),
         backend: DatastoreBackendConfig::Sqlite {
-            path: ".history/historian.db".into(),
+            path: "history/historian.db".into(),
         },
         retention_rows: None,
         retention_days: None,
@@ -1442,6 +1451,105 @@ mod tests {
         assert!(resolve_new_dir("/tmp", "a/b").is_err());     // no nesting
         assert!(resolve_new_dir("/tmp", ".hidden").is_err());
     }
+
+    #[test]
+    fn migrate_legacy_project_dirs_renames_old_dot_dirs() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let project = tmp.path();
+        std::fs::create_dir_all(project.join(".history")).unwrap();
+        std::fs::write(project.join(".history/historian.db"), b"db").unwrap();
+        std::fs::create_dir_all(project.join(".bak/2026-01-01T00-00-00Z")).unwrap();
+        std::fs::create_dir_all(project.join(".opcua-pki/mysource")).unwrap();
+
+        migrate_legacy_project_dirs(project);
+
+        assert!(!project.join(".history").exists());
+        assert!(!project.join(".bak").exists());
+        assert!(!project.join(".opcua-pki").exists());
+        assert_eq!(std::fs::read(project.join("history/historian.db")).unwrap(), b"db");
+        assert!(project.join("backups/2026-01-01T00-00-00Z").is_dir());
+        assert!(project.join("opcua-pki/mysource").is_dir());
+    }
+
+    #[test]
+    fn migrate_legacy_project_dirs_is_a_noop_once_migrated() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let project = tmp.path();
+        std::fs::create_dir_all(project.join("history")).unwrap();
+        std::fs::write(project.join("history/historian.db"), b"already-migrated").unwrap();
+
+        migrate_legacy_project_dirs(project); // must not touch anything or error
+        migrate_legacy_project_dirs(project); // idempotent on a second run too
+
+        assert!(!project.join(".history").exists());
+        assert_eq!(std::fs::read(project.join("history/historian.db")).unwrap(), b"already-migrated");
+    }
+
+    #[test]
+    fn migrate_legacy_project_dirs_never_overwrites_an_existing_new_dir() {
+        // A project that somehow ended up with both names (e.g. a manual
+        // partial migration) must not lose data by having the rename clobber
+        // the new directory — leave both exactly as found.
+        let tmp = tempfile::TempDir::new().unwrap();
+        let project = tmp.path();
+        std::fs::create_dir_all(project.join(".history")).unwrap();
+        std::fs::write(project.join(".history/historian.db"), b"old").unwrap();
+        std::fs::create_dir_all(project.join("history")).unwrap();
+        std::fs::write(project.join("history/historian.db"), b"new").unwrap();
+
+        migrate_legacy_project_dirs(project);
+
+        assert_eq!(std::fs::read(project.join(".history/historian.db")).unwrap(), b"old");
+        assert_eq!(std::fs::read(project.join("history/historian.db")).unwrap(), b"new");
+    }
+
+    #[test]
+    fn migrate_legacy_project_dirs_rewrites_the_default_sqlite_path_in_project_yaml() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let project = tmp.path();
+        std::fs::write(project.join("project.yaml"), "\
+meta:
+  name: test
+  version: \"0.1.0\"
+datastores:
+  - id: default
+    label: Storico locale
+    backend:
+      kind: sqlite
+      path: .history/historian.db
+").unwrap();
+
+        migrate_legacy_project_dirs(project);
+
+        let raw = std::fs::read_to_string(project.join("project.yaml")).unwrap();
+        let doc: serde_yaml::Value = serde_yaml::from_str(&raw).unwrap();
+        let path = doc["datastores"][0]["backend"]["path"].as_str().unwrap();
+        assert_eq!(path, "history/historian.db");
+    }
+
+    #[test]
+    fn migrate_legacy_project_dirs_leaves_a_custom_sqlite_path_untouched() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let project = tmp.path();
+        std::fs::write(project.join("project.yaml"), "\
+meta:
+  name: test
+  version: \"0.1.0\"
+datastores:
+  - id: default
+    label: Storico locale
+    backend:
+      kind: sqlite
+      path: /custom/altrove/storico.db
+").unwrap();
+
+        migrate_legacy_project_dirs(project);
+
+        let raw = std::fs::read_to_string(project.join("project.yaml")).unwrap();
+        let doc: serde_yaml::Value = serde_yaml::from_str(&raw).unwrap();
+        let path = doc["datastores"][0]["backend"]["path"].as_str().unwrap();
+        assert_eq!(path, "/custom/altrove/storico.db");
+    }
 }
 
 /// Rewrite `meta.name` in a copied `project.yaml` to match the user-chosen
@@ -1456,6 +1564,77 @@ async fn patch_project_name(yaml_path: &StdPath, name: &str) -> anyhow::Result<(
     let updated = serde_yaml::to_string(&doc)?;
     tokio::fs::write(yaml_path, updated).await?;
     Ok(())
+}
+
+/// Dot-prefixed working directories this codebase used to create inside a
+/// project, mapped to the visible name they migrate to. `.git` is
+/// deliberately absent: it's not ours to rename — git itself hardcodes that
+/// name, and a project versioned via "Versionamento progetto" needs it
+/// exactly as-is.
+const LEGACY_HIDDEN_DIRS: &[(&str, &str)] = &[
+    (".history", "history"),
+    (".bak", "backups"),
+    (".opcua-pki", "opcua-pki"),
+];
+
+/// Migrates a project's legacy dot-prefixed working directories (historian
+/// DB, backup snapshots, OPC-UA PKI store) to their new visible names, and
+/// keeps the SQLite datastore path in `project.yaml` in sync so it doesn't
+/// keep pointing at a folder that no longer exists. Idempotent — a project
+/// already migrated (or one that never had these directories) is untouched.
+///
+/// Called once whenever a project directory becomes the active one (runtime
+/// boot auto-open in `main.rs`, and `open_project` here) — the only two
+/// places that resolve the historian/PKI paths for a project, see their
+/// call sites for why nothing else needs to run this.
+pub fn migrate_legacy_project_dirs(project_dir: &StdPath) {
+    for (old, new) in LEGACY_HIDDEN_DIRS {
+        let old_path = project_dir.join(old);
+        let new_path = project_dir.join(new);
+        if !old_path.exists() || new_path.exists() {
+            continue;
+        }
+        match std::fs::rename(&old_path, &new_path) {
+            Ok(()) => info!(project = %project_dir.display(), old, new, "migrated legacy hidden directory"),
+            Err(e) => warn!(project = %project_dir.display(), old, new, "migrate_legacy_project_dirs: rename failed: {e}"),
+        }
+    }
+    migrate_legacy_sqlite_path(project_dir);
+}
+
+/// The `.history` → `history` rename above only moves the folder; if
+/// `project.yaml` stores the exact legacy default path (`.history/historian.db`
+/// — written whenever a project ever got the default datastore injected and
+/// then saved), the datastore would keep looking for the old location.
+/// Any other value (custom path, absolute path, non-SQLite backend) is left
+/// untouched — this only follows the one rename this migration performs.
+fn migrate_legacy_sqlite_path(project_dir: &StdPath) {
+    let yaml_path = project_dir.join("project.yaml");
+    let Ok(raw) = std::fs::read_to_string(&yaml_path) else { return };
+    let Ok(mut doc) = serde_yaml::from_str::<serde_yaml::Value>(&raw) else { return };
+    let Some(datastores) = doc.get_mut("datastores").and_then(|d| d.as_sequence_mut()) else { return };
+    let mut changed = false;
+    for ds in datastores {
+        let Some(backend) = ds.get_mut("backend") else { continue };
+        if backend.get("kind").and_then(|k| k.as_str()) != Some("sqlite") {
+            continue;
+        }
+        if backend.get("path").and_then(|p| p.as_str()) == Some(".history/historian.db") {
+            backend["path"] = serde_yaml::Value::String("history/historian.db".into());
+            changed = true;
+        }
+    }
+    if !changed {
+        return;
+    }
+    match serde_yaml::to_string(&doc) {
+        Ok(updated) => {
+            if let Err(e) = std::fs::write(&yaml_path, updated) {
+                warn!("migrate_legacy_sqlite_path: write {}: {e}", yaml_path.display());
+            }
+        }
+        Err(e) => warn!("migrate_legacy_sqlite_path: serialize {}: {e}", yaml_path.display()),
+    }
 }
 
 #[allow(unused_imports)]

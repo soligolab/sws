@@ -1,18 +1,29 @@
 //! T-20 — GitOps helpers: git operations on the active project directory.
 //!
+//! Versions the *project* the same way a developer would version any other
+//! directory — never the SWS application/runtime source tree, which lives
+//! entirely elsewhere on disk and this module never touches.
+//!
 //! All operations shell out to the `git` binary via `std::process::Command`.
 //! No `libgit2` C dependency — git is assumed to be on PATH.
 //!
 //! Endpoints:
-//!   GET  /api/project/git-status   — current sha, branch, remote, last deploy
-//!   POST /api/project/deploy       — git pull + project hot-reload
-//!   POST /api/project/rollback     — git reset --hard HEAD~1 + hot-reload
+//!   GET    /api/project/git-status        — current sha, branch, remote, last deploy
+//!   POST   /api/project/git/init          — attach the project to a repository (init + set/replace origin)
+//!   POST   /api/project/deploy            — git pull + project hot-reload
+//!   POST   /api/project/rollback          — git reset --hard HEAD~1 + hot-reload
+//!   POST   /api/project/git/commit        — git add -A + commit
+//!   POST   /api/project/git/push          — git push
+//!   GET    /api/project/git/tags          — list tags
+//!   POST   /api/project/git/tags          — create a tag
+//!   POST   /api/project/git/tags/:name/push   — push a single tag
+//!   DELETE /api/project/git/tags/:name    — delete a tag (local + remote)
 
 use std::{
     path::PathBuf,
     process::Command,
 };
-use tracing::info;
+use tracing::{info, warn};
 
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct GitStatus {
@@ -45,12 +56,27 @@ impl GitDeploy {
         Self { project_dir }
     }
 
-    /// Returns true if `project_dir` is inside a git repository.
+    /// Returns true if `project_dir` is itself the root of a git repository.
+    ///
+    /// Deliberately NOT `rev-parse --git-dir` alone: that succeeds for any directory
+    /// nested inside any repository (git walks up parents to find `.git`), so a project
+    /// living under a dev checkout of SWS itself (e.g. `--projects-root` pointed inside
+    /// this repo) would silently report the SWS repo as the project's own — this method
+    /// requires `project_dir` to equal the repo's `--show-toplevel`.
     pub fn is_git_repo(&self) -> bool {
-        Command::new("git")
-            .args(["-C", &self.project_dir.to_string_lossy(), "rev-parse", "--git-dir"])
+        let canon_dir = match std::fs::canonicalize(&self.project_dir) {
+            Ok(p) => p,
+            Err(_) => return false,
+        };
+        let toplevel = match Command::new("git")
+            .args(["-C", &self.project_dir.to_string_lossy(), "rev-parse", "--show-toplevel"])
             .output()
-            .map(|o| o.status.success())
+        {
+            Ok(o) if o.status.success() => String::from_utf8_lossy(&o.stdout).trim().to_string(),
+            _ => return false,
+        };
+        std::fs::canonicalize(&toplevel)
+            .map(|p| p == canon_dir)
             .unwrap_or(false)
     }
 
@@ -167,13 +193,55 @@ impl GitDeploy {
             .unwrap_or(0)
     }
 
-    /// `git init` + `git remote add origin <url>` for a new project.
-    pub fn init_remote(&self, remote_url: &str) -> anyhow::Result<()> {
+    /// Aggancia il progetto a un repository: `git init` (idempotente — non
+    /// distrugge la history se il progetto è già un repo) e, se `remote_url`
+    /// è fornito, imposta/sostituisce `origin`. Copre sia un progetto mai
+    /// versionato sia uno già inizializzato localmente senza remote.
+    pub fn init_remote(&self, remote_url: Option<&str>) -> anyhow::Result<()> {
         let dir = self.project_dir.to_string_lossy().to_string();
         run_git(&dir, &["init"])?;
-        // Remove existing remote if present, ignore error.
-        let _ = Command::new("git").args(["-C", &dir, "remote", "remove", "origin"]).output();
-        run_git(&dir, &["remote", "add", "origin", remote_url])?;
+        if let Some(url) = remote_url {
+            // Rimuove l'eventuale remote esistente, ignora l'errore (non c'era).
+            let _ = Command::new("git").args(["-C", &dir, "remote", "remove", "origin"]).output();
+            run_git(&dir, &["remote", "add", "origin", url])?;
+        }
+        Ok(())
+    }
+
+    /// Nomi dei tag esistenti, più recente per prima.
+    pub fn list_tags(&self) -> anyhow::Result<Vec<String>> {
+        let dir = self.project_dir.to_string_lossy().to_string();
+        let out = git_out(&dir, &["tag", "--sort=-creatordate"])?;
+        Ok(out.lines().map(|s| s.to_string()).filter(|s| !s.is_empty()).collect())
+    }
+
+    /// Crea un tag — annotato (`-a -m`) se `message` è fornito, altrimenti
+    /// leggero (solo un puntatore, come `git tag <name>`).
+    pub fn create_tag(&self, name: &str, message: Option<&str>) -> anyhow::Result<()> {
+        let dir = self.project_dir.to_string_lossy().to_string();
+        match message {
+            Some(msg) => run_git(&dir, &["tag", "-a", name, "-m", msg]),
+            None => run_git(&dir, &["tag", name]),
+        }
+    }
+
+    /// `git push origin <name>` — pubblica un tag già esistente localmente.
+    pub fn push_tag(&self, name: &str) -> anyhow::Result<String> {
+        let dir = self.project_dir.to_string_lossy().to_string();
+        git_out(&dir, &["push", "origin", name])
+    }
+
+    /// Elimina un tag: sempre in locale; anche sul remote se ne è configurato
+    /// uno — un fallimento della sola parte remota (es. il tag non era mai
+    /// stato pushato) non fa fallire l'operazione, viene solo loggato.
+    pub fn delete_tag(&self, name: &str) -> anyhow::Result<()> {
+        let dir = self.project_dir.to_string_lossy().to_string();
+        run_git(&dir, &["tag", "-d", name])?;
+        if git_out(&dir, &["remote", "get-url", "origin"]).is_ok() {
+            if let Err(e) = git_out(&dir, &["push", "origin", &format!(":refs/tags/{name}")]) {
+                warn!("delete_tag: rimozione del tag {name} sul remote fallita (forse non era mai stato pushato): {e}");
+            }
+        }
         Ok(())
     }
 }
@@ -195,4 +263,39 @@ fn run_git(dir: &str, args: &[&str]) -> anyhow::Result<()> {
     let status = Command::new("git").arg("-C").arg(dir).args(args).status()
         .map_err(|e| anyhow::anyhow!("git {}: {e}", args.join(" ")))?;
     if status.success() { Ok(()) } else { Err(anyhow::anyhow!("git {} failed", args.join(" "))) }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::TempDir;
+
+    #[test]
+    fn is_git_repo_true_when_dir_is_the_repo_root() {
+        let tmp = TempDir::new().unwrap();
+        run_git(&tmp.path().to_string_lossy(), &["init"]).unwrap();
+
+        let gd = GitDeploy::new(tmp.path().to_path_buf());
+        assert!(gd.is_git_repo());
+    }
+
+    #[test]
+    fn is_git_repo_false_for_a_subdirectory_of_a_repo() {
+        // Reproduces the Sandokan bug: a project dir nested inside an unrelated
+        // repo (here, the tempdir itself) must NOT be reported as its own repo.
+        let tmp = TempDir::new().unwrap();
+        run_git(&tmp.path().to_string_lossy(), &["init"]).unwrap();
+        let nested = tmp.path().join("projects").join("Sandokan");
+        std::fs::create_dir_all(&nested).unwrap();
+
+        let gd = GitDeploy::new(nested);
+        assert!(!gd.is_git_repo());
+    }
+
+    #[test]
+    fn is_git_repo_false_outside_any_repo() {
+        let tmp = TempDir::new().unwrap();
+        let gd = GitDeploy::new(tmp.path().to_path_buf());
+        assert!(!gd.is_git_repo());
+    }
 }
