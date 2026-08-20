@@ -938,7 +938,7 @@ pub struct ContainerManageRequest {
     #[serde(default)]
     pub password: String,
     /// "status" | "start" | "stop" | "restart" | "enable" | "disable"
-    /// | "set_restart_policy" | "uninstall".
+    /// | "set_restart_policy" | "prune_images" | "uninstall".
     pub action: String,
     /// "always" | "on-failure" | "no" — only read for `set_restart_policy`.
     #[serde(default)]
@@ -1015,6 +1015,12 @@ fn build_manage_cmd(
                  ~/.config/containers/systemd/{name}.container && systemctl --user daemon-reload"
             ))
         }
+        // Rimuove ogni immagine non referenziata da un container (in esecuzione
+        // o fermo) — non solo le `<none>` dangling: anche vecchie versioni
+        // taggate (es. `2026.7.0-arm64-generic`) che nessun container usa più.
+        // Nato da un device reale rimasto senza spazio con 18 immagini
+        // accumulate in poche settimane, di cui una sola davvero in uso.
+        "prune_images" => Ok("podman image prune -a -f".to_string()),
         "uninstall" => {
             let mut cmd = format!(
                 "systemctl --user disable --now {name} 2>/dev/null || true; \
@@ -1525,6 +1531,11 @@ mod tests {
         ] {
             assert_eq!(build_manage_cmd(action, "", false, "").unwrap(), expected);
         }
+    }
+
+    #[test]
+    fn build_manage_cmd_prune_images() {
+        assert_eq!(build_manage_cmd("prune_images", "", false, "").unwrap(), "podman image prune -a -f");
     }
 
     /// `systemctl --user enable/disable` è un no-op per una unit generata da

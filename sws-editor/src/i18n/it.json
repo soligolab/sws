@@ -737,6 +737,8 @@
     "restartPolicyOnFailure": "Solo su errore",
     "restartPolicyNo": "Mai (manuale)",
     "manageApplyPolicy": "Applica",
+    "managePruneImages": "🧹 Pulisci immagini non usate",
+    "managePruneImagesHint": "Rimuove ogni immagine podman non usata dal container in esecuzione (versioni precedenti accumulate a ogni deploy). Non tocca l'immagine attiva.",
     "uninstallPurge": "Cancella anche i dati",
     "uninstallPurgeHint": "Azzera progetti, configurazione e storico in {{path}} durante la disinstallazione",
     "uninstallBtn": "🗑 Disinstalla",

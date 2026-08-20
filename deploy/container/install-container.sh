@@ -238,6 +238,40 @@ elif podman volume exists sws-projects 2>/dev/null; then
 fi
 fi   # fine del blocco saltato da --pull-only
 
+# ── 1.5 Spazio disco disponibile ──────────────────────────────────────────────
+# Un dispositivo con lo storage quasi pieno fa fallire `podman load`/`pull` con
+# una cascata di errori di formato immagine fuorvianti ("no space left on
+# device" annegato in mezzo a tentativi oci/dir che falliscono comunque per
+# altri motivi, indipendentemente dallo spazio) — visto dal vivo il 2026-08-20
+# su un TC620 con 18 immagini vecchie accumulate in poche settimane (~500MB
+# l'una, solo quella in uso dal container serviva davvero). Controllato PRIMA
+# di scaricare/caricare, con un messaggio che dice subito cosa fare.
+if [ "$PULL" -eq 1 ] || [ -n "$IMAGE_ARCHIVE" ]; then
+    STORAGE_ROOT="$(podman info --format '{{.Store.GraphRoot}}' 2>/dev/null || echo "$HOME")"
+    AVAIL_KB="$(df -Pk "$STORAGE_ROOT" 2>/dev/null | awk 'NR==2{print $4}')"
+    if [ -n "$IMAGE_ARCHIVE" ]; then
+        ARCHIVE_KB=$(( $(stat -c%s "$IMAGE_ARCHIVE" 2>/dev/null || stat -f%z "$IMAGE_ARCHIVE" 2>/dev/null || echo 0) / 1024 ))
+        # x3: l'archivio compresso da caricare, più i layer estratti nello
+        # storage finale — stima prudente, non un calcolo esatto (podman non
+        # lo espone prima di provare a caricare per davvero).
+        NEEDED_KB=$(( ARCHIVE_KB * 3 ))
+    else
+        # --pull: la dimensione non si conosce finché non si scarica. Minimo
+        # prudente basato sulla dimensione tipica delle immagini pubblicate
+        # (~500MB) più lo stesso margine di estrazione.
+        NEEDED_KB=$(( 500 * 1024 * 3 ))
+    fi
+    if [ -n "$AVAIL_KB" ] && [ "$AVAIL_KB" -gt 0 ] && [ "$AVAIL_KB" -lt "$NEEDED_KB" ]; then
+        echo "ERRORE: spazio insufficiente su $STORAGE_ROOT." >&2
+        echo "        Liberi: $((AVAIL_KB / 1024)) MB — ne servono almeno $((NEEDED_KB / 1024)) MB." >&2
+        echo "        Immagini podman vecchie sono la causa più comune: elenca con" >&2
+        echo "        'podman images' e libera con 'podman image prune -a -f'" >&2
+        echo "        (rimuove tutto ciò che non è usato da un container in esecuzione)." >&2
+        echo "        Nessuna modifica effettuata: il runtime in esecuzione non è stato toccato." >&2
+        exit 1
+    fi
+fi
+
 # ── 2. Immagine ───────────────────────────────────────────────────────────────
 # Prima di toccare il servizio in esecuzione: se l'immagine non si procura, il
 # dispositivo deve restare esattamente com'era.

@@ -6,6 +6,41 @@
 >
 > **Pulizia 2026-07-27**: rimossi i task già chiusi e le sezioni di verifica ormai superate; le sessioni mergiate **e** verificate fino al 2026-07-09 sono compresse in «Storico». Il dettaglio integrale resta in `CHANGELOG.md` e nella history git.
 
+**Sessione 2026-08-20 — device reale senza spazio: pulizia manuale + controllo disco +
+pulsante prune immagini** (branch `feat/container-deploy-diskspace-and-image-cleanup`, da
+`main`). Il maintainer stava provando il deploy container con LVGL su un Pixsys TC620 reale
+(`tc620-a-p3-c6-07aff9.local`) e ha incontrato `podman load` fallito con una cascata di errori
+di formato immagine — in mezzo, annegato: `no space left on device`. Verificato dal vivo via SSH
+(autorizzato esplicitamente dal maintainer per questo device in questa sessione): `/mnt/data` al
+**97%** (343MB liberi su 10G), **18 immagini podman accumulate in poche settimane** (~500MB
+l'una), di cui **una sola** in uso dal container attivo (`CONTAINERS=1` su tutte le altre = 0).
+Pulito a mano (`podman image prune -a -f`): liberati ~6.2GB, da 343MB a 6.5GB disponibili (97%
+→ 31%). Poi, con lo storage libero, completato per davvero il deploy dell'immagine LVGL che
+era rimasto bloccato — riuscito, container `sws-runtime:2.0.1-arm64-generic` healthy, viewer
+raggiungibile su `http://192.168.1.179:8443`.
+
+Due modifiche per non ripetere questa diagnosi manuale la prossima volta:
+1. **Controllo spazio disco in `install-container.sh`** prima di `podman load`/`pull`:
+   confronta lo spazio libero sulla graph root di podman
+   (`podman info --format '{{.Store.GraphRoot}}'`) contro una stima prudente (3× la dimensione
+   dell'archivio per `--image`, un minimo fisso di ~1.5GB per `--pull` la cui dimensione non si
+   conosce prima di scaricare) — si ferma con un messaggio chiaro invece di lasciare che
+   l'errore arrivi da `podman load` sotto forma della cascata fuorviante di prima. **Verificato
+   dal vivo due volte** sul device reale: (a) `podman info --format` + `df -Pk` restituiscono
+   esattamente il path/numeri attesi sul TC620; (b) il deploy completo dell'immagine LVGL (99MB
+   → poi ricompilata a 151MB) con lo storage ora libero è passato senza falsi positivi e ha
+   installato con successo fino in fondo.
+2. **Pulsante "🧹 Pulisci immagini non usate"** in Config → Runtime → gestione container: nuova
+   azione `prune_images` (`podman image prune -a -f`, riusa `run_ssh_cmd`/`run_local_cmd` già
+   esistenti, stesso pattern di start/stop/enable/disable/uninstall). **Verificato dal vivo** sul
+   device reale (comando eseguito direttamente via SSH prima di cablarlo nel pulsante): rimossa
+   l'unica immagine rimasta non in uso (`ghcr.io/.../latest-arm64-generic`), quella attiva
+   (`localhost/sws-runtime:2.0.1-arm64-generic`, container "healthy") intoccata.
+
+**Verificato**: `cargo check -p sws-web` verde, 33/33 test `packaging` verdi (incluso il nuovo
+`build_manage_cmd_prune_images`), `pnpm type-check` verde, `bash -n` su `install-container.sh`
+pulito.
+
 **Sessione 2026-08-20 — deploy nativo da IDE: due bug reali trovati dal vivo** (branch
 `fix/deploy-device-native-tarball`, da `main`). Il maintainer stava provando a installare il
 runtime nativo su un PC x86 da Configurazione → Runtime e ha incontrato in sequenza:
