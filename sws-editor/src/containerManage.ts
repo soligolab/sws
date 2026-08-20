@@ -7,6 +7,7 @@ export type ManageAction =
   | "enable"
   | "disable"
   | "set_restart_policy"
+  | "prune_images"
   | "uninstall";
 
 /** Policy `Restart=` accettate dal backend — stesso dominio chiuso validato

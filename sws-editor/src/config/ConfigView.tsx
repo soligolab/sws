@@ -8110,6 +8110,14 @@ function RuntimeConnectionTab() {
                       onClick={() => void handleManage("disable")}>{t("cfg.manageDisableBoot")}</button>
                   </div>
 
+                  <div style={{ marginBottom: 10 }}>
+                    <button style={BTN} disabled={managing || (!manageLocal && (!deviceHost || !deviceUser))}
+                      onClick={() => void handleManage("prune_images")}>{t("cfg.managePruneImages")}</button>
+                    <div style={{ fontSize: 10, color: "var(--brand-text-subtle, #64748b)", marginTop: 3, maxWidth: 480 }}>
+                      {t("cfg.managePruneImagesHint")}
+                    </div>
+                  </div>
+
                   <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 10, flexWrap: "wrap" }}>
                     <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)" }}>{t("cfg.restartPolicy")}</label>
                     <select

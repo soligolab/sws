@@ -11,6 +11,26 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### Added
+
+- **Controllo spazio disco prima di installare un'immagine container**
+  (`install-container.sh`): un device con lo storage quasi pieno faceva fallire
+  `podman load`/`pull` con una cascata di errori di formato immagine fuorvianti
+  (`oci`/`dir` falliscono comunque per altri motivi, `oci-archive`/`docker-archive`
+  con "no space left on device" annegato in mezzo) — trovato dal vivo su un TC620
+  con 18 immagini vecchie accumulate in poche settimane (~500MB l'una, solo una
+  in uso), storage al 97%. Ora, prima di scaricare/caricare, controlla lo spazio
+  libero sulla graph root di podman (`podman info --format '{{.Store.GraphRoot}}'`)
+  contro una stima prudente (3× la dimensione dell'archivio, o un minimo fisso per
+  `--pull` la cui dimensione non si conosce in anticipo) e si ferma con un
+  messaggio chiaro invece di lasciare che l'errore arrivi da podman.
+- **Pulsante "Pulisci immagini non usate"** nella sezione di gestione container
+  (Config → Runtime): nuova azione `prune_images` (`podman image prune -a -f`,
+  rimuove ogni immagine non referenziata da un container — non solo le
+  `<none>` dangling, anche vecchie versioni taggate — senza mai toccare quella
+  in uso). Prima l'unico modo di liberare spazio da immagini vecchie era SSH a
+  mano sul device.
+
 ### Fixed
 
 - **Deploy nativo da IDE (`/api/deploy/device`) falliva su un device pulito**: lo SCP del
