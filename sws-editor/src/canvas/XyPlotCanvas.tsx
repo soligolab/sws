@@ -26,6 +26,10 @@ interface XyPlotCanvasProps {
   yMin?: number;
   yMax?: number;
   pollMs?: number;
+  /** Universal background layer (color + image URL), same semantics as the
+   *  other widgets' bg_color/bg_image. */
+  bgColor?: string;
+  bgImage?: string;
 }
 
 const PAD = 22;
@@ -34,6 +38,7 @@ export function XyPlotCanvas({
   xValue, yValue, trailS = 30, width, height,
   lineColor = "var(--brand-primary, #3b82f6)",
   xMin, xMax, yMin, yMax, pollMs = 200,
+  bgColor, bgImage,
 }: XyPlotCanvasProps) {
   const latest = useRef<{ x?: number; y?: number }>({});
   latest.current = { x: xValue, y: yValue };
@@ -71,7 +76,11 @@ export function XyPlotCanvas({
 
   return (
     <svg width={width} height={height} style={{ display: "block" }}>
-      <rect x={0} y={0} width={width} height={height} fill="var(--brand-bg, #0f172a)" />
+      <rect x={0} y={0} width={width} height={height} fill={bgColor ?? "var(--brand-bg, #0f172a)"} />
+      {bgImage && (
+        <image href={bgImage} x={0} y={0} width={width} height={height}
+          preserveAspectRatio="xMidYMid slice" style={{ pointerEvents: "none" }} />
+      )}
       <rect x={PAD} y={PAD} width={plotW} height={plotH} fill="none" stroke="var(--brand-surface-2, #334155)" strokeWidth={1} />
       {points.length > 1 && (
         <path d={pathD} fill="none" stroke={lineColor} strokeWidth={1.5} strokeOpacity={0.7} />

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { TrendCanvas } from "@/canvas/TrendCanvas";
+import { PALETTE, TrendCanvas } from "@/canvas/TrendCanvas";
 import { TrendExpandedModal } from "@/canvas/TrendExpanded";
 import { XyPlotCanvas } from "@/canvas/XyPlotCanvas";
 import { getAuthToken } from "@/api/client";
@@ -1139,6 +1139,16 @@ export function SvgCanvas({
         dtShowYear={expandedTrendObj.trend_dt_show_year}
         dtTwoLines={expandedTrendObj.trend_dt_two_lines}
         dtAlwaysShowDate={expandedTrendObj.trend_dt_always_show_date}
+        showThresholds={expandedTrendObj.trend_show_thresholds}
+        warnLow={expandedTrendObj.warn_low}
+        warnHigh={expandedTrendObj.warn_high}
+        alarmLow={expandedTrendObj.alarm_low}
+        alarmHigh={expandedTrendObj.alarm_high}
+        showAlarmMarkers={expandedTrendObj.trend_show_alarm_markers}
+        bgColor={expandedTrendObj.bg_color}
+        bgImage={expandedTrendObj.bg_image}
+        axisColor={expandedTrendObj.axis_color}
+        gridColor={expandedTrendObj.grid_color}
         onClose={() => setExpandedTrendObj(null)}
       />
     )}
@@ -2080,7 +2090,7 @@ export function SvgObject(p: ObjProps) {
   // unconditionally (rules of hooks) even though only the trend branch uses
   // it — this component instance is keyed by obj.id, so the state persists
   // correctly across re-renders of the same object, isolated per object.
-  const [trendZoom, setTrendZoom] = useState<{ fromMs: number; toMs: number } | null>(null);
+  const [trendZoom, setTrendZoom] = useState<{ fromMs: number; toMs: number; yLo?: number; yHi?: number } | null>(null);
   // Draft text for the "setpoint" object type (T-46+ widget audit): null while
   // showing the live tag value, a string while the operator is typing a new
   // one — write only fires on explicit confirm (Enter/button), never on every
@@ -2280,6 +2290,26 @@ export function SvgObject(p: ObjProps) {
     );
   };
 
+  // ── Universal background layer ───────────────────────────────────────────
+  // Flat color first, then image on top — the same stacking CSS gives
+  // background-color + background-image. Rendered inside each type's own
+  // applyTransform so rotation/flip carry over; pointerEvents none so it
+  // never steals clicks from the object's own hit handlers. Types opt in by
+  // calling this inside their block (not every type has a meaningful box:
+  // line and pipe, for instance, are pure strokes).
+  const bgLayer = (x: number, y: number, w: number, h: number, rx = 0) =>
+    (obj.bg_color || obj.bg_image) ? (
+      <>
+        {obj.bg_color && (
+          <rect x={x} y={y} width={w} height={h} rx={rx} fill={obj.bg_color} style={{ pointerEvents: "none" }} />
+        )}
+        {obj.bg_image && (
+          <image href={obj.bg_image} x={x} y={y} width={w} height={h}
+            preserveAspectRatio="xMidYMid slice" style={{ pointerEvents: "none" }} />
+        )}
+      </>
+    ) : null;
+
   // ── RECT ────────────────────────────────────────────────────────────────────
 
   if (obj.type === "rect") {
@@ -2287,14 +2317,18 @@ export function SvgObject(p: ObjProps) {
     const tv = obj.tag ? tagValues[obj.tag] : undefined;
     return (
       <>
-        {applyTransform(obj, w, h,
+        {applyTransform(obj, w, h, <>
           <rect x={obj.x} y={obj.y} width={w} height={h}
             fill={obj.fill ?? "#555"}
             stroke={selected ? "#facc15" : (obj.stroke ?? "none")}
             strokeWidth={selected ? 2 : (obj.stroke_width ?? 0)}
             style={{ cursor: editCursor, ...transitionStyle(obj) }}
             onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()} />
-        )}
+          {obj.bg_image && (
+            <image href={obj.bg_image} x={obj.x} y={obj.y} width={w} height={h}
+              preserveAspectRatio="xMidYMid slice" style={{ pointerEvents: "none" }} />
+          )}
+        </>)}
         {tv && obj.quality_dot !== false && <QDot x={obj.x + w - 8} y={obj.y + 8} quality={tv.quality} goodColor={obj.quality_dot_good_color} badColor={obj.quality_dot_bad_color} uncertainColor={obj.quality_dot_uncertain_color} />}
       </>
     );
@@ -2308,13 +2342,14 @@ export function SvgObject(p: ObjProps) {
     return (
       <>
         {selRect(obj.x, obj.y, w, h)}
-        {applyTransform(obj, w, h,
+        {applyTransform(obj, w, h, <>
+          {bgLayer(obj.x, obj.y, w, h, 4)}
           <ellipse cx={obj.x + w / 2} cy={obj.y + h / 2} rx={w / 2} ry={h / 2}
             fill={obj.fill ?? "#4a90d9"}
             stroke={obj.stroke ?? "none"} strokeWidth={obj.stroke_width ?? 0}
             style={{ cursor: editCursor, ...transitionStyle(obj) }}
             onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()} />
-        )}
+        </>)}
         {tv && obj.quality_dot !== false && <QDot x={obj.x + w - 8} y={obj.y + 8} quality={tv.quality} goodColor={obj.quality_dot_good_color} badColor={obj.quality_dot_bad_color} uncertainColor={obj.quality_dot_uncertain_color} />}
       </>
     );
@@ -2511,7 +2546,8 @@ export function SvgObject(p: ObjProps) {
     return (
       <>
         {selRect(obj.x + dx - 2, obj.y - size + 2, approxW + 4, size + 6)}
-        {applyTransform(obj, approxW, size,
+        {applyTransform(obj, approxW, size, <>
+          {bgLayer(obj.x + dx - 4, obj.y - size, approxW + 8, size + 8, 3)}
           <text
             x={obj.x}
             y={obj.y}
@@ -2527,7 +2563,7 @@ export function SvgObject(p: ObjProps) {
           >
             {content}
           </text>
-        )}
+        </>)}
         {tv && obj.quality_dot !== false && <QDot x={obj.x - 10} y={obj.y - size / 2} quality={tv.quality} goodColor={obj.quality_dot_good_color} badColor={obj.quality_dot_bad_color} uncertainColor={obj.quality_dot_uncertain_color} />}
       </>
     );
@@ -2550,8 +2586,12 @@ export function SvgObject(p: ObjProps) {
             fill={obj.fill ?? "var(--brand-primary, #3b82f6)"}
             stroke={selected ? "#facc15" : "var(--brand-primary-hover, #2563eb)"} strokeWidth={selected ? 2 : 1}
             style={transitionStyle(obj)} />
+          {obj.bg_image && (
+            <image href={obj.bg_image} x={obj.x} y={obj.y} width={w} height={h}
+              preserveAspectRatio="xMidYMid slice" style={{ pointerEvents: "none" }} />
+          )}
           <text x={obj.x + w / 2} y={obj.y + h / 2 + 5}
-            textAnchor="middle" fill="#fff" fontSize={14} fontWeight={600}
+            textAnchor="middle" fill={obj.color ?? "#fff"} fontSize={14} fontWeight={600}
             style={{ pointerEvents: "none" }}>
             {obj.label ?? "Button"}
           </text>
@@ -2577,6 +2617,10 @@ export function SvgObject(p: ObjProps) {
             fill={obj.fill ?? "var(--brand-bg, #0f172a)"}
             stroke={selected ? "#facc15" : "var(--brand-primary, #3b82f6)"} strokeWidth={selected ? 2 : 1.5}
             style={transitionStyle(obj)} />
+          {obj.bg_image && (
+            <image href={obj.bg_image} x={obj.x} y={obj.y} width={w} height={h}
+              preserveAspectRatio="xMidYMid slice" style={{ pointerEvents: "none" }} />
+          )}
           <text x={obj.x + 10} y={obj.y + h / 2 + 5} fill="#3b82f6" fontSize={14}
             style={{ pointerEvents: "none" }}>▶</text>
           <text x={obj.x + 28} y={obj.y + h / 2 + 5} fill="#e2e8f0" fontSize={13}
@@ -2607,6 +2651,10 @@ export function SvgObject(p: ObjProps) {
             fill={obj.fill ?? (active ? "var(--brand-primary, #3b82f6)" : "var(--brand-surface-2, #334155)")}
             stroke={selected ? "#facc15" : "var(--brand-border, #475569)"} strokeWidth={selected ? 2 : 1}
             style={transitionStyle(obj)} />
+          {obj.bg_image && (
+            <image href={obj.bg_image} x={obj.x} y={obj.y} width={w} height={h}
+              preserveAspectRatio="xMidYMid slice" style={{ pointerEvents: "none" }} />
+          )}
           <text x={obj.x + w / 2} y={obj.y + h / 2 + 5} textAnchor="middle"
             fill={active ? "#fff" : "var(--brand-text, #e2e8f0)"} fontSize={13} fontWeight={active ? 700 : 400}
             style={{ pointerEvents: "none" }}>
@@ -2637,6 +2685,10 @@ export function SvgObject(p: ObjProps) {
           <rect x={obj.x} y={obj.y} width={w} height={h} rx={4}
             fill={obj.fill ?? "var(--brand-surface-2, #334155)"}
             stroke="var(--brand-border, #475569)" strokeWidth={1} />
+          {obj.bg_image && (
+            <image href={obj.bg_image} x={obj.x} y={obj.y} width={w} height={h}
+              preserveAspectRatio="xMidYMid slice" style={{ pointerEvents: "none" }} />
+          )}
           <text x={obj.x + 8} y={obj.y + h / 2 + 5} fill="var(--brand-text, #e2e8f0)" fontSize={13}
             style={{ pointerEvents: "none" }}>
             {cur ? cur.toUpperCase() : (langs[0] ?? "—")} ▾
@@ -2654,7 +2706,8 @@ export function SvgObject(p: ObjProps) {
               style={{ width: "100%", height: "100%", boxSizing: "border-box",
                 background: obj.fill ?? "var(--brand-surface-2, #334155)", color: "var(--brand-text, #e2e8f0)",
                 border: "1px solid var(--brand-border, #475569)",
-                borderRadius: 4, fontSize: 13, padding: "0 6px" }}>
+                borderRadius: 4, fontSize: 13, padding: "0 6px",
+                ...(obj.bg_image ? { backgroundImage: `url(${obj.bg_image})`, backgroundSize: "cover", backgroundPosition: "center" } : {}) }}>
               {langs.length === 0 && <option value="">—</option>}
               {langs.map((l) => <option key={l} value={l}>{l.toUpperCase()}</option>)}
             </select>
@@ -2688,6 +2741,7 @@ export function SvgObject(p: ObjProps) {
          style={{ cursor: editCursor }}>
         {selected && <circle cx={cx} cy={cy} r={r + 4} fill="none" stroke="#facc15" strokeWidth={1} />}
         {applyTransform(obj, ledW, ledW, <>
+          {bgLayer(obj.x, obj.y, ledW, ledW, 4)}
           {/* Glow ring */}
           {isOn && <circle cx={cx} cy={cy} r={r + 3} fill={glowColor} opacity={0.25} style={{ pointerEvents: "none" }} />}
           {/* LED body */}
@@ -2727,6 +2781,7 @@ export function SvgObject(p: ObjProps) {
     return (
       <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()} style={{ cursor: editCursor }}>
         {selRect(obj.x, obj.y, obj.width ?? 140, h)}
+        {bgLayer(obj.x, obj.y, obj.width ?? 140, h, 4)}
         <circle cx={cx} cy={cy} r={r - 2} fill={lampColor} style={transitionStyle(obj)} />
         <circle cx={cx - (r - 2) * 0.25} cy={cy - (r - 2) * 0.25} r={(r - 2) * 0.3} fill="white" opacity={0.3} style={{ pointerEvents: "none" }} />
         {label && (
@@ -2759,7 +2814,11 @@ export function SvgObject(p: ObjProps) {
         {selRect(obj.x, obj.y, w, h)}
         {applyTransform(obj, w, h, <>
           {/* Track */}
-          <rect x={obj.x} y={obj.y} width={w} height={h} rx={4} fill="#1e293b" />
+          <rect x={obj.x} y={obj.y} width={w} height={h} rx={4} fill={obj.bg_color ?? "#1e293b"} />
+          {obj.bg_image && (
+            <image href={obj.bg_image} x={obj.x} y={obj.y} width={w} height={h}
+              preserveAspectRatio="xMidYMid slice" style={{ pointerEvents: "none" }} />
+          )}
           {/* Fill */}
           {barW > 0 && (
             <rect x={obj.x} y={obj.y} width={barW} height={h} rx={4} fill={barColor}
@@ -2842,6 +2901,7 @@ export function SvgObject(p: ObjProps) {
         {applyTransform(obj, w, h, <>
           {/* Invisible hit-area: <g> has no own geometry — without this rect clicks fall through */}
           <rect x={obj.x} y={obj.y} width={w} height={h} fill="transparent" />
+          {bgLayer(obj.x, obj.y, w, h, 4)}
           {/* Background arc */}
           <path d={arcPath(cx, cy, R, START, END)}
             fill="none" stroke="#334155" strokeWidth={10} strokeLinecap="round"
@@ -2859,35 +2919,35 @@ export function SvgObject(p: ObjProps) {
           {obj.alarm_high !== undefined && thresholdTick(obj.alarm_high, "#ef4444")}
           {/* Needle */}
           <line x1={needleBase.x} y1={needleBase.y} x2={needleTip.x} y2={needleTip.y}
-            stroke="#e2e8f0" strokeWidth={2} strokeLinecap="round"
+            stroke={obj.stroke ?? "#e2e8f0"} strokeWidth={2} strokeLinecap="round"
             style={{ pointerEvents: "none" }} />
           {/* Hub */}
-          <circle cx={cx} cy={cy} r={6} fill="#e2e8f0" style={{ pointerEvents: "none" }} />
+          <circle cx={cx} cy={cy} r={6} fill={obj.stroke ?? "#e2e8f0"} style={{ pointerEvents: "none" }} />
           <circle cx={cx} cy={cy} r={3} fill="#0f172a" style={{ pointerEvents: "none" }} />
           {/* Min / max labels */}
           {(() => {
             const minP = polar(cx, cy, R + 14, START);
             const maxP = polar(cx, cy, R + 14, END);
             return <>
-              <text x={minP.x} y={minP.y + 4} textAnchor="middle" fill="#64748b" fontSize={10}
+              <text x={minP.x} y={minP.y + 4} textAnchor="middle" fill={obj.color ?? "#64748b"} fontSize={10}
                 style={{ pointerEvents: "none" }}>{min}</text>
-              <text x={maxP.x} y={maxP.y + 4} textAnchor="middle" fill="#64748b" fontSize={10}
+              <text x={maxP.x} y={maxP.y + 4} textAnchor="middle" fill={obj.color ?? "#64748b"} fontSize={10}
                 style={{ pointerEvents: "none" }}>{max}</text>
             </>;
           })()}
           {/* Value display */}
           <text x={cx} y={cy + R * 0.35} textAnchor="middle"
-            fill="#e2e8f0" fontSize={20} fontWeight={700}
+            fill={obj.color ?? "#e2e8f0"} fontSize={20} fontWeight={700}
             style={{ pointerEvents: "none" }}>
             {typeof rawVal === "number" ? rawVal.toFixed(1) : rawVal}
           </text>
           {obj.unit && (
-            <text x={cx} y={cy + R * 0.35 + 16} textAnchor="middle" fill="#94a3b8" fontSize={11}
+            <text x={cx} y={cy + R * 0.35 + 16} textAnchor="middle" fill={obj.color ?? "#94a3b8"} fontSize={11}
               style={{ pointerEvents: "none" }}>{obj.unit}</text>
           )}
           {/* Label */}
           {obj.label && (
-            <text x={cx} y={obj.y + 14} textAnchor="middle" fill="#94a3b8" fontSize={11}
+            <text x={cx} y={obj.y + 14} textAnchor="middle" fill={obj.color ?? "#94a3b8"} fontSize={11}
               style={{ pointerEvents: "none" }}>{obj.label}</text>
           )}
         </>)}
@@ -2932,6 +2992,7 @@ export function SvgObject(p: ObjProps) {
           <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()}
              style={{ cursor: editCursor }}>
             {selRect(obj.x, obj.y, w, h)}
+            {bgLayer(obj.x, obj.y, w, h, 4)}
             {labelEl}
             <rect x={cx - 3} y={top} width={6} height={len} rx={3} fill="#334155" />
             {/* Il riempimento parte dal basso: il minimo sta in fondo, come
@@ -2951,6 +3012,7 @@ export function SvgObject(p: ObjProps) {
         <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()}
            style={{ cursor: editCursor }}>
           {selRect(obj.x, obj.y, w, h)}
+          {bgLayer(obj.x, obj.y, w, h, 4)}
           {labelEl}
           <rect x={obj.x} y={trackY - 3} width={w} height={6} rx={3} fill="#334155" />
           <rect x={obj.x} y={trackY - 3} width={w * 0.5} height={6} rx={3} fill="#3b82f6" />
@@ -2996,7 +3058,9 @@ export function SvgObject(p: ObjProps) {
       // da un `height: 100%` del contenitore.
       const trackLen = Math.max(24, h - labelH - valueH - 8);
       return (
-        <foreignObject x={obj.x} y={obj.y} width={w} height={h}>
+        <>
+          {bgLayer(obj.x, obj.y, w, h, 4)}
+          <foreignObject x={obj.x} y={obj.y} width={w} height={h}>
           <div style={{
             display: "flex", flexDirection: "column", alignItems: "center",
             justifyContent: "center", gap: 2, height: "100%", boxSizing: "border-box",
@@ -3025,13 +3089,16 @@ export function SvgObject(p: ObjProps) {
               </span>
             )}
           </div>
-        </foreignObject>
+          </foreignObject>
+        </>
       );
     }
 
     const foH = h + (obj.label ? 20 : 0);
     return (
-      <foreignObject x={obj.x} y={obj.y} width={w} height={foH}>
+      <>
+        {bgLayer(obj.x, obj.y, w, foH, 4)}
+        <foreignObject x={obj.x} y={obj.y} width={w} height={foH}>
         <div
           style={{ display: "flex", flexDirection: "column", gap: 2, padding: "4px 0" }}
         >
@@ -3050,7 +3117,8 @@ export function SvgObject(p: ObjProps) {
             </span>
           )}
         </div>
-      </foreignObject>
+        </foreignObject>
+      </>
     );
   }
 
@@ -3083,7 +3151,11 @@ export function SvgObject(p: ObjProps) {
       return (
         <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()} style={{ cursor: editCursor }}>
           {selRect(obj.x, obj.y, w, h)}
-          <rect x={obj.x} y={obj.y} width={w} height={h} rx={4} fill="#0f172a" stroke={selected ? "#facc15" : "#334155"} strokeWidth={selected ? 2 : 1} />
+          <rect x={obj.x} y={obj.y} width={w} height={h} rx={4} fill={obj.bg_color ?? "#0f172a"} stroke={selected ? "#facc15" : "#334155"} strokeWidth={selected ? 2 : 1} />
+          {obj.bg_image && (
+            <image href={obj.bg_image} x={obj.x} y={obj.y} width={w} height={h}
+              preserveAspectRatio="xMidYMid slice" style={{ pointerEvents: "none" }} />
+          )}
           {hasLabel && (
             <text x={obj.x + 4} y={labelY} fill="#94a3b8" fontSize={11} style={{ pointerEvents: "none" }}>{obj.label}</text>
           )}
@@ -3111,6 +3183,7 @@ export function SvgObject(p: ObjProps) {
     return (
       <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()}>
         {selRect(obj.x, obj.y, w, h)}
+        {bgLayer(obj.x, obj.y, w, h, 4)}
         <foreignObject x={obj.x} y={obj.y} width={w} height={h}>
           <div style={{ display: "flex", flexDirection: "column", gap: 3, padding: "4px 2px", boxSizing: "border-box", height: "100%" }}>
             {obj.label && (
@@ -3166,6 +3239,7 @@ export function SvgObject(p: ObjProps) {
         <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()}
            style={{ cursor: editCursor }}>
           {selRect(obj.x, obj.y, w, h)}
+          {bgLayer(obj.x, obj.y, w, h, 4)}
           <rect x={obj.x + 2} y={obj.y + h / 2 - 9} width={18} height={18} rx={3}
             fill="#334155" stroke="#64748b" strokeWidth={1.5} />
           <path d={`M ${obj.x + 6} ${obj.y + h / 2} L ${obj.x + 10} ${obj.y + h / 2 + 4} L ${obj.x + 16} ${obj.y + h / 2 - 4}`}
@@ -3179,7 +3253,9 @@ export function SvgObject(p: ObjProps) {
 
     // View mode: foreignObject
     return (
-      <foreignObject x={obj.x} y={obj.y} width={w} height={h}>
+      <>
+        {bgLayer(obj.x, obj.y, w, h, 4)}
+        <foreignObject x={obj.x} y={obj.y} width={w} height={h}>
         <div
           style={{ display: "flex", alignItems: "center", gap: 8, height: "100%", cursor: obj.read_only ? "default" : "pointer" }}
           onClick={() => {
@@ -3208,7 +3284,8 @@ export function SvgObject(p: ObjProps) {
               background: qualityColor(tv.quality), display: "inline-block" }} />
           )}
         </div>
-      </foreignObject>
+        </foreignObject>
+      </>
     );
   }
 
@@ -3229,6 +3306,7 @@ export function SvgObject(p: ObjProps) {
         <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()}
            style={{ cursor: editCursor }}>
           {selRect(obj.x, obj.y, w, totalH)}
+          {bgLayer(obj.x, obj.y, w, totalH, 4)}
           {obj.label && <text x={obj.x} y={obj.y + 12} fill="#94a3b8" fontSize={11}>{obj.label}</text>}
           {opts.map((opt, i) => {
             const ox = isH ? obj.x + i * itemW : obj.x;
@@ -3247,7 +3325,9 @@ export function SvgObject(p: ObjProps) {
 
     // View mode: foreignObject
     return (
-      <foreignObject x={obj.x} y={obj.y} width={w} height={totalH}>
+      <>
+        {bgLayer(obj.x, obj.y, w, totalH, 4)}
+        <foreignObject x={obj.x} y={obj.y} width={w} height={totalH}>
         <div
           style={{ display: "flex", flexDirection: "column", gap: 2 }}
         >
@@ -3271,7 +3351,8 @@ export function SvgObject(p: ObjProps) {
             ))}
           </div>
         </div>
-      </foreignObject>
+        </foreignObject>
+      </>
     );
   }
 
@@ -3293,7 +3374,11 @@ export function SvgObject(p: ObjProps) {
         {applyTransform(obj, w, totalH, <>
           {/* Outer border */}
           <rect x={obj.x} y={obj.y} width={w} height={totalH} rx={4}
-            fill="#1e293b" stroke={selected ? "#facc15" : "#334155"} strokeWidth={selected ? 2 : 1} />
+            fill={obj.bg_color ?? "#1e293b"} stroke={selected ? "#facc15" : "#334155"} strokeWidth={selected ? 2 : 1} />
+          {obj.bg_image && (
+            <image href={obj.bg_image} x={obj.x} y={obj.y} width={w} height={totalH}
+              preserveAspectRatio="xMidYMid slice" style={{ pointerEvents: "none" }} />
+          )}
           {/* Header */}
           <rect x={obj.x} y={obj.y} width={w} height={headerH} rx={4}
             fill="#0f172a" style={{ pointerEvents: "none" }} />
@@ -3379,9 +3464,16 @@ export function SvgObject(p: ObjProps) {
         {selRect(obj.x, obj.y, w, h)}
         {isEditMode ? (
           <>
+            {/* Il placeholder statico rispetta bg_color/bg_image: senza,
+                l'anteprima in editor non mostrava mai lo sfondo configurato
+                (il rendering vero via TrendCanvas esiste solo in runtime). */}
             <rect x={obj.x} y={obj.y} width={w} height={h} rx={4}
-              fill="#0f172a" stroke={selected ? "#facc15" : "#334155"}
+              fill={obj.bg_color ?? "#0f172a"} stroke={selected ? "#facc15" : "#334155"}
               strokeWidth={selected ? 2 : 1} />
+            {obj.bg_image && (
+              <image href={obj.bg_image} x={obj.x} y={obj.y} width={w} height={h}
+                preserveAspectRatio="xMidYMid slice" style={{ pointerEvents: "none" }} />
+            )}
             <text x={obj.x + w / 2} y={obj.y + h / 2 - 6}
               textAnchor="middle" fill="#64748b" fontSize={12}
               style={{ pointerEvents: "none" }}>
@@ -3402,8 +3494,8 @@ export function SvgObject(p: ObjProps) {
                 width={w}
                 height={h}
                 lineColor={obj.line_color ?? "var(--brand-primary, #3b82f6)"}
-                yMin={obj.y_min}
-                yMax={obj.y_max}
+                yMin={trendZoom?.yLo !== undefined ? trendZoom.yLo : obj.y_min}
+                yMax={trendZoom?.yHi !== undefined ? trendZoom.yHi : obj.y_max}
                 opcuaBackfill={obj.opcua_backfill}
                 seriesStyles={obj.trend_series_styles}
                 dtDateOrder={obj.trend_dt_date_order}
@@ -3413,9 +3505,19 @@ export function SvgObject(p: ObjProps) {
                 dtShowYear={obj.trend_dt_show_year}
                 dtTwoLines={obj.trend_dt_two_lines}
                 dtAlwaysShowDate={obj.trend_dt_always_show_date}
+                showThresholds={obj.trend_show_thresholds}
+                warnLow={obj.warn_low}
+                warnHigh={obj.warn_high}
+                alarmLow={obj.alarm_low}
+                alarmHigh={obj.alarm_high}
+                showAlarmMarkers={obj.trend_show_alarm_markers}
+                bgColor={obj.bg_color}
+                bgImage={obj.bg_image}
+                axisColor={obj.axis_color}
+                gridColor={obj.grid_color}
                 fromMs={trendZoom?.fromMs}
                 toMs={trendZoom?.toMs}
-                onRangeSelect={(fromMs, toMs) => setTrendZoom({ fromMs, toMs })}
+                onRangeSelect={(fromMs, toMs, yLo, yHi) => setTrendZoom({ fromMs, toMs, yLo, yHi })}
                 zoomed={trendZoom !== null}
                 onResetZoom={() => setTrendZoom(null)}
                 panStepS={obj.pan_step_s}
@@ -3468,7 +3570,11 @@ export function SvgObject(p: ObjProps) {
       return (
         <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()} style={{ cursor: editCursor }}>
           {selRect(obj.x, obj.y, w, h)}
-          <rect x={obj.x} y={obj.y} width={w} height={h} rx={4} fill="#0f172a" stroke={selected ? "#facc15" : "#334155"} strokeWidth={selected ? 2 : 1} />
+          <rect x={obj.x} y={obj.y} width={w} height={h} rx={4} fill={obj.bg_color ?? "#0f172a"} stroke={selected ? "#facc15" : "#334155"} strokeWidth={selected ? 2 : 1} />
+          {obj.bg_image && (
+            <image href={obj.bg_image} x={obj.x} y={obj.y} width={w} height={h}
+              preserveAspectRatio="xMidYMid slice" style={{ pointerEvents: "none" }} />
+          )}
           {obj.tag && obj.y_tag && (
             <text x={obj.x + w / 2} y={obj.y + 12} textAnchor="middle" fill="#64748b" fontSize={9} style={{ pointerEvents: "none" }}>
               {obj.tag} / {obj.y_tag}
@@ -3502,6 +3608,8 @@ export function SvgObject(p: ObjProps) {
             xMax={obj.xy_x_max}
             yMin={obj.xy_y_min}
             yMax={obj.xy_y_max}
+            bgColor={obj.bg_color}
+            bgImage={obj.bg_image}
           />
         </foreignObject>
       </g>
@@ -3524,6 +3632,7 @@ export function SvgObject(p: ObjProps) {
     return (
       <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()} style={{ cursor: editCursor }}>
         {selRect(obj.x, obj.y, obj.width ?? 120, obj.height ?? 32)}
+        {bgLayer(obj.x, obj.y, obj.width ?? 120, obj.height ?? 32, 4)}
         <text x={tx} y={cy + size / 3}
           fill={textFill} fontSize={size}
           fontFamily={obj.font_family} fontWeight={obj.font_weight as any ?? "normal"}
@@ -3556,7 +3665,11 @@ export function SvgObject(p: ObjProps) {
       return (
         <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()} style={{ cursor: editCursor }}>
           {selRect(obj.x, obj.y, w, h)}
-          <rect x={obj.x} y={obj.y} width={w} height={h} rx={4} fill="#0f172a" stroke={selected ? "#facc15" : "#334155"} strokeWidth={selected ? 2 : 1} />
+          <rect x={obj.x} y={obj.y} width={w} height={h} rx={4} fill={obj.bg_color ?? "#0f172a"} stroke={selected ? "#facc15" : "#334155"} strokeWidth={selected ? 2 : 1} />
+          {obj.bg_image && (
+            <image href={obj.bg_image} x={obj.x} y={obj.y} width={w} height={h}
+              preserveAspectRatio="xMidYMid slice" style={{ pointerEvents: "none" }} />
+          )}
           <text x={obj.x + w / 2} y={obj.y + h / 2} textAnchor="middle" fill="#64748b" fontSize={12} style={{ pointerEvents: "none" }}>
             Bar Chart — {series.length} serie
           </text>
@@ -3570,7 +3683,11 @@ export function SvgObject(p: ObjProps) {
     return (
       <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()} style={{ cursor: editCursor }}>
         {selRect(obj.x, obj.y, w, h)}
-        <rect x={obj.x} y={obj.y} width={w} height={h} rx={4} fill="#0f172a" stroke={selected ? "#facc15" : "#334155"} strokeWidth={selected ? 2 : 1} />
+        <rect x={obj.x} y={obj.y} width={w} height={h} rx={4} fill={obj.bg_color ?? "#0f172a"} stroke={selected ? "#facc15" : "#334155"} strokeWidth={selected ? 2 : 1} />
+        {obj.bg_image && (
+          <image href={obj.bg_image} x={obj.x} y={obj.y} width={w} height={h}
+            preserveAspectRatio="xMidYMid slice" style={{ pointerEvents: "none" }} />
+        )}
         <line x1={baseX} y1={baseY} x2={baseX} y2={axisY} stroke="#334155" strokeWidth={1} />
         <line x1={baseX} y1={axisY} x2={baseX + plotW} y2={axisY} stroke="#334155" strokeWidth={1} />
         {series.map((s, i) => {
@@ -3585,7 +3702,7 @@ export function SvgObject(p: ObjProps) {
             const by = axisY - bh;
             return (
               <g key={i}>
-                <rect x={bx} y={by} width={barW} height={bh} fill={s.color} rx={2} style={transitionStyle(obj)} />
+                <rect x={bx} y={by} width={barW} height={bh} fill={s.color ?? PALETTE[i % PALETTE.length]} rx={2} style={transitionStyle(obj)} />
                 {showValues && <text x={bx + barW / 2} y={Math.max(by - 3, baseY + 10)} textAnchor="middle" fill="#e2e8f0" fontSize={10} style={{ pointerEvents: "none" }}>{val.toFixed(1)}{obj.unit ?? ""}</text>}
                 {showLabels && <text x={bx + barW / 2} y={axisY + 14} textAnchor="middle" fill="#94a3b8" fontSize={10} style={{ pointerEvents: "none" }}>{s.label}</text>}
               </g>
@@ -3595,7 +3712,7 @@ export function SvgObject(p: ObjProps) {
             const by2 = baseY + i * slotW + (slotW - bh2) / 2;
             return (
               <g key={i}>
-                <rect x={baseX} y={by2} width={bw2} height={bh2} fill={s.color} rx={2} style={transitionStyle(obj)} />
+                <rect x={baseX} y={by2} width={bw2} height={bh2} fill={s.color ?? PALETTE[i % PALETTE.length]} rx={2} style={transitionStyle(obj)} />
                 {showValues && <text x={baseX + bw2 + 3} y={by2 + bh2 / 2 + 4} fill="#e2e8f0" fontSize={10} style={{ pointerEvents: "none" }}>{val.toFixed(1)}{obj.unit ?? ""}</text>}
                 {showLabels && <text x={baseX - 3} y={by2 + bh2 / 2 + 4} textAnchor="end" fill="#94a3b8" fontSize={10} style={{ pointerEvents: "none" }}>{s.label}</text>}
               </g>
@@ -3634,7 +3751,11 @@ export function SvgObject(p: ObjProps) {
       return (
         <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()} style={{ cursor: editCursor }}>
           {selRect(obj.x, obj.y, w, h)}
-          <rect x={obj.x} y={obj.y} width={w} height={h} rx={4} fill="#0f172a" stroke={selected ? "#facc15" : "#334155"} strokeWidth={selected ? 2 : 1} />
+          <rect x={obj.x} y={obj.y} width={w} height={h} rx={4} fill={obj.bg_color ?? "#0f172a"} stroke={selected ? "#facc15" : "#334155"} strokeWidth={selected ? 2 : 1} />
+          {obj.bg_image && (
+            <image href={obj.bg_image} x={obj.x} y={obj.y} width={w} height={h}
+              preserveAspectRatio="xMidYMid slice" style={{ pointerEvents: "none" }} />
+          )}
           <circle cx={cx2} cy={cy2} r={r} fill="none" stroke="#334155" strokeWidth={2} />
           {mode === "donut" && <circle cx={cx2} cy={cy2} r={r * innerR} fill="#0f172a" />}
           <text x={cx2} y={cy2 + 4} textAnchor="middle" fill="#64748b" fontSize={11} style={{ pointerEvents: "none" }}>
@@ -3649,7 +3770,11 @@ export function SvgObject(p: ObjProps) {
       return (
         <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()}>
           {selRect(obj.x, obj.y, w, h)}
-          <rect x={obj.x} y={obj.y} width={w} height={h} rx={4} fill="#0f172a" stroke="#1e293b" />
+          <rect x={obj.x} y={obj.y} width={w} height={h} rx={4} fill={obj.bg_color ?? "#0f172a"} stroke="#1e293b" />
+          {obj.bg_image && (
+            <image href={obj.bg_image} x={obj.x} y={obj.y} width={w} height={h}
+              preserveAspectRatio="xMidYMid slice" style={{ pointerEvents: "none" }} />
+          )}
           <text x={cx2} y={cy2 + 4} textAnchor="middle" fill="#475569" fontSize={11} style={{ pointerEvents: "none" }}>Nessun dato</text>
         </g>
       );
@@ -3677,7 +3802,7 @@ export function SvgObject(p: ObjProps) {
       }
       const midAngle = angle - sweep / 2;
       const labelR = r * (mode === "donut" ? (1 + innerR) / 2 : 0.65);
-      return { d, color: s.color, pct, midAngle, labelR, label: s.label, key: i };
+      return { d, color: s.color ?? PALETTE[i % PALETTE.length], pct, midAngle, labelR, label: s.label, key: i };
     });
 
     const centerTag = obj.pie_center_tag ? tagValues[obj.pie_center_tag] : undefined;
@@ -3693,6 +3818,7 @@ export function SvgObject(p: ObjProps) {
     return (
       <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()} style={{ cursor: editCursor }}>
         {selRect(obj.x, obj.y, w, h)}
+        {bgLayer(obj.x, obj.y, w, h, 4)}
         {isFullCircle ? (
           <>
             <circle cx={cx2} cy={cy2} r={r} fill={singleVisible[0].color} />
@@ -3719,7 +3845,7 @@ export function SvgObject(p: ObjProps) {
         )}
         {showLegend && slices.map((s, i) => (
           <g key={i}>
-            <rect x={obj.x + 6 + (i % 2) * (w / 2)} y={obj.y + chartH + 4 + Math.floor(i / 2) * 14} width={8} height={8} fill={s.color} rx={1} />
+            <rect x={obj.x + 6 + (i % 2) * (w / 2)} y={obj.y + chartH + 4 + Math.floor(i / 2) * 14} width={8} height={8} fill={s.color ?? PALETTE[i % PALETTE.length]} rx={1} />
             <text x={obj.x + 18 + (i % 2) * (w / 2)} y={obj.y + chartH + 11 + Math.floor(i / 2) * 14} fill="#94a3b8" fontSize={9} style={{ pointerEvents: "none" }}>{s.label}</text>
           </g>
         ))}
@@ -3739,7 +3865,11 @@ export function SvgObject(p: ObjProps) {
       return (
         <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()} style={{ cursor: editCursor }}>
           {selRect(obj.x, obj.y, w, h)}
-          <rect x={obj.x} y={obj.y} width={w} height={h} rx={2} fill="#0f172a" stroke={selected ? "#facc15" : "#1e293b"} />
+          <rect x={obj.x} y={obj.y} width={w} height={h} rx={2} fill={obj.bg_color ?? "#0f172a"} stroke={selected ? "#facc15" : "#1e293b"} />
+          {obj.bg_image && (
+            <image href={obj.bg_image} x={obj.x} y={obj.y} width={w} height={h}
+              preserveAspectRatio="xMidYMid slice" style={{ pointerEvents: "none" }} />
+          )}
           <polyline
             points={`${obj.x + 4},${obj.y + h * 0.6} ${obj.x + w * 0.25},${obj.y + h * 0.3} ${obj.x + w * 0.5},${obj.y + h * 0.7} ${obj.x + w * 0.75},${obj.y + h * 0.2} ${obj.x + w - 4},${obj.y + h * 0.5}`}
             fill="none" stroke={color} strokeWidth={strokeW} opacity={0.6}
@@ -3752,6 +3882,7 @@ export function SvgObject(p: ObjProps) {
     return (
       <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()}>
         {selRect(obj.x, obj.y, w, h)}
+        {bgLayer(obj.x, obj.y, w, h, 2)}
         <foreignObject x={obj.x} y={obj.y} width={w} height={h}>
           <SparklineWidget
             tag={obj.tag ?? ""}
@@ -3820,7 +3951,11 @@ export function SvgObject(p: ObjProps) {
       return (
         <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()} style={{ cursor: editCursor }}>
           {selRect(obj.x, obj.y, w, h)}
-          <rect x={obj.x} y={obj.y} width={w} height={h} rx={h / 2} fill="#0f172a" stroke={selected ? "#facc15" : "#334155"} strokeWidth={selected ? 2 : 1} />
+          <rect x={obj.x} y={obj.y} width={w} height={h} rx={h / 2} fill={obj.bg_color ?? "#0f172a"} stroke={selected ? "#facc15" : "#334155"} strokeWidth={selected ? 2 : 1} />
+          {obj.bg_image && (
+            <image href={obj.bg_image} x={obj.x} y={obj.y} width={w} height={h}
+              preserveAspectRatio="xMidYMid slice" style={{ pointerEvents: "none" }} />
+          )}
           <text x={obj.x + w / 2} y={obj.y + h / 2} textAnchor="middle" dominantBaseline="central" fill="#64748b" fontSize={12} style={{ pointerEvents: "none" }}>
             🔔 Allarmi
           </text>
@@ -3831,6 +3966,7 @@ export function SvgObject(p: ObjProps) {
     return (
       <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()}>
         {selRect(obj.x, obj.y, w, h)}
+        {bgLayer(obj.x, obj.y, w, h, h / 2)}
         <foreignObject x={obj.x} y={obj.y} width={w} height={h}>
           <AlarmBellPanel
             idPrefix={obj.alarm_bell_id_prefix}
@@ -3853,7 +3989,11 @@ export function SvgObject(p: ObjProps) {
       return (
         <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()} style={{ cursor: editCursor }}>
           {selRect(obj.x, obj.y, w, h)}
-          <rect x={obj.x} y={obj.y} width={w} height={h} rx={4} fill="#0f172a" stroke={selected ? "#facc15" : "#334155"} strokeWidth={selected ? 2 : 1} />
+          <rect x={obj.x} y={obj.y} width={w} height={h} rx={4} fill={obj.bg_color ?? "#0f172a"} stroke={selected ? "#facc15" : "#334155"} strokeWidth={selected ? 2 : 1} />
+          {obj.bg_image && (
+            <image href={obj.bg_image} x={obj.x} y={obj.y} width={w} height={h}
+              preserveAspectRatio="xMidYMid slice" style={{ pointerEvents: "none" }} />
+          )}
           <text x={obj.x + w / 2} y={obj.y + h / 2} textAnchor="middle" dominantBaseline="central" fill="#64748b" fontSize={12} style={{ pointerEvents: "none" }}>
             Barra Allarmi
           </text>
@@ -3864,6 +4004,7 @@ export function SvgObject(p: ObjProps) {
     return (
       <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()}>
         {selRect(obj.x, obj.y, w, h)}
+        {bgLayer(obj.x, obj.y, w, h, 4)}
         <foreignObject x={obj.x} y={obj.y} width={w} height={h}>
           <AlarmBanner
             idPrefix={obj.alarm_banner_id_prefix}
@@ -3890,7 +4031,11 @@ export function SvgObject(p: ObjProps) {
       return (
         <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()} style={{ cursor: editCursor }}>
           {selRect(obj.x, obj.y, w, h)}
-          <rect x={obj.x} y={obj.y} width={w} height={h} rx={4} fill="#1e293b" stroke={selected ? "#facc15" : "#334155"} strokeWidth={selected ? 2 : 1} style={{ pointerEvents: "none" }} />
+          <rect x={obj.x} y={obj.y} width={w} height={h} rx={4} fill={obj.bg_color ?? "#1e293b"} stroke={selected ? "#facc15" : "#334155"} strokeWidth={selected ? 2 : 1} style={{ pointerEvents: "none" }} />
+          {obj.bg_image && (
+            <image href={obj.bg_image} x={obj.x} y={obj.y} width={w} height={h}
+              preserveAspectRatio="xMidYMid slice" style={{ pointerEvents: "none" }} />
+          )}
           <rect x={obj.x} y={obj.y} width={w} height={20} rx={4} fill="#334155" style={{ pointerEvents: "none" }} />
           <text x={obj.x + 8} y={obj.y + 14} fill="#94a3b8" fontSize={10} style={{ pointerEvents: "none" }}>📋 Ricette</text>
           {Array.from({ length: rowCount }, (_, i) => (
@@ -3905,7 +4050,8 @@ export function SvgObject(p: ObjProps) {
       <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()}>
         {selRect(obj.x, obj.y, w, h)}
         <foreignObject x={obj.x} y={obj.y} width={w} height={h}>
-          <div style={{ width: w, height: h, overflowY: "auto", boxSizing: "border-box", padding: 6, background: "var(--brand-surface, #1e293b)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4 }}>
+          <div style={{ width: w, height: h, overflowY: "auto", boxSizing: "border-box", padding: 6, background: obj.bg_color ?? "var(--brand-surface, #1e293b)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4,
+            ...(obj.bg_image ? { backgroundImage: `url(${obj.bg_image})`, backgroundSize: "cover", backgroundPosition: "center" } : {}) }}>
             <RecipePanel idPrefix={obj.recipe_panel_id_prefix} compact />
           </div>
         </foreignObject>
@@ -3972,8 +4118,9 @@ export function SvgObject(p: ObjProps) {
         <rect x={obj.x} y={obj.y} width={w} height={h} fill="transparent"
           onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()}
           style={{ cursor: editCursor }} />
-        {applyTransform(obj, w, h,
-          customEntry ? (
+        {applyTransform(obj, w, h, <>
+          {bgLayer(obj.x, obj.y, w, h, 4)}
+          {customEntry ? (
             <image href={customEntry.url} x={obj.x} y={obj.y} width={w} height={h}
               preserveAspectRatio="xMidYMid meet" style={{ pointerEvents: "none" }} />
           ) : meta!.kind === "builtin" && meta!.render ? (
@@ -3988,8 +4135,8 @@ export function SvgObject(p: ObjProps) {
           ) : (
             <image href={meta!.path} x={obj.x} y={obj.y} width={w} height={h}
               preserveAspectRatio="xMidYMid meet" style={{ pointerEvents: "none" }} />
-          )
-        )}
+          )}
+        </>)}
         {/* Status badge — axis-aligned, outside transform so it stays top-right
             regardless of rotation/flip orientation. */}
         {(obj.state_tag || obj.alarm_tag) && (
@@ -4050,6 +4197,7 @@ export function SvgObject(p: ObjProps) {
 
     return (
       <g>
+        {bgLayer(obj.x, obj.y, w, h, 4)}
         {/* Transparent hit rect for grid-level drag/select */}
         <rect
           x={obj.x} y={obj.y} width={w} height={h}
@@ -4250,11 +4398,12 @@ export function SvgObject(p: ObjProps) {
     return (
       <>
         {selRect(obj.x, obj.y, w, h)}
-        {applyTransform(obj, w, h,
+        {applyTransform(obj, w, h, <>
+          {bgLayer(obj.x, obj.y, w, h, 4)}
           <image href={obj.src} x={obj.x} y={obj.y} width={w} height={h}
             style={{ cursor: editCursor }}
             onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()} />
-        )}
+        </>)}
       </>
     );
   }
@@ -4297,6 +4446,7 @@ export function SvgObject(p: ObjProps) {
       return (
         <>
           {selRect(obj.x, obj.y, w, h)}
+          {bgLayer(obj.x, obj.y, w, h, 4)}
           <g transform={`translate(${obj.x}, ${obj.y})`} style={{ pointerEvents: "none" }}>
             {defn.objects.map((child, i) => {
               const resolved = substituteParams(child);
@@ -4331,6 +4481,7 @@ export function SvgObject(p: ObjProps) {
     // View mode: render child objects with param substitution at (obj.x, obj.y) offset
     return (
       <g transform={`translate(${obj.x}, ${obj.y})`} style={{ cursor: "default" }}>
+        {bgLayer(0, 0, w, h, 4)}
         {defn.objects.map((child, i) => {
           const resolved = substituteParams(child);
           return (

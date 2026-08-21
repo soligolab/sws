@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
 import { SvgCanvas, type CanvasViewApi } from "@/canvas/SvgCanvas";
+import { PALETTE } from "@/canvas/TrendCanvas";
 import { resolvePageBackground } from "@/theme";
 import { EditorToolbar } from "@/editor/EditorToolbar";
 import { LeftPanel } from "@/editor/LeftPanel";
@@ -1958,6 +1959,11 @@ function ObjectProps({
 }) {
   const { t } = useTranslation();
   const [imgBrowserOpen, setImgBrowserOpen] = useState(false);
+  // Immagini di progetto per la sezione SFONDO: lista lazy (solo quando la
+  // sezione esiste per il tipo selezionato) + input file per l'upload.
+  const [projectImages, setProjectImages] = useState<{ name: string; size_bytes: number }[] | null>(null);
+  const [bgUploading, setBgUploading] = useState(false);
+  const bgFileRef = useRef<HTMLInputElement | null>(null);
   const projLangs = useAppStore((s) => s.project?.languages?.langs) ?? [];
   const faceplates = useAppStore((s) => s.faceplates);
   // NB: selezionare l'array `entries` (riferimento stabile nello store) e
@@ -2148,6 +2154,16 @@ function ObjectProps({
   const BOX_TYPES = ["rect", "ellipse", "button", "navbutton", "checkbox", "radio", "slider", "gauge", "led", "progress_bar", "table", "trend", "symbol", "grid"];
   const isShape = BOX_TYPES.includes(obj.type);
   const hasStroke = obj.type === "rect" || obj.type === "ellipse" || obj.type === "line";
+  // Tipi che disegnano il layer di sfondo universale (bg_color/bg_image) in
+  // SvgCanvas.tsx. Sottoinsieme iniziale scelto per coprire i pattern di
+  // rendering più diversi; si estende insieme al rendering, non da solo.
+  const BG_TYPES = [
+    "rect", "text", "button", "gauge", "symbol", "trend",
+    "ellipse", "navbutton", "lang_button", "lang_selector", "led", "state_lamp",
+    "progress_bar", "slider", "setpoint", "checkbox", "radio", "table",
+    "xy_plot", "text_list", "bar_chart", "pie_chart", "sparkline",
+    "alarm_bell", "alarm_banner", "recipe_panel", "grid", "image", "faceplate",
+  ];
 
   return (
     <>
@@ -2216,6 +2232,93 @@ function ObjectProps({
         <>
           {field(t("props.border"), <BindableInput obj={obj} propName="stroke" onChange={onChange}>{colorInput("stroke", "var(--brand-text, #e2e8f0)")}</BindableInput>)}
           {field(t("props.borderThickness"), <BindableInput obj={obj} propName="stroke_width" onChange={onChange}>{numInput("stroke_width", 1)}</BindableInput>)}
+        </>
+      )}
+
+      {/* Sfondo universale (colore + immagine URL) — un solo punto di
+          inserimento: per estenderlo a un tipo nuovo basta aggiungerlo a
+          BG_TYPES qui sotto e disegnare il layer nel suo blocco di
+          SvgCanvas.tsx (bgLayer). */}
+      {BG_TYPES.includes(obj.type) && (
+        <>
+          <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", marginTop: 8, marginBottom: 2, fontWeight: 700, letterSpacing: 0.5 }}>
+            {t("props.bgSection")}
+          </div>
+          {field(t("props.bgColor"),
+            <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+              <input
+                type="color"
+                style={{ ...INPUT, padding: 2, height: 28, width: 44, cursor: "pointer", flex: "none", opacity: obj.bg_color ? 1 : 0.4 }}
+                value={obj.bg_color ?? "#0f172a"}
+                onChange={(e) => onChange({ bg_color: e.target.value })}
+              />
+              {obj.bg_color && (
+                <button
+                  title={t("props.bgClear")}
+                  style={{ background: "transparent", border: "none", color: "var(--brand-text-subtle, #64748b)", cursor: "pointer", fontSize: 13, padding: "0 4px" }}
+                  onClick={() => onChange({ bg_color: undefined })}
+                >✕</button>
+              )}
+            </div>
+          )}
+          {field(t("props.bgImage"),
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                <input
+                  type="text" style={INPUT} placeholder="https://… / /api/project/images/…"
+                  value={obj.bg_image ?? ""}
+                  onChange={(e) => onChange({ bg_image: e.target.value || undefined })}
+                />
+                <button
+                  style={{ ...INPUT, cursor: "pointer", whiteSpace: "nowrap", width: "auto", flex: "none", opacity: bgUploading ? 0.6 : 1 }}
+                  disabled={bgUploading}
+                  title={t("props.bgUploadHint")}
+                  onClick={() => bgFileRef.current?.click()}
+                >{bgUploading ? "…" : t("props.bgUpload")}</button>
+              </div>
+              <input
+                ref={bgFileRef}
+                type="file"
+                accept=".png,.jpg,.jpeg,.gif,.svg,.webp"
+                style={{ display: "none" }}
+                onChange={async (e) => {
+                  const f = e.target.files?.[0];
+                  e.target.value = "";
+                  if (!f) return;
+                  // Nome sanificato: la whitelist server accetta solo [A-Za-z0-9._-].
+                  const safe = f.name.replace(/[^A-Za-z0-9._-]+/g, "_");
+                  setBgUploading(true);
+                  try {
+                    const res = await api.uploadProjectImage(safe, f);
+                    onChange({ bg_image: res.url });
+                    setProjectImages(null); // ricarica la lista al prossimo focus
+                  } catch (err: any) {
+                    alert(`Upload fallito: ${err?.message ?? err}`);
+                  } finally {
+                    setBgUploading(false);
+                  }
+                }}
+              />
+              <select
+                style={{ ...INPUT, cursor: "pointer" }}
+                value=""
+                onFocus={() => {
+                  if (projectImages === null) {
+                    api.listProjectImages().then(setProjectImages).catch(() => setProjectImages([]));
+                  }
+                }}
+                onChange={(e) => {
+                  if (e.target.value) onChange({ bg_image: `/api/project/images/${e.target.value}` });
+                  e.target.value = "";
+                }}
+              >
+                <option value="">{t("props.bgPickUploaded")}</option>
+                {(projectImages ?? []).map((im) => (
+                  <option key={im.name} value={im.name}>{im.name} ({Math.round(im.size_bytes / 1024)} KB)</option>
+                ))}
+              </select>
+            </div>
+          )}
         </>
       )}
 
@@ -2334,6 +2437,7 @@ function ObjectProps({
       {obj.type === "button" && (
         <>
           {field(t("props.label"), <BindableInput obj={obj} propName="label" onChange={onChange}>{textInput("label", "Bottone")}</BindableInput>)}
+          {field(t("props.labelColor"), <BindableInput obj={obj} propName="color" onChange={onChange}>{colorInput("color", "#ffffff")}</BindableInput>)}
           {field(t("props.writeValue"),
             <BindableInput obj={obj} propName="write_value" onChange={onChange}>
               <input
@@ -2459,6 +2563,8 @@ function ObjectProps({
             <input type="checkbox" checked={!!obj.show_value}
               onChange={(e) => onChange({ show_value: e.target.checked })} />
           )}
+          {field(t("props.needleColor"), <BindableInput obj={obj} propName="stroke" onChange={onChange}>{colorInput("stroke", "#e2e8f0")}</BindableInput>)}
+          {field(t("props.textsColor"), <BindableInput obj={obj} propName="color" onChange={onChange}>{colorInput("color", "#e2e8f0")}</BindableInput>)}
         </>
       )}
 
@@ -2691,6 +2797,10 @@ function ObjectProps({
                 <input type="checkbox" checked={s.own_scale ?? false} onChange={(e) => patchStyle({ own_scale: e.target.checked || undefined })} />
                 {t("props.ownScale")}
               </label>
+              <label style={{ fontSize: 10, color: "var(--brand-text-muted, #94a3b8)", display: "flex", gap: 2, alignItems: "center" }} title={t("props.traceHiddenHint")}>
+                <input type="checkbox" checked={s.hidden ?? false} onChange={(e) => patchStyle({ hidden: e.target.checked || undefined })} />
+                {t("props.traceHidden")}
+              </label>
             </div>
           );
         };
@@ -2778,6 +2888,43 @@ function ObjectProps({
           <p style={{ fontSize: 10, color: "var(--brand-border, #475569)", margin: "2px 0 0" }}>
             Lascia Y min/max a 0 per autofit.
           </p>
+
+          {/* Soglie warn/alarm come linee tratteggiate orizzontali (stesso
+              pattern del bar chart). Valori sulla scala condivisa. */}
+          <label style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8, fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", cursor: "pointer" }}>
+            <input
+              type="checkbox"
+              checked={obj.trend_show_thresholds ?? false}
+              onChange={(e) => onChange({ trend_show_thresholds: e.target.checked || undefined })}
+            />
+            Mostra soglie (linee tratteggiate)
+          </label>
+          {obj.trend_show_thresholds && (
+            <>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, marginTop: 4 }}>
+                <div><div style={LABEL}>Warn min</div>{numInput("warn_low", 0)}</div>
+                <div><div style={LABEL}>Warn max</div>{numInput("warn_high", 0)}</div>
+                <div><div style={LABEL}>Alarm min</div>{numInput("alarm_low", 0)}</div>
+                <div><div style={LABEL}>Alarm max</div>{numInput("alarm_high", 0)}</div>
+              </div>
+              <p style={{ fontSize: 10, color: "var(--brand-border, #475569)", margin: "2px 0 0" }}>
+                Le soglie sono valori sulla scala condivisa — non compaiono se ogni traccia ha la propria scala. Lascia vuoto per omettere una soglia.
+              </p>
+            </>
+          )}
+
+          {/* Marker verticali agli eventi di allarme nella finestra visibile */}
+          <label style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 4, fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", cursor: "pointer" }}>
+            <input
+              type="checkbox"
+              checked={obj.trend_show_alarm_markers ?? false}
+              onChange={(e) => onChange({ trend_show_alarm_markers: e.target.checked || undefined })}
+            />
+            Mostra eventi allarme sulla timeline
+          </label>
+
+          {field(t("props.axisColor"), <BindableInput obj={obj} propName="axis_color" onChange={onChange}>{colorInput("axis_color", "#64748b")}</BindableInput>)}
+          {field(t("props.gridColor"), <BindableInput obj={obj} propName="grid_color" onChange={onChange}>{colorInput("grid_color", "#1e293b")}</BindableInput>)}
           {field(t("props.colorMainLine"), <BindableInput obj={obj} propName="line_color" onChange={onChange}>{colorInput("line_color", "var(--brand-primary, #3b82f6)")}</BindableInput>)}
           {trendStyleRow(0, { showColor: false })}
 
@@ -3019,14 +3166,14 @@ function ObjectProps({
                 onChange={(v) => { const next = [...(obj.bar_series ?? [])]; next[i] = { ...s, tag: v }; onChange({ bar_series: next }); }} />
               <input style={{ ...INPUT, width: 60 }} placeholder="label" value={s.label}
                 onChange={(e) => { const next = [...(obj.bar_series ?? [])]; next[i] = { ...s, label: e.target.value }; onChange({ bar_series: next }); }} />
-              <input type="color" value={s.color} onChange={(e) => { const next = [...(obj.bar_series ?? [])]; next[i] = { ...s, color: e.target.value }; onChange({ bar_series: next }); }}
+              <input type="color" value={s.color ?? PALETTE[i % PALETTE.length]} onChange={(e) => { const next = [...(obj.bar_series ?? [])]; next[i] = { ...s, color: e.target.value }; onChange({ bar_series: next }); }}
                 style={{ width: 28, height: 24, padding: 1, border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 3 }} />
               <button style={{ ...INPUT, width: "auto", padding: "0 6px", cursor: "pointer" }}
                 onClick={() => onChange({ bar_series: (obj.bar_series ?? []).filter((_, j) => j !== i) })}>✕</button>
             </div>
           ))}
           <button style={{ ...INPUT, width: "100%", cursor: "pointer", marginBottom: 4 }}
-            onClick={() => onChange({ bar_series: [...(obj.bar_series ?? []), { tag: "", label: `Serie ${(obj.bar_series?.length ?? 0) + 1}`, color: "var(--brand-primary, #3b82f6)" }] })}>
+            onClick={() => onChange({ bar_series: [...(obj.bar_series ?? []), { tag: "", label: `Serie ${(obj.bar_series?.length ?? 0) + 1}` }] })}>
             + Aggiungi serie
           </button>
           <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", marginTop: 2, marginBottom: 2, fontWeight: 700 }}>SOGLIE</div>
@@ -3070,14 +3217,14 @@ function ObjectProps({
                 onChange={(v) => { const next = [...(obj.pie_slices ?? [])]; next[i] = { ...s, tag: v }; onChange({ pie_slices: next }); }} />
               <input style={{ ...INPUT, width: 60 }} placeholder="label" value={s.label}
                 onChange={(e) => { const next = [...(obj.pie_slices ?? [])]; next[i] = { ...s, label: e.target.value }; onChange({ pie_slices: next }); }} />
-              <input type="color" value={s.color} onChange={(e) => { const next = [...(obj.pie_slices ?? [])]; next[i] = { ...s, color: e.target.value }; onChange({ pie_slices: next }); }}
+              <input type="color" value={s.color ?? PALETTE[i % PALETTE.length]} onChange={(e) => { const next = [...(obj.pie_slices ?? [])]; next[i] = { ...s, color: e.target.value }; onChange({ pie_slices: next }); }}
                 style={{ width: 28, height: 24, padding: 1, border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 3 }} />
               <button style={{ ...INPUT, width: "auto", padding: "0 6px", cursor: "pointer" }}
                 onClick={() => onChange({ pie_slices: (obj.pie_slices ?? []).filter((_, j) => j !== i) })}>✕</button>
             </div>
           ))}
           <button style={{ ...INPUT, width: "100%", cursor: "pointer" }}
-            onClick={() => { const colors = ["var(--brand-primary, #3b82f6)","var(--brand-success, #22c55e)","var(--brand-warning, #f59e0b)","var(--brand-danger, #ef4444)","#a855f7","#06b6d4"]; onChange({ pie_slices: [...(obj.pie_slices ?? []), { tag: "", label: `Slice ${(obj.pie_slices?.length ?? 0) + 1}`, color: colors[(obj.pie_slices?.length ?? 0) % colors.length] }] }); }}>
+            onClick={() => onChange({ pie_slices: [...(obj.pie_slices ?? []), { tag: "", label: `Slice ${(obj.pie_slices?.length ?? 0) + 1}` }] })}>
             + Aggiungi slice
           </button>
         </>

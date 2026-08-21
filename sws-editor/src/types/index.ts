@@ -148,6 +148,10 @@ export interface TrendSeriesStyle {
    *  of sharing the single right-hand axis with the other traces. Default
    *  false — unaffected traces keep today's shared-scale behaviour. */
   own_scale?: boolean;
+  /** Start hidden. This is the *persisted* initial visibility (saved with the
+   *  synoptic); the operator can still toggle traces at runtime by clicking
+   *  the legend, which is ephemeral state on top of this. */
+  hidden?: boolean;
 }
 
 /**
@@ -173,6 +177,20 @@ export interface SynopticObject {
   width?: number;
   height?: number;
   fill?: string;
+  /** Universal background color, drawn behind the object's own content —
+   *  same convention GridCell/SubCellEntry already used, promoted to every
+   *  object. Distinct from `fill` (which is the object's own body color,
+   *  e.g. a button face or a rect): this is the layer *behind* it. */
+  bg_color?: string;
+  /** Universal background image URL, drawn above bg_color, below content.
+   *  A URL (external or a path served by the runtime), not an upload — same
+   *  model as GridCell.bg_image and CustomSymbol.url. */
+  bg_image?: string;
+  /** Chart axes color (frame + tick labels). Trend today; meant to be shared
+   *  by future chart widgets rather than one field per widget. */
+  axis_color?: string;
+  /** Chart grid-lines color. Trend today, same sharing intent as axis_color. */
+  grid_color?: string;
   tag?: string;
   format?: string;
   src?: string;
@@ -262,6 +280,14 @@ export interface SynopticObject {
   /** Force the date to always render, even when the visible span fits in a
    *  day. Default false = keep the existing ">24h" heuristic. */
   trend_dt_always_show_date?: boolean;
+  /** Draw dashed horizontal lines at warn_low/warn_high (amber) and
+   *  alarm_low/alarm_high (red) on the shared Y scale — same pattern as
+   *  bar_show_thresholds on the bar chart. Thresholds refer to the shared
+   *  axis, so nothing is drawn when every trace uses its own scale. */
+  trend_show_thresholds?: boolean;
+  /** Draw a vertical marker on the timeline at each alarm activation that
+   *  falls inside the visible window (from the alarm-events journal). */
+  trend_show_alarm_markers?: boolean;
   // ── XY plot (live point + trail, not a time series) ───────────────────────
   /** Y-axis tag. `tag` (generic) is the X-axis. Distinct role from `extra_tags`,
    *  which overlays series on the same axis rather than pairing a second axis. */
@@ -1298,7 +1324,10 @@ export interface TextListEntry {
 export interface BarChartSeries {
   tag: string;
   label: string;
-  color: string;
+  /** Falls back to the shared trend PALETTE by index when omitted — same
+   *  automatic color assignment the trend uses, so multi-widget pages stay
+   *  consistent without hand-picking every color. */
+  color?: string;
   min?: number;
   max?: number;
 }
@@ -1306,5 +1335,6 @@ export interface BarChartSeries {
 export interface PieSlice {
   tag: string;
   label: string;
-  color: string;
+  /** Falls back to the shared trend PALETTE by index when omitted. */
+  color?: string;
 }

@@ -11,8 +11,102 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### Fixed
+
+- **Takeover-loop MQTT ("connection closed by peer" ogni 5 s) dopo un deploy**: la sequenza di
+  deploy (delete+upload+open) è arrivata due volte a 1 ms di distanza e i due `open_project`
+  concorrenti — nessun lock li serializzava — hanno avviato 4 task MQTT per 2 sorgenti: il
+  secondo `insert` nella mappa del supervisor orfanava i primi due task, che restavano connessi
+  al broker con gli stessi client id e si contendevano la connessione coi gemelli per sempre.
+  Quattro fix: (1) `project_switch_lock` in `AppState` serializza open/close/delete/upload;
+  (2) `start_one` che trova una voce esistente ferma il vecchio task (cancel+abort) invece di
+  orfanarlo; (3) `stop_one` al timeout dei 2 s ora chiama davvero `handle.abort()` — il drop di
+  una `JoinHandle` tokio *distacca* il task, non lo ferma (il commento diceva "abort/leak" ma
+  il codice faceva solo leak); (4) guardia try-lock su `remote_deploy` → un deploy alla volta,
+  il secondo riceve 409. Diagnosi: il sospetto iniziale era il generatore dell'instance id, che
+  era davvero difettoso (vedi sotto) ma non era la causa.
+- **Generatore `instance_id` indebolito da codice morto**: lo XOR col PID era shiftato fuori
+  dalla maschera a 24 bit — restavano solo i 24 bit bassi dell'orologio in nanosecondi, che su
+  boot sincronizzati possono coincidere. Ora 3 byte da `/dev/urandom` (nessuna dipendenza
+  nuova), fallback clock+PID (col PID dentro la maschera) su piattaforme senza urandom.
+- **`start_runtime.sh` moriva con un generico "Address already in use"** quando le porte
+  8443/8444 erano occupate dal servizio systemd dell'installazione nativa (`/opt/sws`) — che
+  ogni deploy nativo dall'IDE ri-abilita e riavvia. La pulizia esistente (`fuser -k`) senza
+  privilegi non può né uccidere né **vedere** un processo di root, e falliva in silenzio. Lo
+  script ora controlla le porte con `ss` (vede i listener di chiunque) e, se le trova occupate,
+  si ferma subito spiegando il caso e stampando il rimedio esatto
+  (`sudo systemctl disable --now sws-runtime`).
+- **Trend: sfondo (colore/immagine) invisibile in modalità editor**: il placeholder statico
+  del Trend nell'editor (niente polling, per non pesare durante il drag) aveva lo sfondo
+  hardcoded e ignorava `bg_color`/`bg_image` — l'anteprima non mostrava mai lo sfondo
+  configurato, facendo sembrare rotta la feature. Il rendering runtime era corretto.
+
 ### Added
 
+- **Immagini di progetto con upload dall'IDE**: nuova cartella `<progetto>/images/` (visibile,
+  come `history/`/`backups/`) con upload direttamente dalla sezione SFONDO del pannello
+  proprietà (pulsante "⬆ Carica…" + tendina delle immagini già caricate) — niente più solo URL
+  esterni. Endpoint: `GET/POST/DELETE /api/project/images[/:name]` (letture anche sul viewer
+  anonimo, upload/delete Supervisor+; whitelist png/jpg/jpeg/gif/svg/webp, max 5MB, nomi
+  validati). Le immagini **viaggiano col progetto**: incluse nel bundle export/deploy, nei
+  backup, e sovrascritte dal deploy come gli altri artefatti di progettazione. I widget le
+  referenziano con l'URL relativo `/api/project/images/<nome>`.
+- **UX certificati TLS self-signed** — quattro interventi nati da una sessione reale in cui
+  l'IDE "sembrava rotto" dopo l'import del certificato:
+  - **"Cerca runtime" distingue gli errori dalla lista vuota**: prima qualunque errore (incluso
+    il cert non ancora accettato nel browser) diventava "Nessun runtime trovato sulla rete
+    locale"; ora un riquadro spiega la causa e offre "Apri /health per accettare il cert ↗" e
+    "Ricarica la pagina".
+  - **Banner automatico "ricarica per riconnetterti"**: al primo errore di rete verso il
+    runtime remoto, un watcher (stesso pattern del build-watcher) riprova `/health` ogni 3 s;
+    appena il runtime torna raggiungibile (cert accettato in un'altra tab, host tornato su)
+    compare un banner verde con il pulsante Ricarica — la pagina già aperta resta altrimenti
+    "avvelenata" fino a un reload manuale che niente suggeriva.
+  - **Viewer: azione "Accetta cert ↗"** accanto al messaggio di errore quando il probe https
+    fallisce — il viewer è un origin separato dall'IDE (porta diversa) e va accettato anche
+    lui, cosa che il vecchio messaggio non diceva e non aiutava a fare.
+  - **Pagina helper HTTP con entrambi gli origin**: la pagina di accettazione (porta 8080/8090)
+    ora elenca IDE e viewer con lo stato di accettazione di ciascuno e reindirizza solo quando
+    tutti e due rispondono — reindirizzare al primo ok lasciava il viewer non accettato.
+  - **Download del certificato senza curl**: il pulsante "Scarica cert" passa dal backend
+    (nuovo proxy `GET /api/remote/cert?url=…`, che già parla coi self-signed) invece che da una
+    fetch del browser — che falliva proprio finché il cert non era già accettato (uovo e
+    gallina che costringeva a `curl -k`).
+
+- **Trend: soglie warn/alarm come linee tratteggiate** (`trend_show_thresholds` + i campi
+  soglia condivisi `warn_low`/`warn_high`/`alarm_low`/`alarm_high`, nuova sezione nel pannello
+  proprietà): stesso pattern visivo del bar chart (ambra per warn, rosso per alarm), disegnate
+  sulla scala condivisa — non compaiono se ogni traccia usa la propria scala.
+- **Trend: legenda cliccabile** — cliccando una voce della legenda si nasconde/mostra quella
+  traccia direttamente sul widget in pagina (prima il toggle esisteva solo nel modale
+  "Espandi"). Il cursore diventa un puntatore sopra le voci; una traccia a scala propria
+  nascosta libera anche la sua colonna di etichette.
+- **Trend: visibilità iniziale per traccia persistente** (`trend_series_styles[].hidden`,
+  checkbox "Nascondi" per traccia): salvata col progetto, il toggle da legenda resta stato
+  effimero sopra di essa. Vale sia per il widget compatto sia per il modale "Espandi".
+- **Trend: zoom 2D con il drag** — la selezione trascinata ora zooma anche in verticale (sulla
+  scala condivisa; le tracce a scala propria mantengono il loro autofit — una scelta
+  deliberata, lo zoom di un asse per-traccia non ha una risposta univoca). Un drag quasi
+  orizzontale continua a zoomare solo il tempo, e il rettangolo di anteprima collassa
+  all'altezza piena finché il drag non supera la soglia verticale — l'anteprima non promette
+  mai uno zoom Y che non avverrà.
+- **Trend: marker eventi allarme sulla timeline** (`trend_show_alarm_markers`): linee verticali
+  tratteggiate + triangolino in alto a ogni attivazione di allarme nella finestra visibile
+  (da `GET /api/alarms/history`), colorati per severità (Info blu, Warning ambra, Critical
+  rosso). Passando il mouse vicino a un marker, il tooltip aggiunge il messaggio dell'allarme.
+- **Bar/Pie: palette colori automatica** — il colore per serie/spicchio è ora opzionale: quando
+  omesso si usa la stessa `PALETTE` condivisa del Trend (per indice), così una pagina con più
+  widget resta coerente senza scegliere ogni colore a mano. Le nuove serie/spicchi nascono
+  senza colore esplicito; i progetti esistenti (colore salvato) sono invariati.
+- **Stile universale per gli oggetti del sinottico**: nuovi campi `bg_color` (colore di sfondo)
+  e `bg_image` (immagine di sfondo, URL — stesso modello di `GridCell.bg_image`, nessun upload)
+  su ~29 tipi di oggetto, con una sezione "SFONDO" unica nel pannello proprietà. Esclusi con
+  motivazione: `line`/`pipe` (tratti puri, nessun box), `alarm_viewer` (ha già il suo campo
+  dedicato). In più, elementi prima non configurabili: etichetta del pulsante (`color`, era
+  `#fff` fisso), ago+mozzo del gauge (`stroke`) e tutti i suoi testi (`color`), colori di
+  assi (`axis_color`) e griglia (`grid_color`) del Trend (coprono cornice, etichette e griglia,
+  prima tutti hardcoded). Fix collaterale trovato durante il lavoro: le etichette dell'asse X
+  del Trend ereditavano il colore dell'ultima colonna a scala propria invece del proprio.
 - **Controllo spazio disco prima di installare un'immagine container**
   (`install-container.sh`): un device con lo storage quasi pieno faceva fallire
   `podman load`/`pull` con una cascata di errori di formato immagine fuorvianti

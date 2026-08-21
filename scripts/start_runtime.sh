@@ -94,6 +94,35 @@ stop_existing() {
 # ── Build + avvio ─────────────────────────────────────────────────────────────
 stop_existing
 
+# Le porte sono ancora occupate? `fuser -k` qui sopra NON può né uccidere né
+# VEDERE un processo di root (senza privilegi non mappa i socket altrui, e
+# fallisce in silenzio) — tipicamente il servizio systemd dell'installazione
+# nativa (/opt/sws), che ogni deploy nativo dall'IDE ri-abilita e riavvia.
+# L'avvio moriva molto più sotto con un generico "Address already in use":
+# meglio fermarsi subito, col rimedio esatto. `ss` legge /proc/net/tcp e vede
+# i listener di chiunque.
+port_busy() {
+  ss -ltn 2>/dev/null | awk '{print $4}' | grep -Eq ":$1\$"
+}
+if port_busy "$VIEWER_PORT" || port_busy "$ADMIN_PORT"; then
+  echo ""
+  echo "ERRORE: le porte $VIEWER_PORT/$ADMIN_PORT sono ancora occupate da un processo"
+  echo "        che questo script non può fermare (probabilmente gira come root)."
+  if systemctl is-active --quiet sws-runtime 2>/dev/null; then
+    echo ""
+    echo "        È il servizio systemd dell'installazione nativa (/opt/sws)."
+    echo "        Ogni deploy nativo dall'IDE lo ri-abilita e riavvia. Fermalo con:"
+    echo ""
+    echo "          sudo systemctl disable --now sws-runtime"
+    echo ""
+    echo "        poi rilancia questo script."
+  else
+    echo "        Chi le occupa:"
+    fuser -v "${VIEWER_PORT}/tcp" "${ADMIN_PORT}/tcp" 2>&1 | sed 's/^/          /' || true
+  fi
+  exit 1
+fi
+
 echo "[runtime] build (cargo build -p sws-runtime -j 1)…"
 echo "[runtime]  (in attesa del file lock se un altro build è in corso)"
 (cd "$REPO_ROOT/sws-runtime" && cargo build -p sws-runtime -j 1)

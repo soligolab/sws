@@ -143,7 +143,13 @@ struct Args {
 }
 
 // HTML page served on the plain-HTTP companion port to guide certificate acceptance.
-// Placeholders replaced at startup: __ADMIN_PORT__ with the actual admin port.
+// Placeholders replaced at startup: __ADMIN_PORT__ with the actual admin port,
+// __VIEWER_PORT__ with the viewer port or the empty string when no viewer is
+// bound (start_editor.sh). Ogni PORTA e' un origin TLS separato per il
+// browser: accettare il certificato per :8444 non copre :8443 — visto dal
+// vivo (il pulsante Viewer restava "irraggiungibile" a IDE funzionante), la
+// pagina deve guidare all'accettazione di ENTRAMBI e reindirizzare solo
+// quando tutti gli origin rispondono.
 // /cert on this HTTP port serves the TLS cert file for direct download.
 const CERT_PAGE_TEMPLATE: &str = r##"<!DOCTYPE html>
 <html lang="it">
@@ -187,11 +193,18 @@ const CERT_PAGE_TEMPLATE: &str = r##"<!DOCTYPE html>
 
   <div class="card">
     <h3>Opzione A — accettazione rapida (una sessione)</h3>
-    <p>Copia questo URL e incollalo nella <strong>barra degli indirizzi</strong> del browser.
-       Clicca "Avanzate" &rarr; "Procedi" per accettare il certificato.</p>
-    <div class="row">
+    <p>Apri (o copia nella <strong>barra degli indirizzi</strong>) ciascun indirizzo qui sotto e
+       clicca "Avanzate" &rarr; "Procedi" per accettare il certificato.
+       <strong>Ogni porta va accettata separatamente</strong>: sono origin diversi per il browser.</p>
+    <div class="row" style="margin-bottom:8px">
+      <span id="ok-admin" style="width:18px;text-align:center">•</span>
       <input id="url" type="text" readonly value="">
-      <button class="btn btn-slate" onclick="copyUrl()">Copia</button>
+      <a id="open-admin" class="btn btn-slate" href="#" target="_blank">Apri ↗</a>
+    </div>
+    <div class="row" id="viewer-row" style="display:none">
+      <span id="ok-viewer" style="width:18px;text-align:center">•</span>
+      <input id="url-viewer" type="text" readonly value="">
+      <a id="open-viewer" class="btn btn-slate" href="#" target="_blank">Apri ↗</a>
     </div>
     <p id="status" style="margin-top:8px"></p>
   </div>
@@ -210,28 +223,55 @@ const CERT_PAGE_TEMPLATE: &str = r##"<!DOCTYPE html>
   </div>
 
   <script>
-    var PORT = '__ADMIN_PORT__';
-    var ORIGIN = 'https://' + window.location.hostname + ':' + PORT;
-    var healthUrl = ORIGIN + '/health';
-    document.getElementById('url').value = healthUrl;
+    var ADMIN_PORT = '__ADMIN_PORT__';
+    var VIEWER_PORT = '__VIEWER_PORT__';
+    var host = window.location.hostname;
+    var ADMIN_ORIGIN = 'https://' + host + ':' + ADMIN_PORT;
+    var VIEWER_ORIGIN = VIEWER_PORT ? ('https://' + host + ':' + VIEWER_PORT) : null;
 
-    function copyUrl() {
-      navigator.clipboard.writeText(healthUrl).then(function() {
-        document.getElementById('status').textContent = 'URL copiato. Incollalo nella barra degli indirizzi e accetta il certificato, poi torna qui.';
+    document.getElementById('url').value = ADMIN_ORIGIN + '/health';
+    document.getElementById('open-admin').href = ADMIN_ORIGIN + '/health';
+    if (VIEWER_ORIGIN) {
+      document.getElementById('viewer-row').style.display = 'flex';
+      document.getElementById('url-viewer').value = VIEWER_ORIGIN + '/health';
+      document.getElementById('open-viewer').href = VIEWER_ORIGIN + '/health';
+    }
+
+    // Un fetch per origin: il browser blocca ciascuno finche' il SUO
+    // certificato non e' accettato. Si reindirizza solo quando TUTTI gli
+    // origin rispondono — reindirizzare al primo ok lascerebbe il viewer non
+    // accettato, che e' esattamente il problema visto dal vivo.
+    var okAdmin = false, okViewer = !VIEWER_ORIGIN;
+    function check(origin, markId, done) {
+      fetch(origin + '/health').then(function(r) { done(r.ok); }).catch(function() { done(false); });
+    }
+    function mark(id, ok) {
+      var el = document.getElementById(id);
+      el.textContent = ok ? '✓' : '•';
+      el.style.color = ok ? '#22c55e' : '#64748b';
+    }
+    function poll() {
+      check(ADMIN_ORIGIN, 'ok-admin', function(ok) {
+        okAdmin = ok; mark('ok-admin', ok);
+        var proceed = function() {
+          if (okAdmin && okViewer) {
+            document.getElementById('status').textContent = 'Certificati approvati - reindirizzamento...';
+            setTimeout(function() { window.location.href = ADMIN_ORIGIN + '/'; }, 800);
+          } else {
+            var missing = [];
+            if (!okAdmin) missing.push('IDE :' + ADMIN_PORT);
+            if (!okViewer) missing.push('viewer :' + VIEWER_PORT);
+            document.getElementById('status').textContent = 'In attesa di accettazione: ' + missing.join(', ');
+            setTimeout(poll, 1200);
+          }
+        };
+        if (VIEWER_ORIGIN) {
+          check(VIEWER_ORIGIN, 'ok-viewer', function(ok2) { okViewer = ok2; mark('ok-viewer', ok2); proceed(); });
+        } else {
+          proceed();
+        }
       });
     }
-
-    function poll() {
-      fetch(ORIGIN + '/health')
-        .then(function(r) {
-          if (r.ok) {
-            document.getElementById('status').textContent = 'Certificato approvato - reindirizzamento...';
-            setTimeout(function() { window.location.href = ORIGIN + '/'; }, 800);
-          } else { wait(); }
-        })
-        .catch(function() { wait(); });
-    }
-    function wait() { setTimeout(poll, 1200); }
     poll();
   </script>
 </body>
@@ -836,7 +876,8 @@ async fn main() -> anyhow::Result<()> {
     // Build the HTTP app: cert-acceptance page at "/" and cert download at "/cert".
     let http_app: Option<axum::Router> = http_listener.as_ref().map(|_| {
         let page = CERT_PAGE_TEMPLATE
-            .replace("__ADMIN_PORT__", &args.admin_port.to_string());
+            .replace("__ADMIN_PORT__", &args.admin_port.to_string())
+            .replace("__VIEWER_PORT__", &args.viewer_port.map(|p| p.to_string()).unwrap_or_default());
         let cert_file = http_cert_path.clone();
         axum::Router::new()
             .route("/", axum::routing::get(move || {
@@ -1310,12 +1351,30 @@ fn load_or_create_instance_id(config_dir: &std::path::Path) -> String {
             return trimmed.to_string();
         }
     }
-    let nanos = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_nanos())
-        .unwrap_or(0);
-    let seed = (nanos as u64) ^ (u64::from(std::process::id()) << 32);
-    let id = format!("{:06x}", seed & 0xff_ffff);
+    // 3 byte dal kernel CSPRNG. La versione precedente usava l'orologio in
+    // nanosecondi XOR il PID, ma il PID era shiftato fuori dalla maschera a
+    // 24 bit (codice morto): restavano i 24 bit bassi del clock, che su boot
+    // sincronizzati (es. due device accesi insieme) possono coincidere.
+    let id = {
+        use std::io::Read as _;
+        let mut buf = [0u8; 3];
+        match std::fs::File::open("/dev/urandom")
+            .and_then(|mut f| f.read_exact(&mut buf))
+        {
+            Ok(()) => format!("{:02x}{:02x}{:02x}", buf[0], buf[1], buf[2]),
+            Err(e) => {
+                // Fallback (piattaforme senza /dev/urandom): clock + PID,
+                // stavolta col PID davvero dentro la maschera.
+                warn!("instance_id: /dev/urandom unavailable ({e}) — falling back to clock+pid");
+                let nanos = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map(|d| d.as_nanos())
+                    .unwrap_or(0);
+                let seed = (nanos as u64) ^ u64::from(std::process::id());
+                format!("{:06x}", seed & 0xff_ffff)
+            }
+        }
+    };
     if let Err(e) = std::fs::create_dir_all(config_dir)
         .and_then(|()| std::fs::write(&path, &id))
     {

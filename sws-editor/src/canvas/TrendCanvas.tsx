@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "@/api/client";
-import type { Sample, TrendSeriesStyle } from "@/types";
+import type { AlarmEvent, Sample, TrendSeriesStyle } from "@/types";
 
 /**
  * Multi-tag trend chart on a 2D canvas. Polls GET /api/history/:tag for each
@@ -92,14 +92,25 @@ interface TrendCanvasProps {
    *  Polling is disabled in this mode (data is fetched once on mount/change). */
   fromMs?: number;
   toMs?: number;
-  /** Indices of series to hide (0-based, parallel to tags). */
+  /** Indices of series to hide (0-based, parallel to tags). When provided,
+   *  visibility is CONTROLLED by the caller: legend clicks report through
+   *  `onLegendToggle` and this prop stays the single source of truth (the
+   *  "Espandi" modal works this way, its toolbar has its own toggle buttons).
+   *  When absent, the canvas keeps its own internal toggle state, seeded from
+   *  `seriesStyles[].hidden` (the persisted initial visibility). */
   hiddenIndices?: Set<number>;
+  /** Legend-click callback for controlled visibility (see hiddenIndices). */
+  onLegendToggle?: (idx: number) => void;
   /** Per-trace style (width/dash/fill/smooth), parallel to tags. */
   seriesStyles?: TrendSeriesStyle[];
   /** Drag-select a region on the plot to zoom into that time range. Fires on
    *  mouse-up when the drag exceeds a small pixel threshold (below it, it's
-   *  treated as a plain hover click, preserving today's behaviour). */
-  onRangeSelect?: (fromMs: number, toMs: number) => void;
+   *  treated as a plain hover click, preserving today's behaviour).
+   *  When the drag also has a meaningful vertical extent, `yLo`/`yHi` carry
+   *  the selected value range on the SHARED scale (own-scale traces keep
+   *  their autofit — zooming a per-trace axis has no single answer, so it's
+   *  deliberately out of scope); undefined for a mostly-horizontal drag. */
+  onRangeSelect?: (fromMs: number, toMs: number, yLo?: number, yHi?: number) => void;
   /** Shows a "reset zoom" button (same corner as the CSV download button)
    *  when the caller is currently displaying a range set via onRangeSelect. */
   zoomed?: boolean;
@@ -115,6 +126,31 @@ interface TrendCanvasProps {
   dtShowYear?: boolean;
   dtTwoLines?: boolean;
   dtAlwaysShowDate?: boolean;
+  /** Dashed horizontal threshold lines on the shared Y scale (amber for warn,
+   *  red for alarm) — same convention as the bar chart's bar_show_thresholds.
+   *  Not drawn when every trace uses its own scale (thresholds are values on
+   *  the shared axis; without it they have no geometric meaning). */
+  showThresholds?: boolean;
+  warnLow?: number;
+  warnHigh?: number;
+  alarmLow?: number;
+  alarmHigh?: number;
+  /** Vertical markers at each alarm activation inside the visible window
+   *  (from GET /api/alarms/history). Every alarm of the project, not just
+   *  ones bound to the plotted tags — the events journal doesn't carry the
+   *  tag, and "what was going on when this fired" is exactly the question a
+   *  trend with markers answers. */
+  showAlarmMarkers?: boolean;
+  /** Chart background color (replaces the hardcoded slate). */
+  bgColor?: string;
+  /** Background image URL, drawn above bgColor and below grid/traces.
+   *  Loaded through an Image() cache — the 2D canvas has no declarative
+   *  <image href> like SVG. */
+  bgImage?: string;
+  /** Frame + tick-label color (X and shared-Y axis). */
+  axisColor?: string;
+  /** Grid-lines color. */
+  gridColor?: string;
 }
 
 const SMALL_BTN: React.CSSProperties = {
@@ -219,6 +255,7 @@ export function TrendCanvas({
   fromMs: explicitFromMs,
   toMs: explicitToMs,
   hiddenIndices,
+  onLegendToggle,
   seriesStyles,
   onRangeSelect,
   zoomed = false,
@@ -231,6 +268,16 @@ export function TrendCanvas({
   dtShowYear,
   dtTwoLines,
   dtAlwaysShowDate,
+  showThresholds = false,
+  warnLow,
+  warnHigh,
+  alarmLow,
+  alarmHigh,
+  showAlarmMarkers = false,
+  bgColor,
+  bgImage,
+  axisColor,
+  gridColor,
 }: TrendCanvasProps) {
   const dtConfig: TrendDateTimeConfig = {
     dateOrder: dtDateOrder ?? DEFAULT_DT_CONFIG.dateOrder,
@@ -243,9 +290,32 @@ export function TrendCanvas({
   };
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [series, setSeries] = useState<Sample[][]>(() => tags.map(() => []));
+  const [alarmEvents, setAlarmEvents] = useState<AlarmEvent[]>([]);
+  // Background image cache: one Image() per URL, a tick to redraw on load.
+  const bgImgRef = useRef<{ url: string; img: HTMLImageElement | null }>({ url: "", img: null });
+  const [bgImgTick, setBgImgTick] = useState(0);
   const [hoverX, setHoverX] = useState<number | null>(null);
   const [dragStartX, setDragStartX] = useState<number | null>(null);
   const [dragCurX, setDragCurX] = useState<number | null>(null);
+
+  // Uncontrolled trace visibility (compact widget): seeded once from the
+  // persisted `seriesStyles[].hidden`, then toggled by legend clicks. When
+  // the caller passes `hiddenIndices` (controlled, e.g. the Espandi modal),
+  // this state is bypassed entirely.
+  const [localHidden, setLocalHidden] = useState<Set<number>>(
+    () => new Set((seriesStyles ?? []).flatMap((s, i) => (s?.hidden ? [i] : [])))
+  );
+  const effHidden = hiddenIndices ?? localHidden;
+  // Legend entry hit boxes, rebuilt on every draw (canvas has no DOM to click).
+  const legendBoxesRef = useRef<{ x0: number; x1: number; y0: number; y1: number; idx: number }[]>([]);
+  const [overLegend, setOverLegend] = useState(false);
+  // Vertical drag extent — refs, not state: they only matter at mouse-up (the
+  // selection box redraws are already driven by dragCurX's state updates).
+  const dragStartYRef = useRef(0);
+  const dragCurYRef = useRef(0);
+  // Shared-scale mapping captured at the last draw, so mouse-up can invert
+  // screen-Y → value without re-deriving the whole domain outside the effect.
+  const sharedScaleRef = useRef<{ yLo: number; yHi: number; plotH: number; padTop: number; hasShared: boolean } | null>(null);
 
   const isHistorical = explicitFromMs !== undefined && explicitToMs !== undefined;
   // Pan (◀/▶) only makes sense for this widget's own rolling window — when the
@@ -264,8 +334,8 @@ export function TrendCanvas({
   // columns on the left instead of sharing the single right-hand axis).
   // Hidden traces don't reserve a column — nothing to label if it's not drawn.
   const ownScaleIndices = useMemo(
-    () => tags.map((_, i) => i).filter((i) => seriesStyles?.[i]?.own_scale && !hiddenIndices?.has(i)),
-    [tags, seriesStyles, hiddenIndices]
+    () => tags.map((_, i) => i).filter((i) => seriesStyles?.[i]?.own_scale && !effHidden.has(i)),
+    [tags, seriesStyles, effHidden]
   );
 
   useEffect(() => {
@@ -292,6 +362,14 @@ export function TrendCanvas({
       } catch {
         // Runtime offline or tag missing — keep last data.
       }
+      if (showAlarmMarkers) {
+        try {
+          const events = await api.getAlarmHistory({ from_ms: fMs, to_ms: tMs, limit: 200 });
+          if (!cancelled) setAlarmEvents(events);
+        } catch {
+          // Journal unavailable (e.g. no store) — markers just don't appear.
+        }
+      }
     };
 
     if (isHistorical || offsetMs !== 0) {
@@ -310,7 +388,7 @@ export function TrendCanvas({
     tick();
     const id = setInterval(tick, pollMs);
     return () => { cancelled = true; clearInterval(id); };
-  }, [tags.join(","), windowS, pollMs, opcuaBackfill, isHistorical, explicitFromMs, explicitToMs, offsetMs]);
+  }, [tags.join(","), windowS, pollMs, opcuaBackfill, isHistorical, explicitFromMs, explicitToMs, offsetMs, showAlarmMarkers]);
 
   // Layout constants for the plot area
   const PAD_TOP    = 6 + (tags.length > 1 ? 14 : 0); // legend space when multi-tag
@@ -349,23 +427,72 @@ export function TrendCanvas({
     const scale = rect.width > 0 ? width / rect.width : 1;
     return (e.clientX - rect.left) * scale;
   };
+  const toCanvasY = (e: { clientY: number; currentTarget: HTMLCanvasElement }) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const scale = rect.height > 0 ? height / rect.height : 1;
+    return (e.clientY - rect.top) * scale;
+  };
+
+  const hitLegend = (x: number, y: number): number | null => {
+    for (const b of legendBoxesRef.current) {
+      if (x >= b.x0 && x <= b.x1 && y >= b.y0 && y <= b.y1) return b.idx;
+    }
+    return null;
+  };
 
   const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (!onRangeSelect) return;
+    // Even without onRangeSelect the down-point is tracked, so a click on the
+    // legend can be told apart from a drag on mouse-up.
     const x = toCanvasX(e);
+    const y = toCanvasY(e);
     setDragStartX(x);
     setDragCurX(x);
+    dragStartYRef.current = y;
+    dragCurYRef.current = y;
   };
 
   const handleMouseUp = () => {
-    if (dragStartX === null || dragCurX === null) return;
-    const delta = Math.abs(dragCurX - dragStartX);
-    if (delta > DRAG_THRESHOLD_PX && onRangeSelect) {
+    if (dragStartX === null || dragCurX === null) {
+      return;
+    }
+    const dx = Math.abs(dragCurX - dragStartX);
+    const dy = Math.abs(dragCurYRef.current - dragStartYRef.current);
+
+    if (dx <= DRAG_THRESHOLD_PX && dy <= DRAG_THRESHOLD_PX) {
+      // Plain click: legend toggle if it landed on a legend entry.
+      const idx = hitLegend(dragStartX, dragStartYRef.current);
+      if (idx !== null) {
+        if (onLegendToggle) {
+          onLegendToggle(idx);
+        } else {
+          setLocalHidden((prev) => {
+            const next = new Set(prev);
+            if (next.has(idx)) next.delete(idx); else next.add(idx);
+            return next;
+          });
+        }
+      }
+    } else if (onRangeSelect) {
       const { tMin, tSpan } = getXDomain();
       const toTs = (x: number) => tMin + ((x - PAD_LEFT) / plotW) * tSpan;
       const a = toTs(dragStartX);
       const b = toTs(dragCurX);
-      onRangeSelect(Math.min(a, b), Math.max(a, b));
+      // Y zoom applies to the shared scale only (own-scale traces keep their
+      // autofit): the selection box's vertical extent is inverted through the
+      // shared mapping captured at the last draw. A mostly-horizontal drag
+      // (small dy) keeps today's time-only zoom.
+      let selYLo: number | undefined;
+      let selYHi: number | undefined;
+      const shared = sharedScaleRef.current;
+      if (dy > DRAG_THRESHOLD_PX && shared && shared.hasShared) {
+        const invY = (py: number) =>
+          shared.yLo + ((shared.padTop + shared.plotH - py) / shared.plotH) * (shared.yHi - shared.yLo);
+        const v1 = invY(dragStartYRef.current);
+        const v2 = invY(dragCurYRef.current);
+        selYLo = Math.min(v1, v2);
+        selYHi = Math.max(v1, v2);
+      }
+      onRangeSelect(Math.min(a, b), Math.max(a, b), selYLo, selYHi);
     }
     setDragStartX(null);
     setDragCurX(null);
@@ -384,9 +511,21 @@ export function TrendCanvas({
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
     // Background + frame
-    ctx.fillStyle = "#0f172a";
+    ctx.fillStyle = bgColor ?? "#0f172a";
     ctx.fillRect(0, 0, width, height);
-    ctx.strokeStyle = "#334155";
+    if (bgImage) {
+      if (bgImgRef.current.url !== bgImage) {
+        // New URL: start loading, redraw when ready (the tick in the deps).
+        const img = new Image();
+        img.onload = () => { bgImgRef.current = { url: bgImage, img }; setBgImgTick((t) => t + 1); };
+        img.onerror = () => { bgImgRef.current = { url: bgImage, img: null }; };
+        bgImgRef.current = { url: bgImage, img: null };
+        img.src = bgImage;
+      } else if (bgImgRef.current.img) {
+        ctx.drawImage(bgImgRef.current.img, 0, 0, width, height);
+      }
+    }
+    ctx.strokeStyle = axisColor ?? "#334155";
     ctx.lineWidth = 1;
     ctx.strokeRect(0.5, 0.5, width - 1, height - 1);
 
@@ -411,7 +550,7 @@ export function TrendCanvas({
     let vMin = Number.POSITIVE_INFINITY;
     let vMax = Number.NEGATIVE_INFINITY;
     series.forEach((s, idx) => {
-      if (ownScaleIndices.includes(idx) || hiddenIndices?.has(idx)) return;
+      if (ownScaleIndices.includes(idx) || effHidden.has(idx)) return;
       for (const p of s) {
         const n = sampleToNumber(p.value);
         if (n !== null) {
@@ -426,7 +565,7 @@ export function TrendCanvas({
     if (!Number.isFinite(yLo) || !Number.isFinite(yHi)) { yLo = 0; yHi = 1; }
     if (yLo === yHi) { yLo -= 0.5; yHi += 0.5; }
     const ySpan = Math.max(1e-9, yHi - yLo);
-    const hasSharedSeries = tags.some((_, idx) => !ownScaleIndices.includes(idx) && !hiddenIndices?.has(idx));
+    const hasSharedSeries = tags.some((_, idx) => !ownScaleIndices.includes(idx) && !effHidden.has(idx));
 
     // Independent domain per own-scale trace: autofit on that trace's own
     // samples only (no y_min/y_max override for these yet — always autofit).
@@ -456,6 +595,8 @@ export function TrendCanvas({
     const plotH = height - PAD_TOP - effBottom;
     const xAt = (ts: number) => PAD_LEFT + ((ts - tMin) / tSpan) * plotW;
     const yAt = (v: number)  => PAD_TOP  + plotH - ((v - yLo) / ySpan) * plotH;
+    // Expose the shared mapping to the mouse-up handler (Y zoom inversion).
+    sharedScaleRef.current = { yLo, yHi, plotH, padTop: PAD_TOP, hasShared: hasSharedSeries };
     // Per-series Y mapper: an own-scale trace maps through its own domain,
     // everything else shares `yAt` above.
     const yAtFor = (idx: number) => {
@@ -465,7 +606,7 @@ export function TrendCanvas({
     };
 
     // ── Grid ──
-    ctx.strokeStyle = "#1e293b";
+    ctx.strokeStyle = gridColor ?? "#1e293b";
     ctx.lineWidth = 1;
     // Horizontal grid (4 divisions)
     for (let i = 1; i < 4; i++) {
@@ -488,7 +629,7 @@ export function TrendCanvas({
     // Skipped when every trace has its own scale — a shared axis nobody uses
     // would just be a confusing, meaningless 0-1 range.
     if (hasSharedSeries) {
-      ctx.fillStyle = "#64748b";
+      ctx.fillStyle = axisColor ?? "#64748b";
       ctx.font = "10px ui-monospace, monospace";
       ctx.textAlign = "left";
       ctx.textBaseline = "middle";
@@ -520,6 +661,11 @@ export function TrendCanvas({
     });
 
     // ── X axis labels (bottom) ──
+    // fillStyle set explicitly: the per-trace own-scale columns above leave
+    // the context tinted with the last trace's color, and inheriting it here
+    // painted the time labels in that color (regression from the own-scale
+    // work, caught during the style pass).
+    ctx.fillStyle = axisColor ?? "#64748b";
     ctx.textBaseline = "top";
     for (let i = 0; i <= 4; i++) {
       const ts = tMin + (tSpan * i) / 4;
@@ -532,10 +678,36 @@ export function TrendCanvas({
       if (parts.line2) ctx.fillText(parts.line2, x, PAD_TOP + plotH + 3 + xAxisLineH);
     }
 
+    // ── Warn/alarm threshold lines (shared scale only) ──
+    // Same colors/dash as the bar chart's bar_show_thresholds. Drawn before
+    // the series so the traces stay readable on top of them. Skipped when no
+    // trace uses the shared scale: the values would have no axis to belong to.
+    if (showThresholds && hasSharedSeries) {
+      const thresholdDefs: { v: number | undefined; color: string }[] = [
+        { v: warnLow,   color: "#f59e0b" },
+        { v: warnHigh,  color: "#f59e0b" },
+        { v: alarmLow,  color: "#ef4444" },
+        { v: alarmHigh, color: "#ef4444" },
+      ];
+      ctx.lineWidth = 1;
+      ctx.setLineDash([5, 4]);
+      for (const t of thresholdDefs) {
+        if (t.v === undefined) continue;
+        const y = yAt(t.v);
+        if (y < PAD_TOP || y > PAD_TOP + plotH) continue; // fuori dal range visibile
+        ctx.strokeStyle = t.color;
+        ctx.beginPath();
+        ctx.moveTo(PAD_LEFT, y);
+        ctx.lineTo(PAD_LEFT + plotW, y);
+        ctx.stroke();
+      }
+      ctx.setLineDash([]);
+    }
+
     // ── Lines (one per series) ──
     series.forEach((points, idx) => {
       if (points.length < 1) return;
-      if (hiddenIndices?.has(idx)) return;
+      if (effHidden.has(idx)) return;
       const style = seriesStyles?.[idx];
       const color = colors[idx];
       const smooth = style?.smooth ?? false;
@@ -576,7 +748,41 @@ export function TrendCanvas({
       ctx.setLineDash([]);
     });
 
+    // ── Alarm activation markers ──
+    // Thin dashed verticals + a triangle badge at the top edge, colored by
+    // severity. Drawn above the traces: an alarm is an annotation the eye
+    // should find, not background decoration.
+    if (showAlarmMarkers && alarmEvents.length > 0) {
+      const sevColor: Record<string, string> = { Info: "#3b82f6", Warning: "#f59e0b", Critical: "#ef4444" };
+      for (const ev of alarmEvents) {
+        const ts = ev.ts_activated_ms;
+        if (ts < tMin || ts > tMin + tSpan) continue;
+        const x = xAt(ts);
+        const color = sevColor[ev.severity] ?? "#f59e0b";
+        ctx.strokeStyle = color;
+        ctx.globalAlpha = 0.55;
+        ctx.lineWidth = 1;
+        ctx.setLineDash([2, 3]);
+        ctx.beginPath();
+        ctx.moveTo(x, PAD_TOP);
+        ctx.lineTo(x, PAD_TOP + plotH);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        ctx.moveTo(x - 4, PAD_TOP);
+        ctx.lineTo(x + 4, PAD_TOP);
+        ctx.lineTo(x, PAD_TOP + 6);
+        ctx.closePath();
+        ctx.fill();
+      }
+    }
+
     // ── Legend (top-left, when >1 series) ──
+    // Each entry's bounding box is recorded so clicks can toggle the trace
+    // (canvas text isn't clickable DOM — hit-testing is manual).
+    legendBoxesRef.current = [];
     if (tags.length > 1) {
       ctx.font = "10px system-ui, sans-serif";
       ctx.textBaseline = "middle";
@@ -585,25 +791,35 @@ export function TrendCanvas({
       const cy = PAD_TOP - 8;
       tags.forEach((t, idx) => {
         if (!t) return;
-        const hidden = hiddenIndices?.has(idx);
+        const hidden = effHidden.has(idx);
         ctx.fillStyle = hidden ? "#334155" : colors[idx];
         ctx.fillRect(cx, cy - 4, 8, 8);
         ctx.fillStyle = hidden ? "#475569" : "#cbd5e1";
         ctx.fillText(t, cx + 12, cy);
         const w = ctx.measureText(t).width;
+        legendBoxesRef.current.push({ x0: cx, x1: cx + 12 + w, y0: cy - 7, y1: cy + 7, idx });
         cx += 12 + w + 12;
       });
     }
 
-    // ── Drag-to-zoom selection rectangle ──
+    // ── Drag-to-zoom selection rectangle (2D: time + shared-scale Y) ──
     if (dragStartX !== null && dragCurX !== null) {
       const x0 = Math.max(PAD_LEFT, Math.min(dragStartX, dragCurX));
       const x1 = Math.min(PAD_LEFT + plotW, Math.max(dragStartX, dragCurX));
-      if (x1 > x0) {
+      // The vertical extent collapses to the full plot height while the drag
+      // is still mostly horizontal — same threshold the mouse-up handler uses
+      // to decide whether to zoom Y at all, so the preview never promises a
+      // Y zoom that won't happen.
+      const rawY0 = Math.min(dragStartYRef.current, dragCurYRef.current);
+      const rawY1 = Math.max(dragStartYRef.current, dragCurYRef.current);
+      const dyBigEnough = rawY1 - rawY0 > DRAG_THRESHOLD_PX;
+      const y0 = dyBigEnough ? Math.max(PAD_TOP, rawY0) : PAD_TOP;
+      const y1 = dyBigEnough ? Math.min(PAD_TOP + plotH, rawY1) : PAD_TOP + plotH;
+      if (x1 > x0 && y1 > y0) {
         ctx.fillStyle = "rgba(59,130,246,0.18)";
-        ctx.fillRect(x0, PAD_TOP, x1 - x0, plotH);
+        ctx.fillRect(x0, y0, x1 - x0, y1 - y0);
         ctx.strokeStyle = "#3b82f6";
-        ctx.strokeRect(x0 + 0.5, PAD_TOP + 0.5, x1 - x0 - 1, plotH - 1);
+        ctx.strokeRect(x0 + 0.5, y0 + 0.5, x1 - x0 - 1, y1 - y0 - 1);
       }
     }
 
@@ -624,7 +840,7 @@ export function TrendCanvas({
       const hits: { tag: string; color: string; value: number; y: number }[] = [];
       series.forEach((points, idx) => {
         if (!points.length) return;
-        if (hiddenIndices?.has(idx)) return;
+        if (effHidden.has(idx)) return;
         let best: Sample | null = null;
         let bestDt = Infinity;
         for (const p of points) {
@@ -648,10 +864,18 @@ export function TrendCanvas({
         ctx.font = "11px ui-monospace, monospace";
         const tsParts = fmtDateTimeParts(tsAtHover, tSpan, dtConfig);
         const tsLines = tsParts.line2 ? [tsParts.line1, tsParts.line2] : [tsParts.line1];
-        const lines = [...tsLines, ...hits.map((h) => `${h.tag}: ${fmtValue(h.value)}`)];
+        const sevColor: Record<string, string> = { Info: "#3b82f6", Warning: "#f59e0b", Critical: "#ef4444" };
+        const nearbyAlarms = showAlarmMarkers
+          ? alarmEvents.filter((ev) => Math.abs(xAt(ev.ts_activated_ms) - hoverX) < 5)
+          : [];
+        const entries: { text: string; color: string }[] = [
+          ...tsLines.map((l) => ({ text: l, color: "#94a3b8" })),
+          ...hits.map((h) => ({ text: `${h.tag}: ${fmtValue(h.value)}`, color: h.color })),
+          ...nearbyAlarms.map((ev) => ({ text: `⚠ ${ev.alarm_message}`, color: sevColor[ev.severity] ?? "#f59e0b" })),
+        ];
         const lineH = 14;
-        const boxW = Math.max(...lines.map((l) => ctx.measureText(l).width)) + 16;
-        const boxH = lines.length * lineH + 8;
+        const boxW = Math.max(...entries.map((e) => ctx.measureText(e.text).width)) + 16;
+        const boxH = entries.length * lineH + 8;
         // Place to the right of the cursor unless we'd clip
         let bx = hoverX + 8;
         if (bx + boxW > PAD_LEFT + plotW) bx = hoverX - boxW - 8;
@@ -662,13 +886,9 @@ export function TrendCanvas({
         ctx.strokeRect(bx + 0.5, by + 0.5, boxW - 1, boxH - 1);
         ctx.textAlign = "left";
         ctx.textBaseline = "top";
-        lines.forEach((line, i) => {
-          if (i < tsLines.length) {
-            ctx.fillStyle = "#94a3b8";
-          } else {
-            ctx.fillStyle = hits[i - tsLines.length].color;
-          }
-          ctx.fillText(line, bx + 8, by + 4 + i * lineH);
+        entries.forEach((entry, i) => {
+          ctx.fillStyle = entry.color;
+          ctx.fillText(entry.text, bx + 8, by + 4 + i * lineH);
         });
       }
     }
@@ -685,7 +905,7 @@ export function TrendCanvas({
         ctx.fillText(fmtValue(lastN), PAD_LEFT + plotW - 4, PAD_TOP + 4);
       }
     }
-  }, [series, width, height, colors, yMin, yMax, hoverX, tags.join(","), windowS, isHistorical, explicitFromMs, explicitToMs, offsetMs, hiddenIndices, seriesStyles, dragStartX, dragCurX, dtDateOrder, dtSeparator, dtTimeFormat, dtShowSeconds, dtShowYear, dtTwoLines, dtAlwaysShowDate]);
+  }, [series, width, height, colors, yMin, yMax, hoverX, tags.join(","), windowS, isHistorical, explicitFromMs, explicitToMs, offsetMs, effHidden, seriesStyles, dragStartX, dragCurX, dtDateOrder, dtSeparator, dtTimeFormat, dtShowSeconds, dtShowYear, dtTwoLines, dtAlwaysShowDate, showThresholds, warnLow, warnHigh, alarmLow, alarmHigh, showAlarmMarkers, alarmEvents, bgColor, bgImage, bgImgTick, axisColor, gridColor]);
 
   const hasSeries = series.some((s) => s.length > 0);
 
@@ -693,15 +913,20 @@ export function TrendCanvas({
     <div style={{ position: "relative", width, height, display: "block" }}>
       <canvas
         ref={canvasRef}
-        style={{ width, height, display: "block", cursor: onRangeSelect ? "crosshair" : "default" }}
+        style={{ width, height, display: "block", cursor: overLegend ? "pointer" : onRangeSelect ? "crosshair" : "default" }}
         onMouseDown={(e) => { e.stopPropagation(); handleMouseDown(e); }}
         onMouseMove={(e) => {
           const x = toCanvasX(e);
+          const y = toCanvasY(e);
           setHoverX(x);
-          if (dragStartX !== null) setDragCurX(x);
+          if (dragStartX !== null) {
+            setDragCurX(x);
+            dragCurYRef.current = y;
+          }
+          setOverLegend(hitLegend(x, y) !== null);
         }}
         onMouseUp={handleMouseUp}
-        onMouseLeave={() => { setHoverX(null); setDragStartX(null); setDragCurX(null); }}
+        onMouseLeave={() => { setHoverX(null); setDragStartX(null); setDragCurX(null); setOverLegend(false); }}
       />
       {hasSeries && (
         <div style={{ position: "absolute", top: 4, right: 4, display: "flex", gap: 4 }}>

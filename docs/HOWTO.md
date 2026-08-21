@@ -14,6 +14,7 @@
 
 1. [Testare `sws-lvgl-viewer` su un Pixsys reale, sostituendo Chromium](#1-testare-sws-lvgl-viewer-su-un-pixsys-reale-sostituendo-chromium)
 2. [Liberare spazio su disco quando è pieno](#2-liberare-spazio-su-disco-quando-è-pieno)
+3. [Il browser non vede il runtime dopo aver installato il certificato](#3-il-browser-non-vede-il-runtime-dopo-aver-installato-il-certificato)
 
 ---
 
@@ -223,3 +224,38 @@ mano se vale la pena liberarli.
 
 Dopo la pulizia il prossimo `cargo build`/`cargo check` ricompila da zero (nessuna cache
 incrementale) — un paio di minuti, normale, non un errore.
+
+---
+
+## 3. Il browser non vede il runtime dopo aver installato il certificato
+
+Sintomi visti dal vivo (2026-08-21): "Cerca runtime" non trova niente anche dopo aver importato
+il certificato nel browser; il pulsante Viewer dice che il runtime non risponde mentre l'IDE
+funziona; nei log del runtime compaiono `TLS handshake failed: CertificateUnknown` dal PC su cui
+gira il browser.
+
+Due cause, entrambe lato browser, nessun guasto sul runtime:
+
+1. **Ogni porta è un origin TLS separato.** Accettare/importare il certificato per
+   `https://host:8444` (IDE) NON copre `https://host:8443` (viewer) — e nemmeno lo stesso
+   servizio raggiunto per IP invece che per hostname. Vanno accettati tutti gli origin che si
+   usano davvero.
+2. **La pagina già aperta resta "avvelenata".** Dopo l'accettazione/import, le fetch della
+   pagina IDE già aperta continuano a fallire finché non la si ricarica.
+
+Procedura (senza terminale):
+
+1. Dall'IDE: Configurazione → Runtime → **"Scarica cert"** (passa dal backend, funziona anche
+   prima di ogni accettazione — niente più `curl -k`). Importalo nel browser/OS, **oppure** usa
+   l'accettazione rapida per sessione qui sotto.
+2. Accetta il certificato per **ciascun origin**: la pagina helper HTTP (porta 8080 sul
+   runtime, 8090 sull'editor) ora elenca ENTRAMBI gli indirizzi (IDE e viewer) con lo stato di
+   accettazione per ciascuno, e reindirizza solo quando tutti e due rispondono. In alternativa:
+   "Accetta cert TLS ↗" nell'IDE per l'admin, e il pulsante "Accetta cert ↗" che compare accanto
+   al Viewer quando il probe fallisce su https.
+3. **Ricarica la pagina dell'IDE.** Se non lo fai, ci pensa l'IDE a dirtelo: quando rileva che
+   il runtime è tornato raggiungibile mostra un banner verde "ricarica la pagina per
+   riconnetterti" (sotto c'è un watcher che riprova `/health` ogni 3 s dal momento del primo
+   errore). Anche "Cerca runtime", quando fallisce per questo motivo, ora lo dice chiaramente
+   con i bottoni "Apri /health" e "Ricarica la pagina" invece del fuorviante "Nessun runtime
+   trovato".

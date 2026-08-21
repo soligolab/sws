@@ -1,6 +1,6 @@
 use std::{collections::HashMap, io::{Cursor, Read, Write}, path::PathBuf, sync::Arc};
 use axum::{
-    body::Bytes,
+    body::{Body, Bytes},
     extract::{ws::{Message, WebSocket, WebSocketUpgrade}, Extension, Path, Query, Request, State},
     http::{header, StatusCode},
     middleware::{self, Next},
@@ -10,7 +10,7 @@ use axum::{
 };
 use tower_http::cors::{Any, CorsLayer};
 use tower_http::services::{ServeDir, ServeFile};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use sws_auth::{AuthState, Credentials, LoginError, Role};
 use sws_core::{
     AlarmDb, AlarmDef, AlarmEvent, AlarmState, CustomSymbol, FunctionDef, GlobalScriptDef,
@@ -108,6 +108,16 @@ pub struct AppState {
     /// ids when a source has `random_client_id` enabled (see
     /// `resolve_mqtt_client_ids` in `projects.rs`).
     pub instance_id: Arc<String>,
+    /// Serializza open/close/delete/upload di progetto. Due `open_project`
+    /// concorrenti (deploy arrivato doppio, 2026-08-21) passavano entrambi
+    /// da `reload(vec![])` a mappa vuota e avviavano 4 task MQTT per 2
+    /// sorgenti: il secondo `insert` orfanava i primi due, che restavano
+    /// connessi al broker con gli stessi client id — takeover infinito.
+    pub project_switch_lock: Arc<tokio::sync::Mutex<()>>,
+    /// Un solo deploy remoto alla volta: il 2026-08-21 la sequenza
+    /// delete+upload+open è arrivata DUE volte a 1 ms di distanza sul target
+    /// (vedi `project_switch_lock`). `try_lock` → 409 se già in corso.
+    pub deploy_lock: Arc<tokio::sync::Mutex<()>>,
 }
 
 /// Resolve the active project directory or return 503. Used at the top
@@ -148,7 +158,7 @@ pub fn build(
     // avviare i servizi del progetto auto-aperto al boot (notifiche, script
     // globali) e quei supervisori vivono qui dentro.
 ) -> (Router, Router, AppState) {
-    let state = AppState { db, bus, alarms, historian, registry, py, auth, supervisor, script_supervisor, functions, derived_tags, project_dir, projects_root, templates_root, logs, logs_dir, started_at, ip_allowlist, recipe_log: Arc::new(RwLock::new(Vec::new())), notification_supervisor: Arc::new(RwLock::new(None)), telegram_sender: Arc::new(RwLock::new(None)), config_dir, cert_path, build_running: crate::packaging::new_build_lock(), repo_root: crate::packaging::new_repo_root(), remote_target: Arc::new(RwLock::new(None)), audit, known_projects, instance_id };
+    let state = AppState { db, bus, alarms, historian, registry, py, auth, supervisor, script_supervisor, functions, derived_tags, project_dir, projects_root, templates_root, logs, logs_dir, started_at, ip_allowlist, recipe_log: Arc::new(RwLock::new(Vec::new())), notification_supervisor: Arc::new(RwLock::new(None)), telegram_sender: Arc::new(RwLock::new(None)), config_dir, cert_path, build_running: crate::packaging::new_build_lock(), repo_root: crate::packaging::new_repo_root(), remote_target: Arc::new(RwLock::new(None)), audit, known_projects, instance_id, project_switch_lock: Arc::new(tokio::sync::Mutex::new(())), deploy_lock: Arc::new(tokio::sync::Mutex::new(())) };
     // Build the runtime router (8443) before consuming state for admin.
     let runtime_app = build_runtime_inner(state.clone(), www_dir.clone(), lockdown);
 
@@ -300,6 +310,12 @@ pub fn build(
         // mDNS discovery: scan LAN for _sws._tcp.local. services (~2 s).
         // Supervisor+ only — used from the RuntimeConnectionTab deploy panel.
         .route("/api/discover", get(crate::discover::discover_runtimes))
+        // Cert TLS di un runtime remoto scaricato via backend (il browser non
+        // può: bloccherebbe proprio la richiesta finché il cert non è accettato).
+        .route("/api/remote/cert", get(crate::remote::remote_cert))
+        // Upload/rimozione immagini di progetto (le letture stanno nei tier
+        // read-only di entrambe le porte).
+        .route("/api/project/images/:name", post(upload_project_image).delete(delete_project_image))
         // Git commit: stage all changes and create a commit.
         .route("/api/project/git/commit", post(git_commit))
         // Crea un tag — stessa classe di rischio del commit (scrittura locale).
@@ -322,6 +338,9 @@ pub fn build(
         // Synoptic REST (reads)
         .route("/api/synoptics",       get(list_synoptics))
         .route("/api/synoptics/:name", get(get_synoptic))
+        // Immagini di progetto (letture — servite anche al viewer, vedi sotto)
+        .route("/api/project/images",       get(list_project_images))
+        .route("/api/project/images/:name", get(get_project_image))
         // Per-page export — raw YAML download. Same shape as the file on disk,
         // small enough to skip the ZIP wrapper used by the bulk export.
         .route("/api/synoptics/:name/export", get(export_synoptic_yaml))
@@ -541,6 +560,8 @@ fn build_runtime_inner(state: AppState, www_dir: Option<PathBuf>, lockdown: bool
         .route("/api/history/:tag",       get(get_history))
         .route("/api/synoptics",          get(list_synoptics))
         .route("/api/synoptics/:name",    get(get_synoptic))
+        .route("/api/project/images",       get(list_project_images))
+        .route("/api/project/images/:name", get(get_project_image))
         .route("/api/faceplates",         get(list_faceplates))
         .route("/api/faceplates/:id",     get(get_faceplate))
         .route("/api/recipes",            get(list_recipes))
@@ -2262,6 +2283,7 @@ pub(crate) async fn build_project_zip(dir: &std::path::Path) -> anyhow::Result<V
         .map_err(|e| anyhow::anyhow!("cannot read synoptics: {e}"))?;
     let faceplates = read_yaml_dir(&faceplates_dir_at(dir)).await;
     let recipes = read_yaml_dir(&recipes_dir_at(dir)).await;
+    let images = read_images_dir(&images_dir_at(dir)).await;
     let project_name = project.meta.name.clone();
     let exported_at_ms = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -2274,7 +2296,7 @@ pub(crate) async fn build_project_zip(dir: &std::path::Path) -> anyhow::Result<V
         secrets_masked: false,
     };
     let users_yaml = std::fs::read_to_string(dir.join("users.yaml")).ok();
-    build_export_zip(&manifest, &project, &pages, users_yaml.as_deref(), &faceplates, &recipes)
+    build_export_zip(&manifest, &project, &pages, users_yaml.as_deref(), &faceplates, &recipes, &images)
 }
 
 async fn export_project_zip(State(s): State<AppState>) -> Response {
@@ -2299,6 +2321,7 @@ async fn export_project_zip(State(s): State<AppState>) -> Response {
     };
     let faceplates = read_yaml_dir(&faceplates_dir_at(&dir)).await;
     let recipes = read_yaml_dir(&recipes_dir_at(&dir)).await;
+    let images = read_images_dir(&images_dir_at(&dir)).await;
 
     // 3. Build the ZIP in memory.
     let project_name = project.meta.name.clone();
@@ -2316,7 +2339,7 @@ async fn export_project_zip(State(s): State<AppState>) -> Response {
     // Include users.yaml if present so credentials travel with the project.
     let users_yaml = std::fs::read_to_string(dir.join("users.yaml")).ok();
 
-    let buf = match build_export_zip(&manifest, &project, &pages, users_yaml.as_deref(), &faceplates, &recipes) {
+    let buf = match build_export_zip(&manifest, &project, &pages, users_yaml.as_deref(), &faceplates, &recipes, &images) {
         Ok(b)  => b,
         Err(e) => {
             warn!("export: zip build failed: {e}");
@@ -2349,6 +2372,7 @@ fn build_export_zip(
     users_yaml: Option<&str>,
     faceplates: &[(String, String)],
     recipes: &[(String, String)],
+    images: &[(String, Vec<u8>)],
 ) -> anyhow::Result<Vec<u8>> {
     use zip::write::SimpleFileOptions;
     let mut cursor = Cursor::new(Vec::<u8>::new());
@@ -2383,6 +2407,13 @@ fn build_export_zip(
             z.start_file(format!("recipes/{fname}"), opts)?;
             z.write_all(yaml.as_bytes())?;
         }
+        // Immagini di progetto (binarie, copiate byte-per-byte): senza, un
+        // deploy/export perderebbe gli sfondi referenziati dai sinottici via
+        // /api/project/images/<nome>.
+        for (fname, bytes) in images {
+            z.start_file(format!("images/{fname}"), opts)?;
+            z.write_all(bytes)?;
+        }
         if let Some(users) = users_yaml {
             z.start_file("users.yaml", opts)?;
             z.write_all(users.as_bytes())?;
@@ -2397,6 +2428,23 @@ fn build_export_zip(
 /// così come sono, senza bisogno di deserializzarli in `FaceplateDef`/
 /// `RecipeDef`: il bundle li porta grezzi, il device di destinazione li
 /// interpreta lui stesso con lo stesso codice usato in locale.
+/// Come `read_yaml_dir` ma binario e filtrato dalla whitelist immagini —
+/// per infilare `images/` nel bundle così com'è.
+async fn read_images_dir(dir: &std::path::Path) -> Vec<(String, Vec<u8>)> {
+    let mut out = Vec::new();
+    if let Ok(mut rd) = tokio::fs::read_dir(dir).await {
+        while let Ok(Some(entry)) = rd.next_entry().await {
+            let name = entry.file_name().to_string_lossy().into_owned();
+            if image_content_type(&name).is_none() { continue; }
+            if let Ok(bytes) = tokio::fs::read(entry.path()).await {
+                out.push((name, bytes));
+            }
+        }
+    }
+    out.sort_by(|a, b| a.0.cmp(&b.0));
+    out
+}
+
 async fn read_yaml_dir(dir: &std::path::Path) -> Vec<(String, String)> {
     let mut out = Vec::new();
     let mut entries = match tokio::fs::read_dir(dir).await {
@@ -3046,6 +3094,131 @@ const BUILTIN_FACEPLATES: &[(&str, &str)] = &[
     ("valve_basic",  include_str!("../../../assets/faceplates/valve_basic.yaml")),
     ("tank_level",   include_str!("../../../assets/faceplates/tank_level.yaml")),
 ];
+
+// ── Project images ────────────────────────────────────────────────────────────
+// Immagini caricate dall'utente (sfondi widget via bg_image, ecc.), salvate in
+// <progetto>/images/ — cartella visibile, come history/backups/. Viaggiano col
+// progetto: incluse nel bundle export/deploy, nei backup (BACKED_UP) e
+// sovrascritte dal deploy (DESIGN_ARTIFACTS). Gli oggetti le referenziano con
+// l'URL relativo `/api/project/images/<nome>`, servito da entrambe le porte.
+
+pub fn images_dir_at(project_dir: &std::path::Path) -> PathBuf {
+    project_dir.join("images")
+}
+
+/// Nome file sicuro + estensione riconosciuta → content-type. `None` = rifiuto.
+/// Whitelist deliberata: la cartella è servita al viewer anonimo, non deve
+/// poter ospitare contenuti arbitrari (html/js) caricati da un supervisor.
+fn image_content_type(name: &str) -> Option<&'static str> {
+    if name.is_empty() || name.len() > 128 { return None; }
+    if !name.chars().all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '.' | '-' | '_')) { return None; }
+    if name.starts_with('.') || name.contains("..") { return None; }
+    let ext = name.rsplit('.').next().unwrap_or("").to_ascii_lowercase();
+    match ext.as_str() {
+        "png"          => Some("image/png"),
+        "jpg" | "jpeg" => Some("image/jpeg"),
+        "gif"          => Some("image/gif"),
+        "svg"          => Some("image/svg+xml"),
+        "webp"         => Some("image/webp"),
+        _ => None,
+    }
+}
+
+const MAX_IMAGE_BYTES: usize = 5 * 1024 * 1024;
+
+#[derive(Serialize)]
+struct ProjectImageInfo {
+    name: String,
+    size_bytes: u64,
+}
+
+/// `GET /api/project/images` — elenco delle immagini del progetto attivo.
+async fn list_project_images(State(s): State<AppState>) -> Response {
+    let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
+    let mut out: Vec<ProjectImageInfo> = Vec::new();
+    if let Ok(mut rd) = tokio::fs::read_dir(images_dir_at(&dir)).await {
+        while let Ok(Some(entry)) = rd.next_entry().await {
+            let name = entry.file_name().to_string_lossy().into_owned();
+            if image_content_type(&name).is_none() { continue; }
+            let size = entry.metadata().await.map(|m| m.len()).unwrap_or(0);
+            out.push(ProjectImageInfo { name, size_bytes: size });
+        }
+    }
+    out.sort_by(|a, b| a.name.cmp(&b.name));
+    Json(out).into_response()
+}
+
+/// `GET /api/project/images/:name` — serve il file. Anche sul viewer: i
+/// sinottici che referenziano un'immagine devono poterla mostrare all'operatore
+/// anonimo esattamente come mostrano le pagine.
+async fn get_project_image(State(s): State<AppState>, Path(name): Path<String>) -> Response {
+    let Some(ctype) = image_content_type(&name) else {
+        return (StatusCode::BAD_REQUEST, "nome immagine non valido").into_response();
+    };
+    let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
+    match tokio::fs::read(images_dir_at(&dir).join(&name)).await {
+        Ok(bytes) => Response::builder()
+            .status(StatusCode::OK)
+            .header(header::CONTENT_TYPE, ctype)
+            // Cacheabile a breve: i canvas le richiedono a ogni render della
+            // pagina; il nome resta stabile, chi la sostituisce ricarica.
+            .header(header::CACHE_CONTROL, "max-age=60")
+            .body(Body::from(bytes))
+            .unwrap(),
+        Err(_) => (StatusCode::NOT_FOUND, "immagine non trovata").into_response(),
+    }
+}
+
+/// `POST /api/project/images/:name` — upload (corpo raw). Supervisor+.
+async fn upload_project_image(
+    State(s): State<AppState>,
+    Extension(user): Extension<AuthUser>,
+    Path(name): Path<String>,
+    body: Bytes,
+) -> Response {
+    if image_content_type(&name).is_none() {
+        return (StatusCode::BAD_REQUEST,
+            "nome non valido: solo lettere/numeri/._- ed estensioni png, jpg, jpeg, gif, svg, webp").into_response();
+    }
+    if body.is_empty() {
+        return (StatusCode::BAD_REQUEST, "file vuoto").into_response();
+    }
+    if body.len() > MAX_IMAGE_BYTES {
+        return (StatusCode::PAYLOAD_TOO_LARGE,
+            format!("immagine troppo grande ({} KB, max {} KB)", body.len() / 1024, MAX_IMAGE_BYTES / 1024)).into_response();
+    }
+    let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
+    let images = images_dir_at(&dir);
+    if let Err(e) = tokio::fs::create_dir_all(&images).await {
+        return (StatusCode::INTERNAL_SERVER_ERROR, format!("mkdir images: {e}")).into_response();
+    }
+    if let Err(e) = tokio::fs::write(images.join(&name), &body).await {
+        return (StatusCode::INTERNAL_SERVER_ERROR, format!("scrittura fallita: {e}")).into_response();
+    }
+    s.audit.log("project.image_upload", Some(user.username), serde_json::json!({
+        "name": name, "size_bytes": body.len(),
+    }));
+    Json(serde_json::json!({ "name": name, "url": format!("/api/project/images/{name}") })).into_response()
+}
+
+/// `DELETE /api/project/images/:name` — rimozione. Supervisor+.
+async fn delete_project_image(
+    State(s): State<AppState>,
+    Extension(user): Extension<AuthUser>,
+    Path(name): Path<String>,
+) -> Response {
+    if image_content_type(&name).is_none() {
+        return (StatusCode::BAD_REQUEST, "nome immagine non valido").into_response();
+    }
+    let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
+    match tokio::fs::remove_file(images_dir_at(&dir).join(&name)).await {
+        Ok(()) => {
+            s.audit.log("project.image_delete", Some(user.username), serde_json::json!({ "name": name }));
+            StatusCode::NO_CONTENT.into_response()
+        }
+        Err(_) => (StatusCode::NOT_FOUND, "immagine non trovata").into_response(),
+    }
+}
 
 fn faceplates_dir_at(project_dir: &std::path::Path) -> PathBuf {
     project_dir.join("faceplates")
