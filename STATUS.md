@@ -6,6 +6,25 @@
 >
 > **Pulizia 2026-07-27**: rimossi i task già chiusi e le sezioni di verifica ormai superate; le sessioni mergiate **e** verificate fino al 2026-07-09 sono compresse in «Storico». Il dettaglio integrale resta in `CHANGELOG.md` e nella history git.
 
+**Sessione 2026-08-21 (chiusura) — diagnosi e fix del takeover-loop MQTT, merge di tutto su
+main**. Il maintainer ha segnalato un loop "MQTT session ended: connection closed by peer —
+retry in 5s" sul runtime locale dopo aver caricato lo stesso progetto su device remoto e
+runtime locale, sospettando il generatore dell'ID random. Diagnosi (log JSONL + probe raw
+MQTT sul broker): la sequenza di deploy (delete+upload+open) è arrivata **due volte a 1 ms di
+distanza** e i due `open_project` concorrenti — nessun lock li serializzava — hanno avviato 4
+task MQTT per 2 sorgenti; il secondo `insert` nella mappa del supervisor ha orfanato i primi
+due task (drop del CancellationToken NON cancella, drop della JoinHandle DISTACCA il task),
+che restavano connessi al broker con gli stessi client id → takeover reciproco infinito.
+Quattro fix: `project_switch_lock` in AppState (serializza open/close/delete/upload),
+`start_one` difensivo (cancel+abort del task sovrascritto), `stop_one` che abortisce davvero
+al timeout (prima "abort/leak" era solo leak), guardia try-lock su `remote_deploy` (409 se un
+deploy è già in corso). In più il fix del difetto reale segnalato dal maintainer: instance_id
+ora da /dev/urandom (il PID era codice morto, shiftato fuori dalla maschera a 24 bit).
+**Confermato funzionante dal maintainer.** Squash-merge su main (`7f6f933`) dell'intera catena
+feat/widgets-fase-a → feat/tls-cert-ux → fix/mqtt-ghost-sources; i 3 branch eliminati.
+**Fase A chiusa al 100%. Prossimo: Fase B** = decisioni OPEN_QUESTIONS (Q9, Q10, Q11, Q12,
+Q13, coda Q3 plugin-api, coda Q8 C/E/F) — richiedono scelte del maintainer, poi implementazione.
+
 **Sessione 2026-08-21 (seguito) — test del maintainer sul Trend: un bug vero + un falso
 allarme**, stesso branch `feat/tls-cert-ux`. Il maintainer ha riportato: (1) immagine di sfondo
 del Trend invisibile sia in editor sia sul runtime dopo il deploy; (2) "Scala propria" senza
