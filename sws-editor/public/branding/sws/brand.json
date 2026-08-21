@@ -14,6 +14,8 @@
     "textMuted": "#94a3b8",
     "primary": "#DD5D21",
     "primaryHover": "#C2521D",
-    "onPrimary": "#ffffff"
+    "onPrimary": "#ffffff",
+    "secondary": "#D9B200",
+    "accent": "#7EB5E1"
   }
 }

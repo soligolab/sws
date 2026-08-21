@@ -55,3 +55,4 @@ REMOVED_DOC.md
 # l'emulazione QEMU su questo host, vedi docs/DEPLOY_CONTAINER_AARCH64.md).
 /sws-runtime/target-container-aarch64-generic/
 /.cargo-container-aarch64-generic/
+.scratch-check*/

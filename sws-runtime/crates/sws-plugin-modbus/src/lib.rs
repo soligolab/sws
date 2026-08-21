@@ -1,5 +1,5 @@
-// Statically linked for the PoC. Dynamic .so loading via the C ABI in
-// sws-plugin-api is deferred until third-party plugin support is needed.
+// Statically linked for the PoC. Dynamic .so loading via a C ABI is
+// deferred until third-party plugin support is needed (OPEN_QUESTIONS Q3).
 
 use std::{collections::HashMap, sync::Arc, time::Duration};
 use sws_core::{ModbusRtuConfig, ModbusTcpConfig, TagDb, TagQuality, TagValue, TagWriteBus, WriteRequest};

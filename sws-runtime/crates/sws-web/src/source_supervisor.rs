@@ -328,7 +328,7 @@ fn now_ms() -> u64 {
     SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_millis() as u64
 }
 
-fn source_id(s: &SourceDef) -> &str {
+pub(crate) fn source_id(s: &SourceDef) -> &str {
     match s {
         SourceDef::ModbusTcp(c)      => &c.id,
         SourceDef::ModbusRtu(c)      => &c.id,

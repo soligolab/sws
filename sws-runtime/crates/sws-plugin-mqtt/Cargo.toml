@@ -15,4 +15,3 @@ tracing.workspace    = true
 anyhow.workspace     = true
 prost.workspace  = true
 sws-core       = { path = "../sws-core" }
-sws-plugin-api = { path = "../sws-plugin-api" }

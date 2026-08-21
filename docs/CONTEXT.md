@@ -81,7 +81,6 @@ sws-runtime/crates/
   sws-pyscript       — PyO3 + RestrictedPython sandbox, global script supervisor
   sws-audit          — append-only audit log (auth events, tag writes, project changes)
   sws-web            — Axum router (dual-port 8443+8444), all HTTP/WS handlers
-  sws-plugin-api     — shared Plugin trait + TagValue across plugin crates
   sws-plugin-modbus  — Modbus TCP + RTU (tokio-modbus)
   sws-plugin-opcua   — OPC-UA client + server (async-opcua)
   sws-plugin-mqtt    — MQTT client + Sparkplug B encode/decode (rumqttc + prost)

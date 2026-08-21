@@ -21,6 +21,7 @@ pub struct RemoteTarget {
 }
 
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)] // Q9: payload solo-API, campi ignoti = 400
 pub struct ConnectBody {
     pub url: String,
     pub username: Option<String>,
@@ -350,6 +351,7 @@ pub async fn remote_push_users(
 }
 
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)] // Q9: payload solo-API, campi ignoti = 400
 pub struct PushClientIdBody {
     pub source_id: String,
     /// `None`/stringa vuota cancella un override già impostato sul device.

@@ -29,6 +29,27 @@ export interface BrandColors {
   primary: string;
   primaryHover: string;
   onPrimary: string;
+  /** Secondo e terzo colore di brand (OPEN_QUESTIONS Q11) — opzionali,
+   *  esposti come var(--brand-secondary)/var(--brand-accent) quando definiti.
+   *  Nessun componente core li usa: sono a disposizione di temi/brand. */
+  secondary?: string;
+  accent?: string;
+}
+
+/** Override opzionale dei neutri del tema, per-brand e per-variante
+ *  (OPEN_QUESTIONS Q12). Ogni campo assente ricade sul neutro condiviso di
+ *  theme.ts — un brand può cambiare solo lo sfondo (es. grafite) senza
+ *  toccare il resto. Chi definisce un override è responsabile del contrasto:
+ *  i condivisi sono verificati WCAG AA, gli override no. */
+export interface BrandNeutrals {
+  bg?: string;
+  surface?: string;
+  surface2?: string;
+  border?: string;
+  text?: string;
+  text2?: string;
+  textMuted?: string;
+  textSubtle?: string;
 }
 
 export interface DevicePreset {
@@ -57,6 +78,10 @@ export interface Brand {
    *  flow (e.g. Pixsys Yocto devices only have /data/user/<user> writable).
    *  Empty for brands with no fixed device convention — custom path only. */
   dataPathPresets: DataPathPreset[];
+  /** Override per-brand dei neutri del tema (Q12), per variante. `{}` = il
+   *  brand usa i neutri condivisi di theme.ts (comportamento storico). */
+  neutralsDark: BrandNeutrals;
+  neutralsLight: BrandNeutrals;
 }
 
 // Hardcoded SWS palette — used when active.json / brand.json can't be loaded
@@ -79,9 +104,14 @@ export const SWS_FALLBACK: Brand = {
     primary: "#DD5D21",
     primaryHover: "#C2521D",
     onPrimary: "#ffffff",
+    // Oro e azzurro del brief KATODO (docs/branding/BRAND_SWS.md) — Q11.
+    secondary: "#D9B200",
+    accent: "#7EB5E1",
   },
   devicePresets: [],
   dataPathPresets: [],
+  neutralsDark: {},
+  neutralsLight: {},
 };
 
 // colors key → CSS custom property name.
@@ -96,6 +126,8 @@ export const CSS_VARS: Record<keyof BrandColors, string> = {
   primary: "--brand-primary",
   primaryHover: "--brand-primary-hover",
   onPrimary: "--brand-on-primary",
+  secondary: "--brand-secondary",
+  accent: "--brand-accent",
 };
 
 let current: Brand = SWS_FALLBACK;
@@ -133,6 +165,8 @@ export async function loadBranding(): Promise<Brand> {
       colors: { ...SWS_FALLBACK.colors, ...(meta.colors ?? {}) },
       devicePresets: meta.device_presets ?? [],
       dataPathPresets: meta.data_path_presets ?? [],
+      neutralsDark: meta.neutrals_dark ?? {},
+      neutralsLight: meta.neutrals_light ?? {},
     };
   } catch (err) {
     console.warn("[branding] falling back to SWS:", err);
@@ -150,7 +184,10 @@ export function applyBranding(brand: Brand): void {
 
   const root = document.documentElement.style;
   for (const key of Object.keys(CSS_VARS) as (keyof BrandColors)[]) {
-    root.setProperty(CSS_VARS[key], brand.colors[key]);
+    const value = brand.colors[key];
+    // secondary/accent sono opzionali: se il brand non li definisce, la var
+    // CSS non viene impostata (chi la consuma deve avere un fallback).
+    if (value !== undefined) root.setProperty(CSS_VARS[key], value);
   }
 
   document.title = brand.name;

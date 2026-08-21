@@ -89,6 +89,7 @@ pub struct UserSummary {
 /// (implicitly) sets `must_change_password=true` so the operator knows the
 /// next login requires a new password.
 #[derive(Debug, Clone, Default, Deserialize)]
+#[serde(deny_unknown_fields)] // Q9: payload solo-API, campi ignoti = 400
 pub struct UserPatch {
     pub role: Option<Role>,
     pub password: Option<String>,
@@ -106,6 +107,7 @@ pub struct UserPatch {
 
 /// Payload for `POST /api/auth/users`.
 #[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)] // Q9: payload solo-API, campi ignoti = 400
 pub struct CreateUser {
     pub username: String,
     pub password: String,
@@ -119,6 +121,7 @@ fn yes() -> bool { true }
 
 /// Payload for `POST /api/auth/change-password`.
 #[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)] // Q9: payload solo-API, campi ignoti = 400
 pub struct ChangePassword {
     pub old_password: String,
     pub new_password: String,

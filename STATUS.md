@@ -6,6 +6,31 @@
 >
 > **Pulizia 2026-07-27**: rimossi i task già chiusi e le sezioni di verifica ormai superate; le sessioni mergiate **e** verificate fino al 2026-07-09 sono compresse in «Storico». Il dettaglio integrale resta in `CHANGELOG.md` e nella history git.
 
+**Sessione 2026-08-21 (sera) — Fase B: tutte le decisioni OPEN_QUESTIONS implementate**
+(branch `feat/fase-b-openquestions`, da `main`). Il maintainer ha confermato i fix MQTT
+("funziona tutto") → squash-merge su main (`7f6f933`) + 3 branch eliminati, poi ha deciso le
+7 questioni della Fase B via AskUserQuestion: Q9 opzione 1, Q10 opzione 1, Q11 opzione 1
+(secondary/accent), Q12 opzione 2 (override neutri), Q3 rimuovi tutto, Q13 rimandata,
+Q8 anticipa C. Tutte implementate e registrate in OPEN_QUESTIONS con note d'implementazione:
+- **Q3**: `sws-plugin-api` rimosso (crate + 3 path-dependency morte + riga in CONTEXT.md).
+- **Q11/Q12**: `secondary`/`accent` in BrandColors+CSS_VARS (oro/azzurro KATODO nel brand
+  sws); override neutri per-brand `neutrals_dark`/`neutrals_light` con fallback ai condivisi
+  (meccanismo pronto, nessun brand lo usa ancora — lo sfondo grafite sws è un edit di
+  brand.json quando il maintainer vorrà).
+- **Q10**: `merge_preserved` copriva già patch_project; chiusi i 2 bypass (import bundle ora
+  rimerge dal testo grezzo dello ZIP; migrate delega a patch_project no-op).
+- **Q8-C**: reload già granulare nel supervisor; aggiunti validate-before-apply sul PUT
+  sources (id duplicati/vuoti → 400) e resolve_mqtt_client_ids sul reload post-salvataggio
+  (era l'unico percorso senza — client MQTT col client_id base fino alla riapertura).
+- **Q9**: inventario di 49 endpoint (subagente, parità TS↔Rust verificata campo per campo):
+  deny_unknown_fields su 31 struct solo-API, GitCommitBody tipizzata, DTO PageLayoutBody per
+  il caso storico (+test). Esclusi: struct condivise col disco, payload cross-versione,
+  WriteTagBody (client esterni lvgl/python/curl).
+`cargo check --workspace` + `cargo test sws-web (80) / sws-auth (11)` + `pnpm build` verdi.
+**Non testato dal maintainer.** Prossimo: suo giro di prova su `feat/fase-b-openquestions`,
+poi squash-merge. Restano: Q13 (aperta, serve il pannello), Q8 E/F (product phase), Backlog C
+(13 gap LVGL, solo su richiesta).
+
 **Sessione 2026-08-21 (chiusura) — diagnosi e fix del takeover-loop MQTT, merge di tutto su
 main**. Il maintainer ha segnalato un loop "MQTT session ended: connection closed by peer —
 retry in 5s" sul runtime locale dopo aver caricato lo stesso progetto su device remoto e

@@ -17,6 +17,7 @@ use tokio::process::Command;
 use tokio_stream::StreamExt;
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)] // Q9: payload solo-API, campi ignoti = 400
 pub struct DeployRequest {
     /// "amd64" or "arm64"
     pub arch:     String,

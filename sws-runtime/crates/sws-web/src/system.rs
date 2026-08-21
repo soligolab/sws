@@ -120,22 +120,19 @@ pub async fn migrate_project(State(s): State<AppState>) -> Response {
         Ok(d) => d,
         Err(_) => return (StatusCode::CONFLICT, "no active project").into_response(),
     };
-    let mut project = match sws_core::Project::load(&project_dir) {
-        Ok(p) => p,
-        Err(e) => {
-            tracing::warn!("migrate_project: load failed: {e:#}");
-            return (StatusCode::INTERNAL_SERVER_ERROR, format!("load failed: {e}")).into_response();
-        }
-    };
-    if let Err(e) = project.save_to(&project_dir) {
-        tracing::warn!("migrate_project: save failed: {e:#}");
-        return (StatusCode::INTERNAL_SERVER_ERROR, format!("save failed: {e}")).into_response();
+    // Q10: la ri-scrittura passa da patch_project (no-op) e non da un
+    // load+save diretto — il giro dal deserializzatore tollerante da solo
+    // scarterebbe le sorgenti che questo binario non sa parsare e le chiavi
+    // sconosciute, e "normalizzare il formato" non deve mai voler dire
+    // "cancellare ciò che una versione più nuova ha scritto".
+    let resp = crate::router::patch_project(&project_dir, |_| {}).await;
+    if resp.status().is_success() {
+        tracing::info!(
+            version = sws_core::project::runtime_version(),
+            "project re-saved to current runtime version"
+        );
     }
-    tracing::info!(
-        version = sws_core::project::runtime_version(),
-        "project re-saved to current runtime version"
-    );
-    StatusCode::NO_CONTENT.into_response()
+    resp
 }
 
 /// `POST /api/system/stop` — stop all sources and script/notification supervisors.
@@ -265,6 +262,7 @@ pub async fn remove_tls_cert(State(s): State<AppState>) -> StatusCode {
 }
 
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)] // Q9: payload solo-API, campi ignoti = 400
 pub struct TlsUpload {
     pub cert_pem: String,
     pub key_pem: String,

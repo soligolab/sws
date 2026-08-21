@@ -93,6 +93,10 @@ Promemoria per quando si affronterà il dynamic loading in product phase: decide
 completare lo skeleton (loader dlopen + crate plugin di esempio) o rimuoverlo insieme alle
 path-dependency Cargo oggi inutilizzate nei tre plugin.
 
+**Nota (2026-08-21)**: deciso dal maintainer — **rimosso tutto** (crate + 3 path-dependency
+morte). La storia git conserva lo sketch; il dynamic loading in product phase ripartirà dal
+design giusto, non da uno sketch vecchio.
+
 ---
 
 ## Q4 — Frontend state management
@@ -186,7 +190,16 @@ d'attacco ampia sul dispositivo di campo (peggio in no-auth).
 **Default for PoC**: implementare **A + B** (massimo isolamento pratico con poco codice) e **D**
 (chiude il gap compliance più vistoso). C/E/F deferiti al product phase.
 
-**Decided**: A+B+D in lavorazione (2026-07-26). C/E/F = product phase.
+**Decided**: A+B+D in lavorazione (2026-07-26). E/F = product phase. **C anticipata al PoC**
+(2026-08-21, maintainer): reload config granulare per-sorgente con validate-before-apply,
+invece del riavvio di tutti i supervisor a ogni salvataggio.
+
+**Nota d'implementazione C (2026-08-21)**: il grosso esisteva già — `SourceSupervisor::reload`
+fa il diff per-sorgente (riavvia solo config cambiate) da tempo. Aggiunti i pezzi mancanti:
+validate-before-apply sul `PUT /api/project/sources` (id duplicati o vuoti → 400 chiaro PRIMA
+di persistere; prima un id duplicato faceva sparire una sorgente in silenzio) e
+`resolve_mqtt_client_ids` sul reload post-salvataggio (unico percorso che ne era privo: i
+client MQTT si connettevano col client_id base fino alla riapertura del progetto).
 
 **Nota correlata (2026-07-27)**: il gruppo `project_lifecycle` in `router.rs` è **pre-auth** per
 necessità — la WelcomeScreen deve poter creare/aprire il primo progetto quando nessuna sessione
@@ -222,7 +235,23 @@ sempre".
 
 **Default for PoC**: opzione 3, non per scelta ma per inerzia — è lo stato attuale.
 
-**Decided**: not yet.
+**Decided** (2026-08-21, maintainer): **opzione 1** — `deny_unknown_fields` sui payload delle
+API di scrittura; la tolleranza resta solo nella deserializzazione del progetto da disco.
+
+**Nota d'implementazione (2026-08-21)** — inventario completo di 49 endpoint di scrittura:
+- **31 struct solo-API** ora hanno `deny_unknown_fields` (tutte le `*Body`/`*Request` di
+  sws-web + `CreateUser`/`UserPatch`/`ChangePassword` di sws-auth); `git/commit` è passato da
+  `serde_json::Value` a `GitCommitBody` tipizzata.
+- **Il caso storico** (`PUT page-layout` con `width`/`height`) è chiuso con un **DTO dedicato**
+  `PageLayoutBody` (+ test): l'attributo non può stare su `PageLayoutConfig`, che è anche la
+  struct di `project.yaml`.
+- **Esclusi di proposito**: le struct condivise col disco (`TagDef`, `SourceDef`, `AlarmDef`,
+  `SynopticPage`/`SynopticObject`, ecc.) — l'attributo violerebbe la clausola "tolleranza su
+  disco"; servirebbero DTO speculari dell'intero modello (169 campi solo per SynopticObject),
+  duplicazione da product-phase, non da PoC. Esclusi anche i payload riusati IDE↔device
+  cross-versione (`Credentials`, `ClientIdOverrideBody`) e quelli con client esterni non
+  aggiornabili in lockstep (`WriteTagBody`: lvgl-viewer, script demo Python, esempi curl del
+  manuale) — lì un device vecchio rifiuterebbe un campo aggiunto da un client nuovo.
 
 ---
 
@@ -247,7 +276,17 @@ della perdita di dati di `saveAll` corretta il 2026-07-28.
 
 **Default for PoC**: comportamento attuale (opzione implicita: si scarta e si perde al salvataggio).
 
-**Decided**: not yet.
+**Decided** (2026-08-21, maintainer): **opzione 1** — le voci non parsate si conservano come
+`serde_json::Value` opaco e si riscrivono intatte al salvataggio; nessuna sorgente viene perduta.
+
+**Nota d'implementazione (2026-08-21)**: la garanzia era già in gran parte nel codice —
+`merge_preserved` in `router.rs` (nato dalle perdite di dati del 2026-07-28) rimette nel YAML
+salvato le sorgenti non parsabili e le chiavi di primo livello sconosciute, ripescandole dal
+testo grezzo su disco invece che da un campo opaco nel modello (stessa garanzia, zero campi in
+più). Restavano DUE percorsi che la bypassavano, chiusi in Fase B: l'**import del bundle**
+(il project.yaml dello ZIP passava dalla struct tipizzata e perdeva le voci sconosciute — ora
+passa da `merge_preserved` col testo grezzo del bundle) e **`POST /api/project/migrate`**
+(load+save diretto — ora delega a `patch_project` no-op, che preserva).
 
 ---
 
@@ -269,7 +308,8 @@ della perdita di dati di `saveAll` corretta il 2026-07-28.
 
 **Default for PoC**: opzione 3 — nessuna estensione dello schema in questo giro.
 
-**Decided**: not yet.
+**Decided** (2026-08-21, maintainer): **opzione 1** — aggiungere `secondary`/`accent` a
+`BrandColors` e ai `CSS_VARS` (`var(--brand-secondary)`/`var(--brand-accent)`).
 
 ---
 
@@ -292,7 +332,8 @@ toccare i neutri condivisi, cambiando anche pixsys/acme/giorgino-giorgetti.
 **Default for PoC**: opzione 1 — nessun cambiamento, i campi neutri di `brand.json` restano di fatto
 inerti (ereditati da `theme.ts`).
 
-**Decided**: not yet.
+**Decided** (2026-08-21, maintainer): **opzione 2** — override opzionale dei neutri per-brand,
+con fallback ai valori condivisi quando il brand non li definisce.
 
 ---
 
@@ -314,7 +355,8 @@ di boot.
 **Default for PoC**: opzione 1 — richiede la conoscenza del maintainer sul tooling Pixsys reale, non
 deducibile dal codice.
 
-**Decided**: not yet.
+**Decided**: not yet — il maintainer ha scelto (2026-08-21) di **rimandare**: la domanda resta
+aperta finché non avrà il pannello sotto mano per verificare il meccanismo reale.
 
 ---
 
