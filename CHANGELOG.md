@@ -11,6 +11,28 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### Added
+
+- **Fase B — decisioni OPEN_QUESTIONS implementate** (Q3, Q8-C, Q9, Q10, Q11, Q12; Q13
+  rimandata dal maintainer):
+  - **Q9**: `deny_unknown_fields` su 31 struct payload solo-API — una chiamata di scrittura con
+    campi sbagliati ora risponde 400 invece di 204 scartandoli in silenzio. `git/commit`
+    tipizzato; il caso storico (`PUT page-layout` con `width`/`height`) chiuso con un DTO
+    dedicato + test. Escluse di proposito le struct condivise con `project.yaml` (la tolleranza
+    su disco è la forward-compat di Q10) e i payload cross-versione IDE↔device.
+  - **Q10**: nessuna sorgente non parsabile viene più persa — `merge_preserved` copriva già i
+    salvataggi normali; chiusi i due percorsi che la bypassavano (import bundle e
+    `POST /api/project/migrate`, che ora delega a `patch_project` no-op).
+  - **Q8-C** (anticipata dal product phase): validate-before-apply sul `PUT sources` (id
+    duplicati/vuoti → 400 prima di persistere; prima una sorgente spariva in silenzio) e
+    `resolve_mqtt_client_ids` anche sul reload post-salvataggio (unico percorso che ne era
+    privo — client MQTT col client_id base fino alla riapertura del progetto).
+  - **Q11**: slot opzionali `secondary`/`accent` in `BrandColors` → `var(--brand-secondary)`/
+    `var(--brand-accent)`; oro e azzurro del brief KATODO nel brand sws.
+  - **Q12**: override opzionale dei neutri per-brand (`neutrals_dark`/`neutrals_light` in
+    brand.json), campo per campo con fallback ai condivisi WCAG-verificati.
+  - **Q3**: rimosso `sws-plugin-api` (skeleton mai importato) e le 3 path-dependency morte.
+
 ### Fixed
 
 - **Takeover-loop MQTT ("connection closed by peer" ogni 5 s) dopo un deploy**: la sequenza di

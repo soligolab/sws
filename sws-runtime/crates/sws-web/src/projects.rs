@@ -96,6 +96,7 @@ pub struct ProjectListEntry {
 }
 
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)] // Q9: payload solo-API, campi ignoti = 400
 pub struct CreateProjectRequest {
     pub name: String,
     /// Optional template id (subfolder under `templates_root`).
@@ -616,6 +617,7 @@ pub async fn close_project(State(s): State<AppState>) -> Response {
 // ── Delete / Rename / Duplicate ───────────────────────────────────────────────
 
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)] // Q9: payload solo-API, campi ignoti = 400
 pub struct RenameRequest {
     pub new_name: String,
 }
@@ -939,6 +941,7 @@ pub async fn browse_dirs(
 }
 
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)] // Q9: payload solo-API, campi ignoti = 400
 pub struct CreateDirRequest {
     /// Absolute path of the (already existing) parent directory.
     pub parent: String,

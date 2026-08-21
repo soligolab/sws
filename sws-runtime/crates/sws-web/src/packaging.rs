@@ -94,6 +94,7 @@ pub fn new_repo_root() -> RepoRoot {
 // ── POST /api/build/package ───────────────────────────────────────────────────
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)] // Q9: payload solo-API, campi ignoti = 400
 pub struct BuildRequest {
     #[serde(default)]
     pub no_rust: bool,
@@ -308,6 +309,7 @@ pub async fn list_container_packages(State(s): State<AppState>) -> impl IntoResp
 // ── POST /api/deploy/device ───────────────────────────────────────────────────
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)] // Q9: payload solo-API, campi ignoti = 400
 pub struct DeviceDeployRequest {
     /// Tarball file name (basename only, must exist in dist/).
     pub tarball: String,
@@ -536,6 +538,7 @@ fn resolve_dist_file(repo: &std::path::Path, name: &str) -> Result<PathBuf, Stri
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)] // Q9: payload solo-API, campi ignoti = 400
 pub struct DeviceContainerDeployRequest {
     /// Archivio immagine in `dist/` (solo basename). Obbligatorio **soltanto**
     /// in modalità archivio: dal registry non si copia niente e resta vuoto.
@@ -922,6 +925,7 @@ pub async fn deploy_device_container(
 const CONTAINER_NAME: &str = "sws-runtime";
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)] // Q9: payload solo-API, campi ignoti = 400
 pub struct ContainerManageRequest {
     /// `true` = no SSH, run the command on the host running this backend
     /// process. The escape hatch for the situation that motivated this

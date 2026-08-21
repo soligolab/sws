@@ -1062,6 +1062,7 @@ async fn write_tag(
 // gated; for now the assumption is that the LAN is private.
 
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)] // Q9: payload solo-API, campi ignoti = 400
 struct ScriptBody {
     code: String,
 }
@@ -1429,6 +1430,7 @@ async fn datastore_test(
 }
 
 #[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)] // Q9: payload solo-API, campi ignoti = 400
 struct PurgeBody {
     retention_rows: Option<u64>,
     retention_days: Option<u64>,
@@ -1475,6 +1477,7 @@ async fn datastore_tags(
 }
 
 #[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)] // Q9: payload solo-API, campi ignoti = 400
 struct DeleteTagBody { tag: String }
 
 /// `POST /api/datastores/:id/delete-tag` — cancella lo storico di un tag.
@@ -1632,6 +1635,7 @@ async fn get_alarms(State(s): State<AppState>) -> Json<Vec<AlarmState>> {
 }
 
 #[derive(serde::Deserialize, Default)]
+#[serde(deny_unknown_fields)] // Q9: payload solo-API, campi ignoti = 400
 struct AckRequest {
     #[serde(default)]
     by: Option<String>,
@@ -1699,6 +1703,7 @@ async fn get_alarm_history(
 }
 
 #[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)] // Q9: payload solo-API, campi ignoti = 400
 struct ShelveRequest {
     reason: String,
     /// Duration in milliseconds; 0 = indefinite.
@@ -1828,7 +1833,7 @@ fn mask_project_secrets(project: &mut Project) {
 /// Restituisce una `Response` e non uno `StatusCode` perché il rifiuto del punto
 /// 1 deve poter spiegare cosa è successo: un 500 muto porterebbe l'utente a
 /// riprovare, ed è l'unico caso in cui riprovare non serve a niente.
-async fn patch_project<F>(project_dir: &std::path::Path, f: F) -> Response
+pub(crate) async fn patch_project<F>(project_dir: &std::path::Path, f: F) -> Response
 where
     F: FnOnce(&mut Project),
 {
@@ -2132,6 +2137,27 @@ async fn update_project_sources(
 ) -> Response {
     s.audit.log("project.change", Some(user.username), serde_json::json!({"what": "sources", "count": sources.len()}));
     let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
+
+    // Q8-C, validate-before-apply: si valida PRIMA di persistere e ricaricare.
+    // Il supervisor indicizza le sorgenti per id: un id duplicato non è un
+    // errore visibile ma una sorgente che sparisce in silenzio (l'ultima
+    // vince), un id vuoto è una chiave inutilizzabile. Meglio un 400 chiaro.
+    {
+        let mut seen = std::collections::HashSet::new();
+        for src in &sources {
+            let id = crate::source_supervisor::source_id(src);
+            if id.trim().is_empty() {
+                return (StatusCode::BAD_REQUEST,
+                    "una sorgente ha id vuoto — ogni sorgente deve avere un id univoco").into_response();
+            }
+            if !seen.insert(id.to_string()) {
+                return (StatusCode::BAD_REQUEST,
+                    format!("id sorgente duplicato: \"{id}\" — gli id devono essere univoci, \
+                             altrimenti una delle due sorgenti verrebbe scartata in silenzio")).into_response();
+            }
+        }
+    }
+
     // Restore masked secrets: any MQTT source whose password came back as
     // the placeholder string is interpreted as "leave unchanged" — we look
     // the previous value up from the on-disk project. Without this round
@@ -2154,9 +2180,18 @@ async fn update_project_sources(
     // Hot-reload: persist first, then diff against the supervisor's current
     // set. New/removed sources are spawned/cancelled in-place — no runtime
     // restart needed.
-    let clone = sources.clone();
+    let mut clone = sources.clone();
     let res = patch_project(&dir, |p| p.sources = sources).await;
     if res.status() == StatusCode::NO_CONTENT {
+        // Stessa risoluzione degli altri percorsi di reload (open/import/
+        // system_start): senza, dopo un salvataggio dall'IDE i client MQTT
+        // con random_client_id si connettevano col client_id BASE (niente
+        // suffisso instance) fino alla riapertura del progetto — id diverso
+        // a seconda di quale percorso ha fatto l'ultimo reload.
+        let project_name = previous.as_ref().map(|p| p.meta.name.clone())
+            .or_else(|| Project::load(&dir).ok().map(|p| p.meta.name))
+            .unwrap_or_default();
+        crate::projects::resolve_mqtt_client_ids(&project_name, &mut clone, &s.config_dir, &s.instance_id);
         s.supervisor.reload(clone).await;
     }
     res
@@ -2564,6 +2599,11 @@ async fn import_project_zip(State(s): State<AppState>, body: Bytes) -> Response 
         Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR,
             format!("project.yaml serialize: {e}")).into_response(),
     };
+    // Q10: il project.yaml del bundle può contenere sorgenti che questo
+    // binario non sa parsare (scritte da una versione più nuova) e chiavi di
+    // primo livello sconosciute. Il giro dalla struct tipizzata le perderebbe:
+    // si rimettono dal testo grezzo del bundle, come fa ogni patch_project.
+    let serialized_project = merge_preserved(&serialized_project, &project_text);
     if let Err(e) = tokio::fs::write(&project_path, serialized_project).await {
         warn!("import: write project.yaml: {e}");
         return (StatusCode::INTERNAL_SERVER_ERROR, "write project.yaml").into_response();
@@ -2782,6 +2822,7 @@ fn is_leap(y: i32) -> bool {
 }
 
 #[derive(Deserialize, Default)]
+#[serde(deny_unknown_fields)] // Q9: payload solo-API, campi ignoti = 400
 struct RunBody {
     #[serde(default)]
     args: serde_json::Map<String, serde_json::Value>,
@@ -3381,6 +3422,7 @@ async fn delete_recipe(State(s): State<AppState>, Path(id): Path<String>) -> Sta
 }
 
 #[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)] // Q9: payload solo-API, campi ignoti = 400
 struct ApplyRecipeBody {
     #[serde(default = "default_applied_by")]
     applied_by: String,
@@ -3802,6 +3844,7 @@ async fn handle_logs_ws(mut socket: WebSocket, logs: Arc<LogBus>) {
 // ── MQTT broker browse ────────────────────────────────────────────────────────
 
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)] // Q9: payload solo-API, campi ignoti = 400
 struct MqttBrowseRequest {
     host: String,
     port: u16,
@@ -3832,6 +3875,7 @@ struct MqttBrowseResponse {
 // ── OPC-UA browse (BL-005 step 3) ────────────────────────────────────────────
 
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)] // Q9: payload solo-API, campi ignoti = 400
 struct OpcUaBrowseRequest {
     endpoint_url: String,
     /// When the caller sends the masked sentinel password, we substitute the
@@ -3908,6 +3952,7 @@ async fn opcua_browse_handler(
 }
 
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)] // Q9: payload solo-API, campi ignoti = 400
 struct OpcUaDetectEuromapRequest {
     endpoint_url: String,
     #[serde(default)]
@@ -3974,6 +4019,7 @@ async fn opcua_detect_euromap_handler(
 // credentials from project.yaml when the editor sends the masked sentinel.
 
 #[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)] // Q9: payload solo-API, campi ignoti = 400
 struct OpcUaHistoryRequest {
     endpoint_url: String,
     #[serde(default)]
@@ -4182,6 +4228,7 @@ fn is_safe_cert_filename(name: &str) -> bool {
 // ── HomeAssistant entity browse ───────────────────────────────────────────────
 
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)] // Q9: payload solo-API, campi ignoti = 400
 struct HaBrowseRequest {
     /// Source id from the project's sources list — used to look up url+token.
     source_id: String,
@@ -4433,14 +4480,21 @@ async fn trigger_rollback(State(s): State<AppState>) -> impl IntoResponse {
     }
 }
 
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)] // Q9
+struct GitCommitBody {
+    #[serde(default)]
+    message: String,
+}
+
 /// `POST /api/project/git/commit` — `git add -A && git commit -m <message>`.
-async fn git_commit(State(s): State<AppState>, Json(body): Json<serde_json::Value>) -> impl IntoResponse {
+async fn git_commit(State(s): State<AppState>, Json(body): Json<GitCommitBody>) -> impl IntoResponse {
     let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
     let gd = crate::git_deploy::GitDeploy::new(dir);
     if !gd.is_git_repo() {
         return (StatusCode::BAD_REQUEST, "not a git repository").into_response();
     }
-    let message = body.get("message").and_then(|v| v.as_str()).unwrap_or("").trim().to_string();
+    let message = body.message.trim().to_string();
     if message.is_empty() {
         return (StatusCode::BAD_REQUEST, "commit message is required").into_response();
     }
@@ -4466,6 +4520,7 @@ async fn git_push(State(s): State<AppState>) -> impl IntoResponse {
 }
 
 #[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)] // Q9: payload solo-API, campi ignoti = 400
 struct GitInitBody {
     /// `None` = solo `git init` (progetto già locale senza remote, o non
     /// ancora deciso a quale repository agganciarlo). `Some(url)` = imposta/
@@ -4504,6 +4559,7 @@ async fn list_git_tags(State(s): State<AppState>) -> impl IntoResponse {
 }
 
 #[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)] // Q9: payload solo-API, campi ignoti = 400
 struct CreateTagBody {
     name: String,
     #[serde(default)]
@@ -4664,14 +4720,43 @@ async fn update_project_notifications(
     res
 }
 
+/// DTO API di `PageLayoutConfig` (Q9): stessa forma, ma con
+/// `deny_unknown_fields`. L'attributo non può stare su `PageLayoutConfig`
+/// stessa, che è anche la struct di `project.yaml` — la tolleranza su disco
+/// è voluta (forward-compat). Questo endpoint è il caso che ha originato Q9:
+/// un PUT con `width`/`height` rispondeva 204 scartandoli in silenzio.
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct PageLayoutBody {
+    size_mode: sws_core::project::PageSizeMode,
+    #[serde(default)]
+    aspect_ratio: Option<String>,
+    #[serde(default)]
+    home_page_id: Option<String>,
+    #[serde(default)]
+    hide_viewer_chrome: Option<bool>,
+}
+
+impl From<PageLayoutBody> for PageLayoutConfig {
+    fn from(b: PageLayoutBody) -> Self {
+        PageLayoutConfig {
+            size_mode: b.size_mode,
+            aspect_ratio: b.aspect_ratio,
+            home_page_id: b.home_page_id,
+            hide_viewer_chrome: b.hide_viewer_chrome,
+        }
+    }
+}
+
 /// `PUT /api/project/page-layout` — save the project-wide page sizing mode
 /// (Fixed/Ratio/Fluid) + home page. `null` body clears it (reverts to legacy
 /// Fixed default).
 async fn update_project_page_layout(
     State(s): State<AppState>,
     Extension(user): Extension<AuthUser>,
-    Json(config): Json<Option<PageLayoutConfig>>,
+    Json(config): Json<Option<PageLayoutBody>>,
 ) -> Response {
+    let config: Option<PageLayoutConfig> = config.map(Into::into);
     let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
     let config_clone = config.clone();
     let res = patch_project(&dir, |p| p.page_layout = config_clone).await;
@@ -4682,6 +4767,7 @@ async fn update_project_page_layout(
 }
 
 #[derive(serde::Deserialize, Clone)]
+#[serde(deny_unknown_fields)] // Q9: payload solo-API, campi ignoti = 400
 struct BackupConfigBody {
     /// `None` = eredita il default di processo (`--auto-backup-interval-minutes`).
     interval_minutes: Option<u64>,
@@ -4714,6 +4800,7 @@ async fn update_project_backup_config(
 }
 
 #[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)] // Q9: payload solo-API, campi ignoti = 400
 struct DetectChatsRequest {
     #[serde(default)]
     bot_token: String,
@@ -4796,6 +4883,7 @@ async fn detect_telegram_chats(
 }
 
 #[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)] // Q9: payload solo-API, campi ignoti = 400
 struct TestTelegramRequest {
     bot_token: String,
     #[serde(default)]
@@ -4907,7 +4995,7 @@ notifications:
 
 #[cfg(test)]
 mod write_safety_tests {
-    use super::merge_preserved;
+    use super::{merge_preserved, PageLayoutBody};
 
     /// Il YAML che la struttura tipizzata produrrebbe: contiene solo ciò che sa
     /// rappresentare.
@@ -4943,6 +5031,19 @@ mod write_safety_tests {
         let out = merge_preserved(TYPED, raw);
         assert!(out.contains("impostazioni_future"), "chiave sconosciuta persa:\n{out}");
         assert!(out.contains("qualcosa"), "contenuto della chiave sconosciuta perso:\n{out}");
+    }
+
+    #[test]
+    fn page_layout_rifiuta_i_campi_sconosciuti() {
+        // Il caso che ha originato Q9: PUT /api/project/page-layout con
+        // width/height rispondeva 204 scartandoli in silenzio. Col DTO
+        // deny_unknown_fields la stessa chiamata deve fallire il parse.
+        let ok = serde_json::from_str::<PageLayoutBody>(
+            r#"{"size_mode":"fixed","home_page_id":"p1"}"#);
+        assert!(ok.is_ok(), "payload valido rifiutato: {:?}", ok.err());
+        let bad = serde_json::from_str::<PageLayoutBody>(
+            r#"{"size_mode":"fixed","width":1920,"height":1080}"#);
+        assert!(bad.is_err(), "campi sconosciuti accettati in silenzio");
     }
 
     #[test]

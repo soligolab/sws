@@ -11,6 +11,10 @@
 // qualsiasi regola CSS `:root[data-theme=…]`), quindi il tema va applicato con
 // lo stesso meccanismo del branding, non con solo CSS.
 //
+// Eccezione decisa in OPEN_QUESTIONS Q12: un brand può fare override dei
+// neutri per variante (`neutrals_dark`/`neutrals_light` in brand.json), campo
+// per campo con fallback ai condivisi qui sotto.
+//
 // applyAppearance() va chiamato nel bootstrap (admin-main.tsx / main.tsx) DOPO
 // applyBranding(), così i neutri del tema sovrascrivono quelli del brand mentre
 // l'accento del brand resta. Lo stesso script pre-paint negli HTML imposta
@@ -156,7 +160,16 @@ export function resolvePageBackground(
  */
 export function applyAppearance(mode: ThemeMode): ResolvedTheme {
   const resolved = resolveMode(mode);
-  const neutrals = resolved === "light" ? LIGHT_NEUTRALS : DARK_NEUTRALS;
+  // Q12: un brand può fare override dei neutri per variante (brand.json →
+  // neutrals_dark/neutrals_light), campo per campo con fallback ai condivisi.
+  // I condivisi sono verificati WCAG AA; chi definisce un override risponde
+  // del proprio contrasto.
+  const brand = getBrand();
+  const override = resolved === "light" ? brand.neutralsLight : brand.neutralsDark;
+  const neutrals: Neutrals = {
+    ...(resolved === "light" ? LIGHT_NEUTRALS : DARK_NEUTRALS),
+    ...override,
+  };
   const status   = resolved === "light" ? LIGHT_STATUS   : DARK_STATUS;
   const root = document.documentElement;
   const s = root.style;
@@ -184,7 +197,6 @@ export function applyAppearance(mode: ThemeMode): ResolvedTheme {
 
   // L'accento resta quello del brand: se non ancora impostato (chiamata prima
   // di applyBranding), riempi coi default del brand corrente.
-  const brand = getBrand();
   s.setProperty(CSS_VARS.primary,      brand.colors.primary);
   s.setProperty(CSS_VARS.primaryHover, brand.colors.primaryHover);
 
