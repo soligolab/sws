@@ -46,6 +46,13 @@ pub struct SynopticObject {
     #[serde(skip_serializing_if = "Option::is_none")] pub height:         Option<f64>,
     // Appearance
     #[serde(skip_serializing_if = "Option::is_none")] pub fill:           Option<String>,
+    // Universal background layer (color + image URL) drawn behind the
+    // object's own content — same convention grid cells already used.
+    #[serde(skip_serializing_if = "Option::is_none")] pub bg_color:       Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub bg_image:       Option<String>,
+    // Chart axes/grid colors (trend today, shared by future chart widgets).
+    #[serde(skip_serializing_if = "Option::is_none")] pub axis_color:     Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub grid_color:     Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")] pub stroke:         Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")] pub stroke_width:   Option<f64>,
     // Line endpoint
@@ -110,6 +117,8 @@ pub struct SynopticObject {
     #[serde(skip_serializing_if = "Option::is_none")] pub trend_dt_show_year:        Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")] pub trend_dt_two_lines:        Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")] pub trend_dt_always_show_date: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub trend_show_thresholds:     Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub trend_show_alarm_markers:  Option<bool>,
     // XY plot (live point + trail, not a time series). `tag` above is the X axis.
     #[serde(skip_serializing_if = "Option::is_none")] pub y_tag: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")] pub xy_trail_s: Option<f64>,

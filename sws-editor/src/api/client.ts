@@ -64,7 +64,7 @@ const RUNTIME_BASE_URL_KEY = "sws.runtimeBaseUrl";
 let _forceLocalApi = false;
 export function setForceLocalApi(v: boolean) { _forceLocalApi = v; }
 
-function getBaseUrl(): string {
+export function getBaseUrl(): string {
   if (_forceLocalApi) return "";
   if (typeof window !== "undefined") {
     try {
@@ -111,7 +111,17 @@ export class AuthError extends Error {
  *  Distinct from AuthError so the UI can show "start the runtime" rather than
  *  "wrong password". */
 export class RuntimeUnavailableError extends Error {
-  constructor() { super("runtime unavailable"); this.name = "RuntimeUnavailableError"; }
+  constructor() {
+    super("runtime unavailable");
+    this.name = "RuntimeUnavailableError";
+    // Notifica app-level (vedi certWatcher/App.tsx): quando la SPA punta a un
+    // runtime remoto HTTPS self-signed non ancora accettato, ogni fetch dal
+    // browser fallisce così. L'evento arma un watcher che rileva quando il
+    // runtime torna raggiungibile (cert accettato in un'altra tab, host
+    // tornato su) e invita a ricaricare la pagina — senza questo l'IDE
+    // "sembra rotto" finché l'utente non ricarica di sua iniziativa.
+    try { window.dispatchEvent(new CustomEvent("sws:runtime-unreachable")); } catch { /* SSR/test */ }
+  }
 }
 
 /** Server signals an authenticated user must change their password before
@@ -503,6 +513,46 @@ export const api = {
   /** GET /api/backups/:name/download — zip di uno snapshot. Ritorna la
    *  `Response` grezza come `exportProjectZip`, così il chiamante ne fa un
    *  Blob da scaricare. */
+  /** Certificato TLS di un runtime remoto, scaricato VIA BACKEND: la fetch
+   *  browser->remoto fallirebbe proprio finche' il cert non e' accettato
+   *  (uovo-e-gallina che costringeva a curl -k). */
+  downloadRemoteCert: async (url: string): Promise<Response> => {
+    const path = `/api/remote/cert?url=${encodeURIComponent(url)}`;
+    const res = await fetch(`${getBaseUrl()}${path}`, { headers: authHeaders() });
+    if (res.status === 401) throw new AuthError();
+    if (!res.ok) {
+      let body = "";
+      try { body = await res.text(); } catch { /* ignore */ }
+      throw new Error(`API ${path}: ${res.status} ${res.statusText}${body ? ` — ${body}` : ""}`);
+    }
+    return res;
+  },
+
+  /** Immagini di progetto (<progetto>/images/): viaggiano nel bundle
+   *  export/deploy e nei backup; i widget le referenziano con l'URL relativo
+   *  restituito dall'upload. */
+  listProjectImages: () =>
+    request<{ name: string; size_bytes: number }[]>("/api/project/images"),
+
+  uploadProjectImage: async (name: string, file: Blob): Promise<{ name: string; url: string }> => {
+    const path = `/api/project/images/${encodeURIComponent(name)}`;
+    const res = await fetch(`${getBaseUrl()}${path}`, {
+      method: "POST",
+      headers: authHeaders(),
+      body: file,
+    });
+    if (res.status === 401) throw new AuthError();
+    if (!res.ok) {
+      let body = "";
+      try { body = await res.text(); } catch { /* ignore */ }
+      throw new Error(`API ${path}: ${res.status} ${res.statusText}${body ? ` — ${body}` : ""}`);
+    }
+    return res.json();
+  },
+
+  deleteProjectImage: (name: string) =>
+    request<void>(`/api/project/images/${encodeURIComponent(name)}`, { method: "DELETE" }),
+
   downloadBackup: async (name: string): Promise<Response> => {
     const path = `/api/backups/${encodeURIComponent(name)}/download`;
     const res = await fetch(`${getBaseUrl()}${path}`, { headers: authHeaders() });

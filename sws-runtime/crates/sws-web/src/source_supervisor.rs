@@ -271,10 +271,20 @@ impl SourceSupervisor {
             }
         };
 
-        self.sources.lock().await.insert(
-            id,
+        let previous = self.sources.lock().await.insert(
+            id.clone(),
             RunningSource { handle, cancel, config_json, owned_tags, def: def_for_store, max_silence },
         );
+        // Difesa in profondità: se qui c'era già un task registrato con lo
+        // stesso id, sovrascriverlo lo renderebbe un fantasma — droppare il
+        // token NON cancella e droppare la JoinHandle distacca il task, che
+        // resterebbe connesso (es. MQTT con lo stesso client id → takeover
+        // infinito col gemello). Fermiamo il vecchio esplicitamente.
+        if let Some(old) = previous {
+            warn!(source = %id, "start_one: task già registrato con questo id — fermo il precedente");
+            old.cancel.cancel();
+            old.handle.abort();
+        }
     }
 
     async fn stop_one(&self, id: &str) {
@@ -283,10 +293,17 @@ impl SourceSupervisor {
         info!(source = %id, "stopping source task");
         running.cancel.cancel();
         // Give the task a moment to finish gracefully; abort if it doesn't.
+        // NB: droppare la JoinHandle dopo il timeout DISTACCA il task (tokio
+        // non lo abortisce da solo) — serve l'abort esplicito, altrimenti il
+        // task resta vivo per sempre con la sua connessione aperta.
+        let abort = running.handle.abort_handle();
         match tokio::time::timeout(std::time::Duration::from_secs(2), running.handle).await {
             Ok(Ok(())) => {}
             Ok(Err(e)) => warn!(source = %id, "source task join error: {e}"),
-            Err(_)     => warn!(source = %id, "source task did not stop within 2 s — abort/leak"),
+            Err(_) => {
+                abort.abort();
+                warn!(source = %id, "source task did not stop within 2 s — aborted");
+            }
         }
         // Release the tag routes on the write bus.
         if !running.owned_tags.is_empty() {

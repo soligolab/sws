@@ -23,6 +23,7 @@ import { useRemoteLogStream } from "@/ws/remoteLogStream";
 import { useTagStream } from "@/ws/tagStream";
 import { useProjectWatcher } from "@/ws/projectWatcher";
 import { useBuildWatcher } from "@/ws/buildWatcher";
+import { useCertWatcher } from "@/ws/certWatcher";
 import { canEditProject, canConfigureProject } from "@/auth/permissions";
 
 // Port 8444 — full IDE (canvas editor + ConfigView + project management).
@@ -124,6 +125,9 @@ export function App() {
   // Frontend nuovo servito dal runtime. Mai automatico qui: un reload
   // butterebbe via le modifiche non salvate.
   const [newBuildAvailable, setNewBuildAvailable] = useState(false);
+  // Il runtime remoto era irraggiungibile (tipicamente: cert self-signed non
+  // accettato) ed e' tornato a rispondere — serve un reload per riconnettersi.
+  const [runtimeBackReload, setRuntimeBackReload] = useState(false);
   const [waitingForSave, setWaitingForSave] = useState(false);
 
   // Remote deploy target connection state — letto direttamente dallo store
@@ -350,6 +354,7 @@ export function App() {
   }, [saveStatus]);
 
   useBuildWatcher(() => setNewBuildAvailable(true));
+  useCertWatcher(() => setRuntimeBackReload(true));
 
   useProjectWatcher(() => {
     if (Date.now() - lastLocalSaveAt.current < 20_000) return; // è stato un nostro salvataggio
@@ -583,6 +588,29 @@ export function App() {
       </header>
 
       {/* Alarm banner */}
+      {runtimeBackReload && (
+        <div style={{
+          background: "var(--brand-success-bg, #166534)", borderBottom: "1px solid var(--brand-success, #22c55e)",
+          padding: "6px 16px", display: "flex", alignItems: "center", gap: 12,
+          fontSize: 12, color: "#fff", flexShrink: 0,
+        }}>
+          <span>🔓</span>
+          <span style={{ flex: 1 }}>{t("app.runtimeReachableReload")}</span>
+          <button
+            style={{ ...HDR_BTN, background: "transparent", color: "#fff", borderColor: "#fff" }}
+            onClick={() => window.location.reload()}
+          >
+            {t("app.reloadNow")}
+          </button>
+          <button
+            style={{ ...HDR_BTN, background: "transparent", color: "#fff", border: "none" }}
+            onClick={() => setRuntimeBackReload(false)}
+            title={t("app.dismiss")}
+          >
+            ✕
+          </button>
+        </div>
+      )}
       {newBuildAvailable && (
         <div style={{
           background: "var(--brand-primary, #3b82f6)", borderBottom: "1px solid var(--brand-primary-hover, #2563eb)",

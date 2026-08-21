@@ -1,7 +1,7 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 use axum::{
     body::{Body, Bytes},
-    extract::{Extension, Path, State},
+    extract::{Extension, Path, Query, State},
     http::StatusCode,
     response::{IntoResponse, Response},
     Json,
@@ -722,6 +722,62 @@ pub fn read_usernames(yaml: &str) -> Vec<String> {
 }
 
 /// Percent-encode a string for use in a URL path segment (simple ASCII-safe version).
+/// `GET /api/remote/cert?url=<runtime-url>` — scarica il certificato TLS di
+/// un runtime remoto PASSANDO DAL BACKEND, e lo rilancia al browser come
+/// allegato `sws.crt`.
+///
+/// Esiste per rompere l'uovo-e-gallina del pulsante "Scarica cert" originale:
+/// scaricava con una fetch dal browser verso `{target}/cert`, cioè esattamente
+/// la richiesta che il browser blocca finché il certificato non è già stato
+/// accettato — e il fallback suggeriva `curl -k` in un terminale. Il backend
+/// invece parla già con i self-signed (`danger_accept_invalid_certs`), quindi
+/// da qui il download funziona sempre, anche prima di ogni accettazione.
+///
+/// L'URL arriva come query param (non da `remote_target`): il caso d'uso è
+/// proprio un runtime a cui NON si è ancora connessi.
+#[derive(Debug, Deserialize)]
+pub struct RemoteCertQuery {
+    pub url: String,
+}
+
+pub async fn remote_cert(
+    State(s): State<AppState>,
+    Extension(user): Extension<AuthUser>,
+    Query(q): Query<RemoteCertQuery>,
+) -> Response {
+    let url = q.url.trim().trim_end_matches('/').to_string();
+    if !url.starts_with("http://") && !url.starts_with("https://") {
+        return (StatusCode::BAD_REQUEST, "url deve iniziare con http:// o https://").into_response();
+    }
+    s.audit.log("remote.cert_download", Some(user.username), serde_json::json!({ "url": url }));
+
+    let client = make_remote_client();
+    match client.get(format!("{url}/cert")).send().await {
+        Ok(r) if r.status().is_success() => {
+            let bytes = match r.bytes().await {
+                Ok(b) => b,
+                Err(e) => return (
+                    StatusCode::BAD_GATEWAY,
+                    format!("Lettura della risposta dal dispositivo fallita: {e}"),
+                ).into_response(),
+            };
+            Response::builder()
+                .status(StatusCode::OK)
+                .header("Content-Type", "application/x-x509-ca-cert")
+                .header("Content-Disposition", "attachment; filename=\"sws.crt\"")
+                .body(Body::from(bytes))
+                .unwrap()
+        }
+        Ok(r) => {
+            let code = r.status();
+            (StatusCode::BAD_GATEWAY, format!(
+                "Il dispositivo ha risposto {code} a /cert — il runtime remoto ha il TLS attivo? (in HTTP semplice non c'è nessun certificato da scaricare)"
+            )).into_response()
+        }
+        Err(e) => (StatusCode::BAD_GATEWAY, format!("Richiesta al dispositivo fallita: {e}")).into_response(),
+    }
+}
+
 fn pct_encode(s: &str) -> String {
     s.chars().map(|c| match c {
         'A'..='Z' | 'a'..='z' | '0'..='9' | '-' | '_' | '.' | '~' => c.to_string(),
@@ -746,9 +802,16 @@ pub async fn remote_deploy(
         None => return (StatusCode::BAD_REQUEST, "Nessun progetto attivo").into_response(),
     };
 
+    // Un deploy alla volta: la guardia viaggia nel task e si rilascia da sola
+    // alla fine (anche su errore), qualunque sia il ramo di uscita.
+    let Ok(deploy_guard) = s.deploy_lock.clone().try_lock_owned() else {
+        return (StatusCode::CONFLICT, "Un deploy è già in corso — attendi che finisca").into_response();
+    };
+
     let (tx, rx) = tokio::sync::mpsc::channel::<String>(64);
 
     tokio::spawn(async move {
+        let _deploy_guard = deploy_guard;
         let send = |msg: &str| { let _ = tx.try_send(format!("{msg}\n")); };
 
         send("Esportazione progetto locale…");

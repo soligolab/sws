@@ -29,6 +29,10 @@ export function ViewerLink() {
   const remoteUrl       = useAppStore((s) => s.remoteUrl);
   const [probing, setProbing] = useState(false);
   const [error, setError]     = useState<string | null>(null);
+  // true quando il probe e' fallito su un URL https: oltre al messaggio si
+  // offre l'azione "accetta il certificato" (il viewer e' un ORIGIN diverso
+  // dall'IDE: l'accettazione fatta per :8444 non copre :8443).
+  const [offerCertAction, setOfferCertAction] = useState(false);
   // `remoteUrl` nello store lo scrive RuntimeConnectionTab, quindi resta vuoto
   // finché in questa sessione non si è aperta Configurazione → Runtime. Chi
   // ricarica l'IDE e vuole subito guardare il dispositivo si troverebbe il
@@ -76,10 +80,11 @@ export function ViewerLink() {
   const viewerUrl = viewerUrlFromAdmin(adminUrl);
   if (!viewerUrl) return null;
 
-  const showError = (msg: string) => {
+  const showError = (msg: string, certAction = false) => {
     setError(msg);
+    setOfferCertAction(certAction);
     if (timerRef.current) clearTimeout(timerRef.current);
-    timerRef.current = setTimeout(() => setError(null), MESSAGE_MS);
+    timerRef.current = setTimeout(() => { setError(null); setOfferCertAction(false); }, MESSAGE_MS);
   };
 
   const handleClick = async () => {
@@ -104,10 +109,12 @@ export function ViewerLink() {
       // certificato self-signed non ancora accettato: il messaggio nomina
       // l'ultimo caso perché è l'unico che si risolve senza toccare il
       // dispositivo, ed è quello che sorprende.
+      const isTls = viewerUrl.startsWith("https:");
       showError(
-        viewerUrl.startsWith("https:")
+        isTls
           ? t("header.viewerUnreachableTls", { url: viewerUrl })
           : t("header.viewerUnreachable", { url: viewerUrl }),
+        isTls,
       );
     } finally {
       setProbing(false);
@@ -139,6 +146,22 @@ export function ViewerLink() {
         >
           {error}
         </span>
+      )}
+      {error && offerCertAction && (
+        <button
+          style={{ ...HDR_BTN, whiteSpace: "nowrap" }}
+          title={t("header.viewerAcceptCertTitle", { url: viewerUrl })}
+          onClick={() => {
+            // Apre /health sull'origin del VIEWER: il browser mostra l'avviso
+            // del certificato, l'utente lo accetta li', torna qui e ripreme
+            // il bottone Viewer — stavolta il probe passa.
+            window.open(`${viewerUrl}/health`, "_blank", "noopener");
+            setError(null);
+            setOfferCertAction(false);
+          }}
+        >
+          {t("header.viewerAcceptCert")}
+        </button>
       )}
     </div>
   );

@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { api, getAuthToken, type CreateUserBody, type DiscoveredRuntime, type SystemStatus, type UpdateUserBody, type UserRole, type UserSummary } from "@/api/client";
+import { api, getAuthToken, getBaseUrl, RuntimeUnavailableError, type CreateUserBody, type DiscoveredRuntime, type SystemStatus, type UpdateUserBody, type UserRole, type UserSummary } from "@/api/client";
 import { getBrand } from "@/branding";
 import { containerDeployPayload, effectiveDataPath, type ContainerSource } from "@/containerDeploy";
 import { containerManagePayload, type ManageAction, type RestartPolicy } from "@/containerManage";
@@ -7299,6 +7299,11 @@ function RuntimeConnectionTab() {
   const [remoteMsg, setRemoteMsg]   = useState<string | null>(null);
   const [discovering, setDiscovering] = useState(false);
   const [discovered, setDiscovered]   = useState<DiscoveredRuntime[] | null>(null);
+  // "unreachable" = la fetch verso il runtime a cui l'IDE punta e' fallita
+  // (tipicamente: cert self-signed non accettato in questo browser, o host
+  // giu') — NON significa "zero runtime sulla rete". Prima veniva collassato
+  // in discovered=[] e la UI diceva "Nessun runtime trovato": sembrava rotto.
+  const [discoverError, setDiscoverError] = useState<"unreachable" | "generic" | null>(null);
 
   // On mount: remove stale localStorage key, sync actual state from server.
   useEffect(() => {
@@ -7467,29 +7472,32 @@ function RuntimeConnectionTab() {
   }, [status]);
 
   const handleDownloadCert = async () => {
-    const certUrl = `${target}/cert`;
+    // Via backend (proxy /api/remote/cert), non fetch diretta browser->target:
+    // quella fallirebbe proprio finche' il cert non e' gia' accettato, che e'
+    // l'unico momento in cui questo pulsante serve. curl resta solo come
+    // ultima spiaggia nel messaggio d'errore (backend che non raggiunge l'host).
     try {
-      const res = await fetch(certUrl);
-      if (!res.ok) throw new Error(`${res.status}`);
+      const res = await api.downloadRemoteCert(target);
       const blob = await res.blob();
       const a = document.createElement("a");
       a.href = URL.createObjectURL(blob);
       a.download = "sws.crt";
       a.click();
       URL.revokeObjectURL(a.href);
-    } catch {
-      setStatusMsg(`Non riesco a scaricare il cert. Se il target usa TLS self-signed non ancora accettato, esegui:\n  curl -k ${certUrl} -o sws.crt\npoi importalo nel browser.`);
+    } catch (e: any) {
+      setStatusMsg(`Non riesco a scaricare il cert (${e?.message ?? e}). Il runtime remoto è acceso e ha il TLS attivo? In alternativa, da un terminale:\n  curl -k ${target}/cert -o sws.crt`);
     }
   };
 
   const handleDiscover = async () => {
     setDiscovering(true);
     setDiscovered(null);
+    setDiscoverError(null);
     try {
       const found = await api.discoverRuntimes();
       setDiscovered(found);
-    } catch {
-      setDiscovered([]);
+    } catch (e) {
+      setDiscoverError(e instanceof RuntimeUnavailableError ? "unreachable" : "generic");
     } finally {
       setDiscovering(false);
     }
@@ -7781,6 +7789,25 @@ function RuntimeConnectionTab() {
               onClick={handleDiscover}
             >{discovering ? "Cerco…" : "Cerca runtime"}</button>
           </div>
+          {discoverError && (
+            <div style={{ background: "var(--brand-bg, #0f172a)", border: "1px solid var(--brand-warning, #f59e0b)", borderRadius: 4, padding: "8px 10px", display: "flex", flexDirection: "column", gap: 6 }}>
+              <span style={{ fontSize: 12, color: "var(--brand-warning, #f59e0b)" }}>
+                {discoverError === "unreachable" ? t("cfg.discoverUnreachable") : t("cfg.discoverFailed")}
+              </span>
+              {discoverError === "unreachable" && (
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  <button
+                    style={{ ...BTN, whiteSpace: "nowrap" }}
+                    onClick={() => window.open(`${getBaseUrl()}/health`, "_blank")}
+                  >{t("cfg.discoverAcceptCert")}</button>
+                  <button
+                    style={{ ...BTN, whiteSpace: "nowrap" }}
+                    onClick={() => window.location.reload()}
+                  >{t("cfg.discoverReload")}</button>
+                </div>
+              )}
+            </div>
+          )}
           {discovered !== null && (
             <div style={{ background: "var(--brand-bg, #0f172a)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, padding: "6px 8px" }}>
               {discovered.length === 0

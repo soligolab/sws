@@ -467,6 +467,8 @@ pub async fn open_project(
     State(s): State<AppState>,
     Path(name): Path<String>,
 ) -> Response {
+    // Un solo cambio-progetto alla volta: vedi `AppState::project_switch_lock`.
+    let _switch = s.project_switch_lock.lock().await;
     let safe_name = match safe_project_name(&name) {
         Ok(n) => n,
         Err(msg) => return (StatusCode::BAD_REQUEST, msg).into_response(),
@@ -585,6 +587,7 @@ pub async fn open_project(
 /// Drops TagDb / AlarmDb / supervisor sources / functions / auth.
 /// All sessions become invalid.
 pub async fn close_project(State(s): State<AppState>) -> Response {
+    let _switch = s.project_switch_lock.lock().await;
     // Check there's something to close.
     if active_dir(&s).await.is_err() {
         return (StatusCode::NO_CONTENT, ()).into_response();
@@ -660,13 +663,17 @@ pub struct DeleteQuery {
 
 /// Ciò che il deploy sovrascrive: artefatti di progettazione, prodotti dall'IDE
 /// e riesportabili in qualsiasi momento.
-const DESIGN_ARTIFACTS: &[&str] = &["project.yaml", "synoptics"];
+// `images` è qui perché viaggia nel bundle: senza rimozione preventiva, le
+// immagini eliminate nell'IDE resterebbero per sempre sul device dopo un
+// deploy (il bundle le riporta tutte, ma non cancella quelle orfane).
+const DESIGN_ARTIFACTS: &[&str] = &["project.yaml", "synoptics", "images"];
 
 pub async fn delete_project(
     State(s): State<AppState>,
     Path(name): Path<String>,
     Query(q): Query<DeleteQuery>,
 ) -> Response {
+    let _switch = s.project_switch_lock.lock().await;
     let safe_name = match safe_project_name(&name) {
         Ok(n) => n,
         Err(msg) => return (StatusCode::BAD_REQUEST, msg).into_response(),
@@ -1048,6 +1055,7 @@ pub async fn upload_project_zip(
     Query(q): Query<UploadQuery>,
     body: Bytes,
 ) -> Response {
+    let _switch = s.project_switch_lock.lock().await;
     // 1. Parse the ZIP.
     let mut archive = match zip::ZipArchive::new(Cursor::new(body.as_ref())) {
         Ok(a)  => a,

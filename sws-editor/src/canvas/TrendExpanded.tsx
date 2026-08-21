@@ -19,6 +19,16 @@ interface TrendExpandedProps {
   dtShowYear?: boolean;
   dtTwoLines?: boolean;
   dtAlwaysShowDate?: boolean;
+  showThresholds?: boolean;
+  warnLow?: number;
+  warnHigh?: number;
+  alarmLow?: number;
+  alarmHigh?: number;
+  showAlarmMarkers?: boolean;
+  bgColor?: string;
+  bgImage?: string;
+  axisColor?: string;
+  gridColor?: string;
   onClose: () => void;
 }
 
@@ -51,6 +61,16 @@ export function TrendExpandedModal({
   dtShowYear,
   dtTwoLines,
   dtAlwaysShowDate,
+  showThresholds,
+  warnLow,
+  warnHigh,
+  alarmLow,
+  alarmHigh,
+  showAlarmMarkers,
+  bgColor,
+  bgImage,
+  axisColor,
+  gridColor,
   onClose,
 }: TrendExpandedProps) {
   const [preset, setPreset] = useState<RangePreset>("live");
@@ -58,8 +78,12 @@ export function TrendExpandedModal({
   const [offsetMs, setOffsetMs] = useState(0);
   // Drag-to-zoom range, set via onRangeSelect on the canvas below (T-48).
   // Lives alongside the preset system as its own pseudo-preset ("custom").
-  const [customRange, setCustomRange] = useState<{ fromMs: number; toMs: number } | null>(null);
-  const [hiddenIndices, setHiddenIndices] = useState<Set<number>>(new Set());
+  const [customRange, setCustomRange] = useState<{ fromMs: number; toMs: number; yLo?: number; yHi?: number } | null>(null);
+  // Seeded from the persisted per-trace `hidden` flags; toggled at runtime by
+  // both the toolbar buttons and legend clicks (single source of truth here).
+  const [hiddenIndices, setHiddenIndices] = useState<Set<number>>(
+    () => new Set((seriesStyles ?? []).flatMap((s, i) => (s?.hidden ? [i] : [])))
+  );
   const [canvasSize, setCanvasSize] = useState({ w: 800, h: 420 });
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -270,13 +294,14 @@ export function TrendExpandedModal({
             width={canvasSize.w}
             height={canvasSize.h}
             lineColor={lineColor}
-            yMin={yMin}
-            yMax={yMax}
+            yMin={isCustom && customRange?.yLo !== undefined ? customRange.yLo : yMin}
+            yMax={isCustom && customRange?.yHi !== undefined ? customRange.yHi : yMax}
             pollMs={pollMs}
             opcuaBackfill={opcuaBackfill}
             fromMs={fromMs}
             toMs={toMs}
             hiddenIndices={hiddenIndices}
+            onLegendToggle={toggleSeries}
             seriesStyles={seriesStyles}
             dtDateOrder={dtDateOrder}
             dtSeparator={dtSeparator}
@@ -285,7 +310,17 @@ export function TrendExpandedModal({
             dtShowYear={dtShowYear}
             dtTwoLines={dtTwoLines}
             dtAlwaysShowDate={dtAlwaysShowDate}
-            onRangeSelect={(rFromMs, rToMs) => { setCustomRange({ fromMs: rFromMs, toMs: rToMs }); setPreset("custom"); }}
+            showThresholds={showThresholds}
+            warnLow={warnLow}
+            warnHigh={warnHigh}
+            alarmLow={alarmLow}
+            alarmHigh={alarmHigh}
+            showAlarmMarkers={showAlarmMarkers}
+            bgColor={bgColor}
+            bgImage={bgImage}
+            axisColor={axisColor}
+            gridColor={gridColor}
+            onRangeSelect={(rFromMs, rToMs, rYLo, rYHi) => { setCustomRange({ fromMs: rFromMs, toMs: rToMs, yLo: rYLo, yHi: rYHi }); setPreset("custom"); }}
             zoomed={isCustom}
             onResetZoom={() => { setPreset("live"); setOffsetMs(0); setCustomRange(null); }}
           />

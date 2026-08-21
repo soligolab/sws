@@ -6,6 +6,98 @@
 >
 > **Pulizia 2026-07-27**: rimossi i task già chiusi e le sezioni di verifica ormai superate; le sessioni mergiate **e** verificate fino al 2026-07-09 sono compresse in «Storico». Il dettaglio integrale resta in `CHANGELOG.md` e nella history git.
 
+**Sessione 2026-08-21 (seguito) — test del maintainer sul Trend: un bug vero + un falso
+allarme**, stesso branch `feat/tls-cert-ux`. Il maintainer ha riportato: (1) immagine di sfondo
+del Trend invisibile sia in editor sia sul runtime dopo il deploy; (2) "Scala propria" senza
+effetto. Verificato dal vivo con un runtime di test costruito da questo branch: **entrambe le
+feature funzionano nel runtime attuale** (screenshot: sfondo visibile + colonna scala propria).
+Il bug vero era solo l'**anteprima in editor**: il placeholder statico del Trend (niente
+polling, drag-friendly) aveva lo sfondo hardcoded e ignorava `bg_color`/`bg_image` — corretto,
+ora l'anteprima li mostra (verificato con screenshot dell'editor). Il resto dei sintomi è
+spiegato dal **target del deploy**: i runtime installati (nativo 2.0.1 su questo PC, container
+2.0.1 sul TC620) sono stati costruiti PRIMA delle feature Trend/immagini di ieri — la loro SPA
+non ha né `own_scale` né l'endpoint `/api/project/images` (404 sull'immagine). Serve
+ricostruire pacchetto/immagine da questo branch e rifare il deploy per vederle sul device.
+
+**Sessione 2026-08-21 — UX certificati TLS + immagini di progetto con upload** (branch
+`feat/tls-cert-ux`, annidato sopra `feat/widgets-fase-a` — un solo capo da testare). Due
+richieste dal vivo del maintainer:
+
+1. **UX TLS**: "Cerca runtime" non trovava nulla anche dopo l'import del cert (serviva un
+   reload mai suggerito — causa: `catch { setDiscovered([]) }` che collassava il
+   `RuntimeUnavailableError` del browser in "lista vuota"), e il pulsante Viewer falliva
+   con `CertificateUnknown` nei log (il viewer :8443 è un origin separato da :8444 — va
+   accettato a parte). Cinque interventi: (a) discovery con errore distinto + bottoni "Apri
+   /health"/"Ricarica"; (b) `certWatcher.ts` (gemello del buildWatcher) armato dall'evento
+   `sws:runtime-unreachable` emesso da `RuntimeUnavailableError`, che polla `/health` ogni 3 s
+   e mostra un banner verde "ricarica per riconnetterti" appena il runtime torna raggiungibile;
+   (c) ViewerLink con azione "Accetta cert ↗" sull'origin del viewer; (d) pagina helper HTTP
+   (`CERT_PAGE_TEMPLATE`) che elenca ENTRAMBI gli origin con stato per ciascuno e reindirizza
+   solo quando tutti accettati; (e) "Scarica cert" via proxy backend (`GET /api/remote/cert`),
+   niente più curl — la fetch dal browser falliva proprio finché il cert non era già accettato.
+2. **Immagini di progetto**: `<progetto>/images/` con upload dall'IDE (sezione SFONDO: pulsante
+   Carica + tendina delle immagini esistenti), endpoint `GET/POST/DELETE /api/project/images`
+   (letture anche sul viewer anonimo — i sinottici devono mostrarle all'operatore; scritture
+   Supervisor+; whitelist estensioni per non ospitare contenuti arbitrari su un origin servito
+   anonimo, max 5MB), incluse in bundle export/deploy (`build_export_zip` + `read_images_dir`),
+   nei backup (`BACKED_UP`) e sovrascritte dal deploy (`DESIGN_ARTIFACTS` — senza, le immagini
+   eliminate nell'IDE resterebbero orfane sul device per sempre).
+
+**Verificato dal vivo** (due runtime di test, uno HTTP e uno TLS con entrambe le porte +
+http-port): upload→lista→serving su admin E viewer anonimo→export zip con `images/`→rendering
+visivo dell'immagine caricata come sfondo di rect e gauge (screenshot Playwright); nomi
+traversal/estensioni non-immagine rifiutati (400); proxy cert scarica un PEM vero dal runtime
+TLS attraverso il runtime HTTP e spiega chiaramente il caso "il remoto non ha TLS" (502 con
+messaggio, non un errore muto); pagina helper con entrambe le porte sostituite e riga viewer
+presente. `pnpm type-check`/`pnpm build`/`cargo check` verdi. **Non testato dal maintainer.**
+Il percorso certWatcher/banner e il riquadro discovery richiedono il setup reale a due macchine
+del maintainer (cert self-signed non accettato): da provare nel suo prossimo giro.
+
+**Sessione 2026-08-20 (sera) — Fase A completa: tutte le 8 migliorie widget/Trend del backlog**
+(branch `feat/widgets-fase-a`, da `main` post-housekeeping — l'housekeeping di inizio serata ha
+squash-mergiato su main tutto il lavoro precedente e eliminato i 3 branch pendenti, tutti
+verificati senza contenuto unico). Il maintainer ha autorizzato l'intera Fase A del piano in
+autonomia, su branch unico:
+- **A2 soglie**: `trend_show_thresholds` + campi warn/alarm condivisi, linee tratteggiate
+  ambra/rosse sulla scala condivisa (pattern del bar chart), sezione soglie nel pannello.
+- **A3 legenda cliccabile**: hit-test manuale sui box della legenda (il canvas 2D non ha DOM),
+  modalità controllata (modale, via `onLegendToggle`) e non controllata (widget compatto, stato
+  interno) — cursore pointer sopra le voci.
+- **A6 visibilità persistente**: `trend_series_styles[].hidden` (checkbox "Nascondi"), seme
+  dello stato di visibilità in entrambe le viste; il toggle runtime resta effimero sopra.
+- **A5 zoom 2D**: il drag-to-zoom ora seleziona anche il range Y **sulla sola scala condivisa**
+  (decisione presa in autonomia e documentata: le tracce own_scale mantengono l'autofit — lo
+  zoom di un asse per-traccia non ha una risposta univoca). Inversione screen→valore via
+  `sharedScaleRef` catturata all'ultimo draw; drag quasi orizzontale = solo tempo, con
+  anteprima coerente. Esteso `onRangeSelect(from, to, yLo?, yHi?)` e i due chiamanti.
+- **A4 palette unificata**: `color` opzionale su `BarChartSeries`/`PieSlice` con fallback alla
+  `PALETTE` del Trend per indice; nuove serie nascono senza colore esplicito; rimossa la lista
+  colori duplicata locale del pie nel pannello.
+- **A7 marker allarmi**: `trend_show_alarm_markers`, fetch di `GET /api/alarms/history` nel
+  ciclo di poll, linee verticali+triangolini per severità, messaggio allarme nel tooltip quando
+  il cursore è vicino al marker. Tutti gli allarmi del progetto (il journal non porta il tag).
+- **A1 stile universale (6 tipi core)**: `bg_color`/`bg_image` universali + `axis_color`/
+  `grid_color` (specchiati in `synoptic.rs`), helper `bgLayer()` in SvgCanvas, sezione "SFONDO"
+  a punto di inserimento unico (`BG_TYPES`), etichetta bottone/ago gauge/testi gauge
+  configurabili, Trend con sfondo/immagine (cache `Image()` sul canvas 2D)/assi/griglia.
+- **A8 estensione**: bgLayer/bg-image su tutti gli altri tipi box (29 in `BG_TYPES`), inclusi i
+  rami edit-mode per l'anteprima; esclusi con motivazione line/pipe (tratti puri) e
+  alarm_viewer (campo dedicato preesistente); `XyPlotCanvas` esteso con props `bgColor`/
+  `bgImage` (era l'unico gap segnalato dal subagente che ha fatto il grosso di A8).
+- **Bugfix collaterale trovato**: le etichette dell'asse X del Trend ereditavano il colore
+  dell'ultima colonna own-scale (regressione della Fase 2, mai visibile senza scale multiple).
+
+**Verificato dal vivo** con runtime reale + Playwright: (1) **round-trip di persistenza dei 14
+nuovi campi** (PUT synoptic → GET → tutti presenti — il test che conta per il mirror Rust);
+(2) screenshot con tutto attivo insieme: soglie tratteggiate, marker allarmi con triangolini,
+"portata" nascosta da persistenza (grigia in legenda), scala propria di potenza, sfondo/assi/
+griglia custom sul Trend, gauge con ago arancio/testi verdi/sfondo navy, etichetta bottone
+gialla; (3) click sulla legenda → traccia nascosta e colonna own-scale collassata; (4) tooltip
+con "⚠ Temperatura alta zona 1" vicino al marker; (5) drag diagonale → zoom 2D confermato
+(tempo 22:52-23:09 e Y condiviso 20-155) con reset comparso; (6) palette automatica sui bar
+(blu/verde/ambra senza colori configurati). `pnpm type-check`/`pnpm build`/`cargo check -p
+sws-web` verdi. **Non testato dal maintainer** — branch pronto per il suo giro di prova.
+
 **Sessione 2026-08-20 — device reale senza spazio: pulizia manuale + controllo disco +
 pulsante prune immagini** (branch `feat/container-deploy-diskspace-and-image-cleanup`, da
 `main`). Il maintainer stava provando il deploy container con LVGL su un Pixsys TC620 reale
