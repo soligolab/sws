@@ -14,6 +14,7 @@ import { genId } from "@/id";
 import { useAppStore } from "@/store";
 import { effectiveProjectLang, resolveMsg } from "@/i18n/projectI18n";
 import { evalExpr } from "@/expr/engine";
+import { applyStateColor, parseSvg, sanitizeSvg } from "@/symbols/customSvg";
 import { SYMBOLS } from "@/symbols/library";
 import { clampToPage } from "@/pageLayout";
 import type { AlarmSeverity, AlarmState, CustomSymbol, FaceplateDef, FaceplateParamDef, GridCell, PageSizeMode, PipePoint, Sample, SynopticObject, TagDef, TagState, TextListEntry } from "@/types";
@@ -4924,7 +4925,23 @@ export function SvgObject(p: ObjProps) {
           style={{ cursor: editCursor }} />
         {applyTransform(obj, w, h, <>
           {bgLayer(obj.x, obj.y, w, h, 4)}
-          {customEntry ? (
+          {customEntry?.svg ? (
+            /* F6.9: simbolo custom multi-stato — markup inline con gli
+               elementi colorable_ids ricolorati per stato. */
+            (() => {
+              const { viewBox, inner } = parseSvg(sanitizeSvg(customEntry.svg));
+              const colored = customEntry.colorable_ids?.length
+                ? applyStateColor(inner, customEntry.colorable_ids, badgeColor)
+                : inner;
+              return (
+                <svg x={obj.x} y={obj.y} width={w} height={h} viewBox={viewBox}
+                  preserveAspectRatio="xMidYMid meet" style={{ pointerEvents: "none" }}
+                  data-anim={spinActive ? "1" : undefined}>
+                  <g style={spinStyle} dangerouslySetInnerHTML={{ __html: colored }} />
+                </svg>
+              );
+            })()
+          ) : customEntry ? (
             <image href={customEntry.url} x={obj.x} y={obj.y} width={w} height={h}
               preserveAspectRatio="xMidYMid meet" style={{ pointerEvents: "none" }} />
           ) : meta!.kind === "builtin" && meta!.render ? (

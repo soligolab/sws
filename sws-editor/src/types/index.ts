@@ -644,6 +644,11 @@ export interface CustomSymbolAttribution {
 }
 
 export interface CustomSymbol {
+  /** F6.9 — simbolo multi-stato: markup SVG inline (in alternativa a `url`).
+   *  Gli elementi i cui id sono in `colorable_ids` vengono ricolorati con il
+   *  colore dello stato corrente (off/on/alarm o symbol_states). */
+  svg?: string;
+  colorable_ids?: string[];
   id: string;
   label: string;
   url: string;

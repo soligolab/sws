@@ -12,6 +12,7 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { UiLangSelect } from "@/components/UiLangSelect";
 import { SvgObject, substituteFaceplateParams } from "@/canvas/SvgCanvas";
 import type { FaceplateParamDef } from "@/types";
+import { applyStateColor, listSvgIds, parseSvg, sanitizeSvg } from "@/symbols/customSvg";
 import { selectIsDirty, useAppStore } from "@/store";
 import { sourceTagIds } from "@/tagCatalog";
 import { canConfigureProject } from "@/auth/permissions";
@@ -5767,6 +5768,9 @@ function ResourcesTab() {
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [error, setError]   = useState<string | null>(null);
+  // F6.9: editor multi-stato — id del simbolo in modifica.
+  const [svgEditId, setSvgEditId] = useState<string | null>(null);
+  const svgFileRef = useRef<HTMLInputElement>(null);
 
   const persist = async (next: typeof customSymbols) => {
     setSaving(true); setError(null);
@@ -5832,7 +5836,12 @@ function ResourcesTab() {
                   </td>
                   <td style={{ padding: "6px 8px", color: "var(--brand-text-muted, #94a3b8)" }}>{s.attribution.license}</td>
                   <td style={{ padding: "6px 8px", color: "var(--brand-text-subtle, #64748b)" }}>{s.attribution.author}{s.attribution.source ? ` / ${s.attribution.source}` : ""}</td>
-                  <td style={{ padding: "6px 8px" }}>
+                  <td style={{ padding: "6px 8px", whiteSpace: "nowrap" }}>
+                    <button
+                      onClick={() => setSvgEditId(svgEditId === s.id ? null : s.id)}
+                      title="Multi-stato: importa SVG e scegli gli elementi colorabili"
+                      style={{ background: "transparent", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, color: s.svg ? "#38bdf8" : "var(--brand-text-subtle, #64748b)", cursor: "pointer", padding: "2px 8px", fontSize: 12, marginRight: 4 }}
+                    >⚙</button>
                     <button
                       onClick={() => remove(s.id)}
                       style={{ background: "transparent", border: "1px solid var(--brand-danger-bg, #7f1d1d)", borderRadius: 4, color: "var(--brand-danger-soft, #fca5a5)", cursor: "pointer", padding: "2px 8px", fontSize: 12 }}
@@ -5844,6 +5853,87 @@ function ResourcesTab() {
           </table>
         )}
       </section>
+
+      {/* F6.9: editor multi-stato del simbolo selezionato */}
+      {svgEditId && (() => {
+        const sym = customSymbols.find((cs) => cs.id === svgEditId);
+        if (!sym) return null;
+        const ids = sym.svg ? listSvgIds(sym.svg) : [];
+        const setSym = (patch: Partial<typeof sym>) =>
+          void persist(customSymbols.map((cs) => (cs.id === sym.id ? { ...cs, ...patch } : cs)));
+        const toggleColorable = (elId: string) => {
+          const cur = new Set(sym.colorable_ids ?? []);
+          if (cur.has(elId)) cur.delete(elId); else cur.add(elId);
+          setSym({ colorable_ids: cur.size > 0 ? [...cur] : undefined });
+        };
+        return (
+          <section style={{ background: "var(--brand-surface, #1e293b)", border: "1px solid #38bdf8", borderRadius: 6, padding: 16 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: "#38bdf8", marginBottom: 8 }}>
+              MULTI-STATO — {sym.label}
+            </div>
+            <p style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", margin: "0 0 8px" }}>
+              Importa l'SVG del simbolo e spunta gli elementi (per <code>id</code>) che devono
+              colorarsi con lo stato (off/on/allarme o gli STATI N dell'oggetto). Gli elementi
+              senza id nell'SVG non sono selezionabili: aggiungili nell'editor vettoriale.
+            </p>
+            <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+              <input ref={svgFileRef} type="file" accept=".svg,image/svg+xml" style={{ display: "none" }}
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (!f) return;
+                  void f.text().then((text) => setSym({ svg: sanitizeSvg(text), colorable_ids: undefined }));
+                  e.target.value = "";
+                }} />
+              <button onClick={() => svgFileRef.current?.click()}
+                style={{ ...inp, width: "auto", cursor: "pointer" }}>⬆ Importa SVG…</button>
+              {sym.svg && (
+                <button onClick={() => setSym({ svg: undefined, colorable_ids: undefined })}
+                  style={{ ...inp, width: "auto", cursor: "pointer", color: "var(--brand-danger-soft, #fca5a5)" }}>
+                  Rimuovi SVG (torna a URL)
+                </button>
+              )}
+            </div>
+            {sym.svg && (
+              <div style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
+                <div style={{ flex: 1 }}>
+                  <div style={lbl}>Elementi colorabili ({ids.length} id trovati)</div>
+                  {ids.length === 0 ? (
+                    <div style={{ fontSize: 12, color: "var(--brand-warning, #f59e0b)" }}>
+                      Nessun id nell'SVG — nessun elemento può cambiare colore.
+                    </div>
+                  ) : (
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                      {ids.map((elId) => (
+                        <label key={elId} style={{ display: "flex", gap: 4, alignItems: "center", fontSize: 12, color: "var(--brand-text-2, #cbd5e1)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, padding: "2px 8px", cursor: "pointer" }}>
+                          <input type="checkbox" checked={(sym.colorable_ids ?? []).includes(elId)}
+                            onChange={() => toggleColorable(elId)} />
+                          {elId}
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <div style={{ display: "flex", gap: 8 }}>
+                  {(["#64748b", "#22c55e", "#ef4444"] as const).map((color, i) => {
+                    const { viewBox, inner } = parseSvg(sym.svg!);
+                    const colored = (sym.colorable_ids ?? []).length > 0
+                      ? applyStateColor(inner, sym.colorable_ids!, color) : inner;
+                    return (
+                      <div key={i} style={{ textAlign: "center" }}>
+                        <svg width={72} height={72} viewBox={viewBox} preserveAspectRatio="xMidYMid meet"
+                          style={{ background: "var(--brand-bg, #0f172a)", borderRadius: 4, border: "1px solid var(--brand-surface-2, #334155)" }}>
+                          <g dangerouslySetInnerHTML={{ __html: colored }} />
+                        </svg>
+                        <div style={{ fontSize: 10, color: "var(--brand-text-subtle, #64748b)" }}>{["off", "on", "alarm"][i]}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </section>
+        );
+      })()}
 
       {/* Form aggiunta */}
       <section style={{ background: "var(--brand-surface, #1e293b)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 6, padding: 16 }}>

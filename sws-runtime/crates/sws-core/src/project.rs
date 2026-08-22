@@ -728,8 +728,15 @@ pub struct CustomSymbol {
     pub id: String,
     pub label: String,
     /// Absolute URL or path served by the runtime.
+    #[serde(default)]
     pub url: String,
     pub attribution: CustomSymbolAttribution,
+    /// F6.9 — simbolo multi-stato: markup SVG inline (alternativo a `url`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub svg: Option<String>,
+    /// Id degli elementi SVG ricolorati con il colore dello stato corrente.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub colorable_ids: Option<Vec<String>>,
 }
 
 fn deserialize_sources_tolerant<'de, D>(d: D) -> Result<Vec<SourceDef>, D::Error>
