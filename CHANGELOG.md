@@ -11,6 +11,20 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### Added (programma SCADA-widgets, fase F6 — faceplate 2.0 e simboli)
+
+- **Faceplate 2.0**: la sostituzione dei parametri copre TUTTI i campi (state_tag, binding,
+  soglie, celle grid, faceplate annidati); parametri tipizzati con default e obbligatorietà;
+  **popup al click** (`open_faceplate`) parametrizzato; scaling dei figli al box dell'istanza
+  e override per-figlio; trova-usi per definizione.
+- **Simboli**: stati N con mappatura valore→colore/lampeggio/label; livello continuo dal tag
+  (tank/silo); **13 simboli ISA nuovi** (valvole, filtro, soffiante, silo, nastro, ciclone,
+  colonna, forno, chiller); **editor di simboli multi-stato** (import SVG + scelta elementi
+  colorabili con anteprima nei tre stati).
+- **Animazioni**: rotazione continua dei simboli, flusso animato nelle pipe (direzione dal
+  segno del tag), movimento su percorso per qualunque oggetto — tutte disattivate da
+  `prefers-reduced-motion`.
+
 ### Added (programma SCADA-widgets, fasi F2 + F3 + F4 + F5 parziale)
 
 - **Storico 2.0 (F5, grosso)**: aggregazione a bucket server-side (`bucket_ms` su

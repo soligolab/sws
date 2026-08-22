@@ -6,6 +6,35 @@
 >
 > **Pulizia 2026-07-27**: rimossi i task già chiusi e le sezioni di verifica ormai superate; le sessioni mergiate **e** verificate fino al 2026-07-09 sono compresse in «Storico». Il dettaglio integrale resta in `CHANGELOG.md` e nella history git.
 
+**Sessione 2026-08-23 — SCADA-widgets F6 COMPLETA** (branch **`feat/scada-f6`** da `main`,
+che ora contiene F0-F5 mergiate dopo la conferma del maintainer). Tutta la fase faceplate+simboli:
+- **F6.1**: sostituzione parametri su TUTTI i campi stringa (walker ricorsivo: bindings,
+  state/alarm_tag, soglie, celle grid, faceplate annidati con pass-through; esclusi
+  id/type/group_id/faceplate_id).
+- **F6.2**: parametri tipizzati {name,type,default,required} — sintassi `nome:tipo=default!`
+  nell'editor def, pannello istanza con TagInput/colore/numero, avviso sui required,
+  default fusi da effectiveFaceplateParams.
+- **F6.3**: azione `open_faceplate` — popup parametrizzato al click (pattern modale Trend,
+  interattivo, Esc/click-fuori), select+parametri nel pannello bottone.
+- **F6.4**: `faceplate_scale` (figli scalati al box, opt-in) + `faceplate_overrides`
+  per-figlio post-sostituzione.
+- **F6.5**: trova-usi nella tab Faceplates (istanze+popup per definizione, pagine, avviso).
+- **F6.6**: `symbol_states` — N stati su state_tag (valore/range, colore, blink per stato,
+  label sotto il simbolo), editor nel pannello; alarm_tag vince.
+- **F6.7**: livello continuo via fill_level_tag (tank proporzionale, silo nuovo incluso,
+  SymbolRenderProps.level).
+- **F6.8**: +13 simboli ISA builtin (16→29): valvole motorizzata/pneumatica/ritegno/3vie/
+  sicurezza, filtro Y, soffiante, silo, nastro, ciclone, colonna, forno, chiller.
+- **F6.9**: editor simboli multi-stato — CustomSymbol.svg inline + colorable_ids,
+  sanitizzazione, import SVG con checklist id colorabili e anteprima 3 stati (tab Risorse);
+  renderer ricolora per stato e ruota. Mirror Rust CustomSymbol.
+- **F6.10**: rotazione simboli (on_state/tag/always), flusso animato pipe (direzione dal
+  segno del tag), movimento su percorso (motion_path/tag/min/max universali, transizione
+  fluida) — tutte spente da prefers-reduced-motion.
+Build: cargo workspace + 21 sws-core + 80 sws-web + 32 vitest + pnpm build verdi.
+**Non testato dal maintainer.** Le feature F6 sono web-only finché il lotto parità F9 non
+le porta su LVGL (annotato). Prossimo: F7 (widget restanti) o F9a (parità, col pannello).
+
 **Sessione 2026-08-22 (notte) — SCADA-widgets F5 (grosso fatto)** (catena `feat/scada-f0` →
 `f1` → `f2` → `f3` → `f4` → **`feat/scada-f5`** = capo da testare, contiene tutto). Scelta
 F5 prima di F9a: la parità LVGL richiede la toolchain di build e il pannello per la verifica —
