@@ -202,6 +202,22 @@ export interface SynopticObject {
   trend_log_scale?: boolean;
   /** Data log (F5.4): righe per pagina della tabella storica (default 25). */
   datalog_page_size?: number;
+  /** Simbolo N-stati (F6.6): mappa valore→stato sul valore di state_tag
+   *  (valore esatto o range, come text_list_entries). L'entry attiva colora
+   *  il simbolo (e il badge), può lampeggiare e mostrare una label sotto.
+   *  alarm_tag vince comunque. Assente = 3 stati truthy storici. */
+  symbol_states?: TextListEntry[];
+  /** Rotazione continua del simbolo (F6.10): "on_state" = gira quando lo
+   *  stato è on, "tag" = quando symbol_spin_tag è truthy, "always" = sempre. */
+  symbol_spin?: "always" | "on_state" | "tag";
+  symbol_spin_tag?: string;
+  /** Periodo di rotazione in secondi (default 2). */
+  symbol_spin_s?: number;
+  /** Flusso animato nella pipe (F6.10): tratteggio in movimento quando
+   *  pipe_flow_tag è truthy (o sempre, se non impostato); velocità/direzione
+   *  dal segno del valore quando numerico. */
+  pipe_flow?: boolean;
+  pipe_flow_tag?: string;
   tag?: string;
   format?: string;
   src?: string;
@@ -1441,6 +1457,8 @@ export interface TextListEntry {
   value: number | string | boolean;
   label: string;
   color?: string;
+  /** F6.6: l'entry attiva fa lampeggiare l'oggetto (usato dai symbol_states). */
+  blink?: boolean;
   /** Optional validity range — when either bound is set, this entry matches
    *  by range (`value_min <= v < value_max`, half-open) instead of by exact
    *  `value`. Lets entries express buckets like "10-20 → marcia lenta"

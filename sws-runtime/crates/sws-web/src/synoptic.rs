@@ -140,6 +140,13 @@ pub struct SynopticObject {
     #[serde(skip_serializing_if = "Option::is_none")] pub trend_show_alarm_markers:  Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")] pub trend_log_scale:           Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")] pub datalog_page_size:         Option<f64>,
+    // F6.6/F6.10 — simboli N-stati, rotazione, flusso pipe
+    #[serde(skip_serializing_if = "Option::is_none")] pub symbol_states:             Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub symbol_spin:               Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub symbol_spin_tag:           Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub symbol_spin_s:             Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub pipe_flow:                 Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub pipe_flow_tag:             Option<String>,
     // XY plot (live point + trail, not a time series). `tag` above is the X axis.
     #[serde(skip_serializing_if = "Option::is_none")] pub y_tag: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")] pub xy_trail_s: Option<f64>,

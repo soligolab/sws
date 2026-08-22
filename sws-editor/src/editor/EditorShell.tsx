@@ -3452,6 +3452,67 @@ function ObjectProps({
           {field(t("props.colorOff"),   <BindableInput obj={obj} propName="state_off_color"   onChange={onChange}>{colorInput("state_off_color",   "var(--brand-text-subtle, #64748b)")}</BindableInput>)}
           {field(t("props.colorOn"),    <BindableInput obj={obj} propName="state_on_color"    onChange={onChange}>{colorInput("state_on_color",    "var(--brand-success, #22c55e)")}</BindableInput>)}
           {field(t("props.colorAlarm"), <BindableInput obj={obj} propName="state_alarm_color" onChange={onChange}>{colorInput("state_alarm_color", "var(--brand-danger, #ef4444)")}</BindableInput>)}
+          {/* F6.6: stati N — mappa valore→colore/lampeggio/label sul valore di
+              state_tag (valore esatto o range, come le VOCI di text_list). */}
+          <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", marginTop: 8, marginBottom: 2, fontWeight: 700 }}>
+            {t("props.symbolStates")}
+          </div>
+          {(obj.symbol_states ?? []).map((e, i) => {
+            const upd = (patch: Partial<TextListEntry>) => {
+              const next = [...(obj.symbol_states ?? [])];
+              next[i] = { ...e, ...patch };
+              onChange({ symbol_states: next });
+            };
+            return (
+              <div key={i} style={{ display: "flex", flexDirection: "column", gap: 3, marginBottom: 4, padding: 4, border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4 }}>
+                <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+                  <input style={{ ...INPUT, width: 48 }} placeholder="val" value={String(e.value)}
+                    onChange={(ev) => upd({ value: ev.target.value })} />
+                  <input style={{ ...INPUT, width: 44 }} type="number" placeholder="min" value={e.value_min ?? ""}
+                    onChange={(ev) => upd({ value_min: ev.target.value === "" ? undefined : Number(ev.target.value) })} />
+                  <input style={{ ...INPUT, width: 44 }} type="number" placeholder="max" value={e.value_max ?? ""}
+                    onChange={(ev) => upd({ value_max: ev.target.value === "" ? undefined : Number(ev.target.value) })} />
+                  <input type="color" value={e.color ?? "#22c55e"}
+                    onChange={(ev) => upd({ color: ev.target.value })}
+                    style={{ width: 26, height: 22, padding: 1, border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 3 }} />
+                  <button style={{ background: "transparent", border: "none", color: "var(--brand-danger, #ef4444)", cursor: "pointer" }}
+                    onClick={() => onChange({ symbol_states: (obj.symbol_states ?? []).filter((_, j) => j !== i) })}>✕</button>
+                </div>
+                <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+                  <input style={{ ...INPUT, flex: 1 }} placeholder="label" value={e.label}
+                    onChange={(ev) => upd({ label: ev.target.value })} />
+                  <label style={{ fontSize: 10, color: "var(--brand-text-subtle, #64748b)", display: "flex", gap: 3, alignItems: "center" }}>
+                    <input type="checkbox" checked={!!e.blink} onChange={(ev) => upd({ blink: ev.target.checked || undefined })} />
+                    blink
+                  </label>
+                </div>
+              </div>
+            );
+          })}
+          <button style={{ ...INPUT, width: "100%", cursor: "pointer", marginBottom: 4 }}
+            onClick={() => onChange({ symbol_states: [...(obj.symbol_states ?? []), { value: "", label: "", color: "#22c55e" }] })}>
+            + {t("props.addState")}
+          </button>
+          {/* F6.10: rotazione continua */}
+          {field(t("props.symbolSpin"), (
+            <select style={{ ...INPUT, cursor: "pointer" }} value={obj.symbol_spin ?? ""}
+              onChange={(e) => onChange({ symbol_spin: (e.target.value || undefined) as SynopticObject["symbol_spin"] })}>
+              <option value="">{t("props.blinkOff")}</option>
+              <option value="on_state">{t("props.spinOnState")}</option>
+              <option value="tag">{t("props.blinkTag")}</option>
+              <option value="always">{t("props.blinkAlways")}</option>
+            </select>
+          ))}
+          {obj.symbol_spin === "tag" && field(t("props.blinkTagField"),
+            <TagInput style={INPUT} placeholder="es. fan1.running" value={obj.symbol_spin_tag ?? ""}
+              onChange={(v) => onChange({ symbol_spin_tag: v || undefined })} />
+          )}
+          {obj.symbol_spin && field(t("props.spinPeriod"), numInput("symbol_spin_s", 2))}
+          {/* F6.7: livello continuo (tank) */}
+          {field(t("props.levelTag"),
+            <TagInput style={INPUT} placeholder="es. tank1.level" value={obj.fill_level_tag ?? ""}
+              onChange={(v) => onChange({ fill_level_tag: v || undefined })} />
+          )}
         </>
       )}
 
@@ -3666,6 +3727,15 @@ function ObjectProps({
             {field(t("props.offsetPx"), numInput("pipe_label_offset", 10))}
             {field(t("props.labelColor"), <BindableInput obj={obj} propName="color" onChange={onChange}>{colorInput("color", "#e2e8f0")}</BindableInput>)}
             {field(t("props.fontSize"), <BindableInput obj={obj} propName="font_size" onChange={onChange}>{numInput("font_size", 12)}</BindableInput>)}
+            {/* F6.10: flusso animato */}
+            {field(t("props.pipeFlow"),
+              <input type="checkbox" checked={!!obj.pipe_flow}
+                onChange={(e) => onChange({ pipe_flow: e.target.checked || undefined })} />
+            )}
+            {obj.pipe_flow && field(t("props.pipeFlowTag"),
+              <TagInput style={INPUT} placeholder="es. pump1.flow (segno = direzione)" value={obj.pipe_flow_tag ?? ""}
+                onChange={(v) => onChange({ pipe_flow_tag: v || undefined })} />
+            )}
           </CollapsibleSection>
 
           {/* Connection anchoring */}

@@ -1337,7 +1337,10 @@ export function SvgCanvas({
           spegne ogni blink (accessibilità) — l'attributo data-blink marca gli
           elementi animati inline. */}
       <style>{`@keyframes sws-obj-blink { 50% { opacity: 0.15 } }
-        @media (prefers-reduced-motion: reduce) { [data-blink] { animation: none !important } }`}</style>
+        @keyframes sws-spin { to { transform: rotate(360deg) } }
+        @keyframes sws-flow { to { stroke-dashoffset: -20 } }
+        @keyframes sws-flow-rev { to { stroke-dashoffset: 20 } }
+        @media (prefers-reduced-motion: reduce) { [data-blink], [data-anim] { animation: none !important } }`}</style>
       {/* All zoomed+panned content is inside this group */}
       <g transform={`translate(${viewT.panX}, ${viewT.panY}) scale(${viewT.zoom})`}>
       {onMove && snapEnabled && gridSize > 0 && <rect x={-50000} y={-50000} width={100000} height={100000} fill="url(#sws-grid)" />}
@@ -3011,6 +3014,27 @@ export function SvgObject(p: ObjProps) {
             strokeDashoffset={fillOffset}
             style={{ pointerEvents: "none", ...transitionStyle(obj) }} />
         )}
+
+        {/* F6.10: flusso animato — tratteggio in movimento quando pipe_flow è
+            attivo (e pipe_flow_tag, se impostato, è truthy); direzione dal
+            SEGNO del valore del tag quando numerico (negativo = indietro). */}
+        {!isEditMode && obj.pipe_flow && (() => {
+          const ftv = obj.pipe_flow_tag ? tagValues[obj.pipe_flow_tag] : undefined;
+          if (obj.pipe_flow_tag) {
+            const v = ftv?.value;
+            const on = typeof v === "boolean" ? v : typeof v === "number" ? v !== 0 : !!v;
+            if (!on) return null;
+          }
+          const reverse = typeof ftv?.value === "number" && ftv.value < 0;
+          return (
+            <path d={pathD} fill="none"
+              stroke={obj.fill_color ?? "#e2e8f0"} strokeWidth={Math.max(2, sw * 0.35)}
+              strokeLinecap="round" strokeLinejoin="round"
+              strokeDasharray="6 14" opacity={0.9}
+              data-anim="1"
+              style={{ pointerEvents: "none", animation: `${reverse ? "sws-flow-rev" : "sws-flow"} 0.8s linear infinite` }} />
+          );
+        })()}
 
         {/* Transparent wider hit area so it's easy to click */}
         <path d={pathD} fill="none" stroke="transparent"
@@ -4818,14 +4842,43 @@ export function SvgObject(p: ObjProps) {
       if (typeof v === "string")  return v.trim().length > 0;
       return Boolean(v);
     };
+    // F6.6: mappa N-stati sul valore di state_tag (valore esatto o range,
+    // stesso matcher di text_list). L'allarme vince comunque.
+    const stateTagVal = obj.state_tag ? tagValues[obj.state_tag]?.value : undefined;
+    const stateEntry = (obj.symbol_states?.length && stateTagVal !== undefined)
+      ? matchTextListEntry(obj.symbol_states, stateTagVal)
+      : undefined;
     const state =
       truthy(obj.alarm_tag) ? "alarm" :
+      stateEntry ? "on" :
       truthy(obj.state_tag) ? "on" : "off";
 
+    const onColorEff = stateEntry?.color ?? obj.state_on_color ?? "#22c55e";
     const badgeColor =
       state === "alarm" ? (obj.state_alarm_color ?? "#ef4444") :
-      state === "on"    ? (obj.state_on_color    ?? "#22c55e") :
+      state === "on"    ? onColorEff :
                           (obj.state_off_color   ?? "#64748b");
+
+    // F6.7: livello continuo dal tag (riusa fill_level_tag/scale delle pipe).
+    let level: number | undefined;
+    if (obj.fill_level_tag) {
+      const lv = Number(tagValues[obj.fill_level_tag]?.value);
+      if (Number.isFinite(lv)) level = (obj.fill_level_scale ?? "0-100") === "0-100" ? lv / 100 : lv;
+    } else if (obj.fill_level !== undefined) {
+      level = (obj.fill_level_scale ?? "0-100") === "0-100" ? obj.fill_level / 100 : obj.fill_level;
+    }
+
+    // F6.10: rotazione continua (ventole/pompe/agitatori).
+    const spinActive = !isEditMode && (
+      obj.symbol_spin === "always" ||
+      (obj.symbol_spin === "on_state" && state === "on") ||
+      (obj.symbol_spin === "tag" && truthy(obj.symbol_spin_tag))
+    );
+    const spinStyle: React.CSSProperties | undefined = spinActive
+      ? { animation: `sws-spin ${obj.symbol_spin_s ?? 2}s linear infinite`, transformOrigin: "50px 50px" }
+      : undefined;
+    // F6.6: lampeggio per stato (entry.blink), sopra il blink universale.
+    const entryBlink = !isEditMode && !!stateEntry?.blink;
 
     return (
       <g style={{ cursor: editCursor }}>
@@ -4841,13 +4894,18 @@ export function SvgObject(p: ObjProps) {
             <image href={customEntry.url} x={obj.x} y={obj.y} width={w} height={h}
               preserveAspectRatio="xMidYMid meet" style={{ pointerEvents: "none" }} />
           ) : meta!.kind === "builtin" && meta!.render ? (
-            <svg x={obj.x} y={obj.y} width={w} height={h} viewBox="0 0 100 100">
-              {meta!.render({
-                state,
-                off:   obj.state_off_color   ?? "#64748b",
-                on:    obj.state_on_color    ?? "#22c55e",
-                alarm: obj.state_alarm_color ?? "#ef4444",
-              })}
+            <svg x={obj.x} y={obj.y} width={w} height={h} viewBox="0 0 100 100"
+              data-anim={spinActive || entryBlink ? "1" : undefined}
+              style={entryBlink ? { animation: "sws-obj-blink 800ms step-start infinite" } : undefined}>
+              <g style={spinStyle} data-anim={spinActive ? "1" : undefined}>
+                {meta!.render({
+                  state,
+                  off:   obj.state_off_color   ?? "#64748b",
+                  on:    onColorEff,
+                  alarm: obj.state_alarm_color ?? "#ef4444",
+                  level,
+                })}
+              </g>
             </svg>
           ) : (
             <image href={meta!.path} x={obj.x} y={obj.y} width={w} height={h}
@@ -4860,6 +4918,14 @@ export function SvgObject(p: ObjProps) {
           <circle cx={obj.x + w - 7} cy={obj.y + 7} r={6}
             fill={badgeColor} stroke="#0f172a" strokeWidth={1}
             style={{ pointerEvents: "none", ...transitionStyle(obj) }} />
+        )}
+        {/* F6.6: label dello stato attivo sotto il simbolo */}
+        {stateEntry?.label && (
+          <text x={obj.x + w / 2} y={obj.y + h + 12} textAnchor="middle"
+            fill={stateEntry.color ?? badgeColor} fontSize={11} fontWeight={600}
+            style={{ pointerEvents: "none" }}>
+            {stateEntry.label}
+          </text>
         )}
       </g>
     );

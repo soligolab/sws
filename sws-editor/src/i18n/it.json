@@ -727,7 +727,15 @@
     "pageSize": "Righe per pagina",
     "paramRequired": "Parametro obbligatorio",
     "faceplateScale": "Scala i figli al box",
-    "openFaceplate": "Apri faceplate (popup)"
+    "openFaceplate": "Apri faceplate (popup)",
+    "symbolStates": "STATI (N)",
+    "addState": "Aggiungi stato",
+    "symbolSpin": "Rotazione",
+    "spinOnState": "Quando lo stato è ON",
+    "spinPeriod": "Periodo rotazione (s)",
+    "levelTag": "Tag livello (riempimento)",
+    "pipeFlow": "Flusso animato",
+    "pipeFlowTag": "Tag flusso"
   },
   "shortcut": {
     "navCanvas": "Navigazione canvas",

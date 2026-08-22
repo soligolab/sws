@@ -19,6 +19,9 @@ export interface SymbolRenderProps {
   on:    string;
   /** Alarm colour (red by default). */
   alarm: string;
+  /** F6.7: livello continuo 0..1 (tank e simboli "a livello"). Quando
+   *  presente sostituisce il riempimento fisso derivato dallo stato. */
+  level?: number;
 }
 
 /**
@@ -104,7 +107,11 @@ function motorSymbol(p: SymbolRenderProps): ReactElement {
 // ── Tank ───────────────────────────────────────────────────────────────
 // A rounded vessel with a fill level. "on" state fills 70%, "off" 20%.
 function tankSymbol(p: SymbolRenderProps): ReactElement {
-  const fillRatio = p.state === "on" ? 0.7 : p.state === "alarm" ? 0.9 : 0.2;
+  // F6.7: livello reale dal tag quando fornito; altrimenti il vecchio
+  // riempimento fisso per stato (70% on / 20% off / 90% alarm).
+  const fillRatio = p.level !== undefined
+    ? Math.min(1, Math.max(0, p.level))
+    : p.state === "on" ? 0.7 : p.state === "alarm" ? 0.9 : 0.2;
   const liquidColor = stateFill(p);
   const yTop = 14;
   const yBottom = 90;

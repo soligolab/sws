@@ -6628,6 +6628,21 @@ function FaceplatesTab() {
   const { t } = useTranslation();
   const storeFaceplates   = useAppStore((s) => s.faceplates);
   const setFaceplates     = useAppStore((s) => s.setFaceplates);
+  // F6.5: trova-usi — istanze piazzate e pulsanti popup che referenziano
+  // ogni definizione, cross-pagina.
+  const allPages          = useAppStore((s) => s.pages);
+  const usageOf = (defId: string) => {
+    const pageNames = new Set<string>();
+    let instances = 0;
+    let popups = 0;
+    for (const pg of allPages) {
+      for (const o of pg.objects) {
+        if (o.type === "faceplate" && o.faceplate_id === defId) { instances++; pageNames.add(pg.name); }
+        if (o.button_action?.type === "open_faceplate" && o.button_action.faceplate_id === defId) { popups++; pageNames.add(pg.name); }
+      }
+    }
+    return { instances, popups, pages: [...pageNames] };
+  };
   const [faceplates, setLocal] = useState<FaceplateDef[]>(storeFaceplates);
   const [selected, setSelected] = useState<string | null>(
     storeFaceplates[0]?.id ?? null
@@ -6744,6 +6759,16 @@ function FaceplatesTab() {
           </div>
           <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
             <div style={{ flex: 1, overflow: "auto", padding: "16px" }}>
+              {(() => {
+                const u = usageOf(current.id);
+                return (
+                  <div style={{ fontSize: 11, color: u.instances + u.popups > 0 ? "var(--brand-warning, #f59e0b)" : "var(--brand-text-subtle, #64748b)", marginBottom: 10 }}>
+                    {u.instances + u.popups === 0
+                      ? "Nessun uso nelle pagine di questo progetto."
+                      : `Usato da ${u.instances} istanze e ${u.popups} pulsanti popup in: ${u.pages.join(", ")} — rinominare id o parametri li rompe.`}
+                  </div>
+                );
+              })()}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
                 <div>
                   <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 }}>ID</label>
