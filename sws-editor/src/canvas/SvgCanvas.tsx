@@ -624,6 +624,8 @@ export function SvgCanvas({
   const selDragRef     = useRef<SelRect | null>(null);
   const [selRect, setSelRect] = useState<SelRect | null>(null);
   const [expandedTrendObj, setExpandedTrendObj] = useState<SynopticObject | null>(null);
+  // F6.3: popup faceplate aperto da un'azione open_faceplate (uno alla volta).
+  const [popupFaceplate, setPopupFaceplate] = useState<{ id: string; params: Record<string, string> } | null>(null);
   // Set to true when a rect-selection just completed so the SVG onClick
   // (which fires on every mouseup) does not deselect the result.
   const suppressClick  = useRef(false);
@@ -1230,6 +1232,20 @@ export function SvgCanvas({
 
   return (
     <>
+    {popupFaceplate && (
+      <FaceplatePopup
+        faceplateId={popupFaceplate.id}
+        params={popupFaceplate.params}
+        faceplates={faceplates}
+        objects={objects}
+        tagValues={tagValues}
+        customSymbols={customSymbols}
+        onWriteTag={onWriteTag}
+        onScript={onScript}
+        onNavigate={onNavigate}
+        onClose={() => setPopupFaceplate(null)}
+      />
+    )}
     {expandedTrendObj && (
       <TrendExpandedModal
         tags={[expandedTrendObj.tag ?? "", ...(expandedTrendObj.extra_tags ?? [])].filter(Boolean)}
@@ -1389,6 +1405,11 @@ export function SvgCanvas({
             if (obj.button_action.type === "navigate") {
               if (obj.on_press_fn && onScript) onScript(obj.on_press_fn, obj.on_press_args ?? {});
               onButtonAction?.(obj.button_action);
+              return;
+            }
+            if (obj.button_action.type === "open_faceplate") {
+              if (obj.on_press_fn && onScript) onScript(obj.on_press_fn, obj.on_press_args ?? {});
+              setPopupFaceplate({ id: obj.button_action.faceplate_id, params: obj.button_action.params ?? {} });
               return;
             }
           }
@@ -2452,6 +2473,70 @@ export function faceplateDefBBox(def: FaceplateDef): { w: number; h: number } {
     h = Math.max(h, (c.y ?? 0) + (c.height ?? 50));
   }
   return { w: Math.max(1, w), h: Math.max(1, h) };
+}
+
+/** F6.3 — popup faceplate: rende i figli della definizione (parametri
+ *  sostituiti, default inclusi) in una modale interattiva sopra la pagina.
+ *  Un popup alla volta; Esc o click fuori chiudono. */
+function FaceplatePopup({ faceplateId, params, faceplates, objects, tagValues, customSymbols, onWriteTag, onScript, onNavigate, onClose }: {
+  faceplateId: string;
+  params: Record<string, string>;
+  faceplates: FaceplateDef[];
+  objects: SynopticObject[];
+  tagValues: Record<string, TagState>;
+  customSymbols: CustomSymbol[];
+  onWriteTag?: (tag: string, value: string | number | boolean) => void;
+  onScript?: (fn: string, args: Record<string, string | number | boolean>) => void;
+  onNavigate?: (page: string) => void;
+  onClose: () => void;
+}) {
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [onClose]);
+
+  const defn = faceplates.find((f) => f.id === faceplateId);
+  if (!defn) return null;
+  const eff = effectiveFaceplateParams(defn, params);
+  const box = faceplateDefBBox(defn);
+  const PAD = 16;
+
+  return (
+    <div
+      style={{ position: "fixed", inset: 0, zIndex: 9500, background: "rgba(0,0,0,0.65)",
+               display: "flex", alignItems: "center", justifyContent: "center" }}
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div style={{ background: "var(--brand-bg, #0f172a)", border: "1px solid var(--brand-surface-2, #334155)",
+                    borderRadius: 10, padding: PAD, maxWidth: "92vw", maxHeight: "88vh", overflow: "auto" }}>
+        <div style={{ display: "flex", alignItems: "center", marginBottom: 8 }}>
+          <span style={{ fontSize: 13, fontWeight: 700, color: "var(--brand-text-muted, #94a3b8)" }}>{defn.label}</span>
+          <div style={{ flex: 1 }} />
+          <button onClick={onClose}
+            style={{ background: "transparent", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4,
+                     color: "var(--brand-text-muted, #94a3b8)", cursor: "pointer", padding: "1px 8px", fontSize: 13 }}>✕</button>
+        </div>
+        <svg width={box.w} height={box.h} style={{ display: "block" }}>
+          {defn.objects.map((child, i) => (
+            <SvgObject
+              key={child.id ?? i}
+              obj={substituteFaceplateParams(child, eff)}
+              objects={objects}
+              tagValues={tagValues}
+              selected={false}
+              isEditMode={false}
+              customSymbols={customSymbols}
+              faceplates={faceplates}
+              onWriteTag={onWriteTag}
+              onScript={onScript}
+              onNavigate={onNavigate}
+            />
+          ))}
+        </svg>
+      </div>
+    </div>
+  );
 }
 
 export function SvgObject(p: ObjProps) {

@@ -2501,6 +2501,7 @@ function ObjectProps({
                   const t = e.target.value as ButtonAction["type"] | "";
                   if (!t) { onChange({ button_action: undefined }); return; }
                   if (t === "navigate") onChange({ button_action: { type: "navigate", url: "" } });
+                  else if (t === "open_faceplate") onChange({ button_action: { type: "open_faceplate", faceplate_id: "", params: {} } });
                   else onChange({ button_action: { type: t } as ButtonAction });
                 }}
               >
@@ -2508,6 +2509,7 @@ function ObjectProps({
                 <option value="login">{t("props.loginModal")}</option>
                 <option value="logout">{t("props.logoutReadonly")}</option>
                 <option value="navigate">{t("props.navigateUrl")}</option>
+                <option value="open_faceplate">{t("props.openFaceplate")}</option>
               </select>
               {obj.button_action?.type === "navigate" && (
                 <input
@@ -2518,6 +2520,35 @@ function ObjectProps({
                   onChange={(e) => onChange({ button_action: { type: "navigate", url: e.target.value } })}
                 />
               )}
+              {obj.button_action?.type === "open_faceplate" && (() => {
+                const act = obj.button_action as { type: "open_faceplate"; faceplate_id: string; params?: Record<string, string> };
+                const defn = faceplates.find((f) => f.id === act.faceplate_id);
+                return (
+                  <>
+                    <select style={{ ...INPUT, cursor: "pointer" }} value={act.faceplate_id}
+                      onChange={(e) => onChange({ button_action: { ...act, faceplate_id: e.target.value, params: {} } })}>
+                      <option value="">{t("props.faceplateChoose")}</option>
+                      {faceplates.map((f) => <option key={f.id} value={f.id}>{f.label}</option>)}
+                    </select>
+                    {defn && normalizeFaceplateParams(defn).map((p) => (
+                      <div key={p.name} style={{ display: "flex", gap: 4, alignItems: "center" }}>
+                        <span style={{ fontSize: 10, color: "var(--brand-text-subtle, #64748b)", width: 80, flexShrink: 0 }}>
+                          {p.name}{p.required ? " *" : ""}
+                        </span>
+                        {p.type === "tag" ? (
+                          <TagInput style={{ ...INPUT, flex: 1 }} placeholder={p.default ?? ""}
+                            value={act.params?.[p.name] ?? ""}
+                            onChange={(v) => onChange({ button_action: { ...act, params: { ...(act.params ?? {}), [p.name]: v } } })} />
+                        ) : (
+                          <input type="text" style={{ ...INPUT, flex: 1 }} placeholder={p.default ?? ""}
+                            value={act.params?.[p.name] ?? ""}
+                            onChange={(e) => onChange({ button_action: { ...act, params: { ...(act.params ?? {}), [p.name]: e.target.value } } })} />
+                        )}
+                      </div>
+                    ))}
+                  </>
+                );
+              })()}
             </div>
           )}
         </>

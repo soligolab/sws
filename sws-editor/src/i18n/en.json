@@ -726,7 +726,8 @@
     "kpiWindow": "Compare window (s)",
     "pageSize": "Rows per page",
     "paramRequired": "Required parameter",
-    "faceplateScale": "Scale children to box"
+    "faceplateScale": "Scale children to box",
+    "openFaceplate": "Open faceplate (popup)"
   },
   "shortcut": {
     "navCanvas": "Canvas navigation",

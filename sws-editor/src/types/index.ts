@@ -169,7 +169,10 @@ export interface TrendSeriesStyle {
 export type ButtonAction =
   | { type: "login" }
   | { type: "logout" }
-  | { type: "navigate"; url: string };
+  | { type: "navigate"; url: string }
+  /** F6.3: apre un faceplate come popup, parametrizzato — il gesto SCADA
+   *  "click sulla pompa → finestra della pompa". */
+  | { type: "open_faceplate"; faceplate_id: string; params?: Record<string, string> };
 
 export interface SynopticObject {
   id: string;

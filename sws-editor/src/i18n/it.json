@@ -726,7 +726,8 @@
     "kpiWindow": "Finestra confronto (s)",
     "pageSize": "Righe per pagina",
     "paramRequired": "Parametro obbligatorio",
-    "faceplateScale": "Scala i figli al box"
+    "faceplateScale": "Scala i figli al box",
+    "openFaceplate": "Apri faceplate (popup)"
   },
   "shortcut": {
     "navCanvas": "Navigazione canvas",
