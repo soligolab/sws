@@ -25,6 +25,8 @@ interface TrendExpandedProps {
   alarmLow?: number;
   alarmHigh?: number;
   showAlarmMarkers?: boolean;
+  logScale?: boolean;
+  yUnit?: string;
   bgColor?: string;
   bgImage?: string;
   axisColor?: string;
@@ -67,6 +69,8 @@ export function TrendExpandedModal({
   alarmLow,
   alarmHigh,
   showAlarmMarkers,
+  logScale,
+  yUnit,
   bgColor,
   bgImage,
   axisColor,
@@ -85,6 +89,11 @@ export function TrendExpandedModal({
     () => new Set((seriesStyles ?? []).flatMap((s, i) => (s?.hidden ? [i] : [])))
   );
   const [canvasSize, setCanvasSize] = useState({ w: 800, h: 420 });
+  // F5.2: selettore data/ora assoluto ("dal … al …") — pseudo-preset custom.
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [measureMode, setMeasureMode] = useState(false);
+  const [pickFrom, setPickFrom] = useState("");
+  const [pickTo, setPickTo] = useState("");
   const containerRef = useRef<HTMLDivElement>(null);
 
   // "Tutto": resolved once per selection from the earliest sample across all
@@ -276,6 +285,63 @@ export function TrendExpandedModal({
             <span style={{ fontSize: 11, color: "#64748b", marginLeft: 6 }}>Carico…</span>
           )}
 
+          {/* F5.2x: cursori di misura */}
+          <button
+            onClick={() => setMeasureMode((m) => !m)}
+            title="Cursori di misura: click sul grafico per piazzare A e B (Δt/Δv)"
+            style={{
+              padding: "2px 8px", fontSize: 12, borderRadius: 4, cursor: "pointer",
+              border: "1px solid", borderColor: measureMode ? "#f59e0b" : "#334155",
+              background: measureMode ? "#3f2d10" : "#1e293b",
+              color: measureMode ? "#fbbf24" : "#94a3b8", marginLeft: 8,
+            }}
+          >✛</button>
+          {/* F5.2: range assoluto + export CSV della finestra visibile */}
+          <button
+            onClick={() => {
+              const toLocal = (ms: number) => {
+                const d = new Date(ms - new Date().getTimezoneOffset() * 60_000);
+                return d.toISOString().slice(0, 16);
+              };
+              const end = toMs ?? Date.now();
+              const start = fromMs ?? end - windowS * 1000;
+              setPickFrom(toLocal(start)); setPickTo(toLocal(end));
+              setPickerOpen((o) => !o);
+            }}
+            title="Intervallo assoluto"
+            style={{
+              padding: "2px 8px", fontSize: 12, borderRadius: 4, cursor: "pointer",
+              border: "1px solid #334155", background: pickerOpen ? "#1e3a5f" : "#1e293b",
+              color: pickerOpen ? "#93c5fd" : "#94a3b8", marginLeft: 8,
+            }}
+          >📅</button>
+          <button
+            onClick={() => {
+              const end = toMs ?? Date.now();
+              const start = fromMs ?? end - windowS * 1000;
+              api.exportHistoryCsv(tags.filter(Boolean), start, end);
+            }}
+            title="Esporta CSV (finestra visibile)"
+            style={{
+              padding: "2px 8px", fontSize: 12, borderRadius: 4, cursor: "pointer",
+              border: "1px solid #334155", background: "#1e293b", color: "#94a3b8",
+            }}
+          >⬇ CSV</button>
+          <button
+            onClick={() => {
+              const canvas = containerRef.current?.querySelector("canvas");
+              if (!canvas) return;
+              const a = document.createElement("a");
+              a.href = canvas.toDataURL("image/png");
+              a.download = `trend-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")}.png`;
+              a.click();
+            }}
+            title="Esporta PNG (immagine del grafico)"
+            style={{
+              padding: "2px 8px", fontSize: 12, borderRadius: 4, cursor: "pointer",
+              border: "1px solid #334155", background: "#1e293b", color: "#94a3b8",
+            }}
+          >⬇ PNG</button>
           <div style={{ flex: 1 }} />
           <button
             onClick={onClose}
@@ -285,6 +351,31 @@ export function TrendExpandedModal({
             }}
           >✕</button>
         </div>
+
+        {/* ── F5.2: pannello intervallo assoluto ── */}
+        {pickerOpen && (
+          <div style={{ display: "flex", gap: 8, alignItems: "center", padding: "6px 10px",
+                        borderBottom: "1px solid #1e293b", flexShrink: 0, fontSize: 12, color: "#94a3b8" }}>
+            <span>Dal</span>
+            <input type="datetime-local" value={pickFrom} onChange={(e) => setPickFrom(e.target.value)}
+              style={{ background: "#1e293b", color: "#e2e8f0", border: "1px solid #334155", borderRadius: 4, padding: "2px 6px", fontSize: 12 }} />
+            <span>al</span>
+            <input type="datetime-local" value={pickTo} onChange={(e) => setPickTo(e.target.value)}
+              style={{ background: "#1e293b", color: "#e2e8f0", border: "1px solid #334155", borderRadius: 4, padding: "2px 6px", fontSize: 12 }} />
+            <button
+              onClick={() => {
+                const f = new Date(pickFrom).getTime();
+                const t2 = new Date(pickTo).getTime();
+                if (!Number.isFinite(f) || !Number.isFinite(t2) || t2 <= f) return;
+                setCustomRange({ fromMs: f, toMs: t2 });
+                setPreset("custom");
+                setPickerOpen(false);
+              }}
+              style={{ padding: "2px 10px", fontSize: 12, borderRadius: 4, cursor: "pointer",
+                       border: "1px solid #3b82f6", background: "#1e3a5f", color: "#93c5fd" }}
+            >Applica</button>
+          </div>
+        )}
 
         {/* ── Canvas area ── */}
         <div ref={containerRef} style={{ flex: 1, overflow: "hidden" }}>
@@ -316,6 +407,9 @@ export function TrendExpandedModal({
             alarmLow={alarmLow}
             alarmHigh={alarmHigh}
             showAlarmMarkers={showAlarmMarkers}
+            logScale={logScale}
+            yUnit={yUnit}
+            measureMode={measureMode}
             bgColor={bgColor}
             bgImage={bgImage}
             axisColor={axisColor}

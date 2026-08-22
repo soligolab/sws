@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
-import { SvgCanvas, type CanvasViewApi } from "@/canvas/SvgCanvas";
+import { QDOT_BUILTIN_TYPES, SvgCanvas, type CanvasViewApi } from "@/canvas/SvgCanvas";
 import { PALETTE } from "@/canvas/TrendCanvas";
 import { resolvePageBackground } from "@/theme";
 import { EditorToolbar } from "@/editor/EditorToolbar";
@@ -600,6 +600,14 @@ export function EditorShell() {
         addObject({ type, x, y, width: 120, height: 30, tag: "",
           spark_window_s: 60, spark_color: "var(--brand-primary, #3b82f6)",
           spark_fill: true, spark_fill_opacity: 0.2, spark_stroke_width: 1.5 });
+        break;
+      case "kpi_tile":
+        addObject({ type, x, y, width: 180, height: 100, tag: "", label: "KPI",
+          spark_window_s: 3600 });
+        break;
+      case "data_log":
+        addObject({ type, x, y, width: 380, height: 240, tag: "", label: "Data log",
+          window_s: 3600, datalog_page_size: 25 });
         break;
       case "alarm_viewer":
         addObject({ type, x, y, width: 360, height: 160,
@@ -2161,7 +2169,7 @@ function ObjectProps({
     "rect", "text", "button", "gauge", "symbol", "trend",
     "ellipse", "navbutton", "lang_button", "lang_selector", "led", "state_lamp",
     "progress_bar", "slider", "setpoint", "checkbox", "radio", "table",
-    "xy_plot", "text_list", "bar_chart", "pie_chart", "sparkline",
+    "xy_plot", "text_list", "bar_chart", "pie_chart", "sparkline", "kpi_tile", "data_log",
     "alarm_bell", "alarm_banner", "recipe_panel", "grid", "image", "faceplate",
   ];
 
@@ -2438,6 +2446,36 @@ function ObjectProps({
         <>
           {field(t("props.label"), <BindableInput obj={obj} propName="label" onChange={onChange}>{textInput("label", "Bottone")}</BindableInput>)}
           {field(t("props.labelColor"), <BindableInput obj={obj} propName="color" onChange={onChange}>{colorInput("color", "#ffffff")}</BindableInput>)}
+          {field(t("props.buttonMode"), (
+            <select style={{ ...INPUT, cursor: "pointer" }} value={obj.button_mode ?? "write"}
+              onChange={(e) => onChange({ button_mode: e.target.value === "write" ? undefined : e.target.value as SynopticObject["button_mode"] })}>
+              <option value="write">{t("props.modeWrite")}</option>
+              <option value="momentary">{t("props.modeMomentary")}</option>
+              <option value="toggle">{t("props.modeToggle")}</option>
+              <option value="set">{t("props.modeSet")}</option>
+              <option value="reset">{t("props.modeReset")}</option>
+              <option value="increment">{t("props.modeIncrement")}</option>
+              <option value="decrement">{t("props.modeDecrement")}</option>
+            </select>
+          ))}
+          {obj.button_mode === "momentary" && field(t("props.releaseValue"),
+            <input type="text" style={INPUT} placeholder="false"
+              value={obj.release_value !== undefined ? String(obj.release_value) : ""}
+              onChange={(e) => {
+                const raw = e.target.value.trim();
+                const v = raw === "" ? undefined
+                  : raw === "true" ? true : raw === "false" ? false
+                  : !Number.isNaN(Number(raw)) ? Number(raw) : raw;
+                onChange({ release_value: v });
+              }} />
+          )}
+          {(obj.button_mode === "increment" || obj.button_mode === "decrement") && (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6 }}>
+              <div><div style={LABEL}>Step</div>{numInput("step", 1)}</div>
+              <div><div style={LABEL}>Min</div>{numInput("min", 0)}</div>
+              <div><div style={LABEL}>Max</div>{numInput("max", 100)}</div>
+            </div>
+          )}
           {field(t("props.writeValue"),
             <BindableInput obj={obj} propName="write_value" onChange={onChange}>
               <input
@@ -2517,6 +2555,7 @@ function ObjectProps({
                 La pagina di destinazione è stata eliminata. Seleziona un'altra pagina o rimuovi il navbutton.
               </div>
             )}
+            {field(t("props.labelColor"), <BindableInput obj={obj} propName="color" onChange={onChange}>{colorInput("color", "#e2e8f0")}</BindableInput>)}
           </>
         );
       })()}
@@ -2552,6 +2591,7 @@ function ObjectProps({
             <div><div style={LABEL}>Max</div><BindableInput obj={obj} propName="max" onChange={onChange}>{numInput("max", 100)}</BindableInput></div>
           </div>
           {field(t("props.unit"), <BindableInput obj={obj} propName="unit" onChange={onChange}>{textInput("unit", "")}</BindableInput>)}
+          {field(t("props.decimals"), <BindableInput obj={obj} propName="decimals" onChange={onChange}>{numInput("decimals", 1)}</BindableInput>)}
           <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", marginTop: 4, marginBottom: 2, fontWeight: 700 }}>SOGLIE</div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
             <div><div style={LABEL}>{t("props.warnLow")}</div><BindableInput obj={obj} propName="warn_low" onChange={onChange}>{numInput("warn_low", 0)}</BindableInput></div>
@@ -2596,6 +2636,11 @@ function ObjectProps({
             <input type="checkbox" checked={!!obj.read_only}
               onChange={(e) => onChange({ read_only: e.target.checked })} />
           )}
+          {field(t("props.writeOnRelease"),
+            <input type="checkbox" checked={obj.write_on_release !== false}
+              onChange={(e) => onChange({ write_on_release: e.target.checked ? undefined : false })} />
+          )}
+          {field(t("props.writeDeadband"), numInput("write_deadband", 0))}
         </>
       )}
 
@@ -2605,6 +2650,7 @@ function ObjectProps({
           {field(t("props.label"), <BindableInput obj={obj} propName="label" onChange={onChange}>{textInput("label", "Setpoint")}</BindableInput>)}
           {field(t("props.tag"), tagInput("es. pump1.speed_sp"))}
           {field(t("props.unit"), <BindableInput obj={obj} propName="unit" onChange={onChange}>{textInput("unit", "")}</BindableInput>)}
+          {field(t("props.decimals"), <BindableInput obj={obj} propName="decimals" onChange={onChange}>{numInput("decimals", 1)}</BindableInput>)}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6 }}>
             <div><div style={LABEL}>Min</div><BindableInput obj={obj} propName="min" onChange={onChange}>{numInput("min", 0)}</BindableInput></div>
             <div><div style={LABEL}>Max</div><BindableInput obj={obj} propName="max" onChange={onChange}>{numInput("max", 100)}</BindableInput></div>
@@ -2670,6 +2716,10 @@ function ObjectProps({
               <option value="horizontal">{t("props.horizontal")}</option>
             </select>
           )}
+          {field(t("props.readOnly"),
+            <input type="checkbox" checked={!!obj.read_only}
+              onChange={(e) => onChange({ read_only: e.target.checked })} />
+          )}
           <RadioOptionsEditor
             options={(obj.options as RadioOption[] | undefined) ?? []}
             onChange={(opts) => onChange({ options: opts as SynopticObject["options"] })}
@@ -2709,6 +2759,7 @@ function ObjectProps({
             <div><div style={LABEL}>Max</div><BindableInput obj={obj} propName="max" onChange={onChange}>{numInput("max", 100)}</BindableInput></div>
           </div>
           {field(t("props.unit"), <BindableInput obj={obj} propName="unit" onChange={onChange}>{textInput("unit", "")}</BindableInput>)}
+          {field(t("props.decimals"), <BindableInput obj={obj} propName="decimals" onChange={onChange}>{numInput("decimals", 1)}</BindableInput>)}
           {field(t("props.colorBar"), <BindableInput obj={obj} propName="fill" onChange={onChange}>{colorInput("fill", "var(--brand-primary, #3b82f6)")}</BindableInput>)}
           <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", marginTop: 4, marginBottom: 2, fontWeight: 700 }}>SOGLIE</div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
@@ -2889,6 +2940,15 @@ function ObjectProps({
             Lascia Y min/max a 0 per autofit.
           </p>
 
+          {/* F5.2x: scala Y logaritmica (solo scala condivisa, dominio > 0). */}
+          <label style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8, fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", cursor: "pointer" }}>
+            <input
+              type="checkbox"
+              checked={obj.trend_log_scale ?? false}
+              onChange={(e) => onChange({ trend_log_scale: e.target.checked || undefined })}
+            />
+            Scala Y logaritmica
+          </label>
           {/* Soglie warn/alarm come linee tratteggiate orizzontali (stesso
               pattern del bar chart). Valori sulla scala condivisa. */}
           <label style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8, fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", cursor: "pointer" }}>
@@ -3151,6 +3211,7 @@ function ObjectProps({
             <div><div style={LABEL}>Max</div><BindableInput obj={obj} propName="max" onChange={onChange}>{numInput("max", 100)}</BindableInput></div>
           </div>
           {field(t("props.unit"), textInput("unit", ""))}
+          {field(t("props.yAxisLabel"), textInput("bar_y_label", ""))}
           {field(t("props.barGap"), numInput("bar_gap", 0.2))}
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             {[["bar_show_values","Valori"], ["bar_show_labels","Etichette"], ["bar_show_thresholds","Soglie"]].map(([k,l]) => (
@@ -3231,6 +3292,30 @@ function ObjectProps({
       )}
 
       {/* Sparkline */}
+      {obj.type === "kpi_tile" && (
+        <>
+          {field(t("props.label"), <BindableInput obj={obj} propName="label" onChange={onChange}>{textInput("label", "KPI")}</BindableInput>)}
+          {field(t("props.tag"), tagInput("es. plant.power"))}
+          {field(t("props.unit"), <BindableInput obj={obj} propName="unit" onChange={onChange}>{textInput("unit", "")}</BindableInput>)}
+          {field(t("props.decimals"), <BindableInput obj={obj} propName="decimals" onChange={onChange}>{numInput("decimals", 1)}</BindableInput>)}
+          {field(t("props.kpiWindow"), numInput("spark_window_s", 3600))}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+            <div><div style={LABEL}>Warn high</div><BindableInput obj={obj} propName="warn_high" onChange={onChange}>{numInput("warn_high", 0)}</BindableInput></div>
+            <div><div style={LABEL}>Alarm high</div><BindableInput obj={obj} propName="alarm_high" onChange={onChange}>{numInput("alarm_high", 0)}</BindableInput></div>
+          </div>
+        </>
+      )}
+
+      {obj.type === "data_log" && (
+        <>
+          {field(t("props.label"), <BindableInput obj={obj} propName="label" onChange={onChange}>{textInput("label", "Data log")}</BindableInput>)}
+          {field(t("props.tag"), tagInput("es. plant.power"))}
+          {field(t("props.windowS"), numInput("window_s", 3600))}
+          {field(t("props.pageSize"), numInput("datalog_page_size", 25))}
+          {field(t("props.decimals"), <BindableInput obj={obj} propName="decimals" onChange={onChange}>{numInput("decimals", 1)}</BindableInput>)}
+        </>
+      )}
+
       {obj.type === "sparkline" && (
         <>
           {field(t("props.tag"), tagInput("es. flow.rate"))}
@@ -3522,6 +3607,8 @@ function ObjectProps({
             )}
             {field(t("props.format"), textInput("pipe_label_format", "{value:.1f}"))}
             {field(t("props.offsetPx"), numInput("pipe_label_offset", 10))}
+            {field(t("props.labelColor"), <BindableInput obj={obj} propName="color" onChange={onChange}>{colorInput("color", "#e2e8f0")}</BindableInput>)}
+            {field(t("props.fontSize"), <BindableInput obj={obj} propName="font_size" onChange={onChange}>{numInput("font_size", 12)}</BindableInput>)}
           </CollapsibleSection>
 
           {/* Connection anchoring */}
@@ -3737,8 +3824,16 @@ function ObjectProps({
             <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--brand-text-2, #cbd5e1)", cursor: "pointer" }}>
               <input
                 type="checkbox"
-                checked={obj.quality_dot !== false}
-                onChange={(e) => onChange({ quality_dot: e.target.checked ? undefined : false })}
+                checked={QDOT_BUILTIN_TYPES.has(obj.type) ? obj.quality_dot !== false : obj.quality_dot === true}
+                onChange={(e) => onChange({
+                  // F4.3: sui tipi col QDot integrato il default resta ON
+                  // (undefined=on, false=off); sugli altri è opt-in esplicito
+                  // (true=on, undefined=off) — così le pagine esistenti non
+                  // si riempiono di pallini a sorpresa.
+                  quality_dot: QDOT_BUILTIN_TYPES.has(obj.type)
+                    ? (e.target.checked ? undefined : false)
+                    : (e.target.checked ? true : undefined),
+                })}
                 style={{ accentColor: "var(--brand-primary, #3b82f6)" }}
               />
               Mostra indicatore qualità
@@ -3750,8 +3845,33 @@ function ObjectProps({
                 {field(t("props.colorBad"),    colorInput("quality_dot_bad_color",       "var(--brand-danger, #ef4444)"))}
               </>
             )}
+            {/* F4.2/F4.3: consapevolezza allarme, Bad-gray, stale (opt-in) */}
+            {field(t("props.showAlarmState"),
+              <input type="checkbox" checked={!!obj.show_alarm_state}
+                onChange={(e) => onChange({ show_alarm_state: e.target.checked || undefined })} />
+            )}
+            {field(t("props.badValueGray"),
+              <input type="checkbox" checked={obj.bad_value_style === "gray"}
+                onChange={(e) => onChange({ bad_value_style: e.target.checked ? "gray" : undefined })} />
+            )}
+            {field(t("props.staleAfterS"), numInput("stale_after_s", 0))}
           </>
         )}
+        {/* F4.1: lampeggio universale — anche senza tag (modalità fissa/tag) */}
+        {field(t("props.blinkMode"), (
+          <select style={{ ...INPUT, cursor: "pointer" }} value={obj.blink_mode ?? ""}
+            onChange={(e) => onChange({ blink_mode: (e.target.value || undefined) as SynopticObject["blink_mode"] })}>
+            <option value="">{t("props.blinkOff")}</option>
+            <option value="always">{t("props.blinkAlways")}</option>
+            <option value="tag">{t("props.blinkTag")}</option>
+            <option value="alarm">{t("props.blinkAlarm")}</option>
+          </select>
+        ))}
+        {obj.blink_mode === "tag" && field(t("props.blinkTagField"),
+          <TagInput style={INPUT} placeholder="es. plant.warning" value={obj.blink_tag ?? ""}
+            onChange={(v) => onChange({ blink_tag: v || undefined })} />
+        )}
+        {obj.blink_mode && field(t("props.blinkRate"), numInput("blink_rate_ms", 800))}
       </CollapsibleSection>
 
       {/* ── Event scripts (advanced, collapsed) ─────────────────────── */}
@@ -3760,6 +3880,50 @@ function ObjectProps({
        *  object level — SvgCanvas.tsx's press/release dispatcher explicitly
        *  skips grid objects, so obj.on_press_fn/on_release_fn here would be
        *  dead config a user could set but that would never fire. */}
+      {/* F3 — SICUREZZA: gating per ruolo + conferma comando, universali. */}
+      <CollapsibleSection
+        title={t("props.security")}
+        storageKey="security"
+        headerExtra={
+          (obj.min_role || obj.require_confirm)
+            ? <span style={{ fontSize: 10, color: "var(--brand-warning, #f59e0b)", fontWeight: 700 }}>●</span>
+            : undefined
+        }
+      >
+        {field(t("props.minRole"), (
+          <select style={{ ...INPUT, cursor: "pointer" }} value={obj.min_role ?? ""}
+            onChange={(e) => onChange({ min_role: (e.target.value || undefined) as SynopticObject["min_role"] })}>
+            <option value="">{t("props.minRoleNone")}</option>
+            <option value="Viewer">Viewer</option>
+            <option value="Operator">Operator</option>
+            <option value="Supervisor">Supervisor</option>
+            <option value="Admin">Admin</option>
+          </select>
+        ))}
+        {obj.min_role && field(t("props.minRoleEffect"), (
+          <select style={{ ...INPUT, cursor: "pointer" }} value={obj.min_role_effect ?? "disable"}
+            onChange={(e) => onChange({ min_role_effect: e.target.value === "disable" ? undefined : "hide" })}>
+            <option value="disable">{t("props.effectDisable")}</option>
+            <option value="hide">{t("props.effectHide")}</option>
+          </select>
+        ))}
+        {field(t("props.requireConfirm"),
+          <input type="checkbox" checked={!!obj.require_confirm}
+            onChange={(e) => onChange({ require_confirm: e.target.checked || undefined })} />
+        )}
+        {obj.require_confirm && field(t("props.confirmMessage"),
+          textInput("confirm_message", t("props.confirmMessagePh"))
+        )}
+        {field(t("props.critical"),
+          <input type="checkbox" checked={!!obj.critical}
+            onChange={(e) => onChange({ critical: e.target.checked || undefined })} />
+        )}
+        {obj.critical && field(t("props.requireReason"),
+          <input type="checkbox" checked={!!obj.require_reason}
+            onChange={(e) => onChange({ require_reason: e.target.checked || undefined })} />
+        )}
+      </CollapsibleSection>
+
       {obj.type !== "grid" && (
         <CollapsibleSection
           title={t("props.events")}
@@ -3807,11 +3971,17 @@ function ObjectProps({
           : undefined}
       >
         {obj.bindings && Object.keys(obj.bindings).length > 0 ? (
-          Object.entries(obj.bindings).map(([prop, tagId]) => (
+          Object.entries(obj.bindings).map(([prop, spec]) => (
             <div key={prop} style={{ display: "flex", gap: 4, alignItems: "center", fontSize: 12, marginBottom: 2 }}>
               <span style={{ color: "var(--brand-text-subtle, #64748b)", flex: "0 0 auto" }}>{prop}</span>
               <span style={{ color: "var(--brand-border, #475569)" }}>→</span>
-              <span style={{ color: "var(--brand-primary, #3b82f6)", flex: 1 }}>{tagId || "(nessun tag)"}</span>
+              <span style={{ color: "var(--brand-primary, #3b82f6)", flex: 1, overflow: "hidden", textOverflow: "ellipsis" }}>
+                {typeof spec === "string"
+                  ? (spec || "(nessun tag)")
+                  : spec.expr !== undefined
+                    ? `ƒ ${spec.expr || "(vuota)"}`
+                    : `${spec.tag || "(nessun tag)"}${spec.in_min !== undefined ? ` [${spec.in_min}..${spec.in_max}→${spec.out_min}..${spec.out_max}]` : ""}`}
+              </span>
               <button
                 title={t("props.removeBinding")}
                 onClick={() => {

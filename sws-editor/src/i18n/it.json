@@ -247,6 +247,9 @@
   "viewer": {
     "maintenance": "Manutenzione",
     "noActiveAlarms": "Nessun allarme attivo",
+    "currentValue": "Attuale:",
+    "writeFailed": "Scrittura di {{tag}} fallita",
+    "confirmWrite": "Confermi il comando? Verrà scritto: {{value}}",
     "suppressed": "Soppresso",
     "history": "Storico",
     "suppressForMaintenance": "Sopprimi per manutenzione",
@@ -265,7 +268,11 @@
     "activeTab": "Attivi",
     "ackAll": "ACK tutti",
     "shelve": "Sopprimi",
-    "projectUpdated": "Progetto aggiornato"
+    "projectUpdated": "Progetto aggiornato",
+    "reauthPrompt": "Comando critico — inserisci la tua password:",
+    "reauthFailed": "Password non corretta: comando annullato.",
+    "reasonPrompt": "Motivo del comando (registrato nell'audit):",
+    "reasonRequired": "Il motivo è obbligatorio per questo comando."
   },
   "alarm": {
     "noAlarms": "Nessun allarme attivo",
@@ -396,7 +403,13 @@
     "filterPlaceholder": "Filtra tag…",
     "noTags": "Nessun tag trovato",
     "bindTo": "Lega a un tag",
+    "unbind": "Scollega",
     "bindPlaceholder": "es. demo.rotation",
+    "mode": {
+      "tag": "Tag",
+      "scale": "Scala",
+      "expr": "Espressione"
+    },
     "noTagsInProject": "Nessuna variabile disponibile. Dichiarale in Configurazione → Variabili, oppure aggiungi una sorgente: le variabili mappate dai protocolli compaiono qui automaticamente."
   },
   "admin": {
@@ -497,6 +510,28 @@
     "formatBound": "Formato (se bound)",
     "arrow": "Freccia",
     "barGap": "Gap barre (0-0.9)",
+    "yAxisLabel": "Etichetta asse Y",
+    "decimals": "Decimali",
+    "buttonMode": "Modalità comando",
+    "modeWrite": "Scrivi valore",
+    "modeMomentary": "Momentaneo (press/rilascio)",
+    "modeToggle": "Toggle",
+    "modeSet": "Set (true)",
+    "modeReset": "Reset (false)",
+    "modeIncrement": "Incrementa (+step)",
+    "modeDecrement": "Decrementa (−step)",
+    "releaseValue": "Valore al rilascio",
+    "security": "SICUREZZA",
+    "minRole": "Ruolo minimo per operare",
+    "minRoleNone": "Nessun vincolo",
+    "minRoleEffect": "Sotto soglia",
+    "effectDisable": "Visibile ma non operabile",
+    "effectHide": "Nascosto",
+    "requireConfirm": "Chiedi conferma",
+    "confirmMessage": "Messaggio di conferma",
+    "confirmMessagePh": "es. Avviare la pompa P1?",
+    "writeOnRelease": "Scrivi solo al rilascio",
+    "writeDeadband": "Deadband di scrittura",
     "targetObjId": "ID oggetto destinazione",
     "sourceObjId": "ID oggetto sorgente",
     "qualityIndicator": "Indicatore qualità",
@@ -675,7 +710,21 @@
     "stateLampHint": "Stesse voci di Lista testi, disegnate come un pallino colorato con etichetta invece di solo testo.",
     "recipeIdPrefix": "Prefisso id ricetta",
     "showHistory": "Mostra storico",
-    "showShelve": "Mostra sospendi/riattiva"
+    "showShelve": "Mostra sospendi/riattiva",
+    "critical": "Comando critico (password)",
+    "requireReason": "Motivo obbligatorio",
+    "showAlarmState": "Bordo su allarme del tag",
+    "badValueGray": "Valore Bad → grigio",
+    "staleAfterS": "Stale dopo (s, 0=off)",
+    "blinkMode": "Lampeggio",
+    "blinkOff": "Spento",
+    "blinkAlways": "Fisso",
+    "blinkTag": "Da tag",
+    "blinkAlarm": "Su allarme non riconosciuto",
+    "blinkTagField": "Tag lampeggio",
+    "blinkRate": "Periodo lampeggio (ms)",
+    "kpiWindow": "Finestra confronto (s)",
+    "pageSize": "Righe per pagina"
   },
   "shortcut": {
     "navCanvas": "Navigazione canvas",
@@ -793,6 +842,13 @@
     "endpointUrl": "Endpoint URL",
     "haEntityId": "Entity ID HA",
     "computedExpr": "Espressione calcolata (Python)",
+    "tagMeta": "Unità, scaling, range e limiti",
+    "tagUnit": "Unità",
+    "tagDecimals": "Decimali",
+    "tagScaling": "Scaling raw→eng",
+    "tagLimits": "Limiti (soglie)",
+    "tagWriteRole": "Ruolo min. scrittura",
+    "tagMetaHint": "I widget ereditano questi valori come default (override locale sempre possibile). Lo scaling è applicato dal runtime ai dati in arrivo dai protocolli e invertito sulle scritture; servono tutti e quattro i campi.",
     "labelField": "Etichetta",
     "file": "File",
     "filterTopic": "Filtra topic…",
@@ -942,5 +998,11 @@
     "empty": "Nessun messaggio. Aggiungi una lingua e un messaggio, oppure importa un CSV.",
     "removeLang": "Rimuovi lingua",
     "noLangs": "Aggiungi almeno una lingua per iniziare."
+  },
+  "keypad": {
+    "open": "Tastierino numerico",
+    "invalid": "Valore non valido",
+    "belowMin": "Sotto il minimo ({{min}})",
+    "aboveMax": "Sopra il massimo ({{max}})"
   }
 }

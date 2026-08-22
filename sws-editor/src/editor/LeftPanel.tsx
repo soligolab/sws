@@ -483,6 +483,8 @@ const PALETTE_GROUPS: PaletteGroup[] = [
     { type: "trend",        label: "Trend",      icon: "∿" },
     { type: "xy_plot",      label: "Grafico XY", icon: "✥" },
     { type: "sparkline",    label: "Sparkline",  icon: "⌇" },
+    { type: "kpi_tile",     label: "KPI",        icon: "◧" },
+    { type: "data_log",     label: "Data log",   icon: "≣" },
     { type: "text_list",    label: "Lista testi", icon: "≣" },
     { type: "bar_chart",    label: "Bar Chart",  icon: "▐" },
     { type: "pie_chart",    label: "Pie Chart",  icon: "◑" },

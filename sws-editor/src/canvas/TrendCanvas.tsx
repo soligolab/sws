@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "@/api/client";
-import type { AlarmEvent, Sample, TrendSeriesStyle } from "@/types";
+import type { AlarmEvent, BucketSample, Sample, TrendSeriesStyle } from "@/types";
 
 /**
  * Multi-tag trend chart on a 2D canvas. Polls GET /api/history/:tag for each
@@ -141,6 +141,13 @@ interface TrendCanvasProps {
    *  tag, and "what was going on when this fired" is exactly the question a
    *  trend with markers answers. */
   showAlarmMarkers?: boolean;
+  /** F5.2x: scala Y logaritmica (solo scala condivisa, richiede dominio > 0). */
+  logScale?: boolean;
+  /** F5.2x: unità dell'asse Y condiviso (dal tag via F1), mostrata sul tick alto. */
+  yUnit?: string;
+  /** F5.2x: modalità cursori di misura — il click piazza il cursore A, il
+   *  secondo il B (letture per traccia + Δt/Δv); il terzo ricomincia. */
+  measureMode?: boolean;
   /** Chart background color (replaces the hardcoded slate). */
   bgColor?: string;
   /** Background image URL, drawn above bgColor and below grid/traces.
@@ -274,6 +281,9 @@ export function TrendCanvas({
   alarmLow,
   alarmHigh,
   showAlarmMarkers = false,
+  logScale = false,
+  yUnit,
+  measureMode = false,
   bgColor,
   bgImage,
   axisColor,
@@ -290,12 +300,17 @@ export function TrendCanvas({
   };
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [series, setSeries] = useState<Sample[][]>(() => tags.map(() => []));
+  // F5.2: banda min/max per serie quando i dati arrivano aggregati a bucket
+  // (finestre lunghe). Vuoto = dati raw, nessuna banda.
+  const [envelopes, setEnvelopes] = useState<Map<number, BucketSample[]>>(new Map());
   const [alarmEvents, setAlarmEvents] = useState<AlarmEvent[]>([]);
   // Background image cache: one Image() per URL, a tick to redraw on load.
   const bgImgRef = useRef<{ url: string; img: HTMLImageElement | null }>({ url: "", img: null });
   const [bgImgTick, setBgImgTick] = useState(0);
   const [hoverX, setHoverX] = useState<number | null>(null);
   const [dragStartX, setDragStartX] = useState<number | null>(null);
+  // F5.2x: timestamp dei cursori di misura (max 2), attivi solo in measureMode.
+  const [cursors, setCursors] = useState<number[]>([]);
   const [dragCurX, setDragCurX] = useState<number | null>(null);
 
   // Uncontrolled trace visibility (compact widget): seeded once from the
@@ -351,14 +366,37 @@ export function TrendCanvas({
 
     const fetch = async (fMs: number, tMs: number, backfill: boolean) => {
       try {
-        const data = await Promise.all(
-          tags.map((t) =>
-            t
-              ? api.getHistory(t, { fromMs: fMs, toMs: tMs, backfill: backfill || undefined })
-              : Promise.resolve([] as Sample[])
-          )
-        );
-        if (!cancelled) setSeries(data);
+        // F5.2: sopra i 15 minuti di finestra i dati arrivano aggregati
+        // (~un bucket per pixel) — prima un trend su 30 giorni scaricava
+        // TUTTI i campioni. La linea segue la media, la banda min/max
+        // preserva i picchi.
+        const spanMs = tMs - fMs;
+        const useBuckets = spanMs > 15 * 60_000;
+        if (useBuckets) {
+          const bucketMs = Math.max(1000, Math.round(spanMs / Math.max(200, width - 60)));
+          const data = await Promise.all(
+            tags.map((t) =>
+              t
+                ? api.getHistoryBuckets(t, { fromMs: fMs, toMs: tMs, bucketMs, backfill: backfill || undefined })
+                : Promise.resolve([] as BucketSample[])
+            )
+          );
+          if (!cancelled) {
+            setSeries(data.map((buckets) => buckets.map((b) => ({
+              ts_ms: b.ts_ms + bucketMs / 2, value: b.avg, quality: "Good" as const,
+            }))));
+            setEnvelopes(new Map(data.map((buckets, i) => [i, buckets])));
+          }
+        } else {
+          const data = await Promise.all(
+            tags.map((t) =>
+              t
+                ? api.getHistory(t, { fromMs: fMs, toMs: tMs, backfill: backfill || undefined })
+                : Promise.resolve([] as Sample[])
+            )
+          );
+          if (!cancelled) { setSeries(data); setEnvelopes(new Map()); }
+        }
       } catch {
         // Runtime offline or tag missing — keep last data.
       }
@@ -440,6 +478,8 @@ export function TrendCanvas({
     return null;
   };
 
+  useEffect(() => { if (!measureMode) setCursors([]); }, [measureMode]);
+
   const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
     // Even without onRangeSelect the down-point is tracked, so a click on the
     // legend can be told apart from a drag on mouse-up.
@@ -459,8 +499,18 @@ export function TrendCanvas({
     const dy = Math.abs(dragCurYRef.current - dragStartYRef.current);
 
     if (dx <= DRAG_THRESHOLD_PX && dy <= DRAG_THRESHOLD_PX) {
+      // F5.2x: in modalità misura il click piazza i cursori (la legenda
+      // resta cliccabile: ha priorità se il click la colpisce).
+      const legendIdx = hitLegend(dragStartX, dragStartYRef.current);
+      if (measureMode && legendIdx === null) {
+        const { tMin, tSpan } = getXDomain();
+        const ts = tMin + ((dragStartX - PAD_LEFT) / plotW) * tSpan;
+        setCursors((prev) => (prev.length >= 2 ? [ts] : [...prev, ts].sort((a, b) => a - b)));
+        setDragStartX(null); setDragCurX(null);
+        return;
+      }
       // Plain click: legend toggle if it landed on a legend entry.
-      const idx = hitLegend(dragStartX, dragStartYRef.current);
+      const idx = legendIdx;
       if (idx !== null) {
         if (onLegendToggle) {
           onLegendToggle(idx);
@@ -559,6 +609,14 @@ export function TrendCanvas({
         }
       }
     });
+    // F5.2: la banda min/max entra nel dominio, o i picchi uscirebbero dal plot.
+    envelopes.forEach((buckets, idx) => {
+      if (ownScaleIndices.includes(idx) || effHidden.has(idx)) return;
+      for (const b of buckets) {
+        if (b.min < vMin) vMin = b.min;
+        if (b.max > vMax) vMax = b.max;
+      }
+    });
     const autoFit = !(yMin !== undefined && yMax !== undefined && (yMin !== 0 || yMax !== 0));
     let yLo = autoFit ? vMin : yMin!;
     let yHi = autoFit ? vMax : yMax!;
@@ -580,6 +638,10 @@ export function TrendCanvas({
           if (n > hi) hi = n;
         }
       }
+      for (const b of envelopes.get(idx) ?? []) {
+        if (b.min < lo) lo = b.min;
+        if (b.max > hi) hi = b.max;
+      }
       if (!Number.isFinite(lo) || !Number.isFinite(hi)) { lo = 0; hi = 1; }
       if (lo === hi) { lo -= 0.5; hi += 0.5; }
       ownDomains.set(idx, { lo, hi, span: Math.max(1e-9, hi - lo) });
@@ -594,9 +656,17 @@ export function TrendCanvas({
 
     const plotH = height - PAD_TOP - effBottom;
     const xAt = (ts: number) => PAD_LEFT + ((ts - tMin) / tSpan) * plotW;
-    const yAt = (v: number)  => PAD_TOP  + plotH - ((v - yLo) / ySpan) * plotH;
-    // Expose the shared mapping to the mouse-up handler (Y zoom inversion).
-    sharedScaleRef.current = { yLo, yHi, plotH, padTop: PAD_TOP, hasShared: hasSharedSeries };
+    // F5.2x: scala log sulla sola scala condivisa; richiede dominio positivo
+    // (con lo <= 0 si resta in lineare — un log di zero non esiste).
+    const useLog = logScale && yLo > 0 && yHi > yLo;
+    const lLo = useLog ? Math.log10(yLo) : 0;
+    const lSpan = useLog ? Math.max(1e-9, Math.log10(yHi) - lLo) : 0;
+    const yAt = (v: number) => useLog
+      ? PAD_TOP + plotH - ((Math.log10(Math.max(v, yLo)) - lLo) / lSpan) * plotH
+      : PAD_TOP + plotH - ((v - yLo) / ySpan) * plotH;
+    // Expose the shared mapping to the mouse-up handler (Y zoom inversion) —
+    // l'inversione è lineare, quindi con la scala log lo zoom Y è disattivato.
+    sharedScaleRef.current = { yLo, yHi, plotH, padTop: PAD_TOP, hasShared: hasSharedSeries && !useLog };
     // Per-series Y mapper: an own-scale trace maps through its own domain,
     // everything else shares `yAt` above.
     const yAtFor = (idx: number) => {
@@ -634,9 +704,12 @@ export function TrendCanvas({
       ctx.textAlign = "left";
       ctx.textBaseline = "middle";
       for (let i = 0; i <= 4; i++) {
-        const v = yHi - (ySpan * i) / 4;
+        const v = useLog
+          ? Math.pow(10, lLo + lSpan * (4 - i) / 4)
+          : yHi - (ySpan * i) / 4;
         const y = PAD_TOP + (plotH * i) / 4;
-        ctx.fillText(fmtValue(v), PAD_LEFT + plotW + 4, y);
+        const suffix = i === 0 && yUnit ? ` ${yUnit}` : "";
+        ctx.fillText(fmtValue(v) + suffix, PAD_LEFT + plotW + 4, y);
       }
     }
 
@@ -703,6 +776,25 @@ export function TrendCanvas({
       }
       ctx.setLineDash([]);
     }
+
+    // ── F5.2: banda min/max (solo dati aggregati) ──
+    envelopes.forEach((buckets, idx) => {
+      if (buckets.length < 2 || effHidden.has(idx)) return;
+      const yFn = yAtFor(idx);
+      ctx.fillStyle = colors[idx];
+      ctx.globalAlpha = 0.16;
+      ctx.beginPath();
+      buckets.forEach((b, i) => {
+        const x = xAt(b.ts_ms);
+        if (i === 0) ctx.moveTo(x, yFn(b.max)); else ctx.lineTo(x, yFn(b.max));
+      });
+      for (let i = buckets.length - 1; i >= 0; i--) {
+        ctx.lineTo(xAt(buckets[i].ts_ms), yFn(buckets[i].min));
+      }
+      ctx.closePath();
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    });
 
     // ── Lines (one per series) ──
     series.forEach((points, idx) => {
@@ -799,6 +891,78 @@ export function TrendCanvas({
         const w = ctx.measureText(t).width;
         legendBoxesRef.current.push({ x0: cx, x1: cx + 12 + w, y0: cy - 7, y1: cy + 7, idx });
         cx += 12 + w + 12;
+      });
+    }
+
+    // ── F5.2x: cursori di misura ──
+    if (cursors.length > 0) {
+      const nearestVal = (idx: number, ts: number): number | null => {
+        const pts = series[idx] ?? [];
+        let best: number | null = null;
+        let bestDist = Infinity;
+        for (const p of pts) {
+          const d = Math.abs(p.ts_ms - ts);
+          if (d < bestDist) {
+            const n = sampleToNumber(p.value);
+            if (n !== null) { best = n; bestDist = d; }
+          } else if (d > bestDist) break; // ordinati per ts: oltre il minimo
+        }
+        return best;
+      };
+      // Linee verticali A/B
+      cursors.forEach((ts, ci) => {
+        const x = xAt(ts);
+        if (x < PAD_LEFT || x > PAD_LEFT + plotW) return;
+        ctx.strokeStyle = "#f59e0b";
+        ctx.lineWidth = 1;
+        ctx.setLineDash([5, 3]);
+        ctx.beginPath();
+        ctx.moveTo(x, PAD_TOP);
+        ctx.lineTo(x, PAD_TOP + plotH);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.fillStyle = "#f59e0b";
+        ctx.font = "bold 10px ui-monospace, monospace";
+        ctx.textAlign = "center";
+        ctx.fillText(ci === 0 ? "A" : "B", x, PAD_TOP + 9);
+      });
+      // Riquadro letture: valore per traccia visibile su A (e B), Δt/Δv con 2 cursori
+      const lines: { text: string; color: string }[] = [];
+      const visIdx = tags.map((_, i) => i).filter((i) => !effHidden.has(i)).slice(0, 4);
+      cursors.forEach((ts, ci) => {
+        const tp = fmtDateTimeParts(ts, tSpan, dtConfig);
+        lines.push({ text: `${ci === 0 ? "A" : "B"}: ${tp.line2 ? `${tp.line2} ` : ""}${tp.line1}`, color: "#f59e0b" });
+        for (const i of visIdx) {
+          const v = nearestVal(i, ts);
+          lines.push({ text: `  ${tags[i]}: ${v === null ? "—" : fmtValue(v)}`, color: colors[i] });
+        }
+      });
+      if (cursors.length === 2) {
+        const dtMs = cursors[1] - cursors[0];
+        const dtText = dtMs >= 60_000 ? `${(dtMs / 60_000).toFixed(1)} min` : `${(dtMs / 1000).toFixed(1)} s`;
+        lines.push({ text: `Δt: ${dtText}`, color: "#e2e8f0" });
+        for (const i of visIdx) {
+          const va = nearestVal(i, cursors[0]);
+          const vb = nearestVal(i, cursors[1]);
+          if (va !== null && vb !== null) {
+            lines.push({ text: `  Δ${tags[i]}: ${fmtValue(vb - va)}`, color: colors[i] });
+          }
+        }
+      }
+      const boxW = Math.min(240, Math.max(...lines.map((l) => l.text.length)) * 6.2 + 12);
+      const boxH = lines.length * 13 + 8;
+      const bx = PAD_LEFT + 6;
+      const by = PAD_TOP + 4;
+      ctx.fillStyle = "rgba(15, 23, 42, 0.88)";
+      ctx.fillRect(bx, by, boxW, boxH);
+      ctx.strokeStyle = "#334155";
+      ctx.strokeRect(bx, by, boxW, boxH);
+      ctx.font = "10px ui-monospace, monospace";
+      ctx.textAlign = "left";
+      ctx.textBaseline = "top";
+      lines.forEach((l, li) => {
+        ctx.fillStyle = l.color;
+        ctx.fillText(l.text, bx + 6, by + 5 + li * 13);
       });
     }
 
@@ -905,7 +1069,7 @@ export function TrendCanvas({
         ctx.fillText(fmtValue(lastN), PAD_LEFT + plotW - 4, PAD_TOP + 4);
       }
     }
-  }, [series, width, height, colors, yMin, yMax, hoverX, tags.join(","), windowS, isHistorical, explicitFromMs, explicitToMs, offsetMs, effHidden, seriesStyles, dragStartX, dragCurX, dtDateOrder, dtSeparator, dtTimeFormat, dtShowSeconds, dtShowYear, dtTwoLines, dtAlwaysShowDate, showThresholds, warnLow, warnHigh, alarmLow, alarmHigh, showAlarmMarkers, alarmEvents, bgColor, bgImage, bgImgTick, axisColor, gridColor]);
+  }, [series, envelopes, width, height, colors, yMin, yMax, hoverX, tags.join(","), windowS, isHistorical, explicitFromMs, explicitToMs, offsetMs, effHidden, seriesStyles, dragStartX, dragCurX, dtDateOrder, dtSeparator, dtTimeFormat, dtShowSeconds, dtShowYear, dtTwoLines, dtAlwaysShowDate, showThresholds, warnLow, warnHigh, alarmLow, alarmHigh, showAlarmMarkers, alarmEvents, bgColor, bgImage, bgImgTick, axisColor, gridColor, logScale, yUnit, cursors, measureMode]);
 
   const hasSeries = series.some((s) => s.length > 0);
 

@@ -90,7 +90,7 @@ pub async fn run(cfg: OpcUaClientConfig, db: Arc<TagDb>, bus: Arc<TagWriteBus>, 
     }
     for n in &cfg.nodes {
         if let Some(state) = db.get(&n.tag).await {
-            db.set(n.tag.clone(), state.value, TagQuality::Bad).await;
+            db.ingest(n.tag.clone(), state.value, TagQuality::Bad).await;
         }
     }
 }
@@ -270,7 +270,9 @@ async fn run_once(
                         // Echo the new value into TagDb at Good quality so
                         // the UI sees the change immediately, instead of
                         // waiting for the next subscription publish.
-                        writer_db.set(tag.clone(), value, TagQuality::Good).await;
+                        // ingest(): il valore in `value` è quello di linea
+                        // (raw) — l'echo deve ri-scalare in unità eng.
+                        writer_db.ingest(tag.clone(), value, TagQuality::Good).await;
                         tracing::debug!(source = %writer_source_id, tag = %tag, "opcua: write OK");
                     } else {
                         warn!(source = %writer_source_id, tag = %tag, codes = ?codes,
@@ -901,7 +903,7 @@ pub async fn run_server(
 
     // Wire OPC-UA write → TagDb. Sync callbacks cannot be async, so we use
     // an unbounded mpsc channel: callback posts to channel; a spawned task
-    // drains it and calls db.set() (bypassing the write bus — the OPC-UA
+    // drains it and calls db.ingest() (bypassing the write bus — the OPC-UA
     // server is the authoritative source for these tags while running).
     let (write_tx, mut write_rx) =
         tokio::sync::mpsc::unbounded_channel::<(String, TagValue)>();

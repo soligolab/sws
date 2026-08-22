@@ -29,7 +29,7 @@ pub async fn run(cfg: ModbusTcpConfig, db: Arc<TagDb>, bus: Arc<TagWriteBus>, ca
     if let Err(e) = session(&cfg, &db, &routes, &mut write_rx, cancel).await {
         warn!(source = %cfg.id, "Modbus error: {e:#} — stopped (save config to retry)");
         for reg in &cfg.registers {
-            db.set(reg.tag.clone(), TagValue::Float(0.0), TagQuality::Bad).await;
+            db.ingest(reg.tag.clone(), TagValue::Float(0.0), TagQuality::Bad).await;
         }
     }
 }
@@ -68,10 +68,10 @@ async fn session(
                     match ctx.read_holding_registers(reg.address, 1).await {
                         Ok(words) => {
                             let raw = words.first().copied().unwrap_or(0) as f64;
-                            db.set(reg.tag.clone(), TagValue::Float(raw * reg.scale), TagQuality::Good).await;
+                            db.ingest(reg.tag.clone(), TagValue::Float(raw * reg.scale), TagQuality::Good).await;
                         }
                         Err(e) => {
-                            db.set(reg.tag.clone(), TagValue::Float(0.0), TagQuality::Bad).await;
+                            db.ingest(reg.tag.clone(), TagValue::Float(0.0), TagQuality::Bad).await;
                             return Err(anyhow::anyhow!("read register {}: {e}", reg.address));
                         }
                     }
@@ -89,11 +89,11 @@ async fn session(
                     Ok(_) => {
                         // Echo the value back into the TagDb so the UI updates immediately,
                         // without waiting for the next poll cycle.
-                        db.set(tag.clone(), TagValue::Float(raw as f64 * scale), TagQuality::Good).await;
+                        db.ingest(tag.clone(), TagValue::Float(raw as f64 * scale), TagQuality::Good).await;
                         info!(source = %cfg.id, %tag, address, raw, "Modbus write OK");
                     }
                     Err(e) => {
-                        db.set(tag.clone(), TagValue::Float(0.0), TagQuality::Bad).await;
+                        db.ingest(tag.clone(), TagValue::Float(0.0), TagQuality::Bad).await;
                         return Err(anyhow::anyhow!("write register {address} for tag {tag}: {e}"));
                     }
                 }
@@ -136,7 +136,7 @@ pub async fn run_rtu(cfg: ModbusRtuConfig, db: Arc<TagDb>, bus: Arc<TagWriteBus>
     if let Err(e) = session_rtu(&cfg, &db, &routes, &mut write_rx, cancel).await {
         warn!(source = %cfg.id, "Modbus RTU error: {e:#} — stopped (save config to retry)");
         for reg in &cfg.registers {
-            db.set(reg.tag.clone(), TagValue::Float(0.0), TagQuality::Bad).await;
+            db.ingest(reg.tag.clone(), TagValue::Float(0.0), TagQuality::Bad).await;
         }
     }
 }
@@ -190,10 +190,10 @@ async fn session_rtu(
                     match ctx.read_holding_registers(reg.address, 1).await {
                         Ok(words) => {
                             let raw = words.first().copied().unwrap_or(0) as f64;
-                            db.set(reg.tag.clone(), TagValue::Float(raw * reg.scale), TagQuality::Good).await;
+                            db.ingest(reg.tag.clone(), TagValue::Float(raw * reg.scale), TagQuality::Good).await;
                         }
                         Err(e) => {
-                            db.set(reg.tag.clone(), TagValue::Float(0.0), TagQuality::Bad).await;
+                            db.ingest(reg.tag.clone(), TagValue::Float(0.0), TagQuality::Bad).await;
                             return Err(anyhow::anyhow!("read register {}: {e}", reg.address));
                         }
                     }
@@ -208,11 +208,11 @@ async fn session_rtu(
                 };
                 match ctx.write_single_register(address, raw).await {
                     Ok(_) => {
-                        db.set(tag.clone(), TagValue::Float(raw as f64 * scale), TagQuality::Good).await;
+                        db.ingest(tag.clone(), TagValue::Float(raw as f64 * scale), TagQuality::Good).await;
                         info!(source = %cfg.id, %tag, address, raw, "Modbus RTU write OK");
                     }
                     Err(e) => {
-                        db.set(tag.clone(), TagValue::Float(0.0), TagQuality::Bad).await;
+                        db.ingest(tag.clone(), TagValue::Float(0.0), TagQuality::Bad).await;
                         return Err(anyhow::anyhow!("write register {address} for tag {tag}: {e}"));
                     }
                 }

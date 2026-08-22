@@ -46,6 +46,51 @@ pub struct TagDef {
     /// changes.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub expression: Option<String>,
+
+    // ── F1, piano SCADA-widgets: il tag è la fonte di verità ────────────────
+    // I widget ereditano questi valori come default (override locale sempre
+    // possibile); prima erano ridichiarati su ogni oggetto e divergevano.
+    /// Unità di misura ingegneristica (es. "°C", "bar"). Solo display.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub unit: Option<String>,
+    /// Cifre decimali di default per la visualizzazione.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub decimals: Option<u8>,
+    /// Scaling lineare raw→eng applicato all'INGESTIONE (`TagDb::ingest`,
+    /// usato dai plugin di protocollo) e invertito sulle scritture verso il
+    /// device. Vanno impostati tutti e quattro; con `raw_min == raw_max` lo
+    /// scaling è ignorato. Gli altri produttori (script, tag derivati, API su
+    /// tag virtuali) passano da `set()` e NON vengono scalati: producono già
+    /// valori ingegneristici.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub raw_min: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub raw_max: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub eng_min: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub eng_max: Option<f64>,
+    /// Range di visualizzazione di default per i widget (gauge, barre, trend).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub range_lo: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub range_hi: Option<f64>,
+    /// Ruolo minimo per SCRIVERE questo tag via API/WS (F3.1). È l'enforcement
+    /// che il server può davvero garantire — il min_role degli oggetti è UX.
+    /// Valori: "Viewer" | "Operator" | "Supervisor" | "Admin". Assente =
+    /// regola storica (Operator+ su ogni scrittura).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub write_min_role: Option<String>,
+    /// Limiti ingegneristici: default per le soglie visive dei widget
+    /// (lo_lo/lo → alarm_low/warn_low, hi/hi_hi → warn_high/alarm_high).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub limit_lo_lo: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub limit_lo: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub limit_hi: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub limit_hi_hi: Option<f64>,
 }
 
 // ── Datastore configuration ───────────────────────────────────────────────────

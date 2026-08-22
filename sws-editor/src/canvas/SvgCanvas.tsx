@@ -1,19 +1,22 @@
-import { useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
+import { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { PALETTE, TrendCanvas } from "@/canvas/TrendCanvas";
 import { TrendExpandedModal } from "@/canvas/TrendExpanded";
 import { XyPlotCanvas } from "@/canvas/XyPlotCanvas";
-import { getAuthToken } from "@/api/client";
+import { api, getAuthToken } from "@/api/client";
 import { AlarmBellPanel } from "@/components/AlarmBellPanel";
+import { NumericKeypad } from "@/components/NumericKeypad";
 import { AlarmBanner } from "@/components/AlarmBanner";
 import { RecipePanel } from "@/components/RecipePanel";
 import { DataTable, type DataTableColumn } from "@/components/DataTable";
 import { SEV_COLOR } from "@/alarmSeverity";
 import { genId } from "@/id";
 import { useAppStore } from "@/store";
+import { effectiveProjectLang, resolveMsg } from "@/i18n/projectI18n";
+import { evalExpr } from "@/expr/engine";
 import { SYMBOLS } from "@/symbols/library";
 import { clampToPage } from "@/pageLayout";
-import type { AlarmSeverity, AlarmState, CustomSymbol, FaceplateDef, GridCell, PageSizeMode, PipePoint, SynopticObject, TagState, TextListEntry } from "@/types";
+import type { AlarmSeverity, AlarmState, CustomSymbol, FaceplateDef, GridCell, PageSizeMode, PipePoint, Sample, SynopticObject, TagDef, TagState, TextListEntry } from "@/types";
 
 // ── Canvas props ──────────────────────────────────────────────────────────────
 
@@ -349,10 +352,27 @@ function matchTextListEntry(
   });
 }
 
+/** F1.3 — formattazione numerica strutturata. Specifiche supportate dentro
+ *  `{value:…}` (sottoinsieme in stile Python, retro-compatibile):
+ *    `{value:.2f}`  decimali fissi           → 1234.57
+ *    `{value:,.1f}` migliaia (locale) + dec. → 1.234,6 / 1,234.6
+ *    `{value:.2e}`  notazione esponenziale   → 1.23e+3
+ *    `{value:.1%}`  percentuale (×100)       → 45.6%
+ *  Qualsiasi testo attorno al segnaposto resta (es. "{value:.1f} °C"). */
 function formatValue(value: number | string | boolean, format?: string): string {
   if (format && typeof value === "number") {
-    const m = format.match(/\{value:\.(\d+)f\}/);
-    if (m) return format.replace(/\{value:[^}]+\}/, value.toFixed(Number(m[1])));
+    const m = format.match(/\{value:(,)?\.(\d+)([fe%])\}/);
+    if (m) {
+      const [, thousands, dstr, kind] = m;
+      const d = Number(dstr);
+      const s =
+        kind === "e" ? value.toExponential(d)
+        : kind === "%" ? `${(value * 100).toFixed(d)}%`
+        : thousands
+          ? value.toLocaleString(undefined, { minimumFractionDigits: d, maximumFractionDigits: d })
+          : value.toFixed(d);
+      return format.replace(/\{value:[^}]+\}/, s);
+    }
   }
   return String(value);
 }
@@ -379,16 +399,77 @@ function transitionStyle(obj: SynopticObject): React.CSSProperties | undefined {
  * Boolean-typed props (visible, flip_h, flip_v) are coerced via truthy logic.
  * Returns the same object reference when there is nothing to resolve.
  */
+/** F1.2: il tag è la fonte di verità — unità, range e limiti definiti sul
+ *  TagDef diventano i default del widget; i campi impostati sull'oggetto
+ *  restano override locali. Un solo punto d'innesto: tutti i branch di
+ *  rendering continuano a leggere obj.unit/min/max/soglie come prima. */
+function applyTagDefaults(obj: SynopticObject, def: TagDef | undefined): SynopticObject {
+  if (!def) return obj;
+  const merged = { ...obj };
+  if (merged.unit === undefined && def.unit !== undefined) merged.unit = def.unit;
+  if (merged.decimals === undefined && def.decimals !== undefined) merged.decimals = def.decimals;
+  if (merged.min === undefined && def.range_lo !== undefined) merged.min = def.range_lo;
+  if (merged.max === undefined && def.range_hi !== undefined) merged.max = def.range_hi;
+  if (merged.warn_low === undefined && def.limit_lo !== undefined) merged.warn_low = def.limit_lo;
+  if (merged.alarm_low === undefined && def.limit_lo_lo !== undefined) merged.alarm_low = def.limit_lo_lo;
+  if (merged.warn_high === undefined && def.limit_hi !== undefined) merged.warn_high = def.limit_hi;
+  if (merged.alarm_high === undefined && def.limit_hi_hi !== undefined) merged.alarm_high = def.limit_hi_hi;
+  return merged;
+}
+
+/** F3.1 — ranking dei ruoli per il gating per-oggetto. Anonimo (null) sta
+ *  sotto Viewer: in modalità no-auth whoami() restituisce un Admin sintetico,
+ *  quindi null capita solo a un viewer anonimo con auth attiva. */
+const ROLE_RANK: Record<string, number> = { Viewer: 0, Operator: 1, Supervisor: 2, Admin: 3 };
+export function isRoleAllowed(minRole: string | undefined, role: string | null | undefined): boolean {
+  if (!minRole) return true;
+  const have = role ? (ROLE_RANK[role] ?? -1) : -1;
+  return have >= (ROLE_RANK[minRole] ?? 0);
+}
+
+/** Tipi che disegnano già da soli il QDot dentro il proprio branch (default
+ *  attivo per retro-compatibilità). Sugli ALTRI tipi il QDot è opt-in
+ *  esplicito (quality_dot: true) e lo disegna il wrapper universale (F4.3). */
+export const QDOT_BUILTIN_TYPES = new Set<string>([
+  "rect", "ellipse", "pipe", "text", "state_lamp", "progress_bar", "gauge", "text_list", "kpi_tile",
+]);
+
 function resolveObject(obj: SynopticObject, tagValues: Record<string, TagState>): SynopticObject {
   if (!obj.bindings) return obj;
   const entries = Object.entries(obj.bindings);
   if (entries.length === 0) return obj;
   const BOOL_PROPS = new Set(["visible", "flip_h", "flip_v"]);
   const patch: Partial<SynopticObject> = {};
-  for (const [prop, tagId] of entries) {
-    const tv = tagValues[tagId];
-    if (!tv) continue;
-    const v = tv.value;
+  for (const [prop, spec] of entries) {
+    // F2: tre forme — stringa (tag 1:1, storica), {tag,+scaling}, {expr}.
+    let v: unknown;
+    if (typeof spec === "string") {
+      const tv = tagValues[spec];
+      if (!tv) continue;
+      v = tv.value;
+    } else if (spec.expr) {
+      const r = evalExpr(spec.expr, tagValues);
+      if (r === null) continue; // espressione rotta o tag mancanti: tieni lo statico
+      v = r;
+    } else if (spec.tag) {
+      const tv = tagValues[spec.tag];
+      if (!tv) continue;
+      v = tv.value;
+      if (typeof v === "number" &&
+          spec.in_min !== undefined && spec.in_max !== undefined &&
+          spec.out_min !== undefined && spec.out_max !== undefined &&
+          spec.in_max !== spec.in_min) {
+        let scaled = spec.out_min + (v - spec.in_min) * (spec.out_max - spec.out_min) / (spec.in_max - spec.in_min);
+        if (spec.clamp !== false) {
+          const lo = Math.min(spec.out_min, spec.out_max);
+          const hi = Math.max(spec.out_min, spec.out_max);
+          scaled = Math.min(Math.max(scaled, lo), hi);
+        }
+        v = scaled;
+      }
+    } else {
+      continue;
+    }
     if (BOOL_PROPS.has(prop)) {
       const b = typeof v === "boolean" ? v : typeof v === "number" ? v !== 0 : String(v).trim().length > 0;
       (patch as Record<string, unknown>)[prop] = b;
@@ -484,6 +565,32 @@ export function SvgCanvas({
   const selIds = selectedIds ?? (selectedId ? [selectedId] : []);
   const selSet = new Set(selIds);
 
+  // F3.1: ruolo dell'utente del viewer per il gating per-oggetto.
+  const viewerRole = useAppStore((s) => s.authRole);
+  // F4.2: indice tag→allarme attivo (severità, ack) dagli allarmi live.
+  // Preferisce l'allarme non riconosciuto quando lo stesso tag ne ha più d'uno.
+  const alarmsMapAll = useAppStore((s) => s.alarms);
+  const alarmByTag = useMemo(() => {
+    const m = new Map<string, { severity?: AlarmSeverity; acked: boolean }>();
+    for (const a of Object.values(alarmsMapAll)) {
+      if (!a.active || !a.def.tag) continue;
+      const prev = m.get(a.def.tag);
+      if (!prev || (prev.acked && !a.acknowledged)) {
+        m.set(a.def.tag, { severity: a.def.severity, acked: a.acknowledged });
+      }
+    }
+    return m;
+  }, [alarmsMapAll]);
+  // F4.3: orologio a 1 s SOLO se qualche oggetto dichiara stale_after_s —
+  // un tag stale smette di aggiornarsi, quindi senza tick non ri-renderizza
+  // mai e lo stale non verrebbe mai rilevato.
+  const needsStaleTick = objects.some((o) => o.stale_after_s !== undefined);
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  useEffect(() => {
+    if (!needsStaleTick) return;
+    const id = setInterval(() => setNowMs(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [needsStaleTick]);
   // Bracketed-interaction helpers — coalesce drag/resize into a single
   // history entry per gesture rather than per pixel.
   const beginInteraction = useAppStore((s) => s.beginInteraction);
@@ -1145,6 +1252,8 @@ export function SvgCanvas({
         alarmLow={expandedTrendObj.alarm_low}
         alarmHigh={expandedTrendObj.alarm_high}
         showAlarmMarkers={expandedTrendObj.trend_show_alarm_markers}
+        logScale={expandedTrendObj.trend_log_scale}
+        yUnit={expandedTrendObj.unit}
         bgColor={expandedTrendObj.bg_color}
         bgImage={expandedTrendObj.bg_image}
         axisColor={expandedTrendObj.axis_color}
@@ -1208,6 +1317,11 @@ export function SvgCanvas({
           </pattern>
         </defs>
       )}
+      {/* F4.1: keyframes del lampeggio universale. prefers-reduced-motion
+          spegne ogni blink (accessibilità) — l'attributo data-blink marca gli
+          elementi animati inline. */}
+      <style>{`@keyframes sws-obj-blink { 50% { opacity: 0.15 } }
+        @media (prefers-reduced-motion: reduce) { [data-blink] { animation: none !important } }`}</style>
       {/* All zoomed+panned content is inside this group */}
       <g transform={`translate(${viewT.panX}, ${viewT.panY}) scale(${viewT.zoom})`}>
       {onMove && snapEnabled && gridSize > 0 && <rect x={-50000} y={-50000} width={100000} height={100000} fill="url(#sws-grid)" />}
@@ -1228,7 +1342,39 @@ export function SvgCanvas({
         const visible = isObjectVisible(obj, tagValues);
         const inEdit = !!onMove;
         if (!visible && !inEdit) return null;
-        const gStyle = !visible && inEdit ? { opacity: 0.35 } : undefined;
+        // F3.1 — gating per ruolo: sotto il min_role l'oggetto sparisce
+        // ("hide") o resta visibile ma inerte ("disable": pointer-events
+        // none blocca click, drag e input HTML nei foreignObject).
+        const roleOk = isRoleAllowed(obj.min_role, viewerRole);
+        if (!inEdit && !roleOk && obj.min_role_effect === "hide") return null;
+        // F4 — lampeggio, stato allarme, stale e Bad-gray (tutti opt-in,
+        // tutti calcolati qui una volta per ogni tipo di oggetto).
+        const objW = obj.width ?? 100;
+        const objH = obj.height ?? 50;
+        const tvMain = obj.tag ? tagValues[obj.tag] : undefined;
+        const alarmInfo = !inEdit && obj.tag ? alarmByTag.get(obj.tag) : undefined;
+        let blinkOn = false;
+        if (!inEdit) {
+          if (obj.blink_mode === "always") blinkOn = true;
+          else if (obj.blink_mode === "tag" && obj.blink_tag) {
+            const bv = tagValues[obj.blink_tag]?.value;
+            blinkOn = typeof bv === "boolean" ? bv : typeof bv === "number" ? bv !== 0 : !!bv;
+          } else if (obj.blink_mode === "alarm") {
+            blinkOn = !!alarmInfo && !alarmInfo.acked;
+          }
+        }
+        const isStale = !inEdit && !!obj.stale_after_s && !!tvMain
+          && nowMs - tvMain.timestamp_ms > obj.stale_after_s * 1000;
+        const isBadGray = !inEdit && obj.bad_value_style === "gray" && tvMain?.quality === "Bad";
+        const grayed = isStale || isBadGray;
+        const gStyle: React.CSSProperties | undefined = (() => {
+          const st: React.CSSProperties = {};
+          if (!visible && inEdit) st.opacity = 0.35;
+          if (!inEdit && !roleOk) { st.opacity = 0.45; st.pointerEvents = "none"; }
+          if (grayed) { st.filter = "grayscale(0.9)"; st.opacity = 0.55; }
+          if (blinkOn) st.animation = `sws-obj-blink ${obj.blink_rate_ms ?? 800}ms step-start infinite`;
+          return Object.keys(st).length > 0 ? st : undefined;
+        })();
         // Press/release dispatch (view mode only). Each handler resolves the
         // referenced function and forwards the per-binding parameter
         // overrides. Doesn't interfere with the per-type click handlers
@@ -1252,7 +1398,7 @@ export function SvgCanvas({
           ? () => onScript(obj.on_release_fn!, obj.on_release_args ?? {})
           : undefined;
         return (
-          <g key={obj.id} style={gStyle} onMouseDown={obj.type !== "grid" ? onPress : undefined} onMouseUp={obj.type !== "grid" ? onRelease : undefined}>
+          <g key={obj.id} style={gStyle} data-blink={blinkOn ? "1" : undefined} onMouseDown={obj.type !== "grid" ? onPress : undefined} onMouseUp={obj.type !== "grid" ? onRelease : undefined}>
             <SvgObject
               obj={obj}
               objects={objects}
@@ -1277,6 +1423,27 @@ export function SvgCanvas({
               onSelectSubCell={onSelectSubCell}
               onExpandTrend={!inEdit ? setExpandedTrendObj : undefined}
             />
+            {/* F4.2: bordo di allarme opt-in — colorato per severità,
+                lampeggia finché non riconosciuto. Bounding box stimato con i
+                default per-tipo (per line/pipe è approssimativo). */}
+            {!inEdit && obj.show_alarm_state && alarmInfo && (
+              <rect x={obj.x - 3} y={obj.y - 3} width={objW + 6} height={objH + 6}
+                fill="none" stroke={SEV_COLOR[alarmInfo.severity ?? "Warning"]} strokeWidth={2} rx={4}
+                data-blink={!alarmInfo.acked ? "1" : undefined}
+                style={{ pointerEvents: "none",
+                         ...(alarmInfo.acked ? {} : { animation: "sws-obj-blink 800ms step-start infinite" }) }} />
+            )}
+            {/* F4.3: badge stale (l'attenuazione è già in gStyle) */}
+            {isStale && (
+              <text x={obj.x} y={obj.y - 5} fontSize={11} fill="#94a3b8"
+                style={{ pointerEvents: "none" }}>⌛</text>
+            )}
+            {/* F4.3: QDot opt-in sui tipi che non lo disegnano da soli */}
+            {!inEdit && obj.quality_dot === true && tvMain && !QDOT_BUILTIN_TYPES.has(obj.type) && (
+              <QDot x={obj.x + objW - 8} y={obj.y + 8} quality={tvMain.quality}
+                goodColor={obj.quality_dot_good_color} badColor={obj.quality_dot_bad_color}
+                uncertainColor={obj.quality_dot_uncertain_color} />
+            )}
             {inEdit && (() => {
               const bb = objBBox(obj);
               return (
@@ -1850,6 +2017,124 @@ export interface ObjProps {
 
 // ── SparklineWidget ───────────────────────────────────────────────────────────
 
+// ── Data log (F5.4): tabella storica paginata ───────────────────────────────
+// Scarica la finestra (fino a 5000 campioni) e pagina lato client — il
+// server non ha ancora un offset di paginazione; è annotato nel piano.
+function DataLogWidget({ tag, windowS, pageSize, width, height, decimals, unit }: {
+  tag: string; windowS: number; pageSize: number; width: number; height: number;
+  decimals: number; unit?: string;
+}) {
+  const [rows, setRows] = useState<Sample[]>([]);
+  const [page, setPage] = useState(0);
+  const [loading, setLoading] = useState(false);
+
+  const load = useCallback(async () => {
+    if (!tag) return;
+    setLoading(true);
+    try {
+      const now = Date.now();
+      const hist = await api.getHistory(tag, { fromMs: now - windowS * 1000, toMs: now, limit: 5000 });
+      setRows(hist.slice().reverse()); // più recenti in alto
+      setPage(0);
+    } catch { /* storico non disponibile */ }
+    setLoading(false);
+  }, [tag, windowS]);
+
+  useEffect(() => { void load(); }, [load]);
+
+  const pages = Math.max(1, Math.ceil(rows.length / pageSize));
+  const pageRows = rows.slice(page * pageSize, (page + 1) * pageSize);
+  const qColor = (q: string) => q === "Good" ? "var(--brand-success, #22c55e)"
+    : q === "Bad" ? "var(--brand-danger, #ef4444)" : "var(--brand-warning, #eab308)";
+
+  return (
+    <div style={{ width, height, display: "flex", flexDirection: "column", fontSize: 11,
+                  color: "var(--brand-text, #e2e8f0)", boxSizing: "border-box" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "2px 4px", flexShrink: 0 }}>
+        <button onClick={() => setPage((p) => Math.max(0, p - 1))} disabled={page === 0}
+          style={{ background: "var(--brand-surface, #1e293b)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 3, color: "inherit", cursor: "pointer", padding: "0 6px" }}>◀</button>
+        <span style={{ color: "var(--brand-text-subtle, #64748b)" }}>{page + 1}/{pages}</span>
+        <button onClick={() => setPage((p) => Math.min(pages - 1, p + 1))} disabled={page >= pages - 1}
+          style={{ background: "var(--brand-surface, #1e293b)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 3, color: "inherit", cursor: "pointer", padding: "0 6px" }}>▶</button>
+        <button onClick={() => void load()} title="Aggiorna"
+          style={{ background: "var(--brand-surface, #1e293b)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 3, color: "inherit", cursor: "pointer", padding: "0 6px" }}>⟳</button>
+        <div style={{ flex: 1 }} />
+        <button onClick={() => api.exportHistoryCsv([tag], Date.now() - windowS * 1000, Date.now())} title="Esporta CSV"
+          style={{ background: "var(--brand-surface, #1e293b)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 3, color: "inherit", cursor: "pointer", padding: "0 6px" }}>⬇ CSV</button>
+        {loading && <span style={{ color: "var(--brand-text-subtle, #64748b)" }}>…</span>}
+      </div>
+      <div style={{ flex: 1, overflowY: "auto", border: "1px solid var(--brand-surface, #1e293b)", borderRadius: 3 }}>
+        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <thead>
+            <tr style={{ position: "sticky", top: 0, background: "var(--brand-surface, #1e293b)", color: "var(--brand-text-muted, #94a3b8)" }}>
+              <th style={{ textAlign: "left", padding: "2px 6px", fontWeight: 600 }}>Ora</th>
+              <th style={{ textAlign: "right", padding: "2px 6px", fontWeight: 600 }}>Valore</th>
+              <th style={{ textAlign: "center", padding: "2px 6px", fontWeight: 600 }}>Q</th>
+            </tr>
+          </thead>
+          <tbody>
+            {pageRows.map((r, i) => {
+              const n = Number(r.value);
+              return (
+                <tr key={r.ts_ms + "-" + i} style={{ background: i % 2 === 0 ? "transparent" : "rgba(30,41,59,0.4)" }}>
+                  <td style={{ padding: "1px 6px", fontFamily: "monospace", whiteSpace: "nowrap" }}>
+                    {new Date(r.ts_ms).toLocaleString(undefined, { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+                  </td>
+                  <td style={{ padding: "1px 6px", textAlign: "right", fontFamily: "monospace" }}>
+                    {Number.isFinite(n) ? n.toFixed(decimals) : String(r.value)}{unit ? ` ${unit}` : ""}
+                  </td>
+                  <td style={{ padding: "1px 6px", textAlign: "center", color: qColor(r.quality) }}>●</td>
+                </tr>
+              );
+            })}
+            {pageRows.length === 0 && !loading && (
+              <tr><td colSpan={3} style={{ padding: 8, textAlign: "center", color: "var(--brand-text-subtle, #64748b)" }}>Nessun campione nella finestra</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ── KPI tile (F5.5): confronto vs periodo precedente ────────────────────────
+// Media della finestra corrente vs media della finestra precedente via
+// /api/history/:tag/stats (due chiamate), aggiornato ogni 30 s.
+function KpiDelta({ tag, windowS }: { tag: string; windowS: number }) {
+  const [delta, setDelta] = useState<number | null>(null);
+  useEffect(() => {
+    if (!tag) return;
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const now = Date.now();
+        const w = windowS * 1000;
+        const [cur, prev] = await Promise.all([
+          api.getHistoryStats(tag, { fromMs: now - w, toMs: now }),
+          api.getHistoryStats(tag, { fromMs: now - 2 * w, toMs: now - w }),
+        ]);
+        if (cancelled) return;
+        if (cur.count > 0 && prev.count > 0 && prev.avg !== 0) {
+          setDelta(((cur.avg - prev.avg) / Math.abs(prev.avg)) * 100);
+        } else {
+          setDelta(null);
+        }
+      } catch { /* stats non disponibili: nessun confronto */ }
+    };
+    load();
+    const id = setInterval(load, 30_000);
+    return () => { cancelled = true; clearInterval(id); };
+  }, [tag, windowS]);
+
+  if (delta === null) return null;
+  const up = delta >= 0;
+  return (
+    <span style={{ fontSize: 11, fontWeight: 700, color: up ? "var(--brand-success, #22c55e)" : "var(--brand-danger, #ef4444)" }}>
+      {up ? "▲" : "▼"} {Math.abs(delta).toFixed(1)}%
+    </span>
+  );
+}
+
 function SparklineWidget({ tag, windowS, width, height, color, strokeWidth, fill, fillOpacity, showLast, yMin, yMax, tagValues }: {
   tag: string; windowS: number; width: number; height: number;
   color: string; strokeWidth: number; fill: boolean; fillOpacity: number;
@@ -1858,6 +2143,28 @@ function SparklineWidget({ tag, windowS, width, height, color, strokeWidth, fill
 }) {
   const [samples, setSamples] = useState<{ ts: number; v: number }[]>([]);
   const tv = tag ? tagValues[tag] : undefined;
+
+  // F5.3: seed dallo storico all'apertura pagina — prima il buffer partiva
+  // vuoto e il grafico restava bianco per windowS secondi a ogni mount.
+  useEffect(() => {
+    if (!tag) return;
+    let cancelled = false;
+    const now = Date.now();
+    api.getHistory(tag, { fromMs: now - windowS * 1000, toMs: now })
+      .then((hist) => {
+        if (cancelled) return;
+        const seeded = hist
+          .map((s) => ({ ts: s.ts_ms, v: Number(s.value) }))
+          .filter((s) => Number.isFinite(s.v));
+        // Il seed non deve scartare i live già arrivati nel frattempo.
+        setSamples((prev) => {
+          const firstLive = prev[0]?.ts ?? Infinity;
+          return [...seeded.filter((s) => s.ts < firstLive), ...prev];
+        });
+      })
+      .catch(() => { /* storico non disponibile: si parte live come prima */ });
+    return () => { cancelled = true; };
+  }, [tag, windowS]);
 
   useEffect(() => {
     if (tv === undefined) return;
@@ -1922,6 +2229,11 @@ function AlarmViewerWidget({ width, height, mode, maxRows, prefix, allowedSev, s
   const alarmsMap = useAppStore((s) => s.alarms);
   const authRole = useAppStore((s) => s.authRole);
   const canAck = authRole === "Admin" || authRole === "Supervisor" || authRole === "Operator";
+  // F1.3: messaggi di allarme localizzati come ogni altro testo di progetto.
+  const langTable = useAppStore((s) => s.project?.languages);
+  const projLang = useAppStore((s) => s.projectLang);
+  const msgLang = effectiveProjectLang(langTable) || projLang;
+  const locMsg = (msg?: string) => resolveMsg(msg ?? "", msgLang, langTable);
 
   const filtered = Object.values(alarmsMap)
     .filter((a) => {
@@ -1972,7 +2284,7 @@ function AlarmViewerWidget({ width, height, mode, maxRows, prefix, allowedSev, s
   if (mode === "banner") {
     const a = filtered[0];
     const sev = a.def.severity ?? "Warning";
-    const text = `${sev.toUpperCase()}: ${a.def.message ?? a.def.id}`;
+    const text = `${sev.toUpperCase()}: ${locMsg(a.def.message) || a.def.id}`;
     return (
       <div style={{ ...containerStyle, background: sevColor(sev) + "33", display: "flex", alignItems: "center", overflow: "hidden" }}>
         <div style={{
@@ -1995,7 +2307,7 @@ function AlarmViewerWidget({ width, height, mode, maxRows, prefix, allowedSev, s
         render: (a) => <span style={{ color: sevColor(a.def.severity ?? "Warning") }}>●</span>,
       },
       { key: "id", header: "ID", accessor: (a) => a.def.id },
-      { key: "message", header: "Messaggio", accessor: (a) => a.def.message ?? "" },
+      { key: "message", header: "Messaggio", accessor: (a) => locMsg(a.def.message) },
       ...(showTs ? [{
         key: "ts", header: "Attivato", width: 68, filterable: false,
         accessor: (a: AlarmState) => a.activated_at_ms ?? 0,
@@ -2046,7 +2358,7 @@ function AlarmViewerWidget({ width, height, mode, maxRows, prefix, allowedSev, s
             </span>
           )}
           <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-            {a.def.message ?? a.def.id}
+            {locMsg(a.def.message) || a.def.id}
           </span>
           {showAck && canAck && !a.acknowledged && (
             <button
@@ -2085,7 +2397,14 @@ export function substituteFaceplateParams(
 
 export function SvgObject(p: ObjProps) {
   const { objects, tagValues, selected, selectedCount = 0, isEditMode, customSymbols, faceplates = [], selectedCell, selectedCellChild, selectedCellRange, onSelect, onStartDrag, onWriteTag, onScript, onNavigate, onSelectCell, onSelectCellChild, onSelectCellRange, onExpandTrend } = p;
-  const obj = resolveObject(p.obj, tagValues);
+  const { t } = useTranslation();
+  // F1.2: default ereditati dal TagDef (unità/range/limiti), poi binding.
+  const projectTags = useAppStore((s) => s.project?.tags);
+  const resolved = resolveObject(p.obj, tagValues);
+  const obj = applyTagDefaults(
+    resolved,
+    resolved.tag && projectTags ? projectTags.find((td) => td.id === resolved.tag) : undefined,
+  );
   // Drag-to-zoom range for the "trend" object type (T-48). Declared
   // unconditionally (rules of hooks) even though only the trend branch uses
   // it — this component instance is keyed by obj.id, so the state persists
@@ -2096,6 +2415,55 @@ export function SvgObject(p: ObjProps) {
   // one — write only fires on explicit confirm (Enter/button), never on every
   // keystroke. Same unconditional-hooks reasoning as trendZoom above.
   const [setpointDraft, setSetpointDraft] = useState<string | null>(null);
+  // F3.6: draft dello slider mentre si trascina (scrittura solo al rilascio)
+  // e ultimo valore scritto per il deadband. Hook incondizionati come sopra.
+  const [sliderDraft, setSliderDraft] = useState<number | null>(null);
+  const sliderLastWritten = useRef<number | null>(null);
+  // F3.4: tastierino numerico touch del setpoint. Hook incondizionato.
+  const [keypadOpen, setKeypadOpen] = useState(false);
+
+  // F3.2/F3.3: ogni scrittura originata da questo oggetto passa da qui —
+  // conferma configurabile, e per i comandi critici re-auth (password della
+  // sessione) + motivo obbligatorio, entrambi registrati nell'audit.
+  const guardedWrite = (tagId: string | undefined, value: string | number | boolean) => {
+    if (!tagId || isEditMode) return;
+    if (obj.require_confirm) {
+      const base = t("viewer.confirmWrite", { value: String(value) });
+      const msg = obj.confirm_message?.trim() ? `${obj.confirm_message}\n\n${base}` : base;
+      if (!window.confirm(msg)) return;
+    }
+    if (obj.critical) {
+      // In no-auth mode non esistono password: il flusso salta la verifica
+      // (il server risponderebbe comunque 204) ma il motivo resta richiesto.
+      const st = useAppStore.getState();
+      const noAuth = st.authToken === "no-auth";
+      const finish = (reason?: string) => {
+        if (obj.require_reason && !reason?.trim()) {
+          window.alert(t("viewer.reasonRequired"));
+          return;
+        }
+        // Sempre via HTTP: il motivo viaggia nel body e finisce nell'audit.
+        api.writeTag(tagId, value, reason?.trim() || undefined)
+          .catch((e: unknown) => window.alert(
+            `${t("viewer.writeFailed", { tag: tagId })}\n${e instanceof Error ? e.message : String(e)}`));
+      };
+      const askReason = () => {
+        const reason = obj.require_reason
+          ? window.prompt(t("viewer.reasonPrompt")) ?? undefined
+          : undefined;
+        if (obj.require_reason && reason === undefined) return; // annullato
+        finish(reason);
+      };
+      if (noAuth) { askReason(); return; }
+      const pw = window.prompt(t("viewer.reauthPrompt"));
+      if (pw === null) return; // annullato
+      api.verifyPassword(pw)
+        .then(() => askReason())
+        .catch(() => window.alert(t("viewer.reauthFailed")));
+      return;
+    }
+    onWriteTag?.(tagId, value);
+  };
 
   const handleMouseDown = (e: React.MouseEvent<SVGElement>) => {
     if (obj.locked && isEditMode) return;
@@ -2318,8 +2686,10 @@ export function SvgObject(p: ObjProps) {
     return (
       <>
         {applyTransform(obj, w, h, <>
+          {/* F0.2: bg_color = fallback del fill (un bgLayer dietro un corpo
+              opaco sarebbe invisibile — qui lo sfondo È il fill). */}
           <rect x={obj.x} y={obj.y} width={w} height={h}
-            fill={obj.fill ?? "#555"}
+            fill={obj.fill ?? obj.bg_color ?? "#555"}
             stroke={selected ? "#facc15" : (obj.stroke ?? "none")}
             strokeWidth={selected ? 2 : (obj.stroke_width ?? 0)}
             style={{ cursor: editCursor, ...transitionStyle(obj) }}
@@ -2363,6 +2733,7 @@ export function SvgObject(p: ObjProps) {
       <>
         <line x1={obj.x} y1={obj.y} x2={x2} y2={y2}
           stroke={obj.stroke ?? "var(--brand-text, #e2e8f0)"} strokeWidth={obj.stroke_width ?? 2}
+          strokeDasharray={obj.stroke_dasharray || undefined}
           style={{ cursor: editCursor, ...transitionStyle(obj) }}
           onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()} />
         {selected && <>
@@ -2502,10 +2873,10 @@ export function SvgObject(p: ObjProps) {
           strokeWidth={Math.max(bodySw, 14)}
           strokeLinecap="round" strokeLinejoin="round" />
 
-        {/* Label */}
+        {/* Label — F0.2: colore e dimensione erano hardcoded. */}
         {labelText && (
           <text x={midPt.x} y={midPt.y - (obj.pipe_label_offset ?? 10)}
-            textAnchor="middle" fill="#e2e8f0" fontSize={12}
+            textAnchor="middle" fill={obj.color ?? "#e2e8f0"} fontSize={obj.font_size ?? 12}
             style={{ pointerEvents: "none" }}>
             {labelText}
           </text>
@@ -2573,17 +2944,54 @@ export function SvgObject(p: ObjProps) {
 
   if (obj.type === "button") {
     const w = obj.width ?? 120; const h = obj.height ?? 40;
+    // F3.5 — modalità comando: write (storica), momentary, toggle, set/reset,
+    // increment/decrement. Il momentary usa press/release; le altre il click.
+    const mode = obj.button_mode ?? "write";
+    const doCommand = () => {
+      if (!obj.tag) return;
+      const tv = tagValues[obj.tag];
+      const cur = tv?.value;
+      switch (mode) {
+        case "write":     guardedWrite(obj.tag, obj.write_value ?? true); break;
+        case "toggle": {
+          const on = typeof cur === "boolean" ? cur : typeof cur === "number" ? cur !== 0 : String(cur ?? "").length > 0;
+          guardedWrite(obj.tag, !on); break;
+        }
+        case "set":       guardedWrite(obj.tag, obj.write_value ?? true); break;
+        case "reset":     guardedWrite(obj.tag, obj.release_value ?? false); break;
+        case "increment":
+        case "decrement": {
+          const base = typeof cur === "number" ? cur : Number(cur) || 0;
+          const step = obj.step ?? 1;
+          let next = mode === "increment" ? base + step : base - step;
+          if (obj.min !== undefined) next = Math.max(next, obj.min);
+          if (obj.max !== undefined) next = Math.min(next, obj.max);
+          guardedWrite(obj.tag, next); break;
+        }
+        case "momentary": break; // gestito su press/release
+      }
+    };
     return (
       <g style={{ cursor: isEditMode ? editCursor : "pointer" }}
-        onMouseDown={isEditMode ? handleMouseDown : undefined}
+        onMouseDown={(e) => {
+          if (isEditMode) { handleMouseDown(e); return; }
+          if (mode === "momentary" && obj.tag) guardedWrite(obj.tag, obj.write_value ?? true);
+        }}
+        onMouseUp={() => {
+          if (!isEditMode && mode === "momentary" && obj.tag) guardedWrite(obj.tag, obj.release_value ?? false);
+        }}
+        onMouseLeave={() => {
+          // Il dito/mouse che scivola fuori NON deve lasciare il comando attivo.
+          if (!isEditMode && mode === "momentary" && obj.tag) guardedWrite(obj.tag, obj.release_value ?? false);
+        }}
         onClick={(e) => {
           e.stopPropagation();
-          if (!isEditMode && obj.tag) onWriteTag?.(obj.tag, obj.write_value ?? true);
-          else if (isEditMode) onSelect?.(obj.id);
+          if (!isEditMode) doCommand();
+          else onSelect?.(obj.id);
         }}>
         {applyTransform(obj, w, h, <>
           <rect x={obj.x} y={obj.y} width={w} height={h} rx={6}
-            fill={obj.fill ?? "var(--brand-primary, #3b82f6)"}
+            fill={obj.fill ?? obj.bg_color ?? "var(--brand-primary, #3b82f6)"}
             stroke={selected ? "#facc15" : "var(--brand-primary-hover, #2563eb)"} strokeWidth={selected ? 2 : 1}
             style={transitionStyle(obj)} />
           {obj.bg_image && (
@@ -2614,16 +3022,19 @@ export function SvgObject(p: ObjProps) {
         }}>
         {applyTransform(obj, w, h, <>
           <rect x={obj.x} y={obj.y} width={w} height={h} rx={4}
-            fill={obj.fill ?? "var(--brand-bg, #0f172a)"}
+            fill={obj.fill ?? obj.bg_color ?? "var(--brand-bg, #0f172a)"}
             stroke={selected ? "#facc15" : "var(--brand-primary, #3b82f6)"} strokeWidth={selected ? 2 : 1.5}
             style={transitionStyle(obj)} />
           {obj.bg_image && (
             <image href={obj.bg_image} x={obj.x} y={obj.y} width={w} height={h}
               preserveAspectRatio="xMidYMid slice" style={{ pointerEvents: "none" }} />
           )}
-          <text x={obj.x + 10} y={obj.y + h / 2 + 5} fill="#3b82f6" fontSize={14}
+          {/* F0.2: glifo e label seguono `color` (prima erano hardcoded). */}
+          <text x={obj.x + 10} y={obj.y + h / 2 + 5}
+            fill={obj.color ?? "var(--brand-primary, #3b82f6)"} fontSize={14}
             style={{ pointerEvents: "none" }}>▶</text>
-          <text x={obj.x + 28} y={obj.y + h / 2 + 5} fill="#e2e8f0" fontSize={13}
+          <text x={obj.x + 28} y={obj.y + h / 2 + 5}
+            fill={obj.color ?? "var(--brand-text, #e2e8f0)"} fontSize={13}
             style={{ pointerEvents: "none" }}>
             {obj.label ?? "Go to page"}
           </text>
@@ -2648,7 +3059,7 @@ export function SvgObject(p: ObjProps) {
         }}>
         {applyTransform(obj, w, h, <>
           <rect x={obj.x} y={obj.y} width={w} height={h} rx={4}
-            fill={obj.fill ?? (active ? "var(--brand-primary, #3b82f6)" : "var(--brand-surface-2, #334155)")}
+            fill={obj.fill ?? (active ? "var(--brand-primary, #3b82f6)" : obj.bg_color ?? "var(--brand-surface-2, #334155)")}
             stroke={selected ? "#facc15" : "var(--brand-border, #475569)"} strokeWidth={selected ? 2 : 1}
             style={transitionStyle(obj)} />
           {obj.bg_image && (
@@ -2806,7 +3217,18 @@ export function SvgObject(p: ObjProps) {
     const barColor =
       thresholdColor(rawVal, obj.alarm_low, obj.warn_low, obj.warn_high, obj.alarm_high)
       ?? (obj.fill ?? "var(--brand-primary, #3b82f6)");
+    // F0.2: orientation era offerta nel pannello ma il rendering era sempre
+    // orizzontale. In verticale la barra riempie dal basso verso l'alto.
+    const vertical = obj.orientation === "vertical";
     const barW = Math.round(pct * w);
+    const barH = Math.round(pct * h);
+    // Posizione (x1,y1)-(x2,y2) del marker di soglia per un valore dato.
+    const markerLine = (value: number) => {
+      const p2 = clamp((value - min) / (max - min), 0, 1);
+      return vertical
+        ? { x1: obj.x, y1: obj.y + h - p2 * h, x2: obj.x + w, y2: obj.y + h - p2 * h }
+        : { x1: obj.x + p2 * w, y1: obj.y, x2: obj.x + p2 * w, y2: obj.y + h };
+    };
 
     return (
       <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()}
@@ -2820,10 +3242,13 @@ export function SvgObject(p: ObjProps) {
               preserveAspectRatio="xMidYMid slice" style={{ pointerEvents: "none" }} />
           )}
           {/* Fill */}
-          {barW > 0 && (
+          {(vertical ? barH : barW) > 0 && (vertical ? (
+            <rect x={obj.x} y={obj.y + h - barH} width={w} height={barH} rx={4} fill={barColor}
+              style={transitionStyle(obj)} />
+          ) : (
             <rect x={obj.x} y={obj.y} width={barW} height={h} rx={4} fill={barColor}
               style={transitionStyle(obj)} />
-          )}
+          ))}
           {/* Border */}
           <rect x={obj.x} y={obj.y} width={w} height={h} rx={4}
             fill="none" stroke="#334155" strokeWidth={1} style={{ pointerEvents: "none" }} />
@@ -2832,21 +3257,17 @@ export function SvgObject(p: ObjProps) {
             <text x={obj.x + w / 2} y={obj.y + h / 2 + 4}
               textAnchor="middle" fill="#e2e8f0" fontSize={11} fontWeight={600}
               style={{ pointerEvents: "none" }}>
-              {rawVal.toFixed(1)}{obj.unit ? ` ${obj.unit}` : ""}
+              {rawVal.toFixed(obj.decimals ?? 1)}{obj.unit ? ` ${obj.unit}` : ""}
             </text>
           )}
           {/* Warn/alarm markers */}
           {obj.warn_high !== undefined && (
-            <line
-              x1={obj.x + ((obj.warn_high - min) / (max - min)) * w}
-              y1={obj.y} x2={obj.x + ((obj.warn_high - min) / (max - min)) * w} y2={obj.y + h}
+            <line {...markerLine(obj.warn_high)}
               stroke="#eab308" strokeWidth={1.5} strokeDasharray="3 2"
               style={{ pointerEvents: "none" }} />
           )}
           {obj.alarm_high !== undefined && (
-            <line
-              x1={obj.x + ((obj.alarm_high - min) / (max - min)) * w}
-              y1={obj.y} x2={obj.x + ((obj.alarm_high - min) / (max - min)) * w} y2={obj.y + h}
+            <line {...markerLine(obj.alarm_high)}
               stroke="#ef4444" strokeWidth={1.5} strokeDasharray="3 2"
               style={{ pointerEvents: "none" }} />
           )}
@@ -2935,13 +3356,15 @@ export function SvgObject(p: ObjProps) {
                 style={{ pointerEvents: "none" }}>{max}</text>
             </>;
           })()}
-          {/* Value display */}
-          <text x={cx} y={cy + R * 0.35} textAnchor="middle"
-            fill={obj.color ?? "#e2e8f0"} fontSize={20} fontWeight={700}
-            style={{ pointerEvents: "none" }}>
-            {typeof rawVal === "number" ? rawVal.toFixed(1) : rawVal}
-          </text>
-          {obj.unit && (
+          {/* Value display — F0.2: show_value era offerto nel pannello ma ignorato. */}
+          {obj.show_value !== false && (
+            <text x={cx} y={cy + R * 0.35} textAnchor="middle"
+              fill={obj.color ?? "#e2e8f0"} fontSize={20} fontWeight={700}
+              style={{ pointerEvents: "none" }}>
+              {typeof rawVal === "number" ? rawVal.toFixed(obj.decimals ?? 1) : rawVal}
+            </text>
+          )}
+          {obj.show_value !== false && obj.unit && (
             <text x={cx} y={cy + R * 0.35 + 16} textAnchor="middle" fill={obj.color ?? "#94a3b8"} fontSize={11}
               style={{ pointerEvents: "none" }}>{obj.unit}</text>
           )}
@@ -2971,7 +3394,8 @@ export function SvgObject(p: ObjProps) {
     const isVertical = obj.orientation === "vertical";
     const readOnly = !!obj.read_only;
     const accent = obj.fill ?? "var(--brand-primary, #3b82f6)";
-    const valueText = `${rawVal.toFixed(obj.step && obj.step < 1 ? 2 : 0)}${obj.unit ? ` ${obj.unit}` : ""}`;
+    const shownVal = sliderDraft ?? rawVal;
+    const valueText = `${shownVal.toFixed(obj.decimals ?? (obj.step && obj.step < 1 ? 2 : 0))}${obj.unit ? ` ${obj.unit}` : ""}`;
 
     if (isEditMode) {
       // Edit mode: static SVG preview, draggable
@@ -3031,14 +3455,38 @@ export function SvgObject(p: ObjProps) {
     // `disabled` e non solo un cursore diverso: la spunta "Sola lettura" era
     // offerta nel pannello proprietà e non faceva niente, quindi uno slider
     // dichiarato in sola lettura scriveva comunque il tag.
+    // F3.6 — default nuovo: scrivi SOLO al rilascio (prima ogni pixel di
+    // trascinamento generava una scrittura verso il PLC). write_on_release:
+    // false ripristina la scrittura continua; write_deadband filtra le
+    // variazioni sotto soglia in entrambe le modalità.
+    const writeOnRelease = obj.write_on_release !== false;
+    const commitSlider = (v: number) => {
+      const last = sliderLastWritten.current;
+      if (obj.write_deadband && last !== null && Math.abs(v - last) < obj.write_deadband) {
+        setSliderDraft(null);
+        return;
+      }
+      sliderLastWritten.current = v;
+      guardedWrite(obj.tag!, v);
+      setSliderDraft(null);
+    };
+    const releaseSlider = () => {
+      if (writeOnRelease && sliderDraft !== null) commitSlider(sliderDraft);
+    };
     const commonInput = {
       type: "range" as const,
       min, max,
       step: obj.step ?? 1,
-      value: rawVal,
+      value: sliderDraft ?? rawVal,
       disabled: readOnly,
-      onChange: (e: React.ChangeEvent<HTMLInputElement>) =>
-        onWriteTag?.(obj.tag!, Number(e.target.value)),
+      onChange: (e: React.ChangeEvent<HTMLInputElement>) => {
+        const v = Number(e.target.value);
+        if (writeOnRelease) setSliderDraft(v);
+        else commitSlider(v);
+      },
+      onMouseUp: releaseSlider,
+      onTouchEnd: releaseSlider,
+      onKeyUp: releaseSlider,
     };
 
     if (isVertical) {
@@ -3160,7 +3608,7 @@ export function SvgObject(p: ObjProps) {
             <text x={obj.x + 4} y={labelY} fill="#94a3b8" fontSize={11} style={{ pointerEvents: "none" }}>{obj.label}</text>
           )}
           <text x={obj.x + 4} y={currentY} fill="#64748b" fontSize={10} style={{ pointerEvents: "none" }}>
-            Attuale: {currentText}
+            {t("viewer.currentValue")} {currentText}
           </text>
           <rect x={obj.x + 4} y={rowY} width={inputW} height={rowH} rx={4} fill="#0f172a" stroke="#334155" style={{ pointerEvents: "none" }} />
           <text x={obj.x + 4 + 6} y={rowY + rowH / 2} dominantBaseline="central" fill="#e2e8f0" fontSize={12} style={{ pointerEvents: "none" }}>
@@ -3176,7 +3624,7 @@ export function SvgObject(p: ObjProps) {
       if (setpointDraft === null || !obj.tag) return;
       const n = Number(setpointDraft);
       if (!Number.isFinite(n)) return; // leave the draft as-is so the operator can fix it
-      onWriteTag?.(obj.tag, n);
+      guardedWrite(obj.tag, n);
       setSetpointDraft(null);
     };
 
@@ -3190,7 +3638,7 @@ export function SvgObject(p: ObjProps) {
               <span style={{ color: "var(--brand-text-muted, #94a3b8)", fontSize: 11 }}>{obj.label}</span>
             )}
             <span style={{ color: "var(--brand-text-subtle, #64748b)", fontSize: 10 }}>
-              Attuale: {currentVal !== undefined && Number.isFinite(currentVal) ? `${currentVal}${unit}` : "—"}
+              {t("viewer.currentValue")} {currentVal !== undefined && Number.isFinite(currentVal) ? `${currentVal}${unit}` : "—"}
             </span>
             <div style={{ display: "flex", gap: 4 }}>
               <input
@@ -3219,9 +3667,35 @@ export function SvgObject(p: ObjProps) {
               >
                 ✓
               </button>
+              {/* F3.4: tastierino touch — sui pannelli kiosk l'input HTML non
+                  è digitabile (nessuna tastiera virtuale di sistema). */}
+              {!readOnly && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); setKeypadOpen(true); }}
+                  title={t("keypad.open")}
+                  style={{
+                    background: "var(--brand-surface-2, #334155)", border: "none", borderRadius: 4,
+                    color: "var(--brand-text, #e2e8f0)", cursor: "pointer", padding: "0 8px",
+                    fontSize: 13, flexShrink: 0,
+                  }}
+                >
+                  ⌨
+                </button>
+              )}
             </div>
           </div>
         </foreignObject>
+        {keypadOpen && (
+          <NumericKeypad
+            label={obj.label}
+            unit={obj.unit}
+            initial={currentVal !== undefined && Number.isFinite(currentVal) ? currentVal : undefined}
+            min={obj.min}
+            max={obj.max}
+            onConfirm={(n) => { setKeypadOpen(false); guardedWrite(obj.tag, n); }}
+            onCancel={() => setKeypadOpen(false)}
+          />
+        )}
       </g>
     );
   }
@@ -3260,7 +3734,7 @@ export function SvgObject(p: ObjProps) {
           style={{ display: "flex", alignItems: "center", gap: 8, height: "100%", cursor: obj.read_only ? "default" : "pointer" }}
           onClick={() => {
             if (obj.read_only || !obj.tag) return;
-            onWriteTag?.(obj.tag, isChecked ? (obj.unchecked_value ?? false) : checkedVal);
+            guardedWrite(obj.tag, isChecked ? (obj.unchecked_value ?? false) : checkedVal);
           }}
         >
           <div style={{
@@ -3336,13 +3810,14 @@ export function SvgObject(p: ObjProps) {
           )}
           <div style={{ display: "flex", flexDirection: isH ? "row" : "column", gap: isH ? 12 : 4 }}>
             {opts.map((opt, i) => (
-              <label key={i} style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
+              <label key={i} style={{ display: "flex", alignItems: "center", gap: 6, cursor: obj.read_only ? "default" : "pointer" }}>
                 <input
                   type="radio"
                   name={obj.id}
+                  disabled={obj.read_only}
                   checked={currentVal !== null && String(currentVal) === String(opt.value)}
-                  onChange={() => onWriteTag?.(obj.tag!, opt.value as string | number | boolean)}
-                  style={{ accentColor: obj.fill ?? "var(--brand-primary, #3b82f6)", cursor: "pointer" }}
+                  onChange={() => guardedWrite(obj.tag!, opt.value as string | number | boolean)}
+                  style={{ accentColor: obj.fill ?? "var(--brand-primary, #3b82f6)", cursor: obj.read_only ? "default" : "pointer" }}
                 />
                 <span style={{ color: "var(--brand-text, #e2e8f0)", fontSize: 13, userSelect: "none" }}>
                   {opt.label}
@@ -3511,6 +3986,8 @@ export function SvgObject(p: ObjProps) {
                 alarmLow={obj.alarm_low}
                 alarmHigh={obj.alarm_high}
                 showAlarmMarkers={obj.trend_show_alarm_markers}
+                logScale={obj.trend_log_scale}
+                yUnit={obj.unit}
                 bgColor={obj.bg_color}
                 bgImage={obj.bg_image}
                 axisColor={obj.axis_color}
@@ -3690,6 +4167,14 @@ export function SvgObject(p: ObjProps) {
         )}
         <line x1={baseX} y1={baseY} x2={baseX} y2={axisY} stroke="#334155" strokeWidth={1} />
         <line x1={baseX} y1={axisY} x2={baseX + plotW} y2={axisY} stroke="#334155" strokeWidth={1} />
+        {/* F0.2: bar_y_label esisteva nello schema ma non era mai disegnato. */}
+        {obj.bar_y_label && (
+          <text x={obj.x + 10} y={baseY + plotH / 2} textAnchor="middle" fill="#94a3b8" fontSize={10}
+            transform={`rotate(-90 ${obj.x + 10} ${baseY + plotH / 2})`}
+            style={{ pointerEvents: "none" }}>
+            {obj.bar_y_label}
+          </text>
+        )}
         {series.map((s, i) => {
           const tv = s.tag ? tagValues[s.tag] : undefined;
           const val = tv ? Number(tv.value) : 0;
@@ -3854,6 +4339,94 @@ export function SvgObject(p: ObjProps) {
   }
 
   // ── SPARKLINE ────────────────────────────────────────────────────────────────
+
+  if (obj.type === "data_log") {
+    const w = obj.width ?? 380; const h = obj.height ?? 240;
+    return (
+      <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()} style={{ cursor: editCursor }}>
+        {selRect(obj.x, obj.y, w, h)}
+        {bgLayer(obj.x, obj.y, w, h, 4)}
+        <rect x={obj.x} y={obj.y} width={w} height={h} rx={4} fill={obj.bg_color ? "transparent" : "var(--brand-bg, #0f172a)"}
+          stroke={selected ? "#facc15" : "var(--brand-surface-2, #334155)"} strokeWidth={selected ? 2 : 1}
+          style={{ pointerEvents: isEditMode ? undefined : "none" }} />
+        {obj.label && (
+          <text x={obj.x + 6} y={obj.y + 14} fill="var(--brand-text-muted, #94a3b8)" fontSize={11}
+            style={{ pointerEvents: "none" }}>{obj.label}</text>
+        )}
+        {isEditMode ? (
+          <text x={obj.x + w / 2} y={obj.y + h / 2} textAnchor="middle" fill="#64748b" fontSize={12}
+            style={{ pointerEvents: "none" }}>
+            Data log — {obj.tag || "nessun tag"}
+          </text>
+        ) : (
+          <foreignObject x={obj.x + 4} y={obj.y + (obj.label ? 18 : 4)} width={w - 8} height={h - (obj.label ? 22 : 8)}>
+            <DataLogWidget
+              tag={obj.tag ?? ""} windowS={obj.window_s ?? 3600}
+              pageSize={obj.datalog_page_size ?? 25}
+              width={w - 8} height={h - (obj.label ? 22 : 8)}
+              decimals={obj.decimals ?? 1} unit={obj.unit} />
+          </foreignObject>
+        )}
+      </g>
+    );
+  }
+
+  if (obj.type === "kpi_tile") {
+    const w = obj.width ?? 180; const h = obj.height ?? 100;
+    const tv = obj.tag ? tagValues[obj.tag] : undefined;
+    const rawVal = tv ? Number(tv.value) : NaN;
+    const valColor =
+      (Number.isFinite(rawVal)
+        ? thresholdColor(rawVal, obj.alarm_low, obj.warn_low, obj.warn_high, obj.alarm_high)
+        : undefined) ?? obj.color ?? "var(--brand-text, #e2e8f0)";
+    const windowS = obj.spark_window_s ?? 3600;
+    const valueText = Number.isFinite(rawVal)
+      ? `${rawVal.toFixed(obj.decimals ?? 1)}`
+      : "—";
+
+    return (
+      <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()} style={{ cursor: editCursor }}>
+        {selRect(obj.x, obj.y, w, h)}
+        <rect x={obj.x} y={obj.y} width={w} height={h} rx={6}
+          fill={obj.bg_color ?? "var(--brand-surface, #1e293b)"}
+          stroke={selected ? "#facc15" : "var(--brand-surface-2, #334155)"} strokeWidth={selected ? 2 : 1} />
+        {obj.bg_image && (
+          <image href={obj.bg_image} x={obj.x} y={obj.y} width={w} height={h}
+            preserveAspectRatio="xMidYMid slice" style={{ pointerEvents: "none" }} />
+        )}
+        <text x={obj.x + 10} y={obj.y + 16} fill="var(--brand-text-muted, #94a3b8)" fontSize={11}
+          style={{ pointerEvents: "none" }}>{obj.label ?? obj.tag ?? "KPI"}</text>
+        <text x={obj.x + 10} y={obj.y + 44} fill={valColor} fontSize={26} fontWeight={700}
+          style={{ pointerEvents: "none" }}>
+          {valueText}
+          {obj.unit && <tspan fontSize={12} fill="var(--brand-text-subtle, #64748b)"> {obj.unit}</tspan>}
+        </text>
+        {!isEditMode && obj.tag && (
+          <>
+            <foreignObject x={obj.x + w - 74} y={obj.y + 6} width={68} height={18} style={{ pointerEvents: "none" }}>
+              <div style={{ textAlign: "right" }}>
+                <KpiDelta tag={obj.tag} windowS={windowS} />
+              </div>
+            </foreignObject>
+            <foreignObject x={obj.x + 6} y={obj.y + h - 34} width={w - 12} height={30} style={{ pointerEvents: "none" }}>
+              <SparklineWidget
+                tag={obj.tag} windowS={windowS} width={w - 12} height={30}
+                color={obj.spark_color ?? "var(--brand-primary, #3b82f6)"}
+                strokeWidth={1.5} fill fillOpacity={0.15} showLast={false}
+                yMin={undefined} yMax={undefined} tagValues={tagValues} />
+            </foreignObject>
+          </>
+        )}
+        {isEditMode && (
+          <polyline
+            points={`${obj.x + 8},${obj.y + h - 12} ${obj.x + w * 0.35},${obj.y + h - 26} ${obj.x + w * 0.6},${obj.y + h - 8} ${obj.x + w - 8},${obj.y + h - 20}`}
+            fill="none" stroke={obj.spark_color ?? "var(--brand-primary, #3b82f6)"} strokeWidth={1.5} opacity={0.5}
+            style={{ pointerEvents: "none" }} />
+        )}
+        {tv && obj.quality_dot !== false && <QDot x={obj.x + w - 8} y={obj.y + h - 8} quality={tv.quality} goodColor={obj.quality_dot_good_color} badColor={obj.quality_dot_bad_color} uncertainColor={obj.quality_dot_uncertain_color} />}
+      </g>
+    );
+  }
 
   if (obj.type === "sparkline") {
     const w = obj.width ?? 120; const h = obj.height ?? 30;

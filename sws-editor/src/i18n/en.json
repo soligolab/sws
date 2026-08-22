@@ -247,6 +247,9 @@
   "viewer": {
     "maintenance": "Maintenance",
     "noActiveAlarms": "No active alarms",
+    "currentValue": "Current:",
+    "writeFailed": "Write to {{tag}} failed",
+    "confirmWrite": "Confirm the command? Value to be written: {{value}}",
     "suppressed": "Suppressed",
     "history": "History",
     "suppressForMaintenance": "Suppress for maintenance",
@@ -265,7 +268,11 @@
     "activeTab": "Active",
     "ackAll": "ACK all",
     "shelve": "Suppress",
-    "projectUpdated": "Project updated"
+    "projectUpdated": "Project updated",
+    "reauthPrompt": "Critical command — enter your password:",
+    "reauthFailed": "Wrong password: command cancelled.",
+    "reasonPrompt": "Reason for the command (recorded in the audit log):",
+    "reasonRequired": "A reason is required for this command."
   },
   "alarm": {
     "noAlarms": "No active alarms",
@@ -396,6 +403,12 @@
     "filterPlaceholder": "Filter tags…",
     "noTags": "No tag found",
     "bindTo": "Bind to a tag",
+    "unbind": "Unbind",
+    "mode": {
+      "tag": "Tag",
+      "scale": "Scale",
+      "expr": "Expression"
+    },
     "bindPlaceholder": "e.g. demo.rotation",
     "noTagsInProject": "No variables available. Declare them in Configuration → Variables, or add a source: variables mapped from protocols show up here automatically."
   },
@@ -497,6 +510,28 @@
     "formatBound": "Format (if bound)",
     "arrow": "Arrow",
     "barGap": "Bar gap (0-0.9)",
+    "yAxisLabel": "Y axis label",
+    "decimals": "Decimals",
+    "buttonMode": "Command mode",
+    "modeWrite": "Write value",
+    "modeMomentary": "Momentary (press/release)",
+    "modeToggle": "Toggle",
+    "modeSet": "Set (true)",
+    "modeReset": "Reset (false)",
+    "modeIncrement": "Increment (+step)",
+    "modeDecrement": "Decrement (−step)",
+    "releaseValue": "Release value",
+    "security": "SECURITY",
+    "minRole": "Minimum role to operate",
+    "minRoleNone": "No restriction",
+    "minRoleEffect": "Below threshold",
+    "effectDisable": "Visible but not operable",
+    "effectHide": "Hidden",
+    "requireConfirm": "Ask for confirmation",
+    "confirmMessage": "Confirmation message",
+    "confirmMessagePh": "e.g. Start pump P1?",
+    "writeOnRelease": "Write on release only",
+    "writeDeadband": "Write deadband",
     "targetObjId": "Target object ID",
     "sourceObjId": "Source object ID",
     "qualityIndicator": "Quality indicator",
@@ -675,7 +710,21 @@
     "stateLampHint": "Same entries as Text list, drawn as a colored dot with its label instead of just text.",
     "recipeIdPrefix": "Recipe id prefix",
     "showHistory": "Show history",
-    "showShelve": "Show shelve/unshelve"
+    "showShelve": "Show shelve/unshelve",
+    "critical": "Critical command (password)",
+    "requireReason": "Reason required",
+    "showAlarmState": "Border on tag alarm",
+    "badValueGray": "Bad value → gray",
+    "staleAfterS": "Stale after (s, 0=off)",
+    "blinkMode": "Blink",
+    "blinkOff": "Off",
+    "blinkAlways": "Steady",
+    "blinkTag": "From tag",
+    "blinkAlarm": "On unacknowledged alarm",
+    "blinkTagField": "Blink tag",
+    "blinkRate": "Blink period (ms)",
+    "kpiWindow": "Compare window (s)",
+    "pageSize": "Rows per page"
   },
   "shortcut": {
     "navCanvas": "Canvas navigation",
@@ -793,6 +842,13 @@
     "endpointUrl": "Endpoint URL",
     "haEntityId": "HA Entity ID",
     "computedExpr": "Computed expression (Python)",
+    "tagMeta": "Unit, scaling, range and limits",
+    "tagUnit": "Unit",
+    "tagDecimals": "Decimals",
+    "tagScaling": "Raw→eng scaling",
+    "tagLimits": "Limits (thresholds)",
+    "tagWriteRole": "Min write role",
+    "tagMetaHint": "Widgets inherit these values as defaults (local override always possible). Scaling is applied by the runtime to incoming protocol data and inverted on writes; all four fields are required.",
     "labelField": "Label",
     "file": "File",
     "filterTopic": "Filter topics…",
@@ -942,5 +998,11 @@
     "empty": "No messages. Add a language and a message, or import a CSV.",
     "removeLang": "Remove language",
     "noLangs": "Add at least one language to start."
+  },
+  "keypad": {
+    "open": "Numeric keypad",
+    "invalid": "Invalid value",
+    "belowMin": "Below minimum ({{min}})",
+    "aboveMax": "Above maximum ({{max}})"
   }
 }

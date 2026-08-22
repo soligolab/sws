@@ -30,6 +30,10 @@ export type SynopticObjectType =
   | "bar_chart"
   | "pie_chart"
   | "sparkline"
+  // KPI tile (F5.5): valore grande + micro-trend + confronto vs periodo precedente
+  | "kpi_tile"
+  // Data log (F5.4): tabella storica paginata (ts/valore/qualità) con export
+  | "data_log"
   | "alarm_viewer"
   | "alarm_bell"
   | "alarm_banner"
@@ -191,6 +195,10 @@ export interface SynopticObject {
   axis_color?: string;
   /** Chart grid-lines color. Trend today, same sharing intent as axis_color. */
   grid_color?: string;
+  /** Trend (F5.2x): scala Y logaritmica sulla scala condivisa (dominio > 0). */
+  trend_log_scale?: boolean;
+  /** Data log (F5.4): righe per pagina della tabella storica (default 25). */
+  datalog_page_size?: number;
   tag?: string;
   format?: string;
   src?: string;
@@ -224,7 +232,38 @@ export interface SynopticObject {
   min?: number;
   max?: number;
   unit?: string;
+  /** Cifre decimali del valore visualizzato (F1.3). Default: dal TagDef, poi 1. */
+  decimals?: number;
   step?: number;
+  // ── F3: pipeline di comando ────────────────────────────────────────────────
+  /** Comportamento del button (F3.5). Default "write" (scrivi write_value).
+   *  momentary: write_value alla pressione, release_value al rilascio;
+   *  toggle: inverte il valore corrente; set/reset: scrive true/false;
+   *  increment/decrement: corrente ± step, clampato a min/max. */
+  button_mode?: "write" | "momentary" | "toggle" | "set" | "reset" | "increment" | "decrement";
+  /** Valore scritto al rilascio in modalità momentary (default false). */
+  release_value?: string | number | boolean;
+  /** Chiedi conferma prima di ogni scrittura da questo oggetto (F3.2). */
+  require_confirm?: boolean;
+  /** Messaggio della conferma (localizzabile, {{token}} ok). */
+  confirm_message?: string;
+  /** Ruolo minimo per OPERARE l'oggetto (F3.1). Sotto soglia: vedi
+   *  min_role_effect. Assente = nessun vincolo (retro-compatibile). */
+  min_role?: "Viewer" | "Operator" | "Supervisor" | "Admin";
+  /** Effetto sotto soglia: "disable" (visibile ma non operabile, attenuato,
+   *  default) oppure "hide" (l'oggetto sparisce del tutto). */
+  min_role_effect?: "hide" | "disable";
+  /** Comando critico (F3.3): prima di scrivere richiede la password della
+   *  sessione (re-auth) — saltato in no-auth mode, dove non esistono password. */
+  critical?: boolean;
+  /** Comando critico: motivo obbligatorio, registrato nell'audit log. */
+  require_reason?: boolean;
+  /** Slider (F3.6): scrivi solo al rilascio (default true — prima scriveva
+   *  a ogni pixel di trascinamento). */
+  write_on_release?: boolean;
+  /** Slider: variazione minima rispetto all'ultimo valore scritto perché
+   *  parta una nuova scrittura. */
+  write_deadband?: number;
   // Alarm / warning thresholds
   warn_low?: number;
   warn_high?: number;
@@ -344,8 +383,26 @@ export interface SynopticObject {
    *  (fill, stroke, opacity, transform). 0 or undefined → no animation. */
   transition_duration_ms?: number;
   /** Generic prop-to-tag bindings. At render time the resolver overrides the
-   *  static value with the live tag value. Keys are SynopticObject prop names. */
-  bindings?: Record<string, string>;
+   *  static value with the live tag value. Keys are SynopticObject prop names.
+   *  F2: il valore è la forma storica (stringa = tag id, copia 1:1) oppure un
+   *  BindingSpec con scaling lineare o espressione. */
+  bindings?: Record<string, string | BindingSpec>;
+  // ── F4: allarmi e qualità per-oggetto (opt-in) ────────────────────────────
+  /** Lampeggio (F4.1): "always" = fisso, "tag" = quando blink_tag è truthy,
+   *  "alarm" = quando il tag dell'oggetto ha un allarme attivo non riconosciuto. */
+  blink_mode?: "always" | "tag" | "alarm";
+  blink_tag?: string;
+  /** Periodo del lampeggio in ms (default 800). */
+  blink_rate_ms?: number;
+  /** Bordo colorato per severità quando il tag dell'oggetto ha un allarme
+   *  attivo (F4.2); lampeggia finché non riconosciuto. Opt-in. */
+  show_alarm_state?: boolean;
+  /** Stile per valore Bad (F4.3): "gray" = oggetto attenuato in scala di
+   *  grigi — Bad non viene più mostrato come se fosse un valore valido. */
+  bad_value_style?: "gray";
+  /** Dato stale (F4.3): se l'ultimo aggiornamento del tag è più vecchio di
+   *  N secondi l'oggetto è attenuato e marcato ⌛. */
+  stale_after_s?: number;
   // ── Quality dot ───────────────────────────────────────────────────────────
   /** Show the quality-state dot overlay on tagged objects (default true). */
   quality_dot?: boolean;
@@ -493,6 +550,17 @@ export interface Sample {
   quality: TagQuality;
 }
 
+/** Bucket aggregato dello storico (F5.1). `ts_ms` è l'inizio del bucket. */
+export interface BucketSample {
+  ts_ms: number;
+  min: number;
+  max: number;
+  avg: number;
+  first: number;
+  last: number;
+  count: number;
+}
+
 /** A logical grouping of objects in the editor panel (UI-only, no canvas effect). */
 export interface ObjectGroup {
   id: string;
@@ -543,6 +611,22 @@ export interface CustomSymbol {
 
 export type TagDataType = "bool" | "int" | "float" | "string";
 
+/** Binding avanzato di una proprietà (F2, piano SCADA-widgets).
+ *  Due modalità mutuamente esclusive:
+ *  - `tag` (+ scaling lineare opzionale in_min/in_max → out_min/out_max);
+ *  - `expr` — espressione valutata client-side (vedi expr/engine.ts), con
+ *    riferimenti `{tag.id}`, aritmetica, confronti, ternario, funzioni. */
+export interface BindingSpec {
+  tag?: string;
+  in_min?: number;
+  in_max?: number;
+  out_min?: number;
+  out_max?: number;
+  /** Clampa il risultato dello scaling dentro out_min..out_max (default true). */
+  clamp?: boolean;
+  expr?: string;
+}
+
 export interface TagDef {
   id: string;
   description: string;
@@ -560,6 +644,30 @@ export interface TagDef {
    * Example: `tags["motor.v"] * tags["motor.i"]`.
    * When set, the tag is computed/read-only — it cannot be written via the API. */
   expression?: string;
+
+  // ── F1, piano SCADA-widgets: il tag è la fonte di verità ──────────────────
+  // I widget ereditano questi valori come default (override per-oggetto).
+  /** Unità di misura ingegneristica (es. "°C"). Solo display. */
+  unit?: string;
+  /** Cifre decimali di default per la visualizzazione. */
+  decimals?: number;
+  /** Scaling lineare raw→eng, applicato dal runtime all'ingestione (plugin)
+   *  e invertito sulle scritture. Servono tutti e quattro i campi. */
+  raw_min?: number;
+  raw_max?: number;
+  eng_min?: number;
+  eng_max?: number;
+  /** Range di visualizzazione di default per i widget (gauge, barre…). */
+  range_lo?: number;
+  range_hi?: number;
+  /** Ruolo minimo per scrivere questo tag via API/WS (F3.1) — enforcement
+   *  server. Assente = regola storica (Operator+). */
+  write_min_role?: "Viewer" | "Operator" | "Supervisor" | "Admin";
+  /** Limiti ingegneristici → default delle soglie visive dei widget. */
+  limit_lo_lo?: number;
+  limit_lo?: number;
+  limit_hi?: number;
+  limit_hi_hi?: number;
 }
 
 export interface RegisterMapping {

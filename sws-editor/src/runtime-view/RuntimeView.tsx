@@ -3,13 +3,14 @@ import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
 import { getBrand } from "@/branding";
 import { SvgCanvas } from "@/canvas/SvgCanvas";
+import { collectTagIds } from "@/runtime-view/collectTagIds";
 import { viewerFitScale, effectiveSizeMode } from "@/pageLayout";
 import { resolvePageBackground } from "@/theme";
 import { RecipePanel } from "@/components/RecipePanel";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { UiLangSelect } from "@/components/UiLangSelect";
 import { useAppStore } from "@/store";
-import { localizeObjects, effectiveProjectLang } from "@/i18n/projectI18n";
+import { localizeObjects, localizePageName, effectiveProjectLang } from "@/i18n/projectI18n";
 import { useTagStream, tryTagWriteWs, sendSubscribe } from "@/ws/tagStream";
 import type { FunctionDef } from "@/types";
 
@@ -182,24 +183,14 @@ export function RuntimeView() {
     if (sizeMode !== "fixed") return 1;
     return viewerFitScale(box?.w, box?.h, currentPage?.width, currentPage?.height);
   }, [sizeMode, box, currentPage?.width, currentPage?.height]);
-  const pageTagIds = useMemo(() => {
-    const ids = new Set<string>();
-    for (const obj of currentPage?.objects ?? []) {
-      const o = obj as unknown as Record<string, unknown>;
-      if (typeof o.tag === "string")       ids.add(o.tag);
-      if (typeof o.value_tag === "string") ids.add(o.value_tag);
-      if (typeof o.min_tag === "string")   ids.add(o.min_tag);
-      if (typeof o.max_tag === "string")   ids.add(o.max_tag);
-      // trend pens
-      if (Array.isArray(o.pens)) {
-        for (const pen of o.pens as unknown[]) {
-          if (pen && typeof pen === "object" && "tag" in pen) ids.add(String((pen as Record<string, unknown>).tag));
-        }
-      }
-    }
-    return [...ids];
+  // F0.1: raccolta COMPLETA dei tag della pagina — binding, visibilità, stati,
+  // serie dei grafici, celle grid e figli faceplate inclusi. Il filtro server
+  // è esatto: un tag non raccolto qui riceve lo snapshot e poi si congela.
+  const pageTagIds = useMemo(
+    () => collectTagIds(currentPage?.objects ?? [], faceplates),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentPageId, pages]);
+    [currentPageId, pages, faceplates],
+  );
 
   useEffect(() => {
     // Send subscribe. Empty array = all tags (no restriction).
@@ -225,8 +216,31 @@ export function RuntimeView() {
     // The HTTP PUT remains as the fallback when the socket isn't open
     // yet — first paint can race the upgrade handshake.
     if (tryTagWriteWs(tagId, value)) return;
-    api.writeTag(tagId, value).catch(console.error);
+    // F3.7: un errore di scrittura HTTP non resta muto — toast con il motivo.
+    api.writeTag(tagId, value).catch((e: unknown) => {
+      console.error(e);
+      addToast({
+        id: `${Date.now()}-w`,
+        fn: t("viewer.writeFailed", { tag: tagId }),
+        error: e instanceof Error ? e.message : String(e),
+      }, 6000);
+    });
   };
+
+  // F3.7: nack dal canale WS (ruolo insufficiente, canale plugin chiuso…).
+  useEffect(() => {
+    const onFail = (e: Event) => {
+      const d = (e as CustomEvent<{ tag: string; error: string }>).detail;
+      addToast({
+        id: `${Date.now()}-wf`,
+        fn: t("viewer.writeFailed", { tag: d.tag }),
+        error: d.error,
+      }, 6000);
+    };
+    window.addEventListener("sws:write-failed", onFail);
+    return () => window.removeEventListener("sws:write-failed", onFail);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleScript = (fn: string, args: Record<string, string | number | boolean>) => {
     api.runFunction(fn, args).then((r) => {
@@ -317,7 +331,7 @@ export function RuntimeView() {
                 whiteSpace: "nowrap",
               }}
             >
-              {p.name}
+              {localizePageName(p.name, effLang, languageTable)}
             </button>
           ))}
           </div>

@@ -16,6 +16,6 @@ pub use project::{
     TagDef, TelegramConfig, TopicMapping, MAX_FUNCTION_CODE_BYTES,
 };
 pub use tag::{
-    Tag, TagDb, TagId, TagQuality, TagState, TagUpdate, TagValue, TagWriteBus, WriteError,
-    WriteRequest,
+    LinearScale, Tag, TagDb, TagId, TagQuality, TagState, TagUpdate, TagValue, TagWriteBus,
+    WriteError, WriteRequest,
 };

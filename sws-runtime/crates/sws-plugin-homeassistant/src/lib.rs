@@ -33,7 +33,7 @@ pub async fn run(
     if let Err(e) = effective_token(&cfg) {
         error!(source = %cfg.id, "HomeAssistant source misconfigured: {e:#} — fix the config and reopen the project");
         for m in &cfg.entities {
-            db.set(m.tag.clone(), TagValue::Bool(false), TagQuality::Bad).await;
+            db.ingest(m.tag.clone(), TagValue::Bool(false), TagQuality::Bad).await;
         }
         return;
     }
@@ -41,7 +41,7 @@ pub async fn run(
     if let Err(e) = run_session(&cfg, &db, &bus, &entity_map, cancel).await {
         warn!(source = %cfg.id, "HomeAssistant session ended: {e:#} — stopped (save config to retry)");
         for m in &cfg.entities {
-            db.set(m.tag.clone(), TagValue::Bool(false), TagQuality::Bad).await;
+            db.ingest(m.tag.clone(), TagValue::Bool(false), TagQuality::Bad).await;
         }
     }
 }
@@ -71,7 +71,7 @@ async fn run_session(
                     for state in states {
                         if let Some(mapping) = entity_map.get(&state.entity_id) {
                             if let Some(val) = parse_ha_state(&state.state, &state.attributes, mapping) {
-                                db.set(mapping.tag.clone(), val, TagQuality::Good).await;
+                                db.ingest(mapping.tag.clone(), val, TagQuality::Good).await;
                             }
                         }
                     }
@@ -156,7 +156,7 @@ async fn run_session(
                         });
                         msg_id += 1;
                         write.send(Message::Text(payload.to_string().into())).await?;
-                        db.set(tag, value, TagQuality::Good).await;
+                        db.ingest(tag, value, TagQuality::Good).await;
                     }
                 }
             }
@@ -194,7 +194,7 @@ async fn handle_event(text: &str, db: &Arc<TagDb>, entity_map: &HashMap<String, 
 
     if let Some(val) = parse_ha_state(state_str, attributes, mapping) {
         debug!(tag = %mapping.tag, entity = %entity_id, "HA state_changed");
-        db.set(mapping.tag.clone(), val, TagQuality::Good).await;
+        db.ingest(mapping.tag.clone(), val, TagQuality::Good).await;
     }
 }
 

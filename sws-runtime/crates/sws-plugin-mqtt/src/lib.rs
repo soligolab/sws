@@ -47,7 +47,7 @@ pub async fn run(cfg: MqttConfig, db: Arc<TagDb>, bus: Arc<TagWriteBus>, cancel:
                 if cancel.is_cancelled() { break; }
                 warn!(source = %cfg.id, "MQTT session ended: {e:#} — retry in 5s");
                 for topic in &cfg.topics {
-                    db.set(topic.tag.clone(), TagValue::Float(0.0), TagQuality::Bad).await;
+                    db.ingest(topic.tag.clone(), TagValue::Float(0.0), TagQuality::Bad).await;
                 }
                 tokio::select! {
                     _ = cancel.cancelled() => break,
@@ -199,7 +199,7 @@ async fn run_session(
                 } else {
                     // Echo back into TagDb so the UI updates immediately, before
                     // any return-trip on the subscribe topic.
-                    db.set(tag.clone(), value, TagQuality::Good).await;
+                    db.ingest(tag.clone(), value, TagQuality::Good).await;
                     info!(source = %cfg.id, %tag, %pt, payload, "MQTT publish");
                 }
             }
@@ -224,7 +224,7 @@ async fn run_session(
                                 value = %stringify(&value),
                                 "MQTT recv",
                             );
-                            db.set(topic.tag.clone(), value, TagQuality::Good).await;
+                            db.ingest(topic.tag.clone(), value, TagQuality::Good).await;
                             matched = true;
                         }
                     }

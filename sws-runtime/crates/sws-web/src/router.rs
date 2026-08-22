@@ -120,6 +120,19 @@ pub struct AppState {
     pub deploy_lock: Arc<tokio::sync::Mutex<()>>,
 }
 
+/// F3.1: la scrittura di `tag` è consentita a `role`? La mappa per-tag vive
+/// in TagDb (riempita con lo scaling a open/import/PUT-tags); un tag senza
+/// `write_min_role` segue la regola storica (Operator+).
+pub(crate) async fn tag_write_allowed(db: &sws_core::TagDb, tag: &str, role: sws_auth::Role) -> bool {
+    let min = match db.write_role_of(tag).await.as_deref() {
+        Some("Viewer") => sws_auth::Role::Viewer,
+        Some("Supervisor") => sws_auth::Role::Supervisor,
+        Some("Admin") => sws_auth::Role::Admin,
+        Some(_) | None => sws_auth::Role::Operator,
+    };
+    role >= min
+}
+
 /// Resolve the active project directory or return 503. Used at the top
 /// of every handler that needs a project dir (most of them).
 pub async fn active_dir(state: &AppState) -> Result<PathBuf, StatusCode> {
@@ -414,6 +427,7 @@ pub fn build(
         .route("/api/auth/whoami",          get(whoami))
         .route("/api/auth/logout",          post(logout))
         .route("/api/auth/change-password", post(change_password))
+        .route("/api/auth/verify-password", post(verify_password_handler))
         .route("/api/auth/refresh",         post(refresh_session));
 
     let protected = blocking
@@ -578,6 +592,7 @@ fn build_runtime_inner(state: AppState, www_dir: Option<PathBuf>, lockdown: bool
         .route("/api/auth/whoami",          get(whoami))
         .route("/api/auth/logout",          post(logout))
         .route("/api/auth/change-password", post(change_password))
+        .route("/api/auth/verify-password", post(verify_password_handler))
         .route("/api/auth/refresh",         post(refresh_session));
 
     // Wrap all gated routes with optional_auth so every request has AuthUser.
@@ -976,6 +991,31 @@ async fn delete_user(
     }
 }
 
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)] // Q9
+struct VerifyPasswordBody { password: String }
+
+/// `POST /api/auth/verify-password` — re-autenticazione per i comandi
+/// critici (F3.3): conferma che chi sta al terminale è ancora il titolare
+/// della sessione, senza emettere token nuovi. Condivide il lockout del
+/// login. In no-auth mode risponde 204 (nessuna password esiste).
+async fn verify_password_handler(
+    State(s): State<AppState>,
+    Extension(user): Extension<AuthUser>,
+    Json(body): Json<VerifyPasswordBody>,
+) -> StatusCode {
+    if !s.auth.has_users().await {
+        return StatusCode::NO_CONTENT;
+    }
+    if s.auth.verify_user_password(&user.username, &body.password).await {
+        s.audit.log("auth.reverify", Some(user.username), serde_json::json!({"ok": true}));
+        StatusCode::NO_CONTENT
+    } else {
+        s.audit.log("auth.reverify", Some(user.username), serde_json::json!({"ok": false}));
+        StatusCode::FORBIDDEN
+    }
+}
+
 async fn change_password(
     State(s): State<AppState>,
     req: Request,
@@ -1030,7 +1070,13 @@ async fn get_tag(State(s): State<AppState>, Path(id): Path<String>) -> impl Into
 }
 
 #[derive(Deserialize)]
-struct WriteTagBody { value: TagValue }
+#[serde(deny_unknown_fields)] // Q9
+struct WriteTagBody {
+    value: TagValue,
+    /// F3.3: motivo del comando (comandi critici) — finisce nell'audit.
+    #[serde(default)]
+    reason: Option<String>,
+}
 
 async fn write_tag(
     State(s): State<AppState>,
@@ -1038,11 +1084,23 @@ async fn write_tag(
     Path(id): Path<String>,
     Json(body): Json<WriteTagBody>,
 ) -> StatusCode {
-    s.audit.log("tag.write", Some(user.username), serde_json::json!({"tag": id.clone(), "value": body.value.clone()}));
+    // F3.1: ruolo minimo di scrittura per-tag (default storico: Operator+,
+    // già garantito dal layer di route — qui si applica l'eventuale soglia
+    // più alta dichiarata sul TagDef).
+    if !tag_write_allowed(&s.db, &id, user.role).await {
+        s.audit.log("tag.write_denied", Some(user.username), serde_json::json!({"tag": id.clone(), "role": user.role.as_str()}));
+        return StatusCode::FORBIDDEN;
+    }
+    s.audit.log("tag.write", Some(user.username), serde_json::json!({
+        "tag": id.clone(), "value": body.value.clone(), "reason": body.reason,
+    }));
     // Prefer routing through a plugin (so the value is pushed to the device).
     // If no plugin owns the tag (purely virtual / scripted tags), fall back to
     // setting the TagDb directly so the UI write path keeps working.
-    match s.bus.write(&id, body.value.clone()).await {
+    // F1: verso il device viaggia il valore RAW (scaling inverso); il
+    // fallback TagDb resta in unità ingegneristiche (nessuno lo ri-scala).
+    let raw = s.db.scale_to_raw(&id, body.value.clone()).await;
+    match s.bus.write(&id, raw).await {
         Ok(()) => StatusCode::ACCEPTED,
         Err(WriteError::NoWriter(_)) => {
             s.db.set(id, body.value, TagQuality::Good).await;
@@ -1109,7 +1167,14 @@ struct HistoryQuery {
     from: Option<u64>,
     to:   Option<u64>,
     /// If provided, returns at most the last `limit` samples in the range.
+    /// Legacy: tronca la coda senza decimare — per le finestre lunghe usare
+    /// `bucket_ms` (F5.1), che aggrega invece di buttare l'inizio.
     limit: Option<usize>,
+    /// F5.1: ampiezza del bucket di aggregazione in ms. Quando presente la
+    /// risposta è `Vec<BucketSample>` (ts_ms/min/max/avg/first/last/count)
+    /// invece di `Vec<Sample>` — ~un bucket per pixel qualunque sia la
+    /// finestra, con la banda min/max che preserva i picchi.
+    bucket_ms: Option<u64>,
     /// When true, transparently backfills from the OPC-UA server's historian
     /// for any tag that originates from an OPC-UA source. Merged with and
     /// deduplicated against the local historian samples.
@@ -1121,11 +1186,18 @@ async fn get_history(
     State(s): State<AppState>,
     Path(tag): Path<String>,
     Query(q): Query<HistoryQuery>,
-) -> Json<Vec<Sample>> {
+) -> Response {
     let mut samples = s.historian.query(&tag, q.from, q.to).await;
 
     if q.backfill {
         samples = opcua_backfill_history(&s, &tag, q.from, q.to, samples).await;
+    }
+
+    if let Some(bucket_ms) = q.bucket_ms {
+        if bucket_ms == 0 {
+            return (StatusCode::BAD_REQUEST, "bucket_ms must be > 0").into_response();
+        }
+        return Json(sws_historian::aggregate_samples(&samples, bucket_ms)).into_response();
     }
 
     if let Some(n) = q.limit {
@@ -1133,7 +1205,7 @@ async fn get_history(
             samples = samples.split_off(samples.len() - n);
         }
     }
-    Json(samples)
+    Json(samples).into_response()
 }
 
 // ── Feature #4: CSV export ────────────────────────────────────────────────────
@@ -2007,6 +2079,9 @@ async fn update_project_tags(
     let derived: Vec<(String, String)> = tags.iter()
         .filter_map(|t| t.expression.as_ref().map(|e| (t.id.clone(), e.clone())))
         .collect();
+    // F1/F3.1: scaling e ruoli di scrittura seguono ogni modifica delle variabili.
+    let scales = crate::projects::build_tag_scales(&tags);
+    let write_roles = crate::projects::build_tag_write_roles(&tags);
 
     let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
     let res = patch_project(&dir, |p| p.tags = tags).await;
@@ -2020,6 +2095,8 @@ async fn update_project_tags(
         s.db.remove(id).await;
     }
     *s.derived_tags.write().await = derived;
+    s.db.set_scales(scales).await;
+    s.db.set_write_roles(write_roles).await;
     res
 }
 
@@ -2087,6 +2164,10 @@ async fn import_tags_csv(
             history_deadband: None,
             history_min_interval_ms: None,
             expression: expr_col.map(|i| get(i).to_string()).filter(|s| !s.is_empty()),
+            unit: None, decimals: None,
+            raw_min: None, raw_max: None, eng_min: None, eng_max: None,
+            range_lo: None, range_hi: None, write_min_role: None,
+            limit_lo_lo: None, limit_lo: None, limit_hi: None, limit_hi_hi: None,
         };
         let _ = line_no; // suppress warning
         imported.push(tag);
@@ -2679,6 +2760,8 @@ async fn import_project_zip(State(s): State<AppState>, body: Bytes) -> Response 
     for id in current_ids.difference(&new_ids) {
         s.db.remove(id).await;
     }
+    s.db.set_scales(crate::projects::build_tag_scales(&project.tags)).await;
+    s.db.set_write_roles(crate::projects::build_tag_write_roles(&project.tags)).await;
     s.alarms.load(project.alarms.clone()).await;
     crate::projects::resolve_mqtt_client_ids(&project.meta.name, &mut project.sources, &s.config_dir, &s.instance_id);
     s.supervisor.reload(project.sources.clone()).await;
@@ -3458,7 +3541,8 @@ async fn apply_recipe(
                 continue;
             }
         };
-        match s.bus.write(&sp.tag, tv.clone()).await {
+        let raw = s.db.scale_to_raw(&sp.tag, tv.clone()).await;
+        match s.bus.write(&sp.tag, raw).await {
             Ok(()) => applied += 1,
             Err(WriteError::NoWriter(_)) => {
                 s.db.set(sp.tag.clone(), tv, TagQuality::Good).await;
@@ -3707,7 +3791,14 @@ async fn handle_ws(socket: WebSocket, db: Arc<TagDb>, bus: Arc<TagWriteBus>, rol
                             let _ = out_tx.send(Message::Text(serde_json::to_string(&ack).unwrap_or_default())).await;
                             continue;
                         }
-                        let (ok, err) = match bus.write(&tag, value.clone()).await {
+                        // F3.1: soglia per-tag (TagDef.write_min_role) sopra la regola storica.
+                        if !tag_write_allowed(&db, &tag, role).await {
+                            let ack = WriteAck { ty: "ack", req_id, tag, ok: false, error: Some("forbidden: ruolo insufficiente per questo tag".into()) };
+                            let _ = out_tx.send(Message::Text(serde_json::to_string(&ack).unwrap_or_default())).await;
+                            continue;
+                        }
+                        let raw = db.scale_to_raw(&tag, value.clone()).await;
+                        let (ok, err) = match bus.write(&tag, raw).await {
                             Ok(()) => (true, None),
                             Err(WriteError::NoWriter(_)) => {
                                 db.set(tag.clone(), value, TagQuality::Good).await;

@@ -380,6 +380,8 @@ function TagsTab() {
   const [saving, setSaving]     = useState(false);
   const [saved, setSaved]       = useState(false);
   const [exprOpen, setExprOpen] = useState<Set<number>>(new Set());
+  // F1: riga espandibile "⚙" con unità/decimali/scaling/range/limiti per tag.
+  const [metaOpen, setMetaOpen] = useState<Set<number>>(new Set());
   const [showImport, setShowImport] = useState(false);
   const [importText, setImportText] = useState("");
   const [importMsg, setImportMsg]   = useState<string | null>(null);
@@ -407,6 +409,21 @@ function TagsTab() {
       else next.add(idx);
       return next;
     });
+
+  const toggleMeta = (idx: number) =>
+    setMetaOpen((prev) => {
+      const next = new Set(prev);
+      if (next.has(idx)) next.delete(idx);
+      else next.add(idx);
+      return next;
+    });
+
+  /** True se il tag definisce almeno un campo F1 (unità/scaling/range/limiti). */
+  const hasMeta = (t: TagDef) =>
+    t.unit !== undefined || t.decimals !== undefined || t.write_min_role !== undefined ||
+    t.raw_min !== undefined || t.raw_max !== undefined || t.eng_min !== undefined || t.eng_max !== undefined ||
+    t.range_lo !== undefined || t.range_hi !== undefined ||
+    t.limit_lo_lo !== undefined || t.limit_lo !== undefined || t.limit_hi !== undefined || t.limit_hi_hi !== undefined;
 
   const handleSave = async () => {
     const valid = tags.filter((t) => t.id.trim() !== "");
@@ -624,9 +641,83 @@ function TagsTab() {
                   >
                     λ
                   </button>
+                  <button
+                    style={{
+                      ...S.btn("ghost"),
+                      marginRight: 4,
+                      color: hasMeta(tag) ? "#38bdf8" : "var(--brand-border, #475569)",
+                      fontWeight: "bold",
+                    }}
+                    title={t("cfg.tagMeta")}
+                    onClick={() => toggleMeta(i)}
+                  >
+                    ⚙
+                  </button>
                   <button style={S.btn("danger")} onClick={() => removeTag(i)}>✕</button>
                 </td>
               </tr>
+              {metaOpen.has(i) && (
+                <tr style={{ background: "#0a1628" }}>
+                  <td colSpan={7} style={{ ...S.td, paddingTop: 6, paddingBottom: 8 }}>
+                    {(() => {
+                      const numCell = (label: string, key: keyof TagDef, ph = "") => (
+                        <label style={{ display: "flex", flexDirection: "column", gap: 2, fontSize: 10, color: "var(--brand-text-subtle, #64748b)", width: 90 }}>
+                          {label}
+                          <input
+                            style={{ ...S.input, fontSize: 12 }}
+                            type="number" placeholder={ph}
+                            value={(tag[key] as number | undefined) ?? ""}
+                            onChange={(e) => updateTag(i, { [key]: e.target.value === "" ? undefined : Number(e.target.value) } as Partial<TagDef>)}
+                          />
+                        </label>
+                      );
+                      return (
+                        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end" }}>
+                            <label style={{ display: "flex", flexDirection: "column", gap: 2, fontSize: 10, color: "var(--brand-text-subtle, #64748b)", width: 90 }}>
+                              {t("cfg.tagUnit")}
+                              <input style={{ ...S.input, fontSize: 12 }} placeholder="°C, bar…"
+                                value={tag.unit ?? ""}
+                                onChange={(e) => updateTag(i, { unit: e.target.value || undefined })} />
+                            </label>
+                            {numCell(t("cfg.tagDecimals"), "decimals", "1")}
+                            {numCell("Range lo", "range_lo")}
+                            {numCell("Range hi", "range_hi")}
+                            <label style={{ display: "flex", flexDirection: "column", gap: 2, fontSize: 10, color: "var(--brand-text-subtle, #64748b)", width: 120 }}>
+                              {t("cfg.tagWriteRole")}
+                              <select style={{ ...S.input, fontSize: 12, cursor: "pointer" }}
+                                value={tag.write_min_role ?? ""}
+                                onChange={(e) => updateTag(i, { write_min_role: (e.target.value || undefined) as TagDef["write_min_role"] })}>
+                                <option value="">Operator (default)</option>
+                                <option value="Viewer">Viewer</option>
+                                <option value="Supervisor">Supervisor</option>
+                                <option value="Admin">Admin</option>
+                              </select>
+                            </label>
+                          </div>
+                          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end" }}>
+                            <span style={{ fontSize: 10, color: "#38bdf8", width: 90, alignSelf: "center" }}>{t("cfg.tagScaling")}</span>
+                            {numCell("Raw min", "raw_min")}
+                            {numCell("Raw max", "raw_max")}
+                            {numCell("Eng min", "eng_min")}
+                            {numCell("Eng max", "eng_max")}
+                          </div>
+                          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end" }}>
+                            <span style={{ fontSize: 10, color: "#f59e0b", width: 90, alignSelf: "center" }}>{t("cfg.tagLimits")}</span>
+                            {numCell("Lo-Lo", "limit_lo_lo")}
+                            {numCell("Lo", "limit_lo")}
+                            {numCell("Hi", "limit_hi")}
+                            {numCell("Hi-Hi", "limit_hi_hi")}
+                          </div>
+                          <div style={{ fontSize: 10, color: "var(--brand-border, #475569)" }}>
+                            {t("cfg.tagMetaHint")}
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </td>
+                </tr>
+              )}
               {(exprOpen.has(i) || !!tag.expression) && (
                 <tr style={{ background: "#0a1628" }}>
                   <td colSpan={7} style={{ ...S.td, paddingTop: 4, paddingBottom: 6 }}>

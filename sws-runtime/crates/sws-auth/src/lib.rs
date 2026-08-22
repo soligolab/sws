@@ -508,6 +508,25 @@ impl AuthState {
         })
     }
 
+    /// Re-verifica la password dell'utente SENZA emettere una sessione nuova
+    /// (F3.3, comandi critici: "sei ancora tu?"). Condivide il lockout del
+    /// login: anche qui i tentativi falliti contano e bloccano.
+    pub async fn verify_user_password(&self, username: &str, password: &str) -> bool {
+        if self.check_lockout(username).await.is_some() {
+            return false;
+        }
+        let ok = match self.users.read().await.get(username) {
+            Some(u) => verify_password(password, &u.password_hash),
+            None => false,
+        };
+        if ok {
+            self.failures.write().await.remove(username);
+        } else {
+            self.record_failure(username).await;
+        }
+        ok
+    }
+
     /// Returns the session info if the token is valid AND not expired.
     /// Slides the TTL on success (rolling refresh).
     pub async fn validate(&self, token: &str) -> Option<SessionInfo> {
