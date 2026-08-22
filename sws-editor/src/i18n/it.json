@@ -724,7 +724,9 @@
     "blinkTagField": "Tag lampeggio",
     "blinkRate": "Periodo lampeggio (ms)",
     "kpiWindow": "Finestra confronto (s)",
-    "pageSize": "Righe per pagina"
+    "pageSize": "Righe per pagina",
+    "paramRequired": "Parametro obbligatorio",
+    "faceplateScale": "Scala i figli al box"
   },
   "shortcut": {
     "navCanvas": "Navigazione canvas",

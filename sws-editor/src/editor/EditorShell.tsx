@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
-import { QDOT_BUILTIN_TYPES, SvgCanvas, type CanvasViewApi } from "@/canvas/SvgCanvas";
+import { QDOT_BUILTIN_TYPES, SvgCanvas, normalizeFaceplateParams, type CanvasViewApi } from "@/canvas/SvgCanvas";
 import { PALETTE } from "@/canvas/TrendCanvas";
 import { resolvePageBackground } from "@/theme";
 import { EditorToolbar } from "@/editor/EditorToolbar";
@@ -3449,17 +3449,43 @@ function ObjectProps({
                 <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", marginTop: 6, marginBottom: 2, fontWeight: 700, letterSpacing: 0.5 }}>
                   {t("props.faceplateParams")}
                 </div>
-                {defn.params.map((p) => (
-                  <div key={p}>
-                    <div style={LABEL}>{p}</div>
-                    <input
-                      type="text" style={INPUT}
-                      value={obj.faceplate_params?.[p] ?? ""}
-                      onChange={(e) => onChange({ faceplate_params: { ...(obj.faceplate_params ?? {}), [p]: e.target.value } })}
-                    />
-                  </div>
-                ))}
+                {normalizeFaceplateParams(defn).map((p) => {
+                  const val = obj.faceplate_params?.[p.name] ?? "";
+                  const missing = !!p.required && val.trim() === "" && (p.default === undefined || p.default === "");
+                  const setVal = (v: string) => onChange({ faceplate_params: { ...(obj.faceplate_params ?? {}), [p.name]: v } });
+                  const style = { ...INPUT, borderColor: missing ? "var(--brand-danger, #ef4444)" : undefined };
+                  return (
+                    <div key={p.name}>
+                      <div style={LABEL}>
+                        {p.name}{p.required ? " *" : ""}{p.type ? ` (${p.type})` : ""}
+                      </div>
+                      {p.type === "tag" ? (
+                        <TagInput style={style} placeholder={p.default ?? ""} value={val} onChange={setVal} />
+                      ) : p.type === "color" ? (
+                        <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+                          <input type="color" value={val || p.default || "#3b82f6"}
+                            onChange={(e) => setVal(e.target.value)}
+                            style={{ width: 40, height: 26, padding: 1, border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 3 }} />
+                          <input type="text" style={{ ...style, flex: 1 }} placeholder={p.default ?? ""} value={val}
+                            onChange={(e) => setVal(e.target.value)} />
+                        </div>
+                      ) : (
+                        <input type={p.type === "number" ? "number" : "text"} style={style}
+                          placeholder={p.default ?? ""} value={val}
+                          onChange={(e) => setVal(e.target.value)} />
+                      )}
+                      {missing && (
+                        <div style={{ fontSize: 10, color: "var(--brand-danger-soft, #fca5a5)" }}>{t("props.paramRequired")}</div>
+                      )}
+                    </div>
+                  );
+                })}
               </>
+            )}
+            {/* F6.4: scaling dei figli al box dell'istanza (opt-in) */}
+            {defn && field(t("props.faceplateScale"),
+              <input type="checkbox" checked={!!obj.faceplate_scale}
+                onChange={(e) => onChange({ faceplate_scale: e.target.checked || undefined })} />
             )}
           </>
         );

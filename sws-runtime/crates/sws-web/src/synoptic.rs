@@ -273,6 +273,8 @@ pub struct SynopticObject {
     // Faceplate instance (type === "faceplate") — same pre-existing gap.
     #[serde(skip_serializing_if = "Option::is_none")] pub faceplate_id:          Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")] pub faceplate_params:      Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub faceplate_scale:       Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub faceplate_overrides:   Option<Value>,
     // Text list (type === "text_list") — same pre-existing gap.
     #[serde(skip_serializing_if = "Option::is_none")] pub text_list_entries:       Option<Value>,
     #[serde(skip_serializing_if = "Option::is_none")] pub text_list_default:       Option<String>,
@@ -308,9 +310,10 @@ pub struct SynopticObject {
 pub struct FaceplateDef {
     pub id: String,
     pub label: String,
-    /// Parameter names the faceplate exposes (e.g. ["tag_prefix", "label"]).
+    /// Parametri del faceplate (F6.2): stringa nuda (forma storica) oppure
+    /// oggetto tipizzato {name, type, default, required}. Passthrough opaco.
     #[serde(default)]
-    pub params: Vec<String>,
+    pub params: Vec<serde_json::Value>,
     /// Template objects. Positions are relative to the faceplate origin (0,0).
     #[serde(default)]
     pub objects: Vec<serde_json::Value>,

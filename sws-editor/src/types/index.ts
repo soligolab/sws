@@ -479,6 +479,13 @@ export interface SynopticObject {
   faceplate_id?: string;
   /** Parameter values substituted into the faceplate template (e.g. {tag_prefix: "pump1"}). */
   faceplate_params?: Record<string, string>;
+  /** F6.4: i figli scalano al box dell'istanza (viewBox virtuale dal bbox
+   *  della definizione). Opt-in: default false = coordinate assolute storiche. */
+  faceplate_scale?: boolean;
+  /** F6.4: override per-istanza di proprietà dei figli, per id figlio
+   *  (es. { "obj-3": { fill: "#f00" } }) — applicati DOPO la sostituzione
+   *  parametri ("link spezzato" rispetto al template). */
+  faceplate_overrides?: Record<string, Partial<SynopticObject>>;
   // ── Text List (type === "text_list") ──────────────────────────────────
   text_list_entries?: TextListEntry[];
   text_list_default?: string;
@@ -533,11 +540,21 @@ export interface SynopticObject {
 
 /** A reusable parametric component. `objects` may contain `{param}` placeholders
  *  in tag/label/text fields which are replaced at render-time per instance. */
+/** Parametro tipizzato di un faceplate (F6.2). La forma storica (stringa
+ *  nuda = solo nome) resta valida. */
+export interface FaceplateParamDef {
+  name: string;
+  /** Guida la UI dell'istanza: TagInput, colore, numero o testo libero. */
+  type?: "tag" | "string" | "number" | "color";
+  default?: string;
+  required?: boolean;
+}
+
 export interface FaceplateDef {
   id: string;
   label: string;
   /** Names of parameters the faceplate accepts (e.g. ["tag_prefix", "label"]). */
-  params: string[];
+  params: (string | FaceplateParamDef)[];
   /** Template objects. Position is relative to the faceplate origin (0,0). */
   objects: SynopticObject[];
 }

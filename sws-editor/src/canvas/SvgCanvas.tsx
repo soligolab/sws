@@ -16,7 +16,7 @@ import { effectiveProjectLang, resolveMsg } from "@/i18n/projectI18n";
 import { evalExpr } from "@/expr/engine";
 import { SYMBOLS } from "@/symbols/library";
 import { clampToPage } from "@/pageLayout";
-import type { AlarmSeverity, AlarmState, CustomSymbol, FaceplateDef, GridCell, PageSizeMode, PipePoint, Sample, SynopticObject, TagDef, TagState, TextListEntry } from "@/types";
+import type { AlarmSeverity, AlarmState, CustomSymbol, FaceplateDef, FaceplateParamDef, GridCell, PageSizeMode, PipePoint, Sample, SynopticObject, TagDef, TagState, TextListEntry } from "@/types";
 
 // ── Canvas props ──────────────────────────────────────────────────────────────
 
@@ -2380,19 +2380,78 @@ function AlarmViewerWidget({ width, height, mode, maxRows, prefix, allowedSev, s
  *  definition's `objects` the same way a placed `faceplate` instance does,
  *  without an instance's real `faceplate_params` (it passes placeholder
  *  values instead, one per declared param name). */
+/** Campi strutturali che la sostituzione NON deve toccare: identità e
+ *  riferimenti che parametrizzare romperebbe (id oggetto, tipo, gruppo,
+ *  riferimento alla definizione del faceplate stesso). */
+const FACEPLATE_SUB_EXCLUDE = new Set(["id", "type", "group_id", "faceplate_id"]);
+
+/** F6.1 — sostituzione parametri su TUTTI i campi stringa, ricorsiva.
+ *  Prima toccava solo tag/label/name/text: un faceplate pompa reale con
+ *  `state_tag: "{p}.running"`, binding `{p}.mode` o soglie nelle celle grid
+ *  non funzionava. Il walker attraversa oggetti e array (bindings, grid_cells,
+ *  table_rows, faceplate_params annidati → pass-through dei parametri ai
+ *  faceplate figli); un valore senza `{` passa per identità (niente copie). */
 export function substituteFaceplateParams(
   child: SynopticObject,
   params: Record<string, string>,
 ): SynopticObject {
-  const subStr = (s: string | undefined) =>
-    s ? s.replace(/\{(\w+)\}/g, (_, k) => params[k] ?? `{${k}}`) : s;
-  return {
-    ...child,
-    tag: subStr(child.tag),
-    label: subStr(child.label),
-    name: subStr(child.name),
-    text: subStr(child.text),
+  if (Object.keys(params).length === 0) return child;
+  const subStr = (s: string) => s.replace(/\{(\w+)\}/g, (_, k) => params[k] ?? `{${k}}`);
+  const walk = (v: unknown): unknown => {
+    if (typeof v === "string") return v.indexOf("{") >= 0 ? subStr(v) : v;
+    if (Array.isArray(v)) {
+      let changed = false;
+      const out = v.map((x) => { const nx = walk(x); if (nx !== x) changed = true; return nx; });
+      return changed ? out : v;
+    }
+    if (v && typeof v === "object") {
+      let changed = false;
+      const out: Record<string, unknown> = {};
+      for (const [k, val] of Object.entries(v)) {
+        const nv = FACEPLATE_SUB_EXCLUDE.has(k) ? val : walk(val);
+        out[k] = nv;
+        if (nv !== val) changed = true;
+      }
+      return changed ? out : v;
+    }
+    return v;
   };
+  return walk(child) as SynopticObject;
+}
+
+/** F6.2 — normalizza i parametri di una definizione (stringa nuda → oggetto). */
+export function normalizeFaceplateParams(def: FaceplateDef): FaceplateParamDef[] {
+  return (def.params ?? []).map((p) => (typeof p === "string" ? { name: p } : p));
+}
+
+/** F6.2 — parametri effettivi di un'istanza: valori dell'istanza + default
+ *  della definizione per i parametri non forniti. */
+export function effectiveFaceplateParams(
+  def: FaceplateDef,
+  instance: Record<string, string> | undefined,
+): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const p of normalizeFaceplateParams(def)) {
+    const v = instance?.[p.name];
+    if (v !== undefined && v !== "") out[p.name] = v;
+    else if (p.default !== undefined) out[p.name] = p.default;
+  }
+  // Chiavi extra dell'istanza (parametri rimossi dalla def): passano comunque,
+  // così un template rinominato non rompe in silenzio la sostituzione.
+  for (const [k, v] of Object.entries(instance ?? {})) {
+    if (!(k in out) && v !== "") out[k] = v;
+  }
+  return out;
+}
+
+/** F6.4 — bbox della definizione (per lo scaling al box dell'istanza). */
+export function faceplateDefBBox(def: FaceplateDef): { w: number; h: number } {
+  let w = 0, h = 0;
+  for (const c of def.objects) {
+    w = Math.max(w, (c.x ?? 0) + (c.width ?? 100));
+    h = Math.max(h, (c.y ?? 0) + (c.height ?? 50));
+  }
+  return { w: Math.max(1, w), h: Math.max(1, h) };
 }
 
 export function SvgObject(p: ObjProps) {
@@ -4984,7 +5043,8 @@ export function SvgObject(p: ObjProps) {
   // ── Faceplate instance ────────────────────────────────────────────────────
   if (obj.type === "faceplate") {
     const defn = faceplates.find((f) => f.id === obj.faceplate_id);
-    const params = obj.faceplate_params ?? {};
+    // F6.2: i default della definizione riempiono i parametri non forniti.
+    const params = defn ? effectiveFaceplateParams(defn, obj.faceplate_params) : (obj.faceplate_params ?? {});
     const w = obj.width ?? 120;
     const h = obj.height ?? 80;
 
@@ -5005,7 +5065,21 @@ export function SvgObject(p: ObjProps) {
     }
 
     // Substitute `{param}` placeholders in all string fields of a child object.
-    const substituteParams = (child: SynopticObject) => substituteFaceplateParams(child, params);
+    // F6.4: gli override per-istanza si applicano DOPO la sostituzione
+    // ("link spezzato" rispetto al template, per singolo figlio).
+    const substituteParams = (child: SynopticObject) => {
+      const sub = substituteFaceplateParams(child, params);
+      const over = obj.faceplate_overrides?.[child.id];
+      return over ? { ...sub, ...over, id: sub.id, type: sub.type } : sub;
+    };
+    // F6.4: scaling opzionale dei figli al box dell'istanza (uniforme sui due
+    // assi per non distorcere i testi... no: viewBox-like, assi indipendenti,
+    // come uno <svg> con preserveAspectRatio="none" — è ciò che l'utente
+    // vede ridimensionando il box). Opt-in per retro-compatibilità.
+    const defBox = defn ? faceplateDefBBox(defn) : { w, h };
+    const scaleTf = obj.faceplate_scale
+      ? ` scale(${(w / defBox.w).toFixed(4)}, ${(h / defBox.h).toFixed(4)})`
+      : "";
 
     if (isEditMode) {
       // Edit mode: render the faceplate's own children (same substituteParams
@@ -5020,7 +5094,7 @@ export function SvgObject(p: ObjProps) {
         <>
           {selRect(obj.x, obj.y, w, h)}
           {bgLayer(obj.x, obj.y, w, h, 4)}
-          <g transform={`translate(${obj.x}, ${obj.y})`} style={{ pointerEvents: "none" }}>
+          <g transform={`translate(${obj.x}, ${obj.y})${scaleTf}`} style={{ pointerEvents: "none" }}>
             {defn.objects.map((child, i) => {
               const resolved = substituteParams(child);
               return (
@@ -5053,8 +5127,8 @@ export function SvgObject(p: ObjProps) {
 
     // View mode: render child objects with param substitution at (obj.x, obj.y) offset
     return (
-      <g transform={`translate(${obj.x}, ${obj.y})`} style={{ cursor: "default" }}>
-        {bgLayer(0, 0, w, h, 4)}
+      <g transform={`translate(${obj.x}, ${obj.y})${scaleTf}`} style={{ cursor: "default" }}>
+        {bgLayer(0, 0, obj.faceplate_scale ? defBox.w : w, obj.faceplate_scale ? defBox.h : h, 4)}
         {defn.objects.map((child, i) => {
           const resolved = substituteParams(child);
           return (

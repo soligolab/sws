@@ -11,6 +11,7 @@ import { PythonEditor, type PythonEditorHandle } from "@/components/PythonEditor
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { UiLangSelect } from "@/components/UiLangSelect";
 import { SvgObject, substituteFaceplateParams } from "@/canvas/SvgCanvas";
+import type { FaceplateParamDef } from "@/types";
 import { selectIsDirty, useAppStore } from "@/store";
 import { sourceTagIds } from "@/tagCatalog";
 import { canConfigureProject } from "@/auth/permissions";
@@ -6571,8 +6572,9 @@ function GlobalScriptsTab() {
 // (e.g. `{tag_prefix}` → "tag_prefix"), and no live tag data (`tagValues={}}`).
 function FaceplatePreview({
   objects, params, faceplates,
-}: { objects: SynopticObject[]; params: string[]; faceplates: FaceplateDef[] }) {
-  const dummyParams = Object.fromEntries(params.map((p) => [p, p]));
+}: { objects: SynopticObject[]; params: (string | FaceplateParamDef)[]; faceplates: FaceplateDef[] }) {
+  const dummyParams = Object.fromEntries(params.map((p) =>
+    typeof p === "string" ? [p, p] : [p.name, p.default ?? p.name]));
 
   const PADDING = 12;
   const bbox = objects.reduce((acc, o) => {
@@ -6764,11 +6766,21 @@ function FaceplatesTab() {
               </div>
               <div style={{ marginBottom: 16 }}>
                 <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 }}>
-                  Parametri (uno per riga, es. <code>tag_prefix</code>, <code>label</code>)
+                  Parametri (uno per riga): <code>nome</code> oppure <code>nome:tipo=default!</code> — tipo tag/string/number/color, <code>!</code> = obbligatorio
                 </label>
                 <textarea
-                  value={current.params.join("\n")}
-                  onChange={(e) => updateCurrent({ params: e.target.value.split("\n").map(s => s.trim()).filter(Boolean) })}
+                  value={current.params.map((p) => {
+                    if (typeof p === "string") return p;
+                    return `${p.name}${p.type ? `:${p.type}` : ""}${p.default !== undefined ? `=${p.default}` : ""}${p.required ? "!" : ""}`;
+                  }).join("\n")}
+                  onChange={(e) => updateCurrent({ params: e.target.value.split("\n").map(s => s.trim()).filter(Boolean).map((line) => {
+                    const m = /^(\w+)(?::(tag|string|number|color))?(?:=([^!]*))?(!)?$/.exec(line);
+                    if (!m) return line; // riga non parsabile: resta stringa nuda
+                    const [, name, type, dflt, req] = m;
+                    if (!type && dflt === undefined && !req) return name;
+                    return { name, ...(type ? { type: type as "tag" | "string" | "number" | "color" } : {}),
+                             ...(dflt !== undefined ? { default: dflt } : {}), ...(req ? { required: true } : {}) };
+                  }) })}
                   style={{ ...S.input, height: 80, resize: "vertical", fontFamily: "monospace", fontSize: 12 }}
                   spellCheck={false}
                 />

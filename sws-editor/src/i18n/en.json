@@ -724,7 +724,9 @@
     "blinkTagField": "Blink tag",
     "blinkRate": "Blink period (ms)",
     "kpiWindow": "Compare window (s)",
-    "pageSize": "Rows per page"
+    "pageSize": "Rows per page",
+    "paramRequired": "Required parameter",
+    "faceplateScale": "Scale children to box"
   },
   "shortcut": {
     "navCanvas": "Canvas navigation",
