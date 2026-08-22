@@ -4,6 +4,7 @@ import { api } from "@/api/client";
 import { useAppStore } from "@/store";
 import { useAlarmStream } from "@/ws/alarmStream";
 import { SEV_COLOR } from "@/alarmSeverity";
+import { effectiveProjectLang, resolveMsg } from "@/i18n/projectI18n";
 import type { AlarmSeverity, AlarmState, IsaState } from "@/types";
 
 // Blinking animation only for active-unacked (the most urgent state).
@@ -42,6 +43,10 @@ export function AlarmBanner({ idPrefix = "", allowedSev }: AlarmBannerProps = {}
   useAlarmStream();
 
   const alarms = useAppStore((s) => s.alarms);
+  // F1.3: i messaggi di allarme risolvono i token {{...}} come ogni altro testo.
+  const langTable = useAppStore((s) => s.project?.languages);
+  const projLang = useAppStore((s) => s.projectLang);
+  const msgLang = effectiveProjectLang(langTable) || projLang;
   const updateAlarm = useAppStore((s) => s.updateAlarm);
   const authUser = useAppStore((s) => s.authUser);
 
@@ -117,7 +122,7 @@ export function AlarmBanner({ idPrefix = "", allowedSev }: AlarmBannerProps = {}
               <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                 <strong style={{ color }}>{a.def.id}</strong>
                 {" — "}
-                {a.def.message}
+                {resolveMsg(a.def.message ?? "", msgLang, langTable)}
               </span>
               <button
                 onClick={() => handleAck(a)}

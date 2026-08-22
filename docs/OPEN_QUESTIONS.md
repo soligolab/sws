@@ -1691,3 +1691,22 @@ When Claude Code adds a new question, follow the format above:
 2. **Options** — at least 2, briefly described.
 3. **Default for PoC** — what we're doing for now.
 4. **Decided** — left as `not yet` until the maintainer fills it in.
+
+## Q17 — `apply_recipe` scrive i tag senza contesto utente: la soglia `write_min_role` non si applica
+
+**Context**: emerso il 2026-08-22 implementando F3.1 (piano SCADA-widgets). Le scritture via
+REST (`PUT /api/tags/:id`) e WS onorano `TagDef.write_min_role`; `POST /api/recipes/:id/apply`
+invece non ha `Extension<AuthUser>` (deve funzionare anche per il viewer anonimo/kiosk) e scrive
+i setpoint della ricetta senza controllo per-tag. Un Operator — o un anonimo, dove il viewer lo
+permette — può quindi scrivere via ricetta un tag protetto Admin.
+
+**Options**:
+1. Aggiungere l'utente opzionale all'endpoint (optional_auth) e applicare la soglia per-tag:
+   anonimo = sotto Viewer, ricette con tag protetti falliscono con elenco chiaro.
+2. Soglia di ruolo a livello di RICETTA (`RecipeDef.min_role`), più grossolana ma più semplice
+   da capire per l'operatore.
+3. Lasciare com'è e documentare: le ricette sono già un'azione deliberata di supervisione.
+
+**Default for PoC**: opzione 3 (stato attuale), da rivedere insieme alla Q8-E.
+
+**Decided**: not yet.

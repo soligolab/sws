@@ -52,6 +52,11 @@ export function resolveMsg(str: string, lang: string, table?: LanguageTable | nu
 
 const TEXT_FIELDS: (keyof SynopticObject)[] = [
   "label", "text", "unit", "pipe_label", "bar_y_label", "pie_center_text", "text_list_default",
+  // F1.3: anche i formati possono portare testo attorno al segnaposto
+  // (es. "{value:.1f} {{gradi}}") e vanno risolti come ogni altro testo.
+  "format", "pipe_label_format", "pie_center_format",
+  // F3.2: il messaggio di conferma comando è testo che l'operatore legge.
+  "confirm_message",
 ];
 
 function hasToken(v: unknown): v is string {
@@ -80,7 +85,19 @@ export function localizeObject(obj: SynopticObject, lang: string, table?: Langua
   if (obj.text_list_entries?.some((e) => hasToken(e.label))) {
     ensure().text_list_entries = obj.text_list_entries.map((e) => (hasToken(e.label) ? { ...e, label: resolveMsg(e.label, lang, table) } : e));
   }
+  // F1.3: label delle serie bar/pie — erano gli unici testi visibili esclusi.
+  if (obj.bar_series?.some((s) => hasToken(s.label))) {
+    ensure().bar_series = obj.bar_series.map((s) => (hasToken(s.label) ? { ...s, label: resolveMsg(s.label, lang, table) } : s));
+  }
+  if (obj.pie_slices?.some((s) => hasToken(s.label))) {
+    ensure().pie_slices = obj.pie_slices.map((s) => (hasToken(s.label) ? { ...s, label: resolveMsg(s.label, lang, table) } : s));
+  }
   return out ?? obj;
+}
+
+/** F1.3: risolve i token nel nome pagina (nav del viewer). */
+export function localizePageName(name: string, lang: string, table?: LanguageTable | null): string {
+  return resolveMsg(name, lang, table);
 }
 
 /** Localizza una lista di oggetti (identità quando non serve). */

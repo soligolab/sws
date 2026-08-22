@@ -44,9 +44,37 @@ pub struct TagUpdate {
     pub state: TagState,
 }
 
+/// Scaling lineare raw→eng di un tag (F1, piano SCADA-widgets). Definito in
+/// `TagDef` (raw_min/raw_max/eng_min/eng_max), installato a ogni apertura di
+/// progetto via `TagDb::set_scales`.
+#[derive(Debug, Clone, Copy)]
+pub struct LinearScale {
+    pub raw_min: f64,
+    pub raw_max: f64,
+    pub eng_min: f64,
+    pub eng_max: f64,
+}
+
+impl LinearScale {
+    pub fn to_eng(&self, raw: f64) -> f64 {
+        if self.raw_max == self.raw_min { return raw; }
+        self.eng_min + (raw - self.raw_min) * (self.eng_max - self.eng_min) / (self.raw_max - self.raw_min)
+    }
+    pub fn to_raw(&self, eng: f64) -> f64 {
+        if self.eng_max == self.eng_min { return eng; }
+        self.raw_min + (eng - self.eng_min) * (self.raw_max - self.raw_min) / (self.eng_max - self.eng_min)
+    }
+}
+
 pub struct TagDb {
     store: Arc<RwLock<HashMap<TagId, TagState>>>,
     tx: broadcast::Sender<TagUpdate>,
+    /// Scaling per-tag applicato SOLO da `ingest()` (plugin di protocollo).
+    scales: Arc<RwLock<HashMap<TagId, LinearScale>>>,
+    /// Ruolo minimo di scrittura per-tag (`TagDef.write_min_role`, F3.1).
+    /// Stringhe grezze: sws-core non conosce i tipi di sws-auth — il web
+    /// layer le interpreta. Aggiornata insieme a `scales`.
+    write_roles: Arc<RwLock<HashMap<TagId, String>>>,
 }
 
 impl TagDb {
@@ -55,7 +83,50 @@ impl TagDb {
         Self {
             store: Arc::new(RwLock::new(HashMap::new())),
             tx,
+            scales: Arc::new(RwLock::new(HashMap::new())),
+            write_roles: Arc::new(RwLock::new(HashMap::new())),
         }
+    }
+
+    /// Sostituisce la mappa dei ruoli minimi di scrittura (F3.1).
+    pub async fn set_write_roles(&self, roles: HashMap<TagId, String>) {
+        *self.write_roles.write().await = roles;
+    }
+
+    /// Ruolo minimo di scrittura del tag, se definito.
+    pub async fn write_role_of(&self, id: &str) -> Option<String> {
+        self.write_roles.read().await.get(id).cloned()
+    }
+
+    /// Sostituisce la mappa degli scaling. Chiamata a ogni apertura/chiusura
+    /// progetto (mappa vuota = nessuno scaling).
+    pub async fn set_scales(&self, scales: HashMap<TagId, LinearScale>) {
+        *self.scales.write().await = scales;
+    }
+
+    /// Converte un valore ingegneristico nel valore raw da scrivere sul
+    /// device, se il tag ha uno scaling. Usato dai percorsi di scrittura
+    /// (API/WS/ricette) prima di consegnare al TagWriteBus.
+    pub async fn scale_to_raw(&self, id: &str, value: TagValue) -> TagValue {
+        let Some(scale) = self.scales.read().await.get(id).copied() else { return value };
+        match value {
+            TagValue::Float(v) => TagValue::Float(scale.to_raw(v)),
+            TagValue::Int(v)   => TagValue::Float(scale.to_raw(v as f64)),
+            other => other,
+        }
+    }
+
+    /// Ingresso dati dai PLUGIN DI PROTOCOLLO: come `set()`, ma applica lo
+    /// scaling raw→eng se il tag lo definisce. Gli altri produttori (script,
+    /// tag derivati, populate iniziale, API su tag virtuali) usano `set()`:
+    /// producono già valori ingegneristici e scalarli due volte sarebbe un bug.
+    pub async fn ingest(&self, id: TagId, value: TagValue, quality: TagQuality) {
+        let scaled = match (self.scales.read().await.get(&id).copied(), value) {
+            (Some(s), TagValue::Float(v)) => TagValue::Float(s.to_eng(v)),
+            (Some(s), TagValue::Int(v))   => TagValue::Float(s.to_eng(v as f64)),
+            (_, v) => v,
+        };
+        self.set(id, scaled, quality).await;
     }
 
     pub async fn set(&self, id: TagId, value: TagValue, quality: TagQuality) {

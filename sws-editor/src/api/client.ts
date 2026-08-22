@@ -1,5 +1,6 @@
 import type {
   AlarmDef,
+  BucketSample,
   AlarmEvent,
   AlarmState,
   AuditEntry,
@@ -612,11 +613,20 @@ export const api = {
     }),
 
   // Tags
-  writeTag: (id: string, value: number | string | boolean) =>
+  writeTag: (id: string, value: number | string | boolean, reason?: string) =>
     request<void>(`/api/tags/${encodeURIComponent(id)}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ value }),
+      body: JSON.stringify(reason ? { value, reason } : { value }),
+    }),
+
+  /** F3.3: re-verifica la password della sessione corrente (comandi critici).
+   *  204 = ok (o no-auth mode), 403 = password sbagliata. */
+  verifyPassword: (password: string) =>
+    request<void>("/api/auth/verify-password", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ password }),
     }),
 
   // Alarms
@@ -667,6 +677,18 @@ export const api = {
     const qs = params.toString();
     return request<Sample[]>(
       `/api/history/${encodeURIComponent(tag)}${qs ? "?" + qs : ""}`,
+    );
+  },
+
+  /** F5.1: storico aggregato a bucket — ~un bucket per pixel qualunque sia
+   *  la finestra; min/max preservano i picchi che la media nasconderebbe. */
+  getHistoryBuckets: (tag: string, opts: { fromMs: number; toMs: number; bucketMs: number; backfill?: boolean }) => {
+    const params = new URLSearchParams({
+      from: String(opts.fromMs), to: String(opts.toMs), bucket_ms: String(opts.bucketMs),
+    });
+    if (opts.backfill) params.set("backfill", "true");
+    return request<BucketSample[]>(
+      `/api/history/${encodeURIComponent(tag)}?${params.toString()}`,
     );
   },
 

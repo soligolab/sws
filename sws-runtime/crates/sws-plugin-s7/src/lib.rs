@@ -28,7 +28,7 @@ pub async fn run(cfg: S7Config, db: Arc<TagDb>, bus: Arc<TagWriteBus>, cancel: C
     if let Err(e) = session(&cfg, &db, &mut write_rx, cancel).await {
         warn!(source = %cfg.id, "S7 error: {e:#} — stopped (save config to retry)");
         for tm in &cfg.tags {
-            db.set(tm.tag.clone(), TagValue::Float(0.0), TagQuality::Bad).await;
+            db.ingest(tm.tag.clone(), TagValue::Float(0.0), TagQuality::Bad).await;
         }
     }
 }
@@ -90,7 +90,7 @@ async fn session(
                 for tm in &tags {
                     let bytes = read_tag(&req_tx, &resp_rx, tm)?;
                     let val = bytes_to_tagvalue(&bytes, tm);
-                    db.set(tm.tag.clone(), val, TagQuality::Good).await;
+                    db.ingest(tm.tag.clone(), val, TagQuality::Good).await;
                 }
             }
 
@@ -102,7 +102,7 @@ async fn session(
                         warn!(source = %tm.tag, "S7 write failed: {e}");
                     } else {
                         // Echo back.
-                        db.set(tag, value, TagQuality::Good).await;
+                        db.ingest(tag, value, TagQuality::Good).await;
                     }
                 }
             }

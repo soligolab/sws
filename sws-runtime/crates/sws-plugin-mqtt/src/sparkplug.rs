@@ -90,7 +90,7 @@ pub async fn run_sparkplug(
     }
     // Mark all mapped tags Bad on exit.
     for m in &spb.metrics {
-        db.set(m.tag.clone(), TagValue::Float(0.0), TagQuality::Bad).await;
+        db.ingest(m.tag.clone(), TagValue::Float(0.0), TagQuality::Bad).await;
     }
 }
 
@@ -178,7 +178,7 @@ async fn session(
                 if let Err(e) = client.publish(&ncmd_topic, QoS::AtLeastOnce, false, payload_bytes).await {
                     warn!(source = %cfg.id, tag, "Sparkplug NCMD publish failed: {e}");
                 } else {
-                    db.set(tag, value, TagQuality::Good).await;
+                    db.ingest(tag, value, TagQuality::Good).await;
                 }
             }
 
@@ -221,7 +221,7 @@ async fn handle_message(
                         };
                         let tag = &spb.metrics[idx].tag;
                         let value = metric_to_tagvalue(metric);
-                        db.set(tag.clone(), value, TagQuality::Good).await;
+                        db.ingest(tag.clone(), value, TagQuality::Good).await;
                     }
                 }
                 Err(e) => warn!(topic, "Sparkplug proto decode error: {e}"),
@@ -229,7 +229,7 @@ async fn handle_message(
         }
         "NDEATH" | "DDEATH" => {
             for m in &spb.metrics {
-                db.set(m.tag.clone(), TagValue::Float(0.0), TagQuality::Bad).await;
+                db.ingest(m.tag.clone(), TagValue::Float(0.0), TagQuality::Bad).await;
             }
         }
         _ => {}

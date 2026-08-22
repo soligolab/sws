@@ -394,6 +394,28 @@ pub async fn create_project(
 /// wiring and, most recently, MQTT client id resolution all went missing
 /// this way in turn. One function, one place to add the next step.
 #[allow(clippy::too_many_arguments)]
+/// Mappa tag→scaling lineare dai `TagDef` che definiscono tutti e quattro i
+/// campi raw/eng (F1). Riusata da open/import/PUT-tags per tenere allineata
+/// la mappa in `TagDb` a ogni modifica delle variabili.
+pub(crate) fn build_tag_scales(tags: &[sws_core::TagDef]) -> std::collections::HashMap<String, sws_core::LinearScale> {
+    tags.iter()
+        .filter_map(|t| match (t.raw_min, t.raw_max, t.eng_min, t.eng_max) {
+            (Some(raw_min), Some(raw_max), Some(eng_min), Some(eng_max)) if raw_max != raw_min => {
+                Some((t.id.clone(), sws_core::LinearScale { raw_min, raw_max, eng_min, eng_max }))
+            }
+            _ => None,
+        })
+        .collect()
+}
+
+/// Mappa tag→ruolo minimo di scrittura (F3.1), stessi punti di refresh
+/// di `build_tag_scales`.
+pub(crate) fn build_tag_write_roles(tags: &[sws_core::TagDef]) -> std::collections::HashMap<String, String> {
+    tags.iter()
+        .filter_map(|t| t.write_min_role.as_ref().map(|r| (t.id.clone(), r.clone())))
+        .collect()
+}
+
 pub async fn apply_loaded_project(
     project_dir: &StdPath,
     mut project: Project,
@@ -422,6 +444,8 @@ pub async fn apply_loaded_project(
             .collect();
         *derived_tags.write().await = derived;
     }
+    db.set_scales(build_tag_scales(&project.tags)).await;
+    db.set_write_roles(build_tag_write_roles(&project.tags)).await;
     project.populate_tags(db).await;
     // Init datastore registry before consuming the project fields.
     match DatastoreRegistry::from_project(&project, project_dir).await {
@@ -602,6 +626,8 @@ pub async fn close_project(State(s): State<AppState>) -> Response {
     }
     crate::telegram::stop_sender(&s).await;
     s.db.clear().await;
+    s.db.set_scales(Default::default()).await;
+    s.db.set_write_roles(Default::default()).await;
     s.historian.swap_store(None).await; // RAM-only between projects
     s.alarms.load(vec![]).await;
     s.functions.write().await.clear();

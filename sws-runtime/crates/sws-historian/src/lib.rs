@@ -328,3 +328,95 @@ mod tests {
         assert_eq!(all.last().unwrap().ts_ms, 1_199);
     }
 }
+
+// ── Aggregazione a bucket (F5.1, piano SCADA-widgets) ───────────────────────
+//
+// Un trend su 30 giorni scaricava TUTTI i campioni al browser (il vecchio
+// `limit` troncava la coda, non decimava). L'aggregazione riduce qualunque
+// finestra a ~un bucket per pixel: il client chiede `bucket_ms` e riceve per
+// ogni bucket min/max/avg/first/last — la banda min/max preserva i picchi
+// che una media da sola nasconderebbe.
+
+/// Un bucket aggregato. `ts_ms` è l'inizio del bucket.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct BucketSample {
+    pub ts_ms: u64,
+    pub min: f64,
+    pub max: f64,
+    pub avg: f64,
+    pub first: f64,
+    pub last: f64,
+    pub count: u64,
+}
+
+fn numeric(v: &TagValue) -> Option<f64> {
+    match v {
+        TagValue::Float(f) => Some(*f),
+        TagValue::Int(i) => Some(*i as f64),
+        TagValue::Bool(b) => Some(if *b { 1.0 } else { 0.0 }),
+        TagValue::Str(_) => None,
+    }
+}
+
+/// Aggrega `samples` (ordinati per ts crescente) in bucket di `bucket_ms`.
+/// I campioni non numerici (stringhe) vengono ignorati; i bucket vuoti non
+/// compaiono (il client disegna il gap invece di inventare dati).
+pub fn aggregate_samples(samples: &[Sample], bucket_ms: u64) -> Vec<BucketSample> {
+    if bucket_ms == 0 {
+        return Vec::new();
+    }
+    let mut out: Vec<BucketSample> = Vec::new();
+    for s in samples {
+        let Some(v) = numeric(&s.value) else { continue };
+        let bucket_start = s.ts_ms - (s.ts_ms % bucket_ms);
+        match out.last_mut() {
+            Some(b) if b.ts_ms == bucket_start => {
+                b.min = b.min.min(v);
+                b.max = b.max.max(v);
+                // media incrementale per non accumulare somme enormi
+                b.avg += (v - b.avg) / (b.count as f64 + 1.0);
+                b.last = v;
+                b.count += 1;
+            }
+            _ => out.push(BucketSample {
+                ts_ms: bucket_start, min: v, max: v, avg: v, first: v, last: v, count: 1,
+            }),
+        }
+    }
+    out
+}
+
+#[cfg(test)]
+mod aggregate_tests {
+    use super::*;
+    use sws_core::TagQuality;
+
+    fn s(ts_ms: u64, v: f64) -> Sample {
+        Sample { ts_ms, value: TagValue::Float(v), quality: TagQuality::Good }
+    }
+
+    #[test]
+    fn bucket_min_max_avg() {
+        let samples = vec![s(0, 10.0), s(400, 20.0), s(900, 30.0), s(1000, 5.0), s(1500, 15.0)];
+        let b = aggregate_samples(&samples, 1000);
+        assert_eq!(b.len(), 2);
+        assert_eq!((b[0].ts_ms, b[0].min, b[0].max, b[0].count), (0, 10.0, 30.0, 3));
+        assert!((b[0].avg - 20.0).abs() < 1e-9);
+        assert_eq!((b[0].first, b[0].last), (10.0, 30.0));
+        assert_eq!((b[1].ts_ms, b[1].min, b[1].max, b[1].count), (1000, 5.0, 15.0, 2));
+    }
+
+    #[test]
+    fn bucket_vuoti_assenti_e_stringhe_ignorate() {
+        let mut samples = vec![s(0, 1.0), s(10_000, 2.0)];
+        samples.push(Sample { ts_ms: 10_100, value: TagValue::Str("x".into()), quality: TagQuality::Good });
+        let b = aggregate_samples(&samples, 1000);
+        assert_eq!(b.len(), 2, "i bucket intermedi vuoti non compaiono");
+        assert_eq!(b[1].count, 1, "la stringa non conta");
+    }
+
+    #[test]
+    fn bucket_zero_non_panica() {
+        assert!(aggregate_samples(&[s(0, 1.0)], 0).is_empty());
+    }
+}

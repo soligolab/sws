@@ -11,6 +11,66 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### Added (programma SCADA-widgets, fasi F2 + F3 + F4 + F5 parziale)
+
+- **Storico 2.0 (F5, grosso)**: aggregazione a bucket server-side (`bucket_ms` su
+  `/api/history/:tag` → min/max/avg per bucket) — un trend su 30 giorni non scarica più tutti
+  i campioni; il Trend sopra i 15 minuti usa ~un bucket per pixel con banda min/max che
+  preserva i picchi; selettore data/ora assoluto e export CSV nella modale espansa; sparkline
+  con seed dallo storico; nuovo widget `kpi_tile` (valore grande a soglia + delta % vs periodo
+  precedente + micro-trend); cursori di misura A/B con Δt/Δv, scala Y
+  logaritmica, unità d'asse dal tag ed export PNG sul Trend; nuovo widget `data_log`
+  (tabella storica paginata con export CSV).
+
+- **F3 completata**: re-auth per comandi critici (password della sessione + motivo obbligatorio
+  registrato nell'audit, endpoint `verify-password` col lockout del login) e tastierino
+  numerico touch per il setpoint (i pannelli kiosk non hanno tastiera virtuale di sistema).
+- **F4 — allarmi e qualità per-oggetto (opt-in)**: lampeggio universale (fisso/da-tag/
+  su-allarme, disattivato da `prefers-reduced-motion`); bordo colorato per severità quando il
+  tag dell'oggetto ha un allarme attivo (lampeggia finché non riconosciuto); QDot disponibile
+  su tutti i tipi; valore Bad in grigio invece che mostrato come valido; rilevamento dato
+  stale (`stale_after_s`) con badge ⌛.
+
+- **Binding 2.0 (F2)**: un binding resta un tag 1:1 (forma storica) oppure diventa una
+  **scala lineare** (in_min..in_max → out_min..out_max con clamp) o una **espressione**
+  client-side (`{tank.level} * 100 / {tank.cap}`, confronti, ternario, funzioni min/max/abs/
+  round/clamp/if…) valutata in sicurezza senza `eval`. UI a tre modalità con validazione live;
+  le dipendenze delle espressioni vengono sottoscritte come ogni altro tag.
+- **Pipeline di comando (F3, 5/7)**: modalità bottone complete (momentaneo/toggle/set/reset/
+  incrementa/decrementa); slider che scrive **solo al rilascio** (default nuovo) con deadband;
+  conferma configurabile prima di ogni scrittura (`require_confirm` + messaggio localizzabile);
+  ruolo minimo per-oggetto (nascosto o visibile-ma-inerte) e **`write_min_role` per-tag con
+  enforcement server** (403+audit su REST, nack su WS); scritture fallite ora visibili come
+  toast col motivo. Restano: re-auth+motivo per comandi critici, tastierino touch (F3.3/F3.4).
+  Nuova Q17 in OPEN_QUESTIONS (ricette senza contesto utente).
+
+
+### Added (programma SCADA-widgets, fase F1 — completa)
+
+- **Il tag è la fonte di verità (F1.1/F1.2)**: `TagDef` guadagna unità, decimali, scaling
+  lineare raw→eng, range di visualizzazione e limiti ingegneristici (Lo-Lo/Lo/Hi/Hi-Hi), tutti
+  opzionali (progetti esistenti invariati). Lo scaling è applicato dal runtime **all'ingestione**
+  (nuovo `TagDb::ingest()` usato dai plugin di protocollo; `set()` resta per script/derivati/API
+  che producono già valori ingegneristici) e **invertito sulle scritture** verso il device
+  (REST, WS, ricette). Editor tag: riga espandibile ⚙ per configurare i nuovi campi. I widget
+  ereditano unità/range/soglie dal tag come default, con override per-oggetto (`applyTagDefaults`
+  in SvgCanvas, un solo punto d'innesto). F1.3: `formatValue` esteso (migliaia
+  locale-aware, esponenziale, percentuale), `decimals` per-oggetto ereditato dal tag, messaggi
+  di allarme/nomi pagina/label serie localizzati via token `{{...}}`.
+
+### Fixed (programma SCADA-widgets, fase F0)
+
+- **I tag usati solo da binding/stati/serie si congelavano dopo lo snapshot iniziale**: la
+  sottoscrizione `/ws/tags` raccoglieva solo `o.tag` più quattro campi legacy inesistenti; il
+  filtro server è esatto, quindi `bindings[*]`, `visible_tag`, `state_tag`, `alarm_tag`,
+  `fill_level_tag`, `pipe_label_tag`, `y_tag`, `extra_tags`, righe table, serie bar/pie, celle
+  grid e figli faceplate non ricevevano più aggiornamenti. Nuova fonte di verità unica
+  `collectTagIds()` (ricorsiva su grid e faceplate, con guardia anti-cicli).
+- **Configurazione morta sanata su 9 punti**: `bg_color` su rect/button/navbutton/lang_button,
+  `show_value` del gauge, `orientation` verticale della progress_bar, `stroke_dasharray` della
+  line, `bar_y_label` del bar chart, `read_only` del radio, colori label di navbutton e pipe
+  (erano hardcoded, ora esposti), «Attuale:» del setpoint tradotto.
+
 ### Added
 
 - **Fase B — decisioni OPEN_QUESTIONS implementate** (Q3, Q8-C, Q9, Q10, Q11, Q12; Q13

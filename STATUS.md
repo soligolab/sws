@@ -6,6 +6,101 @@
 >
 > **Pulizia 2026-07-27**: rimossi i task già chiusi e le sezioni di verifica ormai superate; le sessioni mergiate **e** verificate fino al 2026-07-09 sono compresse in «Storico». Il dettaglio integrale resta in `CHANGELOG.md` e nella history git.
 
+**Sessione 2026-08-22 (notte) — SCADA-widgets F5 (grosso fatto)** (catena `feat/scada-f0` →
+`f1` → `f2` → `f3` → `f4` → **`feat/scada-f5`** = capo da testare, contiene tutto). Scelta
+F5 prima di F9a: la parità LVGL richiede la toolchain di build e il pannello per la verifica —
+meglio farla insieme a un giro di test sul TC620.
+- **F5.1**: aggregazione a bucket in sws-historian (`aggregate_samples`: min/max/avg/first/
+  last/count, media incrementale, 3 unit test) + `GET /api/history/:tag?bucket_ms=N` →
+  `Vec<BucketSample>`; il vecchio `limit` tronca-coda resta legacy.
+- **F5.2 (core)**: TrendCanvas sopra i 15 min di finestra usa i bucket (~1 per pixel), linea
+  sulla media + banda min/max (i domini Y includono la banda); TrendExpanded con selettore
+  data/ora assoluto 📅 e bottone ⬇ CSV (endpoint export già esistente).
+- **F5.3**: sparkline con seed dallo storico all'apertura pagina (prima restava bianca per
+  windowS secondi).
+- **F5.5**: widget nuovo `kpi_tile` (web-only): valore grande a soglia, delta % vs periodo
+  precedente (2×/api/history/stats, 30s), micro-sparkline, unit/decimali dal tag.
+**Seguito nella stessa sessione — F5 completata salvo XY**: F5.2x cursori di misura (toggle ✛,
+A/B con letture per traccia e Δt/Δv), scala Y logaritmica (`trend_log_scale`, tick
+log-spaziati, zoom Y disattivato in log), unità sull'asse Y dal tag, export ⬇ PNG; F5.4
+widget `data_log` (tabella storica paginata client-side fino a 5000 campioni — il server non
+ha ancora un offset di paginazione — con refresh, export CSV, qualità a pallino).
+**Resta di F5**: solo XY multi-coppia + curva di riferimento + backfill (F5.3x). Build: cargo workspace + 11 test historian + 80 sws-web + 32 vitest + pnpm build
+verdi. **Non testato dal maintainer.**
+
+**Sessione 2026-08-22 (sera) — SCADA-widgets F3 e F4 CHIUSE** (catena `feat/scada-f0` → `f1`
+→ `f2` → `f3` → **`feat/scada-f4`** = capo da testare, contiene tutto).
+- **F3 chiusa** con gli ultimi due pezzi: **F3.3** re-auth per comandi critici
+  (`AuthState::verify_user_password` senza sessioni nuove, condivide il lockout del login;
+  `POST /api/auth/verify-password`; campi `critical`/`require_reason`; il motivo viaggia in
+  `WriteTagBody.reason` e finisce nell'audit; in no-auth salta la password, non il motivo) e
+  **F3.4** tastierino numerico touch (`NumericKeypad`, overlay portal, validazione min/max col
+  motivo, primo tasto sostituisce il precaricato; pulsante ⌨ sul setpoint → guardedWrite).
+- **F4 chiusa**: **F4.1** lampeggio universale (off/fisso/da-tag/su-allarme, rate configurabile,
+  `prefers-reduced-motion` lo spegne); **F4.2** `show_alarm_state` — bordo per severità
+  lampeggiante finché unacked, con indice tag→allarme memoizzato dagli allarmi live; **F4.3**
+  QDot opt-in su tutti i tipi (built-in restano default-on), `bad_value_style: gray`,
+  `stale_after_s` con badge ⌛ (tick 1s attivo solo se la pagina dichiara stale).
+- Build: cargo workspace, 80 test sws-web, 32 vitest, pnpm build — verdi. **Non testato dal
+  maintainer.** Prossime fasi: F9a (parità LVGL lotto 1) oppure F5 (storico 2.0).
+
+**Sessione 2026-08-22 (seguito) — SCADA-widgets F2 completa + F3 quasi completa** (catena
+`feat/scada-f0` → `f1` → `f2` → **`feat/scada-f3`** = capo da testare, contiene tutto).
+- **F2 CHIUSA**: motore di espressioni client-side (`expr/engine.ts`: tokenizer+Pratt+eval,
+  zero eval/dipendenze, 7 test vitest — 32 totali verdi); `BindingSpec` = stringa storica |
+  {tag+scaling in/out+clamp} | {expr}; resolveObject applica scala/espressioni (espressione
+  rotta → valore statico, mai crash); collectTagIds estrae le dipendenze; BindableInput a tre
+  modalità (Tag/Scala/Espressione) con validazione live; mirror Rust: bindings →
+  HashMap<String, serde_json::Value> (passthrough).
+- **F3 fatta per 5/7**: F3.5 button_mode (write/momentary/toggle/set/reset/incr/decr, momentary
+  con rilascio garantito su mouse-leave); F3.6 slider scrive SOLO al rilascio (default NUOVO,
+  write_on_release:false = storico) + write_deadband; F3.2 require_confirm+confirm_message
+  (localizzabile) via guardedWrite su button/checkbox/radio/setpoint/slider; F3.7 feedback:
+  nack WS e errori HTTP → toast col motivo; F3.1 min_role per-oggetto client (hide/disable,
+  anonimo<Viewer, sezione SICUREZZA nel pannello) + **enforcement server**
+  `TagDef.write_min_role` (mappa in TagDb, 403+audit su REST, nack su WS, select nella riga ⚙).
+- **Restano di F3**: F3.3 (re-auth+motivo per comandi critici — serve endpoint verify-password
+  e plumbing del reason fino all'audit) e F3.4 (tastierino numerico touch). Q17 nuova in
+  OPEN_QUESTIONS (apply_recipe senza utente bypassa write_min_role).
+- Build: cargo check --workspace, 80 test sws-web, pnpm build, 32 test vitest — tutti verdi.
+  **Non testato dal maintainer.**
+
+**Sessione 2026-08-22 — SCADA-widgets F1 (parziale): tag fonte di verità** (branch
+`feat/scada-f1`, annidato su `feat/scada-f0` — il capo da testare è F1). Fatto:
+- **F1.1 backend**: 12 campi nuovi su `TagDef` (unit, decimals, raw/eng scaling, range_lo/hi,
+  limit_lo_lo/lo/hi/hi_hi); `TagDb::ingest()` con scaling all'ingestione (31 call site plugin
+  migrati + echo OPC-UA), `scale_to_raw()` inverso sui 3 percorsi di scrittura (REST/WS/ricette,
+  fallback NoWriter resta eng); mappa scaling installata a open/import/PUT-tags, svuotata a
+  close. `build_tag_scales()` in projects.rs. Test: 80 sws-web + 21 sws-core verdi.
+- **F1.1 frontend**: mirror TS di TagDef + riga espandibile ⚙ nella TagsTab (unità/decimali/
+  scaling/range/limiti, icona azzurra se configurato).
+- **F1.2**: `applyTagDefaults()` in SvgCanvas subito dopo `resolveObject` — i widget ereditano
+  unit/min/max/warn/alarm dal TagDef con override per-oggetto, senza toccare i branch.
+**F1.3 completata nella stessa sessione**: formatValue esteso ({value:,.Nf} migliaia,
+{value:.Ne}, {value:.N%}), `decimals` per-oggetto ereditato dal tag (pannello di gauge/
+setpoint/slider/progress, specchiato in synoptic.rs), messaggi di allarme/nomi pagina/label
+serie bar-pie/campi format localizzati. **F1 CHIUSA.** Rinviati come rifiniture future: builder
+UI del formato e UX "valore ereditato in grigio" nel pannello (annotati, non bloccanti).
+**Non testato dal maintainer, verifica visiva non fatta.** ATTENZIONE deploy: un progetto che usa lo scaling su un runtime vecchio
+non scala (i campi sono ignorati) — serve rebuild dei target.
+
+**Sessione 2026-08-21 (notte) — programma SCADA-widgets avviato: piano F0-F9 + fase F0
+completa** (branch `feat/scada-f0`, da `main` dopo il merge della Fase B confermata dal
+maintainer). Il piano completo — 10 fasi decise con 16 domande di indirizzo — è in
+`docs/plans/2026-08-21-scada-widgets.md` (committato). Fase F0 implementata:
+- **F0.1**: fix del bug di sottoscrizione trovato in analisi — i tag usati solo da
+  binding/stati/serie/celle/faceplate ricevevano lo snapshot e poi si congelavano (la raccolta
+  guardava solo `o.tag` + campi legacy inesistenti). Nuova `collectTagIds()` in
+  `runtime-view/collectTagIds.ts`, fonte di verità unica, ricorsiva, pronta per le dipendenze
+  delle espressioni di F2.
+- **F0.2**: sanati 9 punti di configurazione morta (bg_color su 4 tipi, show_value gauge,
+  progress_bar verticale, dash della line, bar_y_label, read_only radio, colori label
+  navbutton/pipe, «Attuale:» i18n).
+`pnpm type-check`/`pnpm build` verdi; nessun campo schema nuovo (niente da specchiare in Rust).
+**Non testato dal maintainer; verifica visiva Playwright non ancora fatta** — da fare nel
+prossimo giro insieme al suo test. Prossima fase: F1 (tag come fonte di verità) su branch
+annidato `feat/scada-f1`.
+
 **Sessione 2026-08-21 (sera) — Fase B: tutte le decisioni OPEN_QUESTIONS implementate**
 (branch `feat/fase-b-openquestions`, da `main`). Il maintainer ha confermato i fix MQTT
 ("funziona tutto") → squash-merge su main (`7f6f933`) + 3 branch eliminati, poi ha deciso le

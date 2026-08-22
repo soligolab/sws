@@ -66,6 +66,24 @@ pub struct SynopticObject {
     #[serde(skip_serializing_if = "Option::is_none")] pub src:            Option<String>,
     // Control write
     #[serde(skip_serializing_if = "Option::is_none")] pub write_value:    Option<Value>,
+    // F3 — pipeline di comando
+    #[serde(skip_serializing_if = "Option::is_none")] pub button_mode:      Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub release_value:    Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub require_confirm:  Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub confirm_message:  Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub min_role:         Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub min_role_effect:  Option<String>,
+    // F4 — allarmi e qualità per-oggetto
+    #[serde(skip_serializing_if = "Option::is_none")] pub blink_mode:       Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub blink_tag:        Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub blink_rate_ms:    Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub show_alarm_state: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub bad_value_style:  Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub stale_after_s:    Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub critical:         Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub require_reason:   Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub write_on_release: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub write_deadband:   Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")] pub checked_value:  Option<Value>,
     #[serde(skip_serializing_if = "Option::is_none")] pub unchecked_value: Option<Value>,
     // Navigation
@@ -74,6 +92,7 @@ pub struct SynopticObject {
     #[serde(skip_serializing_if = "Option::is_none")] pub min:            Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")] pub max:            Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")] pub unit:           Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub decimals:       Option<u8>,
     #[serde(skip_serializing_if = "Option::is_none")] pub step:           Option<f64>,
     // Thresholds
     #[serde(skip_serializing_if = "Option::is_none")] pub warn_low:       Option<f64>,
@@ -119,6 +138,8 @@ pub struct SynopticObject {
     #[serde(skip_serializing_if = "Option::is_none")] pub trend_dt_always_show_date: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")] pub trend_show_thresholds:     Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")] pub trend_show_alarm_markers:  Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub trend_log_scale:           Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub datalog_page_size:         Option<f64>,
     // XY plot (live point + trail, not a time series). `tag` above is the X axis.
     #[serde(skip_serializing_if = "Option::is_none")] pub y_tag: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")] pub xy_trail_s: Option<f64>,
@@ -167,7 +188,10 @@ pub struct SynopticObject {
     /// (fill / stroke / opacity / transform). 0 or absent → no animation.
     #[serde(skip_serializing_if = "Option::is_none")] pub transition_duration_ms: Option<u64>,
     /// Generic prop-to-tag bindings. Keys are SynopticObject prop names.
-    #[serde(skip_serializing_if = "Option::is_none")] pub bindings:         Option<std::collections::HashMap<String, String>>,
+    /// F2: il valore può essere una stringa (tag id, forma storica) oppure un
+    /// oggetto BindingSpec {tag, in_min…out_max, clamp} / {expr}. Passthrough
+    /// opaco: il runtime non lo interpreta, lo conserva e lo serve alla SPA.
+    #[serde(skip_serializing_if = "Option::is_none")] pub bindings:         Option<std::collections::HashMap<String, serde_json::Value>>,
     // Grid layout object (type === "grid")
     #[serde(skip_serializing_if = "Option::is_none")] pub grid_rows:         Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")] pub grid_cols:         Option<u32>,

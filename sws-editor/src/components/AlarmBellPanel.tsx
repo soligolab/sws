@@ -5,6 +5,7 @@ import { api } from "@/api/client";
 import { useAppStore } from "@/store";
 import { useAlarmStream } from "@/ws/alarmStream";
 import { AlarmHistory } from "@/components/AlarmHistory";
+import { effectiveProjectLang, resolveMsg } from "@/i18n/projectI18n";
 import { SEV_COLOR } from "@/alarmSeverity";
 import type { AlarmSeverity, AlarmState, ShelvedAlarm } from "@/types";
 
@@ -29,6 +30,10 @@ export function AlarmBellPanel({ idPrefix = "", allowedSev, showHistory = true, 
   useAlarmStream();
 
   const alarms = useAppStore((s) => s.alarms);
+  // F1.3: messaggi di allarme localizzati come ogni altro testo di progetto.
+  const langTable = useAppStore((s) => s.project?.languages);
+  const projLang = useAppStore((s) => s.projectLang);
+  const msgLang = effectiveProjectLang(langTable) || projLang;
   const updateAlarm = useAppStore((s) => s.updateAlarm);
   const authUser = useAppStore((s) => s.authUser);
   const [open, setOpen] = useState(false);
@@ -203,7 +208,7 @@ export function AlarmBellPanel({ idPrefix = "", allowedSev, showHistory = true, 
                     <span style={{ width: 10, height: 10, borderRadius: "50%", background: color, flexShrink: 0 }} />
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ color: "var(--brand-text, #e2e8f0)", fontSize: 12, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.def.id}</div>
-                      <div style={{ color: "var(--brand-text-muted, #94a3b8)", fontSize: 11, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.def.message}</div>
+                      <div style={{ color: "var(--brand-text-muted, #94a3b8)", fontSize: 11, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{resolveMsg(a.def.message ?? "", msgLang, langTable)}</div>
                     </div>
                     {/* Shelve button */}
                     {showShelve && (

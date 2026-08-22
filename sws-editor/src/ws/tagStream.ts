@@ -109,6 +109,11 @@ export function useTagStream(): void {
           const ack = parsed as WriteAck;
           if (!ack.ok) {
             console.warn(`[ws/tags] write ${ack.tag} failed: ${ack.error ?? "?"}`);
+            // F3.7: la scrittura fallita non resta muta — RuntimeView ascolta
+            // e mostra un toast (prima l'unico segnale era la console).
+            window.dispatchEvent(new CustomEvent("sws:write-failed", {
+              detail: { tag: ack.tag, error: ack.error ?? "scrittura rifiutata" },
+            }));
           }
           return;
         }
