@@ -1421,8 +1421,42 @@ export function SvgCanvas({
         const onRelease = !inEdit && obj.on_release_fn && onScript
           ? () => onScript(obj.on_release_fn!, obj.on_release_args ?? {})
           : undefined;
+        // F6.10: movimento su percorso — il valore di motion_tag (mappato
+        // min..max → 0..1) posiziona l'oggetto lungo la polilinea; la
+        // transizione CSS del wrapper rende il moto fluido tra i campioni.
+        let motionTf: string | undefined;
+        if (!inEdit && obj.motion_tag && obj.motion_path && obj.motion_path.length >= 2) {
+          const mv = Number(tagValues[obj.motion_tag]?.value);
+          if (Number.isFinite(mv)) {
+            const lo = obj.motion_min ?? 0;
+            const hi = obj.motion_max ?? 100;
+            const t01 = hi === lo ? 0 : Math.min(1, Math.max(0, (mv - lo) / (hi - lo)));
+            const pts = obj.motion_path;
+            let total = 0;
+            const segs: number[] = [];
+            for (let i = 1; i < pts.length; i++) {
+              const d = Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y);
+              segs.push(d); total += d;
+            }
+            let dist = t01 * total;
+            let px = pts[pts.length - 1].x, py = pts[pts.length - 1].y;
+            for (let i = 0; i < segs.length; i++) {
+              if (dist <= segs[i] || i === segs.length - 1) {
+                const f = segs[i] === 0 ? 0 : Math.min(1, dist / segs[i]);
+                px = pts[i].x + (pts[i + 1].x - pts[i].x) * f;
+                py = pts[i].y + (pts[i + 1].y - pts[i].y) * f;
+                break;
+              }
+              dist -= segs[i];
+            }
+            motionTf = `translate(${(px - obj.x).toFixed(1)}, ${(py - obj.y).toFixed(1)})`;
+          }
+        }
+        const motionStyle: React.CSSProperties | undefined = motionTf
+          ? { transition: `transform ${obj.transition_duration_ms ?? 300}ms linear` }
+          : undefined;
         return (
-          <g key={obj.id} style={gStyle} data-blink={blinkOn ? "1" : undefined} onMouseDown={obj.type !== "grid" ? onPress : undefined} onMouseUp={obj.type !== "grid" ? onRelease : undefined}>
+          <g key={obj.id} style={{ ...gStyle, ...motionStyle }} transform={motionTf} data-blink={blinkOn ? "1" : undefined} onMouseDown={obj.type !== "grid" ? onPress : undefined} onMouseUp={obj.type !== "grid" ? onRelease : undefined}>
             <SvgObject
               obj={obj}
               objects={objects}

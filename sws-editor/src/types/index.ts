@@ -218,6 +218,13 @@ export interface SynopticObject {
    *  dal segno del valore quando numerico. */
   pipe_flow?: boolean;
   pipe_flow_tag?: string;
+  /** Movimento su percorso (F6.10): l'oggetto trasla lungo la polilinea in
+   *  funzione del valore di motion_tag mappato da motion_min..motion_max a
+   *  0..1 (carrelli, ascensori, navette). Punti in coordinate pagina. */
+  motion_path?: PipePoint[];
+  motion_tag?: string;
+  motion_min?: number;
+  motion_max?: number;
   tag?: string;
   format?: string;
   src?: string;

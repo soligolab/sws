@@ -4051,6 +4051,44 @@ function ObjectProps({
         )}
       </CollapsibleSection>
 
+      {/* F6.10 — MOVIMENTO su percorso (universale) */}
+      <CollapsibleSection
+        title={t("props.motion")}
+        storageKey="motion"
+        headerExtra={obj.motion_tag ? <span style={{ fontSize: 10, color: "var(--brand-primary, #3b82f6)", fontWeight: 700 }}>●</span> : undefined}
+      >
+        {field(t("props.motionTag"),
+          <TagInput style={INPUT} placeholder="es. carrello.posizione" value={obj.motion_tag ?? ""}
+            onChange={(v) => onChange({ motion_tag: v || undefined })} />
+        )}
+        {obj.motion_tag && (
+          <>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+              <div><div style={LABEL}>Min</div>{numInput("motion_min", 0)}</div>
+              <div><div style={LABEL}>Max</div>{numInput("motion_max", 100)}</div>
+            </div>
+            {field(t("props.motionPath"),
+              <textarea
+                style={{ ...INPUT, height: 52, resize: "vertical", fontFamily: "monospace", fontSize: 11 }}
+                placeholder="100,200; 400,200; 400,350"
+                value={(obj.motion_path ?? []).map((p) => `${p.x},${p.y}`).join("; ")}
+                onChange={(e) => {
+                  const pts = e.target.value.split(";").map((s2) => s2.trim()).filter(Boolean).map((pair) => {
+                    const [x, y] = pair.split(",").map((n) => Number(n.trim()));
+                    return Number.isFinite(x) && Number.isFinite(y) ? { x, y } : null;
+                  }).filter((p): p is { x: number; y: number } => p !== null);
+                  onChange({ motion_path: pts.length >= 2 ? pts : undefined });
+                }}
+                spellCheck={false}
+              />
+            )}
+            <p style={{ fontSize: 10, color: "var(--brand-border, #475569)", margin: "0 0 4px" }}>
+              {t("props.motionHint")}
+            </p>
+          </>
+        )}
+      </CollapsibleSection>
+
       {obj.type !== "grid" && (
         <CollapsibleSection
           title={t("props.events")}

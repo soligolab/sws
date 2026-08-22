@@ -735,7 +735,11 @@
     "spinPeriod": "Periodo rotazione (s)",
     "levelTag": "Tag livello (riempimento)",
     "pipeFlow": "Flusso animato",
-    "pipeFlowTag": "Tag flusso"
+    "pipeFlowTag": "Tag flusso",
+    "motion": "MOVIMENTO SU PERCORSO",
+    "motionTag": "Tag posizione",
+    "motionPath": "Waypoint (x,y; x,y…)",
+    "motionHint": "L'oggetto trasla lungo la polilinea: valore del tag mappato da Min..Max a inizio..fine percorso. Coordinate di pagina."
   },
   "shortcut": {
     "navCanvas": "Navigazione canvas",
