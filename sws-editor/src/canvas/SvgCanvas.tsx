@@ -7,6 +7,7 @@ import { api, getAuthToken } from "@/api/client";
 import { AlarmBellPanel } from "@/components/AlarmBellPanel";
 import { NumericKeypad } from "@/components/NumericKeypad";
 import { AlarmBanner } from "@/components/AlarmBanner";
+import { AlarmHistory } from "@/components/AlarmHistory";
 import { RecipePanel } from "@/components/RecipePanel";
 import { DataTable, type DataTableColumn } from "@/components/DataTable";
 import { SEV_COLOR } from "@/alarmSeverity";
@@ -2467,12 +2468,17 @@ function SparklineWidget({ tag, windowS, width, height, color, strokeWidth, fill
 
 // ── AlarmViewerWidget ─────────────────────────────────────────────────────────
 
-function AlarmViewerWidget({ width, height, mode, maxRows, prefix, allowedSev, showAck, showTs, showEmpty, bgColor }: {
+function AlarmViewerWidget({ width, height, mode, maxRows, prefix, allowedSev, showAck, showTs, showEmpty, bgColor, showAckAll, showShelve, shelveMinutes }: {
   width: number; height: number; mode: "list" | "banner" | "table";
   maxRows: number; prefix: string;
   allowedSev?: AlarmSeverity[];
   showAck: boolean; showTs: boolean; showEmpty: boolean;
   bgColor?: string;
+  /** F7.5 — barra con "ACK tutti" sopra l'elenco. */
+  showAckAll?: boolean;
+  /** F7.5 — pulsante di messa in silenzio (shelve) per riga. */
+  showShelve?: boolean;
+  shelveMinutes?: number;
 }) {
   const alarmsMap = useAppStore((s) => s.alarms);
   const authRole = useAppStore((s) => s.authRole);
@@ -2504,6 +2510,25 @@ function AlarmViewerWidget({ width, height, mode, maxRows, prefix, allowedSev, s
       });
     } catch { /* ignore */ }
   }, []);
+
+  // F7.5 — ACK massivo: su un impianto che parte con venti allarmi insieme,
+  // confermarli uno per uno è il momento in cui l'operatore smette di guardare
+  // il pannello. Conferma solo quelli VISIBILI (filtri e prefisso compresi):
+  // "acknowledge all" su tutto l'impianto sarebbe una scorciatoia pericolosa.
+  const handleAckAll = useCallback(async (ids: string[]) => {
+    for (const id of ids) await handleAck(id);
+  }, [handleAck]);
+
+  // F7.5 — shelve dal viewer: mette a tacere un allarme noto per un tempo
+  // limitato, con motivo registrato (l'API lo richiede e finisce nel journal).
+  const handleShelve = useCallback(async (id: string) => {
+    const reason = window.prompt("Motivo della messa in silenzio:");
+    if (!reason) return;
+    try {
+      await api.shelveAlarm(id, reason, Math.max(1, shelveMinutes ?? 15) * 60_000,
+        useAppStore.getState().authUser ?? "operatore");
+    } catch (err) { console.error(err); }
+  }, [shelveMinutes]);
 
   const containerStyle: React.CSSProperties = {
     width, height,
@@ -2563,6 +2588,18 @@ function AlarmViewerWidget({ width, height, mode, maxRows, prefix, allowedSev, s
           ? new Date(a.activated_at_ms).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })
           : "—",
       } satisfies DataTableColumn<AlarmState>] : []),
+      ...(showShelve && canAck ? [{
+        key: "shelve", header: "🔇", width: 30, align: "center" as const, sortable: false, filterable: false,
+        accessor: () => "",
+        render: (a: AlarmState) => (
+          <button
+            onClick={(e) => { e.stopPropagation(); void handleShelve(a.def.id); }}
+            title="Metti in silenzio per un po' (con motivo)"
+            style={{ fontSize: 10, padding: "1px 4px", background: "transparent", border: "none",
+                     color: "var(--brand-text-muted, #94a3b8)", cursor: "pointer" }}
+          >🔇</button>
+        ),
+      } satisfies DataTableColumn<AlarmState>] : []),
       ...(showAck ? [{
         key: "ack", header: "ACK", width: 56, align: "center" as const, sortable: false, filterable: false,
         accessor: () => "",
@@ -2576,13 +2613,26 @@ function AlarmViewerWidget({ width, height, mode, maxRows, prefix, allowedSev, s
         ) : a.acknowledged ? <span style={{ color: "var(--brand-text-subtle, #64748b)", fontStyle: "italic" }}>ACK</span> : null,
       } satisfies DataTableColumn<AlarmState>] : []),
     ];
+    const barH = showAckAll && canAck ? 22 : 0;
     return (
       <div style={{ width, height, boxSizing: "border-box" }}>
+        {barH > 0 && (
+          <div style={{ height: barH, display: "flex", alignItems: "center", justifyContent: "flex-end", padding: "0 4px" }}>
+            <button
+              onClick={() => void handleAckAll(filtered.filter((a) => !a.acknowledged).map((a) => a.def.id))}
+              disabled={filtered.every((a) => a.acknowledged)}
+              title="Conferma tutti gli allarmi mostrati"
+              style={{ fontSize: 10, padding: "1px 8px", background: "var(--brand-surface, #1e293b)",
+                       border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 3,
+                       color: "var(--brand-text-muted, #94a3b8)", cursor: "pointer" }}
+            >✓ ACK tutti ({filtered.filter((a) => !a.acknowledged).length})</button>
+          </div>
+        )}
         <DataTable<AlarmState>
           columns={columns}
           rows={filtered}
           rowKey={(a) => a.def.id}
-          maxHeight={height}
+          maxHeight={height - barH}
           compact
         />
       </div>
@@ -5056,6 +5106,9 @@ export function SvgObject(p: ObjProps) {
             prefix={prefix} allowedSev={allowedSev}
             showAck={showAck} showTs={showTs} showEmpty={showEmpty}
             bgColor={obj.alarm_viewer_bg_color}
+            showAckAll={obj.alarm_viewer_show_ack_all}
+            showShelve={obj.alarm_viewer_show_shelve}
+            shelveMinutes={obj.alarm_shelve_minutes}
           />
         </foreignObject>
         {hitRect(obj.x, obj.y, w, h)}
@@ -5104,6 +5157,31 @@ export function SvgObject(p: ObjProps) {
             idPrefix={obj.alarm_banner_id_prefix}
             allowedSev={obj.alarm_banner_severities}
           />
+        </foreignObject>
+        {hitRect(obj.x, obj.y, w, h)}
+      </g>
+    );
+  }
+
+  // ── ALARM HISTORY (F7.5) ─────────────────────────────────────────────────────
+  // Lo storico esisteva solo come pannello dentro la campanella: qui diventa un
+  // oggetto piazzabile, per le pagine "diario di impianto".
+
+  if (obj.type === "alarm_history") {
+    const w = obj.width ?? 420; const h = obj.height ?? 220;
+    return (
+      <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()}>
+        {selRect(obj.x, obj.y, w, h)}
+        {bgLayer(obj.x, obj.y, w, h, 4)}
+        <foreignObject x={obj.x} y={obj.y} width={w} height={h}
+          style={isEditMode ? { pointerEvents: "none" } : undefined}>
+          <div style={{
+            width: "100%", height: "100%", boxSizing: "border-box", overflow: "auto",
+            background: obj.bg_color ?? "var(--brand-surface, #1e293b)",
+            border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4,
+          }}>
+            <AlarmHistory alarmId={obj.alarm_history_id} />
+          </div>
         </foreignObject>
         {hitRect(obj.x, obj.y, w, h)}
       </g>

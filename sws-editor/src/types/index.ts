@@ -37,6 +37,8 @@ export type SynopticObjectType =
   | "alarm_viewer"
   | "alarm_bell"
   | "alarm_banner"
+  // Storico allarmi (F7.5): la stessa tabella della modale, piazzabile
+  | "alarm_history"
   // Recipe list + apply, promoted from the fixed RecipeModal (RuntimeView.tsx)
   | "recipe_panel"
   // SCADA symbols (pump/valve/motor/tank/fan from the built-in library)
@@ -627,6 +629,15 @@ export interface SynopticObject {
   bar_ticks?: number;
   /** F7.2 — legenda sotto il grafico. */
   bar_show_legend?: boolean;
+  // ── Alarm viewer / history (F7.5) ─────────────────────────────────────
+  /** Barra "ACK tutti" sopra l'elenco (conferma solo gli allarmi mostrati). */
+  alarm_viewer_show_ack_all?: boolean;
+  /** Pulsante di messa in silenzio (shelve) per riga, con motivo obbligatorio. */
+  alarm_viewer_show_shelve?: boolean;
+  /** Durata della messa in silenzio, in minuti. Default 15. */
+  alarm_shelve_minutes?: number;
+  /** alarm_history: limita lo storico a un singolo id di allarme. */
+  alarm_history_id?: string;
   // ── Pie / Donut Chart (type === "pie_chart") ──────────────────────────
   pie_slices?: PieSlice[];
   pie_mode?: "pie" | "donut";

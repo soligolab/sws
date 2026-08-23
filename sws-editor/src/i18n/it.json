@@ -838,7 +838,14 @@
     "sortable": "Ordinabile",
     "filterRow": "Riga filtri",
     "writableCell": "Cella scrivibile (Invio scrive il tag)",
-    "tableHint": "Le righe scorrono dentro l'altezza dichiarata: la tabella non sfora più il box."
+    "tableHint": "Le righe scorrono dentro l'altezza dichiarata: la tabella non sfora più il box.",
+    "ackAll": "Pulsante ACK tutti",
+    "shelveBtn": "Metti in silenzio (per riga)",
+    "shelveMinutes": "Durata silenzio (min)",
+    "ackAllHint": "\"ACK tutti\" conferma solo gli allarmi mostrati da questo oggetto (filtri e prefisso compresi). La messa in silenzio chiede sempre un motivo, registrato nel journal.",
+    "alarmHistoryHint": "Storico degli allarmi (attivazioni, conferme, rientri) con paginazione. Lascia vuoto il filtro per vederli tutti.",
+    "alarmIdFilter": "Filtra per id allarme",
+    "allAlarms": "tutti gli allarmi"
   },
   "shortcut": {
     "navCanvas": "Navigazione canvas",

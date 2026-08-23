@@ -190,6 +190,11 @@ pub struct SynopticObject {
     #[serde(skip_serializing_if = "Option::is_none")] pub table_filterable:           Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")] pub table_font_size:            Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")] pub table_label_header:         Option<String>,
+    // F7.5 — allarmi: ACK massivo, messa in silenzio, storico piazzabile
+    #[serde(skip_serializing_if = "Option::is_none")] pub alarm_viewer_show_ack_all:   Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub alarm_viewer_show_shelve:    Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub alarm_shelve_minutes:        Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub alarm_history_id:            Option<String>,
     // XY plot (live point + trail, not a time series). `tag` above is the X axis.
     #[serde(skip_serializing_if = "Option::is_none")] pub y_tag: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")] pub xy_trail_s: Option<f64>,

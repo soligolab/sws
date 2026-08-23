@@ -621,6 +621,9 @@ export function EditorShell() {
       case "alarm_banner":
         addObject({ type, x, y, width: 600, height: 32 });
         break;
+      case "alarm_history":
+        addObject({ type, x, y, width: 420, height: 220 });
+        break;
       case "recipe_panel":
         addObject({ type, x, y, width: 260, height: 160 });
         break;
@@ -2175,7 +2178,7 @@ function ObjectProps({
   const BOX_TYPES = ["rect", "ellipse", "button", "navbutton", "checkbox", "radio", "slider", "gauge", "led", "progress_bar", "table", "trend", "symbol", "grid",
     // 2026-08-23: W/H per tutti i box-like (prima si ridimensionavano solo con le maniglie)
     "image", "xy_plot", "kpi_tile", "data_log", "alarm_viewer", "alarm_bell", "alarm_banner",
-    "recipe_panel", "faceplate", "setpoint", "text_list", "state_lamp", "lang_button",
+    "recipe_panel", "faceplate", "setpoint", "text_list", "state_lamp", "lang_button", "alarm_history",
     "lang_selector", "bar_chart", "pie_chart", "sparkline"];
   // F7.4: il testo entra fra i box-like solo col wrap attivo — senza wrap la
   // larghezza è stimata dal contenuto e i campi W/H non farebbero niente.
@@ -2189,7 +2192,7 @@ function ObjectProps({
     "ellipse", "navbutton", "lang_button", "lang_selector", "led", "state_lamp",
     "progress_bar", "slider", "setpoint", "checkbox", "radio", "table",
     "xy_plot", "text_list", "bar_chart", "pie_chart", "sparkline", "kpi_tile", "data_log",
-    "alarm_bell", "alarm_banner", "recipe_panel", "grid", "image", "faceplate",
+    "alarm_bell", "alarm_banner", "recipe_panel", "grid", "image", "faceplate", "alarm_history",
   ];
 
   return (
@@ -2427,7 +2430,7 @@ function ObjectProps({
         // propri) o è puro rumore — il campo vive nella sezione qualità come
         // "Tag di stato" (alimenta bordo-allarme/stale/Bad-gray/QDot).
         "kpi_tile","data_log","sparkline","bar_chart","pie_chart","table","symbol",
-        "alarm_viewer","alarm_bell","alarm_banner","recipe_panel","grid","faceplate",
+        "alarm_viewer","alarm_bell","alarm_banner","alarm_history","recipe_panel","grid","faceplate",
         "image","lang_button","lang_selector"].includes(obj.type) && field(t("props.tag"), tagInput("es. pump1.speed"))}
 
       {/* Token picker (T-40): insert {{key}} into the primary text field so the
@@ -3693,6 +3696,42 @@ function ObjectProps({
             ))}
           </div>
           {field(t("props.emptyBackground"), <input type="color" value={obj.alarm_viewer_bg_color ?? "var(--brand-bg, #0f172a)"} onChange={(e) => onChange({ alarm_viewer_bg_color: e.target.value })} style={{ width: 40, height: 24, padding: 1, border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 3 }} />)}
+          {/* F7.5 — ACK massivo e messa in silenzio, solo in modalità tabella
+              (in "list"/"banner" non c'è spazio per i comandi). */}
+          {(obj.alarm_viewer_mode ?? "list") === "table" && (
+            <>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 4 }}>
+                <label style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "flex", gap: 3, alignItems: "center" }}>
+                  <input type="checkbox" checked={!!obj.alarm_viewer_show_ack_all}
+                    onChange={(e) => onChange({ alarm_viewer_show_ack_all: e.target.checked || undefined })} />
+                  {t("props.ackAll")}
+                </label>
+                <label style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "flex", gap: 3, alignItems: "center" }}>
+                  <input type="checkbox" checked={!!obj.alarm_viewer_show_shelve}
+                    onChange={(e) => onChange({ alarm_viewer_show_shelve: e.target.checked || undefined })} />
+                  {t("props.shelveBtn")}
+                </label>
+              </div>
+              {obj.alarm_viewer_show_shelve && field(t("props.shelveMinutes"), numInput("alarm_shelve_minutes", 15))}
+              <p style={{ fontSize: 10, color: "var(--brand-border, #475569)", margin: "2px 0 4px" }}>
+                {t("props.ackAllHint")}
+              </p>
+            </>
+          )}
+        </>
+      )}
+
+      {/* Storico allarmi piazzabile (F7.5) */}
+      {obj.type === "alarm_history" && (
+        <>
+          <div style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", marginBottom: 4 }}>
+            {t("props.alarmHistoryHint")}
+          </div>
+          {field(t("props.alarmIdFilter"),
+            <input style={INPUT} placeholder={t("props.allAlarms")}
+              value={obj.alarm_history_id ?? ""}
+              onChange={(e) => onChange({ alarm_history_id: e.target.value || undefined })} />
+          )}
         </>
       )}
 
@@ -4256,7 +4295,7 @@ function ObjectProps({
             che alimenta allarme/stale/qualità si imposta QUI (il campo Tag
             generico in alto per loro non esiste più). */}
         {["bar_chart","pie_chart","table","symbol",
-          "alarm_viewer","alarm_bell","alarm_banner","recipe_panel","grid","faceplate",
+          "alarm_viewer","alarm_bell","alarm_banner","alarm_history","recipe_panel","grid","faceplate",
           "image","lang_button","lang_selector"].includes(obj.type) &&
           field(t("props.stateTag"),
             <TagInput style={INPUT} placeholder={t("props.stateTagPh")}

@@ -838,7 +838,14 @@
     "sortable": "Sortable",
     "filterRow": "Filter row",
     "writableCell": "Writable cell (Enter writes the tag)",
-    "tableHint": "Rows scroll inside the declared height: the table no longer overflows its box."
+    "tableHint": "Rows scroll inside the declared height: the table no longer overflows its box.",
+    "ackAll": "\"ACK all\" button",
+    "shelveBtn": "Shelve button (per row)",
+    "shelveMinutes": "Shelve duration (min)",
+    "ackAllHint": "\"ACK all\" only acknowledges the alarms this object shows (filters and prefix included). Shelving always asks for a reason, recorded in the journal.",
+    "alarmHistoryHint": "Alarm history (activations, acknowledgements, returns) with paging. Leave the filter empty to see them all.",
+    "alarmIdFilter": "Filter by alarm id",
+    "allAlarms": "all alarms"
   },
   "shortcut": {
     "navCanvas": "Canvas navigation",

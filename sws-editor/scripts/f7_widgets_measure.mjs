@@ -26,6 +26,9 @@ const expect = {
   bar_stk:  { bar_mode: "stacked" },
   pie_grp:  { pie_label_mode: "value_percent", pie_group_below_pct: 10, pie_explode_px: 8, pie_hole_color: "#ffffff" },
   tbl:      { table_sortable: true, table_filterable: true, table_font_size: 12, table_label_header: "SEGNALI" },
+  // F7.5 — allarmi: comandi del viewer e storico piazzabile
+  av:       { alarm_viewer_show_ack_all: true, alarm_viewer_show_shelve: true, alarm_shelve_minutes: 30 },
+  ah:       { alarm_history_id: "AL_TEST" },
 };
 for (const [id, fields] of Object.entries(expect)) {
   for (const [k, v] of Object.entries(fields)) {
@@ -60,6 +63,9 @@ const dom = await pg.evaluate(() => {
     x: Number(f.getAttribute("x")), y: Number(f.getAttribute("y")),
     w: Number(f.getAttribute("width")), h: Number(f.getAttribute("height")),
     html: f.innerHTML.slice(0, 400),
+    // Testo visibile: l'HTML troncato a 400 caratteri non basta a cercarci
+    // dentro un'intestazione che sta più in fondo.
+    text: (f.textContent ?? "").slice(0, 300),
     // Stili risolti del primo div (per il testo multiriga).
     style: (() => {
       const d = f.querySelector("div");
@@ -155,6 +161,11 @@ else {
   if (tbl.inputs > 0) ok(`table: riga filtri presente (${tbl.inputs} input)`);
   else fail("table: nessun input di filtro");
 }
+
+// F7.5 — lo storico allarmi è un oggetto vero sul canvas (intestazione propria).
+const histFo = dom.fo.find((f) => f.x === 880 && f.y === 300);
+if (histFo && /STORICO ALLARMI/i.test(histFo.text)) ok("alarm_history: storico reso nel canvas");
+else fail(`alarm_history: contenuto inatteso (${histFo ? JSON.stringify(histFo.text.slice(0, 120)) : "foreignObject assente"})`);
 
 await browser.close();
 console.log(bad === 0 ? "\nTUTTO OK" : `\n${bad} PROBLEMI`);
