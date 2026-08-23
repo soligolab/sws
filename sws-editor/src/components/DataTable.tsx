@@ -33,12 +33,19 @@ export interface DataTableProps<T> {
   selectedRowKey?: string;
   /** font/padding più stretti, per uso embedded nel canvas SCADA */
   compact?: boolean;
+  /** F7.1 — corpo del testo esplicito (vince sul default di `compact`):
+   *  la tabella del sinottico lo espone come proprietà dell'oggetto. */
+  fontSize?: number;
+  /** F7.1 — nasconde la riga dei filtri anche su colonne filtrabili (in una
+   *  tabella piccola sul sinottico due righe di intestazione sono troppe). */
+  hideFilters?: boolean;
 }
 
 type SortDir = "asc" | "desc";
 
 export function DataTable<T>({
   columns, rows, rowKey, emptyLabel = "Nessun dato.", maxHeight, onRowClick, selectedRowKey, compact = false,
+  fontSize: fontSizeProp, hideFilters = false,
 }: DataTableProps<T>) {
   const [sortKey, setSortKey] = useState<string | null>(null);
   const [sortDir, setSortDir] = useState<SortDir>("asc");
@@ -81,8 +88,8 @@ export function DataTable<T>({
   }, [filtered, sortKey, sortDir, columns]);
 
   const pad = compact ? "3px 6px" : "6px 10px";
-  const fontSize = compact ? 11 : 12;
-  const hasFilters = columns.some((c) => c.filterable !== false);
+  const fontSize = fontSizeProp ?? (compact ? 11 : 12);
+  const hasFilters = !hideFilters && columns.some((c) => c.filterable !== false);
 
   return (
     <div style={{ overflow: "auto", maxHeight, border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4 }}>

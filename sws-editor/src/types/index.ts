@@ -140,6 +140,20 @@ export interface TableRow {
   label: string;
   tag: string;
   format?: string;
+  // ── F7.1 (Table 2.0) ────────────────────────────────────────────────────
+  /** Unità mostrata nella colonna dedicata (o accodata al valore). */
+  unit?: string;
+  /** Decimali del valore numerico. Senza `format` vince questo. */
+  decimals?: number;
+  /** Cella scrivibile: il valore diventa un campo di input che scrive il tag
+   *  (stessa pipeline comandi degli altri controlli, ruolo compreso). */
+  writable?: boolean;
+  /** Soglie per riga: colorano il valore (giallo/rosso) indipendentemente
+   *  dalle soglie del tag, per tabelle di sinossi con limiti locali. */
+  warn_low?: number;
+  warn_high?: number;
+  alarm_low?: number;
+  alarm_high?: number;
 }
 
 /** Traccia unificata del trend (migrazione 2026-08-23, taglio netto):
@@ -283,6 +297,16 @@ export interface SynopticObject {
   /** Come l'immagine riempie il box. Default "stretch" (comportamento storico). */
   image_fit?: "stretch" | "contain" | "cover";
 
+  // ── F7.4 — testo multiriga ────────────────────────────────────────────────
+  /** Manda a capo il testo dentro width/height invece di scrivere una riga
+   *  sola che sfora il box. Con `false`/assente resta il comportamento
+   *  storico (una riga, larghezza stimata). */
+  text_wrap?: boolean;
+  /** Allineamento verticale dentro il box, solo con text_wrap. Default "top". */
+  text_valign?: "top" | "middle" | "bottom";
+  /** Interlinea come moltiplicatore del corpo. Default 1.25. */
+  line_height?: number;
+
   tag?: string;
   format?: string;
   src?: string;
@@ -368,6 +392,17 @@ export interface SynopticObject {
   options?: RadioOption[];
   // Data table rows
   table_rows?: TableRow[];
+  /** F7.1 — colonne mostrate e in quale ordine. Default ["label","value","quality"]
+   *  (le tre di sempre). */
+  table_columns?: ("label" | "value" | "unit" | "quality" | "time")[];
+  /** F7.1 — intestazioni cliccabili per ordinare (default true) e riga di
+   *  filtri sotto l'intestazione (default false: occupa spazio). */
+  table_sortable?: boolean;
+  table_filterable?: boolean;
+  /** F7.1 — corpo del testo della tabella. Default 11. */
+  table_font_size?: number;
+  /** F7.1 — etichetta della colonna dei nomi (default "DATI"). */
+  table_label_header?: string;
   // Trend chart
   /** Seconds of history to render in the window. */
   window_s?: number;
@@ -585,6 +620,13 @@ export interface SynopticObject {
   bar_show_thresholds?: boolean;
   bar_gap?: number;
   bar_y_label?: string;
+  /** F7.2 — "grouped" (default, storico: una barra per serie) o "stacked"
+   *  (barra unica composta dai segmenti delle serie: composizione di un totale). */
+  bar_mode?: "grouped" | "stacked";
+  /** F7.2 — numero di tacche numerate sull'asse dei valori (0/assente = nessuna). */
+  bar_ticks?: number;
+  /** F7.2 — legenda sotto il grafico. */
+  bar_show_legend?: boolean;
   // ── Pie / Donut Chart (type === "pie_chart") ──────────────────────────
   pie_slices?: PieSlice[];
   pie_mode?: "pie" | "donut";
@@ -594,6 +636,18 @@ export interface SynopticObject {
   pie_center_tag?: string;
   pie_center_format?: string;
   pie_show_legend?: boolean;
+  /** F7.3 — cosa mostrano le etichette sulle fette. Default "percent". */
+  pie_label_mode?: "percent" | "value" | "value_percent" | "label_percent";
+  /** F7.3 — le fette sotto questa percentuale (0..100) finiscono in un'unica
+   *  fetta "altro", per non riempire il grafico di spicchi illeggibili. */
+  pie_group_below_pct?: number;
+  pie_group_label?: string;
+  pie_group_color?: string;
+  /** F7.3 — stacca dal centro la fetta più grande (px). 0/assente = nessuna. */
+  pie_explode_px?: number;
+  /** F7.3 — colore del foro del donut: prima era fissato a #0f172a, quindi su
+   *  uno sfondo chiaro compariva un disco scuro. */
+  pie_hole_color?: string;
   // ── Sparkline (type === "sparkline") ──────────────────────────────────
   spark_window_s?: number;
   spark_color?: string;

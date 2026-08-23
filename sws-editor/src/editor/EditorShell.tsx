@@ -2177,7 +2177,9 @@ function ObjectProps({
     "image", "xy_plot", "kpi_tile", "data_log", "alarm_viewer", "alarm_bell", "alarm_banner",
     "recipe_panel", "faceplate", "setpoint", "text_list", "state_lamp", "lang_button",
     "lang_selector", "bar_chart", "pie_chart", "sparkline"];
-  const isShape = BOX_TYPES.includes(obj.type);
+  // F7.4: il testo entra fra i box-like solo col wrap attivo — senza wrap la
+  // larghezza è stimata dal contenuto e i campi W/H non farebbero niente.
+  const isShape = BOX_TYPES.includes(obj.type) || (obj.type === "text" && !!obj.text_wrap);
   const hasStroke = obj.type === "rect" || obj.type === "ellipse" || obj.type === "line";
   // Tipi che disegnano il layer di sfondo universale (bg_color/bg_image) in
   // SvgCanvas.tsx. Sottoinsieme iniziale scelto per coprire i pattern di
@@ -2447,7 +2449,17 @@ function ObjectProps({
       {/* Text object: static content + typography */}
       {obj.type === "text" && (
         <>
-          {field(t("props.textStatic"), <BindableInput obj={obj} propName="text" onChange={onChange}>{textInput("text", "Es. Temperatura caldaia")}</BindableInput>)}
+          {/* F7.4 — con il testo multiriga il campo statico diventa un'area:
+              gli a-capo scritti a mano vengono rispettati dal rendering. */}
+          {obj.text_wrap
+            ? field(t("props.textStatic"),
+                <textarea
+                  style={{ ...INPUT, minHeight: 56, fontFamily: "inherit", resize: "vertical" }}
+                  placeholder="Es. Temperatura caldaia"
+                  value={obj.text ?? ""}
+                  onChange={(e) => onChange({ text: e.target.value || undefined })}
+                />)
+            : field(t("props.textStatic"), <BindableInput obj={obj} propName="text" onChange={onChange}>{textInput("text", "Es. Temperatura caldaia")}</BindableInput>)}
           {field(t("props.formatBound"), <BindableInput obj={obj} propName="format" onChange={onChange}>{textInput("format", "{value:.1f} °C")}</BindableInput>)}
           <p style={{ fontSize: 10, color: "var(--brand-border, #475569)", margin: "0 0 4px" }}>
             Se è impostato un Tag, vince il formato (usa <code>{"{value}"}</code>); altrimenti viene
@@ -2468,6 +2480,33 @@ function ObjectProps({
               </select>
             </div>
           </div>
+          {/* F7.4 — testo multiriga dentro il box dichiarato. */}
+          <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--brand-text-2, #cbd5e1)", marginTop: 4, cursor: "pointer" }}>
+            <input type="checkbox" checked={!!obj.text_wrap}
+              onChange={(e) => onChange({ text_wrap: e.target.checked || undefined })}
+              style={{ accentColor: "var(--brand-primary, #3b82f6)" }} />
+            {t("props.textWrap")}
+          </label>
+          {obj.text_wrap && (
+            <>
+              <p style={{ fontSize: 10, color: "var(--brand-border, #475569)", margin: "2px 0 4px" }}>
+                {t("props.textWrapHint")}
+              </p>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+                <div>
+                  <div style={LABEL}>{t("props.vAlign")}</div>
+                  <select style={{ ...INPUT, cursor: "pointer" }}
+                    value={obj.text_valign ?? "top"}
+                    onChange={(e) => onChange({ text_valign: e.target.value === "top" ? undefined : (e.target.value as "middle" | "bottom") })}>
+                    <option value="top">{t("props.vAlignTop")}</option>
+                    <option value="middle">{t("props.vAlignMiddle")}</option>
+                    <option value="bottom">{t("props.vAlignBottom")}</option>
+                  </select>
+                </div>
+                <div><div style={LABEL}>{t("props.lineHeight")}</div>{numInput("line_height", 1.25)}</div>
+              </div>
+            </>
+          )}
           {field(t("props.fontFamily"),
             <BindableInput obj={obj} propName="font_family" onChange={onChange}>
               <input
@@ -2983,12 +3022,54 @@ function ObjectProps({
       )}
 
       {/* Table */}
-      {obj.type === "table" && (
-        <TableRowsEditor
-          rows={(obj.table_rows as TableRow[] | undefined) ?? []}
-          onChange={(rows) => onChange({ table_rows: rows as SynopticObject["table_rows"] })}
-        />
-      )}
+      {obj.type === "table" && (() => {
+        // F7.1 — colonne mostrate, in ordine fisso di presentazione; l'utente
+        // sceglie quali accendere (le tre storiche sono il default).
+        const ALL_COLS = ["label", "value", "unit", "quality", "time"] as const;
+        const active = obj.table_columns ?? ["label", "value", "quality"];
+        const toggleCol = (c: typeof ALL_COLS[number]) => {
+          const next = active.includes(c) ? active.filter((x) => x !== c) : ALL_COLS.filter((x) => active.includes(x) || x === c);
+          onChange({ table_columns: next.length > 0 ? [...next] : undefined });
+        };
+        return (
+          <>
+            <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", marginTop: 4, marginBottom: 2, fontWeight: 700 }}>
+              {t("props.columns")}
+            </div>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              {ALL_COLS.map((c) => (
+                <label key={c} style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "flex", gap: 3, alignItems: "center" }}>
+                  <input type="checkbox" checked={active.includes(c)} onChange={() => toggleCol(c)} />
+                  {t(`props.col_${c}`)}
+                </label>
+              ))}
+            </div>
+            {field(t("props.labelHeader"), textInput("table_label_header", "DATI"))}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+              <div><div style={LABEL}>{t("props.dimensionPx")}</div>{numInput("table_font_size", 11)}</div>
+            </div>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 4 }}>
+              <label style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "flex", gap: 3, alignItems: "center" }}>
+                <input type="checkbox" checked={obj.table_sortable !== false}
+                  onChange={(e) => onChange({ table_sortable: e.target.checked ? undefined : false })} />
+                {t("props.sortable")}
+              </label>
+              <label style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "flex", gap: 3, alignItems: "center" }}>
+                <input type="checkbox" checked={obj.table_filterable === true}
+                  onChange={(e) => onChange({ table_filterable: e.target.checked || undefined })} />
+                {t("props.filterRow")}
+              </label>
+            </div>
+            <p style={{ fontSize: 10, color: "var(--brand-border, #475569)", margin: "4px 0" }}>
+              {t("props.tableHint")}
+            </p>
+            <TableRowsEditor
+              rows={(obj.table_rows as TableRow[] | undefined) ?? []}
+              onChange={(rows) => onChange({ table_rows: rows as SynopticObject["table_rows"] })}
+            />
+          </>
+        );
+      })()}
 
       {/* Trend */}
       {obj.type === "trend" && (() => {
@@ -3408,11 +3489,27 @@ function ObjectProps({
             <div><div style={LABEL}>Min</div><BindableInput obj={obj} propName="min" onChange={onChange}>{numInput("min", 0)}</BindableInput></div>
             <div><div style={LABEL}>Max</div><BindableInput obj={obj} propName="max" onChange={onChange}>{numInput("max", 100)}</BindableInput></div>
           </div>
+          <p style={{ fontSize: 10, color: "var(--brand-border, #475569)", margin: "-2px 0 4px" }}>
+            {t("props.barRangeHint")}
+          </p>
           {field(t("props.unit"), textInput("unit", ""))}
+          {field(t("props.decimals"), numInput("decimals", 1))}
           {field(t("props.yAxisLabel"), textInput("bar_y_label", ""))}
-          {field(t("props.barGap"), numInput("bar_gap", 0.2))}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+            <div><div style={LABEL}>{t("props.barGap")}</div>{numInput("bar_gap", 0.2)}</div>
+            <div><div style={LABEL}>{t("props.ticks")}</div>{numInput("bar_ticks", 0)}</div>
+          </div>
+          {/* F7.2 — barre affiancate (storico) o impilate in una sola barra. */}
+          {field(t("props.barMode"), (
+            <select style={{ ...INPUT, cursor: "pointer" }} value={obj.bar_mode ?? "grouped"}
+              onChange={(e) => onChange({ bar_mode: e.target.value === "grouped" ? undefined : "stacked" })}>
+              <option value="grouped">{t("props.barGrouped")}</option>
+              <option value="stacked">{t("props.barStacked")}</option>
+            </select>
+          ))}
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            {[["bar_show_values","Valori"], ["bar_show_labels","Etichette"], ["bar_show_thresholds","Soglie"]].map(([k,l]) => (
+            {[["bar_show_values", t("props.values")], ["bar_show_labels", t("props.labels")],
+              ["bar_show_thresholds", t("props.thresholdsShort")], ["bar_show_legend", t("props.legend")]].map(([k,l]) => (
               <label key={k} style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "flex", gap: 3, alignItems: "center" }}>
                 <input type="checkbox" checked={!!(obj as any)[k]} onChange={(e) => onChange({ [k]: e.target.checked })} />{l}
               </label>
@@ -3452,14 +3549,54 @@ function ObjectProps({
               <option value="donut">{t("props.donut")}</option>
             </select>
           ))}
-          {(obj.pie_mode ?? "pie") === "donut" && field(t("props.innerRadius"), <BindableInput obj={obj} propName="pie_inner_ratio" onChange={onChange}>{numInput("pie_inner_ratio", 0.5)}</BindableInput>)}
+          {(obj.pie_mode ?? "pie") === "donut" && (
+            <>
+              {field(t("props.innerRadius"), <BindableInput obj={obj} propName="pie_inner_ratio" onChange={onChange}>{numInput("pie_inner_ratio", 0.5)}</BindableInput>)}
+              {/* F7.3 — il foro era fisso #0f172a: su sfondo chiaro un disco nero. */}
+              {field(t("props.holeColor"), colorInput("pie_hole_color", "#0f172a"))}
+            </>
+          )}
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            {[["pie_show_labels","Percentuali"], ["pie_show_legend","Legenda"]].map(([k,l]) => (
+            {[["pie_show_labels", t("props.labels")], ["pie_show_legend", t("props.legend")]].map(([k,l]) => (
               <label key={k} style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "flex", gap: 3, alignItems: "center" }}>
                 <input type="checkbox" checked={!!(obj as any)[k]} onChange={(e) => onChange({ [k]: e.target.checked })} />{l}
               </label>
             ))}
           </div>
+          {/* F7.3 — contenuto delle etichette, unità e decimali del valore. */}
+          {obj.pie_show_labels !== false && (
+            <>
+              {field(t("props.labelContent"), (
+                <select style={{ ...INPUT, cursor: "pointer" }} value={obj.pie_label_mode ?? "percent"}
+                  onChange={(e) => onChange({ pie_label_mode: e.target.value === "percent" ? undefined : (e.target.value as "value" | "value_percent" | "label_percent") })}>
+                  <option value="percent">{t("props.labelPercent")}</option>
+                  <option value="value">{t("props.labelValue")}</option>
+                  <option value="value_percent">{t("props.labelValuePercent")}</option>
+                  <option value="label_percent">{t("props.labelNamePercent")}</option>
+                </select>
+              ))}
+              {(obj.pie_label_mode ?? "percent") !== "percent" && (
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+                  <div><div style={LABEL}>{t("props.unit")}</div>{textInput("unit", "")}</div>
+                  <div><div style={LABEL}>{t("props.decimals")}</div>{numInput("decimals", 1)}</div>
+                </div>
+              )}
+            </>
+          )}
+          {/* F7.3 — raggruppamento delle fette piccole e fetta staccata. */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+            <div><div style={LABEL}>{t("props.groupBelowPct")}</div>{numInput("pie_group_below_pct", 0)}</div>
+            <div><div style={LABEL}>{t("props.explodePx")}</div>{numInput("pie_explode_px", 0)}</div>
+          </div>
+          <p style={{ fontSize: 10, color: "var(--brand-border, #475569)", margin: "-2px 0 4px" }}>
+            {t("props.pieGroupHint")}
+          </p>
+          {!!obj.pie_group_below_pct && (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+              <div><div style={LABEL}>{t("props.groupLabel")}</div>{textInput("pie_group_label", "altro")}</div>
+              <div><div style={LABEL}>{t("props.color")}</div>{colorInput("pie_group_color", "#64748b")}</div>
+            </div>
+          )}
           {(obj.pie_mode ?? "pie") === "donut" && field(t("props.textCenter"), <BindableInput obj={obj} propName="pie_center_text" onChange={onChange}>{textInput("pie_center_text", "")}</BindableInput>)}
           {(obj.pie_mode ?? "pie") === "donut" && field(t("props.tagCenter"),
             <TagInput
@@ -4526,9 +4663,41 @@ function TableRowsEditor({
               onChange={(v) => update(i, { tag: v })}
             />
           </div>
-          <div style={LABEL}>{t("props.format")}</div>
-          <input type="text" style={INPUT} placeholder="{value:.1f}" value={row.format ?? ""}
-            onChange={(e) => update(i, { format: e.target.value || undefined })} />
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 4 }}>
+            <div>
+              <div style={LABEL}>{t("props.format")}</div>
+              <input type="text" style={INPUT} placeholder="{value:.1f}" value={row.format ?? ""}
+                onChange={(e) => update(i, { format: e.target.value || undefined })} />
+            </div>
+            {/* F7.1 — unità e decimali per riga (senza scrivere un format). */}
+            <div>
+              <div style={LABEL}>{t("props.unit")}</div>
+              <input type="text" style={INPUT} value={row.unit ?? ""}
+                onChange={(e) => update(i, { unit: e.target.value || undefined })} />
+            </div>
+            <div>
+              <div style={LABEL}>{t("props.decimals")}</div>
+              <input type="number" style={INPUT} value={row.decimals ?? ""}
+                onChange={(e) => update(i, { decimals: e.target.value === "" ? undefined : Number(e.target.value) })} />
+            </div>
+          </div>
+          {/* F7.1 — soglie della riga: colorano il valore, indipendenti dal tag. */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 4, marginTop: 4 }}>
+            {([["alarm_low", t("props.alarmLow")], ["warn_low", t("props.warnLow")],
+               ["warn_high", t("props.warnHigh")], ["alarm_high", t("props.alarmHigh")]] as const).map(([k, lbl]) => (
+              <div key={k}>
+                <div style={LABEL}>{lbl}</div>
+                <input type="number" style={INPUT} value={(row[k] as number | undefined) ?? ""}
+                  onChange={(e) => update(i, { [k]: e.target.value === "" ? undefined : Number(e.target.value) })} />
+              </div>
+            ))}
+          </div>
+          <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: "var(--brand-text-2, #cbd5e1)", marginTop: 4, cursor: "pointer" }}>
+            <input type="checkbox" checked={!!row.writable}
+              onChange={(e) => update(i, { writable: e.target.checked || undefined })}
+              style={{ accentColor: "var(--brand-primary, #3b82f6)" }} />
+            {t("props.writableCell")}
+          </label>
         </div>
       ))}
       <button

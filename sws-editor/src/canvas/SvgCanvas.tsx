@@ -18,7 +18,7 @@ import { applyStateColor, parseSvg, sanitizeSvg } from "@/symbols/customSvg";
 import { trendTraces } from "@/canvas/trendModel";
 import { SYMBOLS } from "@/symbols/library";
 import { clampToPage } from "@/pageLayout";
-import type { AlarmSeverity, AlarmState, CustomSymbol, FaceplateDef, FaceplateParamDef, GridCell, PageSizeMode, PipePoint, Sample, SynopticObject, TagDef, TagState, TextListEntry } from "@/types";
+import type { AlarmSeverity, AlarmState, CustomSymbol, FaceplateDef, FaceplateParamDef, GridCell, PageSizeMode, PipePoint, Sample, SynopticObject, TableRow, TagDef, TagState, TextListEntry } from "@/types";
 
 // ── Canvas props ──────────────────────────────────────────────────────────────
 
@@ -3259,6 +3259,47 @@ export function SvgObject(p: ObjProps) {
     const colour    = (obj.text_color_by_threshold && tv && Number.isFinite(Number(tv.value)))
       ? (thresholdColor(Number(tv.value), obj.alarm_low, obj.warn_low, obj.warn_high, obj.alarm_high) ?? staticColour)
       : staticColour;
+    // F7.4 — testo multiriga: con `text_wrap` il contenuto va a capo dentro
+    // width/height dichiarati, con allineamento verticale. Serve un
+    // foreignObject: SVG <text> non manda a capo da solo (bisognerebbe
+    // spezzare a mano in <tspan> misurando i caratteri). Il ramo storico a una
+    // riga resta il default per non spostare i testi dei progetti esistenti.
+    if (obj.text_wrap) {
+      const bw = obj.width ?? 160;
+      const bh = obj.height ?? 60;
+      const valign = obj.text_valign ?? "top";
+      return (
+        <>
+          {selRect(obj.x, obj.y, bw, bh)}
+          {applyTransform(obj, bw, bh, <>
+            {bgLayer(obj.x, obj.y, bw, bh, 3)}
+            <foreignObject x={obj.x} y={obj.y} width={bw} height={bh}
+              style={{ pointerEvents: "none" }}>
+              <div style={{
+                width: "100%", height: "100%", boxSizing: "border-box",
+                display: "flex",
+                alignItems: valign === "middle" ? "center" : valign === "bottom" ? "flex-end" : "flex-start",
+                justifyContent: anchor === "middle" ? "center" : anchor === "end" ? "flex-end" : "flex-start",
+                color: colour, fontSize: size, fontFamily: family,
+                fontWeight: weight as React.CSSProperties["fontWeight"], fontStyle: style,
+                lineHeight: obj.line_height ?? 1.25,
+                textAlign: anchor === "middle" ? "center" : anchor === "end" ? "right" : "left",
+                // pre-wrap: rispetta gli a-capo scritti a mano E manda a capo
+                // da solo; break-word evita che una parola lunga sfori il box.
+                whiteSpace: "pre-wrap", wordBreak: "break-word", overflow: "hidden",
+              }}>
+                {content}
+              </div>
+            </foreignObject>
+            {hitRect(obj.x, obj.y, bw, bh)}
+            {/* A runtime il testo non è interattivo: basta il rettangolo
+                trasparente per il click di selezione in editor. */}
+          </>)}
+          {tv && obj.quality_dot !== false && <QDot x={obj.x + bw - 8} y={obj.y + 8} quality={tv.quality} goodColor={obj.quality_dot_good_color} badColor={obj.quality_dot_bad_color} uncertainColor={obj.quality_dot_uncertain_color} />}
+        </>
+      );
+    }
+
     // Selection rect is a rough estimate — SVG text has no width attr without measuring.
     const approxW   = Math.max(40, content.length * size * 0.6);
     const dx        = anchor === "middle" ? -approxW / 2 : anchor === "end" ? -approxW : 0;
@@ -4136,92 +4177,136 @@ export function SvgObject(p: ObjProps) {
   // ── DATA TABLE ──────────────────────────────────────────────────────────────
 
   if (obj.type === "table") {
+    // F7.1 (Table 2.0) — la tabella era un disegno SVG a tre colonne fisse
+    // (nome/valore/qualità) senza ordinamento, filtri né scorrimento: con più
+    // righe dell'altezza dichiarata sfondava il box. Ora usa il DataTable
+    // condiviso (lo stesso di allarmi e ricette): colonne scelte, header
+    // cliccabili, filtri opzionali, scroll dentro il box, soglie per riga e
+    // celle scrivibili.
     const rows = obj.table_rows ?? [];
     const w = obj.width ?? 300;
     const rowH = 24;
     const headerH = 26;
     const totalH = obj.height ?? (headerH + rows.length * rowH + 2);
-    const colLabel = w * 0.42;
-    const colValue = w * 0.43;
+    const cols = obj.table_columns ?? ["label", "value", "quality"];
+    const fontSize = obj.table_font_size ?? 11;
+
+    /** Valore numerico della riga, quando è un numero. */
+    const rowNum = (r: TableRow): number | undefined => {
+      const v = tagValues[r.tag]?.value;
+      const n = Number(v);
+      return typeof v === "boolean" || v === undefined || !Number.isFinite(n) ? undefined : n;
+    };
+    /** Testo del valore: format esplicito, altrimenti decimali+unità. */
+    const rowText = (r: TableRow): string => {
+      const tv = tagValues[r.tag];
+      if (tv == null) return "—";
+      if (r.format) return formatValue(tv.value, r.format);
+      const n = rowNum(r);
+      const base = n !== undefined && r.decimals !== undefined ? n.toFixed(r.decimals) : String(tv.value);
+      return cols.includes("unit") ? base : `${base}${r.unit ? ` ${r.unit}` : ""}`;
+    };
+
+    const columns: DataTableColumn<TableRow>[] = cols.map((c): DataTableColumn<TableRow> => {
+      if (c === "label") {
+        return { key: "label", header: obj.table_label_header ?? "DATI", accessor: (r) => r.label };
+      }
+      if (c === "unit") {
+        return { key: "unit", header: "U.M.", accessor: (r) => r.unit ?? "", width: 52, filterable: false };
+      }
+      if (c === "quality") {
+        return {
+          key: "quality", header: "Q", width: 28, align: "center", filterable: false,
+          accessor: (r) => tagValues[r.tag]?.quality ?? "",
+          render: (r) => {
+            const tv = tagValues[r.tag];
+            if (!tv) return null;
+            return <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: qualityColor(tv.quality) }} />;
+          },
+        };
+      }
+      if (c === "time") {
+        return {
+          key: "time", header: "Ora", width: 72, filterable: false,
+          accessor: (r) => tagValues[r.tag]?.timestamp_ms ?? 0,
+          render: (r) => {
+            const ts = tagValues[r.tag]?.timestamp_ms;
+            return ts ? new Date(ts).toLocaleTimeString() : "—";
+          },
+        };
+      }
+      // Colonna del valore: soglie per riga, e cella scrivibile se richiesto.
+      return {
+        key: "value", header: "VALORE", align: "right", filterable: false,
+        // Ordinamento numerico quando il valore è un numero.
+        accessor: (r) => rowNum(r) ?? rowText(r),
+        render: (r) => {
+          const tv = tagValues[r.tag];
+          const n = rowNum(r);
+          const thr = n !== undefined
+            ? thresholdColor(n, r.alarm_low, r.warn_low, r.warn_high, r.alarm_high)
+            : undefined;
+          const color = thr
+            ?? (tv ? (tv.quality === "Good" ? "var(--brand-text, #e2e8f0)" : tv.quality === "Bad" ? "#ef4444" : "#eab308")
+                   : "var(--brand-border, #475569)");
+          if (r.writable && !isEditMode) {
+            return (
+              <input
+                type="text"
+                defaultValue={n !== undefined ? String(n) : String(tv?.value ?? "")}
+                onClick={(e) => e.stopPropagation()}
+                onKeyDown={(e) => {
+                  if (e.key !== "Enter") return;
+                  const raw = (e.target as HTMLInputElement).value.trim();
+                  const num = Number(raw);
+                  guardedWrite(r.tag, Number.isFinite(num) && raw !== "" ? num : raw);
+                }}
+                style={{
+                  width: "100%", boxSizing: "border-box", textAlign: "right",
+                  background: "var(--brand-bg, #0f172a)", color,
+                  border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 3,
+                  padding: "1px 4px", fontSize,
+                }}
+                title="Invio per scrivere"
+              />
+            );
+          }
+          return (
+            <span style={{ color, fontWeight: thr ? 600 : 400 }}>
+              {rowText(r)}{r.writable ? " ✎" : ""}
+            </span>
+          );
+        },
+      };
+    });
 
     return (
       <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()}
          style={{ cursor: editCursor }}>
         {selRect(obj.x, obj.y, w, totalH)}
         {applyTransform(obj, w, totalH, <>
-          {/* Outer border */}
-          <rect x={obj.x} y={obj.y} width={w} height={totalH} rx={4}
-            fill={obj.bg_color ?? "#1e293b"} stroke={selected ? "#facc15" : "#334155"} strokeWidth={selected ? 2 : 1} />
-          {obj.bg_image && (
-            <image href={obj.bg_image} x={obj.x} y={obj.y} width={w} height={totalH}
-              preserveAspectRatio="xMidYMid slice" style={{ pointerEvents: "none" }} />
-          )}
-          {/* Header */}
-          <rect x={obj.x} y={obj.y} width={w} height={headerH} rx={4}
-            fill="#0f172a" style={{ pointerEvents: "none" }} />
-          <rect x={obj.x} y={obj.y + 4} width={w} height={headerH - 4}
-            fill="#0f172a" style={{ pointerEvents: "none" }} />
-          <text x={obj.x + 10} y={obj.y + 17}
-            fill="#64748b" fontSize={11} fontWeight={700} letterSpacing={0.5}
-            style={{ pointerEvents: "none" }}>
-            {obj.label ?? "DATI"}
-          </text>
-          <text x={obj.x + colLabel + 10} y={obj.y + 17}
-            fill="#64748b" fontSize={11} fontWeight={700}
-            style={{ pointerEvents: "none" }}>
-            VALORE
-          </text>
-          <text x={obj.x + colLabel + colValue + 4} y={obj.y + 17}
-            fill="#64748b" fontSize={11} fontWeight={700}
-            style={{ pointerEvents: "none" }}>
-            Q
-          </text>
-          {/* Column dividers */}
-          <line x1={obj.x + colLabel} y1={obj.y} x2={obj.x + colLabel} y2={obj.y + totalH}
-            stroke="#334155" strokeWidth={1} style={{ pointerEvents: "none" }} />
-          <line x1={obj.x + colLabel + colValue} y1={obj.y}
-            x2={obj.x + colLabel + colValue} y2={obj.y + totalH}
-            stroke="#334155" strokeWidth={1} style={{ pointerEvents: "none" }} />
-          {/* Rows */}
-          {rows.map((row, i) => {
-            const ry = obj.y + headerH + i * rowH;
-            const tv = tagValues[row.tag];
-            const valText = tv != null ? formatValue(tv.value, row.format) : "—";
-            const isEven = i % 2 === 0;
-            return (
-              <g key={i}>
-                {isEven && (
-                  <rect x={obj.x + 1} y={ry} width={w - 2} height={rowH}
-                    fill="#ffffff08" style={{ pointerEvents: "none" }} />
-                )}
-                <text x={obj.x + 8} y={ry + 16} fill="#cbd5e1" fontSize={12}
-                  style={{ pointerEvents: "none" }}>
-                  {row.label}
-                </text>
-                <text x={obj.x + colLabel + 8} y={ry + 16}
-                  fill={tv ? (tv.quality === "Good" ? "var(--brand-text, #e2e8f0)" : tv.quality === "Bad" ? "#ef4444" : "#eab308") : "var(--brand-border, #475569)"}
-                  fontSize={12} style={{ pointerEvents: "none" }}>
-                  {valText}
-                </text>
-                {tv && (
-                  <circle cx={obj.x + colLabel + colValue + 10} cy={ry + rowH / 2} r={4}
-                    fill={qualityColor(tv.quality)} style={{ pointerEvents: "none" }} />
-                )}
-                {i < rows.length - 1 && (
-                  <line x1={obj.x} y1={ry + rowH} x2={obj.x + w} y2={ry + rowH}
-                    stroke="#1e293b" strokeWidth={1} style={{ pointerEvents: "none" }} />
-                )}
-              </g>
-            );
-          })}
-          {/* Empty state */}
-          {rows.length === 0 && (
-            <text x={obj.x + w / 2} y={obj.y + headerH + 20}
-              textAnchor="middle" fill="#475569" fontSize={12}
-              style={{ pointerEvents: "none" }}>
-              Nessuna riga — configura nelle proprietà
-            </text>
-          )}
+          {bgLayer(obj.x, obj.y, w, totalH, 4)}
+          <foreignObject x={obj.x} y={obj.y} width={w} height={totalH}
+            style={isEditMode ? { pointerEvents: "none" } : undefined}>
+            <div style={{
+              width: "100%", height: "100%", boxSizing: "border-box",
+              background: obj.bg_color ?? "var(--brand-surface, #1e293b)",
+              borderRadius: 4, overflow: "hidden",
+              ...(obj.bg_image ? { backgroundImage: `url(${obj.bg_image})`, backgroundSize: "cover", backgroundPosition: "center" } : {}),
+            }}>
+              <DataTable
+                columns={columns.map((c) => ({ ...c, sortable: obj.table_sortable !== false && c.sortable !== false }))}
+                rows={rows}
+                rowKey={(r) => `${r.tag}|${r.label}`}
+                emptyLabel="Nessuna riga — configura nelle proprietà"
+                maxHeight={totalH}
+                compact
+                fontSize={fontSize}
+                hideFilters={obj.table_filterable !== true}
+              />
+            </div>
+          </foreignObject>
+          {hitRect(obj.x, obj.y, w, totalH)}
         </>)}
       </g>
     );
@@ -4392,20 +4477,54 @@ export function SvgObject(p: ObjProps) {
     const w = obj.width ?? 240; const h = obj.height ?? 180;
     const series = obj.bar_series ?? [];
     const orient = obj.bar_orientation ?? "vertical";
+    const stacked = obj.bar_mode === "stacked";
     const gap = clamp(obj.bar_gap ?? 0.2, 0, 0.9);
     const showValues = obj.bar_show_values !== false;
     const showLabels = obj.bar_show_labels !== false;
     const showThresh = obj.bar_show_thresholds !== false;
-    const padT = 20; const padB = showLabels ? 28 : 8; const padL = 8; const padR = 8;
-    const plotW = w - padL - padR; const plotH = h - padT - padB;
-    const n = series.length || 1;
-    const slotW = plotW / n;
-    const barW = slotW * (1 - gap);
+    const showLegend = obj.bar_show_legend === true;
+    const nTicks = obj.bar_ticks ?? 0;
+    const dec = obj.decimals ?? 1;
+    const unit = obj.unit ?? "";
 
-    // WYSIWYG (2026-08-23): SVG puro su tagValues — stesso rendering in edit.
+    const values = series.map((s) => {
+      const tv = s.tag ? tagValues[s.tag] : undefined;
+      const v = tv ? Number(tv.value) : 0;
+      return Number.isFinite(v) ? v : 0;
+    });
+    const total = values.reduce((a, b) => a + b, 0);
+
+    // F7.2 — scala comune del grafico. I valori NEGATIVI prima venivano
+    // clampati a 0 (barra invisibile): ora la scala include lo zero e le barre
+    // crescono dalla linea dello zero, verso l'alto o verso il basso.
+    const dataLo = Math.min(0, ...(values.length ? values : [0]));
+    const dataHi = Math.max(0, ...(values.length ? values : [0]));
+    const lo = obj.min ?? Math.min(0, dataLo);
+    const hi = obj.max ?? (stacked ? Math.max(total, 1) : Math.max(dataHi, 1));
+    const range = (hi - lo) || 1;
+    /** Frazione 0..1 della scala occupata da un valore. */
+    const frac = (v: number) => clamp((v - lo) / range, 0, 1);
+
+    // Le etichette delle tacche hanno bisogno di spazio sull'asse dei valori.
+    const legendRows = showLegend ? Math.ceil(series.length / 2) : 0;
+    const legendH = legendRows * 13 + (showLegend ? 4 : 0);
+    const padT = 20;
+    const padB = (orient === "vertical" && showLabels ? 28 : 8) + legendH;
+    const padL = (orient === "vertical" && nTicks > 1 ? 34 : 8)
+      + (orient === "horizontal" && showLabels ? 42 : 0);
+    const padR = 8;
+    const plotW = Math.max(10, w - padL - padR);
+    const plotH = Math.max(10, h - padT - padB);
+    const n = series.length || 1;
+    const slotW = (orient === "vertical" ? plotW : plotH) / (stacked ? 1 : n);
+    const barW = slotW * (1 - gap);
 
     const baseX = obj.x + padL; const baseY = obj.y + padT;
     const axisY = baseY + plotH;
+    // Posizione della linea dello zero (o del minimo, se la scala non lo include).
+    const zeroFrac = frac(0);
+    const zeroY = axisY - plotH * zeroFrac;
+    const zeroX = baseX + plotW * zeroFrac;
 
     return (
       <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()} style={{ cursor: editCursor }}>
@@ -4415,8 +4534,37 @@ export function SvgObject(p: ObjProps) {
           <image href={obj.bg_image} x={obj.x} y={obj.y} width={w} height={h}
             preserveAspectRatio="xMidYMid slice" style={{ pointerEvents: "none" }} />
         )}
+        {/* Assi: quello dei valori sempre, quello delle categorie sulla linea
+            dello zero (con dati negativi non è più il bordo del grafico). */}
         <line x1={baseX} y1={baseY} x2={baseX} y2={axisY} stroke="#334155" strokeWidth={1} />
-        <line x1={baseX} y1={axisY} x2={baseX + plotW} y2={axisY} stroke="#334155" strokeWidth={1} />
+        {orient === "vertical"
+          ? <line x1={baseX} y1={zeroY} x2={baseX + plotW} y2={zeroY} stroke="#334155" strokeWidth={1} />
+          : <line x1={zeroX} y1={baseY} x2={zeroX} y2={axisY} stroke="#334155" strokeWidth={1} />}
+        {/* F7.2 — tacche numerate sull'asse dei valori. */}
+        {nTicks > 1 && Array.from({ length: nTicks }, (_, i) => {
+          const v = lo + (i / (nTicks - 1)) * range;
+          if (orient === "vertical") {
+            const ty = axisY - plotH * (i / (nTicks - 1));
+            return (
+              <g key={`bt${i}`} style={{ pointerEvents: "none" }}>
+                <line x1={baseX - 3} y1={ty} x2={baseX + plotW} y2={ty}
+                  stroke="#1e293b" strokeWidth={1} />
+                <text x={baseX - 5} y={ty + 3} textAnchor="end" fill="#64748b" fontSize={9}>
+                  {v.toFixed(Math.abs(v) < 10 ? dec : 0)}
+                </text>
+              </g>
+            );
+          }
+          const tx = baseX + plotW * (i / (nTicks - 1));
+          return (
+            <g key={`bt${i}`} style={{ pointerEvents: "none" }}>
+              <line x1={tx} y1={baseY} x2={tx} y2={axisY + 3} stroke="#1e293b" strokeWidth={1} />
+              <text x={tx} y={axisY + 12} textAnchor="middle" fill="#64748b" fontSize={9}>
+                {v.toFixed(Math.abs(v) < 10 ? dec : 0)}
+              </text>
+            </g>
+          );
+        })}
         {/* F0.2: bar_y_label esisteva nello schema ma non era mai disegnato. */}
         {obj.bar_y_label && (
           <text x={obj.x + 10} y={baseY + plotH / 2} textAnchor="middle" fill="#94a3b8" fontSize={10}
@@ -4426,44 +4574,99 @@ export function SvgObject(p: ObjProps) {
           </text>
         )}
         {series.map((s, i) => {
-          const tv = s.tag ? tagValues[s.tag] : undefined;
-          const val = tv ? Number(tv.value) : 0;
-          const lo = s.min ?? obj.min ?? 0; const hi = s.max ?? obj.max ?? 100;
-          const range = hi - lo;
-          const pct = range === 0 ? 0 : clamp((val - lo) / range, 0, 1);
-          if (orient === "vertical") {
-            const bx = baseX + i * slotW + (slotW - barW) / 2;
-            const bh = plotH * pct;
-            const by = axisY - bh;
+          const val = values[i];
+          const color = s.color ?? PALETTE[i % PALETTE.length];
+          const valText = `${val.toFixed(dec)}${unit}`;
+          if (stacked) {
+            // Barra unica composta dai segmenti: ogni serie è una fetta del
+            // totale (composizione), impilata dalla base.
+            const before = values.slice(0, i).reduce((a, b) => a + b, 0);
+            const f0 = frac(before); const f1 = frac(before + val);
+            if (orient === "vertical") {
+              const y0 = axisY - plotH * Math.max(f0, f1);
+              const segH = plotH * Math.abs(f1 - f0);
+              const bx = baseX + (plotW - barW) / 2;
+              return (
+                <g key={i}>
+                  <rect x={bx} y={y0} width={barW} height={segH} fill={color} style={transitionStyle(obj)} />
+                  {showValues && segH > 12 && (
+                    <text x={bx + barW / 2} y={y0 + segH / 2 + 4} textAnchor="middle" fill="#0f172a" fontSize={10}
+                      fontWeight={600} style={{ pointerEvents: "none" }}>{valText}</text>
+                  )}
+                </g>
+              );
+            }
+            const x0 = baseX + plotW * Math.min(f0, f1);
+            const segW = plotW * Math.abs(f1 - f0);
+            const byS = baseY + (plotH - barW) / 2;
             return (
               <g key={i}>
-                <rect x={bx} y={by} width={barW} height={bh} fill={s.color ?? PALETTE[i % PALETTE.length]} rx={2} style={transitionStyle(obj)} />
-                {showValues && <text x={bx + barW / 2} y={Math.max(by - 3, baseY + 10)} textAnchor="middle" fill="#e2e8f0" fontSize={10} style={{ pointerEvents: "none" }}>{val.toFixed(1)}{obj.unit ?? ""}</text>}
-                {showLabels && <text x={bx + barW / 2} y={axisY + 14} textAnchor="middle" fill="#94a3b8" fontSize={10} style={{ pointerEvents: "none" }}>{s.label}</text>}
-              </g>
-            );
-          } else {
-            const bh2 = slotW * (1 - gap); const bw2 = plotW * pct;
-            const by2 = baseY + i * slotW + (slotW - bh2) / 2;
-            return (
-              <g key={i}>
-                <rect x={baseX} y={by2} width={bw2} height={bh2} fill={s.color ?? PALETTE[i % PALETTE.length]} rx={2} style={transitionStyle(obj)} />
-                {showValues && <text x={baseX + bw2 + 3} y={by2 + bh2 / 2 + 4} fill="#e2e8f0" fontSize={10} style={{ pointerEvents: "none" }}>{val.toFixed(1)}{obj.unit ?? ""}</text>}
-                {showLabels && <text x={baseX - 3} y={by2 + bh2 / 2 + 4} textAnchor="end" fill="#94a3b8" fontSize={10} style={{ pointerEvents: "none" }}>{s.label}</text>}
+                <rect x={x0} y={byS} width={segW} height={barW} fill={color} style={transitionStyle(obj)} />
+                {showValues && segW > 26 && (
+                  <text x={x0 + segW / 2} y={byS + barW / 2 + 4} textAnchor="middle" fill="#0f172a" fontSize={10}
+                    fontWeight={600} style={{ pointerEvents: "none" }}>{valText}</text>
+                )}
               </g>
             );
           }
+          // Affiancate: una barra per serie, dalla linea dello zero.
+          const fv = frac(val);
+          if (orient === "vertical") {
+            const bx = baseX + i * slotW + (slotW - barW) / 2;
+            const vy = axisY - plotH * fv;
+            const by = Math.min(vy, zeroY);
+            const bh = Math.abs(vy - zeroY);
+            const labelY = val < 0 ? by + bh + 11 : Math.max(by - 3, baseY + 10);
+            return (
+              <g key={i}>
+                <rect x={bx} y={by} width={barW} height={bh} fill={color} rx={2} style={transitionStyle(obj)} />
+                {showValues && <text x={bx + barW / 2} y={labelY} textAnchor="middle" fill="#e2e8f0" fontSize={10} style={{ pointerEvents: "none" }}>{valText}</text>}
+                {showLabels && <text x={bx + barW / 2} y={axisY + 14} textAnchor="middle" fill="#94a3b8" fontSize={10} style={{ pointerEvents: "none" }}>{s.label}</text>}
+              </g>
+            );
+          }
+          const vx = baseX + plotW * fv;
+          const bx2 = Math.min(vx, zeroX);
+          const bw2 = Math.abs(vx - zeroX);
+          const by2 = baseY + i * slotW + (slotW - barW) / 2;
+          return (
+            <g key={i}>
+              <rect x={bx2} y={by2} width={bw2} height={barW} fill={color} rx={2} style={transitionStyle(obj)} />
+              {showValues && (
+                <text x={val < 0 ? bx2 - 3 : bx2 + bw2 + 3} y={by2 + barW / 2 + 4}
+                  textAnchor={val < 0 ? "end" : "start"} fill="#e2e8f0" fontSize={10}
+                  style={{ pointerEvents: "none" }}>{valText}</text>
+              )}
+              {showLabels && <text x={obj.x + 4} y={by2 + barW / 2 + 4} fill="#94a3b8" fontSize={10} style={{ pointerEvents: "none" }}>{s.label}</text>}
+            </g>
+          );
         })}
-        {showThresh && orient === "vertical" && (obj.warn_high !== undefined) && (() => {
-          const lo2 = obj.min ?? 0; const hi2 = obj.max ?? 100;
-          const wy = axisY - plotH * clamp((obj.warn_high - lo2) / (hi2 - lo2), 0, 1);
-          return <line key="wh" x1={baseX} y1={wy} x2={baseX + plotW} y2={wy} stroke="#f59e0b" strokeWidth={1} strokeDasharray="4,2" />;
-        })()}
-        {showThresh && orient === "vertical" && (obj.alarm_high !== undefined) && (() => {
-          const lo2 = obj.min ?? 0; const hi2 = obj.max ?? 100;
-          const ay = axisY - plotH * clamp((obj.alarm_high - lo2) / (hi2 - lo2), 0, 1);
-          return <line key="ah" x1={baseX} y1={ay} x2={baseX + plotW} y2={ay} stroke="#ef4444" strokeWidth={1} strokeDasharray="4,2" />;
-        })()}
+        {/* F7.2 — soglie in ENTRAMBI gli orientamenti (prima solo verticale). */}
+        {showThresh && [
+          { v: obj.warn_high, c: "#f59e0b", k: "wh" },
+          { v: obj.alarm_high, c: "#ef4444", k: "ah" },
+          { v: obj.warn_low, c: "#f59e0b", k: "wl" },
+          { v: obj.alarm_low, c: "#ef4444", k: "al" },
+        ].map(({ v, c, k }) => {
+          if (v === undefined) return null;
+          const f = frac(v);
+          return orient === "vertical"
+            ? <line key={k} x1={baseX} y1={axisY - plotH * f} x2={baseX + plotW} y2={axisY - plotH * f}
+                stroke={c} strokeWidth={1} strokeDasharray="4,2" style={{ pointerEvents: "none" }} />
+            : <line key={k} x1={baseX + plotW * f} y1={baseY} x2={baseX + plotW * f} y2={axisY}
+                stroke={c} strokeWidth={1} strokeDasharray="4,2" style={{ pointerEvents: "none" }} />;
+        })}
+        {/* F7.2 — legenda (due colonne sotto il grafico). */}
+        {showLegend && series.map((s, i) => {
+          const lx = obj.x + 6 + (i % 2) * (w / 2);
+          const ly = obj.y + h - legendH + 2 + Math.floor(i / 2) * 13;
+          return (
+            <g key={`bl${i}`} style={{ pointerEvents: "none" }}>
+              <rect x={lx} y={ly} width={8} height={8} rx={1} fill={s.color ?? PALETTE[i % PALETTE.length]} />
+              <text x={lx + 12} y={ly + 7} fill="#94a3b8" fontSize={9}>{s.label}</text>
+            </g>
+          );
+        })}
       </g>
     );
   }
@@ -4472,20 +4675,24 @@ export function SvgObject(p: ObjProps) {
 
   if (obj.type === "pie_chart") {
     const w = obj.width ?? 200; const h = obj.height ?? 200;
-    const slices = obj.pie_slices ?? [];
+    const rawSlices = obj.pie_slices ?? [];
     const mode = obj.pie_mode ?? "pie";
     const innerR = mode === "donut" ? clamp(obj.pie_inner_ratio ?? 0.5, 0.1, 0.9) : 0;
     const showLabels = obj.pie_show_labels !== false;
     const showLegend = obj.pie_show_legend === true;
-    const legendH = showLegend ? Math.min(slices.length * 14 + 4, 60) : 0;
-    const chartH = h - legendH;
-    const cx2 = obj.x + w / 2; const cy2 = obj.y + chartH / 2;
-    const r = Math.min(w, chartH) / 2 - 6;
+    // F7.3 — colore del foro configurabile: era fisso a #0f172a, un disco
+    // scuro su qualunque sfondo chiaro.
+    const holeColor = obj.pie_hole_color ?? obj.bg_color ?? "#0f172a";
+    const unit = obj.unit ?? "";
+    const dec = obj.decimals ?? 1;
+    const labelMode = obj.pie_label_mode ?? "percent";
+    const explode = obj.pie_explode_px ?? 0;
 
     // WYSIWYG (2026-08-23): SVG puro su tagValues — stesso rendering in edit.
 
     // View mode: no slices configured → render nothing.
-    if (slices.length === 0) {
+    if (rawSlices.length === 0) {
+      const cx0 = obj.x + w / 2; const cy0 = obj.y + h / 2;
       return (
         <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()}>
           {selRect(obj.x, obj.y, w, h)}
@@ -4494,35 +4701,76 @@ export function SvgObject(p: ObjProps) {
             <image href={obj.bg_image} x={obj.x} y={obj.y} width={w} height={h}
               preserveAspectRatio="xMidYMid slice" style={{ pointerEvents: "none" }} />
           )}
-          <text x={cx2} y={cy2 + 4} textAnchor="middle" fill="#475569" fontSize={11} style={{ pointerEvents: "none" }}>Nessun dato</text>
+          <text x={cx0} y={cy0 + 4} textAnchor="middle" fill="#475569" fontSize={11} style={{ pointerEvents: "none" }}>Nessun dato</text>
         </g>
       );
     }
 
-    const values = slices.map((s) => Math.max(0, Number(s.tag ? (tagValues[s.tag]?.value ?? 0) : 0)));
+    // F7.3 — raggruppamento "altro": le fette sotto la soglia percentuale
+    // diventano una sola voce, così un grafico con venti tag resta leggibile.
+    const rawValues = rawSlices.map((s) => Math.max(0, Number(s.tag ? (tagValues[s.tag]?.value ?? 0) : 0)));
+    const rawTotal = rawValues.reduce((a, b) => a + b, 0) || 1;
+    const minPct = clamp(obj.pie_group_below_pct ?? 0, 0, 99) / 100;
+    type Slice = { label: string; color?: string; value: number };
+    let entries: Slice[] = rawSlices.map((s, i) => ({ label: s.label, color: s.color ?? PALETTE[i % PALETTE.length], value: rawValues[i] }));
+    if (minPct > 0) {
+      const keep = entries.filter((e) => e.value / rawTotal >= minPct);
+      const rest = entries.filter((e) => e.value / rawTotal < minPct);
+      const restSum = rest.reduce((a, b) => a + b.value, 0);
+      entries = restSum > 0
+        ? [...keep, { label: obj.pie_group_label ?? "altro", color: obj.pie_group_color ?? "#64748b", value: restSum }]
+        : keep;
+    }
+
+    const legendRows = showLegend ? Math.ceil(entries.length / 2) : 0;
+    const legendH = showLegend ? Math.min(legendRows * 14 + 4, 60) : 0;
+    const chartH = h - legendH;
+    const cx2 = obj.x + w / 2; const cy2 = obj.y + chartH / 2;
+    const r = Math.min(w, chartH) / 2 - 6 - explode;
+
+    const values = entries.map((e) => e.value);
     const total = values.reduce((a, b) => a + b, 0) || 1;
+    // La fetta staccata è la più grande: è quella che si vuole far notare.
+    const biggest = values.indexOf(Math.max(...values));
     let angle = -Math.PI / 2;
 
-    const paths = slices.map((s, i) => {
+    const paths = entries.map((e, i) => {
       const pct = values[i] / total;
       const sweep = pct * 2 * Math.PI;
-      const x1 = cx2 + r * Math.cos(angle); const y1 = cy2 + r * Math.sin(angle);
+      const startA = angle;
       angle += sweep;
-      const x2 = cx2 + r * Math.cos(angle); const y2 = cy2 + r * Math.sin(angle);
+      const midAngle = startA + sweep / 2;
+      // Spostamento radiale della fetta staccata.
+      const off = (explode > 0 && i === biggest) ? explode : 0;
+      const ox = cx2 + off * Math.cos(midAngle);
+      const oy = cy2 + off * Math.sin(midAngle);
+      const x1 = ox + r * Math.cos(startA); const y1 = oy + r * Math.sin(startA);
+      const x2 = ox + r * Math.cos(angle);  const y2 = oy + r * Math.sin(angle);
       const large = sweep > Math.PI ? 1 : 0;
       let d: string;
       if (mode === "donut") {
         const ir = r * innerR;
-        const ix1 = cx2 + ir * Math.cos(angle - sweep); const iy1 = cy2 + ir * Math.sin(angle - sweep);
-        const ix2 = cx2 + ir * Math.cos(angle); const iy2 = cy2 + ir * Math.sin(angle);
+        const ix1 = ox + ir * Math.cos(startA); const iy1 = oy + ir * Math.sin(startA);
+        const ix2 = ox + ir * Math.cos(angle);  const iy2 = oy + ir * Math.sin(angle);
         d = `M ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2} L ${ix2} ${iy2} A ${ir} ${ir} 0 ${large} 0 ${ix1} ${iy1} Z`;
       } else {
-        d = `M ${cx2} ${cy2} L ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2} Z`;
+        d = `M ${ox} ${oy} L ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2} Z`;
       }
-      const midAngle = angle - sweep / 2;
       const labelR = r * (mode === "donut" ? (1 + innerR) / 2 : 0.65);
-      return { d, color: s.color ?? PALETTE[i % PALETTE.length], pct, midAngle, labelR, label: s.label, key: i };
+      return { d, color: e.color, pct, midAngle, labelR, label: e.label, value: values[i], ox, oy, key: i };
     });
+
+    /** F7.3 — l'etichetta può mostrare percentuale, valore, o entrambi. */
+    const sliceLabel = (pct: number, value: number, label: string) => {
+      const pctTxt = `${(pct * 100).toFixed(0)}%`;
+      const valTxt = `${value.toFixed(dec)}${unit}`;
+      switch (labelMode) {
+        case "value":         return valTxt;
+        case "value_percent": return `${valTxt} (${pctTxt})`;
+        case "label_percent": return `${label} ${pctTxt}`;
+        default:              return pctTxt;
+      }
+    };
 
     const centerTag = obj.pie_center_tag ? tagValues[obj.pie_center_tag] : undefined;
     const centerText = centerTag
@@ -4541,31 +4789,35 @@ export function SvgObject(p: ObjProps) {
         {isFullCircle ? (
           <>
             <circle cx={cx2} cy={cy2} r={r} fill={singleVisible[0].color} />
-            {mode === "donut" && <circle cx={cx2} cy={cy2} r={r * innerR - 1} fill="#0f172a" />}
-            {showLabels && <text x={cx2} y={cy2 + 4} textAnchor="middle" fill="#fff" fontSize={10} fontWeight="bold" style={{ pointerEvents: "none" }}>100%</text>}
+            {mode === "donut" && <circle cx={cx2} cy={cy2} r={r * innerR - 1} fill={holeColor} />}
+            {showLabels && (
+              <text x={cx2} y={cy2 + 4} textAnchor="middle" fill="#fff" fontSize={10} fontWeight="bold" style={{ pointerEvents: "none" }}>
+                {sliceLabel(1, singleVisible[0].value, singleVisible[0].label)}
+              </text>
+            )}
           </>
-        ) : paths.map(({ d, color, pct, midAngle, labelR, key }) => (
+        ) : paths.map(({ d, color, pct, midAngle, labelR, label, value, ox, oy, key }) => (
           <g key={key}>
             <path d={d} fill={color} stroke="#0f172a" strokeWidth={1} />
             {showLabels && pct > 0.05 && (
               <text
-                x={cx2 + labelR * Math.cos(midAngle)}
-                y={cy2 + labelR * Math.sin(midAngle) + 4}
+                x={ox + labelR * Math.cos(midAngle)}
+                y={oy + labelR * Math.sin(midAngle) + 4}
                 textAnchor="middle" fill="#fff" fontSize={10} fontWeight="bold"
                 style={{ pointerEvents: "none" }}>
-                {(pct * 100).toFixed(0)}%
+                {sliceLabel(pct, value, label)}
               </text>
             )}
           </g>
         ))}
-        {!isFullCircle && mode === "donut" && <circle cx={cx2} cy={cy2} r={r * innerR - 1} fill="#0f172a" />}
+        {!isFullCircle && mode === "donut" && <circle cx={cx2} cy={cy2} r={r * innerR - 1} fill={holeColor} />}
         {!isFullCircle && mode === "donut" && centerText && (
           <text x={cx2} y={cy2 + 5} textAnchor="middle" fill="#e2e8f0" fontSize={13} fontWeight="bold" style={{ pointerEvents: "none" }}>{centerText}</text>
         )}
-        {showLegend && slices.map((s, i) => (
+        {showLegend && entries.map((e, i) => (
           <g key={i}>
-            <rect x={obj.x + 6 + (i % 2) * (w / 2)} y={obj.y + chartH + 4 + Math.floor(i / 2) * 14} width={8} height={8} fill={s.color ?? PALETTE[i % PALETTE.length]} rx={1} />
-            <text x={obj.x + 18 + (i % 2) * (w / 2)} y={obj.y + chartH + 11 + Math.floor(i / 2) * 14} fill="#94a3b8" fontSize={9} style={{ pointerEvents: "none" }}>{s.label}</text>
+            <rect x={obj.x + 6 + (i % 2) * (w / 2)} y={obj.y + chartH + 4 + Math.floor(i / 2) * 14} width={8} height={8} fill={e.color} rx={1} />
+            <text x={obj.x + 18 + (i % 2) * (w / 2)} y={obj.y + chartH + 11 + Math.floor(i / 2) * 14} fill="#94a3b8" fontSize={9} style={{ pointerEvents: "none" }}>{e.label}</text>
           </g>
         ))}
       </g>

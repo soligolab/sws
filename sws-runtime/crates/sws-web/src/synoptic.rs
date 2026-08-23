@@ -169,6 +169,27 @@ pub struct SynopticObject {
     #[serde(skip_serializing_if = "Option::is_none")] pub grid_gap:                  Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")] pub grid_padding:              Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")] pub image_fit:                 Option<String>,
+    // F7.4 — testo multiriga
+    #[serde(skip_serializing_if = "Option::is_none")] pub text_wrap:                  Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub text_valign:                Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub line_height:                Option<f64>,
+    // F7.2 — bar chart
+    #[serde(skip_serializing_if = "Option::is_none")] pub bar_mode:                   Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub bar_ticks:                  Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub bar_show_legend:            Option<bool>,
+    // F7.3 — pie chart
+    #[serde(skip_serializing_if = "Option::is_none")] pub pie_label_mode:             Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub pie_group_below_pct:        Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub pie_group_label:            Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub pie_group_color:            Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub pie_explode_px:             Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub pie_hole_color:             Option<String>,
+    // F7.1 — table 2.0 (le opzioni per-riga viaggiano dentro table_rows, Value)
+    #[serde(skip_serializing_if = "Option::is_none")] pub table_columns:              Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub table_sortable:             Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub table_filterable:           Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub table_font_size:            Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub table_label_header:         Option<String>,
     // XY plot (live point + trail, not a time series). `tag` above is the X axis.
     #[serde(skip_serializing_if = "Option::is_none")] pub y_tag: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")] pub xy_trail_s: Option<f64>,
