@@ -11,6 +11,14 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### Added
+
+- **Tab Variabili: ordinamento, filtri per colonna e variabili non usate in evidenza** —
+  header cliccabili con ▲/▼, riga di filtri (testo su Id/Descrizione, select Tipo/Storico/
+  Uso), contatore N/M; le variabili non referenziate da pagine/allarmi/espressioni/script
+  hanno pallino ambra, riga tinta e tooltip (ricette e funzioni Python escluse dal
+  controllo, dichiarato). L'ordinamento è una vista: l'ordine su disco non cambia.
+
 ### Added (programma SCADA-widgets, fase F6 — faceplate 2.0 e simboli)
 
 - **Faceplate 2.0**: la sostituzione dei parametri copre TUTTI i campi (state_tag, binding,

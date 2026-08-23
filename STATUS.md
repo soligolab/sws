@@ -6,6 +6,19 @@
 >
 > **Pulizia 2026-07-27**: rimossi i task già chiusi e le sezioni di verifica ormai superate; le sessioni mergiate **e** verificate fino al 2026-07-09 sono compresse in «Storico». Il dettaglio integrale resta in `CHANGELOG.md` e nella history git.
 
+**Sessione 2026-08-23 (seguito) — tab Variabili: sort/filtri/non-usate + pagine demo**
+(commit su `feat/scada-f6`). Su richiesta del maintainer:
+1. **Pagine demo in CasaMauro** (istanza editor :8460, via API — nessun codice): 5 pagine
+   nuove «Demo F2 Binding / F3 Comandi / F4 Allarmi / F5 Storico / F6 Simboli» con ~135
+   oggetti che esercitano tutte le novità, navbutton su Page 2, tag `state.voltage` e
+   `tank_test.level` arricchiti con unit/range/limiti F1. Round-trip e screenshot live OK.
+   NOTA: il bridge dds661 ora espone più device su topic `modbus/*` — i tag `state.*`
+   arrivavano lenti; il maintainer ha già aggiunto i tag temperatura nuovi.
+2. **Tab Variabili**: sort per colonna (vista derivata, ordine su disco intatto), filtri
+   per colonna, filtro/evidenza «non usate» (pagine via collectTagIds + allarmi +
+   espressioni + script; ricette/funzioni escluse e dichiarate). Verificato live: 6/21
+   non usate su CasaMauro. `pnpm type-check`/`build` verdi.
+
 **Sessione 2026-08-23 — SCADA-widgets F6 COMPLETA** (branch **`feat/scada-f6`** da `main`,
 che ora contiene F0-F5 mergiate dopo la conferma del maintainer). Tutta la fase faceplate+simboli:
 - **F6.1**: sostituzione parametri su TUTTI i campi stringa (walker ricorsivo: bindings,
