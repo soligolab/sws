@@ -2723,6 +2723,22 @@ export function SvgObject(p: ObjProps) {
           style={{ pointerEvents: "none" }} />
       : null;
 
+  /** Hit-rect trasparente del pattern WYSIWYG (CLAUDE.md §"Regole UI"):
+   *  il contenuto reale sta sotto `pointerEvents:"none"` e questo rettangolo
+   *  porta selezione e trascinamento. Solo in edit — a runtime i click devono
+   *  arrivare al contenuto (input, pulsanti, liste).
+   *
+   *  Va reso DOPO il contenuto: in SVG l'ordine di disegno è anche l'ordine di
+   *  hit-testing, e senza di esso un oggetto non selezionato e senza sfondo non
+   *  si può selezionare col mouse (selRect esiste solo da selezionato,
+   *  bgLayer solo con bg_color/bg_image). */
+  const hitRect = (x: number, y: number, w: number, h: number) =>
+    isEditMode
+      ? <rect x={x} y={y} width={w} height={h} fill="transparent"
+          style={{ cursor: editCursor }}
+          onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()} />
+      : null;
+
   /** Recursively render the contents of a split cell area. Walks `cell.sub`
    *  (and any nested `entry.sub`) down to leaf entries, drawing the bg
    *  rect + image + child for leaves and recursing for sub-divided slots.
@@ -3337,36 +3353,17 @@ export function SvgObject(p: ObjProps) {
     const langs = st.project?.languages?.langs ?? [];
     const cur = st.projectLang || st.project?.languages?.default || "";
 
-    if (isEditMode) {
-      // Edit mode: static SVG preview, draggable — a live <select> inside a
-      // foreignObject (view mode below) swallows the mousedown before it
-      // reaches this <g>, so dragging never started even with disabled={true}.
-      // Same fix pattern as slider/table/text_list: real form control only in
-      // view mode, plain shape here.
-      return (
-        <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()}
-          style={{ cursor: editCursor }}>
-          {selRect(obj.x, obj.y, w, h)}
-          <rect x={obj.x} y={obj.y} width={w} height={h} rx={4}
-            fill={obj.fill ?? "var(--brand-surface-2, #334155)"}
-            stroke="var(--brand-border, #475569)" strokeWidth={1} />
-          {obj.bg_image && (
-            <image href={obj.bg_image} x={obj.x} y={obj.y} width={w} height={h}
-              preserveAspectRatio="xMidYMid slice" style={{ pointerEvents: "none" }} />
-          )}
-          <text x={obj.x + 8} y={obj.y + h / 2 + 5} fill="var(--brand-text, #e2e8f0)" fontSize={13}
-            style={{ pointerEvents: "none" }}>
-            {cur ? cur.toUpperCase() : (langs[0] ?? "—")} ▾
-          </text>
-        </g>
-      );
-    }
-
+    // WYSIWYG (2026-08-23): <select> vero anche in editor. Il rettangolo finto
+    // serviva perché il select ingoiava il mousedown prima del <g>: ora il
+    // foreignObject è pointerEvents:none e il drag passa dall'hit-rect, quindi
+    // il controllo vero si può mostrare senza perdere il trascinamento.
     return (
-      <g style={{ cursor: "default" }}>
-        {applyTransform(obj, w, h,
-          <foreignObject x={obj.x} y={obj.y} width={w} height={h}>
-            <select value={cur}
+      <g style={{ cursor: isEditMode ? editCursor : "default" }}>
+        {applyTransform(obj, w, h, <>
+          {selRect(obj.x, obj.y, w, h)}
+          <foreignObject x={obj.x} y={obj.y} width={w} height={h}
+            style={isEditMode ? { pointerEvents: "none" } : undefined}>
+            <select value={cur} disabled={isEditMode}
               onChange={(e) => useAppStore.getState().setProjectLang(e.target.value)}
               style={{ width: "100%", height: "100%", boxSizing: "border-box",
                 background: obj.fill ?? "var(--brand-surface-2, #334155)", color: "var(--brand-text, #e2e8f0)",
@@ -3377,7 +3374,8 @@ export function SvgObject(p: ObjProps) {
               {langs.map((l) => <option key={l} value={l}>{l.toUpperCase()}</option>)}
             </select>
           </foreignObject>
-        )}
+          {hitRect(obj.x, obj.y, w, h)}
+        </>)}
       </g>
     );
   }
@@ -3641,7 +3639,6 @@ export function SvgObject(p: ObjProps) {
     const tv = obj.tag ? tagValues[obj.tag] : undefined;
     const min = obj.min ?? 0; const max = obj.max ?? 100;
     const rawVal = tv ? Number(tv.value) : min;
-    const trackY = obj.y + h / 2;
     // Stessa convenzione di radio_group: la proprietà è opzionale e l'assenza
     // vale "horizontal", che è come si comportava lo slider prima che
     // l'orientamento venisse letto.
@@ -3651,58 +3648,10 @@ export function SvgObject(p: ObjProps) {
     const shownVal = sliderDraft ?? rawVal;
     const valueText = `${shownVal.toFixed(obj.decimals ?? (obj.step && obj.step < 1 ? 2 : 0))}${obj.unit ? ` ${obj.unit}` : ""}`;
 
-    if (isEditMode) {
-      // Edit mode: static SVG preview, draggable
-      const labelEl = obj.label ? (
-        <text x={obj.x + w / 2} y={obj.y + 12} textAnchor="middle"
-          fill="#94a3b8" fontSize={11} style={{ pointerEvents: "none" }}>{obj.label}</text>
-      ) : null;
-
-      if (isVertical) {
-        // L'anteprima deve cambiare insieme al runtime: finché restava
-        // orizzontale, cambiare orientamento "non faceva niente" anche quando
-        // il valore veniva salvato correttamente.
-        const top = obj.y + (obj.label ? 18 : 4);
-        const bottom = obj.y + h - 4;
-        const len = Math.max(8, bottom - top);
-        const cx = obj.x + w / 2;
-        return (
-          <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()}
-             style={{ cursor: editCursor }}>
-            {selRect(obj.x, obj.y, w, h)}
-            {bgLayer(obj.x, obj.y, w, h, 4)}
-            {labelEl}
-            <rect x={cx - 3} y={top} width={6} height={len} rx={3} fill="#334155" />
-            {/* Il riempimento parte dal basso: il minimo sta in fondo, come
-                nel controllo ruotato a runtime. */}
-            <rect x={cx - 3} y={top + len * 0.5} width={6} height={len * 0.5} rx={3} fill="#3b82f6" />
-            <circle cx={cx} cy={top + len * 0.5} r={10}
-              fill="#3b82f6" stroke="#1d4ed8" strokeWidth={2} />
-            <text x={cx + 14} y={top + 4} fill="#64748b" fontSize={10}
-              style={{ pointerEvents: "none" }}>{max}</text>
-            <text x={cx + 14} y={bottom} fill="#64748b" fontSize={10}
-              style={{ pointerEvents: "none" }}>{min}</text>
-          </g>
-        );
-      }
-
-      return (
-        <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()}
-           style={{ cursor: editCursor }}>
-          {selRect(obj.x, obj.y, w, h)}
-          {bgLayer(obj.x, obj.y, w, h, 4)}
-          {labelEl}
-          <rect x={obj.x} y={trackY - 3} width={w} height={6} rx={3} fill="#334155" />
-          <rect x={obj.x} y={trackY - 3} width={w * 0.5} height={6} rx={3} fill="#3b82f6" />
-          <circle cx={obj.x + w * 0.5} cy={trackY} r={10}
-            fill="#3b82f6" stroke="#1d4ed8" strokeWidth={2} />
-          <text x={obj.x} y={obj.y + h + 2} fill="#64748b" fontSize={10}
-            style={{ pointerEvents: "none" }}>{min}</text>
-          <text x={obj.x + w} y={obj.y + h + 2} textAnchor="end" fill="#64748b" fontSize={10}
-            style={{ pointerEvents: "none" }}>{max}</text>
-        </g>
-      );
-    }
+    // WYSIWYG (2026-08-23): un solo rendering per edit e runtime — l'anteprima
+    // statica disegnava label ed etichette min/max FUORI dal box dichiarato e
+    // con un valore finto al 50%. Ora il layout è quello vero, contenuto
+    // nell'altezza dichiarata, con gli input disabilitati in editor.
 
     // View mode: foreignObject with native range input.
     //
@@ -3732,7 +3681,8 @@ export function SvgObject(p: ObjProps) {
       min, max,
       step: obj.step ?? 1,
       value: sliderDraft ?? rawVal,
-      disabled: readOnly,
+      // In editor il controllo è inerte: si trascina l'oggetto, non il valore.
+      disabled: readOnly || isEditMode,
       onChange: (e: React.ChangeEvent<HTMLInputElement>) => {
         const v = Number(e.target.value);
         if (writeOnRelease) setSliderDraft(v);
@@ -3760,9 +3710,11 @@ export function SvgObject(p: ObjProps) {
       // da un `height: 100%` del contenitore.
       const trackLen = Math.max(24, h - labelH - valueH - 8);
       return (
-        <>
+        <g onMouseDown={isEditMode ? handleMouseDown : undefined} onClick={(e) => e.stopPropagation()}>
+          {selRect(obj.x, obj.y, w, h)}
           {bgLayer(obj.x, obj.y, w, h, 4)}
-          <foreignObject x={obj.x} y={obj.y} width={w} height={h}>
+          <foreignObject x={obj.x} y={obj.y} width={w} height={h}
+            style={isEditMode ? { pointerEvents: "none" } : undefined}>
           <div style={{
             display: "flex", flexDirection: "column", alignItems: "center",
             justifyContent: "center", gap: 2, height: "100%", boxSizing: "border-box",
@@ -3792,35 +3744,46 @@ export function SvgObject(p: ObjProps) {
             )}
           </div>
           </foreignObject>
-        </>
+          {hitRect(obj.x, obj.y, w, h)}
+        </g>
       );
     }
 
-    const foH = h + (obj.label ? 20 : 0);
+    // Orizzontale: tutto DENTRO l'altezza dichiarata. Prima il foreignObject
+    // era alto `h + 20` quando c'era la label, quindi il controllo sfondava il
+    // box disegnato nell'editor (decisione maintainer 2026-08-23: il box è
+    // l'ingombro vero). `justifyContent: center` distribuisce label, track e
+    // valore nello spazio disponibile invece di farli crescere in fondo.
     return (
-      <>
-        {bgLayer(obj.x, obj.y, w, foH, 4)}
-        <foreignObject x={obj.x} y={obj.y} width={w} height={foH}>
+      <g onMouseDown={isEditMode ? handleMouseDown : undefined} onClick={(e) => e.stopPropagation()}>
+        {selRect(obj.x, obj.y, w, h)}
+        {bgLayer(obj.x, obj.y, w, h, 4)}
+        <foreignObject x={obj.x} y={obj.y} width={w} height={h}
+          style={isEditMode ? { pointerEvents: "none" } : undefined}>
         <div
-          style={{ display: "flex", flexDirection: "column", gap: 2, padding: "4px 0" }}
+          style={{
+            display: "flex", flexDirection: "column", justifyContent: "center",
+            gap: 2, height: "100%", boxSizing: "border-box", padding: "2px 0",
+          }}
         >
           {obj.label && (
-            <span style={{ color: "var(--brand-text-muted, #94a3b8)", fontSize: 11, textAlign: "center" }}>
+            <span style={{ color: "var(--brand-text-muted, #94a3b8)", fontSize: 11, textAlign: "center", lineHeight: 1.2 }}>
               {obj.label}
             </span>
           )}
           <input
             {...commonInput}
-            style={{ width: "100%", accentColor: accent, cursor: readOnly ? "default" : "pointer" }}
+            style={{ width: "100%", margin: 0, accentColor: accent, cursor: readOnly ? "default" : "pointer" }}
           />
           {obj.show_value !== false && (
-            <span style={{ color: "var(--brand-text, #e2e8f0)", fontSize: 12, textAlign: "center" }}>
+            <span style={{ color: "var(--brand-text, #e2e8f0)", fontSize: 12, textAlign: "center", lineHeight: 1.2 }}>
               {valueText}
             </span>
           )}
         </div>
         </foreignObject>
-      </>
+        {hitRect(obj.x, obj.y, w, h)}
+      </g>
     );
   }
 
@@ -3905,6 +3868,7 @@ export function SvgObject(p: ObjProps) {
             </div>
           </div>
         </foreignObject>
+        {hitRect(obj.x, obj.y, w, h)}
         {keypadOpen && (
           <NumericKeypad
             label={obj.label}
@@ -3965,6 +3929,7 @@ export function SvgObject(p: ObjProps) {
           )}
         </div>
         </foreignObject>
+        {hitRect(obj.x, obj.y, w, h)}
       </g>
     );
   }
@@ -4013,6 +3978,7 @@ export function SvgObject(p: ObjProps) {
           </div>
         </div>
         </foreignObject>
+        {hitRect(obj.x, obj.y, w, totalH)}
       </g>
     );
   }
@@ -4210,39 +4176,8 @@ export function SvgObject(p: ObjProps) {
   if (obj.type === "xy_plot") {
     const w = obj.width ?? 200; const h = obj.height ?? 200;
 
-    if (isEditMode) {
-      // Static axes + a fixed center point instead of the generic box — same
-      // frame (PAD) as XyPlotCanvas below, no sampling/trail (that needs a
-      // live tick interval, not appropriate for a static edit-mode preview).
-      const PAD = 22;
-      const plotW = Math.max(1, w - PAD * 2);
-      const plotH = Math.max(1, h - PAD * 2);
-      const xMinText = obj.xy_x_min !== undefined ? String(obj.xy_x_min) : "auto";
-      const xMaxText = obj.xy_x_max !== undefined ? String(obj.xy_x_max) : "auto";
-      const yMinText = obj.xy_y_min !== undefined ? String(obj.xy_y_min) : "auto";
-      const yMaxText = obj.xy_y_max !== undefined ? String(obj.xy_y_max) : "auto";
-      return (
-        <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()} style={{ cursor: editCursor }}>
-          {selRect(obj.x, obj.y, w, h)}
-          <rect x={obj.x} y={obj.y} width={w} height={h} rx={4} fill={obj.bg_color ?? "#0f172a"} stroke={selected ? "#facc15" : "#334155"} strokeWidth={selected ? 2 : 1} />
-          {obj.bg_image && (
-            <image href={obj.bg_image} x={obj.x} y={obj.y} width={w} height={h}
-              preserveAspectRatio="xMidYMid slice" style={{ pointerEvents: "none" }} />
-          )}
-          {obj.tag && obj.y_tag && (
-            <text x={obj.x + w / 2} y={obj.y + 12} textAnchor="middle" fill="#64748b" fontSize={9} style={{ pointerEvents: "none" }}>
-              {obj.tag} / {obj.y_tag}
-            </text>
-          )}
-          <rect x={obj.x + PAD} y={obj.y + PAD} width={plotW} height={plotH} fill="none" stroke="#334155" style={{ pointerEvents: "none" }} />
-          <circle cx={obj.x + PAD + plotW / 2} cy={obj.y + PAD + plotH / 2} r={4} fill={obj.line_color ?? "#3b82f6"} style={{ pointerEvents: "none" }} />
-          <text x={obj.x + PAD} y={obj.y + h - 6} fill="#475569" fontSize={9} style={{ pointerEvents: "none" }}>{xMinText}</text>
-          <text x={obj.x + PAD + plotW} y={obj.y + h - 6} textAnchor="end" fill="#475569" fontSize={9} style={{ pointerEvents: "none" }}>{xMaxText}</text>
-          <text x={obj.x + 2} y={obj.y + PAD + 8} fill="#475569" fontSize={9} style={{ pointerEvents: "none" }}>{yMaxText}</text>
-          <text x={obj.x + 2} y={obj.y + PAD + plotH} fill="#475569" fontSize={9} style={{ pointerEvents: "none" }}>{yMinText}</text>
-        </g>
-      );
-    }
+    // WYSIWYG (2026-08-23): XyPlotCanvas vero anche in editor (cornice, scale
+    // e punto live), invece degli assi finti col punto fisso al centro.
 
     const xv = obj.tag ? tagValues[obj.tag] : undefined;
     const yv = obj.y_tag ? tagValues[obj.y_tag] : undefined;
@@ -4250,7 +4185,8 @@ export function SvgObject(p: ObjProps) {
     return (
       <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()}>
         {selRect(obj.x, obj.y, w, h)}
-        <foreignObject x={obj.x} y={obj.y} width={w} height={h}>
+        <foreignObject x={obj.x} y={obj.y} width={w} height={h}
+          style={isEditMode ? { pointerEvents: "none" } : undefined}>
           <XyPlotCanvas
             xValue={xv ? Number(xv.value) : undefined}
             yValue={yv ? Number(yv.value) : undefined}
@@ -4266,6 +4202,7 @@ export function SvgObject(p: ObjProps) {
             bgImage={obj.bg_image}
           />
         </foreignObject>
+        {hitRect(obj.x, obj.y, w, h)}
       </g>
     );
   }
@@ -4599,6 +4536,7 @@ export function SvgObject(p: ObjProps) {
             tagValues={tagValues}
           />
         </foreignObject>
+        {hitRect(obj.x, obj.y, w, h)}
       </g>
     );
   }
@@ -4615,22 +4553,14 @@ export function SvgObject(p: ObjProps) {
     const showTs = obj.alarm_viewer_show_ts !== false;
     const showEmpty = obj.alarm_viewer_show_empty !== false;
 
-    if (isEditMode) {
-      return (
-        <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()} style={{ cursor: editCursor }}>
-          {selRect(obj.x, obj.y, w, h)}
-          <rect x={obj.x} y={obj.y} width={w} height={h} rx={4} fill="#0f172a" stroke={selected ? "#facc15" : "#334155"} strokeWidth={selected ? 2 : 1} />
-          <text x={obj.x + w / 2} y={obj.y + h / 2} textAnchor="middle" fill="#64748b" fontSize={12} style={{ pointerEvents: "none" }}>
-            Alarm Viewer ({mode})
-          </text>
-        </g>
-      );
-    }
-
+    // WYSIWYG (2026-08-23): widget vero anche in editor — il placeholder
+    // "Alarm Viewer (list)" non diceva niente su come sarebbe venuta la
+    // tabella. Gli allarmi vivi sono già nello store, nessun polling nuovo.
     return (
       <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()}>
         {selRect(obj.x, obj.y, w, h)}
-        <foreignObject x={obj.x} y={obj.y} width={w} height={h}>
+        <foreignObject x={obj.x} y={obj.y} width={w} height={h}
+          style={isEditMode ? { pointerEvents: "none" } : undefined}>
           <AlarmViewerWidget
             width={w} height={h} mode={mode} maxRows={maxRows}
             prefix={prefix} allowedSev={allowedSev}
@@ -4638,6 +4568,7 @@ export function SvgObject(p: ObjProps) {
             bgColor={obj.alarm_viewer_bg_color}
           />
         </foreignObject>
+        {hitRect(obj.x, obj.y, w, h)}
       </g>
     );
   }
@@ -4647,27 +4578,13 @@ export function SvgObject(p: ObjProps) {
   if (obj.type === "alarm_bell") {
     const w = obj.width ?? 130; const h = obj.height ?? 34;
 
-    if (isEditMode) {
-      return (
-        <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()} style={{ cursor: editCursor }}>
-          {selRect(obj.x, obj.y, w, h)}
-          <rect x={obj.x} y={obj.y} width={w} height={h} rx={h / 2} fill={obj.bg_color ?? "#0f172a"} stroke={selected ? "#facc15" : "#334155"} strokeWidth={selected ? 2 : 1} />
-          {obj.bg_image && (
-            <image href={obj.bg_image} x={obj.x} y={obj.y} width={w} height={h}
-              preserveAspectRatio="xMidYMid slice" style={{ pointerEvents: "none" }} />
-          )}
-          <text x={obj.x + w / 2} y={obj.y + h / 2} textAnchor="middle" dominantBaseline="central" fill="#64748b" fontSize={12} style={{ pointerEvents: "none" }}>
-            🔔 Allarmi
-          </text>
-        </g>
-      );
-    }
-
+    // WYSIWYG (2026-08-23): campanella vera anche in editor (badge, conteggio).
     return (
       <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()}>
         {selRect(obj.x, obj.y, w, h)}
         {bgLayer(obj.x, obj.y, w, h, h / 2)}
-        <foreignObject x={obj.x} y={obj.y} width={w} height={h}>
+        <foreignObject x={obj.x} y={obj.y} width={w} height={h}
+          style={isEditMode ? { pointerEvents: "none" } : undefined}>
           <AlarmBellPanel
             idPrefix={obj.alarm_bell_id_prefix}
             allowedSev={obj.alarm_bell_severities}
@@ -4676,6 +4593,7 @@ export function SvgObject(p: ObjProps) {
             badgeFill={obj.fill}
           />
         </foreignObject>
+        {hitRect(obj.x, obj.y, w, h)}
       </g>
     );
   }
@@ -4685,32 +4603,19 @@ export function SvgObject(p: ObjProps) {
   if (obj.type === "alarm_banner") {
     const w = obj.width ?? 600; const h = obj.height ?? 32;
 
-    if (isEditMode) {
-      return (
-        <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()} style={{ cursor: editCursor }}>
-          {selRect(obj.x, obj.y, w, h)}
-          <rect x={obj.x} y={obj.y} width={w} height={h} rx={4} fill={obj.bg_color ?? "#0f172a"} stroke={selected ? "#facc15" : "#334155"} strokeWidth={selected ? 2 : 1} />
-          {obj.bg_image && (
-            <image href={obj.bg_image} x={obj.x} y={obj.y} width={w} height={h}
-              preserveAspectRatio="xMidYMid slice" style={{ pointerEvents: "none" }} />
-          )}
-          <text x={obj.x + w / 2} y={obj.y + h / 2} textAnchor="middle" dominantBaseline="central" fill="#64748b" fontSize={12} style={{ pointerEvents: "none" }}>
-            Barra Allarmi
-          </text>
-        </g>
-      );
-    }
-
+    // WYSIWYG (2026-08-23): barra vera anche in editor.
     return (
       <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()}>
         {selRect(obj.x, obj.y, w, h)}
         {bgLayer(obj.x, obj.y, w, h, 4)}
-        <foreignObject x={obj.x} y={obj.y} width={w} height={h}>
+        <foreignObject x={obj.x} y={obj.y} width={w} height={h}
+          style={isEditMode ? { pointerEvents: "none" } : undefined}>
           <AlarmBanner
             idPrefix={obj.alarm_banner_id_prefix}
             allowedSev={obj.alarm_banner_severities}
           />
         </foreignObject>
+        {hitRect(obj.x, obj.y, w, h)}
       </g>
     );
   }
@@ -4720,41 +4625,19 @@ export function SvgObject(p: ObjProps) {
   if (obj.type === "recipe_panel") {
     const w = obj.width ?? 260; const h = obj.height ?? 160;
 
-    if (isEditMode) {
-      // Static skeleton (header bar + a few placeholder rows) instead of the
-      // generic box — purely decorative, no store access, communicates "a
-      // list of things" without pretending to know the real recipe list.
-      const rowH = 12; const rowGap = 6; const rowX = obj.x + 8;
-      const rowW = w - 16;
-      const firstRowY = obj.y + 30;
-      const rowCount = Math.max(0, Math.min(3, Math.floor((h - 38) / (rowH + rowGap))));
-      return (
-        <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()} style={{ cursor: editCursor }}>
-          {selRect(obj.x, obj.y, w, h)}
-          <rect x={obj.x} y={obj.y} width={w} height={h} rx={4} fill={obj.bg_color ?? "#1e293b"} stroke={selected ? "#facc15" : "#334155"} strokeWidth={selected ? 2 : 1} style={{ pointerEvents: "none" }} />
-          {obj.bg_image && (
-            <image href={obj.bg_image} x={obj.x} y={obj.y} width={w} height={h}
-              preserveAspectRatio="xMidYMid slice" style={{ pointerEvents: "none" }} />
-          )}
-          <rect x={obj.x} y={obj.y} width={w} height={20} rx={4} fill="#334155" style={{ pointerEvents: "none" }} />
-          <text x={obj.x + 8} y={obj.y + 14} fill="#94a3b8" fontSize={10} style={{ pointerEvents: "none" }}>📋 Ricette</text>
-          {Array.from({ length: rowCount }, (_, i) => (
-            <rect key={i} x={rowX} y={firstRowY + i * (rowH + rowGap)} width={rowW} height={rowH} rx={3}
-              fill="#334155" opacity={0.6} style={{ pointerEvents: "none" }} />
-          ))}
-        </g>
-      );
-    }
-
+    // WYSIWYG (2026-08-23): lista ricette vera anche in editor — lo scheletro
+    // di righe grigie non mostrava né i nomi veri né l'altezza reale delle voci.
     return (
       <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()}>
         {selRect(obj.x, obj.y, w, h)}
-        <foreignObject x={obj.x} y={obj.y} width={w} height={h}>
+        <foreignObject x={obj.x} y={obj.y} width={w} height={h}
+          style={isEditMode ? { pointerEvents: "none" } : undefined}>
           <div style={{ width: w, height: h, overflowY: "auto", boxSizing: "border-box", padding: 6, background: obj.bg_color ?? "var(--brand-surface, #1e293b)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4,
             ...(obj.bg_image ? { backgroundImage: `url(${obj.bg_image})`, backgroundSize: "cover", backgroundPosition: "center" } : {}) }}>
             <RecipePanel idPrefix={obj.recipe_panel_id_prefix} compact />
           </div>
         </foreignObject>
+        {hitRect(obj.x, obj.y, w, h)}
       </g>
     );
   }
@@ -5237,8 +5120,11 @@ export function SvgObject(p: ObjProps) {
       return (
         <>
           {selRect(obj.x, obj.y, w, h)}
-          {bgLayer(obj.x, obj.y, w, h, 4)}
           <g transform={`translate(${obj.x}, ${obj.y})${scaleTf}`} style={{ pointerEvents: "none" }}>
+            {/* bgLayer DENTRO il transform: fuori restava alla dimensione del
+                box e non seguiva faceplate_scale (in editor lo sfondo non
+                combaciava coi figli scalati). */}
+            {bgLayer(0, 0, obj.faceplate_scale ? defBox.w : w, obj.faceplate_scale ? defBox.h : h, 4)}
             {defn.objects.map((child, i) => {
               const resolved = substituteParams(child);
               return (
@@ -5248,7 +5134,10 @@ export function SvgObject(p: ObjProps) {
                   objects={objects}
                   tagValues={tagValues}
                   selected={false}
-                  isEditMode={true}
+                  /* I figli si disegnano col rendering RUNTIME (come le celle
+                     del grid): con isEditMode={true} ognuno aggiungeva il
+                     proprio hit-rect e i propri placeholder dentro l'istanza. */
+                  isEditMode={false}
                   customSymbols={customSymbols}
                   faceplates={faceplates}
                   onWriteTag={onWriteTag}
