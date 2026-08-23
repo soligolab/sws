@@ -6,6 +6,31 @@
 >
 > **Pulizia 2026-07-27**: rimossi i task già chiusi e le sezioni di verifica ormai superate; le sessioni mergiate **e** verificate fino al 2026-07-09 sono compresse in «Storico». Il dettaglio integrale resta in `CHANGELOG.md` e nella history git.
 
+**Sessione 2026-08-23 (notte) — pulsante "Naviga a URL" + coda WYSIWYG chiusa** (commit su
+`feat/scada-f6`; piano in `docs/plans/2026-08-23-navigate-f7-f8.md`, deciso con 4 domande).
+- **Bug segnalato dal maintainer**: un pulsante con "Naviga a URL" non faceva niente. Causa:
+  `onButtonAction` dichiarata e consumata in SvgCanvas ma **mai passata** da RuntimeView —
+  quindi navigate/login/logout erano morte da sempre (solo `open_faceplate` funzionava,
+  gestito dentro il canvas). Ora: handler vero, nuovo campo **"Apri in"** (scheda nuova di
+  default / stessa scheda), `https://` aggiunto se manca, fallback alla stessa scheda se il
+  popup è bloccato, Login come overlay sopra il sinottico, Logout con rientro no-auth.
+  `docs/HOWTO.md` cap. 4. Nessun mirror Rust (button_action è già Value); web-only su LVGL.
+- **Coda WYSIWYG chiusa**: slider dentro l'altezza dichiarata (il foreignObject era h+20 con
+  la label); alarm_viewer/bell/banner/recipe_panel/lang_selector/xy_plot con widget veri in
+  editor; faceplate con figli `isEditMode={false}` e bgLayer dentro il transform.
+- **Regressione trovata misurando**: setpoint/checkbox/radio/sparkline **non erano più
+  selezionabili col mouse** (contenuto sotto pointerEvents:none e nessuna geometria da
+  cliccare). Nuovo helper `hitRect()` su tutti i tipi del pattern.
+- **Nuovo check**: `./scripts/check_wysiwyg.sh` (runtime scratch 8657, terminato dal trap) —
+  clicca 12 tipi uno per uno, misura lo slider e verifica la migrazione `trend_tags` su
+  disco. 12/12 verde. Anche `motion_anchor` (centro come default) e spinner numerici più
+  grandi sono di questa sessione.
+- **Prossimo**: Lotto 2 del piano su nuovo branch `feat/scada-f7` = F7.6 rifiniture (rect
+  raggio/dash/gradiente, gauge zone/tacche/arco/setpoint, led forme, grid gap, navbutton
+  colori, image preserveAspectRatio) + F8.1 residuo (match-size, distribute a gap uguali,
+  snap in resize — le smart guides ESISTONO già) + F8.2 (multi-edit e copia stile). Poi
+  Lotto 3 (table/bar/pie/text) e Lotto 4 (allarmi UI, ricerca, rotazione/layer).
+
 **Sessione 2026-08-23 (sera) — editor coerente: trend_tags, fine doppioni, WYSIWYG, cattura
 waypoint** (commit su `feat/scada-f6`; piano in `docs/plans/2026-08-23-editor-coerente.md`,
 specifiche fissate con 3 tornate di domande; regole permanenti scritte in CLAUDE.md §"Regole

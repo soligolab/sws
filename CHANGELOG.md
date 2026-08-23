@@ -11,6 +11,20 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### Fixed
+
+- **Le azioni predefinite del pulsante non facevano niente** ("Naviga a URL", "Login",
+  "Logout"): il canvas dichiarava e consumava `onButtonAction` ma nessun chiamante la
+  passava. Ora navigano davvero, con nuovo campo **"Apri in"** (scheda nuova, default, o
+  stessa scheda), schema `https://` aggiunto se l'URL è scritto senza (`www.esempio.it`) e
+  fallback alla stessa scheda se il popup viene bloccato. Login apre la schermata di accesso
+  sopra il sinottico; Logout torna al Viewer anonimo senza ricaricare. Nuovo capitolo 4 in
+  `docs/HOWTO.md`. Le tre azioni restano web-only (LVGL non le modella).
+- **Setpoint, checkbox, radio e sparkline non erano più selezionabili col mouse** nell'editor
+  dopo il passaggio al rendering WYSIWYG: con il contenuto sotto `pointerEvents:none` non
+  restava nessuna geometria da cliccare. Aggiunto un hit-rect trasparente su tutti i tipi del
+  pattern, verificato da `scripts/check_wysiwyg.sh` (12 tipi cliccati uno per uno).
+
 ### Changed
 
 - **Trend: tracce unificate `trend_tags[]`** (migrazione automatica al load, taglio netto):
@@ -23,7 +37,15 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   selezionabile, W/H per tutti i tipi box, toggle "▶ Effetti" per previsualizzare lampeggi/
   movimenti/bordi allarme/flusso pipe. Pannello: via i campi doppi (Tag generico → "Tag di
   stato" dove non primario, bg_color nascosto dove ridondante).
-- **Movimento su percorso**: waypoint come tabella + pulsante ＋ Cattura dal canvas.
+- **Movimento su percorso**: waypoint come tabella + pulsante ＋ Cattura dal canvas; nuova
+  **ancora del percorso** (`motion_anchor`) con il **centro** dell'oggetto come default
+  (prima il path guidava l'angolo alto-sinistra).
+- **Coda WYSIWYG chiusa**: slider contenuto nell'altezza dichiarata (prima la label sfondava
+  il box), alarm_viewer/alarm_bell/alarm_banner/recipe_panel/lang_selector/xy_plot con widget
+  veri in editor, faceplate con figli renderizzati come a runtime e sfondo che segue
+  `faceplate_scale`.
+- **Spinner dei campi numerici** sempre visibili e larghi il doppio (prima ~10px e solo in
+  hover: difficili da centrare col mouse).
 
 ### Added
 
