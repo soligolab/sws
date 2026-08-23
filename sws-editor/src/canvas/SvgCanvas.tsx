@@ -3,10 +3,11 @@ import { useTranslation } from "react-i18next";
 import { PALETTE, TrendCanvas } from "@/canvas/TrendCanvas";
 import { TrendExpandedModal } from "@/canvas/TrendExpanded";
 import { XyPlotCanvas } from "@/canvas/XyPlotCanvas";
-import { api, getAuthToken } from "@/api/client";
+import { api } from "@/api/client";
 import { AlarmBellPanel } from "@/components/AlarmBellPanel";
 import { NumericKeypad } from "@/components/NumericKeypad";
 import { AlarmBanner } from "@/components/AlarmBanner";
+import { AlarmHistory } from "@/components/AlarmHistory";
 import { RecipePanel } from "@/components/RecipePanel";
 import { DataTable, type DataTableColumn } from "@/components/DataTable";
 import { SEV_COLOR } from "@/alarmSeverity";
@@ -18,7 +19,7 @@ import { applyStateColor, parseSvg, sanitizeSvg } from "@/symbols/customSvg";
 import { trendTraces } from "@/canvas/trendModel";
 import { SYMBOLS } from "@/symbols/library";
 import { clampToPage } from "@/pageLayout";
-import type { AlarmSeverity, AlarmState, CustomSymbol, FaceplateDef, FaceplateParamDef, GridCell, PageSizeMode, PipePoint, Sample, SynopticObject, TagDef, TagState, TextListEntry } from "@/types";
+import type { AlarmSeverity, AlarmState, CustomSymbol, FaceplateDef, FaceplateParamDef, GridCell, PageSizeMode, PipePoint, Sample, SynopticObject, TableRow, TagDef, TagState, TextListEntry } from "@/types";
 
 // ── Canvas props ──────────────────────────────────────────────────────────────
 
@@ -136,6 +137,23 @@ interface ResizeState {
   startX: number;
   startY: number;
   startObj: { x: number; y: number; width: number; height: number; x2?: number; y2?: number };
+  /** F8.4 — rotazione dell'oggetto in gradi al momento della presa: il
+   *  movimento del mouse va proiettato sugli assi LOCALI dell'oggetto,
+   *  altrimenti trascinare la maniglia destra di un oggetto ruotato di 90°
+   *  ne cambia l'altezza. Prima il resize era semplicemente disabilitato
+   *  sugli oggetti ruotati. */
+  rotation?: number;
+}
+
+/** F8.4 — trascinamento della maniglia di rotazione. */
+interface RotateState {
+  objId: string;
+  /** Centro di rotazione in coordinate pagina. */
+  cx: number;
+  cy: number;
+  /** Rotazione iniziale e angolo del mouse all'inizio, per ruotare in delta. */
+  startRotation: number;
+  startAngle: number;
 }
 
 /** Active drag on an interior border of a `grid` object (between two
@@ -630,6 +648,7 @@ export function SvgCanvas({
   const dragRef = useRef<DragState | null>(null);
   // Resize handle drag state
   const resizeRef = useRef<ResizeState | null>(null);
+  const rotateRef = useRef<RotateState | null>(null);
   // Grid interior-border resize state (drag between columns or between rows).
   const gridBorderRef = useRef<GridBorderResizeState | null>(null);
   // Sub-grid (split cell) interior border resize state.
@@ -977,11 +996,35 @@ export function SvgCanvas({
       return;
     }
 
+    // F8.4 — rotazione interattiva: l'angolo segue il mouse attorno al centro
+    // dell'oggetto; Shift aggancia a passi di 15°.
+    if (rotateRef.current && onMove) {
+      const { objId, cx, cy, startRotation, startAngle } = rotateRef.current;
+      const now = Math.atan2(pt.y - cy, pt.x - cx) * 180 / Math.PI;
+      let deg = startRotation + (now - startAngle);
+      if (e.shiftKey) deg = Math.round(deg / 15) * 15;
+      // Normalizzato in [0,360): un angolo di -730° salvato sul file è
+      // corretto ma illeggibile nel pannello.
+      deg = ((deg % 360) + 360) % 360;
+      onMove(objId, { rotation: Math.round(deg * 10) / 10 });
+      return;
+    }
+
     if (resizeRef.current && onMove) {
       // Resize / endpoint handle drag. dx/dy in screen pixels → divide by zoom.
       const { handle, startX, startY, startObj, objId } = resizeRef.current;
-      const dx = (e.clientX - startX) / z;
-      const dy = (e.clientY - startY) / z;
+      let dx = (e.clientX - startX) / z;
+      let dy = (e.clientY - startY) / z;
+      // F8.4 — su un oggetto ruotato le maniglie sono ruotate con lui: il
+      // movimento va riportato negli assi locali, altrimenti trascinare la
+      // maniglia destra di un oggetto girato di 90° ne cambierebbe l'altezza.
+      const rot = resizeRef.current.rotation ?? 0;
+      if (rot !== 0) {
+        const a = -rot * Math.PI / 180;
+        const rx = dx * Math.cos(a) - dy * Math.sin(a);
+        const ry = dx * Math.sin(a) + dy * Math.cos(a);
+        dx = rx; dy = ry;
+      }
       if (handle === "p1") {
         onMove(objId, { x: snap(startObj.x + dx), y: snap(startObj.y + dy) });
       } else if (handle === "p2") {
@@ -1020,10 +1063,62 @@ export function SvgCanvas({
           if (handle.includes("l")) x = startObj.x + (startObj.width - newW);
           if (handle.includes("t")) y = startObj.y + (startObj.height - newH);
         } else {
-          if (handle.includes("l")) { x = snap(startObj.x + dx); width = snap(startObj.width - dx); }
-          if (handle.includes("r")) { width = snap(startObj.width + dx); }
-          if (handle.includes("t")) { y = snap(startObj.y + dy); height = snap(startObj.height - dy); }
-          if (handle.includes("b")) { height = snap(startObj.height + dy); }
+          // F8.1 — il bordo trascinato si aggancia ai bordi/centri degli altri
+          // oggetti, ai bordi pagina e alle guide del righello, come già fa il
+          // trascinamento dell'oggetto intero. Prima il resize conosceva solo
+          // la griglia, quindi allineare un bordo a un oggetto vicino era a
+          // occhio anche con lo snap attivo.
+          const tol = 8 / z;
+          const edgesX: number[] = [];
+          const edgesY: number[] = [];
+          for (const other of objects) {
+            if (other.id === objId) continue;
+            const bb = objBBox(other);
+            edgesX.push(bb.x1, (bb.x1 + bb.x2) / 2, bb.x2);
+            edgesY.push(bb.y1, (bb.y1 + bb.y2) / 2, bb.y2);
+          }
+          if (pageWidth && pageWidth > 0) edgesX.push(0, pageWidth / 2, pageWidth);
+          if (pageHeight && pageHeight > 0) edgesY.push(0, pageHeight / 2, pageHeight);
+          for (const g of guides) (g.axis === "v" ? edgesX : edgesY).push(g.pos);
+          /** Aggancia un bordo a un candidato entro la tolleranza. */
+          const pull = (v: number, cands: number[]): number | null => {
+            let best: number | null = null; let bestD = tol;
+            for (const c of cands) {
+              const d = Math.abs(v - c);
+              if (d < bestD) { bestD = d; best = c; }
+            }
+            return best;
+          };
+          let sX: number | null = null; let sY: number | null = null;
+          if (handle.includes("l")) {
+            const left = startObj.x + dx;
+            const hit = pull(left, edgesX);
+            const nl = hit ?? snap(left);
+            if (hit !== null) sX = hit;
+            x = nl; width = startObj.x + startObj.width - nl;
+          }
+          if (handle.includes("r")) {
+            const right = startObj.x + startObj.width + dx;
+            const hit = pull(right, edgesX);
+            const nr = hit ?? snap(right);
+            if (hit !== null) sX = hit;
+            width = nr - startObj.x;
+          }
+          if (handle.includes("t")) {
+            const top = startObj.y + dy;
+            const hit = pull(top, edgesY);
+            const nt = hit ?? snap(top);
+            if (hit !== null) sY = hit;
+            y = nt; height = startObj.y + startObj.height - nt;
+          }
+          if (handle.includes("b")) {
+            const bottom = startObj.y + startObj.height + dy;
+            const hit = pull(bottom, edgesY);
+            const nb = hit ?? snap(bottom);
+            if (hit !== null) sY = hit;
+            height = nb - startObj.y;
+          }
+          setSnapLines({ x: sX, y: sY });
         }
         if (width >= 4 && height >= 4) {
           const clamped = clampToPage(x, y, width, height, pageWidth, pageHeight);
@@ -1160,6 +1255,7 @@ export function SvgCanvas({
     closeInteraction();
     dragRef.current = null;
     resizeRef.current = null;
+    rotateRef.current = null;
     gridBorderRef.current = null;
     subBorderRef.current = null;
     panDragRef.current = null;
@@ -1650,15 +1746,22 @@ export function SvgCanvas({
         );
       })()}
 
-      {/* Resize handles — single selection, edit mode, no rotation, not line/grid/pipe */}
+      {/* Resize handles — single selection, edit mode, not line/grid/pipe.
+          F8.4: gli oggetti RUOTATI non sono più esclusi — le maniglie girano
+          col box (stesso transform dell'oggetto) e il movimento del mouse
+          viene proiettato sugli assi locali in handleMouseMove. In più c'è la
+          maniglia di rotazione sopra il bordo alto. */}
       {onMove && selIds.length === 1 && (() => {
         const obj = objects.find((o) => o.id === selIds[0]);
-        if (!obj || obj.type === "line" || obj.type === "grid" || obj.type === "pipe" || (obj.rotation ?? 0) !== 0) return null;
+        if (!obj || obj.type === "line" || obj.type === "grid" || obj.type === "pipe") return null;
         const bb = objBBox(obj);
         const cx = (bb.x1 + bb.x2) / 2;
         const cy = (bb.y1 + bb.y2) / 2;
         const hs = 4 / viewT.zoom;
         const sw = 1.5 / viewT.zoom;
+        const rot = obj.rotation ?? 0;
+        // Stesso centro di rotazione di applyTransform: il centro del box.
+        const groupTf = rot !== 0 ? `rotate(${rot} ${cx} ${cy})` : undefined;
         const handles: { id: string; x: number; y: number; cursor: string }[] = [
           { id: "tl", x: bb.x1, y: bb.y1, cursor: "nw-resize" },
           { id: "tc", x: cx,    y: bb.y1, cursor: "n-resize"  },
@@ -1669,8 +1772,16 @@ export function SvgCanvas({
           { id: "bc", x: cx,    y: bb.y2, cursor: "s-resize"  },
           { id: "br", x: bb.x2, y: bb.y2, cursor: "se-resize" },
         ];
+        const rotHandleY = bb.y1 - 18 / viewT.zoom;
         return (
-          <>
+          <g transform={groupTf}>
+            {/* Contorno del box ruotato: senza di esso, su un oggetto girato le
+                maniglie sembrano galleggiare senza riferimento. */}
+            {rot !== 0 && (
+              <rect x={bb.x1} y={bb.y1} width={bb.x2 - bb.x1} height={bb.y2 - bb.y1}
+                fill="none" stroke="#facc15" strokeWidth={sw} strokeDasharray={`${3 / viewT.zoom} ${2 / viewT.zoom}`}
+                style={{ pointerEvents: "none" }} />
+            )}
             {handles.map(({ id, x, y, cursor }) => (
               <rect
                 key={id}
@@ -1692,11 +1803,41 @@ export function SvgCanvas({
                       x: obj.x ?? 0, y: obj.y ?? 0,
                       width: obj.width ?? 0, height: obj.height ?? 0,
                     },
+                    rotation: rot,
                   };
                 }}
               />
             ))}
-          </>
+            {/* F8.4 — maniglia di rotazione: prima l'angolo si poteva cambiare
+                solo digitandolo nel pannello. */}
+            <line x1={cx} y1={bb.y1} x2={cx} y2={rotHandleY}
+              stroke="#facc15" strokeWidth={sw} style={{ pointerEvents: "none" }} />
+            <circle
+              cx={cx} cy={rotHandleY} r={5 / viewT.zoom}
+              fill="#facc15" stroke="#0f172a" strokeWidth={sw}
+              style={{ cursor: "grab" }}
+              onMouseDown={(e) => {
+                e.stopPropagation();
+                dragRef.current = null;
+                selDragRef.current = null;
+                setSelRect(null);
+                openInteraction("Ruota oggetto");
+                // toSvg vuole coordinate RELATIVE al riquadro dell'svg (come
+                // ogni altro punto di conversione qui): passandogli clientX/Y
+                // grezzi l'angolo iniziale era sbagliato e la rotazione partiva
+                // da un delta casuale.
+                const svgEl = (e.currentTarget as SVGElement).ownerSVGElement!;
+                const rect = svgEl.getBoundingClientRect();
+                const pt0 = toSvg(e.clientX - rect.left, e.clientY - rect.top);
+                rotateRef.current = {
+                  objId: obj.id,
+                  cx, cy,
+                  startRotation: rot,
+                  startAngle: Math.atan2(pt0.y - cy, pt0.x - cx) * 180 / Math.PI,
+                };
+              }}
+            />
+          </g>
         );
       })()}
 
@@ -2327,12 +2468,19 @@ function SparklineWidget({ tag, windowS, width, height, color, strokeWidth, fill
 
 // ── AlarmViewerWidget ─────────────────────────────────────────────────────────
 
-function AlarmViewerWidget({ width, height, mode, maxRows, prefix, allowedSev, showAck, showTs, showEmpty, bgColor }: {
+function AlarmViewerWidget({ width, height, mode, maxRows, prefix, allowedSev, showAck, showTs, showEmpty, bgColor, showAckAll, showShelve, shelveMinutes, askReason }: {
   width: number; height: number; mode: "list" | "banner" | "table";
   maxRows: number; prefix: string;
   allowedSev?: AlarmSeverity[];
   showAck: boolean; showTs: boolean; showEmpty: boolean;
   bgColor?: string;
+  /** F7.5 — barra con "ACK tutti" sopra l'elenco. */
+  showAckAll?: boolean;
+  /** F7.5 — pulsante di messa in silenzio (shelve) per riga. */
+  showShelve?: boolean;
+  shelveMinutes?: number;
+  /** F7.5 — chiede un motivo alla conferma (registrato nel journal). */
+  askReason?: boolean;
 }) {
   const alarmsMap = useAppStore((s) => s.alarms);
   const authRole = useAppStore((s) => s.authRole);
@@ -2355,15 +2503,51 @@ function AlarmViewerWidget({ width, height, mode, maxRows, prefix, allowedSev, s
 
   const sevColor = (sev: string) => SEV_COLOR[(sev as AlarmSeverity) ?? "Info"] ?? SEV_COLOR.Info;
 
-  const handleAck = useCallback(async (id: string) => {
+  // F7.5 — `askReason`: chiede un commento e lo manda con la conferma (finisce
+  // nel journal di audit). Passa da api.ackAlarm invece della fetch nuda, così
+  // il body con motivo e utente è uno solo in tutto il codice.
+  const handleAck = useCallback(async (id: string, reason?: string) => {
     try {
-      const token = getAuthToken() ?? "";
-      await fetch(`/api/alarms/${id}/ack`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
-      });
-    } catch { /* ignore */ }
+      const st = useAppStore.getState();
+      await api.ackAlarm(id, st.authUser ?? undefined, reason);
+    } catch (err) { console.error(err); }
   }, []);
+
+  const ackWithReason = useCallback(async (id: string) => {
+    if (!askReason) { await handleAck(id); return; }
+    const reason = window.prompt("Motivo della conferma:");
+    if (reason === null) return;             // annullato
+    if (!reason.trim()) { window.alert("Il motivo è obbligatorio."); return; }
+    await handleAck(id, reason.trim());
+  }, [askReason, handleAck]);
+
+  // F7.5 — ACK massivo: su un impianto che parte con venti allarmi insieme,
+  // confermarli uno per uno è il momento in cui l'operatore smette di guardare
+  // il pannello. Conferma solo quelli VISIBILI (filtri e prefisso compresi):
+  // "acknowledge all" su tutto l'impianto sarebbe una scorciatoia pericolosa.
+  const handleAckAll = useCallback(async (ids: string[]) => {
+    // Un solo motivo per l'intera infornata: chiederlo venti volte di fila
+    // sarebbe la ragione per cui nessuno lo compila.
+    let reason: string | undefined;
+    if (askReason && ids.length > 0) {
+      const r = window.prompt("Motivo della conferma (per tutti):");
+      if (r === null) return;
+      if (!r.trim()) { window.alert("Il motivo è obbligatorio."); return; }
+      reason = r.trim();
+    }
+    for (const id of ids) await handleAck(id, reason);
+  }, [handleAck, askReason]);
+
+  // F7.5 — shelve dal viewer: mette a tacere un allarme noto per un tempo
+  // limitato, con motivo registrato (l'API lo richiede e finisce nel journal).
+  const handleShelve = useCallback(async (id: string) => {
+    const reason = window.prompt("Motivo della messa in silenzio:");
+    if (!reason) return;
+    try {
+      await api.shelveAlarm(id, reason, Math.max(1, shelveMinutes ?? 15) * 60_000,
+        useAppStore.getState().authUser ?? "operatore");
+    } catch (err) { console.error(err); }
+  }, [shelveMinutes]);
 
   const containerStyle: React.CSSProperties = {
     width, height,
@@ -2423,12 +2607,24 @@ function AlarmViewerWidget({ width, height, mode, maxRows, prefix, allowedSev, s
           ? new Date(a.activated_at_ms).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })
           : "—",
       } satisfies DataTableColumn<AlarmState>] : []),
+      ...(showShelve && canAck ? [{
+        key: "shelve", header: "🔇", width: 30, align: "center" as const, sortable: false, filterable: false,
+        accessor: () => "",
+        render: (a: AlarmState) => (
+          <button
+            onClick={(e) => { e.stopPropagation(); void handleShelve(a.def.id); }}
+            title="Metti in silenzio per un po' (con motivo)"
+            style={{ fontSize: 10, padding: "1px 4px", background: "transparent", border: "none",
+                     color: "var(--brand-text-muted, #94a3b8)", cursor: "pointer" }}
+          >🔇</button>
+        ),
+      } satisfies DataTableColumn<AlarmState>] : []),
       ...(showAck ? [{
         key: "ack", header: "ACK", width: 56, align: "center" as const, sortable: false, filterable: false,
         accessor: () => "",
         render: (a: AlarmState) => canAck && !a.acknowledged ? (
           <button
-            onClick={(e) => { e.stopPropagation(); void handleAck(a.def.id); }}
+            onClick={(e) => { e.stopPropagation(); void ackWithReason(a.def.id); }}
             style={{ fontSize: 9, padding: "1px 6px", background: "var(--brand-surface, #1e293b)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 2, color: "var(--brand-text-muted, #94a3b8)", cursor: "pointer" }}
           >
             ACK
@@ -2436,13 +2632,26 @@ function AlarmViewerWidget({ width, height, mode, maxRows, prefix, allowedSev, s
         ) : a.acknowledged ? <span style={{ color: "var(--brand-text-subtle, #64748b)", fontStyle: "italic" }}>ACK</span> : null,
       } satisfies DataTableColumn<AlarmState>] : []),
     ];
+    const barH = showAckAll && canAck ? 22 : 0;
     return (
       <div style={{ width, height, boxSizing: "border-box" }}>
+        {barH > 0 && (
+          <div style={{ height: barH, display: "flex", alignItems: "center", justifyContent: "flex-end", padding: "0 4px" }}>
+            <button
+              onClick={() => void handleAckAll(filtered.filter((a) => !a.acknowledged).map((a) => a.def.id))}
+              disabled={filtered.every((a) => a.acknowledged)}
+              title="Conferma tutti gli allarmi mostrati"
+              style={{ fontSize: 10, padding: "1px 8px", background: "var(--brand-surface, #1e293b)",
+                       border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 3,
+                       color: "var(--brand-text-muted, #94a3b8)", cursor: "pointer" }}
+            >✓ ACK tutti ({filtered.filter((a) => !a.acknowledged).length})</button>
+          </div>
+        )}
         <DataTable<AlarmState>
           columns={columns}
           rows={filtered}
           rowKey={(a) => a.def.id}
-          maxHeight={height}
+          maxHeight={height - barH}
           compact
         />
       </div>
@@ -2470,7 +2679,7 @@ function AlarmViewerWidget({ width, height, mode, maxRows, prefix, allowedSev, s
           </span>
           {showAck && canAck && !a.acknowledged && (
             <button
-              onClick={(e) => { e.stopPropagation(); void handleAck(a.def.id); }}
+              onClick={(e) => { e.stopPropagation(); void ackWithReason(a.def.id); }}
               style={{ fontSize: 9, padding: "1px 4px", background: "var(--brand-surface, #1e293b)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 2, color: "var(--brand-text-muted, #94a3b8)", cursor: "pointer", flexShrink: 0 }}>
               ACK
             </button>
@@ -2932,15 +3141,41 @@ export function SvgObject(p: ObjProps) {
   if (obj.type === "rect") {
     const w = obj.width ?? 100; const h = obj.height ?? 50;
     const tv = obj.tag ? tagValues[obj.tag] : undefined;
+    // F7.6 — angoli arrotondati, tratteggio del bordo e riempimento sfumato.
+    // La sfumatura riusa la convenzione della pipe "tube": i due estremi si
+    // ricavano schiarendo/scurendo il colore base se non dichiarati.
+    const baseFill = obj.fill ?? obj.bg_color ?? "#555";
+    const gradId = `rect-grad-${obj.id}`;
+    const gradDir = obj.fill_gradient;
+    const lightC = obj.gradient_light_color ?? lightenHex(baseFill);
+    const darkC  = obj.gradient_dark_color  ?? darkenHex(baseFill);
     return (
       <>
         {applyTransform(obj, w, h, <>
+          {gradDir && (
+            <defs>
+              {gradDir === "radial" ? (
+                <radialGradient id={gradId}>
+                  <stop offset="0%" stopColor={lightC} />
+                  <stop offset="100%" stopColor={darkC} />
+                </radialGradient>
+              ) : (
+                <linearGradient id={gradId}
+                  x1="0" y1="0" x2={gradDir === "horizontal" ? "1" : "0"} y2={gradDir === "horizontal" ? "0" : "1"}>
+                  <stop offset="0%" stopColor={lightC} />
+                  <stop offset="100%" stopColor={darkC} />
+                </linearGradient>
+              )}
+            </defs>
+          )}
           {/* F0.2: bg_color = fallback del fill (un bgLayer dietro un corpo
               opaco sarebbe invisibile — qui lo sfondo È il fill). */}
           <rect x={obj.x} y={obj.y} width={w} height={h}
-            fill={obj.fill ?? obj.bg_color ?? "#555"}
+            rx={obj.corner_radius || undefined}
+            fill={gradDir ? `url(#${gradId})` : baseFill}
             stroke={selected ? "#facc15" : (obj.stroke ?? "none")}
             strokeWidth={selected ? 2 : (obj.stroke_width ?? 0)}
+            strokeDasharray={obj.stroke_dasharray || undefined}
             style={{ cursor: editCursor, ...transitionStyle(obj) }}
             onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()} />
           {obj.bg_image && (
@@ -3181,6 +3416,47 @@ export function SvgObject(p: ObjProps) {
     const colour    = (obj.text_color_by_threshold && tv && Number.isFinite(Number(tv.value)))
       ? (thresholdColor(Number(tv.value), obj.alarm_low, obj.warn_low, obj.warn_high, obj.alarm_high) ?? staticColour)
       : staticColour;
+    // F7.4 — testo multiriga: con `text_wrap` il contenuto va a capo dentro
+    // width/height dichiarati, con allineamento verticale. Serve un
+    // foreignObject: SVG <text> non manda a capo da solo (bisognerebbe
+    // spezzare a mano in <tspan> misurando i caratteri). Il ramo storico a una
+    // riga resta il default per non spostare i testi dei progetti esistenti.
+    if (obj.text_wrap) {
+      const bw = obj.width ?? 160;
+      const bh = obj.height ?? 60;
+      const valign = obj.text_valign ?? "top";
+      return (
+        <>
+          {selRect(obj.x, obj.y, bw, bh)}
+          {applyTransform(obj, bw, bh, <>
+            {bgLayer(obj.x, obj.y, bw, bh, 3)}
+            <foreignObject x={obj.x} y={obj.y} width={bw} height={bh}
+              style={{ pointerEvents: "none" }}>
+              <div style={{
+                width: "100%", height: "100%", boxSizing: "border-box",
+                display: "flex",
+                alignItems: valign === "middle" ? "center" : valign === "bottom" ? "flex-end" : "flex-start",
+                justifyContent: anchor === "middle" ? "center" : anchor === "end" ? "flex-end" : "flex-start",
+                color: colour, fontSize: size, fontFamily: family,
+                fontWeight: weight as React.CSSProperties["fontWeight"], fontStyle: style,
+                lineHeight: obj.line_height ?? 1.25,
+                textAlign: anchor === "middle" ? "center" : anchor === "end" ? "right" : "left",
+                // pre-wrap: rispetta gli a-capo scritti a mano E manda a capo
+                // da solo; break-word evita che una parola lunga sfori il box.
+                whiteSpace: "pre-wrap", wordBreak: "break-word", overflow: "hidden",
+              }}>
+                {content}
+              </div>
+            </foreignObject>
+            {hitRect(obj.x, obj.y, bw, bh)}
+            {/* A runtime il testo non è interattivo: basta il rettangolo
+                trasparente per il click di selezione in editor. */}
+          </>)}
+          {tv && obj.quality_dot !== false && <QDot x={obj.x + bw - 8} y={obj.y + 8} quality={tv.quality} goodColor={obj.quality_dot_good_color} badColor={obj.quality_dot_bad_color} uncertainColor={obj.quality_dot_uncertain_color} />}
+        </>
+      );
+    }
+
     // Selection rect is a rough estimate — SVG text has no width attr without measuring.
     const approxW   = Math.max(40, content.length * size * 0.6);
     const dx        = anchor === "middle" ? -approxW / 2 : anchor === "end" ? -approxW : 0;
@@ -3291,9 +3567,12 @@ export function SvgObject(p: ObjProps) {
           else if (isEditMode) onSelect?.(obj.id);
         }}>
         {applyTransform(obj, w, h, <>
-          <rect x={obj.x} y={obj.y} width={w} height={h} rx={4}
+          {/* F7.6 — il bordo era hardcoded sul colore primario del tema: ora
+              segue `stroke` (esposto nel pannello) con lo stesso default. */}
+          <rect x={obj.x} y={obj.y} width={w} height={h} rx={obj.corner_radius ?? 4}
             fill={obj.fill ?? obj.bg_color ?? "var(--brand-bg, #0f172a)"}
-            stroke={selected ? "#facc15" : "var(--brand-primary, #3b82f6)"} strokeWidth={selected ? 2 : 1.5}
+            stroke={selected ? "#facc15" : (obj.stroke ?? "var(--brand-primary, #3b82f6)")}
+            strokeWidth={selected ? 2 : (obj.stroke_width ?? 1.5)}
             style={transitionStyle(obj)} />
           {obj.bg_image && (
             <image href={obj.bg_image} x={obj.x} y={obj.y} width={w} height={h}
@@ -3402,16 +3681,40 @@ export function SvgObject(p: ObjProps) {
     return (
       <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()}
          style={{ cursor: editCursor }}>
-        {selected && <circle cx={cx} cy={cy} r={r + 4} fill="none" stroke="#facc15" strokeWidth={1} />}
+        {selected && ((obj.led_shape ?? "circle") === "circle"
+          ? <circle cx={cx} cy={cy} r={r + 4} fill="none" stroke="#facc15" strokeWidth={1} />
+          : selRect(obj.x, obj.y, r * 2, r * 2))}
         {applyTransform(obj, ledW, ledW, <>
           {bgLayer(obj.x, obj.y, ledW, ledW, 4)}
-          {/* Glow ring */}
-          {isOn && <circle cx={cx} cy={cy} r={r + 3} fill={glowColor} opacity={0.25} style={{ pointerEvents: "none" }} />}
-          {/* LED body */}
-          <circle cx={cx} cy={cy} r={r} fill={ledColor} style={transitionStyle(obj)} />
-          {/* Highlight */}
-          <circle cx={cx - r * 0.25} cy={cy - r * 0.25} r={r * 0.3} fill="white" opacity={0.3}
-            style={{ pointerEvents: "none" }} />
+          {/* F7.6 — forma del led: cerchio (default), quadrato o triangolo. Il
+              glow e il riflesso seguono la forma scelta. */}
+          {(() => {
+            const shape = obj.led_shape ?? "circle";
+            const tri = (rad: number) => {
+              const p = [0, 120, 240].map((a) => polar(cx, cy + rad * 0.15, rad, a - 0));
+              return p.map((q) => `${q.x},${q.y}`).join(" ");
+            };
+            const body = shape === "square"
+              ? <rect x={cx - r} y={cy - r} width={r * 2} height={r * 2} rx={r * 0.2}
+                  fill={ledColor} style={transitionStyle(obj)} />
+              : shape === "triangle"
+                ? <polygon points={tri(r)} fill={ledColor} style={transitionStyle(obj)} />
+                : <circle cx={cx} cy={cy} r={r} fill={ledColor} style={transitionStyle(obj)} />;
+            const glow = !isOn ? null : shape === "square"
+              ? <rect x={cx - r - 3} y={cy - r - 3} width={(r + 3) * 2} height={(r + 3) * 2} rx={r * 0.3}
+                  fill={glowColor} opacity={0.25} style={{ pointerEvents: "none" }} />
+              : shape === "triangle"
+                ? <polygon points={tri(r + 3)} fill={glowColor} opacity={0.25} style={{ pointerEvents: "none" }} />
+                : <circle cx={cx} cy={cy} r={r + 3} fill={glowColor} opacity={0.25} style={{ pointerEvents: "none" }} />;
+            return <>
+              {glow}
+              {body}
+              {shape !== "triangle" && (
+                <circle cx={cx - r * 0.25} cy={cy - r * 0.25} r={r * 0.3} fill="white" opacity={0.3}
+                  style={{ pointerEvents: "none" }} />
+              )}
+            </>;
+          })()}
           {/* Label */}
           {obj.label && (
             <text x={cx} y={obj.y + r * 2 + 14} textAnchor="middle" fill="#94a3b8" fontSize={11}
@@ -3544,12 +3847,19 @@ export function SvgObject(p: ObjProps) {
     const cx = obj.x + w / 2;
     const cy = obj.y + h * 0.62;
     const R = Math.min(w * 0.38, h * 0.52);
-    const START = -135; const END = 135; // degrees from North, clockwise
+    // F7.6 — apertura dell'arco configurabile (prima fissa a ∓135°): un gauge
+    // a 180° o a 360° si ottiene cambiando questi due angoli, e tutto il resto
+    // (tacche, zone, lancette, etichette) si ricalcola dallo sweep.
+    const START = obj.gauge_start_angle ?? -135;
+    const END   = obj.gauge_end_angle   ?? 135;
+    const SWEEP = END - START;
     const tv = obj.tag ? tagValues[obj.tag] : undefined;
     const min = obj.min ?? 0; const max = obj.max ?? 100;
     const rawVal = tv ? Number(tv.value) : min;
     const pct = clamp((rawVal - min) / (max - min), 0, 1);
-    const valueAngle = START + pct * 270;
+    const valueAngle = START + pct * SWEEP;
+    /** Angolo sull'arco di un valore in unità del tag. */
+    const angleOf = (v: number) => START + clamp((v - min) / (max - min), 0, 1) * SWEEP;
     const arcColor =
       thresholdColor(rawVal, obj.alarm_low, obj.warn_low, obj.warn_high, obj.alarm_high)
       ?? (obj.fill ?? "#22c55e");
@@ -3559,8 +3869,7 @@ export function SvgObject(p: ObjProps) {
 
     // Threshold tick helpers
     const thresholdTick = (value: number, color: string) => {
-      const pct2 = clamp((value - min) / (max - min), 0, 1);
-      const angle = START + pct2 * 270;
+      const angle = angleOf(value);
       const inner = polar(cx, cy, R - 8, angle);
       const outer = polar(cx, cy, R + 2, angle);
       return <line key={`t${value}`} x1={inner.x} y1={inner.y} x2={outer.x} y2={outer.y}
@@ -3579,6 +3888,31 @@ export function SvgObject(p: ObjProps) {
           <path d={arcPath(cx, cy, R, START, END)}
             fill="none" stroke="#334155" strokeWidth={10} strokeLinecap="round"
             style={{ pointerEvents: "none" }} />
+          {/* F7.6 — zone colorate sul fondo scala (verde/giallo/rosso di
+              processo): disegnate sopra il fondo e sotto l'arco del valore,
+              così restano leggibili anche a valore alto. */}
+          {(obj.gauge_zones ?? []).map((z, i) => (
+            <path key={`gz${i}`} d={arcPath(cx, cy, R, angleOf(z.from), angleOf(z.to))}
+              fill="none" stroke={z.color} strokeWidth={10} opacity={0.55}
+              style={{ pointerEvents: "none" }} />
+          ))}
+          {/* F7.6 — tacche maggiori con etichetta numerica. */}
+          {!!obj.gauge_ticks && obj.gauge_ticks > 1 && Array.from({ length: obj.gauge_ticks }, (_, i) => {
+            const frac = i / (obj.gauge_ticks! - 1);
+            const a = START + frac * SWEEP;
+            const v = min + frac * (max - min);
+            const p1 = polar(cx, cy, R - 7, a);
+            const p2 = polar(cx, cy, R + 1, a);
+            const pl = polar(cx, cy, R + 13, a);
+            return (
+              <g key={`gt${i}`} style={{ pointerEvents: "none" }}>
+                <line x1={p1.x} y1={p1.y} x2={p2.x} y2={p2.y} stroke="#64748b" strokeWidth={1} />
+                <text x={pl.x} y={pl.y + 3} textAnchor="middle" fill={obj.color ?? "#64748b"} fontSize={9}>
+                  {Number.isInteger(v) ? v : v.toFixed(1)}
+                </text>
+              </g>
+            );
+          })}
           {/* Value arc */}
           {pct > 0 && (
             <path d={arcPath(cx, cy, R, START, valueAngle)}
@@ -3590,6 +3924,19 @@ export function SvgObject(p: ObjProps) {
           {obj.warn_high !== undefined && thresholdTick(obj.warn_high, "#eab308")}
           {obj.alarm_low  !== undefined && thresholdTick(obj.alarm_low,  "#ef4444")}
           {obj.alarm_high !== undefined && thresholdTick(obj.alarm_high, "#ef4444")}
+          {/* F7.6 — secondo indicatore (setpoint): lancetta sottile sull'arco,
+              per confrontare a occhio valore e riferimento. */}
+          {(() => {
+            const spTv = obj.gauge_sp_tag ? tagValues[obj.gauge_sp_tag] : undefined;
+            const spVal = spTv ? Number(spTv.value) : undefined;
+            if (spVal === undefined || !Number.isFinite(spVal)) return null;
+            const a = angleOf(spVal);
+            const i1 = polar(cx, cy, R - 12, a);
+            const i2 = polar(cx, cy, R + 6, a);
+            return <line x1={i1.x} y1={i1.y} x2={i2.x} y2={i2.y}
+              stroke={obj.gauge_sp_color ?? "#f59e0b"} strokeWidth={2.5} strokeLinecap="round"
+              style={{ pointerEvents: "none", ...transitionStyle(obj) }} />;
+          })()}
           {/* Needle */}
           <line x1={needleBase.x} y1={needleBase.y} x2={needleTip.x} y2={needleTip.y}
             stroke={obj.stroke ?? "#e2e8f0"} strokeWidth={2} strokeLinecap="round"
@@ -3597,8 +3944,9 @@ export function SvgObject(p: ObjProps) {
           {/* Hub */}
           <circle cx={cx} cy={cy} r={6} fill={obj.stroke ?? "#e2e8f0"} style={{ pointerEvents: "none" }} />
           <circle cx={cx} cy={cy} r={3} fill="#0f172a" style={{ pointerEvents: "none" }} />
-          {/* Min / max labels */}
-          {(() => {
+          {/* Min / max labels — nascoste con le tacche numerate attive: la prima
+              e l'ultima tacca portano già gli stessi due numeri. */}
+          {!obj.gauge_ticks && (() => {
             const minP = polar(cx, cy, R + 14, START);
             const maxP = polar(cx, cy, R + 14, END);
             return <>
@@ -3986,92 +4334,136 @@ export function SvgObject(p: ObjProps) {
   // ── DATA TABLE ──────────────────────────────────────────────────────────────
 
   if (obj.type === "table") {
+    // F7.1 (Table 2.0) — la tabella era un disegno SVG a tre colonne fisse
+    // (nome/valore/qualità) senza ordinamento, filtri né scorrimento: con più
+    // righe dell'altezza dichiarata sfondava il box. Ora usa il DataTable
+    // condiviso (lo stesso di allarmi e ricette): colonne scelte, header
+    // cliccabili, filtri opzionali, scroll dentro il box, soglie per riga e
+    // celle scrivibili.
     const rows = obj.table_rows ?? [];
     const w = obj.width ?? 300;
     const rowH = 24;
     const headerH = 26;
     const totalH = obj.height ?? (headerH + rows.length * rowH + 2);
-    const colLabel = w * 0.42;
-    const colValue = w * 0.43;
+    const cols = obj.table_columns ?? ["label", "value", "quality"];
+    const fontSize = obj.table_font_size ?? 11;
+
+    /** Valore numerico della riga, quando è un numero. */
+    const rowNum = (r: TableRow): number | undefined => {
+      const v = tagValues[r.tag]?.value;
+      const n = Number(v);
+      return typeof v === "boolean" || v === undefined || !Number.isFinite(n) ? undefined : n;
+    };
+    /** Testo del valore: format esplicito, altrimenti decimali+unità. */
+    const rowText = (r: TableRow): string => {
+      const tv = tagValues[r.tag];
+      if (tv == null) return "—";
+      if (r.format) return formatValue(tv.value, r.format);
+      const n = rowNum(r);
+      const base = n !== undefined && r.decimals !== undefined ? n.toFixed(r.decimals) : String(tv.value);
+      return cols.includes("unit") ? base : `${base}${r.unit ? ` ${r.unit}` : ""}`;
+    };
+
+    const columns: DataTableColumn<TableRow>[] = cols.map((c): DataTableColumn<TableRow> => {
+      if (c === "label") {
+        return { key: "label", header: obj.table_label_header ?? "DATI", accessor: (r) => r.label };
+      }
+      if (c === "unit") {
+        return { key: "unit", header: "U.M.", accessor: (r) => r.unit ?? "", width: 52, filterable: false };
+      }
+      if (c === "quality") {
+        return {
+          key: "quality", header: "Q", width: 28, align: "center", filterable: false,
+          accessor: (r) => tagValues[r.tag]?.quality ?? "",
+          render: (r) => {
+            const tv = tagValues[r.tag];
+            if (!tv) return null;
+            return <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: qualityColor(tv.quality) }} />;
+          },
+        };
+      }
+      if (c === "time") {
+        return {
+          key: "time", header: "Ora", width: 72, filterable: false,
+          accessor: (r) => tagValues[r.tag]?.timestamp_ms ?? 0,
+          render: (r) => {
+            const ts = tagValues[r.tag]?.timestamp_ms;
+            return ts ? new Date(ts).toLocaleTimeString() : "—";
+          },
+        };
+      }
+      // Colonna del valore: soglie per riga, e cella scrivibile se richiesto.
+      return {
+        key: "value", header: "VALORE", align: "right", filterable: false,
+        // Ordinamento numerico quando il valore è un numero.
+        accessor: (r) => rowNum(r) ?? rowText(r),
+        render: (r) => {
+          const tv = tagValues[r.tag];
+          const n = rowNum(r);
+          const thr = n !== undefined
+            ? thresholdColor(n, r.alarm_low, r.warn_low, r.warn_high, r.alarm_high)
+            : undefined;
+          const color = thr
+            ?? (tv ? (tv.quality === "Good" ? "var(--brand-text, #e2e8f0)" : tv.quality === "Bad" ? "#ef4444" : "#eab308")
+                   : "var(--brand-border, #475569)");
+          if (r.writable && !isEditMode) {
+            return (
+              <input
+                type="text"
+                defaultValue={n !== undefined ? String(n) : String(tv?.value ?? "")}
+                onClick={(e) => e.stopPropagation()}
+                onKeyDown={(e) => {
+                  if (e.key !== "Enter") return;
+                  const raw = (e.target as HTMLInputElement).value.trim();
+                  const num = Number(raw);
+                  guardedWrite(r.tag, Number.isFinite(num) && raw !== "" ? num : raw);
+                }}
+                style={{
+                  width: "100%", boxSizing: "border-box", textAlign: "right",
+                  background: "var(--brand-bg, #0f172a)", color,
+                  border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 3,
+                  padding: "1px 4px", fontSize,
+                }}
+                title="Invio per scrivere"
+              />
+            );
+          }
+          return (
+            <span style={{ color, fontWeight: thr ? 600 : 400 }}>
+              {rowText(r)}{r.writable ? " ✎" : ""}
+            </span>
+          );
+        },
+      };
+    });
 
     return (
       <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()}
          style={{ cursor: editCursor }}>
         {selRect(obj.x, obj.y, w, totalH)}
         {applyTransform(obj, w, totalH, <>
-          {/* Outer border */}
-          <rect x={obj.x} y={obj.y} width={w} height={totalH} rx={4}
-            fill={obj.bg_color ?? "#1e293b"} stroke={selected ? "#facc15" : "#334155"} strokeWidth={selected ? 2 : 1} />
-          {obj.bg_image && (
-            <image href={obj.bg_image} x={obj.x} y={obj.y} width={w} height={totalH}
-              preserveAspectRatio="xMidYMid slice" style={{ pointerEvents: "none" }} />
-          )}
-          {/* Header */}
-          <rect x={obj.x} y={obj.y} width={w} height={headerH} rx={4}
-            fill="#0f172a" style={{ pointerEvents: "none" }} />
-          <rect x={obj.x} y={obj.y + 4} width={w} height={headerH - 4}
-            fill="#0f172a" style={{ pointerEvents: "none" }} />
-          <text x={obj.x + 10} y={obj.y + 17}
-            fill="#64748b" fontSize={11} fontWeight={700} letterSpacing={0.5}
-            style={{ pointerEvents: "none" }}>
-            {obj.label ?? "DATI"}
-          </text>
-          <text x={obj.x + colLabel + 10} y={obj.y + 17}
-            fill="#64748b" fontSize={11} fontWeight={700}
-            style={{ pointerEvents: "none" }}>
-            VALORE
-          </text>
-          <text x={obj.x + colLabel + colValue + 4} y={obj.y + 17}
-            fill="#64748b" fontSize={11} fontWeight={700}
-            style={{ pointerEvents: "none" }}>
-            Q
-          </text>
-          {/* Column dividers */}
-          <line x1={obj.x + colLabel} y1={obj.y} x2={obj.x + colLabel} y2={obj.y + totalH}
-            stroke="#334155" strokeWidth={1} style={{ pointerEvents: "none" }} />
-          <line x1={obj.x + colLabel + colValue} y1={obj.y}
-            x2={obj.x + colLabel + colValue} y2={obj.y + totalH}
-            stroke="#334155" strokeWidth={1} style={{ pointerEvents: "none" }} />
-          {/* Rows */}
-          {rows.map((row, i) => {
-            const ry = obj.y + headerH + i * rowH;
-            const tv = tagValues[row.tag];
-            const valText = tv != null ? formatValue(tv.value, row.format) : "—";
-            const isEven = i % 2 === 0;
-            return (
-              <g key={i}>
-                {isEven && (
-                  <rect x={obj.x + 1} y={ry} width={w - 2} height={rowH}
-                    fill="#ffffff08" style={{ pointerEvents: "none" }} />
-                )}
-                <text x={obj.x + 8} y={ry + 16} fill="#cbd5e1" fontSize={12}
-                  style={{ pointerEvents: "none" }}>
-                  {row.label}
-                </text>
-                <text x={obj.x + colLabel + 8} y={ry + 16}
-                  fill={tv ? (tv.quality === "Good" ? "var(--brand-text, #e2e8f0)" : tv.quality === "Bad" ? "#ef4444" : "#eab308") : "var(--brand-border, #475569)"}
-                  fontSize={12} style={{ pointerEvents: "none" }}>
-                  {valText}
-                </text>
-                {tv && (
-                  <circle cx={obj.x + colLabel + colValue + 10} cy={ry + rowH / 2} r={4}
-                    fill={qualityColor(tv.quality)} style={{ pointerEvents: "none" }} />
-                )}
-                {i < rows.length - 1 && (
-                  <line x1={obj.x} y1={ry + rowH} x2={obj.x + w} y2={ry + rowH}
-                    stroke="#1e293b" strokeWidth={1} style={{ pointerEvents: "none" }} />
-                )}
-              </g>
-            );
-          })}
-          {/* Empty state */}
-          {rows.length === 0 && (
-            <text x={obj.x + w / 2} y={obj.y + headerH + 20}
-              textAnchor="middle" fill="#475569" fontSize={12}
-              style={{ pointerEvents: "none" }}>
-              Nessuna riga — configura nelle proprietà
-            </text>
-          )}
+          {bgLayer(obj.x, obj.y, w, totalH, 4)}
+          <foreignObject x={obj.x} y={obj.y} width={w} height={totalH}
+            style={isEditMode ? { pointerEvents: "none" } : undefined}>
+            <div style={{
+              width: "100%", height: "100%", boxSizing: "border-box",
+              background: obj.bg_color ?? "var(--brand-surface, #1e293b)",
+              borderRadius: 4, overflow: "hidden",
+              ...(obj.bg_image ? { backgroundImage: `url(${obj.bg_image})`, backgroundSize: "cover", backgroundPosition: "center" } : {}),
+            }}>
+              <DataTable
+                columns={columns.map((c) => ({ ...c, sortable: obj.table_sortable !== false && c.sortable !== false }))}
+                rows={rows}
+                rowKey={(r) => `${r.tag}|${r.label}`}
+                emptyLabel="Nessuna riga — configura nelle proprietà"
+                maxHeight={totalH}
+                compact
+                fontSize={fontSize}
+                hideFilters={obj.table_filterable !== true}
+              />
+            </div>
+          </foreignObject>
+          {hitRect(obj.x, obj.y, w, totalH)}
         </>)}
       </g>
     );
@@ -4242,20 +4634,54 @@ export function SvgObject(p: ObjProps) {
     const w = obj.width ?? 240; const h = obj.height ?? 180;
     const series = obj.bar_series ?? [];
     const orient = obj.bar_orientation ?? "vertical";
+    const stacked = obj.bar_mode === "stacked";
     const gap = clamp(obj.bar_gap ?? 0.2, 0, 0.9);
     const showValues = obj.bar_show_values !== false;
     const showLabels = obj.bar_show_labels !== false;
     const showThresh = obj.bar_show_thresholds !== false;
-    const padT = 20; const padB = showLabels ? 28 : 8; const padL = 8; const padR = 8;
-    const plotW = w - padL - padR; const plotH = h - padT - padB;
-    const n = series.length || 1;
-    const slotW = plotW / n;
-    const barW = slotW * (1 - gap);
+    const showLegend = obj.bar_show_legend === true;
+    const nTicks = obj.bar_ticks ?? 0;
+    const dec = obj.decimals ?? 1;
+    const unit = obj.unit ?? "";
 
-    // WYSIWYG (2026-08-23): SVG puro su tagValues — stesso rendering in edit.
+    const values = series.map((s) => {
+      const tv = s.tag ? tagValues[s.tag] : undefined;
+      const v = tv ? Number(tv.value) : 0;
+      return Number.isFinite(v) ? v : 0;
+    });
+    const total = values.reduce((a, b) => a + b, 0);
+
+    // F7.2 — scala comune del grafico. I valori NEGATIVI prima venivano
+    // clampati a 0 (barra invisibile): ora la scala include lo zero e le barre
+    // crescono dalla linea dello zero, verso l'alto o verso il basso.
+    const dataLo = Math.min(0, ...(values.length ? values : [0]));
+    const dataHi = Math.max(0, ...(values.length ? values : [0]));
+    const lo = obj.min ?? Math.min(0, dataLo);
+    const hi = obj.max ?? (stacked ? Math.max(total, 1) : Math.max(dataHi, 1));
+    const range = (hi - lo) || 1;
+    /** Frazione 0..1 della scala occupata da un valore. */
+    const frac = (v: number) => clamp((v - lo) / range, 0, 1);
+
+    // Le etichette delle tacche hanno bisogno di spazio sull'asse dei valori.
+    const legendRows = showLegend ? Math.ceil(series.length / 2) : 0;
+    const legendH = legendRows * 13 + (showLegend ? 4 : 0);
+    const padT = 20;
+    const padB = (orient === "vertical" && showLabels ? 28 : 8) + legendH;
+    const padL = (orient === "vertical" && nTicks > 1 ? 34 : 8)
+      + (orient === "horizontal" && showLabels ? 42 : 0);
+    const padR = 8;
+    const plotW = Math.max(10, w - padL - padR);
+    const plotH = Math.max(10, h - padT - padB);
+    const n = series.length || 1;
+    const slotW = (orient === "vertical" ? plotW : plotH) / (stacked ? 1 : n);
+    const barW = slotW * (1 - gap);
 
     const baseX = obj.x + padL; const baseY = obj.y + padT;
     const axisY = baseY + plotH;
+    // Posizione della linea dello zero (o del minimo, se la scala non lo include).
+    const zeroFrac = frac(0);
+    const zeroY = axisY - plotH * zeroFrac;
+    const zeroX = baseX + plotW * zeroFrac;
 
     return (
       <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()} style={{ cursor: editCursor }}>
@@ -4265,8 +4691,37 @@ export function SvgObject(p: ObjProps) {
           <image href={obj.bg_image} x={obj.x} y={obj.y} width={w} height={h}
             preserveAspectRatio="xMidYMid slice" style={{ pointerEvents: "none" }} />
         )}
+        {/* Assi: quello dei valori sempre, quello delle categorie sulla linea
+            dello zero (con dati negativi non è più il bordo del grafico). */}
         <line x1={baseX} y1={baseY} x2={baseX} y2={axisY} stroke="#334155" strokeWidth={1} />
-        <line x1={baseX} y1={axisY} x2={baseX + plotW} y2={axisY} stroke="#334155" strokeWidth={1} />
+        {orient === "vertical"
+          ? <line x1={baseX} y1={zeroY} x2={baseX + plotW} y2={zeroY} stroke="#334155" strokeWidth={1} />
+          : <line x1={zeroX} y1={baseY} x2={zeroX} y2={axisY} stroke="#334155" strokeWidth={1} />}
+        {/* F7.2 — tacche numerate sull'asse dei valori. */}
+        {nTicks > 1 && Array.from({ length: nTicks }, (_, i) => {
+          const v = lo + (i / (nTicks - 1)) * range;
+          if (orient === "vertical") {
+            const ty = axisY - plotH * (i / (nTicks - 1));
+            return (
+              <g key={`bt${i}`} style={{ pointerEvents: "none" }}>
+                <line x1={baseX - 3} y1={ty} x2={baseX + plotW} y2={ty}
+                  stroke="#1e293b" strokeWidth={1} />
+                <text x={baseX - 5} y={ty + 3} textAnchor="end" fill="#64748b" fontSize={9}>
+                  {v.toFixed(Math.abs(v) < 10 ? dec : 0)}
+                </text>
+              </g>
+            );
+          }
+          const tx = baseX + plotW * (i / (nTicks - 1));
+          return (
+            <g key={`bt${i}`} style={{ pointerEvents: "none" }}>
+              <line x1={tx} y1={baseY} x2={tx} y2={axisY + 3} stroke="#1e293b" strokeWidth={1} />
+              <text x={tx} y={axisY + 12} textAnchor="middle" fill="#64748b" fontSize={9}>
+                {v.toFixed(Math.abs(v) < 10 ? dec : 0)}
+              </text>
+            </g>
+          );
+        })}
         {/* F0.2: bar_y_label esisteva nello schema ma non era mai disegnato. */}
         {obj.bar_y_label && (
           <text x={obj.x + 10} y={baseY + plotH / 2} textAnchor="middle" fill="#94a3b8" fontSize={10}
@@ -4276,44 +4731,99 @@ export function SvgObject(p: ObjProps) {
           </text>
         )}
         {series.map((s, i) => {
-          const tv = s.tag ? tagValues[s.tag] : undefined;
-          const val = tv ? Number(tv.value) : 0;
-          const lo = s.min ?? obj.min ?? 0; const hi = s.max ?? obj.max ?? 100;
-          const range = hi - lo;
-          const pct = range === 0 ? 0 : clamp((val - lo) / range, 0, 1);
-          if (orient === "vertical") {
-            const bx = baseX + i * slotW + (slotW - barW) / 2;
-            const bh = plotH * pct;
-            const by = axisY - bh;
+          const val = values[i];
+          const color = s.color ?? PALETTE[i % PALETTE.length];
+          const valText = `${val.toFixed(dec)}${unit}`;
+          if (stacked) {
+            // Barra unica composta dai segmenti: ogni serie è una fetta del
+            // totale (composizione), impilata dalla base.
+            const before = values.slice(0, i).reduce((a, b) => a + b, 0);
+            const f0 = frac(before); const f1 = frac(before + val);
+            if (orient === "vertical") {
+              const y0 = axisY - plotH * Math.max(f0, f1);
+              const segH = plotH * Math.abs(f1 - f0);
+              const bx = baseX + (plotW - barW) / 2;
+              return (
+                <g key={i}>
+                  <rect x={bx} y={y0} width={barW} height={segH} fill={color} style={transitionStyle(obj)} />
+                  {showValues && segH > 12 && (
+                    <text x={bx + barW / 2} y={y0 + segH / 2 + 4} textAnchor="middle" fill="#0f172a" fontSize={10}
+                      fontWeight={600} style={{ pointerEvents: "none" }}>{valText}</text>
+                  )}
+                </g>
+              );
+            }
+            const x0 = baseX + plotW * Math.min(f0, f1);
+            const segW = plotW * Math.abs(f1 - f0);
+            const byS = baseY + (plotH - barW) / 2;
             return (
               <g key={i}>
-                <rect x={bx} y={by} width={barW} height={bh} fill={s.color ?? PALETTE[i % PALETTE.length]} rx={2} style={transitionStyle(obj)} />
-                {showValues && <text x={bx + barW / 2} y={Math.max(by - 3, baseY + 10)} textAnchor="middle" fill="#e2e8f0" fontSize={10} style={{ pointerEvents: "none" }}>{val.toFixed(1)}{obj.unit ?? ""}</text>}
-                {showLabels && <text x={bx + barW / 2} y={axisY + 14} textAnchor="middle" fill="#94a3b8" fontSize={10} style={{ pointerEvents: "none" }}>{s.label}</text>}
-              </g>
-            );
-          } else {
-            const bh2 = slotW * (1 - gap); const bw2 = plotW * pct;
-            const by2 = baseY + i * slotW + (slotW - bh2) / 2;
-            return (
-              <g key={i}>
-                <rect x={baseX} y={by2} width={bw2} height={bh2} fill={s.color ?? PALETTE[i % PALETTE.length]} rx={2} style={transitionStyle(obj)} />
-                {showValues && <text x={baseX + bw2 + 3} y={by2 + bh2 / 2 + 4} fill="#e2e8f0" fontSize={10} style={{ pointerEvents: "none" }}>{val.toFixed(1)}{obj.unit ?? ""}</text>}
-                {showLabels && <text x={baseX - 3} y={by2 + bh2 / 2 + 4} textAnchor="end" fill="#94a3b8" fontSize={10} style={{ pointerEvents: "none" }}>{s.label}</text>}
+                <rect x={x0} y={byS} width={segW} height={barW} fill={color} style={transitionStyle(obj)} />
+                {showValues && segW > 26 && (
+                  <text x={x0 + segW / 2} y={byS + barW / 2 + 4} textAnchor="middle" fill="#0f172a" fontSize={10}
+                    fontWeight={600} style={{ pointerEvents: "none" }}>{valText}</text>
+                )}
               </g>
             );
           }
+          // Affiancate: una barra per serie, dalla linea dello zero.
+          const fv = frac(val);
+          if (orient === "vertical") {
+            const bx = baseX + i * slotW + (slotW - barW) / 2;
+            const vy = axisY - plotH * fv;
+            const by = Math.min(vy, zeroY);
+            const bh = Math.abs(vy - zeroY);
+            const labelY = val < 0 ? by + bh + 11 : Math.max(by - 3, baseY + 10);
+            return (
+              <g key={i}>
+                <rect x={bx} y={by} width={barW} height={bh} fill={color} rx={2} style={transitionStyle(obj)} />
+                {showValues && <text x={bx + barW / 2} y={labelY} textAnchor="middle" fill="#e2e8f0" fontSize={10} style={{ pointerEvents: "none" }}>{valText}</text>}
+                {showLabels && <text x={bx + barW / 2} y={axisY + 14} textAnchor="middle" fill="#94a3b8" fontSize={10} style={{ pointerEvents: "none" }}>{s.label}</text>}
+              </g>
+            );
+          }
+          const vx = baseX + plotW * fv;
+          const bx2 = Math.min(vx, zeroX);
+          const bw2 = Math.abs(vx - zeroX);
+          const by2 = baseY + i * slotW + (slotW - barW) / 2;
+          return (
+            <g key={i}>
+              <rect x={bx2} y={by2} width={bw2} height={barW} fill={color} rx={2} style={transitionStyle(obj)} />
+              {showValues && (
+                <text x={val < 0 ? bx2 - 3 : bx2 + bw2 + 3} y={by2 + barW / 2 + 4}
+                  textAnchor={val < 0 ? "end" : "start"} fill="#e2e8f0" fontSize={10}
+                  style={{ pointerEvents: "none" }}>{valText}</text>
+              )}
+              {showLabels && <text x={obj.x + 4} y={by2 + barW / 2 + 4} fill="#94a3b8" fontSize={10} style={{ pointerEvents: "none" }}>{s.label}</text>}
+            </g>
+          );
         })}
-        {showThresh && orient === "vertical" && (obj.warn_high !== undefined) && (() => {
-          const lo2 = obj.min ?? 0; const hi2 = obj.max ?? 100;
-          const wy = axisY - plotH * clamp((obj.warn_high - lo2) / (hi2 - lo2), 0, 1);
-          return <line key="wh" x1={baseX} y1={wy} x2={baseX + plotW} y2={wy} stroke="#f59e0b" strokeWidth={1} strokeDasharray="4,2" />;
-        })()}
-        {showThresh && orient === "vertical" && (obj.alarm_high !== undefined) && (() => {
-          const lo2 = obj.min ?? 0; const hi2 = obj.max ?? 100;
-          const ay = axisY - plotH * clamp((obj.alarm_high - lo2) / (hi2 - lo2), 0, 1);
-          return <line key="ah" x1={baseX} y1={ay} x2={baseX + plotW} y2={ay} stroke="#ef4444" strokeWidth={1} strokeDasharray="4,2" />;
-        })()}
+        {/* F7.2 — soglie in ENTRAMBI gli orientamenti (prima solo verticale). */}
+        {showThresh && [
+          { v: obj.warn_high, c: "#f59e0b", k: "wh" },
+          { v: obj.alarm_high, c: "#ef4444", k: "ah" },
+          { v: obj.warn_low, c: "#f59e0b", k: "wl" },
+          { v: obj.alarm_low, c: "#ef4444", k: "al" },
+        ].map(({ v, c, k }) => {
+          if (v === undefined) return null;
+          const f = frac(v);
+          return orient === "vertical"
+            ? <line key={k} x1={baseX} y1={axisY - plotH * f} x2={baseX + plotW} y2={axisY - plotH * f}
+                stroke={c} strokeWidth={1} strokeDasharray="4,2" style={{ pointerEvents: "none" }} />
+            : <line key={k} x1={baseX + plotW * f} y1={baseY} x2={baseX + plotW * f} y2={axisY}
+                stroke={c} strokeWidth={1} strokeDasharray="4,2" style={{ pointerEvents: "none" }} />;
+        })}
+        {/* F7.2 — legenda (due colonne sotto il grafico). */}
+        {showLegend && series.map((s, i) => {
+          const lx = obj.x + 6 + (i % 2) * (w / 2);
+          const ly = obj.y + h - legendH + 2 + Math.floor(i / 2) * 13;
+          return (
+            <g key={`bl${i}`} style={{ pointerEvents: "none" }}>
+              <rect x={lx} y={ly} width={8} height={8} rx={1} fill={s.color ?? PALETTE[i % PALETTE.length]} />
+              <text x={lx + 12} y={ly + 7} fill="#94a3b8" fontSize={9}>{s.label}</text>
+            </g>
+          );
+        })}
       </g>
     );
   }
@@ -4322,20 +4832,24 @@ export function SvgObject(p: ObjProps) {
 
   if (obj.type === "pie_chart") {
     const w = obj.width ?? 200; const h = obj.height ?? 200;
-    const slices = obj.pie_slices ?? [];
+    const rawSlices = obj.pie_slices ?? [];
     const mode = obj.pie_mode ?? "pie";
     const innerR = mode === "donut" ? clamp(obj.pie_inner_ratio ?? 0.5, 0.1, 0.9) : 0;
     const showLabels = obj.pie_show_labels !== false;
     const showLegend = obj.pie_show_legend === true;
-    const legendH = showLegend ? Math.min(slices.length * 14 + 4, 60) : 0;
-    const chartH = h - legendH;
-    const cx2 = obj.x + w / 2; const cy2 = obj.y + chartH / 2;
-    const r = Math.min(w, chartH) / 2 - 6;
+    // F7.3 — colore del foro configurabile: era fisso a #0f172a, un disco
+    // scuro su qualunque sfondo chiaro.
+    const holeColor = obj.pie_hole_color ?? obj.bg_color ?? "#0f172a";
+    const unit = obj.unit ?? "";
+    const dec = obj.decimals ?? 1;
+    const labelMode = obj.pie_label_mode ?? "percent";
+    const explode = obj.pie_explode_px ?? 0;
 
     // WYSIWYG (2026-08-23): SVG puro su tagValues — stesso rendering in edit.
 
     // View mode: no slices configured → render nothing.
-    if (slices.length === 0) {
+    if (rawSlices.length === 0) {
+      const cx0 = obj.x + w / 2; const cy0 = obj.y + h / 2;
       return (
         <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()}>
           {selRect(obj.x, obj.y, w, h)}
@@ -4344,35 +4858,76 @@ export function SvgObject(p: ObjProps) {
             <image href={obj.bg_image} x={obj.x} y={obj.y} width={w} height={h}
               preserveAspectRatio="xMidYMid slice" style={{ pointerEvents: "none" }} />
           )}
-          <text x={cx2} y={cy2 + 4} textAnchor="middle" fill="#475569" fontSize={11} style={{ pointerEvents: "none" }}>Nessun dato</text>
+          <text x={cx0} y={cy0 + 4} textAnchor="middle" fill="#475569" fontSize={11} style={{ pointerEvents: "none" }}>Nessun dato</text>
         </g>
       );
     }
 
-    const values = slices.map((s) => Math.max(0, Number(s.tag ? (tagValues[s.tag]?.value ?? 0) : 0)));
+    // F7.3 — raggruppamento "altro": le fette sotto la soglia percentuale
+    // diventano una sola voce, così un grafico con venti tag resta leggibile.
+    const rawValues = rawSlices.map((s) => Math.max(0, Number(s.tag ? (tagValues[s.tag]?.value ?? 0) : 0)));
+    const rawTotal = rawValues.reduce((a, b) => a + b, 0) || 1;
+    const minPct = clamp(obj.pie_group_below_pct ?? 0, 0, 99) / 100;
+    type Slice = { label: string; color?: string; value: number };
+    let entries: Slice[] = rawSlices.map((s, i) => ({ label: s.label, color: s.color ?? PALETTE[i % PALETTE.length], value: rawValues[i] }));
+    if (minPct > 0) {
+      const keep = entries.filter((e) => e.value / rawTotal >= minPct);
+      const rest = entries.filter((e) => e.value / rawTotal < minPct);
+      const restSum = rest.reduce((a, b) => a + b.value, 0);
+      entries = restSum > 0
+        ? [...keep, { label: obj.pie_group_label ?? "altro", color: obj.pie_group_color ?? "#64748b", value: restSum }]
+        : keep;
+    }
+
+    const legendRows = showLegend ? Math.ceil(entries.length / 2) : 0;
+    const legendH = showLegend ? Math.min(legendRows * 14 + 4, 60) : 0;
+    const chartH = h - legendH;
+    const cx2 = obj.x + w / 2; const cy2 = obj.y + chartH / 2;
+    const r = Math.min(w, chartH) / 2 - 6 - explode;
+
+    const values = entries.map((e) => e.value);
     const total = values.reduce((a, b) => a + b, 0) || 1;
+    // La fetta staccata è la più grande: è quella che si vuole far notare.
+    const biggest = values.indexOf(Math.max(...values));
     let angle = -Math.PI / 2;
 
-    const paths = slices.map((s, i) => {
+    const paths = entries.map((e, i) => {
       const pct = values[i] / total;
       const sweep = pct * 2 * Math.PI;
-      const x1 = cx2 + r * Math.cos(angle); const y1 = cy2 + r * Math.sin(angle);
+      const startA = angle;
       angle += sweep;
-      const x2 = cx2 + r * Math.cos(angle); const y2 = cy2 + r * Math.sin(angle);
+      const midAngle = startA + sweep / 2;
+      // Spostamento radiale della fetta staccata.
+      const off = (explode > 0 && i === biggest) ? explode : 0;
+      const ox = cx2 + off * Math.cos(midAngle);
+      const oy = cy2 + off * Math.sin(midAngle);
+      const x1 = ox + r * Math.cos(startA); const y1 = oy + r * Math.sin(startA);
+      const x2 = ox + r * Math.cos(angle);  const y2 = oy + r * Math.sin(angle);
       const large = sweep > Math.PI ? 1 : 0;
       let d: string;
       if (mode === "donut") {
         const ir = r * innerR;
-        const ix1 = cx2 + ir * Math.cos(angle - sweep); const iy1 = cy2 + ir * Math.sin(angle - sweep);
-        const ix2 = cx2 + ir * Math.cos(angle); const iy2 = cy2 + ir * Math.sin(angle);
+        const ix1 = ox + ir * Math.cos(startA); const iy1 = oy + ir * Math.sin(startA);
+        const ix2 = ox + ir * Math.cos(angle);  const iy2 = oy + ir * Math.sin(angle);
         d = `M ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2} L ${ix2} ${iy2} A ${ir} ${ir} 0 ${large} 0 ${ix1} ${iy1} Z`;
       } else {
-        d = `M ${cx2} ${cy2} L ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2} Z`;
+        d = `M ${ox} ${oy} L ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2} Z`;
       }
-      const midAngle = angle - sweep / 2;
       const labelR = r * (mode === "donut" ? (1 + innerR) / 2 : 0.65);
-      return { d, color: s.color ?? PALETTE[i % PALETTE.length], pct, midAngle, labelR, label: s.label, key: i };
+      return { d, color: e.color, pct, midAngle, labelR, label: e.label, value: values[i], ox, oy, key: i };
     });
+
+    /** F7.3 — l'etichetta può mostrare percentuale, valore, o entrambi. */
+    const sliceLabel = (pct: number, value: number, label: string) => {
+      const pctTxt = `${(pct * 100).toFixed(0)}%`;
+      const valTxt = `${value.toFixed(dec)}${unit}`;
+      switch (labelMode) {
+        case "value":         return valTxt;
+        case "value_percent": return `${valTxt} (${pctTxt})`;
+        case "label_percent": return `${label} ${pctTxt}`;
+        default:              return pctTxt;
+      }
+    };
 
     const centerTag = obj.pie_center_tag ? tagValues[obj.pie_center_tag] : undefined;
     const centerText = centerTag
@@ -4391,31 +4946,35 @@ export function SvgObject(p: ObjProps) {
         {isFullCircle ? (
           <>
             <circle cx={cx2} cy={cy2} r={r} fill={singleVisible[0].color} />
-            {mode === "donut" && <circle cx={cx2} cy={cy2} r={r * innerR - 1} fill="#0f172a" />}
-            {showLabels && <text x={cx2} y={cy2 + 4} textAnchor="middle" fill="#fff" fontSize={10} fontWeight="bold" style={{ pointerEvents: "none" }}>100%</text>}
+            {mode === "donut" && <circle cx={cx2} cy={cy2} r={r * innerR - 1} fill={holeColor} />}
+            {showLabels && (
+              <text x={cx2} y={cy2 + 4} textAnchor="middle" fill="#fff" fontSize={10} fontWeight="bold" style={{ pointerEvents: "none" }}>
+                {sliceLabel(1, singleVisible[0].value, singleVisible[0].label)}
+              </text>
+            )}
           </>
-        ) : paths.map(({ d, color, pct, midAngle, labelR, key }) => (
+        ) : paths.map(({ d, color, pct, midAngle, labelR, label, value, ox, oy, key }) => (
           <g key={key}>
             <path d={d} fill={color} stroke="#0f172a" strokeWidth={1} />
             {showLabels && pct > 0.05 && (
               <text
-                x={cx2 + labelR * Math.cos(midAngle)}
-                y={cy2 + labelR * Math.sin(midAngle) + 4}
+                x={ox + labelR * Math.cos(midAngle)}
+                y={oy + labelR * Math.sin(midAngle) + 4}
                 textAnchor="middle" fill="#fff" fontSize={10} fontWeight="bold"
                 style={{ pointerEvents: "none" }}>
-                {(pct * 100).toFixed(0)}%
+                {sliceLabel(pct, value, label)}
               </text>
             )}
           </g>
         ))}
-        {!isFullCircle && mode === "donut" && <circle cx={cx2} cy={cy2} r={r * innerR - 1} fill="#0f172a" />}
+        {!isFullCircle && mode === "donut" && <circle cx={cx2} cy={cy2} r={r * innerR - 1} fill={holeColor} />}
         {!isFullCircle && mode === "donut" && centerText && (
           <text x={cx2} y={cy2 + 5} textAnchor="middle" fill="#e2e8f0" fontSize={13} fontWeight="bold" style={{ pointerEvents: "none" }}>{centerText}</text>
         )}
-        {showLegend && slices.map((s, i) => (
+        {showLegend && entries.map((e, i) => (
           <g key={i}>
-            <rect x={obj.x + 6 + (i % 2) * (w / 2)} y={obj.y + chartH + 4 + Math.floor(i / 2) * 14} width={8} height={8} fill={s.color ?? PALETTE[i % PALETTE.length]} rx={1} />
-            <text x={obj.x + 18 + (i % 2) * (w / 2)} y={obj.y + chartH + 11 + Math.floor(i / 2) * 14} fill="#94a3b8" fontSize={9} style={{ pointerEvents: "none" }}>{s.label}</text>
+            <rect x={obj.x + 6 + (i % 2) * (w / 2)} y={obj.y + chartH + 4 + Math.floor(i / 2) * 14} width={8} height={8} fill={e.color} rx={1} />
+            <text x={obj.x + 18 + (i % 2) * (w / 2)} y={obj.y + chartH + 11 + Math.floor(i / 2) * 14} fill="#94a3b8" fontSize={9} style={{ pointerEvents: "none" }}>{e.label}</text>
           </g>
         ))}
       </g>
@@ -4566,6 +5125,10 @@ export function SvgObject(p: ObjProps) {
             prefix={prefix} allowedSev={allowedSev}
             showAck={showAck} showTs={showTs} showEmpty={showEmpty}
             bgColor={obj.alarm_viewer_bg_color}
+            showAckAll={obj.alarm_viewer_show_ack_all}
+            showShelve={obj.alarm_viewer_show_shelve}
+            shelveMinutes={obj.alarm_shelve_minutes}
+            askReason={obj.require_reason}
           />
         </foreignObject>
         {hitRect(obj.x, obj.y, w, h)}
@@ -4591,6 +5154,12 @@ export function SvgObject(p: ObjProps) {
             showHistory={obj.alarm_bell_show_history ?? true}
             showShelve={obj.alarm_bell_show_shelve ?? true}
             badgeFill={obj.fill}
+            sound={obj.alarm_bell_sound}
+            soundSeverities={obj.alarm_bell_sound_severities}
+            soundRepeatS={obj.alarm_bell_sound_repeat_s}
+            /* In editor il suono è sempre spento: un allarme vero che suona
+               mentre si disegna una pagina è solo un fastidio. */
+            muted={isEditMode}
           />
         </foreignObject>
         {hitRect(obj.x, obj.y, w, h)}
@@ -4614,6 +5183,31 @@ export function SvgObject(p: ObjProps) {
             idPrefix={obj.alarm_banner_id_prefix}
             allowedSev={obj.alarm_banner_severities}
           />
+        </foreignObject>
+        {hitRect(obj.x, obj.y, w, h)}
+      </g>
+    );
+  }
+
+  // ── ALARM HISTORY (F7.5) ─────────────────────────────────────────────────────
+  // Lo storico esisteva solo come pannello dentro la campanella: qui diventa un
+  // oggetto piazzabile, per le pagine "diario di impianto".
+
+  if (obj.type === "alarm_history") {
+    const w = obj.width ?? 420; const h = obj.height ?? 220;
+    return (
+      <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()}>
+        {selRect(obj.x, obj.y, w, h)}
+        {bgLayer(obj.x, obj.y, w, h, 4)}
+        <foreignObject x={obj.x} y={obj.y} width={w} height={h}
+          style={isEditMode ? { pointerEvents: "none" } : undefined}>
+          <div style={{
+            width: "100%", height: "100%", boxSizing: "border-box", overflow: "auto",
+            background: obj.bg_color ?? "var(--brand-surface, #1e293b)",
+            border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4,
+          }}>
+            <AlarmHistory alarmId={obj.alarm_history_id} />
+          </div>
         </foreignObject>
         {hitRect(obj.x, obj.y, w, h)}
       </g>
@@ -4798,25 +5392,32 @@ export function SvgObject(p: ObjProps) {
     const nCols = obj.grid_cols ?? 2;
     const showBorders = obj.grid_show_borders !== false;
     const borderColor = obj.grid_border_color ?? "#64748b";
+    // F7.6 — margine interno e spazio tra celle. Il padding restringe l'area
+    // su cui si dividono righe e colonne; il gap si sottrae a ogni cella al
+    // momento del disegno (metà per lato), così le tracce restano regolari.
+    const gPad = obj.grid_padding ?? 0;
+    const gGap = obj.grid_gap ?? 0;
+    const usableW = Math.max(1, w - gPad * 2);
+    const usableH = Math.max(1, h - gPad * 2);
 
     // Compute column widths
     const colWidthsDef = (obj.col_widths as number[] | undefined) ?? [];
     const colW: number[] = [];
     for (let c = 0; c < nCols; c++) {
-      colW.push(c < colWidthsDef.length ? colWidthsDef[c] : w / nCols);
+      colW.push(c < colWidthsDef.length ? colWidthsDef[c] : usableW / nCols);
     }
     // Compute row heights
     const rowHeightsDef = (obj.row_heights as number[] | undefined) ?? [];
     const rowH: number[] = [];
     for (let r = 0; r < nRows; r++) {
-      rowH.push(r < rowHeightsDef.length ? rowHeightsDef[r] : h / nRows);
+      rowH.push(r < rowHeightsDef.length ? rowHeightsDef[r] : usableH / nRows);
     }
     // Cumulative offsets
     const colX: number[] = [];
-    let cx = obj.x;
+    let cx = obj.x + gPad;
     for (let c = 0; c < nCols; c++) { colX.push(cx); cx += colW[c]; }
     const rowY: number[] = [];
-    let ry = obj.y;
+    let ry = obj.y + gPad;
     for (let r = 0; r < nRows; r++) { rowY.push(ry); ry += rowH[r]; }
 
     // Map from "r-c" to cell definition
@@ -4861,6 +5462,11 @@ export function SvgObject(p: ObjProps) {
             for (let cc = c; cc < Math.min(c + cs, nCols); cc++) cellW += colW[cc];
             let cellH = 0;
             for (let rr = r; rr < Math.min(r + rs, nRows); rr++) cellH += rowH[rr];
+            // Rettangolo effettivo della cella dopo il gap (metà per lato).
+            const cellX = colX[c] + gGap / 2;
+            const cellY = rowY[r] + gGap / 2;
+            cellW = Math.max(1, cellW - gGap);
+            cellH = Math.max(1, cellH - gGap);
 
             const cellVisible = (() => {
               if (!cellDef) return true;
@@ -4914,7 +5520,7 @@ export function SvgObject(p: ObjProps) {
                 onClick={(e) => e.stopPropagation()}
               >
                 <rect
-                  x={colX[c]} y={rowY[r]} width={cellW} height={cellH}
+                  x={cellX} y={cellY} width={cellW} height={cellH}
                   fill={cellDef?.bg_color ?? "transparent"}
                   stroke={showBorders ? (isCellSel ? "#facc15" : borderColor) : "none"}
                   strokeWidth={isCellSel ? 2 : 1}
@@ -4925,7 +5531,7 @@ export function SvgObject(p: ObjProps) {
                 />
                 {isEditMode && (
                   <rect
-                    x={colX[c]} y={rowY[r]} width={cellW} height={cellH}
+                    x={cellX} y={cellY} width={cellW} height={cellH}
                     fill="none"
                     stroke={isCellSel ? "#facc15" : "var(--brand-border, #475569)"}
                     strokeWidth={isCellSel ? 1.5 : 1}
@@ -4937,18 +5543,18 @@ export function SvgObject(p: ObjProps) {
                 {!cellDef?.sub && cellDef?.bg_image && (
                   <image
                     href={cellDef.bg_image}
-                    x={colX[c]} y={rowY[r]} width={cellW} height={cellH}
+                    x={cellX} y={cellY} width={cellW} height={cellH}
                     preserveAspectRatio="xMidYMid slice"
                     style={{ pointerEvents: "none" }}
                   />
                 )}
-                {cellDef?.sub && renderSubArea(cellDef.sub, colX[c], rowY[r], cellW, cellH, [], r, c, obj.id)}
+                {cellDef?.sub && renderSubArea(cellDef.sub, cellX, cellY, cellW, cellH, [], r, c, obj.id)}
                 {!cellDef?.sub && cellDef?.child && (() => {
                   const child = cellDef.child!;
                   const cw = child.width ?? 100;
                   const ch = child.height ?? 50;
-                  const childX = colX[c] + (cellW - cw) / 2;
-                  const childY = rowY[r] + (cellH - ch) / 2;
+                  const childX = cellX + (cellW - cw) / 2;
+                  const childY = cellY + (cellH - ch) / 2;
                   const placed = child.type === "line"
                     ? { ...child, x: childX, y: childY,
                         x2: childX + ((child.x2 ?? child.x + 100) - child.x),
@@ -5054,12 +5660,19 @@ export function SvgObject(p: ObjProps) {
 
   if (obj.type === "image" && obj.src) {
     const w = obj.width ?? 100; const h = obj.height ?? 100;
+    // F7.6 — come l'immagine riempie il box. "stretch" resta il default
+    // (comportamento storico: deforma per riempire); "contain" la rimpicciolisce
+    // dentro il box conservando le proporzioni, "cover" ritaglia.
+    const fitAttr = obj.image_fit === "contain" ? "xMidYMid meet"
+      : obj.image_fit === "cover" ? "xMidYMid slice"
+      : "none";
     return (
       <>
         {selRect(obj.x, obj.y, w, h)}
         {applyTransform(obj, w, h, <>
           {bgLayer(obj.x, obj.y, w, h, 4)}
           <image href={obj.src} x={obj.x} y={obj.y} width={w} height={h}
+            preserveAspectRatio={fitAttr}
             style={{ cursor: editCursor }}
             onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()} />
         </>)}

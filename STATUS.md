@@ -6,6 +6,60 @@
 >
 > **Pulizia 2026-07-27**: rimossi i task già chiusi e le sezioni di verifica ormai superate; le sessioni mergiate **e** verificate fino al 2026-07-09 sono compresse in «Storico». Il dettaglio integrale resta in `CHANGELOG.md` e nella history git.
 
+**Sessione 2026-08-23 (notte, seguito 2) — Lotti 3 e 4: F7.1-F7.5 + F8.3/F8.4**
+(branch **`feat/scada-f7`**).
+- **F7.1 Table 2.0**: la tabella usa il DataTable condiviso — colonne scelte, ordinamento,
+  filtri opzionali, scroll nel box (prima sfondava), soglie e celle scrivibili per riga.
+- **F7.2 Bar chart**: valori negativi (prima clampati a zero = barre invisibili), barre
+  impilate, tacche d'asse, legenda, soglie anche in orizzontale.
+- **F7.3 Pie**: etichette valore+unità, raggruppamento fette piccole, explode, foro colorato.
+- **F7.4 Text**: multiriga con allineamento verticale e interlinea (default invariato).
+- **F7.5 (completa)**: ACK massivo sugli allarmi mostrati, shelve per riga con motivo,
+  **nuovo tipo `alarm_history`** piazzabile, **suono per severità** (Web Audio, nessun file
+  audio: toni diversi per Critical/Warning/Info) con pulsante **tacita** che silenzia gli
+  allarmi in corso e si riattiva su uno nuovo — spento in editor —, e **motivo sulla
+  conferma**: `POST /api/alarms/:id/ack` accetta `reason` e lo scrive nel **journal di
+  audit** (non nell'AlarmEvent: avrebbe richiesto una migrazione dello schema eventi,
+  scelta dichiarata nel commento dell'endpoint). L'alarm_viewer riusa `require_reason`.
+  Verificato da `./scripts/check_ack_reason.sh` (allarme fatto scattare davvero → ack con
+  motivo → motivo trovato in `/api/audit`), 5/5.
+- **F8.3**: ricerca su tutte le pagine (nome/id/tag/testo) con risultati navigabili; "dove è
+  usato questo tag" nella sezione TAG; logica delle variabili non usate ora condivisa in
+  `src/search/tagUsage.ts` (era duplicata in ConfigView).
+- **F8.4**: maniglia di rotazione (Shift = 15°) e resize **sugli oggetti ruotati**, col
+  movimento proiettato sugli assi locali.
+- **Verifiche**: `check_f7.sh` 32/32, `check_f8.sh` verde (snap in resize + rotazione),
+  58 test unitari, `cargo check --workspace` e `pnpm build` verdi.
+- **Trovato misurando** (non regressioni, difetti più vecchi): la rotazione col mouse partiva
+  da un angolo casuale perché passavo `clientX/Y` grezzi a `toSvg`; i default di colore dei
+  testi vengono dai token di tema dell'app e su una pagina con sfondo scelto a mano possono
+  dare scuro-su-scuro → **Q18** in `docs/OPEN_QUESTIONS.md`.
+- **Attenzione**: i check usano il binario **debug** — serve `cargo build -p sws-runtime`
+  (non basta `cargo check`), altrimenti il round-trip misura un mirror vecchio.
+- **Prossimo**: **F9c** parità LVGL — è il lotto che ha accumulato di più (trend_tags, F7.6,
+  F7.1-F7.4, e i tipi nuovi `alarm_history`: tutto ciò che `model.rs`/`lvgl_render.rs` non
+  conoscono). Il suono e il motivo dell'ACK restano web-only per natura.
+
+**Sessione 2026-08-23 (notte, seguito) — Lotto 2: F7.6 + F8.1/F8.2** (branch **`feat/scada-f7`**
+annidato su `feat/scada-f6`).
+- **F7.6 rifiniture**: rect (raggio, tratteggio, sfumatura), gauge (zone colorate, tacche
+  numerate, apertura arco configurabile, lancetta setpoint da tag), led (cerchio/quadrato/
+  triangolo), grid (gap + padding), navbutton (bordo e raggio esposti), image (deforma/
+  contieni/ritaglia). 13 campi nuovi, tutti specchiati in `synoptic.rs`.
+- **F8.1**: distribuisci a **gap uguali** (prima equidistanziava le posizioni), **uniforma
+  dimensioni** al primo selezionato, **snap in resize** verso oggetti/pagina/guide.
+- **F8.2**: **copia stile** (pennello in toolbar) con whitelist esplicita — mai tag né
+  geometria. Il pannello multi-selezione previsto dal piano **esisteva già**.
+- **Verifiche nuove**: `./scripts/check_f76.sh` (round-trip dei 13 campi + attributi SVG
+  prodotti, 22/22) e `./scripts/check_f8.sh` (aggancio del bordo in resize misurato con lo
+  snap alla griglia SPENTO, così il merito non è della griglia). 50 test unitari verdi.
+- **Attenzione per la prossima sessione**: i due check nuovi usano il binario **debug**
+  (`cargo build -p sws-runtime`), non basta `cargo check`, altrimenti il round-trip misura
+  un mirror vecchio e fallisce per finta.
+- **Prossimo**: Lotto 3 = F7.1 Table 2.0 (`components/DataTable.tsx`), F7.2 bar chart
+  (stacked/negativi/assi), F7.3 pie (etichette, "altro", explode, foro donut), F7.4 text
+  (wrap multiriga). Poi Lotto 4 = F7.5 allarmi UI + F8.3 ricerca + F8.4 rotazione/layer.
+
 **Sessione 2026-08-23 (notte) — pulsante "Naviga a URL" + coda WYSIWYG chiusa** (commit su
 `feat/scada-f6`; piano in `docs/plans/2026-08-23-navigate-f7-f8.md`, deciso con 4 domande).
 - **Bug segnalato dal maintainer**: un pulsante con "Naviga a URL" non faceva niente. Causa:

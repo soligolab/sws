@@ -1710,3 +1710,28 @@ permette — può quindi scrivere via ricetta un tag protetto Admin.
 **Default for PoC**: opzione 3 (stato attuale), da rivedere insieme alla Q8-E.
 
 **Decided**: not yet.
+
+## Q18 — Colori del testo dai token di tema su pagine con sfondo scelto a mano
+
+**Context**: emerso il 2026-08-23 misurando F7.4 (testo multiriga). Un oggetto `text` senza
+`color`/`fill` esplicito usa il token di tema `--brand-text`, che segue il tema **dell'app**
+(chiaro/scuro/sistema). Lo sfondo della PAGINA invece è un colore scelto dal progettista
+(`page.background` / `background_dark`). Con tema chiaro e sfondo pagina scuro — la
+combinazione del progetto di prova — il testo predefinito è scuro su scuro: praticamente
+invisibile. Vale per tutti i tipi che usano quei token come default (testo, tabella, gauge,
+etichette dei chart), non solo per il testo multiriga appena aggiunto: nessuna regressione,
+un difetto di impostazione che nessuno aveva ancora misurato.
+
+**Options**:
+1. Il colore predefinito del testo si ricava dallo sfondo pagina effettivo (chiaro→testo
+   scuro, scuro→testo chiaro), ignorando il tema dell'app per gli oggetti del sinottico.
+   Coerente col fatto che un sinottico è un disegno, non una UI di sistema.
+2. Il sinottico ha un suo "tema pagina" dichiarato (chiaro/scuro) da cui derivano tutti i
+   token degli oggetti; il tema dell'app resta per la chrome dell'IDE/viewer.
+3. Avviso nell'editor quando il contrasto fra colore risolto e sfondo pagina è sotto soglia
+   (nessun cambio di comportamento, solo un segnale al progettista).
+4. Lasciare com'è: chi mette uno sfondo pagina personalizzato imposta anche i colori.
+
+**Default for PoC**: opzione 4 (stato attuale).
+
+**Decided**: not yet.

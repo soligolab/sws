@@ -55,6 +55,44 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   hanno pallino ambra, riga tinta e tooltip (ricette e funzioni Python escluse dal
   controllo, dichiarato). L'ordinamento è una vista: l'ordine su disco non cambia.
 
+### Added (programma SCADA-widgets, fasi F7.1-F7.5 + F8.3/F8.4)
+
+- **Tabella 2.0**: colonne scelte fra nome/valore/unità/qualità/ora, intestazioni ordinabili,
+  riga filtri opzionale, scorrimento dentro il box (prima con troppe righe sfondava),
+  corpo del testo configurabile; per riga unità, decimali, soglie proprie che colorano il
+  valore e **celle scrivibili** (Invio scrive il tag).
+- **Bar chart**: i valori **negativi** non sono più clampati a zero (barre invisibili) — la
+  scala include lo zero e le barre crescono dalla sua linea in entrambi i versi; barre
+  impilate, tacche numerate d'asse, legenda, soglie anche in orizzontale.
+- **Pie/donut**: etichette con valore e unità oltre alla percentuale, raggruppamento delle
+  fette piccole in una voce sola, fetta più grande staccabile, colore del foro configurabile.
+- **Testo multiriga**: va a capo dentro larghezza/altezza, allineamento verticale e interlinea;
+  gli a-capo scritti a mano sono rispettati.
+- **Allarmi**: "ACK tutti" sugli allarmi mostrati, **messa in silenzio** (shelve) per riga con
+  motivo e durata, nuovo oggetto **storico allarmi** piazzabile, **segnalazione acustica** per
+  severità con pulsante "tacita" (tono sintetizzato, nessun file audio da distribuire; spento
+  in editor) e **motivo sulla conferma** registrato nel journal di audit.
+- **Ricerca**: "cerca in tutte le pagine" per nome, id, **tag** e **testo/etichetta**, con
+  risultati raggruppati per pagina e navigabili; **"dove è usato questo tag"** nella sezione
+  TAG del pannello (pagine, allarmi, espressioni, script) e pallino ambra sui tag mai usati.
+- **Rotazione interattiva**: maniglia sulla selezione (Shift = passi di 15°) e
+  ridimensionamento ora possibile anche **sugli oggetti ruotati** (prima disabilitato).
+
+### Added (programma SCADA-widgets, fase F7.6 + F8.1/F8.2)
+
+- **Rifiniture di forma**: rect con raggio angoli, tratteggio del bordo e riempimento sfumato
+  (verticale/orizzontale/radiale); **gauge** con zone colorate sul fondo scala, tacche
+  maggiori numerate, apertura dell'arco configurabile (prima fissa a ∓135°) e secondo
+  indicatore da tag per il setpoint; **led** con forme cerchio/quadrato/triangolo; **grid**
+  con spazio fra celle e margine interno; **navbutton** con bordo e raggio esposti;
+  **image** con adattamento al box (deforma / contieni / riempi-e-ritaglia).
+- **Ergonomia editor**: "distribuisci" ora spazia a **gap uguali** fra i bordi (prima
+  rendeva equidistanti le posizioni, che con larghezze diverse lascia spazi diversi); nuovi
+  comandi **uniforma dimensioni** (larghezza/altezza del primo selezionato); lo **snap in
+  ridimensionamento** aggancia il bordo trascinato agli altri oggetti, ai bordi pagina e alle
+  guide (prima conosceva solo la griglia); **copia stile** con pennello in toolbar (copia
+  l'aspetto, mai il tag né la geometria).
+
 ### Added (programma SCADA-widgets, fase F6 — faceplate 2.0 e simboli)
 
 - **Faceplate 2.0**: la sostituzione dei parametri copre TUTTI i campi (state_tag, binding,

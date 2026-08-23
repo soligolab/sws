@@ -621,6 +621,9 @@ export function EditorShell() {
       case "alarm_banner":
         addObject({ type, x, y, width: 600, height: 32 });
         break;
+      case "alarm_history":
+        addObject({ type, x, y, width: 420, height: 220 });
+        break;
       case "recipe_panel":
         addObject({ type, x, y, width: 260, height: 160 });
         break;
@@ -1735,6 +1738,15 @@ function MultiSelectionProps({
         <button style={btn} title={t("props.distributeV")}   onClick={() => onAlign("distribute-y")}>⇕</button>
       </div>
 
+      {/* F8.1 — uniforma le dimensioni al primo oggetto selezionato. */}
+      <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", marginTop: 6, fontWeight: 700, letterSpacing: 0.5 }}>
+        {t("props.matchSize")}
+      </div>
+      <div style={{ display: "flex", gap: 4 }}>
+        <button style={btn} title={t("props.matchWidth")}  onClick={() => onAlign("match-width")}>↔=</button>
+        <button style={btn} title={t("props.matchHeight")} onClick={() => onAlign("match-height")}>↕=</button>
+      </div>
+
       <div style={{ height: 1, background: "var(--brand-surface-2, #334155)", margin: "8px 0" }} />
 
       <div style={{ display: "flex", gap: 4 }}>
@@ -2046,7 +2058,7 @@ function ObjectProps({
    *  (alarm_bell, alarm_banner, alarm_viewer) — previously copy-pasted
    *  per widget (and missing entirely for alarm_viewer, despite the
    *  underlying field/renderer support already existing there). */
-  const severityFilterField = (key: "alarm_bell_severities" | "alarm_banner_severities" | "alarm_viewer_severities") => (
+  const severityFilterField = (key: "alarm_bell_severities" | "alarm_banner_severities" | "alarm_viewer_severities" | "alarm_bell_sound_severities") => (
     <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
       {(["Info", "Warning", "Critical"] as const).map((sev) => {
         const list = (obj[key] as AlarmSeverity[] | undefined) ?? [];
@@ -2166,9 +2178,11 @@ function ObjectProps({
   const BOX_TYPES = ["rect", "ellipse", "button", "navbutton", "checkbox", "radio", "slider", "gauge", "led", "progress_bar", "table", "trend", "symbol", "grid",
     // 2026-08-23: W/H per tutti i box-like (prima si ridimensionavano solo con le maniglie)
     "image", "xy_plot", "kpi_tile", "data_log", "alarm_viewer", "alarm_bell", "alarm_banner",
-    "recipe_panel", "faceplate", "setpoint", "text_list", "state_lamp", "lang_button",
+    "recipe_panel", "faceplate", "setpoint", "text_list", "state_lamp", "lang_button", "alarm_history",
     "lang_selector", "bar_chart", "pie_chart", "sparkline"];
-  const isShape = BOX_TYPES.includes(obj.type);
+  // F7.4: il testo entra fra i box-like solo col wrap attivo — senza wrap la
+  // larghezza è stimata dal contenuto e i campi W/H non farebbero niente.
+  const isShape = BOX_TYPES.includes(obj.type) || (obj.type === "text" && !!obj.text_wrap);
   const hasStroke = obj.type === "rect" || obj.type === "ellipse" || obj.type === "line";
   // Tipi che disegnano il layer di sfondo universale (bg_color/bg_image) in
   // SvgCanvas.tsx. Sottoinsieme iniziale scelto per coprire i pattern di
@@ -2178,7 +2192,7 @@ function ObjectProps({
     "ellipse", "navbutton", "lang_button", "lang_selector", "led", "state_lamp",
     "progress_bar", "slider", "setpoint", "checkbox", "radio", "table",
     "xy_plot", "text_list", "bar_chart", "pie_chart", "sparkline", "kpi_tile", "data_log",
-    "alarm_bell", "alarm_banner", "recipe_panel", "grid", "image", "faceplate",
+    "alarm_bell", "alarm_banner", "recipe_panel", "grid", "image", "faceplate", "alarm_history",
   ];
 
   return (
@@ -2250,6 +2264,75 @@ function ObjectProps({
           {field(t("props.borderThickness"), <BindableInput obj={obj} propName="stroke_width" onChange={onChange}>{numInput("stroke_width", 1)}</BindableInput>)}
         </>
       )}
+      {/* F7.6 — il navbutton disegnava il bordo col colore primario del tema,
+          non modificabile: stessi due campi degli altri tipi con bordo. */}
+      {obj.type === "navbutton" && (
+        <>
+          {field(t("props.border"), <BindableInput obj={obj} propName="stroke" onChange={onChange}>{colorInput("stroke", "var(--brand-primary, #3b82f6)")}</BindableInput>)}
+          {field(t("props.borderThickness"), <BindableInput obj={obj} propName="stroke_width" onChange={onChange}>{numInput("stroke_width", 1.5)}</BindableInput>)}
+        </>
+      )}
+
+      {/* F7.6 — rifiniture di forma: raggio angoli, tratteggio, sfumatura. */}
+      {(obj.type === "rect" || obj.type === "navbutton") &&
+        field(t("props.cornerRadius"), numInput("corner_radius", 0))}
+      {obj.type === "rect" && (
+        <>
+          {field(t("props.borderDash"),
+            <select style={{ ...INPUT, cursor: "pointer" }}
+              value={obj.stroke_dasharray ?? ""}
+              onChange={(e) => onChange({ stroke_dasharray: e.target.value || undefined })}>
+              <option value="">{t("props.dashSolid")}</option>
+              <option value="6 3">{t("props.dashDashed")}</option>
+              <option value="2 3">{t("props.dashDotted")}</option>
+              <option value="10 4 2 4">{t("props.dashDashDot")}</option>
+            </select>
+          )}
+          {field(t("props.gradient"),
+            <select style={{ ...INPUT, cursor: "pointer" }}
+              value={obj.fill_gradient ?? ""}
+              onChange={(e) => onChange({ fill_gradient: (e.target.value || undefined) as "vertical" | "horizontal" | "radial" | undefined })}>
+              <option value="">{t("props.gradientNone")}</option>
+              <option value="vertical">{t("props.gradientVertical")}</option>
+              <option value="horizontal">{t("props.gradientHorizontal")}</option>
+              <option value="radial">{t("props.gradientRadial")}</option>
+            </select>
+          )}
+          {obj.fill_gradient && (
+            <>
+              {field(t("props.gradientLight"), colorInput("gradient_light_color", "#ffffff"))}
+              {field(t("props.gradientDark"), colorInput("gradient_dark_color", "#000000"))}
+              <p style={{ fontSize: 10, color: "var(--brand-border, #475569)", margin: "-2px 0 4px" }}>
+                {t("props.gradientHint")}
+              </p>
+            </>
+          )}
+        </>
+      )}
+
+      {/* F7.6 — adattamento dell'immagine al box. */}
+      {obj.type === "image" &&
+        field(t("props.imageFit"),
+          <select style={{ ...INPUT, cursor: "pointer" }}
+            value={obj.image_fit ?? "stretch"}
+            onChange={(e) => onChange({ image_fit: e.target.value === "stretch" ? undefined : (e.target.value as "contain" | "cover") })}>
+            <option value="stretch">{t("props.fitStretch")}</option>
+            <option value="contain">{t("props.fitContain")}</option>
+            <option value="cover">{t("props.fitCover")}</option>
+          </select>
+        )}
+
+      {/* F7.6 — forma del led. */}
+      {obj.type === "led" &&
+        field(t("props.ledShape"),
+          <select style={{ ...INPUT, cursor: "pointer" }}
+            value={obj.led_shape ?? "circle"}
+            onChange={(e) => onChange({ led_shape: e.target.value === "circle" ? undefined : (e.target.value as "square" | "triangle") })}>
+            <option value="circle">{t("props.shapeCircle")}</option>
+            <option value="square">{t("props.shapeSquare")}</option>
+            <option value="triangle">{t("props.shapeTriangle")}</option>
+          </select>
+        )}
 
       {/* Sfondo universale (colore + immagine URL) — un solo punto di
           inserimento: per estenderlo a un tipo nuovo basta aggiungerlo a
@@ -2347,7 +2430,7 @@ function ObjectProps({
         // propri) o è puro rumore — il campo vive nella sezione qualità come
         // "Tag di stato" (alimenta bordo-allarme/stale/Bad-gray/QDot).
         "kpi_tile","data_log","sparkline","bar_chart","pie_chart","table","symbol",
-        "alarm_viewer","alarm_bell","alarm_banner","recipe_panel","grid","faceplate",
+        "alarm_viewer","alarm_bell","alarm_banner","alarm_history","recipe_panel","grid","faceplate",
         "image","lang_button","lang_selector"].includes(obj.type) && field(t("props.tag"), tagInput("es. pump1.speed"))}
 
       {/* Token picker (T-40): insert {{key}} into the primary text field so the
@@ -2369,7 +2452,17 @@ function ObjectProps({
       {/* Text object: static content + typography */}
       {obj.type === "text" && (
         <>
-          {field(t("props.textStatic"), <BindableInput obj={obj} propName="text" onChange={onChange}>{textInput("text", "Es. Temperatura caldaia")}</BindableInput>)}
+          {/* F7.4 — con il testo multiriga il campo statico diventa un'area:
+              gli a-capo scritti a mano vengono rispettati dal rendering. */}
+          {obj.text_wrap
+            ? field(t("props.textStatic"),
+                <textarea
+                  style={{ ...INPUT, minHeight: 56, fontFamily: "inherit", resize: "vertical" }}
+                  placeholder="Es. Temperatura caldaia"
+                  value={obj.text ?? ""}
+                  onChange={(e) => onChange({ text: e.target.value || undefined })}
+                />)
+            : field(t("props.textStatic"), <BindableInput obj={obj} propName="text" onChange={onChange}>{textInput("text", "Es. Temperatura caldaia")}</BindableInput>)}
           {field(t("props.formatBound"), <BindableInput obj={obj} propName="format" onChange={onChange}>{textInput("format", "{value:.1f} °C")}</BindableInput>)}
           <p style={{ fontSize: 10, color: "var(--brand-border, #475569)", margin: "0 0 4px" }}>
             Se è impostato un Tag, vince il formato (usa <code>{"{value}"}</code>); altrimenti viene
@@ -2390,6 +2483,33 @@ function ObjectProps({
               </select>
             </div>
           </div>
+          {/* F7.4 — testo multiriga dentro il box dichiarato. */}
+          <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--brand-text-2, #cbd5e1)", marginTop: 4, cursor: "pointer" }}>
+            <input type="checkbox" checked={!!obj.text_wrap}
+              onChange={(e) => onChange({ text_wrap: e.target.checked || undefined })}
+              style={{ accentColor: "var(--brand-primary, #3b82f6)" }} />
+            {t("props.textWrap")}
+          </label>
+          {obj.text_wrap && (
+            <>
+              <p style={{ fontSize: 10, color: "var(--brand-border, #475569)", margin: "2px 0 4px" }}>
+                {t("props.textWrapHint")}
+              </p>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+                <div>
+                  <div style={LABEL}>{t("props.vAlign")}</div>
+                  <select style={{ ...INPUT, cursor: "pointer" }}
+                    value={obj.text_valign ?? "top"}
+                    onChange={(e) => onChange({ text_valign: e.target.value === "top" ? undefined : (e.target.value as "middle" | "bottom") })}>
+                    <option value="top">{t("props.vAlignTop")}</option>
+                    <option value="middle">{t("props.vAlignMiddle")}</option>
+                    <option value="bottom">{t("props.vAlignBottom")}</option>
+                  </select>
+                </div>
+                <div><div style={LABEL}>{t("props.lineHeight")}</div>{numInput("line_height", 1.25)}</div>
+              </div>
+            </>
+          )}
           {field(t("props.fontFamily"),
             <BindableInput obj={obj} propName="font_family" onChange={onChange}>
               <input
@@ -2668,6 +2788,72 @@ function ObjectProps({
           )}
           {field(t("props.needleColor"), <BindableInput obj={obj} propName="stroke" onChange={onChange}>{colorInput("stroke", "#e2e8f0")}</BindableInput>)}
           {field(t("props.textsColor"), <BindableInput obj={obj} propName="color" onChange={onChange}>{colorInput("color", "#e2e8f0")}</BindableInput>)}
+
+          {/* F7.6 — quadrante: apertura dell'arco e tacche numerate. */}
+          <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", marginTop: 6, marginBottom: 2, fontWeight: 700 }}>
+            {t("props.dial")}
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+            <div><div style={LABEL}>{t("props.startAngle")}</div>{numInput("gauge_start_angle", -135)}</div>
+            <div><div style={LABEL}>{t("props.endAngle")}</div>{numInput("gauge_end_angle", 135)}</div>
+          </div>
+          {field(t("props.ticks"), numInput("gauge_ticks", 0))}
+          <p style={{ fontSize: 10, color: "var(--brand-border, #475569)", margin: "-2px 0 4px" }}>
+            {t("props.ticksHint")}
+          </p>
+
+          {/* F7.6 — secondo indicatore (setpoint). */}
+          <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", marginTop: 6, marginBottom: 2, fontWeight: 700 }}>
+            {t("props.secondIndicator")}
+          </div>
+          <TagInput value={obj.gauge_sp_tag ?? ""} onChange={(v) => onChange({ gauge_sp_tag: v || undefined })}
+            placeholder={t("props.setpointTagPlaceholder")} />
+          {obj.gauge_sp_tag && field(t("props.color"), colorInput("gauge_sp_color", "#f59e0b"))}
+
+          {/* F7.6 — zone colorate del fondo scala. */}
+          <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", marginTop: 6, marginBottom: 2, fontWeight: 700 }}>
+            {t("props.zones")}
+          </div>
+          {(obj.gauge_zones ?? []).map((z, i) => (
+            <div key={i} style={{ display: "flex", gap: 4, alignItems: "center", marginBottom: 3 }}>
+              <input type="number" style={{ ...INPUT, width: 56 }} value={z.from}
+                onChange={(e) => {
+                  const zs = [...(obj.gauge_zones ?? [])];
+                  zs[i] = { ...zs[i], from: Number(e.target.value) };
+                  onChange({ gauge_zones: zs });
+                }} />
+              <span style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)" }}>→</span>
+              <input type="number" style={{ ...INPUT, width: 56 }} value={z.to}
+                onChange={(e) => {
+                  const zs = [...(obj.gauge_zones ?? [])];
+                  zs[i] = { ...zs[i], to: Number(e.target.value) };
+                  onChange({ gauge_zones: zs });
+                }} />
+              <input type="color" style={{ ...INPUT, padding: 2, height: 26, width: 38, cursor: "pointer", flex: "none" }}
+                value={z.color}
+                onChange={(e) => {
+                  const zs = [...(obj.gauge_zones ?? [])];
+                  zs[i] = { ...zs[i], color: e.target.value };
+                  onChange({ gauge_zones: zs });
+                }} />
+              <button title={t("props.remove")}
+                onClick={() => {
+                  const zs = [...(obj.gauge_zones ?? [])];
+                  zs.splice(i, 1);
+                  onChange({ gauge_zones: zs.length > 0 ? zs : undefined });
+                }}
+                style={{ ...INPUT, width: 26, padding: 0, cursor: "pointer", flex: "none" }}>×</button>
+            </div>
+          ))}
+          <button
+            onClick={() => {
+              const zs = [...(obj.gauge_zones ?? [])];
+              const lo = obj.min ?? 0; const hi = obj.max ?? 100;
+              const from = zs.length > 0 ? zs[zs.length - 1].to : lo;
+              zs.push({ from, to: hi, color: "#22c55e" });
+              onChange({ gauge_zones: zs });
+            }}
+            style={{ ...INPUT, cursor: "pointer", marginBottom: 4 }}>+ {t("props.addZone")}</button>
         </>
       )}
 
@@ -2839,12 +3025,54 @@ function ObjectProps({
       )}
 
       {/* Table */}
-      {obj.type === "table" && (
-        <TableRowsEditor
-          rows={(obj.table_rows as TableRow[] | undefined) ?? []}
-          onChange={(rows) => onChange({ table_rows: rows as SynopticObject["table_rows"] })}
-        />
-      )}
+      {obj.type === "table" && (() => {
+        // F7.1 — colonne mostrate, in ordine fisso di presentazione; l'utente
+        // sceglie quali accendere (le tre storiche sono il default).
+        const ALL_COLS = ["label", "value", "unit", "quality", "time"] as const;
+        const active = obj.table_columns ?? ["label", "value", "quality"];
+        const toggleCol = (c: typeof ALL_COLS[number]) => {
+          const next = active.includes(c) ? active.filter((x) => x !== c) : ALL_COLS.filter((x) => active.includes(x) || x === c);
+          onChange({ table_columns: next.length > 0 ? [...next] : undefined });
+        };
+        return (
+          <>
+            <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", marginTop: 4, marginBottom: 2, fontWeight: 700 }}>
+              {t("props.columns")}
+            </div>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              {ALL_COLS.map((c) => (
+                <label key={c} style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "flex", gap: 3, alignItems: "center" }}>
+                  <input type="checkbox" checked={active.includes(c)} onChange={() => toggleCol(c)} />
+                  {t(`props.col_${c}`)}
+                </label>
+              ))}
+            </div>
+            {field(t("props.labelHeader"), textInput("table_label_header", "DATI"))}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+              <div><div style={LABEL}>{t("props.dimensionPx")}</div>{numInput("table_font_size", 11)}</div>
+            </div>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 4 }}>
+              <label style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "flex", gap: 3, alignItems: "center" }}>
+                <input type="checkbox" checked={obj.table_sortable !== false}
+                  onChange={(e) => onChange({ table_sortable: e.target.checked ? undefined : false })} />
+                {t("props.sortable")}
+              </label>
+              <label style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "flex", gap: 3, alignItems: "center" }}>
+                <input type="checkbox" checked={obj.table_filterable === true}
+                  onChange={(e) => onChange({ table_filterable: e.target.checked || undefined })} />
+                {t("props.filterRow")}
+              </label>
+            </div>
+            <p style={{ fontSize: 10, color: "var(--brand-border, #475569)", margin: "4px 0" }}>
+              {t("props.tableHint")}
+            </p>
+            <TableRowsEditor
+              rows={(obj.table_rows as TableRow[] | undefined) ?? []}
+              onChange={(rows) => onChange({ table_rows: rows as SynopticObject["table_rows"] })}
+            />
+          </>
+        );
+      })()}
 
       {/* Trend */}
       {obj.type === "trend" && (() => {
@@ -3184,6 +3412,11 @@ function ObjectProps({
               />
             </div>
           </div>
+          {/* F7.6 — spazio tra celle e margine interno. */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 6px", marginTop: 4 }}>
+            <div><div style={LABEL}>{t("props.gap")}</div>{numInput("grid_gap", 0)}</div>
+            <div><div style={LABEL}>{t("props.padding")}</div>{numInput("grid_padding", 0)}</div>
+          </div>
           <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--brand-text-2, #cbd5e1)", marginTop: 6, cursor: "pointer" }}>
             <input
               type="checkbox"
@@ -3259,11 +3492,27 @@ function ObjectProps({
             <div><div style={LABEL}>Min</div><BindableInput obj={obj} propName="min" onChange={onChange}>{numInput("min", 0)}</BindableInput></div>
             <div><div style={LABEL}>Max</div><BindableInput obj={obj} propName="max" onChange={onChange}>{numInput("max", 100)}</BindableInput></div>
           </div>
+          <p style={{ fontSize: 10, color: "var(--brand-border, #475569)", margin: "-2px 0 4px" }}>
+            {t("props.barRangeHint")}
+          </p>
           {field(t("props.unit"), textInput("unit", ""))}
+          {field(t("props.decimals"), numInput("decimals", 1))}
           {field(t("props.yAxisLabel"), textInput("bar_y_label", ""))}
-          {field(t("props.barGap"), numInput("bar_gap", 0.2))}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+            <div><div style={LABEL}>{t("props.barGap")}</div>{numInput("bar_gap", 0.2)}</div>
+            <div><div style={LABEL}>{t("props.ticks")}</div>{numInput("bar_ticks", 0)}</div>
+          </div>
+          {/* F7.2 — barre affiancate (storico) o impilate in una sola barra. */}
+          {field(t("props.barMode"), (
+            <select style={{ ...INPUT, cursor: "pointer" }} value={obj.bar_mode ?? "grouped"}
+              onChange={(e) => onChange({ bar_mode: e.target.value === "grouped" ? undefined : "stacked" })}>
+              <option value="grouped">{t("props.barGrouped")}</option>
+              <option value="stacked">{t("props.barStacked")}</option>
+            </select>
+          ))}
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            {[["bar_show_values","Valori"], ["bar_show_labels","Etichette"], ["bar_show_thresholds","Soglie"]].map(([k,l]) => (
+            {[["bar_show_values", t("props.values")], ["bar_show_labels", t("props.labels")],
+              ["bar_show_thresholds", t("props.thresholdsShort")], ["bar_show_legend", t("props.legend")]].map(([k,l]) => (
               <label key={k} style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "flex", gap: 3, alignItems: "center" }}>
                 <input type="checkbox" checked={!!(obj as any)[k]} onChange={(e) => onChange({ [k]: e.target.checked })} />{l}
               </label>
@@ -3303,14 +3552,54 @@ function ObjectProps({
               <option value="donut">{t("props.donut")}</option>
             </select>
           ))}
-          {(obj.pie_mode ?? "pie") === "donut" && field(t("props.innerRadius"), <BindableInput obj={obj} propName="pie_inner_ratio" onChange={onChange}>{numInput("pie_inner_ratio", 0.5)}</BindableInput>)}
+          {(obj.pie_mode ?? "pie") === "donut" && (
+            <>
+              {field(t("props.innerRadius"), <BindableInput obj={obj} propName="pie_inner_ratio" onChange={onChange}>{numInput("pie_inner_ratio", 0.5)}</BindableInput>)}
+              {/* F7.3 — il foro era fisso #0f172a: su sfondo chiaro un disco nero. */}
+              {field(t("props.holeColor"), colorInput("pie_hole_color", "#0f172a"))}
+            </>
+          )}
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            {[["pie_show_labels","Percentuali"], ["pie_show_legend","Legenda"]].map(([k,l]) => (
+            {[["pie_show_labels", t("props.labels")], ["pie_show_legend", t("props.legend")]].map(([k,l]) => (
               <label key={k} style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "flex", gap: 3, alignItems: "center" }}>
                 <input type="checkbox" checked={!!(obj as any)[k]} onChange={(e) => onChange({ [k]: e.target.checked })} />{l}
               </label>
             ))}
           </div>
+          {/* F7.3 — contenuto delle etichette, unità e decimali del valore. */}
+          {obj.pie_show_labels !== false && (
+            <>
+              {field(t("props.labelContent"), (
+                <select style={{ ...INPUT, cursor: "pointer" }} value={obj.pie_label_mode ?? "percent"}
+                  onChange={(e) => onChange({ pie_label_mode: e.target.value === "percent" ? undefined : (e.target.value as "value" | "value_percent" | "label_percent") })}>
+                  <option value="percent">{t("props.labelPercent")}</option>
+                  <option value="value">{t("props.labelValue")}</option>
+                  <option value="value_percent">{t("props.labelValuePercent")}</option>
+                  <option value="label_percent">{t("props.labelNamePercent")}</option>
+                </select>
+              ))}
+              {(obj.pie_label_mode ?? "percent") !== "percent" && (
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+                  <div><div style={LABEL}>{t("props.unit")}</div>{textInput("unit", "")}</div>
+                  <div><div style={LABEL}>{t("props.decimals")}</div>{numInput("decimals", 1)}</div>
+                </div>
+              )}
+            </>
+          )}
+          {/* F7.3 — raggruppamento delle fette piccole e fetta staccata. */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+            <div><div style={LABEL}>{t("props.groupBelowPct")}</div>{numInput("pie_group_below_pct", 0)}</div>
+            <div><div style={LABEL}>{t("props.explodePx")}</div>{numInput("pie_explode_px", 0)}</div>
+          </div>
+          <p style={{ fontSize: 10, color: "var(--brand-border, #475569)", margin: "-2px 0 4px" }}>
+            {t("props.pieGroupHint")}
+          </p>
+          {!!obj.pie_group_below_pct && (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+              <div><div style={LABEL}>{t("props.groupLabel")}</div>{textInput("pie_group_label", "altro")}</div>
+              <div><div style={LABEL}>{t("props.color")}</div>{colorInput("pie_group_color", "#64748b")}</div>
+            </div>
+          )}
           {(obj.pie_mode ?? "pie") === "donut" && field(t("props.textCenter"), <BindableInput obj={obj} propName="pie_center_text" onChange={onChange}>{textInput("pie_center_text", "")}</BindableInput>)}
           {(obj.pie_mode ?? "pie") === "donut" && field(t("props.tagCenter"),
             <TagInput
@@ -3407,6 +3696,49 @@ function ObjectProps({
             ))}
           </div>
           {field(t("props.emptyBackground"), <input type="color" value={obj.alarm_viewer_bg_color ?? "var(--brand-bg, #0f172a)"} onChange={(e) => onChange({ alarm_viewer_bg_color: e.target.value })} style={{ width: 40, height: 24, padding: 1, border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 3 }} />)}
+          {/* F7.5 — ACK massivo e messa in silenzio, solo in modalità tabella
+              (in "list"/"banner" non c'è spazio per i comandi). */}
+          {(obj.alarm_viewer_mode ?? "list") === "table" && (
+            <>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 4 }}>
+                <label style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "flex", gap: 3, alignItems: "center" }}>
+                  <input type="checkbox" checked={!!obj.alarm_viewer_show_ack_all}
+                    onChange={(e) => onChange({ alarm_viewer_show_ack_all: e.target.checked || undefined })} />
+                  {t("props.ackAll")}
+                </label>
+                <label style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "flex", gap: 3, alignItems: "center" }}>
+                  <input type="checkbox" checked={!!obj.alarm_viewer_show_shelve}
+                    onChange={(e) => onChange({ alarm_viewer_show_shelve: e.target.checked || undefined })} />
+                  {t("props.shelveBtn")}
+                </label>
+                {/* F7.5 — riusa `require_reason`, lo stesso campo delle scritture
+                    critiche: un solo concetto "chiedi il motivo" in tutto l'editor. */}
+                <label style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "flex", gap: 3, alignItems: "center" }}>
+                  <input type="checkbox" checked={!!obj.require_reason}
+                    onChange={(e) => onChange({ require_reason: e.target.checked || undefined })} />
+                  {t("props.ackReason")}
+                </label>
+              </div>
+              {obj.alarm_viewer_show_shelve && field(t("props.shelveMinutes"), numInput("alarm_shelve_minutes", 15))}
+              <p style={{ fontSize: 10, color: "var(--brand-border, #475569)", margin: "2px 0 4px" }}>
+                {t("props.ackAllHint")}
+              </p>
+            </>
+          )}
+        </>
+      )}
+
+      {/* Storico allarmi piazzabile (F7.5) */}
+      {obj.type === "alarm_history" && (
+        <>
+          <div style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", marginBottom: 4 }}>
+            {t("props.alarmHistoryHint")}
+          </div>
+          {field(t("props.alarmIdFilter"),
+            <input style={INPUT} placeholder={t("props.allAlarms")}
+              value={obj.alarm_history_id ?? ""}
+              onChange={(e) => onChange({ alarm_history_id: e.target.value || undefined })} />
+          )}
         </>
       )}
 
@@ -3418,6 +3750,25 @@ function ObjectProps({
           </div>
           {field(t("props.alarmIdPrefix"), <input style={INPUT} placeholder={t("props.exZone")} value={obj.alarm_bell_id_prefix ?? ""} onChange={(e) => onChange({ alarm_bell_id_prefix: e.target.value })} />)}
           {field(t("props.severity"), severityFilterField("alarm_bell_severities"))}
+          {/* F7.5 — segnalazione acustica. */}
+          <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", marginTop: 6, marginBottom: 2, fontWeight: 700 }}>
+            {t("props.sound")}
+          </div>
+          <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--brand-text-2, #cbd5e1)", cursor: "pointer" }}>
+            <input type="checkbox" checked={!!obj.alarm_bell_sound}
+              onChange={(e) => onChange({ alarm_bell_sound: e.target.checked || undefined })}
+              style={{ accentColor: "var(--brand-primary, #3b82f6)" }} />
+            {t("props.soundEnable")}
+          </label>
+          {obj.alarm_bell_sound && (
+            <>
+              {field(t("props.soundSeverities"), severityFilterField("alarm_bell_sound_severities"))}
+              {field(t("props.soundRepeatS"), numInput("alarm_bell_sound_repeat_s", 20))}
+              <p style={{ fontSize: 10, color: "var(--brand-border, #475569)", margin: "2px 0 4px" }}>
+                {t("props.soundHint")}
+              </p>
+            </>
+          )}
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             {[["alarm_bell_show_history", t("props.showHistory")], ["alarm_bell_show_shelve", t("props.showShelve")]].map(([k, l]) => (
               <label key={k} style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "flex", gap: 3, alignItems: "center" }}>
@@ -3970,7 +4321,7 @@ function ObjectProps({
             che alimenta allarme/stale/qualità si imposta QUI (il campo Tag
             generico in alto per loro non esiste più). */}
         {["bar_chart","pie_chart","table","symbol",
-          "alarm_viewer","alarm_bell","alarm_banner","recipe_panel","grid","faceplate",
+          "alarm_viewer","alarm_bell","alarm_banner","alarm_history","recipe_panel","grid","faceplate",
           "image","lang_button","lang_selector"].includes(obj.type) &&
           field(t("props.stateTag"),
             <TagInput style={INPUT} placeholder={t("props.stateTagPh")}
@@ -4377,9 +4728,41 @@ function TableRowsEditor({
               onChange={(v) => update(i, { tag: v })}
             />
           </div>
-          <div style={LABEL}>{t("props.format")}</div>
-          <input type="text" style={INPUT} placeholder="{value:.1f}" value={row.format ?? ""}
-            onChange={(e) => update(i, { format: e.target.value || undefined })} />
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 4 }}>
+            <div>
+              <div style={LABEL}>{t("props.format")}</div>
+              <input type="text" style={INPUT} placeholder="{value:.1f}" value={row.format ?? ""}
+                onChange={(e) => update(i, { format: e.target.value || undefined })} />
+            </div>
+            {/* F7.1 — unità e decimali per riga (senza scrivere un format). */}
+            <div>
+              <div style={LABEL}>{t("props.unit")}</div>
+              <input type="text" style={INPUT} value={row.unit ?? ""}
+                onChange={(e) => update(i, { unit: e.target.value || undefined })} />
+            </div>
+            <div>
+              <div style={LABEL}>{t("props.decimals")}</div>
+              <input type="number" style={INPUT} value={row.decimals ?? ""}
+                onChange={(e) => update(i, { decimals: e.target.value === "" ? undefined : Number(e.target.value) })} />
+            </div>
+          </div>
+          {/* F7.1 — soglie della riga: colorano il valore, indipendenti dal tag. */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 4, marginTop: 4 }}>
+            {([["alarm_low", t("props.alarmLow")], ["warn_low", t("props.warnLow")],
+               ["warn_high", t("props.warnHigh")], ["alarm_high", t("props.alarmHigh")]] as const).map(([k, lbl]) => (
+              <div key={k}>
+                <div style={LABEL}>{lbl}</div>
+                <input type="number" style={INPUT} value={(row[k] as number | undefined) ?? ""}
+                  onChange={(e) => update(i, { [k]: e.target.value === "" ? undefined : Number(e.target.value) })} />
+              </div>
+            ))}
+          </div>
+          <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: "var(--brand-text-2, #cbd5e1)", marginTop: 4, cursor: "pointer" }}>
+            <input type="checkbox" checked={!!row.writable}
+              onChange={(e) => update(i, { writable: e.target.checked || undefined })}
+              style={{ accentColor: "var(--brand-primary, #3b82f6)" }} />
+            {t("props.writableCell")}
+          </label>
         </div>
       ))}
       <button
