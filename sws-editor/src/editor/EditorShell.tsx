@@ -2162,7 +2162,11 @@ function ObjectProps({
     </>
   );
 
-  const BOX_TYPES = ["rect", "ellipse", "button", "navbutton", "checkbox", "radio", "slider", "gauge", "led", "progress_bar", "table", "trend", "symbol", "grid"];
+  const BOX_TYPES = ["rect", "ellipse", "button", "navbutton", "checkbox", "radio", "slider", "gauge", "led", "progress_bar", "table", "trend", "symbol", "grid",
+    // 2026-08-23: W/H per tutti i box-like (prima si ridimensionavano solo con le maniglie)
+    "image", "xy_plot", "kpi_tile", "data_log", "alarm_viewer", "alarm_bell", "alarm_banner",
+    "recipe_panel", "faceplate", "setpoint", "text_list", "state_lamp", "lang_button",
+    "lang_selector", "bar_chart", "pie_chart", "sparkline"];
   const isShape = BOX_TYPES.includes(obj.type);
   const hasStroke = obj.type === "rect" || obj.type === "ellipse" || obj.type === "line";
   // Tipi che disegnano il layer di sfondo universale (bg_color/bg_image) in

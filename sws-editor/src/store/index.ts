@@ -360,6 +360,10 @@ interface AppState {
    *  cattura, o null. Effimero, non persistito. */
   capturePathTarget: string | null;
   setCapturePathTarget: (id: string | null) => void;
+  /** Toggle toolbar "Anteprima effetti": applica in editor blink/motion/
+   *  bordo allarme/stale/flusso pipe/rotazioni. Effimero, default off. */
+  previewEffects: boolean;
+  setPreviewEffects: (on: boolean) => void;
   updateObjects: (ids: string[], patch: Partial<SynopticObject>) => void;
   duplicateObject: (id: string) => void;
   duplicateSelection: () => void;
@@ -1187,6 +1191,8 @@ export const useAppStore = create<AppState>((set, get) => {
 
     capturePathTarget: null,
     setCapturePathTarget: (id) => set({ capturePathTarget: id }),
+    previewEffects: false,
+    setPreviewEffects: (on) => set({ previewEffects: on }),
     updateObject: (id, patch) => {
       pushHistory("Modifica oggetto");
       set((s) => ({

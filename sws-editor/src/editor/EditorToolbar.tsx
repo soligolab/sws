@@ -82,6 +82,8 @@ export function EditorToolbar({
 }) {
   const { t } = useTranslation();
   const past         = useAppStore((s) => s.past.length);
+  const previewEffects    = useAppStore((s) => s.previewEffects);
+  const setPreviewEffects = useAppStore((s) => s.setPreviewEffects);
   const future       = useAppStore((s) => s.future.length);
   const undo         = useAppStore((s) => s.undo);
   const redo         = useAppStore((s) => s.redo);
@@ -137,6 +139,12 @@ export function EditorToolbar({
       </button>
       <button style={BTN} onClick={() => viewApi.current?.fitObjects()}
         title={t("toolbar.fitObjectsTitle")}>⊞</button>
+      <button
+        style={{ ...BTN, ...(previewEffects ? { background: "#3f2d10", color: "#fbbf24", borderColor: "#f59e0b" } : {}) }}
+        onClick={() => setPreviewEffects(!previewEffects)}
+        title={t("toolbar.previewEffectsTitle")}>
+        {previewEffects ? "⏸" : "▶"} {t("toolbar.previewEffects")}
+      </button>
       <input
         type="range"
         min={0}

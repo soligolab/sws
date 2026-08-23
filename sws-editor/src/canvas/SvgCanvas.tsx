@@ -571,6 +571,8 @@ export function SvgCanvas({
   const viewerRole = useAppStore((s) => s.authRole);
   // D (2026-08-23): cattura waypoint dal canvas (motion_path). Esc esce.
   const captureTarget = useAppStore((s) => s.capturePathTarget);
+  // Toggle "Anteprima effetti": blink/motion/bordi/stale anche in edit.
+  const previewEffects = useAppStore((s) => s.previewEffects);
   useEffect(() => {
     if (!captureTarget) return;
     const onKey = (e: KeyboardEvent) => {
@@ -1399,9 +1401,12 @@ export function SvgCanvas({
         const objW = obj.width ?? 100;
         const objH = obj.height ?? 50;
         const tvMain = obj.tag ? tagValues[obj.tag] : undefined;
-        const alarmInfo = !inEdit && obj.tag ? alarmByTag.get(obj.tag) : undefined;
+        // fxOn: effetti runtime attivi (sempre a runtime; in edit solo col
+        // toggle "Anteprima effetti" — decisione maintainer 2026-08-23).
+        const fxOn = !inEdit || previewEffects;
+        const alarmInfo = fxOn && obj.tag ? alarmByTag.get(obj.tag) : undefined;
         let blinkOn = false;
-        if (!inEdit) {
+        if (fxOn) {
           if (obj.blink_mode === "always") blinkOn = true;
           else if (obj.blink_mode === "tag" && obj.blink_tag) {
             const bv = tagValues[obj.blink_tag]?.value;
@@ -1410,9 +1415,9 @@ export function SvgCanvas({
             blinkOn = !!alarmInfo && !alarmInfo.acked;
           }
         }
-        const isStale = !inEdit && !!obj.stale_after_s && !!tvMain
+        const isStale = fxOn && !!obj.stale_after_s && !!tvMain
           && nowMs - tvMain.timestamp_ms > obj.stale_after_s * 1000;
-        const isBadGray = !inEdit && obj.bad_value_style === "gray" && tvMain?.quality === "Bad";
+        const isBadGray = fxOn && obj.bad_value_style === "gray" && tvMain?.quality === "Bad";
         const grayed = isStale || isBadGray;
         const gStyle: React.CSSProperties | undefined = (() => {
           const st: React.CSSProperties = {};
@@ -1453,7 +1458,7 @@ export function SvgCanvas({
         // min..max → 0..1) posiziona l'oggetto lungo la polilinea; la
         // transizione CSS del wrapper rende il moto fluido tra i campioni.
         let motionTf: string | undefined;
-        if (!inEdit && obj.motion_tag && obj.motion_path && obj.motion_path.length >= 2) {
+        if (fxOn && obj.motion_tag && obj.motion_path && obj.motion_path.length >= 2) {
           const mv = Number(tagValues[obj.motion_tag]?.value);
           if (Number.isFinite(mv)) {
             const lo = obj.motion_min ?? 0;
@@ -1512,7 +1517,7 @@ export function SvgCanvas({
             {/* F4.2: bordo di allarme opt-in — colorato per severità,
                 lampeggia finché non riconosciuto. Bounding box stimato con i
                 default per-tipo (per line/pipe è approssimativo). */}
-            {!inEdit && obj.show_alarm_state && alarmInfo && (
+            {fxOn && obj.show_alarm_state && alarmInfo && (
               <rect x={obj.x - 3} y={obj.y - 3} width={objW + 6} height={objH + 6}
                 fill="none" stroke={SEV_COLOR[alarmInfo.severity ?? "Warning"]} strokeWidth={2} rx={4}
                 data-blink={!alarmInfo.acked ? "1" : undefined}
@@ -1525,7 +1530,7 @@ export function SvgCanvas({
                 style={{ pointerEvents: "none" }}>⌛</text>
             )}
             {/* F4.3: QDot opt-in sui tipi che non lo disegnano da soli */}
-            {!inEdit && obj.quality_dot === true && tvMain && !QDOT_BUILTIN_TYPES.has(obj.type) && (
+            {fxOn && obj.quality_dot === true && tvMain && !QDOT_BUILTIN_TYPES.has(obj.type) && (
               <QDot x={obj.x + objW - 8} y={obj.y + 8} quality={tvMain.quality}
                 goodColor={obj.quality_dot_good_color} badColor={obj.quality_dot_bad_color}
                 uncertainColor={obj.quality_dot_uncertain_color} />
@@ -2607,6 +2612,8 @@ function FaceplatePopup({ faceplateId, params, faceplates, objects, tagValues, c
 export function SvgObject(p: ObjProps) {
   const { objects, tagValues, selected, selectedCount = 0, isEditMode, customSymbols, faceplates = [], selectedCell, selectedCellChild, selectedCellRange, onSelect, onStartDrag, onWriteTag, onScript, onNavigate, onSelectCell, onSelectCellChild, onSelectCellRange, onExpandTrend } = p;
   const { t } = useTranslation();
+  // Toggle "Anteprima effetti" (rotazioni simboli, flusso pipe) anche in edit.
+  const fxPreview = useAppStore((s) => s.previewEffects);
   // F1.2: default ereditati dal TagDef (unità/range/limiti), poi binding.
   const projectTags = useAppStore((s) => s.project?.tags);
   const resolved = resolveObject(p.obj, tagValues);
@@ -3080,7 +3087,7 @@ export function SvgObject(p: ObjProps) {
         {/* F6.10: flusso animato — tratteggio in movimento quando pipe_flow è
             attivo (e pipe_flow_tag, se impostato, è truthy); direzione dal
             SEGNO del valore del tag quando numerico (negativo = indietro). */}
-        {!isEditMode && obj.pipe_flow && (() => {
+        {(!isEditMode || fxPreview) && obj.pipe_flow && (() => {
           const ftv = obj.pipe_flow_tag ? tagValues[obj.pipe_flow_tag] : undefined;
           if (obj.pipe_flow_tag) {
             const v = ftv?.value;
@@ -3904,28 +3911,14 @@ export function SvgObject(p: ObjProps) {
     const checkedVal = obj.checked_value ?? true;
     const isChecked = tv != null && String(tv.value) === String(checkedVal);
 
-    if (isEditMode) {
-      return (
-        <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()}
-           style={{ cursor: editCursor }}>
-          {selRect(obj.x, obj.y, w, h)}
-          {bgLayer(obj.x, obj.y, w, h, 4)}
-          <rect x={obj.x + 2} y={obj.y + h / 2 - 9} width={18} height={18} rx={3}
-            fill="#334155" stroke="#64748b" strokeWidth={1.5} />
-          <path d={`M ${obj.x + 6} ${obj.y + h / 2} L ${obj.x + 10} ${obj.y + h / 2 + 4} L ${obj.x + 16} ${obj.y + h / 2 - 4}`}
-            stroke="#64748b" strokeWidth={1.5} fill="none" strokeLinecap="round" strokeLinejoin="round" />
-          <text x={obj.x + 28} y={obj.y + h / 2 + 5} fill="#e2e8f0" fontSize={13}>
-            {obj.label ?? "Checkbox"}
-          </text>
-        </g>
-      );
-    }
+    // WYSIWYG (2026-08-23): layout runtime anche in editor (input disabled).
 
-    // View mode: foreignObject
     return (
-      <>
+      <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()} style={{ cursor: editCursor }}>
+        {selRect(obj.x, obj.y, w, h)}
         {bgLayer(obj.x, obj.y, w, h, 4)}
-        <foreignObject x={obj.x} y={obj.y} width={w} height={h}>
+        <foreignObject x={obj.x} y={obj.y} width={w} height={h}
+          style={isEditMode ? { pointerEvents: "none" } : undefined}>
         <div
           style={{ display: "flex", alignItems: "center", gap: 8, height: "100%", cursor: obj.read_only ? "default" : "pointer" }}
           onClick={() => {
@@ -3955,7 +3948,7 @@ export function SvgObject(p: ObjProps) {
           )}
         </div>
         </foreignObject>
-      </>
+      </g>
     );
   }
 
@@ -3965,39 +3958,19 @@ export function SvgObject(p: ObjProps) {
     const opts = obj.options ?? [];
     const w = obj.width ?? 180;
     const isH = obj.orientation === "horizontal";
-    const itemW = isH ? Math.floor(w / Math.max(opts.length, 1)) : w;
     const itemH = 28;
     const totalH = obj.height ?? (isH ? itemH + (obj.label ? 20 : 0) : opts.length * itemH + (obj.label ? 20 : 0));
     const tv = obj.tag ? tagValues[obj.tag] : undefined;
     const currentVal = tv ? tv.value : null;
 
-    if (isEditMode) {
-      return (
-        <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()}
-           style={{ cursor: editCursor }}>
-          {selRect(obj.x, obj.y, w, totalH)}
-          {bgLayer(obj.x, obj.y, w, totalH, 4)}
-          {obj.label && <text x={obj.x} y={obj.y + 12} fill="#94a3b8" fontSize={11}>{obj.label}</text>}
-          {opts.map((opt, i) => {
-            const ox = isH ? obj.x + i * itemW : obj.x;
-            const oy = obj.y + (obj.label ? 20 : 0) + (isH ? 0 : i * itemH);
-            return (
-              <g key={i}>
-                <circle cx={ox + 9} cy={oy + 9} r={8} fill="transparent" stroke="#64748b" strokeWidth={1.5} />
-                {i === 0 && <circle cx={ox + 9} cy={oy + 9} r={4} fill="#3b82f6" />}
-                <text x={ox + 24} y={oy + 14} fill="#e2e8f0" fontSize={13}>{opt.label}</text>
-              </g>
-            );
-          })}
-        </g>
-      );
-    }
+    // WYSIWYG (2026-08-23): layout runtime anche in editor (input disabled).
 
-    // View mode: foreignObject
     return (
-      <>
+      <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()} style={{ cursor: editCursor }}>
+        {selRect(obj.x, obj.y, w, totalH)}
         {bgLayer(obj.x, obj.y, w, totalH, 4)}
-        <foreignObject x={obj.x} y={obj.y} width={w} height={totalH}>
+        <foreignObject x={obj.x} y={obj.y} width={w} height={totalH}
+          style={isEditMode ? { pointerEvents: "none" } : undefined}>
         <div
           style={{ display: "flex", flexDirection: "column", gap: 2 }}
         >
@@ -4010,7 +3983,7 @@ export function SvgObject(p: ObjProps) {
                 <input
                   type="radio"
                   name={obj.id}
-                  disabled={obj.read_only}
+                  disabled={obj.read_only || isEditMode}
                   checked={currentVal !== null && String(currentVal) === String(opt.value)}
                   onChange={() => guardedWrite(obj.tag!, opt.value as string | number | boolean)}
                   style={{ accentColor: obj.fill ?? "var(--brand-primary, #3b82f6)", cursor: obj.read_only ? "default" : "pointer" }}
@@ -4023,7 +3996,7 @@ export function SvgObject(p: ObjProps) {
           </div>
         </div>
         </foreignObject>
-      </>
+      </g>
     );
   }
 
@@ -4838,7 +4811,7 @@ export function SvgObject(p: ObjProps) {
     }
 
     // F6.10: rotazione continua (ventole/pompe/agitatori).
-    const spinActive = !isEditMode && (
+    const spinActive = (!isEditMode || fxPreview) && (
       obj.symbol_spin === "always" ||
       (obj.symbol_spin === "on_state" && state === "on") ||
       (obj.symbol_spin === "tag" && truthy(obj.symbol_spin_tag))
@@ -4847,7 +4820,7 @@ export function SvgObject(p: ObjProps) {
       ? { animation: `sws-spin ${obj.symbol_spin_s ?? 2}s linear infinite`, transformOrigin: "50px 50px" }
       : undefined;
     // F6.6: lampeggio per stato (entry.blink), sopra il blink universale.
-    const entryBlink = !isEditMode && !!stateEntry?.blink;
+    const entryBlink = (!isEditMode || fxPreview) && !!stateEntry?.blink;
 
     return (
       <g style={{ cursor: editCursor }}>
@@ -5160,6 +5133,24 @@ export function SvgObject(p: ObjProps) {
   }
 
   // ── IMAGE ───────────────────────────────────────────────────────────────────
+
+  if (obj.type === "image" && !obj.src) {
+    // WYSIWYG (2026-08-23): senza src l'oggetto era INVISIBILE e non
+    // selezionabile sul canvas (recuperabile solo dalla lista oggetti).
+    const w = obj.width ?? 120; const h = obj.height ?? 90;
+    return (
+      <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()} style={{ cursor: editCursor }}>
+        {selRect(obj.x, obj.y, w, h)}
+        <rect x={obj.x} y={obj.y} width={w} height={h} rx={4}
+          fill="rgba(148,163,184,0.06)" stroke={selected ? "#facc15" : "#475569"}
+          strokeWidth={selected ? 2 : 1} strokeDasharray="5 3" />
+        <text x={obj.x + w / 2} y={obj.y + h / 2 + 4} textAnchor="middle"
+          fill="#64748b" fontSize={11} style={{ pointerEvents: "none" }}>
+          🖼 {isEditMode ? "nessuna immagine (src vuoto)" : ""}
+        </text>
+      </g>
+    );
+  }
 
   if (obj.type === "image" && obj.src) {
     const w = obj.width ?? 100; const h = obj.height ?? 100;

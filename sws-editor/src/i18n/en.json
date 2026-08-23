@@ -105,7 +105,9 @@
     "fitPage": "Fit page",
     "fitPageTitle": "Fit the page to the window (Ctrl+Shift+0)",
     "fitPageUnavailable": "Page size not defined (fluid mode)",
-    "fitObjectsTitle": "Fit to objects"
+    "fitObjectsTitle": "Fit to objects",
+    "previewEffects": "Effects",
+    "previewEffectsTitle": "Preview runtime effects on the canvas: blink, spin, pipe flow, motion paths, alarm borders, stale. Off = calm editing."
   },
   "unsaved": {
     "title": "Unsaved changes",

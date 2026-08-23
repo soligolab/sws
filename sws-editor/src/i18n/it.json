@@ -105,7 +105,9 @@
     "fitPage": "Adatta pagina",
     "fitPageTitle": "Adatta la pagina alla finestra (Ctrl+Shift+0)",
     "fitPageUnavailable": "Dimensioni pagina non definite (modalità fluida)",
-    "fitObjectsTitle": "Adatta agli oggetti"
+    "fitObjectsTitle": "Adatta agli oggetti",
+    "previewEffects": "Effetti",
+    "previewEffectsTitle": "Anteprima effetti runtime nel canvas: lampeggi, rotazioni, flusso pipe, movimento su percorso, bordi allarme, stale. Spento = editing tranquillo."
   },
   "unsaved": {
     "title": "Modifiche non salvate",
