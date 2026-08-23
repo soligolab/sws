@@ -364,6 +364,9 @@ interface AppState {
    *  bordo allarme/stale/flusso pipe/rotazioni. Effimero, default off. */
   previewEffects: boolean;
   setPreviewEffects: (on: boolean) => void;
+  /** Crocino sul canvas per il waypoint in focus nella tabella MOVIMENTO. */
+  motionMarker: { x: number; y: number } | null;
+  setMotionMarker: (pt: { x: number; y: number } | null) => void;
   updateObjects: (ids: string[], patch: Partial<SynopticObject>) => void;
   duplicateObject: (id: string) => void;
   duplicateSelection: () => void;
@@ -1193,6 +1196,8 @@ export const useAppStore = create<AppState>((set, get) => {
     setCapturePathTarget: (id) => set({ capturePathTarget: id }),
     previewEffects: false,
     setPreviewEffects: (on) => set({ previewEffects: on }),
+    motionMarker: null,
+    setMotionMarker: (pt) => set({ motionMarker: pt }),
     updateObject: (id, patch) => {
       pushHistory("Modifica oggetto");
       set((s) => ({

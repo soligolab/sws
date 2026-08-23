@@ -1969,6 +1969,7 @@ function ObjectProps({
   // D (2026-08-23): cattura waypoint dal canvas — stato condiviso nello store.
   const capturePathTarget = useAppStore((st) => st.capturePathTarget);
   const setCapturePathTarget = useAppStore((st) => st.setCapturePathTarget);
+  const setMotionMarker = useAppStore((st) => st.setMotionMarker);
   const [imgBrowserOpen, setImgBrowserOpen] = useState(false);
   // Immagini di progetto per la sezione SFONDO: lista lazy (solo quando la
   // sezione esiste per il tipo selezionato) + input file per l'upload.
@@ -4126,11 +4127,23 @@ function ObjectProps({
                           <td style={{ padding: "1px 4px", color: "var(--brand-text-subtle, #64748b)" }}>{i + 1}</td>
                           <td style={{ padding: "1px 2px" }}>
                             <input type="number" style={{ ...INPUT, padding: "1px 4px", fontSize: 11 }} value={p.x}
-                              onChange={(e) => setPts(pts.map((q, j) => (j === i ? { ...q, x: Number(e.target.value) } : q)))} />
+                              onFocus={() => setMotionMarker(p)}
+                              onBlur={() => setMotionMarker(null)}
+                              onChange={(e) => {
+                                const x = Number(e.target.value);
+                                setMotionMarker({ x, y: p.y });
+                                setPts(pts.map((q, j) => (j === i ? { ...q, x } : q)));
+                              }} />
                           </td>
                           <td style={{ padding: "1px 2px" }}>
                             <input type="number" style={{ ...INPUT, padding: "1px 4px", fontSize: 11 }} value={p.y}
-                              onChange={(e) => setPts(pts.map((q, j) => (j === i ? { ...q, y: Number(e.target.value) } : q)))} />
+                              onFocus={() => setMotionMarker(p)}
+                              onBlur={() => setMotionMarker(null)}
+                              onChange={(e) => {
+                                const y = Number(e.target.value);
+                                setMotionMarker({ x: p.x, y });
+                                setPts(pts.map((q, j) => (j === i ? { ...q, y } : q)));
+                              }} />
                           </td>
                           <td style={{ textAlign: "center" }}>
                             <button style={{ background: "transparent", border: "none", color: "var(--brand-danger, #ef4444)", cursor: "pointer" }}

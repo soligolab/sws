@@ -573,6 +573,8 @@ export function SvgCanvas({
   const captureTarget = useAppStore((s) => s.capturePathTarget);
   // Toggle "Anteprima effetti": blink/motion/bordi/stale anche in edit.
   const previewEffects = useAppStore((s) => s.previewEffects);
+  // Crocino del waypoint attivo (focus/modifica di una cella della tabella).
+  const motionMarker = useAppStore((s) => s.motionMarker);
   useEffect(() => {
     if (!captureTarget) return;
     const onKey = (e: KeyboardEvent) => {
@@ -1464,7 +1466,12 @@ export function SvgCanvas({
         // F6.10: movimento su percorso — il valore di motion_tag (mappato
         // min..max → 0..1) posiziona l'oggetto lungo la polilinea; la
         // transizione CSS del wrapper rende il moto fluido tra i campioni.
-        let motionTf: string | undefined;
+        // Il moto usa offset-path/offset-distance: la transizione CSS segue
+        // la POLILINEA (curve/angoli inclusi). Con il vecchio translate +
+        // transition:transform il browser interpolava in linea retta tra le
+        // due posizioni — con 3+ punti l'oggetto tagliava l'angolo e
+        // sembrava muoversi solo sul primo segmento.
+        let motionStyle: React.CSSProperties | undefined;
         if (fxOn && obj.motion_tag && obj.motion_path && obj.motion_path.length >= 2) {
           const mv = Number(tagValues[obj.motion_tag]?.value);
           if (Number.isFinite(mv)) {
@@ -1472,31 +1479,17 @@ export function SvgCanvas({
             const hi = obj.motion_max ?? 100;
             const t01 = hi === lo ? 0 : Math.min(1, Math.max(0, (mv - lo) / (hi - lo)));
             const pts = obj.motion_path;
-            let total = 0;
-            const segs: number[] = [];
-            for (let i = 1; i < pts.length; i++) {
-              const d = Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y);
-              segs.push(d); total += d;
-            }
-            let dist = t01 * total;
-            let px = pts[pts.length - 1].x, py = pts[pts.length - 1].y;
-            for (let i = 0; i < segs.length; i++) {
-              if (dist <= segs[i] || i === segs.length - 1) {
-                const f = segs[i] === 0 ? 0 : Math.min(1, dist / segs[i]);
-                px = pts[i].x + (pts[i + 1].x - pts[i].x) * f;
-                py = pts[i].y + (pts[i + 1].y - pts[i].y) * f;
-                break;
-              }
-              dist -= segs[i];
-            }
-            motionTf = `translate(${(px - obj.x).toFixed(1)}, ${(py - obj.y).toFixed(1)})`;
+            const d = "M " + pts.map((p) => `${p.x - obj.x} ${p.y - obj.y}`).join(" L ");
+            motionStyle = {
+              offsetPath: `path("${d}")`,
+              offsetDistance: `${(t01 * 100).toFixed(2)}%`,
+              offsetRotate: "0deg", // l'oggetto trasla senza ruotare col percorso
+              transition: `offset-distance ${obj.transition_duration_ms ?? 300}ms linear`,
+            };
           }
         }
-        const motionStyle: React.CSSProperties | undefined = motionTf
-          ? { transition: `transform ${obj.transition_duration_ms ?? 300}ms linear` }
-          : undefined;
         return (
-          <g key={obj.id} style={{ ...gStyle, ...motionStyle }} transform={motionTf} data-blink={blinkOn ? "1" : undefined} onMouseDown={obj.type !== "grid" ? onPress : undefined} onMouseUp={obj.type !== "grid" ? onRelease : undefined}>
+          <g key={obj.id} style={{ ...gStyle, ...motionStyle }} data-blink={blinkOn ? "1" : undefined} onMouseDown={obj.type !== "grid" ? onPress : undefined} onMouseUp={obj.type !== "grid" ? onRelease : undefined}>
             <SvgObject
               obj={obj}
               objects={objects}
@@ -1561,6 +1554,17 @@ export function SvgCanvas({
         );
       })}
       </g>
+
+      {/* crocino del waypoint in focus nella tabella MOVIMENTO */}
+      {motionMarker && (
+        <g style={{ pointerEvents: "none" }}>
+          <line x1={motionMarker.x - 10} y1={motionMarker.y} x2={motionMarker.x + 10} y2={motionMarker.y}
+            stroke="#f59e0b" strokeWidth={1.5} />
+          <line x1={motionMarker.x} y1={motionMarker.y - 10} x2={motionMarker.x} y2={motionMarker.y + 10}
+            stroke="#f59e0b" strokeWidth={1.5} />
+          <circle cx={motionMarker.x} cy={motionMarker.y} r={4} fill="none" stroke="#f59e0b" strokeWidth={1.5} />
+        </g>
+      )}
 
       {selRect && (() => {
         const rx = Math.min(selRect.startX, selRect.curX);
