@@ -742,7 +742,10 @@
     "motionHint": "The object translates along the polyline: the tag value maps Min..Max to path start..end. Page coordinates.",
     "traces": "TRACES",
     "addTrace": "Add trace",
-    "traceLabel": "name"
+    "traceLabel": "name",
+    "stateTag": "State tag (alarm/stale/quality)",
+    "stateTagPh": "e.g. plant.power",
+    "statesPrecedence": "The STATES (N) below take precedence over these colors."
   },
   "shortcut": {
     "navCanvas": "Canvas navigation",

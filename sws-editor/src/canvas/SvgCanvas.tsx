@@ -3800,7 +3800,7 @@ export function SvgObject(p: ObjProps) {
       const rowH = Math.max(18, h - (rowY - obj.y) - 4);
       const btnW = 22;
       const inputW = Math.max(20, w - btnW - 12);
-      const currentText = currentVal !== undefined && Number.isFinite(currentVal) ? `${currentVal}${unit}` : "—";
+      const currentText = currentVal !== undefined && Number.isFinite(currentVal) ? `${(currentVal as number).toFixed(obj.decimals ?? 1)}${unit}` : "—";
       return (
         <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()} style={{ cursor: editCursor }}>
           {selRect(obj.x, obj.y, w, h)}
@@ -3843,7 +3843,7 @@ export function SvgObject(p: ObjProps) {
               <span style={{ color: "var(--brand-text-muted, #94a3b8)", fontSize: 11 }}>{obj.label}</span>
             )}
             <span style={{ color: "var(--brand-text-subtle, #64748b)", fontSize: 10 }}>
-              {t("viewer.currentValue")} {currentVal !== undefined && Number.isFinite(currentVal) ? `${currentVal}${unit}` : "—"}
+              {t("viewer.currentValue")} {currentVal !== undefined && Number.isFinite(currentVal) ? `${(currentVal as number).toFixed(obj.decimals ?? 1)}${unit}` : "—"}
             </span>
             <div style={{ display: "flex", gap: 4 }}>
               <input

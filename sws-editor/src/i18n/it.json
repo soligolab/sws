@@ -742,7 +742,10 @@
     "motionHint": "L'oggetto trasla lungo la polilinea: valore del tag mappato da Min..Max a inizio..fine percorso. Coordinate di pagina.",
     "traces": "TRACCE",
     "addTrace": "Aggiungi traccia",
-    "traceLabel": "nome"
+    "traceLabel": "nome",
+    "stateTag": "Tag di stato (allarme/stale/qualità)",
+    "stateTagPh": "es. plant.power",
+    "statesPrecedence": "Gli STATI (N) qui sotto hanno la precedenza su questi colori."
   },
   "shortcut": {
     "navCanvas": "Navigazione canvas",

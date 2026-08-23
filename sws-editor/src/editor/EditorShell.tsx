@@ -2252,7 +2252,10 @@ function ObjectProps({
           <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", marginTop: 8, marginBottom: 2, fontWeight: 700, letterSpacing: 0.5 }}>
             {t("props.bgSection")}
           </div>
-          {field(t("props.bgColor"),
+          {/* 2026-08-23: su rect/button/navbutton/lang_button lo sfondo È il
+              fill ("Colore" qui sopra): il colore doppio spariva sotto il
+              corpo opaco. Resta bg_image. */}
+          {!["rect", "button", "navbutton", "lang_button"].includes(obj.type) && field(t("props.bgColor"),
             <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
               <input
                 type="color"
@@ -2331,7 +2334,13 @@ function ObjectProps({
       )}
 
       {/* Tag binding */}
-      {!["navbutton","gauge","slider","checkbox","radio","led","progress_bar","trend","pipe","text_list","state_lamp","setpoint","xy_plot"].includes(obj.type) && field(t("props.tag"), tagInput("es. pump1.speed"))}
+      {!["navbutton","gauge","slider","checkbox","radio","led","progress_bar","trend","pipe","text_list","state_lamp","setpoint","xy_plot",
+        // 2026-08-23: tipi dove obj.tag NON è il dato primario (serie/figli
+        // propri) o è puro rumore — il campo vive nella sezione qualità come
+        // "Tag di stato" (alimenta bordo-allarme/stale/Bad-gray/QDot).
+        "kpi_tile","data_log","sparkline","bar_chart","pie_chart","table","symbol",
+        "alarm_viewer","alarm_bell","alarm_banner","recipe_panel","grid","faceplate",
+        "image","lang_button","lang_selector"].includes(obj.type) && field(t("props.tag"), tagInput("es. pump1.speed"))}
 
       {/* Token picker (T-40): insert {{key}} into the primary text field so the
           viewer resolves it per the project language table. */}
@@ -3435,9 +3444,16 @@ function ObjectProps({
               onChange={(v) => onChange({ alarm_tag: v || undefined })}
             />
           )}
-          {field(t("props.colorOff"),   <BindableInput obj={obj} propName="state_off_color"   onChange={onChange}>{colorInput("state_off_color",   "var(--brand-text-subtle, #64748b)")}</BindableInput>)}
-          {field(t("props.colorOn"),    <BindableInput obj={obj} propName="state_on_color"    onChange={onChange}>{colorInput("state_on_color",    "var(--brand-success, #22c55e)")}</BindableInput>)}
-          {field(t("props.colorAlarm"), <BindableInput obj={obj} propName="state_alarm_color" onChange={onChange}>{colorInput("state_alarm_color", "var(--brand-danger, #ef4444)")}</BindableInput>)}
+          <div style={(obj.symbol_states?.length ?? 0) > 0 ? { opacity: 0.45 } : undefined}>
+            {(obj.symbol_states?.length ?? 0) > 0 && (
+              <p style={{ fontSize: 10, color: "var(--brand-warning, #f59e0b)", margin: "0 0 4px" }}>
+                {t("props.statesPrecedence")}
+              </p>
+            )}
+            {field(t("props.colorOff"),   <BindableInput obj={obj} propName="state_off_color"   onChange={onChange}>{colorInput("state_off_color",   "var(--brand-text-subtle, #64748b)")}</BindableInput>)}
+            {field(t("props.colorOn"),    <BindableInput obj={obj} propName="state_on_color"    onChange={onChange}>{colorInput("state_on_color",    "var(--brand-success, #22c55e)")}</BindableInput>)}
+            {field(t("props.colorAlarm"), <BindableInput obj={obj} propName="state_alarm_color" onChange={onChange}>{colorInput("state_alarm_color", "var(--brand-danger, #ef4444)")}</BindableInput>)}
+          </div>
           {/* F6.6: stati N — mappa valore→colore/lampeggio/label sul valore di
               state_tag (valore esatto o range, come le VOCI di text_list). */}
           <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", marginTop: 8, marginBottom: 2, fontWeight: 700 }}>
@@ -3927,6 +3943,17 @@ function ObjectProps({
         storageKey="quality"
         hint={!obj.tag ? "Imposta un tag (sezione Tag) per personalizzare i colori." : undefined}
       >
+        {/* 2026-08-23: per i tipi dove obj.tag non è il dato primario, il tag
+            che alimenta allarme/stale/qualità si imposta QUI (il campo Tag
+            generico in alto per loro non esiste più). */}
+        {["bar_chart","pie_chart","table","symbol",
+          "alarm_viewer","alarm_bell","alarm_banner","recipe_panel","grid","faceplate",
+          "image","lang_button","lang_selector"].includes(obj.type) &&
+          field(t("props.stateTag"),
+            <TagInput style={INPUT} placeholder={t("props.stateTagPh")}
+              value={obj.tag ?? ""}
+              onChange={(v) => onChange({ tag: v || undefined })} />
+          )}
         {!obj.tag ? (
           <p style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", margin: "0 0 4px" }}>
             Questo oggetto non ha un tag bound. L'indicatore di qualità verrà
