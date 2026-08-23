@@ -27,6 +27,7 @@ interface TrendExpandedProps {
   showAlarmMarkers?: boolean;
   logScale?: boolean;
   yUnit?: string;
+  seriesLabels?: string[];
   bgColor?: string;
   bgImage?: string;
   axisColor?: string;
@@ -71,6 +72,7 @@ export function TrendExpandedModal({
   showAlarmMarkers,
   logScale,
   yUnit,
+  seriesLabels,
   bgColor,
   bgImage,
   axisColor,
@@ -274,7 +276,7 @@ export function TrendExpandedModal({
                       display: "inline-block", width: 8, height: 8, borderRadius: 2,
                       background: hidden ? "#334155" : colors[i],
                     }} />
-                    {t}
+                    {seriesLabels?.[i] ?? t}
                   </button>
                 );
               })}
@@ -409,6 +411,7 @@ export function TrendExpandedModal({
             showAlarmMarkers={showAlarmMarkers}
             logScale={logScale}
             yUnit={yUnit}
+            seriesLabels={seriesLabels}
             measureMode={measureMode}
             bgColor={bgColor}
             bgImage={bgImage}

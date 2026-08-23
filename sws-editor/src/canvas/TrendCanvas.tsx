@@ -148,6 +148,12 @@ interface TrendCanvasProps {
   /** F5.2x: modalità cursori di misura — il click piazza il cursore A, il
    *  secondo il B (letture per traccia + Δt/Δv); il terzo ricomincia. */
   measureMode?: boolean;
+  /** Nome per traccia in legenda/tooltip/cursori (fallback: l'id in tags). */
+  seriesLabels?: string[];
+  /** WYSIWYG editor (2026-08-23): una sola fetch al mount (niente polling);
+   *  le serie senza campioni ricevono una sinusoide demo attenuata con
+   *  watermark, così assi/scale/stili si vedono sempre. */
+  editPreview?: boolean;
   /** Chart background color (replaces the hardcoded slate). */
   bgColor?: string;
   /** Background image URL, drawn above bgColor and below grid/traces.
@@ -200,6 +206,25 @@ export const DEFAULT_DT_CONFIG: TrendDateTimeConfig = {
  * the runtime has been up for days), but a same-day trend doesn't need one.
  * Returns one line, or two (`line2` = time) when `twoLines` is set and a
  * date is actually being shown — a single line always covers "time only". */
+/** Sinusoidi demo per l'anteprima editor: le serie vuote ricevono una curva
+ *  d'esempio (fase/periodo diversi per indice) così assi, scale, colori e
+ *  stili configurati si vedono anche senza storico. */
+function withDemoFallback(data: Sample[][], fromMs: number, toMs: number): Sample[][] {
+  return data.map((serie, idx) => {
+    if (serie.length > 0) return serie;
+    const N = 60;
+    const out: Sample[] = [];
+    const mid = 50 + idx * 8;
+    const amp = 28 - idx * 4;
+    for (let i = 0; i <= N; i++) {
+      const ts = fromMs + ((toMs - fromMs) * i) / N;
+      const v = mid + amp * Math.sin((i / N) * Math.PI * (3 + idx) + idx * 1.3);
+      out.push({ ts_ms: ts, value: Math.round(v * 10) / 10, quality: "Good" });
+    }
+    return out;
+  });
+}
+
 function fmtDateTimeParts(ts: number, spanMs: number, cfg: TrendDateTimeConfig): { line1: string; line2?: string } {
   const d = new Date(ts);
   const pad = (n: number) => n.toString().padStart(2, "0");
@@ -284,6 +309,8 @@ export function TrendCanvas({
   logScale = false,
   yUnit,
   measureMode = false,
+  seriesLabels,
+  editPreview = false,
   bgColor,
   bgImage,
   axisColor,
@@ -395,10 +422,18 @@ export function TrendCanvas({
                 : Promise.resolve([] as Sample[])
             )
           );
-          if (!cancelled) { setSeries(data); setEnvelopes(new Map()); }
+          if (!cancelled) {
+            setSeries(editPreview ? withDemoFallback(data, fMs, tMs) : data);
+            setEnvelopes(new Map());
+          }
         }
       } catch {
-        // Runtime offline or tag missing — keep last data.
+        // Runtime offline or tag missing — keep last data. In anteprima
+        // editor, senza runtime, si disegnano comunque le sinusoidi demo.
+        if (editPreview && !cancelled) {
+          setSeries(withDemoFallback(tags.map(() => []), fMs, tMs));
+          setEnvelopes(new Map());
+        }
       }
       if (showAlarmMarkers) {
         try {
@@ -424,9 +459,13 @@ export function TrendCanvas({
       await fetch(tMin, tMin + tSpan, backfill);
     };
     tick();
+    if (editPreview) {
+      // WYSIWYG editor: una fetch sola, mai polling durante l'editing.
+      return () => { cancelled = true; };
+    }
     const id = setInterval(tick, pollMs);
     return () => { cancelled = true; clearInterval(id); };
-  }, [tags.join(","), windowS, pollMs, opcuaBackfill, isHistorical, explicitFromMs, explicitToMs, offsetMs, showAlarmMarkers]);
+  }, [tags.join(","), windowS, pollMs, opcuaBackfill, isHistorical, explicitFromMs, explicitToMs, offsetMs, showAlarmMarkers, editPreview]);
 
   // Layout constants for the plot area
   const PAD_TOP    = 6 + (tags.length > 1 ? 14 : 0); // legend space when multi-tag
@@ -883,15 +922,25 @@ export function TrendCanvas({
       const cy = PAD_TOP - 8;
       tags.forEach((t, idx) => {
         if (!t) return;
+        const name = seriesLabels?.[idx] ?? t;
         const hidden = effHidden.has(idx);
         ctx.fillStyle = hidden ? "#334155" : colors[idx];
         ctx.fillRect(cx, cy - 4, 8, 8);
         ctx.fillStyle = hidden ? "#475569" : "#cbd5e1";
-        ctx.fillText(t, cx + 12, cy);
-        const w = ctx.measureText(t).width;
+        ctx.fillText(name, cx + 12, cy);
+        const w = ctx.measureText(name).width;
         legendBoxesRef.current.push({ x0: cx, x1: cx + 12 + w, y0: cy - 7, y1: cy + 7, idx });
         cx += 12 + w + 12;
       });
+    }
+
+    // WYSIWYG: watermark anteprima (i dati potrebbero essere sinusoidi demo)
+    if (editPreview) {
+      ctx.fillStyle = "rgba(148, 163, 184, 0.35)";
+      ctx.font = "italic 10px sans-serif";
+      ctx.textAlign = "right";
+      ctx.textBaseline = "bottom";
+      ctx.fillText("anteprima", PAD_LEFT + plotW - 4, PAD_TOP + plotH - 4);
     }
 
     // ── F5.2x: cursori di misura ──
@@ -934,7 +983,7 @@ export function TrendCanvas({
         lines.push({ text: `${ci === 0 ? "A" : "B"}: ${tp.line2 ? `${tp.line2} ` : ""}${tp.line1}`, color: "#f59e0b" });
         for (const i of visIdx) {
           const v = nearestVal(i, ts);
-          lines.push({ text: `  ${tags[i]}: ${v === null ? "—" : fmtValue(v)}`, color: colors[i] });
+          lines.push({ text: `  ${seriesLabels?.[i] ?? tags[i]}: ${v === null ? "—" : fmtValue(v)}`, color: colors[i] });
         }
       });
       if (cursors.length === 2) {
@@ -945,7 +994,7 @@ export function TrendCanvas({
           const va = nearestVal(i, cursors[0]);
           const vb = nearestVal(i, cursors[1]);
           if (va !== null && vb !== null) {
-            lines.push({ text: `  Δ${tags[i]}: ${fmtValue(vb - va)}`, color: colors[i] });
+            lines.push({ text: `  Δ${seriesLabels?.[i] ?? tags[i]}: ${fmtValue(vb - va)}`, color: colors[i] });
           }
         }
       }
@@ -1015,7 +1064,7 @@ export function TrendCanvas({
         const n = sampleToNumber(best.value);
         if (n === null) return;
         const y = yAtFor(idx)(n);
-        hits.push({ tag: tags[idx] ?? "", color: colors[idx], value: n, y });
+        hits.push({ tag: seriesLabels?.[idx] ?? tags[idx] ?? "", color: colors[idx], value: n, y });
         // Dot on the sample
         ctx.fillStyle = colors[idx];
         ctx.beginPath();
@@ -1069,7 +1118,7 @@ export function TrendCanvas({
         ctx.fillText(fmtValue(lastN), PAD_LEFT + plotW - 4, PAD_TOP + 4);
       }
     }
-  }, [series, envelopes, width, height, colors, yMin, yMax, hoverX, tags.join(","), windowS, isHistorical, explicitFromMs, explicitToMs, offsetMs, effHidden, seriesStyles, dragStartX, dragCurX, dtDateOrder, dtSeparator, dtTimeFormat, dtShowSeconds, dtShowYear, dtTwoLines, dtAlwaysShowDate, showThresholds, warnLow, warnHigh, alarmLow, alarmHigh, showAlarmMarkers, alarmEvents, bgColor, bgImage, bgImgTick, axisColor, gridColor, logScale, yUnit, cursors, measureMode]);
+  }, [series, envelopes, width, height, colors, yMin, yMax, hoverX, tags.join(","), windowS, isHistorical, explicitFromMs, explicitToMs, offsetMs, effHidden, seriesStyles, dragStartX, dragCurX, dtDateOrder, dtSeparator, dtTimeFormat, dtShowSeconds, dtShowYear, dtTwoLines, dtAlwaysShowDate, showThresholds, warnLow, warnHigh, alarmLow, alarmHigh, showAlarmMarkers, alarmEvents, bgColor, bgImage, bgImgTick, axisColor, gridColor, logScale, yUnit, cursors, measureMode, seriesLabels, editPreview]);
 
   const hasSeries = series.some((s) => s.length > 0);
 

@@ -77,7 +77,8 @@ export function collectTagIds(
         else addIf(ids, v.tag);
       }
     }
-    for (const t of obj.extra_tags ?? []) addIf(ids, t);
+    for (const t of obj.extra_tags ?? []) addIf(ids, t); // legacy pre-migrazione
+    for (const tr of obj.trend_tags ?? []) addIf(ids, tr.tag);
     for (const r of obj.table_rows ?? []) addIf(ids, r.tag);
     for (const s of obj.bar_series ?? []) addIf(ids, s.tag);
     for (const s of obj.pie_slices ?? []) addIf(ids, s.tag);

@@ -11,6 +11,64 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### Fixed
+
+- **Le azioni predefinite del pulsante non facevano niente** ("Naviga a URL", "Login",
+  "Logout"): il canvas dichiarava e consumava `onButtonAction` ma nessun chiamante la
+  passava. Ora navigano davvero, con nuovo campo **"Apri in"** (scheda nuova, default, o
+  stessa scheda), schema `https://` aggiunto se l'URL è scritto senza (`www.esempio.it`) e
+  fallback alla stessa scheda se il popup viene bloccato. Login apre la schermata di accesso
+  sopra il sinottico; Logout torna al Viewer anonimo senza ricaricare. Nuovo capitolo 4 in
+  `docs/HOWTO.md`. Le tre azioni restano web-only (LVGL non le modella).
+- **Setpoint, checkbox, radio e sparkline non erano più selezionabili col mouse** nell'editor
+  dopo il passaggio al rendering WYSIWYG: con il contenuto sotto `pointerEvents:none` non
+  restava nessuna geometria da cliccare. Aggiunto un hit-rect trasparente su tutti i tipi del
+  pattern, verificato da `scripts/check_wysiwyg.sh` (12 tipi cliccati uno per uno).
+
+### Changed
+
+- **Trend: tracce unificate `trend_tags[]`** (migrazione automatica al load, taglio netto):
+  un'unica sezione TRACCE in cima al pannello con tag+nome+colore+stile per riga; eliminati
+  il campo Tag doppio, ALTRI TAG (OVERLAY) e line_color; corretti tre bug di disallineamento
+  stili. I runtime/LVGL più vecchi mostrano trend vuoti finché non aggiornati.
+- **Editor WYSIWYG** (regola permanente in CLAUDE.md): trend con assi/griglia/scale reali
+  anche in editor (storico una tantum + curve demo), setpoint identico al runtime (⌨
+  visibile), bar/pie/kpi/sparkline/data_log/radio/checkbox reali, image senza src
+  selezionabile, W/H per tutti i tipi box, toggle "▶ Effetti" per previsualizzare lampeggi/
+  movimenti/bordi allarme/flusso pipe. Pannello: via i campi doppi (Tag generico → "Tag di
+  stato" dove non primario, bg_color nascosto dove ridondante).
+- **Movimento su percorso**: waypoint come tabella + pulsante ＋ Cattura dal canvas; nuova
+  **ancora del percorso** (`motion_anchor`) con il **centro** dell'oggetto come default
+  (prima il path guidava l'angolo alto-sinistra).
+- **Coda WYSIWYG chiusa**: slider contenuto nell'altezza dichiarata (prima la label sfondava
+  il box), alarm_viewer/alarm_bell/alarm_banner/recipe_panel/lang_selector/xy_plot con widget
+  veri in editor, faceplate con figli renderizzati come a runtime e sfondo che segue
+  `faceplate_scale`.
+- **Spinner dei campi numerici** sempre visibili e larghi il doppio (prima ~10px e solo in
+  hover: difficili da centrare col mouse).
+
+### Added
+
+- **Tab Variabili: ordinamento, filtri per colonna e variabili non usate in evidenza** —
+  header cliccabili con ▲/▼, riga di filtri (testo su Id/Descrizione, select Tipo/Storico/
+  Uso), contatore N/M; le variabili non referenziate da pagine/allarmi/espressioni/script
+  hanno pallino ambra, riga tinta e tooltip (ricette e funzioni Python escluse dal
+  controllo, dichiarato). L'ordinamento è una vista: l'ordine su disco non cambia.
+
+### Added (programma SCADA-widgets, fase F6 — faceplate 2.0 e simboli)
+
+- **Faceplate 2.0**: la sostituzione dei parametri copre TUTTI i campi (state_tag, binding,
+  soglie, celle grid, faceplate annidati); parametri tipizzati con default e obbligatorietà;
+  **popup al click** (`open_faceplate`) parametrizzato; scaling dei figli al box dell'istanza
+  e override per-figlio; trova-usi per definizione.
+- **Simboli**: stati N con mappatura valore→colore/lampeggio/label; livello continuo dal tag
+  (tank/silo); **13 simboli ISA nuovi** (valvole, filtro, soffiante, silo, nastro, ciclone,
+  colonna, forno, chiller); **editor di simboli multi-stato** (import SVG + scelta elementi
+  colorabili con anteprima nei tre stati).
+- **Animazioni**: rotazione continua dei simboli, flusso animato nelle pipe (direzione dal
+  segno del tag), movimento su percorso per qualunque oggetto — tutte disattivate da
+  `prefers-reduced-motion`.
+
 ### Added (programma SCADA-widgets, fasi F2 + F3 + F4 + F5 parziale)
 
 - **Storico 2.0 (F5, grosso)**: aggregazione a bucket server-side (`bucket_ms` su

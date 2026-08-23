@@ -3,6 +3,7 @@ import { api, setAuthToken } from "@/api/client";
 import { applyAppearance, getStoredMode, type ThemeMode } from "@/theme";
 import { genId } from "@/id";
 import { getStoredProjectLang, setStoredProjectLang, getStoredEditorPreviewLang, setStoredEditorPreviewLang } from "@/i18n/projectI18n";
+import { normalizeTrendObjects } from "@/canvas/trendModel";
 import type {
   AlarmDef,
   LanguageTable,
@@ -355,6 +356,17 @@ interface AppState {
   clearSelection: () => void;
   addObject: (partial: Omit<SynopticObject, "id">) => void;
   updateObject: (id: string, patch: Partial<SynopticObject>) => void;
+  /** Cattura waypoint dal canvas (MOVIMENTO SU PERCORSO): id dell'oggetto in
+   *  cattura, o null. Effimero, non persistito. */
+  capturePathTarget: string | null;
+  setCapturePathTarget: (id: string | null) => void;
+  /** Toggle toolbar "Anteprima effetti": applica in editor blink/motion/
+   *  bordo allarme/stale/flusso pipe/rotazioni. Effimero, default off. */
+  previewEffects: boolean;
+  setPreviewEffects: (on: boolean) => void;
+  /** Crocino sul canvas per il waypoint in focus nella tabella MOVIMENTO. */
+  motionMarker: { x: number; y: number } | null;
+  setMotionMarker: (pt: { x: number; y: number } | null) => void;
   updateObjects: (ids: string[], patch: Partial<SynopticObject>) => void;
   duplicateObject: (id: string) => void;
   duplicateSelection: () => void;
@@ -765,7 +777,12 @@ export const useAppStore = create<AppState>((set, get) => {
 
     setPages: (pages, currentPageId) =>
       set({
-        pages,
+        // Migrazione trend legacy → trend_tags al load (taglio netto,
+        // 2026-08-23): il primo salvataggio scrive solo il formato nuovo.
+        pages: pages.map((p) => {
+          const objs = normalizeTrendObjects(p.objects);
+          return objs === p.objects ? p : { ...p, objects: objs };
+        }),
         currentPageId: currentPageId ?? pages[0]?.id ?? first.id,
         selectedObjectId: null,
         selectedObjectIds: [],
@@ -1175,6 +1192,12 @@ export const useAppStore = create<AppState>((set, get) => {
       });
     },
 
+    capturePathTarget: null,
+    setCapturePathTarget: (id) => set({ capturePathTarget: id }),
+    previewEffects: false,
+    setPreviewEffects: (on) => set({ previewEffects: on }),
+    motionMarker: null,
+    setMotionMarker: (pt) => set({ motionMarker: pt }),
     updateObject: (id, patch) => {
       pushHistory("Modifica oggetto");
       set((s) => ({

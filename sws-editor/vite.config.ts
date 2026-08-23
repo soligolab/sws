@@ -77,6 +77,10 @@ export default defineConfig({
     // le contava come 5 file falliti a ogni esecuzione (fallisce l'import di
     // `@playwright/test` fuori dal suo runner), rendendo `pnpm test` rosso
     // sempre e quindi inutile come verifica. Le e2e girano con `pnpm test:e2e`.
-    include: ["tests/**/*.{test,spec}.{ts,tsx}"],
+    // Anche i test colocati in src/ (es. expr/engine.test.ts,
+    // canvas/trendModel.test.ts): con il solo tests/** giravano MAI —
+    // scoperto il 2026-08-23, i "7 test del motore espressioni" non erano
+    // mai stati eseguiti davvero.
+    include: ["tests/**/*.{test,spec}.{ts,tsx}", "src/**/*.{test,spec}.{ts,tsx}"],
   },
 });

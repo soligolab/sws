@@ -139,7 +139,23 @@ pub struct SynopticObject {
     #[serde(skip_serializing_if = "Option::is_none")] pub trend_show_thresholds:     Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")] pub trend_show_alarm_markers:  Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")] pub trend_log_scale:           Option<bool>,
+    /// Tracce unificate del trend (migrazione 2026-08-23): [{tag,label,color,…}].
+    /// I campi legacy tag/extra_tags/trend_series_styles/line_color restano per
+    /// i progetti non ancora ri-salvati.
+    #[serde(skip_serializing_if = "Option::is_none")] pub trend_tags:                Option<Value>,
     #[serde(skip_serializing_if = "Option::is_none")] pub datalog_page_size:         Option<f64>,
+    // F6.6/F6.10 — simboli N-stati, rotazione, flusso pipe
+    #[serde(skip_serializing_if = "Option::is_none")] pub symbol_states:             Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub symbol_spin:               Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub symbol_spin_tag:           Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub symbol_spin_s:             Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub pipe_flow:                 Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub pipe_flow_tag:             Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub motion_path:               Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub motion_tag:                Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub motion_min:                Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub motion_max:                Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub motion_anchor:             Option<String>,
     // XY plot (live point + trail, not a time series). `tag` above is the X axis.
     #[serde(skip_serializing_if = "Option::is_none")] pub y_tag: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")] pub xy_trail_s: Option<f64>,
@@ -273,6 +289,8 @@ pub struct SynopticObject {
     // Faceplate instance (type === "faceplate") — same pre-existing gap.
     #[serde(skip_serializing_if = "Option::is_none")] pub faceplate_id:          Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")] pub faceplate_params:      Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub faceplate_scale:       Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub faceplate_overrides:   Option<Value>,
     // Text list (type === "text_list") — same pre-existing gap.
     #[serde(skip_serializing_if = "Option::is_none")] pub text_list_entries:       Option<Value>,
     #[serde(skip_serializing_if = "Option::is_none")] pub text_list_default:       Option<String>,
@@ -308,9 +326,10 @@ pub struct SynopticObject {
 pub struct FaceplateDef {
     pub id: String,
     pub label: String,
-    /// Parameter names the faceplate exposes (e.g. ["tag_prefix", "label"]).
+    /// Parametri del faceplate (F6.2): stringa nuda (forma storica) oppure
+    /// oggetto tipizzato {name, type, default, required}. Passthrough opaco.
     #[serde(default)]
-    pub params: Vec<String>,
+    pub params: Vec<serde_json::Value>,
     /// Template objects. Positions are relative to the faceplate origin (0,0).
     #[serde(default)]
     pub objects: Vec<serde_json::Value>,

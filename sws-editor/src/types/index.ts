@@ -134,8 +134,27 @@ export interface TableRow {
   format?: string;
 }
 
-/** Per-trace style override for a trend chart series (index 0 = the trend
- *  object's own `tag`, index i = `extra_tags[i-1]`). */
+/** Traccia unificata del trend (migrazione 2026-08-23, taglio netto):
+ *  tag + stile in un'unica voce. Sostituisce il trio legacy
+ *  tag/extra_tags/trend_series_styles (+line_color), che resta nel tipo solo
+ *  per la migrazione automatica al load (normalizeTrendObject). */
+export interface TrendTrace {
+  tag: string;
+  /** Nome mostrato in legenda/tooltip (fallback: l'id del tag). */
+  label?: string;
+  color?: string;
+  /** Spessore in px. Default 1.5. */
+  width?: number;
+  dash?: "solid" | "dashed" | "dotted";
+  fill?: boolean;
+  fill_opacity?: number;
+  smooth?: boolean;
+  own_scale?: boolean;
+  hidden?: boolean;
+}
+
+/** LEGACY (pre trend_tags) — per-trace style override (index 0 = the trend
+ *  object's own `tag`, index i = `extra_tags[i-1]`). Migrato al load. */
 export interface TrendSeriesStyle {
   color?: string;
   /** Stroke width in px. Default 1.5. */
@@ -169,7 +188,12 @@ export interface TrendSeriesStyle {
 export type ButtonAction =
   | { type: "login" }
   | { type: "logout" }
-  | { type: "navigate"; url: string };
+  /** `target`: dove si apre l'URL. Assente = "blank" (scheda nuova, il
+   *  sinottico resta aperto sotto) — default scelto dal maintainer 2026-08-23. */
+  | { type: "navigate"; url: string; target?: "self" | "blank" }
+  /** F6.3: apre un faceplate come popup, parametrizzato — il gesto SCADA
+   *  "click sulla pompa → finestra della pompa". */
+  | { type: "open_faceplate"; faceplate_id: string; params?: Record<string, string> };
 
 export interface SynopticObject {
   id: string;
@@ -199,6 +223,31 @@ export interface SynopticObject {
   trend_log_scale?: boolean;
   /** Data log (F5.4): righe per pagina della tabella storica (default 25). */
   datalog_page_size?: number;
+  /** Simbolo N-stati (F6.6): mappa valore→stato sul valore di state_tag
+   *  (valore esatto o range, come text_list_entries). L'entry attiva colora
+   *  il simbolo (e il badge), può lampeggiare e mostrare una label sotto.
+   *  alarm_tag vince comunque. Assente = 3 stati truthy storici. */
+  symbol_states?: TextListEntry[];
+  /** Rotazione continua del simbolo (F6.10): "on_state" = gira quando lo
+   *  stato è on, "tag" = quando symbol_spin_tag è truthy, "always" = sempre. */
+  symbol_spin?: "always" | "on_state" | "tag";
+  symbol_spin_tag?: string;
+  /** Periodo di rotazione in secondi (default 2). */
+  symbol_spin_s?: number;
+  /** Flusso animato nella pipe (F6.10): tratteggio in movimento quando
+   *  pipe_flow_tag è truthy (o sempre, se non impostato); velocità/direzione
+   *  dal segno del valore quando numerico. */
+  pipe_flow?: boolean;
+  pipe_flow_tag?: string;
+  /** Movimento su percorso (F6.10): l'oggetto trasla lungo la polilinea in
+   *  funzione del valore di motion_tag mappato da motion_min..motion_max a
+   *  0..1 (carrelli, ascensori, navette). Punti in coordinate pagina. */
+  motion_path?: PipePoint[];
+  motion_tag?: string;
+  motion_min?: number;
+  motion_max?: number;
+  /** Punto dell'oggetto agganciato al percorso (default: centro). */
+  motion_anchor?: "center" | "top_left";
   tag?: string;
   format?: string;
   src?: string;
@@ -292,6 +341,9 @@ export interface SynopticObject {
   y_max?: number;
   line_color?: string;
   /** Additional tags to overlay on the same trend (multi-series). */
+  /** Tracce del trend (formato nuovo, vedi TrendTrace). */
+  trend_tags?: TrendTrace[];
+  /** LEGACY: tracce 2+ del trend — migrato in trend_tags al load. */
   extra_tags?: string[];
   /** When true, backfills from the OPC-UA server's historian on mount. */
   opcua_backfill?: boolean;
@@ -479,6 +531,13 @@ export interface SynopticObject {
   faceplate_id?: string;
   /** Parameter values substituted into the faceplate template (e.g. {tag_prefix: "pump1"}). */
   faceplate_params?: Record<string, string>;
+  /** F6.4: i figli scalano al box dell'istanza (viewBox virtuale dal bbox
+   *  della definizione). Opt-in: default false = coordinate assolute storiche. */
+  faceplate_scale?: boolean;
+  /** F6.4: override per-istanza di proprietà dei figli, per id figlio
+   *  (es. { "obj-3": { fill: "#f00" } }) — applicati DOPO la sostituzione
+   *  parametri ("link spezzato" rispetto al template). */
+  faceplate_overrides?: Record<string, Partial<SynopticObject>>;
   // ── Text List (type === "text_list") ──────────────────────────────────
   text_list_entries?: TextListEntry[];
   text_list_default?: string;
@@ -533,11 +592,21 @@ export interface SynopticObject {
 
 /** A reusable parametric component. `objects` may contain `{param}` placeholders
  *  in tag/label/text fields which are replaced at render-time per instance. */
+/** Parametro tipizzato di un faceplate (F6.2). La forma storica (stringa
+ *  nuda = solo nome) resta valida. */
+export interface FaceplateParamDef {
+  name: string;
+  /** Guida la UI dell'istanza: TagInput, colore, numero o testo libero. */
+  type?: "tag" | "string" | "number" | "color";
+  default?: string;
+  required?: boolean;
+}
+
 export interface FaceplateDef {
   id: string;
   label: string;
   /** Names of parameters the faceplate accepts (e.g. ["tag_prefix", "label"]). */
-  params: string[];
+  params: (string | FaceplateParamDef)[];
   /** Template objects. Position is relative to the faceplate origin (0,0). */
   objects: SynopticObject[];
 }
@@ -601,6 +670,11 @@ export interface CustomSymbolAttribution {
 }
 
 export interface CustomSymbol {
+  /** F6.9 — simbolo multi-stato: markup SVG inline (in alternativa a `url`).
+   *  Gli elementi i cui id sono in `colorable_ids` vengono ricolorati con il
+   *  colore dello stato corrente (off/on/alarm o symbol_states). */
+  svg?: string;
+  colorable_ids?: string[];
   id: string;
   label: string;
   url: string;
@@ -1421,6 +1495,8 @@ export interface TextListEntry {
   value: number | string | boolean;
   label: string;
   color?: string;
+  /** F6.6: l'entry attiva fa lampeggiare l'oggetto (usato dai symbol_states). */
+  blink?: boolean;
   /** Optional validity range — when either bound is set, this entry matches
    *  by range (`value_min <= v < value_max`, half-open) instead of by exact
    *  `value`. Lets entries express buckets like "10-20 → marcia lenta"

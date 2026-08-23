@@ -68,6 +68,15 @@
          viewer e IDE gestiscono lo scorrimento nei propri contenitori. */
       html, body { height: 100%; margin: 0; overflow: hidden; }
       #root { height: 100%; }
+      /* Spinner dei campi numerici: Chromium li disegna minuscoli e solo in
+         hover — bersaglio troppo piccolo col mouse (richiesta 2026-08-23).
+         Sempre visibili e ~2x più larghi. Solo Chromium: Firefox li ignora. */
+      input[type="number"]::-webkit-inner-spin-button {
+        opacity: 1;
+        width: 20px;
+        align-self: stretch;
+        cursor: pointer;
+      }
     </style>
     <script>
       /* Pre-paint: set data-theme from the stored preference (default: follow

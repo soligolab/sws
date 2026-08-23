@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api, getAuthToken, getBaseUrl, RuntimeUnavailableError, type CreateUserBody, type DiscoveredRuntime, type SystemStatus, type UpdateUserBody, type UserRole, type UserSummary } from "@/api/client";
 import { getBrand } from "@/branding";
@@ -11,6 +11,9 @@ import { PythonEditor, type PythonEditorHandle } from "@/components/PythonEditor
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { UiLangSelect } from "@/components/UiLangSelect";
 import { SvgObject, substituteFaceplateParams } from "@/canvas/SvgCanvas";
+import type { FaceplateParamDef } from "@/types";
+import { applyStateColor, listSvgIds, parseSvg, sanitizeSvg } from "@/symbols/customSvg";
+import { collectTagIds } from "@/runtime-view/collectTagIds";
 import { selectIsDirty, useAppStore } from "@/store";
 import { sourceTagIds } from "@/tagCatalog";
 import { canConfigureProject } from "@/auth/permissions";
@@ -368,6 +371,8 @@ function SaveBar({
 
 // ── TAG tab ───────────────────────────────────────────────────────────────────
 
+type TagSortCol = "id" | "description" | "data_type" | "history" | "datastore_id" | "value";
+
 function TagsTab() {
   const { t } = useTranslation();
   const storeProject        = useAppStore((s) => s.project);
@@ -382,6 +387,17 @@ function TagsTab() {
   const [exprOpen, setExprOpen] = useState<Set<number>>(new Set());
   // F1: riga espandibile "⚙" con unità/decimali/scaling/range/limiti per tag.
   const [metaOpen, setMetaOpen] = useState<Set<number>>(new Set());
+  // Sort + filtri per colonna e vista "non usate". L'ordinamento agisce su
+  // una vista derivata [{tag, origIdx}]: lo stato `tags` NON viene riordinato
+  // (le righe editano per indice, e su disco l'ordine resta quello originale).
+  const [sort, setSort] = useState<{ col: TagSortCol; dir: 1 | -1 } | null>(null);
+  const [fltId, setFltId] = useState("");
+  const [fltDesc, setFltDesc] = useState("");
+  const [fltType, setFltType] = useState("");
+  const [fltHist, setFltHist] = useState("");
+  const [fltUse, setFltUse] = useState("");
+  const allPages = useAppStore((s) => s.pages);
+  const allFaceplates = useAppStore((s) => s.faceplates);
   const [showImport, setShowImport] = useState(false);
   const [importText, setImportText] = useState("");
   const [importMsg, setImportMsg]   = useState<string | null>(null);
@@ -424,6 +440,81 @@ function TagsTab() {
     t.raw_min !== undefined || t.raw_max !== undefined || t.eng_min !== undefined || t.eng_max !== undefined ||
     t.range_lo !== undefined || t.range_hi !== undefined ||
     t.limit_lo_lo !== undefined || t.limit_lo !== undefined || t.limit_hi !== undefined || t.limit_hi_hi !== undefined;
+
+  // Tag → dove è usato (pagine via collectTagIds, allarmi, espressioni di
+  // altri tag, script globali). Ricette e funzioni Python restano fuori
+  // (tag potenzialmente dinamici): "non usata" = candidata, da verificare.
+  const usedTagInfo = useMemo(() => {
+    const m = new Map<string, string[]>();
+    const add = (id: string, where: string) => {
+      if (!id) return;
+      const arr = m.get(id) ?? [];
+      if (arr.length < 8 && !arr.includes(where)) arr.push(where);
+      m.set(id, arr);
+    };
+    for (const pg of allPages) {
+      for (const id of collectTagIds(pg.objects, allFaceplates)) add(id, `pagina "${pg.name}"`);
+    }
+    for (const a of storeProject?.alarms ?? []) {
+      add(a.tag, `allarme "${a.id}"`);
+      if (a.inhibit_tag) add(a.inhibit_tag, `allarme "${a.id}" (inhibit)`);
+    }
+    const EXPR_RE = /tags\["([^"]+)"\]/g;
+    for (const td of tags) {
+      if (!td.expression) continue;
+      for (const mm of td.expression.matchAll(EXPR_RE)) add(mm[1], `espressione di "${td.id}"`);
+    }
+    for (const gs of storeProject?.global_scripts ?? []) {
+      for (const mm of gs.code.matchAll(EXPR_RE)) add(mm[1], `script "${gs.id}"`);
+    }
+    return m;
+  }, [allPages, allFaceplates, storeProject?.alarms, storeProject?.global_scripts, tags]);
+
+  // Vista derivata: filtro → sort; ogni riga conserva origIdx per l'editing.
+  const view = useMemo(() => {
+    let rows = tags.map((tag, origIdx) => ({ tag, origIdx }));
+    const has = (v: string | undefined, q: string) => (v ?? "").toLowerCase().includes(q.toLowerCase());
+    if (fltId) rows = rows.filter((r) => has(r.tag.id, fltId));
+    if (fltDesc) rows = rows.filter((r) => has(r.tag.description, fltDesc));
+    if (fltType) rows = rows.filter((r) => (r.tag.data_type ?? "float") === fltType);
+    if (fltHist) rows = rows.filter((r) => (r.tag.history ? "yes" : "no") === fltHist);
+    if (fltUse) rows = rows.filter((r) => (usedTagInfo.has(r.tag.id) ? "used" : "unused") === fltUse);
+    if (sort) {
+      const { col, dir } = sort;
+      const key = (r: { tag: TagDef }): string | number | boolean => {
+        switch (col) {
+          case "history": return r.tag.history ?? false;
+          case "datastore_id": return r.tag.datastore_id ?? "";
+          case "value": {
+            const v = tagValues[r.tag.id]?.value;
+            return v === undefined ? "" : (v as string | number | boolean);
+          }
+          default: return (r.tag[col] ?? "") as string;
+        }
+      };
+      rows = [...rows].sort((a, b) => {
+        const va = key(a); const vb = key(b);
+        if (col === "value") {
+          // i tag senza valore live in fondo, qualunque direzione
+          if (va === "" && vb !== "") return 1;
+          if (vb === "" && va !== "") return -1;
+          const na = Number(va); const nb = Number(vb);
+          if (Number.isFinite(na) && Number.isFinite(nb)) return (na - nb) * dir;
+        }
+        if (typeof va === "boolean" && typeof vb === "boolean") {
+          return (va === vb ? 0 : va ? 1 : -1) * dir;
+        }
+        return String(va).localeCompare(String(vb), undefined, { sensitivity: "base", numeric: true }) * dir;
+      });
+    }
+    return rows;
+  }, [tags, sort, fltId, fltDesc, fltType, fltHist, fltUse, usedTagInfo, tagValues]);
+
+  const filtersActive = !!(fltId || fltDesc || fltType || fltHist || fltUse);
+  const clearFilters = () => { setFltId(""); setFltDesc(""); setFltType(""); setFltHist(""); setFltUse(""); };
+  const clickSort = (col: TagSortCol) =>
+    setSort((prev) => (prev?.col !== col ? { col, dir: 1 } : prev.dir === 1 ? { col, dir: -1 } : null));
+  const sortMark = (col: TagSortCol) => (sort?.col === col ? (sort.dir === 1 ? " ▲" : " ▼") : "");
 
   const handleSave = async () => {
     const valid = tags.filter((t) => t.id.trim() !== "");
@@ -546,21 +637,76 @@ function TagsTab() {
       <table style={S.table}>
         <thead>
           <tr>
-            <th style={{ ...S.th, width: "22%" }}>{t("cfg.tagId")}</th>
-            <th style={{ ...S.th, width: "25%" }}>{t("cfg.description")}</th>
-            <th style={{ ...S.th, width: "9%" }}>{t("cfg.type")}</th>
-            <th style={{ ...S.th, width: "6%", textAlign: "center" }}>{t("cfg.history")}</th>
-            <th style={{ ...S.th, width: "16%" }}>{t("cfg.datastore")}</th>
-            <th style={{ ...S.th, width: "12%" }}>{t("cfg.liveValue")}</th>
+            <th style={{ ...S.th, width: 18 }} title={t("cfg.unusedLegend")}>●</th>
+            <th style={{ ...S.th, width: "21%", cursor: "pointer", userSelect: "none" }} onClick={() => clickSort("id")}>{t("cfg.tagId")}{sortMark("id")}</th>
+            <th style={{ ...S.th, width: "24%", cursor: "pointer", userSelect: "none" }} onClick={() => clickSort("description")}>{t("cfg.description")}{sortMark("description")}</th>
+            <th style={{ ...S.th, width: "9%", cursor: "pointer", userSelect: "none" }} onClick={() => clickSort("data_type")}>{t("cfg.type")}{sortMark("data_type")}</th>
+            <th style={{ ...S.th, width: "6%", textAlign: "center", cursor: "pointer", userSelect: "none" }} onClick={() => clickSort("history")}>{t("cfg.history")}{sortMark("history")}</th>
+            <th style={{ ...S.th, width: "15%", cursor: "pointer", userSelect: "none" }} onClick={() => clickSort("datastore_id")}>{t("cfg.datastore")}{sortMark("datastore_id")}</th>
+            <th style={{ ...S.th, width: "12%", cursor: "pointer", userSelect: "none" }} onClick={() => clickSort("value")}>{t("cfg.liveValue")}{sortMark("value")}</th>
             <th style={S.th} />
+          </tr>
+          {/* riga filtri per colonna */}
+          <tr>
+            <td style={S.td} />
+            <td style={S.td}>
+              <input style={{ ...S.input, fontSize: 11 }} placeholder={t("cfg.filterPh")} value={fltId}
+                onChange={(e) => setFltId(e.target.value)} spellCheck={false} />
+            </td>
+            <td style={S.td}>
+              <input style={{ ...S.input, fontSize: 11 }} placeholder={t("cfg.filterPh")} value={fltDesc}
+                onChange={(e) => setFltDesc(e.target.value)} spellCheck={false} />
+            </td>
+            <td style={S.td}>
+              <select style={{ ...S.input, fontSize: 11, cursor: "pointer" }} value={fltType} onChange={(e) => setFltType(e.target.value)}>
+                <option value="">—</option>
+                <option value="bool">Bool</option>
+                <option value="int">Int</option>
+                <option value="float">Float</option>
+                <option value="string">{t("cfg.stringType")}</option>
+              </select>
+            </td>
+            <td style={S.td}>
+              <select style={{ ...S.input, fontSize: 11, cursor: "pointer" }} value={fltHist} onChange={(e) => setFltHist(e.target.value)}>
+                <option value="">—</option>
+                <option value="yes">{t("common.yes")}</option>
+                <option value="no">{t("common.no")}</option>
+              </select>
+            </td>
+            <td style={S.td}>
+              <select style={{ ...S.input, fontSize: 11, cursor: "pointer" }} value={fltUse} onChange={(e) => setFltUse(e.target.value)}>
+                <option value="">{t("cfg.useAll")}</option>
+                <option value="unused">{t("cfg.useUnused")}</option>
+                <option value="used">{t("cfg.useUsed")}</option>
+              </select>
+            </td>
+            <td style={S.td} colSpan={2}>
+              {filtersActive && (
+                <span style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", whiteSpace: "nowrap" }}>
+                  {view.length}/{tags.length}{" "}
+                  <button onClick={clearFilters} title={t("cfg.filterClear")}
+                    style={{ background: "transparent", border: "none", color: "var(--brand-danger-soft, #fca5a5)", cursor: "pointer", fontSize: 11 }}>✕</button>
+                </span>
+              )}
+            </td>
           </tr>
         </thead>
         <tbody>
-          {tags.map((tag, i) => {
+          {view.map(({ tag, origIdx: i }: { tag: TagDef; origIdx: number }) => {
             const tv = tagValues[tag.id];
+            const uses = usedTagInfo.get(tag.id);
+            const unused = tag.id.trim() !== "" && !uses;
             return (
               <React.Fragment key={i}>
-              <tr style={{ background: i % 2 === 0 ? "transparent" : "var(--brand-bg, #0f172a)" }}>
+              <tr style={{ background: unused ? "rgba(245,158,11,0.07)" : i % 2 === 0 ? "transparent" : "var(--brand-bg, #0f172a)" }}>
+                <td style={{ ...S.td, textAlign: "center" }}
+                  title={unused ? t("cfg.unusedHint") : uses ? `${t("cfg.usedIn")}: ${uses.slice(0, 4).join(", ")}${uses.length > 4 ? "…" : ""}` : ""}>
+                  {unused
+                    ? <span style={{ color: "var(--brand-warning, #f59e0b)", fontSize: 12 }}>●</span>
+                    : uses
+                      ? <span style={{ color: "var(--brand-surface-2, #334155)", fontSize: 12 }}>●</span>
+                      : null}
+                </td>
                 <td style={S.td}>
                   <input
                     style={S.input}
@@ -658,7 +804,7 @@ function TagsTab() {
               </tr>
               {metaOpen.has(i) && (
                 <tr style={{ background: "#0a1628" }}>
-                  <td colSpan={7} style={{ ...S.td, paddingTop: 6, paddingBottom: 8 }}>
+                  <td colSpan={8} style={{ ...S.td, paddingTop: 6, paddingBottom: 8 }}>
                     {(() => {
                       const numCell = (label: string, key: keyof TagDef, ph = "") => (
                         <label style={{ display: "flex", flexDirection: "column", gap: 2, fontSize: 10, color: "var(--brand-text-subtle, #64748b)", width: 90 }}>
@@ -720,7 +866,7 @@ function TagsTab() {
               )}
               {(exprOpen.has(i) || !!tag.expression) && (
                 <tr style={{ background: "#0a1628" }}>
-                  <td colSpan={7} style={{ ...S.td, paddingTop: 4, paddingBottom: 6 }}>
+                  <td colSpan={8} style={{ ...S.td, paddingTop: 4, paddingBottom: 6 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                       <span style={{ fontSize: 11, color: "#818cf8", minWidth: 70, fontFamily: "monospace" }}>
                         λ espressione
@@ -5766,6 +5912,9 @@ function ResourcesTab() {
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [error, setError]   = useState<string | null>(null);
+  // F6.9: editor multi-stato — id del simbolo in modifica.
+  const [svgEditId, setSvgEditId] = useState<string | null>(null);
+  const svgFileRef = useRef<HTMLInputElement>(null);
 
   const persist = async (next: typeof customSymbols) => {
     setSaving(true); setError(null);
@@ -5831,7 +5980,12 @@ function ResourcesTab() {
                   </td>
                   <td style={{ padding: "6px 8px", color: "var(--brand-text-muted, #94a3b8)" }}>{s.attribution.license}</td>
                   <td style={{ padding: "6px 8px", color: "var(--brand-text-subtle, #64748b)" }}>{s.attribution.author}{s.attribution.source ? ` / ${s.attribution.source}` : ""}</td>
-                  <td style={{ padding: "6px 8px" }}>
+                  <td style={{ padding: "6px 8px", whiteSpace: "nowrap" }}>
+                    <button
+                      onClick={() => setSvgEditId(svgEditId === s.id ? null : s.id)}
+                      title="Multi-stato: importa SVG e scegli gli elementi colorabili"
+                      style={{ background: "transparent", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, color: s.svg ? "#38bdf8" : "var(--brand-text-subtle, #64748b)", cursor: "pointer", padding: "2px 8px", fontSize: 12, marginRight: 4 }}
+                    >⚙</button>
                     <button
                       onClick={() => remove(s.id)}
                       style={{ background: "transparent", border: "1px solid var(--brand-danger-bg, #7f1d1d)", borderRadius: 4, color: "var(--brand-danger-soft, #fca5a5)", cursor: "pointer", padding: "2px 8px", fontSize: 12 }}
@@ -5843,6 +5997,87 @@ function ResourcesTab() {
           </table>
         )}
       </section>
+
+      {/* F6.9: editor multi-stato del simbolo selezionato */}
+      {svgEditId && (() => {
+        const sym = customSymbols.find((cs) => cs.id === svgEditId);
+        if (!sym) return null;
+        const ids = sym.svg ? listSvgIds(sym.svg) : [];
+        const setSym = (patch: Partial<typeof sym>) =>
+          void persist(customSymbols.map((cs) => (cs.id === sym.id ? { ...cs, ...patch } : cs)));
+        const toggleColorable = (elId: string) => {
+          const cur = new Set(sym.colorable_ids ?? []);
+          if (cur.has(elId)) cur.delete(elId); else cur.add(elId);
+          setSym({ colorable_ids: cur.size > 0 ? [...cur] : undefined });
+        };
+        return (
+          <section style={{ background: "var(--brand-surface, #1e293b)", border: "1px solid #38bdf8", borderRadius: 6, padding: 16 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: "#38bdf8", marginBottom: 8 }}>
+              MULTI-STATO — {sym.label}
+            </div>
+            <p style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", margin: "0 0 8px" }}>
+              Importa l'SVG del simbolo e spunta gli elementi (per <code>id</code>) che devono
+              colorarsi con lo stato (off/on/allarme o gli STATI N dell'oggetto). Gli elementi
+              senza id nell'SVG non sono selezionabili: aggiungili nell'editor vettoriale.
+            </p>
+            <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+              <input ref={svgFileRef} type="file" accept=".svg,image/svg+xml" style={{ display: "none" }}
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (!f) return;
+                  void f.text().then((text) => setSym({ svg: sanitizeSvg(text), colorable_ids: undefined }));
+                  e.target.value = "";
+                }} />
+              <button onClick={() => svgFileRef.current?.click()}
+                style={{ ...inp, width: "auto", cursor: "pointer" }}>⬆ Importa SVG…</button>
+              {sym.svg && (
+                <button onClick={() => setSym({ svg: undefined, colorable_ids: undefined })}
+                  style={{ ...inp, width: "auto", cursor: "pointer", color: "var(--brand-danger-soft, #fca5a5)" }}>
+                  Rimuovi SVG (torna a URL)
+                </button>
+              )}
+            </div>
+            {sym.svg && (
+              <div style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
+                <div style={{ flex: 1 }}>
+                  <div style={lbl}>Elementi colorabili ({ids.length} id trovati)</div>
+                  {ids.length === 0 ? (
+                    <div style={{ fontSize: 12, color: "var(--brand-warning, #f59e0b)" }}>
+                      Nessun id nell'SVG — nessun elemento può cambiare colore.
+                    </div>
+                  ) : (
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                      {ids.map((elId) => (
+                        <label key={elId} style={{ display: "flex", gap: 4, alignItems: "center", fontSize: 12, color: "var(--brand-text-2, #cbd5e1)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, padding: "2px 8px", cursor: "pointer" }}>
+                          <input type="checkbox" checked={(sym.colorable_ids ?? []).includes(elId)}
+                            onChange={() => toggleColorable(elId)} />
+                          {elId}
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <div style={{ display: "flex", gap: 8 }}>
+                  {(["#64748b", "#22c55e", "#ef4444"] as const).map((color, i) => {
+                    const { viewBox, inner } = parseSvg(sym.svg!);
+                    const colored = (sym.colorable_ids ?? []).length > 0
+                      ? applyStateColor(inner, sym.colorable_ids!, color) : inner;
+                    return (
+                      <div key={i} style={{ textAlign: "center" }}>
+                        <svg width={72} height={72} viewBox={viewBox} preserveAspectRatio="xMidYMid meet"
+                          style={{ background: "var(--brand-bg, #0f172a)", borderRadius: 4, border: "1px solid var(--brand-surface-2, #334155)" }}>
+                          <g dangerouslySetInnerHTML={{ __html: colored }} />
+                        </svg>
+                        <div style={{ fontSize: 10, color: "var(--brand-text-subtle, #64748b)" }}>{["off", "on", "alarm"][i]}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </section>
+        );
+      })()}
 
       {/* Form aggiunta */}
       <section style={{ background: "var(--brand-surface, #1e293b)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 6, padding: 16 }}>
@@ -6571,8 +6806,9 @@ function GlobalScriptsTab() {
 // (e.g. `{tag_prefix}` → "tag_prefix"), and no live tag data (`tagValues={}}`).
 function FaceplatePreview({
   objects, params, faceplates,
-}: { objects: SynopticObject[]; params: string[]; faceplates: FaceplateDef[] }) {
-  const dummyParams = Object.fromEntries(params.map((p) => [p, p]));
+}: { objects: SynopticObject[]; params: (string | FaceplateParamDef)[]; faceplates: FaceplateDef[] }) {
+  const dummyParams = Object.fromEntries(params.map((p) =>
+    typeof p === "string" ? [p, p] : [p.name, p.default ?? p.name]));
 
   const PADDING = 12;
   const bbox = objects.reduce((acc, o) => {
@@ -6626,6 +6862,21 @@ function FaceplatesTab() {
   const { t } = useTranslation();
   const storeFaceplates   = useAppStore((s) => s.faceplates);
   const setFaceplates     = useAppStore((s) => s.setFaceplates);
+  // F6.5: trova-usi — istanze piazzate e pulsanti popup che referenziano
+  // ogni definizione, cross-pagina.
+  const allPages          = useAppStore((s) => s.pages);
+  const usageOf = (defId: string) => {
+    const pageNames = new Set<string>();
+    let instances = 0;
+    let popups = 0;
+    for (const pg of allPages) {
+      for (const o of pg.objects) {
+        if (o.type === "faceplate" && o.faceplate_id === defId) { instances++; pageNames.add(pg.name); }
+        if (o.button_action?.type === "open_faceplate" && o.button_action.faceplate_id === defId) { popups++; pageNames.add(pg.name); }
+      }
+    }
+    return { instances, popups, pages: [...pageNames] };
+  };
   const [faceplates, setLocal] = useState<FaceplateDef[]>(storeFaceplates);
   const [selected, setSelected] = useState<string | null>(
     storeFaceplates[0]?.id ?? null
@@ -6742,6 +6993,16 @@ function FaceplatesTab() {
           </div>
           <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
             <div style={{ flex: 1, overflow: "auto", padding: "16px" }}>
+              {(() => {
+                const u = usageOf(current.id);
+                return (
+                  <div style={{ fontSize: 11, color: u.instances + u.popups > 0 ? "var(--brand-warning, #f59e0b)" : "var(--brand-text-subtle, #64748b)", marginBottom: 10 }}>
+                    {u.instances + u.popups === 0
+                      ? "Nessun uso nelle pagine di questo progetto."
+                      : `Usato da ${u.instances} istanze e ${u.popups} pulsanti popup in: ${u.pages.join(", ")} — rinominare id o parametri li rompe.`}
+                  </div>
+                );
+              })()}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
                 <div>
                   <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 }}>ID</label>
@@ -6764,11 +7025,21 @@ function FaceplatesTab() {
               </div>
               <div style={{ marginBottom: 16 }}>
                 <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 }}>
-                  Parametri (uno per riga, es. <code>tag_prefix</code>, <code>label</code>)
+                  Parametri (uno per riga): <code>nome</code> oppure <code>nome:tipo=default!</code> — tipo tag/string/number/color, <code>!</code> = obbligatorio
                 </label>
                 <textarea
-                  value={current.params.join("\n")}
-                  onChange={(e) => updateCurrent({ params: e.target.value.split("\n").map(s => s.trim()).filter(Boolean) })}
+                  value={current.params.map((p) => {
+                    if (typeof p === "string") return p;
+                    return `${p.name}${p.type ? `:${p.type}` : ""}${p.default !== undefined ? `=${p.default}` : ""}${p.required ? "!" : ""}`;
+                  }).join("\n")}
+                  onChange={(e) => updateCurrent({ params: e.target.value.split("\n").map(s => s.trim()).filter(Boolean).map((line) => {
+                    const m = /^(\w+)(?::(tag|string|number|color))?(?:=([^!]*))?(!)?$/.exec(line);
+                    if (!m) return line; // riga non parsabile: resta stringa nuda
+                    const [, name, type, dflt, req] = m;
+                    if (!type && dflt === undefined && !req) return name;
+                    return { name, ...(type ? { type: type as "tag" | "string" | "number" | "color" } : {}),
+                             ...(dflt !== undefined ? { default: dflt } : {}), ...(req ? { required: true } : {}) };
+                  }) })}
                   style={{ ...S.input, height: 80, resize: "vertical", fontFamily: "monospace", fontSize: 12 }}
                   spellCheck={false}
                 />

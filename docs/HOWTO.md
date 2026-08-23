@@ -15,6 +15,7 @@
 1. [Testare `sws-lvgl-viewer` su un Pixsys reale, sostituendo Chromium](#1-testare-sws-lvgl-viewer-su-un-pixsys-reale-sostituendo-chromium)
 2. [Liberare spazio su disco quando è pieno](#2-liberare-spazio-su-disco-quando-è-pieno)
 3. [Il browser non vede il runtime dopo aver installato il certificato](#3-il-browser-non-vede-il-runtime-dopo-aver-installato-il-certificato)
+4. [Un pulsante che apre un sito esterno (e Login/Logout dal sinottico)](#4-un-pulsante-che-apre-un-sito-esterno-e-loginlogout-dal-sinottico)
 
 ---
 
@@ -259,3 +260,30 @@ Procedura (senza terminale):
    errore). Anche "Cerca runtime", quando fallisce per questo motivo, ora lo dice chiaramente
    con i bottoni "Apri /health" e "Ricarica la pagina" invece del fuorviante "Nessun runtime
    trovato".
+
+---
+
+## 4. Un pulsante che apre un sito esterno (e Login/Logout dal sinottico)
+
+Nel pannello proprietà di un `button` (o `navbutton`), sezione **Azione predefinita**:
+
+| Voce | Cosa fa |
+|---|---|
+| **Naviga a URL** | apre l'URL indicato; il campo **"Apri in"** scegle tra scheda nuova (default) e stessa scheda |
+| **Login** | apre la schermata di login *sopra* il sinottico; al login riuscito si torna alla pagina di prima, con i permessi di scrittura del nuovo utente |
+| **Logout** | chiude la sessione e torna al Viewer anonimo (in modalità no-auth rientra nell'admin sintetico) senza ricaricare la pagina |
+
+Note pratiche:
+
+- L'URL può essere assoluto (`https://esempio.it`), interno (`/api/health`) o scritto senza
+  schema (`www.google.com`): in quest'ultimo caso viene prefissato `https://` da solo.
+- **Su un pannello in kiosk scegli con cura "Apri in"**: con *scheda nuova* il sinottico resta
+  aperto sotto ma la scheda nuova, senza barra delle schede, si chiude solo da tastiera; con
+  *stessa scheda* si torna al sinottico solo ricaricando (o con il gesto "indietro" del
+  browser). Per un pannello senza tastiera, la stessa scheda + una pagina di ritorno è più
+  gestibile; per una postazione con mouse e tastiera, la scheda nuova è più comoda.
+- Se il browser blocca la finestra popup, la navigazione avviene comunque nella stessa scheda
+  invece di non fare niente.
+- Il Python `on_press_fn` eventualmente impostato sullo stesso pulsante viene eseguito **prima**
+  della navigazione; con Login/Logout invece non viene chiamato (vince l'azione predefinita).
+- Queste tre azioni sono **solo web**: il motore LVGL non le supporta.

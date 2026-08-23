@@ -6,13 +6,14 @@ import { SvgCanvas } from "@/canvas/SvgCanvas";
 import { collectTagIds } from "@/runtime-view/collectTagIds";
 import { viewerFitScale, effectiveSizeMode } from "@/pageLayout";
 import { resolvePageBackground } from "@/theme";
+import { LoginScreen } from "@/components/LoginScreen";
 import { RecipePanel } from "@/components/RecipePanel";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { UiLangSelect } from "@/components/UiLangSelect";
 import { useAppStore } from "@/store";
 import { localizeObjects, localizePageName, effectiveProjectLang } from "@/i18n/projectI18n";
 import { useTagStream, tryTagWriteWs, sendSubscribe } from "@/ws/tagStream";
-import type { FunctionDef } from "@/types";
+import type { ButtonAction, FunctionDef } from "@/types";
 
 // ── Script output toast ───────────────────────────────────────────────────────
 
@@ -132,6 +133,11 @@ export function RuntimeView() {
 
   const [toasts, setToasts]         = useState<ScriptToast[]>([]);
   const [recipeOpen, setRecipeOpen] = useState(false);
+  // Overlay di login aperto dall'azione "login" di un pulsante del sinottico.
+  const [loginOpen, setLoginOpen]   = useState(false);
+  const clearAuth                   = useAppStore((s) => s.clearAuth);
+  const setAuth                     = useAppStore((s) => s.setAuth);
+  const authToken                   = useAppStore((s) => s.authToken);
 
   // Kiosk auto-rotate: advance to the next non-skipped page on a fixed interval.
   useEffect(() => {
@@ -265,6 +271,52 @@ export function RuntimeView() {
       console.error(`[${fn}]`, e);
       addToast({ id: `${Date.now()}-${Math.random()}`, fn, error: String(e?.message ?? e) }, 10_000);
     });
+  };
+
+  // LoginScreen non espone un callback di successo: chiama setAuth() nello
+  // store. L'overlay si chiude quando il token cambia rispetto a quello che
+  // c'era all'apertura (login riuscito).
+  const loginTokenAtOpen = useRef<string | null>(null);
+  useEffect(() => {
+    if (loginOpen && authToken !== loginTokenAtOpen.current) setLoginOpen(false);
+  }, [loginOpen, authToken]);
+
+  // ── button_action: le tre azioni predefinite del pulsante ─────────────────
+  //
+  // Bug 2026-08-23: `onButtonAction` era dichiarata e consumata in SvgCanvas ma
+  // NESSUN chiamante la passava, quindi "Naviga a URL", "Login" e "Logout" non
+  // facevano niente da sempre (funzionava solo open_faceplate, gestito dentro
+  // il canvas). Questo handler è il pezzo che mancava.
+  const handleButtonAction = (action: ButtonAction) => {
+    if (action.type === "navigate") {
+      const raw = action.url?.trim();
+      if (!raw) return;
+      // Un URL scritto a mano come "www.google.com" non è navigabile così com'è:
+      // il browser lo interpreta come percorso relativo. Prefissiamo lo schema
+      // solo quando non è già un URL assoluto, un percorso interno o un'ancora.
+      const url = /^([a-z][a-z0-9+.-]*:|\/|#|\?)/i.test(raw) ? raw : `https://${raw}`;
+      if ((action.target ?? "blank") === "self") {
+        window.location.assign(url);
+        return;
+      }
+      // Popup bloccato (window.open → null): meglio navigare nella stessa
+      // scheda che non fare niente — il difetto appena corretto.
+      const win = window.open(url, "_blank", "noopener,noreferrer");
+      if (!win) window.location.assign(url);
+      return;
+    }
+    if (action.type === "login") { loginTokenAtOpen.current = authToken; setLoginOpen(true); return; }
+    if (action.type === "logout") {
+      void api.logout().catch(() => { /* la sessione può essere già scaduta */ })
+        .finally(() => {
+          clearAuth();
+          // In modalità no-auth whoami() risponde con l'admin sintetico: senza
+          // questo il viewer resterebbe senza token e i WS non si riaprirebbero.
+          api.whoami()
+            .then((me) => setAuth("no-auth", me.username, me.role))
+            .catch(() => { /* runtime con auth: si resta anonimi in sola lettura */ });
+        });
+    }
   };
 
   // T-19: touch swipe navigation between pages.
@@ -413,6 +465,7 @@ export function RuntimeView() {
           onWriteTag={handleWriteTag}
           onScript={handleScript}
           onNavigate={setCurrentPage}
+          onButtonAction={handleButtonAction}
         />
       </div>
 
@@ -426,6 +479,15 @@ export function RuntimeView() {
       {/* Recipe apply modal */}
       {recipeOpen && (
         <RecipeModal onClose={() => setRecipeOpen(false)} />
+      )}
+
+      {/* Overlay di login (azione "login" di un pulsante del sinottico).
+          Copre il sinottico invece di sostituirlo: alla chiusura la pagina è
+          quella di prima, coi tag ancora aggiornati. */}
+      {loginOpen && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 9600, background: "var(--brand-bg, #0f172a)" }}>
+          <LoginScreen onCancel={() => setLoginOpen(false)} />
+        </div>
       )}
     </div>
   );

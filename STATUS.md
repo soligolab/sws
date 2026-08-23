@@ -6,6 +6,102 @@
 >
 > **Pulizia 2026-07-27**: rimossi i task già chiusi e le sezioni di verifica ormai superate; le sessioni mergiate **e** verificate fino al 2026-07-09 sono compresse in «Storico». Il dettaglio integrale resta in `CHANGELOG.md` e nella history git.
 
+**Sessione 2026-08-23 (notte) — pulsante "Naviga a URL" + coda WYSIWYG chiusa** (commit su
+`feat/scada-f6`; piano in `docs/plans/2026-08-23-navigate-f7-f8.md`, deciso con 4 domande).
+- **Bug segnalato dal maintainer**: un pulsante con "Naviga a URL" non faceva niente. Causa:
+  `onButtonAction` dichiarata e consumata in SvgCanvas ma **mai passata** da RuntimeView —
+  quindi navigate/login/logout erano morte da sempre (solo `open_faceplate` funzionava,
+  gestito dentro il canvas). Ora: handler vero, nuovo campo **"Apri in"** (scheda nuova di
+  default / stessa scheda), `https://` aggiunto se manca, fallback alla stessa scheda se il
+  popup è bloccato, Login come overlay sopra il sinottico, Logout con rientro no-auth.
+  `docs/HOWTO.md` cap. 4. Nessun mirror Rust (button_action è già Value); web-only su LVGL.
+- **Coda WYSIWYG chiusa**: slider dentro l'altezza dichiarata (il foreignObject era h+20 con
+  la label); alarm_viewer/bell/banner/recipe_panel/lang_selector/xy_plot con widget veri in
+  editor; faceplate con figli `isEditMode={false}` e bgLayer dentro il transform.
+- **Regressione trovata misurando**: setpoint/checkbox/radio/sparkline **non erano più
+  selezionabili col mouse** (contenuto sotto pointerEvents:none e nessuna geometria da
+  cliccare). Nuovo helper `hitRect()` su tutti i tipi del pattern.
+- **Nuovo check**: `./scripts/check_wysiwyg.sh` (runtime scratch 8657, terminato dal trap) —
+  clicca 12 tipi uno per uno, misura lo slider e verifica la migrazione `trend_tags` su
+  disco. 12/12 verde. Anche `motion_anchor` (centro come default) e spinner numerici più
+  grandi sono di questa sessione.
+- **Prossimo**: Lotto 2 del piano su nuovo branch `feat/scada-f7` = F7.6 rifiniture (rect
+  raggio/dash/gradiente, gauge zone/tacche/arco/setpoint, led forme, grid gap, navbutton
+  colori, image preserveAspectRatio) + F8.1 residuo (match-size, distribute a gap uguali,
+  snap in resize — le smart guides ESISTONO già) + F8.2 (multi-edit e copia stile). Poi
+  Lotto 3 (table/bar/pie/text) e Lotto 4 (allarmi UI, ricerca, rotazione/layer).
+
+**Sessione 2026-08-23 (sera) — editor coerente: trend_tags, fine doppioni, WYSIWYG, cattura
+waypoint** (commit su `feat/scada-f6`; piano in `docs/plans/2026-08-23-editor-coerente.md`,
+specifiche fissate con 3 tornate di domande; regole permanenti scritte in CLAUDE.md §"Regole
+UI dell'editor").
+- **A. trend_tags[]** (taglio netto): TrendTrace {tag,label,colore,stile…} unificata,
+  sezione TRACCE unica in cima al pannello, label per traccia in legenda/tooltip/cursori;
+  normalizeTrendObject al setPages rimuove i campi legacy al primo salvataggio (6 unit test);
+  fix bug B1 (stili disallineati con tag vuoti), B2 (splice mancante alla rimozione),
+  B3 (line_color battuto da styles[0].color invisibile). Mirror synoptic.rs. LVGL non
+  aggiornato: trend LVGL vuoti fino al lotto F9 (accettato).
+- **B. Doppioni**: Tag generico via da 16 tipi (per bar/pie/table/symbol/alarm/…: campo
+  "Tag di stato" nella sezione qualità; kpi/data_log/sparkline tengono la copia locale);
+  bg_color nascosto dove lo sfondo È il fill; hint precedenza symbol_states; fix decimals
+  del setpoint mai applicato.
+- **C. WYSIWYG** (regola CLAUDE.md): trend REALE in editor (assi/griglia/scale/legenda,
+  una fetch di storico, sinusoidi demo + watermark dove mancano campioni, mai polling);
+  setpoint col layout runtime (⌨ visibile); bar/pie/kpi/sparkline/data_log reali; image
+  senza src selezionabile; radio/checkbox reali; W/H per tutti i box-like; toggle toolbar
+  "▶ Effetti" che applica in edit blink/motion/bordi/stale/rotazioni/flusso.
+- **D. Waypoint**: tabella X/Y editabile + pulsante ＋ Cattura (click sul canvas appende
+  punti in coordinate pagina con snap; Esc esce; cursore crosshair).
+- **Scoperto e corretto**: vitest NON eseguiva i test colocati in src/ (include solo
+  tests/**) — i 7 test del motore espressioni non erano MAI girati; ora 45 test verdi.
+**Resta del piano** (prossima sessione): slider contenuto nel box dichiarato (runtime) e
+anteprima allineata; alarm_viewer/bell/banner/recipe_panel/lang_selector/xy_plot reali in
+edit; faceplate (bgLayer dentro il transform in edit + figli con isEditMode=false);
+verifica migrazione live su CasaMauro + screenshot. Build/test tutti verdi, non testato
+dal maintainer.
+
+**Sessione 2026-08-23 (seguito) — tab Variabili: sort/filtri/non-usate + pagine demo**
+(commit su `feat/scada-f6`). Su richiesta del maintainer:
+1. **Pagine demo in CasaMauro** (istanza editor :8460, via API — nessun codice): 5 pagine
+   nuove «Demo F2 Binding / F3 Comandi / F4 Allarmi / F5 Storico / F6 Simboli» con ~135
+   oggetti che esercitano tutte le novità, navbutton su Page 2, tag `state.voltage` e
+   `tank_test.level` arricchiti con unit/range/limiti F1. Round-trip e screenshot live OK.
+   NOTA: il bridge dds661 ora espone più device su topic `modbus/*` — i tag `state.*`
+   arrivavano lenti; il maintainer ha già aggiunto i tag temperatura nuovi.
+2. **Tab Variabili**: sort per colonna (vista derivata, ordine su disco intatto), filtri
+   per colonna, filtro/evidenza «non usate» (pagine via collectTagIds + allarmi +
+   espressioni + script; ricette/funzioni escluse e dichiarate). Verificato live: 6/21
+   non usate su CasaMauro. `pnpm type-check`/`build` verdi.
+
+**Sessione 2026-08-23 — SCADA-widgets F6 COMPLETA** (branch **`feat/scada-f6`** da `main`,
+che ora contiene F0-F5 mergiate dopo la conferma del maintainer). Tutta la fase faceplate+simboli:
+- **F6.1**: sostituzione parametri su TUTTI i campi stringa (walker ricorsivo: bindings,
+  state/alarm_tag, soglie, celle grid, faceplate annidati con pass-through; esclusi
+  id/type/group_id/faceplate_id).
+- **F6.2**: parametri tipizzati {name,type,default,required} — sintassi `nome:tipo=default!`
+  nell'editor def, pannello istanza con TagInput/colore/numero, avviso sui required,
+  default fusi da effectiveFaceplateParams.
+- **F6.3**: azione `open_faceplate` — popup parametrizzato al click (pattern modale Trend,
+  interattivo, Esc/click-fuori), select+parametri nel pannello bottone.
+- **F6.4**: `faceplate_scale` (figli scalati al box, opt-in) + `faceplate_overrides`
+  per-figlio post-sostituzione.
+- **F6.5**: trova-usi nella tab Faceplates (istanze+popup per definizione, pagine, avviso).
+- **F6.6**: `symbol_states` — N stati su state_tag (valore/range, colore, blink per stato,
+  label sotto il simbolo), editor nel pannello; alarm_tag vince.
+- **F6.7**: livello continuo via fill_level_tag (tank proporzionale, silo nuovo incluso,
+  SymbolRenderProps.level).
+- **F6.8**: +13 simboli ISA builtin (16→29): valvole motorizzata/pneumatica/ritegno/3vie/
+  sicurezza, filtro Y, soffiante, silo, nastro, ciclone, colonna, forno, chiller.
+- **F6.9**: editor simboli multi-stato — CustomSymbol.svg inline + colorable_ids,
+  sanitizzazione, import SVG con checklist id colorabili e anteprima 3 stati (tab Risorse);
+  renderer ricolora per stato e ruota. Mirror Rust CustomSymbol.
+- **F6.10**: rotazione simboli (on_state/tag/always), flusso animato pipe (direzione dal
+  segno del tag), movimento su percorso (motion_path/tag/min/max universali, transizione
+  fluida) — tutte spente da prefers-reduced-motion.
+Build: cargo workspace + 21 sws-core + 80 sws-web + 32 vitest + pnpm build verdi.
+**Non testato dal maintainer.** Le feature F6 sono web-only finché il lotto parità F9 non
+le porta su LVGL (annotato). Prossimo: F7 (widget restanti) o F9a (parità, col pannello).
+
 **Sessione 2026-08-22 (notte) — SCADA-widgets F5 (grosso fatto)** (catena `feat/scada-f0` →
 `f1` → `f2` → `f3` → `f4` → **`feat/scada-f5`** = capo da testare, contiene tutto). Scelta
 F5 prima di F9a: la parità LVGL richiede la toolchain di build e il pannello per la verifica —

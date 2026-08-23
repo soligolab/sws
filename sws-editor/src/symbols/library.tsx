@@ -19,6 +19,9 @@ export interface SymbolRenderProps {
   on:    string;
   /** Alarm colour (red by default). */
   alarm: string;
+  /** F6.7: livello continuo 0..1 (tank e simboli "a livello"). Quando
+   *  presente sostituisce il riempimento fisso derivato dallo stato. */
+  level?: number;
 }
 
 /**
@@ -104,7 +107,11 @@ function motorSymbol(p: SymbolRenderProps): ReactElement {
 // ── Tank ───────────────────────────────────────────────────────────────
 // A rounded vessel with a fill level. "on" state fills 70%, "off" 20%.
 function tankSymbol(p: SymbolRenderProps): ReactElement {
-  const fillRatio = p.state === "on" ? 0.7 : p.state === "alarm" ? 0.9 : 0.2;
+  // F6.7: livello reale dal tag quando fornito; altrimenti il vecchio
+  // riempimento fisso per stato (70% on / 20% off / 90% alarm).
+  const fillRatio = p.level !== undefined
+    ? Math.min(1, Math.max(0, p.level))
+    : p.state === "on" ? 0.7 : p.state === "alarm" ? 0.9 : 0.2;
   const liquidColor = stateFill(p);
   const yTop = 14;
   const yBottom = 90;
@@ -417,6 +424,184 @@ function mixerSymbol(p: SymbolRenderProps): ReactElement {
   );
 }
 
+// ── F6.8: libreria ISA ampliata ─────────────────────────────────────────────
+// Simboli industriali aggiuntivi, colorabili per stato come i builtin storici.
+// Convenzione invariata: viewBox 0 0 100 100, corpo colorato con stateFill(p),
+// tratti di contorno #0f172a.
+
+function valveMotorizedSymbol(p: SymbolRenderProps): ReactElement {
+  const c = stateFill(p);
+  return (
+    <g>
+      <path d="M10 40 L50 58 L10 76 Z" fill={c} stroke="#0f172a" strokeWidth={2} />
+      <path d="M90 40 L50 58 L90 76 Z" fill={c} stroke="#0f172a" strokeWidth={2} />
+      <rect x={47} y={26} width={6} height={20} fill="#0f172a" />
+      <rect x={34} y={6} width={32} height={22} rx={3} fill="#1e293b" stroke="#cbd5e1" strokeWidth={2} />
+      <text x={50} y={22} textAnchor="middle" fontSize={14} fontWeight={700} fill="#cbd5e1">M</text>
+    </g>
+  );
+}
+
+function valvePneumaticSymbol(p: SymbolRenderProps): ReactElement {
+  const c = stateFill(p);
+  return (
+    <g>
+      <path d="M10 44 L50 62 L10 80 Z" fill={c} stroke="#0f172a" strokeWidth={2} />
+      <path d="M90 44 L50 62 L90 80 Z" fill={c} stroke="#0f172a" strokeWidth={2} />
+      <rect x={47} y={30} width={6} height={16} fill="#0f172a" />
+      {/* membrana */}
+      <path d="M26 30 A24 16 0 0 1 74 30 Z" fill="#1e293b" stroke="#cbd5e1" strokeWidth={2} />
+    </g>
+  );
+}
+
+function checkValveSymbol(p: SymbolRenderProps): ReactElement {
+  const c = stateFill(p);
+  return (
+    <g>
+      <path d="M14 30 L74 50 L14 70 Z" fill={c} stroke="#0f172a" strokeWidth={2} />
+      <line x1={78} y1={26} x2={78} y2={74} stroke="#0f172a" strokeWidth={6} />
+      <line x1={4} y1={50} x2={14} y2={50} stroke="#0f172a" strokeWidth={4} />
+      <line x1={78} y1={50} x2={96} y2={50} stroke="#0f172a" strokeWidth={4} />
+    </g>
+  );
+}
+
+function valve3WaySymbol(p: SymbolRenderProps): ReactElement {
+  const c = stateFill(p);
+  return (
+    <g>
+      <path d="M10 34 L50 54 L10 74 Z" fill={c} stroke="#0f172a" strokeWidth={2} />
+      <path d="M90 34 L50 54 L90 74 Z" fill={c} stroke="#0f172a" strokeWidth={2} />
+      <path d="M30 94 L50 54 L70 94 Z" fill={c} stroke="#0f172a" strokeWidth={2} />
+      <rect x={46} y={10} width={8} height={24} fill="#0f172a" />
+      <ellipse cx={50} cy={12} rx={16} ry={5} fill="none" stroke="#0f172a" strokeWidth={2} />
+    </g>
+  );
+}
+
+function reliefValveSymbol(p: SymbolRenderProps): ReactElement {
+  const c = stateFill(p);
+  return (
+    <g>
+      <path d="M22 52 L78 52 L50 92 Z" fill={c} stroke="#0f172a" strokeWidth={2} />
+      {/* molla */}
+      <path d="M38 46 L62 40 M38 38 L62 32 M38 30 L62 24 M38 22 L62 16" stroke="#cbd5e1" strokeWidth={3} fill="none" />
+      <line x1={50} y1={92} x2={50} y2={98} stroke="#0f172a" strokeWidth={4} />
+    </g>
+  );
+}
+
+function strainerSymbol(p: SymbolRenderProps): ReactElement {
+  const c = stateFill(p);
+  return (
+    <g>
+      <line x1={4} y1={40} x2={96} y2={40} stroke="#0f172a" strokeWidth={6} />
+      <path d="M35 40 L65 40 L50 86 Z" fill={c} stroke="#0f172a" strokeWidth={2} />
+      <path d="M42 48 L58 48 M45 58 L55 58 M47 68 L53 68" stroke="#0f172a" strokeWidth={2} />
+    </g>
+  );
+}
+
+function blowerSymbol(p: SymbolRenderProps): ReactElement {
+  const c = stateFill(p);
+  return (
+    <g>
+      <circle cx={44} cy={56} r={34} fill={c} stroke="#0f172a" strokeWidth={2} />
+      <rect x={70} y={16} width={26} height={18} fill={c} stroke="#0f172a" strokeWidth={2} />
+      <path d="M44 56 L70 25" stroke="#0f172a" strokeWidth={3} fill="none" />
+      <circle cx={44} cy={56} r={6} fill="#0f172a" />
+    </g>
+  );
+}
+
+function siloSymbol(p: SymbolRenderProps): ReactElement {
+  const c = stateFill(p);
+  const level = p.level !== undefined ? Math.min(1, Math.max(0, p.level)) : undefined;
+  const topY = 12, wallBottom = 62;
+  return (
+    <g>
+      <path d="M24 12 L76 12 L76 62 L50 92 L24 62 Z" fill="#0f172a" stroke="#cbd5e1" strokeWidth={2} />
+      {level !== undefined && level > 0 && (() => {
+        // riempimento dal basso: prima il cono (62→92), poi le pareti (12→62)
+        const total = 80; const filled = total * level;
+        const coneH = 30;
+        if (filled <= coneH) {
+          const y = 92 - filled;
+          const half = 26 * (filled / coneH);
+          return <path d={`M${50 - half} ${y} L${50 + half} ${y} L50 92 Z`} fill={c} opacity={0.85} />;
+        }
+        const y = wallBottom - (filled - coneH);
+        return <path d={`M24 ${Math.max(topY, y)} L76 ${Math.max(topY, y)} L76 62 L50 92 L24 62 Z`} fill={c} opacity={0.85} />;
+      })()}
+      <rect x={44} y={4} width={12} height={8} fill="#cbd5e1" />
+    </g>
+  );
+}
+
+function conveyorSymbol(p: SymbolRenderProps): ReactElement {
+  const c = stateFill(p);
+  return (
+    <g>
+      <circle cx={18} cy={60} r={12} fill={c} stroke="#0f172a" strokeWidth={2} />
+      <circle cx={82} cy={60} r={12} fill={c} stroke="#0f172a" strokeWidth={2} />
+      <line x1={18} y1={48} x2={82} y2={48} stroke="#0f172a" strokeWidth={3} />
+      <line x1={18} y1={72} x2={82} y2={72} stroke="#0f172a" strokeWidth={3} />
+      <rect x={38} y={30} width={24} height={16} fill="#94a3b8" stroke="#0f172a" strokeWidth={2} />
+    </g>
+  );
+}
+
+function cycloneSymbol(p: SymbolRenderProps): ReactElement {
+  const c = stateFill(p);
+  return (
+    <g>
+      <rect x={30} y={12} width={40} height={22} fill={c} stroke="#0f172a" strokeWidth={2} />
+      <path d="M30 34 L70 34 L54 88 L46 88 Z" fill={c} stroke="#0f172a" strokeWidth={2} />
+      <rect x={44} y={88} width={12} height={8} fill="#0f172a" />
+      <rect x={6} y={14} width={24} height={10} fill={c} stroke="#0f172a" strokeWidth={2} />
+    </g>
+  );
+}
+
+function columnSymbol(p: SymbolRenderProps): ReactElement {
+  const c = stateFill(p);
+  return (
+    <g>
+      <rect x={34} y={8} width={32} height={84} rx={14} fill={c} stroke="#0f172a" strokeWidth={2} />
+      <line x1={36} y1={30} x2={64} y2={30} stroke="#0f172a" strokeWidth={2} />
+      <line x1={36} y1={48} x2={64} y2={48} stroke="#0f172a" strokeWidth={2} />
+      <line x1={36} y1={66} x2={64} y2={66} stroke="#0f172a" strokeWidth={2} />
+    </g>
+  );
+}
+
+function furnaceSymbol(p: SymbolRenderProps): ReactElement {
+  const c = stateFill(p);
+  return (
+    <g>
+      <rect x={14} y={26} width={72} height={62} rx={4} fill="#1e293b" stroke="#cbd5e1" strokeWidth={2} />
+      <path d="M50 76 C36 66 42 52 50 42 C50 54 60 54 58 44 C66 54 64 68 50 76 Z" fill={c} stroke="#0f172a" strokeWidth={2} />
+      <rect x={40} y={10} width={20} height={16} fill="#1e293b" stroke="#cbd5e1" strokeWidth={2} />
+    </g>
+  );
+}
+
+function chillerSymbol(p: SymbolRenderProps): ReactElement {
+  const c = stateFill(p);
+  return (
+    <g>
+      <rect x={12} y={24} width={76} height={56} rx={6} fill="#1e293b" stroke="#cbd5e1" strokeWidth={2} />
+      {/* fiocco */}
+      <g stroke={c} strokeWidth={4} strokeLinecap="round">
+        <line x1={50} y1={34} x2={50} y2={70} />
+        <line x1={34} y1={43} x2={66} y2={61} />
+        <line x1={34} y1={61} x2={66} y2={43} />
+      </g>
+    </g>
+  );
+}
+
 export const SYMBOLS: Record<SymbolId, SymbolMeta> = {
   // ── Built-in (hand-rolled JSX) ──
   pump:                 { id: "pump",                 label: "Pompa",              kind: "builtin", defaultWidth: 80,  defaultHeight: 80,  render: pumpSymbol },
@@ -435,6 +620,20 @@ export const SYMBOLS: Record<SymbolId, SymbolMeta> = {
   boiler:               { id: "boiler",               label: "Caldaia",            kind: "builtin", defaultWidth: 80,  defaultHeight: 100, render: boilerSymbol },
   agitator:             { id: "agitator",             label: "Agitatore",          kind: "builtin", defaultWidth: 90,  defaultHeight: 90,  render: agitatorSymbol },
   cooling_tower:        { id: "cooling_tower",        label: "Torre raffreddamento", kind: "builtin", defaultWidth: 80, defaultHeight: 100, render: coolingTowerSymbol },
+  // F6.8 — set ISA ampliato
+  valve_motorized:      { id: "valve_motorized",      label: "Valvola motorizzata", kind: "builtin", defaultWidth: 80,  defaultHeight: 80,  render: valveMotorizedSymbol },
+  valve_pneumatic:      { id: "valve_pneumatic",      label: "Valvola pneumatica",  kind: "builtin", defaultWidth: 80,  defaultHeight: 80,  render: valvePneumaticSymbol },
+  check_valve:          { id: "check_valve",          label: "Valvola di ritegno",  kind: "builtin", defaultWidth: 80,  defaultHeight: 80,  render: checkValveSymbol },
+  valve_3way:           { id: "valve_3way",           label: "Valvola a 3 vie",     kind: "builtin", defaultWidth: 80,  defaultHeight: 80,  render: valve3WaySymbol },
+  relief_valve:         { id: "relief_valve",         label: "Valvola di sicurezza", kind: "builtin", defaultWidth: 80, defaultHeight: 80,  render: reliefValveSymbol },
+  strainer:             { id: "strainer",             label: "Filtro Y",            kind: "builtin", defaultWidth: 80,  defaultHeight: 80,  render: strainerSymbol },
+  blower:               { id: "blower",               label: "Soffiante",           kind: "builtin", defaultWidth: 80,  defaultHeight: 80,  render: blowerSymbol },
+  silo:                 { id: "silo",                 label: "Silo",                kind: "builtin", defaultWidth: 80,  defaultHeight: 100, render: siloSymbol },
+  conveyor:             { id: "conveyor",             label: "Nastro trasportatore", kind: "builtin", defaultWidth: 100, defaultHeight: 70, render: conveyorSymbol },
+  cyclone:              { id: "cyclone",              label: "Ciclone",             kind: "builtin", defaultWidth: 80,  defaultHeight: 100, render: cycloneSymbol },
+  column:               { id: "column",               label: "Colonna di processo", kind: "builtin", defaultWidth: 70,  defaultHeight: 100, render: columnSymbol },
+  furnace:              { id: "furnace",              label: "Forno",               kind: "builtin", defaultWidth: 90,  defaultHeight: 90,  render: furnaceSymbol },
+  chiller:              { id: "chiller",              label: "Chiller",             kind: "builtin", defaultWidth: 90,  defaultHeight: 80,  render: chillerSymbol },
 
   // ── Vendored (SVG files under /public/symbols/, served at /symbols/) ──
   // The renderer in SvgCanvas pulls these via <image href={path}> and overlays

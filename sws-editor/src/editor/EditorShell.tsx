@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
-import { QDOT_BUILTIN_TYPES, SvgCanvas, type CanvasViewApi } from "@/canvas/SvgCanvas";
+import { QDOT_BUILTIN_TYPES, SvgCanvas, normalizeFaceplateParams, type CanvasViewApi } from "@/canvas/SvgCanvas";
 import { PALETTE } from "@/canvas/TrendCanvas";
 import { resolvePageBackground } from "@/theme";
 import { EditorToolbar } from "@/editor/EditorToolbar";
@@ -19,7 +19,7 @@ import type { SymbolMeta } from "@/symbols/library";
 import { useAppStore } from "@/store";
 import { localizeObjects } from "@/i18n/projectI18n";
 import type { AlignMode } from "@/store";
-import type { AlarmSeverity, ButtonAction, FunctionDef, GridCell, PageLayoutConfig, PageSizeMode, RadioOption, SubCellEntry, SubGrid, SynopticObject, TableRow, TextListEntry, TrendSeriesStyle } from "@/types";
+import type { AlarmSeverity, ButtonAction, FunctionDef, GridCell, PageLayoutConfig, PageSizeMode, RadioOption, SubCellEntry, SubGrid, SynopticObject, TableRow, TextListEntry, TrendTrace } from "@/types";
 
 // ── Shared styles ─────────────────────────────────────────────────────────────
 
@@ -564,7 +564,7 @@ export function EditorShell() {
         break;
       case "trend":
         addObject({ type, x, y, width: 360, height: 180,
-          tag: "", window_s: 60, line_color: "var(--brand-primary, #3b82f6)" });
+          trend_tags: [{ tag: "" }], window_s: 60 });
         break;
       case "xy_plot":
         addObject({ type, x, y, width: 200, height: 200,
@@ -1966,6 +1966,10 @@ function ObjectProps({
   onDelete: () => void;
 }) {
   const { t } = useTranslation();
+  // D (2026-08-23): cattura waypoint dal canvas — stato condiviso nello store.
+  const capturePathTarget = useAppStore((st) => st.capturePathTarget);
+  const setCapturePathTarget = useAppStore((st) => st.setCapturePathTarget);
+  const setMotionMarker = useAppStore((st) => st.setMotionMarker);
   const [imgBrowserOpen, setImgBrowserOpen] = useState(false);
   // Immagini di progetto per la sezione SFONDO: lista lazy (solo quando la
   // sezione esiste per il tipo selezionato) + input file per l'upload.
@@ -2159,7 +2163,11 @@ function ObjectProps({
     </>
   );
 
-  const BOX_TYPES = ["rect", "ellipse", "button", "navbutton", "checkbox", "radio", "slider", "gauge", "led", "progress_bar", "table", "trend", "symbol", "grid"];
+  const BOX_TYPES = ["rect", "ellipse", "button", "navbutton", "checkbox", "radio", "slider", "gauge", "led", "progress_bar", "table", "trend", "symbol", "grid",
+    // 2026-08-23: W/H per tutti i box-like (prima si ridimensionavano solo con le maniglie)
+    "image", "xy_plot", "kpi_tile", "data_log", "alarm_viewer", "alarm_bell", "alarm_banner",
+    "recipe_panel", "faceplate", "setpoint", "text_list", "state_lamp", "lang_button",
+    "lang_selector", "bar_chart", "pie_chart", "sparkline"];
   const isShape = BOX_TYPES.includes(obj.type);
   const hasStroke = obj.type === "rect" || obj.type === "ellipse" || obj.type === "line";
   // Tipi che disegnano il layer di sfondo universale (bg_color/bg_image) in
@@ -2252,7 +2260,10 @@ function ObjectProps({
           <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", marginTop: 8, marginBottom: 2, fontWeight: 700, letterSpacing: 0.5 }}>
             {t("props.bgSection")}
           </div>
-          {field(t("props.bgColor"),
+          {/* 2026-08-23: su rect/button/navbutton/lang_button lo sfondo È il
+              fill ("Colore" qui sopra): il colore doppio spariva sotto il
+              corpo opaco. Resta bg_image. */}
+          {!["rect", "button", "navbutton", "lang_button"].includes(obj.type) && field(t("props.bgColor"),
             <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
               <input
                 type="color"
@@ -2331,7 +2342,13 @@ function ObjectProps({
       )}
 
       {/* Tag binding */}
-      {!["navbutton","gauge","slider","checkbox","radio","led","progress_bar","trend","pipe","text_list","state_lamp","setpoint","xy_plot"].includes(obj.type) && field(t("props.tag"), tagInput("es. pump1.speed"))}
+      {!["navbutton","gauge","slider","checkbox","radio","led","progress_bar","trend","pipe","text_list","state_lamp","setpoint","xy_plot",
+        // 2026-08-23: tipi dove obj.tag NON è il dato primario (serie/figli
+        // propri) o è puro rumore — il campo vive nella sezione qualità come
+        // "Tag di stato" (alimenta bordo-allarme/stale/Bad-gray/QDot).
+        "kpi_tile","data_log","sparkline","bar_chart","pie_chart","table","symbol",
+        "alarm_viewer","alarm_bell","alarm_banner","recipe_panel","grid","faceplate",
+        "image","lang_button","lang_selector"].includes(obj.type) && field(t("props.tag"), tagInput("es. pump1.speed"))}
 
       {/* Token picker (T-40): insert {{key}} into the primary text field so the
           viewer resolves it per the project language table. */}
@@ -2501,6 +2518,7 @@ function ObjectProps({
                   const t = e.target.value as ButtonAction["type"] | "";
                   if (!t) { onChange({ button_action: undefined }); return; }
                   if (t === "navigate") onChange({ button_action: { type: "navigate", url: "" } });
+                  else if (t === "open_faceplate") onChange({ button_action: { type: "open_faceplate", faceplate_id: "", params: {} } });
                   else onChange({ button_action: { type: t } as ButtonAction });
                 }}
               >
@@ -2508,16 +2526,61 @@ function ObjectProps({
                 <option value="login">{t("props.loginModal")}</option>
                 <option value="logout">{t("props.logoutReadonly")}</option>
                 <option value="navigate">{t("props.navigateUrl")}</option>
+                <option value="open_faceplate">{t("props.openFaceplate")}</option>
               </select>
-              {obj.button_action?.type === "navigate" && (
-                <input
-                  type="text"
-                  style={INPUT}
-                  placeholder="https://..."
-                  value={(obj.button_action as { type: "navigate"; url: string }).url}
-                  onChange={(e) => onChange({ button_action: { type: "navigate", url: e.target.value } })}
-                />
-              )}
+              {obj.button_action?.type === "navigate" && (() => {
+                const act = obj.button_action as { type: "navigate"; url: string; target?: "self" | "blank" };
+                return (
+                  <>
+                    <input
+                      type="text"
+                      style={INPUT}
+                      placeholder="https://..."
+                      value={act.url}
+                      onChange={(e) => onChange({ button_action: { ...act, url: e.target.value } })}
+                    />
+                    {/* "Apri in": su un pannello in kiosk una scheda nuova non si
+                        chiude facilmente, quindi la scelta è per pulsante. */}
+                    <select
+                      style={{ ...INPUT, cursor: "pointer" }}
+                      value={act.target ?? "blank"}
+                      onChange={(e) => onChange({ button_action: { ...act, target: e.target.value as "self" | "blank" } })}
+                    >
+                      <option value="blank">{t("props.openInNewTab")}</option>
+                      <option value="self">{t("props.openInSameTab")}</option>
+                    </select>
+                  </>
+                );
+              })()}
+              {obj.button_action?.type === "open_faceplate" && (() => {
+                const act = obj.button_action as { type: "open_faceplate"; faceplate_id: string; params?: Record<string, string> };
+                const defn = faceplates.find((f) => f.id === act.faceplate_id);
+                return (
+                  <>
+                    <select style={{ ...INPUT, cursor: "pointer" }} value={act.faceplate_id}
+                      onChange={(e) => onChange({ button_action: { ...act, faceplate_id: e.target.value, params: {} } })}>
+                      <option value="">{t("props.faceplateChoose")}</option>
+                      {faceplates.map((f) => <option key={f.id} value={f.id}>{f.label}</option>)}
+                    </select>
+                    {defn && normalizeFaceplateParams(defn).map((p) => (
+                      <div key={p.name} style={{ display: "flex", gap: 4, alignItems: "center" }}>
+                        <span style={{ fontSize: 10, color: "var(--brand-text-subtle, #64748b)", width: 80, flexShrink: 0 }}>
+                          {p.name}{p.required ? " *" : ""}
+                        </span>
+                        {p.type === "tag" ? (
+                          <TagInput style={{ ...INPUT, flex: 1 }} placeholder={p.default ?? ""}
+                            value={act.params?.[p.name] ?? ""}
+                            onChange={(v) => onChange({ button_action: { ...act, params: { ...(act.params ?? {}), [p.name]: v } } })} />
+                        ) : (
+                          <input type="text" style={{ ...INPUT, flex: 1 }} placeholder={p.default ?? ""}
+                            value={act.params?.[p.name] ?? ""}
+                            onChange={(e) => onChange({ button_action: { ...act, params: { ...(act.params ?? {}), [p.name]: e.target.value } } })} />
+                        )}
+                      </div>
+                    ))}
+                  </>
+                );
+              })()}
             </div>
           )}
         </>
@@ -2785,42 +2848,56 @@ function ObjectProps({
 
       {/* Trend */}
       {obj.type === "trend" && (() => {
-        // Riga di stile per-traccia (spessore/dash/riempimento/smoothing),
-        // indice 0 = obj.tag, indice i = extra_tags[i-1]. Il colore della
-        // serie 0 resta gestito dal campo line_color qui sopra (legacy);
-        // le tracce extra non avevano finora nessun controllo colore, quindi
-        // qui lo esponiamo solo per idx > 0.
-        const trendStyleRow = (idx: number, opts: { showColor: boolean }) => {
-          const styles = obj.trend_series_styles ?? [];
-          const s: TrendSeriesStyle = styles[idx] ?? {};
-          const patchStyle = (patch: Partial<TrendSeriesStyle>) => {
-            const next = [...styles];
-            while (next.length <= idx) next.push({});
-            next[idx] = { ...next[idx], ...patch };
-            onChange({ trend_series_styles: next });
-          };
-          return (
-            <div style={{ display: "flex", gap: 5, alignItems: "center", flexWrap: "wrap", marginTop: 2, marginBottom: 6, paddingLeft: 4, borderLeft: "2px solid var(--brand-surface-2, #334155)" }}>
-              {opts.showColor && (
-                <input
-                  type="color"
-                  value={s.color ?? "#3b82f6"}
-                  onChange={(e) => patchStyle({ color: e.target.value })}
-                  title={t("props.color")}
-                  style={{ width: 26, height: 22, padding: 1, border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 3 }}
-                />
-              )}
+        // TRACCE unificate (migrazione 2026-08-23): ogni riga è un
+        // TrendTrace {tag, label, colore, stile…}. La traccia 1 non è più
+        // speciale; niente più campo Tag separato né line_color.
+        const traces = obj.trend_tags ?? [];
+        const patchTrace = (idx: number, patch: Partial<TrendTrace>) => {
+          const next = traces.map((tr, i) => (i === idx ? { ...tr, ...patch } : tr));
+          onChange({ trend_tags: next });
+        };
+        const removeTrace = (idx: number) =>
+          onChange({ trend_tags: traces.filter((_, i) => i !== idx) });
+        const traceRow = (tr: TrendTrace, idx: number) => (
+          <div key={idx} style={{ marginBottom: 6, padding: 4, border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4 }}>
+            <div style={{ display: "flex", gap: 4, marginBottom: 3, alignItems: "center" }}>
+              <TagInput
+                style={{ ...INPUT, flex: 1 }}
+                placeholder={t("props.exBoiler")}
+                value={tr.tag}
+                onChange={(v) => patchTrace(idx, { tag: v })}
+              />
+              <input
+                style={{ ...INPUT, width: 90 }}
+                placeholder={t("props.traceLabel")}
+                value={tr.label ?? ""}
+                onChange={(e) => patchTrace(idx, { label: e.target.value || undefined })}
+              />
+              <button
+                title={t("props.remove")}
+                style={{ background: "transparent", border: "none", color: "var(--brand-danger, #ef4444)", cursor: "pointer", fontSize: 14, padding: "0 4px" }}
+                onClick={() => removeTrace(idx)}
+              >×</button>
+            </div>
+            <div style={{ display: "flex", gap: 5, alignItems: "center", flexWrap: "wrap" }}>
+              <input
+                type="color"
+                value={tr.color ?? PALETTE[idx % PALETTE.length]}
+                onChange={(e) => patchTrace(idx, { color: e.target.value })}
+                title={t("props.color")}
+                style={{ width: 26, height: 22, padding: 1, border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 3 }}
+              />
               <input
                 type="number" min={0.5} max={10} step={0.5}
-                value={s.width ?? 1.5}
+                value={tr.width ?? 1.5}
                 title={t("props.strokeWidth")}
-                onChange={(e) => patchStyle({ width: e.target.value === "" ? undefined : Number(e.target.value) })}
+                onChange={(e) => patchTrace(idx, { width: e.target.value === "" ? undefined : Number(e.target.value) })}
                 style={{ ...INPUT, width: 46, padding: "2px 4px" }}
               />
               <select
-                value={s.dash ?? "solid"}
+                value={tr.dash ?? "solid"}
                 title={t("props.dashPattern")}
-                onChange={(e) => patchStyle({ dash: e.target.value === "solid" ? undefined : (e.target.value as TrendSeriesStyle["dash"]) })}
+                onChange={(e) => patchTrace(idx, { dash: e.target.value === "solid" ? undefined : (e.target.value as TrendTrace["dash"]) })}
                 style={{ ...INPUT, width: 84, padding: "2px 4px" }}
               >
                 <option value="solid">{t("props.dashSolid")}</option>
@@ -2828,37 +2905,48 @@ function ObjectProps({
                 <option value="dotted">{t("props.dashDotted")}</option>
               </select>
               <label style={{ fontSize: 10, color: "var(--brand-text-muted, #94a3b8)", display: "flex", gap: 2, alignItems: "center" }}>
-                <input type="checkbox" checked={s.fill ?? false} onChange={(e) => patchStyle({ fill: e.target.checked || undefined })} />
+                <input type="checkbox" checked={tr.fill ?? false} onChange={(e) => patchTrace(idx, { fill: e.target.checked || undefined })} />
                 {t("props.fillArea")}
               </label>
-              {s.fill && (
+              {tr.fill && (
                 <input
                   type="number" min={0} max={1} step={0.05}
-                  value={s.fill_opacity ?? 0.15}
+                  value={tr.fill_opacity ?? 0.15}
                   title={t("props.fillOpacity")}
-                  onChange={(e) => patchStyle({ fill_opacity: e.target.value === "" ? undefined : Number(e.target.value) })}
+                  onChange={(e) => patchTrace(idx, { fill_opacity: e.target.value === "" ? undefined : Number(e.target.value) })}
                   style={{ ...INPUT, width: 46, padding: "2px 4px" }}
                 />
               )}
               <label style={{ fontSize: 10, color: "var(--brand-text-muted, #94a3b8)", display: "flex", gap: 2, alignItems: "center" }}>
-                <input type="checkbox" checked={s.smooth ?? false} onChange={(e) => patchStyle({ smooth: e.target.checked || undefined })} />
+                <input type="checkbox" checked={tr.smooth ?? false} onChange={(e) => patchTrace(idx, { smooth: e.target.checked || undefined })} />
                 {t("props.smoothCurve")}
               </label>
               <label style={{ fontSize: 10, color: "var(--brand-text-muted, #94a3b8)", display: "flex", gap: 2, alignItems: "center" }} title={t("props.ownScaleHint")}>
-                <input type="checkbox" checked={s.own_scale ?? false} onChange={(e) => patchStyle({ own_scale: e.target.checked || undefined })} />
+                <input type="checkbox" checked={tr.own_scale ?? false} onChange={(e) => patchTrace(idx, { own_scale: e.target.checked || undefined })} />
                 {t("props.ownScale")}
               </label>
               <label style={{ fontSize: 10, color: "var(--brand-text-muted, #94a3b8)", display: "flex", gap: 2, alignItems: "center" }} title={t("props.traceHiddenHint")}>
-                <input type="checkbox" checked={s.hidden ?? false} onChange={(e) => patchStyle({ hidden: e.target.checked || undefined })} />
+                <input type="checkbox" checked={tr.hidden ?? false} onChange={(e) => patchTrace(idx, { hidden: e.target.checked || undefined })} />
                 {t("props.traceHidden")}
               </label>
             </div>
-          );
-        };
+          </div>
+        );
 
         return (
         <>
-          {field(t("props.tag"), tagInput("es. boiler.t"))}
+          {/* TRACCE — la prima cosa che si configura */}
+          <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", marginBottom: 2, fontWeight: 700, letterSpacing: 0.5 }}>
+            {t("props.traces")}
+          </div>
+          {traces.map(traceRow)}
+          <button
+            style={{ ...INPUT, cursor: "pointer", color: "var(--brand-text-subtle, #64748b)", borderStyle: "dashed", width: "100%", marginBottom: 8 }}
+            onClick={() => onChange({ trend_tags: [...traces, { tag: "" }] })}
+          >
+            + {t("props.addTrace")}
+          </button>
+
           {field(t("props.windowS"), <BindableInput obj={obj} propName="window_s" onChange={onChange}>{numInput("window_s", 60)}</BindableInput>)}
           {field(t("props.panStepS"), numInput("pan_step_s", Math.round((obj.window_s ?? 60) * 0.25)))}
           <p style={{ fontSize: 10, color: "var(--brand-border, #475569)", margin: "-4px 0 0" }}>
@@ -2985,45 +3073,6 @@ function ObjectProps({
 
           {field(t("props.axisColor"), <BindableInput obj={obj} propName="axis_color" onChange={onChange}>{colorInput("axis_color", "#64748b")}</BindableInput>)}
           {field(t("props.gridColor"), <BindableInput obj={obj} propName="grid_color" onChange={onChange}>{colorInput("grid_color", "#1e293b")}</BindableInput>)}
-          {field(t("props.colorMainLine"), <BindableInput obj={obj} propName="line_color" onChange={onChange}>{colorInput("line_color", "var(--brand-primary, #3b82f6)")}</BindableInput>)}
-          {trendStyleRow(0, { showColor: false })}
-
-          {/* Multi-tag overlay: extra series share the same axes */}
-          <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", marginTop: 6, marginBottom: 2, fontWeight: 700, letterSpacing: 0.5 }}>
-            ALTRI TAG (OVERLAY)
-          </div>
-          {(obj.extra_tags ?? []).map((tg, i) => (
-            <div key={i}>
-              <div style={{ display: "flex", gap: 4, marginBottom: 4, alignItems: "center" }}>
-                <TagInput
-                  style={{ ...INPUT, flex: 1 }}
-                  placeholder={t("props.exBoiler")}
-                  value={tg}
-                  onChange={(v) => {
-                    const next = [...(obj.extra_tags ?? [])];
-                    next[i] = v;
-                    onChange({ extra_tags: next });
-                  }}
-                />
-                <button
-                  title={t("props.remove")}
-                  style={{ background: "transparent", border: "none", color: "var(--brand-danger, #ef4444)", cursor: "pointer", fontSize: 14, padding: "0 4px" }}
-                  onClick={() => {
-                    const next = (obj.extra_tags ?? []).filter((_, j) => j !== i);
-                    onChange({ extra_tags: next.length ? next : undefined });
-                  }}
-                >×</button>
-              </div>
-              {trendStyleRow(i + 1, { showColor: true })}
-            </div>
-          ))}
-          <button
-            style={{ ...INPUT, cursor: "pointer", color: "var(--brand-text-subtle, #64748b)", borderStyle: "dashed", width: "100%" }}
-            onClick={() => onChange({ extra_tags: [...(obj.extra_tags ?? []), ""] })}
-          >
-            + Aggiungi tag
-          </button>
-
           {/* OPC-UA historian backfill */}
           <label style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8, fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", cursor: "pointer" }}>
             <input
@@ -3418,9 +3467,77 @@ function ObjectProps({
               onChange={(v) => onChange({ alarm_tag: v || undefined })}
             />
           )}
-          {field(t("props.colorOff"),   <BindableInput obj={obj} propName="state_off_color"   onChange={onChange}>{colorInput("state_off_color",   "var(--brand-text-subtle, #64748b)")}</BindableInput>)}
-          {field(t("props.colorOn"),    <BindableInput obj={obj} propName="state_on_color"    onChange={onChange}>{colorInput("state_on_color",    "var(--brand-success, #22c55e)")}</BindableInput>)}
-          {field(t("props.colorAlarm"), <BindableInput obj={obj} propName="state_alarm_color" onChange={onChange}>{colorInput("state_alarm_color", "var(--brand-danger, #ef4444)")}</BindableInput>)}
+          <div style={(obj.symbol_states?.length ?? 0) > 0 ? { opacity: 0.45 } : undefined}>
+            {(obj.symbol_states?.length ?? 0) > 0 && (
+              <p style={{ fontSize: 10, color: "var(--brand-warning, #f59e0b)", margin: "0 0 4px" }}>
+                {t("props.statesPrecedence")}
+              </p>
+            )}
+            {field(t("props.colorOff"),   <BindableInput obj={obj} propName="state_off_color"   onChange={onChange}>{colorInput("state_off_color",   "var(--brand-text-subtle, #64748b)")}</BindableInput>)}
+            {field(t("props.colorOn"),    <BindableInput obj={obj} propName="state_on_color"    onChange={onChange}>{colorInput("state_on_color",    "var(--brand-success, #22c55e)")}</BindableInput>)}
+            {field(t("props.colorAlarm"), <BindableInput obj={obj} propName="state_alarm_color" onChange={onChange}>{colorInput("state_alarm_color", "var(--brand-danger, #ef4444)")}</BindableInput>)}
+          </div>
+          {/* F6.6: stati N — mappa valore→colore/lampeggio/label sul valore di
+              state_tag (valore esatto o range, come le VOCI di text_list). */}
+          <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", marginTop: 8, marginBottom: 2, fontWeight: 700 }}>
+            {t("props.symbolStates")}
+          </div>
+          {(obj.symbol_states ?? []).map((e, i) => {
+            const upd = (patch: Partial<TextListEntry>) => {
+              const next = [...(obj.symbol_states ?? [])];
+              next[i] = { ...e, ...patch };
+              onChange({ symbol_states: next });
+            };
+            return (
+              <div key={i} style={{ display: "flex", flexDirection: "column", gap: 3, marginBottom: 4, padding: 4, border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4 }}>
+                <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+                  <input style={{ ...INPUT, width: 48 }} placeholder="val" value={String(e.value)}
+                    onChange={(ev) => upd({ value: ev.target.value })} />
+                  <input style={{ ...INPUT, width: 44 }} type="number" placeholder="min" value={e.value_min ?? ""}
+                    onChange={(ev) => upd({ value_min: ev.target.value === "" ? undefined : Number(ev.target.value) })} />
+                  <input style={{ ...INPUT, width: 44 }} type="number" placeholder="max" value={e.value_max ?? ""}
+                    onChange={(ev) => upd({ value_max: ev.target.value === "" ? undefined : Number(ev.target.value) })} />
+                  <input type="color" value={e.color ?? "#22c55e"}
+                    onChange={(ev) => upd({ color: ev.target.value })}
+                    style={{ width: 26, height: 22, padding: 1, border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 3 }} />
+                  <button style={{ background: "transparent", border: "none", color: "var(--brand-danger, #ef4444)", cursor: "pointer" }}
+                    onClick={() => onChange({ symbol_states: (obj.symbol_states ?? []).filter((_, j) => j !== i) })}>✕</button>
+                </div>
+                <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+                  <input style={{ ...INPUT, flex: 1 }} placeholder="label" value={e.label}
+                    onChange={(ev) => upd({ label: ev.target.value })} />
+                  <label style={{ fontSize: 10, color: "var(--brand-text-subtle, #64748b)", display: "flex", gap: 3, alignItems: "center" }}>
+                    <input type="checkbox" checked={!!e.blink} onChange={(ev) => upd({ blink: ev.target.checked || undefined })} />
+                    blink
+                  </label>
+                </div>
+              </div>
+            );
+          })}
+          <button style={{ ...INPUT, width: "100%", cursor: "pointer", marginBottom: 4 }}
+            onClick={() => onChange({ symbol_states: [...(obj.symbol_states ?? []), { value: "", label: "", color: "#22c55e" }] })}>
+            + {t("props.addState")}
+          </button>
+          {/* F6.10: rotazione continua */}
+          {field(t("props.symbolSpin"), (
+            <select style={{ ...INPUT, cursor: "pointer" }} value={obj.symbol_spin ?? ""}
+              onChange={(e) => onChange({ symbol_spin: (e.target.value || undefined) as SynopticObject["symbol_spin"] })}>
+              <option value="">{t("props.blinkOff")}</option>
+              <option value="on_state">{t("props.spinOnState")}</option>
+              <option value="tag">{t("props.blinkTag")}</option>
+              <option value="always">{t("props.blinkAlways")}</option>
+            </select>
+          ))}
+          {obj.symbol_spin === "tag" && field(t("props.blinkTagField"),
+            <TagInput style={INPUT} placeholder="es. fan1.running" value={obj.symbol_spin_tag ?? ""}
+              onChange={(v) => onChange({ symbol_spin_tag: v || undefined })} />
+          )}
+          {obj.symbol_spin && field(t("props.spinPeriod"), numInput("symbol_spin_s", 2))}
+          {/* F6.7: livello continuo (tank) */}
+          {field(t("props.levelTag"),
+            <TagInput style={INPUT} placeholder="es. tank1.level" value={obj.fill_level_tag ?? ""}
+              onChange={(v) => onChange({ fill_level_tag: v || undefined })} />
+          )}
         </>
       )}
 
@@ -3449,17 +3566,43 @@ function ObjectProps({
                 <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", marginTop: 6, marginBottom: 2, fontWeight: 700, letterSpacing: 0.5 }}>
                   {t("props.faceplateParams")}
                 </div>
-                {defn.params.map((p) => (
-                  <div key={p}>
-                    <div style={LABEL}>{p}</div>
-                    <input
-                      type="text" style={INPUT}
-                      value={obj.faceplate_params?.[p] ?? ""}
-                      onChange={(e) => onChange({ faceplate_params: { ...(obj.faceplate_params ?? {}), [p]: e.target.value } })}
-                    />
-                  </div>
-                ))}
+                {normalizeFaceplateParams(defn).map((p) => {
+                  const val = obj.faceplate_params?.[p.name] ?? "";
+                  const missing = !!p.required && val.trim() === "" && (p.default === undefined || p.default === "");
+                  const setVal = (v: string) => onChange({ faceplate_params: { ...(obj.faceplate_params ?? {}), [p.name]: v } });
+                  const style = { ...INPUT, borderColor: missing ? "var(--brand-danger, #ef4444)" : undefined };
+                  return (
+                    <div key={p.name}>
+                      <div style={LABEL}>
+                        {p.name}{p.required ? " *" : ""}{p.type ? ` (${p.type})` : ""}
+                      </div>
+                      {p.type === "tag" ? (
+                        <TagInput style={style} placeholder={p.default ?? ""} value={val} onChange={setVal} />
+                      ) : p.type === "color" ? (
+                        <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+                          <input type="color" value={val || p.default || "#3b82f6"}
+                            onChange={(e) => setVal(e.target.value)}
+                            style={{ width: 40, height: 26, padding: 1, border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 3 }} />
+                          <input type="text" style={{ ...style, flex: 1 }} placeholder={p.default ?? ""} value={val}
+                            onChange={(e) => setVal(e.target.value)} />
+                        </div>
+                      ) : (
+                        <input type={p.type === "number" ? "number" : "text"} style={style}
+                          placeholder={p.default ?? ""} value={val}
+                          onChange={(e) => setVal(e.target.value)} />
+                      )}
+                      {missing && (
+                        <div style={{ fontSize: 10, color: "var(--brand-danger-soft, #fca5a5)" }}>{t("props.paramRequired")}</div>
+                      )}
+                    </div>
+                  );
+                })}
               </>
+            )}
+            {/* F6.4: scaling dei figli al box dell'istanza (opt-in) */}
+            {defn && field(t("props.faceplateScale"),
+              <input type="checkbox" checked={!!obj.faceplate_scale}
+                onChange={(e) => onChange({ faceplate_scale: e.target.checked || undefined })} />
             )}
           </>
         );
@@ -3609,6 +3752,15 @@ function ObjectProps({
             {field(t("props.offsetPx"), numInput("pipe_label_offset", 10))}
             {field(t("props.labelColor"), <BindableInput obj={obj} propName="color" onChange={onChange}>{colorInput("color", "#e2e8f0")}</BindableInput>)}
             {field(t("props.fontSize"), <BindableInput obj={obj} propName="font_size" onChange={onChange}>{numInput("font_size", 12)}</BindableInput>)}
+            {/* F6.10: flusso animato */}
+            {field(t("props.pipeFlow"),
+              <input type="checkbox" checked={!!obj.pipe_flow}
+                onChange={(e) => onChange({ pipe_flow: e.target.checked || undefined })} />
+            )}
+            {obj.pipe_flow && field(t("props.pipeFlowTag"),
+              <TagInput style={INPUT} placeholder="es. pump1.flow (segno = direzione)" value={obj.pipe_flow_tag ?? ""}
+                onChange={(v) => onChange({ pipe_flow_tag: v || undefined })} />
+            )}
           </CollapsibleSection>
 
           {/* Connection anchoring */}
@@ -3814,6 +3966,17 @@ function ObjectProps({
         storageKey="quality"
         hint={!obj.tag ? "Imposta un tag (sezione Tag) per personalizzare i colori." : undefined}
       >
+        {/* 2026-08-23: per i tipi dove obj.tag non è il dato primario, il tag
+            che alimenta allarme/stale/qualità si imposta QUI (il campo Tag
+            generico in alto per loro non esiste più). */}
+        {["bar_chart","pie_chart","table","symbol",
+          "alarm_viewer","alarm_bell","alarm_banner","recipe_panel","grid","faceplate",
+          "image","lang_button","lang_selector"].includes(obj.type) &&
+          field(t("props.stateTag"),
+            <TagInput style={INPUT} placeholder={t("props.stateTagPh")}
+              value={obj.tag ?? ""}
+              onChange={(v) => onChange({ tag: v || undefined })} />
+          )}
         {!obj.tag ? (
           <p style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", margin: "0 0 4px" }}>
             Questo oggetto non ha un tag bound. L'indicatore di qualità verrà
@@ -3921,6 +4084,108 @@ function ObjectProps({
         {obj.critical && field(t("props.requireReason"),
           <input type="checkbox" checked={!!obj.require_reason}
             onChange={(e) => onChange({ require_reason: e.target.checked || undefined })} />
+        )}
+      </CollapsibleSection>
+
+      {/* F6.10 — MOVIMENTO su percorso (universale) */}
+      <CollapsibleSection
+        title={t("props.motion")}
+        storageKey="motion"
+        headerExtra={obj.motion_tag ? <span style={{ fontSize: 10, color: "var(--brand-primary, #3b82f6)", fontWeight: 700 }}>●</span> : undefined}
+      >
+        {field(t("props.motionTag"),
+          <TagInput style={INPUT} placeholder="es. carrello.posizione" value={obj.motion_tag ?? ""}
+            onChange={(v) => onChange({ motion_tag: v || undefined })} />
+        )}
+        {obj.motion_tag && (
+          <>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+              <div><div style={LABEL}>Min</div>{numInput("motion_min", 0)}</div>
+              <div><div style={LABEL}>Max</div>{numInput("motion_max", 100)}</div>
+            </div>
+            {field(t("props.motionAnchor"), (
+              <select style={{ ...INPUT, cursor: "pointer" }} value={obj.motion_anchor ?? "center"}
+                onChange={(e) => onChange({ motion_anchor: e.target.value === "center" ? undefined : "top_left" })}>
+                <option value="center">{t("props.anchorCenter")}</option>
+                <option value="top_left">{t("props.anchorTopLeft")}</option>
+              </select>
+            ))}
+            {(() => {
+              // 2026-08-23: waypoint come TABELLA (x/y editabili, ✕) +
+              // pulsante di cattura ＋ che prende le coordinate cliccando
+              // sul canvas (Esc o ri-click per uscire).
+              const pts = obj.motion_path ?? [];
+              const setPts = (next: { x: number; y: number }[]) =>
+                onChange({ motion_path: next.length > 0 ? next : undefined });
+              const capturing = capturePathTarget === obj.id;
+              return (
+                <div style={{ marginBottom: 4 }}>
+                  <div style={{ ...LABEL, display: "flex", alignItems: "center", gap: 6 }}>
+                    {t("props.motionPathTable")}
+                    <button
+                      title={t("props.motionCapture")}
+                      onClick={() => setCapturePathTarget(capturing ? null : obj.id)}
+                      style={{
+                        marginLeft: "auto", cursor: "pointer", borderRadius: 4, fontSize: 12,
+                        padding: "1px 8px", border: "1px solid",
+                        borderColor: capturing ? "var(--brand-warning, #f59e0b)" : "var(--brand-surface-2, #334155)",
+                        background: capturing ? "#3f2d10" : "var(--brand-bg, #0f172a)",
+                        color: capturing ? "var(--brand-warning-soft, #fbbf24)" : "var(--brand-text-muted, #94a3b8)",
+                      }}
+                    >＋ {capturing ? t("props.motionCapturing") : t("props.motionCaptureBtn")}</button>
+                  </div>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
+                    <thead>
+                      <tr style={{ color: "var(--brand-text-subtle, #64748b)" }}>
+                        <th style={{ textAlign: "left", fontWeight: 600, padding: "1px 4px", width: 22 }}>#</th>
+                        <th style={{ textAlign: "left", fontWeight: 600, padding: "1px 4px" }}>X</th>
+                        <th style={{ textAlign: "left", fontWeight: 600, padding: "1px 4px" }}>Y</th>
+                        <th style={{ width: 22 }} />
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {pts.map((p, i) => (
+                        <tr key={i}>
+                          <td style={{ padding: "1px 4px", color: "var(--brand-text-subtle, #64748b)" }}>{i + 1}</td>
+                          <td style={{ padding: "1px 2px" }}>
+                            <input type="number" style={{ ...INPUT, padding: "1px 4px", fontSize: 11 }} value={p.x}
+                              onFocus={() => setMotionMarker(p)}
+                              onBlur={() => setMotionMarker(null)}
+                              onChange={(e) => {
+                                const x = Number(e.target.value);
+                                setMotionMarker({ x, y: p.y });
+                                setPts(pts.map((q, j) => (j === i ? { ...q, x } : q)));
+                              }} />
+                          </td>
+                          <td style={{ padding: "1px 2px" }}>
+                            <input type="number" style={{ ...INPUT, padding: "1px 4px", fontSize: 11 }} value={p.y}
+                              onFocus={() => setMotionMarker(p)}
+                              onBlur={() => setMotionMarker(null)}
+                              onChange={(e) => {
+                                const y = Number(e.target.value);
+                                setMotionMarker({ x: p.x, y });
+                                setPts(pts.map((q, j) => (j === i ? { ...q, y } : q)));
+                              }} />
+                          </td>
+                          <td style={{ textAlign: "center" }}>
+                            <button style={{ background: "transparent", border: "none", color: "var(--brand-danger, #ef4444)", cursor: "pointer" }}
+                              onClick={() => setPts(pts.filter((_, j) => j !== i))}>✕</button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  <button
+                    style={{ ...INPUT, cursor: "pointer", width: "100%", marginTop: 2, fontSize: 11, color: "var(--brand-text-subtle, #64748b)", borderStyle: "dashed" }}
+                    onClick={() => setPts([...pts, { x: (pts[pts.length - 1]?.x ?? obj.x) + 50, y: pts[pts.length - 1]?.y ?? obj.y }])}
+                  >+ {t("props.motionAddRow")}</button>
+                </div>
+              );
+            })()}
+            <p style={{ fontSize: 10, color: "var(--brand-border, #475569)", margin: "0 0 4px" }}>
+              {t("props.motionHint")}
+            </p>
+          </>
         )}
       </CollapsibleSection>
 
