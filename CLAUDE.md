@@ -12,6 +12,20 @@
 5. **Never SSH into a test device without asking** — addresses change every session.
 6. **`docs/CONTEXT.md` beats `docs/SWS_Project_Specification.md`** wherever they conflict, until the PoC graduates to a product. The spec is the long-term destination; CONTEXT.md is the short-term reality.
 
+## Regole UI dell'editor (decise dal maintainer, 2026-08-23)
+
+1. **WYSIWYG obbligatorio.** Il ramo edit-mode di ogni oggetto sinottico DEVE usare lo stesso
+   rendering del runtime — pattern: contenuto reale + `pointerEvents:"none"` + hit-rect
+   trasparente per selezione/drag (come gauge/symbol/faceplate/grid). I placeholder che
+   divergono per contenuto o dimensioni sono bug, non scorciatoie. Dati live veri quando
+   disponibili; widget con storico: una fetch al mount, niente polling in edit. Gli effetti
+   runtime (blink, motion, flusso pipe, bordo allarme, stale) si previsualizzano col toggle
+   "Anteprima effetti" della toolbar, spento di default.
+2. **Una sezione per dato.** Mai due punti del pannello proprietà che scrivono lo stesso
+   campo; se esistono variante semplice e avanzata, sopravvive solo quella completa. Il campo
+   `tag` generico compare solo sui tipi che lo usano come dato primario; per gli altri vive
+   nella sezione qualità come "Tag di stato (allarme/stale/qualità)".
+
 ## Session start
 
 Read, in order:
