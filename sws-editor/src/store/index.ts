@@ -147,11 +147,26 @@ function updateSubCellEntryAtPath(
 
 const HISTORY_LIMIT = 200;
 
-/** Object alignment commands operating on a set of objects. */
+/** F8.2 — campi copiati dal "copia stile". Solo aspetto: niente `tag`, niente
+ *  geometria, niente azioni o binding. Aggiungere qui un campo nuovo di stile
+ *  è l'unico passo necessario perché il pennello lo trasporti. */
+const STYLE_KEYS = [
+  "fill", "stroke", "stroke_width", "stroke_dasharray", "color", "bg_color", "bg_image",
+  "corner_radius", "fill_gradient", "gradient_light_color", "gradient_dark_color",
+  "font_size", "font_weight", "font_family", "text_anchor", "opacity",
+  "quality_dot", "quality_dot_good_color", "quality_dot_bad_color", "quality_dot_uncertain_color",
+  "transition_duration_ms", "blink_mode", "blink_rate_ms",
+] as const satisfies readonly (keyof SynopticObject)[];
+
+/** Object alignment commands operating on a set of objects.
+ *  F8.1: `distribute-*` spazia a GAP uguali (prima distribuiva le posizioni,
+ *  che con oggetti di larghezza diversa lascia spazi diversi); `match-*`
+ *  uniforma le dimensioni al primo oggetto della selezione. */
 export type AlignMode =
   | "left" | "center-x" | "right"
   | "top"  | "middle-y" | "bottom"
-  | "distribute-x" | "distribute-y";
+  | "distribute-x" | "distribute-y"
+  | "match-width" | "match-height";
 
 export type Role = "Viewer" | "Operator" | "Supervisor" | "Admin";
 export type AppMode = "edit" | "config";
@@ -377,6 +392,11 @@ interface AppState {
   // Clipboard
   copySelection: () => void;
   pasteClipboard: () => void;
+  /** F8.2 — copia stile: memorizza i campi di stile dell'oggetto indicato
+   *  (o del primo selezionato) e li applica alla selezione corrente. */
+  copyStyle: (objectId?: string) => void;
+  applyStyle: () => void;
+  styleClipboard: Partial<SynopticObject> | null;
   setClipboard: (objs: SynopticObject[], sourcePageId?: string | null) => void;
 
   // Alignment & distribution (multi-select)
@@ -561,6 +581,7 @@ export const useAppStore = create<AppState>((set, get) => {
     future: [],
     clipboard: [],
     clipboardSourcePageId: null,
+    styleClipboard: null,
     tagValues: {},
     alarms: {},
     logs: [],
@@ -1335,6 +1356,36 @@ export const useAppStore = create<AppState>((set, get) => {
       set({ clipboard: picked, clipboardSourcePageId: currentPageId });
     },
 
+    // F8.2 — format painter. La whitelist è esplicita: mai `tag`, `id`, `type`,
+    // geometria o azioni, altrimenti "copia stile" copierebbe anche il dato e
+    // due oggetti finirebbero a leggere la stessa variabile.
+    copyStyle: (objectId) => {
+      const { selectedObjectIds, pages, currentPageId } = get();
+      const page = pages.find((p) => p.id === currentPageId);
+      if (!page) return;
+      const id = objectId ?? selectedObjectIds[0];
+      const src = page.objects.find((o) => o.id === id);
+      if (!src) return;
+      const style: Partial<SynopticObject> = {};
+      for (const k of STYLE_KEYS) {
+        if (src[k] !== undefined) (style as Record<string, unknown>)[k] = src[k];
+      }
+      set({ styleClipboard: style });
+    },
+
+    applyStyle: () => {
+      const { styleClipboard, selectedObjectIds, currentPageId } = get();
+      if (!styleClipboard || selectedObjectIds.length === 0) return;
+      pushHistory("Applica stile");
+      set((s) => ({
+        pages: s.pages.map((p) => p.id !== currentPageId ? p : {
+          ...p,
+          objects: p.objects.map((o) =>
+            selectedObjectIds.includes(o.id) ? { ...o, ...styleClipboard } : o),
+        }),
+      }));
+    },
+
     pasteClipboard: () => {
       const { clipboard, currentPageId, clipboardSourcePageId } = get();
       if (clipboard.length === 0) return;
@@ -1399,7 +1450,7 @@ export const useAppStore = create<AppState>((set, get) => {
       const cy = (minY + maxB) / 2;
 
       pushHistory(`Allinea (${mode})`);
-      const patches = new Map<string, { x?: number; y?: number; x2?: number; y2?: number }>();
+      const patches = new Map<string, { x?: number; y?: number; x2?: number; y2?: number; width?: number; height?: number }>();
 
       const move = (o: SynopticObject, dx: number, dy: number) => {
         const p: { x?: number; y?: number; x2?: number; y2?: number } = {};
@@ -1433,23 +1484,46 @@ export const useAppStore = create<AppState>((set, get) => {
           patches.set(o.id, move(o, 0, cy - ocy));
         }
       } else if (mode === "distribute-x" && targets.length >= 3) {
+        // F8.1 — GAP uguali, non posizioni equidistanti: con larghezze diverse
+        // le due cose non coincidono e a occhio il risultato sembrava storto.
+        // Primo e ultimo restano fermi; lo spazio libero fra i bordi si divide
+        // in parti uguali fra gli intervalli.
         const sorted = [...targets].sort((a, b) => (a.x ?? 0) - (b.x ?? 0));
-        const first = sorted[0].x ?? 0;
-        const last  = sorted[sorted.length - 1].x ?? 0;
-        const step  = (last - first) / (sorted.length - 1);
-        sorted.forEach((o, i) => {
-          const target = first + i * step;
-          patches.set(o.id, move(o, target - (o.x ?? 0), 0));
+        const first = sorted[0];
+        const last  = sorted[sorted.length - 1];
+        const span = ((last.x ?? 0) + (last.width ?? 0)) - (first.x ?? 0);
+        const totalW = sorted.reduce((acc, o) => acc + (o.width ?? 0), 0);
+        const gap = (span - totalW) / (sorted.length - 1);
+        let cursor = (first.x ?? 0) + (first.width ?? 0) + gap;
+        sorted.slice(1, -1).forEach((o) => {
+          patches.set(o.id, move(o, cursor - (o.x ?? 0), 0));
+          cursor += (o.width ?? 0) + gap;
         });
       } else if (mode === "distribute-y" && targets.length >= 3) {
         const sorted = [...targets].sort((a, b) => (a.y ?? 0) - (b.y ?? 0));
-        const first = sorted[0].y ?? 0;
-        const last  = sorted[sorted.length - 1].y ?? 0;
-        const step  = (last - first) / (sorted.length - 1);
-        sorted.forEach((o, i) => {
-          const target = first + i * step;
-          patches.set(o.id, move(o, 0, target - (o.y ?? 0)));
+        const first = sorted[0];
+        const last  = sorted[sorted.length - 1];
+        const span = ((last.y ?? 0) + (last.height ?? 0)) - (first.y ?? 0);
+        const totalH = sorted.reduce((acc, o) => acc + (o.height ?? 0), 0);
+        const gap = (span - totalH) / (sorted.length - 1);
+        let cursor = (first.y ?? 0) + (first.height ?? 0) + gap;
+        sorted.slice(1, -1).forEach((o) => {
+          patches.set(o.id, move(o, 0, cursor - (o.y ?? 0)));
+          cursor += (o.height ?? 0) + gap;
         });
+      } else if (mode === "match-width" || mode === "match-height") {
+        // F8.1 — uniforma le dimensioni al PRIMO oggetto selezionato (il
+        // riferimento è quello che l'utente ha scelto per primo, non il più
+        // grande: così l'esito è prevedibile).
+        const refId = selectedObjectIds[0];
+        const ref = targets.find((o) => o.id === refId) ?? targets[0];
+        const key = mode === "match-width" ? "width" : "height";
+        const val = ref[key];
+        if (val === undefined) return;
+        for (const o of targets) {
+          if (o.id === ref.id || o[key] === undefined) continue;
+          patches.set(o.id, { [key]: val } as { width?: number; height?: number });
+        }
       }
 
       if (patches.size === 0) return;

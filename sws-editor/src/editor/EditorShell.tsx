@@ -1735,6 +1735,15 @@ function MultiSelectionProps({
         <button style={btn} title={t("props.distributeV")}   onClick={() => onAlign("distribute-y")}>⇕</button>
       </div>
 
+      {/* F8.1 — uniforma le dimensioni al primo oggetto selezionato. */}
+      <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", marginTop: 6, fontWeight: 700, letterSpacing: 0.5 }}>
+        {t("props.matchSize")}
+      </div>
+      <div style={{ display: "flex", gap: 4 }}>
+        <button style={btn} title={t("props.matchWidth")}  onClick={() => onAlign("match-width")}>↔=</button>
+        <button style={btn} title={t("props.matchHeight")} onClick={() => onAlign("match-height")}>↕=</button>
+      </div>
+
       <div style={{ height: 1, background: "var(--brand-surface-2, #334155)", margin: "8px 0" }} />
 
       <div style={{ display: "flex", gap: 4 }}>

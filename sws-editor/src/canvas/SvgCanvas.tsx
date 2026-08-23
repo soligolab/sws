@@ -1020,10 +1020,62 @@ export function SvgCanvas({
           if (handle.includes("l")) x = startObj.x + (startObj.width - newW);
           if (handle.includes("t")) y = startObj.y + (startObj.height - newH);
         } else {
-          if (handle.includes("l")) { x = snap(startObj.x + dx); width = snap(startObj.width - dx); }
-          if (handle.includes("r")) { width = snap(startObj.width + dx); }
-          if (handle.includes("t")) { y = snap(startObj.y + dy); height = snap(startObj.height - dy); }
-          if (handle.includes("b")) { height = snap(startObj.height + dy); }
+          // F8.1 — il bordo trascinato si aggancia ai bordi/centri degli altri
+          // oggetti, ai bordi pagina e alle guide del righello, come già fa il
+          // trascinamento dell'oggetto intero. Prima il resize conosceva solo
+          // la griglia, quindi allineare un bordo a un oggetto vicino era a
+          // occhio anche con lo snap attivo.
+          const tol = 8 / z;
+          const edgesX: number[] = [];
+          const edgesY: number[] = [];
+          for (const other of objects) {
+            if (other.id === objId) continue;
+            const bb = objBBox(other);
+            edgesX.push(bb.x1, (bb.x1 + bb.x2) / 2, bb.x2);
+            edgesY.push(bb.y1, (bb.y1 + bb.y2) / 2, bb.y2);
+          }
+          if (pageWidth && pageWidth > 0) edgesX.push(0, pageWidth / 2, pageWidth);
+          if (pageHeight && pageHeight > 0) edgesY.push(0, pageHeight / 2, pageHeight);
+          for (const g of guides) (g.axis === "v" ? edgesX : edgesY).push(g.pos);
+          /** Aggancia un bordo a un candidato entro la tolleranza. */
+          const pull = (v: number, cands: number[]): number | null => {
+            let best: number | null = null; let bestD = tol;
+            for (const c of cands) {
+              const d = Math.abs(v - c);
+              if (d < bestD) { bestD = d; best = c; }
+            }
+            return best;
+          };
+          let sX: number | null = null; let sY: number | null = null;
+          if (handle.includes("l")) {
+            const left = startObj.x + dx;
+            const hit = pull(left, edgesX);
+            const nl = hit ?? snap(left);
+            if (hit !== null) sX = hit;
+            x = nl; width = startObj.x + startObj.width - nl;
+          }
+          if (handle.includes("r")) {
+            const right = startObj.x + startObj.width + dx;
+            const hit = pull(right, edgesX);
+            const nr = hit ?? snap(right);
+            if (hit !== null) sX = hit;
+            width = nr - startObj.x;
+          }
+          if (handle.includes("t")) {
+            const top = startObj.y + dy;
+            const hit = pull(top, edgesY);
+            const nt = hit ?? snap(top);
+            if (hit !== null) sY = hit;
+            y = nt; height = startObj.y + startObj.height - nt;
+          }
+          if (handle.includes("b")) {
+            const bottom = startObj.y + startObj.height + dy;
+            const hit = pull(bottom, edgesY);
+            const nb = hit ?? snap(bottom);
+            if (hit !== null) sY = hit;
+            height = nb - startObj.y;
+          }
+          setSnapLines({ x: sX, y: sY });
         }
         if (width >= 4 && height >= 4) {
           const clamped = clampToPage(x, y, width, height, pageWidth, pageHeight);

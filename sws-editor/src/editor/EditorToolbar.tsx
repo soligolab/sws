@@ -84,6 +84,13 @@ export function EditorToolbar({
   const past         = useAppStore((s) => s.past.length);
   const previewEffects    = useAppStore((s) => s.previewEffects);
   const setPreviewEffects = useAppStore((s) => s.setPreviewEffects);
+  // F8.2 — copia stile (pennello): copia dall'oggetto selezionato, poi applica
+  // alla selezione successiva. Il pulsante di applicazione appare solo quando
+  // c'è uno stile in memoria, così non c'è un comando che "non fa niente".
+  const selectedIds     = useAppStore((s) => s.selectedObjectIds);
+  const styleClipboard  = useAppStore((s) => s.styleClipboard);
+  const copyStyle       = useAppStore((s) => s.copyStyle);
+  const applyStyle      = useAppStore((s) => s.applyStyle);
   const future       = useAppStore((s) => s.future.length);
   const undo         = useAppStore((s) => s.undo);
   const redo         = useAppStore((s) => s.redo);
@@ -145,6 +152,23 @@ export function EditorToolbar({
         title={t("toolbar.previewEffectsTitle")}>
         {previewEffects ? "⏸" : "▶"} {t("toolbar.previewEffects")}
       </button>
+      <button
+        style={{ ...BTN, ...(selectedIds.length === 0 ? { opacity: 0.45, cursor: "default" } : {}) }}
+        disabled={selectedIds.length === 0}
+        onClick={() => copyStyle()}
+        title={t("toolbar.copyStyleTitle")}>
+        🖌 {t("toolbar.copyStyle")}
+      </button>
+      {styleClipboard && (
+        <button
+          style={{ ...BTN, background: "#1e3a8a", color: "#bfdbfe", borderColor: "#2563eb",
+                   ...(selectedIds.length === 0 ? { opacity: 0.45, cursor: "default" } : {}) }}
+          disabled={selectedIds.length === 0}
+          onClick={() => applyStyle()}
+          title={t("toolbar.applyStyleTitle")}>
+          ⤵ {t("toolbar.applyStyle")}
+        </button>
+      )}
       <input
         type="range"
         min={0}

@@ -107,7 +107,11 @@
     "fitPageUnavailable": "Dimensioni pagina non definite (modalità fluida)",
     "fitObjectsTitle": "Adatta agli oggetti",
     "previewEffects": "Effetti",
-    "previewEffectsTitle": "Anteprima effetti runtime nel canvas: lampeggi, rotazioni, flusso pipe, movimento su percorso, bordi allarme, stale. Spento = editing tranquillo."
+    "previewEffectsTitle": "Anteprima effetti runtime nel canvas: lampeggi, rotazioni, flusso pipe, movimento su percorso, bordi allarme, stale. Spento = editing tranquillo.",
+    "copyStyle": "Copia stile",
+    "copyStyleTitle": "Copia i campi di aspetto dell'oggetto selezionato (colori, bordo, font, angoli, sfumatura). Non copia il tag né la geometria.",
+    "applyStyle": "Applica stile",
+    "applyStyleTitle": "Applica lo stile copiato a tutti gli oggetti selezionati."
   },
   "unsaved": {
     "title": "Modifiche non salvate",
@@ -787,7 +791,10 @@
     "zones": "ZONE COLORATE",
     "addZone": "Aggiungi zona",
     "gap": "Spazio celle (px)",
-    "padding": "Margine interno (px)"
+    "padding": "Margine interno (px)",
+    "matchSize": "UNIFORMA DIMENSIONI",
+    "matchWidth": "Stessa larghezza del primo selezionato",
+    "matchHeight": "Stessa altezza del primo selezionato"
   },
   "shortcut": {
     "navCanvas": "Navigazione canvas",
