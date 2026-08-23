@@ -6,6 +6,33 @@
 >
 > **Pulizia 2026-07-27**: rimossi i task già chiusi e le sezioni di verifica ormai superate; le sessioni mergiate **e** verificate fino al 2026-07-09 sono compresse in «Storico». Il dettaglio integrale resta in `CHANGELOG.md` e nella history git.
 
+**Sessione 2026-08-23 (notte, seguito 2) — Lotti 3 e 4: F7.1-F7.5 + F8.3/F8.4**
+(branch **`feat/scada-f7`**).
+- **F7.1 Table 2.0**: la tabella usa il DataTable condiviso — colonne scelte, ordinamento,
+  filtri opzionali, scroll nel box (prima sfondava), soglie e celle scrivibili per riga.
+- **F7.2 Bar chart**: valori negativi (prima clampati a zero = barre invisibili), barre
+  impilate, tacche d'asse, legenda, soglie anche in orizzontale.
+- **F7.3 Pie**: etichette valore+unità, raggruppamento fette piccole, explode, foro colorato.
+- **F7.4 Text**: multiriga con allineamento verticale e interlinea (default invariato).
+- **F7.5 (parziale)**: ACK massivo sugli allarmi mostrati, shelve per riga con motivo,
+  **nuovo tipo `alarm_history`** piazzabile. **RESTA**: suono per severità con tacita, e
+  commento/motivo sull'ACK (vuole un campo in più sull'endpoint di ack → lavoro Rust).
+- **F8.3**: ricerca su tutte le pagine (nome/id/tag/testo) con risultati navigabili; "dove è
+  usato questo tag" nella sezione TAG; logica delle variabili non usate ora condivisa in
+  `src/search/tagUsage.ts` (era duplicata in ConfigView).
+- **F8.4**: maniglia di rotazione (Shift = 15°) e resize **sugli oggetti ruotati**, col
+  movimento proiettato sugli assi locali.
+- **Verifiche**: `check_f7.sh` 32/32, `check_f8.sh` verde (snap in resize + rotazione),
+  58 test unitari, `cargo check --workspace` e `pnpm build` verdi.
+- **Trovato misurando** (non regressioni, difetti più vecchi): la rotazione col mouse partiva
+  da un angolo casuale perché passavo `clientX/Y` grezzi a `toSvg`; i default di colore dei
+  testi vengono dai token di tema dell'app e su una pagina con sfondo scelto a mano possono
+  dare scuro-su-scuro → **Q18** in `docs/OPEN_QUESTIONS.md`.
+- **Attenzione**: i check usano il binario **debug** — serve `cargo build -p sws-runtime`
+  (non basta `cargo check`), altrimenti il round-trip misura un mirror vecchio.
+- **Prossimo**: residuo F7.5 (suono, commento ACK), poi **F9c** parità LVGL — il lotto ha
+  accumulato molto (trend_tags, F7.6, F7.1-F7.4: tutti campi che LVGL non conosce).
+
 **Sessione 2026-08-23 (notte, seguito) — Lotto 2: F7.6 + F8.1/F8.2** (branch **`feat/scada-f7`**
 annidato su `feat/scada-f6`).
 - **F7.6 rifiniture**: rect (raggio, tratteggio, sfumatura), gauge (zone colorate, tacche
