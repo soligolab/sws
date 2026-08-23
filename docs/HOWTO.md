@@ -16,6 +16,7 @@
 2. [Liberare spazio su disco quando è pieno](#2-liberare-spazio-su-disco-quando-è-pieno)
 3. [Il browser non vede il runtime dopo aver installato il certificato](#3-il-browser-non-vede-il-runtime-dopo-aver-installato-il-certificato)
 4. [Un pulsante che apre un sito esterno (e Login/Logout dal sinottico)](#4-un-pulsante-che-apre-un-sito-esterno-e-loginlogout-dal-sinottico)
+5. [Compilare tutto e pubblicare le immagini container](#5-compilare-tutto-e-pubblicare-le-immagini-container)
 
 ---
 
@@ -287,3 +288,51 @@ Note pratiche:
 - Il Python `on_press_fn` eventualmente impostato sullo stesso pulsante viene eseguito **prima**
   della navigazione; con Login/Logout invece non viene chiamato (vince l'azione predefinita).
 - Queste tre azioni sono **solo web**: il motore LVGL non le supporta.
+
+---
+
+## 5. Compilare tutto e pubblicare le immagini container
+
+Un comando solo. Il `podman login` serve una volta per macchina (senza, il push muore a metà):
+
+```bash
+podman login ghcr.io
+./scripts/build_containers_all.sh --push
+```
+
+Compila la SPA e il Rust, poi costruisce e pubblica le tre immagini su
+`ghcr.io/soligolab/sws-runtime`, ognuna con tre tag — versione dal `Cargo.toml`, sha del
+commit, e `latest-*`:
+
+| Immagine | Percorso di build | Tag |
+|---|---|---|
+| aarch64 Pixsys-tuned | SDK Yocto (`build_container.sh`) | `<ver>-arm64`, `<sha>-arm64`, `latest-arm64` |
+| aarch64 generica | QEMU, nessun SDK (`build_container_aarch64_generic.sh`) | `<ver>-arm64-generic`, `<sha>-arm64-generic`, `latest-arm64-generic` |
+| x86_64 | build nativa (`build_container_x86_64.sh`) | `<ver>-amd64`, `<sha>-amd64`, `latest-amd64` |
+
+Varianti:
+
+```bash
+./scripts/build_containers_all.sh                    # solo archivi in dist/, nessun push
+./scripts/build_containers_all.sh --no-save --push    # solo push, nessun .tar.gz
+./scripts/build_containers_all.sh --no-rust --push    # riusa i binari già compilati (niente sudo)
+./scripts/build_containers_all.sh --with-lvgl --push  # include anche sws-lvgl-viewer
+./scripts/build_container_x86_64.sh --push            # una sola architettura
+```
+
+Tre trappole, tutte già incontrate dal vivo:
+
+- **Non lanciarlo con `sudo`.** Chiede la password da solo per il solo passo che richiede root
+  (aarch64 generica). Lanciato interamente da root, sotto podman rootful la rete bridge non
+  passa il DNS dell'host ai container e il builder x86_64 fallisce risolvendo
+  `archive.ubuntu.com` pur risolvendo benissimo sull'host (2026-08-07). Lo script si accorge
+  se gira da root e riabbassa i privilegi, ma è meglio non contarci.
+- **Senza SDK Yocto Pixsys** (`/usr/local/oecore-x86_64/environment-setup-cortexa35-pixsys-linux`,
+  assente sul dev server d'ufficio) l'immagine `*-arm64` tuned viene **saltata con un avviso** e
+  restano generica + x86_64. Passa `--require-sdk` per farne un errore bloccante.
+- **Emulazione arm64** registrata sull'host, una volta per macchina: se
+  `/proc/sys/fs/binfmt_misc/qemu-aarch64` non esiste, `sudo apt install qemu-user-static`.
+
+Sul dispositivo, poi, si aggiorna con `install-container.sh --pull <riferimento>` — attenzione
+al tag: senza argomento sceglie `latest-arm64` (percorso SDK), che è un'immagine **diversa**
+da `latest-arm64-generic`. Dettagli nel capitolo 1 e in `docs/DEPLOY_CONTAINER_AARCH64.md`.
