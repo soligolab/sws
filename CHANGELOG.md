@@ -11,6 +11,20 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### Changed
+
+- **Trend: tracce unificate `trend_tags[]`** (migrazione automatica al load, taglio netto):
+  un'unica sezione TRACCE in cima al pannello con tag+nome+colore+stile per riga; eliminati
+  il campo Tag doppio, ALTRI TAG (OVERLAY) e line_color; corretti tre bug di disallineamento
+  stili. I runtime/LVGL più vecchi mostrano trend vuoti finché non aggiornati.
+- **Editor WYSIWYG** (regola permanente in CLAUDE.md): trend con assi/griglia/scale reali
+  anche in editor (storico una tantum + curve demo), setpoint identico al runtime (⌨
+  visibile), bar/pie/kpi/sparkline/data_log/radio/checkbox reali, image senza src
+  selezionabile, W/H per tutti i tipi box, toggle "▶ Effetti" per previsualizzare lampeggi/
+  movimenti/bordi allarme/flusso pipe. Pannello: via i campi doppi (Tag generico → "Tag di
+  stato" dove non primario, bg_color nascosto dove ridondante).
+- **Movimento su percorso**: waypoint come tabella + pulsante ＋ Cattura dal canvas.
+
 ### Added
 
 - **Tab Variabili: ordinamento, filtri per colonna e variabili non usate in evidenza** —

@@ -6,6 +6,35 @@
 >
 > **Pulizia 2026-07-27**: rimossi i task già chiusi e le sezioni di verifica ormai superate; le sessioni mergiate **e** verificate fino al 2026-07-09 sono compresse in «Storico». Il dettaglio integrale resta in `CHANGELOG.md` e nella history git.
 
+**Sessione 2026-08-23 (sera) — editor coerente: trend_tags, fine doppioni, WYSIWYG, cattura
+waypoint** (commit su `feat/scada-f6`; piano in `docs/plans/2026-08-23-editor-coerente.md`,
+specifiche fissate con 3 tornate di domande; regole permanenti scritte in CLAUDE.md §"Regole
+UI dell'editor").
+- **A. trend_tags[]** (taglio netto): TrendTrace {tag,label,colore,stile…} unificata,
+  sezione TRACCE unica in cima al pannello, label per traccia in legenda/tooltip/cursori;
+  normalizeTrendObject al setPages rimuove i campi legacy al primo salvataggio (6 unit test);
+  fix bug B1 (stili disallineati con tag vuoti), B2 (splice mancante alla rimozione),
+  B3 (line_color battuto da styles[0].color invisibile). Mirror synoptic.rs. LVGL non
+  aggiornato: trend LVGL vuoti fino al lotto F9 (accettato).
+- **B. Doppioni**: Tag generico via da 16 tipi (per bar/pie/table/symbol/alarm/…: campo
+  "Tag di stato" nella sezione qualità; kpi/data_log/sparkline tengono la copia locale);
+  bg_color nascosto dove lo sfondo È il fill; hint precedenza symbol_states; fix decimals
+  del setpoint mai applicato.
+- **C. WYSIWYG** (regola CLAUDE.md): trend REALE in editor (assi/griglia/scale/legenda,
+  una fetch di storico, sinusoidi demo + watermark dove mancano campioni, mai polling);
+  setpoint col layout runtime (⌨ visibile); bar/pie/kpi/sparkline/data_log reali; image
+  senza src selezionabile; radio/checkbox reali; W/H per tutti i box-like; toggle toolbar
+  "▶ Effetti" che applica in edit blink/motion/bordi/stale/rotazioni/flusso.
+- **D. Waypoint**: tabella X/Y editabile + pulsante ＋ Cattura (click sul canvas appende
+  punti in coordinate pagina con snap; Esc esce; cursore crosshair).
+- **Scoperto e corretto**: vitest NON eseguiva i test colocati in src/ (include solo
+  tests/**) — i 7 test del motore espressioni non erano MAI girati; ora 45 test verdi.
+**Resta del piano** (prossima sessione): slider contenuto nel box dichiarato (runtime) e
+anteprima allineata; alarm_viewer/bell/banner/recipe_panel/lang_selector/xy_plot reali in
+edit; faceplate (bgLayer dentro il transform in edit + figli con isEditMode=false);
+verifica migrazione live su CasaMauro + screenshot. Build/test tutti verdi, non testato
+dal maintainer.
+
 **Sessione 2026-08-23 (seguito) — tab Variabili: sort/filtri/non-usate + pagine demo**
 (commit su `feat/scada-f6`). Su richiesta del maintainer:
 1. **Pagine demo in CasaMauro** (istanza editor :8460, via API — nessun codice): 5 pagine
