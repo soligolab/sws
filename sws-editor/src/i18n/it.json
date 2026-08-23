@@ -287,7 +287,9 @@
     "reauthPrompt": "Comando critico — inserisci la tua password:",
     "reauthFailed": "Password non corretta: comando annullato.",
     "reasonPrompt": "Motivo del comando (registrato nell'audit):",
-    "reasonRequired": "Il motivo è obbligatorio per questo comando."
+    "reasonRequired": "Il motivo è obbligatorio per questo comando.",
+    "silence": "Tacita il suono degli allarmi in corso",
+    "silenced": "Suono tacitato (un allarme nuovo lo riattiva)"
   },
   "alarm": {
     "noAlarms": "Nessun allarme attivo",
@@ -845,7 +847,13 @@
     "ackAllHint": "\"ACK tutti\" conferma solo gli allarmi mostrati da questo oggetto (filtri e prefisso compresi). La messa in silenzio chiede sempre un motivo, registrato nel journal.",
     "alarmHistoryHint": "Storico degli allarmi (attivazioni, conferme, rientri) con paginazione. Lascia vuoto il filtro per vederli tutti.",
     "alarmIdFilter": "Filtra per id allarme",
-    "allAlarms": "tutti gli allarmi"
+    "allAlarms": "tutti gli allarmi",
+    "sound": "SUONO",
+    "soundEnable": "Suona sugli allarmi non confermati",
+    "soundSeverities": "Severità che suonano",
+    "soundRepeatS": "Ripeti ogni (s)",
+    "soundHint": "Tono diverso per severità; il pulsante 🔊 sulla campanella tacita gli allarmi in corso (uno nuovo riattiva il suono). Il browser può bloccare l'audio finché nessuno ha toccato lo schermo, e in editor il suono è sempre spento.",
+    "ackReason": "Chiedi il motivo alla conferma"
   },
   "shortcut": {
     "navCanvas": "Navigazione canvas",

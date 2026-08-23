@@ -638,6 +638,11 @@ export interface SynopticObject {
   alarm_shelve_minutes?: number;
   /** alarm_history: limita lo storico a un singolo id di allarme. */
   alarm_history_id?: string;
+  /** F7.5 — segnalazione acustica sulla campanella: suona alla comparsa di un
+   *  allarme non confermato e ripete finché non è confermato o tacitato. */
+  alarm_bell_sound?: boolean;
+  alarm_bell_sound_severities?: AlarmSeverity[];
+  alarm_bell_sound_repeat_s?: number;
   // ── Pie / Donut Chart (type === "pie_chart") ──────────────────────────
   pie_slices?: PieSlice[];
   pie_mode?: "pie" | "donut";

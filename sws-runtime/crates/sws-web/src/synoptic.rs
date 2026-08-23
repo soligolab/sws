@@ -195,6 +195,9 @@ pub struct SynopticObject {
     #[serde(skip_serializing_if = "Option::is_none")] pub alarm_viewer_show_shelve:    Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")] pub alarm_shelve_minutes:        Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")] pub alarm_history_id:            Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub alarm_bell_sound:            Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub alarm_bell_sound_severities: Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub alarm_bell_sound_repeat_s:   Option<f64>,
     // XY plot (live point + trail, not a time series). `tag` above is the X axis.
     #[serde(skip_serializing_if = "Option::is_none")] pub y_tag: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")] pub xy_trail_s: Option<f64>,

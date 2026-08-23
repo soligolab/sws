@@ -1711,6 +1711,12 @@ async fn get_alarms(State(s): State<AppState>) -> Json<Vec<AlarmState>> {
 struct AckRequest {
     #[serde(default)]
     by: Option<String>,
+    /// F7.5 — motivo/commento della conferma. Non entra nell'AlarmEvent (che
+    /// vive nello storico allarmi e avrebbe richiesto una migrazione dello
+    /// schema): finisce nel journal di audit, che è già il registro
+    /// hash-chained di chi-ha-fatto-cosa ed è interrogabile da /api/audit.
+    #[serde(default)]
+    reason: Option<String>,
 }
 
 async fn ack_alarm(
@@ -1718,7 +1724,15 @@ async fn ack_alarm(
     Path(id): Path<String>,
     body: Option<Json<AckRequest>>,
 ) -> StatusCode {
-    let by = body.and_then(|b| b.by.clone());
+    let (by, reason) = match body {
+        Some(Json(b)) => (b.by, b.reason),
+        None => (None, None),
+    };
+    // Registrato prima dell'esito: un ack su un id inesistente è comunque un
+    // tentativo che vale la pena vedere nel journal.
+    s.audit.log("alarm.ack", by.clone(), serde_json::json!({
+        "alarm": id.clone(), "reason": reason,
+    }));
     if s.alarms.ack(&id, by).await { StatusCode::NO_CONTENT } else { StatusCode::NOT_FOUND }
 }
 

@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { PALETTE, TrendCanvas } from "@/canvas/TrendCanvas";
 import { TrendExpandedModal } from "@/canvas/TrendExpanded";
 import { XyPlotCanvas } from "@/canvas/XyPlotCanvas";
-import { api, getAuthToken } from "@/api/client";
+import { api } from "@/api/client";
 import { AlarmBellPanel } from "@/components/AlarmBellPanel";
 import { NumericKeypad } from "@/components/NumericKeypad";
 import { AlarmBanner } from "@/components/AlarmBanner";
@@ -2468,7 +2468,7 @@ function SparklineWidget({ tag, windowS, width, height, color, strokeWidth, fill
 
 // ── AlarmViewerWidget ─────────────────────────────────────────────────────────
 
-function AlarmViewerWidget({ width, height, mode, maxRows, prefix, allowedSev, showAck, showTs, showEmpty, bgColor, showAckAll, showShelve, shelveMinutes }: {
+function AlarmViewerWidget({ width, height, mode, maxRows, prefix, allowedSev, showAck, showTs, showEmpty, bgColor, showAckAll, showShelve, shelveMinutes, askReason }: {
   width: number; height: number; mode: "list" | "banner" | "table";
   maxRows: number; prefix: string;
   allowedSev?: AlarmSeverity[];
@@ -2479,6 +2479,8 @@ function AlarmViewerWidget({ width, height, mode, maxRows, prefix, allowedSev, s
   /** F7.5 — pulsante di messa in silenzio (shelve) per riga. */
   showShelve?: boolean;
   shelveMinutes?: number;
+  /** F7.5 — chiede un motivo alla conferma (registrato nel journal). */
+  askReason?: boolean;
 }) {
   const alarmsMap = useAppStore((s) => s.alarms);
   const authRole = useAppStore((s) => s.authRole);
@@ -2501,23 +2503,40 @@ function AlarmViewerWidget({ width, height, mode, maxRows, prefix, allowedSev, s
 
   const sevColor = (sev: string) => SEV_COLOR[(sev as AlarmSeverity) ?? "Info"] ?? SEV_COLOR.Info;
 
-  const handleAck = useCallback(async (id: string) => {
+  // F7.5 — `askReason`: chiede un commento e lo manda con la conferma (finisce
+  // nel journal di audit). Passa da api.ackAlarm invece della fetch nuda, così
+  // il body con motivo e utente è uno solo in tutto il codice.
+  const handleAck = useCallback(async (id: string, reason?: string) => {
     try {
-      const token = getAuthToken() ?? "";
-      await fetch(`/api/alarms/${id}/ack`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
-      });
-    } catch { /* ignore */ }
+      const st = useAppStore.getState();
+      await api.ackAlarm(id, st.authUser ?? undefined, reason);
+    } catch (err) { console.error(err); }
   }, []);
+
+  const ackWithReason = useCallback(async (id: string) => {
+    if (!askReason) { await handleAck(id); return; }
+    const reason = window.prompt("Motivo della conferma:");
+    if (reason === null) return;             // annullato
+    if (!reason.trim()) { window.alert("Il motivo è obbligatorio."); return; }
+    await handleAck(id, reason.trim());
+  }, [askReason, handleAck]);
 
   // F7.5 — ACK massivo: su un impianto che parte con venti allarmi insieme,
   // confermarli uno per uno è il momento in cui l'operatore smette di guardare
   // il pannello. Conferma solo quelli VISIBILI (filtri e prefisso compresi):
   // "acknowledge all" su tutto l'impianto sarebbe una scorciatoia pericolosa.
   const handleAckAll = useCallback(async (ids: string[]) => {
-    for (const id of ids) await handleAck(id);
-  }, [handleAck]);
+    // Un solo motivo per l'intera infornata: chiederlo venti volte di fila
+    // sarebbe la ragione per cui nessuno lo compila.
+    let reason: string | undefined;
+    if (askReason && ids.length > 0) {
+      const r = window.prompt("Motivo della conferma (per tutti):");
+      if (r === null) return;
+      if (!r.trim()) { window.alert("Il motivo è obbligatorio."); return; }
+      reason = r.trim();
+    }
+    for (const id of ids) await handleAck(id, reason);
+  }, [handleAck, askReason]);
 
   // F7.5 — shelve dal viewer: mette a tacere un allarme noto per un tempo
   // limitato, con motivo registrato (l'API lo richiede e finisce nel journal).
@@ -2605,7 +2624,7 @@ function AlarmViewerWidget({ width, height, mode, maxRows, prefix, allowedSev, s
         accessor: () => "",
         render: (a: AlarmState) => canAck && !a.acknowledged ? (
           <button
-            onClick={(e) => { e.stopPropagation(); void handleAck(a.def.id); }}
+            onClick={(e) => { e.stopPropagation(); void ackWithReason(a.def.id); }}
             style={{ fontSize: 9, padding: "1px 6px", background: "var(--brand-surface, #1e293b)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 2, color: "var(--brand-text-muted, #94a3b8)", cursor: "pointer" }}
           >
             ACK
@@ -2660,7 +2679,7 @@ function AlarmViewerWidget({ width, height, mode, maxRows, prefix, allowedSev, s
           </span>
           {showAck && canAck && !a.acknowledged && (
             <button
-              onClick={(e) => { e.stopPropagation(); void handleAck(a.def.id); }}
+              onClick={(e) => { e.stopPropagation(); void ackWithReason(a.def.id); }}
               style={{ fontSize: 9, padding: "1px 4px", background: "var(--brand-surface, #1e293b)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 2, color: "var(--brand-text-muted, #94a3b8)", cursor: "pointer", flexShrink: 0 }}>
               ACK
             </button>
@@ -5109,6 +5128,7 @@ export function SvgObject(p: ObjProps) {
             showAckAll={obj.alarm_viewer_show_ack_all}
             showShelve={obj.alarm_viewer_show_shelve}
             shelveMinutes={obj.alarm_shelve_minutes}
+            askReason={obj.require_reason}
           />
         </foreignObject>
         {hitRect(obj.x, obj.y, w, h)}
@@ -5134,6 +5154,12 @@ export function SvgObject(p: ObjProps) {
             showHistory={obj.alarm_bell_show_history ?? true}
             showShelve={obj.alarm_bell_show_shelve ?? true}
             badgeFill={obj.fill}
+            sound={obj.alarm_bell_sound}
+            soundSeverities={obj.alarm_bell_sound_severities}
+            soundRepeatS={obj.alarm_bell_sound_repeat_s}
+            /* In editor il suono è sempre spento: un allarme vero che suona
+               mentre si disegna una pagina è solo un fastidio. */
+            muted={isEditMode}
           />
         </foreignObject>
         {hitRect(obj.x, obj.y, w, h)}

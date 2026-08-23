@@ -287,7 +287,9 @@
     "reauthPrompt": "Critical command — enter your password:",
     "reauthFailed": "Wrong password: command cancelled.",
     "reasonPrompt": "Reason for the command (recorded in the audit log):",
-    "reasonRequired": "A reason is required for this command."
+    "reasonRequired": "A reason is required for this command.",
+    "silence": "Silence the sound for current alarms",
+    "silenced": "Sound silenced (a new alarm re-enables it)"
   },
   "alarm": {
     "noAlarms": "No active alarms",
@@ -845,7 +847,13 @@
     "ackAllHint": "\"ACK all\" only acknowledges the alarms this object shows (filters and prefix included). Shelving always asks for a reason, recorded in the journal.",
     "alarmHistoryHint": "Alarm history (activations, acknowledgements, returns) with paging. Leave the filter empty to see them all.",
     "alarmIdFilter": "Filter by alarm id",
-    "allAlarms": "all alarms"
+    "allAlarms": "all alarms",
+    "sound": "SOUND",
+    "soundEnable": "Beep on unacknowledged alarms",
+    "soundSeverities": "Severities that sound",
+    "soundRepeatS": "Repeat every (s)",
+    "soundHint": "Different tone per severity; the 🔊 button on the bell silences current alarms (a new one re-enables it). Browsers may block audio until the screen has been touched, and sound is always off in the editor.",
+    "ackReason": "Ask for a reason on acknowledge"
   },
   "shortcut": {
     "navCanvas": "Canvas navigation",

@@ -2058,7 +2058,7 @@ function ObjectProps({
    *  (alarm_bell, alarm_banner, alarm_viewer) — previously copy-pasted
    *  per widget (and missing entirely for alarm_viewer, despite the
    *  underlying field/renderer support already existing there). */
-  const severityFilterField = (key: "alarm_bell_severities" | "alarm_banner_severities" | "alarm_viewer_severities") => (
+  const severityFilterField = (key: "alarm_bell_severities" | "alarm_banner_severities" | "alarm_viewer_severities" | "alarm_bell_sound_severities") => (
     <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
       {(["Info", "Warning", "Critical"] as const).map((sev) => {
         const list = (obj[key] as AlarmSeverity[] | undefined) ?? [];
@@ -3711,6 +3711,13 @@ function ObjectProps({
                     onChange={(e) => onChange({ alarm_viewer_show_shelve: e.target.checked || undefined })} />
                   {t("props.shelveBtn")}
                 </label>
+                {/* F7.5 — riusa `require_reason`, lo stesso campo delle scritture
+                    critiche: un solo concetto "chiedi il motivo" in tutto l'editor. */}
+                <label style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "flex", gap: 3, alignItems: "center" }}>
+                  <input type="checkbox" checked={!!obj.require_reason}
+                    onChange={(e) => onChange({ require_reason: e.target.checked || undefined })} />
+                  {t("props.ackReason")}
+                </label>
               </div>
               {obj.alarm_viewer_show_shelve && field(t("props.shelveMinutes"), numInput("alarm_shelve_minutes", 15))}
               <p style={{ fontSize: 10, color: "var(--brand-border, #475569)", margin: "2px 0 4px" }}>
@@ -3743,6 +3750,25 @@ function ObjectProps({
           </div>
           {field(t("props.alarmIdPrefix"), <input style={INPUT} placeholder={t("props.exZone")} value={obj.alarm_bell_id_prefix ?? ""} onChange={(e) => onChange({ alarm_bell_id_prefix: e.target.value })} />)}
           {field(t("props.severity"), severityFilterField("alarm_bell_severities"))}
+          {/* F7.5 — segnalazione acustica. */}
+          <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", marginTop: 6, marginBottom: 2, fontWeight: 700 }}>
+            {t("props.sound")}
+          </div>
+          <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--brand-text-2, #cbd5e1)", cursor: "pointer" }}>
+            <input type="checkbox" checked={!!obj.alarm_bell_sound}
+              onChange={(e) => onChange({ alarm_bell_sound: e.target.checked || undefined })}
+              style={{ accentColor: "var(--brand-primary, #3b82f6)" }} />
+            {t("props.soundEnable")}
+          </label>
+          {obj.alarm_bell_sound && (
+            <>
+              {field(t("props.soundSeverities"), severityFilterField("alarm_bell_sound_severities"))}
+              {field(t("props.soundRepeatS"), numInput("alarm_bell_sound_repeat_s", 20))}
+              <p style={{ fontSize: 10, color: "var(--brand-border, #475569)", margin: "2px 0 4px" }}>
+                {t("props.soundHint")}
+              </p>
+            </>
+          )}
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             {[["alarm_bell_show_history", t("props.showHistory")], ["alarm_bell_show_shelve", t("props.showShelve")]].map(([k, l]) => (
               <label key={k} style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "flex", gap: 3, alignItems: "center" }}>

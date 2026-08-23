@@ -633,11 +633,13 @@ export const api = {
   getAlarms: () =>
     request<AlarmState[]>("/api/alarms"),
 
-  ackAlarm: (id: string, by?: string) =>
+  /** F7.5 — `reason`: commento della conferma, registrato nel journal di audit
+   *  (non nell'evento di storico: vedi AckRequest in router.rs). */
+  ackAlarm: (id: string, by?: string, reason?: string) =>
     request<void>(`/api/alarms/${encodeURIComponent(id)}/ack`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ by: by ?? null }),
+      body: JSON.stringify({ by: by ?? null, reason: reason ?? null }),
     }),
 
   getAlarmHistory: (params?: { alarm_id?: string; from_ms?: number; to_ms?: number; limit?: number }) => {

@@ -6,6 +6,7 @@ import { useAppStore } from "@/store";
 import { useAlarmStream } from "@/ws/alarmStream";
 import { AlarmHistory } from "@/components/AlarmHistory";
 import { effectiveProjectLang, resolveMsg } from "@/i18n/projectI18n";
+import { playAlarmBeep, worstSeverity } from "@/alarmSound";
 import { SEV_COLOR } from "@/alarmSeverity";
 import type { AlarmSeverity, AlarmState, ShelvedAlarm } from "@/types";
 
@@ -23,9 +24,19 @@ export interface AlarmBellPanelProps {
   showHistory?: boolean;
   showShelve?: boolean;
   badgeFill?: string;
+  // ── F7.5 — segnalazione acustica ────────────────────────────────────────
+  /** Attiva il suono alla comparsa di allarmi non confermati. */
+  sound?: boolean;
+  /** Severità che suonano (vuoto/assente = tutte). */
+  soundSeverities?: AlarmSeverity[];
+  /** Intervallo di ripetizione in secondi. Default 20. */
+  soundRepeatS?: number;
+  /** Silenzio imposto dall'esterno (in editor: mai suoni durante il disegno). */
+  muted?: boolean;
 }
 
-export function AlarmBellPanel({ idPrefix = "", allowedSev, showHistory = true, showShelve = true, badgeFill }: AlarmBellPanelProps) {
+export function AlarmBellPanel({ idPrefix = "", allowedSev, showHistory = true, showShelve = true, badgeFill,
+  sound = false, soundSeverities, soundRepeatS = 20, muted: mutedProp }: AlarmBellPanelProps) {
   const { t } = useTranslation();
   useAlarmStream();
 
@@ -58,6 +69,48 @@ export function AlarmBellPanel({ idPrefix = "", allowedSev, showHistory = true, 
     const unack = active.filter((a) => !a.acknowledged);
     return { active, unack };
   }, [alarms, idPrefix, allowedSev]);
+
+  // ── F7.5 — segnalazione acustica ─────────────────────────────────────────
+  // Suona alla comparsa di un allarme non confermato e poi ogni
+  // `soundRepeatS`, finché resta non confermato. Il pulsante "tacita" ferma il
+  // suono per gli allarmi ATTUALI: un allarme nuovo lo riattiva da solo,
+  // altrimenti "tacita" diventerebbe uno spegnimento permanente che nessuno
+  // ricorda di annullare.
+  const [muted, setMuted] = useState(false);
+  const silencedRef = useRef<Set<string>>(new Set());
+  const lastBeepRef = useRef(0);
+
+  const soundable = useMemo(() => unack.filter((a) =>
+    !soundSeverities || soundSeverities.length === 0 || soundSeverities.includes(a.def.severity!)
+  ), [unack, soundSeverities]);
+
+  useEffect(() => {
+    if (!sound || mutedProp) return;
+    const pending = soundable.filter((a) => !silencedRef.current.has(a.def.id));
+    if (pending.length === 0) return;
+    const sev = worstSeverity(pending.map((a) => a.def.severity));
+    if (!sev) return;
+    const tick = () => {
+      const now = Date.now();
+      if (now - lastBeepRef.current < Math.max(2, soundRepeatS) * 1000) return;
+      lastBeepRef.current = now;
+      playAlarmBeep(sev);
+    };
+    tick();
+    const id = window.setInterval(tick, 1000);
+    return () => window.clearInterval(id);
+  }, [sound, mutedProp, soundable, soundRepeatS]);
+
+  // "Tacita": segna come già suonati gli allarmi in corso.
+  const silenceNow = () => {
+    for (const a of soundable) silencedRef.current.add(a.def.id);
+    setMuted(true);
+  };
+  // Quando non resta niente da suonare, il pulsante torna disponibile.
+  useEffect(() => {
+    if (soundable.every((a) => silencedRef.current.has(a.def.id))) return;
+    setMuted(false);
+  }, [soundable]);
 
   // Refresh shelved list when panel opens (skip entirely if shelve UI is disabled).
   useEffect(() => {
@@ -139,6 +192,23 @@ export function AlarmBellPanel({ idPrefix = "", allowedSev, showHistory = true, 
       >
         <span style={{ color: badgeColor, fontSize: 14 }}>🔔</span>
         <span>{t("viewer.alarms")}</span>
+        {/* F7.5 — "tacita": compare solo quando c'è davvero qualcosa che sta
+            suonando, così non è un comando inerte sempre presente. Vive dentro
+            il pulsante campanella (stopPropagation: non apre il pannello). */}
+        {sound && !mutedProp && soundable.length > 0 && (
+          <span
+            role="button"
+            title={muted ? t("viewer.silenced") : t("viewer.silence")}
+            onClick={(e) => { e.stopPropagation(); silenceNow(); }}
+            style={{
+              fontSize: 12, padding: "0 4px", borderRadius: 4, cursor: "pointer",
+              background: muted ? "var(--brand-surface-2, #334155)" : "transparent",
+              color: muted ? "var(--brand-text-subtle, #64748b)" : "var(--brand-text, #e2e8f0)",
+            }}
+          >
+            {muted ? "🔕" : "🔊"}
+          </span>
+        )}
         {visibleActive.length > 0 && (
           <span style={{ background: badgeColor, color: "var(--brand-bg, #0f172a)", padding: "1px 7px", borderRadius: 10, fontWeight: 700, fontSize: 11 }}>
             {visibleActive.length}
