@@ -55,6 +55,21 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   hanno pallino ambra, riga tinta e tooltip (ricette e funzioni Python escluse dal
   controllo, dichiarato). L'ordinamento è una vista: l'ordine su disco non cambia.
 
+### Added (programma SCADA-widgets, fase F7.6 + F8.1/F8.2)
+
+- **Rifiniture di forma**: rect con raggio angoli, tratteggio del bordo e riempimento sfumato
+  (verticale/orizzontale/radiale); **gauge** con zone colorate sul fondo scala, tacche
+  maggiori numerate, apertura dell'arco configurabile (prima fissa a ∓135°) e secondo
+  indicatore da tag per il setpoint; **led** con forme cerchio/quadrato/triangolo; **grid**
+  con spazio fra celle e margine interno; **navbutton** con bordo e raggio esposti;
+  **image** con adattamento al box (deforma / contieni / riempi-e-ritaglia).
+- **Ergonomia editor**: "distribuisci" ora spazia a **gap uguali** fra i bordi (prima
+  rendeva equidistanti le posizioni, che con larghezze diverse lascia spazi diversi); nuovi
+  comandi **uniforma dimensioni** (larghezza/altezza del primo selezionato); lo **snap in
+  ridimensionamento** aggancia il bordo trascinato agli altri oggetti, ai bordi pagina e alle
+  guide (prima conosceva solo la griglia); **copia stile** con pennello in toolbar (copia
+  l'aspetto, mai il tag né la geometria).
+
 ### Added (programma SCADA-widgets, fase F6 — faceplate 2.0 e simboli)
 
 - **Faceplate 2.0**: la sostituzione dei parametri copre TUTTI i campi (state_tag, binding,
