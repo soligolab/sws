@@ -6,155 +6,63 @@
 >
 > **Pulizia 2026-07-27**: rimossi i task già chiusi e le sezioni di verifica ormai superate; le sessioni mergiate **e** verificate fino al 2026-07-09 sono compresse in «Storico». Il dettaglio integrale resta in `CHANGELOG.md` e nella history git.
 
-**Sessione 2026-08-23 (notte, seguito 2) — Lotti 3 e 4: F7.1-F7.5 + F8.3/F8.4**
-(branch **`feat/scada-f7`**).
-- **F7.1 Table 2.0**: la tabella usa il DataTable condiviso — colonne scelte, ordinamento,
-  filtri opzionali, scroll nel box (prima sfondava), soglie e celle scrivibili per riga.
-- **F7.2 Bar chart**: valori negativi (prima clampati a zero = barre invisibili), barre
-  impilate, tacche d'asse, legenda, soglie anche in orizzontale.
-- **F7.3 Pie**: etichette valore+unità, raggruppamento fette piccole, explode, foro colorato.
-- **F7.4 Text**: multiriga con allineamento verticale e interlinea (default invariato).
-- **F7.5 (completa)**: ACK massivo sugli allarmi mostrati, shelve per riga con motivo,
-  **nuovo tipo `alarm_history`** piazzabile, **suono per severità** (Web Audio, nessun file
-  audio: toni diversi per Critical/Warning/Info) con pulsante **tacita** che silenzia gli
-  allarmi in corso e si riattiva su uno nuovo — spento in editor —, e **motivo sulla
-  conferma**: `POST /api/alarms/:id/ack` accetta `reason` e lo scrive nel **journal di
-  audit** (non nell'AlarmEvent: avrebbe richiesto una migrazione dello schema eventi,
-  scelta dichiarata nel commento dell'endpoint). L'alarm_viewer riusa `require_reason`.
-  Verificato da `./scripts/check_ack_reason.sh` (allarme fatto scattare davvero → ack con
-  motivo → motivo trovato in `/api/audit`), 5/5.
-- **F8.3**: ricerca su tutte le pagine (nome/id/tag/testo) con risultati navigabili; "dove è
-  usato questo tag" nella sezione TAG; logica delle variabili non usate ora condivisa in
-  `src/search/tagUsage.ts` (era duplicata in ConfigView).
-- **F8.4**: maniglia di rotazione (Shift = 15°) e resize **sugli oggetti ruotati**, col
-  movimento proiettato sugli assi locali.
-- **Verifiche**: `check_f7.sh` 32/32, `check_f8.sh` verde (snap in resize + rotazione),
-  58 test unitari, `cargo check --workspace` e `pnpm build` verdi.
-- **Trovato misurando** (non regressioni, difetti più vecchi): la rotazione col mouse partiva
-  da un angolo casuale perché passavo `clientX/Y` grezzi a `toSvg`; i default di colore dei
-  testi vengono dai token di tema dell'app e su una pagina con sfondo scelto a mano possono
-  dare scuro-su-scuro → **Q18** in `docs/OPEN_QUESTIONS.md`.
-- **Attenzione**: i check usano il binario **debug** — serve `cargo build -p sws-runtime`
-  (non basta `cargo check`), altrimenti il round-trip misura un mirror vecchio.
-- **Prossimo**: **F9c** parità LVGL — è il lotto che ha accumulato di più (trend_tags, F7.6,
-  F7.1-F7.4, e i tipi nuovi `alarm_history`: tutto ciò che `model.rs`/`lvgl_render.rs` non
-  conoscono). Il suono e il motivo dell'ACK restano web-only per natura.
+## ▶ Da fare nella prossima sessione
 
-**Sessione 2026-08-23 (notte, seguito) — Lotto 2: F7.6 + F8.1/F8.2** (branch **`feat/scada-f7`**
-annidato su `feat/scada-f6`).
-- **F7.6 rifiniture**: rect (raggio, tratteggio, sfumatura), gauge (zone colorate, tacche
-  numerate, apertura arco configurabile, lancetta setpoint da tag), led (cerchio/quadrato/
-  triangolo), grid (gap + padding), navbutton (bordo e raggio esposti), image (deforma/
-  contieni/ritaglia). 13 campi nuovi, tutti specchiati in `synoptic.rs`.
-- **F8.1**: distribuisci a **gap uguali** (prima equidistanziava le posizioni), **uniforma
-  dimensioni** al primo selezionato, **snap in resize** verso oggetti/pagina/guide.
-- **F8.2**: **copia stile** (pennello in toolbar) con whitelist esplicita — mai tag né
-  geometria. Il pannello multi-selezione previsto dal piano **esisteva già**.
-- **Verifiche nuove**: `./scripts/check_f76.sh` (round-trip dei 13 campi + attributi SVG
-  prodotti, 22/22) e `./scripts/check_f8.sh` (aggancio del bordo in resize misurato con lo
-  snap alla griglia SPENTO, così il merito non è della griglia). 50 test unitari verdi.
-- **Attenzione per la prossima sessione**: i due check nuovi usano il binario **debug**
-  (`cargo build -p sws-runtime`), non basta `cargo check`, altrimenti il round-trip misura
-  un mirror vecchio e fallisce per finta.
-- **Prossimo**: Lotto 3 = F7.1 Table 2.0 (`components/DataTable.tsx`), F7.2 bar chart
-  (stacked/negativi/assi), F7.3 pie (etichette, "altro", explode, foro donut), F7.4 text
-  (wrap multiriga). Poi Lotto 4 = F7.5 allarmi UI + F8.3 ricerca + F8.4 rotazione/layer.
+1. **F9c — lotto di parità LVGL. È il tappo.** `model.rs` / `lvgl_render.rs` /
+   `LVGL_SUPPORTED_TYPES` non conoscono nulla di quanto aggiunto nelle fasi F6-F8:
+   `trend_tags[]` (quindi **i trend su LVGL sono vuoti**, deciso e accettato), le rifiniture
+   F7.6 (raggio/tratteggio/sfumatura, zone e tacche del gauge, forme del led, gap della
+   griglia), table/bar/pie/testo di F7.1-F7.4, e i tipi nuovi (`alarm_history`). Verificato
+   che intanto **non rompa**: in `model.rs` il tipo oggetto è `Option<String>`, quindi un tipo
+   sconosciuto viene ignorato e la pagina regge. **Il motore LVGL non è più stato provato dal
+   vivo dopo l'ultimo merge**: questo lotto vuole il TC620 sotto mano (vedi
+   `docs/TEST_SETUPS.md`), non è da infilare in coda a un'altra sessione.
+   Da fare anche il check di coerenza generato fra `LVGL_SUPPORTED_TYPES` e il badge «L»
+   della palette (`LeftPanel.tsx`), oggi disallineabile in silenzio.
+2. **F5.3x — XY plot multi-coppia + curva di riferimento**: unico residuo della fase F5.
+3. **F7 residui minori** dal debito d'inventario, non ancora affrontati: bordi **per-cella**
+   nella griglia (gap e padding sono fatti), e il commento sull'ACK dentro l'`AlarmEvent`
+   dello storico invece che nel solo journal di audit (vuole una migrazione dello schema
+   eventi — oggi il motivo è nel journal, interrogabile da `/api/audit`).
+4. **Q18 aperta** in `docs/OPEN_QUESTIONS.md`: i colori predefiniti dei testi vengono dai
+   token di tema dell'app, e su una pagina con sfondo scelto a mano possono dare
+   scuro-su-scuro. Non decisa: serve una scelta del maintainer fra le 4 opzioni.
+5. **Pagine demo CasaMauro**: sono ferme alle feature F2-F6. Nessun oggetto esercita
+   table 2.0, barre negative/impilate, pie raggruppato, testo multiriga, storico allarmi,
+   suono. Da arricchire quando servirà una demo.
 
-**Sessione 2026-08-23 (notte) — pulsante "Naviga a URL" + coda WYSIWYG chiusa** (commit su
-`feat/scada-f6`; piano in `docs/plans/2026-08-23-navigate-f7-f8.md`, deciso con 4 domande).
-- **Bug segnalato dal maintainer**: un pulsante con "Naviga a URL" non faceva niente. Causa:
-  `onButtonAction` dichiarata e consumata in SvgCanvas ma **mai passata** da RuntimeView —
-  quindi navigate/login/logout erano morte da sempre (solo `open_faceplate` funzionava,
-  gestito dentro il canvas). Ora: handler vero, nuovo campo **"Apri in"** (scheda nuova di
-  default / stessa scheda), `https://` aggiunto se manca, fallback alla stessa scheda se il
-  popup è bloccato, Login come overlay sopra il sinottico, Logout con rientro no-auth.
-  `docs/HOWTO.md` cap. 4. Nessun mirror Rust (button_action è già Value); web-only su LVGL.
-- **Coda WYSIWYG chiusa**: slider dentro l'altezza dichiarata (il foreignObject era h+20 con
-  la label); alarm_viewer/bell/banner/recipe_panel/lang_selector/xy_plot con widget veri in
-  editor; faceplate con figli `isEditMode={false}` e bgLayer dentro il transform.
-- **Regressione trovata misurando**: setpoint/checkbox/radio/sparkline **non erano più
-  selezionabili col mouse** (contenuto sotto pointerEvents:none e nessuna geometria da
-  cliccare). Nuovo helper `hitRect()` su tutti i tipi del pattern.
-- **Nuovo check**: `./scripts/check_wysiwyg.sh` (runtime scratch 8657, terminato dal trap) —
-  clicca 12 tipi uno per uno, misura lo slider e verifica la migrazione `trend_tags` su
-  disco. 12/12 verde. Anche `motion_anchor` (centro come default) e spinner numerici più
-  grandi sono di questa sessione.
-- **Prossimo**: Lotto 2 del piano su nuovo branch `feat/scada-f7` = F7.6 rifiniture (rect
-  raggio/dash/gradiente, gauge zone/tacche/arco/setpoint, led forme, grid gap, navbutton
-  colori, image preserveAspectRatio) + F8.1 residuo (match-size, distribute a gap uguali,
-  snap in resize — le smart guides ESISTONO già) + F8.2 (multi-edit e copia stile). Poi
-  Lotto 3 (table/bar/pie/text) e Lotto 4 (allarmi UI, ricerca, rotazione/layer).
+## Release 2.1.0 — 2026-08-23 (fasi F6, F7, F8 su `main`, verificata dal maintainer)
 
-**Sessione 2026-08-23 (sera) — editor coerente: trend_tags, fine doppioni, WYSIWYG, cattura
-waypoint** (commit su `feat/scada-f6`; piano in `docs/plans/2026-08-23-editor-coerente.md`,
-specifiche fissate con 3 tornate di domande; regole permanenti scritte in CLAUDE.md §"Regole
-UI dell'editor").
-- **A. trend_tags[]** (taglio netto): TrendTrace {tag,label,colore,stile…} unificata,
-  sezione TRACCE unica in cima al pannello, label per traccia in legenda/tooltip/cursori;
-  normalizeTrendObject al setPages rimuove i campi legacy al primo salvataggio (6 unit test);
-  fix bug B1 (stili disallineati con tag vuoti), B2 (splice mancante alla rimozione),
-  B3 (line_color battuto da styles[0].color invisibile). Mirror synoptic.rs. LVGL non
-  aggiornato: trend LVGL vuoti fino al lotto F9 (accettato).
-- **B. Doppioni**: Tag generico via da 16 tipi (per bar/pie/table/symbol/alarm/…: campo
-  "Tag di stato" nella sezione qualità; kpi/data_log/sparkline tengono la copia locale);
-  bg_color nascosto dove lo sfondo È il fill; hint precedenza symbol_states; fix decimals
-  del setpoint mai applicato.
-- **C. WYSIWYG** (regola CLAUDE.md): trend REALE in editor (assi/griglia/scale/legenda,
-  una fetch di storico, sinusoidi demo + watermark dove mancano campioni, mai polling);
-  setpoint col layout runtime (⌨ visibile); bar/pie/kpi/sparkline/data_log reali; image
-  senza src selezionabile; radio/checkbox reali; W/H per tutti i box-like; toggle toolbar
-  "▶ Effetti" che applica in edit blink/motion/bordi/stale/rotazioni/flusso.
-- **D. Waypoint**: tabella X/Y editabile + pulsante ＋ Cattura (click sul canvas appende
-  punti in coordinate pagina con snap; Esc esce; cursore crosshair).
-- **Scoperto e corretto**: vitest NON eseguiva i test colocati in src/ (include solo
-  tests/**) — i 7 test del motore espressioni non erano MAI girati; ora 45 test verdi.
-**Resta del piano** (prossima sessione): slider contenuto nel box dichiarato (runtime) e
-anteprima allineata; alarm_viewer/bell/banner/recipe_panel/lang_selector/xy_plot reali in
-edit; faceplate (bgLayer dentro il transform in edit + figli con isEditMode=false);
-verifica migrazione live su CasaMauro + screenshot. Build/test tutti verdi, non testato
-dal maintainer.
+Sei sessioni consecutive del 2026-08-23, tutte confermate dal maintainer e mergiate su `main`
+con due squash (`feat(F6)` e `feat(F7,F8)`); branch `feat/scada-f6` e `feat/scada-f7`
+conservati. Dettaglio integrale in `CHANGELOG.md` §2.1.0; qui solo ciò che serve ricordare:
 
-**Sessione 2026-08-23 (seguito) — tab Variabili: sort/filtri/non-usate + pagine demo**
-(commit su `feat/scada-f6`). Su richiesta del maintainer:
-1. **Pagine demo in CasaMauro** (istanza editor :8460, via API — nessun codice): 5 pagine
-   nuove «Demo F2 Binding / F3 Comandi / F4 Allarmi / F5 Storico / F6 Simboli» con ~135
-   oggetti che esercitano tutte le novità, navbutton su Page 2, tag `state.voltage` e
-   `tank_test.level` arricchiti con unit/range/limiti F1. Round-trip e screenshot live OK.
-   NOTA: il bridge dds661 ora espone più device su topic `modbus/*` — i tag `state.*`
-   arrivavano lenti; il maintainer ha già aggiunto i tag temperatura nuovi.
-2. **Tab Variabili**: sort per colonna (vista derivata, ordine su disco intatto), filtri
-   per colonna, filtro/evidenza «non usate» (pagine via collectTagIds + allarmi +
-   espressioni + script; ricette/funzioni escluse e dichiarate). Verificato live: 6/21
-   non usate su CasaMauro. `pnpm type-check`/`build` verdi.
-
-**Sessione 2026-08-23 — SCADA-widgets F6 COMPLETA** (branch **`feat/scada-f6`** da `main`,
-che ora contiene F0-F5 mergiate dopo la conferma del maintainer). Tutta la fase faceplate+simboli:
-- **F6.1**: sostituzione parametri su TUTTI i campi stringa (walker ricorsivo: bindings,
-  state/alarm_tag, soglie, celle grid, faceplate annidati con pass-through; esclusi
-  id/type/group_id/faceplate_id).
-- **F6.2**: parametri tipizzati {name,type,default,required} — sintassi `nome:tipo=default!`
-  nell'editor def, pannello istanza con TagInput/colore/numero, avviso sui required,
-  default fusi da effectiveFaceplateParams.
-- **F6.3**: azione `open_faceplate` — popup parametrizzato al click (pattern modale Trend,
-  interattivo, Esc/click-fuori), select+parametri nel pannello bottone.
-- **F6.4**: `faceplate_scale` (figli scalati al box, opt-in) + `faceplate_overrides`
-  per-figlio post-sostituzione.
-- **F6.5**: trova-usi nella tab Faceplates (istanze+popup per definizione, pagine, avviso).
-- **F6.6**: `symbol_states` — N stati su state_tag (valore/range, colore, blink per stato,
-  label sotto il simbolo), editor nel pannello; alarm_tag vince.
-- **F6.7**: livello continuo via fill_level_tag (tank proporzionale, silo nuovo incluso,
-  SymbolRenderProps.level).
-- **F6.8**: +13 simboli ISA builtin (16→29): valvole motorizzata/pneumatica/ritegno/3vie/
-  sicurezza, filtro Y, soffiante, silo, nastro, ciclone, colonna, forno, chiller.
-- **F6.9**: editor simboli multi-stato — CustomSymbol.svg inline + colorable_ids,
-  sanitizzazione, import SVG con checklist id colorabili e anteprima 3 stati (tab Risorse);
-  renderer ricolora per stato e ruota. Mirror Rust CustomSymbol.
-- **F6.10**: rotazione simboli (on_state/tag/always), flusso animato pipe (direzione dal
-  segno del tag), movimento su percorso (motion_path/tag/min/max universali, transizione
-  fluida) — tutte spente da prefers-reduced-motion.
-Build: cargo workspace + 21 sws-core + 80 sws-web + 32 vitest + pnpm build verdi.
-**Non testato dal maintainer.** Le feature F6 sono web-only finché il lotto parità F9 non
-le porta su LVGL (annotato). Prossimo: F7 (widget restanti) o F9a (parità, col pannello).
+- **F6**: faceplate 2.0 (sostituzione parametri su tutti i campi, parametri tipizzati, popup
+  `open_faceplate`, scaling e override per-figlio, trova-usi), simboli a N stati + 13 ISA
+  nuovi + editor di simboli multi-stato, animazioni (rotazione, flusso pipe, movimento su
+  percorso).
+- **Editor coerente**: `trend_tags[]` con migrazione automatica al load (**taglio netto**: i
+  campi legacy vengono rimossi al primo salvataggio), fine dei doppioni nel pannello, regola
+  **WYSIWYG** ora permanente in `CLAUDE.md`, tab Variabili con sort/filtri/non-usate.
+- **F7**: table 2.0, bar chart con valori negativi e barre impilate, pie con raggruppamento e
+  explode, testo multiriga, allarmi (ACK massivo, shelve, storico piazzabile, suono per
+  severità con tacita, motivo dell'ACK nel journal), rifiniture di forma F7.6.
+- **F8**: distribuisci a gap uguali, uniforma dimensioni, snap in resize, copia stile,
+  ricerca su tutte le pagine + "dove è usato questo tag", rotazione interattiva e resize su
+  oggetti ruotati.
+- **Tre comportamenti cambiati di proposito** (da ricordare se qualcosa "sembra rotto"):
+  il percorso di movimento guida il **centro** dell'oggetto (`motion_anchor`, default
+  cambiato); aprire e salvare una pagina **riscrive i trend** nel formato nuovo; slider e
+  tabella hanno un aspetto diverso (slider contenuto nel box, tabella HTML invece di SVG).
+- **Verifiche ripetibili** aggiunte in `scripts/`: `check_wysiwyg.sh` (12 tipi selezionabili +
+  migrazione trend), `check_f76.sh` (round-trip 13 campi), `check_f7.sh` (32 asserzioni su
+  table/bar/pie/testo/storico), `check_f8.sh` (snap in resize + rotazione), `check_ack_reason.sh`
+  (motivo dell'ACK nel journal). Tutti si tirano su un runtime scratch dichiarato e lo
+  chiudono da soli. **Vogliono il binario debug** (`cargo build -p sws-runtime`): con il solo
+  `cargo check` il round-trip misura un mirror vecchio e fallisce per finta.
+- **Promemoria permanente**: ogni campo nuovo va specchiato in
+  `sws-runtime/crates/sws-web/src/synoptic.rs`, altrimenti viene scartato al salvataggio
+  senza errori né log. In questa release ne sono stati aggiunti oltre 40.
 
 **Sessione 2026-08-22 (notte) — SCADA-widgets F5 (grosso fatto)** (catena `feat/scada-f0` →
 `f1` → `f2` → `f3` → `f4` → **`feat/scada-f5`** = capo da testare, contiene tutto). Scelta

@@ -11,6 +11,13 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+## [2.1.0] — 2026-08-23
+
+Fasi F6, F7 e F8 del programma SCADA-widgets (`docs/plans/2026-08-21-scada-widgets.md`):
+faceplate parametrici, simboli multi-stato, tutti i widget rimasti e l'ergonomia dell'editor.
+La regola WYSIWYG (l'editor disegna ciò che vedrà il runtime) è ora una regola permanente del
+progetto, scritta in `CLAUDE.md`.
+
 ### Fixed
 
 - **Le azioni predefinite del pulsante non facevano niente** ("Naviga a URL", "Login",
