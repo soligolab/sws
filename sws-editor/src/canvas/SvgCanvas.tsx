@@ -3812,43 +3812,8 @@ export function SvgObject(p: ObjProps) {
     const unit = obj.unit ? ` ${obj.unit}` : "";
     const readOnly = !!obj.read_only;
 
-    if (isEditMode) {
-      // Static look-alike of the real layout (label / "Attuale: …" / input +
-      // "✓" button) instead of a generic box — same tagValues already in
-      // scope, same pattern gauge/text/progress_bar use to show live values
-      // in edit-mode without any new polling. No foreignObject, no <input>,
-      // nothing writable: purely decorative shapes.
-      const hasLabel = !!obj.label;
-      const labelY = obj.y + 13;
-      const currentY = obj.y + (hasLabel ? 27 : 13);
-      const rowY = currentY + 6;
-      const rowH = Math.max(18, h - (rowY - obj.y) - 4);
-      const btnW = 22;
-      const inputW = Math.max(20, w - btnW - 12);
-      const currentText = currentVal !== undefined && Number.isFinite(currentVal) ? `${(currentVal as number).toFixed(obj.decimals ?? 1)}${unit}` : "—";
-      return (
-        <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()} style={{ cursor: editCursor }}>
-          {selRect(obj.x, obj.y, w, h)}
-          <rect x={obj.x} y={obj.y} width={w} height={h} rx={4} fill={obj.bg_color ?? "#0f172a"} stroke={selected ? "#facc15" : "#334155"} strokeWidth={selected ? 2 : 1} />
-          {obj.bg_image && (
-            <image href={obj.bg_image} x={obj.x} y={obj.y} width={w} height={h}
-              preserveAspectRatio="xMidYMid slice" style={{ pointerEvents: "none" }} />
-          )}
-          {hasLabel && (
-            <text x={obj.x + 4} y={labelY} fill="#94a3b8" fontSize={11} style={{ pointerEvents: "none" }}>{obj.label}</text>
-          )}
-          <text x={obj.x + 4} y={currentY} fill="#64748b" fontSize={10} style={{ pointerEvents: "none" }}>
-            {t("viewer.currentValue")} {currentText}
-          </text>
-          <rect x={obj.x + 4} y={rowY} width={inputW} height={rowH} rx={4} fill="#0f172a" stroke="#334155" style={{ pointerEvents: "none" }} />
-          <text x={obj.x + 4 + 6} y={rowY + rowH / 2} dominantBaseline="central" fill="#e2e8f0" fontSize={12} style={{ pointerEvents: "none" }}>
-            {currentVal !== undefined && Number.isFinite(currentVal) ? currentVal : ""}
-          </text>
-          <rect x={obj.x + 4 + inputW + 4} y={rowY} width={btnW} height={rowH} rx={4} fill="#3b82f6" style={{ pointerEvents: "none" }} />
-          <text x={obj.x + 4 + inputW + 4 + btnW / 2} y={rowY + rowH / 2} textAnchor="middle" dominantBaseline="central" fill="#fff" fontSize={12} style={{ pointerEvents: "none" }}>✓</text>
-        </g>
-      );
-    }
+    // WYSIWYG (2026-08-23): stesso layout del runtime anche in editor
+    // (input disabilitati, pulsante ⌨ visibile) — l'anteprima non mente più.
 
     const commit = () => {
       if (setpointDraft === null || !obj.tag) return;
@@ -3862,7 +3827,8 @@ export function SvgObject(p: ObjProps) {
       <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()}>
         {selRect(obj.x, obj.y, w, h)}
         {bgLayer(obj.x, obj.y, w, h, 4)}
-        <foreignObject x={obj.x} y={obj.y} width={w} height={h}>
+        <foreignObject x={obj.x} y={obj.y} width={w} height={h}
+          style={isEditMode ? { pointerEvents: "none" } : undefined}>
           <div style={{ display: "flex", flexDirection: "column", gap: 3, padding: "4px 2px", boxSizing: "border-box", height: "100%" }}>
             {obj.label && (
               <span style={{ color: "var(--brand-text-muted, #94a3b8)", fontSize: 11 }}>{obj.label}</span>
@@ -4167,30 +4133,12 @@ export function SvgObject(p: ObjProps) {
       <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()}
          style={{ cursor: editCursor }}>
         {selRect(obj.x, obj.y, w, h)}
-        {isEditMode ? (
-          <>
-            {/* Il placeholder statico rispetta bg_color/bg_image: senza,
-                l'anteprima in editor non mostrava mai lo sfondo configurato
-                (il rendering vero via TrendCanvas esiste solo in runtime). */}
-            <rect x={obj.x} y={obj.y} width={w} height={h} rx={4}
-              fill={obj.bg_color ?? "#0f172a"} stroke={selected ? "#facc15" : "#334155"}
-              strokeWidth={selected ? 2 : 1} />
-            {obj.bg_image && (
-              <image href={obj.bg_image} x={obj.x} y={obj.y} width={w} height={h}
-                preserveAspectRatio="xMidYMid slice" style={{ pointerEvents: "none" }} />
-            )}
-            <text x={obj.x + w / 2} y={obj.y + h / 2 - 6}
-              textAnchor="middle" fill="#64748b" fontSize={12}
-              style={{ pointerEvents: "none" }}>
-              Trend{obj.tag ? ` — ${obj.tag}` : ""}
-            </text>
-            <text x={obj.x + w / 2} y={obj.y + h / 2 + 10}
-              textAnchor="middle" fill="#475569" fontSize={10}
-              style={{ pointerEvents: "none" }}>
-              {obj.window_s ?? 60}s · autofit
-            </text>
-          </>
-        ) : (
+        {/* WYSIWYG (2026-08-23): stesso TrendCanvas del runtime anche in
+            editor — chrome completo (assi/griglia/scale/legenda), una fetch
+            di storico al mount, sinusoidi demo dove non ci sono campioni,
+            niente polling. pointerEvents none: il click seleziona. */}
+        {(
+          <g style={isEditMode ? { pointerEvents: "none" } : undefined}>
           <>
             <foreignObject x={obj.x} y={obj.y} width={w} height={h}>
               <TrendCanvas
@@ -4229,6 +4177,7 @@ export function SvgObject(p: ObjProps) {
                 zoomed={trendZoom !== null}
                 onResetZoom={() => setTrendZoom(null)}
                 panStepS={obj.pan_step_s}
+                editPreview={isEditMode}
               />
             </foreignObject>
             {onExpandTrend && (
@@ -4252,6 +4201,13 @@ export function SvgObject(p: ObjProps) {
               </g>
             )}
           </>
+          </g>
+        )}
+        {/* hit-rect: in edit il click sul trend seleziona/trascina */}
+        {isEditMode && (
+          <rect x={obj.x} y={obj.y} width={w} height={h} fill="transparent"
+            onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()}
+            style={{ cursor: editCursor }} />
         )}
       </g>
     );
@@ -4369,21 +4325,7 @@ export function SvgObject(p: ObjProps) {
     const slotW = plotW / n;
     const barW = slotW * (1 - gap);
 
-    if (isEditMode) {
-      return (
-        <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()} style={{ cursor: editCursor }}>
-          {selRect(obj.x, obj.y, w, h)}
-          <rect x={obj.x} y={obj.y} width={w} height={h} rx={4} fill={obj.bg_color ?? "#0f172a"} stroke={selected ? "#facc15" : "#334155"} strokeWidth={selected ? 2 : 1} />
-          {obj.bg_image && (
-            <image href={obj.bg_image} x={obj.x} y={obj.y} width={w} height={h}
-              preserveAspectRatio="xMidYMid slice" style={{ pointerEvents: "none" }} />
-          )}
-          <text x={obj.x + w / 2} y={obj.y + h / 2} textAnchor="middle" fill="#64748b" fontSize={12} style={{ pointerEvents: "none" }}>
-            Bar Chart — {series.length} serie
-          </text>
-        </g>
-      );
-    }
+    // WYSIWYG (2026-08-23): SVG puro su tagValues — stesso rendering in edit.
 
     const baseX = obj.x + padL; const baseY = obj.y + padT;
     const axisY = baseY + plotH;
@@ -4463,23 +4405,7 @@ export function SvgObject(p: ObjProps) {
     const cx2 = obj.x + w / 2; const cy2 = obj.y + chartH / 2;
     const r = Math.min(w, chartH) / 2 - 6;
 
-    if (isEditMode) {
-      return (
-        <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()} style={{ cursor: editCursor }}>
-          {selRect(obj.x, obj.y, w, h)}
-          <rect x={obj.x} y={obj.y} width={w} height={h} rx={4} fill={obj.bg_color ?? "#0f172a"} stroke={selected ? "#facc15" : "#334155"} strokeWidth={selected ? 2 : 1} />
-          {obj.bg_image && (
-            <image href={obj.bg_image} x={obj.x} y={obj.y} width={w} height={h}
-              preserveAspectRatio="xMidYMid slice" style={{ pointerEvents: "none" }} />
-          )}
-          <circle cx={cx2} cy={cy2} r={r} fill="none" stroke="#334155" strokeWidth={2} />
-          {mode === "donut" && <circle cx={cx2} cy={cy2} r={r * innerR} fill="#0f172a" />}
-          <text x={cx2} y={cy2 + 4} textAnchor="middle" fill="#64748b" fontSize={11} style={{ pointerEvents: "none" }}>
-            {mode === "donut" ? "Donut" : "Pie"} — {slices.length} slice
-          </text>
-        </g>
-      );
-    }
+    // WYSIWYG (2026-08-23): SVG puro su tagValues — stesso rendering in edit.
 
     // View mode: no slices configured → render nothing.
     if (slices.length === 0) {
@@ -4648,12 +4574,6 @@ export function SvgObject(p: ObjProps) {
             </foreignObject>
           </>
         )}
-        {isEditMode && (
-          <polyline
-            points={`${obj.x + 8},${obj.y + h - 12} ${obj.x + w * 0.35},${obj.y + h - 26} ${obj.x + w * 0.6},${obj.y + h - 8} ${obj.x + w - 8},${obj.y + h - 20}`}
-            fill="none" stroke={obj.spark_color ?? "var(--brand-primary, #3b82f6)"} strokeWidth={1.5} opacity={0.5}
-            style={{ pointerEvents: "none" }} />
-        )}
         {tv && obj.quality_dot !== false && <QDot x={obj.x + w - 8} y={obj.y + h - 8} quality={tv.quality} goodColor={obj.quality_dot_good_color} badColor={obj.quality_dot_bad_color} uncertainColor={obj.quality_dot_uncertain_color} />}
       </g>
     );
@@ -4665,29 +4585,15 @@ export function SvgObject(p: ObjProps) {
     const strokeW = obj.spark_stroke_width ?? 1.5;
     const windowS = obj.spark_window_s ?? 60;
 
-    if (isEditMode) {
-      return (
-        <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()} style={{ cursor: editCursor }}>
-          {selRect(obj.x, obj.y, w, h)}
-          <rect x={obj.x} y={obj.y} width={w} height={h} rx={2} fill={obj.bg_color ?? "#0f172a"} stroke={selected ? "#facc15" : "#1e293b"} />
-          {obj.bg_image && (
-            <image href={obj.bg_image} x={obj.x} y={obj.y} width={w} height={h}
-              preserveAspectRatio="xMidYMid slice" style={{ pointerEvents: "none" }} />
-          )}
-          <polyline
-            points={`${obj.x + 4},${obj.y + h * 0.6} ${obj.x + w * 0.25},${obj.y + h * 0.3} ${obj.x + w * 0.5},${obj.y + h * 0.7} ${obj.x + w * 0.75},${obj.y + h * 0.2} ${obj.x + w - 4},${obj.y + h * 0.5}`}
-            fill="none" stroke={color} strokeWidth={strokeW} opacity={0.6}
-            style={{ pointerEvents: "none" }} />
-        </g>
-      );
-    }
+    // WYSIWYG (2026-08-23): widget vero anche in editor (seed dallo storico).
 
     // Runtime: use foreignObject with SparklineCanvas (inline component)
     return (
       <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()}>
         {selRect(obj.x, obj.y, w, h)}
         {bgLayer(obj.x, obj.y, w, h, 2)}
-        <foreignObject x={obj.x} y={obj.y} width={w} height={h}>
+        <foreignObject x={obj.x} y={obj.y} width={w} height={h}
+          style={isEditMode ? { pointerEvents: "none" } : undefined}>
           <SparklineWidget
             tag={obj.tag ?? ""}
             windowS={windowS}
