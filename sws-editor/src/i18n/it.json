@@ -552,6 +552,8 @@
     "mode": "Modalità",
     "showValue": "Mostra valore",
     "navigateUrl": "Naviga a URL",
+    "openInNewTab": "Apri in scheda nuova",
+    "openInSameTab": "Apri nella stessa scheda",
     "noneM": "Nessuno",
     "name": "Nome",
     "normal400": "Normal (400)",

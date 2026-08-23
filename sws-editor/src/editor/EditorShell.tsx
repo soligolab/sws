@@ -2528,15 +2528,30 @@ function ObjectProps({
                 <option value="navigate">{t("props.navigateUrl")}</option>
                 <option value="open_faceplate">{t("props.openFaceplate")}</option>
               </select>
-              {obj.button_action?.type === "navigate" && (
-                <input
-                  type="text"
-                  style={INPUT}
-                  placeholder="https://..."
-                  value={(obj.button_action as { type: "navigate"; url: string }).url}
-                  onChange={(e) => onChange({ button_action: { type: "navigate", url: e.target.value } })}
-                />
-              )}
+              {obj.button_action?.type === "navigate" && (() => {
+                const act = obj.button_action as { type: "navigate"; url: string; target?: "self" | "blank" };
+                return (
+                  <>
+                    <input
+                      type="text"
+                      style={INPUT}
+                      placeholder="https://..."
+                      value={act.url}
+                      onChange={(e) => onChange({ button_action: { ...act, url: e.target.value } })}
+                    />
+                    {/* "Apri in": su un pannello in kiosk una scheda nuova non si
+                        chiude facilmente, quindi la scelta è per pulsante. */}
+                    <select
+                      style={{ ...INPUT, cursor: "pointer" }}
+                      value={act.target ?? "blank"}
+                      onChange={(e) => onChange({ button_action: { ...act, target: e.target.value as "self" | "blank" } })}
+                    >
+                      <option value="blank">{t("props.openInNewTab")}</option>
+                      <option value="self">{t("props.openInSameTab")}</option>
+                    </select>
+                  </>
+                );
+              })()}
               {obj.button_action?.type === "open_faceplate" && (() => {
                 const act = obj.button_action as { type: "open_faceplate"; faceplate_id: string; params?: Record<string, string> };
                 const defn = faceplates.find((f) => f.id === act.faceplate_id);

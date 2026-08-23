@@ -188,7 +188,9 @@ export interface TrendSeriesStyle {
 export type ButtonAction =
   | { type: "login" }
   | { type: "logout" }
-  | { type: "navigate"; url: string }
+  /** `target`: dove si apre l'URL. Assente = "blank" (scheda nuova, il
+   *  sinottico resta aperto sotto) — default scelto dal maintainer 2026-08-23. */
+  | { type: "navigate"; url: string; target?: "self" | "blank" }
   /** F6.3: apre un faceplate come popup, parametrizzato — il gesto SCADA
    *  "click sulla pompa → finestra della pompa". */
   | { type: "open_faceplate"; faceplate_id: string; params?: Record<string, string> };
