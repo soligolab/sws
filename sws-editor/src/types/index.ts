@@ -134,8 +134,27 @@ export interface TableRow {
   format?: string;
 }
 
-/** Per-trace style override for a trend chart series (index 0 = the trend
- *  object's own `tag`, index i = `extra_tags[i-1]`). */
+/** Traccia unificata del trend (migrazione 2026-08-23, taglio netto):
+ *  tag + stile in un'unica voce. Sostituisce il trio legacy
+ *  tag/extra_tags/trend_series_styles (+line_color), che resta nel tipo solo
+ *  per la migrazione automatica al load (normalizeTrendObject). */
+export interface TrendTrace {
+  tag: string;
+  /** Nome mostrato in legenda/tooltip (fallback: l'id del tag). */
+  label?: string;
+  color?: string;
+  /** Spessore in px. Default 1.5. */
+  width?: number;
+  dash?: "solid" | "dashed" | "dotted";
+  fill?: boolean;
+  fill_opacity?: number;
+  smooth?: boolean;
+  own_scale?: boolean;
+  hidden?: boolean;
+}
+
+/** LEGACY (pre trend_tags) — per-trace style override (index 0 = the trend
+ *  object's own `tag`, index i = `extra_tags[i-1]`). Migrato al load. */
 export interface TrendSeriesStyle {
   color?: string;
   /** Stroke width in px. Default 1.5. */
@@ -318,6 +337,9 @@ export interface SynopticObject {
   y_max?: number;
   line_color?: string;
   /** Additional tags to overlay on the same trend (multi-series). */
+  /** Tracce del trend (formato nuovo, vedi TrendTrace). */
+  trend_tags?: TrendTrace[];
+  /** LEGACY: tracce 2+ del trend — migrato in trend_tags al load. */
   extra_tags?: string[];
   /** When true, backfills from the OPC-UA server's historian on mount. */
   opcua_backfill?: boolean;

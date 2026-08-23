@@ -15,6 +15,7 @@ import { useAppStore } from "@/store";
 import { effectiveProjectLang, resolveMsg } from "@/i18n/projectI18n";
 import { evalExpr } from "@/expr/engine";
 import { applyStateColor, parseSvg, sanitizeSvg } from "@/symbols/customSvg";
+import { trendTraces } from "@/canvas/trendModel";
 import { SYMBOLS } from "@/symbols/library";
 import { clampToPage } from "@/pageLayout";
 import type { AlarmSeverity, AlarmState, CustomSymbol, FaceplateDef, FaceplateParamDef, GridCell, PageSizeMode, PipePoint, Sample, SynopticObject, TagDef, TagState, TextListEntry } from "@/types";
@@ -1249,13 +1250,14 @@ export function SvgCanvas({
     )}
     {expandedTrendObj && (
       <TrendExpandedModal
-        tags={[expandedTrendObj.tag ?? "", ...(expandedTrendObj.extra_tags ?? [])].filter(Boolean)}
+        tags={trendTraces(expandedTrendObj).filter((tr) => tr.tag).map((tr) => tr.tag)}
+        seriesLabels={trendTraces(expandedTrendObj).filter((tr) => tr.tag).map((tr) => tr.label ?? tr.tag)}
         windowS={expandedTrendObj.window_s ?? 60}
         lineColor={expandedTrendObj.line_color ?? "var(--brand-primary, #3b82f6)"}
         yMin={expandedTrendObj.y_min}
         yMax={expandedTrendObj.y_max}
         opcuaBackfill={expandedTrendObj.opcua_backfill}
-        seriesStyles={expandedTrendObj.trend_series_styles}
+        seriesStyles={trendTraces(expandedTrendObj).filter((tr) => tr.tag)}
         dtDateOrder={expandedTrendObj.trend_dt_date_order}
         dtSeparator={expandedTrendObj.trend_dt_separator}
         dtTimeFormat={expandedTrendObj.trend_dt_time_format}
@@ -4167,7 +4169,8 @@ export function SvgObject(p: ObjProps) {
           <>
             <foreignObject x={obj.x} y={obj.y} width={w} height={h}>
               <TrendCanvas
-                tags={[obj.tag ?? "", ...(obj.extra_tags ?? [])].filter(Boolean)}
+                tags={trendTraces(obj).filter((tr) => tr.tag).map((tr) => tr.tag)}
+                seriesLabels={trendTraces(obj).filter((tr) => tr.tag).map((tr) => tr.label ?? tr.tag)}
                 windowS={obj.window_s ?? 60}
                 width={w}
                 height={h}
@@ -4175,7 +4178,7 @@ export function SvgObject(p: ObjProps) {
                 yMin={trendZoom?.yLo !== undefined ? trendZoom.yLo : obj.y_min}
                 yMax={trendZoom?.yHi !== undefined ? trendZoom.yHi : obj.y_max}
                 opcuaBackfill={obj.opcua_backfill}
-                seriesStyles={obj.trend_series_styles}
+                seriesStyles={trendTraces(obj).filter((tr) => tr.tag)}
                 dtDateOrder={obj.trend_dt_date_order}
                 dtSeparator={obj.trend_dt_separator}
                 dtTimeFormat={obj.trend_dt_time_format}

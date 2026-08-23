@@ -3,6 +3,7 @@ import { api, setAuthToken } from "@/api/client";
 import { applyAppearance, getStoredMode, type ThemeMode } from "@/theme";
 import { genId } from "@/id";
 import { getStoredProjectLang, setStoredProjectLang, getStoredEditorPreviewLang, setStoredEditorPreviewLang } from "@/i18n/projectI18n";
+import { normalizeTrendObjects } from "@/canvas/trendModel";
 import type {
   AlarmDef,
   LanguageTable,
@@ -765,7 +766,12 @@ export const useAppStore = create<AppState>((set, get) => {
 
     setPages: (pages, currentPageId) =>
       set({
-        pages,
+        // Migrazione trend legacy → trend_tags al load (taglio netto,
+        // 2026-08-23): il primo salvataggio scrive solo il formato nuovo.
+        pages: pages.map((p) => {
+          const objs = normalizeTrendObjects(p.objects);
+          return objs === p.objects ? p : { ...p, objects: objs };
+        }),
         currentPageId: currentPageId ?? pages[0]?.id ?? first.id,
         selectedObjectId: null,
         selectedObjectIds: [],

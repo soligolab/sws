@@ -739,7 +739,10 @@
     "motion": "MOVIMENTO SU PERCORSO",
     "motionTag": "Tag posizione",
     "motionPath": "Waypoint (x,y; x,y…)",
-    "motionHint": "L'oggetto trasla lungo la polilinea: valore del tag mappato da Min..Max a inizio..fine percorso. Coordinate di pagina."
+    "motionHint": "L'oggetto trasla lungo la polilinea: valore del tag mappato da Min..Max a inizio..fine percorso. Coordinate di pagina.",
+    "traces": "TRACCE",
+    "addTrace": "Aggiungi traccia",
+    "traceLabel": "nome"
   },
   "shortcut": {
     "navCanvas": "Navigazione canvas",

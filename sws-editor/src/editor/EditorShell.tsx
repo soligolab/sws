@@ -19,7 +19,7 @@ import type { SymbolMeta } from "@/symbols/library";
 import { useAppStore } from "@/store";
 import { localizeObjects } from "@/i18n/projectI18n";
 import type { AlignMode } from "@/store";
-import type { AlarmSeverity, ButtonAction, FunctionDef, GridCell, PageLayoutConfig, PageSizeMode, RadioOption, SubCellEntry, SubGrid, SynopticObject, TableRow, TextListEntry, TrendSeriesStyle } from "@/types";
+import type { AlarmSeverity, ButtonAction, FunctionDef, GridCell, PageLayoutConfig, PageSizeMode, RadioOption, SubCellEntry, SubGrid, SynopticObject, TableRow, TextListEntry, TrendTrace } from "@/types";
 
 // ── Shared styles ─────────────────────────────────────────────────────────────
 
@@ -564,7 +564,7 @@ export function EditorShell() {
         break;
       case "trend":
         addObject({ type, x, y, width: 360, height: 180,
-          tag: "", window_s: 60, line_color: "var(--brand-primary, #3b82f6)" });
+          trend_tags: [{ tag: "" }], window_s: 60 });
         break;
       case "xy_plot":
         addObject({ type, x, y, width: 200, height: 200,
@@ -2816,42 +2816,56 @@ function ObjectProps({
 
       {/* Trend */}
       {obj.type === "trend" && (() => {
-        // Riga di stile per-traccia (spessore/dash/riempimento/smoothing),
-        // indice 0 = obj.tag, indice i = extra_tags[i-1]. Il colore della
-        // serie 0 resta gestito dal campo line_color qui sopra (legacy);
-        // le tracce extra non avevano finora nessun controllo colore, quindi
-        // qui lo esponiamo solo per idx > 0.
-        const trendStyleRow = (idx: number, opts: { showColor: boolean }) => {
-          const styles = obj.trend_series_styles ?? [];
-          const s: TrendSeriesStyle = styles[idx] ?? {};
-          const patchStyle = (patch: Partial<TrendSeriesStyle>) => {
-            const next = [...styles];
-            while (next.length <= idx) next.push({});
-            next[idx] = { ...next[idx], ...patch };
-            onChange({ trend_series_styles: next });
-          };
-          return (
-            <div style={{ display: "flex", gap: 5, alignItems: "center", flexWrap: "wrap", marginTop: 2, marginBottom: 6, paddingLeft: 4, borderLeft: "2px solid var(--brand-surface-2, #334155)" }}>
-              {opts.showColor && (
-                <input
-                  type="color"
-                  value={s.color ?? "#3b82f6"}
-                  onChange={(e) => patchStyle({ color: e.target.value })}
-                  title={t("props.color")}
-                  style={{ width: 26, height: 22, padding: 1, border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 3 }}
-                />
-              )}
+        // TRACCE unificate (migrazione 2026-08-23): ogni riga è un
+        // TrendTrace {tag, label, colore, stile…}. La traccia 1 non è più
+        // speciale; niente più campo Tag separato né line_color.
+        const traces = obj.trend_tags ?? [];
+        const patchTrace = (idx: number, patch: Partial<TrendTrace>) => {
+          const next = traces.map((tr, i) => (i === idx ? { ...tr, ...patch } : tr));
+          onChange({ trend_tags: next });
+        };
+        const removeTrace = (idx: number) =>
+          onChange({ trend_tags: traces.filter((_, i) => i !== idx) });
+        const traceRow = (tr: TrendTrace, idx: number) => (
+          <div key={idx} style={{ marginBottom: 6, padding: 4, border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4 }}>
+            <div style={{ display: "flex", gap: 4, marginBottom: 3, alignItems: "center" }}>
+              <TagInput
+                style={{ ...INPUT, flex: 1 }}
+                placeholder={t("props.exBoiler")}
+                value={tr.tag}
+                onChange={(v) => patchTrace(idx, { tag: v })}
+              />
+              <input
+                style={{ ...INPUT, width: 90 }}
+                placeholder={t("props.traceLabel")}
+                value={tr.label ?? ""}
+                onChange={(e) => patchTrace(idx, { label: e.target.value || undefined })}
+              />
+              <button
+                title={t("props.remove")}
+                style={{ background: "transparent", border: "none", color: "var(--brand-danger, #ef4444)", cursor: "pointer", fontSize: 14, padding: "0 4px" }}
+                onClick={() => removeTrace(idx)}
+              >×</button>
+            </div>
+            <div style={{ display: "flex", gap: 5, alignItems: "center", flexWrap: "wrap" }}>
+              <input
+                type="color"
+                value={tr.color ?? PALETTE[idx % PALETTE.length]}
+                onChange={(e) => patchTrace(idx, { color: e.target.value })}
+                title={t("props.color")}
+                style={{ width: 26, height: 22, padding: 1, border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 3 }}
+              />
               <input
                 type="number" min={0.5} max={10} step={0.5}
-                value={s.width ?? 1.5}
+                value={tr.width ?? 1.5}
                 title={t("props.strokeWidth")}
-                onChange={(e) => patchStyle({ width: e.target.value === "" ? undefined : Number(e.target.value) })}
+                onChange={(e) => patchTrace(idx, { width: e.target.value === "" ? undefined : Number(e.target.value) })}
                 style={{ ...INPUT, width: 46, padding: "2px 4px" }}
               />
               <select
-                value={s.dash ?? "solid"}
+                value={tr.dash ?? "solid"}
                 title={t("props.dashPattern")}
-                onChange={(e) => patchStyle({ dash: e.target.value === "solid" ? undefined : (e.target.value as TrendSeriesStyle["dash"]) })}
+                onChange={(e) => patchTrace(idx, { dash: e.target.value === "solid" ? undefined : (e.target.value as TrendTrace["dash"]) })}
                 style={{ ...INPUT, width: 84, padding: "2px 4px" }}
               >
                 <option value="solid">{t("props.dashSolid")}</option>
@@ -2859,37 +2873,48 @@ function ObjectProps({
                 <option value="dotted">{t("props.dashDotted")}</option>
               </select>
               <label style={{ fontSize: 10, color: "var(--brand-text-muted, #94a3b8)", display: "flex", gap: 2, alignItems: "center" }}>
-                <input type="checkbox" checked={s.fill ?? false} onChange={(e) => patchStyle({ fill: e.target.checked || undefined })} />
+                <input type="checkbox" checked={tr.fill ?? false} onChange={(e) => patchTrace(idx, { fill: e.target.checked || undefined })} />
                 {t("props.fillArea")}
               </label>
-              {s.fill && (
+              {tr.fill && (
                 <input
                   type="number" min={0} max={1} step={0.05}
-                  value={s.fill_opacity ?? 0.15}
+                  value={tr.fill_opacity ?? 0.15}
                   title={t("props.fillOpacity")}
-                  onChange={(e) => patchStyle({ fill_opacity: e.target.value === "" ? undefined : Number(e.target.value) })}
+                  onChange={(e) => patchTrace(idx, { fill_opacity: e.target.value === "" ? undefined : Number(e.target.value) })}
                   style={{ ...INPUT, width: 46, padding: "2px 4px" }}
                 />
               )}
               <label style={{ fontSize: 10, color: "var(--brand-text-muted, #94a3b8)", display: "flex", gap: 2, alignItems: "center" }}>
-                <input type="checkbox" checked={s.smooth ?? false} onChange={(e) => patchStyle({ smooth: e.target.checked || undefined })} />
+                <input type="checkbox" checked={tr.smooth ?? false} onChange={(e) => patchTrace(idx, { smooth: e.target.checked || undefined })} />
                 {t("props.smoothCurve")}
               </label>
               <label style={{ fontSize: 10, color: "var(--brand-text-muted, #94a3b8)", display: "flex", gap: 2, alignItems: "center" }} title={t("props.ownScaleHint")}>
-                <input type="checkbox" checked={s.own_scale ?? false} onChange={(e) => patchStyle({ own_scale: e.target.checked || undefined })} />
+                <input type="checkbox" checked={tr.own_scale ?? false} onChange={(e) => patchTrace(idx, { own_scale: e.target.checked || undefined })} />
                 {t("props.ownScale")}
               </label>
               <label style={{ fontSize: 10, color: "var(--brand-text-muted, #94a3b8)", display: "flex", gap: 2, alignItems: "center" }} title={t("props.traceHiddenHint")}>
-                <input type="checkbox" checked={s.hidden ?? false} onChange={(e) => patchStyle({ hidden: e.target.checked || undefined })} />
+                <input type="checkbox" checked={tr.hidden ?? false} onChange={(e) => patchTrace(idx, { hidden: e.target.checked || undefined })} />
                 {t("props.traceHidden")}
               </label>
             </div>
-          );
-        };
+          </div>
+        );
 
         return (
         <>
-          {field(t("props.tag"), tagInput("es. boiler.t"))}
+          {/* TRACCE — la prima cosa che si configura */}
+          <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", marginBottom: 2, fontWeight: 700, letterSpacing: 0.5 }}>
+            {t("props.traces")}
+          </div>
+          {traces.map(traceRow)}
+          <button
+            style={{ ...INPUT, cursor: "pointer", color: "var(--brand-text-subtle, #64748b)", borderStyle: "dashed", width: "100%", marginBottom: 8 }}
+            onClick={() => onChange({ trend_tags: [...traces, { tag: "" }] })}
+          >
+            + {t("props.addTrace")}
+          </button>
+
           {field(t("props.windowS"), <BindableInput obj={obj} propName="window_s" onChange={onChange}>{numInput("window_s", 60)}</BindableInput>)}
           {field(t("props.panStepS"), numInput("pan_step_s", Math.round((obj.window_s ?? 60) * 0.25)))}
           <p style={{ fontSize: 10, color: "var(--brand-border, #475569)", margin: "-4px 0 0" }}>
@@ -3016,45 +3041,6 @@ function ObjectProps({
 
           {field(t("props.axisColor"), <BindableInput obj={obj} propName="axis_color" onChange={onChange}>{colorInput("axis_color", "#64748b")}</BindableInput>)}
           {field(t("props.gridColor"), <BindableInput obj={obj} propName="grid_color" onChange={onChange}>{colorInput("grid_color", "#1e293b")}</BindableInput>)}
-          {field(t("props.colorMainLine"), <BindableInput obj={obj} propName="line_color" onChange={onChange}>{colorInput("line_color", "var(--brand-primary, #3b82f6)")}</BindableInput>)}
-          {trendStyleRow(0, { showColor: false })}
-
-          {/* Multi-tag overlay: extra series share the same axes */}
-          <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", marginTop: 6, marginBottom: 2, fontWeight: 700, letterSpacing: 0.5 }}>
-            ALTRI TAG (OVERLAY)
-          </div>
-          {(obj.extra_tags ?? []).map((tg, i) => (
-            <div key={i}>
-              <div style={{ display: "flex", gap: 4, marginBottom: 4, alignItems: "center" }}>
-                <TagInput
-                  style={{ ...INPUT, flex: 1 }}
-                  placeholder={t("props.exBoiler")}
-                  value={tg}
-                  onChange={(v) => {
-                    const next = [...(obj.extra_tags ?? [])];
-                    next[i] = v;
-                    onChange({ extra_tags: next });
-                  }}
-                />
-                <button
-                  title={t("props.remove")}
-                  style={{ background: "transparent", border: "none", color: "var(--brand-danger, #ef4444)", cursor: "pointer", fontSize: 14, padding: "0 4px" }}
-                  onClick={() => {
-                    const next = (obj.extra_tags ?? []).filter((_, j) => j !== i);
-                    onChange({ extra_tags: next.length ? next : undefined });
-                  }}
-                >×</button>
-              </div>
-              {trendStyleRow(i + 1, { showColor: true })}
-            </div>
-          ))}
-          <button
-            style={{ ...INPUT, cursor: "pointer", color: "var(--brand-text-subtle, #64748b)", borderStyle: "dashed", width: "100%" }}
-            onClick={() => onChange({ extra_tags: [...(obj.extra_tags ?? []), ""] })}
-          >
-            + Aggiungi tag
-          </button>
-
           {/* OPC-UA historian backfill */}
           <label style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8, fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", cursor: "pointer" }}>
             <input

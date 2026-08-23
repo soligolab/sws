@@ -739,7 +739,10 @@
     "motion": "MOTION PATH",
     "motionTag": "Position tag",
     "motionPath": "Waypoints (x,y; x,y…)",
-    "motionHint": "The object translates along the polyline: the tag value maps Min..Max to path start..end. Page coordinates."
+    "motionHint": "The object translates along the polyline: the tag value maps Min..Max to path start..end. Page coordinates.",
+    "traces": "TRACES",
+    "addTrace": "Add trace",
+    "traceLabel": "name"
   },
   "shortcut": {
     "navCanvas": "Canvas navigation",

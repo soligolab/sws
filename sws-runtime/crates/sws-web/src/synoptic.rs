@@ -139,6 +139,10 @@ pub struct SynopticObject {
     #[serde(skip_serializing_if = "Option::is_none")] pub trend_show_thresholds:     Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")] pub trend_show_alarm_markers:  Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")] pub trend_log_scale:           Option<bool>,
+    /// Tracce unificate del trend (migrazione 2026-08-23): [{tag,label,color,…}].
+    /// I campi legacy tag/extra_tags/trend_series_styles/line_color restano per
+    /// i progetti non ancora ri-salvati.
+    #[serde(skip_serializing_if = "Option::is_none")] pub trend_tags:                Option<Value>,
     #[serde(skip_serializing_if = "Option::is_none")] pub datalog_page_size:         Option<f64>,
     // F6.6/F6.10 — simboli N-stati, rotazione, flusso pipe
     #[serde(skip_serializing_if = "Option::is_none")] pub symbol_states:             Option<Value>,
