@@ -62,6 +62,14 @@ export type SymbolId = string;
  *  vendored = SVG file under `public/symbols/`. */
 export type SymbolKind = "builtin" | "vendored";
 
+/** Una zona colorata sull'arco di un gauge (F7.6): da `from` a `to` in unità
+ *  del tag. Le zone si disegnano sul fondo scala, sotto l'arco del valore. */
+export interface GaugeZone {
+  from: number;
+  to: number;
+  color: string;
+}
+
 /** One cell in a grid layout object. */
 export interface GridCell {
   row: number;
@@ -248,6 +256,33 @@ export interface SynopticObject {
   motion_max?: number;
   /** Punto dell'oggetto agganciato al percorso (default: centro). */
   motion_anchor?: "center" | "top_left";
+
+  // ── F7.6 — rifiniture di forma (rect/ellipse, gauge, led, grid, image) ────
+  /** Raggio degli angoli in px (rect). 0 = spigoli vivi. */
+  corner_radius?: number;
+  /** Riempimento sfumato invece del colore piatto (rect/ellipse): la sfumatura
+   *  va da `gradient_light_color` a `gradient_dark_color`, che se assenti sono
+   *  ricavati schiarendo/scurendo `fill` — stessa convenzione della pipe "tube". */
+  fill_gradient?: "vertical" | "horizontal" | "radial";
+  /** Zone colorate sull'arco del gauge (fondo scala diviso per intervalli). */
+  gauge_zones?: GaugeZone[];
+  /** Numero di tacche maggiori con etichetta numerica (0/assente = nessuna). */
+  gauge_ticks?: number;
+  /** Apertura dell'arco in gradi da Nord, senso orario. Default -135 / +135. */
+  gauge_start_angle?: number;
+  gauge_end_angle?: number;
+  /** Tag di un secondo indicatore (tipicamente il setpoint) mostrato come
+   *  lancetta sottile sull'arco, oltre al valore. */
+  gauge_sp_tag?: string;
+  gauge_sp_color?: string;
+  /** Forma del led. Default "circle". */
+  led_shape?: "circle" | "square" | "triangle";
+  /** Spazio tra le celle e margine interno della griglia, in px. */
+  grid_gap?: number;
+  grid_padding?: number;
+  /** Come l'immagine riempie il box. Default "stretch" (comportamento storico). */
+  image_fit?: "stretch" | "contain" | "cover";
+
   tag?: string;
   format?: string;
   src?: string;

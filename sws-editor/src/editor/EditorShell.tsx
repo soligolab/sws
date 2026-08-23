@@ -2250,6 +2250,75 @@ function ObjectProps({
           {field(t("props.borderThickness"), <BindableInput obj={obj} propName="stroke_width" onChange={onChange}>{numInput("stroke_width", 1)}</BindableInput>)}
         </>
       )}
+      {/* F7.6 — il navbutton disegnava il bordo col colore primario del tema,
+          non modificabile: stessi due campi degli altri tipi con bordo. */}
+      {obj.type === "navbutton" && (
+        <>
+          {field(t("props.border"), <BindableInput obj={obj} propName="stroke" onChange={onChange}>{colorInput("stroke", "var(--brand-primary, #3b82f6)")}</BindableInput>)}
+          {field(t("props.borderThickness"), <BindableInput obj={obj} propName="stroke_width" onChange={onChange}>{numInput("stroke_width", 1.5)}</BindableInput>)}
+        </>
+      )}
+
+      {/* F7.6 — rifiniture di forma: raggio angoli, tratteggio, sfumatura. */}
+      {(obj.type === "rect" || obj.type === "navbutton") &&
+        field(t("props.cornerRadius"), numInput("corner_radius", 0))}
+      {obj.type === "rect" && (
+        <>
+          {field(t("props.borderDash"),
+            <select style={{ ...INPUT, cursor: "pointer" }}
+              value={obj.stroke_dasharray ?? ""}
+              onChange={(e) => onChange({ stroke_dasharray: e.target.value || undefined })}>
+              <option value="">{t("props.dashSolid")}</option>
+              <option value="6 3">{t("props.dashDashed")}</option>
+              <option value="2 3">{t("props.dashDotted")}</option>
+              <option value="10 4 2 4">{t("props.dashDashDot")}</option>
+            </select>
+          )}
+          {field(t("props.gradient"),
+            <select style={{ ...INPUT, cursor: "pointer" }}
+              value={obj.fill_gradient ?? ""}
+              onChange={(e) => onChange({ fill_gradient: (e.target.value || undefined) as "vertical" | "horizontal" | "radial" | undefined })}>
+              <option value="">{t("props.gradientNone")}</option>
+              <option value="vertical">{t("props.gradientVertical")}</option>
+              <option value="horizontal">{t("props.gradientHorizontal")}</option>
+              <option value="radial">{t("props.gradientRadial")}</option>
+            </select>
+          )}
+          {obj.fill_gradient && (
+            <>
+              {field(t("props.gradientLight"), colorInput("gradient_light_color", "#ffffff"))}
+              {field(t("props.gradientDark"), colorInput("gradient_dark_color", "#000000"))}
+              <p style={{ fontSize: 10, color: "var(--brand-border, #475569)", margin: "-2px 0 4px" }}>
+                {t("props.gradientHint")}
+              </p>
+            </>
+          )}
+        </>
+      )}
+
+      {/* F7.6 — adattamento dell'immagine al box. */}
+      {obj.type === "image" &&
+        field(t("props.imageFit"),
+          <select style={{ ...INPUT, cursor: "pointer" }}
+            value={obj.image_fit ?? "stretch"}
+            onChange={(e) => onChange({ image_fit: e.target.value === "stretch" ? undefined : (e.target.value as "contain" | "cover") })}>
+            <option value="stretch">{t("props.fitStretch")}</option>
+            <option value="contain">{t("props.fitContain")}</option>
+            <option value="cover">{t("props.fitCover")}</option>
+          </select>
+        )}
+
+      {/* F7.6 — forma del led. */}
+      {obj.type === "led" &&
+        field(t("props.ledShape"),
+          <select style={{ ...INPUT, cursor: "pointer" }}
+            value={obj.led_shape ?? "circle"}
+            onChange={(e) => onChange({ led_shape: e.target.value === "circle" ? undefined : (e.target.value as "square" | "triangle") })}>
+            <option value="circle">{t("props.shapeCircle")}</option>
+            <option value="square">{t("props.shapeSquare")}</option>
+            <option value="triangle">{t("props.shapeTriangle")}</option>
+          </select>
+        )}
 
       {/* Sfondo universale (colore + immagine URL) — un solo punto di
           inserimento: per estenderlo a un tipo nuovo basta aggiungerlo a
@@ -2668,6 +2737,72 @@ function ObjectProps({
           )}
           {field(t("props.needleColor"), <BindableInput obj={obj} propName="stroke" onChange={onChange}>{colorInput("stroke", "#e2e8f0")}</BindableInput>)}
           {field(t("props.textsColor"), <BindableInput obj={obj} propName="color" onChange={onChange}>{colorInput("color", "#e2e8f0")}</BindableInput>)}
+
+          {/* F7.6 — quadrante: apertura dell'arco e tacche numerate. */}
+          <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", marginTop: 6, marginBottom: 2, fontWeight: 700 }}>
+            {t("props.dial")}
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+            <div><div style={LABEL}>{t("props.startAngle")}</div>{numInput("gauge_start_angle", -135)}</div>
+            <div><div style={LABEL}>{t("props.endAngle")}</div>{numInput("gauge_end_angle", 135)}</div>
+          </div>
+          {field(t("props.ticks"), numInput("gauge_ticks", 0))}
+          <p style={{ fontSize: 10, color: "var(--brand-border, #475569)", margin: "-2px 0 4px" }}>
+            {t("props.ticksHint")}
+          </p>
+
+          {/* F7.6 — secondo indicatore (setpoint). */}
+          <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", marginTop: 6, marginBottom: 2, fontWeight: 700 }}>
+            {t("props.secondIndicator")}
+          </div>
+          <TagInput value={obj.gauge_sp_tag ?? ""} onChange={(v) => onChange({ gauge_sp_tag: v || undefined })}
+            placeholder={t("props.setpointTagPlaceholder")} />
+          {obj.gauge_sp_tag && field(t("props.color"), colorInput("gauge_sp_color", "#f59e0b"))}
+
+          {/* F7.6 — zone colorate del fondo scala. */}
+          <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", marginTop: 6, marginBottom: 2, fontWeight: 700 }}>
+            {t("props.zones")}
+          </div>
+          {(obj.gauge_zones ?? []).map((z, i) => (
+            <div key={i} style={{ display: "flex", gap: 4, alignItems: "center", marginBottom: 3 }}>
+              <input type="number" style={{ ...INPUT, width: 56 }} value={z.from}
+                onChange={(e) => {
+                  const zs = [...(obj.gauge_zones ?? [])];
+                  zs[i] = { ...zs[i], from: Number(e.target.value) };
+                  onChange({ gauge_zones: zs });
+                }} />
+              <span style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)" }}>→</span>
+              <input type="number" style={{ ...INPUT, width: 56 }} value={z.to}
+                onChange={(e) => {
+                  const zs = [...(obj.gauge_zones ?? [])];
+                  zs[i] = { ...zs[i], to: Number(e.target.value) };
+                  onChange({ gauge_zones: zs });
+                }} />
+              <input type="color" style={{ ...INPUT, padding: 2, height: 26, width: 38, cursor: "pointer", flex: "none" }}
+                value={z.color}
+                onChange={(e) => {
+                  const zs = [...(obj.gauge_zones ?? [])];
+                  zs[i] = { ...zs[i], color: e.target.value };
+                  onChange({ gauge_zones: zs });
+                }} />
+              <button title={t("props.remove")}
+                onClick={() => {
+                  const zs = [...(obj.gauge_zones ?? [])];
+                  zs.splice(i, 1);
+                  onChange({ gauge_zones: zs.length > 0 ? zs : undefined });
+                }}
+                style={{ ...INPUT, width: 26, padding: 0, cursor: "pointer", flex: "none" }}>×</button>
+            </div>
+          ))}
+          <button
+            onClick={() => {
+              const zs = [...(obj.gauge_zones ?? [])];
+              const lo = obj.min ?? 0; const hi = obj.max ?? 100;
+              const from = zs.length > 0 ? zs[zs.length - 1].to : lo;
+              zs.push({ from, to: hi, color: "#22c55e" });
+              onChange({ gauge_zones: zs });
+            }}
+            style={{ ...INPUT, cursor: "pointer", marginBottom: 4 }}>+ {t("props.addZone")}</button>
         </>
       )}
 
@@ -3183,6 +3318,11 @@ function ObjectProps({
                 onChange={(e) => onChange({ grid_cols: Math.max(1, Number(e.target.value)) })}
               />
             </div>
+          </div>
+          {/* F7.6 — spazio tra celle e margine interno. */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 6px", marginTop: 4 }}>
+            <div><div style={LABEL}>{t("props.gap")}</div>{numInput("grid_gap", 0)}</div>
+            <div><div style={LABEL}>{t("props.padding")}</div>{numInput("grid_padding", 0)}</div>
           </div>
           <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--brand-text-2, #cbd5e1)", marginTop: 6, cursor: "pointer" }}>
             <input

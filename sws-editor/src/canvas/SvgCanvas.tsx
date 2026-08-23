@@ -2932,15 +2932,41 @@ export function SvgObject(p: ObjProps) {
   if (obj.type === "rect") {
     const w = obj.width ?? 100; const h = obj.height ?? 50;
     const tv = obj.tag ? tagValues[obj.tag] : undefined;
+    // F7.6 — angoli arrotondati, tratteggio del bordo e riempimento sfumato.
+    // La sfumatura riusa la convenzione della pipe "tube": i due estremi si
+    // ricavano schiarendo/scurendo il colore base se non dichiarati.
+    const baseFill = obj.fill ?? obj.bg_color ?? "#555";
+    const gradId = `rect-grad-${obj.id}`;
+    const gradDir = obj.fill_gradient;
+    const lightC = obj.gradient_light_color ?? lightenHex(baseFill);
+    const darkC  = obj.gradient_dark_color  ?? darkenHex(baseFill);
     return (
       <>
         {applyTransform(obj, w, h, <>
+          {gradDir && (
+            <defs>
+              {gradDir === "radial" ? (
+                <radialGradient id={gradId}>
+                  <stop offset="0%" stopColor={lightC} />
+                  <stop offset="100%" stopColor={darkC} />
+                </radialGradient>
+              ) : (
+                <linearGradient id={gradId}
+                  x1="0" y1="0" x2={gradDir === "horizontal" ? "1" : "0"} y2={gradDir === "horizontal" ? "0" : "1"}>
+                  <stop offset="0%" stopColor={lightC} />
+                  <stop offset="100%" stopColor={darkC} />
+                </linearGradient>
+              )}
+            </defs>
+          )}
           {/* F0.2: bg_color = fallback del fill (un bgLayer dietro un corpo
               opaco sarebbe invisibile — qui lo sfondo È il fill). */}
           <rect x={obj.x} y={obj.y} width={w} height={h}
-            fill={obj.fill ?? obj.bg_color ?? "#555"}
+            rx={obj.corner_radius || undefined}
+            fill={gradDir ? `url(#${gradId})` : baseFill}
             stroke={selected ? "#facc15" : (obj.stroke ?? "none")}
             strokeWidth={selected ? 2 : (obj.stroke_width ?? 0)}
+            strokeDasharray={obj.stroke_dasharray || undefined}
             style={{ cursor: editCursor, ...transitionStyle(obj) }}
             onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()} />
           {obj.bg_image && (
@@ -3291,9 +3317,12 @@ export function SvgObject(p: ObjProps) {
           else if (isEditMode) onSelect?.(obj.id);
         }}>
         {applyTransform(obj, w, h, <>
-          <rect x={obj.x} y={obj.y} width={w} height={h} rx={4}
+          {/* F7.6 — il bordo era hardcoded sul colore primario del tema: ora
+              segue `stroke` (esposto nel pannello) con lo stesso default. */}
+          <rect x={obj.x} y={obj.y} width={w} height={h} rx={obj.corner_radius ?? 4}
             fill={obj.fill ?? obj.bg_color ?? "var(--brand-bg, #0f172a)"}
-            stroke={selected ? "#facc15" : "var(--brand-primary, #3b82f6)"} strokeWidth={selected ? 2 : 1.5}
+            stroke={selected ? "#facc15" : (obj.stroke ?? "var(--brand-primary, #3b82f6)")}
+            strokeWidth={selected ? 2 : (obj.stroke_width ?? 1.5)}
             style={transitionStyle(obj)} />
           {obj.bg_image && (
             <image href={obj.bg_image} x={obj.x} y={obj.y} width={w} height={h}
@@ -3402,16 +3431,40 @@ export function SvgObject(p: ObjProps) {
     return (
       <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()}
          style={{ cursor: editCursor }}>
-        {selected && <circle cx={cx} cy={cy} r={r + 4} fill="none" stroke="#facc15" strokeWidth={1} />}
+        {selected && ((obj.led_shape ?? "circle") === "circle"
+          ? <circle cx={cx} cy={cy} r={r + 4} fill="none" stroke="#facc15" strokeWidth={1} />
+          : selRect(obj.x, obj.y, r * 2, r * 2))}
         {applyTransform(obj, ledW, ledW, <>
           {bgLayer(obj.x, obj.y, ledW, ledW, 4)}
-          {/* Glow ring */}
-          {isOn && <circle cx={cx} cy={cy} r={r + 3} fill={glowColor} opacity={0.25} style={{ pointerEvents: "none" }} />}
-          {/* LED body */}
-          <circle cx={cx} cy={cy} r={r} fill={ledColor} style={transitionStyle(obj)} />
-          {/* Highlight */}
-          <circle cx={cx - r * 0.25} cy={cy - r * 0.25} r={r * 0.3} fill="white" opacity={0.3}
-            style={{ pointerEvents: "none" }} />
+          {/* F7.6 — forma del led: cerchio (default), quadrato o triangolo. Il
+              glow e il riflesso seguono la forma scelta. */}
+          {(() => {
+            const shape = obj.led_shape ?? "circle";
+            const tri = (rad: number) => {
+              const p = [0, 120, 240].map((a) => polar(cx, cy + rad * 0.15, rad, a - 0));
+              return p.map((q) => `${q.x},${q.y}`).join(" ");
+            };
+            const body = shape === "square"
+              ? <rect x={cx - r} y={cy - r} width={r * 2} height={r * 2} rx={r * 0.2}
+                  fill={ledColor} style={transitionStyle(obj)} />
+              : shape === "triangle"
+                ? <polygon points={tri(r)} fill={ledColor} style={transitionStyle(obj)} />
+                : <circle cx={cx} cy={cy} r={r} fill={ledColor} style={transitionStyle(obj)} />;
+            const glow = !isOn ? null : shape === "square"
+              ? <rect x={cx - r - 3} y={cy - r - 3} width={(r + 3) * 2} height={(r + 3) * 2} rx={r * 0.3}
+                  fill={glowColor} opacity={0.25} style={{ pointerEvents: "none" }} />
+              : shape === "triangle"
+                ? <polygon points={tri(r + 3)} fill={glowColor} opacity={0.25} style={{ pointerEvents: "none" }} />
+                : <circle cx={cx} cy={cy} r={r + 3} fill={glowColor} opacity={0.25} style={{ pointerEvents: "none" }} />;
+            return <>
+              {glow}
+              {body}
+              {shape !== "triangle" && (
+                <circle cx={cx - r * 0.25} cy={cy - r * 0.25} r={r * 0.3} fill="white" opacity={0.3}
+                  style={{ pointerEvents: "none" }} />
+              )}
+            </>;
+          })()}
           {/* Label */}
           {obj.label && (
             <text x={cx} y={obj.y + r * 2 + 14} textAnchor="middle" fill="#94a3b8" fontSize={11}
@@ -3544,12 +3597,19 @@ export function SvgObject(p: ObjProps) {
     const cx = obj.x + w / 2;
     const cy = obj.y + h * 0.62;
     const R = Math.min(w * 0.38, h * 0.52);
-    const START = -135; const END = 135; // degrees from North, clockwise
+    // F7.6 — apertura dell'arco configurabile (prima fissa a ∓135°): un gauge
+    // a 180° o a 360° si ottiene cambiando questi due angoli, e tutto il resto
+    // (tacche, zone, lancette, etichette) si ricalcola dallo sweep.
+    const START = obj.gauge_start_angle ?? -135;
+    const END   = obj.gauge_end_angle   ?? 135;
+    const SWEEP = END - START;
     const tv = obj.tag ? tagValues[obj.tag] : undefined;
     const min = obj.min ?? 0; const max = obj.max ?? 100;
     const rawVal = tv ? Number(tv.value) : min;
     const pct = clamp((rawVal - min) / (max - min), 0, 1);
-    const valueAngle = START + pct * 270;
+    const valueAngle = START + pct * SWEEP;
+    /** Angolo sull'arco di un valore in unità del tag. */
+    const angleOf = (v: number) => START + clamp((v - min) / (max - min), 0, 1) * SWEEP;
     const arcColor =
       thresholdColor(rawVal, obj.alarm_low, obj.warn_low, obj.warn_high, obj.alarm_high)
       ?? (obj.fill ?? "#22c55e");
@@ -3559,8 +3619,7 @@ export function SvgObject(p: ObjProps) {
 
     // Threshold tick helpers
     const thresholdTick = (value: number, color: string) => {
-      const pct2 = clamp((value - min) / (max - min), 0, 1);
-      const angle = START + pct2 * 270;
+      const angle = angleOf(value);
       const inner = polar(cx, cy, R - 8, angle);
       const outer = polar(cx, cy, R + 2, angle);
       return <line key={`t${value}`} x1={inner.x} y1={inner.y} x2={outer.x} y2={outer.y}
@@ -3579,6 +3638,31 @@ export function SvgObject(p: ObjProps) {
           <path d={arcPath(cx, cy, R, START, END)}
             fill="none" stroke="#334155" strokeWidth={10} strokeLinecap="round"
             style={{ pointerEvents: "none" }} />
+          {/* F7.6 — zone colorate sul fondo scala (verde/giallo/rosso di
+              processo): disegnate sopra il fondo e sotto l'arco del valore,
+              così restano leggibili anche a valore alto. */}
+          {(obj.gauge_zones ?? []).map((z, i) => (
+            <path key={`gz${i}`} d={arcPath(cx, cy, R, angleOf(z.from), angleOf(z.to))}
+              fill="none" stroke={z.color} strokeWidth={10} opacity={0.55}
+              style={{ pointerEvents: "none" }} />
+          ))}
+          {/* F7.6 — tacche maggiori con etichetta numerica. */}
+          {!!obj.gauge_ticks && obj.gauge_ticks > 1 && Array.from({ length: obj.gauge_ticks }, (_, i) => {
+            const frac = i / (obj.gauge_ticks! - 1);
+            const a = START + frac * SWEEP;
+            const v = min + frac * (max - min);
+            const p1 = polar(cx, cy, R - 7, a);
+            const p2 = polar(cx, cy, R + 1, a);
+            const pl = polar(cx, cy, R + 13, a);
+            return (
+              <g key={`gt${i}`} style={{ pointerEvents: "none" }}>
+                <line x1={p1.x} y1={p1.y} x2={p2.x} y2={p2.y} stroke="#64748b" strokeWidth={1} />
+                <text x={pl.x} y={pl.y + 3} textAnchor="middle" fill={obj.color ?? "#64748b"} fontSize={9}>
+                  {Number.isInteger(v) ? v : v.toFixed(1)}
+                </text>
+              </g>
+            );
+          })}
           {/* Value arc */}
           {pct > 0 && (
             <path d={arcPath(cx, cy, R, START, valueAngle)}
@@ -3590,6 +3674,19 @@ export function SvgObject(p: ObjProps) {
           {obj.warn_high !== undefined && thresholdTick(obj.warn_high, "#eab308")}
           {obj.alarm_low  !== undefined && thresholdTick(obj.alarm_low,  "#ef4444")}
           {obj.alarm_high !== undefined && thresholdTick(obj.alarm_high, "#ef4444")}
+          {/* F7.6 — secondo indicatore (setpoint): lancetta sottile sull'arco,
+              per confrontare a occhio valore e riferimento. */}
+          {(() => {
+            const spTv = obj.gauge_sp_tag ? tagValues[obj.gauge_sp_tag] : undefined;
+            const spVal = spTv ? Number(spTv.value) : undefined;
+            if (spVal === undefined || !Number.isFinite(spVal)) return null;
+            const a = angleOf(spVal);
+            const i1 = polar(cx, cy, R - 12, a);
+            const i2 = polar(cx, cy, R + 6, a);
+            return <line x1={i1.x} y1={i1.y} x2={i2.x} y2={i2.y}
+              stroke={obj.gauge_sp_color ?? "#f59e0b"} strokeWidth={2.5} strokeLinecap="round"
+              style={{ pointerEvents: "none", ...transitionStyle(obj) }} />;
+          })()}
           {/* Needle */}
           <line x1={needleBase.x} y1={needleBase.y} x2={needleTip.x} y2={needleTip.y}
             stroke={obj.stroke ?? "#e2e8f0"} strokeWidth={2} strokeLinecap="round"
@@ -3597,8 +3694,9 @@ export function SvgObject(p: ObjProps) {
           {/* Hub */}
           <circle cx={cx} cy={cy} r={6} fill={obj.stroke ?? "#e2e8f0"} style={{ pointerEvents: "none" }} />
           <circle cx={cx} cy={cy} r={3} fill="#0f172a" style={{ pointerEvents: "none" }} />
-          {/* Min / max labels */}
-          {(() => {
+          {/* Min / max labels — nascoste con le tacche numerate attive: la prima
+              e l'ultima tacca portano già gli stessi due numeri. */}
+          {!obj.gauge_ticks && (() => {
             const minP = polar(cx, cy, R + 14, START);
             const maxP = polar(cx, cy, R + 14, END);
             return <>
@@ -4798,25 +4896,32 @@ export function SvgObject(p: ObjProps) {
     const nCols = obj.grid_cols ?? 2;
     const showBorders = obj.grid_show_borders !== false;
     const borderColor = obj.grid_border_color ?? "#64748b";
+    // F7.6 — margine interno e spazio tra celle. Il padding restringe l'area
+    // su cui si dividono righe e colonne; il gap si sottrae a ogni cella al
+    // momento del disegno (metà per lato), così le tracce restano regolari.
+    const gPad = obj.grid_padding ?? 0;
+    const gGap = obj.grid_gap ?? 0;
+    const usableW = Math.max(1, w - gPad * 2);
+    const usableH = Math.max(1, h - gPad * 2);
 
     // Compute column widths
     const colWidthsDef = (obj.col_widths as number[] | undefined) ?? [];
     const colW: number[] = [];
     for (let c = 0; c < nCols; c++) {
-      colW.push(c < colWidthsDef.length ? colWidthsDef[c] : w / nCols);
+      colW.push(c < colWidthsDef.length ? colWidthsDef[c] : usableW / nCols);
     }
     // Compute row heights
     const rowHeightsDef = (obj.row_heights as number[] | undefined) ?? [];
     const rowH: number[] = [];
     for (let r = 0; r < nRows; r++) {
-      rowH.push(r < rowHeightsDef.length ? rowHeightsDef[r] : h / nRows);
+      rowH.push(r < rowHeightsDef.length ? rowHeightsDef[r] : usableH / nRows);
     }
     // Cumulative offsets
     const colX: number[] = [];
-    let cx = obj.x;
+    let cx = obj.x + gPad;
     for (let c = 0; c < nCols; c++) { colX.push(cx); cx += colW[c]; }
     const rowY: number[] = [];
-    let ry = obj.y;
+    let ry = obj.y + gPad;
     for (let r = 0; r < nRows; r++) { rowY.push(ry); ry += rowH[r]; }
 
     // Map from "r-c" to cell definition
@@ -4861,6 +4966,11 @@ export function SvgObject(p: ObjProps) {
             for (let cc = c; cc < Math.min(c + cs, nCols); cc++) cellW += colW[cc];
             let cellH = 0;
             for (let rr = r; rr < Math.min(r + rs, nRows); rr++) cellH += rowH[rr];
+            // Rettangolo effettivo della cella dopo il gap (metà per lato).
+            const cellX = colX[c] + gGap / 2;
+            const cellY = rowY[r] + gGap / 2;
+            cellW = Math.max(1, cellW - gGap);
+            cellH = Math.max(1, cellH - gGap);
 
             const cellVisible = (() => {
               if (!cellDef) return true;
@@ -4914,7 +5024,7 @@ export function SvgObject(p: ObjProps) {
                 onClick={(e) => e.stopPropagation()}
               >
                 <rect
-                  x={colX[c]} y={rowY[r]} width={cellW} height={cellH}
+                  x={cellX} y={cellY} width={cellW} height={cellH}
                   fill={cellDef?.bg_color ?? "transparent"}
                   stroke={showBorders ? (isCellSel ? "#facc15" : borderColor) : "none"}
                   strokeWidth={isCellSel ? 2 : 1}
@@ -4925,7 +5035,7 @@ export function SvgObject(p: ObjProps) {
                 />
                 {isEditMode && (
                   <rect
-                    x={colX[c]} y={rowY[r]} width={cellW} height={cellH}
+                    x={cellX} y={cellY} width={cellW} height={cellH}
                     fill="none"
                     stroke={isCellSel ? "#facc15" : "var(--brand-border, #475569)"}
                     strokeWidth={isCellSel ? 1.5 : 1}
@@ -4937,18 +5047,18 @@ export function SvgObject(p: ObjProps) {
                 {!cellDef?.sub && cellDef?.bg_image && (
                   <image
                     href={cellDef.bg_image}
-                    x={colX[c]} y={rowY[r]} width={cellW} height={cellH}
+                    x={cellX} y={cellY} width={cellW} height={cellH}
                     preserveAspectRatio="xMidYMid slice"
                     style={{ pointerEvents: "none" }}
                   />
                 )}
-                {cellDef?.sub && renderSubArea(cellDef.sub, colX[c], rowY[r], cellW, cellH, [], r, c, obj.id)}
+                {cellDef?.sub && renderSubArea(cellDef.sub, cellX, cellY, cellW, cellH, [], r, c, obj.id)}
                 {!cellDef?.sub && cellDef?.child && (() => {
                   const child = cellDef.child!;
                   const cw = child.width ?? 100;
                   const ch = child.height ?? 50;
-                  const childX = colX[c] + (cellW - cw) / 2;
-                  const childY = rowY[r] + (cellH - ch) / 2;
+                  const childX = cellX + (cellW - cw) / 2;
+                  const childY = cellY + (cellH - ch) / 2;
                   const placed = child.type === "line"
                     ? { ...child, x: childX, y: childY,
                         x2: childX + ((child.x2 ?? child.x + 100) - child.x),
@@ -5054,12 +5164,19 @@ export function SvgObject(p: ObjProps) {
 
   if (obj.type === "image" && obj.src) {
     const w = obj.width ?? 100; const h = obj.height ?? 100;
+    // F7.6 — come l'immagine riempie il box. "stretch" resta il default
+    // (comportamento storico: deforma per riempire); "contain" la rimpicciolisce
+    // dentro il box conservando le proporzioni, "cover" ritaglia.
+    const fitAttr = obj.image_fit === "contain" ? "xMidYMid meet"
+      : obj.image_fit === "cover" ? "xMidYMid slice"
+      : "none";
     return (
       <>
         {selRect(obj.x, obj.y, w, h)}
         {applyTransform(obj, w, h, <>
           {bgLayer(obj.x, obj.y, w, h, 4)}
           <image href={obj.src} x={obj.x} y={obj.y} width={w} height={h}
+            preserveAspectRatio={fitAttr}
             style={{ cursor: editCursor }}
             onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()} />
         </>)}
