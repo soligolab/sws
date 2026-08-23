@@ -1343,6 +1343,9 @@ export function SvgCanvas({
       onMouseDown={handleSvgMouseDown}
       onClick={() => {
         if (suppressClick.current) { suppressClick.current = false; return; }
+        // In cattura waypoint la selezione resta sull'oggetto in cattura:
+        // deselezionare chiuderebbe il pannello da cui si sta catturando.
+        if (captureTarget) return;
         onSelect?.(null);
       }}
       onMouseMove={handleMouseMove}
@@ -1384,6 +1387,10 @@ export function SvgCanvas({
         />
       )}
 
+      {/* In cattura waypoint il layer oggetti è trasparente al mouse:
+          il crosshair resta e ogni click cattura un punto, anche sopra
+          gli oggetti (Esc per uscire). */}
+      <g style={captureTarget ? { pointerEvents: "none" } : undefined}>
       {sortByZ(objects).map((obj) => {
         // Visibility: in view mode, skip non-visible objects entirely.
         // In edit mode, always render so the designer can still select them
@@ -1553,6 +1560,7 @@ export function SvgCanvas({
           </g>
         );
       })}
+      </g>
 
       {selRect && (() => {
         const rx = Math.min(selRect.startX, selRect.curX);
