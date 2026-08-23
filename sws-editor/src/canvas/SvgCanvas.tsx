@@ -569,6 +569,16 @@ export function SvgCanvas({
 
   // F3.1: ruolo dell'utente del viewer per il gating per-oggetto.
   const viewerRole = useAppStore((s) => s.authRole);
+  // D (2026-08-23): cattura waypoint dal canvas (motion_path). Esc esce.
+  const captureTarget = useAppStore((s) => s.capturePathTarget);
+  useEffect(() => {
+    if (!captureTarget) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") useAppStore.getState().setCapturePathTarget(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [captureTarget]);
   // F4.2: indice tag→allarme attivo (severità, ack) dagli allarmi live.
   // Preferisce l'allarme non riconosciuto quando lo stesso tag ne ha più d'uno.
   const alarmsMapAll = useAppStore((s) => s.alarms);
@@ -833,6 +843,21 @@ export function SvgCanvas({
       return;
     }
     if (e.button !== 0) return;
+    // D (2026-08-23): modalità cattura waypoint — il click NON seleziona,
+    // appende il punto (in coordinate pagina, con snap se attivo) al
+    // motion_path dell'oggetto in cattura.
+    if (captureTarget) {
+      const pt0 = toSvg(e.clientX - svgRect.left, e.clientY - svgRect.top);
+      const st = useAppStore.getState();
+      const target = objects.find((o) => o.id === captureTarget);
+      if (target) {
+        st.updateObject(captureTarget, {
+          motion_path: [...(target.motion_path ?? []), { x: snap(pt0.x), y: snap(pt0.y) }],
+        });
+      }
+      e.preventDefault();
+      return;
+    }
     // If an object drag is already active, ignore (startDrag sets dragRef first
     // because child handlers fire before parent handlers in React).
     if (dragRef.current) return;
@@ -1312,7 +1337,7 @@ export function SvgCanvas({
                // l'ultimo pixel (bordo compreso) di qualunque oggetto
                // posizionato a filo con pageWidth/pageHeight.
                overflow: "visible",
-               cursor: panDragRef.current ? "grabbing" : undefined }}
+               cursor: captureTarget ? "crosshair" : panDragRef.current ? "grabbing" : undefined }}
       onMouseDown={handleSvgMouseDown}
       onClick={() => {
         if (suppressClick.current) { suppressClick.current = false; return; }

@@ -356,6 +356,10 @@ interface AppState {
   clearSelection: () => void;
   addObject: (partial: Omit<SynopticObject, "id">) => void;
   updateObject: (id: string, patch: Partial<SynopticObject>) => void;
+  /** Cattura waypoint dal canvas (MOVIMENTO SU PERCORSO): id dell'oggetto in
+   *  cattura, o null. Effimero, non persistito. */
+  capturePathTarget: string | null;
+  setCapturePathTarget: (id: string | null) => void;
   updateObjects: (ids: string[], patch: Partial<SynopticObject>) => void;
   duplicateObject: (id: string) => void;
   duplicateSelection: () => void;
@@ -1181,6 +1185,8 @@ export const useAppStore = create<AppState>((set, get) => {
       });
     },
 
+    capturePathTarget: null,
+    setCapturePathTarget: (id) => set({ capturePathTarget: id }),
     updateObject: (id, patch) => {
       pushHistory("Modifica oggetto");
       set((s) => ({

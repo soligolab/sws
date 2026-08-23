@@ -1966,6 +1966,9 @@ function ObjectProps({
   onDelete: () => void;
 }) {
   const { t } = useTranslation();
+  // D (2026-08-23): cattura waypoint dal canvas — stato condiviso nello store.
+  const capturePathTarget = useAppStore((st) => st.capturePathTarget);
+  const setCapturePathTarget = useAppStore((st) => st.setCapturePathTarget);
   const [imgBrowserOpen, setImgBrowserOpen] = useState(false);
   // Immagini di progetto per la sezione SFONDO: lista lazy (solo quando la
   // sezione esiste per il tipo selezionato) + input file per l'upload.
@@ -4080,21 +4083,66 @@ function ObjectProps({
               <div><div style={LABEL}>Min</div>{numInput("motion_min", 0)}</div>
               <div><div style={LABEL}>Max</div>{numInput("motion_max", 100)}</div>
             </div>
-            {field(t("props.motionPath"),
-              <textarea
-                style={{ ...INPUT, height: 52, resize: "vertical", fontFamily: "monospace", fontSize: 11 }}
-                placeholder="100,200; 400,200; 400,350"
-                value={(obj.motion_path ?? []).map((p) => `${p.x},${p.y}`).join("; ")}
-                onChange={(e) => {
-                  const pts = e.target.value.split(";").map((s2) => s2.trim()).filter(Boolean).map((pair) => {
-                    const [x, y] = pair.split(",").map((n) => Number(n.trim()));
-                    return Number.isFinite(x) && Number.isFinite(y) ? { x, y } : null;
-                  }).filter((p): p is { x: number; y: number } => p !== null);
-                  onChange({ motion_path: pts.length >= 2 ? pts : undefined });
-                }}
-                spellCheck={false}
-              />
-            )}
+            {(() => {
+              // 2026-08-23: waypoint come TABELLA (x/y editabili, ✕) +
+              // pulsante di cattura ＋ che prende le coordinate cliccando
+              // sul canvas (Esc o ri-click per uscire).
+              const pts = obj.motion_path ?? [];
+              const setPts = (next: { x: number; y: number }[]) =>
+                onChange({ motion_path: next.length > 0 ? next : undefined });
+              const capturing = capturePathTarget === obj.id;
+              return (
+                <div style={{ marginBottom: 4 }}>
+                  <div style={{ ...LABEL, display: "flex", alignItems: "center", gap: 6 }}>
+                    {t("props.motionPathTable")}
+                    <button
+                      title={t("props.motionCapture")}
+                      onClick={() => setCapturePathTarget(capturing ? null : obj.id)}
+                      style={{
+                        marginLeft: "auto", cursor: "pointer", borderRadius: 4, fontSize: 12,
+                        padding: "1px 8px", border: "1px solid",
+                        borderColor: capturing ? "var(--brand-warning, #f59e0b)" : "var(--brand-surface-2, #334155)",
+                        background: capturing ? "#3f2d10" : "var(--brand-bg, #0f172a)",
+                        color: capturing ? "var(--brand-warning-soft, #fbbf24)" : "var(--brand-text-muted, #94a3b8)",
+                      }}
+                    >＋ {capturing ? t("props.motionCapturing") : t("props.motionCaptureBtn")}</button>
+                  </div>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
+                    <thead>
+                      <tr style={{ color: "var(--brand-text-subtle, #64748b)" }}>
+                        <th style={{ textAlign: "left", fontWeight: 600, padding: "1px 4px", width: 22 }}>#</th>
+                        <th style={{ textAlign: "left", fontWeight: 600, padding: "1px 4px" }}>X</th>
+                        <th style={{ textAlign: "left", fontWeight: 600, padding: "1px 4px" }}>Y</th>
+                        <th style={{ width: 22 }} />
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {pts.map((p, i) => (
+                        <tr key={i}>
+                          <td style={{ padding: "1px 4px", color: "var(--brand-text-subtle, #64748b)" }}>{i + 1}</td>
+                          <td style={{ padding: "1px 2px" }}>
+                            <input type="number" style={{ ...INPUT, padding: "1px 4px", fontSize: 11 }} value={p.x}
+                              onChange={(e) => setPts(pts.map((q, j) => (j === i ? { ...q, x: Number(e.target.value) } : q)))} />
+                          </td>
+                          <td style={{ padding: "1px 2px" }}>
+                            <input type="number" style={{ ...INPUT, padding: "1px 4px", fontSize: 11 }} value={p.y}
+                              onChange={(e) => setPts(pts.map((q, j) => (j === i ? { ...q, y: Number(e.target.value) } : q)))} />
+                          </td>
+                          <td style={{ textAlign: "center" }}>
+                            <button style={{ background: "transparent", border: "none", color: "var(--brand-danger, #ef4444)", cursor: "pointer" }}
+                              onClick={() => setPts(pts.filter((_, j) => j !== i))}>✕</button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  <button
+                    style={{ ...INPUT, cursor: "pointer", width: "100%", marginTop: 2, fontSize: 11, color: "var(--brand-text-subtle, #64748b)", borderStyle: "dashed" }}
+                    onClick={() => setPts([...pts, { x: (pts[pts.length - 1]?.x ?? obj.x) + 50, y: pts[pts.length - 1]?.y ?? obj.y }])}
+                  >+ {t("props.motionAddRow")}</button>
+                </div>
+              );
+            })()}
             <p style={{ fontSize: 10, color: "var(--brand-border, #475569)", margin: "0 0 4px" }}>
               {t("props.motionHint")}
             </p>

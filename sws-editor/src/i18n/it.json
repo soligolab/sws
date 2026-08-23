@@ -745,7 +745,12 @@
     "traceLabel": "nome",
     "stateTag": "Tag di stato (allarme/stale/qualità)",
     "stateTagPh": "es. plant.power",
-    "statesPrecedence": "Gli STATI (N) qui sotto hanno la precedenza su questi colori."
+    "statesPrecedence": "Gli STATI (N) qui sotto hanno la precedenza su questi colori.",
+    "motionPathTable": "Waypoint",
+    "motionCapture": "Cattura dal canvas: ogni click aggiunge un punto (Esc per uscire)",
+    "motionCaptureBtn": "Cattura",
+    "motionCapturing": "clicca sul canvas… (Esc)",
+    "motionAddRow": "Aggiungi punto"
   },
   "shortcut": {
     "navCanvas": "Navigazione canvas",
