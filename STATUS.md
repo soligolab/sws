@@ -14,9 +14,15 @@
   impilate, tacche d'asse, legenda, soglie anche in orizzontale.
 - **F7.3 Pie**: etichette valore+unità, raggruppamento fette piccole, explode, foro colorato.
 - **F7.4 Text**: multiriga con allineamento verticale e interlinea (default invariato).
-- **F7.5 (parziale)**: ACK massivo sugli allarmi mostrati, shelve per riga con motivo,
-  **nuovo tipo `alarm_history`** piazzabile. **RESTA**: suono per severità con tacita, e
-  commento/motivo sull'ACK (vuole un campo in più sull'endpoint di ack → lavoro Rust).
+- **F7.5 (completa)**: ACK massivo sugli allarmi mostrati, shelve per riga con motivo,
+  **nuovo tipo `alarm_history`** piazzabile, **suono per severità** (Web Audio, nessun file
+  audio: toni diversi per Critical/Warning/Info) con pulsante **tacita** che silenzia gli
+  allarmi in corso e si riattiva su uno nuovo — spento in editor —, e **motivo sulla
+  conferma**: `POST /api/alarms/:id/ack` accetta `reason` e lo scrive nel **journal di
+  audit** (non nell'AlarmEvent: avrebbe richiesto una migrazione dello schema eventi,
+  scelta dichiarata nel commento dell'endpoint). L'alarm_viewer riusa `require_reason`.
+  Verificato da `./scripts/check_ack_reason.sh` (allarme fatto scattare davvero → ack con
+  motivo → motivo trovato in `/api/audit`), 5/5.
 - **F8.3**: ricerca su tutte le pagine (nome/id/tag/testo) con risultati navigabili; "dove è
   usato questo tag" nella sezione TAG; logica delle variabili non usate ora condivisa in
   `src/search/tagUsage.ts` (era duplicata in ConfigView).
@@ -30,8 +36,9 @@
   dare scuro-su-scuro → **Q18** in `docs/OPEN_QUESTIONS.md`.
 - **Attenzione**: i check usano il binario **debug** — serve `cargo build -p sws-runtime`
   (non basta `cargo check`), altrimenti il round-trip misura un mirror vecchio.
-- **Prossimo**: residuo F7.5 (suono, commento ACK), poi **F9c** parità LVGL — il lotto ha
-  accumulato molto (trend_tags, F7.6, F7.1-F7.4: tutti campi che LVGL non conosce).
+- **Prossimo**: **F9c** parità LVGL — è il lotto che ha accumulato di più (trend_tags, F7.6,
+  F7.1-F7.4, e i tipi nuovi `alarm_history`: tutto ciò che `model.rs`/`lvgl_render.rs` non
+  conoscono). Il suono e il motivo dell'ACK restano web-only per natura.
 
 **Sessione 2026-08-23 (notte, seguito) — Lotto 2: F7.6 + F8.1/F8.2** (branch **`feat/scada-f7`**
 annidato su `feat/scada-f6`).

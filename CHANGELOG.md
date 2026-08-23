@@ -69,7 +69,9 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 - **Testo multiriga**: va a capo dentro larghezza/altezza, allineamento verticale e interlinea;
   gli a-capo scritti a mano sono rispettati.
 - **Allarmi**: "ACK tutti" sugli allarmi mostrati, **messa in silenzio** (shelve) per riga con
-  motivo e durata, nuovo oggetto **storico allarmi** piazzabile.
+  motivo e durata, nuovo oggetto **storico allarmi** piazzabile, **segnalazione acustica** per
+  severità con pulsante "tacita" (tono sintetizzato, nessun file audio da distribuire; spento
+  in editor) e **motivo sulla conferma** registrato nel journal di audit.
 - **Ricerca**: "cerca in tutte le pagine" per nome, id, **tag** e **testo/etichetta**, con
   risultati raggruppati per pagina e navigabili; **"dove è usato questo tag"** nella sezione
   TAG del pannello (pagine, allarmi, espressioni, script) e pallino ambra sui tag mai usati.
