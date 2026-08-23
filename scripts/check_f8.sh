@@ -49,3 +49,19 @@ curl -sf -X PUT "$API/synoptics/Pagina%201" -H 'Content-Type: application/json' 
 echo "== misura F8.1 (snap in resize) =="
 ADMIN="$API" IDE="http://localhost:$APORT" PAGE_NAME="Pagina 1" \
   node "$REPO/sws-editor/scripts/resize_snap_measure.mjs"
+
+# F8.4 — si riscrive la STESSA pagina (l'editor apre la prima della lista: una
+# pagina nuova non sarebbe quella mostrata, e i click andrebbero a vuoto).
+# Un oggetto normale da ruotare col mouse e uno già ruotato di 90° da
+# ridimensionare.
+curl -sf -X PUT "$API/synoptics/Pagina%201" -H 'Content-Type: application/json' -d '{
+  "id": "pagina-1", "name": "Pagina 1", "width": 1280, "height": 800,
+  "objects": [
+    {"id":"plain","type":"rect","x":100,"y":100,"width":120,"height":80,"fill":"#3b82f6"},
+    {"id":"turned","type":"rect","x":500,"y":300,"width":100,"height":60,"fill":"#22c55e","rotation":90}
+  ]
+}' > /dev/null
+
+echo "== misura F8.4 (rotazione e resize ruotato) =="
+ADMIN="$API" IDE="http://localhost:$APORT" PAGE_NAME="Pagina 1" \
+  node "$REPO/sws-editor/scripts/rotate_measure.mjs"

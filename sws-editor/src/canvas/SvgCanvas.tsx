@@ -136,6 +136,23 @@ interface ResizeState {
   startX: number;
   startY: number;
   startObj: { x: number; y: number; width: number; height: number; x2?: number; y2?: number };
+  /** F8.4 — rotazione dell'oggetto in gradi al momento della presa: il
+   *  movimento del mouse va proiettato sugli assi LOCALI dell'oggetto,
+   *  altrimenti trascinare la maniglia destra di un oggetto ruotato di 90°
+   *  ne cambia l'altezza. Prima il resize era semplicemente disabilitato
+   *  sugli oggetti ruotati. */
+  rotation?: number;
+}
+
+/** F8.4 — trascinamento della maniglia di rotazione. */
+interface RotateState {
+  objId: string;
+  /** Centro di rotazione in coordinate pagina. */
+  cx: number;
+  cy: number;
+  /** Rotazione iniziale e angolo del mouse all'inizio, per ruotare in delta. */
+  startRotation: number;
+  startAngle: number;
 }
 
 /** Active drag on an interior border of a `grid` object (between two
@@ -630,6 +647,7 @@ export function SvgCanvas({
   const dragRef = useRef<DragState | null>(null);
   // Resize handle drag state
   const resizeRef = useRef<ResizeState | null>(null);
+  const rotateRef = useRef<RotateState | null>(null);
   // Grid interior-border resize state (drag between columns or between rows).
   const gridBorderRef = useRef<GridBorderResizeState | null>(null);
   // Sub-grid (split cell) interior border resize state.
@@ -977,11 +995,35 @@ export function SvgCanvas({
       return;
     }
 
+    // F8.4 — rotazione interattiva: l'angolo segue il mouse attorno al centro
+    // dell'oggetto; Shift aggancia a passi di 15°.
+    if (rotateRef.current && onMove) {
+      const { objId, cx, cy, startRotation, startAngle } = rotateRef.current;
+      const now = Math.atan2(pt.y - cy, pt.x - cx) * 180 / Math.PI;
+      let deg = startRotation + (now - startAngle);
+      if (e.shiftKey) deg = Math.round(deg / 15) * 15;
+      // Normalizzato in [0,360): un angolo di -730° salvato sul file è
+      // corretto ma illeggibile nel pannello.
+      deg = ((deg % 360) + 360) % 360;
+      onMove(objId, { rotation: Math.round(deg * 10) / 10 });
+      return;
+    }
+
     if (resizeRef.current && onMove) {
       // Resize / endpoint handle drag. dx/dy in screen pixels → divide by zoom.
       const { handle, startX, startY, startObj, objId } = resizeRef.current;
-      const dx = (e.clientX - startX) / z;
-      const dy = (e.clientY - startY) / z;
+      let dx = (e.clientX - startX) / z;
+      let dy = (e.clientY - startY) / z;
+      // F8.4 — su un oggetto ruotato le maniglie sono ruotate con lui: il
+      // movimento va riportato negli assi locali, altrimenti trascinare la
+      // maniglia destra di un oggetto girato di 90° ne cambierebbe l'altezza.
+      const rot = resizeRef.current.rotation ?? 0;
+      if (rot !== 0) {
+        const a = -rot * Math.PI / 180;
+        const rx = dx * Math.cos(a) - dy * Math.sin(a);
+        const ry = dx * Math.sin(a) + dy * Math.cos(a);
+        dx = rx; dy = ry;
+      }
       if (handle === "p1") {
         onMove(objId, { x: snap(startObj.x + dx), y: snap(startObj.y + dy) });
       } else if (handle === "p2") {
@@ -1212,6 +1254,7 @@ export function SvgCanvas({
     closeInteraction();
     dragRef.current = null;
     resizeRef.current = null;
+    rotateRef.current = null;
     gridBorderRef.current = null;
     subBorderRef.current = null;
     panDragRef.current = null;
@@ -1702,15 +1745,22 @@ export function SvgCanvas({
         );
       })()}
 
-      {/* Resize handles — single selection, edit mode, no rotation, not line/grid/pipe */}
+      {/* Resize handles — single selection, edit mode, not line/grid/pipe.
+          F8.4: gli oggetti RUOTATI non sono più esclusi — le maniglie girano
+          col box (stesso transform dell'oggetto) e il movimento del mouse
+          viene proiettato sugli assi locali in handleMouseMove. In più c'è la
+          maniglia di rotazione sopra il bordo alto. */}
       {onMove && selIds.length === 1 && (() => {
         const obj = objects.find((o) => o.id === selIds[0]);
-        if (!obj || obj.type === "line" || obj.type === "grid" || obj.type === "pipe" || (obj.rotation ?? 0) !== 0) return null;
+        if (!obj || obj.type === "line" || obj.type === "grid" || obj.type === "pipe") return null;
         const bb = objBBox(obj);
         const cx = (bb.x1 + bb.x2) / 2;
         const cy = (bb.y1 + bb.y2) / 2;
         const hs = 4 / viewT.zoom;
         const sw = 1.5 / viewT.zoom;
+        const rot = obj.rotation ?? 0;
+        // Stesso centro di rotazione di applyTransform: il centro del box.
+        const groupTf = rot !== 0 ? `rotate(${rot} ${cx} ${cy})` : undefined;
         const handles: { id: string; x: number; y: number; cursor: string }[] = [
           { id: "tl", x: bb.x1, y: bb.y1, cursor: "nw-resize" },
           { id: "tc", x: cx,    y: bb.y1, cursor: "n-resize"  },
@@ -1721,8 +1771,16 @@ export function SvgCanvas({
           { id: "bc", x: cx,    y: bb.y2, cursor: "s-resize"  },
           { id: "br", x: bb.x2, y: bb.y2, cursor: "se-resize" },
         ];
+        const rotHandleY = bb.y1 - 18 / viewT.zoom;
         return (
-          <>
+          <g transform={groupTf}>
+            {/* Contorno del box ruotato: senza di esso, su un oggetto girato le
+                maniglie sembrano galleggiare senza riferimento. */}
+            {rot !== 0 && (
+              <rect x={bb.x1} y={bb.y1} width={bb.x2 - bb.x1} height={bb.y2 - bb.y1}
+                fill="none" stroke="#facc15" strokeWidth={sw} strokeDasharray={`${3 / viewT.zoom} ${2 / viewT.zoom}`}
+                style={{ pointerEvents: "none" }} />
+            )}
             {handles.map(({ id, x, y, cursor }) => (
               <rect
                 key={id}
@@ -1744,11 +1802,41 @@ export function SvgCanvas({
                       x: obj.x ?? 0, y: obj.y ?? 0,
                       width: obj.width ?? 0, height: obj.height ?? 0,
                     },
+                    rotation: rot,
                   };
                 }}
               />
             ))}
-          </>
+            {/* F8.4 — maniglia di rotazione: prima l'angolo si poteva cambiare
+                solo digitandolo nel pannello. */}
+            <line x1={cx} y1={bb.y1} x2={cx} y2={rotHandleY}
+              stroke="#facc15" strokeWidth={sw} style={{ pointerEvents: "none" }} />
+            <circle
+              cx={cx} cy={rotHandleY} r={5 / viewT.zoom}
+              fill="#facc15" stroke="#0f172a" strokeWidth={sw}
+              style={{ cursor: "grab" }}
+              onMouseDown={(e) => {
+                e.stopPropagation();
+                dragRef.current = null;
+                selDragRef.current = null;
+                setSelRect(null);
+                openInteraction("Ruota oggetto");
+                // toSvg vuole coordinate RELATIVE al riquadro dell'svg (come
+                // ogni altro punto di conversione qui): passandogli clientX/Y
+                // grezzi l'angolo iniziale era sbagliato e la rotazione partiva
+                // da un delta casuale.
+                const svgEl = (e.currentTarget as SVGElement).ownerSVGElement!;
+                const rect = svgEl.getBoundingClientRect();
+                const pt0 = toSvg(e.clientX - rect.left, e.clientY - rect.top);
+                rotateRef.current = {
+                  objId: obj.id,
+                  cx, cy,
+                  startRotation: rot,
+                  startAngle: Math.atan2(pt0.y - cy, pt0.x - cx) * 180 / Math.PI,
+                };
+              }}
+            />
+          </g>
         );
       })()}
 

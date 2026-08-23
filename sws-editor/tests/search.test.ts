@@ -56,7 +56,8 @@ describe("findObjects (F8.3)", () => {
 
 describe("buildTagUsage (F8.3)", () => {
   const alarms: AlarmDef[] = [
-    { id: "AL1", tag: "pump1.speed", condition: "high", limit: 100 } as AlarmDef,
+    { id: "AL1", tag: "pump1.speed", message: "Sovravelocità",
+      condition: { kind: "above", threshold: 100 } } as AlarmDef,
   ];
   const tags: TagDef[] = [
     { id: "calc.sum", expression: 'tags["water.flow"] * 2' } as TagDef,
