@@ -752,7 +752,10 @@
     "motionCapture": "Capture from canvas: each click adds a point (Esc to exit)",
     "motionCaptureBtn": "Capture",
     "motionCapturing": "click on canvas… (Esc)",
-    "motionAddRow": "Add point"
+    "motionAddRow": "Add point",
+    "motionAnchor": "Object anchor",
+    "anchorCenter": "Center (default)",
+    "anchorTopLeft": "Top-left corner"
   },
   "shortcut": {
     "navCanvas": "Canvas navigation",

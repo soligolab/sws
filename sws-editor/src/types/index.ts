@@ -244,6 +244,8 @@ export interface SynopticObject {
   motion_tag?: string;
   motion_min?: number;
   motion_max?: number;
+  /** Punto dell'oggetto agganciato al percorso (default: centro). */
+  motion_anchor?: "center" | "top_left";
   tag?: string;
   format?: string;
   src?: string;

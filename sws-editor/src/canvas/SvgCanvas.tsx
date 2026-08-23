@@ -1479,7 +1479,12 @@ export function SvgCanvas({
             const hi = obj.motion_max ?? 100;
             const t01 = hi === lo ? 0 : Math.min(1, Math.max(0, (mv - lo) / (hi - lo)));
             const pts = obj.motion_path;
-            const d = "M " + pts.map((p) => `${p.x - obj.x} ${p.y - obj.y}`).join(" L ");
+            // Ancora: il percorso guida il CENTRO dell'oggetto (default) o
+            // l'angolo alto-sinistra. offset-path muove l'origine del <g>,
+            // quindi il path va traslato dell'ancora scelta.
+            const ax = obj.motion_anchor === "top_left" ? obj.x : obj.x + objW / 2;
+            const ay = obj.motion_anchor === "top_left" ? obj.y : obj.y + objH / 2;
+            const d = "M " + pts.map((p) => `${p.x - ax} ${p.y - ay}`).join(" L ");
             motionStyle = {
               offsetPath: `path("${d}")`,
               offsetDistance: `${(t01 * 100).toFixed(2)}%`,

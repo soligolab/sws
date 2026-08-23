@@ -155,6 +155,7 @@ pub struct SynopticObject {
     #[serde(skip_serializing_if = "Option::is_none")] pub motion_tag:                Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")] pub motion_min:                Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")] pub motion_max:                Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub motion_anchor:             Option<String>,
     // XY plot (live point + trail, not a time series). `tag` above is the X axis.
     #[serde(skip_serializing_if = "Option::is_none")] pub y_tag: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")] pub xy_trail_s: Option<f64>,

@@ -752,7 +752,10 @@
     "motionCapture": "Cattura dal canvas: ogni click aggiunge un punto (Esc per uscire)",
     "motionCaptureBtn": "Cattura",
     "motionCapturing": "clicca sul canvas… (Esc)",
-    "motionAddRow": "Aggiungi punto"
+    "motionAddRow": "Aggiungi punto",
+    "motionAnchor": "Ancora sull'oggetto",
+    "anchorCenter": "Centro (default)",
+    "anchorTopLeft": "Angolo alto-sinistra"
   },
   "shortcut": {
     "navCanvas": "Navigazione canvas",

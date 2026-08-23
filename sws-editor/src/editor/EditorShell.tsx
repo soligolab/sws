@@ -4088,6 +4088,13 @@ function ObjectProps({
               <div><div style={LABEL}>Min</div>{numInput("motion_min", 0)}</div>
               <div><div style={LABEL}>Max</div>{numInput("motion_max", 100)}</div>
             </div>
+            {field(t("props.motionAnchor"), (
+              <select style={{ ...INPUT, cursor: "pointer" }} value={obj.motion_anchor ?? "center"}
+                onChange={(e) => onChange({ motion_anchor: e.target.value === "center" ? undefined : "top_left" })}>
+                <option value="center">{t("props.anchorCenter")}</option>
+                <option value="top_left">{t("props.anchorTopLeft")}</option>
+              </select>
+            ))}
             {(() => {
               // 2026-08-23: waypoint come TABELLA (x/y editabili, ✕) +
               // pulsante di cattura ＋ che prende le coordinate cliccando
