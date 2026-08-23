@@ -990,7 +990,15 @@
     "tgChatIdsHint": "telegram_chat_ids: solo queste chat riceveranno l'allarme. Usa \"Rileva chat\" in Notifiche per conoscere gli ID.",
     "tgChatIdsMissing": "⚠ nessuna chat: l'allarme non verrà notificato",
     "recipeId": "ID",
-    "setpointsCount": "Setpoint"
+    "setpointsCount": "Setpoint",
+    "filterPh": "filtra…",
+    "filterClear": "Azzera i filtri",
+    "useAll": "Uso: tutte",
+    "useUnused": "Solo non usate",
+    "useUsed": "Solo usate",
+    "unusedLegend": "● ambra = variabile non referenziata da pagine, allarmi, espressioni o script (ricette e funzioni non verificate)",
+    "unusedHint": "Non referenziata da pagine, allarmi, espressioni o script. Ricette e funzioni Python non sono verificate: controlla prima di eliminarla.",
+    "usedIn": "Usata in"
   },
   "langtab": {
     "intro": "Traduci i messaggi che scrivi negli oggetti. Nei campi testo usa {{chiave}}; qui definisci le traduzioni per ogni lingua.",

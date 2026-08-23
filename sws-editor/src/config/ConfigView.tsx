@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api, getAuthToken, getBaseUrl, RuntimeUnavailableError, type CreateUserBody, type DiscoveredRuntime, type SystemStatus, type UpdateUserBody, type UserRole, type UserSummary } from "@/api/client";
 import { getBrand } from "@/branding";
@@ -13,6 +13,7 @@ import { UiLangSelect } from "@/components/UiLangSelect";
 import { SvgObject, substituteFaceplateParams } from "@/canvas/SvgCanvas";
 import type { FaceplateParamDef } from "@/types";
 import { applyStateColor, listSvgIds, parseSvg, sanitizeSvg } from "@/symbols/customSvg";
+import { collectTagIds } from "@/runtime-view/collectTagIds";
 import { selectIsDirty, useAppStore } from "@/store";
 import { sourceTagIds } from "@/tagCatalog";
 import { canConfigureProject } from "@/auth/permissions";
@@ -370,6 +371,8 @@ function SaveBar({
 
 // ── TAG tab ───────────────────────────────────────────────────────────────────
 
+type TagSortCol = "id" | "description" | "data_type" | "history" | "datastore_id" | "value";
+
 function TagsTab() {
   const { t } = useTranslation();
   const storeProject        = useAppStore((s) => s.project);
@@ -384,6 +387,17 @@ function TagsTab() {
   const [exprOpen, setExprOpen] = useState<Set<number>>(new Set());
   // F1: riga espandibile "⚙" con unità/decimali/scaling/range/limiti per tag.
   const [metaOpen, setMetaOpen] = useState<Set<number>>(new Set());
+  // Sort + filtri per colonna e vista "non usate". L'ordinamento agisce su
+  // una vista derivata [{tag, origIdx}]: lo stato `tags` NON viene riordinato
+  // (le righe editano per indice, e su disco l'ordine resta quello originale).
+  const [sort, setSort] = useState<{ col: TagSortCol; dir: 1 | -1 } | null>(null);
+  const [fltId, setFltId] = useState("");
+  const [fltDesc, setFltDesc] = useState("");
+  const [fltType, setFltType] = useState("");
+  const [fltHist, setFltHist] = useState("");
+  const [fltUse, setFltUse] = useState("");
+  const allPages = useAppStore((s) => s.pages);
+  const allFaceplates = useAppStore((s) => s.faceplates);
   const [showImport, setShowImport] = useState(false);
   const [importText, setImportText] = useState("");
   const [importMsg, setImportMsg]   = useState<string | null>(null);
@@ -426,6 +440,81 @@ function TagsTab() {
     t.raw_min !== undefined || t.raw_max !== undefined || t.eng_min !== undefined || t.eng_max !== undefined ||
     t.range_lo !== undefined || t.range_hi !== undefined ||
     t.limit_lo_lo !== undefined || t.limit_lo !== undefined || t.limit_hi !== undefined || t.limit_hi_hi !== undefined;
+
+  // Tag → dove è usato (pagine via collectTagIds, allarmi, espressioni di
+  // altri tag, script globali). Ricette e funzioni Python restano fuori
+  // (tag potenzialmente dinamici): "non usata" = candidata, da verificare.
+  const usedTagInfo = useMemo(() => {
+    const m = new Map<string, string[]>();
+    const add = (id: string, where: string) => {
+      if (!id) return;
+      const arr = m.get(id) ?? [];
+      if (arr.length < 8 && !arr.includes(where)) arr.push(where);
+      m.set(id, arr);
+    };
+    for (const pg of allPages) {
+      for (const id of collectTagIds(pg.objects, allFaceplates)) add(id, `pagina "${pg.name}"`);
+    }
+    for (const a of storeProject?.alarms ?? []) {
+      add(a.tag, `allarme "${a.id}"`);
+      if (a.inhibit_tag) add(a.inhibit_tag, `allarme "${a.id}" (inhibit)`);
+    }
+    const EXPR_RE = /tags\["([^"]+)"\]/g;
+    for (const td of tags) {
+      if (!td.expression) continue;
+      for (const mm of td.expression.matchAll(EXPR_RE)) add(mm[1], `espressione di "${td.id}"`);
+    }
+    for (const gs of storeProject?.global_scripts ?? []) {
+      for (const mm of gs.code.matchAll(EXPR_RE)) add(mm[1], `script "${gs.id}"`);
+    }
+    return m;
+  }, [allPages, allFaceplates, storeProject?.alarms, storeProject?.global_scripts, tags]);
+
+  // Vista derivata: filtro → sort; ogni riga conserva origIdx per l'editing.
+  const view = useMemo(() => {
+    let rows = tags.map((tag, origIdx) => ({ tag, origIdx }));
+    const has = (v: string | undefined, q: string) => (v ?? "").toLowerCase().includes(q.toLowerCase());
+    if (fltId) rows = rows.filter((r) => has(r.tag.id, fltId));
+    if (fltDesc) rows = rows.filter((r) => has(r.tag.description, fltDesc));
+    if (fltType) rows = rows.filter((r) => (r.tag.data_type ?? "float") === fltType);
+    if (fltHist) rows = rows.filter((r) => (r.tag.history ? "yes" : "no") === fltHist);
+    if (fltUse) rows = rows.filter((r) => (usedTagInfo.has(r.tag.id) ? "used" : "unused") === fltUse);
+    if (sort) {
+      const { col, dir } = sort;
+      const key = (r: { tag: TagDef }): string | number | boolean => {
+        switch (col) {
+          case "history": return r.tag.history ?? false;
+          case "datastore_id": return r.tag.datastore_id ?? "";
+          case "value": {
+            const v = tagValues[r.tag.id]?.value;
+            return v === undefined ? "" : (v as string | number | boolean);
+          }
+          default: return (r.tag[col] ?? "") as string;
+        }
+      };
+      rows = [...rows].sort((a, b) => {
+        const va = key(a); const vb = key(b);
+        if (col === "value") {
+          // i tag senza valore live in fondo, qualunque direzione
+          if (va === "" && vb !== "") return 1;
+          if (vb === "" && va !== "") return -1;
+          const na = Number(va); const nb = Number(vb);
+          if (Number.isFinite(na) && Number.isFinite(nb)) return (na - nb) * dir;
+        }
+        if (typeof va === "boolean" && typeof vb === "boolean") {
+          return (va === vb ? 0 : va ? 1 : -1) * dir;
+        }
+        return String(va).localeCompare(String(vb), undefined, { sensitivity: "base", numeric: true }) * dir;
+      });
+    }
+    return rows;
+  }, [tags, sort, fltId, fltDesc, fltType, fltHist, fltUse, usedTagInfo, tagValues]);
+
+  const filtersActive = !!(fltId || fltDesc || fltType || fltHist || fltUse);
+  const clearFilters = () => { setFltId(""); setFltDesc(""); setFltType(""); setFltHist(""); setFltUse(""); };
+  const clickSort = (col: TagSortCol) =>
+    setSort((prev) => (prev?.col !== col ? { col, dir: 1 } : prev.dir === 1 ? { col, dir: -1 } : null));
+  const sortMark = (col: TagSortCol) => (sort?.col === col ? (sort.dir === 1 ? " ▲" : " ▼") : "");
 
   const handleSave = async () => {
     const valid = tags.filter((t) => t.id.trim() !== "");
@@ -548,21 +637,76 @@ function TagsTab() {
       <table style={S.table}>
         <thead>
           <tr>
-            <th style={{ ...S.th, width: "22%" }}>{t("cfg.tagId")}</th>
-            <th style={{ ...S.th, width: "25%" }}>{t("cfg.description")}</th>
-            <th style={{ ...S.th, width: "9%" }}>{t("cfg.type")}</th>
-            <th style={{ ...S.th, width: "6%", textAlign: "center" }}>{t("cfg.history")}</th>
-            <th style={{ ...S.th, width: "16%" }}>{t("cfg.datastore")}</th>
-            <th style={{ ...S.th, width: "12%" }}>{t("cfg.liveValue")}</th>
+            <th style={{ ...S.th, width: 18 }} title={t("cfg.unusedLegend")}>●</th>
+            <th style={{ ...S.th, width: "21%", cursor: "pointer", userSelect: "none" }} onClick={() => clickSort("id")}>{t("cfg.tagId")}{sortMark("id")}</th>
+            <th style={{ ...S.th, width: "24%", cursor: "pointer", userSelect: "none" }} onClick={() => clickSort("description")}>{t("cfg.description")}{sortMark("description")}</th>
+            <th style={{ ...S.th, width: "9%", cursor: "pointer", userSelect: "none" }} onClick={() => clickSort("data_type")}>{t("cfg.type")}{sortMark("data_type")}</th>
+            <th style={{ ...S.th, width: "6%", textAlign: "center", cursor: "pointer", userSelect: "none" }} onClick={() => clickSort("history")}>{t("cfg.history")}{sortMark("history")}</th>
+            <th style={{ ...S.th, width: "15%", cursor: "pointer", userSelect: "none" }} onClick={() => clickSort("datastore_id")}>{t("cfg.datastore")}{sortMark("datastore_id")}</th>
+            <th style={{ ...S.th, width: "12%", cursor: "pointer", userSelect: "none" }} onClick={() => clickSort("value")}>{t("cfg.liveValue")}{sortMark("value")}</th>
             <th style={S.th} />
+          </tr>
+          {/* riga filtri per colonna */}
+          <tr>
+            <td style={S.td} />
+            <td style={S.td}>
+              <input style={{ ...S.input, fontSize: 11 }} placeholder={t("cfg.filterPh")} value={fltId}
+                onChange={(e) => setFltId(e.target.value)} spellCheck={false} />
+            </td>
+            <td style={S.td}>
+              <input style={{ ...S.input, fontSize: 11 }} placeholder={t("cfg.filterPh")} value={fltDesc}
+                onChange={(e) => setFltDesc(e.target.value)} spellCheck={false} />
+            </td>
+            <td style={S.td}>
+              <select style={{ ...S.input, fontSize: 11, cursor: "pointer" }} value={fltType} onChange={(e) => setFltType(e.target.value)}>
+                <option value="">—</option>
+                <option value="bool">Bool</option>
+                <option value="int">Int</option>
+                <option value="float">Float</option>
+                <option value="string">{t("cfg.stringType")}</option>
+              </select>
+            </td>
+            <td style={S.td}>
+              <select style={{ ...S.input, fontSize: 11, cursor: "pointer" }} value={fltHist} onChange={(e) => setFltHist(e.target.value)}>
+                <option value="">—</option>
+                <option value="yes">{t("common.yes")}</option>
+                <option value="no">{t("common.no")}</option>
+              </select>
+            </td>
+            <td style={S.td}>
+              <select style={{ ...S.input, fontSize: 11, cursor: "pointer" }} value={fltUse} onChange={(e) => setFltUse(e.target.value)}>
+                <option value="">{t("cfg.useAll")}</option>
+                <option value="unused">{t("cfg.useUnused")}</option>
+                <option value="used">{t("cfg.useUsed")}</option>
+              </select>
+            </td>
+            <td style={S.td} colSpan={2}>
+              {filtersActive && (
+                <span style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", whiteSpace: "nowrap" }}>
+                  {view.length}/{tags.length}{" "}
+                  <button onClick={clearFilters} title={t("cfg.filterClear")}
+                    style={{ background: "transparent", border: "none", color: "var(--brand-danger-soft, #fca5a5)", cursor: "pointer", fontSize: 11 }}>✕</button>
+                </span>
+              )}
+            </td>
           </tr>
         </thead>
         <tbody>
-          {tags.map((tag, i) => {
+          {view.map(({ tag, origIdx: i }: { tag: TagDef; origIdx: number }) => {
             const tv = tagValues[tag.id];
+            const uses = usedTagInfo.get(tag.id);
+            const unused = tag.id.trim() !== "" && !uses;
             return (
               <React.Fragment key={i}>
-              <tr style={{ background: i % 2 === 0 ? "transparent" : "var(--brand-bg, #0f172a)" }}>
+              <tr style={{ background: unused ? "rgba(245,158,11,0.07)" : i % 2 === 0 ? "transparent" : "var(--brand-bg, #0f172a)" }}>
+                <td style={{ ...S.td, textAlign: "center" }}
+                  title={unused ? t("cfg.unusedHint") : uses ? `${t("cfg.usedIn")}: ${uses.slice(0, 4).join(", ")}${uses.length > 4 ? "…" : ""}` : ""}>
+                  {unused
+                    ? <span style={{ color: "var(--brand-warning, #f59e0b)", fontSize: 12 }}>●</span>
+                    : uses
+                      ? <span style={{ color: "var(--brand-surface-2, #334155)", fontSize: 12 }}>●</span>
+                      : null}
+                </td>
                 <td style={S.td}>
                   <input
                     style={S.input}
@@ -660,7 +804,7 @@ function TagsTab() {
               </tr>
               {metaOpen.has(i) && (
                 <tr style={{ background: "#0a1628" }}>
-                  <td colSpan={7} style={{ ...S.td, paddingTop: 6, paddingBottom: 8 }}>
+                  <td colSpan={8} style={{ ...S.td, paddingTop: 6, paddingBottom: 8 }}>
                     {(() => {
                       const numCell = (label: string, key: keyof TagDef, ph = "") => (
                         <label style={{ display: "flex", flexDirection: "column", gap: 2, fontSize: 10, color: "var(--brand-text-subtle, #64748b)", width: 90 }}>
@@ -722,7 +866,7 @@ function TagsTab() {
               )}
               {(exprOpen.has(i) || !!tag.expression) && (
                 <tr style={{ background: "#0a1628" }}>
-                  <td colSpan={7} style={{ ...S.td, paddingTop: 4, paddingBottom: 6 }}>
+                  <td colSpan={8} style={{ ...S.td, paddingTop: 4, paddingBottom: 6 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                       <span style={{ fontSize: 11, color: "#818cf8", minWidth: 70, fontFamily: "monospace" }}>
                         λ espressione

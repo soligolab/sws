@@ -990,7 +990,15 @@
     "tgChatIdsHint": "telegram_chat_ids: only these chats receive the alarm. Use \"Detect chats\" in Notifications to find the IDs.",
     "tgChatIdsMissing": "⚠ no chat: this alarm will not be notified",
     "recipeId": "ID",
-    "setpointsCount": "Setpoints"
+    "setpointsCount": "Setpoints",
+    "filterPh": "filter…",
+    "filterClear": "Clear filters",
+    "useAll": "Use: all",
+    "useUnused": "Unused only",
+    "useUsed": "Used only",
+    "unusedLegend": "● amber = variable not referenced by pages, alarms, expressions or scripts (recipes and functions not checked)",
+    "unusedHint": "Not referenced by pages, alarms, expressions or scripts. Recipes and Python functions are not checked: verify before deleting.",
+    "usedIn": "Used in"
   },
   "langtab": {
     "intro": "Translate the messages you write into objects. In text fields use {{key}}; here you define the translations for each language.",
