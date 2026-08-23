@@ -243,7 +243,16 @@
         "lang_selector": "Language ▾",
         "lang_button": "Language btn"
       }
-    }
+    },
+    "searchAllPages": "Search all pages",
+    "searchAllPlaceholder": "Search name / type / id / tag / text…",
+    "match_name": "name",
+    "match_id": "id",
+    "match_text": "text",
+    "match_tag": "tag",
+    "match_type": "type",
+    "tagUnused": "No reference found in pages, alarms, expressions or scripts.",
+    "tagUsageScope": "Recipes and Python functions are not checked."
   },
   "canvas": {
     "empty": "No objects on this page.",

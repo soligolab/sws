@@ -1,7 +1,9 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
 import { useAppStore } from "@/store";
+import { findObjects } from "@/search/findObjects";
+import { buildTagUsage, type TagUse } from "@/search/tagUsage";
 import { SvgCanvas } from "@/canvas/SvgCanvas";
 import { findBrokenNavLinks, findOrphanPageIds } from "@/pageLayout";
 import type { ObjectGroup, ProjectInfo, SynopticObject, SynopticPage } from "@/types";
@@ -675,7 +677,12 @@ function ObjectsSection() {
   const selectedCellChild    = useAppStore((s) => s.selectedCellChild);
   const setSelectedCell      = useAppStore((s) => s.setSelectedCell);
   const setSelectedCellChild = useAppStore((s) => s.setSelectedCellChild);
+  // F8.3 — ricerca su tutte le pagine: serve navigare alla pagina del risultato
+  // e conoscere i faceplate (i tag dei figli contano come tag dell'istanza).
+  const setCurrentPage       = useAppStore((s) => s.setCurrentPage);
+  const faceplates           = useAppStore((s) => s.faceplates);
 
+  const [allPagesSearch, setAllPagesSearch] = useState(false);
   const [renaming, setRenaming] = useState<string | null>(null);
   const [draft, setDraft]       = useState("");
   const [expandedGrids, setExpandedGrids] = useState<Set<string>>(new Set());
@@ -985,18 +992,74 @@ function ObjectsSection() {
   };
 
   const tree = buildTree();
+  // F8.3 — con "tutte le pagine" la ricerca copre anche i TAG e i testi degli
+  // oggetti, non solo nome/tipo/id, e i risultati sono raggruppati per pagina.
+  const globalHits = allPagesSearch && fq ? findObjects(pages, faceplates, fq) : [];
+  const hitsByPage = new Map<string, typeof globalHits>();
+  for (const hit of globalHits) {
+    const arr = hitsByPage.get(hit.pageId) ?? [];
+    arr.push(hit);
+    hitsByPage.set(hit.pageId, arr);
+  }
 
   return (
     <Section title={`${t("editor.sectionPageObjects")} (${allObjects.length})`} defaultOpen={false}>
       <div style={{ padding: "4px 8px", borderBottom: "1px solid var(--brand-surface, #1e293b)" }}>
         <input
           type="text"
-          placeholder={t("editor.filterPlaceholder")}
+          placeholder={allPagesSearch ? t("editor.searchAllPlaceholder") : t("editor.filterPlaceholder")}
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
           style={{ width: "100%", boxSizing: "border-box", background: "var(--brand-bg, #0f172a)", color: "var(--brand-text, #e2e8f0)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 3, padding: "3px 6px", fontSize: 11 }}
         />
+        <label style={{ display: "flex", alignItems: "center", gap: 5, marginTop: 3, fontSize: 10, color: "var(--brand-text-muted, #94a3b8)", cursor: "pointer" }}>
+          <input type="checkbox" checked={allPagesSearch}
+            onChange={(e) => setAllPagesSearch(e.target.checked)}
+            style={{ accentColor: "var(--brand-primary, #3b82f6)" }} />
+          {t("editor.searchAllPages")}
+          {allPagesSearch && fq && (
+            <span style={{ marginLeft: "auto", color: "var(--brand-text-subtle, #64748b)" }}>
+              {globalHits.length}
+            </span>
+          )}
+        </label>
       </div>
+      {/* Risultati cross-pagina: un click porta alla pagina e seleziona. */}
+      {allPagesSearch && fq && (
+        <div style={{ ...S.body, maxHeight: 300 }}>
+          {globalHits.length === 0 ? (
+            <p style={{ padding: "8px 12px", fontSize: 11, color: "var(--brand-border, #475569)", margin: 0 }}>
+              {t("editor.noMatch")}
+            </p>
+          ) : [...hitsByPage.entries()].map(([pageId, hits]) => (
+            <div key={pageId}>
+              <div style={{ padding: "3px 10px", fontSize: 10, fontWeight: 700, letterSpacing: 0.4,
+                            color: "var(--brand-text-muted, #94a3b8)", background: "var(--brand-bg, #0f172a)" }}>
+                {hits[0].pageName} ({hits.length})
+              </div>
+              {hits.map((hit) => (
+                <div
+                  key={`${pageId}-${hit.obj.id}`}
+                  onClick={() => {
+                    if (pageId !== currentPageId) setCurrentPage(pageId);
+                    selectObject(hit.obj.id);
+                  }}
+                  style={{ ...S.row(hit.obj.id === selectedId), justifyContent: "space-between", cursor: "pointer" }}
+                  title={`${hit.obj.type} · ${hit.obj.id}`}
+                >
+                  <span style={{ fontSize: 11, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>
+                    {hit.obj.name ?? hit.obj.id}
+                  </span>
+                  <span style={{ fontSize: 9, flexShrink: 0, marginLeft: 6, padding: "1px 4px", borderRadius: 3,
+                                 background: "var(--brand-surface-2, #334155)", color: "var(--brand-text-muted, #94a3b8)" }}>
+                    {hit.reason === "tag" ? `tag ${hit.detail}` : hit.reason === "type" ? hit.obj.type : t(`editor.match_${hit.reason}`)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+      )}
       {selectedIds.length >= 2 && (
         <div style={{ padding: "3px 8px", borderBottom: "1px solid var(--brand-surface, #1e293b)" }}>
           <button
@@ -1007,7 +1070,7 @@ function ObjectsSection() {
           </button>
         </div>
       )}
-      <div style={{ ...S.body, maxHeight: 280 }}>
+      <div style={{ ...S.body, maxHeight: 280, display: allPagesSearch && fq ? "none" : undefined }}>
         {tree.length === 0 && (
           <p style={{ padding: "8px 12px", fontSize: 11, color: "var(--brand-border, #475569)", margin: 0 }}>
             {fq ? t("editor.noMatch") : t("editor.noObjects")}
@@ -1390,10 +1453,23 @@ function FunctionsSection({ onFunctionsChanged }: { onFunctionsChanged: () => vo
 // ── Tags section ──────────────────────────────────────────────────────────────
 
 function TagsSection() {
-  const project   = useAppStore((s) => s.project);
-  const tagValues = useAppStore((s) => s.tagValues);
+  const { t: t2 }   = useTranslation();
+  const project     = useAppStore((s) => s.project);
+  const tagValues   = useAppStore((s) => s.tagValues);
+  const pages       = useAppStore((s) => s.pages);
+  const faceplates  = useAppStore((s) => s.faceplates);
+  const setCurrentPage = useAppStore((s) => s.setCurrentPage);
+  const [openTag, setOpenTag] = useState<string | null>(null);
 
   const tags = project?.tags ?? [];
+  // F8.3 — stessa logica del tab Variabili, in un modulo condiviso.
+  const usage = useMemo(
+    () => buildTagUsage({
+      pages, faceplates, alarms: project?.alarms, tags,
+      globalScripts: project?.global_scripts,
+    }),
+    [pages, faceplates, project?.alarms, project?.global_scripts, tags],
+  );
 
   const dot = (q: string) => {
     const color = q === "Good" ? "var(--brand-success, #22c55e)" : q === "Bad" ? "var(--brand-danger, #ef4444)" : "var(--brand-warning, #eab308)";
@@ -1425,20 +1501,56 @@ function TagsSection() {
       <div style={S.body}>
         {tags.map((t) => {
           const tv = tagValues[t.id];
+          // F8.3 — "dove è usato questo tag": click sulla riga per espandere
+          // l'elenco dei punti che lo riferiscono (pagine, allarmi, espressioni,
+          // script), con navigazione diretta alla pagina.
+          const uses = usage.get(t.id) ?? [];
+          const open = openTag === t.id;
           return (
-            <div key={t.id} style={{ ...S.row(), gap: 6, justifyContent: "space-between" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 5, minWidth: 0 }}>
-                {tv ? dot(tv.quality) : (
-                  <span style={{ display: "inline-block", width: 6, height: 6, borderRadius: "50%", background: "var(--brand-surface-2, #334155)", flexShrink: 0 }} />
+            <div key={t.id}>
+              <div
+                style={{ ...S.row(open), gap: 6, justifyContent: "space-between", cursor: "pointer" }}
+                onClick={() => setOpenTag(open ? null : t.id)}
+                title={uses.length > 0 ? `${uses.length} riferimenti` : "Nessun riferimento trovato"}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: 5, minWidth: 0 }}>
+                  {tv ? dot(tv.quality) : (
+                    <span style={{ display: "inline-block", width: 6, height: 6, borderRadius: "50%", background: "var(--brand-surface-2, #334155)", flexShrink: 0 }} />
+                  )}
+                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 11 }}>
+                    {t.id}
+                  </span>
+                  {/* Pallino ambra = nessun riferimento trovato, come nel tab Variabili. */}
+                  {uses.length === 0 && (
+                    <span style={{ display: "inline-block", width: 5, height: 5, borderRadius: "50%", background: "#f59e0b", flexShrink: 0 }} />
+                  )}
+                </div>
+                {tv != null && (
+                  <span style={{ color: "var(--brand-text-subtle, #64748b)", fontSize: 11, flexShrink: 0 }}>
+                    {String(tv.value)}
+                  </span>
                 )}
-                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 11 }}>
-                  {t.id}
-                </span>
               </div>
-              {tv != null && (
-                <span style={{ color: "var(--brand-text-subtle, #64748b)", fontSize: 11, flexShrink: 0 }}>
-                  {String(tv.value)}
-                </span>
+              {open && (
+                <div style={{ padding: "2px 12px 4px 22px", background: "var(--brand-bg, #0f172a)" }}>
+                  {uses.length === 0 ? (
+                    <div style={{ fontSize: 10, color: "var(--brand-border, #475569)" }}>
+                      {t2("editor.tagUnused")}
+                    </div>
+                  ) : uses.map((u: TagUse, i: number) => (
+                    <div
+                      key={i}
+                      onClick={() => { if (u.pageId) setCurrentPage(u.pageId); }}
+                      style={{ fontSize: 10, color: "var(--brand-text-muted, #94a3b8)", padding: "1px 0",
+                               cursor: u.pageId ? "pointer" : "default", textDecoration: u.pageId ? "underline dotted" : undefined }}
+                    >
+                      · {u.where}
+                    </div>
+                  ))}
+                  <div style={{ fontSize: 9, color: "var(--brand-border, #475569)", marginTop: 2 }}>
+                    {t2("editor.tagUsageScope")}
+                  </div>
+                </div>
               )}
             </div>
           );

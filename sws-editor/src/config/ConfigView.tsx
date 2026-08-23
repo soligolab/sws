@@ -13,7 +13,7 @@ import { UiLangSelect } from "@/components/UiLangSelect";
 import { SvgObject, substituteFaceplateParams } from "@/canvas/SvgCanvas";
 import type { FaceplateParamDef } from "@/types";
 import { applyStateColor, listSvgIds, parseSvg, sanitizeSvg } from "@/symbols/customSvg";
-import { collectTagIds } from "@/runtime-view/collectTagIds";
+import { buildTagUsage } from "@/search/tagUsage";
 import { selectIsDirty, useAppStore } from "@/store";
 import { sourceTagIds } from "@/tagCatalog";
 import { canConfigureProject } from "@/auth/permissions";
@@ -444,31 +444,15 @@ function TagsTab() {
   // Tag → dove è usato (pagine via collectTagIds, allarmi, espressioni di
   // altri tag, script globali). Ricette e funzioni Python restano fuori
   // (tag potenzialmente dinamici): "non usata" = candidata, da verificare.
-  const usedTagInfo = useMemo(() => {
-    const m = new Map<string, string[]>();
-    const add = (id: string, where: string) => {
-      if (!id) return;
-      const arr = m.get(id) ?? [];
-      if (arr.length < 8 && !arr.includes(where)) arr.push(where);
-      m.set(id, arr);
-    };
-    for (const pg of allPages) {
-      for (const id of collectTagIds(pg.objects, allFaceplates)) add(id, `pagina "${pg.name}"`);
-    }
-    for (const a of storeProject?.alarms ?? []) {
-      add(a.tag, `allarme "${a.id}"`);
-      if (a.inhibit_tag) add(a.inhibit_tag, `allarme "${a.id}" (inhibit)`);
-    }
-    const EXPR_RE = /tags\["([^"]+)"\]/g;
-    for (const td of tags) {
-      if (!td.expression) continue;
-      for (const mm of td.expression.matchAll(EXPR_RE)) add(mm[1], `espressione di "${td.id}"`);
-    }
-    for (const gs of storeProject?.global_scripts ?? []) {
-      for (const mm of gs.code.matchAll(EXPR_RE)) add(mm[1], `script "${gs.id}"`);
-    }
-    return m;
-  }, [allPages, allFaceplates, storeProject?.alarms, storeProject?.global_scripts, tags]);
+  // F8.3 — logica spostata in @/search/tagUsage: la stessa risposta serve alla
+  // ricerca dell'editor, e due copie divergerebbero alla prima aggiunta.
+  const usedTagInfo = useMemo(
+    () => buildTagUsage({
+      pages: allPages, faceplates: allFaceplates,
+      alarms: storeProject?.alarms, tags, globalScripts: storeProject?.global_scripts,
+    }),
+    [allPages, allFaceplates, storeProject?.alarms, storeProject?.global_scripts, tags],
+  );
 
   // Vista derivata: filtro → sort; ogni riga conserva origIdx per l'editing.
   const view = useMemo(() => {
@@ -700,7 +684,7 @@ function TagsTab() {
               <React.Fragment key={i}>
               <tr style={{ background: unused ? "rgba(245,158,11,0.07)" : i % 2 === 0 ? "transparent" : "var(--brand-bg, #0f172a)" }}>
                 <td style={{ ...S.td, textAlign: "center" }}
-                  title={unused ? t("cfg.unusedHint") : uses ? `${t("cfg.usedIn")}: ${uses.slice(0, 4).join(", ")}${uses.length > 4 ? "…" : ""}` : ""}>
+                  title={unused ? t("cfg.unusedHint") : uses ? `${t("cfg.usedIn")}: ${uses.slice(0, 4).map((u) => u.where).join(", ")}${uses.length > 4 ? "…" : ""}` : ""}>
                   {unused
                     ? <span style={{ color: "var(--brand-warning, #f59e0b)", fontSize: 12 }}>●</span>
                     : uses

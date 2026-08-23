@@ -243,7 +243,16 @@
         "lang_selector": "Lingua ▾",
         "lang_button": "Lingua btn"
       }
-    }
+    },
+    "searchAllPages": "Cerca in tutte le pagine",
+    "searchAllPlaceholder": "Cerca nome / tipo / id / tag / testo…",
+    "match_name": "nome",
+    "match_id": "id",
+    "match_text": "testo",
+    "match_tag": "tag",
+    "match_type": "tipo",
+    "tagUnused": "Nessun riferimento trovato in pagine, allarmi, espressioni o script.",
+    "tagUsageScope": "Ricette e funzioni Python non sono controllate."
   },
   "canvas": {
     "empty": "Nessun oggetto in questa pagina.",
