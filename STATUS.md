@@ -8,7 +8,51 @@
 
 ## ▶ Da fare nella prossima sessione
 
-1. **F9c — lotto di parità LVGL. È il tappo.** `model.rs` / `lvgl_render.rs` /
+1. **Riaprire nell'IDE il progetto che sta sul runtime (pull, non solo push)** — richiesta del
+   maintainer del 2026-08-24. Connettendosi a un runtime vuole poter rimettersi a lavorare sul
+   progetto che gira **lì**, chiudendo quello aperto nell'IDE, invece di ripartire dalla copia
+   locale che può essere vecchia o di un altro impianto.
+   *Oggi il flusso è solo in spinta*: `Configurazione → Runtime → Connetti` apre la connessione
+   lato server (`/api/remote/connect`) e il Deploy manda il progetto locale al device
+   (`remote_deploy` in `sws-web/src/remote.rs`: zip con `build_project_zip` → `PUT
+   /api/project/import` del remoto). **Niente tira indietro**, ma i pezzi per il verso opposto
+   esistono già tutti:
+   - lato device **nessun endpoint nuovo**: `GET /api/project/export` c'è già (`router.rs:198`);
+   - import locale: `PUT /api/project/import` (`import_project_zip`) sostituisce già l'intero
+     progetto — dal client `api.importProjectZip(file)`;
+   - chiudere/aprire: `api.closeProject()`, `POST /api/projects/:name/open`;
+   - **versione e migrazione già fatte**: `project_saved_by`, `api.migrateProject()` →
+     `POST /api/project/migrate`, e il testo `header.migrateConfirm` ("salvato dalla versione X,
+     il runtime è la Y") del pulsante "⚠ Aggiorna progetto";
+   - archivio: `api.exportProjectZip()` per il download, `api.createBackup()` / `/api/backups`
+     per la copia lato runtime IDE.
+
+   Flusso voluto, in quest'ordine: **(1)** avviso di versione con `header.migrateConfirm`
+   **prima** di toccare qualcosa; **(2)** archivio della versione originale — backup nel runtime
+   IDE **e** download del .zip (deciso: entrambi); **(3)** import con **scelta del nome ogni
+   volta** (sovrascrivi l'omonimo locale o digitane uno nuovo), poi chiusura del progetto aperto
+   e apertura di quello nuovo.
+   ⚠️ L'import **sostituisce anche le credenziali** (il bundle le contiene, lo dice già
+   `menu.importConfirm`): la conferma deve dirlo esplicitamente.
+
+2. **Ruolo minimo degli oggetti (sezione SICUREZZA): inefficace in modalità no-auth, e l'editor
+   non lo dice** — segnalato il 2026-08-24: ruolo minimo **Admin** su un pulsante e su un trend,
+   ma nel runtime i due oggetti funzionano comunque.
+   **Causa quasi certa, letta nel codice: non è il gating rotto, è il no-auth.** `optional_auth`
+   inietta un **Admin sintetico** quando non ci sono utenti definiti (`router.rs:758`), quindi
+   il viewer *è* Admin e `isRoleAllowed("Admin","Admin")` è vero (`SvgCanvas.tsx:444`, ranghi
+   Viewer 0 → Admin 3). Il gating esiste ed è applicato a **tutti** i tipi dal wrapper
+   (`SvgCanvas.tsx:1502`): `hide` rimuove l'oggetto, `disable` (default) lo lascia visibile con
+   `pointerEvents: none`.
+   Da fare, in quest'ordine: **(a)** *misurare* — `curl -sk .../api/auth/whoami` sul runtime: se
+   risponde Admin sintetico l'ipotesi è confermata e non c'è niente da correggere nel gating;
+   **(b)** decidere l'avviso nell'editor (senza utenti definiti ogni visitatore è Admin e il
+   ruolo minimo non avrà effetto — rimando al tab Utenti), perché così sembra rotto;
+   **(c)** dichiarare il limite: `min_role` sugli oggetti è **solo client-side**, un affordance
+   dell'interfaccia e non un confine di sicurezza — il controllo vero sulle scritture è
+   `TagDef.write_min_role`, verificato dal server (`tag_write_allowed`).
+
+3. **F9c — lotto di parità LVGL. È il lotto più grosso.** `model.rs` / `lvgl_render.rs` /
    `LVGL_SUPPORTED_TYPES` non conoscono nulla di quanto aggiunto nelle fasi F6-F8:
    `trend_tags[]` (quindi **i trend su LVGL sono vuoti**, deciso e accettato), le rifiniture
    F7.6 (raggio/tratteggio/sfumatura, zone e tacche del gauge, forme del led, gap della
@@ -19,15 +63,15 @@
    `docs/TEST_SETUPS.md`), non è da infilare in coda a un'altra sessione.
    Da fare anche il check di coerenza generato fra `LVGL_SUPPORTED_TYPES` e il badge «L»
    della palette (`LeftPanel.tsx`), oggi disallineabile in silenzio.
-2. **F5.3x — XY plot multi-coppia + curva di riferimento**: unico residuo della fase F5.
-3. **F7 residui minori** dal debito d'inventario, non ancora affrontati: bordi **per-cella**
+4. **F5.3x — XY plot multi-coppia + curva di riferimento**: unico residuo della fase F5.
+5. **F7 residui minori** dal debito d'inventario, non ancora affrontati: bordi **per-cella**
    nella griglia (gap e padding sono fatti), e il commento sull'ACK dentro l'`AlarmEvent`
    dello storico invece che nel solo journal di audit (vuole una migrazione dello schema
    eventi — oggi il motivo è nel journal, interrogabile da `/api/audit`).
-4. **Q18 aperta** in `docs/OPEN_QUESTIONS.md`: i colori predefiniti dei testi vengono dai
+6. **Q18 aperta** in `docs/OPEN_QUESTIONS.md`: i colori predefiniti dei testi vengono dai
    token di tema dell'app, e su una pagina con sfondo scelto a mano possono dare
    scuro-su-scuro. Non decisa: serve una scelta del maintainer fra le 4 opzioni.
-5. **Pagine demo CasaMauro**: sono ferme alle feature F2-F6. Nessun oggetto esercita
+7. **Pagine demo CasaMauro**: sono ferme alle feature F2-F6. Nessun oggetto esercita
    table 2.0, barre negative/impilate, pie raggruppato, testo multiriga, storico allarmi,
    suono. Da arricchire quando servirà una demo.
 
