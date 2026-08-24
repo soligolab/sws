@@ -78,13 +78,56 @@ struct Args {
     #[arg(long, default_value = "/dev/dri/card0")]
     drm_card: String,
 
-    /// Device touch da leggere (solo backend "drm") — il symlink tslib, non
-    /// l'/dev/input/eventN grezzo (quel numero cambia da device a device).
-    /// Vuoto = nessun touch (solo rendering). Verificato su
-    /// tc620-a-p3-c6-07aff9.local: /dev/input/ts_uinput, già calibrato dal
-    /// demone ts-uinput.service.
-    #[arg(long, default_value = "")]
+    /// Device touch da leggere (solo backend "drm").
+    ///
+    /// Default `auto`: prova `/dev/input/ts_uinput` e ripiega su
+    /// `/dev/input/ts`. Sono i due symlink che PixsysOS crea da sé, e vanno
+    /// usati **al posto di un `/dev/input/eventN`**, il cui numero cambia da
+    /// prodotto a prodotto e anche fra due avvii.
+    ///
+    /// I due link non sono equivalenti, misurato su wp630-a-p3-07a077.local:
+    /// `find-touchscreen.service` crea `/dev/input/ts` → il pannello **grezzo**
+    /// (lì `event1`, "ILITEK ILITEK-TP"), e `ts-uinput.service` lo filtra con
+    /// tslib producendo `/dev/input/ts_uinput` → il device virtuale
+    /// **calibrato** (lì `event3`, "ts_uinput"). Su quel dispositivo
+    /// `/etc/pointercal` non è identitario e `/etc/ts.conf` carica il modulo
+    /// `linear`, quindi leggere il grezzo darebbe coordinate spostate: qui non
+    /// linkiamo tslib e non applichiamo `pointercal` a mano (vedi
+    /// touch_indev.rs), quindi ci serve l'uscita già filtrata.
+    ///
+    /// Conferma indipendente: **è `ts_uinput` che apre Weston** su quel
+    /// dispositivo, non il pannello grezzo — cioè è la scelta dell'OS stesso.
+    ///
+    /// Valore esplicito = quel percorso e basta. `off` = nessun touch, solo
+    /// rendering.
+    #[arg(long, default_value = "auto")]
     touch_device: String,
+}
+
+/// Risolve `--touch-device`.
+///
+/// `None` significa "nessun touch". Il ripiego sul device grezzo esiste perché
+/// un dispositivo senza `ts-uinput.service` attivo resti comunque usabile, ma
+/// chi ci finisce va avvisato: le coordinate non saranno calibrate.
+fn resolve_touch_device(arg: &str, exists: impl Fn(&str) -> bool) -> Option<String> {
+    match arg {
+        "off" | "" => None,
+        "auto" => {
+            if exists("/dev/input/ts_uinput") {
+                Some("/dev/input/ts_uinput".to_string())
+            } else if exists("/dev/input/ts") {
+                eprintln!(
+                    "[touch] /dev/input/ts_uinput assente, uso /dev/input/ts (pannello grezzo): \
+                     le coordinate NON sono calibrate. Verifica ts-uinput.service."
+                );
+                Some("/dev/input/ts".to_string())
+            } else {
+                eprintln!("[touch] nessun symlink ts/ts_uinput: nessun input, solo rendering");
+                None
+            }
+        }
+        esplicito => Some(esplicito.to_string()),
+    }
 }
 
 fn main() -> anyhow::Result<()> {
@@ -156,10 +199,14 @@ fn main() -> anyhow::Result<()> {
     lvgl_indev::init_pointer_indev()?;
 
     if args.backend == "drm" {
-        if !args.touch_device.is_empty() {
-            touch_indev::spawn(&args.touch_device, hor_res, ver_res)?;
-        } else {
-            eprintln!("[drm] --touch-device non impostato: nessun input, solo rendering");
+        // Solo il backend DRM apre /dev/input: su SDL2/Wayland gli eventi li
+        // consegna il compositor, che li legge già calibrati per conto suo.
+        match resolve_touch_device(&args.touch_device, |p| std::path::Path::new(p).exists()) {
+            Some(dev) => {
+                eprintln!("[touch] device: {dev}");
+                touch_indev::spawn(&dev, hor_res, ver_res)?;
+            }
+            None => eprintln!("[drm] nessun touch: solo rendering"),
         }
         run_drm(
             &args.drm_card,
@@ -520,4 +567,55 @@ fn run_window(
     drop(styles);
     drop(live_bindings);
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::resolve_touch_device;
+
+    /// Il caso normale su un Pixsys sano: entrambi i symlink esistono e va
+    /// scelto quello calibrato da tslib, non il pannello grezzo.
+    #[test]
+    fn auto_preferisce_il_device_calibrato() {
+        let ci_sono_entrambi = |p: &str| p == "/dev/input/ts_uinput" || p == "/dev/input/ts";
+        assert_eq!(
+            resolve_touch_device("auto", ci_sono_entrambi).as_deref(),
+            Some("/dev/input/ts_uinput")
+        );
+    }
+
+    /// Dispositivo senza ts-uinput.service attivo: meglio un touch con
+    /// coordinate grezze che nessun touch, ma l'utente va avvisato (lo fa la
+    /// funzione su stderr).
+    #[test]
+    fn auto_ripiega_sul_grezzo_quando_manca_il_filtrato() {
+        assert_eq!(
+            resolve_touch_device("auto", |p| p == "/dev/input/ts").as_deref(),
+            Some("/dev/input/ts")
+        );
+    }
+
+    #[test]
+    fn auto_senza_nessun_symlink_non_apre_niente() {
+        assert_eq!(resolve_touch_device("auto", |_| false), None);
+    }
+
+    /// Un percorso esplicito non viene messo in discussione: chi lo passa sa
+    /// cosa sta facendo, e potrebbe puntare a un device che non esiste ancora.
+    #[test]
+    fn un_percorso_esplicito_vince_e_non_viene_sondato() {
+        assert_eq!(
+            resolve_touch_device("/dev/input/event7", |_| false).as_deref(),
+            Some("/dev/input/event7")
+        );
+    }
+
+    /// `off` e la stringa vuota disattivano il touch. La stringa vuota era il
+    /// vecchio default: chi la passa ancora da uno script non deve trovarsi
+    /// un comportamento diverso da prima.
+    #[test]
+    fn off_e_stringa_vuota_disattivano_il_touch() {
+        assert_eq!(resolve_touch_device("off", |_| true), None);
+        assert_eq!(resolve_touch_device("", |_| true), None);
+    }
 }

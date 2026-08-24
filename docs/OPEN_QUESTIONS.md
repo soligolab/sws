@@ -1735,3 +1735,46 @@ un difetto di impostazione che nessuno aveva ancora misurato.
 **Default for PoC**: opzione 4 (stato attuale).
 
 **Decided**: not yet.
+
+---
+
+## Q19 — Il backend DRM del viewer LVGL apre i device a mano, mentre PixsysOS li distribuisce con `seatd`
+
+**Context**: misurato su `wp630-a-p3-07a077.local` il 2026-08-24, indagando perché l'utente `user`
+non riesce ad aprire `/dev/dri/card*` né `/dev/input/*`.
+
+Non è una svista di permessi da correggere: è il disegno dell'OS. PixsysOS fa girare **`seatd`**
+(`/run/seatd.sock`), e Weston — che gira come `User=user`, **fuori** dai gruppi `video` e `input` —
+ottiene da lì i descrittori di `card1`, `renderD128` e dei device di input. Le sessioni di `user`
+non sono nemmeno agganciate a un seat (`loginctl` mostra seat `-`), quindi neanche le ACL `uaccess`
+di logind entrano in gioco: passa tutto da seatd.
+
+Il nostro `--backend drm` (`src/drm_display.rs`) invece fa `open()` diretto su `/dev/dri/cardN`.
+Due conseguenze:
+
+1. **Non ha i permessi**, e allargare i gruppi (`usermod -aG video,input user`) sarebbe aggirare il
+   meccanismo previsto invece di usarlo.
+2. **Non convive con Weston comunque**: c'è un solo DRM master per seat, e ce l'ha Weston. Anche coi
+   permessi, servirebbe fermare il compositore.
+
+Sul percorso **SDL2/Wayland** il problema non esiste: gli eventi li consegna Weston, che legge il
+touch già calibrato da `/dev/input/ts_uinput`. È la ragione per cui quel percorso va provato per
+primo.
+
+**Options**:
+1. **Usare `libseat`** nel viewer per chiedere i device a seatd, come fa Weston. È il meccanismo
+   previsto e non richiede modifiche all'OS né ai gruppi. Costo: una dipendenza nuova e la gestione
+   del protocollo di attivazione/disattivazione del seat.
+2. **Restare su SDL2/Wayland** e considerare il backend DRM uno strumento da banco, da usare solo
+   con Weston fermo e permessi concessi a mano. È lo stato attuale di fatto.
+3. **Chiedere a Pixsys** di aggiungere `user` ai gruppi `video`/`input` nell'immagine. Semplice, ma
+   contraddice il disegno dell'OS e va contro il motivo per cui seatd esiste.
+4. **Chiedere a Pixsys** perché i device di input non hanno il tag udev `uaccess` mentre
+   `/dev/dri/card1` ce l'ha (`TAGS=:master-of-seat:uaccess:seat:`). Potrebbe essere voluto — ci
+   pensa seatd — oppure una svista delle regole udev. Non cambia nulla per noi finché usiamo
+   Wayland.
+
+**Default for PoC**: opzione 2 — il percorso normale sul pannello è SDL2/Wayland, e il backend DRM
+resta quello che ha salvato la situazione sul TC620 quando SDL2 dava schermo nero.
+
+**Decided**: not yet.

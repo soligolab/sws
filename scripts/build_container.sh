@@ -29,16 +29,21 @@
 #   ./scripts/build_container.sh --no-spa           # riusa sws-editor/dist così com'è
 #   ./scripts/build_container.sh --registry REF     # altro repository di destinazione
 #   ./scripts/build_container.sh --out DIR          # directory di output (default dist/)
-#   ./scripts/build_container.sh --with-lvgl        # include anche sws-lvgl-viewer nell'immagine
+#   ./scripts/build_container.sh --no-lvgl          # NON includere sws-lvgl-viewer
 #
-# --with-lvgl è opt-in, non il default: sws-lvgl-viewer collega SDL2 di
-# sistema (vedi il suo Cargo.toml), e se il sysroot Yocto Pixsys non ha
-# libsdl2-dev (non ancora verificato) la cross-compilazione fallisce — senza
-# il flag, questo script si comporta esattamente come prima che quel crate
-# esistesse, la pipeline sws-runtime-only non deve mai rompersi per colpa di
-# una dipendenza opzionale.
+# L'immagine porta ENTRAMBI i runtime per default dal 2026-08-24 (decisione del
+# maintainer): sui prodotti Pixsys si deve poter provare sia il runtime web sia
+# quello LVGL, e pubblicarne una senza viewer costringerebbe a un secondo giro.
+# L'ENTRYPOINT resta sws-runtime; il viewer si lancia come secondo container con
+# `--entrypoint sws-lvgl-viewer`.
+#
+# Era opt-in perché il crate collega SDL2 di sistema e il sysroot Pixsys era
+# dichiarato "non verificato": misurato il 2026-08-24, header, .so e sdl2.pc ci
+# sono. `--no-lvgl` resta come uscita di sicurezza, perché una dipendenza di
+# sviluppo mancante non deve far fallire la build di sws-runtime.
 #
 # Requisiti: SDK Yocto Pixsys in /usr/local/oecore-x86_64/ (salvo --no-rust),
+#            clang/libclang sull'host (bindgen, per il viewer LVGL),
 #            podman, rete per scaricare ubuntu:24.04 e — con --push — un
 #            `podman login` già fatto sul registry.
 
@@ -48,14 +53,14 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 usage() {
-    sed -n '2,43p' "${BASH_SOURCE[0]}" | sed 's/^#//; s/^ //'
+    sed -n '2,48p' "${BASH_SOURCE[0]}" | sed 's/^#//; s/^ //'
 }
 
 BUILD_RUST=1
 BUILD_SPA=1
 SAVE=1
 PUSH=0
-WITH_LVGL=0
+WITH_LVGL=1
 REGISTRY="ghcr.io/soligolab/sws-runtime"
 OUT_DIR="$REPO/dist"
 SDK_ENV="/usr/local/oecore-x86_64/environment-setup-cortexa35-pixsys-linux"
@@ -70,7 +75,9 @@ while [ $# -gt 0 ]; do
         --no-spa)    BUILD_SPA=0;  shift ;;
         --no-save)   SAVE=0;       shift ;;
         --push)      PUSH=1;       shift ;;
+        # Accettata e senza effetto: era il modo di chiederlo.
         --with-lvgl) WITH_LVGL=1;  shift ;;
+        --no-lvgl)   WITH_LVGL=0;  shift ;;
         --registry)  REGISTRY="$2"; shift 2 ;;
         --out)       OUT_DIR="$2"; shift 2 ;;
         *) echo "Flag non riconosciuta: $1 (--help per l'elenco)" >&2; exit 1 ;;
@@ -133,7 +140,11 @@ echo "==> SWS runtime container image ${VERSION} (linux/arm64)"
 if [ "$BUILD_RUST" -eq 1 ]; then
     YOCTO_FLAGS=( release )
     [ "$BUILD_SPA" -eq 1 ]  || YOCTO_FLAGS+=( --no-spa )
-    [ "$WITH_LVGL" -eq 1 ]  && YOCTO_FLAGS+=( --with-lvgl )
+    # Va propagato il NEGATIVO, non il positivo: da quando LVGL è il default
+    # anche in build.sh, non passare niente significa "costruiscilo". Con la
+    # forma precedente un --no-lvgl qui avrebbe cross-compilato il viewer lo
+    # stesso, per poi non metterlo nell'immagine.
+    [ "$WITH_LVGL" -eq 1 ]  || YOCTO_FLAGS+=( --no-lvgl )
     echo "==> [1/4] cross-compile (${YOCTO_FLAGS[*]})"
     bash "$REPO/scripts/yocto/build.sh" "${YOCTO_FLAGS[@]}"
 else
@@ -143,7 +154,7 @@ fi
 [ -f "$BIN" ]                || { echo "ERROR: missing $BIN" >&2; exit 1; }
 [ -f "$SPA_DIST/index.html" ] || { echo "ERROR: missing SPA at $SPA_DIST (drop --no-spa)" >&2; exit 1; }
 if [ "$WITH_LVGL" -eq 1 ]; then
-    [ -f "$LVGL_BIN" ] || { echo "ERROR: missing $LVGL_BIN (--with-lvgl requested)" >&2; exit 1; }
+    [ -f "$LVGL_BIN" ] || { echo "ERROR: missing $LVGL_BIN (usa --no-lvgl per costruire senza)" >&2; exit 1; }
 fi
 
 # Guard against the classic mistake of feeding the host binary to an arm64

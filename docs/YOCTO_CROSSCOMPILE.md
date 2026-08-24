@@ -50,6 +50,44 @@
    If either is missing, the SDK was built without `python3-dev` — rebuild
    the Yocto SDK with `meta-pixsys` `python3-dev` in `TOOLCHAIN_TARGET_TASK`.
 
+6. **`clang` + `libclang-dev` on the host** — required by the LVGL viewer,
+   which is built **by default** since 2026-08-24:
+
+   ```
+   sudo apt install clang libclang-dev
+   ```
+
+   Both `lvgl-sys` and `sws-lvgl-viewer/build.rs` run bindgen, which loads
+   `libclang` at build time. Without it the build stops at the very first
+   LVGL crate. Skip the viewer with `--no-lvgl` if you don't want it.
+
+7. **Sysroot contains SDL2 + libdrm dev files** (the LVGL viewer links both).
+   Verified on 2026-08-24 — this closed a "not verified" note the scripts had
+   been carrying since the crate was created:
+
+   ```
+   ls /usr/local/oecore-x86_64/sysroots/cortexa35-pixsys-linux/usr/include/SDL2
+   ls /usr/local/oecore-x86_64/sysroots/cortexa35-pixsys-linux/usr/lib/pkgconfig/sdl2.pc
+   ls /usr/local/oecore-x86_64/sysroots/cortexa35-pixsys-linux/usr/include/libdrm
+   ```
+
+8. **`libsdl2-dev` on the host** — needed **only** to build or test the viewer
+   natively (`cd crates/sws-lvgl-viewer && cargo test`), not to cross-compile
+   it. The crate is a `[[bin]]`, so even a pure unit test links the whole
+   binary against SDL2. Cross-compiling uses the sysroot copy instead and does
+   not need this.
+
+> **Perché una cross-build tocca anche il compilatore dell'host.** `lvgl 0.6.2`
+> dichiara `lvgl-sys` fra le proprie `[build-dependencies]` (il suo `build.rs`
+> chiama `lvgl_sys::_bindgen_raw_src()`), quindi i sorgenti C di LVGL vengono
+> compilati **due volte**: per il target e per l'host. Il `source` dell'SDK
+> esporta `CC=aarch64-pixsys-linux-gcc` globalmente, e senza contromisure cc-rs
+> lo userebbe anche per l'unità host, aggiungendoci `-m64` — corretto per
+> x86_64, fatale per il gcc aarch64. `build.sh` esporta perciò `HOST_CC=gcc` e
+> `HOST_CFLAGS=""`. **Attenzione al nome**: cc-rs vuole `HOST_CC` o il triple in
+> minuscolo (`CC_x86_64_unknown_linux_gnu`); la forma maiuscola in stile
+> `CARGO_TARGET_*` è una convenzione di cargo e qui non viene letta.
+
 ---
 
 ## 2. Building

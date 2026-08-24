@@ -66,6 +66,14 @@ while [ $# -gt 0 ]; do
         --no-spa)   BUILD_SPA=0;  shift ;;
         --no-save)  SAVE=0;       shift ;;
         --push)     PUSH=1;       shift ;;
+        # Accettate e ignorate: LVGL riguarda i dispositivi aarch64, e questa
+        # immagine non porta il viewer. Servono perché build_containers_all.sh
+        # inoltra gli argomenti IDENTICI a tutti e tre gli script: senza queste
+        # due righe, `build_containers_all.sh --no-lvgl` morirebbe qui in fondo
+        # dopo aver già costruito le altre due immagini. Era già così per
+        # --with-lvgl, che docs/HOWTO.md documentava in un comando che quindi
+        # non poteva funzionare.
+        --with-lvgl|--no-lvgl) shift ;;
         --registry) REGISTRY="$2"; shift 2 ;;
         --out)      OUT_DIR="$2"; shift 2 ;;
         *) echo "Flag non riconosciuta: $1 (--help per l'elenco)" >&2; exit 1 ;;

@@ -104,7 +104,11 @@ BUILD_RUST=1
 BUILD_SPA=1
 SAVE=1
 PUSH=0
-WITH_LVGL=0
+# LVGL acceso per default dal 2026-08-24, come nel gemello SDK: sui prodotti
+# Pixsys si deve poter provare sia il runtime web sia quello LVGL da una sola
+# immagine. Qui il viewer si compila nel builder QEMU, che ha già clang e
+# libsdl2-dev, quindi non dipende dal sysroot dell'SDK.
+WITH_LVGL=1
 REGISTRY="ghcr.io/soligolab/sws-runtime"
 OUT_DIR="$REPO/dist"
 # Dedicata: non collide né con target/ dell'host (altra architettura) né con
@@ -129,7 +133,9 @@ while [ $# -gt 0 ]; do
         --no-spa)    BUILD_SPA=0;  shift ;;
         --no-save)   SAVE=0;       shift ;;
         --push)      PUSH=1;       shift ;;
+        # Accettata e senza effetto: era il modo di chiederlo.
         --with-lvgl) WITH_LVGL=1;  shift ;;
+        --no-lvgl)   WITH_LVGL=0;  shift ;;
         --registry)  REGISTRY="$2"; shift 2 ;;
         --out)       OUT_DIR="$2"; shift 2 ;;
         *) echo "Flag non riconosciuta: $1 (--help per l'elenco)" >&2; exit 1 ;;
@@ -300,7 +306,7 @@ if [ "$BUILD_RUST" -eq 1 ] && [ "$WITH_LVGL" -eq 1 ]; then
 elif [ "$WITH_LVGL" -eq 1 ]; then
     echo "==> [1c] skipped build (--no-rust, riuso $LVGL_BIN esistente)"
 else
-    echo "==> [1c] skipped (passa --with-lvgl per includere sws-lvgl-viewer)"
+    echo "==> [1c] skipped (--no-lvgl)"
 fi
 
 if [ "$BUILD_SPA" -eq 1 ]; then
@@ -313,7 +319,7 @@ fi
 [ -f "$BIN" ]                || { echo "ERROR: missing $BIN — togli --no-rust" >&2; exit 1; }
 [ -f "$SPA_DIST/index.html" ] || { echo "ERROR: missing SPA at $SPA_DIST (drop --no-spa)" >&2; exit 1; }
 if [ "$WITH_LVGL" -eq 1 ]; then
-    [ -f "$LVGL_BIN" ] || { echo "ERROR: missing $LVGL_BIN (--with-lvgl requested)" >&2; exit 1; }
+    [ -f "$LVGL_BIN" ] || { echo "ERROR: missing $LVGL_BIN (usa --no-lvgl per costruire senza)" >&2; exit 1; }
 fi
 
 # Guardia contro il classico errore di infilare un binario della architettura
