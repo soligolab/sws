@@ -99,6 +99,27 @@ Due modi di guardare la UI:
 Prima di lanciare un test SSH, **chiedere sempre al maintainer** quale device usare e
 a quale indirizzo.
 
+### Pannelli della serie WP/TC — le particolarità che costano tempo
+
+`WP630` e `TC620` sono **la stessa famiglia**: entrambi devono poter far girare sia il
+runtime web sia quello LVGL. Le note qui sotto sono misurate, non dedotte, e valgono
+per entrambi salvo dove indicato.
+
+| Cosa | Valore | Perché importa |
+|---|---|---|
+| Utente SSH | **`user`**, non `pixsys` | `user` **non è sudoer**; per i comandi privilegiati serve `su - pixsys` |
+| Socket Wayland | **`wayland-1`**, non `wayland-0` | misurato su TC620 e WP630. `sws-lvgl-viewer.service` ha `WAYLAND_DISPLAY=wayland-0` **cablato e sbagliato**: leggerlo da `ls /run/user/1000/wayland-*` |
+| DRM | il device **non è sempre `card0`** — sul TC620 è `card1` | il default della CLI è `card0` |
+| Gruppi di `user` | `wayland`, `seat`, `dialout`, `plugdev` — **niente `video`, niente `input`** | e non servono: vedi sotto |
+| Accesso ai device | via **`seatd`** (`/run/seatd.sock`) | weston ottiene da lì i descrittori di `card1`, `renderD128` e degli input pur non essendo nei gruppi. È il disegno dell'OS, non una svista |
+| Touch | `find-touchscreen.service` crea `/dev/input/ts` (pannello grezzo); `ts-uinput.service` produce `/dev/input/ts_uinput` (**calibrato** con `/etc/pointercal`, che non è identitario) | **weston legge `ts_uinput`**, non il grezzo. Usare sempre i symlink, mai un `/dev/input/eventN`: quel numero cambia |
+| Schermo | `weston.service` + `chromium@main-app.service`, entrambi come `User=user` | per una prova LVGL a schermo pieno va fermato Chromium |
+
+**Conseguenza pratica**: sul percorso **SDL2/Wayland** non serve alcun permesso speciale
+— gli eventi li consegna weston, che il touch lo legge già calibrato. Il percorso **DRM**
+invece apre i device direttamente, quindi non convive con weston (che è già DRM master) e
+richiederebbe di passare da `seatd`, non di allargare i gruppi.
+
 ### GUI del pannello (Pixsys OS, verificato su un WP620 il 2026-07-28)
 
 Il display del pannello è pilotato da **Chromium su Weston**, non dal runtime:

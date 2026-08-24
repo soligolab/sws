@@ -45,9 +45,11 @@ ARG WITH_LVGL=0
 # libgl1/libgl1-mesa-dri): senza libegl1, kmsdrm fallisce con "SDL error:
 # EGL not initialized" (scoperto sul percorso container generico gemello,
 # 2026-08-10, in due passi — prima mancava libgbm1, poi anche libegl1). Mesa
-# fornisce EGL/GLES/GBM software, nessuna GPU reale richiesta — non ancora
-# verificato su questo percorso specifico (mai eseguito con successo, manca
-# l'SDK Yocto).
+# fornisce EGL/GLES/GBM software, nessuna GPU reale richiesta. Il percorso
+# kmsdrm resta non provato **su questo** percorso SDK: dal 2026-08-24 il
+# binario aarch64 esiste (prima cross-compilazione riuscita), ma la prova sul
+# pannello si fa per prima su SDL2/Wayland, dove è weston a possedere i device
+# e non serve alcun permesso speciale.
 #
 # libdrm2 esplicito: src/drm_display.rs linka libdrm direttamente per il
 # backend "drm" (rendering via API DRM legacy, bypassa SDL2 del tutto) —

@@ -9,15 +9,42 @@
 // gli struct del kernel DRM UAPI sono stabili ma non vale la pena rischiare
 // un errore di layout copiandoli a mano quando bindgen li legge dai veri
 // header installati (libdrm-dev, già richiesto dal builder LVGL esistente).
+/// Da dove leggere gli header di sistema.
+///
+/// In cross-build gli header vanno presi dal **sysroot del target**, non
+/// dall'host: sono due architetture diverse, e bindgen genererebbe struct con
+/// il layout sbagliato mentre il link va contro la `libdrm` aarch64. Il difetto
+/// era latente perché fino al 2026-08-24 nessuno aveva mai cross-compilato
+/// questo crate — l'SDK Pixsys non era disponibile su nessuna macchina.
+///
+/// `OECORE_TARGET_SYSROOT` lo esporta l'ambiente dell'SDK Yocto; fuori da
+/// quello si ricade sull'host, che è il caso del build nativo x86_64.
+fn sysroot_clang_args() -> Vec<String> {
+    match std::env::var("OECORE_TARGET_SYSROOT") {
+        Ok(s) if !s.trim().is_empty() => {
+            println!("cargo:warning=bindgen: sysroot del target = {s}");
+            vec![
+                format!("--sysroot={s}"),
+                // xf86drm.h fa un bare `#include <drm.h>`, che sta in una
+                // sottodirectory: senza questa -I non risolve.
+                format!("-I{s}/usr/include/libdrm"),
+                format!("-I{s}/usr/include"),
+            ]
+        }
+        _ => vec!["-I/usr/include/libdrm".to_string()],
+    }
+}
+
 fn main() {
     println!("cargo:rustc-link-lib=drm");
+    println!("cargo:rerun-if-env-changed=OECORE_TARGET_SYSROOT");
 
-    // -I/usr/include/libdrm: xf86drm.h fa un bare #include <drm.h> che
-    // altrimenti non risolve — pkg-config --cflags libdrm lo fornirebbe da
-    // solo, ma qui non lo usiamo (verificato: la directory esiste già,
-    // fornita da libdrm-dev, già richiesta dal builder LVGL esistente).
-    let bindings = bindgen::Builder::default()
-        .clang_arg("-I/usr/include/libdrm")
+    let mut builder = bindgen::Builder::default();
+    for arg in sysroot_clang_args() {
+        builder = builder.clang_arg(arg);
+    }
+
+    let bindings = builder
         .header_contents(
             "drm_wrapper.h",
             "#include <xf86drm.h>\n#include <xf86drmMode.h>\n#include <drm_fourcc.h>\n\

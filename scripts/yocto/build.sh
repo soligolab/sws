@@ -12,23 +12,24 @@
 #      is enabled (default)
 #
 # Usage:
-#   ./scripts/yocto/build.sh             # release build, embeds SPA dist
+#   ./scripts/yocto/build.sh             # release, SPA inclusa, LVGL incluso
 #   ./scripts/yocto/build.sh --no-spa    # skip pnpm build of sws-editor
 #   ./scripts/yocto/build.sh debug       # cargo build without --release
-#   ./scripts/yocto/build.sh --with-lvgl # also cross-compile sws-lvgl-viewer
+#   ./scripts/yocto/build.sh --no-lvgl   # NON cross-compilare sws-lvgl-viewer
 #
 # Output: sws-runtime/target/aarch64-unknown-linux-gnu/release/sws-runtime
-#         (or debug/ for debug)
-#         with --with-lvgl, also:
+#         (or debug/ for debug), e salvo --no-lvgl anche
 #         sws-runtime/crates/sws-lvgl-viewer/target/aarch64-unknown-linux-gnu/release/sws-lvgl-viewer
 #
-# --with-lvgl is opt-in and separate from the sws-runtime build on purpose:
-# sws-lvgl-viewer links against system SDL2 (see its Cargo.toml), which needs
-# libsdl2-dev present in the Pixsys sysroot — unverified as of this writing.
-# Without the flag, this script's behavior (including exit-on-failure via
-# `set -euo pipefail`) is byte-for-byte what it was before this crate existed;
-# a missing/broken SDL2 dev package on the sysroot must never break the
-# sws-runtime build that everything else depends on.
+# LVGL è acceso per default dal 2026-08-24. Era opt-in perché sws-lvgl-viewer
+# linka SDL2 di sistema e serviva libsdl2-dev nel sysroot Pixsys, "non
+# verificato" quando il crate è nato: **misurato il 2026-08-24 su una macchina
+# con l'SDK, header, .so e sdl2.pc ci sono**, e con essi libdrm. Serve anche
+# clang/libclang sull'host, perché lvgl-sys e build.rs usano bindgen.
+#
+# `--no-lvgl` resta come uscita di sicurezza: su un sysroot senza SDL2 il
+# principio di prima vale ancora, cioè un pacchetto di sviluppo mancante non
+# deve mai far fallire la build di sws-runtime, da cui dipende tutto il resto.
 #
 # The Vite dist (when built) is at sws-editor/dist/ on the dev box. The
 # deploy script picks both up.
@@ -42,13 +43,21 @@ TARGET_TRIPLE="aarch64-unknown-linux-gnu"
 
 PROFILE="release"
 BUILD_SPA=1
-WITH_LVGL=0
+# LVGL è ACCESO per default dal 2026-08-24 (decisione del maintainer): sui
+# prodotti Pixsys si deve poter provare sia il runtime web sia quello LVGL, e
+# un'immagine che non porta il viewer costringe a una seconda pubblicazione.
+# Era opt-in perché SDL2 nel sysroot Pixsys era dichiarato "non verificato":
+# misurato il 2026-08-24 su questa macchina, header, .so e sdl2.pc ci sono.
+WITH_LVGL=1
 for arg in "$@"; do
   case "$arg" in
     debug)       PROFILE="debug" ;;
     release)     PROFILE="release" ;;
     --no-spa)    BUILD_SPA=0 ;;
+    # Accettata e senza effetto: era il modo di chiederlo, non deve rompersi
+    # in mano a chi ce l'ha nelle dita o in uno script.
     --with-lvgl) WITH_LVGL=1 ;;
+    --no-lvgl)   WITH_LVGL=0 ;;
     *) echo "[build] unknown arg: $arg" >&2; exit 2 ;;
   esac
 done
@@ -103,6 +112,36 @@ fi
 export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER="$LINKER_WRAPPER"
 export PYO3_CROSS_LIB_DIR="$OECORE_TARGET_SYSROOT/usr/lib"
 export PYO3_CROSS_PYTHON_VERSION="3.12"
+
+# Il compilatore C per il lato HOST di una cross-build.
+#
+# Serve perché `lvgl 0.6.2` dichiara `lvgl-sys` fra le [build-dependencies]:
+# il suo build.rs chiama `lvgl_sys::_bindgen_raw_src()`, quindi cargo deve
+# compilare i sorgenti C di LVGL **anche per l'host**, non solo per il target.
+# Sourcing dell'SDK esporta CC=aarch64-pixsys-linux-gcc *globalmente*, e cc-rs
+# lo raccoglie anche per quella compilazione host: poi ci aggiunge `-m64` —
+# corretto per x86_64 — e il gcc aarch64 muore su "unrecognized command-line
+# option '-m64'". Diagnosticato il 2026-08-24, alla prima cross-compilazione
+# del crate LVGL mai tentata.
+#
+# `HOST_CC`/`HOST_CFLAGS` è la forma giusta: per l'unità host cc-rs non si
+# considera in cross-compilazione (TARGET == HOST) e consulta quel prefisso.
+# ATTENZIONE al nome: cc-rs vuole il triple in **minuscolo**
+# (`CC_x86_64_unknown_linux_gnu`); la forma maiuscola `CARGO_TARGET_*` è una
+# convenzione di cargo e qui non verrebbe letta — sbagliato al primo tentativo.
+# Il triple si chiede a rustc invece di cablarlo: questo script gira anche
+# altrove.
+HOST_TRIPLE="$(rustc -vV | awk '/^host: /{print $2}')"
+if command -v gcc >/dev/null 2>&1; then
+  export HOST_CC="gcc"
+  # Anche i CFLAGS: quelli dell'SDK sono innocui qui, ma `-mcpu=cortex-a35`
+  # arriverebbe al gcc dell'host, che non lo conosce.
+  export HOST_CFLAGS=""
+  if [ -n "$HOST_TRIPLE" ]; then
+    export "CC_$(echo "$HOST_TRIPLE" | tr '-' '_')=gcc"
+    export "CFLAGS_$(echo "$HOST_TRIPLE" | tr '-' '_')="
+  fi
+fi
 
 # pyo3-build-config still needs a *host* Python to run its build script.
 # Debian dev box has python3 but not /usr/bin/python (the default pyo3 path).
@@ -163,7 +202,7 @@ if [ "$WITH_LVGL" -eq 1 ]; then
   echo "[build] cargo build (sws-lvgl-viewer) ${LVGL_CARGO_FLAGS[*]}"
   (cd "$LVGL_CRATE_DIR" && cargo build "${LVGL_CARGO_FLAGS[@]}")
 else
-  echo "[build] skipping sws-lvgl-viewer (pass --with-lvgl to cross-compile it too)"
+  echo "[build] skipping sws-lvgl-viewer (--no-lvgl)"
 fi
 
 # ── Report ───────────────────────────────────────────────────────────────────

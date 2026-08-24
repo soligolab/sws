@@ -504,16 +504,23 @@ diventa visibile e scrivibile.
 non dare per scontato il nome (anche `deploy/yocto/sws-kiosk.service`, mai verificato su hardware
 reale finché non cross-compila, ha lo stesso `wayland-0` non confermato).
 
-**Cosa è stato verificato e cosa no** (2026-08-09, stessa sessione): confermato che un container
-rootless con `--userns=keep-id` vede e può aprire il socket Wayland reale del device — provato con
-l'immagine `sws-runtime` esistente (nessun binario LVGL coinvolto, solo la meccanica di accesso al
-socket). **Non verificato**: il rendering LVGL vero, perché produrre un binario `sws-lvgl-viewer`
-aarch64 richiede l'SDK Yocto Pixsys (`scripts/yocto/build.sh --with-lvgl`), non installato né sulla
-macchina di sviluppo usata per questa sessione né sul device stesso (nessun toolchain di
-compilazione a bordo, solo runtime). Il comando sopra è quindi un **pattern verificato per la
-parte di accesso a Wayland**, non un test end-to-end completo — il prossimo passo è cross-compilare
-`sws-lvgl-viewer` su una macchina con l'SDK installato e ripetere questo comando con un binario
-vero.
+**Cosa è stato verificato e cosa no** (2026-08-09): confermato che un container rootless con
+`--userns=keep-id` vede e può aprire il socket Wayland reale del device — provato con l'immagine
+`sws-runtime` esistente (nessun binario LVGL coinvolto, solo la meccanica di accesso al socket).
+Restava non verificato il rendering LVGL vero, perché nessuna macchina disponibile allora aveva
+l'SDK Yocto Pixsys.
+
+> **Aggiornamento 2026-08-24 — il binario aarch64 ora esiste.** Su una macchina con l'SDK la
+> cross-compilazione riesce: `sws-lvgl-viewer` 8,1 MB, ELF aarch64, che linka `libSDL2-2.0.so.0` e
+> `libdrm.so.2` — entrambe presenti nel rootfs dei pannelli WP/TC. È stata la **prima** volta che il
+> crate veniva cross-compilato, e sono serviti due fix (vedi `docs/YOCTO_CROSSCOMPILE.md` §1):
+> gli header libdrm vanno presi dal sysroot del target e non dall'host, e la compilazione **host**
+> di `lvgl-sys` — che esiste perché `lvgl` lo dichiara fra le sue `[build-dependencies]` — va
+> forzata su `HOST_CC=gcc`, altrimenti eredita il `CC` cross dell'SDK e muore su `-m64`.
+>
+> L'avvertenza «SDL2 nel sysroot Pixsys non è verificato», che script e documenti si portavano
+> dietro dalla nascita del crate, è **chiusa**: header, `.so` e `sdl2.pc` ci sono, e con essi
+> libdrm. Da qui il viewer LVGL è incluso **per default** in tutte le immagini.
 
 ## Verifica
 
