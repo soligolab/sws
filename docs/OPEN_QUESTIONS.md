@@ -1778,3 +1778,66 @@ primo.
 resta quello che ha salvato la situazione sul TC620 quando SDL2 dava schermo nero.
 
 **Decided**: not yet.
+
+---
+
+## Q20 — Il viewer LVGL non si accorge che il progetto è cambiato
+
+**Stato**: aperta. Emersa il 2026-08-24, segnalata indirettamente dal maintainer.
+
+Il maintainer ha modificato un'ellisse da 100x80 a 100x100 e sul pannello continuava a vederla
+ovale. Non era un difetto di rendering: **il viewer scarica la pagina una volta sola**, all'avvio o
+quando si naviga altrove (`main.rs:147`, poi `fetch_page` nei rami di navigazione). Restando fermo
+sulla stessa pagina, una modifica al progetto non arriva mai: bisogna riavviare il viewer.
+
+Il viewer web non ha questo problema — ricarica e ridisegna. Sul pannello invece il ciclo
+"modifico nell'IDE → deploy → guardo" è rotto a metà, e il sintomo (una pagina vecchia che sembra
+giusta) è peggio di un errore, perché non si distingue da un difetto di rendering. È costato una
+diagnosi sbagliata in questa sessione.
+
+Opzioni, non decise:
+
+1. **Polling del fingerprint.** `GET /api/project/fingerprint` esiste già (SHA256 di project.yaml +
+   sinottici, T-24): il viewer lo interroga ogni N secondi e si ridisegna quando cambia. Semplice,
+   una richiesta leggera, ma introduce polling su un dispositivo dove ogni ciclo costa.
+2. **Notifica dal runtime.** Il viewer è già connesso al WebSocket dei tag: aggiungere un messaggio
+   "progetto cambiato" e ridisegnare. Nessun polling, ma allarga il protocollo WS.
+3. **Riavvio del viewer al deploy.** Il runtime riavvia `sws-lvgl-viewer.service` quando un import
+   va a buon fine. Brutale ma banale, e su un pannello un lampo di riavvio è accettabile.
+4. **Niente**, e si dichiara che sul pannello serve un riavvio manuale — a patto di scriverlo dove
+   qualcuno lo legga, perché oggi non è scritto da nessuna parte.
+
+Da valutare anche cosa fare degli **oggetti già creati**: `render_page_objects` fa `lv_obj_clean` e
+ricostruisce, quindi un ridisegno è già supportato (lo fa la navigazione); il costo è perdere lo
+stato locale dei widget, che però è quello che si vuole dopo una modifica di progetto.
+
+---
+
+## Q21 — Due superfici Python nel progetto, in due punti lontani dell'interfaccia
+
+**Stato**: aperta. Domanda del maintainer, 2026-08-24: «gli script python sarebbe bello fossero
+parte del progetto e visibili nelle funzioni dell'IDE, cosa manca perché sia così?».
+
+Risposta di fatto: **non manca niente**, sono già entrambe parte del progetto e già entrambe
+modificabili — ma stanno in due posti diversi, e la domanda nasce da lì.
+
+| | **Funzioni** (`functions`) | **Script** (`global_scripts`) |
+|---|---|---|
+| Campi | `id, name, description, code, params` | `id, trigger, code, enabled` |
+| Chi le avvia | un oggetto, con `on_press_fn` | un trigger: Startup / Interval / Cron / TagChange |
+| Dove si modificano | editor, `FunctionEditor.tsx` a schermo intero | Configurazione → Script, `GlobalScriptsTab` |
+
+Entrambe stanno in `project.yaml`, viaggiano nel bundle, compaiono nella ricerca per tag
+(`tagUsage.ts` le scandaglia tutt'e due) e si ricaricano a caldo al salvataggio.
+
+La distinzione è reale — una funzione non ha trigger, aspetta di essere chiamata — quindi fonderle
+in un unico tipo sarebbe sbagliato. La domanda aperta è solo **dove mostrarle**:
+
+1. Lasciarle dove sono e aggiungere un rimando reciproco («queste sono le funzioni chiamate dagli
+   oggetti; per gli script a tempo vedi Configurazione → Script»). Costo quasi nullo.
+2. Una sezione "Python" unica che elenca entrambe, distinte da un'etichetta di trigger, in un unico
+   punto dell'IDE.
+3. Spostare le Funzioni in Configurazione accanto agli Script, lasciando nell'editor solo la scelta
+   della funzione da chiamare.
+
+Tocca la struttura del menu, quindi è una decisione del maintainer, non un dettaglio realizzativo.

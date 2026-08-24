@@ -8,6 +8,74 @@
 
 ## ▶ Da fare nella prossima sessione
 
+> **Sessione del 2026-08-24 (ufficio).** Sei branch aperti, tutti spinti su origin, **nessuno
+> mergiato**: mancano le tue conferme. Il lavoro riprende da qui. La build è verde su tutt'e due i
+> lati sulla punta di `feat/lvgl-trend-tags`.
+
+### 0. Dove eravamo — branch aperti, in ordine di impilamento
+
+Sono impilati uno sull'altro (ciascuno contiene i precedenti), quindi vanno mergiati **in
+quest'ordine**, con squash, e solo dopo che hai confermato che la cosa funziona:
+
+| Branch | Cosa | Confermato? |
+|---|---|---|
+| `feat/ide-pull-progetto` | Riaprire nell'IDE il progetto che gira sul dispositivo | ❌ da provare |
+| `feat/lvgl-movimento` | Gli oggetti si muovono davvero coi binding | ✅ **confermato a schermo** |
+| `fix/mdns-reti-multiple` | "Cerca runtime" su dispositivi con due schede | ✅ provato dal vivo sul WP630 |
+| `feat/mqtt-skip-verify` | `insecure_skip_verify` fa quello che dice | ✅ provato contro un broker vero |
+| `feat/lvgl-trend-tags` | I trend LVGL leggono `trend_tags[]` | ⚠️ test verdi, **mai visto a schermo** |
+| `feat/template-demo-items` | *(vuoto — solo il piano, il lavoro è da fare)* | — |
+
+⚠️ **`main` ha un commit di funzionalità diretto**, `6b9f8d0` (binding generici LVGL): l'ho messo lì
+prima di aprire il primo branch, contro la regola 2 di `CLAUDE.md`. È già dentro e funziona (l'hai
+confermato), ma è una deviazione da sapere, non da scoprire.
+
+### 1. Template gemelli "Demo Items - Web" e "Demo Items - LVGL" — **il lavoro in corso**
+
+Piano completo e approvato in [docs/plans/2026-08-24-template-demo-items.md](docs/plans/2026-08-24-template-demo-items.md).
+Branch `feat/template-demo-items`, ancora **vuoto**: c'è solo l'analisi, il lavoro è tutto da fare.
+
+Deciso con te: **stessa demo in due varianti** (stesse pagine, stessi id, stesse coordinate; la
+variante LVGL omette solo i 4 tipi solo-web), pagine **1280x800**, dati mossi da uno **script Python
+interno** invece che dal broker pubblico.
+
+Misurato, da non rimisurare:
+- i tipi sono **35** in palette, **31** su LVGL; i 4 solo-web sono `image`, `kpi_tile`,
+  `alarm_history`, `data_log`;
+- `SUPPORTED_TYPES` e `LVGL_SUPPORTED_TYPES` **combaciano** oggi (31 e 31);
+- `lvgl-demo` copre già 31/31; `demo-items` solo **19/35**;
+- Python 3.12 e `libpython` ci sono **dentro il container sul WP630**, quindi lo script gira sul
+  pannello anche senza rete;
+- un template è una cartella sotto `examples/templates/`, l'elenco è una scansione di directory:
+  nessun indice da aggiornare, basta creare e cancellare cartelle.
+
+### 2. Ripubblicare l'immagine — **rimandata da te, resta in sospeso**
+
+L'immagine su GHCR è ferma a prima di *tutte* le correzioni di oggi. Finché non si ripubblica, sul
+WP630 restano rotti il discovery mDNS e i trend LVGL, e il viewer va montato a mano da `/tmp`.
+
+⚠️ **Sul pannello non è rimasto niente di montato a mano**: la unit quadlet è tornata identica al
+backup (verificato con `diff`). Il binario in `/tmp/lvgl-v8` c'è ma **`/tmp` si svuota al riavvio**,
+quindi non fidarsene.
+
+### 3. Il viewer LVGL sul pannello è fermo
+
+È uscito con **404 su `Page 1`**: quella pagina non esiste più, perché il progetto attivo ora è
+`testLVGL` (le pagine sono `LVGL Demo`, `LVGL Demo - Pagina 2`, `LVGL Demo - Pagina 3`). Non è un
+difetto del binario — è quello nuovo, con movimento e trend. Va rilanciato con `--page` giusto.
+
+### 4. Domande aperte nuove
+
+- **Q20** — il viewer LVGL non si accorge che il progetto è cambiato: scarica la pagina una volta
+  sola. È costato una diagnosi sbagliata oggi (un'ellisse modificata che sembrava un difetto di
+  rendering ed era una pagina vecchia).
+- **Q21** — Funzioni e Script sono due superfici Python in due punti lontani dell'IDE. Tua domanda;
+  la distinzione è reale, la scelta è solo dove mostrarle.
+
+---
+
+## ▶ Da fare, dalle sessioni precedenti
+
 1. **Riaprire nell'IDE il progetto che sta sul runtime (pull, non solo push)** — richiesta del
    maintainer del 2026-08-24. Connettendosi a un runtime vuole poter rimettersi a lavorare sul
    progetto che gira **lì**, chiudendo quello aperto nell'IDE, invece di ripartire dalla copia

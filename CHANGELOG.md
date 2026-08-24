@@ -11,6 +11,42 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+Sessione del 2026-08-24 (ufficio, WP630 sotto mano). Sei branch aperti, nessuno ancora mergiato.
+
+### Added
+
+- **Riaprire nell'IDE il progetto che gira sul dispositivo** (`feat/ide-pull-progetto`). Il verso
+  opposto del deploy, che finora mancava del tutto: `GET /api/remote/project/export` porta di qua il
+  bundle del runtime connesso, e l'IDE lo importa col nome che scegli. L'archivio `.zip` esce
+  **prima** che qualunque cosa tocchi il disco, perché subito dopo l'IDE offre di aggiornare il
+  formato e quel passo riscrive tutto. Un backup nel runtime IDE viene creato subito dopo
+  l'apertura, sullo stato ancora integro.
+- **`insecure_skip_verify` per il TLS MQTT** (`feat/mqtt-skip-verify`): la spunta esisteva, si
+  salvava, e non faceva niente — il runtime validava comunque la catena. Ora è un verifier rustls
+  permissivo, con avviso rosso nell'interfaccia e warn a ogni connessione.
+
+### Fixed
+
+- **Gli oggetti LVGL non si muovevano** (`feat/lvgl-movimento`). I binding proprietà→tag davano la
+  posizione iniziale giusta e poi l'oggetto restava fermo. Risolto catturando i widget dal padre
+  (conteggio dei figli prima/dopo il rendering) invece di cambiare la firma delle ~30 `render_*`.
+  Segue una correzione trovata provando sul pannello: le coordinate vanno lette **dopo**
+  `lv_obj_update_layout`, altrimenti valgono 0 e l'oggetto salta in cima allo schermo.
+- **"Cerca runtime" non trovava i dispositivi con due schede di rete**
+  (`fix/mdns-reti-multiple`). Il runtime annunciava solo l'indirizzo della rotta predefinita: su un
+  WP630 con rete d'impianto e rete di campo era quello sbagliato. Ora annuncia tutte le reti vere
+  (escluse veth e affini), e chi cerca preferisce un indirizzo nella propria sottorete invece del
+  primo in ordine alfabetico.
+- **I trend su LVGL disegnavano vuoto** (`feat/lvgl-trend-tags`) dalla migrazione 2.1.0: le tracce
+  sono in `trend_tags[]` e il motore le cercava ancora in `tag` + `extra_tags`, che la migrazione
+  cancella. Il formato precedente resta come ripiego per i progetti non ancora riaperti nell'IDE.
+- **Importando un bundle con un nome scelto, il progetto finiva con due nomi diversi**: la cartella
+  prendeva il nome scelto, `project.yaml` teneva quello del bundle, e lista e intestazione
+  dell'editor mostravano cose diverse. Difetto preesistente di `upload_project_zip`.
+- **`browse` MQTT parlava in chiaro a una porta TLS** quando il TLS era attivo ma mancava la CA:
+  usciva senza impostare alcun trasporto, l'elenco tornava vuoto e nessuno diceva perché.
+
+
 ## [2.1.0] — 2026-08-23
 
 Fasi F6, F7 e F8 del programma SCADA-widgets (`docs/plans/2026-08-21-scada-widgets.md`):
