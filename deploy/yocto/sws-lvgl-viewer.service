@@ -6,7 +6,14 @@ Requires=sws-runtime.service
 [Service]
 Type=simple
 User=pixsys
-Environment=WAYLAND_DISPLAY=wayland-0
+# Niente WAYLAND_DISPLAY: il viewer passa da XWayland (SDL_VIDEODRIVER=x11,
+# impostato dal launch script) perché il backend Wayland nativo di SDL2 fa
+# SIGSEGV su questo hardware — misurato il 2026-08-24. Qui c'era
+# `WAYLAND_DISPLAY=wayland-0` cablato, ed era sbagliato due volte: quel
+# backend non si usa più, e comunque il socket reale è `wayland-1` sia sul
+# TC620 sia sul WP630. Un nome fisso non va mai assunto: si legge da
+# /run/user/<uid>/wayland-*.
+Environment=DISPLAY=:0
 ExecStartPre=/bin/sleep 2
 ExecStart=/data/user/sws/sws-lvgl-viewer-launch.sh
 Restart=on-failure

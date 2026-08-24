@@ -164,19 +164,34 @@ riga precedente). Non è un problema del comando, è la combo terminale/shell su
 ma la forma su una riga lo evita del tutto, quindi è quella da usare qui:
 
 ```bash
-podman run -d --name sws-lvgl-viewer --network host --userns=keep-id -v /run/user/1000:/run/user/1000 -e XDG_RUNTIME_DIR=/run/user/1000 -e WAYLAND_DISPLAY=wayland-1 -e SDL_VIDEODRIVER=wayland --entrypoint sws-lvgl-viewer ghcr.io/soligolab/sws-runtime:latest-arm64-generic --base-url http://127.0.0.1:8443 --page "LVGL Demo"
+podman run -d --name sws-lvgl-viewer --network host --userns=keep-id --ipc=host -v /tmp/.X11-unix:/tmp/.X11-unix -v /run/user/1000:/run/user/1000 -e XDG_RUNTIME_DIR=/run/user/1000 -e DISPLAY=:0 -e SDL_VIDEODRIVER=x11 --entrypoint sws-lvgl-viewer ghcr.io/soligolab/sws-runtime:latest-arm64 --base-url http://127.0.0.1:8443 --page "LVGL Demo"
 ```
 
-Due flag non opzionali, entrambi verificati sul primo tentativo reale (senza, falliscono in modi
-diversi):
-- `--userns=keep-id`: senza, il socket Wayland dell'host risulta "Permission denied" dentro il
+**Questo comando è cambiato il 2026-08-24**: prima diceva `SDL_VIDEODRIVER=wayland` e non aveva
+`--ipc=host`, e in quella forma **non funziona**. Le due correzioni, entrambe misurate su
+wp630-a-p3-07a077.local:
+
+- **`SDL_VIDEODRIVER=x11` (XWayland) invece di `wayland`.** Il backend Wayland nativo di SDL2 fa
+  **SIGSEGV entro tre secondi** dall'apertura della finestra, riproducibile. Non è il motore LVGL:
+  lo stesso binario con `SDL_VIDEODRIVER=dummy` gira a ~30 fps. È la stessa famiglia di problemi
+  già vista sul TC620, dove SDL2 su Wayland dava schermo nero. Serve quindi anche
+  `-v /tmp/.X11-unix:/tmp/.X11-unix` e `DISPLAY=:0`.
+- **`--ipc=host`.** Senza, il primo frame muore con
+  `X Error: BadValue ... 130 (MIT-SHM), 3 (X_ShmPutImage)`. MIT-SHM richiede che client e server X
+  vedano gli stessi segmenti di memoria condivisa, ma podman isola il namespace IPC: XWayland gira
+  sull'host, il viewer nel container. È un requisito noto delle app X11 in container, e non
+  c'entra con la dimensione della finestra nonostante il messaggio sembri dirlo.
+
+Le altre due flag erano già lì e restano necessarie:
+- `--userns=keep-id`: senza, il socket dell'host risulta "Permission denied" dentro il
   container (rootless podman rimappa gli UID per default).
 - `--network host`: senza, il container ha il proprio namespace di rete isolato — `127.0.0.1`
   dentro punta al container stesso, non all'host dove ascolta `sws-runtime`. Sintomo tipico:
   `curl` sull'host funziona, lo stesso URL dentro il container dà "Connection refused" nei log.
 
-Sostituisci `wayland-1`/il nome pagina con quello trovato ai passi precedenti, se diverso
-dall'esempio.
+Sostituisci il nome pagina con quello trovato ai passi precedenti, se diverso dall'esempio.
+L'immagine `latest-arm64` (SDK Pixsys) e `latest-arm64-generic` sono entrambe valide: dal
+2026-08-24 **entrambe contengono il viewer LVGL per default**.
 
 ### Passo 6 — Controllare cosa succede
 

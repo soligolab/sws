@@ -30,11 +30,23 @@ if [ -z "${SWS_LVGL_PAGE:-}" ]; then
     exit 1
 fi
 
-# SDL2's own Wayland backend (verified native, not XWayland — see
-# docs/OPEN_QUESTIONS.md Q14) needs SDL_VIDEODRIVER set explicitly: without
-# it, SDL2 probes backends in its own default order, which is not guaranteed
-# to pick Wayland first on every build even when it's available.
-export SDL_VIDEODRIVER=wayland
+# x11, cioè XWayland — NON il backend Wayland nativo di SDL2.
+#
+# Questa riga diceva `wayland` fino al 2026-08-24, ed era la configurazione
+# sbagliata: misurato su wp630-a-p3-07a077.local, il backend Wayland nativo di
+# SDL2 fa **SIGSEGV entro tre secondi** dall'apertura della finestra, sempre.
+# Non è colpa del motore LVGL — con `SDL_VIDEODRIVER=dummy` lo stesso binario
+# gira a ~30 fps — ed è la stessa classe di bug già vista sul TC620, dove SDL2
+# su Wayland nativo dava schermo nero. XWayland invece regge.
+#
+# `SDL_VIDEODRIVER` va comunque impostata esplicitamente: senza, SDL2 sonda i
+# backend nel proprio ordine, che non garantisce quale scelga.
+#
+# DISPLAY serve perché XWayland è un server X: Weston lo avvia se ha
+# `xwayland=true` in weston.ini (verificato presente su questi pannelli).
+export SDL_VIDEODRIVER=x11
+: "${DISPLAY:=:0}"
+export DISPLAY
 
 exec "$SWS_HOME/sws-lvgl-viewer" \
     --base-url "$SWS_LVGL_BASE_URL" \

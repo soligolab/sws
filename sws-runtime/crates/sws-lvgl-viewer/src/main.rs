@@ -423,7 +423,20 @@ fn run_window(
         // titolo comunque non si vede mai con `.borderless()` — lasciato per
         // quando/se si tornerà a una finestra decorata.
         .window("SWS - LVGL viewer", hor_res, ver_res)
-        .position_centered()
+        // Schermo intero, non una finestra posizionata. Su un pannello HMI la
+        // pagina deve occupare tutto e partire dall'angolo, e **chiedere una
+        // posizione non funziona**: misurato su wp630-a-p3-07a077.local il
+        // 2026-08-24, né `.position_centered()` né `.position(0, 0)` mettono la
+        // finestra all'angolo — resta spostata in basso a destra. È il
+        // comportamento normale di X11: il window manager decide dove mettere
+        // le finestre e ignora la richiesta del client (solo una finestra
+        // override-redirect potrebbe imporsi, e SDL2 non la espone).
+        // `fullscreen_desktop` invece è una richiesta che il WM onora.
+        //
+        // Conseguenza da tenere d'occhio: la finestra prende la dimensione del
+        // desktop, che può non coincidere con quella della pagina. Il blit è
+        // ritagliato all'intersezione e la riga di ATTENZIONE qui sotto lo dice.
+        .fullscreen_desktop()
         .borderless()
         .build()?;
     let mut event_pump = sdl_context.event_pump().map_err(|e| anyhow::anyhow!("event_pump: {e}"))?;
@@ -432,6 +445,25 @@ fn run_window(
     let pitch = (hor_res * 3) as usize;
     let mut mouse_pressed = false;
 
+    // La dimensione ottenuta non è quella chiesta finché non la si guarda.
+    // Su wp630-a-p3-07a077.local (2026-08-24) `SDL_UpdateWindowSurface` moriva
+    // con `BadValue` su `X_ShmPutImage` e valore 0x780 = 1920, cioè la larghezza
+    // richiesta: segno che il drawable X vero era più stretto. Il commento qui
+    // sopra attribuiva quel sintomo alla barra del titolo, ma `.borderless()`
+    // c'è già — quindi la causa è un'altra e va misurata, non dedotta.
+    let (win_w, win_h) = window.size();
+    let (draw_w, draw_h) = window.drawable_size();
+    let (pos_x, pos_y) = window.position();
+    eprintln!("[sdl2] geometria: pagina {hor_res}x{ver_res}, finestra {win_w}x{win_h} a ({pos_x},{pos_y}), area disegnabile {draw_w}x{draw_h}");
+    if (win_w, win_h) != (hor_res, ver_res) || (draw_w, draw_h) != (hor_res, ver_res) {
+        eprintln!(
+            "[sdl2] ATTENZIONE: chiesti {hor_res}x{ver_res} ma la finestra è {win_w}x{win_h} \
+             — il blit viene ritagliato all'intersezione, la pagina può risultare tagliata"
+        );
+    }
+    if (pos_x, pos_y) != (0, 0) {
+        eprintln!("[sdl2] ATTENZIONE: la finestra non è all'angolo ma a ({pos_x},{pos_y}) — il window manager ha ignorato la richiesta");
+    }
     eprintln!("finestra SDL2 aperta — click/drag sui widget interattivi, chiudi la finestra o premi Esc per uscire");
 
     'running: loop {
@@ -547,8 +579,16 @@ fn run_window(
                 PixelFormatEnum::RGB24,
             )
             .map_err(|e| anyhow::anyhow!("Surface::from_data: {e}"))?;
+            // Ritaglio esplicito all'intersezione fra il frame LVGL e la
+            // superficie reale della finestra. `blit(None, .., None)` si
+            // affiderebbe al clipping di SDL, che protegge la memoria ma non
+            // impedisce a `SDL_UpdateWindowSurface` di chiedere a X un
+            // `ShmPutImage` più largo del drawable — che è come muore su
+            // XWayland qui.
+            let (dst_w, dst_h) = (window_surface.width(), window_surface.height());
+            let src_rect = sdl2::rect::Rect::new(0, 0, hor_res.min(dst_w), ver_res.min(dst_h));
             src_surface
-                .blit(None, &mut window_surface, None)
+                .blit(src_rect, &mut window_surface, src_rect)
                 .map_err(|e| anyhow::anyhow!("blit: {e}"))?;
             window_surface
                 .update_window()
