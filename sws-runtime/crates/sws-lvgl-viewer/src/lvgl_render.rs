@@ -690,6 +690,126 @@ fn lookup<'a>(tags: &'a TagSnapshot, tag: &Option<String>) -> Option<&'a TagSnap
     tags.get(tag.as_deref()?)
 }
 
+// ── F2: binding generici proprietà→tag ───────────────────────────────────────
+//
+// Rispecchia `resolveObject` di `sws-editor/src/canvas/SvgCanvas.tsx`: per ogni
+// voce di `obj.bindings` il valore live del tag sostituisce la proprietà
+// statica omonima. Tre forme, come là: stringa (tag 1:1, storica),
+// `{tag, in_min..out_max, clamp}` con scalatura lineare, `{expr}`.
+//
+// `{expr}` NON è supportato qui: il web ha un valutatore di espressioni
+// (`evalExpr`) che sul motore LVGL non esiste. Una voce `expr` viene saltata e
+// il valore statico resta — stesso esito che il web dà quando l'espressione è
+// rotta, quindi il degrado è già previsto dal formato.
+
+/// `TagValue` → `serde_json::Value`, per trattare le tre forme di spec con un
+/// solo tipo. `Int` e `Float` finiscono entrambi in `Number`, così `as_f64()`
+/// funziona su tutti e due senza casi speciali a valle.
+fn tag_value_to_json(v: &TagValue) -> serde_json::Value {
+    match v {
+        TagValue::Bool(b) => serde_json::Value::Bool(*b),
+        TagValue::Int(i) => serde_json::Value::Number((*i).into()),
+        TagValue::Float(f) => serde_json::Number::from_f64(*f)
+            .map(serde_json::Value::Number)
+            .unwrap_or(serde_json::Value::Null),
+        TagValue::Str(s) => serde_json::Value::String(s.clone()),
+    }
+}
+
+/// Scala un valore secondo `in_min..in_max → out_min..out_max`, con clamp
+/// opzionale (attivo salvo `clamp: false`, come sul web).
+///
+/// Pura e separata perché è l'unico pezzo con aritmetica: un errore qui sposta
+/// oggetti sullo schermo di quantità plausibili, cioè il tipo di difetto che si
+/// nota tardi.
+fn scale_binding(v: f64, in_min: f64, in_max: f64, out_min: f64, out_max: f64, clamp: bool) -> f64 {
+    if (in_max - in_min).abs() < f64::EPSILON {
+        return v;
+    }
+    let scaled = out_min + (v - in_min) * (out_max - out_min) / (in_max - in_min);
+    if clamp {
+        let (lo, hi) = if out_min <= out_max { (out_min, out_max) } else { (out_max, out_min) };
+        scaled.clamp(lo, hi)
+    } else {
+        scaled
+    }
+}
+
+/// Risolve una spec di binding nel valore live corrente.
+///
+/// `None` = "tieni il valore statico": tag assente, spec malformata, o `expr`
+/// (non valutabile qui). Mai un default inventato — un oggetto che resta dov'era
+/// è meno sbagliato di uno che salta a zero.
+pub fn resolve_binding_value(spec: &serde_json::Value, tags: &TagSnapshot) -> Option<serde_json::Value> {
+    use serde_json::Value;
+    match spec {
+        Value::String(tag) => tags.get(tag.as_str()).map(|tv| tag_value_to_json(&tv.value)),
+        Value::Object(m) => {
+            if m.contains_key("expr") {
+                return None; // nessun valutatore di espressioni sul motore LVGL
+            }
+            let tag = m.get("tag")?.as_str()?;
+            let num = tag_value_to_json(&tags.get(tag)?.value).as_f64()?;
+            let (in_min, in_max, out_min, out_max) = (
+                m.get("in_min")?.as_f64()?,
+                m.get("in_max")?.as_f64()?,
+                m.get("out_min")?.as_f64()?,
+                m.get("out_max")?.as_f64()?,
+            );
+            let clamp = m.get("clamp").and_then(|c| c.as_bool()).unwrap_or(true);
+            serde_json::Number::from_f64(scale_binding(num, in_min, in_max, out_min, out_max, clamp))
+                .map(Value::Number)
+        }
+        _ => None,
+    }
+}
+
+/// Applica `obj.bindings` alle proprietà che il motore LVGL sa usare,
+/// restituendo una copia solo quando qualcosa cambia davvero.
+///
+/// Sottoinsieme deliberato — geometria e visibilità — perché sono le proprietà
+/// che il render legge dall'oggetto e che qui hanno un effetto visibile. Il web
+/// applica il binding a *qualunque* proprietà di primo livello; allinearsi del
+/// tutto vuol dire mappare a mano ~240 campi tipizzati, e va fatto insieme al
+/// resto della parità (F9c), non di straforo.
+pub fn apply_bindings(obj: &SynopticObject, tags: &TagSnapshot) -> Option<SynopticObject> {
+    let map = obj.bindings.as_ref()?;
+    if map.is_empty() {
+        return None;
+    }
+    let mut out = obj.clone();
+    let mut touched = false;
+    for (prop, spec) in map {
+        let Some(v) = resolve_binding_value(spec, tags) else { continue };
+        match prop.as_str() {
+            "x" | "y" | "width" | "height" => {
+                let Some(n) = v.as_f64() else { continue };
+                match prop.as_str() {
+                    "x" => out.x = Some(n),
+                    "y" => out.y = Some(n),
+                    "width" => out.width = Some(n),
+                    _ => out.height = Some(n),
+                }
+                touched = true;
+            }
+            // Stessa coercizione del web (BOOL_PROPS): numero != 0, stringa
+            // non vuota, bool com'è.
+            "visible" => {
+                let b = match &v {
+                    serde_json::Value::Bool(b) => *b,
+                    serde_json::Value::Number(n) => n.as_f64().map(|f| f != 0.0).unwrap_or(false),
+                    serde_json::Value::String(s) => !s.trim().is_empty(),
+                    _ => continue,
+                };
+                out.visible = Some(b);
+                touched = true;
+            }
+            _ => {} // proprietà non ancora mappata: valore statico
+        }
+    }
+    touched.then_some(out)
+}
+
 /// Porta `String(value)` di JS per gli scalari che compaiono in
 /// `TextListEntry::value` / `checked_value` (numero/stringa/bool) — usato per
 /// confronti per uguaglianza lasca (`match_text_list_entry`,
@@ -3681,6 +3801,15 @@ pub fn render_page_objects(
         let (Some(id), Some(obj_type)) = (obj.id.as_deref(), obj.obj_type.as_deref()) else {
             continue; // oggetto senza id/type: dato malformato, ignorato silenziosamente
         };
+        // F2: i binding proprietà→tag vanno risolti PRIMA del render, come fa
+        // `resolveObject` sul web — altrimenti il widget nasce con la
+        // geometria statica e la posizione live non arriva mai.
+        // NOTA: questo dà lo stato iniziale corretto, non ancora il movimento
+        // continuo. Per quello serve il puntatore al widget dentro
+        // `update_bindings`, e le funzioni `render_*` oggi non lo restituiscono
+        // — vedi STATUS.md, va fatto col resto della parità F9c.
+        let bound = apply_bindings(obj, tags);
+        let obj = bound.as_ref().unwrap_or(obj);
         if !is_visible(obj, tags) {
             continue;
         }
@@ -4351,6 +4480,97 @@ fn update_alarm_banner(
                 lvgl_sys::lv_obj_add_flag(msg_ptr.as_ptr(), hidden);
                 lvgl_sys::lv_obj_clear_flag(empty_ptr.as_ptr(), hidden);
             }
+        }
+    }
+}
+
+#[cfg(test)]
+mod binding_tests {
+    use super::*;
+    use serde_json::json;
+
+    fn snapshot(pairs: &[(&str, TagValue)]) -> TagSnapshot {
+        pairs
+            .iter()
+            .map(|(k, v)| {
+                (k.to_string(), TagSnapshotValue { value: v.clone(), quality: TagQuality::Good })
+            })
+            .collect()
+    }
+
+    /// La forma storica: il valore del tag sostituisce la proprietà, senza
+    /// scalature. È quella dell'ellisse vista sul WP630, `{x: "slideX"}`.
+    #[test]
+    fn spec_stringa_prende_il_valore_del_tag() {
+        let t = snapshot(&[("slideX", TagValue::Int(640))]);
+        assert_eq!(resolve_binding_value(&json!("slideX"), &t), Some(json!(640)));
+    }
+
+    /// Tag assente = si tiene il valore statico. Un oggetto che resta dov'era
+    /// è meno sbagliato di uno che salta a zero.
+    #[test]
+    fn tag_assente_non_produce_valore() {
+        assert_eq!(resolve_binding_value(&json!("nessuno"), &snapshot(&[])), None);
+    }
+
+    #[test]
+    fn spec_con_scalatura_mappa_e_limita() {
+        let t = snapshot(&[("lvl", TagValue::Float(50.0))]);
+        let spec = json!({"tag":"lvl","in_min":0,"in_max":100,"out_min":0,"out_max":1000});
+        assert_eq!(resolve_binding_value(&spec, &t).and_then(|v| v.as_f64()), Some(500.0));
+    }
+
+    /// Il clamp è attivo salvo `clamp: false`, come sul web: un tag fuori
+    /// scala non deve poter spedire un oggetto fuori dallo schermo.
+    #[test]
+    fn il_clamp_e_attivo_per_default_e_disattivabile() {
+        let t = snapshot(&[("lvl", TagValue::Float(150.0))]);
+        let base = json!({"tag":"lvl","in_min":0,"in_max":100,"out_min":0,"out_max":1000});
+        assert_eq!(resolve_binding_value(&base, &t).and_then(|v| v.as_f64()), Some(1000.0));
+        let libero = json!({"tag":"lvl","in_min":0,"in_max":100,"out_min":0,"out_max":1000,"clamp":false});
+        assert_eq!(resolve_binding_value(&libero, &t).and_then(|v| v.as_f64()), Some(1500.0));
+    }
+
+    /// Intervallo di ingresso degenere: nessuna divisione per zero, si
+    /// restituisce il valore così com'è.
+    #[test]
+    fn intervallo_nullo_non_divide_per_zero() {
+        assert_eq!(scale_binding(7.0, 5.0, 5.0, 0.0, 100.0, true), 7.0);
+    }
+
+    /// `{expr}` non è valutabile qui (il web ha `evalExpr`, il motore LVGL no):
+    /// va saltata, non indovinata.
+    #[test]
+    fn expr_non_e_supportata_e_lascia_il_valore_statico() {
+        let t = snapshot(&[("a", TagValue::Float(1.0))]);
+        assert_eq!(resolve_binding_value(&json!({"expr":"a * 2"}), &t), None);
+    }
+
+    #[test]
+    fn apply_bindings_sposta_la_geometria() {
+        let t = snapshot(&[("slideX", TagValue::Int(640))]);
+        let mut obj = SynopticObject { x: Some(0.0), ..Default::default() };
+        obj.bindings = Some([("x".to_string(), json!("slideX"))].into_iter().collect());
+        let out = apply_bindings(&obj, &t).expect("dovrebbe produrre una copia");
+        assert_eq!(out.x, Some(640.0));
+    }
+
+    /// Nessun binding risolvibile = nessuna copia, così il render continua a
+    /// usare l'oggetto originale senza allocare per niente.
+    #[test]
+    fn senza_binding_risolvibili_non_copia() {
+        let obj = SynopticObject { x: Some(10.0), ..Default::default() };
+        assert!(apply_bindings(&obj, &snapshot(&[])).is_none());
+    }
+
+    /// Stessa coercizione booleana del web (BOOL_PROPS).
+    #[test]
+    fn visible_coercisce_come_sul_web() {
+        let t = snapshot(&[("z", TagValue::Int(0)), ("uno", TagValue::Int(1))]);
+        for (tag, atteso) in [("z", false), ("uno", true)] {
+            let mut obj = SynopticObject::default();
+            obj.bindings = Some([("visible".to_string(), json!(tag))].into_iter().collect());
+            assert_eq!(apply_bindings(&obj, &t).unwrap().visible, Some(atteso));
         }
     }
 }

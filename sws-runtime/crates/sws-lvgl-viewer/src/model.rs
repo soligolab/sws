@@ -69,6 +69,17 @@ pub struct SynopticObject {
     pub visible: Option<bool>,
     pub visible_tag: Option<String>,
 
+    /// F2 — binding generici proprietà→tag: `{ "x": "slideX" }`, oppure
+    /// `{ "x": {tag, in_min, in_max, out_min, out_max, clamp} }`, oppure
+    /// `{ "x": {expr} }`. Il runtime non li interpreta, li serve così come
+    /// sono (vedi `sws-web/src/synoptic.rs`), quindi il valore resta opaco
+    /// anche qui e lo risolve `lvgl_render::resolve_binding_value`.
+    ///
+    /// Mancava del tutto fino al 2026-08-24: un'ellisse con
+    /// `bindings: {x: "slideX"}` su LVGL restava immobile mentre sul web
+    /// seguiva lo slider — visto sul pannello, non dedotto.
+    pub bindings: Option<std::collections::HashMap<String, serde_json::Value>>,
+
     // ── text ──
     pub text: Option<String>,
     pub format: Option<String>,
