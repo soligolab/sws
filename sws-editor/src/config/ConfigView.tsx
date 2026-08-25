@@ -7626,11 +7626,40 @@ function discoveredAdminUrl(r: DiscoveredRuntime): string {
   }
 }
 
+/** Dati raccolti dal pull prima di scrivere qualcosa, in attesa che il modale
+ *  di conferma li completi. Il bundle è già in mano e già archiviato: qui si
+ *  decide solo con che nome importarlo e cosa fare delle modifiche non salvate. */
+type PullPrompt = {
+  blob: Blob;
+  /** Proposto dal manifest del bundle, modificabile dal maintainer. */
+  name: string;
+  /** Progetti già presenti in locale: serve a dire "questo lo sostituisci". */
+  localNames: string[];
+  /** Versione che ha salvato il progetto SUL DISPOSITIVO. */
+  savedBy: string | null;
+  /** Versione di QUESTO IDE. */
+  localVersion: string;
+  dirty: boolean;
+  saveFirst: boolean;
+};
+
+function downloadBlob(blob: Blob, filename: string) {
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
 function RuntimeConnectionTab() {
   const { t } = useTranslation();
   const authToken = useAppStore((s) => s.authToken);
   const setRemoteConnected = useAppStore((s) => s.setRemoteConnected);
   const remoteConnectedStore = useAppStore((s) => s.remoteConnected);
+  // Rientro nell'editor dopo il pull: stesse due azioni che App.tsx usa in
+  // `onProjectOpened`, prese dallo store invece che passate giù per props.
+  const resetProjectState = useAppStore((s) => s.resetProjectState);
+  const setNoActiveProject = useAppStore((s) => s.setNoActiveProject);
 
   const [targetUrl,  setTargetUrl]  = useState(() => localStorage.getItem(RT_URL_KEY)  ?? "");
   const [targetUser, setTargetUser] = useState(() => localStorage.getItem(RT_USER_KEY) ?? "");
@@ -7643,6 +7672,15 @@ function RuntimeConnectionTab() {
   const [deletingRemote, setDeletingRemote] = useState(false);
   const [pushingUsers, setPushingUsers] = useState(false);
   const [remoteMsg, setRemoteMsg]   = useState<string | null>(null);
+  // Pull: riapertura nell'IDE del progetto che gira sul dispositivo. Il bundle
+  // sta qui in attesa della conferma perché scaricarlo NON è distruttivo, e
+  // averlo già in mano permette di mostrare nel modale il nome vero letto dal
+  // manifest, la collisione coi progetti locali e lo scarto di versione —
+  // tutto prima che si tocchi qualcosa.
+  const [pullLog, setPullLog]       = useState<string[]>([]);
+  const [pulling, setPulling]       = useState(false);
+  const [pullDone, setPullDone]     = useState(false);
+  const [pullAsk, setPullAsk]       = useState<PullPrompt | null>(null);
   const [discovering, setDiscovering] = useState(false);
   const [discovered, setDiscovered]   = useState<DiscoveredRuntime[] | null>(null);
   // "unreachable" = la fetch verso il runtime a cui l'IDE punta e' fallita
@@ -8052,6 +8090,117 @@ function RuntimeConnectionTab() {
     }
   };
 
+  /** Passo 1 del pull: solo letture. Scarica il bundle, lo archivia subito come
+   *  .zip, e apre il modale di conferma. Niente qui tocca il progetto locale. */
+  const handlePullProject = async () => {
+    setPulling(true); setPullLog([]); setPullDone(false);
+    const log = (m: string) => setPullLog((l) => [...l, m]);
+    try {
+      // Scarto di versione: `project_saved_by` è del progetto SUL DISPOSITIVO,
+      // `runtime_version` è di QUESTO IDE. È lo stesso confronto del pulsante
+      // "⚠ Aggiorna progetto", mostrato qui prima e non dopo.
+      let savedBy: string | null = null;
+      let localVersion = "";
+      try {
+        const [remote, local] = await Promise.all([
+          api.remoteGetSystemStatus(),
+          api.getSystemStatus(),
+        ]);
+        savedBy = remote.project_saved_by;
+        localVersion = local.runtime_version;
+        if (remote.active_project) log(`Progetto sul dispositivo: "${remote.active_project}"`);
+      } catch { /* non bloccante: l'avviso di versione è un di più, non il flusso */ }
+
+      log("Scarico del progetto dal dispositivo…");
+      const res = await api.pullRemoteProject();
+      const suggested = res.headers.get("X-Project-Name") || "progetto";
+      const blob = await res.blob();
+      log(`✓ Scaricato "${suggested}" (${(blob.size / 1024).toFixed(1)} KB)`);
+
+      // ARCHIVIO, subito: il .zip esce dal browser prima che qualsiasi cosa
+      // tocchi il disco. Se il resto del flusso va storto — o se l'aggiornamento
+      // di formato che l'IDE offrirà dopo rovina qualcosa — questa copia del
+      // progetto com'era sul dispositivo esiste già.
+      const stamp = new Date().toISOString().slice(0, 10);
+      downloadBlob(blob, `${suggested}-dal-runtime-${stamp}.zip`);
+      log(`✓ Copia di sicurezza scaricata: ${suggested}-dal-runtime-${stamp}.zip`);
+
+      const locals = await api.listProjects().catch(() => []);
+      setPullAsk({
+        blob,
+        name: suggested,
+        localNames: locals.map((p) => p.name),
+        savedBy,
+        localVersion,
+        dirty: selectIsDirty(useAppStore.getState()),
+        saveFirst: true,
+      });
+    } catch (e: any) {
+      log(`✗ ${e?.message ?? String(e)}`);
+      setPullDone(true);
+    } finally {
+      setPulling(false);
+    }
+  };
+
+  /** Passo 2 del pull: da qui in poi si scrive. Confermato dal modale. */
+  const handlePullConfirm = async () => {
+    const ask = pullAsk;
+    if (!ask) return;
+    const name = ask.name.trim();
+    setPullAsk(null);
+    setPulling(true);
+    const log = (m: string) => setPullLog((l) => [...l, m]);
+    try {
+      if (ask.dirty && ask.saveFirst) {
+        if (!await flushBeforeDeploy(log)) { setPulling(false); return; }
+      } else if (ask.dirty) {
+        log("⚠ Modifiche locali non salvate: scartate su richiesta");
+      }
+
+      log("Chiusura del progetto aperto…");
+      await api.closeProject();
+
+      // L'upload rifiuta con 409 se la cartella esiste già: per sovrascrivere
+      // bisogna rimuoverla. Si può farlo solo ora, a progetto chiuso — a
+      // progetto attivo la delete risponderebbe 409 a sua volta.
+      if (ask.localNames.includes(name)) {
+        log(`Rimozione del progetto locale omonimo "${name}"…`);
+        await api.deleteProject(name);
+      }
+
+      log(`Import come "${name}"…`);
+      const created = await api.uploadProjectZip(ask.blob, name);
+      log(`Apertura di "${created.name}"…`);
+      await api.openProject(created.name);
+
+      // Backup lato IDE dello stato appena importato: integro, prima di
+      // qualunque modifica e prima dell'aggiornamento di formato che il
+      // pulsante "⚠ Aggiorna progetto" offrirà se le versioni divergono.
+      try {
+        const b = await api.createBackup();
+        log(`✓ Backup nel runtime IDE: ${b.name}`);
+      } catch (e: any) {
+        log(`⚠ Backup non riuscito (il progetto è comunque aperto): ${e?.message ?? String(e)}`);
+      }
+
+      log("🚀 Progetto del dispositivo aperto nell'IDE");
+      setPullDone(true);
+
+      // Stessa sequenza di `onProjectOpened` in App.tsx: si svuota lo stato del
+      // progetto precedente PRIMA di dichiarare che ce n'è uno attivo, così
+      // l'editor rimonta vuoto invece di mostrare per un istante le pagine di
+      // quello vecchio mentre arrivano quelle nuove.
+      resetProjectState();
+      setNoActiveProject(false);
+    } catch (e: any) {
+      log(`✗ ${e?.message ?? String(e)}`);
+      setPullDone(true);
+    } finally {
+      setPulling(false);
+    }
+  };
+
   const handleDeleteRemoteProject = async () => {
     if (!window.confirm(
       "Eliminare il progetto attualmente attivo sul runtime? L'operazione non è reversibile."
@@ -8318,6 +8467,125 @@ function RuntimeConnectionTab() {
             )}
           </div>
         </section>
+      )}
+
+      {/* Pull — il verso opposto del Deploy. Sezione separata di proposito: il
+          Deploy manda via il progetto locale, questo lo SOSTITUISCE con quello
+          del dispositivo, e i due non devono stare a un pixel di distanza. */}
+      {connected && (
+        <section>
+          <div style={{ fontSize: 13, fontWeight: 600, color: "var(--brand-text-muted, #94a3b8)", marginBottom: 12, textTransform: "uppercase", letterSpacing: 1 }}>
+            Riapri il progetto del dispositivo
+          </div>
+          <p style={{ fontSize: 12, color: "var(--brand-border, #475569)", margin: "0 0 10px" }}>
+            Scarica il progetto che gira sul runtime connesso e lo apre qui, al posto di quello
+            aperto ora. Prima di toccare qualsiasi cosa ne scarica una copia .zip.
+          </p>
+          {!pullDone && (
+            <button style={{ ...BTN, opacity: pulling ? 0.6 : 1 }}
+              onClick={handlePullProject} disabled={pulling || deploying}>
+              {pulling ? "Lettura in corso…" : "◂ Riapri il progetto del dispositivo"}
+            </button>
+          )}
+          {pullLog.length > 0 && (
+            <div style={{
+              marginTop: 10, background: "var(--brand-bg, #020617)", border: "1px solid var(--brand-surface, #1e293b)",
+              borderRadius: 4, padding: "8px 10px", maxHeight: 180, overflowY: "auto",
+              fontFamily: "monospace", fontSize: 12,
+            }}>
+              {pullLog.map((l, i) => (
+                <div key={i} style={{ color: l.startsWith("✗") ? "var(--brand-danger-soft, #f87171)" : l.startsWith("⚠") ? "var(--brand-warning-soft, #fbbf24)" : l.startsWith("🚀") ? "var(--brand-success-soft, #4ade80)" : "var(--brand-text-muted, #94a3b8)" }}>{l}</div>
+              ))}
+            </div>
+          )}
+          {pullDone && (
+            <button style={{ ...BTN, marginTop: 8 }} onClick={() => { setPullLog([]); setPullDone(false); }}>
+              Chiudi
+            </button>
+          )}
+        </section>
+      )}
+
+      {/* Conferma del pull. Un modale e non tre `confirm()` di fila perché le
+          decisioni sono legate fra loro: con che nome importare dipende da cosa
+          c'è già in locale, e la scelta sulle modifiche non salvate va vista
+          insieme al resto, non in un popup che è già sparito quando arriva il
+          successivo. */}
+      {pullAsk && (
+        <div style={{
+          position: "fixed", inset: 0, zIndex: 8000,
+          background: "rgba(0,0,0,0.6)",
+          display: "flex", alignItems: "center", justifyContent: "center",
+        }}
+          onClick={(e) => { if (e.target === e.currentTarget) setPullAsk(null); }}
+        >
+          <div style={{ background: "var(--brand-bg, #0f172a)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 8, width: 560, display: "flex", flexDirection: "column", gap: 10, padding: 16 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: "var(--brand-text-2, #cbd5e1)" }}>
+              Riapri il progetto del dispositivo
+            </div>
+
+            {pullAsk.savedBy && pullAsk.localVersion && pullAsk.savedBy !== pullAsk.localVersion && (
+              <div style={{ fontSize: 12, color: "var(--brand-warning-soft, #fbbf24)", background: "var(--brand-warning-bg, #78350f)", border: "1px solid var(--brand-warning, #f59e0b)", borderRadius: 4, padding: "6px 8px" }}>
+                {t("header.migrateConfirm", { savedBy: pullAsk.savedBy, runtime: pullAsk.localVersion })}
+                {" "}L'aggiornamento non avviene ora: dopo l'apertura comparirà il pulsante «⚠ Aggiorna progetto».
+              </div>
+            )}
+
+            <label style={{ fontSize: 12, color: "var(--brand-text-muted, #94a3b8)", display: "flex", flexDirection: "column", gap: 4 }}>
+              Importa col nome
+              <input
+                style={INPUT}
+                value={pullAsk.name}
+                autoFocus
+                onChange={(e) => setPullAsk({ ...pullAsk, name: e.target.value })}
+                spellCheck={false}
+              />
+            </label>
+            {pullAsk.localNames.includes(pullAsk.name.trim()) ? (
+              <div style={{ fontSize: 12, color: "var(--brand-danger-soft, #fca5a5)" }}>
+                ⚠ Esiste già un progetto locale <strong>{pullAsk.name.trim()}</strong>: verrà eliminato e
+                sostituito da quello del dispositivo. Scrivi un altro nome per tenerli entrambi.
+              </div>
+            ) : (
+              <div style={{ fontSize: 12, color: "var(--brand-text-subtle, #64748b)" }}>
+                Nessun progetto locale con questo nome: ne verrà creato uno nuovo.
+              </div>
+            )}
+
+            <div style={{ fontSize: 12, color: "var(--brand-warning-soft, #fbbf24)" }}>
+              ⚠ Il bundle del dispositivo contiene anche <strong>utenti e credenziali</strong>: aprendolo
+              sostituisci gli account e le password delle sorgenti con quelli del dispositivo.
+            </div>
+
+            {pullAsk.dirty && (
+              <div style={{ borderTop: "1px solid var(--brand-surface-2, #334155)", paddingTop: 10, display: "flex", flexDirection: "column", gap: 6 }}>
+                <div style={{ fontSize: 12, color: "var(--brand-text-muted, #94a3b8)" }}>
+                  Il progetto aperto ora ha modifiche non salvate e verrà chiuso.
+                </div>
+                <label style={{ fontSize: 12, color: "var(--brand-text-2, #cbd5e1)", cursor: "pointer" }}>
+                  <input type="radio" checked={pullAsk.saveFirst} onChange={() => setPullAsk({ ...pullAsk, saveFirst: true })} style={{ marginRight: 6 }} />
+                  Salva prima di chiudere
+                </label>
+                <label style={{ fontSize: 12, color: "var(--brand-danger-soft, #fca5a5)", cursor: "pointer" }}>
+                  <input type="radio" checked={!pullAsk.saveFirst} onChange={() => setPullAsk({ ...pullAsk, saveFirst: false })} style={{ marginRight: 6 }} />
+                  Chiudi senza salvare (le modifiche vanno perse)
+                </label>
+              </div>
+            )}
+
+            <div style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)" }}>
+              La copia .zip del progetto del dispositivo è già stata scaricata.
+            </div>
+
+            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+              <button style={BTN} onClick={() => { setPullAsk(null); setPullDone(true); }}>{t("common.cancel")}</button>
+              <button style={{ ...BTN_PRIMARY, opacity: pullAsk.name.trim() ? 1 : 0.6 }}
+                onClick={handlePullConfirm} disabled={!pullAsk.name.trim()}>
+                Apri nell'IDE
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Remote logs: non più un pannello a parte — confluiscono nello stesso

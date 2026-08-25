@@ -1180,6 +1180,28 @@ export const api = {
   remoteDeleteProject: () =>
     request<void>("/api/remote/project/delete", { method: "POST" }),
 
+  /** GET /api/remote/project/export — scarica il bundle del progetto che gira
+   *  sul dispositivo connesso. Il verso opposto del deploy.
+   *
+   *  Ritorna la `Response` grezza come `exportProjectZip`: il chiamante legge
+   *  `X-Project-Name` (nome proposto per l'import, letto dal manifest lato
+   *  backend) prima di fare il Blob.
+   *
+   *  ⚠️ Il bundle contiene `users.yaml` e i segreti: importarlo sostituisce
+   *  anche le credenziali locali. Chi chiama deve dirlo prima di procedere. */
+  pullRemoteProject: async (): Promise<Response> => {
+    const headers = new Headers();
+    if (getAuthToken()) headers.set("Authorization", `Bearer ${getAuthToken()}`);
+    const res = await fetch(`${getBaseUrl()}/api/remote/project/export`, { headers });
+    if (res.status === 401) throw new AuthError();
+    if (!res.ok) {
+      let body = "";
+      try { body = await res.text(); } catch { /* ignore */ }
+      throw new Error(body || `API /api/remote/project/export: ${res.status} ${res.statusText}`);
+    }
+    return res;
+  },
+
   /** POST /api/remote/users — invia `users.yaml` del progetto locale al runtime
    *  remoto connesso, sostituendo gli account del dispositivo.
    *

@@ -293,6 +293,7 @@ pub fn build(
         .route("/api/remote/status",       get(crate::remote::remote_status))
         .route("/api/remote/deploy",       post(crate::remote::remote_deploy))
         .route("/api/remote/project/delete", post(crate::remote::delete_remote_project))
+        .route("/api/remote/project/export", get(crate::remote::remote_export_project))
         // Allineamento esplicito degli account: il deploy non li tocca.
         .route("/api/remote/users",        post(crate::remote::remote_push_users))
         // "Invia Client ID al dispositivo connesso" — override per-device del

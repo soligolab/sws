@@ -578,6 +578,86 @@ pub async fn remote_download_backup(
     }
 }
 
+/// `GET /api/remote/project/export` — scarica il bundle del progetto che gira
+/// **sul dispositivo connesso** e lo restituisce così com'è.
+///
+/// È il verso opposto del deploy, e mancava del tutto: `Configurazione →
+/// Runtime` sapeva solo spingere. Chi si siede davanti a un pannello già in
+/// servizio deve poter riprendere il progetto che gira *lì*, invece di ripartire
+/// da una copia locale che può essere vecchia o di un altro impianto.
+///
+/// Lato dispositivo non serve niente di nuovo: `GET /api/project/export` esiste
+/// da sempre. Qui c'è solo il proxy, perché la fetch diretta browser→dispositivo
+/// morirebbe sul certificato self-signed — lo stesso motivo per cui passano di
+/// qui `remote_download_backup` e `remote_cert`.
+///
+/// Il nome del progetto viaggia in `X-Project-Name` letto dal manifest del
+/// bundle: il client lo usa come proposta di default per la scelta del nome, e
+/// leggerlo qui gli evita di dover aprire uno zip nel browser.
+///
+/// **Il bundle contiene i segreti e `users.yaml`** — è la stessa scelta già
+/// presa per il deploy (i segreti viaggiano col progetto, altrimenti un
+/// dispositivo che li riceve non si collega a niente). Chi importa sta quindi
+/// sostituendo anche le proprie credenziali locali: l'avviso è nell'interfaccia,
+/// non qui, ma va detto che questo endpoint è la sorgente di quel rischio.
+pub async fn remote_export_project(
+    State(s): State<AppState>,
+    Extension(user): Extension<AuthUser>,
+) -> Response {
+    let target = match s.remote_target.read().await.clone() {
+        Some(t) => t,
+        None => return (StatusCode::BAD_REQUEST, "Nessun runtime remoto connesso").into_response(),
+    };
+    s.audit.log("remote.project_pull", Some(user.username), serde_json::json!({
+        "url": target.url,
+    }));
+
+    let client = make_remote_client();
+    let base = target.url.trim_end_matches('/');
+    let mut req = client.get(format!("{base}/api/project/export"));
+    if !target.token.is_empty() {
+        req = req.header("Authorization", format!("Bearer {}", target.token));
+    }
+    match req.send().await {
+        Ok(r) if r.status().is_success() => {
+            let bytes = match r.bytes().await {
+                Ok(b) => b,
+                Err(e) => return (
+                    StatusCode::BAD_GATEWAY,
+                    format!("Lettura della risposta dal dispositivo fallita: {e}"),
+                ).into_response(),
+            };
+            // Il nome esce dal manifest del bundle, non dallo stato locale: è
+            // *questo* il progetto che il client sta per importare.
+            let (name, _users) = read_bundle_meta(&bytes);
+            let name = name.unwrap_or_else(|| "progetto".to_string());
+            Response::builder()
+                .status(StatusCode::OK)
+                .header("Content-Type", "application/zip")
+                .header("X-Project-Name", &name)
+                // Perché il browser possa leggere l'header su una risposta che
+                // il client consuma con fetch(): senza questo, `X-Project-Name`
+                // esiste ma `res.headers.get()` torna null.
+                .header("Access-Control-Expose-Headers", "X-Project-Name")
+                .header("Content-Disposition", format!("attachment; filename=\"{name}.zip\""))
+                .body(Body::from(bytes))
+                .unwrap()
+        }
+        // 503 = nessun progetto attivo sul dispositivo: non è un guasto, ed è
+        // l'unico caso in cui il messaggio deve dire cosa fare.
+        Ok(r) if r.status() == StatusCode::SERVICE_UNAVAILABLE => (
+            StatusCode::BAD_GATEWAY,
+            "Il dispositivo non ha un progetto attivo da scaricare.".to_string(),
+        ).into_response(),
+        Ok(r) => {
+            let code = r.status();
+            let body = r.text().await.unwrap_or_default();
+            (StatusCode::BAD_GATEWAY, format!("Il dispositivo ha risposto {code}: {body}")).into_response()
+        }
+        Err(e) => (StatusCode::BAD_GATEWAY, format!("Richiesta al dispositivo fallita: {e}")).into_response(),
+    }
+}
+
 /// `GET /api/remote/system` — stato RUNTIME/SISTEMA **del dispositivo
 /// connesso**, non del backend a cui l'editor è attaccato. Usata da
 /// `SystemTab` al posto di `GET /api/system` quando `remoteConnected` è

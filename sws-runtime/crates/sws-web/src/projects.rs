@@ -1092,6 +1092,14 @@ pub async fn upload_project_zip(
     };
 
     // 2. Determine the project name.
+    //
+    // Se il nome arriva dal chiamante e non dal manifest, alla fine va scritto
+    // anche DENTRO `project.yaml`: la lista progetti mostra il nome della
+    // cartella, l'intestazione dell'editor mostra `meta.name`, e senza questo
+    // allineamento lo stesso progetto compare con due nomi diversi nei due
+    // punti. Si vede appena si importa un bundle scegliendo un nome — cioè
+    // sempre, nel pull da un dispositivo.
+    let name_was_explicit = q.name.as_deref().is_some_and(|n| !n.trim().is_empty());
     let raw_name = match q.name.filter(|n| !n.trim().is_empty()) {
         Some(n) => n,
         None => {
@@ -1203,6 +1211,48 @@ pub async fn upload_project_zip(
                 warn!("upload_project_zip: read {entry_name}: {e}");
                 rollback(target.clone(), q.deploy).await;
                 return (StatusCode::INTERNAL_SERVER_ERROR, "zip read failed").into_response();
+            }
+        }
+    }
+
+    // 5. Allinea `meta.name` alla cartella quando il nome l'ha scelto il
+    //    chiamante. Si passa da `serde_yaml::Value` e non dalla struct
+    //    `Project` di proposito: il giro dalla struct tipizzata perderebbe le
+    //    chiavi che questo binario non conosce (bundle scritto da una versione
+    //    più nuova), stesso motivo per cui l'import usa `merge_preserved`.
+    //
+    //    In deploy è un no-op: `remote_deploy` passa il nome letto dal manifest,
+    //    quindi coincide già con quello dentro project.yaml.
+    if name_was_explicit {
+        let yaml_path = target.join("project.yaml");
+        if let Ok(text) = tokio::fs::read_to_string(&yaml_path).await {
+            match serde_yaml::from_str::<serde_yaml::Value>(&text) {
+                Ok(mut doc) => {
+                    let differs = doc.get("meta").and_then(|m| m.get("name")).and_then(|n| n.as_str())
+                        != Some(safe_name.as_str());
+                    if differs {
+                        if let Some(meta) = doc.get_mut("meta").and_then(|m| m.as_mapping_mut()) {
+                            meta.insert(
+                                serde_yaml::Value::String("name".into()),
+                                serde_yaml::Value::String(safe_name.clone()),
+                            );
+                            match serde_yaml::to_string(&doc) {
+                                Ok(out) => {
+                                    if let Err(e) = tokio::fs::write(&yaml_path, out).await {
+                                        warn!("upload_project_zip: rewrite meta.name: {e}");
+                                    } else {
+                                        info!(name = %safe_name, "meta.name allineato al nome scelto");
+                                    }
+                                }
+                                Err(e) => warn!("upload_project_zip: serialize project.yaml: {e}"),
+                            }
+                        }
+                    }
+                }
+                // Un project.yaml illeggibile è un problema che si manifesterà
+                // all'apertura con un messaggio molto più chiaro di qualunque
+                // cosa potremmo dire qui: non è questo il punto in cui fermarsi.
+                Err(e) => warn!("upload_project_zip: project.yaml non interpretabile, meta.name lasciato com'è: {e}"),
             }
         }
     }
