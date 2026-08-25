@@ -143,9 +143,9 @@ fn main() -> anyhow::Result<()> {
     // WS in background (avviato dentro spawn_tag_subscription) deve restare
     // vivo per tutta la finestra, non solo per la fetch iniziale.
     let rt = tokio::runtime::Runtime::new()?;
-    let (page, shared_tags, shared_alarms, lang_table) = rt.block_on(async {
+    let (page, shared_tags, reload_flag, shared_alarms, lang_table) = rt.block_on(async {
         let page = client::fetch_page(&args.base_url, &args.page).await?;
-        let shared_tags = client::spawn_tag_subscription(&args.base_url).await?;
+        let (shared_tags, reload_flag) = client::spawn_tag_subscription(&args.base_url).await?;
         let shared_alarms = client::spawn_alarm_subscription(&args.base_url).await?;
         // Non fatale: un progetto senza T-40 configurato (la maggioranza)
         // non ha nulla da tradurre — `LanguageTable::default()` (entries
@@ -158,7 +158,7 @@ fn main() -> anyhow::Result<()> {
                 eprintln!("[lang] impossibile leggere project.languages, nessuna traduzione attiva: {e}");
                 model::LanguageTable::default()
             });
-        anyhow::Ok((page, shared_tags, shared_alarms, lang_table))
+        anyhow::Ok((page, shared_tags, reload_flag, shared_alarms, lang_table))
     })?;
     let shared_lang: client::SharedLang = std::sync::Arc::new(std::sync::Mutex::new(lang_table.default.clone()));
 
@@ -235,6 +235,8 @@ fn main() -> anyhow::Result<()> {
         hor_res,
         ver_res,
         shared_tags,
+        reload_flag,
+        (page.id.clone(), page.name.clone()),
         styles,
         live_bindings,
         tag_tx,
@@ -434,6 +436,22 @@ fn run_window(
     hor_res: u32,
     ver_res: u32,
     shared_tags: SharedTagSnapshot,
+    // Alzato dal task WS quando il runtime dice che il progetto è cambiato
+    // (Q20): il ridisegno avviene QUI, nel thread del rendering, perché LVGL
+    // non è thread-safe e il task WS gira su tokio.
+    //
+    // Solo su questo backend, non su `run_drm`: quello è dichiarato non
+    // supportato su questi pannelli (Q19) e non vale la pena duplicarci il
+    // meccanismo finché resta tale.
+    reload_flag: client::ReloadFlag,
+    // Pagina mostrata adesso — id e nome — aggiornata a ogni navigazione:
+    // serve a sapere COSA rileggere quando arriva la notifica.
+    //
+    // Servono entrambi perché `id` è opzionale nello schema: i navbutton
+    // risolvono per id (chiave stabile), ma una pagina che non ne ha si può
+    // rileggere solo per nome, che è ciò che usa l'API REST. Sono cose diverse
+    // anche quando coincidono — vedi `client::resolve_page_by_id`.
+    mut current_page: (Option<String>, String),
     // `styles`/`live_bindings` presi per valore, non `&mut`: la navigazione
     // li sostituisce per intero (pagina nuova = widget nuovi), non li
     // aggiorna sul posto come fa `update_bindings` per i valori tag.
@@ -625,10 +643,49 @@ fn run_window(
                         // di test — vedi Q14.
                         styles = new_styles;
                         live_bindings = new_live;
+                        current_page = (new_page.id.clone(), new_page.name.clone());
                     }
                     Err(e) => eprintln!("[nav] rendering di '{target_page}' fallito: {e}"),
                 },
                 Err(e) => eprintln!("[nav] impossibile caricare pagina '{target_page}': {e}"),
+            }
+        }
+
+        // Ricarica: il progetto è cambiato mentre lo stavamo guardando (Q20).
+        //
+        // `swap` e non `load` + `store`: fra le due ci starebbe una notifica, e
+        // andrebbe persa. Così, se ne arriva un'altra durante il ridisegno, il
+        // flag resta alzato e si ricarica di nuovo al frame successivo.
+        //
+        // Si rilegge la pagina CORRENTE, non quella di partenza: chi ha
+        // navigato altrove deve restare dov'è, col contenuto aggiornato.
+        if reload_flag.swap(false, std::sync::atomic::Ordering::Relaxed) {
+            let (id, nome) = (&current_page.0, &current_page.1);
+            let letta = match id {
+                Some(id) => rt_handle.block_on(client::resolve_page_by_id(&base_url, id)),
+                None => rt_handle.block_on(client::fetch_page(&base_url, nome)),
+            };
+            match letta {
+                Ok(new_page) => match lvgl_render::render_page_objects(
+                    &new_page, &tags_now, &tag_tx, &nav_tx, &base_url, &rt_handle, &shared_alarms, &ack_tx,
+                    &lang_table, &shared_lang,
+                ) {
+                    Ok((summary, new_styles, new_live)) => {
+                        eprintln!(
+                            "[reload] '{}' ridisegnata: {} oggetti, {} non supportati",
+                            new_page.name,
+                            summary.rendered.len(),
+                            summary.skipped_unsupported.len()
+                        );
+                        styles = new_styles;
+                        live_bindings = new_live;
+                    }
+                    Err(e) => eprintln!("[reload] rendering fallito: {e} — resto sulla pagina di prima"),
+                },
+                // La pagina può essere sparita insieme al progetto vecchio: si
+                // resta su quella che c'è, sbagliata ma visibile, invece di
+                // lasciare lo schermo vuoto.
+                Err(e) => eprintln!("[reload] impossibile rileggere '{nome}': {e} — resto sulla pagina di prima"),
             }
         }
 

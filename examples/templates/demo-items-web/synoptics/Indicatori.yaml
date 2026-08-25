@@ -231,19 +231,19 @@ objects:
   width: 290.0
   height: 120.0
   points:
-  - - 0
-    - 40
-  - - 140
-    - 40
-  - - 140
-    - 110
-  - - 280
-    - 110
+  - - 650
+    - 242
+  - - 790
+    - 242
+  - - 790
+    - 312
+  - - 930
+    - 312
   stroke: '#475569'
   stroke_width: 18.0
   fill_color: '#0ea5e9'
   fill_level_tag: demo.sim.level
-  fill_level_scale: 100.0
+  fill_level_scale: 0-100
 - id: c_lang
   type: text
   x: 960.0

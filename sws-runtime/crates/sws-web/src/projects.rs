@@ -602,6 +602,9 @@ pub async fn open_project(
         &s.derived_tags, &s.functions, &s.config_dir, &s.instance_id,
     ).await;
     start_project_services(&s, notifications, global_scripts).await;
+    // Progetto diverso da quello di prima: chi ne sta disegnando una pagina
+    // deve ricominciare da capo (Q20).
+    crate::router::signal_project_changed(&s, "open");
 
     // 4. Swap auth store. Drops all sessions → forces re-login.
     if let Err(e) = s.auth.swap_store(project_dir.join("users.yaml"), seed).await {

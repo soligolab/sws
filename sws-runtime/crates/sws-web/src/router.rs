@@ -65,6 +65,20 @@ pub struct AppState {
     pub auth: Arc<AuthState>,
     pub supervisor: Arc<SourceSupervisor>,
     pub script_supervisor: ScriptSupervisorCell,
+    /// Contatore che avanza a ogni modifica del PROGETTO (non dei tag): import,
+    /// apertura, ripristino di un backup, salvataggio di un sinottico.
+    ///
+    /// Serve al viewer LVGL, che scarica la pagina una volta sola e non si
+    /// accorgerebbe mai di una modifica — si finiva a guardare una pagina
+    /// vecchia credendola nuova, e una volta è costato una diagnosi sbagliata
+    /// (OPEN_QUESTIONS Q20). `/ws/tags` inoltra un messaggio
+    /// `{"type":"project_changed"}` a ogni avanzamento e il viewer si ridisegna.
+    ///
+    /// `watch` e non `broadcast`: qui interessa solo "è cambiato qualcosa da
+    /// quando guardavo", non ricevere ogni singolo evento. Un `watch` non può
+    /// restare indietro, e perdere eventi intermedi è esattamente ciò che si
+    /// vuole quando la reazione è "ricarica tutto".
+    pub project_epoch: Arc<tokio::sync::watch::Sender<u64>>,
     pub functions: FunctionsRegistry,
     pub derived_tags: DerivedTagsRegistry,
     pub project_dir: ActiveProjectDir,
@@ -171,7 +185,13 @@ pub fn build(
     // avviare i servizi del progetto auto-aperto al boot (notifiche, script
     // globali) e quei supervisori vivono qui dentro.
 ) -> (Router, Router, AppState) {
-    let state = AppState { db, bus, alarms, historian, registry, py, auth, supervisor, script_supervisor, functions, derived_tags, project_dir, projects_root, templates_root, logs, logs_dir, started_at, ip_allowlist, recipe_log: Arc::new(RwLock::new(Vec::new())), notification_supervisor: Arc::new(RwLock::new(None)), telegram_sender: Arc::new(RwLock::new(None)), config_dir, cert_path, build_running: crate::packaging::new_build_lock(), repo_root: crate::packaging::new_repo_root(), remote_target: Arc::new(RwLock::new(None)), audit, known_projects, instance_id, project_switch_lock: Arc::new(tokio::sync::Mutex::new(())), deploy_lock: Arc::new(tokio::sync::Mutex::new(())) };
+    // Canale di notifica "il progetto è cambiato" (Q20). Creato qui e non
+    // passato dall'esterno: nessun chiamante di `build()` ha motivo di
+    // conoscerlo, e chi deve segnalare usa `signal_project_changed(&state, …)`.
+    let (project_epoch, _) = tokio::sync::watch::channel(0u64);
+    let project_epoch = Arc::new(project_epoch);
+
+    let state = AppState { db, bus, alarms, historian, registry, py, auth, supervisor, script_supervisor, project_epoch, functions, derived_tags, project_dir, projects_root, templates_root, logs, logs_dir, started_at, ip_allowlist, recipe_log: Arc::new(RwLock::new(Vec::new())), notification_supervisor: Arc::new(RwLock::new(None)), telegram_sender: Arc::new(RwLock::new(None)), config_dir, cert_path, build_running: crate::packaging::new_build_lock(), repo_root: crate::packaging::new_repo_root(), remote_target: Arc::new(RwLock::new(None)), audit, known_projects, instance_id, project_switch_lock: Arc::new(tokio::sync::Mutex::new(())), deploy_lock: Arc::new(tokio::sync::Mutex::new(())) };
     // Build the runtime router (8443) before consuming state for admin.
     let runtime_app = build_runtime_inner(state.clone(), www_dir.clone(), lockdown);
 
@@ -2801,6 +2821,10 @@ async fn import_project_zip(State(s): State<AppState>, body: Bytes) -> Response 
         "project import",
     );
 
+    // Il progetto è stato sostituito: chi lo sta guardando deve rileggerlo.
+    // È il caso che ha motivato Q20 — deploy dall'IDE, e il pannello che
+    // continuava a mostrare la pagina di prima.
+    signal_project_changed(&s, "import");
     StatusCode::NO_CONTENT.into_response()
 }
 
@@ -3204,6 +3228,9 @@ async fn save_synoptic(
         }
     }
 
+    // Una pagina salvata è una modifica al progetto: il viewer LVGL che la
+    // sta disegnando deve rileggerla (Q20).
+    signal_project_changed(&s, "synoptic");
     StatusCode::NO_CONTENT
 }
 
@@ -3670,15 +3697,32 @@ struct WriteAck {
     error: Option<String>,
 }
 
+/// Segnala che il PROGETTO è cambiato: chi guarda una pagina deve rileggerla.
+///
+/// Da chiamare dove il progetto viene sostituito o modificato sul disco, non a
+/// ogni scrittura di tag — quelle viaggiano già come delta su `/ws/tags` e non
+/// richiedono di ridisegnare niente.
+pub fn signal_project_changed(s: &AppState, what: &str) {
+    s.project_epoch.send_modify(|e| *e = e.wrapping_add(1));
+    tracing::debug!(what, "progetto cambiato: notificati i viewer connessi");
+}
+
 async fn ws_tags_handler(
     ws: WebSocketUpgrade,
     State(s): State<AppState>,
     axum::Extension(user): axum::Extension<AuthUser>,
 ) -> impl IntoResponse {
-    ws.on_upgrade(move |socket| handle_ws(socket, s.db, s.bus, user.role))
+    let epoch_rx = s.project_epoch.subscribe();
+    ws.on_upgrade(move |socket| handle_ws(socket, s.db, s.bus, user.role, epoch_rx))
 }
 
-async fn handle_ws(socket: WebSocket, db: Arc<TagDb>, bus: Arc<TagWriteBus>, role: Role) {
+async fn handle_ws(
+    socket: WebSocket,
+    db: Arc<TagDb>,
+    bus: Arc<TagWriteBus>,
+    role: Role,
+    mut epoch_rx: tokio::sync::watch::Receiver<u64>,
+) {
     use futures_util::{SinkExt, StreamExt};
     use std::collections::{HashMap, HashSet};
 
@@ -3763,6 +3807,16 @@ async fn handle_ws(socket: WebSocket, db: Arc<TagDb>, bus: Arc<TagWriteBus>, rol
                         }
                         Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
                     }
+                }
+                // Il progetto è cambiato sul disco: chi disegna una pagina deve
+                // rileggerla. Si manda una notifica secca, senza il contenuto:
+                // il client sa quale pagina sta guardando, il server no — e
+                // spedire l'intera pagina a ogni salvataggio, a chiunque sia
+                // connesso, costerebbe molto più del round-trip che risparmia.
+                res = epoch_rx.changed() => {
+                    if res.is_err() { break; }  // il mittente non c'è più: il runtime sta chiudendo
+                    let msg = serde_json::json!({ "type": "project_changed" }).to_string();
+                    if broadcast_tx.send(Message::Text(msg)).await.is_err() { break; }
                 }
                 _ = flush_tick.tick() => {
                     if pending.is_empty() { continue; }

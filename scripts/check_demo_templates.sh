@@ -142,6 +142,41 @@ check(not bad_ints, f"i {len(int_fields)} campi interi non contengono decimali")
 if bad_ints:
     print("      decimali dove serve un intero:", bad_ints)
 
+# ── coordinate dei pipe ──────────────────────────────────────────────────────
+#
+# I `points` di un pipe sono coordinate ASSOLUTE di pagina, non relative a x/y
+# dell'oggetto (`computeAnchor` in SvgCanvas.tsx restituisce `obj.x + w/2` per
+# un pipe agganciato). Scriverli relativi, partendo da 0,0, mette il tubo
+# nell'angolo in alto a sinistra sovrapposto a tutto il resto — ed è successo:
+# segnalato dal maintainer guardando il pannello, non trovato da nessun
+# controllo.
+#
+# Il segnale è che i punti stiano lontani dal riquadro dichiarato: se qualcuno
+# li ha scritti relativi, cadono attorno all'origine mentre x/y stanno altrove.
+print("\n\033[1mCoordinate dei pipe\033[0m")
+fuori = []
+for label, pages in (("Web", web), ("LVGL", lvgl)):
+    for name, p in pages.items():
+        for o in objects_of(p):
+            if o.get("type") != "pipe":
+                continue
+            pts = o.get("points") or []
+            if not pts:
+                continue
+            xs = [pt[0] if isinstance(pt, list) else pt.get("x") for pt in pts]
+            ys = [pt[1] if isinstance(pt, list) else pt.get("y") for pt in pts]
+            x, y = o.get("x", 0), o.get("y", 0)
+            w, h = o.get("width", 0), o.get("height", 0)
+            # tolleranza generosa: interessa scoprire "è nell'angolo opposto",
+            # non imporre che i punti tocchino esattamente il riquadro.
+            if min(xs) < x - w or max(xs) > x + 2 * w or min(ys) < y - h or max(ys) > y + 2 * h:
+                fuori.append(f"{label}/{name}/{o['id']}: punti x{min(xs)}..{max(xs)} y{min(ys)}..{max(ys)} "
+                             f"ma riquadro a ({x},{y}) {w}x{h}")
+check(not fuori, "i punti dei pipe stanno vicino al riquadro dichiarato (coordinate assolute)")
+for f in fuori:
+    print("      " + f)
+    print("      → i points sono assoluti di pagina; se partono da 0,0 sono stati scritti relativi")
+
 # ── i tag citati dalle pagine devono esistere nel progetto ───────────────────
 print("\n\033[1mTag\033[0m")
 for label, base, pages in (("Web", WEB, web), ("LVGL", LVGL, lvgl)):

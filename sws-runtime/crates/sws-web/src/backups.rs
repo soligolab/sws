@@ -261,6 +261,9 @@ pub async fn restore_backup_handler(
     match restore_backup(&dir, &name) {
         Ok(()) => {
             info!(backup = %name, "backup restored");
+            // Il progetto su disco è tornato indietro nel tempo: chi ne sta
+            // disegnando una pagina sta guardando qualcosa che non c'è più (Q20).
+            crate::router::signal_project_changed(&s, "restore");
             StatusCode::NO_CONTENT.into_response()
         }
         Err(e) => {

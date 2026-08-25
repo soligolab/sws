@@ -372,7 +372,16 @@ fn ws_url(base_url: &str, path: &str) -> anyhow::Result<String> {
 /// stato condiviso a ogni delta successivo per tutta la durata del processo.
 /// La connessione non viene mai chiusa esplicitamente: muore con il processo
 /// (comportamento accettabile per un viewer che gira finché non lo chiudi).
-pub async fn spawn_tag_subscription(base_url: &str) -> anyhow::Result<SharedTagSnapshot> {
+/// Segnale "il progetto è cambiato, rileggi la pagina".
+///
+/// Un flag e non un canale: al loop di rendering interessa solo *se* ricaricare
+/// prima del prossimo frame, non quante notifiche sono arrivate nel frattempo.
+/// Tre salvataggi in rapida successione devono produrre una ricarica sola.
+pub type ReloadFlag = Arc<std::sync::atomic::AtomicBool>;
+
+pub async fn spawn_tag_subscription(
+    base_url: &str,
+) -> anyhow::Result<(SharedTagSnapshot, ReloadFlag)> {
     let url = ws_url(base_url, "/ws/tags")?;
     let connector = tokio_tungstenite::Connector::Rustls(insecure_client_config());
     let (mut stream, _resp) =
@@ -402,6 +411,8 @@ pub async fn spawn_tag_subscription(base_url: &str) -> anyhow::Result<SharedTagS
 
     let shared: SharedTagSnapshot = Arc::new(Mutex::new(initial));
     let shared_bg = shared.clone();
+    let reload: ReloadFlag = Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let reload_bg = reload.clone();
 
     // Task in background: vive quanto il runtime tokio (main.rs lo tiene in
     // vita per tutto il programma). Nessun canale di shutdown esplicito —
@@ -434,6 +445,19 @@ pub async fn spawn_tag_subscription(base_url: &str) -> anyhow::Result<SharedTagS
                     continue;
                 }
             }
+            // Il progetto è cambiato sul disco: la pagina che stiamo
+            // disegnando non è più quella giusta. Si alza un flag e basta —
+            // ricaricare da qui vorrebbe dire toccare LVGL da un thread che
+            // non è quello del rendering, e LVGL non è thread-safe.
+            if text.contains("\"project_changed\"") {
+                if let Ok(v) = serde_json::from_str::<serde_json::Value>(&text) {
+                    if v.get("type").and_then(|t| t.as_str()) == Some("project_changed") {
+                        eprintln!("[ws] il progetto è cambiato: ricarico la pagina");
+                        reload_bg.store(true, std::sync::atomic::Ordering::Relaxed);
+                        continue;
+                    }
+                }
+            }
             if let Ok(snap) = serde_json::from_str::<WsSnapshotMsg>(&text) {
                 if snap.ty == "snapshot" {
                     let mut map = shared_bg.lock().unwrap_or_else(|e| e.into_inner());
@@ -444,7 +468,7 @@ pub async fn spawn_tag_subscription(base_url: &str) -> anyhow::Result<SharedTagS
         eprintln!("[ws] connessione /ws/tags terminata — i valori non si aggiorneranno più");
     });
 
-    Ok(shared)
+    Ok((shared, reload))
 }
 
 /// Sottoinsieme di `AlarmDef` (`sws-core::alarm`) che `alarm_viewer` in

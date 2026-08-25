@@ -236,7 +236,27 @@ else
 fi
 
 if [ "$WITH_LVGL" -eq 1 ]; then
-  LVGL_BIN="$LVGL_CRATE_DIR/target/$TARGET_TRIPLE/$PROFILE/sws-lvgl-viewer"
+  # Il binario esce nel target dir del WORKSPACE, non in uno locale al crate.
+  #
+  # Cambiato il 2026-08-25, quando sws-lvgl-viewer è entrato nel workspace: da
+  # allora cargo scrive in sws-runtime/target/ anche compilando con la cwd
+  # dentro il crate. Il vecchio percorso continuava a esistere con dentro un
+  # binario stantio, quindi questo script diceva "fatto" e consegnava una
+  # versione vecchia — senza un avviso. Costato un giro di deploy: le modifiche
+  # non comparivano e sembravano non funzionare.
+  LVGL_BIN="$REPO_ROOT/sws-runtime/target/$TARGET_TRIPLE/$PROFILE/sws-lvgl-viewer"
+
+  # Guardia contro il ripetersi del caso: se resta in giro un binario nel
+  # vecchio percorso, è spazzatura che può solo ingannare.
+  LVGL_BIN_VECCHIO="$LVGL_CRATE_DIR/target/$TARGET_TRIPLE/$PROFILE/sws-lvgl-viewer"
+  if [ -f "$LVGL_BIN_VECCHIO" ]; then
+    echo "[build] ATTENZIONE: trovato un binario nel vecchio percorso locale al crate," >&2
+    echo "[build]             residuo di prima che entrasse nel workspace. Lo rimuovo," >&2
+    echo "[build]             perché non venga spedito per errore:" >&2
+    echo "[build]             $LVGL_BIN_VECCHIO" >&2
+    rm -rf "$LVGL_CRATE_DIR/target"
+  fi
+
   if [ -f "$LVGL_BIN" ]; then
     LVGL_SIZE_HUMAN="$(du -h "$LVGL_BIN" | awk '{print $1}')"
     echo "[build] lvgl   : $LVGL_BIN  ($LVGL_SIZE_HUMAN)"
