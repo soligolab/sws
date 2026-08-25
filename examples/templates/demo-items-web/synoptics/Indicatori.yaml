@@ -1,0 +1,294 @@
+id: demo_p2
+name: Indicatori
+width: 1280.0
+height: 800.0
+background: '#0f172a'
+objects:
+- id: hdr_bg
+  type: rect
+  x: 0.0
+  y: 0.0
+  width: 1280.0
+  height: 56.0
+  fill: '#1e293b'
+- id: hdr_title
+  type: text
+  x: 20.0
+  y: 20.0
+  width: 620.0
+  height: 24.0
+  text: Demo Items — 2. Indicatori
+  font_size: 19.0
+  font_weight: bold
+  color: '#e2e8f0'
+- id: nav1
+  type: navbutton
+  x: 660.0
+  y: 12.0
+  width: 144.0
+  height: 32.0
+  label: 1. Base
+  target_page: Base e comandi
+  fill: '#334155'
+  group_id: nav
+  locked: true
+- id: nav2
+  type: navbutton
+  x: 812.0
+  y: 12.0
+  width: 144.0
+  height: 32.0
+  label: 2. Indicatori
+  target_page: Indicatori
+  fill: '#2563eb'
+  group_id: nav
+  locked: true
+- id: nav3
+  type: navbutton
+  x: 964.0
+  y: 12.0
+  width: 144.0
+  height: 32.0
+  label: 3. Grafici
+  target_page: Grafici e tabelle
+  fill: '#334155'
+  group_id: nav
+  locked: true
+- id: nav4
+  type: navbutton
+  x: 1116.0
+  y: 12.0
+  width: 144.0
+  height: 32.0
+  label: 4. Allarmi
+  target_page: Allarmi e composizione
+  fill: '#334155'
+  group_id: nav
+  locked: true
+- id: c_led
+  type: text
+  x: 30.0
+  y: 74.0
+  width: 290.0
+  height: 18.0
+  text: led — acceso quando in marcia
+  font_size: 12.0
+  color: '#94a3b8'
+- id: o_led
+  type: led
+  x: 30.0
+  y: 96.0
+  width: 56.0
+  height: 56.0
+  tag: demo.sim.running
+  on_color: '#22c55e'
+  off_color: '#334155'
+  on_value: 'true'
+- id: o_led2
+  type: led
+  x: 100.0
+  y: 96.0
+  width: 56.0
+  height: 56.0
+  tag: demo.sim.fault
+  on_color: '#ef4444'
+  off_color: '#334155'
+  on_value: 'true'
+- id: c_lamp
+  type: text
+  x: 340.0
+  y: 74.0
+  width: 290.0
+  height: 18.0
+  text: state_lamp — colore per modo operativo
+  font_size: 12.0
+  color: '#94a3b8'
+- id: o_lamp
+  type: state_lamp
+  x: 340.0
+  y: 96.0
+  width: 90.0
+  height: 56.0
+  tag: demo.sim.mode
+  text_list_entries:
+  - value: Auto
+    label: Auto
+    color: '#22c55e'
+  - value: Manuale
+    label: Manuale
+    color: '#f59e0b'
+  - value: Fermo
+    label: Fermo
+    color: '#64748b'
+- id: c_textlist
+  type: text
+  x: 650.0
+  y: 74.0
+  width: 290.0
+  height: 18.0
+  text: text_list — testo per valore
+  font_size: 12.0
+  color: '#94a3b8'
+- id: o_textlist
+  type: text_list
+  x: 650.0
+  y: 100.0
+  width: 290.0
+  height: 40.0
+  tag: demo.sim.mode
+  text_list_default: sconosciuto
+  text_list_default_color: '#64748b'
+  text_list_entries:
+  - value: Auto
+    label: In automatico
+    color: '#22c55e'
+  - value: Manuale
+    label: In manuale
+    color: '#f59e0b'
+  - value: Fermo
+    label: Fermo
+    color: '#94a3b8'
+- id: c_bell
+  type: text
+  x: 960.0
+  y: 74.0
+  width: 290.0
+  height: 18.0
+  text: alarm_bell — conta gli allarmi attivi
+  font_size: 12.0
+  color: '#94a3b8'
+- id: o_bell
+  type: alarm_bell
+  x: 960.0
+  y: 96.0
+  width: 64.0
+  height: 64.0
+  alarm_bell_show_history: true
+- id: c_gauge
+  type: text
+  x: 30.0
+  y: 180.0
+  width: 290.0
+  height: 18.0
+  text: gauge — livello con zone di soglia
+  font_size: 12.0
+  color: '#94a3b8'
+- id: o_gauge
+  type: gauge
+  x: 30.0
+  y: 202.0
+  width: 250.0
+  height: 190.0
+  tag: demo.sim.level
+  min: 0.0
+  max: 100.0
+  label: Livello
+  unit: '%'
+  warn_high: 70.0
+  alarm_high: 90.0
+- id: c_progress
+  type: text
+  x: 340.0
+  y: 180.0
+  width: 290.0
+  height: 18.0
+  text: progress_bar — rampa 0→100
+  font_size: 12.0
+  color: '#94a3b8'
+- id: o_progress
+  type: progress_bar
+  x: 340.0
+  y: 210.0
+  width: 290.0
+  height: 40.0
+  tag: demo.sim.ramp
+  min: 0.0
+  max: 100.0
+  fill: '#0ea5e9'
+- id: o_progress2
+  type: progress_bar
+  x: 340.0
+  y: 262.0
+  width: 290.0
+  height: 40.0
+  tag: demo.sim.level
+  min: 0.0
+  max: 100.0
+  fill: '#22c55e'
+- id: c_pipe
+  type: text
+  x: 650.0
+  y: 180.0
+  width: 290.0
+  height: 18.0
+  text: pipe — riempimento dal livello
+  font_size: 12.0
+  color: '#94a3b8'
+- id: o_pipe
+  type: pipe
+  x: 650.0
+  y: 202.0
+  width: 290.0
+  height: 120.0
+  points:
+  - - 0
+    - 40
+  - - 140
+    - 40
+  - - 140
+    - 110
+  - - 280
+    - 110
+  stroke: '#475569'
+  stroke_width: 18.0
+  fill_color: '#0ea5e9'
+  fill_level_tag: demo.sim.level
+  fill_level_scale: 100.0
+- id: c_lang
+  type: text
+  x: 960.0
+  y: 180.0
+  width: 290.0
+  height: 18.0
+  text: lang_button e lang_selector
+  font_size: 12.0
+  color: '#94a3b8'
+- id: o_langbtn_it
+  type: lang_button
+  x: 960.0
+  y: 202.0
+  width: 90.0
+  height: 36.0
+  label: IT
+  target_lang: it
+- id: o_langbtn_en
+  type: lang_button
+  x: 1060.0
+  y: 202.0
+  width: 90.0
+  height: 36.0
+  label: EN
+  target_lang: en
+- id: o_langsel
+  type: lang_selector
+  x: 960.0
+  y: 250.0
+  width: 190.0
+  height: 36.0
+- id: c_datalog
+  type: text
+  x: 30.0
+  y: 420.0
+  width: 290.0
+  height: 18.0
+  text: data_log — SOLO WEB
+  font_size: 12.0
+  color: '#94a3b8'
+- id: o_datalog
+  type: data_log
+  x: 30.0
+  y: 442.0
+  width: 600.0
+  height: 320.0
+  tag: demo.sim.pressure
+  datalog_page_size: 12.0

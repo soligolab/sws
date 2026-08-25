@@ -1,0 +1,16 @@
+# Configurazione a livello di workspace.
+#
+# `DEP_LV_CONFIG_PATH` dice a `lvgl-sys` dove trovare `lv_conf.h`. Serve qui, e
+# non solo nel config dentro il crate, perché dal 2026-08-25 `sws-lvgl-viewer`
+# fa parte del workspace: `cargo check --workspace` gira con la working
+# directory in `sws-runtime/`, e Cargo cerca `.cargo/config.toml` risalendo
+# dalla cwd — non dal manifest del crate. Senza questa riga la compilazione
+# fallisce con un messaggio su `lv_conf.h` che non spiega perché.
+#
+# `relative = true` risolve il percorso rispetto alla cartella che contiene
+# QUESTO file, quindi va scritto per intero da `sws-runtime/`. Il config dentro
+# il crate resta e continua a valere quando si compila da lì (ha la precedenza,
+# essendo più vicino alla cwd): serve a `scripts/yocto/build.sh`, che entra
+# nella cartella del crate per la cross-compilazione.
+[env]
+DEP_LV_CONFIG_PATH = { value = "crates/sws-lvgl-viewer/lv_conf", relative = true }

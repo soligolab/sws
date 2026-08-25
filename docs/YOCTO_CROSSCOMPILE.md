@@ -50,16 +50,30 @@
    If either is missing, the SDK was built without `python3-dev` — rebuild
    the Yocto SDK with `meta-pixsys` `python3-dev` in `TOOLCHAIN_TARGET_TASK`.
 
-6. **`clang` + `libclang-dev` on the host** — required by the LVGL viewer,
-   which is built **by default** since 2026-08-24:
+6. **`clang` + `libclang-dev` + `libsdl2-dev` on the host** — required by the
+   LVGL viewer, built **by default** since 2026-08-24:
 
    ```
-   sudo apt install clang libclang-dev
+   sudo apt install clang libclang-dev libsdl2-dev
    ```
 
    Both `lvgl-sys` and `sws-lvgl-viewer/build.rs` run bindgen, which loads
-   `libclang` at build time. Without it the build stops at the very first
-   LVGL crate. Skip the viewer with `--no-lvgl` if you don't want it.
+   `libclang` at build time; the viewer links SDL2.
+
+   **Dal 2026-08-25 questi tre pacchetti non sono più opzionali per chi tocca
+   il repo**, non solo per chi cross-compila: `sws-lvgl-viewer` è entrato nel
+   workspace, quindi `cargo check --workspace` e `cargo test --workspace` lo
+   compilano ed eseguono. Senza, il workspace non compila affatto.
+
+   Il motivo del cambio: finché era escluso, quel crate non era toccato né
+   dalla CI né dal `cargo check` che fa da definizione di fatto — ed è il crate
+   dove si sono concentrati i difetti (il crash della sparkline di Q22, i
+   binding che non si muovevano). I suoi 39 test ora girano sul PC di sviluppo
+   invece che solo cross-compilati ed eseguiti a mano sul pannello.
+
+   Il viewer si può ancora saltare nella **cross-compilazione** con
+   `--no-lvgl`; quello che non si può più saltare è la compilazione nativa del
+   workspace.
 
 7. **Sysroot contains SDL2 + libdrm dev files** (the LVGL viewer links both).
    Verified on 2026-08-24 — this closed a "not verified" note the scripts had

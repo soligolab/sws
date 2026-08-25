@@ -1,0 +1,284 @@
+id: demo_p1
+name: Base e comandi
+width: 1280.0
+height: 800.0
+background: '#0f172a'
+objects:
+- id: hdr_bg
+  type: rect
+  x: 0.0
+  y: 0.0
+  width: 1280.0
+  height: 56.0
+  fill: '#1e293b'
+- id: hdr_title
+  type: text
+  x: 20.0
+  y: 20.0
+  width: 620.0
+  height: 24.0
+  text: Demo Items — 1. Base e comandi
+  font_size: 19.0
+  font_weight: bold
+  color: '#e2e8f0'
+- id: nav1
+  type: navbutton
+  x: 660.0
+  y: 12.0
+  width: 144.0
+  height: 32.0
+  label: 1. Base
+  target_page: Base e comandi
+  fill: '#2563eb'
+  group_id: nav
+  locked: true
+- id: nav2
+  type: navbutton
+  x: 812.0
+  y: 12.0
+  width: 144.0
+  height: 32.0
+  label: 2. Indicatori
+  target_page: Indicatori
+  fill: '#334155'
+  group_id: nav
+  locked: true
+- id: nav3
+  type: navbutton
+  x: 964.0
+  y: 12.0
+  width: 144.0
+  height: 32.0
+  label: 3. Grafici
+  target_page: Grafici e tabelle
+  fill: '#334155'
+  group_id: nav
+  locked: true
+- id: nav4
+  type: navbutton
+  x: 1116.0
+  y: 12.0
+  width: 144.0
+  height: 32.0
+  label: 4. Allarmi
+  target_page: Allarmi e composizione
+  fill: '#334155'
+  group_id: nav
+  locked: true
+- id: c_rect
+  type: text
+  x: 30.0
+  y: 74.0
+  width: 290.0
+  height: 18.0
+  text: rect — riempimento e bordo
+  font_size: 12.0
+  color: '#94a3b8'
+- id: o_rect
+  type: rect
+  x: 30.0
+  y: 96.0
+  width: 290.0
+  height: 110.0
+  fill: '#0ea5e9'
+  stroke: '#38bdf8'
+  stroke_width: 3.0
+  corner_radius: 8.0
+- id: c_ellipse
+  type: text
+  x: 340.0
+  y: 74.0
+  width: 290.0
+  height: 18.0
+  text: ellipse — segue demo.cmd.slider (binding su x)
+  font_size: 12.0
+  color: '#94a3b8'
+- id: o_ellipse
+  type: ellipse
+  x: 340.0
+  y: 96.0
+  width: 110.0
+  height: 110.0
+  fill: '#f59e0b'
+  bindings:
+    x:
+      tag: demo.cmd.slider
+      in_min: 0
+      in_max: 100
+      out_min: 340
+      out_max: 830
+- id: c_line
+  type: text
+  x: 650.0
+  y: 74.0
+  width: 290.0
+  height: 18.0
+  text: line — spessore e colore
+  font_size: 12.0
+  color: '#94a3b8'
+- id: o_line
+  type: line
+  x: 650.0
+  y: 96.0
+  x2: 940.0
+  y2: 206.0
+  stroke: '#22c55e'
+  stroke_width: 4.0
+- id: c_text
+  type: text
+  x: 960.0
+  y: 74.0
+  width: 290.0
+  height: 18.0
+  text: text — valore formattato da un tag
+  font_size: 12.0
+  color: '#94a3b8'
+- id: o_text
+  type: text
+  x: 960.0
+  y: 110.0
+  width: 290.0
+  height: 40.0
+  tag: demo.sim.counter
+  format: 'Contatore: %d'
+  font_size: 22.0
+  font_weight: bold
+  color: '#e2e8f0'
+- id: o_text2
+  type: text
+  x: 960.0
+  y: 156.0
+  width: 290.0
+  height: 40.0
+  tag: demo.sim.pressure
+  format: '%.1f bar'
+  font_size: 22.0
+  color: '#f87171'
+- id: c_button
+  type: text
+  x: 30.0
+  y: 232.0
+  width: 290.0
+  height: 18.0
+  text: button — scrive demo.cmd.button
+  font_size: 12.0
+  color: '#94a3b8'
+- id: o_button
+  type: button
+  x: 30.0
+  y: 254.0
+  width: 200.0
+  height: 46.0
+  label: Premi
+  fill: '#2563eb'
+  tag: demo.cmd.button
+  write_value: 'true'
+- id: c_checkbox
+  type: text
+  x: 340.0
+  y: 232.0
+  width: 290.0
+  height: 18.0
+  text: checkbox — demo.cmd.enable
+  font_size: 12.0
+  color: '#94a3b8'
+- id: o_checkbox
+  type: checkbox
+  x: 340.0
+  y: 258.0
+  width: 250.0
+  height: 32.0
+  label: Abilitato
+  tag: demo.cmd.enable
+- id: c_radio
+  type: text
+  x: 650.0
+  y: 232.0
+  width: 290.0
+  height: 18.0
+  text: radio — demo.cmd.select
+  font_size: 12.0
+  color: '#94a3b8'
+- id: o_radio
+  type: radio
+  x: 650.0
+  y: 254.0
+  width: 250.0
+  height: 96.0
+  tag: demo.cmd.select
+  options:
+  - Locale
+  - Remoto
+  - Fuori servizio
+- id: c_setpoint
+  type: text
+  x: 960.0
+  y: 232.0
+  width: 290.0
+  height: 18.0
+  text: setpoint — demo.cmd.setpoint
+  font_size: 12.0
+  color: '#94a3b8'
+- id: o_setpoint
+  type: setpoint
+  x: 960.0
+  y: 254.0
+  width: 290.0
+  height: 48.0
+  label: Consegna
+  tag: demo.cmd.setpoint
+  min: 0.0
+  max: 200.0
+  step: 5.0
+- id: c_slider
+  type: text
+  x: 30.0
+  y: 376.0
+  width: 290.0
+  height: 18.0
+  text: slider — demo.cmd.slider, muove l'ellisse qui sopra
+  font_size: 12.0
+  color: '#94a3b8'
+- id: o_slider
+  type: slider
+  x: 30.0
+  y: 398.0
+  width: 600.0
+  height: 44.0
+  tag: demo.cmd.slider
+  min: 0.0
+  max: 100.0
+  step: 1.0
+  show_value: true
+  unit: '%'
+- id: c_symbol
+  type: text
+  x: 650.0
+  y: 376.0
+  width: 290.0
+  height: 18.0
+  text: symbol — colore dallo stato di marcia
+  font_size: 12.0
+  color: '#94a3b8'
+- id: o_symbol
+  type: symbol
+  x: 650.0
+  y: 398.0
+  width: 90.0
+  height: 90.0
+  symbol_id: pump
+  state_tag: demo.sim.running
+  state_on_color: '#22c55e'
+  state_off_color: '#64748b'
+  state_alarm_color: '#ef4444'
+- id: o_symbol2
+  type: symbol
+  x: 760.0
+  y: 398.0
+  width: 90.0
+  height: 90.0
+  symbol_id: valve
+  state_tag: demo.cmd.enable
+  state_on_color: '#22c55e'
+  state_off_color: '#64748b'
+  state_alarm_color: '#ef4444'

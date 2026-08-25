@@ -362,6 +362,13 @@ lv_chart_series_t * lv_chart_add_series(lv_obj_t * obj, lv_color_t color, lv_cha
 
     ser->start_point = 0;
     ser->y_ext_buf_assigned = false;
+    /* SWS patch (patches/lvgl/0001-init-x_ext_buf_assigned.patch):
+     * senza questa riga il campo resta com'era in memoria — la struct arriva da
+     * lv_mem_alloc e non è azzerata. lv_chart_set_point_count lo legge per
+     * decidere se riallocare x_points: con un bit di spazzatura a 1 salta la
+     * riallocazione ma aggiorna point_cnt lo stesso, e ogni
+     * lv_chart_set_value_by_id2 successiva scrive fuori dal buffer. */
+    ser->x_ext_buf_assigned = false;
     ser->hidden = 0;
     ser->x_axis_sec = axis & LV_CHART_AXIS_SECONDARY_X ? 1 : 0;
     ser->y_axis_sec = axis & LV_CHART_AXIS_SECONDARY_Y ? 1 : 0;

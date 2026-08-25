@@ -1,0 +1,149 @@
+id: demo_p4
+name: Allarmi e composizione
+width: 1280.0
+height: 800.0
+background: '#0f172a'
+objects:
+- id: hdr_bg
+  type: rect
+  x: 0.0
+  y: 0.0
+  width: 1280.0
+  height: 56.0
+  fill: '#1e293b'
+- id: hdr_title
+  type: text
+  x: 20.0
+  y: 20.0
+  width: 620.0
+  height: 24.0
+  text: Demo Items — 4. Allarmi e composizione
+  font_size: 19.0
+  font_weight: bold
+  color: '#e2e8f0'
+- id: nav1
+  type: navbutton
+  x: 660.0
+  y: 12.0
+  width: 144.0
+  height: 32.0
+  label: 1. Base
+  target_page: Base e comandi
+  fill: '#334155'
+  group_id: nav
+  locked: true
+- id: nav2
+  type: navbutton
+  x: 812.0
+  y: 12.0
+  width: 144.0
+  height: 32.0
+  label: 2. Indicatori
+  target_page: Indicatori
+  fill: '#334155'
+  group_id: nav
+  locked: true
+- id: nav3
+  type: navbutton
+  x: 964.0
+  y: 12.0
+  width: 144.0
+  height: 32.0
+  label: 3. Grafici
+  target_page: Grafici e tabelle
+  fill: '#334155'
+  group_id: nav
+  locked: true
+- id: nav4
+  type: navbutton
+  x: 1116.0
+  y: 12.0
+  width: 144.0
+  height: 32.0
+  label: 4. Allarmi
+  target_page: Allarmi e composizione
+  fill: '#2563eb'
+  group_id: nav
+  locked: true
+- id: c_banner
+  type: text
+  x: 30.0
+  y: 74.0
+  width: 290.0
+  height: 18.0
+  text: alarm_banner — l'allarme attivo più grave
+  font_size: 12.0
+  color: '#94a3b8'
+- id: o_banner
+  type: alarm_banner
+  x: 30.0
+  y: 96.0
+  width: 1220.0
+  height: 48.0
+- id: c_viewer
+  type: text
+  x: 30.0
+  y: 160.0
+  width: 290.0
+  height: 18.0
+  text: alarm_viewer — allarmi attivi, con conferma
+  font_size: 12.0
+  color: '#94a3b8'
+- id: o_viewer
+  type: alarm_viewer
+  x: 30.0
+  y: 182.0
+  width: 600.0
+  height: 250.0
+  alarm_viewer_max_rows: 6.0
+  alarm_viewer_show_ack: true
+- id: c_history
+  type: text
+  x: 650.0
+  y: 160.0
+  width: 290.0
+  height: 18.0
+  text: alarm_history — SOLO WEB
+  font_size: 12.0
+  color: '#94a3b8'
+- id: o_history
+  type: alarm_history
+  x: 650.0
+  y: 182.0
+  width: 600.0
+  height: 250.0
+  alarm_viewer_max_rows: 6.0
+- id: c_faceplate
+  type: text
+  x: 30.0
+  y: 452.0
+  width: 290.0
+  height: 18.0
+  text: faceplate — istanza di motor_basic
+  font_size: 12.0
+  color: '#94a3b8'
+- id: o_faceplate
+  type: faceplate
+  x: 30.0
+  y: 474.0
+  width: 290.0
+  height: 150.0
+  faceplate_id: motor_basic
+  faceplate_params:
+    tag_prefix: demo.sim.motor
+    label: Motore demo
+- id: c_recipe
+  type: text
+  x: 650.0
+  y: 452.0
+  width: 290.0
+  height: 18.0
+  text: recipe_panel — ricette del progetto
+  font_size: 12.0
+  color: '#94a3b8'
+- id: o_recipe
+  type: recipe_panel
+  x: 650.0
+  y: 474.0
+  width: 600.0
+  height: 250.0

@@ -1,0 +1,300 @@
+meta:
+  name: demo-items-lvgl
+  version: 1.0.0
+
+# Target LVGL fin dalla creazione: il campo sopravvive alla copia del template
+# (`create_project` copia project.yaml così com'è; il target del wizard vale
+# solo per i progetti vuoti).
+#
+# NB: `framebuffer_device` NON è la strada in uso. Su questi pannelli il viewer
+# gira via SDL2/XWayland — il percorso DRM/framebuffer è bloccato dai permessi
+# (l'utente non è nei gruppi video/input, vedi OPEN_QUESTIONS Q19). Il campo
+# resta per dire "questo progetto è per il pannello", non per indicare un
+# device da aprire.
+target:
+  kind: lvgl_framebuffer
+
+# ── Perché questo template esiste ────────────────────────────────────────────
+#
+# È il banco di prova dei due motori di rendering. Esiste in due varianti
+# gemelle, `demo-items-web` e `demo-items-lvgl`, con le STESSE pagine, gli
+# STESSI id e le STESSE coordinate: la variante LVGL omette soltanto i quattro
+# tipi che LVGL non disegna (`image`, `kpi_tile`, `alarm_history`, `data_log`).
+#
+# Serve a poter aprire la stessa pagina sul browser e sul pannello e
+# confrontarle a colpo d'occhio. Qualunque differenza è un difetto di parità
+# del motore, non una differenza di progetto — che è esattamente quello che
+# serve al lavoro F9c.
+#
+# ── Perché nessuna sorgente ──────────────────────────────────────────────────
+#
+# Il template precedente (`demo-items`) dipendeva dal broker pubblico
+# `broker.freemqtt.com`. Su un pannello senza Internet, o col broker giù, la
+# demo sembrava rotta pur essendo sana: un banco di prova che mente non serve a
+# provare niente.
+#
+# Qui i dati li muove uno script Python interno (vedi `global_scripts` in
+# fondo). Verificato il 2026-08-24: dentro il container sul WP630 ci sono
+# libpython3.12 e Python 3.12.3, quindi gira sul pannello anche staccato dalla
+# rete.
+
+# ── Tag ──────────────────────────────────────────────────────────────────────
+#
+# Due famiglie separate, e la separazione NON è cosmetica:
+#
+#   demo.sim.*  li scrive lo script. Non metterci sopra widget di comando.
+#   demo.cmd.*  li scrivono i widget (slider, setpoint, checkbox, bottoni).
+#               Lo script non li tocca mai.
+#
+# Mescolarle darebbe un widget che combatte col dito dell'utente: trascini lo
+# slider, un secondo dopo lo script riscrive il valore e il cursore torna
+# indietro. Sembrerebbe un difetto del touch e sarebbe un difetto del template.
+tags:
+  # ── simulati: storico attivo dove serve a trend/sparkline/xy_plot ──
+  - id: demo.sim.ramp
+    description: "Rampa 0→100 in 60 s, poi riparte. Traccia 1 del trend e sorgente della progress bar."
+    data_type: float
+    history: true
+  - id: demo.sim.wave
+    description: "Sinusoide 0-100 con periodo 40 s. Traccia 2 del trend e sorgente della sparkline."
+    data_type: float
+    history: true
+  - id: demo.sim.pressure
+    description: "Pressione simulata 0-120 bar. Attraversa da sola le soglie di allarme (70 e 90), così allarmi, banner, campanella e storico hanno qualcosa da mostrare senza che nessuno tocchi niente."
+    data_type: float
+    history: true
+  - id: demo.sim.flow
+    description: "Portata simulata, in ritardo di fase sulla pressione: è l'asse Y dell'xy_plot, con la pressione sulla X."
+    data_type: float
+    history: true
+  - id: demo.sim.level
+    description: "Livello 0-100 del serbatoio. Riempimento del pipe e del gauge."
+    data_type: float
+    history: true
+  - id: demo.sim.counter
+    description: "Contatore monotono, un passo al secondo. Testo formattato e prima colonna della tabella."
+    data_type: int
+  - id: demo.sim.running
+    description: "Marcia simulata: commuta ogni 12 s. Guida led, lampada di stato e colore del simbolo."
+    data_type: bool
+  - id: demo.sim.fault
+    description: "Guasto simulato: impulso raro (circa ogni 90 s, dura 8 s). Serve a far comparire un allarme critico diverso dalla soglia di pressione, così lo storico non ha una riga sola."
+    data_type: bool
+  - id: demo.sim.mode
+    description: "Modo operativo: ciclo Auto → Manuale → Fermo ogni 15 s. Sorgente del text_list e della lampada di stato."
+    data_type: string
+  - id: demo.sim.bar_a
+    description: "Prima serie del grafico a barre."
+    data_type: float
+  - id: demo.sim.bar_b
+    description: "Seconda serie del grafico a barre."
+    data_type: float
+  - id: demo.sim.bar_c
+    description: "Terza serie del grafico a barre — può andare negativa, per provare le barre sotto lo zero."
+    data_type: float
+  - id: demo.sim.pie_a
+    description: "Prima fetta del grafico a torta."
+    data_type: float
+  - id: demo.sim.pie_b
+    description: "Seconda fetta del grafico a torta."
+    data_type: float
+  - id: demo.sim.pie_c
+    description: "Terza fetta del grafico a torta."
+    data_type: float
+
+  # ── faceplate motor_basic: i suffissi li impone il faceplate stesso
+  #    (`{tag_prefix}.running`, `.speed`, `.fault`), non sono a scelta ──
+  - id: demo.sim.motor.running
+    description: "Faceplate motor_basic: motore in marcia."
+    data_type: bool
+  - id: demo.sim.motor.speed
+    description: "Faceplate motor_basic: giri al minuto."
+    data_type: float
+    history: true
+  - id: demo.sim.motor.fault
+    description: "Faceplate motor_basic: guasto motore."
+    data_type: bool
+
+  # ── comandi: li scrivono i widget, lo script non li tocca ──
+  - id: demo.cmd.slider
+    description: "Scritto trascinando lo slider. Con un binding sposta l'ellisse della pagina 1: è la prova del movimento degli oggetti."
+    data_type: float
+  - id: demo.cmd.setpoint
+    description: "Scritto dal widget setpoint (+/-)."
+    data_type: float
+  - id: demo.cmd.enable
+    description: "Scritto dalla checkbox."
+    data_type: bool
+  - id: demo.cmd.select
+    description: "Scritto dai radio button."
+    data_type: string
+  - id: demo.cmd.button
+    description: "Scritto dal pulsante (write_value). Torna a false da solo dopo un secondo, così il pulsante si può ripremere."
+    data_type: bool
+
+sources: []
+
+alarms:
+  - id: demo.pressure_warning
+    tag: demo.sim.pressure
+    condition:
+      kind: above
+      threshold: 70.0
+    message: "Pressione sopra 70 bar"
+    severity: Warning
+  - id: demo.pressure_critical
+    tag: demo.sim.pressure
+    condition:
+      kind: above
+      threshold: 90.0
+    message: "Pressione sopra 90 bar — critico"
+    severity: Critical
+  - id: demo.motor_fault
+    tag: demo.sim.fault
+    condition:
+      kind: bool_true
+    message: "Guasto motore simulato"
+    severity: Critical
+
+functions: []
+custom_symbols: []
+datastores: []
+
+# ── Lo script che anima tutto ────────────────────────────────────────────────
+#
+# Sta in `global_scripts`, quindi è parte del progetto: viaggia nel bundle, nei
+# backup e nel deploy, ed è visibile e modificabile nell'IDE sotto
+# Configurazione → Script. Salvandolo, il supervisore lo ricarica a caldo senza
+# riavviare il runtime.
+#
+# Un solo script invece di cinque piccoli: il tempo lo ricava tutto da
+# `demo.sim.counter`, e tenerlo in un posto solo evita che due script leggano
+# due valori diversi dello stesso secondo.
+global_scripts:
+  - id: demo-sim
+    enabled: true
+    trigger:
+      kind: interval
+      interval_s: 1
+    code: |
+      # Anima i tag demo.sim.* — un passo al secondo.
+      #
+      # NIENTE `import`: il runtime esegue gli script globali dentro
+      # RestrictedPython con `safe_builtins`, che blocca `__import__`. Un
+      # `import math` qui fallisce sul dispositivo con
+      # "ImportError: __import__ not found" a ogni tick.
+      #
+      # Attenzione: sul PC di sviluppo RestrictedPython di solito NON è
+      # installato, e il runtime allora ricade sull'esecuzione non ristretta —
+      # dove `import math` funziona benissimo. Uno script provato solo lì passa
+      # e poi si rompe sul pannello. Misurato il 2026-08-25, e costato un giro
+      # di deploy.
+      #
+      # Concessi da safe_builtins: int float round abs len range bool str pow
+      # divmod. BLOCCATI, fra gli altri: min max list enumerate sum.
+      #
+      # Il tempo viene dal contatore, non dall'orologio: così l'andamento è
+      # ripetibile e non dipende da quando è stato aperto il progetto.
+      # `demo.cmd.*` non si tocca: quelli sono dell'utente.
+
+      def wave(step, period, offset, amplitude):
+          """Seno di ampiezza `amplitude` attorno a `offset`, periodo in secondi.
+
+          La tabella sta DENTRO la funzione, e non è una svista. Il runtime
+          esegue lo script con `exec(codice, globals, {})`: le assegnazioni di
+          primo livello finiscono in un dizionario locale usa-e-getta, mentre
+          le funzioni definite qui vedono solo `globals`. Una costante definita
+          fuori dà quindi "NameError" appena la funzione la usa — misurato sul
+          WP630 il 2026-08-25. Vale per qualunque script globale, non solo per
+          questo: dentro una funzione, porta con te tutto quello che ti serve.
+
+          Sostituisce math.sin, che non si può importare (vedi sopra): 32 punti
+          con interpolazione lineare, indistinguibili da un seno vero a questa
+          scala.
+          """
+          sin = [
+              0.0, 0.1951, 0.3827, 0.5556, 0.7071, 0.8315, 0.9239, 0.9808,
+              1.0, 0.9808, 0.9239, 0.8315, 0.7071, 0.5556, 0.3827, 0.1951,
+              0.0, -0.1951, -0.3827, -0.5556, -0.7071, -0.8315, -0.9239, -0.9808,
+              -1.0, -0.9808, -0.9239, -0.8315, -0.7071, -0.5556, -0.3827, -0.1951,
+          ]
+          x = (float(step) / float(period)) * 32.0
+          x = x - int(x / 32.0) * 32.0
+          i = int(x)
+          f = x - i
+          return round(offset + amplitude * (sin[i] * (1.0 - f) + sin[(i + 1) % 32] * f), 2)
+
+      t = tags.read("demo.sim.counter")
+      t = 0 if t is None else int(t) + 1
+      tags.write("demo.sim.counter", t)
+
+      # Rampa: 0→100 in 60 s, poi riparte di colpo. Il gradino serve: mette
+      # alla prova l'autofit del trend, che su una curva liscia non si vede.
+      tags.write("demo.sim.ramp", round((t % 60) * 100.0 / 60.0, 2))
+
+      # Sinusoide, periodo 40 s.
+      tags.write("demo.sim.wave", wave(t, 40, 50.0, 45.0))
+
+      # Pressione: periodo 50 s con picco a 110, così attraversa da sola sia la
+      # soglia di 70 (attenzione) sia quella di 90 (critico) e poi rientra.
+      # Senza questo, allarmi e storico resterebbero vuoti a meno di forzare i
+      # valori a mano.
+      tags.write("demo.sim.pressure", wave(t, 50, 55.0, 55.0))
+
+      # Portata: stessa forma della pressione ma sfasata di un quarto di
+      # periodo, così l'xy_plot disegna un anello invece di una retta.
+      tags.write("demo.sim.flow", wave(t + 12, 50, 50.0, 40.0))
+
+      # Livello: triangolare lenta, 0→100→0 in 120 s.
+      p = t % 120
+      tags.write("demo.sim.level", round(p * 100.0 / 60.0 if p < 60 else (120 - p) * 100.0 / 60.0, 2))
+
+      # Marcia: commuta ogni 12 s.
+      running = (t // 12) % 2 == 0
+      tags.write("demo.sim.running", running)
+
+      # Guasto: impulso di 8 s ogni 90. Raro di proposito — un guasto sempre
+      # attivo non fa vedere la transizione, che è la cosa interessante.
+      tags.write("demo.sim.fault", (t % 90) < 8)
+
+      # Modo: Auto → Manuale → Fermo, 15 s ciascuno.
+      tags.write("demo.sim.mode", ["Auto", "Manuale", "Fermo"][(t // 15) % 3])
+
+      # Barre: tre serie con andamenti diversi; la terza va sotto zero, perché
+      # le barre negative sono un caso che si rompe facilmente.
+      tags.write("demo.sim.bar_a", wave(t, 30, 40.0, 30.0))
+      tags.write("demo.sim.bar_b", wave(t, 45, 55.0, 25.0))
+      tags.write("demo.sim.bar_c", wave(t, 25, -20.0, 45.0))
+
+      # Torta: tre fette che cambiano proporzione ma restano positive.
+      tags.write("demo.sim.pie_a", wave(t, 35, 30.0, 15.0))
+      tags.write("demo.sim.pie_b", wave(t, 55, 35.0, 15.0))
+      tags.write("demo.sim.pie_c", wave(t, 20, 25.0, 10.0))
+
+      # Faceplate motore.
+      tags.write("demo.sim.motor.running", running)
+      tags.write("demo.sim.motor.speed", wave(t, 18, 1450.0, 60.0) if running else 0.0)
+      tags.write("demo.sim.motor.fault", (t % 90) < 8)
+
+      # Il pulsante si auto-rilascia dopo un secondo. È l'unico demo.cmd.*
+      # toccato dallo script, e solo per rimetterlo a false: senza, dopo il
+      # primo click resterebbe premuto per sempre e non si potrebbe riprovare.
+      if tags.read("demo.cmd.button"):
+          tags.write("demo.cmd.button", False)
+
+languages:
+  default: "it"
+  langs: ["it", "en"]
+  entries:
+    - key: page_title
+      values:
+        it: "Demo oggetti"
+        en: "Items demo"
+    - key: commands
+      values:
+        it: "Comandi"
+        en: "Commands"
+    - key: motor
+      values:
+        it: "Motore"
+        en: "Motor"

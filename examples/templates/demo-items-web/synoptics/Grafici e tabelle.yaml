@@ -1,0 +1,286 @@
+id: demo_p3
+name: Grafici e tabelle
+width: 1280.0
+height: 800.0
+background: '#0f172a'
+objects:
+- id: hdr_bg
+  type: rect
+  x: 0.0
+  y: 0.0
+  width: 1280.0
+  height: 56.0
+  fill: '#1e293b'
+- id: hdr_title
+  type: text
+  x: 20.0
+  y: 20.0
+  width: 620.0
+  height: 24.0
+  text: Demo Items — 3. Grafici e tabelle
+  font_size: 19.0
+  font_weight: bold
+  color: '#e2e8f0'
+- id: nav1
+  type: navbutton
+  x: 660.0
+  y: 12.0
+  width: 144.0
+  height: 32.0
+  label: 1. Base
+  target_page: Base e comandi
+  fill: '#334155'
+  group_id: nav
+  locked: true
+- id: nav2
+  type: navbutton
+  x: 812.0
+  y: 12.0
+  width: 144.0
+  height: 32.0
+  label: 2. Indicatori
+  target_page: Indicatori
+  fill: '#334155'
+  group_id: nav
+  locked: true
+- id: nav3
+  type: navbutton
+  x: 964.0
+  y: 12.0
+  width: 144.0
+  height: 32.0
+  label: 3. Grafici
+  target_page: Grafici e tabelle
+  fill: '#2563eb'
+  group_id: nav
+  locked: true
+- id: nav4
+  type: navbutton
+  x: 1116.0
+  y: 12.0
+  width: 144.0
+  height: 32.0
+  label: 4. Allarmi
+  target_page: Allarmi e composizione
+  fill: '#334155'
+  group_id: nav
+  locked: true
+- id: c_trend
+  type: text
+  x: 30.0
+  y: 74.0
+  width: 290.0
+  height: 18.0
+  text: trend — due tracce, storico dal datastore
+  font_size: 12.0
+  color: '#94a3b8'
+- id: o_trend
+  type: trend
+  x: 30.0
+  y: 96.0
+  width: 600.0
+  height: 250.0
+  window_s: 120.0
+  trend_tags:
+  - tag: demo.sim.ramp
+    label: Rampa
+    color: '#0ea5e9'
+  - tag: demo.sim.wave
+    label: Onda
+    color: '#f59e0b'
+- id: c_spark
+  type: text
+  x: 650.0
+  y: 74.0
+  width: 290.0
+  height: 18.0
+  text: sparkline — una traccia, nuda
+  font_size: 12.0
+  color: '#94a3b8'
+- id: o_spark
+  type: sparkline
+  x: 650.0
+  y: 96.0
+  width: 290.0
+  height: 90.0
+  tag: demo.sim.wave
+  spark_color: '#22c55e'
+  spark_window_s: 120.0
+- id: c_xy
+  type: text
+  x: 960.0
+  y: 74.0
+  width: 290.0
+  height: 18.0
+  text: xy_plot — pressione contro portata
+  font_size: 12.0
+  color: '#94a3b8'
+- id: o_xy
+  type: xy_plot
+  x: 960.0
+  y: 96.0
+  width: 290.0
+  height: 250.0
+  tag: demo.sim.pressure
+  y_tag: demo.sim.flow
+  xy_x_min: 0.0
+  xy_x_max: 120.0
+  xy_y_min: 0.0
+  xy_y_max: 100.0
+  xy_trail_s: 60.0
+- id: c_bar
+  type: text
+  x: 30.0
+  y: 366.0
+  width: 290.0
+  height: 18.0
+  text: bar_chart — tre serie, la terza va sotto zero
+  font_size: 12.0
+  color: '#94a3b8'
+- id: o_bar
+  type: bar_chart
+  x: 30.0
+  y: 388.0
+  width: 290.0
+  height: 220.0
+  bar_series:
+  - tag: demo.sim.bar_a
+    label: A
+    color: '#0ea5e9'
+  - tag: demo.sim.bar_b
+    label: B
+    color: '#22c55e'
+  - tag: demo.sim.bar_c
+    label: C
+    color: '#f59e0b'
+- id: c_pie
+  type: text
+  x: 340.0
+  y: 366.0
+  width: 290.0
+  height: 18.0
+  text: pie_chart — ad anello
+  font_size: 12.0
+  color: '#94a3b8'
+- id: o_pie
+  type: pie_chart
+  x: 340.0
+  y: 388.0
+  width: 250.0
+  height: 220.0
+  pie_mode: donut
+  pie_inner_ratio: 0.55
+  pie_slices:
+  - tag: demo.sim.pie_a
+    label: Uno
+    color: '#0ea5e9'
+  - tag: demo.sim.pie_b
+    label: Due
+    color: '#22c55e'
+  - tag: demo.sim.pie_c
+    label: Tre
+    color: '#f59e0b'
+- id: c_table
+  type: text
+  x: 650.0
+  y: 366.0
+  width: 290.0
+  height: 18.0
+  text: table — righe con tag e formato
+  font_size: 12.0
+  color: '#94a3b8'
+- id: o_table
+  type: table
+  x: 650.0
+  y: 388.0
+  width: 290.0
+  height: 220.0
+  label: Valori
+  table_rows:
+  - label: Pressione
+    tag: demo.sim.pressure
+    format: '%.1f bar'
+  - label: Portata
+    tag: demo.sim.flow
+    format: '%.1f l/m'
+  - label: Livello
+    tag: demo.sim.level
+    format: '%.0f %%'
+  - label: Modo
+    tag: demo.sim.mode
+- id: c_grid
+  type: text
+  x: 960.0
+  y: 366.0
+  width: 290.0
+  height: 18.0
+  text: grid — celle con oggetti dentro
+  font_size: 12.0
+  color: '#94a3b8'
+- id: o_grid
+  type: grid
+  x: 960.0
+  y: 388.0
+  width: 290.0
+  height: 220.0
+  grid_rows: 2
+  grid_cols: 2
+  grid_show_borders: true
+  grid_border_color: '#334155'
+  grid_cells:
+  - row: 0
+    col: 0
+    objects:
+    - id: g_led
+      type: led
+      x: 20.0
+      y: 20.0
+      width: 40.0
+      height: 40.0
+      tag: demo.sim.running
+      on_color: '#22c55e'
+      off_color: '#334155'
+      on_value: 'true'
+  - row: 0
+    col: 1
+    objects:
+    - id: g_text
+      type: text
+      x: 10.0
+      y: 30.0
+      width: 120.0
+      height: 24.0
+      tag: demo.sim.counter
+      format: '%d'
+      font_size: 18.0
+      color: '#e2e8f0'
+  - row: 1
+    col: 0
+    objects:
+    - id: g_rect
+      type: rect
+      x: 15.0
+      y: 20.0
+      width: 110.0
+      height: 45.0
+      fill: '#0ea5e9'
+  - row: 1
+    col: 1
+    objects:
+    - id: g_lamp
+      type: state_lamp
+      x: 15.0
+      y: 22.0
+      width: 100.0
+      height: 40.0
+      tag: demo.sim.mode
+      text_list_entries:
+      - value: Auto
+        label: A
+        color: '#22c55e'
+      - value: Manuale
+        label: M
+        color: '#f59e0b'
+      - value: Fermo
+        label: F
+        color: '#64748b'

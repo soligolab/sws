@@ -8,70 +8,96 @@
 
 ## ▶ Da fare nella prossima sessione
 
-> **Sessione del 2026-08-24 (ufficio).** Sei branch aperti, tutti spinti su origin, **nessuno
-> mergiato**: mancano le tue conferme. Il lavoro riprende da qui. La build è verde su tutt'e due i
-> lati sulla punta di `feat/lvgl-trend-tags`.
+> **Sessione del 2026-08-25 (ufficio).** Otto branch aperti, tutti spinti, **nessuno mergiato**.
+> Build verdi sulla punta di `feat/template-demo-items`.
 
-### 0. Dove eravamo — branch aperti, in ordine di impilamento
+### 0. Branch aperti, in ordine di impilamento
 
 Sono impilati uno sull'altro (ciascuno contiene i precedenti), quindi vanno mergiati **in
 quest'ordine**, con squash, e solo dopo che hai confermato che la cosa funziona:
 
 | Branch | Cosa | Confermato? |
 |---|---|---|
-| `feat/ide-pull-progetto` | Riaprire nell'IDE il progetto che gira sul dispositivo | ❌ da provare |
-| `feat/lvgl-movimento` | Gli oggetti si muovono davvero coi binding | ✅ **confermato a schermo** |
+| `feat/ide-pull-progetto` | Riaprire nell'IDE il progetto che gira sul dispositivo | ❌ **da provare** |
+| `feat/lvgl-movimento` | Gli oggetti si muovono davvero coi binding | ✅ confermato a schermo |
 | `fix/mdns-reti-multiple` | "Cerca runtime" su dispositivi con due schede | ✅ provato dal vivo sul WP630 |
 | `feat/mqtt-skip-verify` | `insecure_skip_verify` fa quello che dice | ✅ provato contro un broker vero |
-| `feat/lvgl-trend-tags` | I trend LVGL leggono `trend_tags[]` | ⚠️ test verdi, **mai visto a schermo** |
-| `feat/template-demo-items` | *(vuoto — solo il piano, il lavoro è da fare)* | — |
+| `feat/lvgl-trend-tags` | I trend LVGL leggono `trend_tags[]` | ✅ visti a schermo il 2026-08-25 |
+| `fix/script-supervisor-leak` | Niente supervisori di script duplicati | ✅ misurato |
+| `feat/template-demo-items` | Template gemelli, crash sparkline, decisioni sulle domande aperte | ✅ quattro pagine reggono |
 
-⚠️ **`main` ha un commit di funzionalità diretto**, `6b9f8d0` (binding generici LVGL): l'ho messo lì
-prima di aprire il primo branch, contro la regola 2 di `CLAUDE.md`. È già dentro e funziona (l'hai
-confermato), ma è una deviazione da sapere, non da scoprire.
+⚠️ **`main` ha un commit di funzionalità diretto**, `6b9f8d0` (binding generici LVGL): messo lì
+prima di aprire il primo branch, contro la regola 2 di `CLAUDE.md`. È dentro e funziona (confermato),
+ma è una deviazione da sapere, non da scoprire.
 
-### 1. Template gemelli "Demo Items - Web" e "Demo Items - LVGL" — **il lavoro in corso**
+### 1. Novità del 2026-08-25
 
-Piano completo e approvato in [docs/plans/2026-08-24-template-demo-items.md](docs/plans/2026-08-24-template-demo-items.md).
-Branch `feat/template-demo-items`, ancora **vuoto**: c'è solo l'analisi, il lavoro è tutto da fare.
+- **Template gemelli** `demo-items-web` (35 tipi su 35) e `demo-items-lvgl` (31 su 31) al posto di
+  `demo-items` e `lvgl-demo`. Stesse pagine, stessi id, stesse coordinate: aprendo la stessa pagina
+  sui due motori, ogni differenza è un difetto di parità. Generati da una definizione sola;
+  `scripts/check_demo_templates.sh` verifica copertura, parità, tipi e tag.
+  I dati li anima uno **script Python interno** (1 Hz), quindi niente broker: la pressione simulata
+  attraversa da sola le soglie e fa vivere allarmi, banner, campanella e storico.
+- **Difetto del runtime corretto** (`fix/script-supervisor-leak`): `POST /api/system/start` avviava
+  i supervisori senza fermare quelli attivi. Premere "Avvia" due volte lasciava due script globali
+  a girare sugli stessi tag. Trovato contando le righe di log: 20 esecuzioni in 10 s per un solo
+  script a 1 Hz.
+- **Q22 — crash della sparkline: causa trovata e aggirata.** La pagina "Grafici e tabelle" usciva
+  con SIGSEGV entro 8 secondi. Non era codice nostro: `lv_chart_add_series` di LVGL inizializza
+  `y_ext_buf_assigned` ma **mai `x_ext_buf_assigned`**, e la struct viene da `lv_mem_alloc`. Se
+  quella spazzatura vale 1, `lv_chart_set_point_count` salta la riallocazione di `x_points` ma
+  aggiorna `point_cnt` lo stesso, e ogni scrittura successiva esce dal buffer da 10 elementi.
+  Spiega perché crashava la sparkline e non il trend **con lo stesso codice**. Aggirato azzerando il
+  campo in `chart_add_series`. Verificato: 96 s stabili dove prima crashava in 8.
+  **La domanda resta aperta**: segnalare a monte? altri campi con lo stesso schema?
 
-Deciso con te: **stessa demo in due varianti** (stesse pagine, stessi id, stesse coordinate; la
-variante LVGL omette solo i 4 tipi solo-web), pagine **1280x800**, dati mossi da uno **script Python
-interno** invece che dal broker pubblico.
+### 2. Programma deciso il 2026-08-25 — tutte le domande aperte chiuse
 
-Misurato, da non rimisurare:
-- i tipi sono **35** in palette, **31** su LVGL; i 4 solo-web sono `image`, `kpi_tile`,
-  `alarm_history`, `data_log`;
-- `SUPPORTED_TYPES` e `LVGL_SUPPORTED_TYPES` **combaciano** oggi (31 e 31);
-- `lvgl-demo` copre già 31/31; `demo-items` solo **19/35**;
-- Python 3.12 e `libpython` ci sono **dentro il container sul WP630**, quindi lo script gira sul
-  pannello anche senza rete;
-- un template è una cartella sotto `examples/templates/`, l'elenco è una scansione di directory:
-  nessun indice da aggiornare, basta creare e cancellare cartelle.
+Passate una per una col maintainer e **decise tutte**. Il piano completo è in
+[docs/plans/2026-08-25-chiusura-domande-aperte.md](docs/plans/2026-08-25-chiusura-domande-aperte.md);
+le decisioni sono registrate dentro ciascuna domanda in `docs/OPEN_QUESTIONS.md`.
 
-### 2. Ripubblicare l'immagine — **rimandata da te, resta in sospeso**
+| # | Cosa | Da dove | Peso |
+|---|---|---|---|
+| A1 | Crate LVGL **dentro il workspace** (serve `libsdl2-dev` + `clang`, oggi assenti sul dev server) | nota nel codice | medio |
+| A2 | Toppa LVGL → **patch tracciata sul vendor**, con script che fallisce se non si applica | Q22 | medio |
+| B1 | Backend DRM tenuto ma **dichiarato non supportato**, con errore che dice perché | Q19 | piccolo |
+| B2 | ODBC resta selezionabile **con avviso "non implementato"** | nota nel codice | piccolo |
+| B3 | `App.test.tsx`: scrivere il **mock di `@/api/client`** e verificare davvero il contenuto | nota nel codice | piccolo |
+| B4 | `into_py` → `into_pyobject` **quando si aggiorna pyo3**, non prima | nota nel codice | nessuno ora |
+| C1 | "Salva tutto" torna a coprire Datastore e Notifiche, con flag `touched` | nota nel codice | medio |
+| C2 | **Sezione "Python" unica** nell'IDE (funzioni + script in un punto solo) | Q21 | medio |
+| C3 | Colore predefinito del testo **dallo sfondo pagina**, su entrambi i motori | Q18 | medio |
+| D1 | Il viewer si ridisegna su **notifica WebSocket** di progetto cambiato | Q20 | medio |
+| D2 | SVG su LVGL: **rasterizzazione a runtime** (resvg) — prima misurare peso e memoria | Q15+Q16 | grande |
+| E | F9c: **tutti i 137 campi**, con controllo generato a guardia | roadmap | il più grande |
 
-L'immagine su GHCR è ferma a prima di *tutte* le correzioni di oggi. Finché non si ripubblica, sul
-WP630 restano rotti il discovery mDNS e i trend LVGL, e il viewer va montato a mano da `/tmp`.
+Ordine: A1, A2 → B1-B4 → D1 → C1, C3 → C2 → D2 → E. Un branch per lotto, fermandosi fra l'uno e
+l'altro.
 
-⚠️ **Sul pannello non è rimasto niente di montato a mano**: la unit quadlet è tornata identica al
-backup (verificato con `diff`). Il binario in `/tmp/lvgl-v8` c'è ma **`/tmp` si svuota al riavvio**,
-quindi non fidarsene.
+### 3. Ancora in sospeso, indipendenti dal programma
 
-### 3. Il viewer LVGL sul pannello è fermo
+1. **Ripubblicare l'immagine** (rimandata da te). Finché non avviene, sul WP630 il discovery mDNS
+   resta rotto, e le correzioni del viewer (movimento, trend, crash della sparkline) vivono su un
+   binario montato a mano in `/tmp`, **che si svuota al riavvio**.
+2. **Provare il pull dall'IDE** (`feat/ide-pull-progetto`), l'unica cosa mai confermata da te.
 
-È uscito con **404 su `Page 1`**: quella pagina non esiste più, perché il progetto attivo ora è
-`testLVGL` (le pagine sono `LVGL Demo`, `LVGL Demo - Pagina 2`, `LVGL Demo - Pagina 3`). Non è un
-difetto del binario — è quello nuovo, con movimento e trend. Va rilanciato con `--page` giusto.
+### 4. Stato del WP630
 
-### 4. Domande aperte nuove
+Progetto attivo **`DemoItemsLVGL`** (dal template nuovo), script di animazione attivo, storico che
+registra. Tutte e quattro le pagine reggono, compresa "Grafici e tabelle" che prima crashava.
+Il viewer gira su `/tmp/lvgl-v10` montato a mano — con la correzione di Q22, quindi **più recente
+dell'immagine pubblicata**. Le pagine di diagnostica create per bisezionare Q22 sono già state
+rimosse dal progetto.
 
-- **Q20** — il viewer LVGL non si accorge che il progetto è cambiato: scarica la pagina una volta
-  sola. È costato una diagnosi sbagliata oggi (un'ellisse modificata che sembrava un difetto di
-  rendering ed era una pagina vecchia).
-- **Q21** — Funzioni e Script sono due superfici Python in due punti lontani dell'IDE. Tua domanda;
-  la distinzione è reale, la scelta è solo dove mostrarle.
+### 5. Due trappole degli script Python, imparate a caro prezzo
 
+Scritte nei commenti dello script del template, dove le legge chi ne scriverà un altro:
+- **niente `import`** — RestrictedPython con `safe_builtins`. Insidioso perché sul dev server
+  RestrictedPython di solito non è installato e il runtime ricade sull'esecuzione non ristretta:
+  lì l'import passa e si scopre tutto solo sul pannello;
+- **una funzione non vede le costanti di modulo** — `exec(codice, globals, {})`, le assegnazioni di
+  primo livello finiscono in un dizionario locale usa-e-getta.
 ---
 
 ## ▶ Da fare, dalle sessioni precedenti

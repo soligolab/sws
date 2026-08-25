@@ -11,7 +11,22 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
-Sessione del 2026-08-24 (ufficio, WP630 sotto mano). Sei branch aperti, nessuno ancora mergiato.
+### 2026-08-25
+
+- **Template gemelli "Demo Items - Web" e "Demo Items - LVGL"** al posto di `demo-items` e
+  `lvgl-demo`: stesse pagine e stesse coordinate, 35 tipi contro 31, dati animati da uno script
+  Python interno invece che da un broker pubblico. Con `scripts/check_demo_templates.sh` a guardia
+  di copertura e parità.
+- **Corretto**: `POST /api/system/start` non fermava i supervisori già attivi, e premere "Avvia"
+  due volte lasciava due script globali a scrivere sugli stessi tag.
+- **Corretto (Q22)**: la `sparkline` faceva crashare il viewer LVGL con SIGSEGV. Causa: LVGL non
+  inizializza `x_ext_buf_assigned` in `lv_chart_add_series`, e il bit di spazzatura poteva far
+  saltare la riallocazione del buffer X mentre il conteggio punti veniva aggiornato — scritture
+  fuori dai limiti sull'heap. Aggirato azzerando il campo alla creazione di ogni serie.
+
+### 2026-08-24
+
+Sessione in ufficio col WP630 sotto mano.
 
 ### Added
 
@@ -45,7 +60,6 @@ Sessione del 2026-08-24 (ufficio, WP630 sotto mano). Sei branch aperti, nessuno 
   dell'editor mostravano cose diverse. Difetto preesistente di `upload_project_zip`.
 - **`browse` MQTT parlava in chiaro a una porta TLS** quando il TLS era attivo ma mancava la CA:
   usciva senza impostare alcun trasporto, l'elenco tornava vuoto e nessuno diceva perché.
-
 
 ## [2.1.0] — 2026-08-23
 

@@ -1,0 +1,3 @@
+id: demo-items-web
+label: "Demo Items - Web"
+description: "Banco di prova del motore web: un oggetto per ciascuno dei 35 tipi della palette, su 4 pagine da 1280x800. I dati li muove uno script Python interno (Configurazione → Script), quindi trend, grafici e allarmi si animano da soli senza broker né PLC. Gemello di \"Demo Items - LVGL\": stesse pagine, stessi id, stesse coordinate — le differenze che si vedono confrontandoli sono differenze fra i due motori."

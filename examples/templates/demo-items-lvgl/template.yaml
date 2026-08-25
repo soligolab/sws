@@ -1,0 +1,3 @@
+id: demo-items-lvgl
+label: "Demo Items - LVGL"
+description: "Banco di prova del motore LVGL (sws-lvgl-viewer): i 31 tipi che LVGL disegna, su 4 pagine da 1280x800. Gemello di \"Demo Items - Web\", da cui differisce solo per l'assenza dei 4 tipi che LVGL non supporta (image, kpi_tile, alarm_history, data_log). Stessi id e stesse coordinate: aprendo la stessa pagina sui due motori, ogni differenza è un difetto di parità."

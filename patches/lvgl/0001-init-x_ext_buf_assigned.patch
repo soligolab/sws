@@ -1,0 +1,18 @@
+# Corregge lv_chart_add_series: x_ext_buf_assigned non veniva mai inizializzato.
+# Vedi docs/OPEN_QUESTIONS.md Q22. Applicare con: git apply patches/lvgl/0001-*.patch
+--- a/sws-runtime/crates/sws-lvgl-viewer/vendor/lvgl-sys-0.6.2/vendor/lvgl/src/extra/widgets/chart/lv_chart.c
++++ b/sws-runtime/crates/sws-lvgl-viewer/vendor/lvgl-sys-0.6.2/vendor/lvgl/src/extra/widgets/chart/lv_chart.c
+@@ -362,6 +362,13 @@
+ 
+     ser->start_point = 0;
+     ser->y_ext_buf_assigned = false;
++    /* SWS patch (patches/lvgl/0001-init-x_ext_buf_assigned.patch):
++     * senza questa riga il campo resta com'era in memoria — la struct arriva da
++     * lv_mem_alloc e non è azzerata. lv_chart_set_point_count lo legge per
++     * decidere se riallocare x_points: con un bit di spazzatura a 1 salta la
++     * riallocazione ma aggiorna point_cnt lo stesso, e ogni
++     * lv_chart_set_value_by_id2 successiva scrive fuori dal buffer. */
++    ser->x_ext_buf_assigned = false;
+     ser->hidden = 0;
+     ser->x_axis_sec = axis & LV_CHART_AXIS_SECONDARY_X ? 1 : 0;
+     ser->y_axis_sec = axis & LV_CHART_AXIS_SECONDARY_Y ? 1 : 0;

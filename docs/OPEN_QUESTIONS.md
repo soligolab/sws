@@ -1550,6 +1550,8 @@ immagine configurata in questo motore — genuinamente bloccato, non un errore d
 
 ## Q15 — Simboli SVG (`symbol`) su LVGL: nessun renderer SVG disponibile
 
+**Decided (2026-08-25)** — residuo chiuso: **rasterizzazione a runtime** (`resvg` + `tiny-skia`) per i 12 simboli "vendored" e per i simboli custom, insieme a Q16. È l'unica opzione che copre anche gli SVG disegnati dall'utente, cioè il caso che un progettista vero incontra. Primo passo obbligatorio: **misurare** peso del binario e memoria sul pannello prima di cablare qualunque widget. I 16 builtin restano disegnati a mano come deciso l'11 agosto: funzionano, e ricolorarli per stato è più diretto che rasterizzare tre varianti.
+
 **Context**: quinto e ultimo dei "prossimi 5 step" proposti dopo Q14 ("procedi con i prossimi 5
 step") — esplicitamente scoping come *analisi*, non implementazione: "una vera domanda
 architetturale... non ancora posta in `docs/OPEN_QUESTIONS.md`". A differenza dei quattro widget
@@ -1630,6 +1632,8 @@ un'opzione futura se emergerà un bisogno reale. Implementato: 16/16 builtin ren
 ---
 
 ## Q16 — Widget `image` su LVGL: nessun decoder raster compilato, e il catalogo bundle è SVG
+
+**Decided (2026-08-25)** — **rasterizzazione a runtime**, stessa scelta di Q15 e per lo stesso motivo: il catalogo bundlato è SVG e il campo `src` resta testo libero, quindi servono entrambi i percorsi. Vale la stessa misura preliminare di peso e memoria.
 
 **Context**: emerso durante una sessione di lavoro autonomo mirata a chiudere il gap "`image` è
 l'unico widget rimasto non supportato in LVGL" (31/32 tipi, per il lavoro fatto su `sws-lvgl-viewer`
@@ -1713,6 +1717,8 @@ permette — può quindi scrivere via ricetta un tag protetto Admin.
 
 ## Q18 — Colori del testo dai token di tema su pagine con sfondo scelto a mano
 
+**Decided (2026-08-25)** — **opzione 1**: il colore predefinito del testo si ricava dallo sfondo effettivo della pagina (chiaro→testo scuro, scuro→testo chiaro), non dal tema dell'app. Un sinottico è un disegno, non una UI di sistema. Il tema dell'app resta per la chrome di IDE e viewer. Vale per tutti i tipi che usano quei token come default — testo, tabelle, gauge, etichette dei grafici — e va fatto su **entrambi** i motori.
+
 **Context**: emerso il 2026-08-23 misurando F7.4 (testo multiriga). Un oggetto `text` senza
 `color`/`fill` esplicito usa il token di tema `--brand-text`, che segue il tema **dell'app**
 (chiaro/scuro/sistema). Lo sfondo della PAGINA invece è un colore scelto dal progettista
@@ -1739,6 +1745,8 @@ un difetto di impostazione che nessuno aveva ancora misurato.
 ---
 
 ## Q19 — Il backend DRM del viewer LVGL apre i device a mano, mentre PixsysOS li distribuisce con `seatd`
+
+**Decided (2026-08-25)** — **si tiene il backend DRM, dichiarandolo non supportato su questi pannelli**. Su hardware senza compositore sarebbe la strada giusta, quindi rimuoverlo chiuderebbe una porta utile; ma deve fallire con un messaggio che dice *perché* (compositore attivo, oppure device distribuiti da seatd) invece dell'errore di permessi grezzo di oggi. Il percorso normale resta SDL2/XWayland.
 
 **Context**: misurato su `wp630-a-p3-07a077.local` il 2026-08-24, indagando perché l'utente `user`
 non riesce ad aprire `/dev/dri/card*` né `/dev/input/*`.
@@ -1783,6 +1791,8 @@ resta quello che ha salvato la situazione sul TC620 quando SDL2 dava schermo ner
 
 ## Q20 — Il viewer LVGL non si accorge che il progetto è cambiato
 
+**Decided (2026-08-25)** — **notifica dal runtime sul WebSocket già aperto**. Il viewer è connesso al WS dei tag: si aggiunge un messaggio "progetto cambiato" e si ridisegna. Niente polling su un dispositivo dove ogni ciclo costa, e il ridisegno è già supportato — è quello che fa la navigazione fra pagine. Lato runtime il messaggio parte dove il progetto viene sostituito: import, apertura, ripristino di backup.
+
 **Stato**: aperta. Emersa il 2026-08-24, segnalata indirettamente dal maintainer.
 
 Il maintainer ha modificato un'ellisse da 100x80 a 100x100 e sul pannello continuava a vederla
@@ -1815,6 +1825,8 @@ stato locale dei widget, che però è quello che si vuole dopo una modifica di p
 
 ## Q21 — Due superfici Python nel progetto, in due punti lontani dell'interfaccia
 
+**Decided (2026-08-25)** — **una sezione "Python" unica** nell'IDE che elenca funzioni e script insieme, ciascuna con un'etichetta che dice come parte ("chiamata da un oggetto", "ogni 1 s", "all'avvio", "quando cambia X"). I due tipi restano distinti nel modello — una funzione non ha trigger — ma smettono di stare in due punti lontani. Riusa `PythonEditor.tsx`, già condiviso dalle due UI attuali.
+
 **Stato**: aperta. Domanda del maintainer, 2026-08-24: «gli script python sarebbe bello fossero
 parte del progetto e visibili nelle funzioni dell'IDE, cosa manca perché sia così?».
 
@@ -1841,3 +1853,137 @@ in un unico tipo sarebbe sbagliato. La domanda aperta è solo **dove mostrarle**
    della funzione da chiamare.
 
 Tocca la struttura del menu, quindi è una decisione del maintainer, non un dettaglio realizzativo.
+## Q22 — La `sparkline` fa crashare il viewer LVGL quando la pagina ha altri widget
+
+**Decided (2026-08-25)** — la toppa diventa una **patch tracciata sul vendor**: un file in `patches/lvgl/` che corregge `lv_chart_add_series` all'origine, più uno script che la riapplica all'importazione e **fallisce rumorosamente** se non si applica più. Una patch che scade in silenzio è peggio della toppa che sostituisce. L'azzeramento in `chart_add_series` si toglie solo quando la patch è verificata sul pannello.
+
+**Stato**: aperta. Trovata il 2026-08-25 sul WP630, col template `demo-items-lvgl` appena scritto —
+cioè dal primo banco di prova che esercita tutti i tipi insieme.
+
+Il viewer esce con **SIGSEGV** (exit 139) pochi secondi dopo aver aperto la finestra. I widget
+vengono creati tutti correttamente (il log li elenca), quindi il guasto è nel ciclo di
+aggiornamento, non nel rendering iniziale.
+
+### Cosa è stato misurato, per bisezione sul dispositivo
+
+| Pagina | Esito |
+|---|---|
+| Le altre 3 pagine del demo | reggono |
+| "Grafici e tabelle" (trend, sparkline, xy_plot, bar, pie, table, grid) | **SIGSEGV** |
+| Ognuno dei 7 widget da solo | reggono **tranne** la sparkline |
+| Sparkline da sola, tag **senza** storico | regge |
+| Sparkline da sola, finestra 60 s (~54 campioni) | regge |
+| Sparkline da sola, finestra 80 s (~73 campioni) | regge |
+| Sparkline da sola, finestra 100 s (~91 campioni) | **SIGSEGV** |
+| Sparkline da sola, finestra 120 s (~110 campioni) | **SIGSEGV** |
+| Sparkline 300x100, 600x100, 600x300 a 120 s | **SIGSEGV** in tutti i casi — la dimensione non conta |
+| I 6 widget **senza** sparkline | reggono |
+| trend + sparkline + xy_plot | reggono |
+| bar + pie + table + grid | reggono |
+| Tutti e 7, con sparkline a 60 s | **SIGSEGV** — ridurre la finestra non basta |
+
+### Cosa dicono questi numeri
+
+Due condizioni **indipendenti** portano allo stesso crash: molti campioni nella sola sparkline,
+oppure la sparkline insieme a un numero sufficiente di altri widget. È la firma tipica della
+**corruzione di heap**: una scrittura fuori dai limiti che diventa fatale solo quando c'è
+qualcos'altro di allocato lì accanto. Con pochi widget e pochi punti la scrittura cade in memoria
+libera e non si vede.
+
+Il sospetto è quindi in `update_sparkline` (`lvgl_render.rs`), non in `render_sparkline`: i widget
+si creano bene, il crash arriva agli aggiornamenti successivi. `update_trend` è strutturalmente
+identica e con **più** dati (2 serie, 110 punti) non crasha — quindi la differenza non è il numero
+di punti in sé, ed è lì che va cercata.
+
+Differenze fra le due funzioni ancora da escludere: `lv_chart_set_div_line_count(0, 0)` contro
+`(3, 3)`, e lo stile con padding azzerato e sfondo trasparente applicato solo alla sparkline.
+`LV_MEM_SIZE` è 1 MB, quindi l'esaurimento del pool è improbabile ma non escluso.
+
+### Cosa NON fare
+
+Ridurre `spark_window_s` nel template: provato, non evita il crash, e lascerebbe le due varianti
+gemelle divergenti per un aggiramento che non aggira.
+
+### Conseguenza pratica adesso
+
+La pagina "Grafici e tabelle" di `demo-items-lvgl` **non è visualizzabile sul pannello**. Le altre
+tre sì. Il template resta com'è di proposito: è corretto, ed è il viewer ad avere il difetto —
+distorcere il banco di prova per nascondere ciò che ha trovato lo renderebbe inutile.
+
+Serve una sessione di debug dedicata: build di LVGL con ASAN o valgrind sul dispositivo, oppure
+strumentazione di `update_sparkline` per verificare gli indici passati a
+`lv_chart_set_value_by_id2` contro il `point_cnt` effettivo del grafico.
+
+### Seguito, 2026-08-25 — causa trovata: un campo non inizializzato in LVGL
+
+Non era codice nostro. `lv_chart_add_series` (`lv_chart.c`) inizializza
+`ser->y_ext_buf_assigned = false` alla riga 364 ma **non tocca mai `x_ext_buf_assigned`**, e la
+struct della serie arriva da `_lv_ll_ins_head` → `lv_mem_alloc`, cioè memoria non inizializzata.
+Nel file quel campo compare solo tre volte: la dichiarazione del bitfield, una lettura in
+`lv_chart_set_point_count` e l'assegnazione dentro `lv_chart_set_ext_x_array`. Non c'è nessun punto
+che lo azzeri alla creazione.
+
+La lettura è questa:
+
+```c
+if(chart->type == LV_CHART_TYPE_SCATTER) {
+    if(!ser->x_ext_buf_assigned) new_points_alloc(obj, ser, cnt, &ser->x_points);
+}
+if(!ser->y_ext_buf_assigned) new_points_alloc(obj, ser, cnt, &ser->y_points);
+...
+chart->point_cnt = cnt;
+```
+
+Se la spazzatura in quel bit vale 1, LVGL **salta la riallocazione di `x_points`** e aggiorna
+`point_cnt` lo stesso. Da quel momento ogni `lv_chart_set_value_by_id2` scrive oltre la fine del
+buffer originale — 10 elementi, il default del widget — e corrompe l'heap.
+
+Torna con tutto quello che era stato misurato: il crash compare solo quando i punti superano il
+default; dipende da cosa è allocato lì accanto (quindi dal numero di widget); non dipende dalla
+dimensione del widget; e colpiva la sparkline ma non il trend **con lo stesso codice**, perché la
+spazzatura era semplicemente diversa nelle due allocazioni. Un guasto non deterministico che
+sembrava specifico di un widget.
+
+**Aggirato** azzerando `x_ext_buf_assigned` subito dopo `lv_chart_add_series`, in un solo punto
+(`chart_add_series` in `lvgl_render.rs`) usato da trend, sparkline e xy_plot. Non si è toccato LVGL
+vendorizzato: una prossima importazione cancellerebbe la modifica senza che nessuno se ne accorga.
+
+Verificato sul WP630: la pagina "Grafici e tabelle" prima usciva con SIGSEGV entro 8 secondi, ora
+regge 96 secondi con zero righe d'errore, e le altre tre continuano a funzionare.
+
+**Resta da decidere** (per questo la domanda non si chiude qui):
+
+1. Segnalare il difetto a monte a LVGL, o considerarlo noto e conviverci?
+2. Ci sono altri campi non inizializzati con lo stesso schema in questa versione di LVGL? Il
+   controllo andrebbe fatto sistematicamente, non widget per widget quando qualcosa crasha.
+3. La toppa va nel nostro codice o in una patch al vendor applicata all'importazione? Oggi è nel
+   nostro codice per non perderla al prossimo aggiornamento, ma se i punti diventano molti, una
+   patch tracciata è più onesta di dieci toppe sparse.
+### Seguito, 2026-08-25 — la patch, e un secondo strato dello stesso difetto
+
+La correzione è stata spostata dove il difetto vive: `patches/lvgl/0001-init-x_ext_buf_assigned.patch`
+applicata al sorgente vendorizzato, e l'azzeramento nel nostro `chart_add_series` rimosso.
+Verificato sul WP630: 81 secondi stabili sulla pagina "Grafici e tabelle" **senza** toppa a valle.
+
+Nel farlo è emerso un secondo problema, della stessa famiglia e forse peggiore:
+
+> **Cargo non si accorge delle modifiche ai sorgenti C vendorizzati.** Il `build.rs` di `lvgl-sys`
+> dichiara `cargo:rerun-if-changed` solo per `lv_conf.h` e `lv_drv_conf.h`, **non** per l'albero
+> `vendor/lvgl/src/`. Modificare `lv_chart.c` non fa ricompilare niente: si ottiene un binario con
+> la libreria vecchia, identico al precedente, senza un solo avviso.
+
+Il primo tentativo di questa patch è caduto esattamente lì: patch applicata, ricompilato, crash
+identico. La conclusione sbagliata a portata di mano era «la patch non serve, la causa è un'altra» —
+e sarebbe stata registrata come tale. Solo il confronto dei timestamp degli oggetti compilati ha
+mostrato che il file C non era mai stato ricompilato.
+
+Due difese messe adesso:
+
+1. `scripts/check_vendor_patches.sh` verifica che ogni patch sia ancora applicata, la riapplica con
+   `--apply`, e **invalida gli artefatti di `lvgl-sys`** quando lo fa — senza quel passo la
+   riapplicazione sarebbe inutile e silenziosa.
+2. `scripts/yocto/build.sh` lo esegue prima di compilare il viewer e **interrompe la build** se una
+   patch manca. Una patch al codice vendorizzato non può più scadere in silenzio.
+
+**Resta da decidere**: segnalare a monte a LVGL, e verificare se altri campi hanno lo stesso schema
+di inizializzazione mancante — una passata sistematica, non widget per widget quando qualcosa crasha.

@@ -3,11 +3,19 @@ resolver = "2"
 members = ["crates/*"]
 # sws-kiosk requires libgtk-4-dev + libwebkitgtk-6.0-dev (not installed everywhere).
 # Build explicitly: cargo build --manifest-path crates/sws-kiosk/Cargo.toml (after: sudo apt install libgtk-4-dev libwebkitgtk-6.0-dev)
-# sws-lvgl-viewer builda LVGL da sorgente via bindgen (richiede libclang) e, non appena
-# Fase 2 abilita la feature `drivers`/SDL2, anche libsdl2-dev (non installato ovunque).
-# Build esplicita: cargo build --manifest-path crates/sws-lvgl-viewer/Cargo.toml
-# Vedi docs/adr/0002-lvgl-rendering-engine.md.
-exclude = ["crates/sws-kiosk", "crates/sws-lvgl-viewer"]
+# sws-lvgl-viewer È nel workspace dal 2026-08-25. Prima era escluso perché
+# builda LVGL da sorgente (bindgen → libclang) e linka SDL2: prerequisiti che
+# "non erano installati ovunque". Il prezzo di quell'esclusione era che
+# `cargo check --workspace` non lo compilava, `cargo test --workspace` non lo
+# eseguiva e la CI non lo toccava — ed è il crate dove si sono concentrati i
+# difetti (Q22, il crash della sparkline, i binding che non si muovevano).
+# Un crate fuori dalla rete di sicurezza è esattamente quello che non va
+# lasciato fuori.
+#
+# PREREQUISITI ORA OBBLIGATORI per compilare il workspace:
+#   sudo apt install clang libclang-dev libsdl2-dev
+# Vedi docs/YOCTO_CROSSCOMPILE.md e docs/adr/0002-lvgl-rendering-engine.md.
+exclude = ["crates/sws-kiosk"]
 
 [workspace.package]
 version      = "2.1.0"

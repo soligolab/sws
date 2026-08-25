@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 120" width="200" height="120">
+  <rect width="200" height="120" rx="10" fill="#1e293b"/>
+  <circle cx="52" cy="60" r="30" fill="none" stroke="#0ea5e9" stroke-width="7"/>
+  <path d="M52 36 L52 60 L70 72" fill="none" stroke="#38bdf8" stroke-width="7" stroke-linecap="round"/>
+  <text x="96" y="54" font-family="sans-serif" font-size="26" font-weight="bold" fill="#e2e8f0">SWS</text>
+  <text x="96" y="80" font-family="sans-serif" font-size="14" fill="#94a3b8">demo items</text>
+</svg>

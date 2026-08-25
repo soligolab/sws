@@ -622,6 +622,37 @@ pub fn resolve_trend_traces(obj: &SynopticObject) -> Vec<ResolvedTrace> {
     out
 }
 
+/// Serie di un `lv_chart`.
+///
+/// Esiste come funzione, invece di chiamare `lv_chart_add_series` nei tre punti
+/// che ne hanno bisogno, perché il colore va convertito allo stesso modo ovunque
+/// e perché è il posto giusto dove ricordare una cosa non ovvia.
+///
+/// **LVGL qui aveva un difetto** (Q22): `lv_chart_add_series` inizializzava
+/// `y_ext_buf_assigned` ma non `x_ext_buf_assigned`, e la struct arriva da
+/// `lv_mem_alloc`. Con un bit di spazzatura a 1,
+/// `lv_chart_set_point_count` saltava la riallocazione di `x_points` ma
+/// aggiornava `point_cnt` lo stesso, e ogni scrittura successiva usciva dal
+/// buffer da 10 elementi — crash non deterministico, che sembrava specifico
+/// della sparkline.
+///
+/// La correzione ora sta **nel sorgente vendorizzato**
+/// (`patches/lvgl/0001-init-x_ext_buf_assigned.patch`), non qui: è lì che il
+/// difetto vive, e una toppa a valle avrebbe dovuto essere ripetuta in ogni
+/// punto che crea una serie. `scripts/check_vendor_patches.sh` verifica che la
+/// patch sia ancora applicata e **fallisce** se una re-importazione l'ha
+/// cancellata.
+unsafe fn chart_add_series(
+    ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
+    rgb: (u8, u8, u8),
+) -> *mut lvgl_sys::lv_chart_series_t {
+    lvgl_sys::lv_chart_add_series(
+        ptr.as_ptr(),
+        Color::from_rgb(rgb).into(),
+        lvgl_sys::LV_CHART_AXIS_PRIMARY_Y as lvgl_sys::lv_chart_axis_t,
+    )
+}
+
 fn trend_series_color(i: usize, obj: &SynopticObject) -> (u8, u8, u8) {
     if let Some(rgb) = obj
         .trend_series_styles
@@ -1982,13 +2013,7 @@ fn render_trend(
             .and_then(parse_hex_color)
             .unwrap_or_else(|| trend_series_color(i, obj));
         let tag = &trace.tag;
-        let ser = unsafe {
-            lvgl_sys::lv_chart_add_series(
-                ptr.as_ptr(),
-                Color::from_rgb(rgb).into(),
-                lvgl_sys::LV_CHART_AXIS_PRIMARY_Y as lvgl_sys::lv_chart_axis_t,
-            )
-        };
+        let ser = unsafe { chart_add_series(ptr, rgb) };
         let shared = client::spawn_history_poller(rt_handle, base_url.to_string(), tag.clone(), window_s, backfill);
         series.push(TrendSeriesBinding { ser, shared, last_seen_version: 0, last_samples: Vec::new() });
     }
@@ -2043,13 +2068,7 @@ fn render_sparkline(
     }
 
     let rgb = parse_hex_color(obj.spark_color.as_deref().unwrap_or("#3b82f6")).unwrap_or((59, 130, 246));
-    let ser = unsafe {
-        lvgl_sys::lv_chart_add_series(
-            ptr.as_ptr(),
-            Color::from_rgb(rgb).into(),
-            lvgl_sys::LV_CHART_AXIS_PRIMARY_Y as lvgl_sys::lv_chart_axis_t,
-        )
-    };
+    let ser = unsafe { chart_add_series(ptr, rgb) };
     let tag = obj.tag.clone().unwrap_or_default();
     let shared = client::spawn_history_poller(rt_handle, base_url.to_string(), tag, window_s, false);
 
@@ -2363,9 +2382,7 @@ fn render_xy_plot(screen: &mut lvgl::Obj, obj: &SynopticObject, styles: &mut Vec
         lvgl_sys::lv_chart_set_point_count(ptr.as_ptr(), 64);
     }
     let rgb = parse_hex_color(obj.line_color.as_deref().unwrap_or("#3b82f6")).unwrap_or((59, 130, 246));
-    let ser = unsafe {
-        lvgl_sys::lv_chart_add_series(ptr.as_ptr(), Color::from_rgb(rgb).into(), lvgl_sys::LV_CHART_AXIS_PRIMARY_Y as lvgl_sys::lv_chart_axis_t)
-    };
+    let ser = unsafe { chart_add_series(ptr, rgb) };
 
     Ok(LiveBinding {
         kind: LiveKind::XyPlot {

@@ -193,6 +193,21 @@ echo "[build] cargo build ${CARGO_FLAGS[*]}"
 # from cwd, not from the manifest path.
 
 if [ "$WITH_LVGL" -eq 1 ]; then
+  # Le correzioni al sorgente LVGL vendorizzato devono essere ancora applicate.
+  #
+  # Non è una formalità: cargo NON si accorge se qualcuno le cancella. Il
+  # build.rs di lvgl-sys osserva solo lv_conf.h, non i sorgenti C, quindi una
+  # re-importazione della libreria riporta il difetto e la compilazione
+  # successiva non dice niente. Vedi docs/OPEN_QUESTIONS.md Q22 per il caso che
+  # ha motivato questo controllo — un crash non deterministico costato due
+  # giorni.
+  echo "[build] verifica delle patch al codice vendorizzato"
+  if ! "$REPO_ROOT/scripts/check_vendor_patches.sh"; then
+    echo "[build] ERROR: patch al codice vendorizzato mancanti — build interrotta." >&2
+    echo "[build]        Riapplica con: ./scripts/check_vendor_patches.sh --apply" >&2
+    exit 1
+  fi
+
   LVGL_CRATE_DIR="$REPO_ROOT/sws-runtime/crates/sws-lvgl-viewer"
   LVGL_CARGO_FLAGS=( --target "$TARGET_TRIPLE" )
   case "$PROFILE" in

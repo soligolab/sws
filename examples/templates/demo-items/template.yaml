@@ -1,3 +1,0 @@
-id: demo-items
-label: "Demo items"
-description: "Demo a 4 pagine — counter + MQTT echo round-trip su broker pubblico, showcase widget con binding, fill color dinamico. Pagine con dimensioni esplicite, navigation header raggruppato e bloccato, transition_duration_ms sui widget animati."

@@ -63,6 +63,14 @@ generic Linux and x86_64 hosts for development and evaluation.
 | Node.js | 20 | [nodejs.org/download](https://nodejs.org/en/download) |
 | pnpm | 9 | `npm install -g pnpm` |
 | Python | 3.10+ | usually already present on Linux |
+| clang + libclang | any | `sudo apt install clang libclang-dev` |
+| SDL2 (dev) | 2.x | `sudo apt install libsdl2-dev` |
+
+The last two are **not optional**: `sws-lvgl-viewer` is part of the workspace,
+builds LVGL from C source through bindgen and links SDL2, so `cargo check
+--workspace` needs both. It was excluded until 2026-08-25 — which meant the
+crate where most defects turned up was the one crate neither CI nor `cargo
+check` ever looked at.
 
 ```bash
 git clone https://github.com/soligolab/sws.git
