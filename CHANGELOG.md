@@ -11,55 +11,83 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
-### 2026-08-25
+## [2.1.1] — 2026-08-25
 
-- **Template gemelli "Demo Items - Web" e "Demo Items - LVGL"** al posto di `demo-items` e
-  `lvgl-demo`: stesse pagine e stesse coordinate, 35 tipi contro 31, dati animati da uno script
-  Python interno invece che da un broker pubblico. Con `scripts/check_demo_templates.sh` a guardia
-  di copertura e parità.
-- **Corretto**: `POST /api/system/start` non fermava i supervisori già attivi, e premere "Avvia"
-  due volte lasciava due script globali a scrivere sugli stessi tag.
-- **Corretto (Q22)**: la `sparkline` faceva crashare il viewer LVGL con SIGSEGV. Causa: LVGL non
-  inizializza `x_ext_buf_assigned` in `lv_chart_add_series`, e il bit di spazzatura poteva far
-  saltare la riallocazione del buffer X mentre il conteggio punti veniva aggiornato — scritture
-  fuori dai limiti sull'heap. Aggirato azzerando il campo alla creazione di ogni serie.
+Due giorni di lavoro sul WP630. In breve: **il pannello ora si comporta come ci
+si aspetta** — gli oggetti si muovono, i grafici disegnano, la pagina si
+aggiorna da sola quando modifichi il progetto — e diverse cose che sembravano
+funzionare e non funzionavano ora lo dicono.
 
-### 2026-08-24
+### Quello che prima non funzionava sul pannello
 
-Sessione in ufficio col WP630 sotto mano.
+- **Gli oggetti collegati a una variabile stavano fermi.** Un'ellisse agganciata
+  a uno slider partiva nel punto giusto e poi non si muoveva più. Ora segue il
+  valore in tempo reale.
+- **I grafici a linee disegnavano vuoto.** Dalla versione 2.1.0 le tracce di un
+  trend si salvano in un formato nuovo, e il pannello le cercava ancora in quello
+  vecchio. Ora le trova.
+- **Il viewer andava in crash** aprendo una pagina con più grafici insieme. La
+  causa era nella libreria grafica LVGL, che lasciava un campo non inizializzato:
+  a seconda di cosa c'era in memoria, il programma scriveva fuori dai limiti e
+  moriva. Corretto, e la correzione è protetta da un controllo che ferma la
+  compilazione se qualcuno la cancella per sbaglio.
+- **Modificando una pagina, il pannello continuava a mostrare quella vecchia**
+  finché non lo riavviavi a mano. Ora il runtime lo avvisa e la pagina si
+  ridisegna da sola.
 
-### Added
+### Quello che prima diceva il falso
 
-- **Riaprire nell'IDE il progetto che gira sul dispositivo** (`feat/ide-pull-progetto`). Il verso
-  opposto del deploy, che finora mancava del tutto: `GET /api/remote/project/export` porta di qua il
-  bundle del runtime connesso, e l'IDE lo importa col nome che scegli. L'archivio `.zip` esce
-  **prima** che qualunque cosa tocchi il disco, perché subito dopo l'IDE offre di aggiornare il
-  formato e quel passo riscrive tutto. Un backup nel runtime IDE viene creato subito dopo
-  l'apertura, sullo stato ancora integro.
-- **`insecure_skip_verify` per il TLS MQTT** (`feat/mqtt-skip-verify`): la spunta esisteva, si
-  salvava, e non faceva niente — il runtime validava comunque la catena. Ora è un verifier rustls
-  permissivo, con avviso rosso nell'interfaccia e warn a ogni connessione.
+- **La spunta «salta la verifica del certificato» (MQTT) non faceva niente.** Si
+  salvava, sembrava attiva, e il runtime validava comunque il certificato. Ora
+  funziona davvero, con un avviso rosso che spiega cosa comporta.
+- **Il backend grafico DRM falliva con «permesso negato»**, che mandava a cercare
+  un permesso mancante quando il problema era un altro: su questi pannelli lo
+  schermo è già occupato dal compositore. Ora lo dice.
+- **Il datastore ODBC** compariva fra le scelte come se fosse utilizzabile, ma non
+  è implementato. Ora è scritto.
+- **Un test dell'interfaccia** passava sempre, anche a interfaccia rotta. Ora
+  verifica davvero cosa viene mostrato.
 
-### Fixed
+### Quello che non si trovava
 
-- **Gli oggetti LVGL non si muovevano** (`feat/lvgl-movimento`). I binding proprietà→tag davano la
-  posizione iniziale giusta e poi l'oggetto restava fermo. Risolto catturando i widget dal padre
-  (conteggio dei figli prima/dopo il rendering) invece di cambiare la firma delle ~30 `render_*`.
-  Segue una correzione trovata provando sul pannello: le coordinate vanno lette **dopo**
-  `lv_obj_update_layout`, altrimenti valgono 0 e l'oggetto salta in cima allo schermo.
-- **"Cerca runtime" non trovava i dispositivi con due schede di rete**
-  (`fix/mdns-reti-multiple`). Il runtime annunciava solo l'indirizzo della rotta predefinita: su un
-  WP630 con rete d'impianto e rete di campo era quello sbagliato. Ora annuncia tutte le reti vere
-  (escluse veth e affini), e chi cerca preferisce un indirizzo nella propria sottorete invece del
-  primo in ordine alfabetico.
-- **I trend su LVGL disegnavano vuoto** (`feat/lvgl-trend-tags`) dalla migrazione 2.1.0: le tracce
-  sono in `trend_tags[]` e il motore le cercava ancora in `tag` + `extra_tags`, che la migrazione
-  cancella. Il formato precedente resta come ripiego per i progetti non ancora riaperti nell'IDE.
-- **Importando un bundle con un nome scelto, il progetto finiva con due nomi diversi**: la cartella
-  prendeva il nome scelto, `project.yaml` teneva quello del bundle, e lista e intestazione
-  dell'editor mostravano cose diverse. Difetto preesistente di `upload_project_zip`.
-- **`browse` MQTT parlava in chiaro a una porta TLS** quando il TLS era attivo ma mancava la CA:
-  usciva senza impostare alcun trasporto, l'elenco tornava vuoto e nessuno diceva perché.
+- **«Cerca runtime» non trovava i dispositivi con due schede di rete.** Il
+  runtime si annunciava su una rete sola — quella sbagliata, sul WP630. Ora si
+  annuncia su tutte, e l'IDE sceglie quella che può davvero raggiungere.
+- **Non si poteva riaprire nell'IDE il progetto che gira su un dispositivo.** Si
+  poteva solo mandarlo. Ora si può riprendere quello che gira sul pannello, con
+  una copia di sicurezza scaricata prima di toccare qualsiasi cosa.
+- **Gli script Python e le funzioni stavano in due punti lontani dell'IDE.** Ora
+  sono elencati insieme in Configurazione → Python, ognuno con scritto come parte.
+
+### Quello che poteva far danno
+
+- **Premendo «Avvia» due volte** restavano due script in esecuzione sugli stessi
+  dati, e vinceva chi scriveva per ultimo. Ora il vecchio viene fermato.
+- **«Salva tutto» saltava Variabili e Allarmi** da un mese, in silenzio. Erano
+  stati esclusi dopo che un salvataggio aveva cancellato le variabili di un
+  progetto; ora sono rientrati, con un criterio che guarda cosa hai modificato
+  davvero invece di confrontare alla cieca.
+- **Il testo poteva risultare invisibile**: il colore predefinito seguiva il tema
+  dell'applicazione, non lo sfondo della pagina, quindi testo scuro su pagina
+  scura. Ora segue la pagina, su browser e pannello allo stesso modo.
+
+### Novità
+
+- **Due template gemelli, «Demo Items - Web» e «Demo Items - LVGL»**, al posto dei
+  due precedenti. Hanno le stesse pagine e le stesse posizioni, e differiscono
+  solo per i quattro tipi di oggetto che il pannello non sa disegnare: aprendo la
+  stessa pagina sui due motori, ogni differenza che si vede è un difetto da
+  correggere. I dati si muovono da soli grazie a uno script incluso nel progetto,
+  quindi funzionano anche su un pannello senza rete.
+
+### Sotto il cofano
+
+- Il codice del viewer LVGL ora viene compilato e testato insieme a tutto il
+  resto: prima era escluso, ed era proprio il pezzo dove si nascondevano più
+  difetti. Servono `clang`, `libclang-dev` e `libsdl2-dev` per compilare.
+- Tutte le domande architetturali rimaste aperte sono state decise e registrate.
+- Controlli automatici nuovi: sui due template (copertura, posizioni, tag) e
+  sulle correzioni applicate alle librerie di terze parti.
 
 ## [2.1.0] — 2026-08-23
 

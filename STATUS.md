@@ -8,96 +8,59 @@
 
 ## ▶ Da fare nella prossima sessione
 
-> **Sessione del 2026-08-25 (ufficio).** Otto branch aperti, tutti spinti, **nessuno mergiato**.
-> Build verdi sulla punta di `feat/template-demo-items`.
+> **Rilasciata la 2.1.1 il 2026-08-25.** Tutto il lavoro di questi due giorni è
+> su `main` e taggato. I branch restano, non cancellati: la pulizia è una tua
+> scelta.
 
-### 0. Branch aperti, in ordine di impilamento
+### 1. Da provare — le cose che non ho ancora visto confermate da te
 
-Sono impilati uno sull'altro (ciascuno contiene i precedenti), quindi vanno mergiati **in
-quest'ordine**, con squash, e solo dopo che hai confermato che la cosa funziona:
+| Cosa | Dove |
+|---|---|
+| **Riaprire nell'IDE il progetto del dispositivo** | Configurazione → Runtime, sotto Deploy |
+| **La sezione Python unica** | Configurazione → Python (nel progetto di prova ci sono 2 funzioni e 1 script) |
+| **Il testo che segue lo sfondo pagina** | una pagina con sfondo scuro e tema app chiaro |
 
-| Branch | Cosa | Confermato? |
-|---|---|---|
-| `feat/ide-pull-progetto` | Riaprire nell'IDE il progetto che gira sul dispositivo | ❌ **da provare** |
-| `feat/lvgl-movimento` | Gli oggetti si muovono davvero coi binding | ✅ confermato a schermo |
-| `fix/mdns-reti-multiple` | "Cerca runtime" su dispositivi con due schede | ✅ provato dal vivo sul WP630 |
-| `feat/mqtt-skip-verify` | `insecure_skip_verify` fa quello che dice | ✅ provato contro un broker vero |
-| `feat/lvgl-trend-tags` | I trend LVGL leggono `trend_tags[]` | ✅ visti a schermo il 2026-08-25 |
-| `fix/script-supervisor-leak` | Niente supervisori di script duplicati | ✅ misurato |
-| `feat/template-demo-items` | Template gemelli, crash sparkline, decisioni sulle domande aperte | ✅ quattro pagine reggono |
+Il resto l'ho verificato dal vivo: movimento degli oggetti, trend, crash della
+sparkline, discovery mDNS, `insecure_skip_verify` contro un broker vero, ricarica
+automatica del viewer, template gemelli sul pannello.
 
-⚠️ **`main` ha un commit di funzionalità diretto**, `6b9f8d0` (binding generici LVGL): messo lì
-prima di aprire il primo branch, contro la regola 2 di `CLAUDE.md`. È dentro e funziona (confermato),
-ma è una deviazione da sapere, non da scoprire.
+### 2. Ripubblicare l'immagine container
 
-### 1. Novità del 2026-08-25
+**È il passo che sblocca tutto il resto sul pannello.** Finché non avviene, sul
+WP630 il runtime resta la 2.1.0: niente discovery mDNS, niente ricarica
+automatica, e il viewer gira da un binario montato a mano in `/tmp` — che si
+svuota al riavvio.
 
-- **Template gemelli** `demo-items-web` (35 tipi su 35) e `demo-items-lvgl` (31 su 31) al posto di
-  `demo-items` e `lvgl-demo`. Stesse pagine, stessi id, stesse coordinate: aprendo la stessa pagina
-  sui due motori, ogni differenza è un difetto di parità. Generati da una definizione sola;
-  `scripts/check_demo_templates.sh` verifica copertura, parità, tipi e tag.
-  I dati li anima uno **script Python interno** (1 Hz), quindi niente broker: la pressione simulata
-  attraversa da sola le soglie e fa vivere allarmi, banner, campanella e storico.
-- **Difetto del runtime corretto** (`fix/script-supervisor-leak`): `POST /api/system/start` avviava
-  i supervisori senza fermare quelli attivi. Premere "Avvia" due volte lasciava due script globali
-  a girare sugli stessi tag. Trovato contando le righe di log: 20 esecuzioni in 10 s per un solo
-  script a 1 Hz.
-- **Q22 — crash della sparkline: causa trovata e aggirata.** La pagina "Grafici e tabelle" usciva
-  con SIGSEGV entro 8 secondi. Non era codice nostro: `lv_chart_add_series` di LVGL inizializza
-  `y_ext_buf_assigned` ma **mai `x_ext_buf_assigned`**, e la struct viene da `lv_mem_alloc`. Se
-  quella spazzatura vale 1, `lv_chart_set_point_count` salta la riallocazione di `x_points` ma
-  aggiorna `point_cnt` lo stesso, e ogni scrittura successiva esce dal buffer da 10 elementi.
-  Spiega perché crashava la sparkline e non il trend **con lo stesso codice**. Aggirato azzerando il
-  campo in `chart_add_series`. Verificato: 96 s stabili dove prima crashava in 8.
-  **La domanda resta aperta**: segnalare a monte? altri campi con lo stesso schema?
+### 3. I due passi del programma non ancora fatti
 
-### 2. Programma deciso il 2026-08-25 — tutte le domande aperte chiuse
-
-Passate una per una col maintainer e **decise tutte**. Il piano completo è in
-[docs/plans/2026-08-25-chiusura-domande-aperte.md](docs/plans/2026-08-25-chiusura-domande-aperte.md);
-le decisioni sono registrate dentro ciascuna domanda in `docs/OPEN_QUESTIONS.md`.
-
-| # | Cosa | Da dove | Peso |
-|---|---|---|---|
-| A1 | Crate LVGL **dentro il workspace** (serve `libsdl2-dev` + `clang`, oggi assenti sul dev server) | nota nel codice | medio |
-| A2 | Toppa LVGL → **patch tracciata sul vendor**, con script che fallisce se non si applica | Q22 | medio |
-| B1 | Backend DRM tenuto ma **dichiarato non supportato**, con errore che dice perché | Q19 | piccolo |
-| B2 | ODBC resta selezionabile **con avviso "non implementato"** | nota nel codice | piccolo |
-| B3 | `App.test.tsx`: scrivere il **mock di `@/api/client`** e verificare davvero il contenuto | nota nel codice | piccolo |
-| B4 | `into_py` → `into_pyobject` **quando si aggiorna pyo3**, non prima | nota nel codice | nessuno ora |
-| C1 | "Salva tutto" torna a coprire Datastore e Notifiche, con flag `touched` | nota nel codice | medio |
-| C2 | **Sezione "Python" unica** nell'IDE (funzioni + script in un punto solo) | Q21 | medio |
-| C3 | Colore predefinito del testo **dallo sfondo pagina**, su entrambi i motori | Q18 | medio |
-| D1 | Il viewer si ridisegna su **notifica WebSocket** di progetto cambiato | Q20 | medio |
-| D2 | SVG su LVGL: **rasterizzazione a runtime** (resvg) — prima misurare peso e memoria | Q15+Q16 | grande |
-| E | F9c: **tutti i 137 campi**, con controllo generato a guardia | roadmap | il più grande |
-
-Ordine: A1, A2 → B1-B4 → D1 → C1, C3 → C2 → D2 → E. Un branch per lotto, fermandosi fra l'uno e
-l'altro.
-
-### 3. Ancora in sospeso, indipendenti dal programma
-
-1. **Ripubblicare l'immagine** (rimandata da te). Finché non avviene, sul WP630 il discovery mDNS
-   resta rotto, e le correzioni del viewer (movimento, trend, crash della sparkline) vivono su un
-   binario montato a mano in `/tmp`, **che si svuota al riavvio**.
-2. **Provare il pull dall'IDE** (`feat/ide-pull-progetto`), l'unica cosa mai confermata da te.
+- **D2 — rasterizzazione SVG** (Q15+Q16, deciso: `resvg` a runtime). Il primo
+  passo è **misurare** peso del binario e memoria sul pannello: se sfora, si torna
+  a discuterne con un numero in mano. Oggi restano muti i 12 simboli "vendored",
+  i simboli custom e il widget `image`.
+- **E — F9c, i 137 campi mancanti** (deciso: tutti, sistematicamente). Serve prima
+  un controllo generato che confronti `model.rs` con `sws-web/src/synoptic.rs`:
+  farlo a mano su 137 campi è un lavoro che si sbaglia.
 
 ### 4. Stato del WP630
 
-Progetto attivo **`DemoItemsLVGL`** (dal template nuovo), script di animazione attivo, storico che
-registra. Tutte e quattro le pagine reggono, compresa "Grafici e tabelle" che prima crashava.
-Il viewer gira su `/tmp/lvgl-v10` montato a mano — con la correzione di Q22, quindi **più recente
-dell'immagine pubblicata**. Le pagine di diagnostica create per bisezionare Q22 sono già state
-rimosse dal progetto.
+Progetto **`DemoItemsLVGL`** dal template nuovo, script di animazione attivo,
+storico che registra. Tutte e quattro le pagine reggono. Il viewer gira su
+`/tmp/lvgl-v14` montato a mano; il runtime è quello dell'immagine pubblicata, con
+la quadlet identica al backup.
 
 ### 5. Due trappole degli script Python, imparate a caro prezzo
 
-Scritte nei commenti dello script del template, dove le legge chi ne scriverà un altro:
-- **niente `import`** — RestrictedPython con `safe_builtins`. Insidioso perché sul dev server
-  RestrictedPython di solito non è installato e il runtime ricade sull'esecuzione non ristretta:
-  lì l'import passa e si scopre tutto solo sul pannello;
-- **una funzione non vede le costanti di modulo** — `exec(codice, globals, {})`, le assegnazioni di
-  primo livello finiscono in un dizionario locale usa-e-getta.
+Scritte nei commenti dello script del template, dove le legge chi ne scriverà un
+altro:
+
+- **niente `import`** — gli script girano in RestrictedPython con `safe_builtins`.
+  Insidioso perché sul PC di sviluppo RestrictedPython di solito non è installato
+  e il runtime ricade sull'esecuzione non ristretta: lì l'import passa, e si
+  scopre tutto solo sul pannello;
+- **una funzione non vede le costanti definite fuori** — il runtime esegue con
+  `exec(codice, globals, {})`, e le assegnazioni di primo livello finiscono in un
+  dizionario locale usa-e-getta.
+
 ---
 
 ## ▶ Da fare, dalle sessioni precedenti
