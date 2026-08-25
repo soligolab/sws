@@ -1367,6 +1367,15 @@ function FunctionsSection({ onFunctionsChanged }: { onFunctionsChanged: () => vo
             eventi degli oggetti.
           </p>
         )}
+        {/* Rimando all'altra superficie Python del progetto (Q21). Le funzioni
+            aspettano di essere chiamate da un oggetto; gli script partono da
+            soli, a tempo o su evento. Sono cose diverse, ma chi cerca "il
+            Python del progetto" le cerca insieme — e prima nessuno dei due
+            punti diceva che l'altro esistesse. */}
+        <p style={{ padding: "4px 12px 8px", fontSize: 11, color: "var(--brand-text-subtle, #64748b)", margin: 0 }}>
+          Per gli script che partono da soli (all'avvio, a intervallo, quando
+          cambia un tag) vedi <strong>Configurazione → Python</strong>.
+        </p>
         {functions.map((f) => {
           const isSel = f.id === selectedFnId;
           const isRen = f.id === renaming;

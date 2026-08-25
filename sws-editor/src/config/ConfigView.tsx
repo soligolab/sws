@@ -6634,6 +6634,61 @@ function triggerLabel(t: ScriptTriggerKind): string {
   }
 }
 
+/// Le FUNZIONI del progetto, elencate accanto agli script (Q21).
+///
+/// Solo elenco, non un secondo editor: le funzioni si modificano nell'editor a
+/// schermo intero, che ha anche i parametri e gli snippet. Duplicare qui quella
+/// interfaccia significherebbe mantenerne due, e farle divergere.
+///
+/// Quello che si guadagna è la risposta alla domanda «dov'è tutto il Python di
+/// questo progetto»: prima erano due posti e nessuno dei due lo diceva.
+function FunctionsInventory() {
+  const functions = useAppStore((s) => s.project?.functions) ?? [];
+  const selectFunction = useAppStore((s) => s.selectFunction);
+  const setAppMode = useAppStore((s) => s.setAppMode);
+
+  const apri = (id: string) => {
+    selectFunction(id);
+    setAppMode("edit");
+  };
+
+  return (
+    <>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <span style={{ fontWeight: 700, fontSize: 13, color: "var(--brand-text-muted, #94a3b8)" }}>FUNZIONI</span>
+        <span style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)" }}>{functions.length}</span>
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 180, overflow: "auto" }}>
+        {functions.length === 0 && (
+          <div style={{ color: "var(--brand-text-subtle, #64748b)", fontSize: 12, padding: "6px 8px" }}>
+            Nessuna funzione.
+          </div>
+        )}
+        {functions.map((f) => (
+          <div
+            key={f.id}
+            onClick={() => apri(f.id)}
+            title="Apri nell'editor a schermo intero (parametri e snippet)"
+            style={{
+              padding: "6px 10px", borderRadius: 6, cursor: "pointer",
+              background: "var(--brand-surface, #1e293b)",
+              border: "1px solid var(--brand-surface-2, #334155)",
+            }}
+          >
+            <div style={{ fontSize: 13, color: "var(--brand-text, #e2e8f0)" }}>{f.name || "(senza nome)"}</div>
+            <div style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)" }}>
+              chiamata da un oggetto{f.params.length > 0 ? ` · ${f.params.length} parametri` : ""}
+            </div>
+          </div>
+        ))}
+      </div>
+      <div style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", lineHeight: 1.4 }}>
+        Le funzioni si modificano nell'editor: clicca una voce per aprirla.
+      </div>
+    </>
+  );
+}
+
 function GlobalScriptsTab() {
   const { t } = useTranslation();
   const project = useAppStore((s) => s.project);
@@ -6690,9 +6745,13 @@ function GlobalScriptsTab() {
     <div style={{ display: "flex", flexDirection: "column", height: "calc(100vh - 120px)" }}>
       <SaveBar onSave={handleSave} saving={saving} saved={false} label="Salva tutti" notice={msg} />
       <div style={{ display: "flex", gap: 16, flex: 1, overflow: "hidden" }}>
-      {/* Left: script list */}
-      <div style={{ width: 240, flexShrink: 0, display: "flex", flexDirection: "column", gap: 8 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+      {/* Colonna sinistra: TUTTO il Python del progetto (Q21).
+          Funzioni e script restano tipi distinti nel modello — una funzione non
+          ha trigger, aspetta di essere chiamata — ma smettono di stare in due
+          punti lontani dell'interfaccia. Ogni voce dice come parte. */}
+      <div style={{ width: 260, flexShrink: 0, display: "flex", flexDirection: "column", gap: 8 }}>
+        <FunctionsInventory />
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 4 }}>
           <span style={{ fontWeight: 700, fontSize: 13, color: "var(--brand-text-muted, #94a3b8)" }}>SCRIPT</span>
           <button
             onClick={addScript}

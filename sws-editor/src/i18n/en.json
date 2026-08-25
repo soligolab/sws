@@ -153,7 +153,7 @@
       "protocols": "Protocols",
       "alarms": "Alarms",
       "datastores": "Datastore",
-      "scripts": "Scripts",
+      "scripts": "Python",
       "faceplates": "Faceplates",
       "recipes": "Recipes",
       "notifications": "Notifications",

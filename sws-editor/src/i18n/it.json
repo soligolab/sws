@@ -153,7 +153,7 @@
       "protocols": "Protocolli",
       "alarms": "Allarmi",
       "datastores": "Datastore",
-      "scripts": "Script",
+      "scripts": "Python",
       "faceplates": "Faceplates",
       "recipes": "Ricette",
       "notifications": "Notifiche",
