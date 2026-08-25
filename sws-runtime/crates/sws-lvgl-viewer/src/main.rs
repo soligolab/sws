@@ -266,6 +266,48 @@ fn main() -> anyhow::Result<()> {
 // compilatore non vede che LVGL tiene puntatori al suo contenuto via FFI —
 // qui più visibile perché il loop non ha mai un `break` che lo "consumi".
 #[allow(clippy::too_many_arguments, unused_variables, unused_assignments)]
+/// Perché il backend DRM non può funzionare qui, se non può.
+///
+/// `None` = nessun ostacolo noto, si prova ad aprire il device.
+///
+/// Pura (l'ambiente arriva come parametro) per poterla verificare senza un
+/// compositore acceso e senza un `/dev/dri` vero: è logica di diagnosi, e una
+/// diagnosi che nessuno prova è una diagnosi di cui non ci si può fidare.
+fn drm_backend_blocker(card_path: &str, env: impl Fn(&str) -> Option<String>) -> Option<String> {
+    let non_vuota = |k: &str| env(k).filter(|v| !v.trim().is_empty());
+
+    // Un compositore attivo tiene il DRM master: nessun altro processo può
+    // fare il modeset, permessi o no. Si controlla prima dei permessi perché è
+    // la causa che resta anche dopo averli sistemati.
+    if let Some(d) = non_vuota("WAYLAND_DISPLAY") {
+        return Some(format!(
+            "c'è un compositore Wayland attivo (WAYLAND_DISPLAY={d}) e il DRM master è suo — \
+             ce n'è uno solo per seat, quindi servirebbe fermarlo"
+        ));
+    }
+    if let Some(d) = non_vuota("DISPLAY") {
+        return Some(format!(
+            "c'è un server X attivo (DISPLAY={d}) e il DRM master è suo — \
+             servirebbe fermarlo"
+        ));
+    }
+
+    // `seatd` significa che i device li distribuisce lui, e questo backend non
+    // sa chiederglieli: fa `open()` diretto.
+    if std::path::Path::new("/run/seatd.sock").exists() {
+        return Some(
+            "il sistema usa seatd (/run/seatd.sock) per distribuire i device grafici, \
+             mentre questo backend apre /dev/dri direttamente e non sa chiederglieli"
+                .to_string(),
+        );
+    }
+
+    if !std::path::Path::new(card_path).exists() {
+        return Some(format!("{card_path} non esiste"));
+    }
+    None
+}
+
 fn run_drm(
     card_path: &str,
     hor_res: u32,
@@ -285,6 +327,29 @@ fn run_drm(
     lang_table: model::LanguageTable,
     shared_lang: client::SharedLang,
 ) -> anyhow::Result<()> {
+    // Diagnosi PRIMA di aprire il device.
+    //
+    // Su un pannello PixsysOS questo backend non può funzionare, e non per un
+    // difetto correggibile: i device li distribuisce `seatd`, e il DRM master
+    // ce l'ha Weston (ce n'è uno solo per seat). Un `open()` diretto fallisce
+    // con "Permission denied", che è vero e inutile — chi lo legge cerca il
+    // permesso mancante, e il permesso non è il punto. Vedi OPEN_QUESTIONS Q19.
+    //
+    // Il backend resta perché su hardware **senza** compositore sarebbe la
+    // strada giusta; ma deve dire da sé quando non lo è.
+    if let Some(motivo) = drm_backend_blocker(card_path, |k| std::env::var(k).ok()) {
+        anyhow::bail!(
+            "il backend DRM non è utilizzabile qui: {motivo}\n\
+             \n\
+             Su questi pannelli usa il backend predefinito SDL2, che passa dal\n\
+             compositore e funziona senza privilegi:\n\
+             \n\
+                 sws-lvgl-viewer --base-url … --page … (senza --backend drm)\n\
+             \n\
+             Vedi docs/OPEN_QUESTIONS.md Q19 per il perché."
+        );
+    }
+
     let mut drm = drm_display::DrmDisplay::open(card_path)?;
     if drm.width != hor_res || drm.height != ver_res {
         eprintln!(
@@ -611,7 +676,7 @@ fn run_window(
 
 #[cfg(test)]
 mod tests {
-    use super::resolve_touch_device;
+    use super::{drm_backend_blocker, resolve_touch_device};
 
     /// Il caso normale su un Pixsys sano: entrambi i symlink esistono e va
     /// scelto quello calibrato da tslib, non il pannello grezzo.
@@ -653,6 +718,43 @@ mod tests {
     /// `off` e la stringa vuota disattivano il touch. La stringa vuota era il
     /// vecchio default: chi la passa ancora da uno script non deve trovarsi
     /// un comportamento diverso da prima.
+    // ── Diagnosi del backend DRM (Q19) ──────────────────────────────────
+
+    fn amb<'a>(pairs: &'a [(&'a str, &'a str)]) -> impl Fn(&str) -> Option<String> + 'a {
+        move |k| pairs.iter().find(|(n, _)| *n == k).map(|(_, v)| v.to_string())
+    }
+
+    /// Il caso del WP630: compositore acceso. Il messaggio deve parlare del DRM
+    /// master, non dei permessi — è lì che si perde tempo altrimenti.
+    #[test]
+    fn un_compositore_wayland_blocca_il_drm() {
+        let m = drm_backend_blocker("/dev/dri/card0", amb(&[("WAYLAND_DISPLAY", "wayland-1")]))
+            .expect("dovrebbe segnalare un ostacolo");
+        assert!(m.contains("DRM master"), "il messaggio deve dire di chi è il master: {m}");
+        assert!(m.contains("wayland-1"), "e quale compositore: {m}");
+    }
+
+    #[test]
+    fn anche_un_server_x_blocca_il_drm() {
+        let m = drm_backend_blocker("/dev/dri/card0", amb(&[("DISPLAY", ":0")])).unwrap();
+        assert!(m.contains("server X") && m.contains(":0"), "{m}");
+    }
+
+    /// Una variabile presente ma vuota non è un compositore acceso.
+    #[test]
+    fn variabili_vuote_non_contano_come_compositore() {
+        let r = drm_backend_blocker("/dev/dri/card-inesistente",
+            amb(&[("WAYLAND_DISPLAY", ""), ("DISPLAY", "   ")]));
+        let m = r.expect("il device non esiste, quindi un ostacolo c'è");
+        assert!(m.contains("non esiste"), "l'ostacolo dev'essere il device, non il compositore: {m}");
+    }
+
+    #[test]
+    fn un_device_mancante_viene_detto_chiaramente() {
+        let m = drm_backend_blocker("/dev/dri/card-inesistente", amb(&[])).unwrap();
+        assert!(m.contains("/dev/dri/card-inesistente") && m.contains("non esiste"), "{m}");
+    }
+
     #[test]
     fn off_e_stringa_vuota_disattivano_il_touch() {
         assert_eq!(resolve_touch_device("off", |_| true), None);

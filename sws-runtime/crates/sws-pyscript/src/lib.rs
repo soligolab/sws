@@ -148,7 +148,13 @@ impl Notifier {
 impl TagApi {
     /// Read the current value of `id`. Returns the Python-native type
     /// matching the tag's `TagValue` variant, or None if the tag is unknown.
-    // TODO(pyo3-0.24): migrate `into_py` → `into_pyobject` API.
+    // `into_py` è deprecata da pyo3 0.23 in favore di `into_pyobject`.
+    //
+    // Deciso il 2026-08-25: **si migra quando si aggiorna pyo3**, non prima.
+    // Oggi è solo un avviso di deprecazione su una API che funziona; migrare
+    // adesso significherebbe toccare ogni conversione di questo file senza
+    // ottenere niente, e rifarlo comunque all'aggiornamento. `#[allow]` qui
+    // sotto tiene il rumore fuori dalla build nel frattempo.
     #[allow(deprecated)]
     fn read(&self, py: Python<'_>, id: &str) -> Option<PyObject> {
         let db = self.db.clone();

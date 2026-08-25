@@ -6396,7 +6396,11 @@ function DatastoresTab() {
                 style={{ ...inputStyle, width: 110 }}>
                 <option value="sqlite">SQLite</option>
                 <option value="postgres">PostgreSQL</option>
-                <option value="odbc">ODBC</option>
+                {/* Q-nota 2026-08-25: il backend ODBC è uno stub — ogni metodo
+                    risponde "not compiled in". Resta selezionabile (l'architettura a
+                    backend lo prevede e serve da segnaposto) ma deve dirlo PRIMA,
+                    non alla prima scrittura andata a vuoto. */}
+                <option value="odbc">ODBC — non implementato</option>
               </select>
               <button onClick={() => testDs(ds.id)} style={{ background: "#0ea5e9", color: "#0f172a", border: "none", borderRadius: 4, padding: "3px 8px", cursor: "pointer", fontSize: 11 }}>{t("common.test")}</button>
               <button onClick={() => loadStats(ds.id)} style={{ background: "var(--brand-border, #475569)", color: "var(--brand-text, #e2e8f0)", border: "none", borderRadius: 4, padding: "3px 8px", cursor: "pointer", fontSize: 11 }}>{t("common.stats")}</button>
@@ -6532,6 +6536,17 @@ function DatastoresTab() {
               </div>
             )}
 
+            {ds.backend.kind === "odbc" && (
+              <div style={{ fontSize: 11, color: "var(--brand-warning-soft, #fbbf24)",
+                            background: "var(--brand-warning-bg, #78350f)",
+                            border: "1px solid var(--brand-warning, #f59e0b)",
+                            borderRadius: 4, padding: "6px 8px", marginBottom: 8 }}>
+                ⚠ Il backend ODBC <strong>non è implementato</strong>: i campi qui sotto si salvano
+                nel progetto, ma il runtime risponde «not compiled in» a ogni lettura e scrittura.
+                Il cablaggio vero (odbc-api + unixODBC) è rimandato a quando ci sarà un impianto
+                SQL Server o Oracle da agganciare davvero.
+              </div>
+            )}
             {ds.backend.kind === "odbc" && (
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
                 {(["dsn", "connection_string", "table", "col_tag", "col_value", "col_ts"] as const).map((field) => (
