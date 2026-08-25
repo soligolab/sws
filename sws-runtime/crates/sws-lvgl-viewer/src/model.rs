@@ -161,6 +161,16 @@ pub struct SynopticObject {
     /// al file: un campo non dichiarato qui viene ignorato, non genera
     /// errori di parsing.
     pub trend_series_styles: Option<Vec<TrendSeriesStyle>>,
+    /// Tracce del trend nel formato introdotto dalla 2.1.0, che ha unificato
+    /// tag e stile in un elenco solo. La migrazione riscrive le pagine al primo
+    /// salvataggio, quindi su un progetto aggiornato `tag`/`extra_tags` non ci
+    /// sono più: questo motore continuava a cercarle lì, e i trend disegnavano
+    /// un grafico **vuoto**. Non una rifinitura mancante — una regressione.
+    ///
+    /// `tag` + `extra_tags` restano come ripiego per i progetti non ancora
+    /// migrati, che sono esattamente quelli che girano sui dispositivi in
+    /// servizio finché nessuno li riapre nell'IDE.
+    pub trend_tags: Option<Vec<TrendTrace>>,
 
     // ── alarm_viewer ──
     pub alarm_viewer_max_rows: Option<f64>,
@@ -348,6 +358,23 @@ pub struct BarChartSeries {
 /// disegnati.
 #[derive(Debug, Deserialize, Clone)]
 pub struct TrendSeriesStyle {
+    pub color: Option<String>,
+}
+
+/// Porta `TrendTrace` di `types/index.ts` — il formato con cui la 2.1.0 ha
+/// unificato tag e stile in un elenco solo.
+///
+/// Dichiarati qui solo i campi che questo motore sa usare: `tag`, `color`,
+/// `hidden`. `label` (legenda), `own_scale` (secondo asse Y), `width`, `dash`,
+/// `fill`, `fill_opacity` e `smooth` esistono nello schema web ma non hanno
+/// equivalente disegnato — gap dichiarato, non un nome dimenticato. Serde li
+/// ignora senza errori, come tutto il resto del file.
+#[derive(Debug, Deserialize, Clone)]
+pub struct TrendTrace {
+    pub tag: String,
+    /// Traccia esclusa dal disegno. Onorata perché una traccia nascosta che
+    /// comparisse comunque sarebbe visibilmente sbagliata, non un dettaglio.
+    pub hidden: Option<bool>,
     pub color: Option<String>,
 }
 

@@ -572,6 +572,56 @@ const TREND_PALETTE: [(u8, u8, u8); 6] = [
 /// Porta `resolveSeriesColor()` di `TrendCanvas.tsx` (riga ~28): stile
 /// esplicito per indice > tutto, poi (solo per la serie 0) `line_color`,
 /// poi la palette a rotazione.
+/// Una traccia del trend, già risolta: quale tag leggere e con che colore.
+#[derive(Debug, PartialEq, Eq)]
+pub struct ResolvedTrace {
+    pub tag: String,
+    pub color: Option<String>,
+}
+
+/// Da dove prendere le tracce di un trend.
+///
+/// La 2.1.0 ha unificato tag e stile in `trend_tags[]` e la migrazione riscrive
+/// le pagine al primo salvataggio. Questo motore continuava a leggere solo
+/// `tag` + `extra_tags`: su un progetto migrato non trovava più niente e il
+/// grafico restava **vuoto**. Il ripiego sul formato vecchio non è cortesia
+/// verso il passato — è il formato che gira sui dispositivi in servizio finché
+/// nessuno riapre il progetto nell'IDE.
+///
+/// Pura per poter essere verificata senza un display: è qui che sta la scelta
+/// che si era rotta, non nelle chiamate FFI che seguono.
+pub fn resolve_trend_traces(obj: &SynopticObject) -> Vec<ResolvedTrace> {
+    // Formato nuovo, se presente e con almeno una traccia utile. Un
+    // `trend_tags: []` non deve far ripiegare sul formato vecchio: significa
+    // "nessuna traccia", ed è una risposta legittima.
+    if let Some(traces) = obj.trend_tags.as_ref() {
+        return traces
+            .iter()
+            .filter(|t| !t.hidden.unwrap_or(false))
+            .filter(|t| !t.tag.trim().is_empty())
+            .map(|t| ResolvedTrace { tag: t.tag.clone(), color: t.color.clone() })
+            .collect();
+    }
+
+    // Formato precedente: `tag` è la serie 0, `extra_tags` le successive, e i
+    // colori stanno a parte in `trend_series_styles` — la precedenza la applica
+    // `trend_series_color`, non questa funzione.
+    let mut out = Vec::new();
+    if let Some(t) = obj.tag.as_deref() {
+        if !t.trim().is_empty() {
+            out.push(ResolvedTrace { tag: t.to_string(), color: None });
+        }
+    }
+    if let Some(extra) = &obj.extra_tags {
+        out.extend(
+            extra.iter()
+                .filter(|t| !t.trim().is_empty())
+                .map(|t| ResolvedTrace { tag: t.clone(), color: None }),
+        );
+    }
+    out
+}
+
 fn trend_series_color(i: usize, obj: &SynopticObject) -> (u8, u8, u8) {
     if let Some(rgb) = obj
         .trend_series_styles
@@ -1902,15 +1952,7 @@ fn render_trend(
     let window_s = obj.window_s.unwrap_or(60.0).round().clamp(1.0, i16::MAX as f64) as u64;
     let autofit = obj.y_min.is_none() && obj.y_max.is_none();
 
-    let mut tag_list: Vec<String> = Vec::new();
-    if let Some(t) = obj.tag.as_deref() {
-        if !t.is_empty() {
-            tag_list.push(t.to_string());
-        }
-    }
-    if let Some(extra) = &obj.extra_tags {
-        tag_list.extend(extra.iter().filter(|t| !t.is_empty()).cloned());
-    }
+    let traces = resolve_trend_traces(obj);
 
     unsafe {
         lvgl_sys::lv_chart_set_type(ptr.as_ptr(), lvgl_sys::LV_CHART_TYPE_SCATTER as lvgl_sys::lv_chart_type_t);
@@ -1929,9 +1971,17 @@ fn render_trend(
     }
 
     let backfill = obj.opcua_backfill.unwrap_or(false);
-    let mut series = Vec::with_capacity(tag_list.len());
-    for (i, tag) in tag_list.iter().enumerate() {
-        let rgb = trend_series_color(i, obj);
+    let mut series = Vec::with_capacity(traces.len());
+    for (i, trace) in traces.iter().enumerate() {
+        // Il colore della traccia (formato nuovo) vince; se assente si ricade
+        // sulla precedenza di prima — `trend_series_styles[i]`, poi
+        // `line_color` per la serie 0, poi la tavolozza.
+        let rgb = trace
+            .color
+            .as_deref()
+            .and_then(parse_hex_color)
+            .unwrap_or_else(|| trend_series_color(i, obj));
+        let tag = &trace.tag;
         let ser = unsafe {
             lvgl_sys::lv_chart_add_series(
                 ptr.as_ptr(),
@@ -4926,6 +4976,95 @@ mod binding_tests {
         let b = json!({ "x": { "tag": "liv", "in_min": 0, "in_max": 100, "out_min": 0, "out_max": 640 } });
         let g = resolve_geometry(&b, &t, Some(0.0), None, &fermo());
         assert_eq!(g.dx, 320);
+    }
+
+    // ── Tracce del trend: formato nuovo, ripiego sul vecchio ────────────────
+
+    fn traccia(tag: &str, hidden: Option<bool>, color: Option<&str>) -> crate::model::TrendTrace {
+        crate::model::TrendTrace {
+            tag: tag.to_string(),
+            hidden,
+            color: color.map(str::to_string),
+        }
+    }
+
+    /// La regressione che ha motivato il lotto: dopo la migrazione 2.1.0 le
+    /// tracce stanno in `trend_tags` e il motore le cercava in `tag`, quindi il
+    /// grafico restava vuoto.
+    #[test]
+    fn il_formato_nuovo_viene_letto() {
+        let obj = SynopticObject {
+            trend_tags: Some(vec![traccia("t1", None, Some("#ff0000")), traccia("t2", None, None)]),
+            ..Default::default()
+        };
+        let r = resolve_trend_traces(&obj);
+        assert_eq!(r.len(), 2);
+        assert_eq!(r[0].tag, "t1");
+        assert_eq!(r[0].color.as_deref(), Some("#ff0000"));
+        assert_eq!(r[1].color, None);
+    }
+
+    /// I progetti sui dispositivi in servizio non sono ancora migrati: devono
+    /// continuare a disegnare.
+    #[test]
+    fn il_formato_precedente_continua_a_funzionare() {
+        let obj = SynopticObject {
+            tag: Some("principale".into()),
+            extra_tags: Some(vec!["secondo".into(), "terzo".into()]),
+            ..Default::default()
+        };
+        let r = resolve_trend_traces(&obj);
+        assert_eq!(r.iter().map(|t| t.tag.as_str()).collect::<Vec<_>>(),
+                   vec!["principale", "secondo", "terzo"]);
+    }
+
+    #[test]
+    fn le_tracce_nascoste_non_si_disegnano() {
+        let obj = SynopticObject {
+            trend_tags: Some(vec![
+                traccia("visibile", Some(false), None),
+                traccia("nascosta", Some(true), None),
+            ]),
+            ..Default::default()
+        };
+        let r = resolve_trend_traces(&obj);
+        assert_eq!(r.len(), 1);
+        assert_eq!(r[0].tag, "visibile");
+    }
+
+    /// Un elenco vuoto significa "nessuna traccia", non "usa il formato
+    /// vecchio": ripiegare qui farebbe ricomparire tag che l'utente ha tolto.
+    #[test]
+    fn elenco_vuoto_non_fa_ripiegare_sul_formato_vecchio() {
+        let obj = SynopticObject {
+            trend_tags: Some(vec![]),
+            tag: Some("vecchio".into()),
+            ..Default::default()
+        };
+        assert!(resolve_trend_traces(&obj).is_empty());
+    }
+
+    #[test]
+    fn i_tag_vuoti_vengono_scartati_in_entrambi_i_formati() {
+        let nuovo = SynopticObject {
+            trend_tags: Some(vec![traccia("  ", None, None), traccia("buono", None, None)]),
+            ..Default::default()
+        };
+        assert_eq!(resolve_trend_traces(&nuovo).len(), 1);
+
+        let vecchio = SynopticObject {
+            tag: Some("".into()),
+            extra_tags: Some(vec!["".into(), "buono".into()]),
+            ..Default::default()
+        };
+        let r = resolve_trend_traces(&vecchio);
+        assert_eq!(r.len(), 1);
+        assert_eq!(r[0].tag, "buono");
+    }
+
+    #[test]
+    fn un_trend_senza_niente_non_produce_serie() {
+        assert!(resolve_trend_traces(&SynopticObject::default()).is_empty());
     }
 
     #[test]
