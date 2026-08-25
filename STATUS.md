@@ -8,47 +8,77 @@
 
 ## ▶ Da fare nella prossima sessione
 
-> **Rilasciata la 2.1.1 il 2026-08-25.** Tutto il lavoro di questi due giorni è
-> su `main` e taggato. I branch restano, non cancellati: la pulizia è una tua
-> scelta.
+> **2.1.1 rilasciata e IMMAGINE PUBBLICATA il 2026-08-25.** Il pannello può
+> essere aggiornato: `./install-container.sh --pull` prende `latest-arm64`.
 
-### 1. Da provare — le cose che non ho ancora visto confermate da te
+### 1. Aggiornare un dispositivo — è pronto
+
+Sul dispositivo, come utente (non root):
+
+```
+cd /data/user/sws-container && ./install-container.sh --pull
+```
+
+Prende `ghcr.io/soligolab/sws-runtime:latest-arm64`, che ora è la 2.1.1. Per
+inchiodare la versione: `./install-container.sh --pull ghcr.io/soligolab/sws-runtime:2.1.1-arm64`.
+
+**Cosa cambia sul dispositivo dopo l'aggiornamento**: il discovery mDNS funziona
+anche con due schede di rete, i trend disegnano, gli oggetti coi binding si
+muovono, il viewer non crasha con più grafici sulla stessa pagina, e modificando
+una pagina dall'IDE il pannello si ridisegna da solo senza riavviarlo.
+
+**Verificato prima di pubblicare**: i binari `sws-runtime` e `sws-lvgl-viewer`
+dentro l'immagine combaciano per md5 con quelli compilati. Non è un dettaglio —
+oggi due volte una build ha consegnato un binario stantio senza dirlo.
+
+### 2. Immagini pubblicate, e quella che manca
+
+| Tag | Stato |
+|---|---|
+| `2.1.1-arm64`, `d2f23f9-arm64`, `latest-arm64` | ✅ pubblicati (SDK Pixsys) |
+| `latest-amd64` | ⏳ in corso quando ho chiuso — **da verificare** |
+| `latest-arm64-generic` | ❌ **NON pubblicato** |
+
+L'immagine **aarch64-generica non l'ho potuta fare**: quel percorso richiede
+`sudo` con password, e non c'eri. Serve lanciare a mano:
+
+```
+./scripts/build_container_aarch64_generic.sh --push
+```
+
+Non è quella che usano i pannelli Pixsys (loro prendono `latest-arm64`), quindi
+non blocca niente di immediato.
+
+### 3. Da provare — le cose che non ho visto confermate da te
 
 | Cosa | Dove |
 |---|---|
 | **Riaprire nell'IDE il progetto del dispositivo** | Configurazione → Runtime, sotto Deploy |
-| **La sezione Python unica** | Configurazione → Python (nel progetto di prova ci sono 2 funzioni e 1 script) |
+| **La sezione Python unica** | Configurazione → Python |
 | **Il testo che segue lo sfondo pagina** | una pagina con sfondo scuro e tema app chiaro |
 
-Il resto l'ho verificato dal vivo: movimento degli oggetti, trend, crash della
-sparkline, discovery mDNS, `insecure_skip_verify` contro un broker vero, ricarica
-automatica del viewer, template gemelli sul pannello.
+Il resto l'ho verificato dal vivo sul WP630.
 
-### 2. Ripubblicare l'immagine container
+### 4. I due passi del programma non ancora fatti
 
-**È il passo che sblocca tutto il resto sul pannello.** Finché non avviene, sul
-WP630 il runtime resta la 2.1.0: niente discovery mDNS, niente ricarica
-automatica, e il viewer gira da un binario montato a mano in `/tmp` — che si
-svuota al riavvio.
-
-### 3. I due passi del programma non ancora fatti
-
-- **D2 — rasterizzazione SVG** (Q15+Q16, deciso: `resvg` a runtime). Il primo
-  passo è **misurare** peso del binario e memoria sul pannello: se sfora, si torna
-  a discuterne con un numero in mano. Oggi restano muti i 12 simboli "vendored",
-  i simboli custom e il widget `image`.
+- **D2 — rasterizzazione SVG** (Q15+Q16, deciso: `resvg` a runtime). Primo passo:
+  **misurare** peso del binario e memoria sul pannello. Se sfora, se ne riparla
+  con un numero in mano. Oggi restano muti i 12 simboli "vendored", i simboli
+  custom e il widget `image`.
 - **E — F9c, i 137 campi mancanti** (deciso: tutti, sistematicamente). Serve prima
   un controllo generato che confronti `model.rs` con `sws-web/src/synoptic.rs`:
-  farlo a mano su 137 campi è un lavoro che si sbaglia.
+  a mano su 137 campi è un lavoro che si sbaglia.
 
-### 4. Stato del WP630
+### 5. Stato del WP630
 
 Progetto **`DemoItemsLVGL`** dal template nuovo, script di animazione attivo,
-storico che registra. Tutte e quattro le pagine reggono. Il viewer gira su
-`/tmp/lvgl-v14` montato a mano; il runtime è quello dell'immagine pubblicata, con
-la quadlet identica al backup.
+storico che registra, tutte e quattro le pagine reggono. **Il runtime è ancora
+la 2.1.0**: non l'ho aggiornato perché eri in uscita e volevo lasciartelo in uno
+stato noto. Il viewer gira da `/tmp/lvgl-v14` montato a mano — che si svuota al
+riavvio. Aggiornandolo con `--pull` sparisce ogni montaggio a mano e tutto viene
+dall'immagine.
 
-### 5. Due trappole degli script Python, imparate a caro prezzo
+### 6. Due trappole degli script Python, imparate a caro prezzo
 
 Scritte nei commenti dello script del template, dove le legge chi ne scriverà un
 altro:

@@ -11,6 +11,12 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+- **Corretto il percorso del binario LVGL negli script di build del container.**
+  Trovato pubblicando la 2.1.1: puntava ancora alla cartella di prima che il
+  crate entrasse nel workspace. È una correzione allo strumento, non al
+  contenuto dell'immagine — i binari dentro l'immagine 2.1.1 pubblicata sono
+  stati verificati uno per uno.
+
 ## [2.1.1] — 2026-08-25
 
 Due giorni di lavoro sul WP630. In breve: **il pannello ora si comporta come ci
