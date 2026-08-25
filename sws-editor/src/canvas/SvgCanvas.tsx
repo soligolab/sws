@@ -1,3 +1,4 @@
+import { defaultObjectTextColor } from "@/theme";
 import { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { PALETTE, TrendCanvas } from "@/canvas/TrendCanvas";
@@ -1433,6 +1434,17 @@ export function SvgCanvas({
         return { width: "100%", height: "100%", viewBox: `0 0 ${pageWidth} ${pageHeight}`, preserveAspectRatio: "xMidYMid meet" };
       })()}
       style={{ background, display: "block", userSelect: "none",
+               // Q18 — il colore predefinito del testo degli oggetti si ricava
+               // dallo SFONDO DELLA PAGINA, non dal tema dell'app: un sinottico
+               // è un disegno, e i suoi colori devono seguire il foglio su cui
+               // è disegnato. Con tema chiaro e pagina scura il default di
+               // prima dava testo scuro su scuro, invisibile.
+               //
+               // Passa da una custom property invece che da una prop perché
+               // così vale anche per i renderer annidati (faceplate, celle di
+               // griglia) senza doverla infilare in ogni firma — ed è a cosa
+               // servono le custom property.
+               ["--synoptic-text" as string]: defaultObjectTextColor(background),
                // Senza questo, l'overflow:hidden implicito di <svg> taglia
                // l'ultimo pixel (bordo compreso) di qualunque oggetto
                // posizionato a filo con pageWidth/pageHeight.
@@ -2298,7 +2310,7 @@ function DataLogWidget({ tag, windowS, pageSize, width, height, decimals, unit }
 
   return (
     <div style={{ width, height, display: "flex", flexDirection: "column", fontSize: 11,
-                  color: "var(--brand-text, #e2e8f0)", boxSizing: "border-box" }}>
+                  color: "var(--synoptic-text, var(--brand-text, #e2e8f0))", boxSizing: "border-box" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "2px 4px", flexShrink: 0 }}>
         <button onClick={() => setPage((p) => Math.max(0, p - 1))} disabled={page === 0}
           style={{ background: "var(--brand-surface, #1e293b)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 3, color: "inherit", cursor: "pointer", padding: "0 6px" }}>◀</button>
@@ -2555,7 +2567,7 @@ function AlarmViewerWidget({ width, height, mode, maxRows, prefix, allowedSev, s
     overflow: "hidden",
     fontFamily: "monospace",
     fontSize: 11,
-    color: "var(--brand-text, #e2e8f0)",
+    color: "var(--synoptic-text, var(--brand-text, #e2e8f0))",
     borderRadius: 4,
     border: "1px solid var(--brand-surface-2, #334155)",
     boxSizing: "border-box",
@@ -3216,7 +3228,7 @@ export function SvgObject(p: ObjProps) {
     return (
       <>
         <line x1={obj.x} y1={obj.y} x2={x2} y2={y2}
-          stroke={obj.stroke ?? "var(--brand-text, #e2e8f0)"} strokeWidth={obj.stroke_width ?? 2}
+          stroke={obj.stroke ?? "var(--synoptic-text, var(--brand-text, #e2e8f0))"} strokeWidth={obj.stroke_width ?? 2}
           strokeDasharray={obj.stroke_dasharray || undefined}
           style={{ cursor: editCursor, ...transitionStyle(obj) }}
           onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()} />
@@ -3412,7 +3424,7 @@ export function SvgObject(p: ObjProps) {
     const weight    = obj.font_weight ?? "normal";
     const style     = obj.font_style ?? "normal";
     const anchor    = obj.text_anchor ?? "start";
-    const staticColour = obj.color ?? obj.fill ?? "var(--brand-text, #e2e8f0)";
+    const staticColour = obj.color ?? obj.fill ?? "var(--synoptic-text, var(--brand-text, #e2e8f0))";
     const colour    = (obj.text_color_by_threshold && tv && Number.isFinite(Number(tv.value)))
       ? (thresholdColor(Number(tv.value), obj.alarm_low, obj.warn_low, obj.warn_high, obj.alarm_high) ?? staticColour)
       : staticColour;
@@ -3583,7 +3595,7 @@ export function SvgObject(p: ObjProps) {
             fill={obj.color ?? "var(--brand-primary, #3b82f6)"} fontSize={14}
             style={{ pointerEvents: "none" }}>▶</text>
           <text x={obj.x + 28} y={obj.y + h / 2 + 5}
-            fill={obj.color ?? "var(--brand-text, #e2e8f0)"} fontSize={13}
+            fill={obj.color ?? "var(--synoptic-text, var(--brand-text, #e2e8f0))"} fontSize={13}
             style={{ pointerEvents: "none" }}>
             {obj.label ?? "Go to page"}
           </text>
@@ -3616,7 +3628,7 @@ export function SvgObject(p: ObjProps) {
               preserveAspectRatio="xMidYMid slice" style={{ pointerEvents: "none" }} />
           )}
           <text x={obj.x + w / 2} y={obj.y + h / 2 + 5} textAnchor="middle"
-            fill={active ? "#fff" : "var(--brand-text, #e2e8f0)"} fontSize={13} fontWeight={active ? 700 : 400}
+            fill={active ? "#fff" : "var(--synoptic-text, var(--brand-text, #e2e8f0))"} fontSize={13} fontWeight={active ? 700 : 400}
             style={{ pointerEvents: "none" }}>
             {obj.label ?? (code ? code.toUpperCase() : "LANG")}
           </text>
@@ -3645,7 +3657,7 @@ export function SvgObject(p: ObjProps) {
             <select value={cur} disabled={isEditMode}
               onChange={(e) => useAppStore.getState().setProjectLang(e.target.value)}
               style={{ width: "100%", height: "100%", boxSizing: "border-box",
-                background: obj.fill ?? "var(--brand-surface-2, #334155)", color: "var(--brand-text, #e2e8f0)",
+                background: obj.fill ?? "var(--brand-surface-2, #334155)", color: "var(--synoptic-text, var(--brand-text, #e2e8f0))",
                 border: "1px solid var(--brand-border, #475569)",
                 borderRadius: 4, fontSize: 13, padding: "0 6px",
                 ...(obj.bg_image ? { backgroundImage: `url(${obj.bg_image})`, backgroundSize: "cover", backgroundPosition: "center" } : {}) }}>
@@ -3739,7 +3751,7 @@ export function SvgObject(p: ObjProps) {
     const cx = obj.x + r; const cy = obj.y + r;
     const tv = obj.tag ? tagValues[obj.tag] : undefined;
     const entry = tv != null ? matchTextListEntry(obj.text_list_entries, tv.value) : undefined;
-    const lampColor = entry ? (entry.color ?? "var(--brand-text, #e2e8f0)") : "var(--brand-surface-2, #334155)";
+    const lampColor = entry ? (entry.color ?? "var(--synoptic-text, var(--brand-text, #e2e8f0))") : "var(--brand-surface-2, #334155)";
     const label = entry ? entry.label : (obj.text_list_default ?? "");
     const labelColor = entry ? lampColor : (obj.text_list_default_color ?? "var(--brand-text-muted, #94a3b8)");
     const size = obj.font_size ?? 13;
@@ -4086,7 +4098,7 @@ export function SvgObject(p: ObjProps) {
               />
             </div>
             {obj.show_value !== false && (
-              <span style={{ color: "var(--brand-text, #e2e8f0)", fontSize: 12, textAlign: "center" }}>
+              <span style={{ color: "var(--synoptic-text, var(--brand-text, #e2e8f0))", fontSize: 12, textAlign: "center" }}>
                 {valueText}
               </span>
             )}
@@ -4124,7 +4136,7 @@ export function SvgObject(p: ObjProps) {
             style={{ width: "100%", margin: 0, accentColor: accent, cursor: readOnly ? "default" : "pointer" }}
           />
           {obj.show_value !== false && (
-            <span style={{ color: "var(--brand-text, #e2e8f0)", fontSize: 12, textAlign: "center", lineHeight: 1.2 }}>
+            <span style={{ color: "var(--synoptic-text, var(--brand-text, #e2e8f0))", fontSize: 12, textAlign: "center", lineHeight: 1.2 }}>
               {valueText}
             </span>
           )}
@@ -4183,7 +4195,7 @@ export function SvgObject(p: ObjProps) {
                 style={{
                   flex: 1, minWidth: 0, boxSizing: "border-box",
                   background: "var(--brand-bg, #0f172a)", border: "1px solid var(--brand-surface-2, #334155)",
-                  borderRadius: 4, color: "var(--brand-text, #e2e8f0)", padding: "3px 6px", fontSize: 12,
+                  borderRadius: 4, color: "var(--synoptic-text, var(--brand-text, #e2e8f0))", padding: "3px 6px", fontSize: 12,
                 }}
               />
               <button
@@ -4206,7 +4218,7 @@ export function SvgObject(p: ObjProps) {
                   title={t("keypad.open")}
                   style={{
                     background: "var(--brand-surface-2, #334155)", border: "none", borderRadius: 4,
-                    color: "var(--brand-text, #e2e8f0)", cursor: "pointer", padding: "0 8px",
+                    color: "var(--synoptic-text, var(--brand-text, #e2e8f0))", cursor: "pointer", padding: "0 8px",
                     fontSize: 13, flexShrink: 0,
                   }}
                 >
@@ -4268,7 +4280,7 @@ export function SvgObject(p: ObjProps) {
               </svg>
             )}
           </div>
-          <span style={{ color: "var(--brand-text, #e2e8f0)", fontSize: 13, userSelect: "none" }}>
+          <span style={{ color: "var(--synoptic-text, var(--brand-text, #e2e8f0))", fontSize: 13, userSelect: "none" }}>
             {obj.label ?? ""}
           </span>
           {tv && tv.quality !== "Good" && (
@@ -4318,7 +4330,7 @@ export function SvgObject(p: ObjProps) {
                   onChange={() => guardedWrite(obj.tag!, opt.value as string | number | boolean)}
                   style={{ accentColor: obj.fill ?? "var(--brand-primary, #3b82f6)", cursor: obj.read_only ? "default" : "pointer" }}
                 />
-                <span style={{ color: "var(--brand-text, #e2e8f0)", fontSize: 13, userSelect: "none" }}>
+                <span style={{ color: "var(--synoptic-text, var(--brand-text, #e2e8f0))", fontSize: 13, userSelect: "none" }}>
                   {opt.label}
                 </span>
               </label>
@@ -4404,7 +4416,7 @@ export function SvgObject(p: ObjProps) {
             ? thresholdColor(n, r.alarm_low, r.warn_low, r.warn_high, r.alarm_high)
             : undefined;
           const color = thr
-            ?? (tv ? (tv.quality === "Good" ? "var(--brand-text, #e2e8f0)" : tv.quality === "Bad" ? "#ef4444" : "#eab308")
+            ?? (tv ? (tv.quality === "Good" ? "var(--synoptic-text, var(--brand-text, #e2e8f0))" : tv.quality === "Bad" ? "#ef4444" : "#eab308")
                    : "var(--brand-border, #475569)");
           if (r.writable && !isEditMode) {
             return (
@@ -5021,7 +5033,7 @@ export function SvgObject(p: ObjProps) {
     const valColor =
       (Number.isFinite(rawVal)
         ? thresholdColor(rawVal, obj.alarm_low, obj.warn_low, obj.warn_high, obj.alarm_high)
-        : undefined) ?? obj.color ?? "var(--brand-text, #e2e8f0)";
+        : undefined) ?? obj.color ?? "var(--synoptic-text, var(--brand-text, #e2e8f0))";
     const windowS = obj.spark_window_s ?? 3600;
     const valueText = Number.isFinite(rawVal)
       ? `${rawVal.toFixed(obj.decimals ?? 1)}`

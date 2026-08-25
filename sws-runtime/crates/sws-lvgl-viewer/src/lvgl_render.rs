@@ -1129,6 +1129,36 @@ fn render_rect(screen: &mut lvgl::Obj, obj: &SynopticObject, styles: &mut Vec<St
 /// Calcola il colore testo (soglia se abilitata e valore numerico presente,
 /// altrimenti colore statico) — condiviso tra creazione e aggiornamento così
 /// le due strade non possono divergere.
+/// Luminanza relativa (WCAG) di un colore RGB.
+fn relative_luminance((r, g, b): (u8, u8, u8)) -> f64 {
+    let ch = |v: u8| {
+        let v = v as f64 / 255.0;
+        if v <= 0.04045 { v / 12.92 } else { ((v + 0.055) / 1.055).powf(2.4) }
+    };
+    0.2126 * ch(r) + 0.7152 * ch(g) + 0.0722 * ch(b)
+}
+
+/// Colore predefinito del testo, ricavato dallo SFONDO DELLA PAGINA (Q18).
+///
+/// Porta `defaultObjectTextColor` di `theme.ts`, e deve restare d'accordo con
+/// quella: i due motori disegnano lo stesso progetto, e un testo leggibile sul
+/// browser e invisibile sul pannello sarebbe un difetto di parità.
+///
+/// `None` quando lo sfondo manca o non è un colore piatto interpretabile: si
+/// lascia il default del tema LVGL, come prima. Senza sapere cosa c'è sotto,
+/// indovinare sarebbe peggio.
+///
+/// Soglia a 0.5, come sul web: per la luminanza relativa è il punto in cui il
+/// contrasto verso il bianco e verso il nero si equivale.
+fn default_text_rgb(page_background: Option<&str>) -> Option<(u8, u8, u8)> {
+    let bg = parse_hex_color(page_background?)?;
+    Some(if relative_luminance(bg) > 0.5 {
+        (0x0f, 0x17, 0x2a)
+    } else {
+        (0xe2, 0xe8, 0xf0)
+    })
+}
+
 fn text_color_hex(
     tv: Option<&TagSnapshotValue>,
     text_color_by_threshold: bool,
@@ -4065,6 +4095,25 @@ pub fn render_page_objects(
         apply_bg_color(&mut screen, bg, &mut styles)?;
     }
 
+    // Q18 — colore predefinito del testo dallo sfondo della pagina.
+    //
+    // Si applica allo SCHERMO, non a ogni widget: in LVGL `text_color` è una
+    // proprietà ereditabile, quindi i figli senza colore esplicito la prendono
+    // da qui. È l'equivalente della custom property `--synoptic-text` che fa
+    // lo stesso mestiere sul web, e per lo stesso motivo: non dover infilare
+    // il colore in ogni firma di render.
+    //
+    // Un oggetto con `color` proprio continua a vincere: questo è solo il
+    // valore di partenza, non un'imposizione.
+    if let Some(rgb) = default_text_rgb(page.background.as_deref()) {
+        let mut text_style = Style::default();
+        text_style.set_text_color(Color::from_rgb(rgb));
+        screen
+            .add_style(Part::Main, &mut text_style)
+            .map_err(|e| anyhow::anyhow!("add_style testo: {e:?}"))?;
+        styles.push(text_style);
+    }
+
     // Id della pagina corrente: serve a `lang_button`/`lang_selector` per
     // ricaricarla via `nav_tx` dopo un cambio lingua — un navbutton verso se
     // stessa, riusando la stessa strada di qualunque altra navigazione
@@ -4897,6 +4946,54 @@ mod binding_tests {
             obj.bindings = Some([("visible".to_string(), json!(tag))].into_iter().collect());
             assert_eq!(apply_bindings(&obj, &t).unwrap().visible, Some(atteso));
         }
+    }
+
+    // ── Colore del testo dallo sfondo pagina (Q18) ──────────────────────
+    //
+    // Questi casi sono gli STESSI di `tests/textOnBackground.test.ts` nel
+    // frontend, di proposito: i due motori disegnano lo stesso progetto, e un
+    // testo leggibile sul browser e invisibile sul pannello sarebbe
+    // esattamente il difetto di parità che il template gemello esiste per
+    // scoprire. Se qui si cambia una soglia, va cambiata anche là.
+
+    #[test]
+    fn su_sfondo_scuro_il_testo_e_chiaro() {
+        assert_eq!(default_text_rgb(Some("#0f172a")), Some((0xe2, 0xe8, 0xf0)));
+        assert_eq!(default_text_rgb(Some("#000000")), Some((0xe2, 0xe8, 0xf0)));
+    }
+
+    #[test]
+    fn su_sfondo_chiaro_il_testo_e_scuro() {
+        assert_eq!(default_text_rgb(Some("#ffffff")), Some((0x0f, 0x17, 0x2a)));
+        assert_eq!(default_text_rgb(Some("#f8fafc")), Some((0x0f, 0x17, 0x2a)));
+    }
+
+    /// Senza sfondo non si inventa un colore: resta il default del tema LVGL,
+    /// cioè il comportamento di prima.
+    #[test]
+    fn senza_sfondo_non_si_impone_niente() {
+        assert_eq!(default_text_rgb(None), None);
+        assert_eq!(default_text_rgb(Some("")), None);
+        assert_eq!(default_text_rgb(Some("non-un-colore")), None);
+    }
+
+    /// Il verde puro è chiaro nonostante rosso e blu a zero: la luminanza pesa
+    /// il verde per il 72%. Una media aritmetica sbaglierebbe questo caso, ed è
+    /// l'errore facile riscrivendo la funzione.
+    #[test]
+    fn i_canali_pesano_come_la_luminanza_non_come_una_media() {
+        assert_eq!(default_text_rgb(Some("#00ff00")), Some((0x0f, 0x17, 0x2a)));
+        assert_eq!(default_text_rgb(Some("#0000ff")), Some((0xe2, 0xe8, 0xf0)));
+    }
+
+    #[test]
+    fn la_luminanza_e_monotona_dal_nero_al_bianco() {
+        let nero = relative_luminance((0, 0, 0));
+        let grigio = relative_luminance((128, 128, 128));
+        let bianco = relative_luminance((255, 255, 255));
+        assert!((nero - 0.0).abs() < 1e-9);
+        assert!((bianco - 1.0).abs() < 1e-9);
+        assert!(nero < grigio && grigio < bianco);
     }
 
     // ── Movimento (LiveKind::Geometry) ──────────────────────────────────────

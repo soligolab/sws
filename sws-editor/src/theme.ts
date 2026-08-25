@@ -153,6 +153,45 @@ export function resolvePageBackground(
   return resolveMode(mode) === "dark" ? (backgroundDark || background) : background;
 }
 
+/** Luminanza relativa (WCAG) di un colore `#rgb`/`#rrggbb`, o `null` se non
+ *  interpretabile — un colore che non si sa leggere non si può giudicare. */
+export function relativeLuminance(hex: string): number | null {
+  const m = /^#?([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(hex.trim());
+  if (!m) return null;
+  let h = m[1];
+  if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
+  const ch = [0, 2, 4].map((i) => {
+    const v = parseInt(h.slice(i, i + 2), 16) / 255;
+    return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * ch[0] + 0.7152 * ch[1] + 0.0722 * ch[2];
+}
+
+/** Colore del testo predefinito degli oggetti di un sinottico, ricavato dallo
+ *  SFONDO DELLA PAGINA e non dal tema dell'app (Q18, deciso 2026-08-25).
+ *
+ *  Il difetto che chiude: un oggetto senza `color` esplicito usava il token
+ *  `--brand-text`, che segue il tema chiaro/scuro dell'applicazione, mentre lo
+ *  sfondo della pagina lo sceglie il progettista. Con tema chiaro e pagina
+ *  scura il testo era scuro su scuro — invisibile, e non per una svista del
+ *  progettista ma per una combinazione che nessuno aveva messo alla prova.
+ *
+ *  Un sinottico è un disegno, non l'interfaccia di un sistema: i suoi colori
+ *  devono seguire il foglio su cui è disegnato. Il tema dell'app resta per la
+ *  chrome di IDE e viewer.
+ *
+ *  Sfondo assente o non interpretabile (un gradiente, un `var(...)`) → si
+ *  ricade sul token di tema, cioè sul comportamento di prima: senza sapere
+ *  cosa c'è sotto, indovinare sarebbe peggio.
+ *
+ *  Soglia a 0.5: sopra è chiaro, e per la luminanza relativa WCAG è il punto
+ *  in cui il contrasto verso il bianco e verso il nero si equivale. */
+export function defaultObjectTextColor(pageBackground: string | undefined): string {
+  const lum = pageBackground ? relativeLuminance(pageBackground) : null;
+  if (lum === null) return "var(--brand-text, #e2e8f0)";
+  return lum > 0.5 ? "#0f172a" : "#e2e8f0";
+}
+
 /**
  * Applica il tema alla pagina: scrive i token neutri + stato come proprietà
  * inline su :root (l'accento resta quello del brand), imposta data-theme,

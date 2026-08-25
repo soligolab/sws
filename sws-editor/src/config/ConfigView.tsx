@@ -404,19 +404,40 @@ function TagsTab() {
   const fileRef = useRef<HTMLInputElement>(null);
 
   // Sync local state when store changes (e.g. on initial project load or after ZIP import).
+  // Traccia l'INTENZIONE dell'utente, non la differenza fra bozza e store.
+  //
+  // Questa tab era esclusa da "Salva tutto" dal 2026-07-28, dopo che un
+  // confronto strutturale bozza-vs-store aveva scritto su disco una bozza
+  // momentaneamente disallineata: audit `{"count": 0, "what": "tags"}` su un
+  // progetto che sul disco aveva 16 variabili. Il difetto non era registrarsi
+  // in `pendingSections`, era il criterio: "diverso dallo store" può essere
+  // vero senza che nessuno abbia toccato niente.
+  //
+  // Con `touched` la domanda diventa quella giusta — "l'utente ha modificato
+  // qualcosa?" — ed è lo schema che Notifiche usa già. Si alza solo nelle
+  // mutazioni volute e mai nella sincronizzazione dallo store, che è
+  // esattamente il caso che fece danno.
+  const [touched, setTouched] = useState(false);
+
   // Depend on the full project object so content changes (not just count) trigger a refresh.
   useEffect(() => {
-    if (storeProject?.tags) setTags(storeProject.tags);
+    if (storeProject?.tags) { setTags(storeProject.tags); setTouched(false); }
   }, [storeProject]);
 
-  const addTag = () =>
+  const addTag = () => {
+    setTouched(true);
     setTags((prev) => [...prev, { id: "", description: "", data_type: "float" }]);
+  };
 
-  const updateTag = (idx: number, patch: Partial<TagDef>) =>
+  const updateTag = (idx: number, patch: Partial<TagDef>) => {
+    setTouched(true);
     setTags((prev) => prev.map((t, i) => (i === idx ? { ...t, ...patch } : t)));
+  };
 
-  const removeTag = (idx: number) =>
+  const removeTag = (idx: number) => {
+    setTouched(true);
     setTags((prev) => prev.filter((_, i) => i !== idx));
+  };
 
   const toggleExpr = (idx: number) =>
     setExprOpen((prev) => {
@@ -507,6 +528,7 @@ function TagsTab() {
       await api.updateTags(valid);
       updateProjectTags(valid);
       setTags(valid);
+      setTouched(false);
       setSaved(true);
       // Segnala il salvataggio riuscito allo stesso stato globale che
       // saveAll() usa per la finestra "è stato un salvataggio nostro" del
@@ -551,15 +573,11 @@ function TagsTab() {
 
   return (
     <div style={S.section}>
-{/* Volutamente NON registrata in `pendingSections`: un confronto strutturale
-          bozza-vs-store non esprime l'intenzione dell'utente, e con "Salva tutto"
-          che svuota le bozze una bozza momentaneamente disallineata veniva
-          scritta su disco. Il 2026-07-28 questo ha azzerato le variabili di un
-          progetto (audit: `{"count": 0, "what": "tags"}` contro 16 su disco).
-          Questa tab si salva solo col proprio pulsante, come prima. Si potrà
-          ri-abilitare quando traccerà l'intenzione reale, come fanno Notifiche
-          (flag `touched`) e Datastore (flag `dirty` locale). */}
-      <SaveBar onSave={handleSave} saving={saving} saved={saved} />
+{/* Registrata di nuovo in `pendingSections` dal 2026-08-25: `touched` traccia
+          l'intenzione dell'utente invece della differenza strutturale, che è
+          ciò che nel 2026-07-28 aveva scritto su disco una bozza vuota. Vedi il
+          commento su `touched` sopra. */}
+      <SaveBar onSave={handleSave} saving={saving} saved={saved} section="tags" dirty={touched} />
       {showImport && (
         <div style={{
           position: "fixed", inset: 0, zIndex: 8000,
@@ -4460,21 +4478,32 @@ function AlarmsTab() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved]   = useState(false);
 
+  // Stesso schema di TagsTab: si traccia l'intenzione dell'utente, non la
+  // differenza strutturale bozza-vs-store. Vedi lì per l'incidente del
+  // 2026-07-28 che aveva fatto escludere entrambe le tab da "Salva tutto".
+  const [touched, setTouched] = useState(false);
+
   useEffect(() => {
-    if (storeProject?.alarms) setAlarms(storeProject.alarms);
+    if (storeProject?.alarms) { setAlarms(storeProject.alarms); setTouched(false); }
   }, [storeProject?.alarms?.length]);
 
-  const addAlarm = () =>
+  const addAlarm = () => {
+    setTouched(true);
     setAlarms((prev) => [...prev, emptyAlarm()]);
+  };
 
-  const updateAlarm = (idx: number, patch: Partial<AlarmDef>) =>
+  const updateAlarm = (idx: number, patch: Partial<AlarmDef>) => {
+    setTouched(true);
     setAlarms((prev) => prev.map((a, i) => (i === idx ? { ...a, ...patch } : a)));
+  };
 
   const updateCondition = (idx: number, cond: AlarmCondition) =>
     updateAlarm(idx, { condition: cond });
 
-  const removeAlarm = (idx: number) =>
+  const removeAlarm = (idx: number) => {
+    setTouched(true);
     setAlarms((prev) => prev.filter((_, i) => i !== idx));
+  };
 
   const handleSave = async () => {
     const valid = alarms.filter((a) => a.id.trim() !== "" && a.tag.trim() !== "");
@@ -4483,6 +4512,7 @@ function AlarmsTab() {
       await api.updateAlarms(valid);
       updateProjectAlarms(valid);
       setAlarms(valid);
+      setTouched(false);
       setSaved(true);
       // Vedi commento analogo in TagsTab: segnala il salvataggio riuscito
       // allo stato globale che alimenta la finestra "salvataggio nostro" del
@@ -4497,15 +4527,10 @@ function AlarmsTab() {
 
   return (
     <div style={S.section}>
-{/* Volutamente NON registrata in `pendingSections`: un confronto strutturale
-          bozza-vs-store non esprime l'intenzione dell'utente, e con "Salva tutto"
-          che svuota le bozze una bozza momentaneamente disallineata veniva
-          scritta su disco. Il 2026-07-28 questo ha azzerato le variabili di un
-          progetto (audit: `{"count": 0, "what": "tags"}` contro 16 su disco).
-          Questa tab si salva solo col proprio pulsante, come prima. Si potrà
-          ri-abilitare quando traccerà l'intenzione reale, come fanno Notifiche
-          (flag `touched`) e Datastore (flag `dirty` locale). */}
-      <SaveBar onSave={handleSave} saving={saving} saved={saved} />
+{/* Registrata di nuovo in `pendingSections` dal 2026-08-25, come TagsTab:
+          `touched` traccia l'intenzione dell'utente invece della differenza
+          strutturale. */}
+      <SaveBar onSave={handleSave} saving={saving} saved={saved} section="alarms" dirty={touched} />
       <div style={S.sectionTitle}>ALLARMI</div>
       <div style={S.notice}>
         Ogni allarme osserva una variabile e si attiva quando la condizione è
