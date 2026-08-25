@@ -49,6 +49,31 @@ pub async fn start_project_services(
     notifications: Option<sws_core::NotificationConfig>,
     global_scripts: Vec<sws_core::GlobalScriptDef>,
 ) {
+    // Ferma quello che sta già girando, PRIMA di sostituirlo.
+    //
+    // Più sotto il supervisore nuovo viene assegnato con `= Some(sc)`, che
+    // sovrascrive il riferimento senza cancellare il task precedente: quello
+    // resta vivo e continua a eseguire il proprio codice a tempo, per sempre.
+    // I chiamanti che fermavano da soli erano quattro su cinque —
+    // `system_start` (POST /api/system/start) no, e bastava premere "Avvia" due
+    // volte per ritrovarsi con due supervisori attivi.
+    //
+    // Misurato sul WP630 il 2026-08-25: dopo aver sostituito il progetto e
+    // premuto Avvia, il log mostrava 10 esecuzioni riuscite e 10 fallite ogni
+    // 10 secondi — lo script nuovo e quello del progetto precedente, entrambi
+    // a 1 Hz, sugli stessi tag. Su un impianto vero significa codice che
+    // l'operatore crede sostituito e che invece continua a scrivere.
+    //
+    // La guardia sta qui e non nei chiamanti apposta: così vale anche per chi
+    // verrà aggiunto domani.
+    if let Some(old) = s.script_supervisor.write().await.take() {
+        tracing::debug!("global script supervisor precedente fermato prima di riavviare");
+        old.stop();
+    }
+    if let Some(old) = s.notification_supervisor.write().await.take() {
+        old.stop();
+    }
+
     // Il canale Telegram si crea prima dei due supervisori, così condividono
     // lo stesso sink e una riconfigurazione a caldo li aggiorna entrambi.
     let sinks = crate::telegram::restart_sender(
