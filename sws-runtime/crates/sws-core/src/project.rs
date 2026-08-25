@@ -392,8 +392,13 @@ pub struct MqttTlsConfig {
     /// runtime falls back to the OS native trust store.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ca_cert_path: Option<String>,
-    /// Skip hostname / chain validation. NOT implemented in PoC — flagged
-    /// here so the YAML carries the intent and the UI can show a warning.
+    /// Non verificare l'identità del broker: la connessione resta cifrata,
+    /// ma chiunque sia in mezzo può presentare un certificato qualsiasi.
+    ///
+    /// Serve perché i broker di collaudo hanno quasi sempre un certificato
+    /// auto-firmato. Implementata dal 2026-08-24 (prima il runtime la
+    /// registrava e validava lo stesso, senza dirlo se non nel log); quando è
+    /// attiva `ca_cert_path` diventa superfluo e non viene più preteso.
     #[serde(default)]
     pub insecure_skip_verify: bool,
 }

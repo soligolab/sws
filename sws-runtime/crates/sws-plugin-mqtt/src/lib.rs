@@ -16,6 +16,100 @@ use tracing::{debug, info, warn};
 
 mod sparkplug;
 
+/// Verifica del certificato del broker **disattivata**, per `insecure_skip_verify`.
+///
+/// Perché esiste: i broker di collaudo hanno quasi sempre un certificato
+/// auto-firmato, e senza questa via d'uscita l'unica alternativa è procurarsi la
+/// CA e depositarla sul dispositivo prima ancora di sapere se il collegamento
+/// funziona. È lo stesso problema che l'applicazione già affronta per i propri
+/// runtime (il client HTTP verso i dispositivi usa
+/// `danger_accept_invalid_certs`).
+///
+/// Cosa comporta davvero: la connessione resta **cifrata**, ma non si sa più con
+/// chi. Chiunque sia in mezzo può presentare un certificato qualsiasi e leggere
+/// o alterare il traffico. Va usata su una rete di cui ci si fida, non su
+/// Internet.
+///
+/// Perché la rustls di rumqttc e non quella del workspace: rumqttc 0.24 passa
+/// per tokio-rustls 0.25 → rustls **0.22**, mentre il workspace usa la 0.23.
+/// Sono due crate distinte per il compilatore, e un `ClientConfig` della 0.23
+/// non entra in `TlsConfiguration::Rustls`. `rumqttc::tokio_rustls` è
+/// riesportato apposta: si usa quello, e non serve nessuna dipendenza nuova.
+#[derive(Debug)]
+struct NoCertVerification {
+    /// Gli algoritmi di firma restano quelli veri: si salta l'identità del
+    /// peer, non la crittografia dell'handshake. Rispondere "va bene tutto"
+    /// anche alle firme spezzerebbe l'handshake invece di renderlo permissivo.
+    provider: Arc<rumqttc::tokio_rustls::rustls::crypto::CryptoProvider>,
+}
+
+impl rumqttc::tokio_rustls::rustls::client::danger::ServerCertVerifier for NoCertVerification {
+    fn verify_server_cert(
+        &self,
+        _end_entity: &rumqttc::tokio_rustls::rustls::pki_types::CertificateDer<'_>,
+        _intermediates: &[rumqttc::tokio_rustls::rustls::pki_types::CertificateDer<'_>],
+        _server_name: &rumqttc::tokio_rustls::rustls::pki_types::ServerName<'_>,
+        _ocsp_response: &[u8],
+        _now: rumqttc::tokio_rustls::rustls::pki_types::UnixTime,
+    ) -> Result<
+        rumqttc::tokio_rustls::rustls::client::danger::ServerCertVerified,
+        rumqttc::tokio_rustls::rustls::Error,
+    > {
+        Ok(rumqttc::tokio_rustls::rustls::client::danger::ServerCertVerified::assertion())
+    }
+
+    fn verify_tls12_signature(
+        &self,
+        message: &[u8],
+        cert: &rumqttc::tokio_rustls::rustls::pki_types::CertificateDer<'_>,
+        dss: &rumqttc::tokio_rustls::rustls::DigitallySignedStruct,
+    ) -> Result<
+        rumqttc::tokio_rustls::rustls::client::danger::HandshakeSignatureValid,
+        rumqttc::tokio_rustls::rustls::Error,
+    > {
+        rumqttc::tokio_rustls::rustls::crypto::verify_tls12_signature(
+            message, cert, dss, &self.provider.signature_verification_algorithms,
+        )
+    }
+
+    fn verify_tls13_signature(
+        &self,
+        message: &[u8],
+        cert: &rumqttc::tokio_rustls::rustls::pki_types::CertificateDer<'_>,
+        dss: &rumqttc::tokio_rustls::rustls::DigitallySignedStruct,
+    ) -> Result<
+        rumqttc::tokio_rustls::rustls::client::danger::HandshakeSignatureValid,
+        rumqttc::tokio_rustls::rustls::Error,
+    > {
+        rumqttc::tokio_rustls::rustls::crypto::verify_tls13_signature(
+            message, cert, dss, &self.provider.signature_verification_algorithms,
+        )
+    }
+
+    fn supported_verify_schemes(&self) -> Vec<rumqttc::tokio_rustls::rustls::SignatureScheme> {
+        self.provider.signature_verification_algorithms.supported_schemes()
+    }
+}
+
+/// Trasporto TLS che non verifica l'identità del broker.
+///
+/// Separata dal punto d'uso perché la chiamano sia il loop di sottoscrizione sia
+/// quello Sparkplug, e una copia sola evita che una delle due resti indietro.
+pub(crate) fn insecure_tls_transport(source_id: &str) -> rumqttc::Transport {
+    warn!(
+        source = %source_id,
+        "TLS: verifica del certificato DISATTIVATA (insecure_skip_verify). \
+         Il traffico è cifrato ma l'identità del broker non è verificata: \
+         chiunque sia in mezzo può presentarsi al suo posto. Usare solo su reti fidate."
+    );
+    let provider = Arc::new(rumqttc::tokio_rustls::rustls::crypto::ring::default_provider());
+    let cfg = rumqttc::tokio_rustls::rustls::ClientConfig::builder()
+        .dangerous()
+        .with_custom_certificate_verifier(Arc::new(NoCertVerification { provider }))
+        .with_no_client_auth();
+    rumqttc::Transport::Tls(rumqttc::TlsConfiguration::Rustls(Arc::new(cfg)))
+}
+
 /// Limite dimensione pacchetto MQTT in/out. Il default di rumqttc (10 KB) è
 /// troppo basso per payload realistici (JSON di telemetria, discovery Home
 /// Assistant, birth certificate Sparkplug): un messaggio più grande fa
@@ -103,22 +197,24 @@ async fn run_session(
     // has no built-in "native trust store" variant anyway.
     if let Some(tls) = &cfg.tls {
         if tls.enabled {
+            // Saltando la verifica, una CA non serve: pretenderla qui
+            // rifiuterebbe la connessione proprio nel caso in cui la spunta
+            // esiste per evitare di doverla procurare.
             if tls.insecure_skip_verify {
-                warn!(source = %cfg.id,
-                    "MQTT TLS insecure_skip_verify=true is not yet implemented; \
-                     proceeding with full chain validation");
+                opts.set_transport(insecure_tls_transport(&cfg.id));
+            } else {
+                let path = tls.ca_cert_path.as_ref().ok_or_else(|| anyhow::anyhow!(
+                    "MQTT TLS enabled but ca_cert_path is empty — provide a PEM-encoded \
+                     CA file to trust"
+                ))?;
+                let ca = std::fs::read(path)
+                    .map_err(|e| anyhow::anyhow!("read CA cert {path}: {e}"))?;
+                opts.set_transport(rumqttc::Transport::Tls(rumqttc::TlsConfiguration::Simple {
+                    ca,
+                    alpn: None,
+                    client_auth: None,
+                }));
             }
-            let path = tls.ca_cert_path.as_ref().ok_or_else(|| anyhow::anyhow!(
-                "MQTT TLS enabled but ca_cert_path is empty — provide a PEM-encoded \
-                 CA file to trust"
-            ))?;
-            let ca = std::fs::read(path)
-                .map_err(|e| anyhow::anyhow!("read CA cert {path}: {e}"))?;
-            opts.set_transport(rumqttc::Transport::Tls(rumqttc::TlsConfiguration::Simple {
-                ca,
-                alpn: None,
-                client_auth: None,
-            }));
         }
     }
 
@@ -311,6 +407,10 @@ pub struct BrowseParams {
     pub username: Option<String>,
     pub password: Option<String>,
     pub tls_enabled: bool,
+    /// Stessa semantica della sorgente: senza questo, spuntare "salta la
+    /// verifica" faceva collegare la sorgente ma non lo sfoglia-topic
+    /// dell'editor, che falliva sullo stesso broker.
+    pub insecure_skip_verify: bool,
     pub ca_cert_path: Option<String>,
     /// How long to listen for incoming publishes. Capped to 120 s by the caller.
     pub duration_secs: u8,
@@ -337,7 +437,9 @@ pub async fn browse(params: BrowseParams) -> Vec<BrowsedTopic> {
     }
 
     if params.tls_enabled {
-        if let Some(path) = params.ca_cert_path {
+        if params.insecure_skip_verify {
+            opts.set_transport(insecure_tls_transport("browse"));
+        } else if let Some(path) = params.ca_cert_path {
             match std::fs::read(&path) {
                 Ok(ca) => {
                     opts.set_transport(rumqttc::Transport::Tls(
@@ -353,6 +455,19 @@ pub async fn browse(params: BrowseParams) -> Vec<BrowsedTopic> {
                     return vec![];
                 }
             }
+        } else {
+            // TLS chiesto, ma né una CA né la spunta "non verificare": prima si
+            // usciva da questo `if` senza impostare alcun trasporto, cioè si
+            // parlava IN CHIARO a una porta TLS. Il broker chiudeva, lo
+            // sfoglia-topic restituiva un elenco vuoto e nessuno diceva perché
+            // — sembrava un broker senza messaggi. Trovato il 2026-08-24
+            // provando proprio questo ramo.
+            warn!(
+                "browse: TLS richiesto ma manca sia il certificato CA sia la spunta \
+                 \"non verificare il certificato\" — impossibile stabilire una \
+                 connessione cifrata, nessun topic letto"
+            );
+            return vec![];
         }
     }
 

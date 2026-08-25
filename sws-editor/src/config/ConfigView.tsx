@@ -3365,6 +3365,7 @@ function MqttBrowseModal({
         username: source.username,
         password: source.password,
         tls_enabled: source.tls?.enabled ?? false,
+        insecure_skip_verify: source.tls?.insecure_skip_verify ?? false,
         ca_cert_path: source.tls?.ca_cert_path,
         duration_secs: duration,
       });
@@ -3871,7 +3872,6 @@ function MqttTlsSection({
   tls?: MqttTlsConfig;
   onChange: (tls: MqttTlsConfig | undefined) => void;
 }) {
-  const { t } = useTranslation();
   const current: MqttTlsConfig = tls ?? { enabled: false };
   const setField = <K extends keyof MqttTlsConfig>(k: K, v: MqttTlsConfig[K]) =>
     onChange({ ...current, [k]: v });
@@ -3896,7 +3896,13 @@ function MqttTlsSection({
           spellCheck={false}
           disabled={!current.enabled}
         />
-        <label style={{ fontSize: 11, color: "var(--brand-warning-soft, #fbbf24)", cursor: "pointer" }} title={t("cfg.notImplemented")}>
+        {/* Fino al 2026-08-24 diceva "skip verify (not impl.)": la spunta si
+            salvava, il runtime la registrava nel log e validava comunque la
+            catena. Ora fa quello che dice, quindi l'avviso deve dire cosa
+            comporta — una casella di sicurezza che mente è peggio di una
+            assente, in tutt'e due i versi. */}
+        <label style={{ fontSize: 11, color: "var(--brand-danger-soft, #fca5a5)", cursor: "pointer" }}
+          title="La connessione resta cifrata, ma l'identità del broker non viene verificata: chiunque sia in mezzo può presentarsi al suo posto e leggere o alterare il traffico. Da usare su reti fidate — tipicamente con un broker dal certificato auto-firmato. Con questa attiva il certificato CA non serve.">
           <input
             type="checkbox"
             checked={current.insecure_skip_verify ?? false}
@@ -3904,8 +3910,14 @@ function MqttTlsSection({
             style={{ marginRight: 6 }}
             disabled={!current.enabled}
           />
-          skip verify (not impl.)
+          ⚠ non verificare il certificato del broker
         </label>
+        {current.enabled && current.insecure_skip_verify && (
+          <div style={{ fontSize: 11, color: "var(--brand-danger-soft, #fca5a5)", marginTop: 4 }}>
+            Traffico cifrato ma broker non autenticato: usare solo su reti fidate.
+            Il certificato CA sotto viene ignorato.
+          </div>
+        )}
       </div>
     </>
   );

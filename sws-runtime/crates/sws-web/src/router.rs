@@ -3962,6 +3962,8 @@ struct MqttBrowseRequest {
     password: Option<String>,
     #[serde(default)]
     tls_enabled: bool,
+    #[serde(default)]
+    insecure_skip_verify: bool,
     ca_cert_path: Option<String>,
     /// Seconds to listen. Capped at 15 to avoid long-blocking requests.
     duration_secs: Option<u8>,
@@ -4219,6 +4221,7 @@ async fn mqtt_browse_handler(
         username: req.username,
         password: req.password,
         tls_enabled: req.tls_enabled,
+        insecure_skip_verify: req.insecure_skip_verify,
         ca_cert_path: req.ca_cert_path,
         duration_secs: duration,
     };

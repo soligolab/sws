@@ -897,7 +897,8 @@ export interface TopicMapping {
 export interface MqttTlsConfig {
   enabled: boolean;
   ca_cert_path?: string;
-  /** Skip hostname/chain validation. Not implemented yet — UI shows a warning. */
+  /** Non verificare l'identità del broker. Cifratura sì, autenticazione no:
+   *  usare solo su reti fidate. Rende `ca_cert_path` superfluo. */
   insecure_skip_verify?: boolean;
 }
 
@@ -1150,6 +1151,8 @@ export interface MqttBrowseRequest {
   username?: string;
   password?: string;
   tls_enabled?: boolean;
+  /** Salta la verifica del certificato del broker, come per la sorgente. */
+  insecure_skip_verify?: boolean;
   ca_cert_path?: string;
   /** Seconds to listen (1-15, default 8). */
   duration_secs?: number;
