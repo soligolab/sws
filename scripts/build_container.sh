@@ -65,7 +65,15 @@ REGISTRY="ghcr.io/soligolab/sws-runtime"
 OUT_DIR="$REPO/dist"
 SDK_ENV="/usr/local/oecore-x86_64/environment-setup-cortexa35-pixsys-linux"
 BIN="$REPO/sws-runtime/target/aarch64-unknown-linux-gnu/release/sws-runtime"
-LVGL_BIN="$REPO/sws-runtime/crates/sws-lvgl-viewer/target/aarch64-unknown-linux-gnu/release/sws-lvgl-viewer"
+# Stesso target dir del runtime: dal 2026-08-25 sws-lvgl-viewer fa parte del
+# workspace, quindi cargo scrive qui e non più in un target locale al crate.
+#
+# Il percorso vecchio è rimasto valido finché la cartella stantia esisteva
+# ancora — e in quella finestra questo script avrebbe copiato nell'immagine un
+# binario di ore prima senza un avviso. È già successo con scripts/yocto/build.sh
+# lo stesso giorno, ed è costato un giro di deploy a caccia di modifiche che
+# "non funzionavano".
+LVGL_BIN="$REPO/sws-runtime/target/aarch64-unknown-linux-gnu/release/sws-lvgl-viewer"
 SPA_DIST="$REPO/sws-editor/dist"
 
 while [ $# -gt 0 ]; do
