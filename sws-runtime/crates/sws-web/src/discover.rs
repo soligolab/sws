@@ -35,9 +35,35 @@ pub struct DiscoveredRuntime {
 /// esattamente il caso d'uso di questa funzione. L'ordinamento non è
 /// cosmetico: rende la scelta ripetibile, altrimenti la deduplica per nome
 /// terrebbe la prima risposta arrivata e quindi un indirizzo a caso.
+///
+/// Dal 2026-08-24 la scelta non è più solo alfabetica. Un runtime annuncia un
+/// indirizzo per ogni rete a cui è attaccato (vedi `netif`), e su un pannello
+/// industriale sono spesso due: rete d'impianto e rete di campo. L'ordine
+/// alfabetico ne prendeva uno a caso — che sull'unico caso reale disponibile
+/// era per fortuna quello giusto, ma `10.x` avrebbe battuto `192.168.x` senza
+/// alcun motivo. Si preferisce quindi un indirizzo che stia in una delle reti
+/// di **questa** macchina: è l'unico che si può davvero raggiungere.
 fn pick_address(v4: &[String], any: &[String]) -> Option<String> {
+    pick_address_from(v4, any, &crate::netif::local_nets())
+}
+
+fn pick_address_from(v4: &[String], any: &[String], local: &[crate::netif::LocalNet]) -> Option<String> {
     let mut routable: Vec<&String> = v4.iter().filter(|a| !is_loopback(a)).collect();
     routable.sort();
+    // Stessa sottorete di una nostra interfaccia: è raggiungibile senza passare
+    // da un instradamento che potrebbe non esistere.
+    let mut reachable: Vec<&&String> = routable
+        .iter()
+        .filter(|a| {
+            a.parse::<std::net::Ipv4Addr>()
+                .map(|ip| local.iter().any(|n| n.contains(ip)))
+                .unwrap_or(false)
+        })
+        .collect();
+    reachable.sort();
+    if let Some(a) = reachable.first() {
+        return Some((**a).clone());
+    }
     if let Some(a) = routable.first() {
         return Some((*a).clone());
     }
@@ -180,7 +206,12 @@ fn browse_mdns_blocking(timeout_secs: u64) -> Vec<DiscoveredRuntime> {
 
 #[cfg(test)]
 mod tests {
-    use super::{pick_address, prefer_new_address};
+    use super::{pick_address, pick_address_from, prefer_new_address};
+    use crate::netif::LocalNet;
+
+    fn lan(addr: &str, mask: &str) -> LocalNet {
+        LocalNet { addr: addr.parse().unwrap(), netmask: mask.parse().unwrap() }
+    }
 
     fn v(items: &[&str]) -> Vec<String> {
         items.iter().map(|s| s.to_string()).collect()
@@ -228,6 +259,51 @@ mod tests {
     #[test]
     fn senza_alcun_indirizzo_non_produce_una_voce() {
         assert_eq!(pick_address(&[], &[]), None);
+    }
+
+    /// Il caso del WP630: due schede, e solo una è sulla nostra rete. L'ordine
+    /// alfabetico qui darebbe la risposta giusta per caso — questo test la
+    /// vuole per costruzione.
+    #[test]
+    fn preferisce_l_indirizzo_sulla_nostra_stessa_rete() {
+        let locali = [lan("192.168.0.201", "255.255.254.0")];
+        assert_eq!(
+            pick_address_from(&v(&["192.168.60.177", "192.168.1.120"]), &[], &locali),
+            Some("192.168.1.120".to_string())
+        );
+    }
+
+    /// Senza il criterio della sottorete questo caso sceglierebbe 10.8.0.3,
+    /// che sta prima in ordine alfabetico e non è raggiungibile.
+    #[test]
+    fn la_sottorete_batte_l_ordine_alfabetico() {
+        let locali = [lan("192.168.0.201", "255.255.254.0")];
+        assert_eq!(
+            pick_address_from(&v(&["10.8.0.3", "192.168.1.120"]), &[], &locali),
+            Some("192.168.1.120".to_string())
+        );
+    }
+
+    /// Nessun indirizzo annunciato è sulle nostre reti: si offre comunque
+    /// qualcosa, perché un instradamento fra le due reti può esistere lo
+    /// stesso. Meglio un URL da provare che nessuna voce nell'elenco.
+    #[test]
+    fn ripiega_sull_ordine_alfabetico_se_niente_e_vicino() {
+        let locali = [lan("192.168.0.201", "255.255.254.0")];
+        assert_eq!(
+            pick_address_from(&v(&["10.8.0.3", "172.16.4.9"]), &[], &locali),
+            Some("10.8.0.3".to_string())
+        );
+    }
+
+    /// Senza informazioni sulle reti locali (enumerazione fallita) il
+    /// comportamento deve restare quello di prima, non peggiorare.
+    #[test]
+    fn senza_reti_locali_resta_il_comportamento_precedente() {
+        assert_eq!(
+            pick_address_from(&v(&["10.8.0.3", "192.168.1.120"]), &[], &[]),
+            Some("10.8.0.3".to_string())
+        );
     }
 
     /// La prima risposta per un servizio può portare solo il loopback: quando

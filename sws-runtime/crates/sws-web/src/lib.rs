@@ -7,6 +7,7 @@ pub mod notifications;
 pub mod recipe;
 pub mod global_scripts;
 pub mod metrics;
+pub mod netif;
 pub mod project_registry;
 pub mod projects;
 pub mod remote;

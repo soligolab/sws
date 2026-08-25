@@ -1259,18 +1259,31 @@ fn announce_mdns(viewer_port: u16, admin_port: u16, tls: bool) -> Option<mdns_sd
         properties.push(("container", engine));
     }
 
-    // T-49: `enable_addr_auto()` pubblica un indirizzo per OGNI interfaccia
-    // locale, comprese le veth residue di container (`vethXXXXXXX`, solo
-    // IPv6 link-local con `%scope`) — un client che scopre questo runtime può
-    // risolvere quell'indirizzo invece della LAN reale, rendendolo
-    // inutilizzabile senza inserire l'IP a mano (misurato: Connetti tentava
-    // `https://fe80::...%veth58fbd0f:8444`). `detect_lan_ip()` individua
-    // esattamente l'indirizzo di uscita reale (routing verso l'esterno, nessun
-    // pacchetto inviato) — se disponibile, annunciamo solo quello; altrimenti
-    // ripieghiamo sul vecchio comportamento (un indirizzo qualunque è meglio
-    // di nessuna scoperta).
-    let lan_ip = detect_lan_ip();
-    let ip_arg = lan_ip.map(|ip| ip.to_string()).unwrap_or_default();
+    // Quali indirizzi annunciare — due errori opposti già commessi, entrambi
+    // misurati su hardware vero.
+    //
+    // Prima si usava `enable_addr_auto()`: pubblica un indirizzo per OGNI
+    // interfaccia, comprese le veth residue di container (IPv6 link-local con
+    // `%scope`), e Connetti finiva a tentare `https://fe80::...%veth58fbd0f`.
+    // T-49 corresse passando al solo indirizzo della rotta predefinita
+    // (`detect_lan_ip`), e questo ha rotto il caso opposto: un WP630 con due
+    // schede — 192.168.1.120 verso l'impianto, 192.168.60.177 verso il campo e
+    // con la metrica più bassa — annunciava solo la seconda, e l'IDE
+    // sull'impianto non trovava nulla pur avendo il pannello a due metri
+    // (misurato il 2026-08-24). Due reti su un pannello industriale sono la
+    // norma, non l'eccezione.
+    //
+    // Ora si annunciano TUTTE le reti vere e nessuna impalcatura di container:
+    // mDNS è fatto per più indirizzi per servizio, ed è chi ascolta a scegliere
+    // quello che sa raggiungere (`discover::pick_address`). `detect_lan_ip()`
+    // resta come ripiego se l'enumerazione non riesce.
+    let nets = sws_web::netif::local_nets();
+    let announced: Vec<String> = if nets.is_empty() {
+        detect_lan_ip().map(|ip| ip.to_string()).into_iter().collect()
+    } else {
+        nets.iter().map(|n| n.addr.to_string()).collect()
+    };
+    let ip_arg = announced.join(",");
 
     let service_info = match ServiceInfo::new(
         "_sws._tcp.local.",
@@ -1280,7 +1293,9 @@ fn announce_mdns(viewer_port: u16, admin_port: u16, tls: bool) -> Option<mdns_sd
         viewer_port,
         &properties[..],
     ) {
-        Ok(info) => if lan_ip.is_some() { info } else { info.enable_addr_auto() },
+        // Nessun indirizzo trovato in nessun modo: meglio l'annuncio
+        // approssimativo di `enable_addr_auto()` che nessun annuncio.
+        Ok(info) => if ip_arg.is_empty() { info.enable_addr_auto() } else { info },
         Err(e) => {
             warn!("mDNS: ServiceInfo build failed: {e}");
             return None;
@@ -1294,6 +1309,11 @@ fn announce_mdns(viewer_port: u16, admin_port: u16, tls: bool) -> Option<mdns_sd
                 viewer_port,
                 admin_port,
                 container = container.as_deref().unwrap_or("no"),
+                // Gli indirizzi annunciati vanno nel log: quando un IDE non
+                // trova un runtime, la prima domanda è "su quali reti si sta
+                // dichiarando", e senza questa riga si finisce a sniffare il
+                // multicast per scoprirlo (fatto il 2026-08-24).
+                addresses = %if ip_arg.is_empty() { "auto".to_string() } else { ip_arg.clone() },
                 "mDNS service announced (_sws._tcp.local.)"
             );
             Some(daemon)

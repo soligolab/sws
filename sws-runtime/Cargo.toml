@@ -63,6 +63,9 @@ rustls-pemfile = "2"
 # mDNS service discovery — announce _sws._tcp.local. at startup and browse on demand.
 # Pure Rust, no avahi/dbus dependency.
 mdns-sd = { version = "0.20", default-features = false }
+# Enumerazione delle interfacce: stessa versione che mdns-sd già tira dentro,
+# quindi nessuna dipendenza nuova da scaricare — vedi sws-web/src/netif.rs.
+if-addrs = "0.15"
 
 # Auth
 argon2 = { version = "0.5", features = ["std"] }

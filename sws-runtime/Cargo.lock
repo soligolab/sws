@@ -3984,6 +3984,7 @@ dependencies = [
  "anyhow",
  "axum 0.7.9",
  "futures-util",
+ "if-addrs",
  "lettre",
  "mdns-sd",
  "metrics 0.23.1",
