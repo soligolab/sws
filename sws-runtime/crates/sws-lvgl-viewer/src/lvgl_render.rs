@@ -302,6 +302,37 @@ pub enum LiveKind {
         alarm_color: String,
         last_state: Option<SymbolState>,
     },
+    /// Movimento: i binding generici proprietà→tag applicati **a ogni frame**,
+    /// non solo alla creazione.
+    ///
+    /// È l'unica variante che non corrisponde a un tipo di oggetto: vale per
+    /// tutti e 31, perché `bindings` è una proprietà universale. Le altre
+    /// varianti nascono dentro la rispettiva `render_*`, che conosce i propri
+    /// widget; questa no — i widget arrivano catturati da `dispatch_render`
+    /// contando i figli del padre prima e dopo il rendering, così le ~30
+    /// funzioni `render_*` restano com'erano (nessuna restituisce il puntatore,
+    /// e quelle geometriche non restituiscono affatto).
+    Geometry {
+        widgets: Vec<GeomWidget>,
+        /// Copia dei soli binding di geometria: `x`, `y`, `width`, `height`,
+        /// `visible`. Gli altri sono già stati applicati alla creazione da
+        /// `apply_bindings` e lì restano.
+        bindings: serde_json::Value,
+        /// Valori di `x`/`y` risolti alla creazione: il movimento è uno
+        /// scostamento da questi, non una posizione assoluta (vedi `GeomWidget`).
+        start_bound_x: Option<f64>,
+        start_bound_y: Option<f64>,
+        /// Ultimo stato **scritto** nei widget. Si riscrive solo ciò che
+        /// cambia: `lv_obj_set_x` passa per `lv_obj_refresh_style`, che
+        /// invalida l'area, e rifarlo a ogni frame per un oggetto fermo
+        /// significherebbe ridisegnare la pagina 30 volte al secondo per
+        /// nulla — su questi pannelli si vedrebbe.
+        applied_dx: i16,
+        applied_dy: i16,
+        applied_w: i16,
+        applied_h: i16,
+        applied_visible: bool,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -369,6 +400,17 @@ struct AlarmAckCtx {
 
 pub struct LiveBinding {
     pub kind: LiveKind,
+}
+
+/// Un widget catturato per il movimento, con la posizione che aveva appena
+/// creato. Serve la posizione *iniziale di ciascuno*, non quella dell'oggetto
+/// synottico: un `gauge` mette l'etichetta sotto l'arco, un `setpoint` mette i
+/// pulsanti a fianco del campo, e spostarli tutti sulla stessa coordinata
+/// spiaccicherebbe l'oggetto invece di muoverlo.
+pub struct GeomWidget {
+    ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
+    start_x: i16,
+    start_y: i16,
 }
 
 /// Richiesta di scrittura tag generata da un'interazione utente (click
@@ -808,6 +850,86 @@ pub fn apply_bindings(obj: &SynopticObject, tags: &TagSnapshot) -> Option<Synopt
         }
     }
     touched.then_some(out)
+}
+
+/// Le proprietà di geometria che il motore sa muovere dal vivo. Le altre
+/// restano applicate alla sola creazione da `apply_bindings`.
+const GEOM_KEYS: [&str; 5] = ["x", "y", "width", "height", "visible"];
+
+/// Estrae dai `bindings` dell'oggetto i soli spec di geometria, o `None` se non
+/// ce n'è nessuno — nel qual caso non si cattura niente e non si accoda niente.
+pub fn geometry_bindings(obj: &SynopticObject) -> Option<serde_json::Value> {
+    let map = obj.bindings.as_ref()?;
+    let mut out = serde_json::Map::new();
+    for k in GEOM_KEYS {
+        if let Some(v) = map.get(k) {
+            out.insert(k.to_string(), v.clone());
+        }
+    }
+    (!out.is_empty()).then(|| serde_json::Value::Object(out))
+}
+
+/// Geometria da applicare in un frame.
+#[derive(Debug, PartialEq, Eq)]
+pub struct ResolvedGeom {
+    /// Scostamento dalla posizione iniziale, non posizione assoluta.
+    pub dx: i16,
+    pub dy: i16,
+    pub w: i16,
+    pub h: i16,
+    pub visible: bool,
+}
+
+/// Risolve i binding di geometria per il frame corrente.
+///
+/// Pura di proposito — nessuna chiamata FFI, nessun puntatore — così si può
+/// testare senza un display: è l'unico modo di coprire questa logica su una
+/// macchina che non ha SDL2, ed è dove stanno gli errori interessanti (il
+/// segno dello scostamento, il ripiego quando un tag manca).
+///
+/// `x`/`y` diventano uno **scostamento** da quanto risolto alla creazione:
+/// i widget di un oggetto composito non stanno tutti sulla sua coordinata
+/// dichiarata (l'etichetta di un gauge sta sotto l'arco), e riposizionarli
+/// tutti sullo stesso punto lo spiaccicherebbe invece di muoverlo.
+///
+/// Un tag che non risolve **non muove niente**: si tiene l'ultima posizione
+/// valida invece di far saltare l'oggetto all'origine.
+pub fn resolve_geometry(
+    bindings: &serde_json::Value,
+    tags: &TagSnapshot,
+    start_bound_x: Option<f64>,
+    start_bound_y: Option<f64>,
+    prev: &ResolvedGeom,
+) -> ResolvedGeom {
+    let num = |key: &str| -> Option<f64> {
+        bindings
+            .get(key)
+            .and_then(|spec| resolve_binding_value(spec, tags))
+            .and_then(|v| v.as_f64())
+    };
+    let delta = |now: Option<f64>, start: Option<f64>, fallback: i16| -> i16 {
+        match (now, start) {
+            (Some(n), Some(s)) => (n - s).round().clamp(i16::MIN as f64, i16::MAX as f64) as i16,
+            _ => fallback,
+        }
+    };
+    ResolvedGeom {
+        dx: delta(num("x"), start_bound_x, prev.dx),
+        dy: delta(num("y"), start_bound_y, prev.dy),
+        w: num("width").map(|n| n.round().clamp(0.0, i16::MAX as f64) as i16).unwrap_or(prev.w),
+        h: num("height").map(|n| n.round().clamp(0.0, i16::MAX as f64) as i16).unwrap_or(prev.h),
+        // Stessa coercizione di `apply_bindings` e del web (BOOL_PROPS).
+        visible: bindings
+            .get("visible")
+            .and_then(|spec| resolve_binding_value(spec, tags))
+            .and_then(|v| match &v {
+                serde_json::Value::Bool(b) => Some(*b),
+                serde_json::Value::Number(n) => n.as_f64().map(|f| f != 0.0),
+                serde_json::Value::String(s) => Some(!s.trim().is_empty()),
+                _ => None,
+            })
+            .unwrap_or(prev.visible),
+    }
 }
 
 /// Porta `String(value)` di JS per gli scalari che compaiono in
@@ -3546,7 +3668,30 @@ fn dispatch_render(
     let localized = localize_object(obj, &current_lang, lang_table);
     let obj = &localized;
 
-    match obj_type {
+    // ── Cattura per il movimento ────────────────────────────────────────────
+    //
+    // `apply_bindings` (chiamata da `render_page_objects`) dà la geometria
+    // giusta al momento della creazione, ma poi l'oggetto resta fermo: sul web
+    // i binding si risolvono a ogni render perché il web ridisegna tutto, qui i
+    // widget si creano una volta e si aggiornano per puntatore.
+    //
+    // Il puntatore però non c'è: le ~30 `render_*` non lo restituiscono, e
+    // quelle geometriche non restituiscono nulla. Invece di cambiarne le firme
+    // — refactor ampio, e per giunta inutile — si contano i figli del padre
+    // prima e dopo: quelli comparsi in mezzo sono i widget di questo oggetto.
+    // Regge anche gli oggetti che ne creano più d'uno (gauge, setpoint, grid).
+    //
+    // Limite noto: un renderer che creasse widget su un padre diverso da
+    // `screen` sfuggirebbe al conteggio e resterebbe fermo. Oggi nessuno lo fa.
+    let geom_spec = geometry_bindings(obj);
+    let parent_ptr = screen.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?.as_ptr();
+    let children_before = if geom_spec.is_some() {
+        unsafe { lvgl_sys::lv_obj_get_child_cnt(parent_ptr) }
+    } else {
+        0
+    };
+
+    let result = match obj_type {
         "rect" => render_rect(screen, obj, styles),
         "ellipse" => render_ellipse(screen, obj, styles),
         "line" => render_line(screen, obj, styles),
@@ -3585,7 +3730,69 @@ fn dispatch_render(
         "lang_button" => render_lang_button(screen, obj, styles, nav_tx, shared_lang, own_page_id),
         "lang_selector" => render_lang_selector(screen, obj, styles, nav_tx, lang_table, shared_lang, own_page_id),
         _ => unreachable!("filtrato da SUPPORTED_TYPES sopra"),
+    };
+
+    // Si accoda solo se il rendering è andato a buon fine: catturare i figli di
+    // un oggetto creato a metà vorrebbe dire muovere dei rottami.
+    if let (Some(bindings), Ok(())) = (geom_spec, &result) {
+        let mut widgets = Vec::new();
+        unsafe {
+            // OBBLIGATORIO prima di leggere le coordinate.
+            //
+            // `lv_obj_get_x/y` non restituiscono la proprietà di stile appena
+            // impostata da `set_pos`: restituiscono la posizione **calcolata**
+            // (`coords.x1` meno quella del padre), che finché il layout non
+            // gira vale 0. Catturando senza questa chiamata ogni widget
+            // risultava a (0,0), e al primo movimento l'oggetto veniva
+            // riscritto lì: saltava in cima allo schermo e usciva a sinistra,
+            // rientrando solo quando il tag tornava al valore che aveva al
+            // caricamento. Misurato sul WP630 il 2026-08-24 su un'ellisse a
+            // y=160 — segnalato dal maintainer, non trovato leggendo.
+            lvgl_sys::lv_obj_update_layout(parent_ptr);
+
+            let after = lvgl_sys::lv_obj_get_child_cnt(parent_ptr);
+            for i in children_before..after {
+                let child = lvgl_sys::lv_obj_get_child(parent_ptr, i as i32);
+                if let Some(ptr) = core::ptr::NonNull::new(child) {
+                    let (sx, sy) = (lvgl_sys::lv_obj_get_x(child), lvgl_sys::lv_obj_get_y(child));
+                    if std::env::var_os("SWS_LVGL_DEBUG_GEOM").is_some() {
+                        eprintln!(
+                            "[geom] {} figlio {}: catturato a ({sx},{sy}), oggetto dichiarato a ({:?},{:?})",
+                            obj.id.as_deref().unwrap_or("?"), i, obj.x, obj.y
+                        );
+                    }
+                    widgets.push(GeomWidget { ptr, start_x: sx, start_y: sy });
+                }
+            }
+        }
+        if !widgets.is_empty() {
+            // Dimensioni iniziali dal primo widget: è quello che porta la
+            // geometria dell'oggetto (gli altri sono decorazioni interne).
+            let (w0, h0) = unsafe {
+                let p = widgets[0].ptr.as_ptr();
+                (lvgl_sys::lv_obj_get_width(p), lvgl_sys::lv_obj_get_height(p))
+            };
+            // `obj` qui è già passato da `apply_bindings`, quindi `x`/`y` sono
+            // i valori RISOLTI alla creazione: sono loro l'origine da cui
+            // misurare lo scostamento, non le coordinate statiche del synottico.
+            let start_bound_x = bindings.get("x").and_then(|s| resolve_binding_value(s, tags)).and_then(|v| v.as_f64());
+            let start_bound_y = bindings.get("y").and_then(|s| resolve_binding_value(s, tags)).and_then(|v| v.as_f64());
+            live.push(LiveBinding {
+                kind: LiveKind::Geometry {
+                    widgets,
+                    bindings,
+                    start_bound_x,
+                    start_bound_y,
+                    applied_dx: 0,
+                    applied_dy: 0,
+                    applied_w: w0,
+                    applied_h: h0,
+                    applied_visible: obj.visible.unwrap_or(true),
+                },
+            });
+        }
     }
+    result
 }
 
 /// `faceplate`: template composito di oggetti già ordinari (`FaceplateDef`
@@ -4065,6 +4272,57 @@ pub fn update_bindings(bindings: &mut [LiveBinding], tags: &TagSnapshot) {
                     draw_symbol(*canvas_ptr, symbol_id, state, rgb, *w, *h);
                     *last_state = Some(state);
                 }
+            }
+            LiveKind::Geometry {
+                widgets, bindings, start_bound_x, start_bound_y,
+                applied_dx, applied_dy, applied_w, applied_h, applied_visible,
+            } => {
+                let prev = ResolvedGeom {
+                    dx: *applied_dx, dy: *applied_dy,
+                    w: *applied_w, h: *applied_h,
+                    visible: *applied_visible,
+                };
+                let next = resolve_geometry(bindings, tags, *start_bound_x, *start_bound_y, &prev);
+                if next == prev {
+                    continue; // fermo: non toccare nulla, o si ridisegna per niente
+                }
+                unsafe {
+                    if next.dx != prev.dx || next.dy != prev.dy {
+                        // Tutti i widget si muovono insieme, ciascuno dalla
+                        // PROPRIA posizione iniziale: l'oggetto trasla, non
+                        // collassa su un punto.
+                        for g in widgets.iter() {
+                            lvgl_sys::lv_obj_set_x(g.ptr.as_ptr(), g.start_x + next.dx);
+                            lvgl_sys::lv_obj_set_y(g.ptr.as_ptr(), g.start_y + next.dy);
+                        }
+                    }
+                    // Larghezza e altezza solo sul widget principale: su un
+                    // oggetto composito non esiste un modo univoco di
+                    // ridimensionare le parti interne, e indovinare vorrebbe
+                    // dire deformarle. Limite dichiarato, non nascosto.
+                    if let Some(main) = widgets.first() {
+                        if next.w != prev.w {
+                            lvgl_sys::lv_obj_set_width(main.ptr.as_ptr(), next.w);
+                        }
+                        if next.h != prev.h {
+                            lvgl_sys::lv_obj_set_height(main.ptr.as_ptr(), next.h);
+                        }
+                    }
+                    if next.visible != prev.visible {
+                        for g in widgets.iter() {
+                            if next.visible {
+                                lvgl_sys::lv_obj_clear_flag(g.ptr.as_ptr(), lvgl_sys::LV_OBJ_FLAG_HIDDEN);
+                            } else {
+                                lvgl_sys::lv_obj_add_flag(g.ptr.as_ptr(), lvgl_sys::LV_OBJ_FLAG_HIDDEN);
+                            }
+                        }
+                    }
+                }
+                *applied_dx = next.dx;
+                *applied_dy = next.dy;
+                *applied_w = next.w;
+                *applied_h = next.h;
+                *applied_visible = next.visible;
             }
         }
     }
@@ -4572,5 +4830,110 @@ mod binding_tests {
             obj.bindings = Some([("visible".to_string(), json!(tag))].into_iter().collect());
             assert_eq!(apply_bindings(&obj, &t).unwrap().visible, Some(atteso));
         }
+    }
+
+    // ── Movimento (LiveKind::Geometry) ──────────────────────────────────────
+    //
+    // Solo la parte pura: `resolve_geometry` non tocca LVGL di proposito,
+    // proprio perché sia verificabile senza un display.
+
+    fn fermo() -> ResolvedGeom {
+        ResolvedGeom { dx: 0, dy: 0, w: 100, h: 50, visible: true }
+    }
+
+    #[test]
+    fn geometry_bindings_prende_solo_la_geometria() {
+        let mut obj = SynopticObject::default();
+        obj.bindings = Some([
+            ("x".to_string(), json!("a")),
+            ("visible".to_string(), json!("b")),
+            ("fill".to_string(), json!("c")), // non è geometria
+        ].into_iter().collect());
+        let g = geometry_bindings(&obj).expect("x e visible sono geometria");
+        assert!(g.get("x").is_some() && g.get("visible").is_some());
+        assert!(g.get("fill").is_none(), "le proprietà non geometriche non vanno catturate");
+    }
+
+    #[test]
+    fn senza_binding_di_geometria_non_si_cattura_niente() {
+        let mut obj = SynopticObject::default();
+        obj.bindings = Some([("fill".to_string(), json!("c"))].into_iter().collect());
+        assert!(geometry_bindings(&obj).is_none());
+        assert!(geometry_bindings(&SynopticObject::default()).is_none());
+    }
+
+    #[test]
+    fn lo_scostamento_e_relativo_al_valore_iniziale() {
+        // Creato con slideX=100, ora slideX=340 → si sposta di +240, non a 340.
+        let t = snapshot(&[("slideX", TagValue::Int(340))]);
+        let b = json!({ "x": "slideX" });
+        let g = resolve_geometry(&b, &t, Some(100.0), None, &fermo());
+        assert_eq!(g.dx, 240);
+        assert_eq!(g.dy, 0, "senza binding su y non si muove in verticale");
+    }
+
+    #[test]
+    fn scostamento_negativo() {
+        let t = snapshot(&[("slideX", TagValue::Int(20))]);
+        let g = resolve_geometry(&json!({ "x": "slideX" }), &t, Some(100.0), None, &fermo());
+        assert_eq!(g.dx, -80);
+    }
+
+    #[test]
+    fn tag_assente_tiene_la_posizione_invece_di_saltare_a_zero() {
+        let t = snapshot(&[]);
+        let prev = ResolvedGeom { dx: 42, dy: 7, w: 100, h: 50, visible: true };
+        let g = resolve_geometry(&json!({ "x": "manca", "y": "manca" }), &t, Some(0.0), Some(0.0), &prev);
+        assert_eq!((g.dx, g.dy), (42, 7), "un tag che sparisce non deve far saltare l'oggetto all'origine");
+    }
+
+    #[test]
+    fn senza_valore_iniziale_non_si_muove() {
+        // x non era risolvibile alla creazione: non c'è un'origine da cui
+        // misurare, quindi si resta fermi invece di inventare uno scostamento.
+        let t = snapshot(&[("slideX", TagValue::Int(500))]);
+        let g = resolve_geometry(&json!({ "x": "slideX" }), &t, None, None, &fermo());
+        assert_eq!(g.dx, 0);
+    }
+
+    #[test]
+    fn larghezza_e_altezza_sono_assolute_non_relative() {
+        let t = snapshot(&[("w", TagValue::Int(250)), ("h", TagValue::Int(80))]);
+        let g = resolve_geometry(&json!({ "width": "w", "height": "h" }), &t, None, None, &fermo());
+        assert_eq!((g.w, g.h), (250, 80));
+    }
+
+    #[test]
+    fn dimensioni_negative_non_arrivano_a_lvgl() {
+        let t = snapshot(&[("w", TagValue::Int(-40))]);
+        let g = resolve_geometry(&json!({ "width": "w" }), &t, None, None, &fermo());
+        assert_eq!(g.w, 0, "una larghezza negativa va tagliata a 0, non passata a lv_obj_set_width");
+    }
+
+    #[test]
+    fn visible_segue_la_coercizione_del_web() {
+        let t = snapshot(&[("on", TagValue::Int(1)), ("off", TagValue::Int(0))]);
+        for (tag, atteso) in [("on", true), ("off", false)] {
+            let g = resolve_geometry(&json!({ "visible": tag }), &t, None, None, &fermo());
+            assert_eq!(g.visible, atteso);
+        }
+    }
+
+    #[test]
+    fn la_scalatura_vale_anche_qui() {
+        // 0..100 del tag → 0..640 di schermo, com'è nella spec del web.
+        let t = snapshot(&[("liv", TagValue::Float(50.0))]);
+        let b = json!({ "x": { "tag": "liv", "in_min": 0, "in_max": 100, "out_min": 0, "out_max": 640 } });
+        let g = resolve_geometry(&b, &t, Some(0.0), None, &fermo());
+        assert_eq!(g.dx, 320);
+    }
+
+    #[test]
+    fn frame_identico_non_produce_scritture() {
+        let t = snapshot(&[("slideX", TagValue::Int(100))]);
+        let b = json!({ "x": "slideX" });
+        let prev = resolve_geometry(&b, &t, Some(100.0), None, &fermo());
+        let next = resolve_geometry(&b, &t, Some(100.0), None, &prev);
+        assert_eq!(prev, next, "a tag fermo il risultato deve essere identico, così update_bindings salta");
     }
 }
