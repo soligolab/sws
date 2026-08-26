@@ -257,7 +257,53 @@ if [ "$PUSH" -eq 1 ]; then
     fi
 fi
 
-VERSION=$(cd "$REPO/sws-runtime" && cargo metadata --no-deps --format-version 1 \
+# ── Strumenti dell'utente, visti da root ─────────────────────────────────────
+#
+# Questo script gira come root (vedi sopra), e sotto `sudo` il PATH è quello di
+# root: `cargo` e `pnpm`, installati nella home dell'utente da rustup e da npm,
+# non ci sono. Il sintomo è "cargo: command not found" seguito da un errore di
+# JSON, perché a valle si prova a interpretare un output vuoto.
+#
+# Funzionava finché il PATH del chiamante sopravviveva a sudo — cosa che dipende
+# dalla configurazione di sudoers della macchina, non da noi: una dipendenza
+# invisibile che regge finché non cambia il computer. Qui si risolve il percorso
+# in modo esplicito, così l'esito non dipende più da come è configurato sudo.
+user_bin() {
+    local cmd="$1" p home
+    if p="$(command -v "$cmd" 2>/dev/null)" && [ -n "$p" ]; then
+        printf '%s' "$p"; return 0
+    fi
+    if [ -n "${SUDO_USER:-}" ]; then
+        home="$(getent passwd "$SUDO_USER" | cut -d: -f6)"
+        for p in "$home/.cargo/bin/$cmd" \
+                 "$home/.local/bin/$cmd" \
+                 "$home/.local/share/pnpm/$cmd" \
+                 "$home/.nvm/versions/node"/*/bin/"$cmd"; do
+            [ -x "$p" ] && { printf '%s' "$p"; return 0; }
+        done
+    fi
+    return 1
+}
+
+require_user_bin() {
+    local cmd="$1" p
+    if ! p="$(user_bin "$cmd")"; then
+        echo "ERRORE: '$cmd' non trovato." >&2
+        if [ -n "${SUDO_USER:-}" ]; then
+            echo "        Lo script gira come root e '$cmd' non è nel PATH di root né" >&2
+            echo "        nella home di \$SUDO_USER=$SUDO_USER. Se è installato altrove," >&2
+            echo "        esportane il percorso prima di lanciare:" >&2
+            echo "          sudo env \"PATH=\$PATH\" ./scripts/build_container_aarch64_generic.sh" >&2
+        else
+            echo "        Installalo o mettilo nel PATH." >&2
+        fi
+        exit 1
+    fi
+    printf '%s' "$p"
+}
+
+CARGO="$(require_user_bin cargo)"
+VERSION=$(cd "$REPO/sws-runtime" && "$CARGO" metadata --no-deps --format-version 1 \
     | python3 -c "import json,sys; pkgs=json.load(sys.stdin)['packages']; \
       print(next(p['version'] for p in pkgs if p['name']=='sws-runtime'))")
 IMAGE="sws-runtime:${VERSION}-arm64-generic"
@@ -349,7 +395,23 @@ fi
 
 if [ "$BUILD_SPA" -eq 1 ]; then
     echo "==> [1b/4] pnpm build (SPA)"
-    (cd "$REPO/sws-editor" && pnpm build)
+    # La SPA si compila come l'UTENTE, non come root.
+    #
+    # Non ha alcun bisogno di privilegi, e farla girare da root sporca cose che
+    # il trap di fine script non restituisce: `pnpm build` scrive anche in
+    # `sws-editor/node_modules/.vite` (cache di vite) e può toccare lo store di
+    # pnpm nella home. Diventati di root, il successivo `pnpm build` normale
+    # fallisce con errori di permessi in una cartella che nessuno sospetta.
+    #
+    # Inseguire quelle cartelle con altri chown sarebbe una rincorsa; non
+    # sporcarle affatto chiude la questione. Da root `sudo -u` non richiede
+    # password.
+    PNPM="$(require_user_bin pnpm)"
+    if [ "$(id -u)" -eq 0 ] && [ -n "${SUDO_USER:-}" ]; then
+        (cd "$REPO/sws-editor" && sudo -u "$SUDO_USER" "$PNPM" build)
+    else
+        (cd "$REPO/sws-editor" && "$PNPM" build)
+    fi
 else
     echo "==> [1b/4] skipped (--no-spa)"
 fi
