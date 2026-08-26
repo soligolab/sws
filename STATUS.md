@@ -42,20 +42,23 @@ oggi due volte una build ha consegnato un binario stantio senza dirlo.
 
 | Tag | Stato |
 |---|---|
-| `2.1.1-arm64`, `d2f23f9-arm64`, `latest-arm64` | ✅ pubblicati (SDK Pixsys) |
-| `2.1.1-amd64`, `d2f23f9-amd64`, `latest-amd64` | ✅ pubblicati |
-| `latest-arm64-generic` | ❌ **fermo al 2026-08-23** — richiede `sudo`, da fare a mano |
+| `2.1.1-arm64`, `9afcb27-arm64`, `latest-arm64` | ✅ **è quello dei pannelli Pixsys** |
+| `2.1.1-arm64-generic`, `9afcb27-arm64-generic`, `latest-arm64-generic` | ✅ aggiornata il 26/08 |
+| `2.1.1-amd64`, `9afcb27-amd64`, `latest-amd64` | ✅ pubblicata |
 
-Verificati interrogando il registry con token anonimo, non dal log della build:
-`latest-arm64` è `arm64/linux` delle 15:40 UTC, `latest-amd64` è `amd64/linux`
-delle 15:53, e `latest-arm64-generic` è ancora quella del 23 agosto. I binari
-dentro l'immagine arm64 combaciano per md5 con quelli compilati.
+Tutte e tre allineate al commit `9afcb27` di `main`, verificate interrogando il
+registry con token anonimo — non dal log della build.
 
-Per completare, quando c'è qualcuno a dare la password:
+Provate sul WP630 sulla pagina "Grafici e tabelle", quella che senza la
+correzione di Q22 fa uscire il viewer con SIGSEGV in 20 secondi:
 
-```
-./scripts/build_container_aarch64_generic.sh --push
-```
+| Immagine | Esito |
+|---|---|
+| `2.1.1-arm64` | 75 s stabile, 0 errori |
+| `2.1.1-arm64-generic` | 60 s stabile, 0 errori, 20 widget creati |
+
+L'immagine `amd64` non contiene il viewer LVGL (verificato: solo `sws-runtime`),
+quindi non era interessata dal difetto.
 
 L'immagine **aarch64-generica non l'ho potuta fare**: quel percorso richiede
 `sudo` con password, e non c'eri. Serve lanciare a mano:
