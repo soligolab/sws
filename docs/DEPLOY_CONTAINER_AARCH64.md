@@ -138,9 +138,13 @@ Quando l'SDK Yocto Pixsys non è disponibile — o il target non è un device Pi
 percorso gemello che non lo richiede:
 
 ```bash
-sudo ./scripts/build_container_aarch64_generic.sh                 # build + immagine + archivio
-sudo ./scripts/build_container_aarch64_generic.sh --no-rust        # riusa il binario esistente
+./scripts/build_container_aarch64_generic.sh                 # build + immagine + archivio
+./scripts/build_container_aarch64_generic.sh --no-rust       # riusa il binario esistente
 ```
+
+Serve root (l'emulazione QEMU non funziona sotto podman rootless), ma lo script
+chiede la password da sé quando serve: non va preceduto da `sudo`. Con
+`--no-rust` non serve affatto, perché non c'è niente da emulare.
 
 Compila dentro `deploy/container/Containerfile.aarch64-generic.builder` (stesso
 `ubuntu:24.04` del percorso x86_64 — vedi `docs/DEPLOY_CONTAINER_X86_64.md`),

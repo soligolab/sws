@@ -106,6 +106,41 @@ for entry in "${PATCHES[@]}"; do
   fi
 done
 
+# ── Il sorgente corretto viene DAVVERO compilato? ────────────────────────────
+#
+# Verificare che una patch sia applicata al file non basta: il file potrebbe non
+# essere quello che finisce nel binario. È successo il 2026-08-26 — la patch a
+# lvgl-sys era applicata (questo script diceva ✓) ma cargo compilava la copia di
+# crates.io, perché `[patch.crates-io]` stava nel manifest di un membro del
+# workspace invece che nella radice, e cargo li ignora con un avviso che scorre
+# via in mezzo all'output. L'immagine 2.1.1 è stata pubblicata così, e crashava.
+#
+# Due garanzie diverse: che la correzione ci sia, e che venga usata. Servono
+# entrambe.
+echo
+printf '\033[1mIl sorgente vendorizzato viene compilato\033[0m\n'
+LOCK="sws-runtime/Cargo.lock"
+if [ -f "$LOCK" ]; then
+  # Una dipendenza sostituita da un path non ha la riga `source = "registry+…"`.
+  #
+  # La ricerca è limitata al blocco di lvgl-sys: `[[package]]` chiude il blocco.
+  # Senza quel limite awk troverebbe la `source` del pacchetto successivo e
+  # direbbe sempre "viene da crates.io" — un controllo che fallisce sempre viene
+  # disattivato, e allora tanto vale non averlo.
+  if awk '/^name = "lvgl-sys"$/{f=1; next}
+          f&&/^\[\[package\]\]/{exit}
+          f&&/^source = "registry\+/{print "REGISTRY"; exit}' "$LOCK" | grep -q REGISTRY; then
+    printf '  \033[31m✗\033[0m lvgl-sys arriva da crates.io, NON dal vendor — le patch non hanno effetto\n'
+    printf '      `[patch.crates-io]` deve stare in sws-runtime/Cargo.toml (la radice del\n'
+    printf '      workspace): cargo ignora quelli dei crate membri.\n'
+    fail=1
+  else
+    printf '  \033[32m✓\033[0m lvgl-sys è risolto sul sorgente vendorizzato\n'
+  fi
+else
+  printf '  \033[33m—\033[0m %s non trovato, controllo saltato\n' "$LOCK"
+fi
+
 echo
 if [ "$fail" -ne 0 ]; then
   printf '\033[31mVerifica delle patch fallita.\033[0m Non pubblicare immagini finché non è a posto.\n'

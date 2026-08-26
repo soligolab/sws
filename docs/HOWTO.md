@@ -36,11 +36,13 @@ passo).
 
 ### Passo 0 — Costruire l'immagine (percorso generico, senza SDK)
 
-**Va lanciato con `sudo`** (non da Claude Code: `sudo` è negato dalla policy dei permessi di
-questo progetto — un umano al terminale lo lancia normalmente):
+**Serve root**, ma non c'è bisogno di scrivere `sudo`: dal 2026-08-26 lo script se ne accorge e
+si rilancia da solo, chiedendo la password al momento giusto — cioè dopo aver verificato le
+condizioni che lo farebbero fallire comunque. Un umano al terminale lo lancia così (da Claude Code
+no: `sudo` è negato dalla policy dei permessi di questo progetto):
 
 ```bash
-sudo ./scripts/build_container_aarch64_generic.sh --with-lvgl --push
+./scripts/build_container_aarch64_generic.sh --with-lvgl --push
 ```
 
 Prerequisiti (verificati presenti sul dev server il 2026-08-09, ricontrollare se cambia macchina):

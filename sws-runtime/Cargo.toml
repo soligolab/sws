@@ -129,3 +129,21 @@ opt-level     = 3
 lto           = "thin"
 codegen-units = 1
 strip         = "symbols"
+
+# ── Sorgente di lvgl-sys ──────────────────────────────────────────────────────
+#
+# Si compila la copia vendorizzata, non quella di crates.io, perché contiene le
+# correzioni in `patches/lvgl/` — fra cui quella a `lv_chart_add_series` che
+# senza di essa fa crashare il viewer con SIGSEGV (docs/OPEN_QUESTIONS.md Q22).
+#
+# DEVE stare qui, nella radice del workspace: cargo legge `[patch]` solo dal
+# manifest della radice e IGNORA quelli dei membri, avvisando con una riga che
+# scorre via in mezzo all'output di build. Stava dentro
+# crates/sws-lvgl-viewer/Cargo.toml, dove ha funzionato finché quel crate era
+# escluso dal workspace — cioè finché era lui la radice.
+#
+# `scripts/check_vendor_patches.sh` verifica che le patch siano applicate al
+# sorgente vendorizzato, ma non può accorgersi che quel sorgente non venga
+# compilato: sono due garanzie diverse, e servono entrambe.
+[patch.crates-io]
+lvgl-sys = { path = "crates/sws-lvgl-viewer/vendor/lvgl-sys-0.6.2" }

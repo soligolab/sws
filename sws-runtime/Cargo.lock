@@ -2161,8 +2161,6 @@ dependencies = [
 [[package]]
 name = "lvgl-sys"
 version = "0.6.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d697d889a2fd6bdfd350843cb9c9d8dc5b6a33f4eb8962a42f205e147a4643c2"
 dependencies = [
  "bindgen",
  "cc",

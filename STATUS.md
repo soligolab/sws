@@ -8,8 +8,15 @@
 
 ## ▶ Da fare nella prossima sessione
 
-> **2.1.1 rilasciata e IMMAGINE PUBBLICATA il 2026-08-25.** Il pannello può
+> **2.1.1 rilasciata; immagine arm64 RIPUBBLICATA il 2026-08-26.** Il pannello può
 > essere aggiornato: `./install-container.sh --pull` prende `latest-arm64`.
+>
+> ⚠️ **Se hai aggiornato un dispositivo il 25 agosto, rifai il pull.** La prima
+> immagine pubblicata sotto quel tag conteneva LVGL senza la correzione del crash
+> (`[patch.crates-io]` va nella radice del workspace, e c'era finito nel manifest
+> del crate — cargo lo ignora). Verificato sul WP630: quella usciva con SIGSEGV in
+> 20 s sulla pagina dei grafici, questa regge 75 s. Il tag git `2.1.1` è stato
+> spostato sul commit che corregge.
 
 ### 1. Aggiornare un dispositivo — è pronto
 

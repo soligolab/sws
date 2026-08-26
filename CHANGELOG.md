@@ -11,13 +11,20 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
-- **Corretto il percorso del binario LVGL negli script di build del container.**
-  Trovato pubblicando la 2.1.1: puntava ancora alla cartella di prima che il
-  crate entrasse nel workspace. È una correzione allo strumento, non al
-  contenuto dell'immagine — i binari dentro l'immagine 2.1.1 pubblicata sono
-  stati verificati uno per uno.
-
 ## [2.1.1] — 2026-08-25
+
+> **Immagine arm64 ripubblicata il 2026-08-26.** La prima pubblicazione conteneva
+> una libreria grafica senza la correzione del crash: il viewer usciva con errore
+> aprendo la pagina dei grafici. Se hai aggiornato un dispositivo il 25 agosto,
+> rifai `./install-container.sh --pull` — i tag `2.1.1-arm64` e `latest-arm64`
+> ora puntano all'immagine corretta.
+>
+> Causa: entrando il codice del viewer nel progetto principale, la riga che dice
+> "usa la nostra copia corretta di LVGL invece di quella scaricata" ha smesso di
+> valere, perché va scritta altrove. Il controllo automatico verificava che la
+> correzione ci fosse, ma non che venisse usata: ora verifica anche quello.
+> Corretti anche i percorsi dei binari negli script di build, che puntavano a
+> una cartella cambiata lo stesso giorno.
 
 Due giorni di lavoro sul WP630. In breve: **il pannello ora si comporta come ci
 si aspetta** — gli oggetti si muovono, i grafici disegnano, la pagina si

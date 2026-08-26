@@ -69,5 +69,11 @@ bindgen = "0.64.0"
 # sola strncmp corretta (scansione byte-per-byte, vedi
 # vendor/lvgl-sys-0.6.2/src/string_impl.rs). Analisi completa in
 # docs/OPEN_QUESTIONS.md Q14.
-[patch.crates-io]
-lvgl-sys = { path = "vendor/lvgl-sys-0.6.2" }
+# La patch che sostituisce lvgl-sys col sorgente vendorizzato NON sta più qui:
+# sta in sws-runtime/Cargo.toml, la radice del workspace.
+#
+# Cargo legge `[patch]` SOLO dal manifest della radice. Finché questo crate era
+# escluso dal workspace era lui la radice e la patch funzionava; da quando è
+# entrato (2026-08-25) veniva ignorata, con un avviso che scorre via in mezzo
+# all'output di build — e la libreria arrivava da crates.io, senza la correzione
+# in patches/lvgl/. Vedi docs/OPEN_QUESTIONS.md Q22.

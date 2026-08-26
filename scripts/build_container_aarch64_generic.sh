@@ -56,8 +56,15 @@
 # crun l'emulazione QEMU non attraversa la user namespace del container
 # (l'exec del binario arm64 fallisce con "Exec format error" anche a
 # registrazione binfmt corretta, `flags: F` incluso) — con `sudo podman`
-# funziona. Lo script va quindi lanciato con `sudo ./scripts/build_container_
-# aarch64_generic.sh`. Effetto collaterale: podman "vero" non rimappa gli UID
+# funziona.
+#
+# **Non serve lanciarlo con `sudo`**: dal 2026-08-26 lo script se ne accorge da
+# solo e si rilancia, chiedendo la password quando serve — cioè dopo aver
+# verificato le condizioni che lo farebbero fallire comunque (albero sporco con
+# `--push`), così non la si digita per un lavoro che si rifiuterà due righe
+# dopo. Lanciarlo con `sudo` a mano continua a funzionare identico.
+#
+# Effetto collaterale: podman "vero" non rimappa gli UID
 # sui bind mount, quindi target-container-aarch64-generic/,
 # .cargo-container-aarch64-generic/, dist/ e sws-editor/dist/ (pnpm build,
 # lanciato direttamente e non in un container) finirebbero di proprietà di
@@ -99,6 +106,11 @@ restore_ownership() {
     fi
 }
 trap restore_ownership EXIT
+
+# Argomenti così come sono arrivati, prima che il ciclo di parsing li consumi
+# con `shift`: servono a rilanciare lo script sotto sudo con gli stessi flag
+# (vedi il blocco di auto-elevazione più sotto).
+ORIG_ARGS=("$@")
 
 BUILD_RUST=1
 BUILD_SPA=1
@@ -161,13 +173,39 @@ fi
 # rootless + crun l'emulazione QEMU non attraversa la user namespace del
 # container (verificato empiricamente, non solo temuto).
 if [ "$BUILD_RUST" -eq 1 ] && [ "$(id -u)" -ne 0 ]; then
-    echo "ERRORE: questo script va lanciato con sudo (build aarch64 emulata," >&2
-    echo "        podman rootless non riesce a eseguire binari arm64 sotto QEMU" >&2
-    echo "        su questa famiglia di kernel/crun)." >&2
-    echo "          sudo ./scripts/build_container_aarch64_generic.sh" >&2
-    echo "        (gli artefatti tornano dell'utente originale all'uscita, non serve" >&2
-    echo "        un chown a mano dopo)." >&2
-    exit 1
+    # Si rilancia da solo sotto sudo invece di dire all'utente di rifarlo a
+    # mano. Prima però verifica le condizioni che farebbero fallire comunque la
+    # pubblicazione: chiedere una password per un lavoro che si rifiuterà due
+    # righe dopo è il modo peggiore di chiederla.
+    #
+    # I controlli qui sotto sono gli stessi ripetuti più avanti in forma
+    # completa: farli due volte non costa niente (sono letture) e il secondo
+    # giro gira comunque, anche quando lo script è invocato già da root.
+    if [ "$PUSH" -eq 1 ]; then
+        if [ -n "$(cd "$REPO" && git status --porcelain 2>/dev/null)" ]; then
+            echo "ERRORE: l'albero di lavoro ha modifiche non committate." >&2
+            echo "        Il tag di provenienza dell'immagine indicherebbe un commit che non" >&2
+            echo "        contiene ciò che stai pubblicando. Committa (o metti da parte) prima." >&2
+            (cd "$REPO" && git status --short) >&2
+            exit 1
+        fi
+    fi
+
+    if ! command -v sudo >/dev/null 2>&1; then
+        echo "ERRORE: serve root (build aarch64 emulata: podman rootless non riesce a" >&2
+        echo "        eseguire binari arm64 sotto QEMU su questa famiglia di kernel/crun)," >&2
+        echo "        ma 'sudo' non è disponibile. Rilancia come root." >&2
+        exit 1
+    fi
+
+    echo "==> serve root per la build emulata (QEMU sotto podman rootless non"
+    echo "    attraversa la user namespace del container). Mi rilancio con sudo."
+    echo "    Gli artefatti tornano tuoi all'uscita: nessun chown da fare dopo."
+    # `exec`: il processo viene sostituito, quindi il trap che restituisce i
+    # file all'utente originale vive nel processo root — che è dove serve.
+    # `$SUDO_USER`, impostato da sudo, è ciò che permette sia quel trap sia il
+    # riuso del tuo `podman login` (l'auth.json dell'utente, non di root).
+    exec sudo -- "$0" "${ORIG_ARGS[@]}"
 fi
 
 # ── Controlli preliminari alla pubblicazione ──────────────────────────────────
