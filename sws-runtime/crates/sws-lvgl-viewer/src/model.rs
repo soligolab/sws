@@ -1,13 +1,35 @@
-//! Sottoinsieme minimo dello schema `SynopticObject`/`SynopticPage` che il
-//! motore LVGL sa interpretare — cresce widget per widget (vedi
-//! `lvgl_render::SUPPORTED_TYPES` per l'elenco aggiornato). Parser
-//! deliberatamente tollerante — `#[serde(default)]` ovunque —
-//! perché lo schema reale ha ~150 campi opzionali (vedi
-//! `sws-web/src/synoptic.rs`) di cui questo motore ne conosce solo una
-//! manciata: tutto il resto viene ignorato silenziosamente da serde, non
-//! genera errori. Non è un mirror completo (vedi ADR 0002, "duplicazione
-//! accettata" — questo è un terzo sottoinsieme minimo, non una copia
-//! integrale del mirror TS/Rust esistente).
+//! Mirror dello schema `SynopticObject`/`SynopticPage` per il motore LVGL.
+//!
+//! **Dal 2026-08-26 è un mirror COMPLETO**: dichiara tutti i 238 campi di
+//! `sws-web/src/synoptic.rs`, che resta la definizione autorevole. Prima ne
+//! conosceva 101, e i restanti 137 venivano scartati in silenzio da serde —
+//! un oggetto che li usava si disegnava sbagliato senza che niente lo
+//! segnalasse. È già costato caro: la migrazione a `trend_tags[]` della 2.1.0
+//! lasciò i trend del pannello a disegnare grafici vuoti per settimane.
+//!
+//! `scripts/check_lvgl_parity.sh` confronta le due struct e **fallisce** se il
+//! web aggiunge un campo e questo file resta indietro. È il controllo che
+//! sarebbe servito allora.
+//!
+//! ## Dichiarato non vuol dire disegnato
+//!
+//! Conoscere un campo e renderlo sono due cose diverse, e vanno tenute
+//! distinte anche nel modo di parlarne:
+//!
+//! * **conosciuto** — il valore attraversa il modello intero, quindi
+//!   sopravvive a un round-trip e può essere reso quando qualcuno lo
+//!   implementerà. Lo garantisce il controllo di parità;
+//! * **reso** — esiste il codice nel `render_*` corrispondente. Dove LVGL non
+//!   ha un equivalente (SVG, gradienti, tipografia arbitraria) il limite è
+//!   scritto accanto al campo: un gap dichiarato, non un difetto muto.
+//!
+//! Il parser resta deliberatamente tollerante (`#[serde(default)]` ovunque):
+//! un campo che NESSUNO dei due conosce non deve far fallire l'apertura di una
+//! pagina, altrimenti un pannello non aggiornato smetterebbe di aprire i
+//! progetti salvati da un IDE più recente.
+//!
+//! Vedi ADR 0002 ("duplicazione accettata") per il perché di un mirror
+//! separato invece di un tipo condiviso.
 
 use serde::Deserialize;
 
@@ -268,6 +290,220 @@ pub struct SynopticObject {
     pub pie_slices: Option<Vec<PieSlice>>,
     pub pie_mode: Option<String>,
     pub pie_inner_ratio: Option<f64>,
+
+    // ══════════════════════════════════════════════════════════════════════
+    // F9c — parità col mirror autorevole (`sws-web/src/synoptic.rs`)
+    // ══════════════════════════════════════════════════════════════════════
+    //
+    // I 137 campi qui sotto erano dichiarati dal web e ASSENTI da questo
+    // modello. Serde li scartava in silenzio: un oggetto che li usa si
+    // disegnava sbagliato, e nessuno lo collegava alla modifica che li aveva
+    // introdotti. È già costato caro una volta — la migrazione a `trend_tags[]`
+    // della 2.1.0 lasciò i trend del pannello a disegnare grafici vuoti per
+    // settimane.
+    //
+    // **Dichiarato non vuol dire disegnato.** Sono due garanzie diverse:
+    //
+    //   * che il campo sia conosciuto → lo verifica `scripts/check_lvgl_parity.sh`,
+    //     che fallisce se il web ne aggiunge uno e questo modello resta indietro;
+    //   * che il campo sia reso → si vede nel `render_*` corrispondente, e dove
+    //     non c'è equivalente in LVGL è un limite noto, non un difetto muto.
+    //
+    // Conoscere un campo senza disegnarlo ha comunque valore: il dato
+    // sopravvive al round-trip di un progetto che passa da qui, invece di
+    // essere silenziosamente perso.
+
+    // ── Trend — asse dei tempi ──
+    pub trend_dt_date_order: Option<String>,
+    pub trend_dt_separator: Option<String>,
+    pub trend_dt_time_format: Option<String>,
+    pub trend_dt_show_seconds: Option<bool>,
+    pub trend_dt_show_year: Option<bool>,
+    pub trend_dt_two_lines: Option<bool>,
+    pub trend_dt_always_show_date: Option<bool>,
+
+    // ── Trend — soglie, marcatori, scala ──
+    pub trend_show_thresholds: Option<bool>,
+    pub trend_show_alarm_markers: Option<bool>,
+    pub trend_log_scale: Option<bool>,
+
+    // ── Storico allarmi ──
+    pub alarm_history_id: Option<String>,
+
+    // ── Lista allarmi ──
+    pub alarm_viewer_show_ack_all: Option<bool>,
+    pub alarm_viewer_show_shelve: Option<bool>,
+
+    // ── Campanella allarmi ──
+    pub alarm_bell_sound: Option<bool>,
+    pub alarm_bell_sound_severities: Option<serde_json::Value>,
+    pub alarm_bell_sound_repeat_s: Option<f64>,
+    pub alarm_bell_show_history: Option<bool>,
+    pub alarm_bell_show_shelve: Option<bool>,
+
+    // ── Allarmi ──
+    pub alarm_shelve_minutes: Option<f64>,
+
+    // ── Grafico a barre ──
+    pub bar_mode: Option<String>,
+    pub bar_ticks: Option<f64>,
+    pub bar_show_legend: Option<bool>,
+    pub bar_show_thresholds: Option<bool>,
+    pub bar_y_label: Option<String>,
+
+    // ── Grafico a torta ──
+    pub pie_label_mode: Option<String>,
+    pub pie_group_below_pct: Option<f64>,
+    pub pie_group_label: Option<String>,
+    pub pie_group_color: Option<String>,
+    pub pie_explode_px: Option<f64>,
+    pub pie_hole_color: Option<String>,
+    pub pie_show_labels: Option<bool>,
+    pub pie_center_text: Option<String>,
+    pub pie_center_tag: Option<String>,
+    pub pie_center_format: Option<String>,
+    pub pie_show_legend: Option<bool>,
+
+    // ── Griglia ──
+    pub grid_color: Option<String>,
+    pub grid_gap: Option<f64>,
+    pub grid_padding: Option<f64>,
+
+    // ── Indicatore analogico ──
+    pub gauge_zones: Option<serde_json::Value>,
+    pub gauge_ticks: Option<f64>,
+    pub gauge_start_angle: Option<f64>,
+    pub gauge_end_angle: Option<f64>,
+    pub gauge_sp_tag: Option<String>,
+    pub gauge_sp_color: Option<String>,
+
+    // ── LED ──
+    pub led_shape: Option<String>,
+
+    // ── Tabella ──
+    pub table_columns: Option<serde_json::Value>,
+    pub table_sortable: Option<bool>,
+    pub table_filterable: Option<bool>,
+    pub table_font_size: Option<f64>,
+    pub table_label_header: Option<String>,
+
+    // ── Testo ──
+    pub text_wrap: Option<bool>,
+    pub text_valign: Option<String>,
+    pub text_anchor: Option<String>,
+
+    // ── Simboli ──
+    pub symbol_states: Option<serde_json::Value>,
+    pub symbol_spin: Option<String>,
+    pub symbol_spin_tag: Option<String>,
+    pub symbol_spin_s: Option<f64>,
+
+    // ── Tubazioni ──
+    pub pipe_flow: Option<bool>,
+    pub pipe_flow_tag: Option<String>,
+    pub pipe_gradient: Option<bool>,
+    pub pipe_label: Option<String>,
+    pub pipe_label_tag: Option<String>,
+    pub pipe_label_format: Option<String>,
+    pub pipe_label_offset: Option<f64>,
+
+    // ── Sparkline ──
+    pub spark_stroke_width: Option<f64>,
+    pub spark_fill: Option<bool>,
+    pub spark_fill_opacity: Option<f64>,
+    pub spark_show_last: Option<bool>,
+
+    // ── Registro dati (solo web) ──
+    pub datalog_page_size: Option<f64>,
+
+    // ── Faceplate ──
+    pub faceplate_scale: Option<bool>,
+    pub faceplate_overrides: Option<serde_json::Value>,
+
+    // ── Animazione di movimento ──
+    pub motion_path: Option<serde_json::Value>,
+    pub motion_tag: Option<String>,
+    pub motion_min: Option<f64>,
+    pub motion_max: Option<f64>,
+    pub motion_anchor: Option<String>,
+
+    // ── Tipografia ──
+    pub font_family: Option<String>,
+    pub font_weight: Option<serde_json::Value>,
+    pub font_style: Option<String>,
+
+    // ── Riempimento ──
+    pub fill_gradient: Option<String>,
+    pub fill_direction: Option<String>,
+
+    // ── Bordo ──
+    pub stroke_dasharray: Option<String>,
+
+    // ── Azioni al tocco ──
+    pub on_press_fn: Option<String>,
+    pub on_press_args: Option<serde_json::Value>,
+
+    // ── Scrittura tag ──
+    pub write_on_release: Option<bool>,
+    pub write_deadband: Option<f64>,
+
+    // ── Limiti ──
+    pub min_role: Option<String>,
+    pub min_role_effect: Option<String>,
+
+    // ── Visibilità di parti ──
+    pub show_alarm_state: Option<bool>,
+    pub show_value: Option<bool>,
+
+    // ── Aspetto e comportamento generale ──
+    pub name: Option<String>,
+    pub bg_color: Option<String>,
+    pub bg_image: Option<String>,
+    pub axis_color: Option<String>,
+    pub src: Option<String>,
+    pub button_mode: Option<String>,
+    pub release_value: Option<serde_json::Value>,
+    pub require_confirm: Option<bool>,
+    pub confirm_message: Option<String>,
+    pub blink_mode: Option<String>,
+    pub blink_tag: Option<String>,
+    pub blink_rate_ms: Option<f64>,
+    pub bad_value_style: Option<String>,
+    pub stale_after_s: Option<f64>,
+    pub critical: Option<bool>,
+    pub require_reason: Option<bool>,
+    pub decimals: Option<u8>,
+    pub orientation: Option<String>,
+    pub options: Option<serde_json::Value>,
+    pub pan_step_s: Option<f64>,
+    pub corner_radius: Option<f64>,
+    pub image_fit: Option<String>,
+    pub line_height: Option<f64>,
+    pub z_index: Option<i32>,
+    pub on_release_fn: Option<String>,
+    pub on_release_args: Option<serde_json::Value>,
+    pub rotation: Option<f64>,
+    pub flip_h: Option<bool>,
+    pub flip_v: Option<bool>,
+    pub opacity: Option<f64>,
+    pub transition_duration_ms: Option<u64>,
+    pub quality_dot: Option<bool>,
+    pub quality_dot_good_color: Option<String>,
+    pub quality_dot_bad_color: Option<String>,
+    pub quality_dot_uncertain_color: Option<String>,
+    pub locked: Option<bool>,
+    pub group_id: Option<String>,
+    pub button_action: Option<serde_json::Value>,
+    pub gradient_light_color: Option<String>,
+    pub gradient_dark_color: Option<String>,
+    pub start_marker: Option<String>,
+    pub end_marker: Option<String>,
+    pub marker_size: Option<f64>,
+    pub from_obj_id: Option<String>,
+    pub from_port: Option<String>,
+    pub to_obj_id: Option<String>,
+    pub to_port: Option<String>,
+
 }
 
 /// Porta `GridCell` di `types/index.ts`. `child`/`sub` sono `Box` perché

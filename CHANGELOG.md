@@ -11,6 +11,15 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+- **Il pannello ora conosce tutti i campi di un oggetto.** Ne conosceva 101 su
+  238: gli altri venivano scartati senza che niente lo segnalasse, e un oggetto
+  che li usava si disegnava sbagliato. È il difetto che aveva lasciato i grafici
+  a linee vuoti per settimane dopo la 2.1.0. Un controllo automatico ora fallisce
+  se l'editor aggiunge un campo e il pannello resta indietro.
+  Attenzione: che un campo sia *conosciuto* non vuol dire che sia *disegnato* —
+  restano rifiniture senza equivalente sul pannello, ma ora sono un elenco
+  visibile invece di sparizioni silenziose.
+
 ## [2.1.1] — 2026-08-25
 
 > **Immagine arm64 ripubblicata il 2026-08-26.** La prima pubblicazione conteneva

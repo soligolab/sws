@@ -18,25 +18,23 @@
 > 20 s sulla pagina dei grafici, questa regge 75 s. Il tag git `2.1.1` è stato
 > spostato sul commit che corregge.
 
-### 1. Aggiornare un dispositivo — è pronto
+### 1. Il WP630 è aggiornato alla 2.1.1
 
-Sul dispositivo, come utente (non root):
+Fatto il 2026-08-26 con `./install-container.sh --pull`, dal percorso documentato.
+`/health` ha risposto dopo 2 s.
 
-```
-cd /data/user/sws-container && ./install-container.sh --pull
-```
+| | |
+|---|---|
+| Runtime | 2.1.0 → **2.1.1** |
+| Progetto | `DemoItemsLVGL` intatto, 23 tag, 4 pagine |
+| Storico | **773.861 campioni conservati** |
+| Viewer | dall'immagine — **nessun binario montato a mano** |
+| Pagina "Grafici e tabelle" | 20 widget, nessun crash |
+| Ricarica automatica (Q20) | funziona: salvata una pagina dall'IDE, il pannello si ridisegna da solo |
 
-Prende `ghcr.io/soligolab/sws-runtime:latest-arm64`, che ora è la 2.1.1. Per
-inchiodare la versione: `./install-container.sh --pull ghcr.io/soligolab/sws-runtime:2.1.1-arm64`.
-
-**Cosa cambia sul dispositivo dopo l'aggiornamento**: il discovery mDNS funziona
-anche con due schede di rete, i trend disegnano, gli oggetti coi binding si
-muovono, il viewer non crasha con più grafici sulla stessa pagina, e modificando
-una pagina dall'IDE il pannello si ridisegna da solo senza riavviarlo.
-
-**Verificato prima di pubblicare**: i binari `sws-runtime` e `sws-lvgl-viewer`
-dentro l'immagine combaciano per md5 con quelli compilati. Non è un dettaglio —
-oggi due volte una build ha consegnato un binario stantio senza dirlo.
+Per aggiornare un altro dispositivo servono `install-container.sh` e
+`sws-runtime.container` da `deploy/container/` — sul WP630 non c'erano e li ho
+copiati in `/data/user/sws-container/`.
 
 ### 2. Immagini pubblicate, e quella che manca
 
@@ -80,15 +78,30 @@ non blocca niente di immediato.
 
 Il resto l'ho verificato dal vivo sul WP630.
 
-### 4. I due passi del programma non ancora fatti
+### 4. Il programma: cosa resta
 
-- **D2 — rasterizzazione SVG** (Q15+Q16, deciso: `resvg` a runtime). Primo passo:
-  **misurare** peso del binario e memoria sul pannello. Se sfora, se ne riparla
-  con un numero in mano. Oggi restano muti i 12 simboli "vendored", i simboli
-  custom e il widget `image`.
-- **E — F9c, i 137 campi mancanti** (deciso: tutti, sistematicamente). Serve prima
-  un controllo generato che confronti `model.rs` con `sws-web/src/synoptic.rs`:
-  a mano su 137 campi è un lavoro che si sbaglia.
+**E — F9c: ✅ fatto il 2026-08-26.** Il modello del pannello dichiara tutti i 238
+campi del mirror autorevole; prima ne conosceva 101 e gli altri 137 sparivano in
+silenzio. `scripts/check_lvgl_parity.sh` confronta le due struct e fallisce se il
+web ne aggiunge uno e il pannello resta indietro — provato in entrambi i versi.
+
+⚠️ **Dichiarato non vuol dire disegnato**, ed è la distinzione da non perdere:
+
+- *conosciuto* — il valore attraversa il modello e sopravvive al round-trip di un
+  progetto. È quello che è stato chiuso adesso, e chiude la categoria dei difetti
+  **muti**;
+- *reso* — esiste il codice nel `render_*`. Qui resta lavoro: rifiniture di forma
+  (raggio, sfumature, zone del gauge), table/bar/pie, simboli e animazioni F6.
+  Ora però è un elenco visibile, non un buco.
+
+Il modo giusto di attaccarlo è il banco di prova: aprire le stesse pagine dei
+template gemelli sui due motori e annotare le differenze, dal più vistoso al più
+sottile.
+
+**D2 — rasterizzazione SVG** (Q15+Q16, deciso: `resvg` a runtime). Non iniziato.
+Primo passo obbligatorio: **misurare** peso del binario e memoria sul pannello.
+Se sfora, se ne riparla con un numero in mano. Oggi restano muti i 12 simboli
+"vendored", i simboli custom e il widget `image`.
 
 ### 5. Stato del WP630
 

@@ -4948,6 +4948,69 @@ mod binding_tests {
         }
     }
 
+    // ── Parità dei campi col mirror autorevole (F9c) ────────────────────
+    //
+    // `scripts/check_lvgl_parity.sh` verifica che i NOMI ci siano tutti,
+    // confrontando le due struct nei sorgenti. Questi test verificano la cosa
+    // che uno script sui sorgenti non può vedere: che serde li accetti davvero
+    // e che i valori arrivino interi.
+    //
+    // La differenza conta. Un campo dichiarato col tipo sbagliato compila, il
+    // controllo di parità lo dà per presente, e serde lo scarta a runtime —
+    // esattamente il difetto silenzioso che tutto questo lotto esiste per
+    // chiudere.
+
+    #[test]
+    fn i_campi_aggiunti_sopravvivono_al_parsing() {
+        // Uno per tipo fra quelli aggiunti: stringa, booleano, numero, lista.
+        let raw = json!({
+            "id": "o1", "type": "gauge",
+            "gauge_zones": [{"from": 0, "to": 50, "color": "#22c55e"}],
+            "gauge_ticks": 12,
+            "led_shape": "square",
+            "trend_show_thresholds": true,
+            "pie_show_legend": true,
+            "table_columns": [{"key": "a"}],
+            "motion_path": [[0, 0], [10, 10]],
+            "corner_radius": 8
+        });
+        let o: SynopticObject = serde_json::from_value(raw).expect("deve interpretarsi");
+        assert_eq!(o.gauge_ticks, Some(12.0));
+        assert_eq!(o.led_shape.as_deref(), Some("square"));
+        assert_eq!(o.trend_show_thresholds, Some(true));
+        assert_eq!(o.pie_show_legend, Some(true));
+        assert_eq!(o.corner_radius, Some(8.0));
+        assert!(o.gauge_zones.is_some(), "le zone del gauge non devono sparire");
+        assert!(o.table_columns.is_some());
+        assert!(o.motion_path.is_some());
+    }
+
+    /// Un oggetto che usa SOLO campi nuovi deve comunque interpretarsi: è il
+    /// caso di una pagina disegnata con funzioni recenti dell'editor e aperta
+    /// su un pannello.
+    #[test]
+    fn un_oggetto_di_soli_campi_nuovi_non_fa_fallire_il_parsing() {
+        let raw = json!({
+            "id": "o2", "type": "rect",
+            "bg_color": "#123456", "axis_color": "#abcdef",
+            "font_family": "mono", "font_weight": "bold",
+            "hide_when_empty": true
+        });
+        let o: SynopticObject = serde_json::from_value(raw).expect("deve interpretarsi");
+        assert_eq!(o.bg_color.as_deref(), Some("#123456"));
+        assert_eq!(o.font_family.as_deref(), Some("mono"));
+    }
+
+    /// La tolleranza di serde resta: un campo che NESSUNO dei due conosce non
+    /// deve far fallire il parsing, altrimenti un pannello vecchio non
+    /// aprirebbe più un progetto salvato da un IDE più nuovo.
+    #[test]
+    fn un_campo_sconosciuto_non_fa_fallire_il_parsing() {
+        let raw = json!({"id": "o3", "type": "rect", "campo_del_futuro": 42});
+        let o: SynopticObject = serde_json::from_value(raw).expect("deve tollerare l'ignoto");
+        assert_eq!(o.id.as_deref(), Some("o3"));
+    }
+
     // ── Colore del testo dallo sfondo pagina (Q18) ──────────────────────
     //
     // Questi casi sono gli STESSI di `tests/textOnBackground.test.ts` nel
