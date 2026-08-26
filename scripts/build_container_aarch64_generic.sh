@@ -285,6 +285,28 @@ user_bin() {
     return 1
 }
 
+# Esegue un comando come l'UTENTE originale quando siamo root sotto sudo.
+#
+# Serve per gli strumenti che non hanno alcun bisogno di privilegi — leggere la
+# versione dal manifest, compilare la SPA — e che da root si comportano male:
+#
+#   * `cargo` è uno shim di rustup, che cerca la toolchain in `$HOME/.rustup`;
+#     da root quel percorso è /root/.rustup e non esiste, quindi fallisce con
+#     "could not choose a version of cargo to run" anche avendo trovato il
+#     binario giusto. Si potrebbe esportare RUSTUP_HOME e CARGO_HOME, ma è
+#     inseguire i sintomi: il comando non ha motivo di girare da root.
+#   * `pnpm build` scrive cache nella home e in node_modules, che diventerebbero
+#     di root e romperebbero il successivo build normale.
+#
+# Da root `sudo -u` non richiede password. Fuori da sudo esegue e basta.
+run_as_user() {
+    if [ "$(id -u)" -eq 0 ] && [ -n "${SUDO_USER:-}" ]; then
+        sudo -u "$SUDO_USER" "$@"
+    else
+        "$@"
+    fi
+}
+
 require_user_bin() {
     local cmd="$1" p
     if ! p="$(user_bin "$cmd")"; then
@@ -303,7 +325,7 @@ require_user_bin() {
 }
 
 CARGO="$(require_user_bin cargo)"
-VERSION=$(cd "$REPO/sws-runtime" && "$CARGO" metadata --no-deps --format-version 1 \
+VERSION=$(cd "$REPO/sws-runtime" && run_as_user "$CARGO" metadata --no-deps --format-version 1 \
     | python3 -c "import json,sys; pkgs=json.load(sys.stdin)['packages']; \
       print(next(p['version'] for p in pkgs if p['name']=='sws-runtime'))")
 IMAGE="sws-runtime:${VERSION}-arm64-generic"
@@ -407,11 +429,7 @@ if [ "$BUILD_SPA" -eq 1 ]; then
     # sporcarle affatto chiude la questione. Da root `sudo -u` non richiede
     # password.
     PNPM="$(require_user_bin pnpm)"
-    if [ "$(id -u)" -eq 0 ] && [ -n "${SUDO_USER:-}" ]; then
-        (cd "$REPO/sws-editor" && sudo -u "$SUDO_USER" "$PNPM" build)
-    else
-        (cd "$REPO/sws-editor" && "$PNPM" build)
-    fi
+    (cd "$REPO/sws-editor" && run_as_user "$PNPM" build)
 else
     echo "==> [1b/4] skipped (--no-spa)"
 fi
