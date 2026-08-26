@@ -27,7 +27,9 @@ import sys, os, re, glob, yaml
 root = sys.argv[1]
 WEB = f"{root}/examples/templates/demo-items-web"
 LVGL = f"{root}/examples/templates/demo-items-lvgl"
-WEB_ONLY = {"image", "kpi_tile", "alarm_history", "data_log"}
+# `image` è uscito da qui il 2026-08-26: il viewer LVGL lo disegna
+# rasterizzando l'SVG (D2).
+WEB_ONLY = {"kpi_tile", "alarm_history", "data_log"}
 
 fail = []
 def check(ok, msg):

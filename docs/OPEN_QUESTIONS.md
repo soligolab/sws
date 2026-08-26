@@ -1987,3 +1987,84 @@ Due difese messe adesso:
 
 **Resta da decidere**: segnalare a monte a LVGL, e verificare se altri campi hanno lo stesso schema
 di inizializzazione mancante — una passata sistematica, non widget per widget quando qualcosa crasha.
+
+## Q23 — Collegare lo SCADA a un robot ROS 2
+
+**Aperta** — segnalata dal maintainer il 2026-08-26, da analizzare più avanti.
+
+Oggi i dati entrano nello SCADA da Modbus, MQTT, OPC UA e dagli script Python. Un robot basato
+su **ROS 2** non parla nessuno di questi: parla DDS, con topic tipizzati, servizi e azioni.
+
+Da decidere, e sono due domande distinte che conviene non impastare:
+
+1. **Il driver.** Un *source* ROS 2 accanto agli altri. Le strade plausibili sono almeno tre e
+   costano molto diversamente: linkare `rclrs` (client Rust nativo, ancora giovane), appoggiarsi a
+   `rosbridge` via WebSocket/JSON (nessuna dipendenza DDS, ma un processo in più da installare sul
+   robot), oppure parlare DDS direttamente con un'implementazione Rust. Va tenuto presente che il
+   modello dati qui è **tag piatti con un valore scalare**, mentre ROS 2 pubblica messaggi
+   strutturati: la mappatura messaggio → tag non è un dettaglio implementativo, è la domanda vera.
+2. **Gli oggetti sinottici.** Un robot non si rappresenta con una `gauge`. Servirebbero oggetti
+   propri — posa/giunti, stato della missione, pulsanti che lanciano un'*azione* e ne seguono il
+   feedback, e un modo di mostrare l'emergenza. Vale anche la pena chiedersi se il comando di un
+   robot debba passare per il normale meccanismo di scrittura tag o richieda una strada a parte:
+   un'azione ROS 2 ha un ciclo di vita (accettata, in corso, annullabile, conclusa) che un tag
+   scalare non sa rappresentare.
+
+**Precisazione del maintainer (2026-08-26): la portata è molto più piccola di così.**
+
+In questa fase allo SCADA serve dialogare con **dati semplici** del robot, non rappresentarlo. In
+concreto: una `gauge` agganciata a velocità, direzione o consumi; `led` e `trend` agganciati a dati
+di diagnostica dello stesso genere; qualche `button` che manda avvio e arresto. Tutta roba che gli
+oggetti esistenti già sanno fare.
+
+**Non è richiesto** rappresentare il robot (nessuna vista posa/giunti) né emulare servizi di
+simulazione.
+
+Questo sposta il peso della domanda: il punto 2 qui sopra — gli oggetti sinottici dedicati —
+**decade quasi del tutto**, e resta il punto 1, cioè far arrivare quei valori dentro dei tag. Il
+che riduce il problema a un *source* in più, che è un lavoro di tutt'altra taglia rispetto a una
+famiglia di oggetti nuovi. Anche la questione "e sul pannello LVGL?" si dissolve da sé: gauge, led,
+trend e button il motore LVGL li disegna già.
+
+Restano da decidere solo la strada del driver (`rclrs` / `rosbridge` / DDS nativo) e la mappatura
+messaggio strutturato → tag scalare.
+
+Da non affrontare prima che il PoC sia stabile.
+
+## Q24 — Il font del viewer LVGL non ha le lettere accentate
+
+**Aperta** — trovata il 2026-08-26 eseguendo le quattro pagine del template `demo-items-lvgl`.
+
+`lv_conf.h` imposta `LV_FONT_DEFAULT = &lv_font_montserrat_14`, e i font Montserrat inclusi in
+LVGL coprono solo l'ASCII. Ogni carattere fuori da lì **non viene disegnato**: al suo posto non
+compare un rettangolo o un punto interrogativo, compare *niente*, con un avviso che finisce nel log
+e che nessuno legge.
+
+Misurato sulle quattro pagine della demo, mancano:
+
+| carattere | codice | dove capita |
+|---|---|---|
+| `—` trattino lungo | U+2014 | 32 didascalie della demo |
+| `→` freccia | U+2192 | pagina "Indicatori" |
+| `ù` | U+00F9 | "più" — e con lui **tutte le lettere accentate** |
+
+Il terzo non è un dettaglio tipografico: questo è uno SCADA con l'interfaccia in italiano, dove
+"però", "più", "è", "perché" sono parole normali. Sul pannello si vedono mutilate. E il difetto è
+subdolo nel modo peggiore — chi scrive il testo nell'IDE lo vede giusto, perché il browser il font
+ce l'ha.
+
+Le strade, che costano molto diversamente:
+
+1. **Rigenerare il font** con `lv_font_conv` includendo almeno Latin-1 Supplement (U+00A0–U+00FF) e
+   la manciata di segni tipografici usati. Più byte in flash per ogni corpo carattere generato, ed è
+   un artefatto in più da mantenere nel repo.
+2. **Un font di sistema via FreeType** (`LV_USE_FREETYPE`), che risolve tutto l'Unicode ma tira
+   dentro FreeType e un file di font sul dispositivo.
+3. **Vietare i caratteri non-ASCII**, avvisando nell'IDE quando un testo ne contiene. Onesto ma
+   povero: significa dire a un utente italiano di non scrivere in italiano.
+
+La 3 non regge da sola come risposta; può però servire *insieme* alla 1, per i caratteri che
+restano fuori dal sottoinsieme scelto.
+
+Nel frattempo i template della demo restano com'è: **riscriverli per aggirare il problema lo
+nasconderebbe**, ed è il difetto stesso che va visto.

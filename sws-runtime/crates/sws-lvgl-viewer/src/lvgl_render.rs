@@ -62,7 +62,7 @@ const SUPPORTED_TYPES: &[&str] = &[
     "state_lamp", "table", "navbutton", "trend", "alarm_viewer",
     "text_list", "bar_chart", "sparkline", "alarm_banner", "faceplate",
     "symbol", "grid", "pipe", "alarm_bell", "recipe_panel", "setpoint", "xy_plot", "pie_chart",
-    "lang_button", "lang_selector",
+    "lang_button", "lang_selector", "image",
 ];
 
 #[derive(Default, Debug)]
@@ -83,6 +83,33 @@ pub struct RenderSummary {
 /// stesso principio degli `Style` altrove in questo file.
 #[allow(dead_code)]
 pub enum LiveKind {
+    /// Riempimento progressivo di una `pipe`.
+    ///
+    /// `buf` possiede i punti della linea di riempimento: LVGL ne conserva il
+    /// puntatore, non una copia, quindi la stessa allocazione va riusata a
+    /// ogni aggiornamento — leakarne una per variazione del tag vorrebbe dire
+    /// perdere memoria a ogni frame.
+    PipeFill {
+        fill_ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
+        spec: PipeFill,
+        buf: Vec<lvgl_sys::lv_point_t>,
+        last_level: f64,
+    },
+    /// SVG rasterizzato (simbolo vendored/custom, widget `image`).
+    ///
+    /// Non ha niente da aggiornare a ogni frame: la bitmap è fissa, e non si
+    /// ricolora per stato (vedi `render_svg_raster`). Sta comunque fra i
+    /// `LiveBinding` per un motivo solo ma decisivo: **`buf` deve restare
+    /// vivo quanto il canvas**, perché LVGL rilegge da quel puntatore a ogni
+    /// redraw. Lasciarlo cadere alla fine di `render_svg_raster` darebbe un
+    /// canvas che disegna memoria liberata — cioè un difetto che si manifesta
+    /// a caso, molto più tardi, e altrove.
+    SvgRaster {
+        #[allow(dead_code)]
+        canvas_ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
+        #[allow(dead_code)]
+        buf: Vec<u8>,
+    },
     Led {
         ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
         tag: Option<String>,
@@ -1764,12 +1791,30 @@ fn render_gauge(
 
     // Testo valore, centrato in basso nel quadrante (stesso posto del web) —
     // widget figlio separato, aggiornato dal vivo come qualunque altro Text.
+    //
+    // Si allinea invece di calcolare la x, per due motivi che prima davano
+    // entrambi lo stesso sintomo (etichetta in basso a destra, fuori dal
+    // cerchio — visto sul WP630 il 2026-08-26):
+    //
+    // 1. il padre è il **quadrato** (`side`), non il box dichiarato. Usare
+    //    `w`/`h` del box su un gauge 220x190 metteva l'etichetta a 110-20=90
+    //    dentro un padre largo 190: né centrata né dove si credeva.
+    // 2. il `-20` era un'ipotesi sulla metà della larghezza del testo. Ma il
+    //    testo cambia — "0.0" e "100.0 bar" non sono larghi uguale — e con
+    //    l'unità di misura sbordava. Nessun numero fisso può indovinarlo.
+    //
+    // `LV_ALIGN_TOP_MID` lo centra sulla larghezza vera, qualunque essa sia;
+    // l'offset verticale resta quello di prima, ma calcolato sul lato del
+    // quadrato, che è ciò che il cerchio occupa davvero.
     let mut value_label = Label::create(&mut meter).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
-    let w = obj.width.unwrap_or(160.0).round() as i16;
-    let h = obj.height.unwrap_or(140.0).round() as i16;
-    value_label
-        .set_pos(w / 2 - 20, (h as f64 * 0.72) as i16)
-        .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
+    unsafe {
+        lvgl_sys::lv_obj_align(
+            value_label.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?.as_ptr(),
+            lvgl_sys::LV_ALIGN_TOP_MID as lvgl_sys::lv_align_t,
+            0,
+            (side as f64 * 0.72) as lvgl_sys::lv_coord_t,
+        );
+    }
     let unit_suffix = obj.unit.as_deref().map(|u| format!(" {u}")).unwrap_or_default();
     value_label
         .set_text(&text_cstring(&format!("{raw:.1}{unit_suffix}")))
@@ -2847,7 +2892,71 @@ fn render_alarm_bell(
 /// richiederebbe disegnare la pipe su un `lv_canvas` invece che con
 /// `lv_line`, per poter colorare solo una frazione del percorso — non
 /// tentato in questo giro.
-fn render_pipe(screen: &mut lvgl::Obj, obj: &SynopticObject, styles: &mut Vec<Style>, tags: &TagSnapshot) -> anyhow::Result<()> {
+/// La porzione di polilinea corrispondente a una frazione della sua lunghezza.
+///
+/// Serve al riempimento progressivo delle `pipe`. Il web lo ottiene con un
+/// trucco di `stroke-dasharray` su `pathLength=1`; LVGL non ha niente del
+/// genere, quindi la polilinea parziale va costruita a mano — camminando i
+/// segmenti e interpolando quello in cui si esaurisce la frazione.
+///
+/// `from_start = false` riempie dalla fine (`fill_direction: end-to-start`).
+///
+/// Restituisce meno di due punti quando non c'è niente da disegnare: chi
+/// chiama nasconde l'oggetto di riempimento invece di disegnare una linea
+/// degenere, che LVGL renderebbe come un puntino.
+fn partial_polyline(points: &[(f64, f64)], fraction: f64, from_start: bool) -> Vec<(f64, f64)> {
+    if points.len() < 2 || fraction <= 0.0 {
+        return Vec::new();
+    }
+    if fraction >= 1.0 {
+        return points.to_vec();
+    }
+    // Riempire dalla fine è riempire dall'inizio la polilinea rovesciata: una
+    // sola logica da tenere giusta invece di due che possono divergere.
+    let pts: Vec<(f64, f64)> = if from_start {
+        points.to_vec()
+    } else {
+        points.iter().rev().copied().collect()
+    };
+
+    let seg_len: Vec<f64> = pts
+        .windows(2)
+        .map(|w| ((w[1].0 - w[0].0).powi(2) + (w[1].1 - w[0].1).powi(2)).sqrt())
+        .collect();
+    let total: f64 = seg_len.iter().sum();
+    if total <= 0.0 {
+        return Vec::new(); // tutti i waypoint coincidenti: nessuna lunghezza da riempire
+    }
+
+    let mut restante = total * fraction;
+    let mut out = vec![pts[0]];
+    for (i, &len) in seg_len.iter().enumerate() {
+        if restante >= len {
+            out.push(pts[i + 1]);
+            restante -= len;
+            continue;
+        }
+        if len > 0.0 {
+            let t = restante / len;
+            out.push((
+                pts[i].0 + (pts[i + 1].0 - pts[i].0) * t,
+                pts[i].1 + (pts[i + 1].1 - pts[i].1) * t,
+            ));
+        }
+        break;
+    }
+    if out.len() < 2 {
+        return Vec::new();
+    }
+    out
+}
+
+fn render_pipe(
+    screen: &mut lvgl::Obj,
+    obj: &SynopticObject,
+    styles: &mut Vec<Style>,
+    tags: &TagSnapshot,
+) -> anyhow::Result<LiveBinding> {
     let routing = obj.routing.as_deref().unwrap_or("straight");
     if routing != "straight" {
         anyhow::bail!("routing '{routing}' non supportato da LVGL (solo 'straight')");
@@ -2856,45 +2965,129 @@ fn render_pipe(screen: &mut lvgl::Obj, obj: &SynopticObject, styles: &mut Vec<St
     if waypoints.len() < 2 {
         anyhow::bail!("pipe con meno di 2 waypoint");
     }
+    let assoluti: Vec<(f64, f64)> = waypoints.iter().map(|p| (p.x, p.y)).collect();
+    let (x0, y0) = assoluti[0];
+    let sw = obj.stroke_width.unwrap_or(6.0).round() as i16;
 
-    let mut line = Line::create(screen).map_err(|e| anyhow::anyhow!("Line::create: {e:?}"))?;
-    let (x0, y0) = (waypoints[0].x, waypoints[0].y);
-    line.set_pos(x0.round() as i16, y0.round() as i16)
+    // ── Corpo del tubo: sempre tutta la polilinea, sempre il colore di stato ──
+    //
+    // Prima il corpo prendeva il colore di *riempimento* appena il livello
+    // superava l'1%, e il tubo appariva pieno in modo uniforme a qualunque
+    // livello — segnalato sul WP630 il 2026-08-26. Il livello non si vedeva
+    // affatto: si vedeva solo "c'è del liquido / non ce n'è".
+    let mut body = Line::create(screen).map_err(|e| anyhow::anyhow!("Line::create: {e:?}"))?;
+    body.set_pos(x0.round() as i16, y0.round() as i16)
         .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
-
-    let pts: Vec<lvgl_sys::lv_point_t> = waypoints
+    let body_pts: Vec<lvgl_sys::lv_point_t> = assoluti
         .iter()
-        .map(|p| lvgl_sys::lv_point_t { x: (p.x - x0).round() as i16, y: (p.y - y0).round() as i16 })
+        .map(|(x, y)| lvgl_sys::lv_point_t { x: (x - x0).round() as i16, y: (y - y0).round() as i16 })
         .collect();
-    let pts_leaked: &'static [lvgl_sys::lv_point_t] = Box::leak(pts.into_boxed_slice());
-    let ptr = line.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
+    let body_leaked: &'static [lvgl_sys::lv_point_t] = Box::leak(body_pts.into_boxed_slice());
+    let body_ptr = body.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
     unsafe {
-        lvgl_sys::lv_line_set_points(ptr.as_ptr(), pts_leaked.as_ptr(), pts_leaked.len() as u16);
+        lvgl_sys::lv_line_set_points(body_ptr.as_ptr(), body_leaked.as_ptr(), body_leaked.len() as u16);
     }
-
-    let scale = obj.fill_level_scale.as_deref().unwrap_or("0-100");
-    let raw_level = if let Some(tag) = &obj.fill_level_tag {
-        lookup(tags, &Some(tag.clone())).map(|t| tag_value_as_f64(&t.value))
-    } else {
-        obj.fill_level.map(|v| v * 100.0)
-    };
-    let level_pct = raw_level.map(|v| if scale == "0-1" { v * 100.0 } else { v }).unwrap_or(0.0);
-    let filled = level_pct > 1.0; // soglia bassa: "quasi vuoto" resta comunque distinguibile da "vuoto"
-    let color_hex = if filled {
-        obj.fill_color.clone().unwrap_or_else(|| "#3b82f6".to_string())
-    } else {
-        obj.stroke.clone().unwrap_or_else(|| "#64748b".to_string())
-    };
-
-    let mut style = Style::default();
-    if let Some(rgb) = parse_hex_color(&color_hex) {
-        style.set_line_color(Color::from_rgb(rgb));
+    let mut body_style = Style::default();
+    if let Some(rgb) = parse_hex_color(obj.stroke.as_deref().unwrap_or("#64748b")) {
+        body_style.set_line_color(Color::from_rgb(rgb));
     }
-    style.set_line_width(obj.stroke_width.unwrap_or(6.0).round() as i16);
-    style.set_line_rounded(true);
-    line.add_style(Part::Main, &mut style).map_err(|e| anyhow::anyhow!("add_style: {e:?}"))?;
-    styles.push(style);
-    Ok(())
+    body_style.set_line_width(sw);
+    body_style.set_line_rounded(true);
+    body.add_style(Part::Main, &mut body_style).map_err(|e| anyhow::anyhow!("add_style: {e:?}"))?;
+    styles.push(body_style);
+
+    // ── Riempimento: una seconda linea, più sottile, lunga quanto il livello ──
+    //
+    // I punti vivono in un `Vec` del binding e NON vengono rilasciati: LVGL
+    // tiene il puntatore, non una copia. Il corpo può permettersi un
+    // `Box::leak` perché non cambia mai; questo cambia a ogni variazione del
+    // tag, e leakarne uno per aggiornamento vorrebbe dire perdere memoria a
+    // ogni frame.
+    let mut fill = Line::create(screen).map_err(|e| anyhow::anyhow!("Line::create: {e:?}"))?;
+    fill.set_pos(x0.round() as i16, y0.round() as i16)
+        .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
+    let fill_ptr = fill.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
+    let mut fill_style = Style::default();
+    if let Some(rgb) = parse_hex_color(obj.fill_color.as_deref().unwrap_or("#3b82f6")) {
+        fill_style.set_line_color(Color::from_rgb(rgb));
+    }
+    // Più sottile del corpo, come sul web (`innerSw = sw - 2`): così il tubo
+    // resta visibile attorno al liquido invece di essere coperto del tutto.
+    fill_style.set_line_width((sw - 2).max(1));
+    fill_style.set_line_rounded(true);
+    fill.add_style(Part::Main, &mut fill_style).map_err(|e| anyhow::anyhow!("add_style: {e:?}"))?;
+    styles.push(fill_style);
+
+    let spec = PipeFill {
+        waypoints: assoluti,
+        origin: (x0, y0),
+        tag: obj.fill_level_tag.clone(),
+        statico: obj.fill_level,
+        scale: obj.fill_level_scale.clone().unwrap_or_else(|| "0-100".to_string()),
+        from_start: obj.fill_direction.as_deref().unwrap_or("start-to-end") == "start-to-end",
+    };
+    let mut buf: Vec<lvgl_sys::lv_point_t> = Vec::new();
+    let level = spec.level(tags);
+    apply_pipe_fill(fill_ptr, &spec, &mut buf, level);
+
+    Ok(LiveBinding {
+        kind: LiveKind::PipeFill { fill_ptr, spec, buf, last_level: level },
+    })
+}
+
+/// Tutto ciò che serve a ricalcolare il riempimento di una pipe quando il tag
+/// cambia — messo insieme perché creazione e aggiornamento usino esattamente
+/// gli stessi dati, invece di ricavarli due volte da `SynopticObject` e
+/// rischiare di divergere.
+pub struct PipeFill {
+    waypoints: Vec<(f64, f64)>,
+    origin: (f64, f64),
+    tag: Option<String>,
+    statico: Option<f64>,
+    scale: String,
+    from_start: bool,
+}
+
+impl PipeFill {
+    /// Livello come frazione 0..1.
+    fn level(&self, tags: &TagSnapshot) -> f64 {
+        let grezzo = match &self.tag {
+            Some(t) => lookup(tags, &Some(t.clone())).map(|tv| tag_value_as_f64(&tv.value)),
+            None => self.statico,
+        };
+        let v = grezzo.unwrap_or(0.0);
+        let frazione = if self.scale == "0-1" { v } else { v / 100.0 };
+        frazione.clamp(0.0, 1.0)
+    }
+}
+
+/// Ridisegna la linea di riempimento al livello dato.
+///
+/// `buf` è il proprietario dei punti: si riusa la stessa allocazione a ogni
+/// aggiornamento, perché LVGL conserva il puntatore che gli si passa.
+fn apply_pipe_fill(
+    fill_ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
+    spec: &PipeFill,
+    buf: &mut Vec<lvgl_sys::lv_point_t>,
+    level: f64,
+) {
+    let parziale = partial_polyline(&spec.waypoints, level, spec.from_start);
+    buf.clear();
+    buf.extend(parziale.iter().map(|(x, y)| lvgl_sys::lv_point_t {
+        x: (x - spec.origin.0).round() as i16,
+        y: (y - spec.origin.1).round() as i16,
+    }));
+    unsafe {
+        if buf.len() < 2 {
+            // Niente da riempire: si nasconde invece di disegnare una linea
+            // degenere, che LVGL renderebbe come un puntino.
+            lvgl_sys::lv_obj_add_flag(fill_ptr.as_ptr(), lvgl_sys::LV_OBJ_FLAG_HIDDEN as lvgl_sys::lv_obj_flag_t);
+        } else {
+            lvgl_sys::lv_obj_clear_flag(fill_ptr.as_ptr(), lvgl_sys::LV_OBJ_FLAG_HIDDEN as lvgl_sys::lv_obj_flag_t);
+            lvgl_sys::lv_line_set_points(fill_ptr.as_ptr(), buf.as_ptr(), buf.len() as u16);
+            lvgl_sys::lv_obj_invalidate(fill_ptr.as_ptr());
+        }
+    }
 }
 
 /// `grid`: **unico tipo di questo motore i cui figli non compaiono affatto
@@ -3443,6 +3636,99 @@ fn resolve_symbol_state(tags: &TagSnapshot, state_tag: &Option<String>, alarm_ta
     }
 }
 
+/// Disegna un SVG rasterizzato dentro un `lv_canvas` (D2, Q15 residuo + Q16).
+///
+/// Copre le tre sorgenti che LVGL da solo non sa disegnare — simboli
+/// *vendored*, simboli *custom*, widget `image` — e che fino a oggi erano
+/// semplicemente **mute** sul pannello: il progettista le vedeva nell'IDE e
+/// non sul dispositivo.
+///
+/// La bitmap se la tiene `LiveBinding` in un `Vec<u8>` nostro, non il pool di
+/// LVGL: `LV_MEM_SIZE` è 1 MB e un solo simbolo 128x128 ne occuperebbe 48 KB,
+/// quindi una pagina ricca lo esaurirebbe — e in LVGL un pool esaurito
+/// fallisce in silenzio (la lezione di Q22). Fuori dal pool, la memoria è
+/// quella del processo, dove finirla dà un errore che si legge.
+///
+/// **Limite dichiarato**: la bitmap non si ricolora per stato. I 17 simboli
+/// builtin lo fanno perché sono disegnati con primitive; qui servirebbe una
+/// bitmap per stato. Un simbolo vendored/custom mostra dunque sempre il
+/// proprio colore, e lo stato lo comunica come tutti gli altri oggetti
+/// (bordo di allarme, `state_lamp` accanto). Dichiararlo è la differenza fra
+/// un limite noto e un difetto silenzioso.
+fn render_svg_raster(
+    screen: &mut lvgl::Obj,
+    obj: &SynopticObject,
+    src: &crate::svg_assets::SvgSource,
+    base_url: &str,
+    rt_handle: &tokio::runtime::Handle,
+) -> anyhow::Result<LiveBinding> {
+    let w = obj.width.unwrap_or(80.0).round().clamp(8.0, 500.0) as i16;
+    let h = obj.height.unwrap_or(80.0).round().clamp(8.0, 500.0) as i16;
+
+    let svg = crate::svg_assets::bytes_for(base_url, rt_handle, src)
+        .ok_or_else(|| anyhow::anyhow!("SVG non disponibile"))?;
+    let raster = crate::svg_raster::rasterize(&svg, w as u32, h as u32)
+        .ok_or_else(|| anyhow::anyhow!("SVG non rasterizzabile a {w}x{h}"))?;
+    let mut buf = raster.to_lvgl_true_color_alpha();
+    // Le dimensioni del canvas si prendono dalla bitmap prodotta, non dai `w`/`h`
+    // chiesti: sono le stesse, ma ricalcolarle sarebbe un secondo conto che un
+    // giorno potrebbe divergere dal primo — e un canvas dichiarato più grande
+    // della sua bitmap fa leggere a LVGL oltre la fine del buffer.
+    let (w, h) = (raster.width as i16, raster.height as i16);
+
+    let mut canvas = unsafe {
+        let ptr = lvgl_sys::lv_canvas_create(screen.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?.as_ptr());
+        let nn = core::ptr::NonNull::new(ptr).ok_or_else(|| anyhow::anyhow!("lv_canvas_create ha restituito null"))?;
+        <lvgl::Obj as Widget>::from_raw(nn)
+    };
+    canvas
+        .set_pos(obj.x.unwrap_or(0.0).round() as i16, obj.y.unwrap_or(0.0).round() as i16)
+        .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
+    let canvas_ptr = canvas.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
+    unsafe {
+        lvgl_sys::lv_canvas_set_buffer(
+            canvas_ptr.as_ptr(),
+            buf.as_mut_ptr() as *mut std::ffi::c_void,
+            w as lvgl_sys::lv_coord_t,
+            h as lvgl_sys::lv_coord_t,
+            lvgl_sys::LV_IMG_CF_TRUE_COLOR_ALPHA as lvgl_sys::lv_img_cf_t,
+        );
+    }
+
+    // `buf` sopravvive nel LiveBinding, che vive quanto la finestra: LVGL
+    // continuerà a leggere da quel puntatore a ogni redraw, e un `Vec`
+    // rilasciato qui lascerebbe il canvas a leggere memoria liberata.
+    Ok(LiveBinding { kind: LiveKind::SvgRaster { canvas_ptr, buf } })
+}
+
+/// Segnaposto per un SVG che non si è potuto disegnare — non scaricato, non
+/// interpretabile, o `src` vuoto.
+///
+/// Esiste perché l'alternativa è **niente**: un oggetto che sparisce dalla
+/// pagina non dice se è stato dimenticato, se l'URL è sbagliato o se il
+/// pannello non arriva in rete. Un riquadro tratteggiato al posto giusto e
+/// della misura giusta dice almeno "qui ci doveva essere qualcosa".
+fn render_svg_placeholder(
+    screen: &mut lvgl::Obj,
+    obj: &SynopticObject,
+    styles: &mut Vec<Style>,
+) -> anyhow::Result<()> {
+    let w = obj.width.unwrap_or(80.0).round().clamp(8.0, 500.0) as i16;
+    let h = obj.height.unwrap_or(80.0).round().clamp(8.0, 500.0) as i16;
+    let mut ph = create_child_obj(screen)?;
+    ph.set_pos(obj.x.unwrap_or(0.0).round() as i16, obj.y.unwrap_or(0.0).round() as i16)
+        .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
+    ph.set_size(w, h).map_err(|e| anyhow::anyhow!("set_size: {e:?}"))?;
+    let mut st = Style::default();
+    st.set_bg_opa(lvgl::style::Opacity::OPA_0);
+    st.set_border_color(Color::from_rgb((0x64, 0x74, 0x8b)));
+    st.set_border_width(1);
+    styles.push(st);
+    let st = styles.last_mut().expect("appena inserito");
+    ph.add_style(Part::Main, st).map_err(|e| anyhow::anyhow!("add_style: {e:?}"))?;
+    Ok(())
+}
+
 /// `symbol`: canvas quadrato, ridisegnato solo quando lo stato cambia
 /// davvero (`update_bindings` confronta con `last_state`) — un redraw
 /// completo del canvas costa più di un semplice refresh di `Style`.
@@ -3813,12 +4099,25 @@ fn dispatch_render(
             screen, obj, styles, tags, tag_tx, nav_tx, base_url, rt_handle, shared_alarms, ack_tx, lang_table,
             shared_lang, own_page_id, live,
         ),
-        "symbol" => render_symbol(screen, obj, tags).map(|b| live.push(b)),
+        // Un simbolo è o una forma builtin disegnata con le primitive
+        // (ricolorabile per stato), o un SVG da rasterizzare. `source_for`
+        // distingue i due casi; lo stesso ramo serve il widget `image`.
+        "symbol" | "image" => match crate::svg_assets::source_for_project(obj, base_url, rt_handle) {
+            Some(src) => match render_svg_raster(screen, obj, &src, base_url, rt_handle) {
+                Ok(b) => { live.push(b); Ok(()) }
+                Err(e) => {
+                    eprintln!("[svg] {}: {e}", obj.id.as_deref().unwrap_or("?"));
+                    render_svg_placeholder(screen, obj, styles)
+                }
+            },
+            None if obj_type == "image" => render_svg_placeholder(screen, obj, styles),
+            None => render_symbol(screen, obj, tags).map(|b| live.push(b)),
+        },
         "grid" => render_grid(
             screen, obj, styles, tags, tag_tx, nav_tx, base_url, rt_handle, shared_alarms, ack_tx, lang_table,
             shared_lang, own_page_id, live,
         ),
-        "pipe" => render_pipe(screen, obj, styles, tags),
+        "pipe" => render_pipe(screen, obj, styles, tags).map(|b| live.push(b)),
         "alarm_bell" => render_alarm_bell(screen, obj, styles, shared_alarms).map(|b| live.push(b)),
         "recipe_panel" => render_recipe_panel(screen, obj, styles, base_url, rt_handle),
         "setpoint" => render_setpoint(screen, obj, styles, tags, tag_tx).map(|b| live.push(b)),
@@ -4171,9 +4470,38 @@ pub fn render_page_objects(
 /// di `Style` qui: quelli esistenti vengono mutati sul posto e "rinfrescati"
 /// con `lv_obj_refresh_style` (mutare le proprietà di uno `Style` già
 /// assegnato non basta da solo — LVGL cache lo stile calcolato per oggetto).
+/// Quanta memoria occupano le bitmap SVG di questa pagina.
+///
+/// Il numero su cui si giocava tutta la decisione D2 — vale la pena vederlo a
+/// ogni caricamento invece di ricavarlo a mano quando qualcosa va storto. Sono
+/// byte del processo, non del pool da 1 MB di LVGL (vedi `render_svg_raster`).
+pub fn svg_bitmap_bytes(bindings: &[LiveBinding]) -> usize {
+    bindings
+        .iter()
+        .map(|b| match &b.kind {
+            LiveKind::SvgRaster { buf, .. } => buf.len(),
+            _ => 0,
+        })
+        .sum()
+}
+
 pub fn update_bindings(bindings: &mut [LiveBinding], tags: &TagSnapshot) {
     for b in bindings {
         match &mut b.kind {
+            LiveKind::PipeFill { fill_ptr, spec, buf, last_level } => {
+                let level = spec.level(tags);
+                // Si ridisegna solo a variazione percettibile: ricostruire la
+                // polilinea a ogni frame costerebbe senza cambiare un pixel.
+                // Mezzo punto percentuale su un tubo di 350 px è mezzo pixel.
+                if (level - *last_level).abs() > 0.005 {
+                    apply_pipe_fill(*fill_ptr, spec, buf, level);
+                    *last_level = level;
+                }
+            }
+            // Bitmap fissa: non si ricolora per stato (vedi `render_svg_raster`).
+            // Sta fra i binding solo perché `buf` deve restare vivo quanto il
+            // canvas.
+            LiveKind::SvgRaster { .. } => {}
             LiveKind::Led { ptr, tag, on_value, on_color, off_color } => {
                 let tv = lookup(tags, tag);
                 let (is_on, bad_quality, color_hex) = led_state(tv, on_value, on_color, off_color);
@@ -5251,5 +5579,59 @@ mod binding_tests {
         let prev = resolve_geometry(&b, &t, Some(100.0), None, &fermo());
         let next = resolve_geometry(&b, &t, Some(100.0), None, &prev);
         assert_eq!(prev, next, "a tag fermo il risultato deve essere identico, così update_bindings salta");
+    }
+
+    /// Il riempimento progressivo delle pipe. La L della demo: due tratti
+    /// orizzontali da 140 e uno verticale da 70, totale 350.
+    fn elle() -> Vec<(f64, f64)> {
+        vec![(650.0, 242.0), (790.0, 242.0), (790.0, 312.0), (930.0, 312.0)]
+    }
+
+    fn lunghezza(p: &[(f64, f64)]) -> f64 {
+        p.windows(2).map(|w| ((w[1].0 - w[0].0).powi(2) + (w[1].1 - w[0].1).powi(2)).sqrt()).sum()
+    }
+
+    #[test]
+    fn a_meta_riempie_meta_della_lunghezza() {
+        let p = partial_polyline(&elle(), 0.5, true);
+        assert!((lunghezza(&p) - 175.0).abs() < 0.001, "atteso 175, ottenuto {}", lunghezza(&p));
+        assert_eq!(p[0], (650.0, 242.0), "deve partire dall'inizio");
+        // 175 = 140 del primo tratto + 35 sul verticale
+        assert_eq!(*p.last().unwrap(), (790.0, 277.0));
+    }
+
+    #[test]
+    fn pieno_e_vuoto_sono_i_casi_limite() {
+        assert_eq!(partial_polyline(&elle(), 1.0, true), elle(), "pieno = tutta la polilinea");
+        assert!(partial_polyline(&elle(), 1.5, true) == elle(), "oltre il pieno resta pieno");
+        assert!(partial_polyline(&elle(), 0.0, true).is_empty(), "vuoto = niente da disegnare");
+        assert!(partial_polyline(&elle(), -0.3, true).is_empty(), "negativo = vuoto, non un errore");
+    }
+
+    #[test]
+    fn dalla_fine_riempie_dallaltro_capo() {
+        let p = partial_polyline(&elle(), 0.5, false);
+        assert!((lunghezza(&p) - 175.0).abs() < 0.001);
+        assert_eq!(p[0], (930.0, 312.0), "deve partire dalla fine");
+        assert_eq!(*p.last().unwrap(), (790.0, 277.0), "e arrivare allo stesso punto di mezzo");
+    }
+
+    /// Una frazione piccolissima non deve produrre una polilinea di un punto
+    /// solo: LVGL la disegnerebbe come un puntino isolato, che sembra sporco
+    /// sullo schermo e non "quasi vuoto".
+    #[test]
+    fn una_frazione_minima_da_comunque_un_segmento_o_niente() {
+        let p = partial_polyline(&elle(), 0.0001, true);
+        assert!(p.is_empty() || p.len() >= 2, "mai un punto solo: {p:?}");
+    }
+
+    #[test]
+    fn casi_degeneri_non_esplodono() {
+        assert!(partial_polyline(&[], 0.5, true).is_empty());
+        assert!(partial_polyline(&[(1.0, 1.0)], 0.5, true).is_empty(), "un punto solo non è una linea");
+        assert!(
+            partial_polyline(&[(5.0, 5.0), (5.0, 5.0)], 0.5, true).is_empty(),
+            "waypoint coincidenti: lunghezza zero, niente da riempire"
+        );
     }
 }

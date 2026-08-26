@@ -257,7 +257,7 @@ objects:
   y: 376.0
   width: 290.0
   height: 18.0
-  text: symbol — colore dallo stato di marcia
+  text: symbol (builtin + vendored) — colore dallo stato di marcia
   font_size: 12.0
   color: '#94a3b8'
 - id: o_symbol
@@ -282,3 +282,26 @@ objects:
   state_on_color: '#22c55e'
   state_off_color: '#64748b'
   state_alarm_color: '#ef4444'
+- id: c_image
+  type: text
+  x: 960.0
+  y: 376.0
+  width: 290.0
+  height: 18.0
+  text: image (SVG)
+  font_size: 12.0
+  color: '#94a3b8'
+- id: o_image
+  type: image
+  x: 960.0
+  y: 398.0
+  width: 200.0
+  height: 120.0
+  src: /branding/sws/logo.svg
+- id: o_symbol3
+  type: symbol
+  x: 870.0
+  y: 398.0
+  width: 90.0
+  height: 90.0
+  symbol_id: heat_exchanger

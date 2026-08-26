@@ -2,7 +2,7 @@
 # Escluso dal workspace principale (vedi sws-runtime/Cargo.toml), quindi non può
 # ereditare da [workspace.package] come fanno gli altri crate — stesso motivo/pattern di sws-kiosk.
 name    = "sws-lvgl-viewer"
-version = "2.1.1"
+version = "2.2.0"
 edition = "2021"
 license = "AGPL-3.0-only"
 
@@ -31,6 +31,18 @@ lvgl-sys = "0.6"
 # feature bundled/static-link: sul dev server e sul PC di casa il pacchetto
 # è installato via apt, non serve vendorizzare/compilare SDL2 da sorgente.
 sdl2 = "0.38"
+# ── D2 (Q15+Q16): rasterizzazione SVG a runtime ──────────────────────────────
+# LVGL 8.x non ha renderer SVG, quindi i 12 simboli "vendored", i simboli
+# custom disegnati dall'utente e tutto il widget `image` (il cui catalogo
+# bundlato è fatto di .svg) resterebbero muti sul pannello.
+#
+# `default-features = false`: si tengono fuori text/system-fonts, che tirano
+# dentro fontdb e la scansione dei font di sistema — peso e tempo d'avvio che
+# non servono, perché i simboli del catalogo sono forme geometriche senza
+# testo. Se un giorno servisse un SVG con del testo, il limite è dichiarato e
+# la feature si riaccende sapendo cosa costa.
+resvg = { version = "0.45", default-features = false }
+
 
 # Riuso diretto dei tipi wire già condivisi da tutto il runtime (TagValue è
 # #[serde(untagged)], TagQuality è una stringa) invece di riscriverli una terza

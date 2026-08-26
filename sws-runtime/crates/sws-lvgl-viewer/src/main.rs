@@ -34,6 +34,8 @@ mod lvgl_display;
 mod lvgl_indev;
 mod lvgl_render;
 mod model;
+mod svg_assets;
+mod svg_raster;
 mod tls;
 mod touch_indev;
 
@@ -139,6 +141,8 @@ fn main() -> anyhow::Result<()> {
 
     let args = Args::parse();
 
+
+
     // Il runtime tokio NON viene droppato dopo block_on: il task di lettura
     // WS in background (avviato dentro spawn_tag_subscription) deve restare
     // vivo per tutta la finestra, non solo per la fetch iniziale.
@@ -189,6 +193,13 @@ fn main() -> anyhow::Result<()> {
             summary.skipped_unsupported.len(),
             summary.skipped_unsupported.join(", ")
         );
+    }
+    // La memoria delle bitmap SVG, se ce ne sono: è il numero su cui si
+    // giocava la decisione D2, e vederlo a ogni caricamento costa una riga —
+    // molto meno che andarlo a cercare il giorno in cui una pagina esagera.
+    let svg_bytes = lvgl_render::svg_bitmap_bytes(&live_bindings);
+    if svg_bytes > 0 {
+        eprintln!("bitmap SVG di questa pagina: {} KB", svg_bytes / 1024);
     }
 
     // Deve seguire interpret_page (che chiama lvgl_display::init_display):
@@ -263,11 +274,6 @@ fn main() -> anyhow::Result<()> {
 /// thread di `touch_indev.rs`, se avviato, invece del loop eventi SDL2:
 /// entrambi alimentano lo stesso `lvgl_indev::set_pointer_state`, il resto
 /// del ciclo non sa/non gli importa quale dei due).
-//
-// allow(unused_assignments) su `styles`: stesso motivo di `run_window`, il
-// compilatore non vede che LVGL tiene puntatori al suo contenuto via FFI —
-// qui più visibile perché il loop non ha mai un `break` che lo "consumi".
-#[allow(clippy::too_many_arguments, unused_variables, unused_assignments)]
 /// Perché il backend DRM non può funzionare qui, se non può.
 ///
 /// `None` = nessun ostacolo noto, si prova ad aprire il device.
@@ -310,6 +316,10 @@ fn drm_backend_blocker(card_path: &str, env: impl Fn(&str) -> Option<String>) ->
     None
 }
 
+// allow(unused_assignments) su `styles`: stesso motivo di `run_window`, il
+// compilatore non vede che LVGL tiene puntatori al suo contenuto via FFI —
+// qui più visibile perché il loop non ha mai un `break` che lo "consumi".
+#[allow(clippy::too_many_arguments, unused_variables, unused_assignments)]
 fn run_drm(
     card_path: &str,
     hor_res: u32,
@@ -660,6 +670,12 @@ fn run_window(
         // Si rilegge la pagina CORRENTE, non quella di partenza: chi ha
         // navigato altrove deve restare dov'è, col contenuto aggiornato.
         if reload_flag.swap(false, std::sync::atomic::Ordering::Relaxed) {
+            // Gli SVG già scaricati vanno buttati: un deploy può aver
+            // cambiato un simbolo custom o un'immagine **sotto lo stesso
+            // URL**, e una cache che non se ne accorge ridisegna la pagina
+            // nuova col disegno vecchio — cioè proprio l'inganno che il
+            // ricaricamento automatico doveva togliere di mezzo.
+            svg_assets::invalidate();
             let (id, nome) = (&current_page.0, &current_page.1);
             let letta = match id {
                 Some(id) => rt_handle.block_on(client::resolve_page_by_id(&base_url, id)),

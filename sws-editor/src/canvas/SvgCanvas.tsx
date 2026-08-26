@@ -3274,8 +3274,17 @@ export function SvgObject(p: ObjProps) {
       : (obj.fill_level ?? 0);
     const fillLevel = clamp(rawLevel, 0, 1);
     const fillColor = obj.fill_color ?? "var(--brand-primary, #3b82f6)";
+    // Il riempimento è un tratteggio `1` su `pathLength=1`: l'offset decide
+    // quale metà del periodo cade dentro il percorso.
+    //
+    // Il ramo `end-to-start` era `fillLevel`, e sbagliava in due modi insieme:
+    // riempiva `1 - fillLevel` **dall'inizio** invece che dalla fine, e a
+    // livello pieno non mostrava niente (offset 1 sposta tutta la parte
+    // visibile fuori dal percorso). Con `fillLevel + 1` la porzione visibile
+    // è `[1 - fillLevel, 1]`, cioè davvero la coda. Trovato scrivendo la
+    // versione LVGL, il 2026-08-26.
     const fillOffset = (obj.fill_direction ?? "start-to-end") === "start-to-end"
-      ? (1 - fillLevel) : fillLevel;
+      ? (1 - fillLevel) : (fillLevel + 1);
 
     // Stroke widths per style
     const outerSw = sw + 2;

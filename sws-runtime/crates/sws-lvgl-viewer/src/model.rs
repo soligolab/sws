@@ -656,3 +656,24 @@ pub struct LangEntry {
     #[serde(default)]
     pub values: std::collections::HashMap<String, String>,
 }
+
+/// Porta `CustomSymbol` di `sws-core/src/project.rs` — i simboli SVG che
+/// l'utente aggiunge al progetto, che il viewer LVGL rasterizza con
+/// `svg_raster` (vedi `svg_assets`).
+///
+/// Si dichiarano solo i campi che servono a disegnare. `attribution`,
+/// `colorable_ids` e il resto restano fuori: `colorable_ids` in particolare
+/// serve alla ricolorazione per stato, che qui non facciamo — rasterizzare
+/// una variante per colore costerebbe una bitmap per stato, e sui simboli
+/// custom lo stato lo si mostra col bordo di allarme come per gli altri
+/// oggetti.
+#[derive(Debug, Deserialize, Clone, Default, PartialEq, Eq)]
+pub struct CustomSymbol {
+    pub id: String,
+    /// SVG inline. Presente quasi sempre: è la copia che viaggia col progetto.
+    #[serde(default)]
+    pub svg: Option<String>,
+    /// URL d'origine, usato solo se `svg` manca.
+    #[serde(default)]
+    pub url: String,
+}

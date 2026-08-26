@@ -564,6 +564,9 @@ function PaletteGroupAccordion({ group, onAdd, showLvglBadge }: { group: Palette
 // sws-lvgl-viewer/src/lvgl_render.rs SUPPORTED_TYPES — tenere allineati).
 // Man mano che il motore cresce (Fase 6+), questo elenco cresce con lui.
 const LVGL_SUPPORTED_TYPES = new Set<SynopticObject["type"]>([
+  // `image` dal 2026-08-26: il viewer LVGL rasterizza gli SVG con resvg
+  // (D2). Vale per i `src` .svg — un png o un jpg mostrano il segnaposto.
+  "image",
   "rect",
   "text",
   "button",

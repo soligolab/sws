@@ -8,6 +8,85 @@
 
 ## ▶ Da fare nella prossima sessione
 
+### 2.2.0 rilasciata — D2 confermata sul pannello
+
+Branch `feat/d2-svg-lvgl`, squashato su `main`. Il viewer LVGL disegna simboli
+*vendored*, simboli custom e il widget `image` rasterizzando l'SVG con `resvg`.
+
+**Le due misure che il gate D2 chiedeva, prese prima di cablare qualsiasi cosa:**
+
+| | |
+|---|---|
+| Binario aarch64 | 4.823.912 → **6.148.760** byte (**+1,26 MB, +27,5%**) |
+| 20 bitmap 128x128 tenute insieme | 1,3 MB di bitmap, RSS 11,5 MB |
+| Velocità | 0,1 ms per icona |
+| **Sul WP630, misurato** | **10,68 MB su 2,08 GB — lo 0,5% della RAM** |
+
+Il +27,5% sul binario, che in percentuale spaventa, in assoluto sul dispositivo
+non si sente.
+
+Trappola da ricordare: la **prima** misura diceva +443 KB. Era falsa — la
+funzione non era ancora chiamata da nessuno e il linker l'aveva eliminata. Il
+costo vero si vede solo con un punto di chiamata reale.
+
+Le bitmap stanno in memoria del **processo**, non nel pool da 1 MB di LVGL:
+`LV_MEM_SIZE` non regge una pagina di simboli, e un pool esaurito in LVGL
+fallisce in silenzio (la lezione di Q22).
+
+**Confermato a schermo dal maintainer sul WP630 il 2026-08-26**: i tre simboli
+(due builtin + uno vendored), il logo SVG, la pipe che si riempie e il numero
+del gauge centrato.
+
+Provato anche nel verso rotto: puntando l'immagine a un file inesistente
+compaiono le righe `[svg] …` e il segnaposto tratteggiato.
+
+### ⚠️ Il pannello gira su un binario montato a mano
+
+Il WP630 esegue il container **`lvgl-test`**, creato a mano con il binario
+nuovo bind-montato da `/tmp/sws-lvgl-viewer-d2b`. **`/tmp` si svuota al
+riavvio**: al primo reboot il container non riparte.
+
+Il container originale `lvgl-view` (immagine 2.1.1) è solo **fermo**, non
+rimosso — si torna indietro con `podman start lvgl-view`.
+
+**Da fare**: ricompilare e pubblicare l'immagine container 2.2.0, poi
+`./install-container.sh --pull` sul device e rimuovere `lvgl-test`.
+
+Anche il progetto `DemoItemsLVGL` sul device è stato modificato a mano
+(aggiunti `c_image`/`o_image`/`o_symbol3`, come nel template aggiornato). Il
+file originale è in `Base e comandi.yaml.prima-di-d2`.
+
+### Difetti trovati strada facendo
+
+- **Il riempimento `end-to-start` era rotto sul web**: partiva dal capo
+  sbagliato e a livello pieno spariva del tutto. Trovato solo riscrivendo la
+  stessa cosa per LVGL — due implementazioni della stessa regola si controllano
+  a vicenda.
+- **Il logo della demo era rotto anche sul web**: `src: logo.svg` si risolve
+  alla radice del runtime, dove non c'è nulla (il logo sta sotto
+  `/branding/<marchio>/`). Corretto in entrambe le varianti.
+- **Q24 (nuova): il font del pannello non ha le lettere accentate.** Montserrat
+  di LVGL copre solo l'ASCII, e ciò che manca non si disegna affatto. Su
+  `demo-items-lvgl` mancano `—` (32 volte), `→` e `ù`. Il terzo è quello che
+  conta: l'interfaccia è in italiano. I template **non** sono stati riscritti
+  per aggirarlo — sarebbe nascondere il difetto.
+- **Q23 (nuova): driver ROS 2**, chiesta dal maintainer. Portata ridotta da lui
+  stesso: servono dati semplici agganciati a gauge/led/trend/button, non la
+  rappresentazione del robot. Resta quindi solo la questione del *source*.
+
+### Guardie nuove
+
+`scripts/check_lvgl_symbols.sh` — la tabella dei simboli vendored del viewer
+contro quella dell'editor, più l'esistenza dei file. Serve perché 7 nomi file su
+11 **non** coincidono con l'id (`battery` → `battery-charging-high.svg`): chi si
+fidasse della convenzione otterrebbe 7 simboli muti su 11. Provata in entrambi i
+versi.
+
+`check_demo_templates.sh` ha fatto il suo lavoro da solo: appena `image` è
+diventato un tipo supportato da LVGL ha segnalato che palette, elenco solo-web e
+template erano rimasti indietro.
+
+
 > **2.1.1 rilasciata; immagine arm64 RIPUBBLICATA il 2026-08-26.** Il pannello può
 > essere aggiornato: `./install-container.sh --pull` prende `latest-arm64`.
 >

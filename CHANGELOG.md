@@ -11,6 +11,29 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+## [2.2.0] — 2026-08-26
+
+- **La tubazione ora mostra quanto è piena, non solo se lo è.** Il tubo si
+  riempiva tutto d'un colpo appena c'era del liquido: si vedeva "pieno" o
+  "vuoto", mai il livello. Ora il liquido avanza lungo il percorso e segue il
+  valore dal vivo, con il tubo che resta visibile attorno.
+- **Il numero del manometro non esce più dal quadrante.** Finiva in basso a
+  destra, fuori dal cerchio, e con l'unità di misura sbordava. Ora è centrato,
+  qualunque sia la lunghezza del testo.
+- Corretto anche nell'editor web il riempimento con direzione "dalla fine
+  all'inizio": partiva dal capo sbagliato e a livello pieno spariva.
+
+- **Il pannello ora disegna simboli e immagini SVG.** I simboli della libreria
+  esterna, quelli disegnati dall'utente e il widget "immagine" erano **muti** sul
+  pannello: si vedevano nell'IDE e non sul dispositivo. Ora vengono convertiti in
+  bitmap al momento del disegno. Se un'immagine non si scarica o non si
+  interpreta, al suo posto compare un riquadro tratteggiato invece del nulla —
+  così si vede che qualcosa manca, e nel log c'è scritto cosa.
+  Costo misurato prima di procedere: il programma del pannello cresce di 1,2 MB
+  (da 4,6 a 5,9) e una pagina con venti simboli usa circa 1,3 MB di memoria in
+  più. Limite dichiarato: queste immagini **non cambiano colore con lo stato**,
+  a differenza dei simboli disegnati internamente.
+
 - **Il pannello ora conosce tutti i campi di un oggetto.** Ne conosceva 101 su
   238: gli altri venivano scartati senza che niente lo segnalasse, e un oggetto
   che li usava si disegnava sbagliato. È il difetto che aveva lasciato i grafici
