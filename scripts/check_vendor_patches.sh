@@ -34,8 +34,10 @@ APPLY=0
 # numeri di riga, che si spostano a ogni aggiornamento, e non richiede di tenere
 # una copia del sorgente originale.
 LVGL_CHART="sws-runtime/crates/sws-lvgl-viewer/vendor/lvgl-sys-0.6.2/vendor/lvgl/src/extra/widgets/chart/lv_chart.c"
+LVGL_BUILD_RS="sws-runtime/crates/sws-lvgl-viewer/vendor/lvgl-sys-0.6.2/build.rs"
 PATCHES=(
   "patches/lvgl/0001-init-x_ext_buf_assigned.patch|$LVGL_CHART|ser->x_ext_buf_assigned = false;"
+  "patches/lvgl/0002-extra-include-e-link.patch|$LVGL_BUILD_RS|LVGL_EXTRA_INCLUDE"
 )
 
 # Invalida la compilazione di lvgl-sys, che altrimenti riuserebbe gli oggetti C

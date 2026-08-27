@@ -2053,6 +2053,36 @@ Il terzo non è un dettaglio tipografico: questo è uno SCADA con l'interfaccia 
 subdolo nel modo peggiore — chi scrive il testo nell'IDE lo vede giusto, perché il browser il font
 ce l'ha.
 
+### **Decided (2026-08-27)** — FreeType, più la strozzatura dell'avviso
+
+Scelta del maintainer: **opzione 2, FreeType con un font di sistema**.
+
+**Fatto, e provato sul WP630:**
+
+- `LV_USE_FREETYPE 1`, `libfreetype` linkata, DejaVu Sans a 14px come font predefinito. Sulla
+  pagina degli allarmi gli avvisi di glifo mancante sono passati da **2.567 + 375 a zero**.
+- L'avviso è comunque strozzato (occorrenze 1, 2, 4, 8…): il font risolve *questi* caratteri
+  mancanti, non il fatto che un avviso ripetuto a ogni ridisegno cancelli il resto del log. Con la
+  strozzatura il viewer è passato da ~7.000 righe in 30 s a **80**.
+
+Due ostacoli incontrati, entrambi silenziosi:
+
+- `LVGL_INCLUDE`/`LVGL_LINK` esistono nel `build.rs` di `lvgl-sys` ma **solo sotto la feature
+  `drivers`**, che qui è spenta: venivano ignorati senza un avviso. Risolto con
+  `patches/lvgl/0002-extra-include-e-link.patch`, che aggiunge `LVGL_EXTRA_INCLUDE`/`LVGL_EXTRA_LINK`
+  incondizionati — due variabili nuove invece di togliere il `cfg`, così il comportamento a monte
+  resta identico.
+- `LV_LOG_PRINTF 1` faceva stampare LVGL da sé: il callback di filtro si registrava, non falliva
+  niente, e il log inondava come prima.
+
+Costo dichiarato: `libfreetype6` + `fonts-dejavu-core` nell'immagine, `libfreetype-dev` fra i
+prerequisiti di build. Se il font non si trova, si torna a Montserrat **dicendolo nel log** — un
+viewer che non parte per un file di font mancante sarebbe una reazione sproporzionata.
+
+---
+
+*Le tre strade valutate al tempo dell'analisi:*
+
 Le strade, che costano molto diversamente:
 
 1. **Rigenerare il font** con `lv_font_conv` includendo almeno Latin-1 Supplement (U+00A0–U+00FF) e

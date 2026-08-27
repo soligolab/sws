@@ -14,3 +14,22 @@
 # nella cartella del crate per la cross-compilazione.
 [env]
 DEP_LV_CONFIG_PATH = { value = "crates/sws-lvgl-viewer/lv_conf", relative = true }
+
+# ── FreeType per LVGL (Q24) ──────────────────────────────────────────────────
+#
+# `LV_USE_FREETYPE 1` in lv_conf.h fa compilare `lv_freetype.c`, che include
+# `ft2build.h` e chiama la libreria: servono il percorso degli header e il link.
+#
+# `LVGL_INCLUDE` **sostituisce** il default del build.rs
+# (`/usr/include,/usr/local/include`), non lo estende: i due percorsi di prima
+# vanno riscritti, o SDL2 smette di trovarsi. In cross-compilazione contano poco
+# perché il sysroot dell'SDK viene prima, ma lasciarli fuori romperebbe la build
+# nativa sul PC di sviluppo — che è quella che si usa per provare in fretta.
+#
+# `freetype2` (non `freetype`): è il nome della cartella degli header, sia su
+# Ubuntu sia nel sysroot Yocto Pixsys — verificato in entrambi il 2026-08-27.
+# `LVGL_EXTRA_*` e non `LVGL_INCLUDE`/`LVGL_LINK`: quelle esistono a monte ma
+# solo sotto la feature `drivers`, che qui è spenta — sarebbero ignorate in
+# silenzio. Le due nuove arrivano da patches/lvgl/0002-extra-include-e-link.patch.
+LVGL_EXTRA_INCLUDE = "/usr/include/freetype2"
+LVGL_EXTRA_LINK = "freetype"

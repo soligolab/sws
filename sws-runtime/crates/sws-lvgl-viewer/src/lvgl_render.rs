@@ -26,6 +26,7 @@ use std::cell::RefCell;
 use std::sync::mpsc;
 
 use cstr_core::CString;
+use crate::lvgl_font;
 use lvgl::style::Style;
 use lvgl::widgets::{Bar, Btn, Chart, Checkbox, Label, Led, Line, Meter, Slider, Table};
 use lvgl::{Color, LvError, NativeObject, Part, Widget};
@@ -4390,6 +4391,12 @@ pub fn render_page_objects(
         let nn = core::ptr::NonNull::new(ptr).ok_or_else(|| anyhow::anyhow!("lv_obj_create(NULL) ha restituito null"))?;
         <lvgl::Obj as Widget>::from_raw(nn)
     };
+
+    // Il font va messo su OGNI schermo, non una volta all'avvio: qui se ne
+    // crea uno nuovo a ogni pagina, e uno stile impostato sul precedente non
+    // segue. `text_font` è ereditabile, quindi lo raccolgono tutti i widget
+    // che finiranno dentro (Q24).
+    lvgl_font::apply_to(screen.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?.as_ptr());
     if let Some(bg) = &page.background {
         apply_bg_color(&mut screen, bg, &mut styles)?;
     }

@@ -64,6 +64,12 @@ ARG WITH_LVGL=0
 #   (stdlib inclusa), non la sola libpython.
 # python3-pip + RestrictedPython: senza, il motore script parte NON sandboxato
 #   con un warning all'avvio. L'immagine legacy aveva esattamente questo buco.
+# libfreetype6 + fonts-dejavu-core: il viewer LVGL disegna il testo con
+#   FreeType (Q24). I font Montserrat inclusi in LVGL coprono solo l'ASCII e
+#   ciò che manca NON viene disegnato affatto — su un'interfaccia italiana
+#   "più", "però", "perché" si vedono mutilate. Senza libfreetype il binario
+#   non parte proprio (è una NEEDED); senza il file di font parte e ripiega su
+#   Montserrat, dicendolo nel log.
 # curl: usato dall'HEALTHCHECK qui sotto.
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
@@ -72,7 +78,7 @@ RUN apt-get update && \
         python3 \
         libpython3.12t64 \
         python3-pip \
-        $( [ "$WITH_LVGL" = "1" ] && echo libsdl2-2.0-0 libegl1 libegl-mesa0 libgles2 libgl1-mesa-dri libwayland-egl1 libgbm1 libdrm2 ) && \
+        $( [ "$WITH_LVGL" = "1" ] && echo libsdl2-2.0-0 libegl1 libegl-mesa0 libgles2 libgl1-mesa-dri libwayland-egl1 libgbm1 libdrm2 libfreetype6 fonts-dejavu-core ) && \
     pip install --no-cache-dir --break-system-packages "RestrictedPython>=7.0" && \
     apt-get purge -y python3-pip && apt-get autoremove -y && \
     rm -rf /var/lib/apt/lists/*

@@ -1,0 +1,44 @@
+diff --git a/sws-runtime/crates/sws-lvgl-viewer/vendor/lvgl-sys-0.6.2/build.rs b/sws-runtime/crates/sws-lvgl-viewer/vendor/lvgl-sys-0.6.2/build.rs
+index 6cf3afd..7ef3ceb 100644
+--- a/sws-runtime/crates/sws-lvgl-viewer/vendor/lvgl-sys-0.6.2/build.rs
++++ b/sws-runtime/crates/sws-lvgl-viewer/vendor/lvgl-sys-0.6.2/build.rs
+@@ -155,6 +155,21 @@ fn main() {
+     #[cfg(feature = "drivers")]
+     cfg.includes(incl_extra.split(','));
+ 
++    // ── Aggiunta SWS (patches/lvgl/0002-extra-include-e-link.patch) ─────────
++    //
++    // `LVGL_INCLUDE`/`LVGL_LINK` esistono già qui sopra, ma solo sotto la
++    // feature `drivers`, che questo progetto non usa: sono quindi ignorati del
++    // tutto, in silenzio. Servono per `LV_USE_FREETYPE` (Q24), che fa compilare
++    // `lv_freetype.c` — il quale include `ft2build.h` e chiama la libreria.
++    //
++    // Due variabili nuove invece di togliere il `cfg`: così il comportamento
++    // con la feature `drivers` resta identico a monte, e chi legge vede che
++    // queste due righe sono nostre.
++    if let Ok(extra) = env::var("LVGL_EXTRA_INCLUDE") {
++        cfg.includes(extra.split(',').filter(|s| !s.is_empty()));
++    }
++    println!("cargo:rerun-if-env-changed=LVGL_EXTRA_INCLUDE");
++
+     cfg.compile("lvgl");
+ 
+     let mut cc_args = vec![
+@@ -243,7 +258,16 @@ fn main() {
+     link_extra.split(',').for_each(|a| {
+         println!("cargo:rustc-link-lib={a}");
+         //println!("cargo:rustc-link-search=")
+-    })
++    });
++
++    // ── Aggiunta SWS: vedi il commento su LVGL_EXTRA_INCLUDE ────────────────
++    if let Ok(extra) = env::var("LVGL_EXTRA_LINK") {
++        extra
++            .split(',')
++            .filter(|s| !s.is_empty())
++            .for_each(|a| println!("cargo:rustc-link-lib={a}"));
++    }
++    println!("cargo:rerun-if-env-changed=LVGL_EXTRA_LINK");
+ }
+ 
+ fn add_font_headers(

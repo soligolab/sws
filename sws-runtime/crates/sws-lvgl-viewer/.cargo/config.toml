@@ -6,3 +6,17 @@
 #   export DEP_LV_CONFIG_PATH="$(pwd)/crates/sws-lvgl-viewer/lv_conf"
 [env]
 DEP_LV_CONFIG_PATH = { value = "lv_conf", relative = true }
+
+# ── FreeType per LVGL (Q24) ──────────────────────────────────────────────────
+#
+# Ripetuto qui e non solo nel config del workspace perché
+# `scripts/yocto/build.sh` entra in questa cartella per la cross-compilazione:
+# Cargo cerca `.cargo/config.toml` risalendo dalla cwd, e da qui quello del
+# workspace non viene letto. Le due copie vanno tenute d'accordo — ma
+# `LVGL_INCLUDE`/`LVGL_LINK`, a differenza di `DEP_LV_CONFIG_PATH`, non sono
+# percorsi relativi, quindi sono identiche in entrambe.
+# `LVGL_EXTRA_*` e non `LVGL_INCLUDE`/`LVGL_LINK`: quelle esistono a monte ma
+# solo sotto la feature `drivers`, che qui è spenta — sarebbero ignorate in
+# silenzio. Le due nuove arrivano da patches/lvgl/0002-extra-include-e-link.patch.
+LVGL_EXTRA_INCLUDE = "/usr/include/freetype2"
+LVGL_EXTRA_LINK = "freetype"

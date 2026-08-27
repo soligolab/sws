@@ -652,7 +652,11 @@
 #define LV_USE_QRCODE 0
 
 /*FreeType library*/
-#define LV_USE_FREETYPE 0
+// 1 dal 2026-08-27 (Q24): i font Montserrat inclusi in LVGL coprono solo
+// l'ASCII, e ciò che manca non viene disegnato affatto — su un'interfaccia
+// italiana "più", "però", "perché" si vedono mutilate. FreeType legge un TTF
+// vero. Serve libfreetype nell'immagine e un file di font sul dispositivo.
+#define LV_USE_FREETYPE 1
 #if LV_USE_FREETYPE
     /*Memory used by FreeType to cache characters [bytes] (-1: no caching)*/
     #define LV_FREETYPE_CACHE_SIZE (16 * 1024)

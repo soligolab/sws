@@ -1,5 +1,10 @@
 # Estende Containerfile.aarch64-generic.builder con ciò che sws-lvgl-viewer
 # richiede oltre a sws-runtime: clang/libclang (bindgen, per lvgl-sys),
+# libfreetype-dev: `LV_USE_FREETYPE 1` fa compilare `lv_freetype.c`, che
+# include `ft2build.h`. Senza, la build fallisce con "No such file or
+# directory" su quell'header — non con un messaggio su LVGL o sul font, quindi
+# vale la pena averlo scritto qui.
+#
 # libsdl2-dev (SDL2 di sistema, collegato direttamente dal crate) e
 # libdrm-dev (bindgen contro libdrm per src/drm_display.rs — percorso di
 # rendering DRM/KMS diretto, alternativo a SDL2, aggiunto il 2026-08-10 dopo
@@ -19,5 +24,6 @@ RUN apt-get update && \
         clang \
         libclang-dev \
         libsdl2-dev \
-        libdrm-dev && \
+        libdrm-dev \
+        libfreetype-dev && \
     rm -rf /var/lib/apt/lists/*

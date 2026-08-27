@@ -50,11 +50,11 @@
    If either is missing, the SDK was built without `python3-dev` — rebuild
    the Yocto SDK with `meta-pixsys` `python3-dev` in `TOOLCHAIN_TARGET_TASK`.
 
-6. **`clang` + `libclang-dev` + `libsdl2-dev` on the host** — required by the
+6. **`clang` + `libclang-dev` + `libsdl2-dev` + `libfreetype-dev` on the host** — required by the
    LVGL viewer, built **by default** since 2026-08-24:
 
    ```
-   sudo apt install clang libclang-dev libsdl2-dev
+   sudo apt install clang libclang-dev libsdl2-dev libfreetype-dev
    ```
 
    Both `lvgl-sys` and `sws-lvgl-viewer/build.rs` run bindgen, which loads

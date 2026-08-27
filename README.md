@@ -65,6 +65,7 @@ generic Linux and x86_64 hosts for development and evaluation.
 | Python | 3.10+ | usually already present on Linux |
 | clang + libclang | any | `sudo apt install clang libclang-dev` |
 | SDL2 (dev) | 2.x | `sudo apt install libsdl2-dev` |
+| FreeType (dev) | any | `sudo apt install libfreetype-dev` — il viewer LVGL disegna il testo con FreeType (Q24); senza, la build fallisce su `ft2build.h` |
 
 The last two are **not optional**: `sws-lvgl-viewer` is part of the workspace,
 builds LVGL from C source through bindgen and links SDL2, so `cargo check
