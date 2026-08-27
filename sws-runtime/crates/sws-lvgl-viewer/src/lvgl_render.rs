@@ -1218,6 +1218,83 @@ fn text_color_hex(
 ///
 /// Un corpo non apribile lascia quello ereditato: un testo della misura
 /// sbagliata si legge, un testo assente no.
+/// Crea l'etichetta rispettando `text_anchor`.
+///
+/// Nell'SVG del web `x` non è il bordo sinistro del testo: è il **punto di
+/// ancoraggio**, e `text_anchor` dice quale parte del testo ci va sopra —
+/// `start` il bordo sinistro, `middle` il centro, `end` il bordo destro. LVGL
+/// invece posiziona sempre l'angolo in alto a sinistra.
+///
+/// Il campo era dichiarato e ignorato: **313 usi nei template del repo** (285
+/// `middle`, 21 `end`), tutti disegnati come se fossero `start`. Un valore
+/// centrato sotto a un gauge usciva spostato a destra di mezza etichetta.
+///
+/// Il trucco è un contenitore **largo zero** nel punto di ancoraggio, con
+/// l'etichetta allineata dentro. Non è un espediente: è ciò che rende
+/// l'allineamento **vivo**. Misurare il testo e spostare la x una volta sola
+/// funzionerebbe finché il testo non cambia — e questi sono per lo più valori
+/// che cambiano di continuo, dove "12.3" e "7.0" hanno larghezze diverse.
+/// Con il contenitore, LVGL riallinea da sé a ogni cambio.
+///
+/// `LV_OBJ_FLAG_OVERFLOW_VISIBLE` è obbligatorio: senza, un figlio più largo
+/// del padre viene ritagliato, e un padre largo zero lo farebbe sparire del
+/// tutto.
+fn create_anchored_label(
+    screen: &mut lvgl::Obj,
+    obj: &SynopticObject,
+    styles: &mut Vec<Style>,
+) -> anyhow::Result<Label> {
+    let (x, y) = (obj.x.unwrap_or(0.0).round() as i16, obj.y.unwrap_or(0.0).round() as i16);
+    let align = match obj.text_anchor.as_deref() {
+        Some("middle") => lvgl_sys::LV_ALIGN_TOP_MID,
+        Some("end") => lvgl_sys::LV_ALIGN_TOP_RIGHT,
+        // `start` e qualunque valore non riconosciuto: comportamento di
+        // sempre, l'etichetta parte da `x`. Un valore sconosciuto non deve far
+        // sparire il testo.
+        _ => {
+            let mut label = Label::create(screen).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
+            label.set_pos(x, y).map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
+            return Ok(label);
+        }
+    };
+
+    let mut ancora = create_child_obj(screen)?;
+    ancora.set_pos(x, y).map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
+    ancora.set_size(0, 0).map_err(|e| anyhow::anyhow!("set_size: {e:?}"))?;
+    let ancora_ptr = ancora.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
+    unsafe {
+        lvgl_sys::lv_obj_add_flag(ancora_ptr.as_ptr(), lvgl_sys::LV_OBJ_FLAG_OVERFLOW_VISIBLE as lvgl_sys::lv_obj_flag_t);
+        lvgl_sys::lv_obj_clear_flag(ancora_ptr.as_ptr(), lvgl_sys::LV_OBJ_FLAG_SCROLLABLE as lvgl_sys::lv_obj_flag_t);
+        // Padding a zero: lo stile predefinito ne mette, e su un contenitore
+        // largo zero sposterebbe l'etichetta di qualche pixel dal punto di
+        // ancoraggio — un disallineamento piccolo e costante, difficile da
+        // attribuire.
+        // Non esiste un `pad_all` nei binding: i quattro lati a mano.
+        lvgl_sys::lv_obj_set_style_pad_top(ancora_ptr.as_ptr(), 0, 0);
+        lvgl_sys::lv_obj_set_style_pad_bottom(ancora_ptr.as_ptr(), 0, 0);
+        lvgl_sys::lv_obj_set_style_pad_left(ancora_ptr.as_ptr(), 0, 0);
+        lvgl_sys::lv_obj_set_style_pad_right(ancora_ptr.as_ptr(), 0, 0);
+    }
+    // Il contenitore non deve vedersi: lo stile predefinito di `lv_obj` ha uno
+    // sfondo e un bordo, che a larghezza zero sarebbero una riga verticale
+    // sotto ogni testo centrato.
+    let mut st = Style::default();
+    st.set_bg_opa(lvgl::style::Opacity::OPA_0);
+    st.set_border_width(0);
+    styles.push(st);
+    let st = styles.last_mut().expect("appena inserito");
+    ancora.add_style(Part::Main, st).map_err(|e| anyhow::anyhow!("add_style: {e:?}"))?;
+
+    let mut label = Label::create(&mut ancora).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
+    unsafe {
+        lvgl_sys::lv_obj_set_align(
+            label.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?.as_ptr(),
+            align as lvgl_sys::lv_align_t,
+        );
+    }
+    Ok(label)
+}
+
 fn apply_font_size(widget: &impl NativeObject, obj: &SynopticObject) -> anyhow::Result<()> {
     let Some(px) = obj.font_size else { return Ok(()) };
     let px = px.round();
@@ -1235,6 +1312,7 @@ fn apply_font_size(widget: &impl NativeObject, obj: &SynopticObject) -> anyhow::
 fn render_text(
     screen: &mut lvgl::Obj,
     obj: &SynopticObject,
+    styles: &mut Vec<Style>,
     tags: &TagSnapshot,
 ) -> anyhow::Result<LiveBinding> {
     let tv = lookup(tags, &obj.tag);
@@ -1246,10 +1324,7 @@ fn render_text(
             .or_else(|| obj.tag.clone())
             .unwrap_or_else(|| "Testo".to_string()),
     };
-    let mut label = Label::create(screen).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
-    label
-        .set_pos(obj.x.unwrap_or(0.0).round() as i16, obj.y.unwrap_or(0.0).round() as i16)
-        .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
+    let mut label = create_anchored_label(screen, obj, styles)?;
     label
         .set_text(&text_cstring(&content))
         .map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
@@ -3167,7 +3242,7 @@ fn render_kpi_tile(
         ..Default::default()
     };
     etichetta.tag = None;
-    live.push(render_text(screen, &etichetta, tags)?);
+    live.push(render_text(screen, &etichetta, styles, tags)?);
 
     // Valore: eredita soglie e formato dall'oggetto vero, così la colorazione
     // per soglia è la stessa di un `text` qualunque.
@@ -3186,7 +3261,7 @@ fn render_kpi_tile(
         color: obj.color.clone(),
         ..Default::default()
     };
-    live.push(render_text(screen, &valore, tags)?);
+    live.push(render_text(screen, &valore, styles, tags)?);
 
     // Sparkline in basso, come sul web. Solo se c'è un tag: senza, il web non
     // la disegna affatto.
@@ -4342,7 +4417,7 @@ fn dispatch_render(
         "line" => render_line(screen, obj, styles),
         "button" => render_button(screen, obj, styles, tag_tx),
         "navbutton" => render_navbutton(screen, obj, styles, nav_tx),
-        "text" => render_text(screen, obj, tags).map(|b| live.push(b)),
+        "text" => render_text(screen, obj, styles, tags).map(|b| live.push(b)),
         "led" => render_led(screen, obj, tags).map(|b| live.push(b)),
         "slider" => render_slider(screen, obj, tags, tag_tx).map(|b| live.push(b)),
         "progress_bar" => render_progress_bar(screen, obj, tags).map(|b| live.push(b)),

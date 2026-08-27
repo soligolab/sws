@@ -292,3 +292,49 @@ objects:
   height: 320.0
   tag: demo.sim.pressure
   datalog_page_size: 12.0
+- id: c_anchor
+  type: text
+  x: 650.0
+  y: 690.0
+  width: 290.0
+  height: 18.0
+  text: 'text_anchor: i tre testi sono ancorati alla stessa x'
+  font_size: 12.0
+  color: '#94a3b8'
+- id: o_anchor_rule
+  type: line
+  x: 790.0
+  y: 712.0
+  width: 1.0
+  height: 66.0
+  points:
+  - - 790
+    - 712
+  - - 790
+    - 778
+  stroke: '#475569'
+  stroke_width: 1.0
+- id: o_anchor_start
+  type: text
+  x: 790.0
+  y: 714.0
+  text: start
+  font_size: 14.0
+  color: '#e2e8f0'
+  text_anchor: start
+- id: o_anchor_middle
+  type: text
+  x: 790.0
+  y: 734.0
+  text: middle
+  font_size: 14.0
+  color: '#22c55e'
+  text_anchor: middle
+- id: o_anchor_end
+  type: text
+  x: 790.0
+  y: 754.0
+  text: end
+  font_size: 14.0
+  color: '#f59e0b'
+  text_anchor: end
