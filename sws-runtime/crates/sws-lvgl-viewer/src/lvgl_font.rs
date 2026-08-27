@@ -70,11 +70,11 @@ pub fn find_font(exists: impl Fn(&str) -> bool) -> Option<String> {
 pub fn load(size_px: u16) -> Option<*const lvgl_sys::lv_font_t> {
     let path = find_font(|p| std::path::Path::new(p).exists())?;
 
-    // La cache di FreeType: 16 KB come da `LV_FREETYPE_CACHE_SIZE` in
-    // lv_conf.h. `max_faces`/`max_sizes` a 4: un pannello usa una manciata di
-    // corpi carattere, non decine, e ogni face aperta costa memoria su un
-    // dispositivo che ne ha poca.
-    if !unsafe { lvgl_sys::lv_freetype_init(4, 4, 16 * 1024) } {
+    // 8 facce e 8 corpi. Non un numero tondo a caso: la sola demo usa già
+    // 12, 14, 19 e 22 px, e un progetto appena più ricco supererebbe il 4 che
+    // sembrava generoso — con LVGL che smette di aprire corpi nuovi senza
+    // dirlo. 32 KB di cache in proporzione.
+    if !unsafe { lvgl_sys::lv_freetype_init(8, 8, 32 * 1024) } {
         eprintln!("[font] lv_freetype_init fallita: resto su Montserrat (solo ASCII)");
         return None;
     }
@@ -115,6 +115,56 @@ const CORPO_PX: u16 = 14;
 /// `Send`/`Sync` e non può stare in una `OnceLock`. È sicuro: il font vive
 /// quanto il processo (vedi `load`), quindi l'indirizzo non diventa mai stantio.
 static FONT: std::sync::OnceLock<Option<usize>> = std::sync::OnceLock::new();
+
+/// I font già aperti, per corpo in pixel.
+///
+/// Una face FreeType per dimensione: LVGL non scala un font, ne apre uno nuovo.
+/// La cache evita di riaprire lo stesso corpo per ognuna delle decine di
+/// etichette che lo usano — nella demo, 33 didascalie condividono il 12px.
+static PER_CORPO: std::sync::Mutex<Option<std::collections::HashMap<u16, usize>>> =
+    std::sync::Mutex::new(None);
+
+/// Il font a un corpo dato, aprendolo se serve.
+///
+/// `None` quando FreeType non è disponibile o il corpo è assurdo: chi chiama
+/// lascia il font ereditato, che è sempre leggibile.
+pub fn at_size(px: u16) -> Option<*const lvgl_sys::lv_font_t> {
+    // Fuori da questo intervallo non è una scelta tipografica, è un errore nel
+    // progetto: sotto i 6px non si legge, sopra i 200 una sola etichetta
+    // riempirebbe lo schermo e la cache di FreeType.
+    if !(6..=200).contains(&px) {
+        return None;
+    }
+    // Il font predefinito va caricato per primo: è lui che inizializza
+    // FreeType. Senza, `lv_ft_font_init` qui sotto fallirebbe.
+    FONT.get_or_init(|| load(CORPO_PX).map(|p| p as usize));
+
+    let mut guard = PER_CORPO.lock().unwrap_or_else(|e| e.into_inner());
+    let cache = guard.get_or_insert_with(Default::default);
+    if let Some(&addr) = cache.get(&px) {
+        return Some(addr as *const lvgl_sys::lv_font_t);
+    }
+    let path = find_font(|p| std::path::Path::new(p).exists())?;
+    let c_path: &'static CString = Box::leak(Box::new(CString::new(path).ok()?));
+    let mut info = lvgl_sys::lv_ft_info_t {
+        name: c_path.as_ptr(),
+        mem: std::ptr::null(),
+        mem_size: 0,
+        font: std::ptr::null_mut(),
+        weight: px,
+        style: lvgl_sys::LV_FT_FONT_STYLE_FT_FONT_STYLE_NORMAL as u16,
+    };
+    if !unsafe { lvgl_sys::lv_ft_font_init(&mut info) } || info.font.is_null() {
+        eprintln!("[font] corpo {px}px non apribile: resta quello ereditato");
+        return None;
+    }
+    cache.insert(px, info.font as usize);
+    // Una riga per corpo, non per etichetta: la cache fa sì che 33 didascalie
+    // a 12px ne stampino una sola. Serve a vedere quanti corpi una pagina apre
+    // davvero — è il numero che decide se il limite di 8 basta.
+    eprintln!("[font] corpo {px}px aperto ({} in tutto)", cache.len());
+    Some(info.font as *const lvgl_sys::lv_font_t)
+}
 
 /// Applica il font a uno schermo appena creato.
 ///

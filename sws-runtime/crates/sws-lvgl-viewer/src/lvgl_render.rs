@@ -1205,6 +1205,33 @@ fn text_color_hex(
     threshold.or_else(|| static_color_hex.and_then(parse_hex_color))
 }
 
+/// Applica `font_size` a un widget, se l'oggetto ne dichiara uno.
+///
+/// Fino al 2026-08-27 il campo era dichiarato e **ignorato**: ogni testo usciva
+/// al corpo predefinito. Nella sola demo lo usano 40 oggetti — 33 didascalie a
+/// 12px che uscivano più grandi del voluto, e i titoli a 19 e 22px che uscivano
+/// più piccoli. La pagina si vedeva, quindi nessuno la chiamava rotta: era solo
+/// diversa da come l'aveva disegnata chi l'ha fatta.
+///
+/// Prima di FreeType non si poteva fare: LVGL compila un font per corpo, e in
+/// `lv_conf.h` ce n'era uno solo. Ora ogni corpo si apre a richiesta.
+///
+/// Un corpo non apribile lascia quello ereditato: un testo della misura
+/// sbagliata si legge, un testo assente no.
+fn apply_font_size(widget: &impl NativeObject, obj: &SynopticObject) -> anyhow::Result<()> {
+    let Some(px) = obj.font_size else { return Ok(()) };
+    let px = px.round();
+    if !(1.0..=1000.0).contains(&px) {
+        return Ok(());
+    }
+    let Some(font) = lvgl_font::at_size(px as u16) else { return Ok(()) };
+    let ptr = widget.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
+    unsafe {
+        lvgl_sys::lv_obj_set_style_text_font(ptr.as_ptr(), font, 0);
+    }
+    Ok(())
+}
+
 fn render_text(
     screen: &mut lvgl::Obj,
     obj: &SynopticObject,
@@ -1226,6 +1253,7 @@ fn render_text(
     label
         .set_text(&text_cstring(&content))
         .map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
+    apply_font_size(&label, obj)?;
 
     let text_color_by_threshold = obj.text_color_by_threshold == Some(true);
     let static_color_hex = obj.color.clone().or_else(|| obj.fill.clone());

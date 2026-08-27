@@ -106,6 +106,23 @@ accanto, in `sws-lvgl-viewer.container.senza-page`.
 
 **Da fare**: pubblicare un'immagine con il `--page` opzionale, poi togliere la toppa.
 
+### La mappa vera del divario web/LVGL
+
+Contando i campi che `model.rs` dichiara e che `lvgl_render.rs` non nomina mai:
+**124 usati su 238, 114 mai**. È l'elenco onesto di cosa il pannello ancora non disegna, e si
+ricava in un comando invece che a memoria.
+
+Il primo della lista era `font_size`, ora chiuso: 40 oggetti della sola demo lo usano (12, 19,
+22 px) e uscivano tutti a 14. Le didascalie più grandi del voluto, i titoli più piccoli — la
+pagina si vedeva, quindi nessuno la chiamava rotta: era solo diversa da come l'aveva disegnata chi
+l'ha fatta. **Prima di FreeType non era implementabile**: LVGL compila un font per corpo, e ce
+n'era uno solo.
+
+Fra i 113 rimasti, quelli che a occhio pesano di più: `opacity`, `z_index`, `blink_*`,
+`text_anchor`/`text_valign`/`text_wrap`, `stale_after_s`, `quality_dot*`, `pipe_flow`,
+`symbol_spin*`, e `from_obj_id`/`to_obj_id` (le pipe agganciate agli oggetti invece che a punti
+espliciti).
+
 ### Difetti trovati strada facendo
 
 - **Nessun campo opzionale del progetto poteva essere cancellato** (2026-08-27).
