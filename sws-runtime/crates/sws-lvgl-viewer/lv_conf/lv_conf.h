@@ -236,7 +236,11 @@
 
     /*1: Print the log with 'printf';
     *0: User need to register a callback with `lv_log_register_print_cb()`*/
-    #define LV_LOG_PRINTF 1
+    // 0, non 1: con 1 LVGL stampa da sé con printf e nessun callback viene
+    // consultato. Serve 0 perché `lvgl_log.rs` possa strozzare i messaggi che
+    // si ripetono — vedi Q24: 10.284 righe in 44 s cancellavano le righe
+    // d'avvio del viewer.
+    #define LV_LOG_PRINTF 0
 
     /*Enable/disable LV_LOG_TRACE in modules that produces a huge number of logs*/
     #define LV_LOG_TRACE_MEM        1

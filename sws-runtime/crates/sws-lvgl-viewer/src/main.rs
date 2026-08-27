@@ -32,6 +32,7 @@ mod client;
 mod drm_display;
 mod lvgl_display;
 mod lvgl_indev;
+mod lvgl_log;
 mod lvgl_render;
 mod model;
 mod svg_assets;
@@ -144,6 +145,12 @@ fn main() -> anyhow::Result<()> {
     // (reqwest + tokio-tungstenite + il nostro rustls diretto potrebbero
     // altrimenti ognuno provare a impostarne uno di default).
     let _ = rustls::crypto::ring::default_provider().install_default();
+
+    // Prima di qualunque cosa tocchi LVGL: gli avvisi cominciano da `lv_init`,
+    // e senza il filtro sono loro a decidere cosa resta leggibile nel log
+    // (Q24 — 10.284 righe in 44 s sul WP630, che cancellavano le righe
+    // d'avvio del viewer).
+    lvgl_log::install();
 
     let args = Args::parse();
 
@@ -753,6 +760,10 @@ fn run_window(
     // copie, per tutta la durata della finestra.
     drop(styles);
     drop(live_bindings);
+    // Chiude il cerchio sulla strozzatura del log: senza questo riepilogo,
+    // "quell'avviso non c'è" e "quell'avviso è uscito 9.000 volte" si
+    // somigliano troppo (Q24).
+    lvgl_log::print_summary();
     Ok(())
 }
 
