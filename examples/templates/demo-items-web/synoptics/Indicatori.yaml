@@ -281,7 +281,7 @@ objects:
   y: 420.0
   width: 290.0
   height: 18.0
-  text: data_log — SOLO WEB
+  text: data_log
   font_size: 12.0
   color: '#94a3b8'
 - id: o_datalog

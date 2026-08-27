@@ -172,6 +172,46 @@ async fn list_synoptics(base_url: &str) -> anyhow::Result<Vec<String>> {
 /// Ordine: la *home page* dichiarata dal progetto, poi la prima pagina in
 /// elenco. Il ripiego non è pigrizia: un progetto senza home page dichiarata è
 /// la maggioranza, e mostrare la prima pagina è meglio che non mostrare nulla.
+/// Un evento dello storico allarmi, come lo restituisce `GET /api/alarms/history`.
+///
+/// Solo i campi che la tabella mostra. `AlarmEvent` lato runtime ne ha altri
+/// (chi ha confermato, la durata, quando è rientrato): dichiararli qui senza
+/// disegnarli darebbe l'impressione che siano usati.
+#[derive(Debug, Clone, serde::Deserialize)]
+pub struct AlarmHistoryEvent {
+    pub alarm_id: String,
+    #[serde(default)]
+    pub alarm_message: String,
+    pub ts_activated_ms: u64,
+    #[serde(default)]
+    pub ts_acked_ms: Option<u64>,
+}
+
+/// Lo storico allarmi, il più recente per primo.
+///
+/// `alarm_id` filtra su un allarme solo — è il campo `alarm_history_id`
+/// dell'oggetto synottico; `None` li prende tutti, come fa il web quando quel
+/// campo non è impostato.
+pub async fn fetch_alarm_history(
+    base_url: &str,
+    alarm_id: Option<&str>,
+    limit: usize,
+) -> anyhow::Result<Vec<AlarmHistoryEvent>> {
+    let mut url = reqwest::Url::parse(base_url)?;
+    url.path_segments_mut()
+        .map_err(|_| anyhow::anyhow!("base URL non può avere path segments (cannot-be-a-base)"))?
+        .push("api")
+        .push("alarms")
+        .push("history");
+    url.query_pairs_mut().append_pair("limit", &limit.to_string());
+    if let Some(id) = alarm_id {
+        url.query_pairs_mut().append_pair("alarm_id", id);
+    }
+    let client = reqwest::Client::builder().danger_accept_invalid_certs(true).build()?;
+    let resp = client.get(url).send().await?.error_for_status()?;
+    Ok(resp.json::<Vec<AlarmHistoryEvent>>().await?)
+}
+
 pub async fn resolve_start_page(base_url: &str) -> anyhow::Result<SynopticPage> {
     let dichiarata = fetch_home_page_id(base_url).await;
     if let Some(id) = &dichiarata {

@@ -567,6 +567,12 @@ const LVGL_SUPPORTED_TYPES = new Set<SynopticObject["type"]>([
   // `image` dal 2026-08-26: il viewer LVGL rasterizza gli SVG con resvg
   // (D2). Vale per i `src` .svg — un png o un jpg mostrano il segnaposto.
   "image",
+  // Gli ultimi tre, dal 2026-08-27: il motore LVGL copre ora tutti e 35 i tipi
+  // della palette. `kpi_tile` è composto dai renderer esistenti; `data_log` e
+  // `alarm_history` sono tabelle riempite una volta al disegno, come sul web.
+  "kpi_tile",
+  "data_log",
+  "alarm_history",
   "rect",
   "text",
   "button",

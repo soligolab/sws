@@ -27,9 +27,10 @@ import sys, os, re, glob, yaml
 root = sys.argv[1]
 WEB = f"{root}/examples/templates/demo-items-web"
 LVGL = f"{root}/examples/templates/demo-items-lvgl"
-# `image` è uscito da qui il 2026-08-26: il viewer LVGL lo disegna
-# rasterizzando l'SVG (D2).
-WEB_ONLY = {"kpi_tile", "alarm_history", "data_log"}
+# Vuoto dal 2026-08-27: il motore LVGL copre tutti e 35 i tipi della palette.
+# Non è una svista — se un tipo torna a essere solo-web va rimesso qui, e il
+# controllo sotto fallirà finché i due elenchi non tornano d'accordo.
+WEB_ONLY = set()
 
 fail = []
 def check(ok, msg):

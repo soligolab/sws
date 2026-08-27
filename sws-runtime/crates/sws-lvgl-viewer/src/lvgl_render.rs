@@ -63,7 +63,7 @@ const SUPPORTED_TYPES: &[&str] = &[
     "state_lamp", "table", "navbutton", "trend", "alarm_viewer",
     "text_list", "bar_chart", "sparkline", "alarm_banner", "faceplate",
     "symbol", "grid", "pipe", "alarm_bell", "recipe_panel", "setpoint", "xy_plot", "pie_chart",
-    "lang_button", "lang_selector", "image",
+    "lang_button", "lang_selector", "image", "kpi_tile", "data_log", "alarm_history",
 ];
 
 #[derive(Default, Debug)]
@@ -2952,6 +2952,239 @@ fn partial_polyline(points: &[(f64, f64)], fraction: f64, from_start: bool) -> V
     out
 }
 
+/// `alarm_history`: tabella degli allarmi passati, il più recente in alto.
+///
+/// Diverso da `alarm_viewer`, che mostra quelli **attivi** e li fa confermare:
+/// qui si guarda cosa è successo, non si agisce. Per questo non c'è nessun
+/// pulsante e i dati non arrivano dal WebSocket degli allarmi ma da una
+/// richiesta allo storico, una volta al disegno — come fa il web.
+///
+/// `alarm_history_id` filtra su un allarme solo; senza, li mostra tutti.
+fn render_alarm_history(
+    screen: &mut lvgl::Obj,
+    obj: &SynopticObject,
+    base_url: &str,
+    rt_handle: &tokio::runtime::Handle,
+) -> anyhow::Result<()> {
+    let larghezza = obj.width.unwrap_or(420.0).round() as i16;
+    let altezza = obj.height.unwrap_or(220.0).round() as i16;
+    // Quante righe ci stanno davvero: una tabella più alta del suo riquadro
+    // sborderebbe sugli oggetti sotto, che sul web non succede perché lì c'è
+    // una barra di scorrimento.
+    let righe_max = ((altezza as f64 - 20.0) / 22.0).floor().clamp(1.0, 100.0) as usize;
+
+    let eventi = rt_handle
+        .block_on(client::fetch_alarm_history(base_url, obj.alarm_history_id.as_deref(), righe_max))
+        .unwrap_or_else(|e| {
+            eprintln!("[alarm_history] storico non disponibile ({e})");
+            Vec::new()
+        });
+
+    let mut table = Table::create(screen).map_err(|e| anyhow::anyhow!("Table::create: {e:?}"))?;
+    table
+        .set_pos(obj.x.unwrap_or(0.0).round() as i16, obj.y.unwrap_or(0.0).round() as i16)
+        .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
+    let ptr = table.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
+
+    let n = eventi.len().min(righe_max);
+    unsafe {
+        lvgl_sys::lv_table_set_col_cnt(ptr.as_ptr(), 3);
+        lvgl_sys::lv_table_set_row_cnt(ptr.as_ptr(), (n + 1) as u16);
+        lvgl_sys::lv_table_set_col_width(ptr.as_ptr(), 0, (larghezza / 5) as lvgl_sys::lv_coord_t);
+        lvgl_sys::lv_table_set_col_width(ptr.as_ptr(), 1, (larghezza * 3 / 5) as lvgl_sys::lv_coord_t);
+        lvgl_sys::lv_table_set_col_width(ptr.as_ptr(), 2, (larghezza / 5) as lvgl_sys::lv_coord_t);
+        set_cell(ptr, 0, 0, "Ora");
+        set_cell(ptr, 0, 1, "Allarme");
+        set_cell(ptr, 0, 2, "Conf.");
+        for (i, e) in eventi.iter().take(n).enumerate() {
+            let r = (i + 1) as u16;
+            set_cell(ptr, r, 0, &ora_utc(e.ts_activated_ms));
+            // Il messaggio se c'è, altrimenti l'id: un evento senza messaggio
+            // è comunque un evento, e una riga vuota non direbbe quale.
+            let testo = if e.alarm_message.trim().is_empty() { &e.alarm_id } else { &e.alarm_message };
+            set_cell(ptr, r, 1, testo);
+            set_cell(ptr, r, 2, if e.ts_acked_ms.is_some() { "sì" } else { "no" });
+        }
+    }
+    Ok(())
+}
+
+/// `data_log`: tabella dei campioni storici di un tag, i più recenti in alto.
+///
+/// Una `lv_table` riempita una volta al disegno, come fa il web: `DataLogWidget`
+/// carica lo storico al montaggio e non ripete la richiesta finché il tag o la
+/// finestra non cambiano.
+///
+/// **Limite dichiarato**: niente impaginazione. Sul web ci sono i pulsanti
+/// avanti/indietro (`datalog_page_size`); qui si mostrano le prime N righe e
+/// basta, dove N è quella stessa dimensione di pagina. Impaginare richiede
+/// pulsanti e uno stato che LVGL non ha già pronti, e su un pannello senza
+/// tastiera la prima pagina è quasi sempre quella che interessa — sono i
+/// campioni più recenti.
+fn render_data_log(
+    screen: &mut lvgl::Obj,
+    obj: &SynopticObject,
+    base_url: &str,
+    rt_handle: &tokio::runtime::Handle,
+) -> anyhow::Result<()> {
+    let Some(tag) = obj.tag.clone() else {
+        anyhow::bail!("data_log senza tag");
+    };
+    let righe_max = obj.datalog_page_size.unwrap_or(25.0).round().clamp(1.0, 200.0) as usize;
+    let finestra_s = obj.window_s.unwrap_or(3600.0).max(1.0);
+    let decimali = obj.decimals.unwrap_or(1) as usize;
+    let unita = obj.unit.as_deref().map(|u| format!(" {u}")).unwrap_or_default();
+
+    let ora_ms = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0);
+    let da_ms = ora_ms.saturating_sub((finestra_s * 1000.0) as u64);
+    let campioni = rt_handle
+        .block_on(client::fetch_history(base_url, &tag, da_ms, ora_ms, false))
+        .unwrap_or_else(|e| {
+            // Storico non raggiungibile: tabella vuota con le intestazioni,
+            // non un oggetto mancante. Una tabella vuota dice "non ci sono
+            // dati"; un buco nella pagina non dice niente.
+            eprintln!("[data_log] {tag}: storico non disponibile ({e})");
+            Vec::new()
+        });
+
+    let mut table = Table::create(screen).map_err(|e| anyhow::anyhow!("Table::create: {e:?}"))?;
+    table
+        .set_pos(obj.x.unwrap_or(0.0).round() as i16, obj.y.unwrap_or(0.0).round() as i16)
+        .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
+    let ptr = table.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
+
+    let n = campioni.len().min(righe_max);
+    unsafe {
+        lvgl_sys::lv_table_set_col_cnt(ptr.as_ptr(), 2);
+        lvgl_sys::lv_table_set_row_cnt(ptr.as_ptr(), (n + 1) as u16);
+        let larghezza = obj.width.unwrap_or(380.0).round() as i16;
+        lvgl_sys::lv_table_set_col_width(ptr.as_ptr(), 0, (larghezza / 2) as lvgl_sys::lv_coord_t);
+        lvgl_sys::lv_table_set_col_width(ptr.as_ptr(), 1, (larghezza / 2) as lvgl_sys::lv_coord_t);
+        set_cell(ptr, 0, 0, "Ora");
+        set_cell(ptr, 0, 1, "Valore");
+        // I più recenti in alto: `fetch_history` li dà in ordine crescente di
+        // tempo, il web li rovescia (`hist.slice().reverse()`) e qui si fa lo
+        // stesso. Su un pannello si guarda cosa è appena successo.
+        for (i, c) in campioni.iter().rev().take(n).enumerate() {
+            set_cell(ptr, (i + 1) as u16, 0, &ora_utc(c.ts_ms));
+            let v = tag_value_as_f64(&c.value);
+            set_cell(ptr, (i + 1) as u16, 1, &format!("{v:.decimali$}{unita}"));
+        }
+    }
+    Ok(())
+}
+
+/// Scrive una cella della tabella.
+unsafe fn set_cell(ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>, row: u16, col: u16, testo: &str) {
+    let c = text_cstring(testo);
+    lvgl_sys::lv_table_set_cell_value(ptr.as_ptr(), row, col, c.as_ptr());
+}
+
+/// Un timestamp in millisecondi come `hh:mm:ss`, in UTC.
+///
+/// Il nome dice UTC perché è UTC: il viewer non linka una libreria di fusi
+/// orari, e fingere di conoscerli darebbe orari sbagliati di un'ora per metà
+/// anno. È anche il fuso con cui lo storico è registrato.
+fn ora_utc(ts_ms: u64) -> String {
+    let s = ts_ms / 1000;
+    let (h, m, sec) = ((s / 3600) % 24, (s / 60) % 60, s % 60);
+    format!("{h:02}:{m:02}:{sec:02}")
+}
+
+/// `kpi_tile`: pannello con etichetta, valore grande, unità e sparkline.
+///
+/// Non ha un widget LVGL suo: è **composto** dai renderer che già esistono,
+/// costruendo gli oggetti synottici che servono e passandoli a `render_text` e
+/// `render_sparkline`. Riscriverne il contenuto a mano avrebbe voluto dire
+/// duplicare la colorazione per soglia, la formattazione del valore e
+/// l'aggiornamento dal vivo — quattro cose che poi divergono.
+///
+/// **Limite dichiarato**: sul web l'unità di misura è in un carattere più
+/// piccolo, in linea col valore (`<tspan>`). LVGL non ha corsivi di riga: qui
+/// valore e unità stanno nella stessa etichetta, stesso corpo. Un'etichetta
+/// separata richiederebbe di sapere quanto è largo il valore, che cambia a
+/// ogni aggiornamento.
+///
+/// Non disegnato: la variazione sulla finestra (`KpiDelta` sul web), che
+/// richiede un secondo passaggio sullo storico a ogni aggiornamento.
+fn render_kpi_tile(
+    screen: &mut lvgl::Obj,
+    obj: &SynopticObject,
+    styles: &mut Vec<Style>,
+    tags: &TagSnapshot,
+    base_url: &str,
+    rt_handle: &tokio::runtime::Handle,
+    live: &mut Vec<LiveBinding>,
+) -> anyhow::Result<()> {
+    let (x, y) = (obj.x.unwrap_or(0.0), obj.y.unwrap_or(0.0));
+    let (w, h) = (obj.width.unwrap_or(180.0), obj.height.unwrap_or(100.0));
+
+    // Il pannello di sfondo.
+    let mut sfondo = create_child_obj(screen)?;
+    sfondo.set_pos(x.round() as i16, y.round() as i16).map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
+    sfondo.set_size(w.round() as i16, h.round() as i16).map_err(|e| anyhow::anyhow!("set_size: {e:?}"))?;
+    apply_bg_color(&mut sfondo, obj.bg_color.as_deref().unwrap_or("#0f172a"), styles)?;
+
+    // Etichetta: il nome del KPI, non un valore. `text` statico, nessun tag —
+    // altrimenti `render_text` mostrerebbe il valore anche qui.
+    let mut etichetta = SynopticObject {
+        obj_type: Some("text".into()),
+        x: Some(x + 10.0),
+        y: Some(y + 6.0),
+        text: Some(obj.label.clone().or_else(|| obj.tag.clone()).unwrap_or_else(|| "KPI".into())),
+        color: Some("#94a3b8".into()),
+        ..Default::default()
+    };
+    etichetta.tag = None;
+    live.push(render_text(screen, &etichetta, tags)?);
+
+    // Valore: eredita soglie e formato dall'oggetto vero, così la colorazione
+    // per soglia è la stessa di un `text` qualunque.
+    let unita = obj.unit.as_deref().map(|u| format!(" {u}")).unwrap_or_default();
+    let valore = SynopticObject {
+        obj_type: Some("text".into()),
+        x: Some(x + 10.0),
+        y: Some(y + 28.0),
+        tag: obj.tag.clone(),
+        format: Some(format!("{}{unita}", obj.format.clone().unwrap_or_else(|| "{value}".into()))),
+        text_color_by_threshold: obj.text_color_by_threshold,
+        alarm_low: obj.alarm_low,
+        warn_low: obj.warn_low,
+        warn_high: obj.warn_high,
+        alarm_high: obj.alarm_high,
+        color: obj.color.clone(),
+        ..Default::default()
+    };
+    live.push(render_text(screen, &valore, tags)?);
+
+    // Sparkline in basso, come sul web. Solo se c'è un tag: senza, il web non
+    // la disegna affatto.
+    if obj.tag.is_some() {
+        let spark = SynopticObject {
+            obj_type: Some("sparkline".into()),
+            x: Some(x + 6.0),
+            y: Some(y + h - 34.0),
+            width: Some(w - 12.0),
+            height: Some(30.0),
+            tag: obj.tag.clone(),
+            window_s: obj.spark_window_s.or(obj.window_s),
+            stroke: obj.spark_color.clone(),
+            ..Default::default()
+        };
+        // Un fallimento della sparkline (storico non raggiungibile) non deve
+        // portarsi via l'intero riquadro: valore ed etichetta sono già a posto
+        // e sono la parte che conta.
+        match render_sparkline(screen, &spark, styles, base_url, rt_handle) {
+            Ok(b) => live.push(b),
+            Err(e) => eprintln!("[kpi] {}: sparkline non disegnata ({e})", obj.id.as_deref().unwrap_or("?")),
+        }
+    }
+    Ok(())
+}
+
 fn render_pipe(
     screen: &mut lvgl::Obj,
     obj: &SynopticObject,
@@ -4119,6 +4352,9 @@ fn dispatch_render(
             shared_lang, own_page_id, live,
         ),
         "pipe" => render_pipe(screen, obj, styles, tags).map(|b| live.push(b)),
+        "kpi_tile" => render_kpi_tile(screen, obj, styles, tags, base_url, rt_handle, live),
+        "data_log" => render_data_log(screen, obj, base_url, rt_handle),
+        "alarm_history" => render_alarm_history(screen, obj, base_url, rt_handle),
         "alarm_bell" => render_alarm_bell(screen, obj, styles, shared_alarms).map(|b| live.push(b)),
         "recipe_panel" => render_recipe_panel(screen, obj, styles, base_url, rt_handle),
         "setpoint" => render_setpoint(screen, obj, styles, tags, tag_tx).map(|b| live.push(b)),
