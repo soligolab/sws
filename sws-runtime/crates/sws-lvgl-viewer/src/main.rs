@@ -63,8 +63,14 @@ struct Args {
 
     /// Nome della pagina synottico da interpretare all'avvio (es. "Page 1") —
     /// pagina di partenza: la navigazione con i navbutton può portare altrove.
+    ///
+    /// **Omettendolo** si parte dalla *home page* dichiarata dal progetto, e
+    /// in mancanza dalla prima pagina in elenco (vedi
+    /// `client::resolve_start_page`). È così che va avviato da una unit
+    /// systemd: un nome cablato smette di esistere al primo progetto diverso,
+    /// e il viewer non parte più senza che si capisca perché.
     #[arg(long)]
-    page: String,
+    page: Option<String>,
 
     /// Backend di rendering. "sdl2" (default) apre una finestra SDL2 — vedi
     /// docs/OPEN_QUESTIONS.md Q14 per i bug noti su Wayland/X11/kmsdrm reali.
@@ -148,7 +154,10 @@ fn main() -> anyhow::Result<()> {
     // vivo per tutta la finestra, non solo per la fetch iniziale.
     let rt = tokio::runtime::Runtime::new()?;
     let (page, shared_tags, reload_flag, shared_alarms, lang_table) = rt.block_on(async {
-        let page = client::fetch_page(&args.base_url, &args.page).await?;
+        let page = match args.page.as_deref() {
+            Some(nome) => client::fetch_page(&args.base_url, nome).await?,
+            None => client::resolve_start_page(&args.base_url).await?,
+        };
         let (shared_tags, reload_flag) = client::spawn_tag_subscription(&args.base_url).await?;
         let shared_alarms = client::spawn_alarm_subscription(&args.base_url).await?;
         // Non fatale: un progetto senza T-40 configurato (la maggioranza)

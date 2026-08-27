@@ -161,6 +161,68 @@ async fn list_synoptics(base_url: &str) -> anyhow::Result<Vec<String>> {
 /// centinaia. Se nessuna pagina ha quell'id, riprova a interpretare
 /// `target_page` come nome file direttamente: fallback permissivo per chi
 /// scrive comunque il filename (funziona comunque se combaciano).
+/// La pagina da cui partire quando nessuno l'ha detto (`--page` assente).
+///
+/// Serve perché il viewer possa essere avviato da una unit systemd scritta una
+/// volta sola. Finché `--page` era obbligatorio, sul WP630 era cablato a
+/// `"Grafici e tabelle"`: al primo progetto diverso quella unit puntava a una
+/// pagina inesistente, e il viewer non partiva — senza che il nome della
+/// pagina sbagliata comparisse da nessuna parte se non nel comando.
+///
+/// Ordine: la *home page* dichiarata dal progetto, poi la prima pagina in
+/// elenco. Il ripiego non è pigrizia: un progetto senza home page dichiarata è
+/// la maggioranza, e mostrare la prima pagina è meglio che non mostrare nulla.
+pub async fn resolve_start_page(base_url: &str) -> anyhow::Result<SynopticPage> {
+    let dichiarata = fetch_home_page_id(base_url).await;
+    if let Some(id) = &dichiarata {
+        match resolve_page_by_id(base_url, id).await {
+            Ok(p) => {
+                eprintln!("[avvio] pagina iniziale dal progetto: '{}'", p.name);
+                return Ok(p);
+            }
+            // Una home page dichiarata ma irrisolvibile è un progetto
+            // incoerente, non un motivo per non mostrare niente: si dice e si
+            // ripiega.
+            Err(e) => eprintln!("[avvio] home_page_id '{id}' non risolvibile ({e})"),
+        }
+    }
+    let names = list_synoptics(base_url).await?;
+    let prima = names
+        .first()
+        .ok_or_else(|| anyhow::anyhow!("il progetto non ha nessuna pagina synottico"))?;
+    // Il motivo del ripiego cambia il messaggio: dire "nessuna home page
+    // dichiarata" dopo aver appena detto che quella dichiarata non si risolve
+    // sono due righe che si contraddicono, e chi legge il log si chiede quale
+    // delle due sia vera.
+    match &dichiarata {
+        Some(_) => eprintln!("[avvio] ripiego sulla prima pagina: '{prima}'"),
+        None => eprintln!("[avvio] nessuna home page dichiarata, uso la prima: '{prima}'"),
+    }
+    fetch_page(base_url, prima).await
+}
+
+/// `home_page_id` dal progetto, se c'è.
+///
+/// `None` copre tutti i casi in cui non si può sapere — progetto non
+/// leggibile, `page_layout` assente, campo non impostato — perché per chi
+/// chiama sono la stessa cosa: si ripiega sulla prima pagina.
+async fn fetch_home_page_id(base_url: &str) -> Option<String> {
+    #[derive(serde::Deserialize)]
+    struct Layout {
+        #[serde(default)]
+        home_page_id: Option<String>,
+    }
+    #[derive(serde::Deserialize)]
+    struct Progetto {
+        #[serde(default)]
+        page_layout: Option<Layout>,
+    }
+    let url = format!("{}/api/project", base_url.trim_end_matches('/'));
+    let client = reqwest::Client::builder().danger_accept_invalid_certs(true).build().ok()?;
+    let resp = client.get(&url).send().await.ok()?;
+    resp.json::<Progetto>().await.ok()?.page_layout?.home_page_id
+}
+
 pub async fn resolve_page_by_id(base_url: &str, target_page_id: &str) -> anyhow::Result<SynopticPage> {
     let names = list_synoptics(base_url).await?;
     for name in &names {
