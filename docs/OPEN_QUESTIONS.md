@@ -2079,3 +2079,69 @@ subito.
 
 Nel frattempo i template della demo restano com'è: **riscriverli per aggirare il problema lo
 nasconderebbe**, ed è il difetto stesso che va visto.
+
+## Q25 — Installare web e LVGL insieme, e far scegliere al sistema quale mostrare
+
+**Aperta** — chiesta dal maintainer il 2026-08-27: «l'installazione su un terminale arm64 abbia
+sempre sia il web che lvgl, ma che il sistema usi in automatico l'uno o l'altro in base al fatto che
+il browser sia avviato o meno».
+
+### Cosa è vero oggi (misurato sul WP630, non dedotto)
+
+1. **L'installer non sa nulla di LVGL.** `install-container.sh` installa un solo quadlet,
+   `sws-runtime.container`. Il viewer LVGL è sempre stato avviato a mano — per questo non torna
+   dopo un riavvio.
+2. **I due non si escludono: si sovrappongono.** Con Chromium `active` e il container LVGL `Up`,
+   la finestra LVGL sta semplicemente sopra al browser. Non c'è un meccanismo di esclusione da
+   migliorare: non c'è proprio.
+3. **Entrambi sono client di Weston.** LVGL non sostituisce il compositore: è una finestra X11 su
+   XWayland (`DISPLAY=:0`). La scelta è fra due finestre, non fra due sistemi grafici.
+4. `chromium@main-app.service` è una unit **di sistema** dell'OS Pixsys (`User=user`,
+   `WantedBy=desktop.target`, `After=weston.service`). Non è nostra.
+
+### Il prerequisito che va fatto comunque
+
+**Il viewer LVGL non sa partire da solo**: `--page` è obbligatorio e senza default, e sul device è
+cablato a mano a `"Grafici e tabelle"`. Cambia progetto e quella unit punta a una pagina che non
+esiste più.
+
+Il progetto però **ha già** `home_page_id` (`sws-core/src/project.rs`), e il viewer lo ignora.
+
+Quindi, prima di qualunque unit: `--page` opzionale, con ripiego su `home_page_id` e poi sulla
+prima pagina. Senza questo non esiste una unit scrivibile una volta e valida per ogni progetto.
+
+### Le tre domande che "automatico" deve risolvere
+
+**a) Qual è l'interruttore?** Ne esistono due, e rispondono a domande diverse:
+
+| Interruttore | Dice | Il rischio |
+|---|---|---|
+| **Il browser è avviato** | cosa ha configurato l'integratore su *questo* dispositivo | l'app di configurazione Pixsys può riaccendere il browser via D-Bus, e ci si ritrova con due |
+| **Il target del progetto** (`lvgl_framebuffer` vs web) | per cosa è stato *disegnato* il progetto | un progetto LVGL su un pannello configurato per il web mostrerebbe comunque il web |
+
+**b) Quando si valuta?** Solo al boot (deterministico, nessun pezzo in movimento) o anche a caldo
+(richiede un sorvegliante, i cui modi di sbagliare sono silenziosi: schermo vuoto o doppio).
+
+**c) Chi decide?** systemd da solo, o un processo nostro.
+
+### Le opzioni
+
+| | Come | Pro | Contro |
+|---|---|---|---|
+| **A** | Unit *chooser* `oneshot` al boot: `After=weston chromium@main-app`, avvia LVGL solo se Chromium non è attivo | Deterministica, poche righe, nessun processo in più | Decide solo al boot |
+| **B** | `Conflicts=` fra le due unit | Elegante sulla carta | Con entrambe `WantedBy=desktop.target` chi vince è indeterminato; e serve un drop-in nella unit dell'OS, quindi `sudo` |
+| **C** | Sorvegliante che osserva Chromium e commuta a caldo | Commuta anche a sessione avviata | Un pezzo in movimento in più |
+| **D** | L'installer sceglie una volta: abilita l'una o l'altra | Semplicissima, zero ambiguità | Non è "automatica" |
+
+**Raccomandazione: A**, con una precisazione onesta — A non è «in base al fatto che il browser sia
+avviato», è «in base al fatto che il browser sia *abilitato al boot*». Nella pratica coincidono,
+perché l'integratore disabilita il browser una volta e riavvia. Se serve la commutazione a caldo
+allora è C, ed è un lavoro diverso: meglio saperlo prima.
+
+**Nota che vale per B e per qualunque soluzione che tocchi `chromium@main-app.service`**: si
+modifica una unit dell'OS Pixsys, che a un aggiornamento del sistema può tornare com'era.
+
+### Rapporto con le altre voci
+
+Assorbe la questione «serve un quadlet per `lvgl-view`?»: il quadlet è un pezzo di questa
+soluzione, non un lavoro a sé.
