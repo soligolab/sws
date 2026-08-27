@@ -72,6 +72,21 @@ Da decidere se merita un quadlet come `sws-runtime.container`.
 
 ### Difetti trovati strada facendo
 
+- **Nessun campo opzionale del progetto poteva essere cancellato** (2026-08-27).
+  `merge_preserved` in `patch_project` ricopia le chiavi di primo livello che il file ha e la
+  serializzazione non contiene — serve a non perdere ciò che una versione più nuova ha scritto.
+  Ma azzerare un campo opzionale lo fa sparire dalla serializzazione: la conservazione lo
+  scambiava per "chiave che non conosco" e **rimetteva il valore vecchio**.
+  `PUT /api/project/page-layout` con corpo `null` rispondeva 204 e non cancellava niente, mentre il
+  commento dell'endpoint dice che lo fa. Valeva per **ogni** campo opzionale di primo livello, non
+  solo `page_layout`.
+  Corretto confrontando con le chiavi che la struttura produceva *prima* della modifica — dedotte
+  serializzando, non da un elenco a mano: un elenco si disallinea al primo campo nuovo, e quel
+  campo diventerebbe silenziosamente incancellabile.
+  Trovato **per caso**, ripristinando il device dopo una prova. Provato end-to-end sul WP630: set →
+  presente, `null` → sparito, resto del progetto intatto.
+
+
 - **Il riempimento `end-to-start` era rotto sul web**: partiva dal capo
   sbagliato e a livello pieno spariva del tutto. Trovato solo riscrivendo la
   stessa cosa per LVGL — due implementazioni della stessa regola si controllano

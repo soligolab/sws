@@ -1983,6 +1983,23 @@ where
             auto_backup_retention: None,
         },
     };
+    // Le chiavi che la struttura tipizzata produce **prima** della modifica.
+    //
+    // Servono a distinguere due cose che altrimenti si somigliano: una chiave
+    // che il file ha e la struttura non conosce (va conservata), e una chiave
+    // che la struttura conosce e che è stata appena azzerata (va cancellata).
+    // Entrambe, dopo la modifica, mancano dalla serializzazione.
+    //
+    // Si ricava serializzando invece di tenere un elenco a mano: un elenco si
+    // disallinea al primo campo nuovo, e il modo in cui si romperebbe è
+    // silenzioso — quel campo diventerebbe semplicemente incancellabile.
+    let known_before = serde_yaml::to_string(&project)
+        .ok()
+        .and_then(|y| serde_yaml::from_str::<serde_yaml::Value>(&y).ok())
+        .and_then(|v| v.as_mapping().cloned())
+        .map(|m| m.keys().cloned().collect::<std::collections::HashSet<_>>())
+        .unwrap_or_default();
+
     f(&mut project);
     if let Err(e) = tokio::fs::create_dir_all(project_dir).await {
         warn!("cannot create project dir: {e}");
@@ -1996,7 +2013,7 @@ where
         }
     };
     let yaml = match raw_text.as_deref() {
-        Some(raw) => merge_preserved(&yaml, raw),
+        Some(raw) => merge_preserved(&yaml, raw, &known_before),
         None => yaml,
     };
     match tokio::fs::write(&path, yaml).await {
@@ -2018,7 +2035,11 @@ where
 /// Se qualcosa non si parsa (a partire dal file grezzo) si restituisce il YAML
 /// tipizzato invariato: questa funzione può solo aggiungere, mai far fallire un
 /// salvataggio.
-fn merge_preserved(typed_yaml: &str, raw_yaml: &str) -> String {
+fn merge_preserved(
+    typed_yaml: &str,
+    raw_yaml: &str,
+    known_before: &std::collections::HashSet<serde_yaml::Value>,
+) -> String {
     let (Ok(mut typed), Ok(raw)) = (
         serde_yaml::from_str::<serde_yaml::Value>(typed_yaml),
         serde_yaml::from_str::<serde_yaml::Value>(raw_yaml),
@@ -2075,12 +2096,19 @@ fn merge_preserved(typed_yaml: &str, raw_yaml: &str) -> String {
     }
 
     // Chiavi di primo livello che il file aveva e la struttura non conosce.
+    //
+    // `known_before` è ciò che rende possibile *cancellare*: senza,
+    // qualunque campo opzionale azzerato sembrava una chiave sconosciuta e il
+    // valore vecchio tornava al suo posto. `PUT /api/project/page-layout` con
+    // corpo `null` rispondeva 204 e non cancellava niente — misurato sul WP630
+    // il 2026-08-27, e valeva per ogni campo opzionale di primo livello.
     let mut extra = 0usize;
     for (k, v) in raw_map {
-        if !typed_map.contains_key(k) {
-            out.insert(k.clone(), v.clone());
-            extra += 1;
+        if typed_map.contains_key(k) || known_before.contains(k) {
+            continue;
         }
+        out.insert(k.clone(), v.clone());
+        extra += 1;
     }
     if extra > 0 {
         info!(extra, "patch_project: chiavi di primo livello sconosciute conservate");
@@ -2719,7 +2747,11 @@ async fn import_project_zip(State(s): State<AppState>, body: Bytes) -> Response 
     // binario non sa parsare (scritte da una versione più nuova) e chiavi di
     // primo livello sconosciute. Il giro dalla struct tipizzata le perderebbe:
     // si rimettono dal testo grezzo del bundle, come fa ogni patch_project.
-    let serialized_project = merge_preserved(&serialized_project, &project_text);
+    // Insieme vuoto: qui non c'è un "prima" da cui dedurre una cancellazione
+    // voluta — il progetto È quello importato. Tutto ciò che il bundle ha e la
+    // struttura non produce è per definizione da conservare.
+    let serialized_project =
+        merge_preserved(&serialized_project, &project_text, &std::collections::HashSet::new());
     if let Err(e) = tokio::fs::write(&project_path, serialized_project).await {
         warn!("import: write project.yaml: {e}");
         return (StatusCode::INTERNAL_SERVER_ERROR, "write project.yaml").into_response();
@@ -5160,6 +5192,17 @@ notifications:
 mod write_safety_tests {
     use super::{merge_preserved, PageLayoutBody};
 
+    /// Le chiavi che la struttura produceva prima della modifica: ciò che
+    /// distingue "cancellata apposta" da "non la conosco".
+    fn prima_conteneva(chiavi: &[&str]) -> std::collections::HashSet<serde_yaml::Value> {
+        chiavi.iter().map(|k| serde_yaml::Value::from(*k)).collect()
+    }
+
+    /// Nessuna cancellazione in gioco: tutto ciò che manca è sconosciuto.
+    fn niente_da_cancellare() -> std::collections::HashSet<serde_yaml::Value> {
+        std::collections::HashSet::new()
+    }
+
     /// Il YAML che la struttura tipizzata produrrebbe: contiene solo ciò che sa
     /// rappresentare.
     const TYPED: &str = "meta:\n  name: impianto\n  version: '1'\nsources:\n- kind: mqtt\n  name: broker\n  url: mqtt://localhost:1883\ntags: []\n";
@@ -5171,7 +5214,7 @@ mod write_safety_tests {
         // cancellata dalla riscrittura — cioè persa per sempre al primo
         // salvataggio di una qualunque altra sezione.
         let raw = "meta:\n  name: impianto\n  version: '1'\nsources:\n- kind: mqtt\n  name: broker\n  url: mqtt://localhost:1883\n- kind: protocollo_futuro\n  name: misterioso\n  parametro: 42\n";
-        let out = merge_preserved(TYPED, raw);
+        let out = merge_preserved(TYPED, raw, &niente_da_cancellare());
         assert!(out.contains("protocollo_futuro"), "sorgente sconosciuta persa:\n{out}");
         assert!(out.contains("misterioso"), "nome della sorgente sconosciuta perso:\n{out}");
         assert!(out.contains("broker"), "sorgente conosciuta persa:\n{out}");
@@ -5184,14 +5227,45 @@ mod write_safety_tests {
         // lui", quindi resta.
         let typed_svuotato = "meta:\n  name: impianto\n  version: '1'\nsources: []\ntags: []\n";
         let raw = "meta:\n  name: impianto\n  version: '1'\nsources:\n- kind: protocollo_futuro\n  name: misterioso\n";
-        let out = merge_preserved(typed_svuotato, raw);
+        let out = merge_preserved(typed_svuotato, raw, &niente_da_cancellare());
         assert!(out.contains("protocollo_futuro"), "conservazione mancata su lista svuotata:\n{out}");
+    }
+
+    /// Il rovescio della conservazione: una chiave che la struttura **conosce**
+    /// e che è stata deliberatamente azzerata deve sparire.
+    ///
+    /// Il difetto era questo: azzerare un campo opzionale lo fa sparire dalla
+    /// serializzazione (`skip_serializing_if`), quindi la conservazione lo
+    /// scambiava per "chiave che non conosco" e **rimetteva il valore
+    /// vecchio**. Effetto: nessun campo opzionale di primo livello poteva
+    /// essere cancellato — `PUT /api/project/page-layout` con corpo `null`
+    /// rispondeva 204 e non cancellava niente. Misurato sul WP630 il
+    /// 2026-08-27.
+    #[test]
+    fn una_chiave_conosciuta_e_azzerata_viene_davvero_cancellata() {
+        let raw = "meta:\n  name: impianto\n  version: '1'\nsources: []\npage_layout:\n  size_mode: fixed\n  home_page_id: p1\n";
+        let out = merge_preserved(TYPED, raw, &prima_conteneva(&["page_layout"]));
+        assert!(
+            !out.contains("page_layout"),
+            "page_layout azzerato ma rimesso dalla conservazione:\n{out}"
+        );
+        assert!(!out.contains("home_page_id"), "il valore vecchio è tornato:\n{out}");
+    }
+
+    /// La conservazione deve restare selettiva: le chiavi davvero sconosciute
+    /// si tengono anche mentre quelle conosciute si possono cancellare.
+    #[test]
+    fn cancellare_una_conosciuta_non_butta_via_le_sconosciute() {
+        let raw = "meta:\n  name: impianto\n  version: '1'\nsources: []\npage_layout:\n  size_mode: fixed\nimpostazioni_future:\n  qualcosa: vero\n";
+        let out = merge_preserved(TYPED, raw, &prima_conteneva(&["page_layout"]));
+        assert!(!out.contains("page_layout"), "la conosciuta doveva sparire:\n{out}");
+        assert!(out.contains("impostazioni_future"), "la sconosciuta doveva restare:\n{out}");
     }
 
     #[test]
     fn conserva_le_chiavi_di_primo_livello_sconosciute() {
         let raw = "meta:\n  name: impianto\n  version: '1'\nsources: []\nimpostazioni_future:\n  qualcosa: vero\n";
-        let out = merge_preserved(TYPED, raw);
+        let out = merge_preserved(TYPED, raw, &niente_da_cancellare());
         assert!(out.contains("impostazioni_future"), "chiave sconosciuta persa:\n{out}");
         assert!(out.contains("qualcosa"), "contenuto della chiave sconosciuta perso:\n{out}");
     }
@@ -5214,7 +5288,7 @@ mod write_safety_tests {
         // Il file grezzo e quello tipizzato contengono la stessa sorgente: deve
         // comparire una volta sola, altrimenti ogni salvataggio raddoppierebbe.
         let raw = "meta:\n  name: impianto\n  version: '1'\nsources:\n- kind: mqtt\n  name: broker\n  url: mqtt://localhost:1883\ntags: []\n";
-        let out = merge_preserved(TYPED, raw);
+        let out = merge_preserved(TYPED, raw, &niente_da_cancellare());
         assert_eq!(out.matches("name: broker").count(), 1, "sorgente duplicata:\n{out}");
     }
 
@@ -5223,7 +5297,7 @@ mod write_safety_tests {
         // Se il file grezzo e la patch discordano su una chiave conosciuta, deve
         // vincere la patch: è la modifica che l'utente ha appena chiesto.
         let raw = "meta:\n  name: nome_vecchio\n  version: '1'\nsources: []\n";
-        let out = merge_preserved(TYPED, raw);
+        let out = merge_preserved(TYPED, raw, &niente_da_cancellare());
         assert!(out.contains("impianto"), "la patch non ha vinto:\n{out}");
         assert!(!out.contains("nome_vecchio"), "il valore vecchio è sopravvissuto:\n{out}");
     }
@@ -5232,6 +5306,6 @@ mod write_safety_tests {
     fn un_file_grezzo_illeggibile_non_fa_fallire_il_salvataggio() {
         // merge_preserved può solo aggiungere: se il grezzo non si parsa,
         // restituisce il tipizzato invariato invece di rompere la scrittura.
-        assert_eq!(merge_preserved(TYPED, "questo: [non è: yaml valido"), TYPED);
+        assert_eq!(merge_preserved(TYPED, "questo: [non è: yaml valido", &niente_da_cancellare()), TYPED);
     }
 }
