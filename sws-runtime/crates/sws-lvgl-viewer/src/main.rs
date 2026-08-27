@@ -140,6 +140,40 @@ fn resolve_touch_device(arg: &str, exists: impl Fn(&str) -> bool) -> Option<Stri
     }
 }
 
+/// Dove va disegnata la pagina dentro la finestra: centrata.
+///
+/// Il viewer web mette la pagina in un contenitore centrato, e il motore LVGL
+/// rispecchia il web (vedi `lvgl_render.rs`). Senza questo, una pagina più
+/// piccola dello schermo finiva nell'angolo in alto a sinistra: la stessa
+/// pagina in due posti diversi a seconda del motore.
+///
+/// Mai negativo: una pagina più grande della finestra parte dall'angolo e viene
+/// ritagliata: spostarla in negativo taglierebbe anche il lato opposto,
+/// nascondendo il doppio delle cose.
+fn page_offset(page_w: u32, page_h: u32, win_w: u32, win_h: u32) -> (i32, i32) {
+    let dx = (win_w as i32 - page_w as i32) / 2;
+    let dy = (win_h as i32 - page_h as i32) / 2;
+    (dx.max(0), dy.max(0))
+}
+
+/// Porta le coordinate del puntatore da spazio-finestra a spazio-pagina.
+///
+/// Serve perché la pagina è centrata: senza la traslazione, toccare un pulsante
+/// disegnato al centro dello schermo scriverebbe un tocco spostato in alto a
+/// sinistra della metà del margine, e il pulsante non reagirebbe. Il difetto
+/// sarebbe "il touch non funziona bene", non "manca una sottrazione".
+///
+/// `None` per i tocchi fuori dalla pagina: sono i margini attorno, dove non c'è
+/// niente da toccare. Consegnarli comunque a LVGL produceva i 314 avvisi
+/// `X is 1631 which is greater than hor. res` per sessione.
+fn pointer_to_page(x: i32, y: i32, off_x: i32, off_y: i32, page_w: u32, page_h: u32) -> Option<(i32, i32)> {
+    let (px, py) = (x - off_x, y - off_y);
+    if px < 0 || py < 0 || px >= page_w as i32 || py >= page_h as i32 {
+        return None;
+    }
+    Some((px, py))
+}
+
 fn main() -> anyhow::Result<()> {
     // Stesso belt-and-suspenders di sws-runtime/src/main.rs: rustls 0.23 va in
     // panic se più provider crypto finiscono nel grafo delle dipendenze
@@ -565,14 +599,26 @@ fn run_window(
     let (draw_w, draw_h) = window.drawable_size();
     let (pos_x, pos_y) = window.position();
     eprintln!("[sdl2] geometria: pagina {hor_res}x{ver_res}, finestra {win_w}x{win_h} a ({pos_x},{pos_y}), area disegnabile {draw_w}x{draw_h}");
-    if (win_w, win_h) != (hor_res, ver_res) || (draw_w, draw_h) != (hor_res, ver_res) {
+    // L'avviso solo quando la pagina è più GRANDE della finestra, che è
+    // l'unico caso in cui qualcosa si perde davvero. Una pagina più piccola
+    // viene centrata e si vede tutta: avvisare anche lì — com'era prima —
+    // faceva sembrare un guasto la situazione normale di un pannello
+    // 1920x1080 con una pagina 1280x800, e chi legge il log impara a ignorare
+    // gli avvisi.
+    if hor_res > win_w || ver_res > win_h || hor_res > draw_w || ver_res > draw_h {
         eprintln!(
-            "[sdl2] ATTENZIONE: chiesti {hor_res}x{ver_res} ma la finestra è {win_w}x{win_h} \
-             — il blit viene ritagliato all'intersezione, la pagina può risultare tagliata"
+            "[sdl2] ATTENZIONE: la pagina è {hor_res}x{ver_res} ma la finestra è {win_w}x{win_h} \
+             — quello che avanza NON si vede, la pagina risulta tagliata"
         );
     }
     if (pos_x, pos_y) != (0, 0) {
         eprintln!("[sdl2] ATTENZIONE: la finestra non è all'angolo ma a ({pos_x},{pos_y}) — il window manager ha ignorato la richiesta");
+    }
+    // Calcolato una volta: la finestra non cambia dimensione per tutta la
+    // sessione (è a schermo intero su un pannello).
+    let (off_x, off_y) = page_offset(hor_res, ver_res, win_w, win_h);
+    if (off_x, off_y) != (0, 0) {
+        eprintln!("[sdl2] pagina centrata con un margine di ({off_x},{off_y}) px — come fa il viewer web");
     }
     eprintln!("finestra SDL2 aperta — click/drag sui widget interattivi, chiudi la finestra o premi Esc per uscire");
 
@@ -586,15 +632,26 @@ fn run_window(
             match event {
                 Event::Quit { .. } | Event::KeyDown { keycode: Some(Keycode::Escape), .. } => break 'running,
                 Event::MouseButtonDown { x, y, mouse_btn: MouseButton::Left, .. } => {
-                    mouse_pressed = true;
-                    lvgl_indev::set_pointer_state(x, y, mouse_pressed);
+                    if let Some((px, py)) = pointer_to_page(x, y, off_x, off_y, hor_res, ver_res) {
+                        mouse_pressed = true;
+                        lvgl_indev::set_pointer_state(px, py, mouse_pressed);
+                    }
                 }
                 Event::MouseButtonUp { x, y, mouse_btn: MouseButton::Left, .. } => {
+                    // Il rilascio si consegna SEMPRE, anche fuori dalla pagina:
+                    // trascinando uno slider fuori dal bordo e rilasciando lì,
+                    // ignorare il rilascio lascerebbe LVGL convinto che il dito
+                    // sia ancora premuto — e lo slider seguirebbe il puntatore
+                    // per il resto della sessione.
                     mouse_pressed = false;
-                    lvgl_indev::set_pointer_state(x, y, mouse_pressed);
+                    let (px, py) = pointer_to_page(x, y, off_x, off_y, hor_res, ver_res)
+                        .unwrap_or(((x - off_x).clamp(0, hor_res as i32 - 1), (y - off_y).clamp(0, ver_res as i32 - 1)));
+                    lvgl_indev::set_pointer_state(px, py, mouse_pressed);
                 }
                 Event::MouseMotion { x, y, .. } => {
-                    lvgl_indev::set_pointer_state(x, y, mouse_pressed);
+                    if let Some((px, py)) = pointer_to_page(x, y, off_x, off_y, hor_res, ver_res) {
+                        lvgl_indev::set_pointer_state(px, py, mouse_pressed);
+                    }
                 }
                 _ => {}
             }
@@ -742,8 +799,15 @@ fn run_window(
             // XWayland qui.
             let (dst_w, dst_h) = (window_surface.width(), window_surface.height());
             let src_rect = sdl2::rect::Rect::new(0, 0, hor_res.min(dst_w), ver_res.min(dst_h));
+            // Centrata, non in alto a sinistra: è ciò che fa il viewer web, che
+            // mette la pagina in un contenitore `align/justify: center`. Una
+            // pagina 1280x800 su un pannello 1920x1080 appariva centrata nel
+            // browser e schiacciata nell'angolo sul dispositivo — la stessa
+            // pagina, due posti diversi.
+            let (off_x, off_y) = page_offset(hor_res, ver_res, dst_w, dst_h);
+            let dst_rect = sdl2::rect::Rect::new(off_x, off_y, src_rect.width(), src_rect.height());
             src_surface
-                .blit(src_rect, &mut window_surface, src_rect)
+                .blit(src_rect, &mut window_surface, dst_rect)
                 .map_err(|e| anyhow::anyhow!("blit: {e}"))?;
             window_surface
                 .update_window()
@@ -770,6 +834,52 @@ fn run_window(
 
 #[cfg(test)]
 mod tests {
+    /// Il caso vero: pagina 1280x800 della demo su un pannello 1920x1080.
+    /// Prima finiva nell'angolo, mentre il browser la centrava.
+    #[test]
+    fn la_pagina_si_centra_nella_finestra() {
+        assert_eq!(super::page_offset(1280, 800, 1920, 1080), (320, 140));
+    }
+
+    #[test]
+    fn combaciando_non_ce_margine() {
+        assert_eq!(super::page_offset(1920, 1080, 1920, 1080), (0, 0));
+    }
+
+    /// Una pagina più grande della finestra parte dall'angolo: un margine
+    /// negativo taglierebbe anche il lato opposto, nascondendo il doppio.
+    #[test]
+    fn una_pagina_piu_grande_dello_schermo_resta_nellangolo() {
+        assert_eq!(super::page_offset(2560, 1440, 1920, 1080), (0, 0));
+    }
+
+    #[test]
+    fn il_tocco_viene_traslato_nello_spazio_pagina() {
+        // Il centro dello schermo è il centro della pagina.
+        assert_eq!(super::pointer_to_page(960, 540, 320, 140, 1280, 800), Some((640, 400)));
+        // L'angolo in alto a sinistra della pagina disegnata.
+        assert_eq!(super::pointer_to_page(320, 140, 320, 140, 1280, 800), Some((0, 0)));
+    }
+
+    /// I margini attorno alla pagina non contengono niente da toccare.
+    /// Consegnarli comunque produceva 314 avvisi per sessione sul WP630.
+    #[test]
+    fn i_tocchi_fuori_dalla_pagina_si_scartano() {
+        for (x, y, dove) in [(10, 540, "margine sinistro"), (1900, 540, "margine destro"),
+                             (960, 10, "margine alto"), (960, 1070, "margine basso")] {
+            assert_eq!(super::pointer_to_page(x, y, 320, 140, 1280, 800), None, "{dove}");
+        }
+    }
+
+    /// Il bordo destro/inferiore è esclusivo: l'ultimo pixel valido è
+    /// `page_w - 1`, e accettare `page_w` rimetterebbe l'avviso che si voleva
+    /// togliere.
+    #[test]
+    fn il_bordo_e_esclusivo() {
+        assert_eq!(super::pointer_to_page(320 + 1279, 140 + 799, 320, 140, 1280, 800), Some((1279, 799)));
+        assert_eq!(super::pointer_to_page(320 + 1280, 140 + 799, 320, 140, 1280, 800), None);
+    }
+
     use super::{drm_backend_blocker, resolve_touch_device};
 
     /// Il caso normale su un Pixsys sano: entrambi i symlink esistono e va
