@@ -2066,5 +2066,16 @@ Le strade, che costano molto diversamente:
 La 3 non regge da sola come risposta; può però servire *insieme* alla 1, per i caratteri che
 restano fuori dal sottoinsieme scelto.
 
+**Una seconda conseguenza, misurata sul WP630 il 2026-08-27**: l'avviso non esce una volta per
+testo, esce **a ogni ridisegno di ogni carattere mancante**. Sulla pagina "Grafici e tabelle" il
+log del viewer è arrivato a **12.490 righe in poco più di un minuto**, di cui il **91%**
+`glyph dsc. not found`. L'effetto pratico non è il rumore: è che le righe d'avvio — quelle che
+dicono quanti oggetti sono stati creati e quali scartati — **non erano più recuperabili dopo un
+minuto**. Il difetto che nasconde le diagnosi è peggio del difetto tipografico.
+
+Quindi, qualunque strada si scelga per il font, vale la pena **strozzare l'avviso** (una volta per
+carattere per pagina, non per ridisegno). È indipendente dalle tre opzioni qui sopra e si può fare
+subito.
+
 Nel frattempo i template della demo restano com'è: **riscriverli per aggirare il problema lo
 nasconderebbe**, ed è il difetto stesso che va visto.

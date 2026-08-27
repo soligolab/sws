@@ -40,21 +40,35 @@ del gauge centrato.
 Provato anche nel verso rotto: puntando l'immagine a un file inesistente
 compaiono le righe `[svg] …` e il segnaposto tratteggiato.
 
-### ⚠️ Il pannello gira su un binario montato a mano
+### Il WP630 gira sulla 2.2.0, dall'immagine
 
-Il WP630 esegue il container **`lvgl-test`**, creato a mano con il binario
-nuovo bind-montato da `/tmp/sws-lvgl-viewer-d2b`. **`/tmp` si svuota al
-riavvio**: al primo reboot il container non riparte.
+Aggiornato il 2026-08-27 con `./install-container.sh --pull`. **Niente più binari montati a mano**:
+i file in `/tmp` sono stati cancellati e i container `lvgl-test`/`lvgl-x11` rimossi.
 
-Il container originale `lvgl-view` (immagine 2.1.1) è solo **fermo**, non
-rimosso — si torna indietro con `podman start lvgl-view`.
+Verificato dalla fonte autorevole, non dai log dello script:
 
-**Da fare**: ricompilare e pubblicare l'immagine container 2.2.0, poi
-`./install-container.sh --pull` sul device e rimuovere `lvgl-test`.
+| | |
+|---|---|
+| Digest dell'immagine sul device | `sha256:96d8e7ae…`, **identico** a `2.2.0-arm64` sul registry |
+| `latest-arm64` → `2.2.0-arm64` | stesso digest (il controllo che scoprì il guaio della 2.1.1) |
+| Viewer dentro l'immagine | dichiara `sws-lvgl-viewer 2.2.0` |
+| Binario | 6.153.064 byte (baseline senza resvg: 4.823.912) |
+| Prova funzionale | `bitmap SVG di questa pagina: 94 KB`, `o_image` e `o_symbol3` disegnati, zero righe `[svg]` |
+| "Grafici e tabelle" | **46 s senza crash** — con la 2.1.1 usciva con SIGSEGV in 20 s |
+| Memoria | 10,3–11,1 MB su 2,08 GB |
 
-Anche il progetto `DemoItemsLVGL` sul device è stato modificato a mano
-(aggiunti `c_image`/`o_image`/`o_symbol3`, come nel template aggiornato). Il
-file originale è in `Base e comandi.yaml.prima-di-d2`.
+Un controllo che avevo scritto era falso e va ricordato: `strings` **non esiste dentro
+l'immagine**, quindi "0 stringhe SVG nel binario" non significava nulla. La prova che regge è
+quella funzionale.
+
+### ⚠️ Il viewer LVGL non riparte dopo un riavvio
+
+`lvgl-view` è creato con `podman run -d`, senza unit systemd: dopo il reboot di stanotte era
+`Exited (0)`, e solo `sws-runtime` è tornato su (quello ha il suo quadlet). Non è una regressione
+di oggi — è così da sempre — ma finché il viewer LVGL è la superficie che si prova sul pannello,
+ogni riavvio richiede di riavviarlo a mano.
+
+Da decidere se merita un quadlet come `sws-runtime.container`.
 
 ### Difetti trovati strada facendo
 
