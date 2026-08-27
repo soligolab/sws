@@ -1285,7 +1285,7 @@ fn create_anchored_label(
     let st = styles.last_mut().expect("appena inserito");
     ancora.add_style(Part::Main, st).map_err(|e| anyhow::anyhow!("add_style: {e:?}"))?;
 
-    let mut label = Label::create(&mut ancora).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
+    let label = Label::create(&mut ancora).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
     unsafe {
         lvgl_sys::lv_obj_set_align(
             label.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?.as_ptr(),

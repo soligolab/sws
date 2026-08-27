@@ -8,120 +8,51 @@
 
 ## ▶ Da fare nella prossima sessione
 
-### 2.2.0 rilasciata — D2 confermata sul pannello
+### 1. Test di installazione da zero sul WP630 (deciso il 2026-08-27)
 
-Branch `feat/d2-svg-lvgl`, squashato su `main`. Il viewer LVGL disegna simboli
-*vendored*, simboli custom e il widget `image` rasterizzando l'SVG con `resvg`.
+Il maintainer fa un **factory reset** del dispositivo, poi si prova
+l'installazione partendo da niente. È il primo test vero dell'installer da
+quando ha imparato a installare anche la commutazione web/LVGL — e quel pezzo
+si è già rotto una volta proprio sul dispositivo (vedi sotto).
 
-**Le due misure che il gate D2 chiedeva, prese prima di cablare qualsiasi cosa:**
+Lista di controllo, in ordine:
 
-| | |
-|---|---|
-| Binario aarch64 | 4.823.912 → **6.148.760** byte (**+1,26 MB, +27,5%**) |
-| 20 bitmap 128x128 tenute insieme | 1,3 MB di bitmap, RSS 11,5 MB |
-| Velocità | 0,1 ms per icona |
-| **Sul WP630, misurato** | **10,68 MB su 2,08 GB — lo 0,5% della RAM** |
+| | Cosa | Cosa deve succedere |
+|---|---|---|
+| 1 | `install-container.sh --pull` da zero | 6 passi verdi, `/health` risponde |
+| 2 | Le unit installate | `sws-runtime.container`, `sws-lvgl-viewer.container`, `sws-display.service`, `sws-display.path` |
+| 3 | `sws-display.path` attiva | `systemctl --user is-active sws-display.path` → `active` |
+| 4 | Nessun progetto ancora | `display-target` **non esiste**, e lo schermo NON cambia (deve dirlo nel log) |
+| 5 | Carica un progetto `target: web` | Chromium acceso, viewer LVGL spento |
+| 6 | Carica un progetto `target: lvgl_framebuffer` | Chromium spento, viewer LVGL acceso, pagina disegnata |
+| 7 | **Riavvia il dispositivo** | Dopo il boot lo schermo torna da sé sul motore giusto — è il caso che prima non funzionava |
+| 8 | Il viewer parte senza `--page` | Prima pagina o home page del progetto, nessuna toppa nella unit |
+| 9 | Gli accenti | `più` e `—` leggibili, zero `glyph dsc. not found` nel log |
 
-Il +27,5% sul binario, che in percentuale spaventa, in assoluto sul dispositivo
-non si sente.
+**Trappole note, da verificare esplicitamente:**
 
-Trappola da ricordare: la **prima** misura diceva +443 KB. Era falsa — la
-funzione non era ancora chiamata da nessuno e il linker l'aveva eliminata. Il
-costo vero si vede solo con un punto di chiamata reale.
+- L'installer gira **dentro** la directory in cui installa: `install` copiava un file su sé stesso
+  e `set -e` fermava tutto **dopo** aver rimosso il container del runtime. Corretto, ma è il
+  percorso che solo il dispositivo esercita.
+- La toppa `--page "Base e comandi"` nella unit del viewer **sparisce col factory reset**, ed è
+  giusto così: serviva solo perché l'immagine 2.2.0 pretendeva quell'argomento. Con la 2.3.0 non
+  serve più. Se ricompare, qualcuno ha reinstallato una unit vecchia.
 
-Le bitmap stanno in memoria del **processo**, non nel pool da 1 MB di LVGL:
-`LV_MEM_SIZE` non regge una pagina di simboli, e un pool esaurito in LVGL
-fallisce in silenzio (la lezione di Q22).
+### 2. Cosa aspetta ancora una conferma a schermo
 
-**Confermato a schermo dal maintainer sul WP630 il 2026-08-26**: i tre simboli
-(due builtin + uno vendored), il logo SVG, la pipe che si riempie e il numero
-del gauge centrato.
+Da tre sessioni: il **pull del progetto dall'IDE**, la **sezione Python unificata**, il **colore
+del testo derivato dallo sfondo pagina**. Sono lavori finiti che nessuno ha mai guardato.
 
-Provato anche nel verso rotto: puntando l'immagine a un file inesistente
-compaiono le righe `[svg] …` e il segnaposto tratteggiato.
+### 3. Il divario che resta fra web e LVGL
 
-### Il WP630 gira sulla 2.2.0, dall'immagine
+`model.rs` dichiara 238 campi, `lvgl_render.rs` ne nomina 124: **112 non sono disegnati**. La
+lista si ricava con un comando (confronto dei nomi fra i due file), non a memoria.
 
-Aggiornato il 2026-08-27 con `./install-container.sh --pull`. **Niente più binari montati a mano**:
-i file in `/tmp` sono stati cancellati e i container `lvgl-test`/`lvgl-x11` rimossi.
+I più pesanti, a giudizio: `opacity`, `z_index`, `blink_*`, `stale_after_s`, `quality_dot*`,
+`pipe_flow`, `symbol_spin*`, e `from_obj_id`/`to_obj_id` — le pipe agganciate agli oggetti invece
+che a punti espliciti, che sul pannello finiscono nel posto sbagliato.
 
-Verificato dalla fonte autorevole, non dai log dello script:
-
-| | |
-|---|---|
-| Digest dell'immagine sul device | `sha256:96d8e7ae…`, **identico** a `2.2.0-arm64` sul registry |
-| `latest-arm64` → `2.2.0-arm64` | stesso digest (il controllo che scoprì il guaio della 2.1.1) |
-| Viewer dentro l'immagine | dichiara `sws-lvgl-viewer 2.2.0` |
-| Binario | 6.153.064 byte (baseline senza resvg: 4.823.912) |
-| Prova funzionale | `bitmap SVG di questa pagina: 94 KB`, `o_image` e `o_symbol3` disegnati, zero righe `[svg]` |
-| "Grafici e tabelle" | **46 s senza crash** — con la 2.1.1 usciva con SIGSEGV in 20 s |
-| Memoria | 10,3–11,1 MB su 2,08 GB |
-
-Un controllo che avevo scritto era falso e va ricordato: `strings` **non esiste dentro
-l'immagine**, quindi "0 stringhe SVG nel binario" non significava nulla. La prova che regge è
-quella funzionale.
-
-### ⚠️ Il viewer LVGL non riparte dopo un riavvio
-
-`lvgl-view` è creato con `podman run -d`, senza unit systemd: dopo il reboot di stanotte era
-`Exited (0)`, e solo `sws-runtime` è tornato su (quello ha il suo quadlet). Non è una regressione
-di oggi — è così da sempre — ma finché il viewer LVGL è la superficie che si prova sul pannello,
-ogni riavvio richiede di riavviarlo a mano.
-
-Da decidere se merita un quadlet come `sws-runtime.container`.
-
-### Q25 — la commutazione web/LVGL funziona, provata sul WP630
-
-Il progetto decide, il browser è la rete di sicurezza. Tre pezzi:
-
-1. **Il runtime** traduce `target.kind` in `<config_dir>/display-target` (`web`|`lvgl`).
-2. **`sws-display.path`** osserva quel file; **`sws-display.service`** lancia
-   `sws-display-apply.sh`, che ferma/avvia il browser (unit di sistema) e il viewer (unit utente).
-3. **`sws-lvgl-viewer.container`** è un quadlet **senza `WantedBy=`**: non parte da sé, lo decide
-   `sws-display`. Se partisse da solo, browser e viewer si ritroverebbero accesi insieme e
-   sovrapposti — che è com'era prima.
-
-Installate da `install-container.sh` come unit **utente**: niente `sudo`, niente modificato nell'OS
-Pixsys.
-
-**Provata end-to-end**: cambiando `target` nel progetto e riaprendolo, lo schermo passa da LVGL al
-browser e torna indietro **da solo**, in una decina di secondi.
-
-Due difetti trovati provando i casi di guasto, non leggendo:
-
-- **Il ripiego non scattava mai.** Con `set -e`, un `systemctl start` fallito **termina lo script**
-  prima del blocco di ripiego — cioè l'unico caso per cui quel blocco esiste era l'unico non
-  coperto.
-- **L'installer si interrompeva a metà sul dispositivo.** Là gira *dentro* la directory in cui
-  installa, quindi `install` copiava un file su sé stesso, falliva, e `set -e` fermava tutto **dopo**
-  che il container del runtime era già stato rimosso. Da un checkout del repo non succede mai.
-
-### ⚠️ Toppa temporanea sul WP630
-
-L'immagine pubblicata è la **2.2.0**, il cui viewer pretende ancora `--page`. Il quadlet non lo
-passa (di proposito), quindi il viewer non partiva e **il pannello è rimasto nero** finché non ho
-messo una toppa: `--page "Base e comandi"` aggiunto a mano in
-`~/.config/containers/systemd/sws-lvgl-viewer.container` sul dispositivo. La versione originale è
-accanto, in `sws-lvgl-viewer.container.senza-page`.
-
-**Da fare**: pubblicare un'immagine con il `--page` opzionale, poi togliere la toppa.
-
-### La mappa vera del divario web/LVGL
-
-Contando i campi che `model.rs` dichiara e che `lvgl_render.rs` non nomina mai:
-**124 usati su 238, 114 mai**. È l'elenco onesto di cosa il pannello ancora non disegna, e si
-ricava in un comando invece che a memoria.
-
-Il primo della lista era `font_size`, ora chiuso: 40 oggetti della sola demo lo usano (12, 19,
-22 px) e uscivano tutti a 14. Le didascalie più grandi del voluto, i titoli più piccoli — la
-pagina si vedeva, quindi nessuno la chiamava rotta: era solo diversa da come l'aveva disegnata chi
-l'ha fatta. **Prima di FreeType non era implementabile**: LVGL compila un font per corpo, e ce
-n'era uno solo.
-
-Fra i 113 rimasti, quelli che a occhio pesano di più: `opacity`, `z_index`, `blink_*`,
-`text_anchor`/`text_valign`/`text_wrap`, `stale_after_s`, `quality_dot*`, `pipe_flow`,
-`symbol_spin*`, e `from_obj_id`/`to_obj_id` (le pipe agganciate agli oggetti invece che a punti
-espliciti).
+---
 
 ### Difetti trovati strada facendo
 

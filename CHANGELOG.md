@@ -11,6 +11,38 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+## [2.3.0] — 2026-08-27
+
+- **Il pannello sceglie da solo fra la vista web e quella LVGL.** Il progetto
+  dichiara per quale delle due è fatto, e caricandolo sul dispositivo lo schermo
+  si adegua: niente da configurare a mano, e la scelta segue il progetto anche
+  dopo un riavvio. Se la vista web non parte, il pannello mostra comunque quella
+  LVGL invece di restare nero — e nel registro c'è scritto che è successo.
+- **Il pannello scrive in italiano.** Le lettere accentate non venivano
+  disegnate affatto: "più", "però", "perché" si vedevano mutilate, e al posto
+  del trattino lungo compariva un rettangolo. Il difetto era invisibile a chi
+  scriveva i testi, perché nel browser dell'IDE si vedevano giusti.
+- **I testi hanno la dimensione e la posizione che hanno nell'IDE.** La misura
+  del carattere veniva ignorata (tutto usciva della stessa taglia: le didascalie
+  troppo grandi, i titoli troppo piccoli) e i testi centrati o allineati a
+  destra uscivano allineati a sinistra. Nei modelli inclusi sono 313 testi.
+- **La pagina è centrata nello schermo**, come nel browser, invece di stare
+  nell'angolo in alto a sinistra. E il tocco la segue: prima, su uno schermo più
+  grande della pagina, toccare un pulsante disegnato al centro non funzionava.
+- **Gli ultimi tre oggetti mancanti** — riquadro KPI, registro dati e storico
+  allarmi — ora si vedono anche sul pannello. Qualunque pagina disegnata
+  nell'IDE si vede ora su entrambi.
+- **La tubazione mostra quanto è piena**, non solo se lo è (era già nella
+  2.2.0 per il web; ora anche il livello avanza dal vivo).
+- **Il registro del pannello torna leggibile.** Un singolo avviso ripetuto lo
+  riempiva a 10.000 righe al minuto, cancellando le informazioni di avvio: ora i
+  messaggi che si ripetono si stampano con parsimonia e alla fine c'è un
+  riepilogo di quante volte.
+- **Correzioni**: un campo del progetto, una volta impostato, non poteva più
+  essere cancellato; l'immagine di esempio puntava a un file inesistente; il
+  riempimento "dalla fine all'inizio" partiva dal capo sbagliato.
+
+
 ## [2.2.0] — 2026-08-26
 
 - **La tubazione ora mostra quanto è piena, non solo se lo è.** Il tubo si

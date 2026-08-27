@@ -4203,7 +4203,7 @@ dependencies = [
 
 [[package]]
 name = "sws-audit"
-version = "2.2.0"
+version = "2.3.0"
 dependencies = [
  "anyhow",
  "hmac 0.12.1",
@@ -4216,7 +4216,7 @@ dependencies = [
 
 [[package]]
 name = "sws-auth"
-version = "2.2.0"
+version = "2.3.0"
 dependencies = [
  "anyhow",
  "argon2",
@@ -4229,7 +4229,7 @@ dependencies = [
 
 [[package]]
 name = "sws-core"
-version = "2.2.0"
+version = "2.3.0"
 dependencies = [
  "anyhow",
  "serde",
@@ -4241,7 +4241,7 @@ dependencies = [
 
 [[package]]
 name = "sws-historian"
-version = "2.2.0"
+version = "2.3.0"
 dependencies = [
  "anyhow",
  "rusqlite",
@@ -4255,7 +4255,7 @@ dependencies = [
 
 [[package]]
 name = "sws-lvgl-viewer"
-version = "2.2.0"
+version = "2.3.0"
 dependencies = [
  "anyhow",
  "bindgen",
@@ -4278,7 +4278,7 @@ dependencies = [
 
 [[package]]
 name = "sws-plugin-enip"
-version = "2.2.0"
+version = "2.3.0"
 dependencies = [
  "anyhow",
  "rseip",
@@ -4291,7 +4291,7 @@ dependencies = [
 
 [[package]]
 name = "sws-plugin-homeassistant"
-version = "2.2.0"
+version = "2.3.0"
 dependencies = [
  "anyhow",
  "futures-util",
@@ -4307,7 +4307,7 @@ dependencies = [
 
 [[package]]
 name = "sws-plugin-modbus"
-version = "2.2.0"
+version = "2.3.0"
 dependencies = [
  "anyhow",
  "serde",
@@ -4321,7 +4321,7 @@ dependencies = [
 
 [[package]]
 name = "sws-plugin-mqtt"
-version = "2.2.0"
+version = "2.3.0"
 dependencies = [
  "anyhow",
  "prost",
@@ -4337,7 +4337,7 @@ dependencies = [
 
 [[package]]
 name = "sws-plugin-opcua"
-version = "2.2.0"
+version = "2.3.0"
 dependencies = [
  "anyhow",
  "async-opcua",
@@ -4351,7 +4351,7 @@ dependencies = [
 
 [[package]]
 name = "sws-plugin-s7"
-version = "2.2.0"
+version = "2.3.0"
 dependencies = [
  "anyhow",
  "byteorder",
@@ -4365,7 +4365,7 @@ dependencies = [
 
 [[package]]
 name = "sws-pyscript"
-version = "2.2.0"
+version = "2.3.0"
 dependencies = [
  "anyhow",
  "pyo3",
@@ -4378,7 +4378,7 @@ dependencies = [
 
 [[package]]
 name = "sws-runtime"
-version = "2.2.0"
+version = "2.3.0"
 dependencies = [
  "anyhow",
  "axum 0.7.9",
@@ -4410,7 +4410,7 @@ dependencies = [
 
 [[package]]
 name = "sws-web"
-version = "2.2.0"
+version = "2.3.0"
 dependencies = [
  "anyhow",
  "axum 0.7.9",
