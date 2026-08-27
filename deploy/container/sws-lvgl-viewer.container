@@ -1,0 +1,65 @@
+# Quadlet unit per il viewer LVGL in container podman (rootless).
+#
+# Installato da `install-container.sh` in
+#   ~/.config/containers/systemd/sws-lvgl-viewer.container
+# da cui systemd genera `sws-lvgl-viewer.service`.
+#
+# NON si avvia da sé: manca di proposito `[Install] WantedBy=`.
+#
+# È `sws-display.service` a deciderlo, leggendo `display-target` (Q25) — cioè
+# il file in cui il runtime scrive quale motore il progetto vuole a schermo.
+# Se questa unit si avviasse per conto suo, al boot si ritroverebbero il
+# browser e il viewer accesi insieme, sovrapposti sullo stesso schermo: è
+# esattamente com'era prima che questo meccanismo esistesse.
+#
+# Comandi (come utente, senza sudo):
+#   systemctl --user status  sws-lvgl-viewer
+#   journalctl --user -u sws-lvgl-viewer -f
+
+[Unit]
+Description=SWS viewer LVGL (container podman)
+# Il runtime deve esserci: il viewer legge da lui pagine, tag e allarmi. Non
+# `Requires=`, perché un viewer che aspetta è meglio di un viewer che non parte:
+# il runtime può tardare qualche secondo dopo un riavvio.
+After=sws-runtime.service
+Wants=sws-runtime.service
+
+[Container]
+Image=ghcr.io/soligolab/sws-runtime:latest-arm64
+ContainerName=sws-lvgl-viewer
+Entrypoint=sws-lvgl-viewer
+
+# Nessun `--page`: si parte dalla home page dichiarata dal progetto, e in
+# mancanza dalla prima pagina in elenco.
+#
+# Un nome di pagina cablato qui sarebbe un difetto in attesa: al primo progetto
+# diverso punterebbe a una pagina che non esiste, il viewer non partirebbe, e
+# il nome sbagliato non comparirebbe da nessuna parte se non dentro questa
+# riga. È quello che è successo davvero sul WP630, con `--page "Grafici e
+# tabelle"` scritto a mano.
+Exec=--base-url http://127.0.0.1:8443
+
+# Rete host: il viewer parla col runtime su 127.0.0.1.
+Network=host
+# L'IPC condiviso serve alla memoria condivisa di X11/XWayland: senza, SDL2
+# ripiega su un trasferimento immagine molto più lento.
+PodmanArgs=--ipc=host --userns=keep-id
+
+# Lo schermo del pannello: XWayland su Weston. Il socket X11 e la runtime dir
+# dell'utente vanno montati, altrimenti il viewer non trova nessun display.
+Volume=/tmp/.X11-unix:/tmp/.X11-unix
+Volume=/run/user/1000:/run/user/1000
+Environment=DISPLAY=:0
+Environment=XDG_RUNTIME_DIR=/run/user/1000
+# x11 e non wayland: il percorso Wayland nativo va in SIGSEGV su questo
+# hardware (docs/OPEN_QUESTIONS.md Q14). XWayland regge.
+Environment=SDL_VIDEODRIVER=x11
+
+[Service]
+# `on-failure` e non `always`: quando `sws-display` lo ferma perché il progetto
+# è passato al web, quella è un'uscita voluta e non va annullata da un riavvio
+# automatico.
+Restart=on-failure
+# Margine per il caso in cui Weston o il runtime non siano ancora pronti al
+# boot: il viewer esce, riprova, e alla terza o quarta trova tutto in piedi.
+RestartSec=5

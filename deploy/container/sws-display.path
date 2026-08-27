@@ -1,0 +1,27 @@
+# Osserva `display-target` e rilancia `sws-display.service` quando cambia (Q25).
+#
+# Installato da `install-container.sh` in
+#   ~/.config/systemd/user/sws-display.path
+#
+# È questo che rende la commutazione automatica: quando si carica sul
+# dispositivo un progetto con un `target` diverso, il runtime riscrive il file
+# e lo schermo segue, senza riavviare niente a mano.
+#
+# Il runtime **non riscrive un valore identico** (vedi
+# `sws-web/src/display_target.rs`): senza quella accortezza questa unit
+# scatterebbe a ogni salvataggio di una qualunque sezione del progetto, e lo
+# schermo lampeggerebbe ogni volta.
+
+[Unit]
+Description=SWS — osserva il motore richiesto dal progetto
+
+[Path]
+PathChanged=/data/user/sws/config/display-target
+# `PathChanged` da solo non scatta quando il file viene creato per la prima
+# volta su un dispositivo che non l'ha mai avuto: `PathExists` copre quel caso.
+# Insieme coprono sia il primo progetto caricato sia tutti quelli dopo.
+PathExists=/data/user/sws/config/display-target
+Unit=sws-display.service
+
+[Install]
+WantedBy=default.target

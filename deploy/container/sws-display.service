@@ -1,0 +1,38 @@
+# Applica il motore di rendering che il progetto chiede (Q25).
+#
+# Installato da `install-container.sh` in
+#   ~/.config/systemd/user/sws-display.service
+#
+# Parte in due occasioni, e servono entrambe:
+#  - all'avvio della sessione utente (`WantedBy=default.target`), perché dopo un
+#    riavvio lo schermo deve seguire il progetto senza che nessuno intervenga;
+#  - a ogni modifica di `display-target` (`sws-display.path`), perché il
+#    progetto può cambiare mentre il dispositivo è in servizio.
+#
+# Comandi (come utente, senza sudo):
+#   systemctl --user start sws-display        applica adesso
+#   journalctl --user -u sws-display -n 20    cosa ha deciso, e perché
+
+[Unit]
+Description=SWS — manda a schermo il motore che il progetto chiede
+# Il viewer LVGL è una finestra su Weston (via XWayland): senza compositore non
+# c'è schermo su cui mandarlo. `weston.service` è una unit di sistema e da una
+# unit utente non è ordinabile direttamente — ci pensa il ritardo qui sotto,
+# più il `Restart=on-failure` del viewer.
+After=sws-runtime.service
+
+[Service]
+Type=oneshot
+# Al boot la sessione utente parte prima che Weston abbia aperto XWayland. Non
+# è una gara che si possa vincere con un ordinamento, perché le due cose stanno
+# in gerarchie systemd diverse: si aspetta, e se non basta il viewer riprova da
+# sé ogni 5 secondi.
+ExecStartPre=/bin/sleep 5
+ExecStart=/data/user/sws-container/sws-display-apply.sh
+# `oneshot` con `RemainAfterExit=no`: l'unit non "resta attiva", ha finito il
+# suo lavoro. Serve così perché `sws-display.path` possa rilanciarla a ogni
+# modifica del file — una unit che risulta già attiva non verrebbe rilanciata.
+RemainAfterExit=no
+
+[Install]
+WantedBy=default.target

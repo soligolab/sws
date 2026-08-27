@@ -63,7 +63,22 @@ REGISTRY_REF_EXPLICIT=0
 NAME="sws-runtime"
 DATA="/data/user/sws"
 UNIT_DIR="$HOME/.config/containers/systemd"
-UNIT_SRC="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/sws-runtime.container"
+SRC_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+UNIT_SRC="$SRC_DIR/sws-runtime.container"
+
+# Q25 — commutazione fra motore web e motore LVGL.
+#
+# Il runtime scrive in `display-target` quale motore il progetto vuole a
+# schermo; queste tre cose, che stanno sull'host, lo applicano. Sono unit
+# **utente**, come il quadlet del runtime: niente sudo, niente modificato
+# nell'OS Pixsys.
+USER_UNIT_DIR="$HOME/.config/systemd/user"
+DISPLAY_UNITS=(sws-display.service sws-display.path)
+VIEWER_UNIT_SRC="$SRC_DIR/sws-lvgl-viewer.container"
+APPLY_SRC="$SRC_DIR/sws-display-apply.sh"
+# Lo script vive accanto all'installer sul dispositivo, non nella directory
+# dati: `sws-display.service` lo cerca a quel percorso fisso.
+APPLY_DST_DIR="/data/user/sws-container"
 
 IMAGE_ARCHIVE=""
 PULL=0
@@ -388,8 +403,65 @@ if [ "$AUTOSTART" -eq 1 ]; then
         echo "                Senza, il container NON riparte dopo il reboot." >&2
     fi
 
+    # ── Q25: commutazione web/LVGL comandata dal progetto ───────────────────
+    #
+    # Si installa sempre, anche su un dispositivo che userà solo il web: un
+    # progetto LVGL può arrivare domani, e allora il pannello lo mostra da sé.
+    # Il costo di averle installate e inerti è nullo — `sws-lvgl-viewer` non ha
+    # `WantedBy=`, quindi non parte finché non è `sws-display` a chiederlo.
+    #
+    # Mancano i sorgenti? Non è un motivo per far fallire l'installazione del
+    # runtime, che è la cosa importante: si avvisa e si va avanti. Chi copia
+    # solo `install-container.sh` e la unit del runtime — cosa che il README ha
+    # sempre permesso — deve continuare a ottenere un dispositivo funzionante.
+    if [ -f "$VIEWER_UNIT_SRC" ] && [ -f "$APPLY_SRC" ]; then
+        install -m 0644 "$VIEWER_UNIT_SRC" "$UNIT_DIR/sws-lvgl-viewer.container"
+        sed -i "s|^Image=.*|Image=$TAG|" "$UNIT_DIR/sws-lvgl-viewer.container"
+        [ "$DATA" != "/data/user/sws" ] && \
+            sed -i "s|^Volume=/data/user/sws/|Volume=$DATA/|" "$UNIT_DIR/sws-lvgl-viewer.container"
+
+        mkdir -p "$USER_UNIT_DIR" "$APPLY_DST_DIR"
+        # Sul dispositivo l'installer gira **dentro** la directory in cui
+        # installa (`/data/user/sws-container`), quindi sorgente e destinazione
+        # sono lo stesso file: `install` fallisce, e con `set -e` l'installazione
+        # si interrompe a metà — con il container del runtime già rimosso al
+        # passo 4. Succede solo sul dispositivo, mai da un checkout del repo.
+        if [ "$APPLY_SRC" != "$APPLY_DST_DIR/sws-display-apply.sh" ]; then
+            install -m 0755 "$APPLY_SRC" "$APPLY_DST_DIR/sws-display-apply.sh"
+        else
+            chmod 0755 "$APPLY_SRC"
+        fi
+        for u in "${DISPLAY_UNITS[@]}"; do
+            if [ -f "$SRC_DIR/$u" ]; then
+                install -m 0644 "$SRC_DIR/$u" "$USER_UNIT_DIR/$u"
+                # Il percorso dei dati è scritto nelle unit: se l'utente ha
+                # scelto un --data diverso, va riscritto anche lì, altrimenti
+                # l'osservatore guarda un file che nessuno scrive mai — e non
+                # commuterebbe niente, in silenzio.
+                [ "$DATA" != "/data/user/sws" ] && \
+                    sed -i "s|/data/user/sws/config/|$DATA/config/|g" "$USER_UNIT_DIR/$u"
+            fi
+        done
+        sed -i "s|^ExecStart=.*|ExecStart=$APPLY_DST_DIR/sws-display-apply.sh|" \
+            "$USER_UNIT_DIR/sws-display.service" 2>/dev/null || true
+        echo "    commutazione web/LVGL installata (decide il progetto — vedi Q25)"
+        INSTALL_DISPLAY=1
+    else
+        echo "    NOTA: sorgenti della commutazione web/LVGL assenti, salto quel pezzo." >&2
+        echo "          Il runtime funziona lo stesso; il pannello non commuterà da sé." >&2
+        INSTALL_DISPLAY=0
+    fi
+
     systemctl --user daemon-reload
     systemctl --user start "$NAME"
+    if [ "${INSTALL_DISPLAY:-0}" -eq 1 ]; then
+        # `enable` e non `start` sulla .path: deve esserci anche dopo un
+        # riavvio, ed è il suo scatto — non questo comando — a mandare a
+        # schermo il motore giusto.
+        systemctl --user enable --now sws-display.path >/dev/null 2>&1 \
+            || echo "    ATTENZIONE: sws-display.path non attivata." >&2
+        systemctl --user enable sws-display.service >/dev/null 2>&1 || true
+    fi
 else
     echo "==> [5/6] avvio diretto (--no-autostart: non riparte dopo il reboot)"
     PORTS=(-p 8443:8443 -p 8444:8444)

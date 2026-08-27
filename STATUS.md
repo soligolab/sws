@@ -70,6 +70,42 @@ ogni riavvio richiede di riavviarlo a mano.
 
 Da decidere se merita un quadlet come `sws-runtime.container`.
 
+### Q25 — la commutazione web/LVGL funziona, provata sul WP630
+
+Il progetto decide, il browser è la rete di sicurezza. Tre pezzi:
+
+1. **Il runtime** traduce `target.kind` in `<config_dir>/display-target` (`web`|`lvgl`).
+2. **`sws-display.path`** osserva quel file; **`sws-display.service`** lancia
+   `sws-display-apply.sh`, che ferma/avvia il browser (unit di sistema) e il viewer (unit utente).
+3. **`sws-lvgl-viewer.container`** è un quadlet **senza `WantedBy=`**: non parte da sé, lo decide
+   `sws-display`. Se partisse da solo, browser e viewer si ritroverebbero accesi insieme e
+   sovrapposti — che è com'era prima.
+
+Installate da `install-container.sh` come unit **utente**: niente `sudo`, niente modificato nell'OS
+Pixsys.
+
+**Provata end-to-end**: cambiando `target` nel progetto e riaprendolo, lo schermo passa da LVGL al
+browser e torna indietro **da solo**, in una decina di secondi.
+
+Due difetti trovati provando i casi di guasto, non leggendo:
+
+- **Il ripiego non scattava mai.** Con `set -e`, un `systemctl start` fallito **termina lo script**
+  prima del blocco di ripiego — cioè l'unico caso per cui quel blocco esiste era l'unico non
+  coperto.
+- **L'installer si interrompeva a metà sul dispositivo.** Là gira *dentro* la directory in cui
+  installa, quindi `install` copiava un file su sé stesso, falliva, e `set -e` fermava tutto **dopo**
+  che il container del runtime era già stato rimosso. Da un checkout del repo non succede mai.
+
+### ⚠️ Toppa temporanea sul WP630
+
+L'immagine pubblicata è la **2.2.0**, il cui viewer pretende ancora `--page`. Il quadlet non lo
+passa (di proposito), quindi il viewer non partiva e **il pannello è rimasto nero** finché non ho
+messo una toppa: `--page "Base e comandi"` aggiunto a mano in
+`~/.config/containers/systemd/sws-lvgl-viewer.container` sul dispositivo. La versione originale è
+accanto, in `sws-lvgl-viewer.container.senza-page`.
+
+**Da fare**: pubblicare un'immagine con il `--page` opzionale, poi togliere la toppa.
+
 ### Difetti trovati strada facendo
 
 - **Nessun campo opzionale del progetto poteva essere cancellato** (2026-08-27).
