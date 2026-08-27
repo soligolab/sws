@@ -2133,7 +2133,47 @@ prima pagina. Senza questo non esiste una unit scrivibile una volta e valida per
 | **C** | Sorvegliante che osserva Chromium e commuta a caldo | Commuta anche a sessione avviata | Un pezzo in movimento in più |
 | **D** | L'installer sceglie una volta: abilita l'una o l'altra | Semplicissima, zero ambiguità | Non è "automatica" |
 
-**Raccomandazione: A**, con una precisazione onesta — A non è «in base al fatto che il browser sia
+### **Decided (2026-08-27)** — decide il progetto, il browser è la rete di sicurezza
+
+Il maintainer ha scelto una strada diversa dalle quattro qui sopra, e più coerente: **la commutazione
+avviene all'upload del progetto, comandata dal progetto stesso**, con **ripiego su LVGL se il
+servizio di Chromium non è avviato**.
+
+Due fatti raccolti sul WP630 la rendono realizzabile:
+
+1. **Il flag esiste già end-to-end.** `project.yaml` sul device dice `target: kind: lvgl_framebuffer`;
+   `ProjectTarget` è nel modello Rust (`sws-core/src/project.rs`) e nel TypeScript. **Nessuno lo
+   legge.** Non c'è un campo da inventare: c'è un campo da usare.
+2. **L'utente `user` può fermare e riavviare `chromium@main-app.service` senza `sudo`** — provato,
+   con ripristino verificato. Polkit è attivo e lo consente. Senza questo il disegno non stava in
+   piedi, perché quella unit è di sistema e non nostra.
+
+**L'ostacolo vero è un altro**: il runtime gira in un container rootless e **non può parlare col
+systemd dell'host**. Quindi non commuta lui: scrive *cosa vuole*, e un pezzo lato host agisce.
+
+**Struttura decisa:**
+
+1. Il runtime, quando un progetto viene aperto o sostituito (aggancio già esistente:
+   `signal_project_changed`), scrive lo stato desiderato in un file del volume condiviso —
+   `/var/sws/config/display-target` nel container, `/data/user/sws/config/display-target` sull'host —
+   con valore `web` o `lvgl`, derivato da `target.kind`.
+2. Sull'host una unit osserva quel file e applica: `lvgl` → ferma Chromium e avvia il container del
+   viewer; `web` → ferma il viewer e avvia Chromium, **e se Chromium non parte ripiega su LVGL**.
+3. La stessa unit gira una volta al boot, così lo schermo segue il progetto anche dopo un riavvio —
+   che chiude anche la vecchia voce «serve un quadlet per `lvgl-view`?».
+4. **Prerequisito, da fare per primo**: `--page` opzionale con ripiego su `home_page_id`. Senza,
+   la unit va cablata a una pagina che al cambio progetto non esiste più.
+
+Perché un file e non una chiamata diretta: il runtime non ha (e non deve avere) accesso al systemd
+dell'host. Un file su un volume già condiviso non aggiunge privilegi, è ispezionabile a mano quando
+qualcosa non torna, e sopravvive al riavvio del runtime.
+
+---
+
+*Le opzioni A-D restano qui sotto perché il ragionamento che le confronta vale ancora, e perché la
+scelta fatta ne eredita i vincoli.*
+
+**Raccomandazione al tempo dell'analisi: A**, con una precisazione onesta — A non è «in base al fatto che il browser sia
 avviato», è «in base al fatto che il browser sia *abilitato al boot*». Nella pratica coincidono,
 perché l'integratore disabilita il browser una volta e riavvia. Se serve la commutazione a caldo
 allora è C, ed è un lavoro diverso: meglio saperlo prima.
