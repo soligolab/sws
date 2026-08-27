@@ -827,6 +827,18 @@ async fn main() -> anyhow::Result<()> {
         sws_web::projects::start_project_services(&app_state, notifications, global_scripts).await;
     }
 
+    // Q25: quale motore vuole a schermo il progetto già aperto.
+    //
+    // Serve anche al boot, e non solo quando il progetto cambia: su un
+    // dispositivo in servizio il progetto è già aperto da prima del riavvio, e
+    // `signal_project_changed` — che è l'altro punto in cui si pubblica — non
+    // passa mai. Senza questa riga il file resterebbe fermo al valore scritto
+    // l'ultima volta che qualcuno ha toccato il progetto, e dopo un riavvio lo
+    // schermo seguirebbe una decisione vecchia.
+    if let Ok(dir) = sws_web::router::active_dir(&app_state).await {
+        sws_web::display_target::publish(&app_state.config_dir, &dir).await;
+    }
+
     // Runtime listener (synoptic, optional-auth): only started when --viewer-port is given.
     // Omitting --viewer-port starts in IDE-only mode (start_editor.sh on developer's PC).
     let runtime_listener: Option<TcpListener> = if let Some(vport) = args.viewer_port {

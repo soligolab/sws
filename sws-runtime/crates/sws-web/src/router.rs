@@ -3737,6 +3737,25 @@ struct WriteAck {
 pub fn signal_project_changed(s: &AppState, what: &str) {
     s.project_epoch.send_modify(|e| *e = e.wrapping_add(1));
     tracing::debug!(what, "progetto cambiato: notificati i viewer connessi");
+
+    // Q25: il progetto dichiara quale motore vuole a schermo, e il pezzo lato
+    // host lo legge da un file. Si aggiorna qui perché questo è l'unico punto
+    // per cui passa ogni sostituzione del progetto — apertura, import,
+    // ripristino di backup — invece di ripetere la stessa chiamata in tre
+    // gestori che possono divergere.
+    //
+    // In un task a parte: questa funzione è sincrona e viene chiamata da
+    // gestori che hanno già risposto o stanno per farlo. Far aspettare una
+    // risposta HTTP per una lettura di file e un confronto sarebbe pagare due
+    // volte per niente, e un errore qui non deve poter far fallire il
+    // salvataggio che l'ha provocata.
+    let config_dir = s.config_dir.clone();
+    let project_dir = s.project_dir.clone();
+    tokio::spawn(async move {
+        if let Some(dir) = project_dir.read().await.clone() {
+            crate::display_target::publish(&config_dir, &dir).await;
+        }
+    });
 }
 
 async fn ws_tags_handler(
