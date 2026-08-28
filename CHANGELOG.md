@@ -11,6 +11,22 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+## [2.3.1] — 2026-08-28
+
+- **La pagina di configurazione del pannello torna raggiungibile.** Sui prodotti
+  Pixsys, tenendo premuto il tasto STOP sullo schermo durante l'avvio si apre la
+  configurazione del dispositivo: è il modo con cui si rimette a posto un
+  pannello con la rete sbagliata. La 2.3.0 la copriva — compariva per un istante
+  e poi ci finiva sopra la schermata di SWS, lasciando il dispositivo non
+  configurabile. Ora SWS riconosce quella modalità e **non prende lo schermo**.
+  Il runtime però **continua a girare**: impianto, storico e allarmi non si
+  fermano perché qualcuno sta sistemando la rete.
+- **Installando SWS il pannello mostra SWS.** Finora l'indirizzo da mostrare
+  andava impostato a mano, e un ripristino di fabbrica lo riportava alla pagina
+  di configurazione: chi non lo sapeva installava SWS senza vederlo sullo
+  schermo.
+
+
 ## [2.3.0] — 2026-08-27
 
 - **Il pannello sceglie da solo fra la vista web e quella LVGL.** Il progetto
