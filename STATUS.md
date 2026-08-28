@@ -36,7 +36,28 @@ la 2.3.1, restano i tre in fondo:
 lavoro sul launcher: le unit partivano in qualunque modalità e la finestra LVGL
 finiva sopra Cockpit, rendendo il dispositivo non configurabile.
 
-### 2. Cosa aspetta ancora una conferma a schermo
+### 2. Chiedere il sudo all'inizio, non a metà build (chiesto il 2026-08-28)
+
+`build_containers_all.sh` costruisce in quest'ordine:
+
+```
+build_container.sh                  (SDK Pixsys — la più lunga, NON serve sudo)
+build_container_aarch64_generic.sh  (QEMU — l'UNICA che chiede sudo)
+build_container_x86_64.sh           (NON serve sudo)
+```
+
+Quindi la richiesta della password arriva **dopo** la build più lunga: chi lancia il comando deve
+restare a guardare. Basta spostare `build_container_aarch64_generic.sh` in testa all'array
+`SCRIPTS` (~riga 110) e il resto prosegue non supervisionato.
+
+**Perché riordinare e non `sudo -v` all'avvio**: la cache delle credenziali di sudo scade dopo ~15
+minuti, e la prima build ne dura molti di più. Un `sudo -v` iniziale sembrerebbe risolvere e poi
+richiederebbe la password lo stesso, a metà — cioè lo stesso difetto, ma più difficile da capire.
+
+Da valutare in corsa: cambiando l'ordine, una build interrotta lascia risultati parziali diversi
+(prima si otterrebbe la generic invece della Pixsys-tuned). Se conta, si dichiara nel commento.
+
+### 3. Cosa aspetta ancora una conferma a schermo
 
 Da tre sessioni: il **pull del progetto dall'IDE**, la **sezione Python unificata**, il **colore
 del testo derivato dallo sfondo pagina**. Sono lavori finiti che nessuno ha mai guardato.
