@@ -8,43 +8,33 @@
 
 ## ▶ Da fare nella prossima sessione
 
-### 1. Test di installazione da zero sul WP630 (deciso il 2026-08-27)
+### 1. Provare l'immagine 2.3.2 sul WP630
 
-Il maintainer fa un **factory reset** del dispositivo, poi si prova
-l'installazione partendo da niente. È il primo test vero dell'installer da
-quando ha imparato a installare anche la commutazione web/LVGL — e quel pezzo
-si è già rotto una volta proprio sul dispositivo (vedi sotto).
+Il dispositivo è stato **resettato di fabbrica** il 2026-08-28 e reinstallato
+dall'IDE (non a mano): quel percorso ora funziona per intero, ed è il primo test
+vero da cliente. Cosa la 2.3.2 sblocca rispetto a quello che c'è sul dispositivo:
 
-Lista di controllo, in ordine:
+| | |
+|---|---|
+| Deploy di un progetto | commuta lo schermo **da solo**, senza riavviare il runtime |
+| Template sul dispositivo | i template viaggiano **dentro l'immagine**: sul WP630 `enip-demo` e `sparkplug-demo` sono ancora quelli che non si aprono |
+
+Lista di controllo, in ordine — i primi nove passi sono già stati superati con
+la 2.3.1, restano i tre in fondo:
 
 | | Cosa | Cosa deve succedere |
 |---|---|---|
-| 1 | `install-container.sh --pull` da zero | 6 passi verdi, `/health` risponde |
-| 2 | Le unit installate | `sws-runtime.container`, `sws-lvgl-viewer.container`, `sws-display.service`, `sws-display.path` |
-| 3 | `sws-display.path` attiva | `systemctl --user is-active sws-display.path` → `active` |
-| 4 | Nessun progetto ancora | `display-target` **non esiste**, e lo schermo NON cambia (deve dirlo nel log) |
-| 5 | Carica un progetto `target: web` | Chromium acceso, viewer LVGL spento |
-| 6 | Carica un progetto `target: lvgl_framebuffer` | Chromium spento, viewer LVGL acceso, pagina disegnata |
-| 7 | **Riavvia il dispositivo** | Dopo il boot lo schermo torna da sé sul motore giusto — è il caso che prima non funzionava |
-| 8 | Il viewer parte senza `--page` | Prima pagina o home page del progetto, nessuna toppa nella unit |
-| 9 | Gli accenti | `più` e `—` leggibili, zero `glyph dsc. not found` nel log |
+| 1-9 | installazione da zero, unit, accenti, font | ✅ fatto il 2026-08-28 |
 | 10 | **Riavvio tenendo premuto STOP** (angolo in alto a **destra**, oltre 10 s) | Compare **Cockpit sulla 9443**, e il viewer LVGL **non** prende lo schermo |
 | 11 | Durante il 10 | `/health` risponde e lo storico continua: il runtime non si ferma |
 | 12 | Il log dice perché | `journalctl --user -u sws-display` contiene «il launcher è in modalità configurazione» |
 | 13 | Ritorno alla normalità | Riavvio senza toccare nulla → il pannello torna sul motore del progetto |
-| 14 | Il ripiego si annuncia | Su firmware < 2.1.0 il log dice «SetEnabled non disponibile… ripiego su systemctl» |
+| 14 | Deploy di un progetto **senza riavviare il runtime** | Lo schermo commuta da solo entro una decina di secondi |
+| 15 | Progetto da `enip-demo` creato **sul dispositivo** | Si apre e mostra la pagina di partenza coi tag del PLC |
 
-Il **passo 10 è quello che oggi fallisce**: le nostre unit partivano in qualunque modalità e la
-finestra LVGL finiva sopra Cockpit, rendendo il dispositivo non configurabile.
-
-**Trappole note, da verificare esplicitamente:**
-
-- L'installer gira **dentro** la directory in cui installa: `install` copiava un file su sé stesso
-  e `set -e` fermava tutto **dopo** aver rimosso il container del runtime. Corretto, ma è il
-  percorso che solo il dispositivo esercita.
-- La toppa `--page "Base e comandi"` nella unit del viewer **sparisce col factory reset**, ed è
-  giusto così: serviva solo perché l'immagine 2.2.0 pretendeva quell'argomento. Con la 2.3.0 non
-  serve più. Se ricompare, qualcuno ha reinstallato una unit vecchia.
+**Il passo 10 è quello che non è ancora stato provato**, ed è il motivo del
+lavoro sul launcher: le unit partivano in qualunque modalità e la finestra LVGL
+finiva sopra Cockpit, rendendo il dispositivo non configurabile.
 
 ### 2. Cosa aspetta ancora una conferma a schermo
 

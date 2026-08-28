@@ -2,7 +2,7 @@
 # Escluso dal workspace principale (vedi sws-runtime/Cargo.toml), quindi non può
 # ereditare da [workspace.package] come fanno gli altri crate — stesso motivo/pattern di sws-kiosk.
 name    = "sws-lvgl-viewer"
-version = "2.3.1"
+version = "2.3.2"
 edition = "2021"
 license = "AGPL-3.0-only"
 

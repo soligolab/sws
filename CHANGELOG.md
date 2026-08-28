@@ -11,6 +11,34 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+## [2.3.2] — 2026-08-28
+
+- **Caricando un progetto sul pannello, lo schermo si adegua da solo.** Nella
+  2.3.1 bisognava riavviare il runtime perché il pannello passasse dalla vista
+  web a quella LVGL o viceversa: il progetto veniva aperto, ma la richiesta di
+  cambiare schermata partiva un istante prima che il progetto risultasse
+  attivo, e andava a vuoto senza dire niente.
+- **Installando dall'IDE si installa tutto.** Mancavano i pezzi che fanno
+  commutare lo schermo: l'installazione riusciva, il runtime funzionava, e il
+  pannello restava senza commutazione — con una nota che scorreva via nel log.
+- **Un progetto creato da un modello non chiede più di essere aggiornato.**
+  Nasceva senza l'indicazione della versione che l'ha prodotto, e l'IDE lo
+  segnalava come vecchio al primo minuto di vita.
+- **Due modelli non si aprivano affatto.** "EtherNet/IP Demo" e "Sparkplug B
+  Demo" producevano un progetto che il runtime rifiutava di caricare. Erano così
+  da quando sono stati scritti: l'unico modo di accorgersene era provarli a
+  mano. Corretti, insieme a un allarme mal scritto che da solo faceva rifiutare
+  l'intero progetto.
+- **I modelli per PLC ora hanno una pagina di partenza** con i dati già
+  collegati: si accende il pannello e si vede subito se il PLC risponde. Prima
+  erano senza pagine, e sul pannello non si apriva nulla.
+- **Il pannello parte dalla pagina giusta.** Senza un'indicazione esplicita
+  apriva la prima in ordine alfabetico — per il modello dimostrativo era la
+  pagina degli allarmi invece di quella iniziale.
+- **Rifinitura**: nell'installazione, i pulsanti che scelgono la variante
+  dell'immagine ora si evidenziano quando sono selezionati.
+
+
 ## [2.3.1] — 2026-08-28
 
 - **La pagina di configurazione del pannello torna raggiungibile.** Sui prodotti
