@@ -2229,9 +2229,12 @@ trappole in `docs/TEST_SETUPS.md`.
 
 Due correzioni che ne discendono, entrambe già applicate:
 
-- il browser si comanda con `disable --now` invece di `stop`: uno `stop` non sopravvive al riavvio,
-  perché il symlink in `desktop.target.wants` resta e al boot successivo il browser torna su sotto
-  la finestra LVGL — un'intermittenza che si manifesta solo al riavvio;
+- il browser si comanda con `SetEnabled` via D-Bus, che è una **politica** letta dal launcher a
+  ogni avvio, più uno `stop` per la sessione in corso. Il metodo arriva con **PixsysOS 2.1.0**
+  (in lavorazione al 2026-08-28); sui firmware precedenti si ripiega su `systemctl disable --now`,
+  marcato `RIPIEGO` nello script perché si trovi e si tolga. Nel ripiego serve `disable` e non
+  `stop`: altrimenti il symlink in `desktop.target.wants` resta e al riavvio il browser torna su
+  sotto la finestra LVGL — un'intermittenza che si manifesta solo al riavvio;
 - lo script **aspetta un esito**, non un numero di secondi: al boot la sessione utente può partire
   prima che `desktop.target` sia salito, e guardare una volta sola scambierebbe un avvio lento per
   una modalità configurazione.

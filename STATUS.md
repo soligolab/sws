@@ -32,6 +32,7 @@ Lista di controllo, in ordine:
 | 11 | Durante il 10 | `/health` risponde e lo storico continua: il runtime non si ferma |
 | 12 | Il log dice perché | `journalctl --user -u sws-display` contiene «il launcher è in modalità configurazione» |
 | 13 | Ritorno alla normalità | Riavvio senza toccare nulla → il pannello torna sul motore del progetto |
+| 14 | Il ripiego si annuncia | Su firmware < 2.1.0 il log dice «SetEnabled non disponibile… ripiego su systemctl» |
 
 Il **passo 10 è quello che oggi fallisce**: le nostre unit partivano in qualunque modalità e la
 finestra LVGL finiva sopra Cockpit, rendendo il dispositivo non configurabile.

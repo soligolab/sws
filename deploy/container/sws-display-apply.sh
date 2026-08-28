@@ -58,6 +58,77 @@ viewer()  { [ "$DRY" = 1 ] && { log "farei: systemctl --user $* $VIEWER_UNIT"; r
 
 browser_attivo() { systemctl is-active --quiet "$BROWSER_UNIT"; }
 
+# ── Accendere e spegnere il browser del pannello ─────────────────────────────
+#
+# La via giusta è **D-Bus**: `net.pixsys.Config1.WebBrowser.SetEnabled` dice al
+# launcher Pixsys se abilitare il browser, e il launcher lo rilegge a ogni
+# avvio. È una *politica*, non un comando: sopravvive al riavvio perché è il
+# launcher stesso a rispettarla.
+#
+# Disponibile da **PixsysOS 2.1.0**. Sui firmware precedenti il metodo non
+# esiste (`Unknown method` — misurato sul WP630 il 2026-08-28), e si ripiega su
+# `systemctl disable/enable`, che la regola polkit `17-chromium.rules` concede
+# all'utente.
+#
+# **Il ripiego è temporaneo e va tolto** quando 2.1.0 sarà su tutti i prodotti:
+# è marcato `RIPIEGO` qui sotto perché si trovi cercando quella parola.
+pixsys_browser() {
+    busctl --system call net.pixsys.Config1 /net/pixsys/Config1/WebBrowser/MainApp \
+        net.pixsys.Config1.WebBrowser "$@" >/dev/null 2>&1
+}
+
+# `SetEnabled` c'è su questo firmware?
+#
+# Si accerta con `GetEnabled`, che è una lettura e non cambia niente: provare
+# direttamente con `SetEnabled` vorrebbe dire scoprirlo scrivendo.
+politica_browser_disponibile() {
+    command -v busctl >/dev/null 2>&1 && pixsys_browser GetEnabled
+}
+
+# Il browser non deve occupare lo schermo.
+#
+# Due passi distinti, e servono entrambi: la politica vale **dal prossimo
+# avvio**, perché è il launcher a leggerla; per *questa* sessione il browser va
+# comunque fermato.
+browser_spegni() {
+    if politica_browser_disponibile; then
+        if [ "$DRY" = 1 ]; then
+            log "farei: SetEnabled=false via D-Bus, poi stop del browser"
+            return 0
+        fi
+        pixsys_browser SetEnabled b false \
+            && log "browser disabilitato via D-Bus (il launcher lo rispetterà al prossimo avvio)" \
+            || log "SetEnabled fallita: il browser potrebbe tornare al riavvio"
+        browser stop
+    else
+        # RIPIEGO (PixsysOS < 2.1.0) — togliere quando 2.1.0 è ovunque.
+        #
+        # `disable --now` e non `stop`: senza `disable`, il symlink in
+        # `desktop.target.wants` resta e al riavvio il browser torna su sotto la
+        # finestra LVGL — un'intermittenza che si vede solo al riavvio.
+        log "SetEnabled non disponibile (PixsysOS < 2.1.0): ripiego su systemctl disable"
+        browser disable --now
+    fi
+}
+
+# Il browser deve tornare a occupare lo schermo.
+browser_accendi() {
+    if politica_browser_disponibile; then
+        if [ "$DRY" = 1 ]; then
+            log "farei: SetEnabled=true via D-Bus, poi start del browser"
+            return 0
+        fi
+        pixsys_browser SetEnabled b true \
+            && log "browser riabilitato via D-Bus" \
+            || log "SetEnabled fallita: il browser potrebbe non tornare al riavvio"
+        browser start
+    else
+        # RIPIEGO (PixsysOS < 2.1.0) — togliere quando 2.1.0 è ovunque.
+        log "SetEnabled non disponibile (PixsysOS < 2.1.0): ripiego su systemctl enable"
+        browser enable --now
+    fi
+}
+
 # Punta il browser Pixsys al viewer SWS.
 #
 # `chromium-start main-app` legge l'URL da D-Bus (`net.pixsys.Config1`) a ogni
@@ -148,15 +219,9 @@ VOLUTO="$(tr -d '[:space:]' < "$FILE")"
 case "$VOLUTO" in
     lvgl)
         log "il progetto chiede LVGL"
-        # `disable --now` e non `stop`: uno `stop` non sopravvive al riavvio.
-        # Il symlink in `desktop.target.wants` resterebbe, e al boot successivo
-        # il browser tornerebbe su assieme a `desktop.target` — con il viewer
-        # LVGL che se lo ritrova sotto. Il difetto sarebbe "ogni tanto al
-        # riavvio ci sono tutti e due", cioè il peggior tipo di intermittenza.
-        #
-        # `chromium@main-app` e non `chromium@wp-control`: quest'ultimo è la via
-        # alla configurazione e non si tocca mai.
-        browser disable --now
+        # Solo `chromium@main-app`: `chromium@wp-control` è la via alla
+        # configurazione e non si tocca mai.
+        browser_spegni
         viewer start
         ;;
     web)
@@ -172,7 +237,7 @@ case "$VOLUTO" in
         # avvio, quindi impostarlo dopo vorrebbe dire un browser che parte sulla
         # pagina vecchia e ci resta fino al riavvio successivo.
         imposta_url_sws
-        browser enable --now || log "lo start del browser ha restituito errore"
+        browser_accendi || log "l'accensione del browser ha restituito errore"
         # Si dà al browser un istante per fallire davvero: `systemctl start`
         # torna quando il servizio è partito, non quando è stabile.
         sleep 2

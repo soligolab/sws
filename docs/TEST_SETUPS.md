@@ -152,14 +152,24 @@ distingue le due modalità in modo esatto, con due query che l'utente `user` pu�
 - non abilitare `weston.service` al boot: partirebbe prima del launcher e, per il `Conflicts=`,
   ucciderebbe la finestra dei 10 s.
 
-**Comandare il browser senza sudo.** La regola polkit `17-chromium.rules` concede a `setup-user`
-`manage-unit-files` sulle unit `chromium@*`, quindi `systemctl disable --now
-chromium@main-app.service` funziona come utente. Da preferire a `stop`: uno `stop` non sopravvive al
-riavvio, perché il symlink in `desktop.target.wants` resta.
+**Comandare il browser: la via giusta è D-Bus.**
+`net.pixsys.Config1.WebBrowser.SetEnabled` dice al launcher se abilitare il browser, e il launcher
+la rilegge a ogni avvio: è una *politica*, non un comando, quindi sopravvive al riavvio perché è il
+launcher stesso a rispettarla. Vale però **dal prossimo avvio** — per la sessione in corso il
+browser va comunque fermato con `systemctl stop`.
 
-**Attenzione alla revisione del firmware**: il sorgente Yocto più recente espone
-`net.pixsys.Config1.WebBrowser.SetEnabled`, che sarebbe la via più pulita — ma sul WP630 provato
-**non esiste** (`Unknown method`). Verificarlo prima di usarlo.
+Disponibile da **PixsysOS 2.1.0**. Sui firmware precedenti il metodo non esiste (`Unknown method`,
+misurato sul WP630 il 2026-08-28) e si ripiega su `systemctl disable --now`, che la regola polkit
+`17-chromium.rules` concede all'utente senza sudo. In quel ripiego serve `disable` e non `stop`:
+altrimenti il symlink in `desktop.target.wants` resta e al riavvio il browser torna su.
+
+**Il ripiego è temporaneo.** `sws-display-apply.sh` lo marca con la parola `RIPIEGO`: si trova
+cercandola, e va tolto quando 2.1.0 sarà su tutti i prodotti.
+
+**Da verificare quando 2.1.0 arriva** (oggi non provabile, nessun dispositivo ce l'ha): che
+`SetEnabled=false` basti da solo, cioè che il launcher **rimuova** anche il symlink già esistente in
+`desktop.target.wants`. Se non lo facesse, il browser tornerebbe su al riavvio nonostante la
+politica, e servirebbe tenere il `disable` anche dopo.
 
 ### GUI del pannello (Pixsys OS, verificato su un WP620 il 2026-07-28)
 
