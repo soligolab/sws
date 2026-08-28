@@ -1,0 +1,218 @@
+{"ts_ms":1787927937833,"level":"INFO","target":"sws_runtime","message":"SWS runtime starting","fields":{"config":"/home/ut1/sws/.run-editor/config","logs":"/home/ut1/sws/.run-editor/logs","project":"None","projects_root":"/home/ut1/sws/.run-editor/projects","retention":7,"templates_root":"/home/ut1/sws/examples/templates","version":"2.3.2","www":"Some(\"/home/ut1/sws/sws-editor/dist\")"}}
+{"ts_ms":1787927937834,"level":"INFO","target":"sws_runtime","message":"no TLS certificate found — plain HTTP mode (enable via ConfigView → Stato → Certificato TLS)"}
+{"ts_ms":1787927937834,"level":"INFO","target":"sws_runtime","message":"runtime instance id (used for random MQTT client ids)","fields":{"instance_id":"2846a7"}}
+{"ts_ms":1787927937845,"level":"WARN","target":"sws_pyscript","message":"pyscript: RestrictedPython NOT available — scripts run with full privileges (install with `pip install RestrictedPython` to enable sandboxing)","fields":{"timeout_ms":5000}}
+{"ts_ms":1787927937847,"level":"INFO","target":"sws_runtime","message":"auto-reopening project from .last-opened","fields":{"path":"/home/ut1/tmp/sws_test/test1"}}
+{"ts_ms":1787927937847,"level":"INFO","target":"sws_web::projects","message":"migrated legacy hidden directory","fields":{"new":"history","old":".history","project":"/home/ut1/tmp/sws_test/test1"}}
+{"ts_ms":1787927937857,"level":"INFO","target":"sws_web::projects","message":"project opened","fields":{"alarms":0,"functions":0,"name":"test1","tags":1}}
+{"ts_ms":1787927937893,"level":"INFO","target":"sws_historian::sqlite","message":"historian: SQLite store opened","fields":{"path":"/home/ut1/tmp/sws_test/test1/history/historian.db"}}
+{"ts_ms":1787927937894,"level":"INFO","target":"sws_historian::registry","message":"datastore: backend initialized","fields":{"id":"default","kind":"sqlite"}}
+{"ts_ms":1787927937894,"level":"INFO","target":"sws_web::projects","message":"datastore registry initialised","fields":{"backends":1}}
+{"ts_ms":1787927937895,"level":"INFO","target":"sws_historian","message":"historian: swapped to project SQLite","fields":{"samples":1}}
+{"ts_ms":1787927937895,"level":"INFO","target":"sws_web::source_supervisor","message":"source supervisor reload complete","fields":{"replaced":0,"started":0,"stopped":0}}
+{"ts_ms":1787927937895,"level":"INFO","target":"sws_auth","message":"no users defined — starting in no-auth mode (all routes open)"}
+{"ts_ms":1787927937896,"level":"INFO","target":"sws_runtime","message":"auto-backup loop started (per-project override via project.yaml checked every tick)","fields":{"cli_interval_min":0,"cli_retention":20}}
+{"ts_ms":1787927937897,"level":"INFO","target":"sws_runtime","message":"SWS_AUDIT_KEY not set — audit log is hash-chained but unsigned (tamper-evident, not tamper-resistant)"}
+{"ts_ms":1787927937920,"level":"INFO","target":"sws_web::projects","message":"notification supervisor started"}
+{"ts_ms":1787927937921,"level":"INFO","target":"sws_runtime","message":"--viewer-port not set — IDE-only mode (admin port only)"}
+{"ts_ms":1787927937921,"level":"INFO","target":"sws_runtime","message":"admin listener ready","fields":{"addr":"0.0.0.0:8460","tls":false}}
+{"ts_ms":1787928091480,"level":"INFO","target":"sws_web::source_supervisor","message":"source supervisor reload complete","fields":{"replaced":0,"started":0,"stopped":0}}
+{"ts_ms":1787928091481,"level":"INFO","target":"sws_web::projects","message":"project closed"}
+{"ts_ms":1787928095518,"level":"INFO","target":"sws_web::projects","message":"default datastore iniettato in memoria (file non modificato)","fields":{"name":"ProvaDemoWeb"}}
+{"ts_ms":1787928095518,"level":"INFO","target":"sws_web::source_supervisor","message":"source supervisor reload complete","fields":{"replaced":0,"started":0,"stopped":0}}
+{"ts_ms":1787928095518,"level":"INFO","target":"sws_web::projects","message":"project opened","fields":{"alarms":3,"functions":0,"name":"ProvaDemoWeb","tags":23}}
+{"ts_ms":1787928095520,"level":"INFO","target":"sws_historian::sqlite","message":"historian: SQLite store opened","fields":{"path":"/home/ut1/sws/.run-editor/projects/ProvaDemoWeb/history/historian.db"}}
+{"ts_ms":1787928095520,"level":"INFO","target":"sws_historian::registry","message":"datastore: backend initialized","fields":{"id":"default","kind":"sqlite"}}
+{"ts_ms":1787928095520,"level":"INFO","target":"sws_web::projects","message":"datastore registry initialised","fields":{"backends":1}}
+{"ts_ms":1787928095922,"level":"INFO","target":"sws_historian","message":"historian: swapped to project SQLite","fields":{"samples":15493}}
+{"ts_ms":1787928095923,"level":"INFO","target":"sws_web::source_supervisor","message":"source supervisor reload complete","fields":{"replaced":0,"started":0,"stopped":0}}
+{"ts_ms":1787928095924,"level":"WARN","target":"sws_pyscript","message":"pyscript: RestrictedPython NOT available — scripts run with full privileges (install with `pip install RestrictedPython` to enable sandboxing)","fields":{"timeout_ms":5000}}
+{"ts_ms":1787928095924,"level":"INFO","target":"sws_web::projects","message":"global script supervisor started","fields":{"scripts":1}}
+{"ts_ms":1787928095924,"level":"INFO","target":"sws_auth","message":"no users defined — starting in no-auth mode (all routes open)"}
+{"ts_ms":1787928095924,"level":"INFO","target":"sws_web::global_scripts","message":"global script task starting","fields":{"id":"demo-sim","trigger":"Interval { interval_s: 1 }"}}
+{"ts_ms":1787928095923,"level":"INFO","target":"sws_web::source_supervisor","message":"source supervisor reload complete","fields":{"replaced":0,"started":0,"stopped":0}}
+{"ts_ms":1787928095924,"level":"WARN","target":"sws_pyscript","message":"pyscript: RestrictedPython NOT available — scripts run with full privileges (install with `pip install RestrictedPython` to enable sandboxing)","fields":{"timeout_ms":5000}}
+{"ts_ms":1787928095924,"level":"INFO","target":"sws_web::projects","message":"global script supervisor started","fields":{"scripts":1}}
+{"ts_ms":1787928095924,"level":"INFO","target":"sws_auth","message":"no users defined — starting in no-auth mode (all routes open)"}
+{"ts_ms":1787928095924,"level":"INFO","target":"sws_web::global_scripts","message":"global script task starting","fields":{"id":"demo-sim","trigger":"Interval { interval_s: 1 }"}}
+{"ts_ms":1787928096951,"level":"INFO","target":"sws_pyscript","message":"python script ran cleanly","fields":{"stdout_bytes":0}}
+{"ts_ms":1787928097958,"level":"INFO","target":"sws_pyscript","message":"python script ran cleanly","fields":{"stdout_bytes":0}}
+{"ts_ms":1787928098965,"level":"INFO","target":"sws_pyscript","message":"python script ran cleanly","fields":{"stdout_bytes":0}}
+{"ts_ms":1787928099972,"level":"INFO","target":"sws_pyscript","message":"python script ran cleanly","fields":{"stdout_bytes":0}}
+{"ts_ms":1787928100978,"level":"INFO","target":"sws_pyscript","message":"python script ran cleanly","fields":{"stdout_bytes":0}}
+{"ts_ms":1787928101076,"level":"INFO","target":"sws_web::system","message":"project re-saved to current runtime version","fields":{"version":"2.3.2"}}
+{"ts_ms":1787928101986,"level":"INFO","target":"sws_pyscript","message":"python script ran cleanly","fields":{"stdout_bytes":0}}
+{"ts_ms":1787928102994,"level":"INFO","target":"sws_pyscript","message":"python script ran cleanly","fields":{"stdout_bytes":0}}
+{"ts_ms":1787928104000,"level":"INFO","target":"sws_pyscript","message":"python script ran cleanly","fields":{"stdout_bytes":0}}
+{"ts_ms":1787928104017,"level":"INFO","target":"sws_web::system","message":"project re-saved to current runtime version","fields":{"version":"2.3.2"}}
+{"ts_ms":1787928105007,"level":"INFO","target":"sws_pyscript","message":"python script ran cleanly","fields":{"stdout_bytes":0}}
+{"ts_ms":1787928106012,"level":"INFO","target":"sws_pyscript","message":"python script ran cleanly","fields":{"stdout_bytes":0}}
+{"ts_ms":1787928107018,"level":"INFO","target":"sws_pyscript","message":"python script ran cleanly","fields":{"stdout_bytes":0}}
+{"ts_ms":1787928108025,"level":"INFO","target":"sws_pyscript","message":"python script ran cleanly","fields":{"stdout_bytes":0}}
+{"ts_ms":1787928109033,"level":"INFO","target":"sws_pyscript","message":"python script ran cleanly","fields":{"stdout_bytes":0}}
+{"ts_ms":1787928110040,"level":"INFO","target":"sws_pyscript","message":"python script ran cleanly","fields":{"stdout_bytes":0}}
+{"ts_ms":1787928111047,"level":"INFO","target":"sws_pyscript","message":"python script ran cleanly","fields":{"stdout_bytes":0}}
+{"ts_ms":1787928112053,"level":"INFO","target":"sws_pyscript","message":"python script ran cleanly","fields":{"stdout_bytes":0}}
+{"ts_ms":1787928113060,"level":"INFO","target":"sws_pyscript","message":"python script ran cleanly","fields":{"stdout_bytes":0}}
+{"ts_ms":1787928114067,"level":"INFO","target":"sws_pyscript","message":"python script ran cleanly","fields":{"stdout_bytes":0}}
+{"ts_ms":1787928115073,"level":"INFO","target":"sws_pyscript","message":"python script ran cleanly","fields":{"stdout_bytes":0}}
+{"ts_ms":1787928116079,"level":"INFO","target":"sws_pyscript","message":"python script ran cleanly","fields":{"stdout_bytes":0}}
+{"ts_ms":1787928117085,"level":"INFO","target":"sws_pyscript","message":"python script ran cleanly","fields":{"stdout_bytes":0}}
+{"ts_ms":1787928118091,"level":"INFO","target":"sws_pyscript","message":"python script ran cleanly","fields":{"stdout_bytes":0}}
+{"ts_ms":1787928119098,"level":"INFO","target":"sws_pyscript","message":"python script ran cleanly","fields":{"stdout_bytes":0}}
+{"ts_ms":1787928120104,"level":"INFO","target":"sws_pyscript","message":"python script ran cleanly","fields":{"stdout_bytes":0}}
+{"ts_ms":1787928121111,"level":"INFO","target":"sws_pyscript","message":"python script ran cleanly","fields":{"stdout_bytes":0}}
+{"ts_ms":1787928122117,"level":"INFO","target":"sws_pyscript","message":"python script ran cleanly","fields":{"stdout_bytes":0}}
+{"ts_ms":1787928123124,"level":"INFO","target":"sws_pyscript","message":"python script ran cleanly","fields":{"stdout_bytes":0}}
+{"ts_ms":1787928124131,"level":"INFO","target":"sws_pyscript","message":"python script ran cleanly","fields":{"stdout_bytes":0}}
+{"ts_ms":1787928125137,"level":"INFO","target":"sws_pyscript","message":"python script ran cleanly","fields":{"stdout_bytes":0}}
+{"ts_ms":1787928126144,"level":"INFO","target":"sws_pyscript","message":"python script ran cleanly","fields":{"stdout_bytes":0}}
+{"ts_ms":1787928127150,"level":"INFO","target":"sws_pyscript","message":"python script ran cleanly","fields":{"stdout_bytes":0}}
+{"ts_ms":1787928128157,"level":"INFO","target":"sws_pyscript","message":"python script ran cleanly","fields":{"stdout_bytes":0}}
+{"ts_ms":1787928129164,"level":"INFO","target":"sws_pyscript","message":"python script ran cleanly","fields":{"stdout_bytes":0}}
+{"ts_ms":1787928130171,"level":"INFO","target":"sws_pyscript","message":"python script ran cleanly","fields":{"stdout_bytes":0}}
+{"ts_ms":1787928131178,"level":"INFO","target":"sws_pyscript","message":"python script ran cleanly","fields":{"stdout_bytes":0}}
+{"ts_ms":1787928132185,"level":"INFO","target":"sws_pyscript","message":"python script ran cleanly","fields":{"stdout_bytes":0}}
+{"ts_ms":1787928133197,"level":"INFO","target":"sws_pyscript","message":"python script ran cleanly","fields":{"stdout_bytes":0}}
+{"ts_ms":1787928134203,"level":"INFO","target":"sws_pyscript","message":"python script ran cleanly","fields":{"stdout_bytes":0}}
+{"ts_ms":1787928135208,"level":"INFO","target":"sws_pyscript","message":"python script ran cleanly","fields":{"stdout_bytes":0}}
+{"ts_ms":1787928136215,"level":"INFO","target":"sws_pyscript","message":"python script ran cleanly","fields":{"stdout_bytes":0}}
+{"ts_ms":1787928137222,"level":"INFO","target":"sws_pyscript","message":"python script ran cleanly","fields":{"stdout_bytes":0}}
+{"ts_ms":1787928137352,"level":"INFO","target":"sws_web::deploy_container","message":"==> immagine: registry (ghcr.io/soligolab/sws-runtime:latest-arm64)"}
+{"ts_ms":1787928137352,"level":"INFO","target":"sws_web::deploy_container","message":"==> mkdir -p /tmp/sws-deploy sul device"}
+{"ts_ms":1787928138001,"level":"INFO","target":"sws_web::deploy_container","message":"==> SCP install-container.sh: /home/ut1/sws/deploy/container/install-container.sh → user@wp630-a-p3-07a077.local:/tmp/sws-deploy"}
+{"ts_ms":1787928138227,"level":"INFO","target":"sws_pyscript","message":"python script ran cleanly","fields":{"stdout_bytes":0}}
+{"ts_ms":1787928138641,"level":"INFO","target":"sws_web::deploy_container","message":"==> SCP sws-runtime.container: /home/ut1/sws/deploy/container/sws-runtime.container → user@wp630-a-p3-07a077.local:/tmp/sws-deploy"}
+{"ts_ms":1787928139235,"level":"INFO","target":"sws_pyscript","message":"python script ran cleanly","fields":{"stdout_bytes":0}}
+{"ts_ms":1787928139274,"level":"INFO","target":"sws_web::deploy_container","message":"==> SCP sws-lvgl-viewer.container: /home/ut1/sws/deploy/container/sws-lvgl-viewer.container → user@wp630-a-p3-07a077.local:/tmp/sws-deploy"}
+{"ts_ms":1787928139891,"level":"INFO","target":"sws_web::deploy_container","message":"==> SCP sws-display.service: /home/ut1/sws/deploy/container/sws-display.service → user@wp630-a-p3-07a077.local:/tmp/sws-deploy"}
+{"ts_ms":1787928140241,"level":"INFO","target":"sws_pyscript","message":"python script ran cleanly","fields":{"stdout_bytes":0}}
+{"ts_ms":1787928140526,"level":"INFO","target":"sws_web::deploy_container","message":"==> SCP sws-display.path: /home/ut1/sws/deploy/container/sws-display.path → user@wp630-a-p3-07a077.local:/tmp/sws-deploy"}
+{"ts_ms":1787928141173,"level":"INFO","target":"sws_web::deploy_container","message":"==> SCP sws-display-apply.sh: /home/ut1/sws/deploy/container/sws-display-apply.sh → user@wp630-a-p3-07a077.local:/tmp/sws-deploy"}
+{"ts_ms":1787928141247,"level":"INFO","target":"sws_pyscript","message":"python script ran cleanly","fields":{"stdout_bytes":0}}
+{"ts_ms":1787928141797,"level":"INFO","target":"sws_web::deploy_container","message":"==> SCP completato"}
+{"ts_ms":1787928141798,"level":"INFO","target":"sws_web::deploy_container","message":"==> Procuro l'immagine PRIMA di azzerare i dati..."}
+{"ts_ms":1787928142253,"level":"INFO","target":"sws_pyscript","message":"python script ran cleanly","fields":{"stdout_bytes":0}}
+{"ts_ms":1787928143050,"level":"INFO","target":"sws_web::deploy_container","message":"    ==> [2/6] scarico ghcr.io/soligolab/sws-runtime:latest-arm64"}
+{"ts_ms":1787928143261,"level":"INFO","target":"sws_pyscript","message":"python script ran cleanly","fields":{"stdout_bytes":0}}
+{"ts_ms":1787928143442,"level":"INFO","target":"sws_web::deploy_container","message":"    Trying to pull ghcr.io/soligolab/sws-runtime:latest-arm64..."}
+{"ts_ms":1787928144268,"level":"INFO","target":"sws_pyscript","message":"python script ran cleanly","fields":{"stdout_bytes":0}}
+{"ts_ms":1787928144440,"level":"INFO","target":"sws_web::deploy_container","message":"    Getting image source signatures"}
+{"ts_ms":1787928144441,"level":"INFO","target":"sws_web::deploy_container","message":"    Copying blob sha256:b40276733c74c7c67b9780f6ae73d80278943e500835a6410ffbc5790fa75329"}
+{"ts_ms":1787928144442,"level":"INFO","target":"sws_web::deploy_container","message":"    Copying blob sha256:10a2675cf8511e11f3d6e1d54effaf795ab6e42c2f6a4d53f9a9fc9a9d5eb5b0"}
+{"ts_ms":1787928144443,"level":"INFO","target":"sws_web::deploy_container","message":"    Copying blob sha256:d1b13347a9d7454231e2980670a042554f2113faf031dbfc1eca04697164bc64"}
+{"ts_ms":1787928145275,"level":"INFO","target":"sws_pyscript","message":"python script ran cleanly","fields":{"stdout_bytes":0}}
+{"ts_ms":1787928146282,"level":"INFO","target":"sws_pyscript","message":"python script ran cleanly","fields":{"stdout_bytes":0}}
+{"ts_ms":1787928147290,"level":"INFO","target":"sws_pyscript","message":"python script ran cleanly","fields":{"stdout_bytes":0}}
+{"ts_ms":1787928148297,"level":"INFO","target":"sws_pyscript","message":"python script ran cleanly","fields":{"stdout_bytes":0}}
+{"ts_ms":1787928149039,"level":"INFO","target":"sws_web::deploy_container","message":"    Copying blob sha256:31b770bba950964f78f3489f08f702e26406d944dce5bdc659baf246ca67a7c9"}
+{"ts_ms":1787928149303,"level":"INFO","target":"sws_pyscript","message":"python script ran cleanly","fields":{"stdout_bytes":0}}
+{"ts_ms":1787928150067,"level":"INFO","target":"sws_web::deploy_container","message":"    Copying blob sha256:21bf1d61ab758fe6970eec70fa32dd6dc693a72461d263950750d93f675cfb59"}
+{"ts_ms":1787928150311,"level":"INFO","target":"sws_pyscript","message":"python script ran cleanly","fields":{"stdout_bytes":0}}
+{"ts_ms":1787928151015,"level":"INFO","target":"sws_web::deploy_container","message":"    Copying blob sha256:cd47ab5abf68a33ec8703553da1f6d379b815a726520641e1bdc4e25f16d16f0"}
+{"ts_ms":1787928151318,"level":"INFO","target":"sws_pyscript","message":"python script ran cleanly","fields":{"stdout_bytes":0}}
+{"ts_ms":1787928151586,"level":"INFO","target":"sws_web::deploy_container","message":"    Copying config sha256:208c6dfb5775adde9935c763f1de0bc8d99ccf2295fd6f960333b423a48f5c9a"}
+{"ts_ms":1787928151620,"level":"INFO","target":"sws_web::deploy_container","message":"    Writing manifest to image destination"}
+{"ts_ms":1787928151707,"level":"INFO","target":"sws_web::deploy_container","message":"    208c6dfb5775adde9935c763f1de0bc8d99ccf2295fd6f960333b423a48f5c9a"}
+{"ts_ms":1787928152161,"level":"INFO","target":"sws_web::deploy_container","message":"        immagine: ghcr.io/soligolab/sws-runtime:latest-arm64"}
+{"ts_ms":1787928152161,"level":"INFO","target":"sws_web::deploy_container","message":"    ==> immagine procurata. Niente altro toccato (--pull-only)."}
+{"ts_ms":1787928152166,"level":"WARN","target":"sws_web::deploy_container","message":"WARN: installazione pulita — azzero progetti, configurazione e storico in /data/user/sws"}
+{"ts_ms":1787928152324,"level":"INFO","target":"sws_pyscript","message":"python script ran cleanly","fields":{"stdout_bytes":0}}
+{"ts_ms":1787928152799,"level":"INFO","target":"sws_web::deploy_container","message":"    ==> rimozione servizio e container"}
+{"ts_ms":1787928153332,"level":"INFO","target":"sws_pyscript","message":"python script ran cleanly","fields":{"stdout_bytes":0}}
+{"ts_ms":1787928154339,"level":"INFO","target":"sws_pyscript","message":"python script ran cleanly","fields":{"stdout_bytes":0}}
+{"ts_ms":1787928155346,"level":"INFO","target":"sws_pyscript","message":"python script ran cleanly","fields":{"stdout_bytes":0}}
+{"ts_ms":1787928155920,"level":"INFO","target":"sws_web::deploy_container","message":"    ==> rimozione dati in /data/user/sws (progetti compresi)"}
+{"ts_ms":1787928155933,"level":"INFO","target":"sws_web::deploy_container","message":"    ==> fatto."}
+{"ts_ms":1787928155938,"level":"INFO","target":"sws_web::deploy_container","message":"==> Installazione (install-container.sh, podman rootless — nessun sudo richiesto)..."}
+{"ts_ms":1787928156353,"level":"INFO","target":"sws_pyscript","message":"python script ran cleanly","fields":{"stdout_bytes":0}}
+{"ts_ms":1787928156573,"level":"INFO","target":"sws_web::deploy_container","message":"    ==> [1/6] directory dati /data/user/sws"}
+{"ts_ms":1787928156578,"level":"INFO","target":"sws_web::deploy_container","message":"        projects (creata)"}
+{"ts_ms":1787928156587,"level":"INFO","target":"sws_web::deploy_container","message":"        config (creata)"}
+{"ts_ms":1787928156592,"level":"INFO","target":"sws_web::deploy_container","message":"        logs (creata)"}
+{"ts_ms":1787928157360,"level":"INFO","target":"sws_pyscript","message":"python script ran cleanly","fields":{"stdout_bytes":0}}
+{"ts_ms":1787928157521,"level":"INFO","target":"sws_web::deploy_container","message":"    ==> [2/6] scarico ghcr.io/soligolab/sws-runtime:latest-arm64"}
+{"ts_ms":1787928157899,"level":"INFO","target":"sws_web::deploy_container","message":"    Trying to pull ghcr.io/soligolab/sws-runtime:latest-arm64..."}
+{"ts_ms":1787928158366,"level":"INFO","target":"sws_pyscript","message":"python script ran cleanly","fields":{"stdout_bytes":0}}
+{"ts_ms":1787928158723,"level":"INFO","target":"sws_web::deploy_container","message":"    Getting image source signatures"}
+{"ts_ms":1787928158725,"level":"INFO","target":"sws_web::deploy_container","message":"    Copying blob sha256:b40276733c74c7c67b9780f6ae73d80278943e500835a6410ffbc5790fa75329"}
+{"ts_ms":1787928158727,"level":"INFO","target":"sws_web::deploy_container","message":"    Copying blob sha256:10a2675cf8511e11f3d6e1d54effaf795ab6e42c2f6a4d53f9a9fc9a9d5eb5b0"}
+{"ts_ms":1787928158729,"level":"INFO","target":"sws_web::deploy_container","message":"    Copying blob sha256:d1b13347a9d7454231e2980670a042554f2113faf031dbfc1eca04697164bc64"}
+{"ts_ms":1787928158731,"level":"INFO","target":"sws_web::deploy_container","message":"    Copying blob sha256:31b770bba950964f78f3489f08f702e26406d944dce5bdc659baf246ca67a7c9"}
+{"ts_ms":1787928158732,"level":"INFO","target":"sws_web::deploy_container","message":"    Copying blob sha256:21bf1d61ab758fe6970eec70fa32dd6dc693a72461d263950750d93f675cfb59"}
+{"ts_ms":1787928158733,"level":"INFO","target":"sws_web::deploy_container","message":"    Copying blob sha256:cd47ab5abf68a33ec8703553da1f6d379b815a726520641e1bdc4e25f16d16f0"}
+{"ts_ms":1787928158735,"level":"INFO","target":"sws_web::deploy_container","message":"    Copying config sha256:208c6dfb5775adde9935c763f1de0bc8d99ccf2295fd6f960333b423a48f5c9a"}
+{"ts_ms":1787928158838,"level":"INFO","target":"sws_web::deploy_container","message":"    Writing manifest to image destination"}
+{"ts_ms":1787928158887,"level":"INFO","target":"sws_web::deploy_container","message":"    208c6dfb5775adde9935c763f1de0bc8d99ccf2295fd6f960333b423a48f5c9a"}
+{"ts_ms":1787928159373,"level":"INFO","target":"sws_pyscript","message":"python script ran cleanly","fields":{"stdout_bytes":0}}
+{"ts_ms":1787928159411,"level":"INFO","target":"sws_web::deploy_container","message":"        immagine: ghcr.io/soligolab/sws-runtime:latest-arm64"}
+{"ts_ms":1787928159412,"level":"INFO","target":"sws_web::deploy_container","message":"    ==> [3/6] verifico che l'immagine contenga la SPA"}
+{"ts_ms":1787928160380,"level":"INFO","target":"sws_pyscript","message":"python script ran cleanly","fields":{"stdout_bytes":0}}
+{"ts_ms":1787928161041,"level":"INFO","target":"sws_web::deploy_container","message":"        /var/sws/www/index.html presente"}
+{"ts_ms":1787928161041,"level":"INFO","target":"sws_web::deploy_container","message":"    ==> [4/6] rimuovo il container precedente, se c'è"}
+{"ts_ms":1787928161387,"level":"INFO","target":"sws_pyscript","message":"python script ran cleanly","fields":{"stdout_bytes":0}}
+{"ts_ms":1787928161469,"level":"INFO","target":"sws_web::deploy_container","message":"    ==> [5/6] unit quadlet + linger"}
+{"ts_ms":1787928161480,"level":"INFO","target":"sws_web::deploy_container","message":"        Network=host (default — il multicast mDNS raggiunge la LAN)"}
+{"ts_ms":1787928161525,"level":"INFO","target":"sws_web::deploy_container","message":"        linger già attivo"}
+{"ts_ms":1787928161582,"level":"INFO","target":"sws_web::deploy_container","message":"        commutazione web/LVGL installata (decide il progetto — vedi Q25)"}
+{"ts_ms":1787928162393,"level":"INFO","target":"sws_pyscript","message":"python script ran cleanly","fields":{"stdout_bytes":0}}
+{"ts_ms":1787928163400,"level":"INFO","target":"sws_pyscript","message":"python script ran cleanly","fields":{"stdout_bytes":0}}
+{"ts_ms":1787928164407,"level":"INFO","target":"sws_pyscript","message":"python script ran cleanly","fields":{"stdout_bytes":0}}
+{"ts_ms":1787928164468,"level":"INFO","target":"sws_web::deploy_container","message":"    ==> [6/6] attendo che risponda"}
+{"ts_ms":1787928164521,"level":"INFO","target":"sws_web::deploy_container","message":"        /health ok dopo 1s"}
+{"ts_ms":1787928164594,"level":"INFO","target":"sws_web::deploy_container","message":"        browser del pannello puntato su http://127.0.0.1:8443"}
+{"ts_ms":1787928164594,"level":"INFO","target":"sws_web::deploy_container","message":"    "}
+{"ts_ms":1787928164594,"level":"INFO","target":"sws_web::deploy_container","message":"        viewer : http://192.168.1.120:8443     IDE : http://192.168.1.120:8444"}
+{"ts_ms":1787928164594,"level":"INFO","target":"sws_web::deploy_container","message":"        viewer : http://192.168.60.177:8443     IDE : http://192.168.60.177:8444"}
+{"ts_ms":1787928164594,"level":"INFO","target":"sws_web::deploy_container","message":"        dati     : /data/user/sws"}
+{"ts_ms":1787928164594,"level":"INFO","target":"sws_web::deploy_container","message":"        immagine : ghcr.io/soligolab/sws-runtime:latest-arm64"}
+{"ts_ms":1787928164595,"level":"INFO","target":"sws_web::deploy_container","message":"        stato    : systemctl --user status sws-runtime"}
+{"ts_ms":1787928164595,"level":"INFO","target":"sws_web::deploy_container","message":"    ==> fatto."}
+{"ts_ms":1787928164598,"level":"INFO","target":"sws_web::deploy_container","message":"==> Health check..."}
+{"ts_ms":1787928165414,"level":"INFO","target":"sws_pyscript","message":"python script ran cleanly","fields":{"stdout_bytes":0}}
+{"ts_ms":1787928166421,"level":"INFO","target":"sws_pyscript","message":"python script ran cleanly","fields":{"stdout_bytes":0}}
+{"ts_ms":1787928167429,"level":"INFO","target":"sws_pyscript","message":"python script ran cleanly","fields":{"stdout_bytes":0}}
+{"ts_ms":1787928168285,"level":"INFO","target":"sws_web::deploy_container","message":"    ok"}
+{"ts_ms":1787928168286,"level":"INFO","target":"sws_web::deploy_container","message":"==> Health check: OK"}
+{"ts_ms":1787928168286,"level":"INFO","target":"sws_web::deploy_container","message":"DONE"}
+{"ts_ms":1787928168435,"level":"INFO","target":"sws_pyscript","message":"python script ran cleanly","fields":{"stdout_bytes":0}}
+{"ts_ms":1787928169442,"level":"INFO","target":"sws_pyscript","message":"python script ran cleanly","fields":{"stdout_bytes":0}}
+{"ts_ms":1787928170446,"level":"INFO","target":"sws_pyscript","message":"python script ran cleanly","fields":{"stdout_bytes":0}}
+{"ts_ms":1787928171453,"level":"INFO","target":"sws_pyscript","message":"python script ran cleanly","fields":{"stdout_bytes":0}}
+{"ts_ms":1787928172460,"level":"INFO","target":"sws_pyscript","message":"python script ran cleanly","fields":{"stdout_bytes":0}}
+{"ts_ms":1787928173467,"level":"INFO","target":"sws_pyscript","message":"python script ran cleanly","fields":{"stdout_bytes":0}}
+{"ts_ms":1787928174474,"level":"INFO","target":"sws_pyscript","message":"python script ran cleanly","fields":{"stdout_bytes":0}}
+{"ts_ms":1787928175481,"level":"INFO","target":"sws_pyscript","message":"python script ran cleanly","fields":{"stdout_bytes":0}}
+{"ts_ms":1787928176487,"level":"INFO","target":"sws_pyscript","message":"python script ran cleanly","fields":{"stdout_bytes":0}}
+{"ts_ms":1787928177495,"level":"INFO","target":"sws_pyscript","message":"python script ran cleanly","fields":{"stdout_bytes":0}}
+{"ts_ms":1787928178501,"level":"INFO","target":"sws_pyscript","message":"python script ran cleanly","fields":{"stdout_bytes":0}}
+{"ts_ms":1787928179508,"level":"INFO","target":"sws_pyscript","message":"python script ran cleanly","fields":{"stdout_bytes":0}}
+{"ts_ms":1787928180514,"level":"INFO","target":"sws_pyscript","message":"python script ran cleanly","fields":{"stdout_bytes":0}}
+{"ts_ms":1787928181522,"level":"INFO","target":"sws_pyscript","message":"python script ran cleanly","fields":{"stdout_bytes":0}}
+{"ts_ms":1787928182528,"level":"INFO","target":"sws_pyscript","message":"python script ran cleanly","fields":{"stdout_bytes":0}}
+{"ts_ms":1787928183535,"level":"INFO","target":"sws_pyscript","message":"python script ran cleanly","fields":{"stdout_bytes":0}}
+{"ts_ms":1787928184541,"level":"INFO","target":"sws_pyscript","message":"python script ran cleanly","fields":{"stdout_bytes":0}}
+{"ts_ms":1787928185548,"level":"INFO","target":"sws_pyscript","message":"python script ran cleanly","fields":{"stdout_bytes":0}}
+{"ts_ms":1787928186555,"level":"INFO","target":"sws_pyscript","message":"python script ran cleanly","fields":{"stdout_bytes":0}}
+{"ts_ms":1787928187561,"level":"INFO","target":"sws_pyscript","message":"python script ran cleanly","fields":{"stdout_bytes":0}}
+{"ts_ms":1787928188567,"level":"INFO","target":"sws_pyscript","message":"python script ran cleanly","fields":{"stdout_bytes":0}}
+{"ts_ms":1787928189574,"level":"INFO","target":"sws_pyscript","message":"python script ran cleanly","fields":{"stdout_bytes":0}}
+{"ts_ms":1787928190580,"level":"INFO","target":"sws_pyscript","message":"python script ran cleanly","fields":{"stdout_bytes":0}}
+{"ts_ms":1787928191587,"level":"INFO","target":"sws_pyscript","message":"python script ran cleanly","fields":{"stdout_bytes":0}}
+{"ts_ms":1787928192593,"level":"INFO","target":"sws_pyscript","message":"python script ran cleanly","fields":{"stdout_bytes":0}}
+{"ts_ms":1787928193601,"level":"INFO","target":"sws_pyscript","message":"python script ran cleanly","fields":{"stdout_bytes":0}}
+{"ts_ms":1787928194608,"level":"INFO","target":"sws_pyscript","message":"python script ran cleanly","fields":{"stdout_bytes":0}}
+{"ts_ms":1787928195614,"level":"INFO","target":"sws_pyscript","message":"python script ran cleanly","fields":{"stdout_bytes":0}}
+{"ts_ms":1787928196621,"level":"INFO","target":"sws_pyscript","message":"python script ran cleanly","fields":{"stdout_bytes":0}}
+{"ts_ms":1787928197628,"level":"INFO","target":"sws_pyscript","message":"python script ran cleanly","fields":{"stdout_bytes":0}}
+{"ts_ms":1787928198635,"level":"INFO","target":"sws_pyscript","message":"python script ran cleanly","fields":{"stdout_bytes":0}}
+{"ts_ms":1787928199641,"level":"INFO","target":"sws_pyscript","message":"python script ran cleanly","fields":{"stdout_bytes":0}}
+{"ts_ms":1787928200647,"level":"INFO","target":"sws_pyscript","message":"python script ran cleanly","fields":{"stdout_bytes":0}}
+{"ts_ms":1787928201655,"level":"INFO","target":"sws_pyscript","message":"python script ran cleanly","fields":{"stdout_bytes":0}}
+{"ts_ms":1787928202661,"level":"INFO","target":"sws_pyscript","message":"python script ran cleanly","fields":{"stdout_bytes":0}}
+{"ts_ms":1787928203667,"level":"INFO","target":"sws_pyscript","message":"python script ran cleanly","fields":{"stdout_bytes":0}}
+{"ts_ms":1787928204675,"level":"INFO","target":"sws_pyscript","message":"python script ran cleanly","fields":{"stdout_bytes":0}}
+{"ts_ms":1787928205681,"level":"INFO","target":"sws_pyscript","message":"python script ran cleanly","fields":{"stdout_bytes":0}}
+{"ts_ms":1787928206688,"level":"INFO","target":"sws_pyscript","message":"python script ran cleanly","fields":{"stdout_bytes":0}}
+{"ts_ms":1787928207695,"level":"INFO","target":"sws_pyscript","message":"python script ran cleanly","fields":{"stdout_bytes":0}}
+{"ts_ms":1787928208700,"level":"INFO","target":"sws_pyscript","message":"python script ran cleanly","fields":{"stdout_bytes":0}}

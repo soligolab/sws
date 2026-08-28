@@ -32,7 +32,7 @@ use serde::Serialize;
 use sws_core::{TagDb, TagQuality, TagValue, TagWriteBus};
 use tokio::runtime::Handle;
 use tokio::sync::mpsc;
-use tracing::{info, warn};
+use tracing::{debug, info, warn};
 
 const DEFAULT_TIMEOUT_MS: u64 = 5_000;
 
@@ -304,7 +304,24 @@ impl Engine {
 
         match tokio::time::timeout(timeout, work).await {
             Ok(Ok(Ok(out)))  => {
-                info!(stdout_bytes = out.stdout.len(), "python script ran cleanly");
+                // Un'esecuzione riuscita e muta non è una notizia: uno script
+                // globale a intervallo di 1 s ne produrrebbe **86.400 al
+                // giorno**, tutte identiche, e sommergerebbe qualunque altra
+                // riga. È successo davvero: il log di un'installazione sul
+                // dispositivo risultava illeggibile, interlacciato una riga sì
+                // e una no con questa (2026-08-28) — la stessa famiglia del
+                // difetto Q24, dove un avviso ripetuto cancellava le righe
+                // d'avvio del viewer.
+                //
+                // Resta a `info` quando lo script ha **stampato qualcosa**:
+                // lì c'è del contenuto che qualcuno ha voluto mettere, e
+                // tacerlo sarebbe perdere l'unica traccia di un `print` di
+                // diagnosi. Il fallimento resta `warn` qui sotto, sempre.
+                if out.stdout.is_empty() {
+                    debug!("python script ran cleanly");
+                } else {
+                    info!(stdout_bytes = out.stdout.len(), "python script ran cleanly");
+                }
                 Ok(out)
             }
             Ok(Ok(Err(msg))) => {
