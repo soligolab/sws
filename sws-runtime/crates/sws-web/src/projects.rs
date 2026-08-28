@@ -609,9 +609,6 @@ pub async fn open_project(
         &s.derived_tags, &s.functions, &s.config_dir, &s.instance_id,
     ).await;
     start_project_services(&s, notifications, global_scripts).await;
-    // Progetto diverso da quello di prima: chi ne sta disegnando una pagina
-    // deve ricominciare da capo (Q20).
-    crate::router::signal_project_changed(&s, "open");
 
     // 4. Swap auth store. Drops all sessions → forces re-login.
     if let Err(e) = s.auth.swap_store(project_dir.join("users.yaml"), seed).await {
@@ -630,6 +627,20 @@ pub async fn open_project(
         warn!("open_project: could not write .active-project marker: {e}");
     }
     *s.project_dir.write().await = Some(project_dir.clone());
+
+    // Progetto diverso da quello di prima: chi ne sta disegnando una pagina
+    // deve ricominciare da capo (Q20).
+    //
+    // **Dopo** la riga qui sopra, non prima. Il segnale non si limita a
+    // svegliare i viewer: pubblica anche quale motore il progetto vuole a
+    // schermo (Q25), e per farlo legge `project_dir`. Segnalando prima, quel
+    // pezzo leggeva la directory *precedente* — su un dispositivo appena
+    // installato `None`, e non pubblicava niente.
+    //
+    // Effetto misurato sul WP630 il 2026-08-28: si caricava un progetto LVGL e
+    // il pannello restava sulla schermata di prima. Nessun errore: il file
+    // `display-target` semplicemente non veniva mai scritto.
+    crate::router::signal_project_changed(&s, "open");
 
     // Every successful open — not just creation — refreshes last_opened_ms,
     // which is what makes this a "recent projects" list rather than just a

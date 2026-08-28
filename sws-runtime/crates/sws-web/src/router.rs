@@ -3751,9 +3751,20 @@ pub fn signal_project_changed(s: &AppState, what: &str) {
     // salvataggio che l'ha provocata.
     let config_dir = s.config_dir.clone();
     let project_dir = s.project_dir.clone();
+    let what = what.to_string();
     tokio::spawn(async move {
-        if let Some(dir) = project_dir.read().await.clone() {
-            crate::display_target::publish(&config_dir, &dir).await;
+        match project_dir.read().await.clone() {
+            Some(dir) => crate::display_target::publish(&config_dir, &dir).await,
+            // Non un `if let` muto: senza questa riga il caso «nessun progetto
+            // attivo» era indistinguibile da «pubblicato correttamente», ed è
+            // costato una diagnosi. Su un dispositivo appena installato il
+            // segnale di apertura arrivava prima che la directory attiva fosse
+            // impostata, quindi qui non c'era niente da leggere e il pannello
+            // non commutava — senza che nulla lo dicesse.
+            None => tracing::warn!(
+                what,
+                "display-target non aggiornato: nessun progetto attivo al momento del segnale"
+            ),
         }
     });
 }

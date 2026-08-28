@@ -8893,14 +8893,25 @@ function RuntimeConnectionTab() {
                         resta comunque modificabile per pinare una versione
                         specifica invece di "latest".  */}
                     <div style={{ display: "flex", gap: 4, marginBottom: 6 }}>
+                      {/* Evidenziati come gli altri due gruppi qui sopra. Lo
+                          stato si deduce dal campo, non da una variabile a
+                          parte: il riferimento resta modificabile a mano, e un
+                          pulsante che resta acceso dopo che l'utente ha
+                          scritto un altro tag direbbe il falso.
+
+                          `-arm64-generic` va provato PRIMA di `-arm64`: la
+                          variante generic finisce per entrambi, e invertendo
+                          l'ordine risulterebbe sempre selezionata la
+                          SDK-tuned. Vale anche per un tag pinato
+                          (`2.3.1-arm64-generic`). */}
                       <button
-                        style={{ ...BTN, padding: "4px 10px", fontSize: 11 }}
+                        style={{ ...(imageRef.endsWith("-arm64-generic") ? BTN_PRIMARY : BTN), padding: "4px 10px", fontSize: 11 }}
                         title={t("cfg.imageVariantGenericTitle")}
                         onClick={() => setImageRef("ghcr.io/soligolab/sws-runtime:latest-arm64-generic")}>
                         {t("cfg.imageVariantGeneric")}
                       </button>
                       <button
-                        style={{ ...BTN, padding: "4px 10px", fontSize: 11 }}
+                        style={{ ...(imageRef.endsWith("-arm64") ? BTN_PRIMARY : BTN), padding: "4px 10px", fontSize: 11 }}
                         title={t("cfg.imageVariantSdkTitle")}
                         onClick={() => setImageRef("ghcr.io/soligolab/sws-runtime:latest-arm64")}>
                         {t("cfg.imageVariantSdk")}
