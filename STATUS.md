@@ -8,32 +8,30 @@
 
 ## ▶ Da fare nella prossima sessione
 
-### 1. Provare l'immagine 2.3.2 sul WP630
+### 0. Serve un'immagine 2.3.3 prima di riprendere le prove
 
-Il dispositivo è stato **resettato di fabbrica** il 2026-08-28 e reinstallato
-dall'IDE (non a mano): quel percorso ora funziona per intero, ed è il primo test
-vero da cliente. Cosa la 2.3.2 sblocca rispetto a quello che c'è sul dispositivo:
+Tre commit dopo il tag **non sono nell'immagine sul WP630**: i navbutton della
+demo, la strozzatura dei log e la nota sull'ordine di build. Il dispositivo ha la
+**2.3.2**, installata pulita dall'IDE il 2026-08-28.
 
-| | |
-|---|---|
-| Deploy di un progetto | commuta lo schermo **da solo**, senza riavviare il runtime |
-| Template sul dispositivo | i template viaggiano **dentro l'immagine**: sul WP630 `enip-demo` e `sparkplug-demo` sono ancora quelli che non si aprono |
+Sul dispositivo è rimasto il progetto **`ProvaDemoWeb`**, che è del 25 agosto e
+contiene un `import math` che la sandbox blocca: fa errori ogni secondo. Non è un
+difetto del template — quello è sano — ma di quel progetto. **Va ricreato dal
+modello e rideployato.**
 
-Lista di controllo, in ordine — i primi nove passi sono già stati superati con
-la 2.3.1, restano i tre in fondo:
+### 1. I due test mai fatti sul dispositivo
 
 | | Cosa | Cosa deve succedere |
 |---|---|---|
-| 1-9 | installazione da zero, unit, accenti, font | ✅ fatto il 2026-08-28 |
 | 10 | **Riavvio tenendo premuto STOP** (angolo in alto a **destra**, oltre 10 s) | Compare **Cockpit sulla 9443**, e il viewer LVGL **non** prende lo schermo |
 | 11 | Durante il 10 | `/health` risponde e lo storico continua: il runtime non si ferma |
 | 12 | Il log dice perché | `journalctl --user -u sws-display` contiene «il launcher è in modalità configurazione» |
 | 13 | Ritorno alla normalità | Riavvio senza toccare nulla → il pannello torna sul motore del progetto |
-| 14 | Deploy di un progetto **senza riavviare il runtime** | Lo schermo commuta da solo entro una decina di secondi |
+| 14 | Deploy **senza riavviare il runtime** | Lo schermo commuta da solo entro una decina di secondi |
 | 15 | Progetto da `enip-demo` creato **sul dispositivo** | Si apre e mostra la pagina di partenza coi tag del PLC |
 
-**Il passo 10 è quello che non è ancora stato provato**, ed è il motivo del
-lavoro sul launcher: le unit partivano in qualunque modalità e la finestra LVGL
+Il **passo 10 è quello che non è mai stato provato**, ed è il motivo del lavoro
+sul launcher: prima le unit partivano in qualunque modalità e la finestra LVGL
 finiva sopra Cockpit, rendendo il dispositivo non configurabile.
 
 ### 2. Chiedere il sudo all'inizio, non a metà build (chiesto il 2026-08-28)
@@ -46,18 +44,49 @@ build_container_aarch64_generic.sh  (QEMU — l'UNICA che chiede sudo)
 build_container_x86_64.sh           (NON serve sudo)
 ```
 
-Quindi la richiesta della password arriva **dopo** la build più lunga: chi lancia il comando deve
-restare a guardare. Basta spostare `build_container_aarch64_generic.sh` in testa all'array
-`SCRIPTS` (~riga 110) e il resto prosegue non supervisionato.
+La password arriva **dopo** la build più lunga: chi lancia il comando deve restare a guardare.
+Basta spostare `build_container_aarch64_generic.sh` in testa all'array `SCRIPTS` (~riga 110).
 
-**Perché riordinare e non `sudo -v` all'avvio**: la cache delle credenziali di sudo scade dopo ~15
-minuti, e la prima build ne dura molti di più. Un `sudo -v` iniziale sembrerebbe risolvere e poi
-richiederebbe la password lo stesso, a metà — cioè lo stesso difetto, ma più difficile da capire.
+**Perché riordinare e non `sudo -v` all'avvio**: la cache delle credenziali scade dopo ~15 minuti e
+la prima build dura molto di più. Un `sudo -v` iniziale sembrerebbe risolvere e richiederebbe la
+password lo stesso, a metà — lo stesso difetto, più difficile da capire.
 
-Da valutare in corsa: cambiando l'ordine, una build interrotta lascia risultati parziali diversi
-(prima si otterrebbe la generic invece della Pixsys-tuned). Se conta, si dichiara nel commento.
+Da valutare: cambiando l'ordine, una build interrotta lascia risultati parziali diversi.
 
-### 3. Cosa aspetta ancora una conferma a schermo
+### 3. Il lavoro sui template, chiuso il 2026-08-28
+
+Rivisti tutti e 11 contro il runtime. Trovati e corretti difetti che nessuno
+poteva vedere senza provarli a mano:
+
+- **`enip-demo` e `sparkplug-demo` non si aprivano affatto** — privi di
+  `meta.version`, quindi `project parse error`. Rotti da sempre.
+- **Un allarme con `kind: equal`** (che non esiste) faceva rifiutare l'intero
+  progetto, non solo l'allarme.
+- **16 navbutton su 16** nei due "Demo Items" puntavano a un *nome* di pagina
+  invece che all'*id*: premerli dava schermo nero.
+- **7 tag** usati dai widget di `homeassistant-demo` e mai dichiarati.
+- **Nessuno dichiarava la pagina iniziale**: il viewer apriva la prima in ordine
+  alfabetico.
+- Tre template erano **senza pagine**: ora hanno una pagina di partenza coi tag
+  già collegati.
+
+Due guardie nuove, e la divisione fra loro conta:
+
+- `scripts/check_templates.sh` — le regole che il parser non conosce: `import`
+  nella sandbox, asset inesistenti, tag non dichiarati, navbutton nel vuoto,
+  home page mancante.
+- un test in `sws-core` che carica ogni template con **`Project::load`**, cioè
+  col parser vero. Una guardia in shell approssimerebbe le regole di serde e
+  prima o poi divergerebbe; questa non può, perché non è una copia. È quella che
+  ha trovato i due difetti gravi.
+
+**Sui nomi dei template non è stato deciso niente**: gli 11 id seguono quattro
+schemi diversi (`demo-items-web`, `casa-locale`, `s7-demo`,
+`nebulizzatore-sandokan`) e convivono tre categorie mai dichiarate — vetrine,
+punti di partenza per un protocollo, impianti reali. È una scelta di prodotto,
+in attesa del maintainer.
+
+### 4. Cosa aspetta ancora una conferma a schermo
 
 Da tre sessioni: il **pull del progetto dall'IDE**, la **sezione Python unificata**, il **colore
 del testo derivato dallo sfondo pagina**. Sono lavori finiti che nessuno ha mai guardato.

@@ -11,6 +11,20 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+> Correzioni fatte dopo la 2.3.2, quindi **non ancora nell'immagine sul dispositivo**.
+
+- **I pulsanti di navigazione della demo portavano a una pagina inesistente.**
+  Premendone uno lo schermo diventava nero, senza nessun messaggio. Erano
+  sbagliati tutti e 16, su entrambi i modelli "Demo Items" — cioè proprio quelli
+  che si usano per mostrare il prodotto. Gli altri cinque modelli erano corretti.
+- **Il registro non si riempie più di righe inutili.** Uno script che gira ogni
+  secondo scriveva una riga per ogni esecuzione riuscita (86.400 al giorno), e
+  uno rotto ne scriveva due (172.800). In un file di log su due, oltre il 99%
+  delle righe era una sola frase ripetuta. Ora l'esecuzione riuscita e silenziosa
+  non si annota, e un errore che si ripete si annota via via più di rado — ma
+  quando lo script torna a funzionare viene detto.
+
+
 ## [2.3.2] — 2026-08-28
 
 - **Caricando un progetto sul pannello, lo schermo si adegua da solo.** Nella
