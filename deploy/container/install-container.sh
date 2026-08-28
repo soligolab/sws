@@ -490,6 +490,23 @@ IPS="${IPS% }"
 for i in $(seq 1 30); do
     if curl -fs --max-time 2 http://localhost:8443/health >/dev/null 2>&1; then
         echo "    /health ok dopo ${i}s"
+
+        # Il browser del pannello Pixsys punta al viewer SWS.
+        #
+        # `chromium-start main-app` legge l'URL da D-Bus a ogni avvio, quindi è
+        # lì che va scritto. Senza, il pannello continua a mostrare la pagina di
+        # configurazione (9443): è il valore di fabbrica, e un factory reset ce
+        # lo riporta. Finora lo si impostava a mano, e chi non lo sapeva
+        # installava SWS senza vederlo sullo schermo.
+        #
+        # Polkit lo consente a chiunque, niente sudo. Se fallisce (dispositivo
+        # non Pixsys, D-Bus assente) si prosegue: l'installazione è riuscita
+        # comunque, e il viewer resta raggiungibile dalla rete.
+        if command -v busctl >/dev/null 2>&1 && \
+           busctl --system call net.pixsys.Config1 /net/pixsys/Config1/WebBrowser/MainApp \
+               net.pixsys.Config1.WebBrowser SetUrl s "http://127.0.0.1:8443" >/dev/null 2>&1; then
+            echo "    browser del pannello puntato su http://127.0.0.1:8443"
+        fi
         echo
         for a in $IPS; do
             echo "    viewer : http://$a:8443     IDE : http://$a:8444"

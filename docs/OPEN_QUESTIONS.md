@@ -2211,6 +2211,31 @@ allora è C, ed è un lavoro diverso: meglio saperlo prima.
 **Nota che vale per B e per qualunque soluzione che tocchi `chromium@main-app.service`**: si
 modifica una unit dell'OS Pixsys, che a un aggiornamento del sistema può tornare com'era.
 
+### Il vincolo che l'analisi non conosceva (2026-08-28)
+
+La prima versione di questa soluzione **ha rotto la via di fuga del pannello**. Sui prodotti Pixsys,
+tenendo premuta l'icona STOP per più di 10 s durante l'avvio, il launcher apre Cockpit sulla 9443:
+è il modo con cui si sistema un dispositivo mal configurato. Le nostre unit partivano da
+`default.target` — cioè in qualunque modalità — e `sws-display-apply.sh` fermava il browser: si
+teneva premuto STOP, compariva Cockpit, e un istante dopo la finestra LVGL ci finiva sopra.
+
+**Deciso col maintainer**: in modalità configurazione SWS **non prende lo schermo ma continua a
+girare**. La configurazione riguarda il *dispositivo*, non l'*applicazione*: impianto, storico e
+allarmi non si fermano perché qualcuno sta sistemando la rete.
+
+Il discriminante è esatto e costa due query in sola lettura: in modalità configurazione il launcher
+avvia *solo* `chromium@wp-control.service` e **non raggiunge mai `desktop.target`**. Dettagli e
+trappole in `docs/TEST_SETUPS.md`.
+
+Due correzioni che ne discendono, entrambe già applicate:
+
+- il browser si comanda con `disable --now` invece di `stop`: uno `stop` non sopravvive al riavvio,
+  perché il symlink in `desktop.target.wants` resta e al boot successivo il browser torna su sotto
+  la finestra LVGL — un'intermittenza che si manifesta solo al riavvio;
+- lo script **aspetta un esito**, non un numero di secondi: al boot la sessione utente può partire
+  prima che `desktop.target` sia salito, e guardare una volta sola scambierebbe un avvio lento per
+  una modalità configurazione.
+
 ### Rapporto con le altre voci
 
 Assorbe la questione «serve un quadlet per `lvgl-view`?»: il quadlet è un pezzo di questa

@@ -120,6 +120,47 @@ per entrambi salvo dove indicato.
 invece apre i device direttamente, quindi non convive con weston (che è già DRM master) e
 richiederebbe di passare da `seatd`, non di allargare i gruppi.
 
+### La via di fuga del launcher — non romperla (misurato sul WP630, 2026-08-28)
+
+`pixsys-launcher` gira a `sysinit.target`, **prima di Weston**, e disegna direttamente su DRM/KMS.
+Legge il touch e allo scadere di un timer **unico da 10 s** guarda dove sta il dito:
+
+| Dito allo scadere dei 10 s | Cosa parte |
+|---|---|
+| dentro l'icona **STOP** (225×225 px, angolo in alto a **destra**) | `chromium@wp-control.service` → **Cockpit su `http://127.0.0.1:9443`** |
+| premuto altrove sullo schermo | `touch-calibration-from-launcher.service` |
+| non premuto | **`desktop.target`** → Weston + `chromium@main-app.service` |
+
+Un tocco rilasciato prima dei 10 s non ha effetto: conta solo dove si trova il dito nell'istante in
+cui il timer scade.
+
+**Il fatto che serve a chi scrive codice**: in modalità configurazione il launcher avvia *solo*
+`chromium@wp-control.service` e **non raggiunge mai `desktop.target`**. Quindi
+
+```bash
+systemctl is-active desktop.target      # active = modalità normale
+systemctl is-active chromium@wp-control.service   # active = modalità configurazione
+```
+
+distingue le due modalità in modo esatto, con due query che l'utente `user` può fare senza sudo.
+È su questo che si regge `sws-display-apply.sh`.
+
+**Cosa non fare**, pena rendere il dispositivo non configurabile:
+
+- non prendere lo schermo senza aver prima verificato la modalità;
+- non toccare `chromium@wp-control.service`;
+- non abilitare `weston.service` al boot: partirebbe prima del launcher e, per il `Conflicts=`,
+  ucciderebbe la finestra dei 10 s.
+
+**Comandare il browser senza sudo.** La regola polkit `17-chromium.rules` concede a `setup-user`
+`manage-unit-files` sulle unit `chromium@*`, quindi `systemctl disable --now
+chromium@main-app.service` funziona come utente. Da preferire a `stop`: uno `stop` non sopravvive al
+riavvio, perché il symlink in `desktop.target.wants` resta.
+
+**Attenzione alla revisione del firmware**: il sorgente Yocto più recente espone
+`net.pixsys.Config1.WebBrowser.SetEnabled`, che sarebbe la via più pulita — ma sul WP630 provato
+**non esiste** (`Unknown method`). Verificarlo prima di usarlo.
+
 ### GUI del pannello (Pixsys OS, verificato su un WP620 il 2026-07-28)
 
 Il display del pannello è pilotato da **Chromium su Weston**, non dal runtime:

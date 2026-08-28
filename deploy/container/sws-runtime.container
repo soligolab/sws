@@ -69,4 +69,12 @@ RestartSec=5
 TimeoutStopSec=30
 
 [Install]
+# `default.target` (sessione utente) e non `desktop.target`: il runtime deve
+# girare **anche** mentre il pannello è in modalità configurazione Pixsys — la
+# schermata che si apre tenendo premuto STOP all'avvio. Impianto, storico e
+# allarmi non si fermano perché qualcuno sta sistemando la rete.
+#
+# È deliberato, non una svista rispetto a `sws-display.service`, che invece si
+# astiene dal toccare lo schermo in quella modalità: la configurazione riguarda
+# il *dispositivo*, non l'*applicazione*.
 WantedBy=default.target

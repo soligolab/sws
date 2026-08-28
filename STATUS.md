@@ -28,6 +28,13 @@ Lista di controllo, in ordine:
 | 7 | **Riavvia il dispositivo** | Dopo il boot lo schermo torna da sé sul motore giusto — è il caso che prima non funzionava |
 | 8 | Il viewer parte senza `--page` | Prima pagina o home page del progetto, nessuna toppa nella unit |
 | 9 | Gli accenti | `più` e `—` leggibili, zero `glyph dsc. not found` nel log |
+| 10 | **Riavvio tenendo premuto STOP** (angolo in alto a **destra**, oltre 10 s) | Compare **Cockpit sulla 9443**, e il viewer LVGL **non** prende lo schermo |
+| 11 | Durante il 10 | `/health` risponde e lo storico continua: il runtime non si ferma |
+| 12 | Il log dice perché | `journalctl --user -u sws-display` contiene «il launcher è in modalità configurazione» |
+| 13 | Ritorno alla normalità | Riavvio senza toccare nulla → il pannello torna sul motore del progetto |
+
+Il **passo 10 è quello che oggi fallisce**: le nostre unit partivano in qualunque modalità e la
+finestra LVGL finiva sopra Cockpit, rendendo il dispositivo non configurabile.
 
 **Trappole note, da verificare esplicitamente:**
 

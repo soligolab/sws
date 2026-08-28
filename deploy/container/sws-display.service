@@ -23,11 +23,11 @@ After=sws-runtime.service
 
 [Service]
 Type=oneshot
-# Al boot la sessione utente parte prima che Weston abbia aperto XWayland. Non
-# è una gara che si possa vincere con un ordinamento, perché le due cose stanno
-# in gerarchie systemd diverse: si aspetta, e se non basta il viewer riprova da
-# sé ogni 5 secondi.
-ExecStartPre=/bin/sleep 5
+# Nessuna attesa fissa qui: ad aspettare è lo script, che però aspetta un
+# **esito** — che il launcher Pixsys abbia deciso fra modalità normale e
+# configurazione — invece di un numero di secondi. Due attese sovrapposte
+# nascondono quale delle due stia agendo, e quando il pannello sbaglia schermata
+# non si capisce più chi ha guardato troppo presto.
 ExecStart=/data/user/sws-container/sws-display-apply.sh
 # `oneshot` con `RemainAfterExit=no`: l'unit non "resta attiva", ha finito il
 # suo lavoro. Serve così perché `sws-display.path` possa rilanciarla a ogni
