@@ -69,9 +69,12 @@ async fn run_script_task(
     db: Arc<TagDb>,
     cancel: CancellationToken,
 ) {
+    // Vive quanto il task, cioè quanto lo script: è lì che si accumulano i
+    // fallimenti consecutivi da strozzare.
+    let mut throttle = FailureThrottle::default();
     match trigger {
         ScriptTrigger::Startup => {
-            exec_once(&id, &code, &py).await;
+            exec_once(&id, &code, &py, &mut throttle).await;
         }
 
         ScriptTrigger::Interval { interval_s } => {
@@ -80,7 +83,7 @@ async fn run_script_task(
                 tokio::select! {
                     _ = cancel.cancelled() => break,
                     _ = sleep(dur) => {
-                        exec_once(&id, &code, &py).await;
+                        exec_once(&id, &code, &py, &mut throttle).await;
                     }
                 }
             }
@@ -92,7 +95,7 @@ async fn run_script_task(
                 tokio::select! {
                     _ = cancel.cancelled() => break,
                     _ = sleep(Duration::from_secs(secs_until)) => {
-                        exec_once(&id, &code, &py).await;
+                        exec_once(&id, &code, &py, &mut throttle).await;
                     }
                 }
             }
@@ -112,7 +115,7 @@ async fn run_script_task(
                                 let fire = should_fire_on_edge(&edge, &last_val, &new_val);
                                 last_val = Some(new_val);
                                 if fire {
-                                    exec_once(&id, &code, &py).await;
+                                    exec_once(&id, &code, &py, &mut throttle).await;
                                 }
                             }
                             Ok(_) => {}
@@ -133,9 +136,59 @@ async fn run_script_task(
     info!(id = %id, "global script task stopped");
 }
 
-async fn exec_once(id: &str, code: &str, py: &PyEngine) {
+/// Quante volte di fila uno script ha fallito, e con quale errore.
+///
+/// Serve perché uno script rotto su un intervallo di 1 s produce **172.800
+/// righe al giorno** — due per tick, un WARN dal motore Python e un ERROR da
+/// qui — tutte identiche. È successo davvero: un progetto con un `import` che
+/// la sandbox del dispositivo blocca riempiva il pannello di log dell'IDE al
+/// punto da nascondere tutto il resto (2026-08-28).
+///
+/// Un errore ripetuto all'infinito non è più informazione del primo: dice la
+/// stessa cosa, e sommergendo le altre righe ne toglie.
+#[derive(Default)]
+pub(crate) struct FailureThrottle {
+    consecutivi: u64,
+    ultimo: String,
+}
+
+impl FailureThrottle {
+    /// `Some(n)` se questo fallimento va registrato, col numero d'ordine.
+    ///
+    /// Un errore **diverso** si stampa sempre: è una notizia nuova, e tacerla
+    /// perché il conteggio è "in mezzo" a una progressione nasconderebbe
+    /// proprio il cambiamento che interessa.
+    fn da_registrare(&mut self, errore: &str) -> Option<u64> {
+        if errore != self.ultimo {
+            self.ultimo = errore.to_string();
+            self.consecutivi = 1;
+            return Some(1);
+        }
+        self.consecutivi += 1;
+        // Potenze di due: 10.000 fallimenti costano 14 righe invece di 10.000,
+        // e ognuna dice a che punto siamo. Stessa regola di `lvgl_log.rs`.
+        self.consecutivi.is_power_of_two().then_some(self.consecutivi)
+    }
+
+    /// Quanti fallimenti si erano accumulati prima che tornasse a funzionare.
+    fn azzera(&mut self) -> u64 {
+        let n = std::mem::take(&mut self.consecutivi);
+        self.ultimo.clear();
+        n
+    }
+}
+
+async fn exec_once(id: &str, code: &str, py: &PyEngine, throttle: &mut FailureThrottle) {
     match py.execute(code.to_owned()).await {
         Ok(out) => {
+            // La guarigione va detta: con i fallimenti strozzati, senza questa
+            // riga non ci sarebbe modo di sapere che lo script è tornato a
+            // funzionare — si vedrebbe solo il log smettere di lamentarsi, che
+            // somiglia troppo a "ho smesso di guardare".
+            let falliti = throttle.azzera();
+            if falliti > 0 {
+                info!(id = %id, falliti, "lo script è tornato a funzionare");
+            }
             if !out.stdout.is_empty() {
                 info!(id = %id, stdout = %out.stdout.trim_end(), "global script output");
             }
@@ -144,7 +197,14 @@ async fn exec_once(id: &str, code: &str, py: &PyEngine) {
             }
         }
         Err(e) => {
-            error!(id = %id, error = %e, "global script execution failed");
+            if let Some(n) = throttle.da_registrare(&e) {
+                if n == 1 {
+                    error!(id = %id, error = %e, "global script execution failed");
+                } else {
+                    error!(id = %id, error = %e, consecutivi = n,
+                           "global script execution failed (le occorrenze intermedie non sono registrate)");
+                }
+            }
         }
     }
 }

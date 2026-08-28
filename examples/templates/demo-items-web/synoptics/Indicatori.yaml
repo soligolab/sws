@@ -28,7 +28,7 @@ objects:
   width: 144.0
   height: 32.0
   label: 1. Base
-  target_page: Base e comandi
+  target_page: demo_p1
   fill: '#334155'
   group_id: nav
   locked: true
@@ -39,7 +39,7 @@ objects:
   width: 144.0
   height: 32.0
   label: 2. Indicatori
-  target_page: Indicatori
+  target_page: demo_p2
   fill: '#2563eb'
   group_id: nav
   locked: true
@@ -50,7 +50,7 @@ objects:
   width: 144.0
   height: 32.0
   label: 3. Grafici
-  target_page: Grafici e tabelle
+  target_page: demo_p3
   fill: '#334155'
   group_id: nav
   locked: true
@@ -61,7 +61,7 @@ objects:
   width: 144.0
   height: 32.0
   label: 4. Allarmi
-  target_page: Allarmi e composizione
+  target_page: demo_p4
   fill: '#334155'
   group_id: nav
   locked: true

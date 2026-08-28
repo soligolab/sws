@@ -26,6 +26,9 @@
 #     versione, e col timbro alla creazione (2026-08-28) sarebbe un residuo.
 #   * nessuna pagina — da quando il viewer LVGL parte senza `--page`, un
 #     progetto senza sinottici non lo fa partire affatto.
+#   * navbutton che puntano a pagine inesistenti — `target_page` è un **id**,
+#     non un nome, e sbagliarlo dà uno schermo nero senza nessun messaggio
+#     (2026-08-28: tutti e 16 quelli dei due template "Demo Items").
 #   * `home_page_id` mancante con più pagine — il viewer ripiega sulla prima in
 #     ordine alfabetico, quindi a decidere cosa vede il cliente all'accensione è
 #     l'alfabeto.
@@ -90,7 +93,7 @@ for nome in nomi:
         problema(f"{nome}: nessuna pagina synottico — il viewer LVGL non parte affatto")
         continue
 
-    ids, usati_tag, tipi = set(), set(), set()
+    ids, usati_tag, tipi, nav_targets = set(), set(), set(), set()
     for f in pagine:
         base = os.path.basename(f)
         try:
@@ -108,6 +111,8 @@ for nome in nomi:
         for o in (pag.get("objects") or []):
             if o.get("type"):
                 tipi.add(o["type"])
+            if o.get("type") == "navbutton" and o.get("target_page"):
+                nav_targets.add(o["target_page"])
             for campo in INTERI:
                 v = o.get(campo)
                 if isinstance(v, float) and v != int(v):
@@ -118,6 +123,19 @@ for nome in nomi:
             for k, v in o.items():
                 if k.endswith("tag") and isinstance(v, str) and v:
                     usati_tag.add(v)
+
+    # ── navbutton che portano nel vuoto ──
+    #
+    # `target_page` contiene l'**id** della pagina, non il nome: lo risolvono
+    # così `pageLayout.ts` e `EditorShell.tsx`. Entrambi i template "Demo Items"
+    # ci mettevano il nome — tutti e 16 i navbutton portavano a una pagina
+    # inesistente e il viewer restava **nero**. Trovato dal maintainer premendo
+    # un pulsante sul WP630 il 2026-08-28.
+    rotti = sorted({t for t in nav_targets if t not in ids})
+    if rotti:
+        problema(f"{nome}: {len(rotti)} navbutton puntano a pagine inesistenti → {rotti[:3]}"
+                 + (" …" if len(rotti) > 3 else "")
+                 + f" (gli id veri sono {sorted(ids)[:3]})")
 
     fuori = sorted(tipi - PALETTE)
     if fuori:

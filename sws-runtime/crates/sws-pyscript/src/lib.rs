@@ -325,7 +325,18 @@ impl Engine {
                 Ok(out)
             }
             Ok(Ok(Err(msg))) => {
-                warn!("python script failed: {msg}");
+                // `debug` e non `warn`: l'errore torna comunque al chiamante, e
+                // **tutti e due** i chiamanti lo mostrano già.
+                // `global_scripts::exec_once` lo registra a ERROR (strozzato per
+                // ripetizione), e `POST /api/script/exec` lo restituisce nella
+                // risposta HTTP, dove l'IDE lo mette sotto gli occhi di chi ha
+                // premuto il pulsante.
+                //
+                // Qui era una terza copia, e su uno script a intervallo di 1 s
+                // raddoppiava l'inondazione: due righe al secondo per lo stesso
+                // guasto, per sempre (visto sul WP630 il 2026-08-28, con un
+                // progetto il cui `import` la sandbox blocca).
+                debug!("python script failed: {msg}");
                 Err(msg)
             }
             Ok(Err(e))       => Err(format!("python task panicked: {e}")),
