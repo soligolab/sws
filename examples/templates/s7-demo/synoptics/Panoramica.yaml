@@ -1,0 +1,106 @@
+id: s7_page1
+name: Panoramica
+width: 1280.0
+height: 800.0
+background: '#0f172a'
+objects:
+- id: hdr_bg
+  type: rect
+  x: 0.0
+  y: 0.0
+  width: 1280.0
+  height: 56.0
+  fill: '#1e293b'
+- id: hdr_title
+  type: text
+  x: 24.0
+  y: 16.0
+  text: Siemens S7 — DB1
+  font_size: 20.0
+  color: '#e2e8f0'
+- id: nota
+  type: text
+  x: 24.0
+  y: 74.0
+  width: 1000.0
+  height: 18.0
+  text: 'Pagina di partenza: i tag del template sono già collegati. Disegna qui il
+    tuo impianto.'
+  font_size: 12.0
+  color: '#94a3b8'
+- id: lbl_0
+  type: text
+  x: 40.0
+  y: 120.0
+  text: Velocità pompa 1 [rpm]
+  font_size: 14.0
+  color: '#94a3b8'
+- id: val_0
+  type: text
+  x: 620.0
+  y: 120.0
+  tag: pump1.speed
+  format: '{value:.1f}'
+  font_size: 16.0
+  color: '#e2e8f0'
+  text_anchor: end
+- id: lbl_1
+  type: text
+  x: 40.0
+  y: 154.0
+  text: Valvola 1 aperta
+  font_size: 14.0
+  color: '#94a3b8'
+- id: val_1
+  type: led
+  x: 520.0
+  y: 152.0
+  width: 18.0
+  height: 18.0
+  tag: valve1.open
+- id: lbl_2
+  type: text
+  x: 40.0
+  y: 188.0
+  text: Temperatura processo [°C]
+  font_size: 14.0
+  color: '#94a3b8'
+- id: val_2
+  type: text
+  x: 620.0
+  y: 188.0
+  tag: process.temperature
+  format: '{value:.1f}'
+  font_size: 16.0
+  color: '#e2e8f0'
+  text_anchor: end
+- id: lbl_3
+  type: text
+  x: 40.0
+  y: 222.0
+  text: Pressione processo [mbar]
+  font_size: 14.0
+  color: '#94a3b8'
+- id: val_3
+  type: text
+  x: 620.0
+  y: 222.0
+  tag: process.pressure
+  format: '{value}'
+  font_size: 16.0
+  color: '#e2e8f0'
+  text_anchor: end
+- id: lbl_4
+  type: text
+  x: 40.0
+  y: 256.0
+  text: Pompa 1 in marcia (derivato)
+  font_size: 14.0
+  color: '#94a3b8'
+- id: val_4
+  type: led
+  x: 520.0
+  y: 254.0
+  width: 18.0
+  height: 18.0
+  tag: pump1.running

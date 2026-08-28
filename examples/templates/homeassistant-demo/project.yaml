@@ -168,6 +168,49 @@ tags:
 # SQLite locale: i campioni vengono scritti in <progetto>/.history/sws-history.db
 # retention_days: 90 → campioni più vecchi di 90 giorni vengono eliminati
 
+  # ── Aggiunti il 2026-08-28 ────────────────────────────────────────────────
+  #
+  # Erano usati dai widget delle pagine ma non dichiarati qui: a runtime
+  # restavano sconosciuti e quei widget non mostravano nulla, senza che niente
+  # lo segnalasse. Trovati da `scripts/check_templates.sh`.
+  #
+  # I nomi si lasciano come sono: rinominarli per accorparli a quelli già
+  # dichiarati (`sala.temperatura`, per dire) vorrebbe dire indovinare cosa
+  # intendeva chi ha disegnato le pagine, e sbagliare in silenzio.
+  - id: esterno.temperatura
+    description: "Temperatura esterna (°C)"
+    data_type: float
+    history: true
+    datastore_id: sqlite-locale
+
+  - id: esterno.umidita
+    description: "Umidità esterna (%)"
+    data_type: float
+    history: true
+    datastore_id: sqlite-locale
+
+  - id: clima.temperatura_attuale
+    description: "Temperatura ambiente letta dal termostato (°C)"
+    data_type: float
+    history: true
+    datastore_id: sqlite-locale
+
+  - id: clima.setpoint
+    description: "Setpoint del termostato, in sola lettura (°C)"
+    data_type: float
+
+  - id: riscaldamento.setpoint
+    description: "Setpoint riscaldamento scritto dall'utente (°C)"
+    data_type: float
+
+  - id: irrigazione.durata_min
+    description: "Durata del ciclo di irrigazione (min)"
+    data_type: int
+
+  - id: modalita.notturna
+    description: "Modalità notturna attiva"
+    data_type: bool
+
 datastores:
   - id: sqlite-locale
     label: "Storico SQLite locale"
@@ -604,3 +647,13 @@ languages:
       values:
         it: "  Esempio: energia.costo_ora_eur  =  tags['energia.potenza_w'] * 0.25 / 1000"
         en: "  Esempio: energia.costo_ora_eur  =  tags['energia.potenza_w'] * 0.25 / 1000"
+
+# ── Pagina iniziale ──────────────────────────────────────────────────────────
+#
+# Senza questa riga il viewer apre la **prima pagina in ordine alfabetico**, che
+# quasi mai è quella giusta: qui sarebbe "Panoramica" solo per fortuna, e
+# cambierebbe al primo rinomino. Il viewer LVGL la usa dal 2026-08-28, quando
+# `--page` è diventato opzionale.
+page_layout:
+  size_mode: fixed
+  home_page_id: ha_page1   # Panoramica

@@ -298,3 +298,13 @@ languages:
       values:
         it: "Motore"
         en: "Motor"
+
+# ── Pagina iniziale ──────────────────────────────────────────────────────────
+#
+# Senza questa riga il viewer apre la **prima pagina in ordine alfabetico**, che
+# quasi mai è quella giusta: qui sarebbe "Base e comandi" solo per fortuna, e
+# cambierebbe al primo rinomino. Il viewer LVGL la usa dal 2026-08-28, quando
+# `--page` è diventato opzionale.
+page_layout:
+  size_mode: fixed
+  home_page_id: demo_p1   # Base e comandi

@@ -1,5 +1,6 @@
 meta:
   name: "Sparkplug B Demo"
+  version: "0.1.0"
   description: "Progetto dimostrativo per sorgenti IIoT Sparkplug B via MQTT. Configurare host, porta e group_id. SWS decodifica payload protobuf NBIRTH/NDATA/DBIRTH/DDATA automaticamente."
 
 sources:
@@ -67,83 +68,19 @@ alarms:
   - id: alm-pump-stopped
     tag: pump.running
     condition:
-      kind: equal
-      value: false
+        # `bool_false`, non `equal`: quest'ultima non esiste fra le condizioni
+        # riconosciute (above, below, bool_equals, bool_true, bool_false, and,
+        # or, not), e faceva rifiutare l'INTERO progetto al caricamento — non
+        # solo l'allarme. Trovato dal test che carica i template col parser vero.
+        kind: bool_false
     message: "Pompa ferma durante produzione"
     severity: Warning
 
-synoptics:
-  - id: main
-    label: "Sparkplug B Overview"
-    objects:
-      - type: text
-        id: title
-        x: 20
-        y: 16
-        text: "Sparkplug B IIoT — plant-a"
-        font_size: 18
-        color: "#a855f7"
-      - type: text
-        id: lbl-speed
-        x: 20
-        y: 70
-        text: "Velocità pompa:"
-        font_size: 13
-        color: "#94a3b8"
-      - type: value_display
-        id: pump-speed
-        x: 170
-        y: 66
-        tag: pump.speed
-        suffix: " rpm"
-        font_size: 14
-        color: "#22d3ee"
-      - type: text
-        id: lbl-running
-        x: 20
-        y: 110
-        text: "Pompa in marcia:"
-        font_size: 13
-        color: "#94a3b8"
-      - type: indicator
-        id: pump-running
-        x: 170
-        y: 106
-        tag: pump.running
-        color_on: "#22c55e"
-        color_off: "#ef4444"
-        width: 20
-        height: 20
-      - type: text
-        id: lbl-temp-in
-        x: 20
-        y: 150
-        text: "T ingresso:"
-        font_size: 13
-        color: "#94a3b8"
-      - type: value_display
-        id: temp-in
-        x: 170
-        y: 146
-        tag: temp.inlet
-        suffix: " °C"
-        font_size: 14
-        color: "#3b82f6"
-      - type: text
-        id: lbl-temp-out
-        x: 20
-        y: 190
-        text: "T uscita:"
-        font_size: 13
-        color: "#94a3b8"
-      - type: value_display
-        id: temp-out
-        x: 170
-        y: 186
-        tag: temp.outlet
-        suffix: " °C"
-        font_size: 14
-        color: "#f97316"
+# NOTA: qui c'era una pagina scritta dentro `project.yaml`, sotto una chiave
+# `synoptics:` che il runtime **non legge**: le pagine le prende dai file in
+# `synoptics/*.yaml`. Era quindi contenuto morto — modificabile, invisibile,
+# e ingannevole per chi ci avesse messo mano. Rimossa il 2026-08-28, quando
+# al template è stata aggiunta una vera pagina di partenza.
 
 languages:
   default: it

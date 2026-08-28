@@ -1029,3 +1029,49 @@ impl Project {
     }
 }
 
+
+#[cfg(test)]
+mod template_tests {
+    use super::*;
+
+    /// Ogni template deve caricarsi **col parser vero**.
+    ///
+    /// È il controllo che nessuno faceva, e costava caro: `enip-demo` e
+    /// `sparkplug-demo` erano privi di `meta.version`, quindi creare un
+    /// progetto da loro produceva qualcosa che il runtime **rifiutava di
+    /// aprire** con `project parse error`. Erano rotti da quando sono stati
+    /// scritti, e l'unico modo di scoprirlo era provarli a mano.
+    ///
+    /// Un controllo scritto in Python o in shell approssimerebbe le regole del
+    /// parser e prima o poi divergerebbe; qui si usa `Project::load`, cioè
+    /// esattamente ciò che il runtime esegue all'apertura. Non può disallinearsi
+    /// perché non è una copia.
+    #[test]
+    fn tutti_i_template_si_caricano() {
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../examples/templates");
+        let mut visti = 0;
+        let mut rotti = Vec::new();
+        for e in std::fs::read_dir(&dir).expect("examples/templates deve esistere") {
+            let p = e.expect("voce leggibile").path();
+            if !p.is_dir() || !p.join("project.yaml").exists() {
+                continue;
+            }
+            visti += 1;
+            let nome = p.file_name().unwrap().to_string_lossy().to_string();
+            if let Err(err) = Project::load(&p) {
+                rotti.push(format!("{nome}: {err:#}"));
+            }
+        }
+        assert!(
+            visti >= 10,
+            "trovati solo {visti} template: il percorso è sbagliato, non è che ne esistano pochi"
+        );
+        assert!(
+            rotti.is_empty(),
+            "{} template non si caricano — creare un progetto da questi dà \
+             `project parse error` e il progetto non si apre:\n  {}",
+            rotti.len(),
+            rotti.join("\n  ")
+        );
+    }
+}

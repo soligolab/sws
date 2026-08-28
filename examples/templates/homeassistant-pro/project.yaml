@@ -1487,3 +1487,13 @@ languages:
       values:
         it: "Sole elevazione"
         en: "Sun elevation"
+
+# ── Pagina iniziale ──────────────────────────────────────────────────────────
+#
+# Senza questa riga il viewer apre la **prima pagina in ordine alfabetico**, che
+# quasi mai è quella giusta: qui sarebbe "Panoramica" solo per fortuna, e
+# cambierebbe al primo rinomino. Il viewer LVGL la usa dal 2026-08-28, quando
+# `--page` è diventato opzionale.
+page_layout:
+  size_mode: fixed
+  home_page_id: pro_p1   # Panoramica

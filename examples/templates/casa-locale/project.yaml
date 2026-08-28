@@ -948,3 +948,13 @@ languages:
       values:
         it: "Tapparelle: shellies/DEVICE_ID/roller/0/command · PDC: dds661/pompa-di-calore/state"
         en: "Tapparelle: shellies/DEVICE_ID/roller/0/command · PDC: dds661/pompa-di-calore/state"
+
+# ── Pagina iniziale ──────────────────────────────────────────────────────────
+#
+# Senza questa riga il viewer apre la **prima pagina in ordine alfabetico**, che
+# quasi mai è quella giusta: qui sarebbe "Panoramica" solo per fortuna, e
+# cambierebbe al primo rinomino. Il viewer LVGL la usa dal 2026-08-28, quando
+# `--page` è diventato opzionale.
+page_layout:
+  size_mode: fixed
+  home_page_id: cl_page1   # Panoramica

@@ -178,3 +178,13 @@ languages:
       values:
         it: "Demo grid S-23: clicca una cella, poi 'Dividi orizzontalmente/verticalmente' nel pannello destra (split locale). Shift+click su altre celle per merge."
         en: "Grid demo S-23: click a cell, then 'Split horizontally/vertically' in the right panel (local split). Shift+click other cells to merge."
+
+# ── Pagina iniziale ──────────────────────────────────────────────────────────
+#
+# Senza questa riga il viewer apre la **prima pagina in ordine alfabetico**, che
+# quasi mai è quella giusta: qui sarebbe "Griglia 4×4" solo per fortuna, e
+# cambierebbe al primo rinomino. Il viewer LVGL la usa dal 2026-08-28, quando
+# `--page` è diventato opzionale.
+page_layout:
+  size_mode: fixed
+  home_page_id: gp_page1   # Griglia 4×4

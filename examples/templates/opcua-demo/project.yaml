@@ -215,3 +215,13 @@ languages:
       values:
         it: "▸ Per testare in locale: npx -y node-opcua-server  (oppure Prosys OPC UA Simulation Server)"
         en: "▸ To test locally: npx -y node-opcua-server  (or Prosys OPC UA Simulation Server)"
+
+# ── Pagina iniziale ──────────────────────────────────────────────────────────
+#
+# Senza questa riga il viewer apre la **prima pagina in ordine alfabetico**, che
+# quasi mai è quella giusta: qui sarebbe "Live" solo per fortuna, e
+# cambierebbe al primo rinomino. Il viewer LVGL la usa dal 2026-08-28, quando
+# `--page` è diventato opzionale.
+page_layout:
+  size_mode: fixed
+  home_page_id: opc_page1   # Live
