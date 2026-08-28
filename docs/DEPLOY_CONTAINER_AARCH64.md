@@ -284,7 +284,11 @@ curl -s -o /dev/null -w "%{http_code}\n" -H "Authorization: Bearer $TOK" \
 
 ```bash
 scp deploy/container/install-container.sh \
-    deploy/container/sws-runtime.container  user@<device>:/tmp/
+    deploy/container/sws-runtime.container \
+    deploy/container/sws-lvgl-viewer.container \
+    deploy/container/sws-display.service \
+    deploy/container/sws-display.path \
+    deploy/container/sws-display-apply.sh  user@<device>:/tmp/
 ssh user@<device> 'cd /tmp && ./install-container.sh --pull'
 ```
 
@@ -313,13 +317,18 @@ dispositivo resta esattamente com'era invece di restare senza runtime.
 ### Ripiego offline
 
 Per un dispositivo che il registry non lo raggiunge, l'immagine viaggia come
-archivio — ed è l'unico file da copiare, la SPA è dentro:
+archivio: la SPA è dentro, ma accanto vanno comunque i file di
+`deploy/container/` che l'installer legge dalla propria directory.
 
 ```bash
 ./scripts/build_container.sh                    # produce dist/…-aarch64-image.tar.gz
 scp dist/sws-runtime-<versione>-aarch64-image.tar.gz \
     deploy/container/install-container.sh \
-    deploy/container/sws-runtime.container  user@<device>:/tmp/
+    deploy/container/sws-runtime.container \
+    deploy/container/sws-lvgl-viewer.container \
+    deploy/container/sws-display.service \
+    deploy/container/sws-display.path \
+    deploy/container/sws-display-apply.sh  user@<device>:/tmp/
 ssh user@<device> 'cd /tmp && ./install-container.sh --image sws-runtime-<versione>-aarch64-image.tar.gz'
 ```
 

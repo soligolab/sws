@@ -340,6 +340,13 @@ pub async fn create_project(
                     // Non-fatal — project is usable, name just stays as template id.
                 }
             }
+            // Il progetto lo produce questo runtime, adesso: senza il timbro
+            // l'IDE lo segnalerebbe «da aggiornare» appena creato. Non fatale
+            // per lo stesso motivo del nome: un avviso di troppo è meglio di un
+            // progetto non creato.
+            if let Err(e) = stamp_saved_by(&yaml_path).await {
+                warn!("create_project: timbro saved_by: {e}");
+            }
             info!(name = %safe_name, template = template_id, "project created from template");
         }
         None => {
@@ -1665,6 +1672,55 @@ datastores:
         let path = doc["datastores"][0]["backend"]["path"].as_str().unwrap();
         assert_eq!(path, "/custom/altrove/storico.db");
     }
+
+    /// Un progetto creato da template è prodotto da QUESTO runtime: deve
+    /// nascere col timbro, altrimenti l'IDE lo segnala «da aggiornare» al primo
+    /// minuto per una deriva che non esiste.
+    #[tokio::test]
+    async fn il_timbro_marca_la_versione_corrente() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let yaml = dir.path().join("project.yaml");
+        // Come un template: nessun `saved_by`.
+        std::fs::write(&yaml, "meta:\n  name: da-template\n  version: '1'\ntags: []\n").unwrap();
+
+        super::stamp_saved_by(&yaml).await.expect("timbro");
+
+        let doc: serde_yaml::Value = serde_yaml::from_str(&std::fs::read_to_string(&yaml).unwrap()).unwrap();
+        assert_eq!(doc["saved_by"].as_str(), Some(sws_core::project::runtime_version()));
+        assert_eq!(doc["meta"]["name"].as_str(), Some("da-template"), "il resto non si tocca");
+    }
+
+    /// Il timbro non deve cadere dentro `patch_project_name`: rinominare un
+    /// progetto vecchio non lo rende nuovo, e azzerarne l'avviso nasconderebbe
+    /// una deriva vera.
+    #[tokio::test]
+    async fn rinominare_non_cambia_il_timbro() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let yaml = dir.path().join("project.yaml");
+        std::fs::write(&yaml, "meta:\n  name: vecchio\n  version: '1'\nsaved_by: 2.1.0\ntags: []\n").unwrap();
+
+        super::patch_project_name(&yaml, "nuovo-nome").await.expect("rinomina");
+
+        let doc: serde_yaml::Value = serde_yaml::from_str(&std::fs::read_to_string(&yaml).unwrap()).unwrap();
+        assert_eq!(doc["meta"]["name"].as_str(), Some("nuovo-nome"));
+        assert_eq!(doc["saved_by"].as_str(), Some("2.1.0"),
+                   "rinominare ha cancellato la provenienza: l'avviso di deriva sparirebbe");
+    }
+
+    /// I campi che questo build non conosce devono sopravvivere al timbro —
+    /// è il difetto di Q10, e il timbro lavora sullo YAML grezzo apposta.
+    #[tokio::test]
+    async fn il_timbro_non_perde_i_campi_sconosciuti() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let yaml = dir.path().join("project.yaml");
+        std::fs::write(&yaml, "meta:\n  name: x\n  version: '1'\ntags: []\nroba_futura:\n  chiave: valore\n").unwrap();
+
+        super::stamp_saved_by(&yaml).await.expect("timbro");
+
+        let testo = std::fs::read_to_string(&yaml).unwrap();
+        assert!(testo.contains("roba_futura"), "chiave sconosciuta persa:\n{testo}");
+        assert!(testo.contains("valore"), "contenuto della chiave sconosciuta perso:\n{testo}");
+    }
 }
 
 /// Rewrite `meta.name` in a copied `project.yaml` to match the user-chosen
@@ -1675,6 +1731,37 @@ async fn patch_project_name(yaml_path: &StdPath, name: &str) -> anyhow::Result<(
     let mut doc: serde_yaml::Value = serde_yaml::from_str(&raw)?;
     if let Some(meta) = doc.get_mut("meta") {
         meta["name"] = serde_yaml::Value::String(name.to_string());
+    }
+    let updated = serde_yaml::to_string(&doc)?;
+    tokio::fs::write(yaml_path, updated).await?;
+    Ok(())
+}
+
+/// Scrive `saved_by` con la versione di questo runtime.
+///
+/// Serve al progetto creato **da template**: i file del template si copiano
+/// così come sono, e i template non hanno `saved_by` — giustamente, perché un
+/// template non è "stato salvato da" una versione. Il progetto però sì: è
+/// prodotto adesso, da questo runtime. Senza il timbro, `needs_update()` lo
+/// confronta con `None` e l'IDE lo segnala «da aggiornare» al primo minuto di
+/// vita, per una deriva che non esiste.
+///
+/// **Deliberatamente separata da `patch_project_name`**, che è usata anche da
+/// `rename_project` e `duplicate_project`: lì il timbro sarebbe sbagliato. Un
+/// progetto salvato dalla 2.1.0 e rinominato oggi *è ancora* della 2.1.0, e
+/// azzerarne l'avviso nasconderebbe una deriva vera.
+///
+/// Lavora sullo YAML **grezzo** e non sulla struct tipizzata: passare di lì
+/// farebbe cadere i campi che questo build non conosce, che è il difetto di Q10
+/// per cui esiste `merge_preserved`.
+async fn stamp_saved_by(yaml_path: &StdPath) -> anyhow::Result<()> {
+    let raw = tokio::fs::read_to_string(yaml_path).await?;
+    let mut doc: serde_yaml::Value = serde_yaml::from_str(&raw)?;
+    if let Some(map) = doc.as_mapping_mut() {
+        map.insert(
+            serde_yaml::Value::from("saved_by"),
+            serde_yaml::Value::from(sws_core::project::runtime_version()),
+        );
     }
     let updated = serde_yaml::to_string(&doc)?;
     tokio::fs::write(yaml_path, updated).await?;

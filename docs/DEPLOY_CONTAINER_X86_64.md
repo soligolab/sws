@@ -130,7 +130,11 @@ Dal registry, la strada normale:
 
 ```bash
 scp deploy/container/install-container.sh \
-    deploy/container/sws-runtime.container  user@<device>:/tmp/
+    deploy/container/sws-runtime.container \
+    deploy/container/sws-lvgl-viewer.container \
+    deploy/container/sws-display.service \
+    deploy/container/sws-display.path \
+    deploy/container/sws-display-apply.sh  user@<device>:/tmp/
 ssh user@<device>
 cd /tmp && ./install-container.sh --pull ghcr.io/soligolab/sws-runtime:<versione>-amd64
 ```
@@ -140,7 +144,11 @@ Da archivio, per un dispositivo che non raggiunge il registry:
 ```bash
 scp dist/sws-runtime-<versione>-x86_64-image.tar.gz \
     deploy/container/install-container.sh \
-    deploy/container/sws-runtime.container  user@<device>:/tmp/
+    deploy/container/sws-runtime.container \
+    deploy/container/sws-lvgl-viewer.container \
+    deploy/container/sws-display.service \
+    deploy/container/sws-display.path \
+    deploy/container/sws-display-apply.sh  user@<device>:/tmp/
 ssh user@<device>
 cd /tmp && ./install-container.sh --image sws-runtime-<versione>-x86_64-image.tar.gz
 ```

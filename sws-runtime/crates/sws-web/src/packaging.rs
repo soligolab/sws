@@ -696,11 +696,55 @@ fn build_purge_cmd(remote_dir: &str, data_path: &str) -> String {
     cmd
 }
 
+/// I file di `deploy/container/` che l'installer legge **dalla propria
+/// directory**, e che quindi devono atterrare tutti nella stessa `remote_dir`.
+///
+/// L'elenco è duplicato: la fonte di verità sul dispositivo è
+/// `install-container.sh` (righe 66-78), qui c'è la copia che dice cosa
+/// spedire. `scripts/check_deploy_files.sh` tiene i due d'accordo e fallisce
+/// se divergono.
+///
+/// Che una copia a mano si disallinei non è teoria: quando è nata la
+/// commutazione web/LVGL (2026-08-28) i quattro file nuovi sono stati aggiunti
+/// solo all'installer. Il deploy dall'IDE continuava a spedirne due, l'installer
+/// non trovava gli altri e saltava quel pezzo con una NOTA — installazione
+/// riuscita, dispositivo senza commutazione, nessun errore.
+const CONTAINER_DEPLOY_FILES: &[&str] = &[
+    "install-container.sh",
+    "sws-runtime.container",
+    // Commutazione fra vista web e vista LVGL (Q25).
+    "sws-lvgl-viewer.container",
+    "sws-display.service",
+    "sws-display.path",
+    "sws-display-apply.sh",
+];
+
+/// I percorsi assoluti dei file da spedire, o il nome del primo che manca.
+///
+/// Separata dal gestore e pura per poter essere provata: finché l'elenco viveva
+/// dentro il `tokio::spawn` del deploy non lo copriva nessun test, ed è il
+/// motivo per cui il disallineamento è passato inosservato.
+fn container_deploy_sources(repo: &std::path::Path) -> Result<Vec<std::path::PathBuf>, String> {
+    let dir = repo.join("deploy/container");
+    let mut out = Vec::with_capacity(CONTAINER_DEPLOY_FILES.len());
+    for f in CONTAINER_DEPLOY_FILES {
+        let p = dir.join(f);
+        if !p.exists() {
+            // Il nome del file che manca, non l'elenco intero: il messaggio
+            // precedente li nominava tutti qualunque fosse l'assente, e
+            // lasciava a chi legge il compito di cercare quale.
+            return Err(format!("deploy/container/{f}"));
+        }
+        out.push(p);
+    }
+    Ok(out)
+}
+
 /// Same shape as `deploy_device`, but installs the runtime **as a rootless
 /// Podman container** instead of the native binary: ships the image archive
-/// plus `deploy/container/install-container.sh` and its quadlet unit
-/// (install-container.sh reads the unit from its own directory, so both must
-/// land in the same `remote_dir`), then runs the installer over SSH —
+/// plus i file di `deploy/container/` elencati in `CONTAINER_DEPLOY_FILES`
+/// (l'installer li legge dalla propria directory, quindi devono atterrare
+/// tutti nella stessa `remote_dir`), then runs the installer over SSH —
 /// **without `sudo`**, unlike the native-binary path, because rootless
 /// Podman needs none.
 ///
@@ -755,13 +799,14 @@ pub async fn deploy_device_container(
         ImageSpec::Registry(_) => None,
     };
 
-    let installer_src = repo.join("deploy/container/install-container.sh");
-    let quadlet_src = repo.join("deploy/container/sws-runtime.container");
-    if !installer_src.exists() || !quadlet_src.exists() {
-        return (StatusCode::INTERNAL_SERVER_ERROR,
-            "deploy/container/install-container.sh o sws-runtime.container mancante nel repo\n"
-        ).into_response();
-    }
+    let deploy_srcs = match container_deploy_sources(&repo) {
+        Ok(v) => v,
+        Err(mancante) => {
+            return (StatusCode::INTERNAL_SERVER_ERROR,
+                format!("{mancante} mancante nel repo\n")
+            ).into_response();
+        }
+    };
 
     // Riga di riepilogo composta qui, dove i dati ci sono ancora tutti.
     let source_line = match &image_spec {
@@ -809,12 +854,15 @@ pub async fn deploy_device_container(
         // dispositivo, ed è lì che si risparmiano i 59 MB.
         // La SPA non è fra questi in nessuno dei due casi: viaggia dentro
         // l'immagine dal 2026-07-30.
-        let mut uploads: Vec<(&str, &std::path::Path)> = Vec::with_capacity(3);
+        let mut uploads: Vec<(&str, &std::path::Path)> =
+            Vec::with_capacity(deploy_srcs.len() + 1);
         if let Some(p) = image_path.as_deref() {
             uploads.push(("immagine", p));
         }
-        uploads.push(("installer", installer_src.as_path()));
-        uploads.push(("unit quadlet", quadlet_src.as_path()));
+        for p in &deploy_srcs {
+            let nome = p.file_name().and_then(|s| s.to_str()).unwrap_or("file");
+            uploads.push((nome, p.as_path()));
+        }
         for (label, local) in uploads {
             send(&format!("==> SCP {label}: {} → {}:{}", local.display(), host_str, req.remote_dir));
             let ok = run_ssh_cmd(
@@ -1283,6 +1331,70 @@ async fn run_local_cmd(cmd: &str, send: &impl Fn(&str)) -> bool {
 
 #[cfg(test)]
 mod tests {
+    /// L'elenco dei file spediti deve contenere **tutto** ciò che l'installer
+    /// legge dalla propria directory.
+    ///
+    /// È il test che mancava: quando è nata la commutazione web/LVGL i quattro
+    /// file nuovi sono stati aggiunti solo a `install-container.sh`, il deploy
+    /// dall'IDE ha continuato a spedirne due, e il dispositivo si installava
+    /// senza commutazione — senza un errore, solo una NOTA nell'installer.
+    #[test]
+    fn lelenco_copre_tutto_cio_che_linstaller_legge() {
+        // La fonte di verità è lo script: si legge da lì invece di ripetere
+        // l'elenco, altrimenti questo test verificherebbe una copia contro
+        // un'altra copia e passerebbe anche disallineate entrambe.
+        let script = include_str!("../../../../deploy/container/install-container.sh");
+        let mut attesi: Vec<String> = Vec::new();
+        for riga in script.lines() {
+            // Forma `"$SRC_DIR/<nome>"`.
+            if let Some(r) = riga.split("$SRC_DIR/").nth(1) {
+                if let Some(nome) = r.split('"').next() {
+                    if !nome.is_empty() && !nome.contains('$') {
+                        attesi.push(nome.to_string());
+                    }
+                }
+            }
+            // Forma `DISPLAY_UNITS=(a.service b.path)`.
+            if let Some(r) = riga.strip_prefix("DISPLAY_UNITS=(") {
+                for nome in r.trim_end_matches(')').split_whitespace() {
+                    attesi.push(nome.to_string());
+                }
+            }
+        }
+        assert!(
+            attesi.len() >= 5,
+            "estratti solo {} nomi da install-container.sh: l'estrazione non funziona più, \
+             non è che lo script ne legga meno. Nomi: {attesi:?}",
+            attesi.len()
+        );
+        for nome in &attesi {
+            assert!(
+                CONTAINER_DEPLOY_FILES.contains(&nome.as_str()),
+                "install-container.sh legge '{nome}' ma il deploy non lo spedisce: \
+                 sul dispositivo mancherebbe, e l'installer lo salterebbe in silenzio"
+            );
+        }
+    }
+
+    /// Un file mancante dal repo va nominato: il messaggio precedente li
+    /// elencava tutti qualunque fosse l'assente.
+    #[test]
+    fn un_file_mancante_viene_nominato() {
+        let vuota = tempfile::tempdir().expect("tempdir");
+        match container_deploy_sources(vuota.path()) {
+            Err(e) => assert!(e.contains(CONTAINER_DEPLOY_FILES[0]), "atteso il nome del file, ottenuto: {e}"),
+            Ok(_) => panic!("una directory vuota non può risolvere i sorgenti"),
+        }
+    }
+
+    /// Sul repo vero devono esserci tutti.
+    #[test]
+    fn nel_repo_i_file_ci_sono_tutti() {
+        let repo = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..");
+        let srcs = container_deploy_sources(&repo).expect("i file di deploy devono esistere nel repo");
+        assert_eq!(srcs.len(), CONTAINER_DEPLOY_FILES.len());
+    }
+
     use super::*;
 
     #[test]
