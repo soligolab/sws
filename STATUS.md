@@ -21,18 +21,23 @@ modello e rideployato.**
 
 ### 1. I due test mai fatti sul dispositivo
 
-| | Cosa | Cosa deve succedere |
+| | Cosa | Esito |
 |---|---|---|
-| 10 | **Riavvio tenendo premuto STOP** (angolo in alto a **destra**, oltre 10 s) | Compare **Cockpit sulla 9443**, e il viewer LVGL **non** prende lo schermo |
-| 11 | Durante il 10 | `/health` risponde e lo storico continua: il runtime non si ferma |
-| 12 | Il log dice perché | `journalctl --user -u sws-display` contiene «il launcher è in modalità configurazione» |
-| 13 | Ritorno alla normalità | Riavvio senza toccare nulla → il pannello torna sul motore del progetto |
-| 14 | Deploy **senza riavviare il runtime** | Lo schermo commuta da solo entro una decina di secondi |
-| 15 | Progetto da `enip-demo` creato **sul dispositivo** | Si apre e mostra la pagina di partenza coi tag del PLC |
+| 10 | **Riavvio tenendo premuto STOP** (angolo in alto a **destra**, oltre 10 s) | ✅ **2026-08-29**: compare la login di Cockpit; nel manager podman `sws-lvgl-viewer` fermo, `sws-runtime` attivo |
+| 11 | Il runtime non si ferma | ✅ `/health` 200, admin 200, Cockpit 200 |
+| 12 | Il log dice perché | ✅ «il launcher è in modalità configurazione (chromium@wp-control.service attivo)» |
+| 13 | Ritorno alla normalità | 🔲 riavvio senza toccare nulla → il pannello torna sul motore del progetto |
+| 14 | Deploy **senza riavviare il runtime** | 🔲 lo schermo commuta da solo entro una decina di secondi — **richiede la 2.3.3** |
+| 15 | Progetto da `enip-demo` creato **sul dispositivo** | 🔲 si apre e mostra la pagina di partenza — **richiede la 2.3.3** |
 
-Il **passo 10 è quello che non è mai stato provato**, ed è il motivo del lavoro
-sul launcher: prima le unit partivano in qualunque modalità e la finestra LVGL
-finiva sopra Cockpit, rendendo il dispositivo non configurabile.
+**Il passo 10 è superato.** Era il pezzo con meno certezza: fino al 2026-08-29
+era stato provato solo *simulando* la modalità configurazione (avviando a mano
+`chromium@wp-control`), mai col gesto vero all'avvio. Ora è confermato che il
+meccanismo del launcher Pixsys e il nostro si rispettano, e che la via di fuga
+del pannello resta aperta anche con SWS installato.
+
+Misurato in modalità configurazione: `desktop.target` **inactive** — è il
+discriminante su cui si regge `sws-display-apply.sh`, e regge.
 
 ### 2. Chiedere il sudo all'inizio, non a metà build (chiesto il 2026-08-28)
 
