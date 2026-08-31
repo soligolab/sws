@@ -3708,6 +3708,23 @@ fn render_kpi_tile(
     Ok(())
 }
 
+/// L'angolo in alto a sinistra di una polilinea — l'origine da dare a un
+/// `lv_line`.
+///
+/// Non il primo punto, che è la scelta ovvia e sbagliata: `lv_line` ricava la
+/// propria dimensione dal massimo dei punti che riceve e **non si estende
+/// all'indietro**, quindi un punto con coordinata relativa negativa finisce
+/// fuori dall'oggetto e viene tagliato. Una pipe che sale, o che va verso
+/// sinistra, perdeva il tratto che tornava indietro e restava un moncone.
+///
+/// Non si vedeva perché la pipe dei modelli dimostrativi scende e va a destra:
+/// tutti i relativi erano positivi per caso. È saltata fuori il 2026-08-31 con
+/// la prima pipe agganciata, che dal gauge sale verso la barra — guardando
+/// un'istantanea, non il codice.
+fn origine_polilinea(punti: &[(f64, f64)]) -> (f64, f64) {
+    punti.iter().fold((f64::INFINITY, f64::INFINITY), |(ax, ay), (x, y)| (ax.min(*x), ay.min(*y)))
+}
+
 fn render_pipe(
     screen: &mut lvgl::Obj,
     obj: &SynopticObject,
@@ -3723,7 +3740,7 @@ fn render_pipe(
         anyhow::bail!("pipe con meno di 2 waypoint");
     }
     let assoluti: Vec<(f64, f64)> = waypoints.iter().map(|p| (p.x, p.y)).collect();
-    let (x0, y0) = assoluti[0];
+    let (ox, oy) = origine_polilinea(&assoluti);
     let sw = obj.stroke_width.unwrap_or(6.0).round() as i16;
 
     // ── Corpo del tubo: sempre tutta la polilinea, sempre il colore di stato ──
@@ -3733,11 +3750,11 @@ fn render_pipe(
     // livello — segnalato sul WP630 il 2026-08-26. Il livello non si vedeva
     // affatto: si vedeva solo "c'è del liquido / non ce n'è".
     let mut body = Line::create(screen).map_err(|e| anyhow::anyhow!("Line::create: {e:?}"))?;
-    body.set_pos(x0.round() as i16, y0.round() as i16)
+    body.set_pos(ox.round() as i16, oy.round() as i16)
         .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
     let body_pts: Vec<lvgl_sys::lv_point_t> = assoluti
         .iter()
-        .map(|(x, y)| lvgl_sys::lv_point_t { x: (x - x0).round() as i16, y: (y - y0).round() as i16 })
+        .map(|(x, y)| lvgl_sys::lv_point_t { x: (x - ox).round() as i16, y: (y - oy).round() as i16 })
         .collect();
     let body_leaked: &'static [lvgl_sys::lv_point_t] = Box::leak(body_pts.into_boxed_slice());
     let body_ptr = body.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
@@ -3761,7 +3778,7 @@ fn render_pipe(
     // tag, e leakarne uno per aggiornamento vorrebbe dire perdere memoria a
     // ogni frame.
     let mut fill = Line::create(screen).map_err(|e| anyhow::anyhow!("Line::create: {e:?}"))?;
-    fill.set_pos(x0.round() as i16, y0.round() as i16)
+    fill.set_pos(ox.round() as i16, oy.round() as i16)
         .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
     let fill_ptr = fill.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
     let mut fill_style = Style::default();
@@ -3777,7 +3794,7 @@ fn render_pipe(
 
     let spec = PipeFill {
         waypoints: assoluti,
-        origin: (x0, y0),
+        origin: (ox, oy),
         tag: obj.fill_level_tag.clone(),
         statico: obj.fill_level,
         scale: obj.fill_level_scale.clone().unwrap_or_else(|| "0-100".to_string()),
@@ -6748,5 +6765,33 @@ mod binding_tests {
     fn un_capo_solo_senza_punti_non_inventa_una_pipe() {
         let oggetti = vec![scatola("a", "rect", 0.0, 0.0, 50.0, 50.0)];
         assert!(punti_ancorati(&tubo(Some("a"), None, None, None, None), &oggetti).is_none());
+    }
+
+
+    #[test]
+    fn lorigine_di_una_polilinea_e_langolo_in_alto_a_sinistra() {
+        // Scende e va a destra: il primo punto È l'angolo, ed è il caso che
+        // nascondeva il difetto.
+        assert_eq!(origine_polilinea(&[(10.0, 10.0), (50.0, 80.0)]), (10.0, 10.0));
+        // Sale: l'angolo non è il primo punto.
+        assert_eq!(origine_polilinea(&[(280.0, 297.0), (340.0, 230.0)]), (280.0, 230.0));
+        // Va indietro e in su.
+        assert_eq!(origine_polilinea(&[(500.0, 500.0), (100.0, 200.0), (300.0, 50.0)]), (100.0, 50.0));
+    }
+
+    /// Con l'origine sbagliata i punti relativi diventano negativi, e `lv_line`
+    /// li taglia. Questo è il test che avrebbe pescato il difetto.
+    #[test]
+    fn con_la_giusta_origine_nessun_punto_relativo_e_negativo() {
+        for polilinea in [
+            vec![(280.0, 297.0), (340.0, 230.0)],
+            vec![(500.0, 500.0), (100.0, 200.0), (300.0, 50.0)],
+            vec![(0.0, 0.0), (-40.0, -40.0)],
+        ] {
+            let (ox, oy) = origine_polilinea(&polilinea);
+            for (x, y) in &polilinea {
+                assert!(x - ox >= 0.0 && y - oy >= 0.0, "{polilinea:?} → origine ({ox},{oy})");
+            }
+        }
     }
 }

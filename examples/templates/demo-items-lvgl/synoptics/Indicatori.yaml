@@ -453,11 +453,11 @@ objects:
   stale_after_s: 10.0
 - id: c_pipe_anchor
   type: text
-  x: 286.0
-  y: 180.0
-  width: 290.0
+  x: 250.0
+  y: 330.0
+  width: 200.0
   height: 16.0
-  text: pipe agganciata (gauge → barra)
+  text: 'pipe agganciata: gauge → barra'
   font_size: 11.0
   color: '#94a3b8'
 - id: o_pipe_anchor

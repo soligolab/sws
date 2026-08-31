@@ -75,6 +75,41 @@ struct Args {
     #[arg(long)]
     page: Option<String>,
 
+    /// Disegna la pagina, salva un'immagine e esce — nessuna finestra.
+    ///
+    /// Serve a **guardare cosa disegna davvero questo motore** senza avere un
+    /// pannello sotto mano. Fino a oggi l'unico modo era andare fisicamente
+    /// davanti al dispositivo: le differenze rispetto al browser si scoprivano
+    /// per caso, guardando lo schermo, spesso settimane dopo averle
+    /// introdotte — è così che sono venuti fuori il label del gauge fuori dal
+    /// cerchio, il navbutton che dava schermo nero e la pipe che non si
+    /// riempiva.
+    ///
+    /// Il rendering di LVGL è già interamente software (`lvgl_display.rs`
+    /// scrive in un buffer RGB888): SDL2 e DRM servono solo a *mostrare* quel
+    /// buffer. Qui lo si salva invece di mostrarlo.
+    ///
+    /// Formato **PPM** (P6, RGB888 grezzo) e non PNG di proposito: nessun
+    /// encoder da aggiungere, quindi nessun peso in più nel binario che finisce
+    /// sul dispositivo — e qualunque strumento lo converte:
+    ///
+    /// ```text
+    /// sws-lvgl-viewer --base-url ... --istantanea /tmp/p.ppm
+    /// convert /tmp/p.ppm /tmp/p.png      # ImageMagick
+    /// pnmtopng /tmp/p.ppm > /tmp/p.png   # netpbm
+    /// ```
+    #[arg(long)]
+    istantanea: Option<String>,
+
+    /// Quanti millisecondi lasciar lavorare LVGL prima dell'istantanea.
+    ///
+    /// Non è un'attesa di cortesia: LVGL disegna dentro `task_handler()`, e
+    /// widget come il gauge o i grafici hanno bisogno di più di un giro. Il
+    /// default copre abbondantemente una pagina piena; serve alzarlo solo per
+    /// cogliere una fase precisa di un lampeggio.
+    #[arg(long, default_value_t = 500)]
+    istantanea_ms: u64,
+
     /// Backend di rendering. "sdl2" (default) apre una finestra SDL2 — vedi
     /// docs/OPEN_QUESTIONS.md Q14 per i bug noti su Wayland/X11/kmsdrm reali.
     /// "drm" scrive direttamente sul framebuffer via libdrm (API legacy, non
@@ -229,7 +264,7 @@ fn main() -> anyhow::Result<()> {
     let (tag_tx, tag_rx) = mpsc::channel::<TagCommand>();
     let (nav_tx, nav_rx) = mpsc::channel::<String>();
     let (ack_tx, ack_rx) = mpsc::channel::<String>();
-    let (summary, styles, live_bindings, hor_res, ver_res) = lvgl_render::interpret_page(
+    let (summary, styles, mut live_bindings, hor_res, ver_res) = lvgl_render::interpret_page(
         &page, &initial_tags, &tag_tx, &nav_tx, &args.base_url, rt.handle(), &shared_alarms, &ack_tx, &lang_table,
         &shared_lang,
     )?;
@@ -260,6 +295,14 @@ fn main() -> anyhow::Result<()> {
     // Comune a entrambi i backend: touch_indev.rs (backend "drm") alimenta
     // lo stesso indev del mouse SDL2, non ne registra uno diverso.
     lvgl_indev::init_pointer_indev()?;
+
+    // Istantanea: disegna, salva, esce. Prima di registrare l'indev e prima
+    // di qualunque backend — non serve né un puntatore né una finestra.
+    if let Some(percorso) = args.istantanea.clone() {
+        scrivi_istantanea(&percorso, hor_res, ver_res, args.istantanea_ms, &shared_tags, &mut live_bindings)?;
+        drop(rt);
+        return Ok(());
+    }
 
     if args.backend == "drm" {
         // Solo il backend DRM apre /dev/input: su SDL2/Wayland gli eventi li
@@ -333,6 +376,57 @@ fn main() -> anyhow::Result<()> {
 /// Pura (l'ambiente arriva come parametro) per poterla verificare senza un
 /// compositore acceso e senza un `/dev/dri` vero: è logica di diagnosi, e una
 /// diagnosi che nessuno prova è una diagnosi di cui non ci si può fidare.
+/// Fa disegnare LVGL per un po' e salva il frame in un file PPM.
+///
+/// Il `task_handler()` in un ciclo, e non una chiamata sola, per una ragione
+/// concreta: LVGL disegna a pezzi (`sws_flush_cb` riceve un'area alla volta) e
+/// alcuni widget — il gauge, i grafici — arrivano a schermo solo dopo qualche
+/// giro. Un'istantanea presa subito coglierebbe una pagina a metà, e la si
+/// scambierebbe per un difetto di rendering.
+///
+/// `update_bindings` gira dentro il ciclo perché la pagina mostri i valori tag
+/// veri e non quelli con cui è nata — è il compito che nel loop normale svolge
+/// a ogni frame.
+fn scrivi_istantanea(
+    percorso: &str,
+    hor_res: u32,
+    ver_res: u32,
+    per_ms: u64,
+    shared_tags: &client::SharedTagSnapshot,
+    live_bindings: &mut [lvgl_render::LiveBinding],
+) -> anyhow::Result<()> {
+    const PASSO_MS: u64 = 16;
+    let giri = (per_ms / PASSO_MS).max(1);
+    for _ in 0..giri {
+        {
+            let tags = shared_tags.lock().unwrap_or_else(|e| e.into_inner()).clone();
+            lvgl_render::update_bindings(live_bindings, &tags);
+        }
+        lvgl::task_handler();
+        lvgl::tick_inc(Duration::from_millis(PASSO_MS));
+    }
+
+    let mut frame = vec![0u8; (hor_res * ver_res * 3) as usize];
+    if !lvgl_display::copy_frame_rgb888(&mut frame) {
+        anyhow::bail!("nessun frame: il display LVGL non è stato inizializzato");
+    }
+
+    // PPM binario (P6): intestazione di testo, poi i pixel RGB888 così come
+    // stanno nel frame buffer. Nessun encoder, nessuna dipendenza in più.
+    let mut out = format!("P6\n{hor_res} {ver_res}\n255\n").into_bytes();
+    out.extend_from_slice(&frame);
+    std::fs::write(percorso, &out)
+        .map_err(|e| anyhow::anyhow!("scrittura di '{percorso}' fallita: {e}"))?;
+
+    eprintln!(
+        "istantanea: {percorso} ({hor_res}x{ver_res}, {} KB, dopo {} ms di rendering)",
+        out.len() / 1024,
+        giri * PASSO_MS
+    );
+    eprintln!("            convertila con `convert {percorso} out.png` o `pnmtopng {percorso} > out.png`");
+    Ok(())
+}
+
 fn drm_backend_blocker(card_path: &str, env: impl Fn(&str) -> Option<String>) -> Option<String> {
     let non_vuota = |k: &str| env(k).filter(|v| !v.trim().is_empty());
 
