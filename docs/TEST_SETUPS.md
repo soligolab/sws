@@ -39,8 +39,15 @@ Il cert TLS (`tls.crt`/`tls.key` in `.run/config/`) è persistente tra restart.
 
 ## 2. Ufficio — dev server (questa macchina)
 
-Il server di sviluppo dove vive il repo a `/home/max_xxv/sws`. **Macchina headless**
-(nessun monitor diretto).
+**Dal 2026-08-31 il dev server è `frodo`**: `pixsys@frodo.local`, repo a `/home/pixsys/sws`,
+Debian 13 trixie. Ha quattro interfacce; quella di lavoro è `ens18` (`192.168.0.224/23`, e la
+`/23` copre anche i pannelli su 192.168.1.x).
+
+Il server precedente — `theobroma`, repo a `/home/ut1/sws` — è **intatto come via di ritorno** ma
+al 99% di disco: non ci si costruisce più nulla. Le sue trappole (e quelle di frodo) stanno nel
+referto `docs/plans/2026-08-31-trasloco-frodo.md`.
+
+**Macchina headless** (nessun monitor diretto).
 
 Flusso tipico:
 1. `./scripts/start_runtime.sh` su questa macchina avvia:
@@ -98,6 +105,17 @@ Due modi di guardare la UI:
 **Lista dei device fisicamente disponibili = volatile.** Cambia tra sessioni.
 Prima di lanciare un test SSH, **chiedere sempre al maintainer** quale device usare e
 a quale indirizzo.
+
+### Accesso al WP630 di prova (misurato il 2026-08-31, volatile)
+
+| | |
+|---|---|
+| Host | `wp630-a-p3-07a077.local` → **192.168.1.120** (risponde da frodo) |
+| Utenti | `user@` (non sudoer) e `pixsys@` (sudoer) — entrambi rispondono |
+| Chiave da frodo | `~/.ssh/id_ed25519_soligo`, autorizzata per **`pixsys@`** il 2026-08-31 |
+| Immagine in esecuzione | quella del 2026-08-28, cioè la **2.3.2**: `latest-arm64` sul registry è ora la 2.3.4, basta un `podman pull` |
+
+L'indirizzo va **riconfermato ogni sessione**: vedi «Convenzioni» in fondo.
 
 ### Pannelli della serie WP/TC — le particolarità che costano tempo
 
