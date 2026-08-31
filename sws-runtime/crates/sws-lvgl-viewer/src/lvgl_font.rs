@@ -107,7 +107,7 @@ pub fn load(size_px: u16) -> Option<*const lvgl_sys::lv_font_t> {
 /// 14 come il Montserrat che sostituisce (`LV_FONT_DEFAULT` in lv_conf.h): il
 /// font cambia, la dimensione no, così le pagine già disegnate non si
 /// riposizionano da sole sotto gli occhi di chi le aveva sistemate.
-const CORPO_PX: u16 = 14;
+pub(crate) const CORPO_PX: u16 = 14;
 
 /// Il font caricato, una volta per processo.
 ///

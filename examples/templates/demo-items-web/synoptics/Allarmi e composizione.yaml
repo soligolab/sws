@@ -147,3 +147,25 @@ objects:
   y: 474.0
   width: 600.0
   height: 250.0
+- id: c_wrap
+  type: text
+  x: 30.0
+  y: 590.0
+  width: 290.0
+  height: 16.0
+  text: text_wrap — testo a capo nel riquadro
+  font_size: 11.0
+  color: '#94a3b8'
+- id: o_wrap
+  type: text
+  x: 30.0
+  y: 612.0
+  width: 190.0
+  height: 80.0
+  text: Questo testo è più lungo del suo riquadro e va a capo da solo, restando centrato.
+  text_wrap: true
+  text_valign: middle
+  text_anchor: middle
+  line_height: 1.35
+  font_size: 13.0
+  color: '#e2e8f0'

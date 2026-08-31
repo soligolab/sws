@@ -1647,12 +1647,113 @@ fn text_color_hex(
 /// `LV_OBJ_FLAG_OVERFLOW_VISIBLE` è obbligatorio: senza, un figlio più largo
 /// del padre viene ritagliato, e un padre largo zero lo farebbe sparire del
 /// tutto.
+/// L'allineamento LVGL che corrisponde alla coppia (verticale, orizzontale)
+/// del web, per un testo che va a capo dentro il suo riquadro.
+///
+/// Il web mette il testo in una flexbox e sceglie `alignItems` da
+/// `text_valign` e `justifyContent` da `text_anchor`: nove combinazioni. LVGL
+/// ha esattamente le stesse nove come costanti `LV_ALIGN_*`, quindi è una
+/// tabella e non un calcolo.
+///
+/// Valori non riconosciuti ricadono su alto/sinistra, che è il default del web
+/// (`?? "top"`, `anchor` assente): un valore scritto male deve dare un testo
+/// nel posto ovvio, non un testo invisibile.
+fn allineamento_riquadro(valign: Option<&str>, anchor: Option<&str>) -> u32 {
+    match (valign.unwrap_or("top"), anchor.unwrap_or("start")) {
+        ("middle", "middle") => lvgl_sys::LV_ALIGN_CENTER,
+        ("middle", "end") => lvgl_sys::LV_ALIGN_RIGHT_MID,
+        ("middle", _) => lvgl_sys::LV_ALIGN_LEFT_MID,
+        ("bottom", "middle") => lvgl_sys::LV_ALIGN_BOTTOM_MID,
+        ("bottom", "end") => lvgl_sys::LV_ALIGN_BOTTOM_RIGHT,
+        ("bottom", _) => lvgl_sys::LV_ALIGN_BOTTOM_LEFT,
+        (_, "middle") => lvgl_sys::LV_ALIGN_TOP_MID,
+        (_, "end") => lvgl_sys::LV_ALIGN_TOP_RIGHT,
+        _ => lvgl_sys::LV_ALIGN_TOP_LEFT,
+    }
+}
+
+/// `text_align` di LVGL per l'ancoraggio orizzontale: allinea le righe *fra
+/// loro* dentro l'etichetta, cosa diversa da dove sta l'etichetta nel riquadro.
+/// Con una riga sola coincidono; con più righe no, ed è il caso che conta.
+fn allineamento_righe(anchor: Option<&str>) -> u8 {
+    match anchor {
+        Some("middle") => lvgl_sys::LV_TEXT_ALIGN_CENTER as u8,
+        Some("end") => lvgl_sys::LV_TEXT_ALIGN_RIGHT as u8,
+        _ => lvgl_sys::LV_TEXT_ALIGN_LEFT as u8,
+    }
+}
+
+/// Spazio **in più** fra una riga e l'altra, in pixel.
+///
+/// `line_height` sul web è un moltiplicatore dell'altezza del carattere (1.25
+/// di default); LVGL vuole invece i pixel da aggiungere. La conversione è
+/// quindi `corpo × (moltiplicatore − 1)`, e un moltiplicatore sotto 1 —
+/// legittimo in CSS, dove stringe le righe — qui vale zero, perché LVGL non
+/// accetta spaziature negative.
+fn spazio_fra_righe(line_height: Option<f64>, corpo_px: f64) -> i16 {
+    let m = line_height.unwrap_or(1.25);
+    if !m.is_finite() || m <= 1.0 {
+        return 0;
+    }
+    (corpo_px * (m - 1.0)).round().clamp(0.0, 200.0) as i16
+}
+
 fn create_anchored_label(
     screen: &mut lvgl::Obj,
     obj: &SynopticObject,
     styles: &mut Vec<Style>,
 ) -> anyhow::Result<Label> {
     let (x, y) = (obj.x.unwrap_or(0.0).round() as i16, obj.y.unwrap_or(0.0).round() as i16);
+
+    // ── `text_wrap`: il testo va a capo dentro il riquadro dichiarato ──────
+    //
+    // Senza, LVGL scrive su una riga sola e sborda oltre la larghezza
+    // dichiarata, andando a finire sopra l'oggetto accanto. È l'opposto di
+    // quello che fa il web, dove `text_wrap` accende `white-space: pre-wrap`
+    // dentro un box di `width`×`height`.
+    //
+    // Opt-in come sul web: il ramo a una riga resta il default, così i testi
+    // dei progetti esistenti non si spostano.
+    if obj.text_wrap == Some(true) {
+        let w = obj.width.unwrap_or(160.0).round().max(1.0) as i16;
+        let h = obj.height.unwrap_or(60.0).round().max(1.0) as i16;
+
+        let mut riquadro = create_child_obj(screen)?;
+        let riquadro_ptr = riquadro.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
+        unsafe {
+            // Stessa ragione della `setpoint`: il contenitore non è un elemento
+            // d'interfaccia, e lo stile del tema ci metterebbe una scheda
+            // bianca col suo colore di testo scuro. Prima di `set_pos`/`set_size`,
+            // che in LVGL 8 scrivono stili locali e verrebbero rimossi anche loro.
+            lvgl_sys::lv_obj_remove_style(
+                riquadro_ptr.as_ptr(),
+                core::ptr::null_mut(),
+                (lvgl_sys::LV_PART_ANY | lvgl_sys::LV_STATE_ANY) as lvgl_sys::lv_style_selector_t,
+            );
+            lvgl_sys::lv_obj_clear_flag(riquadro_ptr.as_ptr(), lvgl_sys::LV_OBJ_FLAG_SCROLLABLE);
+        }
+        riquadro.set_pos(x, y).map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
+        riquadro.set_size(w, h).map_err(|e| anyhow::anyhow!("set_size: {e:?}"))?;
+
+        let label = Label::create(&mut riquadro).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
+        let lptr = label.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?.as_ptr();
+        let corpo = obj.font_size.unwrap_or(lvgl_font::CORPO_PX as f64);
+        unsafe {
+            lvgl_sys::lv_label_set_long_mode(lptr, lvgl_sys::LV_LABEL_LONG_WRAP as lvgl_sys::lv_label_long_mode_t);
+            // Larghezza fissa e altezza dal contenuto: è la larghezza a
+            // decidere dove si va a capo, l'altezza la decide il testo.
+            lvgl_sys::lv_obj_set_width(lptr, w);
+            lvgl_sys::lv_obj_set_style_text_align(lptr, allineamento_righe(obj.text_anchor.as_deref()), 0);
+            lvgl_sys::lv_obj_set_style_text_line_space(lptr, spazio_fra_righe(obj.line_height, corpo), 0);
+            lvgl_sys::lv_obj_set_align(
+                lptr,
+                allineamento_riquadro(obj.text_valign.as_deref(), obj.text_anchor.as_deref())
+                    as lvgl_sys::lv_align_t,
+            );
+        }
+        return Ok(label);
+    }
+
     let align = match obj.text_anchor.as_deref() {
         Some("middle") => lvgl_sys::LV_ALIGN_TOP_MID,
         Some("end") => lvgl_sys::LV_ALIGN_TOP_RIGHT,
@@ -6861,5 +6962,62 @@ mod binding_tests {
                 assert!(x - ox >= 0.0 && y - oy >= 0.0, "{polilinea:?} → origine ({ox},{oy})");
             }
         }
+    }
+
+
+    // ── testo a capo, allineamento verticale, interlinea (passo 7) ────────
+
+    #[test]
+    fn le_nove_combinazioni_di_allineamento_corrispondono_al_web() {
+        use lvgl_sys::*;
+        let casi = [
+            (None,           None,           LV_ALIGN_TOP_LEFT),
+            (None,           Some("middle"), LV_ALIGN_TOP_MID),
+            (None,           Some("end"),    LV_ALIGN_TOP_RIGHT),
+            (Some("middle"), None,           LV_ALIGN_LEFT_MID),
+            (Some("middle"), Some("middle"), LV_ALIGN_CENTER),
+            (Some("middle"), Some("end"),    LV_ALIGN_RIGHT_MID),
+            (Some("bottom"), None,           LV_ALIGN_BOTTOM_LEFT),
+            (Some("bottom"), Some("middle"), LV_ALIGN_BOTTOM_MID),
+            (Some("bottom"), Some("end"),    LV_ALIGN_BOTTOM_RIGHT),
+        ];
+        for (v, a, atteso) in casi {
+            assert_eq!(allineamento_riquadro(v, a), atteso, "valign={v:?} anchor={a:?}");
+        }
+    }
+
+    /// Un valore scritto male deve dare un testo nel posto ovvio, non un testo
+    /// invisibile: si ricade su alto/sinistra, il default del web.
+    #[test]
+    fn un_allineamento_sconosciuto_ricade_in_alto_a_sinistra() {
+        assert_eq!(allineamento_riquadro(Some("centro"), Some("destra")), lvgl_sys::LV_ALIGN_TOP_LEFT);
+    }
+
+    #[test]
+    fn linterlinea_del_web_diventa_pixel_di_lvgl() {
+        // 1.25 su corpo 14 → 3.5 px di spazio in più, arrotondato a 4.
+        assert_eq!(spazio_fra_righe(Some(1.25), 14.0), 4);
+        assert_eq!(spazio_fra_righe(None, 14.0), 4, "il default del web è 1.25");
+        assert_eq!(spazio_fra_righe(Some(2.0), 20.0), 20);
+        assert_eq!(spazio_fra_righe(Some(1.0), 14.0), 0, "righe attaccate: nessuno spazio in più");
+    }
+
+    /// In CSS un `line-height` sotto 1 stringe le righe; LVGL non accetta
+    /// spaziature negative, quindi vale zero. Meglio righe attaccate che una
+    /// pagina che non si disegna.
+    #[test]
+    fn uninterlinea_impossibile_vale_zero() {
+        assert_eq!(spazio_fra_righe(Some(0.5), 14.0), 0);
+        assert_eq!(spazio_fra_righe(Some(-3.0), 14.0), 0);
+        assert_eq!(spazio_fra_righe(Some(f64::NAN), 14.0), 0);
+        assert_eq!(spazio_fra_righe(Some(f64::INFINITY), 14.0), 0);
+    }
+
+    #[test]
+    fn lallineamento_delle_righe_segue_lancoraggio() {
+        assert_eq!(allineamento_righe(Some("middle")), lvgl_sys::LV_TEXT_ALIGN_CENTER as u8);
+        assert_eq!(allineamento_righe(Some("end")), lvgl_sys::LV_TEXT_ALIGN_RIGHT as u8);
+        assert_eq!(allineamento_righe(None), lvgl_sys::LV_TEXT_ALIGN_LEFT as u8);
+        assert_eq!(allineamento_righe(Some("boh")), lvgl_sys::LV_TEXT_ALIGN_LEFT as u8);
     }
 }
