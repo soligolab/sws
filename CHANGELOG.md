@@ -11,6 +11,71 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### Il pannello disegna quello che l'IDE promette — 28 campi in più
+
+Il divario fra ciò che si può disegnare nell'IDE e ciò che il pannello disegna
+davvero passa da **112 campi mai disegnati a 84**.
+
+- **`opacity` e `z_index`** — due oggetti sovrapposti stavano nell'ordine in cui
+  capitavano nel file: nel browser uno sopra l'altro, sul pannello il contrario.
+- **Lampeggio, dato vecchio, qualità, bordo d'allarme** — non è estetica: un
+  allarme che nel browser lampeggia sul pannello era fermo, e un dato aggiornato
+  un secondo fa non si distingueva da uno fermo da mezz'ora. Su uno SCADA è la
+  differenza fra «il valore è quello» e «il valore *era* quello».
+- **Il gauge segue le soglie dal vivo** — l'arco prendeva colore una volta sola,
+  alla creazione: un gauge che entrava in allarme restava del colore con cui era
+  nato.
+- **Le pipe si agganciano agli oggetti** — una pipe tirata da un oggetto
+  all'altro nell'IDE finiva sul pannello dove capitava, di solito nell'angolo.
+- **Testo a capo, allineamento verticale, interlinea** — senza, LVGL scrive su
+  una riga sola e sborda sopra l'oggetto accanto.
+- **Simboli che girano e stati multipli** — un simbolo con cinque stati
+  dichiarati ne mostrava due.
+- **Movimento su percorso** — l'oggetto segue una polilinea guidato da un tag.
+- **Conferma sui comandi** — un comando che nell'IDE chiede conferma, sul
+  pannello partiva al primo tocco. Su uno schermo touch il tocco accidentale è
+  reale.
+
+### `--istantanea`: guardare il pannello senza il pannello
+
+Il viewer disegna una pagina, salva un'immagine PPM ed esce; `--tocca "x,y;x,y"`
+tocca lo schermo prima di fotografare e dice **quali comandi** il tocco ha
+prodotto. Costa 21 KB sul binario ARM, misurati, perché il rendering di LVGL era
+già interamente software. Vedi `docs/HOWTO.md` §6.
+
+Nelle prime ore ha trovato otto difetti, sei dei quali silenziosi:
+
+- **un oggetto semitrasparente non veniva disegnato affatto** invece di sbiadire
+  (`LV_COLOR_SCREEN_TRANSP` era 0; la documentazione di LVGL lo dice in una riga);
+- le **pipe che salgono** venivano tagliate: l'origine era il primo punto invece
+  dell'angolo, e i punti relativi negativi finiscono fuori dall'oggetto;
+- le **celle della griglia** dei modelli dimostrativi erano vuote **anche nel
+  browser** — `objects:` non è un campo di `GridCell`, il campo è `child:`;
+- la **`setpoint`** era una scheda bianca con le barre di scorrimento e il valore
+  tagliato a metà: ereditava lo stile del tema;
+- i widget venivano **catturati a (0,0)** prima del calcolo di layout — lo stesso
+  difetto trovato sul dispositivo il 2026-08-24, ripetuto e ritrovato in due
+  minuti invece che in una sessione;
+- `o_anchor_rule` della demo intendeva una riga verticale e i due motori ne
+  disegnavano una **orizzontale**, da sempre;
+- il percorso del movimento disegnato con `points` su una `line`, che nessun
+  motore legge;
+- `lv_msgbox_create` conserva il puntatore all'array dei pulsanti: con un array
+  locale, **segfault** al primo ridisegno.
+
+### Guardie
+
+- `check_lvgl_types.sh` — il badge «L» della palette contro il motore.
+- `check_static.sh` — lancia tutte le guardie che girano su file fermi, e
+  fallisce se ne compare una nuova non classificata. Erano diciannove e nessuno
+  le lanciava tutte.
+- In `check_templates.sh`: ancoraggi delle pipe verso oggetti inesistenti, porte
+  sconosciute, celle di griglia che non disegnano niente, `points` su una `line`,
+  `write_value` di un tipo diverso da quello del tag.
+
+Tutte provate anche nel verso rotto.
+
+
 ## [2.3.3] — 2026-08-29
 
 - **I pulsanti di navigazione della demo portavano a una pagina inesistente.**

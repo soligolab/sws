@@ -17,6 +17,7 @@
 3. [Il browser non vede il runtime dopo aver installato il certificato](#3-il-browser-non-vede-il-runtime-dopo-aver-installato-il-certificato)
 4. [Un pulsante che apre un sito esterno (e Login/Logout dal sinottico)](#4-un-pulsante-che-apre-un-sito-esterno-e-loginlogout-dal-sinottico)
 5. [Compilare tutto e pubblicare le immagini container](#5-compilare-tutto-e-pubblicare-le-immagini-container)
+6. [Vedere cosa disegna il pannello senza avere il pannello](#6-vedere-cosa-disegna-il-pannello-senza-avere-il-pannello)
 
 ---
 
@@ -353,3 +354,93 @@ Tre trappole, tutte già incontrate dal vivo:
 Sul dispositivo, poi, si aggiorna con `install-container.sh --pull <riferimento>` — attenzione
 al tag: senza argomento sceglie `latest-arm64` (percorso SDK), che è un'immagine **diversa**
 da `latest-arm64-generic`. Dettagli nel capitolo 1 e in `docs/DEPLOY_CONTAINER_AARCH64.md`.
+
+---
+
+## 6. Vedere cosa disegna il pannello senza avere il pannello
+
+**Il problema.** Il motore LVGL e quello del browser disegnano lo stesso progetto
+in due modi diversi, e le differenze si scoprivano solo andando fisicamente
+davanti a un dispositivo. Spesso settimane dopo averle introdotte: l'etichetta
+del gauge fuori dal cerchio, il navbutton che dava schermo nero, la pipe che non
+si riempiva, tutte trovate così.
+
+**La risposta.** `sws-lvgl-viewer --istantanea` disegna una pagina, salva
+un'immagine ed esce. Non serve né uno schermo né un dispositivo: il rendering di
+LVGL è già interamente software, e SDL2/DRM servono solo a *mostrare* il buffer.
+
+### Come si usa
+
+Serve un runtime in ascolto con un progetto aperto — quello locale va benissimo:
+
+```bash
+./scripts/start_runtime.sh                      # viewer 8443, IDE 8444
+cd sws-runtime && cargo build -p sws-lvgl-viewer
+
+./target/debug/sws-lvgl-viewer \
+    --base-url http://localhost:8443 \
+    --page "Indicatori" \
+    --istantanea /tmp/p.ppm
+
+convert /tmp/p.ppm /tmp/p.png     # ImageMagick
+pnmtopng /tmp/p.ppm > /tmp/p.png  # oppure netpbm
+```
+
+Il formato è **PPM** e non PNG di proposito: nessun encoder da aggiungere, quindi
+nessun peso in più nel binario che finisce sul dispositivo (l'intera funzione
+costa 21 KB sull'ARM, misurati).
+
+Senza `--page` parte dalla pagina iniziale del progetto, come fa il viewer vero.
+
+### Fotografare quello che succede *dopo* un tocco
+
+```bash
+--tocca 160,277                # tocca una volta
+--tocca "160,277;661,459"      # tocca, poi risponde alla finestra che si apre
+```
+
+Le coordinate sono quelle di pagina, le stesse che si leggono nell'IDE. Il viewer
+stampa anche **quali comandi il tocco ha prodotto**:
+
+```
+comando prodotto: scrivere Bool(true) su 'demo.cmd.button'
+navigazione richiesta: pagina 'demo_p2'
+il tocco non ha prodotto nessun comando
+```
+
+Serve perché un pulsante che apre la finestra giusta e poi scrive il valore
+sbagliato, in una fotografia, sembrerebbe funzionare.
+
+### Quanto lasciar disegnare
+
+`--istantanea-ms` (500 di default) è quanto LVGL lavora prima dello scatto. LVGL
+disegna a pezzi e widget come il gauge o i grafici hanno bisogno di più di un
+giro: un'istantanea presa troppo presto coglie una pagina a metà, e la si
+scambia per un difetto di rendering. Con `--tocca` conviene alzarlo (800-1500 ms),
+perché i tocchi si distribuiscono nel tempo disponibile.
+
+Per cogliere una **fase precisa** di un lampeggio o di una rotazione, si scattano
+due istantanee a distanza e si confrontano:
+
+```bash
+compare -metric AE a.png b.png null:    # quanti pixel sono cambiati
+```
+
+### Confrontarlo col browser
+
+Aprire la stessa pagina nell'IDE, affiancare le due immagini e guardare. È così
+che sono venuti fuori, in poche ore: gli oggetti semitrasparenti che sparivano
+invece di sbiadire, le pipe che salgono tagliate a metà, le celle della griglia
+vuote (in **tutti e due** i motori), la `setpoint` ridotta a una scheda bianca
+con le barre di scorrimento.
+
+### Quando NON basta
+
+- **Il touch vero.** `--tocca` alimenta lo stesso indev del dito, ma non prova
+  la calibrazione del pannello né il driver tslib.
+- **Le prestazioni.** Il tempo di disegno su un x86 non dice niente su un PX30.
+- **Lo schermo fisico.** Colori, angolo di visione e retroilluminazione si
+  giudicano solo guardando il pannello.
+
+Serve a trovare i difetti *di disegno* prima che arrivino sul dispositivo, non a
+sostituire la prova sul dispositivo.
