@@ -17,11 +17,15 @@ export function MainMenu({
   onCloseProject,
   logOpen,
   onToggleLog,
+  chatOpen,
+  onToggleChat,
 }: {
   onLogout: () => void;
   onCloseProject: () => void;
   logOpen: boolean;
   onToggleLog: () => void;
+  chatOpen: boolean;
+  onToggleChat: () => void;
 }) {
   const { t } = useTranslation();
   const [open, setOpen]       = useState(false);
@@ -192,6 +196,15 @@ export function MainMenu({
             {t("menu.logPanel")}
             <span style={{ float: "right", opacity: 0.7 }}>{logOpen ? "✓" : ""}</span>
           </button>
+          {canConfigureProject(authRole) && (
+            <button
+              style={DROP_ITEM}
+              onClick={() => { onToggleChat(); setOpen(false); }}
+            >
+              {t("menu.chatPanel")}
+              <span style={{ float: "right", opacity: 0.7 }}>{chatOpen ? "✓" : ""}</span>
+            </button>
+          )}
           {canConfigureProject(authRole) && (
             <button
               style={{ ...DROP_ITEM, opacity: rebooting ? 0.6 : 1 }}

@@ -9,6 +9,7 @@ import { MainMenu } from "@/components/MainMenu";
 import { RuntimeCtrl } from "@/components/RuntimeCtrl";
 import { ViewerLink } from "@/components/ViewerLink";
 import { UserMenu } from "@/components/UserMenu";
+import { ChatPanel } from "@/components/ChatPanel";
 import { LogPanel } from "@/components/LogPanel";
 import { LoginScreen } from "@/components/LoginScreen";
 import { ReAuthModal } from "@/components/ReAuthModal";
@@ -58,6 +59,7 @@ function AccessDenied({ role, onLogout }: { role: string; onLogout: () => void }
 // ── Shared header-button style ────────────────────────────────────────────────
 
 const LOG_PANEL_KEY = "sws.logPanel.open";
+const CHAT_PANEL_KEY = "sws.chatPanel.open";
 
 export function App() {
   const { t } = useTranslation();
@@ -74,6 +76,19 @@ export function App() {
     setLogOpen((prev) => {
       const next = !prev;
       try { localStorage.setItem(LOG_PANEL_KEY, next ? "1" : "0"); } catch { /* ignore */ }
+      return next;
+    });
+  };
+
+  // Chat dell'assistente (T-50): cassetto laterale, stesso schema del log —
+  // stato qui, interruttore nel menu ☰, scelta ricordata in localStorage.
+  const [chatOpen, setChatOpen] = useState<boolean>(() => {
+    try { return localStorage.getItem(CHAT_PANEL_KEY) === "1"; } catch { return false; }
+  });
+  const toggleChat = () => {
+    setChatOpen((prev) => {
+      const next = !prev;
+      try { localStorage.setItem(CHAT_PANEL_KEY, next ? "1" : "0"); } catch { /* ignore */ }
       return next;
     });
   };
@@ -584,6 +599,8 @@ export function App() {
           onCloseProject={handleCloseProject}
           logOpen={logOpen}
           onToggleLog={toggleLog}
+          chatOpen={chatOpen}
+          onToggleChat={toggleChat}
         />
       </header>
 
@@ -697,6 +714,12 @@ export function App() {
       <main style={{ display: "flex", flex: 1, overflow: "hidden" }}>
         {effectiveMode === "edit"   && <EditorShell />}
         {effectiveMode === "config" && <ConfigView />}
+        {/* Chat drawer (right) — dentro <main> così sta accanto al canvas
+            invece che sotto: una conversazione è alta, non larga. */}
+        <ChatPanel open={chatOpen} onClose={() => {
+          setChatOpen(false);
+          try { localStorage.setItem(CHAT_PANEL_KEY, "0"); } catch { /* ignore */ }
+        }} />
       </main>
 
       {/* Log drawer (bottom) */}
