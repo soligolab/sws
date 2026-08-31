@@ -2329,3 +2329,50 @@ copre solo *i nostri* modelli: un progetto di un cliente può fare la stessa cos
 
 Stessa famiglia di **Q17** (`/api/recipes/:id/apply` che scrive senza controllo per-tag): in
 entrambi i casi il server accetta una scrittura che avrebbe gli elementi per rifiutare.
+
+---
+
+## Q28 — Il grafico a barre usa due scale diverse nei due motori
+
+*Aperta il 2026-08-31. Misurata, non decisa.*
+
+Lo stesso `bar_chart` misura le barre su scale diverse a seconda del motore:
+
+| | Scala |
+|---|---|
+| **Web** (`SvgCanvas.tsx`) | una sola per tutto il grafico: `obj.min`/`obj.max`, e in mancanza il minimo e il massimo **dei valori correnti** (ricalcolata a ogni disegno). Il `min`/`max` delle singole serie è **ignorato**. |
+| **Pannello** (`lvgl_render.rs`) | una per serie: `bar_series[i].min`/`.max`, con default `0..100`. Il `min`/`max` dell'oggetto è **ignorato**. |
+
+Non è un difetto di uno dei due: sono due letture legittime dello stesso campo,
+e nessuna delle due è scritta da nessuna parte.
+
+### Cosa cambia per chi guarda
+
+- Con la **scala comune**, l'altezza si può confrontare fra barre: la più alta è
+  la più grande. Ma la scala si muove coi dati, quindi un grafico fermo può
+  cambiare aspetto senza che nessun valore sia cambiato molto.
+- Con la **scala per serie**, ogni barra dice quanto è piena *rispetto al suo
+  fondo scala* — utile per grandezze diverse (una portata e una temperatura
+  nello stesso grafico) — ma due barre alte uguali possono valere numeri diversi,
+  e chi guarda da lontano legge un confronto che non c'è.
+
+### Perché è emersa adesso
+
+Implementando `bar_show_thresholds` (2026-08-31): una soglia è **un** valore, e
+la riga che la disegna attraversa tutto il grafico. Regge solo su una scala sola.
+Sul pannello la riga si disegna ora **soltanto quando tutte le serie hanno lo
+stesso intervallo**, e in caso contrario non si disegna e il registro dice
+perché — meglio una soglia mancante che una sbagliata. Ma è una toppa sul
+sintomo, non una risposta.
+
+### Le domande
+
+1. **Quale delle due è il comportamento voluto?** È una scelta di prodotto:
+   dipende da cosa i clienti mettono nello stesso grafico.
+2. Se vince la scala comune, `bar_series[].min/max` va **tolto** dal modello o
+   ridefinito (per esempio come normalizzazione del valore, non della scala):
+   lasciarlo lì a non fare niente è peggio che non averlo.
+3. Se vince la scala per serie, `obj.min`/`obj.max` sul `bar_chart` non
+   significano niente e vanno tolti dal pannello proprietà.
+4. In entrambi i casi: **cosa succede ai progetti esistenti** che dichiarano
+   l'uno o l'altro e hanno un aspetto che il cliente ha già approvato.
