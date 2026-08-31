@@ -17,11 +17,39 @@ Description=SWS — osserva il motore richiesto dal progetto
 
 [Path]
 PathChanged=/data/user/sws/config/display-target
-# `PathChanged` da solo non scatta quando il file viene creato per la prima
-# volta su un dispositivo che non l'ha mai avuto: `PathExists` copre quel caso.
-# Insieme coprono sia il primo progetto caricato sia tutti quelli dopo.
-PathExists=/data/user/sws/config/display-target
 Unit=sws-display.service
+
+# ── perché NON c'è `PathExists=` ──────────────────────────────────────────────
+#
+# C'era, dal 2026-08-27, per coprire la prima creazione del file su un
+# dispositivo che non l'aveva mai avuto. Copriva un caso che non esiste, e in
+# cambio rompeva l'unit: `PathExists` è una condizione **di livello**, non di
+# fronte. Appena `sws-display.service` finisce (è `oneshot`, con
+# `RemainAfterExit=no`) il file esiste ancora, quindi la condizione è ancora
+# vera e systemd rilancia. Subito. Cinque volte in dieci secondi, poi
+# `start-limit-hit` — e la unit resta `failed` finché qualcuno non la rimette in
+# piedi a mano.
+#
+# Misurato sul WP630 il 2026-08-31: `sws-display.path` era **failed da due ore e
+# venticinque minuti**, cioè da dieci secondi dopo l'accensione. Non se n'era
+# accorto nessuno, perché quelle cinque volte il servizio aveva funzionato
+# benissimo — nel registro c'erano cinque decisioni corrette di fila. A mancare
+# era solo la commutazione dopo il caricamento di un progetto, cioè l'unica cosa
+# per cui questa unit esiste.
+#
+# E il caso che `PathExists` doveva coprire era già coperto due volte:
+#
+#   1. `sws-display.service` è `WantedBy=default.target`, quindi all'avvio della
+#      sessione parte comunque, file o non file;
+#   2. `PathChanged` scatta **anche alla prima creazione** — systemd sorveglia
+#      la directory che contiene il file, non solo il file.
+#
+# Il punto 2 non è dedotto dalla documentazione: provato sul dispositivo il
+# 2026-08-31 con un'unit gemella su `/tmp`. File inesistente, `path` avviata,
+# poi creato → **uno** scatto; poi modificato → un secondo scatto; poi dodici
+# secondi di attesa → nessun terzo scatto, nessun ciclo.
+#
+# `scripts/check_systemd_units.sh` impedisce che la trappola rientri.
 
 [Install]
 WantedBy=default.target

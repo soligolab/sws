@@ -507,6 +507,33 @@ for i in $(seq 1 30); do
                net.pixsys.Config1.WebBrowser SetUrl s "http://127.0.0.1:8443" >/dev/null 2>&1; then
             echo "    browser del pannello puntato su http://127.0.0.1:8443"
         fi
+        # La commutazione web/LVGL è viva, o è già morta?
+        #
+        # `systemctl --user enable --now sws-display.path` riesce anche quando
+        # l'unit va in `failed` due secondi dopo: l'installazione diceva "fatto"
+        # e il pannello non commutava più. Sul WP630 il 2026-08-31 le due unit
+        # erano failed **da dieci secondi dopo l'accensione** e nessuno lo
+        # sapeva, perché il difetto non toglie niente di visibile finché non si
+        # carica un progetto con un motore diverso.
+        #
+        # Il controllo va qui e non subito dopo l'`enable`: i trenta secondi di
+        # attesa della `/health` sono passati, quindi un'unit che cicla ha già
+        # avuto tutto il tempo di sbattere contro il suo limite di riavvii.
+        if [ "${INSTALL_DISPLAY:-0}" -eq 1 ]; then
+            GUASTE=""
+            for u in sws-display.path sws-display.service; do
+                [ "$(systemctl --user is-failed "$u" 2>/dev/null || true)" = "failed" ] \
+                    && GUASTE="$GUASTE $u"
+            done
+            if [ -n "$GUASTE" ]; then
+                echo "    ATTENZIONE: commutazione web/LVGL NON attiva —$GUASTE" >&2
+                echo "                Il runtime funziona, ma caricare un progetto con un" >&2
+                echo "                motore diverso non cambierà ciò che si vede a schermo." >&2
+                echo "                Perché:  journalctl --user -u sws-display -n 30" >&2
+            else
+                echo "    commutazione web/LVGL: attiva"
+            fi
+        fi
         echo
         for a in $IPS; do
             echo "    viewer : http://$a:8443     IDE : http://$a:8444"
