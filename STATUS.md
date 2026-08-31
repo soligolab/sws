@@ -76,30 +76,30 @@ maintainer davanti al pannello, in una sessione. Il 31 l'ho ritrovato in due
 minuti.
 
 
-### 1. Per il dispositivo l'immagine c'è già: basta un `pull`
+### 1. Le immagini della 2.3.4 sono tutte e tre pubblicate
 
-Interrogato il registry direttamente il 2026-08-31 (con le credenziali di podman,
-`GET /v2/soligolab/sws-runtime/tags/list` + digest dei manifest):
+Verificato sul registry il 2026-08-31 (`GET /v2/soligolab/sws-runtime/tags/list` + digest dei
+manifest, con le credenziali di podman: theobroma non aveva `skopeo`, quindi i conti fatti lì
+sulla cache locale erano incompleti):
 
-| Variante | `latest-*` punta a | 2.3.4 pubblicata? |
+| Variante | `latest-*` punta a | digest |
 |---|---|---|
-| `arm64` (SDK Pixsys) | **2.3.4** | ✅ sì |
-| `arm64-generic` | **2.3.4** | ✅ sì |
-| `amd64` | **2.3.2** | ❌ **no, mai costruita** |
+| `arm64` (SDK Pixsys) | **2.3.4** | `ed5243367e1b…` |
+| `arm64-generic` | **2.3.4** | `fc86a0071e8c…` |
+| `amd64` | **2.3.4** | `210ecaad6130…` — costruita su frodo la sera del 2026-08-31 |
 
-Quindi **per il WP630 non serve costruire niente**: `latest-arm64` è già la 2.3.4. Il device
-gira l'immagine del 2026-08-28 (2.3.2), quindi basta un `podman pull` + riavvio del container,
-o un'installazione dall'IDE.
+La 2.3.3 non esiste in nessuna variante: è stata scavalcata dalla 2.3.4, ed è un salto normale.
 
-**Manca solo la x86_64.** La 2.3.3 non esiste in nessuna variante (salto normale: è stata
-scavalcata dalla 2.3.4). Per chiudere il buco:
+**Per il WP630 non serve costruire niente**: gira l'immagine del 2026-08-28 (la 2.3.2), e
+`latest-arm64` è già la 2.3.4. Basta un `podman pull` + riavvio del container, o
+un'installazione dall'IDE.
+
+Per rifare la sola amd64 (l'unica che non richiede né SDK né QEMU né sudo):
 
 ```bash
-./scripts/build_container_x86_64.sh --push    # niente sudo, niente QEMU
+./scripts/build_container_x86_64.sh --push --no-save
+# se binario e SPA sono già costruiti, aggiungere --no-rust --no-spa: salta ~10 min
 ```
-
-Non serve `build_containers_all.sh` (che costruirebbe da capo anche le due arm64 già
-pubblicate, con la richiesta di password per la variante QEMU).
 
 Sul dispositivo è rimasto il progetto **`ProvaDemoWeb`**, che è del 25 agosto e
 contiene un `import math` che la sandbox blocca: fa errori ogni secondo. Non è un

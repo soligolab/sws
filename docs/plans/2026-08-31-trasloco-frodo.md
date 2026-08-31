@@ -194,3 +194,41 @@ remoto e non modifica niente in locale.
 
 I 24 GB liberi non aumentano: liberare spazio è un lavoro a parte, e `scripts/clean_disk_space.sh`
 esiste già per quello. Va fatto **dopo** che frodo ha superato la verifica finale, mai prima.
+
+---
+
+## Appendice — podman 4 (theobroma) → podman 5 (frodo): tre differenze pagate a caro prezzo
+
+*Aggiunta la sera del 2026-08-31, dopo aver rimesso in piedi la catena di build su frodo.*
+Nessuna è documentata negli script del repo, e tutte e tre si presentano **come errori che
+sembrano parlare d'altro**.
+
+1. **`podman login` fallisce con `command required for rootless mode with multiple IDs: exec:
+   "newuidmap": executable file not found`.** Non è il registry né le credenziali: manca il
+   pacchetto **`uidmap`**, che su Debian 13 non è una dipendenza di `podman`. Le mappature in
+   `/etc/subuid` c'erano già (`pixsys:100000:65536`). Rimedio: `sudo apt install uidmap`, poi
+   `podman system migrate`.
+
+2. **`podman build` fallisce con `setup network: could not find pasta, the network namespace
+   can't be configured`** — e fallisce **all'ultimo passo**, dopo dieci minuti di compilazione
+   Rust andati a buon fine. Podman 5 usa `pasta` (pacchetto **`passt`**) come rete rootless di
+   default, dove podman 4 usava `slirp4netns`. Rimedio scelto: `sudo apt install passt`.
+   L'alternativa senza password è imporre la rete vecchia, che resta però più lenta e vale per
+   ogni container della macchina:
+
+   ```bash
+   printf '[network]\ndefault_rootless_network_cmd = "slirp4netns"\n' \
+       > ~/.config/containers/containers.conf
+   ```
+
+   Quando succede, **non rifare la compilazione**: `--no-rust --no-spa` riusa binario e SPA e
+   riparte dallo `STEP 1/11`.
+
+3. **Sparisce il falso allarme del graph driver.** Su theobroma ogni comando podman stampava
+   `User-selected graph driver "vfs" overwritten by graph driver "overlay" from database`: era
+   rumore, residuo di una configurazione precedente. Su frodo non compare, perché lo storage è
+   nuovo. Utile saperlo per non cercarlo come sintomo.
+
+La morale che vale oltre podman: su frodo **nessun `containers.conf` esiste**, né utente né di
+sistema. La catena di build non poggia su configurazione locale, solo su pacchetti installati —
+il che è una buona notizia per la prossima macchina, purché i pacchetti ci siano.
