@@ -101,6 +101,25 @@ struct Args {
     #[arg(long)]
     istantanea: Option<String>,
 
+    /// Prima dell'istantanea, tocca lo schermo in questi punti — `x,y` in
+    /// coordinate di pagina, più tocchi separati da `;`.
+    ///
+    /// Serve a fotografare quello che si vede **dopo** un tocco: la finestra di
+    /// conferma di un comando, un pulsante premuto, una pagina raggiunta da un
+    /// navbutton. Senza, si può guardare solo lo stato a riposo, e le parti
+    /// interattive resterebbero da provare a mano davanti a un pannello — che è
+    /// esattamente il modo di lavorare da cui `--istantanea` serve a uscire.
+    ///
+    /// Più tocchi servono a percorrere una sequenza breve: aprire la finestra
+    /// di conferma di un comando **e poi rispondere**. Con un tocco solo si può
+    /// fotografare la domanda, non la risposta — e la risposta è la parte che
+    /// esegue il comando.
+    ///
+    /// Esempio: `--tocca 160,277` (apre la conferma)
+    ///          `--tocca "160,277;661,459"` (apre e conferma)
+    #[arg(long, value_name = "X,Y")]
+    tocca: Option<String>,
+
     /// Quanti millisecondi lasciar lavorare LVGL prima dell'istantanea.
     ///
     /// Non è un'attesa di cortesia: LVGL disegna dentro `task_handler()`, e
@@ -299,7 +318,12 @@ fn main() -> anyhow::Result<()> {
     // Istantanea: disegna, salva, esce. Prima di registrare l'indev e prima
     // di qualunque backend — non serve né un puntatore né una finestra.
     if let Some(percorso) = args.istantanea.clone() {
-        scrivi_istantanea(&percorso, hor_res, ver_res, args.istantanea_ms, &shared_tags, &mut live_bindings)?;
+        // Il puntatore serve a `--tocca`, ed è già registrato qui sopra:
+        // `init_pointer_indev` va chiamata una volta sola (e lo dice).
+        scrivi_istantanea(
+            &percorso, hor_res, ver_res, args.istantanea_ms, args.tocca.as_deref(),
+            &shared_tags, &mut live_bindings, &tag_rx, &nav_rx,
+        )?;
         drop(rt);
         return Ok(());
     }
@@ -376,6 +400,17 @@ fn main() -> anyhow::Result<()> {
 /// Pura (l'ambiente arriva come parametro) per poterla verificare senza un
 /// compositore acceso e senza un `/dev/dri` vero: è logica di diagnosi, e una
 /// diagnosi che nessuno prova è una diagnosi di cui non ci si può fidare.
+/// `"130,277"` → `(130, 277)`.
+///
+/// Rifiuta invece di indovinare: un `--tocca` scritto male che venisse letto
+/// come `(0, 0)` toccherebbe l'angolo in alto a sinistra, e l'istantanea
+/// mostrerebbe una pagina a riposo che si scambierebbe per «il tocco non fa
+/// niente».
+fn punto_tocco(s: &str) -> Option<(i32, i32)> {
+    let (a, b) = s.split_once(',')?;
+    Some((a.trim().parse().ok()?, b.trim().parse().ok()?))
+}
+
 /// Fa disegnare LVGL per un po' e salva il frame in un file PPM.
 ///
 /// Il `task_handler()` in un ciclo, e non una chiamata sola, per una ragione
@@ -392,18 +427,71 @@ fn scrivi_istantanea(
     hor_res: u32,
     ver_res: u32,
     per_ms: u64,
+    tocca: Option<&str>,
     shared_tags: &client::SharedTagSnapshot,
     live_bindings: &mut [lvgl_render::LiveBinding],
+    tag_rx: &mpsc::Receiver<lvgl_render::TagCommand>,
+    nav_rx: &mpsc::Receiver<String>,
 ) -> anyhow::Result<()> {
     const PASSO_MS: u64 = 16;
     let giri = (per_ms / PASSO_MS).max(1);
-    for _ in 0..giri {
+    let punti: Vec<(i32, i32)> = match tocca {
+        None => Vec::new(),
+        Some(s) => s
+            .split(';')
+            .map(|p| {
+                punto_tocco(p).ok_or_else(|| {
+                    anyhow::anyhow!(
+                        "--tocca vuole coppie `x,y` separate da `;` (es. \"160,277;661,459\"), non '{p}'"
+                    )
+                })
+            })
+            .collect::<anyhow::Result<_>>()?,
+    };
+    // I tocchi si distribuiscono nella seconda metà del tempo: la prima metà
+    // serve a far disegnare la pagina (LVGL costruisce a pezzi), e dopo l'ultimo
+    // tocco restano giri perché ciò che fa apparire faccia in tempo a comparire.
+    //
+    // `giu`/`su` distinti e non un tocco istantaneo: LVGL riconosce il click al
+    // **rilascio** (`LV_EVENT_CLICKED` da `lv_indev`), quindi un dito che tocca
+    // e non stacca non preme niente.
+    let inizio = giri / 3;
+    let passo = ((giri.saturating_sub(inizio + 3)) / punti.len().max(1) as u64).max(3);
+    for giro in 0..giri {
+        for (i, (x, y)) in punti.iter().enumerate() {
+            let giu = inizio + passo * i as u64;
+            if giro == giu {
+                lvgl_indev::set_pointer_state(*x, *y, true);
+            } else if giro == giu + 2 {
+                lvgl_indev::set_pointer_state(*x, *y, false);
+            }
+        }
         {
             let tags = shared_tags.lock().unwrap_or_else(|e| e.into_inner()).clone();
             lvgl_render::update_bindings(live_bindings, &tags);
         }
         lvgl::task_handler();
         lvgl::tick_inc(Duration::from_millis(PASSO_MS));
+    }
+
+    // Cosa ha PRODOTTO il tocco, non solo cosa si vede.
+    //
+    // In modalità istantanea nessuno svuota le code dei comandi (il ciclo
+    // normale non gira), quindi qui dentro c'è esattamente ciò che il tocco ha
+    // generato. Senza questo, `--tocca` direbbe solo che qualcosa è comparso a
+    // schermo: un pulsante che apre la finestra giusta e poi scrive il valore
+    // sbagliato sembrerebbe funzionare.
+    let mut comandi = 0;
+    while let Ok(c) = tag_rx.try_recv() {
+        eprintln!("  comando prodotto: scrivere {:?} su '{}'", c.value, c.tag);
+        comandi += 1;
+    }
+    while let Ok(p) = nav_rx.try_recv() {
+        eprintln!("  navigazione richiesta: pagina '{p}'");
+        comandi += 1;
+    }
+    if !punti.is_empty() && comandi == 0 {
+        eprintln!("  il tocco non ha prodotto nessun comando");
     }
 
     let mut frame = vec![0u8; (hor_res * ver_res * 3) as usize];

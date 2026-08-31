@@ -580,6 +580,19 @@ struct ButtonClickCtx {
     tag: String,
     write_value: TagValue,
     tx: mpsc::Sender<TagCommand>,
+    /// Se presente, il click **non** scrive: apre una finestra di conferma, e
+    /// a scrivere è il pulsante di quella.
+    conferma: Option<Conferma>,
+}
+
+/// Cosa mostrare prima di eseguire un comando.
+///
+/// Su un pannello touch il tocco accidentale è reale — una manica, un dito
+/// appoggiato mentre si legge — e un comando che parte al primo contatto non
+/// ha nessuna rete. Nel browser la conferma c'era; sul pannello no.
+struct Conferma {
+    titolo: String,
+    messaggio: String,
 }
 
 /// Contesto per checkbox/radio/slider: il valore da scrivere si legge dal
@@ -628,7 +641,81 @@ unsafe extern "C" fn sws_button_clicked_cb(e: *mut lvgl_sys::lv_event_t) {
         return;
     }
     let ctx = unsafe { &*(user_data as *const ButtonClickCtx) };
-    let _ = ctx.tx.send(TagCommand { tag: ctx.tag.clone(), value: ctx.write_value.clone() });
+    let Some(c) = &ctx.conferma else {
+        let _ = ctx.tx.send(TagCommand { tag: ctx.tag.clone(), value: ctx.write_value.clone() });
+        return;
+    };
+    // La finestra si crea al click e si distrugge alla risposta: tenerne una
+    // nascosta per ogni pulsante costerebbe memoria per una cosa che succede
+    // di rado. Il contesto passato è **lo stesso** già leakato per il pulsante,
+    // quindi aprire e chiudere la finestra non alloca niente di permanente.
+    unsafe {
+        let titolo = text_cstring(&c.titolo);
+        let testo = text_cstring(&c.messaggio);
+        let mbox = lvgl_sys::lv_msgbox_create(
+            core::ptr::null_mut(), // sul livello superiore: modale, copre la pagina
+            titolo.as_ptr(),
+            testo.as_ptr(),
+            BOTTONI_CONFERMA.0.as_ptr() as *mut *const std::os::raw::c_char,
+            false, // niente ✕: si esce da uno dei due pulsanti, e la scelta resta esplicita
+        );
+        if mbox.is_null() {
+            // Non si può chiedere conferma: **non** si scrive. Eseguire un
+            // comando critico perché la finestra non si è aperta sarebbe il
+            // peggiore dei due esiti possibili.
+            eprintln!("[conferma] impossibile creare la finestra per '{}': comando non eseguito", ctx.tag);
+            return;
+        }
+        lvgl_sys::lv_obj_align(mbox, lvgl_sys::LV_ALIGN_CENTER as lvgl_sys::lv_align_t, 0, 0);
+        lvgl_sys::lv_obj_add_event_cb(
+            mbox,
+            Some(sws_conferma_cb),
+            lvgl_sys::lv_event_code_t_LV_EVENT_VALUE_CHANGED,
+            user_data,
+        );
+    }
+}
+
+/// I due pulsanti della finestra di conferma.
+///
+/// **Deve essere `static`.** `lv_msgbox_create` passa l'array a
+/// `lv_btnmatrix_set_map`, che ne conserva il **puntatore**, non una copia
+/// (`lv_msgbox.c:120`) — è la stessa regola di `lv_line_set_points`. Con un
+/// array locale alla callback, LVGL rilegge memoria liberata al primo ridisegno:
+/// segfault. Successo scrivendo questo blocco, e trovato subito perché
+/// `--tocca` permette di premere il pulsante senza avere un pannello davanti.
+///
+/// Terminatore stringa **vuota** e non `NULL`, come chiede la documentazione
+/// («terminated by an "" element»): `lv_btnmatrix_set_map` percorre la mappa
+/// cercando `""`.
+///
+/// L'ordine conta: "Annulla" per primo, così il pulsante che finisce sotto il
+/// dito che ha appena toccato per sbaglio è quello che non fa niente.
+struct BottoniConferma([*const std::os::raw::c_char; 3]);
+// Puntatori a letterali `c"…"`, che vivono quanto il programma e non vengono
+// mai scritti: condividerli fra thread sarebbe sicuro anche se LVGL non
+// girasse già tutto sul thread principale.
+unsafe impl Sync for BottoniConferma {}
+static BOTTONI_CONFERMA: BottoniConferma =
+    BottoniConferma([c"Annulla".as_ptr(), c"Conferma".as_ptr(), c"".as_ptr()]);
+
+/// Risposta alla finestra di conferma: indice 1 = "Conferma".
+///
+/// Qualunque altro esito — "Annulla", o un indice inatteso — **non scrive**.
+/// È la scelta giusta in caso di dubbio: un comando mancato si ripete, uno
+/// partito per sbaglio no.
+unsafe extern "C" fn sws_conferma_cb(e: *mut lvgl_sys::lv_event_t) {
+    let user_data = unsafe { lvgl_sys::lv_event_get_user_data(e) };
+    let mbox = unsafe { lvgl_sys::lv_event_get_current_target(e) };
+    if user_data.is_null() || mbox.is_null() {
+        return;
+    }
+    let ctx = unsafe { &*(user_data as *const ButtonClickCtx) };
+    let scelta = unsafe { lvgl_sys::lv_msgbox_get_active_btn(mbox) };
+    if scelta == 1 {
+        let _ = ctx.tx.send(TagCommand { tag: ctx.tag.clone(), value: ctx.write_value.clone() });
+    }
+    unsafe { lvgl_sys::lv_msgbox_close(mbox) };
 }
 
 /// `LV_EVENT_CLICKED` su un navbutton: stesso evento del bottone normale,
@@ -1993,6 +2080,34 @@ fn render_text(
     })
 }
 
+/// La conferma da chiedere prima di eseguire un comando, se va chiesta.
+///
+/// `require_confirm` la chiede; `critical` la chiede **comunque**, perché un
+/// comando marcato critico che parte al primo tocco è un contrasto con se
+/// stesso. Il testo è quello dell'oggetto più il valore che sta per essere
+/// scritto: «Confermi?» senza dire cosa non è una conferma, è un ostacolo.
+///
+/// **Non copre `require_reason` né la ri-autenticazione di `critical`.** Il web
+/// chiede la password della sessione e un motivo scritto, che finisce
+/// nell'audit; qui servirebbe una tastiera e una sessione autenticata nel
+/// viewer, che oggi non c'è. Chi ha bisogno del motivo nell'audit deve usare il
+/// pannello web — detto qui perché non lo si scopra dal registro mancante.
+fn conferma_di(obj: &SynopticObject, valore: &TagValue) -> Option<Conferma> {
+    let critico = obj.critical == Some(true);
+    if obj.require_confirm != Some(true) && !critico {
+        return None;
+    }
+    let messaggio_obj = obj.confirm_message.as_deref().map(str::trim).filter(|m| !m.is_empty());
+    let cosa = format!("Scrivere {} su {}?", tag_value_as_string(valore), obj.tag.as_deref().unwrap_or("?"));
+    Some(Conferma {
+        titolo: if critico { "Comando critico".to_string() } else { "Conferma".to_string() },
+        messaggio: match messaggio_obj {
+            Some(m) => format!("{m}\n\n{cosa}"),
+            None => cosa,
+        },
+    })
+}
+
 fn render_button(
     screen: &mut lvgl::Obj,
     obj: &SynopticObject,
@@ -2016,7 +2131,12 @@ fn render_button(
             .and_then(|v| serde_json::from_value::<TagValue>(v).ok())
             .unwrap_or(TagValue::Bool(true));
         let ptr = btn.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
-        let ctx = leak_ctx(ButtonClickCtx { tag: tag.clone(), write_value, tx: tx.clone() });
+        let ctx = leak_ctx(ButtonClickCtx {
+            tag: tag.clone(),
+            write_value: write_value.clone(),
+            tx: tx.clone(),
+            conferma: conferma_di(obj, &write_value),
+        });
         unsafe {
             lvgl_sys::lv_obj_add_event_cb(
                 ptr.as_ptr(),

@@ -99,6 +99,7 @@ for nome in nomi:
         problema(f"{nome}: nessuna pagina synottico — il viewer LVGL non parte affatto")
         continue
 
+    tipi_tag = {t.get("id"): t.get("data_type") for t in (prj.get("tags") or [])}
     ids, usati_tag, tipi, nav_targets = set(), set(), set(), set()
     for f in pagine:
         base = os.path.basename(f)
@@ -132,6 +133,23 @@ for nome in nomi:
                 if rif and rif not in id_oggetti:
                     problema(f"{nome}/{base}: `{campo}: {rif}` non è un oggetto di questa "
                              f"pagina — il capo della pipe resta dov'era, storto e in silenzio")
+            # ── `write_value` di un tipo che non è quello del tag ──
+            #
+            # Il server **non** converte: scrivendo la stringa `"true"` su un
+            # tag dichiarato `bool`, il tag finisce a contenere una stringa
+            # (misurato il 2026-08-31). Funziona per caso, perché chi lo rilegge
+            # tratta una stringa non vuota come vera — finché qualcuno non lo
+            # legge come booleano davvero.
+            #
+            # In YAML `write_value: 'true'` e `write_value: true` sono due cose
+            # diverse, e la differenza è invisibile a chi legge in fretta.
+            wv = o.get("write_value")
+            t_obj = o.get("tag")
+            if isinstance(wv, str) and t_obj in tipi_tag and tipi_tag[t_obj] == "bool" \
+               and wv.lower() in ("true", "false"):
+                problema(f"{nome}/{base}: '{o.get('id')}' scrive la stringa \"{wv}\" su "
+                         f"'{t_obj}', dichiarato bool — il server non converte")
+
             # ── `points` su un oggetto che non li legge ──
             #
             # `points` è un campo delle **pipe**. Una `line` conosce solo

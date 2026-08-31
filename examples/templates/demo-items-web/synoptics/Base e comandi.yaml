@@ -167,12 +167,14 @@ objects:
   type: button
   x: 30.0
   y: 254.0
-  width: 200.0
+  width: 260.0
   height: 46.0
-  label: Premi
+  label: Avvia (chiede conferma)
   fill: '#2563eb'
   tag: demo.cmd.button
-  write_value: 'true'
+  write_value: true
+  require_confirm: true
+  confirm_message: Questo comando avvia l'impianto.
 - id: c_checkbox
   type: text
   x: 340.0
