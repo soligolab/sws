@@ -2450,3 +2450,58 @@ un segnalibro.
 
 È la stessa famiglia di **Q27** (il server non fa rispettare il `data_type` in scrittura):
 Q27 chiede se il tipo è un contratto, Q29 chiede se è *un* contratto o due.
+
+---
+
+## Q30 — `patch_project` è un leggi-modifica-scrivi senza lock
+
+*Aperta il 2026-08-31 (notte), lavorando a T-50. **Misurata in un browser vero**, non dedotta.*
+
+Tutte le scritture su `project.yaml` — tag, sorgenti, allarmi, funzioni, simboli — passano da
+`patch_project` (`sws-web/src/router.rs:1963`), che fa:
+
+```
+leggi project.yaml → deserializza → applica la modifica → riscrivi
+```
+
+Senza nessun lock. Due chiamate in volo insieme leggono **lo stesso file di partenza**, e
+l'ultima che scrive cancella la modifica dell'altra. Nessun errore, nessun avviso: il
+salvataggio riesce, e una delle due modifiche non c'è più.
+
+### Come è saltata fuori
+
+Provando l'assistente nel browser: una proposta che creava **un tag e una sorgente** insieme.
+Dopo Salva, sul disco c'era la sorgente e non il tag. `saveAll()` svuotava le sezioni in
+sospeso con `Promise.allSettled`, cioè in parallelo.
+
+Non è un difetto dell'assistente. Bastano **due tab di Configurazione modificate insieme** e
+un Salva: è così da sempre, e nessuno l'aveva visto perché di solito si salva una sezione per
+volta.
+
+### Cosa è stato fatto adesso, e cosa no
+
+`saveAll()` ora svuota le sezioni **una per volta**, e incatena anche `updateFunctions` +
+`updateCustomSymbols` (le pagine restano in parallelo: sono file distinti). Questo mette al
+sicuro il percorso che l'editor usa davvero, ed è coperto da un test che verifica l'ordine e
+non solo il conteggio delle chiamate.
+
+**Non risolve la corsa lato server.** Restano scoperte: due schede del browser aperte sullo
+stesso runtime, un secondo IDE collegato in remoto, uno script che chiama l'API, un deploy
+concorrente.
+
+### Le domande
+
+1. **Un lock nel runtime** (un `Mutex` attorno al project dir) basta? È la risposta più
+   piccola, ma protegge un processo solo.
+2. Oppure **scrittura ottimistica con impronta**: il `PUT` porta l'impronta su cui si è
+   basato e il server rifiuta con 409 se nel frattempo è cambiata. Più onesto e già mezzo
+   costruito — `calcola_impronta` esiste, e T-50 la usa già per le proposte. Costa un giro in
+   più a ogni salvataggio e un messaggio d'errore da scrivere bene.
+3. E in entrambi i casi: **cosa deve vedere chi perde la corsa**. Oggi non vede niente, ed è
+   il vero problema.
+
+### Rapporto con le altre voci
+
+Stessa famiglia di **Q17** e **Q27**: il server accetta una scrittura che avrebbe gli elementi
+per gestire meglio. Qui però non è una questione di permessi o di tipi — è perdita di dati
+silenziosa, e va prima delle altre due.

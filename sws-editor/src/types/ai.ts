@@ -37,11 +37,17 @@ export type MsgIn =
 /** Quello che si manda. */
 export type MsgOut = { t: "chiedi"; testo: string };
 
+/** Una voce del diff leggibile: `+` aggiunto, `-` tolto, `~` modificato. */
+export interface VoceDiff { verso: "+" | "-" | "~"; testo: string }
+
 /** Una riga della conversazione, come la mostra il pannello. */
 export type Riga =
   | { tipo: "utente"; testo: string }
   | { tipo: "assistente"; testo: string }
   | { tipo: "strumento"; nome: string; stato: string; messaggio?: string }
   | { tipo: "proposta"; msg: Extract<MsgIn, { t: "proposta" }>;
+      /** Il diff calcolato quando la proposta è arrivata, e congelato lì:
+       *  ricalcolarlo dopo l'applicazione lo farebbe sparire. */
+      diff: VoceDiff[];
       esito?: "applicata" | "scartata" | "rifiutata"; nota?: string }
   | { tipo: "errore"; testo: string };

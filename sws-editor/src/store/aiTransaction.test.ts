@@ -33,6 +33,7 @@ vi.mock("@/api/client", () => ({
 
 import { api } from "@/api/client";
 import { useAppStore } from "@/store";
+import type { AiProposta } from "@/store";
 import type { ProjectInfo, SynopticPage } from "@/types";
 
 const PAGINA: SynopticPage = {
@@ -49,7 +50,7 @@ const PROGETTO = {
 } as unknown as ProjectInfo;
 
 /** La proposta del bersaglio di T-50: sorgente + tag + bottone, insieme. */
-function proposta() {
+function proposta(): AiProposta {
   return {
     id: "p1",
     motivo: "bottone on/off per la luce del salotto via MQTT",
@@ -173,5 +174,100 @@ describe("la transazione dell'assistente", () => {
     p.project = null;
     await useAppStore.getState().applyAiProposal(p);
     expect(Object.keys(useAppStore.getState().pendingSections)).toHaveLength(0);
+  });
+});
+
+describe("il diff non deve mentire", () => {
+  beforeEach(() => { reset(); vi.clearAllMocks(); });
+
+  it("un oggetto identico ma con le chiavi in altro ordine non è una modifica", async () => {
+    // È il caso vero: l'API serve la pagina nell'ordine del file YAML, la
+    // proposta passa dalla struct Rust. Misurato il 2026-08-31, su una
+    // proposta che aggiungeva un bottone: 46 oggetti su 47 «modificati».
+    const p = proposta();
+    p.pages = [{
+      ...PAGINA,
+      objects: [
+        // stesso gauge, chiavi rimescolate
+        { y: 10, type: "gauge", id: "gauge1", x: 10 },
+        { id: "btn_luce", type: "button", x: 40, y: 40, tag: "luce.salotto", button_mode: "toggle" },
+      ],
+    }] as SynopticPage[];
+
+    const primaDelGauge = useAppStore.getState().pages[0].objects[0];
+    await useAppStore.getState().applyAiProposal(p);
+    const dopo = useAppStore.getState().pages[0];
+
+    // L'istanza è la STESSA: non riscritta, quindi il salvataggio non
+    // riordinerà le sue chiavi nel file YAML.
+    expect(dopo.objects[0]).toBe(primaDelGauge);
+    expect(dopo.objects.map((o) => o.id)).toEqual(["gauge1", "btn_luce"]);
+  });
+
+  it("ma un oggetto davvero cambiato viene sostituito", async () => {
+    const p = proposta();
+    p.pages = [{
+      ...PAGINA,
+      objects: [{ id: "gauge1", type: "gauge", x: 10, y: 999 }],
+    }] as SynopticPage[];
+
+    await useAppStore.getState().applyAiProposal(p);
+    expect(useAppStore.getState().pages[0].objects[0].y).toBe(999);
+  });
+});
+
+describe("dove porta l'applicazione", () => {
+  beforeEach(() => { reset(); vi.clearAllMocks(); });
+
+  it("va sulla pagina toccata, se non ci si è già", async () => {
+    useAppStore.setState({
+      pages: [structuredClone(PAGINA), { id: "pg2", name: "Altra", objects: [] }],
+      currentPageId: "pg2",
+      persistedPageNames: ["Indicatori", "Altra"],
+    });
+    await useAppStore.getState().applyAiProposal(proposta());
+    expect(useAppStore.getState().currentPageId).toBe("pg1");
+  });
+
+  it("e non si sposta se la pagina toccata è già quella aperta", async () => {
+    await useAppStore.getState().applyAiProposal(proposta());
+    expect(useAppStore.getState().currentPageId).toBe("pg1");
+  });
+});
+
+describe("le scritture su project.yaml non si pestano i piedi", () => {
+  beforeEach(() => { reset(); vi.clearAllMocks(); });
+
+  /**
+   * `patch_project` lato server è un leggi-modifica-scrivi senza lock: due PUT
+   * in volo insieme leggono lo stesso file e l'ultimo cancella l'altro, senza
+   * dire niente. Misurato il 2026-08-31 nel browser: una proposta che creava
+   * un tag *e* una sorgente ne salvava una sola.
+   *
+   * Non basta contare le chiamate: bisogna provare che la seconda parte solo
+   * dopo che la prima è tornata.
+   */
+  it("tag e sorgenti si salvano una per volta", async () => {
+    const ordine: string[] = [];
+    let sbloccaTags: (() => void) | null = null;
+    vi.mocked(api.updateTags).mockImplementation(async () => {
+      ordine.push("tags:inizio");
+      await new Promise<void>((r) => { sbloccaTags = r; });
+      ordine.push("tags:fine");
+    });
+    vi.mocked(api.updateSources).mockImplementation(async () => {
+      ordine.push("sources:inizio");
+    });
+
+    await useAppStore.getState().applyAiProposal(proposta());
+    const salvataggio = useAppStore.getState().saveAll();
+
+    await new Promise((r) => setTimeout(r, 10));
+    // Con le scritture in parallelo, qui `sources:inizio` sarebbe già passato.
+    expect(ordine).toEqual(["tags:inizio"]);
+
+    sbloccaTags!();
+    await salvataggio;
+    expect(ordine).toEqual(["tags:inizio", "tags:fine", "sources:inizio"]);
   });
 });

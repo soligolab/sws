@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { uguale } from "@/ai/confronto";
 import { useAppStore } from "@/store";
 import { ascolta, chiedi } from "@/ws/aiStream";
-import type { MsgIn, Riga } from "@/types/ai";
+import type { MsgIn, Riga, VoceDiff } from "@/types/ai";
 import type { ProjectInfo, SynopticPage } from "@/types";
 
 /**
@@ -25,8 +26,6 @@ import type { ProjectInfo, SynopticPage } from "@/types";
 export function ChatPanel({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { t } = useTranslation();
   const applyAiProposal = useAppStore((s) => s.applyAiProposal);
-  const project         = useAppStore((s) => s.project);
-  const pages           = useAppStore((s) => s.pages);
 
   const [righe, setRighe]     = useState<Riga[]>([]);
   const [bozza, setBozza]     = useState("");
@@ -51,9 +50,17 @@ export function ChatPanel({ open, onClose }: { open: boolean; onClose: () => voi
         case "strumento":
           setRighe((r) => aggiornaStrumento(r, m.nome, m.stato, m.messaggio));
           break;
-        case "proposta":
-          setRighe((r) => [...r, { tipo: "proposta", msg: m }]);
+        case "proposta": {
+          // Il diff si calcola **adesso**, contro lo stato di adesso, e resta
+          // quello. Ricalcolandolo a ogni render, dopo l'applicazione
+          // confronterebbe la proposta con sé stessa e direbbe «non cambia
+          // niente» — cioè cancellerebbe dallo schermo la cosa che l'utente ha
+          // appena approvato.
+          const s = useAppStore.getState();
+          const diff = riassumi(m.project ?? null, m.pages ?? null, s.project, s.pages);
+          setRighe((r) => [...r, { tipo: "proposta", msg: m, diff }]);
           break;
+        }
         case "errore":
           setRighe((r) => [...r, { tipo: "errore", testo: m.messaggio }]);
           break;
@@ -153,7 +160,7 @@ export function ChatPanel({ open, onClose }: { open: boolean; onClose: () => voi
             );
           }
           return (
-            <Proposta key={i} riga={r} project={project} pages={pages}
+            <Proposta key={i} riga={r}
                       onApplica={() => applica(i)} onScarta={() => scarta(i)} />
           );
         })}
@@ -186,16 +193,13 @@ export function ChatPanel({ open, onClose }: { open: boolean; onClose: () => voi
 // La proposta e il suo diff
 // ─────────────────────────────────────────────────────────────────────────────
 
-function Proposta({ riga, project, pages, onApplica, onScarta }: {
+function Proposta({ riga, onApplica, onScarta }: {
   riga: Extract<Riga, { tipo: "proposta" }>;
-  project: ProjectInfo | null;
-  pages: SynopticPage[];
   onApplica: () => void;
   onScarta: () => void;
 }) {
   const { t } = useTranslation();
-  const diff = useMemo(() => riassumi(riga.msg.project ?? null, riga.msg.pages ?? null, project, pages),
-                       [riga.msg, project, pages]);
+  const diff = riga.diff;
   const nuovi = (riga.msg.giudizio?.rilievi ?? []).filter((x) => !x.preesistente);
 
   return (
@@ -253,8 +257,6 @@ function Proposta({ riga, project, pages, onApplica, onScarta }: {
   );
 }
 
-interface VoceDiff { verso: "+" | "-" | "~"; testo: string }
-
 /** Il diff leggibile: cosa cambia, non come. */
 export function riassumi(
   propProject: ProjectInfo | null,
@@ -263,7 +265,11 @@ export function riassumi(
   pages: SynopticPage[],
 ): VoceDiff[] {
   const out: VoceDiff[] = [];
-  const stessa = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+  // `uguale` e non `JSON.stringify`: l'ordine delle chiavi differisce fra
+  // l'API (ordine del file YAML) e la proposta (ordine della struct Rust), e
+  // con lo stringify il diff dichiarava «modificati» quasi tutti gli oggetti
+  // della pagina.
+  const stessa = uguale;
 
   const perId = <T extends { id: string }>(v: T[] | undefined | null) =>
     new Map((v ?? []).map((x) => [x.id, x]));

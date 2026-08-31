@@ -4,6 +4,7 @@ import { applyAppearance, getStoredMode, type ThemeMode } from "@/theme";
 import { genId } from "@/id";
 import { getStoredProjectLang, setStoredProjectLang, getStoredEditorPreviewLang, setStoredEditorPreviewLang } from "@/i18n/projectI18n";
 import { normalizeTrendObjects } from "@/canvas/trendModel";
+import { uguale } from "@/ai/confronto";
 import type {
   AlarmDef,
   LanguageTable,
@@ -1743,7 +1744,6 @@ export const useAppStore = create<AppState>((set, get) => {
       }
 
       // ── 2. Cosa tocca davvero ─────────────────────────────────────────────
-      const uguale = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
       const prima = s.project;
       const dopo = p.project ?? prima;
       const tocca = {
@@ -1753,17 +1753,50 @@ export const useAppStore = create<AppState>((set, get) => {
       };
 
       // Le pagine proposte si sovrappongono per nome; le altre restano.
+      //
+      // **Oggetto per oggetto, non pagina per pagina.** L'assistente legge la
+      // pagina dal disco e la rimanda intera, ma passando dalla struct Rust i
+      // campi escono in ordine di dichiarazione mentre l'API li serve
+      // nell'ordine del file YAML. Gli oggetti sono gli stessi; rimpiazzare la
+      // pagina intera li riscriverebbe tutti — misurato il 2026-08-31: su una
+      // proposta che aggiungeva UN bottone, 46 oggetti su 47 risultavano
+      // toccati. Il diff diventava illeggibile e il salvataggio avrebbe
+      // riordinato ogni chiave di ogni oggetto in YAML, per niente.
+      //
+      // Tenendo l'istanza esistente dove è semanticamente uguale, una proposta
+      // può cambiare solo quello che cambia davvero.
       const proposte = p.pages ?? [];
+      const fondi = (attuale: SynopticPage, proposta: SynopticPage): SynopticPage => {
+        const perId = new Map(attuale.objects.map((o) => [o.id, o]));
+        const objects = proposta.objects.map((o) => {
+          const vecchio = perId.get(o.id);
+          return vecchio && uguale(vecchio, o) ? vecchio : o;
+        });
+        return uguale({ ...attuale, objects: [] }, { ...proposta, objects: [] })
+          ? { ...attuale, objects }
+          : { ...proposta, objects };
+      };
       const nuovePages = [
-        ...s.pages.map((pg) => proposte.find((q) => q.name === pg.name) ?? pg),
+        ...s.pages.map((pg) => {
+          const q = proposte.find((x) => x.name === pg.name);
+          return q ? fondi(pg, q) : pg;
+        }),
         ...proposte.filter((q) => !s.pages.some((pg) => pg.name === q.name)),
       ];
 
       // ── 3. Un solo passo, con dentro anche il progetto ────────────────────
       pushHistoryUnconditional(`Assistente: ${p.motivo}`, prima);
+      // Se la modifica è su un'altra pagina, ci si va: applicare qualcosa che
+      // non si vede è il modo più veloce per smettere di guardare il diff.
+      const toccata = proposte[0]
+        ? nuovePages.find((pg) => pg.name === proposte[0].name)
+        : undefined;
+      const vaSuAltraPagina = toccata !== undefined
+        && !proposte.some((q) => nuovePages.find((pg) => pg.name === q.name)?.id === s.currentPageId);
       set({
         pages: nuovePages,
         project: dopo,
+        ...(vaSuAltraPagina ? { currentPageId: toccata.id } : {}),
         selectedObjectId: null,
         selectedObjectIds: [],
         selectedCell: null,
@@ -1917,11 +1950,29 @@ export const useAppStore = create<AppState>((set, get) => {
 
       // 1. Flush section drafts owned by ConfigView tabs / the function
       //    editor. Each PUTs to its own endpoint and refreshes the store.
+      //
+      //    **Una per volta, non in parallelo.** Tags, sources e alarms
+      //    finiscono tutti in `project.yaml` attraverso `patch_project`, che è
+      //    un leggi-modifica-scrivi senza lock (`router.rs:1963`): due PUT in
+      //    volo insieme leggono lo stesso file di partenza e l'ultimo che
+      //    scrive cancella l'altro, in silenzio.
+      //
+      //    Misurato il 2026-08-31 con l'assistente: una proposta che creava un
+      //    tag *e* una sorgente salvava la sorgente e perdeva il tag. Non è un
+      //    difetto dell'assistente — bastano due tab di Configurazione
+      //    modificate insieme, ed è così da sempre.
+      //
+      //    Questo mette al sicuro il salvataggio dell'editor. La corsa lato
+      //    server resta possibile da altre strade (due schede, uno script,
+      //    l'API): è Q30 in `docs/OPEN_QUESTIONS.md`.
       const pending = Object.entries(get().pendingSections);
-      const flushed = await Promise.allSettled(pending.map(([, save]) => save()));
-      flushed.forEach((r, i) => {
-        if (r.status === "rejected") failures.push(`${pending[i][0]}: ${errText(r.reason)}`);
-      });
+      for (const [key, save] of pending) {
+        try {
+          await save();
+        } catch (e) {
+          failures.push(`${key}: ${errText(e)}`);
+        }
+      }
 
       // Re-read: the flush above mutated `project`.
       const state = get();
@@ -1945,8 +1996,14 @@ export const useAppStore = create<AppState>((set, get) => {
       //    salvataggio.
       const tasks: Promise<unknown>[] = state.pages.map((p) => api.saveSynoptic(p));
       if (isAdmin && state.project) {
-        tasks.push(api.updateFunctions(state.project.functions ?? []));
-        tasks.push(api.updateCustomSymbols(state.customSymbols ?? []));
+        // Anche questi due passano da `patch_project` sullo stesso
+        // `project.yaml`: incatenati, non affiancati, per la stessa ragione
+        // spiegata al punto 1. Le pagine invece sono file distinti e restano
+        // in parallelo.
+        tasks.push((async () => {
+          await api.updateFunctions(state.project?.functions ?? []);
+          await api.updateCustomSymbols(state.customSymbols ?? []);
+        })());
       }
       // Names present when pages were last loaded but missing from the
       // current array: deleted, or renamed (old name orphaned, new name
