@@ -115,6 +115,28 @@ pub enum Evento {
     StrumentoInizio { nome: String },
 }
 
+/// Il corpo della richiesta. Fuori dal metodo perché è la parte che può
+/// sbagliarsi in modo silenzioso — un parametro rimosso dall'API, un campo nel
+/// posto sbagliato — e senza chiave non si può provare contro il servizio vero.
+/// Almeno la forma la si prova.
+fn corpo_richiesta(system: Vec<Value>, messages: &[Value], tools: &[Value]) -> Value {
+    json!({
+        "model": MODEL,
+        "max_tokens": MAX_TOKENS,
+        "stream": true,
+        // Su Opus 5 il pensiero è acceso di default e `budget_tokens` è stato
+        // **rimosso**: passarlo dà 400. `display: summarized` è un'opt-in — il
+        // default è omesso, e senza si vedrebbe solo una lunga pausa prima
+        // della risposta.
+        "thinking": { "type": "adaptive", "display": "summarized" },
+        // `effort` sta dentro `output_config`, non al primo livello.
+        "output_config": { "effort": "high" },
+        "system": system,
+        "messages": messages,
+        "tools": tools,
+    })
+}
+
 impl Anthropic {
     pub fn new(key: String) -> Self {
         Anthropic {
@@ -140,20 +162,7 @@ impl Anthropic {
         tools: &[Value],
         mut on_event: impl FnMut(Evento),
     ) -> Result<Risposta> {
-        let body = json!({
-            "model": MODEL,
-            "max_tokens": MAX_TOKENS,
-            "stream": true,
-            // Su Opus 5 il pensiero è acceso di default e `budget_tokens` è
-            // stato rimosso: passarlo darebbe 400. `display: summarized` è
-            // un'opt-in — il default è omesso, e senza si vedrebbe solo una
-            // lunga pausa prima della risposta.
-            "thinking": { "type": "adaptive", "display": "summarized" },
-            "output_config": { "effort": "high" },
-            "system": system,
-            "messages": messages,
-            "tools": tools,
-        });
+        let body = corpo_richiesta(system, messages, tools);
 
         let resp = self.http.post(API)
             .header("x-api-key", &self.key)
@@ -382,6 +391,45 @@ mod tests {
         }
         assert_eq!(blocchi[0]["thinking"], "rifletto");
         assert_eq!(blocchi[0]["signature"], "abc123");
+    }
+
+    /// La forma della richiesta contro le trappole note dell'API.
+    ///
+    /// Sono cose che cambiano nel tempo e si rompono con un 400 o — peggio —
+    /// funzionando male in silenzio. Senza chiave non si può provare il giro
+    /// vero, ma il corpo sì.
+    #[test]
+    fn il_corpo_della_richiesta_non_ha_trappole() {
+        let b = corpo_richiesta(prompt_finto(), &[json!({"role":"user","content":"ciao"})],
+                                &[json!({"name":"x"})]);
+
+        assert_eq!(b["model"], "claude-opus-5");
+        assert_eq!(b["stream"], true);
+        assert_eq!(b["thinking"]["type"], "adaptive");
+        // `budget_tokens` è rimosso su Opus 5: mandarlo è un 400 secco.
+        assert!(b["thinking"].get("budget_tokens").is_none());
+        // Senza `display` si vedrebbe solo una lunga pausa: il default è omesso.
+        assert_eq!(b["thinking"]["display"], "summarized");
+        // `effort` va DENTRO output_config, non al primo livello.
+        assert!(b.get("effort").is_none());
+        assert_eq!(b["output_config"]["effort"], "high");
+        // Sampling rimosso su Opus 5.
+        assert!(b.get("temperature").is_none());
+        assert!(b.get("top_p").is_none());
+        assert!(b["max_tokens"].as_u64().unwrap() >= 8000);
+    }
+
+    /// Il prefisso della cache deve essere davvero un prefisso: il blocco di
+    /// sistema porta `cache_control`, e quello che cambia sta dopo.
+    #[test]
+    fn il_prompt_di_sistema_e_in_cache() {
+        let b = corpo_richiesta(prompt_finto(), &[], &[]);
+        assert_eq!(b["system"][0]["cache_control"]["type"], "ephemeral");
+    }
+
+    fn prompt_finto() -> Vec<Value> {
+        vec![json!({ "type": "text", "text": "istruzioni",
+                     "cache_control": { "type": "ephemeral" } })]
     }
 
     #[test]

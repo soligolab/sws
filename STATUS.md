@@ -77,8 +77,10 @@ richiesta impossibile (deve dire di no).
 2. **Il merge in `main`**, dopo che l'hai visto funzionare. Il ramo non è mergiato apposta.
 3. **Le fasi 3 e 4 del piano**: l'istantanea LVGL come strumento (l'agente guarda quello che ha
    disegnato) e il server MCP autonomo per usare gli stessi strumenti da terminale.
-4. Un rilievo che costa quasi niente e non ho fatto: «questo tipo il motore LVGL non lo
-   disegna», riusando `LVGL_SUPPORTED_TYPES`.
+4. ~~Un rilievo «questo tipo il motore LVGL non lo disegna».~~ **Non serve**: l'ho scritto e poi
+   tolto, perché il motore ormai disegna **tutti e 35** i tipi della palette — e se un giorno
+   smettesse, `check_lvgl_types.sh` fallisce già prima. Una regola che non può scattare è
+   codice morto che dà l'illusione di un controllo.
 
 ---
 
