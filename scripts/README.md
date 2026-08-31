@@ -149,11 +149,11 @@ stessa macchina si annuncerebbero con lo stesso nome.
 
 ---
 
-## `check_static.sh` — le sei guardie che girano su file fermi
+## `check_static.sh` — le sette guardie che girano su file fermi
 
-Le guardie sono diciannove. Sei girano su file fermi (YAML, sorgenti, tabelle) e
-finiscono in pochi secondi; le altre tredici vogliono un runtime in ascolto,
-podman o un dispositivo.
+Le guardie sono venti. Sette girano su file fermi (YAML, sorgenti, tabelle,
+unit systemd) e finiscono in pochi secondi; le altre tredici vogliono un runtime
+in ascolto, podman o un dispositivo.
 
 ```bash
 ./scripts/check_static.sh     # esce != 0 se una qualsiasi fallisce
@@ -164,7 +164,7 @@ le lanciava tutte: a fine giornata se ne ricordavano sei, per nome, a memoria �
 e una guardia che non viene lanciata è codice morto che dà l'illusione di una
 rete di sicurezza.
 
-Le sei:
+Le sette:
 
 | Guardia | Cosa impedisce |
 |---|---|
@@ -174,6 +174,7 @@ Le sei:
 | `check_vendor_patches.sh` | le patch al sorgente C vendored spariscono a un aggiornamento |
 | `check_templates.sh` | i template restano indietro rispetto al runtime |
 | `check_demo_templates.sh` | i due gemelli "Demo Items" divergono fra loro |
+| `check_systemd_units.sh` | trappole note nelle unit che spediamo: condizioni di livello che fanno ciclare una unit, `.path` verso unit inesistenti, `ExecStart=` relativi |
 
 `check_static.sh` **fallisce anche** se in `scripts/` compare un `check_*.sh` che
 non è in nessuno dei suoi due elenchi: una guardia nuova non può restare fuori in

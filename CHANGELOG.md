@@ -11,6 +11,8 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+## [2.3.4] — 2026-08-31
+
 ### La commutazione web/LVGL era morta dieci secondi dopo l'accensione
 
 - **La commutazione automatica fra pannello web e pannello LVGL era morta dieci
@@ -95,7 +97,9 @@ Nelle prime ore ha trovato otto difetti, sei dei quali silenziosi:
 - `check_lvgl_types.sh` — il badge «L» della palette contro il motore.
 - `check_static.sh` — lancia tutte le guardie che girano su file fermi, e
   fallisce se ne compare una nuova non classificata. Erano diciannove e nessuno
-  le lanciava tutte.
+  le lanciava tutte. Al primo giro dopo il merge ha fatto esattamente il suo
+  lavoro: `check_systemd_units.sh` veniva da un altro ramo e non era
+  classificata.
 - In `check_templates.sh`: ancoraggi delle pipe verso oggetti inesistenti, porte
   sconosciute, celle di griglia che non disegnano niente, `points` su una `line`,
   `write_value` di un tipo diverso da quello del tag.
