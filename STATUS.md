@@ -28,6 +28,60 @@
 
 ## ▶ Da fare nella prossima sessione
 
+### Da dove ripartire — chiusura della sessione notturna del 2026-08-31/09-01
+
+**T-50, la chat IA nell'editor: funziona.** Ramo `feat/T-50-chat-ai`, pushato, **non**
+mergiato in `main`. Il bersaglio è raggiunto: si scrive in chat *«aggiungi alla pagina
+Indicatori un bottone che accende e spegne la luce del salotto — MQTT su 192.168.1.50»* e
+arriva una proposta con la sorgente (con `publish_topic`), il tag booleano e il bottone
+`toggle`; si preme Applica, il bottone compare sul canvas, Ctrl+Z lo toglie **insieme** a tag
+e sorgente, e Salva li scrive tutti e tre su disco.
+
+Verificato in Chromium sull'istanza 3, progetto nuovo da `demo-items-web`, con l'agente finto.
+
+**La cosa che manca, ed è una sola:** il modello vero non è mai stato chiamato. La chiave API
+non è arrivata durante la notte, quindi `ai/client.rs` — la lettura SSE, il ciclo
+strumento→risultato, il prompt di sistema — è scritto, compila e ha i suoi test unitari sulla
+ricostruzione dei blocchi, ma **non ha mai parlato con `api.anthropic.com`**. Tutto il resto
+(strumenti, validazione, WebSocket, pannello, diff, transazione, salvataggio) è provato dal
+vivo attraverso l'agente finto, che esegue gli strumenti veri.
+
+Per accenderlo bastano tre righe — `docs/HOWTO.md` §7:
+
+```bash
+ mkdir -p ~/.config/sws && printf '%s' 'sk-ant-...' > ~/.config/sws/anthropic.key && \
+   chmod 600 ~/.config/sws/anthropic.key
+```
+
+Poi `./scripts/start_editor.sh` (senza `SWS_AI_FAKE`) e le quattro prove della fase D del
+piano: la frase del bersaglio; la stessa **senza dire il broker** (deve chiedere, non inventare
+`localhost`); una richiesta su un tag che esiste già (deve riusarlo, non duplicarlo); una
+richiesta impossibile (deve dire di no).
+
+**Due difetti veri trovati strada facendo, non cercati:**
+
+- **Salvare due sezioni insieme ne perdeva una.** `saveAll()` svuotava le sezioni in sospeso
+  in parallelo, e tutte finiscono nello stesso `project.yaml` attraverso un
+  leggi-modifica-scrivi senza lock: l'ultima cancellava l'altra, in silenzio. Bastavano due tab
+  di Configurazione modificate insieme, ed era così da sempre. Corretto lato editor
+  (sequenziale, con un test che verifica l'ordine e non il conteggio); la corsa lato server è
+  **Q30** e resta aperta.
+- **I rulli di `casa-locale`** scrivono `"open"`/`"stop"`/`"close"` su tag dichiarati `float`.
+  Funziona (Q27), ma il tipo dichiarato è falso metà del tempo. Non l'ho toccato: è il tuo
+  impianto di casa. Le dodici eccezioni sono elencate una per una in `ECCEZIONI_NOTE`
+  (`sws-web/src/validate.rs`) così una tredicesima fa fallire il test, e la domanda è **Q29**.
+
+**Cosa resta di T-50**, in ordine:
+
+1. **Provarlo col modello vero** (sopra). Mezza sessione.
+2. **Il merge in `main`**, dopo che l'hai visto funzionare. Il ramo non è mergiato apposta.
+3. **Le fasi 3 e 4 del piano**: l'istantanea LVGL come strumento (l'agente guarda quello che ha
+   disegnato) e il server MCP autonomo per usare gli stessi strumenti da terminale.
+4. Un rilievo che costa quasi niente e non ho fatto: «questo tipo il motore LVGL non lo
+   disegna», riusando `LVGL_SUPPORTED_TYPES`.
+
+---
+
 ### Da dove ripartire — chiusura della sessione del 2026-08-31 (sera)
 
 Sessione di **trasloco**, nessuna riga di codice: frodo è stata verificata, i documenti

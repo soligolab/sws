@@ -11,6 +11,76 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### Un assistente nell'editor: si descrive quel che serve, e lui lo propone (T-50)
+
+Nell'IDE c'è una chat. Le si dice *«aggiungi alla pagina Indicatori un
+bottone che accende e spegne la luce del salotto — è su MQTT, broker
+192.168.1.50, topic casa/salotto/luce»* e arriva una proposta: la
+sorgente MQTT con il topic di stato in lettura e quello di comando in
+scrittura, il tag booleano, e il bottone in modalità toggle sulla pagina.
+
+**Propone, non scrive.** Il diff si guarda, si applica o si scarta.
+Applicare non salva: la modifica va nell'editor, `Ctrl+Z` la annulla, e
+il disco aspetta Salva. L'assistente non esegue Python, non fa deploy,
+non tocca il filesystem e non parla col dispositivo. Legge il progetto
+mascherato, come lo vede il browser: le password dei driver non entrano
+nel contesto del modello.
+
+Gira **dentro `sws-runtime`**, non in un processo a parte: la chiave sta
+nella configurazione del runtime e non entra mai nel progetto. Vedi
+`docs/HOWTO.md` §7 per come accenderlo.
+
+### Prima non si poteva chiedere «questo progetto è valido?» senza rovinarlo
+
+`POST /api/project/validate` riceve un progetto e **non lo salva**.
+Risponde con rilievi che dicono il percorso del campo, cosa non va e
+come si aggiusta — e se il difetto c'era già prima della modifica
+proposta. Vale anche senza nessuna IA: fino a oggi l'unico modo di
+scoprire che qualcosa era sbagliato era salvarlo.
+
+Le regole riunite in un posto solo: tag non dichiarati, valori fuori
+dagli insiemi ammessi, navigazioni verso pagine inesistenti, pipe
+ancorate a oggetti che non ci sono, `points` su una `line`, celle di
+griglia con `objects` invece di `child`, comandi verso tag calcolati (che
+il server rifiuta), e il valore scritto che deve stare nel tipo del tag.
+Più due nuove: un mapping MQTT senza `publish_topic` sotto un comando —
+il bottone cambierebbe il valore dentro SWS e la luce vera resterebbe
+spenta — e i campi che semplicemente **non esistono**, che serde scarta
+in silenzio.
+
+`GET /api/schema/synoptic` e `GET /api/schema/source` servono i campi
+validi con la loro documentazione e un esempio preso da un progetto vero.
+
+### Salvare due sezioni insieme ne perdeva una
+
+Un salvataggio che toccava **due** sezioni del progetto (per esempio i
+tag e le sorgenti) ne scriveva una sola, senza dire niente. Le scritture
+partivano in parallelo e finiscono tutte nello stesso `project.yaml`
+attraverso un leggi-modifica-scrivi senza lock: l'ultima cancellava
+l'altra.
+
+Non serviva l'assistente per incapparci — bastavano due tab di
+Configurazione modificate insieme, ed era così da sempre. Ora le sezioni
+si salvano una per volta. La corsa lato server (due schede, uno script)
+resta aperta ed è Q30.
+
+### Il diff dell'assistente diceva il falso
+
+Su una proposta che aggiungeva **un** bottone, 46 oggetti su 47
+risultavano modificati: l'API serve la pagina nell'ordine di chiavi del
+file YAML, la proposta esce nell'ordine della struct. Stessi oggetti,
+confronto diverso. Un diff così nessuno lo rilegge, ed è esattamente il
+rischio contro cui il diff esiste. Ora la proposta si fonde oggetto per
+oggetto, e il salvataggio non riordina in YAML le chiavi di oggetti che
+nessuno ha toccato.
+
+### Domande aperte registrate
+
+- **Q29** — un tag può servire due direzioni con due tipi diversi? I rulli
+  di `casa-locale` scrivono `"open"` su tag `float`, e funziona.
+- **Q30** — `patch_project` senza lock: chi perde la corsa non vede niente.
+
+
 ## [2.3.4] — 2026-08-31
 
 ### La commutazione web/LVGL era morta dieci secondi dopo l'accensione

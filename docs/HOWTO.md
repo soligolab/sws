@@ -18,6 +18,7 @@
 4. [Un pulsante che apre un sito esterno (e Login/Logout dal sinottico)](#4-un-pulsante-che-apre-un-sito-esterno-e-loginlogout-dal-sinottico)
 5. [Compilare tutto e pubblicare le immagini container](#5-compilare-tutto-e-pubblicare-le-immagini-container)
 6. [Vedere cosa disegna il pannello senza avere il pannello](#6-vedere-cosa-disegna-il-pannello-senza-avere-il-pannello)
+7. [Accendere l'assistente IA nell'editor](#7-accendere-lassistente-ia-nelleditor)
 
 ---
 
@@ -444,3 +445,94 @@ con le barre di scorrimento.
 
 Serve a trovare i difetti *di disegno* prima che arrivino sul dispositivo, non a
 sostituire la prova sul dispositivo.
+
+---
+
+## 7. Accendere l'assistente IA nell'editor
+
+La chat nell'IDE guarda il progetto e **propone** modifiche: una persona vede il diff e
+decide. Non scrive su disco, non esegue niente, non parla col dispositivo.
+
+### La chiave
+
+Il runtime la cerca in quest'ordine, e si ferma alla prima che trova:
+
+1. la variabile d'ambiente `ANTHROPIC_API_KEY`;
+2. `<config_dir>/anthropic.key` — per `start_editor.sh --instance 1` è
+   `.run-editor/config/anthropic.key`;
+3. `~/.config/sws/anthropic.key`.
+
+Il terzo è quello consigliato: vale per tutte le istanze, non rischia un `git clean`, e sta
+fuori dal repo.
+
+```bash
+ mkdir -p ~/.config/sws && \
+   printf '%s' 'sk-ant-...' > ~/.config/sws/anthropic.key && \
+   chmod 600 ~/.config/sws/anthropic.key
+```
+
+**Lo spazio prima di `mkdir` non è un refuso**: con `HISTCONTROL=ignorespace` tiene la chiave
+fuori da `~/.bash_history`. E `printf '%s'` invece di `echo` così non ci finisce un a-capo (il
+runtime fa comunque `.trim()`).
+
+La chiave **non entra mai nel progetto**: il progetto si esporta, si manda in giro e finisce su
+un dispositivo. Se manca, l'IDE funziona lo stesso e il pannello dice che l'assistente non è
+configurato invece di sembrare rotto.
+
+### Usarla
+
+Menu ☰ → **Assistente IA** (solo Admin). Si scrive cosa serve, in italiano:
+
+> aggiungi alla pagina Indicatori un bottone che accende e spegne la luce del salotto — è su
+> MQTT, broker 192.168.1.50, topic `casa/salotto/luce`
+
+L'assistente legge il progetto, si fa dare lo schema dei tipi che deve scrivere, valida la
+proposta e la manda. Nel pannello compaiono le chiamate agli strumenti mentre accadono, poi il
+diff: tre elenchi — tag, sorgenti, oggetti in pagina — e due pulsanti.
+
+**Applica non salva.** La modifica va nell'editor: `Ctrl+Z` la annulla in un colpo solo
+(entrambe le metà, pagine *e* tag/sorgenti), e il disco aspetta che si prema **Salva**.
+
+Se il progetto è cambiato da quando l'assistente l'ha letto — un'altra scheda, un deploy — la
+proposta viene **scartata** e il pannello lo dice: va richiesta di nuovo.
+
+### Provarla senza spendere token
+
+```bash
+SWS_AI_FAKE=sws-runtime/crates/sws-web/tests/ai/luce-mqtt.json \
+  ./scripts/start_editor.sh --instance 3
+```
+
+Rigioca una traccia registrata invece di chiamare il modello. Gli strumenti che esegue sono
+quelli veri: il copione dice *cosa* chiamare, non cosa risponde. Serve per provare il
+pannello, il diff e l'annullamento in modo deterministico — il modello vero risponde diverso
+ogni volta, e una prova che dipende da lui non è una prova.
+
+Il copione lavora a **toppa** (`sorgenti_aggiunte`, `tag_aggiunti`, `oggetti_aggiunti`) e non a
+progetto intero, così vale per qualunque progetto aperto.
+
+### Cosa l'assistente non può fare, per costruzione
+
+Niente esecuzione di Python (`/api/script/exec` gira senza sandbox quando RestrictedPython
+manca, che sul PC di sviluppo è la norma), niente export del progetto (lo ZIP porta i segreti
+in chiaro — decisione del 2026-07-29), nessun `PUT`, nessun deploy, nessun accesso al
+filesystem. Legge il progetto **mascherato**, come lo vede il browser: le password dei driver
+non entrano nel contesto del modello.
+
+### Gli endpoint valgono anche da soli
+
+Senza nessuna IA:
+
+```bash
+# «questo progetto è valido?» — senza salvarlo
+curl -s -X POST localhost:8464/api/project/validate \
+  -H 'content-type: application/json' \
+  -d '{"pages":[{"id":"p","name":"Prova","objects":[
+        {"id":"b","type":"button","x":0,"y":0,"lable":"ops"}]}]}' | jq
+
+# i campi validi di un tipo, con la loro documentazione e un esempio vero
+curl -s 'localhost:8464/api/schema/synoptic?tipo=button' | jq
+curl -s 'localhost:8464/api/schema/source?kind=mqtt'     | jq '.mapping'
+```
+
+Prima di questi non c'era modo di chiedere «questo progetto è valido?» senza prima rovinarlo.
