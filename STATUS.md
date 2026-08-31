@@ -53,7 +53,9 @@ riallineati, e l'immagine amd64 mancante costruita e pubblicata.
 | Rimuovere i due worktree su theobroma: ~12 GB, e non contengono nulla di unico | `git worktree remove` |
 | Cancellare i due rami mergiati (`feat/lvgl-gap`, `fix/sws-display-path-loop`) | locali **e** su `origin` |
 | Salvare i due piani non-sws da `~/.claude/plans/` di theobroma: esistono solo lì | prima della pulizia disco |
-| Ruotare il token Proxmox incollato in chat il 2026-08-31, se ha poteri di scrittura | — |
+
+Il **token Proxmox** incollato in chat il 2026-08-31 è stato **eliminato** dal maintainer la
+sera stessa: non va più ruotato.
 
 **Sempre in attesa di uno sguardo a schermo**, da quattro sessioni: pull del progetto dall'IDE,
 sezione Python unificata, colore del testo derivato dallo sfondo pagina (§5).
