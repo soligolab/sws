@@ -34,6 +34,7 @@ STATICHE=(
     check_templates         # tutti i template contro il runtime
     check_demo_templates    # i due gemelli "Demo Items" fra loro
     check_systemd_units     # trappole note nelle unit che spediamo
+    check_synoptic_schema   # il vocabolario dato all'assistente IA contro le sue fonti
 )
 
 # Vogliono uno stack in ascolto, podman o un dispositivo: a mano, non qui.

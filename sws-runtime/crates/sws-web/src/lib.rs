@@ -16,6 +16,7 @@ pub mod remote_relay;
 pub mod router;
 pub mod source_supervisor;
 pub mod synoptic;
+pub mod synoptic_schema;
 pub mod system;
 pub mod telegram;
 pub mod templates;
