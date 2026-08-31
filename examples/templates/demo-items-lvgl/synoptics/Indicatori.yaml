@@ -451,3 +451,24 @@ objects:
   font_size: 20.0
   color: '#e2e8f0'
   stale_after_s: 10.0
+- id: c_pipe_anchor
+  type: text
+  x: 286.0
+  y: 180.0
+  width: 290.0
+  height: 16.0
+  text: pipe agganciata (gauge → barra)
+  font_size: 11.0
+  color: '#94a3b8'
+- id: o_pipe_anchor
+  type: pipe
+  x: 280.0
+  y: 230.0
+  width: 60.0
+  height: 70.0
+  from_obj_id: o_gauge
+  from_port: right
+  to_obj_id: o_progress
+  to_port: left
+  stroke: '#38bdf8'
+  stroke_width: 6.0

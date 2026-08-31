@@ -29,6 +29,9 @@
 #   * navbutton che puntano a pagine inesistenti — `target_page` è un **id**,
 #     non un nome, e sbagliarlo dà uno schermo nero senza nessun messaggio
 #     (2026-08-28: tutti e 16 quelli dei due template "Demo Items").
+#   * pipe agganciate a oggetti che non esistono, o con una porta sconosciuta —
+#     il capo resta dov'era o cade al centro, e la pipe finisce storta senza che
+#     niente lo segnali (stesso silenzio dei navbutton rotti).
 #   * `home_page_id` mancante con più pagine — il viewer ripiega sulla prima in
 #     ordine alfabetico, quindi a decidere cosa vede il cliente all'accensione è
 #     l'alfabeto.
@@ -108,11 +111,31 @@ for nome in nomi:
             problema(f"{nome}/{base}: manca `id` o `name` — il runtime scarta la pagina in silenzio")
         if pag.get("id"):
             ids.add(pag["id"])
+        id_oggetti = {o.get("id") for o in (pag.get("objects") or []) if o.get("id")}
         for o in (pag.get("objects") or []):
             if o.get("type"):
                 tipi.add(o["type"])
             if o.get("type") == "navbutton" and o.get("target_page"):
                 nav_targets.add(o["target_page"])
+            # ── pipe agganciate a oggetti che non esistono ──
+            #
+            # `from_obj_id`/`to_obj_id` puntano a un id **della stessa pagina**.
+            # Sbagliarli non fa fallire niente: il capo resta dov'era (scelta
+            # deliberata, vedi `punti_ancorati`), quindi la pipe finisce storta
+            # o nell'angolo, e nessuno lo dice. È lo stesso silenzio dei
+            # navbutton verso pagine inesistenti.
+            for campo in ("from_obj_id", "to_obj_id"):
+                rif = o.get(campo)
+                if rif and rif not in id_oggetti:
+                    problema(f"{nome}/{base}: `{campo}: {rif}` non è un oggetto di questa "
+                             f"pagina — il capo della pipe resta dov'era, storto e in silenzio")
+            # Una porta sconosciuta cade al centro dell'oggetto invece che sul
+            # lato voluto: la pipe entra nel mezzo della macchina.
+            for campo in ("from_port", "to_port"):
+                porta = o.get(campo)
+                if porta and porta not in ("top", "bottom", "left", "right", "center"):
+                    problema(f"{nome}/{base}: `{campo}: {porta}` non è una porta — "
+                             f"il capo cade al centro dell'oggetto")
             for campo in INTERI:
                 v = o.get(campo)
                 if isinstance(v, float) and v != int(v):
