@@ -344,3 +344,41 @@ Quello che nessuna di queste copre è la persona che smette di guardare il diff 
 cinquanta volte era giusto. Non c'è una risposta tecnica. C'è però una scelta di prodotto: tenere le
 proposte **piccole e leggibili**, e rifiutarsi di generare modifiche che nessuno rileggerebbe
 davvero. È un'altra ragione per cominciare da A e non da C.
+
+---
+
+## 12. Un difetto del piano, trovato dopo averlo scritto
+
+*Aggiunto il 2026-08-31, verificato di nuovo su `main = 7e9977a` durante il trasloco su frodo.
+Non è stato discusso col maintainer: la conversazione si è interrotta prima.*
+
+Il §1 poggia su una frase troppo larga: «ogni mutazione passa da `pushHistory`, quindi Ctrl+Z è
+gratis». **Vale solo per le pagine.**
+
+- `pushHistory` fotografa **soltanto `pages`** (`store/index.ts:532` — `const { pages, past,
+  pagesRev } = get()`), e un commento a `:685` lo dice a chiare lettere: *«undo only tracks page
+  edits»*.
+- Tag, sorgenti, allarmi e funzioni vivono in `project`, **fuori dalla history**.
+- Peggio: quelle sezioni **non aspettano `saveAll()`**. `ConfigView` scrive sul runtime subito, col
+  proprio Salva — `api.updateTags` a `:528` e `:4285`, `api.updateSources` a `:4281`,
+  `api.updateAlarms` a `:4512`.
+
+Conseguenza sul caso d'uso messo **per primo** in §7 («rinomina questo tag in tutte e quattro le
+pagine»): tocca entrambe le metà del modello. La metà nelle pagine è annullabile e non arriva su
+disco finché nessuno salva; la metà nei tag **non è annullabile e arriva su disco per prima**. Una
+proposta accettata a metà, e l'annullamento che ne recupera solo un pezzo, è peggio di nessun
+annullamento — perché sembra funzionare.
+
+Tre vie, in ordine di costo:
+
+1. **Restringere la fase 2 alle sole pagine.** L'agente propone modifiche a `pages` e nient'altro;
+   tag e allarmi restano di mano umana. Costo zero, e il caso d'uso A va riscritto.
+2. **Estendere `pushHistory` a `project`.** Snapshot dell'intero progetto invece delle sole pagine.
+   È la soluzione giusta, ma tocca il cuore dello store e va misurata (il progetto è più grosso delle
+   pagine, e la history tiene 200 passi).
+3. **Far passare le scritture di `ConfigView` da `saveAll()`** usando `registerPendingSection`
+   (`store:1726`), il meccanismo che già esiste e che `FunctionEditor.tsx:65` e
+   `ConfigView.tsx:345` usano per il salvataggio differito. Rende il gesto «Salva» unico per tutto
+   il progetto — cosa buona di per sé, agente o no.
+
+**Va deciso prima della fase 2**, e diventa la sesta domanda del §9.

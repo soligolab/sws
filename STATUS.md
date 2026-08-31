@@ -8,31 +8,41 @@
 
 ## ▶ Da fare nella prossima sessione
 
-### 0. Due rami pronti, in attesa di conferma del maintainer
+### 0. Lo stato reale dopo il trasloco su frodo (2026-08-31, sera)
 
-Il lavoro del **2026-08-31** sta su due rami, non su `main` (regola del workflow:
-squash merge solo dopo che il maintainer ha confermato che funziona).
+Il lavoro del **2026-08-31** è **su `main`**: i due rami (`fix/sws-display-path-loop`,
+`feat/lvgl-gap`) sono stati squash-mergiati, pushati e rilasciati come **2.3.4**. I rami
+esistono ancora su locale e su `origin` — verificato dalla sessione su theobroma che **non
+contengono nulla di assente da `main`** (unica differenza: due righe di testo che main ha già
+corretto). La cancellazione resta decisione del maintainer.
 
-**`fix/sws-display-path-loop`** — *la commutazione web/LVGL era morta dieci
-secondi dopo l'accensione.* `sws-display.path` univa `PathChanged=` e
-`PathExists=`: il secondo è una condizione **di livello**, quindi appena il
-servizio finiva il file esisteva ancora, systemd lo rilanciava, e in dieci
-secondi scattava il limite di riavvii. Sul WP630 le due unit erano `failed` da
-sempre — spiega perché il deploy non commutava. Corretto **e già applicato sul
-dispositivo**, dove ora la `.path` scatta a ogni cambio, una volta sola.
+**Il lavoro è ripreso su `frodo`** (`pixsys@frodo`, `/home/pixsys/sws`), theobroma era al 99%
+di disco. Verificato sulla macchina nuova, il 2026-08-31:
 
-> **Resta da verificare l'ultimo anello**: che lo schermo cambi davvero. Non è
-> stato possibile perché il dispositivo è rimasto in **modalità configurazione**
-> dal test del pulsante STOP, e lì lo script si rifiuta (giustamente) di toccare
-> lo schermo. Serve un **riavvio normale**, poi il test 14.
+| | Esito su frodo |
+|---|---|
+| `cargo check --workspace --all-targets` | ✅ verde, 14 crate compreso `sws-lvgl-viewer` (clang 19 + SDL2 2.32 di Debian 13 vanno bene) |
+| `cargo test --workspace` | ✅ **318 passati, 0 falliti** |
+| `pnpm build` | ✅ verde (da lanciare **dentro `sws-editor/`**: fuori, `pnpm` non esiste) |
+| `./scripts/check_static.sh` | ✅ **7 guardie statiche verdi** (le altre 13 vogliono uno stack in ascolto) |
+| Prerequisiti di sistema | ✅ clang/libclang, SDL2, freetype, python3-yaml, qemu-user-static, binfmt, uidmap, podman 5.4.2. Mancano `rsync`, `skopeo`, `fuse-overlayfs` (nessuno indispensabile) |
+| SDK Yocto | ✅ `/usr/local/oecore-x86_64/` (Pixsys 1.8.0, sysroot con libpython3.12, SDL2, libdrm) |
+| Rete verso il WP630 | ✅ `192.168.1.120` risponde (la `/23` di `ens18` copre 192.168.1.x) |
 
-Contiene anche: l'installazione dice forte se le unit non sono vive (prima
-`enable --now` riusciva e l'installazione chiudeva con «fatto» su una unit già
-morta), e `scripts/check_systemd_units.sh`.
+Trappole di frodo, imparate durante il trasloco:
 
-**`feat/lvgl-gap`** — passi 1-9 del piano «dieci passi per chiudere il divario
-del pannello» (`docs/plans/`). Il divario passa da **112 campi mai disegnati a
-84**. Nove commit; 303 test Rust e 78 dell'editor verdi; otto guardie verdi.
+- **`pnpm` arriva da corepack**, che legge `packageManager` dal `package.json`: funziona solo
+  dentro `sws-editor/`. Da altrove, `command not found`.
+- **`python3` è pyenv 3.11.2** (`~/.bashrc` fa `pyenv init`), il Python di sistema è 3.13.5. Un
+  controllo lanciato con `sudo` o da shell non interattiva usa un Python diverso da quello del
+  maintainer, e può **passare per il motivo sbagliato**.
+- **`rsync` non c'è**: per i trasferimenti, `tar cf - dir | ssh host 'tar xf -'`.
+- **Il percorso dell'SDK è cablato in tre script** (`build_container.sh:66`,
+  `build_containers_all.sh:68`, `yocto/build.sh:41`): deve stare in `/usr/local/oecore-x86_64/`.
+- Identità git **locale al repo** (`Mauro Soligo <mauro@soligo.net>`), non globale.
+
+**Il referto integrale del trasloco è in `docs/plans/2026-08-31-trasloco-frodo.md`** — sta solo
+su theobroma e va ancora portato qui.
 
 ### 0-bis. `--istantanea`: si può guardare il pannello senza il pannello
 
@@ -66,16 +76,30 @@ maintainer davanti al pannello, in una sessione. Il 31 l'ho ritrovato in due
 minuti.
 
 
-### 1. Serve un'immagine prima di riprendere le prove sul dispositivo
+### 1. Per il dispositivo l'immagine c'è già: basta un `pull`
 
-La **2.3.3 è taggata e pushata** (`adc4e7b`, 2026-08-29) ma l'immagine non è
-ancora stata costruita: il WP630 ha la **2.3.2**, installata pulita dall'IDE il
-2026-08-28. Quando si costruirà, converrà farlo **dopo** aver mergiato i due rami
-qui sopra, così l'immagine porta anche la commutazione corretta e il divario
-chiuso.
+Interrogato il registry direttamente il 2026-08-31 (con le credenziali di podman,
+`GET /v2/soligolab/sws-runtime/tags/list` + digest dei manifest):
 
-La build la lancia il maintainer: `./scripts/build_containers_all.sh --push` —
-ora chiede la password all'inizio e prosegue non supervisionata.
+| Variante | `latest-*` punta a | 2.3.4 pubblicata? |
+|---|---|---|
+| `arm64` (SDK Pixsys) | **2.3.4** | ✅ sì |
+| `arm64-generic` | **2.3.4** | ✅ sì |
+| `amd64` | **2.3.2** | ❌ **no, mai costruita** |
+
+Quindi **per il WP630 non serve costruire niente**: `latest-arm64` è già la 2.3.4. Il device
+gira l'immagine del 2026-08-28 (2.3.2), quindi basta un `podman pull` + riavvio del container,
+o un'installazione dall'IDE.
+
+**Manca solo la x86_64.** La 2.3.3 non esiste in nessuna variante (salto normale: è stata
+scavalcata dalla 2.3.4). Per chiudere il buco:
+
+```bash
+./scripts/build_container_x86_64.sh --push    # niente sudo, niente QEMU
+```
+
+Non serve `build_containers_all.sh` (che costruirebbe da capo anche le due arm64 già
+pubblicate, con la richiesta di password per la variante QEMU).
 
 Sul dispositivo è rimasto il progetto **`ProvaDemoWeb`**, che è del 25 agosto e
 contiene un `import math` che la sandbox blocca: fa errori ogni secondo. Non è un
@@ -84,14 +108,26 @@ modello e rideployato.**
 
 ### 2. I test mai fatti sul dispositivo
 
+> 🔴 **Prima di collegarti: il WP630 è rimasto in modalità configurazione.** Misurato su
+> theobroma il 2026-08-31 alle 16: uptime 442 minuti (nessun riavvio in giornata),
+> `chromium@wp-control.service` attivo, `desktop.target` **inactive**. In quello stato
+> `sws-display-apply.sh` si rifiuta — correttamente — di toccare lo schermo, quindi **qualunque
+> prova di commutazione fallirà per il motivo sbagliato**. Serve un riavvio normale (senza
+> premere STOP). Le unit della commutazione, dopo la correzione della 2.3.4, sono sane
+> (`sws-display.path` active, non failed).
+>
+> ⚠️ **Contraddizione da sciogliere**: a metà giornata il maintainer ha detto «il test al
+> riavvio funziona», ma sul WP630 non risulta alcun riavvio. Forse era un altro dispositivo.
+> Il test 13 resta da rifare su un device di cui si conosce lo stato.
+
 | | Cosa | Esito |
 |---|---|---|
 | 10 | **Riavvio tenendo premuto STOP** (angolo in alto a **destra**, oltre 10 s) | ✅ **2026-08-29**: compare la login di Cockpit; nel manager podman `sws-lvgl-viewer` fermo, `sws-runtime` attivo |
 | 11 | Il runtime non si ferma | ✅ `/health` 200, admin 200, Cockpit 200 |
 | 12 | Il log dice perché | ✅ «il launcher è in modalità configurazione (chromium@wp-control.service attivo)» |
 | 13 | Ritorno alla normalità | 🔲 riavvio senza toccare nulla → il pannello torna sul motore del progetto |
-| 14 | Deploy **senza riavviare il runtime** | 🔲 lo schermo commuta da solo entro una decina di secondi — **richiede la 2.3.3** |
-| 15 | Progetto da `enip-demo` creato **sul dispositivo** | 🔲 si apre e mostra la pagina di partenza — **richiede la 2.3.3** |
+| 14 | Deploy **senza riavviare il runtime** | 🔲 lo schermo commuta da solo entro una decina di secondi — **richiede la 2.3.4 sul device** |
+| 15 | Progetto da `enip-demo` creato **sul dispositivo** | 🔲 si apre e mostra la pagina di partenza — **richiede la 2.3.4 sul device** |
 
 **Il passo 10 è superato.** Era il pezzo con meno certezza: fino al 2026-08-29
 era stato provato solo *simulando* la modalità configurazione (avviando a mano
@@ -171,8 +207,10 @@ del testo derivato dallo sfondo pagina**. Sono lavori finiti che nessuno ha mai 
 ### 6. Il divario che resta fra web e LVGL
 
 `model.rs` dichiara 238 campi. Erano **112 mai disegnati**; con `feat/lvgl-gap`
-sono **84**. La lista si ricava con un comando (confronto dei nomi fra
-`model.rs` e `lvgl_render.rs` + `effects.rs`), non a memoria.
+sono **71** — misurato di nuovo su `main = 7e9977a` il 2026-08-31, non a memoria (confronto
+dei nomi fra `model.rs` e `lvgl_render.rs` + `effects.rs`; il comando è nel referto del
+trasloco). Le prime stesure di questa sezione dicevano 84: era il conto a metà del piano, prima
+dei passi 9-10.
 
 Chiusi il 2026-08-31: `opacity`, `z_index`, tutto il gruppo `blink_*`,
 `stale_after_s`, `bad_value_style`, `show_alarm_state`, `quality_dot*`,
