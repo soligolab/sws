@@ -2289,3 +2289,43 @@ scrive YAML ha quindi un giudice, e non deve indovinare se ha fatto bene.
   canale di scrittura nato senza dire chi può usarlo.
 - **Q21** (due superfici Python nel progetto) è lo stesso genere di domanda — quante strade
   diverse possono cambiare la stessa cosa — e conviene rispondere insieme.
+
+---
+
+## Q27 — Il server non fa rispettare il `data_type` dei tag in scrittura
+
+*Aperta il 2026-08-31. Misurata, non decisa.*
+
+`PUT /api/tags/:id` accetta un valore di **qualunque** tipo e lo conserva così com'è, anche quando
+il tag dichiara un `data_type` diverso. Misurato sul runtime locale:
+
+```
+PUT /api/tags/demo.cmd.button  {"value": "true"}   → 204
+GET → {"value": "true", ...}        # stringa, su un tag dichiarato `bool`
+```
+
+Nessun errore, nessun avviso: il tag resta di tipo dichiarato `bool` e contiene una stringa.
+
+### Perché è emerso adesso
+
+Il pulsante dei due modelli "Demo Items" aveva `write_value: 'true'` — in YAML una **stringa**, non
+un booleano. Funzionava per caso: chi rilegge quel tag tratta una stringa non vuota come vera. Il
+modello è stato corretto e una guardia (`check_templates.sh`) impedisce che rientri, ma la guardia
+copre solo *i nostri* modelli: un progetto di un cliente può fare la stessa cosa e nessuno lo dirà.
+
+### Le domande
+
+1. **Rifiutare o convertire?** Rifiutare (400) è onesto e rompe i progetti che oggi funzionano per
+   caso. Convertire (`"true"` → `true`) è indulgente ma sceglie al posto dell'utente, e su
+   `"1.5"` → `int` la scelta non è ovvia.
+2. **Dove**: nel `PUT`, nel `TagDb`, o in entrambi? Gli script Python e i driver scrivono per altre
+   strade.
+3. **Cosa fare dei valori già sbagliati** su un impianto in servizio, che si romperebbero al primo
+   riavvio con il controllo acceso.
+4. **`data_type` è una dichiarazione o un contratto?** Oggi è documentazione. Se diventa un
+   contratto va detto, perché cambia cosa significa scrivere un tag.
+
+### Rapporto con le altre voci
+
+Stessa famiglia di **Q17** (`/api/recipes/:id/apply` che scrive senza controllo per-tag): in
+entrambi i casi il server accetta una scrittura che avrebbe gli elementi per rifiutare.
