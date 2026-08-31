@@ -2243,3 +2243,49 @@ Due correzioni che ne discendono, entrambe già applicate:
 
 Assorbe la questione «serve un quadlet per `lvgl-view`?»: il quadlet è un pezzo di questa
 soluzione, non un lavoro a sé.
+
+---
+
+## Q26 — Un server MCP per far editare il progetto all'IA
+
+*Aperta il 2026-08-31, su richiesta del maintainer. Nessuna decisione presa.*
+
+L'idea: esporre il progetto SWS attraverso un **server MCP**, così che l'utente possa usare un
+assistente IA per costruire e modificare sinottici, tag, allarmi e script — invece di disegnare
+tutto a mano nell'IDE.
+
+Va segnata e non decisa. Quello che segue è il perimetro delle domande, non una risposta.
+
+### Cosa renderebbe l'idea interessante
+
+Il progetto è **già** in una forma che un modello linguistico maneggia bene: YAML dichiarativo,
+uno schema unico e autorevole (`sws-web/src/synoptic.rs`, 238 campi), un parser vero
+(`Project::load`) e sette guardie che dicono no a un progetto malformato. Un assistente che
+scrive YAML ha quindi un giudice, e non deve indovinare se ha fatto bene.
+
+### Le domande da sciogliere, prima di scrivere una riga
+
+1. **Dove gira, e quindi cosa può toccare.** Sul PC di sviluppo accanto all'IDE, o sul
+   dispositivo accanto al runtime? Le due cose hanno superfici di rischio molto diverse: la
+   seconda significa un canale che scrive nella configurazione di un impianto in servizio.
+2. **Sola lettura o anche scrittura.** Un server che *legge* il progetto e risponde a domande
+   («quali tag non sono usati da nessuna pagina?») è quasi tutto guadagno. Uno che *scrive* è un
+   secondo autore del progetto, e apre le tre domande sotto.
+3. **Chi approva.** Nessuna modifica dovrebbe raggiungere un dispositivo senza che una persona
+   l'abbia vista. Il posto naturale è il deploy, che già esiste ed è già un gesto esplicito.
+4. **Come si torna indietro.** Il progetto è in git nel repo del maintainer, ma sul dispositivo
+   no. Serve almeno un ripristino a colpo sicuro prima di dare a un assistente il permesso di
+   scrivere.
+5. **Che rapporto ha con `write_min_role` e con Q17.** Un canale che scrive nel *progetto* è
+   diverso da uno che scrive nei *tag*, ma il confine va disegnato una volta sola, non due.
+6. **Il vincolo che il progetto è dell'utente.** I segreti viaggiano col progetto (decisione del
+   2026-08-20): password dei driver e token stanno nello YAML in chiaro. Un server MCP che
+   esponesse il progetto esporrebbe anche quelli, e a un servizio esterno. È probabilmente il
+   punto più affilato di tutti.
+
+### Rapporto con le altre voci
+
+- **Q17** (`/api/recipes/:id/apply` senza controllo per-tag) è il precedente da non ripetere: un
+  canale di scrittura nato senza dire chi può usarlo.
+- **Q21** (due superfici Python nel progetto) è lo stesso genere di domanda — quante strade
+  diverse possono cambiare la stessa cosa — e conviene rispondere insieme.
