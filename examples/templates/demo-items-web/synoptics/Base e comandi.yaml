@@ -271,6 +271,9 @@ objects:
   state_on_color: '#22c55e'
   state_off_color: '#64748b'
   state_alarm_color: '#ef4444'
+  symbol_spin: tag
+  symbol_spin_tag: demo.sim.running
+  symbol_spin_s: 1.5
 - id: o_symbol2
   type: symbol
   x: 760.0
@@ -278,10 +281,20 @@ objects:
   width: 90.0
   height: 90.0
   symbol_id: valve
-  state_tag: demo.cmd.enable
+  state_tag: demo.sim.mode
   state_on_color: '#22c55e'
   state_off_color: '#64748b'
   state_alarm_color: '#ef4444'
+  symbol_states:
+  - value: Auto
+    label: automatico
+    color: '#22c55e'
+  - value: Manuale
+    label: manuale
+    color: '#f59e0b'
+  - value: Fermo
+    label: fermo
+    color: '#64748b'
 - id: c_image
   type: text
   x: 960.0

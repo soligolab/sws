@@ -124,6 +124,27 @@ pub enum LiveKind {
         /// trenta ridisegni al secondo di roba ferma.
         ultimo: AppliedFx,
     },
+    /// Movimento su percorso (`motion_*`): il valore di un tag decide dove sta
+    /// l'oggetto lungo una polilinea dichiarata.
+    ///
+    /// Diverso da `Geometry`, che applica binding proprietà→tag: là il
+    /// progetto scrive *quale coordinata* vuole, qui scrive *un punto lungo un
+    /// percorso*. Sono due modi diversi di dire dove sta un oggetto, e il web
+    /// li tiene distinti allo stesso modo.
+    Motion {
+        widgets: Vec<GeomWidget>,
+        percorso: Vec<(f64, f64)>,
+        tag: String,
+        min: Option<f64>,
+        max: Option<f64>,
+        /// Il punto del percorso guida il **centro** dell'oggetto, o il suo
+        /// angolo in alto a sinistra con `motion_anchor: top_left`.
+        ancora: (f64, f64),
+        /// Ultimo scostamento scritto nei widget: si riscrive solo ciò che
+        /// cambia, come in `Geometry` e per la stessa ragione.
+        applied_dx: i16,
+        applied_dy: i16,
+    },
     /// Riempimento progressivo di una `pipe`.
     ///
     /// `buf` possiede i punti della linea di riempimento: LVGL ne conserva il
@@ -384,6 +405,24 @@ pub enum LiveKind {
         on_color: String,
         alarm_color: String,
         last_state: Option<SymbolState>,
+        /// `symbol_states`: mappa N-stati sul valore di `state_tag`, con lo
+        /// stesso confronto di `text_list` (valore esatto o intervallo). Prima
+        /// il pannello conosceva solo acceso/spento/allarme, e un simbolo con
+        /// cinque stati dichiarati ne mostrava due.
+        stati: Vec<TextListEntry>,
+        /// Ultimo colore disegnato: con gli stati multipli non basta più
+        /// confrontare `SymbolState`, perché due stati diversi possono essere
+        /// entrambi "acceso" con colori diversi.
+        last_rgb: Option<(u8, u8, u8)>,
+        /// Rotazione continua (ventole, pompe, agitatori): `always`,
+        /// `on_state` (solo da acceso) o `tag`.
+        spin: Option<String>,
+        spin_tag: Option<String>,
+        /// Secondi per giro completo — `?? 2` come sul web.
+        spin_s: f64,
+        /// Ultimo angolo scritto, in decimi di grado: LVGL invalida a ogni
+        /// scrittura, e un simbolo fermo non deve far ridisegnare la pagina.
+        last_angolo: i16,
     },
     /// Movimento: i binding generici proprietà→tag applicati **a ogni frame**,
     /// non solo alla creazione.
@@ -1533,6 +1572,81 @@ fn crea_effetti(
             dot_cattivo: obj.quality_dot_bad_color.clone(),
             dot_incerto: obj.quality_dot_uncertain_color.clone(),
             ultimo: AppliedFx::default(),
+        },
+    })
+}
+
+/// Prepara il movimento su percorso di un oggetto, se ne dichiara uno.
+///
+/// Restituisce `None` quando manca il tag o il percorso non ha almeno due
+/// punti: un percorso di un punto solo non è un percorso, e muovere l'oggetto
+/// lì lo sposterebbe una volta e basta — peggio che lasciarlo dov'è.
+fn crea_movimento(
+    screen_ptr: *mut lvgl_sys::lv_obj_t,
+    obj: &SynopticObject,
+    figli_prima: u32,
+) -> Option<LiveBinding> {
+    let tag = obj.motion_tag.clone().filter(|t| !t.is_empty())?;
+    let percorso = punti_movimento(obj.motion_path.as_ref()?);
+    if percorso.len() < 2 {
+        return None;
+    }
+
+    let mut widgets = Vec::new();
+    unsafe {
+        // OBBLIGATORIO prima di leggere le coordinate — stessa ragione, e
+        // stesso difetto, del blocco `Geometry` qui sotto: `lv_obj_get_x/y`
+        // non restituiscono lo stile appena impostato da `set_pos`, ma la
+        // posizione **calcolata**, che finché il layout non gira vale zero.
+        //
+        // Senza, ogni widget risulta a (0,0) e al primo movimento viene
+        // riscritto lì: l'oggetto salta in cima a sinistra e sparisce.
+        // Successo il 2026-08-24 su un'ellisse, trovato dal maintainer davanti
+        // al pannello; e di nuovo il 2026-08-31 scrivendo questo blocco —
+        // trovato in due minuti con `--istantanea`, che è il motivo per cui
+        // quel modo esiste.
+        lvgl_sys::lv_obj_update_layout(screen_ptr);
+
+        let dopo = lvgl_sys::lv_obj_get_child_cnt(screen_ptr);
+        for i in figli_prima..dopo {
+            let f = lvgl_sys::lv_obj_get_child(screen_ptr, i as i32);
+            if let Some(nn) = core::ptr::NonNull::new(f) {
+                widgets.push(GeomWidget {
+                    start_x: lvgl_sys::lv_obj_get_x(f) as i16,
+                    start_y: lvgl_sys::lv_obj_get_y(f) as i16,
+                    ptr: nn,
+                });
+            }
+        }
+    }
+    if widgets.is_empty() {
+        return None;
+    }
+
+    // L'ancora: il percorso guida il centro dell'oggetto, oppure il suo angolo
+    // in alto a sinistra. È lo stesso `motion_anchor` del web, e serve perché
+    // un percorso disegnato "passando per il centro delle macchine" e uno
+    // disegnato "lungo il bordo" vogliono due cose diverse.
+    let x = obj.x.unwrap_or(0.0);
+    let y = obj.y.unwrap_or(0.0);
+    let ancora = if obj.motion_anchor.as_deref() == Some("top_left") {
+        (x, y)
+    } else {
+        (x + obj.width.unwrap_or(80.0) / 2.0, y + obj.height.unwrap_or(80.0) / 2.0)
+    };
+
+    Some(LiveBinding {
+        kind: LiveKind::Motion {
+            widgets,
+            percorso,
+            tag,
+            min: obj.motion_min,
+            max: obj.motion_max,
+            ancora,
+            // Impossibili di proposito, come in `AppliedFx`: il primo giro
+            // applica sempre, e la posizione di partenza non resta di nessuno.
+            applied_dx: i16::MIN,
+            applied_dy: i16::MIN,
         },
     })
 }
@@ -3877,6 +3991,81 @@ fn render_kpi_tile(
     Ok(())
 }
 
+/// Il punto che sta alla frazione `t` (0..1) della lunghezza di una polilinea.
+///
+/// Serve al movimento su percorso (`motion_*`): il valore di un tag, riportato
+/// in 0..1, dice **dove** lungo il percorso sta l'oggetto. Il web ottiene lo
+/// stesso con `offset-path`/`offset-distance`, e la ragione per cui usa proprio
+/// quelli vale anche qui: interpolando fra due posizioni in linea retta, un
+/// percorso con tre o più punti verrebbe tagliato negli angoli, e l'oggetto
+/// sembrerebbe muoversi solo sul primo segmento.
+///
+/// Misura la lunghezza vera dei segmenti, non conta i punti: su un percorso con
+/// un tratto lungo e uno corto, contare i punti farebbe correre l'oggetto sul
+/// tratto lungo e strisciare su quello corto.
+fn punto_a_frazione(punti: &[(f64, f64)], t: f64) -> Option<(f64, f64)> {
+    if punti.len() < 2 {
+        return punti.first().copied();
+    }
+    let t = if t.is_finite() { t.clamp(0.0, 1.0) } else { 0.0 };
+    let lunghezze: Vec<f64> = punti
+        .windows(2)
+        .map(|w| ((w[1].0 - w[0].0).powi(2) + (w[1].1 - w[0].1).powi(2)).sqrt())
+        .collect();
+    let totale: f64 = lunghezze.iter().sum();
+    if totale <= 0.0 {
+        // Percorso degenere (tutti i punti coincidenti): non c'è un "dove",
+        // e restituire il primo punto è più onesto che dividere per zero.
+        return punti.first().copied();
+    }
+    let mut rimanente = t * totale;
+    for (i, len) in lunghezze.iter().enumerate() {
+        if rimanente <= *len || i == lunghezze.len() - 1 {
+            let f = if *len > 0.0 { (rimanente / len).clamp(0.0, 1.0) } else { 0.0 };
+            let (x0, y0) = punti[i];
+            let (x1, y1) = punti[i + 1];
+            return Some((x0 + (x1 - x0) * f, y0 + (y1 - y0) * f));
+        }
+        rimanente -= len;
+    }
+    punti.last().copied()
+}
+
+/// Da valore tag a frazione 0..1, con la scala dichiarata dall'oggetto.
+///
+/// `motion_min == motion_max` dà 0 e non una divisione per zero: un intervallo
+/// vuoto significa "non si muove", non "pagina rotta". Stessa scelta del web
+/// (`hi === lo ? 0 : …`).
+fn frazione_movimento(v: f64, min: Option<f64>, max: Option<f64>) -> Option<f64> {
+    if !v.is_finite() {
+        return None;
+    }
+    let lo = min.unwrap_or(0.0);
+    let hi = max.unwrap_or(100.0);
+    if hi == lo {
+        return Some(0.0);
+    }
+    Some(((v - lo) / (hi - lo)).clamp(0.0, 1.0))
+}
+
+/// I punti di `motion_path`, che nel modello è un `serde_json::Value` grezzo.
+///
+/// Accetta le due forme che il web produce — `[[x, y], …]` e
+/// `[{"x": …, "y": …}, …]` — perché è quello che si trova nei progetti veri, e
+/// rifiutarne una vorrebbe dire un oggetto fermo senza spiegazioni.
+fn punti_movimento(v: &serde_json::Value) -> Vec<(f64, f64)> {
+    let Some(arr) = v.as_array() else { return Vec::new() };
+    arr.iter()
+        .filter_map(|p| {
+            if let Some(pair) = p.as_array() {
+                Some((pair.first()?.as_f64()?, pair.get(1)?.as_f64()?))
+            } else {
+                Some((p.get("x")?.as_f64()?, p.get("y")?.as_f64()?))
+            }
+        })
+        .collect()
+}
+
 /// L'angolo in alto a sinistra di una polilinea — l'origine da dare a un
 /// `lv_line`.
 ///
@@ -4566,6 +4755,79 @@ fn draw_symbol(canvas_ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>, id: &str, sta
 /// Deriva lo stato dai tag, stessa logica di `truthy()`/`state` in
 /// `SvgCanvas.tsx`: `alarm_tag` vince su `state_tag`, che vince sull'`off`
 /// di default.
+/// Il colore di un simbolo, tenuto conto degli stati multipli.
+///
+/// L'ordine di precedenza è quello del web: **l'allarme vince sempre**; poi, se
+/// `symbol_states` ha una voce che corrisponde al valore di `state_tag`, vince
+/// il colore di quella voce; altrimenti valgono i tre colori acceso/spento.
+///
+/// Un allarme che non si vede perché uno stato l'ha coperto è il difetto
+/// peggiore che uno SCADA possa avere, e per questo la precedenza non è
+/// configurabile.
+fn colore_simbolo(
+    state: SymbolState,
+    stati: &[TextListEntry],
+    tags: &TagSnapshot,
+    state_tag: &Option<String>,
+    off_color: &str,
+    on_color: &str,
+    alarm_color: &str,
+) -> (u8, u8, u8) {
+    if state == SymbolState::Alarm {
+        return parse_hex_color(alarm_color).unwrap_or((239, 68, 68));
+    }
+    if !stati.is_empty() {
+        if let Some(e) = match_text_list_entry(stati, lookup(tags, state_tag)) {
+            if let Some(rgb) = e.color.as_deref().and_then(parse_hex_color) {
+                return rgb;
+            }
+        }
+    }
+    let hex = if state == SymbolState::On { on_color } else { off_color };
+    parse_hex_color(hex).unwrap_or((100, 116, 139))
+}
+
+/// Il simbolo sta girando, in questo istante?
+///
+/// I tre modi del web: sempre, solo da acceso, o finché un tag è vero. Un
+/// `symbol_spin: tag` senza `symbol_spin_tag` non gira — stessa scelta di
+/// `blink_mode: tag` senza `blink_tag`: un progetto incompleto non deve
+/// diventare un'animazione perpetua.
+fn deve_girare(
+    spin: Option<&str>,
+    spin_tag: &Option<String>,
+    state: SymbolState,
+    tags: &TagSnapshot,
+) -> bool {
+    match spin {
+        Some("always") => true,
+        Some("on_state") => state == SymbolState::On,
+        Some("tag") => spin_tag
+            .as_deref()
+            .filter(|t| !t.is_empty())
+            .and_then(|t| tags.get(t))
+            .map(|tv| tag_value_as_bool(&tv.value))
+            .unwrap_or(false),
+        _ => false,
+    }
+}
+
+/// L'angolo di rotazione in questo istante, in **decimi di grado** (l'unità di
+/// `lv_obj_set_style_transform_angle`).
+///
+/// Come per il lampeggio, è aritmetica sull'orologio invece che `lv_anim`: due
+/// ventole con lo stesso periodo restano in fase, e non serve un oggetto di
+/// animazione per widget. `spin_s` è il tempo di un giro completo, come sul web.
+///
+/// L'angolo si arrotonda al grado: LVGL invalida il widget a ogni scrittura, e
+/// scrivere trentadue decimi di grado di differenza a ogni frame farebbe
+/// ridisegnare il simbolo trenta volte al secondo per un movimento invisibile.
+fn angolo_rotazione(now_ms: u64, spin_s: f64) -> i16 {
+    let periodo_ms = (spin_s.max(0.05) * 1000.0) as u64;
+    let fase = (now_ms % periodo_ms) as f64 / periodo_ms as f64;
+    ((fase * 360.0).round() as i16 % 360) * 10
+}
+
 fn resolve_symbol_state(tags: &TagSnapshot, state_tag: &Option<String>, alarm_tag: &Option<String>) -> SymbolState {
     let truthy = |tag: &Option<String>| -> bool {
         lookup(tags, tag).map(|t| tag_value_as_f64(&t.value) != 0.0).unwrap_or(false)
@@ -4705,20 +4967,48 @@ fn render_symbol(screen: &mut lvgl::Obj, obj: &SynopticObject, tags: &TagSnapsho
     let off_color = obj.state_off_color.clone().unwrap_or_else(|| "#64748b".to_string());
     let on_color = obj.state_on_color.clone().unwrap_or_else(|| "#22c55e".to_string());
     let alarm_color = obj.state_alarm_color.clone().unwrap_or_else(|| "#ef4444".to_string());
-    let state = resolve_symbol_state(tags, &obj.state_tag, &obj.alarm_tag);
-    let state_hex = match state {
-        SymbolState::Off => &off_color,
-        SymbolState::On => &on_color,
-        SymbolState::Alarm => &alarm_color,
+    // `symbol_states` resta `serde_json::Value` nel modello e si converte qui,
+    // con tolleranza. Tipizzarlo nel modello significherebbe che un progetto
+    // con una voce malformata non apre più **la pagina intera** — e finché il
+    // campo non veniva letto da nessuno, voci malformate potevano accumularsi
+    // senza che niente le segnalasse. Qui una voce che non si legge costa un
+    // simbolo a due stati invece che a cinque, e lo dice nel registro.
+    let stati: Vec<TextListEntry> = match obj.symbol_states.clone() {
+        None => Vec::new(),
+        Some(v) => match serde_json::from_value::<Vec<TextListEntry>>(v) {
+            Ok(e) => e,
+            Err(e) => {
+                eprintln!(
+                    "[symbol] '{}': `symbol_states` illeggibile ({e}) — resto ai colori acceso/spento",
+                    obj.id.as_deref().unwrap_or("?")
+                );
+                Vec::new()
+            }
+        },
     };
-    let state_c = parse_hex_color(state_hex).unwrap_or((100, 116, 139));
+    let state = resolve_symbol_state(tags, &obj.state_tag, &obj.alarm_tag);
+    let state_c = colore_simbolo(state, &stati, tags, &obj.state_tag, &off_color, &on_color, &alarm_color);
     draw_symbol(canvas_ptr, &symbol_id, state, state_c, w, h);
+
+    // Il perno della rotazione al centro del simbolo: senza, LVGL ruota
+    // attorno all'angolo in alto a sinistra e la ventola se ne va per la
+    // tangente invece di girare su se stessa.
+    unsafe {
+        lvgl_sys::lv_obj_set_style_transform_pivot_x(canvas_ptr.as_ptr(), w / 2, 0);
+        lvgl_sys::lv_obj_set_style_transform_pivot_y(canvas_ptr.as_ptr(), h / 2, 0);
+    }
 
     Ok(LiveBinding {
         kind: LiveKind::Symbol {
             canvas_ptr, buf, w, h, symbol_id,
             state_tag: obj.state_tag.clone(), alarm_tag: obj.alarm_tag.clone(),
             off_color, on_color, alarm_color, last_state: Some(state),
+            stati,
+            last_rgb: Some(state_c),
+            spin: obj.symbol_spin.clone(),
+            spin_tag: obj.symbol_spin_tag.clone(),
+            spin_s: obj.symbol_spin_s.filter(|v| *v > 0.0).unwrap_or(2.0),
+            last_angolo: i16::MIN,
         },
     })
 }
@@ -5428,6 +5718,11 @@ pub fn render_page_objects(
         if let Some(fx) = crea_effetti(screen_ptr, obj, figli_prima, tags, shared_alarms) {
             live.push(fx);
         }
+        // Movimento su percorso: cattura gli stessi figli, con la posizione
+        // che hanno appena nati — è da quella che lo scostamento si misura.
+        if let Some(mv) = crea_movimento(screen_ptr, obj, figli_prima) {
+            live.push(mv);
+        }
         match result {
             Ok(()) => summary.rendered.push(format!("{id} ({obj_type})")),
             Err(e) => summary.skipped_unsupported.push(format!("{id} ({obj_type}) — errore: {e}")),
@@ -5601,6 +5896,26 @@ pub fn update_bindings(bindings: &mut [LiveBinding], tags: &TagSnapshot) {
             // `_ => {}`, che zittirebbe il compilatore anche sulle varianti che
             // verranno.
             LiveKind::Effects { .. } => {}
+            LiveKind::Motion { widgets, percorso, tag, min, max, ancora, applied_dx, applied_dy } => {
+                let Some(tv) = tags.get(tag.as_str()) else { continue };
+                let Some(t) = frazione_movimento(tag_value_as_f64(&tv.value), *min, *max) else {
+                    continue;
+                };
+                let Some((px, py)) = punto_a_frazione(percorso, t) else { continue };
+                let dx = (px - ancora.0).round() as i16;
+                let dy = (py - ancora.1).round() as i16;
+                if dx == *applied_dx && dy == *applied_dy {
+                    continue;
+                }
+                for w in widgets.iter() {
+                    unsafe {
+                        lvgl_sys::lv_obj_set_x(w.ptr.as_ptr(), w.start_x + dx);
+                        lvgl_sys::lv_obj_set_y(w.ptr.as_ptr(), w.start_y + dy);
+                    }
+                }
+                *applied_dx = dx;
+                *applied_dy = dy;
+            }
             LiveKind::PipeFill { fill_ptr, spec, buf, last_level } => {
                 let level = spec.level(tags);
                 // Si ridisegna solo a variazione percettibile: ricostruire la
@@ -5836,17 +6151,30 @@ pub fn update_bindings(bindings: &mut [LiveBinding], tags: &TagSnapshot) {
             LiveKind::AlarmBell { shared, badge_ptr, row_ptrs, prefix, allowed_sev, last_count } => {
                 update_alarm_bell(shared, *badge_ptr, row_ptrs, prefix, allowed_sev.as_deref(), last_count);
             }
-            LiveKind::Symbol { canvas_ptr, w, h, symbol_id, state_tag, alarm_tag, off_color, on_color, alarm_color, last_state, buf: _ } => {
+            LiveKind::Symbol {
+                canvas_ptr, w, h, symbol_id, state_tag, alarm_tag, off_color, on_color, alarm_color,
+                last_state, stati, last_rgb, spin, spin_tag, spin_s, last_angolo, buf: _,
+            } => {
                 let state = resolve_symbol_state(tags, state_tag, alarm_tag);
-                if Some(state) != *last_state {
-                    let hex = match state {
-                        SymbolState::Off => off_color.as_str(),
-                        SymbolState::On => on_color.as_str(),
-                        SymbolState::Alarm => alarm_color.as_str(),
-                    };
-                    let rgb = parse_hex_color(hex).unwrap_or((100, 116, 139));
+                let rgb = colore_simbolo(state, stati, tags, state_tag, off_color, on_color, alarm_color);
+                // Si ridisegna se cambia lo **stato** o il **colore**: con gli
+                // stati multipli due stati diversi possono essere entrambi
+                // "acceso" con colori diversi, e guardare solo lo stato
+                // lascerebbe il simbolo del colore di prima.
+                if Some(state) != *last_state || Some(rgb) != *last_rgb {
                     draw_symbol(*canvas_ptr, symbol_id, state, rgb, *w, *h);
                     *last_state = Some(state);
+                    *last_rgb = Some(rgb);
+                }
+                let gira = deve_girare(spin.as_deref(), spin_tag, state, tags);
+                let angolo = if gira {
+                    angolo_rotazione(client::now_unix_ms(), *spin_s)
+                } else {
+                    0
+                };
+                if angolo != *last_angolo {
+                    unsafe { lvgl_sys::lv_obj_set_style_transform_angle(canvas_ptr.as_ptr(), angolo, 0) };
+                    *last_angolo = angolo;
                 }
             }
             LiveKind::Geometry {
@@ -7019,5 +7347,135 @@ mod binding_tests {
         assert_eq!(allineamento_righe(Some("end")), lvgl_sys::LV_TEXT_ALIGN_RIGHT as u8);
         assert_eq!(allineamento_righe(None), lvgl_sys::LV_TEXT_ALIGN_LEFT as u8);
         assert_eq!(allineamento_righe(Some("boh")), lvgl_sys::LV_TEXT_ALIGN_LEFT as u8);
+    }
+
+
+    // ── simboli animati e movimento su percorso (passo 8) ─────────────────
+
+    #[test]
+    fn il_punto_a_meta_percorso_tiene_conto_delle_lunghezze() {
+        // Due segmenti, uno lungo 100 e uno lungo 10: metà percorso cade
+        // dentro il primo, non alla sua fine. Contare i punti darebbe (100,0).
+        let p = [(0.0, 0.0), (100.0, 0.0), (110.0, 0.0)];
+        let (x, y) = punto_a_frazione(&p, 0.5).unwrap();
+        assert!((x - 55.0).abs() < 0.001, "x={x}");
+        assert_eq!(y, 0.0);
+    }
+
+    #[test]
+    fn gli_estremi_del_percorso_sono_i_suoi_capi() {
+        let p = [(10.0, 20.0), (50.0, 20.0), (50.0, 60.0)];
+        assert_eq!(punto_a_frazione(&p, 0.0).unwrap(), (10.0, 20.0));
+        let fine = punto_a_frazione(&p, 1.0).unwrap();
+        assert!((fine.0 - 50.0).abs() < 0.001 && (fine.1 - 60.0).abs() < 0.001, "{fine:?}");
+    }
+
+    /// Un percorso con tutti i punti coincidenti non ha un "dove": restituire
+    /// il primo punto è più onesto che dividere per zero.
+    #[test]
+    fn un_percorso_degenere_non_divide_per_zero() {
+        assert_eq!(punto_a_frazione(&[(5.0, 5.0), (5.0, 5.0)], 0.7).unwrap(), (5.0, 5.0));
+        assert_eq!(punto_a_frazione(&[(1.0, 2.0)], 0.5).unwrap(), (1.0, 2.0));
+        assert_eq!(punto_a_frazione(&[], 0.5), None);
+    }
+
+    #[test]
+    fn la_frazione_di_movimento_segue_la_scala_dichiarata() {
+        assert_eq!(frazione_movimento(50.0, None, None), Some(0.5), "default 0..100");
+        assert_eq!(frazione_movimento(15.0, Some(10.0), Some(20.0)), Some(0.5));
+        assert_eq!(frazione_movimento(999.0, Some(0.0), Some(10.0)), Some(1.0), "fuori scala: agli estremi");
+        assert_eq!(frazione_movimento(-5.0, Some(0.0), Some(10.0)), Some(0.0));
+        assert_eq!(frazione_movimento(f64::NAN, None, None), None);
+    }
+
+    /// Un intervallo vuoto significa «non si muove», non «pagina rotta» —
+    /// stessa scelta del web.
+    #[test]
+    fn un_intervallo_vuoto_non_divide_per_zero() {
+        assert_eq!(frazione_movimento(7.0, Some(5.0), Some(5.0)), Some(0.0));
+    }
+
+    #[test]
+    fn il_percorso_si_legge_in_tutte_e_due_le_forme() {
+        let coppie = serde_json::json!([[10, 20], [30, 40]]);
+        let oggetti = serde_json::json!([{"x": 10, "y": 20}, {"x": 30, "y": 40}]);
+        assert_eq!(punti_movimento(&coppie), vec![(10.0, 20.0), (30.0, 40.0)]);
+        assert_eq!(punti_movimento(&oggetti), vec![(10.0, 20.0), (30.0, 40.0)]);
+        assert!(punti_movimento(&serde_json::json!("non un percorso")).is_empty());
+        assert_eq!(punti_movimento(&serde_json::json!([[1, 2], "spazzatura", [3, 4]])),
+                   vec![(1.0, 2.0), (3.0, 4.0)], "una voce illeggibile non butta via le altre");
+    }
+
+    #[test]
+    fn i_tre_modi_di_far_girare_un_simbolo() {
+        let mut t = TagSnapshot::new();
+        t.insert("v".into(), TagSnapshotValue {
+            value: TagValue::Bool(true), quality: TagQuality::Good, ts: 1,
+        });
+        assert!(deve_girare(Some("always"), &None, SymbolState::Off, &t));
+        assert!(deve_girare(Some("on_state"), &None, SymbolState::On, &t));
+        assert!(!deve_girare(Some("on_state"), &None, SymbolState::Off, &t));
+        assert!(deve_girare(Some("tag"), &Some("v".into()), SymbolState::Off, &t));
+        assert!(!deve_girare(Some("tag"), &Some("assente".into()), SymbolState::Off, &t));
+        assert!(!deve_girare(None, &None, SymbolState::On, &t));
+    }
+
+    /// Come `blink_mode: tag` senza `blink_tag`: un progetto incompleto non
+    /// deve diventare un'animazione perpetua.
+    #[test]
+    fn spin_tag_senza_tag_non_gira() {
+        assert!(!deve_girare(Some("tag"), &None, SymbolState::On, &TagSnapshot::new()));
+        assert!(!deve_girare(Some("tag"), &Some(String::new()), SymbolState::On, &TagSnapshot::new()));
+    }
+
+    #[test]
+    fn langolo_compie_un_giro_nel_periodo_dichiarato() {
+        assert_eq!(angolo_rotazione(0, 2.0), 0);
+        assert_eq!(angolo_rotazione(500, 2.0), 900, "un quarto di giro = 90° = 900 decimi");
+        assert_eq!(angolo_rotazione(1000, 2.0), 1800);
+        assert_eq!(angolo_rotazione(2000, 2.0), 0, "giro completo: si ricomincia");
+    }
+
+    /// Due simboli allo stesso ritmo restano in fase perché guardano lo stesso
+    /// orologio — come il lampeggio, e per la stessa ragione.
+    #[test]
+    fn due_simboli_allo_stesso_ritmo_restano_in_fase() {
+        for t in [0u64, 137, 999, 54_321] {
+            assert_eq!(angolo_rotazione(t, 1.5), angolo_rotazione(t, 1.5));
+        }
+    }
+
+    #[test]
+    fn un_periodo_assurdo_non_divide_per_zero() {
+        let _ = angolo_rotazione(12_345, 0.0);
+        let _ = angolo_rotazione(12_345, -1.0);
+    }
+
+    #[test]
+    fn lallarme_vince_sugli_stati_multipli() {
+        let stati = vec![TextListEntry {
+            value: serde_json::json!("Auto"), label: "A".into(),
+            color: Some("#00ff00".into()), value_min: None, value_max: None,
+        }];
+        let mut t = TagSnapshot::new();
+        t.insert("s".into(), TagSnapshotValue {
+            value: TagValue::Str("Auto".into()), quality: TagQuality::Good, ts: 1,
+        });
+        let st = Some("s".to_string());
+        assert_eq!(
+            colore_simbolo(SymbolState::Alarm, &stati, &t, &st, "#111111", "#222222", "#ef4444"),
+            (0xef, 0x44, 0x44),
+            "un allarme coperto da uno stato è il difetto peggiore che uno SCADA possa avere"
+        );
+        assert_eq!(
+            colore_simbolo(SymbolState::On, &stati, &t, &st, "#111111", "#222222", "#ef4444"),
+            (0, 255, 0),
+            "senza allarme vince lo stato dichiarato"
+        );
+        assert_eq!(
+            colore_simbolo(SymbolState::On, &[], &t, &st, "#111111", "#222222", "#ef4444"),
+            (0x22, 0x22, 0x22),
+            "senza stati dichiarati, il colore di acceso"
+        );
     }
 }

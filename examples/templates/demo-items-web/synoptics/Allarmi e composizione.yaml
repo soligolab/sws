@@ -169,3 +169,47 @@ objects:
   line_height: 1.35
   font_size: 13.0
   color: '#e2e8f0'
+- id: c_motion
+  type: text
+  x: 250.0
+  y: 470.0
+  width: 380.0
+  height: 16.0
+  text: motion_* — l'oggetto segue un percorso, guidato da un tag
+  font_size: 11.0
+  color: '#94a3b8'
+- id: o_motion_path
+  type: pipe
+  x: 260.0
+  y: 505.0
+  width: 340.0
+  height: 55.0
+  points:
+  - x: 260.0
+    y: 560.0
+  - x: 430.0
+    y: 505.0
+  - x: 600.0
+    y: 560.0
+  stroke: '#334155'
+  stroke_width: 2.0
+  routing: straight
+- id: o_motion
+  type: ellipse
+  x: 250.0
+  y: 550.0
+  width: 20.0
+  height: 20.0
+  fill: '#f59e0b'
+  stroke: '#fbbf24'
+  stroke_width: 2.0
+  motion_tag: demo.sim.ramp
+  motion_min: 0.0
+  motion_max: 100.0
+  motion_path:
+  - x: 260.0
+    y: 560.0
+  - x: 430.0
+    y: 505.0
+  - x: 600.0
+    y: 560.0

@@ -307,13 +307,10 @@ objects:
   y: 712.0
   width: 1.0
   height: 66.0
-  points:
-  - - 790
-    - 712
-  - - 790
-    - 778
   stroke: '#475569'
   stroke_width: 1.0
+  x2: 790.0
+  y2: 778.0
 - id: o_anchor_start
   type: text
   x: 790.0

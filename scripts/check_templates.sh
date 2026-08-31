@@ -132,6 +132,17 @@ for nome in nomi:
                 if rif and rif not in id_oggetti:
                     problema(f"{nome}/{base}: `{campo}: {rif}` non è un oggetto di questa "
                              f"pagina — il capo della pipe resta dov'era, storto e in silenzio")
+            # ── `points` su un oggetto che non li legge ──
+            #
+            # `points` è un campo delle **pipe**. Una `line` conosce solo
+            # `x`/`y` → `x2`/`y2` e li ignora in silenzio, in tutti e due i
+            # motori: si ottiene un segmento orizzontale lungo cento pixel
+            # invece della polilinea disegnata. Capitato il 2026-08-31
+            # scrivendo la demo del movimento.
+            if o.get("type") == "line" and o.get("points"):
+                problema(f"{nome}/{base}: la linea '{o.get('id')}' ha `points:`, che una "
+                         f"`line` non legge — usa `x2`/`y2`, o una `pipe`")
+
             # ── celle di griglia che non disegnano niente ──
             #
             # Una `GridCell` ha **un** contenuto: `child` (un oggetto centrato
