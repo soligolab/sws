@@ -349,7 +349,7 @@ davvero. È un'altra ragione per cominciare da A e non da C.
 
 ## 12. Un difetto del piano, trovato dopo averlo scritto
 
-*Aggiunto il 2026-08-31, verificato di nuovo su `main = 7e9977a` durante il trasloco su frodo.
+*Aggiunto il 2026-08-31, verificato di nuovo su `main` durante il trasloco su frodo.
 Non è stato discusso col maintainer: la conversazione si è interrotta prima.*
 
 Il §1 poggia su una frase troppo larga: «ogni mutazione passa da `pushHistory`, quindi Ctrl+Z è

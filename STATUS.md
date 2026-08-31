@@ -6,6 +6,26 @@
 >
 > **Pulizia 2026-07-27**: rimossi i task già chiusi e le sezioni di verifica ormai superate; le sessioni mergiate **e** verificate fino al 2026-07-09 sono compresse in «Storico». Il dettaglio integrale resta in `CHANGELOG.md` e nella history git.
 
+> **⚠️ La storia di git è stata riscritta il 2026-08-31.** Un `git filter-branch` ha
+> normalizzato autore e committer di **tutti i 342 commit** precedenti a
+> `Mauro Soligo <mauro@soligo.net>` (prima convivevano `pixsysedp <edp@pixsys.net>` e
+> `katodo <mauro.soligo@katodo.com>`), e il risultato è stato **force-pushato** su GitHub:
+> `main`, i due rami di lavoro e **tutti i tag** portano hash nuovi. I contenuti sono
+> byte-identici — verificato con `git diff` fra vecchio e nuovo su commit campione — e la
+> coerenza DCO regge (343 commit su 343 con autore e `Signed-off-by` allineati).
+>
+> Due conseguenze pratiche:
+>
+> 1. **Ogni hash citato in questo file, in `CHANGELOG.md` e in `docs/` prima del
+>    2026-08-31 sera appartiene alla storia vecchia** e non si risolve in un clone fresco.
+>    Sono ~76 riferimenti: non sono stati riscritti perché la corrispondenza vecchio→nuovo
+>    esiste ancora in `refs/original/` su frodo, e riscriverli tutti a mano introdurrebbe
+>    errori peggiori del problema. Le **date** e i **messaggi** restano il modo affidabile di
+>    ritrovare un commit.
+> 2. 🔴 **Il clone su theobroma è ora una storia divergente.** Ha gli hash vecchi su `main` e
+>    su entrambi i rami. Se da lì si pusha qualcosa, la storia vecchia torna su GitHub.
+>    Theobroma va trattato come **sola lettura**: per ripartire da quella macchina, ri-clonare.
+
 ## ▶ Da fare nella prossima sessione
 
 ### 0. Lo stato reale dopo il trasloco su frodo (2026-08-31, sera)
@@ -207,7 +227,7 @@ del testo derivato dallo sfondo pagina**. Sono lavori finiti che nessuno ha mai 
 ### 6. Il divario che resta fra web e LVGL
 
 `model.rs` dichiara 238 campi. Erano **112 mai disegnati**; con `feat/lvgl-gap`
-sono **71** — misurato di nuovo su `main = 7e9977a` il 2026-08-31, non a memoria (confronto
+sono **71** — misurato di nuovo su `main` il 2026-08-31, non a memoria (confronto
 dei nomi fra `model.rs` e `lvgl_render.rs` + `effects.rs`; il comando è nel referto del
 trasloco). Le prime stesure di questa sezione dicevano 84: era il conto a metà del piano, prima
 dei passi 9-10.
