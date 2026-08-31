@@ -2290,6 +2290,25 @@ scrive YAML ha quindi un giudice, e non deve indovinare se ha fatto bene.
 - **Q21** (due superfici Python nel progetto) è lo stesso genere di domanda — quante strade
   diverse possono cambiare la stessa cosa — e conviene rispondere insieme.
 
+### Aggiornamento del 2026-08-31 — esiste una proposta, la domanda resta aperta
+
+Il maintainer ha chiesto un piano per una **chat nell'editor collegata a Claude Code**:
+`docs/plans/2026-08-31-chat-ai-nelleditor.md`. Il piano risponde a cinque delle sei domande qui
+sopra, e va letto prima di decidere. In sintesi:
+
+- **le modifiche dell'assistente non toccano il disco**: vanno nello store dell'editor, che dà
+  l'annullamento con Ctrl+Z e non persiste nulla finché una persona non salva. Questo scioglie da
+  solo «dove gira», «chi approva» e «come si torna indietro»;
+- **il punto sui segreti era sbagliato**: `GET /api/project` li maschera già
+  (`mask_project_secrets`, `router.rs:1905`) e il server li ricompone al salvataggio. Chi legge
+  dall'API non li vede. Resta vero per `GET /api/project/export`, che per decisione del 2026-07-29
+  li spedisce in chiaro;
+- il server MCP autonomo — la forma con cui questa domanda era nata — diventa l'**ultima** fase e
+  non la prima: gli strumenti servono comunque, e l'involucro MCP costa poco quando ci sono.
+
+**La domanda resta aperta**: il piano propone, non decide. Le cinque scelte che spettano al
+maintainer sono nel §9 del piano.
+
 ---
 
 ## Q27 — Il server non fa rispettare il `data_type` dei tag in scrittura
