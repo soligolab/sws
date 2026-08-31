@@ -3193,22 +3193,81 @@ fn render_setpoint(
     let read_only = obj.read_only.unwrap_or(false);
 
     let mut container = create_child_obj(screen)?;
-    set_pos_size(&mut container, obj, w, h)?;
     let container_ptr = container.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
 
-    let mut y_cursor: i16 = 2;
+    // Un `lv_obj` nasce con lo stile del tema: scheda **bianca**, bordo,
+    // padding su tutti i lati e scorrimento acceso. Su una pagina scura, con
+    // un box di 48 pixel d'altezza, il risultato era una scheda bianca con due
+    // barre di scorrimento e il valore tagliato a metà — visto in
+    // un'istantanea il 2026-08-31.
+    //
+    // Il contenitore qui non è un elemento di interfaccia: è solo il riquadro
+    // che tiene insieme etichetta, valore e pulsante, esattamente come il
+    // `<div>` del web, che è trasparente. Quindi trasparente, senza bordo,
+    // senza padding e senza scorrimento — e con lo sfondo dell'oggetto solo se
+    // l'oggetto lo dichiara.
+    unsafe {
+        // `lv_obj_remove_style_all` è una macro e non arriva nei binding: è
+        // `lv_obj_remove_style(obj, NULL, LV_PART_ANY | LV_STATE_ANY)`.
+        //
+        // Toglie in un colpo bianco, bordo e padding — ma soprattutto il
+        // **colore del testo** che il tema mette sulla scheda, scuro perché
+        // pensato per uno sfondo bianco. Azzerare le singole proprietà
+        // lasciava quel colore, e il valore restava scritto in grigio scuro su
+        // sfondo scuro: leggibile solo sapendo che c'era.
+        //
+        // Toglierlo fa riprendere l'ereditarietà dallo schermo, dove Q18 ha già
+        // messo il colore giusto per lo sfondo della pagina — la stessa strada
+        // di `--synoptic-text` sul web.
+        lvgl_sys::lv_obj_remove_style(
+            container_ptr.as_ptr(),
+            core::ptr::null_mut(),
+            (lvgl_sys::LV_PART_ANY | lvgl_sys::LV_STATE_ANY) as lvgl_sys::lv_style_selector_t,
+        );
+        lvgl_sys::lv_obj_clear_flag(container_ptr.as_ptr(), lvgl_sys::LV_OBJ_FLAG_SCROLLABLE);
+    }
+    // Posizione e dimensione DOPO aver tolto gli stili, non prima: in LVGL 8
+    // `lv_obj_set_pos`/`set_size` scrivono stili **locali** (`LV_STYLE_X`,
+    // `LV_STYLE_WIDTH`…), quindi `lv_obj_remove_style(NULL, ANY)` se li porta
+    // via insieme al resto. Facendolo nell'ordine sbagliato il contenitore
+    // collassa a zero per zero e sparisce con tutto il suo contenuto — provato,
+    // e visto in un'istantanea.
+    set_pos_size(&mut container, obj, w, h)?;
+
+    if let Some(bg) = &obj.fill {
+        apply_bg_color(&mut container, bg, styles)?;
+    }
+
+    // Le due righe hanno le altezze del web (`fontSize: 11` per l'etichetta,
+    // poi il valore): infilarne tre in 48 pixel non riesce a nessuno dei due
+    // motori, ma due ci stanno, e il valore è la riga che conta.
+    let mut y_cursor: i16 = 0;
     if let Some(label) = &obj.label {
         let mut lbl = Label::create(&mut container).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
         lbl.set_pos(2, y_cursor).map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
         lbl.set_text(&text_cstring(label)).map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
-        y_cursor += 16;
+        let mut lbl_style = Style::default();
+        // Attenuata come sul web (`--brand-text-muted`): l'etichetta accompagna
+        // il valore, non compete con lui.
+        lbl_style.set_text_color(Color::from_rgb((148, 163, 184)));
+        lbl.add_style(Part::Main, &mut lbl_style).map_err(|e| anyhow::anyhow!("add_style: {e:?}"))?;
+        if let Some(px) = lvgl_font::at_size(11) {
+            unsafe {
+                lvgl_sys::lv_obj_set_style_text_font(
+                    lbl.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?.as_ptr(), px, 0,
+                )
+            };
+        }
+        styles.push(lbl_style);
+        y_cursor += 15;
     }
 
     let mut value_lbl = Label::create(&mut container).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
     value_lbl.set_pos(2, y_cursor).map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
     let initial = lookup(tags, &obj.tag).map(|t| tag_value_as_f64(&t.value)).unwrap_or(0.0);
+    let decimali = obj.decimals.unwrap_or(1) as usize;
     value_lbl
-        .set_text(&text_cstring(&format!("{initial:.1}{unit}")))
+        .set_text(&text_cstring(&format!("{initial:.decimali$}{unit}")))
         .map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
     let value_ptr = value_lbl.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
 
@@ -3274,11 +3333,20 @@ fn render_setpoint(
     if !read_only {
         let mut edit_btn = Btn::create(&mut container).map_err(|e| anyhow::anyhow!("Btn::create: {e:?}"))?;
         edit_btn
-            .set_pos((w - 24.0).round() as i16, y_cursor)
+            .set_pos((w - 46.0).round() as i16, y_cursor.saturating_sub(2))
             .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
-        edit_btn.set_size(22, 22).map_err(|e| anyhow::anyhow!("set_size: {e:?}"))?;
+        // Largo abbastanza da contenere la scritta: a 22x22 il tema lo
+        // arrotondava in un cerchio e la lettera restava tagliata.
+        edit_btn.set_size(44, 24).map_err(|e| anyhow::anyhow!("set_size: {e:?}"))?;
         let mut edit_lbl = Label::create(&mut edit_btn).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
-        edit_lbl.set_text(&text_cstring("E")).map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
+        edit_lbl.set_text(&text_cstring("Scrivi")).map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
+        unsafe {
+            let l = edit_lbl.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?.as_ptr();
+            lvgl_sys::lv_obj_align(l, lvgl_sys::LV_ALIGN_CENTER as lvgl_sys::lv_align_t, 0, 0);
+            if let Some(f) = lvgl_font::at_size(11) {
+                lvgl_sys::lv_obj_set_style_text_font(l, f, 0);
+            }
+        }
         let edit_ptr = edit_btn.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
         unsafe {
             lvgl_sys::lv_obj_add_event_cb(
