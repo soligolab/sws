@@ -255,8 +255,12 @@ pub struct SynopticObject {
     pub target_lang: Option<String>,
 
     // ── pipe ── (solo routing "straight", vedi render_pipe — gap dichiarati:
-    // niente gradient/marker/animazione di riempimento, fill_level colora
-    // l'intera pipe invece di riempirla progressivamente)
+    // niente gradient/marker/animazione di riempimento).
+    //
+    // `fill_level` riempie progressivamente dal 2026-08-26 (`apply_pipe_fill`),
+    // e i capi si agganciano agli oggetti dal 2026-08-31 (`punti_ancorati`):
+    // prima il motore leggeva solo `points`, così una pipe tirata da un oggetto
+    // all'altro nell'IDE finiva sul pannello dove capitava.
     pub points: Option<Vec<PipePoint>>,
     pub routing: Option<String>,
     pub pipe_style: Option<String>,

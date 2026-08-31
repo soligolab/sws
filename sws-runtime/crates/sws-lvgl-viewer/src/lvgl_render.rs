@@ -34,7 +34,7 @@ use lvgl::{Color, LvError, NativeObject, Part, Widget};
 use sws_core::tag::{TagQuality, TagValue};
 
 use crate::client::{self, AlarmStateLite, HistorySample, SharedAlarms, SharedHistory, SharedLang, TagSnapshot, TagSnapshotValue};
-use crate::model::{LanguageTable, OnValue, PieSlice, SubGrid, SynopticObject, SynopticPage, TableRow, TextListEntry};
+use crate::model::{LanguageTable, OnValue, PipePoint, PieSlice, SubGrid, SynopticObject, SynopticPage, TableRow, TextListEntry};
 
 /// Risoluzione di default se la pagina non specifica `width`/`height` — non
 /// più un vincolo a compile-time (`lvgl_display::init_display` prende
@@ -1282,6 +1282,69 @@ unsafe fn apply_opacity_from(screen_ptr: *mut lvgl_sys::lv_obj_t, da: u32, opa: 
             lvgl_sys::lv_obj_set_style_opa(figlio, opa, 0);
         }
     }
+}
+
+/// Il punto d'attacco di una pipe su un oggetto — la porta scelta sul suo
+/// riquadro.
+///
+/// Stessa aritmetica di `computeAnchor` in `SvgCanvas.tsx`, compreso il caso
+/// speciale della `line`, che ha `points` e non un riquadro: larghezza e
+/// altezza valgono zero, quindi tutte le porte cadono sulla sua origine. Una
+/// porta sconosciuta vale `center`, come sul web.
+fn ancora_di(obj: &SynopticObject, porta: Option<&str>) -> PipePoint {
+    let e_linea = obj.obj_type.as_deref() == Some("line");
+    let w = if e_linea { 0.0 } else { obj.width.unwrap_or(80.0) };
+    let h = if e_linea { 0.0 } else { obj.height.unwrap_or(80.0) };
+    let x = obj.x.unwrap_or(0.0);
+    let y = obj.y.unwrap_or(0.0);
+    match porta.unwrap_or("center") {
+        "top" => PipePoint { x: x + w / 2.0, y },
+        "bottom" => PipePoint { x: x + w / 2.0, y: y + h },
+        "left" => PipePoint { x, y: y + h / 2.0 },
+        "right" => PipePoint { x: x + w, y: y + h / 2.0 },
+        _ => PipePoint { x: x + w / 2.0, y: y + h / 2.0 },
+    }
+}
+
+/// I punti di una pipe con i capi agganciati agli oggetti che dichiara.
+///
+/// Restituisce `None` quando non c'è niente da agganciare — la pipe usa i suoi
+/// punti espliciti e non serve clonarla.
+///
+/// Prima di questo il motore leggeva **solo** `points`: una pipe disegnata
+/// agganciando due oggetti nell'IDE finiva sul pannello dove capitava, di
+/// solito nell'angolo in alto a sinistra, perché i punti espliciti erano
+/// rimasti a zero. Nel browser collegava le due macchine; sul pannello no.
+///
+/// Un `from_obj_id` che non corrisponde a nessun oggetto **non** è un errore
+/// fatale: il capo resta dov'era. È la stessa scelta del web (`objects.find`
+/// che torna `undefined` e lascia il punto invariato), e ha senso — un
+/// riferimento rotto deve dare una pipe storta, non una pagina in meno.
+fn punti_ancorati(pipe: &SynopticObject, oggetti: &[SynopticObject]) -> Option<Vec<PipePoint>> {
+    if pipe.from_obj_id.is_none() && pipe.to_obj_id.is_none() {
+        return None;
+    }
+    let mut punti = pipe.points.clone().unwrap_or_default();
+    if punti.is_empty() {
+        // Nessun punto esplicito: se entrambi i capi sono agganciati la pipe
+        // è comunque disegnabile — due estremi bastano a fare un segmento.
+        if pipe.from_obj_id.is_some() && pipe.to_obj_id.is_some() {
+            punti = vec![PipePoint { x: 0.0, y: 0.0 }, PipePoint { x: 0.0, y: 0.0 }];
+        } else {
+            return None;
+        }
+    }
+    let trova = |id: &str| oggetti.iter().find(|o| o.id.as_deref() == Some(id));
+    if let Some(src) = pipe.from_obj_id.as_deref().and_then(trova) {
+        punti[0] = ancora_di(src, pipe.from_port.as_deref());
+    }
+    if punti.len() >= 2 {
+        if let Some(dst) = pipe.to_obj_id.as_deref().and_then(trova) {
+            let ultimo = punti.len() - 1;
+            punti[ultimo] = ancora_di(dst, pipe.to_port.as_deref());
+        }
+    }
+    Some(punti)
 }
 
 // ── effetti di stato: lampeggio, dato vecchio, qualità (passo 4) ─────────────
@@ -5143,6 +5206,15 @@ pub fn render_page_objects(
         // — vedi STATUS.md, va fatto col resto della parità F9c.
         let bound = apply_bindings(obj, tags);
         let obj = bound.as_ref().unwrap_or(obj);
+        // Pipe agganciate: i capi vanno risolti sugli oggetti veri della
+        // pagina, non sui punti scritti nel file. Va fatto qui e non dentro
+        // `render_pipe`, che vede solo il proprio oggetto — la lista completa
+        // ce l'ha solo il ciclo.
+        let ancorata = punti_ancorati(obj, &page.objects).map(|punti| SynopticObject {
+            points: Some(punti),
+            ..obj.clone()
+        });
+        let obj = ancorata.as_ref().unwrap_or(obj);
         if !is_visible(obj, tags) {
             continue;
         }
@@ -6566,5 +6638,115 @@ mod binding_tests {
         assert_eq!(opa_from_opacity(Some(-0.2)), Some(0), "sotto zero resta trasparente");
         assert_eq!(opa_from_opacity(Some(f64::NAN)), None);
         assert_eq!(opa_from_opacity(Some(f64::INFINITY)), None);
+    }
+
+    // ── pipe agganciate agli oggetti (passo 6) ────────────────────────────
+
+    fn scatola(id: &str, tipo: &str, x: f64, y: f64, w: f64, h: f64) -> SynopticObject {
+        SynopticObject {
+            id: Some(id.into()),
+            obj_type: Some(tipo.into()),
+            x: Some(x), y: Some(y), width: Some(w), height: Some(h),
+            ..Default::default()
+        }
+    }
+
+    fn tubo(from: Option<&str>, fp: Option<&str>, to: Option<&str>, tp: Option<&str>,
+            punti: Option<Vec<(f64, f64)>>) -> SynopticObject {
+        SynopticObject {
+            id: Some("t".into()),
+            obj_type: Some("pipe".into()),
+            from_obj_id: from.map(String::from),
+            from_port: fp.map(String::from),
+            to_obj_id: to.map(String::from),
+            to_port: tp.map(String::from),
+            points: punti.map(|v| v.into_iter().map(|(x, y)| PipePoint { x, y }).collect()),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn le_porte_cadono_sui_lati_del_riquadro() {
+        let o = scatola("a", "rect", 100.0, 200.0, 60.0, 40.0);
+        assert_eq!((ancora_di(&o, Some("top")).x, ancora_di(&o, Some("top")).y), (130.0, 200.0));
+        assert_eq!((ancora_di(&o, Some("bottom")).x, ancora_di(&o, Some("bottom")).y), (130.0, 240.0));
+        assert_eq!((ancora_di(&o, Some("left")).x, ancora_di(&o, Some("left")).y), (100.0, 220.0));
+        assert_eq!((ancora_di(&o, Some("right")).x, ancora_di(&o, Some("right")).y), (160.0, 220.0));
+        assert_eq!((ancora_di(&o, None).x, ancora_di(&o, None).y), (130.0, 220.0), "senza porta: centro");
+        assert_eq!((ancora_di(&o, Some("nord-ovest")).x, ancora_di(&o, Some("nord-ovest")).y), (130.0, 220.0),
+                   "porta sconosciuta: centro, come sul web");
+    }
+
+    /// Una `line` non ha riquadro, ha punti: larghezza e altezza valgono zero e
+    /// tutte le porte cadono sulla sua origine. È il caso speciale che il web
+    /// tratta a parte, e senza il quale una pipe agganciata a una linea
+    /// finirebbe 40 pixel più in là per via del default 80.
+    #[test]
+    fn una_linea_non_ha_riquadro_su_cui_agganciarsi() {
+        let l = SynopticObject {
+            id: Some("l".into()), obj_type: Some("line".into()),
+            x: Some(10.0), y: Some(20.0), ..Default::default()
+        };
+        for porta in ["top", "bottom", "left", "right", "center"] {
+            let a = ancora_di(&l, Some(porta));
+            assert_eq!((a.x, a.y), (10.0, 20.0), "porta {porta}");
+        }
+    }
+
+    #[test]
+    fn i_capi_si_spostano_sugli_oggetti_agganciati() {
+        let oggetti = vec![
+            scatola("pompa", "rect", 0.0, 0.0, 100.0, 100.0),
+            scatola("serbatoio", "rect", 400.0, 200.0, 200.0, 100.0),
+        ];
+        let t = tubo(Some("pompa"), Some("right"), Some("serbatoio"), Some("left"),
+                     Some(vec![(0.0, 0.0), (200.0, 50.0), (0.0, 0.0)]));
+        let p = punti_ancorati(&t, &oggetti).expect("agganciata");
+        assert_eq!((p[0].x, p[0].y), (100.0, 50.0), "capo su pompa/right");
+        assert_eq!((p[1].x, p[1].y), (200.0, 50.0), "il waypoint di mezzo non si tocca");
+        assert_eq!((p[2].x, p[2].y), (400.0, 250.0), "capo su serbatoio/left");
+    }
+
+    /// Una pipe senza punti espliciti ma agganciata a due oggetti è comunque
+    /// disegnabile: due estremi bastano a fare un segmento. È il caso che
+    /// produce l'IDE quando si tira una pipe da un oggetto all'altro.
+    #[test]
+    fn due_capi_agganciati_bastano_anche_senza_punti() {
+        let oggetti = vec![
+            scatola("a", "rect", 0.0, 0.0, 50.0, 50.0),
+            scatola("b", "rect", 300.0, 0.0, 50.0, 50.0),
+        ];
+        let p = punti_ancorati(&tubo(Some("a"), None, Some("b"), None, None), &oggetti)
+            .expect("disegnabile");
+        assert_eq!(p.len(), 2);
+        assert_eq!((p[0].x, p[0].y), (25.0, 25.0));
+        assert_eq!((p[1].x, p[1].y), (325.0, 25.0));
+    }
+
+    /// Un riferimento a un oggetto che non c'è lascia il capo dov'era: deve
+    /// dare una pipe storta, non una pagina in meno. È la scelta del web.
+    #[test]
+    fn un_riferimento_rotto_non_fa_sparire_la_pipe() {
+        let oggetti = vec![scatola("a", "rect", 0.0, 0.0, 50.0, 50.0)];
+        let t = tubo(Some("fantasma"), None, Some("a"), Some("top"),
+                     Some(vec![(7.0, 7.0), (9.0, 9.0)]));
+        let p = punti_ancorati(&t, &oggetti).expect("resta disegnabile");
+        assert_eq!((p[0].x, p[0].y), (7.0, 7.0), "il capo rotto resta dov'era");
+        assert_eq!((p[1].x, p[1].y), (25.0, 0.0), "l'altro si aggancia lo stesso");
+    }
+
+    #[test]
+    fn una_pipe_senza_ancoraggi_non_viene_clonata() {
+        let t = tubo(None, None, None, None, Some(vec![(1.0, 2.0), (3.0, 4.0)]));
+        assert!(punti_ancorati(&t, &[]).is_none(),
+                "niente da agganciare: nessun lavoro e nessuna copia");
+    }
+
+    /// Un capo solo agganciato e nessun punto esplicito: non c'è un segmento
+    /// da disegnare, e inventarne uno metterebbe una pipe verso l'origine.
+    #[test]
+    fn un_capo_solo_senza_punti_non_inventa_una_pipe() {
+        let oggetti = vec![scatola("a", "rect", 0.0, 0.0, 50.0, 50.0)];
+        assert!(punti_ancorati(&tubo(Some("a"), None, None, None, None), &oggetti).is_none());
     }
 }
