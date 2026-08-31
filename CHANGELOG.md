@@ -11,12 +11,15 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
-> Correzioni fatte dopo la 2.3.2, quindi **non ancora nell'immagine sul dispositivo**.
+## [2.3.3] — 2026-08-29
 
 - **I pulsanti di navigazione della demo portavano a una pagina inesistente.**
   Premendone uno lo schermo diventava nero, senza nessun messaggio. Erano
   sbagliati tutti e 16, su entrambi i modelli "Demo Items" — cioè proprio quelli
   che si usano per mostrare il prodotto. Gli altri cinque modelli erano corretti.
+- **Compilando le immagini, la password si digita all'inizio.** Veniva chiesta
+  dopo la compilazione più lunga, costringendo chi lanciava il comando a restare
+  a guardare per sapere quando digitarla.
 - **Il registro non si riempie più di righe inutili.** Uno script che gira ogni
   secondo scriveva una riga per ogni esecuzione riuscita (86.400 al giorno), e
   uno rotto ne scriveva due (172.800). In un file di log su due, oltre il 99%

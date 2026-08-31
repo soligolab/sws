@@ -1136,9 +1136,14 @@ async fn write_tag(
 
 // ── Script execution ─────────────────────────────────────────────────────────
 //
-// NOTE: scripts run with full Python privileges — no RestrictedPython yet
-// (Q1 in docs/OPEN_QUESTIONS.md). Once auth lands this endpoint will be
-// gated; for now the assumption is that the LAN is private.
+// Gli script girano in RestrictedPython con `safe_builtins` **quando la
+// libreria è installata** (Q1, decisa e attiva). Attenzione: sul PC di sviluppo
+// spesso NON lo è, e il motore ricade sull'esecuzione non ristretta — è il
+// motivo per cui uno script con `import` passa sul PC e fallisce sul pannello.
+//
+// Quel che resta vero della nota originale: **questo endpoint non è gated**.
+// L'assunzione è che la LAN sia privata, e va chiusa quando il PoC diventa
+// prodotto (vedi Q8, punti E ed F).
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)] // Q9: payload solo-API, campi ignoti = 400

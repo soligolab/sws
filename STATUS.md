@@ -243,19 +243,15 @@ Il modo giusto di attaccarlo è il banco di prova: aprire le stesse pagine dei
 template gemelli sui due motori e annotare le differenze, dal più vistoso al più
 sottile.
 
-**D2 — rasterizzazione SVG** (Q15+Q16, deciso: `resvg` a runtime). Non iniziato.
-Primo passo obbligatorio: **misurare** peso del binario e memoria sul pannello.
-Se sfora, se ne riparla con un numero in mano. Oggi restano muti i 12 simboli
-"vendored", i simboli custom e il widget `image`.
+**D2 — rasterizzazione SVG**: ✅ fatto e rilasciato nella 2.3.0. Simboli vendored,
+simboli custom e widget `image` si disegnano con `resvg`. Misure prese prima di
+cablare: binario +1,26 MB, sul WP630 10,68 MB di RAM su 2,08 GB.
 
 ### 5. Stato del WP630
 
-Progetto **`DemoItemsLVGL`** dal template nuovo, script di animazione attivo,
-storico che registra, tutte e quattro le pagine reggono. **Il runtime è ancora
-la 2.1.0**: non l'ho aggiornato perché eri in uscita e volevo lasciartelo in uno
-stato noto. Il viewer gira da `/tmp/lvgl-v14` montato a mano — che si svuota al
-riavvio. Aggiornandolo con `--pull` sparisce ogni montaggio a mano e tutto viene
-dall'immagine.
+> Sezione superata. Lo stato corrente è in cima al file: **2.3.2 installata
+> pulita dall'IDE il 2026-08-28** dopo un factory reset, nessun binario montato
+> a mano. Quanto segue descriveva la 2.1.0 ed è conservato solo per la storia.
 
 ### 6. Due trappole degli script Python, imparate a caro prezzo
 
@@ -274,32 +270,10 @@ altro:
 
 ## ▶ Da fare, dalle sessioni precedenti
 
-1. **Riaprire nell'IDE il progetto che sta sul runtime (pull, non solo push)** — richiesta del
-   maintainer del 2026-08-24. Connettendosi a un runtime vuole poter rimettersi a lavorare sul
-   progetto che gira **lì**, chiudendo quello aperto nell'IDE, invece di ripartire dalla copia
-   locale che può essere vecchia o di un altro impianto.
-   *Oggi il flusso è solo in spinta*: `Configurazione → Runtime → Connetti` apre la connessione
-   lato server (`/api/remote/connect`) e il Deploy manda il progetto locale al device
-   (`remote_deploy` in `sws-web/src/remote.rs`: zip con `build_project_zip` → `PUT
-   /api/project/import` del remoto). **Niente tira indietro**, ma i pezzi per il verso opposto
-   esistono già tutti:
-   - lato device **nessun endpoint nuovo**: `GET /api/project/export` c'è già (`router.rs:198`);
-   - import locale: `PUT /api/project/import` (`import_project_zip`) sostituisce già l'intero
-     progetto — dal client `api.importProjectZip(file)`;
-   - chiudere/aprire: `api.closeProject()`, `POST /api/projects/:name/open`;
-   - **versione e migrazione già fatte**: `project_saved_by`, `api.migrateProject()` →
-     `POST /api/project/migrate`, e il testo `header.migrateConfirm` ("salvato dalla versione X,
-     il runtime è la Y") del pulsante "⚠ Aggiorna progetto";
-   - archivio: `api.exportProjectZip()` per il download, `api.createBackup()` / `/api/backups`
-     per la copia lato runtime IDE.
-
-   Flusso voluto, in quest'ordine: **(1)** avviso di versione con `header.migrateConfirm`
-   **prima** di toccare qualcosa; **(2)** archivio della versione originale — backup nel runtime
-   IDE **e** download del .zip (deciso: entrambi); **(3)** import con **scelta del nome ogni
-   volta** (sovrascrivi l'omonimo locale o digitane uno nuovo), poi chiusura del progetto aperto
-   e apertura di quello nuovo.
-   ⚠️ L'import **sostituisce anche le credenziali** (il bundle le contiene, lo dice già
-   `menu.importConfirm`): la conferma deve dirlo esplicitamente.
+1. ~~**Riaprire nell'IDE il progetto che sta sul runtime (pull)**~~ — **fatto**, squashato su
+   `main` il 2026-08-25 (`feat(ide): riaprire nell'IDE il progetto che gira sul dispositivo`).
+   Resta solo la **conferma a schermo**, elencata in cima al file: è uno dei tre lavori finiti
+   che nessuno ha mai guardato.
 
 2. **Ruolo minimo degli oggetti (sezione SICUREZZA): inefficace in modalità no-auth, e l'editor
    non lo dice** — segnalato il 2026-08-24: ruolo minimo **Admin** su un pulsante e su un trend,
@@ -334,9 +308,9 @@ altro:
    nella griglia (gap e padding sono fatti), e il commento sull'ACK dentro l'`AlarmEvent`
    dello storico invece che nel solo journal di audit (vuole una migrazione dello schema
    eventi — oggi il motivo è nel journal, interrogabile da `/api/audit`).
-6. **Q18 aperta** in `docs/OPEN_QUESTIONS.md`: i colori predefiniti dei testi vengono dai
-   token di tema dell'app, e su una pagina con sfondo scelto a mano possono dare
-   scuro-su-scuro. Non decisa: serve una scelta del maintainer fra le 4 opzioni.
+6. ~~**Q18 aperta**~~ — **decisa e implementata il 2026-08-25** (opzione 1: il colore
+   predefinito del testo si deriva dallo sfondo della pagina). Resta solo la conferma a
+   schermo, elencata più in alto.
 7. **Pagine demo CasaMauro**: sono ferme alle feature F2-F6. Nessun oggetto esercita
    table 2.0, barre negative/impilate, pie raggruppato, testo multiriga, storico allarmi,
    suono. Da arricchire quando servirà una demo.

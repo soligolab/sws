@@ -898,9 +898,16 @@ pub struct Project {
 pub enum ProjectTargetKind {
     /// SPA React/SVG nel browser — il target di sempre, nessun cambiamento.
     Web,
-    /// Motore LVGL, output su framebuffer/DRM diretto (Fase 4, non ancora implementato).
+    /// Motore LVGL, output su framebuffer/DRM diretto.
+    ///
+    /// Implementato e provato sul WP630 (`--backend drm`, Q19 decisa il
+    /// 2026-08-25). Sui pannelli con Weston attivo non è la strada normale —
+    /// il compositore è già DRM master — ma su hardware senza compositore sì.
     LvglFramebuffer,
-    /// Motore LVGL, come client Wayland (Fase 4, non ancora implementato).
+    /// Motore LVGL come client del compositore.
+    ///
+    /// È la strada usata sui pannelli Pixsys, via **XWayland** (`SDL_VIDEODRIVER=x11`):
+    /// il percorso Wayland nativo va in SIGSEGV su questo hardware, vedi Q14.
     LvglWayland,
 }
 

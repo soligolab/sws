@@ -106,9 +106,23 @@ run_script() {
     fi
 }
 
+# L'ordine conta, e non è alfabetico: **per prima quella che chiede `sudo`**.
+#
+# `build_container_aarch64_generic.sh` è l'unica delle tre a richiedere la
+# password (QEMU sotto podman rootless non attraversa la user namespace). Stando
+# in mezzo, la richiesta arrivava DOPO `build_container.sh`, che è la più lunga:
+# chi lanciava il comando doveva restare a guardare per sapere quando digitarla.
+# Ora si digita subito e il resto prosegue non supervisionato.
+#
+# Perché non un `sudo -v` all'avvio tenendo l'ordine di prima: la cache delle
+# credenziali scade dopo ~15 minuti e la prima build dura molto di più, quindi la
+# password verrebbe chiesta lo stesso a metà — con l'aria di un difetto nuovo.
+#
+# Conseguenza da conoscere: una build interrotta lascia ora risultati parziali
+# diversi (si ottiene la generic invece della Pixsys-tuned).
 SCRIPTS=(
-    "build_container.sh"
     "build_container_aarch64_generic.sh"
+    "build_container.sh"
     "build_container_x86_64.sh"
 )
 
