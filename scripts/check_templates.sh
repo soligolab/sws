@@ -29,6 +29,12 @@
 #   * navbutton che puntano a pagine inesistenti — `target_page` è un **id**,
 #     non un nome, e sbagliarlo dà uno schermo nero senza nessun messaggio
 #     (2026-08-28: tutti e 16 quelli dei due template "Demo Items").
+#   * pipe agganciate a oggetti che non esistono, o con una porta sconosciuta —
+#     il capo resta dov'era o cade al centro, e la pipe finisce storta senza che
+#     niente lo segnali (stesso silenzio dei navbutton rotti).
+#   * celle di griglia che non disegnano niente — `objects:` non è un campo di
+#     `GridCell` (il campo è `child:`), e nessuno dei due motori lo legge: la
+#     griglia esce vuota, in silenzio, in entrambi.
 #   * `home_page_id` mancante con più pagine — il viewer ripiega sulla prima in
 #     ordine alfabetico, quindi a decidere cosa vede il cliente all'accensione è
 #     l'alfabeto.
@@ -93,6 +99,7 @@ for nome in nomi:
         problema(f"{nome}: nessuna pagina synottico — il viewer LVGL non parte affatto")
         continue
 
+    tipi_tag = {t.get("id"): t.get("data_type") for t in (prj.get("tags") or [])}
     ids, usati_tag, tipi, nav_targets = set(), set(), set(), set()
     for f in pagine:
         base = os.path.basename(f)
@@ -108,11 +115,78 @@ for nome in nomi:
             problema(f"{nome}/{base}: manca `id` o `name` — il runtime scarta la pagina in silenzio")
         if pag.get("id"):
             ids.add(pag["id"])
+        id_oggetti = {o.get("id") for o in (pag.get("objects") or []) if o.get("id")}
         for o in (pag.get("objects") or []):
             if o.get("type"):
                 tipi.add(o["type"])
             if o.get("type") == "navbutton" and o.get("target_page"):
                 nav_targets.add(o["target_page"])
+            # ── pipe agganciate a oggetti che non esistono ──
+            #
+            # `from_obj_id`/`to_obj_id` puntano a un id **della stessa pagina**.
+            # Sbagliarli non fa fallire niente: il capo resta dov'era (scelta
+            # deliberata, vedi `punti_ancorati`), quindi la pipe finisce storta
+            # o nell'angolo, e nessuno lo dice. È lo stesso silenzio dei
+            # navbutton verso pagine inesistenti.
+            for campo in ("from_obj_id", "to_obj_id"):
+                rif = o.get(campo)
+                if rif and rif not in id_oggetti:
+                    problema(f"{nome}/{base}: `{campo}: {rif}` non è un oggetto di questa "
+                             f"pagina — il capo della pipe resta dov'era, storto e in silenzio")
+            # ── `write_value` di un tipo che non è quello del tag ──
+            #
+            # Il server **non** converte: scrivendo la stringa `"true"` su un
+            # tag dichiarato `bool`, il tag finisce a contenere una stringa
+            # (misurato il 2026-08-31). Funziona per caso, perché chi lo rilegge
+            # tratta una stringa non vuota come vera — finché qualcuno non lo
+            # legge come booleano davvero.
+            #
+            # In YAML `write_value: 'true'` e `write_value: true` sono due cose
+            # diverse, e la differenza è invisibile a chi legge in fretta.
+            wv = o.get("write_value")
+            t_obj = o.get("tag")
+            if isinstance(wv, str) and t_obj in tipi_tag and tipi_tag[t_obj] == "bool" \
+               and wv.lower() in ("true", "false"):
+                problema(f"{nome}/{base}: '{o.get('id')}' scrive la stringa \"{wv}\" su "
+                         f"'{t_obj}', dichiarato bool — il server non converte")
+
+            # ── `points` su un oggetto che non li legge ──
+            #
+            # `points` è un campo delle **pipe**. Una `line` conosce solo
+            # `x`/`y` → `x2`/`y2` e li ignora in silenzio, in tutti e due i
+            # motori: si ottiene un segmento orizzontale lungo cento pixel
+            # invece della polilinea disegnata. Capitato il 2026-08-31
+            # scrivendo la demo del movimento.
+            if o.get("type") == "line" and o.get("points"):
+                problema(f"{nome}/{base}: la linea '{o.get('id')}' ha `points:`, che una "
+                         f"`line` non legge — usa `x2`/`y2`, o una `pipe`")
+
+            # ── celle di griglia che non disegnano niente ──
+            #
+            # Una `GridCell` ha **un** contenuto: `child` (un oggetto centrato
+            # nella cella) oppure `sub` (una suddivisione). `objects:` non è un
+            # campo di `GridCell` — non nel motore LVGL e nemmeno nel web:
+            # entrambi lo ignorano in silenzio, e la griglia esce vuota.
+            #
+            # I due modelli "Demo Items" l'hanno avuto per mesi, con la
+            # didascalia «celle con oggetti dentro» sopra una griglia vuota in
+            # tutti e due i motori. Trovato il 2026-08-31 guardando
+            # un'istantanea, non leggendo lo YAML.
+            for n_c, c in enumerate(o.get("grid_cells") or []):
+                dove = f"cella ({c.get('row')},{c.get('col')})"
+                if "objects" in c:
+                    problema(f"{nome}/{base}: {o.get('id')} {dove} usa `objects:` — "
+                             f"nessuno dei due motori lo legge; il campo è `child:`")
+                elif not any(k in c for k in ("child", "sub", "bg_color")):
+                    problema(f"{nome}/{base}: {o.get('id')} {dove} non ha né `child` né "
+                             f"`sub` né `bg_color` — resta vuota")
+            # Una porta sconosciuta cade al centro dell'oggetto invece che sul
+            # lato voluto: la pipe entra nel mezzo della macchina.
+            for campo in ("from_port", "to_port"):
+                porta = o.get(campo)
+                if porta and porta not in ("top", "bottom", "left", "right", "center"):
+                    problema(f"{nome}/{base}: `{campo}: {porta}` non è una porta — "
+                             f"il capo cade al centro dell'oggetto")
             for campo in INTERI:
                 v = o.get(campo)
                 if isinstance(v, float) and v != int(v):

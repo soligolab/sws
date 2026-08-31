@@ -26,6 +26,7 @@ use std::cell::RefCell;
 use std::sync::mpsc;
 
 use cstr_core::CString;
+use crate::effects;
 use crate::lvgl_font;
 use lvgl::style::Style;
 use lvgl::widgets::{Bar, Btn, Chart, Checkbox, Label, Led, Line, Meter, Slider, Table};
@@ -33,7 +34,7 @@ use lvgl::{Color, LvError, NativeObject, Part, Widget};
 use sws_core::tag::{TagQuality, TagValue};
 
 use crate::client::{self, AlarmStateLite, HistorySample, SharedAlarms, SharedHistory, SharedLang, TagSnapshot, TagSnapshotValue};
-use crate::model::{LanguageTable, OnValue, PieSlice, SubGrid, SynopticObject, SynopticPage, TableRow, TextListEntry};
+use crate::model::{LanguageTable, OnValue, PipePoint, PieSlice, SubGrid, SynopticObject, SynopticPage, TableRow, TextListEntry};
 
 /// Risoluzione di default se la pagina non specifica `width`/`height` — non
 /// più un vincolo a compile-time (`lvgl_display::init_display` prende
@@ -84,6 +85,66 @@ pub struct RenderSummary {
 /// stesso principio degli `Style` altrove in questo file.
 #[allow(dead_code)]
 pub enum LiveKind {
+    /// Come **sta** un oggetto: lampeggia, il suo dato è fermo da troppo, la
+    /// qualità è cattiva, c'è un allarme sopra. La logica sta in `effects.rs`
+    /// (pura, provata); qui ci sono solo i puntatori LVGL e lo stato già
+    /// applicato, che serve a non ridipingere trenta volte al secondo quello
+    /// che non è cambiato.
+    ///
+    /// Sta fra i `LiveBinding` e non in un elenco a parte per una ragione
+    /// pratica: `LiveKind::AlarmViewer` porta già un `SharedAlarms`, quindi
+    /// `update_bindings` sa arrivare agli allarmi senza che nessuna firma
+    /// cambi. Un secondo elenco avrebbe voluto un quarto valore di ritorno da
+    /// `render_page_objects` e quattro chiamanti da aggiornare, per niente.
+    Effects {
+        /// Tutti i widget nati da questo oggetto — bordo d'allarme e pallino
+        /// di qualità compresi, come sul web, dove stanno nello stesso `<g>` e
+        /// quindi si attenuano e lampeggiano insieme all'oggetto.
+        figli: Vec<*mut lvgl_sys::lv_obj_t>,
+        /// L'opacità dichiarata dall'oggetto, 255 se non ne dichiara: è il
+        /// punto di partenza su cui lampeggio e attenuazione scrivono sopra.
+        opa_base: u8,
+        lampeggio: effects::Lampeggio,
+        rate_ms: u32,
+        tag: Option<String>,
+        stale_after_s: Option<f64>,
+        bad_gray: bool,
+        shared: SharedAlarms,
+        /// Bordo d'allarme (`show_alarm_state`). Lampeggia per conto suo
+        /// finché l'allarme non è riconosciuto, anche quando l'oggetto non
+        /// lampeggia — è il comportamento del web.
+        bordo: Option<*mut lvgl_sys::lv_obj_t>,
+        /// Pallino di qualità (`quality_dot`) e i tre colori dichiarati.
+        pallino: Option<*mut lvgl_sys::lv_obj_t>,
+        dot_buono: Option<String>,
+        dot_cattivo: Option<String>,
+        dot_incerto: Option<String>,
+        /// Ultimo stato mandato a LVGL: senza, ogni frame chiamerebbe
+        /// `lv_obj_set_style_*`, che invalida e fa ridisegnare l'oggetto —
+        /// trenta ridisegni al secondo di roba ferma.
+        ultimo: AppliedFx,
+    },
+    /// Movimento su percorso (`motion_*`): il valore di un tag decide dove sta
+    /// l'oggetto lungo una polilinea dichiarata.
+    ///
+    /// Diverso da `Geometry`, che applica binding proprietà→tag: là il
+    /// progetto scrive *quale coordinata* vuole, qui scrive *un punto lungo un
+    /// percorso*. Sono due modi diversi di dire dove sta un oggetto, e il web
+    /// li tiene distinti allo stesso modo.
+    Motion {
+        widgets: Vec<GeomWidget>,
+        percorso: Vec<(f64, f64)>,
+        tag: String,
+        min: Option<f64>,
+        max: Option<f64>,
+        /// Il punto del percorso guida il **centro** dell'oggetto, o il suo
+        /// angolo in alto a sinistra con `motion_anchor: top_left`.
+        ancora: (f64, f64),
+        /// Ultimo scostamento scritto nei widget: si riscrive solo ciò che
+        /// cambia, come in `Geometry` e per la stessa ragione.
+        applied_dx: i16,
+        applied_dy: i16,
+    },
     /// Riempimento progressivo di una `pipe`.
     ///
     /// `buf` possiede i punti della linea di riempimento: LVGL ne conserva il
@@ -165,6 +226,21 @@ pub enum LiveKind {
         min: f64,
         max: f64,
         unit: Option<String>,
+        /// Le soglie, per ricolorare l'arco quando il valore cambia fascia.
+        ///
+        /// Fino al 2026-08-31 il colore si decideva **una volta sola**, alla
+        /// creazione, dal primo valore letto: un gauge che entrava in allarme
+        /// restava del colore con cui era nato, e la fascia di soglia — cioè
+        /// l'unica cosa per cui le soglie esistono — non si vedeva mai. Nel
+        /// browser cambiava colore; sul pannello no.
+        soglie: (Option<f64>, Option<f64>, Option<f64>, Option<f64>),
+        /// Il colore dichiarato dall'oggetto, usato quando nessuna soglia
+        /// morde. Tenuto come RGB già risolto: `parse_hex_color` a ogni frame
+        /// sarebbe lavoro rifatto per niente.
+        rgb_base: (u8, u8, u8),
+        /// L'ultimo colore mandato a LVGL, per non invalidare il widget
+        /// trenta volte al secondo quando non è cambiato niente.
+        rgb_arco: (u8, u8, u8),
     },
     /// Cerchio colorato (come `led`, ma `lv_obj` normale: legge `bg_color`
     /// dallo `Style` senza le sorprese di `lv_led`) + label testo a fianco,
@@ -288,6 +364,22 @@ pub enum LiveKind {
         slices: Vec<PieSlice>,
         inner_ratio: f64,
         last_values: Vec<f64>,
+        /// Come mettere insieme le fette piccole (`pie_group_*`): un grafico
+        /// con venti tag altrimenti è una corona di fili colorati.
+        gruppo: (Option<f64>, Option<String>, Option<String>),
+        /// Colore del foro. Trasparente se non dichiarato — così sotto si vede
+        /// lo sfondo della pagina, che è il comportamento voluto più spesso.
+        foro: Option<(u8, u8, u8)>,
+        /// Etichette sugli spicchi: un'etichetta LVGL per ciascuno, riposizionata
+        /// quando i valori cambiano. `None` se `pie_show_labels: false`.
+        etichette: Vec<core::ptr::NonNull<lvgl_sys::lv_obj_t>>,
+        modo_etichetta: Option<String>,
+        decimali: usize,
+        /// Testo al centro del foro (`pie_center_tag`/`pie_center_format`):
+        /// senza, il foro di una ciambella è solo un buco.
+        centro: Option<core::ptr::NonNull<lvgl_sys::lv_obj_t>>,
+        centro_tag: Option<String>,
+        centro_formato: Option<String>,
     },
     /// Etichetta valore corrente — l'apertura/chiusura del tastierino e la
     /// scrittura sul tag sono guidate da callback FFI (vedi
@@ -329,6 +421,24 @@ pub enum LiveKind {
         on_color: String,
         alarm_color: String,
         last_state: Option<SymbolState>,
+        /// `symbol_states`: mappa N-stati sul valore di `state_tag`, con lo
+        /// stesso confronto di `text_list` (valore esatto o intervallo). Prima
+        /// il pannello conosceva solo acceso/spento/allarme, e un simbolo con
+        /// cinque stati dichiarati ne mostrava due.
+        stati: Vec<TextListEntry>,
+        /// Ultimo colore disegnato: con gli stati multipli non basta più
+        /// confrontare `SymbolState`, perché due stati diversi possono essere
+        /// entrambi "acceso" con colori diversi.
+        last_rgb: Option<(u8, u8, u8)>,
+        /// Rotazione continua (ventole, pompe, agitatori): `always`,
+        /// `on_state` (solo da acceso) o `tag`.
+        spin: Option<String>,
+        spin_tag: Option<String>,
+        /// Secondi per giro completo — `?? 2` come sul web.
+        spin_s: f64,
+        /// Ultimo angolo scritto, in decimi di grado: LVGL invalida a ogni
+        /// scrittura, e un simbolo fermo non deve far ridisegnare la pagina.
+        last_angolo: i16,
     },
     /// Movimento: i binding generici proprietà→tag applicati **a ogni frame**,
     /// non solo alla creazione.
@@ -430,6 +540,34 @@ pub struct LiveBinding {
     pub kind: LiveKind,
 }
 
+/// Quello che è già a schermo, per non rimandarlo a LVGL ogni frame.
+///
+/// I valori iniziali sono deliberatamente **impossibili** (`opa: 0` su un
+/// oggetto che nasce opaco, `rgb: None`), così il primo giro applica sempre e
+/// lo stato di partenza non resta mai quello di nessuno.
+#[derive(Debug, Clone, PartialEq)]
+pub struct AppliedFx {
+    opa: u8,
+    grigio: bool,
+    bordo_visibile: bool,
+    bordo_rgb: Option<(u8, u8, u8)>,
+    bordo_acceso: bool,
+    dot_rgb: Option<(u8, u8, u8)>,
+}
+
+impl Default for AppliedFx {
+    fn default() -> Self {
+        Self {
+            opa: 0,
+            grigio: true,
+            bordo_visibile: true,
+            bordo_rgb: None,
+            bordo_acceso: false,
+            dot_rgb: None,
+        }
+    }
+}
+
 /// Un widget catturato per il movimento, con la posizione che aveva appena
 /// creato. Serve la posizione *iniziale di ciascuno*, non quella dell'oggetto
 /// synottico: un `gauge` mette l'etichetta sotto l'arco, un `setpoint` mette i
@@ -458,6 +596,19 @@ struct ButtonClickCtx {
     tag: String,
     write_value: TagValue,
     tx: mpsc::Sender<TagCommand>,
+    /// Se presente, il click **non** scrive: apre una finestra di conferma, e
+    /// a scrivere è il pulsante di quella.
+    conferma: Option<Conferma>,
+}
+
+/// Cosa mostrare prima di eseguire un comando.
+///
+/// Su un pannello touch il tocco accidentale è reale — una manica, un dito
+/// appoggiato mentre si legge — e un comando che parte al primo contatto non
+/// ha nessuna rete. Nel browser la conferma c'era; sul pannello no.
+struct Conferma {
+    titolo: String,
+    messaggio: String,
 }
 
 /// Contesto per checkbox/radio/slider: il valore da scrivere si legge dal
@@ -506,7 +657,81 @@ unsafe extern "C" fn sws_button_clicked_cb(e: *mut lvgl_sys::lv_event_t) {
         return;
     }
     let ctx = unsafe { &*(user_data as *const ButtonClickCtx) };
-    let _ = ctx.tx.send(TagCommand { tag: ctx.tag.clone(), value: ctx.write_value.clone() });
+    let Some(c) = &ctx.conferma else {
+        let _ = ctx.tx.send(TagCommand { tag: ctx.tag.clone(), value: ctx.write_value.clone() });
+        return;
+    };
+    // La finestra si crea al click e si distrugge alla risposta: tenerne una
+    // nascosta per ogni pulsante costerebbe memoria per una cosa che succede
+    // di rado. Il contesto passato è **lo stesso** già leakato per il pulsante,
+    // quindi aprire e chiudere la finestra non alloca niente di permanente.
+    unsafe {
+        let titolo = text_cstring(&c.titolo);
+        let testo = text_cstring(&c.messaggio);
+        let mbox = lvgl_sys::lv_msgbox_create(
+            core::ptr::null_mut(), // sul livello superiore: modale, copre la pagina
+            titolo.as_ptr(),
+            testo.as_ptr(),
+            BOTTONI_CONFERMA.0.as_ptr() as *mut *const std::os::raw::c_char,
+            false, // niente ✕: si esce da uno dei due pulsanti, e la scelta resta esplicita
+        );
+        if mbox.is_null() {
+            // Non si può chiedere conferma: **non** si scrive. Eseguire un
+            // comando critico perché la finestra non si è aperta sarebbe il
+            // peggiore dei due esiti possibili.
+            eprintln!("[conferma] impossibile creare la finestra per '{}': comando non eseguito", ctx.tag);
+            return;
+        }
+        lvgl_sys::lv_obj_align(mbox, lvgl_sys::LV_ALIGN_CENTER as lvgl_sys::lv_align_t, 0, 0);
+        lvgl_sys::lv_obj_add_event_cb(
+            mbox,
+            Some(sws_conferma_cb),
+            lvgl_sys::lv_event_code_t_LV_EVENT_VALUE_CHANGED,
+            user_data,
+        );
+    }
+}
+
+/// I due pulsanti della finestra di conferma.
+///
+/// **Deve essere `static`.** `lv_msgbox_create` passa l'array a
+/// `lv_btnmatrix_set_map`, che ne conserva il **puntatore**, non una copia
+/// (`lv_msgbox.c:120`) — è la stessa regola di `lv_line_set_points`. Con un
+/// array locale alla callback, LVGL rilegge memoria liberata al primo ridisegno:
+/// segfault. Successo scrivendo questo blocco, e trovato subito perché
+/// `--tocca` permette di premere il pulsante senza avere un pannello davanti.
+///
+/// Terminatore stringa **vuota** e non `NULL`, come chiede la documentazione
+/// («terminated by an "" element»): `lv_btnmatrix_set_map` percorre la mappa
+/// cercando `""`.
+///
+/// L'ordine conta: "Annulla" per primo, così il pulsante che finisce sotto il
+/// dito che ha appena toccato per sbaglio è quello che non fa niente.
+struct BottoniConferma([*const std::os::raw::c_char; 3]);
+// Puntatori a letterali `c"…"`, che vivono quanto il programma e non vengono
+// mai scritti: condividerli fra thread sarebbe sicuro anche se LVGL non
+// girasse già tutto sul thread principale.
+unsafe impl Sync for BottoniConferma {}
+static BOTTONI_CONFERMA: BottoniConferma =
+    BottoniConferma([c"Annulla".as_ptr(), c"Conferma".as_ptr(), c"".as_ptr()]);
+
+/// Risposta alla finestra di conferma: indice 1 = "Conferma".
+///
+/// Qualunque altro esito — "Annulla", o un indice inatteso — **non scrive**.
+/// È la scelta giusta in caso di dubbio: un comando mancato si ripete, uno
+/// partito per sbaglio no.
+unsafe extern "C" fn sws_conferma_cb(e: *mut lvgl_sys::lv_event_t) {
+    let user_data = unsafe { lvgl_sys::lv_event_get_user_data(e) };
+    let mbox = unsafe { lvgl_sys::lv_event_get_current_target(e) };
+    if user_data.is_null() || mbox.is_null() {
+        return;
+    }
+    let ctx = unsafe { &*(user_data as *const ButtonClickCtx) };
+    let scelta = unsafe { lvgl_sys::lv_msgbox_get_active_btn(mbox) };
+    if scelta == 1 {
+        let _ = ctx.tx.send(TagCommand { tag: ctx.tag.clone(), value: ctx.write_value.clone() });
+    }
+    unsafe { lvgl_sys::lv_msgbox_close(mbox) };
 }
 
 /// `LV_EVENT_CLICKED` su un navbutton: stesso evento del bottone normale,
@@ -575,7 +800,7 @@ unsafe extern "C" fn sws_slider_changed_cb(e: *mut lvgl_sys::lv_event_t) {
     let _ = ctx.tx.send(TagCommand { tag: ctx.tag.clone(), value: TagValue::Int(v as i64) });
 }
 
-fn parse_hex_color(s: &str) -> Option<(u8, u8, u8)> {
+pub(crate) fn parse_hex_color(s: &str) -> Option<(u8, u8, u8)> {
     let s = s.trim().trim_start_matches('#');
     if s.len() != 6 {
         return None;
@@ -1129,6 +1354,406 @@ fn is_visible(obj: &SynopticObject, tags: &TagSnapshot) -> bool {
     obj.visible != Some(false)
 }
 
+/// `z_index` — l'ordine in cui gli oggetti si sovrappongono.
+///
+/// LVGL disegna i figli nell'ordine in cui sono stati creati, esattamente come
+/// SVG li disegna nell'ordine del documento: basta ordinare la lista **prima**
+/// del ciclo di render e i due motori sovrappongono allo stesso modo. Niente
+/// `lv_obj_move_to_index` a posteriori, che sposterebbe un figlio alla volta —
+/// e gli oggetti che ne creano più d'uno (un faceplate ne crea uno per figlio,
+/// un testo ancorato ne crea due) andrebbero spostati a blocchi, tenendo il
+/// conto di quali figli appartengono a chi.
+///
+/// Ordinamento **stabile**, e default 0 come `sortByZ` in `SvgCanvas.tsx`: a
+/// parità di `z_index` vince chi viene dopo nella lista. Il default è 0 e non
+/// "nessuno, quindi in fondo" — un oggetto senza `z_index` sta nella fascia di
+/// quelli a zero, non sotto tutti.
+///
+/// Prima di questo, due oggetti sovrapposti sul pannello stavano nell'ordine in
+/// cui capitavano nel file: nel browser uno sopra l'altro, sul pannello il
+/// contrario, senza che niente lo segnalasse.
+fn sort_by_z(objects: &[SynopticObject]) -> Vec<&SynopticObject> {
+    let mut v: Vec<&SynopticObject> = objects.iter().collect();
+    // sort_by_key è garantito stabile in Rust: gli uguali restano nell'ordine
+    // di partenza, che è proprio ciò che serve per pareggiare `sortByZ`.
+    v.sort_by_key(|o| o.z_index.unwrap_or(0));
+    v
+}
+
+/// `opacity` (0..1 sul web) → `lv_opa_t` (0..255).
+///
+/// Restituisce `None` quando l'oggetto è pienamente opaco, e non è solo per
+/// risparmiare una chiamata. In LVGL 8.3 un `opa` diverso da `LV_OPA_COVER` fa
+/// disegnare l'oggetto **e tutti i suoi figli** in un layer temporaneo
+/// (`calculate_layer_type`, `lv_obj_style.c:848`), cioè una passata di
+/// composizione in più a ogni ridisegno: non va fatta pagare a chi la
+/// trasparenza non l'ha chiesta.
+///
+/// Quel layer è anche il motivo per cui questa è la resa *giusta* e non un
+/// ripiego: il gruppo sbiadisce **insieme**, come `opacity` in SVG, invece di
+/// lasciar vedere le sue parti l'una attraverso l'altra.
+///
+/// Valori fuori scala vengono riportati dentro invece di essere rifiutati: un
+/// `opacity: 1.5` scritto a mano in YAML significa "opaco", non "pagina
+/// rotta". Un NaN vale opaco per lo stesso motivo.
+fn opa_from_opacity(opacity: Option<f64>) -> Option<u8> {
+    let v = opacity?;
+    if !v.is_finite() || v >= 1.0 {
+        return None;
+    }
+    Some((v.clamp(0.0, 1.0) * 255.0).round() as u8)
+}
+
+/// Applica `opa` ai figli dello schermo comparsi a partire dall'indice `da`.
+///
+/// Le funzioni `render_*` non restituiscono i widget che creano, e parecchie ne
+/// creano più d'uno. Invece di cambiare una trentina di firme per farsi
+/// restituire i puntatori, si conta quanti figli aveva lo schermo prima della
+/// chiamata: quelli comparsi dopo sono suoi, perché `lv_obj_create(parent)`
+/// accoda sempre in fondo. È lo stesso ragionamento che rende `z_index` un
+/// semplice ordinamento invece di un riordino a posteriori.
+///
+/// # Safety
+/// `screen_ptr` deve essere uno schermo LVGL vivo; si chiama nel ciclo di
+/// render, dove lo è per costruzione.
+unsafe fn apply_opacity_from(screen_ptr: *mut lvgl_sys::lv_obj_t, da: u32, opa: u8) {
+    let dopo = lvgl_sys::lv_obj_get_child_cnt(screen_ptr);
+    for i in da..dopo {
+        let figlio = lvgl_sys::lv_obj_get_child(screen_ptr, i as i32);
+        if !figlio.is_null() {
+            lvgl_sys::lv_obj_set_style_opa(figlio, opa, 0);
+        }
+    }
+}
+
+/// Il punto d'attacco di una pipe su un oggetto — la porta scelta sul suo
+/// riquadro.
+///
+/// Stessa aritmetica di `computeAnchor` in `SvgCanvas.tsx`, compreso il caso
+/// speciale della `line`, che ha `points` e non un riquadro: larghezza e
+/// altezza valgono zero, quindi tutte le porte cadono sulla sua origine. Una
+/// porta sconosciuta vale `center`, come sul web.
+fn ancora_di(obj: &SynopticObject, porta: Option<&str>) -> PipePoint {
+    let e_linea = obj.obj_type.as_deref() == Some("line");
+    let w = if e_linea { 0.0 } else { obj.width.unwrap_or(80.0) };
+    let h = if e_linea { 0.0 } else { obj.height.unwrap_or(80.0) };
+    let x = obj.x.unwrap_or(0.0);
+    let y = obj.y.unwrap_or(0.0);
+    match porta.unwrap_or("center") {
+        "top" => PipePoint { x: x + w / 2.0, y },
+        "bottom" => PipePoint { x: x + w / 2.0, y: y + h },
+        "left" => PipePoint { x, y: y + h / 2.0 },
+        "right" => PipePoint { x: x + w, y: y + h / 2.0 },
+        _ => PipePoint { x: x + w / 2.0, y: y + h / 2.0 },
+    }
+}
+
+/// I punti di una pipe con i capi agganciati agli oggetti che dichiara.
+///
+/// Restituisce `None` quando non c'è niente da agganciare — la pipe usa i suoi
+/// punti espliciti e non serve clonarla.
+///
+/// Prima di questo il motore leggeva **solo** `points`: una pipe disegnata
+/// agganciando due oggetti nell'IDE finiva sul pannello dove capitava, di
+/// solito nell'angolo in alto a sinistra, perché i punti espliciti erano
+/// rimasti a zero. Nel browser collegava le due macchine; sul pannello no.
+///
+/// Un `from_obj_id` che non corrisponde a nessun oggetto **non** è un errore
+/// fatale: il capo resta dov'era. È la stessa scelta del web (`objects.find`
+/// che torna `undefined` e lascia il punto invariato), e ha senso — un
+/// riferimento rotto deve dare una pipe storta, non una pagina in meno.
+fn punti_ancorati(pipe: &SynopticObject, oggetti: &[SynopticObject]) -> Option<Vec<PipePoint>> {
+    if pipe.from_obj_id.is_none() && pipe.to_obj_id.is_none() {
+        return None;
+    }
+    let mut punti = pipe.points.clone().unwrap_or_default();
+    if punti.is_empty() {
+        // Nessun punto esplicito: se entrambi i capi sono agganciati la pipe
+        // è comunque disegnabile — due estremi bastano a fare un segmento.
+        if pipe.from_obj_id.is_some() && pipe.to_obj_id.is_some() {
+            punti = vec![PipePoint { x: 0.0, y: 0.0 }, PipePoint { x: 0.0, y: 0.0 }];
+        } else {
+            return None;
+        }
+    }
+    let trova = |id: &str| oggetti.iter().find(|o| o.id.as_deref() == Some(id));
+    if let Some(src) = pipe.from_obj_id.as_deref().and_then(trova) {
+        punti[0] = ancora_di(src, pipe.from_port.as_deref());
+    }
+    if punti.len() >= 2 {
+        if let Some(dst) = pipe.to_obj_id.as_deref().and_then(trova) {
+            let ultimo = punti.len() - 1;
+            punti[ultimo] = ancora_di(dst, pipe.to_port.as_deref());
+        }
+    }
+    Some(punti)
+}
+
+// ── effetti di stato: lampeggio, dato vecchio, qualità (passo 4) ─────────────
+//
+// La logica sta in `effects.rs`, pura e provata. Qui ci sono solo le chiamate
+// LVGL — cioè la parte che non si può provare con `cargo test` su una macchina
+// senza schermo, e che quindi va tenuta il più sottile possibile.
+
+/// Il filtro che scolora un oggetto e tutta la sua discendenza.
+///
+/// È l'equivalente di `filter: grayscale(0.9)` sul web, e funziona per la
+/// stessa ragione per cui funziona in CSS: in LVGL 8.3
+/// `LV_STYLE_COLOR_FILTER_DSC` e `LV_STYLE_COLOR_FILTER_OPA` sono proprietà
+/// **ereditate** (`lv_style.c:123-124`), e ogni ricerca di un colore passa da
+/// `_lv_obj_style_apply_color_filter`. Metterlo sull'oggetto lo mette
+/// sull'albero, senza doverne visitare i figli.
+///
+/// Si spegne mettendo `color_filter_opa` a zero, non togliendo il descrittore:
+/// il filtro viene applicato solo se l'opacità è diversa da zero.
+struct FiltroGrigio(lvgl_sys::lv_color_filter_dsc_t);
+// LVGL gira interamente sul thread principale in questo processo (vedi il
+// commento di modulo di `lvgl_display.rs`): il descrittore è di sola lettura e
+// non viene mai condiviso davvero fra thread.
+unsafe impl Sync for FiltroGrigio {}
+
+static FILTRO_GRIGIO: FiltroGrigio = FiltroGrigio(lvgl_sys::lv_color_filter_dsc_t {
+    filter_cb: Some(filtro_grigio_cb),
+    user_data: core::ptr::null_mut(),
+});
+
+/// Da colore a grigio della stessa luminosità.
+///
+/// La formula è quella di `lv_color_brightness` in `lv_color.h`
+/// (`(3R + B + 4G) / 8`), riscritta qui perché è `static inline` e quindi non
+/// arriva nei binding. Con `LV_COLOR_DEPTH 16` il colore è RGB565: si estraggono
+/// i tre campi, si riportano a scala 0..255, si calcola la luminosità e si
+/// ricostruisce un grigio.
+///
+/// `opa` è quanto il filtro deve "mordere": 0 = colore originale,
+/// 255 = grigio pieno. Il web usa 0.9, quindi resta un'ombra di tinta — che è
+/// ciò che distingue «attenuato» da «rotto».
+unsafe extern "C" fn filtro_grigio_cb(
+    _dsc: *const lvgl_sys::lv_color_filter_dsc_t,
+    c: lvgl_sys::lv_color_t,
+    opa: lvgl_sys::lv_opa_t,
+) -> lvgl_sys::lv_color_t {
+    let full = c.full;
+    let r = (((full >> 11) & 0x1f) as u32 * 255 / 31) as u32;
+    let g = (((full >> 5) & 0x3f) as u32 * 255 / 63) as u32;
+    let b = ((full & 0x1f) as u32 * 255 / 31) as u32;
+    let lum = ((3 * r + b + 4 * g) / 8).min(255) as u32;
+    // Mescola fra originale e grigio secondo `opa`, invece di sostituire: è
+    // così che `grayscale(0.9)` lascia un residuo di colore.
+    let a = opa as u32;
+    let mix = |orig: u32| (((orig * (255 - a)) + (lum * a)) / 255).min(255) as u8;
+    Color::from_rgb((mix(r), mix(g), mix(b))).into()
+}
+
+/// Crea i widget in più che gli effetti richiedono — bordo d'allarme e pallino
+/// di qualità — e restituisce il binding che li terrà aggiornati.
+///
+/// Restituisce `None` quando l'oggetto non chiede **nessun** effetto: la
+/// stragrande maggioranza degli oggetti di una pagina, che così non paga né un
+/// binding né un giro di `update_bindings`.
+///
+/// `figli` sono i widget nati da questo oggetto, individuati come in
+/// `render_page_objects` contando i figli dello schermo prima e dopo — con
+/// bordo e pallino aggiunti in coda, così che si attenuino e lampeggino insieme
+/// all'oggetto, come stando nello stesso `<g>` fanno sul web.
+#[allow(clippy::too_many_arguments)]
+fn crea_effetti(
+    screen_ptr: *mut lvgl_sys::lv_obj_t,
+    obj: &SynopticObject,
+    figli_prima: u32,
+    tags: &TagSnapshot,
+    shared_alarms: &SharedAlarms,
+) -> Option<LiveBinding> {
+    let lampeggio = effects::lampeggio_di(obj);
+    let vuole_bordo = obj.show_alarm_state == Some(true);
+    let vuole_pallino = obj.quality_dot == Some(true);
+    let vuole_attenuazione = obj.stale_after_s.is_some() || obj.bad_value_style.as_deref() == Some("gray");
+    if lampeggio == effects::Lampeggio::Mai && !vuole_bordo && !vuole_pallino && !vuole_attenuazione {
+        return None;
+    }
+
+    let mut figli: Vec<*mut lvgl_sys::lv_obj_t> = Vec::new();
+    unsafe {
+        let dopo = lvgl_sys::lv_obj_get_child_cnt(screen_ptr);
+        for i in figli_prima..dopo {
+            let f = lvgl_sys::lv_obj_get_child(screen_ptr, i as i32);
+            if !f.is_null() {
+                figli.push(f);
+            }
+        }
+    }
+    if figli.is_empty() {
+        return None; // il render è fallito: non c'è niente su cui applicare effetti
+    }
+
+    let x = obj.x.unwrap_or(0.0);
+    let y = obj.y.unwrap_or(0.0);
+    let w = obj.width.unwrap_or(100.0);
+    let h = obj.height.unwrap_or(50.0);
+
+    // Bordo d'allarme: un rettangolo vuoto tre pixel più largo dell'oggetto,
+    // colorato per severità. Stesse misure del web (`x-3`, `w+6`, `rx 4`).
+    let bordo = if vuole_bordo {
+        unsafe {
+            let p = lvgl_sys::lv_obj_create(screen_ptr);
+            if p.is_null() {
+                None
+            } else {
+                lvgl_sys::lv_obj_set_pos(p, (x - 3.0) as i16, (y - 3.0) as i16);
+                lvgl_sys::lv_obj_set_size(p, (w + 6.0) as i16, (h + 6.0) as i16);
+                lvgl_sys::lv_obj_set_style_bg_opa(p, 0, 0);
+                lvgl_sys::lv_obj_set_style_border_width(p, 2, 0);
+                lvgl_sys::lv_obj_set_style_radius(p, 4, 0);
+                // Non esiste un `pad_all` nei binding: i quattro lati a mano.
+                lvgl_sys::lv_obj_set_style_pad_top(p, 0, 0);
+                lvgl_sys::lv_obj_set_style_pad_bottom(p, 0, 0);
+                lvgl_sys::lv_obj_set_style_pad_left(p, 0, 0);
+                lvgl_sys::lv_obj_set_style_pad_right(p, 0, 0);
+                // Non deve rubare i tocchi all'oggetto che incornicia: è
+                // `pointerEvents: "none"` sul web.
+                lvgl_sys::lv_obj_clear_flag(p, lvgl_sys::LV_OBJ_FLAG_CLICKABLE);
+                lvgl_sys::lv_obj_clear_flag(p, lvgl_sys::LV_OBJ_FLAG_SCROLLABLE);
+                // Nasce invisibile: si accende solo se c'è davvero un allarme.
+                lvgl_sys::lv_obj_add_flag(p, lvgl_sys::LV_OBJ_FLAG_HIDDEN);
+                figli.push(p);
+                Some(p)
+            }
+        }
+    } else {
+        None
+    };
+
+    // Pallino di qualità: nell'angolo in alto a destra dell'oggetto, raggio 5
+    // come `QDot` sul web.
+    let pallino = if vuole_pallino {
+        unsafe {
+            let p = lvgl_sys::lv_obj_create(screen_ptr);
+            if p.is_null() {
+                None
+            } else {
+                lvgl_sys::lv_obj_set_pos(p, (x + w - 13.0) as i16, (y + 3.0) as i16);
+                lvgl_sys::lv_obj_set_size(p, 10, 10);
+                lvgl_sys::lv_obj_set_style_radius(p, lvgl_sys::LV_RADIUS_CIRCLE as i16, 0);
+                lvgl_sys::lv_obj_set_style_border_width(p, 0, 0);
+                // Non esiste un `pad_all` nei binding: i quattro lati a mano.
+                lvgl_sys::lv_obj_set_style_pad_top(p, 0, 0);
+                lvgl_sys::lv_obj_set_style_pad_bottom(p, 0, 0);
+                lvgl_sys::lv_obj_set_style_pad_left(p, 0, 0);
+                lvgl_sys::lv_obj_set_style_pad_right(p, 0, 0);
+                lvgl_sys::lv_obj_clear_flag(p, lvgl_sys::LV_OBJ_FLAG_CLICKABLE);
+                lvgl_sys::lv_obj_clear_flag(p, lvgl_sys::LV_OBJ_FLAG_SCROLLABLE);
+                figli.push(p);
+                Some(p)
+            }
+        }
+    } else {
+        None
+    };
+
+    // Il pallino non è "figlio" ai fini dell'attenuazione: deve restare
+    // leggibile proprio quando il dato è cattivo, che è quando serve.
+    if let Some(p) = pallino {
+        figli.retain(|f| *f != p);
+    }
+
+    let _ = tags; // lo stato iniziale lo mette il primo `update_bindings`
+
+    Some(LiveBinding {
+        kind: LiveKind::Effects {
+            figli,
+            opa_base: opa_from_opacity(obj.opacity).unwrap_or(255),
+            lampeggio,
+            rate_ms: obj.blink_rate_ms.map(|v| v as u32).filter(|v| *v > 0)
+                .unwrap_or(effects::BLINK_MS_DEFAULT),
+            tag: obj.tag.clone(),
+            stale_after_s: obj.stale_after_s,
+            bad_gray: obj.bad_value_style.as_deref() == Some("gray"),
+            shared: shared_alarms.clone(),
+            bordo,
+            pallino,
+            dot_buono: obj.quality_dot_good_color.clone(),
+            dot_cattivo: obj.quality_dot_bad_color.clone(),
+            dot_incerto: obj.quality_dot_uncertain_color.clone(),
+            ultimo: AppliedFx::default(),
+        },
+    })
+}
+
+/// Prepara il movimento su percorso di un oggetto, se ne dichiara uno.
+///
+/// Restituisce `None` quando manca il tag o il percorso non ha almeno due
+/// punti: un percorso di un punto solo non è un percorso, e muovere l'oggetto
+/// lì lo sposterebbe una volta e basta — peggio che lasciarlo dov'è.
+fn crea_movimento(
+    screen_ptr: *mut lvgl_sys::lv_obj_t,
+    obj: &SynopticObject,
+    figli_prima: u32,
+) -> Option<LiveBinding> {
+    let tag = obj.motion_tag.clone().filter(|t| !t.is_empty())?;
+    let percorso = punti_movimento(obj.motion_path.as_ref()?);
+    if percorso.len() < 2 {
+        return None;
+    }
+
+    let mut widgets = Vec::new();
+    unsafe {
+        // OBBLIGATORIO prima di leggere le coordinate — stessa ragione, e
+        // stesso difetto, del blocco `Geometry` qui sotto: `lv_obj_get_x/y`
+        // non restituiscono lo stile appena impostato da `set_pos`, ma la
+        // posizione **calcolata**, che finché il layout non gira vale zero.
+        //
+        // Senza, ogni widget risulta a (0,0) e al primo movimento viene
+        // riscritto lì: l'oggetto salta in cima a sinistra e sparisce.
+        // Successo il 2026-08-24 su un'ellisse, trovato dal maintainer davanti
+        // al pannello; e di nuovo il 2026-08-31 scrivendo questo blocco —
+        // trovato in due minuti con `--istantanea`, che è il motivo per cui
+        // quel modo esiste.
+        lvgl_sys::lv_obj_update_layout(screen_ptr);
+
+        let dopo = lvgl_sys::lv_obj_get_child_cnt(screen_ptr);
+        for i in figli_prima..dopo {
+            let f = lvgl_sys::lv_obj_get_child(screen_ptr, i as i32);
+            if let Some(nn) = core::ptr::NonNull::new(f) {
+                widgets.push(GeomWidget {
+                    start_x: lvgl_sys::lv_obj_get_x(f) as i16,
+                    start_y: lvgl_sys::lv_obj_get_y(f) as i16,
+                    ptr: nn,
+                });
+            }
+        }
+    }
+    if widgets.is_empty() {
+        return None;
+    }
+
+    // L'ancora: il percorso guida il centro dell'oggetto, oppure il suo angolo
+    // in alto a sinistra. È lo stesso `motion_anchor` del web, e serve perché
+    // un percorso disegnato "passando per il centro delle macchine" e uno
+    // disegnato "lungo il bordo" vogliono due cose diverse.
+    let x = obj.x.unwrap_or(0.0);
+    let y = obj.y.unwrap_or(0.0);
+    let ancora = if obj.motion_anchor.as_deref() == Some("top_left") {
+        (x, y)
+    } else {
+        (x + obj.width.unwrap_or(80.0) / 2.0, y + obj.height.unwrap_or(80.0) / 2.0)
+    };
+
+    Some(LiveBinding {
+        kind: LiveKind::Motion {
+            widgets,
+            percorso,
+            tag,
+            min: obj.motion_min,
+            max: obj.motion_max,
+            ancora,
+            // Impossibili di proposito, come in `AppliedFx`: il primo giro
+            // applica sempre, e la posizione di partenza non resta di nessuno.
+            applied_dx: i16::MIN,
+            applied_dy: i16::MIN,
+        },
+    })
+}
+
 /// `lvgl::Obj` non ha un `create(parent)` generato — a differenza degli altri
 /// widget, `Obj::default()` crea uno schermo di primo livello (`lv_obj_create(NULL)`),
 /// non un figlio. Stesso identico pattern usato dalla macro `define_object!`
@@ -1239,12 +1864,113 @@ fn text_color_hex(
 /// `LV_OBJ_FLAG_OVERFLOW_VISIBLE` è obbligatorio: senza, un figlio più largo
 /// del padre viene ritagliato, e un padre largo zero lo farebbe sparire del
 /// tutto.
+/// L'allineamento LVGL che corrisponde alla coppia (verticale, orizzontale)
+/// del web, per un testo che va a capo dentro il suo riquadro.
+///
+/// Il web mette il testo in una flexbox e sceglie `alignItems` da
+/// `text_valign` e `justifyContent` da `text_anchor`: nove combinazioni. LVGL
+/// ha esattamente le stesse nove come costanti `LV_ALIGN_*`, quindi è una
+/// tabella e non un calcolo.
+///
+/// Valori non riconosciuti ricadono su alto/sinistra, che è il default del web
+/// (`?? "top"`, `anchor` assente): un valore scritto male deve dare un testo
+/// nel posto ovvio, non un testo invisibile.
+fn allineamento_riquadro(valign: Option<&str>, anchor: Option<&str>) -> u32 {
+    match (valign.unwrap_or("top"), anchor.unwrap_or("start")) {
+        ("middle", "middle") => lvgl_sys::LV_ALIGN_CENTER,
+        ("middle", "end") => lvgl_sys::LV_ALIGN_RIGHT_MID,
+        ("middle", _) => lvgl_sys::LV_ALIGN_LEFT_MID,
+        ("bottom", "middle") => lvgl_sys::LV_ALIGN_BOTTOM_MID,
+        ("bottom", "end") => lvgl_sys::LV_ALIGN_BOTTOM_RIGHT,
+        ("bottom", _) => lvgl_sys::LV_ALIGN_BOTTOM_LEFT,
+        (_, "middle") => lvgl_sys::LV_ALIGN_TOP_MID,
+        (_, "end") => lvgl_sys::LV_ALIGN_TOP_RIGHT,
+        _ => lvgl_sys::LV_ALIGN_TOP_LEFT,
+    }
+}
+
+/// `text_align` di LVGL per l'ancoraggio orizzontale: allinea le righe *fra
+/// loro* dentro l'etichetta, cosa diversa da dove sta l'etichetta nel riquadro.
+/// Con una riga sola coincidono; con più righe no, ed è il caso che conta.
+fn allineamento_righe(anchor: Option<&str>) -> u8 {
+    match anchor {
+        Some("middle") => lvgl_sys::LV_TEXT_ALIGN_CENTER as u8,
+        Some("end") => lvgl_sys::LV_TEXT_ALIGN_RIGHT as u8,
+        _ => lvgl_sys::LV_TEXT_ALIGN_LEFT as u8,
+    }
+}
+
+/// Spazio **in più** fra una riga e l'altra, in pixel.
+///
+/// `line_height` sul web è un moltiplicatore dell'altezza del carattere (1.25
+/// di default); LVGL vuole invece i pixel da aggiungere. La conversione è
+/// quindi `corpo × (moltiplicatore − 1)`, e un moltiplicatore sotto 1 —
+/// legittimo in CSS, dove stringe le righe — qui vale zero, perché LVGL non
+/// accetta spaziature negative.
+fn spazio_fra_righe(line_height: Option<f64>, corpo_px: f64) -> i16 {
+    let m = line_height.unwrap_or(1.25);
+    if !m.is_finite() || m <= 1.0 {
+        return 0;
+    }
+    (corpo_px * (m - 1.0)).round().clamp(0.0, 200.0) as i16
+}
+
 fn create_anchored_label(
     screen: &mut lvgl::Obj,
     obj: &SynopticObject,
     styles: &mut Vec<Style>,
 ) -> anyhow::Result<Label> {
     let (x, y) = (obj.x.unwrap_or(0.0).round() as i16, obj.y.unwrap_or(0.0).round() as i16);
+
+    // ── `text_wrap`: il testo va a capo dentro il riquadro dichiarato ──────
+    //
+    // Senza, LVGL scrive su una riga sola e sborda oltre la larghezza
+    // dichiarata, andando a finire sopra l'oggetto accanto. È l'opposto di
+    // quello che fa il web, dove `text_wrap` accende `white-space: pre-wrap`
+    // dentro un box di `width`×`height`.
+    //
+    // Opt-in come sul web: il ramo a una riga resta il default, così i testi
+    // dei progetti esistenti non si spostano.
+    if obj.text_wrap == Some(true) {
+        let w = obj.width.unwrap_or(160.0).round().max(1.0) as i16;
+        let h = obj.height.unwrap_or(60.0).round().max(1.0) as i16;
+
+        let mut riquadro = create_child_obj(screen)?;
+        let riquadro_ptr = riquadro.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
+        unsafe {
+            // Stessa ragione della `setpoint`: il contenitore non è un elemento
+            // d'interfaccia, e lo stile del tema ci metterebbe una scheda
+            // bianca col suo colore di testo scuro. Prima di `set_pos`/`set_size`,
+            // che in LVGL 8 scrivono stili locali e verrebbero rimossi anche loro.
+            lvgl_sys::lv_obj_remove_style(
+                riquadro_ptr.as_ptr(),
+                core::ptr::null_mut(),
+                (lvgl_sys::LV_PART_ANY | lvgl_sys::LV_STATE_ANY) as lvgl_sys::lv_style_selector_t,
+            );
+            lvgl_sys::lv_obj_clear_flag(riquadro_ptr.as_ptr(), lvgl_sys::LV_OBJ_FLAG_SCROLLABLE);
+        }
+        riquadro.set_pos(x, y).map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
+        riquadro.set_size(w, h).map_err(|e| anyhow::anyhow!("set_size: {e:?}"))?;
+
+        let label = Label::create(&mut riquadro).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
+        let lptr = label.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?.as_ptr();
+        let corpo = obj.font_size.unwrap_or(lvgl_font::CORPO_PX as f64);
+        unsafe {
+            lvgl_sys::lv_label_set_long_mode(lptr, lvgl_sys::LV_LABEL_LONG_WRAP as lvgl_sys::lv_label_long_mode_t);
+            // Larghezza fissa e altezza dal contenuto: è la larghezza a
+            // decidere dove si va a capo, l'altezza la decide il testo.
+            lvgl_sys::lv_obj_set_width(lptr, w);
+            lvgl_sys::lv_obj_set_style_text_align(lptr, allineamento_righe(obj.text_anchor.as_deref()), 0);
+            lvgl_sys::lv_obj_set_style_text_line_space(lptr, spazio_fra_righe(obj.line_height, corpo), 0);
+            lvgl_sys::lv_obj_set_align(
+                lptr,
+                allineamento_riquadro(obj.text_valign.as_deref(), obj.text_anchor.as_deref())
+                    as lvgl_sys::lv_align_t,
+            );
+        }
+        return Ok(label);
+    }
+
     let align = match obj.text_anchor.as_deref() {
         Some("middle") => lvgl_sys::LV_ALIGN_TOP_MID,
         Some("end") => lvgl_sys::LV_ALIGN_TOP_RIGHT,
@@ -1370,6 +2096,34 @@ fn render_text(
     })
 }
 
+/// La conferma da chiedere prima di eseguire un comando, se va chiesta.
+///
+/// `require_confirm` la chiede; `critical` la chiede **comunque**, perché un
+/// comando marcato critico che parte al primo tocco è un contrasto con se
+/// stesso. Il testo è quello dell'oggetto più il valore che sta per essere
+/// scritto: «Confermi?» senza dire cosa non è una conferma, è un ostacolo.
+///
+/// **Non copre `require_reason` né la ri-autenticazione di `critical`.** Il web
+/// chiede la password della sessione e un motivo scritto, che finisce
+/// nell'audit; qui servirebbe una tastiera e una sessione autenticata nel
+/// viewer, che oggi non c'è. Chi ha bisogno del motivo nell'audit deve usare il
+/// pannello web — detto qui perché non lo si scopra dal registro mancante.
+fn conferma_di(obj: &SynopticObject, valore: &TagValue) -> Option<Conferma> {
+    let critico = obj.critical == Some(true);
+    if obj.require_confirm != Some(true) && !critico {
+        return None;
+    }
+    let messaggio_obj = obj.confirm_message.as_deref().map(str::trim).filter(|m| !m.is_empty());
+    let cosa = format!("Scrivere {} su {}?", tag_value_as_string(valore), obj.tag.as_deref().unwrap_or("?"));
+    Some(Conferma {
+        titolo: if critico { "Comando critico".to_string() } else { "Conferma".to_string() },
+        messaggio: match messaggio_obj {
+            Some(m) => format!("{m}\n\n{cosa}"),
+            None => cosa,
+        },
+    })
+}
+
 fn render_button(
     screen: &mut lvgl::Obj,
     obj: &SynopticObject,
@@ -1393,7 +2147,12 @@ fn render_button(
             .and_then(|v| serde_json::from_value::<TagValue>(v).ok())
             .unwrap_or(TagValue::Bool(true));
         let ptr = btn.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
-        let ctx = leak_ctx(ButtonClickCtx { tag: tag.clone(), write_value, tx: tx.clone() });
+        let ctx = leak_ctx(ButtonClickCtx {
+            tag: tag.clone(),
+            write_value: write_value.clone(),
+            tx: tx.clone(),
+            conferma: conferma_di(obj, &write_value),
+        });
         unsafe {
             lvgl_sys::lv_obj_add_event_cb(
                 ptr.as_ptr(),
@@ -1599,6 +2358,62 @@ fn init_bar_like(
 /// `lv_bar.c` prima di scrivere questo codice): bastano barre più alte che
 /// larghe per ottenere un riempimento verticale, nessun flag dedicato da
 /// impostare.
+/// La scala su cui si può disegnare una soglia, se ce n'è una sola.
+///
+/// Le soglie (`warn_high`, `alarm_high`, …) sono un valore solo, e una riga
+/// tirata attraverso il grafico dice «sopra questa altezza si è in allarme».
+/// L'affermazione regge **solo se tutte le barre misurano sulla stessa scala**:
+/// con scale diverse la stessa altezza vale numeri diversi, e la riga
+/// mentirebbe su tutte le barre tranne una.
+///
+/// La scala è quella su cui le **barre** sono davvero disegnate, cioè quella
+/// delle serie (`lv_bar_set_range` per barra). Non quella dell'oggetto: se
+/// `min`/`max` dell'oggetto fossero diversi, una riga tirata su quelli starebbe
+/// alla quota sbagliata rispetto alle barre — proprio il genere di bugia che
+/// questa funzione esiste per evitare.
+///
+/// Restituisce `Some` solo quando **tutte le serie hanno lo stesso
+/// intervallo**, e `None` quando ne hanno di diversi.
+///
+/// Il motore web usa invece **sempre** una scala comune, ricalcolata dai valori
+/// a ogni disegno, e ignora il `min`/`max` delle singole serie: è una differenza
+/// di progettazione fra i due motori, segnata come **Q28** e non decisa qui.
+fn scala_comune(obj: &SynopticObject, serie: &[(f64, f64)]) -> Option<(f64, f64)> {
+    let primo = *serie.first()?;
+    if !serie.iter().all(|s| *s == primo) || primo.1 <= primo.0 {
+        return None;
+    }
+    // L'oggetto dichiara una scala diversa da quella su cui le barre sono
+    // disegnate: le soglie seguono le barre, ed è meglio dirlo.
+    if let (Some(lo), Some(hi)) = (obj.min, obj.max) {
+        if (lo, hi) != primo {
+            eprintln!(
+                "[bar_chart] '{}': `min`/`max` dell'oggetto ({lo}..{hi}) diversi dalla scala delle \
+                 serie ({}..{}) — le barre e le soglie usano quella delle serie.",
+                obj.id.as_deref().unwrap_or("?"), primo.0, primo.1
+            );
+        }
+    }
+    Some(primo)
+}
+
+/// Le soglie da disegnare, con il colore, in ordine dall'alto verso il basso.
+///
+/// Solo quelle dichiarate e dentro la scala: una soglia fuori scala darebbe una
+/// riga appiccicata al bordo, che si scambia per il bordo stesso.
+fn soglie_da_disegnare(obj: &SynopticObject, scala: (f64, f64)) -> Vec<(f64, (u8, u8, u8))> {
+    let (lo, hi) = scala;
+    [
+        (obj.alarm_high, (239, 68, 68)),
+        (obj.warn_high, (245, 158, 11)),
+        (obj.warn_low, (245, 158, 11)),
+        (obj.alarm_low, (239, 68, 68)),
+    ]
+    .into_iter()
+    .filter_map(|(v, c)| v.filter(|v| *v > lo && *v < hi).map(|v| (v, c)))
+    .collect()
+}
+
 fn render_bar_chart(
     screen: &mut lvgl::Obj,
     obj: &SynopticObject,
@@ -1696,6 +2511,54 @@ fn render_bar_chart(
             if let Some(vp) = b.value_ptr {
                 lvgl_sys::lv_label_set_text(vp.as_ptr(), text_cstring(&format!("{raw:.1}{}", b.unit)).as_ptr());
             }
+        }
+    }
+
+    // ── soglie: righe orizzontali attraverso il grafico ──────────────────
+    //
+    // Un grafico a barre senza le sue soglie mostra dei numeri; con le soglie
+    // mostra se quei numeri vanno bene. È la differenza che serve a chi guarda
+    // il pannello da lontano.
+    if obj.bar_show_thresholds != Some(false) {
+        let intervalli: Vec<(f64, f64)> =
+            series.iter().map(|s| (s.min.unwrap_or(0.0), s.max.unwrap_or(100.0))).collect();
+        match scala_comune(obj, &intervalli) {
+            Some(scala) => {
+                let x0 = obj.x.unwrap_or(0.0);
+                let y0 = obj.y.unwrap_or(0.0) + pad_t;
+                for (valore, rgb) in soglie_da_disegnare(obj, scala) {
+                    let frazione = (valore - scala.0) / (scala.1 - scala.0);
+                    let y = y0 + plot_h * (1.0 - frazione);
+                    let mut ln = Line::create(screen).map_err(|e| anyhow::anyhow!("Line::create: {e:?}"))?;
+                    ln.set_pos(x0.round() as i16, y.round() as i16)
+                        .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
+                    let pts: &'static [lvgl_sys::lv_point_t; 2] = Box::leak(Box::new([
+                        lvgl_sys::lv_point_t { x: 0, y: 0 },
+                        lvgl_sys::lv_point_t { x: w.round() as i16, y: 0 },
+                    ]));
+                    let lp = ln.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
+                    unsafe { lvgl_sys::lv_line_set_points(lp.as_ptr(), pts.as_ptr(), 2) };
+                    let mut st = Style::default();
+                    st.set_line_color(Color::from_rgb(rgb));
+                    st.set_line_width(1);
+                    ln.add_style(Part::Main, &mut st).map_err(|e| anyhow::anyhow!("add_style: {e:?}"))?;
+                    styles.push(st);
+                }
+            }
+            None if obj.alarm_high.is_some() || obj.warn_high.is_some()
+                || obj.alarm_low.is_some() || obj.warn_low.is_some() =>
+            {
+                // Detto, non taciuto: chi ha dichiarato delle soglie e non le
+                // vede deve poter capire perché in una riga di registro,
+                // invece di credere a un difetto del pannello.
+                eprintln!(
+                    "[bar_chart] '{}': soglie dichiarate ma non disegnate — le serie hanno scale diverse, \
+                     e una riga sola mentirebbe su tutte tranne una. Dichiara `min`/`max` sull'oggetto \
+                     per una scala comune.",
+                    obj.id.as_deref().unwrap_or("?")
+                );
+            }
+            None => {}
         }
     }
 
@@ -1834,12 +2697,18 @@ fn render_line(screen: &mut lvgl::Obj, obj: &SynopticObject, styles: &mut Vec<St
 /// orario — verificato in `lv_meter.h`, non assunto dal nome — `rotation=135,
 /// angle_range=270` lascia il varco in basso, stesso aspetto del gauge web).
 ///
-/// **Semplificazione dichiarata rispetto al web**: l'arco colorato per soglia
-/// (`thresholdColor`) prende colore solo alla creazione, dal valore iniziale —
-/// `lv_meter` non espone un setter per il colore di un indicatore già creato
-/// (solo `set_indicator_value`/`start_value`/`end_value`, verificato in
-/// `lv_meter.h`), quindi non segue le soglie dal vivo come nel web. L'ago e il
-/// valore numerico restano invece pienamente dal vivo. Vedi Q14.
+/// L'arco segue le soglie **dal vivo**, come nel web, dal 2026-08-31. Era una
+/// semplificazione dichiarata: il colore si prendeva alla creazione dal primo
+/// valore letto, quindi un gauge che entrava in allarme restava del colore con
+/// cui era nato — e la fascia di soglia, cioè l'unica cosa per cui le soglie
+/// esistono, non si vedeva mai.
+///
+/// La ragione che l'aveva motivata era vera ma non decisiva: `lv_meter`
+/// davvero non espone un setter per il colore di un indicatore già creato
+/// (verificato in `lv_meter.h`). Il colore è però un campo pubblico della
+/// struct dell'indicatore, riletto da LVGL a ogni disegno: scriverlo e
+/// invalidare il widget fa il mestiere del setter mancante. Vedi il ramo
+/// `LiveKind::Gauge` di `update_bindings`.
 fn render_gauge(
     screen: &mut lvgl::Obj,
     obj: &SynopticObject,
@@ -1872,6 +2741,9 @@ fn render_gauge(
     let tv = lookup(tags, &obj.tag);
     let raw = tv.map(|t| tag_value_as_f64(&t.value)).unwrap_or(min).clamp(min.min(max), min.max(max));
 
+    // Colore di partenza dell'arco. Non è più l'unico che avrà: dal
+    // 2026-08-31 `update_bindings` lo ricalcola a ogni cambio di fascia, così
+    // un gauge che entra in allarme cambia colore anche sul pannello.
     let arc_rgb = threshold_color(raw, obj.alarm_low, obj.warn_low, obj.warn_high, obj.alarm_high)
         .or_else(|| obj.fill.as_deref().and_then(parse_hex_color))
         .unwrap_or((34, 197, 94)); // #22c55e, stesso default del web
@@ -1935,6 +2807,9 @@ fn render_gauge(
             min,
             max,
             unit: obj.unit.clone(),
+            soglie: (obj.alarm_low, obj.warn_low, obj.warn_high, obj.alarm_high),
+            rgb_base: obj.fill.as_deref().and_then(parse_hex_color).unwrap_or((34, 197, 94)),
+            rgb_arco: arc_rgb,
         },
     })
 }
@@ -2586,6 +3461,100 @@ fn render_xy_plot(screen: &mut lvgl::Obj, obj: &SynopticObject, styles: &mut Vec
 /// prima di scrivere questo codice — vedi Q14 seguito 14). Le proporzioni
 /// sono calcolate sui valori correnti dei tag all'apertura della pagina;
 /// `update_pie_chart` ridisegna solo quando cambiano davvero.
+/// Uno spicchio già risolto: etichetta, colore e valore, pronti da disegnare.
+///
+/// Separato da `PieSlice` (che porta il *tag*, non il valore) perché il
+/// raggruppamento produce una voce che non corrisponde a nessuno spicchio
+/// dichiarato: "altro" non ha un tag.
+#[derive(Debug, Clone, PartialEq)]
+pub struct SpicchioRisolto {
+    pub etichetta: String,
+    pub colore: String,
+    pub valore: f64,
+}
+
+/// Raggruppa in una voce sola gli spicchi sotto una percentuale del totale.
+///
+/// Un grafico a torta con venti tag diventa una corona di fili colorati in cui
+/// non si legge niente: `pie_group_below_pct` mette insieme le briciole. È la
+/// regola di `SvgCanvas.tsx`, compresi i dettagli che contano:
+///
+/// * la percentuale si calcola sul totale **grezzo**, prima di raggruppare —
+///   altrimenti raggruppare cambierebbe la soglia e il risultato dipenderebbe
+///   dall'ordine;
+/// * se nessuno spicchio sta sotto soglia, **non** compare una voce "altro"
+///   vuota;
+/// * `0` (il default) non raggruppa niente, e il grafico resta com'era.
+///
+/// La soglia si limita a 0..99: al 100% raggrupperebbe tutto in "altro", che
+/// non è un grafico ma un cerchio grigio.
+pub fn raggruppa_spicchi(
+    slices: &[PieSlice],
+    valori: &[f64],
+    sotto_pct: Option<f64>,
+    etichetta_gruppo: Option<&str>,
+    colore_gruppo: Option<&str>,
+) -> Vec<SpicchioRisolto> {
+    let tutti: Vec<SpicchioRisolto> = slices
+        .iter()
+        .zip(valori.iter())
+        .map(|(s, v)| SpicchioRisolto {
+            etichetta: s.label.clone(),
+            colore: s.color.clone(),
+            valore: v.max(0.0),
+        })
+        .collect();
+
+    let soglia = sotto_pct.unwrap_or(0.0).clamp(0.0, 99.0) / 100.0;
+    if soglia <= 0.0 {
+        return tutti;
+    }
+    let totale: f64 = tutti.iter().map(|s| s.valore).sum();
+    if totale <= 0.0 {
+        return tutti;
+    }
+
+    let mut tenuti: Vec<SpicchioRisolto> = Vec::new();
+    let mut resto = 0.0;
+    for s in tutti {
+        if s.valore / totale >= soglia {
+            tenuti.push(s);
+        } else {
+            resto += s.valore;
+        }
+    }
+    if resto > 0.0 {
+        tenuti.push(SpicchioRisolto {
+            etichetta: etichetta_gruppo.unwrap_or("altro").to_string(),
+            colore: colore_gruppo.unwrap_or("#64748b").to_string(),
+            valore: resto,
+        });
+    }
+    tenuti
+}
+
+/// Il testo che va su uno spicchio, secondo `pie_label_mode`.
+///
+/// I quattro modi del web: solo percentuale (default), solo valore, solo
+/// etichetta, o etichetta più percentuale. Un modo sconosciuto vale
+/// percentuale, come sul web (`default:` del suo `switch`).
+///
+/// **Divergenza nota, minima**: sulla metà esatta Rust arrotonda al pari
+/// (`12.5` con zero decimali → `12`), JavaScript per eccesso (`13`). Vale per
+/// ogni numero formattato da questo motore, non solo per le etichette della
+/// torta, ed è mezza unità sull'ultima cifra mostrata. Nominata qui perché chi
+/// affianca i due schermi e vede `12` contro `13` sappia che non è un difetto
+/// di lettura del dato.
+pub fn etichetta_spicchio(modo: Option<&str>, frazione: f64, valore: f64, etichetta: &str, decimali: usize) -> String {
+    let pct = format!("{:.0}%", frazione * 100.0);
+    match modo.unwrap_or("percent") {
+        "value" => format!("{valore:.decimali$}"),
+        "label" => etichetta.to_string(),
+        "label_percent" => format!("{etichetta} {pct}"),
+        _ => pct,
+    }
+}
+
 fn render_pie_chart(screen: &mut lvgl::Obj, obj: &SynopticObject, tags: &TagSnapshot) -> anyhow::Result<LiveBinding> {
     let mode = obj.pie_mode.as_deref().unwrap_or("pie");
     if mode != "donut" {
@@ -2626,11 +3595,65 @@ fn render_pie_chart(screen: &mut lvgl::Obj, obj: &SynopticObject, tags: &TagSnap
         .iter()
         .map(|s| lookup(tags, &Some(s.tag.clone())).map(|t| tag_value_as_f64(&t.value)).unwrap_or(0.0).max(0.0))
         .collect();
-    draw_pie_donut(canvas_ptr, w, h, &slices, &values, inner_ratio);
+    let gruppo = (
+        obj.pie_group_below_pct,
+        obj.pie_group_label.clone(),
+        obj.pie_group_color.clone(),
+    );
+    let foro = obj.pie_hole_color.as_deref().and_then(parse_hex_color);
+    draw_pie_donut(canvas_ptr, w, h, &slices, &values, inner_ratio, &gruppo, foro);
 
-    Ok(LiveBinding {
-        kind: LiveKind::PieChart { canvas_ptr, buf, w, h, slices, inner_ratio, last_values: values },
-    })
+    // Un'etichetta per spicchio dichiarato, più una di scorta per l'eventuale
+    // voce "altro": si creano tutte adesso e si nascondono quelle che non
+    // servono, invece di crearle e distruggerle a ogni cambio di valore.
+    let mostra_etichette = obj.pie_show_labels != Some(false) && !slices.is_empty();
+    let mut etichette = Vec::new();
+    if mostra_etichette {
+        for _ in 0..=slices.len() {
+            let mut l = Label::create(&mut canvas).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
+            l.set_text(&text_cstring("")).map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
+            let lp = l.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
+            unsafe {
+                lvgl_sys::lv_obj_add_flag(lp.as_ptr(), lvgl_sys::LV_OBJ_FLAG_HIDDEN);
+                lvgl_sys::lv_obj_set_style_text_color(lp.as_ptr(), Color::from_rgb((255, 255, 255)).into(), 0);
+                if let Some(f) = lvgl_font::at_size(11) {
+                    lvgl_sys::lv_obj_set_style_text_font(lp.as_ptr(), f, 0);
+                }
+            }
+            etichette.push(lp);
+        }
+    }
+
+    // Testo al centro del foro.
+    let centro = if obj.pie_center_tag.is_some() || obj.pie_center_text.is_some() {
+        let mut l = Label::create(&mut canvas).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
+        l.set_text(&text_cstring(obj.pie_center_text.as_deref().unwrap_or("")))
+            .map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
+        let lp = l.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
+        unsafe {
+            lvgl_sys::lv_obj_align(lp.as_ptr(), lvgl_sys::LV_ALIGN_CENTER as lvgl_sys::lv_align_t, 0, 0);
+            if let Some(f) = lvgl_font::at_size(16) {
+                lvgl_sys::lv_obj_set_style_text_font(lp.as_ptr(), f, 0);
+            }
+        }
+        Some(lp)
+    } else {
+        None
+    };
+
+    let binding = LiveKind::PieChart {
+        canvas_ptr, buf, w, h, slices, inner_ratio,
+        // Valori impossibili: il primo `update_bindings` posiziona le etichette
+        // e scrive il centro, invece di lasciarli vuoti fino al primo cambio.
+        last_values: vec![f64::NAN; values.len()],
+        gruppo, foro, etichette,
+        modo_etichetta: obj.pie_label_mode.clone(),
+        decimali: obj.decimals.unwrap_or(1) as usize,
+        centro,
+        centro_tag: obj.pie_center_tag.clone(),
+        centro_formato: obj.pie_center_format.clone(),
+    };
+    Ok(LiveBinding { kind: binding })
 }
 
 /// Disegna l'anello: uno `lv_canvas_draw_arc` per spicchio, spessore fisso
@@ -2640,26 +3663,51 @@ fn render_pie_chart(screen: &mut lvgl::Obj, obj: &SynopticObject, tags: &TagSnap
 /// sia da `update_pie_chart` quando i valori cambiano: `lv_canvas_fill_bg`
 /// cancella il contenuto precedente prima di ridisegnare, LVGL non ha un
 /// modo di "cancellare solo un arco" su un canvas raster.
-fn draw_pie_donut(canvas_ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>, w: i16, h: i16, slices: &[PieSlice], values: &[f64], inner_ratio: f64) {
+/// Dove va l'etichetta di uno spicchio e cosa ci si scrive.
+pub struct PostoEtichetta {
+    pub x: i16,
+    pub y: i16,
+    pub frazione: f64,
+    pub valore: f64,
+    pub etichetta: String,
+}
+
+fn draw_pie_donut(
+    canvas_ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
+    w: i16,
+    h: i16,
+    slices: &[PieSlice],
+    values: &[f64],
+    inner_ratio: f64,
+    gruppo: &(Option<f64>, Option<String>, Option<String>),
+    foro: Option<(u8, u8, u8)>,
+) -> Vec<PostoEtichetta> {
     unsafe {
         lvgl_sys::lv_canvas_fill_bg(canvas_ptr.as_ptr(), Color::from_rgb((0, 0, 0)).into(), 0);
     }
-    let total: f64 = values.iter().sum();
-    if total <= 0.0 || slices.is_empty() {
-        return;
+    let spicchi = raggruppa_spicchi(slices, values, gruppo.0, gruppo.1.as_deref(), gruppo.2.as_deref());
+    let total: f64 = spicchi.iter().map(|s| s.valore).sum();
+    if total <= 0.0 || spicchi.is_empty() {
+        return Vec::new();
     }
     let cx = w as lvgl_sys::lv_coord_t / 2;
     let cy = h as lvgl_sys::lv_coord_t / 2;
     let r = (w.min(h) as lvgl_sys::lv_coord_t / 2) - 2;
     let width = ((r as f64) * (1.0 - inner_ratio)).round().max(2.0) as lvgl_sys::lv_coord_t;
+
+    // Il foro: un cerchio pieno al centro, disegnato **dopo** gli archi.
+    // Senza `pie_hole_color` resta trasparente e sotto si vede la pagina — che
+    // è il caso più frequente, e il motivo per cui il canvas ha l'alfa.
     let mut start_deg: f64 = 0.0;
-    for (slice, &val) in slices.iter().zip(values.iter()) {
-        let span_deg = 360.0 * (val / total);
+    let mut posti = Vec::new();
+    for s in &spicchi {
+        let frazione = s.valore / total;
+        let span_deg = 360.0 * frazione;
         if span_deg <= 0.0 {
             continue;
         }
         let end_deg = start_deg + span_deg;
-        let rgb = parse_hex_color(&slice.color).unwrap_or((100, 116, 139));
+        let rgb = parse_hex_color(&s.colore).unwrap_or((100, 116, 139));
         unsafe {
             let mut dsc = lvgl_sys::lv_draw_arc_dsc_t::default();
             lvgl_sys::lv_draw_arc_dsc_init(&mut dsc);
@@ -2676,8 +3724,39 @@ fn draw_pie_donut(canvas_ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>, w: i16, h:
                 &dsc,
             );
         }
+        // L'etichetta a metà dello spessore dell'anello, all'angolo di mezzo
+        // dello spicchio: è dove sta anche sul web, ed è l'unico posto dove
+        // non finisce né nel foro né fuori dal cerchio.
+        let meta = (start_deg + end_deg) / 2.0 - 90.0;
+        let raggio_testo = r as f64 - width as f64 / 2.0;
+        posti.push(PostoEtichetta {
+            x: (cx as f64 + raggio_testo * meta.to_radians().cos()).round() as i16,
+            y: (cy as f64 + raggio_testo * meta.to_radians().sin()).round() as i16,
+            frazione,
+            valore: s.valore,
+            etichetta: s.etichetta.clone(),
+        });
         start_deg = end_deg;
     }
+
+    if let Some(rgb) = foro {
+        let raggio_foro = ((r as f64) * inner_ratio).round().max(1.0) as lvgl_sys::lv_coord_t;
+        unsafe {
+            let mut dsc = lvgl_sys::lv_draw_rect_dsc_t::default();
+            lvgl_sys::lv_draw_rect_dsc_init(&mut dsc);
+            dsc.bg_color = Color::from_rgb(rgb).into();
+            dsc.bg_opa = 255;
+            dsc.radius = lvgl_sys::LV_RADIUS_CIRCLE as lvgl_sys::lv_coord_t;
+            dsc.border_width = 0;
+            lvgl_sys::lv_canvas_draw_rect(
+                canvas_ptr.as_ptr(),
+                cx - raggio_foro, cy - raggio_foro,
+                raggio_foro * 2, raggio_foro * 2,
+                &dsc,
+            );
+        }
+    }
+    posti
 }
 
 /// Contesto per il tastierino numerico di `setpoint`: sia il pulsante di
@@ -2773,22 +3852,81 @@ fn render_setpoint(
     let read_only = obj.read_only.unwrap_or(false);
 
     let mut container = create_child_obj(screen)?;
-    set_pos_size(&mut container, obj, w, h)?;
     let container_ptr = container.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
 
-    let mut y_cursor: i16 = 2;
+    // Un `lv_obj` nasce con lo stile del tema: scheda **bianca**, bordo,
+    // padding su tutti i lati e scorrimento acceso. Su una pagina scura, con
+    // un box di 48 pixel d'altezza, il risultato era una scheda bianca con due
+    // barre di scorrimento e il valore tagliato a metà — visto in
+    // un'istantanea il 2026-08-31.
+    //
+    // Il contenitore qui non è un elemento di interfaccia: è solo il riquadro
+    // che tiene insieme etichetta, valore e pulsante, esattamente come il
+    // `<div>` del web, che è trasparente. Quindi trasparente, senza bordo,
+    // senza padding e senza scorrimento — e con lo sfondo dell'oggetto solo se
+    // l'oggetto lo dichiara.
+    unsafe {
+        // `lv_obj_remove_style_all` è una macro e non arriva nei binding: è
+        // `lv_obj_remove_style(obj, NULL, LV_PART_ANY | LV_STATE_ANY)`.
+        //
+        // Toglie in un colpo bianco, bordo e padding — ma soprattutto il
+        // **colore del testo** che il tema mette sulla scheda, scuro perché
+        // pensato per uno sfondo bianco. Azzerare le singole proprietà
+        // lasciava quel colore, e il valore restava scritto in grigio scuro su
+        // sfondo scuro: leggibile solo sapendo che c'era.
+        //
+        // Toglierlo fa riprendere l'ereditarietà dallo schermo, dove Q18 ha già
+        // messo il colore giusto per lo sfondo della pagina — la stessa strada
+        // di `--synoptic-text` sul web.
+        lvgl_sys::lv_obj_remove_style(
+            container_ptr.as_ptr(),
+            core::ptr::null_mut(),
+            (lvgl_sys::LV_PART_ANY | lvgl_sys::LV_STATE_ANY) as lvgl_sys::lv_style_selector_t,
+        );
+        lvgl_sys::lv_obj_clear_flag(container_ptr.as_ptr(), lvgl_sys::LV_OBJ_FLAG_SCROLLABLE);
+    }
+    // Posizione e dimensione DOPO aver tolto gli stili, non prima: in LVGL 8
+    // `lv_obj_set_pos`/`set_size` scrivono stili **locali** (`LV_STYLE_X`,
+    // `LV_STYLE_WIDTH`…), quindi `lv_obj_remove_style(NULL, ANY)` se li porta
+    // via insieme al resto. Facendolo nell'ordine sbagliato il contenitore
+    // collassa a zero per zero e sparisce con tutto il suo contenuto — provato,
+    // e visto in un'istantanea.
+    set_pos_size(&mut container, obj, w, h)?;
+
+    if let Some(bg) = &obj.fill {
+        apply_bg_color(&mut container, bg, styles)?;
+    }
+
+    // Le due righe hanno le altezze del web (`fontSize: 11` per l'etichetta,
+    // poi il valore): infilarne tre in 48 pixel non riesce a nessuno dei due
+    // motori, ma due ci stanno, e il valore è la riga che conta.
+    let mut y_cursor: i16 = 0;
     if let Some(label) = &obj.label {
         let mut lbl = Label::create(&mut container).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
         lbl.set_pos(2, y_cursor).map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
         lbl.set_text(&text_cstring(label)).map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
-        y_cursor += 16;
+        let mut lbl_style = Style::default();
+        // Attenuata come sul web (`--brand-text-muted`): l'etichetta accompagna
+        // il valore, non compete con lui.
+        lbl_style.set_text_color(Color::from_rgb((148, 163, 184)));
+        lbl.add_style(Part::Main, &mut lbl_style).map_err(|e| anyhow::anyhow!("add_style: {e:?}"))?;
+        if let Some(px) = lvgl_font::at_size(11) {
+            unsafe {
+                lvgl_sys::lv_obj_set_style_text_font(
+                    lbl.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?.as_ptr(), px, 0,
+                )
+            };
+        }
+        styles.push(lbl_style);
+        y_cursor += 15;
     }
 
     let mut value_lbl = Label::create(&mut container).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
     value_lbl.set_pos(2, y_cursor).map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
     let initial = lookup(tags, &obj.tag).map(|t| tag_value_as_f64(&t.value)).unwrap_or(0.0);
+    let decimali = obj.decimals.unwrap_or(1) as usize;
     value_lbl
-        .set_text(&text_cstring(&format!("{initial:.1}{unit}")))
+        .set_text(&text_cstring(&format!("{initial:.decimali$}{unit}")))
         .map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
     let value_ptr = value_lbl.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
 
@@ -2854,11 +3992,20 @@ fn render_setpoint(
     if !read_only {
         let mut edit_btn = Btn::create(&mut container).map_err(|e| anyhow::anyhow!("Btn::create: {e:?}"))?;
         edit_btn
-            .set_pos((w - 24.0).round() as i16, y_cursor)
+            .set_pos((w - 46.0).round() as i16, y_cursor.saturating_sub(2))
             .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
-        edit_btn.set_size(22, 22).map_err(|e| anyhow::anyhow!("set_size: {e:?}"))?;
+        // Largo abbastanza da contenere la scritta: a 22x22 il tema lo
+        // arrotondava in un cerchio e la lettera restava tagliata.
+        edit_btn.set_size(44, 24).map_err(|e| anyhow::anyhow!("set_size: {e:?}"))?;
         let mut edit_lbl = Label::create(&mut edit_btn).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
-        edit_lbl.set_text(&text_cstring("E")).map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
+        edit_lbl.set_text(&text_cstring("Scrivi")).map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
+        unsafe {
+            let l = edit_lbl.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?.as_ptr();
+            lvgl_sys::lv_obj_align(l, lvgl_sys::LV_ALIGN_CENTER as lvgl_sys::lv_align_t, 0, 0);
+            if let Some(f) = lvgl_font::at_size(11) {
+                lvgl_sys::lv_obj_set_style_text_font(l, f, 0);
+            }
+        }
         let edit_ptr = edit_btn.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
         unsafe {
             lvgl_sys::lv_obj_add_event_cb(
@@ -3288,6 +4435,98 @@ fn render_kpi_tile(
     Ok(())
 }
 
+/// Il punto che sta alla frazione `t` (0..1) della lunghezza di una polilinea.
+///
+/// Serve al movimento su percorso (`motion_*`): il valore di un tag, riportato
+/// in 0..1, dice **dove** lungo il percorso sta l'oggetto. Il web ottiene lo
+/// stesso con `offset-path`/`offset-distance`, e la ragione per cui usa proprio
+/// quelli vale anche qui: interpolando fra due posizioni in linea retta, un
+/// percorso con tre o più punti verrebbe tagliato negli angoli, e l'oggetto
+/// sembrerebbe muoversi solo sul primo segmento.
+///
+/// Misura la lunghezza vera dei segmenti, non conta i punti: su un percorso con
+/// un tratto lungo e uno corto, contare i punti farebbe correre l'oggetto sul
+/// tratto lungo e strisciare su quello corto.
+fn punto_a_frazione(punti: &[(f64, f64)], t: f64) -> Option<(f64, f64)> {
+    if punti.len() < 2 {
+        return punti.first().copied();
+    }
+    let t = if t.is_finite() { t.clamp(0.0, 1.0) } else { 0.0 };
+    let lunghezze: Vec<f64> = punti
+        .windows(2)
+        .map(|w| ((w[1].0 - w[0].0).powi(2) + (w[1].1 - w[0].1).powi(2)).sqrt())
+        .collect();
+    let totale: f64 = lunghezze.iter().sum();
+    if totale <= 0.0 {
+        // Percorso degenere (tutti i punti coincidenti): non c'è un "dove",
+        // e restituire il primo punto è più onesto che dividere per zero.
+        return punti.first().copied();
+    }
+    let mut rimanente = t * totale;
+    for (i, len) in lunghezze.iter().enumerate() {
+        if rimanente <= *len || i == lunghezze.len() - 1 {
+            let f = if *len > 0.0 { (rimanente / len).clamp(0.0, 1.0) } else { 0.0 };
+            let (x0, y0) = punti[i];
+            let (x1, y1) = punti[i + 1];
+            return Some((x0 + (x1 - x0) * f, y0 + (y1 - y0) * f));
+        }
+        rimanente -= len;
+    }
+    punti.last().copied()
+}
+
+/// Da valore tag a frazione 0..1, con la scala dichiarata dall'oggetto.
+///
+/// `motion_min == motion_max` dà 0 e non una divisione per zero: un intervallo
+/// vuoto significa "non si muove", non "pagina rotta". Stessa scelta del web
+/// (`hi === lo ? 0 : …`).
+fn frazione_movimento(v: f64, min: Option<f64>, max: Option<f64>) -> Option<f64> {
+    if !v.is_finite() {
+        return None;
+    }
+    let lo = min.unwrap_or(0.0);
+    let hi = max.unwrap_or(100.0);
+    if hi == lo {
+        return Some(0.0);
+    }
+    Some(((v - lo) / (hi - lo)).clamp(0.0, 1.0))
+}
+
+/// I punti di `motion_path`, che nel modello è un `serde_json::Value` grezzo.
+///
+/// Accetta le due forme che il web produce — `[[x, y], …]` e
+/// `[{"x": …, "y": …}, …]` — perché è quello che si trova nei progetti veri, e
+/// rifiutarne una vorrebbe dire un oggetto fermo senza spiegazioni.
+fn punti_movimento(v: &serde_json::Value) -> Vec<(f64, f64)> {
+    let Some(arr) = v.as_array() else { return Vec::new() };
+    arr.iter()
+        .filter_map(|p| {
+            if let Some(pair) = p.as_array() {
+                Some((pair.first()?.as_f64()?, pair.get(1)?.as_f64()?))
+            } else {
+                Some((p.get("x")?.as_f64()?, p.get("y")?.as_f64()?))
+            }
+        })
+        .collect()
+}
+
+/// L'angolo in alto a sinistra di una polilinea — l'origine da dare a un
+/// `lv_line`.
+///
+/// Non il primo punto, che è la scelta ovvia e sbagliata: `lv_line` ricava la
+/// propria dimensione dal massimo dei punti che riceve e **non si estende
+/// all'indietro**, quindi un punto con coordinata relativa negativa finisce
+/// fuori dall'oggetto e viene tagliato. Una pipe che sale, o che va verso
+/// sinistra, perdeva il tratto che tornava indietro e restava un moncone.
+///
+/// Non si vedeva perché la pipe dei modelli dimostrativi scende e va a destra:
+/// tutti i relativi erano positivi per caso. È saltata fuori il 2026-08-31 con
+/// la prima pipe agganciata, che dal gauge sale verso la barra — guardando
+/// un'istantanea, non il codice.
+fn origine_polilinea(punti: &[(f64, f64)]) -> (f64, f64) {
+    punti.iter().fold((f64::INFINITY, f64::INFINITY), |(ax, ay), (x, y)| (ax.min(*x), ay.min(*y)))
+}
+
 fn render_pipe(
     screen: &mut lvgl::Obj,
     obj: &SynopticObject,
@@ -3303,7 +4542,7 @@ fn render_pipe(
         anyhow::bail!("pipe con meno di 2 waypoint");
     }
     let assoluti: Vec<(f64, f64)> = waypoints.iter().map(|p| (p.x, p.y)).collect();
-    let (x0, y0) = assoluti[0];
+    let (ox, oy) = origine_polilinea(&assoluti);
     let sw = obj.stroke_width.unwrap_or(6.0).round() as i16;
 
     // ── Corpo del tubo: sempre tutta la polilinea, sempre il colore di stato ──
@@ -3313,11 +4552,11 @@ fn render_pipe(
     // livello — segnalato sul WP630 il 2026-08-26. Il livello non si vedeva
     // affatto: si vedeva solo "c'è del liquido / non ce n'è".
     let mut body = Line::create(screen).map_err(|e| anyhow::anyhow!("Line::create: {e:?}"))?;
-    body.set_pos(x0.round() as i16, y0.round() as i16)
+    body.set_pos(ox.round() as i16, oy.round() as i16)
         .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
     let body_pts: Vec<lvgl_sys::lv_point_t> = assoluti
         .iter()
-        .map(|(x, y)| lvgl_sys::lv_point_t { x: (x - x0).round() as i16, y: (y - y0).round() as i16 })
+        .map(|(x, y)| lvgl_sys::lv_point_t { x: (x - ox).round() as i16, y: (y - oy).round() as i16 })
         .collect();
     let body_leaked: &'static [lvgl_sys::lv_point_t] = Box::leak(body_pts.into_boxed_slice());
     let body_ptr = body.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
@@ -3341,7 +4580,7 @@ fn render_pipe(
     // tag, e leakarne uno per aggiornamento vorrebbe dire perdere memoria a
     // ogni frame.
     let mut fill = Line::create(screen).map_err(|e| anyhow::anyhow!("Line::create: {e:?}"))?;
-    fill.set_pos(x0.round() as i16, y0.round() as i16)
+    fill.set_pos(ox.round() as i16, oy.round() as i16)
         .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
     let fill_ptr = fill.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
     let mut fill_style = Style::default();
@@ -3357,7 +4596,7 @@ fn render_pipe(
 
     let spec = PipeFill {
         waypoints: assoluti,
-        origin: (x0, y0),
+        origin: (ox, oy),
         tag: obj.fill_level_tag.clone(),
         statico: obj.fill_level,
         scale: obj.fill_level_scale.clone().unwrap_or_else(|| "0-100".to_string()),
@@ -3960,6 +5199,79 @@ fn draw_symbol(canvas_ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>, id: &str, sta
 /// Deriva lo stato dai tag, stessa logica di `truthy()`/`state` in
 /// `SvgCanvas.tsx`: `alarm_tag` vince su `state_tag`, che vince sull'`off`
 /// di default.
+/// Il colore di un simbolo, tenuto conto degli stati multipli.
+///
+/// L'ordine di precedenza è quello del web: **l'allarme vince sempre**; poi, se
+/// `symbol_states` ha una voce che corrisponde al valore di `state_tag`, vince
+/// il colore di quella voce; altrimenti valgono i tre colori acceso/spento.
+///
+/// Un allarme che non si vede perché uno stato l'ha coperto è il difetto
+/// peggiore che uno SCADA possa avere, e per questo la precedenza non è
+/// configurabile.
+fn colore_simbolo(
+    state: SymbolState,
+    stati: &[TextListEntry],
+    tags: &TagSnapshot,
+    state_tag: &Option<String>,
+    off_color: &str,
+    on_color: &str,
+    alarm_color: &str,
+) -> (u8, u8, u8) {
+    if state == SymbolState::Alarm {
+        return parse_hex_color(alarm_color).unwrap_or((239, 68, 68));
+    }
+    if !stati.is_empty() {
+        if let Some(e) = match_text_list_entry(stati, lookup(tags, state_tag)) {
+            if let Some(rgb) = e.color.as_deref().and_then(parse_hex_color) {
+                return rgb;
+            }
+        }
+    }
+    let hex = if state == SymbolState::On { on_color } else { off_color };
+    parse_hex_color(hex).unwrap_or((100, 116, 139))
+}
+
+/// Il simbolo sta girando, in questo istante?
+///
+/// I tre modi del web: sempre, solo da acceso, o finché un tag è vero. Un
+/// `symbol_spin: tag` senza `symbol_spin_tag` non gira — stessa scelta di
+/// `blink_mode: tag` senza `blink_tag`: un progetto incompleto non deve
+/// diventare un'animazione perpetua.
+fn deve_girare(
+    spin: Option<&str>,
+    spin_tag: &Option<String>,
+    state: SymbolState,
+    tags: &TagSnapshot,
+) -> bool {
+    match spin {
+        Some("always") => true,
+        Some("on_state") => state == SymbolState::On,
+        Some("tag") => spin_tag
+            .as_deref()
+            .filter(|t| !t.is_empty())
+            .and_then(|t| tags.get(t))
+            .map(|tv| tag_value_as_bool(&tv.value))
+            .unwrap_or(false),
+        _ => false,
+    }
+}
+
+/// L'angolo di rotazione in questo istante, in **decimi di grado** (l'unità di
+/// `lv_obj_set_style_transform_angle`).
+///
+/// Come per il lampeggio, è aritmetica sull'orologio invece che `lv_anim`: due
+/// ventole con lo stesso periodo restano in fase, e non serve un oggetto di
+/// animazione per widget. `spin_s` è il tempo di un giro completo, come sul web.
+///
+/// L'angolo si arrotonda al grado: LVGL invalida il widget a ogni scrittura, e
+/// scrivere trentadue decimi di grado di differenza a ogni frame farebbe
+/// ridisegnare il simbolo trenta volte al secondo per un movimento invisibile.
+fn angolo_rotazione(now_ms: u64, spin_s: f64) -> i16 {
+    let periodo_ms = (spin_s.max(0.05) * 1000.0) as u64;
+    let fase = (now_ms % periodo_ms) as f64 / periodo_ms as f64;
+    ((fase * 360.0).round() as i16 % 360) * 10
+}
+
 fn resolve_symbol_state(tags: &TagSnapshot, state_tag: &Option<String>, alarm_tag: &Option<String>) -> SymbolState {
     let truthy = |tag: &Option<String>| -> bool {
         lookup(tags, tag).map(|t| tag_value_as_f64(&t.value) != 0.0).unwrap_or(false)
@@ -4099,20 +5411,48 @@ fn render_symbol(screen: &mut lvgl::Obj, obj: &SynopticObject, tags: &TagSnapsho
     let off_color = obj.state_off_color.clone().unwrap_or_else(|| "#64748b".to_string());
     let on_color = obj.state_on_color.clone().unwrap_or_else(|| "#22c55e".to_string());
     let alarm_color = obj.state_alarm_color.clone().unwrap_or_else(|| "#ef4444".to_string());
-    let state = resolve_symbol_state(tags, &obj.state_tag, &obj.alarm_tag);
-    let state_hex = match state {
-        SymbolState::Off => &off_color,
-        SymbolState::On => &on_color,
-        SymbolState::Alarm => &alarm_color,
+    // `symbol_states` resta `serde_json::Value` nel modello e si converte qui,
+    // con tolleranza. Tipizzarlo nel modello significherebbe che un progetto
+    // con una voce malformata non apre più **la pagina intera** — e finché il
+    // campo non veniva letto da nessuno, voci malformate potevano accumularsi
+    // senza che niente le segnalasse. Qui una voce che non si legge costa un
+    // simbolo a due stati invece che a cinque, e lo dice nel registro.
+    let stati: Vec<TextListEntry> = match obj.symbol_states.clone() {
+        None => Vec::new(),
+        Some(v) => match serde_json::from_value::<Vec<TextListEntry>>(v) {
+            Ok(e) => e,
+            Err(e) => {
+                eprintln!(
+                    "[symbol] '{}': `symbol_states` illeggibile ({e}) — resto ai colori acceso/spento",
+                    obj.id.as_deref().unwrap_or("?")
+                );
+                Vec::new()
+            }
+        },
     };
-    let state_c = parse_hex_color(state_hex).unwrap_or((100, 116, 139));
+    let state = resolve_symbol_state(tags, &obj.state_tag, &obj.alarm_tag);
+    let state_c = colore_simbolo(state, &stati, tags, &obj.state_tag, &off_color, &on_color, &alarm_color);
     draw_symbol(canvas_ptr, &symbol_id, state, state_c, w, h);
+
+    // Il perno della rotazione al centro del simbolo: senza, LVGL ruota
+    // attorno all'angolo in alto a sinistra e la ventola se ne va per la
+    // tangente invece di girare su se stessa.
+    unsafe {
+        lvgl_sys::lv_obj_set_style_transform_pivot_x(canvas_ptr.as_ptr(), w / 2, 0);
+        lvgl_sys::lv_obj_set_style_transform_pivot_y(canvas_ptr.as_ptr(), h / 2, 0);
+    }
 
     Ok(LiveBinding {
         kind: LiveKind::Symbol {
             canvas_ptr, buf, w, h, symbol_id,
             state_tag: obj.state_tag.clone(), alarm_tag: obj.alarm_tag.clone(),
             off_color, on_color, alarm_color, last_state: Some(state),
+            stati,
+            last_rgb: Some(state_c),
+            spin: obj.symbol_spin.clone(),
+            spin_tag: obj.symbol_spin_tag.clone(),
+            spin_s: obj.symbol_spin_s.filter(|v| *v > 0.0).unwrap_or(2.0),
+            last_angolo: i16::MIN,
         },
     })
 }
@@ -4765,7 +6105,15 @@ pub fn render_page_objects(
     // invece di una coda dedicata (vedi `render_lang_button`).
     let own_page_id = page.id.clone().unwrap_or_default();
 
-    for obj in &page.objects {
+    // Lo schermo come puntatore grezzo, preso una volta: serve dentro il ciclo
+    // per contare i figli, e prenderlo lì significherebbe un secondo prestito
+    // mutabile mentre `dispatch_render` tiene il suo.
+    let screen_ptr = screen.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?.as_ptr();
+
+    // Ordine di sovrapposizione: vedi `sort_by_z`. Va fatto qui e non dentro
+    // `dispatch_render`, perché è una proprietà della pagina — l'ordine di
+    // creazione dei figli — non del singolo oggetto.
+    for obj in sort_by_z(&page.objects) {
         let (Some(id), Some(obj_type)) = (obj.id.as_deref(), obj.obj_type.as_deref()) else {
             continue; // oggetto senza id/type: dato malformato, ignorato silenziosamente
         };
@@ -4778,6 +6126,15 @@ pub fn render_page_objects(
         // — vedi STATUS.md, va fatto col resto della parità F9c.
         let bound = apply_bindings(obj, tags);
         let obj = bound.as_ref().unwrap_or(obj);
+        // Pipe agganciate: i capi vanno risolti sugli oggetti veri della
+        // pagina, non sui punti scritti nel file. Va fatto qui e non dentro
+        // `render_pipe`, che vede solo il proprio oggetto — la lista completa
+        // ce l'ha solo il ciclo.
+        let ancorata = punti_ancorati(obj, &page.objects).map(|punti| SynopticObject {
+            points: Some(punti),
+            ..obj.clone()
+        });
+        let obj = ancorata.as_ref().unwrap_or(obj);
         if !is_visible(obj, tags) {
             continue;
         }
@@ -4785,10 +6142,31 @@ pub fn render_page_objects(
             summary.skipped_unsupported.push(format!("{id} ({obj_type})"));
             continue;
         }
+        // Quanti figli aveva lo schermo prima: quelli che compaiono dopo sono
+        // di questo oggetto, ed è così che `opacity` li raggiunge tutti senza
+        // che ogni `render_*` debba restituire i propri widget.
+        let figli_prima = unsafe { lvgl_sys::lv_obj_get_child_cnt(screen_ptr) };
         let result: anyhow::Result<()> = dispatch_render(
             &mut screen, obj_type, obj, &mut styles, tags, tag_tx, nav_tx, base_url, rt_handle, shared_alarms, ack_tx,
             lang_table, shared_lang, &own_page_id, &mut live,
         );
+        // Anche quando il render è fallito a metà: se qualche figlio è già
+        // nato, deve avere l'opacità che l'oggetto dichiara, non essere
+        // l'unico pezzo pienamente opaco della pagina.
+        if let Some(opa) = opa_from_opacity(obj.opacity) {
+            unsafe { apply_opacity_from(screen_ptr, figli_prima, opa) };
+        }
+        // Effetti di stato (lampeggio, dato vecchio, qualità, bordo d'allarme).
+        // Dopo l'opacità perché ne parte: `opa_base` è ciò che il progettista
+        // ha dichiarato, e lampeggio e attenuazione ci scrivono sopra.
+        if let Some(fx) = crea_effetti(screen_ptr, obj, figli_prima, tags, shared_alarms) {
+            live.push(fx);
+        }
+        // Movimento su percorso: cattura gli stessi figli, con la posizione
+        // che hanno appena nati — è da quella che lo scostamento si misura.
+        if let Some(mv) = crea_movimento(screen_ptr, obj, figli_prima) {
+            live.push(mv);
+        }
         match result {
             Ok(()) => summary.rendered.push(format!("{id} ({obj_type})")),
             Err(e) => summary.skipped_unsupported.push(format!("{id} ({obj_type}) — errore: {e}")),
@@ -4796,7 +6174,7 @@ pub fn render_page_objects(
     }
 
     unsafe {
-        let new_scr_ptr = screen.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?.as_ptr();
+        let new_scr_ptr = screen_ptr;
         // lv_disp_load_scr (dietro lv_scr_load, vedi commento della
         // funzione): rende attivo il nuovo schermo. Il vecchio smette di
         // essere quello attivo ma non viene distrutto da questa chiamata
@@ -4816,6 +6194,118 @@ pub fn render_page_objects(
 /// di `Style` qui: quelli esistenti vengono mutati sul posto e "rinfrescati"
 /// con `lv_obj_refresh_style` (mutare le proprietà di uno `Style` già
 /// assegnato non basta da solo — LVGL cache lo stile calcolato per oggetto).
+/// Rimanda a LVGL solo ciò che è cambiato davvero.
+///
+/// Chiamata a ogni frame da `update_bindings`. Il confronto con `ultimo` non è
+/// un'ottimizzazione facoltativa: `lv_obj_set_style_*` invalida l'oggetto, e
+/// senza il confronto una pagina con dieci oggetti "in effetti" si ridisegnerebbe
+/// per intero trenta volte al secondo anche stando perfettamente ferma.
+#[allow(clippy::too_many_arguments)]
+fn update_effects(
+    figli: &[*mut lvgl_sys::lv_obj_t],
+    opa_base: u8,
+    lampeggio: &effects::Lampeggio,
+    rate_ms: u32,
+    tag: &Option<String>,
+    stale_after_s: Option<f64>,
+    bad_gray: bool,
+    shared: &SharedAlarms,
+    bordo: Option<*mut lvgl_sys::lv_obj_t>,
+    pallino: Option<*mut lvgl_sys::lv_obj_t>,
+    dot: (&Option<String>, &Option<String>, &Option<String>),
+    ultimo: &mut AppliedFx,
+    tags: &TagSnapshot,
+) {
+    let now_ms = client::now_unix_ms();
+    let allarmi = shared.lock().unwrap_or_else(|e| e.into_inner());
+
+    // ── lampeggio e attenuazione ──────────────────────────────────────────
+    let acceso = effects::deve_lampeggiare(lampeggio, tag.as_deref(), tags, &allarmi)
+        && !effects::fase_accesa(now_ms, rate_ms);
+    let tv = tag.as_deref().and_then(|t| tags.get(t));
+    let attenuato = effects::attenuato(stale_after_s, bad_gray, tv, now_ms);
+    let opa = effects::opa_finale(opa_base, attenuato, acceso);
+
+    if opa != ultimo.opa {
+        for f in figli {
+            unsafe { lvgl_sys::lv_obj_set_style_opa(*f, opa, 0) };
+        }
+        ultimo.opa = opa;
+    }
+    if attenuato != ultimo.grigio {
+        for f in figli {
+            unsafe {
+                lvgl_sys::lv_obj_set_style_color_filter_dsc(*f, &FILTRO_GRIGIO.0, 0);
+                // Il descrittore resta attaccato; a spegnere il filtro è
+                // l'opacità a zero. Rimuoverlo costerebbe una ricerca di stile
+                // in più senza cambiare il risultato.
+                lvgl_sys::lv_obj_set_style_color_filter_opa(
+                    *f,
+                    if attenuato { effects::FILTRO_GRIGIO_OPA } else { 0 },
+                    0,
+                );
+            }
+        }
+        ultimo.grigio = attenuato;
+    }
+
+    // ── bordo d'allarme ───────────────────────────────────────────────────
+    if let Some(b) = bordo {
+        let a = tag.as_deref().and_then(|t| effects::allarme_su_tag(&allarmi, t));
+        let visibile = a.is_some();
+        if visibile != ultimo.bordo_visibile {
+            unsafe {
+                if visibile {
+                    lvgl_sys::lv_obj_clear_flag(b, lvgl_sys::LV_OBJ_FLAG_HIDDEN);
+                } else {
+                    lvgl_sys::lv_obj_add_flag(b, lvgl_sys::LV_OBJ_FLAG_HIDDEN);
+                }
+            }
+            ultimo.bordo_visibile = visibile;
+        }
+        if let Some(a) = a {
+            let rgb = effects::colore_severita(&a.severita);
+            if Some(rgb) != ultimo.bordo_rgb {
+                unsafe {
+                    lvgl_sys::lv_obj_set_style_border_color(b, Color::from_rgb(rgb).into(), 0)
+                };
+                ultimo.bordo_rgb = Some(rgb);
+            }
+            // Il bordo lampeggia finché nessuno ha riconosciuto l'allarme,
+            // anche quando l'oggetto incorniciato sta fermo — è il
+            // comportamento del web, e serve: un allarme nuovo si distingue da
+            // uno già visto senza leggere niente.
+            let bordo_acceso = a.riconosciuto || effects::fase_accesa(now_ms, effects::BLINK_MS_DEFAULT);
+            if bordo_acceso != ultimo.bordo_acceso {
+                unsafe {
+                    lvgl_sys::lv_obj_set_style_border_opa(
+                        b,
+                        if bordo_acceso { 255 } else { effects::OPA_LAMPEGGIO_SPENTO },
+                        0,
+                    )
+                };
+                ultimo.bordo_acceso = bordo_acceso;
+            }
+        }
+    }
+
+    // ── pallino di qualità ────────────────────────────────────────────────
+    if let Some(p) = pallino {
+        if let Some(tv) = tv {
+            let rgb = effects::colore_qualita(
+                &tv.quality,
+                dot.0.as_deref(),
+                dot.1.as_deref(),
+                dot.2.as_deref(),
+            );
+            if Some(rgb) != ultimo.dot_rgb {
+                unsafe { lvgl_sys::lv_obj_set_style_bg_color(p, Color::from_rgb(rgb).into(), 0) };
+                ultimo.dot_rgb = Some(rgb);
+            }
+        }
+    }
+}
+
 /// Quanta memoria occupano le bitmap SVG di questa pagina.
 ///
 /// Il numero su cui si giocava tutta la decisione D2 — vale la pena vederlo a
@@ -4833,7 +6323,43 @@ pub fn svg_bitmap_bytes(bindings: &[LiveBinding]) -> usize {
 
 pub fn update_bindings(bindings: &mut [LiveBinding], tags: &TagSnapshot) {
     for b in bindings {
+        if let LiveKind::Effects {
+            figli, opa_base, lampeggio, rate_ms, tag, stale_after_s, bad_gray, shared,
+            bordo, pallino, dot_buono, dot_cattivo, dot_incerto, ultimo,
+        } = &mut b.kind
+        {
+            update_effects(
+                figli, *opa_base, lampeggio, *rate_ms, tag, *stale_after_s, *bad_gray, shared,
+                *bordo, *pallino, (dot_buono, dot_cattivo, dot_incerto), ultimo, tags,
+            );
+            continue;
+        }
         match &mut b.kind {
+            // Già trattato dal blocco sopra, che fa `continue`: qui non arriva
+            // mai. Il ramo c'è perché il `match` resti esaustivo senza un
+            // `_ => {}`, che zittirebbe il compilatore anche sulle varianti che
+            // verranno.
+            LiveKind::Effects { .. } => {}
+            LiveKind::Motion { widgets, percorso, tag, min, max, ancora, applied_dx, applied_dy } => {
+                let Some(tv) = tags.get(tag.as_str()) else { continue };
+                let Some(t) = frazione_movimento(tag_value_as_f64(&tv.value), *min, *max) else {
+                    continue;
+                };
+                let Some((px, py)) = punto_a_frazione(percorso, t) else { continue };
+                let dx = (px - ancora.0).round() as i16;
+                let dy = (py - ancora.1).round() as i16;
+                if dx == *applied_dx && dy == *applied_dy {
+                    continue;
+                }
+                for w in widgets.iter() {
+                    unsafe {
+                        lvgl_sys::lv_obj_set_x(w.ptr.as_ptr(), w.start_x + dx);
+                        lvgl_sys::lv_obj_set_y(w.ptr.as_ptr(), w.start_y + dy);
+                    }
+                }
+                *applied_dx = dx;
+                *applied_dy = dy;
+            }
             LiveKind::PipeFill { fill_ptr, spec, buf, last_level } => {
                 let level = spec.level(tags);
                 // Si ridisegna solo a variazione percettibile: ricostruire la
@@ -4935,15 +6461,34 @@ pub fn update_bindings(bindings: &mut [LiveBinding], tags: &TagSnapshot) {
                     }
                 }
             }
-            LiveKind::Gauge { ptr, needle_indic, arc_indic, value_ptr, tag, min, max, unit } => {
+            LiveKind::Gauge {
+                ptr, needle_indic, arc_indic, value_ptr, tag, min, max, unit,
+                soglie, rgb_base, rgb_arco,
+            } => {
                 let raw = lookup(tags, tag)
                     .map(|t| tag_value_as_f64(&t.value))
                     .unwrap_or(*min)
                     .clamp(min.min(*max), min.max(*max));
                 let unit_suffix = unit.as_deref().map(|u| format!(" {u}")).unwrap_or_default();
+                // Il colore dell'arco segue la fascia di soglia, dal vivo.
+                //
+                // `lv_meter` non espone un setter per il colore di un
+                // indicatore già creato, ma il colore è un campo pubblico
+                // della struct che LVGL rilegge a ogni disegno: scriverlo e
+                // invalidare il widget fa esattamente ciò che servirebbe a un
+                // setter. Ricreare l'indicatore a ogni cambio di fascia
+                // funzionerebbe pure, ma lascerebbe dietro il vecchio (LVGL
+                // non li dealloca fino alla distruzione del meter).
+                let voluto = threshold_color(raw, soglie.0, soglie.1, soglie.2, soglie.3)
+                    .unwrap_or(*rgb_base);
                 unsafe {
                     lvgl_sys::lv_meter_set_indicator_value(ptr.as_ptr(), *needle_indic, raw.round() as i32);
                     lvgl_sys::lv_meter_set_indicator_end_value(ptr.as_ptr(), *arc_indic, raw.round() as i32);
+                    if voluto != *rgb_arco && !arc_indic.is_null() {
+                        (**arc_indic).type_data.arc.color = Color::from_rgb(voluto).into();
+                        lvgl_sys::lv_obj_invalidate(ptr.as_ptr());
+                        *rgb_arco = voluto;
+                    }
                     lvgl_sys::lv_label_set_text(
                         value_ptr.as_ptr(),
                         text_cstring(&format!("{raw:.1}{unit_suffix}")).as_ptr(),
@@ -5025,14 +6570,52 @@ pub fn update_bindings(bindings: &mut [LiveBinding], tags: &TagSnapshot) {
             LiveKind::XyPlot { ptr, ser, x_tag, y_tag, trail_s, samples, last_sample_ms, x_min, x_max, y_min, y_max } => {
                 update_xy_plot(*ptr, *ser, tags, x_tag, y_tag, *trail_s, samples, last_sample_ms, *x_min, *x_max, *y_min, *y_max);
             }
-            LiveKind::PieChart { canvas_ptr, w, h, slices, inner_ratio, last_values, .. } => {
+            LiveKind::PieChart {
+                canvas_ptr, w, h, slices, inner_ratio, last_values, gruppo, foro,
+                etichette, modo_etichetta, decimali, centro, centro_tag, centro_formato, ..
+            } => {
                 let values: Vec<f64> = slices
                     .iter()
                     .map(|s| lookup(tags, &Some(s.tag.clone())).map(|t| tag_value_as_f64(&t.value)).unwrap_or(0.0).max(0.0))
                     .collect();
                 if values != *last_values {
-                    draw_pie_donut(*canvas_ptr, *w, *h, slices, &values, *inner_ratio);
+                    let posti = draw_pie_donut(*canvas_ptr, *w, *h, slices, &values, *inner_ratio, gruppo, *foro);
+                    // Le etichette seguono gli spicchi: quelle in più (o tutte,
+                    // se il grafico è a zero) si nascondono invece di restare
+                    // dov'erano con l'ultimo testo buono — un numero fermo su un
+                    // grafico vuoto è peggio di nessun numero.
+                    for (i, l) in etichette.iter().enumerate() {
+                        match posti.get(i) {
+                            Some(p) if p.frazione >= 0.05 => unsafe {
+                                // Sotto il 5% l'etichetta non ci sta nello
+                                // spicchio e si sovrappone a quella accanto:
+                                // meglio nessuna che due illeggibili.
+                                lvgl_sys::lv_obj_clear_flag(l.as_ptr(), lvgl_sys::LV_OBJ_FLAG_HIDDEN);
+                                let testo = etichetta_spicchio(
+                                    modo_etichetta.as_deref(), p.frazione, p.valore, &p.etichetta, *decimali,
+                                );
+                                lvgl_sys::lv_label_set_text(l.as_ptr(), text_cstring(&testo).as_ptr());
+                                lvgl_sys::lv_obj_update_layout(l.as_ptr());
+                                let lw = lvgl_sys::lv_obj_get_width(l.as_ptr());
+                                let lh = lvgl_sys::lv_obj_get_height(l.as_ptr());
+                                lvgl_sys::lv_obj_set_pos(l.as_ptr(), p.x - lw / 2, p.y - lh / 2);
+                            },
+                            _ => unsafe { lvgl_sys::lv_obj_add_flag(l.as_ptr(), lvgl_sys::LV_OBJ_FLAG_HIDDEN) },
+                        }
+                    }
                     *last_values = values;
+                }
+                // Il testo al centro segue il suo tag, che può cambiare anche
+                // quando gli spicchi non cambiano.
+                if let (Some(c), Some(t)) = (centro.as_ref(), centro_tag.as_deref()) {
+                    if let Some(tv) = tags.get(t) {
+                        let grezzo = tag_value_as_string(&tv.value);
+                        let testo = match centro_formato.as_deref() {
+                            Some(f) => f.replace("{value}", &grezzo),
+                            None => grezzo,
+                        };
+                        unsafe { lvgl_sys::lv_label_set_text(c.as_ptr(), text_cstring(&testo).as_ptr()) };
+                    }
                 }
             }
             LiveKind::Setpoint { value_ptr, tag, unit } => {
@@ -5050,17 +6633,30 @@ pub fn update_bindings(bindings: &mut [LiveBinding], tags: &TagSnapshot) {
             LiveKind::AlarmBell { shared, badge_ptr, row_ptrs, prefix, allowed_sev, last_count } => {
                 update_alarm_bell(shared, *badge_ptr, row_ptrs, prefix, allowed_sev.as_deref(), last_count);
             }
-            LiveKind::Symbol { canvas_ptr, w, h, symbol_id, state_tag, alarm_tag, off_color, on_color, alarm_color, last_state, buf: _ } => {
+            LiveKind::Symbol {
+                canvas_ptr, w, h, symbol_id, state_tag, alarm_tag, off_color, on_color, alarm_color,
+                last_state, stati, last_rgb, spin, spin_tag, spin_s, last_angolo, buf: _,
+            } => {
                 let state = resolve_symbol_state(tags, state_tag, alarm_tag);
-                if Some(state) != *last_state {
-                    let hex = match state {
-                        SymbolState::Off => off_color.as_str(),
-                        SymbolState::On => on_color.as_str(),
-                        SymbolState::Alarm => alarm_color.as_str(),
-                    };
-                    let rgb = parse_hex_color(hex).unwrap_or((100, 116, 139));
+                let rgb = colore_simbolo(state, stati, tags, state_tag, off_color, on_color, alarm_color);
+                // Si ridisegna se cambia lo **stato** o il **colore**: con gli
+                // stati multipli due stati diversi possono essere entrambi
+                // "acceso" con colori diversi, e guardare solo lo stato
+                // lascerebbe il simbolo del colore di prima.
+                if Some(state) != *last_state || Some(rgb) != *last_rgb {
                     draw_symbol(*canvas_ptr, symbol_id, state, rgb, *w, *h);
                     *last_state = Some(state);
+                    *last_rgb = Some(rgb);
+                }
+                let gira = deve_girare(spin.as_deref(), spin_tag, state, tags);
+                let angolo = if gira {
+                    angolo_rotazione(client::now_unix_ms(), *spin_s)
+                } else {
+                    0
+                };
+                if angolo != *last_angolo {
+                    unsafe { lvgl_sys::lv_obj_set_style_transform_angle(canvas_ptr.as_ptr(), angolo, 0) };
+                    *last_angolo = angolo;
                 }
             }
             LiveKind::Geometry {
@@ -5541,7 +7137,7 @@ mod binding_tests {
         pairs
             .iter()
             .map(|(k, v)| {
-                (k.to_string(), TagSnapshotValue { value: v.clone(), quality: TagQuality::Good })
+                (k.to_string(), TagSnapshotValue { value: v.clone(), quality: TagQuality::Good, ts: 0 })
             })
             .collect()
     }
@@ -5979,5 +7575,552 @@ mod binding_tests {
             partial_polyline(&[(5.0, 5.0), (5.0, 5.0)], 0.5, true).is_empty(),
             "waypoint coincidenti: lunghezza zero, niente da riempire"
         );
+    }
+
+    // ── z_index e opacity (passo 3) ────────────────────────────────────────
+
+    fn ogg(id: &str, z: Option<i32>) -> SynopticObject {
+        SynopticObject {
+            id: Some(id.to_string()),
+            obj_type: Some("rect".to_string()),
+            z_index: z,
+            ..Default::default()
+        }
+    }
+
+    fn ordine(objs: &[SynopticObject]) -> Vec<String> {
+        sort_by_z(objs).iter().map(|o| o.id.clone().unwrap()).collect()
+    }
+
+    #[test]
+    fn lo_z_index_decide_chi_sta_sopra() {
+        let objs = vec![ogg("sopra", Some(10)), ogg("sotto", Some(-5)), ogg("mezzo", Some(0))];
+        // Ultimo creato = disegnato sopra, come SVG con l'ordine del documento.
+        assert_eq!(ordine(&objs), vec!["sotto", "mezzo", "sopra"]);
+    }
+
+    /// A parità di `z_index` vince chi viene dopo nella lista — è la regola di
+    /// `sortByZ` in `SvgCanvas.tsx`, e senza stabilità due oggetti sovrapposti
+    /// si scambierebbero di posto fra una pagina e l'altra senza motivo.
+    #[test]
+    fn a_parita_di_z_lordine_della_lista_resta()  {
+        let objs = vec![ogg("a", Some(1)), ogg("b", Some(1)), ogg("c", Some(1))];
+        assert_eq!(ordine(&objs), vec!["a", "b", "c"]);
+    }
+
+    /// Senza `z_index` un oggetto sta nella fascia dello zero, **non** sotto
+    /// tutti: altrimenti bastasse dare `z_index: -1` a un solo oggetto per
+    /// farsi scavalcare da tutti quelli che non lo dichiarano.
+    #[test]
+    fn chi_non_dichiara_z_sta_nella_fascia_dello_zero() {
+        let objs = vec![ogg("negativo", Some(-1)), ogg("muto", None), ogg("positivo", Some(1))];
+        assert_eq!(ordine(&objs), vec!["negativo", "muto", "positivo"]);
+    }
+
+    #[test]
+    fn lopacita_del_web_diventa_quella_di_lvgl() {
+        assert_eq!(opa_from_opacity(Some(0.0)), Some(0), "trasparente");
+        assert_eq!(opa_from_opacity(Some(0.5)), Some(128), "mezzo velo");
+        assert_eq!(opa_from_opacity(Some(1.0)), None, "opaco: nessun layer da pagare");
+        assert_eq!(opa_from_opacity(None), None, "non dichiarata: opaco");
+    }
+
+    /// Un valore fuori scala scritto a mano in YAML significa "opaco" o
+    /// "trasparente", non "pagina rotta": si riporta dentro invece di
+    /// rifiutare l'oggetto.
+    #[test]
+    fn unopacita_fuori_scala_non_rompe_la_pagina() {
+        assert_eq!(opa_from_opacity(Some(1.5)), None, "oltre l'opaco resta opaco");
+        assert_eq!(opa_from_opacity(Some(-0.2)), Some(0), "sotto zero resta trasparente");
+        assert_eq!(opa_from_opacity(Some(f64::NAN)), None);
+        assert_eq!(opa_from_opacity(Some(f64::INFINITY)), None);
+    }
+
+    // ── pipe agganciate agli oggetti (passo 6) ────────────────────────────
+
+    fn scatola(id: &str, tipo: &str, x: f64, y: f64, w: f64, h: f64) -> SynopticObject {
+        SynopticObject {
+            id: Some(id.into()),
+            obj_type: Some(tipo.into()),
+            x: Some(x), y: Some(y), width: Some(w), height: Some(h),
+            ..Default::default()
+        }
+    }
+
+    fn tubo(from: Option<&str>, fp: Option<&str>, to: Option<&str>, tp: Option<&str>,
+            punti: Option<Vec<(f64, f64)>>) -> SynopticObject {
+        SynopticObject {
+            id: Some("t".into()),
+            obj_type: Some("pipe".into()),
+            from_obj_id: from.map(String::from),
+            from_port: fp.map(String::from),
+            to_obj_id: to.map(String::from),
+            to_port: tp.map(String::from),
+            points: punti.map(|v| v.into_iter().map(|(x, y)| PipePoint { x, y }).collect()),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn le_porte_cadono_sui_lati_del_riquadro() {
+        let o = scatola("a", "rect", 100.0, 200.0, 60.0, 40.0);
+        assert_eq!((ancora_di(&o, Some("top")).x, ancora_di(&o, Some("top")).y), (130.0, 200.0));
+        assert_eq!((ancora_di(&o, Some("bottom")).x, ancora_di(&o, Some("bottom")).y), (130.0, 240.0));
+        assert_eq!((ancora_di(&o, Some("left")).x, ancora_di(&o, Some("left")).y), (100.0, 220.0));
+        assert_eq!((ancora_di(&o, Some("right")).x, ancora_di(&o, Some("right")).y), (160.0, 220.0));
+        assert_eq!((ancora_di(&o, None).x, ancora_di(&o, None).y), (130.0, 220.0), "senza porta: centro");
+        assert_eq!((ancora_di(&o, Some("nord-ovest")).x, ancora_di(&o, Some("nord-ovest")).y), (130.0, 220.0),
+                   "porta sconosciuta: centro, come sul web");
+    }
+
+    /// Una `line` non ha riquadro, ha punti: larghezza e altezza valgono zero e
+    /// tutte le porte cadono sulla sua origine. È il caso speciale che il web
+    /// tratta a parte, e senza il quale una pipe agganciata a una linea
+    /// finirebbe 40 pixel più in là per via del default 80.
+    #[test]
+    fn una_linea_non_ha_riquadro_su_cui_agganciarsi() {
+        let l = SynopticObject {
+            id: Some("l".into()), obj_type: Some("line".into()),
+            x: Some(10.0), y: Some(20.0), ..Default::default()
+        };
+        for porta in ["top", "bottom", "left", "right", "center"] {
+            let a = ancora_di(&l, Some(porta));
+            assert_eq!((a.x, a.y), (10.0, 20.0), "porta {porta}");
+        }
+    }
+
+    #[test]
+    fn i_capi_si_spostano_sugli_oggetti_agganciati() {
+        let oggetti = vec![
+            scatola("pompa", "rect", 0.0, 0.0, 100.0, 100.0),
+            scatola("serbatoio", "rect", 400.0, 200.0, 200.0, 100.0),
+        ];
+        let t = tubo(Some("pompa"), Some("right"), Some("serbatoio"), Some("left"),
+                     Some(vec![(0.0, 0.0), (200.0, 50.0), (0.0, 0.0)]));
+        let p = punti_ancorati(&t, &oggetti).expect("agganciata");
+        assert_eq!((p[0].x, p[0].y), (100.0, 50.0), "capo su pompa/right");
+        assert_eq!((p[1].x, p[1].y), (200.0, 50.0), "il waypoint di mezzo non si tocca");
+        assert_eq!((p[2].x, p[2].y), (400.0, 250.0), "capo su serbatoio/left");
+    }
+
+    /// Una pipe senza punti espliciti ma agganciata a due oggetti è comunque
+    /// disegnabile: due estremi bastano a fare un segmento. È il caso che
+    /// produce l'IDE quando si tira una pipe da un oggetto all'altro.
+    #[test]
+    fn due_capi_agganciati_bastano_anche_senza_punti() {
+        let oggetti = vec![
+            scatola("a", "rect", 0.0, 0.0, 50.0, 50.0),
+            scatola("b", "rect", 300.0, 0.0, 50.0, 50.0),
+        ];
+        let p = punti_ancorati(&tubo(Some("a"), None, Some("b"), None, None), &oggetti)
+            .expect("disegnabile");
+        assert_eq!(p.len(), 2);
+        assert_eq!((p[0].x, p[0].y), (25.0, 25.0));
+        assert_eq!((p[1].x, p[1].y), (325.0, 25.0));
+    }
+
+    /// Un riferimento a un oggetto che non c'è lascia il capo dov'era: deve
+    /// dare una pipe storta, non una pagina in meno. È la scelta del web.
+    #[test]
+    fn un_riferimento_rotto_non_fa_sparire_la_pipe() {
+        let oggetti = vec![scatola("a", "rect", 0.0, 0.0, 50.0, 50.0)];
+        let t = tubo(Some("fantasma"), None, Some("a"), Some("top"),
+                     Some(vec![(7.0, 7.0), (9.0, 9.0)]));
+        let p = punti_ancorati(&t, &oggetti).expect("resta disegnabile");
+        assert_eq!((p[0].x, p[0].y), (7.0, 7.0), "il capo rotto resta dov'era");
+        assert_eq!((p[1].x, p[1].y), (25.0, 0.0), "l'altro si aggancia lo stesso");
+    }
+
+    #[test]
+    fn una_pipe_senza_ancoraggi_non_viene_clonata() {
+        let t = tubo(None, None, None, None, Some(vec![(1.0, 2.0), (3.0, 4.0)]));
+        assert!(punti_ancorati(&t, &[]).is_none(),
+                "niente da agganciare: nessun lavoro e nessuna copia");
+    }
+
+    /// Un capo solo agganciato e nessun punto esplicito: non c'è un segmento
+    /// da disegnare, e inventarne uno metterebbe una pipe verso l'origine.
+    #[test]
+    fn un_capo_solo_senza_punti_non_inventa_una_pipe() {
+        let oggetti = vec![scatola("a", "rect", 0.0, 0.0, 50.0, 50.0)];
+        assert!(punti_ancorati(&tubo(Some("a"), None, None, None, None), &oggetti).is_none());
+    }
+
+
+    #[test]
+    fn lorigine_di_una_polilinea_e_langolo_in_alto_a_sinistra() {
+        // Scende e va a destra: il primo punto È l'angolo, ed è il caso che
+        // nascondeva il difetto.
+        assert_eq!(origine_polilinea(&[(10.0, 10.0), (50.0, 80.0)]), (10.0, 10.0));
+        // Sale: l'angolo non è il primo punto.
+        assert_eq!(origine_polilinea(&[(280.0, 297.0), (340.0, 230.0)]), (280.0, 230.0));
+        // Va indietro e in su.
+        assert_eq!(origine_polilinea(&[(500.0, 500.0), (100.0, 200.0), (300.0, 50.0)]), (100.0, 50.0));
+    }
+
+    /// Con l'origine sbagliata i punti relativi diventano negativi, e `lv_line`
+    /// li taglia. Questo è il test che avrebbe pescato il difetto.
+    #[test]
+    fn con_la_giusta_origine_nessun_punto_relativo_e_negativo() {
+        for polilinea in [
+            vec![(280.0, 297.0), (340.0, 230.0)],
+            vec![(500.0, 500.0), (100.0, 200.0), (300.0, 50.0)],
+            vec![(0.0, 0.0), (-40.0, -40.0)],
+        ] {
+            let (ox, oy) = origine_polilinea(&polilinea);
+            for (x, y) in &polilinea {
+                assert!(x - ox >= 0.0 && y - oy >= 0.0, "{polilinea:?} → origine ({ox},{oy})");
+            }
+        }
+    }
+
+
+    // ── testo a capo, allineamento verticale, interlinea (passo 7) ────────
+
+    #[test]
+    fn le_nove_combinazioni_di_allineamento_corrispondono_al_web() {
+        use lvgl_sys::*;
+        let casi = [
+            (None,           None,           LV_ALIGN_TOP_LEFT),
+            (None,           Some("middle"), LV_ALIGN_TOP_MID),
+            (None,           Some("end"),    LV_ALIGN_TOP_RIGHT),
+            (Some("middle"), None,           LV_ALIGN_LEFT_MID),
+            (Some("middle"), Some("middle"), LV_ALIGN_CENTER),
+            (Some("middle"), Some("end"),    LV_ALIGN_RIGHT_MID),
+            (Some("bottom"), None,           LV_ALIGN_BOTTOM_LEFT),
+            (Some("bottom"), Some("middle"), LV_ALIGN_BOTTOM_MID),
+            (Some("bottom"), Some("end"),    LV_ALIGN_BOTTOM_RIGHT),
+        ];
+        for (v, a, atteso) in casi {
+            assert_eq!(allineamento_riquadro(v, a), atteso, "valign={v:?} anchor={a:?}");
+        }
+    }
+
+    /// Un valore scritto male deve dare un testo nel posto ovvio, non un testo
+    /// invisibile: si ricade su alto/sinistra, il default del web.
+    #[test]
+    fn un_allineamento_sconosciuto_ricade_in_alto_a_sinistra() {
+        assert_eq!(allineamento_riquadro(Some("centro"), Some("destra")), lvgl_sys::LV_ALIGN_TOP_LEFT);
+    }
+
+    #[test]
+    fn linterlinea_del_web_diventa_pixel_di_lvgl() {
+        // 1.25 su corpo 14 → 3.5 px di spazio in più, arrotondato a 4.
+        assert_eq!(spazio_fra_righe(Some(1.25), 14.0), 4);
+        assert_eq!(spazio_fra_righe(None, 14.0), 4, "il default del web è 1.25");
+        assert_eq!(spazio_fra_righe(Some(2.0), 20.0), 20);
+        assert_eq!(spazio_fra_righe(Some(1.0), 14.0), 0, "righe attaccate: nessuno spazio in più");
+    }
+
+    /// In CSS un `line-height` sotto 1 stringe le righe; LVGL non accetta
+    /// spaziature negative, quindi vale zero. Meglio righe attaccate che una
+    /// pagina che non si disegna.
+    #[test]
+    fn uninterlinea_impossibile_vale_zero() {
+        assert_eq!(spazio_fra_righe(Some(0.5), 14.0), 0);
+        assert_eq!(spazio_fra_righe(Some(-3.0), 14.0), 0);
+        assert_eq!(spazio_fra_righe(Some(f64::NAN), 14.0), 0);
+        assert_eq!(spazio_fra_righe(Some(f64::INFINITY), 14.0), 0);
+    }
+
+    #[test]
+    fn lallineamento_delle_righe_segue_lancoraggio() {
+        assert_eq!(allineamento_righe(Some("middle")), lvgl_sys::LV_TEXT_ALIGN_CENTER as u8);
+        assert_eq!(allineamento_righe(Some("end")), lvgl_sys::LV_TEXT_ALIGN_RIGHT as u8);
+        assert_eq!(allineamento_righe(None), lvgl_sys::LV_TEXT_ALIGN_LEFT as u8);
+        assert_eq!(allineamento_righe(Some("boh")), lvgl_sys::LV_TEXT_ALIGN_LEFT as u8);
+    }
+
+
+    // ── simboli animati e movimento su percorso (passo 8) ─────────────────
+
+    #[test]
+    fn il_punto_a_meta_percorso_tiene_conto_delle_lunghezze() {
+        // Due segmenti, uno lungo 100 e uno lungo 10: metà percorso cade
+        // dentro il primo, non alla sua fine. Contare i punti darebbe (100,0).
+        let p = [(0.0, 0.0), (100.0, 0.0), (110.0, 0.0)];
+        let (x, y) = punto_a_frazione(&p, 0.5).unwrap();
+        assert!((x - 55.0).abs() < 0.001, "x={x}");
+        assert_eq!(y, 0.0);
+    }
+
+    #[test]
+    fn gli_estremi_del_percorso_sono_i_suoi_capi() {
+        let p = [(10.0, 20.0), (50.0, 20.0), (50.0, 60.0)];
+        assert_eq!(punto_a_frazione(&p, 0.0).unwrap(), (10.0, 20.0));
+        let fine = punto_a_frazione(&p, 1.0).unwrap();
+        assert!((fine.0 - 50.0).abs() < 0.001 && (fine.1 - 60.0).abs() < 0.001, "{fine:?}");
+    }
+
+    /// Un percorso con tutti i punti coincidenti non ha un "dove": restituire
+    /// il primo punto è più onesto che dividere per zero.
+    #[test]
+    fn un_percorso_degenere_non_divide_per_zero() {
+        assert_eq!(punto_a_frazione(&[(5.0, 5.0), (5.0, 5.0)], 0.7).unwrap(), (5.0, 5.0));
+        assert_eq!(punto_a_frazione(&[(1.0, 2.0)], 0.5).unwrap(), (1.0, 2.0));
+        assert_eq!(punto_a_frazione(&[], 0.5), None);
+    }
+
+    #[test]
+    fn la_frazione_di_movimento_segue_la_scala_dichiarata() {
+        assert_eq!(frazione_movimento(50.0, None, None), Some(0.5), "default 0..100");
+        assert_eq!(frazione_movimento(15.0, Some(10.0), Some(20.0)), Some(0.5));
+        assert_eq!(frazione_movimento(999.0, Some(0.0), Some(10.0)), Some(1.0), "fuori scala: agli estremi");
+        assert_eq!(frazione_movimento(-5.0, Some(0.0), Some(10.0)), Some(0.0));
+        assert_eq!(frazione_movimento(f64::NAN, None, None), None);
+    }
+
+    /// Un intervallo vuoto significa «non si muove», non «pagina rotta» —
+    /// stessa scelta del web.
+    #[test]
+    fn un_intervallo_vuoto_non_divide_per_zero() {
+        assert_eq!(frazione_movimento(7.0, Some(5.0), Some(5.0)), Some(0.0));
+    }
+
+    #[test]
+    fn il_percorso_si_legge_in_tutte_e_due_le_forme() {
+        let coppie = serde_json::json!([[10, 20], [30, 40]]);
+        let oggetti = serde_json::json!([{"x": 10, "y": 20}, {"x": 30, "y": 40}]);
+        assert_eq!(punti_movimento(&coppie), vec![(10.0, 20.0), (30.0, 40.0)]);
+        assert_eq!(punti_movimento(&oggetti), vec![(10.0, 20.0), (30.0, 40.0)]);
+        assert!(punti_movimento(&serde_json::json!("non un percorso")).is_empty());
+        assert_eq!(punti_movimento(&serde_json::json!([[1, 2], "spazzatura", [3, 4]])),
+                   vec![(1.0, 2.0), (3.0, 4.0)], "una voce illeggibile non butta via le altre");
+    }
+
+    #[test]
+    fn i_tre_modi_di_far_girare_un_simbolo() {
+        let mut t = TagSnapshot::new();
+        t.insert("v".into(), TagSnapshotValue {
+            value: TagValue::Bool(true), quality: TagQuality::Good, ts: 1,
+        });
+        assert!(deve_girare(Some("always"), &None, SymbolState::Off, &t));
+        assert!(deve_girare(Some("on_state"), &None, SymbolState::On, &t));
+        assert!(!deve_girare(Some("on_state"), &None, SymbolState::Off, &t));
+        assert!(deve_girare(Some("tag"), &Some("v".into()), SymbolState::Off, &t));
+        assert!(!deve_girare(Some("tag"), &Some("assente".into()), SymbolState::Off, &t));
+        assert!(!deve_girare(None, &None, SymbolState::On, &t));
+    }
+
+    /// Come `blink_mode: tag` senza `blink_tag`: un progetto incompleto non
+    /// deve diventare un'animazione perpetua.
+    #[test]
+    fn spin_tag_senza_tag_non_gira() {
+        assert!(!deve_girare(Some("tag"), &None, SymbolState::On, &TagSnapshot::new()));
+        assert!(!deve_girare(Some("tag"), &Some(String::new()), SymbolState::On, &TagSnapshot::new()));
+    }
+
+    #[test]
+    fn langolo_compie_un_giro_nel_periodo_dichiarato() {
+        assert_eq!(angolo_rotazione(0, 2.0), 0);
+        assert_eq!(angolo_rotazione(500, 2.0), 900, "un quarto di giro = 90° = 900 decimi");
+        assert_eq!(angolo_rotazione(1000, 2.0), 1800);
+        assert_eq!(angolo_rotazione(2000, 2.0), 0, "giro completo: si ricomincia");
+    }
+
+    /// Due simboli allo stesso ritmo restano in fase perché guardano lo stesso
+    /// orologio — come il lampeggio, e per la stessa ragione.
+    #[test]
+    fn due_simboli_allo_stesso_ritmo_restano_in_fase() {
+        for t in [0u64, 137, 999, 54_321] {
+            assert_eq!(angolo_rotazione(t, 1.5), angolo_rotazione(t, 1.5));
+        }
+    }
+
+    #[test]
+    fn un_periodo_assurdo_non_divide_per_zero() {
+        let _ = angolo_rotazione(12_345, 0.0);
+        let _ = angolo_rotazione(12_345, -1.0);
+    }
+
+    #[test]
+    fn lallarme_vince_sugli_stati_multipli() {
+        let stati = vec![TextListEntry {
+            value: serde_json::json!("Auto"), label: "A".into(),
+            color: Some("#00ff00".into()), value_min: None, value_max: None,
+        }];
+        let mut t = TagSnapshot::new();
+        t.insert("s".into(), TagSnapshotValue {
+            value: TagValue::Str("Auto".into()), quality: TagQuality::Good, ts: 1,
+        });
+        let st = Some("s".to_string());
+        assert_eq!(
+            colore_simbolo(SymbolState::Alarm, &stati, &t, &st, "#111111", "#222222", "#ef4444"),
+            (0xef, 0x44, 0x44),
+            "un allarme coperto da uno stato è il difetto peggiore che uno SCADA possa avere"
+        );
+        assert_eq!(
+            colore_simbolo(SymbolState::On, &stati, &t, &st, "#111111", "#222222", "#ef4444"),
+            (0, 255, 0),
+            "senza allarme vince lo stato dichiarato"
+        );
+        assert_eq!(
+            colore_simbolo(SymbolState::On, &[], &t, &st, "#111111", "#222222", "#ef4444"),
+            (0x22, 0x22, 0x22),
+            "senza stati dichiarati, il colore di acceso"
+        );
+    }
+
+
+    // ── torta: raggruppamento ed etichette (passo 10) ─────────────────────
+
+    fn fetta(label: &str, colore: &str) -> PieSlice {
+        PieSlice { tag: format!("t.{label}"), label: label.into(), color: colore.into() }
+    }
+
+    #[test]
+    fn senza_soglia_non_si_raggruppa_niente() {
+        let s = vec![fetta("a", "#111111"), fetta("b", "#222222")];
+        let r = raggruppa_spicchi(&s, &[70.0, 30.0], None, None, None);
+        assert_eq!(r.len(), 2);
+        assert_eq!(r[0].valore, 70.0);
+    }
+
+    #[test]
+    fn le_fette_sotto_soglia_diventano_una_sola() {
+        let s = vec![fetta("a", "#111111"), fetta("b", "#222222"), fetta("c", "#333333")];
+        // Totale 100: a=90, b=6, c=4. Soglia 10% → b e c finiscono in "altro".
+        let r = raggruppa_spicchi(&s, &[90.0, 6.0, 4.0], Some(10.0), None, None);
+        assert_eq!(r.len(), 2);
+        assert_eq!(r[0].etichetta, "a");
+        assert_eq!(r[1].etichetta, "altro");
+        assert_eq!(r[1].valore, 10.0);
+        assert_eq!(r[1].colore, "#64748b");
+    }
+
+    #[test]
+    fn letichetta_e_il_colore_del_gruppo_si_possono_scegliere() {
+        let s = vec![fetta("a", "#111111"), fetta("b", "#222222")];
+        let r = raggruppa_spicchi(&s, &[99.0, 1.0], Some(5.0), Some("resto"), Some("#ff00ff"));
+        assert_eq!(r[1].etichetta, "resto");
+        assert_eq!(r[1].colore, "#ff00ff");
+    }
+
+    /// Se nessuna fetta sta sotto soglia non deve comparire una voce "altro"
+    /// vuota: un grafico con una fetta grigia da zero è peggio di niente.
+    #[test]
+    fn nessuna_fetta_sotto_soglia_nessuna_voce_altro() {
+        let s = vec![fetta("a", "#111111"), fetta("b", "#222222")];
+        let r = raggruppa_spicchi(&s, &[50.0, 50.0], Some(10.0), None, None);
+        assert_eq!(r.len(), 2);
+        assert!(r.iter().all(|x| x.etichetta != "altro"));
+    }
+
+    /// La percentuale si calcola sul totale **grezzo**: altrimenti
+    /// raggruppare cambierebbe la soglia, e il risultato dipenderebbe
+    /// dall'ordine in cui si guardano le fette.
+    #[test]
+    fn la_soglia_si_misura_sul_totale_grezzo() {
+        let s = vec![fetta("a", "#111111"), fetta("b", "#222222"), fetta("c", "#333333")];
+        // 80/11/9 su 100: con soglia 10% esce solo c. Se il totale si
+        // ricalcolasse dopo aver tolto c, b (11/91=12%) resterebbe comunque —
+        // ma su una soglia più alta la differenza si vedrebbe.
+        let r = raggruppa_spicchi(&s, &[80.0, 11.0, 9.0], Some(10.0), None, None);
+        assert_eq!(r.len(), 3);
+        assert_eq!(r[2].etichetta, "altro");
+        assert_eq!(r[2].valore, 9.0);
+    }
+
+    #[test]
+    fn una_soglia_assurda_non_svuota_il_grafico() {
+        let s = vec![fetta("a", "#111111")];
+        // Al 100% raggrupperebbe tutto: si limita a 99, e una fetta sola sta
+        // comunque sopra.
+        let r = raggruppa_spicchi(&s, &[42.0], Some(500.0), None, None);
+        assert_eq!(r.len(), 1);
+        assert_eq!(r[0].etichetta, "a");
+    }
+
+    #[test]
+    fn un_grafico_a_zero_non_divide_per_zero() {
+        let s = vec![fetta("a", "#111111"), fetta("b", "#222222")];
+        let r = raggruppa_spicchi(&s, &[0.0, 0.0], Some(10.0), None, None);
+        assert_eq!(r.len(), 2, "niente da raggruppare: restano com'erano");
+    }
+
+    #[test]
+    fn i_quattro_modi_di_etichettare_una_fetta() {
+        assert_eq!(etichetta_spicchio(None, 0.25, 12.5, "Pompa", 1), "25%");
+        assert_eq!(etichetta_spicchio(Some("percent"), 0.25, 12.5, "Pompa", 1), "25%");
+        assert_eq!(etichetta_spicchio(Some("value"), 0.25, 12.5, "Pompa", 1), "12.5");
+        // 12, non 13: Rust arrotonda la metà esatta al pari, JavaScript la
+        // arrotonda per eccesso. Vale per ogni `{:.n}` di questo motore, non
+        // solo qui — vedi la nota su `etichetta_spicchio`.
+        assert_eq!(etichetta_spicchio(Some("value"), 0.25, 12.5, "Pompa", 0), "12");
+        assert_eq!(etichetta_spicchio(Some("label"), 0.25, 12.5, "Pompa", 1), "Pompa");
+        assert_eq!(etichetta_spicchio(Some("label_percent"), 0.25, 12.5, "Pompa", 1), "Pompa 25%");
+        assert_eq!(etichetta_spicchio(Some("boh"), 0.25, 12.5, "Pompa", 1), "25%",
+                   "un modo sconosciuto vale percentuale, come sul web");
+    }
+
+
+    // ── soglie del grafico a barre ────────────────────────────────────────
+
+    fn obj_scala(min: Option<f64>, max: Option<f64>) -> SynopticObject {
+        SynopticObject { min, max, ..Default::default() }
+    }
+
+    /// La scala è quella delle **serie**, perché è su quella che le barre sono
+    /// disegnate: seguire il `min`/`max` dell'oggetto metterebbe la riga a una
+    /// quota che non corrisponde a nessuna barra.
+    #[test]
+    fn la_scala_e_quella_su_cui_le_barre_sono_disegnate() {
+        let o = obj_scala(Some(0.0), Some(200.0));
+        assert_eq!(scala_comune(&o, &[(0.0, 100.0), (0.0, 100.0)]), Some((0.0, 100.0)));
+    }
+
+    #[test]
+    fn la_scala_e_comune_se_tutte_le_serie_dicono_la_stessa() {
+        let o = obj_scala(None, None);
+        assert_eq!(scala_comune(&o, &[(0.0, 100.0), (0.0, 100.0)]), Some((0.0, 100.0)));
+    }
+
+    /// Con scale diverse la stessa altezza vale numeri diversi: una riga sola
+    /// mentirebbe su tutte le barre tranne una, quindi non si disegna.
+    #[test]
+    fn con_scale_diverse_non_ce_una_scala_su_cui_tirare_la_riga() {
+        let o = obj_scala(None, None);
+        assert_eq!(scala_comune(&o, &[(0.0, 100.0), (0.0, 50.0)]), None);
+        // Nemmeno dichiarandola sull'oggetto: le barre restano su scale
+        // diverse, e la riga mentirebbe comunque.
+        assert_eq!(scala_comune(&obj_scala(Some(0.0), Some(100.0)), &[(0.0, 100.0), (0.0, 50.0)]), None);
+    }
+
+    #[test]
+    fn una_scala_degenere_non_e_una_scala() {
+        assert_eq!(scala_comune(&obj_scala(None, None), &[(3.0, 3.0)]), None, "intervallo vuoto");
+        assert_eq!(scala_comune(&obj_scala(None, None), &[(10.0, 1.0)]), None, "invertito");
+        assert_eq!(scala_comune(&obj_scala(None, None), &[]), None, "nessuna serie");
+    }
+
+    #[test]
+    fn le_soglie_escono_ordinate_dallalto_al_basso() {
+        let o = SynopticObject {
+            alarm_low: Some(10.0), warn_low: Some(20.0),
+            warn_high: Some(70.0), alarm_high: Some(90.0),
+            ..Default::default()
+        };
+        let s = soglie_da_disegnare(&o, (0.0, 100.0));
+        assert_eq!(s.iter().map(|(v, _)| *v).collect::<Vec<_>>(), vec![90.0, 70.0, 20.0, 10.0]);
+        assert_eq!(s[0].1, (239, 68, 68), "allarme in rosso");
+        assert_eq!(s[1].1, (245, 158, 11), "avviso in ambra");
+    }
+
+    /// Una soglia fuori scala darebbe una riga appiccicata al bordo, che si
+    /// scambia per il bordo stesso.
+    #[test]
+    fn le_soglie_fuori_scala_non_si_disegnano() {
+        let o = SynopticObject {
+            alarm_high: Some(500.0), alarm_low: Some(-10.0), warn_high: Some(70.0),
+            ..Default::default()
+        };
+        let s = soglie_da_disegnare(&o, (0.0, 100.0));
+        assert_eq!(s.len(), 1);
+        assert_eq!(s[0].0, 70.0);
+    }
+
+    #[test]
+    fn senza_soglie_dichiarate_non_si_disegna_niente() {
+        assert!(soglie_da_disegnare(&SynopticObject::default(), (0.0, 100.0)).is_empty());
     }
 }

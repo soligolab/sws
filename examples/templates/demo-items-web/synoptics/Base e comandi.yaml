@@ -167,12 +167,14 @@ objects:
   type: button
   x: 30.0
   y: 254.0
-  width: 200.0
+  width: 260.0
   height: 46.0
-  label: Premi
+  label: Avvia (chiede conferma)
   fill: '#2563eb'
   tag: demo.cmd.button
-  write_value: 'true'
+  write_value: true
+  require_confirm: true
+  confirm_message: Questo comando avvia l'impianto.
 - id: c_checkbox
   type: text
   x: 340.0
@@ -271,6 +273,9 @@ objects:
   state_on_color: '#22c55e'
   state_off_color: '#64748b'
   state_alarm_color: '#ef4444'
+  symbol_spin: tag
+  symbol_spin_tag: demo.sim.running
+  symbol_spin_s: 1.5
 - id: o_symbol2
   type: symbol
   x: 760.0
@@ -278,10 +283,20 @@ objects:
   width: 90.0
   height: 90.0
   symbol_id: valve
-  state_tag: demo.cmd.enable
+  state_tag: demo.sim.mode
   state_on_color: '#22c55e'
   state_off_color: '#64748b'
   state_alarm_color: '#ef4444'
+  symbol_states:
+  - value: Auto
+    label: automatico
+    color: '#22c55e'
+  - value: Manuale
+    label: manuale
+    color: '#f59e0b'
+  - value: Fermo
+    label: fermo
+    color: '#64748b'
 - id: c_image
   type: text
   x: 960.0
@@ -323,3 +338,66 @@ objects:
   width: 90.0
   height: 90.0
   symbol_id: heat_exchanger
+- id: c_layers
+  type: text
+  x: 340.0
+  y: 520.0
+  width: 610.0
+  height: 18.0
+  text: z_index e opacity — sovrapposizione e trasparenza
+  font_size: 12.0
+  color: '#94a3b8'
+- id: o_z_a
+  type: rect
+  x: 340.0
+  y: 542.0
+  width: 140.0
+  height: 100.0
+  fill: '#0ea5e9'
+  stroke: '#e2e8f0'
+  stroke_width: 2.0
+  corner_radius: 6.0
+  z_index: 3
+- id: o_z_b
+  type: rect
+  x: 400.0
+  y: 572.0
+  width: 140.0
+  height: 100.0
+  fill: '#f59e0b'
+  stroke: '#e2e8f0'
+  stroke_width: 2.0
+  corner_radius: 6.0
+  z_index: 1
+- id: o_z_c
+  type: rect
+  x: 460.0
+  y: 602.0
+  width: 140.0
+  height: 100.0
+  fill: '#22c55e'
+  stroke: '#e2e8f0'
+  stroke_width: 2.0
+  corner_radius: 6.0
+  z_index: 2
+- id: o_opa_bg
+  type: rect
+  x: 680.0
+  y: 542.0
+  width: 260.0
+  height: 150.0
+  fill: '#1e293b'
+  stroke: '#475569'
+  stroke_width: 2.0
+  corner_radius: 8.0
+- id: o_opa_fg
+  type: rect
+  x: 760.0
+  y: 592.0
+  width: 260.0
+  height: 150.0
+  fill: '#e2e8f0'
+  stroke: '#94a3b8'
+  stroke_width: 2.0
+  corner_radius: 8.0
+  opacity: 0.45

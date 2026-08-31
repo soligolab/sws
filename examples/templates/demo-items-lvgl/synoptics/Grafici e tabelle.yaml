@@ -153,6 +153,9 @@ objects:
   - tag: demo.sim.bar_c
     label: C
     color: '#f59e0b'
+  warn_high: 70.0
+  alarm_high: 90.0
+  bar_show_thresholds: true
 - id: c_pie
   type: text
   x: 340.0
@@ -180,6 +183,15 @@ objects:
   - tag: demo.sim.pie_c
     label: Tre
     color: '#f59e0b'
+  pie_show_labels: true
+  pie_label_mode: label_percent
+  pie_hole_color: '#0f172a'
+  pie_center_tag: demo.sim.pressure
+  pie_center_format: '{value}'
+  pie_group_below_pct: 8.0
+  pie_group_label: altro
+  pie_group_color: '#475569'
+  decimals: 0
 - id: c_table
   type: text
   x: 650.0
@@ -230,8 +242,8 @@ objects:
   grid_cells:
   - row: 0
     col: 0
-    objects:
-    - id: g_led
+    child:
+      id: g_led
       type: led
       x: 20.0
       y: 20.0
@@ -243,8 +255,8 @@ objects:
       on_value: 'true'
   - row: 0
     col: 1
-    objects:
-    - id: g_text
+    child:
+      id: g_text
       type: text
       x: 10.0
       y: 30.0
@@ -256,8 +268,8 @@ objects:
       color: '#e2e8f0'
   - row: 1
     col: 0
-    objects:
-    - id: g_rect
+    child:
+      id: g_rect
       type: rect
       x: 15.0
       y: 20.0
@@ -266,8 +278,8 @@ objects:
       fill: '#0ea5e9'
   - row: 1
     col: 1
-    objects:
-    - id: g_lamp
+    child:
+      id: g_lamp
       type: state_lamp
       x: 15.0
       y: 22.0

@@ -149,6 +149,36 @@ stessa macchina si annuncerebbero con lo stesso nome.
 
 ---
 
+## `check_static.sh` — le sei guardie che girano su file fermi
+
+Le guardie sono diciannove. Sei girano su file fermi (YAML, sorgenti, tabelle) e
+finiscono in pochi secondi; le altre tredici vogliono un runtime in ascolto,
+podman o un dispositivo.
+
+```bash
+./scripts/check_static.sh     # esce != 0 se una qualsiasi fallisce
+```
+
+Da lanciare a ogni fine sessione, insieme a `cargo test` e `pnpm build`. Nessuno
+le lanciava tutte: a fine giornata se ne ricordavano sei, per nome, a memoria —
+e una guardia che non viene lanciata è codice morto che dà l'illusione di una
+rete di sicurezza.
+
+Le sei:
+
+| Guardia | Cosa impedisce |
+|---|---|
+| `check_lvgl_symbols.sh` | la tabella dei simboli vendored del viewer diverge da quella dell'editor (7 nomi file su 11 **non** coincidono con l'id) |
+| `check_lvgl_types.sh` | il badge «L» della palette mente sui tipi che il pannello disegna |
+| `check_lvgl_parity.sh` | campi dichiarati nel modello e mai disegnati dal motore |
+| `check_vendor_patches.sh` | le patch al sorgente C vendored spariscono a un aggiornamento |
+| `check_templates.sh` | i template restano indietro rispetto al runtime |
+| `check_demo_templates.sh` | i due gemelli "Demo Items" divergono fra loro |
+
+`check_static.sh` **fallisce anche** se in `scripts/` compare un `check_*.sh` che
+non è in nessuno dei suoi due elenchi: una guardia nuova non può restare fuori in
+silenzio, chi la scrive deve dire se serve o no uno stack.
+
 ## `start_editor.sh` — IDE locale sul PC sviluppatore
 
 Avvia il binario Rust con **solo** la porta IDE (nessun viewer).

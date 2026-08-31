@@ -410,6 +410,16 @@ struct WsTagEntry {
     id: String,
     value: TagValue,
     quality: TagQuality,
+    /// Quando il valore è stato prodotto, in millisecondi epoch. Il server lo
+    /// manda da sempre (`WsTagEntry` in `sws-web/src/router.rs`); era questo
+    /// lato a buttarlo via. Serve a `stale_after_s`: senza, "il dato è vecchio"
+    /// non è una domanda a cui il pannello possa rispondere.
+    ///
+    /// `default`: un server più vecchio che non lo mandasse darebbe 0, che
+    /// `stale_after_s` tratta come "non lo so" invece che come "vecchio dal
+    /// 1970" — vedi `EffectBinding::stantio`.
+    #[serde(default)]
+    ts: u64,
 }
 
 #[derive(Debug, Deserialize)]
@@ -428,13 +438,22 @@ struct WsDeltaMsg {
     changed: Vec<WsTagEntry>,
 }
 
-/// Valore + qualità di un tag, senza il timestamp (non ci serve per il
-/// rendering) — evita di dover rinominare `ts` → `timestamp_ms` per riusare
-/// `sws_core::TagState` di peso.
+/// Valore, qualità e istante di produzione di un tag — un `sws_core::TagState`
+/// alleggerito (niente `unit`, `min`, `max` e il resto: il rendering non li
+/// guarda), non un tipo con una semantica diversa.
+///
+/// `ts` è arrivato il 2026-08-31 con `stale_after_s`: il commento di prima
+/// diceva che il timestamp "non ci serve per il rendering", ed era vero finché
+/// il pannello non doveva distinguere un dato fresco da uno fermo da mezz'ora.
+/// Su uno SCADA è la differenza fra «il valore è quello» e «il valore *era*
+/// quello».
 #[derive(Clone)]
 pub struct TagSnapshotValue {
     pub value: TagValue,
     pub quality: TagQuality,
+    /// Millisecondi epoch. `0` = sconosciuto (server che non lo manda), e va
+    /// trattato come "non giudicabile", non come "vecchissimo".
+    pub ts: u64,
 }
 
 pub type TagSnapshot = HashMap<String, TagSnapshotValue>;
@@ -448,7 +467,7 @@ pub type SharedTagSnapshot = Arc<Mutex<TagSnapshot>>;
 
 fn apply_entries(map: &mut TagSnapshot, entries: Vec<WsTagEntry>) {
     for t in entries {
-        map.insert(t.id, TagSnapshotValue { value: t.value, quality: t.quality });
+        map.insert(t.id, TagSnapshotValue { value: t.value, quality: t.quality, ts: t.ts });
     }
 }
 
@@ -589,6 +608,16 @@ pub struct AlarmDefLite {
     pub message: String,
     #[serde(default)]
     pub severity: String,
+    /// Il tag sorvegliato dall'allarme. Il server lo manda da sempre
+    /// (`AlarmDef::tag` in `sws-core/src/alarm.rs`); era questo lato a
+    /// ignorarlo, e senza non si può rispondere alla domanda «questo oggetto è
+    /// in allarme?» — che serve a `blink_mode: alarm` e a `show_alarm_state`.
+    ///
+    /// `default` a stringa vuota: un allarme senza tag non appartiene a nessun
+    /// oggetto, e va saltato invece di far fallire tutta la deserializzazione
+    /// dell'elenco allarmi.
+    #[serde(default)]
+    pub tag: String,
 }
 
 /// Sottoinsieme di `AlarmState` — `isa_state`/`ack_at_ms`/`normalized_at_ms`/
