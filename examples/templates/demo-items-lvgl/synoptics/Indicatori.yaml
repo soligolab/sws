@@ -338,3 +338,116 @@ objects:
   font_size: 14.0
   color: '#f59e0b'
   text_anchor: end
+- id: c_fx
+  type: text
+  x: 650.0
+  y: 340.0
+  width: 600.0
+  height: 18.0
+  text: Stato del dato — lampeggio, bordo d'allarme, qualità, dato vecchio
+  font_size: 12.0
+  color: '#94a3b8'
+- id: c_fx_blink
+  x: 650.0
+  y: 364.0
+  width: 180.0
+  text: 'blink_mode: always'
+  type: text
+  height: 16.0
+  font_size: 12.0
+  color: '#94a3b8'
+- id: c_fx_blinktag
+  x: 845.0
+  y: 364.0
+  width: 180.0
+  text: 'blink_mode: tag (fault)'
+  type: text
+  height: 16.0
+  font_size: 12.0
+  color: '#94a3b8'
+- id: c_fx_alarm
+  x: 1040.0
+  y: 364.0
+  width: 210.0
+  text: show_alarm_state
+  type: text
+  height: 16.0
+  font_size: 12.0
+  color: '#94a3b8'
+- id: o_fx_blink
+  type: rect
+  x: 650.0
+  y: 384.0
+  width: 180.0
+  height: 90.0
+  fill: '#f59e0b'
+  stroke: '#fbbf24'
+  stroke_width: 2.0
+  corner_radius: 6.0
+  blink_mode: always
+  blink_rate_ms: 800.0
+- id: o_fx_blinktag
+  type: rect
+  x: 845.0
+  y: 384.0
+  width: 180.0
+  height: 90.0
+  fill: '#ef4444'
+  stroke: '#fca5a5'
+  stroke_width: 2.0
+  corner_radius: 6.0
+  blink_mode: tag
+  blink_tag: demo.sim.fault
+  blink_rate_ms: 500.0
+- id: o_fx_alarm
+  type: text
+  x: 1040.0
+  y: 384.0
+  width: 210.0
+  height: 90.0
+  tag: demo.sim.pressure
+  format: '%.1f bar'
+  font_size: 22.0
+  color: '#e2e8f0'
+  show_alarm_state: true
+- id: c_fx_quality
+  x: 650.0
+  y: 490.0
+  width: 290.0
+  text: quality_dot — pallino di qualità
+  type: text
+  height: 16.0
+  font_size: 12.0
+  color: '#94a3b8'
+- id: c_fx_stale
+  x: 960.0
+  y: 490.0
+  width: 290.0
+  text: 'stale_after_s: 10 — muovi lo slider'
+  type: text
+  height: 16.0
+  font_size: 12.0
+  color: '#94a3b8'
+- id: o_fx_quality
+  type: text
+  x: 650.0
+  y: 510.0
+  width: 290.0
+  height: 44.0
+  tag: demo.sim.pressure
+  format: '%.1f bar'
+  font_size: 20.0
+  color: '#e2e8f0'
+  quality_dot: true
+  bad_value_style: gray
+- id: o_fx_stale
+  type: text
+  x: 960.0
+  y: 510.0
+  width: 290.0
+  height: 44.0
+  tag: demo.cmd.slider
+  format: 'slider: %.0f'
+  font_size: 20.0
+  color: '#e2e8f0'
+  stale_after_s: 10.0

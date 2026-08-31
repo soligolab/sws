@@ -26,6 +26,7 @@ use std::cell::RefCell;
 use std::sync::mpsc;
 
 use cstr_core::CString;
+use crate::effects;
 use crate::lvgl_font;
 use lvgl::style::Style;
 use lvgl::widgets::{Bar, Btn, Chart, Checkbox, Label, Led, Line, Meter, Slider, Table};
@@ -84,6 +85,45 @@ pub struct RenderSummary {
 /// stesso principio degli `Style` altrove in questo file.
 #[allow(dead_code)]
 pub enum LiveKind {
+    /// Come **sta** un oggetto: lampeggia, il suo dato è fermo da troppo, la
+    /// qualità è cattiva, c'è un allarme sopra. La logica sta in `effects.rs`
+    /// (pura, provata); qui ci sono solo i puntatori LVGL e lo stato già
+    /// applicato, che serve a non ridipingere trenta volte al secondo quello
+    /// che non è cambiato.
+    ///
+    /// Sta fra i `LiveBinding` e non in un elenco a parte per una ragione
+    /// pratica: `LiveKind::AlarmViewer` porta già un `SharedAlarms`, quindi
+    /// `update_bindings` sa arrivare agli allarmi senza che nessuna firma
+    /// cambi. Un secondo elenco avrebbe voluto un quarto valore di ritorno da
+    /// `render_page_objects` e quattro chiamanti da aggiornare, per niente.
+    Effects {
+        /// Tutti i widget nati da questo oggetto — bordo d'allarme e pallino
+        /// di qualità compresi, come sul web, dove stanno nello stesso `<g>` e
+        /// quindi si attenuano e lampeggiano insieme all'oggetto.
+        figli: Vec<*mut lvgl_sys::lv_obj_t>,
+        /// L'opacità dichiarata dall'oggetto, 255 se non ne dichiara: è il
+        /// punto di partenza su cui lampeggio e attenuazione scrivono sopra.
+        opa_base: u8,
+        lampeggio: effects::Lampeggio,
+        rate_ms: u32,
+        tag: Option<String>,
+        stale_after_s: Option<f64>,
+        bad_gray: bool,
+        shared: SharedAlarms,
+        /// Bordo d'allarme (`show_alarm_state`). Lampeggia per conto suo
+        /// finché l'allarme non è riconosciuto, anche quando l'oggetto non
+        /// lampeggia — è il comportamento del web.
+        bordo: Option<*mut lvgl_sys::lv_obj_t>,
+        /// Pallino di qualità (`quality_dot`) e i tre colori dichiarati.
+        pallino: Option<*mut lvgl_sys::lv_obj_t>,
+        dot_buono: Option<String>,
+        dot_cattivo: Option<String>,
+        dot_incerto: Option<String>,
+        /// Ultimo stato mandato a LVGL: senza, ogni frame chiamerebbe
+        /// `lv_obj_set_style_*`, che invalida e fa ridisegnare l'oggetto —
+        /// trenta ridisegni al secondo di roba ferma.
+        ultimo: AppliedFx,
+    },
     /// Riempimento progressivo di una `pipe`.
     ///
     /// `buf` possiede i punti della linea di riempimento: LVGL ne conserva il
@@ -430,6 +470,34 @@ pub struct LiveBinding {
     pub kind: LiveKind,
 }
 
+/// Quello che è già a schermo, per non rimandarlo a LVGL ogni frame.
+///
+/// I valori iniziali sono deliberatamente **impossibili** (`opa: 0` su un
+/// oggetto che nasce opaco, `rgb: None`), così il primo giro applica sempre e
+/// lo stato di partenza non resta mai quello di nessuno.
+#[derive(Debug, Clone, PartialEq)]
+pub struct AppliedFx {
+    opa: u8,
+    grigio: bool,
+    bordo_visibile: bool,
+    bordo_rgb: Option<(u8, u8, u8)>,
+    bordo_acceso: bool,
+    dot_rgb: Option<(u8, u8, u8)>,
+}
+
+impl Default for AppliedFx {
+    fn default() -> Self {
+        Self {
+            opa: 0,
+            grigio: true,
+            bordo_visibile: true,
+            bordo_rgb: None,
+            bordo_acceso: false,
+            dot_rgb: None,
+        }
+    }
+}
+
 /// Un widget catturato per il movimento, con la posizione che aveva appena
 /// creato. Serve la posizione *iniziale di ciascuno*, non quella dell'oggetto
 /// synottico: un `gauge` mette l'etichetta sotto l'arco, un `setpoint` mette i
@@ -575,7 +643,7 @@ unsafe extern "C" fn sws_slider_changed_cb(e: *mut lvgl_sys::lv_event_t) {
     let _ = ctx.tx.send(TagCommand { tag: ctx.tag.clone(), value: TagValue::Int(v as i64) });
 }
 
-fn parse_hex_color(s: &str) -> Option<(u8, u8, u8)> {
+pub(crate) fn parse_hex_color(s: &str) -> Option<(u8, u8, u8)> {
     let s = s.trim().trim_start_matches('#');
     if s.len() != 6 {
         return None;
@@ -1127,6 +1195,268 @@ fn is_visible(obj: &SynopticObject, tags: &TagSnapshot) -> bool {
         };
     }
     obj.visible != Some(false)
+}
+
+/// `z_index` — l'ordine in cui gli oggetti si sovrappongono.
+///
+/// LVGL disegna i figli nell'ordine in cui sono stati creati, esattamente come
+/// SVG li disegna nell'ordine del documento: basta ordinare la lista **prima**
+/// del ciclo di render e i due motori sovrappongono allo stesso modo. Niente
+/// `lv_obj_move_to_index` a posteriori, che sposterebbe un figlio alla volta —
+/// e gli oggetti che ne creano più d'uno (un faceplate ne crea uno per figlio,
+/// un testo ancorato ne crea due) andrebbero spostati a blocchi, tenendo il
+/// conto di quali figli appartengono a chi.
+///
+/// Ordinamento **stabile**, e default 0 come `sortByZ` in `SvgCanvas.tsx`: a
+/// parità di `z_index` vince chi viene dopo nella lista. Il default è 0 e non
+/// "nessuno, quindi in fondo" — un oggetto senza `z_index` sta nella fascia di
+/// quelli a zero, non sotto tutti.
+///
+/// Prima di questo, due oggetti sovrapposti sul pannello stavano nell'ordine in
+/// cui capitavano nel file: nel browser uno sopra l'altro, sul pannello il
+/// contrario, senza che niente lo segnalasse.
+fn sort_by_z(objects: &[SynopticObject]) -> Vec<&SynopticObject> {
+    let mut v: Vec<&SynopticObject> = objects.iter().collect();
+    // sort_by_key è garantito stabile in Rust: gli uguali restano nell'ordine
+    // di partenza, che è proprio ciò che serve per pareggiare `sortByZ`.
+    v.sort_by_key(|o| o.z_index.unwrap_or(0));
+    v
+}
+
+/// `opacity` (0..1 sul web) → `lv_opa_t` (0..255).
+///
+/// Restituisce `None` quando l'oggetto è pienamente opaco, e non è solo per
+/// risparmiare una chiamata. In LVGL 8.3 un `opa` diverso da `LV_OPA_COVER` fa
+/// disegnare l'oggetto **e tutti i suoi figli** in un layer temporaneo
+/// (`calculate_layer_type`, `lv_obj_style.c:848`), cioè una passata di
+/// composizione in più a ogni ridisegno: non va fatta pagare a chi la
+/// trasparenza non l'ha chiesta.
+///
+/// Quel layer è anche il motivo per cui questa è la resa *giusta* e non un
+/// ripiego: il gruppo sbiadisce **insieme**, come `opacity` in SVG, invece di
+/// lasciar vedere le sue parti l'una attraverso l'altra.
+///
+/// Valori fuori scala vengono riportati dentro invece di essere rifiutati: un
+/// `opacity: 1.5` scritto a mano in YAML significa "opaco", non "pagina
+/// rotta". Un NaN vale opaco per lo stesso motivo.
+fn opa_from_opacity(opacity: Option<f64>) -> Option<u8> {
+    let v = opacity?;
+    if !v.is_finite() || v >= 1.0 {
+        return None;
+    }
+    Some((v.clamp(0.0, 1.0) * 255.0).round() as u8)
+}
+
+/// Applica `opa` ai figli dello schermo comparsi a partire dall'indice `da`.
+///
+/// Le funzioni `render_*` non restituiscono i widget che creano, e parecchie ne
+/// creano più d'uno. Invece di cambiare una trentina di firme per farsi
+/// restituire i puntatori, si conta quanti figli aveva lo schermo prima della
+/// chiamata: quelli comparsi dopo sono suoi, perché `lv_obj_create(parent)`
+/// accoda sempre in fondo. È lo stesso ragionamento che rende `z_index` un
+/// semplice ordinamento invece di un riordino a posteriori.
+///
+/// # Safety
+/// `screen_ptr` deve essere uno schermo LVGL vivo; si chiama nel ciclo di
+/// render, dove lo è per costruzione.
+unsafe fn apply_opacity_from(screen_ptr: *mut lvgl_sys::lv_obj_t, da: u32, opa: u8) {
+    let dopo = lvgl_sys::lv_obj_get_child_cnt(screen_ptr);
+    for i in da..dopo {
+        let figlio = lvgl_sys::lv_obj_get_child(screen_ptr, i as i32);
+        if !figlio.is_null() {
+            lvgl_sys::lv_obj_set_style_opa(figlio, opa, 0);
+        }
+    }
+}
+
+// ── effetti di stato: lampeggio, dato vecchio, qualità (passo 4) ─────────────
+//
+// La logica sta in `effects.rs`, pura e provata. Qui ci sono solo le chiamate
+// LVGL — cioè la parte che non si può provare con `cargo test` su una macchina
+// senza schermo, e che quindi va tenuta il più sottile possibile.
+
+/// Il filtro che scolora un oggetto e tutta la sua discendenza.
+///
+/// È l'equivalente di `filter: grayscale(0.9)` sul web, e funziona per la
+/// stessa ragione per cui funziona in CSS: in LVGL 8.3
+/// `LV_STYLE_COLOR_FILTER_DSC` e `LV_STYLE_COLOR_FILTER_OPA` sono proprietà
+/// **ereditate** (`lv_style.c:123-124`), e ogni ricerca di un colore passa da
+/// `_lv_obj_style_apply_color_filter`. Metterlo sull'oggetto lo mette
+/// sull'albero, senza doverne visitare i figli.
+///
+/// Si spegne mettendo `color_filter_opa` a zero, non togliendo il descrittore:
+/// il filtro viene applicato solo se l'opacità è diversa da zero.
+struct FiltroGrigio(lvgl_sys::lv_color_filter_dsc_t);
+// LVGL gira interamente sul thread principale in questo processo (vedi il
+// commento di modulo di `lvgl_display.rs`): il descrittore è di sola lettura e
+// non viene mai condiviso davvero fra thread.
+unsafe impl Sync for FiltroGrigio {}
+
+static FILTRO_GRIGIO: FiltroGrigio = FiltroGrigio(lvgl_sys::lv_color_filter_dsc_t {
+    filter_cb: Some(filtro_grigio_cb),
+    user_data: core::ptr::null_mut(),
+});
+
+/// Da colore a grigio della stessa luminosità.
+///
+/// La formula è quella di `lv_color_brightness` in `lv_color.h`
+/// (`(3R + B + 4G) / 8`), riscritta qui perché è `static inline` e quindi non
+/// arriva nei binding. Con `LV_COLOR_DEPTH 16` il colore è RGB565: si estraggono
+/// i tre campi, si riportano a scala 0..255, si calcola la luminosità e si
+/// ricostruisce un grigio.
+///
+/// `opa` è quanto il filtro deve "mordere": 0 = colore originale,
+/// 255 = grigio pieno. Il web usa 0.9, quindi resta un'ombra di tinta — che è
+/// ciò che distingue «attenuato» da «rotto».
+unsafe extern "C" fn filtro_grigio_cb(
+    _dsc: *const lvgl_sys::lv_color_filter_dsc_t,
+    c: lvgl_sys::lv_color_t,
+    opa: lvgl_sys::lv_opa_t,
+) -> lvgl_sys::lv_color_t {
+    let full = c.full;
+    let r = (((full >> 11) & 0x1f) as u32 * 255 / 31) as u32;
+    let g = (((full >> 5) & 0x3f) as u32 * 255 / 63) as u32;
+    let b = ((full & 0x1f) as u32 * 255 / 31) as u32;
+    let lum = ((3 * r + b + 4 * g) / 8).min(255) as u32;
+    // Mescola fra originale e grigio secondo `opa`, invece di sostituire: è
+    // così che `grayscale(0.9)` lascia un residuo di colore.
+    let a = opa as u32;
+    let mix = |orig: u32| (((orig * (255 - a)) + (lum * a)) / 255).min(255) as u8;
+    Color::from_rgb((mix(r), mix(g), mix(b))).into()
+}
+
+/// Crea i widget in più che gli effetti richiedono — bordo d'allarme e pallino
+/// di qualità — e restituisce il binding che li terrà aggiornati.
+///
+/// Restituisce `None` quando l'oggetto non chiede **nessun** effetto: la
+/// stragrande maggioranza degli oggetti di una pagina, che così non paga né un
+/// binding né un giro di `update_bindings`.
+///
+/// `figli` sono i widget nati da questo oggetto, individuati come in
+/// `render_page_objects` contando i figli dello schermo prima e dopo — con
+/// bordo e pallino aggiunti in coda, così che si attenuino e lampeggino insieme
+/// all'oggetto, come stando nello stesso `<g>` fanno sul web.
+#[allow(clippy::too_many_arguments)]
+fn crea_effetti(
+    screen_ptr: *mut lvgl_sys::lv_obj_t,
+    obj: &SynopticObject,
+    figli_prima: u32,
+    tags: &TagSnapshot,
+    shared_alarms: &SharedAlarms,
+) -> Option<LiveBinding> {
+    let lampeggio = effects::lampeggio_di(obj);
+    let vuole_bordo = obj.show_alarm_state == Some(true);
+    let vuole_pallino = obj.quality_dot == Some(true);
+    let vuole_attenuazione = obj.stale_after_s.is_some() || obj.bad_value_style.as_deref() == Some("gray");
+    if lampeggio == effects::Lampeggio::Mai && !vuole_bordo && !vuole_pallino && !vuole_attenuazione {
+        return None;
+    }
+
+    let mut figli: Vec<*mut lvgl_sys::lv_obj_t> = Vec::new();
+    unsafe {
+        let dopo = lvgl_sys::lv_obj_get_child_cnt(screen_ptr);
+        for i in figli_prima..dopo {
+            let f = lvgl_sys::lv_obj_get_child(screen_ptr, i as i32);
+            if !f.is_null() {
+                figli.push(f);
+            }
+        }
+    }
+    if figli.is_empty() {
+        return None; // il render è fallito: non c'è niente su cui applicare effetti
+    }
+
+    let x = obj.x.unwrap_or(0.0);
+    let y = obj.y.unwrap_or(0.0);
+    let w = obj.width.unwrap_or(100.0);
+    let h = obj.height.unwrap_or(50.0);
+
+    // Bordo d'allarme: un rettangolo vuoto tre pixel più largo dell'oggetto,
+    // colorato per severità. Stesse misure del web (`x-3`, `w+6`, `rx 4`).
+    let bordo = if vuole_bordo {
+        unsafe {
+            let p = lvgl_sys::lv_obj_create(screen_ptr);
+            if p.is_null() {
+                None
+            } else {
+                lvgl_sys::lv_obj_set_pos(p, (x - 3.0) as i16, (y - 3.0) as i16);
+                lvgl_sys::lv_obj_set_size(p, (w + 6.0) as i16, (h + 6.0) as i16);
+                lvgl_sys::lv_obj_set_style_bg_opa(p, 0, 0);
+                lvgl_sys::lv_obj_set_style_border_width(p, 2, 0);
+                lvgl_sys::lv_obj_set_style_radius(p, 4, 0);
+                // Non esiste un `pad_all` nei binding: i quattro lati a mano.
+                lvgl_sys::lv_obj_set_style_pad_top(p, 0, 0);
+                lvgl_sys::lv_obj_set_style_pad_bottom(p, 0, 0);
+                lvgl_sys::lv_obj_set_style_pad_left(p, 0, 0);
+                lvgl_sys::lv_obj_set_style_pad_right(p, 0, 0);
+                // Non deve rubare i tocchi all'oggetto che incornicia: è
+                // `pointerEvents: "none"` sul web.
+                lvgl_sys::lv_obj_clear_flag(p, lvgl_sys::LV_OBJ_FLAG_CLICKABLE);
+                lvgl_sys::lv_obj_clear_flag(p, lvgl_sys::LV_OBJ_FLAG_SCROLLABLE);
+                // Nasce invisibile: si accende solo se c'è davvero un allarme.
+                lvgl_sys::lv_obj_add_flag(p, lvgl_sys::LV_OBJ_FLAG_HIDDEN);
+                figli.push(p);
+                Some(p)
+            }
+        }
+    } else {
+        None
+    };
+
+    // Pallino di qualità: nell'angolo in alto a destra dell'oggetto, raggio 5
+    // come `QDot` sul web.
+    let pallino = if vuole_pallino {
+        unsafe {
+            let p = lvgl_sys::lv_obj_create(screen_ptr);
+            if p.is_null() {
+                None
+            } else {
+                lvgl_sys::lv_obj_set_pos(p, (x + w - 13.0) as i16, (y + 3.0) as i16);
+                lvgl_sys::lv_obj_set_size(p, 10, 10);
+                lvgl_sys::lv_obj_set_style_radius(p, lvgl_sys::LV_RADIUS_CIRCLE as i16, 0);
+                lvgl_sys::lv_obj_set_style_border_width(p, 0, 0);
+                // Non esiste un `pad_all` nei binding: i quattro lati a mano.
+                lvgl_sys::lv_obj_set_style_pad_top(p, 0, 0);
+                lvgl_sys::lv_obj_set_style_pad_bottom(p, 0, 0);
+                lvgl_sys::lv_obj_set_style_pad_left(p, 0, 0);
+                lvgl_sys::lv_obj_set_style_pad_right(p, 0, 0);
+                lvgl_sys::lv_obj_clear_flag(p, lvgl_sys::LV_OBJ_FLAG_CLICKABLE);
+                lvgl_sys::lv_obj_clear_flag(p, lvgl_sys::LV_OBJ_FLAG_SCROLLABLE);
+                figli.push(p);
+                Some(p)
+            }
+        }
+    } else {
+        None
+    };
+
+    // Il pallino non è "figlio" ai fini dell'attenuazione: deve restare
+    // leggibile proprio quando il dato è cattivo, che è quando serve.
+    if let Some(p) = pallino {
+        figli.retain(|f| *f != p);
+    }
+
+    let _ = tags; // lo stato iniziale lo mette il primo `update_bindings`
+
+    Some(LiveBinding {
+        kind: LiveKind::Effects {
+            figli,
+            opa_base: opa_from_opacity(obj.opacity).unwrap_or(255),
+            lampeggio,
+            rate_ms: obj.blink_rate_ms.map(|v| v as u32).filter(|v| *v > 0)
+                .unwrap_or(effects::BLINK_MS_DEFAULT),
+            tag: obj.tag.clone(),
+            stale_after_s: obj.stale_after_s,
+            bad_gray: obj.bad_value_style.as_deref() == Some("gray"),
+            shared: shared_alarms.clone(),
+            bordo,
+            pallino,
+            dot_buono: obj.quality_dot_good_color.clone(),
+            dot_cattivo: obj.quality_dot_bad_color.clone(),
+            dot_incerto: obj.quality_dot_uncertain_color.clone(),
+            ultimo: AppliedFx::default(),
+        },
+    })
 }
 
 /// `lvgl::Obj` non ha un `create(parent)` generato — a differenza degli altri
@@ -4765,7 +5095,15 @@ pub fn render_page_objects(
     // invece di una coda dedicata (vedi `render_lang_button`).
     let own_page_id = page.id.clone().unwrap_or_default();
 
-    for obj in &page.objects {
+    // Lo schermo come puntatore grezzo, preso una volta: serve dentro il ciclo
+    // per contare i figli, e prenderlo lì significherebbe un secondo prestito
+    // mutabile mentre `dispatch_render` tiene il suo.
+    let screen_ptr = screen.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?.as_ptr();
+
+    // Ordine di sovrapposizione: vedi `sort_by_z`. Va fatto qui e non dentro
+    // `dispatch_render`, perché è una proprietà della pagina — l'ordine di
+    // creazione dei figli — non del singolo oggetto.
+    for obj in sort_by_z(&page.objects) {
         let (Some(id), Some(obj_type)) = (obj.id.as_deref(), obj.obj_type.as_deref()) else {
             continue; // oggetto senza id/type: dato malformato, ignorato silenziosamente
         };
@@ -4785,10 +5123,26 @@ pub fn render_page_objects(
             summary.skipped_unsupported.push(format!("{id} ({obj_type})"));
             continue;
         }
+        // Quanti figli aveva lo schermo prima: quelli che compaiono dopo sono
+        // di questo oggetto, ed è così che `opacity` li raggiunge tutti senza
+        // che ogni `render_*` debba restituire i propri widget.
+        let figli_prima = unsafe { lvgl_sys::lv_obj_get_child_cnt(screen_ptr) };
         let result: anyhow::Result<()> = dispatch_render(
             &mut screen, obj_type, obj, &mut styles, tags, tag_tx, nav_tx, base_url, rt_handle, shared_alarms, ack_tx,
             lang_table, shared_lang, &own_page_id, &mut live,
         );
+        // Anche quando il render è fallito a metà: se qualche figlio è già
+        // nato, deve avere l'opacità che l'oggetto dichiara, non essere
+        // l'unico pezzo pienamente opaco della pagina.
+        if let Some(opa) = opa_from_opacity(obj.opacity) {
+            unsafe { apply_opacity_from(screen_ptr, figli_prima, opa) };
+        }
+        // Effetti di stato (lampeggio, dato vecchio, qualità, bordo d'allarme).
+        // Dopo l'opacità perché ne parte: `opa_base` è ciò che il progettista
+        // ha dichiarato, e lampeggio e attenuazione ci scrivono sopra.
+        if let Some(fx) = crea_effetti(screen_ptr, obj, figli_prima, tags, shared_alarms) {
+            live.push(fx);
+        }
         match result {
             Ok(()) => summary.rendered.push(format!("{id} ({obj_type})")),
             Err(e) => summary.skipped_unsupported.push(format!("{id} ({obj_type}) — errore: {e}")),
@@ -4796,7 +5150,7 @@ pub fn render_page_objects(
     }
 
     unsafe {
-        let new_scr_ptr = screen.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?.as_ptr();
+        let new_scr_ptr = screen_ptr;
         // lv_disp_load_scr (dietro lv_scr_load, vedi commento della
         // funzione): rende attivo il nuovo schermo. Il vecchio smette di
         // essere quello attivo ma non viene distrutto da questa chiamata
@@ -4816,6 +5170,118 @@ pub fn render_page_objects(
 /// di `Style` qui: quelli esistenti vengono mutati sul posto e "rinfrescati"
 /// con `lv_obj_refresh_style` (mutare le proprietà di uno `Style` già
 /// assegnato non basta da solo — LVGL cache lo stile calcolato per oggetto).
+/// Rimanda a LVGL solo ciò che è cambiato davvero.
+///
+/// Chiamata a ogni frame da `update_bindings`. Il confronto con `ultimo` non è
+/// un'ottimizzazione facoltativa: `lv_obj_set_style_*` invalida l'oggetto, e
+/// senza il confronto una pagina con dieci oggetti "in effetti" si ridisegnerebbe
+/// per intero trenta volte al secondo anche stando perfettamente ferma.
+#[allow(clippy::too_many_arguments)]
+fn update_effects(
+    figli: &[*mut lvgl_sys::lv_obj_t],
+    opa_base: u8,
+    lampeggio: &effects::Lampeggio,
+    rate_ms: u32,
+    tag: &Option<String>,
+    stale_after_s: Option<f64>,
+    bad_gray: bool,
+    shared: &SharedAlarms,
+    bordo: Option<*mut lvgl_sys::lv_obj_t>,
+    pallino: Option<*mut lvgl_sys::lv_obj_t>,
+    dot: (&Option<String>, &Option<String>, &Option<String>),
+    ultimo: &mut AppliedFx,
+    tags: &TagSnapshot,
+) {
+    let now_ms = client::now_unix_ms();
+    let allarmi = shared.lock().unwrap_or_else(|e| e.into_inner());
+
+    // ── lampeggio e attenuazione ──────────────────────────────────────────
+    let acceso = effects::deve_lampeggiare(lampeggio, tag.as_deref(), tags, &allarmi)
+        && !effects::fase_accesa(now_ms, rate_ms);
+    let tv = tag.as_deref().and_then(|t| tags.get(t));
+    let attenuato = effects::attenuato(stale_after_s, bad_gray, tv, now_ms);
+    let opa = effects::opa_finale(opa_base, attenuato, acceso);
+
+    if opa != ultimo.opa {
+        for f in figli {
+            unsafe { lvgl_sys::lv_obj_set_style_opa(*f, opa, 0) };
+        }
+        ultimo.opa = opa;
+    }
+    if attenuato != ultimo.grigio {
+        for f in figli {
+            unsafe {
+                lvgl_sys::lv_obj_set_style_color_filter_dsc(*f, &FILTRO_GRIGIO.0, 0);
+                // Il descrittore resta attaccato; a spegnere il filtro è
+                // l'opacità a zero. Rimuoverlo costerebbe una ricerca di stile
+                // in più senza cambiare il risultato.
+                lvgl_sys::lv_obj_set_style_color_filter_opa(
+                    *f,
+                    if attenuato { effects::FILTRO_GRIGIO_OPA } else { 0 },
+                    0,
+                );
+            }
+        }
+        ultimo.grigio = attenuato;
+    }
+
+    // ── bordo d'allarme ───────────────────────────────────────────────────
+    if let Some(b) = bordo {
+        let a = tag.as_deref().and_then(|t| effects::allarme_su_tag(&allarmi, t));
+        let visibile = a.is_some();
+        if visibile != ultimo.bordo_visibile {
+            unsafe {
+                if visibile {
+                    lvgl_sys::lv_obj_clear_flag(b, lvgl_sys::LV_OBJ_FLAG_HIDDEN);
+                } else {
+                    lvgl_sys::lv_obj_add_flag(b, lvgl_sys::LV_OBJ_FLAG_HIDDEN);
+                }
+            }
+            ultimo.bordo_visibile = visibile;
+        }
+        if let Some(a) = a {
+            let rgb = effects::colore_severita(&a.severita);
+            if Some(rgb) != ultimo.bordo_rgb {
+                unsafe {
+                    lvgl_sys::lv_obj_set_style_border_color(b, Color::from_rgb(rgb).into(), 0)
+                };
+                ultimo.bordo_rgb = Some(rgb);
+            }
+            // Il bordo lampeggia finché nessuno ha riconosciuto l'allarme,
+            // anche quando l'oggetto incorniciato sta fermo — è il
+            // comportamento del web, e serve: un allarme nuovo si distingue da
+            // uno già visto senza leggere niente.
+            let bordo_acceso = a.riconosciuto || effects::fase_accesa(now_ms, effects::BLINK_MS_DEFAULT);
+            if bordo_acceso != ultimo.bordo_acceso {
+                unsafe {
+                    lvgl_sys::lv_obj_set_style_border_opa(
+                        b,
+                        if bordo_acceso { 255 } else { effects::OPA_LAMPEGGIO_SPENTO },
+                        0,
+                    )
+                };
+                ultimo.bordo_acceso = bordo_acceso;
+            }
+        }
+    }
+
+    // ── pallino di qualità ────────────────────────────────────────────────
+    if let Some(p) = pallino {
+        if let Some(tv) = tv {
+            let rgb = effects::colore_qualita(
+                &tv.quality,
+                dot.0.as_deref(),
+                dot.1.as_deref(),
+                dot.2.as_deref(),
+            );
+            if Some(rgb) != ultimo.dot_rgb {
+                unsafe { lvgl_sys::lv_obj_set_style_bg_color(p, Color::from_rgb(rgb).into(), 0) };
+                ultimo.dot_rgb = Some(rgb);
+            }
+        }
+    }
+}
+
 /// Quanta memoria occupano le bitmap SVG di questa pagina.
 ///
 /// Il numero su cui si giocava tutta la decisione D2 — vale la pena vederlo a
@@ -4833,7 +5299,23 @@ pub fn svg_bitmap_bytes(bindings: &[LiveBinding]) -> usize {
 
 pub fn update_bindings(bindings: &mut [LiveBinding], tags: &TagSnapshot) {
     for b in bindings {
+        if let LiveKind::Effects {
+            figli, opa_base, lampeggio, rate_ms, tag, stale_after_s, bad_gray, shared,
+            bordo, pallino, dot_buono, dot_cattivo, dot_incerto, ultimo,
+        } = &mut b.kind
+        {
+            update_effects(
+                figli, *opa_base, lampeggio, *rate_ms, tag, *stale_after_s, *bad_gray, shared,
+                *bordo, *pallino, (dot_buono, dot_cattivo, dot_incerto), ultimo, tags,
+            );
+            continue;
+        }
         match &mut b.kind {
+            // Già trattato dal blocco sopra, che fa `continue`: qui non arriva
+            // mai. Il ramo c'è perché il `match` resti esaustivo senza un
+            // `_ => {}`, che zittirebbe il compilatore anche sulle varianti che
+            // verranno.
+            LiveKind::Effects { .. } => {}
             LiveKind::PipeFill { fill_ptr, spec, buf, last_level } => {
                 let level = spec.level(tags);
                 // Si ridisegna solo a variazione percettibile: ricostruire la
@@ -5541,7 +6023,7 @@ mod binding_tests {
         pairs
             .iter()
             .map(|(k, v)| {
-                (k.to_string(), TagSnapshotValue { value: v.clone(), quality: TagQuality::Good })
+                (k.to_string(), TagSnapshotValue { value: v.clone(), quality: TagQuality::Good, ts: 0 })
             })
             .collect()
     }
@@ -5979,5 +6461,64 @@ mod binding_tests {
             partial_polyline(&[(5.0, 5.0), (5.0, 5.0)], 0.5, true).is_empty(),
             "waypoint coincidenti: lunghezza zero, niente da riempire"
         );
+    }
+
+    // ── z_index e opacity (passo 3) ────────────────────────────────────────
+
+    fn ogg(id: &str, z: Option<i32>) -> SynopticObject {
+        SynopticObject {
+            id: Some(id.to_string()),
+            obj_type: Some("rect".to_string()),
+            z_index: z,
+            ..Default::default()
+        }
+    }
+
+    fn ordine(objs: &[SynopticObject]) -> Vec<String> {
+        sort_by_z(objs).iter().map(|o| o.id.clone().unwrap()).collect()
+    }
+
+    #[test]
+    fn lo_z_index_decide_chi_sta_sopra() {
+        let objs = vec![ogg("sopra", Some(10)), ogg("sotto", Some(-5)), ogg("mezzo", Some(0))];
+        // Ultimo creato = disegnato sopra, come SVG con l'ordine del documento.
+        assert_eq!(ordine(&objs), vec!["sotto", "mezzo", "sopra"]);
+    }
+
+    /// A parità di `z_index` vince chi viene dopo nella lista — è la regola di
+    /// `sortByZ` in `SvgCanvas.tsx`, e senza stabilità due oggetti sovrapposti
+    /// si scambierebbero di posto fra una pagina e l'altra senza motivo.
+    #[test]
+    fn a_parita_di_z_lordine_della_lista_resta()  {
+        let objs = vec![ogg("a", Some(1)), ogg("b", Some(1)), ogg("c", Some(1))];
+        assert_eq!(ordine(&objs), vec!["a", "b", "c"]);
+    }
+
+    /// Senza `z_index` un oggetto sta nella fascia dello zero, **non** sotto
+    /// tutti: altrimenti bastasse dare `z_index: -1` a un solo oggetto per
+    /// farsi scavalcare da tutti quelli che non lo dichiarano.
+    #[test]
+    fn chi_non_dichiara_z_sta_nella_fascia_dello_zero() {
+        let objs = vec![ogg("negativo", Some(-1)), ogg("muto", None), ogg("positivo", Some(1))];
+        assert_eq!(ordine(&objs), vec!["negativo", "muto", "positivo"]);
+    }
+
+    #[test]
+    fn lopacita_del_web_diventa_quella_di_lvgl() {
+        assert_eq!(opa_from_opacity(Some(0.0)), Some(0), "trasparente");
+        assert_eq!(opa_from_opacity(Some(0.5)), Some(128), "mezzo velo");
+        assert_eq!(opa_from_opacity(Some(1.0)), None, "opaco: nessun layer da pagare");
+        assert_eq!(opa_from_opacity(None), None, "non dichiarata: opaco");
+    }
+
+    /// Un valore fuori scala scritto a mano in YAML significa "opaco" o
+    /// "trasparente", non "pagina rotta": si riporta dentro invece di
+    /// rifiutare l'oggetto.
+    #[test]
+    fn unopacita_fuori_scala_non_rompe_la_pagina() {
+        assert_eq!(opa_from_opacity(Some(1.5)), None, "oltre l'opaco resta opaco");
+        assert_eq!(opa_from_opacity(Some(-0.2)), Some(0), "sotto zero resta trasparente");
+        assert_eq!(opa_from_opacity(Some(f64::NAN)), None);
+        assert_eq!(opa_from_opacity(Some(f64::INFINITY)), None);
     }
 }

@@ -30,6 +30,7 @@
 
 mod client;
 mod drm_display;
+mod effects;
 mod lvgl_display;
 mod lvgl_font;
 mod lvgl_indev;
