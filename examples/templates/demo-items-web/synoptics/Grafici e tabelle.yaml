@@ -153,6 +153,9 @@ objects:
   - tag: demo.sim.bar_c
     label: C
     color: '#f59e0b'
+  warn_high: 70.0
+  alarm_high: 90.0
+  bar_show_thresholds: true
 - id: c_pie
   type: text
   x: 340.0
@@ -180,6 +183,15 @@ objects:
   - tag: demo.sim.pie_c
     label: Tre
     color: '#f59e0b'
+  pie_show_labels: true
+  pie_label_mode: label_percent
+  pie_hole_color: '#0f172a'
+  pie_center_tag: demo.sim.pressure
+  pie_center_format: '{value}'
+  pie_group_below_pct: 8.0
+  pie_group_label: altro
+  pie_group_color: '#475569'
+  decimals: 0
 - id: c_table
   type: text
   x: 650.0

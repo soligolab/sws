@@ -364,6 +364,22 @@ pub enum LiveKind {
         slices: Vec<PieSlice>,
         inner_ratio: f64,
         last_values: Vec<f64>,
+        /// Come mettere insieme le fette piccole (`pie_group_*`): un grafico
+        /// con venti tag altrimenti è una corona di fili colorati.
+        gruppo: (Option<f64>, Option<String>, Option<String>),
+        /// Colore del foro. Trasparente se non dichiarato — così sotto si vede
+        /// lo sfondo della pagina, che è il comportamento voluto più spesso.
+        foro: Option<(u8, u8, u8)>,
+        /// Etichette sugli spicchi: un'etichetta LVGL per ciascuno, riposizionata
+        /// quando i valori cambiano. `None` se `pie_show_labels: false`.
+        etichette: Vec<core::ptr::NonNull<lvgl_sys::lv_obj_t>>,
+        modo_etichetta: Option<String>,
+        decimali: usize,
+        /// Testo al centro del foro (`pie_center_tag`/`pie_center_format`):
+        /// senza, il foro di una ciambella è solo un buco.
+        centro: Option<core::ptr::NonNull<lvgl_sys::lv_obj_t>>,
+        centro_tag: Option<String>,
+        centro_formato: Option<String>,
     },
     /// Etichetta valore corrente — l'apertura/chiusura del tastierino e la
     /// scrittura sul tag sono guidate da callback FFI (vedi
@@ -2342,6 +2358,62 @@ fn init_bar_like(
 /// `lv_bar.c` prima di scrivere questo codice): bastano barre più alte che
 /// larghe per ottenere un riempimento verticale, nessun flag dedicato da
 /// impostare.
+/// La scala su cui si può disegnare una soglia, se ce n'è una sola.
+///
+/// Le soglie (`warn_high`, `alarm_high`, …) sono un valore solo, e una riga
+/// tirata attraverso il grafico dice «sopra questa altezza si è in allarme».
+/// L'affermazione regge **solo se tutte le barre misurano sulla stessa scala**:
+/// con scale diverse la stessa altezza vale numeri diversi, e la riga
+/// mentirebbe su tutte le barre tranne una.
+///
+/// La scala è quella su cui le **barre** sono davvero disegnate, cioè quella
+/// delle serie (`lv_bar_set_range` per barra). Non quella dell'oggetto: se
+/// `min`/`max` dell'oggetto fossero diversi, una riga tirata su quelli starebbe
+/// alla quota sbagliata rispetto alle barre — proprio il genere di bugia che
+/// questa funzione esiste per evitare.
+///
+/// Restituisce `Some` solo quando **tutte le serie hanno lo stesso
+/// intervallo**, e `None` quando ne hanno di diversi.
+///
+/// Il motore web usa invece **sempre** una scala comune, ricalcolata dai valori
+/// a ogni disegno, e ignora il `min`/`max` delle singole serie: è una differenza
+/// di progettazione fra i due motori, segnata come **Q28** e non decisa qui.
+fn scala_comune(obj: &SynopticObject, serie: &[(f64, f64)]) -> Option<(f64, f64)> {
+    let primo = *serie.first()?;
+    if !serie.iter().all(|s| *s == primo) || primo.1 <= primo.0 {
+        return None;
+    }
+    // L'oggetto dichiara una scala diversa da quella su cui le barre sono
+    // disegnate: le soglie seguono le barre, ed è meglio dirlo.
+    if let (Some(lo), Some(hi)) = (obj.min, obj.max) {
+        if (lo, hi) != primo {
+            eprintln!(
+                "[bar_chart] '{}': `min`/`max` dell'oggetto ({lo}..{hi}) diversi dalla scala delle \
+                 serie ({}..{}) — le barre e le soglie usano quella delle serie.",
+                obj.id.as_deref().unwrap_or("?"), primo.0, primo.1
+            );
+        }
+    }
+    Some(primo)
+}
+
+/// Le soglie da disegnare, con il colore, in ordine dall'alto verso il basso.
+///
+/// Solo quelle dichiarate e dentro la scala: una soglia fuori scala darebbe una
+/// riga appiccicata al bordo, che si scambia per il bordo stesso.
+fn soglie_da_disegnare(obj: &SynopticObject, scala: (f64, f64)) -> Vec<(f64, (u8, u8, u8))> {
+    let (lo, hi) = scala;
+    [
+        (obj.alarm_high, (239, 68, 68)),
+        (obj.warn_high, (245, 158, 11)),
+        (obj.warn_low, (245, 158, 11)),
+        (obj.alarm_low, (239, 68, 68)),
+    ]
+    .into_iter()
+    .filter_map(|(v, c)| v.filter(|v| *v > lo && *v < hi).map(|v| (v, c)))
+    .collect()
+}
+
 fn render_bar_chart(
     screen: &mut lvgl::Obj,
     obj: &SynopticObject,
@@ -2439,6 +2511,54 @@ fn render_bar_chart(
             if let Some(vp) = b.value_ptr {
                 lvgl_sys::lv_label_set_text(vp.as_ptr(), text_cstring(&format!("{raw:.1}{}", b.unit)).as_ptr());
             }
+        }
+    }
+
+    // ── soglie: righe orizzontali attraverso il grafico ──────────────────
+    //
+    // Un grafico a barre senza le sue soglie mostra dei numeri; con le soglie
+    // mostra se quei numeri vanno bene. È la differenza che serve a chi guarda
+    // il pannello da lontano.
+    if obj.bar_show_thresholds != Some(false) {
+        let intervalli: Vec<(f64, f64)> =
+            series.iter().map(|s| (s.min.unwrap_or(0.0), s.max.unwrap_or(100.0))).collect();
+        match scala_comune(obj, &intervalli) {
+            Some(scala) => {
+                let x0 = obj.x.unwrap_or(0.0);
+                let y0 = obj.y.unwrap_or(0.0) + pad_t;
+                for (valore, rgb) in soglie_da_disegnare(obj, scala) {
+                    let frazione = (valore - scala.0) / (scala.1 - scala.0);
+                    let y = y0 + plot_h * (1.0 - frazione);
+                    let mut ln = Line::create(screen).map_err(|e| anyhow::anyhow!("Line::create: {e:?}"))?;
+                    ln.set_pos(x0.round() as i16, y.round() as i16)
+                        .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
+                    let pts: &'static [lvgl_sys::lv_point_t; 2] = Box::leak(Box::new([
+                        lvgl_sys::lv_point_t { x: 0, y: 0 },
+                        lvgl_sys::lv_point_t { x: w.round() as i16, y: 0 },
+                    ]));
+                    let lp = ln.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
+                    unsafe { lvgl_sys::lv_line_set_points(lp.as_ptr(), pts.as_ptr(), 2) };
+                    let mut st = Style::default();
+                    st.set_line_color(Color::from_rgb(rgb));
+                    st.set_line_width(1);
+                    ln.add_style(Part::Main, &mut st).map_err(|e| anyhow::anyhow!("add_style: {e:?}"))?;
+                    styles.push(st);
+                }
+            }
+            None if obj.alarm_high.is_some() || obj.warn_high.is_some()
+                || obj.alarm_low.is_some() || obj.warn_low.is_some() =>
+            {
+                // Detto, non taciuto: chi ha dichiarato delle soglie e non le
+                // vede deve poter capire perché in una riga di registro,
+                // invece di credere a un difetto del pannello.
+                eprintln!(
+                    "[bar_chart] '{}': soglie dichiarate ma non disegnate — le serie hanno scale diverse, \
+                     e una riga sola mentirebbe su tutte tranne una. Dichiara `min`/`max` sull'oggetto \
+                     per una scala comune.",
+                    obj.id.as_deref().unwrap_or("?")
+                );
+            }
+            None => {}
         }
     }
 
@@ -3341,6 +3461,100 @@ fn render_xy_plot(screen: &mut lvgl::Obj, obj: &SynopticObject, styles: &mut Vec
 /// prima di scrivere questo codice — vedi Q14 seguito 14). Le proporzioni
 /// sono calcolate sui valori correnti dei tag all'apertura della pagina;
 /// `update_pie_chart` ridisegna solo quando cambiano davvero.
+/// Uno spicchio già risolto: etichetta, colore e valore, pronti da disegnare.
+///
+/// Separato da `PieSlice` (che porta il *tag*, non il valore) perché il
+/// raggruppamento produce una voce che non corrisponde a nessuno spicchio
+/// dichiarato: "altro" non ha un tag.
+#[derive(Debug, Clone, PartialEq)]
+pub struct SpicchioRisolto {
+    pub etichetta: String,
+    pub colore: String,
+    pub valore: f64,
+}
+
+/// Raggruppa in una voce sola gli spicchi sotto una percentuale del totale.
+///
+/// Un grafico a torta con venti tag diventa una corona di fili colorati in cui
+/// non si legge niente: `pie_group_below_pct` mette insieme le briciole. È la
+/// regola di `SvgCanvas.tsx`, compresi i dettagli che contano:
+///
+/// * la percentuale si calcola sul totale **grezzo**, prima di raggruppare —
+///   altrimenti raggruppare cambierebbe la soglia e il risultato dipenderebbe
+///   dall'ordine;
+/// * se nessuno spicchio sta sotto soglia, **non** compare una voce "altro"
+///   vuota;
+/// * `0` (il default) non raggruppa niente, e il grafico resta com'era.
+///
+/// La soglia si limita a 0..99: al 100% raggrupperebbe tutto in "altro", che
+/// non è un grafico ma un cerchio grigio.
+pub fn raggruppa_spicchi(
+    slices: &[PieSlice],
+    valori: &[f64],
+    sotto_pct: Option<f64>,
+    etichetta_gruppo: Option<&str>,
+    colore_gruppo: Option<&str>,
+) -> Vec<SpicchioRisolto> {
+    let tutti: Vec<SpicchioRisolto> = slices
+        .iter()
+        .zip(valori.iter())
+        .map(|(s, v)| SpicchioRisolto {
+            etichetta: s.label.clone(),
+            colore: s.color.clone(),
+            valore: v.max(0.0),
+        })
+        .collect();
+
+    let soglia = sotto_pct.unwrap_or(0.0).clamp(0.0, 99.0) / 100.0;
+    if soglia <= 0.0 {
+        return tutti;
+    }
+    let totale: f64 = tutti.iter().map(|s| s.valore).sum();
+    if totale <= 0.0 {
+        return tutti;
+    }
+
+    let mut tenuti: Vec<SpicchioRisolto> = Vec::new();
+    let mut resto = 0.0;
+    for s in tutti {
+        if s.valore / totale >= soglia {
+            tenuti.push(s);
+        } else {
+            resto += s.valore;
+        }
+    }
+    if resto > 0.0 {
+        tenuti.push(SpicchioRisolto {
+            etichetta: etichetta_gruppo.unwrap_or("altro").to_string(),
+            colore: colore_gruppo.unwrap_or("#64748b").to_string(),
+            valore: resto,
+        });
+    }
+    tenuti
+}
+
+/// Il testo che va su uno spicchio, secondo `pie_label_mode`.
+///
+/// I quattro modi del web: solo percentuale (default), solo valore, solo
+/// etichetta, o etichetta più percentuale. Un modo sconosciuto vale
+/// percentuale, come sul web (`default:` del suo `switch`).
+///
+/// **Divergenza nota, minima**: sulla metà esatta Rust arrotonda al pari
+/// (`12.5` con zero decimali → `12`), JavaScript per eccesso (`13`). Vale per
+/// ogni numero formattato da questo motore, non solo per le etichette della
+/// torta, ed è mezza unità sull'ultima cifra mostrata. Nominata qui perché chi
+/// affianca i due schermi e vede `12` contro `13` sappia che non è un difetto
+/// di lettura del dato.
+pub fn etichetta_spicchio(modo: Option<&str>, frazione: f64, valore: f64, etichetta: &str, decimali: usize) -> String {
+    let pct = format!("{:.0}%", frazione * 100.0);
+    match modo.unwrap_or("percent") {
+        "value" => format!("{valore:.decimali$}"),
+        "label" => etichetta.to_string(),
+        "label_percent" => format!("{etichetta} {pct}"),
+        _ => pct,
+    }
+}
+
 fn render_pie_chart(screen: &mut lvgl::Obj, obj: &SynopticObject, tags: &TagSnapshot) -> anyhow::Result<LiveBinding> {
     let mode = obj.pie_mode.as_deref().unwrap_or("pie");
     if mode != "donut" {
@@ -3381,11 +3595,65 @@ fn render_pie_chart(screen: &mut lvgl::Obj, obj: &SynopticObject, tags: &TagSnap
         .iter()
         .map(|s| lookup(tags, &Some(s.tag.clone())).map(|t| tag_value_as_f64(&t.value)).unwrap_or(0.0).max(0.0))
         .collect();
-    draw_pie_donut(canvas_ptr, w, h, &slices, &values, inner_ratio);
+    let gruppo = (
+        obj.pie_group_below_pct,
+        obj.pie_group_label.clone(),
+        obj.pie_group_color.clone(),
+    );
+    let foro = obj.pie_hole_color.as_deref().and_then(parse_hex_color);
+    draw_pie_donut(canvas_ptr, w, h, &slices, &values, inner_ratio, &gruppo, foro);
 
-    Ok(LiveBinding {
-        kind: LiveKind::PieChart { canvas_ptr, buf, w, h, slices, inner_ratio, last_values: values },
-    })
+    // Un'etichetta per spicchio dichiarato, più una di scorta per l'eventuale
+    // voce "altro": si creano tutte adesso e si nascondono quelle che non
+    // servono, invece di crearle e distruggerle a ogni cambio di valore.
+    let mostra_etichette = obj.pie_show_labels != Some(false) && !slices.is_empty();
+    let mut etichette = Vec::new();
+    if mostra_etichette {
+        for _ in 0..=slices.len() {
+            let mut l = Label::create(&mut canvas).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
+            l.set_text(&text_cstring("")).map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
+            let lp = l.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
+            unsafe {
+                lvgl_sys::lv_obj_add_flag(lp.as_ptr(), lvgl_sys::LV_OBJ_FLAG_HIDDEN);
+                lvgl_sys::lv_obj_set_style_text_color(lp.as_ptr(), Color::from_rgb((255, 255, 255)).into(), 0);
+                if let Some(f) = lvgl_font::at_size(11) {
+                    lvgl_sys::lv_obj_set_style_text_font(lp.as_ptr(), f, 0);
+                }
+            }
+            etichette.push(lp);
+        }
+    }
+
+    // Testo al centro del foro.
+    let centro = if obj.pie_center_tag.is_some() || obj.pie_center_text.is_some() {
+        let mut l = Label::create(&mut canvas).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
+        l.set_text(&text_cstring(obj.pie_center_text.as_deref().unwrap_or("")))
+            .map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
+        let lp = l.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
+        unsafe {
+            lvgl_sys::lv_obj_align(lp.as_ptr(), lvgl_sys::LV_ALIGN_CENTER as lvgl_sys::lv_align_t, 0, 0);
+            if let Some(f) = lvgl_font::at_size(16) {
+                lvgl_sys::lv_obj_set_style_text_font(lp.as_ptr(), f, 0);
+            }
+        }
+        Some(lp)
+    } else {
+        None
+    };
+
+    let binding = LiveKind::PieChart {
+        canvas_ptr, buf, w, h, slices, inner_ratio,
+        // Valori impossibili: il primo `update_bindings` posiziona le etichette
+        // e scrive il centro, invece di lasciarli vuoti fino al primo cambio.
+        last_values: vec![f64::NAN; values.len()],
+        gruppo, foro, etichette,
+        modo_etichetta: obj.pie_label_mode.clone(),
+        decimali: obj.decimals.unwrap_or(1) as usize,
+        centro,
+        centro_tag: obj.pie_center_tag.clone(),
+        centro_formato: obj.pie_center_format.clone(),
+    };
+    Ok(LiveBinding { kind: binding })
 }
 
 /// Disegna l'anello: uno `lv_canvas_draw_arc` per spicchio, spessore fisso
@@ -3395,26 +3663,51 @@ fn render_pie_chart(screen: &mut lvgl::Obj, obj: &SynopticObject, tags: &TagSnap
 /// sia da `update_pie_chart` quando i valori cambiano: `lv_canvas_fill_bg`
 /// cancella il contenuto precedente prima di ridisegnare, LVGL non ha un
 /// modo di "cancellare solo un arco" su un canvas raster.
-fn draw_pie_donut(canvas_ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>, w: i16, h: i16, slices: &[PieSlice], values: &[f64], inner_ratio: f64) {
+/// Dove va l'etichetta di uno spicchio e cosa ci si scrive.
+pub struct PostoEtichetta {
+    pub x: i16,
+    pub y: i16,
+    pub frazione: f64,
+    pub valore: f64,
+    pub etichetta: String,
+}
+
+fn draw_pie_donut(
+    canvas_ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
+    w: i16,
+    h: i16,
+    slices: &[PieSlice],
+    values: &[f64],
+    inner_ratio: f64,
+    gruppo: &(Option<f64>, Option<String>, Option<String>),
+    foro: Option<(u8, u8, u8)>,
+) -> Vec<PostoEtichetta> {
     unsafe {
         lvgl_sys::lv_canvas_fill_bg(canvas_ptr.as_ptr(), Color::from_rgb((0, 0, 0)).into(), 0);
     }
-    let total: f64 = values.iter().sum();
-    if total <= 0.0 || slices.is_empty() {
-        return;
+    let spicchi = raggruppa_spicchi(slices, values, gruppo.0, gruppo.1.as_deref(), gruppo.2.as_deref());
+    let total: f64 = spicchi.iter().map(|s| s.valore).sum();
+    if total <= 0.0 || spicchi.is_empty() {
+        return Vec::new();
     }
     let cx = w as lvgl_sys::lv_coord_t / 2;
     let cy = h as lvgl_sys::lv_coord_t / 2;
     let r = (w.min(h) as lvgl_sys::lv_coord_t / 2) - 2;
     let width = ((r as f64) * (1.0 - inner_ratio)).round().max(2.0) as lvgl_sys::lv_coord_t;
+
+    // Il foro: un cerchio pieno al centro, disegnato **dopo** gli archi.
+    // Senza `pie_hole_color` resta trasparente e sotto si vede la pagina — che
+    // è il caso più frequente, e il motivo per cui il canvas ha l'alfa.
     let mut start_deg: f64 = 0.0;
-    for (slice, &val) in slices.iter().zip(values.iter()) {
-        let span_deg = 360.0 * (val / total);
+    let mut posti = Vec::new();
+    for s in &spicchi {
+        let frazione = s.valore / total;
+        let span_deg = 360.0 * frazione;
         if span_deg <= 0.0 {
             continue;
         }
         let end_deg = start_deg + span_deg;
-        let rgb = parse_hex_color(&slice.color).unwrap_or((100, 116, 139));
+        let rgb = parse_hex_color(&s.colore).unwrap_or((100, 116, 139));
         unsafe {
             let mut dsc = lvgl_sys::lv_draw_arc_dsc_t::default();
             lvgl_sys::lv_draw_arc_dsc_init(&mut dsc);
@@ -3431,8 +3724,39 @@ fn draw_pie_donut(canvas_ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>, w: i16, h:
                 &dsc,
             );
         }
+        // L'etichetta a metà dello spessore dell'anello, all'angolo di mezzo
+        // dello spicchio: è dove sta anche sul web, ed è l'unico posto dove
+        // non finisce né nel foro né fuori dal cerchio.
+        let meta = (start_deg + end_deg) / 2.0 - 90.0;
+        let raggio_testo = r as f64 - width as f64 / 2.0;
+        posti.push(PostoEtichetta {
+            x: (cx as f64 + raggio_testo * meta.to_radians().cos()).round() as i16,
+            y: (cy as f64 + raggio_testo * meta.to_radians().sin()).round() as i16,
+            frazione,
+            valore: s.valore,
+            etichetta: s.etichetta.clone(),
+        });
         start_deg = end_deg;
     }
+
+    if let Some(rgb) = foro {
+        let raggio_foro = ((r as f64) * inner_ratio).round().max(1.0) as lvgl_sys::lv_coord_t;
+        unsafe {
+            let mut dsc = lvgl_sys::lv_draw_rect_dsc_t::default();
+            lvgl_sys::lv_draw_rect_dsc_init(&mut dsc);
+            dsc.bg_color = Color::from_rgb(rgb).into();
+            dsc.bg_opa = 255;
+            dsc.radius = lvgl_sys::LV_RADIUS_CIRCLE as lvgl_sys::lv_coord_t;
+            dsc.border_width = 0;
+            lvgl_sys::lv_canvas_draw_rect(
+                canvas_ptr.as_ptr(),
+                cx - raggio_foro, cy - raggio_foro,
+                raggio_foro * 2, raggio_foro * 2,
+                &dsc,
+            );
+        }
+    }
+    posti
 }
 
 /// Contesto per il tastierino numerico di `setpoint`: sia il pulsante di
@@ -6246,14 +6570,52 @@ pub fn update_bindings(bindings: &mut [LiveBinding], tags: &TagSnapshot) {
             LiveKind::XyPlot { ptr, ser, x_tag, y_tag, trail_s, samples, last_sample_ms, x_min, x_max, y_min, y_max } => {
                 update_xy_plot(*ptr, *ser, tags, x_tag, y_tag, *trail_s, samples, last_sample_ms, *x_min, *x_max, *y_min, *y_max);
             }
-            LiveKind::PieChart { canvas_ptr, w, h, slices, inner_ratio, last_values, .. } => {
+            LiveKind::PieChart {
+                canvas_ptr, w, h, slices, inner_ratio, last_values, gruppo, foro,
+                etichette, modo_etichetta, decimali, centro, centro_tag, centro_formato, ..
+            } => {
                 let values: Vec<f64> = slices
                     .iter()
                     .map(|s| lookup(tags, &Some(s.tag.clone())).map(|t| tag_value_as_f64(&t.value)).unwrap_or(0.0).max(0.0))
                     .collect();
                 if values != *last_values {
-                    draw_pie_donut(*canvas_ptr, *w, *h, slices, &values, *inner_ratio);
+                    let posti = draw_pie_donut(*canvas_ptr, *w, *h, slices, &values, *inner_ratio, gruppo, *foro);
+                    // Le etichette seguono gli spicchi: quelle in più (o tutte,
+                    // se il grafico è a zero) si nascondono invece di restare
+                    // dov'erano con l'ultimo testo buono — un numero fermo su un
+                    // grafico vuoto è peggio di nessun numero.
+                    for (i, l) in etichette.iter().enumerate() {
+                        match posti.get(i) {
+                            Some(p) if p.frazione >= 0.05 => unsafe {
+                                // Sotto il 5% l'etichetta non ci sta nello
+                                // spicchio e si sovrappone a quella accanto:
+                                // meglio nessuna che due illeggibili.
+                                lvgl_sys::lv_obj_clear_flag(l.as_ptr(), lvgl_sys::LV_OBJ_FLAG_HIDDEN);
+                                let testo = etichetta_spicchio(
+                                    modo_etichetta.as_deref(), p.frazione, p.valore, &p.etichetta, *decimali,
+                                );
+                                lvgl_sys::lv_label_set_text(l.as_ptr(), text_cstring(&testo).as_ptr());
+                                lvgl_sys::lv_obj_update_layout(l.as_ptr());
+                                let lw = lvgl_sys::lv_obj_get_width(l.as_ptr());
+                                let lh = lvgl_sys::lv_obj_get_height(l.as_ptr());
+                                lvgl_sys::lv_obj_set_pos(l.as_ptr(), p.x - lw / 2, p.y - lh / 2);
+                            },
+                            _ => unsafe { lvgl_sys::lv_obj_add_flag(l.as_ptr(), lvgl_sys::LV_OBJ_FLAG_HIDDEN) },
+                        }
+                    }
                     *last_values = values;
+                }
+                // Il testo al centro segue il suo tag, che può cambiare anche
+                // quando gli spicchi non cambiano.
+                if let (Some(c), Some(t)) = (centro.as_ref(), centro_tag.as_deref()) {
+                    if let Some(tv) = tags.get(t) {
+                        let grezzo = tag_value_as_string(&tv.value);
+                        let testo = match centro_formato.as_deref() {
+                            Some(f) => f.replace("{value}", &grezzo),
+                            None => grezzo,
+                        };
+                        unsafe { lvgl_sys::lv_label_set_text(c.as_ptr(), text_cstring(&testo).as_ptr()) };
+                    }
                 }
             }
             LiveKind::Setpoint { value_ptr, tag, unit } => {
@@ -7597,5 +7959,168 @@ mod binding_tests {
             (0x22, 0x22, 0x22),
             "senza stati dichiarati, il colore di acceso"
         );
+    }
+
+
+    // ── torta: raggruppamento ed etichette (passo 10) ─────────────────────
+
+    fn fetta(label: &str, colore: &str) -> PieSlice {
+        PieSlice { tag: format!("t.{label}"), label: label.into(), color: colore.into() }
+    }
+
+    #[test]
+    fn senza_soglia_non_si_raggruppa_niente() {
+        let s = vec![fetta("a", "#111111"), fetta("b", "#222222")];
+        let r = raggruppa_spicchi(&s, &[70.0, 30.0], None, None, None);
+        assert_eq!(r.len(), 2);
+        assert_eq!(r[0].valore, 70.0);
+    }
+
+    #[test]
+    fn le_fette_sotto_soglia_diventano_una_sola() {
+        let s = vec![fetta("a", "#111111"), fetta("b", "#222222"), fetta("c", "#333333")];
+        // Totale 100: a=90, b=6, c=4. Soglia 10% → b e c finiscono in "altro".
+        let r = raggruppa_spicchi(&s, &[90.0, 6.0, 4.0], Some(10.0), None, None);
+        assert_eq!(r.len(), 2);
+        assert_eq!(r[0].etichetta, "a");
+        assert_eq!(r[1].etichetta, "altro");
+        assert_eq!(r[1].valore, 10.0);
+        assert_eq!(r[1].colore, "#64748b");
+    }
+
+    #[test]
+    fn letichetta_e_il_colore_del_gruppo_si_possono_scegliere() {
+        let s = vec![fetta("a", "#111111"), fetta("b", "#222222")];
+        let r = raggruppa_spicchi(&s, &[99.0, 1.0], Some(5.0), Some("resto"), Some("#ff00ff"));
+        assert_eq!(r[1].etichetta, "resto");
+        assert_eq!(r[1].colore, "#ff00ff");
+    }
+
+    /// Se nessuna fetta sta sotto soglia non deve comparire una voce "altro"
+    /// vuota: un grafico con una fetta grigia da zero è peggio di niente.
+    #[test]
+    fn nessuna_fetta_sotto_soglia_nessuna_voce_altro() {
+        let s = vec![fetta("a", "#111111"), fetta("b", "#222222")];
+        let r = raggruppa_spicchi(&s, &[50.0, 50.0], Some(10.0), None, None);
+        assert_eq!(r.len(), 2);
+        assert!(r.iter().all(|x| x.etichetta != "altro"));
+    }
+
+    /// La percentuale si calcola sul totale **grezzo**: altrimenti
+    /// raggruppare cambierebbe la soglia, e il risultato dipenderebbe
+    /// dall'ordine in cui si guardano le fette.
+    #[test]
+    fn la_soglia_si_misura_sul_totale_grezzo() {
+        let s = vec![fetta("a", "#111111"), fetta("b", "#222222"), fetta("c", "#333333")];
+        // 80/11/9 su 100: con soglia 10% esce solo c. Se il totale si
+        // ricalcolasse dopo aver tolto c, b (11/91=12%) resterebbe comunque —
+        // ma su una soglia più alta la differenza si vedrebbe.
+        let r = raggruppa_spicchi(&s, &[80.0, 11.0, 9.0], Some(10.0), None, None);
+        assert_eq!(r.len(), 3);
+        assert_eq!(r[2].etichetta, "altro");
+        assert_eq!(r[2].valore, 9.0);
+    }
+
+    #[test]
+    fn una_soglia_assurda_non_svuota_il_grafico() {
+        let s = vec![fetta("a", "#111111")];
+        // Al 100% raggrupperebbe tutto: si limita a 99, e una fetta sola sta
+        // comunque sopra.
+        let r = raggruppa_spicchi(&s, &[42.0], Some(500.0), None, None);
+        assert_eq!(r.len(), 1);
+        assert_eq!(r[0].etichetta, "a");
+    }
+
+    #[test]
+    fn un_grafico_a_zero_non_divide_per_zero() {
+        let s = vec![fetta("a", "#111111"), fetta("b", "#222222")];
+        let r = raggruppa_spicchi(&s, &[0.0, 0.0], Some(10.0), None, None);
+        assert_eq!(r.len(), 2, "niente da raggruppare: restano com'erano");
+    }
+
+    #[test]
+    fn i_quattro_modi_di_etichettare_una_fetta() {
+        assert_eq!(etichetta_spicchio(None, 0.25, 12.5, "Pompa", 1), "25%");
+        assert_eq!(etichetta_spicchio(Some("percent"), 0.25, 12.5, "Pompa", 1), "25%");
+        assert_eq!(etichetta_spicchio(Some("value"), 0.25, 12.5, "Pompa", 1), "12.5");
+        // 12, non 13: Rust arrotonda la metà esatta al pari, JavaScript la
+        // arrotonda per eccesso. Vale per ogni `{:.n}` di questo motore, non
+        // solo qui — vedi la nota su `etichetta_spicchio`.
+        assert_eq!(etichetta_spicchio(Some("value"), 0.25, 12.5, "Pompa", 0), "12");
+        assert_eq!(etichetta_spicchio(Some("label"), 0.25, 12.5, "Pompa", 1), "Pompa");
+        assert_eq!(etichetta_spicchio(Some("label_percent"), 0.25, 12.5, "Pompa", 1), "Pompa 25%");
+        assert_eq!(etichetta_spicchio(Some("boh"), 0.25, 12.5, "Pompa", 1), "25%",
+                   "un modo sconosciuto vale percentuale, come sul web");
+    }
+
+
+    // ── soglie del grafico a barre ────────────────────────────────────────
+
+    fn obj_scala(min: Option<f64>, max: Option<f64>) -> SynopticObject {
+        SynopticObject { min, max, ..Default::default() }
+    }
+
+    /// La scala è quella delle **serie**, perché è su quella che le barre sono
+    /// disegnate: seguire il `min`/`max` dell'oggetto metterebbe la riga a una
+    /// quota che non corrisponde a nessuna barra.
+    #[test]
+    fn la_scala_e_quella_su_cui_le_barre_sono_disegnate() {
+        let o = obj_scala(Some(0.0), Some(200.0));
+        assert_eq!(scala_comune(&o, &[(0.0, 100.0), (0.0, 100.0)]), Some((0.0, 100.0)));
+    }
+
+    #[test]
+    fn la_scala_e_comune_se_tutte_le_serie_dicono_la_stessa() {
+        let o = obj_scala(None, None);
+        assert_eq!(scala_comune(&o, &[(0.0, 100.0), (0.0, 100.0)]), Some((0.0, 100.0)));
+    }
+
+    /// Con scale diverse la stessa altezza vale numeri diversi: una riga sola
+    /// mentirebbe su tutte le barre tranne una, quindi non si disegna.
+    #[test]
+    fn con_scale_diverse_non_ce_una_scala_su_cui_tirare_la_riga() {
+        let o = obj_scala(None, None);
+        assert_eq!(scala_comune(&o, &[(0.0, 100.0), (0.0, 50.0)]), None);
+        // Nemmeno dichiarandola sull'oggetto: le barre restano su scale
+        // diverse, e la riga mentirebbe comunque.
+        assert_eq!(scala_comune(&obj_scala(Some(0.0), Some(100.0)), &[(0.0, 100.0), (0.0, 50.0)]), None);
+    }
+
+    #[test]
+    fn una_scala_degenere_non_e_una_scala() {
+        assert_eq!(scala_comune(&obj_scala(None, None), &[(3.0, 3.0)]), None, "intervallo vuoto");
+        assert_eq!(scala_comune(&obj_scala(None, None), &[(10.0, 1.0)]), None, "invertito");
+        assert_eq!(scala_comune(&obj_scala(None, None), &[]), None, "nessuna serie");
+    }
+
+    #[test]
+    fn le_soglie_escono_ordinate_dallalto_al_basso() {
+        let o = SynopticObject {
+            alarm_low: Some(10.0), warn_low: Some(20.0),
+            warn_high: Some(70.0), alarm_high: Some(90.0),
+            ..Default::default()
+        };
+        let s = soglie_da_disegnare(&o, (0.0, 100.0));
+        assert_eq!(s.iter().map(|(v, _)| *v).collect::<Vec<_>>(), vec![90.0, 70.0, 20.0, 10.0]);
+        assert_eq!(s[0].1, (239, 68, 68), "allarme in rosso");
+        assert_eq!(s[1].1, (245, 158, 11), "avviso in ambra");
+    }
+
+    /// Una soglia fuori scala darebbe una riga appiccicata al bordo, che si
+    /// scambia per il bordo stesso.
+    #[test]
+    fn le_soglie_fuori_scala_non_si_disegnano() {
+        let o = SynopticObject {
+            alarm_high: Some(500.0), alarm_low: Some(-10.0), warn_high: Some(70.0),
+            ..Default::default()
+        };
+        let s = soglie_da_disegnare(&o, (0.0, 100.0));
+        assert_eq!(s.len(), 1);
+        assert_eq!(s[0].0, 70.0);
+    }
+
+    #[test]
+    fn senza_soglie_dichiarate_non_si_disegna_niente() {
+        assert!(soglie_da_disegnare(&SynopticObject::default(), (0.0, 100.0)).is_empty());
     }
 }

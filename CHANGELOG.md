@@ -14,7 +14,7 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 ### Il pannello disegna quello che l'IDE promette — 28 campi in più
 
 Il divario fra ciò che si può disegnare nell'IDE e ciò che il pannello disegna
-davvero passa da **112 campi mai disegnati a 84**.
+davvero passa da **112 campi mai disegnati a 71**.
 
 - **`opacity` e `z_index`** — due oggetti sovrapposti stavano nell'ordine in cui
   capitavano nel file: nel browser uno sopra l'altro, sul pannello il contrario.
@@ -35,6 +35,13 @@ davvero passa da **112 campi mai disegnati a 84**.
 - **Conferma sui comandi** — un comando che nell'IDE chiede conferma, sul
   pannello partiva al primo tocco. Su uno schermo touch il tocco accidentale è
   reale.
+- **Torta**: etichette sugli spicchi (quattro modi), colore del foro, valore al
+  centro, e le fette sotto soglia raggruppate in una sola — un grafico con venti
+  tag era una corona di fili colorati.
+- **Grafico a barre**: le soglie di avviso e allarme come righe attraverso il
+  grafico. Si disegnano **solo** quando tutte le serie hanno la stessa scala; se
+  non ce l'hanno la riga non compare e il registro dice perché, perché una riga
+  sola su scale diverse mentirebbe su tutte le barre tranne una (vedi Q28).
 
 ### `--istantanea`: guardare il pannello senza il pannello
 
