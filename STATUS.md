@@ -8,18 +8,81 @@
 
 ## ▶ Da fare nella prossima sessione
 
-### 0. Serve un'immagine 2.3.3 prima di riprendere le prove
+### 0. Due rami pronti, in attesa di conferma del maintainer
 
-Tre commit dopo il tag **non sono nell'immagine sul WP630**: i navbutton della
-demo, la strozzatura dei log e la nota sull'ordine di build. Il dispositivo ha la
-**2.3.2**, installata pulita dall'IDE il 2026-08-28.
+Il lavoro del **2026-08-31** sta su due rami, non su `main` (regola del workflow:
+squash merge solo dopo che il maintainer ha confermato che funziona).
+
+**`fix/sws-display-path-loop`** — *la commutazione web/LVGL era morta dieci
+secondi dopo l'accensione.* `sws-display.path` univa `PathChanged=` e
+`PathExists=`: il secondo è una condizione **di livello**, quindi appena il
+servizio finiva il file esisteva ancora, systemd lo rilanciava, e in dieci
+secondi scattava il limite di riavvii. Sul WP630 le due unit erano `failed` da
+sempre — spiega perché il deploy non commutava. Corretto **e già applicato sul
+dispositivo**, dove ora la `.path` scatta a ogni cambio, una volta sola.
+
+> **Resta da verificare l'ultimo anello**: che lo schermo cambi davvero. Non è
+> stato possibile perché il dispositivo è rimasto in **modalità configurazione**
+> dal test del pulsante STOP, e lì lo script si rifiuta (giustamente) di toccare
+> lo schermo. Serve un **riavvio normale**, poi il test 14.
+
+Contiene anche: l'installazione dice forte se le unit non sono vive (prima
+`enable --now` riusciva e l'installazione chiudeva con «fatto» su una unit già
+morta), e `scripts/check_systemd_units.sh`.
+
+**`feat/lvgl-gap`** — passi 1-9 del piano «dieci passi per chiudere il divario
+del pannello» (`docs/plans/`). Il divario passa da **112 campi mai disegnati a
+84**. Nove commit; 303 test Rust e 78 dell'editor verdi; otto guardie verdi.
+
+### 0-bis. `--istantanea`: si può guardare il pannello senza il pannello
+
+La cosa più utile della giornata, e non era nel piano. Il viewer disegna una
+pagina, salva un'immagine PPM ed esce; `--tocca "x,y;x,y"` tocca lo schermo
+prima di fotografare e **dice quali comandi il tocco ha prodotto**.
+
+```
+sws-lvgl-viewer --base-url http://… --page "Indicatori" --istantanea /tmp/p.ppm
+convert /tmp/p.ppm /tmp/p.png
+```
+
+Costa **+21 KB** sul binario ARM (misurati), perché il rendering di LVGL era già
+interamente software: SDL2 e DRM servono solo a *mostrare* il buffer.
+
+Nelle prime ore di vita ha trovato **otto** difetti, sei dei quali silenziosi:
+
+| Difetto | Da quanto c'era |
+|---|---|
+| `LV_COLOR_SCREEN_TRANSP 0`: un oggetto semitrasparente **non veniva disegnato** invece di sbiadire | da sempre |
+| Le pipe che salgono venivano tagliate (origine dal primo punto invece che dall'angolo) | da sempre |
+| Le celle della griglia della demo erano vuote — **anche nel browser** (`objects:` non è un campo di `GridCell`) | mesi |
+| La `setpoint` era una scheda bianca con le barre di scorrimento e il valore tagliato | da sempre |
+| Widget catturati a (0,0) prima del calcolo di layout — **lo stesso difetto del 2026-08-24**, ripetuto scrivendo il movimento | ripetuto |
+| `o_anchor_rule` della demo: intendeva una riga verticale, i due motori ne disegnavano una orizzontale | da sempre |
+| Il percorso del movimento disegnato con `points` su una `line`, che nessun motore legge | introdotto oggi |
+| `lv_msgbox_create` conserva il puntatore all'array dei pulsanti: array locale → **segfault** | introdotto oggi |
+
+Il quinto merita una riga a parte: il 24 agosto quel difetto l'aveva trovato il
+maintainer davanti al pannello, in una sessione. Il 31 l'ho ritrovato in due
+minuti.
+
+
+### 1. Serve un'immagine prima di riprendere le prove sul dispositivo
+
+La **2.3.3 è taggata e pushata** (`adc4e7b`, 2026-08-29) ma l'immagine non è
+ancora stata costruita: il WP630 ha la **2.3.2**, installata pulita dall'IDE il
+2026-08-28. Quando si costruirà, converrà farlo **dopo** aver mergiato i due rami
+qui sopra, così l'immagine porta anche la commutazione corretta e il divario
+chiuso.
+
+La build la lancia il maintainer: `./scripts/build_containers_all.sh --push` —
+ora chiede la password all'inizio e prosegue non supervisionata.
 
 Sul dispositivo è rimasto il progetto **`ProvaDemoWeb`**, che è del 25 agosto e
 contiene un `import math` che la sandbox blocca: fa errori ogni secondo. Non è un
 difetto del template — quello è sano — ma di quel progetto. **Va ricreato dal
 modello e rideployato.**
 
-### 1. I due test mai fatti sul dispositivo
+### 2. I test mai fatti sul dispositivo
 
 | | Cosa | Esito |
 |---|---|---|
@@ -39,9 +102,16 @@ del pannello resta aperta anche con SWS installato.
 Misurato in modalità configurazione: `desktop.target` **inactive** — è il
 discriminante su cui si regge `sws-display-apply.sh`, e regge.
 
-### 2. Chiedere il sudo all'inizio, non a metà build (chiesto il 2026-08-28)
+### ~~3. Chiedere il sudo all'inizio, non a metà build~~ — fatto nella 2.3.3
 
-`build_containers_all.sh` costruisce in quest'ordine:
+`build_container_aarch64_generic.sh` è ora in testa all'array `SCRIPTS`: la
+password si digita subito e il resto prosegue non supervisionato. Il ragionamento
+per cui riordinare batte un `sudo -v` iniziale è nel commento in testa a
+`build_containers_all.sh` (la cache scade in ~15 minuti, meno della prima build).
+
+<details><summary>Il testo di prima, per contesto</summary>
+
+`build_containers_all.sh` costruiva in quest'ordine:
 
 ```
 build_container.sh                  (SDK Pixsys — la più lunga, NON serve sudo)
@@ -58,7 +128,9 @@ password lo stesso, a metà — lo stesso difetto, più difficile da capire.
 
 Da valutare: cambiando l'ordine, una build interrotta lascia risultati parziali diversi.
 
-### 3. Il lavoro sui template, chiuso il 2026-08-28
+</details>
+
+### 4. Il lavoro sui template, chiuso il 2026-08-28
 
 Rivisti tutti e 11 contro il runtime. Trovati e corretti difetti che nessuno
 poteva vedere senza provarli a mano:
@@ -91,19 +163,36 @@ schemi diversi (`demo-items-web`, `casa-locale`, `s7-demo`,
 punti di partenza per un protocollo, impianti reali. È una scelta di prodotto,
 in attesa del maintainer.
 
-### 4. Cosa aspetta ancora una conferma a schermo
+### 5. Cosa aspetta ancora una conferma a schermo
 
 Da tre sessioni: il **pull del progetto dall'IDE**, la **sezione Python unificata**, il **colore
 del testo derivato dallo sfondo pagina**. Sono lavori finiti che nessuno ha mai guardato.
 
-### 3. Il divario che resta fra web e LVGL
+### 6. Il divario che resta fra web e LVGL
 
-`model.rs` dichiara 238 campi, `lvgl_render.rs` ne nomina 124: **112 non sono disegnati**. La
-lista si ricava con un comando (confronto dei nomi fra i due file), non a memoria.
+`model.rs` dichiara 238 campi. Erano **112 mai disegnati**; con `feat/lvgl-gap`
+sono **84**. La lista si ricava con un comando (confronto dei nomi fra
+`model.rs` e `lvgl_render.rs` + `effects.rs`), non a memoria.
 
-I più pesanti, a giudizio: `opacity`, `z_index`, `blink_*`, `stale_after_s`, `quality_dot*`,
-`pipe_flow`, `symbol_spin*`, e `from_obj_id`/`to_obj_id` — le pipe agganciate agli oggetti invece
-che a punti espliciti, che sul pannello finiscono nel posto sbagliato.
+Chiusi il 2026-08-31: `opacity`, `z_index`, tutto il gruppo `blink_*`,
+`stale_after_s`, `bad_value_style`, `show_alarm_state`, `quality_dot*`,
+`text_wrap`/`text_valign`/`line_height`, `symbol_spin*`, `symbol_states`,
+`motion_*`, `from_obj_id`/`to_obj_id` e le porte, `require_confirm`/
+`confirm_message`/`critical`, più il gauge che segue le soglie dal vivo.
+
+Restano, per ordine di conseguenza:
+
+- **`require_reason` e la ri-autenticazione di `critical`** — il motivo di una
+  scrittura critica non finisce nell'audit se il comando parte dal pannello.
+  Servirebbe una tastiera e una sessione autenticata nel viewer.
+- **`pipe_flow`** (tratteggio in movimento) e i marcatori delle pipe.
+- **Grafici**: `bar_mode` (impilate/affiancate), legende, soglie,
+  `pie_show_labels`, raggruppamento delle fette sotto soglia — 13 campi.
+- **Trend**: il gruppo `trend_dt_*` sul formato di data e ora, i marcatori di
+  allarme, la scala logaritmica.
+- **`alarm_bell_sound*`** — il pannello non ha un suono.
+- Il resto è editor-only (`locked`, `group_id`) o UX (`min_role`, dichiarato
+  tale in `sws-core/src/project.rs`).
 
 ---
 
@@ -152,7 +241,27 @@ versi.
 diventato un tipo supportato da LVGL ha segnalato che palette, elenco solo-web e
 template erano rimasti indietro.
 
+**Aggiunte il 2026-08-31** (sui due rami in attesa di merge):
 
+| Guardia | Cosa impedisce |
+|---|---|
+| `check_lvgl_types.sh` | il badge «L» della palette mente sui tipi che il pannello disegna |
+| `check_systemd_units.sh` | condizioni di livello che fanno ciclare una unit, `.path` verso unit inesistenti, `ExecStart=` relativi |
+| `check_static.sh` | **le altre non venivano lanciate**: a fine sessione se ne ricordavano sei, per nome, a memoria. Le lancia tutte, e fallisce se in `scripts/` compare un `check_*.sh` non classificato |
+
+E dentro `check_templates.sh`: ancoraggi delle pipe verso oggetti inesistenti,
+porte sconosciute, celle di griglia che non disegnano niente, `points` su una
+`line`, `write_value` di un tipo diverso da quello del tag.
+
+Tutte provate **anche nel verso rotto**. Una guardia che non si è vista fallire
+non è una guardia.
+
+
+> **SUPERATO** — vale fino alla 2.1.1; da allora sono uscite 2.2.0, 2.3.0, 2.3.1,
+> 2.3.2 e 2.3.3. Tenuto perché la trappola del `[patch.crates-io]` fuori dalla
+> radice del workspace vale ancora, ed è la ragione di
+> `scripts/check_vendor_patches.sh`.
+>
 > **2.1.1 rilasciata; immagine arm64 RIPUBBLICATA il 2026-08-26.** Il pannello può
 > essere aggiornato: `./install-container.sh --pull` prende `latest-arm64`.
 >
