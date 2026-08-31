@@ -205,6 +205,21 @@ pub enum LiveKind {
         min: f64,
         max: f64,
         unit: Option<String>,
+        /// Le soglie, per ricolorare l'arco quando il valore cambia fascia.
+        ///
+        /// Fino al 2026-08-31 il colore si decideva **una volta sola**, alla
+        /// creazione, dal primo valore letto: un gauge che entrava in allarme
+        /// restava del colore con cui era nato, e la fascia di soglia — cioè
+        /// l'unica cosa per cui le soglie esistono — non si vedeva mai. Nel
+        /// browser cambiava colore; sul pannello no.
+        soglie: (Option<f64>, Option<f64>, Option<f64>, Option<f64>),
+        /// Il colore dichiarato dall'oggetto, usato quando nessuna soglia
+        /// morde. Tenuto come RGB già risolto: `parse_hex_color` a ogni frame
+        /// sarebbe lavoro rifatto per niente.
+        rgb_base: (u8, u8, u8),
+        /// L'ultimo colore mandato a LVGL, per non invalidare il widget
+        /// trenta volte al secondo quando non è cambiato niente.
+        rgb_arco: (u8, u8, u8),
     },
     /// Cerchio colorato (come `led`, ma `lv_obj` normale: legge `bg_color`
     /// dallo `Style` senza le sorprese di `lv_led`) + label testo a fianco,
@@ -2164,12 +2179,18 @@ fn render_line(screen: &mut lvgl::Obj, obj: &SynopticObject, styles: &mut Vec<St
 /// orario — verificato in `lv_meter.h`, non assunto dal nome — `rotation=135,
 /// angle_range=270` lascia il varco in basso, stesso aspetto del gauge web).
 ///
-/// **Semplificazione dichiarata rispetto al web**: l'arco colorato per soglia
-/// (`thresholdColor`) prende colore solo alla creazione, dal valore iniziale —
-/// `lv_meter` non espone un setter per il colore di un indicatore già creato
-/// (solo `set_indicator_value`/`start_value`/`end_value`, verificato in
-/// `lv_meter.h`), quindi non segue le soglie dal vivo come nel web. L'ago e il
-/// valore numerico restano invece pienamente dal vivo. Vedi Q14.
+/// L'arco segue le soglie **dal vivo**, come nel web, dal 2026-08-31. Era una
+/// semplificazione dichiarata: il colore si prendeva alla creazione dal primo
+/// valore letto, quindi un gauge che entrava in allarme restava del colore con
+/// cui era nato — e la fascia di soglia, cioè l'unica cosa per cui le soglie
+/// esistono, non si vedeva mai.
+///
+/// La ragione che l'aveva motivata era vera ma non decisiva: `lv_meter`
+/// davvero non espone un setter per il colore di un indicatore già creato
+/// (verificato in `lv_meter.h`). Il colore è però un campo pubblico della
+/// struct dell'indicatore, riletto da LVGL a ogni disegno: scriverlo e
+/// invalidare il widget fa il mestiere del setter mancante. Vedi il ramo
+/// `LiveKind::Gauge` di `update_bindings`.
 fn render_gauge(
     screen: &mut lvgl::Obj,
     obj: &SynopticObject,
@@ -2202,6 +2223,9 @@ fn render_gauge(
     let tv = lookup(tags, &obj.tag);
     let raw = tv.map(|t| tag_value_as_f64(&t.value)).unwrap_or(min).clamp(min.min(max), min.max(max));
 
+    // Colore di partenza dell'arco. Non è più l'unico che avrà: dal
+    // 2026-08-31 `update_bindings` lo ricalcola a ogni cambio di fascia, così
+    // un gauge che entra in allarme cambia colore anche sul pannello.
     let arc_rgb = threshold_color(raw, obj.alarm_low, obj.warn_low, obj.warn_high, obj.alarm_high)
         .or_else(|| obj.fill.as_deref().and_then(parse_hex_color))
         .unwrap_or((34, 197, 94)); // #22c55e, stesso default del web
@@ -2265,6 +2289,9 @@ fn render_gauge(
             min,
             max,
             unit: obj.unit.clone(),
+            soglie: (obj.alarm_low, obj.warn_low, obj.warn_high, obj.alarm_high),
+            rgb_base: obj.fill.as_deref().and_then(parse_hex_color).unwrap_or((34, 197, 94)),
+            rgb_arco: arc_rgb,
         },
     })
 }
@@ -5417,15 +5444,34 @@ pub fn update_bindings(bindings: &mut [LiveBinding], tags: &TagSnapshot) {
                     }
                 }
             }
-            LiveKind::Gauge { ptr, needle_indic, arc_indic, value_ptr, tag, min, max, unit } => {
+            LiveKind::Gauge {
+                ptr, needle_indic, arc_indic, value_ptr, tag, min, max, unit,
+                soglie, rgb_base, rgb_arco,
+            } => {
                 let raw = lookup(tags, tag)
                     .map(|t| tag_value_as_f64(&t.value))
                     .unwrap_or(*min)
                     .clamp(min.min(*max), min.max(*max));
                 let unit_suffix = unit.as_deref().map(|u| format!(" {u}")).unwrap_or_default();
+                // Il colore dell'arco segue la fascia di soglia, dal vivo.
+                //
+                // `lv_meter` non espone un setter per il colore di un
+                // indicatore già creato, ma il colore è un campo pubblico
+                // della struct che LVGL rilegge a ogni disegno: scriverlo e
+                // invalidare il widget fa esattamente ciò che servirebbe a un
+                // setter. Ricreare l'indicatore a ogni cambio di fascia
+                // funzionerebbe pure, ma lascerebbe dietro il vecchio (LVGL
+                // non li dealloca fino alla distruzione del meter).
+                let voluto = threshold_color(raw, soglie.0, soglie.1, soglie.2, soglie.3)
+                    .unwrap_or(*rgb_base);
                 unsafe {
                     lvgl_sys::lv_meter_set_indicator_value(ptr.as_ptr(), *needle_indic, raw.round() as i32);
                     lvgl_sys::lv_meter_set_indicator_end_value(ptr.as_ptr(), *arc_indic, raw.round() as i32);
+                    if voluto != *rgb_arco && !arc_indic.is_null() {
+                        (**arc_indic).type_data.arc.color = Color::from_rgb(voluto).into();
+                        lvgl_sys::lv_obj_invalidate(ptr.as_ptr());
+                        *rgb_arco = voluto;
+                    }
                     lvgl_sys::lv_label_set_text(
                         value_ptr.as_ptr(),
                         text_cstring(&format!("{raw:.1}{unit_suffix}")).as_ptr(),
