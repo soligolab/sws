@@ -230,8 +230,8 @@ objects:
   grid_cells:
   - row: 0
     col: 0
-    objects:
-    - id: g_led
+    child:
+      id: g_led
       type: led
       x: 20.0
       y: 20.0
@@ -243,8 +243,8 @@ objects:
       on_value: 'true'
   - row: 0
     col: 1
-    objects:
-    - id: g_text
+    child:
+      id: g_text
       type: text
       x: 10.0
       y: 30.0
@@ -256,8 +256,8 @@ objects:
       color: '#e2e8f0'
   - row: 1
     col: 0
-    objects:
-    - id: g_rect
+    child:
+      id: g_rect
       type: rect
       x: 15.0
       y: 20.0
@@ -266,8 +266,8 @@ objects:
       fill: '#0ea5e9'
   - row: 1
     col: 1
-    objects:
-    - id: g_lamp
+    child:
+      id: g_lamp
       type: state_lamp
       x: 15.0
       y: 22.0

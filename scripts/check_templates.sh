@@ -32,6 +32,9 @@
 #   * pipe agganciate a oggetti che non esistono, o con una porta sconosciuta —
 #     il capo resta dov'era o cade al centro, e la pipe finisce storta senza che
 #     niente lo segnali (stesso silenzio dei navbutton rotti).
+#   * celle di griglia che non disegnano niente — `objects:` non è un campo di
+#     `GridCell` (il campo è `child:`), e nessuno dei due motori lo legge: la
+#     griglia esce vuota, in silenzio, in entrambi.
 #   * `home_page_id` mancante con più pagine — il viewer ripiega sulla prima in
 #     ordine alfabetico, quindi a decidere cosa vede il cliente all'accensione è
 #     l'alfabeto.
@@ -129,6 +132,25 @@ for nome in nomi:
                 if rif and rif not in id_oggetti:
                     problema(f"{nome}/{base}: `{campo}: {rif}` non è un oggetto di questa "
                              f"pagina — il capo della pipe resta dov'era, storto e in silenzio")
+            # ── celle di griglia che non disegnano niente ──
+            #
+            # Una `GridCell` ha **un** contenuto: `child` (un oggetto centrato
+            # nella cella) oppure `sub` (una suddivisione). `objects:` non è un
+            # campo di `GridCell` — non nel motore LVGL e nemmeno nel web:
+            # entrambi lo ignorano in silenzio, e la griglia esce vuota.
+            #
+            # I due modelli "Demo Items" l'hanno avuto per mesi, con la
+            # didascalia «celle con oggetti dentro» sopra una griglia vuota in
+            # tutti e due i motori. Trovato il 2026-08-31 guardando
+            # un'istantanea, non leggendo lo YAML.
+            for n_c, c in enumerate(o.get("grid_cells") or []):
+                dove = f"cella ({c.get('row')},{c.get('col')})"
+                if "objects" in c:
+                    problema(f"{nome}/{base}: {o.get('id')} {dove} usa `objects:` — "
+                             f"nessuno dei due motori lo legge; il campo è `child:`")
+                elif not any(k in c for k in ("child", "sub", "bg_color")):
+                    problema(f"{nome}/{base}: {o.get('id')} {dove} non ha né `child` né "
+                             f"`sub` né `bg_color` — resta vuota")
             # Una porta sconosciuta cade al centro dell'oggetto invece che sul
             # lato voluto: la pipe entra nel mezzo della macchina.
             for campo in ("from_port", "to_port"):
