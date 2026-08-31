@@ -28,6 +28,36 @@
 
 ## ▶ Da fare nella prossima sessione
 
+### Da dove ripartire — chiusura della sessione del 2026-08-31 (sera)
+
+Sessione di **trasloco**, nessuna riga di codice: frodo è stata verificata, i documenti
+riallineati, e l'immagine amd64 mancante costruita e pubblicata.
+
+**Due tracce pronte, entrambe da una sessione:**
+
+- **B — il WP630.** Serve il via del maintainer per l'SSH (indirizzo e chiave in
+  `docs/TEST_SETUPS.md` §3). Ordine: ricreare `ProvaDemoWeb` dal template attuale (quello sul
+  device ha l'`import math` che la sandbox blocca), `sudo reboot` da remoto — che essendo un
+  riavvio normale fa uscire dalla modalità configurazione e **chiude il test 13** — poi
+  `podman pull` di `latest-arm64` (già 2.3.4) e i test 14 e 15.
+- **C — la chat AI nell'editor.** `docs/plans/2026-08-31-chat-ai-nelleditor.md`: sei domande
+  aperte nel §9 (le cinque originali più quella del §12 sull'annullamento parziale), poi la
+  fase 1 — endpoint di validazione + schema generato, due sessioni, utile anche se la chat non
+  si farà mai.
+
+**Decisioni che aspettano il maintainer, tutte da una riga:**
+
+| Cosa | Dove |
+|---|---|
+| Cancellare `refs/original/` su frodo (la rete di sicurezza della storia pre-riscrittura) | `git update-ref -d` |
+| Rimuovere i due worktree su theobroma: ~12 GB, e non contengono nulla di unico | `git worktree remove` |
+| Cancellare i due rami mergiati (`feat/lvgl-gap`, `fix/sws-display-path-loop`) | locali **e** su `origin` |
+| Salvare i due piani non-sws da `~/.claude/plans/` di theobroma: esistono solo lì | prima della pulizia disco |
+| Ruotare il token Proxmox incollato in chat il 2026-08-31, se ha poteri di scrittura | — |
+
+**Sempre in attesa di uno sguardo a schermo**, da quattro sessioni: pull del progetto dall'IDE,
+sezione Python unificata, colore del testo derivato dallo sfondo pagina (§5).
+
 ### 0. Lo stato reale dopo il trasloco su frodo (2026-08-31, sera)
 
 Il lavoro del **2026-08-31** è **su `main`**: i due rami (`fix/sws-display-path-loop`,
