@@ -263,6 +263,17 @@ pub fn build(
         // Audit log (OPEN_QUESTIONS Q8): who-did-what trail, tamper-evident.
         .route("/api/audit",               get(get_audit_tail))
         .route("/api/audit/verify",        get(get_audit_verify))
+        // T-50 — lo schema del progetto e il giudizio su una modifica proposta.
+        //
+        // `POST /api/project/validate` riceve un progetto e **non lo salva**:
+        // è l'unico endpoint che sembra scrivere e non scrive. È deliberato —
+        // serve a sapere se una modifica sta in piedi *prima* di applicarla,
+        // che è il ciclo con cui un assistente si corregge da solo invece di
+        // lasciare il difetto al pannello. Vale anche senza IA: prima non
+        // c'era modo di chiedere «questo progetto è valido?» senza rovinarlo.
+        .route("/api/project/validate",    post(crate::schema_api::validate_project))
+        .route("/api/schema/synoptic",     get(crate::schema_api::schema_synoptic))
+        .route("/api/schema/source",       get(crate::schema_api::schema_source))
         .route_layer(middleware::from_fn(require_admin));
 
     // Routes that need Operator+ (tag writes, alarm ACK, script exec,

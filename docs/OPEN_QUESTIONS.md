@@ -2395,3 +2395,58 @@ sintomo, non una risposta.
    significano niente e vanno tolti dal pannello proprietà.
 4. In entrambi i casi: **cosa succede ai progetti esistenti** che dichiarano
    l'uno o l'altro e hanno un aspetto che il cliente ha già approvato.
+
+---
+
+## Q29 — Un tag può servire due direzioni con due tipi diversi?
+
+*Aperta il 2026-08-31 (notte), scrivendo il validatore di T-50. Misurata, non decisa.*
+
+I dodici pulsanti dei rulli in `casa-locale` scrivono le stringhe `"open"` / `"stop"` /
+`"close"` su tag dichiarati `float`:
+
+```yaml
+# project.yaml
+- id: shutter.garage
+  data_type: float          # la posizione 0-100 che arriva da .../roller/0/pos
+
+# Page 5 - Domotica.yaml
+- id: cl5_t1_open
+  type: button
+  tag: shutter.garage
+  write_value: "open"       # il comando che esce su .../roller/0/command
+```
+
+Lo stesso tag porta **una posizione numerica in lettura** e **un comando testuale in
+scrittura**. Funziona: il server non fa rispettare il `data_type` (Q27) e il plugin MQTT
+pubblica il valore così com'è. Ma il tipo dichiarato è falso metà del tempo, e il valore che
+sta nel `TagDb` subito dopo il comando non è una posizione.
+
+### Perché è emersa adesso
+
+Il validatore di T-50 deve dire a un assistente se una proposta è accettabile. La regola «il
+valore scritto sta nel tipo del tag» è quella che impedisce al modello di ripetere il difetto
+del 2026-08-31 (`write_value: 'true'` su un tag `bool`). Applicata ai template, boccia dodici
+oggetti di `casa-locale` — cioè un progetto vero che funziona da mesi.
+
+Le dodici eccezioni sono elencate una per una in `ECCEZIONI_NOTE`
+(`sws-web/src/validate.rs`), così una tredicesima fa fallire il test. Non è una risposta: è
+un segnalibro.
+
+### Le domande
+
+1. **Il modello giusto sono due tag** (`shutter.garage.pos` in lettura, `shutter.garage.cmd`
+   in scrittura), o **un tag con due tipi** dichiarati esplicitamente
+   (`data_type: float`, `write_data_type: string`)?
+2. Se restano due direzioni su un tag solo, **cosa dice `data_type`**? Oggi descrive la
+   lettura e tace sulla scrittura, ma non c'è scritto da nessuna parte.
+3. Cosa deve rispondere il validatore nel frattempo — e quindi cosa impara un assistente che
+   legge `casa-locale` come esempio. Oggi imparerebbe che si può scrivere una stringa su un
+   `float`.
+4. Vale anche per Home Assistant (`write_domain` / `write_service`) e per Sparkplug
+   (`writable`), o è solo MQTT?
+
+### Rapporto con le altre voci
+
+È la stessa famiglia di **Q27** (il server non fa rispettare il `data_type` in scrittura):
+Q27 chiede se il tipo è un contratto, Q29 chiede se è *un* contratto o due.
