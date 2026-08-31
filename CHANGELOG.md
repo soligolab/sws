@@ -11,6 +11,25 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+- **La commutazione automatica fra pannello web e pannello LVGL era morta dieci
+  secondi dopo l'accensione.** `sws-display.path` univa `PathChanged=` e
+  `PathExists=` sullo stesso file: `PathExists` è una condizione di livello, così
+  appena il servizio finiva il file esisteva ancora, systemd lo rilanciava, e in
+  dieci secondi scattava il limite di riavvii. Da lì la unit restava `failed` per
+  sempre. Sul WP630 lo era da due ore e venticinque minuti, cioè da sempre.
+  Nessuno se n'era accorto perché quelle cinque volte il servizio aveva
+  funzionato benissimo: a mancare era solo la commutazione dopo il caricamento di
+  un progetto, l'unica cosa per cui la unit esiste. `PathChanged` da solo scatta
+  anche alla prima creazione del file — provato sul dispositivo — quindi
+  `PathExists` copriva un caso che non c'era.
+- **L'installazione ora dice se la commutazione non è viva.**
+  `systemctl --user enable --now` riesce anche su una unit che va in `failed` due
+  secondi dopo, e l'installazione chiudeva con «fatto».
+- **Nuova guardia `scripts/check_systemd_units.sh`** sulle unit che spediamo:
+  condizioni di livello che possono ciclare, `.path` verso unit inesistenti,
+  `ExecStart=` relativi. Provata in tutti e tre i versi rotti.
+
+
 ## [2.3.3] — 2026-08-29
 
 - **I pulsanti di navigazione della demo portavano a una pagina inesistente.**
