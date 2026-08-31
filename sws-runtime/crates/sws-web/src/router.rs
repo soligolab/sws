@@ -274,6 +274,10 @@ pub fn build(
         .route("/api/project/validate",    post(crate::schema_api::validate_project))
         .route("/api/schema/synoptic",     get(crate::schema_api::schema_synoptic))
         .route("/api/schema/source",       get(crate::schema_api::schema_source))
+        // La chat dell'assistente. Admin come tutto ciò che riguarda il
+        // progetto: chi non può modificarlo non ha motivo di farsi proporre
+        // modifiche. Non scrive niente — manda proposte al browser.
+        .route("/ws/ai",                   get(crate::ai::ws_ai_handler))
         .route_layer(middleware::from_fn(require_admin));
 
     // Routes that need Operator+ (tag writes, alarm ACK, script exec,
@@ -1913,7 +1917,7 @@ async fn get_project(State(s): State<AppState>) -> Response {
 
 /// Replace any sensitive field on the project with the placeholder
 /// constant before it's serialised to the caller.
-fn mask_project_secrets(project: &mut Project) {
+pub(crate) fn mask_project_secrets(project: &mut Project) {
     for src in &mut project.sources {
         if let SourceDef::Mqtt(c) = src {
             if c.password.is_some() {
@@ -4615,49 +4619,56 @@ async fn update_project_global_scripts(
 
 // ── T-24 Project fingerprint ─────────────────────────────────────────────────
 
+/// SHA-256 di `project.yaml` più tutti i sinottici, in ordine di nome.
+///
+/// Estratta dall'handler quando l'assistente (T-50) ha avuto bisogno della
+/// stessa impronta da dentro il processo: la proposta se la porta dietro e il
+/// browser rifiuta di applicarla se nel frattempo il progetto è cambiato. Una
+/// seconda implementazione sarebbe divergita — è già successo tre volte in
+/// questo repo, e ogni volta in silenzio.
+pub(crate) fn calcola_impronta(dir: &std::path::Path) -> anyhow::Result<String> {
+    use sha2::{Digest, Sha256};
+    let mut hasher = Sha256::new();
+
+    let yaml = std::fs::read(dir.join("project.yaml"))
+        .map_err(|e| anyhow::anyhow!("project.yaml: {e}"))?;
+    hasher.update(&yaml);
+
+    // I sinottici in ordine di nome file, per determinismo.
+    let syn_dir = dir.join("synoptics");
+    if syn_dir.is_dir() {
+        let mut entries: Vec<std::path::PathBuf> = std::fs::read_dir(&syn_dir)
+            .map_err(|e| anyhow::anyhow!("synoptics/: {e}"))?
+            .filter_map(|e| e.ok())
+            .map(|e| e.path())
+            .filter(|p| p.extension().and_then(|s| s.to_str()) == Some("yaml"))
+            .collect();
+        entries.sort();
+        for path in &entries {
+            // Il nome entra nell'hash: due file con lo stesso contenuto e nomi
+            // diversi non sono lo stesso progetto.
+            if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
+                hasher.update(name.as_bytes());
+            }
+            let content = std::fs::read(path)
+                .map_err(|e| anyhow::anyhow!("{}: {e}", path.display()))?;
+            hasher.update(&content);
+        }
+    }
+
+    let digest = hasher.finalize();
+    Ok(digest.iter().fold(String::new(), |mut s, b| { s.push_str(&format!("{:02x}", b)); s }))
+}
+
 /// `GET /api/project/fingerprint` — SHA-256 of project.yaml + all synoptic YAMLs.
 /// The fingerprint is deterministic: same file contents = same hash regardless of
 /// when it is computed. Clients compare local vs. remote fingerprint to verify that
 /// a deployment is in sync.
 async fn get_project_fingerprint(State(s): State<AppState>) -> impl IntoResponse {
-    use sha2::{Digest, Sha256};
     use std::time::{SystemTime, UNIX_EPOCH};
 
     let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
-
-    let result = tokio::task::spawn_blocking(move || -> anyhow::Result<String> {
-        let mut hasher = Sha256::new();
-
-        // 1. Hash project.yaml
-        let yaml = std::fs::read(dir.join("project.yaml"))
-            .map_err(|e| anyhow::anyhow!("project.yaml: {e}"))?;
-        hasher.update(&yaml);
-
-        // 2. Hash synoptics sorted by filename for determinism
-        let syn_dir = dir.join("synoptics");
-        if syn_dir.is_dir() {
-            let mut entries: Vec<std::path::PathBuf> = std::fs::read_dir(&syn_dir)
-                .map_err(|e| anyhow::anyhow!("synoptics/: {e}"))?
-                .filter_map(|e| e.ok())
-                .map(|e| e.path())
-                .filter(|p| p.extension().and_then(|s| s.to_str()) == Some("yaml"))
-                .collect();
-            entries.sort();
-            for path in &entries {
-                // Prefix with filename so two files with identical content but
-                // different names produce different overall hashes.
-                if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
-                    hasher.update(name.as_bytes());
-                }
-                let content = std::fs::read(path)
-                    .map_err(|e| anyhow::anyhow!("{}: {e}", path.display()))?;
-                hasher.update(&content);
-            }
-        }
-
-        let digest = hasher.finalize();
-        Ok(digest.iter().fold(String::new(), |mut s, b| { s.push_str(&format!("{:02x}", b)); s }))
-    }).await;
+    let result = tokio::task::spawn_blocking(move || calcola_impronta(&dir)).await;
 
     match result {
         Ok(Ok(sha256)) => {

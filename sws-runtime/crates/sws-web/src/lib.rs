@@ -1,3 +1,4 @@
+pub mod ai;
 pub mod backups;
 pub mod deploy;
 pub mod discover;

@@ -315,15 +315,8 @@ fn applica_evento(
 }
 
 fn appendi(blocco: &mut Value, campo: &str, pezzo: &str) {
-    match blocco.get_mut(campo).and_then(Value::as_str) {
-        Some(gia) => {
-            let nuovo = format!("{gia}{pezzo}");
-            blocco[campo] = Value::String(nuovo);
-        }
-        None => {
-            blocco[campo] = Value::String(pezzo.to_string());
-        }
-    }
+    let gia = blocco.get(campo).and_then(Value::as_str).unwrap_or("");
+    blocco[campo] = Value::String(format!("{gia}{pezzo}"));
 }
 
 #[cfg(test)]
