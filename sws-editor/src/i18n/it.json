@@ -279,7 +279,8 @@
       "applicata": "Applicata. Ctrl+Z per annullare, Salva per scrivere su disco.",
       "scartata": "Scartata.",
       "rifiutata": "Non applicata."
-    }
+    },
+    "localProject": "L'assistente lavora sul progetto locale — quello che stai modificando — non su quello del dispositivo collegato."
   },
   "viewer": {
     "maintenance": "Manutenzione",

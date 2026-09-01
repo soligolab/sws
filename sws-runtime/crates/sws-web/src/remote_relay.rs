@@ -94,6 +94,20 @@ pub async fn ws_relay_handler(
     State(s): State<AppState>,
     Path(sub): Path<String>,
 ) -> Response {
+    // Tre e solo tre: sono i canali che mostrano lo stato **del dispositivo**.
+    //
+    // `ai` non c'è, e **non va aggiunto** (Q31). La tentazione è forte, perché
+    // per un periodo la chat dell'IDE con un runtime remoto collegato riceveva
+    // proprio un 404 da qui — ma la causa era dall'altra parte: `buildWsUrl`
+    // dirottava ogni canale nel relay. Corretto lì, escludendo `/ws/ai`.
+    //
+    // La ragione non è tecnica. Con un remoto collegato il progetto che l'utente
+    // modifica resta **quello locale**: `remote_deploy` esporta il progetto
+    // locale attivo e lo carica sul device, il pull fa il verso opposto
+    // importandolo in locale. L'assistente propone modifiche a quel progetto,
+    // quindi deve leggere il locale. Relayare `ai` lo farebbe leggere la copia
+    // sul dispositivo — che nessuno sta editando — e girare l'agente dentro il
+    // runtime di un impianto in servizio, cosa che il piano di T-50 esclude.
     if !matches!(sub.as_str(), "tags" | "alarms" | "logs") {
         return StatusCode::NOT_FOUND.into_response();
     }

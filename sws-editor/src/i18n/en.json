@@ -279,7 +279,8 @@
       "applicata": "Applied. Ctrl+Z to undo, Save to write to disk.",
       "scartata": "Discarded.",
       "rifiutata": "Not applied."
-    }
+    },
+    "localProject": "The assistant works on the local project — the one you are editing — not on the connected device's copy."
   },
   "viewer": {
     "maintenance": "Maintenance",

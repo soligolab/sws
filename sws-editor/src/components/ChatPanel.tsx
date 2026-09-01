@@ -26,6 +26,7 @@ import type { ProjectInfo, SynopticPage } from "@/types";
 export function ChatPanel({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { t } = useTranslation();
   const applyAiProposal = useAppStore((s) => s.applyAiProposal);
+  const remoteConnected = useAppStore((s) => s.remoteConnected);
 
   const [righe, setRighe]     = useState<Riga[]>([]);
   const [bozza, setBozza]     = useState("");
@@ -127,6 +128,18 @@ export function ChatPanel({ open, onClose }: { open: boolean; onClose: () => voi
 
       {stato && !stato.attivo && (
         <div style={AVVISO}>{stato.motivo ?? t("chat.inactive")}</div>
+      )}
+
+      {/* Con un runtime remoto collegato è naturale credere che l'assistente
+          guardi il dispositivo. Non è così, ed è giusto così: il progetto che si
+          sta modificando è quello locale — il deploy ne manda una copia al
+          device — quindi l'assistente legge e propone sul locale. Dirlo costa
+          una riga; non dirlo lascia credere che stia leggendo l'impianto. */}
+      {remoteConnected && (
+        <div style={{ ...AVVISO, background: "var(--brand-surface, #131c2e)",
+                      color: "var(--brand-text-subtle, #94a3b8)" }}>
+          {t("chat.localProject")}
+        </div>
       )}
 
       <div style={LISTA}>

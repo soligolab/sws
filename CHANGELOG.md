@@ -30,6 +30,25 @@ Gira **dentro `sws-runtime`**, non in un processo a parte: la chiave sta
 nella configurazione del runtime e non entra mai nel progetto. Vedi
 `docs/HOWTO.md` §7 per come accenderlo.
 
+### La chat non funzionava con un runtime remoto collegato (Q31)
+
+`buildWsUrl` dirottava **ogni** WebSocket sul relay del runtime locale, che
+ammette tre soli sottocanali: `/ws/remote/ai` rispondeva 404 e il pannello
+riprovava all'infinito. Non si era visto perché la chat si prova con un progetto
+locale, senza passare da «Connetti».
+
+Ora si dirottano solo i tre canali che mostrano lo stato **del dispositivo** —
+tag, allarmi, log — e `/ws/ai` resta locale. Non è una scorciatoia: con un remoto
+collegato il progetto che si modifica è **quello locale** (il deploy ne esporta
+una copia sul device, il pull fa il verso opposto), quindi l'assistente deve
+leggere il locale. Dirottarlo sul dispositivo gli farebbe proporre modifiche a
+una copia che nessuno sta editando — peggio del 404, perché sembrerebbe
+funzionare. La whitelist del relay resta di tre voci, con la ragione scritta
+accanto perché nessuno la «corregga».
+
+E il pannello lo dice in una riga: con un device collegato è naturale credere che
+l'assistente guardi l'impianto.
+
 ### L'assistente parla anche con Kimi, e costa un terzo
 
 Kimi (Moonshot) espone la Messages API di Anthropic, quindi streaming, blocchi,
