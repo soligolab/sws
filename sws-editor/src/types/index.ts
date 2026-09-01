@@ -1630,3 +1630,18 @@ export interface PieSlice {
   /** Falls back to the shared trend PALETTE by index when omitted. */
   color?: string;
 }
+
+// ── Configurazione dell'assistente IA (GET /api/ai/config) ────────────────────
+//
+// Non porta **niente** della chiave, nemmeno mascherata: al pannello serve
+// sapere *se* è configurata, non com'è fatta.
+export interface AiConfig {
+  configurato: boolean;
+  fornitore: string | null;
+  modello: string | null;
+  chiavi: Record<string, boolean>;
+  modelli_default: Record<string, string>;
+  /** Variabili d'ambiente impostate, che **scavalcano** questa configurazione. */
+  da_ambiente: string[];
+  percorsi: string[];
+}

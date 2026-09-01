@@ -24,6 +24,7 @@
 //! concorrenza ottimistico, con il pezzo che già esisteva (`calcola_impronta`).
 
 pub mod client;
+pub mod config_api;
 pub mod prompt;
 pub mod tools;
 

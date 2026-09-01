@@ -495,8 +495,19 @@ costerebbe circa **0,14 $**.
 | `claude-opus-5` | 5 $/Mtok | 0,50 $ | 25 $/Mtok |
 | `kimi-k3` | 3 $/Mtok | 0,30 $ | 15 $/Mtok |
 
-La chiave di Kimi si prende su <https://platform.kimi.ai> e si mette dove il runtime la cerca —
-stessi tre posti, altro nome:
+**Dal 2026-09-01 la si può mettere dall'IDE**: Configurazione → tab **IDE** → «Assistente IA»,
+dove si scelgono fornitore, modello e chiave. La chiave finisce in
+`<config_dir>/<fornitore>.key` con permessi `600`, e fornitore/modello in
+`<config_dir>/ai.yaml`. Due avvertenze che il pannello dice da sé:
+
+- **le variabili d'ambiente scavalcano** quella configurazione, e se ce n'è una impostata il
+  pannello lo segnala invece di lasciar credere che il salvataggio non funzioni;
+- quelle rotte **esistono solo sull'istanza IDE** (avviata senza viewer). Su un runtime che serve
+  un impianto rispondono 404: l'assistente lì non si configura dall'interfaccia, ed è una scelta
+  e non una dimenticanza.
+
+Restano validi i file, per chi preferisce la shell. La chiave di Kimi si prende su
+<https://platform.kimi.ai> e si mette dove il runtime la cerca — stessi tre posti, altro nome:
 
 ```bash
  mkdir -p ~/.config/sws && \

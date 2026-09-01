@@ -78,6 +78,13 @@ pub struct AppState {
     /// quando guardavo", non ricevere ogni singolo evento. Un `watch` non può
     /// restare indietro, e perdere eventi intermedi è esattamente ciò che si
     /// vuole quando la reazione è "ricarica tutto".
+    /// Questa istanza è un IDE senza viewer (`--viewer-port` non passato,
+    /// cioè `start_editor.sh`). Serve a **negare l'esistenza** di funzioni che
+    /// hanno senso solo sul PC di sviluppo: la configurazione dell'assistente
+    /// IA vive qui, e su un runtime che serve un impianto non deve esserci.
+    /// La decisione la prende `main.rs`, che è l'unico posto a sapere se il
+    /// listener del viewer è stato aperto.
+    pub ide_only: bool,
     pub project_epoch: Arc<tokio::sync::watch::Sender<u64>>,
     pub functions: FunctionsRegistry,
     pub derived_tags: DerivedTagsRegistry,
@@ -178,6 +185,8 @@ pub fn build(
     // Operator-only hardening (--no-admin): drop `/api/script/exec` (ad-hoc code
     // execution) from the viewer. Button-bound `/api/script/run/:name` stays.
     lockdown: bool,
+    // Istanza IDE-only (nessun `--viewer-port`): vedi `AppState::ide_only`.
+    ide_only: bool,
     audit: Arc<sws_audit::AuditLog>,
     known_projects: Arc<crate::project_registry::ProjectRegistry>,
     instance_id: Arc<String>,
@@ -191,7 +200,7 @@ pub fn build(
     let (project_epoch, _) = tokio::sync::watch::channel(0u64);
     let project_epoch = Arc::new(project_epoch);
 
-    let state = AppState { db, bus, alarms, historian, registry, py, auth, supervisor, script_supervisor, project_epoch, functions, derived_tags, project_dir, projects_root, templates_root, logs, logs_dir, started_at, ip_allowlist, recipe_log: Arc::new(RwLock::new(Vec::new())), notification_supervisor: Arc::new(RwLock::new(None)), telegram_sender: Arc::new(RwLock::new(None)), config_dir, cert_path, build_running: crate::packaging::new_build_lock(), repo_root: crate::packaging::new_repo_root(), remote_target: Arc::new(RwLock::new(None)), audit, known_projects, instance_id, project_switch_lock: Arc::new(tokio::sync::Mutex::new(())), deploy_lock: Arc::new(tokio::sync::Mutex::new(())) };
+    let state = AppState { db, bus, alarms, historian, registry, py, auth, supervisor, script_supervisor, ide_only, project_epoch, functions, derived_tags, project_dir, projects_root, templates_root, logs, logs_dir, started_at, ip_allowlist, recipe_log: Arc::new(RwLock::new(Vec::new())), notification_supervisor: Arc::new(RwLock::new(None)), telegram_sender: Arc::new(RwLock::new(None)), config_dir, cert_path, build_running: crate::packaging::new_build_lock(), repo_root: crate::packaging::new_repo_root(), remote_target: Arc::new(RwLock::new(None)), audit, known_projects, instance_id, project_switch_lock: Arc::new(tokio::sync::Mutex::new(())), deploy_lock: Arc::new(tokio::sync::Mutex::new(())) };
     // Build the runtime router (8443) before consuming state for admin.
     let runtime_app = build_runtime_inner(state.clone(), www_dir.clone(), lockdown);
 
@@ -318,6 +327,14 @@ pub fn build(
         .route("/api/system/stop",         post(crate::system::system_stop))
         .route("/api/system/start",        post(crate::system::system_start))
         .route("/api/system/reboot",       post(crate::system::system_reboot))
+        // La configurazione dell'assistente IA. Esistono **solo** su un'istanza
+        // IDE-only (il gate è dentro gli handler, `ai/config_api.rs`): su un
+        // runtime che serve un impianto rispondono 404. Stanno qui perché sono
+        // configurazione del runtime, come il TLS, e non del progetto.
+        .route("/api/ai/config",
+            get(crate::ai::config_api::get_ai_config)
+                .put(crate::ai::config_api::put_ai_config)
+                .delete(crate::ai::config_api::delete_ai_config))
         .route("/api/system/tls",          get(crate::system::get_tls_status))
         .route("/api/system/tls/generate", post(crate::system::generate_tls_cert))
         .route("/api/system/tls",          put(crate::system::upload_tls_cert))
@@ -1895,7 +1912,7 @@ async fn handle_alarms_ws(mut socket: WebSocket, alarms: Arc<AlarmDb>) {
 /// The PUT handler treats this exact string as "keep the previous value"
 /// so a round-trip GET → edit → PUT through the editor doesn't accidentally
 /// wipe a secret the operator can't see.
-const MASKED_PASSWORD: &str = "********";
+pub(crate) const MASKED_PASSWORD: &str = "********";
 
 async fn get_project(State(s): State<AppState>) -> Response {
     let dir = match active_dir(&s).await {

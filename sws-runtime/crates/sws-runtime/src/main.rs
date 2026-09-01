@@ -808,6 +808,10 @@ async fn main() -> anyhow::Result<()> {
         cert_path,
         args.www.clone(),
         args.no_admin,
+        // IDE-only: nessun viewer, cioè `start_editor.sh`. È la stessa
+        // condizione che decide il listener a riga 844, e da lì in poi vive in
+        // `AppState.ide_only`.
+        args.viewer_port.is_none(),
         audit,
         known_projects,
         instance_id,

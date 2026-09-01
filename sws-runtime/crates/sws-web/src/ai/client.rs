@@ -73,7 +73,7 @@ impl Fornitore {
         }
     }
 
-    fn file_chiave(self) -> &'static str {
+    pub fn file_chiave(self) -> &'static str {
         match self { Fornitore::Anthropic => "anthropic.key", Fornitore::Kimi => "kimi.key" }
     }
 
@@ -160,6 +160,47 @@ fn chiave_di(config_dir: &Path, f: Fornitore) -> Option<String> {
     None
 }
 
+/// C'è una chiave per questo fornitore? Non la legge: dice solo se c'è.
+pub fn ha_chiave(config_dir: &Path, f: Fornitore) -> bool {
+    chiave_di(config_dir, f).is_some()
+}
+
+/// Scrive la chiave nel file che `percorsi_chiave_di` cerca **per primo**, con
+/// permessi **0600**.
+///
+/// I permessi espliciti sono una prima volta in questo runtime: `tls.key` finisce
+/// a 0644 perché `generate_cert_files` usa `fs::write` e si affida all'umask. Qui
+/// non ci si affida, perché una chiave API leggibile da tutti gli utenti della
+/// macchina è un difetto che non costa niente evitare. Su piattaforme senza
+/// permessi POSIX il file si scrive comunque: meglio senza permessi che senza
+/// chiave.
+pub fn salva_chiave(config_dir: &Path, f: Fornitore, chiave: &str) -> std::io::Result<()> {
+    std::fs::create_dir_all(config_dir)?;
+    let p = config_dir.join(f.file_chiave());
+    std::fs::write(&p, chiave.trim())?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&p, std::fs::Permissions::from_mode(0o600))?;
+    }
+    tracing::info!(fornitore = f.nome(), path = %p.display(), "chiave salvata");
+    Ok(())
+}
+
+/// Cancella la chiave di un fornitore. `Ok(false)` = non c'era, che non è un
+/// errore: cancellare due volte deve poter succedere senza spaventare nessuno.
+pub fn cancella_chiave(config_dir: &Path, f: Fornitore) -> std::io::Result<bool> {
+    let p = config_dir.join(f.file_chiave());
+    match std::fs::remove_file(&p) {
+        Ok(()) => {
+            tracing::info!(fornitore = f.nome(), "chiave cancellata");
+            Ok(true)
+        }
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(false),
+        Err(e) => Err(e),
+    }
+}
+
 /// Con chi parlare. `None` = chat spenta, che è una condizione normale e non un
 /// errore: l'IDE funziona lo stesso e il pannello lo dice.
 ///
@@ -169,11 +210,22 @@ fn chiave_di(config_dir: &Path, f: Fornitore) -> Option<String> {
 /// modo prevedibile invece di dipendere dall'ordine di lettura dei file, e chi
 /// vuole l'altro lo scrive: `SWS_AI_FORNITORE=kimi`.
 pub fn carica(config_dir: &Path) -> Option<Scelta> {
-    let modello_imposto = std::env::var("SWS_AI_MODELLO").ok()
-        .map(|m| m.trim().to_string()).filter(|m| !m.is_empty());
+    let salvata = Impostazioni::carica(config_dir);
 
-    let candidati: Vec<Fornitore> = match std::env::var("SWS_AI_FORNITORE") {
-        Ok(v) if !v.trim().is_empty() => match Fornitore::da_nome(&v) {
+    // L'ambiente vince sul file, e la UI lo dice quando trova una variabile
+    // impostata: senza quell'avviso, si configura dall'IDE, non cambia niente,
+    // e non si capisce perché. La precedenza è questa e non l'inversa perché
+    // una variabile d'ambiente è un'intenzione di chi ha avviato il processo —
+    // uno script, un servizio systemd — e non va scavalcata da un file.
+    let modello_imposto = std::env::var("SWS_AI_MODELLO").ok()
+        .map(|m| m.trim().to_string()).filter(|m| !m.is_empty())
+        .or_else(|| salvata.modello.clone());
+
+    let da_ambiente = std::env::var("SWS_AI_FORNITORE").ok()
+        .map(|v| v.trim().to_string()).filter(|v| !v.is_empty());
+
+    let candidati: Vec<Fornitore> = match da_ambiente {
+        Some(v) => match Fornitore::da_nome(&v) {
             Some(f) => vec![f],
             None => {
                 tracing::warn!(valore = %v, "SWS_AI_FORNITORE non riconosciuto: \
@@ -181,7 +233,13 @@ pub fn carica(config_dir: &Path) -> Option<Scelta> {
                 return None;
             }
         },
-        _ => vec![Fornitore::Anthropic, Fornitore::Kimi],
+        None => match salvata.fornitore.as_deref().and_then(Fornitore::da_nome) {
+            Some(f) => vec![f],
+            // Nessuna preferenza da nessuna parte: si prova Anthropic e poi
+            // Kimi, così una macchina con due chiavi si comporta in modo
+            // prevedibile invece di dipendere dall'ordine di lettura dei file.
+            None => vec![Fornitore::Anthropic, Fornitore::Kimi],
+        },
     };
 
     for f in candidati {
@@ -192,6 +250,59 @@ pub fn carica(config_dir: &Path) -> Option<Scelta> {
         }
     }
     None
+}
+
+/// Fornitore e modello scelti dall'IDE, in `config_dir/ai.yaml`.
+///
+/// # Perché un file e non solo le variabili d'ambiente
+///
+/// Perché dall'IDE non si impostano variabili d'ambiente. Il precedente esatto
+/// è `config_dir/mqtt_client_id_overrides.yaml` (`projects.rs`): un'impostazione
+/// **di runtime** e non di progetto, scritta da un endpoint, tenuta fuori dal
+/// progetto così un redeploy non la cancella in silenzio.
+///
+/// La chiave **non** sta qui: sta nel suo file (`<fornitore>.key`), che è quello
+/// che `percorsi_chiave_di` già cerca. Tenere il segreto in un file a parte
+/// permette di dargli i permessi che merita senza cambiarli a un file di
+/// impostazioni che qualcuno potrebbe voler leggere.
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
+pub struct Impostazioni {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fornitore: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub modello: Option<String>,
+}
+
+impl Impostazioni {
+    pub fn percorso(config_dir: &Path) -> PathBuf {
+        config_dir.join("ai.yaml")
+    }
+
+    /// Un file assente o illeggibile non è un errore: significa «nessuna
+    /// preferenza», che è la condizione iniziale di ogni installazione. Un file
+    /// **malformato** invece si segnala nel log, perché lì qualcuno ha scritto
+    /// qualcosa aspettandosi un effetto.
+    pub fn carica(config_dir: &Path) -> Self {
+        let p = Self::percorso(config_dir);
+        match std::fs::read_to_string(&p) {
+            Err(_) => Self::default(),
+            Ok(testo) => match serde_yaml::from_str::<Self>(&testo) {
+                Ok(v) => v,
+                Err(e) => {
+                    tracing::warn!(path = %p.display(), errore = %e,
+                                   "ai.yaml non si legge: ignorato");
+                    Self::default()
+                }
+            },
+        }
+    }
+
+    pub fn salva(&self, config_dir: &Path) -> std::io::Result<()> {
+        std::fs::create_dir_all(config_dir)?;
+        let testo = serde_yaml::to_string(self)
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
+        std::fs::write(Self::percorso(config_dir), testo)
+    }
 }
 
 /// Quello che il modello ha prodotto in un turno.
@@ -567,6 +678,62 @@ mod tests {
         assert_eq!(b["system"][0]["cache_control"]["type"], "ephemeral");
     }
 
+
+    /// Assente e malformato non sono errori: significano «nessuna preferenza»,
+    /// che è la condizione iniziale di ogni installazione. Un file malformato
+    /// però va segnalato nel log, perché lì qualcuno ha scritto qualcosa
+    /// aspettandosi un effetto.
+    #[test]
+    fn le_impostazioni_assenti_o_rotte_non_fermano_niente() {
+        let d = tempfile::tempdir().unwrap();
+        // Assente.
+        let i = Impostazioni::carica(d.path());
+        assert!(i.fornitore.is_none() && i.modello.is_none());
+
+        // Malformato.
+        std::fs::write(Impostazioni::percorso(d.path()), "questo: [non\nchiude").unwrap();
+        let i = Impostazioni::carica(d.path());
+        assert!(i.fornitore.is_none(), "un file rotto non deve inventare un fornitore");
+
+        // E il giro completo.
+        let i = Impostazioni { fornitore: Some("kimi".into()), modello: Some("kimi-k3".into()) };
+        i.salva(d.path()).unwrap();
+        let letta = Impostazioni::carica(d.path());
+        assert_eq!(letta.fornitore.as_deref(), Some("kimi"));
+        assert_eq!(letta.modello.as_deref(), Some("kimi-k3"));
+    }
+
+    /// La chiave si scrive con permessi 0600. È la prima volta in questo runtime
+    /// che si impostano i permessi di un file — `tls.key` finisce a 0644 — e la
+    /// ragione è che una chiave API leggibile da tutti gli utenti della macchina
+    /// è un difetto che non costa niente evitare.
+    #[test]
+    #[cfg(unix)]
+    fn la_chiave_si_scrive_con_permessi_stretti() {
+        use std::os::unix::fs::PermissionsExt;
+        let d = tempfile::tempdir().unwrap();
+        salva_chiave(d.path(), Fornitore::Kimi, "  unachiaveabbastanzalunga  ").unwrap();
+
+        let p = d.path().join("kimi.key");
+        let modo = std::fs::metadata(&p).unwrap().permissions().mode() & 0o777;
+        assert_eq!(modo, 0o600, "permessi {modo:o}: la chiave sarebbe leggibile da altri");
+        // Gli spazi intorno si tolgono: una chiave copiata da un terminale ne
+        // porta spesso uno, e il fornitore rifiuterebbe l'intestazione.
+        assert_eq!(std::fs::read_to_string(&p).unwrap(), "unachiaveabbastanzalunga");
+        assert!(ha_chiave(d.path(), Fornitore::Kimi));
+        // E non finisce nel file dell'altro fornitore.
+        assert!(!ha_chiave(d.path(), Fornitore::Anthropic));
+    }
+
+    /// Cancellare due volte deve poter succedere senza spaventare nessuno.
+    #[test]
+    fn cancellare_una_chiave_che_non_c_e_non_e_un_errore() {
+        let d = tempfile::tempdir().unwrap();
+        assert!(!cancella_chiave(d.path(), Fornitore::Kimi).unwrap(), "non c'era: false");
+        salva_chiave(d.path(), Fornitore::Kimi, "unachiaveabbastanzalunga").unwrap();
+        assert!(cancella_chiave(d.path(), Fornitore::Kimi).unwrap(), "c'era: true");
+        assert!(!cancella_chiave(d.path(), Fornitore::Kimi).unwrap(), "e ora non più");
+    }
 
     fn scelta(f: Fornitore) -> Scelta {
         Scelta { fornitore: f, chiave: "k".into(), modello: f.modello_default().into() }
