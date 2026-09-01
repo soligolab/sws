@@ -479,6 +479,45 @@ La chiave **non entra mai nel progetto**: il progetto si esporta, si manda in gi
 un dispositivo. Se manca, l'IDE funziona lo stesso e il pannello dice che l'assistente non è
 configurato invece di sembrare rotto.
 
+### Due fornitori: Anthropic o Kimi
+
+Kimi (Moonshot) espone la **Messages API di Anthropic** su un endpoint dedicato, quindi lo
+streaming, i blocchi, gli strumenti e i nomi degli eventi SSE sono gli stessi: il nostro lettore
+di stream non cambia. Cambiano tre cose sole — indirizzo, header di autenticazione e il modo di
+chiedere il ragionamento — e il codice le tiene in un `enum` (`ai/client.rs`, `Fornitore`).
+
+Perché averli entrambi: il listino. Su una prova reale misurata il 2026-09-01 (6 giri, 21.468
+token in ingresso, 3.750 in uscita) Opus 5 è costato **0,23 $**; la stessa prova con Kimi K3 ne
+costerebbe circa **0,14 $**.
+
+| | ingresso | ingresso da cache | uscita |
+|---|---|---|---|
+| `claude-opus-5` | 5 $/Mtok | 0,50 $ | 25 $/Mtok |
+| `kimi-k3` | 3 $/Mtok | 0,30 $ | 15 $/Mtok |
+
+La chiave di Kimi si prende su <https://platform.kimi.ai> e si mette dove il runtime la cerca —
+stessi tre posti, altro nome:
+
+```bash
+ mkdir -p ~/.config/sws && \
+   printf '%s' 'sk-...' > ~/.config/sws/kimi.key && \
+   chmod 600 ~/.config/sws/kimi.key
+```
+
+In alternativa `MOONSHOT_API_KEY` (o `KIMI_API_KEY`) nell'ambiente.
+
+**Chi vince, con due chiavi**: Anthropic, perché è il default. Per l'altro si dice a voce alta:
+
+```bash
+SWS_AI_FORNITORE=kimi ./scripts/start_editor.sh --instance 3
+```
+
+`SWS_AI_FORNITORE` accetta `anthropic`/`claude` e `kimi`/`moonshot`; un valore che non riconosce
+**spegne la chat** e lo scrive nel log, invece di ricadere silenziosamente sul default. Il
+modello si cambia con `SWS_AI_MODELLO` (per esempio `kimi-k2.6`, più economico, o
+`claude-sonnet-5`), e il pannello dice sempre **fornitore e modello** con cui sta parlando:
+chi guarda una proposta ha diritto di sapere chi l'ha scritta.
+
 ### Usarla
 
 Menu ☰ → **Assistente IA** (solo Admin). Si scrive cosa serve, in italiano:

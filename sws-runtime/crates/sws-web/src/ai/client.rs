@@ -24,46 +24,171 @@ use serde::Serialize;
 use serde_json::{json, Value};
 use std::path::{Path, PathBuf};
 
-/// Il modello. Opus 5: contesto da 1M, pensiero acceso di default.
+/// Il modello di riferimento. Opus 5: contesto da 1M, pensiero acceso di default.
 pub const MODEL: &str = "claude-opus-5";
-const API: &str = "https://api.anthropic.com/v1/messages";
 const VERSIONE: &str = "2023-06-01";
+
+/// Chi serve il modello.
+///
+/// # Perché due, e perché costa poco
+///
+/// Kimi espone la **Messages API di Anthropic** su un endpoint dedicato, quindi
+/// lo streaming, i blocchi di contenuto, gli strumenti e i nomi degli eventi SSE
+/// sono gli stessi: `leggi_sse` e `ricomponi_blocchi` non cambiano di una riga.
+/// A cambiare sono tre cose sole — l'indirizzo, l'header di autenticazione e il
+/// modo di chiedere il pensiero — ed è esattamente quanto questo enum descrive.
+///
+/// Non è un livello di astrazione «per il futuro»: è la differenza fra 5 $/Mtok
+/// in ingresso e 25 in uscita (Opus 5) e 3 $/Mtok e 15 (Kimi K3). Su un PoC in
+/// cui ogni prova si paga, quel 40% decide quante prove si fanno.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Fornitore {
+    Anthropic,
+    Kimi,
+}
+
+impl Fornitore {
+    pub fn nome(self) -> &'static str {
+        match self { Fornitore::Anthropic => "anthropic", Fornitore::Kimi => "kimi" }
+    }
+
+    fn endpoint(self) -> &'static str {
+        match self {
+            Fornitore::Anthropic => "https://api.anthropic.com/v1/messages",
+            Fornitore::Kimi => "https://api.moonshot.ai/anthropic/v1/messages",
+        }
+    }
+
+    pub fn modello_default(self) -> &'static str {
+        match self { Fornitore::Anthropic => MODEL, Fornitore::Kimi => "kimi-k3" }
+    }
+
+    /// La variabile d'ambiente da cui si prende la chiave. Per Kimi sono due:
+    /// `MOONSHOT_API_KEY` è quella dei loro esempi, `KIMI_API_KEY` quella che
+    /// chiunque proverebbe per prima.
+    fn env_chiave(self) -> &'static [&'static str] {
+        match self {
+            Fornitore::Anthropic => &["ANTHROPIC_API_KEY"],
+            Fornitore::Kimi => &["MOONSHOT_API_KEY", "KIMI_API_KEY"],
+        }
+    }
+
+    fn file_chiave(self) -> &'static str {
+        match self { Fornitore::Anthropic => "anthropic.key", Fornitore::Kimi => "kimi.key" }
+    }
+
+    /// Anthropic vuole `x-api-key` + `anthropic-version`; Kimi vuole
+    /// `Authorization: Bearer` e **rifiuta** di aver bisogno degli altri due.
+    fn bearer(self) -> bool {
+        matches!(self, Fornitore::Kimi)
+    }
+
+    /// Su Anthropic il pensiero si chiede col campo `thinking`; su Kimi la
+    /// documentazione dice che si governa **solo** con `output_config.effort`.
+    /// Mandare `thinking` a chi non lo dichiara è il modo classico di prendere
+    /// un 400 su un campo che «funzionava con l'altro».
+    fn pensiero_anthropic(self) -> bool {
+        matches!(self, Fornitore::Anthropic)
+    }
+
+    pub fn da_nome(s: &str) -> Option<Self> {
+        match s.trim().to_ascii_lowercase().as_str() {
+            "anthropic" | "claude" => Some(Fornitore::Anthropic),
+            "kimi" | "moonshot" => Some(Fornitore::Kimi),
+            _ => None,
+        }
+    }
+}
+
+/// Con chi si parla e con che chiave. `modello` è già risolto: il default del
+/// fornitore, o quello che ha imposto `SWS_AI_MODELLO`.
+#[derive(Clone, Debug)]
+pub struct Scelta {
+    pub fornitore: Fornitore,
+    pub chiave: String,
+    pub modello: String,
+}
 
 /// Quanto può scrivere il modello in un turno. Alto perché una proposta con
 /// due pagine intere è lunga; con lo streaming non rischia il timeout HTTP.
 const MAX_TOKENS: u32 = 16000;
 
-pub struct Anthropic {
-    key: String,
+/// Il cliente verso il fornitore. Si chiamava `Anthropic`: ora che può parlare
+/// anche con Kimi, quel nome sarebbe una bugia.
+pub struct Cliente {
+    scelta: Scelta,
     http: reqwest::Client,
 }
 
-/// Dove si cerca la chiave, in ordine. Mai nel progetto: il progetto si
-/// esporta, si manda in giro e finisce su un dispositivo.
-pub fn percorsi_chiave(config_dir: &Path) -> Vec<PathBuf> {
-    let mut v = vec![config_dir.join("anthropic.key")];
+/// Dove si cerca la chiave di un fornitore, in ordine. Mai nel progetto: il
+/// progetto si esporta, si manda in giro e finisce su un dispositivo.
+pub fn percorsi_chiave_di(config_dir: &Path, f: Fornitore) -> Vec<PathBuf> {
+    let mut v = vec![config_dir.join(f.file_chiave())];
     if let Some(home) = std::env::var_os("HOME") {
-        v.push(PathBuf::from(home).join(".config/sws/anthropic.key"));
+        v.push(PathBuf::from(home).join(".config/sws").join(f.file_chiave()));
     }
     v
 }
 
-/// `ANTHROPIC_API_KEY` dell'ambiente, poi i file. `None` = chat spenta, che è
-/// una condizione normale e non un errore: l'IDE funziona lo stesso.
-pub fn carica_chiave(config_dir: &Path) -> Option<String> {
-    if let Ok(k) = std::env::var("ANTHROPIC_API_KEY") {
-        let k = k.trim().to_string();
-        if !k.is_empty() {
-            return Some(k);
+/// Tutti i percorsi, di tutti i fornitori: è l'elenco che il pannello mostra
+/// quando la chat è spenta, e deve dire *tutte* le strade, non una.
+pub fn percorsi_chiave(config_dir: &Path) -> Vec<PathBuf> {
+    let mut v = percorsi_chiave_di(config_dir, Fornitore::Anthropic);
+    v.extend(percorsi_chiave_di(config_dir, Fornitore::Kimi));
+    v
+}
+
+fn chiave_di(config_dir: &Path, f: Fornitore) -> Option<String> {
+    for nome in f.env_chiave() {
+        if let Ok(k) = std::env::var(nome) {
+            let k = k.trim().to_string();
+            if !k.is_empty() {
+                tracing::info!(fornitore = f.nome(), env = nome, "chiave dall'ambiente");
+                return Some(k);
+            }
         }
     }
-    for p in percorsi_chiave(config_dir) {
+    for p in percorsi_chiave_di(config_dir, f) {
         if let Ok(testo) = std::fs::read_to_string(&p) {
             let k = testo.trim().to_string();
             if !k.is_empty() {
-                tracing::info!(path = %p.display(), "chiave Anthropic caricata");
+                tracing::info!(fornitore = f.nome(), path = %p.display(), "chiave caricata");
                 return Some(k);
             }
+        }
+    }
+    None
+}
+
+/// Con chi parlare. `None` = chat spenta, che è una condizione normale e non un
+/// errore: l'IDE funziona lo stesso e il pannello lo dice.
+///
+/// L'ordine non è una preferenza estetica: **chi è chiesto esplicitamente
+/// vince**, e se nessuno lo è si prende il primo che ha una chiave, provando
+/// Anthropic prima di Kimi. Così una macchina con due chiavi si comporta in
+/// modo prevedibile invece di dipendere dall'ordine di lettura dei file, e chi
+/// vuole l'altro lo scrive: `SWS_AI_FORNITORE=kimi`.
+pub fn carica(config_dir: &Path) -> Option<Scelta> {
+    let modello_imposto = std::env::var("SWS_AI_MODELLO").ok()
+        .map(|m| m.trim().to_string()).filter(|m| !m.is_empty());
+
+    let candidati: Vec<Fornitore> = match std::env::var("SWS_AI_FORNITORE") {
+        Ok(v) if !v.trim().is_empty() => match Fornitore::da_nome(&v) {
+            Some(f) => vec![f],
+            None => {
+                tracing::warn!(valore = %v, "SWS_AI_FORNITORE non riconosciuto: \
+                                             valori validi `anthropic` o `kimi`");
+                return None;
+            }
+        },
+        _ => vec![Fornitore::Anthropic, Fornitore::Kimi],
+    };
+
+    for f in candidati {
+        if let Some(chiave) = chiave_di(config_dir, f) {
+            let modello = modello_imposto.clone()
+                .unwrap_or_else(|| f.modello_default().to_string());
+            return Some(Scelta { fornitore: f, chiave, modello });
         }
     }
     None
@@ -119,28 +244,38 @@ pub enum Evento {
 /// sbagliarsi in modo silenzioso — un parametro rimosso dall'API, un campo nel
 /// posto sbagliato — e senza chiave non si può provare contro il servizio vero.
 /// Almeno la forma la si prova.
-fn corpo_richiesta(system: Vec<Value>, messages: &[Value], tools: &[Value]) -> Value {
-    json!({
-        "model": MODEL,
+fn corpo_richiesta(
+    scelta: &Scelta,
+    system: Vec<Value>,
+    messages: &[Value],
+    tools: &[Value],
+) -> Value {
+    let mut b = json!({
+        "model": scelta.modello,
         "max_tokens": MAX_TOKENS,
         "stream": true,
-        // Su Opus 5 il pensiero è acceso di default e `budget_tokens` è stato
-        // **rimosso**: passarlo dà 400. `display: summarized` è un'opt-in — il
-        // default è omesso, e senza si vedrebbe solo una lunga pausa prima
-        // della risposta.
-        "thinking": { "type": "adaptive", "display": "summarized" },
-        // `effort` sta dentro `output_config`, non al primo livello.
+        // `effort` sta dentro `output_config`, non al primo livello. Lo
+        // accettano entrambi i fornitori, e su Kimi è **l'unico** modo di
+        // chiedere più ragionamento.
         "output_config": { "effort": "high" },
         "system": system,
         "messages": messages,
         "tools": tools,
-    })
+    });
+    if scelta.fornitore.pensiero_anthropic() {
+        // Su Opus 5 il pensiero è acceso di default e `budget_tokens` è stato
+        // **rimosso**: passarlo dà 400. `display: summarized` è un'opt-in — il
+        // default è omesso, e senza si vedrebbe solo una lunga pausa prima
+        // della risposta.
+        b["thinking"] = json!({ "type": "adaptive", "display": "summarized" });
+    }
+    b
 }
 
-impl Anthropic {
-    pub fn new(key: String) -> Self {
-        Anthropic {
-            key,
+impl Cliente {
+    pub fn new(scelta: Scelta) -> Self {
+        Cliente {
+            scelta,
             // Nessun timeout complessivo: un turno con pensiero adattivo può
             // durare minuti, e tagliarlo a metà è peggio che aspettarlo. Il
             // timeout di connessione resta, così un broker irraggiungibile non
@@ -162,15 +297,19 @@ impl Anthropic {
         tools: &[Value],
         mut on_event: impl FnMut(Evento),
     ) -> Result<Risposta> {
-        let body = corpo_richiesta(system, messages, tools);
+        let body = corpo_richiesta(&self.scelta, system, messages, tools);
+        let f = self.scelta.fornitore;
 
-        let resp = self.http.post(API)
-            .header("x-api-key", &self.key)
-            .header("anthropic-version", VERSIONE)
-            .header("content-type", "application/json")
-            .json(&body)
-            .send().await
-            .context("la richiesta ad api.anthropic.com non è partita")?;
+        let mut req = self.http.post(f.endpoint()).header("content-type", "application/json");
+        req = if f.bearer() {
+            req.header("authorization", format!("Bearer {}", self.scelta.chiave))
+        } else {
+            req.header("x-api-key", &self.scelta.chiave)
+               .header("anthropic-version", VERSIONE)
+        };
+
+        let resp = req.json(&body).send().await
+            .with_context(|| format!("la richiesta a {} non è partita", f.endpoint()))?;
 
         let stato = resp.status();
         if !stato.is_success() {
@@ -178,7 +317,7 @@ impl Anthropic {
             // Il corpo dell'errore NON contiene la chiave, ma può contenere il
             // prompt: si registra il codice e il messaggio, non tutto.
             let breve: String = corpo.chars().take(500).collect();
-            bail!("Anthropic ha risposto {stato}: {breve}");
+            bail!("{} ha risposto {stato}: {breve}", f.nome());
         }
 
         self.leggi_sse(resp, &mut on_event).await
@@ -400,7 +539,8 @@ mod tests {
     /// vero, ma il corpo sì.
     #[test]
     fn il_corpo_della_richiesta_non_ha_trappole() {
-        let b = corpo_richiesta(prompt_finto(), &[json!({"role":"user","content":"ciao"})],
+        let b = corpo_richiesta(&scelta(Fornitore::Anthropic), prompt_finto(),
+                                &[json!({"role":"user","content":"ciao"})],
                                 &[json!({"name":"x"})]);
 
         assert_eq!(b["model"], "claude-opus-5");
@@ -423,8 +563,70 @@ mod tests {
     /// sistema porta `cache_control`, e quello che cambia sta dopo.
     #[test]
     fn il_prompt_di_sistema_e_in_cache() {
-        let b = corpo_richiesta(prompt_finto(), &[], &[]);
+        let b = corpo_richiesta(&scelta(Fornitore::Anthropic), prompt_finto(), &[], &[]);
         assert_eq!(b["system"][0]["cache_control"]["type"], "ephemeral");
+    }
+
+
+    fn scelta(f: Fornitore) -> Scelta {
+        Scelta { fornitore: f, chiave: "k".into(), modello: f.modello_default().into() }
+    }
+
+    /// A Kimi non si manda `thinking`.
+    ///
+    /// La sua documentazione dice che il ragionamento si governa **solo** con
+    /// `output_config.effort`. Mandare un campo che il fornitore non dichiara è
+    /// il modo classico di prendere un 400 su qualcosa che «funzionava con
+    /// l'altro» — e con lo streaming l'errore arriva a metà frase.
+    #[test]
+    fn a_kimi_non_si_manda_il_pensiero_di_anthropic() {
+        let k = corpo_richiesta(&scelta(Fornitore::Kimi), prompt_finto(), &[], &[]);
+        assert!(k.get("thinking").is_none(), "corpo: {k}");
+        // Ma l'effort sì: è l'unica leva che gli resta.
+        assert_eq!(k["output_config"]["effort"], "high");
+        assert_eq!(k["model"], "kimi-k3");
+        // E il resto è identico, che è tutto il senso di usare il loro
+        // endpoint compatibile: stream, strumenti, blocchi, system in cache.
+        let a = corpo_richiesta(&scelta(Fornitore::Anthropic), prompt_finto(), &[], &[]);
+        for campo in ["stream", "max_tokens", "system", "messages", "tools"] {
+            assert_eq!(k[campo], a[campo],
+                       "il campo `{campo}` non dovrebbe dipendere dal fornitore");
+        }
+    }
+
+    /// I due fornitori si autenticano in modo diverso, e sbagliarlo dà un 401
+    /// che sembra «chiave sbagliata» invece di «header sbagliato».
+    #[test]
+    fn ognuno_ha_il_suo_header() {
+        assert!(!Fornitore::Anthropic.bearer(), "Anthropic vuole x-api-key");
+        assert!(Fornitore::Kimi.bearer(), "Kimi vuole Authorization: Bearer");
+        assert!(Fornitore::Kimi.endpoint().ends_with("/anthropic/v1/messages"),
+                "l'endpoint compatibile di Kimi non è /v1/messages: {}",
+                Fornitore::Kimi.endpoint());
+    }
+
+    #[test]
+    fn i_nomi_dei_fornitori_si_leggono_come_li_scriverebbe_una_persona() {
+        assert_eq!(Fornitore::da_nome("kimi"), Some(Fornitore::Kimi));
+        assert_eq!(Fornitore::da_nome("MOONSHOT"), Some(Fornitore::Kimi));
+        assert_eq!(Fornitore::da_nome("claude"), Some(Fornitore::Anthropic));
+        assert_eq!(Fornitore::da_nome(" Anthropic "), Some(Fornitore::Anthropic));
+        // E un nome sconosciuto non diventa silenziosamente il default: chi
+        // scrive `SWS_AI_FORNITORE=gemini` deve accorgersene.
+        assert_eq!(Fornitore::da_nome("gemini"), None);
+    }
+
+    /// I file delle chiavi non si mescolano: una chiave di Kimi in
+    /// `anthropic.key` non deve finire su api.anthropic.com.
+    #[test]
+    fn ogni_fornitore_cerca_il_suo_file() {
+        let d = std::path::Path::new("/tmp/conf");
+        let a = percorsi_chiave_di(d, Fornitore::Anthropic);
+        let k = percorsi_chiave_di(d, Fornitore::Kimi);
+        assert!(a.iter().all(|p| p.ends_with("anthropic.key")));
+        assert!(k.iter().all(|p| p.ends_with("kimi.key")));
+        let tutti = percorsi_chiave(d);
+        assert!(tutti.len() >= a.len() + k.len());
     }
 
     fn prompt_finto() -> Vec<Value> {

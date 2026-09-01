@@ -81,16 +81,30 @@ async fn sessione(socket: WebSocket, s: AppState) {
     });
 
     let finto = std::env::var("SWS_AI_FAKE").ok();
-    let chiave = client::carica_chiave(&s.config_dir);
+    let scelta = client::carica(&s.config_dir);
     invia(&tx, json!({
         "t": "pronto",
-        "modello": if finto.is_some() { "finto" } else { client::MODEL },
+        "modello": match (&finto, &scelta) {
+            (Some(_), _) => "finto".to_string(),
+            (None, Some(sc)) => sc.modello.clone(),
+            (None, None) => "-".to_string(),
+        },
+        // Quale fornitore, e non solo quale modello: la stessa chat può parlare
+        // con Anthropic o con Kimi, e chi guarda una proposta ha diritto di
+        // sapere chi l'ha scritta.
+        "fornitore": match (&finto, &scelta) {
+            (Some(_), _) => "finto".to_string(),
+            (None, Some(sc)) => sc.fornitore.nome().to_string(),
+            (None, None) => "-".to_string(),
+        },
         // Il pannello deve poter dire «manca la chiave» invece di sembrare rotto.
-        "attivo": finto.is_some() || chiave.is_some(),
+        "attivo": finto.is_some() || scelta.is_some(),
         "motivo": if finto.is_some() { Value::Null }
-                  else if chiave.is_none() {
-                      json!(format!("nessuna chiave: metti ANTHROPIC_API_KEY nell'ambiente \
-                                     oppure la chiave in {}",
+                  else if scelta.is_none() {
+                      json!(format!("nessuna chiave: metti ANTHROPIC_API_KEY o \
+                                     MOONSHOT_API_KEY nell'ambiente, oppure la chiave in {}. \
+                                     Con due chiavi vince Anthropic; per l'altro, \
+                                     SWS_AI_FORNITORE=kimi",
                                     client::percorsi_chiave(&s.config_dir).iter()
                                         .map(|p| p.display().to_string())
                                         .collect::<Vec<_>>().join(" o ")))
@@ -118,8 +132,8 @@ async fn sessione(socket: WebSocket, s: AppState) {
 
         let esito = match &finto {
             Some(f) => finto_giro(&s, &tx, f).await,
-            None => match &chiave {
-                Some(k) => vero_giro(&s, &tx, k, &mut messaggi).await,
+            None => match &scelta {
+                Some(sc) => vero_giro(&s, &tx, sc, &mut messaggi).await,
                 None => Err("nessuna chiave API configurata".to_string()),
             },
         };
@@ -149,10 +163,10 @@ async fn impronta(s: &AppState) -> Option<String> {
 async fn vero_giro(
     s: &AppState,
     tx: &mpsc::UnboundedSender<String>,
-    chiave: &str,
+    scelta: &client::Scelta,
     messaggi: &mut Vec<Value>,
 ) -> Result<(), String> {
-    let cliente = client::Anthropic::new(chiave.to_string());
+    let cliente = client::Cliente::new(scelta.clone());
     let strumenti = tools::definizioni();
     let sistema = prompt::sistema();
     let impronta_iniziale = impronta(s).await;
