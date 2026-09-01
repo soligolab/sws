@@ -4,6 +4,7 @@ import { applyAppearance, getStoredMode, type ThemeMode } from "@/theme";
 import { genId } from "@/id";
 import { getStoredProjectLang, setStoredProjectLang, getStoredEditorPreviewLang, setStoredEditorPreviewLang } from "@/i18n/projectI18n";
 import { normalizeTrendObjects } from "@/canvas/trendModel";
+import { uguale } from "@/ai/confronto";
 import type {
   AlarmDef,
   LanguageTable,
@@ -33,6 +34,41 @@ export interface HistoryEntry {
    *  undo/redo so the dirty check survives time travel: undoing back to the
    *  revision that was saved makes the project clean again. */
   rev: number;
+  /** Snapshot di `project` — presente **solo** nelle voci spinte da una
+   *  transazione dell'assistente (T-50).
+   *
+   *  La history nasce per le sole pagine, e per le modifiche a mano va bene:
+   *  tag, sorgenti e allarmi si cambiano da ConfigView, che ha il proprio
+   *  Salva. Una proposta dell'assistente però tocca le due metà insieme — un
+   *  bottone MQTT è una sorgente, un tag e un oggetto in pagina — e un
+   *  annullamento che ne recuperasse solo una sarebbe peggio di nessun
+   *  annullamento, perché *sembra* funzionare.
+   *
+   *  Presente solo lì e non ovunque perché uno snapshot del progetto intero
+   *  costa, e la history tiene 200 passi: si paga quando l'assistente lavora,
+   *  non a ogni pixel di un drag. `undefined` = questa voce non cambia il
+   *  progetto; il valore in vigore è quello della voce più vicina che ne porta
+   *  uno. */
+  project?: ProjectInfo | null;
+}
+
+/** Una proposta dell'assistente, come arriva da `/ws/ai`. */
+export interface AiProposta {
+  id: string;
+  motivo: string;
+  /** Il progetto INTERO con la modifica dentro. Assente = non lo tocca. */
+  project?: ProjectInfo | null;
+  /** Le pagine INTERE modificate. Assente = non tocca pagine. */
+  pages?: SynopticPage[] | null;
+  /** Impronta del progetto su disco quando l'assistente ha cominciato. */
+  impronta?: string | null;
+}
+
+/** Esito di `applyAiProposal`. `avviso` non blocca: informa. */
+export interface EsitoProposta {
+  ok: boolean;
+  motivo?: string;
+  avviso?: string;
 }
 
 // Cap the in-memory log list. The runtime keeps ~1000 events in its ring,
@@ -419,6 +455,19 @@ interface AppState {
   beginInteraction: (label: string) => void;
   endInteraction: () => void;
 
+  /** Applica una proposta dell'assistente come **una sola** transazione.
+   *
+   *  È il pezzo che tiene insieme le due metà del progetto. Le pagine stanno
+   *  nella history e aspettano Salva; tag, sorgenti e allarmi no — ConfigView
+   *  li scrive su disco subito, con il proprio Salva. Una proposta che tocca
+   *  entrambe (un bottone MQTT è una sorgente, un tag e un oggetto) applicata
+   *  per metà, e annullata per metà, è peggio di una non applicata.
+   *
+   *  Qui invece: un solo passo di history che porta anche il progetto, e le
+   *  sezioni toccate registrate in `pendingSections` — così niente raggiunge
+   *  il disco finché nessuno preme Salva, e Salva le scrive tutte insieme. */
+  applyAiProposal: (p: AiProposta) => Promise<EsitoProposta>;
+
   // Object grouping (UI-only, no canvas effect)
   groupObjects: (ids: string[], name?: string) => void;
   ungroupObjects: (groupId: string) => void;
@@ -539,10 +588,13 @@ export const useAppStore = create<AppState>((set, get) => {
     set({ past: [...trimmed, entry], future: [], pagesRev: pagesRev + 1 });
   };
 
-  /** Force-push a history entry even mid-interaction; used by begin. */
-  const pushHistoryUnconditional = (label: string) => {
+  /** Force-push a history entry even mid-interaction; used by begin.
+   *  `project` va passato solo dalle transazioni dell'assistente — vedi il
+   *  commento su `HistoryEntry.project`. */
+  const pushHistoryUnconditional = (label: string, project?: ProjectInfo | null) => {
     const { pages, past, pagesRev } = get();
     const entry: HistoryEntry = { pages: clonePages(pages), label, rev: pagesRev };
+    if (project !== undefined) entry.project = project;
     const trimmed = past.length >= HISTORY_LIMIT
       ? past.slice(past.length - HISTORY_LIMIT + 1)
       : past;
@@ -1542,15 +1594,21 @@ export const useAppStore = create<AppState>((set, get) => {
     },
 
     undo: () => {
-      const { past, future, pages, pagesRev } = get();
+      const { past, future, pages, pagesRev, project } = get();
       if (past.length === 0) return;
       const prev = past[past.length - 1];
       const currentLabel = prev.label;
+      // Se la voce che si sta ripristinando porta uno snapshot del progetto,
+      // anche la sua controparte nell'altra pila deve portarlo: altrimenti il
+      // redo riporterebbe le pagine e non i tag, cioè metà transazione.
+      const controparte: HistoryEntry = { pages: clonePages(pages), label: currentLabel, rev: pagesRev };
+      if (prev.project !== undefined) controparte.project = project;
       set({
         past: past.slice(0, past.length - 1),
-        future: [{ pages: clonePages(pages), label: currentLabel, rev: pagesRev }, ...future].slice(0, HISTORY_LIMIT),
+        future: [controparte, ...future].slice(0, HISTORY_LIMIT),
         pages: prev.pages,
         pagesRev: prev.rev,
+        ...(prev.project !== undefined ? { project: prev.project } : {}),
         selectedObjectId: null,
         selectedObjectIds: [],
         selectedCell: null,
@@ -1561,15 +1619,18 @@ export const useAppStore = create<AppState>((set, get) => {
     },
 
     redo: () => {
-      const { past, future, pages, pagesRev } = get();
+      const { past, future, pages, pagesRev, project } = get();
       if (future.length === 0) return;
       const next = future[0];
       const currentLabel = next.label;
+      const controparte: HistoryEntry = { pages: clonePages(pages), label: currentLabel, rev: pagesRev };
+      if (next.project !== undefined) controparte.project = project;
       set({
-        past: [...past, { pages: clonePages(pages), label: currentLabel, rev: pagesRev }].slice(-HISTORY_LIMIT),
+        past: [...past, controparte].slice(-HISTORY_LIMIT),
         future: future.slice(1),
         pages: next.pages,
         pagesRev: next.rev,
+        ...(next.project !== undefined ? { project: next.project } : {}),
         selectedObjectId: null,
         selectedObjectIds: [],
         selectedCell: null,
@@ -1583,18 +1644,26 @@ export const useAppStore = create<AppState>((set, get) => {
     canRedo: () => get().future.length > 0,
 
     jumpToPast: (index) => {
-      const { past, future, pages, pagesRev } = get();
+      const { past, future, pages, pagesRev, project } = get();
       if (index < 0 || index >= past.length) return;
       const target = past[index];
       const currentLabel = past.length > 0 ? past[past.length - 1].label : "Modifica";
+      // Il progetto in vigore a `index`: solo le transazioni dell'assistente
+      // ne registrano uno, quindi una voce senza snapshot vale quanto la prima
+      // che ne porta uno **più avanti** nella pila — fra le due non è cambiato
+      // niente. Se nessuna ne porta, il progetto di oggi è già quello giusto.
+      const progettoLi = past.slice(index).find((e) => e.project !== undefined)?.project;
+      const controparte: HistoryEntry = { pages: clonePages(pages), label: currentLabel, rev: pagesRev };
+      if (progettoLi !== undefined) controparte.project = project;
       const newFuture = [
         ...past.slice(index + 1),
-        { pages: clonePages(pages), label: currentLabel, rev: pagesRev },
+        controparte,
         ...future,
       ].slice(0, HISTORY_LIMIT);
       set({
         pages: target.pages,
         pagesRev: target.rev,
+        ...(progettoLi !== undefined ? { project: progettoLi } : {}),
         past: past.slice(0, index),
         future: newFuture,
         selectedObjectId: null,
@@ -1607,18 +1676,25 @@ export const useAppStore = create<AppState>((set, get) => {
     },
 
     jumpToFuture: (index) => {
-      const { past, future, pages, pagesRev } = get();
+      const { past, future, pages, pagesRev, project } = get();
       if (index < 0 || index >= future.length) return;
       const target = future[index];
       const currentLabel = past.length > 0 ? past[past.length - 1].label : "Modifica";
+      // `future` è ordinata in avanti nel tempo, quindi qui si guarda
+      // all'indietro: la voce con snapshot più vicina fra 0 e `index`.
+      const progettoLi = future.slice(0, index + 1).reverse()
+        .find((e) => e.project !== undefined)?.project;
+      const controparte: HistoryEntry = { pages: clonePages(pages), label: currentLabel, rev: pagesRev };
+      if (progettoLi !== undefined) controparte.project = project;
       const newPast = [
         ...past,
-        { pages: clonePages(pages), label: currentLabel, rev: pagesRev },
+        controparte,
         ...future.slice(0, index),
       ].slice(-HISTORY_LIMIT);
       set({
         pages: target.pages,
         pagesRev: target.rev,
+        ...(progettoLi !== undefined ? { project: progettoLi } : {}),
         past: newPast,
         future: future.slice(index + 1),
         selectedObjectId: null,
@@ -1640,6 +1716,178 @@ export const useAppStore = create<AppState>((set, get) => {
 
     endInteraction: () => {
       if (interactionDepth > 0) interactionDepth -= 1;
+    },
+
+    applyAiProposal: async (p) => {
+      const s = get();
+      if (!s.project) return { ok: false, motivo: "Nessun progetto aperto." };
+
+      // ── 1. Il progetto è ancora quello su cui l'assistente ha ragionato? ──
+      // Un turno dura decine di secondi. Se nel frattempo il progetto su disco
+      // è cambiato — un'altra scheda, un deploy, un'altra persona — applicare
+      // alla cieca cancella quel lavoro.
+      if (p.impronta) {
+        try {
+          const ora = await api.getProjectFingerprint();
+          if (ora.sha256 !== p.impronta) {
+            return { ok: false, motivo:
+              "Il progetto è cambiato da quando l'assistente l'ha letto: la proposta " +
+              "è stata scartata. Richiedila e la ricostruirà su quello attuale." };
+          }
+        } catch {
+          // Impronta non verificabile (runtime irraggiungibile): si procede,
+          // ma non si finge di aver controllato.
+          return { ok: false, motivo:
+            "Non riesco a verificare che il progetto non sia cambiato nel frattempo. " +
+            "Riprova quando il runtime risponde." };
+        }
+      }
+
+      // ── 2. Cosa tocca davvero ─────────────────────────────────────────────
+      const prima = s.project;
+      // Cintura oltre alla bretella. Il server ricompone gli script mancanti
+      // prima di validare e manda indietro il progetto ricomposto
+      // (`validate::ricomponi_script`), quindi qui non dovrebbero arrivare
+      // proposte lacunose. «Non dovrebbero» non basta per una collezione che
+      // il Salva riscrive per intero: una proposta che omette `functions`
+      // diventerebbe `updateFunctions([])`, cioè tutte le funzioni via dal
+      // disco senza niente nel diff. È già successo sui tag il 2026-07-28.
+      const grezzo = p.project ?? prima;
+      const dopo = grezzo === prima ? prima : {
+        ...grezzo,
+        functions:      grezzo.functions      ?? prima.functions,
+        global_scripts: grezzo.global_scripts ?? prima.global_scripts,
+      };
+      // Solo se c'è davvero qualcosa da perdere. Un avviso che scatta su un
+      // progetto senza script è rumore, e — visto in un test — copriva
+      // l'avviso sulle modifiche non salvate, che è più importante.
+      const c_era_python = (prima.functions?.length ?? 0) > 0
+                        || (prima.global_scripts?.length ?? 0) > 0;
+      const lacunoso = grezzo !== prima && c_era_python
+        && (grezzo.functions === undefined || grezzo.global_scripts === undefined);
+      const tocca = {
+        tags:    !uguale(prima.tags,    dopo.tags),
+        sources: !uguale(prima.sources, dopo.sources),
+        alarms:  !uguale(prima.alarms,  dopo.alarms),
+        functions:      !uguale(prima.functions      ?? [], dopo.functions      ?? []),
+        global_scripts: !uguale(prima.global_scripts ?? [], dopo.global_scripts ?? []),
+      };
+
+      // Le pagine proposte si sovrappongono per nome; le altre restano.
+      //
+      // **Oggetto per oggetto, non pagina per pagina.** L'assistente legge la
+      // pagina dal disco e la rimanda intera, ma passando dalla struct Rust i
+      // campi escono in ordine di dichiarazione mentre l'API li serve
+      // nell'ordine del file YAML. Gli oggetti sono gli stessi; rimpiazzare la
+      // pagina intera li riscriverebbe tutti — misurato il 2026-08-31: su una
+      // proposta che aggiungeva UN bottone, 46 oggetti su 47 risultavano
+      // toccati. Il diff diventava illeggibile e il salvataggio avrebbe
+      // riordinato ogni chiave di ogni oggetto in YAML, per niente.
+      //
+      // Tenendo l'istanza esistente dove è semanticamente uguale, una proposta
+      // può cambiare solo quello che cambia davvero.
+      const proposte = p.pages ?? [];
+      const fondi = (attuale: SynopticPage, proposta: SynopticPage): SynopticPage => {
+        const perId = new Map(attuale.objects.map((o) => [o.id, o]));
+        const objects = proposta.objects.map((o) => {
+          const vecchio = perId.get(o.id);
+          return vecchio && uguale(vecchio, o) ? vecchio : o;
+        });
+        return uguale({ ...attuale, objects: [] }, { ...proposta, objects: [] })
+          ? { ...attuale, objects }
+          : { ...proposta, objects };
+      };
+      const nuovePages = [
+        ...s.pages.map((pg) => {
+          const q = proposte.find((x) => x.name === pg.name);
+          return q ? fondi(pg, q) : pg;
+        }),
+        ...proposte.filter((q) => !s.pages.some((pg) => pg.name === q.name)),
+      ];
+
+      // ── 3. Un solo passo, con dentro anche il progetto ────────────────────
+      pushHistoryUnconditional(`Assistente: ${p.motivo}`, prima);
+      // Se la modifica è su un'altra pagina, ci si va: applicare qualcosa che
+      // non si vede è il modo più veloce per smettere di guardare il diff.
+      const toccata = proposte[0]
+        ? nuovePages.find((pg) => pg.name === proposte[0].name)
+        : undefined;
+      const vaSuAltraPagina = toccata !== undefined
+        && !proposte.some((q) => nuovePages.find((pg) => pg.name === q.name)?.id === s.currentPageId);
+      set({
+        pages: nuovePages,
+        project: dopo,
+        ...(vaSuAltraPagina ? { currentPageId: toccata.id } : {}),
+        selectedObjectId: null,
+        selectedObjectIds: [],
+        selectedCell: null,
+        selectedCellChild: null,
+        selectedCellRange: null,
+        selectedSubCell: null,
+      });
+
+      // ── 4. Le sezioni fuori dalle pagine, differite a Salva ───────────────
+      //
+      // `saveAll()` di proposito NON scrive tags/sources/alarms: spingeva la
+      // copia in memoria sopra quella su disco, e un momento in cui la copia è
+      // più povera del disco cancella dati (audit del 2026-07-28,
+      // `{"count": 0, "what": "tags"}` su un progetto che ne aveva 16).
+      //
+      // Passare da `pendingSections` non riapre quella ferita, e la ragione è
+      // il punto 1: la proposta parte da una lettura fresca del disco, e
+      // l'impronta la rifiuta se il disco è cambiato da allora. La copia che
+      // scriviamo non può essere più povera di quella che c'è.
+      const registra = (chiave: string, scrivi: () => Promise<void>) =>
+        get().registerPendingSection(chiave, async () => {
+          await scrivi();
+          // Scritta una volta, la sezione non è più in sospeso: senza questo
+          // resterebbe a riscriversi a ogni Salva successivo.
+          get().registerPendingSection(chiave, null);
+        });
+
+      if (tocca.tags) {
+        registra("ai:tags", async () => { await api.updateTags(get().project?.tags ?? []); });
+      }
+      if (tocca.sources) {
+        registra("ai:sources", async () => { await api.updateSources(get().project?.sources ?? []); });
+      }
+      if (tocca.alarms) {
+        registra("ai:alarms", async () => { await api.updateAlarms(get().project?.alarms ?? []); });
+      }
+      if (tocca.functions) {
+        // `saveAll` scrive già le functions, ma passa dallo stesso
+        // `project.yaml` di queste altre sezioni: registrandola qui la
+        // scrittura viene **incatenata** invece di affiancata, che è la
+        // ragione per cui due Salva insieme se ne perdevano uno.
+        registra("ai:functions",
+          async () => { await api.updateFunctions(get().project?.functions ?? []); });
+      }
+      if (tocca.global_scripts) {
+        // Questo è il terzo difetto della famiglia, e il più silenzioso:
+        // `saveGlobalScripts` è chiamato **solo** dal Salva della sua tab in
+        // Configurazione, e `saveAll` non lo chiama affatto. Una proposta che
+        // cambiava uno script globale finiva nello store, si vedeva sul canvas
+        // — e al reload non c'era più. Approvata e sparita.
+        registra("ai:global_scripts",
+          async () => { await api.saveGlobalScripts(get().project?.global_scripts ?? []); });
+      }
+
+      // ── 5. Quello che questo controllo NON copre ──────────────────────────
+      // L'assistente legge le pagine dal **disco**. Se qui in memoria c'erano
+      // modifiche non ancora salvate su una pagina che la proposta rimpiazza,
+      // quelle modifiche se ne vanno — l'impronta non se ne accorge, perché il
+      // disco non è cambiato. Un Ctrl+Z le riporta indietro, ma è giusto
+      // dirlo prima invece di lasciarlo scoprire.
+      const sporco = s.pagesRev !== s.savedPagesRev;
+      const avviso = lacunoso
+        ? "La proposta non conteneva gli script del progetto: sono stati tenuti quelli " +
+          "esistenti. Se l'assistente doveva modificarne uno, la modifica non c'è."
+        : sporco && proposte.length > 0
+        ? "C'erano modifiche non salvate: l'assistente ha letto le pagine dal disco, " +
+          "quindi le pagine sostituite tornano alla versione salvata. Ctrl+Z annulla tutto."
+        : undefined;
+
+      return { ok: true, avviso };
     },
 
     updateTagValue: (id, state) =>
@@ -1743,11 +1991,29 @@ export const useAppStore = create<AppState>((set, get) => {
 
       // 1. Flush section drafts owned by ConfigView tabs / the function
       //    editor. Each PUTs to its own endpoint and refreshes the store.
+      //
+      //    **Una per volta, non in parallelo.** Tags, sources e alarms
+      //    finiscono tutti in `project.yaml` attraverso `patch_project`, che è
+      //    un leggi-modifica-scrivi senza lock (`router.rs:1963`): due PUT in
+      //    volo insieme leggono lo stesso file di partenza e l'ultimo che
+      //    scrive cancella l'altro, in silenzio.
+      //
+      //    Misurato il 2026-08-31 con l'assistente: una proposta che creava un
+      //    tag *e* una sorgente salvava la sorgente e perdeva il tag. Non è un
+      //    difetto dell'assistente — bastano due tab di Configurazione
+      //    modificate insieme, ed è così da sempre.
+      //
+      //    Questo mette al sicuro il salvataggio dell'editor. La corsa lato
+      //    server resta possibile da altre strade (due schede, uno script,
+      //    l'API): è Q30 in `docs/OPEN_QUESTIONS.md`.
       const pending = Object.entries(get().pendingSections);
-      const flushed = await Promise.allSettled(pending.map(([, save]) => save()));
-      flushed.forEach((r, i) => {
-        if (r.status === "rejected") failures.push(`${pending[i][0]}: ${errText(r.reason)}`);
-      });
+      for (const [key, save] of pending) {
+        try {
+          await save();
+        } catch (e) {
+          failures.push(`${key}: ${errText(e)}`);
+        }
+      }
 
       // Re-read: the flush above mutated `project`.
       const state = get();
@@ -1771,8 +2037,14 @@ export const useAppStore = create<AppState>((set, get) => {
       //    salvataggio.
       const tasks: Promise<unknown>[] = state.pages.map((p) => api.saveSynoptic(p));
       if (isAdmin && state.project) {
-        tasks.push(api.updateFunctions(state.project.functions ?? []));
-        tasks.push(api.updateCustomSymbols(state.customSymbols ?? []));
+        // Anche questi due passano da `patch_project` sullo stesso
+        // `project.yaml`: incatenati, non affiancati, per la stessa ragione
+        // spiegata al punto 1. Le pagine invece sono file distinti e restano
+        // in parallelo.
+        tasks.push((async () => {
+          await api.updateFunctions(state.project?.functions ?? []);
+          await api.updateCustomSymbols(state.customSymbols ?? []);
+        })());
       }
       // Names present when pages were last loaded but missing from the
       // current array: deleted, or renamed (old name orphaned, new name

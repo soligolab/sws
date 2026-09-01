@@ -101,7 +101,9 @@ metrics-exporter-prometheus  = "0.15"
 abi_stable = "0.11"
 
 # HTTP client (alarm webhooks)
-reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
+# "stream" serve al client Anthropic (T-50): la risposta arriva in SSE e va
+# letta a pezzi, altrimenti la chat resta muta per tutta la durata del turno.
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json", "stream"] }
 
 # Error handling
 anyhow = "1"

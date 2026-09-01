@@ -133,7 +133,8 @@
     "imported": "Imported {{file}} ({{count}} tags)",
     "logPanel": "Log panel",
     "saveCopyToPc": "💾 Save a copy to my PC…",
-    "openFromPc": "📂 Replace from a copy on my PC…"
+    "openFromPc": "📂 Replace from a copy on my PC…",
+    "chatPanel": "AI assistant"
   },
   "roles": {
     "admin": "Admin",
@@ -258,6 +259,27 @@
     "empty": "No objects on this page.",
     "rulersShow": "Show rulers",
     "rulersHide": "Hide rulers"
+  },
+  "chat": {
+    "title": "Assistant",
+    "clear": "Clear the conversation",
+    "close": "Close",
+    "inactive": "The assistant is not configured.",
+    "empty": "Describe what you want. The assistant reads the project, proposes a change, and you decide whether to apply it.",
+    "example": "E.g. «add a button to the Indicatori page that switches the living-room light on and off — it is on MQTT, broker 192.168.1.50, topic casa/salotto/luce»",
+    "placeholder": "Type here. Enter to send, Shift+Enter for a new line.",
+    "send": "Send",
+    "working": "Working…",
+    "apply": "Apply",
+    "discard": "Discard",
+    "applyNote": "Apply does not save: the change lands in the editor, Ctrl+Z undoes it, and the disk waits for Save.",
+    "noChanges": "The proposal changes nothing.",
+    "noConnection": "Not connected to the runtime: the message was not sent.",
+    "outcome": {
+      "applicata": "Applied. Ctrl+Z to undo, Save to write to disk.",
+      "scartata": "Discarded.",
+      "rifiutata": "Not applied."
+    }
   },
   "viewer": {
     "maintenance": "Maintenance",
@@ -1141,5 +1163,14 @@
     "invalid": "Invalid value",
     "belowMin": "Below minimum ({{min}})",
     "aboveMax": "Above maximum ({{max}})"
+  },
+  "logWindow": {
+    "open": "Logs in a window",
+    "localOnly": "Local runtime logs only — lines from a connected remote runtime appear in the editor window.",
+    "noAuth": "Not signed in",
+    "noAuthHint": "Sign in from the editor window, then reload this one.",
+    "reload": "Reload",
+    "blocked": "The browser blocked the window: allow pop-ups for this address and retry.",
+    "checking": "Checking access…"
   }
 }

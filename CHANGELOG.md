@@ -11,6 +11,167 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### Un assistente nell'editor: si descrive quel che serve, e lui lo propone (T-50)
+
+Nell'IDE c'è una chat. Le si dice *«aggiungi alla pagina Indicatori un
+bottone che accende e spegne la luce del salotto — è su MQTT, broker
+192.168.1.50, topic casa/salotto/luce»* e arriva una proposta: la
+sorgente MQTT con il topic di stato in lettura e quello di comando in
+scrittura, il tag booleano, e il bottone in modalità toggle sulla pagina.
+
+**Propone, non scrive.** Il diff si guarda, si applica o si scarta.
+Applicare non salva: la modifica va nell'editor, `Ctrl+Z` la annulla, e
+il disco aspetta Salva. L'assistente non esegue Python, non fa deploy,
+non tocca il filesystem e non parla col dispositivo. Legge il progetto
+mascherato, come lo vede il browser: le password dei driver non entrano
+nel contesto del modello.
+
+Gira **dentro `sws-runtime`**, non in un processo a parte: la chiave sta
+nella configurazione del runtime e non entra mai nel progetto. Vedi
+`docs/HOWTO.md` §7 per come accenderlo.
+
+### L'assistente parla anche con Kimi, e costa un terzo
+
+Kimi (Moonshot) espone la Messages API di Anthropic, quindi streaming, blocchi,
+strumenti e nomi degli eventi SSE sono gli stessi: cambiano l'indirizzo,
+l'header di autenticazione e il modo di chiedere il ragionamento — tre cose, e
+stanno in un `enum`.
+
+Misurato sulla stessa richiesta e sullo stesso progetto: **0,232 $** con
+`claude-opus-5`, **0,072 $** con `kimi-k3`. Il 69% in meno, più del 40% che
+dicono i listini, perché Kimi **onora `cache_control`**: 27.136 token letti
+dalla cache contro 7.759 non cachati, e nessun addebito per la scrittura.
+
+Le chiavi non si mescolano (`anthropic.key` e `kimi.key`, ciascuno cercato solo
+dal suo fornitore) e con due chiavi vince Anthropic, che è il default. Per
+l'altro si dice `SWS_AI_FORNITORE=kimi`; un valore non riconosciuto **spegne la
+chat** e lo scrive nel log invece di ricadere zitto sul default.
+
+### La chiave dell'assistente si configura dall'IDE
+
+Configurazione → tab **IDE** → «Assistente IA»: fornitore, modello e chiave,
+senza aprire un terminale. La chiave finisce in `<config_dir>/<fornitore>.key`
+con permessi **0600** — prima volta in questo runtime che si impostano i
+permessi di un file, e vale la pena: `tls.key` finisce a 0644 affidato
+all'umask.
+
+Quelle rotte **esistono solo sull'istanza IDE** (avviata senza viewer): su un
+runtime che serve un impianto rispondono **404 e non 403**, perché per una
+funzione che su quella macchina non deve esistere il 404 è la risposta onesta.
+Le variabili d'ambiente restano prioritarie, e il pannello lo dice quando ne
+trova una: altrimenti si configura e non cambia niente, senza capire perché.
+
+### I log si aprono in una finestra propria
+
+Menu ☰ → «Log in una finestra»: la console esce dal cassetto da 240 px e va su
+un monitor a parte. Non serve nessun canale fra le finestre, perché il pannello
+dei log è sola lettura verso il progetto — è l'opposto della chat, che deve
+applicare le proposte allo store dell'editor.
+
+Tre cose che una finestra nuova non eredita e che sono state chiuse: le chiamate
+API forzate sul runtime locale (senza, avrebbe potuto mostrare i log di **un
+altro** runtime senza dirlo), le righe del runtime remoto che non compaiono
+(detto invece che sincronizzato), e la modalità senza utenti, che senza una
+sonda avrebbe fatto dire «accedi» su quasi ogni istanza di sviluppo.
+
+### Una proposta dell'assistente poteva cancellare tutte le funzioni
+
+Tre difetti della stessa famiglia, nessuno raggiungibile da una regola
+semantica perché due nascono nella deserializzazione e il terzo nel salvataggio.
+
+**Cancellava**: `Project.functions` ha `#[serde(default)]`, quindi un progetto
+proposto che *omette* `functions` diventa lista vuota; il diff non guardava le
+funzioni e il Salva scriveva `updateFunctions([])`. Stesso modo di perdere dati
+già pagato il 2026-07-28 sui tag.
+
+**Bloccava**: `leggi_progetto` rimuove il corpo Python delle funzioni, ma `code`
+è obbligatorio — quindi un modello che le rimandava come le aveva lette faceva
+fallire la validazione su qualunque progetto con almeno una funzione, cioè nel
+caso normale. È scattato davvero alla prima prova col modello vero.
+
+**Spariva**: `saveGlobalScripts` era chiamato solo dal Salva della sua tab, e
+`saveAll` non lo chiamava affatto: una modifica a uno script globale si vedeva
+sul canvas e al reload non c'era più.
+
+La cura sta al confine (`validate::ricomponi_script`): sul JSON grezzo, prima di
+serde, gli script mancanti si rimettono da disco — e vale per ogni client, non
+solo per l'editor. Assente e vuoto restano distinti: `functions: []` è
+un'intenzione e si rispetta.
+
+### Lo schema mentiva per omissione, e il modello gli credeva
+
+`schema_oggetto("button")` non elencava `button_mode`, perché il filtro sono i
+campi che i template usano davvero e **nessuno degli 11 usa il toggle**. Alla
+richiesta di «un bottone che accende e spegne», il modello ha chiesto lo schema,
+ha letto 12 campi senza la modalità, e ne ha dedotto — scrivendolo — che il
+toggle non esiste: ha proposto un *checkbox*. Non un'allucinazione, obbedienza a
+una fonte incompleta.
+
+Ora ai campi usati si aggiungono quelli col prefisso del tipo, ed esiste
+`schema_tag` (il tipo di un tag si chiama `data_type` e non `type`: il modello
+ha sbagliato in due prove su due, perché nessuno strumento glielo diceva).
+Rimisurato dopo: bottone con `button_mode: toggle`, `data_type` giusto al primo
+colpo, **una** validazione invece di tre.
+
+### `start_editor.sh` moriva subito dopo aver stampato «pronto»
+
+Su una macchina con pyenv il binario è linkato a una libpython che il loader non
+trova: l'IDE stampava il banner e poi il processo moriva. Il messaggio arriva
+*dopo* il banner, quindi sembrava su e non c'era nessuno in ascolto.
+`start_runtime.sh` la trappola la gestiva da tempo; lo script dell'editor no —
+ed è proprio quello che la guida dà per accendere la chat.
+
+### Prima non si poteva chiedere «questo progetto è valido?» senza rovinarlo
+
+`POST /api/project/validate` riceve un progetto e **non lo salva**.
+Risponde con rilievi che dicono il percorso del campo, cosa non va e
+come si aggiusta — e se il difetto c'era già prima della modifica
+proposta. Vale anche senza nessuna IA: fino a oggi l'unico modo di
+scoprire che qualcosa era sbagliato era salvarlo.
+
+Le regole riunite in un posto solo: tag non dichiarati, valori fuori
+dagli insiemi ammessi, navigazioni verso pagine inesistenti, pipe
+ancorate a oggetti che non ci sono, `points` su una `line`, celle di
+griglia con `objects` invece di `child`, comandi verso tag calcolati (che
+il server rifiuta), e il valore scritto che deve stare nel tipo del tag.
+Più due nuove: un mapping MQTT senza `publish_topic` sotto un comando —
+il bottone cambierebbe il valore dentro SWS e la luce vera resterebbe
+spenta — e i campi che semplicemente **non esistono**, che serde scarta
+in silenzio.
+
+`GET /api/schema/synoptic` e `GET /api/schema/source` servono i campi
+validi con la loro documentazione e un esempio preso da un progetto vero.
+
+### Salvare due sezioni insieme ne perdeva una
+
+Un salvataggio che toccava **due** sezioni del progetto (per esempio i
+tag e le sorgenti) ne scriveva una sola, senza dire niente. Le scritture
+partivano in parallelo e finiscono tutte nello stesso `project.yaml`
+attraverso un leggi-modifica-scrivi senza lock: l'ultima cancellava
+l'altra.
+
+Non serviva l'assistente per incapparci — bastavano due tab di
+Configurazione modificate insieme, ed era così da sempre. Ora le sezioni
+si salvano una per volta. La corsa lato server (due schede, uno script)
+resta aperta ed è Q30.
+
+### Il diff dell'assistente diceva il falso
+
+Su una proposta che aggiungeva **un** bottone, 46 oggetti su 47
+risultavano modificati: l'API serve la pagina nell'ordine di chiavi del
+file YAML, la proposta esce nell'ordine della struct. Stessi oggetti,
+confronto diverso. Un diff così nessuno lo rilegge, ed è esattamente il
+rischio contro cui il diff esiste. Ora la proposta si fonde oggetto per
+oggetto, e il salvataggio non riordina in YAML le chiavi di oggetti che
+nessuno ha toccato.
+
+### Domande aperte registrate
+
+- **Q29** — un tag può servire due direzioni con due tipi diversi? I rulli
+  di `casa-locale` scrivono `"open"` su tag `float`, e funziona.
+- **Q30** — `patch_project` senza lock: chi perde la corsa non vede niente.
+
+
 ## [2.3.4] — 2026-08-31
 
 ### La commutazione web/LVGL era morta dieci secondi dopo l'accensione

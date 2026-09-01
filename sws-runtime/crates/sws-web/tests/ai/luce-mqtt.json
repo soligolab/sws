@@ -1,0 +1,67 @@
+{
+  "_perche": "Il bersaglio di T-50, rigiocato senza chiamare il modello. Serve a provare deterministicamente il pannello, il diff, la transazione dell'assistente e Ctrl+Z: gli strumenti sono quelli veri, solo le decisioni sono registrate. Da usare con SWS_AI_FAKE=<questo file> su un progetto creato dal template demo-items-web.",
+  "turni": [
+    {
+      "testo": "Guardo com'è fatto il progetto prima di toccarlo.\n\n",
+      "strumenti": [
+        { "nome": "elenca_pagine", "input": {} },
+        { "nome": "elenca_tag", "input": { "filtro": "luce" } },
+        { "nome": "leggi_progetto", "input": {} }
+      ]
+    },
+    {
+      "testo": "Non c'è nessun tag per la luce e nessuna sorgente verso quel broker: vanno creati tutti e due. Mi faccio dare lo schema prima di scriverli.\n\n",
+      "strumenti": [
+        { "nome": "schema_sorgente", "input": { "kind": "mqtt" } },
+        { "nome": "schema_oggetto", "input": { "tipo": "button" } },
+        { "nome": "leggi_pagina", "input": { "nome": "Indicatori" } }
+      ]
+    },
+    {
+      "testo": "Ecco la proposta: una sorgente MQTT verso 192.168.1.50, un tag booleano `luce.salotto` con il topic di stato in lettura e quello di comando in scrittura, e un bottone in modalità toggle sulla pagina Indicatori.\n\nIl `publish_topic` è la parte che conta: senza, il bottone cambierebbe il valore dentro SWS e la luce vera resterebbe spenta.\n\n",
+      "strumenti": [
+        {
+          "nome": "proponi_modifica",
+          "input": {
+            "motivo": "bottone on/off per la luce del salotto via MQTT",
+            "patch": {
+              "sorgenti_aggiunte": [
+                {
+                  "kind": "mqtt",
+                  "id": "broker-casa",
+                  "host": "192.168.1.50",
+                  "port": 1883,
+                  "client_id": "sws-casa",
+                  "topics": [
+                    {
+                      "tag": "luce.salotto",
+                      "topic": "casa/salotto/luce/stato",
+                      "publish_topic": "casa/salotto/luce/set"
+                    }
+                  ]
+                }
+              ],
+              "tag_aggiunti": [
+                { "id": "luce.salotto", "description": "Luce del salotto", "data_type": "bool" }
+              ],
+              "oggetti_aggiunti": [
+                {
+                  "pagina": "Indicatori",
+                  "oggetto": {
+                    "id": "btn_luce_salotto",
+                    "type": "button",
+                    "x": 40, "y": 640, "width": 160, "height": 48,
+                    "label": "Luce salotto",
+                    "tag": "luce.salotto",
+                    "button_mode": "toggle",
+                    "fill": "#2563eb"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

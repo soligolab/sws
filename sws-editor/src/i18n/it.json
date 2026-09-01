@@ -133,7 +133,8 @@
     "imported": "Importato {{file}} ({{count}} tag)",
     "logPanel": "Pannello log",
     "saveCopyToPc": "💾 Salva copia sul PC…",
-    "openFromPc": "📂 Sostituisci da copia sul PC…"
+    "openFromPc": "📂 Sostituisci da copia sul PC…",
+    "chatPanel": "Assistente IA"
   },
   "roles": {
     "admin": "Admin",
@@ -258,6 +259,27 @@
     "empty": "Nessun oggetto in questa pagina.",
     "rulersShow": "Mostra righelli",
     "rulersHide": "Nascondi righelli"
+  },
+  "chat": {
+    "title": "Assistente",
+    "clear": "Svuota la conversazione",
+    "close": "Chiudi",
+    "inactive": "L'assistente non è configurato.",
+    "empty": "Descrivi cosa vuoi ottenere. L'assistente guarda il progetto, propone una modifica, e tu decidi se applicarla.",
+    "example": "Es. «aggiungi alla pagina Indicatori un bottone che accende e spegne la luce del salotto — è su MQTT, broker 192.168.1.50, topic casa/salotto/luce»",
+    "placeholder": "Scrivi qui. Invio per mandare, Maiusc+Invio per andare a capo.",
+    "send": "Manda",
+    "working": "Sto lavorando…",
+    "apply": "Applica",
+    "discard": "Scarta",
+    "applyNote": "Applica non salva: la modifica va nell'editor, Ctrl+Z la annulla e il disco aspetta Salva.",
+    "noChanges": "La proposta non cambia niente.",
+    "noConnection": "Non sono connesso al runtime: il messaggio non è partito.",
+    "outcome": {
+      "applicata": "Applicata. Ctrl+Z per annullare, Salva per scrivere su disco.",
+      "scartata": "Scartata.",
+      "rifiutata": "Non applicata."
+    }
   },
   "viewer": {
     "maintenance": "Manutenzione",
@@ -1141,5 +1163,14 @@
     "invalid": "Valore non valido",
     "belowMin": "Sotto il minimo ({{min}})",
     "aboveMax": "Sopra il massimo ({{max}})"
+  },
+  "logWindow": {
+    "open": "Log in una finestra",
+    "localOnly": "Solo log di questo runtime — le righe di un runtime remoto collegato si vedono nella finestra dell'editor.",
+    "noAuth": "Non risulta nessun accesso",
+    "noAuthHint": "Accedi nella finestra dell'editor, poi ricarica questa.",
+    "reload": "Ricarica",
+    "blocked": "Il browser ha bloccato la finestra: consenti i popup per questo indirizzo e riprova.",
+    "checking": "Verifico l'accesso…"
   }
 }

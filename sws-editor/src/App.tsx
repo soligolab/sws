@@ -9,7 +9,9 @@ import { MainMenu } from "@/components/MainMenu";
 import { RuntimeCtrl } from "@/components/RuntimeCtrl";
 import { ViewerLink } from "@/components/ViewerLink";
 import { UserMenu } from "@/components/UserMenu";
+import { ChatPanel } from "@/components/ChatPanel";
 import { LogPanel } from "@/components/LogPanel";
+import { apriFinestra, sorvegliaChiusura } from "@/apriFinestra";
 import { LoginScreen } from "@/components/LoginScreen";
 import { ReAuthModal } from "@/components/ReAuthModal";
 import { WelcomeScreen } from "@/components/WelcomeScreen";
@@ -58,6 +60,7 @@ function AccessDenied({ role, onLogout }: { role: string; onLogout: () => void }
 // ── Shared header-button style ────────────────────────────────────────────────
 
 const LOG_PANEL_KEY = "sws.logPanel.open";
+const CHAT_PANEL_KEY = "sws.chatPanel.open";
 
 export function App() {
   const { t } = useTranslation();
@@ -76,6 +79,46 @@ export function App() {
       try { localStorage.setItem(LOG_PANEL_KEY, next ? "1" : "0"); } catch { /* ignore */ }
       return next;
     });
+  };
+
+  // Chat dell'assistente (T-50): cassetto laterale, stesso schema del log —
+  // stato qui, interruttore nel menu ☰, scelta ricordata in localStorage.
+  const [chatOpen, setChatOpen] = useState<boolean>(() => {
+    try { return localStorage.getItem(CHAT_PANEL_KEY) === "1"; } catch { return false; }
+  });
+  const toggleChat = () => {
+    setChatOpen((prev) => {
+      const next = !prev;
+      try { localStorage.setItem(CHAT_PANEL_KEY, next ? "1" : "0"); } catch { /* ignore */ }
+      return next;
+    });
+  };
+
+  // I log staccati in una finestra propria. L'handle si tiene per **riusare**
+  // la finestra invece di riaprirla: `window.open` sullo stesso URL ricarica il
+  // documento, e per una console di log significa perdere il buffer che si
+  // stava leggendo. Non serve nessun canale fra le finestre: `LogPanel` è sola
+  // lettura verso il progetto, quindi quella finestra apre i propri stream e
+  // vive da sé (vedi `components/LogWindow.tsx`).
+  const finestraLog = useRef<Window | null>(null);
+  const [logStaccatoErrore, setLogStaccatoErrore] = useState<string | null>(null);
+
+  const staccaLog = () => {
+    const esito = apriFinestra("/index-log.html", "sws-log", {
+      larghezza: 900, altezza: 520, handle: finestraLog.current,
+    });
+    if (esito.bloccata) {
+      // Rumoroso, e senza navigare via: qui c'è il progetto in memoria.
+      setLogStaccatoErrore(t("logWindow.blocked"));
+      return;
+    }
+    setLogStaccatoErrore(null);
+    finestraLog.current = esito.win;
+    if (esito.win && !esito.riusata) {
+      // Quando la chiudono, si dimentica l'handle: al prossimo clic si riapre
+      // invece di provare un `focus()` su una finestra morta.
+      sorvegliaChiusura(esito.win, () => { finestraLog.current = null; });
+    }
   };
 
   // Stream runtime logs and tag values whenever the user is authenticated.
@@ -584,6 +627,9 @@ export function App() {
           onCloseProject={handleCloseProject}
           logOpen={logOpen}
           onToggleLog={toggleLog}
+          chatOpen={chatOpen}
+          onToggleChat={toggleChat}
+          onStaccaLog={staccaLog}
         />
       </header>
 
@@ -658,6 +704,28 @@ export function App() {
         </div>
       )}
 
+      {/* La finestra staccata dei log è stata bloccata dal browser. Un avviso
+          visibile e non un `console.warn`: un popup bloccato è la cosa più
+          facile da non notare, e senza questa riga il clic sembrerebbe non
+          aver fatto niente. Si chiude da sé quando l'apertura riesce. */}
+      {logStaccatoErrore && (
+        <div style={{
+          background: "var(--brand-danger-soft, #451a1a)",
+          borderBottom: "1px solid var(--brand-danger, #ef4444)",
+          padding: "5px 16px", display: "flex", alignItems: "center",
+          gap: 12, fontSize: 12, color: "var(--brand-text, #e2e8f0)", flexShrink: 0,
+        }}>
+          <span>⚠</span>
+          <span style={{ flex: 1 }}>{logStaccatoErrore}</span>
+          <button
+            style={{ ...HDR_BTN, padding: "2px 8px" }}
+            onClick={() => setLogStaccatoErrore(null)}
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
       {/* Dev-mode TTL banner: suggests disabling session expiry during development */}
       {devTtlBanner && (
         <div style={{
@@ -697,6 +765,12 @@ export function App() {
       <main style={{ display: "flex", flex: 1, overflow: "hidden" }}>
         {effectiveMode === "edit"   && <EditorShell />}
         {effectiveMode === "config" && <ConfigView />}
+        {/* Chat drawer (right) — dentro <main> così sta accanto al canvas
+            invece che sotto: una conversazione è alta, non larga. */}
+        <ChatPanel open={chatOpen} onClose={() => {
+          setChatOpen(false);
+          try { localStorage.setItem(CHAT_PANEL_KEY, "0"); } catch { /* ignore */ }
+        }} />
       </main>
 
       {/* Log drawer (bottom) */}

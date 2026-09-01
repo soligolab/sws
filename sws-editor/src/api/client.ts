@@ -42,6 +42,7 @@ import type {
   LanguageTable,
   TagDef,
   TemplateEntry,
+  AiConfig,
 } from "@/types";
 
 // Runtime URL resolution order (ARCH-002 + ARCH-004):
@@ -881,6 +882,26 @@ export const api = {
       body: JSON.stringify({ cert_pem, key_pem }),
     }),
   removeTlsCert:     () => request<void>("/api/system/tls",          { method: "DELETE" }),
+
+  // ── Assistente IA (T-50) ──────────────────────────────────────────────────
+  // Esistono **solo** sull'istanza IDE (avviata senza viewer): su un runtime
+  // che serve un impianto rispondono 404, e il pannello lo tratta come «qui non
+  // si configura», non come un errore.
+  getAiConfig: () => request<AiConfig>("/api/ai/config"),
+  putAiConfig: (fornitore: string, modello?: string, chiave?: string) =>
+    request<{ ok: boolean; configurato: boolean; riconnetti: boolean }>("/api/ai/config", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      // `chiave` si omette per lasciare quella salvata: la sentinella la
+      // conosce anche il server, ma non mandare il campo è più chiaro.
+      body: JSON.stringify({ fornitore, modello, chiave }),
+    }),
+  deleteAiKey: (fornitore: string) =>
+    request<{ ok: boolean; cera: boolean }>("/api/ai/config", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ fornitore }),
+    }),
 
   getAuditTail: (limit = 200): Promise<AuditEntry[]> =>
     request(`/api/audit?limit=${limit}`),

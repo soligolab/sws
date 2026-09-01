@@ -41,6 +41,18 @@ export default defineConfig({
     navigationTimeout: 30_000,
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
+    // Su una macchina senza i browser scaricati da Playwright (`npx playwright
+    // install`), si può puntare a un Chromium di sistema:
+    //
+    //     SWS_E2E_CHROMIUM=/usr/bin/chromium pnpm test:e2e
+    //
+    // Non è la configurazione supportata da Playwright — la versione del
+    // browser di sistema non è quella con cui la libreria è stata provata — ma
+    // è la differenza fra poter lanciare il gate su questo server e non
+    // poterlo lanciare affatto. Se la variabile non c'è, niente cambia.
+    launchOptions: process.env.SWS_E2E_CHROMIUM
+      ? { executablePath: process.env.SWS_E2E_CHROMIUM }
+      : {},
   },
   projects: [
     {

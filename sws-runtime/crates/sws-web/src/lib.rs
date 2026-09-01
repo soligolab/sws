@@ -1,3 +1,4 @@
+pub mod ai;
 pub mod backups;
 pub mod deploy;
 pub mod discover;
@@ -6,6 +7,7 @@ pub mod packaging;
 pub mod git_deploy;
 pub mod notifications;
 pub mod recipe;
+pub mod schema_api;
 pub mod global_scripts;
 pub mod metrics;
 pub mod netif;
@@ -16,7 +18,9 @@ pub mod remote_relay;
 pub mod router;
 pub mod source_supervisor;
 pub mod synoptic;
+pub mod synoptic_schema;
 pub mod system;
+pub mod validate;
 pub mod telegram;
 pub mod templates;
 

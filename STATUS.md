@@ -28,6 +28,105 @@
 
 ## ▶ Da fare nella prossima sessione
 
+### Da dove ripartire — sessione del 2026-09-01 (T-50 mergiato in `main`)
+
+**T-50 è su `main`.** Il ramo `feat/T-50-chat-ai` è stato squash-mergiato dopo che il maintainer
+ha provato quello che era provabile. Sedici commit, 46 file, ~8100 righe.
+
+**Provato col modello vero**, non solo compilato — tre giri, costo reale letto dal registro:
+
+| Prova | Modello | Costo | Esito |
+|---|---|---|---|
+| Bottone MQTT, broker dichiarato | `claude-opus-5` | 0,232 $ | proposta valida, `publish_topic` e `toggle` presi da sé |
+| Stessa richiesta | `kimi-k3` | 0,072 $ | idem; ha sbagliato `data_type` e si è corretto dopo il rifiuto del validatore |
+| Senza dire il broker (+ seguito) | `kimi-k3` | 0,071 $ | **ha chiesto** invece di inventare `localhost`; ha proposto un checkbox perché lo schema mentiva |
+| Ripetuta dopo le correzioni | `kimi-k3` | 0,078 $ | bottone con `button_mode: toggle`, `data_type` giusto al primo colpo, una sola validazione |
+
+Spesa totale della giornata: **0,45 $**.
+
+**Cosa NON è finito, in ordine di quanto costa scoprirlo tardi:**
+
+1. 🔴 **Q31 — la chat non funziona con un runtime remoto collegato.** `buildWsUrl` manda ogni
+   WebSocket nel relay, che ammette solo `tags|alarms|logs`: `/ws/remote/ai` risponde 404 e il
+   pannello riprova all'infinito. Il maintainer ha **deciso** la via: far leggere gli strumenti
+   dal runtime remoto col token dell'umano. Non implementata.
+2. **La chat staccata in una finestra propria**: progettata nel dettaglio
+   (`~/.claude/plans/`, §4 del piano del 2026-09-01) e **non** implementata. I log sì, la chiave
+   sì, la chat no — è l'unico pezzo che richiede il ponte `BroadcastChannel`, perché
+   `applyAiProposal` deve girare nella finestra dell'editor.
+3. **Gli strumenti Python** (passi 3-6 del piano precedente): `POST /api/script/check` che compila
+   senza eseguire, `leggi_script`, `schema_python`, le regole sul validatore, il diff per righe.
+   Il maintainer li ha chiesti e restano il pezzo più utile per come vuole usare la chat.
+4. **La prova end-to-end della chat non è mai girata**: `e2e/chat-ai.spec.ts` esiste e si salta da
+   sé senza `SWS_AI_FAKE`. Su frodo i browser di Playwright non sono installati, ma ora si può
+   usare quello di sistema: `SWS_E2E_CHROMIUM=/usr/bin/chromium`.
+5. **Q29** (un tag `float` che trasporta `"open"`) e **Q30** (`patch_project` senza lock) restano
+   aperte, registrate durante la notte.
+
+**Difetti trovati e corretti oggi**, tutti preesistenti e nessuno cercato: la proposta che
+cancellava le funzioni, `leggi_progetto` che bloccava la validazione, gli script globali che non
+arrivavano al disco, `schema_oggetto` che non nominava `button_mode`, l'assenza di `schema_tag`,
+`start_editor.sh` che moriva dopo il banner su pyenv, e — nei nostri stessi test — un
+`mockImplementation` che restava installato per tutto il file.
+
+---
+
+### Da dove ripartire — chiusura della sessione notturna del 2026-08-31/09-01
+
+**T-50, la chat IA nell'editor: funziona.** Ramo `feat/T-50-chat-ai`, pushato, **non**
+mergiato in `main`. Il bersaglio è raggiunto: si scrive in chat *«aggiungi alla pagina
+Indicatori un bottone che accende e spegne la luce del salotto — MQTT su 192.168.1.50»* e
+arriva una proposta con la sorgente (con `publish_topic`), il tag booleano e il bottone
+`toggle`; si preme Applica, il bottone compare sul canvas, Ctrl+Z lo toglie **insieme** a tag
+e sorgente, e Salva li scrive tutti e tre su disco.
+
+Verificato in Chromium sull'istanza 3, progetto nuovo da `demo-items-web`, con l'agente finto.
+
+**La cosa che manca, ed è una sola:** il modello vero non è mai stato chiamato. La chiave API
+non è arrivata durante la notte, quindi `ai/client.rs` — la lettura SSE, il ciclo
+strumento→risultato, il prompt di sistema — è scritto, compila e ha i suoi test unitari sulla
+ricostruzione dei blocchi, ma **non ha mai parlato con `api.anthropic.com`**. Tutto il resto
+(strumenti, validazione, WebSocket, pannello, diff, transazione, salvataggio) è provato dal
+vivo attraverso l'agente finto, che esegue gli strumenti veri.
+
+Per accenderlo bastano tre righe — `docs/HOWTO.md` §7:
+
+```bash
+ mkdir -p ~/.config/sws && printf '%s' 'sk-ant-...' > ~/.config/sws/anthropic.key && \
+   chmod 600 ~/.config/sws/anthropic.key
+```
+
+Poi `./scripts/start_editor.sh` (senza `SWS_AI_FAKE`) e le quattro prove della fase D del
+piano: la frase del bersaglio; la stessa **senza dire il broker** (deve chiedere, non inventare
+`localhost`); una richiesta su un tag che esiste già (deve riusarlo, non duplicarlo); una
+richiesta impossibile (deve dire di no).
+
+**Due difetti veri trovati strada facendo, non cercati:**
+
+- **Salvare due sezioni insieme ne perdeva una.** `saveAll()` svuotava le sezioni in sospeso
+  in parallelo, e tutte finiscono nello stesso `project.yaml` attraverso un
+  leggi-modifica-scrivi senza lock: l'ultima cancellava l'altra, in silenzio. Bastavano due tab
+  di Configurazione modificate insieme, ed era così da sempre. Corretto lato editor
+  (sequenziale, con un test che verifica l'ordine e non il conteggio); la corsa lato server è
+  **Q30** e resta aperta.
+- **I rulli di `casa-locale`** scrivono `"open"`/`"stop"`/`"close"` su tag dichiarati `float`.
+  Funziona (Q27), ma il tipo dichiarato è falso metà del tempo. Non l'ho toccato: è il tuo
+  impianto di casa. Le dodici eccezioni sono elencate una per una in `ECCEZIONI_NOTE`
+  (`sws-web/src/validate.rs`) così una tredicesima fa fallire il test, e la domanda è **Q29**.
+
+**Cosa resta di T-50**, in ordine:
+
+1. **Provarlo col modello vero** (sopra). Mezza sessione.
+2. **Il merge in `main`**, dopo che l'hai visto funzionare. Il ramo non è mergiato apposta.
+3. **Le fasi 3 e 4 del piano**: l'istantanea LVGL come strumento (l'agente guarda quello che ha
+   disegnato) e il server MCP autonomo per usare gli stessi strumenti da terminale.
+4. ~~Un rilievo «questo tipo il motore LVGL non lo disegna».~~ **Non serve**: l'ho scritto e poi
+   tolto, perché il motore ormai disegna **tutti e 35** i tipi della palette — e se un giorno
+   smettesse, `check_lvgl_types.sh` fallisce già prima. Una regola che non può scattare è
+   codice morto che dà l'illusione di un controllo.
+
+---
+
 ### Da dove ripartire — chiusura della sessione del 2026-08-31 (sera)
 
 Sessione di **trasloco**, nessuna riga di codice: frodo è stata verificata, i documenti
@@ -59,6 +158,23 @@ sera stessa: non va più ruotato.
 
 **Sempre in attesa di uno sguardo a schermo**, da quattro sessioni: pull del progetto dall'IDE,
 sezione Python unificata, colore del testo derivato dallo sfondo pagina (§5).
+
+### Richiesta del maintainer, da analizzare in modalità piano (2026-09-01)
+
+Tre comportamenti dell'editor da rivedere insieme, perché sono la stessa idea vista da tre lati:
+**il limite della pagina deve essere un limite morbido, non una gabbia**.
+
+1. **Il colore di sfondo della pagina riempie tutta l'area dell'editor**, ignorando il tratteggio
+   che segna il limite della pagina. Il riempimento deve fermarsi al limite.
+2. **Gli oggetti sono confinati nell'area della pagina.** Dovrebbero essere *trattenuti* al
+   bordo — un aggancio morbido — ma se si trascina con decisione devono poter **uscire**.
+3. **Un oggetto fuori pagina è ignorato e disabilitato a runtime, ma resta nel progetto.** È il
+   modo di togliere qualcosa dalla grafica temporaneamente senza cancellarlo.
+
+Non deciso e non progettato: va affrontato in modalità piano. Il punto 3 ha conseguenze che
+toccano più del canvas — validatore (un oggetto fuori pagina non deve diventare un rilievo),
+motore LVGL (deve saltarlo come lo salta il browser), e la domanda se «fuori pagina» sia uno
+stato implicito dalle coordinate o un campo esplicito.
 
 ### 0. Lo stato reale dopo il trasloco su frodo (2026-08-31, sera)
 

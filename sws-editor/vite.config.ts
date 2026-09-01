@@ -46,6 +46,11 @@ export default defineConfig({
       input: {
         main:  "index.html",
         admin: "index-admin.html",
+        // Finestra staccata dei log. È un file reale in `dist`, quindi il
+        // runtime lo serve da `ServeDir` per match diretto: l'URL deve essere
+        // esattamente `/index-log.html`, perché `/log` cadrebbe nel fallback
+        // SPA e restituirebbe l'IDE (router.rs, not_found_service).
+        log:   "index-log.html",
       },
       output: {
         manualChunks(id) {

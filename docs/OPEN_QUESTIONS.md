@@ -2395,3 +2395,161 @@ sintomo, non una risposta.
    significano niente e vanno tolti dal pannello proprietà.
 4. In entrambi i casi: **cosa succede ai progetti esistenti** che dichiarano
    l'uno o l'altro e hanno un aspetto che il cliente ha già approvato.
+
+---
+
+## Q29 — Un tag può servire due direzioni con due tipi diversi?
+
+*Aperta il 2026-08-31 (notte), scrivendo il validatore di T-50. Misurata, non decisa.*
+
+I dodici pulsanti dei rulli in `casa-locale` scrivono le stringhe `"open"` / `"stop"` /
+`"close"` su tag dichiarati `float`:
+
+```yaml
+# project.yaml
+- id: shutter.garage
+  data_type: float          # la posizione 0-100 che arriva da .../roller/0/pos
+
+# Page 5 - Domotica.yaml
+- id: cl5_t1_open
+  type: button
+  tag: shutter.garage
+  write_value: "open"       # il comando che esce su .../roller/0/command
+```
+
+Lo stesso tag porta **una posizione numerica in lettura** e **un comando testuale in
+scrittura**. Funziona: il server non fa rispettare il `data_type` (Q27) e il plugin MQTT
+pubblica il valore così com'è. Ma il tipo dichiarato è falso metà del tempo, e il valore che
+sta nel `TagDb` subito dopo il comando non è una posizione.
+
+### Perché è emersa adesso
+
+Il validatore di T-50 deve dire a un assistente se una proposta è accettabile. La regola «il
+valore scritto sta nel tipo del tag» è quella che impedisce al modello di ripetere il difetto
+del 2026-08-31 (`write_value: 'true'` su un tag `bool`). Applicata ai template, boccia dodici
+oggetti di `casa-locale` — cioè un progetto vero che funziona da mesi.
+
+Le dodici eccezioni sono elencate una per una in `ECCEZIONI_NOTE`
+(`sws-web/src/validate.rs`), così una tredicesima fa fallire il test. Non è una risposta: è
+un segnalibro.
+
+### Le domande
+
+1. **Il modello giusto sono due tag** (`shutter.garage.pos` in lettura, `shutter.garage.cmd`
+   in scrittura), o **un tag con due tipi** dichiarati esplicitamente
+   (`data_type: float`, `write_data_type: string`)?
+2. Se restano due direzioni su un tag solo, **cosa dice `data_type`**? Oggi descrive la
+   lettura e tace sulla scrittura, ma non c'è scritto da nessuna parte.
+3. Cosa deve rispondere il validatore nel frattempo — e quindi cosa impara un assistente che
+   legge `casa-locale` come esempio. Oggi imparerebbe che si può scrivere una stringa su un
+   `float`.
+4. Vale anche per Home Assistant (`write_domain` / `write_service`) e per Sparkplug
+   (`writable`), o è solo MQTT?
+
+### Rapporto con le altre voci
+
+È la stessa famiglia di **Q27** (il server non fa rispettare il `data_type` in scrittura):
+Q27 chiede se il tipo è un contratto, Q29 chiede se è *un* contratto o due.
+
+---
+
+## Q30 — `patch_project` è un leggi-modifica-scrivi senza lock
+
+*Aperta il 2026-08-31 (notte), lavorando a T-50. **Misurata in un browser vero**, non dedotta.*
+
+Tutte le scritture su `project.yaml` — tag, sorgenti, allarmi, funzioni, simboli — passano da
+`patch_project` (`sws-web/src/router.rs:1963`), che fa:
+
+```
+leggi project.yaml → deserializza → applica la modifica → riscrivi
+```
+
+Senza nessun lock. Due chiamate in volo insieme leggono **lo stesso file di partenza**, e
+l'ultima che scrive cancella la modifica dell'altra. Nessun errore, nessun avviso: il
+salvataggio riesce, e una delle due modifiche non c'è più.
+
+### Come è saltata fuori
+
+Provando l'assistente nel browser: una proposta che creava **un tag e una sorgente** insieme.
+Dopo Salva, sul disco c'era la sorgente e non il tag. `saveAll()` svuotava le sezioni in
+sospeso con `Promise.allSettled`, cioè in parallelo.
+
+Non è un difetto dell'assistente. Bastano **due tab di Configurazione modificate insieme** e
+un Salva: è così da sempre, e nessuno l'aveva visto perché di solito si salva una sezione per
+volta.
+
+### Cosa è stato fatto adesso, e cosa no
+
+`saveAll()` ora svuota le sezioni **una per volta**, e incatena anche `updateFunctions` +
+`updateCustomSymbols` (le pagine restano in parallelo: sono file distinti). Questo mette al
+sicuro il percorso che l'editor usa davvero, ed è coperto da un test che verifica l'ordine e
+non solo il conteggio delle chiamate.
+
+**Non risolve la corsa lato server.** Restano scoperte: due schede del browser aperte sullo
+stesso runtime, un secondo IDE collegato in remoto, uno script che chiama l'API, un deploy
+concorrente.
+
+### Le domande
+
+1. **Un lock nel runtime** (un `Mutex` attorno al project dir) basta? È la risposta più
+   piccola, ma protegge un processo solo.
+2. Oppure **scrittura ottimistica con impronta**: il `PUT` porta l'impronta su cui si è
+   basato e il server rifiuta con 409 se nel frattempo è cambiata. Più onesto e già mezzo
+   costruito — `calcola_impronta` esiste, e T-50 la usa già per le proposte. Costa un giro in
+   più a ogni salvataggio e un messaggio d'errore da scrivere bene.
+3. E in entrambi i casi: **cosa deve vedere chi perde la corsa**. Oggi non vede niente, ed è
+   il vero problema.
+
+### Rapporto con le altre voci
+
+Stessa famiglia di **Q17** e **Q27**: il server accetta una scrittura che avrebbe gli elementi
+per gestire meglio. Qui però non è una questione di permessi o di tipi — è perdita di dati
+silenziosa, e va prima delle altre due.
+
+---
+
+## Q31 — La chat non funziona quando l'IDE è collegato a un runtime remoto, e non è chiaro cosa dovrebbe fare
+
+*Aperta il 2026-09-01 rileggendo `feat/T-50-chat-ai` su frodo. **Verificata nel codice**, non
+provata dal vivo: manca la conferma a schermo.*
+
+`buildWsUrl` (`sws-editor/src/ws/wsUrl.ts:27-35`) instrada **ogni** WebSocket attraverso il
+relay quando l'IDE è collegato a un runtime remoto: `/ws/ai` diventa `/ws/remote/ai`. Il relay
+però ammette tre soli sottocanali — `if !matches!(sub.as_str(), "tags" | "alarms" | "logs")`
+(`sws-web/src/remote_relay.rs:97`) — e risponde **404** a tutto il resto. Il commento in testa a
+`buildWsUrl` lo dice senza saperlo: *«`path` here is expected to be one of: /ws/tags,
+/ws/alarms, /ws/logs»*.
+
+Nessun controllo su `remoteConnected` esiste in `ChatPanel.tsx` né in `aiStream.ts`: il pannello
+resta apribile, e il socket entra in riconnessione perpetua contro un 404.
+
+Non si è visto durante lo sviluppo perché la prova è stata fatta con un progetto **locale**
+all'istanza dell'editor, non con la connessione a un runtime remoto — che è però il flusso
+descritto in `docs/CONTEXT.md` §3 per il PC di sviluppo.
+
+### Perché non è solo un sottocanale da aggiungere all'elenco
+
+Aggiungere `"ai"` al `matches!` farebbe collegare la chat **al runtime del dispositivo**: la
+sessione dell'agente girerebbe là, con la chiave API là. È esattamente ciò che il piano esclude
+(`docs/plans/2026-08-31-chat-ai-nelleditor.md` §2: *«Mai sul pannello»*).
+
+Tenerla locale non è gratis: gli strumenti dell'agente leggono il progetto dall'`AppState` del
+runtime che regge il WebSocket (`carica_progetto` in `ai/tools.rs:145` → `Project::load(&dir)`
+sulla directory attiva **locale**). Con l'IDE collegato a un remoto, l'umano modifica il
+progetto del dispositivo e l'agente leggerebbe quello dell'istanza locale: proporrebbe modifiche
+su un progetto che non è quello aperto. Peggio del 404, perché sembrerebbe funzionare.
+
+### Le tre vie, e cosa ognuna implica
+
+1. **Disabilitare la chat quando `remoteConnected`**, dicendolo in chiaro nel pannello. È la
+   sola opzione che non mente, e costa poche righe. La chat resta uno strumento per progetti
+   locali all'IDE, coerente col piano.
+2. **Far leggere gli strumenti attraverso l'API del runtime remoto**, col token dell'umano (che
+   il piano già prevede per la lettura). L'agente resta sul PC, il progetto arriva dal
+   dispositivo. È la via giusta a regime, e vuole che `carica_progetto` diventi un client HTTP
+   invece di un `Project::load`.
+3. **Relayare `/ws/ai` come gli altri**: la più semplice da scrivere e la sola che contraddice
+   il piano. Andrebbe scelta solo decidendo *anche* che l'agente può girare sul dispositivo.
+
+**Da decidere prima del merge di T-50**, perché la 1 è una riga di guardia mentre la 2 cambia
+la forma degli strumenti — e scoprirlo dopo il merge significa averla scelta per inerzia.

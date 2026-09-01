@@ -78,6 +78,13 @@ pub struct AppState {
     /// quando guardavo", non ricevere ogni singolo evento. Un `watch` non può
     /// restare indietro, e perdere eventi intermedi è esattamente ciò che si
     /// vuole quando la reazione è "ricarica tutto".
+    /// Questa istanza è un IDE senza viewer (`--viewer-port` non passato,
+    /// cioè `start_editor.sh`). Serve a **negare l'esistenza** di funzioni che
+    /// hanno senso solo sul PC di sviluppo: la configurazione dell'assistente
+    /// IA vive qui, e su un runtime che serve un impianto non deve esserci.
+    /// La decisione la prende `main.rs`, che è l'unico posto a sapere se il
+    /// listener del viewer è stato aperto.
+    pub ide_only: bool,
     pub project_epoch: Arc<tokio::sync::watch::Sender<u64>>,
     pub functions: FunctionsRegistry,
     pub derived_tags: DerivedTagsRegistry,
@@ -178,6 +185,8 @@ pub fn build(
     // Operator-only hardening (--no-admin): drop `/api/script/exec` (ad-hoc code
     // execution) from the viewer. Button-bound `/api/script/run/:name` stays.
     lockdown: bool,
+    // Istanza IDE-only (nessun `--viewer-port`): vedi `AppState::ide_only`.
+    ide_only: bool,
     audit: Arc<sws_audit::AuditLog>,
     known_projects: Arc<crate::project_registry::ProjectRegistry>,
     instance_id: Arc<String>,
@@ -191,7 +200,7 @@ pub fn build(
     let (project_epoch, _) = tokio::sync::watch::channel(0u64);
     let project_epoch = Arc::new(project_epoch);
 
-    let state = AppState { db, bus, alarms, historian, registry, py, auth, supervisor, script_supervisor, project_epoch, functions, derived_tags, project_dir, projects_root, templates_root, logs, logs_dir, started_at, ip_allowlist, recipe_log: Arc::new(RwLock::new(Vec::new())), notification_supervisor: Arc::new(RwLock::new(None)), telegram_sender: Arc::new(RwLock::new(None)), config_dir, cert_path, build_running: crate::packaging::new_build_lock(), repo_root: crate::packaging::new_repo_root(), remote_target: Arc::new(RwLock::new(None)), audit, known_projects, instance_id, project_switch_lock: Arc::new(tokio::sync::Mutex::new(())), deploy_lock: Arc::new(tokio::sync::Mutex::new(())) };
+    let state = AppState { db, bus, alarms, historian, registry, py, auth, supervisor, script_supervisor, ide_only, project_epoch, functions, derived_tags, project_dir, projects_root, templates_root, logs, logs_dir, started_at, ip_allowlist, recipe_log: Arc::new(RwLock::new(Vec::new())), notification_supervisor: Arc::new(RwLock::new(None)), telegram_sender: Arc::new(RwLock::new(None)), config_dir, cert_path, build_running: crate::packaging::new_build_lock(), repo_root: crate::packaging::new_repo_root(), remote_target: Arc::new(RwLock::new(None)), audit, known_projects, instance_id, project_switch_lock: Arc::new(tokio::sync::Mutex::new(())), deploy_lock: Arc::new(tokio::sync::Mutex::new(())) };
     // Build the runtime router (8443) before consuming state for admin.
     let runtime_app = build_runtime_inner(state.clone(), www_dir.clone(), lockdown);
 
@@ -263,6 +272,21 @@ pub fn build(
         // Audit log (OPEN_QUESTIONS Q8): who-did-what trail, tamper-evident.
         .route("/api/audit",               get(get_audit_tail))
         .route("/api/audit/verify",        get(get_audit_verify))
+        // T-50 — lo schema del progetto e il giudizio su una modifica proposta.
+        //
+        // `POST /api/project/validate` riceve un progetto e **non lo salva**:
+        // è l'unico endpoint che sembra scrivere e non scrive. È deliberato —
+        // serve a sapere se una modifica sta in piedi *prima* di applicarla,
+        // che è il ciclo con cui un assistente si corregge da solo invece di
+        // lasciare il difetto al pannello. Vale anche senza IA: prima non
+        // c'era modo di chiedere «questo progetto è valido?» senza rovinarlo.
+        .route("/api/project/validate",    post(crate::schema_api::validate_project))
+        .route("/api/schema/synoptic",     get(crate::schema_api::schema_synoptic))
+        .route("/api/schema/source",       get(crate::schema_api::schema_source))
+        // La chat dell'assistente. Admin come tutto ciò che riguarda il
+        // progetto: chi non può modificarlo non ha motivo di farsi proporre
+        // modifiche. Non scrive niente — manda proposte al browser.
+        .route("/ws/ai",                   get(crate::ai::ws_ai_handler))
         .route_layer(middleware::from_fn(require_admin));
 
     // Routes that need Operator+ (tag writes, alarm ACK, script exec,
@@ -303,6 +327,14 @@ pub fn build(
         .route("/api/system/stop",         post(crate::system::system_stop))
         .route("/api/system/start",        post(crate::system::system_start))
         .route("/api/system/reboot",       post(crate::system::system_reboot))
+        // La configurazione dell'assistente IA. Esistono **solo** su un'istanza
+        // IDE-only (il gate è dentro gli handler, `ai/config_api.rs`): su un
+        // runtime che serve un impianto rispondono 404. Stanno qui perché sono
+        // configurazione del runtime, come il TLS, e non del progetto.
+        .route("/api/ai/config",
+            get(crate::ai::config_api::get_ai_config)
+                .put(crate::ai::config_api::put_ai_config)
+                .delete(crate::ai::config_api::delete_ai_config))
         .route("/api/system/tls",          get(crate::system::get_tls_status))
         .route("/api/system/tls/generate", post(crate::system::generate_tls_cert))
         .route("/api/system/tls",          put(crate::system::upload_tls_cert))
@@ -1880,7 +1912,7 @@ async fn handle_alarms_ws(mut socket: WebSocket, alarms: Arc<AlarmDb>) {
 /// The PUT handler treats this exact string as "keep the previous value"
 /// so a round-trip GET → edit → PUT through the editor doesn't accidentally
 /// wipe a secret the operator can't see.
-const MASKED_PASSWORD: &str = "********";
+pub(crate) const MASKED_PASSWORD: &str = "********";
 
 async fn get_project(State(s): State<AppState>) -> Response {
     let dir = match active_dir(&s).await {
@@ -1902,7 +1934,7 @@ async fn get_project(State(s): State<AppState>) -> Response {
 
 /// Replace any sensitive field on the project with the placeholder
 /// constant before it's serialised to the caller.
-fn mask_project_secrets(project: &mut Project) {
+pub(crate) fn mask_project_secrets(project: &mut Project) {
     for src in &mut project.sources {
         if let SourceDef::Mqtt(c) = src {
             if c.password.is_some() {
@@ -4604,49 +4636,56 @@ async fn update_project_global_scripts(
 
 // ── T-24 Project fingerprint ─────────────────────────────────────────────────
 
+/// SHA-256 di `project.yaml` più tutti i sinottici, in ordine di nome.
+///
+/// Estratta dall'handler quando l'assistente (T-50) ha avuto bisogno della
+/// stessa impronta da dentro il processo: la proposta se la porta dietro e il
+/// browser rifiuta di applicarla se nel frattempo il progetto è cambiato. Una
+/// seconda implementazione sarebbe divergita — è già successo tre volte in
+/// questo repo, e ogni volta in silenzio.
+pub(crate) fn calcola_impronta(dir: &std::path::Path) -> anyhow::Result<String> {
+    use sha2::{Digest, Sha256};
+    let mut hasher = Sha256::new();
+
+    let yaml = std::fs::read(dir.join("project.yaml"))
+        .map_err(|e| anyhow::anyhow!("project.yaml: {e}"))?;
+    hasher.update(&yaml);
+
+    // I sinottici in ordine di nome file, per determinismo.
+    let syn_dir = dir.join("synoptics");
+    if syn_dir.is_dir() {
+        let mut entries: Vec<std::path::PathBuf> = std::fs::read_dir(&syn_dir)
+            .map_err(|e| anyhow::anyhow!("synoptics/: {e}"))?
+            .filter_map(|e| e.ok())
+            .map(|e| e.path())
+            .filter(|p| p.extension().and_then(|s| s.to_str()) == Some("yaml"))
+            .collect();
+        entries.sort();
+        for path in &entries {
+            // Il nome entra nell'hash: due file con lo stesso contenuto e nomi
+            // diversi non sono lo stesso progetto.
+            if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
+                hasher.update(name.as_bytes());
+            }
+            let content = std::fs::read(path)
+                .map_err(|e| anyhow::anyhow!("{}: {e}", path.display()))?;
+            hasher.update(&content);
+        }
+    }
+
+    let digest = hasher.finalize();
+    Ok(digest.iter().fold(String::new(), |mut s, b| { s.push_str(&format!("{:02x}", b)); s }))
+}
+
 /// `GET /api/project/fingerprint` — SHA-256 of project.yaml + all synoptic YAMLs.
 /// The fingerprint is deterministic: same file contents = same hash regardless of
 /// when it is computed. Clients compare local vs. remote fingerprint to verify that
 /// a deployment is in sync.
 async fn get_project_fingerprint(State(s): State<AppState>) -> impl IntoResponse {
-    use sha2::{Digest, Sha256};
     use std::time::{SystemTime, UNIX_EPOCH};
 
     let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
-
-    let result = tokio::task::spawn_blocking(move || -> anyhow::Result<String> {
-        let mut hasher = Sha256::new();
-
-        // 1. Hash project.yaml
-        let yaml = std::fs::read(dir.join("project.yaml"))
-            .map_err(|e| anyhow::anyhow!("project.yaml: {e}"))?;
-        hasher.update(&yaml);
-
-        // 2. Hash synoptics sorted by filename for determinism
-        let syn_dir = dir.join("synoptics");
-        if syn_dir.is_dir() {
-            let mut entries: Vec<std::path::PathBuf> = std::fs::read_dir(&syn_dir)
-                .map_err(|e| anyhow::anyhow!("synoptics/: {e}"))?
-                .filter_map(|e| e.ok())
-                .map(|e| e.path())
-                .filter(|p| p.extension().and_then(|s| s.to_str()) == Some("yaml"))
-                .collect();
-            entries.sort();
-            for path in &entries {
-                // Prefix with filename so two files with identical content but
-                // different names produce different overall hashes.
-                if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
-                    hasher.update(name.as_bytes());
-                }
-                let content = std::fs::read(path)
-                    .map_err(|e| anyhow::anyhow!("{}: {e}", path.display()))?;
-                hasher.update(&content);
-            }
-        }
-
-        let digest = hasher.finalize();
-        Ok(digest.iter().fold(String::new(), |mut s, b| { s.push_str(&format!("{:02x}", b)); s }))
-    }).await;
+    let result = tokio::task::spawn_blocking(move || calcola_impronta(&dir)).await;
 
     match result {
         Ok(Ok(sha256)) => {

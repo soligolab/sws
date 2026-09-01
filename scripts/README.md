@@ -164,7 +164,7 @@ le lanciava tutte: a fine giornata se ne ricordavano sei, per nome, a memoria �
 e una guardia che non viene lanciata è codice morto che dà l'illusione di una
 rete di sicurezza.
 
-Le sette:
+Le otto:
 
 | Guardia | Cosa impedisce |
 |---|---|
@@ -175,10 +175,27 @@ Le sette:
 | `check_templates.sh` | i template restano indietro rispetto al runtime |
 | `check_demo_templates.sh` | i due gemelli "Demo Items" divergono fra loro |
 | `check_systemd_units.sh` | trappole note nelle unit che spediamo: condizioni di livello che fanno ciclare una unit, `.path` verso unit inesistenti, `ExecStart=` relativi |
+| `check_synoptic_schema.sh` | `synoptic_schema.rs` resta indietro rispetto alle sue quattro fonti, e l'assistente IA riceve un vocabolario che non è più quello vero |
 
 `check_static.sh` **fallisce anche** se in `scripts/` compare un `check_*.sh` che
 non è in nessuno dei suoi due elenchi: una guardia nuova non può restare fuori in
-silenzio, chi la scrive deve dire se serve o no uno stack.
+silenzio, chi la scrive deve dire se serve o no uno stack. (Ha funzionato: il
+2026-08-31, aggiungendo `check_synoptic_schema.sh`, la prima cosa che è successa
+è stato `check_static.sh` che si rifiutava di partire.)
+
+### `gen_synoptic_schema.py` — il vocabolario dell'assistente
+
+Genera `sws-web/src/synoptic_schema.rs` da quattro fonti: i 238 campi di
+`sws-web/src/synoptic.rs` con la loro documentazione, i tipi di oggetto dalla
+union TypeScript, il modello delle sorgenti in `sws-core/src/project.rs`, e —
+per ogni tipo — i campi visti nei template più un esempio YAML reale.
+
+L'ultimo pezzo merita una parola: «quali campi valgono per un `button`» non è
+scritto da nessuna parte (il modello dati è piatto), ma «quali campi ha un button
+nei progetti che funzionano» si misura, e si mantiene da sé.
+
+    ./scripts/gen_synoptic_schema.py            riscrive il file
+    ./scripts/gen_synoptic_schema.py --stdout   lo stampa (lo usa la guardia)
 
 ## `start_editor.sh` — IDE locale sul PC sviluppatore
 
