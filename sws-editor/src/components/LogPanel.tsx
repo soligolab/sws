@@ -20,6 +20,13 @@ const DEFAULT_LEVELS = new Set<LogLevel>(["INFO", "WARN", "ERROR"]);
 interface LogPanelProps {
   open: boolean;
   onClose: () => void;
+  /**
+   * `drawer` (default) is the bottom drawer inside the IDE: fixed 240 px.
+   * `window` is the detached window, where the panel must fill the viewport
+   * instead — the OS handles the sizing there, so a fixed height would leave
+   * dead space. Nothing else differs: same filters, same stream, same buffer.
+   */
+  variant?: "drawer" | "window";
 }
 
 /**
@@ -27,7 +34,7 @@ interface LogPanelProps {
  * Operator+ only. Filters are client-side: level checkboxes, target
  * substring, free-text search with `<mark>` highlight in messages.
  */
-export function LogPanel({ open, onClose }: LogPanelProps) {
+export function LogPanel({ open, onClose, variant = "drawer" }: LogPanelProps) {
   const { t } = useTranslation();
   const authRole  = useAppStore((s) => s.authRole);
   const logs      = useAppStore((s) => s.logs);
@@ -125,7 +132,7 @@ export function LogPanel({ open, onClose }: LogPanelProps) {
   const isViewer = authRole === "Viewer";
 
   return (
-    <div style={panelStyle}>
+    <div style={variant === "window" ? finestraStyle : panelStyle}>
       {/* ── Header bar ───────────────────────────────────────────────── */}
       <div style={headerStyle}>
         <strong style={{ fontSize: 12, color: isHistMode ? "var(--brand-warning, #f59e0b)" : "var(--brand-text, #e2e8f0)", letterSpacing: 0.5 }}>
@@ -349,6 +356,19 @@ const panelStyle: React.CSSProperties = {
   flexShrink: 0,
   background: "var(--brand-bg, #0b1220)",
   borderTop: "1px solid var(--brand-surface-2, #334155)",
+  display: "flex",
+  flexDirection: "column",
+  overflow: "hidden",
+};
+
+/**
+ * Detached window: fill it. `height: "100%"` and no top border — the border
+ * separates the drawer from the canvas above it, and in a window of its own
+ * there is nothing above.
+ */
+const finestraStyle: React.CSSProperties = {
+  height: "100%",
+  background: "var(--brand-bg, #0b1220)",
   display: "flex",
   flexDirection: "column",
   overflow: "hidden",

@@ -1163,5 +1163,14 @@
     "invalid": "Invalid value",
     "belowMin": "Below minimum ({{min}})",
     "aboveMax": "Above maximum ({{max}})"
+  },
+  "logWindow": {
+    "open": "Logs in a window",
+    "localOnly": "Local runtime logs only — lines from a connected remote runtime appear in the editor window.",
+    "noAuth": "Not signed in",
+    "noAuthHint": "Sign in from the editor window, then reload this one.",
+    "reload": "Reload",
+    "blocked": "The browser blocked the window: allow pop-ups for this address and retry.",
+    "checking": "Checking access…"
   }
 }

@@ -19,6 +19,7 @@ export function MainMenu({
   onToggleLog,
   chatOpen,
   onToggleChat,
+  onStaccaLog,
 }: {
   onLogout: () => void;
   onCloseProject: () => void;
@@ -26,6 +27,8 @@ export function MainMenu({
   onToggleLog: () => void;
   chatOpen: boolean;
   onToggleChat: () => void;
+  /** Apre i log in una finestra propria. Gestisce il popup bloccato. */
+  onStaccaLog: () => void;
 }) {
   const { t } = useTranslation();
   const [open, setOpen]       = useState(false);
@@ -195,6 +198,13 @@ export function MainMenu({
           >
             {t("menu.logPanel")}
             <span style={{ float: "right", opacity: 0.7 }}>{logOpen ? "✓" : ""}</span>
+          </button>
+          <button
+            style={DROP_ITEM}
+            onClick={() => { onStaccaLog(); setOpen(false); }}
+          >
+            {t("logWindow.open")}
+            <span style={{ float: "right", opacity: 0.7 }}>↗</span>
           </button>
           {canConfigureProject(authRole) && (
             <button
