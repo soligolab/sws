@@ -116,6 +116,23 @@ sera stessa: non va più ruotato.
 **Sempre in attesa di uno sguardo a schermo**, da quattro sessioni: pull del progetto dall'IDE,
 sezione Python unificata, colore del testo derivato dallo sfondo pagina (§5).
 
+### Richiesta del maintainer, da analizzare in modalità piano (2026-09-01)
+
+Tre comportamenti dell'editor da rivedere insieme, perché sono la stessa idea vista da tre lati:
+**il limite della pagina deve essere un limite morbido, non una gabbia**.
+
+1. **Il colore di sfondo della pagina riempie tutta l'area dell'editor**, ignorando il tratteggio
+   che segna il limite della pagina. Il riempimento deve fermarsi al limite.
+2. **Gli oggetti sono confinati nell'area della pagina.** Dovrebbero essere *trattenuti* al
+   bordo — un aggancio morbido — ma se si trascina con decisione devono poter **uscire**.
+3. **Un oggetto fuori pagina è ignorato e disabilitato a runtime, ma resta nel progetto.** È il
+   modo di togliere qualcosa dalla grafica temporaneamente senza cancellarlo.
+
+Non deciso e non progettato: va affrontato in modalità piano. Il punto 3 ha conseguenze che
+toccano più del canvas — validatore (un oggetto fuori pagina non deve diventare un rilievo),
+motore LVGL (deve saltarlo come lo salta il browser), e la domanda se «fuori pagina» sia uno
+stato implicito dalle coordinate o un campo esplicito.
+
 ### 0. Lo stato reale dopo il trasloco su frodo (2026-08-31, sera)
 
 Il lavoro del **2026-08-31** è **su `main`**: i due rami (`fix/sws-display-path-loop`,
