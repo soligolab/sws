@@ -88,7 +88,9 @@
     "ttlBanner": "The session expires after {{min}} min. Disable it for development?",
     "rebootConfirm": "Reboot the runtime? All WebSockets will disconnect for ~2s.",
     "userMenuTitle": "User: {{user}}",
-    "preferences": "PREFERENCES"
+    "preferences": "PREFERENCES",
+    "plantBadge": "Live plant",
+    "plantWarnTitle": "This instance serves a plant (it has an operator viewer): you are editing the live project, and saving reloads its sources and alarms without a restart. To work on a copy, use the editor on your PC and then Deploy."
   },
   "theme": {
     "label": "Theme",

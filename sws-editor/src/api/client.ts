@@ -174,6 +174,13 @@ export interface DiscoveredRuntime {
 export interface SystemStatus {
   runtime_version: string;
   uptime_s: number;
+  /** `"runtime"` = questa istanza ha un viewer operatori, quindi il progetto che
+   *  si sta modificando è quello dell'impianto in servizio e il salvataggio ne
+   *  ricarica sorgenti e allarmi. `"ide"` = istanza di sola progettazione, il
+   *  progetto è una cartella locale che il dispositivo riceve al deploy.
+   *  Opzionale perché `/api/remote/system` può rilanciare la risposta di un
+   *  runtime più vecchio, che non ha il campo. */
+  mode?: "ide" | "runtime";
   active_project: string | null;
   project_saved_by: string | null;
   project_needs_update: boolean;

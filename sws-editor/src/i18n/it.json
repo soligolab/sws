@@ -88,7 +88,9 @@
     "ttlBanner": "La sessione scade dopo {{min}} min. Disattivarla per lo sviluppo?",
     "rebootConfirm": "Riavviare il runtime? Tutti i WebSocket si disconnetteranno per ~2s.",
     "userMenuTitle": "Utente: {{user}}",
-    "preferences": "PREFERENZE"
+    "preferences": "PREFERENZE",
+    "plantBadge": "Impianto in servizio",
+    "plantWarnTitle": "Questa istanza serve un impianto (ha un viewer operatori): stai modificando il progetto in servizio, e il salvataggio ne ricarica sorgenti e allarmi senza riavvio. Per lavorare su una copia, usa l'editor sul tuo PC e poi il Deploy."
   },
   "theme": {
     "label": "Tema",

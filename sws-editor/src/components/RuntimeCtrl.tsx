@@ -11,6 +11,20 @@ import { useAppStore } from "@/store";
  *
  * Reboot deliberately lives in the ☰ menu instead: it is rare and disruptive,
  * and it does not belong next to a control used several times per session.
+ *
+ * # Il marcatore «impianto», e perché sta fuori dal gate di ruolo
+ *
+ * Quando l'istanza che serve questa SPA ha un viewer operatori (`mode ===
+ * "runtime"`, cioè l'IDE sulla porta admin di un dispositivo) il progetto che si
+ * sta modificando è quello dell'impianto in servizio, e il Salva ne ricarica
+ * sorgenti e allarmi senza riavvio. Prima niente nella UI distingueva questo
+ * caso dal modificare una copia locale.
+ *
+ * Il resto del componente è riservato a chi può configurare, ma il marcatore
+ * no: **salvare un sinottico è tier Supervisor** (`PUT /api/synoptics/:name`),
+ * quindi un Supervisor può scrivere sull'impianto senza poter configurare — ed è
+ * esattamente la persona che l'avviso deve raggiungere. Un avviso che non
+ * compare a chi compie l'azione non serve a niente.
  */
 export function RuntimeCtrl() {
   const { t } = useTranslation();
@@ -21,6 +35,7 @@ export function RuntimeCtrl() {
   const [savedBy, setSavedBy] = useState<string | null>(null);
   const [runtimeVersion, setRuntimeVersion] = useState<string>("");
   const [migrating, setMigrating] = useState(false);
+  const [serveImpianto, setServeImpianto] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -32,6 +47,9 @@ export function RuntimeCtrl() {
           setNeedsUpdate(s.project_needs_update);
           setSavedBy(s.project_saved_by);
           setRuntimeVersion(s.runtime_version);
+          // `mode` è assente su un runtime più vecchio: in quel caso non si
+          // afferma niente, invece di indovinare.
+          setServeImpianto(s.mode === "runtime");
         }
       } catch { /* ignore — runtime may be restarting */ }
     };
@@ -40,7 +58,28 @@ export function RuntimeCtrl() {
     return () => { alive = false; clearInterval(id); };
   }, []);
 
-  if (!canConfigureProject(authRole)) return null;
+  // Il marcatore da solo, per chi non può configurare ma può salvare.
+  const marcatore = serveImpianto ? (
+    <span
+      title={t("header.plantWarnTitle")}
+      style={{
+        display: "inline-flex", alignItems: "center", gap: 4,
+        padding: "2px 7px", borderRadius: 4, fontSize: 11, fontWeight: 600,
+        whiteSpace: "nowrap",
+        color: "#fde68a",
+        background: "var(--brand-warning-bg, #78350f)",
+        border: "1px solid var(--brand-warning, #f59e0b)",
+      }}
+    >
+      {t("header.plantBadge")}
+    </span>
+  ) : null;
+
+  if (!canConfigureProject(authRole)) {
+    return marcatore && (
+      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>{marcatore}</div>
+    );
+  }
 
   const handleMigrate = async () => {
     if (!confirm(t("header.migrateConfirm", { savedBy: savedBy ?? t("header.unknownVersion"), runtime: runtimeVersion }))) return;
@@ -69,6 +108,7 @@ export function RuntimeCtrl() {
 
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+      {marcatore}
       {needsUpdate && (
         <button
           style={{ ...HDR_BTN, background: "var(--brand-warning-bg, #78350f)", border: "1px solid var(--brand-warning, #f59e0b)", color: "#fde68a", opacity: migrating ? 0.6 : 1 }}

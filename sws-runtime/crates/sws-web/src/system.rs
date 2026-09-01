@@ -16,6 +16,26 @@ use crate::source_supervisor::SourceSupervisor;
 pub struct SystemStatus {
     pub runtime_version: String,
     pub uptime_s: u64,
+    /// Quale ruolo sta servendo questa istanza: `"runtime"` se ha un viewer
+    /// operatori (`--viewer-port`), `"ide"` se no.
+    ///
+    /// # Perché è nell'API e non dedotto dal client
+    ///
+    /// La conseguenza pratica è grossa e invisibile: sull'IDE di un'istanza
+    /// `runtime` si modifica il progetto dell'**impianto in servizio**, e il
+    /// salvataggio ne ricarica sorgenti e allarmi senza riavvio; sull'IDE di
+    /// un'istanza `ide` si modifica una cartella locale che il dispositivo
+    /// riceve solo al deploy. Niente nella UI distingueva i due casi.
+    ///
+    /// Prima la SPA lo deduceva per due vie indirette — un 404 su
+    /// `/api/ai/config` e una convenzione sulle porte (`runtimeUrl.ts`, che nel
+    /// proprio commento dichiara di essere una convenzione). Una deduzione non
+    /// basta per fondare un avviso: quando sbaglia, mente.
+    ///
+    /// Il nome dice il **fatto**, non la conclusione: che sia «stai toccando un
+    /// impianto» è un giudizio che la UI deriva e che può cambiare, mentre
+    /// «questa istanza ha un viewer» è una proprietà del processo.
+    pub mode: &'static str,
     pub active_project: Option<String>,
     /// Runtime version that last saved the active project's `project.yaml`
     /// (`None` if no project is open or the file predates version stamping).
@@ -36,6 +56,15 @@ pub struct SystemStatus {
     pub disk_total_gb: u64,
 }
 
+/// Il valore del campo `mode` a partire da `AppState::ide_only`.
+///
+/// Una funzione e non un letterale nei due punti che lo costruiscono: le due
+/// stringhe sono un contratto con la SPA, e averle in un posto solo evita che
+/// un domani una diventi `"IDE"` e l'altra `"ide"`.
+pub fn mode_label(ide_only: bool) -> &'static str {
+    if ide_only { "ide" } else { "runtime" }
+}
+
 pub async fn compute_system_status(
     db: &TagDb,
     alarms: &AlarmDb,
@@ -43,6 +72,11 @@ pub async fn compute_system_status(
     registry: Option<&DatastoreRegistry>,
     project_dir: Option<&Path>,
     started_at: Instant,
+    // Passato, non ricavato qui: `compute_system_status` non ha accesso ad
+    // `AppState`, e prenderlo come parametro fa sì che il compilatore fermi un
+    // chiamante futuro che lo dimenticasse — invece di lasciarlo restituire un
+    // campo sbagliato in silenzio.
+    ide_only: bool,
 ) -> SystemStatus {
     let mut sys = System::new_all();
     sys.refresh_all();
@@ -81,6 +115,7 @@ pub async fn compute_system_status(
     SystemStatus {
         runtime_version: env!("CARGO_PKG_VERSION").to_string(),
         uptime_s: started_at.elapsed().as_secs(),
+        mode: mode_label(ide_only),
         active_project,
         project_saved_by,
         project_needs_update,
@@ -107,6 +142,7 @@ pub async fn get_system_status(State(state): State<AppState>) -> Json<SystemStat
         registry.as_deref(),
         dir_guard.as_deref(),
         state.started_at,
+        state.ide_only,
     ).await)
 }
 
@@ -386,7 +422,7 @@ mod tests {
         let started = Instant::now() - std::time::Duration::from_secs(5);
         let project_path = PathBuf::from("/tmp/demo-project");
 
-        let status = compute_system_status(&db, &alarms, &supervisor, None, Some(&project_path), started).await;
+        let status = compute_system_status(&db, &alarms, &supervisor, None, Some(&project_path), started, false).await;
 
         assert_eq!(status.tag_count, 3);
         assert_eq!(status.active_project.as_deref(), Some("demo-project"));
@@ -403,10 +439,38 @@ mod tests {
         let alarms = AlarmDb::new(64);
         alarms.load(vec![]).await;
         let supervisor = make_supervisor();
-        let status = compute_system_status(&db, &alarms, &supervisor, None, None, Instant::now()).await;
+        let status = compute_system_status(&db, &alarms, &supervisor, None, None, Instant::now(), false).await;
         assert!(status.active_project.is_none());
         assert_eq!(status.tag_count, 0);
         assert_eq!(status.alarm_active_count, 0);
+    }
+
+    /// Il campo `mode` deve seguire `ide_only`, e va provato in **entrambi** i
+    /// versi.
+    ///
+    /// Il verso che conta è il secondo: un'istanza che serve un impianto e si
+    /// dichiara `"ide"` farebbe sparire l'avviso proprio dove serve, e sarebbe
+    /// un difetto invisibile — la UI mostrerebbe con sicurezza la cosa
+    /// sbagliata. Per questo l'asserzione non è solo «non è vuoto».
+    #[tokio::test]
+    async fn mode_segue_ide_only_nei_due_versi() {
+        let db = TagDb::new(64);
+        let alarms = AlarmDb::new(64);
+        alarms.load(vec![]).await;
+        let supervisor = make_supervisor();
+
+        let ide = compute_system_status(
+            &db, &alarms, &supervisor, None, None, Instant::now(), true).await;
+        assert_eq!(ide.mode, "ide", "senza viewer l'istanza è un IDE");
+
+        let runtime = compute_system_status(
+            &db, &alarms, &supervisor, None, None, Instant::now(), false).await;
+        assert_eq!(runtime.mode, "runtime", "con un viewer l'istanza serve un impianto");
+
+        // Le due stringhe sono un contratto con la SPA: se cambiano qui senza
+        // cambiare là, il badge non si accende più e nessun test lo nota.
+        assert_eq!(mode_label(true), "ide");
+        assert_eq!(mode_label(false), "runtime");
     }
 
     #[tokio::test]
@@ -442,7 +506,7 @@ mod tests {
         alarms.evaluate("temp", &state).await;
 
         let supervisor = make_supervisor();
-        let status = compute_system_status(&db, &alarms, &supervisor, None, None, Instant::now()).await;
+        let status = compute_system_status(&db, &alarms, &supervisor, None, None, Instant::now(), false).await;
         assert_eq!(status.alarm_active_count, 1);
     }
 
