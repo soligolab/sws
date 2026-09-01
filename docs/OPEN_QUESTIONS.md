@@ -2505,3 +2505,51 @@ concorrente.
 Stessa famiglia di **Q17** e **Q27**: il server accetta una scrittura che avrebbe gli elementi
 per gestire meglio. Qui però non è una questione di permessi o di tipi — è perdita di dati
 silenziosa, e va prima delle altre due.
+
+---
+
+## Q31 — La chat non funziona quando l'IDE è collegato a un runtime remoto, e non è chiaro cosa dovrebbe fare
+
+*Aperta il 2026-09-01 rileggendo `feat/T-50-chat-ai` su frodo. **Verificata nel codice**, non
+provata dal vivo: manca la conferma a schermo.*
+
+`buildWsUrl` (`sws-editor/src/ws/wsUrl.ts:27-35`) instrada **ogni** WebSocket attraverso il
+relay quando l'IDE è collegato a un runtime remoto: `/ws/ai` diventa `/ws/remote/ai`. Il relay
+però ammette tre soli sottocanali — `if !matches!(sub.as_str(), "tags" | "alarms" | "logs")`
+(`sws-web/src/remote_relay.rs:97`) — e risponde **404** a tutto il resto. Il commento in testa a
+`buildWsUrl` lo dice senza saperlo: *«`path` here is expected to be one of: /ws/tags,
+/ws/alarms, /ws/logs»*.
+
+Nessun controllo su `remoteConnected` esiste in `ChatPanel.tsx` né in `aiStream.ts`: il pannello
+resta apribile, e il socket entra in riconnessione perpetua contro un 404.
+
+Non si è visto durante lo sviluppo perché la prova è stata fatta con un progetto **locale**
+all'istanza dell'editor, non con la connessione a un runtime remoto — che è però il flusso
+descritto in `docs/CONTEXT.md` §3 per il PC di sviluppo.
+
+### Perché non è solo un sottocanale da aggiungere all'elenco
+
+Aggiungere `"ai"` al `matches!` farebbe collegare la chat **al runtime del dispositivo**: la
+sessione dell'agente girerebbe là, con la chiave API là. È esattamente ciò che il piano esclude
+(`docs/plans/2026-08-31-chat-ai-nelleditor.md` §2: *«Mai sul pannello»*).
+
+Tenerla locale non è gratis: gli strumenti dell'agente leggono il progetto dall'`AppState` del
+runtime che regge il WebSocket (`carica_progetto` in `ai/tools.rs:145` → `Project::load(&dir)`
+sulla directory attiva **locale**). Con l'IDE collegato a un remoto, l'umano modifica il
+progetto del dispositivo e l'agente leggerebbe quello dell'istanza locale: proporrebbe modifiche
+su un progetto che non è quello aperto. Peggio del 404, perché sembrerebbe funzionare.
+
+### Le tre vie, e cosa ognuna implica
+
+1. **Disabilitare la chat quando `remoteConnected`**, dicendolo in chiaro nel pannello. È la
+   sola opzione che non mente, e costa poche righe. La chat resta uno strumento per progetti
+   locali all'IDE, coerente col piano.
+2. **Far leggere gli strumenti attraverso l'API del runtime remoto**, col token dell'umano (che
+   il piano già prevede per la lettura). L'agente resta sul PC, il progetto arriva dal
+   dispositivo. È la via giusta a regime, e vuole che `carica_progetto` diventi un client HTTP
+   invece di un `Project::load`.
+3. **Relayare `/ws/ai` come gli altri**: la più semplice da scrivere e la sola che contraddice
+   il piano. Andrebbe scelta solo decidendo *anche* che l'agente può girare sul dispositivo.
+
+**Da decidere prima del merge di T-50**, perché la 1 è una riga di guardia mentre la 2 cambia
+la forma degli strumenti — e scoprirlo dopo il merge significa averla scelta per inerzia.
