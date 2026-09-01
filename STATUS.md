@@ -28,6 +28,49 @@
 
 ## ▶ Da fare nella prossima sessione
 
+### Da dove ripartire — sessione del 2026-09-01 (T-50 mergiato in `main`)
+
+**T-50 è su `main`.** Il ramo `feat/T-50-chat-ai` è stato squash-mergiato dopo che il maintainer
+ha provato quello che era provabile. Sedici commit, 46 file, ~8100 righe.
+
+**Provato col modello vero**, non solo compilato — tre giri, costo reale letto dal registro:
+
+| Prova | Modello | Costo | Esito |
+|---|---|---|---|
+| Bottone MQTT, broker dichiarato | `claude-opus-5` | 0,232 $ | proposta valida, `publish_topic` e `toggle` presi da sé |
+| Stessa richiesta | `kimi-k3` | 0,072 $ | idem; ha sbagliato `data_type` e si è corretto dopo il rifiuto del validatore |
+| Senza dire il broker (+ seguito) | `kimi-k3` | 0,071 $ | **ha chiesto** invece di inventare `localhost`; ha proposto un checkbox perché lo schema mentiva |
+| Ripetuta dopo le correzioni | `kimi-k3` | 0,078 $ | bottone con `button_mode: toggle`, `data_type` giusto al primo colpo, una sola validazione |
+
+Spesa totale della giornata: **0,45 $**.
+
+**Cosa NON è finito, in ordine di quanto costa scoprirlo tardi:**
+
+1. 🔴 **Q31 — la chat non funziona con un runtime remoto collegato.** `buildWsUrl` manda ogni
+   WebSocket nel relay, che ammette solo `tags|alarms|logs`: `/ws/remote/ai` risponde 404 e il
+   pannello riprova all'infinito. Il maintainer ha **deciso** la via: far leggere gli strumenti
+   dal runtime remoto col token dell'umano. Non implementata.
+2. **La chat staccata in una finestra propria**: progettata nel dettaglio
+   (`~/.claude/plans/`, §4 del piano del 2026-09-01) e **non** implementata. I log sì, la chiave
+   sì, la chat no — è l'unico pezzo che richiede il ponte `BroadcastChannel`, perché
+   `applyAiProposal` deve girare nella finestra dell'editor.
+3. **Gli strumenti Python** (passi 3-6 del piano precedente): `POST /api/script/check` che compila
+   senza eseguire, `leggi_script`, `schema_python`, le regole sul validatore, il diff per righe.
+   Il maintainer li ha chiesti e restano il pezzo più utile per come vuole usare la chat.
+4. **La prova end-to-end della chat non è mai girata**: `e2e/chat-ai.spec.ts` esiste e si salta da
+   sé senza `SWS_AI_FAKE`. Su frodo i browser di Playwright non sono installati, ma ora si può
+   usare quello di sistema: `SWS_E2E_CHROMIUM=/usr/bin/chromium`.
+5. **Q29** (un tag `float` che trasporta `"open"`) e **Q30** (`patch_project` senza lock) restano
+   aperte, registrate durante la notte.
+
+**Difetti trovati e corretti oggi**, tutti preesistenti e nessuno cercato: la proposta che
+cancellava le funzioni, `leggi_progetto` che bloccava la validazione, gli script globali che non
+arrivavano al disco, `schema_oggetto` che non nominava `button_mode`, l'assenza di `schema_tag`,
+`start_editor.sh` che moriva dopo il banner su pyenv, e — nei nostri stessi test — un
+`mockImplementation` che restava installato per tutto il file.
+
+---
+
 ### Da dove ripartire — chiusura della sessione notturna del 2026-08-31/09-01
 
 **T-50, la chat IA nell'editor: funziona.** Ramo `feat/T-50-chat-ai`, pushato, **non**
