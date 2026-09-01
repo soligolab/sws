@@ -11,6 +11,43 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### L'IDE dice su cosa stai scrivendo (divisione editor/runtime)
+
+Sull'IDE della porta admin di un dispositivo si modifica il progetto
+dell'**impianto in servizio**, e il salvataggio ne ricarica sorgenti e allarmi
+senza riavvio né conferma. Sull'IDE di un PC si modifica una cartella locale, che
+il dispositivo riceve solo al deploy. Niente nella UI distingueva i due casi.
+
+- **`GET /api/system` porta `mode`** (`"ide"` / `"runtime"`,
+  `sws-web/src/system.rs`), da `AppState.ide_only` — una condizione che esisteva
+  già e che aveva **un solo lettore** in tutto il binario (il gate delle rotte
+  `/api/ai/config`). Prima la SPA la deduceva da un 404 e da una convenzione
+  sulle porte (`runtimeUrl.ts`, che nel proprio commento dichiara di essere una
+  convenzione): una deduzione non basta per fondare un avviso, perché quando
+  sbaglia mente. `compute_system_status` prende il valore **come parametro**
+  invece di farlo sovrascrivere dall'handler, così il compilatore ferma un
+  chiamante futuro che lo dimenticasse.
+- **Marcatore «Impianto in servizio» in testata** (`RuntimeCtrl.tsx`), **fuori
+  dal gate di ruolo** del resto del componente: salvare un sinottico è tier
+  Supervisor, quindi un Supervisor può scrivere sull'impianto senza poter
+  configurare, ed è esattamente la persona che l'avviso deve raggiungere.
+- **Card «Modalità»** nella scheda Stato (`ConfigView.tsx`). Quella scheda
+  interroga il dispositivo quando c'è una connessione remota, quindi dice anche
+  **la sua** modalità: aver collegato un editor a un altro editor era invisibile.
+- **La sezione Assistente non afferma più una causa che il 404 non dimostra**: lo
+  stesso 404 arriva da un runtime più vecchio della funzione.
+
+`mode` è opzionale lato SPA — `/api/remote/system` può rilanciare la risposta di
+un runtime più vecchio, e in quel caso non si afferma niente invece di
+indovinare. Il test nuovo prova entrambi i versi ed è stato visto fallire in
+quello rotto: un'istanza con viewer che si dichiara `"ide"` farebbe sparire
+l'avviso proprio dove serve.
+
+Contesto e resto del lavoro (ADR, correzioni ai documenti, percorsi morti) in
+`docs/plans/2026-09-01-editor-runtime.md`; la sessione si è interrotta dopo il
+primo passo.
+
+
 ### Un assistente nell'editor: si descrive quel che serve, e lui lo propone (T-50)
 
 Nell'IDE c'è una chat. Le si dice *«aggiungi alla pagina Indicatori un
