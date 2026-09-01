@@ -51,6 +51,21 @@ if [ -z "${PYO3_PYTHON:-}" ] && command -v python3 >/dev/null 2>&1; then
   export PYO3_PYTHON=python3
 fi
 
+# Su pyenv il `python3` nel PATH è uno shim, e il binario che ne risulta è
+# linkato a una libpython che il loader non trova: parte, stampa «pronto», e
+# muore con «libpython3.11.so.1.0: cannot open shared object file». Il messaggio
+# arriva *dopo* il banner, quindi sembra che l'IDE sia su e invece non c'è
+# nessuno in ascolto — visto su frodo il 2026-09-01, ed è lo stesso blocco che
+# `start_runtime.sh` ha da tempo (righe 54-62). Senza questo, il comando che
+# `docs/HOWTO.md` §7 dà per accendere la chat non funziona su questa macchina.
+python_reale="$(command -v python3 || true)"
+if [[ "$python_reale" == *".pyenv/shims"* ]]; then
+  pyenv_lib="$(python3 -c 'import sysconfig; print(sysconfig.get_config_var("LIBDIR"))' 2>/dev/null || true)"
+  if [ -n "$pyenv_lib" ] && [ -d "$pyenv_lib" ]; then
+    export LD_LIBRARY_PATH="${pyenv_lib}${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+  fi
+fi
+
 mkdir -p "$CONFIG_DIR" "$PROJECTS_ROOT" "$LOG_DIR"
 
 # ── Pulizia processi stale sulla porta IDE ────────────────────────────────────
