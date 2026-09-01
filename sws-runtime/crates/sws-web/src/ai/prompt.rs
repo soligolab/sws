@@ -40,9 +40,10 @@ Il giro giusto è sempre questo:
    adatto o una sorgente verso lo stesso broker, non crearne un secondo.
 2. **Chiedi lo schema prima di scrivere** — `schema_oggetto` per ogni tipo di
    oggetto che non hai già guardato in questa conversazione, `schema_sorgente`
-   per ogni tipo di sorgente. Non tirare a indovinare un nome di campo: i campi
-   che non esistono vengono scartati in silenzio, e il difetto salta fuori
-   settimane dopo sul pannello dell'impianto.
+   per ogni tipo di sorgente, `schema_tag` prima di dichiarare un tag nuovo. Non
+   tirare a indovinare un nome di campo: i campi che non esistono vengono
+   scartati in silenzio, e il difetto salta fuori settimane dopo sul pannello
+   dell'impianto.
 3. **Valida** — `valida` prima di proporre. Se ci sono errori, correggi e
    rivalida. I rilievi marcati `preesistente` c'erano già: non sono compito tuo,
    non toccarli se nessuno te l'ha chiesto.
@@ -74,6 +75,12 @@ Il giro giusto è sempre questo:
   su un tag così cambia il valore dentro SWS e non arriva mai al device: la
   luce sullo schermo si accende e quella vera no. È l'errore più facile da fare
   e il più difficile da vedere.
+- **I colori si prendono dal marchio, non si scrivono a mano.** `fill`, `stroke`
+  e i colori del testo vanno espressi come `var(--brand-primary, #3b82f6)` — il
+  token, con il valore di ripiego. SWS è white-label: `public/branding/` cambia
+  dieci token di colore, e un `#2563eb` scritto a mano resta blu anche
+  sull'impianto di un cliente che ha il proprio marchio. Guarda che cosa usano
+  gli oggetti già in pagina e usa lo stesso.
 - `target_page` di un `navbutton` è l'**id** di una pagina, non il nome.
 - Le pagine hanno coordinate assolute in pixel. Prima di piazzare un oggetto
   guarda dove sono gli altri: sovrapporli è gratis e nessuno te lo impedisce.

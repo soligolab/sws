@@ -105,6 +105,13 @@ pub fn definizioni() -> Vec<Value> {
                             "description": "Il progetto intero, modificato. Ometti se non lo tocchi." },
                         "pages": { "type": "array", "items": { "type": "object" },
                             "description": "Le pagine intere, modificate." } } })),
+
+        // In coda, e non in mezzo: l'ordine entra nel prefisso della cache.
+        strumento("schema_tag",
+            "I campi validi di una definizione di tag, con i valori ammessi. \
+             CHIAMALO prima di dichiarare un tag nuovo: il campo del tipo si chiama \
+             `data_type` e non `type`, ed è l'errore che costa un giro di validazione.",
+            json!({ "type": "object", "properties": {}, "additionalProperties": false })),
     ]
 }
 
@@ -125,6 +132,7 @@ pub async fn esegui(s: &AppState, nome: &str, input: &Value) -> Esito {
         "elenca_tag" => elenca_tag(s, input.get("filtro").and_then(Value::as_str)).await,
         "schema_oggetto" => schema_oggetto(arg_str(input, "tipo")?),
         "schema_sorgente" => schema_sorgente(arg_str(input, "kind")?),
+        "schema_tag" => schema_tag(),
         "valida" => valida(s, input).await,
         // `proponi_modifica` non passa di qui: la intercetta il ciclo, perché
         // è l'unica che non produce un risultato da rimandare al modello ma
@@ -222,24 +230,45 @@ async fn elenca_tag(s: &AppState, filtro: Option<&str>) -> Esito {
         }).collect::<Vec<_>>()))
 }
 
+/// I campi di un tag.
+///
+/// Esisteva già `TAG_FIELDS` nel mirror e l'endpoint HTTP lo serviva
+/// (`GET /api/schema/synoptic` senza `?tipo`), ma nessuno **strumento** lo
+/// esponeva: `schema_oggetto` e `schema_sorgente` sì, i tag no. Il risultato,
+/// misurato due volte su due prove con Kimi K3 il 2026-09-01, è che il modello
+/// scriveva `type` invece di `data_type`, veniva rifiutato dal validatore e si
+/// correggeva — un giro buttato per proposta, ogni volta che il progetto non ha
+/// già un tag da cui copiare la forma.
+fn schema_tag() -> Esito {
+    let nomi: Vec<&str> = sch::TAG_FIELDS.iter().map(|f| f.name).collect();
+    Ok(json!({
+        "campi": sch::TAG_FIELDS.iter().map(campo).collect::<Vec<_>>(),
+        "enum": sch::FIELD_ENUMS.iter().filter(|(k, _)| nomi.contains(k))
+            .map(|(k, v)| (k.to_string(), json!(v)))
+            .collect::<serde_json::Map<_, _>>(),
+        "nota": "Il tipo di un tag è `data_type`, con valori \"bool\", \"int\", \"float\" \
+                 o \"string\". Un tag con `expression` è calcolato: non si può scrivere.",
+    }))
+}
+
 fn schema_oggetto(tipo: &str) -> Esito {
     if !sch::OBJECT_TYPES.contains(&tipo) {
         return Err(format!("`{tipo}` non è un tipo di oggetto. Sono: {}",
                            sch::OBJECT_TYPES.join(", ")));
     }
-    let usati: &[&str] = sch::TYPE_USAGE.iter()
-        .find(|(t, _)| *t == tipo).map(|(_, f)| *f).unwrap_or(&[]);
+    // Stessa regola dell'endpoint HTTP, e la ragione per cui è una funzione sola
+    // sta nel suo commento: `TYPE_USAGE` da solo aveva convinto un modello che
+    // `button_mode` non esiste.
     Ok(json!({
         "tipo": tipo,
-        "campi": sch::OBJECT_FIELDS.iter().filter(|f| usati.contains(&f.name))
+        "campi": crate::schema_api::campi_del_tipo(tipo).into_iter()
             .map(campo).collect::<Vec<_>>(),
-        "enum": sch::FIELD_ENUMS.iter().filter(|(k, _)| usati.contains(k))
-            .map(|(k, v)| (k.to_string(), json!(v)))
-            .collect::<serde_json::Map<_, _>>(),
+        "enum": crate::schema_api::enum_del_tipo(tipo),
         "esempio_yaml": sch::TYPE_EXAMPLES.iter().find(|(t, _)| *t == tipo).map(|(_, e)| *e),
-        "nota": "«campi» sono quelli che questo tipo usa nei progetti reali. Il modello \
-                 dati è piatto: se ti serve un campo che non è elencato qui, esiste \
-                 comunque — ma verifica il nome, non inventarlo.",
+        "nota": "«campi» sono quelli che questo tipo usa nei progetti reali, più tutti \
+                 quelli che ne portano il prefisso. Il modello dati è piatto: se ti serve \
+                 un campo che non è elencato qui esiste comunque — ma verifica il nome, \
+                 non inventarlo.",
     }))
 }
 
@@ -349,4 +378,67 @@ pub async fn valida_interna(s: &AppState, input: &Value) -> Result<(Value, Optio
         "rilievi_nuovi": nuovi,
         "rilievi": elenco,
     }), normalizzato))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Il difetto che ha fatto proporre un checkbox invece di un bottone.
+    ///
+    /// `TYPE_USAGE` elenca i campi che i template usano davvero, e nessuno dei
+    /// nostri usa `button_mode`: il modello ha chiesto lo schema, ha letto 12
+    /// campi senza la modalità, e ne ha dedotto — scrivendolo — che il toggle
+    /// non esiste. Misurato con Kimi K3 il 2026-09-01.
+    #[test]
+    fn lo_schema_del_bottone_dice_come_si_fa_un_toggle() {
+        let v = schema_oggetto("button").expect("button è un tipo valido");
+        let campi: Vec<&str> = v["campi"].as_array().unwrap().iter()
+            .map(|c| c["nome"].as_str().or_else(|| c["name"].as_str()).unwrap_or(""))
+            .collect();
+        assert!(campi.contains(&"button_mode"),
+                "senza button_mode il modello ripiega su un altro widget: {campi:?}");
+        // Il campo senza i suoi valori ammessi non basta: `toggle` va nominato.
+        let e = v["enum"]["button_mode"].as_array()
+            .expect("button_mode deve portare il suo enum");
+        assert!(e.iter().any(|x| x == "toggle"), "enum: {e:?}");
+    }
+
+    /// E il verso rotto della stessa regola: non deve mostrare i campi di *altri*
+    /// tipi, altrimenti il rimedio diventa il rumore da cui `TYPE_USAGE` protegge.
+    #[test]
+    fn ma_non_mostra_i_campi_degli_altri_tipi() {
+        let v = schema_oggetto("button").unwrap();
+        let campi: Vec<&str> = v["campi"].as_array().unwrap().iter()
+            .map(|c| c["nome"].as_str().or_else(|| c["name"].as_str()).unwrap_or(""))
+            .collect();
+        for estraneo in ["gauge_min", "spark_points", "trend_dt_format", "pie_show_labels"] {
+            assert!(!campi.contains(&estraneo), "`{estraneo}` non riguarda un bottone");
+        }
+    }
+
+    /// Il tipo di un tag si chiama `data_type`. Il modello ha sbagliato due volte
+    /// su due prove, perché nessuno strumento glielo diceva.
+    #[test]
+    fn lo_schema_del_tag_esiste_e_nomina_data_type() {
+        let v = schema_tag().unwrap();
+        let campi: Vec<&str> = v["campi"].as_array().unwrap().iter()
+            .map(|c| c["nome"].as_str().or_else(|| c["name"].as_str()).unwrap_or(""))
+            .collect();
+        assert!(campi.contains(&"data_type"), "campi: {campi:?}");
+        assert!(campi.contains(&"id"));
+        assert!(v["nota"].as_str().unwrap().contains("data_type"));
+    }
+
+    /// L'ordine degli strumenti entra nel prefisso della cache: uno strumento
+    /// nuovo va in coda, e cambiarne la posizione butta la cache a ogni turno.
+    #[test]
+    fn gli_strumenti_nuovi_stanno_in_coda() {
+        let d = definizioni();
+        let nomi: Vec<&str> = d.iter().map(|x| x["name"].as_str().unwrap()).collect();
+        assert_eq!(nomi[0], "elenca_pagine", "il primo non si tocca: {nomi:?}");
+        assert_eq!(*nomi.last().unwrap(), "schema_tag");
+        // `proponi_modifica` resta l'ultimo dei sette originali.
+        assert_eq!(nomi[7], "proponi_modifica", "{nomi:?}");
+    }
 }

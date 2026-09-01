@@ -231,6 +231,45 @@ pub struct TipoQuery {
 /// Con `tipo`: i campi che quel tipo usa davvero nei progetti veri, più un
 /// esempio. È la forma che serve quando il modello sta scrivendo un oggetto e
 /// non deve leggersi 238 campi per trovarne otto.
+/// Quali campi contano per un tipo di oggetto — e quali enum con loro.
+///
+/// # Perché non basta `TYPE_USAGE`
+///
+/// `TYPE_USAGE` elenca i campi che i progetti **reali** usano per quel tipo:
+/// buona euristica, perché tiene fuori il rumore di un modello dati piatto da
+/// 238 campi. Ma mente per omissione proprio dove costa.
+///
+/// Misurato il 2026-09-01 con Kimi K3: alla richiesta di «un bottone che accende
+/// e spegne», il modello ha chiesto `schema_oggetto("button")`, si è sentito
+/// rispondere 12 campi **senza `button_mode`** — che nessuno degli 11 template
+/// usa — e ne ha dedotto, scrivendolo, che «lo schema del bottone non prevede
+/// una modalità toggle esplicita». Ha quindi proposto un *checkbox* invece del
+/// bottone chiesto. Non è un'allucinazione: è obbedienza a una fonte incompleta,
+/// che è peggio, perché non si corregge da sé.
+///
+/// La cura è la convenzione di nomi che il mirror già rispetta: i campi
+/// specifici di un tipo ne portano il prefisso (`button_mode`, `gauge_min`,
+/// `pipe_flow`, `spark_*`). Ai campi usati si aggiungono quelli col prefisso del
+/// tipo, che per il bottone sono due e includono quello che serviva.
+pub fn campi_del_tipo(tipo: &str) -> Vec<&'static sch::Field> {
+    let usati: &[&str] = sch::TYPE_USAGE.iter()
+        .find(|(t, _)| *t == tipo).map(|(_, f)| *f).unwrap_or(&[]);
+    let prefisso = format!("{tipo}_");
+    sch::OBJECT_FIELDS.iter()
+        .filter(|f| usati.contains(&f.name) || f.name.starts_with(&prefisso))
+        .collect()
+}
+
+/// Gli enum che riguardano i campi di quel tipo. Stessa regola, così un campo
+/// mostrato senza i suoi valori ammessi non esiste.
+pub fn enum_del_tipo(tipo: &str) -> serde_json::Map<String, Value> {
+    let nomi: Vec<&str> = campi_del_tipo(tipo).iter().map(|f| f.name).collect();
+    sch::FIELD_ENUMS.iter()
+        .filter(|(k, _)| nomi.contains(k))
+        .map(|(k, v)| (k.to_string(), json!(v)))
+        .collect()
+}
+
 pub async fn schema_synoptic(Query(q): Query<TipoQuery>) -> Response {
     let campi: Vec<Value> = sch::OBJECT_FIELDS.iter().map(campo_json).collect();
     let enums: Value = sch::FIELD_ENUMS.iter()
@@ -254,24 +293,13 @@ pub async fn schema_synoptic(Query(q): Query<TipoQuery>) -> Response {
         }))).into_response();
     }
 
-    let usati: &[&str] = sch::TYPE_USAGE.iter()
-        .find(|(t, _)| *t == tipo).map(|(_, f)| *f).unwrap_or(&[]);
-    // I campi che quel tipo usa nei progetti veri, con la loro documentazione.
-    let campi_del_tipo: Vec<Value> = sch::OBJECT_FIELDS.iter()
-        .filter(|f| usati.contains(&f.name))
-        .map(campo_json)
-        .collect();
+    let campi_tipo: Vec<Value> = campi_del_tipo(tipo).into_iter().map(campo_json).collect();
     let esempio = sch::TYPE_EXAMPLES.iter().find(|(t, _)| *t == tipo).map(|(_, e)| *e);
-    // Solo gli enum che riguardano questo tipo: gli altri sono rumore.
-    let enum_del_tipo: Value = sch::FIELD_ENUMS.iter()
-        .filter(|(k, _)| usati.contains(k))
-        .map(|(k, v)| (k.to_string(), json!(v)))
-        .collect::<serde_json::Map<_, _>>().into();
 
     Json(json!({
         "tipo": tipo,
-        "campi": campi_del_tipo,
-        "enum": enum_del_tipo,
+        "campi": campi_tipo,
+        "enum": Value::Object(enum_del_tipo(tipo)),
         "esempio_yaml": esempio,
         "nota": "«campi» sono quelli che questo tipo usa nei progetti reali, non un elenco \
                  chiuso: il modello dati è piatto. Se ti serve un campo che non c'è qui, \
