@@ -1745,11 +1745,32 @@ export const useAppStore = create<AppState>((set, get) => {
 
       // ── 2. Cosa tocca davvero ─────────────────────────────────────────────
       const prima = s.project;
-      const dopo = p.project ?? prima;
+      // Cintura oltre alla bretella. Il server ricompone gli script mancanti
+      // prima di validare e manda indietro il progetto ricomposto
+      // (`validate::ricomponi_script`), quindi qui non dovrebbero arrivare
+      // proposte lacunose. «Non dovrebbero» non basta per una collezione che
+      // il Salva riscrive per intero: una proposta che omette `functions`
+      // diventerebbe `updateFunctions([])`, cioè tutte le funzioni via dal
+      // disco senza niente nel diff. È già successo sui tag il 2026-07-28.
+      const grezzo = p.project ?? prima;
+      const dopo = grezzo === prima ? prima : {
+        ...grezzo,
+        functions:      grezzo.functions      ?? prima.functions,
+        global_scripts: grezzo.global_scripts ?? prima.global_scripts,
+      };
+      // Solo se c'è davvero qualcosa da perdere. Un avviso che scatta su un
+      // progetto senza script è rumore, e — visto in un test — copriva
+      // l'avviso sulle modifiche non salvate, che è più importante.
+      const c_era_python = (prima.functions?.length ?? 0) > 0
+                        || (prima.global_scripts?.length ?? 0) > 0;
+      const lacunoso = grezzo !== prima && c_era_python
+        && (grezzo.functions === undefined || grezzo.global_scripts === undefined);
       const tocca = {
         tags:    !uguale(prima.tags,    dopo.tags),
         sources: !uguale(prima.sources, dopo.sources),
         alarms:  !uguale(prima.alarms,  dopo.alarms),
+        functions:      !uguale(prima.functions      ?? [], dopo.functions      ?? []),
+        global_scripts: !uguale(prima.global_scripts ?? [], dopo.global_scripts ?? []),
       };
 
       // Le pagine proposte si sovrappongono per nome; le altre restano.
@@ -1833,6 +1854,23 @@ export const useAppStore = create<AppState>((set, get) => {
       if (tocca.alarms) {
         registra("ai:alarms", async () => { await api.updateAlarms(get().project?.alarms ?? []); });
       }
+      if (tocca.functions) {
+        // `saveAll` scrive già le functions, ma passa dallo stesso
+        // `project.yaml` di queste altre sezioni: registrandola qui la
+        // scrittura viene **incatenata** invece di affiancata, che è la
+        // ragione per cui due Salva insieme se ne perdevano uno.
+        registra("ai:functions",
+          async () => { await api.updateFunctions(get().project?.functions ?? []); });
+      }
+      if (tocca.global_scripts) {
+        // Questo è il terzo difetto della famiglia, e il più silenzioso:
+        // `saveGlobalScripts` è chiamato **solo** dal Salva della sua tab in
+        // Configurazione, e `saveAll` non lo chiama affatto. Una proposta che
+        // cambiava uno script globale finiva nello store, si vedeva sul canvas
+        // — e al reload non c'era più. Approvata e sparita.
+        registra("ai:global_scripts",
+          async () => { await api.saveGlobalScripts(get().project?.global_scripts ?? []); });
+      }
 
       // ── 5. Quello che questo controllo NON copre ──────────────────────────
       // L'assistente legge le pagine dal **disco**. Se qui in memoria c'erano
@@ -1841,7 +1879,10 @@ export const useAppStore = create<AppState>((set, get) => {
       // disco non è cambiato. Un Ctrl+Z le riporta indietro, ma è giusto
       // dirlo prima invece di lasciarlo scoprire.
       const sporco = s.pagesRev !== s.savedPagesRev;
-      const avviso = sporco && proposte.length > 0
+      const avviso = lacunoso
+        ? "La proposta non conteneva gli script del progetto: sono stati tenuti quelli " +
+          "esistenti. Se l'assistente doveva modificarne uno, la modifica non c'è."
+        : sporco && proposte.length > 0
         ? "C'erano modifiche non salvate: l'assistente ha letto le pagine dal disco, " +
           "quindi le pagine sostituite tornano alla versione salvata. Ctrl+Z annulla tutto."
         : undefined;

@@ -268,18 +268,44 @@ fn campo(f: &sch::Field) -> Value {
 /// Il giudizio su una proposta. Stessa logica dell'endpoint HTTP, chiamata da
 /// dentro — e con la stessa distinzione fra rilievi nuovi e preesistenti.
 pub async fn valida(s: &AppState, input: &Value) -> Esito {
+    valida_interna(s, input).await.map(|(giudizio, _)| giudizio)
+}
+
+/// Come [`valida`], ma restituisce anche il progetto **ricomposto**.
+///
+/// Serve a `proponi`, che deve mandare al browser quello che ha davvero
+/// validato. Prima mandava `input["project"]` grezzo: se la proposta ometteva
+/// `functions`, il browser riceveva un progetto senza funzioni e il Salva le
+/// cancellava dal disco — la validazione era corretta e l'oggetto spedito no.
+///
+/// `None` significa «la proposta non toccava il progetto»: si è validato quello
+/// del disco e non c'è niente da spedire.
+pub async fn valida_interna(s: &AppState, input: &Value) -> Result<(Value, Option<Value>), String> {
     let dir = dir_progetto(s).await?;
     let raw_pages: Vec<Value> = input.get("pages").and_then(Value::as_array)
         .cloned().unwrap_or_default();
 
+    // Sul grezzo **originale**, prima di ricomporre: dopo, un `codice:` scritto
+    // male non si distinguerebbe più da un corpo che il modello non ha mandato.
     let mut findings = unknown_fields(input.get("project"), &raw_pages);
 
-    let project: Project = match input.get("project") {
-        None => carica_progetto(s).await?,
-        Some(v) => serde_json::from_value(v.clone())
-            .map_err(|e| format!("il progetto proposto non si legge: {e}. Deve essere il \
-                                  progetto INTERO come te l'ha dato leggi_progetto, con la \
-                                  tua modifica dentro — non solo la parte cambiata."))?,
+    let disco = Project::load(&dir)
+        .map_err(|e| format!("il progetto sul disco non si carica: {e:#}"))?;
+
+    let (project, normalizzato): (Project, Option<Value>) = match input.get("project") {
+        // Ricaricato invece di clonato: `Project` non è `Clone`, e `disco`
+        // serve ancora sotto per i rilievi preesistenti.
+        None => (Project::load(&dir)
+                     .map_err(|e| format!("il progetto non si carica: {e:#}"))?, None),
+        Some(v) => {
+            let mut grezzo = v.clone();
+            findings.extend(crate::validate::ricomponi_script(&mut grezzo, &disco));
+            let p = serde_json::from_value(grezzo.clone())
+                .map_err(|e| format!("il progetto proposto non si legge: {e}. Deve essere il \
+                                      progetto INTERO come te l'ha dato leggi_progetto, con la \
+                                      tua modifica dentro — non solo la parte cambiata."))?;
+            (p, Some(grezzo))
+        }
     };
 
     let mut pagine = carica_pagine(s).await?;
@@ -297,9 +323,9 @@ pub async fn valida(s: &AppState, input: &Value) -> Esito {
     findings.extend(semantic(&project, &pagine));
 
     let mut prima = std::collections::HashSet::new();
-    if let Ok(p0) = Project::load(&dir) {
+    {
         let pg0 = carica_pagine(s).await.unwrap_or_default();
-        for f in semantic(&p0, &pg0) {
+        for f in semantic(&disco, &pg0) {
             prima.insert(format!("{}\u{1}{}", f.path, f.message));
         }
     }
@@ -317,10 +343,10 @@ pub async fn valida(s: &AppState, input: &Value) -> Esito {
         f.severity == crate::validate::Severity::Error
         && !prima.contains(&format!("{}\u{1}{}", f.path, f.message))).count();
 
-    Ok(json!({
+    Ok((json!({
         "ok": errori_nuovi == 0,
         "errori_nuovi": errori_nuovi,
         "rilievi_nuovi": nuovi,
         "rilievi": elenco,
-    }))
+    }), normalizzato))
 }

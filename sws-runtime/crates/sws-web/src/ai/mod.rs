@@ -240,10 +240,14 @@ async fn proponi(
     impronta_iniziale: Option<&str>,
     correzioni: usize,
 ) -> Proposta {
-    let giudizio = tools::valida(s, input).await
-        .unwrap_or_else(|e| json!({ "ok": false, "errori_nuovi": 1,
-                                    "rilievi": [{ "severity": "error", "path": "proposta",
-                                                  "message": e }] }));
+    // `valida_interna` e non `valida`: quello che si spedisce al browser deve
+    // essere il progetto **ricomposto**, cioè quello che è stato davvero
+    // validato. Con il grezzo, una proposta che ometteva `functions` passava la
+    // validazione e arrivava all'editor senza funzioni: il Salva le cancellava.
+    let (giudizio, normalizzato) = tools::valida_interna(s, input).await
+        .unwrap_or_else(|e| (json!({ "ok": false, "errori_nuovi": 1,
+                                     "rilievi": [{ "severity": "error", "path": "proposta",
+                                                   "message": e }] }), None));
     let ok = giudizio.get("ok").and_then(Value::as_bool).unwrap_or(false);
 
     if !ok && correzioni < MAX_CORREZIONI {
@@ -258,7 +262,7 @@ async fn proponi(
         "t": "proposta",
         "id": uuid_breve(),
         "motivo": input.get("motivo").and_then(Value::as_str).unwrap_or("modifica"),
-        "project": input.get("project"),
+        "project": normalizzato.as_ref().or_else(|| input.get("project")),
         "pages": input.get("pages"),
         "impronta": impronta_iniziale,
         "giudizio": giudizio,

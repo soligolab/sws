@@ -97,12 +97,23 @@ pub async fn validate_project(State(s): State<AppState>, Json(body): Json<Valida
     findings.extend(unknown_fields(body.project.as_ref(), &raw_pages));
 
     // ── 2. Il parser vero ────────────────────────────────────────────────────
-    let project: Project = match &body.project {
-        None => match Project::load(&dir) {
-            Ok(p) => p,
-            Err(e) => return (axum::http::StatusCode::SERVICE_UNAVAILABLE,
-                              format!("il progetto su disco non si carica: {e:#}")).into_response(),
-        },
+    //
+    // In mezzo passa la ricomposizione degli script: un progetto proposto che
+    // omette `functions`/`global_scripts`, o che manda le entry senza `code`
+    // come le restituisce `leggi_progetto`, va completato dal disco **prima**
+    // di serde. Senza, il primo caso cancellava le funzioni e il secondo non si
+    // leggeva affatto. Vedi `validate::ricomponi_script`.
+    let disco = match Project::load(&dir) {
+        Ok(p) => p,
+        Err(e) => return (axum::http::StatusCode::SERVICE_UNAVAILABLE,
+                          format!("il progetto su disco non si carica: {e:#}")).into_response(),
+    };
+    let mut grezzo = body.project.clone();
+    if let Some(v) = grezzo.as_mut() {
+        findings.extend(crate::validate::ricomponi_script(v, &disco));
+    }
+    let project: Project = match &grezzo {
+        None => disco,
         Some(v) => match serde_json::from_value::<Project>(v.clone()) {
             Ok(p) => p,
             Err(e) => {

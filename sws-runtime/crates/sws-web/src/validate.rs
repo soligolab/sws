@@ -150,7 +150,208 @@ pub fn unknown_fields(raw_project: Option<&Value>, raw_pages: &[Value]) -> Vec<F
             }
         }
     }
+    out.extend(campi_inventati_script(raw_project));
     out
+}
+
+/// Campi di una `FunctionDef` e di un `GlobalScriptDef`, elencati a mano.
+///
+/// Non vengono da `synoptic_schema.rs` di proposito: quel file è **generato**
+/// (`gen_synoptic_schema.py`, e `check_synoptic_schema.sh` lo confronta byte a
+/// byte), quindi toccarlo a mano fa fallire una guardia. Il disaccoppiamento si
+/// tiene onesto con un test che serializza le due struct e confronta le chiavi:
+/// aggiungere un campo e non aggiornare queste costanti fa diventare rosso
+/// `cargo test`, non silenzioso il validatore.
+const CAMPI_FUNZIONE: &[&str] = &["id", "name", "description", "code", "params"];
+const CAMPI_SCRIPT_GLOBALE: &[&str] = &["id", "trigger", "code", "enabled"];
+
+/// Campi inventati dentro `functions` e `global_scripts`. Stessa logica di
+/// [`unknown_fields`], tenuta separata perché lavora sul progetto e non sulle
+/// pagine, e perché serve **prima** della ricomposizione (dopo, un `codice:`
+/// scritto male sarebbe indistinguibile da un corpo non mandato).
+fn campi_inventati_script(raw_project: Option<&Value>) -> Vec<Finding> {
+    let mut out = Vec::new();
+    let coppie: [(&str, &[&str]); 2] =
+        [("functions", CAMPI_FUNZIONE), ("global_scripts", CAMPI_SCRIPT_GLOBALE)];
+    for (collezione, validi) in coppie {
+        let validi: HashSet<&str> = validi.iter().copied().collect();
+        let Some(arr) = raw_project.and_then(|p| p.get(collezione)).and_then(Value::as_array)
+        else { continue };
+        for e in arr {
+            let id = e.get("id").and_then(Value::as_str)
+                .or_else(|| e.get("name").and_then(Value::as_str)).unwrap_or("?");
+            let Some(map) = e.as_object() else { continue };
+            for k in map.keys() {
+                if !validi.contains(k.as_str()) {
+                    out.push(Finding::err(
+                        format!("project.{collezione}[{id}].{k}"),
+                        format!("il campo `{k}` non esiste qui"),
+                        suggerisci(k, &validi),
+                    ));
+                }
+            }
+        }
+    }
+    out
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Metà 1-bis — il round-trip degli script
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Rimette nel progetto proposto gli script che la proposta non porta.
+///
+/// # Perché esiste, e perché sta prima della deserializzazione
+///
+/// Due difetti opposti nascevano dallo stesso punto, e nessuno dei due era
+/// raggiungibile da una regola semantica — perché una regola gira su un
+/// progetto già tipizzato, e qui il progetto o non si legge o si legge male.
+///
+/// **Uno cancellava.** `Project.functions` ha `#[serde(default)]`: un progetto
+/// proposto che *omette* `functions` diventa una lista vuota. Da lì
+/// `applyAiProposal` lo mette nello store e il Salva scrive
+/// `updateFunctions([])`: tutte le funzioni via dal disco, senza un avviso e
+/// senza niente nel diff. È lo stesso modo di perdere dati già pagato il
+/// 2026-07-28 sui tag, e per cui tag/sorgenti/allarmi non si salvano più da
+/// `saveAll`.
+///
+/// **L'altro bloccava.** `FunctionDef.code` è obbligatorio, ma `leggi_progetto`
+/// lo rimuove: un modello che rimanda le funzioni *come le ha lette* fa fallire
+/// la deserializzazione con «missing field `code`» su qualunque progetto che
+/// abbia almeno una funzione. Cioè: il caso normale.
+///
+/// La cura è una sola e sta al confine — qui, sul JSON grezzo, prima che serde
+/// abbia l'occasione di decidere per conto suo. Vale per ogni client, non solo
+/// per l'editor.
+///
+/// # Assente e vuoto non sono la stessa cosa
+///
+/// `functions` **mancante** significa «non ne ho parlato»: si rimette quella del
+/// disco. `functions: []` **presente** significa «via tutte»: si rispetta. Sul
+/// JSON grezzo i due casi si distinguono; sul `Project` tipizzato no, ed è
+/// esattamente l'informazione che serve.
+///
+/// # I due avvisi non sono decorativi
+///
+/// Ricomporre apre un buco nuovo: se il modello scrive `codice:` invece di
+/// `code:`, serde scarta il campo ignoto, la ricomposizione rimette il corpo
+/// vecchio, e la modifica **sparisce in silenzio** — la famiglia di difetti che
+/// questo modulo esiste per impedire. Gli avvisi la rendono visibile al modello
+/// e alla persona che approva; `campi_inventati_script` prende il refuso.
+pub fn ricomponi_script(proposta: &mut Value, disco: &Project) -> Vec<Finding> {
+    let mut out = Vec::new();
+    let Some(obj) = proposta.as_object_mut() else { return out };
+
+    // ── functions ────────────────────────────────────────────────────────────
+    if !obj.contains_key("functions") {
+        if !disco.functions.is_empty() {
+            out.push(Finding::warn(
+                "project.functions",
+                format!("la proposta non conteneva `functions`: restano le {} del progetto",
+                        disco.functions.len()),
+                "se volevi cambiarle, mandale nel progetto; se volevi cancellarle tutte, \
+                 scrivi `functions: []` — omettere significa «non ne ho parlato»",
+            ));
+        }
+        if let Ok(v) = serde_json::to_value(&disco.functions) {
+            obj.insert("functions".into(), v);
+        }
+    } else if let Some(arr) = obj.get_mut("functions").and_then(Value::as_array_mut) {
+        for e in arr.iter_mut() {
+            let (id, nome) = (stringa(e, "id"), stringa(e, "name"));
+            let etichetta = id.clone().or_else(|| nome.clone()).unwrap_or_else(|| "?".into());
+            if e.get("code").and_then(Value::as_str).is_some() {
+                continue;
+            }
+            let sul_disco = disco.functions.iter().find(|f| {
+                id.as_deref().is_some_and(|i| f.id == i)
+                    || nome.as_deref().is_some_and(|n| f.name == n)
+            });
+            match sul_disco {
+                Some(f) => {
+                    out.push(Finding::warn(
+                        format!("project.functions[{etichetta}].code"),
+                        "il corpo non era nella proposta: resta quello del progetto".to_string(),
+                        "`leggi_progetto` non porta i corpi Python. Per leggerne uno usa \
+                         `leggi_script`; per cambiarlo, mandalo intero",
+                    ));
+                    if let Some(m) = e.as_object_mut() {
+                        m.insert("code".into(), Value::String(f.code.clone()));
+                    }
+                }
+                None => {
+                    // Riempito con "" per far girare le regole tipizzate, che
+                    // lo bocciano a loro volta: due guardie indipendenti sulla
+                    // stessa cosa, perché un corpo vuoto sul disco è peggio di
+                    // un errore in più.
+                    out.push(Finding::err(
+                        format!("project.functions[{etichetta}].code"),
+                        "una funzione che il progetto non ha deve portare il suo `code`"
+                            .to_string(),
+                        "manda il corpo Python della funzione nuova; se volevi modificarne una \
+                         esistente, usa il suo `id`",
+                    ));
+                    if let Some(m) = e.as_object_mut() {
+                        m.insert("code".into(), Value::String(String::new()));
+                    }
+                }
+            }
+        }
+    }
+
+    // ── global_scripts ───────────────────────────────────────────────────────
+    if !obj.contains_key("global_scripts") {
+        if !disco.global_scripts.is_empty() {
+            out.push(Finding::warn(
+                "project.global_scripts",
+                format!("la proposta non conteneva `global_scripts`: restano i {} del progetto",
+                        disco.global_scripts.len()),
+                "come per `functions`: omettere significa «non ne ho parlato», \
+                 `global_scripts: []` significa «via tutti»",
+            ));
+        }
+        if let Ok(v) = serde_json::to_value(&disco.global_scripts) {
+            obj.insert("global_scripts".into(), v);
+        }
+    } else if let Some(arr) = obj.get_mut("global_scripts").and_then(Value::as_array_mut) {
+        for e in arr.iter_mut() {
+            let id = stringa(e, "id");
+            let etichetta = id.clone().unwrap_or_else(|| "?".into());
+            if e.get("code").and_then(Value::as_str).is_some() {
+                continue;
+            }
+            let sul_disco = disco.global_scripts.iter()
+                .find(|g| id.as_deref().is_some_and(|i| g.id == i));
+            match sul_disco {
+                Some(g) => {
+                    out.push(Finding::warn(
+                        format!("project.global_scripts[{etichetta}].code"),
+                        "il corpo non era nella proposta: resta quello del progetto".to_string(),
+                        "per cambiarlo, mandalo intero; per leggerlo, `leggi_script`",
+                    ));
+                    if let Some(m) = e.as_object_mut() {
+                        m.insert("code".into(), Value::String(g.code.clone()));
+                    }
+                }
+                None => {
+                    out.push(Finding::err(
+                        format!("project.global_scripts[{etichetta}].code"),
+                        "uno script globale nuovo deve portare il suo `code`".to_string(),
+                        "manda il corpo Python; e ricorda `trigger`, senza cui non partirebbe",
+                    ));
+                    if let Some(m) = e.as_object_mut() {
+                        m.insert("code".into(), Value::String(String::new()));
+                    }
+                }
+            }
+        }
+    }
+
+    out
+}
+
+fn stringa(v: &Value, chiave: &str) -> Option<String> {
+    v.get(chiave).and_then(Value::as_str).map(str::to_string)
 }
 
 /// «Volevi dire…?». Distanza di Levenshtein contro i campi veri: un campo
@@ -574,6 +775,176 @@ mod tests {
             }
         }
         (project, pages)
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // Il round-trip degli script
+    // ─────────────────────────────────────────────────────────────────────
+
+    /// Un progetto con due funzioni e uno script globale, il minimo che serve.
+    fn con_script() -> Project {
+        serde_yaml::from_str(
+            r#"
+meta: { name: prova, version: "1.0" }
+tags: []
+functions:
+  - { id: f1, name: apri,   code: "tags.write('v', True)" }
+  - { id: f2, name: chiudi, code: "tags.write('v', False)" }
+global_scripts:
+  - { id: g1, trigger: { kind: interval, interval_s: 60 }, code: "pass" }
+"#,
+        )
+        .expect("il progetto di prova deve caricarsi")
+    }
+
+    /// Il difetto che cancellava: una proposta che non parla di `functions` non
+    /// deve farle sparire. Il verso rotto è nella seconda metà del test, e non è
+    /// decorativo — è lo stato in cui il ramo era.
+    #[test]
+    fn funzioni_omesse_non_spariscono() {
+        let disco = con_script();
+        let mut proposta = serde_json::json!({
+            "meta": { "name": "prova", "version": "1.0" },
+            "tags": [{ "id": "v", "data_type": "bool" }],
+        });
+
+        let rilievi = ricomponi_script(&mut proposta, &disco);
+        let dopo: Project = serde_json::from_value(proposta).expect("si deve leggere");
+        assert_eq!(dopo.functions.len(), 2, "le funzioni del disco devono restare");
+        assert_eq!(dopo.global_scripts.len(), 1, "e anche gli script globali");
+        assert!(rilievi.iter().any(|f| f.path == "project.functions"
+                                    && f.severity == Severity::Warning),
+                "e la ricomposizione deve dirlo, altrimenti la modifica sparita è invisibile");
+
+        // Il verso rotto: senza ricomposizione, `#[serde(default)]` su
+        // `Project.functions` le fa diventare zero. Da lì `applyAiProposal` le
+        // mette nello store e il Salva scrive `updateFunctions([])`.
+        let crudo: Project = serde_json::from_value(serde_json::json!({
+            "meta": { "name": "prova", "version": "1.0" }, "tags": [],
+        })).unwrap();
+        assert_eq!(crudo.functions.len(), 0,
+                   "se questo cambia, `serde(default)` è stato toccato: rileggi il commento \
+                    di ricomponi_script prima di cancellare il test");
+    }
+
+    /// Il difetto gemello, quello che bloccava: `leggi_progetto` toglie il corpo
+    /// delle funzioni, quindi un modello che le rimanda come le ha lette faceva
+    /// fallire la deserializzazione su qualunque progetto con almeno una
+    /// funzione — cioè nel caso normale.
+    #[test]
+    fn codice_assente_si_ricompone() {
+        let disco = con_script();
+        let come_le_legge_il_modello = serde_json::json!({
+            "meta": { "name": "prova", "version": "1.0" },
+            "tags": [],
+            "functions": [
+                { "id": "f1", "name": "apri" },
+                { "id": "f2", "name": "chiudi" },
+            ],
+            "global_scripts": [{ "id": "g1", "trigger": { "kind": "interval", "interval_s": 60 } }],
+        });
+
+        // Il verso rotto, prima: senza ricomposizione non si legge affatto.
+        let e = serde_json::from_value::<Project>(come_le_legge_il_modello.clone())
+            .expect_err("senza ricomposizione deve fallire");
+        assert!(e.to_string().contains("missing field `code`"),
+                "la dizione di serde è cambiata: era «missing field `code`», ora «{e}»");
+
+        let mut proposta = come_le_legge_il_modello;
+        let rilievi = ricomponi_script(&mut proposta, &disco);
+        let dopo: Project = serde_json::from_value(proposta).expect("ora si deve leggere");
+        assert_eq!(dopo.functions[0].code, "tags.write('v', True)",
+                   "il corpo deve tornare quello del disco, non una stringa vuota");
+        assert_eq!(dopo.global_scripts[0].code, "pass");
+        assert_eq!(rilievi.iter().filter(|f| f.severity == Severity::Warning).count(), 3,
+                   "un avviso per ogni corpo rimesso: senza, un `codice:` storpiato \
+                    rimetterebbe il corpo vecchio in silenzio");
+    }
+
+    /// Una funzione che il progetto non ha e che non porta il corpo è un errore,
+    /// non una funzione vuota: riempirla con "" la manderebbe sul disco muta.
+    #[test]
+    fn funzione_nuova_senza_code_e_un_errore() {
+        let disco = con_script();
+        let mut proposta = serde_json::json!({
+            "meta": { "name": "prova", "version": "1.0" }, "tags": [],
+            "functions": [{ "id": "f9", "name": "nuova" }],
+        });
+        let rilievi = ricomponi_script(&mut proposta, &disco);
+        assert!(rilievi.iter().any(|f| f.severity == Severity::Error
+                                    && f.path == "project.functions[f9].code"),
+                "rilievi: {rilievi:?}");
+
+        // Il verso giusto: con il corpo, nessun rilievo.
+        let mut ok = serde_json::json!({
+            "meta": { "name": "prova", "version": "1.0" }, "tags": [],
+            "functions": [{ "id": "f9", "name": "nuova", "code": "pass" }],
+            "global_scripts": [],
+        });
+        assert!(ricomponi_script(&mut ok, &disco).is_empty());
+    }
+
+    /// Assente e vuoto non sono la stessa cosa: `functions: []` è un'intenzione
+    /// esprimibile, e va rispettata.
+    #[test]
+    fn vuoto_esplicito_si_rispetta() {
+        let disco = con_script();
+        let mut proposta = serde_json::json!({
+            "meta": { "name": "prova", "version": "1.0" }, "tags": [],
+            "functions": [], "global_scripts": [],
+        });
+        let rilievi = ricomponi_script(&mut proposta, &disco);
+        let dopo: Project = serde_json::from_value(proposta).unwrap();
+        assert!(dopo.functions.is_empty(), "svuotare deve restare possibile");
+        assert!(rilievi.is_empty(), "e non deve produrre rilievi: {rilievi:?}");
+    }
+
+    /// Le due costanti dei campi sono scritte a mano perché `synoptic_schema.rs`
+    /// è generato. Questo test è ciò che tiene onesto il disaccoppiamento:
+    /// aggiungere un campo alla struct e non alla costante diventa rosso qui.
+    #[test]
+    fn i_campi_degli_script_sono_tutti_elencati() {
+        let f = sws_core::FunctionDef {
+            id: "i".into(), name: "n".into(), description: Some("d".into()),
+            code: "c".into(),
+            params: vec![sws_core::FunctionParam { name: "p".into(), default: None }],
+        };
+        let v = serde_json::to_value(&f).unwrap();
+        let mut chiavi: Vec<&str> = v.as_object().unwrap().keys().map(String::as_str).collect();
+        chiavi.sort();
+        let mut attesi: Vec<&str> = CAMPI_FUNZIONE.to_vec();
+        attesi.sort();
+        assert_eq!(chiavi, attesi, "CAMPI_FUNZIONE non combacia con FunctionDef");
+
+        let g = sws_core::GlobalScriptDef {
+            id: "i".into(), trigger: sws_core::ScriptTrigger::Startup,
+            code: "c".into(), enabled: true,
+        };
+        let v = serde_json::to_value(&g).unwrap();
+        let mut chiavi: Vec<&str> = v.as_object().unwrap().keys()
+            .map(String::as_str).filter(|k| *k != "kind").collect();
+        chiavi.sort();
+        let mut attesi: Vec<&str> = CAMPI_SCRIPT_GLOBALE.to_vec();
+        attesi.sort();
+        assert_eq!(chiavi, attesi, "CAMPI_SCRIPT_GLOBALE non combacia con GlobalScriptDef");
+    }
+
+    /// Il buco che la ricomposizione stessa apre: un `codice:` invece di `code:`
+    /// verrebbe scartato da serde e il corpo vecchio rimesso. Deve saltare qui.
+    #[test]
+    fn campo_storpiato_in_una_funzione() {
+        let raw = serde_json::json!({
+            "functions": [{ "id": "f1", "name": "apri", "codice": "pass" }],
+        });
+        let rilievi = unknown_fields(Some(&raw), &[]);
+        assert!(rilievi.iter().any(|f| f.path == "project.functions[f1].codice"
+                                    && f.severity == Severity::Error),
+                "rilievi: {rilievi:?}");
+        // Verso giusto.
+        let raw = serde_json::json!({
+            "functions": [{ "id": "f1", "name": "apri", "code": "pass" }],
+        });
+        assert!(unknown_fields(Some(&raw), &[]).is_empty());
     }
 
     fn templates() -> Vec<std::path::PathBuf> {

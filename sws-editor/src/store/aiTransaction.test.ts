@@ -14,7 +14,7 @@
 // Qui si prova che è una cosa sola: un passo di annullamento, e niente su disco
 // finché non si salva.
 
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/api/client", () => ({
   api: {
@@ -24,6 +24,7 @@ vi.mock("@/api/client", () => ({
     updateAlarms: vi.fn(async () => {}),
     saveSynoptic: vi.fn(async () => {}),
     updateFunctions: vi.fn(async () => {}),
+    saveGlobalScripts: vi.fn(async () => {}),
     updateCustomSymbols: vi.fn(async () => {}),
     deleteSynoptic: vi.fn(async () => {}),
   },
@@ -269,5 +270,99 @@ describe("le scritture su project.yaml non si pestano i piedi", () => {
     sbloccaTags!();
     await salvataggio;
     expect(ordine).toEqual(["tags:inizio", "tags:fine", "sources:inizio"]);
+  });
+
+  // `vi.clearAllMocks()` azzera le *chiamate*, non le *implementazioni*: senza
+  // questo, il `mockImplementation` qui sopra — che si blocca su una promessa
+  // sbloccata a mano — resta installato per tutto il resto del file, e il primo
+  // test successivo che chiama `saveAll()` si appende per cinque secondi e
+  // scade. Costa due righe e un'ora di indagine risparmiata.
+  afterEach(() => {
+    vi.mocked(api.updateTags).mockImplementation(async () => {});
+    vi.mocked(api.updateSources).mockImplementation(async () => {});
+  });
+});
+
+describe("gli script del progetto non si perdono per strada", () => {
+  // Tre difetti della stessa famiglia, tutti già verificati sul ramo:
+  //
+  //   1. una proposta che OMETTE `functions` le faceva diventare `[]`, e il
+  //      Salva scriveva `updateFunctions([])`: via dal disco, senza niente nel
+  //      diff. Identico al difetto dei tag del 2026-07-28;
+  //   2. lo stesso per `global_scripts`;
+  //   3. e `saveGlobalScripts` non era chiamato da nessuna parte fuori dalla
+  //      sua tab, quindi una modifica a uno script globale non arrivava mai al
+  //      disco: approvata, visibile, e sparita al reload.
+
+  const CON_SCRIPT = {
+    ...PROGETTO,
+    functions: [{ id: "f1", name: "apri", code: "tags.write('v', True)" }],
+    global_scripts: [{ id: "g1", trigger: { kind: "interval", interval_s: 60 },
+                       code: "pass", enabled: true }],
+  } as unknown as ProjectInfo;
+
+  function resetConScript() {
+    reset();
+    useAppStore.setState({ project: structuredClone(CON_SCRIPT) });
+  }
+
+  beforeEach(() => { resetConScript(); vi.clearAllMocks(); });
+
+  it("una proposta che non parla di script non li cancella", async () => {
+    const p = proposta();
+    // Il progetto proposto è quello del bersaglio: parla di tag e sorgenti e
+    // non nomina né functions né global_scripts.
+    const esito = await useAppStore.getState().applyAiProposal(p);
+    expect(esito.ok).toBe(true);
+    expect(esito.avviso).toMatch(/script/i);
+
+    const dopo = useAppStore.getState().project!;
+    expect(dopo.functions).toHaveLength(1);
+    expect(dopo.functions![0].code).toBe("tags.write('v', True)");
+    expect(dopo.global_scripts).toHaveLength(1);
+
+    // E il Salva non deve azzerarli.
+    await useAppStore.getState().saveAll();
+    const scritte = vi.mocked(api.updateFunctions).mock.calls;
+    for (const [arg] of scritte) {
+      expect(arg, "updateFunctions([]) è il difetto: mai su una proposta che non li tocca")
+        .toHaveLength(1);
+    }
+  });
+
+  it("ma svuotarli resta possibile, se è esplicito", async () => {
+    const p = proposta();
+    p.project = { ...p.project!, functions: [], global_scripts: [] } as unknown as ProjectInfo;
+    const esito = await useAppStore.getState().applyAiProposal(p);
+    expect(esito.ok).toBe(true);
+    expect(esito.avviso ?? "").not.toMatch(/script/i);
+    expect(useAppStore.getState().project!.functions).toHaveLength(0);
+  });
+
+  it("uno script globale modificato arriva davvero al disco", async () => {
+    const p = proposta();
+    p.project = {
+      ...p.project!,
+      functions: CON_SCRIPT.functions,
+      global_scripts: [{ id: "g1", trigger: { kind: "interval", interval_s: 60 },
+                         code: "tags.write('v', False)", enabled: true }],
+    } as unknown as ProjectInfo;
+
+    await useAppStore.getState().applyAiProposal(p);
+    expect(api.saveGlobalScripts, "prima di Salva non si scrive niente").not.toHaveBeenCalled();
+
+    await useAppStore.getState().saveAll();
+    expect(api.saveGlobalScripts).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(api.saveGlobalScripts).mock.calls[0][0][0].code)
+      .toBe("tags.write('v', False)");
+  });
+
+  it("e se non li tocca, non li riscrive", async () => {
+    const p = proposta();
+    p.project = { ...p.project!, functions: CON_SCRIPT.functions,
+                  global_scripts: CON_SCRIPT.global_scripts } as unknown as ProjectInfo;
+    await useAppStore.getState().applyAiProposal(p);
+    await useAppStore.getState().saveAll();
+    expect(api.saveGlobalScripts).not.toHaveBeenCalled();
   });
 });
