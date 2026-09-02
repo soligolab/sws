@@ -271,8 +271,11 @@ sudo journalctl -u sws-runtime.service -n 200 --no-pager
 
 - **Kiosk cross-compile.** Needs GTK4 + WebKitGTK in the Yocto sysroot.
   Tracked as a separate effort — see `STATUS.md` and `docs/TEST_SETUPS.md`.
-- **Container build for the PX30.** The Podman / `compose.yaml` path
-  (see `docs/DEPLOY_PX30.md`) is the older flow; this native cross-compile
-  is the simpler path the maintainer is moving toward.
+- **Container build.** The Podman path is `deploy/container/` +
+  `deploy/container/install-container.sh`, documented in
+  `docs/DEPLOY_CONTAINER_AARCH64.md`; this native cross-compile stays the
+  preferred flow when the runtime can be a system service. (An older
+  `compose.yaml` flow existed and was removed on 2026-09-02 — it built an image
+  that never bound its published port.)
 - **Signed artefacts / SBOM-per-device.** CRA item, post-PoC.
 - **OTA / atomic-rollback updates.** Post-PoC.

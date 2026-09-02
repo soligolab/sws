@@ -34,7 +34,7 @@
 | Scenario | Requisiti |
 |----------|-----------|
 | **Sviluppo locale** | Rust ≥ 1.75, Node 20, pnpm 9, Python 3.10+ |
-| **Avvio rapido (container)** | Docker o Podman con Compose (vedi `compose.yaml`) |
+| **Avvio rapido (container)** | Podman (rootless), vedi `deploy/container/install-container.sh` |
 | **Deploy su device** | Linux ARM64 (Yocto o generico) oppure x86_64, systemd |
 
 ---

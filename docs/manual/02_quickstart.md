@@ -78,14 +78,19 @@ Poi, dall'IDE: *Configurazione → Runtime → Connetti*, inserisci l'URL del ru
 
 ---
 
-## Percorso C — Container (legacy)
+## Percorso C — Container podman sul dispositivo
 
-Il file [`compose.yaml`](../../compose.yaml) avvia runtime + editor in container. **Attenzione**:
-questo percorso precede il no-auth mode e richiede ancora `SWS_ADMIN_PASSWORD`.
+Un solo container, il runtime, installato come servizio systemd senza `sudo`:
 
 ```bash
-SWS_ADMIN_PASSWORD=cambiami docker compose up
+# sul dispositivo
+./deploy/container/install-container.sh --pull
 ```
+
+Riconosce l'architettura da sé e scarica l'immagine giusta. I dati stanno in
+`/data/user/sws/{projects,config,logs}`. Dettagli, build e aggiornamento in
+[10 — Deployment](10_deployment.md) e in `docs/DEPLOY_CONTAINER_AARCH64.md` /
+`docs/DEPLOY_CONTAINER_X86_64.md`.
 
 ---
 

@@ -4,7 +4,8 @@
 > Follow top-to-bottom on a fresh clone. Tick each box as you verify it.
 > Deeper protocol-specific recipes live in `docs/OPCUA_SETUP.md`
 > (OPC-UA) and `scripts/README.md` (dev runner + Playwright). Hardware
-> deploy steps are in `docs/DEPLOY_PX30.md`.
+> deploy steps are in `docs/DEPLOY_CONTAINER_AARCH64.md` (podman) and
+> `docs/YOCTO_CROSSCOMPILE.md` (native binary).
 >
 > **Time budget**: ~90 minutes for the full sweep. Skip any section you
 > aren't planning to use — every area is independent.
@@ -467,7 +468,7 @@ Items deliberately out of scope (because they're explicit follow-ups):
 - **Public security advisory feed + formal CVE process**.
 - **OAuth2 / LDAP / 2FA**.
 - **OTA update with rollback**.
-- **PX30 hardware kiosk demo** (see `docs/DEPLOY_PX30.md` instead).
+- **PX30 hardware kiosk demo** (see `docs/YOCTO_CROSSCOMPILE.md` instead).
 
 These are tracked in `STATUS.md` § Prossimi step / Backlog.
 

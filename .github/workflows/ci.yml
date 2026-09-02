@@ -163,75 +163,19 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm audit --audit-level=critical
 
-  # ── Multi-arch container build (DISATTIVATO) ──────────────────────────────
+  # ── Il job `docker-build` è stato rimosso il 2026-09-02 ───────────────────
   #
-  # Disattivato il 2026-07-30. Questo job pubblicava su
-  # ghcr.io/soligolab/sws-runtime:<tag> — l'indirizzo che il badge del README
-  # promette — costruendo da sws-runtime/docker/Dockerfile, cioè l'immagine
-  # **legacy**, che ha quattro difetti noti (vedi docs/DEPLOY_CONTAINER_AARCH64.md
-  # §"Differenze rispetto all'immagine legacy"): compila Rust dentro l'immagine
-  # (ore sotto QEMU per arm64), il builder non ha libpython3-dev mentre pyo3 usa
-  # auto-initialize, il CMD non passa --viewer-port/--www (viewer mai in ascolto,
-  # healthcheck perennemente rosso) e l'entrypoint pretende SWS_ADMIN_PASSWORD,
-  # che precede il no-auth mode. Un'immagine che non parte all'indirizzo
-  # pubblicizzato è peggio di nessuna immagine.
+  # Costruiva e scansionava con trivy le due immagini **legacy**
+  # (`sws-runtime/docker/Dockerfile`, `sws-editor/docker/Dockerfile`), che sono
+  # state cancellate insieme al resto di quel percorso: pubblicava all'indirizzo
+  # che il README promette un'immagine che non parte. Era già disattivato con
+  # `if: false` dal 2026-07-30 per quella ragione.
   #
-  # Non è correggibile puntandolo all'immagine buona: quella copia dentro un
-  # binario cross-compilato con l'**SDK Yocto Pixsys** (serve glibc >= 2.39 e
-  # libpython3.12 insieme), che sui runner GitHub non esiste. Finché è così, la
-  # pubblicazione dell'immagine aarch64 è un `podman push` manuale dalla macchina
-  # che ha l'SDK.
-  #
-  # Il job resta qui, e non cancellato, perché la struttura (login, buildx, qemu,
-  # scansione trivy) va riusata quando la build dell'immagine buona sarà
-  # riproducibile in CI. Per riattivarlo: rimettere la condizione sui tag.
-  docker-build:
-    name: Docker multi-arch build
-    runs-on: ubuntu-latest
-    needs: [rust-build-test, ts-build-test]
-    if: false
-    steps:
-      - uses: actions/checkout@v4
-      - uses: docker/setup-qemu-action@v3
-      - uses: docker/setup-buildx-action@v3
-      - uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Build and push runtime image
-        uses: docker/build-push-action@v5
-        with:
-          context: sws-runtime
-          file: sws-runtime/docker/Dockerfile
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: ghcr.io/soligolab/sws-runtime:${{ github.ref_name }}
-      - name: Build and push editor image
-        uses: docker/build-push-action@v5
-        with:
-          context: sws-editor
-          file: sws-editor/docker/Dockerfile
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: ghcr.io/soligolab/sws-editor:${{ github.ref_name }}
-      - name: Scan runtime image
-        uses: aquasecurity/trivy-action@master
-        with:
-          image-ref: ghcr.io/soligolab/sws-runtime:${{ github.ref_name }}
-          format: sarif
-          output: trivy-runtime.sarif
-          severity: HIGH,CRITICAL
-          exit-code: "1"
-      - name: Scan editor image
-        uses: aquasecurity/trivy-action@master
-        with:
-          image-ref: ghcr.io/soligolab/sws-editor:${{ github.ref_name }}
-          format: sarif
-          output: trivy-editor.sarif
-          severity: HIGH,CRITICAL
-          exit-code: "1"
-      - uses: github/codeql-action/upload-sarif@v3
-        if: always()
-        with:
-          sarif_file: "."
+  # La struttura (login ghcr, setup-qemu, setup-buildx, build-push, trivy,
+  # upload-sarif) resta **recuperabile da git**: `git show 381078d:.github/workflows/ci.yml`
+  # la contiene per intero. Va ripescata da lì quando la build dell'immagine
+  # buona (`deploy/container/Containerfile.*`) sarà riproducibile in CI — oggi
+  # non è, perché quella copia dentro un binario cross-compilato con l'SDK Yocto
+  # Pixsys, che sui runner GitHub non esiste. Fino ad allora la pubblicazione è
+  # un `podman push` manuale dalla macchina che ha l'SDK, come descritto in
+  # `docs/DEPLOY_CONTAINER_AARCH64.md`.
