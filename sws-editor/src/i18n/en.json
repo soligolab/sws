@@ -134,7 +134,10 @@
     "logPanel": "Log panel",
     "saveCopyToPc": "💾 Save a copy to my PC…",
     "openFromPc": "📂 Replace from a copy on my PC…",
-    "chatPanel": "AI assistant"
+    "chatPanel": "AI assistant",
+    "chatDetach": "Detach chat",
+    "chatDetachHint": "Opens the chat in its own window. The conversation restarts: the runtime cannot transfer it.",
+    "chatDetachedHint": "The chat is in a separate window. Close that window to bring it back here."
   },
   "roles": {
     "admin": "Admin",
@@ -280,7 +283,11 @@
       "scartata": "Discarded.",
       "rifiutata": "Not applied."
     },
-    "localProject": "The assistant works on the local project — the one you are editing — not on the connected device's copy."
+    "localProject": "The assistant works on the local project — the one you are editing — not on the connected device's copy.",
+    "diffWorking": "computing changes…",
+    "diffUnavailable": "Changes could not be computed: {{err}}. This does not mean «no changes» — don't apply without knowing what changes.",
+    "noConfirm": "No confirmation from the editor. The proposal may have been applied anyway: check the canvas before retrying.",
+    "applyBlocked": "The editor window is not responding: there is nowhere to apply."
   },
   "viewer": {
     "maintenance": "Maintenance",
@@ -1164,5 +1171,18 @@
     "reload": "Reload",
     "blocked": "The browser blocked the window: allow pop-ups for this address and retry.",
     "checking": "Checking access…"
+  },
+  "chatWindow": {
+    "checking": "checking access…",
+    "noAuth": "Sign in from the editor window",
+    "noAuthHint": "This window shares the IDE session. Log in there, then reload here.",
+    "reload": "Reload",
+    "noTarget": "Open this window from the IDE (Menu → Detach chat): on its own it does not know which editor to talk to.",
+    "binding": "binding to the editor…",
+    "boundTo": "bound to the editor — project «{{progetto}}»",
+    "unbound": "editor not bound",
+    "editorGone": "The editor window is not responding. You can read, but not apply: proposals need the editor's store.",
+    "noProject": "No project open in the editor. Open one before asking: the tools would read nothing.",
+    "blocked": "The browser blocked the chat window. Allow pop-ups for this site and retry — the conversation here is intact."
   }
 }

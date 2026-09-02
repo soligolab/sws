@@ -301,6 +301,8 @@ pub fn build(
         // Recipe apply — writes multiple tags atomically
         .route("/api/recipes/:id/apply",  post(apply_recipe))
         .route("/api/script/exec",     post(exec_script))
+        // Compila e non esegue: strumento di progettazione, nessun effetto.
+        .route("/api/script/check",    post(check_script))
         .route("/api/script/run/:name", post(run_function))
         // Logs — read-only but Operator+ so the audit surface stays
         // narrow (logs may include schema/secret hints).
@@ -546,14 +548,46 @@ pub fn build(
         .route("/api/auth/login", post(login))
         .merge(project_lifecycle);
 
-    let mut app = open.merge(protected);
+    // ── La porta stretta di `--no-admin` ─────────────────────────────────────
+    //
+    // Decisione del maintainer (2026-09-02): sul dispositivo l'IDE non è il
+    // default, è un caso particolare. `--no-admin` prima non legava **affatto**
+    // la porta admin — e si portava via il Deploy con sé, perché
+    // `remote_deploy` va proprio lì: `project_lifecycle` vive solo su questo
+    // router (vedi il commento nel router del viewer). Un dispositivo così non
+    // si poteva più aggiornare dall'editor.
+    //
+    // Quindi con `--no-admin` la porta resta, ma porta **solo la gestione
+    // remota**: quello che l'editor chiama sul dispositivo, e nient'altro.
+    // Cade tutto ciò che è «IDE servito dal dispositivo» — nessuna SPA admin,
+    // nessuna rotta di editing dei sinottici, nessun `/api/script/exec`,
+    // nessuna build dei pacchetti, nessun `/api/fs/*`.
+    //
+    // E una cosa **più stretta** di prima: qui il ciclo di vita del progetto è
+    // dietro `require_admin`, mentre sul router completo è pre-auth per
+    // necessità (la WelcomeScreen deve creare il primo progetto quando nessuna
+    // sessione esiste). Su un dispositivo senza IDE nessuna WelcomeScreen
+    // esiste, quindi quella necessità non c'è — e `/api/fs/browse-dirs` e
+    // `/api/fs/mkdir`, che in quel gruppo navigano il filesystem **senza
+    // autenticazione**, non ci sono affatto.
+    // Non un `return` anticipato: il tratto comune qui sotto applica il contatore
+    // HTTP e il CORS, e saltarli renderebbe la porta stretta muta alle metriche.
+    let mut app = if lockdown {
+        deploy_only_app(state.clone())
+    } else {
+        open.merge(protected)
+    };
 
     // Serve the Vite-built SPA from disk when --www is provided. Any path that
     // doesn't match an API/WS route falls through to ServeDir; 404s inside
     // ServeDir fall back to admin.html (admin SPA) so the SPA can handle
     // client-side routing on a refresh. Falls back to index.html when the
     // admin bundle hasn't been built yet (dev mode).
-    if let Some(dir) = www_dir {
+    //
+    // In `--no-admin` **non si serve nessuna SPA**: la porta stretta è un'API di
+    // gestione, non un'interfaccia. Servire l'IDE lì lo renderebbe raggiungibile
+    // col browser e poi rotto a metà — ogni pulsante su una rotta che non c'è.
+    if let (Some(dir), false) = (www_dir, lockdown) {
         // "index-admin.html" is the Vite output for the admin entry point.
         // Falls back to index.html when the admin bundle hasn't been built.
         let admin_html = dir.join("index-admin.html");
@@ -599,6 +633,94 @@ pub fn build(
 /// Routes NOT included here: project editing (`PUT /api/project/*`), synoptic
 /// editing (`PUT /api/synoptics/*`), backups, users, system control, project
 /// lifecycle, log viewer, source browse, datastore admin.
+/// La porta di `--no-admin`: **gestione remota, non IDE**.
+///
+/// # Come è stato scelto cosa ci sta
+///
+/// Non a intuito: sono gli endpoint che `remote.rs` chiama davvero sul
+/// dispositivo, elencati dal codice dell'editor. Nient'altro entra qui, e
+/// aggiungere una rotta significa aver deciso che il dispositivo la deve
+/// esporre per default — che è la domanda che questo modo esiste per porre.
+///
+/// | Cosa | Rotte |
+/// |---|---|
+/// | login | `POST /api/auth/login` |
+/// | deploy | `GET /api/projects`, `POST /api/projects/upload`, `POST /api/projects/:name/open`, `POST /api/projects/close`, `DELETE /api/projects/:name` |
+/// | pull | `GET /api/project/export` |
+/// | stato | `GET /api/system`, `GET /api/project` |
+/// | utenti | `GET/POST /api/auth/users`, `POST /api/auth/users-file` |
+/// | backup | `GET/POST /api/backups`, `GET /api/backups/:name/download`, `POST /api/backups/:name/restore`, `DELETE /api/backups/:name` |
+/// | datastore | `GET /api/datastores/:id/download`, `POST /api/datastores/:id/upload` |
+/// | override MQTT | `POST /api/mqtt/source/:id/client-id-override` |
+///
+/// # Cosa NON c'è, ed è il punto
+///
+/// Nessuna SPA admin. Nessuna `PUT /api/project/*` e nessuna
+/// `PUT /api/synoptics/*`: il progetto non si modifica **sul** dispositivo, si
+/// deploya. Nessun `/api/script/exec`. Nessuna build dei pacchetti. Nessun
+/// `/api/fs/*` — che sul router completo naviga il filesystem **senza
+/// autenticazione**, per una necessità (la WelcomeScreen al primo avvio) che su
+/// un dispositivo senza IDE non esiste. Nessun `/ws/ai`.
+///
+/// # Tutto autenticato, che è più stretto di prima
+///
+/// Sul router completo `project_lifecycle` è **pre-auth** per necessità. Qui è
+/// dietro `require_admin`: in modalità senza utenti l'admin sintetico passa
+/// comunque, quindi il flusso di sviluppo non cambia, ma su un dispositivo con
+/// utenti configurati caricare un progetto richiede una sessione.
+fn deploy_only_app(state: AppState) -> Router<AppState> {
+    use crate::projects as pj;
+
+    let gestione = Router::new()
+        // ── Deploy: la ragione per cui questa porta esiste ──────────────────
+        .route("/api/projects",              get(pj::list_projects))
+        .route("/api/projects/upload",       post(pj::upload_project_zip))
+        .route("/api/projects/:name/open",   post(pj::open_project))
+        .route("/api/projects/close",        post(pj::close_project))
+        .route("/api/projects/:name",        delete(pj::delete_project))
+        // ── Pull: il verso opposto ─────────────────────────────────────────
+        .route("/api/project/export",        get(export_project_zip))
+        // ── Stato, che l'IDE legge per dire com'è il dispositivo ───────────
+        .route("/api/project",               get(get_project))
+        .route("/api/system",                get(crate::system::get_system_status))
+        // ── Utenti: azione deliberata, il deploy non li tocca ──────────────
+        //
+        // I verbi sono quelli che `remote.rs` usa davvero (`PUT`, non `POST`):
+        // sbagliarli farebbe 405 dove l'editor si aspetta 204, e il messaggio
+        // d'errore non direbbe perché.
+        .route("/api/auth/users",            get(list_users).post(create_user))
+        .route("/api/auth/users-file",       put(pj::replace_users_file))
+        // ── Backup ─────────────────────────────────────────────────────────
+        .route("/api/backups",
+            get(crate::backups::list_backups_handler)
+                .post(crate::backups::create_backup_handler))
+        .route("/api/backups/:name/download",
+            get(crate::backups::download_backup_handler))
+        .route("/api/backups/:name/restore",
+            post(crate::backups::restore_backup_handler))
+        .route("/api/backups/:name",
+            delete(crate::backups::delete_backup_handler))
+        // ── Datastore ──────────────────────────────────────────────────────
+        .route("/api/datastores/:id/download", get(datastore_download))
+        .route("/api/datastores/:id/upload",   post(datastore_upload))
+        // ── Override per-dispositivo del client id MQTT ────────────────────
+        .route("/api/mqtt/source/:id/client-id-override",
+               put(pj::set_mqtt_client_id_override))
+        .route_layer(middleware::from_fn(require_admin))
+        .route_layer(middleware::from_fn_with_state(state.clone(), require_auth));
+
+    let aperte = Router::new()
+        .route("/health",         get(|| async { "ok" }))
+        .route("/metrics",        get(crate::metrics::get_metrics))
+        .route("/cert",           get(get_cert))
+        .route("/api/auth/login", post(login));
+
+    // Lo stato **non** si applica qui: lo fa il chiamante alla fine, insieme al
+    // CORS e al contatore HTTP. Applicarlo due volte non compila, e applicarlo
+    // qui salterebbe quel tratto comune.
+    aperte.merge(gestione)
+}
+
 fn build_runtime_inner(state: AppState, www_dir: Option<PathBuf>, lockdown: bool) -> Router {
     // Operator-required routes: tag writes, alarm ops, recipe apply, scripts.
     let mut operator_routes = Router::new()
@@ -1216,6 +1338,33 @@ async fn exec_script(
             })
         }
     }
+}
+
+/// `POST /api/script/check` — compila senza eseguire.
+///
+/// # Perché serviva
+///
+/// Prima di questo, l'unico modo di sapere se uno script Python stava in piedi
+/// era **eseguirlo** (`/api/script/exec`): su un dispositivo in servizio vuol
+/// dire accettare che una prova scriva i tag e faccia partire quel che lo script
+/// fa partire. Qui non gira niente — nessun tag letto o scritto, nessun `print`,
+/// nessun `send_telegram`, nessun timeout da armare.
+///
+/// Serve all'assistente per correggersi da sé, come già fa `valida` per la
+/// struttura del progetto, e serve al maintainer anche senza assistente.
+///
+/// # Perché non è dietro il gate di `--no-admin`
+///
+/// `/api/script/exec` viene tolto in modalità operator-only perché esegue codice
+/// arbitrario. Questo no: non ha effetti. Sta comunque solo sul router admin,
+/// perché è uno strumento di progettazione e il viewer non ne ha bisogno.
+async fn check_script(
+    State(s): State<AppState>,
+    Json(body): Json<ScriptBody>,
+) -> Json<sws_pyscript::CheckOutput> {
+    // Nessuna voce di audit: non c'è niente da attribuire, non essendoci nessun
+    // effetto. `script.exec` la registra perché quella esegue.
+    Json(s.py.check(body.code).await)
 }
 
 // ── Historian endpoints ──────────────────────────────────────────────────────

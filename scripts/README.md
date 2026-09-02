@@ -10,6 +10,9 @@ DISPOSITIVO (panel, server):         PC SVILUPPATORE:
   ├─ 8080  HTTP cert-acceptance         ├─ 8090  HTTP cert-acceptance
   ├─ 8443  viewer operatori             └─ 8460  IDE locale
   └─ 8444  IDE/admin remoto                  ↕ "Connetti runtime"
+        (sui dispositivi spediti: solo
+         gestione remota, nessun IDE —
+         `--no-admin`, vedi sotto)
 
   progetto in .run/projects/           progetto in .run-editor/projects/
   ── quello in servizio ──             ── una copia, separata ──
@@ -43,6 +46,21 @@ Avvia il binario Rust con **tutte e tre** le porte:
 - `8080` — HTTP (no TLS): pagina di aiuto per accettare il certificato self-signed
 - `8443` — viewer per operatori e kiosk (accesso anonimo)
 - `8444` — IDE/admin remoto (accesso autenticato, Supervisor/Admin)
+
+**Attenzione a una differenza fra questo script e i dispositivi.** Dal 2026-09-02
+i deploy (yocto, generic-linux, container) partono con **`--no-admin`**: la porta
+8444 resta e serve solo la gestione remota che l'editor chiama — deploy, pull,
+backup, utenti, datastore, tutto autenticato — e **non serve nessun IDE**. Qui il
+default resta l'IDE completo, perché lo stack di sviluppo serve anche a lavorare
+su quello; per provare la postura vera:
+
+```sh
+./scripts/start_runtime.sh --no-admin
+```
+
+La guardia `./scripts/check_no_admin.sh` confronta le due modalità sullo stesso
+binario e verifica entrambi i versi: che l'IDE non ci sia, e che il deploy ci sia
+ancora.
 
 Auto-apre il progetto `default` se esiste in `.run/projects/default/`.
 

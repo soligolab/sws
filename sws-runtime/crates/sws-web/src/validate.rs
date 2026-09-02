@@ -460,6 +460,74 @@ pub fn semantic(project: &Project, pages: &[SynopticPage]) -> Vec<Finding> {
         }
     }
 
+    // ── Script globali ───────────────────────────────────────────────────────
+    //
+    // Nessuno di questi rilievi impedisce un salvataggio: sono cose che il
+    // runtime accetta e poi non fa, che è la forma peggiore. Uno script globale
+    // che non parte mai non lascia traccia da nessuna parte — non c'è un errore,
+    // non c'è una riga di log, non c'è un pulsante che diventi rosso.
+    let mut visti_gs: HashSet<&str> = HashSet::new();
+    for g in &project.global_scripts {
+        let base = format!("project.global_scripts[{}]", g.id);
+
+        if g.id.trim().is_empty() {
+            out.push(Finding::err("project.global_scripts[]",
+                "uno script globale ha id vuoto",
+                "l'id è la chiave con cui il supervisore lo indicizza e lo ferma"));
+        } else if !visti_gs.insert(g.id.as_str()) {
+            out.push(Finding::err(format!("{base}.id"),
+                format!("lo script globale `{}` è dichiarato due volte", g.id),
+                "il supervisore ne avvia due con lo stesso nome: fermarne uno \
+                 diventa ambiguo"));
+        }
+
+        if g.code.trim().is_empty() && g.enabled {
+            out.push(Finding::warn(format!("{base}.code"),
+                "lo script è abilitato ma il corpo è vuoto",
+                "verrà schedulato e non farà niente: metti del codice, oppure \
+                 `enabled: false`"));
+        }
+
+        // Il cap sui byte è imposto dal `PUT /api/project/functions`, ma **solo
+        // per le funzioni**: sui `global_scripts` nessuno lo controlla. Qui si
+        // dice, così l'asimmetria non resta invisibile.
+        if g.code.len() > sws_core::MAX_FUNCTION_CODE_BYTES {
+            out.push(Finding::err(format!("{base}.code"),
+                format!("il corpo è {} byte, oltre il tetto di {}",
+                        g.code.len(), sws_core::MAX_FUNCTION_CODE_BYTES),
+                "è lo stesso tetto delle funzioni, e serve a non far gonfiare \
+                 project.yaml: spezza lo script o spostane una parte in una funzione"));
+        }
+
+        match &g.trigger {
+            sws_core::ScriptTrigger::Startup => {}
+            sws_core::ScriptTrigger::Interval { interval_s } => {
+                if *interval_s == 0 {
+                    out.push(Finding::err(format!("{base}.trigger.interval_s"),
+                        "un intervallo di 0 secondi",
+                        "il supervisore girerebbe senza pause: metti almeno 1"));
+                }
+            }
+            sws_core::ScriptTrigger::TagChange { tag, edge } => {
+                if !tag.is_empty() && !per_id.contains_key(tag.as_str()) {
+                    out.push(Finding::err(format!("{base}.trigger.tag"),
+                        format!("lo script osserva il tag `{tag}`, che non è dichiarato"),
+                        "non scatterà mai, e non lo dirà: dichiara il tag o correggi \
+                         il riferimento"));
+                }
+                const EDGE: &[&str] = &["rising", "falling", "any"];
+                if !EDGE.contains(&edge.as_str()) {
+                    out.push(Finding::err(format!("{base}.trigger.edge"),
+                        format!("`{edge}` non è un fronte valido"),
+                        "i valori sono \"rising\", \"falling\" e \"any\" (default)"));
+                }
+            }
+            sws_core::ScriptTrigger::Cron { schedule } => {
+                for f in cron_rilievi(&base, schedule) { out.push(f); }
+            }
+        }
+    }
+
     let funzioni: HashSet<&str> =
         project.functions.iter().map(|f| f.name.as_str()).collect();
 
@@ -497,6 +565,86 @@ pub fn semantic(project: &Project, pages: &[SynopticPage]) -> Vec<Finding> {
 }
 
 #[allow(clippy::too_many_arguments)]
+/// I rilievi su un'espressione cron di uno script globale.
+///
+/// # Il guasto che questa funzione esiste per cogliere
+///
+/// `global_scripts::parse_cron` accetta **cinque** campi, e per ciascuno solo
+/// `*` oppure una lista di interi separati da virgola. Non ci sono passi
+/// (`*/5`) e non ci sono intervalli (`1-5`): `parse_field` fa
+/// `filter_map(parse::<u8>)`, quindi un campo che non capisce non è un errore —
+/// diventa un **insieme vuoto**, e un insieme vuoto non combacia con nessun
+/// minuto. Lo script viene schedulato regolarmente e non parte mai.
+///
+/// Non c'è niente che lo segnali: nessun errore all'avvio, nessuna riga di log,
+/// nessuna spia. `*/5 * * * *` è la prima cosa che chiunque scriverebbe per
+/// «ogni cinque minuti», ed è precisamente il caso che tace.
+///
+/// Vedi `docs/OPEN_QUESTIONS.md` Q34: se il parser debba imparare passi e
+/// intervalli, o se il limite vada solo documentato, è una decisione del
+/// maintainer. Finché non è presa, il validatore lo dice.
+fn cron_rilievi(base: &str, schedule: &str) -> Vec<Finding> {
+    let mut out = Vec::new();
+    let campo = format!("{base}.trigger.schedule");
+    let parti: Vec<&str> = schedule.split_whitespace().collect();
+
+    if parti.is_empty() {
+        out.push(Finding::err(campo, "l'espressione cron è vuota",
+            "servono cinque campi: minuto ora giorno mese giorno-settimana"));
+        return out;
+    }
+    if parti.len() != 5 {
+        out.push(Finding::err(campo.clone(),
+            format!("l'espressione cron ha {} campi invece di cinque", parti.len()),
+            "l'ordine è `minuto ora giorno mese giorno-settimana`; i campi che \
+             mancano vengono trattati come `*`, quindi un'espressione corta parte \
+             molto più spesso di quanto sembri"));
+        // Si continua comunque: i campi che ci sono vanno controllati.
+    }
+
+    const LIMITI: [(&str, u8, u8); 5] = [
+        ("minuto", 0, 59), ("ora", 0, 23), ("giorno", 1, 31),
+        ("mese", 1, 12), ("giorno-settimana", 0, 6),
+    ];
+    for (i, p) in parti.iter().enumerate().take(5) {
+        let (nome, min, max) = LIMITI[i];
+        if *p == "*" { continue; }
+
+        if p.contains('/') || p.contains('-') {
+            out.push(Finding::err(campo.clone(),
+                format!("il campo «{nome}» vale `{p}`, e questo cron non capisce \
+                         né i passi (`*/n`) né gli intervalli (`n-m`)"),
+                "non è un errore che si vede: il campo diventa un insieme vuoto e \
+                 lo script NON PARTE MAI, senza dirlo. Elenca i valori separati \
+                 da virgola — per «ogni cinque minuti» scrivi \
+                 `0,5,10,15,20,25,30,35,40,45,50,55`"));
+            continue;
+        }
+
+        let mut validi = 0usize;
+        for v in p.split(',') {
+            let v = v.trim();
+            match v.parse::<u8>() {
+                Ok(n) if n >= min && n <= max => validi += 1,
+                Ok(n) => out.push(Finding::err(campo.clone(),
+                    format!("il campo «{nome}» contiene `{n}`, fuori dall'intervallo \
+                             {min}-{max}"),
+                    "i valori fuori intervallo vengono scartati in silenzio")),
+                Err(_) => out.push(Finding::err(campo.clone(),
+                    format!("il campo «{nome}» contiene `{v}`, che non è un numero"),
+                    "questo cron ammette solo `*` o interi separati da virgola")),
+            }
+        }
+        if validi == 0 {
+            out.push(Finding::err(campo.clone(),
+                format!("del campo «{nome}» non resta nessun valore valido"),
+                "un campo vuoto non combacia con nessun istante: lo script non \
+                 partirà mai"));
+        }
+    }
+    out
+}
+
 fn controlla_oggetto(
     out: &mut Vec<Finding>,
     page: &SynopticPage,
@@ -693,6 +841,30 @@ fn controlla_oggetto(
                     format!("{base}.grid_cells[{i}].objects"),
                     "`objects` non è un campo di una cella di griglia: la cella resta vuota",
                     "il campo è `child`, e contiene UN oggetto"));
+            }
+            // # E l'oggetto DENTRO la cella, che prima nessuno guardava
+            //
+            // Il ciclo che chiama questa funzione scorre `SynopticPage.objects`,
+            // cioè il primo livello. Il `child` di una cella è un oggetto a
+            // tutti gli effetti — con un `tag`, un `type`, un `on_press_fn` — ma
+            // vive dentro un `Value` opaco, quindi non passava da nessun
+            // controllo: un bottone in una cella che punta a una funzione
+            // inesistente o a un tag non dichiarato era **muto**. Il gesto non
+            // fa niente e non lo dice.
+            //
+            // Qui si scende, e ricorsivamente: una cella può contenere un'altra
+            // griglia, e fermarsi al primo livello lascerebbe lo stesso buco un
+            // gradino più sotto.
+            let Some(child) = cm.get("child") else { continue };
+            if child.is_null() { continue; }
+            match serde_json::from_value::<SynopticObject>(child.clone()) {
+                Ok(figlio) => controlla_oggetto(out, page, &figlio, tipi, enums, tags,
+                                                ids_pagina, id_pagine, nomi_pagine,
+                                                funzioni, mqtt_scrivibile),
+                Err(e) => out.push(Finding::warn(
+                    format!("{base}.grid_cells[{i}].child"),
+                    format!("il contenuto della cella non si legge come oggetto: {e}"),
+                    "la cella non disegnerà niente; controlla `type` e i campi obbligatori")),
             }
         }
     }
@@ -1215,6 +1387,80 @@ alarms: []
         let rs = rilievi(PROGETTO, &pagina(
             "- { id: x, type: button, x: 0, y: 0, tag: calcolato }"));
         assert!(cita(&errori(&rs), "calcolato"), "{rs:?}");
+    }
+
+    // ── Script globali e cron ────────────────────────────────────────────────
+
+    /// Il caso che tace: `*/5` è la prima cosa che chiunque scriverebbe per
+    /// «ogni cinque minuti», e questo cron non lo capisce. Il campo diventa un
+    /// insieme vuoto, lo script viene schedulato e **non parte mai** — senza un
+    /// errore, senza una riga di log, senza una spia.
+    #[test]
+    fn un_cron_con_i_passi_non_passa_perche_non_partirebbe_mai() {
+        let prog = format!("{PROGETTO}global_scripts:\n              - {{ id: ogni5, trigger: {{ kind: cron, schedule: \"*/5 * * * *\" }},                  code: \"print(1)\" }}\n");
+        let rs = rilievi(&prog, &pagina("- { id: t, type: text, x: 0, y: 0 }"));
+        let e = errori(&rs);
+        assert!(cita(&e, "passi"), "il rilievo deve nominare il problema: {rs:?}");
+        assert!(cita(&e, "NON PARTE MAI"),
+                "e deve dire la conseguenza, non solo che è invalido: {rs:?}");
+    }
+
+    /// Il verso opposto, altrettanto importante: la forma che il parser capisce
+    /// deve passare **pulita**. Un validatore che si lamenta di un cron valido
+    /// insegna a ignorarlo.
+    #[test]
+    fn un_cron_a_lista_di_interi_passa_pulito() {
+        let prog = format!("{PROGETTO}global_scripts:\n              - {{ id: ogni5, trigger: {{ kind: cron,                  schedule: \"0,5,10,15,20,25,30,35,40,45,50,55 * * * *\" }},                  code: \"print(1)\" }}\n");
+        let rs = rilievi(&prog, &pagina("- { id: t, type: text, x: 0, y: 0 }"));
+        assert!(!cita(&rs, "schedule"), "nessun rilievo atteso sul cron: {rs:?}");
+    }
+
+    #[test]
+    fn un_cron_con_meno_di_cinque_campi_non_passa() {
+        let prog = format!("{PROGETTO}global_scripts:\n              - {{ id: corto, trigger: {{ kind: cron, schedule: \"30 4\" }},                  code: \"print(1)\" }}\n");
+        let rs = rilievi(&prog, &pagina("- { id: t, type: text, x: 0, y: 0 }"));
+        assert!(cita(&errori(&rs), "cinque"), "{rs:?}");
+    }
+
+    #[test]
+    fn uno_script_su_un_tag_inesistente_non_passa() {
+        let prog = format!("{PROGETTO}global_scripts:\n              - {{ id: s1, trigger: {{ kind: tag_change, tag: mai.dichiarato }},                  code: \"print(1)\" }}\n");
+        let rs = rilievi(&prog, &pagina("- { id: t, type: text, x: 0, y: 0 }"));
+        assert!(cita(&errori(&rs), "mai.dichiarato"), "{rs:?}");
+    }
+
+    #[test]
+    fn un_intervallo_di_zero_secondi_non_passa() {
+        let prog = format!("{PROGETTO}global_scripts:\n              - {{ id: s1, trigger: {{ kind: interval, interval_s: 0 }},                  code: \"print(1)\" }}\n");
+        let rs = rilievi(&prog, &pagina("- { id: t, type: text, x: 0, y: 0 }"));
+        assert!(cita(&errori(&rs), "interval_s"), "{rs:?}");
+    }
+
+    #[test]
+    fn due_script_globali_con_lo_stesso_id_non_passano() {
+        let prog = format!("{PROGETTO}global_scripts:\n              - {{ id: doppio, trigger: {{ kind: startup }}, code: \"print(1)\" }}\n              - {{ id: doppio, trigger: {{ kind: startup }}, code: \"print(2)\" }}\n");
+        let rs = rilievi(&prog, &pagina("- { id: t, type: text, x: 0, y: 0 }"));
+        assert!(cita(&errori(&rs), "due volte"), "{rs:?}");
+    }
+
+    /// Il buco delle griglie: un bottone **dentro una cella** che punta a una
+    /// funzione inesistente. Prima passava — il ciclo guardava solo il primo
+    /// livello — e il gesto restava muto sul pannello.
+    #[test]
+    fn una_funzione_inesistente_dentro_una_cella_di_griglia_non_passa() {
+        let rs = rilievi(PROGETTO, &pagina(
+            "- { id: g, type: grid, x: 0, y: 0, grid_cells: [{ row: 0, col: 0, child: { id: b, type: button, x: 0, y: 0, tag: luce.salotto, on_press_fn: mai_scritta } }] }"));
+        assert!(cita(&errori(&rs), "mai_scritta"),
+                "l'oggetto dentro la cella deve essere controllato: {rs:?}");
+    }
+
+    /// E lo stesso per un tag: dentro una cella non c'è nessuna ragione per cui
+    /// un riferimento sbagliato debba passare.
+    #[test]
+    fn un_tag_inesistente_dentro_una_cella_di_griglia_non_passa() {
+        let rs = rilievi(PROGETTO, &pagina(
+            "- { id: g, type: grid, x: 0, y: 0, grid_cells: [{ row: 0, col: 0, child: { id: l, type: led, x: 0, y: 0, tag: mai.dichiarato } }] }"));
+        assert!(cita(&errori(&rs), "mai.dichiarato"), "{rs:?}");
     }
 
     #[test]

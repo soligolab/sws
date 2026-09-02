@@ -134,7 +134,10 @@
     "logPanel": "Pannello log",
     "saveCopyToPc": "💾 Salva copia sul PC…",
     "openFromPc": "📂 Sostituisci da copia sul PC…",
-    "chatPanel": "Assistente IA"
+    "chatPanel": "Assistente IA",
+    "chatDetach": "Stacca la chat",
+    "chatDetachHint": "Apre la chat in una finestra propria. La conversazione riparte da zero: il runtime non sa trasferirla.",
+    "chatDetachedHint": "La chat è in una finestra separata. Chiudi quella finestra per riportarla qui."
   },
   "roles": {
     "admin": "Admin",
@@ -280,7 +283,11 @@
       "scartata": "Scartata.",
       "rifiutata": "Non applicata."
     },
-    "localProject": "L'assistente lavora sul progetto locale — quello che stai modificando — non su quello del dispositivo collegato."
+    "localProject": "L'assistente lavora sul progetto locale — quello che stai modificando — non su quello del dispositivo collegato.",
+    "diffWorking": "calcolo delle modifiche…",
+    "diffUnavailable": "Modifiche non calcolabili: {{err}}. Non significa «nessuna modifica» — non applicare senza sapere cosa cambia.",
+    "noConfirm": "Nessuna conferma dall'editor. La proposta potrebbe essere stata applicata comunque: controlla il canvas prima di riprovare.",
+    "applyBlocked": "La finestra dell'editor non risponde: non c'è dove applicare."
   },
   "viewer": {
     "maintenance": "Manutenzione",
@@ -1164,5 +1171,18 @@
     "reload": "Ricarica",
     "blocked": "Il browser ha bloccato la finestra: consenti i popup per questo indirizzo e riprova.",
     "checking": "Verifico l'accesso…"
+  },
+  "chatWindow": {
+    "checking": "verifica dell'accesso…",
+    "noAuth": "Accedi nella finestra dell'editor",
+    "noAuthHint": "Questa finestra usa la stessa sessione dell'IDE. Fai il login là, poi ricarica qui.",
+    "reload": "Ricarica",
+    "noTarget": "Questa finestra va aperta dall'IDE (Menu → Stacca la chat): da sola non sa a quale editor parlare.",
+    "binding": "collegamento all'editor…",
+    "boundTo": "collegata all'editor — progetto «{{progetto}}»",
+    "unbound": "editor non collegato",
+    "editorGone": "La finestra dell'editor non risponde. Puoi leggere, ma non applicare: le proposte hanno bisogno dello store dell'editor.",
+    "noProject": "Nessun progetto aperto nell'editor. Aprine uno prima di chiedere: gli strumenti leggerebbero il vuoto.",
+    "blocked": "Il browser ha bloccato la finestra della chat. Consenti i popup per questo sito e riprova — la conversazione qui è intatta."
   }
 }

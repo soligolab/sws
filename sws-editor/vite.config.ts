@@ -51,6 +51,10 @@ export default defineConfig({
         // esattamente `/index-log.html`, perché `/log` cadrebbe nel fallback
         // SPA e restituirebbe l'IDE (router.rs, not_found_service).
         log:   "index-log.html",
+        // Finestra staccata della chat dell'assistente. Stesso vincolo del log:
+        // l'URL deve essere esattamente `/index-chat.html`, perché `/chat`
+        // cadrebbe nel fallback SPA e restituirebbe l'IDE.
+        chat:  "index-chat.html",
       },
       output: {
         manualChunks(id) {

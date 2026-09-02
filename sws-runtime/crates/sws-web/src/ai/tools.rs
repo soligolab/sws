@@ -112,6 +112,35 @@ pub fn definizioni() -> Vec<Value> {
              CHIAMALO prima di dichiarare un tag nuovo: il campo del tipo si chiama \
              `data_type` e non `type`, ed è l'errore che costa un giro di validazione.",
             json!({ "type": "object", "properties": {}, "additionalProperties": false })),
+
+        // ── Python. Aggiunti in coda per la stessa ragione di sopra. ─────────
+        strumento("leggi_script",
+            "Il codice Python di una funzione di progetto o di uno script globale. \
+             `leggi_progetto` NON lo restituisce (e' lungo e quasi mai utile per \
+             disegnare): per modificare del codice esistente devi leggerlo da qui \
+             prima, altrimenti lo riscrivi da zero e cancelli quello che c'era.",
+            json!({ "type": "object", "additionalProperties": false, "properties": {
+                        "funzione": { "type": "string",
+                            "description": "Nome della funzione di progetto (come da leggi_progetto)." },
+                        "script_globale": { "type": "string",
+                            "description": "Id dello script globale." } } })),
+
+        strumento("schema_python",
+            "Cosa si puo' scrivere negli script: le variabili disponibili, cosa la \
+             sandbox vieta, i tipi di trigger degli script globali e i limiti. \
+             CHIAMALO prima di scrivere Python: qui non e' Python normale — non ci \
+             sono `import`, e i tag si leggono e scrivono da `tags`.",
+            json!({ "type": "object", "properties": {}, "additionalProperties": false })),
+
+        strumento("controlla_python",
+            "Compila del codice Python e dice se sta in piedi, SENZA eseguirlo: \
+             nessun tag scritto, nessun effetto. Distingue un errore di sintassi \
+             (con la riga) da una cosa che la sandbox vieta pur essendo Python \
+             valido. CHIAMALO SEMPRE prima di proporre del codice: proporre \
+             Python che non compila fa perdere un giro a chi legge il diff.",
+            json!({ "type": "object", "required": ["codice"], "additionalProperties": false,
+                    "properties": { "codice": { "type": "string",
+                        "description": "Il corpo Python, come lo metteresti in `code`." } } })),
     ]
 }
 
@@ -134,6 +163,9 @@ pub async fn esegui(s: &AppState, nome: &str, input: &Value) -> Esito {
         "schema_sorgente" => schema_sorgente(arg_str(input, "kind")?),
         "schema_tag" => schema_tag(),
         "valida" => valida(s, input).await,
+        "leggi_script" => leggi_script(s, input).await,
+        "schema_python" => schema_python(s.py.is_sandboxed()),
+        "controlla_python" => controlla_python(s, arg_str(input, "codice")?).await,
         // `proponi_modifica` non passa di qui: la intercetta il ciclo, perché
         // è l'unica che non produce un risultato da rimandare al modello ma
         // chiude il turno verso il browser.
@@ -380,6 +412,143 @@ pub async fn valida_interna(s: &AppState, input: &Value) -> Result<(Value, Optio
     }), normalizzato))
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Python
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Il codice di una funzione o di uno script globale.
+///
+/// `leggi_progetto` toglie `code` di proposito: il corpo Python è lungo e per
+/// disegnare un sinottico non serve mai. Ma senza un modo di leggerlo, un
+/// assistente cui si chiede «aggiungi un controllo a questa funzione» non può
+/// che **riscriverla da zero**, cancellando quello che c'era senza accorgersene
+/// — e il diff mostrerebbe una funzione «modificata», non che ne è sparita
+/// metà. Questo strumento è la via per non arrivarci.
+async fn leggi_script(s: &AppState, input: &Value) -> Esito {
+    let p = carica_progetto(s).await?;
+    let funzione = input.get("funzione").and_then(Value::as_str);
+    let globale  = input.get("script_globale").and_then(Value::as_str);
+
+    match (funzione, globale) {
+        (Some(nome), None) => match p.functions.iter().find(|f| f.name == nome) {
+            Some(f) => Ok(json!({
+                "tipo": "funzione", "nome": f.name, "id": f.id,
+                "descrizione": f.description,
+                "parametri": f.params.iter().map(|x| json!({ "nome": x.name })).collect::<Vec<_>>(),
+                "codice": f.code,
+                "righe": f.code.lines().count(),
+            })),
+            None => Err(format!(
+                "la funzione `{nome}` non esiste. Ci sono: {}",
+                elenco_o_nessuno(p.functions.iter().map(|f| f.name.as_str())))),
+        },
+        (None, Some(id)) => match p.global_scripts.iter().find(|g| g.id == id) {
+            Some(g) => Ok(json!({
+                "tipo": "script_globale", "id": g.id,
+                "trigger": g.trigger, "enabled": g.enabled,
+                "codice": g.code,
+                "righe": g.code.lines().count(),
+            })),
+            None => Err(format!(
+                "lo script globale `{id}` non esiste. Ci sono: {}",
+                elenco_o_nessuno(p.global_scripts.iter().map(|g| g.id.as_str())))),
+        },
+        (Some(_), Some(_)) => Err("passa `funzione` **oppure** `script_globale`, non entrambi: \
+                                   sono due cose diverse e leggerne due in una volta \
+                                   nasconderebbe quale hai chiesto".into()),
+        (None, None) => Err("manca l'argomento: `funzione` (per nome) oppure \
+                            `script_globale` (per id)".into()),
+    }
+}
+
+fn elenco_o_nessuno<'a>(it: impl Iterator<Item = &'a str>) -> String {
+    let v: Vec<&str> = it.collect();
+    if v.is_empty() { "nessuno".into() } else { v.join(", ") }
+}
+
+/// L'ambiente in cui gli script girano.
+///
+/// Non è Python normale, e le differenze sono esattamente quelle su cui un
+/// modello sbaglia: non ci sono `import`, i tag non sono variabili globali ma
+/// voci di `tags`, e il corpo ha un tetto di byte. Dirlo qui costa una chiamata
+/// e risparmia un giro di validazione — la stessa ragione per cui esiste
+/// `schema_tag`.
+///
+/// `sandbox_attiva` è letta dal motore e **non** cablata: sul PC di sviluppo
+/// RestrictedPython spesso manca, e in quel caso un `import` passa qui e viene
+/// rifiutato sul dispositivo. È una differenza che va detta, non taciuta.
+/// Prende il `bool` e non `&AppState`: cosi' e' una funzione pura e il suo
+/// **contenuto** si puo' provare. Quel contenuto e' un elenco di fatti sul
+/// sandbox — cosa c'e', cosa e' vietato, la forma del cron, il tetto di byte —
+/// ed e' esattamente il genere di testo che resta indietro quando il codice
+/// cambia, senza che niente lo segnali.
+fn schema_python(sandbox_attiva: bool) -> Esito {
+    Ok(json!({
+        "disponibili": [
+            { "nome": "tags", "cosa": "I tag del progetto. `tags['id']` legge, \
+                `tags['id'] = valore` scrive. Un tag con `expression` è calcolato: \
+                scriverlo viene rifiutato." },
+            { "nome": "print", "cosa": "Finisce nello stdout catturato e nel log. \
+                Serve per la diagnosi, non per comunicare con l'operatore." },
+            { "nome": "send_telegram", "cosa": "`send_telegram('testo')`. Funziona solo \
+                se il canale Telegram è configurato nelle notifiche del progetto." },
+        ],
+        "vietati": [
+            "`import` di qualunque modulo — niente `os`, `time`, `requests`, `math`.",
+            "gli attributi dunder (`__class__`, `__globals__`…).",
+            "`exec`, `eval`, `open`, l'accesso al filesystem e alla rete.",
+        ],
+        "sandbox_attiva": sandbox_attiva,
+        "nota_sandbox": if sandbox_attiva {
+            "La sandbox è attiva su questa istanza: i divieti sopra sono applicati."
+        } else {
+            "ATTENZIONE: RestrictedPython non è installata su questa istanza, quindi i \
+             divieti NON sono applicati **qui**. Sul dispositivo lo sono: scrivere un \
+             `import` funzionerebbe in prova e verrebbe rifiutato in campo. Non usarli."
+        },
+        "trigger_script_globali": [
+            { "kind": "startup", "quando": "una volta all'apertura del progetto" },
+            { "kind": "interval", "campi": { "interval_s": "secondi, intero" } },
+            { "kind": "cron", "campi": { "schedule": "cron a CINQUE campi: \
+                `min ora giorno mese giorno-settimana`. `*/5 * * * *` = ogni cinque \
+                minuti. Un solo campo (`*/5`) NON è valido." } },
+            { "kind": "tag_change", "campi": { "tag": "id del tag",
+                "edge": "\"rising\" | \"falling\" | \"any\" (default)" } },
+        ],
+        "limiti": {
+            "byte_massimi_del_codice": sws_core::project::MAX_FUNCTION_CODE_BYTES,
+            "timeout": "impostato da SWS_SCRIPT_TIMEOUT_MS (5 s per default). Uno script \
+                        che lo supera viene interrotto.",
+        },
+        "dove_va_il_codice": {
+            "functions[]": "funzioni richiamabili dagli oggetti (`on_press_fn`, \
+                            `on_release_fn`) e da `POST /api/script/run/<nome>`. \
+                            Campi: `id`, `name`, `code`, `params`.",
+            "global_scripts[]": "script con un trigger proprio. Campi: `id`, `trigger`, \
+                                 `code`, `enabled`.",
+        },
+    }))
+}
+
+/// Compila e non esegue. Vedi `Engine::check`.
+///
+/// Il valore non è «dire se compila»: è **quale** dei due guasti è. Un errore di
+/// sintassi si corregge rileggendo la riga; un divieto della sandbox no — quel
+/// codice è Python valido e va cambiato approccio. Collassarli in un solo
+/// messaggio manderebbe il modello a cercare una virgola inesistente.
+async fn controlla_python(s: &AppState, codice: &str) -> Esito {
+    let esito = s.py.check(codice.to_string()).await;
+    let mut v = serde_json::to_value(&esito).map_err(|e| e.to_string())?;
+    if let Some(o) = v.as_object_mut() {
+        o.insert("come_leggerlo".into(), json!(
+            "`vietato: false` = errore di sintassi, guarda `riga`. \
+             `vietato: true` = Python valido ma proibito dalla sandbox: cambia strada, \
+             non la virgola. `sandbox_verificata: false` = i divieti non sono stati \
+             controllati su questa istanza, ma sul dispositivo valgono."));
+    }
+    Ok(v)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -432,13 +601,83 @@ mod tests {
 
     /// L'ordine degli strumenti entra nel prefisso della cache: uno strumento
     /// nuovo va in coda, e cambiarne la posizione butta la cache a ogni turno.
+    ///
+    /// Il test asseriva anche che l'ultimo fosse `schema_tag`, cioè «l'ultimo
+    /// aggiunto finora»: vero quando è stato scritto, e falso al primo strumento
+    /// successivo. Ora asserisce **il prefisso**, che è l'invariante vera — chi
+    /// aggiunge in coda passa, chi riordina il prefisso no.
     #[test]
-    fn gli_strumenti_nuovi_stanno_in_coda() {
+    fn il_prefisso_degli_strumenti_non_si_muove() {
+        const PREFISSO: [&str; 9] = [
+            "elenca_pagine", "leggi_pagina", "leggi_progetto", "elenca_tag",
+            "schema_oggetto", "schema_sorgente", "valida", "proponi_modifica",
+            "schema_tag",
+        ];
         let d = definizioni();
         let nomi: Vec<&str> = d.iter().map(|x| x["name"].as_str().unwrap()).collect();
-        assert_eq!(nomi[0], "elenca_pagine", "il primo non si tocca: {nomi:?}");
-        assert_eq!(*nomi.last().unwrap(), "schema_tag");
-        // `proponi_modifica` resta l'ultimo dei sette originali.
-        assert_eq!(nomi[7], "proponi_modifica", "{nomi:?}");
+        assert!(nomi.len() >= PREFISSO.len(), "strumenti spariti: {nomi:?}");
+        assert_eq!(&nomi[..PREFISSO.len()], &PREFISSO[..],
+                   "il prefisso della cache si è mosso: {nomi:?}");
+    }
+
+    /// Lo schema Python nomina le tre cose su cui un modello sbaglia.
+    ///
+    /// Non e' un test di forma: sono i fatti che, se restano indietro, fanno
+    /// perdere un giro a ogni proposta con del codice — la stessa famiglia del
+    /// difetto per cui `schema_tag` e' nato (il modello scriveva `type` invece
+    /// di `data_type` e veniva rifiutato dal validatore).
+    #[test]
+    fn lo_schema_python_dice_i_fatti_che_contano() {
+        let v = schema_python(true).unwrap();
+        let tutto = serde_json::to_string(&v).unwrap();
+
+        // 1. Gli `import` sono vietati: e' la differenza piu' grossa da Python.
+        assert!(tutto.contains("import"), "i divieti devono nominare `import`");
+        // 2. I tag si leggono da `tags`, non sono variabili globali.
+        assert!(v["disponibili"].as_array().unwrap().iter()
+                    .any(|d| d["nome"] == "tags"),
+                "`tags` deve essere fra le cose disponibili: {tutto}");
+        // 3. Il cron ha CINQUE campi, e un solo campo non e' valido: e'
+        //    l'errore che STATUS registra come da prevenire.
+        assert!(tutto.contains("CINQUE") || tutto.contains("cinque"),
+                "la forma del cron va detta: {tutto}");
+        // Il tetto di byte viene dalla costante, non da un numero copiato.
+        assert!(tutto.contains(&sws_core::project::MAX_FUNCTION_CODE_BYTES.to_string()));
+    }
+
+    /// E il verso che conta di piu': senza sandbox non deve **far credere** di
+    /// aver controllato i divieti. Sul PC di sviluppo RestrictedPython manca,
+    /// quindi un `import` passa in prova e viene rifiutato in campo: se lo
+    /// schema tacesse, il modello lo userebbe.
+    #[test]
+    fn senza_sandbox_lo_schema_avverte_invece_di_tacere() {
+        let acceso = schema_python(true).unwrap();
+        let spento  = schema_python(false).unwrap();
+
+        assert_eq!(acceso["sandbox_attiva"], serde_json::json!(true));
+        assert_eq!(spento["sandbox_attiva"], serde_json::json!(false));
+
+        let nota = spento["nota_sandbox"].as_str().unwrap();
+        assert!(nota.contains("ATTENZIONE"), "l'avviso deve essere visibile: {nota}");
+        assert!(nota.contains("dispositivo"),
+                "deve dire che sul dispositivo i divieti valgono: {nota}");
+        // E il ramo acceso non deve portare lo stesso avviso, altrimenti e' rumore.
+        assert!(!acceso["nota_sandbox"].as_str().unwrap().contains("ATTENZIONE"));
+    }
+
+    /// Gli strumenti Python sono dichiarati e raggiungibili dal dispatch.
+    ///
+    /// Il verso rotto è preciso e capitato altrove in questa stessa famiglia
+    /// (`schema_tag` esisteva come endpoint ma nessuno strumento lo esponeva, e
+    /// il modello ci ha rimesso un giro per proposta): uno strumento dichiarato
+    /// ma non instradato risponderebbe «strumento sconosciuto» al modello, che è
+    /// un errore che il modello ripete.
+    #[test]
+    fn gli_strumenti_python_sono_dichiarati() {
+        let nomi: Vec<String> = definizioni().iter()
+            .map(|x| x["name"].as_str().unwrap().to_string()).collect();
+        for atteso in ["leggi_script", "schema_python", "controlla_python"] {
+            assert!(nomi.iter().any(|n| n == atteso), "manca `{atteso}`: {nomi:?}");
+        }
     }
 }

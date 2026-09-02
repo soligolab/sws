@@ -860,19 +860,29 @@ async fn main() -> anyhow::Result<()> {
         None
     };
 
-    // Admin listener (all routes, auth required): 0.0.0.0. Skipped entirely in
-    // operator-only mode (--no-admin), which removes the IDE/admin surface from
-    // the device (OPEN_QUESTIONS Q8).
+    // Admin listener: 0.0.0.0. In operator-only mode (`--no-admin`) la porta
+    // resta ma serve un router **ristretto** — solo la gestione remota che l'IDE
+    // chiama sul dispositivo, nessuna interfaccia. Vedi `deploy_only_app` in
+    // `sws-web/src/router.rs` e OPEN_QUESTIONS Q8.
+    //
+    // Prima non veniva legata affatto, e quella scelta si portava via il
+    // **Deploy**: `remote_deploy` va proprio su questa porta, perché il ciclo
+    // di vita del progetto vive solo qui. Un dispositivo in operator-only non si
+    // poteva più aggiornare dall'editor, e non c'era niente che lo dicesse —
+    // l'errore arrivava come una connessione rifiutata.
     if args.no_admin && args.viewer_port.is_none() {
         anyhow::bail!("--no-admin richiede --viewer-port (altrimenti nessuna porta verrebbe servita)");
     }
-    let admin_listener: Option<TcpListener> = if args.no_admin {
-        warn!("--no-admin: superficie IDE/admin DISABILITATA (solo viewer operatore + funzioni bound)");
-        None
-    } else {
+    let admin_listener: Option<TcpListener> = {
         let admin_addr: SocketAddr = format!("0.0.0.0:{}", args.admin_port).parse()?;
         let l = TcpListener::bind(admin_addr).await?;
-        info!(addr = %admin_addr, tls = acceptor.is_some(), "admin listener ready");
+        if args.no_admin {
+            warn!(addr = %admin_addr, tls = acceptor.is_some(),
+                  "--no-admin: nessun IDE su questa porta — solo gestione remota \
+                   (deploy, backup, utenti, datastore), tutto autenticato");
+        } else {
+            info!(addr = %admin_addr, tls = acceptor.is_some(), "admin listener ready");
+        }
         Some(l)
     };
 

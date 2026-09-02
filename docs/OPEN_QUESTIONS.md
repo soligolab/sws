@@ -211,6 +211,48 @@ percorso arbitrario), ma **tutta questa superficie va chiusa quando il PoC diven
 autenticando il gruppo dopo il primo bootstrap, o confinando `/api/fs/*` a un insieme di radici
 consentite. Da affrontare insieme a E.
 
+**Decided (2026-09-02, maintainer) — A diventa il default sui dispositivi, in una
+forma nuova.** «L'IDE nello stesso prodotto è una feature che può essere utile ma come caso
+particolare, non come default.»
+
+L'opzione A come era scritta non si poteva prendere così com'era, e il motivo è stato trovato
+verificandola: **`--no-admin` non legava affatto la porta admin, e con quella si portava via il
+Deploy.** `remote_deploy` va proprio lì — il ciclo di vita del progetto (`project_lifecycle`) vive
+solo sul router admin, come dice il commento nel router del viewer — quindi un dispositivo in
+operator-only non si poteva più aggiornare dall'editor, e l'unico segnale era una connessione
+rifiutata. Con lui cadevano anche TLS, backup/restore, utenti e datastore da remoto.
+
+Quindi A è stata implementata in una forma diversa: **la porta resta, e porta solo la gestione
+remota** (`deploy_only_app` in `router.rs`). Dentro ci sono esattamente gli endpoint che
+`remote.rs` chiama sul dispositivo — login, i cinque del deploy, l'export per il pull, lo stato,
+utenti, backup, datastore, l'override MQTT — e nient'altro. Fuori resta tutto ciò che è «IDE
+servito dal dispositivo»: nessuna SPA admin, nessuna `PUT /api/project/*` né
+`PUT /api/synoptics/*`, nessun `/api/script/exec`, nessuna build dei pacchetti, nessun `/ws/ai`.
+
+E una cosa **più stretta di prima**: lì il ciclo di vita del progetto è dietro `require_admin`,
+mentre sul router completo è pre-auth per necessità (la WelcomeScreen deve creare il primo
+progetto quando nessuna sessione esiste). Su un dispositivo senza IDE quella necessità non c'è, e
+`/api/fs/browse-dirs` e `/api/fs/mkdir` — che in quel gruppo navigano il filesystem **senza
+autenticazione**, vedi la nota del 2026-07-27 qui sopra — non ci sono affatto. Quindi questa
+decisione chiude anche metà di quel problema, che era «da affrontare insieme a E».
+
+Passati a `--no-admin`: `deploy/yocto/`, `deploy/generic-linux/` e i tre
+`deploy/container/Containerfile.*`. Riaccensione deliberata: `SWS_ENABLE_IDE=1` nell'env del
+servizio (installazione nativa) o togliere il flag dall'`Exec=` del quadlet (container).
+`scripts/start_runtime.sh` **non** cambia default — lo stack di sviluppo serve anche a lavorare
+sull'IDE del dispositivo — ma accetta `--no-admin`, perché una configurazione che si prova solo in
+campo è una configurazione che non si prova.
+
+La guardia è `scripts/check_no_admin.sh`: confronta le due modalità **sullo stesso binario** e
+verifica entrambi i versi — che una rotta dell'IDE non rientri, e che una del deploy non
+sparisca. Il confronto con l'istanza normale non è cerimonia: un 404 da solo non distingue «rotta
+assente» da «percorso che ho sbagliato a scrivere», e senza quel controllo la guardia sarebbe
+verde senza aver verificato niente.
+
+**Non deciso qui**: se il *viewer* debba restare su `0.0.0.0` (oggi sì, salvo `--kiosk`), e Q8-F
+(Python fuori processo), che resta il rischio concreto e non lo tocca nessuna separazione fra
+editor e runtime.
+
 **Nota (2026-09-02) — il verso opposto: l'EDITOR è un motore completo.** Q8 descrive il gap sul
 *dispositivo* (IDE e acquisizione nello stesso processo). Gli mancava l'altra metà, misurata
 mentre si rispondeva a una domanda del maintainer sulla divisione editor/runtime (vedi
@@ -2712,3 +2754,50 @@ non è un caso singolo: è che «fermato» non è uno stato, è un effetto momen
 documentato da nessuna parte.
 
 **Decided**: not yet.
+
+## Q34 — Il cron degli script globali non capisce `*/5`, e non parte in silenzio
+
+**Context**: trovato il 2026-09-02 scrivendo le regole del validatore sugli script Python.
+`global_scripts::parse_cron` prende cinque campi, e `parse_field` ammette per ciascuno **solo**
+`*` oppure una lista di interi separati da virgola:
+
+```rust
+fn parse_field(s: &str, min: u8, max: u8) -> Vec<u8> {
+    if s == "*" { return (min..=max).collect(); }
+    s.split(',').filter_map(|part| part.trim().parse::<u8>().ok())
+        .filter(|&v| v >= min && v <= max).collect()
+}
+```
+
+Non ci sono **passi** (`*/5`) e non ci sono **intervalli** (`1-5`). E il modo in cui non ci sono
+è la parte cattiva: `filter_map` **scarta** ciò che non sa leggere, quindi `*/5` non è un errore
+— diventa un `Vec` vuoto, e un insieme vuoto non combacia con nessun minuto. Lo script viene
+schedulato regolarmente, il supervisore lo avvia, e **non parte mai**. Nessun errore all'avvio,
+nessuna riga di log, nessuna spia nell'IDE.
+
+`*/5 * * * *` è la prima cosa che chiunque scriverebbe per «ogni cinque minuti», e in ogni altro
+cron del mondo funziona. Un campo mancante ha lo stesso problema al contrario: `parse_cron` lo
+tratta come `*`, quindi `"30 4"` non è rifiutato — parte ogni giorno del mese, ogni mese, ogni
+giorno della settimana, cioè molto più spesso di quanto chi l'ha scritto pensasse.
+
+**Nel frattempo**: dal 2026-09-02 il validatore lo dice (`cron_rilievi` in `validate.rs`), con la
+conseguenza scritta a lettere — «lo script NON PARTE MAI» — e suggerisce la forma che funziona.
+Il rilievo però si vede solo passando dalla validazione: chi scrive il cron a mano in
+`project.yaml` e non salva dall'IDE non lo incontra.
+
+**Options**:
+1. **Insegnare al parser i passi e gli intervalli** (`*/n`, `n-m`, e la loro combinazione
+   `n-m/k`). È il comportamento che chiunque si aspetta, sono ~30 righe in `parse_field` e le si
+   può provare senza far girare niente. Il rischio è basso: la forma a lista continua a valere.
+2. **Rifiutare all'avvio quello che non si capisce**, invece di scartarlo. Uno script con un cron
+   illeggibile non viene schedulato e il runtime lo registra come errore. Non aggiunge
+   funzionalità ma toglie il silenzio, che è la metà peggiore del difetto.
+3. **Adottare una libreria** (`cron`, `saffron`) e togliere il parser fatto a mano. Più corretto
+   e più completo, al prezzo di una dipendenza per una cosa che il PoC usa poco.
+4. **Solo documentarlo**: il validatore lo dice già, e il manuale può dire che i passi non ci
+   sono. Costa zero e lascia in piedi la trappola per chi modifica lo YAML a mano.
+
+**Default for PoC**: opzione 4 di fatto — il validatore avvisa, il parser è invariato.
+
+**Decided**: not yet.
+
