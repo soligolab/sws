@@ -211,6 +211,48 @@ percorso arbitrario), ma **tutta questa superficie va chiusa quando il PoC diven
 autenticando il gruppo dopo il primo bootstrap, o confinando `/api/fs/*` a un insieme di radici
 consentite. Da affrontare insieme a E.
 
+**Decided (2026-09-02, maintainer) — A diventa il default sui dispositivi, in una
+forma nuova.** «L'IDE nello stesso prodotto è una feature che può essere utile ma come caso
+particolare, non come default.»
+
+L'opzione A come era scritta non si poteva prendere così com'era, e il motivo è stato trovato
+verificandola: **`--no-admin` non legava affatto la porta admin, e con quella si portava via il
+Deploy.** `remote_deploy` va proprio lì — il ciclo di vita del progetto (`project_lifecycle`) vive
+solo sul router admin, come dice il commento nel router del viewer — quindi un dispositivo in
+operator-only non si poteva più aggiornare dall'editor, e l'unico segnale era una connessione
+rifiutata. Con lui cadevano anche TLS, backup/restore, utenti e datastore da remoto.
+
+Quindi A è stata implementata in una forma diversa: **la porta resta, e porta solo la gestione
+remota** (`deploy_only_app` in `router.rs`). Dentro ci sono esattamente gli endpoint che
+`remote.rs` chiama sul dispositivo — login, i cinque del deploy, l'export per il pull, lo stato,
+utenti, backup, datastore, l'override MQTT — e nient'altro. Fuori resta tutto ciò che è «IDE
+servito dal dispositivo»: nessuna SPA admin, nessuna `PUT /api/project/*` né
+`PUT /api/synoptics/*`, nessun `/api/script/exec`, nessuna build dei pacchetti, nessun `/ws/ai`.
+
+E una cosa **più stretta di prima**: lì il ciclo di vita del progetto è dietro `require_admin`,
+mentre sul router completo è pre-auth per necessità (la WelcomeScreen deve creare il primo
+progetto quando nessuna sessione esiste). Su un dispositivo senza IDE quella necessità non c'è, e
+`/api/fs/browse-dirs` e `/api/fs/mkdir` — che in quel gruppo navigano il filesystem **senza
+autenticazione**, vedi la nota del 2026-07-27 qui sopra — non ci sono affatto. Quindi questa
+decisione chiude anche metà di quel problema, che era «da affrontare insieme a E».
+
+Passati a `--no-admin`: `deploy/yocto/`, `deploy/generic-linux/` e i tre
+`deploy/container/Containerfile.*`. Riaccensione deliberata: `SWS_ENABLE_IDE=1` nell'env del
+servizio (installazione nativa) o togliere il flag dall'`Exec=` del quadlet (container).
+`scripts/start_runtime.sh` **non** cambia default — lo stack di sviluppo serve anche a lavorare
+sull'IDE del dispositivo — ma accetta `--no-admin`, perché una configurazione che si prova solo in
+campo è una configurazione che non si prova.
+
+La guardia è `scripts/check_no_admin.sh`: confronta le due modalità **sullo stesso binario** e
+verifica entrambi i versi — che una rotta dell'IDE non rientri, e che una del deploy non
+sparisca. Il confronto con l'istanza normale non è cerimonia: un 404 da solo non distingue «rotta
+assente» da «percorso che ho sbagliato a scrivere», e senza quel controllo la guardia sarebbe
+verde senza aver verificato niente.
+
+**Non deciso qui**: se il *viewer* debba restare su `0.0.0.0` (oggi sì, salvo `--kiosk`), e Q8-F
+(Python fuori processo), che resta il rischio concreto e non lo tocca nessuna separazione fra
+editor e runtime.
+
 **Nota (2026-09-02) — il verso opposto: l'EDITOR è un motore completo.** Q8 descrive il gap sul
 *dispositivo* (IDE e acquisizione nello stesso processo). Gli mancava l'altra metà, misurata
 mentre si rispondeva a una domanda del maintainer sulla divisione editor/runtime (vedi

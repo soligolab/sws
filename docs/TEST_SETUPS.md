@@ -88,8 +88,16 @@ Layout su device:
 
 Porte su device:
 ```
-https://<device-ip>:8443   → viewer operatori (non esporre agli operatori la porta 8444)
-https://<device-ip>:8444   → admin IDE (solo per deploy e amministrazione)
+https://<device-ip>:8443   → viewer operatori
+https://<device-ip>:8444   → gestione remota: deploy, pull, backup, utenti,
+                             datastore. **Nessun IDE**: dal 2026-09-02 i
+                             dispositivi partono con `--no-admin`, quindi quella
+                             porta non serve nessuna interfaccia e non permette
+                             di modificare il progetto sul posto. Per
+                             riaccendere l'IDE completo: `SWS_ENABLE_IDE=1`
+                             nell'env del servizio + restart (installazione
+                             nativa), oppure togliere `--no-admin` dall'`Exec=`
+                             del quadlet (container).
 ```
 
 Due modi di guardare la UI:

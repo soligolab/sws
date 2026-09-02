@@ -123,9 +123,22 @@ LABEL org.opencontainers.image.source="https://github.com/soligolab/sws" \
       org.opencontainers.image.licenses="AGPL-3.0-only"
 
 ENTRYPOINT ["/usr/local/bin/sws-runtime"]
+# ── L'IDE sul dispositivo e' un caso particolare, non il default ────────────
+#
+# Decisione del maintainer (2026-09-02). `--no-admin` nel CMD qui sotto **non
+# toglie il Deploy**: la porta 8444 resta e serve solo la gestione remota che
+# l'editor chiama (deploy, pull, backup, utenti, datastore), tutto autenticato.
+# Cade l'IDE: nessuna interfaccia servita, nessuna modifica del progetto sul
+# dispositivo, nessun /api/script/exec, nessun /api/fs/*. Vedi `deploy_only_app`
+# in sws-web/src/router.rs e OPEN_QUESTIONS Q8.
+#
+# Per riaccendere l'IDE completo su un dispositivo si sovrascrive il comando nel
+# quadlet (`Exec=` in sws-runtime.container) togliendo quel flag: qui non c'e' un
+# entrypoint script, e non ne vogliamo uno solo per una variabile d'ambiente.
 CMD ["--config", "/var/sws/config", \
      "--projects-root", "/var/sws/projects", \
      "--templates-root", "/var/sws/templates", \
      "--www", "/var/sws/www", \
      "--viewer-port", "8443", \
-     "--admin-port", "8444"]
+     "--admin-port", "8444", \
+     "--no-admin"]

@@ -12,6 +12,8 @@
 # Uso:
 #   ./scripts/start_runtime.sh                # instance 1: 8443/8444, dati .run/
 #   ./scripts/start_runtime.sh --instance 2   # instance 2: 8445/8446, dati .run-2/
+#   ./scripts/start_runtime.sh --no-admin     # come i dispositivi: nessun IDE
+#                                             # sulla 8444, solo gestione remota
 #
 # Variabili d'ambiente (opzionali):
 #   SWS_ADMIN_USER / SWS_ADMIN_PASSWORD   per creare un utente admin all'avvio
@@ -23,10 +25,18 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 # ── Parse --instance N ────────────────────────────────────────────────────────
 INSTANCE=1
+NO_ADMIN_ARGS=()
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --instance) INSTANCE="$2"; shift 2 ;;
-    *) echo "uso: $0 [--instance N]" >&2; exit 2 ;;
+    # Prova la postura che i dispositivi hanno per default dal 2026-09-02:
+    # nessun IDE sulla porta admin, solo la gestione remota che l'editor chiama.
+    # Qui NON è il default, perché lo stack di sviluppo serve anche a lavorare
+    # sull'IDE del dispositivo — ma senza questa opzione la postura vera non
+    # sarebbe provabile in locale, e una configurazione che si prova solo in
+    # campo è una configurazione che non si prova.
+    --no-admin) NO_ADMIN_ARGS=(--no-admin); shift ;;
+    *) echo "uso: $0 [--instance N] [--no-admin]" >&2; exit 2 ;;
   esac
 done
 
@@ -222,4 +232,5 @@ exec "$REPO_ROOT/sws-runtime/target/debug/sws-runtime" \
   --admin-port     "$ADMIN_PORT"         \
   "${HTTP_ARGS[@]}"                      \
   "${PROJECT_ARGS[@]}"                   \
-  "${WWW_ARGS[@]}"
+  "${WWW_ARGS[@]}"                       \
+  "${NO_ADMIN_ARGS[@]}"
