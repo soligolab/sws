@@ -43,9 +43,100 @@ indovinare. Il test nuovo prova entrambi i versi ed è stato visto fallire in
 quello rotto: un'istanza con viewer che si dichiara `"ide"` farebbe sparire
 l'avviso proprio dove serve.
 
-Contesto e resto del lavoro (ADR, correzioni ai documenti, percorsi morti) in
-`docs/plans/2026-09-01-editor-runtime.md`; la sessione si è interrotta dopo il
-primo passo.
+### Via i tre percorsi che promettevano di cambiare runtime
+
+Tutti e tre riguardavano la stessa confusione e nessuno poteva funzionare, perché
+`admin-main.tsx` chiama `setForceLocalApi(true)` e quindi in quel bundle
+`localStorage sws.runtimeBaseUrl` è ignorato per costruzione:
+
+- **la scheda «Connetti runtime remoto» della WelcomeScreen** — scriveva quella
+  chiave e ricaricava la pagina; qualunque cosa si inserisse, il footer
+  continuava a dire «runtime locale». Era anche un doppione: collegare un runtime
+  remoto si fa in *Configurazione → Runtime → Connetti*, che passa dal server (il
+  token resta nel processo locale, mai nel browser) e abilita deploy e relay dei
+  dati vivi;
+- **il badge ARCH-004 nell'header** (`App.tsx`), morto per la stessa ragione —
+  un indicatore che non può accendersi fa credere che la sua assenza significhi
+  qualcosa;
+- **`admin/AdminApp.tsx`** (225 righe), importato da nessun entry point.
+
+Il modale resta per la sua scheda viva (installazione del binario via SSH) e
+diventa `InstallaRuntimeModal`, a scheda singola; la riga in fondo alla
+WelcomeScreen ora dice l'unica cosa che lì si può davvero fare. Via anche
+`setRuntimeBaseUrl`, rimasta senza chiamanti, e 13 chiavi i18n orfane.
+
+### Cancellato il percorso container legacy, e chi lo raccomandava ancora
+
+`compose.yaml`, `sws-runtime/docker/`, `sws-editor/docker/`,
+`scripts/build-images.sh` e `docs/DEPLOY_PX30.md`. Era già stato dichiarato
+storico il 2026-07-30, con la pubblicazione in CI disattivata perché costruiva
+«*un'immagine che non parte all'indirizzo pubblicizzato*»: il `CMD` non passava
+`--viewer-port`, quindi nessuno era in ascolto sulla porta che compose
+pubblicava. Quel che era rimasto indietro erano i documenti.
+
+Un quinto difetto, non fra i quattro noti e che è il tema di questa sessione in
+forma pura: il servizio si chiamava `editor` ma **serviva il viewer** — nginx
+faceva `try_files … /index.html`, e l'IDE è `index-admin.html` — proxando alla
+porta viewer, che non ha nessuna rotta di editing. Anche riparando il flag, non
+sarebbe stato un editor.
+
+**I container che si usano davvero non sono toccati**: `deploy/container/
+Containerfile.{aarch64,aarch64-generic,x86_64}`, `scripts/build_container*.sh`,
+`install-container.sh`, i quadlet e le due `DEPLOY_CONTAINER_*` — famiglia
+separata, zero file in comune. Il trattino di `build-images.sh` contro gli
+underscore di `build_container*.sh` era la trappola che rendeva i due nomi quasi
+identici per famiglie opposte.
+
+Rimosso anche il job `docker-build` della CI **per intero**: costruiva *e
+scansionava con trivy* solo quelle due immagini. Rimandi corretti in undici
+punti — cinque documenti non erano nel piano e li ha trovati la verifica prevista
+per questo. Il manuale utente insegnava il flusso compose in quattro punti, e la
+sua sezione «Percorso C» prometteva il tag
+`ghcr.io/soligolab/sws-runtime:latest`, che **non è pubblicato** (esistono
+`latest-arm64`, `latest-arm64-generic`, `latest-amd64`): riscritta sul flusso
+vero. La risposta su Windows del README, che indicava il compose, è sostituita
+con le due vie che funzionano.
+
+### L'ADR che non era mai stato scritto
+
+`docs/adr/0003-editor-runtime-same-binary.md`. La divisione editor/runtime non
+era registrata da nessuna parte, e **non è mai stata decisa**: nasce da T-21 (due
+`TcpListener` nello stesso processo), diventa «editor vs runtime» il 2026-07-31
+rendendo `--viewer-port` opzionale con motivazione scritta «*eliminare i
+conflitti di porta quando editor e runtime girano sulla stessa macchina di
+sviluppo*», e diventa distribuzione con T-37, dove la frase «editor e runtime
+sono lo stesso binario» compare per la prima volta in un changelog di
+*packaging*. L'ADR si apre dichiarando di registrare a posteriori: senza quella
+avvertenza trasformerebbe in decisione una cosa che nessuno ha scelto. Dentro c'è
+anche la preferenza del maintainer per due programmi distinti, che un lettore
+futuro non potrebbe ricostruire.
+
+Più la riga mancante fra le «Frozen architectural decisions» di `CONTEXT.md` §5
+(24 righe, nessuna sulla divisione fra i due programmi); il §9 che affermava
+«*none of the original Q1-Q7 are open*» come se non ci fosse altro (siamo a Q33);
+la divergenza nominata nel box di stato PoC della spec, che prevede due repo e
+due container in §3.1; e `scripts/README.md`, che aveva l'unico diagramma del
+rapporto fra i due script e diceva le porte ma **non dove vive il progetto** —
+la domanda da cui è partita la sessione.
+
+### Q8 aggiornata, Q32 e Q33 nuove
+
+A Q8 il verso che mancava: descriveva il gap sul *dispositivo*, e non diceva che
+**anche un'istanza IDE-only fa girare tutto il motore** — driver, allarmi,
+historian, cron degli script globali, notifiche email e Telegram, auto-backup.
+Misurato nei log di un'istanza editor vera, col limite dichiarato (il progetto di
+prova aveva 0 sorgenti, quindi una connessione PLC vera non è stata osservata).
+Registrati anche i costi delle vie non prese, che è la parte utile a chi
+riprenderà: l'opzione «editor senza motore» costa meno di quanto sembri perché il
+motore è quasi tutto reattivo e i pezzi che agiscono da soli sono tre.
+
+**Q32** — dove deve vivere il progetto che si sta modificando: non era mai stata
+posta come domanda, la risposta di fatto era sepolta in un aggiornamento di Q31.
+**Q33** — `POST /api/system/stop` viene annullato in silenzio dal salvataggio
+della sezione Sorgenti: chi ferma l'impianto per lavorare e poi salva lo riavvia
+senza volerlo. Difetto preesistente, registrato e non corretto.
+
+Contesto completo in `docs/plans/2026-09-01-editor-runtime.md`.
 
 
 ### Un assistente nell'editor: si descrive quel che serve, e lui lo propone (T-50)

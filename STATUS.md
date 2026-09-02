@@ -28,88 +28,76 @@
 
 ## ▶ Da fare nella prossima sessione
 
-### ⏸ Interrotto a metà — divisione editor/runtime (ramo `feat/editor-runtime-chiarezza`)
+### ✅ Divisione editor/runtime — completata sul ramo `feat/editor-runtime-chiarezza`
 
-*2026-09-01 sera, frodo. Sessione chiusa su richiesta del maintainer a lavoro iniziato.*
+*2026-09-02, frodo. Cinque commit, verificati. **Non mergiato**: attende la conferma del maintainer,
+poi squash merge. Piano completo: `docs/plans/2026-09-01-editor-runtime.md`.*
 
-Il maintainer ha chiesto **qual è esattamente la situazione** della divisione editor/runtime, e in
-particolare se l'editor lavori in locale o nella cartella del dispositivo. Risposta misurata:
+**La domanda di partenza**: com'è fatta esattamente la divisione editor/runtime, e l'editor lavora
+in locale o nella cartella del dispositivo? Risposta misurata, e ora scritta in
+`docs/adr/0003-editor-runtime-same-binary.md`: **un solo eseguibile** (i due pacchetti distribuiti
+contengono lo stesso binario), `--viewer-port` cambia solo socket e cosmetica, **tutto il motore
+gira anche in modalità editor**, e dove vive il progetto dipende dalla porta — sulla porta admin di
+un dispositivo si modifica l'impianto **in presa diretta** con hot-reload al Salva, con
+`start_editor.sh` una cartella locale che il device riceve solo a bundle interi. E **nessuno l'ha
+deciso**: nasce da T-21, `--viewer-port` diventa opzionale il 2026-07-31 con motivazione scritta
+«eliminare i conflitti di porta in sviluppo», e la frase «editor e runtime sono lo stesso binario»
+compare per la prima volta in un changelog di *packaging*.
 
-1. **Un solo eseguibile server**, `sws-runtime`. I due pacchetti distribuiti (`sws-runtime-*.tar.gz`
-   e `sws-editor-*.tar.gz`) contengono **lo stesso binario**: differiscono solo per il launcher.
-2. `--viewer-port` assente cambia **solo socket e cosmetica** (listener viewer, mDNS, le due opzioni
-   kiosk, la riga «viewer» nella pagina del certificato) più `AppState.ide_only`, che prima di oggi
-   gateava **una cosa sola in tutto il binario**: le tre rotte `/api/ai/config`.
-3. **Tutto il motore gira anche in modalità editor**, senza alcun gate: driver delle sorgenti,
-   valutatore allarmi, historian e recorder, tag derivati Python, cron degli script globali,
-   notifiche email + Telegram, auto-backup, audit. Misurato nei log di `.run-editor-3/`
-   (`source supervisor reload complete`, `historian: SQLite store opened`, `datastore: backend
-   initialized`). **Limite della misura**: il progetto di prova ha 0 sorgenti, quindi `started: 0` —
-   una connessione PLC vera da un'istanza editor **non è stata osservata**.
-4. **Dove vive il progetto: dipende dalla porta da cui si entra.** Sulla 8444 di un dispositivo si
-   modifica il progetto dell'impianto **in presa diretta**, e il Salva fa hot-reload di sorgenti,
-   allarmi e tag senza riavvio né conferma. Con `start_editor.sh` o il pacchetto portabile si
-   modifica una cartella locale, e il dispositivo ne ha una copia sincronizzata **solo a bundle
-   interi** (push `/api/remote/deploy`, pull `/api/remote/project/export`). Nessun endpoint scrive un
-   singolo file di progetto sul dispositivo.
-5. **Nessuno ha mai deciso il binario unico.** Nessun ADR, nessuna riga fra le decisioni congelate di
-   `docs/CONTEXT.md`. Nasce da T-21 (due `TcpListener` nello stesso processo); `--viewer-port` diventa
-   opzionale il 2026-07-31 con motivazione scritta «eliminare i conflitti di porta in sviluppo»; la
-   frase «editor e runtime sono lo stesso binario» compare per la prima volta in un changelog di
-   *packaging* (T-37). La spec prevede due repo e due container.
+**Decisioni del maintainer**: solo disambiguare e documentare (nessuno split, nessun secondo
+binario, motore invariato); l'IDE sul dispositivo resta com'è **ma lo dice**; cancellare il percorso
+container legacy; cancellare i tre percorsi morti nella SPA.
 
-**Le due decisioni del maintainer** (2026-09-01): **solo disambiguare e documentare** — nessuno
-split, nessun secondo binario, nessun motore spento in modalità editor; e **l'IDE sul dispositivo
-resta com'è, ma lo dice**.
+**Cosa c'è nei cinque commit**:
 
-**Fatto e committato** sul ramo (`3ac3fbc`, verde: 363 test Rust, 108 editor, 8 guardie, build):
-`GET /api/system` porta `mode` (`"ide"`/`"runtime"`) da `ide_only`; marcatore in testata quando
-l'istanza serve un impianto, **fuori dal gate di ruolo** perché salvare un sinottico è tier
-Supervisor; card «Modalità» nella scheda Stato, che con un dispositivo connesso dice **la sua**
-modalità (collegare un editor a un altro editor era invisibile); la sezione Assistente non afferma
-più una causa che il 404 non dimostra.
+1. `3ac3fbc` — `GET /api/system` porta `mode` (`"ide"`/`"runtime"`) da `AppState.ide_only`, che prima
+   aveva **un solo lettore** in tutto il binario. Marcatore «Impianto in servizio» in testata,
+   **fuori dal gate di ruolo** (salvare un sinottico è tier Supervisor, ed è chi l'avviso deve
+   raggiungere); card «Modalità» in Stato, che con un dispositivo collegato dice **la sua**;
+   la sezione Assistente non afferma più una causa che il 404 non dimostra.
+2. `381078d` — via la scheda «Connetti runtime remoto» della WelcomeScreen, il badge ARCH-004 di
+   `App.tsx` e `admin/AdminApp.tsx` (225 righe, importato da nessun entry point). Tutti e tre non
+   potevano funzionare: `admin-main.tsx` chiama `setForceLocalApi(true)`. Il modale resta per la sua
+   scheda viva (installazione via SSH) e diventa `InstallaRuntimeModal`. Via anche
+   `setRuntimeBaseUrl`, rimasta senza chiamanti. 13 chiavi i18n orfane rimosse.
+3. `8870b0f` — cancellato il percorso container legacy: `compose.yaml`, `sws-runtime/docker/`,
+   `sws-editor/docker/`, `scripts/build-images.sh`, `docs/DEPLOY_PX30.md`, e il job `docker-build`
+   della CI **per intero** (costruiva e scansionava solo quelle due immagini). Rimandi corretti in
+   **undici** punti.
+4. `5dd0c6f` — l'ADR 0003, la riga mancante fra le decisioni congelate di `CONTEXT.md` §5, il §9
+   stantìo corretto, la divergenza nominata nel box PoC della spec, e `scripts/README.md` che ora
+   dice **dove vive il progetto** e non solo le porte.
+5. `42f5f26` — nota a Q8 col verso opposto (l'editor è un motore) e i costi delle vie non prese;
+   **Q32** (dove deve vivere il progetto) e **Q33** (`system/stop` annullato dal Salva delle
+   Sorgenti), entrambe nuove. Q8 non chiusa.
 
-**Da fare, nell'ordine del piano** (`docs/plans/2026-09-01-editor-runtime.md`, §6):
+**Verificato**: 363 test Rust, 108 editor, 8 guardie, `pnpm build`. Il test nuovo di `system.rs`
+provato **anche nel verso rotto** (un'istanza con viewer che si dichiara `"ide"`). In browser, due
+istanze affiancate: `curl` dice `"mode":"ide"` sulla 8464 e `"mode":"runtime"` sulla 8446, il
+marcatore c'è sulla seconda e non sulla prima, la WelcomeScreen non ha più traccia della scheda
+morta e il modale di installazione funziona ancora.
 
-1. **ADR `docs/adr/0003-editor-runtime-same-binary.md`** + una riga nella tabella «Frozen
-   architectural decisions» di `docs/CONTEXT.md` §5, che oggi ha 24 righe e nessuna sulla divisione
-   fra i due programmi. L'ADR deve dire anche **che la cosa non è stata decisa**, con la cronologia.
-2. **I documenti che dicono il falso**: `docs/CONTEXT.md` §9 (afferma che non ci sono domande aperte
-   oltre Q1-Q7, siamo a Q31); le righe 49-52 qui sotto su Q31 (superate dal commit `8c34b23`, che ha
-   aggiornato CHANGELOG e OPEN_QUESTIONS ma non STATUS); `scripts/README.md`, che dice le porte ma
-   non dove vive il progetto.
-3. **🔴 `README.md:96-105` consiglia una cosa che non funziona.** Indica `compose.yaml` come risposta
-   a «voglio l'editor su Windows», ma quel percorso **non parte**: `sws-runtime/docker/Dockerfile:39`
-   è `CMD ["sws-runtime"]` senza `--viewer-port` e `docker/entrypoint.sh` finisce con `exec "$@"`,
-   quindi il container ascolta solo sulla 8444 mentre `compose.yaml:30` mappa `8443:8443` e
-   l'healthcheck interroga la 8443. Nessuno in ascolto. Ultimo tocco: 2026-05-18.
-4. **Q32** («dove deve vivere il progetto?», mai posta come domanda) + **aggiunta a Q8** con quel che
-   si è misurato e il costo delle vie non prese + **nota su `system/stop` annullato dal Salva** (vedi
-   sotto). Q8 **non si chiude**.
-5. **Solo dopo un sì del maintainer** (cancellano codice): la scheda «Connetti runtime remoto» della
-   WelcomeScreen e il badge in `App.tsx:499-528`, morti perché `admin-main.tsx:12` chiama
-   `setForceLocalApi(true)` e quindi `sws.runtimeBaseUrl` è **ignorato** nell'IDE;
-   `sws-editor/src/admin/AdminApp.tsx` (225 righe), importato da nessun entry point; e i tre file del
-   compose. Da **non** toccare: `DeploySection` (viva) e `VITE_RUNTIME_URL`.
+**Due inciampi da ricordare per la prossima verifica in browser** (stesso genere, due volte):
 
-**Difetto preesistente trovato di passaggio, fuori perimetro e da registrare**: `POST
-/api/system/stop` viene **annullato in silenzio** dal salvataggio della sezione Sorgenti, perché
-`PUT /api/project/sources` (`router.rs:2376`) chiama `supervisor.reload` senza sapere che qualcuno
-aveva fermato l'acquisizione. Chi ferma l'impianto per lavorare e poi salva lo riavvia senza volerlo.
+- Il browser di prova è in **inglese**: cercare solo la stringa italiana fa dire alla misura che il
+  marcatore non c'è («Live plant», non «Impianto in servizio»). È lo stesso errore del menu «AI
+  assistant» della sessione precedente.
+- Il marcatore vive in `RuntimeCtrl`, che sta nella **testata dell'IDE**: senza un progetto aperto
+  la testata non esiste e il marcatore non può comparire. Le due condizioni (WelcomeScreen visibile
+  / marcatore visibile) sono **mutuamente esclusive sulla stessa istanza** e vanno misurate in due
+  passaggi.
 
-**Informazione utile per quando si riprenderà la via «editor senza motore»** (scartata oggi, non
-implementata): costa meno di quanto sembri, perché il motore è quasi tutto **reattivo** — valutatore
-allarmi, tag derivati, dispatcher webhook e i due recorder si svegliano solo su `TagDb::subscribe()`
-e senza driver non fanno nulla. Gli unici pezzi che agiscono da soli sono tre: `SourceSupervisor`,
-`start_project_services` e il loop di auto-backup. Un gate dentro `SourceSupervisor::reload`
-coprirebbe in un colpo tutti e cinque i percorsi di reload. E `POST /api/system/stop` / `/start`
-esistono già, col pulsante già in testata. La perdita che il relay **non** copre è lo storico: le
-letture `/api/history/*` da `SvgCanvas`, `TrendCanvas` e `TrendExpanded` sono same-origin e restano
-locali anche con un dispositivo collegato.
+**Cinque documenti che il piano non aveva elencato** li ha trovati la verifica prevista per questo
+(«una cancellazione si sbaglia per omissione»): il manuale utente insegnava il flusso compose in
+quattro punti, e la sua sezione «Percorso C» prometteva anche il tag
+`ghcr.io/soligolab/sws-runtime:latest`, che **non è pubblicato** (esistono `latest-arm64`,
+`latest-arm64-generic`, `latest-amd64`). Riscritta sul flusso vero.
 
-**Nota di igiene**: il piano contiene in appendice il disegno della chat staccata, che prima viveva
-solo in `~/.claude/plans/` (i piani non viaggiano con git, e il maintainer lavora da due macchine).
-Il rimando nella sezione qui sotto è ora soddisfatto da `docs/plans/2026-09-01-editor-runtime.md`.
+**Correzione a quel che avevo riferito**: il container legacy rotto non era una mia scoperta. Era
+già stato trovato il 2026-07-30, con gli stessi termini, e il job CI disattivato per quella ragione.
+Quel che era rimasto indietro erano i documenti che lo raccomandavano ancora.
+
+**Da fare, quando il maintainer conferma**: squash merge del ramo su `main`.
 
 ---
 
