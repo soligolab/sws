@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { api, AuthError, getRuntimeBaseUrl, NoProjectError, PasswordChangeRequiredError, RuntimeUnavailableError, setRuntimeBaseUrl } from "@/api/client";
+import { api, AuthError, NoProjectError, PasswordChangeRequiredError, RuntimeUnavailableError } from "@/api/client";
 import { ChangePasswordScreen } from "@/components/ChangePasswordScreen";
 import { BrandLogo } from "@/components/BrandLogo";
 import { DirtyIndicator } from "@/components/DirtyIndicator";
@@ -497,43 +497,15 @@ export function App() {
         flexShrink: 0,
       }}>
         <BrandLogo />
-        {(() => {
-          // ARCH-004: remote runtime indicator. Visible only when the SPA is
-          // pointing at a non-default runtime origin. Click to disconnect →
-          // strips localStorage + full reload back to same-origin / proxy.
-          const remote = getRuntimeBaseUrl();
-          if (!remote) return null;
-          // Display only the host:port portion so the header stays compact.
-          let host = remote;
-          try { const u = new URL(remote); host = u.host; } catch { /* ignore */ }
-          return (
-            <button
-              onClick={() => {
-                if (window.confirm(t("header.remoteDisconnectConfirm", { host }))) {
-                  setRuntimeBaseUrl(null);
-                  window.location.reload();
-                }
-              }}
-              title={t("header.remoteConnected", { url: remote })}
-              style={{
-                padding: "2px 8px",
-                background: "#1e3a8a",
-                color: "#bfdbfe",
-                border: "1px solid var(--brand-primary-hover, #2563eb)",
-                borderRadius: 10,
-                cursor: "pointer",
-                fontSize: 11,
-                fontWeight: 600,
-                display: "flex",
-                alignItems: "center",
-                gap: 4,
-              }}
-            >
-              <span>📡</span>
-              <span style={{ fontFamily: "monospace" }}>{host}</span>
-            </button>
-          );
-        })()}
+        {/* Qui stava l'indicatore ARCH-004 del «runtime remoto a cui punta la
+            SPA», con un click per staccarsi. Non poteva accendersi: leggeva
+            `getRuntimeBaseUrl()`, e `admin-main.tsx` chiama
+            `setForceLocalApi(true)`, quindi in questo bundle quella funzione
+            esce sempre con `""`. Un indicatore che non può accendersi è peggio
+            di nessun indicatore, perché fa credere che l'assenza significhi
+            qualcosa. Lo stato del runtime remoto **vero** — quello collegato da
+            Configurazione → Runtime, che passa dal server — lo mostrano il
+            marcatore di `RuntimeCtrl` e la scheda Stato. */}
         <span style={{ color: "var(--brand-border, #475569)", fontSize: 13 }}>
           {t("app.project")}: {project?.meta.name ?? "—"}
         </span>

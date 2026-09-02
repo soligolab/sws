@@ -3,9 +3,11 @@
 // Resolution order:
 //   1. Per-stream override (`VITE_RUNTIME_WS_URL`, etc.) — full URL, takes
 //      precedence so power users can pin individual streams.
-//   2. localStorage runtime override (ARCH-004) — when the user has connected
-//      to a remote runtime via the WelcomeScreen modal, `api.getRuntimeBaseUrl()`
-//      returns its origin and we swap http→ws to derive the WS scheme.
+//   2. localStorage runtime override — `api.getRuntimeBaseUrl()` restituisce
+//      l'origine impostata in `sws.runtimeBaseUrl` e si scambia http→ws per
+//      ricavare lo schema. Nessuna UI scrive più quella chiave (la scheda della
+//      WelcomeScreen che lo faceva non funzionava ed è stata rimossa), e
+//      nell'IDE `_forceLocalApi` la ignora comunque: qui conta per il viewer.
 //   3. `VITE_RUNTIME_URL` env var — build-time default (handled inside
 //      `getRuntimeBaseUrl` already).
 //   4. `window.location` — same-origin (Vite proxy in dev, single-binary in

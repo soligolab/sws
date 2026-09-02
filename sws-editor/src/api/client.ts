@@ -45,24 +45,28 @@ import type {
   AiConfig,
 } from "@/types";
 
-// Runtime URL resolution order (ARCH-002 + ARCH-004):
+// Runtime URL resolution order (ARCH-002):
 //
-//   1. localStorage `sws.runtimeBaseUrl` — user-toggleable at runtime via
-//      the WelcomeScreen "Runtime remoto" modal. Lets the same SPA bundle
-//      connect to different runtimes (laptop ↔ PX30) without rebuilding.
+//   1. localStorage `sws.runtimeBaseUrl` — nessuna UI la scrive più (vedi sotto
+//      e `setForceLocalApi`); resta letta, quindi vale per chi la imposta a mano
+//      e per i bundle che non forzano same-origin, cioè il **viewer**.
 //   2. `VITE_RUNTIME_URL` env var — build-time default for dev workflows
 //      that always target a fixed remote runtime.
 //   3. Empty string → same-origin (Vite proxy in dev, single-binary in
 //      production where the runtime itself serves the SPA).
 //
-// Read on every request so a localStorage change takes effect on the
-// next call (no app reload required for the api layer; the WelcomeScreen
-// does a full `window.location.reload()` anyway to reset auth + project
-// state cleanly when the user switches runtime).
+// Read on every request so a localStorage change takes effect on the next call.
 const RUNTIME_BASE_URL_KEY = "sws.runtimeBaseUrl";
 
 // When true, all API calls use same-origin (ignoring localStorage and VITE_RUNTIME_URL).
-// Set by AdminApp so project management always targets the local server.
+//
+// Chiamata dai due entry point che servono l'IDE e la sua finestra dei log
+// (`admin-main.tsx`, `log-main.tsx`), così la gestione dei progetti punta sempre
+// al server locale. **Non** dal viewer (`main.tsx`), che quindi onora il punto 1.
+//
+// Conseguenza da tenere a mente: nell'IDE il punto 1 è morto per costruzione. È
+// la ragione per cui la scheda «Connetti runtime remoto» della WelcomeScreen non
+// ha mai funzionato ed è stata rimossa.
 let _forceLocalApi = false;
 export function setForceLocalApi(v: boolean) { _forceLocalApi = v; }
 
@@ -81,21 +85,15 @@ export function getRuntimeBaseUrl(): string {
   return getBaseUrl();
 }
 
-/** Switch the SPA to a different runtime origin. Pass `null` (or the
- *  empty string) to revert to same-origin. Caller is responsible for
- *  clearing the auth token and reloading the page — the runtime URL
- *  carries identity (tokens issued by the old runtime are invalid on
- *  the new one). */
-export function setRuntimeBaseUrl(url: string | null): void {
-  if (typeof window === "undefined") return;
-  try {
-    if (url && url.trim() !== "") {
-      window.localStorage.setItem(RUNTIME_BASE_URL_KEY, url.trim().replace(/\/$/, ""));
-    } else {
-      window.localStorage.removeItem(RUNTIME_BASE_URL_KEY);
-    }
-  } catch { /* ignore */ }
-}
+// Qui c'era `setRuntimeBaseUrl(url)`, che scriveva la chiave sopra. È stata
+// tolta con la scheda «Connetti runtime remoto» della WelcomeScreen: era il suo
+// unico chiamante, e in questo bundle non poteva funzionare (vedi
+// `_forceLocalApi` sopra). Un setter esportato e mai chiamato non è neutro —
+// invita chi lo trova a rifare la stessa strada.
+//
+// Collegare un runtime remoto si fa in Configurazione → Runtime → Connetti,
+// che passa dal server: `POST /api/remote/connect` tiene il token nel processo
+// locale invece che nel browser, e abilita deploy e relay dei dati vivi.
 
 // Session token cache. Set by `setAuthToken` on login / store hydration;
 // read on every `request()` call so that protected routes carry the

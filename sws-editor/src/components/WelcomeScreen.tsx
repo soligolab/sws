@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { api, getRuntimeBaseUrl, setRuntimeBaseUrl } from "@/api/client";
+import { api } from "@/api/client";
 import type { BrowseDirEntry, ProjectListEntry, ProjectTargetKind, TemplateEntry } from "@/types";
 
 // ── styles ────────────────────────────────────────────────────────────────────
@@ -538,7 +538,7 @@ function NewProjectModal({
   );
 }
 
-// ── RemoteRuntimeModal ────────────────────────────────────────────────────────
+// ── InstallaRuntimeModal ──────────────────────────────────────────────────────
 //
 // ARCH-004: switch the SPA to a different runtime URL without rebuilding.
 // Probes `/health` over the supplied origin (CORS allows it since the
@@ -725,66 +725,32 @@ function DeploySection() {
   );
 }
 
-function RemoteRuntimeModal({
-  current,
-  onClose,
-}: {
-  current: string;
-  onClose: () => void;
-}) {
+/**
+ * Installare il runtime su un dispositivo, dalla schermata iniziale.
+ *
+ * # Cosa c'era prima, e perché è stato tolto
+ *
+ * Questo modale aveva due schede. La seconda — questa — installa il binario via
+ * SSH e funziona. La prima, «Connetti», scriveva `localStorage
+ * sws.runtimeBaseUrl` e ricaricava la pagina per far puntare *tutta* la SPA a un
+ * altro runtime: e **non funzionava**, perché `admin-main.tsx` chiama
+ * `setForceLocalApi(true)` e quindi `getBaseUrl()` esce sempre con `""`.
+ * Qualunque cosa si inserisse, il footer continuava a dire «runtime locale».
+ *
+ * Non era solo inerte, era un doppione: collegare un runtime remoto si fa in
+ * Configurazione → Runtime → Connetti, che passa dal server (il token resta nel
+ * processo locale, mai nel browser) e abilita deploy e relay dei dati vivi. Due
+ * modi per la stessa cosa, di cui uno rotto, sono peggio di uno solo.
+ *
+ * # Perché la schermata iniziale ha comunque una sua installazione
+ *
+ * `ConfigView` ne ha una (`Installa su dispositivo`, `/api/deploy/device`), ma
+ * ConfigView richiede un progetto aperto. Qui non c'è nessun progetto: è il caso
+ * «macchina nuova, niente ancora configurato», e usa un endpoint diverso
+ * (`/api/deploy/remote`). Non è un doppione.
+ */
+function InstallaRuntimeModal({ onClose }: { onClose: () => void }) {
   const { t } = useTranslation();
-  const [tab, setTab]         = useState<"connect" | "deploy">("connect");
-  const [url, setUrl]         = useState(current);
-  const [probing, setProbing] = useState(false);
-  const [probed, setProbed]   = useState<"ok" | "fail" | null>(null);
-  const [error, setError]     = useState<string | null>(null);
-
-  const normalised = url.trim().replace(/\/$/, "");
-
-  const probe = async () => {
-    if (!normalised) return;
-    setProbing(true); setProbed(null); setError(null);
-    try {
-      const res = await fetch(`${normalised}/health`, { method: "GET" });
-      if (res.ok) {
-        setProbed("ok");
-      } else {
-        setProbed("fail");
-        setError(`Il runtime ha risposto ${res.status} ${res.statusText}. URL valido ma /health non OK.`);
-      }
-    } catch (e: any) {
-      setProbed("fail");
-      const msg = String(e?.message ?? e);
-      if (msg.includes("Failed to fetch") || msg.includes("NetworkError")) {
-        setError(`Connessione fallita. Possibili cause: runtime spento, URL errato, oppure certificato self-signed mai accettato in questo browser. Apri ${normalised}/health in una nuova scheda e accetta il certificato, poi riprova.`);
-      } else {
-        setError(msg);
-      }
-    } finally {
-      setProbing(false);
-    }
-  };
-
-  const connect = () => {
-    setRuntimeBaseUrl(normalised);
-    window.location.reload();
-  };
-
-  const reset = () => {
-    setRuntimeBaseUrl(null);
-    window.location.reload();
-  };
-
-  const TAB_BTN = (active: boolean): React.CSSProperties => ({
-    padding: "6px 16px",
-    background: active ? "#1e3a8a" : "transparent",
-    color: active ? "#bfdbfe" : "var(--brand-text-muted, #94a3b8)",
-    border: active ? "1px solid var(--brand-primary-hover, #2563eb)" : "1px solid transparent",
-    borderRadius: 6,
-    cursor: "pointer",
-    fontSize: 13,
-    fontWeight: active ? 600 : 400,
-  });
 
   return (
     <div style={{
@@ -798,82 +764,14 @@ function RemoteRuntimeModal({
         width: 520, maxWidth: "92vw",
       }} onClick={(e) => e.stopPropagation()}>
         <div style={{ fontSize: 18, fontWeight: 700, color: "var(--brand-text, #e2e8f0)", marginBottom: 12 }}>
-          {t("welcome.remoteRuntimeTitle")}
+          {t("welcome.installRuntimeTitle")}
         </div>
 
-        {/* Tab selector */}
-        <div style={{ display: "flex", gap: 6, marginBottom: 16 }}>
-          <button style={TAB_BTN(tab === "connect")} onClick={() => setTab("connect")}>{t("welcome.connect")}</button>
-          <button style={TAB_BTN(tab === "deploy")} onClick={() => setTab("deploy")}>{t("welcome.deployBinary")}</button>
+        <DeploySection />
+
+        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 12 }}>
+          <button style={BTN_GHOST} onClick={onClose}>{t("common.close")}</button>
         </div>
-
-        {tab === "connect" && (
-          <>
-            <div style={{ fontSize: 12, color: "var(--brand-text-subtle, #64748b)", marginBottom: 16 }}>
-              Connetti l'editor a un runtime SWS in esecuzione su un'altra macchina
-              (tipicamente il PX30 sul campo). L'URL viene salvato nel browser
-              (localStorage) e usato da tutte le chiamate API/WS finché non lo
-              ripristini al locale.
-            </div>
-
-            <label style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "block", marginBottom: 4 }}>
-              {t("welcome.runtimeUrl")}
-            </label>
-            <div style={{ display: "flex", gap: 8, marginBottom: 4 }}>
-              <input
-                style={{ ...INPUT, flex: 1 }}
-                placeholder="https://px30.local:8443"
-                value={url}
-                onChange={(e) => { setUrl(e.target.value); setProbed(null); setError(null); }}
-                autoFocus
-              />
-              <button
-                style={{ ...BTN_GHOST, padding: "8px 14px" }}
-                onClick={probe}
-                disabled={!normalised || probing}
-              >
-                {probing ? t("welcome.testing") : t("common.test")}
-              </button>
-            </div>
-            {probed === "ok" && (
-              <div style={{ fontSize: 12, color: "var(--brand-success, #22c55e)", marginBottom: 8 }}>
-                {t("welcome.healthOk")}
-              </div>
-            )}
-            {probed === "fail" && error && (
-              <div style={{ fontSize: 12, color: "var(--brand-danger-soft, #fca5a5)", marginBottom: 8, lineHeight: 1.4 }}>
-                {error}
-              </div>
-            )}
-
-            <div style={{ display: "flex", gap: 8, marginTop: 16, justifyContent: "flex-end" }}>
-              {current && (
-                <button
-                  style={{ ...BTN_GHOST, marginRight: "auto" }}
-                  onClick={reset}
-                  title={t("welcome.restoreLocal")}
-                >
-                  {t("welcome.backToLocal")}
-                </button>
-              )}
-              <button style={BTN_GHOST} onClick={onClose}>{t("common.cancel")}</button>
-              <button
-                style={{ ...BTN_PRIMARY, opacity: probed === "ok" ? 1 : 0.5 }}
-                onClick={connect}
-                disabled={probed !== "ok"}
-              >{t("welcome.connect")}</button>
-            </div>
-          </>
-        )}
-
-        {tab === "deploy" && (
-          <>
-            <DeploySection />
-            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 12 }}>
-              <button style={BTN_GHOST} onClick={onClose}>{t("common.close")}</button>
-            </div>
-          </>
-        )}
       </div>
     </div>
   );
@@ -896,10 +794,9 @@ export function WelcomeScreen({ onProjectOpened }: WelcomeScreenProps) {
   const [error, setError]         = useState<string | null>(null);
   const [showNew, setShowNew]     = useState(false);
   const [newTab, setNewTab]       = useState<NewProjectTab>("empty");
-  const [showRuntime, setShowRuntime] = useState(false);
+  const [showInstalla, setShowInstalla] = useState(false);
   const [editing, setEditing]     = useState<EditingState | null>(null);
   const [actionBusy, setActionBusy] = useState<string | null>(null);
-  const remoteRuntime             = getRuntimeBaseUrl();
 
   const loadProjects = async () => {
     setLoading(true);
@@ -995,12 +892,7 @@ export function WelcomeScreen({ onProjectOpened }: WelcomeScreenProps) {
           initialTab={newTab}
         />
       )}
-      {showRuntime && (
-        <RemoteRuntimeModal
-          current={remoteRuntime}
-          onClose={() => setShowRuntime(false)}
-        />
-      )}
+      {showInstalla && <InstallaRuntimeModal onClose={() => setShowInstalla(false)} />}
 
       <div style={{ width: 480, maxWidth: "90vw" }}>
         {/* logo / title */}
@@ -1196,36 +1088,25 @@ export function WelcomeScreen({ onProjectOpened }: WelcomeScreenProps) {
           </button>
         </div>
 
-        {/* runtime selector — small footer row */}
+        {/* Riga in fondo: l'unica via al modale di installazione.
+            Prima diceva a quale runtime puntava la SPA («runtime locale» /
+            «connesso a X»), ma quel dato non poteva cambiare — vedi il commento
+            di `InstallaRuntimeModal`. Ora dice l'unica cosa che qui si può
+            davvero fare. Collegare un runtime remoto vive in Configurazione →
+            Runtime, dove funziona. */}
         <div style={{
           marginTop: 20, paddingTop: 14,
           borderTop: "1px solid var(--brand-surface, #1e293b)",
           display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
           fontSize: 12, color: "var(--brand-text-subtle, #64748b)",
         }}>
-          {remoteRuntime ? (
-            <>
-              <span style={{ fontSize: 14 }}>📡</span>
-              <span>{t("welcome.connectedTo")}</span>
-              <span style={{ color: "var(--brand-primary, #3b82f6)", fontFamily: "monospace" }}>{remoteRuntime}</span>
-              <button
-                style={{ background: "transparent", border: "none", color: "var(--brand-text-muted, #94a3b8)", cursor: "pointer", fontSize: 11, textDecoration: "underline dotted" }}
-                onClick={() => setShowRuntime(true)}
-              >
-                cambia
-              </button>
-            </>
-          ) : (
-            <>
-              <span>{t("welcome.localRuntime")}</span>
-              <button
-                style={{ background: "transparent", border: "none", color: "var(--brand-primary, #3b82f6)", cursor: "pointer", fontSize: 12, textDecoration: "underline dotted" }}
-                onClick={() => setShowRuntime(true)}
-              >
-                {t("welcome.connectRemote")}
-              </button>
-            </>
-          )}
+          <span style={{ fontSize: 14 }}>📦</span>
+          <button
+            style={{ background: "transparent", border: "none", color: "var(--brand-primary, #3b82f6)", cursor: "pointer", fontSize: 12, textDecoration: "underline dotted" }}
+            onClick={() => setShowInstalla(true)}
+          >
+            {t("welcome.installRuntime")}
+          </button>
         </div>
       </div>
     </div>
