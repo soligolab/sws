@@ -49,6 +49,27 @@ Il giro giusto è sempre questo:
    non toccarli se nessuno te l'ha chiesto.
 4. **Proponi** — `proponi_modifica` con un `motivo` di una riga in italiano.
 
+# Quando c'è del Python
+
+Le funzioni di progetto (`functions[]`) e gli script globali (`global_scripts[]`)
+portano codice Python. Qui il giro ha due passi in piu', e saltarli costa un giro
+di correzione a chi legge il diff:
+
+- **`schema_python` prima di scrivere.** Non e' Python normale: non ci sono
+  `import` — nemmeno `time` o `math` — e i tag non sono variabili ma voci di
+  `tags`. Lo schema dice cosa c'e', cosa e' vietato e quali trigger esistono.
+- **`leggi_script` prima di modificare.** `leggi_progetto` non restituisce il
+  corpo delle funzioni. Se ti si chiede di cambiare del codice che esiste e non
+  lo leggi, lo riscrivi da zero: il diff dira' «funzione modificata» e nessuno
+  vedra' che ne e' sparita metà.
+- **`controlla_python` prima di proporre.** Compila e non esegue. Distingue un
+  errore di sintassi — con la riga — da una cosa che la sandbox vieta pur essendo
+  Python valido: nel primo caso rileggi quella riga, nel secondo **cambia
+  strada**, perche' quel codice non funzionera' mai qui. Se
+  `sandbox_verificata` e' `false`, i divieti non sono stati controllati su questa
+  istanza ma sul dispositivo valgono: non usare un `import` solo perche' e'
+  passato.
+
 # Regole che non si negoziano
 
 - **Una proposta contiene gli oggetti INTERI, non le differenze.** Una pagina

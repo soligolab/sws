@@ -525,3 +525,266 @@ fn json_map_to_pydict<'py>(
     }
     Ok(out)
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Compilare senza eseguire
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// L'harness del solo controllo: **compila e non esegue**.
+///
+/// Due compilazioni, in quest'ordine, e la ragione è che l'ordine è l'unica cosa
+/// che permette di distinguere i due guasti:
+///
+///  1. `compile()` normale. Se fallisce, il codice **non è Python valido**: è un
+///     errore di sintassi, con riga e colonna.
+///  2. solo se la prima è passata e la sandbox c'è, `compile_restricted()`. Se
+///     fallisce **qui**, il codice è Python valido ma usa qualcosa che
+///     RestrictedPython vieta (un `import`, un dunder, un `exec`).
+///
+/// Senza la separazione, `compile_restricted` da sola solleva `SyntaxError` per
+/// entrambi i casi, e chi legge il messaggio non sa se ha scritto male una riga
+/// o se ha chiesto una cosa che qui non si può fare. Per un assistente che deve
+/// correggersi da sé è la differenza fra «rileggi la sintassi» e «cambia
+/// approccio».
+const CHECK_HARNESS: &str = r#"
+__sws_syntax__ = None
+__sws_vietato__ = None
+__sws_riga__ = None
+__sws_colonna__ = None
+
+try:
+    compile(__sws_user_source__, '<check>', 'exec')
+except SyntaxError as _e:
+    __sws_syntax__ = f'{type(_e).__name__}: {_e.msg}'
+    __sws_riga__ = _e.lineno
+    __sws_colonna__ = _e.offset
+except BaseException as _e:
+    __sws_syntax__ = f'{type(_e).__name__}: {_e}'
+
+if __sws_syntax__ is None and __sws_sandbox__:
+    try:
+        from RestrictedPython import compile_restricted
+        compile_restricted(__sws_user_source__, '<check>', 'exec')
+    except SyntaxError as _e:
+        # RestrictedPython impacchetta i suoi divieti come SyntaxError, con i
+        # messaggi già in forma «Line N: ...». Si passa il testo così com'è:
+        # riscriverlo perderebbe il numero di riga che ci mette dentro.
+        __sws_vietato__ = str(_e.msg if _e.msg else _e)
+        __sws_riga__ = _e.lineno
+    except ImportError:
+        # La sandbox è stata rilevata all'avvio ma il modulo ora non c'è: non si
+        # afferma niente sul divieto, invece di dire che il codice va bene.
+        __sws_vietato__ = None
+    except BaseException as _e:
+        __sws_vietato__ = f'{type(_e).__name__}: {_e}'
+"#;
+
+/// Un rilievo del solo controllo di compilazione.
+#[derive(Debug, Clone, Serialize, PartialEq)]
+pub struct CheckRilievo {
+    /// Riga 1-based, quando Python la fornisce.
+    pub riga: Option<u32>,
+    pub colonna: Option<u32>,
+    pub messaggio: String,
+    /// `true` = Python valido, ma vietato dalla sandbox. `false` = sintassi.
+    ///
+    /// È la distinzione che rende il rilievo azionabile: per un errore di
+    /// sintassi si rilegge la riga, per un divieto si cambia strada.
+    pub vietato: bool,
+}
+
+/// Esito di `Engine::check`.
+#[derive(Debug, Clone, Serialize, PartialEq)]
+pub struct CheckOutput {
+    pub ok: bool,
+    /// Il controllo del divieto è stato fatto? `false` = RestrictedPython non
+    /// c'è (tipico del PC di sviluppo), quindi un `import` passerebbe qui e
+    /// verrebbe rifiutato **sul dispositivo**. Va detto, non taciuto.
+    pub sandbox_verificata: bool,
+    pub rilievi: Vec<CheckRilievo>,
+}
+
+impl Engine {
+    /// Compila `code` e **non lo esegue**: nessun tag letto o scritto, nessun
+    /// `print`, nessun `send_telegram`, nessun timeout da armare.
+    ///
+    /// Esiste perché l'unico modo di sapere se uno script sta in piedi era
+    /// **eseguirlo** — cioè accettare che una prova avesse effetti sull'impianto.
+    /// Serve all'assistente per correggersi da sé, come già fa `valida` per la
+    /// struttura, e serve al maintainer anche senza assistente.
+    pub async fn check(&self, code: String) -> CheckOutput {
+        let sandbox = self.is_sandboxed();
+        let esito = tokio::task::spawn_blocking(move || check_in_python(sandbox, code)).await;
+        match esito {
+            Ok(v) => v,
+            Err(e) => CheckOutput {
+                ok: false,
+                sandbox_verificata: false,
+                rilievi: vec![CheckRilievo {
+                    riga: None, colonna: None, vietato: false,
+                    messaggio: format!("il controllo non è potuto girare: {e}"),
+                }],
+            },
+        }
+    }
+}
+
+fn check_in_python(sandbox: bool, code: String) -> CheckOutput {
+    let vuoto = code.trim().is_empty();
+    if vuoto {
+        // Un corpo vuoto compila e non fa niente. Dirlo è più utile di un `ok`
+        // silenzioso: chi ha chiesto il controllo si aspettava del codice.
+        return CheckOutput {
+            ok: true, sandbox_verificata: sandbox,
+            rilievi: vec![CheckRilievo {
+                riga: None, colonna: None, vietato: false,
+                messaggio: "il codice è vuoto: compila, ma non fa niente.".into(),
+            }],
+        };
+    }
+
+    let r = Python::with_gil(|py| -> PyResult<CheckOutput> {
+        let globals = PyDict::new(py);
+        globals.set_item("__sws_user_source__", &code)?;
+        globals.set_item("__sws_sandbox__", sandbox)?;
+
+        let c = CString::new(CHECK_HARNESS)
+            .expect("CHECK_HARNESS contains a NUL byte — should not happen");
+        py.run(c.as_c_str(), Some(&globals), None)?;
+
+        let leggi_str = |k: &str| -> Option<String> {
+            globals.get_item(k).ok().flatten()
+                .and_then(|v| if v.is_none() { None } else { v.extract::<String>().ok() })
+        };
+        let leggi_u32 = |k: &str| -> Option<u32> {
+            globals.get_item(k).ok().flatten()
+                .and_then(|v| if v.is_none() { None } else { v.extract::<u32>().ok() })
+        };
+
+        let riga = leggi_u32("__sws_riga__");
+        let colonna = leggi_u32("__sws_colonna__");
+
+        let mut rilievi = Vec::new();
+        if let Some(m) = leggi_str("__sws_syntax__") {
+            rilievi.push(CheckRilievo { riga, colonna, messaggio: m, vietato: false });
+        } else if let Some(m) = leggi_str("__sws_vietato__") {
+            rilievi.push(CheckRilievo { riga, colonna: None, messaggio: m, vietato: true });
+        }
+
+        Ok(CheckOutput { ok: rilievi.is_empty(), sandbox_verificata: sandbox, rilievi })
+    });
+
+    r.unwrap_or_else(|e| {
+        let msg = Python::with_gil(|py| e.value(py).to_string());
+        CheckOutput {
+            ok: false, sandbox_verificata: false,
+            rilievi: vec![CheckRilievo {
+                riga: None, colonna: None, vietato: false,
+                messaggio: format!("il controllo non è potuto girare: {msg}"),
+            }],
+        }
+    })
+}
+
+#[cfg(test)]
+mod tests_check {
+    use super::*;
+    use sws_core::{TagDb, TagWriteBus};
+
+    fn motore() -> Engine {
+        Engine::new(Arc::new(TagDb::new(16)), Arc::new(TagWriteBus::new()))
+    }
+
+    #[tokio::test]
+    async fn codice_valido_passa() {
+        let e = motore();
+        let out = e.check("x = 1 + 1\nprint(x)\n".into()).await;
+        assert!(out.ok, "rilievi inattesi: {:?}", out.rilievi);
+        assert!(out.rilievi.is_empty());
+    }
+
+    #[tokio::test]
+    async fn errore_di_sintassi_porta_la_riga_e_non_e_un_divieto() {
+        let e = motore();
+        // `if` senza `:` — sbagliato alla terza riga, non alla prima: senza il
+        // numero di riga un rilievo su uno script di cinquanta righe è inutile.
+        let out = e.check("a = 1\nb = 2\nif a > b\n    pass\n".into()).await;
+        assert!(!out.ok);
+        assert_eq!(out.rilievi.len(), 1);
+        let r = &out.rilievi[0];
+        assert_eq!(r.riga, Some(3), "riga sbagliata in {r:?}");
+        assert!(!r.vietato, "un errore di sintassi non è un divieto della sandbox");
+        assert!(r.messaggio.contains("SyntaxError"), "{}", r.messaggio);
+    }
+
+    #[tokio::test]
+    async fn il_codice_vuoto_lo_dice_invece_di_tacere() {
+        let e = motore();
+        let out = e.check("   \n\n".into()).await;
+        assert!(out.ok, "un corpo vuoto compila");
+        assert_eq!(out.rilievi.len(), 1, "ma va detto che non fa niente");
+        assert!(!out.rilievi[0].vietato);
+    }
+
+    /// Il caso che dà valore alla separazione: Python valido, vietato qui.
+    ///
+    /// # Perché non si salta in silenzio
+    ///
+    /// La prima stesura faceva `return` quando RestrictedPython mancava — e
+    /// sul PC di sviluppo manca, quindi il test **passava senza provare
+    /// niente**: verde, e cieco esattamente sul comportamento per cui esiste.
+    /// È la stessa trappola dei `check_*.sh` che nessuno lanciava.
+    ///
+    /// Ora asserisce in **entrambi** i rami, e ciascuno dice una cosa vera:
+    /// con la sandbox, un `import` è vietato; senza, passa **e** il campo
+    /// `sandbox_verificata` lo dichiara. Il secondo ramo non è un ripiego: è la
+    /// garanzia che l'istanza non finga di aver controllato.
+    #[tokio::test]
+    async fn un_import_e_vietato_dalla_sandbox_e_senza_sandbox_lo_si_dichiara() {
+        let e = motore();
+        let out = e.check("import os\nos.system('ls')\n".into()).await;
+
+        if e.is_sandboxed() {
+            assert!(!out.ok, "con la sandbox un import va rifiutato");
+            assert_eq!(out.rilievi.len(), 1);
+            assert!(out.rilievi[0].vietato,
+                    "deve risultare **vietato**, non un errore di sintassi: {:?}",
+                    out.rilievi[0]);
+            assert!(out.sandbox_verificata);
+        } else {
+            // Senza RestrictedPython l'import è Python valido e passa. Il punto
+            // non è che passi — è che l'esito **dica** di non aver controllato,
+            // perché sul dispositivo lo stesso codice viene rifiutato.
+            assert!(out.ok, "senza sandbox `import os` è Python valido: {:?}", out.rilievi);
+            assert!(!out.sandbox_verificata,
+                    "senza sandbox l'esito non deve far credere di aver verificato i divieti");
+        }
+    }
+
+    #[tokio::test]
+    async fn senza_sandbox_lo_dichiara_invece_di_far_credere_di_aver_controllato() {
+        let e = motore();
+        let out = e.check("x = 1\n".into()).await;
+        // Qualunque sia la macchina, il campo deve *dire* com'è andata: è la
+        // differenza fra «controllato» e «non controllabile qui», e su un
+        // dispositivo con la sandbox lo stesso codice può essere rifiutato.
+        assert_eq!(out.sandbox_verificata, e.is_sandboxed());
+    }
+
+    #[tokio::test]
+    async fn il_controllo_non_esegue() {
+        // La prova che conta: se `check` eseguisse, questo scriverebbe il tag.
+        let db = Arc::new(TagDb::new(16));
+        let bus = Arc::new(TagWriteBus::new());
+        db.set("t".into(), sws_core::TagValue::Int(0), sws_core::TagQuality::Good).await;
+        let e = Engine::new(db.clone(), bus);
+
+        let out = e.check("tags['t'] = 42\nprint('sono girato')\n".into()).await;
+        assert!(out.ok, "il codice è valido: {:?}", out.rilievi);
+
+        let dopo = db.snapshot().await;
+        let v = dopo.get("t").map(|s| s.value.clone());
+        assert_ne!(v, Some(sws_core::TagValue::Int(42)),
+                   "check ha ESEGUITO il codice: ha scritto il tag");
+    }
+}

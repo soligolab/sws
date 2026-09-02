@@ -301,6 +301,8 @@ pub fn build(
         // Recipe apply — writes multiple tags atomically
         .route("/api/recipes/:id/apply",  post(apply_recipe))
         .route("/api/script/exec",     post(exec_script))
+        // Compila e non esegue: strumento di progettazione, nessun effetto.
+        .route("/api/script/check",    post(check_script))
         .route("/api/script/run/:name", post(run_function))
         // Logs — read-only but Operator+ so the audit surface stays
         // narrow (logs may include schema/secret hints).
@@ -1216,6 +1218,33 @@ async fn exec_script(
             })
         }
     }
+}
+
+/// `POST /api/script/check` — compila senza eseguire.
+///
+/// # Perché serviva
+///
+/// Prima di questo, l'unico modo di sapere se uno script Python stava in piedi
+/// era **eseguirlo** (`/api/script/exec`): su un dispositivo in servizio vuol
+/// dire accettare che una prova scriva i tag e faccia partire quel che lo script
+/// fa partire. Qui non gira niente — nessun tag letto o scritto, nessun `print`,
+/// nessun `send_telegram`, nessun timeout da armare.
+///
+/// Serve all'assistente per correggersi da sé, come già fa `valida` per la
+/// struttura del progetto, e serve al maintainer anche senza assistente.
+///
+/// # Perché non è dietro il gate di `--no-admin`
+///
+/// `/api/script/exec` viene tolto in modalità operator-only perché esegue codice
+/// arbitrario. Questo no: non ha effetti. Sta comunque solo sul router admin,
+/// perché è uno strumento di progettazione e il viewer non ne ha bisogno.
+async fn check_script(
+    State(s): State<AppState>,
+    Json(body): Json<ScriptBody>,
+) -> Json<sws_pyscript::CheckOutput> {
+    // Nessuna voce di audit: non c'è niente da attribuire, non essendoci nessun
+    // effetto. `script.exec` la registra perché quella esegue.
+    Json(s.py.check(body.code).await)
 }
 
 // ── Historian endpoints ──────────────────────────────────────────────────────
