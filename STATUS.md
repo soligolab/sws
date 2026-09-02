@@ -25,6 +25,35 @@
 > 2. 🔴 **Il clone su theobroma è ora una storia divergente.** Ha gli hash vecchi su `main` e
 >    su entrambi i rami. Se da lì si pusha qualcosa, la storia vecchia torna su GitHub.
 >    Theobroma va trattato come **sola lettura**: per ripartire da quella macchina, ri-clonare.
+>
+> **Come si rimette in pari una macchina che era ferma da prima** (fatto sull'ufficio il
+> 2026-09-02; serve una volta per macchina, e `git pull` da solo **non basta**):
+>
+> ```bash
+> git checkout main
+> git log origin/main..main --oneline --stat   # cosa hai solo tu
+> ```
+>
+> Se quel commit aggiunge contenuto che su `origin/main` c'è già — si verifica confrontando
+> `git rev-parse main:<file>` con `git rev-parse origin/main:<file>`, e se gli hash coincidono
+> è byte per byte lo stesso — è la versione pre-riscrittura dello stesso lavoro e si butta con
+> `git reset --hard origin/main`. Se invece è lavoro mai arrivato su origin, **prima**
+> `git branch salvataggio-<macchina>-<data>`.
+>
+> Poi i **tag**, che è la parte che sfugge:
+>
+> ```bash
+> git fetch --tags --force
+> ```
+>
+> Senza `--force` git li **rifiuta** («sovrascriverebbe il tag esistente») e li lascia puntati
+> alla storia vecchia: `git describe` e `git show <tag>` mostrerebbero commit che su GitHub non
+> esistono più. All'ufficio erano undici. I tag nuovi (`2.4.0` e successivi) passano senza
+> `--force`, perché non hanno un omonimo locale — quindi il problema si vede solo sui vecchi, ed
+> è facile crederlo risolto.
+>
+> Restano da guardare, su quella macchina, i rami di lavoro anteriori al 2026-08-31: non danno
+> fastidio finché nessuno li tocca, ma un push o un merge da lì rimetterebbe dentro dei doppioni.
 
 ## ▶ Da fare nella prossima sessione
 
