@@ -532,27 +532,52 @@ fn json_map_to_pydict<'py>(
 
 /// L'harness del solo controllo: **compila e non esegue**.
 ///
-/// Due compilazioni, in quest'ordine, e la ragione è che l'ordine è l'unica cosa
-/// che permette di distinguere i due guasti:
+/// Tre passi, in quest'ordine, e ognuno coglie una cosa che gli altri non vedono:
 ///
 ///  1. `compile()` normale. Se fallisce, il codice **non è Python valido**: è un
 ///     errore di sintassi, con riga e colonna.
-///  2. solo se la prima è passata e la sandbox c'è, `compile_restricted()`. Se
-///     fallisce **qui**, il codice è Python valido ma usa qualcosa che
-///     RestrictedPython vieta (un `import`, un dunder, un `exec`).
+///  2. `compile_restricted()`, se la sandbox c'è: i costrutti che rifiuta a
+///     compilazione (dunder, `exec`, `eval`).
+///  3. una passata sull'**AST**, sempre.
 ///
-/// Senza la separazione, `compile_restricted` da sola solleva `SyntaxError` per
-/// entrambi i casi, e chi legge il messaggio non sa se ha scritto male una riga
-/// o se ha chiesto una cosa che qui non si può fare. Per un assistente che deve
-/// correggersi da sé è la differenza fra «rileggi la sintassi» e «cambia
-/// approccio».
+/// # Perché il passo 3 non è ridondante
+///
+/// Misurato con RestrictedPython 8.5: `compile_restricted` rifiuta i dunder,
+/// `exec` ed `eval` — e **compila senza dire niente** `import os` e `open(...)`.
+/// Non è un difetto suo: quei due non sono costrutti proibiti, sono **nomi che a
+/// esecuzione non esistono**, perché `safe_builtins` non fornisce né
+/// `__import__` né `open`. Il guasto arriva quindi come `NameError` a runtime,
+/// che è precisamente ciò che questo controllo esiste per non dover provocare.
+///
+/// La prima stesura si fermava al passo 2 e affermava di cogliere gli import.
+/// Non era vero, e il test scritto per quel ramo l'ha dimostrato **appena
+/// RestrictedPython è stata installata**: prima si saltava, quindi quel ramo non
+/// l'aveva mai eseguito nessuno.
+///
+/// Il passo 3 resta **stretto di proposito**: gli `import`, e un elenco di nomi
+/// verificato contro `safe_builtins` invece di essere cablato. Non è un controllo
+/// generale dei nomi non definiti, e la ragione è concreta: i `params` di una
+/// funzione di progetto vengono iniettati come globali a esecuzione, quindi un
+/// controllo largo segnalerebbe come inesistente ogni parametro — e i falsi
+/// allarmi insegnano a ignorare lo strumento.
+///
+/// # Perché la distinzione fra i due guasti conta
+///
+/// Un errore di sintassi si corregge rileggendo la riga; un divieto no — quel
+/// codice è Python valido e va cambiato approccio. Per un assistente che deve
+/// correggersi da sé è la differenza fra cercare una virgola e cambiare strada.
 const CHECK_HARNESS: &str = r#"
+import ast, warnings
+
 __sws_syntax__ = None
 __sws_vietato__ = None
 __sws_riga__ = None
 __sws_colonna__ = None
+__sws_albero__ = None
+__sws_safe__ = None
 
 try:
+    __sws_albero__ = ast.parse(__sws_user_source__, '<check>', 'exec')
     compile(__sws_user_source__, '<check>', 'exec')
 except SyntaxError as _e:
     __sws_syntax__ = f'{type(_e).__name__}: {_e.msg}'
@@ -563,8 +588,14 @@ except BaseException as _e:
 
 if __sws_syntax__ is None and __sws_sandbox__:
     try:
-        from RestrictedPython import compile_restricted
-        compile_restricted(__sws_user_source__, '<check>', 'exec')
+        from RestrictedPython import compile_restricted, safe_builtins
+        __sws_safe__ = safe_builtins
+        with warnings.catch_warnings():
+            # RestrictedPython avvisa di cose benigne (per esempio «Prints, but
+            # never reads 'printed' variable»): non sono divieti, e riportarli
+            # come tali finirebbe addosso a codice corretto.
+            warnings.simplefilter('ignore')
+            compile_restricted(__sws_user_source__, '<check>', 'exec')
     except SyntaxError as _e:
         # RestrictedPython impacchetta i suoi divieti come SyntaxError, con i
         # messaggi già in forma «Line N: ...». Si passa il testo così com'è:
@@ -577,6 +608,32 @@ if __sws_syntax__ is None and __sws_sandbox__:
         __sws_vietato__ = None
     except BaseException as _e:
         __sws_vietato__ = f'{type(_e).__name__}: {_e}'
+
+# ── 3. Nomi che a esecuzione non esisteranno ─────────────────────────────────
+if __sws_syntax__ is None and __sws_vietato__ is None and __sws_albero__ is not None:
+    __sws_candidati__ = ['open', '__import__', 'compile', 'input', 'globals',
+                         'locals', 'vars', 'dir', 'eval', 'exec', 'breakpoint',
+                         'memoryview', 'help', 'exit', 'quit']
+    __sws_forniti__ = ['tags', 'send_telegram', 'print']
+    for _n in ast.walk(__sws_albero__):
+        if isinstance(_n, (ast.Import, ast.ImportFrom)):
+            _quali = ', '.join(a.name for a in _n.names) if _n.names else '?'
+            __sws_vietato__ = (f'Line {_n.lineno}: gli import non sono disponibili '
+                               f'nella sandbox (`{_quali}`). Niente `os`, `time`, '
+                               f'`math`, `requests`: usa `tags` per i dati e le '
+                               f'funzioni di progetto per il resto.')
+            __sws_riga__ = _n.lineno
+            break
+        if isinstance(_n, ast.Name) and isinstance(_n.ctx, ast.Load):
+            if _n.id in __sws_forniti__:
+                continue
+            if _n.id in __sws_candidati__:
+                if __sws_safe__ is not None and _n.id in __sws_safe__:
+                    continue
+                __sws_vietato__ = (f'Line {_n.lineno}: `{_n.id}` non esiste nella '
+                                   f'sandbox: a esecuzione darebbe NameError.')
+                __sws_riga__ = _n.lineno
+                break
 "#;
 
 /// Un rilievo del solo controllo di compilazione.
@@ -740,25 +797,49 @@ mod tests_check {
     /// `sandbox_verificata` lo dichiara. Il secondo ramo non è un ripiego: è la
     /// garanzia che l'istanza non finga di aver controllato.
     #[tokio::test]
-    async fn un_import_e_vietato_dalla_sandbox_e_senza_sandbox_lo_si_dichiara() {
+    async fn un_import_e_sempre_vietato_e_lo_dice_come_divieto() {
         let e = motore();
         let out = e.check("import os\nos.system('ls')\n".into()).await;
 
-        if e.is_sandboxed() {
-            assert!(!out.ok, "con la sandbox un import va rifiutato");
-            assert_eq!(out.rilievi.len(), 1);
-            assert!(out.rilievi[0].vietato,
-                    "deve risultare **vietato**, non un errore di sintassi: {:?}",
-                    out.rilievi[0]);
-            assert!(out.sandbox_verificata);
-        } else {
-            // Senza RestrictedPython l'import è Python valido e passa. Il punto
-            // non è che passi — è che l'esito **dica** di non aver controllato,
-            // perché sul dispositivo lo stesso codice viene rifiutato.
-            assert!(out.ok, "senza sandbox `import os` è Python valido: {:?}", out.rilievi);
-            assert!(!out.sandbox_verificata,
-                    "senza sandbox l'esito non deve far credere di aver verificato i divieti");
-        }
+        // Vietato **in ogni caso**, con o senza RestrictedPython installata: il
+        // passo sull'AST gira sempre, e deve girare sempre, perché sul
+        // dispositivo la sandbox c'è. Dire «va bene» su una macchina di sviluppo
+        // insegnerebbe a scrivere import che in campo non partono.
+        assert!(!out.ok, "un import va rifiutato: {:?}", out.rilievi);
+        assert_eq!(out.rilievi.len(), 1);
+        let r = &out.rilievi[0];
+        assert!(r.vietato,
+                "deve risultare **vietato**, non un errore di sintassi: {r:?}");
+        assert_eq!(r.riga, Some(1), "e portare la riga: {r:?}");
+        // Il messaggio deve dire cosa fare invece, non solo che è proibito.
+        assert!(r.messaggio.contains("tags"), "{}", r.messaggio);
+
+        // L'unica cosa che cambia fra le due macchine è se il **passo 2** è
+        // stato fatto, e l'esito lo dichiara invece di lasciarlo indovinare.
+        assert_eq!(out.sandbox_verificata, e.is_sandboxed());
+    }
+
+    /// `open` è l'altro caso che `compile_restricted` lascia passare: non è un
+    /// costrutto proibito, è un nome che `safe_builtins` non fornisce, quindi il
+    /// guasto arriverebbe come `NameError` a esecuzione.
+    #[tokio::test]
+    async fn un_nome_che_la_sandbox_non_fornisce_e_un_divieto() {
+        let e = motore();
+        let out = e.check("d = open('/etc/passwd')\n".into()).await;
+        assert!(!out.ok, "`open` non esiste nella sandbox: {:?}", out.rilievi);
+        assert!(out.rilievi[0].vietato);
+        assert!(out.rilievi[0].messaggio.contains("open"), "{}", out.rilievi[0].messaggio);
+    }
+
+    /// E il verso che protegge dai falsi allarmi: i nomi che **ci sono** devono
+    /// passare. Un controllo che si lamenta di `tags` o di `print` sarebbe
+    /// peggio di nessun controllo, perché insegnerebbe a ignorarlo.
+    #[tokio::test]
+    async fn i_nomi_forniti_non_sono_divieti() {
+        let e = motore();
+        let out = e.check(
+            "print('ciao')\nx = tags['t']\ntags['t'] = x + 1\ny = len('abc')\n".into()).await;
+        assert!(out.ok, "nessun rilievo atteso: {:?}", out.rilievi);
     }
 
     #[tokio::test]
