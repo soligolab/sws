@@ -30,6 +30,25 @@ Wants=network-online.target
 Image=ghcr.io/soligolab/sws-runtime:latest-arm64
 ContainerName=sws-runtime
 
+# ── Riaccendere l'IDE su questo dispositivo ─────────────────────────────────
+#
+# Dalla 2.4.0 l'immagine parte con `--no-admin`: sulla 8444 c'è solo la gestione
+# remota che l'editor chiama (deploy, pull, backup, utenti, datastore), e
+# **nessuna interfaccia**. L'IDE sul dispositivo è un caso particolare — messa in
+# servizio, assistenza — non il default.
+#
+# Per riaccenderlo: togliere il `#` dalla riga `Exec=` qui sotto (che è il CMD
+# dell'immagine **senza** `--no-admin`), poi
+#
+#     systemctl --user daemon-reload && systemctl --user restart sws-runtime
+#
+# La riga sta qui già scritta di proposito: `Exec=` sovrascrive il CMD per
+# intero, quindi ricostruirla a memoria vuol dire sbagliarne un pezzo e ritrovarsi
+# un container che non parte — o che parte senza `--www` e serve una pagina bianca.
+# Ricomporla non è un lavoro da fare su un dispositivo in campo.
+#
+#Exec=--config /var/sws/config --projects-root /var/sws/projects --templates-root /var/sws/templates --www /var/sws/www --viewer-port 8443 --admin-port 8444
+
 # 8443 viewer operatori, 8444 IDE/admin. Porte > 1024: rootless le binda
 # senza privilegi.
 #
