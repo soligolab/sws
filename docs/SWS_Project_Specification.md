@@ -13,6 +13,13 @@
 > SQLite, il deploy remoto e lo split webserver 8443/8444 sono funzionanti.
 > Dove questo spec e la realtà del PoC divergono, leggere `docs/CONTEXT.md` (che prevale)
 > e `STATUS.md` per lo stato sessione per sessione.
+>
+> **La divergenza più grossa, dal 2026-09-02, è nominata**: §3.1 prevede due repository e due
+> immagini container che condividono la cartella progetto. Il PoC ha **un solo eseguibile**, il cui
+> ruolo è scelto da `--viewer-port`, e i due pacchetti distribuiti contengono lo stesso binario;
+> l'unica implementazione della forma a due container non ha mai funzionato ed è stata rimossa.
+> §3.1 resta la destinazione, non una descrizione di oggi — i fatti, la cronologia e le opzioni
+> sono in `docs/adr/0003-editor-runtime-same-binary.md` e in `OPEN_QUESTIONS.md` Q8.
 
 ---
 

@@ -10,10 +10,32 @@ DISPOSITIVO (panel, server):         PC SVILUPPATORE:
   ├─ 8080  HTTP cert-acceptance         ├─ 8090  HTTP cert-acceptance
   ├─ 8443  viewer operatori             └─ 8460  IDE locale
   └─ 8444  IDE/admin remoto                  ↕ "Connetti runtime"
+
+  progetto in .run/projects/           progetto in .run-editor/projects/
+  ── quello in servizio ──             ── una copia, separata ──
 ```
 
 I due script usano range di porte separati per poter girare sulla **stessa
 macchina** senza conflitti (es. dev locale con runtime + editor in parallelo).
+
+### Su quale progetto si scrive, che non è la stessa cosa nei due casi
+
+È lo **stesso binario** in entrambi i casi: l'unica differenza è che
+`start_editor.sh` non passa `--viewer-port` (vedi
+`docs/adr/0003-editor-runtime-same-binary.md`). Ne segue una cosa che vale la pena
+sapere prima di premere Salva:
+
+- **IDE sulla 8444 di un dispositivo** → si modifica il progetto **dell'impianto in
+  servizio**, sul filesystem del dispositivo, e il salvataggio ne ricarica sorgenti
+  e allarmi *senza riavvio e senza conferma*. L'IDE lo segnala con un marcatore in
+  testata.
+- **IDE sulla 8460 del PC** → si modifica una cartella locale. Il dispositivo ne ha
+  una copia, che si aggiorna solo col **Deploy** (bundle intero); nessun endpoint
+  scrive un singolo file di progetto sul dispositivo.
+
+In entrambi i casi il motore gira per intero: anche l'editor sul PC apre le
+sorgenti del progetto che carica, valuta gli allarmi e manda le notifiche. Non è un
+«editor spento» — vedi `OPEN_QUESTIONS.md` Q8.
 
 ## `start_runtime.sh` — runtime sul dispositivo
 

@@ -210,6 +210,7 @@ These were settled in the spec design rounds and confirmed at bootstrap. **Not u
 | Container base | `debian:bookworm-slim` (container path legacy; Yocto native binary is preferred) | — |
 | Architectures | `linux/arm64` (Yocto native binary — preferred); `linux/amd64` (dev) | — |
 | Repository layout | **Monorepo** with `sws-runtime/` and `sws-editor/` subdirectories | — |
+| Editor / runtime | **Same binary**, role chosen by `--viewer-port` (absent → IDE-only). Not a deliberate decision — recorded after the fact in `adr/0003`; two processes = Q8-E, product phase | — |
 | License | AGPL-3.0 (full text in `LICENSE`, verified 2026-05-12) | — |
 | Contributor agreement | DCO (`Signed-off-by:` on every commit) | — |
 | Branching | `feat/T-XX-short-desc` branches → squash merge to main | — |
@@ -322,7 +323,13 @@ This is the operational rhythm Claude Code should follow.
 
 See `docs/OPEN_QUESTIONS.md` for the full running list. **Don't decide these in a vibecode session** — bring them to the maintainer.
 
-Remaining undecided questions: none of the original Q1-Q7 are open (all decided). New questions should be added when they arise.
+Le Q1-Q7 originali sono tutte decise. **La lista è però arrivata a Q32**, e diverse voci restano
+aperte — fra cui **Q8** (isolamento runtime ↔ IDE: le opzioni C/E/F, cioè split di processo e Python
+out-of-process, sono product-phase) e **Q32** (dove deve vivere il progetto che si sta modificando).
+Questa sezione affermava «*none of the original Q1-Q7 are open*» come se non ci fosse altro:
+chi si fermava qui concludeva che non c'era niente di aperto. Il conto sta in
+`docs/OPEN_QUESTIONS.md`, non qui — questa riga invecchia a ogni domanda nuova, quindi non
+elenca: rimanda.
 
 ---
 
