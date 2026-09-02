@@ -28,10 +28,11 @@
 
 ## ▶ Da fare nella prossima sessione
 
-### ✅ Divisione editor/runtime — completata sul ramo `feat/editor-runtime-chiarezza`
+### ✅ Divisione editor/runtime — **mergiata in `main`** (`e98138b`)
 
-*2026-09-02, frodo. Cinque commit, verificati. **Non mergiato**: attende la conferma del maintainer,
-poi squash merge. Piano completo: `docs/plans/2026-09-01-editor-runtime.md`.*
+*2026-09-02, frodo. Squash merge dei cinque commit del ramo `feat/editor-runtime-chiarezza` dopo
+che il maintainer ha verificato in locale. Il ramo **non è stato eliminato**: la pulizia è sua.
+Piano completo: `docs/plans/2026-09-01-editor-runtime.md`.*
 
 **La domanda di partenza**: com'è fatta esattamente la divisione editor/runtime, e l'editor lavora
 in locale o nella cartella del dispositivo? Risposta misurata, e ora scritta in
@@ -97,7 +98,13 @@ quattro punti, e la sua sezione «Percorso C» prometteva anche il tag
 già stato trovato il 2026-07-30, con gli stessi termini, e il job CI disattivato per quella ragione.
 Quel che era rimasto indietro erano i documenti che lo raccomandavano ancora.
 
-**Da fare, quando il maintainer conferma**: squash merge del ramo su `main`.
+**Prossimo lavoro in coda**, nell'ordine di quanto il maintainer li ha chiesti: gli **strumenti
+Python** per l'assistente (passi 3-6 di `docs/plans/2026-08-31-chat-ai-nelleditor.md`:
+`POST /api/script/check` che compila senza eseguire, `leggi_script`, `schema_python`, le regole del
+validatore, il diff per righe) e la **chat staccata** in una finestra propria, il solo pezzo del
+piano di T-50 mai implementato — il suo disegno è nell'appendice di
+`docs/plans/2026-09-01-editor-runtime.md`. Resta anche da lanciare la prova end-to-end della chat
+(`e2e/chat-ai.spec.ts`, con `SWS_E2E_CHROMIUM=/usr/bin/chromium`), che non è mai girata.
 
 ---
 
