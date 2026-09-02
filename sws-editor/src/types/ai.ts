@@ -47,7 +47,17 @@ export type Riga =
   | { tipo: "strumento"; nome: string; stato: string; messaggio?: string }
   | { tipo: "proposta"; msg: Extract<MsgIn, { t: "proposta" }>;
       /** Il diff calcolato quando la proposta è arrivata, e congelato lì:
-       *  ricalcolarlo dopo l'applicazione lo farebbe sparire. */
-      diff: VoceDiff[];
+       *  ricalcolarlo dopo l'applicazione lo farebbe sparire.
+       *
+       *  `null` = **non ancora noto**, e va tenuto distinto da `[]`, che
+       *  significa «nessuna modifica». Da quando la chat può vivere in una
+       *  finestra separata il calcolo è asincrono (lo fa l'editor, via ponte) e
+       *  può anche fallire: mostrare «questa proposta non cambia niente» davanti
+       *  a una proposta che cambia il progetto è il difetto più pericoloso di
+       *  tutto il pezzo. */
+      diff: VoceDiff[] | null;
+      /** Perché il diff non c'è. Presente solo con `diff === null` a calcolo
+       *  concluso; finché è assente e `diff` è `null`, si sta calcolando. */
+      diffErrore?: string;
       esito?: "applicata" | "scartata" | "rifiutata"; nota?: string }
   | { tipo: "errore"; testo: string };

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api, AuthError, NoProjectError, PasswordChangeRequiredError, RuntimeUnavailableError } from "@/api/client";
 import { ChangePasswordScreen } from "@/components/ChangePasswordScreen";
@@ -12,6 +12,8 @@ import { UserMenu } from "@/components/UserMenu";
 import { ChatPanel } from "@/components/ChatPanel";
 import { LogPanel } from "@/components/LogPanel";
 import { apriFinestra, sorvegliaChiusura } from "@/apriFinestra";
+import { idEditore, Ponte } from "@/ai/ponte";
+import { riassumi } from "@/ai/riassunto";
 import { LoginScreen } from "@/components/LoginScreen";
 import { ReAuthModal } from "@/components/ReAuthModal";
 import { WelcomeScreen } from "@/components/WelcomeScreen";
@@ -23,6 +25,7 @@ import { pickInitialPageId } from "@/pageLayout";
 import { useLogStream } from "@/ws/logStream";
 import { useRemoteLogStream } from "@/ws/remoteLogStream";
 import { useTagStream } from "@/ws/tagStream";
+import { chiudiAiStream } from "@/ws/aiStream";
 import { useProjectWatcher } from "@/ws/projectWatcher";
 import { useBuildWatcher } from "@/ws/buildWatcher";
 import { useCertWatcher } from "@/ws/certWatcher";
@@ -119,6 +122,101 @@ export function App() {
       // invece di provare un `focus()` su una finestra morta.
       sorvegliaChiusura(esito.win, () => { finestraLog.current = null; });
     }
+  };
+
+  // ── La chat staccata, e il lato-editor del ponte ──────────────────────────
+  //
+  // Staccare la chat e' una **consegna**, non un duplicato: la conversazione
+  // vive nel WebSocket lato runtime, quindi la finestra nuova ne apre uno suo e
+  // ricomincia da zero. Per questo, appena la finestra si apre, qui il pannello
+  // si chiude e resta disabilitato (`chatStaccata`) — averlo aperto in due posti
+  // vorrebbe dire due conversazioni, entrambe a pagamento.
+  //
+  // Il ponte serve perche' `applyAiProposal` deve girare **qui**: scrive lo
+  // store, la history e le `pendingSections`, che sono closure e non
+  // attraversano nessun canale. Vedi `@/ai/ponte`.
+  const finestraChat = useRef<Window | null>(null);
+  const [chatStaccata, setChatStaccata] = useState(false);
+  const [chatStaccataErrore, setChatStaccataErrore] = useState<string | null>(null);
+  const ponte = useMemo(() => new Ponte(idEditore()), []);
+
+  useEffect(() => {
+    if (!ponte.vivo) return;
+
+    const stop = ponte.ascolta((m) => {
+      switch (m.t) {
+        case "ciao": {
+          // Una chat staccata si e' presentata: il pannello qui non deve
+          // riaprirsi. Vale anche dopo un ricarico dell'editor, ed e' il modo in
+          // cui l'IDE riparte sapendo di avere una chat fuori.
+          setChatStaccata(true);
+          const st = useAppStore.getState();
+          ponte.manda({ t: "stato", a: m.da, progetto: st.project?.meta.name ?? null });
+          break;
+        }
+        case "chat-chiusa":
+          setChatStaccata(false);
+          finestraChat.current = null;
+          break;
+        case "diff": {
+          const st = useAppStore.getState();
+          try {
+            const diff = riassumi(m.proposta.project ?? null, m.proposta.pages ?? null,
+                                  st.project, st.pages);
+            ponte.manda({ t: "diff-ok", a: m.da, rid: m.rid, diff });
+          } catch (e: any) {
+            // Si **dice** che non si sa, invece di mandare un elenco vuoto: `[]`
+            // sullo schermo diventa «questa proposta non cambia niente».
+            ponte.manda({ t: "diff-no", a: m.da, rid: m.rid,
+                          errore: String(e?.message ?? e) });
+          }
+          break;
+        }
+        case "applica": {
+          void useAppStore.getState().applyAiProposal(m.proposta).then((esito) => {
+            ponte.manda({ t: "applicato", a: m.da, rid: m.rid,
+                          ok: esito.ok, motivo: esito.motivo, avviso: esito.avviso });
+          });
+          break;
+        }
+      }
+    });
+
+    // «Sono (ri)partito». Una chat viva risponde con `ciao`, e cosi' dopo un
+    // ricarico l'editor ritrova il suo stato invece di riaprire il pannello.
+    ponte.manda({ t: "editore-pronto" });
+
+    const addio = () => ponte.manda({ t: "editore-chiuso" });
+    window.addEventListener("pagehide", addio);
+    return () => {
+      window.removeEventListener("pagehide", addio);
+      stop();
+    };
+  }, [ponte]);
+
+  const staccaChat = () => {
+    const esito = apriFinestra(`/index-chat.html#e=${encodeURIComponent(ponte.mio)}`,
+                               "sws-chat", { larghezza: 460, altezza: 760,
+                                             handle: finestraChat.current });
+    if (esito.bloccata) {
+      // Il pannello resta aperto e il socket **non** si chiude: la consegna non
+      // e' avvenuta, e fingere il contrario perderebbe la conversazione.
+      setChatStaccataErrore(t("chatWindow.blocked"));
+      return;
+    }
+    setChatStaccataErrore(null);
+    finestraChat.current = esito.win;
+    if (esito.win && !esito.riusata) {
+      sorvegliaChiusura(esito.win, () => {
+        finestraChat.current = null;
+        setChatStaccata(false);
+      });
+    }
+    // Solo ora si chiude qui: la conversazione passa di la'.
+    chiudiAiStream();
+    setChatOpen(false);
+    try { localStorage.setItem(CHAT_PANEL_KEY, "0"); } catch { /* ignore */ }
+    setChatStaccata(true);
   };
 
   // Stream runtime logs and tag values whenever the user is authenticated.
@@ -601,6 +699,8 @@ export function App() {
           onToggleLog={toggleLog}
           chatOpen={chatOpen}
           onToggleChat={toggleChat}
+          chatStaccata={chatStaccata}
+          onStaccaChat={staccaChat}
           onStaccaLog={staccaLog}
         />
       </header>
@@ -680,6 +780,20 @@ export function App() {
           visibile e non un `console.warn`: un popup bloccato è la cosa più
           facile da non notare, e senza questa riga il clic sembrerebbe non
           aver fatto niente. Si chiude da sé quando l'apertura riesce. */}
+      {chatStaccataErrore && (
+        <div style={{
+          background: "var(--brand-danger-soft, #451a1a)",
+          borderBottom: "1px solid var(--brand-danger, #ef4444)",
+          padding: "5px 16px", display: "flex", alignItems: "center",
+          gap: 12, fontSize: 12, color: "var(--brand-text, #e2e8f0)", flexShrink: 0,
+        }}>
+          <span>⚠</span>
+          <span style={{ flex: 1 }}>{chatStaccataErrore}</span>
+          <button style={{ ...HDR_BTN, padding: "2px 8px" }}
+                  onClick={() => setChatStaccataErrore(null)}>✕</button>
+        </div>
+      )}
+
       {logStaccatoErrore && (
         <div style={{
           background: "var(--brand-danger-soft, #451a1a)",
@@ -739,7 +853,9 @@ export function App() {
         {effectiveMode === "config" && <ConfigView />}
         {/* Chat drawer (right) — dentro <main> così sta accanto al canvas
             invece che sotto: una conversazione è alta, non larga. */}
-        <ChatPanel open={chatOpen} onClose={() => {
+        {/* `!chatStaccata`: con la chat in una finestra propria il cassetto non
+            si apre, altrimenti sarebbero due socket e due conversazioni. */}
+        <ChatPanel open={chatOpen && !chatStaccata} onClose={() => {
           setChatOpen(false);
           try { localStorage.setItem(CHAT_PANEL_KEY, "0"); } catch { /* ignore */ }
         }} />

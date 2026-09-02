@@ -1,10 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { uguale } from "@/ai/confronto";
+import { editorLocale, NESSUNA_CONFERMA, type EditorAi } from "@/ai/editor";
 import { useAppStore } from "@/store";
 import { ascolta, chiedi } from "@/ws/aiStream";
-import type { MsgIn, Riga, VoceDiff } from "@/types/ai";
-import type { ProjectInfo, SynopticPage } from "@/types";
+import type { MsgIn, Riga } from "@/types/ai";
 
 /**
  * La chat dell'assistente di progettazione (T-50).
@@ -22,10 +21,38 @@ import type { ProjectInfo, SynopticPage } from "@/types";
  *    ed è il rischio vero di tutta questa funzione.
  *  * **Applica non salva.** Applica allo store: da lì c'è Ctrl+Z, e il disco
  *    aspetta che qualcuno prema Salva.
+ *
+ * # Lo stesso componente in due posti
+ *
+ * Questo pannello è il cassetto dell'IDE **e** il contenuto della finestra
+ * staccata. La sola differenza è chi calcola il diff e chi applica, e arriva
+ * dalla prop `editor`: `editorLocale` (default) parla allo store di questa
+ * finestra, `editorViaPonte` chiede alla finestra dell'editor. Nel cassetto
+ * dell'IDE non cambia niente.
  */
-export function ChatPanel({ open, onClose }: { open: boolean; onClose: () => void }) {
+export function ChatPanel({ open, onClose, editor = editorLocale, avviso, bloccaInvio, variant = "drawer" }: {
+  open: boolean;
+  onClose: () => void;
+  /** Chi calcola il diff e chi applica. Default: lo store di questa finestra. */
+  editor?: EditorAi;
+  /** Riga di avviso extra in testa alla lista (la usa la finestra staccata per
+   *  dire che l'editor non risponde). Disabilita anche «Applica», perché in
+   *  quello stato non può riuscire. */
+  avviso?: string | null;
+  /** Disabilita anche il **compositore**, e non solo «Applica».
+   *
+   *  Sono due stati diversi e vanno tenuti tali: con l'editor assente conviene
+   *  poter ancora chiedere qualcosa (una spiegazione non ha bisogno dell'editor)
+   *  e solo l'applicazione è impossibile; **senza un progetto aperto** invece gli
+   *  strumenti leggerebbero il vuoto, e spendere token per quello è peggio di un
+   *  rifiuto. */
+  bloccaInvio?: boolean;
+  /** `drawer` = cassetto laterale dell'IDE, 380 px fissi. `window` = riempie la
+   *  finestra staccata, che la dimensiona il sistema operativo. Stessa scelta di
+   *  `LogPanel`, e per la stessa ragione. */
+  variant?: "drawer" | "window";
+}) {
   const { t } = useTranslation();
-  const applyAiProposal = useAppStore((s) => s.applyAiProposal);
   const remoteConnected = useAppStore((s) => s.remoteConnected);
 
   const [righe, setRighe]     = useState<Riga[]>([]);
@@ -52,14 +79,29 @@ export function ChatPanel({ open, onClose }: { open: boolean; onClose: () => voi
           setRighe((r) => aggiornaStrumento(r, m.nome, m.stato, m.messaggio));
           break;
         case "proposta": {
-          // Il diff si calcola **adesso**, contro lo stato di adesso, e resta
+          // Il diff si chiede **adesso**, contro lo stato di adesso, e resta
           // quello. Ricalcolandolo a ogni render, dopo l'applicazione
           // confronterebbe la proposta con sé stessa e direbbe «non cambia
           // niente» — cioè cancellerebbe dallo schermo la cosa che l'utente ha
           // appena approvato.
-          const s = useAppStore.getState();
-          const diff = riassumi(m.project ?? null, m.pages ?? null, s.project, s.pages);
-          setRighe((r) => [...r, { tipo: "proposta", msg: m, diff }]);
+          //
+          // È asincrono perché nella finestra staccata lo calcola l'editor. La
+          // riga nasce con `diff: null` («sto calcolando») e diventa un elenco
+          // oppure un errore: mai `[]` per un calcolo mancato.
+          setRighe((r) => [...r, { tipo: "proposta", msg: m, diff: null }]);
+          void editor
+            .diff({ id: m.id, motivo: m.motivo, project: m.project,
+                    pages: m.pages, impronta: m.impronta })
+            .then((diff) => {
+              setRighe((r) => r.map((x) =>
+                x.tipo === "proposta" && x.msg.id === m.id ? { ...x, diff } : x));
+            })
+            .catch((e) => {
+              setRighe((r) => r.map((x) =>
+                x.tipo === "proposta" && x.msg.id === m.id
+                  ? { ...x, diff: null, diffErrore: String(e?.message ?? e) }
+                  : x));
+            });
           break;
         }
         case "errore":
@@ -70,7 +112,7 @@ export function ChatPanel({ open, onClose }: { open: boolean; onClose: () => voi
           break;
       }
     });
-  }, [open]);
+  }, [open, editor]);
 
   useEffect(() => {
     fondo.current?.scrollIntoView({ behavior: "smooth", block: "end" });
@@ -93,7 +135,7 @@ export function ChatPanel({ open, onClose }: { open: boolean; onClose: () => voi
   const applica = async (indice: number) => {
     const riga = righe[indice];
     if (riga?.tipo !== "proposta") return;
-    const esito = await applyAiProposal({
+    const esito = await editor.applica({
       id: riga.msg.id,
       motivo: riga.msg.motivo,
       project: riga.msg.project,
@@ -103,7 +145,11 @@ export function ChatPanel({ open, onClose }: { open: boolean; onClose: () => voi
     setRighe((r) => r.map((x, i) => i !== indice || x.tipo !== "proposta" ? x : {
       ...x,
       esito: esito.ok ? "applicata" : "rifiutata",
-      nota: esito.ok ? esito.avviso : esito.motivo,
+      // La sentinella del ponte scaduto diventa la frase che dice la verità:
+      // un timeout non dimostra che la proposta non sia stata applicata.
+      nota: esito.ok ? esito.avviso
+          : esito.motivo === NESSUNA_CONFERMA ? t("chat.noConfirm")
+          : esito.motivo,
     }));
   };
 
@@ -113,7 +159,9 @@ export function ChatPanel({ open, onClose }: { open: boolean; onClose: () => voi
   };
 
   return (
-    <aside style={PANNELLO}>
+    <aside style={variant === "window"
+                  ? { ...PANNELLO, width: "100%", borderLeft: "none" }
+                  : PANNELLO}>
       <div style={INTESTAZIONE}>
         <strong style={{ fontSize: 12, letterSpacing: 0.5, color: "var(--brand-text, #e2e8f0)" }}>
           {t("chat.title")}
@@ -128,6 +176,16 @@ export function ChatPanel({ open, onClose }: { open: boolean; onClose: () => voi
 
       {stato && !stato.attivo && (
         <div style={AVVISO}>{stato.motivo ?? t("chat.inactive")}</div>
+      )}
+
+      {/* Lo dice la finestra staccata quando l'editor non risponde o non ha un
+          progetto aperto. Rosso e in cima, perché in quello stato «Applica» non
+          può funzionare e leggere la conversazione senza saperlo è peggio. */}
+      {avviso && (
+        <div style={{ ...AVVISO, background: "rgba(239,68,68,0.12)",
+                      color: "var(--brand-danger, #ef4444)" }}>
+          {avviso}
+        </div>
       )}
 
       {/* Con un runtime remoto collegato è naturale credere che l'assistente
@@ -173,7 +231,7 @@ export function ChatPanel({ open, onClose }: { open: boolean; onClose: () => voi
             );
           }
           return (
-            <Proposta key={i} riga={r}
+            <Proposta key={i} riga={r} bloccato={!!avviso}
                       onApplica={() => applica(i)} onScarta={() => scarta(i)} />
           );
         })}
@@ -191,10 +249,10 @@ export function ChatPanel({ open, onClose }: { open: boolean; onClose: () => voi
           placeholder={t("chat.placeholder")}
           rows={3}
           style={TESTO_INPUT}
-          disabled={stato != null && !stato.attivo}
+          disabled={bloccaInvio || (stato != null && !stato.attivo)}
         />
-        <button style={{ ...BTN_PRIMARIO, opacity: attesa || !bozza.trim() ? 0.5 : 1 }}
-                disabled={attesa || !bozza.trim()} onClick={invia}>
+        <button style={{ ...BTN_PRIMARIO, opacity: attesa || bloccaInvio || !bozza.trim() ? 0.5 : 1 }}
+                disabled={attesa || bloccaInvio || !bozza.trim()} onClick={invia}>
           {attesa ? t("chat.working") : t("chat.send")}
         </button>
       </div>
@@ -206,8 +264,10 @@ export function ChatPanel({ open, onClose }: { open: boolean; onClose: () => voi
 // La proposta e il suo diff
 // ─────────────────────────────────────────────────────────────────────────────
 
-function Proposta({ riga, onApplica, onScarta }: {
+function Proposta({ riga, bloccato, onApplica, onScarta }: {
   riga: Extract<Riga, { tipo: "proposta" }>;
+  /** L'editor non è raggiungibile: si legge, ma non si applica. */
+  bloccato?: boolean;
   onApplica: () => void;
   onScarta: () => void;
 }) {
@@ -221,7 +281,16 @@ function Proposta({ riga, onApplica, onScarta }: {
         {riga.msg.motivo}
       </div>
 
-      {diff.length === 0 ? (
+      {/* Tre casi, e tenerli distinti è il punto: `null` senza errore = si sta
+          calcolando; `null` con errore = **non lo sappiamo**; `[]` = nessuna
+          modifica. Collassare i primi due sul terzo direbbe «questa proposta non
+          cambia niente» davanti a una proposta che cambia il progetto. */}
+      {diff === null ? (
+        <div style={{ fontSize: 12, color: riga.diffErrore ? "var(--brand-danger, #ef4444)"
+                                                           : "var(--brand-text-subtle, #64748b)" }}>
+          {riga.diffErrore ? t("chat.diffUnavailable", { err: riga.diffErrore }) : t("chat.diffWorking")}
+        </div>
+      ) : diff.length === 0 ? (
         <div style={{ fontSize: 12, color: "var(--brand-text-subtle, #64748b)" }}>{t("chat.noChanges")}</div>
       ) : (
         <ul style={{ margin: "0 0 8px", paddingLeft: 16, fontSize: 12, lineHeight: 1.6,
@@ -258,8 +327,13 @@ function Proposta({ riga, onApplica, onScarta }: {
           {riga.nota ? <div style={{ marginTop: 4, color: "var(--brand-warning, #f59e0b)" }}>{riga.nota}</div> : null}
         </div>
       ) : (
-        <div style={{ display: "flex", gap: 6 }}>
-          <button style={BTN_PRIMARIO} onClick={onApplica}>{t("chat.apply")}</button>
+        <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+          {/* Disabilitato col **motivo** nel titolo, non nascosto: un pulsante
+              che spariesce lascia credere che la proposta sia già stata gestita. */}
+          <button style={{ ...BTN_PRIMARIO, opacity: bloccato ? 0.5 : 1 }}
+                  disabled={bloccato}
+                  title={bloccato ? t("chat.applyBlocked") : undefined}
+                  onClick={onApplica}>{t("chat.apply")}</button>
           <button style={BTN} onClick={onScarta}>{t("chat.discard")}</button>
         </div>
       )}
@@ -270,57 +344,9 @@ function Proposta({ riga, onApplica, onScarta }: {
   );
 }
 
-/** Il diff leggibile: cosa cambia, non come. */
-export function riassumi(
-  propProject: ProjectInfo | null,
-  propPages: SynopticPage[] | null,
-  project: ProjectInfo | null,
-  pages: SynopticPage[],
-): VoceDiff[] {
-  const out: VoceDiff[] = [];
-  // `uguale` e non `JSON.stringify`: l'ordine delle chiavi differisce fra
-  // l'API (ordine del file YAML) e la proposta (ordine della struct Rust), e
-  // con lo stringify il diff dichiarava «modificati» quasi tutti gli oggetti
-  // della pagina.
-  const stessa = uguale;
-
-  const perId = <T extends { id: string }>(v: T[] | undefined | null) =>
-    new Map((v ?? []).map((x) => [x.id, x]));
-
-  if (propProject && project) {
-    for (const [etichetta, prima, dopo] of [
-      ["tag",      perId(project.tags),    perId(propProject.tags)],
-      ["sorgente", perId(project.sources as { id: string }[]), perId(propProject.sources as { id: string }[])],
-      ["allarme",  perId(project.alarms),  perId(propProject.alarms)],
-    ] as [string, Map<string, unknown>, Map<string, unknown>][]) {
-      for (const [id, v] of dopo) {
-        if (!prima.has(id)) out.push({ verso: "+", testo: `${etichetta} \`${id}\`` });
-        else if (!stessa(prima.get(id), v)) out.push({ verso: "~", testo: `${etichetta} \`${id}\`` });
-      }
-      for (const id of prima.keys()) {
-        if (!dopo.has(id)) out.push({ verso: "-", testo: `${etichetta} \`${id}\`` });
-      }
-    }
-  }
-
-  for (const pg of propPages ?? []) {
-    const attuale = pages.find((p) => p.name === pg.name);
-    if (!attuale) {
-      out.push({ verso: "+", testo: `pagina «${pg.name}» (${pg.objects.length} oggetti)` });
-      continue;
-    }
-    const prima = new Map(attuale.objects.map((o) => [o.id, o]));
-    const dopo  = new Map(pg.objects.map((o) => [o.id, o]));
-    for (const [id, o] of dopo) {
-      if (!prima.has(id)) out.push({ verso: "+", testo: `${o.type} \`${id}\` in «${pg.name}»` });
-      else if (!stessa(prima.get(id), o)) out.push({ verso: "~", testo: `${o.type} \`${id}\` in «${pg.name}»` });
-    }
-    for (const [id, o] of prima) {
-      if (!dopo.has(id)) out.push({ verso: "-", testo: `${o.type} \`${id}\` da «${pg.name}»` });
-    }
-  }
-  return out;
-}
+// `riassumi` vive in `@/ai/riassunto`: da quando la chat può stare in una
+// finestra separata, quel calcolo lo fa la finestra dell'editor e non deve
+// passare per un componente React. Vedi `@/ai/editor`.
 
 // ─────────────────────────────────────────────────────────────────────────────
 

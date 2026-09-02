@@ -20,6 +20,8 @@ export function MainMenu({
   chatOpen,
   onToggleChat,
   onStaccaLog,
+  chatStaccata,
+  onStaccaChat,
 }: {
   onLogout: () => void;
   onCloseProject: () => void;
@@ -29,6 +31,10 @@ export function MainMenu({
   onToggleChat: () => void;
   /** Apre i log in una finestra propria. Gestisce il popup bloccato. */
   onStaccaLog: () => void;
+  /** La chat vive in una finestra separata: il cassetto qui non si apre. */
+  chatStaccata: boolean;
+  /** Consegna la chat a una finestra propria. */
+  onStaccaChat: () => void;
 }) {
   const { t } = useTranslation();
   const [open, setOpen]       = useState(false);
@@ -207,13 +213,30 @@ export function MainMenu({
             <span style={{ float: "right", opacity: 0.7 }}>↗</span>
           </button>
           {canConfigureProject(authRole) && (
-            <button
-              style={DROP_ITEM}
-              onClick={() => { onToggleChat(); setOpen(false); }}
-            >
-              {t("menu.chatPanel")}
-              <span style={{ float: "right", opacity: 0.7 }}>{chatOpen ? "✓" : ""}</span>
-            </button>
+            <>
+              {/* Con la chat staccata la voce resta visibile ma disabilitata,
+                  col motivo nel titolo: farla sparire lascerebbe credere che la
+                  funzione non esista. Si riabilita da sé quando quella finestra
+                  si chiude — lo dice lei sul ponte. */}
+              <button
+                style={{ ...DROP_ITEM, opacity: chatStaccata ? 0.5 : 1 }}
+                disabled={chatStaccata}
+                title={chatStaccata ? t("menu.chatDetachedHint") : undefined}
+                onClick={() => { onToggleChat(); setOpen(false); }}
+              >
+                {t("menu.chatPanel")}
+                <span style={{ float: "right", opacity: 0.7 }}>{chatOpen && !chatStaccata ? "✓" : ""}</span>
+              </button>
+              <button
+                style={{ ...DROP_ITEM, opacity: chatStaccata ? 0.5 : 1 }}
+                disabled={chatStaccata}
+                title={t("menu.chatDetachHint")}
+                onClick={() => { onStaccaChat(); setOpen(false); }}
+              >
+                {t("menu.chatDetach")}
+                <span style={{ float: "right", opacity: 0.7 }}>↗</span>
+              </button>
+            </>
           )}
           {canConfigureProject(authRole) && (
             <button
