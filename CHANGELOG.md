@@ -11,6 +11,58 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+## [2.4.0] — 2026-09-02
+
+### ⚠️ Cambio di comportamento sui dispositivi: l'IDE non è più il default
+
+**Da leggere prima di aggiornare un dispositivo.** I deploy (yocto,
+generic-linux, i tre container) ora partono con `--no-admin`. Sulla porta 8444
+resta **solo la gestione remota** che l'editor chiama — deploy, pull, backup,
+utenti, datastore, tutto autenticato — e **non c'è più nessuna interfaccia**:
+aprire `https://<device>:8444` col browser non dà l'IDE. Non si può più
+modificare il progetto sul dispositivo: si modifica nell'editor e si deploya.
+
+Il **Deploy continua a funzionare**, ed è stata la parte difficile: `--no-admin`
+come era scritto non legava affatto quella porta, e con lei si portava via
+`remote_deploy`. Cadono invece `/api/script/exec`, la build dei pacchetti,
+`/api/fs/*` — che sul router completo naviga il filesystem **senza
+autenticazione** — e ogni rotta di editing.
+
+**Per riaccendere l'IDE su un dispositivo** (messa in servizio, assistenza):
+
+- **container**: togliere il `#` dalla riga `Exec=` in
+  `~/.config/containers/systemd/sws-runtime.container`, poi
+  `systemctl --user daemon-reload && systemctl --user restart sws-runtime`. La
+  riga è già scritta là dentro: `Exec=` sovrascrive il comando dell'immagine per
+  intero, e ricomporlo a memoria su un dispositivo in campo vuol dire sbagliarne
+  un pezzo.
+- **installazione nativa**: `SWS_ENABLE_IDE=1` nell'env del servizio
+  (`/etc/sws/runtime.env` su generic-linux) e un restart.
+
+`scripts/start_runtime.sh` **non** cambia default — lo stack di sviluppo serve
+anche a lavorare sull'IDE del dispositivo — ma accetta `--no-admin` per provare
+la postura vera in locale. La guardia `scripts/check_no_admin.sh` confronta le
+due modalità sullo stesso binario e verifica entrambi i versi: che una rotta
+dell'IDE non rientri, e che una del deploy non sparisca.
+
+Decisione e ragionamento in `docs/OPEN_QUESTIONS.md` Q8; i fatti sulla divisione
+editor/runtime in `docs/adr/0003-editor-runtime-same-binary.md`.
+
+### 🔴 Tre difetti che tacevano
+
+- **Il cron degli script globali non capisce `*/5`.** `parse_cron` ammette solo
+  `*` o interi separati da virgola, e scarta in silenzio ciò che non legge: il
+  campo diventa un insieme vuoto, lo script viene schedulato e **non parte mai**
+  — nessun errore, nessuna riga di log, nessuna spia. È la prima cosa che
+  chiunque scriverebbe per «ogni cinque minuti». Registrato come **Q34**; il
+  validatore ora lo dice, con la conseguenza a lettere.
+- **Il diff dell'assistente non vedeva il Python.** Una proposta che riscriveva
+  una funzione mostrava «nessuna modifica». Ora copre `functions` e
+  `global_scripts` con un diff **riga per riga**.
+- **Un oggetto dentro una cella di griglia non veniva validato.** Un bottone che
+  puntava a una funzione inesistente, o a un tag non dichiarato, era **muto**: il
+  gesto non faceva niente e non lo diceva.
+
 ### La chat si stacca, e il Python si controlla prima di proporlo
 
 **La chat dell'assistente in una finestra propria** (`ai/ponte.ts`,

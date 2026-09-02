@@ -28,77 +28,75 @@
 
 ## ▶ Da fare nella prossima sessione
 
-### ⏳ Chat staccata + strumenti Python — sul ramo `feat/chat-staccata-e-python`
+### 🏷 Release 2.4.0 — 2026-09-02, su `main`, **da compilare e installare**
 
-*2026-09-02 pomeriggio, frodo. Quattro commit, verificati. **Non mergiato**: attende la conferma
-del maintainer.*
+Squash merge di `feat/chat-staccata-e-python` (sette commit) + bump a 2.4.0 + tag `2.4.0`.
+Il ramo **non è stato eliminato**: la pulizia è del maintainer.
 
-**Nota di igiene, e ci è già costata**: il disegno degli strumenti Python **non esisteva più**.
-Viveva in un file di `~/.claude/plans/` che è stato sovrascritto — esattamente il rischio per cui
-la regola dice di copiare i piani in `docs/plans/`. È stato ricostruito dall'elenco in questo
-file. Il disegno della chat staccata invece era salvo, in appendice a
-`docs/plans/2026-09-01-editor-runtime.md`.
+**⚠️ Questa release cambia cosa fa un dispositivo.** I deploy partono con `--no-admin`: sulla
+8444 resta solo la gestione remota che l'editor chiama, e **nessuna interfaccia**. Aprire
+`https://<device>:8444` col browser non dà più l'IDE, e il progetto non si modifica più sul
+dispositivo. Il Deploy continua a funzionare — è stata la parte difficile del lavoro. Dettagli e
+procedura di riaccensione in `CHANGELOG.md` §2.4.0 e in `docs/OPEN_QUESTIONS.md` Q8.
 
-**1. `df4338f` — la chat si stacca in una finestra propria.** Era l'unico pezzo del piano di T-50
-mai implementato. Il fatto che decide tutto: `applyAiProposal` deve girare nella finestra
-dell'editor, perché registra le `pendingSections`, che sono **closure** e non attraversano nessun
-canale. Quindi la finestra staccata tiene socket, conversazione e rendering; l'editor tiene stato,
-applicazione e annullamento. Ponte su `BroadcastChannel` (`ai/ponte.ts`, canale
-`sws.chat.ponte.v1`), con **indirizzamento** dentro `Ponte` e non nei chiamanti: senza, due schede
-dell'IDE applicherebbero la stessa proposta. L'id dell'editor sta in `sessionStorage`, così
-sopravvive a un ricarico ma resta per scheda.
-Staccare è una **consegna**: la conversazione riparte da zero e non c'è nessun «riattacca», perché
-il runtime non sa trasferirla. Il cassetto si disabilita col motivo nel titolo e si riabilita
-quando la finestra si chiude.
-Il diff diventa asincrono, e i tre stati vanno tenuti distinti — `null` senza errore = si calcola,
-`null` con errore = **non lo sappiamo**, `[]` = nessuna modifica.
-E un timeout **non dimostra** la non-applicazione: l'esito dice «potrebbe essere stata applicata
-comunque, controlla il canvas».
+**Da compilare (il maintainer lo fa da casa):**
 
-**2. `1f2930f` — compilare Python senza eseguirlo.** `Engine::check` +
-`POST /api/script/check` + tre strumenti (`controlla_python`, `leggi_script`, `schema_python`).
-Prima, l'unico modo di sapere se uno script stava in piedi era **eseguirlo**. Due compilazioni in
-ordine — `compile()` poi `compile_restricted()` — perché è l'unica cosa che distingue «errore di
-sintassi, guarda la riga» da «Python valido ma vietato qui, cambia strada».
-**Su questa macchina RestrictedPython non è installata**, quindi `import os` passa il controllo:
-l'esito lo dichiara (`sandbox_verificata: false`) e lo schema lo dice con un ATTENZIONE, perché
-sul dispositivo lo stesso codice viene rifiutato. Se la si installa (`pip install
-RestrictedPython`) il sandbox diventa attivo anche in sviluppo e il test relativo prova davvero il
-ramo che conta — **è una scelta del maintainer**, non l'ho fatta io.
+```bash
+# x86_64, nessun SDK richiesto
+./scripts/build_container_x86_64.sh --push
+# aarch64 generico (Raspberry Pi, VM arm64): nessun SDK, tutto sotto QEMU
+./scripts/build_container_aarch64_generic.sh --push
+# aarch64 Pixsys: richiede l'SDK Yocto in /usr/local/oecore-x86_64/
+./scripts/build_container.sh --push
+```
 
-**3. `c79e99f` — le regole del validatore sugli script.** Il pezzo che vale di più:
-**`global_scripts::parse_cron` non capisce `*/5`.** Ammette solo `*` o interi separati da virgola,
-e `filter_map` **scarta** ciò che non legge: il campo diventa un insieme vuoto, lo script viene
-schedulato e **non parte mai**, senza errore, senza log, senza spia. `*/5 * * * *` è la prima cosa
-che chiunque scriverebbe. Registrato come **Q34** con quattro opzioni; il validatore ora lo dice.
-Più id duplicati, corpo vuoto ma `enabled`, `interval_s: 0`, `tag_change` su un tag inesistente, e
-il tetto di byte che il `PUT` imponeva **solo alle funzioni**.
-E il **buco delle griglie**: il `child` di una cella è un oggetto a tutti gli effetti ma viveva in
-un `Value` opaco, quindi un bottone dentro una cella che puntava a una funzione inesistente era
-**muto**. Ora si scende, ricorsivamente.
+Poi sul dispositivo: `./deploy/container/install-container.sh --pull`.
 
-**4. `b849b0c` — il diff non vedeva il Python.** Difetto vivo: `riassumi` confrontava tag,
-sorgenti, allarmi e pagine e niente altro, quindi una proposta che **riscriveva una funzione**
-mostrava «nessuna modifica». Ora copre `functions` e `global_scripts`, con diff **riga per riga**
-(LCS in `ai/diffRighe.ts`, due righe di contesto, resa oltre 400 righe *dicendolo*). E «assente non
-è vuoto» rifatto anche qui.
+**Il primo dispositivo aggiornato è anche il primo collaudo del giro di deploy attraverso la
+porta stretta** — la guardia dimostra che le rotte ci sono e rispondono, non che `remote_deploy`
+arrivi in fondo. Se qualcosa non torna, la via di recupero è togliere il `#` dalla riga `Exec=`
+in `~/.config/containers/systemd/sws-runtime.container` e
+`systemctl --user daemon-reload && systemctl --user restart sws-runtime`: quella riga è già
+scritta là dentro di proposito, perché `Exec=` sovrascrive il comando dell'immagine per intero e
+ricomporlo a memoria su un dispositivo in campo vuol dire sbagliarne un pezzo.
 
-**Verificato**: 380 test Rust (+17), 125 editor (+17), 8 guardie, `pnpm build`. Sette dei test
-nuovi li ho visti fallire nel verso rotto — fra cui «expected 0 to be greater than 0», cioè il
-diff vuoto su una funzione riscritta. In browser, la consegna fra due finestre su un'istanza reale;
-e l'endpoint `check` provato su sei casi, compreso l'errore di sintassi riportato alla riga giusta.
-**Nota sui test Rust**: servono `LD_LIBRARY_PATH` verso la libpython di pyenv, altrimenti il
-binario di test non parte (`libpython3.11.so.1.0`).
+**Cosa c'è dentro** (i sette commit sono nella history del ramo, con il dettaglio):
 
-**Corretti due test miei, difettosi**: uno faceva `return` quando RestrictedPython mancava — cioè
-passava senza provare niente proprio sul comportamento per cui esisteva; l'altro asseriva che
-l'ultimo strumento fosse `schema_tag`, vero quando fu scritto e falso al primo strumento
-successivo.
+1. la chat dell'assistente si stacca in una finestra propria — l'ultimo pezzo del piano di T-50;
+2. `POST /api/script/check` compila Python **senza eseguirlo**, più `controlla_python`,
+   `leggi_script`, `schema_python`;
+3. le regole del validatore sugli script globali, e il `child` delle celle di griglia che prima
+   non veniva validato;
+4. il diff dell'assistente ora **vede il Python**, riga per riga;
+5. `--no-admin` diventa il default sui deploy, nella forma «porta stretta» invece che «porta
+   assente»;
+6. il passo AST nel controllo Python — vedi sotto, è la storia più istruttiva della sessione;
+7. la riga `Exec=` pronta nel quadlet.
 
-**Cosa NON è stato fatto**: la prova end-to-end della chat (`e2e/chat-ai.spec.ts`) non è mai
-girata; la chat staccata non è stata provata con una proposta **vera** dal modello (serve una
-chiave e `SWS_AI_FAKE` con una traccia registrata) — il ponte è coperto dai test unitari, la
-consegna dalla prova in browser.
+**Tre difetti vivi trovati strada facendo**, e due erano peggio di quel che stavo aggiungendo: il
+cron che non capisce `*/5` e **non parte mai** in silenzio (**Q34**, registrata, non risolta); il
+diff che mostrava «nessuna modifica» su una proposta che riscriveva una funzione; un bottone
+dentro una cella di griglia che puntava al nulla senza che niente lo dicesse.
+
+**La storia da ricordare**: il maintainer ha installato RestrictedPython su richiesta, e il ramo
+del test sul sandbox — che prima si **saltava**, quindi non l'aveva mai eseguito nessuno — è
+fallito subito, scoprendo un difetto nel disegno: `compile_restricted` compila `import os` e
+`open(...)` senza obiettare, perché non sono costrutti proibiti ma nomi che a esecuzione non
+esistono. Serviva il passo AST. Un test che si salta in silenzio è verde e cieco proprio sul
+comportamento per cui esiste.
+
+**Non provato, e va provato sul dispositivo:**
+
+- il **giro completo del Deploy** verso un dispositivo in `--no-admin`;
+- la **chat staccata con una proposta vera** dal modello (serve la chiave);
+- la prova end-to-end della chat (`e2e/chat-ai.spec.ts`), che non è mai girata.
+
+**Nota per i test Rust**: servono `LD_LIBRARY_PATH` verso la libpython di pyenv, altrimenti il
+binario di test non parte. `export LD_LIBRARY_PATH=$(python3 -c 'import sysconfig;print(sysconfig.get_config_var("LIBDIR"))')`.
+
+**Domande aperte accumulate in questa sessione**: **Q32** (quale delle due porte è la via normale
+per modificare un progetto), **Q33** (`system/stop` annullato dal Salva delle Sorgenti), **Q34**
+(il cron). Q8 ha ora un `Decided` del maintainer per l'opzione A.
 
 ---
 
