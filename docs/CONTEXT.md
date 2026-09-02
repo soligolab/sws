@@ -323,7 +323,7 @@ This is the operational rhythm Claude Code should follow.
 
 See `docs/OPEN_QUESTIONS.md` for the full running list. **Don't decide these in a vibecode session** — bring them to the maintainer.
 
-Le Q1-Q7 originali sono tutte decise. **La lista è però arrivata a Q32**, e diverse voci restano
+Le Q1-Q7 originali sono tutte decise. **La lista è però arrivata a Q33**, e diverse voci restano
 aperte — fra cui **Q8** (isolamento runtime ↔ IDE: le opzioni C/E/F, cioè split di processo e Python
 out-of-process, sono product-phase) e **Q32** (dove deve vivere il progetto che si sta modificando).
 Questa sezione affermava «*none of the original Q1-Q7 are open*» come se non ci fosse altro:
