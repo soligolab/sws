@@ -38,7 +38,22 @@ export type MsgIn =
 export type MsgOut = { t: "chiedi"; testo: string };
 
 /** Una voce del diff leggibile: `+` aggiunto, `-` tolto, `~` modificato. */
-export interface VoceDiff { verso: "+" | "-" | "~"; testo: string }
+export interface VoceDiff {
+  verso: "+" | "-" | "~";
+  testo: string;
+  /** Il diff riga per riga, quando la voce riguarda del **codice**.
+   *
+   *  Per un tag o un oggetto sapere *che* è cambiato basta: il pannello
+   *  proprietà lo mostra. Per del Python no — «funzione modificata» non dice se
+   *  è stata aggiunta una riga o riscritta da capo, e chi approva non ha modo di
+   *  accorgersi che metà del corpo è sparita. */
+  righe?: RigaDiff[];
+  /** Nota sul diff delle righe (troncato, o non calcolato perché troppo grande). */
+  righeNota?: string;
+}
+
+/** Una riga del diff di codice. Rispecchia `@/ai/diffRighe`. */
+export interface RigaDiff { verso: "+" | "-" | " "; testo: string }
 
 /** Una riga della conversazione, come la mostra il pannello. */
 export type Riga =

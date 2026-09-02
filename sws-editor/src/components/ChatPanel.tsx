@@ -303,6 +303,32 @@ function Proposta({ riga, bloccato, onApplica, onScarta }: {
                 {d.verso}
               </span>{" "}
               {d.testo}
+              {/* Il diff riga per riga, che c'è solo per le voci di codice.
+                  «funzione modificata» non dice se è stata aggiunta una riga o
+                  riscritta da capo, e chi approva non ha modo di accorgersi che
+                  metà del corpo è sparita. */}
+              {d.righe && d.righe.length > 0 && (
+                <pre style={CODICE}>
+                  {d.righe.map((r, k) => (
+                    <div key={k} style={{
+                      color: r.verso === "+" ? "var(--brand-success, #22c55e)"
+                           : r.verso === "-" ? "var(--brand-danger, #ef4444)"
+                                             : "var(--brand-text-subtle, #64748b)",
+                      background: r.verso === "+" ? "rgba(34,197,94,0.10)"
+                                : r.verso === "-" ? "rgba(239,68,68,0.10)" : "transparent",
+                      whiteSpace: "pre-wrap", wordBreak: "break-word",
+                    }}>
+                      {r.verso}{r.testo || " "}
+                    </div>
+                  ))}
+                </pre>
+              )}
+              {d.righeNota && (
+                <div style={{ fontSize: 10, color: "var(--brand-text-subtle, #64748b)",
+                              marginTop: 2 }}>
+                  {d.righeNota}
+                </div>
+              )}
             </li>
           ))}
         </ul>
@@ -446,4 +472,17 @@ const AVVISO: React.CSSProperties = {
 const CARTA: React.CSSProperties = {
   border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 6,
   padding: "8px 10px", background: "var(--brand-surface, #1e293b)",
+};
+
+const CODICE: React.CSSProperties = {
+  margin: "4px 0 2px",
+  padding: "4px 6px",
+  maxHeight: 240,
+  overflow: "auto",
+  fontSize: 11,
+  lineHeight: 1.45,
+  fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+  background: "var(--brand-bg, #0f172a)",
+  border: "1px solid var(--brand-surface-2, #334155)",
+  borderRadius: 4,
 };
