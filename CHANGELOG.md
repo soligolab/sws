@@ -11,6 +11,66 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### La chat si stacca, e il Python si controlla prima di proporlo
+
+**La chat dell'assistente in una finestra propria** (`ai/ponte.ts`,
+`ai/editor.ts`, `ai/riassunto.ts`, `components/ChatWindow.tsx`,
+`index-chat.html`). Era l'unico pezzo del piano di T-50 mai implementato: i log
+si staccavano, la chat no, perché è la sola che ha bisogno di un ponte fra le
+finestre — `applyAiProposal` deve girare nella finestra dell'editor, dato che
+registra le `pendingSections`, che sono **closure** e non attraversano nessun
+canale.
+
+Staccare è una **consegna**, non un duplicato: la conversazione vive nel
+WebSocket lato runtime, quindi la finestra nuova ne apre uno suo e ricomincia da
+zero. Non c'è nessun «riattacca». Il ponte usa `BroadcastChannel` con
+**indirizzamento** dentro la classe e non nei chiamanti (senza, due schede
+dell'IDE applicherebbero la stessa proposta), e l'id dell'editor sta in
+`sessionStorage` così sopravvive a un ricarico ma resta per scheda.
+
+Il diff diventa asincrono, e i tre stati restano distinti: `null` senza errore =
+si sta calcolando, `null` con errore = **non lo sappiamo**, `[]` = nessuna
+modifica. E un timeout su «applica» **non dimostra** la non-applicazione:
+l'esito dice «potrebbe essere stata applicata comunque, controlla il canvas».
+
+**Compilare Python senza eseguirlo** — `Engine::check`,
+`POST /api/script/check`, e gli strumenti `controlla_python`, `leggi_script`,
+`schema_python`. Prima, l'unico modo di sapere se uno script stava in piedi era
+**eseguirlo**: su un impianto in servizio vuol dire accettare che una prova
+scriva i tag. Due compilazioni in ordine (`compile()` poi
+`compile_restricted()`) perché è l'unica cosa che distingue «errore di sintassi,
+guarda la riga» da «Python valido ma vietato qui, cambia strada».
+`sandbox_verificata` non è cablata: dove RestrictedPython manca, l'esito lo
+**dichiara**, perché sul dispositivo lo stesso codice viene rifiutato.
+
+**🔴 Il cron degli script globali non capisce `*/5`, e non parte in silenzio.**
+`parse_cron` ammette solo `*` o interi separati da virgola, e `filter_map`
+**scarta** ciò che non legge: il campo diventa un insieme vuoto, lo script viene
+schedulato e non parte mai — senza errore, senza log, senza spia. È la prima
+cosa che chiunque scriverebbe per «ogni cinque minuti». Registrato come **Q34**;
+nel frattempo il validatore lo dice, con la conseguenza a lettere.
+
+**Il `child` di una cella di griglia ora viene validato.** Era un oggetto a
+tutti gli effetti dentro un `Value` opaco, quindi un bottone in una cella che
+puntava a una funzione inesistente era **muto**: il gesto non faceva niente e
+non lo diceva. La discesa è ricorsiva.
+
+**🔴 Il diff non vedeva il Python.** `riassumi` confrontava tag, sorgenti,
+allarmi e pagine e niente altro: una proposta che **riscriveva una funzione**
+mostrava «nessuna modifica». Ora copre `functions` e `global_scripts` con un
+diff **riga per riga** (LCS, due righe di contesto, e oltre 400 righe rinuncia
+*dicendolo* — un elenco vuoto sarebbe indistinguibile da «nessuna modifica»). E
+«assente non è vuoto» vale anche qui: una proposta che non nomina le funzioni non
+le dichiara rimosse.
+
+Più regole sugli script globali: id duplicati, corpo vuoto ma `enabled`,
+`interval_s: 0`, `tag_change` su un tag inesistente, e il tetto di byte che il
+`PUT` imponeva **solo alle funzioni**.
+
+380 test Rust (+17), 125 editor (+17). Sette dei nuovi sono stati visti fallire
+nel verso rotto.
+
+
 ### L'IDE dice su cosa stai scrivendo (divisione editor/runtime)
 
 Sull'IDE della porta admin di un dispositivo si modifica il progetto

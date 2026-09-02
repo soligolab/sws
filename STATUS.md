@@ -28,6 +28,80 @@
 
 ## ▶ Da fare nella prossima sessione
 
+### ⏳ Chat staccata + strumenti Python — sul ramo `feat/chat-staccata-e-python`
+
+*2026-09-02 pomeriggio, frodo. Quattro commit, verificati. **Non mergiato**: attende la conferma
+del maintainer.*
+
+**Nota di igiene, e ci è già costata**: il disegno degli strumenti Python **non esisteva più**.
+Viveva in un file di `~/.claude/plans/` che è stato sovrascritto — esattamente il rischio per cui
+la regola dice di copiare i piani in `docs/plans/`. È stato ricostruito dall'elenco in questo
+file. Il disegno della chat staccata invece era salvo, in appendice a
+`docs/plans/2026-09-01-editor-runtime.md`.
+
+**1. `df4338f` — la chat si stacca in una finestra propria.** Era l'unico pezzo del piano di T-50
+mai implementato. Il fatto che decide tutto: `applyAiProposal` deve girare nella finestra
+dell'editor, perché registra le `pendingSections`, che sono **closure** e non attraversano nessun
+canale. Quindi la finestra staccata tiene socket, conversazione e rendering; l'editor tiene stato,
+applicazione e annullamento. Ponte su `BroadcastChannel` (`ai/ponte.ts`, canale
+`sws.chat.ponte.v1`), con **indirizzamento** dentro `Ponte` e non nei chiamanti: senza, due schede
+dell'IDE applicherebbero la stessa proposta. L'id dell'editor sta in `sessionStorage`, così
+sopravvive a un ricarico ma resta per scheda.
+Staccare è una **consegna**: la conversazione riparte da zero e non c'è nessun «riattacca», perché
+il runtime non sa trasferirla. Il cassetto si disabilita col motivo nel titolo e si riabilita
+quando la finestra si chiude.
+Il diff diventa asincrono, e i tre stati vanno tenuti distinti — `null` senza errore = si calcola,
+`null` con errore = **non lo sappiamo**, `[]` = nessuna modifica.
+E un timeout **non dimostra** la non-applicazione: l'esito dice «potrebbe essere stata applicata
+comunque, controlla il canvas».
+
+**2. `1f2930f` — compilare Python senza eseguirlo.** `Engine::check` +
+`POST /api/script/check` + tre strumenti (`controlla_python`, `leggi_script`, `schema_python`).
+Prima, l'unico modo di sapere se uno script stava in piedi era **eseguirlo**. Due compilazioni in
+ordine — `compile()` poi `compile_restricted()` — perché è l'unica cosa che distingue «errore di
+sintassi, guarda la riga» da «Python valido ma vietato qui, cambia strada».
+**Su questa macchina RestrictedPython non è installata**, quindi `import os` passa il controllo:
+l'esito lo dichiara (`sandbox_verificata: false`) e lo schema lo dice con un ATTENZIONE, perché
+sul dispositivo lo stesso codice viene rifiutato. Se la si installa (`pip install
+RestrictedPython`) il sandbox diventa attivo anche in sviluppo e il test relativo prova davvero il
+ramo che conta — **è una scelta del maintainer**, non l'ho fatta io.
+
+**3. `c79e99f` — le regole del validatore sugli script.** Il pezzo che vale di più:
+**`global_scripts::parse_cron` non capisce `*/5`.** Ammette solo `*` o interi separati da virgola,
+e `filter_map` **scarta** ciò che non legge: il campo diventa un insieme vuoto, lo script viene
+schedulato e **non parte mai**, senza errore, senza log, senza spia. `*/5 * * * *` è la prima cosa
+che chiunque scriverebbe. Registrato come **Q34** con quattro opzioni; il validatore ora lo dice.
+Più id duplicati, corpo vuoto ma `enabled`, `interval_s: 0`, `tag_change` su un tag inesistente, e
+il tetto di byte che il `PUT` imponeva **solo alle funzioni**.
+E il **buco delle griglie**: il `child` di una cella è un oggetto a tutti gli effetti ma viveva in
+un `Value` opaco, quindi un bottone dentro una cella che puntava a una funzione inesistente era
+**muto**. Ora si scende, ricorsivamente.
+
+**4. `b849b0c` — il diff non vedeva il Python.** Difetto vivo: `riassumi` confrontava tag,
+sorgenti, allarmi e pagine e niente altro, quindi una proposta che **riscriveva una funzione**
+mostrava «nessuna modifica». Ora copre `functions` e `global_scripts`, con diff **riga per riga**
+(LCS in `ai/diffRighe.ts`, due righe di contesto, resa oltre 400 righe *dicendolo*). E «assente non
+è vuoto» rifatto anche qui.
+
+**Verificato**: 380 test Rust (+17), 125 editor (+17), 8 guardie, `pnpm build`. Sette dei test
+nuovi li ho visti fallire nel verso rotto — fra cui «expected 0 to be greater than 0», cioè il
+diff vuoto su una funzione riscritta. In browser, la consegna fra due finestre su un'istanza reale;
+e l'endpoint `check` provato su sei casi, compreso l'errore di sintassi riportato alla riga giusta.
+**Nota sui test Rust**: servono `LD_LIBRARY_PATH` verso la libpython di pyenv, altrimenti il
+binario di test non parte (`libpython3.11.so.1.0`).
+
+**Corretti due test miei, difettosi**: uno faceva `return` quando RestrictedPython mancava — cioè
+passava senza provare niente proprio sul comportamento per cui esisteva; l'altro asseriva che
+l'ultimo strumento fosse `schema_tag`, vero quando fu scritto e falso al primo strumento
+successivo.
+
+**Cosa NON è stato fatto**: la prova end-to-end della chat (`e2e/chat-ai.spec.ts`) non è mai
+girata; la chat staccata non è stata provata con una proposta **vera** dal modello (serve una
+chiave e `SWS_AI_FAKE` con una traccia registrata) — il ponte è coperto dai test unitari, la
+consegna dalla prova in browser.
+
+---
+
 ### ✅ Divisione editor/runtime — **mergiata in `main`** (`e98138b`)
 
 *2026-09-02, frodo. Squash merge dei cinque commit del ramo `feat/editor-runtime-chiarezza` dopo
