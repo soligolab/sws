@@ -181,45 +181,56 @@ Usa firewall o VPN per limitare l'accesso alla porta 8444.
 
 ---
 
-## Percorso C — Container Docker/Podman
+## Percorso C — Container podman
 
-Il percorso più veloce per valutazione e ambienti senza build environment.
+Un solo container — il runtime, che serve anche la SPA — installato come servizio systemd
+**senza `sudo`** (podman rootless + quadlet). Utile su un device che ha un runtime di container
+ma non un SDK per compilare.
 
-### Avvio rapido
+### Installazione
 
 ```bash
-git clone https://github.com/soligolab/sws.git
-cd sws
-
-export SWS_ADMIN_PASSWORD=cambiami
-docker compose up
+# sul dispositivo
+./deploy/container/install-container.sh --pull
 ```
 
-### docker-compose.yml (estratto)
+Lo script riconosce l'architettura da `uname -m` e scarica l'immagine corrispondente. Per un
+device senza accesso al registry, la stessa installazione si spinge **dall'IDE via SSH**
+(*Configurazione → Runtime → Installa su dispositivo*), che copia un archivio invece di
+scaricarlo — oppure a mano con `--image <archivio.tar.gz>`.
 
-```yaml
-services:
-  sws-runtime:
-    image: ghcr.io/soligolab/sws-runtime:latest
-    ports:
-      - "8443:8443"   # viewer operatori
-      - "8444:8444"   # admin IDE
-    environment:
-      - SWS_ADMIN_PASSWORD=${SWS_ADMIN_PASSWORD}
-    volumes:
-      - sws-data:/var/lib/sws   # progetti e certificati persistenti
+### Immagini pubblicate
 
-volumes:
-  sws-data:
-```
+Non esiste un tag `latest` senza suffisso: l'architettura fa parte del nome, perché scaricare
+l'immagine sbagliata è un errore che si scopre solo all'avvio.
+
+| Tag | Per chi |
+|-----|---------|
+| `ghcr.io/soligolab/sws-runtime:latest-arm64` | device Pixsys aarch64 (binario dall'SDK Yocto) |
+| `ghcr.io/soligolab/sws-runtime:latest-arm64-generic` | board ARM64 generiche (Raspberry Pi, Jetson, VM cloud) |
+| `ghcr.io/soligolab/sws-runtime:latest-amd64` | host x86_64 |
+
+Costruzione e pubblicazione: `scripts/build_container.sh`,
+`scripts/build_container_aarch64_generic.sh`, `scripts/build_container_x86_64.sh`
+(`--push` per pubblicare). Non è un passo di CI: l'immagine Pixsys contiene un binario
+cross-compilato con l'SDK Yocto, che sui runner GitHub non esiste, quindi la pubblicazione è
+manuale dalla macchina che ha l'SDK.
 
 ### Note container
 
-- Immagine base: `debian:bookworm-slim`
-- Architetture: `linux/arm64`, `linux/amd64` (multi-arch manifest)
-- Il runtime parte in **HTTP**; il TLS si abilita generando/caricando un certificato dall'IDE
-  (*Configurazione → Stato → Certificato TLS*), che viene salvato nel volume `sws-data` e riusato
-  ai riavvii successivi
+- Dati persistenti in `/data/user/sws/{projects,config,logs}`, montati nel container.
+- Porte: **8443** viewer operatori, **8444** admin IDE — come nel deploy nativo.
+- Nessuna credenziale obbligatoria: parte in no-auth mode. `SWS_ADMIN_PASSWORD`, se impostata,
+  seeda l'utente admin al primo avvio.
+- Il runtime parte in **HTTP**; il TLS si abilita generando o caricando un certificato dall'IDE
+  (*Configurazione → Stato → Certificato TLS*), salvato in `config/` e riusato ai riavvii.
+- Procedura completa, aggiornamento e diagnosi: `docs/DEPLOY_CONTAINER_AARCH64.md` e
+  `docs/DEPLOY_CONTAINER_X86_64.md`.
+
+> Fino al 2026-09-02 qui c'era un percorso `docker compose` con due container. È stato rimosso
+> perché non partiva: l'immagine non passava `--viewer-port`, quindi nessuno era in ascolto sulla
+> porta pubblicata, e il servizio chiamato `editor` serviva il bundle del *viewer*. Si recupera
+> dalla history di git.
 
 ### Kiosk mode (avvio automatico browser)
 
@@ -237,9 +248,9 @@ Richiede GTK4 + WebKitGTK sul sistema host.
 
 | Criterio | Generic Linux | Yocto | Container |
 |----------|-------------|-------|-----------|
-| Setup | Tarball + install.sh | Cross-compile | Docker Compose |
+| Setup | Tarball + install.sh | Cross-compile | install-container.sh --pull |
 | Aggiornamenti | Nuovo tarball | Script deploy.sh | Pull nuova immagine |
-| Dipendenze target | systemd, libssl | Yocto SDK | Docker/Podman |
+| Dipendenze target | systemd, libssl | Yocto SDK | podman + systemd (rootless) |
 | Performance | Nativa | Nativa (ottimizzata) | Overhead minimo |
 | Raccomandato per | Server x86, ARM64 generico | PX30, RK3399, RK3588 | Dev, valutazione |
 

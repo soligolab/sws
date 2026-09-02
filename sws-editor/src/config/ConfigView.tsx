@@ -5247,12 +5247,18 @@ function AssistenteSection() {
   // Doppia difesa sopra `require_admin`, come fa TlsSection.
   if (authRole !== "Admin") return null;
 
+  // Un 404 dice che la rotta non c'è, non *perché*: oltre all'istanza che serve
+  // un impianto (il gate `solo_ide`) la stessa risposta arriva da un runtime più
+  // vecchio della funzione. Prima qui si affermava la prima causa come se fosse
+  // l'unica. La modalità dichiarata sta nella scheda Stato → «Modalità», e nel
+  // marcatore in testata: qui si dice solo ciò che il 404 dimostra.
   if (assente) {
     return (
       <Box titolo="Assistente IA">
         <div style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)" }}>
-          Questa istanza serve un impianto (ha un viewer): l&apos;assistente si configura
-          sull&apos;IDE di sviluppo, non da qui.
+          Questa istanza non espone la configurazione dell&apos;assistente: si configura
+          sull&apos;IDE di sviluppo, non da qui. Vedi Stato → «Modalità» per sapere quale
+          ruolo sta servendo.
         </div>
       </Box>
     );
@@ -5512,6 +5518,18 @@ function SystemTab() {
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
           <MetricCard icon="🖥" label="Versione" value={status.runtime_version} />
+          {/* Quale ruolo serve l'istanza interrogata — e con un dispositivo
+              connesso questa scheda interroga *lui*, quindi la card dice la
+              modalità del device. È il modo per accorgersi di aver collegato
+              un editor a un altro editor, che prima era invisibile.
+              `mode` assente = runtime più vecchio: non si afferma niente. */}
+          <MetricCard
+            icon={status.mode === "runtime" ? "🏭" : "✏️"}
+            label="Modalità"
+            value={status.mode === "runtime" ? "Runtime (serve un impianto)"
+                 : status.mode === "ide"     ? "IDE (sola progettazione)"
+                 :                             "non dichiarata"}
+          />
           <MetricCard icon="📦" label="Progetto" value={status.active_project ?? "—"} />
           <MetricCard icon="⏱" label="Uptime" value={fmtUptime(status.uptime_s)} />
           <MetricCard icon="🏷" label="Tag" value={String(status.tag_count)} />

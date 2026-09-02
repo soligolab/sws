@@ -69,8 +69,9 @@ Cosa NON si può testare qui:
 ## 3. Ufficio — dispositivi Yocto (PX30, RK3399, RK3588)
 
 Dispositivi industriali Rockchip in LAN ufficio. Deploy tramite **binario nativo Yocto**
-(`docs/YOCTO_CROSSCOMPILE.md`). La guida container (`docs/DEPLOY_PX30.md`) è il flusso
-legacy per device ARM64 generici non-Yocto.
+(`docs/YOCTO_CROSSCOMPILE.md`); in alternativa il container podman, vedi
+`docs/DEPLOY_CONTAINER_AARCH64.md` — che copre anche le board ARM64 generiche non-Yocto,
+nella sua §«Percorso generico».
 
 Layout su device:
 ```
@@ -247,5 +248,6 @@ e poi può procedere con `ssh pixsys@<host>` per i comandi successivi.
 
 - `STATUS.md` — handoff session-by-session.
 - `docs/YOCTO_CROSSCOMPILE.md` — build e deploy nativo su Pixsys Yocto (percorso preferito).
-- `docs/DEPLOY_PX30.md` — deploy in container su ARM64 generico (percorso legacy).
+- `docs/DEPLOY_CONTAINER_AARCH64.md` — deploy in container podman su aarch64 (Pixsys e board generiche).
+- `docs/DEPLOY_CONTAINER_X86_64.md` — lo stesso su host x86_64.
 - `scripts/README.md` — overview script `start_runtime.sh` / `start_editor.sh` / `kiosk.sh`.

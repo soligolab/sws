@@ -9,18 +9,24 @@
 > aggiornamento di routine.
 >
 > Per un device **x86_64** (non aarch64), stesso installer e stessa esperienza, vedi
-> `docs/DEPLOY_CONTAINER_X86_64.md` — non `docs/DEPLOY_PX30.md`, che copre target
-> ARM64 generici (Raspberry Pi, Jetson...) buildati da un laptop x86, non un target
-> x86_64.
+> `docs/DEPLOY_CONTAINER_X86_64.md`.
+>
+> Per una board **ARM64 generica** (Raspberry Pi, Jetson, VM cloud arm64) c'è la
+> §«Percorso generico (senza SDK Pixsys)» in questo stesso documento.
 >
 > Non sostituisce il percorso **binario nativo Yocto**
 > (`docs/YOCTO_CROSSCOMPILE.md`) — resta preferibile quando si può installare come
 > servizio di sistema invece che in container.
 >
-> Il **container x86 legacy** (`docs/DEPLOY_PX30.md`, `compose.yaml`,
-> `sws-runtime/docker/Dockerfile`) è un flusso storico, **non** quello descritto
-> qui. La sua pubblicazione automatica in CI è disattivata: costruiva un'immagine
-> che non parte, all'indirizzo che il README pubblicizza.
+> **Il container legacy non esiste più.** C'era un secondo percorso — `compose.yaml`,
+> `sws-runtime/docker/Dockerfile`, `sws-editor/docker/Dockerfile`,
+> `scripts/build-images.sh`, `docs/DEPLOY_PX30.md` — dichiarato storico nel luglio
+> 2026 e **cancellato il 2026-09-02**: costruiva un'immagine che non parte
+> all'indirizzo che il README pubblicizzava (il `CMD` non passava `--viewer-port`,
+> quindi nessuno era in ascolto sulla porta pubblicata), la sua pubblicazione in CI
+> era già disattivata, e il servizio che si chiamava `editor` serviva in realtà il
+> bundle del **viewer**. Chi arriva qui da un vecchio rimando: quello che funziona è
+> questo documento. Il vecchio si recupera dalla history di git.
 
 ## Come è fatta l'immagine
 

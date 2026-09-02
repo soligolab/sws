@@ -211,6 +211,57 @@ percorso arbitrario), ma **tutta questa superficie va chiusa quando il PoC diven
 autenticando il gruppo dopo il primo bootstrap, o confinando `/api/fs/*` a un insieme di radici
 consentite. Da affrontare insieme a E.
 
+**Nota (2026-09-02) — il verso opposto: l'EDITOR è un motore completo.** Q8 descrive il gap sul
+*dispositivo* (IDE e acquisizione nello stesso processo). Gli mancava l'altra metà, misurata
+mentre si rispondeva a una domanda del maintainer sulla divisione editor/runtime (vedi
+`docs/adr/0003-editor-runtime-same-binary.md`): **anche un'istanza IDE-only fa girare tutto il
+motore**. Nessun servizio è condizionato a `viewer_port`; l'istanza riapre da sé l'ultimo progetto
+attivo dal marker `.active-project` e da lì avvia driver delle sorgenti, valutatore allarmi,
+historian e recorder, tag derivati Python, cron degli script globali, notifiche email + Telegram,
+auto-backup e audit. Quindi `start_editor.sh` su un PC di sviluppo, aperto un progetto con
+sorgenti reali, apre connessioni reali; con allarmi configurati, manda notifiche reali.
+
+Misurato nei log di un'istanza editor vera (`source supervisor reload complete`,
+`historian: SQLite store opened`, `datastore: backend initialized`). **Limite della misura**: il
+progetto di prova aveva 0 sorgenti, quindi `started: 0` — una connessione PLC vera da un'istanza
+editor **non è stata osservata**, e la conclusione segue dal fatto che la chiamata è la stessa che
+fa il dispositivo, senza gate.
+
+Fino al 2026-09-02 `AppState.ide_only` aveva **un solo lettore** in tutto il binario (il gate delle
+tre rotte `/api/ai/config`). Ora è pubblicato come `mode` in `GET /api/system`, quindi c'è dove
+appendere un comportamento specifico dell'editor senza inventare un flag.
+
+**Quel che si è imparato sui costi**, utile a chi riprenderà la questione:
+
+- **L'opzione «editor senza motore» costa meno di quanto sembri.** Il motore è quasi tutto
+  *reattivo*: valutatore allarmi, tag derivati, dispatcher webhook e i due recorder si svegliano
+  solo su `TagDb::subscribe()`, e senza driver non fanno nulla — non serve smontarli. I soli pezzi
+  che agiscono per conto proprio sono **tre**: `SourceSupervisor`, `projects::start_project_services`
+  (cron degli script globali, notifiche, Telegram) e il loop di auto-backup. Un gate dentro
+  `SourceSupervisor::reload` coprirebbe in un colpo **tutti** i percorsi di reload esistenti
+  (boot, apertura progetto, `PUT /api/project/sources`, upload ZIP, import, Avvia) — che è anche la
+  difesa contro un percorso aggiunto in futuro.
+- **Spegnimento e riaccensione deliberata esistono già**: `POST /api/system/stop` e
+  `/api/system/start` fanno esattamente driver + script + notifiche + Telegram, e il pulsante è già
+  in testata all'IDE col pallino di stato. Quella via non dovrebbe inventare né endpoint né UI.
+- **La perdita che il relay non copre è lo storico.** `/ws/tags`, `/ws/alarms` e `/ws/logs` sono
+  già dirottati sul dispositivo collegato, ma le letture di storico (`/api/history/*` da
+  `SvgCanvas`, `TrendCanvas`, `TrendExpanded`) sono same-origin e restano locali. Un editor senza
+  motore non avrebbe più storico da mostrare; mostrare quello del dispositivo sarebbe un lavoro a
+  sé (un proxy `/api/remote/history/*` sul modello di `remote_system_status`).
+- **Due eseguibili (E-lite) darebbero meno di quanto sembri.** Le rotte esclusive dell'editor sono
+  ~25 su 186; quelle esclusive del runtime **zero** — il viewer è un sottoinsieme dell'admin, e
+  l'IDE del dispositivo serve le stesse 147 rotte dell'IDE del PC. Oggi due binari sarebbero due
+  nomi per lo stesso programma. Il costo vero sta fuori da Rust: `scripts/build_deploy.sh`, le
+  stringhe `"sws-runtime"` in `sws-web` e nella SPA, service/quadlet/Containerfile/installer, e
+  due guardie da riscrivere. E resta la domanda senza risposta indolore: il dispositivo continua a
+  servire l'IDE? Se sì gli si spediscono entrambi i binari e la separazione è nominale; se no,
+  quello è già A (`--no-admin`, implementata) e cancella il flusso «configuro dal pannello».
+- **Da evitare** se un giorno si va verso E: il `cfg`-out dei driver dal binario editor tramite
+  cargo feature. Deciderebbe a compile-time una cosa che lo split di processo vuole decidere a
+  runtime — processi separati, **stessa** build. Il gate come booleano dentro il supervisore invece
+  gli prepara la strada: è la frontiera che diventerebbe confine di processo.
+
 ---
 
 ## Q9 — Le `PUT /api/project/*` accettano e scartano in silenzio i campi sconosciuti
@@ -2594,3 +2645,70 @@ credere il contrario.
 Resta legittimo, ma è un'altra domanda: se un giorno si volesse un assistente che *guarda* il
 dispositivo — i suoi tag dal vivo, il suo storico, i suoi log — quello è il secondo insieme di
 strumenti di cui si parla in `docs/plans/2026-08-31-chat-ai-nelleditor.md`, non questo.
+
+## Q32 — Dove deve vivere il progetto che si sta modificando?
+
+**Context**: emerso il 2026-09-02 da una domanda del maintainer («l'editor lavora in locale o
+direttamente nella cartella del dispositivo?»). La risposta è **entrambi, e dipende da quale porta
+si entra** — e la domanda non è mai stata posta come tale: la risposta di fatto era sepolta in un
+aggiornamento di Q31. I fatti sono in `docs/adr/0003-editor-runtime-same-binary.md`; in breve, il
+server non tiene nessun `Project` in memoria e il Salva riscrive i file **sul filesystem del
+processo a cui la SPA è collegata**, quindi:
+
+- **IDE sulla porta admin di un dispositivo** (`start_runtime.sh`, e *tutti* i deploy che si
+  spediscono: yocto, generic-linux, container): si modifica il progetto dell'impianto **in presa
+  diretta**, e il Salva fa hot-reload di sorgenti, allarmi e tag senza riavvio né conferma.
+- **IDE su un PC** (`start_editor.sh`, pacchetto portabile): cartella locale e separata; il
+  dispositivo ne ha una copia, sincronizzata solo a bundle interi (deploy push / export pull).
+
+Nessuno dei due è sbagliato: il primo serve in messa in servizio e in assistenza, il secondo è il
+flusso di progettazione. La domanda è **quale sia la via normale e quale l'eccezione**, perché da
+quella risposta dipende quanta cerimonia mettere attorno alla prima. Il 2026-09-02 il maintainer ha
+deciso la sola metà UI («resta com'è, ma lo dice»: c'è un marcatore in testata quando l'istanza
+serve un impianto). Questa domanda è l'altra metà.
+
+**Options**:
+1. **Presa diretta = normale.** Come oggi, col marcatore già aggiunto. Zero lavoro; chi lavora su
+   un impianto in servizio è avvisato ma non ostacolato.
+2. **Presa diretta = deliberata.** Modificare il progetto di un'istanza che serve un impianto
+   richiede un passo esplicito (una conferma alla prima modifica, o un interruttore in
+   configurazione). Costa poco e rende difficile la cosa irreversibile per distrazione; il prezzo è
+   una frizione in più proprio quando si è sul posto con poco tempo.
+3. **Presa diretta = solo lettura per default**, e per modificare si fa un pull sull'editor locale,
+   si modifica e si ridistribuisce. Coerente con «il progetto si progetta, non si tocca in campo»,
+   ma cambia il modo di lavorare del maintainer e richiede che il pull sia comodo.
+4. **Distinguere per ruolo**: Supervisor può modificare in presa diretta, chi ha meno no. Oggi la
+   soglia di scrittura dei sinottici è già Supervisor, quindi è a portata — ma il ruolo non
+   descrive la situazione (un Admin in ufficio su una copia e un Admin in campo su un impianto sono
+   la stessa cosa per l'auth).
+
+**Default for PoC**: opzione 1 (stato attuale, più il marcatore aggiunto il 2026-09-02).
+
+**Decided**: not yet.
+
+## Q33 — `POST /api/system/stop` viene annullato in silenzio dal salvataggio delle Sorgenti
+
+**Context**: trovato il 2026-09-02 analizzando i percorsi di reload del supervisore, fuori dal
+perimetro del lavoro in corso e non corretto. `POST /api/system/stop` (`system.rs`) ferma
+l'acquisizione — driver, script globali, notifiche, Telegram — ed è il pulsante «Stop» in testata
+all'IDE. Ma `PUT /api/project/sources` (`router.rs`) chiama `supervisor.reload(sources)` dopo aver
+persistito, **senza sapere che qualcuno aveva fermato l'acquisizione**: chi ferma l'impianto per
+lavorare in sicurezza e poi salva una modifica alle sorgenti lo **riavvia senza volerlo**, e la
+sola indicazione è il pallino in testata che torna verde.
+
+Vale anche per gli altri percorsi che ricaricano (upload ZIP, import, apertura progetto), quindi
+non è un caso singolo: è che «fermato» non è uno stato, è un effetto momentaneo.
+
+**Options**:
+1. **Lo stato «fermo» diventa esplicito** (un booleano nel supervisore, `armed`), e ogni `reload`
+   lo rispetta. È un punto solo, copre tutti i percorsi presenti e futuri, e prepara la strada a
+   Q8-E — è la stessa frontiera che un domani diventa confine di processo. Non persistito: al
+   riavvio si riparte acceso, che è il default sicuro per un impianto.
+2. **Avvisare invece di impedire**: il salvataggio riavvia, ma la UI dice che l'acquisizione era
+   ferma e che sta ripartendo. Non risolve, rende visibile.
+3. **Lasciare com'è e documentarlo** nel manuale: «Stop non sopravvive a un salvataggio».
+
+**Default for PoC**: opzione 3, non per scelta ma per inerzia — è lo stato attuale, e non è
+documentato da nessuna parte.
+
+**Decided**: not yet.

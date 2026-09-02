@@ -92,18 +92,18 @@ Run several instances side by side on the same machine with `--instance N` (e.g.
 → ports 8462/8091, its own `.run-editor-2/` data directory). See
 [scripts/README.md](scripts/README.md) for the full reference.
 
-**Running it on Windows.** SWS has no native Windows app — it's web-based and Linux-first by
-design (see `docs/SWS_Project_Specification.md`). If you want the editor on a Windows machine
-acting as a server, the `editor` service in [`compose.yaml`](compose.yaml) is a plain Linux
-container and runs fine under **Docker Desktop with the WSL2 backend**:
+**Working from Windows.** SWS has no native Windows app, and that is deliberate — a native
+Windows desktop app is an explicit non-goal ("web-only by design", see
+`docs/SWS_Project_Specification.md` §2). You don't need one:
 
-```powershell
-$env:SWS_ADMIN_PASSWORD="changeme"
-docker compose up
-```
-
-This path isn't part of the maintainer's regular workflow and hasn't been verified on real
-hardware — treat it as a reasonable starting point, not a supported deployment.
+- **Nothing installed on Windows** — run the editor on a Linux machine and open
+  `http://<that-machine>:8460` from the Windows browser. This is how the maintainer actually
+  works (see [docs/TEST_SETUPS.md](docs/TEST_SETUPS.md)): the editor runs on a headless server,
+  the browsing happens from the desktop over the LAN.
+- **The editor on the Windows machine itself** — run the portable editor package
+  (`sws-editor-<version>-linux-x86_64.tar.gz` from `./scripts/build_deploy.sh`) inside **WSL2**
+  and open `http://localhost:8460`. WSL2 forwards localhost, and the package needs only a
+  `python3` present. **Not verified** — no one has run it this way.
 
 ### 2. Installing the runtime on remote devices
 
@@ -154,9 +154,12 @@ produces a native `aarch64` binary, no container involved.
 
 Full flow, SDK setup, and device layout: [docs/YOCTO_CROSSCOMPILE.md](docs/YOCTO_CROSSCOMPILE.md).
 
-A [`compose.yaml`](compose.yaml) also exists (runtime + editor, two containers), but that path
-predates no-auth mode and still requires `SWS_ADMIN_PASSWORD` — useful for a quick local
-evaluation, not the current recommended flow for a real device.
+A second, older container path used to live here — a `compose.yaml` starting two containers
+(`sws-runtime` + an `sws-editor` nginx). It was **removed on 2026-09-02**: it could not work.
+Its runtime image never passed `--viewer-port`, so nothing listened on the port compose
+published; and the service named `editor` served `index.html`, which is the *operator viewer*
+bundle, proxied to the viewer port — the IDE is `index-admin.html` and needs the admin routes.
+Recover it from git history if you ever want to look; the container path that works is (b) above.
 
 ### 3. Connecting the editor to a remote runtime
 

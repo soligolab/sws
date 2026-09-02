@@ -214,8 +214,10 @@ l'IDE si apre senza login. Per attivare l'autenticazione:
 La password viene salvata come hash Argon2id in `project.yaml`; il form UI calcola l'hash prima
 di inviarlo al server. Eliminando l'ultimo utente il progetto torna in no-auth mode.
 
-> **Container (legacy).** Il percorso `compose.yaml` precede il no-auth mode e usa ancora la
-> variabile d'ambiente `SWS_ADMIN_PASSWORD` per seedare l'utente admin al primo avvio.
+> **Container.** L'immagine non pretende credenziali: parte in no-auth mode come il binario
+> nativo. `SWS_ADMIN_PASSWORD`, se impostata, seeda l'utente admin al primo avvio — resta
+> facoltativa. (Il vecchio percorso `compose.yaml`, che la **richiedeva**, è stato rimosso il
+> 2026-09-02: precedeva il no-auth mode e non partiva.)
 
 ---
 

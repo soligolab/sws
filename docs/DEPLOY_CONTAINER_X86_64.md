@@ -5,9 +5,9 @@
 > aarch64 — tipicamente le macchine di sviluppo del maintainer (casa/ufficio,
 > vedi `docs/TEST_SETUPS.md`), ma vale per qualunque host x86_64 con Podman.
 >
-> Non è `docs/DEPLOY_PX30.md`, che copre target ARM64 generici (Raspberry Pi,
-> Jetson...) buildati da un laptop x86 — qui il laptop x86 **è** il target,
-> non solo la macchina di build.
+> Qui il laptop o server x86 **è** il target, non solo la macchina di build. Per
+> una board ARM64 generica (Raspberry Pi, Jetson, VM cloud arm64) vedi la
+> §«Percorso generico (senza SDK Pixsys)» di `docs/DEPLOY_CONTAINER_AARCH64.md`.
 
 ## Come è fatta l'immagine
 
