@@ -57,6 +57,38 @@
 
 ## ▶ Da fare nella prossima sessione
 
+### 🔒 Q30 — i salvataggi non si mangiano più fra loro, su `fix/Q30-lock-project-yaml`
+
+**Da confermare nel browser prima del merge.** Il gesto che collauda è quello che ha prodotto il
+difetto: **due schede** sulla stessa istanza, una che salva i tag e l'altra le sorgenti nello stesso
+momento — dopo, sul disco devono esserci entrambe.
+
+`AppState::project_write_lock` serializza ogni leggi-modifica-scrivi su `project.yaml`: i 13 `PUT`
+dell'IDE (via `patch_project`), il deploy, l'upload ZIP, l'import, la creazione, la rinomina, la
+migrazione all'apertura, il restore. Backup e duplica lo prendono da **lettori** — copiavano
+`project.yaml` file per file e potevano archiviare un progetto colto a metà scrittura.
+
+**Quanto pesava il difetto**: 50 salvataggi concorrenti, col lock ne sopravvivono 50, togliendo il
+lock ne sopravvive **1**. Il test `cinquanta_salvataggi_concorrenti_non_si_perdono` è stato provato
+rotto a mano, ed è così che si è scoperto il difetto in cui ero caduto io (un nome di temporaneo
+fisso: le 50 scritture si rubavano il file a vicenda, cioè la funzione era corretta solo se chiamata
+sotto il lock).
+
+La scrittura è anche diventata **atomica** — temporaneo + `fsync` + `rename`. Prima un `fs::write`
+diretto lasciava un `project.yaml` troncato su un processo ucciso o un disco pieno, e da lì il
+runtime rifiuta *ogni* salvataggio successivo: il progetto si riapriva solo da un backup.
+
+Verificato su frodo: `cargo check --workspace --all-targets` verde, `cargo test -p sws-web` 160
+verdi, `pnpm build` verde, 9 guardie statiche verdi. Provati a mano su un'istanza vera, per
+escludere avvitamenti sui percorsi dove il lock è nuovo: `PUT tags` 204, `POST backups` 200,
+`restore` 204, `create` 201, `open` 200, `rename` 200, `import` 204, nessun `.tmp` rimasto.
+
+**Cosa non risolve** (addendum a Q30, non deciso): due schede che salvano la *stessa* sezione — il
+lock le serializza ma la seconda rimpiazza l'elenco intero. Serve il controllo ottimistico, e
+`calcola_impronta` è la granularità sbagliata. Annotato anche che `rename_project` non prende
+`project_switch_lock`, difetto separato trovato leggendo quel codice.
+
+
 ### 🔀 2026-09-03 — tre rami mergiati in `main`, **non pushati**
 
 `main` è 4 commit avanti a `origin/main` e l'albero è pulito. Il push non è stato dato: si fa

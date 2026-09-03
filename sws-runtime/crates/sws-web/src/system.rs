@@ -161,7 +161,7 @@ pub async fn migrate_project(State(s): State<AppState>) -> Response {
     // scarterebbe le sorgenti che questo binario non sa parsare e le chiavi
     // sconosciute, e "normalizzare il formato" non deve mai voler dire
     // "cancellare ciò che una versione più nuova ha scritto".
-    let resp = crate::router::patch_project(&project_dir, |_| {}).await;
+    let resp = crate::router::patch_project(&s.project_write_lock, &project_dir, |_| {}).await;
     if resp.status().is_success() {
         tracing::info!(
             version = sws_core::project::runtime_version(),

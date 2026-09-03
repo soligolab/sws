@@ -333,6 +333,17 @@ pub async fn create_project(
             // Update meta.name in the copied project.yaml to match the user's
             // chosen name instead of the template's internal id.
             let yaml_path = target.join("project.yaml");
+            // Q30: due leggi-modifica-scrivi **consecutivi** sullo stesso file,
+            // il nome e poi il timbro. Il lock sta attorno a entrambi, non
+            // dentro ciascuno.
+            //
+            // Detto onestamente: qui una corsa non è stata misurata, e non è
+            // nemmeno facile — `target` è una directory appena creata, di cui
+            // nessun altro conosce il percorso. Il lock c'è perché la regola
+            // «ogni leggi-modifica-scrivi su un project.yaml passa da
+            // project_write_lock» non abbia eccezioni da ricordare: una
+            // invariante con eccezioni non la verifica nessuno.
+            let _scrittura = s.project_write_lock.lock().await;
             match patch_project_name(&yaml_path, &safe_name).await {
                 Ok(()) => {}
                 Err(e) => {
@@ -539,7 +550,14 @@ pub async fn open_project(
     if !tokio::fs::try_exists(&project_dir).await.unwrap_or(false) {
         return (StatusCode::NOT_FOUND, "project not found").into_response();
     }
-    migrate_legacy_project_dirs(&project_dir);
+    {
+        // Q30: la migrazione riscrive project.yaml (il percorso SQLite di
+        // default) con un leggi-modifica-scrivi. Tiene già
+        // `project_switch_lock`: l'ordine è switch → write, ed è quello
+        // giusto — vedi `AppState::project_write_lock`.
+        let _scrittura = s.project_write_lock.lock().await;
+        migrate_legacy_project_dirs(&project_dir);
+    }
 
     // Read seed from env so newly-opened projects without a users.yaml
     // get bootstrapped with admin/etc. — same flow as the legacy
@@ -846,6 +864,10 @@ pub async fn rename_project(
 
     if is_external(&old_dir, s.projects_root.as_path()) {
         let yaml_path = old_dir.join("project.yaml");
+        // Q30: qui la corsa è vera, non teorica — rinominare il progetto
+        // **aperto** mentre qualcuno salva i tag mette due leggi-modifica-scrivi
+        // sullo stesso file.
+        let _scrittura = s.project_write_lock.lock().await;
         if let Err(e) = patch_project_name(&yaml_path, &new_name).await {
             warn!("rename_project: patch meta.name {}: {e}", yaml_path.display());
             return (StatusCode::INTERNAL_SERVER_ERROR, "cannot update project.yaml").into_response();
@@ -859,6 +881,14 @@ pub async fn rename_project(
     if tokio::fs::try_exists(&new_dir).await.unwrap_or(false) {
         return (StatusCode::CONFLICT, "a project with the new name already exists").into_response();
     }
+    // Q30: il lock parte **prima** dello spostamento della cartella, non solo
+    // attorno al `patch_project_name` che segue. Un salvataggio in volo scrive
+    // in `old_dir`: se lo spostamento gli capita in mezzo, quella scrittura
+    // finisce in una directory che non esiste più. Tenerlo da qui non risolve
+    // il caso in cui il salvataggio ha già risolto il percorso (quello è il
+    // difetto separato annotato in Q30: `rename_project` non prende
+    // `project_switch_lock`), ma serializza tutto ciò che tocca i file.
+    let _scrittura = s.project_write_lock.lock().await;
     if let Err(e) = tokio::fs::rename(&old_dir, &new_dir).await {
         warn!("rename_project: rename {old_name} → {new_name}: {e}");
         return (StatusCode::INTERNAL_SERVER_ERROR, "cannot rename project dir").into_response();
@@ -919,6 +949,10 @@ pub async fn duplicate_project(
     if tokio::fs::try_exists(&dst_dir).await.unwrap_or(false) {
         return (StatusCode::CONFLICT, "a project with the new name already exists").into_response();
     }
+    // Q30: come `create_backup_handler`, qui il lock protegge un **lettore** —
+    // duplicare mentre un salvataggio è a metà produrrebbe una copia con un
+    // project.yaml troncato, e il difetto si scoprirebbe aprendo il duplicato.
+    let _scrittura = s.project_write_lock.lock().await;
     if let Err(e) = copy_dir_all(&src_dir, &dst_dir, &[]).await {
         warn!("duplicate_project: copy {src_name} → {dst_name}: {e}");
         let _ = tokio::fs::remove_dir_all(&dst_dir).await;
@@ -1271,6 +1305,9 @@ pub async fn upload_project_zip(
     //    quindi coincide già con quello dentro project.yaml.
     if name_was_explicit {
         let yaml_path = target.join("project.yaml");
+        // Q30: leggi-modifica-scrivi su project.yaml. Come sopra tiene già
+        // `project_switch_lock`, quindi switch → write.
+        let _scrittura = s.project_write_lock.lock().await;
         if let Ok(text) = tokio::fs::read_to_string(&yaml_path).await {
             match serde_yaml::from_str::<serde_yaml::Value>(&text) {
                 Ok(mut doc) => {
@@ -1284,7 +1321,7 @@ pub async fn upload_project_zip(
                             );
                             match serde_yaml::to_string(&doc) {
                                 Ok(out) => {
-                                    if let Err(e) = tokio::fs::write(&yaml_path, out).await {
+                                    if let Err(e) = crate::router::scrivi_atomico(&yaml_path, out.as_bytes()).await {
                                         warn!("upload_project_zip: rewrite meta.name: {e}");
                                     } else {
                                         info!(name = %safe_name, "meta.name allineato al nome scelto");
@@ -1744,7 +1781,7 @@ async fn patch_project_name(yaml_path: &StdPath, name: &str) -> anyhow::Result<(
         meta["name"] = serde_yaml::Value::String(name.to_string());
     }
     let updated = serde_yaml::to_string(&doc)?;
-    tokio::fs::write(yaml_path, updated).await?;
+    crate::router::scrivi_atomico(yaml_path, updated.as_bytes()).await?;
     Ok(())
 }
 
@@ -1775,7 +1812,7 @@ async fn stamp_saved_by(yaml_path: &StdPath) -> anyhow::Result<()> {
         );
     }
     let updated = serde_yaml::to_string(&doc)?;
-    tokio::fs::write(yaml_path, updated).await?;
+    crate::router::scrivi_atomico(yaml_path, updated.as_bytes()).await?;
     Ok(())
 }
 
@@ -1842,7 +1879,7 @@ fn migrate_legacy_sqlite_path(project_dir: &StdPath) {
     }
     match serde_yaml::to_string(&doc) {
         Ok(updated) => {
-            if let Err(e) = std::fs::write(&yaml_path, updated) {
+            if let Err(e) = crate::router::scrivi_atomico_sync(&yaml_path, updated.as_bytes()) {
                 warn!("migrate_legacy_sqlite_path: write {}: {e}", yaml_path.display());
             }
         }

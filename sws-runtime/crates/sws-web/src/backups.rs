@@ -237,6 +237,11 @@ pub async fn list_backups_handler(State(s): State<AppState>) -> Response {
 
 pub async fn create_backup_handler(State(s): State<AppState>) -> Response {
     let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
+    // Q30: qui il lock protegge un **lettore**. `backup_now` copia project.yaml
+    // e i sinottici uno per uno: senza, uno snapshot preso mentre un
+    // salvataggio è a metà archivia un progetto che non è mai esistito — e un
+    // backup incoerente si scopre il giorno in cui serve.
+    let _scrittura = s.project_write_lock.lock().await;
     match backup_now(&dir) {
         Ok(path) => {
             let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("").to_string();
@@ -258,6 +263,9 @@ pub async fn restore_backup_handler(
     if !safe_backup_name(&name) {
         return (StatusCode::BAD_REQUEST, "invalid backup name").into_response();
     }
+    // Q30: il restore riscrive project.yaml, i sinottici e users.yaml. Un
+    // salvataggio concorrente scriverebbe dentro un progetto a metà ripristino.
+    let _scrittura = s.project_write_lock.lock().await;
     match restore_backup(&dir, &name) {
         Ok(()) => {
             info!(backup = %name, "backup restored");

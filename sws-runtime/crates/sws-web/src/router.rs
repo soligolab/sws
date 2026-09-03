@@ -139,6 +139,28 @@ pub struct AppState {
     /// delete+upload+open è arrivata DUE volte a 1 ms di distanza sul target
     /// (vedi `project_switch_lock`). `try_lock` → 409 se già in corso.
     pub deploy_lock: Arc<tokio::sync::Mutex<()>>,
+    /// Serializza ogni **leggi-modifica-scrivi** su `project.yaml` (Q30).
+    ///
+    /// Tutte le scritture su quel file rileggono, deserializzano, modificano e
+    /// riscrivono. Senza lock due scritture in volo insieme partono dallo
+    /// stesso file e l'ultima cancella la modifica dell'altra — senza errore,
+    /// senza avviso, col salvataggio che riesce. Misurato in un browser il
+    /// 2026-08-31: una proposta dell'assistente che creava un tag **e** una
+    /// sorgente; dopo Salva sul disco c'era la sorgente e non il tag.
+    ///
+    /// **È sempre il lock più interno.** Due percorsi lo prendono tenendo già
+    /// `project_switch_lock` (`open_project` → `migrate_legacy_project_dirs`,
+    /// `upload_project_zip`); nessuno fa il contrario, e nessuno deve farlo.
+    ///
+    /// `tokio::sync::Mutex` **non è rientrante**: chi lo tiene non può chiamare
+    /// `patch_project`, che se lo prende da sé. È la trappola in cui cade il
+    /// prossimo che aggiunge un percorso di scrittura — si manifesta come un
+    /// handler che non risponde più, non come un errore.
+    ///
+    /// Uno solo per tutte le directory di progetto, deliberatamente: nel PoC un
+    /// processo serve un progetto alla volta, e serializzare due progetti
+    /// diversi non costa niente di percepibile.
+    pub project_write_lock: Arc<tokio::sync::Mutex<()>>,
 }
 
 /// F3.1: la scrittura di `tag` è consentita a `role`? La mappa per-tag vive
@@ -200,7 +222,7 @@ pub fn build(
     let (project_epoch, _) = tokio::sync::watch::channel(0u64);
     let project_epoch = Arc::new(project_epoch);
 
-    let state = AppState { db, bus, alarms, historian, registry, py, auth, supervisor, script_supervisor, ide_only, project_epoch, functions, derived_tags, project_dir, projects_root, templates_root, logs, logs_dir, started_at, ip_allowlist, recipe_log: Arc::new(RwLock::new(Vec::new())), notification_supervisor: Arc::new(RwLock::new(None)), telegram_sender: Arc::new(RwLock::new(None)), config_dir, cert_path, build_running: crate::packaging::new_build_lock(), repo_root: crate::packaging::new_repo_root(), remote_target: Arc::new(RwLock::new(None)), audit, known_projects, instance_id, project_switch_lock: Arc::new(tokio::sync::Mutex::new(())), deploy_lock: Arc::new(tokio::sync::Mutex::new(())) };
+    let state = AppState { db, bus, alarms, historian, registry, py, auth, supervisor, script_supervisor, ide_only, project_epoch, functions, derived_tags, project_dir, projects_root, templates_root, logs, logs_dir, started_at, ip_allowlist, recipe_log: Arc::new(RwLock::new(Vec::new())), notification_supervisor: Arc::new(RwLock::new(None)), telegram_sender: Arc::new(RwLock::new(None)), config_dir, cert_path, build_running: crate::packaging::new_build_lock(), repo_root: crate::packaging::new_repo_root(), remote_target: Arc::new(RwLock::new(None)), audit, known_projects, instance_id, project_switch_lock: Arc::new(tokio::sync::Mutex::new(())), deploy_lock: Arc::new(tokio::sync::Mutex::new(())), project_write_lock: Arc::new(tokio::sync::Mutex::new(())) };
     // Build the runtime router (8443) before consuming state for admin.
     let runtime_app = build_runtime_inner(state.clone(), www_dir.clone(), lockdown);
 
@@ -2126,10 +2148,21 @@ pub(crate) fn mask_project_secrets(project: &mut Project) {
 /// Restituisce una `Response` e non uno `StatusCode` perché il rifiuto del punto
 /// 1 deve poter spiegare cosa è successo: un 500 muto porterebbe l'utente a
 /// riprovare, ed è l'unico caso in cui riprovare non serve a niente.
-pub(crate) async fn patch_project<F>(project_dir: &std::path::Path, f: F) -> Response
+pub(crate) async fn patch_project<F>(
+    lock: &tokio::sync::Mutex<()>,
+    project_dir: &std::path::Path,
+    f: F,
+) -> Response
 where
     F: FnOnce(&mut Project),
 {
+    // Q30: il lock copre **tutto** il leggi-modifica-scrivi, non la sola
+    // scrittura. Prenderlo più in basso non servirebbe a niente: la corsa sta
+    // fra la lettura di uno e la scrittura dell'altro, non fra le due
+    // scritture. Passato come parametro e non preso da un `static` perché è
+    // `AppState::project_write_lock`, dove è documentato insieme agli altri due
+    // e dove si vede — vedi lì per l'ordine dei lock e la non-rientranza.
+    let _scrittura = lock.lock().await;
     let path = project_dir.join("project.yaml");
     // Il testo grezzo serve due volte: per distinguere "assente" da "illeggibile",
     // e per recuperare ciò che la struttura tipizzata non rappresenta.
@@ -2202,13 +2235,102 @@ where
         Some(raw) => merge_preserved(&yaml, raw, &known_before),
         None => yaml,
     };
-    match tokio::fs::write(&path, yaml).await {
-        Ok(_)  => StatusCode::NO_CONTENT.into_response(),
+    match scrivi_atomico(&path, yaml.as_bytes()).await {
+        Ok(()) => StatusCode::NO_CONTENT.into_response(),
         Err(e) => {
-            warn!("write project.yaml: {e}");
+            warn!(path = %path.display(), "write project.yaml: {e}");
             StatusCode::INTERNAL_SERVER_ERROR.into_response()
         }
     }
+}
+
+/// Scrive `path` in modo che sul disco ci sia sempre **o** il contenuto vecchio
+/// intero **o** quello nuovo intero, mai mezzo.
+///
+/// Un `fs::write` diretto tronca il file e poi lo riempie: se il processo muore
+/// in mezzo, o il disco è pieno, resta un `project.yaml` a metà. Non è un guaio
+/// come un altro — `patch_project` a quel punto **rifiuta ogni salvataggio
+/// successivo** (il ramo 409 «project.yaml non è caricabile», che esiste
+/// proprio per non peggiorare le cose), quindi il progetto si riapre solo da un
+/// backup. Su ext4 e ubifs il `rename` dentro la stessa directory è atomico.
+///
+/// Il temporaneo sta accanto al file, e non in `/tmp`: `rename` fra filesystem
+/// diversi non esiste. Il suffisso `.tmp` non entra nei backup, che copiano per
+/// nome (`backups::BACKED_UP`), e non è un `project.yaml`, quindi la lista dei
+/// progetti non lo vede.
+///
+/// Il nome del temporaneo è **unico per chiamata**, e non un `.tmp` fisso.
+/// Trovato provando: con un nome fisso, 50 scritture concorrenti si rubano il
+/// temporaneo a vicenda e per la maggioranza il `rename` fallisce con ENOENT —
+/// cioè la funzione era corretta *solo* se chi la chiama tiene
+/// `project_write_lock`. Una funzione che si affida a un lock che non prende
+/// lei è una trappola per il prossimo che la riusa altrove.
+/// Il `sync_all` prima del rename non è pignoleria: senza, dopo un taglio di
+/// corrente il rename può essere già visibile e i dati no, e si riapre un file
+/// vuoto — che è lo stesso guasto di prima con un giro in più. Questi girano su
+/// pannelli che si spengono staccando la spina, quindi vale la fsync.
+/// Il nome del file di lavoro di una singola scrittura: `project.yaml.<n>.tmp`.
+///
+/// Il contatore è per-processo e monotono, che basta: due scritture nello stesso
+/// processo non lo condividono mai, e due processi sulla stessa cartella di
+/// progetto sono già fuori da ciò che questo PoC sostiene (un runtime per
+/// dispositivo).
+fn temporaneo_unico(path: &std::path::Path) -> std::path::PathBuf {
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static SEQ: AtomicU64 = AtomicU64::new(0);
+    let n = SEQ.fetch_add(1, Ordering::Relaxed);
+    let mut nome = path.file_name().unwrap_or_default().to_os_string();
+    nome.push(format!(".{n}.tmp"));
+    path.with_file_name(nome)
+}
+
+/// Il gemello sincrono di [`scrivi_atomico`], per i due percorsi che girano
+/// fuori da un contesto async (la migrazione all'apertura del progetto).
+/// Esiste per non lasciare **un'unica** eccezione alla regola «un project.yaml
+/// non si sostituisce mai con una scrittura non atomica»: un'invariante con
+/// un'eccezione sola è quella che si dimentica.
+pub(crate) fn scrivi_atomico_sync(path: &std::path::Path, dati: &[u8]) -> std::io::Result<()> {
+    use std::io::Write;
+
+    let tmp = temporaneo_unico(path);
+    let scritto = (|| {
+        let mut f = std::fs::File::create(&tmp)?;
+        f.write_all(dati)?;
+        f.sync_all()
+    })();
+    if let Err(e) = scritto {
+        let _ = std::fs::remove_file(&tmp);
+        return Err(e);
+    }
+    if let Err(e) = std::fs::rename(&tmp, path) {
+        let _ = std::fs::remove_file(&tmp);
+        return Err(e);
+    }
+    Ok(())
+}
+
+pub(crate) async fn scrivi_atomico(
+    path: &std::path::Path,
+    dati: &[u8],
+) -> std::io::Result<()> {
+    use tokio::io::AsyncWriteExt;
+
+    let tmp = temporaneo_unico(path);
+    let scritto = async {
+        let mut f = tokio::fs::File::create(&tmp).await?;
+        f.write_all(dati).await?;
+        f.sync_all().await
+    }.await;
+    if let Err(e) = scritto {
+        // Un temporaneo scritto a metà non va lasciato in giro.
+        let _ = tokio::fs::remove_file(&tmp).await;
+        return Err(e);
+    }
+    if let Err(e) = tokio::fs::rename(&tmp, path).await {
+        let _ = tokio::fs::remove_file(&tmp).await;
+        return Err(e);
+    }
+    Ok(())
 }
 
 /// Rimette nel YAML da scrivere ciò che la struttura `Project` non rappresenta:
@@ -2333,7 +2455,7 @@ async fn update_project_tags(
     let write_roles = crate::projects::build_tag_write_roles(&tags);
 
     let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
-    let res = patch_project(&dir, |p| p.tags = tags).await;
+    let res = patch_project(&s.project_write_lock, &dir, |p| p.tags = tags).await;
     if res.status() != StatusCode::NO_CONTENT {
         return res;
     }
@@ -2358,7 +2480,7 @@ async fn update_project_languages(
     Json(table): Json<LanguageTable>,
 ) -> Response {
     let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
-    patch_project(&dir, |p| p.languages = table).await
+    patch_project(&s.project_write_lock, &dir, |p| p.languages = table).await
 }
 
 /// POST /api/project/tags/import-csv
@@ -2428,7 +2550,7 @@ async fn import_tags_csv(
 
     // Merge: load current, upsert imported.
     let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
-    let res = patch_project(&dir, |p| {
+    let res = patch_project(&s.project_write_lock, &dir, |p| {
         for new_tag in &imported {
             if let Some(existing) = p.tags.iter_mut().find(|t| t.id == new_tag.id) {
                 *existing = new_tag.clone();
@@ -2511,7 +2633,7 @@ async fn update_project_sources(
     // set. New/removed sources are spawned/cancelled in-place — no runtime
     // restart needed.
     let mut clone = sources.clone();
-    let res = patch_project(&dir, |p| p.sources = sources).await;
+    let res = patch_project(&s.project_write_lock, &dir, |p| p.sources = sources).await;
     if res.status() == StatusCode::NO_CONTENT {
         // Stessa risoluzione degli altri percorsi di reload (open/import/
         // system_start): senza, dopo un salvataggio dall'IDE i client MQTT
@@ -2538,7 +2660,7 @@ async fn update_project_alarms(
     // and re-fire any still-tripped conditions.
     let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
     let clone = alarms.clone();
-    let res = patch_project(&dir, |p| p.alarms = alarms).await;
+    let res = patch_project(&s.project_write_lock, &dir, |p| p.alarms = alarms).await;
     if res.status() == StatusCode::NO_CONTENT {
         s.alarms.load(clone).await;
     }
@@ -2583,7 +2705,7 @@ async fn update_project_functions(
 
     let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
     let clone = functions.clone();
-    let res = patch_project(&dir, |p| p.functions = functions).await;
+    let res = patch_project(&s.project_write_lock, &dir, |p| p.functions = functions).await;
     if res.status() == StatusCode::NO_CONTENT {
         let mut map = s.functions.write().await;
         map.clear();
@@ -2597,7 +2719,7 @@ async fn update_project_custom_symbols(
     Json(symbols): Json<Vec<CustomSymbol>>,
 ) -> Response {
     let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
-    patch_project(&dir, |p| p.custom_symbols = symbols).await
+    patch_project(&s.project_write_lock, &dir, |p| p.custom_symbols = symbols).await
 }
 
 async fn update_project_datastores(
@@ -2605,7 +2727,7 @@ async fn update_project_datastores(
     Json(datastores): Json<Vec<sws_core::DatastoreConfig>>,
 ) -> Response {
     let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
-    patch_project(&dir, |p| p.datastores = datastores).await
+    patch_project(&s.project_write_lock, &dir, |p| p.datastores = datastores).await
 }
 
 // ── Project import / export (Admin only) ─────────────────────────────────────
@@ -2924,6 +3046,11 @@ async fn import_project_zip(State(s): State<AppState>, body: Bytes) -> Response 
         return (StatusCode::INTERNAL_SERVER_ERROR, "cannot create project dir").into_response();
     }
     let project_path = project_dir.join("project.yaml");
+    // Q30: l'import sostituisce project.yaml per intero. Non è un
+    // leggi-modifica-scrivi del file su disco — il contenuto viene dal bundle —
+    // ma la perdita è la stessa: un `PUT /api/project/tags` in volo può
+    // sovrascrivere l'import, o scrivere sopra il progetto appena importato.
+    let _scrittura = s.project_write_lock.lock().await;
     let serialized_project = match project.stamp_and_serialize() {
         Ok(y)  => y,
         Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR,
@@ -2938,7 +3065,7 @@ async fn import_project_zip(State(s): State<AppState>, body: Bytes) -> Response 
     // struttura non produce è per definizione da conservare.
     let serialized_project =
         merge_preserved(&serialized_project, &project_text, &std::collections::HashSet::new());
-    if let Err(e) = tokio::fs::write(&project_path, serialized_project).await {
+    if let Err(e) = scrivi_atomico(&project_path, serialized_project.as_bytes()).await {
         warn!("import: write project.yaml: {e}");
         return (StatusCode::INTERNAL_SERVER_ERROR, "write project.yaml").into_response();
     }
@@ -4761,7 +4888,7 @@ async fn update_project_global_scripts(
 ) -> Response {
     s.audit.log("project.change", Some(user.username), serde_json::json!({"what": "global_scripts", "count": scripts.len()}));
     let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
-    let res = patch_project(&dir, |p| p.global_scripts = scripts.clone()).await;
+    let res = patch_project(&s.project_write_lock, &dir, |p| p.global_scripts = scripts.clone()).await;
     if res.status() == StatusCode::NO_CONTENT {
         // Hot-swap: cancel running scripts, start new set.
         if let Some(old) = s.script_supervisor.write().await.take() {
@@ -5114,7 +5241,7 @@ async fn update_project_notifications(
     };
 
     let config_clone = config.clone();
-    let res = patch_project(&dir, |p| p.notifications = config_clone).await;
+    let res = patch_project(&s.project_write_lock, &dir, |p| p.notifications = config_clone).await;
     if res.status() == StatusCode::NO_CONTENT {
         // Hot-swap the Telegram sender (config swap keeps the script `tx` alive)
         // then restart the notification supervisor with the shared sink.
@@ -5177,7 +5304,7 @@ async fn update_project_page_layout(
     let config: Option<PageLayoutConfig> = config.map(Into::into);
     let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
     let config_clone = config.clone();
-    let res = patch_project(&dir, |p| p.page_layout = config_clone).await;
+    let res = patch_project(&s.project_write_lock, &dir, |p| p.page_layout = config_clone).await;
     if res.status() == StatusCode::NO_CONTENT {
         s.audit.log("project.change", Some(user.username), serde_json::json!({"what": "page_layout"}));
     }
@@ -5203,7 +5330,7 @@ async fn update_project_backup_config(
 ) -> Response {
     let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
     let body_clone = body.clone();
-    let res = patch_project(&dir, |p| {
+    let res = patch_project(&s.project_write_lock, &dir, |p| {
         p.auto_backup_interval_minutes = body_clone.interval_minutes;
         p.auto_backup_retention = body_clone.retention;
     }).await;
@@ -5530,5 +5657,127 @@ mod write_safety_tests {
         // merge_preserved può solo aggiungere: se il grezzo non si parsa,
         // restituisce il tipizzato invariato invece di rompere la scrittura.
         assert_eq!(merge_preserved(TYPED, "questo: [non è: yaml valido", &niente_da_cancellare()), TYPED);
+    }
+}
+
+/// Q30: le scritture su `project.yaml` non si perdono a vicenda, e non lasciano
+/// il file a metà.
+///
+/// L'ordine dei lock non è verificabile a runtime senza provocare deadlock veri:
+/// sta documentato in `AppState::project_write_lock`, e la regola è una sola —
+/// `project_write_lock` è **sempre il più interno**.
+#[cfg(test)]
+mod q30_tests {
+    use super::*;
+
+    /// Un progetto minimo, come lo trova `patch_project` al primo salvataggio.
+    fn progetto_minimo(dir: &std::path::Path) {
+        std::fs::write(
+            dir.join("project.yaml"),
+            "meta:\n  name: prova\n  version: \"1\"\ntags: []\n",
+        )
+        .unwrap();
+    }
+
+    /// I `TagDef` si costruiscono per deserializzazione e non a mano: la struct
+    /// ha una decina di campi con `serde(default)`, e passare da YAML usa
+    /// esattamente i default del file vero invece di una copia da tenere in
+    /// pari.
+    fn tag(id: &str) -> sws_core::project::TagDef {
+        serde_yaml::from_str(&format!("id: {id}\n")).unwrap()
+    }
+
+    fn tags_su_disco(dir: &std::path::Path) -> Vec<String> {
+        let testo = std::fs::read_to_string(dir.join("project.yaml")).unwrap();
+        let p: Project = serde_yaml::from_str(&testo).unwrap();
+        p.tags.into_iter().map(|t| t.id).collect()
+    }
+
+    /// **Il test che conta.** Cinquanta salvataggi in volo insieme, ognuno che
+    /// aggiunge un tag diverso: alla fine devono esserci tutti e cinquanta.
+    ///
+    /// Non è un test di velocità: la finestra fra la lettura e la scrittura di
+    /// `patch_project` è un punto di `await`, quindi i task si interlacciano
+    /// anche su un runtime a thread singolo e senza il lock le perdite sono
+    /// sistematiche, non occasionali.
+    ///
+    /// **Provato rotto a mano**: togliendo il `lock.lock().await` da
+    /// `patch_project`, di 50 tag ne sopravvivono una manciata. Un test
+    /// concorrente che passa anche senza la cura non prova niente, ed è l'unico
+    /// modo di sapere che questo la prova.
+    #[tokio::test]
+    async fn cinquanta_salvataggi_concorrenti_non_si_perdono() {
+        let dir = tempfile::tempdir().unwrap();
+        progetto_minimo(dir.path());
+
+        let lock = Arc::new(tokio::sync::Mutex::new(()));
+        let mut task = Vec::new();
+        for i in 0..50 {
+            let lock = lock.clone();
+            let percorso = dir.path().to_path_buf();
+            task.push(tokio::spawn(async move {
+                let t = tag(&format!("t{i:02}"));
+                patch_project(&lock, &percorso, move |p| p.tags.push(t)).await
+            }));
+        }
+        for t in task {
+            let resp = t.await.unwrap();
+            assert_eq!(resp.status(), StatusCode::NO_CONTENT);
+        }
+
+        let mut trovati = tags_su_disco(dir.path());
+        trovati.sort();
+        assert_eq!(
+            trovati.len(),
+            50,
+            "salvataggi perduti: sul disco ce ne sono {} invece di 50 — {:?}",
+            trovati.len(),
+            trovati
+        );
+    }
+
+    /// La scrittura non lascia il temporaneo in giro, e il file resta leggibile.
+    ///
+    /// Il `.tmp` non è innocuo: `backups::BACKED_UP` copia per nome e non lo
+    /// prenderebbe, ma un file di lavoro dimenticato nella cartella del
+    /// progetto è comunque una cosa che qualcuno prima o poi apre.
+    #[tokio::test]
+    async fn la_scrittura_non_lascia_temporanei() {
+        let dir = tempfile::tempdir().unwrap();
+        progetto_minimo(dir.path());
+        let lock = tokio::sync::Mutex::new(());
+
+        let resp = patch_project(&lock, dir.path(), |p| p.tags.push(tag("uno"))).await;
+        assert_eq!(resp.status(), StatusCode::NO_CONTENT);
+
+        let residui: Vec<String> = std::fs::read_dir(dir.path())
+            .unwrap()
+            .filter_map(|e| e.ok())
+            .map(|e| e.file_name().to_string_lossy().into_owned())
+            .filter(|n| n.ends_with(".tmp"))
+            .collect();
+        assert!(residui.is_empty(), "temporanei rimasti: {residui:?}");
+        assert_eq!(tags_su_disco(dir.path()), vec!["uno".to_string()]);
+    }
+
+    /// Il file su disco è sempre uno YAML intero: mai il vecchio troncato, mai
+    /// il nuovo a metà. Con `fs::write` diretto questa proprietà non c'era, e il
+    /// modo in cui non c'era era cattivo — `patch_project` rifiuta ogni
+    /// salvataggio successivo su un `project.yaml` non caricabile, quindi una
+    /// scrittura interrotta rendeva il progetto riapribile solo da un backup.
+    #[tokio::test]
+    async fn la_scrittura_sostituisce_e_non_tronca() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("project.yaml");
+        std::fs::write(&path, "meta:\n  name: vecchio\n  version: \"1\"\ntags: []\n").unwrap();
+
+        // Il contenuto nuovo è più corto del vecchio: con una scrittura in
+        // luogo senza troncamento resterebbe della coda del precedente.
+        scrivi_atomico(&path, b"meta:\n  name: n\n  version: \"1\"\n").await.unwrap();
+
+        let testo = std::fs::read_to_string(&path).unwrap();
+        assert!(!testo.contains("vecchio"), "coda del file precedente:\n{testo}");
+        let doc: serde_yaml::Value = serde_yaml::from_str(&testo).unwrap();
+        assert_eq!(doc["meta"]["name"].as_str(), Some("n"));
     }
 }

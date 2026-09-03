@@ -11,6 +11,44 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### I salvataggi del progetto non si mangiano più fra loro (Q30)
+
+Ogni scrittura su `project.yaml` è un leggi-modifica-scrivi, e non c'era nessun
+lock: due scritture in volo insieme partivano dallo stesso file e l'ultima
+cancellava la modifica dell'altra — senza errore, senza avviso, col salvataggio
+che riusciva. Misurato in un browser il 2026-08-31 (una proposta dell'assistente
+che creava un tag **e** una sorgente: dopo Salva sul disco c'era solo la
+sorgente).
+
+**Quanto pesava**: 50 salvataggi concorrenti, col lock ne sopravvivono 50, senza
+ne sopravvive **1**. Non era un difetto da colpo di fortuna.
+
+`AppState::project_write_lock` serializza ora tutti i percorsi che toccano quel
+file, non solo i 13 `PUT` dell'IDE: il deploy, l'upload ZIP, l'import, la
+creazione, la rinomina, la migrazione all'apertura, il restore. Il backup e il
+duplica lo prendono da **lettori**: copiano `project.yaml` file per file, e senza
+lock potevano archiviare un progetto colto a metà scrittura — un backup
+incoerente si scopre il giorno in cui serve.
+
+Nella stessa funzione la scrittura è diventata **atomica**: temporaneo,
+`fsync`, `rename`. Prima un `fs::write` diretto lasciava — su un processo ucciso
+o un disco pieno — un `project.yaml` troncato, e da lì il runtime **rifiuta ogni
+salvataggio successivo** (il ramo «project.yaml non è caricabile», che esiste per
+non peggiorare le cose): il progetto si riapriva solo da un backup. La `fsync`
+non è pignoleria su pannelli che si spengono staccando la spina.
+
+Il nome del temporaneo è unico per chiamata, e questo l'ho imparato sbagliando:
+con un `.tmp` fisso 50 scritture concorrenti si rubano il file a vicenda, cioè la
+funzione sarebbe stata corretta *solo* se chiamata sotto il lock — una trappola
+per il prossimo che la riusa.
+
+**Cosa non risolve**, ed è scritto in Q30: due schede che salvano la *stessa*
+sezione. Il lock le serializza, ma la seconda rimpiazza l'elenco intero e la
+modifica della prima sparisce comunque. Serve un controllo ottimistico, e
+`calcola_impronta` non è lo strumento giusto (granularità di progetto intero:
+darebbe 409 a chi salva un tag perché un altro ha mosso un rettangolo).
+
+
 ### La SPA la costruiscono gli script `start_*`
 
 Prima di avviare, `start_editor.sh` e `start_runtime.sh` ricostruiscono la SPA

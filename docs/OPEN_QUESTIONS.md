@@ -2599,6 +2599,48 @@ Stessa famiglia di **Q17** e **Q27**: il server accetta una scrittura che avrebb
 per gestire meglio. Qui però non è una questione di permessi o di tipi — è perdita di dati
 silenziosa, e va prima delle altre due.
 
+### Fatto il 2026-09-03 — il lock c'è, e quanto pesava il difetto
+
+Implementata la **domanda 1**: `AppState::project_write_lock` serializza ogni
+leggi-modifica-scrivi su `project.yaml`, e non solo nei 13 `PUT` che passano da `patch_project` —
+anche in `open_project` (la migrazione), `upload_project_zip` (il deploy), `import_project_zip`,
+`create_project`, `rename_project`, il restore e la creazione di un backup, e il duplica. Gli
+ultimi due sono **lettori**: copiano `project.yaml` file per file, e sotto lo stesso lock non
+possono più archiviare un progetto colto a metà scrittura.
+
+Quanto pesava, misurato: il test `cinquanta_salvataggi_concorrenti_non_si_perdono` fa 50 salvataggi
+in volo insieme. Col lock ne sopravvivono 50; **togliendo il lock ne sopravvive 1**. Non era un
+difetto raro da colpo di fortuna: sotto concorrenza vera si perdeva quasi tutto.
+
+Nella stessa funzione la scrittura è diventata **atomica** (temporaneo + `rename` + `fsync`).
+Prima era un `fs::write` diretto: un processo che muore a metà, o un disco pieno, lasciava un
+`project.yaml` troncato — e da lì `patch_project` **rifiuta ogni salvataggio successivo** (il ramo
+409 «project.yaml non è caricabile»), quindi il progetto si riapriva solo da un backup.
+
+### Cosa resta scoperto — e perché la domanda 2 non si chiude con `calcola_impronta`
+
+1. **La sovrascrittura con dati stantìi sulla stessa sezione.** Due schede caricano entrambe
+   l'elenco dei tag; salvano una dopo l'altra; il lock le serializza ma la seconda scrive comunque
+   il *suo* elenco e cancella la modifica della prima. **Nessun lock può risolverlo**: i `PUT` sono
+   sostituzioni di sezione intera, quindi chi arriva secondo non sta modificando, sta rimpiazzando.
+   Serve il controllo ottimistico della domanda 2.
+2. **`calcola_impronta` è la granularità sbagliata** per quel controllo. Calcola l'hash di
+   `project.yaml` *più tutti* i sinottici, quindi chi salva un tag prenderebbe un 409 perché un
+   altro ha spostato un rettangolo su un'altra pagina. Servirebbe un'impronta del **solo**
+   `project.yaml`, o un contatore di versione incrementato a ogni scrittura — che il lock ora rende
+   facile, perché c'è un punto solo dove incrementarlo.
+3. **La domanda 3 resta senza risposta**: chi perde la corsa non vede niente. Col lock nessuno
+   perde più quando le sezioni sono diverse, ma nel caso 1 la perdita è ancora silenziosa.
+4. **I sinottici, i faceplate e le ricette** hanno un file per entità e restano fuori: la corsa lì
+   è fra due che salvano la *stessa* pagina, e il lock del progetto non la riguarda. Da decidere se
+   vale un lock per file o lo stesso controllo ottimistico.
+5. **`rename_project` non prende `project_switch_lock`.** Sposta la cartella del progetto anche se
+   è quello aperto e un `open_project` è in volo. Il lock di scrittura serializza le operazioni sui
+   file ma non copre un salvataggio che ha *già* risolto il percorso vecchio. È un difetto
+   **diverso** da Q30, trovato leggendo quel codice il 2026-09-03, e non è stato corretto.
+
+**Decided**: la domanda 1 sì, il 2026-09-03. Le domande 2 e 3 no.
+
 ---
 
 ## Q31 — La chat non funziona quando l'IDE è collegato a un runtime remoto, e non è chiaro cosa dovrebbe fare
