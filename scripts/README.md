@@ -189,11 +189,53 @@ stessa macchina si annuncerebbero con lo stesso nome.
 
 ---
 
-## `check_static.sh` — le sette guardie che girano su file fermi
+## `session_start.sh` — la prima cosa, prima di riprendere il lavoro
 
-Le guardie sono venti. Sette girano su file fermi (YAML, sorgenti, tabelle,
-unit systemd) e finiscono in pochi secondi; le altre tredici vogliono un runtime
-in ascolto, podman o un dispositivo.
+```bash
+./scripts/session_start.sh        # riporta, e chiede una conferma per caso
+./scripts/session_start.sh -y     # accetta tutto ciò che avrebbe proposto
+./scripts/session_start.sh --no-fetch   # senza rete
+```
+
+Confronta la macchina con origin e propone il rimedio giusto per ciascun caso
+comune, poi chiude dicendo da dove si riprende (la prima sezione di `STATUS.md`
+sotto «Da fare nella prossima sessione»). Nato dal 2026-09-02, quando la ripresa
+è andata storta due volte nella stessa sessione in due modi che `git pull` non sa
+raccontare — vedi la nota sulla riscrittura della storia in `STATUS.md`:
+
+- **`main` divergente con un commit locale che non aggiunge niente**: la versione
+  pre-riscrittura di lavoro già su origin. `git pull` si ferma e chiede come
+  riconciliare, e nessuna delle tre risposte che suggerisce è quella giusta —
+  merge e rebase porterebbero dentro il doppione.
+- **tag rifiutati**: `git fetch --tags` senza `--force` li lascia puntati alla
+  storia vecchia, quindi `git describe` mente. Si vede solo sui tag vecchi:
+  quelli nuovi passano, ed è facile crederlo risolto.
+
+**Cosa non fa, e sono garanzie non omissioni:** non pusha (la regola 1 di
+`CLAUDE.md` vuole un'istruzione esplicita, e una conferma in un `[y/N]` non è
+un'istruzione), non cancella rami, non tocca l'albero se è sporco, e **non fa
+`reset --hard` se i commit locali portano contenuto che origin non ha** — in quel
+caso offre solo un ramo di salvataggio e dice perché. `-y` non allarga cosa
+propone: la prova sull'albero resta condizione necessaria.
+
+La distinzione fra i due casi divergenti è `git diff --quiet <upstream> <ramo>`:
+alberi identici significa che quei commit non aggiungono contenuto. È la sola
+cosa che autorizza il reset, e `check_session_start.sh` la difende fabbricando
+sette stati in un repo temporaneo — il caso che conta è il quinto, che verifica
+che del lavoro vero **non** venga resettato.
+
+## `check_static.sh` — le nove guardie che girano su file fermi
+
+Le guardie sono **ventitré**. Nove girano su file fermi (YAML, sorgenti, tabelle,
+unit systemd, e un repo git in una directory temporanea) e finiscono in pochi
+secondi; le altre quattordici vogliono un runtime in ascolto, podman o un
+dispositivo.
+
+> I numeri in questa riga invecchiano a ogni guardia nuova, e sono già stati
+> sbagliati una volta. Il conto vero lo fa lo script: i suoi due elenchi devono
+> coprire **tutti** i `check_*.sh` presenti, e se ne compare uno non classificato
+> `check_static.sh` **fallisce**. Se questa riga e lo script non concordano,
+> ha ragione lo script.
 
 ```bash
 ./scripts/check_static.sh     # esce != 0 se una qualsiasi fallisce

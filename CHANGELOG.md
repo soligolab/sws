@@ -11,6 +11,37 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### `session_start.sh` — la prima cosa da lanciare prima di riprendere il lavoro
+
+Confronta la macchina con origin, propone il rimedio giusto per ciascun caso
+comune, e chiude dicendo da dove si riprende. Nato dal 2026-09-02, quando la
+ripresa è andata storta due volte nella stessa sessione in due modi che
+`git pull` non sa raccontare: un `main` divergente con un commit locale che **non
+aggiungeva niente** (la versione pre-riscrittura di lavoro già su origin — e
+nessuna delle tre risposte che `git pull` suggerisce era quella giusta), e undici
+**tag rifiutati**, lasciati puntati alla storia vecchia perché senza `--force`
+git non li sovrascrive.
+
+Il fatto su cui si regge tutto è `git diff --quiet <upstream> <ramo>`: alberi
+identici significa che i commit locali non aggiungono contenuto, ed è l'unica
+cosa che autorizza un `reset --hard`. Se quel diff non è vuoto lo script offre
+**solo** un ramo di salvataggio, e dice perché.
+
+Non pusha (la regola 1 di `CLAUDE.md` vuole un'istruzione esplicita, e una
+conferma in un `[y/N]` non è un'istruzione), non cancella rami, non tocca
+l'albero se è sporco. `-y` accetta le **riparazioni**, non decide dove stai
+lavorando: il cambio di ramo chiede sempre — trovato usandolo, perché la prima
+stesura con `-y` portava via da un ramo di lavoro senza dire niente.
+
+`check_session_start.sh` (nona guardia statica) fabbrica sette stati in un repo
+temporaneo e verifica cosa lo script ha fatto e **cosa non ha fatto**:
+disattivando la prova sull'albero, il caso che conta diventa rosso con «HA
+RESETTATO del lavoro vero».
+
+Corretti anche i conteggi in `scripts/README.md`, che dicevano «sette guardie» e
+«venti»: sono nove e ventitré.
+
+
 ## [2.4.0] — 2026-09-02
 
 ### ⚠️ Cambio di comportamento sui dispositivi: l'IDE non è più il default

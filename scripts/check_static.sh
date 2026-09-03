@@ -35,6 +35,7 @@ STATICHE=(
     check_demo_templates    # i due gemelli "Demo Items" fra loro
     check_systemd_units     # trappole note nelle unit che spediamo
     check_synoptic_schema   # il vocabolario dato all'assistente IA contro le sue fonti
+    check_session_start     # session_start.sh non deve poter perdere lavoro
 )
 
 # Vogliono uno stack in ascolto, podman o un dispositivo: a mano, non qui.

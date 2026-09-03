@@ -28,7 +28,13 @@
 
 ## Session start
 
-Read, in order:
+**First, run `./scripts/session_start.sh`.** It compares this machine with
+origin, offers the right remedy for each common case (diverged `main`, tags left
+on the pre-rewrite history, missing `node_modules`), and ends by printing where
+the last session stopped. It never pushes, never deletes a branch, and never
+resets over local commits that carry content origin doesn't have.
+
+Then read, in order:
 
 1. `docs/CONTEXT.md` — context, working mode, frozen architectural decisions, phase plan, task roadmap (T-xx).
 2. `STATUS.md` — where the last session stopped, what's working, what to pick up.
