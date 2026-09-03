@@ -57,6 +57,42 @@
 
 ## ▶ Da fare nella prossima sessione
 
+### 🔀 2026-09-03 — tre rami mergiati in `main`, **non pushati**
+
+`main` è 4 commit avanti a `origin/main` e l'albero è pulito. Il push non è stato dato: si fa
+quando il maintainer lo dice.
+
+| commit | cosa |
+|---|---|
+| `22d9c13` | **cross-build aarch64**: bindgen di `lvgl-sys` non trovava gli header di sistema. È quello che sbloccava la build dei container Pixsys |
+| `632af79` | gli script `start_*` ricostruiscono la SPA quando serve, e se `pnpm build` fallisce lo **dichiarano** invece di suggerire il comando appena fallito |
+| `1b4c7ee` | `session_start.sh` — la prima cosa da lanciare prima di riprendere il lavoro, su qualunque macchina |
+| `8271a73` | le due voci di CHANGELOG che mancavano + il piano di `session_start` in `docs/plans/` |
+
+Verificato su frodo: `cargo check --workspace --all-targets` verde, `pnpm build` verde, tutte e
+**9** le guardie statiche verdi (la nona è `check_session_start.sh`, che conta come prova che il
+merge è dentro). I tre rami **non sono stati eliminati**: la pulizia è del maintainer.
+
+**Le due immagini che restano da compilare.** La correzione del sysroot ora è su `main`, quindi la
+guardia della provenienza è contenta e si può ripartire da lì:
+
+```bash
+./scripts/build_container.sh --push          # Pixsys arm64 — è quella che era rossa
+./scripts/build_container_x86_64.sh --push
+```
+
+L'arm64 generica della 2.4.0 era già passata. Se si vuole che le immagini portino un commit
+raggiungibile da chiunque, il push di `main` va fatto **prima** della build.
+
+**Mai provate, e non le prova nessuna guardia:** il Deploy completo verso un dispositivo vero
+attraverso la porta stretta `--no-admin`; la chat staccata con una proposta di modello vera;
+`e2e/chat-ai.spec.ts`.
+
+> Non tracciato in `docs/plans/`: `2026-09-03-via-di-fuga-stop-pixsys.md`, comparso oggi alle
+> 12:39 e non scritto in questa sessione — presumibilmente da una sessione concorrente sullo
+> stesso checkout. Lasciato dov'è, senza committarlo: non è mio da decidere.
+
+
 ### 🏷 Release 2.4.0 — 2026-09-02, su `main`, **da compilare e installare**
 
 Squash merge di `feat/chat-staccata-e-python` (sette commit) + bump a 2.4.0 + tag `2.4.0`.
