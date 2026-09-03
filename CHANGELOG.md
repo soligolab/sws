@@ -11,6 +11,47 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### La SPA la costruiscono gli script `start_*`
+
+Prima di avviare, `start_editor.sh` e `start_runtime.sh` ricostruiscono la SPA
+se serve. Lo facevano già — la novità è *quando* e *cosa succede se fallisce*.
+
+Guardavano solo `sws-editor/src`, quindi un `index*.html` nuovo (la finestra dei
+log, la chat staccata), un `vite.config.ts` toccato o una dipendenza cambiata nel
+lockfile non facevano scattare niente; e controllavano un solo entry point, così
+gli altri potevano mancare dalla dist in silenzio — un 404 sulla finestra
+staccata e nessun indizio sul perché. Ora gli entry point si **scoprono con un
+glob** invece di essere elencati, e il motivo della ricostruzione si stampa.
+
+Il difetto che faceva prendere abbagli: se `pnpm build` falliva, lo script
+tirava avanti e più sotto stampava «Costruisci con: `cd sws-editor && pnpm
+build`», cioè suggeriva come rimedio il comando appena fallito, facendo sembrare
+una dimenticanza dell'utente quello che era un errore di compilazione. Ora
+dichiara «ERRORE: pnpm build fallito. La dist NON è aggiornata» e dice che si
+avvia servendo quella vecchia.
+
+La decisione sta in `scripts/build_spa_if_needed.sh`, in una copia sola e non
+due: per `sync_branding` la duplicazione va bene, per un elenco di sorgenti che
+cambia quando si aggiunge un entry point no. Resta **prima** di `sync_branding`,
+che è un vincolo d'ordine e non un'abitudine — `vite build` svuota `dist/`.
+`--no-spa` su entrambi gli script per quando si lavora solo sul Rust.
+
+### La cross-build aarch64 non trovava gli header di sistema
+
+`lvgl-sys` genera i binding con bindgen, e quando target e host differiscono
+passa a clang solo `-target aarch64-unknown-linux-gnu` **senza `--sysroot`**:
+clang legge lo `stdint.h` dell'host con un target aarch64 e su un host x86_64 gli
+header multiarch non ci sono. Su theobroma non capitava perché là era installato
+`libc6-dev-arm64-cross`, un prerequisito che nessuno aveva scritto e che è
+sparito col trasloco su frodo.
+
+La cura non è installare quel pacchetto ma dare a clang il sysroot **dell'SDK**:
+non sono equivalenti, perché con gli header di una aarch64 generica bindgen
+genererebbe struct col layout di Debian mentre il link va contro la libc Pixsys.
+Serve la forma **per-target** `BINDGEN_EXTRA_CLANG_ARGS_<TARGET>`: quella globale
+sposta il guasto sull'unità host di `lvgl-sys`, che viene compilata anch'essa.
+
+
 ### `session_start.sh` — la prima cosa da lanciare prima di riprendere il lavoro
 
 Confronta la macchina con origin, propone il rimedio giusto per ciascun caso
