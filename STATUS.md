@@ -57,6 +57,49 @@
 
 ## ▶ Da fare nella prossima sessione
 
+### 🏷 Release 2.5.0 — 2026-09-03, su `main`, **da compilare e installare**
+
+Squash merge di `fix/Q30-lock-project-yaml` e `fix/Q34-cron-passi`, bump a 2.5.0, tag `2.5.0`.
+I rami **non sono stati eliminati**: la pulizia è del maintainer. `main` **non è pushato**.
+
+**Minor e non patch**, deciso col maintainer: il cron accetta ora espressioni che prima rifiutava,
+e chi legge il changelog per numero di versione troverebbe una funzionalità nuova dove si aspetta
+solo correzioni. Nessun progetto esistente cambia comportamento.
+
+Cosa c'è dentro, oltre alle tre cose già su `main` (SPA ricostruita dagli script `start_*`,
+`session_start.sh`, sysroot per la cross-build aarch64):
+
+| | |
+|---|---|
+| **Q30** | i salvataggi di `project.yaml` non si mangiano più fra loro: 50 concorrenti, col lock ne sopravvivono 50, senza ne sopravvive **1**. Scrittura atomica con `fsync` |
+| **Q34** | il cron capisce `*/5`, `9-17`, `9-17/2` e la domenica come `7`; ciò che non capisce è un errore dichiarato e non un insieme vuoto |
+
+**Le due prove che mancano, e che si fanno installando questa versione.** Nessuna delle due ha
+avuto una conferma nel browser — è una scelta consapevole, i dispositivi fisici sono il banco di
+prova:
+
+1. **Q30**: due schede sulla stessa istanza, una salva i tag e l'altra le sorgenti nello stesso
+   momento. Dopo, sul disco devono esserci **entrambe**. È il gesto che ha prodotto il difetto.
+2. **Q34**: nell'IDE, uno script globale con `*/5 * * * *`. Deve partire, e il campo cron deve
+   mostrare il suggerimento con le forme ammesse passandoci sopra col mouse.
+
+Se una delle due va male si torna indietro con un tag, non con un rollback.
+
+**Le immagini da compilare** (la correzione del sysroot è su `main` da stamattina, quindi la
+guardia della provenienza è contenta):
+
+```bash
+./scripts/build_containers_all.sh --push
+```
+
+Se si vuole che le immagini portino un commit raggiungibile da chiunque, `git push origin main`
+va fatto **prima** della build: oggi i commit della 2.5.0 esistono solo su frodo.
+
+**Mai provate, e non le prova nessuna guardia:** il Deploy completo verso un dispositivo vero
+attraverso la porta stretta `--no-admin`; la chat staccata con una proposta di modello vera;
+`e2e/chat-ai.spec.ts`.
+
+
 ### 🔒 Q30 — i salvataggi non si mangiano più fra loro, su `fix/Q30-lock-project-yaml`
 
 **Da confermare nel browser prima del merge.** Il gesto che collauda è quello che ha prodotto il

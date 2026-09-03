@@ -11,6 +11,19 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+## [2.5.0] — 2026-09-03
+
+**Minor e non patch** perché il cron accetta espressioni che prima rifiutava: chi
+legge il changelog per numero di versione troverebbe una funzionalità nuova dove
+si aspetta solo correzioni. Nessun progetto esistente cambia comportamento — le
+forme che funzionavano funzionano ancora.
+
+Le due voci di Q30 e Q34 qui sotto **non hanno la conferma nel browser**: sono
+verificate dai test e da prove su runtime veri (50 salvataggi concorrenti; un
+cron `*/1` che esegue sui confini di minuto), e le due prove che restano — due
+schede che salvano insieme, e il campo cron nell'IDE — si fanno installando
+questa versione sui dispositivi di test.
+
 ### I salvataggi del progetto non si mangiano più fra loro (Q30)
 
 Ogni scrittura su `project.yaml` è un leggi-modifica-scrivi, e non c'era nessun
