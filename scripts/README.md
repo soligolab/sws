@@ -260,13 +260,32 @@ in real-time tramite relay WebSocket (il token remoto rimane nel processo locale
 Apri `http://localhost:8090/` nel browser. La pagina guida all'accettazione
 del certificato self-signed senza uscire dall'applicazione.
 
-### Costruire la SPA prima di usare gli script
+### La SPA la costruiscono gli script
 
-Gli script servono la SPA già compilata da `sws-editor/dist/`. Se non è
-presente o è stale, ricostruirla:
+Non serve ricordarsene: `start_runtime.sh` e `start_editor.sh` chiamano
+`scripts/build_spa_if_needed.sh` prima di avviare il binario, e ricostruiscono
+`sws-editor/dist/` **solo se serve**. Con `--no-spa` non la toccano, per quando
+si lavora solo sul Rust e i dieci secondi di vite danno fastidio.
+
+Quando «serve»: manca uno degli entry point in `dist/`, oppure è più recente
+della dist qualcosa fra `src/`, gli `index*.html`, `vite.config.ts`,
+`tsconfig*.json`, `package.json`, `pnpm-lock.yaml` e `public/` (escluso
+`public/branding`, che gli script sincronizzano senza ricostruire). Gli entry
+point si scoprono con un glob invece di essere elencati, così aggiungerne uno
+non richiede di ricordarsi di quello script.
+
+Prima esisteva `ensure_frontend_built`, duplicata nei due script start_*, con
+due buchi che si vedevano: guardava **solo** `src/`, quindi un `index*.html`
+nuovo o un `vite.config.ts` toccato non facevano scattare niente e un entry
+point poteva mancare dalla dist senza che nessuno lo dicesse; e se `pnpm build`
+falliva lo script tirava avanti e stampava «Costruisci con: cd sws-editor &&
+pnpm build», cioè suggeriva il rimedio appena fallito. Ora il fallimento si
+dichiara e il motivo della ricostruzione si stampa.
 
 ```sh
-cd sws-editor && pnpm build
+./scripts/build_spa_if_needed.sh           # anche a mano
+./scripts/build_spa_if_needed.sh --check   # dice solo se servirebbe (esce 1 se sì)
+./scripts/build_spa_if_needed.sh --force
 ```
 
 ## `clean_disk_space.sh` — libera spazio quando il disco è pieno

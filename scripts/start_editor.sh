@@ -24,10 +24,15 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 # ── Parse --instance N ────────────────────────────────────────────────────────
 INSTANCE=1
+SPA_BUILD=1
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --instance) INSTANCE="$2"; shift 2 ;;
-    *) echo "uso: $0 [--instance N]" >&2; exit 2 ;;
+    # Non ricostruire la SPA: si serve la dist così com'è. Per quando si sta
+    # lavorando solo sul Rust e i dieci secondi di vite danno fastidio, o per
+    # provare deliberatamente una dist vecchia.
+    --no-spa)   SPA_BUILD=0; shift ;;
+    *) echo "uso: $0 [--instance N] [--no-spa]" >&2; exit 2 ;;
   esac
 done
 
@@ -103,20 +108,34 @@ echo "[editor] build (cargo build -p sws-runtime -j 1)…"
 echo "[editor]  (in attesa del file lock se un altro build è in corso)"
 (cd "$REPO_ROOT/sws-runtime" && cargo build -p sws-runtime -j 1)
 
-# ── Build frontend se dist manca o è più vecchio dei sorgenti ────────────────
-# Lo script ricompila sempre il backend ma servirebbe un dist/ stantio: questo
-# evita di mostrare una SPA vecchia (es. login dopo un aggiornamento no-auth).
-ensure_frontend_built() {
-  local dist="$REPO_ROOT/sws-editor/dist"
-  local marker="$dist/index-admin.html"
-  if [ ! -f "$marker" ] || [ -n "$(find "$REPO_ROOT/sws-editor/src" -newer "$marker" -print -quit 2>/dev/null)" ]; then
-    echo "[editor] frontend: dist assente o più vecchio dei sorgenti → pnpm build…"
-    (cd "$REPO_ROOT/sws-editor" && pnpm build)
-  else
-    echo "[editor] frontend: dist aggiornato — skip build"
-  fi
-}
-ensure_frontend_built
+# ── La SPA, con lo stesso criterio del backend ───────────────────────────────
+#
+# Qui c'era `ensure_frontend_built`, duplicata in entrambi gli script start_*,
+# che ricostruiva la dist se mancava `index-admin.html` **oppure** se qualcosa
+# sotto `sws-editor/src` era più recente. Due buchi, e si vedevano:
+#
+#  * guardava solo `src/`. Un `index*.html` nuovo (la finestra dei log, la chat
+#    staccata), un `vite.config.ts` toccato, una dipendenza cambiata in
+#    `package.json` o nel lockfile non facevano scattare niente — e il marcatore
+#    controllato era un entry point solo, quindi gli altri potevano mancare
+#    dalla dist senza che nessuno se ne accorgesse (404 sulla finestra staccata).
+#  * se `pnpm build` falliva — un errore di TypeScript, o `node_modules`
+#    assente — lo script **tirava avanti** e più sotto stampava «Costruisci con:
+#    cd sws-editor && pnpm build», come se l'utente se ne fosse dimenticato. Il
+#    rimedio suggerito era quello appena fallito.
+#
+# Ora la decisione sta in un posto solo, `scripts/build_spa_if_needed.sh`, che
+# scopre gli entry point con un glob invece di elencarli, fa `pnpm install` se
+# manca, e quando fallisce lo dice.
+#
+# Resta **prima** di `sync_branding`: `vite build` svuota dist/, quindi
+# costruire dopo cancellerebbe il branding appena copiato dentro.
+if [ "$SPA_BUILD" -eq 1 ]; then
+  SPA_LOG_PREFIX="[editor]" "$REPO_ROOT/scripts/build_spa_if_needed.sh" || \
+    echo "[editor] si continua con la dist che c'è (vedi l'errore sopra)"
+else
+  echo "[editor] --no-spa: la dist non viene toccata"
+fi
 
 # ── Sync branding → dist ──────────────────────────────────────────────────────
 # public/branding/ è la SORGENTE, dist/branding/ è ciò che l'app serve/legge.
@@ -139,8 +158,11 @@ if [ -f "$WWW_DIST/index-admin.html" ]; then
   WWW_ARGS=(--www "$WWW_DIST")
   echo "[editor] SPA da $WWW_DIST"
 else
-  echo "[editor] ATTENZIONE: $WWW_DIST/index-admin.html non trovata — solo API"
-  echo "[editor]   Costruisci con: cd sws-editor && pnpm build"
+  # Se siamo qui, o la build è fallita (l'errore è appena sopra) o è stata
+  # saltata con --no-spa. In entrambi i casi il rimedio non è «costruisci a
+  # mano»: è guardare l'errore, oppure togliere --no-spa.
+  echo "[editor] ATTENZIONE: dist/index-admin.html non trovata — si avvia in sola API"
+  echo "[editor]   (la SPA non è stata costruita: vedi sopra, oppure ./scripts/build_spa_if_needed.sh)"
 fi
 
 # Auto-apertura del progetto: NON passiamo --project. Il runtime riapre da solo

@@ -25,6 +25,7 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 # ── Parse --instance N ────────────────────────────────────────────────────────
 INSTANCE=1
+SPA_BUILD=1
 NO_ADMIN_ARGS=()
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -36,7 +37,9 @@ while [[ $# -gt 0 ]]; do
     # sarebbe provabile in locale, e una configurazione che si prova solo in
     # campo è una configurazione che non si prova.
     --no-admin) NO_ADMIN_ARGS=(--no-admin); shift ;;
-    *) echo "uso: $0 [--instance N] [--no-admin]" >&2; exit 2 ;;
+    # Non ricostruire la SPA: si serve la dist così com'è.
+    --no-spa)   SPA_BUILD=0; shift ;;
+    *) echo "uso: $0 [--instance N] [--no-admin] [--no-spa]" >&2; exit 2 ;;
   esac
 done
 
@@ -137,20 +140,34 @@ echo "[runtime] build (cargo build -p sws-runtime -j 1)…"
 echo "[runtime]  (in attesa del file lock se un altro build è in corso)"
 (cd "$REPO_ROOT/sws-runtime" && cargo build -p sws-runtime -j 1)
 
-# ── Build frontend se dist manca o è più vecchio dei sorgenti ────────────────
-# Lo script ricompila sempre il backend ma servirebbe un dist/ stantio: questo
-# evita di mostrare una SPA vecchia (es. login dopo un aggiornamento no-auth).
-ensure_frontend_built() {
-  local dist="$REPO_ROOT/sws-editor/dist"
-  local marker="$dist/index-admin.html"
-  if [ ! -f "$marker" ] || [ -n "$(find "$REPO_ROOT/sws-editor/src" -newer "$marker" -print -quit 2>/dev/null)" ]; then
-    echo "[runtime] frontend: dist assente o più vecchio dei sorgenti → pnpm build…"
-    (cd "$REPO_ROOT/sws-editor" && pnpm build)
-  else
-    echo "[runtime] frontend: dist aggiornato — skip build"
-  fi
-}
-ensure_frontend_built
+# ── La SPA, con lo stesso criterio del backend ───────────────────────────────
+#
+# Qui c'era `ensure_frontend_built`, duplicata in entrambi gli script start_*,
+# che ricostruiva la dist se mancava `index-admin.html` **oppure** se qualcosa
+# sotto `sws-editor/src` era più recente. Due buchi, e si vedevano:
+#
+#  * guardava solo `src/`. Un `index*.html` nuovo (la finestra dei log, la chat
+#    staccata), un `vite.config.ts` toccato, una dipendenza cambiata in
+#    `package.json` o nel lockfile non facevano scattare niente — e il marcatore
+#    controllato era un entry point solo, quindi gli altri potevano mancare
+#    dalla dist senza che nessuno se ne accorgesse (404 sulla finestra staccata).
+#  * se `pnpm build` falliva — un errore di TypeScript, o `node_modules`
+#    assente — lo script **tirava avanti** e più sotto stampava «Costruisci con:
+#    cd sws-editor && pnpm build», come se l'utente se ne fosse dimenticato. Il
+#    rimedio suggerito era quello appena fallito.
+#
+# Ora la decisione sta in un posto solo, `scripts/build_spa_if_needed.sh`, che
+# scopre gli entry point con un glob invece di elencarli, fa `pnpm install` se
+# manca, e quando fallisce lo dice.
+#
+# Resta **prima** di `sync_branding`: `vite build` svuota dist/, quindi
+# costruire dopo cancellerebbe il branding appena copiato dentro.
+if [ "$SPA_BUILD" -eq 1 ]; then
+  SPA_LOG_PREFIX="[runtime]" "$REPO_ROOT/scripts/build_spa_if_needed.sh" || \
+    echo "[runtime] si continua con la dist che c'è (vedi l'errore sopra)"
+else
+  echo "[runtime] --no-spa: la dist non viene toccata"
+fi
 
 # ── Sync branding → dist ──────────────────────────────────────────────────────
 # public/branding/ è la SORGENTE, dist/branding/ è ciò che il runtime serve.
@@ -172,8 +189,11 @@ if [ -f "$WWW_DIST/index.html" ]; then
   WWW_ARGS=(--www "$WWW_DIST")
   echo "[runtime] SPA da $WWW_DIST"
 else
-  echo "[runtime] ATTENZIONE: $WWW_DIST non trovata — solo API"
-  echo "[runtime]   Costruisci con: cd sws-editor && pnpm build"
+  # Se siamo qui, o la build è fallita (l'errore è appena sopra) o è stata
+  # saltata con --no-spa. In entrambi i casi il rimedio non è «costruisci a
+  # mano»: è guardare l'errore, oppure togliere --no-spa.
+  echo "[runtime] ATTENZIONE: dist/index.html non trovata — si avvia in sola API"
+  echo "[runtime]   (la SPA non è stata costruita: vedi sopra, oppure ./scripts/build_spa_if_needed.sh)"
 fi
 
 # Auto-apertura del progetto: NON passiamo --project. Il runtime, mono-progetto,
