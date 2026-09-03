@@ -64,10 +64,10 @@ quando il maintainer lo dice.
 
 | commit | cosa |
 |---|---|
-| `22d9c13` | **cross-build aarch64**: bindgen di `lvgl-sys` non trovava gli header di sistema. È quello che sbloccava la build dei container Pixsys |
-| `632af79` | gli script `start_*` ricostruiscono la SPA quando serve, e se `pnpm build` fallisce lo **dichiarano** invece di suggerire il comando appena fallito |
-| `1b4c7ee` | `session_start.sh` — la prima cosa da lanciare prima di riprendere il lavoro, su qualunque macchina |
-| `8271a73` | le due voci di CHANGELOG che mancavano + il piano di `session_start` in `docs/plans/` |
+| `0a940c2` | **cross-build aarch64**: bindgen di `lvgl-sys` non trovava gli header di sistema. È quello che sbloccava la build dei container Pixsys |
+| `cc2ada0` | gli script `start_*` ricostruiscono la SPA quando serve, e se `pnpm build` fallisce lo **dichiarano** invece di suggerire il comando appena fallito |
+| `1ff2106` | `session_start.sh` — la prima cosa da lanciare prima di riprendere il lavoro, su qualunque macchina |
+| `7340a70` | le due voci di CHANGELOG che mancavano + il piano di `session_start` in `docs/plans/` |
 
 Verificato su frodo: `cargo check --workspace --all-targets` verde, `pnpm build` verde, tutte e
 **9** le guardie statiche verdi (la nona è `check_session_start.sh`, che conta come prova che il
