@@ -7084,6 +7084,17 @@ function GlobalScriptsTab() {
                 value={cur.trigger.schedule}
                 onChange={(e) => updateTrigger(selected, { schedule: e.target.value })}
                 placeholder="0 * * * *"
+                /* Q34: la sintassi accettata non era scritta da nessuna parte,
+                   né qui né nel manuale, e chi scriveva un passo (asterisco,
+                   barra, 5) si ritrovava uno script che non partiva mai senza
+                   dirlo. Ora i passi funzionano, e il campo lo dice. */
+                title={"minuto ora giorno mese giorno-settimana\n\n"
+                  + "*        ogni valore\n"
+                  + "*/5      ogni 5 (passo)\n"
+                  + "9-17     da 9 a 17 (intervallo)\n"
+                  + "9-17/2   da 9 a 17, ogni 2\n"
+                  + "0,30     elenco\n\n"
+                  + "Esempi: */5 * * * * = ogni 5 minuti; 30 4 * * * = ogni giorno alle 4:30"}
                 style={{ background: "var(--brand-surface, #1e293b)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, color: "var(--brand-text, #e2e8f0)", padding: "4px 8px", fontSize: 13, width: 160 }}
               />
             )}

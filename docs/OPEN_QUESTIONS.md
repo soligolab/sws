@@ -2841,5 +2841,44 @@ Il rilievo però si vede solo passando dalla validazione: chi scrive il cron a m
 
 **Default for PoC**: opzione 4 di fatto — il validatore avvisa, il parser è invariato.
 
+### Fatto il 2026-09-03 — opzione 1, più il silenzio di mezzo dell'opzione 2
+
+Il parser capisce ora i **passi** (`*/n`), gli **intervalli** (`n-m`) e la loro combinazione
+(`n-m/k`), in liste che li mescolano. E ciò che non capisce è un **errore dichiarato**, non un
+insieme vuoto: lo script non viene schedulato e il log dice quale campo, cosa non torna e cosa
+scrivere al posto. Prima il task restava in piedi a ricontrollare ogni ora, per sempre, senza mai
+una riga che dicesse perché non partiva.
+
+Provato su un runtime vero: `*/1 * * * *` esegue sui confini di minuto (15:36:00, 15:37:00), e
+`*/0 pippo * * *` non parte nemmeno una volta, dichiarando entrambi i problemi.
+
+**Il difetto vero non era il parser: erano due copie.** Le regole del cron stavano scritte in
+`global_scripts::parse_field` (che schedulava) **e** in `validate::cron_rilievi` (che avvisava), e
+questo è il modo in cui l'informazione duplicata mente: il messaggio «questo cron non capisce i
+passi» era vero quando è stato scritto e sarebbe diventato falso il giorno dopo, facendo riscrivere
+a mano dodici minuti separati da virgola per un `*/5` che ormai funzionava. Ora c'è un parser solo,
+`crate::cron`, e il validatore gli chiede invece di reimplementarlo.
+
+Due difetti della stessa famiglia trovati strada facendo:
+
+- **La domenica scritta `7`.** POSIX la ammette insieme a `0`, e `0 0 * * 7` si trova scritto in
+  mezzo mondo. Prima finiva fuori intervallo e veniva scartata in silenzio: lo script non partiva
+  mai. Ora `7` vale domenica.
+- **La sintassi non era scritta da nessuna parte** — né nel manuale né nell'IDE, dove il campo era
+  un input nudo col solo segnaposto `0 * * * *`. Ora il campo porta un suggerimento con le forme
+  ammesse e due esempi.
+
+**Scelto di proposito**: un'espressione con **meno di cinque campi** resta un **avviso** e non un
+errore. `30 4` gira davvero — molto più spesso di quanto chi l'ha scritto pensasse, perché i campi
+mancanti valgono `*` — e bocciarla fermerebbe uno script che oggi funziona. Togliere di mezzo in
+silenzio qualcosa che andava è peggio del difetto che si stava correggendo.
+
+**Resta aperto**: l'errore va nel log del runtime e nel validatore, ma **non c'è una spia nell'IDE**
+che dica «questo script non è schedulato». Chi non guarda il log e non passa dal salvataggio non lo
+scopre. È la stessa mancanza di Q34 originale, spostata: non più il silenzio del parser, ma quello
+dell'interfaccia.
+
+**Decided**: opzione 1 (più il non-silenzio dell'opzione 2) il 2026-09-03. La spia nell'IDE no.
+
 **Decided**: not yet.
 

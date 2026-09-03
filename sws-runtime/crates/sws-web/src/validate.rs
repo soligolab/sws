@@ -583,66 +583,34 @@ pub fn semantic(project: &Project, pages: &[SynopticPage]) -> Vec<Finding> {
 /// Vedi `docs/OPEN_QUESTIONS.md` Q34: se il parser debba imparare passi e
 /// intervalli, o se il limite vada solo documentato, è una decisione del
 /// maintainer. Finché non è presa, il validatore lo dice.
+/// I rilievi su un'espressione cron. **Non** reimplementa le regole: le chiede
+/// a `crate::cron`, che è lo stesso parser che poi schedula.
+///
+/// Prima erano due elenchi. Questo, fino al 2026-09-03, diceva «questo cron non
+/// capisce né i passi (`*/n`) né gli intervalli (`n-m`)» e suggeriva di
+/// scrivere i dodici minuti a mano: era vero, ed è diventato falso nel momento
+/// in cui il parser li ha imparati. Un validatore che mente su cosa il runtime
+/// accetta è peggio di nessun validatore, perché fa riscrivere codice che
+/// andava bene.
 fn cron_rilievi(base: &str, schedule: &str) -> Vec<Finding> {
-    let mut out = Vec::new();
     let campo = format!("{base}.trigger.schedule");
-    let parti: Vec<&str> = schedule.split_whitespace().collect();
-
-    if parti.is_empty() {
-        out.push(Finding::err(campo, "l'espressione cron è vuota",
-            "servono cinque campi: minuto ora giorno mese giorno-settimana"));
-        return out;
-    }
-    if parti.len() != 5 {
-        out.push(Finding::err(campo.clone(),
-            format!("l'espressione cron ha {} campi invece di cinque", parti.len()),
-            "l'ordine è `minuto ora giorno mese giorno-settimana`; i campi che \
-             mancano vengono trattati come `*`, quindi un'espressione corta parte \
-             molto più spesso di quanto sembri"));
-        // Si continua comunque: i campi che ci sono vanno controllati.
-    }
-
-    const LIMITI: [(&str, u8, u8); 5] = [
-        ("minuto", 0, 59), ("ora", 0, 23), ("giorno", 1, 31),
-        ("mese", 1, 12), ("giorno-settimana", 0, 6),
-    ];
-    for (i, p) in parti.iter().enumerate().take(5) {
-        let (nome, min, max) = LIMITI[i];
-        if *p == "*" { continue; }
-
-        if p.contains('/') || p.contains('-') {
-            out.push(Finding::err(campo.clone(),
-                format!("il campo «{nome}» vale `{p}`, e questo cron non capisce \
-                         né i passi (`*/n`) né gli intervalli (`n-m`)"),
-                "non è un errore che si vede: il campo diventa un insieme vuoto e \
-                 lo script NON PARTE MAI, senza dirlo. Elenca i valori separati \
-                 da virgola — per «ogni cinque minuti» scrivi \
-                 `0,5,10,15,20,25,30,35,40,45,50,55`"));
-            continue;
-        }
-
-        let mut validi = 0usize;
-        for v in p.split(',') {
-            let v = v.trim();
-            match v.parse::<u8>() {
-                Ok(n) if n >= min && n <= max => validi += 1,
-                Ok(n) => out.push(Finding::err(campo.clone(),
-                    format!("il campo «{nome}» contiene `{n}`, fuori dall'intervallo \
-                             {min}-{max}"),
-                    "i valori fuori intervallo vengono scartati in silenzio")),
-                Err(_) => out.push(Finding::err(campo.clone(),
-                    format!("il campo «{nome}» contiene `{v}`, che non è un numero"),
-                    "questo cron ammette solo `*` o interi separati da virgola")),
+    let (_, problemi) = crate::cron::analizza(schedule);
+    problemi
+        .into_iter()
+        .map(|p| {
+            let messaggio = p.messaggio;
+            match p.gravita {
+                // La conseguenza va detta a lettere: un cron che non si capisce
+                // non è un dettaglio di stile, è uno script che non parte.
+                crate::cron::Gravita::Errore => Finding::err(
+                    campo.clone(),
+                    format!("{messaggio} — lo script NON verrebbe schedulato"),
+                    p.suggerimento,
+                ),
+                crate::cron::Gravita::Avviso => Finding::warn(campo.clone(), messaggio, p.suggerimento),
             }
-        }
-        if validi == 0 {
-            out.push(Finding::err(campo.clone(),
-                format!("del campo «{nome}» non resta nessun valore valido"),
-                "un campo vuoto non combacia con nessun istante: lo script non \
-                 partirà mai"));
-        }
-    }
-    out
+        })
+        .collect()
 }
 
 fn controlla_oggetto(
@@ -1391,18 +1359,34 @@ alarms: []
 
     // ── Script globali e cron ────────────────────────────────────────────────
 
-    /// Il caso che tace: `*/5` è la prima cosa che chiunque scriverebbe per
-    /// «ogni cinque minuti», e questo cron non lo capisce. Il campo diventa un
-    /// insieme vuoto, lo script viene schedulato e **non parte mai** — senza un
-    /// errore, senza una riga di log, senza una spia.
+    /// **Il verso che è cambiato il 2026-09-03.** `*/5 * * * *` è la prima cosa
+    /// che chiunque scrive per «ogni cinque minuti»: prima il parser non lo
+    /// capiva, il campo diventava un insieme vuoto e lo script non partiva mai
+    /// in silenzio, quindi il validatore lo bocciava — giustamente. Ora il
+    /// parser lo capisce, e **il validatore deve tacere**: un validatore che
+    /// boccia un cron valido fa riscrivere codice che andava bene, e insegna a
+    /// ignorarlo.
+    ///
+    /// Questo test è lo stesso di prima con l'aspettativa rovesciata, e lo dice
+    /// apposta: è il punto in cui le due copie delle regole avrebbero divergiuto
+    /// se il parser fosse rimasto in due posti.
     #[test]
-    fn un_cron_con_i_passi_non_passa_perche_non_partirebbe_mai() {
+    fn un_cron_con_i_passi_ora_passa_pulito() {
         let prog = format!("{PROGETTO}global_scripts:\n              - {{ id: ogni5, trigger: {{ kind: cron, schedule: \"*/5 * * * *\" }},                  code: \"print(1)\" }}\n");
         let rs = rilievi(&prog, &pagina("- { id: t, type: text, x: 0, y: 0 }"));
+        assert!(!cita(&rs, "schedule"), "nessun rilievo atteso su `*/5`: {rs:?}");
+    }
+
+    /// Ciò che il parser **non** capisce resta un errore, e deve dire la
+    /// conseguenza — non che l'espressione è invalida, ma che lo script non
+    /// verrebbe schedulato.
+    #[test]
+    fn un_cron_illeggibile_non_passa_e_dice_la_conseguenza() {
+        let prog = format!("{PROGETTO}global_scripts:\n              - {{ id: rotto, trigger: {{ kind: cron, schedule: \"*/0 pippo * * *\" }},                  code: \"print(1)\" }}\n");
+        let rs = rilievi(&prog, &pagina("- { id: t, type: text, x: 0, y: 0 }"));
         let e = errori(&rs);
-        assert!(cita(&e, "passi"), "il rilievo deve nominare il problema: {rs:?}");
-        assert!(cita(&e, "NON PARTE MAI"),
-                "e deve dire la conseguenza, non solo che è invalido: {rs:?}");
+        assert!(cita(&e, "NON verrebbe schedulato"),
+                "deve dire la conseguenza, non solo che è invalido: {rs:?}");
     }
 
     /// Il verso opposto, altrettanto importante: la forma che il parser capisce
@@ -1415,11 +1399,17 @@ alarms: []
         assert!(!cita(&rs, "schedule"), "nessun rilievo atteso sul cron: {rs:?}");
     }
 
+    /// Un cron corto è un **avviso**, non un errore: `30 4` gira davvero, solo
+    /// molto più spesso di quanto chi l'ha scritto pensasse. Bocciarlo
+    /// fermerebbe uno script che oggi funziona, e togliere di mezzo in silenzio
+    /// qualcosa che andava è peggio del difetto che stiamo correggendo.
     #[test]
-    fn un_cron_con_meno_di_cinque_campi_non_passa() {
+    fn un_cron_con_meno_di_cinque_campi_avvisa_ma_non_e_errore() {
         let prog = format!("{PROGETTO}global_scripts:\n              - {{ id: corto, trigger: {{ kind: cron, schedule: \"30 4\" }},                  code: \"print(1)\" }}\n");
         let rs = rilievi(&prog, &pagina("- { id: t, type: text, x: 0, y: 0 }"));
-        assert!(cita(&errori(&rs), "cinque"), "{rs:?}");
+        assert!(cita(&rs, "cinque"), "l'avviso ci deve essere: {rs:?}");
+        assert!(!cita(&errori(&rs), "cinque"),
+                "ma non come errore, o si blocca un salvataggio buono: {rs:?}");
     }
 
     #[test]

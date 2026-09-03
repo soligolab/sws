@@ -88,6 +88,33 @@ lock le serializza ma la seconda rimpiazza l'elenco intero. Serve il controllo o
 `calcola_impronta` è la granularità sbagliata. Annotato anche che `rename_project` non prende
 `project_switch_lock`, difetto separato trovato leggendo quel codice.
 
+### ⏰ Q34 — il cron capisce `*/5`, su `fix/Q34-cron-passi`
+
+`*/5 * * * *` è la prima cosa che chiunque scrive per «ogni cinque minuti». Il parser ammetteva
+solo `*` o interi separati da virgola, e **scartava** il resto in silenzio: il campo diventava un
+insieme vuoto, lo script veniva schedulato, il task partiva e non eseguiva mai — senza un errore,
+senza una riga di log.
+
+**Il difetto vero erano due copie**: le regole stavano nel parser che schedula *e* nel validatore
+che avvisa. Il messaggio «questo cron non capisce i passi» era vero quando è stato scritto e
+sarebbe diventato falso appena il parser li imparava, facendo riscrivere a mano dodici minuti
+separati da virgola per un `*/5` funzionante. Ora c'è `sws-web/src/cron.rs` e il validatore gli
+chiede. Due test del validatore sono stati **riscritti con l'aspettativa rovesciata**: è il punto
+esatto in cui le due copie avrebbero divergiuto.
+
+Trovati strada facendo: la **domenica scritta `7`** (che POSIX ammette) finiva fuori intervallo e
+veniva scartata in silenzio; e la sintassi **non era scritta da nessuna parte**, né nel manuale né
+nell'IDE — ora il campo cron porta un suggerimento con le forme ammesse.
+
+Provato su un runtime vero, non solo nei test: `*/1 * * * *` esegue sui confini di minuto
+(15:36:00, 15:37:00) e `*/0 pippo * * *` non parte nemmeno una volta, dichiarando entrambi i
+problemi con campo, causa e rimedio. `cargo check --workspace --all-targets` verde, 166 test di
+`sws-web` verdi, `pnpm build` verde, 9 guardie statiche verdi.
+
+**Resta aperto** (in Q34): l'errore va nel log e nel validatore, ma **non c'è una spia nell'IDE**
+che dica «questo script non è schedulato». Chi non guarda il log e non passa dal salvataggio non lo
+scopre.
+
 
 ### 🔀 2026-09-03 — tre rami mergiati in `main`, **non pushati**
 

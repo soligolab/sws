@@ -90,11 +90,48 @@ async fn run_script_task(
         }
 
         ScriptTrigger::Cron { schedule } => {
+            // Q34: l'espressione si legge **una volta**, prima del ciclo, e se
+            // non si capisce il task finisce qui con un errore a log. Prima il
+            // parser scartava in silenzio ciò che non sapeva leggere: il campo
+            // diventava un insieme vuoto, nessun istante combaciava, e il task
+            // restava in piedi a ricontrollare ogni ora per sempre — script
+            // schedulato, task vivo, e mai una riga che dicesse perché non
+            // partiva.
+            let (cron, problemi) = crate::cron::analizza(&schedule);
+            for p in &problemi {
+                match p.gravita {
+                    crate::cron::Gravita::Errore => error!(
+                        script = %id, schedule = %schedule, campo = p.campo,
+                        "cron non valido: {} — {}", p.messaggio, p.suggerimento
+                    ),
+                    crate::cron::Gravita::Avviso => warn!(
+                        script = %id, schedule = %schedule, campo = p.campo,
+                        "cron sospetto: {} — {}", p.messaggio, p.suggerimento
+                    ),
+                }
+            }
+            let Some(cron) = cron else {
+                error!(script = %id, schedule = %schedule,
+                    "lo script NON viene schedulato: l'espressione cron non è utilizzabile");
+                return;
+            };
+
             loop {
-                let secs_until = seconds_until_next(&schedule);
+                // `None` = nessun istante nelle prossime 24 ore. È legittimo
+                // (`0 0 29 2 *` esiste), quindi si ricontrolla fra un'ora
+                // invece di rinunciare — ma qui è una scelta, non il residuo di
+                // un insieme vuoto.
+                let attesa = match cron.secondi_al_prossimo(adesso_unix()) {
+                    Some(s) => s,
+                    None => {
+                        debug!(script = %id, schedule = %schedule,
+                            "nessuna occorrenza nelle prossime 24 ore, ricontrollo fra un'ora");
+                        3600
+                    }
+                };
                 tokio::select! {
                     _ = cancel.cancelled() => break,
-                    _ = sleep(Duration::from_secs(secs_until)) => {
+                    _ = sleep(Duration::from_secs(attesa)) => {
                         exec_once(&id, &code, &py, &mut throttle).await;
                     }
                 }
@@ -237,105 +274,22 @@ fn is_falsy(v: &TagValue) -> bool {
     }
 }
 
-// ── Minimal 5-field cron parser ───────────────────────────────────────────────
+// ── Il cron sta in `crate::cron` ──────────────────────────────────────────────
 //
-// Supports: `*`, specific values (e.g. `5`), and comma-lists (e.g. `0,30`).
-// Ranges (`1-5`) and step values (`*/5`) are NOT supported — PoC scope.
-// Returns the number of seconds until the next match, clamped to [1, 3600].
+// Qui c'erano `parse_field`, `parse_cron`, `matches_cron`, `seconds_until_next`
+// e `days_to_ymd`. Sono andati in `cron.rs` perché le stesse regole erano
+// scritte **anche** in `validate.rs` (`cron_rilievi`), e due elenchi che devono
+// andare d'accordo prima o poi non ci vanno: fino al 2026-09-03 il validatore
+// diceva «questo cron non capisce `*/n`», vero allora e falso appena il parser
+// li ha imparati. Ora la sintassi è definita in un posto solo.
 
-fn seconds_until_next(expr: &str) -> u64 {
-    let now = std::time::SystemTime::now()
+/// L'istante di adesso in secondi dall'epoca. Isolato perché è l'unico pezzo
+/// non deterministico del ciclo cron, e nei test del parser non serve.
+fn adesso_unix() -> u64 {
+    std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default()
-        .as_secs();
-
-    let parsed = parse_cron(expr);
-
-    // Scan forward minute-by-minute (max 24h = 1440 iterations).
-    for offset_min in 1u64..=1440 {
-        let candidate_s = now + offset_min * 60;
-        // Align to the start of that minute.
-        let candidate_s = (candidate_s / 60) * 60;
-
-        if matches_cron(&parsed, candidate_s) {
-            let delta = candidate_s.saturating_sub(now);
-            return delta.max(1);
-        }
-    }
-    // If no match found in 24h, retry in 1h.
-    3600
-}
-
-struct CronParsed {
-    minute:  Vec<u8>, // 0-59
-    hour:    Vec<u8>, // 0-23
-    day:     Vec<u8>, // 1-31
-    month:   Vec<u8>, // 1-12
-    weekday: Vec<u8>, // 0-6 (Sun=0)
-}
-
-fn parse_field(s: &str, min: u8, max: u8) -> Vec<u8> {
-    if s == "*" {
-        return (min..=max).collect();
-    }
-    s.split(',')
-        .filter_map(|part| part.trim().parse::<u8>().ok())
-        .filter(|&v| v >= min && v <= max)
-        .collect()
-}
-
-fn parse_cron(expr: &str) -> CronParsed {
-    let parts: Vec<&str> = expr.split_whitespace().collect();
-    let get = |i: usize, min, max| -> Vec<u8> {
-        parts.get(i).map(|s| parse_field(s, min, max)).unwrap_or_else(|| (min..=max).collect())
-    };
-    CronParsed {
-        minute:  get(0, 0, 59),
-        hour:    get(1, 0, 23),
-        day:     get(2, 1, 31),
-        month:   get(3, 1, 12),
-        weekday: get(4, 0, 6),
-    }
-}
-
-fn matches_cron(c: &CronParsed, unix_s: u64) -> bool {
-    // Convert unix timestamp to calendar fields (UTC).
-    let secs_per_day = 86400u64;
-    let secs_per_hour = 3600u64;
-    let secs_per_min  = 60u64;
-
-    let minute  = ((unix_s % secs_per_hour) / secs_per_min) as u8;
-    let hour    = ((unix_s % secs_per_day) / secs_per_hour) as u8;
-
-    // Days since Unix epoch (1970-01-01 = Thursday = weekday 4).
-    let days_since_epoch = unix_s / secs_per_day;
-    let weekday = ((days_since_epoch + 4) % 7) as u8; // 0=Sun
-
-    // Gregorian calendar: year + month + day.
-    let (year, month, day) = days_to_ymd(days_since_epoch);
-    let _ = year;
-
-    c.minute.contains(&minute)
-        && c.hour.contains(&hour)
-        && c.day.contains(&(day as u8))
-        && c.month.contains(&(month as u8))
-        && c.weekday.contains(&weekday)
-}
-
-/// Convert days-since-Unix-epoch to (year, month, day).
-/// Civil calendar algorithm by Howard Hinnant (public domain).
-fn days_to_ymd(z: u64) -> (i32, u32, u32) {
-    let z = z as i64 + 719468;
-    let era = if z >= 0 { z } else { z - 146096 } / 146097;
-    let doe = z - era * 146097;
-    let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
-    let y = yoe + era * 400;
-    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
-    let mp = (5 * doy + 2) / 153;
-    let d = doy - (153 * mp + 2) / 5 + 1;
-    let m = if mp < 10 { mp + 3 } else { mp - 9 };
-    let y = if m <= 2 { y + 1 } else { y };
-    (y as i32, m as u32, d as u32)
+        .as_secs()
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

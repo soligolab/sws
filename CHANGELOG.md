@@ -48,6 +48,41 @@ modifica della prima sparisce comunque. Serve un controllo ottimistico, e
 `calcola_impronta` non è lo strumento giusto (granularità di progetto intero:
 darebbe 409 a chi salva un tag perché un altro ha mosso un rettangolo).
 
+### Il cron degli script globali capisce `*/5`, e quando non capisce lo dice (Q34)
+
+`*/5 * * * *` è la prima cosa che chiunque scrive per «ogni cinque minuti», e in
+ogni altro cron del mondo funziona. Qui il parser ammetteva solo `*` o interi
+separati da virgola, e il modo in cui rifiutava il resto era la parte cattiva:
+`filter_map` **scartava** ciò che non sapeva leggere, quindi `*/5` non era un
+errore — diventava un insieme vuoto, e un insieme vuoto non combacia con nessun
+minuto. Lo script veniva schedulato, il task partiva, e **non eseguiva mai**:
+nessun errore, nessuna riga di log, nessuna spia.
+
+Ora il parser capisce i passi (`*/n`), gli intervalli (`n-m`) e la combinazione
+(`n-m/k`), anche mescolati in una lista. E ciò che non capisce è un **errore
+dichiarato**: lo script non viene schedulato, e il log dice quale campo, cosa non
+torna e cosa scrivere al posto.
+
+**Il difetto vero erano due copie.** Le regole stavano scritte nel parser che
+schedula *e* nel validatore che avvisa: il messaggio «questo cron non capisce i
+passi» era vero quando è stato scritto e sarebbe diventato falso il giorno dopo,
+facendo riscrivere a mano dodici minuti separati da virgola per un `*/5` che
+ormai funzionava. Ora c'è un modulo solo, `sws-web/src/cron.rs`, e il validatore
+gli chiede invece di reimplementarlo.
+
+Due difetti della stessa famiglia, trovati strada facendo:
+
+- **la domenica scritta `7`** (che POSIX ammette, e che si trova scritta in mezzo
+  mondo) finiva fuori intervallo e veniva scartata in silenzio: `0 0 * * 7` non
+  partiva mai. Ora vale domenica;
+- **la sintassi non era scritta da nessuna parte**, né nel manuale né nell'IDE,
+  dove il campo era un input nudo. Ora porta un suggerimento con le forme
+  ammesse e due esempi.
+
+Un'espressione con **meno di cinque campi** resta un avviso e non un errore:
+`30 4` gira davvero, solo molto più spesso di quanto sembri, e bocciarla
+fermerebbe uno script che oggi funziona.
+
 
 ### La SPA la costruiscono gli script `start_*`
 
