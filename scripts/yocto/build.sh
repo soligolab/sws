@@ -143,6 +143,48 @@ if command -v gcc >/dev/null 2>&1; then
   fi
 fi
 
+# ── Il sysroot per bindgen, che è un pezzo a sé ──────────────────────────────
+#
+# `lvgl-sys` genera i binding con bindgen, e il suo build.rs — quando
+# TARGET != HOST — passa a clang **soltanto** `-target aarch64-unknown-linux-gnu`
+# (vendor/lvgl-sys-0.6.2/build.rs:185-190). Nessun `--sysroot`. Clang legge
+# quindi lo `/usr/include/stdint.h` dell'HOST ma con un target aarch64, va a
+# cercare gli header multiarch di quella architettura, e su un host x86_64 non
+# ci sono:
+#
+#     /usr/include/stdint.h:26:10: fatal error: 'bits/libc-header-start.h' file not found
+#     Unable to generate bindings: ClangDiagnostic(...)
+#
+# Visto su frodo il 2026-09-03, alla prima build dell'immagine Pixsys su questa
+# macchina. Su theobroma non capitava perché là gli header aarch64 dell'host
+# c'erano (`libc6-dev-arm64-cross`): un prerequisito di sistema che nessuno
+# aveva scritto da nessuna parte, e che è sparito col trasloco.
+#
+# Si dà a clang il sysroot **dell'SDK** e non quello di Debian, e non è
+# equivalente: i binding descrivono i tipi della libc contro cui il binario
+# girerà davvero, non quelli di una aarch64 generica. bindgen legge la variabile
+# da sé e la accoda agli argomenti del build.rs, quindi non serve toccare il
+# codice vendorizzato — che è anche la ragione per cui questa è la cura giusta:
+# una patch al vendor si perde alla prossima re-importazione (vedi
+# `check_vendor_patches.sh` e Q22).
+#
+# **La forma per-target, e non quella globale.** `BINDGEN_EXTRA_CLANG_ARGS`
+# senza suffisso si applica a **tutte** le unità di bindgen della build,
+# compresa quella per l'HOST — e lvgl-sys viene compilato anche per l'host,
+# perché `lvgl` lo dichiara fra le [build-dependencies]. Puntando il clang x86_64
+# al sysroot aarch64 si sposta soltanto il guasto:
+#
+#     .../cortexa35-pixsys-linux/usr/include/bits/timesize.h:23:10:
+#         fatal error: 'bits/timesize-32.h' file not found
+#
+# Sbagliato al primo tentativo, il 2026-09-03. `bindgen` 0.64 risolve
+# `BINDGEN_EXTRA_CLANG_ARGS_<TARGET>` (con trattini o underscore) e ricade sulla
+# globale solo se quella specifica non c'è — verificato in
+# `get_target_dependent_env_var`, lib.rs:2966.
+# Underscore e non trattini: `export` rifiuta un nome con `-`, che non è un
+# identificatore shell valido. bindgen accetta entrambe le forme.
+export "BINDGEN_EXTRA_CLANG_ARGS_${TARGET_TRIPLE//-/_}=--sysroot=$OECORE_TARGET_SYSROOT"
+
 # pyo3-build-config still needs a *host* Python to run its build script.
 # Debian dev box has python3 but not /usr/bin/python (the default pyo3 path).
 # Point it at python3 explicitly to avoid "No such file or directory" errors.

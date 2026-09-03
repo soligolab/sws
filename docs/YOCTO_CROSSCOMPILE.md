@@ -65,6 +65,37 @@
    workspace, quindi `cargo check --workspace` e `cargo test --workspace` lo
    compilano ed eseguono. Senza, il workspace non compila affatto.
 
+   **Non serve invece `libc6-dev-arm64-cross`**, e vale la pena dire perché.
+   `lvgl-sys` genera i binding con bindgen e il suo `build.rs` — codice
+   vendorizzato, che non possiamo cambiare senza perdere la patch alla prossima
+   re-importazione — passa a clang **solo** `-target aarch64-unknown-linux-gnu`,
+   senza `--sysroot`. Clang legge quindi lo `stdint.h` dell'host cercando gli
+   header multiarch aarch64, e su un host x86_64 non ci sono:
+
+   ```
+   /usr/include/stdint.h:26:10: fatal error: 'bits/libc-header-start.h' file not found
+   Unable to generate bindings: ClangDiagnostic(...)
+   ```
+
+   Installare quel pacchetto lo farebbe passare, ma con gli header di una
+   aarch64 **generica** invece di quelli del target: è la cosa che
+   `sws-lvgl-viewer/build.rs` evita già di proposito per il proprio bindgen
+   («sono due architetture diverse, e bindgen genererebbe struct con il layout
+   sbagliato»). `scripts/yocto/build.sh` esporta quindi
+   `BINDGEN_EXTRA_CLANG_ARGS_aarch64_unknown_linux_gnu=--sysroot=$OECORE_TARGET_SYSROOT`,
+   che è il sysroot dell'SDK — gli header contro cui il binario girerà davvero.
+
+   La forma **per-target** non è pignoleria: `BINDGEN_EXTRA_CLANG_ARGS` senza
+   suffisso si applica anche all'unità **host** di `lvgl-sys` (che viene
+   compilata, perché `lvgl` la dichiara fra le build-dependencies), e puntare il
+   clang x86_64 al sysroot aarch64 sposta soltanto il guasto su
+   `bits/timesize-32.h`.
+
+   Diagnosticato su frodo il 2026-09-03, alla prima build dell'immagine Pixsys su
+   quella macchina: su theobroma non capitava perché là `libc6-dev-arm64-cross`
+   era installato — un prerequisito che nessuno aveva scritto, e che è sparito
+   col trasloco.
+
    Il motivo del cambio: finché era escluso, quel crate non era toccato né
    dalla CI né dal `cargo check` che fa da definizione di fatto — ed è il crate
    dove si sono concentrati i difetti (il crash della sparkline di Q22, i
