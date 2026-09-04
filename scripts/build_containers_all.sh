@@ -142,3 +142,21 @@ done
 
 echo
 echo "==> immagini container costruite."
+
+# Il riepilogo finale: quali immagini ci sono, quanto pesano, a cosa servono.
+#
+# Serve perché l'uscita delle tre build è lunga centinaia di righe e finisce
+# con l'ultima delle tre: chi ha lanciato il comando vede «done. Image:
+# sws-runtime:2.5.0-amd64» e non ha davanti le altre due, né le dimensioni, né
+# quale copiare su quale ferro. È anche il punto in cui si nota una build che è
+# stata **saltata** (SDK Pixsys assente) invece di scoprirlo installando.
+#
+# `--pubblicate` solo se qui è passato `--push`: la presenza di una tag ghcr in
+# locale prova che `podman tag` è stato fatto, non che il push sia arrivato, e
+# lo script da solo non può distinguerlo. Chi ha lanciato la build invece sì.
+RIEPILOGO_ARGS=()
+for a in "${ARGS[@]-}"; do
+    [ "$a" = "--push" ] && RIEPILOGO_ARGS+=("--pubblicate")
+done
+# Mai fatale: un riepilogo che fa fallire una build riuscita sarebbe assurdo.
+"$SCRIPT_DIR/riepilogo_immagini.sh" "${RIEPILOGO_ARGS[@]-}" ||     echo "    (il riepilogo non è riuscito: le immagini però sono costruite)"

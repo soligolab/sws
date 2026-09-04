@@ -330,6 +330,57 @@ dichiara e il motivo della ricostruzione si stampa.
 ./scripts/build_spa_if_needed.sh --force
 ```
 
+## `check_project_write_safety.sh` — un salvataggio non deve peggiorare il file su disco
+
+Sei casi, e vuole uno stack (lo avvia da sé sulla 8581). Dal 2026-09-04 il caso **6** è la prova
+di Q30 al livello HTTP: venti giri di due salvataggi paralleli — variabili e sorgenti — e alla fine
+sul disco devono esserci i valori dell'**ultimo** giro in entrambe le sezioni.
+
+Due cose imparate scrivendolo, che valgono per chiunque tocchi questa guardia:
+
+- **Guarda il numero d'ordine, non «le sezioni non sono vuote».** La prima stesura controllava che
+  `tags` e `sources` fossero popolate, e passava anche col lock disattivato: le sezioni restano
+  piene per via dei giri precedenti. Col numero si vede che era sopravvissuto `conc.tag16` mentre
+  le sorgenti erano al giro 20 — la corsa c'era, era l'asserzione a non vederla.
+- **Il runtime di prova ora si controlla vivo.** Su pyenv partiva senza `LD_LIBRARY_PATH` e moriva
+  su `libpython3.11.so.1.0`; la guardia proseguiva e ogni `curl` tornava `000`, quindi il caso 4
+  diceva «creazione bloccata: il rifiuto è troppo largo» e il caso 5 dichiarava «salvataggio
+  rifiutato (000)» come un **successo**. Cinque verdetti sul comportamento di un runtime mai
+  partito. Ora la libreria la trova da sé, e se non risponde si ferma dicendo perché.
+
+Provata nei due versi: 10/10 col lock, e disattivando il lock in `patch_project` il caso 6 diventa
+rosso con «SALVATAGGIO PERSO».
+
+## `riepilogo_immagini.sh` — quali immagini ci sono, quanto pesano, a cosa servono
+
+Gira da sé in coda a `build_containers_all.sh`, e si può richiamare quando si vuole senza
+ricostruire niente: legge e stampa.
+
+```bash
+./scripts/riepilogo_immagini.sh              # la versione dichiarata in Cargo.toml
+./scripts/riepilogo_immagini.sh 2.4.0        # una versione precedente
+./scripts/riepilogo_immagini.sh --pubblicate # le tag ghcr sono state pushate davvero
+```
+
+Serve perché l'uscita delle tre build è lunga centinaia di righe e finisce con l'ultima delle tre:
+chi ha lanciato il comando legge «done. Image: sws-runtime:2.5.0-amd64» e non ha davanti le altre
+due, né le dimensioni, né quale immagine copiare su quale pezzo di ferro. È anche il punto in cui
+si nota una build **saltata** (SDK Pixsys assente) invece di scoprirlo installando.
+
+**Legge `dist/` e non solo `podman images`**, e non è un dettaglio: le tre immagini non stanno tutte
+nello stesso deposito. `arm64-generic` si costruisce con `sudo`, quindi finisce nel deposito di
+root, e un `podman images` da utente normale **non la vede** — un riepilogo ingenuo la darebbe per
+mancante appena costruita. Gli archivi in `dist/` invece sono tutti là, e sono anche la cosa che si
+copia davvero su un dispositivo.
+
+Non chiede mai `sudo`: un riepilogo che chiede una password non è un riepilogo. Se `sudo -n` passa
+senza chiedere niente ne approfitta, altrimenti dice *dove* sta l'immagine.
+
+Distingue **etichettata** da **pubblicata**: la presenza di una tag `ghcr.io/...` in locale prova
+che `podman tag` è stato fatto, non che il push sia arrivato, e verificare il remoto vorrebbe rete e
+login. Con `--pubblicate` (che `build_containers_all.sh` passa quando è stato lanciato con
+`--push`) lo dice; senza, dice «etichettata, non necessariamente pushata».
+
 ## `clean_disk_space.sh` — libera spazio quando il disco è pieno
 
 `target/debug` (workspace + `sws-kiosk`/`sws-lvgl-viewer`, esclusi dal workspace e mai toccati da

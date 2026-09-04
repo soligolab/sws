@@ -22,10 +22,32 @@ rm -rf "$SCR"; mkdir -p "$SCR"/{config,projects}
 
 [ -x "$BIN" ] || { echo "manca $BIN — esegui: cargo build -p sws-runtime" >&2; exit 1; }
 
+# Su pyenv il binario Python e uno shim che non espone le shared libs, quindi il
+# runtime muore all'avvio con «libpython3.11.so.1.0: cannot open shared object
+# file». Prima questa guardia non lo faceva, e il guasto arrivava travestito:
+# ogni curl tornava `000`, il caso 4 diceva «creazione bloccata: il rifiuto e
+# troppo largo» e il caso 5 dichiarava «salvataggio rifiutato (000)» come un
+# **successo** — cioe' la guardia mostrava verdetti sul comportamento del
+# runtime senza che il runtime fosse mai partito. Stessa toppa di
+# start_runtime.sh, piu' un controllo che il processo sia vivo davvero.
+if [[ "$(command -v python3)" == *".pyenv/shims"* ]]; then
+  pv="$(pyenv version 2>/dev/null | awk '{print $1}')"
+  [ -n "$pv" ] && export LD_LIBRARY_PATH="$HOME/.pyenv/versions/$pv/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+fi
+
 "$BIN" --config "$SCR/config" --projects-root "$SCR/projects" \
   --templates-root "$REPO/examples/templates" --admin-port "$PORT" > "$SCR/rt.log" 2>&1 &
 P=$!; trap 'kill -TERM "$P" 2>/dev/null' EXIT
 for _ in $(seq 1 40); do curl -sf -o /dev/null "http://localhost:$PORT/health" && break; sleep 0.5; done
+# Se non risponde, si ferma qui dicendo perche'. Una guardia che prosegue con un
+# runtime morto non da' un rosso utile: da' cinque rossi che parlano di
+# «rifiuti troppo larghi» e mandano a cercare il difetto nel posto sbagliato.
+if ! curl -sf -o /dev/null "http://localhost:$PORT/health"; then
+  echo "il runtime di prova non risponde su :$PORT — nessuna prova e attendibile." >&2
+  echo "ultime righe di $SCR/rt.log:" >&2
+  tail -5 "$SCR/rt.log" >&2
+  exit 1
+fi
 API="http://localhost:$PORT/api"
 
 fatti=0; passati=0
@@ -157,6 +179,62 @@ echo "  risposta: $code5 — $(head -c 150 "$SCR/resp5.txt")"
 [ "$prima5" = "$dopo5" ] \
   && esito ok "file intatto byte per byte dopo il tentativo" \
   || esito no "FILE MODIFICATO: e la perdita di dati che il fix doveva impedire"
+
+# ── 6. Q30: due salvataggi concorrenti non si mangiano a vicenda ────────────
+#
+# Stessa tesi delle cinque prove sopra — un salvataggio non deve peggiorare il
+# file su disco — ma la causa è la concorrenza invece del contenuto. Ogni
+# `PUT /api/project/*` fa leggi-modifica-scrivi, quindi due in volo insieme
+# partono dallo stesso file e l'ultima cancella la modifica dell'altra: nessun
+# errore, il salvataggio riesce, e una delle due modifiche non c'è più.
+#
+# **Perché venti giri e non due.** La finestra della corsa è di millisecondi:
+# due salvataggi lanciati a mano non collidono quasi mai, ed è per questo che il
+# difetto è arrivato fino alla 2.5.0 pur essendo sistematico. Venti giri di due
+# richieste parallele lo colpiscono ogni volta.
+#
+# **Perché guarda l'ULTIMO giro e non «le sezioni non sono vuote».** La prima
+# stesura di questa prova controllava che tags e sources fossero entrambe
+# popolate, e passava anche col lock disattivato: le sezioni restano piene per
+# via dei giri precedenti. Guardando il numero d'ordine invece si vede che era
+# sopravvissuto `sonda.tag14` mentre le sorgenti erano al giro 20 — la corsa
+# c'era, era l'asserzione a non vederla. Provato in entrambi i versi:
+# disattivando il lock in `patch_project`, questo caso diventa rosso.
+GIRI=20
+curl -s -o /dev/null -X POST "$API/projects" -H 'Content-Type: application/json' \
+  -d '{"name":"conc"}'
+curl -s -o /dev/null -X POST "$API/projects/conc/open"
+if [ "$(attivo)" != "conc" ]; then
+  esito no "il progetto conc non e attivo: la prova 6 misurerebbe il file sbagliato"
+else
+  for i in $(seq 1 $GIRI); do
+    curl -s -o /dev/null -X PUT "$API/project/tags" -H 'Content-Type: application/json' \
+      -d "[{\"id\":\"conc.tag$i\"}]" &
+    a=$!
+    curl -s -o /dev/null -X PUT "$API/project/sources" -H 'Content-Type: application/json' \
+      -d "[{\"kind\":\"mqtt\",\"id\":\"conc-src$i\",\"host\":\"127.0.0.1\",\"port\":1883,\"topics\":[]}]" &
+    b=$!
+    # `wait` NUDO qui appende per sempre: aspetterebbe **tutti** i figli in
+    # background, e fra questi c'e' il runtime di prova ($P), che non esce mai.
+    # Preso in faccia scrivendo questo caso: la guardia restava piantata senza
+    # dire niente. Si aspettano i due curl per PID, e nient'altro.
+    wait "$a" "$b"
+  done
+  esito6="$(curl -s "$API/project" | GIRI=$GIRI python3 -c '
+import json, os, sys
+n = int(os.environ["GIRI"]); p = json.load(sys.stdin)
+t = [x["id"] for x in p.get("tags") or []]
+s = [x.get("id") for x in p.get("sources") or []]
+if t == [f"conc.tag{n}"] and s == [f"conc-src{n}"]:
+    print("ok")
+else:
+    print(f"no|atteso conc.tag{n} + conc-src{n}, trovato {t} + {s}")
+')"
+  case "$esito6" in
+    ok) esito ok "$GIRI giri di salvataggi paralleli: nessuno perso" ;;
+    *)  esito no "SALVATAGGIO PERSO — ${esito6#no|}" ;;
+  esac
+fi
 
 echo
 echo "=== esito: $passati/$fatti ==="
