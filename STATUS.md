@@ -57,13 +57,46 @@
 
 ## ▶ Da fare nella prossima sessione
 
-### ▶ T-52 — il limite della pagina è morbido (piano pronto, non iniziato)
+### ▶ T-52 — il limite della pagina è morbido (sessione A fatta, B-E da fare)
 
 **Piano completo**: `docs/plans/2026-09-04-limite-pagina-morbido.md` — cinque sessioni, ognuna
 con un arresto pulito. Decisioni di design già prese, questioni fuori scope già destinate: non
-riaprirle. Branch `feat/T-52-limite-pagina-morbido` da `main`. **Primo passo, sessione A**: il
-riempimento dello sfondo che si ferma al bordo pagina (`theme.ts` + `SvgCanvas.tsx:1436`) più il
-letterbox del viewer in `ratio`. Attenzione al numero: **T-51 è la fase 3 «gli occhi»**, non questo.
+riaprirle. Attenzione al numero: **T-51 è la fase 3 «gli occhi»**, non questo.
+
+**Sessione A: fatta**, sul branch `feat/T-52-limite-pagina-morbido` (`3c03a93`, pushato, **non
+mergiato**). Il colore pagina è passato da `background` CSS sul nodo `<svg>` a un `<rect>` dentro
+il `<g>` trasformato, con un tavolo neutro attorno (`--brand-canvas-desk`); incluso il gemello nel
+viewer `ratio`, dove le bande del letterbox prendevano il colore della pagina (F5).
+
+> **Un difetto della formula del piano**, trovato provandone il vincolo «miniatura invariata»: il
+> piano scrive `paintableFill = !!background`, ma `background` ha un default nel componente
+> (`#1a1a2e`), quindi è sempre vero — e la miniatura delle pagine monta il canvas in ramo viewer
+> `ratio` **senza** passare `background`, quindi le si sarebbe dipinto sopra quel default. Ora si
+> guarda la prop grezza, e la condizione è diventata `pageFillEnabled` in `pageLayout.ts` con una
+> tabella di verità di sei casi: è a quattro fattori e uno si sbaglia in silenzio.
+
+Verificato: `pnpm build`, 130 test (+5), `check_wysiwyg.sh` verde, e i casi 3.31-3.35 **misurati
+sui pixel** invece che a occhio — foglio `#123a5f` dentro il rect, tavolo `#e2e8f0` sull'`<svg>`,
+token che segue il tema nei due versi, bande del viewer distinte dal foglio, pagina fluida
+identica a prima.
+
+**Resta da confermare al maintainer**: il colore delle bande nel viewer (`--brand-bg`) — il piano
+lo dichiara come l'unico punto deciso senza mostrarlo a schermo. Poi **sessione B** (resistenza
+per distanza).
+
+#### Tre difetti preesistenti trovati lanciando i giudici della sessione A
+
+Nessuno è stato corretto: sono fuori dallo scope di T-52 e in file condivisi.
+
+1. **`check_viewer_layout.sh` non può passare in nessun checkout**: crea un progetto dal template
+   `demo-items`, che non esiste più — ci sono `demo-items-lvgl` e `demo-items-web`. Con una copia
+   locale corretta è verde, quindi il giudizio sulla sessione A c'è; lo script committato no.
+2. **La stessa guardia esce `7` senza una riga di output** quando manca `LD_LIBRARY_PATH` a
+   libpython: il runtime di prova muore e lei non lo dice. È lo stesso difetto corretto il
+   2026-09-04 in `check_project_write_safety.sh`, e la toppa è la stessa.
+3. **Playwright non aveva mai scaricato il browser** su frodo (ora installato). E
+   `sws-editor/scripts/wysiwyg_measure.mjs` non onora `SWS_E2E_CHROMIUM`, che invece
+   `playwright.config.ts` supporta: il chromium di sistema, che su questa macchina c'è, non basta.
 
 ### ▶ Punto di partenza — chiusura del 2026-09-04
 
