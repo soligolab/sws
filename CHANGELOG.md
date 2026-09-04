@@ -11,6 +11,23 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### Anche i sinottici, i faceplate e le ricette non si sovrascrivono più (Q30, chiusa)
+
+Lo stesso `ETag`/`If-Match` di `project.yaml`, applicato **per file**: due che
+salvano la stessa pagina non si perdono più il lavoro — il secondo prende 409 e
+quello del primo resta.
+
+Per file e non per progetto, ed è la parte che conta: una versione sola avrebbe
+fatto rifiutare il salvataggio di una pagina perché ne era stata salvata
+un'altra, e un conflitto che scatta quando non c'è conflitto insegna a ignorare
+quelli veri.
+
+Un file che non esiste non ha versione e crearlo passa — creare non è
+sovrascrivere. Salvare contenuto identico non è un conflitto: la versione è dei
+byte. E le tre scritture sono diventate atomiche come `project.yaml`, perché una
+pagina troncata non si carica più e il progetto si riapre senza di lei.
+
+
 ### La testata dice quando il runtime non sta facendo quello che credi
 
 `GET /api/system` porta un elenco `avvisi`, e la testata dell'IDE lo mostra con

@@ -309,16 +309,44 @@ const PATH_VERSIONATI = [
 /** L'header `If-Match` da mettere su un salvataggio di sezione, se sappiamo su
  *  quale versione stiamo lavorando. */
 function seVersionato(path: string): Record<string, string> {
-  return PATH_VERSIONATI.includes(path) && VERSIONE_PROGETTO
-    ? { "If-Match": VERSIONE_PROGETTO }
-    : {};
+  if (PATH_VERSIONATI.includes(path) && VERSIONE_PROGETTO) {
+    return { "If-Match": VERSIONE_PROGETTO };
+  }
+  const chiave = chiaveFile(path);
+  const v = chiave ? VERSIONI_FILE.get(chiave) : undefined;
+  return v ? { "If-Match": v } : {};
+}
+
+/** Q30: le versioni dei file **per entità** — un sinottico, un faceplate, una
+ *  ricetta.
+ *
+ *  Separate da `VERSIONE_PROGETTO` perché la cosa versionata è diversa: là c'è
+ *  un file solo scritto da dodici endpoint, qui ci sono N file con un endpoint
+ *  per ciascuno. Tenerle nella stessa variabile farebbe rifiutare il
+ *  salvataggio di una pagina perché ne è stata salvata un'altra — un conflitto
+ *  inventato, che insegna a ignorare quelli veri.
+ *
+ *  La chiave è il percorso, che identifica già l'entità. */
+const VERSIONI_FILE = new Map<string, string>();
+
+/** I percorsi versionati per entità: `/api/synoptics/:nome`,
+ *  `/api/faceplates/:id`, `/api/recipes/:id`.
+ *
+ *  Non le loro sottorotte (`/export`, `/apply`, `/import`) e non gli elenchi:
+ *  un `ETag` preso da un endpoint che non è il file farebbe fallire il
+ *  salvataggio successivo con un 409 inventato. */
+function chiaveFile(path: string): string | null {
+  return /^\/api\/(synoptics|faceplates|recipes)\/[^/]+$/.test(path) ? path : null;
 }
 
 /** La versione ricomincia da zero: si chiama quando si apre o si ricarica un
  *  progetto, così una versione di quello di prima non fa rifiutare il primo
- *  salvataggio su quello nuovo. */
+ *  salvataggio su quello nuovo. Azzera anche quelle per file — le pagine del
+ *  progetto precedente non c'entrano niente con quelle del nuovo, e due
+ *  progetti possono avere una pagina con lo stesso nome. */
 export function dimenticaVersioneProgetto() {
   VERSIONE_PROGETTO = null;
+  VERSIONI_FILE.clear();
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -339,6 +367,14 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   if (res.ok && PORTA_VERSIONE(path)) {
     const et = res.headers.get("ETag");
     if (et) VERSIONE_PROGETTO = et.replace(/"/g, "");
+  }
+  const chiave = chiaveFile(path);
+  if (res.ok && chiave) {
+    const et = res.headers.get("ETag");
+    // Un DELETE riuscito non porta versione, e la voce va tolta: se il file
+    // torna a esistere è un file nuovo, non quello di prima.
+    if (et) VERSIONI_FILE.set(chiave, et.replace(/"/g, ""));
+    else if (init?.method === "DELETE") VERSIONI_FILE.delete(chiave);
   }
   if (res.status === 409 && res.headers.get("x-sws-conflitto") === "versione") {
     let testo = "";
@@ -535,7 +571,7 @@ export const api = {
   saveSynoptic: (page: SynopticPage) =>
     request<void>(`/api/synoptics/${encodeURIComponent(page.name)}`, {
       method: "PUT",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...seVersionato(`/api/synoptics/${encodeURIComponent(page.name)}`) },
       body: JSON.stringify(page),
     }),
 
@@ -581,7 +617,7 @@ export const api = {
   saveFaceplate: (fp: FaceplateDef) =>
     request<void>(`/api/faceplates/${encodeURIComponent(fp.id)}`, {
       method: "PUT",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...seVersionato(`/api/faceplates/${encodeURIComponent(fp.id)}`) },
       body: JSON.stringify(fp),
     }),
   deleteFaceplate: (id: string) =>
@@ -593,7 +629,7 @@ export const api = {
   saveRecipe: (r: RecipeDef) =>
     request<void>(`/api/recipes/${encodeURIComponent(r.id)}`, {
       method: "PUT",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...seVersionato(`/api/recipes/${encodeURIComponent(r.id)}`) },
       body: JSON.stringify(r),
     }),
   deleteRecipe: (id: string) =>

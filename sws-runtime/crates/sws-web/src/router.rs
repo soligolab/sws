@@ -2114,6 +2114,56 @@ pub(crate) fn versione_di(testo: &str) -> String {
     })
 }
 
+/// Mette l'`ETag` su una risposta che consegna un file di progetto, calcolato
+/// dal **testo con cui la risposta è stata costruita**.
+///
+/// Dal testo e non da una seconda lettura del file: fra le due qualcuno può
+/// scrivere, e il client si porterebbe via una versione più nuova dei dati che
+/// ha in mano — cioè un salvataggio che passa quando doveva essere rifiutato.
+pub(crate) fn con_versione(mut r: Response, testo: &str) -> Response {
+    if let Ok(hv) = axum::http::HeaderValue::from_str(&format!("\"{}\"", versione_di(testo))) {
+        r.headers_mut().insert(axum::http::header::ETAG, hv);
+    }
+    r
+}
+
+/// Il 409 da restituire se `attesa` non combacia con quello che c'è sul disco;
+/// `None` quando si può scrivere.
+///
+/// `attesa: None` — nessun `If-Match` — significa nessun controllo, cioè il
+/// comportamento di prima: uno script o un `curl` non si rompono, e la
+/// protezione vale per chi la chiede.
+///
+/// `cosa` finisce nel messaggio: «questa pagina», «questo faceplate». Un 409
+/// che non dice *cosa* è cambiato manda a cercare.
+pub(crate) fn conflitto_di_versione(
+    attesa: Option<&str>,
+    su_disco: Option<&str>,
+    cosa: &str,
+) -> Option<Response> {
+    let attesa = attesa?;
+    let corrente = su_disco.map(versione_di);
+    if corrente.as_deref() == Some(attesa) {
+        return None;
+    }
+    let mut r = (
+        StatusCode::CONFLICT,
+        format!(
+            "{cosa} è stato modificato da qualcun altro mentre lavoravi, e il salvataggio è \
+             stato rifiutato per non cancellare le sue modifiche.\n\nRicarica il progetto per \
+             vedere cosa è cambiato, poi rifai la tua modifica."
+        ),
+    )
+        .into_response();
+    // Lo stesso header del conflitto su `project.yaml`: il client ha un solo
+    // modo di riconoscere «sei partito da dati vecchi», qualunque file sia.
+    r.headers_mut().insert(
+        "x-sws-conflitto",
+        axum::http::HeaderValue::from_static("versione"),
+    );
+    Some(r)
+}
+
 /// L'header `If-Match` della richiesta, se c'è. Assente = nessun controllo di
 /// versione, che è il comportamento di prima: uno script o un `curl` non si
 /// rompono, e la protezione vale per chi la chiede.
@@ -3546,7 +3596,10 @@ async fn get_synoptic(
                 if !zone_allowed(&user.allowed_zones, &page.zones) {
                     return StatusCode::FORBIDDEN.into_response();
                 }
-                Json(page).into_response()
+                // Q30: la versione di **questa** pagina. Le pagine sono file
+                // distinti, quindi la corsa è fra due che salvano la stessa —
+                // e la versione va per file, non per progetto.
+                con_versione(Json(page).into_response(), &text)
             }
             Err(e) => {
                 warn!("failed to parse synoptic {name}: {e}");
@@ -3664,23 +3717,41 @@ async fn import_synoptic_yaml(
 async fn save_synoptic(
     State(s): State<AppState>,
     Path(name): Path<String>,
+    headers: axum::http::HeaderMap,
     Json(page): Json<SynopticPage>,
-) -> StatusCode {
-    let project_dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c };
+) -> Response {
+    let project_dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
     let dir = synoptics_dir_at(&project_dir);
     if let Err(e) = tokio::fs::create_dir_all(&dir).await {
         warn!("cannot create synoptics dir: {e}");
-        return StatusCode::INTERNAL_SERVER_ERROR;
+        return StatusCode::INTERNAL_SERVER_ERROR.into_response();
     }
     let new_filename = format!("{}.yaml", safe_filename(&name));
     let path = dir.join(&new_filename);
+
+    // Q30 per i sinottici: se la pagina su disco è cambiata da quando chi
+    // salva l'ha caricata, non si sovrascrive. Una pagina che ancora non esiste
+    // non ha versione, e `conflitto_di_versione` la lascia passare — creare non
+    // è sovrascrivere.
+    let su_disco = tokio::fs::read_to_string(&path).await.ok();
+    if let Some(r) = conflitto_di_versione(
+        versione_attesa(&headers).as_deref(),
+        su_disco.as_deref(),
+        "Questa pagina",
+    ) {
+        return r;
+    }
+
     let yaml = match serde_yaml::to_string(&page) {
         Ok(y) => y,
-        Err(e) => { warn!("serialize synoptic: {e}"); return StatusCode::INTERNAL_SERVER_ERROR; }
+        Err(e) => { warn!("serialize synoptic: {e}"); return StatusCode::INTERNAL_SERVER_ERROR.into_response(); }
     };
-    if let Err(e) = tokio::fs::write(&path, yaml).await {
+    // Atomica come `project.yaml`, e per lo stesso motivo: una pagina troncata
+    // da un processo ucciso a metà scrittura non si carica più, e il progetto
+    // si riapre senza quella pagina.
+    if let Err(e) = scrivi_atomico(&path, yaml.as_bytes()).await {
         warn!("write {}: {e}", path.display());
-        return StatusCode::INTERNAL_SERVER_ERROR;
+        return StatusCode::INTERNAL_SERVER_ERROR.into_response();
     }
 
     // Remove any stale files that share this page's `id` but have a different
@@ -3710,7 +3781,9 @@ async fn save_synoptic(
     // Una pagina salvata è una modifica al progetto: il viewer LVGL che la
     // sta disegnando deve rileggerla (Q20).
     signal_project_changed(&s, "synoptic");
-    StatusCode::NO_CONTENT
+    // La versione nuova, o il prossimo salvataggio della stessa scheda
+    // prenderebbe un 409 contro se stessa.
+    con_versione(StatusCode::NO_CONTENT.into_response(), &yaml)
 }
 
 /// `DELETE /api/synoptics/:name` — removes the page's YAML file from disk.
@@ -3907,7 +3980,8 @@ async fn get_faceplate(
         }
     };
     match serde_yaml::from_str::<FaceplateDef>(&text) {
-        Ok(fp) => Json(fp).into_response(),
+        // Q30: la versione di questo faceplate, dal testo appena letto.
+        Ok(fp) => con_versione(Json(fp).into_response(), &text),
         Err(e) => {
             warn!("failed to parse faceplate {id}: {e}");
             StatusCode::INTERNAL_SERVER_ERROR.into_response()
@@ -3918,22 +3992,33 @@ async fn get_faceplate(
 async fn save_faceplate(
     State(s): State<AppState>,
     Path(id): Path<String>,
+    headers: axum::http::HeaderMap,
     Json(mut fp): Json<FaceplateDef>,
-) -> StatusCode {
-    let project_dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c };
+) -> Response {
+    let project_dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
     let dir = faceplates_dir_at(&project_dir);
     if let Err(e) = tokio::fs::create_dir_all(&dir).await {
         warn!("cannot create faceplates dir: {e}");
-        return StatusCode::INTERNAL_SERVER_ERROR;
+        return StatusCode::INTERNAL_SERVER_ERROR.into_response();
     }
     fp.id = id.clone();
     let path = dir.join(format!("{}.yaml", safe_filename(&id)));
+    // Q30, stesso meccanismo dei sinottici: un file per entità, e la corsa è
+    // fra due che salvano lo stesso.
+    let su_disco = tokio::fs::read_to_string(&path).await.ok();
+    if let Some(r) = conflitto_di_versione(
+        versione_attesa(&headers).as_deref(),
+        su_disco.as_deref(),
+        "Questo faceplate",
+    ) {
+        return r;
+    }
     match serde_yaml::to_string(&fp) {
-        Ok(yaml) => match tokio::fs::write(&path, yaml.as_bytes()).await {
-            Ok(()) => StatusCode::NO_CONTENT,
-            Err(e) => { warn!("cannot write faceplate {id}: {e}"); StatusCode::INTERNAL_SERVER_ERROR }
+        Ok(yaml) => match scrivi_atomico(&path, yaml.as_bytes()).await {
+            Ok(()) => con_versione(StatusCode::NO_CONTENT.into_response(), &yaml),
+            Err(e) => { warn!("cannot write faceplate {id}: {e}"); StatusCode::INTERNAL_SERVER_ERROR.into_response() }
         },
-        Err(e) => { warn!("cannot serialize faceplate {id}: {e}"); StatusCode::INTERNAL_SERVER_ERROR }
+        Err(e) => { warn!("cannot serialize faceplate {id}: {e}"); StatusCode::INTERNAL_SERVER_ERROR.into_response() }
     }
 }
 
@@ -3985,7 +4070,8 @@ async fn get_recipe(State(s): State<AppState>, Path(id): Path<String>) -> Respon
     match tokio::fs::read_to_string(&path).await {
         Err(_) => StatusCode::NOT_FOUND.into_response(),
         Ok(text) => match serde_yaml::from_str::<RecipeDef>(&text) {
-            Ok(r) => Json(r).into_response(),
+            // Q30: la versione di questa ricetta.
+            Ok(r) => con_versione(Json(r).into_response(), &text),
             Err(e) => {
                 warn!("failed to parse recipe {id}: {e}");
                 StatusCode::INTERNAL_SERVER_ERROR.into_response()
@@ -3997,22 +4083,32 @@ async fn get_recipe(State(s): State<AppState>, Path(id): Path<String>) -> Respon
 async fn save_recipe(
     State(s): State<AppState>,
     Path(id): Path<String>,
+    headers: axum::http::HeaderMap,
     Json(mut recipe): Json<RecipeDef>,
-) -> StatusCode {
-    let project_dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c };
+) -> Response {
+    let project_dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
     let dir = recipes_dir_at(&project_dir);
     if let Err(e) = tokio::fs::create_dir_all(&dir).await {
         warn!("cannot create recipes dir: {e}");
-        return StatusCode::INTERNAL_SERVER_ERROR;
+        return StatusCode::INTERNAL_SERVER_ERROR.into_response();
     }
     recipe.id = id.clone();
     let path = dir.join(format!("{}.yaml", safe_filename(&id)));
+    // Q30, come sinottici e faceplate.
+    let su_disco = tokio::fs::read_to_string(&path).await.ok();
+    if let Some(r) = conflitto_di_versione(
+        versione_attesa(&headers).as_deref(),
+        su_disco.as_deref(),
+        "Questa ricetta",
+    ) {
+        return r;
+    }
     match serde_yaml::to_string(&recipe) {
-        Ok(yaml) => match tokio::fs::write(&path, yaml.as_bytes()).await {
-            Ok(()) => StatusCode::NO_CONTENT,
-            Err(e) => { warn!("cannot write recipe {id}: {e}"); StatusCode::INTERNAL_SERVER_ERROR }
+        Ok(yaml) => match scrivi_atomico(&path, yaml.as_bytes()).await {
+            Ok(()) => con_versione(StatusCode::NO_CONTENT.into_response(), &yaml),
+            Err(e) => { warn!("cannot write recipe {id}: {e}"); StatusCode::INTERNAL_SERVER_ERROR.into_response() }
         },
-        Err(e) => { warn!("cannot serialize recipe {id}: {e}"); StatusCode::INTERNAL_SERVER_ERROR }
+        Err(e) => { warn!("cannot serialize recipe {id}: {e}"); StatusCode::INTERNAL_SERVER_ERROR.into_response() }
     }
 }
 
@@ -6019,5 +6115,62 @@ mod q30_versione_tests {
         let corpo = axum::body::to_bytes(r.into_body(), 8192).await.unwrap();
         let testo = String::from_utf8_lossy(&corpo);
         assert!(testo.contains("Ricarica"), "manca il rimedio: {testo}");
+    }
+}
+
+/// Q30 per i file di progetto: sinottici, faceplate, ricette. Un file per
+/// entità, quindi la corsa è fra due che salvano **lo stesso**.
+#[cfg(test)]
+mod q30_file_tests {
+    use super::*;
+
+    #[test]
+    fn senza_if_match_si_scrive() {
+        assert!(conflitto_di_versione(None, Some("qualsiasi cosa"), "X").is_none());
+    }
+
+    /// **Il caso che conta.** La versione attesa non combacia con il disco:
+    /// niente scrittura, e un 409 che si spiega.
+    #[tokio::test]
+    async fn versione_vecchia_rifiutata_con_rimedio() {
+        let r = conflitto_di_versione(Some("vecchia"), Some("contenuto nuovo"), "Questa pagina")
+            .expect("doveva rifiutare");
+        assert_eq!(r.status(), StatusCode::CONFLICT);
+        assert_eq!(
+            r.headers().get("x-sws-conflitto").and_then(|v| v.to_str().ok()),
+            Some("versione"),
+            "il client riconosce questo 409 dall'header, non dal testo tradotto"
+        );
+        let corpo = axum::body::to_bytes(r.into_body(), 8192).await.unwrap();
+        let testo = String::from_utf8_lossy(&corpo);
+        assert!(testo.contains("Questa pagina"), "deve dire COSA è cambiato: {testo}");
+        assert!(testo.contains("Ricarica"), "e cosa fare: {testo}");
+    }
+
+    #[test]
+    fn versione_giusta_passa() {
+        let disco = "contenuto";
+        let v = versione_di(disco);
+        assert!(conflitto_di_versione(Some(&v), Some(disco), "X").is_none());
+    }
+
+    /// **Creare non è sovrascrivere.** Un file che ancora non esiste non ha
+    /// versione: se il client manda un `If-Match` (perché aveva in mano una
+    /// pagina poi cancellata da un altro) il rifiuto è giusto — quella pagina
+    /// non c'è più, e riscriverla senza saperlo la resusciterebbe.
+    #[test]
+    fn su_un_file_assente_una_versione_attesa_e_un_conflitto() {
+        assert!(conflitto_di_versione(Some("qualcosa"), None, "X").is_some());
+        // ...ma senza pretese si crea liberamente.
+        assert!(conflitto_di_versione(None, None, "X").is_none());
+    }
+
+    /// La versione è dei **byte**: due contenuti diversi non possono
+    /// combaciare, e lo stesso contenuto dà sempre lo stesso valore.
+    #[test]
+    fn la_versione_e_deterministica_e_distingue() {
+        assert_eq!(versione_di("a"), versione_di("a"));
+        assert_ne!(versione_di("a"), versione_di("b"));
+        assert_eq!(versione_di("a").len(), 16, "otto byte in esadecimale");
     }
 }

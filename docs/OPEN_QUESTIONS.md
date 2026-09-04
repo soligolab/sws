@@ -2671,9 +2671,32 @@ Tre dettagli che sono vincoli e non stile:
 rompono, e la protezione vale per chi la chiede. Il 409 porta `x-sws-conflitto: versione`, così il
 client lo distingue dagli altri 409 di questa API senza riconoscerli dal testo, che è tradotto.
 
-**Resta scoperto**: i **sinottici**, i faceplate e le ricette hanno un file per entità e la corsa lì
-è fra due che salvano la *stessa* pagina. Lo stesso meccanismo si applicherebbe per file, e non è
-stato fatto.
+### Il 2026-09-04, poco dopo — anche i sinottici, i faceplate e le ricette
+
+Lo stesso meccanismo, applicato **per file**: `GET /api/synoptics/:nome`,
+`/api/faceplates/:id` e `/api/recipes/:id` restituiscono un `ETag` calcolato dai byte di quel file,
+e il `PUT` corrispondente lo rimanda in `If-Match`. Due che salvano la stessa pagina: il secondo
+prende 409 e il lavoro del primo resta.
+
+**Per file e non per progetto**, ed è la parte che conta: tenere una versione sola avrebbe fatto
+rifiutare il salvataggio di una pagina perché ne era stata salvata un'altra — un conflitto
+inventato, che insegna a ignorare quelli veri. Lato SPA sono due meccanismi distinti per la stessa
+ragione: `project.yaml` è un file solo scritto da dodici endpoint, le pagine sono N file con un
+endpoint per ciascuna.
+
+Un file che **non esiste** non ha versione, e crearlo passa: creare non è sovrascrivere. Ma se il
+client porta un `If-Match` su un file assente il rifiuto è giusto — quella pagina è stata cancellata
+da qualcun altro, e riscriverla senza saperlo la resusciterebbe.
+
+Salvare **contenuto identico** non è un conflitto e non produce una versione nuova: la versione è
+dei byte. Emerso provando, e va detto perché sembra un difetto e non lo è.
+
+Le tre scritture sono diventate anche **atomiche** (temporaneo + `fsync` + `rename`), come
+`project.yaml`: una pagina troncata da un processo ucciso a metà scrittura non si carica più, e il
+progetto si riapre senza quella pagina.
+
+**Q30 è chiusa.** Le tre domande hanno una risposta: il lock (2026-09-03), il controllo ottimistico
+su `project.yaml` (2026-09-04) e quello sui file per entità (2026-09-04, stesso giorno).
 
 **Decided**: la domanda 1 il 2026-09-03, la domanda 2 il 2026-09-04. La domanda 3 — cosa vede chi
 perde la corsa — ha ora una risposta per `project.yaml` (un 409 che si spiega e un banner che offre
