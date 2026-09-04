@@ -57,6 +57,14 @@
 
 ## ▶ Da fare nella prossima sessione
 
+### ▶ T-52 — il limite della pagina è morbido (piano pronto, non iniziato)
+
+**Piano completo**: `docs/plans/2026-09-04-limite-pagina-morbido.md` — cinque sessioni, ognuna
+con un arresto pulito. Decisioni di design già prese, questioni fuori scope già destinate: non
+riaprirle. Branch `feat/T-52-limite-pagina-morbido` da `main`. **Primo passo, sessione A**: il
+riempimento dello sfondo che si ferma al bordo pagina (`theme.ts` + `SvgCanvas.tsx:1436`) più il
+letterbox del viewer in `ratio`. Attenzione al numero: **T-51 è la fase 3 «gli occhi»**, non questo.
+
 ### ▶ Punto di partenza — chiusura del 2026-09-04
 
 **Albero pulito, tutto mergiato, niente a metà.**
@@ -511,7 +519,7 @@ sera stessa: non va più ruotato.
 **Sempre in attesa di uno sguardo a schermo**, da quattro sessioni: pull del progetto dall'IDE,
 sezione Python unificata, colore del testo derivato dallo sfondo pagina (§5).
 
-### Richiesta del maintainer, da analizzare in modalità piano (2026-09-01)
+### Richiesta del maintainer del 2026-09-01 → pianificata come T-52 il 2026-09-04
 
 Tre comportamenti dell'editor da rivedere insieme, perché sono la stessa idea vista da tre lati:
 **il limite della pagina deve essere un limite morbido, non una gabbia**.
@@ -523,10 +531,14 @@ Tre comportamenti dell'editor da rivedere insieme, perché sono la stessa idea v
 3. **Un oggetto fuori pagina è ignorato e disabilitato a runtime, ma resta nel progetto.** È il
    modo di togliere qualcosa dalla grafica temporaneamente senza cancellarlo.
 
-Non deciso e non progettato: va affrontato in modalità piano. Il punto 3 ha conseguenze che
-toccano più del canvas — validatore (un oggetto fuori pagina non deve diventare un rilievo),
-motore LVGL (deve saltarlo come lo salta il browser), e la domanda se «fuori pagina» sia uno
-stato implicito dalle coordinate o un campo esplicito.
+**Analizzato e pianificato il 2026-09-04**: `docs/plans/2026-09-04-limite-pagina-morbido.md`.
+Le quattro domande che questo blocco lasciava aperte hanno una risposta del maintainer — «fuori
+pagina» è uno stato **implicito nelle coordinate** (nessun campo nuovo), la soglia è la bounding
+box **interamente** fuori, l'aggancio si supera per **resistenza per distanza** (~24 px schermo,
+nessun tasto modificatore), e in editor l'oggetto parcheggiato è **grigio e attenuato**. Il punto 3
+tocca validatore e motore LVGL come previsto, e il piano dice dove. L'analisi ha anche scoperto
+undici questioni preesistenti negli stessi file: una è entrata nel lavoro, tre vanno in un branch
+di manutenzione successivo, cinque diventano `Q35`-`Q39`.
 
 ### 0. Lo stato reale dopo il trasloco su frodo (2026-08-31, sera)
 
