@@ -132,6 +132,39 @@ pub fn definizioni() -> Vec<Value> {
              sono `import`, e i tag si leggono e scrivono da `tags`.",
             json!({ "type": "object", "properties": {}, "additionalProperties": false })),
 
+        strumento("istantanea_pagina",
+            "GUARDA come il motore LVGL disegna una pagina: restituisce \
+             un'IMMAGINE. E' l'unico modo di verificare quello che hai \
+             disegnato invece di dichiararlo fatto — il motore del pannello e \
+             quello del browser disegnano lo stesso progetto in modo diverso, e \
+             le differenze non danno nessun altro segnale. Fotografa il \
+             progetto COME STA SUL DISCO, quindi dopo che una proposta e' stata \
+             applicata. Due cose da sapere leggendo l'immagine: i colori tornano \
+             quantizzati in RGB565 (un #3b82f6 esce come rgb(57,129,246)), \
+             quindi NON concludere che il colore e' sbagliato per una \
+             differenza di uno o due; e un widget che disegna a piu' giri \
+             (gauge, grafici) vuole piu' millisecondi, altrimenti lo fotografi \
+             a meta'. \
+             IMPORTANTE: i tag valgono il loro valore INIZIALE, non quello del \
+             campo — il banco di prova non si collega alle sorgenti di \
+             proposito, perche' un secondo runtime collegato all'impianto \
+             manderebbe notifiche e disturberebbe il broker. Quindi questa \
+             immagine dice COM'E' FATTA la pagina (posizioni, dimensioni, \
+             colori, testi, quali widget LVGL disegna e quali no), NON cosa \
+             mostra l'impianto adesso: non usarla per concludere niente sui \
+             valori.",
+            json!({ "type": "object", "additionalProperties": false, "properties": {
+                "nome": { "type": "string",
+                    "description": "La pagina da fotografare. Se manca, quella iniziale del progetto." },
+                "tocca": { "type": "string",
+                    "description": "Tocchi prima dello scatto, `x,y` separati da `;` \
+                                    (coordinate di pagina, le stesse dell'IDE). Serve a vedere \
+                                    cosa succede DOPO un tocco: la finestra di conferma di un \
+                                    comando, un pulsante premuto. Con i tocchi alza `ms`." },
+                "ms": { "type": "integer",
+                    "description": "Millisecondi di rendering prima dello scatto (default 500). \
+                                    Con i tocchi 800-1500." } } })),
+
         strumento("controlla_python",
             "Compila del codice Python e dice se sta in piedi, SENZA eseguirlo: \
              nessun tag scritto, nessun effetto. Distingue un errore di sintassi \

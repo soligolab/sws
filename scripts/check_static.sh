@@ -44,7 +44,7 @@ CON_STACK=(
     check_ack_reason check_database_mgmt check_deploy_preserve check_discover
     check_e2e check_f7 check_f76 check_f8 check_multiselect_drag
     check_project_write_safety check_spa_autoreload check_viewer_layout
-    check_wysiwyg check_no_admin
+    check_wysiwyg check_no_admin check_istantanea
 )
 
 # ── nessuna guardia resta fuori in silenzio ───────────────────────────────────

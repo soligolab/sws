@@ -209,6 +209,29 @@ async fn vero_giro(
                 }
                 continue;
             }
+            // `istantanea_pagina` si intercetta qui, come `proponi_modifica`
+            // sopra, e per una ragione simile: non produce un risultato JSON da
+            // rimandare al modello ma un **blocco immagine**, che
+            // `tools::esegui` — il cui esito è un `Value` — non può
+            // rappresentare. Metterla là dentro avrebbe voluto dire cambiare la
+            // firma di tutti gli undici strumenti per il caso di uno.
+            if nome == "istantanea_pagina" {
+                invia(tx, json!({ "t": "strumento", "nome": nome, "stato": "eseguo" }));
+                match istantanea_per_il_modello(s, input).await {
+                    Ok(blocchi) => {
+                        invia(tx, json!({ "t": "strumento", "nome": nome, "stato": "fatto" }));
+                        risultati.push(json!({
+                            "type": "tool_result", "tool_use_id": id, "content": blocchi,
+                        }));
+                    }
+                    Err(e) => {
+                        invia(tx, json!({ "t": "strumento", "nome": nome, "stato": "errore",
+                                          "messaggio": e }));
+                        risultati.push(risultato(id, &json!({ "errore": e }), true));
+                    }
+                }
+                continue;
+            }
             invia(tx, json!({ "t": "strumento", "nome": nome, "stato": "eseguo" }));
             match tools::esegui(s, nome, input).await {
                 Ok(v) => {
@@ -227,6 +250,59 @@ async fn vero_giro(
 
     Err(format!("l'assistente ha fatto {MAX_GIRI} giri senza concludere: la richiesta \
                  probabilmente va spezzata in due"))
+}
+
+/// Scatta e impacchetta per il modello: il blocco immagine più una riga di
+/// testo con le dimensioni e quello che il viewer ha detto.
+///
+/// Il testo accanto all'immagine non è decorazione: un pulsante che apre la
+/// finestra giusta e poi scrive il valore sbagliato, **in una fotografia,
+/// sembrerebbe funzionare**. Le righe «comando prodotto: …» del viewer sono
+/// l'unica prova di cosa il tocco ha fatto davvero.
+async fn istantanea_per_il_modello(s: &AppState, input: &Value) -> Result<Value, String> {
+    let dir = crate::router::active_dir(s)
+        .await
+        .map_err(|_| "nessun progetto aperto: non c'è niente da fotografare".to_string())?;
+    let scatto = crate::istantanea::scatta(crate::istantanea::Richiesta {
+        progetto: dir,
+        pagina: input.get("nome").and_then(Value::as_str).map(str::to_string),
+        tocca: input.get("tocca").and_then(Value::as_str).map(str::to_string),
+        ms: input.get("ms").and_then(Value::as_u64),
+    })
+    .await?;
+    Ok(blocchi_istantanea(&scatto))
+}
+
+/// I blocchi `tool_result` per uno scatto: l'immagine e la riga di testo.
+///
+/// Separata da chi la chiama perché è l'unica parte di questo percorso
+/// verificabile senza un modello e senza far girare LVGL: se la forma del
+/// blocco immagine è sbagliata, il modello riceve un errore dall'API e nessuno
+/// capisce perché.
+fn blocchi_istantanea(scatto: &crate::istantanea::Scatto) -> Value {
+    use base64::Engine as _;
+
+    let mut testo = format!("Istantanea LVGL: {}x{} px.", scatto.larghezza, scatto.altezza);
+    if scatto.note.is_empty() {
+        // Dirlo esplicitamente: col silenzio, un modello che ha chiesto dei
+        // tocchi non sa se non hanno prodotto comandi o se non li abbiamo
+        // riportati.
+        testo.push_str(" Il viewer non ha segnalato nulla.");
+    } else {
+        testo.push_str(" Il viewer ha detto:\n");
+        for n in &scatto.note {
+            testo.push_str("  ");
+            testo.push_str(n);
+            testo.push('\n');
+        }
+    }
+
+    json!([
+        { "type": "image", "source": {
+            "type": "base64", "media_type": "image/png",
+            "data": base64::engine::general_purpose::STANDARD.encode(&scatto.png) } },
+        { "type": "text", "text": testo },
+    ])
 }
 
 fn risultato(id: &str, contenuto: &Value, errore: bool) -> Value {
@@ -417,4 +493,55 @@ async fn componi_da_patch(s: &AppState, input: &Value, patch: &Value) -> Result<
         out["pages"] = Value::Array(pagine_toccate);
     }
     Ok(out)
+}
+
+/// I blocchi che l'istantanea consegna al modello: l'unica parte di quel
+/// percorso provabile senza un modello e senza far girare LVGL.
+#[cfg(test)]
+mod tests_istantanea {
+    use super::*;
+
+    fn scatto(note: Vec<String>) -> crate::istantanea::Scatto {
+        crate::istantanea::Scatto {
+            png: vec![0x89, b'P', b'N', b'G', 1, 2, 3, 4],
+            larghezza: 480,
+            altezza: 272,
+            note,
+        }
+    }
+
+    #[test]
+    fn il_blocco_immagine_ha_la_forma_che_l_api_pretende() {
+        use base64::Engine as _;
+        let b = blocchi_istantanea(&scatto(vec![]));
+        let img = &b[0];
+        assert_eq!(img["type"], "image");
+        assert_eq!(img["source"]["type"], "base64");
+        assert_eq!(img["source"]["media_type"], "image/png");
+        // Il base64 deve tornare indietro identico: un'immagine che si decodifica
+        // in qualcosa d'altro il modello la riceve come rumore.
+        let dati = img["source"]["data"].as_str().unwrap();
+        let tornati = base64::engine::general_purpose::STANDARD.decode(dati).unwrap();
+        assert_eq!(tornati, scatto(vec![]).png);
+    }
+
+    #[test]
+    fn il_testo_dice_le_dimensioni_e_cosa_ha_detto_il_viewer() {
+        let b = blocchi_istantanea(&scatto(vec![
+            "comando prodotto: scrivere Bool(true) su 'demo.cmd'".into(),
+        ]));
+        let t = b[1]["text"].as_str().unwrap();
+        assert_eq!(b[1]["type"], "text");
+        assert!(t.contains("480x272"), "{t}");
+        assert!(t.contains("comando prodotto"), "{t}");
+    }
+
+    /// Il silenzio va dichiarato: un modello che ha chiesto dei tocchi deve
+    /// poter distinguere «non hanno prodotto comandi» da «non te lo diciamo».
+    #[test]
+    fn senza_note_lo_dice_invece_di_tacere() {
+        let b = blocchi_istantanea(&scatto(vec![]));
+        let t = b[1]["text"].as_str().unwrap();
+        assert!(t.contains("non ha segnalato nulla"), "{t}");
+    }
 }

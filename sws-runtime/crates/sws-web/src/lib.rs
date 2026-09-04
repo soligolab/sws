@@ -1,6 +1,7 @@
 pub mod ai;
 pub mod backups;
 pub mod cron;
+pub mod istantanea;
 pub mod deploy;
 pub mod discover;
 pub mod display_target;

@@ -351,6 +351,20 @@ Due cose imparate scrivendolo, che valgono per chiunque tocchi questa guardia:
 Provata nei due versi: 10/10 col lock, e disattivando il lock in `patch_project` il caso 6 diventa
 rosso con «SALVATAGGIO PERSO».
 
+## `check_istantanea.sh` — «gli occhi» funzionano?
+
+Prova la catena intera dell'istantanea LVGL: copia del progetto, runtime usa e getta, viewer,
+PPM, PNG — e verifica che dentro l'immagine ci sia davvero il rettangolo scritto nel progetto
+(18784 pixel su 20000 teorici, il resto è antialiasing dei bordi).
+
+Vuole uno stack solo nel senso che deve **compilare due binari**: `sws-lvgl-viewer` non lo
+costruisce `cargo test`, ed è per questo che il test end-to-end è marcato `#[ignore]` e lo lancia
+questa guardia. Un test che si salta da sé quando un prerequisito manca è verde e cieco, e in
+questo progetto è già capitato.
+
+Provata nei due versi: verde, e rossa alzando la soglia dei pixel a un valore impossibile — con il
+motivo vero stampato («il rettangolo non c'è nell'immagine: solo N pixel del suo colore»).
+
 ## `riepilogo_immagini.sh` — quali immagini ci sono, quanto pesano, a cosa servono
 
 Gira da sé in coda a `build_containers_all.sh`, e si può richiamare quando si vuole senza

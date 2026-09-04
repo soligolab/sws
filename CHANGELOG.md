@@ -11,6 +11,55 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### L'assistente può guardare quello che ha disegnato (fase 3, «gli occhi»)
+
+Lo strumento `istantanea_pagina` restituisce **un'immagine** di come il motore
+LVGL disegna una pagina. È l'anello che chiude il ciclo disegna-guarda-correggi:
+il motore del pannello e quello del browser disegnano lo stesso progetto in modo
+diverso, e le differenze non danno nessun altro segnale — il 2026-08-31, con
+`--istantanea` a mano, sono venuti fuori nove difetti in una giornata, sette dei
+quali muti altrove.
+
+**Con un banco di prova, non col runtime che sta girando.** Il viewer LVGL legge
+il progetto da una porta *viewer*, e l'IDE dove si chatta gira di norma
+sull'editor, che non ne ha; dalla 2.4.0 i deploy partono con `--no-admin`, quindi
+sul dispositivo l'IDE non c'è più affatto. Appoggiarsi al viewer «di questo
+processo» avrebbe prodotto uno strumento che funziona solo in una configurazione
+che non si spedisce. Si avvia invece un runtime usa e getta su una copia del
+progetto in una directory temporanea: costa un paio di secondi, funziona
+sempre, e apre la strada a fotografare una modifica non ancora applicata.
+
+Serve `sws-lvgl-viewer` accanto al runtime: c'è nell'immagine arm64, **non** in
+quella x86_64 — e quando manca lo strumento lo dice, invece di nominare un file
+misterioso.
+
+Due cose che ingannano chi legge l'immagine, scritte nella descrizione dello
+strumento perché il modello le sappia: i colori tornano **quantizzati in RGB565**
+(un `#3b82f6` esce come `rgb(57,129,246)`, e concludere che il colore è sbagliato
+per una differenza di uno sarebbe un falso allarme); e `ms` è tempo LVGL
+**simulato**, non un'attesa — 600 ms di LVGL costano ~145 ms di orologio.
+
+Accanto all'immagine va anche quello che il viewer ha stampato: «comando
+prodotto: scrivere Bool(true) su …». Non è decorazione — un pulsante che apre la
+finestra giusta e poi scrive il valore sbagliato, in una fotografia, sembrerebbe
+funzionare.
+
+**Il banco di prova non tocca il campo**, ed è la parte che protegge l'impianto.
+Un runtime vero apre le sorgenti dichiarate nel progetto, avvia gli script
+globali e accende le notifiche: fotografare una pagina di un impianto in
+servizio avrebbe voluto dire, ogni volta, collegarsi a Modbus e OPC-UA,
+presentarsi al broker MQTT **con lo stesso client id** del runtime vero — che è
+l'incidente del 2026-08-21, due client che si buttano fuori a vicenda — far
+girare gli script che scrivono tag, e mandare email e messaggi Telegram. Per una
+fotografia. Il progetto copiato perde quindi sorgenti, script globali, notifiche
+e datastore, e resta con pagine, tag e faceplate.
+
+Ne segue un limite, scritto nella descrizione dello strumento perché il modello
+lo sappia: **i tag valgono il loro valore iniziale**, non quello del campo.
+L'immagine dice *com'è fatta* la pagina — posizioni, dimensioni, colori, testi,
+quali widget LVGL disegna e quali no — non cosa mostra l'impianto adesso.
+
+
 ### Anche i sinottici, i faceplate e le ricette non si sovrascrivono più (Q30, chiusa)
 
 Lo stesso `ETag`/`If-Match` di `project.yaml`, applicato **per file**: due che

@@ -370,6 +370,17 @@ si riempiva, tutte trovate così.
 un'immagine ed esce. Non serve né uno schermo né un dispositivo: il rendering di
 LVGL è già interamente software, e SDL2/DRM servono solo a *mostrare* il buffer.
 
+### Lo sa fare anche l'assistente
+
+Dal 2026-09-04 l'assistente dell'IDE ha lo strumento `istantanea_pagina`: fa da sé
+tutto quello che c'è scritto qui sotto — copia il progetto, avvia un runtime usa e
+getta, scatta, converte in PNG — e **guarda** il risultato invece di dichiarare
+fatto. Serve `sws-lvgl-viewer` installato accanto al runtime: c'è nell'immagine
+arm64, **non** in quella x86_64.
+
+A mano resta il modo di guardare quando si sta lavorando al rendering, e per
+questo la procedura sotto vale ancora.
+
 ### Come si usa
 
 Serve un runtime in ascolto con un progetto aperto — quello locale va benissimo:
@@ -414,7 +425,13 @@ sbagliato, in una fotografia, sembrerebbe funzionare.
 
 ### Quanto lasciar disegnare
 
-`--istantanea-ms` (500 di default) è quanto LVGL lavora prima dello scatto. LVGL
+`--istantanea-ms` (500 di default) è quanto LVGL lavora prima dello scatto —
+tempo **LVGL simulato**, non un'attesa: il ciclo fa `task_handler()` e poi
+`tick_inc()`, senza dormire. Misurato il 2026-09-04: 600 ms di tempo LVGL
+costano ~145 ms di orologio, 3000 ms ne costano ~290. Chiedere due secondi non fa
+quindi aspettare due secondi — e due istantanee della stessa pagina allo stesso
+valore sono confrontabili, perché le fasi di un blink cadono sempre allo stesso
+punto. LVGL
 disegna a pezzi e widget come il gauge o i grafici hanno bisogno di più di un
 giro: un'istantanea presa troppo presto coglie una pagina a metà, e la si
 scambia per un difetto di rendering. Con `--tocca` conviene alzarlo (800-1500 ms),

@@ -71,6 +71,38 @@ Restano da pushare i **due** commit di oggi, che sono solo script, guardie e doc
 git push origin main     # 7ae531f + 342d609, quando lo si vuole
 ```
 
+#### 👁 T-51 / fase 3 «gli occhi», su `feat/T51-fase3-occhi` — da provare con un modello
+
+L'assistente ha lo strumento `istantanea_pagina`: restituisce un'immagine di come **LVGL** disegna
+una pagina, così può verificare invece di dichiarare fatto.
+
+> Il maintainer ha detto che **T-51 lo sta definendo un'altra sessione**: questo ramo è la fase 3
+> del piano della chat, presa nel frattempo. Non toccare `docs/CONTEXT.md` per il numero.
+
+Il pezzo di disegno che conta: **un banco di prova**, non il runtime che gira. Il viewer LVGL vuole
+una porta *viewer*, e l'IDE dove si chatta gira sull'editor, che non ne ha — e sul dispositivo,
+dalla 2.4.0, l'IDE non c'è più. Quindi si avvia un runtime usa e getta su una copia del progetto in
+una directory temporanea.
+
+**Il banco di prova non si collega al campo**: il progetto copiato perde sorgenti, script globali,
+notifiche e datastore. Senza, ogni fotografia avrebbe aperto Modbus e OPC-UA, si sarebbe presentata
+al broker MQTT con lo stesso client id del runtime vero (l'incidente del 2026-08-21) e avrebbe
+mandato email e Telegram. Ne segue che **i tag valgono il valore iniziale**: l'immagine dice com'è
+fatta la pagina, non cosa mostra l'impianto adesso.
+
+Verificato: `./scripts/check_istantanea.sh` (guardia nuova, fra le CON_STACK) prova la catena intera
+e riapre il PNG per contare i pixel del rettangolo — 18784 su 20000 teorici. Provata anche rossa.
+14 test: la lettura del PPM, il PNG, il filtro delle note, la sterilizzazione (sulla funzione **e**
+sulla copia, perché una funzione giusta che nessuno invoca non protegge niente) e la forma del
+blocco immagine, che è l'unica parte del percorso verso il modello provabile senza un modello.
+
+**Da provare con un modello vero**: che l'assistente chiami lo strumento e *usi* l'immagine. Il
+percorso HTTP e il blocco immagine sono scritti ma nessun modello li ha ancora esercitati — è la
+stessa cosa che manca alla chat staccata.
+
+Nota: `sws-lvgl-viewer` non è nell'immagine container **x86_64**, solo nell'arm64. Là lo strumento
+dice perché non può.
+
 #### ✅ Q30, Q33 e Q34 — chiuse e mergiate in `main`
 
 Confermate nel browser dal maintainer il 2026-09-04. **Q30 è chiusa del tutto**: le tre domande

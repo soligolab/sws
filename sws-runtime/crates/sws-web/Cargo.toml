@@ -40,6 +40,16 @@ if-addrs.workspace        = true
 lettre = { version = "0.11", default-features = false, features = ["tokio1-rustls-tls", "smtp-transport", "builder"] }
 sysinfo           = { workspace = true }
 sha2              = { workspace = true }
+# T-51 «gli occhi»: il banco di prova dell'istantanea vive in una directory
+# temporanea, quindi `tempfile` serve a runtime e non solo ai test.
+tempfile          = "3"
+# Il viewer LVGL salva PPM e non PNG di proposito — nessun encoder nel binario
+# che finisce sull'ARM, 21 KB in tutto. Il modello però accetta PNG, e questo
+# lato non gira sul dispositivo con quel vincolo.
+png               = "0.17"
+# L'immagine va al modello come blocco base64. La 0.22 e' gia' nell'albero
+# (tirata da altre dipendenze), quindi dichiararla non aggiunge una copia.
+base64            = "0.22"
 rcgen.workspace              = true
 rustls.workspace             = true
 rustls-pemfile.workspace     = true
@@ -52,4 +62,3 @@ metrics-exporter-prometheus  = { workspace = true }
 time                         = { workspace = true }
 
 [dev-dependencies]
-tempfile = "3"
