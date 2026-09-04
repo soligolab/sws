@@ -2639,7 +2639,45 @@ Prima era un `fs::write` diretto: un processo che muore a metà, o un disco pien
    file ma non copre un salvataggio che ha *già* risolto il percorso vecchio. È un difetto
    **diverso** da Q30, trovato leggendo quel codice il 2026-09-03, e non è stato corretto.
 
-**Decided**: la domanda 1 sì, il 2026-09-03. Le domande 2 e 3 no.
+### Fatto il 2026-09-04 — la domanda 2, con l'hash del solo `project.yaml`
+
+`GET /api/project` restituisce un `ETag` — l'hash SHA-256 corto dei byte di `project.yaml` — e i
+dodici salvataggi di sezione lo rimandano in `If-Match`. Se sul disco è cambiato, il server risponde
+**409 senza scrivere** e la SPA offre di ricaricare. Nessun «sovrascrivi comunque»: è il pulsante
+che, premuto per abitudine, riporterebbe esattamente il difetto.
+
+**Un hash e non un contatore.** Un contatore vorrebbe un posto dove vivere: in memoria si azzera a
+ogni riavvio, e una scheda rimasta aperta si ritroverebbe un token che *combacia per caso* — la
+protezione salta proprio quando il runtime è ripartito sotto i piedi di qualcuno. Dentro
+`project.yaml` sarebbe un campo che viaggia col progetto nei deploy e negli export, per un dato che
+riguarda la sessione di chi modifica e non il progetto.
+
+**Dell'hash del solo `project.yaml`**, e non di `calcola_impronta`: quella include tutti i
+sinottici, quindi chi salva un tag prenderebbe un 409 perché un altro ha spostato un rettangolo su
+un'altra pagina. Un conflitto che scatta quando non c'è conflitto insegna a ignorare quelli veri.
+
+Tre dettagli che sono vincoli e non stile:
+
+- **Il confronto sta dentro `project_write_lock`.** Fuori, fra il controllo e la scrittura passerebbe
+  l'altra scrittura, e il 409 arriverebbe a volte sì e a volte no.
+- **La versione nuova torna nella risposta del 204.** Senza, la scheda che ha appena salvato
+  terrebbe quella vecchia e il *suo* salvataggio successivo prenderebbe un 409 contro se stessa.
+- **`GET /api/project` calcola la versione dal testo con cui costruisce la risposta**, non da una
+  seconda lettura: fra le due qualcuno può scrivere, e il client si porterebbe via una versione più
+  nuova dei dati che ha in mano — un salvataggio che passa quando doveva essere rifiutato. È il
+  difetto che un endpoint `GET /api/project/versione` separato avrebbe avuto per costruzione.
+
+`If-Match` assente = nessun controllo, cioè il comportamento di prima: uno script o un `curl` non si
+rompono, e la protezione vale per chi la chiede. Il 409 porta `x-sws-conflitto: versione`, così il
+client lo distingue dagli altri 409 di questa API senza riconoscerli dal testo, che è tradotto.
+
+**Resta scoperto**: i **sinottici**, i faceplate e le ricette hanno un file per entità e la corsa lì
+è fra due che salvano la *stessa* pagina. Lo stesso meccanismo si applicherebbe per file, e non è
+stato fatto.
+
+**Decided**: la domanda 1 il 2026-09-03, la domanda 2 il 2026-09-04. La domanda 3 — cosa vede chi
+perde la corsa — ha ora una risposta per `project.yaml` (un 409 che si spiega e un banner che offre
+di ricaricare) e nessuna per i sinottici.
 
 ---
 
@@ -2795,7 +2833,68 @@ non è un caso singolo: è che «fermato» non è uno stato, è un effetto momen
 **Default for PoC**: opzione 3, non per scelta ma per inerzia — è lo stato attuale, e non è
 documentato da nessuna parte.
 
-**Decided**: not yet.
+### Fatto il 2026-09-04 — opzione 1, e «fermo» è diventato uno stato
+
+`SourceSupervisor::armed`, un booleano che solo `POST /api/system/stop` e
+`POST /api/system/start` possono cambiare: è l'intenzione dell'operatore, e nessun altro percorso
+ha il diritto di toccarla.
+
+**Due punti di applicazione, non sette.** I percorsi che ricaricano erano sette, e patcharli uno a
+uno avrebbe lasciato scoperto l'ottavo che qualcuno aggiungerà. Il rifiuto sta invece dentro
+`SourceSupervisor::reload` (che copre salvataggio delle Sorgenti, deploy, upload ZIP, import,
+apertura progetto — e i futuri) e dentro `start_project_services` (script globali, notifiche,
+Telegram). È la stessa scelta già fatta e commentata per la guardia dei doppi supervisori: «la
+guardia sta qui e non nei chiamanti apposta».
+
+Il salvataggio **persiste e non avvia**: verificato dal vivo — a impianto fermo un
+`PUT /api/project/sources` con `poll_interval_ms: 30000` finisce sul disco, `source_count` resta 0,
+e l'Avvia riparte col valore salvato. Riaprire il progetto a impianto fermo (il percorso del
+deploy) logga «script globali, notifiche e Telegram NON riavviati».
+
+Governa **tutto** ciò che lo Stop spegne, non solo le sorgenti: coprire quelle e lasciare fuori gli
+script globali avrebbe lasciato in piedi la metà peggiore del difetto — uno script che scrive tag
+ripartirebbe su un impianto che l'operatore crede fermo.
+
+**Non persistito**, di proposito: al riavvio del processo si riparte armati. Un impianto che resta
+fermo dopo un riavvio senza che nessuno l'abbia chiesto è peggio di uno che riparte.
+
+### Due difetti della UI trovati per strada, entrambi corretti
+
+1. **`GET /api/system` riportava un effetto al posto di un'intenzione.** Il pallino di testata
+   leggeva `sources_running`, che è `source_count > 0`: quindi un progetto **senza sorgenti
+   dichiarate** si presentava come fermo pur girando, e un impianto fermo tornava «in marcia»
+   appena un salvataggio riavviava le sorgenti — cioè la UI raccontava il difetto di Q33 invece di
+   mostrarlo. Ora c'è `armed`, e la SPA guarda quello (ripiegando su `sources_running` con un
+   runtime più vecchio, invece di affermare qualcosa).
+2. **In no-auth i comandi Stop/Avvia non esistevano.** `RuntimeCtrl` era dietro
+   `canConfigureProject(authRole)`, e senza utenti definiti — lo stato normale in locale e su un
+   dispositivo appena installato — `authRole` è `null`: il componente non si disegnava affatto,
+   per un permesso che il server non stava chiedendo. Chi lavorava in locale **non aveva modo di
+   fermare l'acquisizione dall'IDE**. Ora `GET /api/system` riporta `auth_required`, e i comandi
+   compaiono quando il ruolo lo consente **oppure** quando il server dichiara di non volere un
+   login. Riportato e non dedotto dall'assenza di token, per la stessa ragione già scritta per
+   `mode`.
+
+Il comando in barra è diventato un **selettore RUN/STOP a due pulsanti** con l'attivo evidenziato,
+al posto di pallino da 8 px + pulsante che portava l'azione. Un pulsante che dice ciò che *farà*
+non dice ciò che *è*, e serviva il pallino accanto: due elementi per un dato, col dato scritto nel
+più piccolo dei due. Uno che dice lo stato sarebbe peggio su un impianto — chi lo preme non sa se
+sta confermando o invertendo. Due pulsanti dicono lo stato e rendono l'azione esplicita, ed è
+l'idioma che la barra usa già per Editor/Configurazione.
+
+### Il 2026-09-04, poco dopo — anche l'opzione 2, attraverso gli avvisi
+
+A impianto fermo la testata mostra ora un avviso che dice la conseguenza che nessuno si aspetta:
+«un salvataggio viene scritto sul disco ma non fa ripartire niente: premi RUN quando vuoi rimettere
+in marcia l'impianto». Non un messaggio appeso al singolo salvataggio, ma uno stato che resta
+visibile finché la causa c'è — e che sparisce da sé al RUN, perché gli avvisi si calcolano dallo
+stato reale a ogni chiamata invece di accumularsi in una coda.
+
+Le opzioni 1 e 2 non erano alternative: la prima toglie il difetto, la seconda lo rende visibile
+mentre è in corso. Con la sola prima, chi salvava a impianto fermo vedeva un 204 e doveva dedurre
+dal selettore che resta su STOP.
+
+**Decided**: opzione 1 e opzione 2, il 2026-09-04.
 
 ## Q34 — Il cron degli script globali non capisce `*/5`, e non parte in silenzio
 
@@ -2873,12 +2972,19 @@ errore. `30 4` gira davvero — molto più spesso di quanto chi l'ha scritto pen
 mancanti valgono `*` — e bocciarla fermerebbe uno script che oggi funziona. Togliere di mezzo in
 silenzio qualcosa che andava è peggio del difetto che si stava correggendo.
 
-**Resta aperto**: l'errore va nel log del runtime e nel validatore, ma **non c'è una spia nell'IDE**
-che dica «questo script non è schedulato». Chi non guarda il log e non passa dal salvataggio non lo
-scopre. È la stessa mancanza di Q34 originale, spostata: non più il silenzio del parser, ma quello
-dell'interfaccia.
+### Il 2026-09-04 — la spia nell'IDE c'è
 
-**Decided**: opzione 1 (più il non-silenzio dell'opzione 2) il 2026-09-03. La spia nell'IDE no.
+`GET /api/system` porta ora un elenco `avvisi`, e la testata dell'IDE lo mostra con un contatore e
+un pannello che per ogni voce dice **dove**, **cosa** e **come rimediare**. Un cron illeggibile
+compare come errore («non è schedulato e non partirà mai»), un cron corto come avviso («parte, ma
+forse non quando credi»), e un cron valido **non compare** — un indicatore che si accende sul buono
+insegna a ignorarlo.
 
-**Decided**: not yet.
+L'avviso rilegge l'espressione con `crate::cron`, cioè **lo stesso** parser che schedula: non può
+dire una cosa mentre il runtime ne fa un'altra. È la ragione per cui quel parser è stato messo in un
+posto solo, e qui si vede il ritorno.
+
+**Decided**: opzione 1 (più il non-silenzio dell'opzione 2) il 2026-09-03, e la spia nell'IDE il
+2026-09-04. (Questa scheda portava anche una riga «Decided: not yet» rimasta appesa sotto la prima:
+due verdetti in contraddizione sulla stessa domanda, rimossa il 2026-09-04.)
 

@@ -134,6 +134,20 @@ export class PasswordChangeRequiredError extends Error {
 
 /** Server returned 503 — no project is currently open.
  *  The WelcomeScreen should be shown so the user can pick or create one. */
+/** Q30: il salvataggio è stato rifiutato perché `project.yaml` è cambiato da
+ *  quando lo si è caricato — un'altra scheda, un altro IDE, uno script.
+ *
+ *  È un rifiuto e non un errore di rete: sul disco non è stato scritto niente,
+ *  e il lavoro di chi ha salvato prima è intatto. Chi la riceve deve offrire di
+ *  ricaricare, non di ritentare: ritentare con gli stessi dati vecchi
+ *  prenderebbe lo stesso rifiuto. */
+export class ProjectChangedError extends Error {
+  constructor(msg?: string) {
+    super(msg ?? "il progetto è cambiato mentre lavoravi");
+    this.name = "ProjectChangedError";
+  }
+}
+
 export class NoProjectError extends Error {
   constructor() { super("no active project"); this.name = "NoProjectError"; }
 }
@@ -169,6 +183,19 @@ export interface DiscoveredRuntime {
   container: string | null;
 }
 
+/** Un avviso sullo stato del runtime. Rispecchia `Avviso` in
+ *  `sws-web/src/system.rs`: se cambia lì, cambia qui. */
+export interface AvvisoRuntime {
+  /** `errore` = qualcosa che credi attivo non lo è. `avviso` = funziona, ma non
+   *  come sembra. */
+  gravita: "errore" | "avviso";
+  /** Dove guardare, in forma leggibile. */
+  dove: string;
+  messaggio: string;
+  /** Cosa fare. Senza, l'avviso dice solo che qualcosa non va. */
+  rimedio: string;
+}
+
 export interface SystemStatus {
   runtime_version: string;
   uptime_s: number;
@@ -185,6 +212,27 @@ export interface SystemStatus {
   tag_count: number;
   source_count: number;
   sources_running: boolean;
+  /** Q33: l'acquisizione è **armata**, cioè l'operatore non ha premuto Stop.
+   *
+   *  È questo che il pallino di testata deve mostrare, non `sources_running`:
+   *  quello è un effetto (`source_count > 0`) e non un'intenzione, quindi un
+   *  progetto senza sorgenti si presentava come fermo, e un impianto fermo
+   *  tornava «in marcia» appena un salvataggio riavviava le sorgenti.
+   *
+   *  Opzionale: un runtime anteriore alla correzione non lo manda, e in quel
+   *  caso si ripiega su `sources_running` invece di affermare qualcosa. */
+  armed?: boolean;
+  /** Gli avvisi correnti: «il runtime non sta facendo quello che credi».
+   *  Calcolati dallo stato reale a ogni chiamata, quindi spariscono da sé
+   *  quando la causa non c'è più. Opzionale: un runtime più vecchio non li
+   *  manda, e in quel caso non si mostra niente invece di inventare. */
+  avvisi?: AvvisoRuntime[];
+  /** Il server ha utenti definiti, quindi pretende un login. Serve a
+   *  distinguere «non sei autenticato» da «qui non serve autenticarsi»: senza
+   *  utenti il runtime apre tutte le rotte, e i controlli riservati a chi può
+   *  configurare sparivano perché il ruolo era `null`. Opzionale per lo stesso
+   *  motivo di `armed`. */
+  auth_required?: boolean;
   alarm_active_count: number;
   historian_samples: number;
   cpu_usage_pct: number;
@@ -231,6 +279,48 @@ function authHeaders(extra?: HeadersInit): Headers {
   return headers;
 }
 
+/** Q30: la versione di `project.yaml` da cui vengono i dati che abbiamo in mano.
+ *
+ *  Vive qui e non in uno store perché nessun componente deve ricordarsi di
+ *  passarla: la si prende dall'`ETag` di ogni risposta che riguarda il
+ *  progetto, e la si rimanda in `If-Match` su ogni salvataggio di sezione.
+ *  `null` = non l'abbiamo ancora vista, e in quel caso non si manda niente e il
+ *  server si comporta come prima. */
+let VERSIONE_PROGETTO: string | null = null;
+
+/** I percorsi la cui risposta porta la versione del progetto. Non tutti: un
+ *  `ETag` di un'immagine o di un sinottico non c'entra niente con
+ *  `project.yaml`, e prenderlo per buono farebbe fallire il salvataggio
+ *  successivo con un 409 inventato. */
+const PORTA_VERSIONE = (path: string) =>
+  path === "/api/project" || PATH_VERSIONATI.some((p) => path === p);
+
+/** I salvataggi di sezione, cioè quelli che il server confronta con `If-Match`.
+ *  Rispecchia gli handler che in `router.rs` chiamano `patch_project_se`: se
+ *  cambia lì, cambia qui. */
+const PATH_VERSIONATI = [
+  "/api/project/tags", "/api/project/languages", "/api/project/sources",
+  "/api/project/alarms", "/api/project/functions", "/api/project/custom-symbols",
+  "/api/project/datastores", "/api/project/global-scripts",
+  "/api/project/notifications", "/api/project/page-layout",
+  "/api/project/backup-config", "/api/project/tags/import-csv",
+];
+
+/** L'header `If-Match` da mettere su un salvataggio di sezione, se sappiamo su
+ *  quale versione stiamo lavorando. */
+function seVersionato(path: string): Record<string, string> {
+  return PATH_VERSIONATI.includes(path) && VERSIONE_PROGETTO
+    ? { "If-Match": VERSIONE_PROGETTO }
+    : {};
+}
+
+/** La versione ricomincia da zero: si chiama quando si apre o si ricarica un
+ *  progetto, così una versione di quello di prima non fa rifiutare il primo
+ *  salvataggio su quello nuovo. */
+export function dimenticaVersioneProgetto() {
+  VERSIONE_PROGETTO = null;
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const headers = new Headers(init?.headers);
   if (TOKEN) headers.set("Authorization", `Bearer ${TOKEN}`);
@@ -240,6 +330,20 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   } catch {
     // Network error (ECONNREFUSED, DNS failure, …) — runtime is not reachable.
     throw new RuntimeUnavailableError();
+  }
+  // Q30: la versione arriva sia dalla GET del progetto sia dalla risposta di un
+  // salvataggio riuscito. Aggiornarla anche sul secondo caso è necessario, non
+  // un'ottimizzazione: senza, la scheda che ha appena salvato terrebbe quella
+  // vecchia e il **suo** salvataggio successivo prenderebbe un 409 contro se
+  // stessa.
+  if (res.ok && PORTA_VERSIONE(path)) {
+    const et = res.headers.get("ETag");
+    if (et) VERSIONE_PROGETTO = et.replace(/"/g, "");
+  }
+  if (res.status === 409 && res.headers.get("x-sws-conflitto") === "versione") {
+    let testo = "";
+    try { testo = await res.text(); } catch { /* il messaggio è un extra */ }
+    throw new ProjectChangedError(testo || undefined);
   }
   if (res.status === 502 || res.status === 504) {
     // Vite proxy / reverse proxy couldn't reach the upstream runtime.
@@ -344,7 +448,7 @@ export const api = {
   updateTags: (tags: TagDef[]) =>
     request<void>("/api/project/tags", {
       method: "PUT",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...seVersionato("/api/project/tags") },
       body: JSON.stringify(tags),
     }),
 
@@ -358,35 +462,35 @@ export const api = {
   updateLanguages: (table: LanguageTable) =>
     request<void>("/api/project/languages", {
       method: "PUT",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...seVersionato("/api/project/languages") },
       body: JSON.stringify(table),
     }),
 
   updateSources: (sources: SourceDef[]) =>
     request<void>("/api/project/sources", {
       method: "PUT",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...seVersionato("/api/project/sources") },
       body: JSON.stringify(sources),
     }),
 
   updateAlarms: (alarms: AlarmDef[]) =>
     request<void>("/api/project/alarms", {
       method: "PUT",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...seVersionato("/api/project/alarms") },
       body: JSON.stringify(alarms),
     }),
 
   updateFunctions: (functions: FunctionDef[]) =>
     request<void>("/api/project/functions", {
       method: "PUT",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...seVersionato("/api/project/functions") },
       body: JSON.stringify(functions),
     }),
 
   updateCustomSymbols: (symbols: CustomSymbol[]) =>
     request<void>("/api/project/custom-symbols", {
       method: "PUT",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...seVersionato("/api/project/custom-symbols") },
       body: JSON.stringify(symbols),
     }),
 
@@ -614,7 +718,7 @@ export const api = {
   updateBackupConfig: (config: { interval_minutes?: number | null; retention?: number | null }) =>
     request<void>("/api/project/backup-config", {
       method: "PUT",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...seVersionato("/api/project/backup-config") },
       body: JSON.stringify(config),
     }),
 
@@ -1040,28 +1144,28 @@ export const api = {
   saveDatastores: (datastores: DatastoreConfig[]) =>
     request<void>("/api/project/datastores", {
       method: "PUT",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...seVersionato("/api/project/datastores") },
       body: JSON.stringify(datastores),
     }),
 
   saveGlobalScripts: (scripts: GlobalScriptDef[]) =>
     request<void>("/api/project/global-scripts", {
       method: "PUT",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...seVersionato("/api/project/global-scripts") },
       body: JSON.stringify(scripts),
     }),
 
   saveNotifications: (config: NotificationConfig | null) =>
     request<void>("/api/project/notifications", {
       method: "PUT",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...seVersionato("/api/project/notifications") },
       body: JSON.stringify(config),
     }),
 
   updatePageLayout: (config: PageLayoutConfig | null) =>
     request<void>("/api/project/page-layout", {
       method: "PUT",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...seVersionato("/api/project/page-layout") },
       body: JSON.stringify(config),
     }),
 

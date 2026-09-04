@@ -74,6 +74,26 @@ pub async fn start_project_services(
         old.stop();
     }
 
+    // Q33: a impianto disarmato non si riavvia niente, e per la stessa ragione
+    // per cui la guardia sopra sta qui — vale anche per i chiamanti di domani.
+    //
+    // Lo Stop dell'operatore spegne sorgenti, script globali, notifiche e
+    // Telegram: `SourceSupervisor::reload` copre le prime, questo copre le
+    // altre tre. Coprire solo le sorgenti avrebbe lasciato in piedi metà del
+    // difetto, e la metà peggiore: uno script globale che scrive tag
+    // ripartirebbe su un impianto che l'operatore crede fermo.
+    //
+    // Lo stop di ciò che gira sta **sopra** questo controllo e non sotto, di
+    // proposito: un `start_project_services` a impianto fermo deve comunque
+    // spegnere quello che trova, altrimenti un salvataggio lascerebbe vivi i
+    // servizi del progetto precedente.
+    if !s.supervisor.is_armed() {
+        info!("acquisizione ferma dall'operatore: script globali, notifiche e Telegram \
+               NON riavviati (premi Avvia)");
+        s.py.set_telegram_sink(None);
+        return;
+    }
+
     // Il canale Telegram si crea prima dei due supervisori, così condividono
     // lo stesso sink e una riconfigurazione a caldo li aggiorna entrambi.
     let sinks = crate::telegram::restart_sender(

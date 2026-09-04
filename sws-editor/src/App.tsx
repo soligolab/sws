@@ -263,6 +263,10 @@ export function App() {
   // in editor ci può essere lavoro non salvato, e sovrascriverlo senza chiedere
   // sarebbe peggio del mostrare dati vecchi. Il viewer invece si aggiorna da sé.
   const [projectChangedOutside, setProjectChangedOutside] = useState(false);
+  // Q30: il rifiuto per versione vive nello store perché lo produce `saveAll()`,
+  // che sta là.
+  const saveConflict = useAppStore((s) => s.saveConflict);
+  const setSaveConflict = useAppStore((s) => s.setSaveConflict);
   // Frontend nuovo servito dal runtime. Mai automatico qui: un reload
   // butterebbe via le modifiche non salvate.
   const [newBuildAvailable, setNewBuildAvailable] = useState(false);
@@ -752,14 +756,23 @@ export function App() {
           </button>
         </div>
       )}
-      {projectChangedOutside && (
+      {/* Q30: lo stesso banner serve i due modi di scoprire che il progetto è
+          cambiato sotto i piedi — il watcher se l'accorge da sé, il 409 lo
+          scopre perché un salvataggio è stato rifiutato. Il rimedio è identico
+          (ricaricare), e due banner che offrono lo stesso pulsante
+          sarebbero due modi di dire una cosa sola; cambia solo la frase, perché
+          nel secondo caso c'è una modifica appena rifiutata di cui rendere
+          conto. */}
+      {(projectChangedOutside || saveConflict) && (
         <div style={{
           background: "var(--brand-warning-bg, #78350f)", borderBottom: "1px solid var(--brand-warning, #f59e0b)",
           padding: "6px 16px", display: "flex", alignItems: "center", gap: 12,
           fontSize: 12, color: "#fde68a", flexShrink: 0,
         }}>
           <span>⟳</span>
-          <span style={{ flex: 1 }}>{t("app.projectChangedOutside")}</span>
+          <span style={{ flex: 1 }}>
+            {saveConflict ? t("app.saveConflict") : t("app.projectChangedOutside")}
+          </span>
           <button
             style={{ ...HDR_BTN, background: "transparent", color: "#fde68a", borderColor: "var(--brand-warning, #f59e0b)" }}
             onClick={() => window.location.reload()}
@@ -768,7 +781,7 @@ export function App() {
           </button>
           <button
             style={{ ...HDR_BTN, background: "transparent", color: "#fde68a", border: "none" }}
-            onClick={() => setProjectChangedOutside(false)}
+            onClick={() => { setProjectChangedOutside(false); setSaveConflict(false); }}
             title={t("app.dismiss")}
           >
             ✕

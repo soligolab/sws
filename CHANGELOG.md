@@ -11,6 +11,101 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### La testata dice quando il runtime non sta facendo quello che credi
+
+`GET /api/system` porta un elenco `avvisi`, e la testata dell'IDE lo mostra con
+un contatore e un pannello che per ogni voce dice **dove**, **cosa** e **come
+rimediare**.
+
+Chiude tre buchi che erano arrivati da tre lavori diversi: uno script globale che
+non viene schedulato per un cron illeggibile (l'errore finiva solo nel log del
+runtime — Q34); l'acquisizione ferma, per cui un salvataggio persiste **senza**
+avviare (Q33); e in generale il runtime che prende una decisione sensata mentre
+l'interfaccia tace.
+
+Gli avvisi si **calcolano dallo stato reale** a ogni chiamata e non si accumulano
+in una coda: spariscono da sé quando la causa non c'è più, senza dover inventare
+quando cancellarli. Il cron in particolare si rilegge con lo **stesso** parser
+che schedula, quindi un avviso non può contraddire il comportamento — ed è il
+ritorno dell'averlo messo in un posto solo. Un cron valido non produce nessuna
+voce: un indicatore che si accende sul buono insegna a ignorarlo.
+
+Stanno **fuori** dal gate di ruolo, come il marcatore «impianto»: chi non può
+configurare può comunque salvare un sinottico su quell'impianto, ed è
+esattamente la persona che l'avviso deve raggiungere.
+
+### Due schede non si sovrascrivono più a vicenda (Q30, seconda metà)
+
+Il lock impediva a due scritture di interlacciarsi, non a una scritta su dati
+vecchi di cancellare quella di prima: i `PUT` di sezione sostituiscono l'elenco
+intero, quindi due schede che avevano caricato entrambe le variabili si
+serializzavano ordinatamente e la seconda cancellava comunque il lavoro della
+prima.
+
+`GET /api/project` restituisce ora un `ETag` — l'hash corto dei byte di
+`project.yaml` — e i dodici salvataggi di sezione lo rimandano in `If-Match`. Se
+sul disco è cambiato, il server risponde **409 senza scrivere** e la SPA riusa il
+banner «il progetto è cambiato» per offrire di ricaricare. Nessun «sovrascrivi
+comunque»: è il pulsante che, premuto per abitudine, riporterebbe il difetto.
+
+Un hash e non un contatore: in memoria un contatore si azzera a ogni riavvio e
+una scheda rimasta aperta si ritroverebbe un token che combacia **per caso**;
+dentro `project.yaml` sarebbe un campo che viaggia col progetto nei deploy per un
+dato che riguarda la sessione di chi modifica. E l'hash del **solo**
+`project.yaml`, non di `calcola_impronta`, che include i sinottici: con quella
+granularità chi salva un tag prenderebbe un 409 perché un altro ha spostato un
+rettangolo su un'altra pagina.
+
+`If-Match` assente = nessun controllo, cioè il comportamento di prima: uno script
+o un `curl` non si rompono, e la protezione vale per chi la chiede.
+
+
+### Lo «Stop» dell'acquisizione non lo annulla più un salvataggio (Q33)
+
+Fermavi l'impianto per lavorare in sicurezza, salvavi una modifica alle Sorgenti,
+e **ripartiva senza che tu l'avessi chiesto**: `PUT /api/project/sources` chiama
+`supervisor.reload(sources)` e non aveva modo di sapere che qualcuno aveva
+fermato tutto. La sola indicazione era il pallino in testata che tornava verde.
+Valeva anche per il deploy, l'upload ZIP, l'import e l'apertura progetto —
+«fermo» non era uno stato, era l'effetto momentaneo di un `reload(vec![])`.
+
+Ora è uno stato: `SourceSupervisor::armed`, che solo Stop e Avvia possono
+cambiare. Il salvataggio **persiste e non avvia**, e sarà l'Avvia a rileggere dal
+disco. Il rifiuto sta in **due** punti — dentro `reload` e dentro
+`start_project_services` — e non nei sette chiamanti: così copre anche l'ottavo
+percorso che qualcuno aggiungerà. Governa tutto ciò che lo Stop spegne, non solo
+le sorgenti: coprire quelle e lasciare fuori gli script globali avrebbe lasciato
+in piedi la metà peggiore del difetto, uno script che scrive tag su un impianto
+che credi fermo.
+
+Non persistito di proposito: al riavvio del processo si riparte armati, perché un
+impianto che resta fermo senza che nessuno l'abbia chiesto è peggio di uno che
+riparte.
+
+### Il pallino di testata mostrava un effetto al posto di un'intenzione
+
+Leggeva `sources_running`, cioè `source_count > 0`: un progetto **senza sorgenti
+dichiarate** si presentava come fermo pur girando, e un impianto fermo tornava
+«in marcia» appena un salvataggio riavviava le sorgenti. `GET /api/system`
+riporta ora anche `armed`, e la SPA guarda quello — ripiegando su
+`sources_running` se il runtime è più vecchio, invece di affermare qualcosa.
+
+### In no-auth i comandi Stop/Avvia non esistevano
+
+`RuntimeCtrl` era dietro `canConfigureProject(authRole)`, e senza utenti
+definiti — lo stato normale in locale e su un dispositivo appena installato —
+`authRole` è `null`: il componente non si disegnava affatto, per un permesso che
+il server non stava chiedendo. Chi lavorava in locale **non aveva modo di fermare
+l'acquisizione dall'IDE**. `GET /api/system` riporta ora `auth_required`, e i
+comandi compaiono quando il ruolo lo consente **oppure** quando il server
+dichiara di non volere un login.
+
+Il comando è anche diventato un **selettore RUN/STOP a due pulsanti** con
+l'attivo evidenziato, accanto al deploy. Prima erano un pallino da 8 px più un
+pulsante che portava l'azione: due elementi per un dato, col dato scritto nel più
+piccolo dei due.
+
+
 ### Un riepilogo in coda alla build dei container
 
 `build_containers_all.sh` chiude ora dicendo quali immagini ci sono, quanto

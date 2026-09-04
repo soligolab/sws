@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { api } from "@/api/client";
+import { api, dimenticaVersioneProgetto } from "@/api/client";
 import type { BrowseDirEntry, ProjectListEntry, ProjectTargetKind, TemplateEntry } from "@/types";
 
 // ── styles ────────────────────────────────────────────────────────────────────
@@ -816,6 +816,11 @@ export function WelcomeScreen({ onProjectOpened }: WelcomeScreenProps) {
     setOpening(name); setError(null);
     try {
       await api.openProject(name);
+      // Q30: la versione vista è quella del progetto di **prima**. Tenerla
+      // farebbe rifiutare il primo salvataggio su quello nuovo con un 409 che
+      // non ha nessuna corsa dietro — un conflitto inventato insegna a
+      // ignorare i conflitti veri.
+      dimenticaVersioneProgetto();
       onProjectOpened();
     } catch (e: any) {
       setError(t("welcome.errOpen", { name, err: e?.message ?? e }));

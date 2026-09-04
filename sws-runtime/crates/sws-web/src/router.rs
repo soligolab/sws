@@ -2085,15 +2085,76 @@ async fn handle_alarms_ws(mut socket: WebSocket, alarms: Arc<AlarmDb>) {
 /// wipe a secret the operator can't see.
 pub(crate) const MASKED_PASSWORD: &str = "********";
 
+/// La versione corrente di `project.yaml`: l'hash SHA-256 dei suoi byte, in
+/// forma corta.
+///
+/// # Perché un hash e non un contatore (Q30)
+///
+/// Un contatore vorrebbe un posto dove vivere. In memoria si azzera a ogni
+/// riavvio, e una scheda rimasta aperta si ritroverebbe un token che *combacia*
+/// per caso — cioè la protezione salta proprio quando il runtime è ripartito
+/// sotto i piedi di qualcuno. Dentro `project.yaml` sarebbe un campo nuovo che
+/// viaggia col progetto nei deploy e negli export, per un dato che non riguarda
+/// il progetto ma la sessione di chi lo modifica.
+///
+/// L'hash dei byte non ha nessuno dei due problemi: è esatto, sopravvive ai
+/// riavvii, non aggiunge niente al file e si calcola da un testo che
+/// `patch_project` **ha già in mano**.
+///
+/// Dell'hash del solo `project.yaml`, e non di `calcola_impronta`, che include
+/// anche tutti i sinottici: con quella granularità chi salva un tag prenderebbe
+/// un 409 perché un altro ha spostato un rettangolo su un'altra pagina, e un
+/// conflitto che scatta quando non c'è conflitto insegna a ignorarlo.
+pub(crate) fn versione_di(testo: &str) -> String {
+    use sha2::{Digest, Sha256};
+    let d = Sha256::digest(testo.as_bytes());
+    d.iter().take(8).fold(String::new(), |mut acc, b| {
+        acc.push_str(&format!("{b:02x}"));
+        acc
+    })
+}
+
+/// L'header `If-Match` della richiesta, se c'è. Assente = nessun controllo di
+/// versione, che è il comportamento di prima: uno script o un `curl` non si
+/// rompono, e la protezione vale per chi la chiede.
+pub(crate) fn versione_attesa(h: &axum::http::HeaderMap) -> Option<String> {
+    h.get(axum::http::header::IF_MATCH)
+        .and_then(|v| v.to_str().ok())
+        .map(|v| v.trim_matches('"').to_string())
+}
+
 async fn get_project(State(s): State<AppState>) -> Response {
     let dir = match active_dir(&s).await {
         Ok(d) => d,
         Err(code) => return code.into_response(),
     };
-    match Project::load(&dir) {
+    // Q30: la versione va letta **dallo stesso testo** da cui si costruisce la
+    // risposta, non da una seconda lettura del file: fra le due qualcuno può
+    // scrivere, e il client si porterebbe via una versione più nuova dei dati
+    // che ha in mano — cioè un salvataggio che passa quando doveva essere
+    // rifiutato. È il difetto che un `GET /api/project/versione` separato
+    // avrebbe avuto per costruzione.
+    let testo = tokio::fs::read_to_string(dir.join("project.yaml")).await.ok();
+    let versione = testo.as_deref().map(versione_di);
+    // `Project::load` è read_to_string + `serde_yaml::from_str`: qui si fa la
+    // seconda metà sul testo che abbiamo già, così i dati e la versione vengono
+    // dalla **stessa** lettura. Se il file non si è letto si ricade su `load`,
+    // che produce il messaggio d'errore buono.
+    let caricato = match testo.as_deref() {
+        Some(t) => serde_yaml::from_str::<Project>(t)
+            .map_err(|e| anyhow::anyhow!("parsing project.yaml: {e}")),
+        None => Project::load(&dir),
+    };
+    match caricato {
         Ok(mut project) => {
             mask_project_secrets(&mut project);
-            Json(project).into_response()
+            let mut r = Json(project).into_response();
+            if let Some(v) = versione {
+                if let Ok(hv) = axum::http::HeaderValue::from_str(&format!("\"{v}\"")) {
+                    r.headers_mut().insert(axum::http::header::ETAG, hv);
+                }
+            }
+            r
         }
         Err(e) => {
             tracing::error!("project load failed: {e:#}");
@@ -2156,6 +2217,37 @@ pub(crate) async fn patch_project<F>(
 where
     F: FnOnce(&mut Project),
 {
+    patch_project_se(lock, project_dir, None, f).await
+}
+
+/// Come [`patch_project`], ma rifiuta se `project.yaml` è cambiato rispetto
+/// alla versione `attesa` (Q30, la seconda metà).
+///
+/// # Cosa aggiunge al lock
+///
+/// Il lock impedisce a due scritture di **interlacciarsi**; non impedisce a
+/// una scritta su dati vecchi di cancellare quella di prima. I `PUT` di sezione
+/// sostituiscono l'elenco intero, quindi due schede che hanno caricato entrambe
+/// le variabili e salvano una dopo l'altra si serializzano ordinatamente e la
+/// seconda cancella comunque il lavoro della prima. Nessun lock può vederlo:
+/// serve sapere **su cosa** si stava lavorando.
+///
+/// `attesa` è `None` per chi non porta un `If-Match`, e in quel caso si
+/// comporta esattamente come prima: uno script o un `curl` non si rompono, e la
+/// protezione vale per chi la chiede.
+///
+/// Il confronto sta **dentro** il lock, e non è un dettaglio: fuori, fra il
+/// controllo e la scrittura passerebbe l'altra scrittura, e il 409 arriverebbe
+/// a volte sì e a volte no.
+pub(crate) async fn patch_project_se<F>(
+    lock: &tokio::sync::Mutex<()>,
+    project_dir: &std::path::Path,
+    attesa: Option<String>,
+    f: F,
+) -> Response
+where
+    F: FnOnce(&mut Project),
+{
     // Q30: il lock copre **tutto** il leggi-modifica-scrivi, non la sola
     // scrittura. Prenderlo più in basso non servirebbe a niente: la corsa sta
     // fra la lettura di uno e la scrittura dell'altro, non fra le due
@@ -2167,6 +2259,30 @@ where
     // Il testo grezzo serve due volte: per distinguere "assente" da "illeggibile",
     // e per recuperare ciò che la struttura tipizzata non rappresenta.
     let raw_text = tokio::fs::read_to_string(&path).await.ok();
+
+    // Q30: la versione si calcola dal testo appena letto **sotto il lock**.
+    if let Some(attesa) = attesa {
+        let corrente = raw_text.as_deref().map(versione_di);
+        if corrente.as_deref() != Some(attesa.as_str()) {
+            // L'header distingue **questo** 409 dagli altri che questa API
+            // produce già — «project.yaml non è caricabile», «un deploy è in
+            // corso» — senza che il client debba riconoscerli dal testo, che è
+            // tradotto e riscrivibile. Un client che non lo guarda mostra il
+            // messaggio e basta, che è il comportamento giusto per default.
+            let mut r = (
+                StatusCode::CONFLICT,
+                "Questa sezione è stata modificata da qualcun altro mentre lavoravi, e il \
+                 salvataggio è stato rifiutato per non cancellare le sue modifiche.\n\n\
+                 Ricarica il progetto per vedere cosa è cambiato, poi rifai la tua modifica.",
+            )
+                .into_response();
+            r.headers_mut().insert(
+                "x-sws-conflitto",
+                axum::http::HeaderValue::from_static("versione"),
+            );
+            return r;
+        }
+    }
 
     let mut project = match &raw_text {
         Some(text) => match serde_yaml::from_str::<Project>(text) {
@@ -2235,8 +2351,18 @@ where
         Some(raw) => merge_preserved(&yaml, raw, &known_before),
         None => yaml,
     };
+    // La versione nuova viaggia nella risposta: senza, la scheda che ha appena
+    // salvato conserverebbe quella vecchia e il **suo** salvataggio successivo
+    // prenderebbe un 409 contro se stessa.
+    let nuova = versione_di(&yaml);
     match scrivi_atomico(&path, yaml.as_bytes()).await {
-        Ok(()) => StatusCode::NO_CONTENT.into_response(),
+        Ok(()) => {
+            let mut r = StatusCode::NO_CONTENT.into_response();
+            if let Ok(hv) = axum::http::HeaderValue::from_str(&format!("\"{nuova}\"")) {
+                r.headers_mut().insert(axum::http::header::ETAG, hv);
+            }
+            r
+        }
         Err(e) => {
             warn!(path = %path.display(), "write project.yaml: {e}");
             StatusCode::INTERNAL_SERVER_ERROR.into_response()
@@ -2428,6 +2554,7 @@ fn merge_preserved(
 async fn update_project_tags(
     State(s): State<AppState>,
     Extension(user): Extension<AuthUser>,
+    headers: axum::http::HeaderMap,
     Json(tags): Json<Vec<TagDef>>,
 ) -> Response {
     s.audit.log("project.change", Some(user.username), serde_json::json!({"what": "tags", "count": tags.len()}));
@@ -2455,7 +2582,7 @@ async fn update_project_tags(
     let write_roles = crate::projects::build_tag_write_roles(&tags);
 
     let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
-    let res = patch_project(&s.project_write_lock, &dir, |p| p.tags = tags).await;
+    let res = patch_project_se(&s.project_write_lock, &dir, versione_attesa(&headers), |p| p.tags = tags).await;
     if res.status() != StatusCode::NO_CONTENT {
         return res;
     }
@@ -2477,10 +2604,11 @@ async fn update_project_tags(
 /// (the viewer resolves `{{token}}` client-side). See T-40.
 async fn update_project_languages(
     State(s): State<AppState>,
+    headers: axum::http::HeaderMap,
     Json(table): Json<LanguageTable>,
 ) -> Response {
     let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
-    patch_project(&s.project_write_lock, &dir, |p| p.languages = table).await
+    patch_project_se(&s.project_write_lock, &dir, versione_attesa(&headers), |p| p.languages = table).await
 }
 
 /// POST /api/project/tags/import-csv
@@ -2491,6 +2619,7 @@ async fn update_project_languages(
 /// new ones, updates matching IDs, leaves unmentioned tags unchanged.
 async fn import_tags_csv(
     State(s): State<AppState>,
+    headers: axum::http::HeaderMap,
     body: Bytes,
 ) -> Response {
     let text = match std::str::from_utf8(&body) {
@@ -2550,7 +2679,7 @@ async fn import_tags_csv(
 
     // Merge: load current, upsert imported.
     let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
-    let res = patch_project(&s.project_write_lock, &dir, |p| {
+    let res = patch_project_se(&s.project_write_lock, &dir, versione_attesa(&headers), |p| {
         for new_tag in &imported {
             if let Some(existing) = p.tags.iter_mut().find(|t| t.id == new_tag.id) {
                 *existing = new_tag.clone();
@@ -2585,6 +2714,7 @@ async fn import_tags_csv(
 async fn update_project_sources(
     State(s): State<AppState>,
     Extension(user): Extension<AuthUser>,
+    headers: axum::http::HeaderMap,
     Json(mut sources): Json<Vec<SourceDef>>,
 ) -> Response {
     s.audit.log("project.change", Some(user.username), serde_json::json!({"what": "sources", "count": sources.len()}));
@@ -2633,7 +2763,7 @@ async fn update_project_sources(
     // set. New/removed sources are spawned/cancelled in-place — no runtime
     // restart needed.
     let mut clone = sources.clone();
-    let res = patch_project(&s.project_write_lock, &dir, |p| p.sources = sources).await;
+    let res = patch_project_se(&s.project_write_lock, &dir, versione_attesa(&headers), |p| p.sources = sources).await;
     if res.status() == StatusCode::NO_CONTENT {
         // Stessa risoluzione degli altri percorsi di reload (open/import/
         // system_start): senza, dopo un salvataggio dall'IDE i client MQTT
@@ -2652,6 +2782,7 @@ async fn update_project_sources(
 async fn update_project_alarms(
     State(s): State<AppState>,
     Extension(user): Extension<AuthUser>,
+    headers: axum::http::HeaderMap,
     Json(alarms): Json<Vec<AlarmDef>>,
 ) -> Response {
     s.audit.log("project.change", Some(user.username), serde_json::json!({"what": "alarms", "count": alarms.len()}));
@@ -2660,7 +2791,7 @@ async fn update_project_alarms(
     // and re-fire any still-tripped conditions.
     let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
     let clone = alarms.clone();
-    let res = patch_project(&s.project_write_lock, &dir, |p| p.alarms = alarms).await;
+    let res = patch_project_se(&s.project_write_lock, &dir, versione_attesa(&headers), |p| p.alarms = alarms).await;
     if res.status() == StatusCode::NO_CONTENT {
         s.alarms.load(clone).await;
     }
@@ -2671,6 +2802,7 @@ async fn update_project_alarms(
 /// Rejects unsafe param names and oversized code bodies before writing.
 async fn update_project_functions(
     State(s): State<AppState>,
+    headers: axum::http::HeaderMap,
     Json(functions): Json<Vec<FunctionDef>>,
 ) -> Response {
     // 1. Code-size cap — keeps `project.yaml` from ballooning.
@@ -2705,7 +2837,7 @@ async fn update_project_functions(
 
     let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
     let clone = functions.clone();
-    let res = patch_project(&s.project_write_lock, &dir, |p| p.functions = functions).await;
+    let res = patch_project_se(&s.project_write_lock, &dir, versione_attesa(&headers), |p| p.functions = functions).await;
     if res.status() == StatusCode::NO_CONTENT {
         let mut map = s.functions.write().await;
         map.clear();
@@ -2716,18 +2848,20 @@ async fn update_project_functions(
 
 async fn update_project_custom_symbols(
     State(s): State<AppState>,
+    headers: axum::http::HeaderMap,
     Json(symbols): Json<Vec<CustomSymbol>>,
 ) -> Response {
     let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
-    patch_project(&s.project_write_lock, &dir, |p| p.custom_symbols = symbols).await
+    patch_project_se(&s.project_write_lock, &dir, versione_attesa(&headers), |p| p.custom_symbols = symbols).await
 }
 
 async fn update_project_datastores(
     State(s): State<AppState>,
+    headers: axum::http::HeaderMap,
     Json(datastores): Json<Vec<sws_core::DatastoreConfig>>,
 ) -> Response {
     let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
-    patch_project(&s.project_write_lock, &dir, |p| p.datastores = datastores).await
+    patch_project_se(&s.project_write_lock, &dir, versione_attesa(&headers), |p| p.datastores = datastores).await
 }
 
 // ── Project import / export (Admin only) ─────────────────────────────────────
@@ -4884,11 +5018,12 @@ async fn ha_browse_handler(
 async fn update_project_global_scripts(
     State(s): State<AppState>,
     Extension(user): Extension<AuthUser>,
+    headers: axum::http::HeaderMap,
     Json(scripts): Json<Vec<GlobalScriptDef>>,
 ) -> Response {
     s.audit.log("project.change", Some(user.username), serde_json::json!({"what": "global_scripts", "count": scripts.len()}));
     let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
-    let res = patch_project(&s.project_write_lock, &dir, |p| p.global_scripts = scripts.clone()).await;
+    let res = patch_project_se(&s.project_write_lock, &dir, versione_attesa(&headers), |p| p.global_scripts = scripts.clone()).await;
     if res.status() == StatusCode::NO_CONTENT {
         // Hot-swap: cancel running scripts, start new set.
         if let Some(old) = s.script_supervisor.write().await.take() {
@@ -5188,6 +5323,7 @@ async fn soft_reload_project(s: &AppState, dir: &std::path::Path) {
 async fn update_project_notifications(
     State(s): State<AppState>,
     Extension(user): Extension<AuthUser>,
+    headers: axum::http::HeaderMap,
     Json(config): Json<Option<NotificationConfig>>,
 ) -> Response {
     s.audit.log("project.change", Some(user.username), serde_json::json!({"what": "notifications", "enabled": config.is_some()}));
@@ -5241,7 +5377,7 @@ async fn update_project_notifications(
     };
 
     let config_clone = config.clone();
-    let res = patch_project(&s.project_write_lock, &dir, |p| p.notifications = config_clone).await;
+    let res = patch_project_se(&s.project_write_lock, &dir, versione_attesa(&headers), |p| p.notifications = config_clone).await;
     if res.status() == StatusCode::NO_CONTENT {
         // Hot-swap the Telegram sender (config swap keeps the script `tx` alive)
         // then restart the notification supervisor with the shared sink.
@@ -5299,12 +5435,13 @@ impl From<PageLayoutBody> for PageLayoutConfig {
 async fn update_project_page_layout(
     State(s): State<AppState>,
     Extension(user): Extension<AuthUser>,
+    headers: axum::http::HeaderMap,
     Json(config): Json<Option<PageLayoutBody>>,
 ) -> Response {
     let config: Option<PageLayoutConfig> = config.map(Into::into);
     let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
     let config_clone = config.clone();
-    let res = patch_project(&s.project_write_lock, &dir, |p| p.page_layout = config_clone).await;
+    let res = patch_project_se(&s.project_write_lock, &dir, versione_attesa(&headers), |p| p.page_layout = config_clone).await;
     if res.status() == StatusCode::NO_CONTENT {
         s.audit.log("project.change", Some(user.username), serde_json::json!({"what": "page_layout"}));
     }
@@ -5326,11 +5463,12 @@ struct BackupConfigBody {
 async fn update_project_backup_config(
     State(s): State<AppState>,
     Extension(user): Extension<AuthUser>,
+    headers: axum::http::HeaderMap,
     Json(body): Json<BackupConfigBody>,
 ) -> Response {
     let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
     let body_clone = body.clone();
-    let res = patch_project(&s.project_write_lock, &dir, |p| {
+    let res = patch_project_se(&s.project_write_lock, &dir, versione_attesa(&headers), |p| {
         p.auto_backup_interval_minutes = body_clone.interval_minutes;
         p.auto_backup_retention = body_clone.retention;
     }).await;
@@ -5779,5 +5917,107 @@ mod q30_tests {
         assert!(!testo.contains("vecchio"), "coda del file precedente:\n{testo}");
         let doc: serde_yaml::Value = serde_yaml::from_str(&testo).unwrap();
         assert_eq!(doc["meta"]["name"].as_str(), Some("n"));
+    }
+}
+
+/// Q30, la seconda metà: due schede che salvano la **stessa** sezione.
+#[cfg(test)]
+mod q30_versione_tests {
+    use super::*;
+
+    fn progetto_minimo(dir: &std::path::Path) {
+        std::fs::write(
+            dir.join("project.yaml"),
+            "meta:\n  name: prova\n  version: \"1\"\ntags: []\n",
+        )
+        .unwrap();
+    }
+
+    fn tag(id: &str) -> sws_core::project::TagDef {
+        serde_yaml::from_str(&format!("id: {id}\n")).unwrap()
+    }
+
+    fn versione_su_disco(dir: &std::path::Path) -> String {
+        versione_di(&std::fs::read_to_string(dir.join("project.yaml")).unwrap())
+    }
+
+    fn etag(r: &Response) -> Option<String> {
+        r.headers()
+            .get(axum::http::header::ETAG)
+            .and_then(|v| v.to_str().ok())
+            .map(|v| v.trim_matches('"').to_string())
+    }
+
+    /// Senza `If-Match` niente cambia: uno script o un `curl` che non conoscono
+    /// il meccanismo continuano a salvare come prima.
+    #[tokio::test]
+    async fn senza_if_match_si_salva_come_prima() {
+        let dir = tempfile::tempdir().unwrap();
+        progetto_minimo(dir.path());
+        let lock = tokio::sync::Mutex::new(());
+        let r = patch_project_se(&lock, dir.path(), None, |p| p.tags.push(tag("a"))).await;
+        assert_eq!(r.status(), StatusCode::NO_CONTENT);
+    }
+
+    /// Con la versione giusta si salva, e la risposta porta quella **nuova**:
+    /// senza, la scheda che ha appena salvato prenderebbe un 409 contro se
+    /// stessa al salvataggio successivo.
+    #[tokio::test]
+    async fn con_la_versione_giusta_si_salva_e_torna_la_nuova() {
+        let dir = tempfile::tempdir().unwrap();
+        progetto_minimo(dir.path());
+        let lock = tokio::sync::Mutex::new(());
+
+        let v0 = versione_su_disco(dir.path());
+        let r = patch_project_se(&lock, dir.path(), Some(v0.clone()), |p| p.tags.push(tag("a"))).await;
+        assert_eq!(r.status(), StatusCode::NO_CONTENT);
+        let v1 = etag(&r).expect("la risposta deve portare la versione nuova");
+        assert_ne!(v1, v0, "la versione deve cambiare dopo una scrittura");
+        assert_eq!(v1, versione_su_disco(dir.path()), "e combaciare col disco");
+
+        // Con la versione tornata si salva di nuovo, senza rileggere.
+        let r2 = patch_project_se(&lock, dir.path(), Some(v1), |p| p.tags.push(tag("b"))).await;
+        assert_eq!(r2.status(), StatusCode::NO_CONTENT);
+    }
+
+    /// **Il test di Q30, seconda metà.** Due schede partono dalla stessa
+    /// versione; la prima salva, la seconda viene rifiutata — e soprattutto il
+    /// lavoro della prima è ancora sul disco.
+    #[tokio::test]
+    async fn la_seconda_scheda_viene_rifiutata_e_non_cancella_la_prima() {
+        let dir = tempfile::tempdir().unwrap();
+        progetto_minimo(dir.path());
+        let lock = tokio::sync::Mutex::new(());
+
+        let vista_da_entrambe = versione_su_disco(dir.path());
+
+        let prima = patch_project_se(&lock, dir.path(), Some(vista_da_entrambe.clone()),
+            |p| p.tags = vec![tag("della_prima")]).await;
+        assert_eq!(prima.status(), StatusCode::NO_CONTENT);
+
+        let seconda = patch_project_se(&lock, dir.path(), Some(vista_da_entrambe),
+            |p| p.tags = vec![tag("della_seconda")]).await;
+        assert_eq!(seconda.status(), StatusCode::CONFLICT,
+            "la seconda scheda partiva da dati vecchi e va rifiutata");
+
+        let testo = std::fs::read_to_string(dir.path().join("project.yaml")).unwrap();
+        assert!(testo.contains("della_prima"),
+            "il lavoro della prima scheda deve essere ancora là:\n{testo}");
+        assert!(!testo.contains("della_seconda"),
+            "e quello rifiutato non deve essere finito sul disco:\n{testo}");
+    }
+
+    /// Il 409 deve **spiegarsi**: senza il rimedio, chi lo riceve non sa cosa
+    /// fare e prova a risalvare.
+    #[tokio::test]
+    async fn il_rifiuto_dice_cosa_fare() {
+        let dir = tempfile::tempdir().unwrap();
+        progetto_minimo(dir.path());
+        let lock = tokio::sync::Mutex::new(());
+        let r = patch_project_se(&lock, dir.path(), Some("non-combacia".into()), |p| p.tags.push(tag("x"))).await;
+        assert_eq!(r.status(), StatusCode::CONFLICT);
+        let corpo = axum::body::to_bytes(r.into_body(), 8192).await.unwrap();
+        let testo = String::from_utf8_lossy(&corpo);
+        assert!(testo.contains("Ricarica"), "manca il rimedio: {testo}");
     }
 }

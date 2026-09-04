@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { api, getAuthToken, getBaseUrl, RuntimeUnavailableError, type CreateUserBody, type DiscoveredRuntime, type SystemStatus, type UpdateUserBody, type UserRole, type UserSummary } from "@/api/client";
+import { api, getAuthToken, getBaseUrl, RuntimeUnavailableError, type CreateUserBody, type DiscoveredRuntime, type SystemStatus, type UpdateUserBody, type UserRole, type UserSummary, dimenticaVersioneProgetto } from "@/api/client";
 import { getBrand } from "@/branding";
 import { containerDeployPayload, effectiveDataPath, type ContainerSource } from "@/containerDeploy";
 import { containerManagePayload, type ManageAction, type RestartPolicy } from "@/containerManage";
@@ -8532,6 +8532,11 @@ function RuntimeConnectionTab() {
       const created = await api.uploadProjectZip(ask.blob, name);
       log(`Apertura di "${created.name}"…`);
       await api.openProject(created.name);
+      // Q30: la versione vista è quella del progetto di **prima**. Tenerla
+      // farebbe rifiutare il primo salvataggio su quello nuovo con un 409 che
+      // non ha nessuna corsa dietro — un conflitto inventato insegna a
+      // ignorare i conflitti veri.
+      dimenticaVersioneProgetto();
 
       // Backup lato IDE dello stato appena importato: integro, prima di
       // qualunque modifica e prima dell'aggiornamento di formato che il

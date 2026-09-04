@@ -12,6 +12,41 @@ use sysinfo::{Disks, System};
 use crate::router::{active_dir, AppState};
 use crate::source_supervisor::SourceSupervisor;
 
+/// Un avviso sullo stato del runtime: **il runtime non sta facendo quello che
+/// credi**, e questo dice cosa e come rimediare.
+///
+/// # Perché un elenco unico e non un campo per caso
+///
+/// Al 2026-09-04 di casi ce n'erano tre, arrivati da tre lavori diversi e con
+/// tre destini diversi: uno script globale che non viene schedulato per un cron
+/// illeggibile (l'errore finiva solo nel log del runtime, Q34); l'acquisizione
+/// ferma dall'operatore, per cui un salvataggio persiste senza avviare (Q33); e
+/// una scrittura rifiutata su un `project.yaml` non caricabile, che era l'unico
+/// dei tre a rispondere qualcosa di leggibile (Q30). Tre istanze della stessa
+/// mancanza — il runtime prende una decisione sensata e l'interfaccia tace —
+/// che il quarto caso avrebbe ripetuto.
+///
+/// Si **calcolano dallo stato reale** a ogni chiamata, e non si accumulano in
+/// una coda di eventi: un avviso che resta appeso dopo che la causa è sparita è
+/// il difetto opposto, e costringerebbe a inventare quando cancellarlo. Il cron
+/// in particolare si rilegge con `crate::cron`, lo **stesso** parser che
+/// schedula, quindi l'avviso non può contraddire il comportamento — è la
+/// ragione per cui quel parser è stato messo in un posto solo.
+#[derive(Serialize, Debug, PartialEq, Clone)]
+pub struct Avviso {
+    /// `"errore"` = qualcosa che l'utente crede attivo non lo è.
+    /// `"avviso"` = funziona, ma non come sembra.
+    pub gravita: &'static str,
+    /// Dove guardare, in forma leggibile: `script globale «pompa»`,
+    /// `acquisizione`.
+    pub dove: String,
+    pub messaggio: String,
+    /// Cosa fare. Senza questo un avviso dice solo che qualcosa non va, e chi
+    /// lo legge deve indovinare — è la stessa ragione per cui i rilievi del
+    /// validatore hanno un `hint`.
+    pub rimedio: String,
+}
+
 #[derive(Serialize, Debug, PartialEq)]
 pub struct SystemStatus {
     pub runtime_version: String,
@@ -46,7 +81,34 @@ pub struct SystemStatus {
     pub tag_count: usize,
     pub source_count: usize,
     /// True when the supervisor has at least one source running.
+    ///
+    /// **È un effetto, non un'intenzione**, e la differenza conta: un progetto
+    /// senza sorgenti dichiarate lo mette a `false` pur girando regolarmente.
+    /// Per sapere se l'operatore ha fermato l'impianto si guarda `armed`.
     pub sources_running: bool,
+    /// Q33: l'acquisizione è **armata**? `false` solo dopo uno Stop esplicito
+    /// dell'operatore, e fino al successivo Avvia.
+    ///
+    /// Questo è ciò che l'IDE deve mostrare nel pallino di testata. Prima
+    /// mostrava `sources_running`, cioè deduceva lo stop dall'assenza di
+    /// sorgenti attive: un progetto con zero sorgenti si presentava come fermo,
+    /// e un impianto fermo tornava «in marcia» appena un salvataggio riavviava
+    /// le sorgenti — che è precisamente il difetto di Q33 visto dalla UI.
+    pub armed: bool,
+    /// Gli avvisi correnti: vedi [`Avviso`]. Vuoto quando non c'è niente da
+    /// dire, che è il caso normale.
+    pub avvisi: Vec<Avviso>,
+    /// Il server ha utenti definiti, quindi pretende un login.
+    ///
+    /// Serve alla SPA per distinguere **«non sei autenticato»** da **«qui non
+    /// serve autenticarsi»**: senza utenti il runtime apre tutte le rotte
+    /// (no-auth mode), e i controlli riservati a chi può configurare — Stop e
+    /// Avvia in testata — sparivano perché il ruolo era `null`. Un pulsante che
+    /// non c'è per un permesso che non viene richiesto è un pulsante perso.
+    ///
+    /// Riportato e non dedotto, per la stessa ragione scritta sopra per `mode`:
+    /// la SPA lo indovinava da un 404, e una deduzione quando sbaglia mente.
+    pub auth_required: bool,
     pub alarm_active_count: usize,
     pub historian_samples: u64,
     pub cpu_usage_pct: f32,
@@ -77,6 +139,10 @@ pub async fn compute_system_status(
     // chiamante futuro che lo dimenticasse — invece di lasciarlo restituire un
     // campo sbagliato in silenzio.
     ide_only: bool,
+    // Passato per la stessa ragione di `ide_only`: qui non c'è `AppState`, e
+    // un chiamante che lo dimenticasse non deve poter restituire un campo
+    // sbagliato in silenzio.
+    auth_required: bool,
 ) -> SystemStatus {
     let mut sys = System::new_all();
     sys.refresh_all();
@@ -90,12 +156,14 @@ pub async fn compute_system_status(
     // Version-drift detection: read the on-disk project to compare the runtime
     // that saved it against this build. Cheap (a small YAML file) and only when
     // a project is open.
-    let (project_saved_by, project_needs_update) = match project_dir
-        .and_then(|p| sws_core::Project::load(p).ok())
-    {
+    // Il progetto su disco serve due volte: per la deriva di versione e per gli
+    // avvisi. Si carica una volta sola.
+    let progetto = project_dir.and_then(|p| sws_core::Project::load(p).ok());
+    let (project_saved_by, project_needs_update) = match &progetto {
         Some(p) => (p.saved_by.clone(), p.needs_update()),
         None => (None, false),
     };
+    let avvisi = calcola_avvisi(progetto.as_ref(), supervisor);
 
     let alarms_snap = alarms.snapshot().await;
     let alarm_active_count = alarms_snap.iter().filter(|a| a.active).count();
@@ -122,6 +190,9 @@ pub async fn compute_system_status(
         tag_count,
         source_count,
         sources_running: source_count > 0,
+        armed: supervisor.is_armed(),
+        avvisi,
+        auth_required,
         alarm_active_count,
         historian_samples,
         cpu_usage_pct: sys.global_cpu_info().cpu_usage(),
@@ -130,6 +201,84 @@ pub async fn compute_system_status(
         disk_used_gb: disk.map(|d| (d.total_space() - d.available_space()) / 1_073_741_824).unwrap_or(0),
         disk_total_gb: disk.map(|d| d.total_space() / 1_073_741_824).unwrap_or(0),
     }
+}
+
+/// Gli avvisi correnti, calcolati dallo stato reale. Vedi [`Avviso`].
+fn calcola_avvisi(
+    progetto: Option<&sws_core::Project>,
+    supervisor: &SourceSupervisor,
+) -> Vec<Avviso> {
+    let mut out = Vec::new();
+
+    // ── Q33: l'acquisizione è ferma ──────────────────────────────────────────
+    //
+    // Non è un errore — è una scelta dell'operatore — ma va detto, perché ne
+    // consegue una cosa che nessuno si aspetta: un salvataggio delle Sorgenti
+    // persiste sul disco e **non** avvia niente. Prima quella conseguenza si
+    // poteva solo dedurre dal fatto che il selettore restava su STOP.
+    if !supervisor.is_armed() {
+        out.push(Avviso {
+            gravita: "avviso",
+            dove: "acquisizione".into(),
+            messaggio: "L'acquisizione è ferma: driver, script globali, notifiche e Telegram \
+                        non stanno girando.".into(),
+            rimedio: "Un salvataggio viene scritto sul disco ma non fa ripartire niente: \
+                      premi RUN quando vuoi rimettere in marcia l'impianto.".into(),
+        });
+    }
+
+    let Some(p) = progetto else { return out };
+
+    // ── Q34: script globali che non partiranno mai ───────────────────────────
+    //
+    // Il cron si rilegge con `crate::cron`, cioè **lo stesso** parser che
+    // schedula: l'avviso non può dire una cosa e il runtime farne un'altra. È
+    // la ragione per cui quel parser vive in un posto solo — prima le regole
+    // erano scritte due volte e la copia nel validatore ha mentito per un
+    // giorno.
+    for gs in &p.global_scripts {
+        if !gs.enabled {
+            continue; // disabilitato è una scelta, non un difetto.
+        }
+        let sws_core::ScriptTrigger::Cron { schedule } = &gs.trigger else { continue };
+        let (cron, problemi) = crate::cron::analizza(schedule);
+        let errori: Vec<&crate::cron::Problema> = problemi
+            .iter()
+            .filter(|x| x.gravita == crate::cron::Gravita::Errore)
+            .collect();
+        if cron.is_none() {
+            let dettaglio = errori
+                .iter()
+                .map(|x| x.messaggio.as_str())
+                .collect::<Vec<_>>()
+                .join("; ");
+            out.push(Avviso {
+                gravita: "errore",
+                dove: format!("script globale «{}»", gs.id),
+                messaggio: format!(
+                    "Non è schedulato e non partirà mai: il cron `{schedule}` non è \
+                     utilizzabile ({dettaglio})."
+                ),
+                rimedio: errori
+                    .first()
+                    .map(|x| x.suggerimento.clone())
+                    .unwrap_or_else(|| "Correggi l'espressione cron.".into()),
+            });
+        } else {
+            // Gli avvisi del parser (campi mancanti, campi di troppo) non
+            // impediscono di partire, ma cambiano *quando*: `30 4` gira ogni
+            // giorno di ogni mese, che non è quasi mai ciò che si intendeva.
+            for a in problemi.iter().filter(|x| x.gravita == crate::cron::Gravita::Avviso) {
+                out.push(Avviso {
+                    gravita: "avviso",
+                    dove: format!("script globale «{}»", gs.id),
+                    messaggio: format!("Il cron `{schedule}` parte, ma forse non quando credi: {}", a.messaggio),
+                    rimedio: a.suggerimento.clone(),
+                });
+            }
+        }
+    }
+    out
 }
 
 pub async fn get_system_status(State(state): State<AppState>) -> Json<SystemStatus> {
@@ -143,6 +292,7 @@ pub async fn get_system_status(State(state): State<AppState>) -> Json<SystemStat
         dir_guard.as_deref(),
         state.started_at,
         state.ide_only,
+        state.auth.has_users().await,
     ).await)
 }
 
@@ -174,6 +324,10 @@ pub async fn migrate_project(State(s): State<AppState>) -> Response {
 /// `POST /api/system/stop` — stop all sources and script/notification supervisors.
 /// The web server and tag DB remain active; the project is still "open".
 pub async fn system_stop(State(s): State<AppState>) -> StatusCode {
+    // Q33: **prima** si disarma, poi si ferma. L'ordine conta: fra le due
+    // istruzioni c'è un `await`, e un salvataggio delle Sorgenti che arrivasse
+    // in mezzo troverebbe il supervisore ancora armato e ripartirebbe.
+    s.supervisor.set_armed(false);
     s.supervisor.reload(vec![]).await;
     if let Some(sc) = s.script_supervisor.write().await.take() {
         sc.stop();
@@ -201,6 +355,16 @@ pub async fn system_start(State(s): State<AppState>) -> StatusCode {
         }
     };
     crate::projects::resolve_mqtt_client_ids(&project.meta.name, &mut project.sources, &s.config_dir, &s.instance_id);
+    // Q33: si arma **qui** — dopo che il progetto si è caricato, e prima del
+    // reload, che altrimenti rifiuterebbe di avviare le sorgenti che gli stiamo
+    // passando. Non in testa alla funzione: i due `return` sopra la
+    // lascerebbero armata con niente in marcia, e l'indicatore direbbe «in
+    // marcia» a impianto fermo — cioè lo stesso genere di bugia che questa
+    // correzione esiste per togliere.
+    //
+    // Questo e `system_stop` sono i soli punti autorizzati a cambiare quel
+    // flag: è l'intenzione dell'operatore, non l'effetto di un salvataggio.
+    s.supervisor.set_armed(true);
     s.supervisor.reload(project.sources).await;
     crate::projects::start_project_services(&s, project.notifications, project.global_scripts).await;
     tracing::info!("runtime acquisition started by operator");
@@ -422,7 +586,7 @@ mod tests {
         let started = Instant::now() - std::time::Duration::from_secs(5);
         let project_path = PathBuf::from("/tmp/demo-project");
 
-        let status = compute_system_status(&db, &alarms, &supervisor, None, Some(&project_path), started, false).await;
+        let status = compute_system_status(&db, &alarms, &supervisor, None, Some(&project_path), started, false, false).await;
 
         assert_eq!(status.tag_count, 3);
         assert_eq!(status.active_project.as_deref(), Some("demo-project"));
@@ -439,7 +603,7 @@ mod tests {
         let alarms = AlarmDb::new(64);
         alarms.load(vec![]).await;
         let supervisor = make_supervisor();
-        let status = compute_system_status(&db, &alarms, &supervisor, None, None, Instant::now(), false).await;
+        let status = compute_system_status(&db, &alarms, &supervisor, None, None, Instant::now(), false, false).await;
         assert!(status.active_project.is_none());
         assert_eq!(status.tag_count, 0);
         assert_eq!(status.alarm_active_count, 0);
@@ -460,11 +624,11 @@ mod tests {
         let supervisor = make_supervisor();
 
         let ide = compute_system_status(
-            &db, &alarms, &supervisor, None, None, Instant::now(), true).await;
+            &db, &alarms, &supervisor, None, None, Instant::now(), true, false).await;
         assert_eq!(ide.mode, "ide", "senza viewer l'istanza è un IDE");
 
         let runtime = compute_system_status(
-            &db, &alarms, &supervisor, None, None, Instant::now(), false).await;
+            &db, &alarms, &supervisor, None, None, Instant::now(), false, false).await;
         assert_eq!(runtime.mode, "runtime", "con un viewer l'istanza serve un impianto");
 
         // Le due stringhe sono un contratto con la SPA: se cambiano qui senza
@@ -506,7 +670,7 @@ mod tests {
         alarms.evaluate("temp", &state).await;
 
         let supervisor = make_supervisor();
-        let status = compute_system_status(&db, &alarms, &supervisor, None, None, Instant::now(), false).await;
+        let status = compute_system_status(&db, &alarms, &supervisor, None, None, Instant::now(), false, false).await;
         assert_eq!(status.alarm_active_count, 1);
     }
 
@@ -540,5 +704,94 @@ mod tests {
         let (_, other_key) = make_cert_key();
         // A valid cert and a valid key, but from different keypairs → must be rejected.
         assert!(validate_cert_key(&cert, &other_key).is_err());
+    }
+}
+
+/// Gli avvisi: il runtime dice quando non sta facendo quello che si crede.
+#[cfg(test)]
+mod tests_avvisi {
+    use super::*;
+
+    fn supervisore() -> std::sync::Arc<SourceSupervisor> {
+        SourceSupervisor::new(
+            std::sync::Arc::new(TagDb::new(16)),
+            std::sync::Arc::new(sws_core::TagWriteBus::new()),
+        )
+    }
+
+    fn progetto(script_yaml: &str) -> sws_core::Project {
+        serde_yaml::from_str(&format!(
+            "meta:\n  name: p\n  version: \"1\"\nglobal_scripts:\n{script_yaml}"
+        ))
+        .expect("progetto di prova valido")
+    }
+
+    #[tokio::test]
+    async fn niente_da_dire_niente_avvisi() {
+        let s = supervisore();
+        assert!(calcola_avvisi(None, &s).is_empty());
+    }
+
+    /// Q33: a impianto fermo l'avviso deve nominare la conseguenza che nessuno
+    /// si aspetta — il salvataggio persiste e non avvia.
+    #[tokio::test]
+    async fn acquisizione_ferma_lo_dice_e_dice_cosa_ne_consegue() {
+        let s = supervisore();
+        s.set_armed(false);
+        let a = calcola_avvisi(None, &s);
+        assert_eq!(a.len(), 1);
+        assert_eq!(a[0].dove, "acquisizione");
+        assert!(a[0].rimedio.contains("RUN"), "manca il rimedio: {:?}", a[0]);
+        assert!(
+            a[0].rimedio.contains("non fa ripartire"),
+            "l'avviso deve dire che un salvataggio non avvia: {:?}", a[0]
+        );
+    }
+
+    /// **Il test di Q34 lato UI.** Un cron illeggibile deve comparire fra gli
+    /// avvisi, dire che lo script non partirà mai, e portare il rimedio.
+    #[tokio::test]
+    async fn un_cron_illeggibile_diventa_un_avviso() {
+        let p = progetto("  - { id: rotto, trigger: { kind: cron, schedule: \"*/0 pippo * * *\" }, code: \"x = 1\" }\n");
+        let a = calcola_avvisi(Some(&p), &supervisore());
+        assert_eq!(a.len(), 1, "{a:?}");
+        assert_eq!(a[0].gravita, "errore");
+        assert!(a[0].dove.contains("rotto"));
+        assert!(a[0].messaggio.contains("non partirà mai"), "{:?}", a[0]);
+        assert!(!a[0].rimedio.is_empty());
+    }
+
+    /// Il verso opposto, che è quello che si dimentica: un cron **valido** non
+    /// deve produrre nessun avviso. Un indicatore che si accende sul buono
+    /// insegna a ignorarlo.
+    #[tokio::test]
+    async fn un_cron_valido_non_avvisa() {
+        let p = progetto("  - { id: ok, trigger: { kind: cron, schedule: \"*/5 * * * *\" }, code: \"x = 1\" }\n");
+        assert!(calcola_avvisi(Some(&p), &supervisore()).is_empty());
+    }
+
+    /// Un cron corto parte, ma non quando si crede: è un avviso, non un errore.
+    #[tokio::test]
+    async fn un_cron_corto_avvisa_senza_essere_un_errore() {
+        let p = progetto("  - { id: corto, trigger: { kind: cron, schedule: \"30 4\" }, code: \"x = 1\" }\n");
+        let a = calcola_avvisi(Some(&p), &supervisore());
+        assert_eq!(a.len(), 1, "{a:?}");
+        assert_eq!(a[0].gravita, "avviso");
+        assert!(a[0].messaggio.contains("non quando credi"), "{:?}", a[0]);
+    }
+
+    /// Uno script disabilitato non è un difetto: è una scelta. Avvisare su
+    /// quello riempirebbe l'elenco di cose volute.
+    #[tokio::test]
+    async fn uno_script_disabilitato_non_avvisa() {
+        let p = progetto("  - { id: spento, enabled: false, trigger: { kind: cron, schedule: \"*/0 x * * *\" }, code: \"x = 1\" }\n");
+        assert!(calcola_avvisi(Some(&p), &supervisore()).is_empty());
+    }
+
+    /// E i trigger che non sono cron non hanno un'espressione da leggere.
+    #[tokio::test]
+    async fn un_trigger_non_cron_non_avvisa() {
+        let p = progetto("  - { id: a_intervallo, trigger: { kind: interval, interval_s: 5 }, code: \"x = 1\" }\n");
+        assert!(calcola_avvisi(Some(&p), &supervisore()).is_empty());
     }
 }

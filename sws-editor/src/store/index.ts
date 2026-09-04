@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { api, setAuthToken } from "@/api/client";
+import { api, setAuthToken, ProjectChangedError } from "@/api/client";
 import { applyAppearance, getStoredMode, type ThemeMode } from "@/theme";
 import { genId } from "@/id";
 import { getStoredProjectLang, setStoredProjectLang, getStoredEditorPreviewLang, setStoredEditorPreviewLang } from "@/i18n/projectI18n";
@@ -272,6 +272,15 @@ interface AppState {
 
   saveStatus: "idle" | "saving" | "ok" | "error";
   saveError: string | null;
+  /** Q30: l'ultimo salvataggio è stato **rifiutato** perché il progetto era
+   *  cambiato da quando lo si è caricato.
+   *
+   *  Distinto da `saveError` perché il rimedio è diverso e opposto a quello
+   *  istintivo: non si ritenta — con gli stessi dati vecchi si prenderebbe lo
+   *  stesso rifiuto — si ricarica. Sul disco non è stato scritto niente e il
+   *  lavoro di chi ha salvato prima è intatto. */
+  saveConflict: boolean;
+  setSaveConflict: (v: boolean) => void;
 
   // ── Unsaved-changes tracking ──────────────────────────────────────────
   //
@@ -642,6 +651,8 @@ export const useAppStore = create<AppState>((set, get) => {
     gridColor: "#1e293b",
     showRulers: readShowRulers(),
     saveStatus: "idle",
+    saveConflict: false,
+    setSaveConflict: (v: boolean) => set({ saveConflict: v }),
     saveError: null,
     pagesRev: 0,
     savedPagesRev: 0,
@@ -1985,7 +1996,7 @@ export const useAppStore = create<AppState>((set, get) => {
     saveAll: async () => {
       if (get().saveStatus === "saving") return;
       if (saveOkTimer !== null) { window.clearTimeout(saveOkTimer); saveOkTimer = null; }
-      set({ saveStatus: "saving", saveError: null });
+      set({ saveStatus: "saving", saveError: null, saveConflict: false });
 
       const failures: string[] = [];
 
@@ -2006,13 +2017,28 @@ export const useAppStore = create<AppState>((set, get) => {
       //    Questo mette al sicuro il salvataggio dell'editor. La corsa lato
       //    server resta possibile da altre strade (due schede, uno script,
       //    l'API): è Q30 in `docs/OPEN_QUESTIONS.md`.
+      // Q30: un rifiuto per versione non è un fallimento fra i tanti — ha un
+      // rimedio suo (ricaricare, non ritentare) e va riconosciuto qui, dove si
+      // sa che stiamo salvando. Si ferma il ciclo: le sezioni successive
+      // partono dagli stessi dati vecchi e prenderebbero lo stesso rifiuto,
+      // riempiendo l'elenco degli errori di righe che dicono la stessa cosa.
       const pending = Object.entries(get().pendingSections);
+      let conflitto = false;
       for (const [key, save] of pending) {
         try {
           await save();
         } catch (e) {
+          if (e instanceof ProjectChangedError) {
+            conflitto = true;
+            failures.push(errText(e));
+            break;
+          }
           failures.push(`${key}: ${errText(e)}`);
         }
+      }
+      if (conflitto) {
+        set({ saveStatus: "error", saveError: failures.join("; "), saveConflict: true });
+        return;
       }
 
       // Re-read: the flush above mutated `project`.
@@ -2056,11 +2082,14 @@ export const useAppStore = create<AppState>((set, get) => {
       tasks.push(...namesToDelete.map((n) => api.deleteSynoptic(n)));
       const results = await Promise.allSettled(tasks);
       results.forEach((r) => {
-        if (r.status === "rejected") failures.push(errText(r.reason));
+        if (r.status === "rejected") {
+          if (r.reason instanceof ProjectChangedError) conflitto = true;
+          failures.push(errText(r.reason));
+        }
       });
 
       if (failures.length > 0) {
-        set({ saveStatus: "error", saveError: failures.join("; ") });
+        set({ saveStatus: "error", saveError: failures.join("; "), saveConflict: conflitto });
         return;
       }
 

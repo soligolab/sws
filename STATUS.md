@@ -71,6 +71,45 @@ Restano da pushare i **due** commit di oggi, che sono solo script, guardie e doc
 git push origin main     # 7ae531f + 342d609, quando lo si vuole
 ```
 
+#### Q30, Q33 e Q34 chiuse, su `fix/Q33-stop-esplicito` — da confermare nel browser
+
+Il ramo porta più di quanto dice il nome: **tutte e tre** le domande, compresi i residui.
+
+| | |
+|---|---|
+| **Q33** | «fermo» è uno stato (`SourceSupervisor::armed`): un salvataggio a impianto fermo **persiste e non riavvia**, su tutti i percorsi. Più il selettore **RUN/STOP** in barra |
+| **Q34** | gli avvisi in testata dicono che uno script non è schedulato e perché — l'errore non vive più solo nel log |
+| **Q30** | `ETag`/`If-Match` su `project.yaml`: due schede che salvano la stessa sezione non si sovrascrivono, la seconda prende **409 senza scrivere** e il banner offre di ricaricare |
+
+**Da provare nel browser** (in ordine, sono cinque minuti):
+
+1. **Il selettore RUN/STOP** c'è in barra accanto al deploy e comanda. Prima non compariva affatto
+   in locale: era dietro il ruolo, e senza utenti definiti il ruolo è `null`.
+2. Premi **STOP**: compare un avviso in testata che dice che un salvataggio non farà ripartire
+   niente. Salva una Sorgente: il selettore deve **restare** su STOP e la modifica finire sul disco.
+   Premi **RUN**: riparte, e l'avviso sparisce da sé.
+3. **Gli avvisi**: metti a uno script globale il cron `*/0 pippo * * *` e salva → compare un errore
+   che dice «non partirà mai» col rimedio. Rimettilo a `*/5 * * * *` → l'avviso sparisce.
+4. **Il 409**: apri **due schede** sulla stessa istanza, in entrambe la tab Variabili. In una
+   aggiungi un tag e salva. Nell'altra aggiungi un tag diverso e salva → deve arrivare il banner
+   «il salvataggio è stato rifiutato… ricarica», e il tag della **prima** deve essere ancora là.
+
+#### Q33 — cosa c'è dentro
+
+«Fermo» è diventato uno stato (`SourceSupervisor::armed`): un salvataggio delle Sorgenti a impianto
+fermo **persiste e non riavvia**, e vale per tutti i percorsi (deploy, import, upload ZIP, apertura
+progetto) perché il rifiuto sta in due punti — `reload` e `start_project_services` — e non nei
+sette chiamanti.
+
+Con dentro due difetti della UI trovati per strada: il pallino leggeva `sources_running`, cioè un
+**effetto** (`source_count > 0`), quindi un progetto senza sorgenti si presentava come fermo pur
+girando; e **in no-auth i comandi Stop/Avvia non esistevano affatto** — `authRole` è `null` senza
+utenti definiti, e `RuntimeCtrl` non si disegnava, per un permesso che il server non stava
+chiedendo. Il comando è ora un selettore **RUN/STOP** a due pulsanti accanto al deploy.
+
+**Da provare nel browser**: il selettore c'è e comanda; premi STOP, salva una Sorgente, e il
+selettore deve **restare** su STOP con la modifica finita sul disco; premi RUN e riparte.
+
 #### La 2.5.0 è taggata, pushata, e le tre immagini sono costruite
 
 Tre archivi in `dist/`, tutti del 2026-09-03:

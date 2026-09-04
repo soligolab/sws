@@ -45,6 +45,28 @@ pub struct SourceSupervisor {
     /// `set_pki_root`.
     opcua_pki_root: tokio::sync::RwLock<std::path::PathBuf>,
     sources: Mutex<HashMap<String, RunningSource>>,
+    /// Q33: l'acquisizione è **armata**? Falso solo dopo uno Stop esplicito
+    /// dell'operatore, e fino al successivo Avvia.
+    ///
+    /// Prima «fermo» non era uno stato: era l'effetto momentaneo di un
+    /// `reload(vec![])`. Chi fermava l'impianto per lavorare in sicurezza e poi
+    /// salvava una modifica alle Sorgenti lo **riavviava senza volerlo**, perché
+    /// `PUT /api/project/sources` chiama `reload(sources)` e non aveva modo di
+    /// sapere che qualcuno aveva fermato tutto. La sola indicazione era il
+    /// pallino in testata che tornava verde. Valeva per tutti i percorsi che
+    /// ricaricano — deploy, import, upload ZIP, apertura progetto — quindi non
+    /// era un caso singolo.
+    ///
+    /// **Non persistito, di proposito**: al riavvio del processo si riparte
+    /// armati, che è il default sicuro per un impianto. Un impianto che resta
+    /// fermo dopo un riavvio senza che nessuno l'abbia chiesto è peggio di uno
+    /// che riparte.
+    ///
+    /// Vive qui e non in `AppState` perché il posto dove va rispettato è
+    /// `reload`, ed è l'unico modo di coprire anche i chiamanti che non esistono
+    /// ancora — la stessa ragione per cui la guardia dei doppi supervisori sta
+    /// dentro `start_project_services` e non nei suoi chiamanti.
+    armed: std::sync::atomic::AtomicBool,
 }
 
 impl SourceSupervisor {
@@ -54,6 +76,7 @@ impl SourceSupervisor {
             bus,
             opcua_pki_root: tokio::sync::RwLock::new(default_pki_root()),
             sources: Mutex::new(HashMap::new()),
+            armed: std::sync::atomic::AtomicBool::new(true),
         });
         let watchdog = this.clone();
         tokio::spawn(async move { watchdog.watchdog_loop().await });
@@ -139,9 +162,38 @@ impl SourceSupervisor {
         *self.opcua_pki_root.write().await = root;
     }
 
+    /// L'acquisizione è armata? Vedi il campo `armed`.
+    pub fn is_armed(&self) -> bool {
+        self.armed.load(std::sync::atomic::Ordering::Relaxed)
+    }
+
+    /// Arma o disarma l'acquisizione. Lo chiamano solo
+    /// `POST /api/system/start` e `POST /api/system/stop`: è l'intenzione
+    /// dell'operatore, e nessun altro percorso ha il diritto di cambiarla.
+    pub fn set_armed(&self, armed: bool) {
+        self.armed.store(armed, std::sync::atomic::Ordering::Relaxed);
+    }
+
     /// Apply `desired` as the new source list. Returns the number of
     /// (started, stopped, replaced) sources for logging / metrics.
+    ///
+    /// **Q33: a impianto disarmato non avvia niente.** Un `desired` non vuoto
+    /// arrivato mentre l'operatore ha premuto Stop viene trattato come vuoto:
+    /// il progetto su disco è già stato salvato da chi ci ha chiamato, e sarà
+    /// l'Avvia a rileggerlo. Rifiutare qui invece che nei chiamanti copre in un
+    /// punto solo il salvataggio delle Sorgenti, il deploy, l'import, l'upload
+    /// ZIP, l'apertura progetto — e quelli che verranno.
     pub async fn reload(self: &Arc<Self>, desired: Vec<SourceDef>) -> (usize, usize, usize) {
+        let desired = if !self.is_armed() && !desired.is_empty() {
+            tracing::info!(
+                sorgenti_ignorate = desired.len(),
+                "acquisizione ferma dall'operatore: le sorgenti sono state salvate ma NON avviate \
+                 (premi Avvia per farle partire)"
+            );
+            Vec::new()
+        } else {
+            desired
+        };
         let mut started = 0usize;
         let mut stopped = 0usize;
         let mut replaced = 0usize;
@@ -414,5 +466,75 @@ mod tests {
 
         let latest = sup.most_recent_update(&["nota".to_string(), "ignota".to_string()]).await;
         assert_eq!(latest, Some(known));
+    }
+}
+
+/// Q33: uno Stop dell'operatore non lo annulla un salvataggio.
+#[cfg(test)]
+mod tests_q33 {
+    use super::*;
+
+    fn supervisore() -> Arc<SourceSupervisor> {
+        SourceSupervisor::new(Arc::new(TagDb::new(16)), Arc::new(TagWriteBus::new()))
+    }
+
+    /// Una sorgente che non si connette a niente: basta a far contare il
+    /// supervisore, e non tocca la rete.
+    fn sorgente(id: &str) -> SourceDef {
+        serde_yaml::from_str(&format!(
+            "kind: modbus_tcp\nid: {id}\nhost: 127.0.0.1\nport: 15020\nunit_id: 1\npolling_ms: 60000\nregisters: []\n"
+        ))
+        .expect("la sorgente di prova deve essere valida")
+    }
+
+    #[tokio::test]
+    async fn armato_di_default() {
+        // Il default sicuro per un impianto: al riavvio si riparte accesi.
+        assert!(supervisore().is_armed());
+    }
+
+    /// **Il test di Q33.** Disarmato, un `reload` con sorgenti non ne avvia
+    /// nessuna — che è il percorso di `PUT /api/project/sources`, del deploy,
+    /// dell'import e dell'apertura progetto, tutti insieme.
+    #[tokio::test]
+    async fn disarmato_un_reload_non_avvia_niente() {
+        let s = supervisore();
+        s.set_armed(false);
+        let (started, _, _) = s.reload(vec![sorgente("a"), sorgente("b")]).await;
+        assert_eq!(started, 0, "a impianto fermo non deve partire nessuna sorgente");
+        assert_eq!(s.running_count().await, 0);
+    }
+
+    /// E il verso opposto, che è la metà che si dimentica: riarmando, le
+    /// sorgenti partono. Un flag che blocca e non si sblocca è peggio del
+    /// difetto.
+    #[tokio::test]
+    async fn riarmato_le_sorgenti_ripartono() {
+        let s = supervisore();
+        s.set_armed(false);
+        s.reload(vec![sorgente("a")]).await;
+        assert_eq!(s.running_count().await, 0);
+
+        s.set_armed(true);
+        let (started, _, _) = s.reload(vec![sorgente("a")]).await;
+        assert_eq!(started, 1, "riarmato, la sorgente deve partire");
+        assert_eq!(s.running_count().await, 1);
+        s.reload(vec![]).await;
+    }
+
+    /// Fermare resta possibile da fermi: `reload(vec![])` a impianto disarmato
+    /// non deve inciampare nel controllo. Sembra ovvio, ma il controllo è
+    /// scritto su `!desired.is_empty()` proprio per questo, e senza quella
+    /// condizione un secondo Stop non spegnerebbe ciò che era rimasto vivo.
+    #[tokio::test]
+    async fn disarmato_si_puo_ancora_fermare() {
+        let s = supervisore();
+        s.reload(vec![sorgente("a")]).await;
+        assert_eq!(s.running_count().await, 1);
+
+        s.set_armed(false);
+        let (_, stopped, _) = s.reload(vec![]).await;
+        assert_eq!(stopped, 1, "lo Stop deve spegnere anche a flag già abbassato");
+        assert_eq!(s.running_count().await, 0);
     }
 }
