@@ -71,7 +71,22 @@ Restano da pushare i **due** commit di oggi, che sono solo script, guardie e doc
 git push origin main     # 7ae531f + 342d609, quando lo si vuole
 ```
 
-#### Q30, Q33 e Q34 chiuse, su `fix/Q33-stop-esplicito` — da confermare nel browser
+#### ✅ Q30, Q33 e Q34 — chiuse e mergiate in `main`
+
+Confermate nel browser dal maintainer il 2026-09-04. **Q30 è chiusa del tutto**: le tre domande
+della scheda hanno una risposta.
+
+| | |
+|---|---|
+| **Q33** | «fermo» è uno stato (`SourceSupervisor::armed`): un salvataggio a impianto fermo **persiste e non riavvia**, su tutti i percorsi. Più il selettore **RUN/STOP** in barra |
+| **Q34** | gli avvisi in testata dicono che uno script non è schedulato e perché — l'errore non vive più solo nel log |
+| **Q30** | `ETag`/`If-Match` su `project.yaml` **e** su sinottici, faceplate e ricette: chi parte da dati vecchi prende 409 senza scrivere, e il banner offre di ricaricare |
+
+Due comportamenti che sembrano difetti e non lo sono, da non rincorrere: un file che **non esiste**
+non ha versione e crearlo passa (creare non è sovrascrivere); e salvare **contenuto identico** non è
+un conflitto, perché la versione è dei byte.
+
+#### Q33 — cosa c'è dentro
 
 Il ramo porta più di quanto dice il nome: **tutte e tre** le domande, compresi i residui.
 
