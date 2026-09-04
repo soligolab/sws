@@ -57,145 +57,86 @@
 
 ## ▶ Da fare nella prossima sessione
 
-### 🏷 Release 2.5.0 — 2026-09-03, su `main`, **da compilare e installare**
+### ▶ Punto di partenza — chiusura del 2026-09-04
 
-Squash merge di `fix/Q30-lock-project-yaml` e `fix/Q34-cron-passi`, bump a 2.5.0, tag `2.5.0`.
-I rami **non sono stati eliminati**: la pulizia è del maintainer. `main` **non è pushato**.
+**Albero pulito, tutto mergiato, niente a metà.**
 
-**Minor e non patch**, deciso col maintainer: il cron accetta ora espressioni che prima rifiutava,
-e chi legge il changelog per numero di versione troverebbe una funzionalità nuova dove si aspetta
-solo correzioni. Nessun progetto esistente cambia comportamento.
+`origin/main` è a `97ffff1`, cioè al commit di release della 2.5.0, e il tag `2.5.0` è su origin:
+**il push l'ha fatto il maintainer**, prima di compilare, così le immagini portano un commit di
+provenienza raggiungibile da chiunque (`97ffff1-arm64`, `97ffff1-amd64`).
 
-Cosa c'è dentro, oltre alle tre cose già su `main` (SPA ricostruita dagli script `start_*`,
-`session_start.sh`, sysroot per la cross-build aarch64):
-
-| | |
-|---|---|
-| **Q30** | i salvataggi di `project.yaml` non si mangiano più fra loro: 50 concorrenti, col lock ne sopravvivono 50, senza ne sopravvive **1**. Scrittura atomica con `fsync` |
-| **Q34** | il cron capisce `*/5`, `9-17`, `9-17/2` e la domenica come `7`; ciò che non capisce è un errore dichiarato e non un insieme vuoto |
-
-**Le due prove che mancano, e che si fanno installando questa versione.** Nessuna delle due ha
-avuto una conferma nel browser — è una scelta consapevole, i dispositivi fisici sono il banco di
-prova:
-
-1. **Q30**: due schede sulla stessa istanza, una salva i tag e l'altra le sorgenti nello stesso
-   momento. Dopo, sul disco devono esserci **entrambe**. È il gesto che ha prodotto il difetto.
-2. **Q34**: nell'IDE, uno script globale con `*/5 * * * *`. Deve partire, e il campo cron deve
-   mostrare il suggerimento con le forme ammesse passandoci sopra col mouse.
-
-Se una delle due va male si torna indietro con un tag, non con un rollback.
-
-**Le immagini da compilare** (la correzione del sysroot è su `main` da stamattina, quindi la
-guardia della provenienza è contenta):
+Restano da pushare i **due** commit di oggi, che sono solo script, guardie e documentazione:
 
 ```bash
-./scripts/build_containers_all.sh --push
+git push origin main     # 7ae531f + 342d609, quando lo si vuole
 ```
 
-Se si vuole che le immagini portino un commit raggiungibile da chiunque, `git push origin main`
-va fatto **prima** della build: oggi i commit della 2.5.0 esistono solo su frodo.
+#### La 2.5.0 è taggata, pushata, e le tre immagini sono costruite
 
-**Mai provate, e non le prova nessuna guardia:** il Deploy completo verso un dispositivo vero
-attraverso la porta stretta `--no-admin`; la chat staccata con una proposta di modello vera;
+Tre archivi in `dist/`, tutti del 2026-09-03:
+
+| immagine | archivio | caricata | per |
+|---|---|---|---|
+| `2.5.0-arm64` | 142 MB | 447 MB | pannelli Pixsys |
+| `2.5.0-arm64-generic` | 149 MB | — (deposito di **root**) | board arm64 non Pixsys |
+| `2.5.0-amd64` | 64 MB | 182 MB | PC, VM |
+
+`./scripts/riepilogo_immagini.sh` lo ristampa quando serve. I commit di oggi (script e guardie)
+**non stanno nelle immagini** e non richiedono di ricompilarle: non finiscono nel container.
+
+#### Le due prove sul dispositivo che restano da fare
+
+1. **Q34** — nell'IDE, uno script globale con `*/5 * * * *`: deve partire, e il campo cron deve
+   mostrare il suggerimento con le forme ammesse passandoci sopra col mouse. **Questa si collauda
+   a mano davvero.**
+2. **Q30** — nel browser guarda le **regressioni**, non la corsa: che i salvataggi vadano, che
+   backup/restore/import funzionino, che niente si pianti. La corsa in sé **non è riproducibile a
+   mano** — la finestra è di millisecondi, due salvataggi da due schede sono lontani secondi — e la
+   prova sta nel caso 6 di `./scripts/check_project_write_safety.sh` (10/10, e rosso disattivando
+   il lock).
+
+E le tre che nessuna guardia prova: il **Deploy completo** verso un dispositivo vero attraverso la
+porta stretta `--no-admin`; la **chat staccata** con una proposta di modello vera;
 `e2e/chat-ai.spec.ts`.
 
+#### Cosa si potrebbe prendere in mano adesso
 
-### 🔒 Q30 — i salvataggi non si mangiano più fra loro, su `fix/Q30-lock-project-yaml`
+Nessuna di queste è iniziata, e ognuna sta in una sessione:
 
-**Da confermare nel browser prima del merge.** Il gesto che collauda è quello che ha prodotto il
-difetto: **due schede** sulla stessa istanza, una che salva i tag e l'altra le sorgenti nello stesso
-momento — dopo, sul disco devono esserci entrambe.
+- **Q33** — lo «Stop» dell'acquisizione viene annullato in silenzio da un salvataggio delle
+  Sorgenti: fermi l'impianto per lavorare in sicurezza e un salvataggio lo riavvia. Tre opzioni in
+  scheda, **serve la tua scelta** prima di partire (l'opzione 1 — un `armed` esplicito nel
+  supervisore — è 2-3h e prepara Q8-E).
+- **La spia mancante nell'IDE** per uno script globale non schedulato: l'errore del cron va nel log
+  e nel validatore, ma chi non guarda il log non lo scopre (addendum a Q34).
+- **Q30, il pezzo che resta**: due schede che salvano la *stessa* sezione. Nessun lock lo risolve,
+  serve un controllo ottimistico — e `calcola_impronta` è la granularità sbagliata (darebbe 409 a
+  chi salva un tag perché un altro ha mosso un rettangolo). Serve un'impronta del solo
+  `project.yaml` o un contatore di versione, che ora è facile: c'è un punto solo dove incrementarlo.
+- **Il video della demo**, unico residuo di Fase 5 — task tuo, fuori dallo scope di Claude Code.
 
-`AppState::project_write_lock` serializza ogni leggi-modifica-scrivi su `project.yaml`: i 13 `PUT`
-dell'IDE (via `patch_project`), il deploy, l'upload ZIP, l'import, la creazione, la rinomina, la
-migrazione all'apertura, il restore. Backup e duplica lo prendono da **lettori** — copiavano
-`project.yaml` file per file e potevano archiviare un progetto colto a metà scrittura.
+#### I rami di lavoro, tutti mergiati e tutti da cancellare quando vuoi
 
-**Quanto pesava il difetto**: 50 salvataggi concorrenti, col lock ne sopravvivono 50, togliendo il
-lock ne sopravvive **1**. Il test `cinquanta_salvataggi_concorrenti_non_si_perdono` è stato provato
-rotto a mano, ed è così che si è scoperto il difetto in cui ero caduto io (un nome di temporaneo
-fisso: le 50 scritture si rubavano il file a vicenda, cioè la funzione era corretta solo se chiamata
-sotto il lock).
+`fix/bindgen-sysroot-aarch64`, `feat/start-scripts-build-spa`, `feat/session-start`,
+`fix/Q30-lock-project-yaml`, `fix/Q34-cron-passi`, `feat/riepilogo-immagini`. La pulizia è tua.
 
-La scrittura è anche diventata **atomica** — temporaneo + `fsync` + `rename`. Prima un `fs::write`
-diretto lasciava un `project.yaml` troncato su un processo ucciso o un disco pieno, e da lì il
-runtime rifiuta *ogni* salvataggio successivo: il progetto si riapriva solo da un backup.
+#### Cos'è entrato il 2026-09-03/04
 
-Verificato su frodo: `cargo check --workspace --all-targets` verde, `cargo test -p sws-web` 160
-verdi, `pnpm build` verde, 9 guardie statiche verdi. Provati a mano su un'istanza vera, per
-escludere avvitamenti sui percorsi dove il lock è nuovo: `PUT tags` 204, `POST backups` 200,
-`restore` 204, `create` 201, `open` 200, `rename` 200, `import` 204, nessun `.tmp` rimasto.
-
-**Cosa non risolve** (addendum a Q30, non deciso): due schede che salvano la *stessa* sezione — il
-lock le serializza ma la seconda rimpiazza l'elenco intero. Serve il controllo ottimistico, e
-`calcola_impronta` è la granularità sbagliata. Annotato anche che `rename_project` non prende
-`project_switch_lock`, difetto separato trovato leggendo quel codice.
-
-### ⏰ Q34 — il cron capisce `*/5`, su `fix/Q34-cron-passi`
-
-`*/5 * * * *` è la prima cosa che chiunque scrive per «ogni cinque minuti». Il parser ammetteva
-solo `*` o interi separati da virgola, e **scartava** il resto in silenzio: il campo diventava un
-insieme vuoto, lo script veniva schedulato, il task partiva e non eseguiva mai — senza un errore,
-senza una riga di log.
-
-**Il difetto vero erano due copie**: le regole stavano nel parser che schedula *e* nel validatore
-che avvisa. Il messaggio «questo cron non capisce i passi» era vero quando è stato scritto e
-sarebbe diventato falso appena il parser li imparava, facendo riscrivere a mano dodici minuti
-separati da virgola per un `*/5` funzionante. Ora c'è `sws-web/src/cron.rs` e il validatore gli
-chiede. Due test del validatore sono stati **riscritti con l'aspettativa rovesciata**: è il punto
-esatto in cui le due copie avrebbero divergiuto.
-
-Trovati strada facendo: la **domenica scritta `7`** (che POSIX ammette) finiva fuori intervallo e
-veniva scartata in silenzio; e la sintassi **non era scritta da nessuna parte**, né nel manuale né
-nell'IDE — ora il campo cron porta un suggerimento con le forme ammesse.
-
-Provato su un runtime vero, non solo nei test: `*/1 * * * *` esegue sui confini di minuto
-(15:36:00, 15:37:00) e `*/0 pippo * * *` non parte nemmeno una volta, dichiarando entrambi i
-problemi con campo, causa e rimedio. `cargo check --workspace --all-targets` verde, 166 test di
-`sws-web` verdi, `pnpm build` verde, 9 guardie statiche verdi.
-
-**Resta aperto** (in Q34): l'errore va nel log e nel validatore, ma **non c'è una spia nell'IDE**
-che dica «questo script non è schedulato». Chi non guarda il log e non passa dal salvataggio non lo
-scopre.
-
-
-### 🔀 2026-09-03 — tre rami mergiati in `main`, **non pushati**
-
-`main` è 4 commit avanti a `origin/main` e l'albero è pulito. Il push non è stato dato: si fa
-quando il maintainer lo dice.
-
-| commit | cosa |
+| commit | |
 |---|---|
-| `0a940c2` | **cross-build aarch64**: bindgen di `lvgl-sys` non trovava gli header di sistema. È quello che sbloccava la build dei container Pixsys |
-| `cc2ada0` | gli script `start_*` ricostruiscono la SPA quando serve, e se `pnpm build` fallisce lo **dichiarano** invece di suggerire il comando appena fallito |
-| `1ff2106` | `session_start.sh` — la prima cosa da lanciare prima di riprendere il lavoro, su qualunque macchina |
-| `7340a70` | le due voci di CHANGELOG che mancavano + il piano di `session_start` in `docs/plans/` |
+| `0a940c2` | cross-build aarch64: il sysroot per il bindgen di `lvgl-sys` — sbloccava le immagini Pixsys |
+| `cc2ada0` | gli script `start_*` ricostruiscono la SPA quando serve, e se `pnpm build` fallisce lo dichiarano |
+| `1ff2106` | `session_start.sh` — la prima cosa da lanciare prima di riprendere il lavoro |
+| `ec3731c` | **Q30** — 50 salvataggi concorrenti: col lock ne sopravvivono 50, senza ne sopravvive 1. Scrittura atomica con `fsync` |
+| `a267a27` | **Q34** — il cron capisce `*/5`, `9-17`, `9-17/2`, la domenica come `7`; l'illeggibile è un errore dichiarato |
+| `97ffff1` | release 2.5.0 |
+| `7ae531f` | riepilogo delle immagini + la prova HTTP di Q30 (e la guardia che non partiva e non lo diceva) |
 
-Verificato su frodo: `cargo check --workspace --all-targets` verde, `pnpm build` verde, tutte e
-**9** le guardie statiche verdi (la nona è `check_session_start.sh`, che conta come prova che il
-merge è dentro). I tre rami **non sono stati eliminati**: la pulizia è del maintainer.
+### 🏷 Release 2.4.0 — 2026-09-02 — **superata dalla 2.5.0** (storico)
 
-**Le due immagini che restano da compilare.** La correzione del sysroot ora è su `main`, quindi la
-guardia della provenienza è contenta e si può ripartire da lì:
-
-```bash
-./scripts/build_container.sh --push          # Pixsys arm64 — è quella che era rossa
-./scripts/build_container_x86_64.sh --push
-```
-
-L'arm64 generica della 2.4.0 era già passata. Se si vuole che le immagini portino un commit
-raggiungibile da chiunque, il push di `main` va fatto **prima** della build.
-
-**Mai provate, e non le prova nessuna guardia:** il Deploy completo verso un dispositivo vero
-attraverso la porta stretta `--no-admin`; la chat staccata con una proposta di modello vera;
-`e2e/chat-ai.spec.ts`.
-
-> Non tracciato in `docs/plans/`: `2026-09-03-via-di-fuga-stop-pixsys.md`, comparso oggi alle
-> 12:39 e non scritto in questa sessione — presumibilmente da una sessione concorrente sullo
-> stesso checkout. Lasciato dov'è, senza committarlo: non è mio da decidere.
-
-
-### 🏷 Release 2.4.0 — 2026-09-02, su `main`, **da compilare e installare**
+> Non c'è più niente da fare qui: le immagini della 2.5.0 sono costruite e contengono tutto questo.
+> La sezione resta perché il cambio di comportamento che descrive — l'IDE che sul dispositivo non
+> c'è più — vale ancora, ed è la cosa da rileggere prima di aggiornare un pannello.
 
 Squash merge di `feat/chat-staccata-e-python` (sette commit) + bump a 2.4.0 + tag `2.4.0`.
 Il ramo **non è stato eliminato**: la pulizia è del maintainer.

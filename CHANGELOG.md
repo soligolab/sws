@@ -11,6 +11,36 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### Un riepilogo in coda alla build dei container
+
+`build_containers_all.sh` chiude ora dicendo quali immagini ci sono, quanto
+pesano — archivio da copiare **e** dimensione caricata, che è tre volte tanto —
+e a quale pezzo di ferro serve ciascuna. `riepilogo_immagini.sh` si può anche
+richiamare da solo: non ricostruisce niente, legge e stampa.
+
+Legge `dist/` e non solo `podman images`: la `arm64-generic` si costruisce con
+`sudo` e finisce nel deposito di root, dove un `podman images` da utente non la
+vede — la prima versione la dava per mancante appena costruita. Distingue
+**etichettata** da **pubblicata**, perché una tag `ghcr.io` in locale prova solo
+che `podman tag` è stato fatto.
+
+### La corsa di Q30 ha una prova sul percorso HTTP
+
+Caso 6 di `check_project_write_safety.sh`: venti giri di due salvataggi
+paralleli, e alla fine sul disco devono esserci i valori dell'ultimo giro in
+entrambe le sezioni. Serve perché **il collaudo a mano non può funzionare** — la
+finestra della corsa è di millisecondi, due salvataggi da due schede sono
+lontani secondi e non collidono quasi mai, ed è per questo che il difetto è
+arrivato fino alla 2.5.0 pur essendo sistematico.
+
+Quella guardia, per suo conto, **non partiva affatto e non lo diceva**: su pyenv
+il runtime di prova moriva su `libpython3.11.so.1.0` e la guardia proseguiva —
+ogni `curl` tornava `000`, il caso 4 concludeva «il rifiuto è troppo largo» e il
+caso 5 dichiarava «salvataggio rifiutato (000)» come un successo. Cinque
+verdetti sul comportamento di un runtime mai avviato. Ora trova la libreria da
+sé e, se l'health non risponde, si ferma dicendo perché.
+
+
 ## [2.5.0] — 2026-09-03
 
 **Minor e non patch** perché il cron accetta espressioni che prima rifiutava: chi
