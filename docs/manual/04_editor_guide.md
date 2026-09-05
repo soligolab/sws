@@ -107,6 +107,40 @@ Widget divisi per categoria:
 **LAYOUT** — struttura pagina:
 - Grid (griglia con celle configurabili)
 
+### Il limite della pagina
+
+Quando la pagina ha delle dimensioni (modalità **Fisso** o **Solo proporzioni**),
+il rettangolo tratteggiato blu è il foglio. Attorno c'è un **tavolo** neutro: il
+colore di sfondo che imposti riempie il foglio e si ferma lì, così si vede dove
+finisce quello che l'operatore vedrà.
+
+Il bordo del foglio **trattiene ma non imprigiona**. Trascinando un oggetto verso
+il bordo si sente una resistenza: l'oggetto si incolla al limite mentre il
+cursore lo supera, e si stacca solo se si continua a trascinare con decisione
+(una ventina di pixel oltre). Non serve nessun tasto. I due assi sono
+indipendenti: un oggetto può scivolare lungo il bordo inferiore mentre esce a
+destra.
+
+**Un oggetto portato interamente fuori dal foglio è parcheggiato.** Resta nel
+progetto e lo si continua a vedere in editor, grigio e attenuato, ma **non viene
+disegnato a runtime**: né nel viewer del browser, né sul pannello, e il
+validatore smette di segnalarne i difetti. È il modo di togliere qualcosa dalla
+grafica senza cancellarlo — utile per mettere da parte un widget mentre si
+riorganizza una pagina, o per tenere pronta una variante.
+
+Basta che l'oggetto tocchi il bordo, anche di un pixel, perché resti attivo: si
+spegne solo ciò che è stato portato via del tutto. Le pipe con i capi agganciati
+a un altro oggetto fanno eccezione e non si parcheggiano mai — la loro
+geometria è dove stanno i capi; per metterne una da parte si staccano prima.
+
+Quando una pagina ha oggetti parcheggiati, il pannello proprietà lo dice col
+numero. Vale la pena leggerlo dopo aver **rimpicciolito** una pagina: tutto
+quello che resta fuori dalle nuove misure si spegne, e l'avviso è il modo di
+accorgersene senza aprire il viewer.
+
+In modalità **Fluida** la pagina non ha dimensioni dichiarate, quindi non ha un
+bordo: niente tavolo, niente resistenza, niente parcheggio.
+
 ### OGGETTI PAGINA
 
 Lista degli oggetti presenti nella pagina corrente.

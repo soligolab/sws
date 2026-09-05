@@ -71,6 +71,10 @@ const SUPPORTED_TYPES: &[&str] = &[
 pub struct RenderSummary {
     pub rendered: Vec<String>,
     pub skipped_unsupported: Vec<String>,
+    /// T-52 — oggetti parcheggiati fuori dal foglio, quindi mai creati. Nel
+    /// riepilogo perché «N oggetti saltati perché fuori pagina» è la riga che
+    /// spiega una pagina vuota senza dover aprire l'editor.
+    pub skipped_off_page: Vec<String>,
 }
 
 /// Un widget la cui apparenza dipende da un tag e va ricontrollata a ogni
@@ -6117,6 +6121,30 @@ pub fn render_page_objects(
         let (Some(id), Some(obj_type)) = (obj.id.as_deref(), obj.obj_type.as_deref()) else {
             continue; // oggetto senza id/type: dato malformato, ignorato silenziosamente
         };
+        // T-52 — il parcheggio: un oggetto portato interamente fuori dal foglio
+        // non si crea affatto.
+        //
+        // **L'ordine di queste righe è la semantica, e nessun compilatore lo
+        // direbbe.** Il controllo va qui, sulle coordinate *scritte*, e non più
+        // in basso: dopo `apply_bindings` e `punti_ancorati` la variabile `obj`
+        // è ombreggiata da una copia con la geometria risolta dai tag, e
+        // misurare quella significherebbe che un `x` legato a un tag disabilita
+        // l'oggetto sul pannello e non nel browser — dove il controllo sta
+        // prima della risoluzione. Parcheggiare è un gesto di progetto, non uno
+        // stato del vivo.
+        //
+        // Visivamente è quasi un no-op: gli oggetti sono figli dello screen, e
+        // lo screen è grande come la pagina, quindi LVGL ritagliava già da sé.
+        // Le ragioni per averlo sono altre tre, e la prima è sostanziale:
+        // `set_pos_size` castra a `i16` senza clamp, quindi un oggetto
+        // parcheggiato molto lontano **rientrerebbe per overflow** (x = 66000
+        // diventa 464, cioè dentro la pagina) — improbabile a mano, per niente
+        // improbabile via script o import; non si creano widget che non si
+        // vedranno, e i pannelli sono lenti; e il riepilogo lo dice.
+        if obj.is_off_page(page) {
+            summary.skipped_off_page.push(id.to_string());
+            continue;
+        }
         // F2: i binding proprietà→tag vanno risolti PRIMA del render, come fa
         // `resolveObject` sul web — altrimenti il widget nasce con la
         // geometria statica e la posizione live non arriva mai.

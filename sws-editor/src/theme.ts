@@ -30,6 +30,18 @@ const STORAGE_KEY = "sws.theme";
 // Nomi delle CSS custom properties introdotte dal tema (oltre ai --brand-*
 // neutri/accento già definiti dal branding).
 const VAR_TEXT_SUBTLE   = "--brand-text-subtle";
+/** T-52: il colore del **tavolo** attorno al foglio, nel canvas dell'editor.
+ *
+ *  Sta qui e non in `BrandColors` di proposito: non è un colore di marca ma
+ *  un'affordance di editing — dice «qui puoi lavorare, ma non è il foglio» —
+ *  e un brand che lo ridefinisse potrebbe farlo coincidere col colore pagina,
+ *  cancellando l'unica cosa che il token esiste per rendere visibile.
+ *
+ *  Perché non si riusa un token esistente: `--brand-bg` no, perché il wrapper
+ *  del canvas non ha sfondo e il desk diventerebbe indistinguibile dalla
+ *  chrome dell'app; `--brand-surface-2` no, perché in chiaro è `#f1f5f9`, cioè
+ *  indistinguibile da una pagina bianca. */
+const VAR_CANVAS_DESK   = "--brand-canvas-desk";
 const VAR_DANGER        = "--brand-danger";
 const VAR_DANGER_SOFT   = "--brand-danger-soft";
 const VAR_DANGER_BG     = "--brand-danger-bg";
@@ -77,6 +89,15 @@ const LIGHT_NEUTRALS: Neutrals = {
   bg: "#f8fafc", surface: "#ffffff", surface2: "#f1f5f9", border: "#cbd5e1",
   text: "#0f172a", text2: "#334155", textMuted: "#576475", textSubtle: "#6b7890",
 };
+
+// Il tavolo del canvas (T-52). Fuori da `Neutrals` perché non lo si può
+// sovrascrivere per brand: vedi il commento su `VAR_CANVAS_DESK`.
+//
+// In scuro è **più scuro** dello sfondo app (`#0f172a`), così il foglio
+// galleggia sopra al tavolo invece di annegarci; in chiaro è un grigio da
+// tavolo, distinguibile dal `#f8fafc` dell'app e da una pagina bianca.
+const DARK_DESK  = "#0a0f1a";
+const LIGHT_DESK = "#e2e8f0";
 
 const DARK_STATUS: StatusColors = {
   danger: "#ef4444",  dangerSoft: "#fca5a5",  dangerBg: "#7f1d1d",
@@ -222,6 +243,7 @@ export function applyAppearance(mode: ThemeMode): ResolvedTheme {
   s.setProperty(CSS_VARS.text2,     neutrals.text2);
   s.setProperty(CSS_VARS.textMuted, neutrals.textMuted);
   s.setProperty(VAR_TEXT_SUBTLE,    neutrals.textSubtle);
+  s.setProperty(VAR_CANVAS_DESK,    resolved === "light" ? LIGHT_DESK : DARK_DESK);
 
   // Stato.
   s.setProperty(VAR_DANGER,       status.danger);

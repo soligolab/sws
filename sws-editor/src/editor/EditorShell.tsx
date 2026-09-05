@@ -12,7 +12,7 @@ import { TagInput } from "@/components/TagInput";
 import { BindableInput } from "@/components/BindableInput";
 import { ImageBrowser } from "@/components/ImageBrowser";
 import { SYMBOL_LIST } from "@/symbols/library";
-import { ASPECT_RATIOS, editorFitSize, effectiveSizeMode, getDevicePresets, referenceResolutionFor, STANDARD_DEVICE_PRESETS } from "@/pageLayout";
+import { ASPECT_RATIOS, editorFitSize, effectiveSizeMode, getDevicePresets, isOffPage, referenceResolutionFor, STANDARD_DEVICE_PRESETS } from "@/pageLayout";
 import { getBrand } from "@/branding";
 import { genId } from "@/id";
 import type { SymbolMeta } from "@/symbols/library";
@@ -1008,6 +1008,8 @@ export function EditorShell() {
               zones={currentPage?.zones}
               locked={currentPage?.locked}
               sizeMode={effectiveSizeMode(project?.page_layout)}
+              offPageCount={(currentPage?.objects ?? []).filter(
+                (o) => isOffPage(o, currentPage?.width, currentPage?.height)).length}
               onChange={(patch) => updatePageProps(currentPageId, patch)}
             />
             <span style={{ fontSize: 11, fontWeight: 700, color: "var(--brand-text-subtle, #64748b)", letterSpacing: 1, marginTop: 8, display: "block" }}>
@@ -1377,6 +1379,7 @@ function PageProps({
   zones,
   locked,
   sizeMode,
+  offPageCount,
   onChange,
 }: {
   name: string;
@@ -1388,6 +1391,9 @@ function PageProps({
   zones?: string[];
   locked?: boolean;
   sizeMode: PageSizeMode;
+  /** T-52 — quanti oggetti di questa pagina stanno interamente fuori dal
+   *  foglio, e quindi non verranno disegnati a runtime. */
+  offPageCount: number;
   onChange: (patch: Partial<{ name: string; background: string; background_dark: string | undefined; width: number | undefined; height: number | undefined; auto_rotate_skip: boolean | undefined; zones: string[] | undefined }>) => void;
 }) {
   const { t } = useTranslation();
@@ -1515,6 +1521,21 @@ function PageProps({
         <p style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", margin: "0 0 4px" }}>
           Nessuna dimensione dichiarata (modalità Fluida): il contenuto si disegna 1:1 nella
           viewport disponibile, senza scaling né confini.
+        </p>
+      )}
+      {offPageCount > 0 && (
+        /* T-52 / rischio R8 — rimpicciolire una pagina disabilita in silenzio
+           tutto quello che resta fuori: gli oggetti restano nel file ma non
+           vengono più disegnati. È l'unico effetto di T-52 che tocca progetti
+           già esistenti, e senza questa riga il progettista lo scoprirebbe
+           aprendo il viewer. Un solo avviso per pagina, col numero: nessun
+           rilievo per-oggetto (vedi Q39). */
+        <p style={{ fontSize: 11, color: "var(--brand-warning, #f59e0b)", background: "#451a0322",
+                    border: "1px solid #92400e", borderRadius: 4, padding: "4px 8px", margin: "6px 0 0" }}>
+          ⚠ {offPageCount} {offPageCount === 1 ? "oggetto è" : "oggetti sono"} fuori dal foglio
+          e non {offPageCount === 1 ? "verrà disegnato" : "verranno disegnati"} a runtime.
+          {" "}Trascina{offPageCount === 1 ? "lo" : "li"} dentro il bordo tratteggiato per
+          riattivar{offPageCount === 1 ? "lo" : "li"}, oppure allarga la pagina.
         </p>
       )}
       <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8 }}>

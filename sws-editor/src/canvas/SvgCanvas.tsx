@@ -19,7 +19,13 @@ import { evalExpr } from "@/expr/engine";
 import { applyStateColor, parseSvg, sanitizeSvg } from "@/symbols/customSvg";
 import { trendTraces } from "@/canvas/trendModel";
 import { SYMBOLS } from "@/symbols/library";
-import { clampToPage } from "@/pageLayout";
+import {
+  PAGE_EDGE_RESIST_PX,
+  isOffPage,
+  objectBBox as objBBox,
+  pageFillEnabled,
+  softClampToPage,
+} from "@/pageLayout";
 import type { AlarmSeverity, AlarmState, CustomSymbol, FaceplateDef, FaceplateParamDef, GridCell, PageSizeMode, PipePoint, Sample, SynopticObject, TableRow, TagDef, TagState, TextListEntry } from "@/types";
 
 // ── Canvas props ──────────────────────────────────────────────────────────────
@@ -128,6 +134,18 @@ interface DragState {
    *  of every OTHER selected object, so the same rigid delta applied to the
    *  anchor (after snapping/clamping) can be applied to the whole group. */
   groupStart?: { id: string; x: number; y: number; x2?: number; y2?: number; points?: PipePoint[] }[];
+  /** T-52 — la gabbia su cui si misura il limite morbido: il rettangolo di
+   *  TUTTO ciò che si trascina (oggetto, linea, pipe, o l'unione della
+   *  multi-selezione) espresso come scostamento dall'origine che usa la
+   *  matematica del drag — `obj.x/obj.y`, ma `points[0]` per le pipe — più le
+   *  sue dimensioni. Una gabbia sola per il gruppo: trattenere ogni seguace
+   *  per conto suo lo deformerebbe. */
+  cage: { offX: number; offY: number; w: number; h: number };
+  /** T-52 — assi già sganciati in questo trascinamento. Sganciato resta
+   *  sganciato fino al rilascio: rearmare a metà gesto farebbe comportare la
+   *  seconda metà del trascinamento diversamente dalla prima. */
+  freedX: boolean;
+  freedY: boolean;
 }
 
 interface ResizeState {
@@ -548,7 +566,12 @@ function QDot({ x, y, quality, goodColor, badColor, uncertainColor }: {
 export function SvgCanvas({
   objects,
   tagValues = {},
-  background = "#1a1a2e",
+  // Il default resta (lo usano una quarantina di punti, `defaultObjectTextColor`
+  // compreso), ma serve anche sapere se la prop **è stata data**: vedi
+  // `pageFillOn` più sotto — la miniatura del LeftPanel monta questo componente
+  // in ramo viewer `ratio` senza passarla, e dipingerle addosso il default
+  // sarebbe un colore inventato.
+  background: backgroundProp,
   selectedId,
   selectedIds,
   gridSize = 10,
@@ -581,6 +604,10 @@ export function SvgCanvas({
   fitScale = 1,
 }: SvgCanvasProps) {
   const { t } = useTranslation();
+  // Il default storico del componente, ripristinato subito: tutto il resto del
+  // file lo usa come prima. L'unico posto che guarda `backgroundProp` grezzo è
+  // `pageFillOn`.
+  const background = backgroundProp ?? "#1a1a2e";
   // Resolved selection set: prefer the explicit array, fall back to the
   // legacy single-id prop, then to "nothing selected".
   const selIds = selectedIds ?? (selectedId ? [selectedId] : []);
@@ -834,25 +861,9 @@ export function SvgCanvas({
   const snap = (v: number) =>
     snapEnabled && gridSize > 0 ? Math.round(v / gridSize) * gridSize : v;
 
-  /** Compute the bounding box of an object in SVG space.
-   *  Lines use the min/max of their two endpoints; other types use x/y/w/h. */
-  const objBBox = (obj: SynopticObject): { x1: number; y1: number; x2: number; y2: number } => {
-    if (obj.type === "line") {
-      const lx1 = Math.min(obj.x ?? 0, obj.x2 ?? obj.x ?? 0);
-      const ly1 = Math.min(obj.y ?? 0, obj.y2 ?? obj.y ?? 0);
-      const lx2 = Math.max(obj.x ?? 0, obj.x2 ?? obj.x ?? 0);
-      const ly2 = Math.max(obj.y ?? 0, obj.y2 ?? obj.y ?? 0);
-      return { x1: lx1, y1: ly1, x2: lx2, y2: ly2 };
-    }
-    if (obj.type === "pipe" && obj.points && obj.points.length >= 1) {
-      const xs = obj.points.map((p) => p.x);
-      const ys = obj.points.map((p) => p.y);
-      return { x1: Math.min(...xs), y1: Math.min(...ys), x2: Math.max(...xs), y2: Math.max(...ys) };
-    }
-    const ox = obj.x ?? 0;
-    const oy = obj.y ?? 0;
-    return { x1: ox, y1: oy, x2: ox + (obj.width ?? 0), y2: oy + (obj.height ?? 0) };
-  };
+  // T-52 — `objBBox` era una closure qui e non catturava niente: ora vive in
+  // `pageLayout.ts` accanto a `isOffPage`, che la usa. Le sei chiamate qui
+  // dentro non sono cambiate, solo la provenienza del nome.
 
   const handleSvgMouseDown = (e: React.MouseEvent<SVGSVGElement>) => {
     if (!onMove) return;
@@ -1122,8 +1133,13 @@ export function SvgCanvas({
           setSnapLines({ x: sX, y: sY });
         }
         if (width >= 4 && height >= 4) {
-          const clamped = clampToPage(x, y, width, height, pageWidth, pageHeight);
-          onMove(objId, { x: clamped.x, y: clamped.y, width, height });
+          // T-52 — niente clamp qui. Il magnete a `0`/`pageW/2`/`pageW` di
+          // poco sopra è già il trattenimento morbido di un bordo, mentre il
+          // clamp che c'era prima era un difetto: spostava **x** per far stare
+          // dentro `x + width`, quindi trascinando la maniglia destra oltre il
+          // bordo il lato **sinistro** dell'oggetto scivolava a sinistra
+          // (x=1000 w=200 su pagina 1280, w→400 ⇒ x=880).
+          onMove(objId, { x, y, width, height });
         }
       }
     } else if (dragRef.current && onMove) {
@@ -1203,11 +1219,26 @@ export function SvgCanvas({
       if (snapY === null) newY = snap(rawY);
       setSnapLines({ x: snapX, y: snapY });
 
-      // Hard-clamp to page bounds — skipped for lines (dx2/dy2) and
-      // multi-waypoint shapes (points), whose bounding box isn't just x/y+w/h.
-      if (dragRef.current.dx2 === undefined && !dragRef.current.startPoints) {
-        const clamped = clampToPage(newX, newY, dw, dh, pageWidth, pageHeight);
-        newX = clamped.x; newY = clamped.y;
+      // T-52 — il limite morbido: lo snap propone, il bordo pagina dispone.
+      // Va **dopo** tutta la cascata di snap e dopo `setSnapLines`, o si
+      // disegnerebbe una guida su una posizione che poi non viene usata.
+      //
+      // Non c'è più il caso speciale per `line` e `pipe`: la gabbia è una bbox
+      // (calcolata in `startDrag`), non `width`/`height`, quindi anche loro
+      // vengono trattenute — prima il vecchio `clampToPage` le saltava del
+      // tutto e uscivano dalla pagina senza alcuna resistenza.
+      {
+        const c = dragRef.current.cage;
+        const soft = softClampToPage(
+          { x: newX + c.offX, y: newY + c.offY },
+          { x: rawX + c.offX, y: rawY + c.offY },
+          c.w, c.h, pageWidth, pageHeight, PAGE_EDGE_RESIST_PX / z,
+          { x: dragRef.current.freedX, y: dragRef.current.freedY },
+        );
+        newX = soft.x - c.offX;
+        newY = soft.y - c.offY;
+        dragRef.current.freedX = soft.freed.x;
+        dragRef.current.freedY = soft.freed.y;
       }
 
       const patch: Partial<SynopticObject> = { x: newX, y: newY };
@@ -1327,6 +1358,10 @@ export function SvgCanvas({
       offsetY: pt.y - (obj.y ?? 0),
       startX:  obj.x ?? 0,
       startY:  obj.y ?? 0,
+      // Riempita in fondo, quando si sa se il gesto muove uno o tutti.
+      cage:    { offX: 0, offY: 0, w: 0, h: 0 },
+      freedX:  false,
+      freedY:  false,
     };
     if (obj.type === "line") {
       ds.dx2 = (obj.x2 ?? obj.x + 100) - (obj.x ?? 0);
@@ -1354,9 +1389,55 @@ export function SvgCanvas({
           points: o.type === "pipe" ? o.points?.map((pp) => ({ ...pp })) : undefined,
         }));
     }
+    // T-52 — la gabbia del limite morbido. Si misura **qui** e non a ogni
+    // mousemove per due ragioni: le dimensioni non cambiano durante un
+    // trascinamento, e l'unione della multi-selezione va congelata alla presa,
+    // o un seguace che entra in vista cambierebbe la gabbia a metà gesto.
+    //
+    // L'origine è quella che usa la matematica del drag (`newX`/`newY` in
+    // `handleMouseMove`): `obj.x/obj.y` in generale, `points[0]` per le pipe —
+    // cioè esattamente ciò da cui è stato tolto `offsetX/offsetY` qui sopra.
+    {
+      const originX = ds.startPoints ? ds.startPoints[0].x : (obj.x ?? 0);
+      const originY = ds.startPoints ? ds.startPoints[0].y : (obj.y ?? 0);
+      let bb = objBBox(obj);
+      if (ds.groupStart) {
+        for (const g of ds.groupStart) {
+          const other = objects.find((o) => o.id === g.id);
+          if (!other) continue;
+          const ob = objBBox(other);
+          bb = { x1: Math.min(bb.x1, ob.x1), y1: Math.min(bb.y1, ob.y1),
+                 x2: Math.max(bb.x2, ob.x2), y2: Math.max(bb.y2, ob.y2) };
+        }
+      }
+      ds.cage = { offX: bb.x1 - originX, offY: bb.y1 - originY,
+                  w: bb.x2 - bb.x1, h: bb.y2 - bb.y1 };
+      // Chi era già fuori nasce sganciato: la gabbia trattiene ciò che era
+      // dentro, e risucchiare un oggetto parcheggiato al primo movimento del
+      // mouse sarebbe il contrario di quel che serve.
+      const maxX = Math.max(0, (pageWidth ?? 0) - ds.cage.w);
+      const maxY = Math.max(0, (pageHeight ?? 0) - ds.cage.h);
+      ds.freedX = !!pageWidth  && (bb.x1 < 0 || bb.x1 > maxX);
+      ds.freedY = !!pageHeight && (bb.y1 < 0 || bb.y1 > maxY);
+    }
     openInteraction("Sposta oggetto");
     dragRef.current = ds;
   };
+
+  // ── T-52: il colore della pagina si ferma al bordo della pagina ───────────
+  //
+  // Prima il colore stava come `background` CSS sul nodo `<svg>`, che in editor
+  // è 100%×100% del viewport: il foglio non aveva un confine visibile, e il
+  // rettangolo tratteggiato galleggiava dentro una distesa dello stesso colore.
+  // Ora il colore è un `<rect>` **dentro** il `<g>` trasformato — spazio
+  // pagina, quindi pan e zoom lo muovono col resto — e sull'`<svg>` resta un
+  // fondo neutro.
+  //
+  // *Quando* dipingerlo lo decide `pageFillEnabled`, che sta in `pageLayout.ts`
+  // con la sua tabella di verità: le ragioni dei quattro fattori sono
+  // documentate là e non qui, o le due copie deriveranno. Si passa la prop
+  // **grezza** apposta — vedi il commento della funzione.
+  const pageFillOn = pageFillEnabled(backgroundProp, pageWidth, pageHeight, !!onMove, sizeMode);
 
   return (
     <>
@@ -1433,7 +1514,17 @@ export function SvgCanvas({
         // long-standing behavior against the standard reference resolution.
         return { width: "100%", height: "100%", viewBox: `0 0 ${pageWidth} ${pageHeight}`, preserveAspectRatio: "xMidYMid meet" };
       })()}
-      style={{ background, display: "block", userSelect: "none",
+      style={{ background: pageFillOn
+                 // Il tavolo dell'editor: un'affordance di lavoro, distinta
+                 // dalla chrome dell'app e dal foglio.
+                 ? (onMove ? "var(--brand-canvas-desk, #0a0f1a)"
+                 // Le bande del letterbox nel viewer: `--brand-bg`, non il
+                 // tavolo. Il tavolo dice «qui puoi lavorare», e nel viewer non
+                 // c'è niente da lavorare: le bande devono sparire nella chrome
+                 // dell'app invece di sembrare un secondo foglio.
+                           : "var(--brand-bg, #0f172a)")
+                 : background,
+               display: "block", userSelect: "none",
                // Q18 — il colore predefinito del testo degli oggetti si ricava
                // dallo SFONDO DELLA PAGINA, non dal tema dell'app: un sinottico
                // è un disegno, e i suoi colori devono seguire il foglio su cui
@@ -1486,6 +1577,14 @@ export function SvgCanvas({
         @media (prefers-reduced-motion: reduce) { [data-blink], [data-anim] { animation: none !important } }`}</style>
       {/* All zoomed+panned content is inside this group */}
       <g transform={`translate(${viewT.panX}, ${viewT.panY}) scale(${viewT.zoom})`}>
+      {/* T-52: il foglio. Sta **prima** del rect della griglia e non dopo:
+          dipinto sopra, coprirebbe la griglia dentro la pagina — cioè proprio
+          dove serve per allineare. La griglia resta su -50000..50000 di
+          proposito: il tavolo è area di lavoro, non fuori-scena. */}
+      {pageFillOn && (
+        <rect x={0} y={0} width={pageWidth} height={pageHeight}
+              fill={background} pointerEvents="none" />
+      )}
       {onMove && snapEnabled && gridSize > 0 && <rect x={-50000} y={-50000} width={100000} height={100000} fill="url(#sws-grid)" />}
 
       {/* Page boundary indicator — edit mode only, when dimensions are defined */}
@@ -1508,6 +1607,21 @@ export function SvgCanvas({
         const visible = isObjectVisible(obj, tagValues);
         const inEdit = !!onMove;
         if (!visible && !inEdit) return null;
+        // T-52 — il parcheggio: un oggetto portato interamente fuori dal foglio
+        // resta nel file ma non si disegna a runtime. In editor si disegna
+        // sempre, in grigio (sotto), o non lo si potrebbe più riportare dentro.
+        //
+        // Il controllo sta qui, nel ciclo di **pagina**, e non dentro
+        // `SvgObject`: i figli di un faceplate e le celle di una griglia hanno
+        // coordinate **locali**, e misurarle contro il rettangolo pagina le
+        // dichiarerebbe fuori a caso. È l'errore da non fare.
+        //
+        // Si misura sulle coordinate **scritte**, non su quelle risolte dai
+        // binding: parcheggiare è un gesto di progetto, non uno stato del vivo.
+        // Qui viene gratis perché i binding si risolvono più in basso, dentro
+        // `SvgObject`; nel motore LVGL il controllo va anticipato a mano.
+        const offPage = isOffPage(obj, pageWidth, pageHeight);
+        if (!inEdit && offPage) return null;
         // F3.1 — gating per ruolo: sotto il min_role l'oggetto sparisce
         // ("hide") o resta visibile ma inerte ("disable": pointer-events
         // none blocca click, drag e input HTML nei foreignObject).
@@ -1539,8 +1653,19 @@ export function SvgCanvas({
         const gStyle: React.CSSProperties | undefined = (() => {
           const st: React.CSSProperties = {};
           if (!visible && inEdit) st.opacity = 0.35;
+          // F11 — l'attenuazione per ruolo esiste **solo** a runtime: in editor
+          // si progetta, non si esercita un ruolo, e il progettista deve vedere
+          // quello che sta disegnando. Il grigio del fuori pagina qui sotto fa
+          // il contrario di proposito — si vede sempre, editor compreso —
+          // perché non è un effetto di runtime ma un fatto strutturale: dice
+          // «questo oggetto non verrà disegnato», ed è l'unico segnale che lo
+          // dice prima di aprire il viewer. Le due scelte convivono nello
+          // stesso blocco e non sono in contraddizione.
           if (!inEdit && !roleOk) { st.opacity = 0.45; st.pointerEvents = "none"; }
-          if (grayed) { st.filter = "grayscale(0.9)"; st.opacity = 0.55; }
+          // Il fuori pagina riusa il trattamento di stale/Bad invece di
+          // inventarne un terzo. Sta **dopo** il ramo `!visible && inEdit` così
+          // vince sull'opacità 0.35, e **non** passa da `fxOn`/`previewEffects`.
+          if (grayed || offPage) { st.filter = "grayscale(0.9)"; st.opacity = 0.55; }
           if (blinkOn) st.animation = `sws-obj-blink ${obj.blink_rate_ms ?? 800}ms step-start infinite`;
           return Object.keys(st).length > 0 ? st : undefined;
         })();

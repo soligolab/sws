@@ -452,6 +452,14 @@ pub struct SynopticObject {
     pub write_deadband: Option<f64>,
 
     // ── Limiti ──
+    /// **Conosciuti e non resi — gap dichiarato**, non un difetto muto.
+    /// `lvgl_render` non li menziona mai e in questo crate non esiste alcun
+    /// concetto di ruolo: un oggetto `min_role: Admin` viene disegnato sul
+    /// pannello come qualsiasi altro, con i suoi handler di tocco, mentre nel
+    /// browser sparisce o resta inerte. Non è un buco di sicurezza —
+    /// l'enforcement vero è per-tag e sta sul server (`TagDef.write_min_role`),
+    /// come dichiara `sws-core/src/project.rs`: *«il min_role degli oggetti è
+    /// UX»* — ma è una UX di sicurezza che qui non c'è. Vedi Q36.
     pub min_role: Option<String>,
     pub min_role_effect: Option<String>,
 
@@ -508,6 +516,50 @@ pub struct SynopticObject {
     pub to_obj_id: Option<String>,
     pub to_port: Option<String>,
 
+}
+
+// ── T-52: il fuori pagina ────────────────────────────────────────────────────
+//
+// Adattatore sottile verso `sws_core::geometry`, dove sta la definizione, con
+// il gemello TypeScript in `sws-editor/src/pageLayout.ts`. Sta **fuori** dalla
+// struct di proposito: `check_lvgl_parity.sh` legge solo il corpo di
+// `pub struct SynopticObject`, quindi un `impl` qui non le fa credere che sia
+// comparso un campo nuovo.
+//
+// Il mirror web ha la stessa coppia di metodi ma non lo stesso corpo: là `x`/`y`
+// sono `f64` nudi e `points` un `serde_json::Value`. È il motivo per cui
+// `sws_core::bbox_of` prende numeri invece di un tratto condiviso (ADR 0002).
+impl SynopticObject {
+    pub fn bbox(&self) -> sws_core::BBox {
+        let punti: Vec<(f64, f64)> = self
+            .points
+            .as_ref()
+            .map(|v| v.iter().map(|p| (p.x, p.y)).collect())
+            .unwrap_or_default();
+        sws_core::bbox_of(
+            self.obj_type.as_deref().unwrap_or(""),
+            self.x.unwrap_or(0.0),
+            self.y.unwrap_or(0.0),
+            self.width.unwrap_or(0.0),
+            self.height.unwrap_or(0.0),
+            self.x2,
+            self.y2,
+            &punti,
+        )
+    }
+
+    /// Vero se l'oggetto è interamente fuori dal foglio: non va creato.
+    ///
+    /// Le pipe **agganciate** non lo sono mai — la loro geometria vera è dove
+    /// stanno i capi, e una pipe ancorata con `points` vuoti vive nel file come
+    /// [(0,0),(0,0)], che `punti_ancorati` riempie più tardi. Identico ai due
+    /// gemelli.
+    pub fn is_off_page(&self, page: &SynopticPage) -> bool {
+        if self.from_obj_id.is_some() || self.to_obj_id.is_some() {
+            return false;
+        }
+        sws_core::is_off_page(&self.bbox(), page.width, page.height)
+    }
 }
 
 /// Porta `GridCell` di `types/index.ts`. `child`/`sub` sono `Box` perché
@@ -680,4 +732,62 @@ pub struct CustomSymbol {
     /// URL d'origine, usato solo se `svg` manca.
     #[serde(default)]
     pub url: String,
+}
+
+#[cfg(test)]
+mod tests_fuori_pagina {
+    use super::*;
+
+    fn pagina(w: Option<f64>, h: Option<f64>) -> SynopticPage {
+        let mut p: SynopticPage = serde_json::from_str(r#"{"id":"p","name":"P","objects":[]}"#)
+            .expect("pagina minima");
+        p.width = w;
+        p.height = h;
+        p
+    }
+
+    fn oggetto(json: &str) -> SynopticObject {
+        serde_json::from_str(json).expect("oggetto di prova")
+    }
+
+    /// R13 — questo gate non si vede a occhio sul pannello: LVGL già ritagliava
+    /// da sé un oggetto oltre il bordo, quindi accenderlo o spegnerlo non
+    /// cambia l'immagine. Si prova qui, e i casi che contano sono quelli
+    /// **estremi**: le coordinate negative e quelle oltre i 32767 che
+    /// `set_pos_size` castrerebbe a `i16` facendo rientrare l'oggetto dalla
+    /// parte sbagliata dello schermo.
+    #[test]
+    fn le_coordinate_estreme_sono_fuori_pagina() {
+        let pg = pagina(Some(1280.0), Some(800.0));
+        assert!(oggetto(r#"{"id":"a","type":"rect","x":66000,"y":10,"width":100,"height":50}"#)
+            .is_off_page(&pg), "66000 castrato a i16 rientrerebbe a 464: deve essere fuori prima");
+        assert!(oggetto(r#"{"id":"a","type":"rect","x":-5000,"y":10,"width":100,"height":50}"#)
+            .is_off_page(&pg));
+        assert!(!oggetto(r#"{"id":"a","type":"rect","x":100,"y":100,"width":100,"height":50}"#)
+            .is_off_page(&pg));
+        // A cavallo del bordo resta dentro: si spegne solo ciò che è stato
+        // portato via del tutto.
+        assert!(!oggetto(r#"{"id":"a","type":"rect","x":1250,"y":100,"width":100,"height":50}"#)
+            .is_off_page(&pg));
+    }
+
+    #[test]
+    fn una_pipe_agganciata_non_e_mai_fuori_pagina() {
+        let pg = pagina(Some(1280.0), Some(800.0));
+        // Con `points` a [(0,0)] e i capi ancorati la geometria vera arriva più
+        // tardi, da `punti_ancorati`: spegnerla qui la farebbe sparire ovunque
+        // stiano davvero i suoi estremi.
+        let sciolta = r#"{"id":"p1","type":"pipe","points":[{"x":9000,"y":9000}]}"#;
+        assert!(oggetto(sciolta).is_off_page(&pg));
+        let agganciata = r#"{"id":"p1","type":"pipe","points":[{"x":9000,"y":9000}],"from_obj_id":"pump"}"#;
+        assert!(!oggetto(agganciata).is_off_page(&pg));
+    }
+
+    /// Pagina senza dimensioni: nessun bordo ⇒ niente è fuori.
+    #[test]
+    fn una_pagina_fluida_non_ha_un_fuori() {
+        let pg = pagina(None, None);
+        assert!(!oggetto(r#"{"id":"a","type":"rect","x":9000,"y":9000,"width":10,"height":10}"#)
+            .is_off_page(&pg));
+    }
 }

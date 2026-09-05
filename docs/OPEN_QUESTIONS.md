@@ -3011,3 +3011,167 @@ posto solo, e qui si vede il ritorno.
 2026-09-04. (Questa scheda portava anche una riga «Decided: not yet» rimasta appesa sotto la prima:
 due verdetti in contraddizione sulla stessa domanda, rimossa il 2026-09-04.)
 
+
+---
+
+## Q35 — «fuori pagina» è implicito nelle coordinate o è un campo `disabled` esplicito?
+
+*Aperta il 2026-09-05, lavorando a T-52 (punto 3: un oggetto fuori pagina è ignorato a runtime ma
+resta nel progetto).*
+
+Il comportamento chiesto dal maintainer è «togliere qualcosa dalla grafica temporaneamente senza
+cancellarlo»: si trascina l'oggetto fuori dal foglio e sparisce dal viewer, dal pannello e dal
+validatore, ma resta nel file. Il **come** si scrive questo stato è una scelta di modello, ed è
+stata presa per il PoC senza chiudere la domanda.
+
+**Options**
+
+1. **Implicito nelle coordinate** (scelto per il PoC). Nessun campo nuovo: una funzione condivisa
+   `isOffPage` / `is_off_page` guarda la bbox contro il rettangolo pagina, e quattro chiamanti la
+   consultano. Il file YAML non cambia, quindi non cambia niente per LVGL, per la parità di
+   modello, per l'import/export.
+2. **Campo `disabled: true` esplicito** sull'oggetto. Lo stato è dichiarato invece che dedotto:
+   si può disabilitare un oggetto senza spostarlo, e un oggetto parcheggiato fuori pagina per
+   comodità di lavoro non viene disabilitato per sbaglio.
+
+**Il costo dell'opzione 1**, che è la ragione per cui la domanda resta aperta: *posizione* e
+*intenzione* diventano la stessa cosa. Chi rimpicciolisce una pagina da 1280 a 800 disabilita in
+silenzio tutto quello che stava a destra — vedi il rischio R8 del piano, e l'avviso di pagina che
+è stato aggiunto proprio per non lasciare quel cambiamento muto. E non esiste modo di parcheggiare
+un oggetto fuori dal foglio *senza* disabilitarlo.
+
+**Il costo dell'opzione 2**: un campo in più nei due mirror di struct (web e LVGL) e nello schema
+dato all'assistente, più la domanda di cosa vinca quando i due stati non concordano — un oggetto
+`disabled: false` trascinato fuori pagina si disegna o no?
+
+**Default for PoC**: opzione 1, implicito nelle coordinate. La definizione sta in un posto solo
+(`sws-editor/src/pageLayout.ts` e `sws-core/src/geometry.rs`) e una guardia statica tiene allineate
+le due tabelle di casi, quindi il passaggio all'opzione 2 non sarebbe una riscrittura.
+
+**Decided**: not yet.
+
+---
+
+## Q36 — `min_role` non esiste sul pannello LVGL
+
+*Aperta il 2026-09-05. Il sospetto era scritto in `docs/plans/2026-08-21-scada-widgets.md:122-126`
+(«il viewer LVGL ha il concetto di ruolo? verificare») e la verifica non era mai stata fatta.
+Adesso è fatta.*
+
+`grep min_role` su tutto `sws-lvgl-viewer/src/` dà **due righe**: le dichiarazioni di campo in
+`model.rs`. `lvgl_render.rs` non le menziona mai, e nel crate non esiste alcun concetto di ruolo.
+Un oggetto `min_role: Admin` viene disegnato sul pannello come qualsiasi altro, con i suoi handler
+di tocco registrati, mentre **nel browser** viene nascosto o reso inerte
+(`SvgCanvas.tsx`, gate `min_role_effect`).
+
+Non è un buco di sicurezza, ed è importante dire perché: l'enforcement vero è **per-tag**,
+`tag_write_allowed` applica `TagDef.write_min_role` lato server, e la divisione è già dichiarata in
+`sws-core/src/project.rs:79` — *«è l'enforcement che il server può davvero garantire — il min_role
+degli oggetti è UX»*. È una **UX di sicurezza che sul pannello non esiste**. L'esito pratico
+dipende dalla modalità auth: senza utenti definiti il client LVGL passa per Admin sintetico e
+l'oggetto è operabile; con utenti definiti è un Viewer anonimo e gli vengono respinte **tutte** le
+scritture, non solo quelle sotto `min_role`, con un fallimento muto per chi tocca lo schermo.
+
+**Options**
+
+1. **Lasciare il gap, dichiarandolo** (fatto: il commento accanto ai due campi in `model.rs` dice
+   che sono conosciuti e non resi, come prescrive la policy in testa a quel file).
+2. **Un ruolo da configurazione del pannello**: il viewer LVGL nasce con un ruolo dichiarato nel
+   suo file di avvio e applica i gate come il browser. Piccolo, ma è un ruolo *del dispositivo*,
+   non di chi lo tocca.
+3. **Una sessione vera nel client LVGL**, che oggi è anonimo per costruzione. È il lavoro grosso, e
+   tira dentro l'autenticazione su un pannello senza tastiera.
+
+**Default for PoC**: opzione 1. **Decided**: not yet.
+
+---
+
+## Q37 — Cosa c'è attorno alla pagina sul pannello, e cosa succede se il foglio non ci sta
+
+*Aperta il 2026-09-05, lavorando a T-52. Due fatti verificati che sono la stessa domanda.*
+
+**Attorno.** Il backend SDL2 (il default sui pannelli) apre una finestra `fullscreen_desktop`, che
+può essere più grande della pagina; `page_offset` centra il foglio e il loop di presentazione fa
+**solo** il blit del rettangolo pagina. `grep "fill_rect\|clear()\|set_draw_color"` su `main.rs`:
+zero risultati. La cornice attorno al foglio non è né riempita né azzerata per frame: **il suo
+contenuto non è definito da noi**. In editor, dopo T-52, attorno al foglio c'è un tavolo neutro
+dichiarato; sul dispositivo c'è quel che capita.
+
+**Se non ci sta.** Nel viewer web `size_mode: fixed` con una pagina più grande dello spazio
+disponibile **riduce** mantenendo le proporzioni (`viewerFitScale`, con cap a 1: nasce sul WP620,
+dove le barre rubavano 90 px). In LVGL non esiste **nessuno** scale factor — nessun
+`lv_disp_set_zoom`, nessuna trasformazione — e la pagina viene **tagliata**, con un avviso a
+console che dice «quello che avanza NON si vede». Lo stesso progetto sullo stesso dispositivo si
+vede intero nel browser e mutilato sul pannello: è una divergenza WYSIWYG molto più visibile del
+bordo pagina che T-52 è andato a sistemare.
+
+**Options**
+
+1. **Dichiarare il limite** e basta: il pannello vuole una pagina della misura del suo schermo, e
+   l'IDE lo dice quando non lo è.
+2. **Riempire la cornice** con un colore dichiarato (il colore pagina? un tavolo? nero?) e
+   **ritagliare/centrare** il blit come già fa SDL2, così almeno il taglio è deliberato.
+3. **Scalare davvero in LVGL**, che è per-widget e non per-screen: è una riscrittura del motore di
+   render, non una correzione.
+
+**Default for PoC**: opzione 1 + l'avviso che già c'è. **Decided**: not yet.
+
+---
+
+## Q38 — `size_mode: ratio` senza dimensioni esplicite: il bordo esiste ma non arriva al canvas
+
+*Aperta il 2026-09-05, lavorando a T-52.*
+
+`editorFitSize()` ricade sulla risoluzione di riferimento quando la pagina non ha `width`/`height`
+proprie ma la modalità è `ratio`; `EditorShell` però passa a `SvgCanvas` il `currentPage.width`
+**grezzo**. Quindi «adatta pagina» inquadra 1920×1080 mentre il rettangolo tratteggiato non viene
+disegnato — la sua condizione richiede `pageWidth && pageHeight`.
+
+Per T-52 la conseguenza è che in quella configurazione il colore non si limita, il bordo non
+trattiene e niente è mai «fuori pagina». Coerente con la regola «nessun bordo ⇒ nessun limite», ma
+per il motivo sbagliato: il bordo *esiste*, semplicemente non arriva al componente.
+
+**Options**
+
+1. **Passare `fitPageSize` come bordi** al canvas. Una riga — e in un colpo cambia fill,
+   resistenza e fuori-pagina per **tutti** i progetti in `ratio` senza dimensioni esplicite.
+2. **Materializzare le dimensioni** sulla pagina quando si sceglie `ratio`, così il file dice
+   quello che l'editor mostra.
+3. **Lasciare com'è**: `ratio` senza dimensioni significa «non so quanto è grande», e un foglio
+   senza misura non ha un bordo.
+
+**Default for PoC**: opzione 3, cioè nessun cambiamento. Non è un fix silenzioso da fare di
+passaggio. **Decided**: not yet.
+
+---
+
+## Q39 — Il validatore deve aprire la famiglia dei rilievi geometrici?
+
+*Aperta il 2026-09-05, lavorando a T-52.*
+
+Verificato con `grep` su tutto `validate.rs`: le sole occorrenze di `x`/`y`/`width`/`height` fuori
+dai test sono percorsi di filesystem e la semantica dei `points` di una `line`.
+`SynopticPage.width`/`height` sono **dichiarati e mai letti** dal validatore. Il modulo dichiara il
+proprio confine in testa: *«Non dice se una pagina è bella, né se il pannello LVGL la disegnerà come
+il browser»*.
+
+T-52 ha aggiunto **un** rilievo geometrico — l'avviso di pagina «N oggetti sono fuori pagina», che
+esiste per non disabilitare in silenzio i progetti esistenti quando si rimpicciolisce una pagina
+(rischio R8). È il primo, e apre una porta: oggetto di larghezza 0, due oggetti sovrapposti al
+pixel, testo che esce dal suo box, oggetto sotto la barra di navigazione.
+
+La domanda non è se quei rilievi siano utili — alcuni lo sono. È se il validatore sia il posto
+giusto, dato che oggi risponde a «questo progetto sta in piedi?» e non a «questa pagina è fatta
+bene?», e che ogni rilievo geometrico va poi tenuto d'accordo con il render, che è la cosa che nel
+tempo diverge.
+
+**Options**
+
+1. **Fermarsi qui**: l'avviso di pagina è un'eccezione motivata da un cambio di comportamento, non
+   l'inizio di una famiglia.
+2. **Aprire la famiglia** dentro il validatore, con una severità propria (`hint`? `style`?) distinta
+   dagli errori che impediscono al progetto di funzionare.
+3. **Un controllore separato** — «rilievi di composizione» — che gira nell'IDE e non nel
+   validatore, così le due domande restano distinte.
+
+**Default for PoC**: opzione 1. **Decided**: not yet.

@@ -224,15 +224,16 @@ cosa che autorizza il reset, e `check_session_start.sh` la difende fabbricando
 sette stati in un repo temporaneo — il caso che conta è il quinto, che verifica
 che del lavoro vero **non** venga resettato.
 
-## `check_static.sh` — le nove guardie che girano su file fermi
+## `check_static.sh` — le guardie che girano su file fermi
 
-Le guardie sono **ventitré**. Nove girano su file fermi (YAML, sorgenti, tabelle,
-unit systemd, e un repo git in una directory temporanea) e finiscono in pochi
-secondi; le altre quattordici vogliono un runtime in ascolto, podman o un
-dispositivo.
+Una parte gira su file fermi (YAML, sorgenti, tabelle, unit systemd, e un repo
+git in una directory temporanea) e finisce in pochi secondi; le altre vogliono un
+runtime in ascolto, podman o un dispositivo.
 
-> I numeri in questa riga invecchiano a ogni guardia nuova, e sono già stati
-> sbagliati una volta. Il conto vero lo fa lo script: i suoi due elenchi devono
+> I numeri in questa pagina invecchiano a ogni guardia nuova, e sono già stati
+> sbagliati **due** volte — la seconda proprio qui, dove il titolo diceva nove e
+> l'elenco ne portava otto. Per questo non ce ne sono più: il conto vero lo fa
+> lo script: i suoi due elenchi devono
 > coprire **tutti** i `check_*.sh` presenti, e se ne compare uno non classificato
 > `check_static.sh` **fallisce**. Se questa riga e lo script non concordano,
 > ha ragione lo script.
@@ -246,7 +247,7 @@ le lanciava tutte: a fine giornata se ne ricordavano sei, per nome, a memoria �
 e una guardia che non viene lanciata è codice morto che dà l'illusione di una
 rete di sicurezza.
 
-Le otto:
+Quelle che girano su file fermi:
 
 | Guardia | Cosa impedisce |
 |---|---|
@@ -258,6 +259,8 @@ Le otto:
 | `check_demo_templates.sh` | i due gemelli "Demo Items" divergono fra loro |
 | `check_systemd_units.sh` | trappole note nelle unit che spediamo: condizioni di livello che fanno ciclare una unit, `.path` verso unit inesistenti, `ExecStart=` relativi |
 | `check_synoptic_schema.sh` | `synoptic_schema.rs` resta indietro rispetto alle sue quattro fonti, e l'assistente IA riceve un vocabolario che non è più quello vero |
+| `check_session_start.sh` | `session_start.sh` perde lavoro: reset su commit locali che origin non ha, tag lasciati sulla storia vecchia, avanzamenti ad albero sporco |
+| `check_off_page.sh` | «fuori pagina» diventa due definizioni diverse: la tabella di casi di `sws-core/src/geometry.rs` e quella di `sws-editor/src/pageLayout.ts` devono coincidere, e i due crate devono chiamare `is_off_page` invece di riscriverlo |
 
 `check_static.sh` **fallisce anche** se in `scripts/` compare un `check_*.sh` che
 non è in nessuno dei suoi due elenchi: una guardia nuova non può restare fuori in

@@ -362,6 +362,53 @@ pub struct SynopticObject {
 // they are properties of the SymbolMeta registry on the editor side.
 // The object carries only `symbol_id`; the renderer looks the kind up.
 
+// ── T-52: il fuori pagina ────────────────────────────────────────────────────
+//
+// Adattatore sottile verso `sws_core::geometry`, che è dove sta la definizione.
+// Qui non si ridefinisce niente: si estraggono i numeri da questo mirror, che
+// ha una forma sua (`x`/`y` sono `f64` nudi, `points` è un `Value` opaco) e non
+// coincide con quella del mirror LVGL. Il gemello in TypeScript è `isOffPage`
+// in `sws-editor/src/pageLayout.ts`.
+impl SynopticObject {
+    /// I waypoint di una pipe, letti dal passthrough JSON. Un punto malformato
+    /// viene saltato invece di far fallire tutto: questo campo non è tipizzato
+    /// da nessuna parte del percorso, e un dato storto in un file non deve
+    /// impedire di dire dove sta il resto dell'oggetto.
+    fn punti(&self) -> Vec<(f64, f64)> {
+        let Some(v) = self.points.as_ref().and_then(|p| p.as_array()) else { return Vec::new() };
+        v.iter()
+            .filter_map(|p| Some((p.get("x")?.as_f64()?, p.get("y")?.as_f64()?)))
+            .collect()
+    }
+
+    pub fn bbox(&self) -> sws_core::BBox {
+        sws_core::bbox_of(
+            &self.obj_type,
+            self.x,
+            self.y,
+            self.width.unwrap_or(0.0),
+            self.height.unwrap_or(0.0),
+            self.x2,
+            self.y2,
+            &self.punti(),
+        )
+    }
+
+    /// Vero se l'oggetto è interamente fuori dal foglio, e quindi non va
+    /// disegnato né controllato.
+    ///
+    /// Le pipe **agganciate** non lo sono mai: con `from_obj_id`/`to_obj_id` la
+    /// geometria vera è dove stanno i capi, e una pipe ancorata con `points`
+    /// vuoti vive nel file come [(0,0),(0,0)]. Per parcheggiarne una si
+    /// staccano i capi. Identico al gemello TypeScript.
+    pub fn is_off_page(&self, page: &SynopticPage) -> bool {
+        if self.from_obj_id.is_some() || self.to_obj_id.is_some() {
+            return false;
+        }
+        sws_core::is_off_page(&self.bbox(), page.width, page.height)
+    }
+}
+
 /// A reusable parametric component. `objects` use `{param}` placeholders in
 /// string fields (tag, label, text…). Each instance supplies concrete values.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -385,4 +432,57 @@ pub fn safe_filename(name: &str) -> String {
             _ => c,
         })
         .collect()
+}
+
+#[cfg(test)]
+mod tests_fuori_pagina {
+    use super::*;
+
+    fn pagina(w: Option<f64>, h: Option<f64>) -> SynopticPage {
+        let mut p: SynopticPage =
+            serde_json::from_str(r#"{"id":"p","name":"P","objects":[],"background":null,"background_dark":null}"#)
+                .expect("pagina minima");
+        p.width = w;
+        p.height = h;
+        p
+    }
+
+    fn oggetto(json: &str) -> SynopticObject {
+        serde_json::from_str(json).expect("oggetto di prova")
+    }
+
+    /// Il mirror web legge i waypoint da un `serde_json::Value` opaco, quindi
+    /// ha un pezzo di codice suo che il gemello LVGL non ha: qui si prova che
+    /// dice la stessa cosa.
+    #[test]
+    fn le_pipe_si_misurano_sui_waypoint() {
+        let pg = pagina(Some(1280.0), Some(800.0));
+        let dentro = r#"{"id":"p1","type":"pipe","x":0,"y":0,
+            "points":[{"x":50,"y":400},{"x":250,"y":100}]}"#;
+        assert!(!oggetto(dentro).is_off_page(&pg));
+        let fuori = r#"{"id":"p1","type":"pipe","x":0,"y":0,
+            "points":[{"x":5000,"y":400},{"x":5200,"y":100}]}"#;
+        assert!(oggetto(fuori).is_off_page(&pg));
+    }
+
+    /// Un waypoint malformato viene saltato invece di far fallire tutto:
+    /// `points` non è tipizzato in nessun punto del percorso, e un dato storto
+    /// in un file non deve impedire di dire dove sta il resto dell'oggetto.
+    #[test]
+    fn un_waypoint_storto_non_fa_esplodere_la_misura() {
+        let pg = pagina(Some(1280.0), Some(800.0));
+        let misto = r#"{"id":"p1","type":"pipe","x":0,"y":0,
+            "points":[{"x":50,"y":400},{"y":100},"boh"]}"#;
+        assert!(!oggetto(misto).is_off_page(&pg));
+    }
+
+    #[test]
+    fn una_pipe_agganciata_non_e_mai_fuori_pagina() {
+        let pg = pagina(Some(1280.0), Some(800.0));
+        let sciolta = r#"{"id":"p1","type":"pipe","x":0,"y":0,"points":[{"x":9000,"y":9000}]}"#;
+        assert!(oggetto(sciolta).is_off_page(&pg));
+        let agganciata = r#"{"id":"p1","type":"pipe","x":0,"y":0,
+            "points":[{"x":9000,"y":9000}],"to_obj_id":"tank"}"#;
+        assert!(!oggetto(agganciata).is_off_page(&pg));
+    }
 }

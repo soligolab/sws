@@ -11,6 +11,65 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### Il limite della pagina è morbido, non una gabbia (T-52)
+
+Tre comportamenti dell'editor sinottico che sono la stessa idea vista da tre lati,
+chiesti dal maintainer il 2026-09-01.
+
+**Il colore si ferma al bordo.** Prima lo sfondo pagina era un `background` CSS
+sul nodo `<svg>`, che in editor è 100%×100% del viewport: il foglio non aveva un
+confine visibile e il rettangolo tratteggiato galleggiava dentro una distesa
+dello stesso colore. Ora il colore è un `<rect>` **dentro** il gruppo trasformato
+— quindi pan e zoom lo muovono col foglio — e attorno c'è un **tavolo** neutro
+(`--brand-canvas-desk`). Corretto nello stesso giro il gemello nel viewer web in
+`size_mode: ratio`, dove le bande del letterbox prendevano il colore della
+pagina: era lo stesso difetto in un altro ramo dello stesso componente, e
+sistemare solo l'editor avrebbe violato la regola WYSIWYG con la nostra stessa
+correzione.
+
+**Il bordo trattiene ma non imprigiona.** Gli oggetti erano confinati
+rigidamente nella pagina; ora il bordo oppone una **resistenza per distanza** —
+una ventina di pixel schermo, la stessa sensazione a ogni zoom — e chi trascina
+con decisione esce. Nessun tasto modificatore. I due assi sono indipendenti,
+così un oggetto scivola lungo il bordo inferiore mentre esce a destra, e chi era
+già fuori non viene risucchiato dentro alla presa. Da adesso anche `line` e
+`pipe` sono trattenute: prima il clamp le saltava del tutto e uscivano senza
+alcuna resistenza.
+
+Nel ridimensionamento il vincolo non è stato sostituito ma **tolto**, perché era
+un difetto: trascinando la maniglia destra oltre il bordo, il bordo **sinistro**
+dell'oggetto scivolava a sinistra mentre lo si allargava.
+
+**Il fuori pagina è un parcheggio.** Un oggetto portato interamente fuori dal
+foglio resta nel progetto, si continua a vedere in editor (grigio e attenuato) e
+**non viene disegnato a runtime**: né nel browser, né sul pannello LVGL, e il
+validatore smette di segnalarne i difetti semantici. È il modo di togliere
+qualcosa dalla grafica senza cancellarlo. Un oggetto a cavallo del bordo resta
+attivo: si spegne solo ciò che è stato portato via del tutto. Le pipe con i capi
+agganciati non si parcheggiano mai — la loro geometria è dove stanno i capi.
+
+**Attenzione ai progetti esistenti**: rimpicciolire una pagina disabilita tutto
+quello che resta fuori dalle nuove misure, e bastava già oggi farlo, perché le
+frecce e i campi x/y non hanno mai vincolato niente. Per questo il pannello
+proprietà e `POST /api/validate` avvisano, una volta per pagina e col numero:
+«N oggetti sono interamente fuori dal foglio e non verranno disegnati». È il
+primo rilievo geometrico che il validatore abbia mai fatto, e la famiglia che
+apre è registrata come domanda aperta invece di essere inaugurata per inerzia.
+
+Sotto: la definizione del «fuori pagina» è **una sola**, scritta due volte —
+`sws-core/src/geometry.rs` e `sws-editor/src/pageLayout.ts` — con quattro
+chiamanti, una tabella di casi identica nei due linguaggi e una guardia statica
+nuova (`check_off_page.sh`) che le confronta a ogni giro. Il limite morbido ha
+la sua guardia con browser vero (`check_soft_edge.sh`): misura il trattenimento,
+lo sganciamento, che la soglia sia davvero in pixel schermo e che una
+multi-selezione esca senza deformarsi.
+
+Cinque domande aperte registrate strada facendo (Q35-Q39), e un **gap
+dichiarato** che mancava: `min_role` non esiste sul pannello LVGL — un oggetto
+riservato all'amministratore viene disegnato e resta toccabile, mentre nel
+browser sparisce. Non è un buco di sicurezza, perché l'enforcement vero è
+per-tag e sta sul server, ma è una UX di sicurezza che sul pannello non c'è.
+
 ### L'assistente può guardare quello che ha disegnato (fase 3, «gli occhi»)
 
 Lo strumento `istantanea_pagina` restituisce **un'immagine** di come il motore

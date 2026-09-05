@@ -300,6 +300,16 @@ fn main() -> anyhow::Result<()> {
             summary.skipped_unsupported.join(", ")
         );
     }
+    // T-52 — è la riga che spiega una pagina più vuota del previsto senza far
+    // aprire l'editor: quegli oggetti ci sono nel file, sono solo parcheggiati
+    // fuori dal foglio.
+    if !summary.skipped_off_page.is_empty() {
+        eprintln!(
+            "fuori pagina, non disegnati ({}): {}",
+            summary.skipped_off_page.len(),
+            summary.skipped_off_page.join(", ")
+        );
+    }
     // La memoria delle bitmap SVG, se ce ne sono: è il numero su cui si
     // giocava la decisione D2, e vederlo a ogni caricamento costa una riga —
     // molto meno che andarlo a cercare il giorno in cui una pagina esagera.
@@ -649,10 +659,11 @@ fn run_drm(
                 ) {
                     Ok((summary, new_styles, new_live)) => {
                         eprintln!(
-                            "navigato a '{}': {} oggetti creati, {} non supportati",
+                            "navigato a '{}': {} oggetti creati, {} non supportati, {} fuori pagina",
                             target_page,
                             summary.rendered.len(),
-                            summary.skipped_unsupported.len()
+                            summary.skipped_unsupported.len(),
+                            summary.skipped_off_page.len()
                         );
                         styles = new_styles;
                         live_bindings = new_live;
@@ -894,10 +905,11 @@ fn run_window(
                 ) {
                     Ok((summary, new_styles, new_live)) => {
                         eprintln!(
-                            "navigato a '{}': {} oggetti creati, {} non supportati",
+                            "navigato a '{}': {} oggetti creati, {} non supportati, {} fuori pagina",
                             target_page,
                             summary.rendered.len(),
-                            summary.skipped_unsupported.len()
+                            summary.skipped_unsupported.len(),
+                            summary.skipped_off_page.len()
                         );
                         // Sostituzione, non fusione: gli Style/LiveBinding
                         // vecchi puntano a widget appena distrutti da
@@ -945,10 +957,11 @@ fn run_window(
                 ) {
                     Ok((summary, new_styles, new_live)) => {
                         eprintln!(
-                            "[reload] '{}' ridisegnata: {} oggetti, {} non supportati",
+                            "[reload] '{}' ridisegnata: {} oggetti, {} non supportati, {} fuori pagina",
                             new_page.name,
                             summary.rendered.len(),
-                            summary.skipped_unsupported.len()
+                            summary.skipped_unsupported.len(),
+                            summary.skipped_off_page.len()
                         );
                         styles = new_styles;
                         live_bindings = new_live;

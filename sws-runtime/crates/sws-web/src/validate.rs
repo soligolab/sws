@@ -556,9 +556,43 @@ pub fn semantic(project: &Project, pages: &[SynopticPage]) -> Vec<Finding> {
             }
         }
         let ids: HashSet<&str> = p.objects.iter().map(|o| o.id.as_str()).collect();
+        // T-52 — un oggetto portato interamente fuori dal foglio è parcheggiato:
+        // resta nel file ma non viene disegnato, quindi i suoi rilievi semantici
+        // (tag inesistente, `target_page` che non risolve, funzione mancante)
+        // parlerebbero di qualcosa che non c'è. Si spegne quel pacco e basta:
+        // gli **id duplicati** restano accesi, nel ciclo qui sopra, perché un id
+        // doppio rompe l'ancoraggio delle pipe che sono rimaste dentro.
+        //
+        // Il controllo sta **prima** della chiamata e non dentro
+        // `controlla_oggetto`, che comincia con un `serde_json::to_value(o)`:
+        // è l'operazione costosa, e su una pagina con molti oggetti parcheggiati
+        // si pagherebbe per niente.
+        let mut fuori = 0usize;
         for o in &p.objects {
+            if o.is_off_page(p) {
+                fuori += 1;
+                continue;
+            }
             controlla_oggetto(&mut out, p, o, &tipi, &enums, &per_id, &ids,
                               &id_pagina, &nomi_pagina, &funzioni, &mqtt_per_tag);
+        }
+        // Rischio R8 — e la ragione per cui questo avviso esiste. Rimpicciolire
+        // una pagina, o aggiornare un progetto disegnato quando il fuori pagina
+        // non voleva dire niente, disabilita in silenzio tutto quello che resta
+        // oltre il bordo. Un avviso **per pagina**, col numero: nessun rilievo
+        // per-oggetto, che sarebbe l'inizio di una famiglia intera di controlli
+        // geometrici che il validatore non ha mai fatto (Q39).
+        if fuori > 0 {
+            out.push(Finding::warn(
+                format!("pages[{}]", p.name),
+                if fuori == 1 {
+                    "un oggetto è interamente fuori dal foglio e non verrà disegnato".to_string()
+                } else {
+                    format!("{fuori} oggetti sono interamente fuori dal foglio e non verranno disegnati")
+                },
+                "restano nel file e si rivedono in editor, in grigio: trascinali dentro il bordo \
+                 tratteggiato per riattivarli, o allarga la pagina. Se li hai messi lì apposta \
+                 per toglierli dalla grafica, va bene così"));
         }
     }
     out
@@ -1221,6 +1255,62 @@ alarms: []
 
     fn errori(rs: &[Finding]) -> Vec<Finding> {
         rs.iter().filter(|f| f.severity == Severity::Error).cloned().collect()
+    }
+
+    // ── T-52: il fuori pagina spegne i rilievi semantici ────────────────────
+
+    /// Un oggetto parcheggiato fuori dal foglio non viene disegnato, quindi il
+    /// suo tag inesistente non è un problema di nessuno. Dentro, lo stesso
+    /// oggetto lo è.
+    #[test]
+    fn un_oggetto_fuori_pagina_non_genera_rilievi_semantici() {
+        let dentro = rilievi(PROGETTO, &format!(
+            "id: pg1\nname: Prova\nwidth: 1280\nheight: 800\nobjects:\n{}",
+            "  - { id: v1, type: text, x: 100, y: 100, width: 120, height: 40, tag: non.esiste }\n"));
+        assert!(cita(&errori(&dentro), "non.esiste"), "{dentro:?}");
+
+        let fuori = rilievi(PROGETTO, &format!(
+            "id: pg1\nname: Prova\nwidth: 1280\nheight: 800\nobjects:\n{}",
+            "  - { id: v1, type: text, x: 3000, y: 100, width: 120, height: 40, tag: non.esiste }\n"));
+        assert!(!cita(&fuori, "non.esiste"), "{fuori:?}");
+    }
+
+    /// …ma non si spegne in silenzio: la pagina lo dice, una volta sola e col
+    /// numero. È il presidio del rischio R8 — chi rimpicciolisce una pagina
+    /// disabilita quel che resta fuori, e deve accorgersene senza aprire il
+    /// viewer.
+    #[test]
+    fn la_pagina_avvisa_di_quanti_ne_sono_fuori() {
+        let rs = rilievi(PROGETTO, &format!(
+            "id: pg1\nname: Prova\nwidth: 1280\nheight: 800\nobjects:\n{}{}",
+            "  - { id: r1, type: rect, x: 3000, y: 100, width: 120, height: 40 }\n",
+            "  - { id: r2, type: rect, x: 100, y: 3000, width: 120, height: 40 }\n"));
+        let avvisi: Vec<_> = rs.iter().filter(|f| f.severity == Severity::Warning).collect();
+        assert_eq!(avvisi.len(), 1, "un avviso per pagina, non uno per oggetto: {rs:?}");
+        assert_eq!(avvisi[0].path, "pages[Prova]");
+        assert!(avvisi[0].message.contains('2'), "{:?}", avvisi[0].message);
+    }
+
+    /// Gli id duplicati restano accesi anche fuori pagina: un id doppio rompe
+    /// l'ancoraggio delle pipe che sono rimaste dentro, e quella rottura non è
+    /// parcheggiata insieme all'oggetto.
+    #[test]
+    fn gli_id_duplicati_si_vedono_anche_fuori_pagina() {
+        let rs = rilievi(PROGETTO, &format!(
+            "id: pg1\nname: Prova\nwidth: 1280\nheight: 800\nobjects:\n{}{}",
+            "  - { id: dop, type: rect, x: 3000, y: 100, width: 120, height: 40 }\n",
+            "  - { id: dop, type: rect, x: 3200, y: 100, width: 120, height: 40 }\n"));
+        assert!(errori(&rs).iter().any(|f| f.message.contains("stesso id")), "{rs:?}");
+    }
+
+    /// Pagina fluida: nessun bordo ⇒ niente è fuori ⇒ i rilievi restano tutti.
+    /// È la regola unica dei tre punti di T-52, vista dal validatore.
+    #[test]
+    fn su_una_pagina_fluida_niente_e_fuori() {
+        let rs = rilievi(PROGETTO, &pagina(
+            "  - { id: v1, type: text, x: 9000, y: 9000, width: 120, height: 40, tag: non.esiste }\n"));
+        assert!(cita(&errori(&rs), "non.esiste"), "{rs:?}");
+        assert!(!rs.iter().any(|f| f.message.contains("fuori dal foglio")), "{rs:?}");
     }
 
     #[test]

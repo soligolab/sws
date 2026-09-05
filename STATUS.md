@@ -57,46 +57,108 @@
 
 ## ▶ Da fare nella prossima sessione
 
-### ▶ T-52 — il limite della pagina è morbido (sessione A fatta, B-E da fare)
+### ▶ T-52 — il limite della pagina è morbido: **finito, da confermare a schermo**
 
-**Piano completo**: `docs/plans/2026-09-04-limite-pagina-morbido.md` — cinque sessioni, ognuna
-con un arresto pulito. Decisioni di design già prese, questioni fuori scope già destinate: non
-riaprirle. Attenzione al numero: **T-51 è la fase 3 «gli occhi»**, non questo.
+Ramo `feat/T-52-limite-pagina-morbido`, non mergiato e **non pushato**. Piano di riferimento:
+`docs/plans/2026-09-04-limite-pagina-morbido.md`; il piano della giornata del 2026-09-05, con le
+nove correzioni al primo, è `docs/plans/2026-09-05-T-52-sessioni-B-E.md`.
 
-**Sessione A: fatta**, sul branch `feat/T-52-limite-pagina-morbido` (`3c03a93`, pushato, **non
-mergiato**). Il colore pagina è passato da `background` CSS sul nodo `<svg>` a un `<rect>` dentro
-il `<g>` trasformato, con un tavolo neutro attorno (`--brand-canvas-desk`); incluso il gemello nel
-viewer `ratio`, dove le bande del letterbox prendevano il colore della pagina (F5).
+| | Commit | Cosa |
+|---|---|---|
+| A | `3c03a93` | il colore della pagina si ferma al bordo (+ le bande del viewer `ratio`) |
+| B | `a5628d4` | il bordo trattiene ma non imprigiona |
+| C | `c43a0c3` | il fuori pagina è un parcheggio, lato TypeScript |
+| D | `8d1f7b1` | il fuori pagina vale anche sul pannello e per il validatore |
+| E | — | documenti (questo commit) |
 
-> **Un difetto della formula del piano**, trovato provandone il vincolo «miniatura invariata»: il
-> piano scrive `paintableFill = !!background`, ma `background` ha un default nel componente
-> (`#1a1a2e`), quindi è sempre vero — e la miniatura delle pagine monta il canvas in ramo viewer
-> `ratio` **senza** passare `background`, quindi le si sarebbe dipinto sopra quel default. Ora si
-> guarda la prop grezza, e la condizione è diventata `pageFillEnabled` in `pageLayout.ts` con una
-> tabella di verità di sei casi: è a quattro fattori e uno si sbaglia in silenzio.
+**Verifica automatica, tutta verde**: `pnpm build`; **161 test** in `sws-editor` (erano 130 a fine
+sessione A); `cargo check --workspace --all-targets`; `cargo test --workspace` **441 passati**
+(base **427** misurata a inizio giornata — il «318» citato dal piano era del 2026-08-31 e non va
+più ripetuto); tutte e **10** le guardie statiche; `check_lvgl_parity.sh` verde a 238 campi, che è
+la dimostrazione che non è comparso nessun campo nuovo nel modello; e col browser vero
+`check_soft_edge.sh` (nuova), `check_multiselect_drag.sh`, `check_wysiwyg.sh`.
 
-Verificato: `pnpm build`, 130 test (+5), `check_wysiwyg.sh` verde, e i casi 3.31-3.35 **misurati
-sui pixel** invece che a occhio — foglio `#123a5f` dentro il rect, tavolo `#e2e8f0` sull'`<svg>`,
-token che segue il tema nei due versi, bande del viewer distinte dal foglio, pagina fluida
-identica a prima.
+Due guardie nuove, entrambe **provate anche rosse**:
 
-**Resta da confermare al maintainer**: il colore delle bande nel viewer (`--brand-bg`) — il piano
-lo dichiara come l'unico punto deciso senza mostrarlo a schermo. Poi **sessione B** (resistenza
-per distanza).
+- **`check_soft_edge.sh`** — il limite morbido misurato col mouse vero, perché fra `softEdgeAxis`
+  e l'oggetto che si muove ci sono la gabbia della presa, gli offset, lo zoom e la cascata di
+  snap, e nessun unit test vede quel tratto. Cinque misure; quella che conta di più distingue una
+  soglia in **pixel schermo** da una scritta per sbaglio in unità pagina — le altre quattro non la
+  vedrebbero — e un'altra prova che la gabbia del gruppo è davvero l'**unione** e non il solo
+  oggetto sotto il cursore.
+- **`check_off_page.sh`** — la tabella di casi del fuori pagina è dichiarata come **dato** in Rust
+  e in TypeScript, e questa guardia le confronta riga per riga; più il controllo che i due crate
+  **chiamino** `is_off_page` invece di riscriverlo.
 
-#### Tre difetti preesistenti trovati lanciando i giudici della sessione A
+#### 👀 Resta da guardare a schermo, prima del merge
 
-Nessuno è stato corretto: sono fuori dallo scope di T-52 e in file condivisi.
+Sono i casi che una misura non copre. Numerati come in `docs/TESTING_GUIDE.md` §3, sottosezione
+«Limite pagina — bordo morbido» (3.31-3.45).
 
-1. **`check_viewer_layout.sh` non può passare in nessun checkout**: crea un progetto dal template
-   `demo-items`, che non esiste più — ci sono `demo-items-lvgl` e `demo-items-web`. Con una copia
-   locale corretta è verde, quindi il giudizio sulla sessione A c'è; lo script committato no.
-2. **La stessa guardia esce `7` senza una riga di output** quando manca `LD_LIBRARY_PATH` a
-   libpython: il runtime di prova muore e lei non lo dice. È lo stesso difetto corretto il
-   2026-09-04 in `check_project_write_safety.sh`, e la toppa è la stessa.
-3. **Playwright non aveva mai scaricato il browser** su frodo (ora installato). E
-   `sws-editor/scripts/wysiwyg_measure.mjs` non onora `SWS_E2E_CHROMIUM`, che invece
-   `playwright.config.ts` supporta: il chromium di sistema, che su questa macchina c'è, non basta.
+- **3.35** — il colore delle **bande del letterbox** nel viewer in «solo proporzioni». Confermato
+  `--brand-bg` il 2026-09-05, ma *a parole*: è l'unico colore del lavoro deciso senza vederlo.
+- **3.36-3.40** — la **sensazione al tatto**: il trattenimento, lo sganciamento a ~24 px, nessuno
+  scatto riprendendo un oggetto già fuori, il gruppo che esce senza deformarsi, `line` e `pipe`.
+  Le misure dicono che i numeri sono giusti, non che sia piacevole. Se il trattenimento desse
+  fastidio, **il rearm è una riga** (rischio R7 del piano): oggi «sganciato resta sganciato fino
+  al rilascio», e chi esce e rientra nella stessa gesta non ritrova il trattenimento.
+- **3.43** — il confronto **pannello LVGL ↔ browser**, con coordinate negative e oltre 32767, non
+  solo «un po' fuori»: è lì che il gate serve davvero, perché `set_pos_size` castra a `i16` e
+  senza gate un oggetto a x=66000 rientrerebbe dentro la pagina a 464. Il motore LVGL non è
+  comunque mai stato provato dal vivo dopo l'ultimo merge.
+- **3.45** — l'avviso «N oggetti fuori dal foglio» su una pagina rimpicciolita.
+
+#### Tre cose da sapere prima di riprendere in mano questo ramo
+
+1. **La configurazione git di questa macchina era ancora `katodo <mauro.soligo@katodo.com>`**,
+   cioè l'identità che il `filter-branch` del 2026-08-31 ha tolto da tutta la storia. Il primo
+   commit della giornata era partito con quella e la coerenza DCO si era rotta: corretto subito, e
+   `user.name`/`user.email` sono ora impostati **a livello di repo** su
+   `Mauro Soligo <mauro@soligo.net>`. Il `--global` **non** è stato toccato: da qui, su un altro
+   repo, il nome è ancora quello vecchio.
+2. **`pnpm --dir sws-editor <cmd>` non funziona più da questa macchina**: corepack legge il pin
+   `pnpm@9.15.0` di `sws-editor/package.json` mentre gira col 11.1.2 e si rifiuta, senza fare
+   niente. Funziona `cd sws-editor && pnpm <cmd>`. `CLAUDE.md` e `scripts/README.md` citano ancora
+   la prima forma.
+3. **Le schermate del manuale mostrano il canvas di prima di T-52** —
+   `docs/manual/screenshots/02_editor_main.png` e le vicine hanno il colore della pagina steso su
+   tutta l'area invece che fermo al tratteggio. **Non** sono state rigenerate di proposito: la
+   spec vuole il progetto `demo-manual` con i suoi 109 oggetti e i suoi allarmi, e rifarle su un
+   progetto diverso darebbe schermate sbagliate in un altro modo. Da rifare dalla macchina che ha
+   quel progetto.
+
+#### Cinque domande aperte nuove, e un gap dichiarato
+
+`Q35` il modello del fuori pagina (implicito nelle coordinate o campo `disabled` esplicito);
+`Q36` il `min_role` che sul pannello LVGL **non esiste** — verificato, il sospetto era scritto nel
+piano del 2026-08-21 e la verifica non era mai stata fatta; `Q37` cosa c'è attorno alla pagina sul
+dispositivo, e LVGL che taglia dove il browser rimpicciolisce; `Q38` `ratio` senza dimensioni
+esplicite; `Q39` se il validatore debba aprire la famiglia dei rilievi geometrici — l'avviso «N
+oggetti fuori dal foglio» è il **primo** rilievo geometrico che abbia mai fatto.
+
+Nel codice, il commento **«gap dichiarato»** accanto a `min_role`/`min_role_effect` in `model.rs`,
+che la policy in testa a quel file prescrive e che mancava.
+
+#### Dopo il merge — il branch di manutenzione `fix/editor-pannello-minori`
+
+Da aprire **quando T-52 è su `main`**, non prima: il secondo commit riusa `objectBBox`, che T-52
+ha esportato. Tre difetti preesistenti, verificati durante l'analisi e lasciati fuori di proposito:
+
+1. **F2 — il backend DRM va in panic** quando pagina e display non coincidono: buffer della
+   dimensione **pagina**, blit sulle dimensioni del **display**, indice fuori range. Mitigato dal
+   `drm_backend_blocker` sui pannelli PixsysOS, raggiungibile su hardware non-Pixsys.
+2. **F6 — le frecce non muovono le pipe**: il patch è `{x, y}` con un solo caso speciale per
+   `line`; i `points`, che sono la geometria vera di una pipe, non vengono toccati.
+3. **F8 — la miniatura delle pagine ignora il tema**: usa il campo `background` grezzo senza
+   `resolvePageBackground`, quindi con tema scuro e `background_dark` mostra il colore chiaro.
+
+Più i **tre difetti dei giudici** trovati in sessione A e ancora aperti: `check_viewer_layout.sh`
+crea un progetto dal template `demo-items`, che non esiste più (ci sono `demo-items-lvgl` e
+`demo-items-web`), quindi non può passare in nessun checkout; la stessa guardia esce `7` **senza
+una riga di output** quando manca `LD_LIBRARY_PATH` a libpython; e i measure `.mjs` non onorano
+`SWS_E2E_CHROMIUM`, che `playwright.config.ts` invece supporta — `soft_edge_measure.mjs`, scritto
+oggi, è l'unico che lo fa, e `check_soft_edge.sh` è l'unica guardia che dice a voce alta quando è
+il runtime di prova a non essersi alzato.
 
 ### ▶ Punto di partenza — chiusura del 2026-09-04
 

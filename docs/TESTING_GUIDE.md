@@ -140,6 +140,60 @@ Open any project. Switch to **edit mode** (the toggle is in the top header).
 - [ ] **3.29** Click the ⟂ corner square → rulers hide. Small ⟂ icon top-left brings them back. Reload page → preference persists (`localStorage["sws.canvas.showRulers"]`).
 - [ ] **3.30** Switch page → guides are page-local (different page = different / no guides).
 
+### Limite pagina — bordo morbido (T-52)
+
+> Tre comportamenti che sono la stessa idea vista da tre lati: il colore si ferma
+> al bordo, il bordo trattiene senza imprigionare, e il fuori pagina è un
+> parcheggio. Regola unica: **pagina fluida ⇒ nessun bordo ⇒ nessuno dei tre**.
+>
+> I casi 3.31-3.35 e 3.44 sono già coperti da guardie automatiche
+> (`check_soft_edge.sh`, `check_off_page.sh`, i test di `pageLayout.test.ts` e di
+> `validate.rs`): qui restano perché una guardia misura i numeri e non dice se
+> la cosa è **piacevole**. I casi 3.35, 3.37-3.40 e 3.43 non hanno nessuna
+> copertura automatica e vanno fatti a mano.
+
+- [ ] **3.31** Pagina 1280×800 con sfondo `#123a5f`: il colore riempie **solo** il
+  rettangolo tratteggiato, fuori c'è il tavolo neutro. Pan e zoom → il colore
+  resta solidale al foglio, non alla finestra.
+- [ ] **3.32** Snap acceso: la griglia si vede **sia** sopra il foglio **sia** sul
+  tavolo. (Se sparisce dentro la pagina, il rect del foglio è stato messo dopo
+  quello della griglia.)
+- [ ] **3.33** Toggle chiaro/scuro: il tavolo segue il tema, il colore del foglio
+  segue `background` / `background_dark`.
+- [ ] **3.34** Pagina fluida: nessun tratteggio, nessun tavolo, colore su tutto —
+  esattamente come prima di T-52.
+- [ ] **3.35** Stessa pagina nel **viewer**. In `fisso` (a scala 1 e ridotto):
+  identico a prima. In `solo proporzioni`: le bande del letterbox **non** sono
+  più del colore pagina — il foglio si stacca dallo sfondo dell'app.
+- [ ] **3.36** Trascina un oggetto verso il bordo destro: si incolla al bordo
+  mentre il cursore lo supera; **~24 px schermo** oltre, si sgancia e segue il
+  mouse. Ripeti al 400% e al 25%: la sensazione al tatto deve essere la stessa.
+- [ ] **3.37** Rilascialo interamente fuori: diventa grigio e attenuato, resta
+  selezionabile e trascinabile, e il pannello mostra le x/y vere.
+- [ ] **3.38** Riprendi un oggetto già fuori pagina: **nessuno scatto** alla presa
+  (non deve essere risucchiato dentro). Rientra e rilascialo dove vuoi, anche a
+  cavallo del bordo.
+- [ ] **3.39** Multi-selezione verso il bordo: si trattiene come un blocco ed esce
+  **senza deformarsi** — le distanze fra gli oggetti non cambiano.
+- [ ] **3.40** `line` e `pipe`: stesso trattenimento degli altri (prima uscivano
+  senza alcuna resistenza). Una pipe con `from_obj_id`/`to_obj_id` **non**
+  diventa mai fuori pagina.
+- [ ] **3.41** Maniglia destra oltre il bordo: l'oggetto cresce e il suo **bordo
+  sinistro non si muove** (era il difetto: `x` scivolava a sinistra).
+- [ ] **3.42** Viewer: un oggetto interamente fuori **non compare**, né nella
+  miniatura del pannello pagine; quello a cavallo compare, tagliato dal riquadro.
+- [ ] **3.43** Stessa pagina sul **pannello LVGL**: fuori assente, a cavallo
+  presente. Confronto a schermo col browser. Provalo con coordinate **negative**
+  e oltre 32767, non solo «un po' fuori»: è lì che il gate serve davvero
+  (`set_pos_size` castra a `i16`, e senza gate x=66000 rientrerebbe a 464).
+  All'avvio il viewer stampa «fuori pagina, non disegnati (N)».
+- [ ] **3.44** `POST /api/validate`: un oggetto fuori pagina con `tag` inesistente
+  **non** genera rilievi per-oggetto; riportalo dentro → il rilievo ricompare.
+  Due oggetti fuori ⇒ **un solo** avviso di pagina, col numero.
+- [ ] **3.45** Pagina da 1280 a 800 con un oggetto a x=900: grigio in editor,
+  assente a runtime, e il pannello proprietà avvisa «1 oggetto è fuori dal
+  foglio». È il caso che tocca i progetti già esistenti.
+
 ---
 
 ## 4. Editor — LeftPanel features
