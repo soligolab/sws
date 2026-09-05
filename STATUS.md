@@ -57,108 +57,73 @@
 
 ## ▶ Da fare nella prossima sessione
 
-### ▶ T-52 — il limite della pagina è morbido: **finito, da confermare a schermo**
+### ✅ T-52 e il fix Q30 — mergiati in `main` il 2026-09-05, **non pushati**
 
-Ramo `feat/T-52-limite-pagina-morbido`, non mergiato e **non pushato**. Piano di riferimento:
-`docs/plans/2026-09-04-limite-pagina-morbido.md`; il piano della giornata del 2026-09-05, con le
-nove correzioni al primo, è `docs/plans/2026-09-05-T-52-sessioni-B-E.md`.
+Confermati a schermo dal maintainer, poi due squash merge distinti su `main`
+(`27f19ac` T-52, `c3099cd` il fix). L'albero di `main` è **byte per byte identico** al ramo di
+prova su cui la conferma è avvenuta. I rami di lavoro sono stati chiusi; `main` è avanti di due
+commit su `origin` e **il push non è stato fatto** — manca l'istruzione.
 
-| | Commit | Cosa |
-|---|---|---|
-| A | `3c03a93` | il colore della pagina si ferma al bordo (+ le bande del viewer `ratio`) |
-| B | `a5628d4` | il bordo trattiene ma non imprigiona |
-| C | `c43a0c3` | il fuori pagina è un parcheggio, lato TypeScript |
-| D | `8d1f7b1` | il fuori pagina vale anche sul pannello e per il validatore |
-| E | — | documenti (questo commit) |
+**T-52 — il limite della pagina è morbido.** Il colore si ferma al bordo (con il tavolo neutro
+attorno, e le bande del letterbox nel viewer `ratio`); il bordo trattiene con ~24 px schermo di
+resistenza ma lascia uscire chi trascina con decisione; un oggetto portato interamente fuori dal
+foglio è **parcheggiato** — resta nel file, si vede grigio in editor, e non viene disegnato né nel
+browser né sul pannello né controllato dal validatore. Il piano è
+`docs/plans/2026-09-04-limite-pagina-morbido.md`, le nove correzioni che l'analisi gli ha fatto
+sono in `docs/plans/2026-09-05-T-52-sessioni-B-E.md`.
 
-**Verifica automatica, tutta verde**: `pnpm build`; **161 test** in `sws-editor` (erano 130 a fine
-sessione A); `cargo check --workspace --all-targets`; `cargo test --workspace` **441 passati**
-(base **427** misurata a inizio giornata — il «318» citato dal piano era del 2026-08-31 e non va
-più ripetuto); tutte e **10** le guardie statiche; `check_lvgl_parity.sh` verde a 238 campi, che è
-la dimostrazione che non è comparso nessun campo nuovo nel modello; e col browser vero
-`check_soft_edge.sh` (nuova), `check_multiselect_drag.sh`, `check_wysiwyg.sh`.
+**Fix Q30 — «Aggiorna progetto» rifiutava ogni salvataggio successivo.** Trovato dal maintainer
+*mentre* provava T-52. `/api/project/migrate` riscrive `project.yaml` e la sua risposta porta
+l'ETag nuovo; il client lo buttava, e da lì ogni salvataggio prendeva un 409 con scritto «qualcun
+altro ha modificato il progetto» — dove il qualcun altro era lui stesso. Corretto anche il gemello
+sulla rinomina del progetto aperto, che nessuno aveva ancora colpito.
 
-Due guardie nuove, entrambe **provate anche rosse**:
+**Due guardie nuove**, entrambe provate anche rosse, che sono la parte che sopravvive:
 
-- **`check_soft_edge.sh`** — il limite morbido misurato col mouse vero, perché fra `softEdgeAxis`
-  e l'oggetto che si muove ci sono la gabbia della presa, gli offset, lo zoom e la cascata di
-  snap, e nessun unit test vede quel tratto. Cinque misure; quella che conta di più distingue una
-  soglia in **pixel schermo** da una scritta per sbaglio in unità pagina — le altre quattro non la
-  vedrebbero — e un'altra prova che la gabbia del gruppo è davvero l'**unione** e non il solo
-  oggetto sotto il cursore.
-- **`check_off_page.sh`** — la tabella di casi del fuori pagina è dichiarata come **dato** in Rust
-  e in TypeScript, e questa guardia le confronta riga per riga; più il controllo che i due crate
+- `check_off_page.sh` — la tabella di casi del «fuori pagina» è dichiarata come **dato** in Rust e
+  in TypeScript, e la guardia le confronta riga per riga; più il controllo che i due crate
   **chiamino** `is_off_page` invece di riscriverlo.
+- `check_versione_progetto.sh` — legge il **corpo** di ogni handler che scrive un file di progetto,
+  lo classifica (confronta `If-Match` / riporta la versione / scrive da sé) e pretende che il
+  client lo copra nel modo giusto. Una rotta nuova non classificata la fa fallire. Esiste perché il
+  difetto Q30 era nato da una frase in prosa — «se cambia lì, cambia qui» — che ha mentito per due
+  settimane senza che niente lo dicesse.
+- `check_soft_edge.sh` — il limite morbido misurato col mouse vero: fra la funzione pura e
+  l'oggetto che si muove ci sono la gabbia della presa, gli offset, lo zoom e la cascata di snap, e
+  nessun unit test vede quel tratto.
 
-#### 👀 Resta da guardare a schermo, prima del merge
+Stato al merge: 164 test editor, `cargo test --workspace` 441 passati, **11 guardie statiche**
+verdi, `check_lvgl_parity` verde a 238 campi.
 
-Sono i casi che una misura non copre. Numerati come in `docs/TESTING_GUIDE.md` §3, sottosezione
-«Limite pagina — bordo morbido» (3.31-3.45).
+#### 🔜 Da fare, in ordine di costo
 
-- **3.35** — il colore delle **bande del letterbox** nel viewer in «solo proporzioni». Confermato
-  `--brand-bg` il 2026-09-05, ma *a parole*: è l'unico colore del lavoro deciso senza vederlo.
-- **3.36-3.40** — la **sensazione al tatto**: il trattenimento, lo sganciamento a ~24 px, nessuno
-  scatto riprendendo un oggetto già fuori, il gruppo che esce senza deformarsi, `line` e `pipe`.
-  Le misure dicono che i numeri sono giusti, non che sia piacevole. Se il trattenimento desse
-  fastidio, **il rearm è una riga** (rischio R7 del piano): oggi «sganciato resta sganciato fino
-  al rilascio», e chi esce e rientra nella stessa gesta non ritrova il trattenimento.
-- **3.43** — il confronto **pannello LVGL ↔ browser**, con coordinate negative e oltre 32767, non
-  solo «un po' fuori»: è lì che il gate serve davvero, perché `set_pos_size` castra a `i16` e
-  senza gate un oggetto a x=66000 rientrerebbe dentro la pagina a 464. Il motore LVGL non è
-  comunque mai stato provato dal vivo dopo l'ultimo merge.
-- **3.45** — l'avviso «N oggetti fuori dal foglio» su una pagina rimpicciolita.
-
-#### Tre cose da sapere prima di riprendere in mano questo ramo
-
-1. **La configurazione git di questa macchina era ancora `katodo <mauro.soligo@katodo.com>`**,
-   cioè l'identità che il `filter-branch` del 2026-08-31 ha tolto da tutta la storia. Il primo
-   commit della giornata era partito con quella e la coerenza DCO si era rotta: corretto subito, e
-   `user.name`/`user.email` sono ora impostati **a livello di repo** su
-   `Mauro Soligo <mauro@soligo.net>`. Il `--global` **non** è stato toccato: da qui, su un altro
-   repo, il nome è ancora quello vecchio.
-2. **`pnpm --dir sws-editor <cmd>` non funziona più da questa macchina**: corepack legge il pin
-   `pnpm@9.15.0` di `sws-editor/package.json` mentre gira col 11.1.2 e si rifiuta, senza fare
-   niente. Funziona `cd sws-editor && pnpm <cmd>`. `CLAUDE.md` e `scripts/README.md` citano ancora
-   la prima forma.
+1. **Il push di `main`**, quando lo si vuole: `git push origin main` (due commit).
+2. **`check_f7.sh` ha un rosso preesistente e ha torto lei.** Misura il colore del testo di un
+   oggetto e lo confronta con `var(--brand-text)`, il token del **tema dell'app**; ma Q18 ha
+   deciso che quel colore viene dallo **sfondo della pagina**, via `--synoptic-text`. Sono due cose
+   diverse per costruzione, e la guardia passa solo quando tema e sfondo pagina hanno per caso la
+   stessa polarità. Verificato che non c'entra T-52: `--synoptic-text` non compare nel diff.
+   Correzione: una riga nel measure, sondare `--synoptic-text` dentro il canvas.
 3. **Le schermate del manuale mostrano il canvas di prima di T-52** —
-   `docs/manual/screenshots/02_editor_main.png` e le vicine hanno il colore della pagina steso su
-   tutta l'area invece che fermo al tratteggio. **Non** sono state rigenerate di proposito: la
-   spec vuole il progetto `demo-manual` con i suoi 109 oggetti e i suoi allarmi, e rifarle su un
-   progetto diverso darebbe schermate sbagliate in un altro modo. Da rifare dalla macchina che ha
-   quel progetto.
+   `docs/manual/screenshots/02_editor_main.png` e le vicine. Da rifare dalla macchina che ha il
+   progetto `demo-manual` coi suoi 109 oggetti: rifarle su un progetto diverso darebbe schermate
+   sbagliate in un altro modo.
+4. **Branch di manutenzione `fix/editor-pannello-minori`**, adesso apribile perché T-52 è su
+   `main` (il secondo commit riusa `objectBBox`): **F2** il backend DRM che va in panic quando
+   pagina e display non coincidono; **F6** le frecce che non muovono le pipe (il patch è `{x, y}`
+   e i `points` non vengono toccati); **F8** la miniatura delle pagine che ignora il tema.
+   Più i due difetti dei giudici ancora aperti: `check_viewer_layout.sh` crea un progetto dal
+   template `demo-items`, che non esiste più, quindi **non può passare in nessun checkout**; e la
+   stessa guardia esce `7` senza una riga di output quando manca `LD_LIBRARY_PATH` a libpython.
 
-#### Cinque domande aperte nuove, e un gap dichiarato
+#### Due cose sull'ambiente di questa macchina
 
-`Q35` il modello del fuori pagina (implicito nelle coordinate o campo `disabled` esplicito);
-`Q36` il `min_role` che sul pannello LVGL **non esiste** — verificato, il sospetto era scritto nel
-piano del 2026-08-21 e la verifica non era mai stata fatta; `Q37` cosa c'è attorno alla pagina sul
-dispositivo, e LVGL che taglia dove il browser rimpicciolisce; `Q38` `ratio` senza dimensioni
-esplicite; `Q39` se il validatore debba aprire la famiglia dei rilievi geometrici — l'avviso «N
-oggetti fuori dal foglio» è il **primo** rilievo geometrico che abbia mai fatto.
-
-Nel codice, il commento **«gap dichiarato»** accanto a `min_role`/`min_role_effect` in `model.rs`,
-che la policy in testa a quel file prescrive e che mancava.
-
-#### Dopo il merge — il branch di manutenzione `fix/editor-pannello-minori`
-
-Da aprire **quando T-52 è su `main`**, non prima: il secondo commit riusa `objectBBox`, che T-52
-ha esportato. Tre difetti preesistenti, verificati durante l'analisi e lasciati fuori di proposito:
-
-1. **F2 — il backend DRM va in panic** quando pagina e display non coincidono: buffer della
-   dimensione **pagina**, blit sulle dimensioni del **display**, indice fuori range. Mitigato dal
-   `drm_backend_blocker` sui pannelli PixsysOS, raggiungibile su hardware non-Pixsys.
-2. **F6 — le frecce non muovono le pipe**: il patch è `{x, y}` con un solo caso speciale per
-   `line`; i `points`, che sono la geometria vera di una pipe, non vengono toccati.
-3. **F8 — la miniatura delle pagine ignora il tema**: usa il campo `background` grezzo senza
-   `resolvePageBackground`, quindi con tema scuro e `background_dark` mostra il colore chiaro.
-
-Più i **tre difetti dei giudici** trovati in sessione A e ancora aperti: `check_viewer_layout.sh`
-crea un progetto dal template `demo-items`, che non esiste più (ci sono `demo-items-lvgl` e
-`demo-items-web`), quindi non può passare in nessun checkout; la stessa guardia esce `7` **senza
-una riga di output** quando manca `LD_LIBRARY_PATH` a libpython; e i measure `.mjs` non onorano
-`SWS_E2E_CHROMIUM`, che `playwright.config.ts` invece supporta — `soft_edge_measure.mjs`, scritto
-oggi, è l'unico che lo fa, e `check_soft_edge.sh` è l'unica guardia che dice a voce alta quando è
-il runtime di prova a non essersi alzato.
+1. **La configurazione git era ancora `katodo <mauro.soligo@katodo.com>`**, cioè l'identità che il
+   `filter-branch` del 2026-08-31 ha tolto da tutta la storia. Corretta a livello di **repo**;
+   il `--global` no. Su una macchina nuova va controllata prima del primo commit.
+2. **`pnpm --dir sws-editor <cmd>` non funziona qui**: corepack legge il pin `pnpm@9.15.0` di
+   `sws-editor/package.json` mentre gira col 11.1.2 e rifiuta, senza fare niente. Funziona
+   `cd sws-editor && pnpm <cmd>`. `CLAUDE.md` cita ancora la prima forma.
 
 ### ▶ Punto di partenza — chiusura del 2026-09-04
 

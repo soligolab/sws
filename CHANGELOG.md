@@ -11,6 +11,23 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### «Aggiorna progetto» non blocca più i salvataggi (Q30)
+
+Dopo aver premuto **⚠ Aggiorna progetto** ogni salvataggio di sezione veniva
+rifiutato con «qualcun altro ha modificato il progetto mentre lavoravi». Non era
+qualcun altro: era lo stesso IDE, un pulsante prima. La migrazione riscrive
+`project.yaml` e il server mandava correttamente la versione nuova, ma il client
+la buttava e continuava a presentarsi con quella di prima.
+
+Corretto anche il gemello sulla **rinomina del progetto aperto**, che nessuno
+aveva ancora incontrato: lì il server non manda nemmeno la versione, quindi l'IDE
+adesso rilegge il progetto invece di indovinare cosa sia cambiato.
+
+Il messaggio di conflitto non è stato toccato: la frase era giusta, era la
+premessa a essere falsa. Nel caso vero — due schede di Configurazione aperte
+insieme — è esattamente quello che serve leggere, e insegnare a dubitarne lo
+renderebbe inutile.
+
 ### Il limite della pagina è morbido, non una gabbia (T-52)
 
 Tre comportamenti dell'editor sinottico che sono la stessa idea vista da tre lati,
