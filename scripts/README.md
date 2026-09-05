@@ -261,6 +261,7 @@ Quelle che girano su file fermi:
 | `check_synoptic_schema.sh` | `synoptic_schema.rs` resta indietro rispetto alle sue quattro fonti, e l'assistente IA riceve un vocabolario che non è più quello vero |
 | `check_session_start.sh` | `session_start.sh` perde lavoro: reset su commit locali che origin non ha, tag lasciati sulla storia vecchia, avanzamenti ad albero sporco |
 | `check_off_page.sh` | «fuori pagina» diventa due definizioni diverse: la tabella di casi di `sws-core/src/geometry.rs` e quella di `sws-editor/src/pageLayout.ts` devono coincidere, e i due crate devono chiamare `is_off_page` invece di riscriverlo |
+| `check_versione_progetto.sh` | client e server non sono d'accordo su chi riscrive `project.yaml`: una sezione senza `If-Match` (due schede si cancellano a vicenda), o una rotta che riscrive senza che il client incassi la versione nuova — e allora il salvataggio dopo prende un 409 «qualcun altro ha modificato il progetto» dove il qualcun altro è lui stesso |
 
 `check_static.sh` **fallisce anche** se in `scripts/` compare un `check_*.sh` che
 non è in nessuno dei suoi due elenchi: una guardia nuova non può restare fuori in

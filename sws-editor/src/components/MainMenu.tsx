@@ -98,7 +98,21 @@ export function MainMenu({
     setRenaming(true); setIoStat(null);
     try {
       await api.renameProject(currentName, newName);
-      if (project) setProject({ ...project, meta: { ...project.meta, name: newName } });
+      // Q30 — si **rilegge** invece di correggere `meta.name` in memoria.
+      //
+      // Rinominare riscrive `project.yaml` sul server (`patch_project_name`
+      // aggiorna `meta.name`, o il progetto rinominato mostrerebbe il nome
+      // vecchio), ma la risposta è `{name}` e **non porta l'ETag**. Correggendo
+      // il nome a mano restavamo con la versione di prima della rinomina, e da
+      // lì ogni salvataggio di sezione prendeva un 409 «qualcun altro ha
+      // modificato il progetto» — dove il qualcun altro eravamo noi. È lo
+      // stesso difetto trovato su «⚠ Aggiorna progetto» il 2026-09-05, e qui
+      // non si può chiudere prendendo l'ETag dalla risposta, perché non c'è.
+      //
+      // La rilettura risolve entrambe le cose in un colpo: `/api/project` porta
+      // la versione, e il nome arriva da chi l'ha scritto invece che da una
+      // nostra supposizione su cosa il server abbia fatto.
+      setProject(await api.getProject());
     } catch (e: any) {
       setIoStat(`${t("header.error")}: ${e?.message ?? e}`);
       setTimeout(() => setIoStat(null), 5000);

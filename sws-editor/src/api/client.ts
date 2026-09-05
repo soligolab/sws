@@ -293,7 +293,29 @@ let VERSIONE_PROGETTO: string | null = null;
  *  `project.yaml`, e prenderlo per buono farebbe fallire il salvataggio
  *  successivo con un 409 inventato. */
 const PORTA_VERSIONE = (path: string) =>
-  path === "/api/project" || PATH_VERSIONATI.some((p) => path === p);
+  path === "/api/project" || PATH_VERSIONATI.some((p) => path === p)
+                          || PATH_RIPORTANO_VERSIONE.includes(path);
+
+/** Percorsi che **riscrivono** `project.yaml` senza confrontare `If-Match`, ma
+ *  la cui risposta porta comunque la versione nuova.
+ *
+ *  Sono una lista a parte da `PATH_VERSIONATI` perché le due domande sono
+ *  diverse: là c'è «su questo salvataggio mando `If-Match`», qui c'è «da questa
+ *  risposta prendo la versione». Mettere `/api/project/migrate` fra i
+ *  versionati gli farebbe mandare un `If-Match` che il server ignora — `Q10`
+ *  passa `None` di proposito, perché la migrazione deve riuscire anche su un
+ *  progetto che qualcun altro ha appena toccato — e chi legge questo file si
+ *  troverebbe una riga che dichiara una protezione che non c'è.
+ *
+ *  **Perché esiste.** Il 2026-09-05 il maintainer ha premuto «⚠ Aggiorna
+ *  progetto» e da lì ogni salvataggio di sezione ha preso un 409 con scritto
+ *  «qualcun altro ha modificato il progetto mentre lavoravi». Non era qualcun
+ *  altro: era questo stesso client, un pulsante prima. Il server mandava
+ *  correttamente l'`ETag` nuovo (`patch_project` lo mette su ogni scrittura
+ *  riuscita) e qui lo si buttava, perché il percorso non era in nessuna delle
+ *  due liste. Un conflitto inventato insegna a ignorare i conflitti veri, che è
+ *  precisamente ciò che Q30 esisteva per evitare. */
+const PATH_RIPORTANO_VERSIONE = ["/api/project/migrate"];
 
 /** I salvataggi di sezione, cioè quelli che il server confronta con `If-Match`.
  *  Rispecchia gli handler che in `router.rs` chiamano `patch_project_se`: se
