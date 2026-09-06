@@ -38,6 +38,21 @@ afterEach(() => {
 /** Attende un giro di event loop: `BroadcastChannel` consegna in modo asincrono. */
 const giro = () => new Promise((r) => setTimeout(r, 0));
 
+/** Aspetta che una condizione diventi vera, o si arrende dopo `ms`.
+ *
+ *  `giro()` da solo non basta e questi test erano **intermittenti**: circa un
+ *  giro su cinque `BroadcastChannel` non aveva ancora consegnato dopo un solo
+ *  turno di event loop, e l'asserzione vedeva un elenco vuoto. Non era una
+ *  corsa del codice — era una corsa del test, che è peggio: un rosso che non
+ *  significa niente insegna a rilanciare la suite invece di leggerla.
+ *
+ *  Il tempo massimo esiste perché un test che non arriva mai deve **fallire**,
+ *  non restare appeso. */
+const finoA = async (cond: () => boolean, ms = 1000) => {
+  const scadenza = Date.now() + ms;
+  while (!cond() && Date.now() < scadenza) await new Promise((r) => setTimeout(r, 1));
+};
+
 describe("indirizzamento", () => {
   it("una richiesta per un editor non arriva all'altro", async () => {
     // Il verso rotto: senza il controllo su `a` in `Ponte.ascolta`, **due**
@@ -53,7 +68,8 @@ describe("indirizzamento", () => {
     editoreB.ascolta((m) => { if (m.t === "applica") arrivateAdB.push(m.rid); });
 
     chat.manda({ t: "applica", a: "A", rid: "r1", proposta: PROPOSTA });
-    await giro();
+    await finoA(() => arrivateAdA.length > 0);
+    await giro();   // un turno in più: se anche B ricevesse, si vedrebbe qui
 
     expect(arrivateAdA).toEqual(["r1"]);
     expect(arrivateAdB).toEqual([]);
@@ -69,7 +85,7 @@ describe("indirizzamento", () => {
     chat2.ascolta((m) => { if (m.t === "editore-pronto") viste.push("c2"); });
 
     editore.manda({ t: "editore-pronto" });
-    await giro();
+    await finoA(() => viste.length >= 2);
 
     expect(viste.sort()).toEqual(["c1", "c2"]);
   });
@@ -79,7 +95,10 @@ describe("indirizzamento", () => {
     const viste: string[] = [];
     p.ascolta((m) => viste.push(m.t));
     p.manda({ t: "editore-pronto" });
-    await giro();
+    // Questa è una **negazione**: `finoA` non serve, perché non c'è niente da
+    // aspettare. Servono però più turni di uno, o si proverebbe soltanto che il
+    // messaggio non è arrivato *ancora*.
+    for (let i = 0; i < 20; i++) await giro();
     expect(viste).toEqual([]);
   });
 });
