@@ -1,5 +1,7 @@
 # Editor e runtime: dire quel che è vero, dove si guarda
 
+> **FATTO** — mergiato (e98138b), release 2.4.0, ADR 0003; l'appendice sulla chat staccata resta il disegno di riferimento. *(Riga aggiunta dalla revisione del 2026-09-06; il resto del file è il referto originale.)*
+
 *2026-09-01, frodo. Il piano precedente (chiave API dall'IDE + finestre staccate) è **implementato
 per due terzi** e vive in fondo a questo file, §Appendice: la chat staccata non è fatta e `STATUS.md`
 la cita puntando qui, quindi il suo disegno non va perso.*

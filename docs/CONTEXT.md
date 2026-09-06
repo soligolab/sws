@@ -67,57 +67,71 @@ before the Phase 5 public demo.
 
 ---
 
-## 3. Current state (as of June 2026)
+## 3. Current state (as of September 2026)
 
-The repository is fully functional. All workspace crates build (`cargo check --workspace` green), the SPA builds (`pnpm build` green), and 53+ unit tests pass.
+> Riscritta il 2026-09-06 contro il codice, durante la revisione dei documenti
+> (`docs/plans/2026-09-06-revisione-documenti.md`). La versione precedente era di giugno.
+
+Il repository è pienamente funzionante: `cargo check --workspace` e `pnpm build` verdi,
+440 test Rust (`#[test]`/`#[tokio::test]`), 158 test vitest, e **32 guardie** in `scripts/`
+(13 statiche + 19 che vogliono uno stack in ascolto — `./scripts/check_static.sh` e
+`./scripts/verifica_completa.sh` le orchestrano). Release corrente: **2.5.0**.
 
 ### Crate structure
 
 ```
 sws-runtime/crates/
-  sws-core           — shared types (TagValue, AlarmDef, ProjectMeta, …)
-  sws-auth           — Argon2id, RBAC 4 roles, session tokens
-  sws-historian      — in-memory ring buffer + SQLite persistence
-  sws-pyscript       — PyO3 + RestrictedPython sandbox, global script supervisor
-  sws-audit          — append-only audit log (auth events, tag writes, project changes)
-  sws-web            — Axum router (dual-port 8443+8444), all HTTP/WS handlers
-  sws-plugin-modbus  — Modbus TCP + RTU (tokio-modbus)
-  sws-plugin-opcua   — OPC-UA client + server (async-opcua)
-  sws-plugin-mqtt    — MQTT client + Sparkplug B encode/decode (rumqttc + prost)
-  sws-plugin-ha      — HomeAssistant WebSocket (state_changed + call_service)
-  sws-plugin-s7      — Siemens S7 (pure-Rust s7 crate, tokio bridge)
-  sws-plugin-enip    — EtherNet/IP (rseip, ControlLogix symbolic tag access)
-  sws-runtime        — binary entry point, dual-port TLS server (8443 + 8444)
+  sws-core                 — shared types (TagValue, AlarmDef, ProjectMeta, …)
+  sws-auth                 — Argon2id, RBAC 4 roles, session tokens; no-auth = Admin sintetico
+  sws-historian            — in-memory ring buffer + SQLite persistence
+  sws-pyscript             — PyO3 + RestrictedPython sandbox, global script supervisor
+  sws-audit                — append-only audit log (auth events, tag writes, project changes)
+  sws-web                  — Axum router (dual-port 8443+8444), all HTTP/WS handlers
+  sws-plugin-modbus        — Modbus TCP + RTU (tokio-modbus)
+  sws-plugin-opcua         — OPC-UA client + server (async-opcua)
+  sws-plugin-mqtt          — MQTT client + Sparkplug B encode/decode (rumqttc + prost)
+  sws-plugin-homeassistant — HomeAssistant WebSocket (state_changed + call_service)
+  sws-plugin-s7            — Siemens S7 (pure-Rust s7 crate, tokio bridge)
+  sws-plugin-enip          — EtherNet/IP (rseip, ControlLogix symbolic tag access)
+  sws-lvgl-viewer          — viewer nativo LVGL per pannelli senza browser (DRM/fbdev,
+                             35 tipi di oggetto, `--istantanea` per il rendering a file)
+  sws-kiosk                — chiosco: browser a schermo intero sul dispositivo
+  sws-runtime              — binary entry point, dual-port TLS server (8443 + 8444)
 ```
 
 ### Editor (sws-editor)
 
-React + TypeScript + Vite 6 SPA. Two entry points:
-- `index.html` → `src/main.tsx` → `RuntimeViewer` (operator UI, ~24 kB)
-- `index-admin.html` → `src/admin-main.tsx` → `App` (full IDE, ~310 kB)
+React + TypeScript + Vite 6 SPA. Quattro entry point:
+- `index.html` → viewer operatori (`RuntimeViewer`)
+- `index-admin.html` → IDE completa (chunk spezzati a lazy-load: ~874 kB di JS
+  all'avvio, misura 2026-09-04 dopo lo split −42%; `dist/` intera 2,9 MB)
+- `index-chat.html` / `index-log.html` → finestre staccate (assistente IA, log);
+  seguono il tema via `storage` event (`initThemeStorageListener` in `theme.ts`)
 
-### Dual-port architecture (T-21)
+### Dual-port architecture (T-21, poi divisione editor/runtime — ADR 0003)
 
-| Port | Role | Auth | SPA |
+| Porta | Ruolo | Auth | SPA |
 |------|------|------|-----|
-| **8443** | Viewer (operators) | Optional (`optional_auth`) | `dist/index.html` |
-| **8444** | Admin IDE | Required | `dist/index-admin.html` |
+| **8443** | Viewer (operatori) | `optional_auth` — senza utenti definiti inietta un Admin sintetico | `dist/index.html` |
+| **8444** | Admin IDE (spegnibile con `--no-admin`, default nelle immagini 2.4.0+ per dispositivo) | `require_auth` (o no-auth) | `dist/index-admin.html` |
 
-Project lifecycle routes (`upload`, `delete`, `open`) exist **only on 8444**.
+Le route di ciclo vita progetto (`upload`, `delete`, `open`) esistono **solo su 8444**.
+Le scritture tag sono l'unico confine di sicurezza vero: `TagDef.write_min_role`,
+verificato dal server; il `min_role` sugli oggetti sinottici è solo client-side (Q36).
 
 ### Dev workflow
 
 ```bash
 # Sul dispositivo (viewer + IDE remoto):
-./scripts/start_runtime.sh   # viewer 8443 + IDE/admin 8444
+./scripts/start_runtime.sh   # viewer 8443 + IDE 8444 + companion HTTP 8080
 
 # Sul PC sviluppatore (IDE locale, no viewer):
-./scripts/start_editor.sh    # solo IDE 8444
-# → ConfigView → Runtime → "Connetti" per deployare su dispositivo remoto
+./scripts/start_editor.sh    # IDE 8460 + companion HTTP 8090, dati in .run-editor/
+# → ConfigView → Runtime → «Connetti» per deployare su dispositivo remoto
 ```
 
-TLS cert is persistent between restarts (`.run/tls.crt` + `.run/tls.key`).
-
+Il companion HTTP (8080/8090) serve ad accettare il certificato self-signed senza uscire
+dall'app; il certificato persiste fra riavvii (`.run/config/tls.crt` + `.key`).
 ---
 
 ## 4. Phase plan — current status

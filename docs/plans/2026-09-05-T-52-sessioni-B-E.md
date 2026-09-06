@@ -1,5 +1,7 @@
 # T-52 sessioni B→E — il limite della pagina è morbido
 
+> **FATTO** — stesso merge; contiene le nove correzioni al piano del 04. *(Riga aggiunta dalla revisione del 2026-09-06; il resto del file è il referto originale.)*
+
 > Copia del piano scritto in modalità piano il **2026-09-05**, committata perché
 > il lavoro attraversa due macchine. Il piano *del lavoro* è
 > [2026-09-04-limite-pagina-morbido.md](2026-09-04-limite-pagina-morbido.md);

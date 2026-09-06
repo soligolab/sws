@@ -1,5 +1,7 @@
 # Motore di rendering LVGL per SWS — analisi architetturale e fondamenta (Fase 1)
 
+> **FATTO** — fasi 1-3 del motore LVGL nello storico di STATUS; CHANGELOG 2.0.0. *(Riga aggiunta dalla revisione del 2026-09-06; il resto del file è il referto originale.)*
+
 ## Contesto
 
 SWS oggi ha un unico modo di presentare i sinottici: una SPA React che disegna SVG/Canvas2D nel browser, consumata via `sws-kiosk` (wrapper GTK4+WebKitGTK) o via Chromium su Weston sui device Yocto reali. Questo funziona bene su hardware con un motore browser completo disponibile, ma **non è cross-compilabile per il sysroot Pixsys** (manca GTK4/WebKitGTK) — oggi su quei device gira Chromium esterno a SWS, non `sws-kiosk`.

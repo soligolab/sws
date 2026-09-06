@@ -37,6 +37,7 @@ STATICHE=(
     check_synoptic_schema   # il vocabolario dato all'assistente IA contro le sue fonti
     check_session_start     # session_start.sh non deve poter perdere lavoro
     check_off_page          # «fuori pagina»: la stessa tabella in Rust e in TypeScript
+    check_documenti         # le domande aperte: vivo + archivio senza buchi, rimandi che risolvono
     check_versione_progetto # chi riscrive project.yaml e chi se ne accorge (Q30)
     check_manuale_widget    # il capitolo dei widget nomina tutti i tipi della palette
 )

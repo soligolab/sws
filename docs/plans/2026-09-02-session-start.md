@@ -1,5 +1,7 @@
 # `session_start.sh` — cosa lanciare prima di riprendere il lavoro
 
+> **FATTO** — scripts/session_start.sh esiste, guardato da check_session_start.sh. *(Riga aggiunta dalla revisione del 2026-09-06; il resto del file è il referto originale.)*
+
 *2026-09-02, frodo. Sostituisce il piano precedente (divisione editor/runtime), che è **completo,
 mergiato e rilasciato** nella 2.4.0 — la sua traccia vive in `docs/plans/2026-09-01-editor-runtime.md`,
 in `docs/adr/0003-editor-runtime-same-binary.md` e in `STATUS.md`.*

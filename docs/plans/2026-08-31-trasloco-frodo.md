@@ -1,5 +1,7 @@
 # Trasloco dell'ambiente di lavoro su `pixsys@frodo.local`
 
+> **FATTO** — è il referto del trasloco, citato dallo storico di STATUS. *(Riga aggiunta dalla revisione del 2026-09-06; il resto del file è il referto originale.)*
+
 ## Contesto
 
 `theobroma` (questo server) è al **99%**: 24 GB liberi su 1,5 TB. Il lavoro si sposta su

@@ -1,5 +1,7 @@
 # Editor coerente: tracce Trend unificate, fine dei doppioni, WYSIWYG per tutti gli oggetti
 
+> **FATTO** — voce «Editor coerente» nella 2.1.0. *(Riga aggiunta dalla revisione del 2026-09-06; il resto del file è il referto originale.)*
+
 > Sostituisce il piano precedente (tab Variabili, completato). Specifiche definite con il
 > maintainer in 3 tornate di domande (2026-08-23). Le regole permanenti che ne derivano vanno
 > scritte in CLAUDE.md (parte della consegna).

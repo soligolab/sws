@@ -1,5 +1,7 @@
 # Piano: bugfix pagine, oggetti allarme piazzabili, DataTable condiviso, Trend avanzato
 
+> **FATTO** — T-41…T-48 chiusi (storico di STATUS, CHANGELOG 2.1.x). *(Riga aggiunta dalla revisione del 2026-09-06; il resto del file è il referto originale.)*
+
 ## Contesto
 
 Oggi due elementi allarme sono "chrome" fissa e globale, non oggetti di pagina:

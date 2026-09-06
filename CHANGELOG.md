@@ -11,6 +11,21 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### I documenti tornano a dire il vero — revisione di cinque mesi di pianificazione
+
+`docs/OPEN_QUESTIONS.md` passa da 3476 a 1366 righe e `STATUS.md` da 4022 a ~810:
+tutto ciò che era deciso, realizzato **e verificato sul codice** vive ora integrale
+in `docs/history/` (21 schede col timbro e la prova; luglio-agosto di STATUS con le
+intestazioni che il log piatto «Release 2.1.0» non aveva mai avuto). Nessuna scheda
+cancellata, nessun numero riusato, nessun piano spostato: i piani hanno un indice
+(`docs/plans/README.md`) con l'esito verificato di ciascuno e una riga di stato in
+testa ai fatti. `docs/CONTEXT.md` §3, ferma a giugno, è riscritta contro il codice
+di oggi. Una guardia nuova (`check_documenti.sh`, tredicesima statica) impedisce a
+questa pulizia e alle prossime di perdere una scheda in silenzio: vivo + archivio
+devono coprire Q1..Q41 senza buchi, ogni rimando `Q<n>` nei documenti e nel codice
+deve risolversi, ogni scheda archiviata deve portare il timbro con la data.
+
+
 ### Il tema chiaro era inutilizzabile in diversi punti
 
 Con il tema chiaro molte scritte dell'IDE sparivano: restavano del colore

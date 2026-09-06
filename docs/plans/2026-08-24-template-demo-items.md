@@ -1,5 +1,7 @@
 # Template gemelli: "Demo Items - Web" e "Demo Items - LVGL"
 
+> **FATTO** — i gemelli demo-items-web/-lvgl esistono e sono guardati da check_demo_templates.sh. *(Riga aggiunta dalla revisione del 2026-09-06; il resto del file è il referto originale.)*
+
 ## Contesto
 
 Il maintainer vuole un banco di prova vero per i due motori di rendering, al posto dei due template

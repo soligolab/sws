@@ -1,5 +1,7 @@
 # Installa su dispositivo → container dal registry, con installazione pulita
 
+> **FATTO** — sezione dedicata nello storico di STATUS (2026-07-31). *(Riga aggiunta dalla revisione del 2026-09-06; il resto del file è il referto originale.)*
+
 ## Contesto
 
 La sezione **Configurazione → Runtime → "Installa su dispositivo"**, in modalità

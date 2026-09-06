@@ -1,5 +1,7 @@
 # Piano di ripresa (sessione interrotta — "è tardi", da riprendere in ufficio)
 
+> **FATTO** — deploy-preserve, gestione database e multiselect drag tutti in CHANGELOG §2026.7-2.0; `check_multiselect_drag.sh` esiste. *(Riga aggiunta dalla revisione del 2026-09-06; il resto del file è il referto originale.)*
+
 Tre filoni aperti, non ancora eseguiti (siamo rimasti in plan mode di proposito). Nessuna modifica
 è stata fatta oltre a quanto già presente nel working tree (vedi §0). Quando riprendi: leggi questo
 file, poi `ExitPlanMode` (o chiedimi di rientrare in plan mode se vuoi rivedere qualcosa prima).

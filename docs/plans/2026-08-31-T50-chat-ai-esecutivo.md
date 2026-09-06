@@ -1,5 +1,7 @@
 # T-50 — La chat IA nell'editor, fino al bottone MQTT
 
+> **FATTO** — T-50 mergiato in main; resta la prova col modello vero e la finestra staccata. *(Riga aggiunta dalla revisione del 2026-09-06; il resto del file è il referto originale.)*
+
 *Piano operativo per la sessione notturna del 2026-08-31/09-01. Sostituisce il §2, il §3 e il
 §12 di `docs/plans/2026-08-31-chat-ai-nelleditor.md`; il resto di quel piano (gli strumenti, i
 segreti, cosa l'agente non deve avere) resta valido e non viene ripetuto qui.*

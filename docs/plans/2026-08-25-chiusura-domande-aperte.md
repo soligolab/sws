@@ -1,5 +1,7 @@
 # Chiusura delle domande aperte → programma di lavoro
 
+> **FATTO (come processo)** — le sei decisioni furono prese e oggi sono tutte realizzate e archiviate (Q15-Q22 verificate il 2026-09-06); il piano lasciò le code «not yet» non aggiornate, difetto sanato dalla revisione. *(Riga aggiunta dalla revisione del 2026-09-06; il resto del file è il referto originale.)*
+
 ## Contesto
 
 Le domande aperte si erano accumulate: 22 in `docs/OPEN_QUESTIONS.md`, di cui 6 ancora senza
