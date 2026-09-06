@@ -113,317 +113,54 @@ verdi, `check_lvgl_parity` verde a 238 campi.
    guardia esce `7` **senza una riga di output** quando manca `LD_LIBRARY_PATH` a libpython — lo
    stesso difetto già corretto in `check_project_write_safety.sh`, stessa toppa.
 
-### ▶ `fix/manutenzione-notturna` — in corso, sessione autonoma del 2026-09-05 (notte)
+### ✅ Tutto mergiato in `main` il 2026-09-06 — **non pushato**
 
-Ramo che continua `fix/editor-pannello-minori`. Mandato del maintainer: ottimizzazione, bugfix e
-lavoro sulle questioni aperte, in autonomia, con riepilogo al suo ritorno.
-
-**Sulle QUESTION aperte, e sulla regola 3 di `CLAUDE.md`** («Never resolve an item in
-OPEN_QUESTIONS — add to it instead»): non ne è stata decisa nessuna. Le questioni che sono
-**difetti travestiti** si correggono; quelle che sono **decisioni vere** si istruiscono — fatti
-verificati sul codice, prove misurate, raccomandazione — e restano `Decided: not yet`. Se il
-maintainer voleva anche le decisioni, si riprende: nessun lavoro buttato.
-
-#### Fatto finora
+`main` è a `e89a830`, **quattro commit sopra origin**, albero pulito. Confermato a schermo dal
+maintainer (T-52, i tre difetti minori, e il tema chiaro provato commutando l'IDE).
 
 | Commit | Cosa |
 |---|---|
-| `e4bff29` | `check_viewer_layout` non poteva passare (template `demo-items` inesistente) + usciva muta senza `LD_LIBRARY_PATH`; `check_f7` aveva torto (confrontava col token del tema invece che con `--synoptic-text`, cioè con Q18) |
-| `744408d` | i tre errori di clippy, e **due punti dove clippy avrebbe rotto codice giusto** |
-| `020881f` | gli avvisi meccanici di clippy, da 65 a 31, riletti riga per riga |
-| `9880170` | `check_discover` non poteva passare in ufficio; `check_spa_autoreload` e `check_e2e` sul template inesistente; due difetti di isolamento della suite e2e; `e2e/` mai controllata da `tsc`; `pnpm type-check` era già rosso |
+| `27f19ac` | T-52 — il limite della pagina è morbido |
+| `c3099cd` | Q30 — «Aggiorna progetto» rifiutava ogni salvataggio successivo |
+| `af657f9` | manutenzione: guardie rotte, il blocco del pannello, il tema chiaro |
+| `e89a830` | tre corse in `ponte.test.ts`: la suite era intermittente |
 
-**Il ritrovamento che vale più degli altri**: `effects.rs::stantio` scrive `!(s > 0.0)` e non
-`s <= 0.0`. Con `s` **NaN** i due non sono equivalenti, e applicando il suggerimento di clippy uno
-`stale_after_s` NaN avrebbe reso **ogni** valore stantio — l'allarme inventato che il commento tre
-righe sopra dichiara di non voler produrre. Ora c'è un `#[allow]` con la ragione scritta.
+#### I rami: cosa ne è stato
 
-**`scripts/verifica_completa.sh`** (nuovo) lancia **tutte** e ventisette le guardie in sequenza —
-gli elenchi li legge da `check_static.sh` invece di copiarli — e stampa una tabella con i tempi.
-È la conclusione di stanotte: **tre guardie su ventisei non potevano passare** — due per un template rinominato mesi fa, una
-perché pretendeva di essere sola sulla rete. Nessuna se n'era accorta perché nessuno le lancia
-tutte: vogliono uno stack acceso. Vale la pena chiedersi se `check_static.sh` non debba avere un
-gemello che le lancia tutte, magari lento e da fine sessione.
+**Verificato prima di cancellare**, perché il progetto usa lo squash merge e un ramo già mergiato
+risulta comunque «non mergiato» per ascendenza — la parentela non dice niente, conta il contenuto.
 
-#### `check_e2e`: da **una esecuzione su sei** a **tre su quattro**
+| Ramo | Esito |
+|---|---|
+| `fix/manutenzione-notturna` | mergiato in `af657f9`; albero di `main` **byte per byte identico** al ramo |
+| `fix/editor-pannello-minori` | contenuto dentro il precedente (verificato con `merge-base --is-ancestor`) |
+| `feat/T-50-chat-ai` | **già in `main`**: 5 righe caratteristiche su 5 presenti |
+| `origin/feat/lvgl-gap`, `origin/feat/editor-runtime-chiarezza` | **già in `main`**: 5 su 5 |
+| `origin/feat/chat-staccata-e-python` | **già in `main`**: 4 su 5 |
+| `origin/fix/sws-display-path-loop` | **già in `main`**: i tre file di codice sono byte per byte identici, e il `PathExists=` che il fix toglieva non c'è più |
+| `feat/scada-f6`, `feat/scada-f7` | **pre-riscrittura**, del 23 agosto. Solo 1 riga su 8 ritrovata in `main` — ma quel codice è stato riscritto da T-46 in poi, quindi la misura non prova niente in nessuna direzione |
 
-Il percorso principale dell'editor (`login → add rect → save → reload`) era intermittente. Le cause
-erano tre, e due me le ero create io scrivendo la prima correzione.
+I due pre-riscrittura non esistevano su origin: cancellarli sarebbe stato irreversibile, quindi
+prima sono stati **archiviati con un tag** — `archivio/scada-f6` e `archivio/scada-f7`, locali e non
+pushati. Se un giorno servisse qualcosa da lì, i commit ci sono ancora.
 
-**La chiave era nello screenshot del fallimento, e nessuno l'aveva guardato**: la pagina mostrava in
-cima la banda «il progetto sul runtime è cambiato, questa pagina mostra ancora la versione
-precedente». **Aprire un progetto è a tutti gli effetti una modifica esterna** — e la suite ne apre
-uno, perché `bugcheck.spec.ts` prova il canvas di un progetto vuoto. Quando l'avviso arriva a
-pagina già montata il canvas resta indietro e ogni oggetto aggiunto non compare: un rosso che parla
-di rettangoli mentre il problema è scritto sullo schermo. La `POST .../open` che avevo messo dentro
-il test per renderlo autosufficiente **era essa stessa** una modifica esterna, quindi provocava
-l'avviso che volevo evitare.
+Tutti i rami locali sono spariti: resta **solo `main`**.
 
-Le altre due: la shell dell'IDE compare **prima** che il progetto sia caricato, e una clic in mezzo
-finisce su nessuna pagina; e l'avviso, quando ricompare, sposta il layout di una riga, così una
-clic già partita atterra dove il pulsante non è più — Playwright la considera riuscita perché il
-bersaglio era attuabile quando ha guardato.
+#### 🔜 Cosa resta
 
-**Non è deterministico e non lo dichiaro tale.** Il fallimento residuo cade sempre nel giro «a
-freddo». Chi lo riprende sa dove guardare, e le tre ipotesi già scartate sono nei commenti del
-test.
-
-> **Una cosa sul prodotto, non sul test.** Durante il caricamento la palette è **già cliccabile**
-> mentre il progetto non c'è ancora, e in quella finestra un clic crea una pagina che nessuno ha
-> chiesto (`addObject` ne inventa una quando non c'è pagina corrente — comportamento voluto per i
-> progetti appena creati, ma qui capita per una corsa). Sul banco di prova si vede come un test
-> intermittente; su una macchina lenta lo vedrebbe un progettista. **Registrato, non corretto**:
-> disabilitare la palette finché non c'è una pagina è un cambiamento di comportamento.
-
-#### Ottimizzazione
-
-**Il bundle iniziale dell'IDE è dimezzato**: `ConfigView.tsx` — diecimila righe, il file più grande
-del progetto — si carica ora **a richiesta** invece che all'avvio. L'IDE apre in modalità Editor, e
-chi disegna un sinottico può non aprire mai la Configurazione.
-
-Due differimenti, `ConfigView` (diecimila righe) e `PythonEditor` (che si porta dietro **CodeMirror,
-358 kB** — più di tutta la libreria di React, caricato anche da chi non scrive una riga di Python).
-**Misurato nel browser contando le risposte HTTP**, non dedotto dai nomi dei chunk: un chunk citato
-dentro il bundle non è un chunk scaricato, perché vite ci mette anche la mappa dei differiti.
-
-    chunk scaricati aprendo l'IDE: 7, totale 874 kB
-    codemirror scaricato: no
-    ConfigView scaricato: no
-
-**639 kB in meno all'avvio, circa il 42%.** Ed è sparito l'avviso di vite sui chunk oltre 500 kB,
-che compariva a ogni compilazione senza che nessuno agisse — un avviso ripetuto e ignorato è rumore
-che copre quelli veri. Conta soprattutto sul dispositivo, dove la SPA arriva dal pannello.
-
-**Clippy**: da 3 errori + 82 avvisi a **0 errori + 31 avvisi**, con i meccanici applicati e
-riletti riga per riga, e i restanti che sono rilievi di forma su scelte deliberate.
-
-#### ✅ Il caso 3.43 di T-52 è chiuso, senza pannello — e il piano aveva torto su un punto
-
-Uno dei casi che restavano da fare a schermo (il fuori pagina sul motore LVGL) è stato **misurato**
-con `--istantanea`: si disegna la pagina col motore vero, si salva un PPM, si contano i pixel.
-`scripts/check_fuori_pagina_lvgl.sh` lo fa a ogni giro.
-
-    widget LVGL creati correttamente (2): dentro, a_cavallo
-    fuori pagina, non disegnati (3): fuori_dx, fuori_neg, overflow_i16
-    pixel: verde 22660, arancio 11330, rosso 0
-
-L'arancio è **esattamente metà** del verde: l'oggetto a cavallo del bordo c'è ed è ritagliato, come
-T-52 prescrive.
-
-> **Correzione a quello che ho scritto io nel commit di T-52 e qui sopra.** Il piano diceva che
-> senza il gate un oggetto a `x = 66000` **rientrerebbe per overflow** di `i16` (66000 → 464), e
-> quella era la ragione dichiarata «sostanziale» per avere il gate su LVGL. **Non succede**:
-> provato disattivando il gate e ridisegnando, i pixel sono identici. Il cast è da `f64`, e in Rust
-> `f64 as i16` **satura** dal 1.45 — 66000.0 diventa 32767. L'avvolgimento vale fra interi
-> (`66000_i32 as i16` fa davvero 464), ma non è la strada che prende una coordinata. Verificato con
-> un binario di tre righe.
->
-> Il gate resta: le altre due ragioni bastano (non si creano widget che non si vedranno, e il
-> riepilogo spiega una pagina più vuota del previsto senza aprire l'editor). Ma la guardia dichiara
-> in testa quale metà prova cosa, perché **l'immagine da sola non distingue il gate acceso da
-> quello spento**.
-
-#### 🎨 Tre segnalazioni del maintainer, il 2026-09-06
-
-1. **Col tema chiaro sparivano 63 scritte**, non le due viste a occhio — alcune con contrasto
-   **1,0**, cioè dello stesso identico colore dello sfondo. Tre cause, una sola famiglia: un colore
-   scelto guardando un solo tema. `--brand-border` usato come colore del **testo** in 153 punti,
-   inchiostri scritti a mano dove c'erano già i token `*-soft`, e i pastelli delle categorie della
-   palette. Più due colori della palette che dichiaravano WCAG AA senza rispettarlo, e il pulsante
-   **RUN** a 2,28:1. Ora **0 e 0** in entrambi i temi, e `check_contrasto.sh` lo verifica.
-2. **Le finestre staccate** (log e assistente) non seguivano il cambio di tema: sono documenti a
-   sé. Ora si allineano con l'evento `storage`, in entrambe le direzioni, con un fermo contro il
-   rimbalzo — `applyAppearance` persiste, quindi due finestre potrebbero rincorrersi.
-3. **L'assistente diceva che `boiler` non esiste**, e aveva ragione lui: nello schema che gli
-   diamo `symbol_id` era una stringa libera senza elenco. Ora la libreria dei simboli è la quinta
-   fonte del generatore, e la descrizione dice anche quali simboli non arrivano sul pannello.
-
-> **La guardia del contrasto è servita più della correzione**, e vale la pena sapere cosa le è
-> servito: **provoca** la banda d'avviso modificando il progetto da fuori (in un caricamento
-> normale non compare, quindi non avrebbe misurato proprio il caso segnalato), e **non guarda il
-> canvas**, dove il fondo non è un `background` CSS ma il `<rect>` del foglio — il primo risultato
-> della misura erano cinquanta falsi allarmi lì dentro.
-
-#### 🔴 Il ritrovamento più grave: **il simbolo `boiler` bloccava il viewer LVGL per sempre**
-
-Un `boiler` su una pagina e il viewer non arrivava mai a disegnare. Non un errore, non un crash: si
-piantava. Sul pannello significa **schermo nero e nessuna spiegazione** — l'ultima riga di log utile
-era `lv_canvas_create`.
-
-**Causa**: la sua fiamma era un poligono a cinque punti a zigzag, quindi **concavo**, e
-`lv_canvas_draw_polygon` di LVGL 8 su un poligono concavo **non termina**. È l'unico dei quaranta
-simboli con quella forma. Corretto spezzandolo in due triangoli, che riempiono esattamente la stessa
-area: da **infinito** a 0,11 s, e tutti e quaranta i simboli insieme da «mai» a 0,21 s.
-
-**Come è saltato fuori**, perché il metodo vale più del difetto: stavo disegnando tutti i simboli in
-una volta per rispondere a **un'altra** domanda — quanti dei simboli del web esistono sul pannello,
-nata da un numero incoerente in tre documenti. La pagina non finiva. Bisezione: 13 sì, 15 no, ma 14
-presi da un altro punto dell'elenco sì — quindi non era il numero, era uno preciso.
-
-**`scripts/check_simboli_lvgl.sh`** (nuova) disegna ogni simbolo **uno alla volta** col cronometro, e
-controlla anche che lasci dei pixel. Nessun test normale poteva trovare questo difetto: **un blocco
-non fallisce, aspetta**.
-
-#### 🟠 E tredici simboli su quaranta **non esistono sul pannello**
-
-La domanda da cui era partito tutto (quanti simboli del web esistono su LVGL) adesso ha una
-risposta misurata: **tredici** rendono il riquadro rosso d'errore — `valve_motorized`,
-`valve_pneumatic`, `check_valve`, `valve_3way`, `relief_valve`, `strainer`, `blower`, `silo`,
-`conveyor`, `cyclone`, `column`, `furnace`, `chiller`. È la serie valvole/processo, aggiunta **dopo**
-che Q15 era stata decisa: l'opzione B fu eseguita sui simboli di allora e questi non sono mai stati
-portati.
-
-Nel browser si vedono giusti, sul pannello sono un rettangolo rosso, e **chi disegna non ha modo di
-accorgersene**: il badge «L» della palette dice che il *tipo* `symbol` è supportato, non quali
-simboli lo siano. Registrato in Q15 con la misura; `check_simboli_lvgl.sh` li tiene in un elenco
-dichiarato, così uno **nuovo** che non arriva sul pannello fa fallire la guardia e uno implementato
-va tolto. Il gap non cresce più in silenzio — che è il minimo, finché non decidi se colmarlo.
-
-Risolve anche il numero incoerente di prima: il «17» scritto in `svg_assets.rs` erano proprio i
-simboli che LVGL implementa davvero.
-
-#### 📘 Il manuale: quattro lacune su funzioni che si spediscono
-
-Cercate confrontando il manuale col codice, non leggendolo.
-
-1. **`05_widget_reference.md` nominava 24 tipi su 35** pur presentandosi come «elenco completo di
-   tutti i widget disponibili nella palette». Mancavano proprio i più recenti: setpoint, i due
-   widget per la lingua, spia di stato, riquadro KPI, grafico X-Y, registro dati, i tre degli
-   allarmi, pannello ricette. Scritti prendendo campi ed **esempi YAML** dallo schema che il
-   runtime serve all'assistente (`GET /api/schema/synoptic?tipo=…`), che è la fonte autorevole e
-   già guardata. Gli allarmi hanno ora una sezione propria.
-2. **Il capitolo 10 diceva che su `:8444` c'è l'Admin IDE.** Dalla 2.4.0 **non è vero**: tutti i
-   pacchetti partono con `--no-admin`, e chi installa su un dispositivo e cerca l'editor nel
-   browser non trova niente. Corretto, e spiegato come riaccenderlo per l'assistenza
-   (`SWS_ENABLE_IDE=1`) e cosa comporta.
-3. **La banda del salvataggio rifiutato e «⚠ Aggiorna progetto»** non erano in nessun capitolo —
-   e la prima l'ha colpita il maintainer stanotte provando T-52. Ora il manuale dice perché quella
-   protezione esiste, cosa fa `Ricarica` e cosa si perde premendolo.
-4. **RUN/STOP e gli avvisi in testata** (entrambi del 2026-09-04) non c'erano; la tabella della
-   testata descriveva ancora «Start/Stop — avvia/ferma il loop di polling».
-
-Più due numeri sbagliati: la tabella delle porte dava la SPA a «~24 kB» e «~310 kB», ora
-**597/874 kB** misurati contando quello che il browser scarica.
-
-**`scripts/check_manuale_widget.sh`** (nuova) impedisce che la prima lacuna torni: un tipo nel
-motore senza il suo nome nel capitolo fa fallire la guardia. Non pretende una voce ben scritta —
-non saprebbe giudicarla — ma la lacuna che c'era era esattamente «il nome non compare da nessuna
-parte».
-
-#### 🔎 Verifica di freschezza delle schede — il risultato che vale più delle singole
-
-Ho ripreso **nove** schede e ho confrontato ciò che dicono col codice di oggi. **Tre erano
-invecchiate, e due in modo che cambia la decisione.** Nessuna decisa (regola 3): aggiornate con i
-fatti e una riformulazione della domanda dove serviva.
-
-| | Stato | Cosa ho trovato |
-|---|---|---|
-| **Q31** | ⚠️ invecchiata | Il 404 non c'è più, il pannello avvisa già, e **la premessa del rischio peggiore era sbagliata**: con un runtime remoto l'umano modifica comunque il progetto **locale**, quindi l'assistente che legge il locale legge quello giusto |
-| **Q32** | ⚠️ invecchiata | Dice che *tutti* i deploy spediscono l'IDE sul dispositivo. Da **due giorni dopo** la sua apertura, tutti e tre partono con `--no-admin`: niente IDE, niente modifica del progetto sul dispositivo, e per riaccenderlo serve `SWS_ENABLE_IDE=1` e un riavvio. L'opzione 2 («presa diretta deliberata») è **già realizzata** un livello sotto |
-| **Q14** | ⚠️ invecchiata | «31/32 tipi, resta fuori solo `image`»: oggi sono **35** e `image` è dentro |
-| **Q28** | ✅ regge, misurata | Barre **130/292/195 px** nel browser contro **61/138/92** sul pannello, stessi dati. Il *rapporto* però coincide: la scelta è su quale domanda il grafico debba rispondere |
-| **Q29** | ✅ regge, misurata | Le scritture fuori tipo sono **esattamente dodici**, un idioma solo in un template solo. E il tag **è già dichiarato come due canali** (`topic` + `publish_topic`): manca solo l'asimmetria di *tipo* |
-| **Q17** | ✅ regge | `apply_recipe` non ha ancora il contesto utente. Ma **nessun template contiene ricette**, quindi niente la esercita |
-| **Q16** | ✅ regge | I decoder raster sono spenti in `lv_conf.h` (`LV_USE_PNG/BMP/SJPG/GIF` a 0) |
-| **Q22** | ✅ già fatta | La patch `0001-init-x_ext_buf_assigned.patch` esiste e `check_vendor_patches.sh` la copre |
-| **Q20, Q21, Q24** | ✅ già fatte | Il segnale di ricarica c'è in `client.rs`; la sezione Python unica c'è in `ConfigView`; FreeType è attivo in `lv_conf.h` |
-
-**Il quadro d'insieme è più interessante delle singole**: `OPEN_QUESTIONS.md` **deriva dal codice**
-e nessuna guardia lo copre. Tre schede su nove descrivevano un codice che non esiste più, e due di
-quelle avrebbero portato a decidere su premesse false. È lo stesso difetto che stanotte ha colpito
-le guardie (tre non potevano passare) e i conteggi in prosa (`31/32`, «nove guardie», «le otto»):
-**informazione scritta una volta e mai più confrontata con la realtà**.
-
-Q20, Q21, Q22 e Q24 hanno il corpo che dice «fatto» e l'intestazione che dice ancora «Aperta».
-**Da chiudere dal maintainer**, non da me.
-
-> **Una guardia che ho valutato e deciso di NON scrivere.** Vista la deriva, ho misurato i 1167
-> riferimenti a file nei documenti per capire se valesse una guardia che verifica che i percorsi
-> citati esistano. Ne risultavano 99 rotti; guardandoli, quasi tutti sono **abbreviazioni relative
-> ai crate** (`sws-core/src/project.rs` per `sws-runtime/crates/...`), e dei restanti quelli in
-> documenti vivi sono **legittimi**: `CONTEXT.md` cita un percorso *futuro* («questo file verrà
-> archiviato come…»), e `DEPLOY_CONTAINER_AARCH64.md` cita file cancellati *per dire che sono stati
-> cancellati*. Una guardia così avrebbe prodotto quasi solo falsi allarmi, e una guardia che grida
-> al lupo si spegne. **Non scritta**, e scritto qui perché nessuno rifaccia l'analisi.
-
-#### Questioni istruite (non decise)
-
-- **Q28** (grafico a barre, due scale): nel repo esistono **due soli** `bar_chart` e nessuno dei due
-  dichiara una scala, quindi la divergenza che conta è quella dei **valori predefiniti**. Ora è
-  **misurata sui pixel**: stessa pagina, stessi valori 20/45/30, disegnata dal browser e dal motore
-  LVGL con `--istantanea` — barre di **130/292/195 px** contro **61/138/92**, più del doppio.
-  Il *rapporto* fra le barre però coincide, perché entrambe le scale partono da zero: chi confronta
-  le barre fra loro legge la stessa cosa, chi legge «quanto è pieno» legge due cose diverse. La
-  scelta è su quale delle due domande il grafico debba rispondere. E qualunque lettura vinca,
-  **anche il default deve coincidere** — cosa che la scheda non chiedeva.
-- **Q22** (sparkline che fa crashare LVGL): verificato che la decisione del 2026-08-25 è **già
-  implementata** — la patch `0001-init-x_ext_buf_assigned.patch` esiste e `check_vendor_patches.sh`
-  la copre. Resta solo la verifica sul pannello prima di togliere la toppa in `chart_add_series`.
-- **Q24** (font senza lettere accentate): la scheda dice ancora «Aperta» ma il corpo dichiara
-  *Decided (2026-08-27)* e *fatto e provato sul WP630*. **Da chiudere dal maintainer**, non da me.
-- **Q31** (chat e runtime remoto): **era invecchiata**, ed è la più importante delle tre. Il 404 non
-  c'è più, il pannello avvisa già, e soprattutto **la premessa del rischio peggiore era sbagliata**:
-  con un runtime remoto collegato l'umano modifica comunque il progetto **locale**, quindi
-  l'assistente che legge il locale legge quello giusto. La scheda ora riformula cosa resta aperto.
-- **Q17** (ricette senza controllo di ruolo): descrizione ancora esatta. Aggiunto che **nessun
-  template contiene ricette**, quindi niente la esercita — e chi deciderà dovrà anche scrivere il
-  progetto di prova che oggi non esiste.
-- **Q14**: il «31/32 tipi» è invecchiato — `SUPPORTED_TYPES` ne elenca **35** e `image` è dentro.
-  **Q16** invece regge: i decoder raster sono spenti in `lv_conf.h`, verificato.
-
-### ▶ `fix/editor-pannello-minori` — i tre difetti minori: **fatti, da confermare a schermo**
-
-Ramo `fix/editor-pannello-minori`, tre commit sopra `main`, non mergiato. Erano stati trovati
-durante l'analisi di T-52 e tenuti fuori di proposito.
-
-| | Commit | Cosa |
-|---|---|---|
-| F2 | `01feb55` | il backend DRM non va più in panic se pagina e display differiscono |
-| F6 | `34bbaac` | le frecce della tastiera muovono anche le pipe |
-| F8 | `2e4ed09` | la miniatura delle pagine segue il tema |
-
-**F2** era un panic vero: `frame_buf` dimensionato sulla **pagina**, `flush_rgb888` che iterava
-sulle misure del **display**. Ora si copia l'intersezione alla posizione che `page_offset` già
-calcola per il backend SDL2 — che questo caso lo gestiva **già**, e la divergenza fra i due
-backend costava un crash. La decisione sta in `ritaglio()`, funzione pura con sei casi provati:
-il difetto stava lì, e lì si prova senza un framebuffer vero.
-
-**F6**: la traslazione vive ora in `translateObject` (`pageLayout.ts`), non dentro un gestore di
-tastiera. Due scelte deliberate, scritte accanto alla funzione: i `points` si traslano **senza
-snap** (una freccia è un passo da un pixel, riallineare alla griglia vanificherebbe il gesto) e
-**senza trattenimento al bordo** (la resistenza di T-52 è una proprietà del trascinamento; la
-freccia è anche il modo preciso di parcheggiare un oggetto fuori dal foglio).
-
-**F8** verificato a misura, non a occhio — pagina `#ffffff` / `background_dark: #101820`:
-
-    tema chiaro   foglio rgb(255,255,255)   bande rgb(248,250,252)
-    tema scuro    foglio rgb(16,24,32)      bande rgb(15,23,42)
-
-La misura è stata fatta con uno script usa e getta e **non è stata committata come guardia**: è
-una proprietà visiva di tre righe e il repo ha già ventisei guardie da tenere in vita. Se la
-classe di difetti si ripresenta, si riscrive in dieci minuti sul modello di `check_soft_edge.sh`.
-
-Verifica: `pnpm build`; **170 test** editor; `cargo check --workspace --all-targets`;
-`cargo test --workspace` **447 passati** (erano 441); **11 guardie statiche** verdi;
-`check_wysiwyg.sh` verde.
-
-**Da guardare a schermo prima del merge**: caso **3.15a** di `TESTING_GUIDE.md` (una freccia con
-una pipe selezionata la muove davvero, e una linea si sposta con tutti e due gli estremi); la
-miniatura di una pagina con `background_dark` diverso, col tema commutato; e F2, che vuole un
-avvio `--backend drm` con pagina e display di misura diversa — l'unico dei tre che **non** ho
-potuto provare, perché non ho un framebuffer DRM qui.
-
-Nota sul piano di T-52, che su F6 aveva previsto male: diceva che il fix avrebbe riusato
-`objectBBox`. Serviva per un clamp che T-52 ha tolto — l'attesa era giusta, la ragione no.
-
-#### Due cose sull'ambiente di questa macchina
-
-1. **La configurazione git era ancora `katodo <mauro.soligo@katodo.com>`**, cioè l'identità che il
-   `filter-branch` del 2026-08-31 ha tolto da tutta la storia. Corretta a livello di **repo**;
-   il `--global` no. Su una macchina nuova va controllata prima del primo commit.
-2. **`pnpm --dir sws-editor <cmd>` non funziona qui**: corepack legge il pin `pnpm@9.15.0` di
-   `sws-editor/package.json` mentre gira col 11.1.2 e rifiuta, senza fare niente. Funziona
-   `cd sws-editor && pnpm <cmd>`. `CLAUDE.md` cita ancora la prima forma.
+1. **Il push**, quando lo si vuole: `git push origin main` (quattro commit) e i tag di archivio
+   `git push origin archivio/scada-f6 archivio/scada-f7` se li si vuole al sicuro anche su GitHub.
+2. **I rami su origin non sono stati toccati** — cancellarli è un push, e serve un'istruzione
+   esplicita:
+   ```bash
+   git push origin --delete feat/T-50-chat-ai feat/T-52-limite-pagina-morbido \
+       feat/lvgl-gap feat/editor-runtime-chiarezza feat/chat-staccata-e-python \
+       fix/sws-display-path-loop
+   ```
+3. **Le schermate del manuale** mostrano ancora il canvas di prima di T-52: vanno rifatte dalla
+   macchina che ha il progetto `demo-manual`.
+4. **F2 non è mai stato provato sul vetro**: vuole un avvio `--backend drm` con pagina e display di
+   misura diversa. La matematica ha sei casi provati, il comportamento no.
 
 ### ▶ Punto di partenza — chiusura del 2026-09-04
 
